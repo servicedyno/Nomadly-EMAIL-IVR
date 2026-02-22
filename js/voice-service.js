@@ -618,9 +618,9 @@ async function handleOutboundSipCall(payload) {
   const rawTo = payload.to || ''
   const rawFrom = payload.from || ''
 
-  // Safety: If this is not a SIP-originated call (no sip: prefix in from),
-  // it's likely a transfer leg or API-originated call — don't treat as SIP outbound
-  const isSipOriginated = rawFrom.startsWith('sip:')
+  // Detect SIP-originated calls: check for sip: prefix OR @ in from field (user@domain format)
+  // Transfer legs and API-originated calls use phone numbers (+1234...) without @
+  const isSipOriginated = rawFrom.startsWith('sip:') || rawFrom.includes('@')
   if (!isSipOriginated) {
     log(`[Voice] Outbound call from ${rawFrom} to ${rawTo} — not SIP-originated, ignoring (likely transfer leg)`)
     return
@@ -632,12 +632,12 @@ async function handleOutboundSipCall(payload) {
     destination = rawTo.replace('sip:', '').split('@')[0].replace(/[^+\d]/g, '')
   }
 
-  // Parse SIP username from the 'from' field: sip:sc_abc123@domain → sc_abc123
+  // Parse SIP username from the 'from' field: sip:user@domain or user@domain → user
   let sipUsername = rawFrom
-  if (rawFrom.startsWith('sip:')) {
-    sipUsername = rawFrom.replace('sip:', '').split('@')[0]
+  if (rawFrom.includes('@')) {
+    sipUsername = rawFrom.replace(/^sip:/, '').split('@')[0]
   }
-  // Also try cleaning as phone number in case from is a phone
+  // Also try cleaning as phone number in case from contains a number
   const fromClean = rawFrom.replace(/[^+\d]/g, '')
 
   log(`[Voice] Outbound SIP: from=${sipUsername} to=${destination} (${callControlId})`)
@@ -647,9 +647,7 @@ async function handleOutboundSipCall(payload) {
   if (!chatId || !num) {
     log(`[Voice] Outbound SIP: No owner found for SIP user ${sipUsername}, rejecting`)
     try {
-      await _telnyxApi.answerCall(callControlId)
-      await _telnyxApi.speakOnCall(callControlId, 'SIP credentials not recognized.')
-      setTimeout(() => _telnyxApi.hangupCall(callControlId), 3000)
+      await _telnyxApi.hangupCall(callControlId)
     } catch (e) { log(`[Voice] Reject error: ${e.message}`) }
     return
   }
@@ -658,10 +656,9 @@ async function handleOutboundSipCall(payload) {
   if (num.status !== 'active') {
     log(`[Voice] Outbound SIP: Number ${num.phoneNumber} is ${num.status}, rejecting`)
     try {
-      await _telnyxApi.answerCall(callControlId)
-      await _telnyxApi.speakOnCall(callControlId, 'This number is no longer in service.')
-      setTimeout(() => _telnyxApi.hangupCall(callControlId), 3000)
+      await _telnyxApi.hangupCall(callControlId)
     } catch (e) { log(`[Voice] Reject error: ${e.message}`) }
+    _bot?.sendMessage(chatId, `🚫 <b>Outbound Call Blocked</b>\n📞 ${formatPhone(num.phoneNumber)} → ${formatPhone(destination)}\nReason: Number is ${num.status}. Please renew or contact support.`, { parse_mode: 'HTML' }).catch(() => {})
     return
   }
 
@@ -672,9 +669,7 @@ async function handleOutboundSipCall(payload) {
       const { usdBal } = await getBalance(_walletOf, chatId)
       if (usdBal < sipRate) {
         log(`[Voice] Outbound SIP: Plan exhausted + wallet too low ($${usdBal}) for ${num.phoneNumber}`)
-        await _telnyxApi.answerCall(callControlId)
-        await _telnyxApi.speakOnCall(callControlId, 'Insufficient balance for outbound calls. Please top up your wallet or upgrade your plan.')
-        setTimeout(() => _telnyxApi.hangupCall(callControlId), 4000)
+        await _telnyxApi.hangupCall(callControlId)
         _bot?.sendMessage(chatId, `🚫 <b>SIP Call Blocked</b> — Plan exhausted + Wallet $${usdBal.toFixed(2)} (need $${sipRate}/min ${isUSCanada(destination) ? 'US/CA' : 'Intl'}).\nTop up via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
         return
       }
@@ -703,9 +698,8 @@ async function handleOutboundSipCall(payload) {
   if (num.provider === 'twilio') {
     if (!_twilioSipDomain) {
       log(`[Voice] Outbound SIP (Twilio): No Twilio SIP domain available, rejecting`)
-      await _telnyxApi.answerCall(callControlId)
-      await _telnyxApi.speakOnCall(callControlId, 'Outbound calling is temporarily unavailable. Please try again later.')
-      setTimeout(() => _telnyxApi.hangupCall(callControlId), 4000)
+      await _telnyxApi.hangupCall(callControlId)
+      _bot?.sendMessage(chatId, `🚫 <b>Outbound Call Failed</b>\n📞 ${formatPhone(num.phoneNumber)} → ${formatPhone(destination)}\nReason: Outbound calling is temporarily unavailable. Please try again later.`, { parse_mode: 'HTML' }).catch(() => {})
       return
     }
 
@@ -728,9 +722,6 @@ async function handleOutboundSipCall(payload) {
     // Auto-expire bridge after 60s to prevent memory leaks
     setTimeout(() => { delete pendingBridges[bridgeId] }, 60000)
 
-    // Answer the Telnyx SIP leg and transfer to Twilio SIP
-    await _telnyxApi.answerCall(callControlId)
-
     // Store session for tracking
     activeCalls[callControlId] = {
       chatId,
@@ -743,7 +734,8 @@ async function handleOutboundSipCall(payload) {
       bridgeId,
     }
 
-    // Short delay to ensure answer is processed, then transfer to Twilio SIP
+    // For outbound SIP calls, skip answerCall — SIP leg is already live
+    // Transfer directly to Twilio SIP domain for PSTN bridging
     setTimeout(async () => {
       try {
         const sipUri = `sip:${bridgeId}@${_twilioSipDomain}`
@@ -751,11 +743,11 @@ async function handleOutboundSipCall(payload) {
         await _telnyxApi.transferCall(callControlId, sipUri, num.phoneNumber)
       } catch (e) {
         log(`[Voice] Transfer to Twilio SIP failed: ${e.message}`)
-        await _telnyxApi.speakOnCall(callControlId, 'Call routing failed. Please try again.')
-        setTimeout(() => _telnyxApi.hangupCall(callControlId), 3000)
+        await _telnyxApi.hangupCall(callControlId).catch(() => {})
+        _bot?.sendMessage(chatId, `🚫 <b>Outbound Call Failed</b>\n📞 ${formatPhone(num.phoneNumber)} → ${formatPhone(destination)}\nReason: Call routing failed. Please try again.`, { parse_mode: 'HTML' }).catch(() => {})
         delete pendingBridges[bridgeId]
       }
-    }, 500)
+    }, 200)
 
     // Notify user
     if (_walletOf) {
