@@ -1,0 +1,820 @@
+/* global process */
+require('dotenv').config()
+const axios = require('axios')
+const { log } = require('console')
+
+const CF_BASE_URL = 'https://api.cloudflare.com/client/v4'
+const CF_EMAIL = process.env.CLOUDFLARE_EMAIL
+const CF_API_KEY = process.env.CLOUDFLARE_API_KEY
+
+const cfHeaders = () => ({
+  'X-Auth-Email': CF_EMAIL,
+  'X-Auth-Key': CF_API_KEY,
+  'Content-Type': 'application/json',
+})
+
+// ─── Connection ─────────────────────────────────────────
+
+const testConnection = async () => {
+  try {
+    if (!CF_EMAIL || !CF_API_KEY) return { success: false, message: 'Cloudflare credentials not configured' }
+    const res = await axios.get(`${CF_BASE_URL}/user`, { headers: cfHeaders(), timeout: 10000 })
+    if (res.data?.success) return { success: true, email: res.data.result?.email }
+    return { success: false, message: 'Cloudflare API auth failed' }
+  } catch (err) {
+    return { success: false, message: err.message }
+  }
+}
+
+// ─── Nameservers ────────────────────────────────────────
+
+const getAccountNameservers = async () => {
+  try {
+    const res = await axios.get(`${CF_BASE_URL}/zones`, {
+      headers: cfHeaders(), params: { per_page: 1 }, timeout: 10000,
+    })
+    if (res.data?.success && res.data.result?.length > 0) {
+      const ns = res.data.result[0].name_servers
+      if (ns && ns.length >= 2) return ns
+    }
+    return ['anderson.ns.cloudflare.com', 'leanna.ns.cloudflare.com']
+  } catch (err) {
+    log('CF getAccountNameservers error:', err.message)
+    return ['anderson.ns.cloudflare.com', 'leanna.ns.cloudflare.com']
+  }
+}
+
+// ─── Zone management ────────────────────────────────────
+
+const createZone = async (domainName) => {
+  try {
+    const existing = await getZoneByName(domainName)
+    if (existing) {
+      log(`CF zone already exists for ${domainName}`)
+      return {
+        success: true,
+        zoneId: existing.id,
+        nameservers: existing.name_servers || [],
+        status: existing.status,
+      }
+    }
+
+    const res = await axios.post(`${CF_BASE_URL}/zones`, {
+      name: domainName, type: 'full',
+    }, { headers: cfHeaders(), timeout: 30000 })
+
+    if (res.data?.success) {
+      const zone = res.data.result
+      log(`CF zone created for ${domainName}`)
+      return {
+        success: true,
+        zoneId: zone.id,
+        nameservers: zone.name_servers || [],
+        status: zone.status,
+      }
+    }
+
+    // "already exists" error
+    const errors = res.data?.errors || []
+    for (const err of errors) {
+      if (err.code === 1061) {
+        const existing2 = await getZoneByName(domainName)
+        if (existing2) {
+          return {
+            success: true,
+            zoneId: existing2.id,
+            nameservers: existing2.name_servers || [],
+            status: existing2.status,
+          }
+        }
+      }
+    }
+
+    return { success: false, errors }
+  } catch (err) {
+    log('CF createZone error:', err.message)
+    return { success: false, errors: [{ message: err.message }] }
+  }
+}
+
+const getZoneByName = async (domainName) => {
+  try {
+    const res = await axios.get(`${CF_BASE_URL}/zones`, {
+      headers: cfHeaders(), params: { name: domainName }, timeout: 10000,
+    })
+    if (res.data?.success && res.data.result?.length > 0) return res.data.result[0]
+    return null
+  } catch (err) {
+    log('CF getZoneByName error:', err.message)
+    return null
+  }
+}
+
+const deleteZone = async (zoneId) => {
+  try {
+    const res = await axios.delete(`${CF_BASE_URL}/zones/${zoneId}`, {
+      headers: cfHeaders(), timeout: 10000,
+    })
+    if (res.data?.success) return { success: true }
+    return { success: false }
+  } catch (err) {
+    if (err.response?.status === 404) return { success: true }
+    log('CF deleteZone error:', err.message)
+    return { success: false }
+  }
+}
+
+// ─── DNS record CRUD ────────────────────────────────────
+
+const listDNSRecords = async (zoneId, recordType) => {
+  try {
+    const params = {}
+    if (recordType) params.type = recordType
+    const res = await axios.get(`${CF_BASE_URL}/zones/${zoneId}/dns_records`, {
+      headers: cfHeaders(), params, timeout: 10000,
+    })
+    if (res.data?.success) return res.data.result || []
+    return []
+  } catch (err) {
+    log('CF listDNSRecords error:', err.message)
+    return []
+  }
+}
+
+const createDNSRecord = async (zoneId, recordType, name, content, ttl = 300, proxied = false, priority, extraData) => {
+  try {
+    const type = recordType.toUpperCase()
+    let data = { type, name, content, ttl, proxied }
+    if (type === 'MX' && priority !== undefined) data.priority = Number(priority)
+    // SRV uses a structured data object in Cloudflare API
+    if (type === 'SRV' && extraData) {
+      data = {
+        type: 'SRV',
+        name,
+        data: {
+          service: extraData.service || '',
+          proto: extraData.proto || '_tcp',
+          name: extraData.srvName || name,
+          priority: Number(extraData.priority || 10),
+          weight: Number(extraData.weight || 100),
+          port: Number(extraData.port || 0),
+          target: content,
+        },
+        ttl,
+      }
+    }
+    // CAA uses a structured data object in Cloudflare API
+    if (type === 'CAA' && extraData) {
+      data = {
+        type: 'CAA',
+        name,
+        data: {
+          flags: Number(extraData.flags || 0),
+          tag: extraData.tag || 'issue',
+          value: content,
+        },
+        ttl,
+      }
+    }
+    const res = await axios.post(`${CF_BASE_URL}/zones/${zoneId}/dns_records`, data, {
+      headers: cfHeaders(), timeout: 10000,
+    })
+    if (res.data?.success) return { success: true, record: res.data.result }
+    return { success: false, errors: res.data?.errors || [] }
+  } catch (err) {
+    // 81057 = "Record already exists" — not an error, just skip
+    const cfErrors = err.response?.data?.errors || []
+    const alreadyExists = cfErrors.some(e => e.code === 81057)
+    if (alreadyExists) return { success: true, alreadyExists: true }
+    log('CF createDNSRecord error:', err.message)
+    return { success: false, errors: [{ message: err.message }] }
+  }
+}
+
+const updateDNSRecord = async (zoneId, recordId, recordType, name, content, ttl = 300, proxied = false) => {
+  try {
+    const data = { type: recordType.toUpperCase(), name, content, ttl, proxied }
+    const res = await axios.put(`${CF_BASE_URL}/zones/${zoneId}/dns_records/${recordId}`, data, {
+      headers: cfHeaders(), timeout: 10000,
+    })
+    if (res.data?.success) return { success: true, record: res.data.result }
+    return { success: false, errors: res.data?.errors || [] }
+  } catch (err) {
+    log('CF updateDNSRecord error:', err.message)
+    return { success: false, errors: [{ message: err.message }] }
+  }
+}
+
+const deleteDNSRecord = async (zoneId, recordId) => {
+  try {
+    const res = await axios.delete(`${CF_BASE_URL}/zones/${zoneId}/dns_records/${recordId}`, {
+      headers: cfHeaders(), timeout: 10000,
+    })
+    if (res.data?.success) return { success: true }
+    return { success: false, errors: res.data?.errors || [] }
+  } catch (err) {
+    log('CF deleteDNSRecord error:', err.message)
+    return { success: false, errors: [{ message: err.message }] }
+  }
+}
+
+// ─── Default DNS records ────────────────────────────────
+
+/**
+ * Create default DNS records for a domain: A record @ + www CNAME
+ */
+const createDefaultDNSRecords = async (zoneId, domainName, serverIP, recordType = 'A') => {
+  const results = []
+
+  // Root record (A or CNAME)
+  const rootResult = await createDNSRecord(zoneId, recordType, domainName, serverIP, 300, false)
+  results.push({ type: `root-${recordType}`, ...rootResult })
+
+  // www CNAME pointing to root
+  if (recordType === 'A') {
+    const wwwResult = await createDNSRecord(zoneId, 'CNAME', `www.${domainName}`, domainName, 300, false)
+    results.push({ type: 'www-CNAME', ...wwwResult })
+  } else if (recordType === 'CNAME') {
+    const wwwResult = await createDNSRecord(zoneId, 'CNAME', `www.${domainName}`, serverIP, 300, false)
+    results.push({ type: 'www-CNAME', ...wwwResult })
+  }
+
+  const allSuccess = results.every(r => r.success)
+  return { success: allSuccess, results }
+}
+
+/**
+ * Create hosting DNS records for a cPanel domain on Cloudflare
+ * Sets up A records, MX, mail, cpanel, webmail, webdisk subdomains
+ * @param {string} zoneId - Cloudflare zone ID
+ * @param {string} domainName - Domain name
+ * @param {string} serverIP - WHM server IP
+ */
+const createHostingDNSRecords = async (zoneId, domainName, serverIP) => {
+  const results = []
+
+  // Web: root A record (proxied for CDN + DDoS protection)
+  results.push({ type: 'root-A', ...(await createDNSRecord(zoneId, 'A', domainName, serverIP, 1, true)) })
+
+  // Web: www A record (proxied)
+  results.push({ type: 'www-A', ...(await createDNSRecord(zoneId, 'A', `www.${domainName}`, serverIP, 1, true)) })
+
+  // Mail: A record (DNS only — mail can't go through CF proxy)
+  results.push({ type: 'mail-A', ...(await createDNSRecord(zoneId, 'A', `mail.${domainName}`, serverIP, 300, false)) })
+
+  // MX record for email
+  results.push({ type: 'MX', ...(await createDNSRecord(zoneId, 'MX', domainName, `mail.${domainName}`, 300, false, 10)) })
+
+  // cPanel access (DNS only — needs direct connection)
+  results.push({ type: 'cpanel-A', ...(await createDNSRecord(zoneId, 'A', `cpanel.${domainName}`, serverIP, 300, false)) })
+
+  // Webmail access (DNS only)
+  results.push({ type: 'webmail-A', ...(await createDNSRecord(zoneId, 'A', `webmail.${domainName}`, serverIP, 300, false)) })
+
+  // Webdisk access (DNS only)
+  results.push({ type: 'webdisk-A', ...(await createDNSRecord(zoneId, 'A', `webdisk.${domainName}`, serverIP, 300, false)) })
+
+  const allSuccess = results.every(r => r.success)
+  const failCount = results.filter(r => !r.success).length
+  if (failCount > 0) {
+    log(`[CF Hosting] ${domainName}: ${results.length - failCount}/${results.length} DNS records created`)
+  } else {
+    log(`[CF Hosting] ${domainName}: All ${results.length} DNS records created`)
+  }
+  return { success: allSuccess, results }
+}
+
+/**
+ * Set Cloudflare SSL mode for a zone to Full (Strict)
+ */
+const setSSLMode = async (zoneId, mode = 'full') => {
+  try {
+    const res = await axios.patch(`${CF_BASE_URL}/zones/${zoneId}/settings/ssl`, {
+      value: mode,
+    }, { headers: cfHeaders(), timeout: 10000 })
+    return res.data?.success || false
+  } catch (err) {
+    log('CF setSSLMode error:', err.message)
+    return false
+  }
+}
+
+/**
+ * Enable HTTPS enforcement for a zone:
+ * - Always Use HTTPS (301 redirect HTTP -> HTTPS)
+ * - HSTS (Strict-Transport-Security header)
+ * - Automatic HTTPS Rewrites (fix mixed content)
+ */
+const enforceHTTPS = async (zoneId) => {
+  const headers = cfHeaders()
+  const results = {}
+  try {
+    // Always Use HTTPS
+    const r1 = await axios.patch(`${CF_BASE_URL}/zones/${zoneId}/settings/always_use_https`,
+      { value: 'on' }, { headers, timeout: 10000 })
+    results.alwaysHTTPS = r1.data?.success || false
+
+    // HSTS
+    const r2 = await axios.patch(`${CF_BASE_URL}/zones/${zoneId}/settings/security_header`,
+      { value: { strict_transport_security: { enabled: true, max_age: 15552000, include_subdomains: true, preload: false, nosniff: true } } },
+      { headers, timeout: 10000 })
+    results.hsts = r2.data?.success || false
+
+    // Auto HTTPS Rewrites
+    const r3 = await axios.patch(`${CF_BASE_URL}/zones/${zoneId}/settings/automatic_https_rewrites`,
+      { value: 'on' }, { headers, timeout: 10000 })
+    results.autoRewrites = r3.data?.success || false
+
+    log(`[CF] HTTPS enforcement enabled for zone ${zoneId}:`, results)
+    return results
+  } catch (err) {
+    log('CF enforceHTTPS error:', err.message)
+    return { error: err.message }
+  }
+}
+
+// ─── Firewall / Geo-blocking ────────────────────────────
+
+/**
+ * List all firewall rules for a zone
+ */
+const listFirewallRules = async (zoneId) => {
+  try {
+    const res = await axios.get(`${CF_BASE_URL}/zones/${zoneId}/firewall/rules`, {
+      headers: cfHeaders(), timeout: 10000,
+    })
+    if (res.data?.success) return res.data.result || []
+    return []
+  } catch (err) {
+    log('CF listFirewallRules error:', err.message)
+    return []
+  }
+}
+
+/**
+ * Create a geo-blocking firewall rule
+ * @param {string} zoneId
+ * @param {string[]} countryCodes - ISO 3166-1 alpha-2 codes (e.g. ['US','GB'])
+ * @param {'block'|'allow'} mode - 'block' = block listed countries, 'allow' = allow only listed countries
+ * @param {string} description
+ */
+const createGeoRule = async (zoneId, countryCodes, mode = 'block', description = '') => {
+  try {
+    const codes = countryCodes.map(c => `ip.geoip.country eq "${c.toUpperCase()}"`).join(' or ')
+    // block mode: if country in list → block
+    // allow mode: if country NOT in list → block (whitelist)
+    const expression = mode === 'allow'
+      ? `not (${codes})`
+      : `(${codes})`
+    const action = 'block'
+
+    // First create the filter
+    const filterRes = await axios.post(`${CF_BASE_URL}/zones/${zoneId}/filters`, [{
+      expression,
+      description: description || `Geo-${mode}: ${countryCodes.join(', ')}`,
+    }], { headers: cfHeaders(), timeout: 15000 })
+
+    if (!filterRes.data?.success) {
+      return { success: false, errors: filterRes.data?.errors || [] }
+    }
+    const filterId = filterRes.data.result[0]?.id
+    if (!filterId) return { success: false, errors: [{ message: 'Failed to create filter' }] }
+
+    // Then create the firewall rule referencing the filter
+    const ruleRes = await axios.post(`${CF_BASE_URL}/zones/${zoneId}/firewall/rules`, [{
+      filter: { id: filterId },
+      action,
+      description: description || `Geo-${mode}: ${countryCodes.join(', ')}`,
+      priority: 1,
+    }], { headers: cfHeaders(), timeout: 15000 })
+
+    if (ruleRes.data?.success) {
+      return { success: true, rule: ruleRes.data.result[0] }
+    }
+    return { success: false, errors: ruleRes.data?.errors || [] }
+  } catch (err) {
+    log('CF createGeoRule error:', err.message)
+    return { success: false, errors: [{ message: err.message }] }
+  }
+}
+
+/**
+ * Delete a firewall rule (and its associated filter)
+ */
+const deleteFirewallRule = async (zoneId, ruleId) => {
+  try {
+    const res = await axios.delete(`${CF_BASE_URL}/zones/${zoneId}/firewall/rules/${ruleId}`, {
+      headers: cfHeaders(), timeout: 10000,
+    })
+    if (res.data?.success) return { success: true }
+    return { success: false, errors: res.data?.errors || [] }
+  } catch (err) {
+    log('CF deleteFirewallRule error:', err.message)
+    return { success: false, errors: [{ message: err.message }] }
+  }
+}
+
+// ─── Zone Analytics ─────────────────────────────────────
+
+/**
+ * Get visitor analytics for a zone (last N days)
+ * Uses Cloudflare GraphQL Analytics API
+ * Returns unique visitors, total requests, bandwidth, threats blocked
+ */
+const getZoneAnalytics = async (zoneId, days = 30) => {
+  try {
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    const until = new Date().toISOString().split('T')[0]
+
+    const query = `{
+      viewer {
+        zones(filter: {zoneTag: "${zoneId}"}) {
+          httpRequests1dGroups(limit: ${days + 1}, filter: {date_geq: "${since}", date_leq: "${until}"}, orderBy: [date_ASC]) {
+            dimensions { date }
+            sum { requests pageViews bytes threats }
+            uniq { uniques }
+          }
+        }
+      }
+    }`
+
+    const res = await axios.post(`${CF_BASE_URL}/graphql`, { query }, {
+      headers: cfHeaders(),
+      timeout: 15000,
+    })
+
+    const zones = res.data?.data?.viewer?.zones || []
+    const groups = zones[0]?.httpRequests1dGroups || []
+
+    if (groups.length === 0) {
+      return { success: true, totals: { requests: 0, uniqueVisitors: 0, bandwidth: 0, threats: 0, pageviews: 0 }, timeseries: [], days }
+    }
+
+    let totalReq = 0, totalVisitors = 0, totalBytes = 0, totalThreats = 0, totalPV = 0
+    const timeseries = groups.map(g => {
+      totalReq += g.sum?.requests || 0
+      totalVisitors += g.uniq?.uniques || 0
+      totalBytes += g.sum?.bytes || 0
+      totalThreats += g.sum?.threats || 0
+      totalPV += g.sum?.pageViews || 0
+      return {
+        since: g.dimensions?.date,
+        until: g.dimensions?.date,
+        requests: g.sum?.requests || 0,
+        uniqueVisitors: g.uniq?.uniques || 0,
+        bandwidth: g.sum?.bytes || 0,
+        threats: g.sum?.threats || 0,
+        pageviews: g.sum?.pageViews || 0,
+      }
+    })
+
+    return {
+      success: true,
+      totals: {
+        requests: totalReq,
+        uniqueVisitors: totalVisitors,
+        bandwidth: totalBytes,
+        threats: totalThreats,
+        pageviews: totalPV,
+      },
+      timeseries,
+      days,
+    }
+  } catch (err) {
+    log('CF getZoneAnalytics error:', err.message)
+    return { success: false, totals: null, timeseries: [], error: err.message }
+  }
+}
+
+// Known bot/scanner user-agent fragments
+const BOT_UA_FRAGMENTS = [
+  'bot', 'crawl', 'spider', 'scan', 'check', 'monitor', 'feed', 'fetch',
+  'curl/', 'wget/', 'python-requests', 'go-http-client', 'java/', 'perl/',
+  'ruby/', 'php/', 'libwww', 'lwp-', 'nutch', 'scrapy', 'httpclient',
+  'googlebot', 'bingbot', 'yandex', 'baiduspider', 'duckduckbot', 'slurp',
+  'facebookexternalhit', 'twitterbot', 'linkedinbot', 'whatsapp', 'telegrambot',
+  'applebot', 'semrush', 'ahrefs', 'mj12bot', 'dotbot', 'petalbot',
+  'googlesafebrowsing', 'safebrowsing', 'phishtank', 'netcraft', 'virustotal',
+  'urlscan', 'sucuri', 'norton', 'smartscreen', 'clamav', 'sophos',
+  'kaspersky', 'eset', 'avast', 'bitdefender', 'fortiguard', 'comodo',
+  'malwarebytes', 'palo alto', 'censys', 'shodan', 'zmeu', 'nmap', 'nikto',
+  'sqlmap', 'masscan', 'zgrab', 'nuclei', 'httpx', 'binaryedge',
+  'securitytrails', 'l9scan', 'l9explore', 'let\'s encrypt',
+  '{user_agent}', 'siteadvisor',
+]
+
+function classifyUA(ua) {
+  if (!ua || ua === '?') return 'bot'
+  const lower = ua.toLowerCase()
+  for (const frag of BOT_UA_FRAGMENTS) {
+    if (lower.includes(frag)) return 'bot'
+  }
+  return 'human'
+}
+
+/**
+ * Get detailed zone analytics with breakdowns by host, path, country, status, UA
+ */
+const getDetailedZoneAnalytics = async (zoneId, days = 7) => {
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  const until = new Date().toISOString().split('T')[0]
+  // Adaptive groups have 24h max range — use last 24h for breakdowns
+  const adaptiveSince = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+  const adaptiveUntil = new Date().toISOString()
+
+  try {
+    // Run queries in parallel: daily totals + adaptive groups for breakdowns
+    const [dailyRes, hostRes, pathRes, uaRes] = await Promise.all([
+      // 1. Daily totals with country + status breakdown
+      axios.post(`${CF_BASE_URL}/graphql`, {
+        query: `{ viewer { zones(filter: {zoneTag: "${zoneId}"}) {
+          httpRequests1dGroups(limit: ${days + 1}, filter: {date_geq: "${since}", date_leq: "${until}"}, orderBy: [date_ASC]) {
+            dimensions { date }
+            sum { requests pageViews bytes threats
+              countryMap { clientCountryName requests threats }
+              responseStatusMap { edgeResponseStatus requests }
+            }
+            uniq { uniques }
+          }
+        }}}`,
+      }, { headers: cfHeaders(), timeout: 20000 }),
+
+      // 2. Per-host breakdown (last 24h)
+      axios.post(`${CF_BASE_URL}/graphql`, {
+        query: `{ viewer { zones(filter: {zoneTag: "${zoneId}"}) {
+          httpRequestsAdaptiveGroups(limit: 50, filter: {datetime_geq: "${adaptiveSince}", datetime_leq: "${adaptiveUntil}"}, orderBy: [count_DESC]) {
+            dimensions { clientRequestHTTPHost }
+            count
+          }
+        }}}`,
+      }, { headers: cfHeaders(), timeout: 15000 }),
+
+      // 3. Top paths (last 24h)
+      axios.post(`${CF_BASE_URL}/graphql`, {
+        query: `{ viewer { zones(filter: {zoneTag: "${zoneId}"}) {
+          httpRequestsAdaptiveGroups(limit: 30, filter: {datetime_geq: "${adaptiveSince}", datetime_leq: "${adaptiveUntil}"}, orderBy: [count_DESC]) {
+            dimensions { clientRequestPath edgeResponseStatus }
+            count
+          }
+        }}}`,
+      }, { headers: cfHeaders(), timeout: 15000 }),
+
+      // 4. Top user-agents (last 24h)
+      axios.post(`${CF_BASE_URL}/graphql`, {
+        query: `{ viewer { zones(filter: {zoneTag: "${zoneId}"}) {
+          httpRequestsAdaptiveGroups(limit: 50, filter: {datetime_geq: "${adaptiveSince}", datetime_leq: "${adaptiveUntil}"}, orderBy: [count_DESC]) {
+            dimensions { userAgent }
+            count
+          }
+        }}}`,
+      }, { headers: cfHeaders(), timeout: 15000 }),
+    ])
+
+    // Parse daily totals
+    const dailyZones = dailyRes.data?.data?.viewer?.zones || []
+    const dailyGroups = dailyZones[0]?.httpRequests1dGroups || []
+
+    let totalReq = 0, totalVisitors = 0, totalBytes = 0, totalThreats = 0, totalPV = 0
+    const countryAgg = {}
+    const statusAgg = {}
+
+    const timeseries = dailyGroups.map(g => {
+      totalReq += g.sum?.requests || 0
+      totalVisitors += g.uniq?.uniques || 0
+      totalBytes += g.sum?.bytes || 0
+      totalThreats += g.sum?.threats || 0
+      totalPV += g.sum?.pageViews || 0
+
+      for (const c of (g.sum?.countryMap || [])) {
+        countryAgg[c.clientCountryName] = (countryAgg[c.clientCountryName] || { requests: 0, threats: 0 })
+        countryAgg[c.clientCountryName].requests += c.requests
+        countryAgg[c.clientCountryName].threats += c.threats
+      }
+      for (const s of (g.sum?.responseStatusMap || [])) {
+        statusAgg[s.edgeResponseStatus] = (statusAgg[s.edgeResponseStatus] || 0) + s.requests
+      }
+
+      return {
+        date: g.dimensions?.date,
+        requests: g.sum?.requests || 0,
+        uniqueVisitors: g.uniq?.uniques || 0,
+        bandwidth: g.sum?.bytes || 0,
+        threats: g.sum?.threats || 0,
+        pageviews: g.sum?.pageViews || 0,
+      }
+    })
+
+    // Parse per-host breakdown
+    const hostZones = hostRes.data?.data?.viewer?.zones || []
+    const hostGroups = hostZones[0]?.httpRequestsAdaptiveGroups || []
+    const hostMap = {}
+    for (const g of hostGroups) {
+      const host = g.dimensions?.clientRequestHTTPHost || 'unknown'
+      hostMap[host] = (hostMap[host] || 0) + g.count
+    }
+    const byHost = Object.entries(hostMap)
+      .map(([host, requests]) => ({ host, requests }))
+      .sort((a, b) => b.requests - a.requests)
+
+    // Parse top paths
+    const pathZones = pathRes.data?.data?.viewer?.zones || []
+    const pathGroups = pathZones[0]?.httpRequestsAdaptiveGroups || []
+    const pathMap = {}
+    for (const g of pathGroups) {
+      const path = g.dimensions?.clientRequestPath || '/'
+      const status = g.dimensions?.edgeResponseStatus || 0
+      if (!pathMap[path]) pathMap[path] = { requests: 0, statuses: {} }
+      pathMap[path].requests += g.count
+      pathMap[path].statuses[status] = (pathMap[path].statuses[status] || 0) + g.count
+    }
+    const topPaths = Object.entries(pathMap)
+      .map(([path, data]) => ({ path, requests: data.requests, statuses: data.statuses }))
+      .sort((a, b) => b.requests - a.requests)
+      .slice(0, 20)
+
+    // Parse user-agents + classify bot/human
+    const uaZones = uaRes.data?.data?.viewer?.zones || []
+    const uaGroups = uaZones[0]?.httpRequestsAdaptiveGroups || []
+    let botRequests = 0, humanRequests = 0
+    const topUserAgents = []
+    for (const g of uaGroups) {
+      const ua = g.dimensions?.userAgent || ''
+      const type = classifyUA(ua)
+      if (type === 'bot') botRequests += g.count
+      else humanRequests += g.count
+      topUserAgents.push({ userAgent: ua || '(empty)', requests: g.count, type })
+    }
+    topUserAgents.sort((a, b) => b.requests - a.requests)
+
+    // Country breakdown sorted
+    const byCountry = Object.entries(countryAgg)
+      .map(([country, data]) => ({ country, requests: data.requests, threats: data.threats }))
+      .sort((a, b) => b.requests - a.requests)
+
+    // Status code breakdown sorted
+    const byStatus = Object.entries(statusAgg)
+      .map(([status, requests]) => ({ status: parseInt(status), requests }))
+      .sort((a, b) => b.requests - a.requests)
+
+    return {
+      success: true,
+      days,
+      totals: {
+        requests: totalReq,
+        uniqueVisitors: totalVisitors,
+        bandwidth: totalBytes,
+        threats: totalThreats,
+        pageviews: totalPV,
+      },
+      trafficQuality: {
+        estimatedHuman: humanRequests,
+        estimatedBot: botRequests,
+        botPercentage: totalReq > 0 ? Math.round((botRequests / (botRequests + humanRequests)) * 100) : 0,
+      },
+      timeseries,
+      byHost,
+      byCountry,
+      byStatus,
+      topPaths,
+      topUserAgents: topUserAgents.slice(0, 20),
+    }
+  } catch (err) {
+    log('CF getDetailedZoneAnalytics error:', err.message)
+    return { success: false, error: err.message }
+  }
+}
+
+/**
+ * Check if a domain's nameservers point to Cloudflare
+ */
+const checkZoneNSStatus = async (zoneId) => {
+  try {
+    const res = await axios.get(`${CF_BASE_URL}/zones/${zoneId}`, {
+      headers: cfHeaders(), timeout: 10000,
+    })
+    if (res.data?.success) {
+      const zone = res.data.result
+      return {
+        success: true,
+        status: zone.status, // 'active', 'pending', 'moved', etc.
+        nameservers: zone.name_servers || [],
+        originalNameservers: zone.original_name_servers || [],
+      }
+    }
+    return { success: false, status: 'unknown', nameservers: [] }
+  } catch (err) {
+    log('CF checkZoneNSStatus error:', err.message)
+    return { success: false, status: 'unknown', nameservers: [] }
+  }
+}
+
+// ─── Security Settings (Anti-Bot) ───────────────────────
+
+/**
+ * Get current security settings for a zone
+ */
+const getSecuritySettings = async (zoneId) => {
+  const settings = {}
+  const keys = ['security_level', 'browser_check', 'challenge_ttl', 'email_obfuscation', 'server_side_exclude', 'hotlink_protection']
+  for (const key of keys) {
+    try {
+      const res = await axios.get(`${CF_BASE_URL}/zones/${zoneId}/settings/${key}`, { headers: cfHeaders(), timeout: 10000 })
+      if (res.data?.success) settings[key] = res.data.result?.value
+    } catch (_) {}
+  }
+  return settings
+}
+
+/**
+ * Set a single zone setting
+ */
+const setZoneSetting = async (zoneId, setting, value) => {
+  try {
+    const res = await axios.patch(`${CF_BASE_URL}/zones/${zoneId}/settings/${setting}`, {
+      value,
+    }, { headers: cfHeaders(), timeout: 10000 })
+    return res.data?.success || false
+  } catch (err) {
+    log(`CF setZoneSetting(${setting}) error:`, err.message)
+    return false
+  }
+}
+
+/**
+ * Apply an anti-bot profile to a zone
+ * Profiles: 'off', 'low', 'medium', 'high', 'under_attack'
+ */
+const setAntiBotProfile = async (zoneId, profile = 'medium') => {
+  const profiles = {
+    off:          { security_level: 'essentially_off', browser_check: 'off', email_obfuscation: 'off', hotlink_protection: 'off' },
+    low:          { security_level: 'low',             browser_check: 'on',  email_obfuscation: 'on',  hotlink_protection: 'off' },
+    medium:       { security_level: 'medium',          browser_check: 'on',  email_obfuscation: 'on',  hotlink_protection: 'on'  },
+    high:         { security_level: 'high',            browser_check: 'on',  email_obfuscation: 'on',  hotlink_protection: 'on'  },
+    under_attack: { security_level: 'under_attack',    browser_check: 'on',  email_obfuscation: 'on',  hotlink_protection: 'on'  },
+  }
+  const p = profiles[profile] || profiles.medium
+  const results = {}
+  for (const [key, val] of Object.entries(p)) {
+    results[key] = await setZoneSetting(zoneId, key, val)
+  }
+  log(`[CF AntiBot] Zone ${zoneId} → profile "${profile}"`, results)
+  return { success: Object.values(results).every(Boolean), results, profile }
+}
+
+/**
+ * Create anti-bot WAF rules (block known bad bots by user-agent)
+ */
+const createAntiBotRules = async (zoneId) => {
+  const badBots = [
+    'AhrefsBot', 'SemrushBot', 'DotBot', 'MJ12bot',
+    'BLEXBot', 'SeznamBot', 'LinkpadBot', 'Sogou',
+    'PetalBot', 'Bytespider', 'GPTBot',
+  ]
+  const expression = badBots.map(b => `http.user_agent contains "${b}"`).join(' or ')
+  try {
+    const filterRes = await axios.post(`${CF_BASE_URL}/zones/${zoneId}/filters`, [{
+      expression: `(${expression})`,
+      description: 'Anti-Bot: Block known bad crawlers',
+    }], { headers: cfHeaders(), timeout: 15000 })
+    if (!filterRes.data?.success) return { success: false }
+    const filterId = filterRes.data.result[0]?.id
+    if (!filterId) return { success: false }
+    const ruleRes = await axios.post(`${CF_BASE_URL}/zones/${zoneId}/firewall/rules`, [{
+      filter: { id: filterId },
+      action: 'block',
+      description: 'Anti-Bot: Block known bad crawlers',
+      priority: 2,
+    }], { headers: cfHeaders(), timeout: 15000 })
+    return { success: ruleRes.data?.success || false, rule: ruleRes.data?.result?.[0] }
+  } catch (err) {
+    log('CF createAntiBotRules error:', err.message)
+    return { success: false, error: err.message }
+  }
+}
+
+module.exports = {
+  testConnection,
+  getAccountNameservers,
+  createZone,
+  getZoneByName,
+  listDNSRecords,
+  createDNSRecord,
+  updateDNSRecord,
+  deleteDNSRecord,
+  deleteZone,
+  createDefaultDNSRecords,
+  createHostingDNSRecords,
+  setSSLMode,
+  enforceHTTPS,
+  listFirewallRules,
+  createGeoRule,
+  deleteFirewallRule,
+  getZoneAnalytics,
+  getDetailedZoneAnalytics,
+  checkZoneNSStatus,
+  // Anti-Bot
+  getSecuritySettings,
+  setZoneSetting,
+  setAntiBotProfile,
+  createAntiBotRules,
+}
