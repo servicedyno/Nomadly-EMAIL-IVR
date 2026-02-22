@@ -1160,7 +1160,6 @@ async function handleCallHangup(payload) {
   // ── UNIFIED BILLING: plan minutes → overage at destination-based rate ──
   const minutesBilled = duration > 0 ? Math.ceil(duration / 60) : 0
   const isForwarded = session.phase === 'forwarding' || session.phase === 'ivr_forward'
-  const isOutbound = session.direction === 'outgoing'
 
   // Skip billing for Twilio bridge legs — Twilio handles billing via /twilio/voice-status
   const isTwilioBridge = session.phase === 'outbound_twilio_bridge'
