@@ -5,52 +5,53 @@
 2. Investigate Railway deployment logs for phone number +18777000068
 3. Fix SIP credentials "unauthorized" error for user johngambino
 4. Fix bug where user's support message didn't reach admin bot
+5. Fix underlying code bug: SIP credentials mismatch (local vs Telnyx-generated)
+6. Add admin notification safety net for fallen-through support messages
 
 ## Architecture
-- **Application**: Node.js Telegram bot (running on Railway)
+- **Application**: Node.js Telegram bot (`tg-bot-link-shorten`)
+- **Repo**: Moxxcompany/NomadlyPhoneCloud (branch: WHM-Setup)
 - **Database**: MongoDB on Railway (`caboose.proxy.rlwy.net:59668`)
 - **Telephony**: Telnyx (SIP, Voice, SMS) + Twilio (SIP domains, backup)
 - **SIP Proxy**: `sip.speechcue.com` → Telnyx (192.76.120.10 = sip.telnyx.com)
 - **Pod URL**: https://setup-wizard-113.preview.emergentagent.com
 
-## What's Been Implemented (Feb 22, 2026)
+## What's Been Implemented
 
-### Session 1: Environment Setup
+### Session 1: Environment Setup (Feb 22, 2026)
 - 144 environment variables configured in backend `.env`
 - SELF_URL set to current pod URL with /api
 
-### Session 2: Bug Investigation & Fixes
+### Session 2: Bug Investigation & Data Fixes (Feb 22, 2026)
+- Updated MongoDB SIP credentials for +18777000068 and +18556820054 with correct Telnyx values
+- Created Twilio SIP credential in credential list CLfe5ba0b48274412e6e953eb58901c9ce
 
-#### Bug 1: SIP "Unauthorized" - FIXED
-**Root Cause**: The app creates Telnyx telephony credentials via API, but stores locally-generated usernames/passwords in MongoDB instead of the actual Telnyx-generated ones.
-- MongoDB had: `sipUsername: sc_n1779q`, `sipPassword: OS7d3X1R7pkVPdRV`
-- Telnyx actual: `sip_username: gencredkJZwdIwtDlUIepwmvF54J61vk58v9TBhVG2t3aIFSP`, `sip_password: 97cf928f8b564277927d441f7a4b4453`
-- `sip.speechcue.com` resolves to Telnyx SIP (192.76.120.10), NOT Twilio (54.172.60.1)
-- **Fix Applied**: Updated MongoDB `phoneNumbersOf` collection with correct Telnyx credentials for both numbers:
-  - +18777000068 (user 817673476 / johngambino)
-  - +18556820054 (user 5168006768)
-- Also created Twilio SIP credential (as backup) in credential list CLfe5ba0b48274412e6e953eb58901c9ce
+### Session 3: Code Fixes (Feb 22, 2026)
+**File changed**: `js/_index.js` (60 insertions, 20 deletions)
 
-#### Bug 2: Support Message Not Reaching Admin - DIAGNOSED
-**Root Cause**: User typed `/done` at 23:03:54 closing support session. Admin then replied at 23:05:16 with `/reply 817673476`. Message was delivered to user, but session wasn't re-opened. When user responded at 23:06:08 ("When I input my sip credentials..."), the bot treated it as a regular command (matched "SIP" keyword → showed CloudPhone menu) instead of forwarding to admin.
-- Session state in MongoDB: `supportSessions._id: 817673476, val: 0` (closed)
-- Bot state: `action: "none"` (default menu state)
-- **Code Fix Needed**: The `/reply` command handler should re-open the support session when admin replies to a closed session. This requires access to the Node.js source code.
+#### Fix 1: SIP Credentials — Use Telnyx API Response (4 locations)
+- **Line 566-579**: Twilio purchase with dual SIP — now captures `telnyxCred` response and uses `sip_username`/`sip_password` from Telnyx
+- **Line 3509-3518**: Telnyx purchase (main wallet flow) — same fix
+- **Line 11616-11626**: Bank NGN Telnyx purchase — same fix
+- **Line 9740-9765**: SIP password reset — uses Telnyx-returned credentials, updates username if changed
 
-## Key Findings
-- Railway deployment: `34ec6022-77f2-4695-8b01-2a9410d72149` (SUCCESS, Feb 22 2026)
-- App: `tg-bot-link-shorten@1.0.0`, entry: `node js/start-bot.js`
-- Telnyx SIP Connection: 2898118323872990714
-- Twilio SIP Domain: speechcue-7937a0.sip.twilio.com (SDdb6525d35a1f09e4d1dfc19a2128ed96)
-- 3 Telnyx SIP credentials found, all with auto-generated usernames (not matching MongoDB)
+#### Fix 2: Support Session Re-open on Admin `/reply` (Line 1156-1165)
+- `/reply` handler now re-opens the support session (`supportSessions` + `state.action = 'supportChat'`)
+- Also shows `/done` keyboard to user when admin replies
+
+#### Fix 3: Fallback Admin Notification (Line 10811-10823)
+- When unrecognized message comes from a user with a support session within the last hour
+- Forwards the message to admin with "Missed support message" alert
+- Re-opens the session automatically
+- User gets confirmation message with `/done` keyboard
 
 ## Prioritized Backlog
-- **P0**: Fix source code to store actual Telnyx SIP credentials instead of locally-generated ones (affects all future phone purchases)
-- **P0**: Fix `/reply` command to re-open support session when admin replies after user closes session
-- **P1**: Migrate Nomadly bot codebase to Emergent pod
-- **P2**: Update all webhook URLs from Railway to Emergent pod
-- **P3**: Clean up Twilio SIP credential lists (inconsistent data)
+- P0: Deploy code changes to Railway (push to GitHub → auto-deploy)
+- P1: Verify SIP credentials work for johngambino after code deploy
+- P2: Clean up orphaned Telnyx credentials (auto-generated ones that don't match any number)
+- P3: Migrate full app to Emergent pod
 
 ## Next Tasks
-- Need access to the Node.js source code to fix the credential generation bug and support session bug
-- User should test SIP with updated credentials (view "SIP Credentials" in bot for updated username)
+- Push code changes to GitHub (use "Save to Github" feature)
+- Railway will auto-deploy from WHM-Setup branch
+- Verify the fix with a test phone number purchase
