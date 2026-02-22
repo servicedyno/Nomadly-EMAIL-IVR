@@ -605,8 +605,20 @@ async function handleCallInitiated(payload) {
     }
   }, 60000)
 
-  // Answer the call
-  await _telnyxApi.answerCall(callControlId)
+  // Answer the call — may fail if Telnyx misroutes an outbound call as incoming
+  try {
+    await _telnyxApi.answerCall(callControlId)
+  } catch (answerErr) {
+    const errMsg = answerErr?.response?.data?.errors?.[0]?.detail || answerErr?.message || ''
+    if (errMsg.includes('outbound call')) {
+      log(`[Voice] answerCall failed (outbound call routed as incoming) — redirecting to outbound handler`)
+      await handleOutboundSipCall(payload)
+      return
+    }
+    log(`[Voice] answerCall error for ${to}: ${errMsg}`)
+    delete activeCalls[callControlId]
+    return
+  }
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1134,8 +1146,16 @@ async function handleCallHangup(payload) {
   session._hangupProcessed = true
 
   const duration = payload.duration_secs || 0
+  const hangupCause = payload.hangup_cause || payload.sip_hangup_cause || 'unknown'
+  const hangupSource = payload.hangup_source || 'unknown'
   const { chatId, num, from, to } = session
   const time = new Date().toLocaleString()
+
+  // Log hangup details for all calls (helps diagnose outbound drops)
+  const isOutbound = session.direction === 'outgoing'
+  if (isOutbound) {
+    log(`[Voice] Outbound call hangup: ${from} → ${to}, duration=${duration}s, cause=${hangupCause}, source=${hangupSource}`)
+  }
 
   // ── UNIFIED BILLING: plan minutes → overage at destination-based rate ──
   const minutesBilled = duration > 0 ? Math.ceil(duration / 60) : 0
@@ -1202,7 +1222,8 @@ async function handleCallHangup(payload) {
       }
       delete pendingNativeTransfers[callControlId]
     } else {
-      const msg = `📞 <b>SIP Call Ended</b>\n\n📞 From: ${formatPhone(from)}\n📲 To: ${formatPhone(to)}\n⏱️ ${formatDuration(duration)}\n${planLine}\n🕐 ${time}`
+      const hangupInfo = hangupCause !== 'unknown' ? `\n🔍 Cause: ${hangupCause}` : ''
+      const msg = `📞 <b>SIP Call Ended</b>\n\n📞 From: ${formatPhone(from)}\n📲 To: ${formatPhone(to)}\n⏱️ ${formatDuration(duration)}\n${planLine}${hangupInfo}\n🕐 ${time}`
       _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
     }
     logEvent(from, to, 'outbound_sip', duration)

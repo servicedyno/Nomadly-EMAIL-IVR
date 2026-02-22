@@ -412,11 +412,29 @@ async function initializeTelnyxResources(selfUrl) {
       log('Created SIP Connection:', sipConnectionId)
     }
   } else {
-    // Always update SIP connection webhook to current URL
+    // Always update SIP connection webhook to current URL and ensure outbound profile is linked
     try {
-      await axios.patch(`${BASE}/credential_connections/${sipConnectionId}`, {
-        webhook_event_url: voiceWebhook,
-      }, { headers: headers() })
+      const connRes = await axios.get(`${BASE}/credential_connections/${sipConnectionId}`, { headers: headers() })
+      const currentOutboundProfileId = connRes.data?.data?.outbound?.outbound_voice_profile_id
+      const patchBody = { webhook_event_url: voiceWebhook }
+
+      // Ensure outbound voice profile is linked (required for SIP outbound calls to reach PSTN)
+      if (!currentOutboundProfileId) {
+        try {
+          const profiles = await axios.get(`${BASE}/outbound_voice_profiles`, { headers: headers() })
+          const active = (profiles.data?.data || []).find(p => p.enabled)
+          if (active) {
+            patchBody.outbound = { outbound_voice_profile_id: active.id }
+            log(`[Telnyx] Linking outbound voice profile ${active.id} to SIP connection`)
+          } else {
+            log('[Telnyx] WARNING: No active outbound voice profile found — outbound SIP calls will fail!')
+          }
+        } catch (e) {
+          log('[Telnyx] Error fetching outbound voice profiles:', e.message)
+        }
+      }
+
+      await axios.patch(`${BASE}/credential_connections/${sipConnectionId}`, patchBody, { headers: headers() })
       log('Updated SIP Connection webhook:', sipConnectionId)
     } catch (e) {
       log('SIP Connection webhook update error:', e.response?.data?.errors?.[0]?.detail || e.message)
