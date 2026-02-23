@@ -66,16 +66,32 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state)
           const cfNameservers = zone.nameservers || []
           if (cfNameservers.length >= 2) {
             try {
-              const nsResult = await opService.updateNameservers(domain, cfNameservers)
+              // Determine registrar and update NS at the correct provider
+              const registrar = info?.registrar || 'ConnectReseller'
+              const domainService = require('./domain-service')
+              const nsResult = await domainService.postRegistrationNSUpdate(domain, registrar, 'cloudflare', cfNameservers, info._db || null)
               if (nsResult.success) {
-                log(`[Hosting] Updated NS at OpenProvider for ${domain} → ${cfNameservers.join(', ')}`)
+                log(`[Hosting] Updated NS at ${registrar} for ${domain} → ${cfNameservers.join(', ')}`)
               } else {
-                log(`[Hosting] NS update at OpenProvider failed for ${domain}: ${nsResult.error || 'unknown'} (non-blocking)`)
+                log(`[Hosting] NS update at ${registrar} failed for ${domain}: ${nsResult.error || 'unknown'} (non-blocking)`)
               }
             } catch (nsErr) {
               log(`[Hosting] NS update error (non-blocking): ${nsErr.message}`)
             }
           }
+
+          // Store CF zone info in registeredDomains for Anti-Red cron and panel
+          try {
+            const { db: getDb } = require('./db')
+            const hostDb = info._db || getDb()
+            if (hostDb) {
+              await hostDb.collection('registeredDomains').updateOne(
+                { _id: domain },
+                { $set: { 'val.cfZoneId': zone.zoneId, 'val.nameservers': cfNameservers, 'val.nameserverType': 'cloudflare' } },
+                { upsert: false }
+              )
+            }
+          } catch (_) {}
         } else {
           log(`[Hosting] CF zone creation failed for ${domain}, DNS records skipped`)
         }
