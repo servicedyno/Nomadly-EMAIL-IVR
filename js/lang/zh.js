@@ -91,6 +91,7 @@ const user = {
   phoneNumberLeads: '🎯 购买线索 | 验证您的号码',
   hostingDomainsRedirect: '🌐 离岸托管',
   cloudPhone: '📞☁️ Cloud Phone + SIP',
+  testSip: '🧪 Test SIP Free',
   wallet: '👛 我的钱包',
   urlShortenerMain: `🔗✂️ URL 缩短器 - ${FREE_LINKS}次试用`,
   vpsPlans: '购买防弹 VPS🛡️ - 按小时/按月',
