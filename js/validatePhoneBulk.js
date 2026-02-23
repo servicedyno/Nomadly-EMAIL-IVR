@@ -6,6 +6,7 @@ const validatePhoneAlcazar = require('./validatePhoneAlcazar')
 const validatePhoneSignalwire = require('./validatePhoneSignalwire')
 const validatePhoneNpl = require('./validatePhoneNpl')
 const validatePhoneNeutrino = require('./validatePhoneNeutrino')
+const { lookupCnam } = require('./cnam-service')
 const { translation } = require('./translation')
 // const { validatePhoneTwilioV2 } = require('./validatePhoneTwilio')
 const TELEGRAM_ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID
