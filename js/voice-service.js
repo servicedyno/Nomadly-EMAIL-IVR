@@ -878,42 +878,44 @@ async function handleOutboundSipCall(payload) {
       }, maxMs)
     }
 
-    // Mid-call limit monitor for outbound SIP (same as inbound)
-    const minuteLimit = getMinuteLimit(num.plan)
-    const outboundSession = activeCalls[callControlId]
-    outboundSession._limitTimer = setInterval(async () => {
-      const sess = activeCalls[callControlId]
-      if (!sess) { clearInterval(outboundSession._limitTimer); return }
-      const elapsedSec = Math.floor((Date.now() - sess.startedAt.getTime()) / 1000)
-      const elapsedMin = Math.ceil(elapsedSec / 60)
-      const rate = getCallRate(destination)
-      if (minuteLimit !== Infinity) {
-        const projectedTotal = (num.minutesUsed || 0) + elapsedMin
-        if (projectedTotal >= minuteLimit) {
-          let canContinue = false
-          if (_walletOf) {
-            try {
-              const { usdBal } = await getBalance(_walletOf, chatId)
-              if (usdBal >= rate) {
-                canContinue = true
-                if (!sess._overageNotified) {
-                  sess._overageNotified = true
-                  _bot?.sendMessage(chatId, `💰 <b>Overage Active</b> — Plan minutes exhausted. $${rate}/min (${isUSCanada(destination) ? 'US/CA' : 'Intl'}) from wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+    // Mid-call limit monitor — skip for test calls (they have their own duration limiter)
+    if (!testCallInfo.isTestCall) {
+      const minuteLimit = getMinuteLimit(num.plan)
+      const outboundSession = activeCalls[callControlId]
+      outboundSession._limitTimer = setInterval(async () => {
+        const sess = activeCalls[callControlId]
+        if (!sess) { clearInterval(outboundSession._limitTimer); return }
+        const elapsedSec = Math.floor((Date.now() - sess.startedAt.getTime()) / 1000)
+        const elapsedMin = Math.ceil(elapsedSec / 60)
+        const rate = getCallRate(destination)
+        if (minuteLimit !== Infinity) {
+          const projectedTotal = (num.minutesUsed || 0) + elapsedMin
+          if (projectedTotal >= minuteLimit) {
+            let canContinue = false
+            if (_walletOf) {
+              try {
+                const { usdBal } = await getBalance(_walletOf, chatId)
+                if (usdBal >= rate) {
+                  canContinue = true
+                  if (!sess._overageNotified) {
+                    sess._overageNotified = true
+                    _bot?.sendMessage(chatId, `💰 <b>Overage Active</b> — Plan minutes exhausted. $${rate}/min (${isUSCanada(destination) ? 'US/CA' : 'Intl'}) from wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+                  }
                 }
-              }
-            } catch (e) { log(`[Voice] Mid-call overage error: ${e.message}`) }
-          }
-          if (!canContinue) {
-            log(`[Voice] Mid-call limit reached for outbound ${num.phoneNumber}: projected ${projectedTotal}/${minuteLimit} min. Disconnecting.`)
-            clearInterval(outboundSession._limitTimer)
-            sess._limitDisconnect = true
-            await _telnyxApi.hangupCall(callControlId).catch(() => {})
-            _bot?.sendMessage(chatId, `🚫 <b>Call Disconnected</b> — Plan minutes + wallet exhausted.\nTop up via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
-            return
+              } catch (e) { log(`[Voice] Mid-call overage error: ${e.message}`) }
+            }
+            if (!canContinue) {
+              log(`[Voice] Mid-call limit reached for outbound ${num.phoneNumber}: projected ${projectedTotal}/${minuteLimit} min. Disconnecting.`)
+              clearInterval(outboundSession._limitTimer)
+              sess._limitDisconnect = true
+              await _telnyxApi.hangupCall(callControlId).catch(() => {})
+              _bot?.sendMessage(chatId, `🚫 <b>Call Disconnected</b> — Plan minutes + wallet exhausted.\nTop up via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+              return
+            }
           }
         }
-      }
-    }, 60000)
+      }, 60000)
+    }
 
     // SIP calls through credential connection are auto-routed by Telnyx (state=bridging).
     // Only calls with SIP URI in 'from' (traditional SIP clients) need explicit transfer.
