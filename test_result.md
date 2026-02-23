@@ -106,6 +106,18 @@
 user_problem_statement: "Fix domain registration flows: (1) buyDomainOnline() hardcodes NS ignoring CF/custom, (2) WHM created before domain reg causing orphans, (3) double CF zone creation, (4) getAccountNameservers() returns generic NS, (5) unnecessary 60s sleep for post-reg NS update"
 
 backend:
+  - task: "Fix: URL shortener domains use Cloudflare NS + add CNAME to CF zone"
+    implemented: true
+    working: true
+    file: "js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Two changes: (1) Line 5695: shortener=Yes now sets nsChoice='cloudflare' instead of 'provider_default'. No NS question shown (already skipped). (2) buyDomainFullProcess DNS linking section: replaced CR/OP split with unified domainService.addDNSRecord() which auto-routes to CF when domain has nameserverType=cloudflare+cfZoneId. Removed 65s sleep (CF DNS is instant, uses 5s propagation delay). Added fallback to direct CR DNS add if domainService fails. Anti-Red auto-deploy at bottom already handles CF domains."
+
   - task: "Fix: buyDomainOnline() accept optional NS params"
     implemented: true
     working: true
