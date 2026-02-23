@@ -566,7 +566,7 @@ Select an option:`,
   sipCredentialsMsg: (number, username, domain) => `🔑 SIP Credentials for <b>${formatPhone(number)}</b>
 
 🌐 SIP Server: ${domain}
-👤 Username: ${username}
+👤 Username: <code>${username}</code>
 🔑 Password: ●●●●●●●●
 📡 Ports: 5060 (UDP/TCP) · 5061 (TLS)
 🎵 Codecs: G.711μ, G.711a, Opus`,
