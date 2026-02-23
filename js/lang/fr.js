@@ -613,14 +613,14 @@ ${CHAT_BOT_NAME}`,
   showDepositCryptoInfoPlan: (priceCrypto, tickerView, address, plan) =>
     `Veuillez envoyer ${priceCrypto} ${tickerView} à\n\n<code>${address}</code>
 
-Veuillez noter que les transactions cryptographiques peuvent prendre jusqu'à 30 minutes pour être complétées. Une fois la transaction confirmée, vous serez notifié immédiatement et votre plan ${plan} sera activé sans encombre.
+Les paiements crypto sont confirmés rapidement — généralement en quelques minutes. Une fois confirmé, vous serez notifié immédiatement et votre plan ${plan} sera activé sans encombre.
 
 Cordialement,
 ${CHAT_BOT_NAME}`,
   showDepositCryptoInfoDomain: (priceCrypto, tickerView, address, domain) =>
     `Veuillez envoyer ${priceCrypto} ${tickerView} à\n\n<code>${address}</code>
 
-Veuillez noter que les transactions cryptographiques peuvent prendre jusqu'à 30 minutes pour être complétées. Une fois la transaction confirmée, vous serez notifié immédiatement et votre domaine ${domain} sera activé sans encombre.
+Les paiements crypto sont confirmés rapidement — généralement en quelques minutes. Une fois confirmé, vous serez notifié immédiatement et votre domaine ${domain} sera activé sans encombre.
 
 Cordialement,
 ${CHAT_BOT_NAME}`,
@@ -628,7 +628,7 @@ ${CHAT_BOT_NAME}`,
   showDepositCryptoInfoLeads: (priceCrypto, tickerView, address, label) =>
     `Veuillez envoyer ${priceCrypto} ${tickerView} à\n\n<code>${address}</code>
 
-Veuillez noter que les transactions cryptographiques peuvent prendre jusqu'à 30 minutes pour être complétées. Une fois la transaction confirmée, vous serez notifié immédiatement et vos ${label} seront livrés.
+Les paiements crypto sont confirmés rapidement — généralement en quelques minutes. Une fois confirmé, vous serez notifié immédiatement et vos ${label} seront livrés.
 
 Cordialement,
 ${CHAT_BOT_NAME}`,
@@ -636,16 +636,16 @@ ${CHAT_BOT_NAME}`,
   showDepositCryptoInfoPhone: (priceCrypto, tickerView, address, phoneNumber) =>
     `Veuillez envoyer ${priceCrypto} ${tickerView} à\n\n<code>${address}</code>
 
-Veuillez noter que les transactions cryptographiques peuvent prendre jusqu'à 30 minutes pour être complétées. Une fois la transaction confirmée, vous serez notifié immédiatement et votre numéro Cloud Phone ${phoneNumber} sera activé.
+Les paiements crypto sont confirmés rapidement — généralement en quelques minutes. Une fois confirmé, vous serez notifié immédiatement et votre numéro Cloud Phone ${phoneNumber} sera activé.
 
 Cordialement,
 ${CHAT_BOT_NAME}`,
 
   showDepositCryptoInfoDigitalProduct: (priceCrypto, tickerView, address, product) =>
-    `Veuillez envoyer ${priceCrypto} ${tickerView} à\n\n<code>${address}</code>\n\nVotre commande pour <b>${product}</b> est en cours de traitement. Les transactions crypto peuvent prendre jusqu'à 30 minutes. Une fois confirmée, votre commande sera livrée dans <b>30 minutes</b>.\n\nCordialement,\n${CHAT_BOT_NAME}`,
+    `Veuillez envoyer ${priceCrypto} ${tickerView} à\n\n<code>${address}</code>\n\nVotre commande pour <b>${product}</b> est en cours de traitement. Les paiements crypto sont confirmés rapidement — généralement en quelques minutes. Une fois confirmé, votre commande sera livrée sous peu.\n\nCordialement,\n${CHAT_BOT_NAME}`,
 
   showDepositCryptoInfo: (priceCrypto, tickerView, address) =>
-    `Veuillez envoyer ${priceCrypto} ${tickerView} à\n\n<code>${address}</code>\n\nVeuillez noter que les transactions cryptographiques peuvent prendre jusqu'à 30 minutes pour être confirmées. Une fois la transaction confirmée, vous serez notifié rapidement et votre portefeuille sera mis à jour.\n\nCordialement,\n${CHAT_BOT_NAME}`,
+    `Veuillez envoyer ${priceCrypto} ${tickerView} à\n\n<code>${address}</code>\n\nLes paiements crypto sont confirmés rapidement — généralement en quelques minutes. Une fois confirmé, vous serez notifié rapidement et votre portefeuille sera mis à jour.\n\nCordialement,\n${CHAT_BOT_NAME}`,
 
   confirmationDepositMoney: (amount, usd) =>
     `Votre paiement de ${amount} ($${usd}) a été traité. Merci de nous avoir choisi.\nCordialement,\n${CHAT_BOT_NAME}`,
