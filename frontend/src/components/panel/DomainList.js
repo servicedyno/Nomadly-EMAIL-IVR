@@ -291,6 +291,9 @@ export default function DomainList() {
       <div className="dl-header">
         <h2>Domains</h2>
         <div className="dl-header-actions">
+          <button onClick={triggerAutoSSL} className="fm-btn fm-btn--ghost" data-testid="dl-autossl-btn" title="Issue/renew SSL certificates for all domains" disabled={autoSSLLoading}>
+            {autoSSLLoading ? 'Running...' : '🔒 Run AutoSSL'}
+          </button>
           <button onClick={fetchSSL} className="fm-btn fm-btn--ghost" data-testid="dl-refresh-ssl" title="Refresh SSL status" disabled={sslLoading}>
             {sslLoading ? 'Checking...' : 'Refresh SSL'}
           </button>
@@ -302,6 +305,14 @@ export default function DomainList() {
           </button>
         </div>
       </div>
+
+      {/* AutoSSL Result Banner */}
+      {autoSSLResult && (
+        <div className={`fm-${autoSSLResult.success ? 'success' : 'error'}`} data-testid="dl-autossl-result" style={{marginBottom: '0.5rem'}}>
+          {autoSSLResult.success ? '✅' : '❌'} {autoSSLResult.message}
+          {autoSSLResult.success && <span style={{marginLeft: '0.5rem', opacity: 0.7}}>(SSL status will refresh shortly)</span>}
+        </div>
+      )}
 
       {/* Cloudflare SSL Mode Indicator */}
       {cfSSLMode && (
