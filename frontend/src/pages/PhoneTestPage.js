@@ -364,9 +364,19 @@ const PhoneTestPage = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ otp: otpValue }),
       });
-      const text = await resp.text();
+
+      // Read response safely — clone first to avoid "Body is disturbed or locked" errors
       let data;
-      try { data = JSON.parse(text); } catch { data = { error: text }; }
+      try {
+        const text = await resp.clone().text();
+        data = JSON.parse(text);
+      } catch {
+        try {
+          data = await resp.json();
+        } catch {
+          data = { error: `Server error (${resp.status})` };
+        }
+      }
 
       if (!resp.ok || data.error) {
         const errorMsg = data.message || data.error || 'Invalid code';
