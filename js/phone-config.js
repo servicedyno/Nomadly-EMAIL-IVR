@@ -578,6 +578,11 @@ Select an option:`,
   sipReset: (password) => `✅ SIP password has been reset!\n\n🔑 New Password: <code>${password}</code>\n\n⚠️ Save this now. Update this password on all your SIP devices.`,
   softphoneGuide: (domain) => `📖 <b>SIP Setup Guide</b>
 
+<b>🌐 Browser (Easiest)</b>
+Make & receive calls directly in your browser:
+<a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>
+No sign-up or app install needed — just enter your SIP credentials.
+
 <b>Zoiper</b> (iOS / Android / Desktop)
 1. Download from App Store or Google Play
 2. Add Account → SIP
@@ -590,8 +595,7 @@ Server: <code>${domain}</code>
 Port: 5060 (UDP/TCP) or 5061 (TLS)
 DTMF: RFC 2833 · Codec: G.711μ
 
-🧪 <b>Test your setup online:</b>
-<a href="https://speechcue.com/phone/test">speechcue.com/phone/test</a>
+🧪 <b>Free test calls:</b>
 Send /testsip here to get your test code`,
 
   // Renew
