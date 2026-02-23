@@ -792,6 +792,12 @@ const loadData = async () => {
     log('[CloudPhone] CNAM Service initialized')
   }
 
+  // Initialize Lead Job Persistence
+  initLeadJobPersistence(db)
+
+  // Resume interrupted lead jobs from previous deployment
+  resumeInterruptedLeadJobs()
+
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // Scheduled auto-cleanup: reset stale user states every 6 hours
   // Users idle in a flow for >24h get reset to 'none' so they see fresh keyboards
