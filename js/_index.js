@@ -4419,7 +4419,6 @@ bot?.on('message', async msg => {
   // 123456
   if (action === a.proceedWithPaymentProcess) {
     if (message === t.back) return goto['hosting-pay']()
-    if (message === t.iHaveSentThePayment) return goto.iHaveSentThePayment()
   }
 
   // My Hosting Plans — entry point
