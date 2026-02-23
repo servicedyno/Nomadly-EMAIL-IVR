@@ -36,6 +36,10 @@ const PhoneTestPage = () => {
   const callStartRef = useRef(null);
   const audioRef = useRef(null);
 
+  // Incoming call state
+  const [incomingCall, setIncomingCall] = useState(null);
+  const [incomingCaller, setIncomingCaller] = useState('');
+
   const isTestMode = activeTab === 'test';
 
   const addLog = useCallback((msg, type = '') => {
