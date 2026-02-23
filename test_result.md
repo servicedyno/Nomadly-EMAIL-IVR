@@ -213,6 +213,30 @@ backend:
           agent: "main"
           comment: "Removed flawed try-answer-catch-redirect-to-outbound pattern from handleCallInitiated. With numbers on Call Control App, inbound and outbound calls are now cleanly separated."
 
+  - task: "Implement SIP device ringing for inbound calls"
+    implemented: true
+    working: true
+    file: "js/voice-service.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Added SIP device ringing via bridge approach. Inbound call → answer → create outbound to sip:username@sip.telnyx.com → bridge on answer → voicemail/forwarding/missed fallback on timeout. Uses activeBridgeTransfers with type=sip_ring for proper fallback handling."
+
+  - task: "Fix /phone/test 'Cannot GET' on Railway (Express 5 wildcard)"
+    implemented: true
+    working: true
+    file: "js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Express 5.2.1 requires named wildcard params. Changed app.get('*') to app.get('/{*splat}'). Verified /phone/test now serves React SPA correctly on both direct Express (5000) and FastAPI proxy (8001)."
+
 metadata:
   created_by: "main_agent"
   version: "2.0"
