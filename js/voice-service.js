@@ -669,31 +669,34 @@ async function handleOutboundSipCall(payload) {
   const connectionId = payload.connection_id || ''
 
   // Detect SIP-originated calls using multiple methods:
-  // 1. sip: prefix or @ in from field (SIP URI format — user dialing via SIP client)
-  // 2. connection_id matches our SIP Connection ID (Telnyx credential connection outbound)
-  // Transfer legs created by our own transfer/bridge commands will also have the same connection_id,
-  // so we must also check that this isn't an existing transfer leg.
+  // 1. sip: prefix or @ in from field (SIP URI format — user dialing via SIP client with URI)
+  // 2. connection_id matches our SIP Connection ID (Telnyx credential connection outbound —
+  //    from field will be phone number, not SIP URI)
   const sipConnectionId = process.env.TELNYX_SIP_CONNECTION_ID || ''
   const isSipByFromField = rawFrom.startsWith('sip:') || rawFrom.includes('@')
   const isSipByConnection = sipConnectionId && connectionId === sipConnectionId
   const fromClean = rawFrom.replace(/[^+\d]/g, '')
   const toClean = rawTo.replace(/[^+\d]/g, '')
 
-  // Check if this is a transfer leg we created (not a fresh SIP user call)
-  // Transfer legs will match an existing active session with the same phone number
-  const isTransferLeg = Object.values(activeCalls).some(sess =>
-    (sess.phase === 'outbound_telnyx' || sess.phase === 'forwarding' || sess.phase === 'ivr_forward') &&
-    (sess.num?.phoneNumber?.replace(/[^+\d]/g, '') === fromClean || sess.to === toClean)
-  )
-
-  const isSipOriginated = isSipByFromField || (isSipByConnection && !isTransferLeg)
+  // For connection_id based detection, check if we already have an active session
+  // that initiated a transfer to this destination (avoid double-processing transfer legs)
+  const isDuplicateSession = activeCalls[callControlId] !== undefined
+  
+  const isSipOriginated = isSipByFromField || isSipByConnection
 
   if (!isSipOriginated) {
-    log(`[Voice] Outbound call from ${rawFrom} to ${rawTo} (conn=${connectionId}, isTransfer=${isTransferLeg}) — not SIP user call, ignoring`)
+    log(`[Voice] Outbound call from ${rawFrom} to ${rawTo} (conn=${connectionId}) — not on SIP connection, ignoring`)
     return
   }
 
-  log(`[Voice] SIP call detected: byFromField=${isSipByFromField}, byConnection=${isSipByConnection}, isTransfer=${isTransferLeg}, connection_id=${connectionId}`)
+  if (isDuplicateSession) {
+    log(`[Voice] Outbound SIP: Already tracking call ${callControlId}, skipping duplicate`)
+    return
+  }
+
+  // Determine if Telnyx auto-routed this call (state=bridging means already routing)
+  const isAutoRouted = isSipByConnection && !isSipByFromField
+  log(`[Voice] SIP call detected: byFromField=${isSipByFromField}, byConnection=${isSipByConnection}, autoRouted=${isAutoRouted}, connection_id=${connectionId}`)
 
   // Parse destination number from SIP URI: sip:+1234567890@domain → +1234567890
   let destination = rawTo.replace(/[^+\d]/g, '')
