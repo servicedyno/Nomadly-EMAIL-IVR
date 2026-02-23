@@ -228,7 +228,7 @@ Resell our full suite — ${services.join(', ')} — under your brand.
   yesProceedWithThisEmail: email => `Proceed with ${email}`,
   skipEmail: 'Skip (no email)',
   proceedWithPayment: 'Proceed with Payment',
-  iHaveSentThePayment: `I Have Sent the Payment ✅`,
+  iHaveSentThePayment: `✅ Check Payment Status`,
   // Free Plan
   trialAlreadyUsed: `You have already utilized your free trial. If you need more access, please consider subscribing to one of our paid plans.`,
   oneHourLeftToExpireTrialPlan: `Your Freedom Plan will expire in 1 hour. If you’d like to continue using our services, consider upgrading to a paid plan!`,
