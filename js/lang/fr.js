@@ -1317,7 +1317,7 @@ Veuillez transférer ${priceCrypto} ${tickerView} à l’adresse suivante :
   
 <code>${address}</code>
   
-Veuillez noter que les transactions en crypto-monnaie peuvent prendre jusqu'à 30 minutes pour être confirmées. Une fois la transaction confirmée, vous serez immédiatement notifié, et votre ${plan} sera activé en toute transparence.
+Veuillez noter que les paiements crypto sont confirmés rapidement — généralement en quelques minutes. Une fois la transaction confirmée, vous serez immédiatement notifié, et votre ${plan} sera activé en toute transparence.
   
 Cordialement,
 ${CHAT_BOT_NAME}`,
