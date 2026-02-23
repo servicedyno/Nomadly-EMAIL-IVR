@@ -1747,7 +1747,7 @@ ${
   showDepositCryptoInfoVpsUpgrade: (priceCrypto, tickerView, address) =>
     `请将 ${priceCrypto} ${tickerView} 转账到\n\n<code>${address}</code>
 
-请注意，加密交易可能需要最多30分钟才能完成。交易确认后，您将立即收到通知，您的新VPS计划将无缝激活。
+加密支付确认速度很快——通常只需几分钟。交易确认后，您将立即收到通知，您的新VPS计划将无缝激活。
 
 此致敬礼，
 ${CHAT_BOT_NAME}`,
