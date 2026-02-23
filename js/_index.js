@@ -12962,7 +12962,14 @@ app.post('/dynopay/crypto-pay-upgrade-vps', authDyno, async (req, res) => {
 
   // Update Wallet
   const ticker = tickerViewOfDyno[coin]
-  const usdIn = await convert(value, ticker , 'usd')
+  const baseAmount_u = req.body.base_amount
+  const feePayer_u = req.body.fee_payer
+  let usdIn
+  if (baseAmount_u && feePayer_u === 'company') {
+    usdIn = parseFloat(baseAmount_u)
+  } else {
+    usdIn = await convert(value, ticker , 'usd')
+  }
   if (usdIn * 1.06 < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
     addFundsTo(walletOf, chatId, 'usd', Number(usdIn), lang)
