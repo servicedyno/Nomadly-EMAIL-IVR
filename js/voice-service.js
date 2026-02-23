@@ -361,6 +361,57 @@ async function handleBridgeTransferHangup(payload) {
 
   // If destination never answered (no_answer, busy, timeout), notify user
   if (transfer.phase !== 'bridged') {
+    // Special handling for SIP ring: DON'T hang up original leg — fall through to voicemail/forwarding/missed
+    if (transfer.type === 'sip_ring') {
+      const origSession = activeCalls[transfer.originalCallControlId]
+      if (origSession) {
+        const vm = transfer.vmConfig
+        const fwd = transfer.fwdConfig
+
+        // Try forwarding on no_answer (if configured)
+        if (fwd?.enabled && fwd.forwardTo && fwd.mode === 'no_answer') {
+          origSession.phase = 'forwarding'
+          origSession.forwardingRate = CALL_FORWARDING_RATE_MIN
+          log(`[Voice] SIP no answer → forwarding to ${fwd.forwardTo}`)
+          await playHoldMusicAndTransfer(transfer.originalCallControlId, fwd.forwardTo, transfer.fromNumber, fwd)
+        }
+        // Try voicemail (if configured and plan allows)
+        else if (vm?.enabled && canAccessFeature(transfer.num.plan, 'voicemail')) {
+          origSession.phase = 'voicemail_greeting'
+          log(`[Voice] SIP no answer → playing voicemail for ${transfer.num.phoneNumber}`)
+          if (vm.greetingType === 'custom' && vm.customAudioGreetingUrl) {
+            try {
+              const axios = require('axios')
+              await axios.post(`https://api.telnyx.com/v2/calls/${transfer.originalCallControlId}/actions/playback_start`, {
+                audio_url: vm.customAudioGreetingUrl,
+              }, {
+                headers: { 'Authorization': `Bearer ${process.env.TELNYX_API_KEY}`, 'Content-Type': 'application/json' }
+              })
+            } catch (e) {
+              const fallback = vm.customGreetingText || `The person at ${formatPhone(transfer.num.phoneNumber)} is unavailable. Please leave a message after the tone.`
+              await _telnyxApi.speakOnCall(transfer.originalCallControlId, fallback)
+            }
+          } else {
+            const greeting = vm.greetingType === 'custom' && vm.customGreetingText
+              ? vm.customGreetingText
+              : `The person at ${formatPhone(transfer.num.phoneNumber)} is unavailable. Please leave a message after the tone.`
+            await _telnyxApi.speakOnCall(transfer.originalCallControlId, greeting)
+          }
+        }
+        // No forwarding or voicemail — missed call
+        else {
+          origSession.phase = 'missed'
+          log(`[Voice] SIP no answer → missed call for ${transfer.num.phoneNumber}`)
+          await _telnyxApi.speakOnCall(transfer.originalCallControlId, 'The person you are calling is currently unavailable. Please try again later.')
+          setTimeout(() => _telnyxApi.hangupCall(transfer.originalCallControlId), 4000)
+          notifyUser(transfer.chatId, transfer.num, 'missed', origSession)
+        }
+      }
+      delete activeBridgeTransfers[callControlId]
+      return true
+    }
+
+    // Regular bridge transfer failure — notify user
     const parentSession = outboundIvrCalls[transfer.originalCallControlId] || activeCalls[transfer.originalCallControlId]
     if (parentSession) {
       const chatId = parentSession.chatId
