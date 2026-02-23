@@ -3544,14 +3544,12 @@ bot?.on('message', async msg => {
 
         sipUsername = phoneConfig.generateSipUsername()
         sipPassword = phoneConfig.generateSipPassword()
-        let telnyxSipUsername = null
-        let telnyxSipPassword = null
         if (telnyxResources.sipConnectionId) {
           const telnyxCred = await telnyxApi.createSIPCredential(telnyxResources.sipConnectionId, sipUsername, sipPassword)
           if (telnyxCred?.sip_username) {
-            telnyxSipUsername = telnyxCred.sip_username
-            telnyxSipPassword = telnyxCred.sip_password
-            log(`[CloudPhone] Telnyx SIP credential created: ${telnyxSipUsername} (user PIN: ${sipUsername})`)
+            sipUsername = telnyxCred.sip_username
+            sipPassword = telnyxCred.sip_password
+            log(`[CloudPhone] Telnyx SIP credential created: ${sipUsername}`)
           }
         }
 
@@ -3572,8 +3570,6 @@ bot?.on('message', async msg => {
           autoRenew: true,
           status: 'active',
           sipUsername, sipPassword,
-          telnyxSipUsername: telnyxSipUsername || sipUsername,
-          telnyxSipPassword: telnyxSipPassword || sipPassword,
           sipDomain: phoneConfig.SIP_DOMAIN,
           messagingProfileId: telnyxResources.messagingProfileId,
           connectionId: telnyxResources.sipConnectionId,
