@@ -723,4 +723,5 @@ module.exports = {
   validateForwardingDestination,
   assignNumberToCallControlApp,
   migrateNumbersToCallControlApp,
+  updateAniOverride,
 }
