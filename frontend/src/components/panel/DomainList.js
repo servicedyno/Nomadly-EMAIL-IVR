@@ -91,10 +91,32 @@ export default function DomainList() {
     try {
       const res = await api(`/domains/ns-status?domain=${encodeURIComponent(domain)}`);
       setNsStatus(p => ({ ...p, [domain]: res }));
+      // If NS is active, also trigger AutoSSL + refresh SSL status
+      if (res.status === 'active') {
+        triggerAutoSSL();
+        fetchSSL();
+      }
     } catch (_) {
       setNsStatus(p => ({ ...p, [domain]: { status: 'error' } }));
     }
     setNsLoading(p => ({ ...p, [domain]: false }));
+  };
+
+  const [autoSSLLoading, setAutoSSLLoading] = useState(false);
+  const [autoSSLResult, setAutoSSLResult] = useState(null);
+
+  const triggerAutoSSL = async () => {
+    setAutoSSLLoading(true);
+    setAutoSSLResult(null);
+    try {
+      const res = await api('/domains/ssl/autossl', { method: 'POST' });
+      setAutoSSLResult({ success: true, message: res.message || 'AutoSSL started' });
+      // Refresh SSL status after a short delay to let certs issue
+      setTimeout(() => fetchSSL(), 8000);
+    } catch (err) {
+      setAutoSSLResult({ success: false, message: err.message || 'AutoSSL failed' });
+    }
+    setAutoSSLLoading(false);
   };
 
   const handleAdd = async () => {
