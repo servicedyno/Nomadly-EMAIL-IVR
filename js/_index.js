@@ -13171,6 +13171,20 @@ app.get('/:id', async (req, res) => {
   const id = req?.params?.id
   if (id === '') return res.json({ message: 'Salam', from: req.hostname })
 
+  // ── Panel domain guard: NEVER run shortener on panel.hostbay.io ──
+  const panelDom = (process.env.PANEL_DOMAIN || '').toLowerCase().trim()
+  if (panelDom) {
+    const host = (req.hostname || req.headers.host || '').toLowerCase().split(':')[0]
+    if (host === panelDom) {
+      // On panel domain — serve the React SPA so the panel renders (not the shortener)
+      const buildIndex = require('path').join(__dirname, '..', 'frontend', 'build', 'index.html')
+      if (require('fs').existsSync(buildIndex)) {
+        return res.sendFile(buildIndex)
+      }
+      return res.status(404).json({ error: 'Panel page not found' })
+    }
+  }
+
   // Skip known frontend SPA routes — let them be handled by the React catch-all
   const spaRoutes = ['call', 'panel', 'phone', 'login', 'signup', 'dashboard', 'settings']
   if (spaRoutes.includes(id.toLowerCase())) {
