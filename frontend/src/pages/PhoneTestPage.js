@@ -187,6 +187,9 @@ const PhoneTestPage = () => {
     setStatus('connecting');
     addLog(`Connecting as ${creds.username.substring(0, 12)}...`);
 
+    // Pre-warm AudioContext on user gesture (required for mobile browsers)
+    ensureAudioContext();
+
     try {
       const client = new TelnyxRTC({
         login: creds.username,
