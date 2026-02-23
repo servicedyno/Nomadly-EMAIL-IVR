@@ -521,6 +521,41 @@ const PhoneTestPage = () => {
           )}
         </div>
 
+        {/* Incoming Call Overlay */}
+        {incomingCall && callStatus !== 'active' && (
+          <div className="bg-gradient-to-b from-green-950/80 to-neutral-900 border border-green-500/30 rounded-xl p-6 mt-4 text-center animate-pulse-slow" data-testid="incoming-call-overlay">
+            <div className="mb-2">
+              <div className="w-16 h-16 mx-auto rounded-full bg-green-500/20 flex items-center justify-center mb-3">
+                <svg className="w-8 h-8 text-green-400 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                </svg>
+              </div>
+              <div className="text-green-400 text-xs font-semibold uppercase tracking-wider mb-1">Incoming Call</div>
+              <div className="text-white text-lg font-bold font-mono">{incomingCaller}</div>
+            </div>
+            <div className="flex justify-center gap-6 mt-5">
+              <button
+                onClick={rejectIncoming}
+                className="w-14 h-14 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center transition-all shadow-lg shadow-red-500/30"
+                data-testid="btn-reject-incoming"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+              <button
+                onClick={answerIncoming}
+                className="w-14 h-14 rounded-full bg-green-500 hover:bg-green-600 text-black flex items-center justify-center transition-all shadow-lg shadow-green-500/30 animate-pulse"
+                data-testid="btn-answer-incoming"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Dialer */}
         <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 mt-4" data-testid="dialer-card">
           <div className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-3">Make a Call</div>
