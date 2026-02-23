@@ -401,6 +401,12 @@ const PhoneTestPage = () => {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-neutral-200" data-testid="phone-test-page">
+      <style>{`
+        @keyframes slideDown {
+          from { opacity: 0; transform: translate(-50%, -20px); }
+          to { opacity: 1; transform: translate(-50%, 0); }
+        }
+      `}</style>
       <div className="max-w-[480px] mx-auto px-4 py-6">
         {/* Logo */}
         <div className="text-center mb-8">
