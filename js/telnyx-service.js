@@ -604,6 +604,78 @@ async function bridgeCalls(callControlId, otherCallControlId) {
   }
 }
 
+// ── Assign a phone number to the Call Control App (for inbound webhook routing) ──
+// This ensures inbound calls hit our webhook instead of going directly to SIP devices
+async function assignNumberToCallControlApp(phoneNumber, callControlAppId) {
+  if (!callControlAppId) {
+    log('[Telnyx] assignNumberToCallControlApp: No callControlAppId provided')
+    return null
+  }
+  try {
+    const clean = phoneNumber.replace(/[^+\d]/g, '')
+    // Look up the number to get its Telnyx ID
+    const res = await axios.get(`${BASE}/phone_numbers`, {
+      headers: headers(),
+      params: { 'filter[phone_number]': clean, 'page[size]': 1 }
+    })
+    const found = res.data?.data?.[0]
+    if (!found) {
+      log(`[Telnyx] assignNumberToCallControlApp: Number ${clean} not found on account`)
+      return null
+    }
+
+    // Check if already assigned to the call control app
+    if (found.connection_id === callControlAppId) {
+      log(`[Telnyx] Number ${clean} already assigned to Call Control App`)
+      return found
+    }
+
+    // Update to point to Call Control App
+    const update = await axios.patch(`${BASE}/phone_numbers/${found.id}`, {
+      connection_id: callControlAppId
+    }, { headers: headers() })
+    log(`[Telnyx] Assigned ${clean} to Call Control App ${callControlAppId} (was: ${found.connection_id || 'none'})`)
+    return update.data?.data
+  } catch (e) {
+    log(`[Telnyx] assignNumberToCallControlApp error for ${phoneNumber}: ${e.response?.data?.errors?.[0]?.detail || e.message}`)
+    return null
+  }
+}
+
+// ── Migrate all account numbers from SIP Connection to Call Control App ──
+// Run on startup to fix numbers that were previously assigned to the SIP connection
+async function migrateNumbersToCallControlApp(callControlAppId) {
+  if (!callControlAppId) {
+    log('[Telnyx] migrateNumbersToCallControlApp: No callControlAppId — skipping')
+    return 0
+  }
+  try {
+    const numbers = await listNumbers()
+    let migrated = 0
+    let alreadyCorrect = 0
+    for (const num of numbers) {
+      if (num.connection_id === callControlAppId) {
+        alreadyCorrect++
+        continue
+      }
+      try {
+        await axios.patch(`${BASE}/phone_numbers/${num.id}`, {
+          connection_id: callControlAppId
+        }, { headers: headers() })
+        migrated++
+        log(`[Telnyx] Migrated ${num.phone_number} to Call Control App (was: ${num.connection_id || 'none'})`)
+      } catch (e) {
+        log(`[Telnyx] Failed to migrate ${num.phone_number}: ${e.response?.data?.errors?.[0]?.detail || e.message}`)
+      }
+    }
+    log(`[Telnyx] Migration complete: ${migrated} migrated, ${alreadyCorrect} already correct, ${numbers.length} total`)
+    return migrated
+  } catch (e) {
+    log(`[Telnyx] migrateNumbersToCallControlApp error: ${e.message}`)
+    return 0
+  }
+}
+
 module.exports = {
   searchNumbers,
   getNumberCapabilities,
@@ -633,4 +705,6 @@ module.exports = {
   bridgeCalls,
   initializeTelnyxResources,
   validateForwardingDestination,
+  assignNumberToCallControlApp,
+  migrateNumbersToCallControlApp,
 }
