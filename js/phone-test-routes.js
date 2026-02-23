@@ -1,12 +1,13 @@
 /**
  * Speechcue Cloud Phone — SIP Test Page Routes
- * Manages test credentials with Telegram OTP verification
+ * Manages test credentials with Telegram OTP verification + referral system
  */
 
 const SIP_DOMAIN = process.env.SIP_DOMAIN || 'sip.speechcue.com'
 const MAX_TEST_CALLS = 2
+const BONUS_CALLS_PER_REFERRAL = 1
 const MAX_CALL_DURATION_SEC = 60
-const OTP_EXPIRY_MS = 5 * 60 * 1000 // 5 minutes
+const OTP_EXPIRY_MS = 5 * 60 * 1000
 
 let _db = null
 let _telnyxApi = null
@@ -17,10 +18,11 @@ function initPhoneTestRoutes(app, db, telnyxApi, sipConnectionId) {
   _telnyxApi = telnyxApi
   _sipConnectionId = sipConnectionId
 
-  // Ensure indexes
   db.collection('testCredentials').createIndex({ chatId: 1 }).catch(() => {})
   db.collection('testCredentials').createIndex({ sipUsername: 1 }).catch(() => {})
   db.collection('testOtps').createIndex({ createdAt: 1 }, { expireAfterSeconds: 300 }).catch(() => {})
+  db.collection('testReferrals').createIndex({ code: 1 }, { unique: true }).catch(() => {})
+  db.collection('testReferrals').createIndex({ referrerChatId: 1 }).catch(() => {})
 
   // ── Verify OTP and generate/return test credentials ──
   app.post('/phone/test/verify-otp', async (req, res) => {
@@ -30,41 +32,38 @@ function initPhoneTestRoutes(app, db, telnyxApi, sipConnectionId) {
         return res.status(400).json({ error: 'Invalid OTP', message: 'Please enter a valid 6-digit code.' })
       }
 
-      // Find the OTP
       const otpDoc = await db.collection('testOtps').findOne({ otp, used: false })
       if (!otpDoc) {
-        return res.status(401).json({ error: 'Invalid OTP', message: 'Code is invalid or expired. Send /test in the bot to get a new one.' })
+        return res.status(401).json({ error: 'Invalid OTP', message: 'Code is invalid or expired. Send /testsip in the bot to get a new one.' })
       }
 
-      // Check expiry
       if (Date.now() - new Date(otpDoc.createdAt).getTime() > OTP_EXPIRY_MS) {
-        return res.status(401).json({ error: 'OTP expired', message: 'Code expired. Send /test in the bot to get a new one.' })
+        return res.status(401).json({ error: 'OTP expired', message: 'Code expired. Send /testsip in the bot to get a new one.' })
       }
 
       const chatId = otpDoc.chatId
-
-      // Mark OTP as used
       await db.collection('testOtps').updateOne({ _id: otpDoc._id }, { $set: { used: true } })
 
-      // Check if this chatId already exhausted test calls
+      // Calculate total allowed calls (base + referral bonus)
+      const maxAllowed = await getMaxCallsForUser(chatId)
       const existing = await db.collection('testCredentials').find({ chatId }).toArray()
       const totalCalls = existing.reduce((sum, c) => sum + (c.callsMade || 0), 0)
 
-      if (totalCalls >= MAX_TEST_CALLS) {
+      if (totalCalls >= maxAllowed) {
         return res.status(429).json({
           error: 'Test limit reached',
-          message: `You've already used your ${MAX_TEST_CALLS} free test calls. Purchase a plan to continue.`
+          message: `You've used all your free test calls. Purchase a plan to continue.`
         })
       }
 
-      // Check if there's an active credential for this chatId
-      const active = existing.find(c => !c.expired && c.callsMade < MAX_TEST_CALLS)
+      // Return active credential if exists
+      const active = existing.find(c => !c.expired)
       if (active) {
         return res.json({
           sipUsername: active.sipUsername,
           sipPassword: active.sipPassword,
           sipDomain: SIP_DOMAIN,
-          callsRemaining: MAX_TEST_CALLS - totalCalls,
+          callsRemaining: maxAllowed - totalCalls,
           maxDuration: MAX_CALL_DURATION_SEC
         })
       }
@@ -78,7 +77,6 @@ function initPhoneTestRoutes(app, db, telnyxApi, sipConnectionId) {
       let password = ''
       for (let i = 0; i < 16; i++) password += passChars[Math.floor(Math.random() * passChars.length)]
 
-      // Create SIP credential via Telnyx API
       if (!_sipConnectionId) {
         return res.status(500).json({ error: 'SIP connection not configured' })
       }
@@ -88,14 +86,13 @@ function initPhoneTestRoutes(app, db, telnyxApi, sipConnectionId) {
         return res.status(500).json({ error: 'Failed to create test credential' })
       }
 
-      // Store in DB linked to chatId
       await db.collection('testCredentials').insertOne({
         chatId,
         sipUsername: username,
         sipPassword: password,
         credentialId: credential.id || credential.sip_username,
         callsMade: 0,
-        maxCalls: MAX_TEST_CALLS,
+        maxCalls: maxAllowed,
         expired: false,
         createdAt: new Date()
       })
@@ -106,7 +103,7 @@ function initPhoneTestRoutes(app, db, telnyxApi, sipConnectionId) {
         sipUsername: username,
         sipPassword: password,
         sipDomain: SIP_DOMAIN,
-        callsRemaining: MAX_TEST_CALLS - totalCalls,
+        callsRemaining: maxAllowed - totalCalls,
         maxDuration: MAX_CALL_DURATION_SEC
       })
     } catch (e) {
@@ -118,32 +115,37 @@ function initPhoneTestRoutes(app, db, telnyxApi, sipConnectionId) {
   console.log('[PhoneTest] Routes initialized: /phone/test/verify-otp')
 }
 
+// ── Helpers ──
+
+async function getMaxCallsForUser(chatId) {
+  if (!_db) return MAX_TEST_CALLS
+  const ref = await _db.collection('testReferrals').findOne({ referrerChatId: chatId })
+  const bonus = (ref && ref.bonusEarned) ? BONUS_CALLS_PER_REFERRAL : 0
+  return MAX_TEST_CALLS + bonus
+}
+
 /**
- * Generate a 6-digit OTP for a Telegram chatId
- * Called from the bot when user sends /test
+ * Generate OTP for Telegram chatId
  */
 async function generateTestOtp(chatId) {
   if (!_db) return null
 
   try {
-    // Check if chatId already exhausted test calls
+    const maxAllowed = await getMaxCallsForUser(chatId)
     const existing = await _db.collection('testCredentials').find({ chatId }).toArray()
     const totalCalls = existing.reduce((sum, c) => sum + (c.callsMade || 0), 0)
 
-    if (totalCalls >= MAX_TEST_CALLS) {
+    if (totalCalls >= maxAllowed) {
       return { error: 'limit_reached' }
     }
 
-    // Generate 6-digit OTP
     const otp = String(Math.floor(100000 + Math.random() * 900000))
 
-    // Invalidate any previous unused OTPs for this chatId
     await _db.collection('testOtps').updateMany(
       { chatId, used: false },
       { $set: { used: true } }
     )
 
-    // Store new OTP
     await _db.collection('testOtps').insertOne({
       chatId,
       otp,
@@ -152,9 +154,89 @@ async function generateTestOtp(chatId) {
     })
 
     console.log(`[PhoneTest] OTP generated for chatId ${chatId}: ${otp}`)
-    return { otp, callsRemaining: MAX_TEST_CALLS - totalCalls }
+    return { otp, callsRemaining: maxAllowed - totalCalls }
   } catch (e) {
     console.error('[PhoneTest] Error generating OTP:', e.message)
+    return null
+  }
+}
+
+/**
+ * Get or create a referral code for a user
+ */
+async function getOrCreateReferralCode(chatId) {
+  if (!_db) return null
+
+  try {
+    const existing = await _db.collection('testReferrals').findOne({ referrerChatId: chatId })
+    if (existing) return { code: existing.code, bonusEarned: existing.bonusEarned || false }
+
+    // Generate unique 8-char referral code
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
+    let code = ''
+    for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)]
+
+    await _db.collection('testReferrals').insertOne({
+      referrerChatId: chatId,
+      code,
+      bonusEarned: false,
+      referredUsers: [],
+      createdAt: new Date()
+    })
+
+    console.log(`[Referral] Created referral code ${code} for chatId ${chatId}`)
+    return { code, bonusEarned: false }
+  } catch (e) {
+    console.error('[Referral] Error creating referral code:', e.message)
+    return null
+  }
+}
+
+/**
+ * Track when a referred user joins via deep link
+ * Credits the referrer with a bonus call when the referred user sends /testsip
+ */
+async function trackReferral(newUserChatId, refCode) {
+  if (!_db) return null
+
+  try {
+    const ref = await _db.collection('testReferrals').findOne({ code: refCode })
+    if (!ref) return null
+
+    // Don't let user refer themselves
+    if (ref.referrerChatId === newUserChatId) return null
+
+    // Don't track duplicate referrals
+    if (ref.referredUsers && ref.referredUsers.includes(newUserChatId)) return null
+
+    // Already earned bonus — still track the user but don't credit again
+    if (ref.bonusEarned) {
+      await _db.collection('testReferrals').updateOne(
+        { code: refCode },
+        { $addToSet: { referredUsers: newUserChatId } }
+      )
+      return { credited: false }
+    }
+
+    // Credit the referrer with bonus call
+    await _db.collection('testReferrals').updateOne(
+      { code: refCode },
+      {
+        $set: { bonusEarned: true },
+        $addToSet: { referredUsers: newUserChatId }
+      }
+    )
+
+    // Update any existing credential's maxCalls
+    await _db.collection('testCredentials').updateMany(
+      { chatId: ref.referrerChatId },
+      { $inc: { maxCalls: BONUS_CALLS_PER_REFERRAL } }
+    )
+
+    console.log(`[Referral] Referrer ${ref.referrerChatId} earned bonus call from ${newUserChatId}`)
+    return { credited: true, referrerChatId: ref.referrerChatId }
+  } catch (e) {
+    console.error('[Referral] Error tracking referral:', e.message)
     return null
   }
 }
@@ -173,13 +255,14 @@ async function checkTestCredentialCall(sipUsername) {
 
     if (!cred) return { isTestCall: false }
 
+    const maxAllowed = await getMaxCallsForUser(cred.chatId)
     const newCount = (cred.callsMade || 0) + 1
     await _db.collection('testCredentials').updateOne(
       { _id: cred._id },
       { $set: { callsMade: newCount, lastCallAt: new Date() } }
     )
 
-    if (newCount >= cred.maxCalls) {
+    if (newCount >= maxAllowed) {
       await _db.collection('testCredentials').updateOne(
         { _id: cred._id },
         { $set: { expired: true } }
@@ -187,12 +270,12 @@ async function checkTestCredentialCall(sipUsername) {
       console.log(`[PhoneTest] Test credential ${sipUsername} expired after ${newCount} calls`)
     }
 
-    console.log(`[PhoneTest] Test call #${newCount}/${cred.maxCalls} by ${sipUsername} (chatId: ${cred.chatId})`)
+    console.log(`[PhoneTest] Test call #${newCount}/${maxAllowed} by ${sipUsername} (chatId: ${cred.chatId})`)
 
     return {
       isTestCall: true,
       maxDuration: MAX_CALL_DURATION_SEC,
-      callsRemaining: cred.maxCalls - newCount
+      callsRemaining: maxAllowed - newCount
     }
   } catch (e) {
     console.error('[PhoneTest] Error checking test credential:', e.message)
@@ -200,4 +283,4 @@ async function checkTestCredentialCall(sipUsername) {
   }
 }
 
-module.exports = { initPhoneTestRoutes, generateTestOtp, checkTestCredentialCall }
+module.exports = { initPhoneTestRoutes, generateTestOtp, checkTestCredentialCall, getOrCreateReferralCode, trackReferral }
