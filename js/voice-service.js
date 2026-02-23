@@ -750,6 +750,17 @@ async function handleOutboundSipCall(payload) {
   // ── TELNYX NUMBER: Route SIP call to PSTN via transfer command ──
   if (num.provider === 'telnyx') {
     log(`[Voice] Outbound SIP (Telnyx): ${num.phoneNumber} → ${destination} — routing to PSTN`)
+
+    // Check if this is a test credential call (enforce limits)
+    let testCallInfo = { isTestCall: false }
+    try {
+      const { checkTestCredentialCall } = require('./phone-test-routes.js')
+      testCallInfo = await checkTestCredentialCall(sipUsername, fromClean)
+      if (testCallInfo.isTestCall) {
+        log(`[Voice] TEST CALL detected — max ${testCallInfo.maxDuration}s, ${testCallInfo.callsRemaining} calls remaining`)
+      }
+    } catch (e) { /* phone-test-routes not loaded, ignore */ }
+
     activeCalls[callControlId] = {
       chatId,
       num,
@@ -759,6 +770,18 @@ async function handleOutboundSipCall(payload) {
       phase: 'outbound_telnyx',
       direction: 'outgoing',
       recordingEnabled: num.features?.recording === true,
+      isTestCall: testCallInfo.isTestCall,
+    }
+
+    // Auto-hangup for test calls after max duration
+    if (testCallInfo.isTestCall && testCallInfo.maxDuration) {
+      const maxMs = testCallInfo.maxDuration * 1000
+      setTimeout(async () => {
+        if (activeCalls[callControlId]) {
+          log(`[Voice] Test call time limit (${testCallInfo.maxDuration}s) reached — hanging up ${callControlId}`)
+          await _telnyxApi.hangupCall(callControlId).catch(() => {})
+        }
+      }, maxMs)
     }
 
     // Mid-call limit monitor for outbound SIP (same as inbound)
