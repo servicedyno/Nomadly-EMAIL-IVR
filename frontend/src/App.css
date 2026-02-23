@@ -3295,6 +3295,15 @@
   border-color: rgba(251, 191, 36, 0.1);
 }
 
+.panel-light .dl-ns-inline-info--auto {
+  background: rgba(59, 130, 246, 0.04);
+  border-color: rgba(59, 130, 246, 0.1);
+}
+
+.panel-light .dl-ns-inline-info--auto .dl-ns-inline-header {
+  color: #2563eb;
+}
+
 .panel-light .dl-ns-inline-header {
   color: #d97706;
 }
