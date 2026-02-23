@@ -144,7 +144,7 @@ async function findInterruptedJobs() {
  */
 async function flushAllJobs() {
   const promises = []
-  for (const [jobId, { getState }] of activeJobs) {
+  for (const [jobId, { timer, getState }] of activeJobs) {
     const { results, realNameCount } = getState()
     promises.push(
       _db.collection(COLLECTION).updateOne(
@@ -161,7 +161,7 @@ async function flushAllJobs() {
         }
       ).catch(e => log(`[LeadJobs] Flush error for ${jobId}: ${e.message}`))
     )
-    clearInterval(getState)
+    clearInterval(timer)
   }
   if (promises.length > 0) {
     await Promise.allSettled(promises)
