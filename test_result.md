@@ -248,9 +248,7 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus:
-    - "Fix: panel.hostbay.io root path shows shortener"
-    - "Fix: JS challenge toggle also controls CF Worker routes"
+  current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
