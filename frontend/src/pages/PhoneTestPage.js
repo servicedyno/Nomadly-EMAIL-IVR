@@ -67,9 +67,28 @@ const PhoneTestPage = () => {
       callRef.current = null;
     }
     setCallStatus('idle');
+    setIncomingCall(null);
+    setIncomingCaller('');
     stopCallTimer();
     addLog('Call ended');
   }, [addLog, stopCallTimer]);
+
+  const answerIncoming = useCallback(() => {
+    if (incomingCall) {
+      addLog('Answering incoming call...');
+      incomingCall.answer();
+    }
+  }, [incomingCall, addLog]);
+
+  const rejectIncoming = useCallback(() => {
+    if (incomingCall) {
+      addLog('Rejecting incoming call');
+      incomingCall.hangup();
+    }
+    setIncomingCall(null);
+    setIncomingCaller('');
+    callRef.current = null;
+  }, [incomingCall, addLog]);
 
   const startCallTimer = useCallback(() => {
     callStartRef.current = Date.now();
