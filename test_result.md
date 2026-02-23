@@ -103,9 +103,33 @@
 #====================================================================================================
 
 
-user_problem_statement: "Fix: panel.hostbay.io showing shortener instead of panel login page. Root cause: /:id shortener route was registered before panel domain guard middleware, so shortener caught all requests on panel domain first."
+user_problem_statement: "Two fixes: (1) panel.hostbay.io/ root shows shortener instead of panel login — early root handler catches before panel guard, (2) JS challenge toggle should also remove/deploy Cloudflare Worker routes so 'Verify your browser' page stops/starts"
 
 backend:
+  - task: "Fix: panel.hostbay.io root path shows shortener"
+    implemented: true
+    working: true
+    file: "js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Root cause was EARLY root handler (earlyApp.get('/') line 19) responding before panel domain guard. Added panel domain check to the early root handler + the /:id route. On panel domain: serves React SPA (prod) or redirects to /panel (dev). Tested: curl -H 'Host: panel.hostbay.io' localhost:5000/ → 302 redirect to /panel."
+
+  - task: "Fix: JS challenge toggle also controls CF Worker routes"
+    implemented: true
+    working: "NA"
+    file: "js/anti-red-service.js, js/cpanel-routes.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Added removeWorkerRoutes() to anti-red-service.js. Updated toggle handler in cpanel-routes.js: when JS challenge OFF → also removes CF Worker routes (domain/* and www.domain/*) so 'Verify your browser' stops. When ON → re-deploys worker routes. Other protections (IP blocking, UA blocking, JA3, WAF) remain always active. Cannot test without real CF credentials and cpanel auth."
+
   - task: "Fix: /:id shortener route blocks panel domain"
     implemented: true
     working: true
