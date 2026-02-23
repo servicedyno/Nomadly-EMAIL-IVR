@@ -439,7 +439,7 @@ ${CHAT_BOT_NAME}`,
   'TXT Record': 'TXT',
 
   // Digital Products
-  digitalProductsSelect: `🛒 <b>Digital Products</b>\n\nVerified accounts delivered in <b>30 minutes</b> via this bot.\n\n<b>Telecom</b> — Twilio, Telnyx (SMS, Voice, SIP)\n<b>Cloud</b> — AWS, Google Cloud (Full access)\n<b>Email</b> — Google Workspace, Zoho Mail\n<b>Mobile</b> — eSIM T-Mobile\n\nPay with crypto, bank, or wallet. Select below:`,
+  digitalProductsSelect: `🛒 <b>Digital Products</b>\n\nVerified accounts delivered <b>quickly</b> via this bot.\n\n<b>Telecom</b> — Twilio, Telnyx (SMS, Voice, SIP)\n<b>Cloud</b> — AWS, Google Cloud (Full access)\n<b>Email</b> — Google Workspace, Zoho Mail\n<b>Mobile</b> — eSIM T-Mobile\n\nPay with crypto, bank, or wallet. Select below:`,
   dpTwilioMain: `📞 Twilio Main Account — $${DP_PRICE_TWILIO_MAIN}`,
   dpTwilioSub: `📞 Twilio Sub-Account — $${DP_PRICE_TWILIO_SUB}`,
   dpTelnyxMain: `📡 Telnyx Main Account — $${DP_PRICE_TELNYX_MAIN}`,
