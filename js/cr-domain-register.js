@@ -2,7 +2,7 @@
 const axios = require('axios')
 require('dotenv').config()
 
-const buyDomainOnline = async domain => {
+const buyDomainOnline = async (domain, ns1, ns2) => {
   try {
     const apiUrl = 'https://api.connectreseller.com/ConnectReseller/ESHOP/Order'
     const requestData = {
@@ -13,8 +13,8 @@ const buyDomainOnline = async domain => {
       Duration: 1,
       IsWhoisProtection: false,
       Id: 150106, // Replace with the actual customer ID
-      ns1: '8307.dns1.managedns.org',
-      ns2: '8307.dns2.managedns.org',
+      ns1: ns1 || '8307.dns1.managedns.org',
+      ns2: ns2 || '8307.dns2.managedns.org',
     }
 
     const response = await axios.get(apiUrl, { params: requestData, timeout: 15000 })
