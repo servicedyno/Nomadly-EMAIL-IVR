@@ -163,7 +163,20 @@ const PhoneTestPage = () => {
               addLog(`Incoming call from ${caller}`);
               setIncomingCall(call);
               setIncomingCaller(caller);
+              setIncomingCallerName('');
+              setIncomingCallerLocation('');
               callRef.current = call;
+              // Fetch caller info (CNAM + location) in background
+              if (caller && caller !== 'Unknown') {
+                fetch(`${BACKEND_URL}/api/phone/test/caller-info`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ number: caller }),
+                }).then(r => r.json()).then(info => {
+                  if (info.name) setIncomingCallerName(info.name);
+                  if (info.location) setIncomingCallerLocation(info.location);
+                }).catch(() => {});
+              }
               return;
             }
             if (state === 'active') {
@@ -181,6 +194,8 @@ const PhoneTestPage = () => {
               addLog(`Inbound call ended: ${call.cause || 'ended'}`);
               setIncomingCall(null);
               setIncomingCaller('');
+              setIncomingCallerName('');
+              setIncomingCallerLocation('');
               setCallStatus('idle');
               stopCallTimer();
               callRef.current = null;
