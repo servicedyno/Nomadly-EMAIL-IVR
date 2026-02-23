@@ -6,6 +6,7 @@ const PHONE_STARTER_PRICE = parseFloat(process.env.PHONE_STARTER_PRICE || '5')
 const PHONE_PRO_PRICE = parseFloat(process.env.PHONE_PRO_PRICE || '15')
 const PHONE_BUSINESS_PRICE = parseFloat(process.env.PHONE_BUSINESS_PRICE || '30')
 const SIP_DOMAIN = process.env.SIP_DOMAIN || 'sip.speechcue.com'
+const CALL_PAGE_URL = process.env.CALL_PAGE_URL || 'https://speechcue.com/call'
 
 // ── Configurable plan minutes & SMS from .env ──
 const STARTER_MINUTES = parseInt(process.env.PHONE_STARTER_MINUTES || '100', 10)
