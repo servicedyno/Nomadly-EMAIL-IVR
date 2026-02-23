@@ -8,6 +8,7 @@ const whm = require('./whm-service')
 const cfService = require('./cf-service')
 const opService = require('./op-service')
 const cpAuth = require('./cpanel-auth')
+const domainService = require('./domain-service')
 
 const WHM_HOST = process.env.WHM_HOST
 const TELEGRAM_DEV_CHAT_ID = process.env.TELEGRAM_DEV_CHAT_ID
