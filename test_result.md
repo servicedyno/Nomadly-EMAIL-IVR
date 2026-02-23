@@ -284,7 +284,9 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Telnyx SIP voice service integration tested and verified working"
+    - "Multi-user Caller ID (ANI) fix — per-call ANI for all outbound SIP"
+    - "Billing regression audit — all call types"
+    - "Comprehensive Telnyx SIP voice service testing and verification"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
