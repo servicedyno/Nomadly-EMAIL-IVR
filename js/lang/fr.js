@@ -92,7 +92,7 @@ const user = {
   phoneNumberLeads: '🎯 Acheter des Leads | Vérifier les Vôtres',
   hostingDomainsRedirect: '🛡️🔥 Hébergement Anti-Red',
   cloudPhone: '📞☁️ Cloud Phone + SIP',
-  testSip: '🧪 Test SIP Free',
+  testSip: '🧪 Tester SIP Gratuit',
   wallet: '👛 Mon portefeuille',
   urlShortenerMain: `🔗✂️ Raccourcisseur d'URL - ${FREE_LINKS} Essais`,
   vpsPlans: 'Acheter un VPS Bulletproof🛡️ - Horaire/Mensuel',

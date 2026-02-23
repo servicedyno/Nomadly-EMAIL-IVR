@@ -91,7 +91,7 @@ const user = {
   phoneNumberLeads: '🎯 लीड्स खरीदें | अपने सत्यापित करें',
   hostingDomainsRedirect: '🌐 ऑफ़शोर होस्टिंग',
   cloudPhone: '📞☁️ Cloud Phone + SIP',
-  testSip: '🧪 Test SIP Free',
+  testSip: '🧪 SIP मुफ्त टेस्ट',
   wallet: '👛 मेरा वॉलेट',
   urlShortenerMain: `🔗✂️ URL छोटा करें - ${FREE_LINKS} ट्रायल लिंक`,
   vpsPlans: 'बुलेटप्रूफ VPS🛡️ खरीदें - प्रति घंटा/मासिक',
