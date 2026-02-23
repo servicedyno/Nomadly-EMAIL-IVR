@@ -449,6 +449,22 @@ function createCpanelRoutes(getCpanelCol) {
     }
   })
 
+  // ─── Trigger AutoSSL ───────────────────────────────────
+
+  router.post('/domains/ssl/autossl', ...auth, async (req, res) => {
+    try {
+      const result = await whmService.startAutoSSL(req.cpUser)
+      if (result.success) {
+        res.json({ success: true, message: 'AutoSSL check started. Certificates will be issued shortly (may take 1-3 minutes).' })
+      } else {
+        res.status(500).json({ success: false, error: result.error || 'AutoSSL trigger failed' })
+      }
+    } catch (err) {
+      log(`[Panel] AutoSSL trigger error: ${err.message}`)
+      res.status(500).json({ error: 'Failed to trigger AutoSSL' })
+    }
+  })
+
   // ─── Geo-blocking ──────────────────────────────────────
 
   router.get('/geo', ...auth, async (req, res) => {
