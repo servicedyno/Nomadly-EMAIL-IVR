@@ -165,6 +165,54 @@ backend:
           agent: "main"
           comment: "Updated 5 placeholder env vars. Created setup-nodejs.sh script that auto-detects pod URL, updates SELF_URL with /api, creates .env symlink, installs deps, adds supervisor config. Documented in PRD.md and README.md for future agent pickup."
 
+  - task: "Fix SIP inbound calls (480 error) — Assign numbers to Call Control App"
+    implemented: true
+    working: true
+    file: "js/telnyx-service.js, js/_index.js, js/voice-service.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Root cause: Numbers assigned to SIP Connection caused inbound calls to go directly to SIP devices (480 if not registered). Fix: Added assignNumberToCallControlApp() and migrateNumbersToCallControlApp() to telnyx-service.js. Numbers now assigned to Call Control App for inbound webhook routing. Startup migration confirmed: 1 number migrated successfully."
+
+  - task: "Fix SIP outbound calls — Remove broken transferCall for SIP-originated calls"
+    implemented: true
+    working: true
+    file: "js/voice-service.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Root cause: Code was calling transferCall() on SIP-originated outbound calls, interfering with Telnyx auto-routing via outbound voice profile. Fix: Removed transferCall for all SIP outbound — Telnyx auto-routes through credential connection's outbound voice profile."
+
+  - task: "Fix telnyxHeaders not defined in phone-scheduler.js"
+    implemented: true
+    working: true
+    file: "js/phone-scheduler.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Added telnyxHeaders() function definition that was missing, causing CDR fetch to fail."
+
+  - task: "Clean up outbound-fallback pattern in voice-service.js"
+    implemented: true
+    working: true
+    file: "js/voice-service.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Removed flawed try-answer-catch-redirect-to-outbound pattern from handleCallInitiated. With numbers on Call Control App, inbound and outbound calls are now cleanly separated."
+
 metadata:
   created_by: "main_agent"
   version: "2.0"
