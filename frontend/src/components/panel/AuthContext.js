@@ -47,14 +47,18 @@ export function AuthProvider({ children }) {
       logout();
       throw new Error('Session expired');
     }
-    // Safely parse JSON — avoid "body stream already read" errors
+    // Safely parse JSON — use clone() to avoid "Body is disturbed or locked" errors
     let data;
     try {
-      const text = await res.text();
+      const text = await res.clone().text();
       data = JSON.parse(text);
     } catch (e) {
-      if (!res.ok) throw new Error(`Request failed (${res.status})`);
-      throw new Error('Invalid response from server');
+      try {
+        data = await res.json();
+      } catch {
+        if (!res.ok) throw new Error(`Request failed (${res.status})`);
+        throw new Error('Invalid response from server');
+      }
     }
     if (!res.ok) {
       throw new Error(data.error || data.message || `Request failed (${res.status})`);
