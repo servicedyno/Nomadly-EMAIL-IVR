@@ -12167,6 +12167,8 @@ app.get('/crypto-pay-phone', auth, async (req, res) => {
   sendMessage(chatId, phoneConfig.getMsg(lang).purchasingNumber)
   const orderResult = await telnyxApi.buyNumber(selectedNumber, telnyxResources.sipConnectionId, telnyxResources.messagingProfileId)
   if (!orderResult) { addFundsTo(walletOf, chatId, 'usd', Number(price), lang); return res.send(html(phoneConfig.getMsg(lang).purchaseFailed)) }
+  // Assign to Call Control App for inbound webhook routing
+  if (telnyxResources.callControlAppId) await telnyxApi.assignNumberToCallControlApp(selectedNumber, telnyxResources.callControlAppId)
   const sipUsername = phoneConfig.generateSipUsername()
   const sipPassword = phoneConfig.generateSipPassword()
   if (telnyxResources.sipConnectionId) await telnyxApi.createSIPCredential(telnyxResources.sipConnectionId, sipUsername, sipPassword)
