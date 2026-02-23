@@ -1448,7 +1448,8 @@ bot?.on('message', async msg => {
       const totalTestCalls = testCreds.reduce((sum, c) => sum + (c.callsMade || 0), 0)
       let sipTestLine = ''
       if (totalTestCalls === 0) {
-        sipTestLine = `\n🧪 <i>Try SIP calling free — send /testsip</i>\n`
+        const pMsg = phoneConfig.getMsg(info?.userLanguage || 'en')
+        sipTestLine = `\n${pMsg.sipTestMenuHint}\n`
       }
 
       return `${g.hi}, <b>${name}</b>\n\n` +
