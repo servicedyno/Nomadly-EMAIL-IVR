@@ -11200,24 +11200,25 @@ const buyDomainFullProcess = async (chatId, lang, domain) => {
     }
     sendMessage(chatId, translation('t.domainLinking', lang, domain))
 
-    // Add DNS record via the correct service based on registrar
-    // Note: nsChoice is always 'provider_default' here (shortener=Yes forces it)
-    if (registrar === 'OpenProvider') {
-      // OP domains: add DNS record via OpenProvider DNS zone API
-      await sleep(10000)
-      const addResult = await domainService.addDNSRecord(domain, recordType, server, '', db)
-      if (addResult.error || !addResult.success) {
+    // Add DNS record via unified domainService — auto-routes to Cloudflare
+    // when domain metadata has nameserverType='cloudflare' + cfZoneId,
+    // otherwise falls back to registrar DNS (CR/OP) for legacy domains.
+    await sleep(5000) // Brief delay for DB metadata propagation
+    const addResult = await domainService.addDNSRecord(domain, recordType, server, '', db)
+    if (addResult.error || !addResult.success) {
+      log(`[buyDomainFullProcess] DNS record add failed via domainService for ${domain}: ${addResult.error || 'unknown'}`)
+      // Fallback: try direct CR DNS add for ConnectReseller domains
+      if (registrar === 'ConnectReseller') {
+        log(`[buyDomainFullProcess] Falling back to direct CR DNS add for ${domain}`)
+        await sleep(60000) // CR needs propagation time
+        const { error: saveServerInDomainError } = await saveServerInDomain(domain, server, recordType)
+        if (saveServerInDomainError) {
+          const m = `Error saving DNS record for domain: ${saveServerInDomainError}`
+          sendMessage(chatId, m)
+          return m
+        }
+      } else {
         const m = `Error saving DNS record for domain: ${addResult.error || 'Unknown error'}`
-        sendMessage(chatId, m)
-        return m
-      }
-    } else {
-      // ConnectReseller with provider_default
-      await sleep(65000)
-      const { error: saveServerInDomainError } = await saveServerInDomain(domain, server, recordType)
-      console.log("###saveServerInDomainError", saveServerInDomainError)
-      if (saveServerInDomainError) {
-        const m = `Error saving server in domain ${saveServerInDomainError}`
         sendMessage(chatId, m)
         return m
       }
