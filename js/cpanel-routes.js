@@ -234,16 +234,98 @@ function createCpanelRoutes(getCpanelCol) {
     const { domain } = req.query
     if (!domain) return res.status(400).json({ error: 'domain query param is required' })
     try {
-      const zone = await cfService.getZoneByName(domain)
-      if (!zone) {
-        return res.json({ status: 'not_found', nameservers: [], message: 'Domain not in Cloudflare' })
+      const chatId = req.cpChatId
+      const db = getCpanelCol()?.s?.db
+      const domainService = require('./domain-service')
+      const opService = require('./op-service')
+      const WHM_HOST = process.env.WHM_HOST
+
+      // 1. Check if domain is managed by our platform (registered through our registrar)
+      let autoManaged = false
+      let domainMeta = null
+      if (db) {
+        domainMeta = await domainService.getDomainMeta(domain, db)
+        if (domainMeta) {
+          // Domain is in our DB — check if it belongs to this user or is one of our registered domains
+          const regDom = await db.collection('registeredDomains').findOne({ _id: domain })
+          const domOf = await db.collection('domainsOf').findOne({ _id: domain })
+          const isChatIdMatch = chatId && (
+            String(regDom?.val?.chatId) === String(chatId) ||
+            String(domOf?.chatId) === String(chatId)
+          )
+          // Domain is auto-managed if it's in our registrar (has registrar info) and belongs to this user
+          autoManaged = !!(isChatIdMatch && domainMeta.registrar)
+        }
       }
+
+      // 2. Check Cloudflare zone
+      let zone = await cfService.getZoneByName(domain)
+
+      // 3. If no CF zone but domain IS ours — auto-create zone + update NS at registrar
+      if (!zone && autoManaged && db) {
+        log(`[Panel] NS-status: Auto-creating CF zone for own domain ${domain}`)
+        try {
+          const newZone = await cfService.createZone(domain)
+          if (newZone.success) {
+            // Create hosting DNS records
+            if (WHM_HOST) {
+              await cfService.createHostingDNSRecords(newZone.zoneId, domain, WHM_HOST)
+              await cfService.setSSLMode(newZone.zoneId, 'full')
+              await cfService.enforceHTTPS(newZone.zoneId)
+            }
+
+            // Auto-deploy anti-red Worker route
+            try {
+              const { deploySharedWorkerRoute } = require('./anti-red-service')
+              deploySharedWorkerRoute(domain, newZone.zoneId).catch(() => {})
+            } catch (_) {}
+
+            // Update NS at registrar
+            const registrar = domainMeta.registrar || 'OpenProvider'
+            try {
+              if (registrar === 'OpenProvider') {
+                await opService.updateNameservers(domain, newZone.nameservers)
+              } else if (registrar === 'ConnectReseller') {
+                await domainService.postRegistrationNSUpdate(domain, 'ConnectReseller', 'cloudflare', newZone.nameservers, db)
+              }
+              log(`[Panel] NS-status: Auto-updated NS at ${registrar} for ${domain}`)
+            } catch (nsErr) {
+              log(`[Panel] NS-status: NS update at ${registrar} failed for ${domain}: ${nsErr.message}`)
+            }
+
+            // Persist cfZoneId + nameserverType in DB
+            await db.collection('registeredDomains').updateOne(
+              { _id: domain },
+              { $set: { 'val.cfZoneId': newZone.zoneId, 'val.nameservers': newZone.nameservers, 'val.nameserverType': 'cloudflare' } }
+            )
+            await db.collection('domainsOf').updateOne(
+              { domainName: domain },
+              { $set: { nameservers: newZone.nameservers, nameserverType: 'cloudflare', cfZoneId: newZone.zoneId } },
+              { upsert: false }
+            )
+
+            zone = { id: newZone.zoneId, name: domain }
+          }
+        } catch (err) {
+          log(`[Panel] NS-status: Auto CF zone creation failed for ${domain}: ${err.message}`)
+        }
+      }
+
+      // 4. No zone at all — external domain with no CF zone
+      if (!zone) {
+        return res.json({ status: 'not_found', nameservers: [], autoManaged: false, message: 'Domain not in Cloudflare' })
+      }
+
+      // 5. Get CF zone status
       const nsInfo = await cfService.checkZoneNSStatus(zone.id)
+      const cfStatus = nsInfo.status || 'unknown'
+
       res.json({
-        status: nsInfo.status || 'unknown',
+        status: cfStatus,
         nameservers: nsInfo.nameservers || [],
         originalNameservers: nsInfo.originalNameservers || [],
         zoneId: zone.id,
+        autoManaged,
       })
     } catch (err) {
       log(`[Panel] NS status error: ${err.message}`)
