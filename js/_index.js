@@ -12915,6 +12915,19 @@ app.post('/dynopay/crypto-wallet', authDyno, async (req, res) => {
 //
 // Override the early health check routes with full functionality
 app.get('/', (req, res) => {
+  // On panel domain, serve the React SPA so the panel login renders (not the greeting)
+  const panelDom = (process.env.PANEL_DOMAIN || '').toLowerCase().trim()
+  if (panelDom) {
+    const host = (req.hostname || req.headers.host || '').toLowerCase().split(':')[0]
+    if (host === panelDom) {
+      const buildIndex = require('path').join(__dirname, '..', 'frontend', 'build', 'index.html')
+      if (require('fs').existsSync(buildIndex)) {
+        return res.sendFile(buildIndex)
+      }
+      // In dev: redirect to /panel so React dev server handles it
+      return res.redirect('/panel')
+    }
+  }
   // Return 200 OK for health checks even during startup
   res.status(200).send(html(translation('t.greet')))
 })
