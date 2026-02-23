@@ -237,8 +237,8 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Fix: URL shortener domains use Cloudflare NS + add CNAME to CF zone"
-    - "Fix: buyDomainOnline() accept optional NS params"
+    - "Fix: Lead job persistence recovery — findInterruptedJobs status mismatch"
+    - "Fix: Activate shortener DNS routing — unified domainService.addDNSRecord()"
     - "Fix: domain-service passes NS to buyDomainOnline for CR"
     - "Fix: buyDomainFullProcess uses buyResult.nameservers instead of getAccountNameservers()"
     - "Fix: registerDomainAndCreateCpanel reorder + no double CF zone"
