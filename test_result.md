@@ -188,11 +188,7 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus:
-    - "Task 1+2: panel.hostbay.io domain + block user file serving"
-    - "Task 3: SSL AutoSSL trigger"
-    - "Task 4: /call route"
-    - "Task 5: Browser calling in bot UI"
+  current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
