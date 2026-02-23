@@ -17,6 +17,24 @@ let serverStartTime = new Date()
 
 // Health check endpoints - respond immediately
 earlyApp.get('/', (req, res) => {
+  // On panel domain, serve the React SPA so the panel login renders (not the greeting)
+  const panelDom = (process.env.PANEL_DOMAIN || '').toLowerCase().trim()
+  if (panelDom) {
+    const host = (req.hostname || req.headers.host || '').toLowerCase().split(':')[0]
+    if (host === panelDom) {
+      const buildIndex = require('path').join(__dirname, 'frontend', 'build', 'index.html')
+      if (require('fs').existsSync(buildIndex)) {
+        return res.sendFile(buildIndex)
+      }
+      // Prod (Railway) with build dir one level up
+      const buildIndex2 = require('path').join(__dirname, '..', 'frontend', 'build', 'index.html')
+      if (require('fs').existsSync(buildIndex2)) {
+        return res.sendFile(buildIndex2)
+      }
+      // Dev env: redirect to /panel so React dev server handles it
+      return res.redirect('/panel')
+    }
+  }
   res.status(200).send(`
     <html>
       <body style="background-color: white;">
