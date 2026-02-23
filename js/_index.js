@@ -14116,51 +14116,134 @@ async function resumeInterruptedLeadJobs() {
   try {
     const jobs = await findInterruptedJobs()
     if (!jobs || jobs.length === 0) return
-    log(`[LeadJobs] Found ${jobs.length} interrupted job(s) — delivering partial results`)
+    log(`[LeadJobs] Found ${jobs.length} interrupted job(s) — resuming generation`)
 
     for (const job of jobs) {
       try {
-        const { chatId, results, phonesToGenerate, realNameCount, target, cnam, lang: jobLang } = job
-        const remaining = phonesToGenerate - (results?.length || 0)
+        const { chatId, results, phonesToGenerate, realNameCount: savedRealNameCount,
+                target, cnam, lang: jobLang, carrier, countryCode, areaCodes,
+                requireRealName, jobId } = job
 
-        if (!results || results.length === 0) {
-          // No results generated at all — notify user and refund could be done manually
-          bot && bot.sendMessage(chatId, `⚠️ Your lead generation for <b>${target || 'phone leads'}</b> was interrupted by a server update before any results were generated. Please contact support for a refund or restart.`, { parse_mode: 'HTML' })
-          await db.collection('leadJobs').updateOne({ jobId: job.jobId }, { $set: { status: 'notified_no_results', updatedAt: new Date() } })
+        const existingResults = results || []
+        const existingRealNames = savedRealNameCount || 0
+        const currentCount = requireRealName && cnam ? existingRealNames : existingResults.length
+        const remaining = phonesToGenerate - currentCount
+
+        // ── Already complete — just deliver ──
+        if (remaining <= 0 && existingResults.length > 0) {
+          log(`[LeadJobs] Job ${jobId} was already complete (${currentCount}/${phonesToGenerate}) — delivering`)
+          await deliverLeadResults(chatId, existingResults, phonesToGenerate, cnam, requireRealName, countryCode, target, jobLang)
+          await db.collection('leadJobs').updateOne({ jobId }, { $set: { status: 'completed', completedAt: new Date(), updatedAt: new Date() } })
           continue
         }
 
-        // Deliver partial results to user
-        const cc = '+' + (job.countryCode || '1')
-        const re = cc === '+1' ? '' : '0'
-
-        if (cnam) {
-          const withRealNames = results.filter(a => a[3] && isRealPersonName(a[3]))
-          const withoutNames = results.filter(a => !a[3] || !isRealPersonName(a[3]))
-
-          if (withRealNames.length > 0) {
-            const file1 = `Phone,Carrier,Area,Name\n` + withRealNames.map(a => `${re}${a[0]},${a[1]},${a[2]},${a[3]}`).join('\n')
-            await bot.sendDocument(chatId, Buffer.from(file1), { caption: `📋 Partial delivery: ${withRealNames.length} leads with real names (${remaining} remaining from interrupted job for <b>${target || 'leads'}</b>)`, parse_mode: 'HTML' }, { filename: `leads_partial_${target || 'batch'}.csv` })
-          }
-          if (withoutNames.length > 0) {
-            const file2 = `Phone,Carrier,Area,Name\n` + withoutNames.map(a => `${re}${a[0]},${a[1]},${a[2]},${a[3] || ''}`).join('\n')
-            await bot.sendDocument(chatId, Buffer.from(file2), {}, { filename: `leads_partial_noname_${target || 'batch'}.csv` })
-          }
+        // ── No results at all — restart full generation ──
+        if (existingResults.length === 0) {
+          bot && bot.sendMessage(chatId,
+            `🔄 Your lead generation for <b>${target || 'phone leads'}</b> was interrupted before any results were saved.\n\n⏳ Restarting full generation now — please wait...`,
+            { parse_mode: 'HTML' }
+          )
         } else {
-          const file1 = `Phone,Carrier,Area\n` + results.map(a => `${re}${a[0]},${a[1]},${a[2]}`).join('\n')
-          await bot.sendDocument(chatId, Buffer.from(file1), { caption: `📋 Partial delivery: ${results.length}/${phonesToGenerate} leads (interrupted by server update)` }, { filename: `leads_partial_${target || 'batch'}.csv` })
+          // ── Partial results — resume from where we stopped ──
+          bot && bot.sendMessage(chatId,
+            `🔄 Your lead generation for <b>${target || 'phone leads'}</b> was interrupted at ${currentCount}/${phonesToGenerate} by a server update.\n\n⏳ Resuming now — please wait...`,
+            { parse_mode: 'HTML' }
+          )
         }
 
-        bot && bot.sendMessage(chatId, `✅ Delivered ${results.length} of ${phonesToGenerate} leads from your interrupted <b>${target || ''}</b> order. The remaining ${remaining} will require a new order. We apologize for the inconvenience.`, { parse_mode: 'HTML' })
-        await db.collection('leadJobs').updateOne({ jobId: job.jobId }, { $set: { status: 'partial_delivered', updatedAt: new Date() } })
-        log(`[LeadJobs] Delivered partial results for job ${job.jobId} — ${results.length}/${phonesToGenerate}`)
+        // Mark job as running again
+        await resumeJob(jobId)
+
+        // Resume generation — passes existing results so the loop continues from saved progress
+        const fullResults = await validateBulkNumbers(
+          carrier, phonesToGenerate, countryCode, areaCodes, cnam,
+          bot, chatId, jobLang || 'en', requireRealName || false,
+          { target, price: job.price },
+          { jobId, results: existingResults, realNameCount: existingRealNames }
+        )
+
+        if (fullResults && fullResults.length > 0) {
+          // Deliver the complete results
+          await deliverLeadResults(chatId, fullResults, phonesToGenerate, cnam, requireRealName, countryCode, target, jobLang)
+          bot && bot.sendMessage(chatId,
+            `✅ Your <b>${target || 'phone leads'}</b> order is complete! ${fullResults.length} leads delivered.`,
+            { parse_mode: 'HTML' }
+          )
+          log(`[LeadJobs] Resumed job ${jobId} completed — ${fullResults.length} total leads`)
+        } else {
+          // Generation failed (timeout/no hits) — deliver whatever partial results we had
+          if (existingResults.length > 0) {
+            await deliverLeadResults(chatId, existingResults, phonesToGenerate, cnam, requireRealName, countryCode, target, jobLang)
+            bot && bot.sendMessage(chatId,
+              `⚠️ Could only generate ${existingResults.length} of ${phonesToGenerate} leads. The remainder could not be sourced. Contact support if needed.`,
+              { parse_mode: 'HTML' }
+            )
+          } else {
+            bot && bot.sendMessage(chatId,
+              `⚠️ Lead generation for <b>${target || 'phone leads'}</b> could not be completed after resumption. Please contact support.`,
+              { parse_mode: 'HTML' }
+            )
+          }
+          await db.collection('leadJobs').updateOne(
+            { jobId },
+            { $set: { status: 'partial_delivered', updatedAt: new Date() } }
+          ).catch(() => {})
+        }
       } catch (e) {
         log(`[LeadJobs] Error resuming job ${job.jobId}: ${e.message}`)
-        await db.collection('leadJobs').updateOne({ jobId: job.jobId }, { $set: { status: 'resume_error', error: e.message, updatedAt: new Date() } }).catch(() => {})
+        // Best-effort: deliver whatever partial results we have
+        try {
+          if (job.results && job.results.length > 0) {
+            await deliverLeadResults(job.chatId, job.results, job.phonesToGenerate, job.cnam, job.requireRealName, job.countryCode, job.target, job.lang)
+            bot && bot.sendMessage(job.chatId,
+              `⚠️ Delivered ${job.results.length} partial leads. Resume encountered an error. Contact support for the remainder.`,
+              { parse_mode: 'HTML' }
+            )
+          }
+        } catch (_) {}
+        await db.collection('leadJobs').updateOne(
+          { jobId: job.jobId },
+          { $set: { status: 'resume_error', error: e.message, updatedAt: new Date() } }
+        ).catch(() => {})
       }
     }
   } catch (e) {
     log(`[LeadJobs] Resume check error: ${e.message}`)
+  }
+}
+
+/**
+ * Deliver lead results to user via Telegram documents (used by resume flow)
+ */
+async function deliverLeadResults(chatId, results, phonesToGenerate, cnam, requireRealName, countryCode, target, lang) {
+  const cc = '+' + (countryCode || '1')
+  const re = cc === '+1' ? '' : '0'
+
+  if (cnam) {
+    const withRealNames = results.filter(a => a[3] && isRealPersonName(a[3]))
+
+    // File 1 — Leads with verified real person names
+    if (withRealNames.length > 0) {
+      const content = withRealNames.map(a => `${re ? a[0].replace(cc, re) : a[0]} ${(a[3] || '').trim()}`).join('\n')
+      await bot.sendDocument(chatId, Buffer.from(content),
+        { caption: `📋 <b>${withRealNames.length} leads with verified names</b>` + (target ? ` for <b>${target}</b>` : ''), parse_mode: 'HTML' },
+        { filename: `leads_with_names.txt`, contentType: 'text/plain' }
+      )
+    }
+
+    // File 2 — All phone numbers
+    const allContent = results.map(a => re ? a[0].replace(cc, re) : a[0]).join('\n')
+    await bot.sendDocument(chatId, Buffer.from(allContent),
+      { caption: `📋 <b>All ${results.length} verified phone numbers</b>`, parse_mode: 'HTML' },
+      { filename: `leads.txt`, contentType: 'text/plain' }
+    )
+  } else {
+    // Non-CNAM — just numbers
+    const content = results.map(a => re ? a[0].replace(cc, re) : a[0]).join('\n')
+    await bot.sendDocument(chatId, Buffer.from(content),
+      { caption: `📋 ${results.length} verified phone leads` },
+      { filename: `leads.txt`, contentType: 'text/plain' }
+    )
   }
 }
 
