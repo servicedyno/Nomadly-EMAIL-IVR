@@ -317,6 +317,7 @@ const PhoneTestPage = () => {
 
     addLog(`Calling ${dest}...`);
     setCallStatus('calling');
+    userDialedRef.current = true;
 
     try {
       const call = clientRef.current.newCall({
