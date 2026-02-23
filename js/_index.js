@@ -3844,7 +3844,19 @@ bot?.on('message', async msg => {
     goto[lastStep]()
   }
 
-  if (message === '/start') {
+  // Handle /start with referral deep link: /start ref_XXXX
+  if (message.startsWith('/start ref_')) {
+    const refCode = message.split('ref_')[1]?.trim()
+    if (refCode) {
+      const tracked = await trackReferral(chatId, refCode)
+      if (tracked && tracked.credited) {
+        log(`[Referral] ${chatId} joined via referral ${refCode}, referrer credited`)
+      }
+    }
+    // Continue with normal /start flow below
+  }
+
+  if (message === '/start' || message.startsWith('/start ref_')) {
     // Auto-exit support mode if active
     if (action === a.supportChat) {
       await set(supportSessions, chatId, 0)
@@ -3867,16 +3879,25 @@ bot?.on('message', async msg => {
     return send(chatId, greeting, trans('o'))
   }
 
-  // /test — generate OTP for SIP test page
-  if (message === '/test') {
+  // /testsip — generate OTP for SIP test page
+  if (message === '/testsip') {
     const result = await generateTestOtp(chatId)
     if (!result) {
       return send(chatId, '❌ Could not generate test code. Please try again later.')
     }
     if (result.error === 'limit_reached') {
-      return send(chatId, `⚠️ <b>Test limit reached</b>\n\nYou've already used your 2 free test calls.\nPurchase a Cloud Phone plan to make unlimited calls.`, { parse_mode: 'HTML' })
+      // Check if they already have a referral code
+      const refResult = await getOrCreateReferralCode(chatId)
+      const refLink = refResult ? `https://t.me/Nomadlybot?start=ref_${refResult.code}` : null
+      let msg = `⚠️ <b>Test limit reached</b>\n\nYou've already used your ${MAX_TEST_CALLS_DISPLAY} free test calls.\nPurchase a Cloud Phone plan to make unlimited calls.`
+      if (refLink && !refResult.bonusEarned) {
+        msg += `\n\n🎁 <b>Want 1 more free test call?</b>\nShare this link with a friend. When they send /testsip, you'll get a bonus call:\n\n${refLink}`
+      } else if (refResult?.bonusEarned) {
+        msg += `\n\n✅ You already earned your referral bonus.`
+      }
+      return send(chatId, msg, { parse_mode: 'HTML' })
     }
-    return send(chatId, `🔑 <b>Your SIP Test Code</b>\n\n<code>${result.otp}</code>\n\nEnter this code on the test page to get your free SIP credentials.\n⏱ Expires in 5 minutes.\n📞 ${result.callsRemaining} test call${result.callsRemaining !== 1 ? 's' : ''} remaining.`, { parse_mode: 'HTML' })
+    return send(chatId, `🔑 <b>Your SIP Test Code</b>\n\n<code>${result.otp}</code>\n\nEnter this code on the test page to get your free SIP credentials.\n⏱ Expires in 5 minutes.\n📞 ${result.callsRemaining} test call${result.callsRemaining !== 1 ? 's' : ''} remaining.\n\n🌐 <a href="https://speechcue.com/phone/test">Open Test Page</a>`, { parse_mode: 'HTML' })
   }
 
   // /done — exit support chat
