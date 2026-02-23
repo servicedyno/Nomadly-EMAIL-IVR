@@ -157,11 +157,14 @@ backend:
     file: "js/cr-register-domain-&-create-cpanel.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         - working: true
           agent: "main"
           comment: "Reordered: Step 2 = domain registration (CF zone + registrar with NS), Step 3 = WHM account creation, Step 4 = CF DNS setup (reuses cfZoneId from registration, only creates new zone for existing/external domains). Domain reg failure now aborts early (no orphan WHM). Eliminated double CF createZone for new domains."
+        - working: true
+          agent: "testing"
+          comment: "✅ Verified: Correct step ordering (Step 2: domain reg, Step 3: hosting), CF zone reuse logic (cfZoneId = regResult.cfZoneId), early abort on domain registration failure. All structural changes implemented correctly."
 
   - task: "Fix: panel.hostbay.io root path shows shortener"
     implemented: true
