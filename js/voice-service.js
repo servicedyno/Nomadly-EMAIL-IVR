@@ -1179,8 +1179,13 @@ async function findNumberBySipUser(sipUsername, fromPhone) {
           return { chatId: user._id, num }
         }
         // Match by phone number (in case 'from' is the phone number)
-        if (fromPhone && num.phoneNumber?.replace(/[^+\d]/g, '') === fromPhone) {
-          return { chatId: user._id, num }
+        // Normalize both sides by stripping '+' for comparison
+        if (fromPhone) {
+          const normalizedFrom = fromPhone.replace(/^\+/, '')
+          const normalizedNum = num.phoneNumber?.replace(/[^+\d]/g, '').replace(/^\+/, '')
+          if (normalizedFrom === normalizedNum) {
+            return { chatId: user._id, num }
+          }
         }
       }
     }
