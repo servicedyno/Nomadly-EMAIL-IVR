@@ -290,7 +290,7 @@ const PhoneTestPage = () => {
       addLog(`Error: ${e.message}`, 'error');
       setStatus('error');
     }
-  }, [getCredentials, addLog, startCallTimer, stopCallTimer]);
+  }, [getCredentials, addLog, startCallTimer, stopCallTimer, startRingtone, stopRingtone]);
 
   const makeCall = useCallback(async () => {
     const dest = destination.replace(/[^+\d]/g, '');
