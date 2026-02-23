@@ -112,11 +112,14 @@ backend:
     file: "js/_index.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         - working: true
           agent: "main"
           comment: "Two changes: (1) Line 5695: shortener=Yes now sets nsChoice='cloudflare' instead of 'provider_default'. No NS question shown (already skipped). (2) buyDomainFullProcess DNS linking section: replaced CR/OP split with unified domainService.addDNSRecord() which auto-routes to CF when domain has nameserverType=cloudflare+cfZoneId. Removed 65s sleep (CF DNS is instant, uses 5s propagation delay). Added fallback to direct CR DNS add if domainService fails. Anti-Red auto-deploy at bottom already handles CF domains."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: Both code changes implemented correctly. (1) Line 5695: saveInfo('nsChoice', 'cloudflare') with correct comment 'skip NS selection, use Cloudflare for DNS management'. (2) Lines 11206-11214: unified domainService.addDNSRecord() with 5s sleep, proper fallback to saveServerInDomain for CR domains with 60s sleep, old 65s sleep removed. Node.js service running healthy on port 5000 with no critical errors."
 
   - task: "Fix: buyDomainOnline() accept optional NS params"
     implemented: true
