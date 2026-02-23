@@ -12806,7 +12806,14 @@ app.post('/dynopay/crypto-pay-leads', authDyno, async (req, res) => {
   const label = isValidator ? 'Validation' : 'Leads'
   set(payments, ref, `Crypto,${label},$${price},${chatId},${name},${new Date()},${value} ${coin},transaction,${id}`)
   const ticker = tickerViewOfDyno[coin]
-  const usdIn = await convert(value, ticker, 'usd')
+  const baseAmount = req.body.base_amount
+  const feePayer = req.body.fee_payer
+  let usdIn
+  if (baseAmount && feePayer === 'company') {
+    usdIn = parseFloat(baseAmount)
+  } else {
+    usdIn = await convert(value, ticker, 'usd')
+  }
   if (usdIn * 1.06 < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
