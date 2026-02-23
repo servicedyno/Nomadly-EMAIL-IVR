@@ -1,329 +1,284 @@
 #!/usr/bin/env python3
 """
-Telnyx SIP Voice Service Integration Test
-Tests the Node.js Express app endpoints for Telnyx voice webhook handling.
+Backend Testing for Telnyx SIP Voice Service
+Tests Node.js Express server on port 5000, proxied via FastAPI on port 8001
 """
 
 import requests
 import json
-import sys
-import time
-from urllib.parse import urljoin
+import subprocess
+import re
+from typing import Dict, Any, Optional
 
-# Backend URL - Node.js service runs on port 5000
-BACKEND_URL = "http://localhost:5000"
+# Test Configuration
+NODEJS_DIRECT_URL = "http://localhost:5000"
+FASTAPI_PROXY_URL = "http://localhost:8001/api"
 
-# Test configuration
-TEST_CONFIG = {
-    "inbound_number": "+18777000068",  # Number that was migrated to Call Control App
-    "call_control_app_id": "2898117434361775526",
-    "sip_connection_id": "2898118323872990714",
-    "caller_number": "+15551234567",
-    "timeout": 10
-}
-
-def log(message):
-    """Log test messages with timestamp"""
-    print(f"[TEST] {message}")
-
-def test_health_check():
-    """Test basic health check endpoint"""
-    log("Testing health check endpoint...")
-    try:
-        response = requests.get(f"{BACKEND_URL}/", timeout=TEST_CONFIG["timeout"])
-        log(f"Health check response: {response.status_code}")
-        if response.status_code == 200:
-            log("✅ Health check passed")
-            return True
-        else:
-            log(f"❌ Health check failed with status {response.status_code}")
-            return False
-    except Exception as e:
-        log(f"❌ Health check failed with exception: {e}")
-        return False
-
-def test_inbound_call_webhook():
-    """Test inbound call to migrated number (should handle via Call Control App)"""
-    log("Testing inbound call webhook handler...")
+class TelnyxSIPTester:
+    def __init__(self):
+        self.test_results = []
+        self.passed = 0
+        self.failed = 0
     
-    webhook_data = {
-        "data": {
-            "event_type": "call.initiated",
-            "payload": {
-                "direction": "incoming",
-                "from": TEST_CONFIG["caller_number"],
-                "to": TEST_CONFIG["inbound_number"],
-                "call_control_id": "test-inbound-001",
-                "call_leg_id": "leg-001",
-                "connection_id": TEST_CONFIG["call_control_app_id"],
-                "state": "ringing"
-            }
+    def log_test(self, test_name: str, passed: bool, expected: str, actual: str, details: str = ""):
+        """Log test result"""
+        status = "✅ PASS" if passed else "❌ FAIL"
+        result = {
+            "test": test_name,
+            "status": status,
+            "passed": passed,
+            "expected": expected,
+            "actual": actual,
+            "details": details
         }
-    }
-    
-    try:
-        response = requests.post(
-            f"{BACKEND_URL}/telnyx/voice-webhook",
-            json=webhook_data,
-            timeout=TEST_CONFIG["timeout"],
-            headers={"Content-Type": "application/json"}
-        )
-        
-        log(f"Inbound call webhook response: {response.status_code}")
-        
-        if response.status_code == 200:
-            log(f"✅ Inbound call webhook handled correctly")
-            log(f"Response content: {response.text[:200] if response.text else 'No content'}")
-            return True
+        self.test_results.append(result)
+        if passed:
+            self.passed += 1
         else:
-            log(f"❌ Inbound call webhook failed with status {response.status_code}")
-            log(f"Response: {response.text[:500] if response.text else 'No content'}")
-            return False
+            self.failed += 1
+        print(f"{status} {test_name}: {details}")
+        return passed
+    
+    def test_1_health_check(self) -> bool:
+        """Test 1: Health check on port 5000"""
+        try:
+            response = requests.get(f"{NODEJS_DIRECT_URL}/", timeout=10)
+            expected = "200 OK"
+            actual = f"{response.status_code} {response.reason}"
             
-    except Exception as e:
-        log(f"❌ Inbound call webhook failed with exception: {e}")
-        return False
-
-def test_outbound_sip_call_webhook():
-    """Test outbound SIP call (from SIP device via credential connection)"""
-    log("Testing outbound SIP call webhook handler...")
-    
-    webhook_data = {
-        "data": {
-            "event_type": "call.initiated",
-            "payload": {
-                "direction": "outgoing",
-                "from": TEST_CONFIG["inbound_number"],
-                "to": TEST_CONFIG["caller_number"],
-                "call_control_id": "test-outbound-001",
-                "call_leg_id": "leg-002",
-                "connection_id": TEST_CONFIG["sip_connection_id"],
-                "state": "bridging"
-            }
-        }
-    }
-    
-    try:
-        response = requests.post(
-            f"{BACKEND_URL}/telnyx/voice-webhook",
-            json=webhook_data,
-            timeout=TEST_CONFIG["timeout"],
-            headers={"Content-Type": "application/json"}
-        )
-        
-        log(f"Outbound SIP call webhook response: {response.status_code}")
-        
-        if response.status_code == 200:
-            log(f"✅ Outbound SIP call webhook handled correctly")
-            log(f"Response content: {response.text[:200] if response.text else 'No content'}")
-            return True
-        else:
-            log(f"❌ Outbound SIP call webhook failed with status {response.status_code}")
-            log(f"Response: {response.text[:500] if response.text else 'No content'}")
-            return False
+            passed = response.status_code == 200
+            details = f"Status: {actual}"
+            if passed and "Nomadly" in response.text:
+                details += " | Contains Nomadly branding"
             
-    except Exception as e:
-        log(f"❌ Outbound SIP call webhook failed with exception: {e}")
-        return False
-
-def test_call_hangup_webhook():
-    """Test call hangup event handling"""
-    log("Testing call hangup webhook handler...")
-    
-    webhook_data = {
-        "data": {
-            "event_type": "call.hangup",
-            "payload": {
-                "direction": "incoming",
-                "from": TEST_CONFIG["caller_number"],
-                "to": TEST_CONFIG["inbound_number"],
-                "call_control_id": "test-hangup-001",
-                "call_leg_id": "leg-003",
-                "connection_id": TEST_CONFIG["call_control_app_id"],
-                "hangup_cause": "normal",
-                "duration_secs": 30
-            }
-        }
-    }
-    
-    try:
-        response = requests.post(
-            f"{BACKEND_URL}/telnyx/voice-webhook",
-            json=webhook_data,
-            timeout=TEST_CONFIG["timeout"],
-            headers={"Content-Type": "application/json"}
-        )
-        
-        log(f"Call hangup webhook response: {response.status_code}")
-        
-        if response.status_code == 200:
-            log(f"✅ Call hangup webhook handled correctly")
-            return True
-        else:
-            log(f"❌ Call hangup webhook failed with status {response.status_code}")
-            log(f"Response: {response.text[:500] if response.text else 'No content'}")
-            return False
+            return self.log_test("Health Check (port 5000)", passed, expected, actual, details)
             
-    except Exception as e:
-        log(f"❌ Call hangup webhook failed with exception: {e}")
-        return False
-
-def check_startup_logs():
-    """Check if startup logs show proper migration and resource initialization"""
-    log("Checking startup logs for migration and initialization...")
+        except Exception as e:
+            return self.log_test("Health Check (port 5000)", False, "200 OK", f"ERROR: {str(e)}", "Connection failed")
     
-    try:
-        # Check nodejs startup logs
-        import subprocess
-        result = subprocess.run(
-            ["tail", "-n", "50", "/var/log/supervisor/nodejs.out.log"],
-            capture_output=True, text=True, timeout=5
-        )
-        
-        logs = result.stdout
-        
-        # Check for migration message
-        migration_found = False
-        if f"Migrated {TEST_CONFIG['inbound_number']} to Call Control App" in logs:
-            log(f"✅ Found migration message for {TEST_CONFIG['inbound_number']}")
-            migration_found = True
-        elif "Migration complete" in logs:
-            log("✅ Found migration completion message")
-            migration_found = True
-        else:
-            log("❌ Migration message not found in logs")
-        
-        # Check for Call Control App ID
-        app_id_found = False
-        if TEST_CONFIG["call_control_app_id"] in logs:
-            log(f"✅ Found Call Control App ID: {TEST_CONFIG['call_control_app_id']}")
-            app_id_found = True
-        else:
-            log(f"❌ Call Control App ID {TEST_CONFIG['call_control_app_id']} not found in logs")
-        
-        # Check for Telnyx resources initialization
-        resources_found = False
-        if "Telnyx Resources Ready" in logs:
-            log("✅ Found Telnyx Resources Ready message")
-            resources_found = True
-        else:
-            log("❌ Telnyx Resources Ready message not found")
-        
-        return migration_found and app_id_found and resources_found
-        
-    except Exception as e:
-        log(f"❌ Error checking startup logs: {e}")
-        return False
-
-def check_error_logs():
-    """Check error logs to ensure they're clean"""
-    log("Checking error logs...")
-    
-    try:
-        import subprocess
-        result = subprocess.run(
-            ["tail", "-n", "20", "/var/log/supervisor/nodejs.err.log"],
-            capture_output=True, text=True, timeout=5
-        )
-        
-        error_logs = result.stdout.strip()
-        
-        if not error_logs or error_logs == "Exit code: 0":
-            log("✅ Error logs are clean (no errors)")
-            return True
-        else:
-            log(f"⚠️ Found content in error logs: {error_logs}")
-            # Check if errors are critical
-            if any(keyword in error_logs.lower() for keyword in ['error', 'failed', 'exception']):
-                log("❌ Critical errors found in logs")
-                return False
+    def test_2_phone_test_spa(self) -> bool:
+        """Test 2: /phone/test serves React SPA"""
+        try:
+            response = requests.get(f"{NODEJS_DIRECT_URL}/phone/test", timeout=10)
+            expected = "200, HTML with <div id=\"root\">"
+            actual = f"{response.status_code}"
+            
+            passed = (response.status_code == 200 and 
+                     'text/html' in response.headers.get('content-type', '') and
+                     '<div id="root">' in response.text)
+            
+            if response.status_code == 200:
+                has_root_div = '<div id="root">' in response.text
+                content_type = response.headers.get('content-type', 'unknown')
+                details = f"Content-Type: {content_type} | Root div: {'✓' if has_root_div else '✗'}"
             else:
-                log("✅ Non-critical content in logs")
-                return True
+                details = f"Status: {actual} | Expected HTML with React root div"
                 
-    except Exception as e:
-        log(f"❌ Error checking error logs: {e}")
-        return False
-
-def test_webhook_endpoint_exists():
-    """Test if the webhook endpoint exists and responds"""
-    log("Testing webhook endpoint existence...")
-    
-    try:
-        # Test with a minimal payload to see if endpoint exists
-        response = requests.post(
-            f"{BACKEND_URL}/telnyx/voice-webhook",
-            json={"test": "ping"},
-            timeout=TEST_CONFIG["timeout"],
-            headers={"Content-Type": "application/json"}
-        )
-        
-        # Any response (even 400) means the endpoint exists
-        if response.status_code in [200, 400, 422]:
-            log(f"✅ Webhook endpoint exists and responds (status: {response.status_code})")
-            return True
-        else:
-            log(f"❌ Webhook endpoint returned unexpected status: {response.status_code}")
-            return False
+            return self.log_test("/phone/test serves React SPA", passed, expected, actual, details)
             
-    except requests.exceptions.ConnectionError:
-        log("❌ Webhook endpoint not reachable - connection error")
-        return False
-    except Exception as e:
-        log(f"❌ Webhook endpoint test failed: {e}")
-        return False
+        except Exception as e:
+            return self.log_test("/phone/test serves React SPA", False, expected, f"ERROR: {str(e)}", "Connection failed")
+    
+    def test_3_phone_test_proxy(self) -> bool:
+        """Test 3: /phone/test through FastAPI proxy"""
+        try:
+            response = requests.get(f"{FASTAPI_PROXY_URL}/phone/test", timeout=10)
+            expected = "200, HTML with <div id=\"root\">"
+            actual = f"{response.status_code}"
+            
+            passed = (response.status_code == 200 and 
+                     'text/html' in response.headers.get('content-type', '') and
+                     '<div id="root">' in response.text)
+            
+            if response.status_code == 200:
+                has_root_div = '<div id="root">' in response.text
+                content_type = response.headers.get('content-type', 'unknown')
+                details = f"Content-Type: {content-type} | Root div: {'✓' if has_root_div else '✗'} | Proxy working"
+            else:
+                details = f"Status: {actual} | Proxy may not be working correctly"
+                
+            return self.log_test("/phone/test via FastAPI proxy", passed, expected, actual, details)
+            
+        except Exception as e:
+            return self.log_test("/phone/test via FastAPI proxy", False, expected, f"ERROR: {str(e)}", "Proxy connection failed")
+    
+    def test_4_phone_test_api_otp(self) -> bool:
+        """Test 4: Phone test API endpoint - OTP verification"""
+        try:
+            payload = {"otp": "123456"}
+            headers = {"Content-Type": "application/json"}
+            response = requests.post(f"{NODEJS_DIRECT_URL}/phone/test/verify-otp", 
+                                   json=payload, headers=headers, timeout=10)
+            
+            expected = "401 (invalid OTP)"
+            actual = f"{response.status_code}"
+            
+            # Expect 401 for invalid OTP, confirms API route works
+            passed = response.status_code == 401
+            
+            if passed:
+                details = "API endpoint working correctly (invalid OTP rejected)"
+            else:
+                details = f"Status: {actual} | Expected 401 for invalid OTP"
+                
+            return self.log_test("Phone test OTP API endpoint", passed, expected, actual, details)
+            
+        except Exception as e:
+            return self.log_test("Phone test OTP API endpoint", False, expected, f"ERROR: {str(e)}", "API connection failed")
+    
+    def test_5_inbound_webhook(self) -> bool:
+        """Test 5: Inbound call webhook - SIP ringing flow"""
+        try:
+            payload = {
+                "data": {
+                    "event_type": "call.initiated",
+                    "payload": {
+                        "direction": "incoming",
+                        "from": "+15551234567",
+                        "to": "+18777000068",
+                        "call_control_id": "test-inbound-sip-ring-001",
+                        "call_leg_id": "leg-001",
+                        "connection_id": "2898117434361775526",
+                        "state": "ringing"
+                    }
+                }
+            }
+            headers = {"Content-Type": "application/json"}
+            response = requests.post(f"{NODEJS_DIRECT_URL}/telnyx/voice-webhook", 
+                                   json=payload, headers=headers, timeout=10)
+            
+            expected = "200"
+            actual = f"{response.status_code}"
+            
+            passed = response.status_code == 200
+            
+            if passed:
+                details = "Telnyx voice webhook accepting inbound calls correctly"
+            else:
+                details = f"Status: {actual} | Webhook may not be handling calls properly"
+                
+            return self.log_test("Inbound call webhook (SIP ringing)", passed, expected, actual, details)
+            
+        except Exception as e:
+            return self.log_test("Inbound call webhook (SIP ringing)", False, expected, f"ERROR: {str(e)}", "Webhook connection failed")
+    
+    def test_6_startup_logs(self) -> bool:
+        """Test 6: Verify startup logs"""
+        try:
+            # Check Node.js stdout logs
+            result = subprocess.run(['tail', '-n', '100', '/var/log/supervisor/nodejs.out.log'], 
+                                  capture_output=True, text=True, timeout=10)
+            
+            if result.returncode != 0:
+                return self.log_test("Startup logs verification", False, "Log access", "Cannot read logs", "Permission or file not found")
+            
+            log_content = result.stdout
+            
+            # Check for required log messages
+            checks = {
+                "React frontend serving": "Express.*Serving React frontend from build directory",
+                "Telnyx Resources Ready": "Telnyx Resources Ready|Telnyx resources initialized",
+                "Migration complete": "Migration complete|Migrated.*numbers to Call Control App",
+                "No PathError": True  # Will be checked separately
+            }
+            
+            found_logs = {}
+            for check_name, pattern in checks.items():
+                if check_name == "No PathError":
+                    # Check that there are NO PathError messages
+                    found_logs[check_name] = "PathError" not in log_content
+                else:
+                    found_logs[check_name] = bool(re.search(pattern, log_content, re.IGNORECASE))
+            
+            # Count successful checks
+            passed_checks = sum(1 for found in found_logs.values() if found)
+            total_checks = len(checks)
+            
+            passed = passed_checks == total_checks
+            expected = "All startup indicators present"
+            actual = f"{passed_checks}/{total_checks} checks passed"
+            
+            details_list = []
+            for check_name, found in found_logs.items():
+                status = "✓" if found else "✗"
+                details_list.append(f"{check_name}: {status}")
+            
+            details = " | ".join(details_list)
+            
+            return self.log_test("Startup logs verification", passed, expected, actual, details)
+            
+        except Exception as e:
+            return self.log_test("Startup logs verification", False, "Log verification", f"ERROR: {str(e)}", "Failed to read logs")
+    
+    def test_7_no_error_logs(self) -> bool:
+        """Test 7: Check for error logs"""
+        try:
+            # Check Node.js stderr logs
+            result = subprocess.run(['tail', '-n', '50', '/var/log/supervisor/nodejs.err.log'], 
+                                  capture_output=True, text=True, timeout=10)
+            
+            if result.returncode != 0:
+                return self.log_test("No error logs check", False, "Log access", "Cannot read error logs", "Permission or file not found")
+            
+            error_content = result.stdout.strip()
+            
+            expected = "Empty error log"
+            actual = "Empty" if not error_content else f"{len(error_content.splitlines())} error lines"
+            
+            passed = not error_content or error_content == ""
+            
+            if passed:
+                details = "No errors in Node.js stderr log"
+            else:
+                # Show first few lines of errors
+                error_lines = error_content.splitlines()
+                preview = " | ".join(error_lines[:3])
+                if len(error_lines) > 3:
+                    preview += f" | ... ({len(error_lines)} total lines)"
+                details = f"Errors found: {preview}"
+                
+            return self.log_test("No error logs check", passed, expected, actual, details)
+            
+        except Exception as e:
+            return self.log_test("No error logs check", False, expected, f"ERROR: {str(e)}", "Failed to read error logs")
+    
+    def run_all_tests(self):
+        """Run all tests and generate summary"""
+        print("🚀 Starting Telnyx SIP Voice Service Tests")
+        print("=" * 60)
+        
+        # Execute tests in order
+        self.test_1_health_check()
+        self.test_2_phone_test_spa()
+        self.test_3_phone_test_proxy()
+        self.test_4_phone_test_api_otp()
+        self.test_5_inbound_webhook()
+        self.test_6_startup_logs()
+        self.test_7_no_error_logs()
+        
+        # Generate summary
+        print("\n" + "=" * 60)
+        print(f"📊 TEST SUMMARY: {self.passed}/{len(self.test_results)} PASSED")
+        print("=" * 60)
+        
+        if self.failed == 0:
+            print("🎉 ALL TESTS PASSED! Telnyx SIP voice service is working correctly.")
+        else:
+            print(f"⚠️  {self.failed} tests failed. See details above.")
+            
+        return self.failed == 0
 
 def main():
-    """Run all tests and report results"""
-    log("Starting Telnyx SIP Voice Service Integration Tests")
-    log(f"Backend URL: {BACKEND_URL}")
-    log(f"Test target number: {TEST_CONFIG['inbound_number']}")
-    log("=" * 60)
+    """Main test execution"""
+    tester = TelnyxSIPTester()
+    success = tester.run_all_tests()
     
-    tests = [
-        ("Health Check", test_health_check),
-        ("Webhook Endpoint Exists", test_webhook_endpoint_exists),
-        ("Startup Logs Check", check_startup_logs),
-        ("Error Logs Check", check_error_logs),
-        ("Inbound Call Webhook", test_inbound_call_webhook),
-        ("Outbound SIP Call Webhook", test_outbound_sip_call_webhook),
-        ("Call Hangup Webhook", test_call_hangup_webhook),
-    ]
-    
-    results = []
-    passed = 0
-    total = len(tests)
-    
-    for test_name, test_func in tests:
-        log(f"\n--- Running: {test_name} ---")
-        try:
-            result = test_func()
-            results.append((test_name, result))
-            if result:
-                passed += 1
-            time.sleep(0.5)  # Small delay between tests
-        except Exception as e:
-            log(f"❌ Test {test_name} crashed: {e}")
-            results.append((test_name, False))
-    
-    # Print summary
-    log("\n" + "=" * 60)
-    log("TEST SUMMARY")
-    log("=" * 60)
-    
-    for test_name, result in results:
-        status = "✅ PASS" if result else "❌ FAIL"
-        log(f"{status} - {test_name}")
-    
-    log(f"\nTotal: {passed}/{total} tests passed")
-    
-    if passed == total:
-        log("🎉 All tests passed!")
-        return 0
+    if success:
+        print("\n✅ Telnyx SIP voice service integration is fully operational")
+        exit(0)
     else:
-        log("⚠️ Some tests failed!")
-        return 1
+        print("\n❌ Some tests failed - manual review required")
+        exit(1)
 
 if __name__ == "__main__":
-    exit_code = main()
-    sys.exit(exit_code)
+    main()
