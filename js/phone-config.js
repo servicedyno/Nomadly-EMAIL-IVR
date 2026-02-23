@@ -409,6 +409,7 @@ Select an option:`,
 📡 Port: 5060 (UDP/TCP) | 5061 (TLS)
 
 ━━━ <b>Quick Setup</b> ━━━
+• Browser: Make & receive calls at <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a> — no sign-up needed
 • Softphone: Download Zoiper/Ooma, enter SIP credentials
 • SMS: Inbound SMS forwarded to this chat automatically
 • Forwarding: Set up via 📱 My Numbers → Call Forwarding`,
