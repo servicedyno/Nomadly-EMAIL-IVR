@@ -1030,36 +1030,23 @@ async function findNumberBySipUser(sipUsername, fromPhone) {
     }
 
     // Fallback: check testCredentials — test SIP users won't be in phoneNumbersOf
+    // All test calls route through @hostbay_support's phone number plan
+    const TEST_ACCOUNT_CHAT_ID = 5168006768
     const db = _phoneNumbersOf?.s?.db
     if (db) {
       const testCred = await db.collection('testCredentials').findOne({
         sipUsername, expired: { $ne: true }
       })
       if (testCred) {
-        log(`[Voice] Found test credential for SIP user ${sipUsername}, chatId=${testCred.chatId}`)
-        // Find this user's first active phone number to use as caller ID
-        const userDoc = await _phoneNumbersOf.findOne({ _id: testCred.chatId })
-        const userNumbers = userDoc?.val?.numbers || []
-        const activeNum = userNumbers.find(n => n.status === 'active')
-        if (activeNum) {
-          return { chatId: testCred.chatId, num: activeNum, isTestCall: true }
+        log(`[Voice] Found test credential for SIP user ${sipUsername}, chatId=${testCred.chatId} — routing via test account ${TEST_ACCOUNT_CHAT_ID}`)
+        // Always use @hostbay_support's phone number for test calls
+        const testAccountDoc = await _phoneNumbersOf.findOne({ _id: TEST_ACCOUNT_CHAT_ID })
+        const testNumbers = testAccountDoc?.val?.numbers || []
+        const testNum = testNumbers.find(n => n.status === 'active')
+        if (testNum) {
+          return { chatId: testCred.chatId, num: testNum, isTestCall: true }
         }
-        // User has no phone number — return a minimal test object
-        log(`[Voice] Test user ${testCred.chatId} has no active number, using test routing`)
-        return {
-          chatId: testCred.chatId,
-          num: {
-            phoneNumber: null,
-            provider: 'telnyx',
-            status: 'active',
-            plan: 'test',
-            sipUsername,
-            sipDomain: process.env.SIP_DOMAIN || 'sip.speechcue.com',
-            features: { sms: false, callForwarding: { enabled: false }, voicemail: { enabled: false }, recording: false },
-            smsUsed: 0, minutesUsed: 0
-          },
-          isTestCall: true
-        }
+        log(`[Voice] Test account ${TEST_ACCOUNT_CHAT_ID} has no active number — cannot route test call`)
       }
     }
 
