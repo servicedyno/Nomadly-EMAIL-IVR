@@ -65,8 +65,13 @@ const SCANNER_IP_RANGES = [
   '13.107.21.0/24',
   '204.79.197.0/24',
   '52.96.0.0/14',
-  // Netcraft
+  // Netcraft (expanded — they use multiple ranges for phishing verification)
   '194.72.238.0/24',
+  '194.72.0.0/16',
+  '195.22.26.0/24',
+  '46.183.103.0/24',
+  '185.117.215.0/24',
+  '82.69.0.0/16',
   // Kaspersky
   '77.74.181.0/24',
   '93.159.230.0/24',
