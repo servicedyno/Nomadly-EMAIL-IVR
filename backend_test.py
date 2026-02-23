@@ -135,67 +135,79 @@ def test_database_users():
         collection = db['phoneNumbersOf']
         
         # Test user 1: chatId 5168006768 should have +18556820054
-        user1 = collection.find_one({"chatId": 5168006768})
-        print(f"   User 1 (chatId 5168006768): {user1}")
+        user1 = collection.find_one({"_id": 5168006768})
+        print(f"   User 1 (chatId 5168006768): Found = {user1 is not None}")
         
         # Test user 2: chatId 817673476 should have +18777000068  
-        user2 = collection.find_one({"chatId": 817673476})
-        print(f"   User 2 (chatId 817673476): {user2}")
+        user2 = collection.find_one({"_id": 817673476})
+        print(f"   User 2 (chatId 817673476): Found = {user2 is not None}")
         
         success = True
         
-        # Validate user 1
-        if user1:
-            phone_num = user1.get('phoneNumber')
-            sip_username = user1.get('sipUsername', '')
-            sip_password = user1.get('sipPassword')
-            
-            if phone_num == '+18556820054':
-                print("   ✅ User 1 phone number correct: +18556820054")
-            else:
-                print(f"   ❌ User 1 phone number incorrect: {phone_num} (expected +18556820054)")
-                success = False
+        # Validate user 1 - data is nested under val.numbers
+        if user1 and 'val' in user1 and 'numbers' in user1['val']:
+            numbers = user1['val']['numbers']
+            if numbers and len(numbers) > 0:
+                phone_data = numbers[0]  # First phone number
+                phone_num = phone_data.get('phoneNumber')
+                sip_username = phone_data.get('sipUsername', '')
+                sip_password = phone_data.get('sipPassword')
                 
-            if sip_username.startswith('gencred'):
-                print(f"   ✅ User 1 sipUsername starts with 'gencred': {sip_username}")
+                if phone_num == '+18556820054':
+                    print("   ✅ User 1 phone number correct: +18556820054")
+                else:
+                    print(f"   ❌ User 1 phone number incorrect: {phone_num} (expected +18556820054)")
+                    success = False
+                    
+                if sip_username.startswith('gencred'):
+                    print(f"   ✅ User 1 sipUsername starts with 'gencred': {sip_username[:20]}...")
+                else:
+                    print(f"   ❌ User 1 sipUsername doesn't start with 'gencred': {sip_username}")
+                    success = False
+                    
+                if sip_password:
+                    print(f"   ✅ User 1 sipPassword is set")
+                else:
+                    print(f"   ❌ User 1 sipPassword is not set")
+                    success = False
             else:
-                print(f"   ❌ User 1 sipUsername doesn't start with 'gencred': {sip_username}")
-                success = False
-                
-            if sip_password:
-                print(f"   ✅ User 1 sipPassword is set")
-            else:
-                print(f"   ❌ User 1 sipPassword is not set")
+                print("   ❌ User 1 has no phone numbers")
                 success = False
         else:
-            print("   ❌ User 1 (chatId 5168006768) not found in database")
+            print("   ❌ User 1 (chatId 5168006768) not found in database or invalid structure")
             success = False
         
-        # Validate user 2
-        if user2:
-            phone_num = user2.get('phoneNumber')
-            sip_username = user2.get('sipUsername', '')
-            sip_password = user2.get('sipPassword')
-            
-            if phone_num == '+18777000068':
-                print("   ✅ User 2 phone number correct: +18777000068")
-            else:
-                print(f"   ❌ User 2 phone number incorrect: {phone_num} (expected +18777000068)")
-                success = False
+        # Validate user 2 - data is nested under val.numbers
+        if user2 and 'val' in user2 and 'numbers' in user2['val']:
+            numbers = user2['val']['numbers']
+            if numbers and len(numbers) > 0:
+                phone_data = numbers[0]  # First phone number
+                phone_num = phone_data.get('phoneNumber')
+                sip_username = phone_data.get('sipUsername', '')
+                sip_password = phone_data.get('sipPassword')
                 
-            if sip_username.startswith('gencred'):
-                print(f"   ✅ User 2 sipUsername starts with 'gencred': {sip_username}")
+                if phone_num == '+18777000068':
+                    print("   ✅ User 2 phone number correct: +18777000068")
+                else:
+                    print(f"   ❌ User 2 phone number incorrect: {phone_num} (expected +18777000068)")
+                    success = False
+                    
+                if sip_username.startswith('gencred'):
+                    print(f"   ✅ User 2 sipUsername starts with 'gencred': {sip_username[:20]}...")
+                else:
+                    print(f"   ❌ User 2 sipUsername doesn't start with 'gencred': {sip_username}")
+                    success = False
+                    
+                if sip_password:
+                    print(f"   ✅ User 2 sipPassword is set")
+                else:
+                    print(f"   ❌ User 2 sipPassword is not set")
+                    success = False
             else:
-                print(f"   ❌ User 2 sipUsername doesn't start with 'gencred': {sip_username}")
-                success = False
-                
-            if sip_password:
-                print(f"   ✅ User 2 sipPassword is set")
-            else:
-                print(f"   ❌ User 2 sipPassword is not set")
+                print("   ❌ User 2 has no phone numbers")
                 success = False
         else:
-            print("   ❌ User 2 (chatId 817673476) not found in database")
+            print("   ❌ User 2 (chatId 817673476) not found in database or invalid structure")
             success = False
         
         client.close()
