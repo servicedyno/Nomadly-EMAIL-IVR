@@ -103,9 +103,33 @@
 #====================================================================================================
 
 
-user_problem_statement: "Fix domain registration flows: (1) buyDomainOnline() hardcodes NS ignoring CF/custom, (2) WHM created before domain reg causing orphans, (3) double CF zone creation, (4) getAccountNameservers() returns generic NS, (5) unnecessary 60s sleep for post-reg NS update"
+user_problem_statement: "Fix domain registration flows + lead job persistence recovery + activate shortener DNS routing"
 
 backend:
+  - task: "Fix: Lead job persistence recovery — findInterruptedJobs status mismatch"
+    implemented: true
+    working: true
+    file: "js/lead-job-persistence.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Three fixes: (1) findInterruptedJobs() now queries { status: { $in: ['running', 'interrupted'] } } instead of only 'running'. Covers both SIGTERM-flushed and non-flushed cases. (2) Fixed clearInterval(getState) bug in flushAllJobs() — should be clearInterval(timer). (3) Added SIGINT handler alongside SIGTERM in _index.js — npm may forward either signal."
+
+  - task: "Fix: Activate shortener DNS routing — unified domainService.addDNSRecord()"
+    implemented: true
+    working: true
+    file: "js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Both activate shortener handlers (DNS menu line 6331 and quick-activate line 5543) now use unified domainService.addDNSRecord() instead of CR/OP split. Auto-routes to Cloudflare zone when domain metadata has nameserverType=cloudflare+cfZoneId. Uses 5s delay instead of 65s. Falls back to direct CR DNS only for legacy domains with no metadata."
+
   - task: "Fix: URL shortener domains use Cloudflare NS + add CNAME to CF zone"
     implemented: true
     working: true
