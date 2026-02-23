@@ -307,6 +307,18 @@ backend:
           agent: "testing"
           comment: "✅ VERIFIED: Create folder fix correctly implemented. (1) Backend fix in js/cpanel-proxy.js (lines 164-167): createDirectory function now constructs fullPath with 'const fullPath = dir.endsWith('/') ? dir + name : dir + '/' + name' and uses single parameter '{ path: fullPath }' as required by cPanel UAPI Fileman::mkdir. (2) Frontend fix in FileManager.js (lines 113-131): handleCreateDir function now includes proper error handling with 'if (res.errors?.length)' check before proceeding. Both backend parameter structure and frontend error handling implemented correctly."
 
+  - task: "Fix: Full CF protection coverage at zone creation"
+    implemented: true
+    working: "NA"
+    file: "js/anti-red-service.js, js/cf-service.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Root cause: deployFullProtection was creating only 1 anti-bot rule (should be 3) and only 1 worker route (should be 3). Fix 1: deploySharedWorkerRoute now creates 3 routes (domain/*, domain bare, www.domain/*). Fix 2: createAntiBotRules now creates 3 rule batches (search engines, SEO bots, AI bots) matching reference. Fix 3: deployFullProtection now uses deploySharedWorkerRoute instead of deployCFWorker for complete route coverage. Fix 4: removeWorkerRoutes now also removes bare domain route."
+
 frontend:
   - task: "End-to-end panel testing (all features except email)"
     implemented: true
