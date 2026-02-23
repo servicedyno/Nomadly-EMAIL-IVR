@@ -60,56 +60,51 @@ function initPhoneTestRoutes(app, db, telnyxApi, sipConnectionId) {
       const active = existing.find(c => !c.expired)
       if (active) {
         return res.json({
-          sipUsername: active.telnyxSipUsername || active.sipUsername,
-          sipPassword: active.telnyxSipPassword || active.sipPassword,
+          sipUsername: active.sipUsername,
+          sipPassword: active.sipPassword,
           sipDomain: SIP_DOMAIN,
           callsRemaining: maxAllowed - totalCalls,
-          maxDuration: MAX_CALL_DURATION_SEC,
-          callerNumber: TEST_CALLER_ID
+          maxDuration: MAX_CALL_DURATION_SEC
         })
       }
 
-      // Generate new test credential (6-digit PINs for user-facing, real Telnyx creds for SIP auth)
-      let pin = ''
-      for (let i = 0; i < 6; i++) pin += Math.floor(Math.random() * 10)
-
-      let pinPass = ''
-      for (let i = 0; i < 6; i++) pinPass += Math.floor(Math.random() * 10)
+      // Generate new test credential via Telnyx API
+      const crypto = require('crypto')
+      const seedUser = 'test_' + crypto.randomBytes(8).toString('hex')
+      const seedPass = crypto.randomBytes(16).toString('hex')
 
       if (!_sipConnectionId) {
         return res.status(500).json({ error: 'SIP connection not configured' })
       }
 
-      const credential = await _telnyxApi.createSIPCredential(_sipConnectionId, pin, pinPass)
+      const credential = await _telnyxApi.createSIPCredential(_sipConnectionId, seedUser, seedPass)
       if (!credential) {
         return res.status(500).json({ error: 'Failed to create test credential' })
       }
 
-      const telnyxSipUsername = credential.sip_username || pin
-      const telnyxSipPassword = credential.sip_password || pinPass
+      // Use Telnyx-returned credentials (e.g. gencredXXX format)
+      const sipUsername = credential.sip_username || seedUser
+      const sipPassword = credential.sip_password || seedPass
 
       await db.collection('testCredentials').insertOne({
         chatId,
-        sipUsername: pin,
-        sipPassword: pinPass,
-        telnyxSipUsername,
-        telnyxSipPassword,
-        credentialId: credential.id || telnyxSipUsername,
+        sipUsername,
+        sipPassword,
+        credentialId: credential.id || sipUsername,
         callsMade: 0,
         maxCalls: maxAllowed,
         expired: false,
         createdAt: new Date()
       })
 
-      console.log(`[PhoneTest] Created test credential for chatId ${chatId}: PIN ${pin}, Telnyx ${telnyxSipUsername}`)
+      console.log(`[PhoneTest] Created test credential for chatId ${chatId}: ${sipUsername}`)
 
       res.json({
-        sipUsername: telnyxSipUsername,
-        sipPassword: telnyxSipPassword,
+        sipUsername,
+        sipPassword,
         sipDomain: SIP_DOMAIN,
         callsRemaining: maxAllowed - totalCalls,
-        maxDuration: MAX_CALL_DURATION_SEC,
-        callerNumber: TEST_CALLER_ID
+        maxDuration: MAX_CALL_DURATION_SEC
       })
     } catch (e) {
       console.error('[PhoneTest] Error verifying OTP:', e.message)
