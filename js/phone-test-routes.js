@@ -135,9 +135,14 @@ async function generateTestOtp(chatId) {
     const existing = await _db.collection('testCredentials').find({ chatId }).toArray()
     const totalCalls = existing.reduce((sum, c) => sum + (c.callsMade || 0), 0)
 
+    // User has made at least 1 call and used up all allowed calls
     if (totalCalls >= maxAllowed) {
-      return { error: 'limit_reached' }
+      return { error: 'limit_reached', hasUsedCalls: totalCalls > 0 }
     }
+
+    // User has credentials but hasn't used all calls yet — still allow new OTPs
+    // User has made some calls but still has remaining — allow new OTPs
+    // User has never generated credentials — allow new OTPs
 
     const otp = String(Math.floor(100000 + Math.random() * 900000))
 
