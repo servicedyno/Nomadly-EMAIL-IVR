@@ -1011,7 +1011,7 @@ async function handleCallAnswered(payload) {
     session.isRecording = true
   }
 
-  // Route based on features priority: IVR > Forwarding > Voicemail > Missed Call
+  // Route based on features priority: IVR > Forwarding(always) > Ring SIP Device > Voicemail > Missed Call
   const ivrConfig = num.features?.ivr
   const fwdConfig = num.features?.callForwarding
   const vmConfig = num.features?.voicemail
