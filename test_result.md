@@ -136,6 +136,18 @@ backend:
           agent: "testing"
           comment: "✅ VERIFIED WORKING - JS challenge toggle endpoint exists and is properly secured. Test passed: POST /panel/security/js-challenge/toggle → 401 Unauthorized (auth required) ✓. Code review confirms: (1) removeWorkerRoutes() function properly implemented in anti-red-service.js (2) toggle handler in cpanel-routes.js correctly calls removeWorkerRoutes() when enabled=false and deploySharedWorkerRoute() when enabled=true (3) Endpoint requires authentication via authMiddleware. The Cloudflare Worker route control functionality is correctly implemented."
 
+  - task: "Anti-Red protection toggle in bot for domain-only users"
+    implemented: true
+    working: true
+    file: "js/_index.js, js/lang/en.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Added 🛡️ Anti-Red Protection button to domain actions menu. Shows ON/OFF status. Toggle ON deploys CF worker routes, toggle OFF removes them. Stores antiRedOff flag in registeredDomains DB. Cron job respects opt-out flag. Auto-deploys on domain purchase."
+
   - task: "Fix: /:id shortener route blocks panel domain"
     implemented: true
     working: true
