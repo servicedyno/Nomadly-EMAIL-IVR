@@ -40,6 +40,41 @@ logger = logging.getLogger(__name__)
 # Async HTTP client for proxying to Node.js
 http_client = httpx.AsyncClient(timeout=30.0)
 
+# Railway MongoDB for reading phone data
+railway_mongo_url = os.environ.get('RAILWAY_MONGO_URL', '')
+railway_client = None
+railway_db = None
+if railway_mongo_url:
+    railway_client = AsyncIOMotorClient(railway_mongo_url)
+    railway_db = railway_client[os.environ.get('DB_NAME', 'test')]
+
+# ============================================================
+# SIP Test: Serve credentials for the SIP test page
+# ============================================================
+@app.get("/api/sip-test-credentials")
+async def get_sip_test_credentials():
+    """Return first active SIP user credentials for testing."""
+    if not railway_db:
+        return {"error": "Database not configured"}
+    
+    try:
+        records = await railway_db.phoneNumbersOf.find({}).to_list(100)
+        for rec in records:
+            numbers = rec.get("val", {}).get("numbers", [])
+            for num in numbers:
+                if num.get("sipUsername") and num.get("status") == "active":
+                    return {
+                        "sipUsername": num["sipUsername"],
+                        "sipPassword": num.get("sipPassword", ""),
+                        "phoneNumber": num.get("phoneNumber", ""),
+                        "provider": num.get("provider", ""),
+                        "plan": num.get("plan", ""),
+                    }
+        return {"error": "No active SIP credentials found"}
+    except Exception as e:
+        logger.error(f"SIP credentials error: {e}")
+        return {"error": str(e)}
+
 
 # ============================================================
 # PROXY: Forward all /api/* requests to Node.js Express on :5000
