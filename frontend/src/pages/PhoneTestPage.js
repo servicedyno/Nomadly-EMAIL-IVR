@@ -39,6 +39,8 @@ const PhoneTestPage = () => {
   // Incoming call state
   const [incomingCall, setIncomingCall] = useState(null);
   const [incomingCaller, setIncomingCaller] = useState('');
+  const [incomingCallerName, setIncomingCallerName] = useState('');
+  const [incomingCallerLocation, setIncomingCallerLocation] = useState('');
 
   const isTestMode = activeTab === 'test';
 
