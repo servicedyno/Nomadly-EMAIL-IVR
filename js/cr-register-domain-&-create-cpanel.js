@@ -155,7 +155,10 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state)
     // NOTE: Do NOT send cPanel credentials (username/password/panel URL) to users
     // Users should only get the HostPanel PIN login
     if (pin) {
-      const panelUrl = `${process.env.SELF_URL_PROD?.replace('/api', '')}/panel`
+      const panelDomain = process.env.PANEL_DOMAIN
+      const panelUrl = panelDomain
+        ? `https://${panelDomain}`
+        : `${process.env.SELF_URL_PROD?.replace('/api', '')}/panel`
       const credentialsMsg = `🎉 <b>Your hosting is live!</b>
 
 <b>Domain:</b> ${domain}
