@@ -682,7 +682,7 @@ Best regards,
 ${CHAT_BOT_NAME}`,
 
   showDepositCryptoInfoDigitalProduct: (priceCrypto, tickerView, address, product) =>
-    `Please remit ${priceCrypto} ${tickerView} to\n\n<code>${address}</code>\n\nYour order for <b>${product}</b> is being processed. Crypto transactions can take up to 30 minutes. Once confirmed, your order will be delivered within <b>30 minutes</b>.\n\nBest regards,\n${CHAT_BOT_NAME}`,
+    `Please remit ${priceCrypto} ${tickerView} to\n\n<code>${address}</code>\n\nYour order for <b>${product}</b> is being processed. Crypto payments are confirmed quickly — usually within a few minutes. Once confirmed, your order will be delivered shortly.\n\nBest regards,\n${CHAT_BOT_NAME}`,
 
   showDepositCryptoInfo: (priceCrypto, tickerView, address) =>
     `Please remit ${priceCrypto} ${tickerView} to\n\n<code>${address}</code>
