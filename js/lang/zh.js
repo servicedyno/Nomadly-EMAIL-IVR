@@ -543,7 +543,7 @@ ${CHAT_BOT_NAME}`,
     const desc = descriptions[product] || ''
     return `💰 <b>订单：${product}</b>\n\n💵 价格：<b>$${price}</b>${desc ? '\n\n' + desc : ''}\n\n请选择支付方式：`
   },
-  dpOrderConfirmed: (product, price, orderId) => `✅ <b>订单已确认！</b>\n\n🛒 产品：<b>${product}</b>\n💵 金额：<b>$${price}</b>\n🆔 订单号：<code>${orderId}</code>\n\n您的订单将在 <b>30 分钟</b>内通过此机器人送达。\n如有问题，请联系客服。`,
+  dpOrderConfirmed: (product, price, orderId) => `✅ <b>订单已确认！</b>\n\n🛒 产品：<b>${product}</b>\n💵 金额：<b>$${price}</b>\n🆔 订单号：<code>${orderId}</code>\n\n您的订单将很快通过此机器人送达。\n如有问题，请联系客服。`,
   leadsFileNumbersOnly: `📄 <b>文件 1 — 电话号码</b>\n您批次中所有已验证的号码。`,
   leadsFileWithNames: (count) => `📄 <b>文件 2 — 号码 + 机主姓名（${count} 条匹配）</b>\n这些线索包含机主的真实姓名。用名字称呼对方——立刻建立信任，大幅提高回复率。`,
   addDnsTxt: '选择记录类型：',
