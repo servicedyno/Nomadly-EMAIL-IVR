@@ -121,6 +121,18 @@ backend:
           agent: "testing"
           comment: "✅ VERIFIED: All lead job persistence resume implementation changes correctly implemented and tested. (1) validateBulkNumbers function signature updated with 11th parameter resumeData=null, properly initializes res[] and realNameCount from resumeData when provided. (2) lead-job-persistence.js has resumeJob function that sets status='running' with resumedAt timestamp, properly exported. (3) _index.js imports resumeJob correctly, resumeInterruptedLeadJobs calls validateBulkNumbers with resumeData object containing {jobId, results, realNameCount}. (4) deliverLeadResults helper handles both CNAM (with real names filter) and non-CNAM cases via sendDocument. (5) Node.js service running healthy on port 5000. All 19 backend tests passed (100% success rate)."
 
+  - task: "Fix: Shortener activation persistence — survives deployments"
+    implemented: true
+    working: true
+    file: "js/shortener-activation-persistence.js, js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "New persistence module tracks shortener activation steps (pending→railway_linked→dns_added→completed). All 3 activation handlers wrapped with persistence calls. On startup, resumeShortenerActivations() finds incomplete tasks and resumes from last completed step. addDnsForShortener() shared helper handles DNS add with correct provider routing."
+
   - task: "Fix: Activate shortener DNS routing — unified domainService.addDNSRecord()"
     implemented: true
     working: true
