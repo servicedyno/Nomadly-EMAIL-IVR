@@ -500,6 +500,11 @@ async function handleVoiceWebhook(req, res) {
         // Skip normal routing for bridge transfer legs (e.g., SIP ring, call forwarding)
         if (activeBridgeTransfers[callControlId]) {
           log(`[Voice] call.initiated for bridge transfer leg ${callControlId} — skipping normal routing`)
+        }
+        // Skip SIP device delivery legs — Telnyx auto-routes these to the registered device
+        // These arrive on the SIP Connection with state=bridging when we ring a SIP URI
+        else if (payload.state === 'bridging' && payload.connection_id === (process.env.TELNYX_SIP_CONNECTION_ID || '')) {
+          log(`[Voice] call.initiated for SIP device delivery leg ${callControlId} — skipping (Telnyx auto-routes)`)
         } else {
           await handleCallInitiated(payload)
         }
