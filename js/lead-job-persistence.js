@@ -190,6 +190,7 @@ module.exports = {
   stopPeriodicSave,
   completeJob,
   failJob,
+  resumeJob,
   findInterruptedJobs,
   flushAllJobs,
 }
