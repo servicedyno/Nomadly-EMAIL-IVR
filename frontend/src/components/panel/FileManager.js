@@ -112,14 +112,19 @@ export default function FileManager() {
 
   const handleCreateDir = async () => {
     if (!newDirName.trim()) return;
+    setError('');
     try {
-      await api('/files/mkdir', {
+      const res = await api('/files/mkdir', {
         method: 'POST',
         body: JSON.stringify({ dir: currentDir, name: newDirName.trim() }),
       });
-      setNewDirName('');
-      setShowNewDir(false);
-      fetchFiles(currentDir);
+      if (res.errors?.length) {
+        setError(`Create folder failed: ${res.errors[0]}`);
+      } else {
+        setNewDirName('');
+        setShowNewDir(false);
+        fetchFiles(currentDir);
+      }
     } catch (err) {
       setError(err.message);
     }
