@@ -181,7 +181,7 @@ const PhoneTestPage = () => {
       addLog(`Call failed: ${e.message}`, 'error');
       setCallStatus('idle');
     }
-  }, [destination, status, isTestMode, testCallsRemaining, addLog]);
+  }, [destination, status, isTestMode, testCallsRemaining, callerNumber, addLog]);
 
   const verifyOtp = async () => {
     if (!otpValue || otpValue.length !== 6) {
