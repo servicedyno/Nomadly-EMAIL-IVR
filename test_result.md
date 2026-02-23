@@ -112,11 +112,14 @@ backend:
     file: "js/lead-job-persistence.js, js/validatePhoneBulk.js, js/_index.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         - working: true
           agent: "main"
           comment: "Full resume implementation: (1) findInterruptedJobs queries both running+interrupted. (2) Fixed clearInterval bug + SIGINT handler. (3) validateBulkNumbers accepts resumeData param — reuses jobId, prepopulates res[] so generation loop continues from saved count. (4) resumeInterruptedLeadJobs calls validateBulkNumbers with resumeData to actually resume generation then delivers via deliverLeadResults helper. (5) Added resumeJob() to persistence module."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: All lead job persistence resume implementation changes correctly implemented and tested. (1) validateBulkNumbers function signature updated with 11th parameter resumeData=null, properly initializes res[] and realNameCount from resumeData when provided. (2) lead-job-persistence.js has resumeJob function that sets status='running' with resumedAt timestamp, properly exported. (3) _index.js imports resumeJob correctly, resumeInterruptedLeadJobs calls validateBulkNumbers with resumeData object containing {jobId, results, realNameCount}. (4) deliverLeadResults helper handles both CNAM (with real names filter) and non-CNAM cases via sendDocument. (5) Node.js service running healthy on port 5000. All 19 backend tests passed (100% success rate)."
 
   - task: "Fix: Activate shortener DNS routing — unified domainService.addDNSRecord()"
     implemented: true
