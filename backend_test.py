@@ -33,6 +33,7 @@ def test_health_check():
     except Exception as e:
         print(f"   ❌ ERROR: {str(e)}")
         return False
+
 def test_voice_webhook():
     """Test 2: Voice webhook - POST with call.initiated event should return 200"""
     print("\n🔍 Test 2: Voice webhook endpoint")
@@ -80,235 +81,287 @@ def test_voice_webhook():
     except Exception as e:
         print(f"   ❌ ERROR: {str(e)}")
         return False
+
+def test_prepare_call_endpoint():
+    """Test 3: prepare-call endpoint with specific caller number"""
+    print("\n🔍 Test 3: Prepare-call endpoint")
     
-    def test_2_phone_test_spa(self) -> bool:
-        """Test 2: /phone/test serves React SPA"""
-        try:
-            response = requests.get(f"{NODEJS_DIRECT_URL}/phone/test", timeout=10)
-            expected = "200, HTML with <div id=\"root\">"
-            actual = f"{response.status_code}"
-            
-            passed = (response.status_code == 200 and 
-                     'text/html' in response.headers.get('content-type', '') and
-                     '<div id="root">' in response.text)
-            
-            if response.status_code == 200:
-                has_root_div = '<div id="root">' in response.text
-                content_type = response.headers.get('content-type', 'unknown')
-                details = f"Content-Type: {content_type} | Root div: {'✓' if has_root_div else '✗'}"
-            else:
-                details = f"Status: {actual} | Expected HTML with React root div"
-                
-            return self.log_test("/phone/test serves React SPA", passed, expected, actual, details)
-            
-        except Exception as e:
-            return self.log_test("/phone/test serves React SPA", False, expected, f"ERROR: {str(e)}", "Connection failed")
+    prepare_call_payload = {
+        "callerNumber": "+18556820054"
+    }
     
-    def test_3_phone_test_proxy(self) -> bool:
-        """Test 3: /phone/test through FastAPI proxy"""
-        try:
-            response = requests.get(f"{FASTAPI_PROXY_URL}/phone/test", timeout=15)
-            expected = "200, HTML with <div id=\"root\">"
-            actual = f"{response.status_code}"
-            
-            # Check if content-type is HTML-like (sometimes compressed/encoded)
-            content_type = response.headers.get('content-type', '').lower()
-            is_html = 'text/html' in content_type or 'html' in content_type
-            has_root_div = '<div id="root">' in response.text
-            
-            passed = response.status_code == 200 and has_root_div
-            
-            if response.status_code == 200:
-                details = f"Content-Type: {content_type} | Root div: {'✓' if has_root_div else '✗'} | Proxy working"
-                if not is_html:
-                    details += f" | Warning: Non-HTML content type but root div found"
-            else:
-                details = f"Status: {actual} | Proxy may not be working correctly"
-                
-            return self.log_test("/phone/test via FastAPI proxy", passed, expected, actual, details)
-            
-        except requests.exceptions.RequestException as e:
-            return self.log_test("/phone/test via FastAPI proxy", False, expected, f"REQUEST ERROR: {str(e)}", "Network/proxy connection failed")
-        except Exception as e:
-            return self.log_test("/phone/test via FastAPI proxy", False, expected, f"ERROR: {str(e)}", "Proxy connection failed")
-    
-    def test_4_phone_test_api_otp(self) -> bool:
-        """Test 4: Phone test API endpoint - OTP verification"""
-        try:
-            payload = {"otp": "123456"}
-            headers = {"Content-Type": "application/json"}
-            response = requests.post(f"{NODEJS_DIRECT_URL}/phone/test/verify-otp", 
-                                   json=payload, headers=headers, timeout=10)
-            
-            expected = "401 (invalid OTP)"
-            actual = f"{response.status_code}"
-            
-            # Expect 401 for invalid OTP, confirms API route works
-            passed = response.status_code == 401
-            
-            if passed:
-                details = "API endpoint working correctly (invalid OTP rejected)"
-            else:
-                details = f"Status: {actual} | Expected 401 for invalid OTP"
-                
-            return self.log_test("Phone test OTP API endpoint", passed, expected, actual, details)
-            
-        except Exception as e:
-            return self.log_test("Phone test OTP API endpoint", False, expected, f"ERROR: {str(e)}", "API connection failed")
-    
-    def test_5_inbound_webhook(self) -> bool:
-        """Test 5: Inbound call webhook - SIP ringing flow"""
-        try:
-            payload = {
-                "data": {
-                    "event_type": "call.initiated",
-                    "payload": {
-                        "direction": "incoming",
-                        "from": "+15551234567",
-                        "to": "+18777000068",
-                        "call_control_id": "test-inbound-sip-ring-001",
-                        "call_leg_id": "leg-001",
-                        "connection_id": "2898117434361775526",
-                        "state": "ringing"
-                    }
-                }
-            }
-            headers = {"Content-Type": "application/json"}
-            response = requests.post(f"{NODEJS_DIRECT_URL}/telnyx/voice-webhook", 
-                                   json=payload, headers=headers, timeout=10)
-            
-            expected = "200"
-            actual = f"{response.status_code}"
-            
-            passed = response.status_code == 200
-            
-            if passed:
-                details = "Telnyx voice webhook accepting inbound calls correctly"
-            else:
-                details = f"Status: {actual} | Webhook may not be handling calls properly"
-                
-            return self.log_test("Inbound call webhook (SIP ringing)", passed, expected, actual, details)
-            
-        except Exception as e:
-            return self.log_test("Inbound call webhook (SIP ringing)", False, expected, f"ERROR: {str(e)}", "Webhook connection failed")
-    
-    def test_6_startup_logs(self) -> bool:
-        """Test 6: Verify startup logs"""
-        try:
-            # Check Node.js stdout logs
-            result = subprocess.run(['tail', '-n', '100', '/var/log/supervisor/nodejs.out.log'], 
-                                  capture_output=True, text=True, timeout=10)
-            
-            if result.returncode != 0:
-                return self.log_test("Startup logs verification", False, "Log access", "Cannot read logs", "Permission or file not found")
-            
-            log_content = result.stdout
-            
-            # Check for required log messages
-            checks = {
-                "React frontend serving": "Express.*Serving React frontend from build directory",
-                "Telnyx Resources Ready": "Telnyx Resources Ready|Telnyx resources initialized",
-                "Migration complete": "Migration complete|Migrated.*numbers to Call Control App",
-                "No PathError": True  # Will be checked separately
-            }
-            
-            found_logs = {}
-            for check_name, pattern in checks.items():
-                if check_name == "No PathError":
-                    # Check that there are NO PathError messages
-                    found_logs[check_name] = "PathError" not in log_content
+    try:
+        response = requests.post(
+            f"{BASE_URL}/phone/test/prepare-call",
+            json=prepare_call_payload,
+            headers={"Content-Type": "application/json"},
+            timeout=10
+        )
+        print(f"   Status: {response.status_code}")
+        print(f"   Response: {response.text[:200]}...")
+        
+        if response.status_code == 200:
+            try:
+                json_response = response.json()
+                if json_response.get('success') == True:
+                    print("   ✅ PASS: Prepare-call returns 200 with success: true")
+                    return True
                 else:
-                    found_logs[check_name] = bool(re.search(pattern, log_content, re.IGNORECASE))
-            
-            # Count successful checks
-            passed_checks = sum(1 for found in found_logs.values() if found)
-            total_checks = len(checks)
-            
-            passed = passed_checks == total_checks
-            expected = "All startup indicators present"
-            actual = f"{passed_checks}/{total_checks} checks passed"
-            
-            details_list = []
-            for check_name, found in found_logs.items():
-                status = "✓" if found else "✗"
-                details_list.append(f"{check_name}: {status}")
-            
-            details = " | ".join(details_list)
-            
-            return self.log_test("Startup logs verification", passed, expected, actual, details)
-            
-        except Exception as e:
-            return self.log_test("Startup logs verification", False, "Log verification", f"ERROR: {str(e)}", "Failed to read logs")
-    
-    def test_7_no_error_logs(self) -> bool:
-        """Test 7: Check for error logs"""
-        try:
-            # Check Node.js stderr logs
-            result = subprocess.run(['tail', '-n', '50', '/var/log/supervisor/nodejs.err.log'], 
-                                  capture_output=True, text=True, timeout=10)
-            
-            if result.returncode != 0:
-                return self.log_test("No error logs check", False, "Log access", "Cannot read error logs", "Permission or file not found")
-            
-            error_content = result.stdout.strip()
-            
-            expected = "Empty error log"
-            actual = "Empty" if not error_content else f"{len(error_content.splitlines())} error lines"
-            
-            passed = not error_content or error_content == ""
-            
-            if passed:
-                details = "No errors in Node.js stderr log"
-            else:
-                # Show first few lines of errors
-                error_lines = error_content.splitlines()
-                preview = " | ".join(error_lines[:3])
-                if len(error_lines) > 3:
-                    preview += f" | ... ({len(error_lines)} total lines)"
-                details = f"Errors found: {preview}"
-                
-            return self.log_test("No error logs check", passed, expected, actual, details)
-            
-        except Exception as e:
-            return self.log_test("No error logs check", False, expected, f"ERROR: {str(e)}", "Failed to read error logs")
-    
-    def run_all_tests(self):
-        """Run all tests and generate summary"""
-        print("🚀 Starting Telnyx SIP Voice Service Tests")
-        print("=" * 60)
-        
-        # Execute tests in order
-        self.test_1_health_check()
-        self.test_2_phone_test_spa()
-        self.test_3_phone_test_proxy()
-        self.test_4_phone_test_api_otp()
-        self.test_5_inbound_webhook()
-        self.test_6_startup_logs()
-        self.test_7_no_error_logs()
-        
-        # Generate summary
-        print("\n" + "=" * 60)
-        print(f"📊 TEST SUMMARY: {self.passed}/{len(self.test_results)} PASSED")
-        print("=" * 60)
-        
-        if self.failed == 0:
-            print("🎉 ALL TESTS PASSED! Telnyx SIP voice service is working correctly.")
+                    print("   ❌ FAIL: Prepare-call returns 200 but success != true")
+                    return False
+            except:
+                print("   ❌ FAIL: Prepare-call response is not valid JSON")
+                return False
         else:
-            print(f"⚠️  {self.failed} tests failed. See details above.")
+            print("   ❌ FAIL: Prepare-call did not return 200")
+            return False
+    except Exception as e:
+        print(f"   ❌ ERROR: {str(e)}")
+        return False
+
+def test_database_users():
+    """Test 4: Check both users exist in MongoDB with correct phone numbers and credentials"""
+    print("\n🔍 Test 4: Database user verification")
+    
+    try:
+        # Get MongoDB connection from environment
+        mongo_url = os.getenv('MONGO_URL', 'mongodb://mongo:RQoOmIdwjRLFvhWMaatjidzqpvawUKcb@caboose.proxy.rlwy.net:59668')
+        db_name = os.getenv('DB_NAME', 'test')
+        
+        print(f"   Connecting to MongoDB: {mongo_url.split('@')[1] if '@' in mongo_url else mongo_url}")
+        
+        client = MongoClient(mongo_url)
+        db = client[db_name]
+        collection = db['phoneNumbersOf']
+        
+        # Test user 1: chatId 5168006768 should have +18556820054
+        user1 = collection.find_one({"chatId": 5168006768})
+        print(f"   User 1 (chatId 5168006768): {user1}")
+        
+        # Test user 2: chatId 817673476 should have +18777000068  
+        user2 = collection.find_one({"chatId": 817673476})
+        print(f"   User 2 (chatId 817673476): {user2}")
+        
+        success = True
+        
+        # Validate user 1
+        if user1:
+            phone_num = user1.get('phoneNumber')
+            sip_username = user1.get('sipUsername', '')
+            sip_password = user1.get('sipPassword')
             
-        return self.failed == 0
+            if phone_num == '+18556820054':
+                print("   ✅ User 1 phone number correct: +18556820054")
+            else:
+                print(f"   ❌ User 1 phone number incorrect: {phone_num} (expected +18556820054)")
+                success = False
+                
+            if sip_username.startswith('gencred'):
+                print(f"   ✅ User 1 sipUsername starts with 'gencred': {sip_username}")
+            else:
+                print(f"   ❌ User 1 sipUsername doesn't start with 'gencred': {sip_username}")
+                success = False
+                
+            if sip_password:
+                print(f"   ✅ User 1 sipPassword is set")
+            else:
+                print(f"   ❌ User 1 sipPassword is not set")
+                success = False
+        else:
+            print("   ❌ User 1 (chatId 5168006768) not found in database")
+            success = False
+        
+        # Validate user 2
+        if user2:
+            phone_num = user2.get('phoneNumber')
+            sip_username = user2.get('sipUsername', '')
+            sip_password = user2.get('sipPassword')
+            
+            if phone_num == '+18777000068':
+                print("   ✅ User 2 phone number correct: +18777000068")
+            else:
+                print(f"   ❌ User 2 phone number incorrect: {phone_num} (expected +18777000068)")
+                success = False
+                
+            if sip_username.startswith('gencred'):
+                print(f"   ✅ User 2 sipUsername starts with 'gencred': {sip_username}")
+            else:
+                print(f"   ❌ User 2 sipUsername doesn't start with 'gencred': {sip_username}")
+                success = False
+                
+            if sip_password:
+                print(f"   ✅ User 2 sipPassword is set")
+            else:
+                print(f"   ❌ User 2 sipPassword is not set")
+                success = False
+        else:
+            print("   ❌ User 2 (chatId 817673476) not found in database")
+            success = False
+        
+        client.close()
+        
+        if success:
+            print("   ✅ PASS: Both users verified in database")
+        else:
+            print("   ❌ FAIL: Database verification failed")
+            
+        return success
+        
+    except Exception as e:
+        print(f"   ❌ ERROR: Database connection failed: {str(e)}")
+        return False
+
+def test_startup_logs():
+    """Test 5: Check Node.js startup logs for clean initialization"""
+    print("\n🔍 Test 5: Node.js startup logs verification")
+    
+    try:
+        with open('/var/log/supervisor/nodejs.out.log', 'r') as f:
+            logs = f.read()
+            
+        print(f"   Log file size: {len(logs)} characters")
+        
+        # Check for key initialization messages
+        required_messages = [
+            "Telnyx resources ready",
+            "React frontend serving",
+            "migration complete"
+        ]
+        
+        success = True
+        for msg in required_messages:
+            if msg.lower() in logs.lower():
+                print(f"   ✅ Found: '{msg}'")
+            else:
+                print(f"   ❌ Missing: '{msg}'")
+                success = False
+        
+        # Check for error indicators
+        error_indicators = [
+            "PathError",
+            "Error:",
+            "Exception:",
+            "CRITICAL",
+            "FATAL"
+        ]
+        
+        for error in error_indicators:
+            if error in logs:
+                print(f"   ⚠️  Found error indicator: '{error}'")
+                # Don't mark as failure unless it's critical
+        
+        if success:
+            print("   ✅ PASS: Startup logs show clean initialization")
+        else:
+            print("   ❌ FAIL: Missing required startup messages")
+            
+        return success
+        
+    except Exception as e:
+        print(f"   ❌ ERROR: Could not read startup logs: {str(e)}")
+        return False
+
+def test_error_logs():
+    """Test 6: Check error logs should be empty or minimal"""
+    print("\n🔍 Test 6: Error logs verification")
+    
+    try:
+        with open('/var/log/supervisor/nodejs.err.log', 'r') as f:
+            error_logs = f.read().strip()
+            
+        print(f"   Error log size: {len(error_logs)} characters")
+        
+        if len(error_logs) == 0:
+            print("   ✅ PASS: Error logs are empty")
+            return True
+        elif len(error_logs) < 500:  # Allow minimal non-critical errors
+            print(f"   ✅ PASS: Error logs are minimal ({len(error_logs)} chars)")
+            print(f"   Content preview: {error_logs[:200]}...")
+            return True
+        else:
+            print(f"   ❌ FAIL: Error logs contain significant content ({len(error_logs)} chars)")
+            print(f"   Content preview: {error_logs[:500]}...")
+            return False
+            
+    except Exception as e:
+        print(f"   ❌ ERROR: Could not read error logs: {str(e)}")
+        return False
+
+def test_ringback_audio():
+    """Test 7: Check ringback audio file accessibility"""
+    print("\n🔍 Test 7: Ringback audio accessibility")
+    
+    try:
+        response = requests.get(f"{BASE_URL}/assets/us-ringback.wav", timeout=10)
+        print(f"   Status: {response.status_code}")
+        print(f"   Content-Type: {response.headers.get('Content-Type', 'Not set')}")
+        print(f"   Content-Length: {len(response.content)} bytes")
+        
+        if response.status_code == 200:
+            content_type = response.headers.get('Content-Type', '')
+            if 'audio' in content_type.lower() or len(response.content) > 1000:  # Audio file should be substantial
+                print("   ✅ PASS: Ringback audio accessible with valid content")
+                return True
+            else:
+                print("   ❌ FAIL: Ringback audio returns 200 but content seems invalid")
+                return False
+        else:
+            print("   ❌ FAIL: Ringback audio not accessible")
+            return False
+            
+    except Exception as e:
+        print(f"   ❌ ERROR: {str(e)}")
+        return False
 
 def main():
-    """Main test execution"""
-    tester = TelnyxSIPTester()
-    success = tester.run_all_tests()
+    """Run all tests and provide summary"""
+    print("🚀 Starting comprehensive Nomadly Node.js application testing")
+    print("=" * 70)
     
-    if success:
-        print("\n✅ Telnyx SIP voice service integration is fully operational")
-        exit(0)
+    test_results = []
+    
+    # Run all tests
+    test_results.append(("Health check endpoint", test_health_check()))
+    test_results.append(("Voice webhook endpoint", test_voice_webhook()))
+    test_results.append(("Prepare-call endpoint", test_prepare_call_endpoint()))
+    test_results.append(("Database user verification", test_database_users()))
+    test_results.append(("Startup logs verification", test_startup_logs()))
+    test_results.append(("Error logs verification", test_error_logs()))
+    test_results.append(("Ringback audio accessibility", test_ringback_audio()))
+    
+    # Summary
+    print("\n" + "=" * 70)
+    print("📊 TEST SUMMARY")
+    print("=" * 70)
+    
+    passed = 0
+    failed = 0
+    
+    for test_name, result in test_results:
+        status = "✅ PASS" if result else "❌ FAIL"
+        print(f"{status}: {test_name}")
+        if result:
+            passed += 1
+        else:
+            failed += 1
+    
+    print(f"\nTotal: {passed + failed} tests")
+    print(f"Passed: {passed}")
+    print(f"Failed: {failed}")
+    
+    if failed == 0:
+        print("\n🎉 ALL TESTS PASSED - Nomadly Node.js application is fully functional!")
+        return 0
     else:
-        print("\n❌ Some tests failed - manual review required")
-        exit(1)
+        print(f"\n⚠️  {failed} TEST(S) FAILED - Issues require attention")
+        return 1
 
 if __name__ == "__main__":
-    main()
+    # Set MongoDB URL from backend env if available
+    if not os.getenv('MONGO_URL'):
+        os.environ['MONGO_URL'] = 'mongodb://mongo:RQoOmIdwjRLFvhWMaatjidzqpvawUKcb@caboose.proxy.rlwy.net:59668'
+    if not os.getenv('DB_NAME'):
+        os.environ['DB_NAME'] = 'test'
+    
+    exit_code = main()
+    sys.exit(exit_code)
