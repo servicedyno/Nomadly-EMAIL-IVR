@@ -676,20 +676,31 @@ async function handleOutboundSipCall(payload) {
   const connectionId = payload.connection_id || ''
 
   // Detect SIP-originated calls using multiple methods:
-  // 1. connection_id matches our SIP Connection ID (most reliable — Telnyx always sends this)
-  // 2. sip: prefix or @ in from field (SIP URI format)
-  // Transfer legs and API-originated calls use phone numbers without connection_id match
+  // 1. sip: prefix or @ in from field (SIP URI format — user dialing via SIP client)
+  // 2. connection_id matches our SIP Connection ID (Telnyx credential connection outbound)
+  // Transfer legs created by our own transfer/bridge commands will also have the same connection_id,
+  // so we must also check that this isn't an existing transfer leg.
   const sipConnectionId = process.env.TELNYX_SIP_CONNECTION_ID || ''
-  const isSipByConnection = sipConnectionId && connectionId === sipConnectionId
   const isSipByFromField = rawFrom.startsWith('sip:') || rawFrom.includes('@')
-  const isSipOriginated = isSipByConnection || isSipByFromField
+  const isSipByConnection = sipConnectionId && connectionId === sipConnectionId
+  const fromClean = rawFrom.replace(/[^+\d]/g, '')
+  const toClean = rawTo.replace(/[^+\d]/g, '')
+
+  // Check if this is a transfer leg we created (not a fresh SIP user call)
+  // Transfer legs will match an existing active session with the same phone number
+  const isTransferLeg = Object.values(activeCalls).some(sess =>
+    (sess.phase === 'outbound_telnyx' || sess.phase === 'forwarding' || sess.phase === 'ivr_forward') &&
+    (sess.num?.phoneNumber?.replace(/[^+\d]/g, '') === fromClean || sess.to === toClean)
+  )
+
+  const isSipOriginated = isSipByFromField || (isSipByConnection && !isTransferLeg)
 
   if (!isSipOriginated) {
-    log(`[Voice] Outbound call from ${rawFrom} to ${rawTo} (conn=${connectionId}) — not SIP-originated, ignoring (likely transfer leg)`)
+    log(`[Voice] Outbound call from ${rawFrom} to ${rawTo} (conn=${connectionId}, isTransfer=${isTransferLeg}) — not SIP user call, ignoring`)
     return
   }
 
-  log(`[Voice] SIP call detected: byConnection=${isSipByConnection}, byFromField=${isSipByFromField}, connection_id=${connectionId}`)
+  log(`[Voice] SIP call detected: byFromField=${isSipByFromField}, byConnection=${isSipByConnection}, isTransfer=${isTransferLeg}, connection_id=${connectionId}`)
 
   // Parse destination number from SIP URI: sip:+1234567890@domain → +1234567890
   let destination = rawTo.replace(/[^+\d]/g, '')
@@ -702,10 +713,8 @@ async function handleOutboundSipCall(payload) {
   if (rawFrom.includes('@')) {
     sipUsername = rawFrom.replace(/^sip:/, '').split('@')[0]
   }
-  // Also try cleaning as phone number in case from contains a number
-  const fromClean = rawFrom.replace(/[^+\d]/g, '')
 
-  log(`[Voice] Outbound SIP: from=${sipUsername} to=${destination} (${callControlId}, conn=${connectionId})`)
+  log(`[Voice] Outbound SIP: from=${sipUsername} (cleaned=${fromClean}) to=${destination} (${callControlId}, conn=${connectionId})`)
 
   // Look up the SIP user → find their phone number and provider
   // Try by SIP username first, then by phone number from the 'from' field
