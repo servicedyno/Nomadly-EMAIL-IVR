@@ -12674,6 +12674,10 @@ app.post('/dynopay/crypto-pay-hosting', authDyno, async (req, res) => {
     log('[crypto-pay-hosting] Converted', value, ticker, '= $' + usdIn)
   }
   if (usdIn * 1.06 < price) {
+    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
+    addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
+    return res.send(html(translation('t.lowPrice')))
+  }
   if (usdIn > price) {
     addFundsTo(walletOf, chatId, 'usd', usdIn - price, lang)
     sendMessage(chatId, translation('t.sentMoreMoney', lang, `$${price}`, `$${usdIn}`))
