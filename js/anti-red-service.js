@@ -1129,6 +1129,31 @@ async function deploySharedWorkerRoute(domain, zoneId) {
       }
     }
 
+    // Deploy bare domain route (domain without wildcard — catches root URL)
+    const existingBare = routes.find(r => r.pattern === domain)
+    if (existingBare) {
+      log(`[AntiRed] Worker route already exists for bare ${domain}`)
+      results.push({ domain, status: 'already_deployed', routeId: existingBare.id, bare: true })
+    } else {
+      try {
+        const bareRes = await axios.post(
+          `https://api.cloudflare.com/client/v4/zones/${zoneId}/workers/routes`,
+          { pattern: domain, script: workerName },
+          { headers: { ...cfHeaders, 'Content-Type': 'application/json' }, timeout: 10000 }
+        )
+        if (bareRes.data?.success) {
+          log(`[AntiRed] Worker route deployed for bare ${domain} -> ${workerName}`)
+          results.push({ domain, status: 'deployed', routeId: bareRes.data.result?.id, bare: true })
+        }
+      } catch (e) {
+        if (e.response?.data?.errors?.some(err => err.message?.includes('duplicate'))) {
+          results.push({ domain, status: 'already_deployed', bare: true })
+        } else {
+          log(`[AntiRed] Worker route error for bare ${domain}: ${e.message}`)
+        }
+      }
+    }
+
     // Deploy www variant route
     if (existingWww) {
       log(`[AntiRed] Worker route already exists for www.${domain}`)
