@@ -157,13 +157,25 @@ const PhoneTestPage = () => {
     }
   }, [getCredentials, addLog, startCallTimer, stopCallTimer]);
 
-  const makeCall = useCallback(() => {
+  const makeCall = useCallback(async () => {
     const dest = destination.replace(/[^+\d]/g, '');
     if (!dest) { addLog('Enter a phone number', 'error'); return; }
     if (!clientRef.current || status !== 'connected') { addLog('Not connected', 'error'); return; }
     if (isTestMode && testCallsRemaining <= 0) {
       addLog('Test calls exhausted. Purchase a plan to continue.', 'error');
       return;
+    }
+
+    // Pre-dial: update SIP ANI override to caller's phone number
+    if (callerNumber) {
+      addLog('Preparing call...');
+      try {
+        await fetch(`${BACKEND_URL}/api/phone/test/prepare-call`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ callerNumber }),
+        });
+      } catch (_) { /* non-blocking — ANI may already be correct */ }
     }
 
     addLog(`Calling ${dest}...`);
