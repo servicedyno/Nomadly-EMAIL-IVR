@@ -842,7 +842,8 @@ async function handleOutboundSipCall(payload) {
 
   // ── TELNYX NUMBER: Route SIP call to PSTN via transfer command ──
   if (num.provider === 'telnyx') {
-    log(`[Voice] Outbound SIP (Telnyx): ${num.phoneNumber} → ${destination} — routing to PSTN`)
+    const callerDisplay = num.phoneNumber || 'TEST-SIP'
+    log(`[Voice] Outbound SIP (Telnyx): ${callerDisplay} → ${destination} — routing to PSTN`)
 
     // Check if this is a test credential call (enforce limits)
     let testCallInfo = { isTestCall: false }
