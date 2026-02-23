@@ -13871,6 +13871,71 @@ const setupTelegramWebhook = async () => {
   }
 }
 
+// ── SIGTERM handler: flush lead job progress before shutdown ──
+process.on('SIGTERM', async () => {
+  log('[Shutdown] SIGTERM received — flushing active lead jobs...')
+  try {
+    await flushAllJobs()
+    log('[Shutdown] Lead jobs flushed. Exiting...')
+  } catch (e) {
+    log(`[Shutdown] Flush error: ${e.message}`)
+  }
+  process.exit(0)
+})
+
+// ── Resume interrupted lead jobs from previous deployment ──
+async function resumeInterruptedLeadJobs() {
+  try {
+    const jobs = await findInterruptedJobs()
+    if (!jobs || jobs.length === 0) return
+    log(`[LeadJobs] Found ${jobs.length} interrupted job(s) — delivering partial results`)
+
+    for (const job of jobs) {
+      try {
+        const { chatId, results, phonesToGenerate, realNameCount, target, cnam, lang: jobLang } = job
+        const remaining = phonesToGenerate - (results?.length || 0)
+
+        if (!results || results.length === 0) {
+          // No results generated at all — notify user and refund could be done manually
+          bot && bot.sendMessage(chatId, `⚠️ Your lead generation for <b>${target || 'phone leads'}</b> was interrupted by a server update before any results were generated. Please contact support for a refund or restart.`, { parse_mode: 'HTML' })
+          await db.collection('leadJobs').updateOne({ jobId: job.jobId }, { $set: { status: 'notified_no_results', updatedAt: new Date() } })
+          continue
+        }
+
+        // Deliver partial results to user
+        const cc = '+' + (job.countryCode || '1')
+        const re = cc === '+1' ? '' : '0'
+
+        if (cnam) {
+          const withRealNames = results.filter(a => a[3] && isRealPersonName(a[3]))
+          const withoutNames = results.filter(a => !a[3] || !isRealPersonName(a[3]))
+
+          if (withRealNames.length > 0) {
+            const file1 = `Phone,Carrier,Area,Name\n` + withRealNames.map(a => `${re}${a[0]},${a[1]},${a[2]},${a[3]}`).join('\n')
+            await bot.sendDocument(chatId, Buffer.from(file1), { caption: `📋 Partial delivery: ${withRealNames.length} leads with real names (${remaining} remaining from interrupted job for <b>${target || 'leads'}</b>)`, parse_mode: 'HTML' }, { filename: `leads_partial_${target || 'batch'}.csv` })
+          }
+          if (withoutNames.length > 0) {
+            const file2 = `Phone,Carrier,Area,Name\n` + withoutNames.map(a => `${re}${a[0]},${a[1]},${a[2]},${a[3] || ''}`).join('\n')
+            await bot.sendDocument(chatId, Buffer.from(file2), {}, { filename: `leads_partial_noname_${target || 'batch'}.csv` })
+          }
+        } else {
+          const file1 = `Phone,Carrier,Area\n` + results.map(a => `${re}${a[0]},${a[1]},${a[2]}`).join('\n')
+          await bot.sendDocument(chatId, Buffer.from(file1), { caption: `📋 Partial delivery: ${results.length}/${phonesToGenerate} leads (interrupted by server update)` }, { filename: `leads_partial_${target || 'batch'}.csv` })
+        }
+
+        bot && bot.sendMessage(chatId, `✅ Delivered ${results.length} of ${phonesToGenerate} leads from your interrupted <b>${target || ''}</b> order. The remaining ${remaining} will require a new order. We apologize for the inconvenience.`, { parse_mode: 'HTML' })
+        await db.collection('leadJobs').updateOne({ jobId: job.jobId }, { $set: { status: 'partial_delivered', updatedAt: new Date() } })
+        log(`[LeadJobs] Delivered partial results for job ${job.jobId} — ${results.length}/${phonesToGenerate}`)
+      } catch (e) {
+        log(`[LeadJobs] Error resuming job ${job.jobId}: ${e.message}`)
+        await db.collection('leadJobs').updateOne({ jobId: job.jobId }, { $set: { status: 'resume_error', error: e.message, updatedAt: new Date() } }).catch(() => {})
+      }
+    }
+  } catch (e) {
+    log(`[LeadJobs] Resume check error: ${e.message}`)
+  }
+}
+
 const startServer = async () => {
   // Server already started early for health checks
   // Just mark app as ready and set up webhook
