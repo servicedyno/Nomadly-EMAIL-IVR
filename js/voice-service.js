@@ -268,7 +268,22 @@ async function handleBridgeTransferAnswered(payload) {
 
   log(`[Voice] Bridge transfer destination answered: ${transfer.forwardTo}, bridging with original call`)
 
-  // Stop hold music on original leg and bridge the two calls
+  // If original inbound call hasn't been answered yet (SIP ring without auto-answer),
+  // answer it now before bridging
+  if (transfer.unanswered) {
+    try {
+      await _telnyxApi.answerCall(transfer.originalCallControlId)
+      transfer.unanswered = false
+      log(`[Voice] Answered original inbound call for SIP bridge`)
+    } catch (e) {
+      log(`[Voice] Failed to answer original call for bridge: ${e.message}`)
+      await _telnyxApi.hangupCall(callControlId).catch(() => {})
+      delete activeBridgeTransfers[callControlId]
+      return true
+    }
+  }
+
+  // Stop hold music/ringback on original leg and bridge the two calls
   await _telnyxApi.playbackStop(transfer.originalCallControlId).catch(() => {})
   await _telnyxApi.bridgeCalls(transfer.originalCallControlId, callControlId)
 
