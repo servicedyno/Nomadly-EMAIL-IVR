@@ -191,6 +191,7 @@ async function incrementSmsUsed(chatId, phoneNumber) {
 
 // Hold music URL — soft jazz instrumental loop (no voice, TTS handles announcement separately)
 const HOLD_MUSIC_URL = `${process.env.SELF_URL || process.env.SELF_URL_PROD || ''}/assets/hold-music-jazz.mp3?v=1`
+const RINGBACK_URL = `${process.env.SELF_URL || process.env.SELF_URL_PROD || ''}/assets/us-ringback.wav?v=1`
 
 /**
  * Play hold music to the caller, then transfer.
