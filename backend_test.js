@@ -84,7 +84,7 @@ function testValidatePhoneBulkFunction() {
         }
         
         // Test 2: Check if resumeData is used to initialize res array
-        const resumeDataUsageRegex = /const res = resumeData \? \[\.\.\.resumeData\.results/;
+        const resumeDataUsageRegex = /const res = resumeData \? \[\.\.\.[\(\s]*resumeData\.results/;
         if (resumeDataUsageRegex.test(fileContent)) {
             logTest('resumeData used to initialize res array', true);
         } else {
