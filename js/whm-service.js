@@ -79,15 +79,26 @@ function generatePassword() {
 async function ensureCloudflareTweaks() {
   const tweaks = [
     { key: 'allowremotedomains', value: '1' },
-    { key: 'skiphttpdomaincheck', value: '1' },
+    { key: 'skiphttpdomaincheck', value: '1', fallback: 'skipdomaincheck' },
   ]
-  for (const { key, value } of tweaks) {
+  for (const { key, value, fallback } of tweaks) {
     try {
       const res = await whmApi.get('/set_tweaksetting', {
         params: { 'api.version': 1, key, value },
       })
       const ok = res.data?.metadata?.result === 1
-      log(`[WHM] Tweak ${key}=${value}: ${ok ? 'OK' : 'FAIL'}`)
+      if (ok) {
+        log(`[WHM] Tweak ${key}=${value}: OK`)
+      } else if (fallback) {
+        // Try fallback tweak name
+        const res2 = await whmApi.get('/set_tweaksetting', {
+          params: { 'api.version': 1, key: fallback, value },
+        })
+        const ok2 = res2.data?.metadata?.result === 1
+        log(`[WHM] Tweak ${key} failed, fallback ${fallback}=${value}: ${ok2 ? 'OK' : 'FAIL (non-critical)'}`)
+      } else {
+        log(`[WHM] Tweak ${key}=${value}: FAIL (non-critical)`)
+      }
     } catch (err) {
       log(`[WHM] Tweak ${key} error: ${err.message}`)
     }
