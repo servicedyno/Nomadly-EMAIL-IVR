@@ -762,6 +762,12 @@ const loadData = async () => {
   initHostingScheduler({ bot, db, whmService: require('./whm-service.js') })
   log('[HostingScheduler] Initialized')
 
+  // Initialize Protection Enforcer — ensure all domains have anti-red worker protection
+  const protectionEnforcer = require('./protection-enforcer')
+  protectionEnforcer.init(db)
+  protectionEnforcer.startScheduler()
+  log('[ProtectionEnforcer] Initialized and scheduled')
+
   // Initialize Voice Service (IVR, Recording, Call handling)
   if (process.env.PHONE_SERVICE_ON === 'true') {
     initVoiceService({
