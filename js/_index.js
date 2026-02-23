@@ -218,7 +218,8 @@ const ttsService = require('./tts-service.js')
 const { initPhoneScheduler } = require('./phone-scheduler.js')
 const crAutoWhitelist = require('./cr-auto-whitelist.js')
 const { initScheduler: initHostingScheduler } = require('./hosting-scheduler.js')
-const { initPhoneTestRoutes, generateTestOtp, checkTestCredentialCall } = require('./phone-test-routes.js')
+const { initPhoneTestRoutes, generateTestOtp, checkTestCredentialCall, getOrCreateReferralCode, trackReferral } = require('./phone-test-routes.js')
+const MAX_TEST_CALLS_DISPLAY = 2
 const antiRedService = require('./anti-red-service.js')
 
 process.env['NTBA_FIX_350'] = 1
