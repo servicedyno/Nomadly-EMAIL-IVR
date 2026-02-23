@@ -1484,9 +1484,9 @@ async function removeWorkerRoutes(domain, zoneId) {
     )
     const routes = routesRes.data?.result || []
 
-    // Find routes matching this domain (domain/* and www.domain/*)
+    // Find routes matching this domain (domain/*, www.domain/*, and bare domain)
     const toRemove = routes.filter(r =>
-      r.pattern === `${domain}/*` || r.pattern === `www.${domain}/*`
+      r.pattern === `${domain}/*` || r.pattern === `www.${domain}/*` || r.pattern === domain
     )
 
     const removed = []
