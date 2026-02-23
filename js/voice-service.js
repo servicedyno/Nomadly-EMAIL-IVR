@@ -1014,7 +1014,11 @@ async function findNumberBySipUser(sipUsername, fromPhone) {
       const numbers = user.val?.numbers || []
       for (const num of numbers) {
         if (num.status !== 'active' && num.status !== 'suspended') continue
-        // Match by SIP username
+        // Match by Telnyx SIP username (real gencred... username)
+        if (num.telnyxSipUsername && num.telnyxSipUsername === sipUsername) {
+          return { chatId: user._id, num }
+        }
+        // Match by user-facing SIP username (6-digit PIN)
         if (num.sipUsername && num.sipUsername === sipUsername) {
           return { chatId: user._id, num }
         }
