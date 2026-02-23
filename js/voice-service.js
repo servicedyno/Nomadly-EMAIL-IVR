@@ -1602,6 +1602,18 @@ async function handleCallHangup(payload) {
     return
   }
 
+  // ── CLEANUP SIP RING LEG ──
+  // If the inbound caller hangs up while SIP device is still ringing,
+  // we must hang up the outbound SIP ring leg so the WebRTC client stops ringing
+  if (session.sipRingCallControlId) {
+    const sipRingTransfer = activeBridgeTransfers[session.sipRingCallControlId]
+    if (sipRingTransfer && sipRingTransfer.phase !== 'bridged') {
+      log(`[Voice] Caller hung up during SIP ring — hanging up SIP ring leg ${session.sipRingCallControlId}`)
+      await _telnyxApi.hangupCall(session.sipRingCallControlId).catch(() => {})
+      delete activeBridgeTransfers[session.sipRingCallControlId]
+    }
+  }
+
   // Prevent duplicate hangup processing (Telnyx can fire multiple hangup events for transferred calls)
   if (session._hangupProcessed) return
   session._hangupProcessed = true
