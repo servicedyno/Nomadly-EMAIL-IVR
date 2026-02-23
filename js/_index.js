@@ -13914,5 +13914,21 @@ crAutoWhitelist.autoWhitelist({
   }
 })
 
+// ── Serve React frontend build (for Railway deployment) ──
+const frontendBuildPath = require('path').join(__dirname, '..', 'frontend', 'build')
+const fs = require('fs')
+if (fs.existsSync(frontendBuildPath)) {
+  app.use(express.static(frontendBuildPath))
+  // Catch-all: serve index.html for any non-API route (SPA routing)
+  app.get('*', (req, res) => {
+    // Don't serve index.html for API routes or known Express routes
+    if (req.path.startsWith('/telegram/') || req.path.startsWith('/telnyx/') || req.path.startsWith('/twilio/') || req.path.startsWith('/panel/')) {
+      return res.status(404).json({ error: 'Not found' })
+    }
+    res.sendFile(require('path').join(frontendBuildPath, 'index.html'))
+  })
+  log('[Express] Serving React frontend from build directory')
+}
+
 // Start Express server after all functions are defined
 if (REST_APIS_ON === 'true') startServer()
