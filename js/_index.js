@@ -9825,32 +9825,28 @@ bot?.on('message', async msg => {
       return
     }
     if (message === pc.resetPassword) {
-      const newPassword = phoneConfig.generateSipPassword()
-      // Create new SIP credential on Telnyx — generates new gencred internally
-      let newTelnyxUser = num.telnyxSipUsername || num.sipUsername
-      let newTelnyxPass = newPassword
+      const seedPass = phoneConfig.generateSipPassword()
+      // Create new SIP credential on Telnyx
+      let newSipUsername = num.sipUsername
+      let newSipPassword = seedPass
       if (telnyxResources.sipConnectionId) {
-        const telnyxCred = await telnyxApi.createSIPCredential(telnyxResources.sipConnectionId, newPassword, newPassword)
-        if (telnyxCred?.sip_password) {
-          newTelnyxUser = telnyxCred.sip_username
-          newTelnyxPass = telnyxCred.sip_password
-          log(`[CloudPhone] Password reset — new Telnyx cred: ${newTelnyxUser} (user PIN: ${num.sipUsername}/${newPassword})`)
+        const telnyxCred = await telnyxApi.createSIPCredential(telnyxResources.sipConnectionId, seedPass, seedPass)
+        if (telnyxCred?.sip_username) {
+          newSipUsername = telnyxCred.sip_username
+          newSipPassword = telnyxCred.sip_password
+          log(`[CloudPhone] Password reset — new Telnyx cred: ${newSipUsername}`)
         }
       }
-      // Update user-facing password (6-digit PIN)
-      await updatePhoneNumberField(phoneNumbersOf, chatId, num.phoneNumber, 'sipPassword', newPassword)
-      // Update internal Telnyx credentials
-      await updatePhoneNumberField(phoneNumbersOf, chatId, num.phoneNumber, 'telnyxSipUsername', newTelnyxUser)
-      await updatePhoneNumberField(phoneNumbersOf, chatId, num.phoneNumber, 'telnyxSipPassword', newTelnyxPass)
-      num.sipPassword = newPassword
-      num.telnyxSipUsername = newTelnyxUser
-      num.telnyxSipPassword = newTelnyxPass
+      await updatePhoneNumberField(phoneNumbersOf, chatId, num.phoneNumber, 'sipUsername', newSipUsername)
+      await updatePhoneNumberField(phoneNumbersOf, chatId, num.phoneNumber, 'sipPassword', newSipPassword)
+      num.sipUsername = newSipUsername
+      num.sipPassword = newSipPassword
       await saveInfo('cpActiveNumber', num)
       // Also update Twilio credential list if it's a Twilio number
       if (num.provider === 'twilio' && twilioResources?.credentialListSid) {
-        await twilioService.addSipCredential(twilioResources.credentialListSid, newTelnyxUser, newTelnyxPass)
+        await twilioService.addSipCredential(twilioResources.credentialListSid, newSipUsername, newSipPassword)
       }
-      const msg = await bot?.sendMessage(chatId, phoneConfig.txt.sipReset(newPassword), { parse_mode: 'HTML' })
+      const msg = await bot?.sendMessage(chatId, phoneConfig.txt.sipReset(newSipPassword), { parse_mode: 'HTML' })
       if (msg?.message_id) {
         setTimeout(() => {
           bot?.deleteMessage(chatId, msg.message_id)?.catch(() => {})
@@ -9859,10 +9855,10 @@ bot?.on('message', async msg => {
       return
     }
     if (message === pc.setupSipDevice) {
-      const telnyxUser = num.telnyxSipUsername || num.sipUsername
-      const telnyxPass = num.telnyxSipPassword || num.sipPassword
+      const sipUser = num.sipUsername
+      const sipPass = num.sipPassword
       const domain = phoneConfig.getSipDomainForNumber()
-      const msg = await bot?.sendMessage(chatId, phoneConfig.txt.sipDeviceSetup(num.phoneNumber, telnyxUser, telnyxPass, domain), { parse_mode: 'HTML' })
+      const msg = await bot?.sendMessage(chatId, phoneConfig.txt.sipDeviceSetup(num.phoneNumber, sipUser, sipPass, domain), { parse_mode: 'HTML' })
       if (msg?.message_id) {
         setTimeout(() => {
           bot?.deleteMessage(chatId, msg.message_id)?.catch(() => {})
