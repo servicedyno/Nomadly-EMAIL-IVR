@@ -60,7 +60,7 @@ fi
 # ── Step 4: Install Node.js dependencies ──
 if [ ! -d /app/node_modules ]; then
   echo "📦 Installing Node.js dependencies..."
-  cd /app && yarn install
+  cd /app && yarn install --ignore-engines
   echo "✅ Node.js dependencies installed"
 else
   echo "✅ Node.js dependencies already installed"
