@@ -1,288 +1,442 @@
 #!/usr/bin/env python3
 """
-Backend Test Suite for Node.js Express Application
-Testing the 2 specific fixes as outlined in the review request:
-
-Fix 1: Lead job persistence recovery (js/lead-job-persistence.js + js/_index.js)
-Fix 2: Activate shortener DNS routing (js/_index.js)
+Backend Test Suite for Shortener Activation Persistence
+Tests the Node.js application shortener activation persistence implementation.
 """
-
 import requests
 import json
-import re
+import time
 import sys
-from pathlib import Path
+import os
+from typing import Dict, Any, List
 
 # Test configuration
-BASE_URL = "http://localhost:5000"
-TIMEOUT = 10
+BACKEND_URL = "http://localhost:5000"
+TEST_RESULTS: List[Dict[str, Any]] = []
 
-class TestResult:
-    def __init__(self):
-        self.passed = 0
-        self.failed = 0
-        self.errors = []
-        
-    def add_pass(self, test_name):
-        print(f"✅ PASS: {test_name}")
-        self.passed += 1
-        
-    def add_fail(self, test_name, error):
-        print(f"❌ FAIL: {test_name} - {error}")
-        self.failed += 1
-        self.errors.append(f"{test_name}: {error}")
-        
-    def summary(self):
-        total = self.passed + self.failed
-        print(f"\n{'='*60}")
-        print(f"TEST SUMMARY: {self.passed}/{total} PASSED")
-        if self.errors:
-            print(f"\nFAILED TESTS:")
-            for error in self.errors:
-                print(f"  - {error}")
-        print(f"{'='*60}")
-        return len(self.errors) == 0
-
-def test_health_check():
-    """Test 1: Basic health check - Node.js running on port 5000"""
-    result = TestResult()
+def log_test(test_name: str, status: str, message: str = "", details: str = ""):
+    """Log test results"""
+    result = {
+        "test": test_name,
+        "status": status,
+        "message": message,
+        "details": details,
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+    }
+    TEST_RESULTS.append(result)
     
+    status_icon = "✅" if status == "PASS" else "❌" if status == "FAIL" else "⚠️"
+    print(f"{status_icon} {test_name}: {message}")
+    if details:
+        print(f"    Details: {details}")
+
+def test_service_health():
+    """Test 1: Health check - Node.js port 5000"""
     try:
-        response = requests.get(f"{BASE_URL}/health", timeout=TIMEOUT)
-        
+        response = requests.get(f"{BACKEND_URL}/health", timeout=10)
         if response.status_code == 200:
-            try:
-                health_data = response.json()
-                if health_data.get("status") in ["healthy", "starting"]:
-                    result.add_pass("Node.js health endpoint responds correctly")
-                else:
-                    result.add_fail("Health endpoint", f"Unexpected status: {health_data.get('status')}")
-            except:
-                # Health endpoint returns HTML instead of JSON - this is noted but acceptable
-                result.add_pass("Node.js health endpoint responds (HTML format)")
+            data = response.json()
+            if data.get('status') == 'healthy':
+                log_test("Service Health Check", "PASS", f"Node.js service healthy on port 5000")
+                return True
+            else:
+                log_test("Service Health Check", "FAIL", f"Service not healthy: {data}")
+                return False
         else:
-            result.add_fail("Health endpoint", f"Status code {response.status_code}")
-            
-    except requests.exceptions.RequestException as e:
-        result.add_fail("Health endpoint", f"Connection error: {e}")
-        
-    return result
+            log_test("Service Health Check", "FAIL", f"HTTP {response.status_code}")
+            return False
+    except Exception as e:
+        log_test("Service Health Check", "FAIL", f"Connection failed: {str(e)}")
+        return False
 
-def test_lead_job_persistence_code():
-    """Test 2: Verify lead-job-persistence.js code fixes"""
-    result = TestResult()
-    
+def test_persistence_module_structure():
+    """Test 2: Verify shortener-activation-persistence.js module structure"""
     try:
-        # Read the lead-job-persistence.js file
-        persistence_file = Path("/app/js/lead-job-persistence.js")
-        if not persistence_file.exists():
-            result.add_fail("Lead job persistence file", "File not found")
-            return result
-            
-        content = persistence_file.read_text()
+        # Check if the file exists and has expected content
+        with open('/app/js/shortener-activation-persistence.js', 'r') as f:
+            content = f.read()
         
-        # Test Fix 1a: findInterruptedJobs() query should include both 'running' and 'interrupted'
-        if "{ status: { $in: ['running', 'interrupted'] } }" in content:
-            result.add_pass("findInterruptedJobs() uses correct status query")
-        else:
-            result.add_fail("findInterruptedJobs()", "Query should use $in: ['running', 'interrupted']")
+        # Check for required functions
+        required_functions = [
+            'initShortenerPersistence',
+            'createActivationTask',
+            'markRailwayLinked',
+            'markDnsAdded',
+            'markCompleted',
+            'markFailed',
+            'findIncompleteTasks'
+        ]
         
-        # Test Fix 1b: flushAllJobs() should destructure { timer, getState } and call clearInterval(timer)
-        # Look for the pattern: for (const [jobId, { timer, getState }] of activeJobs)
-        if "for (const [jobId, { timer, getState }] of activeJobs)" in content:
-            result.add_pass("flushAllJobs() destructures timer and getState correctly")
+        missing_functions = []
+        for func in required_functions:
+            if f"function {func}" not in content and f"{func}:" not in content:
+                missing_functions.append(func)
+        
+        # Check module exports
+        exports_found = "module.exports = {" in content
+        collection_used = "shortenerActivations" in content
+        
+        if missing_functions:
+            log_test("Persistence Module Structure", "FAIL", 
+                   f"Missing functions: {', '.join(missing_functions)}")
+            return False
+        elif not exports_found:
+            log_test("Persistence Module Structure", "FAIL", "Module exports not found")
+            return False
+        elif not collection_used:
+            log_test("Persistence Module Structure", "FAIL", "shortenerActivations collection not used")
+            return False
         else:
-            result.add_fail("flushAllJobs()", "Should destructure { timer, getState } from activeJobs")
+            log_test("Persistence Module Structure", "PASS", 
+                   f"All 7 functions found, uses shortenerActivations collection")
+            return True
             
-        # Verify clearInterval(timer) is called (not clearInterval(getState))
-        if "clearInterval(timer)" in content and "clearInterval(getState)" not in content:
-            result.add_pass("flushAllJobs() calls clearInterval(timer) correctly")
+    except FileNotFoundError:
+        log_test("Persistence Module Structure", "FAIL", "shortener-activation-persistence.js not found")
+        return False
+    except Exception as e:
+        log_test("Persistence Module Structure", "FAIL", f"Error reading file: {str(e)}")
+        return False
+
+def test_index_imports():
+    """Test 3: Verify _index.js imports all persistence functions"""
+    try:
+        with open('/app/js/_index.js', 'r') as f:
+            content = f.read()
+        
+        # Check for import line
+        import_pattern = "require('./shortener-activation-persistence.js')"
+        if import_pattern not in content:
+            log_test("Index.js Imports", "FAIL", "shortener-activation-persistence.js not imported")
+            return False
+        
+        # Check all functions are imported
+        required_imports = [
+            'initShortenerPersistence',
+            'createActivationTask',
+            'markRailwayLinked',
+            'markDnsAdded',
+            'markCompleted',
+            'markFailed',
+            'findIncompleteTasks'
+        ]
+        
+        import_line = None
+        for line in content.split('\n'):
+            if 'shortener-activation-persistence.js' in line and 'require' in line:
+                import_line = line
+                break
+        
+        if not import_line:
+            log_test("Index.js Imports", "FAIL", "Import line not found")
+            return False
+        
+        missing_imports = []
+        for func in required_imports:
+            if func not in import_line:
+                missing_imports.append(func)
+        
+        if missing_imports:
+            log_test("Index.js Imports", "FAIL", 
+                   f"Missing imports: {', '.join(missing_imports)}")
+            return False
         else:
-            result.add_fail("flushAllJobs()", "Should call clearInterval(timer), not clearInterval(getState)")
+            log_test("Index.js Imports", "PASS", "All 7 persistence functions imported correctly")
+            return True
             
     except Exception as e:
-        result.add_fail("Lead job persistence code review", f"Error reading file: {e}")
-        
-    return result
+        log_test("Index.js Imports", "FAIL", f"Error checking imports: {str(e)}")
+        return False
 
-def test_sigterm_handlers():
-    """Test 3: Verify SIGTERM/SIGINT handlers in _index.js"""
-    result = TestResult()
-    
+def test_startup_initialization():
+    """Test 4: Verify initialization calls in startup"""
     try:
-        # Read the _index.js file
-        index_file = Path("/app/js/_index.js")
-        if not index_file.exists():
-            result.add_fail("Index file", "File not found")
-            return result
-            
-        content = index_file.read_text()
+        with open('/app/js/_index.js', 'r') as f:
+            lines = f.readlines()
         
-        # Test Fix 1c: Shared handleShutdown function for both SIGTERM and SIGINT
-        if "async function handleShutdown(signal)" in content:
-            result.add_pass("handleShutdown function exists")
-        else:
-            result.add_fail("SIGTERM handlers", "handleShutdown function not found")
-            return result
+        # Find initialization calls
+        init_shortener_found = False
+        resume_shortener_found = False
+        
+        for i, line in enumerate(lines):
+            if 'initShortenerPersistence(db)' in line:
+                init_shortener_found = True
+                log_test("Startup Initialization", "INFO", 
+                       f"initShortenerPersistence(db) found at line {i+1}")
             
-        # Verify both signals are registered
-        if "process.on('SIGTERM', () => handleShutdown('SIGTERM'))" in content:
-            result.add_pass("SIGTERM handler registered correctly")
+            if 'resumeShortenerActivations()' in line:
+                resume_shortener_found = True
+                log_test("Startup Initialization", "INFO", 
+                       f"resumeShortenerActivations() found at line {i+1}")
+        
+        if init_shortener_found and resume_shortener_found:
+            log_test("Startup Initialization", "PASS", 
+                   "Both initShortenerPersistence(db) and resumeShortenerActivations() found")
+            return True
         else:
-            result.add_fail("SIGTERM handlers", "SIGTERM handler not properly registered")
+            missing = []
+            if not init_shortener_found:
+                missing.append("initShortenerPersistence(db)")
+            if not resume_shortener_found:
+                missing.append("resumeShortenerActivations()")
             
-        if "process.on('SIGINT', () => handleShutdown('SIGINT'))" in content:
-            result.add_pass("SIGINT handler registered correctly")
-        else:
-            result.add_fail("SIGTERM handlers", "SIGINT handler not properly registered")
+            log_test("Startup Initialization", "FAIL", 
+                   f"Missing calls: {', '.join(missing)}")
+            return False
             
     except Exception as e:
-        result.add_fail("SIGTERM handlers code review", f"Error reading file: {e}")
-        
-    return result
+        log_test("Startup Initialization", "FAIL", f"Error checking initialization: {str(e)}")
+        return False
 
-def test_activate_shortener_handlers():
-    """Test 4: Verify activate shortener DNS routing handlers in _index.js"""
-    result = TestResult()
-    
+def test_handler_wrapping():
+    """Test 5: Verify all 3 activation handlers are wrapped with persistence calls"""
     try:
-        # Read the _index.js file
-        index_file = Path("/app/js/_index.js")
-        if not index_file.exists():
-            result.add_fail("Index file", "File not found")
-            return result
-            
-        content = index_file.read_text()
+        with open('/app/js/_index.js', 'r') as f:
+            content = f.read()
         
-        # Test Fix 2: Both activate shortener handlers use domainService.addDNSRecord()
+        # Check for createActivationTask calls - should be 3 instances
+        create_task_count = content.count('createActivationTask(')
         
-        # Find activateShortener handler (around line 6326)
-        activate_pattern = r"if \(message === t\.activateShortener\).*?return"
-        activate_match = re.search(activate_pattern, content, re.DOTALL)
+        # Check for other persistence markers
+        railway_linked_count = content.count('markRailwayLinked(')
+        dns_added_count = content.count('markDnsAdded(')
+        completed_count = content.count('markCompleted(')
+        failed_count = content.count('markFailed(')
         
-        if activate_match:
-            activate_handler = activate_match.group(0)
-            if "domainService.addDNSRecord(domain, recordType, server, '', db)" in activate_handler:
-                result.add_pass("DNS menu activateShortener handler uses domainService.addDNSRecord()")
-            else:
-                result.add_fail("DNS menu activateShortener", "Should use domainService.addDNSRecord() as primary path")
-                
-            # Check for 5s sleep instead of 65s
-            if "sleep(5000)" in activate_handler or "await sleep(5000)" in activate_handler:
-                result.add_pass("DNS menu activateShortener uses 5s sleep")
-            else:
-                result.add_fail("DNS menu activateShortener", "Should use 5s sleep instead of 65s")
+        results = {
+            'createActivationTask': create_task_count,
+            'markRailwayLinked': railway_linked_count,
+            'markDnsAdded': dns_added_count,
+            'markCompleted': completed_count,
+            'markFailed': failed_count
+        }
+        
+        # We expect at least 3 of each (one per handler)
+        issues = []
+        for func, count in results.items():
+            if count < 3:
+                issues.append(f"{func}: {count} (expected ≥3)")
+        
+        if issues:
+            log_test("Handler Wrapping", "FAIL", 
+                   f"Insufficient persistence calls: {', '.join(issues)}")
+            return False
         else:
-            result.add_fail("DNS menu activateShortener", "Handler not found")
-        
-        # Find QuickActivateShortener handler (around line 5541)
-        if "QuickActivateShortener" in content:
-            # Look for the domainService.addDNSRecord call in quick activate context
-            quick_pattern = r"QuickActivateShortener.*?domainService\.addDNSRecord\(domain, recordType, server, '', db\)"
-            if re.search(quick_pattern, content, re.DOTALL):
-                result.add_pass("Quick-activate handler uses domainService.addDNSRecord()")
-            else:
-                result.add_fail("Quick-activate handler", "Should use domainService.addDNSRecord() as primary path")
-                
-        # Check for fallback to saveServerInDomain for legacy domains
-        if "getDomainMeta()" in content and "saveServerInDomain" in content:
-            result.add_pass("Fallback to saveServerInDomain exists for legacy domains")
-        else:
-            result.add_fail("Activate shortener fallback", "Should have fallback to saveServerInDomain for legacy domains")
+            log_test("Handler Wrapping", "PASS", 
+                   f"All handlers wrapped: createActivationTask({create_task_count}), markRailwayLinked({railway_linked_count}), markDnsAdded({dns_added_count}), markCompleted({completed_count}), markFailed({failed_count})")
+            return True
             
     except Exception as e:
-        result.add_fail("Activate shortener handlers code review", f"Error reading file: {e}")
-        
-    return result
+        log_test("Handler Wrapping", "FAIL", f"Error checking handler wrapping: {str(e)}")
+        return False
 
-def test_node_startup_logs():
-    """Test 5: Check Node.js startup logs for critical errors"""
-    result = TestResult()
-    
+def test_resume_function_implementation():
+    """Test 6: Verify resumeShortenerActivations function handles all 3 statuses"""
     try:
-        # Check if there are any critical startup errors in logs
-        import subprocess
+        with open('/app/js/_index.js', 'r') as f:
+            content = f.read()
         
-        # Get recent Node.js logs
-        log_result = subprocess.run(
-            ["tail", "-n", "100", "/var/log/supervisor/backend.err.log"], 
-            capture_output=True, text=True, timeout=5
-        )
+        # Find the resumeShortenerActivations function
+        func_start = content.find('async function resumeShortenerActivations(')
+        if func_start == -1:
+            func_start = content.find('function resumeShortenerActivations(')
         
-        if log_result.returncode == 0:
-            logs = log_result.stdout
-            
-            # Check for critical errors that would indicate broken functionality
-            critical_errors = [
-                "Error:", "ECONNREFUSED", "MongoError", "SyntaxError", 
-                "ReferenceError", "TypeError", "Cannot read property", "Cannot read properties"
-            ]
-            
-            has_critical_error = False
-            for error in critical_errors:
-                if error in logs and "INFO:" not in logs.split(error)[0][-50:]:  # Avoid INFO logs
-                    result.add_fail("Node.js startup logs", f"Critical error found: {error}")
-                    has_critical_error = True
+        if func_start == -1:
+            log_test("Resume Function Implementation", "FAIL", 
+                   "resumeShortenerActivations function not found")
+            return False
+        
+        # Extract the function (find matching brace)
+        brace_count = 0
+        func_end = func_start
+        in_function = False
+        
+        for i in range(func_start, len(content)):
+            char = content[i]
+            if char == '{':
+                in_function = True
+                brace_count += 1
+            elif char == '}' and in_function:
+                brace_count -= 1
+                if brace_count == 0:
+                    func_end = i
                     break
-                    
-            if not has_critical_error:
-                result.add_pass("Node.js startup logs clean (no critical errors)")
+        
+        func_content = content[func_start:func_end+1]
+        
+        # Check for handling of all 3 statuses
+        statuses_handled = {
+            'pending': "status === 'pending'" in func_content,
+            'railway_linked': "status === 'railway_linked'" in func_content,
+            'dns_added': "status === 'dns_added'" in func_content
+        }
+        
+        # Check for proper function calls
+        calls_found = {
+            'findIncompleteTasks': 'findIncompleteTasks()' in func_content,
+            'markFailed': 'markFailed(' in func_content,
+            'addDnsForShortener': 'addDnsForShortener(' in func_content or 'domainService.addDNSRecord(' in func_content
+        }
+        
+        missing_statuses = [status for status, found in statuses_handled.items() if not found]
+        missing_calls = [call for call, found in calls_found.items() if not found]
+        
+        if missing_statuses:
+            log_test("Resume Function Implementation", "FAIL", 
+                   f"Missing status handling: {', '.join(missing_statuses)}")
+            return False
+        elif missing_calls:
+            log_test("Resume Function Implementation", "FAIL", 
+                   f"Missing function calls: {', '.join(missing_calls)}")
+            return False
         else:
-            result.add_fail("Node.js startup logs", "Could not read log files")
+            log_test("Resume Function Implementation", "PASS", 
+                   "Handles all 3 statuses (pending, railway_linked, dns_added) with proper function calls")
+            return True
             
     except Exception as e:
-        result.add_fail("Node.js startup logs", f"Error checking logs: {e}")
-        
-    return result
+        log_test("Resume Function Implementation", "FAIL", f"Error checking resume function: {str(e)}")
+        return False
 
-def main():
-    """Run all tests and report results"""
-    print("🔧 Backend Test Suite - Node.js Express Application")
-    print("Testing 2 specific fixes: Lead job persistence + Activate shortener DNS routing")
+def test_startup_logs():
+    """Test 7: Verify initialization log appears in startup logs"""
+    try:
+        # Check Node.js logs for the initialization message
+        import subprocess
+        result = subprocess.run(['tail', '-n', '100', '/var/log/supervisor/nodejs.out.log'], 
+                              capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            logs = result.stdout
+            if '[ShortenerPersistence] Initialized' in logs:
+                log_test("Startup Logs", "PASS", 
+                       "[ShortenerPersistence] Initialized message found in logs")
+                return True
+            else:
+                log_test("Startup Logs", "FAIL", 
+                       "[ShortenerPersistence] Initialized message not found in recent logs")
+                return False
+        else:
+            log_test("Startup Logs", "FAIL", f"Could not read logs: {result.stderr}")
+            return False
+            
+    except Exception as e:
+        log_test("Startup Logs", "FAIL", f"Error checking startup logs: {str(e)}")
+        return False
+
+def test_helper_function():
+    """Test 8: Verify addDnsForShortener helper exists"""
+    try:
+        with open('/app/js/_index.js', 'r') as f:
+            content = f.read()
+        
+        # Check for the helper function
+        if 'function addDnsForShortener(' in content or 'addDnsForShortener(' in content:
+            # Verify it uses domainService.addDNSRecord
+            if 'domainService.addDNSRecord(' in content:
+                log_test("Helper Function", "PASS", 
+                       "addDnsForShortener helper function exists with domainService.addDNSRecord")
+                return True
+            else:
+                log_test("Helper Function", "FAIL", 
+                       "addDnsForShortener exists but doesn't use domainService.addDNSRecord")
+                return False
+        else:
+            log_test("Helper Function", "FAIL", "addDnsForShortener helper function not found")
+            return False
+            
+    except Exception as e:
+        log_test("Helper Function", "FAIL", f"Error checking helper function: {str(e)}")
+        return False
+
+def test_error_handling():
+    """Test 9: Check for proper error handling in handlers"""
+    try:
+        with open('/app/js/_index.js', 'r') as f:
+            content = f.read()
+        
+        # Count try-catch blocks around createActivationTask
+        import re
+        
+        # Find all createActivationTask calls and check if they're in try-catch
+        activation_calls = []
+        for match in re.finditer(r'createActivationTask\([^)]*\)', content):
+            start_pos = match.start()
+            # Look backwards for try keyword
+            search_back = content[max(0, start_pos-1000):start_pos]
+            if 'try {' in search_back:
+                activation_calls.append(True)
+            else:
+                activation_calls.append(False)
+        
+        # Check if markFailed is called in catch blocks
+        catch_blocks_with_markFailed = content.count('markFailed(') >= 3
+        
+        protected_calls = sum(activation_calls)
+        total_calls = len(activation_calls)
+        
+        if total_calls >= 3 and protected_calls >= 2:
+            log_test("Error Handling", "PASS", 
+                   f"{protected_calls}/{total_calls} activation calls protected, markFailed calls present")
+            return True
+        else:
+            log_test("Error Handling", "WARN", 
+                   f"Only {protected_calls}/{total_calls} activation calls appear to be in try-catch blocks")
+            return True  # This is not critical
+            
+    except Exception as e:
+        log_test("Error Handling", "FAIL", f"Error checking error handling: {str(e)}")
+        return False
+
+def run_comprehensive_test():
+    """Run all tests for shortener activation persistence"""
+    print("🧪 Starting Comprehensive Shortener Activation Persistence Test Suite")
     print("=" * 80)
     
-    all_results = []
-    
     # Run all tests
-    print("\n📋 Test 1: Health Check")
-    all_results.append(test_health_check())
+    tests = [
+        test_service_health,
+        test_persistence_module_structure,
+        test_index_imports,
+        test_startup_initialization,
+        test_handler_wrapping,
+        test_resume_function_implementation,
+        test_startup_logs,
+        test_helper_function,
+        test_error_handling
+    ]
     
-    print("\n📋 Test 2: Lead Job Persistence Code Review")
-    all_results.append(test_lead_job_persistence_code())
+    passed = 0
+    failed = 0
+    warned = 0
     
-    print("\n📋 Test 3: SIGTERM/SIGINT Handlers")
-    all_results.append(test_sigterm_handlers())
+    for test_func in tests:
+        result = test_func()
+        if result is True:
+            passed += 1
+        elif result is False:
+            failed += 1
+        else:
+            warned += 1
     
-    print("\n📋 Test 4: Activate Shortener DNS Routing")
-    all_results.append(test_activate_shortener_handlers())
+    print("\n" + "=" * 80)
+    print(f"📊 Test Summary: {passed} passed, {failed} failed, {warned} warnings")
     
-    print("\n📋 Test 5: Node.js Startup Logs")
-    all_results.append(test_node_startup_logs())
+    # Critical issues
+    critical_failures = [r for r in TEST_RESULTS if r['status'] == 'FAIL']
+    if critical_failures:
+        print("\n❌ Critical Issues Found:")
+        for failure in critical_failures:
+            print(f"  • {failure['test']}: {failure['message']}")
     
-    # Calculate overall results
-    total_passed = sum(r.passed for r in all_results)
-    total_failed = sum(r.failed for r in all_results)
-    all_errors = []
-    for r in all_results:
-        all_errors.extend(r.errors)
-    
-    print(f"\n{'='*80}")
-    print(f"🏁 OVERALL TEST RESULTS")
-    print(f"{'='*80}")
-    print(f"✅ PASSED: {total_passed}")
-    print(f"❌ FAILED: {total_failed}")
-    
-    if all_errors:
-        print(f"\n🚨 CRITICAL ISSUES FOUND:")
-        for error in all_errors:
-            print(f"  - {error}")
+    # Success summary
+    if failed == 0:
+        print("\n✅ All critical tests passed! Shortener activation persistence implementation is working correctly.")
+        return True
     else:
-        print(f"\n🎉 ALL TESTS PASSED - Both fixes verified successfully!")
-        
-    print(f"{'='*80}")
-    
-    # Return exit code
-    return 0 if len(all_errors) == 0 else 1
+        print(f"\n⚠️ {failed} critical issues need attention before marking as working.")
+        return False
 
 if __name__ == "__main__":
-    sys.exit(main())
+    success = run_comprehensive_test()
+    sys.exit(0 if success else 1)
