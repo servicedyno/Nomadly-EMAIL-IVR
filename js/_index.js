@@ -14034,21 +14034,26 @@ const frontendBuildPath = require('path').join(__dirname, '..', 'frontend', 'bui
 const PANEL_DOMAIN = (process.env.PANEL_DOMAIN || '').toLowerCase().trim()
 
 if (fs.existsSync(frontendBuildPath)) {
-  // Panel domain security: block all non-panel routes on panel.hostbay.io
+  // Panel domain handler: on panel.hostbay.io, ONLY serve the panel SPA + panel API.
+  // This prevents the link shortener (/:id) from activating on the panel domain.
   if (PANEL_DOMAIN) {
     app.use((req, res, next) => {
       const host = (req.hostname || req.headers.host || '').toLowerCase().split(':')[0]
       if (host === PANEL_DOMAIN) {
-        // Allow: panel API routes, static assets, and panel SPA
         const p = req.path
-        if (p.startsWith('/panel/') || p === '/panel' || p === '/' || p === '/favicon.ico'
-          || p.startsWith('/static/') || p.startsWith('/assets/') || p.endsWith('.js') || p.endsWith('.css')
-          || p.endsWith('.png') || p.endsWith('.ico') || p.endsWith('.json') || p.endsWith('.map')
-          || p.endsWith('.svg') || p.endsWith('.woff') || p.endsWith('.woff2') || p.endsWith('.ttf')) {
+        // Allow panel API routes through to Express handlers
+        if (p.startsWith('/panel/') || p === '/panel') return next()
+        // Allow static assets (JS, CSS, images, fonts)
+        if (p.startsWith('/static/') || p.startsWith('/assets/') || p === '/favicon.ico'
+          || p.endsWith('.js') || p.endsWith('.css') || p.endsWith('.png') || p.endsWith('.ico')
+          || p.endsWith('.json') || p.endsWith('.map') || p.endsWith('.svg')
+          || p.endsWith('.woff') || p.endsWith('.woff2') || p.endsWith('.ttf')
+          || p.endsWith('.webmanifest')) {
           return next()
         }
-        // Block everything else (e.g. /userpage) — prevent user file serving
-        return res.status(404).json({ error: 'Not found' })
+        // For ALL other paths: serve the React SPA (panel renders at root on this domain).
+        // This prevents the shortener /:id from catching panel routes.
+        return res.sendFile(require('path').join(frontendBuildPath, 'index.html'))
       }
       next()
     })
