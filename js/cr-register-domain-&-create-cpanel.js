@@ -151,7 +151,7 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state)
             await nsDb.collection('registeredDomains').updateOne(
               { _id: domain },
               { $set: { 'val.cfZoneId': zone.zoneId, 'val.nameservers': cfNameservers, 'val.nameserverType': 'cloudflare' } },
-              { upsert: false }
+              { upsert: true }
             )
             await nsClient.close()
           } catch (_) {}
