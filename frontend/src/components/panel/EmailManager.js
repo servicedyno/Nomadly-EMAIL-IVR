@@ -19,6 +19,7 @@ export default function EmailManager() {
   useEffect(() => {
     fetchAccounts();
     fetchDomains();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchAccounts = async () => {
