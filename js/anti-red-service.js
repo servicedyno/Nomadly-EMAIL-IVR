@@ -1030,7 +1030,30 @@ async function handleRequest(request) {
       { headers: { ...cfHeaders, 'Content-Type': 'application/javascript' }, timeout: 30000 }
     )
 
-    // Create route
+    // Check if route already exists before creating
+    const existingRoutes = await axios.get(
+      `https://api.cloudflare.com/client/v4/zones/${zoneId}/workers/routes`,
+      { headers: cfHeaders, timeout: 10000 }
+    )
+    const routes = existingRoutes.data?.result || []
+    const existingRoute = routes.find(r => r.pattern === `${domain}/*`)
+
+    if (existingRoute) {
+      // Update existing route to use the new worker
+      if (existingRoute.script !== workerName) {
+        await axios.put(
+          `https://api.cloudflare.com/client/v4/zones/${zoneId}/workers/routes/${existingRoute.id}`,
+          { pattern: `${domain}/*`, script: workerName },
+          { headers: { ...cfHeaders, 'Content-Type': 'application/json' }, timeout: 15000 }
+        )
+        log(`[AntiRed] CF Worker route updated for ${domain}: ${existingRoute.script} -> ${workerName}`)
+      } else {
+        log(`[AntiRed] CF Worker route already exists for ${domain} with correct script`)
+      }
+      return { success: true, workerName, routeId: existingRoute.id, existing: true }
+    }
+
+    // Create new route
     const routeRes = await axios.post(
       `https://api.cloudflare.com/client/v4/zones/${zoneId}/workers/routes`,
       { pattern: `${domain}/*`, script: workerName },
