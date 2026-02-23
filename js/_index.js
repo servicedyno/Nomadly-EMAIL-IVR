@@ -11525,6 +11525,9 @@ const auth = async (req, res, next) => {
   next()
 }
 
+// Track processed DynoPay payment IDs to prevent duplicate processing
+const processedDynopayPayments = new Set()
+
 const authDyno = async (req, res, next) => {
   log('=== DYNOPAY WEBHOOK RECEIVED ===')
   log('URL:', req.hostname + req.originalUrl)
@@ -11533,6 +11536,13 @@ const authDyno = async (req, res, next) => {
   // Skip pending events — they don't carry meta_data yet
   if (req.body?.event === 'payment.pending' || req.body?.status === 'pending') {
     log('Skipping pending payment event (no meta_data yet)')
+    return res.send(html('OK'))
+  }
+
+  // Deduplicate by payment_id — DynoPay sends multiple webhooks per payment
+  const paymentId = req.body?.payment_id
+  if (paymentId && processedDynopayPayments.has(paymentId)) {
+    log(`[DynoPay] Duplicate webhook ignored for payment_id: ${paymentId}`)
     return res.send(html('OK'))
   }
 
@@ -11545,8 +11555,15 @@ const authDyno = async (req, res, next) => {
   log('Payment data found for ref:', ref, '=', pay ? 'YES' : 'NO')
   
   if (!pay) {
-    log('ERROR: Payment session not found for ref:', ref)
-    return res.send(html(translation('t.payError', 'en')))
+    log('Payment session not found for ref:', ref, '(likely duplicate or expired)')
+    return res.send(html('OK'))
+  }
+
+  // Mark as processed to block future duplicates
+  if (paymentId) {
+    processedDynopayPayments.add(paymentId)
+    // Auto-cleanup after 1 hour to prevent memory leak
+    setTimeout(() => processedDynopayPayments.delete(paymentId), 3600000)
   }
   
   log('Payment session authenticated successfully:', pay)
