@@ -54,7 +54,7 @@ if railway_mongo_url:
 @app.get("/api/sip-test-credentials")
 async def get_sip_test_credentials():
     """Return first active SIP user credentials for testing."""
-    if not railway_db:
+    if railway_db is None:
         return {"error": "Database not configured"}
     
     try:
