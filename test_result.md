@@ -106,20 +106,17 @@
 user_problem_statement: "Fix domain registration flows + lead job persistence recovery + activate shortener DNS routing"
 
 backend:
-  - task: "Fix: Lead job persistence recovery — findInterruptedJobs status mismatch"
+  - task: "Fix: Lead job persistence — full resume + delivery after deployment"
     implemented: true
     working: true
-    file: "js/lead-job-persistence.js"
+    file: "js/lead-job-persistence.js, js/validatePhoneBulk.js, js/_index.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
         - working: true
           agent: "main"
-          comment: "Three fixes: (1) findInterruptedJobs() now queries { status: { $in: ['running', 'interrupted'] } } instead of only 'running'. Covers both SIGTERM-flushed and non-flushed cases. (2) Fixed clearInterval(getState) bug in flushAllJobs() — should be clearInterval(timer). (3) Added SIGINT handler alongside SIGTERM in _index.js — npm may forward either signal."
-        - working: true
-          agent: "testing"
-          comment: "✅ VERIFIED: All 3 lead job persistence fixes correctly implemented. (1) js/lead-job-persistence.js line 139: findInterruptedJobs() uses { status: { $in: ['running', 'interrupted'] } } query. (2) Line 147: flushAllJobs() properly destructures { timer, getState } and calls clearInterval(timer). (3) js/_index.js lines 14111-14112: Both SIGTERM and SIGINT handlers registered with shared handleShutdown(signal) function. Node.js service running healthy on port 5000."
+          comment: "Full resume implementation: (1) findInterruptedJobs queries both running+interrupted. (2) Fixed clearInterval bug + SIGINT handler. (3) validateBulkNumbers accepts resumeData param — reuses jobId, prepopulates res[] so generation loop continues from saved count. (4) resumeInterruptedLeadJobs calls validateBulkNumbers with resumeData to actually resume generation then delivers via deliverLeadResults helper. (5) Added resumeJob() to persistence module."
 
   - task: "Fix: Activate shortener DNS routing — unified domainService.addDNSRecord()"
     implemented: true
