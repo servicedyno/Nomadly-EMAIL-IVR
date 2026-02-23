@@ -5935,7 +5935,7 @@ bot?.on('message', async msg => {
     if (error) return send(chatId, error, trans('o'))
     send(chatId, `Bank ₦aira + Card 🌐︎`, trans('o'))
     console.log('showDepositNgnInfo', url)
-    return send(chatId, hP.bankPayDomain(priceNGN, info.plan), trans('payBank', url), k.of([t.iHaveSentThePayment]))
+    return send(chatId, hP.bankPayDomain(priceNGN, info.plan), trans('payBank', url))
   }
   if (action === 'crypto-pay-hosting') {
     if (message === t.back) return goto['hosting-pay']()
@@ -5956,7 +5956,7 @@ bot?.on('message', async msg => {
       await sendQrCode(bot, chatId, bb, info?.userLanguage ?? 'en')
       set(state, chatId, 'action', a.proceedWithPaymentProcess)
       const priceCrypto = await convert(price, 'usd', coin)
-      return send(chatId, hP.showCryptoPaymentInfo(priceCrypto, ticker, address, plan), k.of([t.iHaveSentThePayment]))
+      return send(chatId, hP.showCryptoPaymentInfo(priceCrypto, ticker, address, plan))
     } else {
       const coin = tickerOfDyno[ticker]
       if (!coin) return send(chatId, t.askValidCrypto)
@@ -5972,7 +5972,7 @@ bot?.on('message', async msg => {
       await generateQr(bot, chatId, qr_code, info?.userLanguage ?? 'en')
       set(state, chatId, 'action', a.proceedWithPaymentProcess)
       const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
-      return send(chatId, hP.showCryptoPaymentInfo(priceCrypto, ticker, address, plan), k.of([t.iHaveSentThePayment]))
+      return send(chatId, hP.showCryptoPaymentInfo(priceCrypto, ticker, address, plan))
     }
   }
   if (action === 'get-free-domain') {
