@@ -120,6 +120,14 @@ grep "Voice webhook:" /var/log/supervisor/nodejs.out.log
 
 ## Prioritized Backlog
 
+### P1 - Next Up
+- Verify Multi-User Caller ID (ANI) handling — test `/prepare-call` flow for race conditions
+- Full regression test of billing logic — audit all call types (SIP, IVR, Transferred)
+
+### P2 - Refactoring
+- Break `_index.js` monolith into feature modules (bot handlers, API routes, purchase flows)
+- Split `voice-service.js` webhook switch into focused event handlers
+
 ### P3 - Future
 - Production DNS setup for `speechcue.com`
 - Test call analytics dashboard
