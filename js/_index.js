@@ -833,6 +833,7 @@ const loadData = async () => {
 
   // Resume interrupted lead jobs from previous deployment
   resumeInterruptedLeadJobs()
+  resumeShortenerActivations()
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // Scheduled auto-cleanup: reset stale user states every 6 hours
