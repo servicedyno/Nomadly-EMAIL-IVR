@@ -112,11 +112,14 @@ backend:
     file: "js/cr-domain-register.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         - working: true
           agent: "main"
           comment: "Changed buyDomainOnline(domain) to buyDomainOnline(domain, ns1, ns2). Uses provided NS if given, falls back to CR defaults. Added log line showing which NS were used."
+        - working: true
+          agent: "testing"
+          comment: "✅ Verified: Function signature accepts (domain, ns1, ns2), uses fallback logic ns1 || default, ns2 || default, includes proper logging of NS used."
 
   - task: "Fix: domain-service passes NS to buyDomainOnline for CR"
     implemented: true
