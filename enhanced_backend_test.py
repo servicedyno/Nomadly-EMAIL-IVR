@@ -178,7 +178,7 @@ class NomadlyTester:
     
     def test_mongodb_users(self) -> bool:
         """Test: Both users should exist in MongoDB with correct phone numbers"""
-        if not self.db:
+        if self.db is None:
             return self.log_test("MongoDB Users Verification", False, "DB connection", "No connection", "MongoDB not accessible")
         
         try:
