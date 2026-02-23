@@ -1219,6 +1219,12 @@ async function handleCallAnswered(payload) {
     const ringTimeout = fwdConfig?.ringTimeout || 25
     log(`[Voice] Ringing SIP device: ${sipUri} for ${num.phoneNumber} (timeout: ${ringTimeout}s)`)
 
+    // Play ringback tone to the CALLER while the SIP device rings
+    // This way the caller hears "ring... ring..." instead of silence
+    _telnyxApi.playbackStart(callControlId, RINGBACK_URL, { loop: 'infinity' }).catch(e => {
+      log(`[Voice] Ringback playback failed: ${e.message}`)
+    })
+
     try {
       // Use Call Control App ID — POST /v2/calls only accepts Call Control Apps, not SIP Connection IDs
       // The SIP device registered on the credential connection is reachable via its SIP URI
