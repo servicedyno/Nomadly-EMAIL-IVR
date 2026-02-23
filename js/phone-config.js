@@ -163,7 +163,6 @@ const btn = {
   // SIP
   revealPassword: '👁️ Reveal Password',
   resetPassword: '🔄 Reset Password',
-  setupSipDevice: '📱 Setup SIP Device',
   softphoneGuide: '📖 SIP Setup Guide',
 
   // Renew
