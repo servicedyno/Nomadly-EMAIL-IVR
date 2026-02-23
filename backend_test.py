@@ -10,8 +10,8 @@ import sys
 import time
 from urllib.parse import urljoin
 
-# Backend URL from environment
-BACKEND_URL = "https://api-deployment-setup.preview.emergentagent.com"
+# Backend URL - Node.js service runs on port 5000
+BACKEND_URL = "http://localhost:5000"
 
 # Test configuration
 TEST_CONFIG = {
