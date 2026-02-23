@@ -676,6 +676,22 @@ async function migrateNumbersToCallControlApp(callControlAppId) {
   }
 }
 
+async function updateAniOverride(sipConnectionId, phoneNumber) {
+  try {
+    await axios.patch(`${BASE}/credential_connections/${sipConnectionId}`, {
+      outbound: {
+        ani_override: phoneNumber,
+        ani_override_type: 'always'
+      }
+    }, { headers: headers() })
+    log(`[Telnyx] ANI override updated to ${phoneNumber}`)
+    return true
+  } catch (e) {
+    log(`[Telnyx] ANI override update failed: ${e.response?.data?.errors?.[0]?.detail || e.message}`)
+    return false
+  }
+}
+
 module.exports = {
   searchNumbers,
   getNumberCapabilities,
