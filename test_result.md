@@ -101,3 +101,71 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: "Analyze and set up - ensure .env are updated with all provided API keys and use current pod URL for webhook with /api prefix"
+
+backend:
+  - task: "Update placeholder env vars (call-preview → real values)"
+    implemented: true
+    working: true
+    file: "backend/.env"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Updated API_ALCAZAR, API_KEY_RAILWAY, RAILWAY_ENVIRONMENT_ID, RAILWAY_SERVICE_ID, TELNYX_MESSAGING_PROFILE_ID from call-preview to real values"
+
+  - task: "SELF_URL and SELF_URL_PROD use current pod URL + /api"
+    implemented: true
+    working: true
+    file: "backend/.env"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "SELF_URL and SELF_URL_PROD already set to https://env-setup-api.preview.emergentagent.com/api"
+
+  - task: "Node.js bot process running with env vars"
+    implemented: true
+    working: true
+    file: "js/start-bot.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Created symlink /app/.env → /app/backend/.env, added supervisor config, Node.js bot running with all services initialized (Telnyx, Twilio, CloudPhone, etc.)"
+
+  - task: "FastAPI proxy to Node.js Express"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Proxy /api/* → Node.js on port 5000 working correctly"
+
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 0
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "Env setup verification"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    - agent: "main"
+      message: "Completed env setup: updated 5 placeholder values, verified webhook URLs use current pod URL + /api, started Node.js bot with supervisor, all services initialized successfully"
