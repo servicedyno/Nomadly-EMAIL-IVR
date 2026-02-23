@@ -1301,18 +1301,16 @@ async function handleCallAnswered(payload) {
     }
   }
 
-  // 3. Ring SIP device — if user has SIP credentials, ring their device first
-  // This creates an outbound call to the SIP URI and bridges if answered.
-  // On timeout → falls through to voicemail/missed call via handleBridgeTransferHangup
-  if (num.sipUsername) {
+  // 3. Ring SIP device — only reached when call was already answered (IVR/fwd-always fallthrough or SIP ring failed in handleCallInitiated)
+  // Primary unanswered SIP ring is handled in handleCallInitiated
+  if (num.sipUsername && session.phase !== 'ringing_sip') {
     session.phase = 'ringing_sip'
     const sipUser = num.sipUsername
     const sipUri = `sip:${sipUser}@sip.telnyx.com`
     const ringTimeout = fwdConfig?.ringTimeout || 25
-    log(`[Voice] Ringing SIP device: ${sipUri} for ${num.phoneNumber} (timeout: ${ringTimeout}s)`)
+    log(`[Voice] Ringing SIP device (answered path): ${sipUri} for ${num.phoneNumber} (timeout: ${ringTimeout}s)`)
 
     // Play ringback tone to the CALLER while the SIP device rings
-    // This way the caller hears "ring... ring..." instead of silence
     _telnyxApi.playbackStart(callControlId, RINGBACK_URL, { loop: 'infinity' }).catch(e => {
       log(`[Voice] Ringback playback failed: ${e.message}`)
     })
