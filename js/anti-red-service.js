@@ -1439,8 +1439,8 @@ async function deployFullProtection(cpUsername, domain, plan = '') {
       }
       await cfService.createAntiBotRules(zone.id)
 
-      // 3d. Deploy Cloudflare Worker for edge-level challenge injection
-      results.cfWorker = await deployCFWorker(domain, zone.id)
+      // 3d. Deploy shared Cloudflare Worker routes (3 routes: domain/*, domain, www.domain/*)
+      results.cfWorker = await deploySharedWorkerRoute(domain, zone.id)
     } else {
       results.ja3Rules = { success: false, error: 'Cloudflare zone not found' }
       results.antiPhishingCfRules = { success: false, error: 'Cloudflare zone not found' }
