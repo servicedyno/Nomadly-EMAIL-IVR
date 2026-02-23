@@ -565,22 +565,22 @@ const loadData = async () => {
       }
     }
 
-    // 4. SIP credentials (dual: Twilio + Telnyx)
-    // Generate short 6-digit user-facing credentials
-    let sipUsername = phoneConfig.generateSipUsername()
-    let sipPassword = phoneConfig.generateSipPassword()
-    let telnyxSipUsername = null
-    let telnyxSipPassword = null
+    // 4. SIP credentials (Twilio + Telnyx)
+    // Generate random seeds, use Telnyx-returned credentials
+    const seedUser = phoneConfig.generateSipUsername()
+    const seedPass = phoneConfig.generateSipPassword()
+    let sipUsername = seedUser
+    let sipPassword = seedPass
     if (telnyxResources?.sipConnectionId) {
-      const telnyxCred = await telnyxApi.createSIPCredential(telnyxResources.sipConnectionId, sipUsername, sipPassword)
+      const telnyxCred = await telnyxApi.createSIPCredential(telnyxResources.sipConnectionId, seedUser, seedPass)
       if (telnyxCred?.sip_username) {
-        telnyxSipUsername = telnyxCred.sip_username
-        telnyxSipPassword = telnyxCred.sip_password
-        log(`[CloudPhone] Telnyx SIP credential created: ${telnyxSipUsername} (user PIN: ${sipUsername})`)
+        sipUsername = telnyxCred.sip_username
+        sipPassword = telnyxCred.sip_password
+        log(`[CloudPhone] Telnyx SIP credential created: ${sipUsername}`)
       }
     }
     if (twilioResources?.credentialListSid) {
-      await twilioService.addSipCredential(twilioResources.credentialListSid, telnyxSipUsername || sipUsername, telnyxSipPassword || sipPassword)
+      await twilioService.addSipCredential(twilioResources.credentialListSid, sipUsername, sipPassword)
     }
 
     // 5. Save to DB
@@ -603,8 +603,6 @@ const loadData = async () => {
       status: 'active',
       sipUsername,
       sipPassword,
-      telnyxSipUsername: telnyxSipUsername || sipUsername,
-      telnyxSipPassword: telnyxSipPassword || sipPassword,
       sipDomain: phoneConfig.SIP_DOMAIN,
       messagingProfileId: null,
       connectionId: null,
