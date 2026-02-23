@@ -161,6 +161,104 @@ function initPhoneTestRoutes(app, db, telnyxApi, sipConnectionId) {
 
 // ── Helpers ──
 
+// Basic phone number → location mapping (country code + US/CA area codes)
+function getLocationFromNumber(phone) {
+  if (!phone) return null
+  const clean = phone.replace(/[^+\d]/g, '')
+  if (clean.startsWith('+1') && clean.length === 12) {
+    const area = clean.substring(2, 5)
+    const US_AREAS = {
+      '201':'NJ','202':'DC','203':'CT','205':'AL','206':'WA','207':'ME','208':'ID','209':'CA','210':'TX',
+      '212':'NY','213':'CA','214':'TX','215':'PA','216':'OH','217':'IL','218':'MN','219':'IN','220':'OH',
+      '223':'PA','224':'IL','225':'LA','228':'MS','229':'GA','231':'MI','234':'OH','239':'FL','240':'MD',
+      '248':'MI','251':'AL','252':'NC','253':'WA','254':'TX','256':'AL','260':'IN','262':'WI','267':'PA',
+      '269':'MI','270':'KY','272':'PA','276':'VA','278':'MI','281':'TX','283':'OH','301':'MD','302':'DE',
+      '303':'CO','304':'WV','305':'FL','307':'WY','308':'NE','309':'IL','310':'CA','312':'IL','313':'MI',
+      '314':'MO','315':'NY','316':'KS','317':'IN','318':'LA','319':'IA','320':'MN','321':'FL','323':'CA',
+      '325':'TX','326':'OH','327':'AR','330':'OH','331':'IL','332':'NY','334':'AL','336':'NC','337':'LA',
+      '339':'MA','340':'VI','341':'CA','346':'TX','347':'NY','351':'MA','352':'FL','360':'WA','361':'TX',
+      '364':'KY','380':'OH','385':'UT','386':'FL','401':'RI','402':'NE','404':'GA','405':'OK','406':'MT',
+      '407':'FL','408':'CA','409':'TX','410':'MD','412':'PA','413':'MA','414':'WI','415':'CA','417':'MO',
+      '419':'OH','423':'TN','424':'CA','425':'WA','430':'TX','432':'TX','434':'VA','435':'UT','440':'OH',
+      '442':'CA','443':'MD','445':'PA','458':'OR','463':'IN','469':'TX','470':'GA','475':'CT','478':'GA',
+      '479':'AR','480':'AZ','484':'PA','501':'AR','502':'KY','503':'OR','504':'LA','505':'NM','507':'MN',
+      '508':'MA','509':'WA','510':'CA','512':'TX','513':'OH','515':'IA','516':'NY','517':'MI','518':'NY',
+      '520':'AZ','530':'CA','531':'NE','534':'WI','539':'OK','540':'VA','541':'OR','551':'NJ','559':'CA',
+      '561':'FL','562':'CA','563':'IA','564':'WA','567':'OH','570':'PA','571':'VA','573':'MO','574':'IN',
+      '575':'NM','580':'OK','585':'NY','586':'MI','601':'MS','602':'AZ','603':'NH','605':'SD','606':'KY',
+      '607':'NY','608':'WI','609':'NJ','610':'PA','612':'MN','614':'OH','615':'TN','616':'MI','617':'MA',
+      '618':'IL','619':'CA','620':'KS','623':'AZ','626':'CA','628':'CA','629':'TN','630':'IL','631':'NY',
+      '636':'MO','641':'IA','646':'NY','650':'CA','651':'MN','657':'CA','659':'AL','660':'MO','661':'CA',
+      '662':'MS','667':'MD','669':'CA','670':'MP','671':'GU','678':'GA','680':'NY','681':'WV','682':'TX',
+      '684':'AS','689':'FL','701':'ND','702':'NV','703':'VA','704':'NC','706':'GA','707':'CA','708':'IL',
+      '712':'IA','713':'TX','714':'CA','715':'WI','716':'NY','717':'PA','718':'NY','719':'CO','720':'CO',
+      '724':'PA','725':'NV','726':'TX','727':'FL','731':'TN','732':'NJ','734':'MI','737':'TX','740':'OH',
+      '743':'NC','747':'CA','754':'FL','757':'VA','760':'CA','762':'GA','763':'MN','765':'IN','769':'MS',
+      '770':'GA','772':'FL','773':'IL','774':'MA','775':'NV','779':'IL','781':'MA','782':'NS','784':'VC',
+      '785':'KS','786':'FL','801':'UT','802':'VT','803':'SC','804':'VA','805':'CA','806':'TX','808':'HI',
+      '810':'MI','812':'IN','813':'FL','814':'PA','815':'IL','816':'MO','817':'TX','818':'CA','820':'CA',
+      '828':'NC','830':'TX','831':'CA','832':'TX','835':'PA','838':'NY','843':'SC','845':'NY','847':'IL',
+      '848':'NJ','849':'DO','850':'FL','854':'SC','856':'NJ','857':'MA','858':'CA','859':'KY','860':'CT',
+      '862':'NJ','863':'FL','864':'SC','865':'TN','870':'AR','872':'IL','878':'PA','901':'TN','903':'TX',
+      '904':'FL','906':'MI','907':'AK','908':'NJ','909':'CA','910':'NC','912':'GA','913':'KS','914':'NY',
+      '915':'TX','916':'CA','917':'NY','918':'OK','919':'NC','920':'WI','925':'CA','928':'AZ','929':'NY',
+      '930':'IN','931':'TN','934':'NY','936':'TX','937':'OH','938':'AL','940':'TX','941':'FL','943':'GA',
+      '945':'TX','947':'MI','949':'CA','951':'CA','952':'MN','954':'FL','956':'TX','959':'CT','970':'CO',
+      '971':'OR','972':'TX','973':'NJ','975':'MO','978':'MA','979':'TX','980':'NC','984':'NC','985':'LA',
+      '989':'MI',
+    }
+    const STATE_NAMES = {
+      'AL':'Alabama','AK':'Alaska','AZ':'Arizona','AR':'Arkansas','CA':'California','CO':'Colorado',
+      'CT':'Connecticut','DE':'Delaware','DC':'Washington DC','FL':'Florida','GA':'Georgia','HI':'Hawaii',
+      'ID':'Idaho','IL':'Illinois','IN':'Indiana','IA':'Iowa','KS':'Kansas','KY':'Kentucky','LA':'Louisiana',
+      'ME':'Maine','MD':'Maryland','MA':'Massachusetts','MI':'Michigan','MN':'Minnesota','MS':'Mississippi',
+      'MO':'Missouri','MT':'Montana','NE':'Nebraska','NV':'Nevada','NH':'New Hampshire','NJ':'New Jersey',
+      'NM':'New Mexico','NY':'New York','NC':'North Carolina','ND':'North Dakota','OH':'Ohio','OK':'Oklahoma',
+      'OR':'Oregon','PA':'Pennsylvania','RI':'Rhode Island','SC':'South Carolina','SD':'South Dakota',
+      'TN':'Tennessee','TX':'Texas','UT':'Utah','VT':'Vermont','VA':'Virginia','WA':'Washington',
+      'WV':'West Virginia','WI':'Wisconsin','WY':'Wyoming','VI':'US Virgin Islands','MP':'N. Mariana Islands',
+      'GU':'Guam','AS':'American Samoa','PR':'Puerto Rico','DO':'Dominican Republic',
+    }
+    const CA_AREAS = {
+      '204':'Manitoba','226':'Ontario','236':'British Columbia','249':'Ontario','250':'British Columbia',
+      '289':'Ontario','306':'Saskatchewan','343':'Ontario','365':'Ontario','367':'Quebec','403':'Alberta',
+      '416':'Ontario','418':'Quebec','431':'Manitoba','437':'Ontario','438':'Quebec','450':'Quebec',
+      '506':'New Brunswick','514':'Quebec','519':'Ontario','548':'Ontario','579':'Quebec','581':'Quebec',
+      '587':'Alberta','604':'British Columbia','613':'Ontario','639':'Saskatchewan','647':'Ontario',
+      '672':'British Columbia','705':'Ontario','709':'Newfoundland','778':'British Columbia','780':'Alberta',
+      '782':'Nova Scotia','807':'Ontario','819':'Quebec','825':'Alberta','867':'Territories','873':'Quebec',
+      '902':'Nova Scotia','905':'Ontario',
+    }
+    const st = US_AREAS[area]
+    if (st) return `${STATE_NAMES[st] || st}, USA`
+    const prov = CA_AREAS[area]
+    if (prov) return `${prov}, Canada`
+    return 'United States / Canada'
+  }
+  // Country code mapping for international
+  const COUNTRY_CODES = {
+    '44':'United Kingdom','61':'Australia','33':'France','49':'Germany','81':'Japan','86':'China',
+    '91':'India','55':'Brazil','52':'Mexico','34':'Spain','39':'Italy','7':'Russia','82':'South Korea',
+    '31':'Netherlands','46':'Sweden','47':'Norway','45':'Denmark','358':'Finland','48':'Poland',
+    '351':'Portugal','353':'Ireland','41':'Switzerland','43':'Austria','32':'Belgium','30':'Greece',
+    '90':'Turkey','966':'Saudi Arabia','971':'UAE','972':'Israel','65':'Singapore','60':'Malaysia',
+    '66':'Thailand','63':'Philippines','62':'Indonesia','84':'Vietnam','20':'Egypt','27':'South Africa',
+    '234':'Nigeria','254':'Kenya','233':'Ghana','255':'Tanzania','256':'Uganda','57':'Colombia',
+    '56':'Chile','54':'Argentina','51':'Peru','593':'Ecuador','58':'Venezuela','506':'Costa Rica',
+    '507':'Panama','502':'Guatemala','503':'El Salvador','504':'Honduras','505':'Nicaragua',
+    '64':'New Zealand','679':'Fiji','675':'Papua New Guinea','852':'Hong Kong','853':'Macau',
+    '886':'Taiwan','880':'Bangladesh','94':'Sri Lanka','92':'Pakistan','93':'Afghanistan','98':'Iran',
+    '964':'Iraq','962':'Jordan','961':'Lebanon','963':'Syria','212':'Morocco','213':'Algeria',
+    '216':'Tunisia','218':'Libya','249':'Sudan','251':'Ethiopia',
+  }
+  if (clean.startsWith('+')) {
+    for (const [code, country] of Object.entries(COUNTRY_CODES).sort((a, b) => b[0].length - a[0].length)) {
+      if (clean.startsWith('+' + code)) return country
+    }
+  }
+  return null
+}
+
 async function getMaxCallsForUser(chatId) {
   if (!_db) return MAX_TEST_CALLS
   const ref = await _db.collection('testReferrals').findOne({ referrerChatId: chatId })
