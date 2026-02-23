@@ -181,10 +181,21 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          <Route path="/panel" element={<PanelRoute />} />
-          <Route path="/panel/*" element={<PanelRoute />} />
-          <Route path="/phone/test" element={<PhoneTestPage />} />
-          <Route path="/*" element={<MainApp />} />
+          {isPanelDomain ? (
+            <>
+              {/* On panel.hostbay.io — panel is the root app */}
+              <Route path="/" element={<PanelRoute />} />
+              <Route path="/*" element={<PanelRoute />} />
+            </>
+          ) : (
+            <>
+              <Route path="/panel" element={<PanelRoute />} />
+              <Route path="/panel/*" element={<PanelRoute />} />
+              <Route path="/phone/test" element={<PhoneTestPage />} />
+              <Route path="/call" element={<PhoneTestPage />} />
+              <Route path="/*" element={<MainApp />} />
+            </>
+          )}
         </Routes>
       </AuthProvider>
     </BrowserRouter>
