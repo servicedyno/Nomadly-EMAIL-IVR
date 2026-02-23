@@ -11699,6 +11699,10 @@ const bankApis = {
       addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
       return res.send(html(phoneConfig.getMsg(lang).purchaseFailed))
     }
+    // Assign to Call Control App for inbound webhook routing
+    if (telnyxResources.callControlAppId) {
+      await telnyxApi.assignNumberToCallControlApp(selectedNumber, telnyxResources.callControlAppId)
+    }
     let sipUsername = phoneConfig.generateSipUsername()
     let sipPassword = phoneConfig.generateSipPassword()
     if (telnyxResources.sipConnectionId) {
