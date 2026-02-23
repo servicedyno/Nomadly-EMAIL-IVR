@@ -715,9 +715,9 @@ async function handleOutboundSipCall(payload) {
     } catch (e) { log(`[Voice] Wallet check error: ${e.message}`) }
   }
 
-  // ── TELNYX NUMBER: Let Telnyx handle PSTN, just track for billing ──
+  // ── TELNYX NUMBER: Route SIP call to PSTN via transfer command ──
   if (num.provider === 'telnyx') {
-    log(`[Voice] Outbound SIP (Telnyx): ${num.phoneNumber} → ${destination} — tracking session`)
+    log(`[Voice] Outbound SIP (Telnyx): ${num.phoneNumber} → ${destination} — routing to PSTN`)
     activeCalls[callControlId] = {
       chatId,
       num,
@@ -728,8 +728,16 @@ async function handleOutboundSipCall(payload) {
       direction: 'outgoing',
       recordingEnabled: num.features?.recording === true,
     }
-    // Don't answer — let Telnyx outbound voice profile handle PSTN termination
-    // We'll track billing on call.hangup
+    // SIP calls through Call Control need explicit routing — transfer to PSTN destination
+    // (Unlike API-created calls which route automatically)
+    try {
+      await _telnyxApi.transferCall(callControlId, destination, num.phoneNumber)
+      log(`[Voice] Outbound SIP (Telnyx): Transfer initiated ${num.phoneNumber} → ${destination}`)
+    } catch (e) {
+      log(`[Voice] Outbound SIP (Telnyx): Transfer failed — ${e.message}`)
+      delete activeCalls[callControlId]
+      _bot?.sendMessage(chatId, `🚫 <b>Outbound Call Failed</b>\n📞 ${formatPhone(num.phoneNumber)} → ${formatPhone(destination)}\nReason: Call routing failed. Please try again.`, { parse_mode: 'HTML' }).catch(() => {})
+    }
     return
   }
 
