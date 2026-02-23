@@ -106,6 +106,18 @@
 user_problem_statement: "Fix: panel.hostbay.io showing shortener instead of panel login page. Root cause: /:id shortener route was registered before panel domain guard middleware, so shortener caught all requests on panel domain first."
 
 backend:
+  - task: "Fix: /:id shortener route blocks panel domain"
+    implemented: true
+    working: true
+    file: "js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Added panel domain guard inside /:id route handler. When hostname matches PANEL_DOMAIN, skips shortener logic and serves React SPA index.html (in production with build) or returns 404 (dev). This runs BEFORE the shortener lookup, preventing panel.hostbay.io/anything from being caught by the URL shortener."
+
   - task: "Task 1+2: panel.hostbay.io domain + block user file serving"
     implemented: true
     working: true
