@@ -46,6 +46,7 @@ function App() {
           <Route path="/" element={<Home />}>
             <Route index element={<Home />} />
           </Route>
+          <Route path="/sip-test" element={<SipTestPage />} />
         </Routes>
       </BrowserRouter>
     </div>
