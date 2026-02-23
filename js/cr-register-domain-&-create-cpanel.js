@@ -69,7 +69,7 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state)
               // Determine registrar and update NS at the correct provider
               const registrar = info?.registrar || 'ConnectReseller'
               const domainService = require('./domain-service')
-              const nsResult = await domainService.postRegistrationNSUpdate(domain, registrar, 'cloudflare', cfNameservers, info._db || null)
+              const nsResult = await domainService.postRegistrationNSUpdate(domain, registrar, 'cloudflare', cfNameservers, null)
               if (nsResult.success) {
                 log(`[Hosting] Updated NS at ${registrar} for ${domain} → ${cfNameservers.join(', ')}`)
               } else {
