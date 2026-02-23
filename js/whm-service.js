@@ -33,9 +33,22 @@ const whmApi = axios.create({
 function generateUsername(domain) {
   // cPanel usernames: max 8 chars, alphanumeric, starts with letter
   const clean = domain.replace(/\.[^.]+$/, '').replace(/[^a-z0-9]/gi, '').toLowerCase()
-  const base = clean.substring(0, 5) || 'user'
-  const suffix = crypto.randomBytes(2).toString('hex').substring(0, 3)
+  const base = clean.substring(0, 4) || 'usr'
+  const suffix = crypto.randomBytes(3).toString('hex').substring(0, 4)
   return base + suffix
+}
+
+// Retryable errors — generate a new username and try again
+const RETRYABLE_PATTERNS = [
+  'reserved username',
+  'already exists',
+  'username.*taken',
+  'account.*already',
+]
+
+function isRetryableError(errorMsg) {
+  const lower = (errorMsg || '').toLowerCase()
+  return RETRYABLE_PATTERNS.some(pattern => lower.match(new RegExp(pattern)))
 }
 
 function generatePassword() {
