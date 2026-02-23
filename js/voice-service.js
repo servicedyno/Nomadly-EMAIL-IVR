@@ -580,17 +580,7 @@ async function handleCallInitiated(payload) {
   const { chatId, num } = await findNumberOwner(to)
   if (!chatId || !num) {
     log(`[Voice] No owner found for ${to}, rejecting`)
-    try {
-      await _telnyxApi.answerCall(callControlId)
-      setTimeout(() => _telnyxApi.hangupCall(callControlId), 1000)
-    } catch (e) {
-      if (e.message?.includes('outbound call')) {
-        log(`[Voice] Inbound reject failed (outbound mismatch) — redirecting to outbound handler`)
-        await handleOutboundSipCall(payload)
-        return
-      }
-      await _telnyxApi.hangupCall(callControlId).catch(() => {})
-    }
+    await _telnyxApi.hangupCall(callControlId).catch(() => {})
     return
   }
 
@@ -602,11 +592,6 @@ async function handleCallInitiated(payload) {
       await _telnyxApi.speakOnCall(callControlId, 'This number is no longer in service.')
       setTimeout(() => _telnyxApi.hangupCall(callControlId), 4000)
     } catch (e) {
-      if (e.message?.includes('outbound call')) {
-        log(`[Voice] Inbound reject failed (outbound mismatch) — redirecting to outbound handler`)
-        await handleOutboundSipCall(payload)
-        return
-      }
       await _telnyxApi.hangupCall(callControlId).catch(() => {})
     }
     return
