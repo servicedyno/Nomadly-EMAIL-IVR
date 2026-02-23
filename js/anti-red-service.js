@@ -1493,7 +1493,7 @@ async function removeWorkerRoutes(domain, zoneId) {
     for (const route of toRemove) {
       try {
         await axios.delete(
-          `${CF_BASE}/zones/${zoneId}/workers/routes/${route.id}`,
+          `https://api.cloudflare.com/client/v4/zones/${zoneId}/workers/routes/${route.id}`,
           { headers: cfHeaders, timeout: 10000 }
         )
         removed.push(route.pattern)
