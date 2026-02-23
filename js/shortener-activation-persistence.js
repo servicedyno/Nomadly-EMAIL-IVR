@@ -6,7 +6,7 @@
  *
  * Steps: pending → railway_linked → dns_added → completed
  */
-const { log } = require('./utils')
+const { log } = require('console')
 
 const COLLECTION = 'shortenerActivations'
 let _db = null
