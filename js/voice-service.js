@@ -1550,6 +1550,9 @@ async function handleCallHangup(payload) {
         _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
       }
       delete pendingNativeTransfers[callControlId]
+    } else if (session.isTestCall) {
+      const msg = `📞 <b>Free Test Call Ended</b>\n\n📞 From: ${formatPhone(from)}\n📲 To: ${formatPhone(to)}\n⏱️ ${formatDuration(duration)}\n🆓 Free test call — no charges\n🕐 ${time}`
+      _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
     } else {
       const hangupInfo = hangupCause !== 'unknown' ? `\n🔍 Cause: ${hangupCause}` : ''
       const msg = `📞 <b>SIP Call Ended</b>\n\n📞 From: ${formatPhone(from)}\n📲 To: ${formatPhone(to)}\n⏱️ ${formatDuration(duration)}\n${planLine}${hangupInfo}\n🕐 ${time}`
