@@ -6350,14 +6350,21 @@ bot?.on('message', async msg => {
       send(chatId, `🔗 Activating shortener for <b>${domain}</b>…`, { parse_mode: 'HTML' })
       
       try {
+        // ── Persist intent before starting ──
+        await createActivationTask(chatId, domain, info?.userLanguage || 'en')
+
         const { server, error, recordType } =
           process.env.HOSTED_ON === 'render'
             ? await saveDomainInServerRender(domain)
             : await saveDomainInServerRailway(domain)
 
         if (error) {
+          await markFailed(domain, error)
           return send(chatId, `❌ Could not link <b>${domain}</b>: ${error}`, { parse_mode: 'HTML' })
         }
+
+        // ── Persist Railway link complete ──
+        await markRailwayLinked(domain, server, recordType)
 
         send(chatId, `⏳ Configuring DNS for <b>${domain}</b>…`, { parse_mode: 'HTML' })
 
@@ -6373,18 +6380,27 @@ bot?.on('message', async msg => {
             await sleep(60000)
             const { error: saveErr } = await saveServerInDomain(domain, server, recordType)
             if (saveErr) {
+              await markFailed(domain, saveErr)
               return send(chatId, `❌ DNS error for <b>${domain}</b>: ${saveErr}`, { parse_mode: 'HTML' })
             }
           } else {
+            await markFailed(domain, addResult.error || 'DNS add failed')
             return send(chatId, `❌ DNS error for <b>${domain}</b>: ${addResult.error || 'Unknown error'}`, { parse_mode: 'HTML' })
           }
         }
 
+        // ── Persist DNS complete ──
+        await markDnsAdded(domain)
+
         send(chatId, `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`, { parse_mode: 'HTML' })
         const lang = info?.userLanguage || 'en'
         regularCheckDns(bot, chatId, domain, lang)
+
+        // ── Persist fully completed ──
+        await markCompleted(domain)
       } catch (e) {
         log(`[ActivateShortener] Error for ${domain}: ${e.message}`)
+        await markFailed(domain, e.message).catch(() => {})
         send(chatId, `❌ Error: ${e.message}`, { parse_mode: 'HTML' })
       }
       return
