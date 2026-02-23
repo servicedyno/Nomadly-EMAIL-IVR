@@ -901,6 +901,20 @@ async function handleOutboundSipCall(payload) {
     destination = rawTo.replace('sip:', '').split('@')[0].replace(/[^+\d]/g, '')
   }
 
+  // E.164 normalization — SIP clients may dial without + prefix
+  // 10 digits (US/CA local) → prepend +1
+  // 11 digits starting with 1 (US/CA with country code) → prepend +
+  // Already has + → leave as-is
+  if (destination && !destination.startsWith('+')) {
+    if (destination.length === 10) {
+      destination = '+1' + destination
+    } else if (destination.length === 11 && destination.startsWith('1')) {
+      destination = '+' + destination
+    } else if (destination.length > 6) {
+      destination = '+' + destination // International — assume country code included
+    }
+  }
+
   // Parse SIP username from the 'from' field: sip:user@domain or user@domain → user
   let sipUsername = rawFrom
   if (rawFrom.includes('@')) {
