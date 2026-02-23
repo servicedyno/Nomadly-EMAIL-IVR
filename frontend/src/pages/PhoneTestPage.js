@@ -399,7 +399,9 @@ const PhoneTestPage = () => {
       if (clientRef.current) clientRef.current.disconnect();
       if (timerRef.current) clearInterval(timerRef.current);
       if (ringtoneIntervalRef.current) clearInterval(ringtoneIntervalRef.current);
-      if (ringtoneCtxRef.current) ringtoneCtxRef.current.close().catch(() => {});
+      if (ringtoneCtxRef.current && ringtoneCtxRef.current.state !== 'closed') {
+        ringtoneCtxRef.current.close().catch(() => {});
+      }
     };
   }, []);
 
