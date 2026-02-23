@@ -228,13 +228,14 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Fix: /:id shortener route blocks panel domain"
+    - "Fix: panel.hostbay.io root path shows shortener"
+    - "Fix: JS challenge toggle also controls CF Worker routes"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
     - agent: "main"
-      message: "Fixed the root cause: /:id shortener route at line 13170 was catching all requests to panel.hostbay.io/anything before the panel domain guard middleware at line 14040 could process them. Added a panel domain hostname check at the TOP of the /:id handler — if hostname matches PANEL_DOMAIN, it skips shortener logic and serves the React SPA. Test: curl -H 'Host: panel.hostbay.io' localhost:5000/testslug should return {error: 'Panel page not found'} (404), NOT the shortener 'Link not found' page. Also verify non-panel domains still work as shortener."
+      message: "Two fixes implemented: (1) Panel root path — added panel domain check to earlyApp.get('/') (line 19). Test: curl -H 'Host: panel.hostbay.io' localhost:5000/ should return 302 redirect to /panel. curl -H 'Host: panel.hostbay.io' localhost:5000/testslug should return JSON 404. Normal root should still show greeting. (2) JS challenge toggle — added removeWorkerRoutes() in anti-red-service.js. Updated toggle endpoint to remove/deploy CF worker routes. Cannot test CF calls without real auth. Just verify the toggle endpoint exists and returns 401 without auth: POST /panel/security/js-challenge/toggle."
     - agent: "testing"
       message: "✅ ALL TESTS PASSED - Panel domain fix is working perfectly! Comprehensive testing completed: 7/7 tests passed including all required curl commands. Key results: panel.hostbay.io/testslug and panel.hostbay.io/abc123 both correctly return JSON 404 {error: 'Panel page not found'} instead of shortener HTML. Shortener still works correctly on goog.link domain. All services healthy (Node.js :5000, FastAPI :8001/api, React :3000). No errors in Node.js logs. The fix successfully prevents the /:id route from catching panel domain requests. No issues found - the implementation is solid."
