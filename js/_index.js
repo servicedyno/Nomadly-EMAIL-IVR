@@ -7081,7 +7081,7 @@ bot?.on('message', async msg => {
   }
 
   // 🧪 Test SIP Free button — trigger /testsip flow
-  if (message === user.testSip || message === '🧪 Test SIP Free') {
+  if (message === user.testSip || message === '🧪 Test SIP Free' || message === '🧪 SIP मुफ्त टेस्ट' || message === '🧪 Tester SIP Gratuit' || message === '🧪 免费测试 SIP') {
     const result = await generateTestOtp(chatId)
     if (!result) {
       return send(chatId, '❌ Could not generate test code. Please try again later.', trans('o'))
