@@ -411,7 +411,8 @@ async function handleBridgeTransferHangup(payload) {
       return true
     }
 
-    // Regular bridge transfer failure — notify user
+    // Regular bridge transfer failure — hang up original leg and notify user
+    await _telnyxApi.hangupCall(transfer.originalCallControlId).catch(() => {})
     const parentSession = outboundIvrCalls[transfer.originalCallControlId] || activeCalls[transfer.originalCallControlId]
     if (parentSession) {
       const chatId = parentSession.chatId
@@ -422,6 +423,9 @@ async function handleBridgeTransferHangup(payload) {
         { parse_mode: 'HTML' }
       ).catch(() => {})
     }
+  } else {
+    // Bridge was active and one leg hung up — hang up the other leg too
+    await _telnyxApi.hangupCall(transfer.originalCallControlId).catch(() => {})
   }
 
   delete activeBridgeTransfers[callControlId]
