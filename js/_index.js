@@ -11177,27 +11177,12 @@ const buyDomainFullProcess = async (chatId, lang, domain) => {
     registrar = buyResult.registrar || registrar
     send(chatId, translation('t.domainBoughtSuccess', lang, domain), translation('o', lang))
 
-    // Post-registration NS update for custom or Cloudflare
-    if (nsChoice === 'custom' && customNS && customNS.length >= 2 && registrar === 'ConnectReseller') {
-      sendMessage(chatId, `Updating nameservers to: ${customNS.join(', ')} ...`)
-      await sleep(60000) // Wait for CR to propagate
-      await domainService.postRegistrationNSUpdate(domain, registrar, nsChoice, customNS, db)
-    } else if (nsChoice === 'custom' && customNS && customNS.length >= 2 && registrar === 'OpenProvider') {
-      // OP sets NS at registration, but verify and update if needed
-      sendMessage(chatId, `Verifying nameservers: ${customNS.join(', ')} ...`)
-      await sleep(10000)
-      await domainService.postRegistrationNSUpdate(domain, registrar, nsChoice, customNS, db)
-    } else if (nsChoice === 'cloudflare' && registrar === 'ConnectReseller') {
-      const cfNS = await require('./cf-service').getAccountNameservers()
-      sendMessage(chatId, `Updating nameservers to Cloudflare: ${cfNS.join(', ')} ...`)
-      await sleep(60000)
-      await domainService.postRegistrationNSUpdate(domain, registrar, nsChoice, cfNS, db)
-    } else if (nsChoice === 'cloudflare' && registrar === 'OpenProvider') {
-      // OP sets CF NS at registration, but verify and update if needed
-      const cfNS = await require('./cf-service').getAccountNameservers()
-      sendMessage(chatId, `Verifying Cloudflare nameservers: ${cfNS.join(', ')} ...`)
-      await sleep(10000)
-      await domainService.postRegistrationNSUpdate(domain, registrar, nsChoice, cfNS, db)
+    // NS is now set at registration time (passed to registrar API directly)
+    // No post-registration NS update needed — just confirm to user
+    if (nsChoice !== 'provider_default' && buyResult.nameservers && buyResult.nameservers.length >= 2) {
+      const nsLabel = nsChoice === 'cloudflare' ? 'Cloudflare' : 'Custom'
+      sendMessage(chatId, `✅ Nameservers set to ${nsLabel}: ${buyResult.nameservers.join(', ')}`)
+      log(`[buyDomainFullProcess] ${domain} registered with ${nsLabel} NS: ${buyResult.nameservers.join(', ')} (registrar: ${registrar})`)
     }
 
     if (info?.askDomainToUseWithShortener === false) return
