@@ -2978,6 +2978,11 @@
   color: #34d399;
 }
 
+.dl-ssl-badge--cf {
+  background: rgba(249, 115, 22, 0.12);
+  color: #f97316;
+}
+
 .dl-ssl-badge--expiring {
   background: rgba(251, 191, 36, 0.12);
   color: #fbbf24;
