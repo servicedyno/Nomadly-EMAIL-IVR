@@ -120,7 +120,25 @@ function initPhoneTestRoutes(app, db, telnyxApi, sipConnectionId) {
     }
   })
 
-  console.log('[PhoneTest] Routes initialized: /phone/test/verify-otp')
+  // Pre-dial: update SIP Connection ANI to the caller's phone number
+  app.post('/phone/test/prepare-call', async (req, res) => {
+    try {
+      const { callerNumber } = req.body
+      if (!callerNumber || !/^\+\d{7,15}$/.test(callerNumber)) {
+        return res.status(400).json({ error: 'Invalid callerNumber' })
+      }
+      if (!_telnyxApi || !_sipConnectionId) {
+        return res.status(500).json({ error: 'SIP not configured' })
+      }
+      const updated = await _telnyxApi.updateAniOverride(_sipConnectionId, callerNumber)
+      res.json({ success: updated, callerNumber })
+    } catch (e) {
+      console.error('[PhoneTest] prepare-call error:', e.message)
+      res.status(500).json({ error: 'Failed to prepare call' })
+    }
+  })
+
+  console.log('[PhoneTest] Routes initialized: /phone/test/verify-otp, /phone/test/prepare-call')
 }
 
 // ── Helpers ──
