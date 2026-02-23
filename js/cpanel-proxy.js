@@ -162,7 +162,8 @@ async function saveFileContent(cpUser, cpPass, dir, file, content) {
 }
 
 async function createDirectory(cpUser, cpPass, dir, name) {
-  return uapi(cpUser, cpPass, 'Fileman', 'mkdir', { path: dir, name }, 'POST')
+  const fullPath = dir.endsWith('/') ? dir + name : dir + '/' + name
+  return uapi(cpUser, cpPass, 'Fileman', 'mkdir', { path: fullPath })
 }
 
 async function deleteFile(cpUser, cpPass, dir, file) {
