@@ -423,6 +423,60 @@ function createCpanelRoutes(getCpanelCol) {
         }
       }
 
+      // ─── Map addon domains to their cPanel subdomain certs + check Cloudflare SSL ─
+      // Addon domains like "anbgateway.com" get mapped to "anbgatewaycom.maindomain.sbs" in cPanel.
+      // If the cPanel subdomain has a valid cert, mark the addon domain as having SSL too.
+      // Also check Cloudflare SSL for each addon domain.
+      try {
+        const domainsResult = await cpProxy.listDomains(req.cpUser, req.cpPass)
+        const addonDomains = domainsResult?.data?.addon_domains || []
+        const mainDomain = req.cpDomain
+
+        for (const addon of addonDomains) {
+          if (sslMap[addon]) continue // Already has direct cert entry
+
+          // cPanel maps "some.domain.com" → "somedomaincom.maindomain.sbs"
+          const cpanelSub = addon.replace(/\./g, '') + '.' + mainDomain
+          if (sslMap[cpanelSub]) {
+            // Inherit the SSL status from the cPanel subdomain cert
+            sslMap[addon] = { ...sslMap[cpanelSub], mappedFrom: cpanelSub }
+          }
+
+          // Check Cloudflare SSL for this addon domain's zone
+          if (!sslMap[addon] || sslMap[addon].status === 'none') {
+            try {
+              const zone = await cfService.getZoneByName(addon)
+              if (zone) {
+                const axios = require('axios')
+                const CF_BASE_URL = 'https://api.cloudflare.com/client/v4'
+                const sslRes = await axios.get(`${CF_BASE_URL}/zones/${zone.id}/settings/ssl`, {
+                  headers: {
+                    'X-Auth-Email': process.env.CLOUDFLARE_EMAIL,
+                    'X-Auth-Key': process.env.CLOUDFLARE_API_KEY,
+                    'Content-Type': 'application/json',
+                  },
+                  timeout: 10000,
+                })
+                const cfMode = sslRes.data?.result?.value
+                if (cfMode && cfMode !== 'off') {
+                  sslMap[addon] = {
+                    status: 'valid',
+                    issuer: `Cloudflare (${cfMode})`,
+                    expiresAt: null,
+                    daysLeft: -1,
+                    selfSigned: false,
+                    cloudflare: true,
+                    cfSSLMode: cfMode,
+                  }
+                }
+              }
+            } catch (_) {}
+          }
+        }
+      } catch (e) {
+        log(`[Panel] Addon domain SSL mapping error: ${e.message}`)
+      }
+
       // Also check Cloudflare SSL mode for the primary domain
       let cfSSLMode = null
       try {
