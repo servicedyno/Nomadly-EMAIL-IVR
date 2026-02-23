@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 """
-Backend Testing for Telnyx SIP Voice Service
-Tests Node.js Express server on port 5000, proxied via FastAPI on port 8001
+Comprehensive backend test script for Nomadly Node.js application
+Testing after major SIP voice service changes as per review request
 """
 
 import requests
 import json
+import os
+import sys
 import subprocess
-import re
-from typing import Dict, Any, Optional
+from pymongo import MongoClient
+from urllib.parse import urlparse
 
-# Test Configuration
-NODEJS_DIRECT_URL = "http://localhost:5000"
-FASTAPI_PROXY_URL = "http://localhost:8001/api"
+# Test configuration
+BASE_URL = "http://localhost:5000"
+BACKEND_URL = "https://onboard-quick.preview.emergentagent.com/api"
 
 class TelnyxSIPTester:
     def __init__(self):
