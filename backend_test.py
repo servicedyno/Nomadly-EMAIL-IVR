@@ -133,7 +133,8 @@ class BackendTester:
         test_name = "AutoSSL endpoint auth check"
         try:
             # Test POST /panel/domains/ssl/autossl without auth (should return 401)
-            url = f"{self.base_url}/panel/domains/ssl/autossl"
+            # Use localhost:5000 directly since that's where the Node.js app is running
+            url = "http://localhost:5000/panel/domains/ssl/autossl"
             
             response = requests.post(url, timeout=10, json={})
             
