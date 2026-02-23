@@ -592,7 +592,9 @@ const PhoneTestPage = () => {
                 <div className="text-sm text-green-300 capitalize">
                   {callStatus === 'calling' ? 'Calling...' : callStatus === 'ringing' ? 'Ringing...' : callStatus === 'connecting' ? 'Connecting...' : 'Connected'}
                 </div>
-                <div className="text-xs text-neutral-500 mt-0.5">{destination}</div>
+                <div className="text-xs text-neutral-500 mt-0.5">
+                  {incomingCaller ? `Inbound: ${incomingCaller}` : destination}
+                </div>
               </div>
               <div className="font-mono text-xl font-bold text-green-500" data-testid="call-timer">
                 {formatDuration(callDuration)}
