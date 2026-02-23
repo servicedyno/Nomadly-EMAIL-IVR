@@ -103,6 +103,7 @@ const user = {
   freeTrialAvailable: '📧🆓 BulkSMS -Trial',
   changeSetting: '🌍 Settings',
   cloudPhone: '📞 Cloud Phone + SIP',
+  testSip: '🧪 Test SIP Free',
   digitalProducts: '🛒 Digital Products',
 
   // Sub Menu 1: urlShortenerMain
