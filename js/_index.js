@@ -13171,6 +13171,18 @@ app.get('/:id', async (req, res) => {
   const id = req?.params?.id
   if (id === '') return res.json({ message: 'Salam', from: req.hostname })
 
+  // Skip known frontend SPA routes — let them be handled by the React catch-all
+  const spaRoutes = ['call', 'panel', 'phone', 'login', 'signup', 'dashboard', 'settings']
+  if (spaRoutes.includes(id.toLowerCase())) {
+    // Serve the React SPA index.html for these routes
+    const buildPath = require('path').join(__dirname, '..', 'frontend', 'build', 'index.html')
+    if (require('fs').existsSync(buildPath)) {
+      return res.sendFile(buildPath)
+    }
+    // If no build (dev env), pass to next handler
+    return res.status(404).json({ error: 'Page not found' })
+  }
+
   // Build lookup key from SELF_URL (works on both Railway and Emergent)
   // On Railway: SELF_URL = "https://app.railway.app" → key = "app@railway@app/slug"
   // On Emergent: SELF_URL = "https://pod.emergentagent.com/api" → key = "pod@...@com/api/slug"
