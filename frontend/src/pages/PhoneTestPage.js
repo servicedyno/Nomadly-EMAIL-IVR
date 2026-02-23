@@ -300,7 +300,7 @@ const PhoneTestPage = () => {
                     <div>
                       <div className="text-sm font-medium text-white mb-1">Get your code</div>
                       <p className="text-xs text-neutral-500 mb-3">
-                        Send <span className="font-mono text-green-400">/test</span> to our Telegram bot to receive a 6-digit code.
+                        Send <span className="font-mono text-green-400">/testsip</span> to our Telegram bot to receive a 6-digit code.
                       </p>
                       <a
                         href={TELEGRAM_BOT_URL}
