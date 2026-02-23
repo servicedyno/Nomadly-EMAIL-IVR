@@ -81,9 +81,12 @@ def verify_code_changes():
             print(f"✅ Found 5s sleep at line {i+1}")
         
         # Check for fallback to saveServerInDomain
-        if "saveServerInDomain" in line and "Falling back" in lines[max(0, i-2):i+3]:
-            found_fallback = True
-            print(f"✅ Found fallback to saveServerInDomain at line {i+1}")
+        if "saveServerInDomain" in line and i > 0:
+            # Check previous lines for "Falling back" comment
+            context_lines = lines[max(0, i-3):i+1]
+            if any("Falling back" in ctx_line for ctx_line in context_lines):
+                found_fallback = True
+                print(f"✅ Found fallback to saveServerInDomain at line {i+1}")
         
         # Check that we don't have the old 65s sleep (65000ms)
         if "sleep(65000)" in line:
