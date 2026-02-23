@@ -688,17 +688,13 @@ async function handleCallInitiated(payload) {
     }
   }, 60000)
 
-  // Answer the call — may fail if Telnyx misroutes an outbound call as incoming
+  // Answer the call — this is always an inbound call via Call Control App
   try {
     await _telnyxApi.answerCall(callControlId)
   } catch (answerErr) {
     const errMsg = answerErr?.response?.data?.errors?.[0]?.detail || answerErr?.message || ''
-    if (errMsg.includes('outbound call')) {
-      log(`[Voice] answerCall failed (outbound call routed as incoming) — redirecting to outbound handler`)
-      await handleOutboundSipCall(payload)
-      return
-    }
     log(`[Voice] answerCall error for ${to}: ${errMsg}`)
+    if (sessionRef._limitTimer) clearInterval(sessionRef._limitTimer)
     delete activeCalls[callControlId]
     return
   }
