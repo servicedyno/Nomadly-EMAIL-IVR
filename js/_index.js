@@ -12570,7 +12570,14 @@ app.post('/dynopay/crypto-pay-plan', authDyno, async (req, res) => {
   set(payments, ref, `Crypto,Plan,${plan},$${price},${chatId},${name},${new Date()},${value} ${coin},transaction,${id}`)
 
   const ticker = tickerViewOfDyno[coin]
-  const usdIn = await convert(value, ticker , 'usd')  
+  const baseAmount = req.body.base_amount
+  const feePayer = req.body.fee_payer
+  let usdIn
+  if (baseAmount && feePayer === 'company') {
+    usdIn = parseFloat(baseAmount)
+  } else {
+    usdIn = await convert(value, ticker , 'usd')
+  }
   const usdNeed = usdIn * 1.06
   console.log(`usdIn ${usdIn}, usdNeed ${usdNeed}, Crypto, Plan, ${chatId}, ${name}`)
   if (usdNeed < price) {
