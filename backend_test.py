@@ -16,30 +16,23 @@ from urllib.parse import urlparse
 BASE_URL = "http://localhost:5000"
 BACKEND_URL = "https://onboard-quick.preview.emergentagent.com/api"
 
-class TelnyxSIPTester:
-    def __init__(self):
-        self.test_results = []
-        self.passed = 0
-        self.failed = 0
-    
-    def log_test(self, test_name: str, passed: bool, expected: str, actual: str, details: str = ""):
-        """Log test result"""
-        status = "✅ PASS" if passed else "❌ FAIL"
-        result = {
-            "test": test_name,
-            "status": status,
-            "passed": passed,
-            "expected": expected,
-            "actual": actual,
-            "details": details
-        }
-        self.test_results.append(result)
-        if passed:
-            self.passed += 1
+def test_health_check():
+    """Test 1: Health check - GET http://localhost:5000/ should return 200"""
+    print("🔍 Test 1: Health check endpoint")
+    try:
+        response = requests.get(f"{BASE_URL}/", timeout=10)
+        print(f"   Status: {response.status_code}")
+        print(f"   Content: {response.text[:200]}...")
+        
+        if response.status_code == 200:
+            print("   ✅ PASS: Health check returns 200")
+            return True
         else:
-            self.failed += 1
-        print(f"{status} {test_name}: {details}")
-        return passed
+            print("   ❌ FAIL: Health check did not return 200")
+            return False
+    except Exception as e:
+        print(f"   ❌ ERROR: {str(e)}")
+        return False
     
     def test_1_health_check(self) -> bool:
         """Test 1: Health check on port 5000"""
