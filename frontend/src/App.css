@@ -3247,6 +3247,15 @@
   border-radius: 8px;
 }
 
+.dl-ns-inline-info--auto {
+  background: rgba(59, 130, 246, 0.05);
+  border-color: rgba(59, 130, 246, 0.12);
+}
+
+.dl-ns-inline-info--auto .dl-ns-inline-header {
+  color: #60a5fa;
+}
+
 .dl-ns-inline-header {
   display: flex;
   align-items: center;
