@@ -281,7 +281,7 @@ export default function DomainList() {
             <code key={i} className="dl-ns-code" data-testid={`dl-ns-code-${domain}-${i}`}>{ns}</code>
           ))}
         </div>
-        <p className="dl-ns-inline-note">Propagation can take up to 24-48 hours. <button className="dl-ns-recheck-btn" onClick={() => checkNS(domain)} data-testid={`dl-ns-recheck-${domain}`}>Re-check now</button></p>
+        <p className="dl-ns-inline-note">Propagation can take up to 24-48 hours. <button className="dl-ns-recheck-btn" onClick={() => checkNS(domain)} data-testid={`dl-ns-recheck-${domain}`}>Re-check now</button> (also triggers SSL issuance if NS active)</p>
       </div>
     );
   };
