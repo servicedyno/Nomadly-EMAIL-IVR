@@ -8,6 +8,9 @@ const MAX_TEST_CALLS = 2
 const BONUS_CALLS_PER_REFERRAL = 1
 const MAX_CALL_DURATION_SEC = 60
 const OTP_EXPIRY_MS = 5 * 60 * 1000
+// @hostbay_support's Telnyx number — used as caller ID for test calls
+const TEST_CALLER_ID = '+18556820054'
+const TEST_ACCOUNT_CHAT_ID = '5168006768'
 
 let _db = null
 let _telnyxApi = null
