@@ -200,13 +200,12 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Fix: /:id shortener route blocks panel domain"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
     - agent: "main"
-      message: "Implemented all 5 tasks. Test: (1) Health check localhost:5000, (2) POST /panel/domains/ssl/autossl (needs auth), (3) GET localhost:3000/call serves PhoneTestPage, (4) Check phone-config.js for CALL_PAGE_URL references, (5) Startup logs clean. Note: AutoSSL endpoint needs valid cPanel auth token to test fully."
-    - agent: "testing"
-      message: "✅ TESTING COMPLETE: All 8 backend tests PASSED. (1) Health check localhost:5000 - ✅ 200 OK with Nomadly content, (2) FastAPI proxy localhost:8001/api/ - ✅ 200 OK, (3) AutoSSL endpoint /panel/domains/ssl/autossl - ✅ 401 Unauthorized (auth working), (4) /call route - ✅ 200 OK React content, (5) /phone/test route - ✅ 200 OK still working, (6) Bot text changes - ✅ CALL_PAGE_URL and browser mentions found in phone-config.js, (7) Startup logs - ✅ Clean with 'Panel domain guard active' message, (8) Error logs - ✅ Clean/empty. All 5 main tasks fully functional and tested successfully."
+      message: "Fixed the root cause: /:id shortener route at line 13170 was catching all requests to panel.hostbay.io/anything before the panel domain guard middleware at line 14040 could process them. Added a panel domain hostname check at the TOP of the /:id handler — if hostname matches PANEL_DOMAIN, it skips shortener logic and serves the React SPA. Test: curl -H 'Host: panel.hostbay.io' localhost:5000/testslug should return {error: 'Panel page not found'} (404), NOT the shortener 'Link not found' page. Also verify non-panel domains still work as shortener."
