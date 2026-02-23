@@ -380,6 +380,43 @@ async function handleBridgeTransferHangup(payload) {
 // Used to recognize new call legs that Telnyx creates during call transfers
 const ivrTransferLegs = {}
 
+// ── Webhook Event Buffer ──
+// Handles race condition where call.hangup arrives before call.initiated
+// Buffers early hangups and processes them after initiated is handled
+const _eventBuffer = new Map() // call_control_id → { hangupPayload, timer }
+const EVENT_BUFFER_TIMEOUT_MS = 5000 // Max 5s to wait for matching initiated event
+
+function bufferHangup(callControlId, payload) {
+  // Clear any existing timer for this call
+  const existing = _eventBuffer.get(callControlId)
+  if (existing?.timer) clearTimeout(existing.timer)
+
+  _eventBuffer.set(callControlId, {
+    hangupPayload: payload,
+    timer: setTimeout(() => {
+      // Timeout: process the orphan hangup
+      const entry = _eventBuffer.get(callControlId)
+      if (entry) {
+        _eventBuffer.delete(callControlId)
+        log(`[Voice] Buffer timeout — processing orphan hangup for ${callControlId}`)
+        processHangup(entry.hangupPayload)
+      }
+    }, EVENT_BUFFER_TIMEOUT_MS)
+  })
+  log(`[Voice] Buffered early hangup for ${callControlId} (waiting for call.initiated)`)
+}
+
+async function processHangup(payload) {
+  if (await handleBridgeTransferHangup(payload)) return
+  if (handleOutboundIvrHangup(payload)) return
+  if (handleIvrTransferLegHangup(payload)) return
+  await handleCallHangup(payload)
+}
+
+// Track which call_control_ids have been initiated (processed)
+const _initiatedCalls = new Set()
+const INITIATED_CALL_TTL_MS = 120_000 // Clean up after 2 min
+
 async function handleVoiceWebhook(req, res) {
   res.sendStatus(200)
 
@@ -397,24 +434,48 @@ async function handleVoiceWebhook(req, res) {
       log(`[Voice] PAYLOAD DUMP: direction=${payload.direction}, from=${payload.from}, to=${payload.to}, connection_id=${payload.connection_id}, call_control_id=${payload.call_control_id}, call_leg_id=${payload.call_leg_id}, hangup_cause=${payload.hangup_cause || 'N/A'}, hangup_source=${payload.hangup_source || 'N/A'}, sip_hangup_cause=${payload.sip_hangup_cause || 'N/A'}, state=${payload.state}`)
     }
 
+    const callControlId = payload?.call_control_id
+
     switch (eventType) {
-      case 'call.initiated':
+      case 'call.initiated': {
+        // Mark as initiated and process
+        if (callControlId) {
+          _initiatedCalls.add(callControlId)
+          setTimeout(() => _initiatedCalls.delete(callControlId), INITIATED_CALL_TTL_MS)
+        }
+
         if (handleOutboundIvrInitiated(payload)) break
         if (handleIvrTransferLegInitiated(payload)) break
         await handleCallInitiated(payload)
+
+        // Check if we have a buffered hangup for this call
+        const buffered = _eventBuffer.get(callControlId)
+        if (buffered) {
+          clearTimeout(buffered.timer)
+          _eventBuffer.delete(callControlId)
+          log(`[Voice] Processing buffered hangup for ${callControlId} (arrived before initiated)`)
+          await processHangup(buffered.hangupPayload)
+        }
         break
+      }
       case 'call.answered':
         if (await handleBridgeTransferAnswered(payload)) break
         if (await handleOutboundIvrAnswered(payload)) break
         if (handleIvrTransferLegAnswered(payload)) break
         await handleCallAnswered(payload)
         break
-      case 'call.hangup':
+      case 'call.hangup': {
+        // If we haven't seen call.initiated for this call yet, buffer the hangup
+        if (callControlId && !_initiatedCalls.has(callControlId)) {
+          bufferHangup(callControlId, payload)
+          break
+        }
         if (await handleBridgeTransferHangup(payload)) break
         if (handleOutboundIvrHangup(payload)) break
         if (handleIvrTransferLegHangup(payload)) break
         await handleCallHangup(payload)
         break
+      }
       case 'call.gather.ended':
         if (await handleOutboundIvrGatherEnded(payload)) break
         await handleGatherEnded(payload)
