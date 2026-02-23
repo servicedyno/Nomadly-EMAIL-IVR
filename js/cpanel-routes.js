@@ -473,6 +473,7 @@ function createCpanelRoutes(getCpanelCol) {
               status: nsResult?.success ? 'active' : 'pending',
               nameservers: newZone.nameservers || [],
               autoUpdated: true,
+              autoManaged: true,
               message: nsResult?.success
                 ? 'Cloudflare zone created and nameservers auto-updated at registrar'
                 : 'Cloudflare zone created. Nameserver auto-update attempted — may take a few minutes to propagate.',
