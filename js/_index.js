@@ -13988,7 +13988,6 @@ crAutoWhitelist.autoWhitelist({
 
 // ── Serve React frontend build (for Railway deployment) ──
 const frontendBuildPath = require('path').join(__dirname, '..', 'frontend', 'build')
-const fs = require('fs')
 if (fs.existsSync(frontendBuildPath)) {
   app.use(express.static(frontendBuildPath))
   // Catch-all: serve index.html for any non-API route (SPA routing)
