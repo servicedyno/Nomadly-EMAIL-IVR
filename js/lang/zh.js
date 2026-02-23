@@ -605,14 +605,14 @@ ${CHAT_BOT_NAME}`,
   showDepositCryptoInfoPlan: (priceCrypto, tickerView, address, plan) =>
     `请发送 ${priceCrypto} ${tickerView} 至\n\n<code>${address}</code>
 
-请注意，加密货币交易可能需要最多 30 分钟完成。一旦交易确认，您将立即收到通知，您的 ${plan} 计划将顺利激活。
+加密支付确认速度很快——通常只需几分钟。确认后，您将立即收到通知，您的 ${plan} 计划将顺利激活。
 
 问候，
 ${CHAT_BOT_NAME}`,
   showDepositCryptoInfoDomain: (priceCrypto, tickerView, address, domain) =>
     `请发送 ${priceCrypto} ${tickerView} 至\n\n<code>${address}</code>
 
-请注意，加密货币交易可能需要最多 30 分钟完成。一旦交易确认，您将立即收到通知，您的域名 ${domain} 将顺利激活。
+加密支付确认速度很快——通常只需几分钟。确认后，您将立即收到通知，您的域名 ${domain} 将顺利激活。
 
 问候，
 ${CHAT_BOT_NAME}`,
@@ -620,7 +620,7 @@ ${CHAT_BOT_NAME}`,
   showDepositCryptoInfoLeads: (priceCrypto, tickerView, address, label) =>
     `请发送 ${priceCrypto} ${tickerView} 至\n\n<code>${address}</code>
 
-请注意，加密货币交易可能需要最多 30 分钟完成。一旦交易确认，您将立即收到通知，您的 ${label} 将被交付。
+加密支付确认速度很快——通常只需几分钟。确认后，您将立即收到通知，您的 ${label} 将被交付。
 
 问候，
 ${CHAT_BOT_NAME}`,
@@ -628,16 +628,16 @@ ${CHAT_BOT_NAME}`,
   showDepositCryptoInfoPhone: (priceCrypto, tickerView, address, phoneNumber) =>
     `请发送 ${priceCrypto} ${tickerView} 至\n\n<code>${address}</code>
 
-请注意，加密货币交易可能需要最多 30 分钟完成。一旦交易确认，您将立即收到通知，您的云电话号码 ${phoneNumber} 将被激活。
+加密支付确认速度很快——通常只需几分钟。确认后，您将立即收到通知，您的云电话号码 ${phoneNumber} 将被激活。
 
 问候，
 ${CHAT_BOT_NAME}`,
 
   showDepositCryptoInfoDigitalProduct: (priceCrypto, tickerView, address, product) =>
-    `请发送 ${priceCrypto} ${tickerView} 至\n\n<code>${address}</code>\n\n您的 <b>${product}</b> 订单正在处理中。加密交易最多需要30分钟。确认后，您的订单将在 <b>30分钟</b> 内交付。\n\n此致，\n${CHAT_BOT_NAME}`,
+    `请发送 ${priceCrypto} ${tickerView} 至\n\n<code>${address}</code>\n\n您的 <b>${product}</b> 订单正在处理中。加密支付确认速度很快——通常只需几分钟。确认后，您的订单将很快交付。\n\n此致，\n${CHAT_BOT_NAME}`,
 
   showDepositCryptoInfo: (priceCrypto, tickerView, address) =>
-    `请汇 ${priceCrypto} ${tickerView} 至\n\n<code>${address}</code>\n\n请注意，加密货币交易可能需要最多30分钟才能完成。一旦交易确认，您将立即收到通知，并且您的钱包将更新。\n\n问候,\n${CHAT_BOT_NAME}`,
+    `请汇 ${priceCrypto} ${tickerView} 至\n\n<code>${address}</code>\n\n加密支付确认速度很快——通常只需几分钟。确认后，您将立即收到通知，并且您的钱包将更新。\n\n问候,\n${CHAT_BOT_NAME}`,
 
   confirmationDepositMoney: (amount, usd) =>
     `您的 ${amount}（$${usd}）支付已处理。感谢您选择我们。\n问候,\n${CHAT_BOT_NAME}`,
