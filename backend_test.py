@@ -45,7 +45,8 @@ class BackendTester:
     def test_node_service_health(self):
         """Test if Node.js backend service is running and healthy"""
         try:
-            response = requests.get(f"{self.backend_url}/health", timeout=10)
+            # Try the correct API endpoint
+            response = requests.get(f"{self.api_url}/health", timeout=10)
             if response.status_code == 200:
                 data = response.json()
                 if data.get('status') == 'healthy':
