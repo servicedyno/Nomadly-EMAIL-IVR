@@ -538,8 +538,8 @@ async function createOutboundCall(from, to, webhookUrl, connectionId) {
       connection_id: connectionId || process.env.TELNYX_CALL_CONTROL_APP_ID,
       to,
       from,
-      webhook_url: webhookUrl,
     }
+    if (webhookUrl) body.webhook_url = webhookUrl
     const res = await axios.post(`${BASE}/calls`, body, { headers: headers() })
     const data = res.data?.data
     log(`[Telnyx] Outbound call created: ${data?.call_control_id} from=${from} to=${to}`)
