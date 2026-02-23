@@ -196,12 +196,14 @@ const PhoneTestPage = () => {
       });
 
       client.on('telnyx.socket.error', () => {
-        addLog('Socket error — check credentials', 'error');
-        setStatus('error');
+        // Only log once per error burst to prevent log spam
+        addLog('Socket error — retrying connection...', 'error');
+        setStatus('connecting');
       });
 
       client.on('telnyx.socket.close', () => {
         setStatus('disconnected');
+        addLog('Connection lost — click Connect to reconnect', 'info');
       });
 
       client.on('telnyx.notification', (notif) => {
