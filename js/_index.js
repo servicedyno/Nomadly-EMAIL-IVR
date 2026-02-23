@@ -7080,20 +7080,21 @@ bot?.on('message', async msg => {
 
   // 🧪 Test SIP Free button — trigger /testsip flow
   if (message === user.testSip || message === '🧪 Test SIP Free' || message === '🧪 SIP मुफ्त टेस्ट' || message === '🧪 Tester SIP Gratuit' || message === '🧪 免费测试 SIP') {
+    const pMsg = phoneConfig.getMsg(info?.userLanguage || 'en')
     const result = await generateTestOtp(chatId)
     if (!result) {
-      return send(chatId, '❌ Could not generate test code. Please try again later.', trans('o'))
+      return send(chatId, pMsg.sipTestError, trans('o'))
     }
     if (result.error === 'limit_reached') {
-      let msg = `📞 <b>SIP Test Complete</b>\n\nYou've used your free test calls. To make unlimited SIP calls, subscribe to a <b>Cloud Phone</b> plan with SIP support.\n\n👉 Tap <b>📞 Cloud Phone + SIP</b> below to browse plans and get your own number with full SIP credentials.`
+      let msg = pMsg.sipTestComplete
       const refResult = await getOrCreateReferralCode(chatId)
       const refLink = refResult ? `https://t.me/Nomadlybot?start=ref_${refResult.code}` : null
       if (refLink && !refResult.bonusEarned) {
-        msg += `\n\n🎁 <b>Want 1 more free test call?</b>\nShare this link with a friend. When they send /testsip, you'll get a bonus call:\n\n${refLink}`
+        msg += pMsg.sipTestReferral(refLink)
       }
       return send(chatId, msg, { parse_mode: 'HTML' })
     }
-    return send(chatId, `🔑 <b>Your SIP Test Code</b>\n\n<code>${result.otp}</code>\n\nEnter this code on the test page to get your free SIP credentials.\n⏱ Expires in 5 minutes.\n📞 ${result.callsRemaining} test call${result.callsRemaining !== 1 ? 's' : ''} remaining.\n\n🌐 <a href="https://speechcue.com/phone/test">Open Test Page</a>`, { parse_mode: 'HTML' })
+    return send(chatId, pMsg.sipTestCode(result.otp, result.callsRemaining), { parse_mode: 'HTML' })
   }
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
