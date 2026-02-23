@@ -381,6 +381,38 @@ async function autoWhitelistIP() {
   }
 }
 
+// ─── AutoSSL ─────────────────────────────────────────────
+
+/**
+ * Trigger AutoSSL check for a specific cPanel user.
+ * WHM API: start_autossl_check_for_one_user
+ * This will request Let's Encrypt (or whatever AutoSSL provider is configured)
+ * to issue/renew certificates for all domains under that user.
+ */
+async function startAutoSSL(cpUser) {
+  try {
+    const res = await whmApi.get('/start_autossl_check_for_one_user', {
+      params: {
+        'api.version': 1,
+        username: cpUser,
+      },
+      timeout: 60000, // AutoSSL can take a while
+    })
+    const meta = res.data?.metadata || {}
+    if (meta.result === 1) {
+      log(`[WHM-AutoSSL] Triggered for user: ${cpUser}`)
+      return { success: true, message: 'AutoSSL check started' }
+    } else {
+      const reason = meta.reason || 'Unknown error'
+      log(`[WHM-AutoSSL] Failed for ${cpUser}: ${reason}`)
+      return { success: false, error: reason }
+    }
+  } catch (err) {
+    log(`[WHM-AutoSSL] Error for ${cpUser}: ${err.message}`)
+    return { success: false, error: err.message }
+  }
+}
+
 module.exports = {
   createAccount,
   domainExists,
@@ -394,5 +426,6 @@ module.exports = {
   generatePassword,
   ensureCloudflareTweaks,
   autoWhitelistIP,
+  startAutoSSL,
   PLAN_MAP,
 }
