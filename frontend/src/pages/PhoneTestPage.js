@@ -71,6 +71,8 @@ const PhoneTestPage = () => {
     setCallStatus('idle');
     setIncomingCall(null);
     setIncomingCaller('');
+    setIncomingCallerName('');
+    setIncomingCallerLocation('');
     stopCallTimer();
     addLog('Call ended');
   }, [addLog, stopCallTimer]);
