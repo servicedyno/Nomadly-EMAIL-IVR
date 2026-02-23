@@ -805,7 +805,8 @@ async function handleCallInitiated(payload) {
     log(`[Voice] Ringing SIP device (unanswered): ${sipUri} for ${num.phoneNumber} (timeout: ${ringTimeout}s)`)
 
     try {
-      const newCall = await _telnyxApi.createOutboundCall(to, sipUri)
+      const newCall = await _telnyxApi.createOutboundCall(from, sipUri)
+      // Pass original caller's number as 'from' so SIP device shows correct caller ID
       if (newCall?.callControlId) {
         activeBridgeTransfers[newCall.callControlId] = {
           originalCallControlId: callControlId,
@@ -1318,7 +1319,8 @@ async function handleCallAnswered(payload) {
     try {
       // Use Call Control App ID — POST /v2/calls only accepts Call Control Apps, not SIP Connection IDs
       // The SIP device registered on the credential connection is reachable via its SIP URI
-      const newCall = await _telnyxApi.createOutboundCall(to, sipUri)
+      const newCall = await _telnyxApi.createOutboundCall(from, sipUri)
+      // Pass original caller's number as 'from' so SIP device shows correct caller ID
       if (newCall?.callControlId) {
         // Track as SIP ring bridge — handleBridgeTransferAnswered/Hangup handles the rest
         activeBridgeTransfers[newCall.callControlId] = {
