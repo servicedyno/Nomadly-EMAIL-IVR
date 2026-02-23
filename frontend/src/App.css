@@ -2939,6 +2939,12 @@
   cursor: help;
 }
 
+.dl-ns-badge--propagating {
+  background: rgba(59, 130, 246, 0.12);
+  color: #60a5fa;
+  cursor: help;
+}
+
 .dl-ns-badge--loading {
   background: rgba(255,255,255,0.04);
   color: #6b6b80;
