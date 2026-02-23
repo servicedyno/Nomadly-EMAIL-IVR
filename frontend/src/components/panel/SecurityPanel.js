@@ -44,6 +44,12 @@ export default function SecurityPanel() {
 
   const toggleJsChallenge = async () => {
     const current = status?.protectionLayers?.jsChallenge;
+    if (current) {
+      const confirmed = window.confirm(
+        '⚠️ Warning: Disabling JS Challenge significantly reduces your protection against automated scanners and bots. We strongly recommend keeping it enabled for maximum security.\n\nAre you sure you want to disable it?'
+      );
+      if (!confirmed) return;
+    }
     setToggling(true);
     setError('');
     setSuccess('');
