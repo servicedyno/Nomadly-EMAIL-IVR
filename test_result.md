@@ -316,12 +316,15 @@ frontend:
 
 metadata:
   created_by: "main_agent"
-  version: "5.0"
-  test_sequence: 6
+  version: "6.0"
+  test_sequence: 7
   run_ui: false
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Fix: AutoSSL message showing on every domain page load"
+    - "Fix: Create folder bug in file manager"
+    - "End-to-end panel testing (all features except email)"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
