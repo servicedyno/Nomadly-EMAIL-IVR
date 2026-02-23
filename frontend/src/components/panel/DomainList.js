@@ -110,11 +110,15 @@ export default function DomainList() {
     setAutoSSLResult(null);
     try {
       const res = await api('/domains/ssl/autossl', { method: 'POST' });
-      setAutoSSLResult({ success: true, message: res.message || 'AutoSSL started' });
-      // Refresh SSL status after a short delay to let certs issue
-      setTimeout(() => fetchSSL(), 8000);
+      if (res.success) {
+        setAutoSSLResult({ success: true, message: res.message || 'AutoSSL check started' });
+        // Refresh SSL status after a delay to let certs issue
+        setTimeout(() => fetchSSL(), 10000);
+      } else {
+        setAutoSSLResult({ success: false, message: res.error || 'AutoSSL failed' });
+      }
     } catch (err) {
-      setAutoSSLResult({ success: false, message: err.message || 'AutoSSL failed' });
+      setAutoSSLResult({ success: false, message: err.message || 'AutoSSL request failed' });
     }
     setAutoSSLLoading(false);
   };
