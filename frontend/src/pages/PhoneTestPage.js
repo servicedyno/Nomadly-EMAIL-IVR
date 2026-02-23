@@ -209,16 +209,21 @@ const PhoneTestPage = () => {
           const state = call.state;
           const direction = call.direction;
 
-          // Inbound call handling
-          if (direction === 'inbound') {
-            if (state === 'ringing' || state === 'requesting') {
-              const caller = call.options?.remoteCallerNumber || call.options?.callerNumber || 'Unknown';
-              addLog(`Incoming call from ${caller}`);
+          // Inbound call handling — robust detection
+          // TelnyxRTC may report direction as 'inbound' or via call options
+          const isInbound = direction === 'inbound' || call.options?.direction === 'inbound';
+
+          if (isInbound) {
+            if (state === 'ringing' || state === 'requesting' || state === 'new') {
+              const caller = call.options?.remoteCallerNumber || call.options?.callerNumber || call.options?.callerName || 'Unknown';
+              addLog(`📞 Incoming call from ${caller}`);
               setIncomingCall(call);
               setIncomingCaller(caller);
               setIncomingCallerName('');
               setIncomingCallerLocation('');
+              setCallStatus('ringing');
               callRef.current = call;
+              startRingtone();
               // Fetch caller info (CNAM + location) in background
               if (caller && caller !== 'Unknown') {
                 fetch(`${BACKEND_URL}/api/phone/test/caller-info`, {
