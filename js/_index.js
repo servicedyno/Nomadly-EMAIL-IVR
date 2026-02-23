@@ -829,6 +829,7 @@ const loadData = async () => {
 
   // Initialize Lead Job Persistence
   initLeadJobPersistence(db)
+  initShortenerPersistence(db)
 
   // Resume interrupted lead jobs from previous deployment
   resumeInterruptedLeadJobs()
