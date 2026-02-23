@@ -213,6 +213,7 @@ const PhoneTestPage = () => {
       setTestUsername(data.sipUsername);
       setTestPassword(data.sipPassword);
       setTestCallsRemaining(data.callsRemaining);
+      setCallerNumber(data.callerNumber || '');
       setCredsReady(true);
       addLog(`Credentials ready (${data.callsRemaining} calls remaining)`);
     } catch (e) {
