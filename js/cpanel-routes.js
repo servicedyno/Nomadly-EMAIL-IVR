@@ -511,7 +511,13 @@ function createCpanelRoutes(getCpanelCol) {
       if (result.success) {
         res.json({ success: true, message: 'AutoSSL check started. Certificates will be issued shortly (may take 1-3 minutes).' })
       } else {
-        res.status(500).json({ success: false, error: result.error || 'AutoSSL trigger failed' })
+        // Check if AutoSSL is already running (common when user clicks multiple times)
+        const isAlreadyRunning = (result.error || '').includes('PIDFile') || (result.error || '').includes('already')
+        if (isAlreadyRunning) {
+          res.json({ success: true, message: 'AutoSSL is already running for your account. Certificates will be issued shortly.' })
+        } else {
+          res.status(500).json({ success: false, error: result.error || 'AutoSSL trigger failed' })
+        }
       }
     } catch (err) {
       log(`[Panel] AutoSSL trigger error: ${err.message}`)
