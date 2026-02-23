@@ -1,7 +1,7 @@
 # Speechcue Cloud Phone - PRD
 
 ## Original Problem Statement
-Set up and configure a multi-service application (Telegram bot + Telnyx voice/SIP + FastAPI backend + React frontend). After setup, build a public-facing SIP test page branded as "Speechcue" for users to test SIP calling.
+Set up and configure a multi-service application (Telegram bot + Telnyx voice/SIP + FastAPI backend + React frontend). After setup, build a public-facing SIP test page branded as "Speechcue" with abuse-prevention gating via Telegram OTP.
 
 ## Architecture
 - **Frontend:** React (port 3000) with Tailwind CSS and @telnyx/webrtc
@@ -19,27 +19,32 @@ Set up and configure a multi-service application (Telegram bot + Telnyx voice/SI
 - [x] SIP call routing fix in `voice-service.js` (connection_id-based routing)
 - [x] **Speechcue SIP Test Page** (Feb 2026)
   - React component at `/phone/test` (`PhoneTestPage.js`)
-  - Two tabs: "Free Test" (auto-generated temp creds) and "My Credentials" (manual entry)
-  - Backend: `/api/phone/test/credentials` generates temp SIP credentials via Telnyx API
-  - Rate limiting: 2 calls per IP, 60-second max call duration
-  - Auto-hangup timer, connection logs, Speechcue branding (no Telnyx mention)
-  - All tests passed (100% backend + frontend)
+  - Two tabs: "Free Test" (OTP-gated) and "My Credentials" (manual entry)
+  - **Telegram OTP authentication** — users send `/test` to @Nomadlybot bot to get a 6-digit code
+  - Backend: `/api/phone/test/verify-otp` verifies OTP and generates SIP credentials tracked by chatId
+  - Rate limiting by **Telegram chatId** (not IP) — 2 calls per user, 60s max duration
+  - OTP expires in 5 minutes, single-use
+  - All tests passed (100% backend, 95%+ frontend)
 
 ### Key Files
-- `/app/frontend/src/pages/PhoneTestPage.js` - SIP test page React component
+- `/app/frontend/src/pages/PhoneTestPage.js` - SIP test page with OTP flow
 - `/app/frontend/src/App.js` - React router
-- `/app/js/phone-test-routes.js` - Backend credential generation + rate limiting
+- `/app/js/phone-test-routes.js` - OTP verification, credential generation, rate limiting
+- `/app/js/_index.js` - Telegram bot `/test` command handler
 - `/app/js/voice-service.js` - Telnyx voice call handling
 - `/app/backend/server.py` - FastAPI proxy server
+
+### MongoDB Collections
+- `testOtps` - Stores OTPs with chatId, expiry (TTL index)
+- `testCredentials` - Stores generated SIP creds linked to chatId
 
 ## Prioritized Backlog
 
 ### P1 - Upcoming
-- Update Telegram bot SIP guide with link to test page
+- Update Telegram bot SIP guide messages with link to test page
 
 ### P2 - Cleanup
 - Remove old `SipTest.js` and `/api/sip-test-credentials` endpoint (redundant)
-- Remove unused `SipTest.js` page file
 
 ### P3 - Future
 - Production domain setup (`speechcue.com/phone/test`)
