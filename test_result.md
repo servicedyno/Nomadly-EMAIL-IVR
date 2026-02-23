@@ -255,8 +255,8 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Fix: Lead job persistence recovery — findInterruptedJobs status mismatch"
-    - "Fix: Activate shortener DNS routing — unified domainService.addDNSRecord()"
+    - "Fix: Shortener activation persistence — survives deployments"
+    - "Fix: Lead job persistence — full resume + delivery after deployment"
     - "Fix: domain-service passes NS to buyDomainOnline for CR"
     - "Fix: buyDomainFullProcess uses buyResult.nameservers instead of getAccountNameservers()"
     - "Fix: registerDomainAndCreateCpanel reorder + no double CF zone"
