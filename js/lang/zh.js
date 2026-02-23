@@ -1498,7 +1498,7 @@ ${
   showDepositCryptoInfoVps: (priceCrypto, tickerView, address, vpsDetails) =>
     `请将 ${priceCrypto} ${tickerView} 汇款至\n\n<code>${address}</code>
 
-请注意，密码货币交易可能需要最多 30 分钟才能完成。一旦交易确认，您将及时收到通知，您的 VPS 计划将被顺利激活。
+加密支付确认速度很快——通常只需几分钟。一旦交易确认，您将及时收到通知，您的 VPS 计划将被顺利激活。
 
 此致,
 ${CHAT_BOT_NAME}`,
