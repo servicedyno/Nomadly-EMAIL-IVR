@@ -857,6 +857,12 @@ async function createJA3Rules(zoneId) {
     if (err.response?.data?.errors?.some(e => e.message?.includes('already exists'))) {
       return { success: true, message: 'JA3 rules already exist', existing: true }
     }
+    // cf.bot_management.ja3_hash requires Enterprise Bot Management — skip gracefully
+    const status = err.response?.status
+    if (status === 400 || status === 403) {
+      log(`[AntiRed] JA3 WAF skipped for zone ${zoneId} (requires Enterprise Bot Management)`)
+      return { success: false, error: 'Requires Enterprise Bot Management', planLimitation: true }
+    }
     log(`[AntiRed] JA3 WAF rule error: ${err.message}`)
     return { success: false, error: err.message }
   }
