@@ -14289,6 +14289,12 @@ async function deliverLeadResults(chatId, results, phonesToGenerate, cnam, requi
 
 // ── Resume incomplete shortener activations from previous deployment ──
 async function resumeShortenerActivations() {
+  // Safe send — never throws on Telegram errors
+  const safeSend = async (cId, text) => {
+    try { bot && await bot.sendMessage(cId, text, { parse_mode: 'HTML' }) }
+    catch (e) { log(`[ShortenerResume] Telegram notify failed for ${cId}: ${e.message}`) }
+  }
+
   try {
     const tasks = await findIncompleteTasks()
     if (!tasks || tasks.length === 0) return
@@ -14300,11 +14306,7 @@ async function resumeShortenerActivations() {
         log(`[ShortenerResume] Resuming ${domain} from status '${status}'`)
 
         if (status === 'pending') {
-          // ── Step 1 incomplete: retry full flow (Railway + DNS) ──
-          bot && bot.sendMessage(chatId,
-            `🔄 Resuming shortener activation for <b>${domain}</b> after server update…`,
-            { parse_mode: 'HTML' }
-          )
+          await safeSend(chatId, `🔄 Resuming shortener activation for <b>${domain}</b> after server update…`)
 
           const { server: srv, error, recordType: rt } =
             process.env.HOSTED_ON === 'render'
@@ -14314,20 +14316,14 @@ async function resumeShortenerActivations() {
           if (error) {
             log(`[ShortenerResume] Railway link failed for ${domain}: ${error}`)
             await markFailed(domain, error)
-            bot && bot.sendMessage(chatId,
-              `❌ Could not re-link <b>${domain}</b> to shortener: ${error}. Please try again from the menu.`,
-              { parse_mode: 'HTML' }
-            )
+            await safeSend(chatId, `❌ Could not re-link <b>${domain}</b> to shortener: ${error}. Please try again from the menu.`)
             continue
           }
 
           await markRailwayLinked(domain, srv, rt)
-
-          // Now fall through to DNS step
           await addDnsForShortener(chatId, domain, srv, rt, taskLang)
 
         } else if (status === 'railway_linked') {
-          // ── Step 2 incomplete: Railway done, retry DNS only ──
           if (!server || !recordType) {
             log(`[ShortenerResume] ${domain} is railway_linked but missing server/recordType — retrying full`)
             const { server: srv, error, recordType: rt } =
@@ -14342,19 +14338,12 @@ async function resumeShortenerActivations() {
             await markRailwayLinked(domain, srv, rt)
             await addDnsForShortener(chatId, domain, srv, rt, taskLang)
           } else {
-            bot && bot.sendMessage(chatId,
-              `🔄 Resuming DNS setup for <b>${domain}</b> after server update…`,
-              { parse_mode: 'HTML' }
-            )
+            await safeSend(chatId, `🔄 Resuming DNS setup for <b>${domain}</b> after server update…`)
             await addDnsForShortener(chatId, domain, server, recordType, taskLang)
           }
 
         } else if (status === 'dns_added') {
-          // ── Step 3 incomplete: DNS done, just notify user ──
-          bot && bot.sendMessage(chatId,
-            `✅ <b>${domain}</b> is linked to URL shortener. DNS may take up to 24h to propagate.`,
-            { parse_mode: 'HTML' }
-          )
+          await safeSend(chatId, `✅ <b>${domain}</b> is linked to URL shortener. DNS may take up to 24h to propagate.`)
           regularCheckDns(bot, chatId, domain, taskLang || 'en')
           await markCompleted(domain)
           log(`[ShortenerResume] ${domain} — notified user, marked completed`)
@@ -14373,40 +14362,34 @@ async function resumeShortenerActivations() {
  * Shared DNS add logic for shortener resume — adds CNAME to correct provider
  */
 async function addDnsForShortener(chatId, domain, server, recordType, lang) {
+  const safeSend = async (cId, text) => {
+    try { bot && await bot.sendMessage(cId, text, { parse_mode: 'HTML' }) }
+    catch (e) { log(`[ShortenerResume] Telegram notify failed for ${cId}: ${e.message}`) }
+  }
+
   await sleep(5000)
   const addResult = await domainService.addDNSRecord(domain, recordType, server, '', db)
 
   if (addResult.error || !addResult.success) {
     log(`[ShortenerResume] DNS via domainService failed for ${domain}: ${addResult.error || 'unknown'}`)
-    // Fallback to direct CR DNS for legacy domains
     const meta = await domainService.getDomainMeta(domain, db)
     if (!meta || (!meta.registrar && !meta.nameserverType)) {
       await sleep(60000)
       const { error: saveErr } = await saveServerInDomain(domain, server, recordType)
       if (saveErr) {
         await markFailed(domain, saveErr)
-        bot && bot.sendMessage(chatId,
-          `❌ DNS setup failed for <b>${domain}</b>: ${saveErr}. Please re-try from the menu.`,
-          { parse_mode: 'HTML' }
-        )
+        await safeSend(chatId, `❌ DNS setup failed for <b>${domain}</b>: ${saveErr}. Please re-try from the menu.`)
         return
       }
     } else {
       await markFailed(domain, addResult.error || 'DNS add failed')
-      bot && bot.sendMessage(chatId,
-        `❌ DNS setup failed for <b>${domain}</b>. Please re-try from the menu.`,
-        { parse_mode: 'HTML' }
-      )
+      await safeSend(chatId, `❌ DNS setup failed for <b>${domain}</b>. Please re-try from the menu.`)
       return
     }
   }
 
   await markDnsAdded(domain)
-
-  bot && bot.sendMessage(chatId,
-    `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`,
-    { parse_mode: 'HTML' }
-  )
+  await safeSend(chatId, `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`)
   regularCheckDns(bot, chatId, domain, lang || 'en')
   await markCompleted(domain)
   log(`[ShortenerResume] ${domain} — DNS added, notified user, completed`)
