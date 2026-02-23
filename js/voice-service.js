@@ -1498,11 +1498,13 @@ async function handleCallHangup(payload) {
     : isOutbound ? to : from
 
   let billingInfo = { planMinUsed: 0, overageMin: 0, overageCharge: 0, rate: 0, used: 0, limit: 0 }
-  if (minutesBilled > 0 && !isTwilioBridge) {
+  if (minutesBilled > 0 && !isTwilioBridge && !session.isTestCall) {
     const callType = isForwarded ? 'Forwarding' : isOutbound ? 'SIPOutbound' : 'Inbound'
     billingInfo = await billCallMinutesUnified(chatId, num.phoneNumber, minutesBilled, destination, callType)
   } else if (isTwilioBridge) {
     log(`[Voice] Skipping Telnyx-side billing for Twilio bridge leg (${duration}s) — Twilio /voice-status handles billing`)
+  } else if (session.isTestCall) {
+    log(`[Voice] Skipping billing for test call (${duration}s) — free test call`)
   }
 
   // Clean up mid-call limit timer
