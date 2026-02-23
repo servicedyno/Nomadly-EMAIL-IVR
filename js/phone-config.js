@@ -761,16 +761,16 @@ function shortDate(dateStr) {
 }
 
 function generateSipUsername() {
-  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
-  let result = 'sc_'
-  for (let i = 0; i < 6; i++) result += chars[Math.floor(Math.random() * chars.length)]
+  // 6-digit numeric username (user-facing PIN)
+  let result = ''
+  for (let i = 0; i < 6; i++) result += Math.floor(Math.random() * 10)
   return result
 }
 
 function generateSipPassword() {
-  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%'
+  // 6-digit numeric password (user-facing PIN)
   let result = ''
-  for (let i = 0; i < 16; i++) result += chars[Math.floor(Math.random() * chars.length)]
+  for (let i = 0; i < 6; i++) result += Math.floor(Math.random() * 10)
   return result
 }
 
