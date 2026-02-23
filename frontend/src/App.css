@@ -2386,6 +2386,11 @@
   border-color: rgba(239,68,68,0.12);
   color: #dc2626;
 }
+.panel-light .fm-success {
+  background: rgba(34,197,94,0.05);
+  border-color: rgba(34,197,94,0.12);
+  color: #16a34a;
+}
 .panel-light .fm-loading,
 .panel-light .fm-empty {
   color: #9ca3af;
