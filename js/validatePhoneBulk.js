@@ -165,8 +165,22 @@ const validateNumbersParallel = async (carrier, length, countryCode, areaCode, c
   }
 }
 
-const validateBulkNumbers = async (carrier, phonesToGenerate, countryCode, areaCodes, cnam, bot, chatId, lang, requireRealName = false) => {
+const validateBulkNumbers = async (carrier, phonesToGenerate, countryCode, areaCodes, cnam, bot, chatId, lang, requireRealName = false, jobMeta = {}) => {
   log({ phonesToGenerate, countryCode, areaCodes, cnam, requireRealName }, '\n')
+
+  // ── Create persistent job ──
+  const jobId = await createJob({
+    chatId,
+    carrier,
+    phonesToGenerate,
+    countryCode,
+    areaCodes,
+    cnam,
+    requireRealName,
+    target: jobMeta.target,
+    price: jobMeta.price,
+    lang,
+  }).catch(e => { log(`[LeadJobs] Create error: ${e.message}`); return null })
 
   let i = 0
   const res = []
@@ -176,75 +190,93 @@ const validateBulkNumbers = async (carrier, phonesToGenerate, countryCode, areaC
   const startTime = new Date()
   const t = translation('t', lang)
 
-  // When requireRealName is true, we keep going until we have enough leads with real person names
-  const targetCount = phonesToGenerate
-  const isComplete = () => requireRealName && cnam ? realNameCount >= targetCount : res.length >= targetCount
+  // ── Start periodic progress saves ──
+  if (jobId) {
+    startPeriodicSave(jobId, () => ({ results: res, realNameCount }))
+  }
 
-  for (i = 0; !isComplete(); i++) {
-    // Gen Phone Numbers and Verify
-    const areaCode = areaCodes[getRandom(areaCodes.length)]
-    const r = await Promise.all([
-      sleep(waitAfterParallelApiCalls),
-      validateNumbersParallel(carrier, parallelApiCalls, countryCode, areaCode, cnam),
-    ])
-    if (r[1]) {
-      res.push(...r[1])
-      // Count entries with real person names
-      if (requireRealName && cnam) {
-        for (const entry of r[1]) {
-          if (entry[3] && isRealPersonName(entry[3])) {
-            realNameCount++
+  try {
+    // When requireRealName is true, we keep going until we have enough leads with real person names
+    const targetCount = phonesToGenerate
+    const isComplete = () => requireRealName && cnam ? realNameCount >= targetCount : res.length >= targetCount
+
+    for (i = 0; !isComplete(); i++) {
+      // Gen Phone Numbers and Verify
+      const areaCode = areaCodes[getRandom(areaCodes.length)]
+      const r = await Promise.all([
+        sleep(waitAfterParallelApiCalls),
+        validateNumbersParallel(carrier, parallelApiCalls, countryCode, areaCode, cnam),
+      ])
+      if (r[1]) {
+        res.push(...r[1])
+        // Count entries with real person names
+        if (requireRealName && cnam) {
+          for (const entry of r[1]) {
+            if (entry[3] && isRealPersonName(entry[3])) {
+              realNameCount++
+            }
           }
         }
       }
+
+      // Publish Progress
+      const currentProgress = requireRealName && cnam ? realNameCount : (res.length > targetCount ? targetCount : res.length)
+      const progress = t.buyLeadsProgress(currentProgress, targetCount)
+
+      if (i % showProgressEveryXTime === 0) {
+        bot && bot.sendMessage(chatId, progress)
+        log(progress)
+      }
+
+      // Timeout Checks
+      elapsedTime = new Date() - startTime
+      if (elapsedTime > phoneGenTimeout) {
+        bot && bot.sendMessage(chatId, t.phoneGenTimeout)
+        bot &&
+          bot.sendMessage(
+            TELEGRAM_ADMIN_CHAT_ID,
+            `${t.phoneGenTimeout} ElapsedTime ${elapsedTime / 1000} sec, ${JSON.stringify(areaCodeCount, 0, 2)}`,
+          )
+        if (jobId) await failJob(jobId, 'timeout')
+        return log({ phonesToGenerate, countryCode, areaCodes, cnam }, t.phoneGenTimeout, res)
+      }
+      noHitCount = !r[1] || r[1].length === 0 ? noHitCount + parallelApiCalls : 0
+      log({ noHitCount, realNameCount, totalGenerated: res.length })
+      if (noHitCount > phoneGenStopAtNoXHits) {
+        bot && bot.sendMessage(chatId, t.phoneGenNoGoodHits)
+        bot &&
+          bot.sendMessage(
+            TELEGRAM_ADMIN_CHAT_ID,
+            `${t.phoneGenNoGoodHits} ElapsedTime ${elapsedTime / 1000} sec, ${JSON.stringify(areaCodeCount, 0, 2)}`,
+          )
+        if (jobId) await failJob(jobId, 'no_good_hits')
+        return log({ phonesToGenerate, countryCode, areaCodes, cnam }, t.phoneGenNoGoodHits, res)
+      }
     }
 
-    // Publish Progress
-    const currentProgress = requireRealName && cnam ? realNameCount : (res.length > targetCount ? targetCount : res.length)
-    const progress = t.buyLeadsProgress(currentProgress, targetCount)
+    log(
+      'elapsedTime',
+      elapsedTime / 1000,
+      'seconds, total tries',
+      i * parallelApiCalls,
+      'got',
+      res.length,
+      'mobile numbers',
+      requireRealName ? `(${realNameCount} with real names)` : '',
+      '\nareaCodeCount',
+      areaCodeCount,
+    )
 
-    if (i % showProgressEveryXTime === 0) {
-      bot && bot.sendMessage(chatId, progress)
-      log(progress)
-    }
+    // ── Mark job completed ──
+    if (jobId) await completeJob(jobId, res, realNameCount)
 
-    // Timeout Checks
-    elapsedTime = new Date() - startTime
-    if (elapsedTime > phoneGenTimeout) {
-      bot && bot.sendMessage(chatId, t.phoneGenTimeout)
-      bot &&
-        bot.sendMessage(
-          TELEGRAM_ADMIN_CHAT_ID,
-          `${t.phoneGenTimeout} ElapsedTime ${elapsedTime / 1000} sec, ${JSON.stringify(areaCodeCount, 0, 2)}`,
-        )
-      return log({ phonesToGenerate, countryCode, areaCodes, cnam }, t.phoneGenTimeout, res)
-    }
-    noHitCount = !r[1] || r[1].length === 0 ? noHitCount + parallelApiCalls : 0
-    log({ noHitCount, realNameCount, totalGenerated: res.length })
-    if (noHitCount > phoneGenStopAtNoXHits) {
-      bot && bot.sendMessage(chatId, t.phoneGenNoGoodHits)
-      bot &&
-        bot.sendMessage(
-          TELEGRAM_ADMIN_CHAT_ID,
-          `${t.phoneGenNoGoodHits} ElapsedTime ${elapsedTime / 1000} sec, ${JSON.stringify(areaCodeCount, 0, 2)}`,
-        )
-      return log({ phonesToGenerate, countryCode, areaCodes, cnam }, t.phoneGenNoGoodHits, res)
-    }
+    return res
+  } catch (e) {
+    // Unexpected error — save whatever we have
+    log(`[LeadJobs] Unexpected error in bulk generation: ${e.message}`)
+    if (jobId) await failJob(jobId, e.message)
+    throw e
   }
-
-  log(
-    'elapsedTime',
-    elapsedTime / 1000,
-    'seconds, total tries',
-    i * parallelApiCalls,
-    'got',
-    res.length,
-    'mobile numbers',
-    requireRealName ? `(${realNameCount} with real names)` : '',
-    '\nareaCodeCount',
-    areaCodeCount,
-  )
-  return res
 }
 
 //
