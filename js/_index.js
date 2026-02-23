@@ -3867,6 +3867,18 @@ bot?.on('message', async msg => {
     return send(chatId, greeting, trans('o'))
   }
 
+  // /test — generate OTP for SIP test page
+  if (message === '/test') {
+    const result = await generateTestOtp(chatId)
+    if (!result) {
+      return send(chatId, '❌ Could not generate test code. Please try again later.')
+    }
+    if (result.error === 'limit_reached') {
+      return send(chatId, `⚠️ <b>Test limit reached</b>\n\nYou've already used your 2 free test calls.\nPurchase a Cloud Phone plan to make unlimited calls.`, { parse_mode: 'HTML' })
+    }
+    return send(chatId, `🔑 <b>Your SIP Test Code</b>\n\n<code>${result.otp}</code>\n\nEnter this code on the test page to get your free SIP credentials.\n⏱ Expires in 5 minutes.\n📞 ${result.callsRemaining} test call${result.callsRemaining !== 1 ? 's' : ''} remaining.`, { parse_mode: 'HTML' })
+  }
+
   // /done — exit support chat
   if (message === '/done') {
     if (action === a.supportChat) {
