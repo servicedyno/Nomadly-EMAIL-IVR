@@ -252,17 +252,13 @@ backend:
 
 metadata:
   created_by: "main_agent"
-  version: "4.0"
-  test_sequence: 5
+  version: "5.0"
+  test_sequence: 6
   run_ui: false
 
 test_plan:
   current_focus:
-    - "Fix: Shortener activation persistence — survives deployments"
-    - "Fix: Lead job persistence — full resume + delivery after deployment"
-    - "Fix: domain-service passes NS to buyDomainOnline for CR"
-    - "Fix: buyDomainFullProcess uses buyResult.nameservers instead of getAccountNameservers()"
-    - "Fix: registerDomainAndCreateCpanel reorder + no double CF zone"
+    - "Fix: NS alert on domain page — only show for external domains"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
