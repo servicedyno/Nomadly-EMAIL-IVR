@@ -585,10 +585,11 @@ function getDefaultDomainResponse() {
   return { modifiedDomain: null, price: null, domainType: null }
 }
 
-function saveDomainInfo(saveInfo, modifiedDomain, price, originalPrice) {
+function saveDomainInfo(saveInfo, modifiedDomain, price, originalPrice, registrar) {
   saveInfo('price', price)
   saveInfo('domain', modifiedDomain)
   saveInfo('originalPrice', originalPrice)
+  if (registrar) saveInfo('registrar', registrar)
 }
 
 // log(format('1', '4'))
