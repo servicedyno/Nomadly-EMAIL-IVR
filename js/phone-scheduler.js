@@ -13,6 +13,11 @@ const twilioService = require('./twilio-service.js')
 const TELNYX_API_KEY = process.env.TELNYX_API_KEY
 const TELNYX_BASE = 'https://api.telnyx.com/v2'
 
+const telnyxHeaders = () => ({
+  'Authorization': `Bearer ${TELNYX_API_KEY}`,
+  'Content-Type': 'application/json'
+})
+
 let _bot = null
 let _phoneNumbersOf = null
 let _phoneTransactions = null
