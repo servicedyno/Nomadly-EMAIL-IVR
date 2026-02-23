@@ -376,7 +376,7 @@ function getTestPageHTML() {
       log('Requesting test credentials...', 'info');
 
       try {
-        const resp = await fetch('/phone/test/credentials', { method: 'POST' });
+        const resp = await fetch(window.location.pathname + '/credentials', { method: 'POST' });
         const data = await resp.json();
 
         if (data.error) {
