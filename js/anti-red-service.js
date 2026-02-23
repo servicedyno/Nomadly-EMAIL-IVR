@@ -1479,7 +1479,7 @@ async function removeWorkerRoutes(domain, zoneId) {
   try {
     // Get all worker routes for this zone
     const routesRes = await axios.get(
-      `${CF_BASE}/zones/${zoneId}/workers/routes`,
+      `https://api.cloudflare.com/client/v4/zones/${zoneId}/workers/routes`,
       { headers: cfHeaders, timeout: 10000 }
     )
     const routes = routesRes.data?.result || []
