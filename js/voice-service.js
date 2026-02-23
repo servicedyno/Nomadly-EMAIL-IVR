@@ -380,6 +380,23 @@ async function handleBridgeTransferHangup(payload) {
     if (transfer.type === 'sip_ring') {
       const origSession = activeCalls[transfer.originalCallControlId]
       if (origSession) {
+        // If original inbound was never answered (unanswered SIP ring), answer it now for fallback
+        if (transfer.unanswered) {
+          try {
+            await _telnyxApi.answerCall(transfer.originalCallControlId)
+            transfer.unanswered = false
+            log(`[Voice] SIP no answer → answered original call for fallback`)
+            // Small delay to let Telnyx process the answer before issuing speak/playback
+            await new Promise(r => setTimeout(r, 500))
+          } catch (e) {
+            log(`[Voice] Failed to answer original call for fallback: ${e.message} — hanging up`)
+            await _telnyxApi.hangupCall(transfer.originalCallControlId).catch(() => {})
+            notifyUser(transfer.chatId, transfer.num, 'missed', origSession)
+            delete activeBridgeTransfers[callControlId]
+            return true
+          }
+        }
+
         const vm = transfer.vmConfig
         const fwd = transfer.fwdConfig
 
