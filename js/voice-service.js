@@ -661,14 +661,23 @@ async function handleOutboundSipCall(payload) {
   const callControlId = payload.call_control_id
   const rawTo = payload.to || ''
   const rawFrom = payload.from || ''
+  const connectionId = payload.connection_id || ''
 
-  // Detect SIP-originated calls: check for sip: prefix OR @ in from field (user@domain format)
-  // Transfer legs and API-originated calls use phone numbers (+1234...) without @
-  const isSipOriginated = rawFrom.startsWith('sip:') || rawFrom.includes('@')
+  // Detect SIP-originated calls using multiple methods:
+  // 1. connection_id matches our SIP Connection ID (most reliable — Telnyx always sends this)
+  // 2. sip: prefix or @ in from field (SIP URI format)
+  // Transfer legs and API-originated calls use phone numbers without connection_id match
+  const sipConnectionId = process.env.TELNYX_SIP_CONNECTION_ID || ''
+  const isSipByConnection = sipConnectionId && connectionId === sipConnectionId
+  const isSipByFromField = rawFrom.startsWith('sip:') || rawFrom.includes('@')
+  const isSipOriginated = isSipByConnection || isSipByFromField
+
   if (!isSipOriginated) {
-    log(`[Voice] Outbound call from ${rawFrom} to ${rawTo} — not SIP-originated, ignoring (likely transfer leg)`)
+    log(`[Voice] Outbound call from ${rawFrom} to ${rawTo} (conn=${connectionId}) — not SIP-originated, ignoring (likely transfer leg)`)
     return
   }
+
+  log(`[Voice] SIP call detected: byConnection=${isSipByConnection}, byFromField=${isSipByFromField}, connection_id=${connectionId}`)
 
   // Parse destination number from SIP URI: sip:+1234567890@domain → +1234567890
   let destination = rawTo.replace(/[^+\d]/g, '')
@@ -684,9 +693,10 @@ async function handleOutboundSipCall(payload) {
   // Also try cleaning as phone number in case from contains a number
   const fromClean = rawFrom.replace(/[^+\d]/g, '')
 
-  log(`[Voice] Outbound SIP: from=${sipUsername} to=${destination} (${callControlId})`)
+  log(`[Voice] Outbound SIP: from=${sipUsername} to=${destination} (${callControlId}, conn=${connectionId})`)
 
   // Look up the SIP user → find their phone number and provider
+  // Try by SIP username first, then by phone number from the 'from' field
   const { chatId, num } = await findNumberBySipUser(sipUsername, fromClean)
   if (!chatId || !num) {
     log(`[Voice] Outbound SIP: No owner found for SIP user ${sipUsername}, rejecting`)
