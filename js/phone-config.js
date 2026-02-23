@@ -331,6 +331,7 @@ Get a virtual number in 30+ countries — in under 2 minutes.
 
 📞 Forward calls to your real phone
 💬 Receive SMS directly in Telegram
+🌐 Make & receive calls in your browser — no app needed
 🤖 Set up IVR auto-attendant
 🔗 Connect via SIP softphone
 
