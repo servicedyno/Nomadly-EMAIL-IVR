@@ -103,7 +103,7 @@
 #====================================================================================================
 
 
-user_problem_statement: "Fix domain registration flows + lead job persistence recovery + activate shortener DNS routing"
+user_problem_statement: "Fix domain registration flows + lead job persistence recovery + activate shortener DNS routing + Fix NS alert on hosting panel domain page"
 
 backend:
   - task: "Fix: Lead job persistence — full resume + delivery after deployment"
