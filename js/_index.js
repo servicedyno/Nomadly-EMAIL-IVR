@@ -14010,7 +14010,30 @@ crAutoWhitelist.autoWhitelist({
 
 // ── Serve React frontend build (for Railway deployment) ──
 const frontendBuildPath = require('path').join(__dirname, '..', 'frontend', 'build')
+const PANEL_DOMAIN = (process.env.PANEL_DOMAIN || '').toLowerCase().trim()
+
 if (fs.existsSync(frontendBuildPath)) {
+  // Panel domain security: block all non-panel routes on panel.hostbay.io
+  if (PANEL_DOMAIN) {
+    app.use((req, res, next) => {
+      const host = (req.hostname || req.headers.host || '').toLowerCase().split(':')[0]
+      if (host === PANEL_DOMAIN) {
+        // Allow: panel API routes, static assets, and panel SPA
+        const p = req.path
+        if (p.startsWith('/panel/') || p === '/panel' || p === '/' || p === '/favicon.ico'
+          || p.startsWith('/static/') || p.startsWith('/assets/') || p.endsWith('.js') || p.endsWith('.css')
+          || p.endsWith('.png') || p.endsWith('.ico') || p.endsWith('.json') || p.endsWith('.map')
+          || p.endsWith('.svg') || p.endsWith('.woff') || p.endsWith('.woff2') || p.endsWith('.ttf')) {
+          return next()
+        }
+        // Block everything else (e.g. /userpage) — prevent user file serving
+        return res.status(404).json({ error: 'Not found' })
+      }
+      next()
+    })
+    log(`[Express] Panel domain guard active: ${PANEL_DOMAIN}`)
+  }
+
   app.use(express.static(frontendBuildPath))
   // Catch-all: serve index.html for any non-API route (SPA routing)
   app.get('/{*splat}', (req, res) => {
