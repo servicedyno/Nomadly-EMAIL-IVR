@@ -250,6 +250,18 @@ backend:
           agent: "testing"
           comment: "Previously verified working."
 
+  - task: "Fix: NS alert on domain page — only show for external domains"
+    implemented: true
+    working: "NA"
+    file: "js/cpanel-routes.js, frontend/src/components/panel/DomainList.js, frontend/src/App.css"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Implemented full fix: (1) Backend /domains/ns-status endpoint now checks registeredDomains+domainsOf to determine if domain is auto-managed (registered through our platform). Returns autoManaged:true flag. For own domains without CF zone, auto-creates zone + updates NS at registrar + creates hosting DNS records. (2) Backend /domains/add-enhanced: existing zone path now also checks if own domain needs NS update at registrar, sets autoManaged flag. (3) Frontend NSBadge: shows 'Propagating' (blue) instead of 'NS Pending' (yellow) for auto-managed domains. (4) Frontend NSPendingInfo: auto-managed domains get a calm 'Nameservers configured automatically. Propagation in progress...' message instead of 'Update your nameservers at registrar' alert. External domains still get the NS update instructions. (5) Added CSS for propagating badge and auto info box styles (blue theme)."
+
 metadata:
   created_by: "main_agent"
   version: "5.0"
