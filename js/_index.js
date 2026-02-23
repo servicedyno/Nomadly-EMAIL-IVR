@@ -1443,10 +1443,18 @@ bot?.on('message', async msg => {
         }
       }
 
+      // Check if user has tried SIP test yet
+      const testCreds = await db.collection('testCredentials').find({ chatId }).toArray()
+      const totalTestCalls = testCreds.reduce((sum, c) => sum + (c.callsMade || 0), 0)
+      let sipTestLine = ''
+      if (totalTestCalls === 0) {
+        sipTestLine = `\n🧪 <i>Try SIP calling free — send /testsip</i>\n`
+      }
+
       return `${g.hi}, <b>${name}</b>\n\n` +
         `${tierBadge} ${tierName}  <b>${usdStr}</b>\n` +
         `<i>${discountLine}</i>` +
-        `${freeTrialLine}\n` +
+        `${freeTrialLine}${sipTestLine}\n` +
         `${g.selectOption}`
     } catch (e) {
       return t.welcome || 'Welcome! Please select an option:'
