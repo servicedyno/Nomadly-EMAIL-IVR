@@ -808,6 +808,11 @@ const msg = {
     sendVoiceOrText: 'Send a voice message, audio file, or type a custom greeting text.',
     noActivity: 'No activity yet.',
     insufficientBalUpgrade: (needed, bal) => `❌ Insufficient balance. You need $${needed.toFixed(2)} but have $${bal.toFixed(2)}.\n\nPlease top up your wallet first.`,
+    sipTestCode: (otp, remaining) => `🔑 <b>Your SIP Test Code</b>\n\n<code>${otp}</code>\n\nEnter this code on the test page to get your free SIP credentials.\n⏱ Expires in 5 minutes.\n📞 ${remaining} test call${remaining !== 1 ? 's' : ''} remaining.\n\n🌐 <a href="https://speechcue.com/phone/test">Open Test Page</a>`,
+    sipTestComplete: `📞 <b>SIP Test Complete</b>\n\nYou've used your free test calls. To make unlimited SIP calls, subscribe to a <b>Cloud Phone</b> plan with SIP support.\n\n👉 Tap <b>📞 Cloud Phone + SIP</b> below to browse plans and get your own number with full SIP credentials.`,
+    sipTestReferral: (link) => `\n\n🎁 <b>Want 1 more free test call?</b>\nShare this link with a friend. When they send /testsip, you'll get a bonus call:\n\n${link}`,
+    sipTestError: '❌ Could not generate test code. Please try again later.',
+    sipTestMenuHint: '🧪 <i>Try SIP calling free — send /testsip</i>',
   },
   fr: {
     selectOption: 'Veuillez sélectionner une option.',
