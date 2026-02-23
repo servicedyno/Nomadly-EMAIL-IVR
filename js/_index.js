@@ -2714,7 +2714,7 @@ bot?.on('message', async msg => {
       send(chatId, hP.confirmEmailBeforeProceeding(email), k.of([t.yesProceedWithThisEmail(email)]))
     },
 
-    // Step 4.2: Proceed with Email
+    // Step 4.2: Proceed with Email — save pricing state, then go straight to payment options
     proceedWithEmail: (domainName, domainPrice) => {
       let hostingPrice = parseFloat(PREMIUM_ANTIRED_WEEKLY_PRICE)
 
@@ -2736,20 +2736,8 @@ bot?.on('message', async msg => {
       saveInfo("planName", info.plan);
       saveInfo("duration", info.plan.includes('1-Week') ? '1 Week' : '1 Month');
 
-      const payload = {
-        domainName: domainName,
-        domainPrice: domainPrice,
-        hostingPrice: hostingPrice,
-        couponDiscount: 0,
-        totalPrice: totalPrice,
-        existingDomain: info.existingDomain,
-        planName: info.plan,
-        duration: info.plan.includes('1-Week') ? '1 Week' : '1 Month',
-      }
-
-      set(state, chatId, 'action', a.proceedWithEmail)
-      send(chatId, hP.generateInvoiceText(payload), k.of([t.proceedWithPayment]),
-      )
+      // Skip the intermediate "Proceed with Payment" screen — go directly to payment method selection
+      return goto['hosting-pay']()
     },
 
     // Step 5: Ask Coupon
