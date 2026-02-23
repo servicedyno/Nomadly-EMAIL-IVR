@@ -1790,7 +1790,7 @@ Note : Un dépôt de $${VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE} USD est inclus d
   showDepositCryptoInfoVpsUpgrade: (priceCrypto, tickerView, address) =>
     `Veuillez verser ${priceCrypto} ${tickerView} à\n\n<code>${address}</code>
 
-Veuillez noter que les transactions en crypto-monnaie peuvent prendre jusqu'à 30 minutes pour être complétées. Une fois la transaction confirmée, vous serez rapidement informé, et votre nouveau plan VPS sera activé sans problème.
+Les paiements crypto sont confirmés rapidement — généralement en quelques minutes. Une fois la transaction confirmée, vous serez rapidement informé, et votre nouveau plan VPS sera activé sans problème.
 
 Cordialement,
 ${CHAT_BOT_NAME}`,
