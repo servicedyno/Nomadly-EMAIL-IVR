@@ -20,7 +20,13 @@ export function AuthProvider({ children }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, pin }),
     });
-    const data = await res.json();
+    let data;
+    try {
+      const text = await res.clone().text();
+      data = JSON.parse(text);
+    } catch {
+      try { data = await res.json(); } catch { data = { error: `Server error (${res.status})` }; }
+    }
     if (!res.ok) throw new Error(data.error || 'Login failed');
     const session = { token: data.token, username: data.username, domain: data.domain };
     sessionStorage.setItem('panel_session', JSON.stringify(session));
