@@ -420,7 +420,11 @@ async function initializeTelnyxResources(selfUrl) {
     try {
       const connRes = await axios.get(`${BASE}/credential_connections/${sipConnectionId}`, { headers: headers() })
       const currentOutboundProfileId = connRes.data?.data?.outbound?.outbound_voice_profile_id
-      const patchBody = { webhook_event_url: voiceWebhook }
+      const patchBody = {
+        webhook_event_url: voiceWebhook,
+        // Enable receiving inbound SIP URI calls (required for Call Control → SIP device ringing)
+        sip_uri_calling_preference: 'internal',
+      }
 
       // Ensure outbound voice profile is linked (required for SIP outbound calls to reach PSTN)
       if (!currentOutboundProfileId) {
