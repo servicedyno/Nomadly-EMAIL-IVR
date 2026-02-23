@@ -2,7 +2,7 @@
 cmds = ["npm install --production", "cd frontend && npm install --legacy-peer-deps"]
 
 [phases.build]
-cmds = ["cd frontend && npm run build"]
+cmds = ["cd frontend && CI=false npm run build"]
 
 [start]
 cmd = "npm start"
