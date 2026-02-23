@@ -148,7 +148,7 @@ async function resumeJob(jobId) {
  */
 async function findInterruptedJobs() {
   if (!_db) return []
-  return _db.collection(COLLECTION).find({ status: { $in: ['running', 'interrupted'] } }).toArray()
+  return _db.collection(COLLECTION).find({ status: { $in: ['running', 'interrupted', 'resume_error'] } }).toArray()
 }
 
 /**
