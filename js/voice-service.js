@@ -500,9 +500,9 @@ async function handleVoiceWebhook(req, res) {
         // Skip normal routing for bridge transfer legs (e.g., SIP ring, call forwarding)
         if (activeBridgeTransfers[callControlId]) {
           log(`[Voice] call.initiated for bridge transfer leg ${callControlId} — skipping normal routing`)
-          break
+        } else {
+          await handleCallInitiated(payload)
         }
-        await handleCallInitiated(payload)
 
         // Check if we have a buffered hangup for this call
         const buffered = _eventBuffer.get(callControlId)
