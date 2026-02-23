@@ -313,28 +313,44 @@ function createCpanelRoutes(getCpanelCol) {
           if (isOwnDomain) {
             // Domain is on user's account — auto-update nameservers at registrar
             const domainService = require('./domain-service')
-            const nsResult = await domainService.updateNameserverAtRegistrar(domain, newZone.nameservers).catch(err => {
-              log(`[Panel] Auto NS update failed for ${domain}: ${err.message}`)
-              return null
-            })
-
-            // Update DB with cfZoneId
+            const opService = require('./op-service')
+            let nsResult = null
             try {
               const cpCol2 = getCpanelCol()
               const db2 = cpCol2?.s?.db
+              // Determine registrar from domain metadata
+              const meta = db2 ? await domainService.getDomainMeta(domain, db2) : null
+              const registrar = meta?.registrar || 'OpenProvider'
+
+              if (registrar === 'OpenProvider') {
+                nsResult = await opService.updateNameservers(domain, newZone.nameservers)
+              } else if (registrar === 'ConnectReseller') {
+                nsResult = await domainService.postRegistrationNSUpdate(domain, 'ConnectReseller', 'cloudflare', newZone.nameservers, db2)
+              }
+
+              // Update DB with cfZoneId
               if (db2) {
                 await db2.collection('registeredDomains').updateOne(
                   { _id: domain },
                   { $set: { 'val.cfZoneId': newZone.zoneId, 'val.nameservers': newZone.nameservers, 'val.nameserverType': 'cloudflare' } }
                 )
+                await db2.collection('domainsOf').updateOne(
+                  { domainName: domain },
+                  { $set: { nameservers: newZone.nameservers, nameserverType: 'cloudflare', cfZoneId: newZone.zoneId } },
+                  { upsert: false }
+                )
               }
-            } catch (_) {}
+
+              log(`[Panel] Auto NS update for ${domain}: registrar=${registrar}, success=${!!nsResult?.success}`)
+            } catch (err) {
+              log(`[Panel] Auto NS update failed for ${domain}: ${err.message}`)
+            }
 
             nsInfo = {
-              status: nsResult ? 'active' : 'pending',
+              status: nsResult?.success ? 'active' : 'pending',
               nameservers: newZone.nameservers || [],
               autoUpdated: true,
-              message: nsResult
+              message: nsResult?.success
                 ? 'Cloudflare zone created and nameservers auto-updated at registrar'
                 : 'Cloudflare zone created. Nameserver auto-update attempted — may take a few minutes to propagate.',
             }
