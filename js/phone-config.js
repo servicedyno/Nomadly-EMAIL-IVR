@@ -566,13 +566,17 @@ Select an option:`,
   sipCredentialsMsg: (number, username, domain) => `🔑 SIP Credentials for <b>${formatPhone(number)}</b>
 
 🌐 SIP Server: ${domain}
-👤 Username: ${username}
-🔑 Password: ●●●●●●●●
+👤 Username: <code>${username}</code>
+🔑 Password: ●●●●●●
 📡 Ports: 5060 (UDP/TCP) · 5061 (TLS)
-🎵 Codecs: G.711μ, G.711a, Opus`,
+🎵 Codecs: G.711μ, G.711a, Opus
+
+💡 These are your quick-access credentials.
+📱 Tap <b>Setup SIP Device</b> for softphone setup.`,
 
   sipRevealed: (password) => `🔑 Password: <code>${password}</code>\n\n⚠️ Save this now — this message will be deleted in 30 seconds.`,
-  sipReset: (password) => `✅ SIP password has been reset!\n\n🔑 New Password: <code>${password}</code>\n\n⚠️ Save this now. Update this password on all your SIP devices.`,
+  sipReset: (password) => `✅ SIP password has been reset!\n\n🔑 New Password: <code>${password}</code>\n\n⚠️ Save this now.`,
+  sipDeviceSetup: (number, telnyxUser, telnyxPass, domain) => `📱 <b>SIP Device Setup</b> for ${formatPhone(number)}\n\nCopy these into your SIP app (Zoiper, Ooma, etc.):\n\n🌐 Server: <code>${domain}</code>\n👤 Username: <code>${telnyxUser}</code>\n🔑 Password: <code>${telnyxPass}</code>\n📡 Port: 5060 (UDP/TCP) or 5061 (TLS)\n\n⚠️ This message will be deleted in 60 seconds.`,
   softphoneGuide: (domain) => `📖 <b>SIP Setup Guide</b>
 
 <b>Zoiper</b> (iOS / Android / Desktop)
