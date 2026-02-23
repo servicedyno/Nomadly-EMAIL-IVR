@@ -1,367 +1,256 @@
 #!/usr/bin/env python3
 """
-Backend test for panel domain fix validation
-Tests the Node.js Express server to ensure panel.hostbay.io returns correct responses
+Backend Testing for Node.js Express Server
+Testing two main fixes:
+1. Panel domain root path fix
+2. JS challenge toggle endpoint exists
 """
 
 import requests
-import sys
 import json
-from typing import Dict, Any
+import subprocess
+import sys
+from typing import Dict, Any, List
 
-class NodeJSServerTester:
+class BackendTester:
     def __init__(self):
         self.base_url = "http://localhost:5000"
-        self.panel_domain = "panel.hostbay.io"
-        self.shortener_domain = "goog.link"
-        self.results = []
+        self.api_url = "http://localhost:8001/api"
+        self.frontend_url = "http://localhost:3000"
         
-    def log_result(self, test_name: str, success: bool, details: str, expected: str = None, actual: str = None):
-        """Log test result with details"""
-        result = {
-            "test_name": test_name,
+        self.test_results = []
+        
+    def log_result(self, test_name: str, success: bool, message: str, details: str = ""):
+        """Log test result"""
+        self.test_results.append({
+            "test": test_name,
             "success": success,
-            "details": details,
-            "expected": expected,
-            "actual": actual
-        }
-        self.results.append(result)
+            "message": message,
+            "details": details
+        })
         status = "✅ PASS" if success else "❌ FAIL"
-        print(f"{status} - {test_name}: {details}")
-        if not success and expected and actual:
-            print(f"   Expected: {expected}")
-            print(f"   Actual: {actual}")
+        print(f"{status} - {test_name}: {message}")
+        if details:
+            print(f"    Details: {details}")
     
-    def test_panel_domain_shortener_blocked(self):
-        """Test 1: Panel domain should return JSON 404, not shortener HTML"""
+    def test_panel_domain_root_redirect(self):
+        """Test 1: Panel domain root should redirect to /panel"""
         try:
-            headers = {"Host": self.panel_domain}
-            response = requests.get(f"{self.base_url}/testslug", headers=headers, timeout=10)
+            headers = {"Host": "panel.hostbay.io"}
+            response = requests.get(f"{self.base_url}/", headers=headers, allow_redirects=False)
             
-            # Should return 404 status
-            if response.status_code != 404:
-                self.log_result(
-                    "Panel domain shortener block - Status Code", 
-                    False, 
-                    f"Expected 404, got {response.status_code}",
-                    "404",
-                    str(response.status_code)
-                )
-                return False
-            
-            # Should return JSON, not HTML
-            try:
-                json_response = response.json()
-                if json_response.get("error") == "Panel page not found":
-                    self.log_result(
-                        "Panel domain shortener block - Response Format", 
-                        True, 
-                        "Correctly returns JSON error for panel domain"
-                    )
-                    return True
+            if response.status_code == 302:
+                location = response.headers.get('Location', '')
+                if '/panel' in location:
+                    self.log_result("Panel Domain Root Redirect", True, "Root redirects to /panel", f"Status: {response.status_code}, Location: {location}")
                 else:
-                    self.log_result(
-                        "Panel domain shortener block - Response Content", 
-                        False, 
-                        f"Expected 'Panel page not found' error, got: {json_response}",
-                        '{"error": "Panel page not found"}',
-                        str(json_response)
-                    )
-                    return False
-            except:
-                # If it's not JSON, it might be the HTML shortener page
-                content = response.text[:200]
-                if "Link not found" in content or "<html" in content:
-                    self.log_result(
-                        "Panel domain shortener block - Response Format", 
-                        False, 
-                        "Panel domain returned HTML shortener page instead of JSON",
-                        "JSON with panel error",
-                        "HTML shortener page"
-                    )
-                    return False
-                else:
-                    self.log_result(
-                        "Panel domain shortener block - Response Parse", 
-                        False, 
-                        f"Could not parse response as JSON: {content}",
-                        "Valid JSON response",
-                        f"Unparseable content: {content}"
-                    )
-                    return False
-                    
-        except requests.RequestException as e:
-            self.log_result(
-                "Panel domain shortener block - Request", 
-                False, 
-                f"Request failed: {str(e)}"
-            )
-            return False
+                    self.log_result("Panel Domain Root Redirect", False, "Root redirects but not to /panel", f"Status: {response.status_code}, Location: {location}")
+            else:
+                self.log_result("Panel Domain Root Redirect", False, f"Expected 302 redirect, got {response.status_code}", f"Response: {response.text[:200]}")
+        
+        except Exception as e:
+            self.log_result("Panel Domain Root Redirect", False, f"Request failed: {str(e)}")
     
-    def test_panel_domain_random_slug(self):
-        """Test 2: Panel domain with random slug should also return JSON 404"""
+    def test_panel_domain_slug_404(self):
+        """Test 2: Panel domain /testslug should return JSON 404, not shortener HTML"""
         try:
-            headers = {"Host": self.panel_domain}
-            response = requests.get(f"{self.base_url}/abc123", headers=headers, timeout=10)
+            headers = {"Host": "panel.hostbay.io"}
+            response = requests.get(f"{self.base_url}/testslug", headers=headers)
             
-            if response.status_code == 404:
+            is_json = 'application/json' in response.headers.get('Content-Type', '')
+            content = response.text
+            
+            if response.status_code == 404 and is_json:
                 try:
-                    json_response = response.json()
-                    if json_response.get("error") == "Panel page not found":
-                        self.log_result(
-                            "Panel domain random slug", 
-                            True, 
-                            "Random slug on panel domain correctly returns JSON 404"
-                        )
-                        return True
-                except:
-                    pass
-            
-            self.log_result(
-                "Panel domain random slug", 
-                False, 
-                f"Expected JSON 404 panel error, got status {response.status_code}",
-                "404 JSON with panel error",
-                f"{response.status_code} - {response.text[:100]}"
-            )
-            return False
-            
-        except requests.RequestException as e:
-            self.log_result(
-                "Panel domain random slug - Request", 
-                False, 
-                f"Request failed: {str(e)}"
-            )
-            return False
+                    data = response.json()
+                    if 'error' in data and 'Panel' in data['error']:
+                        self.log_result("Panel Domain Slug 404", True, "Returns JSON 404 for panel page not found", f"Response: {data}")
+                    else:
+                        self.log_result("Panel Domain Slug 404", False, "JSON response but wrong error message", f"Response: {data}")
+                except json.JSONDecodeError:
+                    self.log_result("Panel Domain Slug 404", False, "Response not valid JSON", f"Content: {content[:200]}")
+            else:
+                self.log_result("Panel Domain Slug 404", False, f"Expected JSON 404, got {response.status_code}", f"Content-Type: {response.headers.get('Content-Type')}, Body: {content[:200]}")
+        
+        except Exception as e:
+            self.log_result("Panel Domain Slug 404", False, f"Request failed: {str(e)}")
     
-    def test_shortener_domain_works(self):
-        """Test 3: Shortener should still work on non-panel domains"""
+    def test_panel_domain_abc123_404(self):
+        """Test 3: Panel domain /abc123 should return JSON 404, not shortener HTML"""
         try:
-            headers = {"Host": self.shortener_domain}
-            response = requests.get(f"{self.base_url}/testslug", headers=headers, timeout=10)
+            headers = {"Host": "panel.hostbay.io"}
+            response = requests.get(f"{self.base_url}/abc123", headers=headers)
             
-            # Should return HTML "Link not found" page (shortener behavior)
-            if "Link not found" in response.text or response.status_code == 404:
-                # Check it's HTML (shortener response), not JSON (panel response)
-                if "<html" in response.text.lower() or "text/html" in response.headers.get("content-type", ""):
-                    self.log_result(
-                        "Shortener domain functionality", 
-                        True, 
-                        "Shortener domain correctly returns HTML 'Link not found' page"
-                    )
-                    return True
+            is_json = 'application/json' in response.headers.get('Content-Type', '')
+            content = response.text
+            
+            if response.status_code == 404 and is_json:
+                try:
+                    data = response.json()
+                    if 'error' in data and 'Panel' in data['error']:
+                        self.log_result("Panel Domain ABC123 404", True, "Returns JSON 404 for panel page not found", f"Response: {data}")
+                    else:
+                        self.log_result("Panel Domain ABC123 404", False, "JSON response but wrong error message", f"Response: {data}")
+                except json.JSONDecodeError:
+                    self.log_result("Panel Domain ABC123 404", False, "Response not valid JSON", f"Content: {content[:200]}")
+            else:
+                self.log_result("Panel Domain ABC123 404", False, f"Expected JSON 404, got {response.status_code}", f"Content-Type: {response.headers.get('Content-Type')}, Body: {content[:200]}")
+        
+        except Exception as e:
+            self.log_result("Panel Domain ABC123 404", False, f"Request failed: {str(e)}")
+    
+    def test_normal_root_200(self):
+        """Test 4: Normal domain root should return 200 with Nomadly greeting"""
+        try:
+            response = requests.get(f"{self.base_url}/")
+            
+            if response.status_code == 200:
+                content = response.text
+                if 'Nomadly' in content:
+                    self.log_result("Normal Root 200", True, "Returns 200 with Nomadly greeting", f"Content snippet: {content[:100]}...")
                 else:
-                    self.log_result(
-                        "Shortener domain functionality", 
-                        False, 
-                        "Shortener returned JSON instead of HTML",
-                        "HTML response",
-                        "JSON response"
-                    )
-                    return False
+                    self.log_result("Normal Root 200", False, "Returns 200 but no Nomadly greeting found", f"Content snippet: {content[:200]}...")
             else:
-                self.log_result(
-                    "Shortener domain functionality", 
-                    False, 
-                    f"Shortener didn't return expected 'Link not found', got: {response.text[:200]}",
-                    "HTML with 'Link not found'",
-                    response.text[:200]
-                )
-                return False
-                
-        except requests.RequestException as e:
-            self.log_result(
-                "Shortener domain functionality - Request", 
-                False, 
-                f"Request failed: {str(e)}"
-            )
-            return False
+                self.log_result("Normal Root 200", False, f"Expected 200, got {response.status_code}", f"Content: {response.text[:200]}")
+        
+        except Exception as e:
+            self.log_result("Normal Root 200", False, f"Request failed: {str(e)}")
     
-    def test_health_check(self):
-        """Test 4: Health check should return 200"""
+    def test_shortener_still_works(self):
+        """Test 5: Shortener should still work on goog.link domain"""
         try:
-            response = requests.get(f"{self.base_url}/", timeout=10)
+            headers = {"Host": "goog.link"}
+            response = requests.get(f"{self.base_url}/testslug", headers=headers)
+            
+            content = response.text
+            is_html = 'text/html' in response.headers.get('Content-Type', '')
+            
+            # Should return HTML with "Link not found" message (shortener functionality)
+            if is_html and ('Link not found' in content or 'not found' in content.lower()):
+                self.log_result("Shortener Still Works", True, "Shortener returns HTML 'Link not found'", f"Content snippet: {content[:100]}...")
+            else:
+                self.log_result("Shortener Still Works", False, "Expected HTML 'Link not found' response", f"Content-Type: {response.headers.get('Content-Type')}, Body: {content[:200]}")
+        
+        except Exception as e:
+            self.log_result("Shortener Still Works", False, f"Request failed: {str(e)}")
+    
+    def test_js_challenge_toggle_endpoint(self):
+        """Test 6: JS challenge toggle endpoint should exist and return 401 (auth required)"""
+        try:
+            response = requests.post(f"{self.base_url}/panel/security/js-challenge/toggle")
+            
+            if response.status_code == 401:
+                self.log_result("JS Challenge Toggle Endpoint", True, "Returns 401 (auth required)", f"Response: {response.text[:200]}")
+            else:
+                self.log_result("JS Challenge Toggle Endpoint", False, f"Expected 401, got {response.status_code}", f"Response: {response.text[:200]}")
+        
+        except Exception as e:
+            self.log_result("JS Challenge Toggle Endpoint", False, f"Request failed: {str(e)}")
+    
+    def test_health_endpoints(self):
+        """Test 7-9: Health checks for all services"""
+        # Node.js health
+        try:
+            response = requests.get(f"{self.base_url}/health")
             if response.status_code == 200:
-                self.log_result(
-                    "Health check", 
-                    True, 
-                    f"Health check returns 200 OK"
-                )
-                return True
+                self.log_result("Node.js Health Check", True, "Service healthy", f"Response: {response.text[:100]}")
             else:
-                self.log_result(
-                    "Health check", 
-                    False, 
-                    f"Expected 200, got {response.status_code}",
-                    "200",
-                    str(response.status_code)
-                )
-                return False
-                
-        except requests.RequestException as e:
-            self.log_result(
-                "Health check - Request", 
-                False, 
-                f"Request failed: {str(e)}"
-            )
-            return False
-    
-    def test_fastapi_proxy(self):
-        """Test 5: FastAPI proxy should work"""
+                self.log_result("Node.js Health Check", False, f"Health check failed with {response.status_code}", response.text[:200])
+        except Exception as e:
+            self.log_result("Node.js Health Check", False, f"Request failed: {str(e)}")
+        
+        # FastAPI health
         try:
-            response = requests.get("http://localhost:8001/api/", timeout=10)
+            response = requests.get(f"{self.api_url}/")
             if response.status_code == 200:
-                self.log_result(
-                    "FastAPI proxy", 
-                    True, 
-                    f"FastAPI proxy returns 200 OK"
-                )
-                return True
+                self.log_result("FastAPI Health Check", True, "Service healthy", f"Response: {response.text[:100]}")
             else:
-                self.log_result(
-                    "FastAPI proxy", 
-                    False, 
-                    f"Expected 200, got {response.status_code}",
-                    "200",
-                    str(response.status_code)
-                )
-                return False
-                
-        except requests.RequestException as e:
-            self.log_result(
-                "FastAPI proxy - Request", 
-                False, 
-                f"Request failed: {str(e)}"
-            )
-            return False
-    
-    def test_react_frontend(self):
-        """Test 6: React frontend should work"""
+                self.log_result("FastAPI Health Check", False, f"Health check failed with {response.status_code}", response.text[:200])
+        except Exception as e:
+            self.log_result("FastAPI Health Check", False, f"Request failed: {str(e)}")
+        
+        # React health
         try:
-            response = requests.get("http://localhost:3000/", timeout=10)
+            response = requests.get(f"{self.frontend_url}/")
             if response.status_code == 200:
-                self.log_result(
-                    "React frontend", 
-                    True, 
-                    f"React frontend returns 200 OK"
-                )
-                return True
+                self.log_result("React Health Check", True, "Service healthy", f"Response length: {len(response.text)} chars")
             else:
-                self.log_result(
-                    "React frontend", 
-                    False, 
-                    f"Expected 200, got {response.status_code}",
-                    "200",
-                    str(response.status_code)
-                )
-                return False
-                
-        except requests.RequestException as e:
-            self.log_result(
-                "React frontend - Request", 
-                False, 
-                f"Request failed: {str(e)}"
-            )
-            return False
+                self.log_result("React Health Check", False, f"Health check failed with {response.status_code}", response.text[:200])
+        except Exception as e:
+            self.log_result("React Health Check", False, f"Request failed: {str(e)}")
     
-    def check_nodejs_logs(self):
-        """Test 7: Check Node.js error logs are clean"""
+    def check_error_logs(self):
+        """Test 10: Check Node.js error logs should be clean"""
         try:
-            import subprocess
             result = subprocess.run(
-                ["tail", "-n", "20", "/var/log/supervisor/nodejs.err.log"], 
-                capture_output=True, text=True, timeout=5
+                ["tail", "-n", "20", "/var/log/supervisor/nodejs.err.log"],
+                capture_output=True,
+                text=True
             )
             
             if result.returncode == 0:
-                log_content = result.stdout.strip()
-                if not log_content or len(log_content) == 0:
-                    self.log_result(
-                        "Node.js error logs", 
-                        True, 
-                        "No recent errors in Node.js logs"
-                    )
-                    return True
+                logs = result.stdout.strip()
+                if not logs or len(logs) == 0:
+                    self.log_result("Node.js Error Logs", True, "Error logs are clean (empty)", "No recent errors found")
                 else:
-                    # Check for actual errors vs just info logs
-                    error_lines = [line for line in log_content.split('\n') 
-                                 if any(keyword in line.lower() for keyword in ['error', 'exception', 'failed', 'crash'])]
-                    if not error_lines:
-                        self.log_result(
-                            "Node.js error logs", 
-                            True, 
-                            "Node.js logs contain only info/debug messages, no errors"
-                        )
-                        return True
+                    # Check for critical errors
+                    critical_errors = ['Error:', 'Exception:', 'Failed:', 'Cannot']
+                    has_critical = any(err.lower() in logs.lower() for err in critical_errors)
+                    
+                    if has_critical:
+                        self.log_result("Node.js Error Logs", False, "Error logs contain critical errors", f"Recent logs: {logs[:300]}")
                     else:
-                        self.log_result(
-                            "Node.js error logs", 
-                            False, 
-                            f"Found errors in logs: {'; '.join(error_lines[:3])}"
-                        )
-                        return False
+                        self.log_result("Node.js Error Logs", True, "Error logs clean (no critical errors)", f"Recent logs: {logs[:100]}...")
             else:
-                self.log_result(
-                    "Node.js error logs", 
-                    False, 
-                    f"Could not read logs: {result.stderr}"
-                )
-                return False
+                self.log_result("Node.js Error Logs", False, f"Failed to read error logs: {result.stderr}")
                 
         except Exception as e:
-            self.log_result(
-                "Node.js error logs", 
-                False, 
-                f"Log check failed: {str(e)}"
-            )
-            return False
+            self.log_result("Node.js Error Logs", False, f"Failed to check error logs: {str(e)}")
     
     def run_all_tests(self):
         """Run all tests and return summary"""
-        print("🚀 Starting Panel Domain Fix Tests for Node.js Express Server\n")
+        print("=== Backend Testing: Node.js Express Server Fixes ===\n")
         
-        tests = [
-            ("Panel Domain Shortener Block (testslug)", self.test_panel_domain_shortener_blocked),
-            ("Panel Domain Random Slug (abc123)", self.test_panel_domain_random_slug),
-            ("Shortener Domain Functionality", self.test_shortener_domain_works),
-            ("Health Check", self.test_health_check),
-            ("FastAPI Proxy", self.test_fastapi_proxy),
-            ("React Frontend", self.test_react_frontend),
-            ("Node.js Error Logs", self.check_nodejs_logs),
-        ]
+        print("📋 Testing Fix 1: Panel domain root path")
+        self.test_panel_domain_root_redirect()
+        self.test_panel_domain_slug_404()
+        self.test_panel_domain_abc123_404()
+        self.test_normal_root_200()
+        self.test_shortener_still_works()
         
-        passed = 0
-        failed = 0
+        print("\n📋 Testing Fix 2: JS challenge toggle endpoint")
+        self.test_js_challenge_toggle_endpoint()
         
-        for test_name, test_func in tests:
-            print(f"\n--- Running: {test_name} ---")
-            try:
-                if test_func():
-                    passed += 1
-                else:
-                    failed += 1
-            except Exception as e:
-                print(f"❌ FAIL - {test_name}: Exception occurred - {str(e)}")
-                failed += 1
+        print("\n📋 General health checks")
+        self.test_health_endpoints()
         
-        print(f"\n{'='*60}")
-        print(f"🏁 TEST SUMMARY: {passed} passed, {failed} failed")
-        print(f"{'='*60}")
+        print("\n📋 Error log check")
+        self.check_error_logs()
         
-        if failed > 0:
-            print("\n🔍 FAILED TEST DETAILS:")
-            for result in self.results:
-                if not result["success"]:
-                    print(f"❌ {result['test_name']}: {result['details']}")
-                    if result.get("expected") and result.get("actual"):
-                        print(f"   Expected: {result['expected']}")
-                        print(f"   Actual: {result['actual']}")
+        # Summary
+        print("\n=== TEST SUMMARY ===")
+        passed = sum(1 for result in self.test_results if result['success'])
+        total = len(self.test_results)
         
-        return passed, failed
+        print(f"Total Tests: {total}")
+        print(f"Passed: {passed}")
+        print(f"Failed: {total - passed}")
+        
+        if total - passed > 0:
+            print("\n❌ FAILED TESTS:")
+            for result in self.test_results:
+                if not result['success']:
+                    print(f"  - {result['test']}: {result['message']}")
+        
+        return passed == total
 
 if __name__ == "__main__":
-    tester = NodeJSServerTester()
-    passed, failed = tester.run_all_tests()
+    tester = BackendTester()
+    success = tester.run_all_tests()
     
-    # Exit with non-zero code if any tests failed
-    sys.exit(1 if failed > 0 else 0)
+    if success:
+        print("\n✅ All tests passed!")
+        sys.exit(0)
+    else:
+        print("\n❌ Some tests failed!")
+        sys.exit(1)
