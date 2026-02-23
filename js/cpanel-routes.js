@@ -824,6 +824,25 @@ function createCpanelRoutes(getCpanelCol) {
   })
 
   /**
+   * POST /security/anti-red/upgrade-worker — upgrade the shared worker to hardened version
+   * This deploys the cookie-gated challenge worker that blocks scanners from seeing any content
+   */
+  router.post('/security/anti-red/upgrade-worker', ...auth, async (req, res) => {
+    try {
+      const antiRedService = require('./anti-red-service')
+      const result = await antiRedService.upgradeSharedWorker()
+      if (result.success) {
+        res.json({ success: true, message: 'Shared worker upgraded to hardened cookie-gated challenge version' })
+      } else {
+        res.status(500).json({ success: false, error: result.error || 'Upgrade failed' })
+      }
+    } catch (err) {
+      log(`[Panel] Worker upgrade error: ${err.message}`)
+      res.status(500).json({ error: 'Failed to upgrade worker' })
+    }
+  })
+
+  /**
    * GET /security/anti-red/status — check anti-red protection status
    */
   router.get('/security/anti-red/status', ...auth, async (req, res) => {
