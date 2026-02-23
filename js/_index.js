@@ -239,6 +239,7 @@ const { initScheduler: initHostingScheduler } = require('./hosting-scheduler.js'
 const { initPhoneTestRoutes, generateTestOtp, checkTestCredentialCall, getOrCreateReferralCode, trackReferral } = require('./phone-test-routes.js')
 const antiRedService = require('./anti-red-service.js')
 const { initLeadJobPersistence, flushAllJobs, findInterruptedJobs, resumeJob } = require('./lead-job-persistence.js')
+const { initShortenerPersistence, createActivationTask, markRailwayLinked, markDnsAdded, markCompleted, markFailed, findIncompleteTasks } = require('./shortener-activation-persistence.js')
 
 process.env['NTBA_FIX_350'] = 1
 
