@@ -2749,12 +2749,21 @@ bot?.on('message', async msg => {
       }
       const totalPrice = domainPrice + hostingPrice;
 
+      // Save to DB
       saveInfo("couponApplied", false);
       saveInfo("couponDiscount", 0);
       saveInfo("hostingPrice", hostingPrice);
       saveInfo("totalPrice", totalPrice);
       saveInfo("planName", info.plan);
       saveInfo("duration", info.plan.includes('1-Week') ? '1 Week' : '1 Month');
+
+      // Also update local info snapshot so goto['hosting-pay'] can read them immediately
+      info.couponApplied = false
+      info.couponDiscount = 0
+      info.hostingPrice = hostingPrice
+      info.totalPrice = totalPrice
+      info.planName = info.plan
+      info.duration = info.plan.includes('1-Week') ? '1 Week' : '1 Month'
 
       // Skip the intermediate "Proceed with Payment" screen — go directly to payment method selection
       return goto['hosting-pay']()
