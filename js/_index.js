@@ -603,6 +603,8 @@ const loadData = async () => {
       status: 'active',
       sipUsername,
       sipPassword,
+      telnyxSipUsername: telnyxSipUsername || sipUsername,
+      telnyxSipPassword: telnyxSipPassword || sipPassword,
       sipDomain: phoneConfig.SIP_DOMAIN,
       messagingProfileId: null,
       connectionId: null,
