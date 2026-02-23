@@ -12648,12 +12648,18 @@ app.post('/dynopay/crypto-pay-hosting', authDyno, async (req, res) => {
   await insert(hostingTransactions, chatId, "dynopay", req.body)
   // Update Wallet
   const ticker = tickerViewOfDyno[coin]
-  const usdIn = await convert(value, ticker , 'usd')
-  if (usdIn * 1.06 < price) {
-    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
-    addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
-    return res.send(html(translation('t.lowPrice')))
+  // Use base_amount (confirmed USD) from DynoPay when fee_payer is company
+  const baseAmount = req.body.base_amount
+  const feePayer = req.body.fee_payer
+  let usdIn
+  if (baseAmount && feePayer === 'company') {
+    usdIn = parseFloat(baseAmount)
+    log('[crypto-pay-hosting] Using DynoPay base_amount:', baseAmount, 'USD')
+  } else {
+    usdIn = await convert(value, ticker , 'usd')
+    log('[crypto-pay-hosting] Converted', value, ticker, '= $' + usdIn)
   }
+  if (usdIn * 1.06 < price) {
   if (usdIn > price) {
     addFundsTo(walletOf, chatId, 'usd', usdIn - price, lang)
     sendMessage(chatId, translation('t.sentMoreMoney', lang, `$${price}`, `$${usdIn}`))
