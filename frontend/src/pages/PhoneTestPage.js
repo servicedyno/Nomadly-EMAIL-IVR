@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { TelnyxRTC } from '@telnyx/webrtc';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 const SIP_DOMAIN = 'sip.speechcue.com';
 const MAX_CALL_DURATION = 60;
 const TELEGRAM_BOT_URL = 'https://t.me/Nomadlybot';
