@@ -1131,6 +1131,197 @@ async function deploySharedWorkerRoute(domain, zoneId) {
   }
 }
 
+// ─── Hardened Shared Worker Script ──────────────────────
+// Cookie-gated challenge: origin content NEVER served without valid challenge cookie.
+// Scanners see ONLY the challenge page, never the actual site.
+
+function generateHardenedWorkerScript() {
+  const blockedUAs = SCANNER_USER_AGENTS.map(ua => `'${ua}'`).join(',')
+  const scannerIPs = SCANNER_IP_RANGES.map(ip => `'${ip}'`).join(',')
+
+  return `
+addEventListener('fetch', e => e.respondWith(handleRequest(e.request)));
+
+const BLOCKED_UAS = [${blockedUAs}];
+const SCANNER_IPS = [${scannerIPs}];
+const COOKIE_NAME = '__ar_v';
+const COOKIE_MAX_AGE = 86400;
+const SECRET = 'ar_' + '${Date.now().toString(36)}';
+
+function ipInRange(ip, cidr) {
+  if (!cidr.includes('/')) return ip === cidr;
+  const [range, bits] = cidr.split('/');
+  const mask = ~(2 ** (32 - parseInt(bits)) - 1);
+  const ipNum = ip.split('.').reduce((a, o) => (a << 8) + parseInt(o), 0);
+  const rangeNum = range.split('.').reduce((a, o) => (a << 8) + parseInt(o), 0);
+  return (ipNum & mask) === (rangeNum & mask);
+}
+
+async function hmac(message) {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey('raw', enc.encode(SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(message));
+  return [...new Uint8Array(sig)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function verifyCookie(cookieHeader) {
+  if (!cookieHeader) return false;
+  const match = cookieHeader.match(new RegExp(COOKIE_NAME + '=([^;]+)'));
+  if (!match) return false;
+  try {
+    const [ts, sig] = atob(match[1]).split('|');
+    const age = Math.floor(Date.now() / 1000) - parseInt(ts);
+    if (age < 0 || age > COOKIE_MAX_AGE) return false;
+    const expected = await hmac(ts);
+    return sig === expected;
+  } catch { return false; }
+}
+
+async function makeCookieValue() {
+  const ts = Math.floor(Date.now() / 1000).toString();
+  const sig = await hmac(ts);
+  return btoa(ts + '|' + sig);
+}
+
+const CHALLENGE_PAGE = \`<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Security Check</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0a;color:#e0e0e0;display:flex;justify-content:center;align-items:center;min-height:100vh}.c{text-align:center;padding:40px;max-width:420px}.s{width:40px;height:40px;border:3px solid #333;border-top-color:#4f8fff;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 24px}@keyframes spin{to{transform:rotate(360deg)}}.t{font-size:18px;margin-bottom:8px;color:#fff}.d{color:#888;font-size:14px}.p{margin-top:20px;height:4px;background:#222;border-radius:2px;overflow:hidden}.pb{height:100%;background:linear-gradient(90deg,#4f8fff,#7c5cff);width:0%;transition:width 0.3s;border-radius:2px}.f{margin-top:16px;color:#555;font-size:12px}</style>
+</head><body><div class="c"><div class="s"></div><div class="t">Verifying your browser</div><div class="d">This is an automatic security check</div><div class="p"><div class="pb" id="pb"></div></div><div class="f" id="st">Please wait...</div></div>
+<script>
+(function(){
+  var sc=0,pb=document.getElementById('pb'),st=document.getElementById('st');
+  function up(p,t){pb.style.width=p+'%';st.textContent=t;}
+  up(10,'Checking browser environment...');
+  if(navigator.webdriver)sc+=40;
+  if(/HeadlessChrome|PhantomJS|Nightmare/.test(navigator.userAgent))sc+=50;
+  if(navigator.plugins.length===0&&!/Mobile|Android|iPhone/.test(navigator.userAgent))sc+=15;
+  if(!navigator.languages||navigator.languages.length===0)sc+=20;
+  if(window._phantom||window.__nightmare||window.callPhantom)sc+=50;
+  if(document.__selenium_unwrapped||document.__webdriver_evaluate||document.__driver_evaluate)sc+=50;
+  if(window.chrome===undefined&&/Chrome/.test(navigator.userAgent)&&!/Edge|Edg|OPR/.test(navigator.userAgent))sc+=25;
+  try{var c=document.createElement('canvas'),g=c.getContext('2d');g.fillText('ar',2,2);if(c.toDataURL().length<500)sc+=20;}catch(e){sc+=10;}
+  var cn=navigator.connection||navigator.mozConnection||navigator.webkitConnection;
+  if(cn&&cn.rtt===0&&!/localhost/.test(location.hostname))sc+=15;
+  if(!window.requestAnimationFrame)sc+=10;
+  if(typeof window.SharedArrayBuffer==='undefined'&&/Chrome\\/[89]/.test(navigator.userAgent))sc+=10;
+  try{if(window.outerWidth===0||window.outerHeight===0)sc+=20;}catch(e){}
+  setTimeout(function(){up(40,'Verifying identity...');},500);
+  setTimeout(function(){up(70,'Almost done...');},1500);
+  setTimeout(function(){
+    if(sc>=40){
+      up(100,'Verification failed');
+      st.style.color='#f44';
+      document.querySelector('.s').style.borderTopColor='#f44';
+      document.querySelector('.s').style.animationPlayState='paused';
+      return;
+    }
+    up(100,'Verified');
+    var d=new Date();d.setTime(d.getTime()+86400000);
+    fetch(location.pathname,{method:'HEAD',headers:{'X-AR-Challenge':'1'}}).then(function(r){
+      var cv=r.headers.get('X-AR-Cookie');
+      if(cv){document.cookie='__ar_v='+cv+';expires='+d.toUTCString()+';path=/;SameSite=Lax;Secure';}
+      location.reload();
+    }).catch(function(){location.reload();});
+  },2500);
+})();
+</script></body></html>\`;
+
+async function handleRequest(request) {
+  const ua = request.headers.get('User-Agent') || '';
+  const url = new URL(request.url);
+  const ip = request.headers.get('CF-Connecting-IP') || '';
+
+  // 1. Block known scanner UAs immediately
+  if (!ua || BLOCKED_UAS.some(b => ua.includes(b))) {
+    return new Response('<html><body><h1>403</h1></body></html>', {
+      status: 403, headers: { 'Content-Type': 'text/html', 'X-AntiRed': 'blocked-ua' },
+    });
+  }
+
+  // 2. Block known scanner IPs
+  if (ip && SCANNER_IPS.some(cidr => ipInRange(ip, cidr))) {
+    return new Response('<html><body><h1>403</h1></body></html>', {
+      status: 403, headers: { 'Content-Type': 'text/html', 'X-AntiRed': 'blocked-ip' },
+    });
+  }
+
+  // 3. Skip challenge for static assets
+  const ext = url.pathname.split('.').pop().toLowerCase();
+  const staticExts = ['css','js','png','jpg','jpeg','gif','svg','ico','woff','woff2','ttf','eot','map','json','xml','txt','pdf','zip','mp4','mp3','webp','avif'];
+  if (staticExts.includes(ext)) {
+    return fetch(request);
+  }
+
+  // 4. Handle challenge verification callback (HEAD request from JS)
+  if (request.method === 'HEAD' && request.headers.get('X-AR-Challenge') === '1') {
+    const cv = await makeCookieValue();
+    return new Response(null, {
+      status: 204,
+      headers: { 'X-AR-Cookie': cv, 'Cache-Control': 'no-store' },
+    });
+  }
+
+  // 5. Check for valid challenge cookie
+  const cookies = request.headers.get('Cookie') || '';
+  if (await verifyCookie(cookies)) {
+    // Cookie valid — pass through to origin, add lightweight tracking header
+    const response = await fetch(request);
+    const newHeaders = new Headers(response.headers);
+    newHeaders.set('X-AntiRed', 'verified');
+    return new Response(response.body, { status: response.status, headers: newHeaders });
+  }
+
+  // 6. No valid cookie — serve challenge page (NEVER show origin content)
+  return new Response(CHALLENGE_PAGE, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store, no-cache',
+      'X-AntiRed': 'challenge',
+    },
+  });
+}
+`
+}
+
+/**
+ * Upload/update the shared 'antired-challenge' worker script to Cloudflare.
+ * This is the hardened version with cookie-gated challenge.
+ */
+async function upgradeSharedWorker() {
+  const CF_API_KEY = process.env.CLOUDFLARE_API_KEY
+  const CF_EMAIL = process.env.CLOUDFLARE_EMAIL
+  const ACCOUNT_ID = 'ed6035ebf6bd3d85f5b26c60189a21e2' // From CF account
+
+  if (!CF_API_KEY || !CF_EMAIL) {
+    return { success: false, error: 'Missing Cloudflare credentials' }
+  }
+
+  const workerScript = generateHardenedWorkerScript()
+
+  try {
+    const res = await axios.put(
+      `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/workers/scripts/antired-challenge`,
+      workerScript,
+      {
+        headers: {
+          'X-Auth-Email': CF_EMAIL,
+          'X-Auth-Key': CF_API_KEY,
+          'Content-Type': 'application/javascript',
+        },
+        timeout: 30000,
+      }
+    )
+    const ok = res.data?.success !== false
+    log(`[AntiRed] Shared worker upgraded: ${ok ? 'OK' : 'FAIL'}`)
+    return { success: ok }
+  } catch (err) {
+    log(`[AntiRed] Shared worker upgrade error: ${err.message}`)
+    return { success: false, error: err.message }
+  }
+}
+
 /**
  * Deploy ALL anti-red protections for a hosting account
  */
