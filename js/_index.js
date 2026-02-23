@@ -2787,13 +2787,7 @@ bot?.on('message', async msg => {
 
     // Step 6: Proceed with Payment
     proceedWithPaymentProcess: async () => {
-      send(chatId, hP.generatePlanStepText('paymentConfirmation'), k.of([t.iHaveSentThePayment]))
-    },
-
-    // Step 6.1: I have sent the payment
-    iHaveSentThePayment: async () => {
-      set(state, chatId, 'action', 'none')
-      send(chatId, hP.generatePlanStepText('paymentSuccess'), trans('o'))
+      send(chatId, hP.generatePlanStepText('paymentConfirmation'), trans('o'))
     },
 
     // My Hosting Plans
