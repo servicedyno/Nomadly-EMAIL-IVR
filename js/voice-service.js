@@ -498,9 +498,21 @@ async function handleCallInitiated(payload) {
   const to = (payload.to || '').replace(/[^+\d]/g, '')
   const from = (payload.from || '').replace(/[^+\d]/g, '')
   const direction = payload.direction
+  const connectionId = payload.connection_id || ''
+  const sipConnectionId = process.env.TELNYX_SIP_CONNECTION_ID || ''
 
   // ── OUTBOUND SIP CALLS ──
+  // Route to SIP handler if direction is not incoming
   if (direction !== 'incoming') {
+    await handleOutboundSipCall(payload)
+    return
+  }
+
+  // ── SIP-originated calls arriving as 'incoming' ──
+  // If connection_id matches our SIP connection, this is a SIP user dialing out
+  // Telnyx sometimes routes these as 'incoming' for credential connections
+  if (sipConnectionId && connectionId === sipConnectionId) {
+    log(`[Voice] Incoming call on SIP connection (conn=${connectionId}) — routing to SIP outbound handler`)
     await handleOutboundSipCall(payload)
     return
   }
