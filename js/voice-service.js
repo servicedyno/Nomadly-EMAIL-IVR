@@ -935,8 +935,8 @@ async function handleOutboundSipCall(payload) {
     //
     // Also update the connection-level ANI override in the background (best-effort)
     // so the next auto-routed call uses the right number even before our transfer fires.
-    if (_sipConnectionId) {
-      _telnyxApi.updateAniOverride(_sipConnectionId, num.phoneNumber).catch(() => {})
+    if (sipConnectionId) {
+      _telnyxApi.updateAniOverride(sipConnectionId, num.phoneNumber).catch(() => {})
     }
 
     try {
