@@ -244,12 +244,15 @@ export default function DomainList() {
     if (sslLoading && !info) return <span className="dl-ssl-badge dl-ssl-badge--loading" data-testid={`dl-ssl-loading-${domain}`}>SSL...</span>;
     if (!info) return <span className="dl-ssl-badge dl-ssl-badge--none" data-testid={`dl-ssl-none-${domain}`}>No SSL</span>;
     if (info.status === 'valid') {
-      const tip = `${info.issuer}${info.daysLeft != null ? ` - ${info.daysLeft}d left` : ''}`;
+      const isCF = info.cloudflare;
+      const tip = isCF
+        ? `Cloudflare SSL (${info.cfSSLMode || 'active'})`
+        : `${info.issuer}${info.daysLeft != null && info.daysLeft >= 0 ? ` - ${info.daysLeft}d left` : ''}`;
       return (
-        <span className="dl-ssl-badge dl-ssl-badge--valid" title={tip} data-testid={`dl-ssl-valid-${domain}`}>
+        <span className={`dl-ssl-badge dl-ssl-badge--valid${isCF ? ' dl-ssl-badge--cf' : ''}`} title={tip} data-testid={`dl-ssl-valid-${domain}`}>
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-          SSL
-          {info.daysLeft != null && <span className="dl-ssl-days">{info.daysLeft}d</span>}
+          {isCF ? 'CF SSL' : 'SSL'}
+          {!isCF && info.daysLeft != null && info.daysLeft >= 0 && <span className="dl-ssl-days">{info.daysLeft}d</span>}
         </span>
       );
     }
