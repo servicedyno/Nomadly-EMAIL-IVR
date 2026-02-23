@@ -1161,7 +1161,7 @@ async function handleCallAnswered(payload) {
     return
   }
 
-  // 4. No features — notify missed call and hang up
+  // 5. No features / no SIP device — notify missed call and hang up
   session.phase = 'missed'
   await _telnyxApi.speakOnCall(callControlId, 'This number is currently unavailable. Please try again later.')
   setTimeout(async () => {
