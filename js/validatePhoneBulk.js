@@ -199,15 +199,11 @@ const validateBulkNumbers = async (carrier, phonesToGenerate, countryCode, areaC
       startPeriodicSave(jobId, () => ({ results: res, realNameCount }))
     }
   }
+  let i = 0
   let elapsedTime = 0
   let noHitCount = 0
   const startTime = new Date()
   const t = translation('t', lang)
-
-  // ── Start periodic progress saves ──
-  if (jobId) {
-    startPeriodicSave(jobId, () => ({ results: res, realNameCount }))
-  }
 
   try {
     // When requireRealName is true, we keep going until we have enough leads with real person names
