@@ -30,8 +30,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Async HTTP client for proxying to Node.js
-http_client = httpx.AsyncClient(timeout=30.0)
+# Async HTTP client for proxying to Node.js (60s timeout for long WHM API calls like AutoSSL)
+http_client = httpx.AsyncClient(timeout=60.0)
 
 
 # ============================================================
