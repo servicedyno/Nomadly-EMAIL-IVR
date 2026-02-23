@@ -11226,6 +11226,9 @@ const buyDomainFullProcess = async (chatId, lang, domain) => {
 
     if (info?.askDomainToUseWithShortener === false) return
 
+    // ── Persist shortener activation intent ──
+    await createActivationTask(chatId, domain, lang)
+
     // Link domain to Railway/Render for URL shortener
     const { server, error, recordType } =
       process.env.HOSTED_ON === 'render'
@@ -11235,8 +11238,13 @@ const buyDomainFullProcess = async (chatId, lang, domain) => {
     if (error) {
       const m = translation('t.errorSavingDomain', lang)
       sendMessage(chatId, m)
+      await markFailed(domain, error).catch(() => {})
       return m
     }
+
+    // ── Persist Railway link complete ──
+    await markRailwayLinked(domain, server, recordType)
+
     sendMessage(chatId, translation('t.domainLinking', lang, domain))
 
     // Add DNS record via unified domainService — auto-routes to Cloudflare
@@ -11254,16 +11262,25 @@ const buyDomainFullProcess = async (chatId, lang, domain) => {
         if (saveServerInDomainError) {
           const m = `Error saving DNS record for domain: ${saveServerInDomainError}`
           sendMessage(chatId, m)
+          await markFailed(domain, saveServerInDomainError).catch(() => {})
           return m
         }
       } else {
         const m = `Error saving DNS record for domain: ${addResult.error || 'Unknown error'}`
         sendMessage(chatId, m)
+        await markFailed(domain, addResult.error || 'Unknown error').catch(() => {})
         return m
       }
     }
+
+    // ── Persist DNS complete ──
+    await markDnsAdded(domain)
+
     sendMessage(chatId, translation('t.domainBought', lang).replaceAll('{{domain}}', domain))
     regularCheckDns(bot, chatId, domain, lang)
+
+    // ── Persist fully completed ──
+    await markCompleted(domain)
 
     // Auto-deploy Anti-Red protection if domain has Cloudflare
     try {
