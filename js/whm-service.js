@@ -101,56 +101,86 @@ async function createAccount(domain, plan, email, customUsername, opts = {}) {
   const pkg = PLAN_MAP[plan.toLowerCase()]
   if (!pkg) return { success: false, error: `Unknown plan: ${plan}` }
 
-  const username = customUsername || generateUsername(domain)
-  const password = generatePassword()
-
   // If Cloudflare NS, ensure WHM allows remote domains first
   if (opts.useCloudflareNS) {
     await ensureCloudflareTweaks()
   }
 
-  try {
-    const params = {
-      'api.version': 1,
-      username,
-      domain,
-      plan: pkg,
-      contactemail: email,
-      password,
-      maxpark: 'unlimited',
-      maxaddon: 'unlimited',
-    }
+  const MAX_RETRIES = 3
+  let lastError = ''
 
-    // Skip DNS check for Cloudflare-pointed domains (domain won't resolve to WHM yet)
-    if (opts.useCloudflareNS) {
-      params.skip_dns_check = 1
-    }
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    const username = customUsername || generateUsername(domain)
+    const password = generatePassword()
 
-    const res = await whmApi.get('/createacct', { params })
+    try {
+      const params = {
+        'api.version': 1,
+        username,
+        domain,
+        plan: pkg,
+        contactemail: email,
+        password,
+        maxpark: 'unlimited',
+        maxaddon: 'unlimited',
+      }
 
-    const meta = res.data?.metadata
-    if (meta?.result !== 1) {
-      return { success: false, error: meta?.reason || 'Account creation failed' }
-    }
+      // Skip DNS check for Cloudflare-pointed domains (domain won't resolve to WHM yet)
+      if (opts.useCloudflareNS) {
+        params.skip_dns_check = 1
+      }
 
-    log(`[WHM] Account created: ${username}@${domain} (${pkg})`)
-    return {
-      success: true,
-      username,
-      password,
-      domain,
-      url: `https://${WHM_HOST}:2083`,
-      nameservers: {
-        ns1: `ns1.${WHM_HOST}`,
-        ns2: `ns2.${WHM_HOST}`,
-      },
-      package: pkg,
+      const res = await whmApi.get('/createacct', { params })
+
+      const meta = res.data?.metadata
+      if (meta?.result !== 1) {
+        const reason = meta?.reason || 'Account creation failed'
+
+        // If the error is retryable (reserved/taken username), try again with a new username
+        if (!customUsername && attempt < MAX_RETRIES && isRetryableError(reason)) {
+          log(`[WHM] Username "${username}" failed (${reason}), retrying with new username (attempt ${attempt}/${MAX_RETRIES})...`)
+          lastError = reason
+          continue
+        }
+
+        return { success: false, error: reason }
+      }
+
+      if (attempt > 1) {
+        log(`[WHM] Account created on retry ${attempt}: ${username}@${domain} (${pkg})`)
+      } else {
+        log(`[WHM] Account created: ${username}@${domain} (${pkg})`)
+      }
+      return {
+        success: true,
+        username,
+        password,
+        domain,
+        url: `https://${WHM_HOST}:2083`,
+        nameservers: {
+          ns1: `ns1.${WHM_HOST}`,
+          ns2: `ns2.${WHM_HOST}`,
+        },
+        package: pkg,
+      }
+    } catch (err) {
+      const errMsg = err.response?.data?.metadata?.reason || err.message
+
+      // If the error is retryable, try again with a new username
+      if (!customUsername && attempt < MAX_RETRIES && isRetryableError(errMsg)) {
+        log(`[WHM] Username "${username}" failed (${errMsg}), retrying with new username (attempt ${attempt}/${MAX_RETRIES})...`)
+        lastError = errMsg
+        continue
+      }
+
+      log(`[WHM] createAccount error: ${errMsg}`)
+      return { success: false, error: errMsg }
     }
-  } catch (err) {
-    const errMsg = err.response?.data?.metadata?.reason || err.message
-    log(`[WHM] createAccount error: ${errMsg}`)
-    return { success: false, error: errMsg }
   }
+
+  // All retries exhausted
+  log(`[WHM] createAccount failed after ${MAX_RETRIES} attempts: ${lastError}`)
+  return { success: false, error: lastError }
 }
 
 /**
