@@ -239,6 +239,7 @@ const PhoneTestPage = () => {
             }
             if (state === 'active') {
               addLog('Inbound call connected');
+              stopRingtone();
               setIncomingCall(null);
               setCallStatus('active');
               startCallTimer();
@@ -250,6 +251,7 @@ const PhoneTestPage = () => {
             }
             if (state === 'hangup' || state === 'destroy' || state === 'purge') {
               addLog(`Inbound call ended: ${call.cause || 'ended'}`);
+              stopRingtone();
               setIncomingCall(null);
               setIncomingCaller('');
               setIncomingCallerName('');
