@@ -134,7 +134,15 @@ const validateNumber = async (carrier, countryCode, areaCode, cnam) => {
     return [...res1]
   }
 
-  return [...res1, await validatePhoneSignalwire(phone)]
+  // Use unified CNAM service (Telnyx → Multitel → SignalWire + cache)
+  // Falls back to legacy SignalWire-only lookup if cnam-service not initialized
+  try {
+    const name = await lookupCnam(phone)
+    return [...res1, name || 'Not Found']
+  } catch (e) {
+    // Fallback to legacy SignalWire direct lookup
+    return [...res1, await validatePhoneSignalwire(phone)]
+  }
 }
 
 const validateNumbersParallel = async (carrier, length, countryCode, areaCode, cnam) => {
