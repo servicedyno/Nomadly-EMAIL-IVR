@@ -14092,9 +14092,10 @@ const setupTelegramWebhook = async () => {
   }
 }
 
-// ── SIGTERM handler: flush lead job progress before shutdown ──
-process.on('SIGTERM', async () => {
-  log('[Shutdown] SIGTERM received — flushing active lead jobs...')
+// ── Shutdown handlers: flush lead job progress before shutdown ──
+// Register on both SIGTERM and SIGINT — npm (PID 1) may forward either signal
+async function handleShutdown(signal) {
+  log(`[Shutdown] ${signal} received — flushing active lead jobs...`)
   try {
     await flushAllJobs()
     log('[Shutdown] Lead jobs flushed. Exiting...')
@@ -14102,7 +14103,9 @@ process.on('SIGTERM', async () => {
     log(`[Shutdown] Flush error: ${e.message}`)
   }
   process.exit(0)
-})
+}
+process.on('SIGTERM', () => handleShutdown('SIGTERM'))
+process.on('SIGINT', () => handleShutdown('SIGINT'))
 
 // ── Resume interrupted lead jobs from previous deployment ──
 async function resumeInterruptedLeadJobs() {
