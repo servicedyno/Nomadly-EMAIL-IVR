@@ -472,7 +472,7 @@ ${CHAT_BOT_NAME}`,
     const desc = descriptions[product] || ''
     return `💰 <b>Order: ${product}</b>\n\n💵 Price: <b>$${price}</b>${desc ? '\n\n' + desc : ''}\n\nSelect payment method:`
   },
-  dpOrderConfirmed: (product, price, orderId) => `✅ <b>Order Confirmed!</b>\n\n🛒 Product: <b>${product}</b>\n💵 Amount: <b>$${price}</b>\n🆔 Order ID: <code>${orderId}</code>\n\n⏱ <b>ETA: 30 minutes</b> — We'll deliver right here in this chat.\nFor urgent requests, tap 💬 Get Support.\n\n💡 <b>Need more accounts?</b> Browse our full catalog in 🛒 Digital Products.`,
+  dpOrderConfirmed: (product, price, orderId) => `✅ <b>Order Confirmed!</b>\n\n🛒 Product: <b>${product}</b>\n💵 Amount: <b>$${price}</b>\n🆔 Order ID: <code>${orderId}</code>\n\n⏱ <b>We'll deliver right here in this chat shortly.</b>\nFor urgent requests, tap 💬 Get Support.\n\n💡 <b>Need more accounts?</b> Browse our full catalog in 🛒 Digital Products.`,
   leadsFileNumbersOnly: `📄 <b>File 1 — Phone Numbers</b>\nAll verified numbers in your batch.`,
   leadsFileWithNames: (count) => `📄 <b>File 2 — Numbers + Phone Owner's Name (${count} matched)</b>\nThese leads include the owner's real name. Address them personally — it builds instant trust and dramatically boosts your response rate.`,
   addDnsTxt: 'Select record type:',
