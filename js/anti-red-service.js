@@ -1065,31 +1065,62 @@ async function deploySharedWorkerRoute(domain, zoneId) {
       `https://api.cloudflare.com/client/v4/zones/${zoneId}/workers/routes`,
       { headers: cfHeaders, timeout: 10000 }
     )
-    const existing = (routesRes.data?.result || []).find(
-      r => r.pattern === `${domain}/*` || r.pattern === `*.${domain}/*`
-    )
-    if (existing) {
+    const routes = routesRes.data?.result || []
+    const existingMain = routes.find(r => r.pattern === `${domain}/*`)
+    const existingWww = routes.find(r => r.pattern === `www.${domain}/*`)
+
+    const results = []
+
+    // Deploy main domain route
+    if (existingMain) {
       log(`[AntiRed] Worker route already exists for ${domain}`)
-      return { success: true, status: 'already_deployed', routeId: existing.id }
+      results.push({ domain, status: 'already_deployed', routeId: existingMain.id })
+    } else {
+      try {
+        const routeRes = await axios.post(
+          `https://api.cloudflare.com/client/v4/zones/${zoneId}/workers/routes`,
+          { pattern: `${domain}/*`, script: workerName },
+          { headers: { ...cfHeaders, 'Content-Type': 'application/json' }, timeout: 10000 }
+        )
+        if (routeRes.data?.success) {
+          log(`[AntiRed] Worker route deployed for ${domain} -> ${workerName}`)
+          results.push({ domain, status: 'deployed', routeId: routeRes.data.result?.id })
+        }
+      } catch (e) {
+        if (e.response?.data?.errors?.some(err => err.message?.includes('duplicate'))) {
+          results.push({ domain, status: 'already_deployed' })
+        } else {
+          log(`[AntiRed] Worker route error for ${domain}: ${e.message}`)
+        }
+      }
     }
 
-    // Create route pointing to the shared worker
-    const routeRes = await axios.post(
-      `https://api.cloudflare.com/client/v4/zones/${zoneId}/workers/routes`,
-      { pattern: `${domain}/*`, script: workerName },
-      { headers: { ...cfHeaders, 'Content-Type': 'application/json' }, timeout: 10000 }
-    )
-
-    if (routeRes.data?.success) {
-      log(`[AntiRed] Worker route deployed for ${domain} -> ${workerName}`)
-      return { success: true, status: 'deployed', routeId: routeRes.data.result?.id }
+    // Deploy www variant route
+    if (existingWww) {
+      log(`[AntiRed] Worker route already exists for www.${domain}`)
+      results.push({ domain: `www.${domain}`, status: 'already_deployed', routeId: existingWww.id })
+    } else {
+      try {
+        const wwwRes = await axios.post(
+          `https://api.cloudflare.com/client/v4/zones/${zoneId}/workers/routes`,
+          { pattern: `www.${domain}/*`, script: workerName },
+          { headers: { ...cfHeaders, 'Content-Type': 'application/json' }, timeout: 10000 }
+        )
+        if (wwwRes.data?.success) {
+          log(`[AntiRed] Worker route deployed for www.${domain} -> ${workerName}`)
+          results.push({ domain: `www.${domain}`, status: 'deployed', routeId: wwwRes.data.result?.id })
+        }
+      } catch (e) {
+        if (e.response?.data?.errors?.some(err => err.message?.includes('duplicate'))) {
+          results.push({ domain: `www.${domain}`, status: 'already_deployed' })
+        } else {
+          log(`[AntiRed] Worker route error for www.${domain}: ${e.message}`)
+        }
+      }
     }
-    return { success: false, status: 'route_failed', errors: routeRes.data?.errors }
+
+    return { success: true, status: results.length > 0 ? 'deployed' : 'no_changes', routes: results }
   } catch (err) {
-    if (err.response?.data?.errors?.some(e => e.message?.includes('duplicate'))) {
-      log(`[AntiRed] Worker route already exists for ${domain} (duplicate)`)
-      return { success: true, status: 'already_deployed', existing: true }
-    }
     log(`[AntiRed] Worker auto-deploy error for ${domain}: ${err.message}`)
     return { success: false, error: err.message }
   }
