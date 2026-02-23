@@ -46,12 +46,23 @@ const PhoneTestPage = () => {
   const [incomingCallerLocation, setIncomingCallerLocation] = useState('');
 
   // ── Ringtone via Web Audio API ──
+  // Pre-create AudioContext on user interaction (required for mobile)
+  const ensureAudioContext = useCallback(() => {
+    if (!ringtoneCtxRef.current || ringtoneCtxRef.current.state === 'closed') {
+      ringtoneCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (ringtoneCtxRef.current.state === 'suspended') {
+      ringtoneCtxRef.current.resume().catch(() => {});
+    }
+    return ringtoneCtxRef.current;
+  }, []);
+
   const startRingtone = useCallback(() => {
     try {
       if (ringtoneIntervalRef.current) return; // already ringing
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      ringtoneCtxRef.current = ctx;
+      const ctx = ensureAudioContext();
       const playRingBurst = () => {
+        if (ctx.state === 'closed') return;
         const now = ctx.currentTime;
         // Dual-tone ring (440Hz + 480Hz) for 1s, 2s silence (US ring cadence)
         const osc1 = ctx.createOscillator();
@@ -76,17 +87,14 @@ const PhoneTestPage = () => {
     } catch (e) {
       console.warn('Ringtone failed:', e);
     }
-  }, []);
+  }, [ensureAudioContext]);
 
   const stopRingtone = useCallback(() => {
     if (ringtoneIntervalRef.current) {
       clearInterval(ringtoneIntervalRef.current);
       ringtoneIntervalRef.current = null;
     }
-    if (ringtoneCtxRef.current) {
-      ringtoneCtxRef.current.close().catch(() => {});
-      ringtoneCtxRef.current = null;
-    }
+    // Don't close the context — keep it alive for next ring
   }, []);
 
   const isTestMode = activeTab === 'test';
