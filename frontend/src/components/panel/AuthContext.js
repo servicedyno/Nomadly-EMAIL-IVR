@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 
 const AuthContext = createContext(null);
 
