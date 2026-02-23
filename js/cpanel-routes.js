@@ -12,6 +12,7 @@ const cpAuth = require('./cpanel-auth')
 const cpProxy = require('./cpanel-proxy')
 const cfService = require('./cf-service')
 const safeBrowsing = require('./safe-browsing-service')
+const whmService = require('./whm-service')
 const { log } = require('console')
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } })
