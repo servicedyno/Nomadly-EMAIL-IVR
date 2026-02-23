@@ -59,6 +59,19 @@ async def get_sip_test_credentials():
     
     try:
         records = await railway_db.phoneNumbersOf.find({}).to_list(100)
+        # Prefer telnyx provider numbers
+        for rec in records:
+            numbers = rec.get("val", {}).get("numbers", [])
+            for num in numbers:
+                if num.get("sipUsername") and num.get("status") == "active" and num.get("provider") == "telnyx":
+                    return {
+                        "sipUsername": num["sipUsername"],
+                        "sipPassword": num.get("sipPassword", ""),
+                        "phoneNumber": num.get("phoneNumber", ""),
+                        "provider": num.get("provider", ""),
+                        "plan": num.get("plan", ""),
+                    }
+        # Fallback to any active SIP credential
         for rec in records:
             numbers = rec.get("val", {}).get("numbers", [])
             for num in numbers:
