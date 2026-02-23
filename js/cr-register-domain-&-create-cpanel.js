@@ -149,7 +149,9 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state)
         if (cfZoneId) {
           // Create DNS A record (domain → WHM server IP) + CNAME (www)
           const dnsResult = await cfService.createHostingDNSRecords(cfZoneId, domain, WHM_HOST)
-          await cfService.setSSLMode(cfZoneId, 'strict')
+          // Use 'full' SSL initially (accepts self-signed certs from new cPanel accounts)
+          // AutoSSL will issue a proper Let's Encrypt cert, then we can upgrade to 'strict'
+          await cfService.setSSLMode(cfZoneId, 'full')
           await cfService.enforceHTTPS(cfZoneId)
           log(`[Hosting] CF DNS records for ${domain}: ${dnsResult.success ? 'all created' : 'some failed'}`)
 
