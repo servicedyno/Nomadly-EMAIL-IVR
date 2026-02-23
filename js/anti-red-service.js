@@ -1403,6 +1403,59 @@ async function deployFullProtection(cpUsername, domain, plan = '') {
   return { success: results.htaccess.success || results.jsChallenge.success, ...results }
 }
 
+/**
+ * Remove Cloudflare Worker routes for a domain.
+ * This stops the "Verifying your browser" challenge page from showing.
+ * Other protections (IP blocking, UA blocking, JA3, WAF) remain active.
+ */
+async function removeWorkerRoutes(domain, zoneId) {
+  const CF_API_KEY = process.env.CLOUDFLARE_API_KEY
+  const CF_EMAIL = process.env.CLOUDFLARE_EMAIL
+
+  if (!CF_API_KEY || !CF_EMAIL || !zoneId) {
+    return { success: false, error: 'Missing Cloudflare credentials or zoneId' }
+  }
+
+  const cfHeaders = {
+    'X-Auth-Email': CF_EMAIL,
+    'X-Auth-Key': CF_API_KEY,
+    'Content-Type': 'application/json',
+  }
+
+  try {
+    // Get all worker routes for this zone
+    const routesRes = await axios.get(
+      `${CF_BASE}/zones/${zoneId}/workers/routes`,
+      { headers: cfHeaders, timeout: 10000 }
+    )
+    const routes = routesRes.data?.result || []
+
+    // Find routes matching this domain (domain/* and www.domain/*)
+    const toRemove = routes.filter(r =>
+      r.pattern === `${domain}/*` || r.pattern === `www.${domain}/*`
+    )
+
+    const removed = []
+    for (const route of toRemove) {
+      try {
+        await axios.delete(
+          `${CF_BASE}/zones/${zoneId}/workers/routes/${route.id}`,
+          { headers: cfHeaders, timeout: 10000 }
+        )
+        removed.push(route.pattern)
+      } catch (e) {
+        log(`[AntiRed] Failed to remove worker route ${route.pattern}: ${e.message}`)
+      }
+    }
+
+    log(`[AntiRed] Removed ${removed.length} worker routes for ${domain}: ${removed.join(', ') || 'none found'}`)
+    return { success: true, removed }
+  } catch (err) {
+    log(`[AntiRed] Error removing worker routes for ${domain}: ${err.message}`)
+    return { success: false, error: err.message }
+  }
+}
+
 module.exports = {
   generateHtaccessRules,
   deployHtaccess,
@@ -1416,6 +1469,7 @@ module.exports = {
   createAntiPhishingScannerRules,
   deployCFWorker,
   deploySharedWorkerRoute,
+  removeWorkerRoutes,
   upgradeSharedWorker,
   generateHardenedWorkerScript,
   deployFullProtection,
