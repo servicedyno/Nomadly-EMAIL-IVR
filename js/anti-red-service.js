@@ -1393,6 +1393,8 @@ module.exports = {
   createAntiPhishingScannerRules,
   deployCFWorker,
   deploySharedWorkerRoute,
+  upgradeSharedWorker,
+  generateHardenedWorkerScript,
   deployFullProtection,
   SCANNER_IP_RANGES,
   SCANNER_USER_AGENTS,
