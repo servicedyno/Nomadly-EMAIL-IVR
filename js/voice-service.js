@@ -753,7 +753,64 @@ async function handleCallInitiated(payload) {
     }
   }, 60000)
 
-  // Answer the call — this is always an inbound call via Call Control App
+  // ── SIP DEVICE RING (NO AUTO-ANSWER) ──
+  // If number has SIP credentials, ring the SIP device BEFORE answering.
+  // The caller hears real network ringback. Only answer when SIP device picks up.
+  // If SIP device doesn't answer → answer + voicemail/forwarding/missed fallback.
+  const fwdConfig = num.features?.callForwarding
+  const ivrConfig = num.features?.ivr
+  const hasSip = !!num.sipUsername
+  const hasIvr = ivrConfig?.enabled && canAccessFeature(num.plan, 'ivr') && ivrConfig.options && Object.keys(ivrConfig.options).length > 0
+  const hasForwardAlways = fwdConfig?.enabled && fwdConfig.forwardTo && fwdConfig.mode === 'always'
+
+  // Only do unanswered SIP ring if: has SIP, no IVR, no forward-always (those need answered call)
+  if (hasSip && !hasIvr && !hasForwardAlways) {
+    sessionRef.phase = 'ringing_sip'
+    const sipUser = num.sipUsername
+    const sipUri = `sip:${sipUser}@sip.telnyx.com`
+    const ringTimeout = fwdConfig?.ringTimeout || 25
+    const vmConfig = num.features?.voicemail
+    log(`[Voice] Ringing SIP device (unanswered): ${sipUri} for ${num.phoneNumber} (timeout: ${ringTimeout}s)`)
+
+    try {
+      const newCall = await _telnyxApi.createOutboundCall(to, sipUri)
+      if (newCall?.callControlId) {
+        activeBridgeTransfers[newCall.callControlId] = {
+          originalCallControlId: callControlId,
+          forwardTo: sipUri,
+          fromNumber: to,
+          type: 'sip_ring',
+          vmConfig,
+          fwdConfig,
+          chatId,
+          num,
+          phase: 'ringing',
+          unanswered: true, // Original inbound NOT yet answered
+        }
+        sessionRef.sipRingCallControlId = newCall.callControlId // Track for hangup cleanup
+
+        _bot?.sendMessage(chatId,
+          `📞 <b>Incoming Call</b>\n${formatPhone(from)} → ${formatPhone(to)}\nRinging your SIP device...`,
+          { parse_mode: 'HTML' }
+        ).catch(() => {})
+
+        // Timeout: SIP device didn't answer — answer inbound + fallback
+        setTimeout(async () => {
+          const transfer = activeBridgeTransfers[newCall.callControlId]
+          if (transfer && transfer.phase !== 'bridged') {
+            log(`[Voice] SIP ring timeout: device didn't answer in ${ringTimeout}s — falling through`)
+            await _telnyxApi.hangupCall(newCall.callControlId).catch(() => {})
+          }
+        }, ringTimeout * 1000)
+        return // Don't answer — wait for SIP device
+      }
+    } catch (e) {
+      log(`[Voice] Failed to ring SIP device: ${e.message} — answering and routing normally`)
+    }
+    // If SIP ring failed, fall through to normal answer + routing
+  }
+
+  // Answer the call — for non-SIP numbers, or SIP ring failed, or IVR/forwarding-always
   try {
     await _telnyxApi.answerCall(callControlId)
   } catch (answerErr) {
