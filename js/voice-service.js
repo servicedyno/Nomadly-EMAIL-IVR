@@ -937,7 +937,16 @@ async function handleOutboundSipCall(payload) {
     if (testCallInfo.isTestCall) {
       _bot?.sendMessage(chatId, `📞 <b>Free SIP Test Call</b>\nFrom: ${formatPhone(num.phoneNumber)}\nTo: ${formatPhone(destination)}\n🆓 Free test call (${testCallInfo.callsRemaining ?? 0} remaining, max ${testCallInfo.maxDuration}s)`, { parse_mode: 'HTML' }).catch(() => {})
     } else {
-      _bot?.sendMessage(chatId, `📞 <b>SIP Outbound Call</b>\nFrom: ${formatPhone(num.phoneNumber)}\nTo: ${formatPhone(destination)}\nRate: $${sipRate}/min ${isUSCanada(destination) ? '(US/CA)' : '(Intl)'}`, { parse_mode: 'HTML' }).catch(() => {})
+      const minuteLimit = getMinuteLimit(num.plan)
+      const minutesUsed = num.minutesUsed || 0
+      const minutesRemaining = minuteLimit !== Infinity ? Math.max(0, minuteLimit - minutesUsed) : null
+      const planInfo = minutesRemaining !== null
+        ? `📊 Plan: <b>${minutesRemaining}/${minuteLimit}</b> min remaining`
+        : `📊 Unlimited minutes`
+      const overageInfo = minutesRemaining !== null && minutesRemaining <= 0
+        ? `\n💰 Overage: $${sipRate}/min ${isUSCanada(destination) ? '(US/CA)' : '(Intl)'}`
+        : ''
+      _bot?.sendMessage(chatId, `📞 <b>SIP Outbound Call</b>\nFrom: ${formatPhone(num.phoneNumber)}\nTo: ${formatPhone(destination)}\n${planInfo}${overageInfo}`, { parse_mode: 'HTML' }).catch(() => {})
     }    return
   }
 
