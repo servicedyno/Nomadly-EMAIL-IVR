@@ -288,10 +288,14 @@ async function ensureProfileWhitelist(profileId) {
 async function answerCall(callControlId) {
   try {
     const res = await axios.post(`${BASE}/calls/${callControlId}/actions/answer`, {}, { headers: headers() })
-    return res.data?.data || null
+    return res.data?.data || true
   } catch (e) {
+    const errDetail = e.response?.data?.errors?.[0]?.detail || e.message || ''
     log('Telnyx answerCall error:', e.response?.data || e.message)
-    return null
+    // Rethrow so callers can handle specific errors (e.g. outbound call mismatch)
+    const err = new Error(errDetail)
+    err.telnyxCode = e.response?.data?.errors?.[0]?.code
+    throw err
   }
 }
 

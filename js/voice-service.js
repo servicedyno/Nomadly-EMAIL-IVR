@@ -504,17 +504,35 @@ async function handleCallInitiated(payload) {
   const { chatId, num } = await findNumberOwner(to)
   if (!chatId || !num) {
     log(`[Voice] No owner found for ${to}, rejecting`)
-    await _telnyxApi.answerCall(callControlId)
-    setTimeout(() => _telnyxApi.hangupCall(callControlId), 1000)
+    try {
+      await _telnyxApi.answerCall(callControlId)
+      setTimeout(() => _telnyxApi.hangupCall(callControlId), 1000)
+    } catch (e) {
+      if (e.message?.includes('outbound call')) {
+        log(`[Voice] Inbound reject failed (outbound mismatch) — redirecting to outbound handler`)
+        await handleOutboundSipCall(payload)
+        return
+      }
+      await _telnyxApi.hangupCall(callControlId).catch(() => {})
+    }
     return
   }
 
   // ── CHECK: Number suspended? ──
   if (num.status !== 'active') {
     log(`[Voice] Number ${to} is ${num.status}, rejecting call`)
-    await _telnyxApi.answerCall(callControlId)
-    await _telnyxApi.speakOnCall(callControlId, 'This number is no longer in service.')
-    setTimeout(() => _telnyxApi.hangupCall(callControlId), 4000)
+    try {
+      await _telnyxApi.answerCall(callControlId)
+      await _telnyxApi.speakOnCall(callControlId, 'This number is no longer in service.')
+      setTimeout(() => _telnyxApi.hangupCall(callControlId), 4000)
+    } catch (e) {
+      if (e.message?.includes('outbound call')) {
+        log(`[Voice] Inbound reject failed (outbound mismatch) — redirecting to outbound handler`)
+        await handleOutboundSipCall(payload)
+        return
+      }
+      await _telnyxApi.hangupCall(callControlId).catch(() => {})
+    }
     return
   }
 
@@ -534,9 +552,18 @@ async function handleCallInitiated(payload) {
     if (!overageAllowed) {
       const inboundRate = getCallRate(from)
       log(`[Voice] Minutes limit reached for ${to} (${num.minutesUsed || 0}/${getMinuteLimit(num.plan)}), no wallet balance — rejecting call`)
-      await _telnyxApi.answerCall(callControlId)
-      await _telnyxApi.speakOnCall(callControlId, 'Your inbound minutes limit has been reached and wallet balance is insufficient. Please top up your wallet or upgrade your plan.')
-      setTimeout(() => _telnyxApi.hangupCall(callControlId), 6000)
+      try {
+        await _telnyxApi.answerCall(callControlId)
+        await _telnyxApi.speakOnCall(callControlId, 'Your inbound minutes limit has been reached and wallet balance is insufficient. Please top up your wallet or upgrade your plan.')
+        setTimeout(() => _telnyxApi.hangupCall(callControlId), 6000)
+      } catch (e) {
+        if (e.message?.includes('outbound call')) {
+          log(`[Voice] Inbound reject failed (outbound mismatch) — redirecting to outbound handler`)
+          await handleOutboundSipCall(payload)
+          return
+        }
+        await _telnyxApi.hangupCall(callControlId).catch(() => {})
+      }
       _bot?.sendMessage(chatId, `🚫 <b>Incoming Call Blocked — Wallet Empty</b>\n\n📞 ${formatPhone(to)}\n👤 Caller: ${formatPhone(from)}\n\nPlan minutes exhausted and wallet balance is insufficient for overage ($${inboundRate}/min ${isUSCanada(from) ? 'US/CA' : 'Intl'}). Top up your wallet or upgrade your plan to resume receiving calls.`, { parse_mode: 'HTML' }).catch(() => {})
       return
     }
