@@ -633,6 +633,24 @@ function createCpanelRoutes(getCpanelCol) {
       const result = await whmService.startAutoSSL(req.cpUser)
       if (result.success) {
         res.json({ success: true, message: 'AutoSSL check started. Certificates will be issued shortly (may take 1-3 minutes).' })
+
+        // After AutoSSL starts, schedule a check to upgrade CF SSL to strict once cert is issued
+        const domain = req.cpDomain
+        setTimeout(async () => {
+          try {
+            const zone = await cfService.getZoneByName(domain)
+            if (!zone) return
+            const sslRes = await whmService.getSSLStatus(req.cpUser)
+            const certs = sslRes?.data || {}
+            const domainCert = certs[domain]
+            if (domainCert && !domainCert.selfSigned && domainCert.daysLeft > 0) {
+              await cfService.setSSLMode(zone.id, 'strict')
+              log(`[Panel] SSL upgraded to strict for ${domain} (AutoSSL cert active)`)
+            }
+          } catch (e) {
+            log(`[Panel] SSL upgrade check for ${domain} failed: ${e.message}`)
+          }
+        }, 3 * 60 * 1000) // Check after 3 minutes
       } else {
         // Check if AutoSSL is already running (common when user clicks multiple times)
         const isAlreadyRunning = (result.error || '').includes('PIDFile') || (result.error || '').includes('already')
