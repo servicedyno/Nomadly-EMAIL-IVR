@@ -10725,7 +10725,7 @@ bot?.on('message', async msg => {
 
       const shortenerBtn = shortenerActive ? t.domainActionDeactivateShortener : t.domainActionShortener
       set(state, chatId, 'action', 'view-domain-actions')
-      send(chatId, t.selectDomainAction(domain), k.of([[t.domainActionDns], [shortenerBtn], [t.back]]))
+      send(chatId, t.selectDomainAction(domain), k.of([[t.domainActionDns], [shortenerBtn], [t.domainActionAntiRed], [t.back]]))
       return
     }
   }
