@@ -498,24 +498,17 @@ async function handleCallInitiated(payload) {
   const to = (payload.to || '').replace(/[^+\d]/g, '')
   const from = (payload.from || '').replace(/[^+\d]/g, '')
   const direction = payload.direction
-  const connectionId = payload.connection_id || ''
-  const sipConnectionId = process.env.TELNYX_SIP_CONNECTION_ID || ''
 
-  // ── OUTBOUND SIP CALLS ──
+  // ── OUTBOUND / SIP CALLS ──
   // Route to SIP handler if direction is not incoming
   if (direction !== 'incoming') {
     await handleOutboundSipCall(payload)
     return
   }
 
-  // ── SIP-originated calls arriving as 'incoming' ──
-  // If connection_id matches our SIP connection, this is a SIP user dialing out
-  // Telnyx sometimes routes these as 'incoming' for credential connections
-  if (sipConnectionId && connectionId === sipConnectionId) {
-    log(`[Voice] Incoming call on SIP connection (conn=${connectionId}) — routing to SIP outbound handler`)
-    await handleOutboundSipCall(payload)
-    return
-  }
+  // Direction is 'incoming' — this is either a PSTN inbound call or a SIP outbound
+  // misrouted as incoming. For PSTN inbound, answerCall works. For misrouted SIP,
+  // answerCall will fail with error 90102 and the fallback below routes it correctly.
 
   // Lookup number owner — get FRESH data from DB
   const { chatId, num } = await findNumberOwner(to)
