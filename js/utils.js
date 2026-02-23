@@ -559,7 +559,7 @@ async function planGetNewDomain(message, chatId, send, saveInfo, hostingType, ve
   try {
     let modifiedDomain = removeProtocolFromDomain(message)
 
-    const { available, originalPrice, price, chatMessage, domainType } = await getNewDomain(modifiedDomain, hostingType)
+    const { available, originalPrice, price, chatMessage, domainType, registrar } = await getNewDomain(modifiedDomain, hostingType)
     if (!available) {
       // if(verbose) {
         await send(chatId, chatMessage)
@@ -574,8 +574,8 @@ async function planGetNewDomain(message, chatId, send, saveInfo, hostingType, ve
       return getDefaultDomainResponse()
     }
 
-    saveDomainInfo(saveInfo, modifiedDomain, price, originalPrice)
-    return { modifiedDomain, price, domainType, chatMessage }
+    saveDomainInfo(saveInfo, modifiedDomain, price, originalPrice, registrar)
+    return { modifiedDomain, price, domainType, chatMessage, registrar }
   } catch (error) {
     return getDefaultDomainResponse()
   }
