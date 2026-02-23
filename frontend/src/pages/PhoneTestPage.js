@@ -37,6 +37,7 @@ const PhoneTestPage = () => {
   const audioRef = useRef(null);
   const ringtoneCtxRef = useRef(null);
   const ringtoneIntervalRef = useRef(null);
+  const userDialedRef = useRef(false); // true when user clicks Call, false otherwise
 
   // Incoming call state
   const [incomingCall, setIncomingCall] = useState(null);
