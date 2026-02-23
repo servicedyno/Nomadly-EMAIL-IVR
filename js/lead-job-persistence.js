@@ -129,6 +129,18 @@ async function failJob(jobId, reason) {
 }
 
 /**
+ * Mark job as resuming (called before re-entering the generation loop)
+ */
+async function resumeJob(jobId) {
+  if (!_db || !jobId) return
+  await _db.collection(COLLECTION).updateOne(
+    { jobId },
+    { $set: { status: 'running', resumedAt: new Date(), updatedAt: new Date() } }
+  )
+  log(`[LeadJobs] Job ${jobId} status → running (resumed)`)
+}
+
+/**
  * Find all interrupted/orphaned jobs
  * Covers both cases:
  *  - 'interrupted': SIGTERM handler flushed before shutdown
