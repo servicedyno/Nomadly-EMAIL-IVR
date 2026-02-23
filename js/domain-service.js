@@ -27,9 +27,20 @@ const checkDomainPrice = async (domainName, db) => {
   const cr = crResult.status === 'fulfilled' ? crResult.value : { available: false, message: crResult.reason?.message }
   const op = opResult.status === 'fulfilled' ? opResult.value : { available: false, message: opResult.reason?.message }
 
-  // Prefer ConnectReseller if available (primary registrar)
+  // When both registrars have the domain, pick the cheapest for consistent pricing
+  if (cr.available && op.available) {
+    const winner = cr.price <= op.price ? cr : op
+    const registrar = winner === cr ? 'ConnectReseller' : 'OpenProvider'
+    log(`[domain-service] ${domainName} available on both — CR: $${cr.price}, OP: $${op.price} → using ${registrar} @ $${winner.price}`)
+    return {
+      available: true, price: winner.price,
+      originalPrice: winner.originalPrice, registrar,
+      message: winner.message || 'Domain is available',
+    }
+  }
+
   if (cr.available) {
-    log(`[domain-service] ${domainName} available on ConnectReseller @ $${cr.price}`)
+    log(`[domain-service] ${domainName} available on ConnectReseller only @ $${cr.price}`)
     return {
       available: true, price: cr.price,
       originalPrice: cr.originalPrice, registrar: 'ConnectReseller',
@@ -38,11 +49,11 @@ const checkDomainPrice = async (domainName, db) => {
   }
 
   if (op.available) {
-    log(`[domain-service] ${domainName} available on OpenProvider @ $${op.price}`)
+    log(`[domain-service] ${domainName} available on OpenProvider only @ $${op.price}`)
     return {
       available: true, price: op.price,
       originalPrice: op.originalPrice, registrar: 'OpenProvider',
-      message: `Domain is available`,
+      message: 'Domain is available',
     }
   }
 
