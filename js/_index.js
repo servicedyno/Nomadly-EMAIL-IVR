@@ -2835,7 +2835,10 @@ bot?.on('message', async msg => {
       const cpanelAuth = require('./cpanel-auth')
       const { pin } = await cpanelAuth.resetPin(cpanelAccounts, plan.cpUser)
 
-      const panelUrl = `${process.env.SELF_URL_PROD?.replace('/api', '')}/panel`
+      const panelDomain = process.env.PANEL_DOMAIN
+      const panelUrl = panelDomain
+        ? `https://${panelDomain}`
+        : `${process.env.SELF_URL_PROD?.replace('/api', '')}/panel`
       const text = `🔑 <b>Credentials for ${plan.domain}</b>\n\n`
         + `<b>Username:</b> <code>${plan.cpUser}</code>\n`
         + `<b>PIN:</b> <code>${pin}</code>\n\n`
