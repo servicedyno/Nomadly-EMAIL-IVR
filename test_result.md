@@ -331,8 +331,6 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Fix: AutoSSL message showing on every domain page load"
-    - "Fix: Create folder bug in file manager"
     - "End-to-end panel testing (all features except email)"
   stuck_tasks: []
   test_all: false
