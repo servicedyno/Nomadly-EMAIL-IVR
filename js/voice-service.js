@@ -1252,8 +1252,15 @@ async function handleRecordingSaved(payload) {
 
 async function handleCallHangup(payload) {
   const callControlId = payload.call_control_id
+  const hangupCauseRaw = payload.hangup_cause || payload.sip_hangup_cause || 'unknown'
+  const hangupSourceRaw = payload.hangup_source || 'unknown'
+  
   const session = activeCalls[callControlId]
-  if (!session) return
+  if (!session) {
+    // Log hangup details even for untracked calls (helps debug SIP failures)
+    log(`[Voice] Hangup for untracked call ${callControlId}: cause=${hangupCauseRaw}, source=${hangupSourceRaw}, from=${payload.from}, to=${payload.to}, duration=${payload.duration_secs || 0}s`)
+    return
+  }
 
   // Prevent duplicate hangup processing (Telnyx can fire multiple hangup events for transferred calls)
   if (session._hangupProcessed) return
