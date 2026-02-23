@@ -198,11 +198,13 @@ const PhoneTestPage = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ otp: otpValue }),
       });
+      
       const data = await resp.json();
 
-      if (data.error) {
-        setOtpError(data.message || data.error);
-        addLog(`Error: ${data.message || data.error}`, 'error');
+      if (!resp.ok || data.error) {
+        const errorMsg = data.message || data.error || 'Invalid code';
+        setOtpError(errorMsg);
+        addLog(`Error: ${errorMsg}`, 'error');
         setOtpLoading(false);
         return;
       }
