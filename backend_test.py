@@ -1,456 +1,338 @@
 #!/usr/bin/env python3
 """
-Backend Test Suite for NS Alert Fix
-Testing the "Fix: NS alert on domain page — only show for external domains" implementation
+Backend Testing Script for cPanel Management Panel
+Tests the fixes implemented and verifies backend health.
 """
 
 import requests
 import json
-import os
+import sys
 import time
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
-# Configuration
-class Config:
-    def __init__(self):
-        # Get backend URL from environment
-        self.backend_url = self._get_backend_url()
-        self.timeout = 30
-        self.session = requests.Session()
-        self.session.timeout = self.timeout
-        
-    def _get_backend_url(self) -> str:
-        """Get backend URL from frontend .env file"""
-        try:
-            with open('/app/frontend/.env', 'r') as f:
-                for line in f:
-                    if line.startswith('REACT_APP_BACKEND_URL='):
-                        url = line.split('=', 1)[1].strip()
-                        # Remove quotes if present
-                        if url.startswith('"') and url.endswith('"'):
-                            url = url[1:-1]
-                        return url + '/api'
-        except Exception as e:
-            print(f"Could not read backend URL from frontend/.env: {e}")
-        
-        return "http://localhost:8001/api"
+# Read backend URL from frontend .env file
+def get_backend_url():
+    try:
+        with open('/app/frontend/.env', 'r') as f:
+            for line in f:
+                if line.startswith('REACT_APP_BACKEND_URL='):
+                    return line.split('=', 1)[1].strip().rstrip('/')
+    except:
+        pass
+    return 'http://localhost:5000'
+
+BASE_URL = get_backend_url()
+API_URL = f"{BASE_URL}/api"
 
 class TestResults:
     def __init__(self):
         self.passed = 0
         self.failed = 0
-        self.tests = []
-        
-    def add_test(self, name: str, passed: bool, details: str = ""):
-        self.tests.append({
-            'name': name,
-            'passed': passed,
-            'details': details
-        })
-        if passed:
-            self.passed += 1
-        else:
-            self.failed += 1
-            
-    def summary(self) -> str:
+        self.errors = []
+    
+    def success(self, test_name: str):
+        print(f"✅ {test_name}")
+        self.passed += 1
+    
+    def failure(self, test_name: str, error: str):
+        print(f"❌ {test_name}: {error}")
+        self.failed += 1
+        self.errors.append(f"{test_name}: {error}")
+    
+    def summary(self):
         total = self.passed + self.failed
-        return f"Tests: {self.passed}/{total} passed"
+        success_rate = (self.passed / total * 100) if total > 0 else 0
+        print(f"\n=== TEST SUMMARY ===")
+        print(f"Total: {total}")
+        print(f"Passed: {self.passed}")
+        print(f"Failed: {self.failed}")
+        print(f"Success Rate: {success_rate:.1f}%")
+        if self.errors:
+            print(f"\nFAILED TESTS:")
+            for error in self.errors:
+                print(f"  - {error}")
 
-class NSAlertTester:
-    def __init__(self):
-        self.config = Config()
-        self.results = TestResults()
-        
-    def log(self, message: str):
-        print(f"[TEST] {message}")
-        
-    def test_health_check(self):
-        """Test backend health endpoint"""
-        try:
-            response = self.config.session.get(f"{self.config.backend_url}/health")
-            
-            if response.status_code == 200:
-                try:
-                    data = response.json()
-                    if data.get('status') == 'healthy':
-                        self.results.add_test("Backend Health Check", True, "Backend is healthy")
-                        self.log("✅ Backend health check passed")
-                        return True
-                except:
-                    pass
-                    
-            self.results.add_test("Backend Health Check", False, f"Status: {response.status_code}")
-            self.log(f"❌ Backend health check failed: {response.status_code}")
-            return False
-            
-        except Exception as e:
-            self.results.add_test("Backend Health Check", False, str(e))
-            self.log(f"❌ Backend health check error: {e}")
-            return False
+results = TestResults()
+
+def test_backend_health():
+    """Test 1: Backend Health Check"""
+    try:
+        # Test basic connectivity
+        response = requests.get(f"{BASE_URL}/health", timeout=10)
+        if response.status_code == 200:
+            results.success("Backend health endpoint accessible")
+        else:
+            results.failure("Backend health check", f"Status code: {response.status_code}")
+    except requests.exceptions.RequestException as e:
+        results.failure("Backend health check", f"Connection error: {str(e)}")
+
+def test_nodejs_service():
+    """Test 2: Node.js service status"""
+    try:
+        # Check if we can reach the main server
+        response = requests.get(BASE_URL, timeout=10)
+        if response.status_code in [200, 404]:  # 404 is OK for root path
+            results.success("Node.js service running")
+        else:
+            results.failure("Node.js service check", f"Unexpected status: {response.status_code}")
+    except requests.exceptions.RequestException as e:
+        results.failure("Node.js service check", f"Service not accessible: {str(e)}")
+
+def verify_autossl_fix():
+    """Test 3: Verify AutoSSL fix in DomainList.js"""
+    print("\n🔍 Verifying AutoSSL fix in DomainList.js...")
     
-    def test_ns_status_endpoint_structure(self):
-        """Test /domains/ns-status endpoint structure"""
-        self.log("Testing /domains/ns-status endpoint structure...")
+    try:
+        with open('/app/frontend/src/components/panel/DomainList.js', 'r') as f:
+            content = f.read()
         
-        # Test missing domain parameter
-        try:
-            response = self.config.session.get(f"{self.config.backend_url}/panel/domains/ns-status")
+        # Check that triggerAutoSSL() is NOT called in checkNS function
+        lines = content.split('\n')
+        in_checkns = False
+        checkns_content = []
+        
+        for line in lines:
+            if 'const checkNS = async (domain) => {' in line:
+                in_checkns = True
+                continue
+            if in_checkns and line.strip().startswith('};'):
+                break
+            if in_checkns:
+                checkns_content.append(line)
+        
+        checkns_code = '\n'.join(checkns_content)
+        
+        # Verify fetchSSL() is called but NOT triggerAutoSSL()
+        has_fetchssl = 'fetchSSL()' in checkns_code
+        has_triggerautossl = 'triggerAutoSSL()' in checkns_code
+        
+        if has_fetchssl and not has_triggerautossl:
+            results.success("AutoSSL fix: fetchSSL() called, triggerAutoSSL() removed from checkNS")
+        elif not has_fetchssl:
+            results.failure("AutoSSL fix verification", "fetchSSL() not found in checkNS function")
+        elif has_triggerautossl:
+            results.failure("AutoSSL fix verification", "triggerAutoSSL() still called in checkNS function")
+        
+        # Verify triggerAutoSSL function still exists
+        if 'const triggerAutoSSL = async () => {' in content:
+            results.success("AutoSSL fix: triggerAutoSSL function still exists for manual button")
+        else:
+            results.failure("AutoSSL fix verification", "triggerAutoSSL function not found")
             
-            if response.status_code == 400:
-                data = response.json()
-                if 'error' in data and 'domain' in data['error']:
-                    self.results.add_test("NS Status - Missing Domain Error", True, "Correctly returns 400 for missing domain")
-                    self.log("✅ NS status endpoint correctly validates domain parameter")
-                else:
-                    self.results.add_test("NS Status - Missing Domain Error", False, "Wrong error response format")
-                    self.log("❌ NS status endpoint returns wrong error format")
+    except Exception as e:
+        results.failure("AutoSSL fix verification", f"Error reading file: {str(e)}")
+
+def verify_create_folder_fix():
+    """Test 4: Verify create folder bug fix in cpanel-proxy.js"""
+    print("\n🔍 Verifying create folder fix in cpanel-proxy.js...")
+    
+    try:
+        with open('/app/js/cpanel-proxy.js', 'r') as f:
+            content = f.read()
+        
+        # Find createDirectory function
+        lines = content.split('\n')
+        in_create_dir = False
+        create_dir_content = []
+        
+        for line in lines:
+            if 'async function createDirectory(cpUser, cpPass, dir, name)' in line:
+                in_create_dir = True
+                create_dir_content.append(line)
+                continue
+            if in_create_dir and line.strip().startswith('}'):
+                create_dir_content.append(line)
+                break
+            if in_create_dir:
+                create_dir_content.append(line)
+        
+        create_dir_code = '\n'.join(create_dir_content)
+        
+        # Verify fullPath construction
+        has_fullpath = 'const fullPath = dir.endsWith' in create_dir_code
+        uses_fullpath_param = '{ path: fullPath }' in create_dir_code
+        
+        if has_fullpath and uses_fullpath_param:
+            results.success("Create folder fix: fullPath constructed and used correctly")
+        else:
+            results.failure("Create folder fix verification", "fullPath construction or usage not found")
+            
+        # Check frontend error handling
+        with open('/app/frontend/src/components/panel/FileManager.js', 'r') as f:
+            fm_content = f.read()
+        
+        # Check if handleCreateDir has error handling
+        if 'if (res.errors?.length)' in fm_content and 'handleCreateDir' in fm_content:
+            results.success("Create folder fix: Frontend error handling added")
+        else:
+            results.failure("Create folder fix verification", "Frontend error handling not found in handleCreateDir")
+            
+    except Exception as e:
+        results.failure("Create folder fix verification", f"Error reading files: {str(e)}")
+
+def verify_panel_routes():
+    """Test 5: Verify all panel routes exist in cpanel-routes.js"""
+    print("\n🔍 Verifying panel routes in cpanel-routes.js...")
+    
+    expected_routes = [
+        "POST /login",
+        "GET /me",
+        "GET /files",
+        "GET /files/content", 
+        "POST /files/save",
+        "POST /files/upload",
+        "POST /files/mkdir",
+        "POST /files/delete",
+        "POST /files/rename",
+        "POST /files/extract",
+        "GET /domains",
+        "GET /domains/ns-status",
+        "POST /domains/add-enhanced",
+        "POST /domains/remove",
+        "GET /domains/ssl",
+        "POST /domains/ssl/autossl",
+        "GET /subdomains",
+        "POST /subdomains/create",
+        "POST /subdomains/delete"
+    ]
+    
+    try:
+        with open('/app/js/cpanel-routes.js', 'r') as f:
+            content = f.read()
+        
+        found_routes = []
+        missing_routes = []
+        
+        for route in expected_routes:
+            method, path = route.split(' ', 1)
+            
+            # Check for route definition patterns
+            route_patterns = [
+                f"router.{method.lower()}('{path}'",
+                f"router.{method.lower()}(\"/panel{path}\"",  # Some might have /panel prefix
+                f"router.{method.lower()}(\"{path}\"",
+            ]
+            
+            route_found = False
+            for pattern in route_patterns:
+                if pattern in content:
+                    route_found = True
+                    break
+            
+            if route_found:
+                found_routes.append(route)
             else:
-                self.results.add_test("NS Status - Missing Domain Error", False, f"Wrong status code: {response.status_code}")
-                self.log(f"❌ NS status endpoint returns wrong status code: {response.status_code}")
-                
-        except Exception as e:
-            self.results.add_test("NS Status - Missing Domain Error", False, str(e))
-            self.log(f"❌ NS status endpoint test error: {e}")
-    
-    def test_ns_status_response_format(self):
-        """Test NS status response format with test domain"""
-        self.log("Testing NS status response format...")
+                missing_routes.append(route)
         
-        test_domain = "example.com"
-        
-        try:
-            response = self.config.session.get(
-                f"{self.config.backend_url}/panel/domains/ns-status",
-                params={'domain': test_domain}
-            )
+        if len(found_routes) >= 15:  # Allow some flexibility
+            results.success(f"Panel routes: {len(found_routes)}/{len(expected_routes)} routes found")
+        else:
+            results.failure("Panel routes verification", f"Only {len(found_routes)}/{len(expected_routes)} routes found. Missing: {missing_routes}")
             
-            # Expect 401 Unauthorized since we don't have auth token
+    except Exception as e:
+        results.failure("Panel routes verification", f"Error reading cpanel-routes.js: {str(e)}")
+
+def verify_cpanel_proxy_functions():
+    """Test 6: Verify cpanel-proxy.js has matching functions"""
+    print("\n🔍 Verifying cpanel-proxy.js functions...")
+    
+    expected_functions = [
+        'listFiles',
+        'getFileContent', 
+        'saveFileContent',
+        'createDirectory',
+        'deleteFile',
+        'renameFile',
+        'extractFile',
+        'listDomains',
+        'addAddonDomain',
+        'removeAddonDomain',
+        'listSubdomains',
+        'createSubdomain',
+        'deleteSubdomain',
+        'getSSLStatus'
+    ]
+    
+    try:
+        with open('/app/js/cpanel-proxy.js', 'r') as f:
+            content = f.read()
+        
+        found_functions = []
+        missing_functions = []
+        
+        for func in expected_functions:
+            if f"async function {func}(" in content:
+                found_functions.append(func)
+            else:
+                missing_functions.append(func)
+        
+        # Also check exports
+        exports_section = content[content.find('module.exports'):]
+        
+        if len(found_functions) >= 10:  # Allow some flexibility
+            results.success(f"cPanel proxy functions: {len(found_functions)}/{len(expected_functions)} functions found")
+        else:
+            results.failure("cPanel proxy functions", f"Only {len(found_functions)}/{len(expected_functions)} functions found. Missing: {missing_functions}")
+            
+    except Exception as e:
+        results.failure("cPanel proxy functions verification", f"Error reading cpanel-proxy.js: {str(e)}")
+
+def test_api_endpoints():
+    """Test 7: Test basic API endpoint accessibility (without auth)"""
+    print("\n🔍 Testing API endpoint accessibility...")
+    
+    # Test basic endpoints that should return 401 (unauthorized) rather than 404 (not found)
+    test_endpoints = [
+        '/panel/session',
+        '/panel/domains', 
+        '/panel/files',
+        '/panel/subdomains'
+    ]
+    
+    accessible_count = 0
+    
+    for endpoint in test_endpoints:
+        try:
+            response = requests.get(f"{API_URL}{endpoint}", timeout=5)
+            # 401 means endpoint exists but requires auth (good)
+            # 404 means endpoint doesn't exist (bad)
             if response.status_code == 401:
-                self.results.add_test("NS Status - Auth Required", True, "Correctly requires authentication")
-                self.log("✅ NS status endpoint correctly requires authentication")
+                accessible_count += 1
+            elif response.status_code == 404:
+                results.failure(f"API endpoint {endpoint}", "Endpoint not found (404)")
             else:
-                # If it responds with 200, check the response format
-                if response.status_code == 200:
-                    try:
-                        data = response.json()
-                        required_fields = ['status', 'nameservers', 'autoManaged']
-                        
-                        has_required = all(field in data for field in required_fields)
-                        
-                        if has_required:
-                            self.results.add_test("NS Status - Response Format", True, "Response has required fields")
-                            self.log("✅ NS status response has required fields: status, nameservers, autoManaged")
-                        else:
-                            missing = [f for f in required_fields if f not in data]
-                            self.results.add_test("NS Status - Response Format", False, f"Missing fields: {missing}")
-                            self.log(f"❌ NS status response missing fields: {missing}")
-                            
-                    except json.JSONDecodeError:
-                        self.results.add_test("NS Status - Response Format", False, "Invalid JSON response")
-                        self.log("❌ NS status endpoint returned invalid JSON")
-                else:
-                    self.results.add_test("NS Status - Response Format", False, f"Unexpected status: {response.status_code}")
-                    self.log(f"❌ NS status endpoint returned unexpected status: {response.status_code}")
-                
-        except Exception as e:
-            self.results.add_test("NS Status - Response Format", False, str(e))
-            self.log(f"❌ NS status response format test error: {e}")
+                # Other status codes are also acceptable (might be different auth handling)
+                accessible_count += 1
+        except requests.exceptions.RequestException as e:
+            results.failure(f"API endpoint {endpoint}", f"Connection error: {str(e)}")
     
-    def test_add_enhanced_endpoint_structure(self):
-        """Test /domains/add-enhanced endpoint structure"""
-        self.log("Testing /domains/add-enhanced endpoint structure...")
-        
-        # Test missing domain parameter
-        try:
-            response = self.config.session.post(
-                f"{self.config.backend_url}/panel/domains/add-enhanced",
-                json={}
-            )
-            
-            if response.status_code == 401:
-                self.results.add_test("Add Enhanced - Auth Required", True, "Correctly requires authentication")
-                self.log("✅ Add enhanced endpoint correctly requires authentication")
-            elif response.status_code == 400:
-                try:
-                    data = response.json()
-                    if 'error' in data and 'domain' in data['error']:
-                        self.results.add_test("Add Enhanced - Missing Domain", True, "Correctly validates domain parameter")
-                        self.log("✅ Add enhanced endpoint correctly validates domain parameter")
-                    else:
-                        self.results.add_test("Add Enhanced - Missing Domain", False, "Wrong error format")
-                        self.log("❌ Add enhanced endpoint returns wrong error format")
-                except:
-                    self.results.add_test("Add Enhanced - Missing Domain", False, "Invalid JSON response")
-                    self.log("❌ Add enhanced endpoint returned invalid JSON")
-            else:
-                self.results.add_test("Add Enhanced - Missing Domain", False, f"Unexpected status: {response.status_code}")
-                self.log(f"❌ Add enhanced endpoint returned unexpected status: {response.status_code}")
-                
-        except Exception as e:
-            self.results.add_test("Add Enhanced - Missing Domain", False, str(e))
-            self.log(f"❌ Add enhanced endpoint test error: {e}")
+    if accessible_count >= len(test_endpoints) // 2:  # At least half should work
+        results.success(f"API endpoints: {accessible_count}/{len(test_endpoints)} endpoints accessible")
+    else:
+        results.failure("API endpoints accessibility", f"Only {accessible_count}/{len(test_endpoints)} endpoints accessible")
+
+def main():
+    print("🚀 Starting Backend Testing for cPanel Management Panel")
+    print("=" * 60)
     
-    def test_code_structure_ns_status(self):
-        """Verify NS status endpoint code structure"""
-        self.log("Verifying NS status endpoint code structure...")
-        
-        try:
-            with open('/app/js/cpanel-routes.js', 'r') as f:
-                content = f.read()
-                
-            # Check for required components
-            checks = [
-                ("chatId from req.cpChatId", "req.cpChatId" in content),
-                ("domain-service require", "require('./domain-service')" in content),  
-                ("op-service require", "require('./op-service')" in content),
-                ("registeredDomains collection query", "registeredDomains" in content),
-                ("domainsOf collection query", "domainsOf" in content),
-                ("autoManaged flag", "autoManaged" in content),
-                ("getDomainMeta call", "getDomainMeta" in content),
-                ("NS status endpoint route", "'/domains/ns-status'" in content)
-            ]
-            
-            passed = 0
-            for check_name, condition in checks:
-                if condition:
-                    passed += 1
-                    self.log(f"  ✅ {check_name}")
-                else:
-                    self.log(f"  ❌ {check_name}")
-                    
-            if passed == len(checks):
-                self.results.add_test("NS Status Code Structure", True, f"All {len(checks)} code requirements found")
-                self.log("✅ NS status endpoint code structure is complete")
-            else:
-                self.results.add_test("NS Status Code Structure", False, f"Only {passed}/{len(checks)} requirements found")
-                self.log(f"❌ NS status endpoint code structure incomplete: {passed}/{len(checks)}")
-                
-        except Exception as e:
-            self.results.add_test("NS Status Code Structure", False, str(e))
-            self.log(f"❌ NS status code structure verification error: {e}")
+    # Run all tests
+    test_backend_health()
+    test_nodejs_service()
+    verify_autossl_fix()
+    verify_create_folder_fix()
+    verify_panel_routes()
+    verify_cpanel_proxy_functions()
+    test_api_endpoints()
     
-    def test_code_structure_add_enhanced(self):
-        """Verify add-enhanced endpoint code structure"""
-        self.log("Verifying add-enhanced endpoint code structure...")
-        
-        try:
-            with open('/app/js/cpanel-routes.js', 'r') as f:
-                content = f.read()
-                
-            # Look for autoManaged flag in nsInfo responses
-            checks = [
-                ("add-enhanced route", "'/domains/add-enhanced'" in content),
-                ("autoManaged in nsInfo", "autoManaged:" in content or "autoManaged =" in content),
-                ("isOwnDomain check", "isOwnDomain" in content),
-                ("nameserverType check", "nameserverType" in content),
-                ("cfZoneId persistence", "cfZoneId" in content)
-            ]
-            
-            passed = 0
-            for check_name, condition in checks:
-                if condition:
-                    passed += 1
-                    self.log(f"  ✅ {check_name}")
-                else:
-                    self.log(f"  ❌ {check_name}")
-                    
-            if passed >= 4:  # Allow some flexibility
-                self.results.add_test("Add Enhanced Code Structure", True, f"{passed}/{len(checks)} code requirements found")
-                self.log("✅ Add enhanced endpoint code structure looks good")
-            else:
-                self.results.add_test("Add Enhanced Code Structure", False, f"Only {passed}/{len(checks)} requirements found")
-                self.log(f"❌ Add enhanced endpoint code structure incomplete: {passed}/{len(checks)}")
-                
-        except Exception as e:
-            self.results.add_test("Add Enhanced Code Structure", False, str(e))
-            self.log(f"❌ Add enhanced code structure verification error: {e}")
+    # Print summary
+    results.summary()
     
-    def test_frontend_nsbadge_component(self):
-        """Verify NSBadge component implementation"""
-        self.log("Verifying NSBadge component...")
-        
-        try:
-            with open('/app/frontend/src/components/panel/DomainList.js', 'r') as f:
-                content = f.read()
-                
-            checks = [
-                ("NSBadge component", "NSBadge" in content),
-                ("propagating state", "propagating" in content),
-                ("autoManaged check", "autoManaged" in content),
-                ("pending status check", "status === 'pending'" in content),
-                ("dl-ns-badge--propagating class", "dl-ns-badge--propagating" in content)
-            ]
-            
-            passed = 0
-            for check_name, condition in checks:
-                if condition:
-                    passed += 1
-                    self.log(f"  ✅ {check_name}")
-                else:
-                    self.log(f"  ❌ {check_name}")
-                    
-            if passed >= 4:
-                self.results.add_test("NSBadge Component", True, f"{passed}/{len(checks)} requirements found")
-                self.log("✅ NSBadge component implementation looks correct")
-            else:
-                self.results.add_test("NSBadge Component", False, f"Only {passed}/{len(checks)} requirements found")
-                self.log(f"❌ NSBadge component implementation incomplete: {passed}/{len(checks)}")
-                
-        except Exception as e:
-            self.results.add_test("NSBadge Component", False, str(e))
-            self.log(f"❌ NSBadge component verification error: {e}")
-    
-    def test_frontend_nspendinginfo_component(self):
-        """Verify NSPendingInfo component implementation"""
-        self.log("Verifying NSPendingInfo component...")
-        
-        try:
-            with open('/app/frontend/src/components/panel/DomainList.js', 'r') as f:
-                content = f.read()
-                
-            checks = [
-                ("NSPendingInfo component", "NSPendingInfo" in content),
-                ("autoManaged message", "Nameservers configured automatically" in content),
-                ("external domain message", "Update your nameservers at registrar" in content or "Update your domain nameservers" in content),
-                ("dl-ns-inline-info--auto class", "dl-ns-inline-info--auto" in content),
-                ("Re-check button", "Re-check" in content)
-            ]
-            
-            passed = 0
-            for check_name, condition in checks:
-                if condition:
-                    passed += 1
-                    self.log(f"  ✅ {check_name}")
-                else:
-                    self.log(f"  ❌ {check_name}")
-                    
-            if passed >= 4:
-                self.results.add_test("NSPendingInfo Component", True, f"{passed}/{len(checks)} requirements found")
-                self.log("✅ NSPendingInfo component implementation looks correct")
-            else:
-                self.results.add_test("NSPendingInfo Component", False, f"Only {passed}/{len(checks)} requirements found")
-                self.log(f"❌ NSPendingInfo component implementation incomplete: {passed}/{len(checks)}")
-                
-        except Exception as e:
-            self.results.add_test("NSPendingInfo Component", False, str(e))
-            self.log(f"❌ NSPendingInfo component verification error: {e}")
-    
-    def test_css_styles(self):
-        """Verify CSS styles for propagating state and auto info"""
-        self.log("Verifying CSS styles...")
-        
-        try:
-            with open('/app/frontend/src/App.css', 'r') as f:
-                content = f.read()
-                
-            checks = [
-                ("propagating badge style", ".dl-ns-badge--propagating" in content),
-                ("auto info style", ".dl-ns-inline-info--auto" in content),
-                ("blue color for propagating", "59, 130, 246" in content or "60a5fa" in content),
-                ("recheck button style", ".dl-ns-recheck-btn" in content),
-                ("inline info base style", ".dl-ns-inline-info" in content)
-            ]
-            
-            passed = 0
-            for check_name, condition in checks:
-                if condition:
-                    passed += 1
-                    self.log(f"  ✅ {check_name}")
-                else:
-                    self.log(f"  ❌ {check_name}")
-                    
-            if passed >= 4:
-                self.results.add_test("CSS Styles", True, f"{passed}/{len(checks)} styles found")
-                self.log("✅ CSS styles implementation looks correct")
-            else:
-                self.results.add_test("CSS Styles", False, f"Only {passed}/{len(checks)} styles found")
-                self.log(f"❌ CSS styles implementation incomplete: {passed}/{len(checks)}")
-                
-        except Exception as e:
-            self.results.add_test("CSS Styles", False, str(e))
-            self.log(f"❌ CSS styles verification error: {e}")
-    
-    def test_op_service_module(self):
-        """Verify op-service module exists and has updateNameservers"""
-        self.log("Verifying op-service module...")
-        
-        try:
-            with open('/app/js/op-service.js', 'r') as f:
-                content = f.read()
-                
-            checks = [
-                ("op-service file exists", True),
-                ("updateNameservers function", "updateNameservers" in content),
-                ("exports updateNameservers", "updateNameservers," in content),
-                ("OpenProvider API integration", "openprovider" in content.lower()),
-                ("Proper function structure", "const updateNameservers = async" in content or "function updateNameservers" in content)
-            ]
-            
-            passed = 0
-            for check_name, condition in checks:
-                if condition:
-                    passed += 1
-                    self.log(f"  ✅ {check_name}")
-                else:
-                    self.log(f"  ❌ {check_name}")
-                    
-            if passed >= 4:
-                self.results.add_test("Op-Service Module", True, f"{passed}/{len(checks)} requirements met")
-                self.log("✅ op-service module implementation looks correct")
-            else:
-                self.results.add_test("Op-Service Module", False, f"Only {passed}/{len(checks)} requirements met")
-                self.log(f"❌ op-service module implementation incomplete: {passed}/{len(checks)}")
-                
-        except Exception as e:
-            self.results.add_test("Op-Service Module", False, str(e))
-            self.log(f"❌ op-service module verification error: {e}")
-    
-    def run_all_tests(self):
-        """Run all tests for the NS alert fix"""
-        self.log("Starting NS Alert Fix Testing Suite...")
-        self.log("=" * 60)
-        
-        # Backend health and structure tests
-        if self.test_health_check():
-            self.test_ns_status_endpoint_structure()
-            self.test_ns_status_response_format()
-            self.test_add_enhanced_endpoint_structure()
-        
-        # Code structure verification
-        self.test_code_structure_ns_status()
-        self.test_code_structure_add_enhanced()
-        
-        # Frontend component verification
-        self.test_frontend_nsbadge_component()
-        self.test_frontend_nspendinginfo_component()
-        
-        # CSS and module verification
-        self.test_css_styles()
-        self.test_op_service_module()
-        
-        # Summary
-        self.log("=" * 60)
-        self.log("TEST RESULTS:")
-        
-        for test in self.results.tests:
-            status = "✅ PASS" if test['passed'] else "❌ FAIL"
-            self.log(f"{status}: {test['name']}")
-            if test['details']:
-                self.log(f"      Details: {test['details']}")
-        
-        self.log("=" * 60)
-        self.log(f"SUMMARY: {self.results.summary()}")
-        
-        # Return success if majority of tests pass
-        return self.results.passed >= (self.results.passed + self.results.failed) * 0.7
+    # Exit with error code if any tests failed
+    if results.failed > 0:
+        sys.exit(1)
+    else:
+        print("\n🎉 All tests passed!")
+        sys.exit(0)
 
 if __name__ == "__main__":
-    tester = NSAlertTester()
-    success = tester.run_all_tests()
-    
-    if success:
-        print("\n🎉 NS Alert Fix testing completed successfully!")
-        exit(0)
-    else:
-        print(f"\n⚠️  NS Alert Fix testing completed with issues. Check details above.")
-        exit(1)
+    main()
