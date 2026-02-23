@@ -281,7 +281,23 @@ export default function DomainList() {
   // Inline NS pending info component
   const NSPendingInfo = ({ domain }) => {
     const info = nsStatus[domain];
-    if (!info || info.status !== 'pending' || !info.nameservers?.length) return null;
+    if (!info || info.status !== 'pending') return null;
+
+    // Auto-managed domains (registered through our platform): NS already set, just propagating
+    if (info.autoManaged) {
+      return (
+        <div className="dl-ns-inline-info dl-ns-inline-info--auto" data-testid={`dl-ns-info-${domain}`}>
+          <div className="dl-ns-inline-header">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            <span>Nameservers configured automatically. Propagation in progress...</span>
+          </div>
+          <p className="dl-ns-inline-note">This usually completes within a few minutes. <button className="dl-ns-recheck-btn" onClick={() => checkNS(domain)} data-testid={`dl-ns-recheck-${domain}`}>Re-check now</button></p>
+        </div>
+      );
+    }
+
+    // External domains: show NS update instructions
+    if (!info.nameservers?.length) return null;
     return (
       <div className="dl-ns-inline-info" data-testid={`dl-ns-info-${domain}`}>
         <div className="dl-ns-inline-header">
