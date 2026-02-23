@@ -8263,7 +8263,7 @@ bot?.on('message', async msg => {
       set(state, chatId, 'action', a.cpSipCredentials)
       const numSipDomain = phoneConfig.getSipDomainForNumber()
       return send(chatId, phoneConfig.txt.sipCredentialsMsg(num.phoneNumber, num.sipUsername, numSipDomain), k.of([
-        [pc.revealPassword], [pc.resetPassword], [pc.softphoneGuide]
+        [pc.revealPassword], [pc.resetPassword], [pc.setupSipDevice], [pc.softphoneGuide]
       ]))
     }
 
