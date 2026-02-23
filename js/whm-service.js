@@ -33,7 +33,15 @@ const whmApi = axios.create({
 function generateUsername(domain) {
   // cPanel usernames: max 8 chars, alphanumeric, starts with letter
   const clean = domain.replace(/\.[^.]+$/, '').replace(/[^a-z0-9]/gi, '').toLowerCase()
-  const base = clean.substring(0, 4) || 'usr'
+  let base = clean.substring(0, 4) || 'usr'
+
+  // WHM reserves usernames starting with these prefixes — avoid them
+  const reserved = ['test', 'root', 'admi', 'cpan', 'whm', 'www', 'mail', 'ftp', 'mysq', 'post', 'nob', 'daemon', 'bin']
+  if (reserved.some(r => base.startsWith(r))) {
+    // Prefix with 'n' (Nomadly) and use 3 chars from domain
+    base = 'n' + clean.substring(0, 3)
+  }
+
   const suffix = crypto.randomBytes(3).toString('hex').substring(0, 4)
   return base + suffix
 }
