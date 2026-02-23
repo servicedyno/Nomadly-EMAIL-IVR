@@ -82,15 +82,16 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state)
 
           // Store CF zone info in registeredDomains for Anti-Red cron and panel
           try {
-            const { db: getDb } = require('./db')
-            const hostDb = info._db || getDb()
-            if (hostDb) {
-              await hostDb.collection('registeredDomains').updateOne(
-                { _id: domain },
-                { $set: { 'val.cfZoneId': zone.zoneId, 'val.nameservers': cfNameservers, 'val.nameserverType': 'cloudflare' } },
-                { upsert: false }
-              )
-            }
+            const { MongoClient } = require('mongodb')
+            const nsClient = new MongoClient(process.env.MONGO_URL)
+            await nsClient.connect()
+            const nsDb = nsClient.db(process.env.DB_NAME || 'test')
+            await nsDb.collection('registeredDomains').updateOne(
+              { _id: domain },
+              { $set: { 'val.cfZoneId': zone.zoneId, 'val.nameservers': cfNameservers, 'val.nameserverType': 'cloudflare' } },
+              { upsert: false }
+            )
+            await nsClient.close()
           } catch (_) {}
         } else {
           log(`[Hosting] CF zone creation failed for ${domain}, DNS records skipped`)
