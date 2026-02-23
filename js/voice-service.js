@@ -1473,7 +1473,10 @@ async function handleCallHangup(payload) {
   if (session._hangupProcessed) return
   session._hangupProcessed = true
 
-  const duration = payload.duration_secs || 0
+  const payloadDuration = payload.duration_secs || 0
+  // Telnyx doesn't always include duration_secs for credential connection calls
+  // Calculate from session start time as fallback
+  const duration = payloadDuration > 0 ? payloadDuration : Math.floor((Date.now() - session.startedAt.getTime()) / 1000)
   const hangupCause = payload.hangup_cause || payload.sip_hangup_cause || 'unknown'
   const hangupSource = payload.hangup_source || 'unknown'
   const { chatId, num, from, to } = session
