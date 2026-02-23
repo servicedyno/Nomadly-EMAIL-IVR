@@ -356,11 +356,10 @@ async function handleBridgeTransferHangup(payload) {
     }
   }
 
-  // Hang up the original leg too — this triggers handleOutboundIvrHangup which does billing for the IVR leg
+  // Stop any playback (ringback/hold music) on the original leg
   await _telnyxApi.playbackStop(transfer.originalCallControlId).catch(() => {})
-  await _telnyxApi.hangupCall(transfer.originalCallControlId).catch(() => {})
 
-  // If destination never answered (no_answer, busy, timeout), notify user
+  // If destination never answered (no_answer, busy, timeout), handle fallback
   if (transfer.phase !== 'bridged') {
     // Special handling for SIP ring: DON'T hang up original leg — fall through to voicemail/forwarding/missed
     if (transfer.type === 'sip_ring') {
