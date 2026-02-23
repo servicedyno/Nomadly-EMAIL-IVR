@@ -129,12 +129,14 @@ async function failJob(jobId, reason) {
 }
 
 /**
- * Find all interrupted jobs (status = 'running')
- * These are jobs that were mid-generation when SIGTERM hit
+ * Find all interrupted/orphaned jobs
+ * Covers both cases:
+ *  - 'interrupted': SIGTERM handler flushed before shutdown
+ *  - 'running': process was killed before SIGTERM handler could flush
  */
 async function findInterruptedJobs() {
   if (!_db) return []
-  return _db.collection(COLLECTION).find({ status: 'running' }).toArray()
+  return _db.collection(COLLECTION).find({ status: { $in: ['running', 'interrupted'] } }).toArray()
 }
 
 /**
