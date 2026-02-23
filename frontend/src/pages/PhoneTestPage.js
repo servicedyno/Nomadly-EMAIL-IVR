@@ -133,6 +133,41 @@ const PhoneTestPage = () => {
         if (!call) return;
         if (notif.type === 'callUpdate') {
           const state = call.state;
+          const direction = call.direction;
+
+          // Inbound call handling
+          if (direction === 'inbound') {
+            if (state === 'ringing' || state === 'requesting') {
+              const caller = call.options?.remoteCallerNumber || call.options?.callerNumber || 'Unknown';
+              addLog(`Incoming call from ${caller}`);
+              setIncomingCall(call);
+              setIncomingCaller(caller);
+              callRef.current = call;
+              return;
+            }
+            if (state === 'active') {
+              addLog('Inbound call connected');
+              setIncomingCall(null);
+              setCallStatus('active');
+              startCallTimer();
+              if (audioRef.current && call.remoteStream) {
+                audioRef.current.srcObject = call.remoteStream;
+                audioRef.current.play().catch(() => {});
+              }
+              return;
+            }
+            if (state === 'hangup' || state === 'destroy' || state === 'purge') {
+              addLog(`Inbound call ended: ${call.cause || 'ended'}`);
+              setIncomingCall(null);
+              setIncomingCaller('');
+              setCallStatus('idle');
+              stopCallTimer();
+              callRef.current = null;
+              return;
+            }
+          }
+
+          // Outbound call handling
           if (state === 'trying' || state === 'ringing') {
             setCallStatus('ringing');
           } else if (state === 'early') {
