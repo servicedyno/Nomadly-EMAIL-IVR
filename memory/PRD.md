@@ -40,7 +40,7 @@ bash /app/scripts/setup-nodejs.sh
 ln -sf /app/backend/.env /app/.env
 
 # 2. Update SELF_URL in backend/.env to current pod URL + /api
-# Example: SELF_URL=https://nomadly-deployment.preview.emergentagent.com/api
+# Example: SELF_URL=https://env-config-14.preview.emergentagent.com/api
 
 # 3. Install deps
 cd /app && yarn install
