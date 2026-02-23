@@ -153,6 +153,18 @@ backend:
           agent: "main"
           comment: "Updated nixpacks.toml and railway.json to build React frontend during deploy. Added express.static serving + catch-all route in _index.js for SPA routing."
 
+  - task: "Deployment setup: .env + Node.js server + webhooks"
+    implemented: true
+    working: true
+    file: "backend/.env, scripts/setup-nodejs.sh, memory/PRD.md, README.md"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Updated 5 placeholder env vars. Created setup-nodejs.sh script that auto-detects pod URL, updates SELF_URL with /api, creates .env symlink, installs deps, adds supervisor config. Documented in PRD.md and README.md for future agent pickup."
+
 metadata:
   created_by: "main_agent"
   version: "2.0"
