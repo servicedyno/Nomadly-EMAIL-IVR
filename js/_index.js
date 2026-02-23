@@ -12184,13 +12184,15 @@ app.get('/crypto-pay-phone', auth, async (req, res) => {
   if (telnyxResources.callControlAppId) await telnyxApi.assignNumberToCallControlApp(selectedNumber, telnyxResources.callControlAppId)
   const sipUsername = phoneConfig.generateSipUsername()
   const sipPassword = phoneConfig.generateSipPassword()
-  if (telnyxResources.sipConnectionId) await telnyxApi.createSIPCredential(telnyxResources.sipConnectionId, sipUsername, sipPassword)
+  let telnyxSipUsername = null; let telnyxSipPassword = null
+  if (telnyxResources.sipConnectionId) { const tc = await telnyxApi.createSIPCredential(telnyxResources.sipConnectionId, sipUsername, sipPassword); if (tc?.sip_username) { telnyxSipUsername = tc.sip_username; telnyxSipPassword = tc.sip_password } }
   const expiresAt = new Date(); expiresAt.setMonth(expiresAt.getMonth() + 1)
   const numberDoc = {
     phoneNumber: selectedNumber, telnyxOrderId: orderResult.id, country: countryCode, countryName,
     type: info?.cpNumberType || 'local', plan: planKey, planPrice: price,
     purchaseDate: new Date().toISOString(), expiresAt: expiresAt.toISOString(),
     autoRenew: true, status: 'active', sipUsername, sipPassword,
+    telnyxSipUsername: telnyxSipUsername || sipUsername, telnyxSipPassword: telnyxSipPassword || sipPassword,
     sipDomain: phoneConfig.SIP_DOMAIN, provider: 'telnyx',
     messagingProfileId: telnyxResources.messagingProfileId, connectionId: telnyxResources.sipConnectionId,
     smsUsed: 0, minutesUsed: 0,
@@ -12630,13 +12632,15 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
   if (telnyxResources.callControlAppId) await telnyxApi.assignNumberToCallControlApp(selectedNumber, telnyxResources.callControlAppId)
   const sipUsername = phoneConfig.generateSipUsername()
   const sipPassword = phoneConfig.generateSipPassword()
-  if (telnyxResources.sipConnectionId) await telnyxApi.createSIPCredential(telnyxResources.sipConnectionId, sipUsername, sipPassword)
+  let telnyxSipUsername = null; let telnyxSipPassword = null
+  if (telnyxResources.sipConnectionId) { const tc = await telnyxApi.createSIPCredential(telnyxResources.sipConnectionId, sipUsername, sipPassword); if (tc?.sip_username) { telnyxSipUsername = tc.sip_username; telnyxSipPassword = tc.sip_password } }
   const expiresAt = new Date(); expiresAt.setMonth(expiresAt.getMonth() + 1)
   const numberDoc = {
     phoneNumber: selectedNumber, telnyxOrderId: orderResult.id, country: countryCode, countryName,
     type: info?.cpNumberType || 'local', plan: planKey, planPrice: price,
     purchaseDate: new Date().toISOString(), expiresAt: expiresAt.toISOString(),
     autoRenew: true, status: 'active', sipUsername, sipPassword,
+    telnyxSipUsername: telnyxSipUsername || sipUsername, telnyxSipPassword: telnyxSipPassword || sipPassword,
     sipDomain: phoneConfig.SIP_DOMAIN, provider: 'telnyx',
     messagingProfileId: telnyxResources.messagingProfileId, connectionId: telnyxResources.sipConnectionId,
     smsUsed: 0, minutesUsed: 0,
