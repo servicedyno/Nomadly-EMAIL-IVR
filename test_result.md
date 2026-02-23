@@ -237,6 +237,18 @@ backend:
           agent: "main"
           comment: "Express 5.2.1 requires named wildcard params. Changed app.get('*') to app.get('/{*splat}'). Verified /phone/test now serves React SPA correctly on both direct Express (5000) and FastAPI proxy (8001)."
 
+  - task: "Comprehensive Telnyx SIP voice service testing and verification"
+    implemented: true
+    working: true
+    file: "js/_index.js, js/voice-service.js, js/phone-test-routes.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "COMPREHENSIVE TESTING COMPLETE - All 7/7 tests PASSED: (1) Health check endpoint on port 5000 working correctly, (2) React SPA serving at /phone/test with proper HTML and root div, (3) FastAPI proxy routing from 8001/api to 5000 working correctly, (4) OTP API endpoint /phone/test/verify-otp properly rejecting invalid OTP with 401 status, (5) Inbound call webhook /telnyx/voice-webhook accepting and processing call.initiated events correctly, (6) Startup logs verification showing all required services initialized (React frontend serving from build directory, Telnyx resources ready, number migration to Call Control App complete, no PathError messages), (7) Clean error logs with no stderr output. Node.js Express server fully operational with React frontend integration and Telnyx SIP voice service production-ready."
+
 metadata:
   created_by: "main_agent"
   version: "2.0"
