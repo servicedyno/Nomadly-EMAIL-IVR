@@ -885,8 +885,10 @@ function createCpanelRoutes(getCpanelCol) {
   router.post('/security/js-challenge/toggle', ...auth, async (req, res) => {
     try {
       const antiRedService = require('./anti-red-service')
+      const cfService = require('./cf-service')
       const { enabled } = req.body
       let result
+      let workerResult = null
 
       if (enabled) {
         result = await antiRedService.deployJSChallenge(req.cpUser)
@@ -932,12 +934,27 @@ function createCpanelRoutes(getCpanelCol) {
             }
           } catch (_) {}
         }
+        // Re-deploy Cloudflare Worker routes so "Verify your browser" page shows
+        try {
+          const zone = await cfService.getZoneByName(req.cpDomain)
+          if (zone) {
+            workerResult = await antiRedService.deploySharedWorkerRoute(req.cpDomain, zone.id)
+          }
+        } catch (_) {}
       } else {
         result = await antiRedService.removeJSChallenge(req.cpUser)
+        // Remove Cloudflare Worker routes so "Verify your browser" page stops showing
+        try {
+          const zone = await cfService.getZoneByName(req.cpDomain)
+          if (zone) {
+            workerResult = await antiRedService.removeWorkerRoutes(req.cpDomain, zone.id)
+          }
+        } catch (_) {}
       }
 
       res.json({
         jsChallengeEnabled: !!enabled,
+        workerRoutes: workerResult,
         alwaysActive: [
           'Scanner IP cloaking (35+ scanner IP ranges)',
           'Scanner UA blocking (20 scanner user-agents)',
