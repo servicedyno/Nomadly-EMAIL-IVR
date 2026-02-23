@@ -636,16 +636,23 @@ function createCpanelRoutes(getCpanelCol) {
 
         // After AutoSSL starts, schedule a check to upgrade CF SSL to strict once cert is issued
         const domain = req.cpDomain
+        const cpUser = req.cpUser
+        const cpPass = req.cpPass
         setTimeout(async () => {
           try {
             const zone = await cfService.getZoneByName(domain)
             if (!zone) return
-            const sslRes = await whmService.getSSLStatus(req.cpUser)
-            const certs = sslRes?.data || {}
-            const domainCert = certs[domain]
-            if (domainCert && !domainCert.selfSigned && domainCert.daysLeft > 0) {
-              await cfService.setSSLMode(zone.id, 'strict')
-              log(`[Panel] SSL upgraded to strict for ${domain} (AutoSSL cert active)`)
+            const sslResult = await cpProxy.getSSLStatus(cpUser, cpPass)
+            if (sslResult?.data?.length > 0) {
+              const domainCert = sslResult.data.find(c =>
+                c.domains?.some(d => d === domain || d === `www.${domain}` || d === `*.${domain}`)
+              )
+              const isSelfSigned = domainCert?.issuer?.organization_name === 'cPanel, Inc.'
+                || domainCert?.issuer?.commonName?.includes(domain)
+              if (domainCert && !isSelfSigned) {
+                await cfService.setSSLMode(zone.id, 'strict')
+                log(`[Panel] SSL upgraded to strict for ${domain} (AutoSSL cert active)`)
+              }
             }
           } catch (e) {
             log(`[Panel] SSL upgrade check for ${domain} failed: ${e.message}`)
