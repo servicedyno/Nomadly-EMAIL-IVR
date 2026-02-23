@@ -1083,7 +1083,54 @@ async function handleCallAnswered(payload) {
     }
   }
 
-  // 3. Voicemail — Pro/Business (also counts toward minutes)
+  // 3. Ring SIP device — if user has SIP credentials, ring their device first
+  // This creates an outbound call to the SIP URI and bridges if answered.
+  // On timeout → falls through to voicemail/missed call via handleBridgeTransferHangup
+  if (num.sipUsername) {
+    session.phase = 'ringing_sip'
+    const sipUri = `sip:${num.sipUsername}@sip.telnyx.com`
+    const ringTimeout = fwdConfig?.ringTimeout || 25
+    log(`[Voice] Ringing SIP device: ${sipUri} for ${num.phoneNumber} (timeout: ${ringTimeout}s)`)
+
+    try {
+      const newCall = await _telnyxApi.createOutboundCall(to, sipUri)
+      if (newCall?.callControlId) {
+        // Track as SIP ring bridge — handleBridgeTransferAnswered/Hangup handles the rest
+        activeBridgeTransfers[newCall.callControlId] = {
+          originalCallControlId: callControlId,
+          forwardTo: sipUri,
+          fromNumber: to,
+          type: 'sip_ring',
+          vmConfig,
+          fwdConfig,
+          chatId,
+          num,
+          phase: 'ringing',
+        }
+
+        _bot?.sendMessage(chatId,
+          `📞 <b>Incoming Call</b>\n${formatPhone(from)} → ${formatPhone(to)}\nRinging your SIP device...`,
+          { parse_mode: 'HTML' }
+        ).catch(() => {})
+
+        // Timeout: SIP device didn't answer — hang up outbound leg (triggers fallback in handleBridgeTransferHangup)
+        setTimeout(async () => {
+          const transfer = activeBridgeTransfers[newCall.callControlId]
+          if (transfer && transfer.phase !== 'bridged') {
+            log(`[Voice] SIP ring timeout: device didn't answer in ${ringTimeout}s — falling through`)
+            await _telnyxApi.hangupCall(newCall.callControlId).catch(() => {})
+            // handleBridgeTransferHangup will handle voicemail/forwarding/missed fallback
+          }
+        }, ringTimeout * 1000)
+        return
+      }
+    } catch (e) {
+      log(`[Voice] Failed to ring SIP device: ${e.message} — falling through to voicemail/missed`)
+    }
+    // If we get here, SIP ring failed — fall through to voicemail/missed below
+  }
+
+  // 4. Voicemail — Pro/Business (also counts toward minutes)
   if (vmConfig?.enabled && canAccessFeature(num.plan, 'voicemail')) {
     session.phase = 'voicemail_greeting'
     
