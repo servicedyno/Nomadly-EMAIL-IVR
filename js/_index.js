@@ -11237,6 +11237,20 @@ const buyDomainFullProcess = async (chatId, lang, domain) => {
     }
     sendMessage(chatId, translation('t.domainBought', lang).replaceAll('{{domain}}', domain))
     regularCheckDns(bot, chatId, domain, lang)
+
+    // Auto-deploy Anti-Red protection if domain has Cloudflare
+    try {
+      const domainDoc = await db.collection('registeredDomains').findOne({ _id: domain })
+      const cfZoneId = domainDoc?.val?.cfZoneId
+      if (cfZoneId) {
+        const { deploySharedWorkerRoute } = require('./anti-red-service')
+        await deploySharedWorkerRoute(domain, cfZoneId)
+        log(`[Hosting] Anti-Red auto-deployed for ${domain}`)
+      }
+    } catch (e) {
+      log(`[Hosting] Anti-Red auto-deploy failed for ${domain}: ${e.message}`)
+    }
+
     return false // error = false
   } catch (error) {
     const errorMessage = `err buyDomainFullProcess ${error?.message} ${safeStringify(error?.response?.data)}`
