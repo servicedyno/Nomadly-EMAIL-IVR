@@ -798,16 +798,20 @@ async function handleOutboundSipCall(payload) {
       }
     }, 60000)
 
-    // SIP calls through Call Control need explicit routing — transfer to PSTN destination
-    // (Unlike API-created calls which route automatically)
-    try {
-      await _telnyxApi.transferCall(callControlId, destination, num.phoneNumber)
-      log(`[Voice] Outbound SIP (Telnyx): Transfer initiated ${num.phoneNumber} → ${destination}`)
-    } catch (e) {
-      log(`[Voice] Outbound SIP (Telnyx): Transfer failed — ${e.message}`)
-      clearInterval(outboundSession._limitTimer)
-      delete activeCalls[callControlId]
-      _bot?.sendMessage(chatId, `🚫 <b>Outbound Call Failed</b>\n📞 ${formatPhone(num.phoneNumber)} → ${formatPhone(destination)}\nReason: Call routing failed. Please try again.`, { parse_mode: 'HTML' }).catch(() => {})
+    // SIP calls through credential connection are auto-routed by Telnyx (state=bridging).
+    // Only calls with SIP URI in 'from' (traditional SIP clients) need explicit transfer.
+    if (!isAutoRouted) {
+      try {
+        await _telnyxApi.transferCall(callControlId, destination, num.phoneNumber)
+        log(`[Voice] Outbound SIP (Telnyx): Transfer initiated ${num.phoneNumber} → ${destination}`)
+      } catch (e) {
+        log(`[Voice] Outbound SIP (Telnyx): Transfer failed — ${e.message}`)
+        clearInterval(outboundSession._limitTimer)
+        delete activeCalls[callControlId]
+        _bot?.sendMessage(chatId, `🚫 <b>Outbound Call Failed</b>\n📞 ${formatPhone(num.phoneNumber)} → ${formatPhone(destination)}\nReason: Call routing failed. Please try again.`, { parse_mode: 'HTML' }).catch(() => {})
+      }
+    } else {
+      log(`[Voice] Outbound SIP (Telnyx): Auto-routed by Telnyx — tracking session for ${num.phoneNumber} → ${destination}`)
     }
     return
   }
