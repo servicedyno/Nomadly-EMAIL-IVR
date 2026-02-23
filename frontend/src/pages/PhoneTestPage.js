@@ -216,7 +216,7 @@ const PhoneTestPage = () => {
       setCredsReady(true);
       addLog(`Credentials ready (${data.callsRemaining} calls remaining)`);
     } catch (e) {
-      setOtpError('Verification failed. Try again.');
+      setOtpError('Verification failed. Send /testsip in the bot for a new code.');
       addLog(`Verification failed: ${e.message}`, 'error');
     }
     setOtpLoading(false);
