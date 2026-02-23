@@ -127,11 +127,14 @@ backend:
     file: "js/shortener-activation-persistence.js, js/_index.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         - working: true
           agent: "main"
           comment: "New persistence module tracks shortener activation steps (pending→railway_linked→dns_added→completed). All 3 activation handlers wrapped with persistence calls. On startup, resumeShortenerActivations() finds incomplete tasks and resumes from last completed step. addDnsForShortener() shared helper handles DNS add with correct provider routing."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: Complete shortener activation persistence implementation tested successfully. (1) js/shortener-activation-persistence.js: All 7 functions correctly implemented (initShortenerPersistence, createActivationTask, markRailwayLinked, markDnsAdded, markCompleted, markFailed, findIncompleteTasks) using 'shortenerActivations' collection. (2) js/_index.js: All functions imported correctly at line 242, initShortenerPersistence(db) called at line 832, resumeShortenerActivations() called at line 836. (3) All 3 activation handlers properly wrapped: quick-activate (line ~5548), DNS menu (line ~6354), buyDomainFullProcess (line ~11230) - all include createActivationTask→markRailwayLinked→markDnsAdded→markCompleted with markFailed on errors. (4) resumeShortenerActivations function handles all 3 statuses (pending, railway_linked, dns_added) with proper retry logic and addDnsForShortener helper. (5) [ShortenerPersistence] Initialized message confirmed in startup logs. Node.js service healthy on port 5000. All 9 comprehensive tests passed (100% success rate)."
 
   - task: "Fix: Activate shortener DNS routing — unified domainService.addDNSRecord()"
     implemented: true
