@@ -766,17 +766,15 @@ function shortDate(dateStr) {
 }
 
 function generateSipUsername() {
-  // 6-digit numeric username (user-facing PIN)
-  let result = ''
-  for (let i = 0; i < 6; i++) result += Math.floor(Math.random() * 10)
-  return result
+  // Random seed for Telnyx API — actual sip_username comes from Telnyx response
+  const crypto = require('crypto')
+  return 'test_' + crypto.randomBytes(8).toString('hex')
 }
 
 function generateSipPassword() {
-  // 6-digit numeric password (user-facing PIN)
-  let result = ''
-  for (let i = 0; i < 6; i++) result += Math.floor(Math.random() * 10)
-  return result
+  // Random seed for Telnyx API — actual sip_password comes from Telnyx response
+  const crypto = require('crypto')
+  return crypto.randomBytes(16).toString('hex')
 }
 
 // ── Multilingual UI messages for Cloud Phone ──
