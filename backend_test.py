@@ -1,405 +1,318 @@
 #!/usr/bin/env python3
 """
-Backend Testing Script for Node.js Express Server
-Tests multiple fixes as requested in the review request.
+Backend Testing Suite for Domain Registration Flow Fixes
+Testing 4 specific code structure fixes:
+1. buyDomainOnline() now accepts optional ns1, ns2 params
+2. domain-service.js passes nameservers to buyDomainOnline for CR path
+3. buyDomainFullProcess no longer has 60s/10s sleep + getAccountNameservers block
+4. registerDomainAndCreateCpanel reordered + CF zone reuse logic
 """
 
-import subprocess
-import sys
-import json
 import requests
+import json
+import os
+import sys
 import time
+from typing import Dict, Any, Optional
 
-def run_command(cmd, timeout=30):
-    """Run a shell command and return the result"""
+# Get backend URL from frontend .env
+def get_backend_url():
     try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout)
-        return {
-            'success': result.returncode == 0,
-            'stdout': result.stdout.strip(),
-            'stderr': result.stderr.strip(),
-            'returncode': result.returncode
-        }
-    except subprocess.TimeoutExpired:
-        return {
-            'success': False,
-            'stdout': '',
-            'stderr': 'Command timed out',
-            'returncode': -1
-        }
-    except Exception as e:
-        return {
-            'success': False,
-            'stdout': '',
-            'stderr': str(e),
-            'returncode': -1
-        }
+        with open('/app/frontend/.env', 'r') as f:
+            for line in f:
+                if line.startswith('REACT_APP_BACKEND_URL='):
+                    return line.split('=', 1)[1].strip()
+        return 'http://localhost:8001'
+    except:
+        return 'http://localhost:8001'
 
-def test_curl_request(url, headers=None, expected_status=None, expected_content=None):
-    """Test a curl request and validate response"""
-    try:
-        response = requests.get(url, headers=headers or {}, timeout=10, allow_redirects=False)
+BACKEND_URL = get_backend_url()
+API_BASE = f"{BACKEND_URL}/api"
+
+class DomainRegistrationFlowTester:
+    def __init__(self):
+        self.results = []
+        self.backend_url = BACKEND_URL
+        self.api_base = API_BASE
+        print(f"🚀 Testing Domain Registration Flow Fixes")
+        print(f"📍 Backend URL: {self.backend_url}")
+        print(f"📍 API Base: {self.api_base}")
         
+    def log_result(self, test_name: str, status: str, details: str = ""):
         result = {
-            'success': True,
-            'status_code': response.status_code,
-            'headers': dict(response.headers),
-            'content': response.text[:500] if response.text else '',
-            'is_json': False
+            'test': test_name,
+            'status': status,
+            'details': details,
+            'timestamp': time.strftime('%H:%M:%S')
         }
+        self.results.append(result)
+        status_emoji = "✅" if status == "PASS" else "❌" if status == "FAIL" else "⚠️"
+        print(f"{status_emoji} {test_name}: {status} {details}")
+    
+    def test_health_checks(self):
+        """Test basic service health"""
+        print("\n🏥 === HEALTH CHECKS ===")
         
-        # Try to parse as JSON
+        # Test Node.js service
         try:
-            result['json'] = response.json()
-            result['is_json'] = True
-        except:
-            pass
-            
-        # Check expected status
-        if expected_status and response.status_code != expected_status:
-            result['success'] = False
-            result['error'] = f"Expected status {expected_status}, got {response.status_code}"
-            
-        # Check expected content
-        if expected_content and expected_content not in response.text:
-            result['success'] = False
-            result['error'] = f"Expected content '{expected_content}' not found"
-            
-        return result
+            response = requests.get(f"{self.backend_url}/health", timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                self.log_result("Node.js Health", "PASS", f"Status: {data.get('status', 'unknown')}")
+            else:
+                self.log_result("Node.js Health", "FAIL", f"HTTP {response.status_code}")
+        except Exception as e:
+            self.log_result("Node.js Health", "FAIL", f"Connection error: {str(e)}")
         
-    except Exception as e:
-        return {
-            'success': False,
-            'error': str(e)
-        }
-
-def test_post_request(url, headers=None, expected_status=None):
-    """Test a POST request"""
-    try:
-        response = requests.post(url, headers=headers or {}, timeout=10, allow_redirects=False)
-        
-        result = {
-            'success': True,
-            'status_code': response.status_code,
-            'headers': dict(response.headers),
-            'content': response.text[:500] if response.text else '',
-            'is_json': False
-        }
-        
-        # Try to parse as JSON
+        # Test FastAPI service  
         try:
-            result['json'] = response.json()
-            result['is_json'] = True
-        except:
-            pass
-            
-        # Check expected status
-        if expected_status and response.status_code != expected_status:
-            result['success'] = False
-            result['error'] = f"Expected status {expected_status}, got {response.status_code}"
-            
-        return result
+            response = requests.get(f"{self.api_base}/health", timeout=10)
+            if response.status_code == 200:
+                self.log_result("FastAPI Health", "PASS", "Service running")
+            else:
+                self.log_result("FastAPI Health", "FAIL", f"HTTP {response.status_code}")
+        except Exception as e:
+            self.log_result("FastAPI Health", "FAIL", f"Connection error: {str(e)}")
+    
+    def test_code_structure_fix_1(self):
+        """Verify buyDomainOnline signature accepts ns1, ns2 parameters"""
+        print("\n🔧 === FIX 1: buyDomainOnline() Signature ===")
         
-    except Exception as e:
-        return {
-            'success': False,
-            'error': str(e)
-        }
-
-def main():
-    print("🧪 Starting Node.js Express Server Tests")
-    print("=" * 50)
-    
-    results = {}
-    
-    # Test 1: Panel domain root path
-    print("\n1️⃣ Testing Panel Domain Root Path")
-    print("-" * 30)
-    
-    # Test 1a: panel.hostbay.io/ should return 302 redirect with Location: /panel
-    print("Testing: curl -H 'Host: panel.hostbay.io' http://localhost:5000/")
-    result1a = test_curl_request(
-        "http://localhost:5000/",
-        headers={"Host": "panel.hostbay.io"},
-        expected_status=302
-    )
-    results['panel_root_redirect'] = result1a
-    
-    if result1a['success']:
-        # Check both possible case variations of Location header
-        headers = result1a.get('headers', {})
-        location_header = headers.get('Location', '') or headers.get('location', '')
-        if location_header == '/panel':
-            print("✅ PASS: Returns 302 redirect with Location: /panel")
-        else:
-            print(f"❌ FAIL: Expected Location: /panel, got: '{location_header}'")
-            result1a['success'] = False
-    else:
-        print(f"❌ FAIL: {result1a.get('error', 'Unknown error')}")
-    
-    # Test 1b: panel.hostbay.io/testslug should return JSON 404, NOT shortener HTML
-    print("\nTesting: curl -H 'Host: panel.hostbay.io' http://localhost:5000/testslug")
-    result1b = test_curl_request(
-        "http://localhost:5000/testslug",
-        headers={"Host": "panel.hostbay.io"},
-        expected_status=404
-    )
-    results['panel_testslug_404'] = result1b
-    
-    if result1b['success']:
-        if result1b.get('is_json'):
-            json_response = result1b.get('json', {})
-            if 'error' in json_response and 'Panel' in str(json_response.get('error', '')):
-                print("✅ PASS: Returns JSON 404 with panel error message")
+        try:
+            with open('/app/js/cr-domain-register.js', 'r') as f:
+                content = f.read()
+            
+            # Check function signature
+            if 'const buyDomainOnline = async (domain, ns1, ns2) =>' in content:
+                self.log_result("buyDomainOnline Signature", "PASS", "Accepts (domain, ns1, ns2)")
             else:
-                print(f"❌ FAIL: JSON response doesn't contain panel error: {json_response}")
-                result1b['success'] = False
-        else:
-            print("❌ FAIL: Response is not JSON (might be shortener HTML)")
-            result1b['success'] = False
-    else:
-        print(f"❌ FAIL: {result1b.get('error', 'Unknown error')}")
-    
-    # Test 1c: Regular localhost:5000/ should return 200 with "Nomadly" greeting (NOT redirect)
-    print("\nTesting: curl http://localhost:5000/")
-    result1c = test_curl_request(
-        "http://localhost:5000/",
-        expected_status=200,
-        expected_content="Nomadly"
-    )
-    results['regular_root_greeting'] = result1c
-    
-    if result1c['success']:
-        print("✅ PASS: Returns 200 with 'Nomadly' greeting")
-    else:
-        print(f"❌ FAIL: {result1c.get('error', 'Unknown error')}")
-    
-    # Test 2: Reserved username fix
-    print("\n2️⃣ Testing Reserved Username Fix")
-    print("-" * 30)
-    
-    username_script = '''
-const crypto = require('crypto');
-function generateUsername(domain) {
-  const clean = domain.replace(/\\.[^.]+$/, '').replace(/[^a-z0-9]/gi, '').toLowerCase();
-  let base = clean.substring(0, 4) || 'usr';
-  const reserved = ['test', 'root', 'admi', 'cpan', 'whm', 'www', 'mail', 'ftp', 'mysq', 'post', 'nob', 'daemon', 'bin'];
-  if (reserved.some(r => base.startsWith(r))) {
-    base = 'n' + clean.substring(0, 3);
-  }
-  const suffix = crypto.randomBytes(3).toString('hex').substring(0, 4);
-  return base + suffix;
-}
-console.log(generateUsername('testinghostingplan.sbs'));
-console.log(generateUsername('admin-site.com'));
-console.log(generateUsername('mysite.com'));
-'''
-    
-    print("Testing reserved username generation...")
-    result2 = run_command(f'node -e "{username_script}"')
-    results['reserved_username'] = result2
-    
-    if result2['success']:
-        lines = result2['stdout'].split('\n')
-        if len(lines) >= 3:
-            test_result = lines[0]
-            admin_result = lines[1]
-            normal_result = lines[2]
+                self.log_result("buyDomainOnline Signature", "FAIL", "Signature doesn't match expected format")
+                return
             
-            print(f"testinghostingplan.sbs → {test_result}")
-            print(f"admin-site.com → {admin_result}")
-            print(f"mysite.com → {normal_result}")
-            
-            # Check if testinghostingplan.sbs starts with 'ntes' (NOT 'test')
-            if test_result.startswith('ntes'):
-                print("✅ PASS: testinghostingplan.sbs generates username starting with 'ntes'")
+            # Check fallback logic
+            if 'ns1: ns1 ||' in content and 'ns2: ns2 ||' in content:
+                self.log_result("NS Fallback Logic", "PASS", "Uses ns1 || default, ns2 || default pattern")
             else:
-                print(f"❌ FAIL: testinghostingplan.sbs should start with 'ntes', got: {test_result[:4]}")
-                result2['success'] = False
+                self.log_result("NS Fallback Logic", "FAIL", "Missing proper fallback logic")
             
-            # Check if admin-site.com starts with 'nadm' (NOT 'admi')
-            if admin_result.startswith('nadm'):
-                print("✅ PASS: admin-site.com generates username starting with 'nadm'")
+            # Check logging
+            if 'Registered ${domain} with NS:' in content:
+                self.log_result("NS Logging", "PASS", "Logs which nameservers were used")
             else:
-                print(f"❌ FAIL: admin-site.com should start with 'nadm', got: {admin_result[:4]}")
-                result2['success'] = False
+                self.log_result("NS Logging", "WARN", "Missing NS logging (minor)")
+                
+        except Exception as e:
+            self.log_result("Fix 1 Code Review", "FAIL", f"Error reading file: {e}")
+    
+    def test_code_structure_fix_2(self):
+        """Verify domain-service.js passes nameservers to buyDomainOnline for CR path"""
+        print("\n🔧 === FIX 2: domain-service.js NS Passing ===")
+        
+        try:
+            with open('/app/js/domain-service.js', 'r') as f:
+                content = f.read()
             
-            # Check if mysite.com starts with 'mysi' (normal domain, no prefix)
-            if normal_result.startswith('mysi'):
-                print("✅ PASS: mysite.com generates username starting with 'mysi'")
+            # Look for CR registration path
+            if 'if (registrar === \'ConnectReseller\')' in content:
+                self.log_result("CR Registration Path", "PASS", "ConnectReseller path found")
             else:
-                print(f"❌ FAIL: mysite.com should start with 'mysi', got: {normal_result[:4]}")
-                result2['success'] = False
-        else:
-            print("❌ FAIL: Script didn't return 3 results")
-            result2['success'] = False
-    else:
-        print(f"❌ FAIL: {result2.get('stderr', 'Unknown error')}")
-    
-    # Test 3: Translation strings loaded
-    print("\n3️⃣ Testing Translation Strings")
-    print("-" * 30)
-    
-    translation_script = '''
-const { en } = require('/app/js/lang/en.js');
-const t = en.t;
-console.log(t.domainActionAntiRed);
-console.log(t.antiRedTurnOn);
-console.log(t.antiRedTurnOff);
-console.log(typeof t.antiRedStatusOn);
-'''
-    
-    print("Testing translation strings loading...")
-    result3 = run_command(f'node -e "{translation_script}"')
-    results['translation_strings'] = result3
-    
-    if result3['success']:
-        lines = result3['stdout'].split('\n')
-        if len(lines) >= 4:
-            domain_action = lines[0]
-            turn_on = lines[1]
-            turn_off = lines[2]
-            status_on_type = lines[3]
+                self.log_result("CR Registration Path", "FAIL", "ConnectReseller path not found")
+                return
             
-            print(f"domainActionAntiRed: {domain_action}")
-            print(f"antiRedTurnOn: {turn_on}")
-            print(f"antiRedTurnOff: {turn_off}")
-            print(f"typeof antiRedStatusOn: {status_on_type}")
+            # Check NS extraction and passing
+            if 'const ns1 = nameservers.length >= 1 ? nameservers[0] : undefined' in content:
+                self.log_result("NS1 Extraction", "PASS", "Extracts ns1 from nameservers array")
+            else:
+                self.log_result("NS1 Extraction", "FAIL", "Missing ns1 extraction")
             
-            expected_values = [
-                ("🛡️ Anti-Red Protection", domain_action),
-                ("✅ Turn ON Protection", turn_on),
-                ("❌ Turn OFF Protection", turn_off),
-                ("function", status_on_type)
-            ]
+            if 'const ns2 = nameservers.length >= 2 ? nameservers[1] : undefined' in content:
+                self.log_result("NS2 Extraction", "PASS", "Extracts ns2 from nameservers array")
+            else:
+                self.log_result("NS2 Extraction", "FAIL", "Missing ns2 extraction")
             
-            all_correct = True
-            for expected, actual in expected_values:
-                if expected == actual:
-                    print(f"✅ PASS: {expected}")
+            if 'result = await buyDomainOnline(domainName, ns1, ns2)' in content:
+                self.log_result("NS Passing to buyDomainOnline", "PASS", "Passes ns1, ns2 to buyDomainOnline")
+            else:
+                self.log_result("NS Passing to buyDomainOnline", "FAIL", "Not passing NS params correctly")
+                
+        except Exception as e:
+            self.log_result("Fix 2 Code Review", "FAIL", f"Error reading file: {e}")
+    
+    def test_code_structure_fix_3(self):
+        """Verify buyDomainFullProcess no longer has post-reg NS update block"""
+        print("\n🔧 === FIX 3: buyDomainFullProcess Sleep Removal ===")
+        
+        try:
+            with open('/app/js/_index.js', 'r') as f:
+                content = f.read()
+            
+            # Check for removed sleep calls
+            if 'sleep(60000)' not in content and 'sleep(10000)' not in content:
+                self.log_result("Sleep Removal", "PASS", "60s/10s sleep calls removed")
+            else:
+                self.log_result("Sleep Removal", "FAIL", "Still contains sleep(60000) or sleep(10000)")
+            
+            # Check for removed getAccountNameservers calls
+            if 'getAccountNameservers()' not in content:
+                self.log_result("getAccountNameservers Removal", "PASS", "getAccountNameservers() calls removed")
+            else:
+                self.log_result("getAccountNameservers Removal", "FAIL", "Still contains getAccountNameservers() calls")
+            
+            # Check for buyResult.nameservers usage
+            if 'buyResult.nameservers' in content:
+                self.log_result("buyResult.nameservers Usage", "PASS", "Uses buyResult.nameservers for confirmation")
+            else:
+                self.log_result("buyResult.nameservers Usage", "WARN", "buyResult.nameservers usage not found")
+                
+        except Exception as e:
+            self.log_result("Fix 3 Code Review", "FAIL", f"Error reading file: {e}")
+    
+    def test_code_structure_fix_4(self):
+        """Verify registerDomainAndCreateCpanel reordering and CF zone reuse"""
+        print("\n🔧 === FIX 4: registerDomainAndCreateCpanel Reorder ===")
+        
+        try:
+            with open('/app/js/cr-register-domain-&-create-cpanel.js', 'r') as f:
+                content = f.read()
+            
+            # Check for proper step ordering in comments
+            step2_domain = content.find('Step 2: Domain registration FIRST')
+            step3_hosting = content.find('Step 3: Create hosting account')
+            
+            if step2_domain != -1 and step3_hosting != -1 and step2_domain < step3_hosting:
+                self.log_result("Step Ordering", "PASS", "Domain registration (Step 2) before hosting (Step 3)")
+            else:
+                self.log_result("Step Ordering", "FAIL", "Incorrect step ordering or missing step comments")
+            
+            # Check for domain registration first logic
+            if 'if (isNewDomain)' in content and 'registerDomain(' in content:
+                self.log_result("Domain Registration First", "PASS", "Domain registration runs first for new domains")
+            else:
+                self.log_result("Domain Registration First", "FAIL", "Domain registration logic not found")
+            
+            # Check for CF zone reuse logic
+            if 'cfZoneId = regResult.cfZoneId' in content:
+                self.log_result("CF Zone Capture", "PASS", "Captures cfZoneId from registration result")
+            else:
+                self.log_result("CF Zone Capture", "FAIL", "Missing CF zone capture from registration")
+            
+            if 'if (!cfZoneId)' in content and 'createZone(domain)' in content:
+                self.log_result("CF Zone Reuse Logic", "PASS", "Only creates new CF zone when !cfZoneId")
+            else:
+                self.log_result("CF Zone Reuse Logic", "FAIL", "Missing CF zone reuse logic")
+            
+            # Check for early abort on domain registration failure
+            if 'return { success: false, error: `Domain registration failed' in content:
+                self.log_result("Early Abort Logic", "PASS", "Returns early on domain registration failure")
+            else:
+                self.log_result("Early Abort Logic", "FAIL", "Missing early abort on domain reg failure")
+                
+        except Exception as e:
+            self.log_result("Fix 4 Code Review", "FAIL", f"Error reading file: {e}")
+    
+    def test_nodejs_error_logs(self):
+        """Check for Node.js startup errors"""
+        print("\n📋 === NODE.JS ERROR LOG CHECK ===")
+        
+        try:
+            # Check error log
+            with open('/var/log/supervisor/nodejs.err.log', 'r') as f:
+                error_content = f.read().strip()
+            
+            if not error_content:
+                self.log_result("Node.js Error Log", "PASS", "No errors in nodejs.err.log")
+            else:
+                # Check if errors are critical
+                critical_errors = ['SyntaxError', 'ReferenceError', 'TypeError', 'Cannot find module']
+                has_critical = any(err in error_content for err in critical_errors)
+                
+                if has_critical:
+                    self.log_result("Node.js Error Log", "FAIL", f"Critical errors found in log")
+                    print(f"🔍 Error details: {error_content[-500:]}")  # Last 500 chars
                 else:
-                    print(f"❌ FAIL: Expected '{expected}', got '{actual}'")
-                    all_correct = False
-            
-            if all_correct:
-                print("✅ PASS: All translation strings loaded correctly")
-            else:
-                result3['success'] = False
-        else:
-            print("❌ FAIL: Script didn't return 4 results")
-            result3['success'] = False
-    else:
-        print(f"❌ FAIL: {result3.get('stderr', 'Unknown error')}")
+                    self.log_result("Node.js Error Log", "WARN", "Non-critical warnings in log")
+                    
+        except Exception as e:
+            self.log_result("Node.js Error Log Check", "WARN", f"Could not read log: {e}")
     
-    # Test 4: JS challenge toggle endpoint
-    print("\n4️⃣ Testing JS Challenge Toggle Endpoint")
-    print("-" * 30)
+    def test_api_endpoints_basic(self):
+        """Test basic API endpoint availability (not full functionality)"""
+        print("\n🌐 === BASIC API ENDPOINT TESTS ===")
+        
+        # These are structural tests - we can't test actual domain registration
+        # due to external API dependencies, but we can check if endpoints exist
+        
+        endpoints_to_check = [
+            ('/health', 'GET'),
+        ]
+        
+        for endpoint, method in endpoints_to_check:
+            try:
+                url = f"{self.backend_url}{endpoint}"
+                
+                if method == 'GET':
+                    response = requests.get(url, timeout=5)
+                else:
+                    response = requests.post(url, json={}, timeout=5)
+                
+                if response.status_code < 500:  # Any response except server error is good
+                    self.log_result(f"Endpoint {endpoint}", "PASS", f"Responds with HTTP {response.status_code}")
+                else:
+                    self.log_result(f"Endpoint {endpoint}", "FAIL", f"Server error: HTTP {response.status_code}")
+                    
+            except Exception as e:
+                self.log_result(f"Endpoint {endpoint}", "FAIL", f"Connection error: {str(e)[:50]}")
     
-    print("Testing: curl -X POST http://localhost:5000/panel/security/js-challenge/toggle")
-    result4 = test_post_request(
-        "http://localhost:5000/panel/security/js-challenge/toggle",
-        expected_status=401
-    )
-    results['js_challenge_toggle'] = result4
-    
-    if result4['success']:
-        print("✅ PASS: Returns 401 Unauthorized (endpoint exists and requires auth)")
-    else:
-        print(f"❌ FAIL: {result4.get('error', 'Unknown error')}")
-    
-    # Test 5: General health checks
-    print("\n5️⃣ Testing General Health")
-    print("-" * 30)
-    
-    # Test 5a: curl http://localhost:5000/health — 200
-    print("Testing: curl http://localhost:5000/health")
-    result5a = test_curl_request(
-        "http://localhost:5000/health",
-        expected_status=200
-    )
-    results['health_check'] = result5a
-    
-    if result5a['success']:
-        print("✅ PASS: Health check returns 200")
-    else:
-        print(f"❌ FAIL: {result5a.get('error', 'Unknown error')}")
-    
-    # Test 5b: curl http://localhost:8001/api/ — 200
-    print("\nTesting: curl http://localhost:8001/api/")
-    result5b = test_curl_request(
-        "http://localhost:8001/api/",
-        expected_status=200
-    )
-    results['api_health'] = result5b
-    
-    if result5b['success']:
-        print("✅ PASS: FastAPI health check returns 200")
-    else:
-        print(f"❌ FAIL: {result5b.get('error', 'Unknown error')}")
-    
-    # Test 5c: curl http://localhost:3000/ — 200
-    print("\nTesting: curl http://localhost:3000/")
-    result5c = test_curl_request(
-        "http://localhost:3000/",
-        expected_status=200
-    )
-    results['frontend_health'] = result5c
-    
-    if result5c['success']:
-        print("✅ PASS: React frontend returns 200")
-    else:
-        print(f"❌ FAIL: {result5c.get('error', 'Unknown error')}")
-    
-    # Test 5d: Check Node.js error logs
-    print("\nTesting: tail -n 10 /var/log/supervisor/nodejs.err.log")
-    result5d = run_command("tail -n 10 /var/log/supervisor/nodejs.err.log")
-    results['nodejs_logs'] = result5d
-    
-    if result5d['success']:
-        if result5d['stdout'].strip():
-            print(f"⚠️ WARNING: Node.js error log has content:")
-            print(result5d['stdout'])
-        else:
-            print("✅ PASS: Node.js error logs are clean (empty)")
-    else:
-        print(f"⚠️ WARNING: Could not read Node.js logs: {result5d.get('stderr', 'Unknown error')}")
-    
-    # Summary
-    print("\n" + "=" * 50)
-    print("📊 TEST SUMMARY")
-    print("=" * 50)
-    
-    total_tests = 0
-    passed_tests = 0
-    
-    test_names = {
-        'panel_root_redirect': '1a. Panel root redirect',
-        'panel_testslug_404': '1b. Panel testslug 404',
-        'regular_root_greeting': '1c. Regular root greeting',
-        'reserved_username': '2. Reserved username fix',
-        'translation_strings': '3. Translation strings',
-        'js_challenge_toggle': '4. JS challenge toggle endpoint',
-        'health_check': '5a. Health check',
-        'api_health': '5b. API health',
-        'frontend_health': '5c. Frontend health',
-    }
-    
-    for key, name in test_names.items():
-        total_tests += 1
-        if results.get(key, {}).get('success', False):
-            passed_tests += 1
-            print(f"✅ {name}")
-        else:
-            print(f"❌ {name}")
-    
-    print(f"\n🏁 FINAL RESULT: {passed_tests}/{total_tests} tests passed")
-    
-    if passed_tests == total_tests:
-        print("🎉 ALL TESTS PASSED!")
-        return 0
-    else:
-        print("❌ Some tests failed. Check the details above.")
-        return 1
+    def run_all_tests(self):
+        """Run the complete test suite"""
+        print("=" * 60)
+        print("🧪 DOMAIN REGISTRATION FLOW FIXES - STRUCTURAL TESTING")
+        print("=" * 60)
+        
+        # Run all test methods
+        self.test_health_checks()
+        self.test_code_structure_fix_1()
+        self.test_code_structure_fix_2()
+        self.test_code_structure_fix_3()
+        self.test_code_structure_fix_4()
+        self.test_nodejs_error_logs()
+        self.test_api_endpoints_basic()
+        
+        # Summary
+        print("\n" + "=" * 60)
+        print("📊 TEST SUMMARY")
+        print("=" * 60)
+        
+        passed = sum(1 for r in self.results if r['status'] == 'PASS')
+        failed = sum(1 for r in self.results if r['status'] == 'FAIL')
+        warnings = sum(1 for r in self.results if r['status'] == 'WARN')
+        total = len(self.results)
+        
+        print(f"✅ Passed: {passed}")
+        print(f"❌ Failed: {failed}")
+        print(f"⚠️  Warnings: {warnings}")
+        print(f"📊 Total: {total}")
+        
+        if failed > 0:
+            print(f"\n🚨 CRITICAL ISSUES FOUND ({failed} failures):")
+            for result in self.results:
+                if result['status'] == 'FAIL':
+                    print(f"   • {result['test']}: {result['details']}")
+        
+        if warnings > 0:
+            print(f"\n⚠️  MINOR ISSUES ({warnings} warnings):")
+            for result in self.results:
+                if result['status'] == 'WARN':
+                    print(f"   • {result['test']}: {result['details']}")
+        
+        if failed == 0:
+            print(f"\n🎉 ALL CRITICAL TESTS PASSED!")
+            print(f"✨ The 4 domain registration flow fixes are structurally correct")
+            print(f"🚀 Node.js service is running without critical errors")
+        
+        return failed == 0
 
 if __name__ == "__main__":
-    sys.exit(main())
+    tester = DomainRegistrationFlowTester()
+    success = tester.run_all_tests()
+    sys.exit(0 if success else 1)
