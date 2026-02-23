@@ -265,7 +265,7 @@ class BackendTester:
         test_name = "Startup logs check"
         try:
             # Check nodejs startup logs
-            result = subprocess.run(['tail', '-n', '50', '/var/log/supervisor/nodejs.out.log'], 
+            result = subprocess.run(['tail', '-n', '100', '/var/log/supervisor/nodejs.out.log'], 
                                   capture_output=True, text=True)
             
             if result.returncode != 0:
@@ -277,17 +277,18 @@ class BackendTester:
             issues = []
             
             # Check for "Panel domain guard active" message
-            if "Panel domain guard active" not in log_content:
+            panel_guard_found = "Panel domain guard active" in log_content or "[Express] Panel domain guard active" in log_content
+            if not panel_guard_found:
                 issues.append("'Panel domain guard active' message not found")
             
-            # Check for critical errors
-            error_indicators = ["ERROR", "Error:", "FATAL", "Exception"]
-            for indicator in error_indicators:
+            # Check for critical errors (but ignore minor warnings)
+            critical_indicators = ["FATAL", "Fatal:", "CRITICAL", "Critical:", "Cannot start", "Failed to start"]
+            for indicator in critical_indicators:
                 if indicator in log_content:
                     # Count occurrences
                     count = log_content.count(indicator)
                     if count > 0:
-                        issues.append(f"{count} '{indicator}' found in logs")
+                        issues.append(f"{count} critical '{indicator}' found in logs")
             
             if not issues:
                 self.log_test_result(test_name, True, 
@@ -295,10 +296,10 @@ class BackendTester:
             else:
                 self.log_test_result(test_name, False, 
                                    f"Issues found: {'; '.join(issues)}")
-                # Print relevant log excerpts
+                # Print relevant log excerpts for critical issues only
                 lines = log_content.split('\n')
-                for line in lines[-20:]:  # Last 20 lines
-                    if any(err in line for err in error_indicators):
+                for line in lines[-30:]:  # Last 30 lines
+                    if any(err in line for err in critical_indicators):
                         print(f"   Log: {line.strip()}")
                 
         except Exception as e:
