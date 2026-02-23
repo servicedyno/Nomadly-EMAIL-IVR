@@ -34,7 +34,7 @@ class NomadlyTester:
             self.mongo_client = pymongo.MongoClient(mongo_url)
             self.db = self.mongo_client.test  # DB_NAME from .env
             # Test connection
-            self.db.admin.command('ping')
+            self.mongo_client.admin.command('ping')
             print("✓ MongoDB connection established")
         except Exception as e:
             print(f"⚠ MongoDB connection failed: {e}")
