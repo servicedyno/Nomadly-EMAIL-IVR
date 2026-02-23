@@ -884,6 +884,11 @@ const msg = {
     sendVoiceOrText: '发送语音消息、音频文件，或输入自定义问候语文本。',
     noActivity: '暂无活动记录。',
     insufficientBalUpgrade: (needed, bal) => `❌ 余额不足。需要 $${needed.toFixed(2)}，但仅有 $${bal.toFixed(2)}。\n\n请先充值。`,
+    sipTestCode: (otp, remaining) => `🔑 <b>您的SIP测试码</b>\n\n<code>${otp}</code>\n\n在测试页面输入此代码以获取免费SIP凭据。\n⏱ 5分钟后过期。\n📞 剩余 ${remaining} 次测试通话。\n\n🌐 <a href="https://speechcue.com/phone/test">打开测试页面</a>`,
+    sipTestComplete: `📞 <b>SIP测试完成</b>\n\n您已使用完免费测试通话。如需无限SIP通话，请订阅支持SIP的 <b>Cloud Phone</b> 套餐。\n\n👉 点击 <b>📞 Cloud Phone + SIP</b> 浏览套餐。`,
+    sipTestReferral: (link) => `\n\n🎁 <b>想要再获得1次免费测试通话？</b>\n将此链接分享给朋友。当他们发送 /testsip 时，您将获得一次额外通话：\n\n${link}`,
+    sipTestError: '❌ 无法生成测试码。请稍后重试。',
+    sipTestMenuHint: '🧪 <i>免费试用SIP通话 — 发送 /testsip</i>',
   },
   hi: {
     selectOption: 'कृपया एक विकल्प चुनें।',
