@@ -1104,10 +1104,12 @@ schedule.scheduleJob('0 */6 * * *', async function() {
       const doc = await cursor.next()
       const val = doc.val || {}
       if (val.cfZoneId && val.nameserverType === 'cloudflare') {
+        // Skip domains where user explicitly turned off Anti-Red
+        if (val.antiRedOff === true) continue
         domains.push({ domain: String(doc._id), zoneId: val.cfZoneId })
       }
     }
-    log(`[AntiRed-Cron] Found ${domains.length} CF-proxied domains`)
+    log(`[AntiRed-Cron] Found ${domains.length} CF-proxied domains (excluding opted-out)`)
 
     let deployed = 0, already = 0, failed = 0
     for (const { domain, zoneId } of domains) {
