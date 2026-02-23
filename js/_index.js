@@ -9854,18 +9854,6 @@ bot?.on('message', async msg => {
       }
       return
     }
-    if (message === pc.setupSipDevice) {
-      const sipUser = num.sipUsername
-      const sipPass = num.sipPassword
-      const domain = phoneConfig.getSipDomainForNumber()
-      const msg = await bot?.sendMessage(chatId, phoneConfig.txt.sipDeviceSetup(num.phoneNumber, sipUser, sipPass, domain), { parse_mode: 'HTML' })
-      if (msg?.message_id) {
-        setTimeout(() => {
-          bot?.deleteMessage(chatId, msg.message_id)?.catch(() => {})
-        }, 60000)
-      }
-      return
-    }
     if (message === pc.softphoneGuide) {
       const numSipDomain = phoneConfig.getSipDomainForNumber()
       return send(chatId, phoneConfig.txt.softphoneGuide(numSipDomain), k.of([]))
