@@ -126,6 +126,7 @@ def main():
     results['panel_root_redirect'] = result1a
     
     if result1a['success']:
+        # Python requests converts header names to lowercase
         location_header = result1a.get('headers', {}).get('location', '')
         if location_header == '/panel':
             print("✅ PASS: Returns 302 redirect with Location: /panel")
