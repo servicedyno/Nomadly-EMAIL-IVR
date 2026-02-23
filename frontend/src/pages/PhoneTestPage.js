@@ -211,61 +211,62 @@ const PhoneTestPage = () => {
           const state = call.state;
           const direction = call.direction;
 
-          // Inbound call handling — robust detection
-          // TelnyxRTC may report direction as 'inbound' or via call options
-          const isInbound = direction === 'inbound' || call.options?.direction === 'inbound';
+          // ── ROBUST INBOUND DETECTION ──
+          // TelnyxRTC sometimes doesn't set direction correctly.
+          // Primary: check direction. Fallback: if user didn't dial, it's inbound.
+          const isInbound = direction === 'inbound'
+            || call.options?.direction === 'inbound'
+            || (!userDialedRef.current && (state === 'ringing' || state === 'requesting' || state === 'new'));
 
-          if (isInbound) {
-            if (state === 'ringing' || state === 'requesting' || state === 'new') {
-              const caller = call.options?.remoteCallerNumber || call.options?.callerNumber || call.options?.callerName || 'Unknown';
-              addLog(`📞 Incoming call from ${caller}`);
-              setIncomingCall(call);
-              setIncomingCaller(caller);
-              setIncomingCallerName('');
-              setIncomingCallerLocation('');
-              setCallStatus('ringing');
-              callRef.current = call;
-              startRingtone();
-              // Fetch caller info (CNAM + location) in background
-              if (caller && caller !== 'Unknown') {
-                fetch(`${BACKEND_URL}/api/phone/test/caller-info`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ number: caller }),
-                }).then(r => r.json()).then(info => {
-                  if (info.name) setIncomingCallerName(info.name);
-                  if (info.location) setIncomingCallerLocation(info.location);
-                }).catch(() => {});
-              }
-              return;
+          if (isInbound && (state === 'ringing' || state === 'requesting' || state === 'new')) {
+            const caller = call.options?.remoteCallerNumber || call.options?.callerNumber || call.options?.callerName || 'Unknown';
+            addLog(`📞 Incoming call from ${caller}`);
+            setIncomingCall(call);
+            setIncomingCaller(caller);
+            setIncomingCallerName('');
+            setIncomingCallerLocation('');
+            setCallStatus('ringing');
+            callRef.current = call;
+            startRingtone();
+            // Fetch caller info (CNAM + location) in background
+            if (caller && caller !== 'Unknown') {
+              fetch(`${BACKEND_URL}/api/phone/test/caller-info`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ number: caller }),
+              }).then(r => r.json()).then(info => {
+                if (info.name) setIncomingCallerName(info.name);
+                if (info.location) setIncomingCallerLocation(info.location);
+              }).catch(() => {});
             }
-            if (state === 'active') {
-              addLog('Inbound call connected');
-              stopRingtone();
-              setIncomingCall(null);
-              setCallStatus('active');
-              startCallTimer();
-              if (audioRef.current && call.remoteStream) {
-                audioRef.current.srcObject = call.remoteStream;
-                audioRef.current.play().catch(() => {});
-              }
-              return;
+            return;
+          }
+          if (isInbound && state === 'active') {
+            addLog('Inbound call connected');
+            stopRingtone();
+            setIncomingCall(null);
+            setCallStatus('active');
+            startCallTimer();
+            if (audioRef.current && call.remoteStream) {
+              audioRef.current.srcObject = call.remoteStream;
+              audioRef.current.play().catch(() => {});
             }
-            if (state === 'hangup' || state === 'destroy' || state === 'purge') {
-              addLog(`Inbound call ended: ${call.cause || 'ended'}`);
-              stopRingtone();
-              setIncomingCall(null);
-              setIncomingCaller('');
-              setIncomingCallerName('');
-              setIncomingCallerLocation('');
-              setCallStatus('idle');
-              stopCallTimer();
-              callRef.current = null;
-              return;
-            }
+            return;
+          }
+          if (isInbound && (state === 'hangup' || state === 'destroy' || state === 'purge')) {
+            addLog(`Inbound call ended: ${call.cause || 'ended'}`);
+            stopRingtone();
+            setIncomingCall(null);
+            setIncomingCaller('');
+            setIncomingCallerName('');
+            setIncomingCallerLocation('');
+            setCallStatus('idle');
+            stopCallTimer();
+            callRef.current = null;
+            return;
           }
 
-          // Outbound call handling
+          // ── OUTBOUND CALL HANDLING (user-initiated) ──
           if (state === 'trying' || state === 'ringing') {
             setCallStatus('ringing');
           } else if (state === 'early') {
@@ -282,6 +283,7 @@ const PhoneTestPage = () => {
             setCallStatus('idle');
             stopCallTimer();
             callRef.current = null;
+            userDialedRef.current = false;
           }
         }
       });
