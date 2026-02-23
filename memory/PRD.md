@@ -1,45 +1,46 @@
-# Nomadly - PRD & Setup Log
+# Speechcue Cloud Phone - PRD
 
 ## Original Problem Statement
-1. Set up environment variables for the Nomadly application on Emergent pod
-2. Investigate Railway deployment logs for phone number +18777000068
-3. Fix SIP credentials "unauthorized" error for user johngambino
-4. Fix bug where user's support message didn't reach admin bot
-5. Fix underlying code bug: SIP credentials mismatch (local vs Telnyx-generated)
-6. Add admin notification safety net for fallen-through support messages
-7. Fix outbound SIP call failures ("Can not issue an answer command on an outbound call")
+Set up and configure a multi-service application (Telegram bot + Telnyx voice/SIP + FastAPI backend + React frontend). After setup, build a public-facing SIP test page branded as "Speechcue" for users to test SIP calling.
 
 ## Architecture
-- **Application**: Node.js Telegram bot (`tg-bot-link-shorten`)
-- **Repo**: Moxxcompany/NomadlyPhoneCloud (branch: WHM-Setup)
-- **Database**: MongoDB on Railway
-- **Telephony**: Telnyx (SIP, Voice, SMS) + Twilio (SIP domains, bridge)
-- **SIP Proxy**: `sip.speechcue.com` → Telnyx (192.76.120.10)
-- **Telnyx SIP Connection**: 2898118323872990714 (Nomadly Cloud Phone SIP)
-- **Outbound Voice Profile**: 2897375459551478845
+- **Frontend:** React (port 3000) with Tailwind CSS and @telnyx/webrtc
+- **Backend:** FastAPI (port 8001) acting as reverse proxy to Node.js Express (port 5000)
+- **Node.js:** Telegram bot + Telnyx voice service + SIP test credentials API
+- **Database:** External MongoDB
+- **Routing:** Kubernetes ingress routes `/api/*` to FastAPI, all other routes to React frontend
 
-## All Changes Summary
+## What's Been Implemented
 
-| File | Changes | Description |
-|------|---------|-------------|
-| `js/_index.js` | +60/-20 | SIP creds from Telnyx response, support session re-open, fallback admin notification |
-| `js/voice-service.js` | +71/-53 | Fix SIP detection, answerCall error handling, outbound hangup_cause logging, Telegram notifications |
-| `js/telnyx-service.js` | +26/-3 | Auto-link outbound voice profile to SIP connection on startup |
+### Completed
+- [x] Environment setup with all API keys configured in `backend/.env`
+- [x] Telegram bot running via supervisor (`telegrambot` service)
+- [x] FastAPI reverse proxy to Node.js Express (voice webhooks, telegram webhooks, phone test API)
+- [x] SIP call routing fix in `voice-service.js` (connection_id-based routing)
+- [x] **Speechcue SIP Test Page** (Feb 2026)
+  - React component at `/phone/test` (`PhoneTestPage.js`)
+  - Two tabs: "Free Test" (auto-generated temp creds) and "My Credentials" (manual entry)
+  - Backend: `/api/phone/test/credentials` generates temp SIP credentials via Telnyx API
+  - Rate limiting: 2 calls per IP, 60-second max call duration
+  - Auto-hangup timer, connection logs, Speechcue branding (no Telnyx mention)
+  - All tests passed (100% backend + frontend)
 
-### Critical Infrastructure Fix
-- **Outbound Voice Profile was NULL on SIP Connection** → Telnyx couldn't route outbound calls to PSTN → all calls dropped instantly with 0 duration
-- Fixed via API: `PATCH /credential_connections/{id}` with `outbound.outbound_voice_profile_id`
-- Added startup check in `initializeTelnyxResources()` to auto-link profile if missing
+### Key Files
+- `/app/frontend/src/pages/PhoneTestPage.js` - SIP test page React component
+- `/app/frontend/src/App.js` - React router
+- `/app/js/phone-test-routes.js` - Backend credential generation + rate limiting
+- `/app/js/voice-service.js` - Telnyx voice call handling
+- `/app/backend/server.py` - FastAPI proxy server
 
-### Code Fixes
-1. **SIP credential mismatch** (4 locations in _index.js): Use Telnyx API response credentials
-2. **Support session re-open**: `/reply` handler re-opens session + fallback notification
-3. **SIP-originated detection**: Check `@` in from field, not just `sip:` prefix
-4. **answerCall on outbound**: Replaced with `hangupCall` + Telegram notification
-5. **Inbound handler**: Wrapped `answerCall` with try-catch, redirects to outbound handler on mismatch
-6. **Outbound hangup logging**: Added `hangup_cause` and `hangup_source` to outbound call hangup logs
+## Prioritized Backlog
 
-## Next Tasks
-- Push all 3 files to GitHub → Railway auto-deploys
-- Have johngambino retry outbound call after deploy
-- Monitor logs for hangup_cause to diagnose if carrier-level issues persist
+### P1 - Upcoming
+- Update Telegram bot SIP guide with link to test page
+
+### P2 - Cleanup
+- Remove old `SipTest.js` and `/api/sip-test-credentials` endpoint (redundant)
+- Remove unused `SipTest.js` page file
+
+### P3 - Future
+- Production domain setup (`speechcue.com/phone/test`)
+- Analytics dashboard for test call usage
