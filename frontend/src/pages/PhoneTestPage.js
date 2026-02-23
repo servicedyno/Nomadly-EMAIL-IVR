@@ -247,7 +247,7 @@ const PhoneTestPage = () => {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ number: caller }),
-              }).then(r => r.json()).then(info => {
+              }).then(r => r.clone().json()).then(info => {
                 if (info.name) setIncomingCallerName(info.name);
                 if (info.location) setIncomingCallerLocation(info.location);
               }).catch(() => {});
