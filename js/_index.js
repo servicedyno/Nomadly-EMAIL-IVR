@@ -5690,9 +5690,9 @@ bot?.on('message', async msg => {
     if (!yesNo.includes(message)) return send(chatId, t.what)
     saveInfo('askDomainToUseWithShortener', message === yesNo[0])
 
-    // Yes = shortener: skip NS selection, use provider_default for reliable Railway CNAME linking
+    // Yes = shortener: skip NS selection, use Cloudflare for DNS management + Anti-Red
     if (message === yesNo[0]) {
-      saveInfo('nsChoice', 'provider_default')
+      saveInfo('nsChoice', 'cloudflare')
 
       if ((info?.domain?.endsWith('.sbs') || info?.domain?.endsWith('.xyz')) && (await isSubscribed(chatId))) {
         const available = (await get(freeDomainNamesAvailableFor, chatId)) || 0
