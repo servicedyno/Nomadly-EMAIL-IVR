@@ -165,26 +165,40 @@ const validateNumbersParallel = async (carrier, length, countryCode, areaCode, c
   }
 }
 
-const validateBulkNumbers = async (carrier, phonesToGenerate, countryCode, areaCodes, cnam, bot, chatId, lang, requireRealName = false, jobMeta = {}) => {
-  log({ phonesToGenerate, countryCode, areaCodes, cnam, requireRealName }, '\n')
+const validateBulkNumbers = async (carrier, phonesToGenerate, countryCode, areaCodes, cnam, bot, chatId, lang, requireRealName = false, jobMeta = {}, resumeData = null) => {
+  log({ phonesToGenerate, countryCode, areaCodes, cnam, requireRealName, resuming: !!resumeData }, '\n')
 
-  // ── Create persistent job ──
-  const jobId = await createJob({
-    chatId,
-    carrier,
-    phonesToGenerate,
-    countryCode,
-    areaCodes,
-    cnam,
-    requireRealName,
-    target: jobMeta.target,
-    price: jobMeta.price,
-    lang,
-  }).catch(e => { log(`[LeadJobs] Create error: ${e.message}`); return null })
+  let jobId
+  const res = resumeData ? [...(resumeData.results || [])] : []
+  let realNameCount = resumeData ? (resumeData.realNameCount || 0) : 0
 
-  let i = 0
-  const res = []
-  let realNameCount = 0
+  if (resumeData) {
+    // ── Resuming interrupted job — reuse jobId and existing results ──
+    jobId = resumeData.jobId
+    log(`[LeadJobs] Resuming job ${jobId} — ${res.length} existing results, ${realNameCount} real names, target ${phonesToGenerate}`)
+    if (jobId) {
+      startPeriodicSave(jobId, () => ({ results: res, realNameCount }))
+    }
+  } else {
+    // ── Create persistent job ──
+    jobId = await createJob({
+      chatId,
+      carrier,
+      phonesToGenerate,
+      countryCode,
+      areaCodes,
+      cnam,
+      requireRealName,
+      target: jobMeta.target,
+      price: jobMeta.price,
+      lang,
+    }).catch(e => { log(`[LeadJobs] Create error: ${e.message}`); return null })
+
+    // ── Start periodic progress saves ──
+    if (jobId) {
+      startPeriodicSave(jobId, () => ({ results: res, realNameCount }))
+    }
+  }
   let elapsedTime = 0
   let noHitCount = 0
   const startTime = new Date()
