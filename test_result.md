@@ -180,22 +180,20 @@ backend:
 
 metadata:
   created_by: "main_agent"
-  version: "3.2"
-  test_sequence: 4
+  version: "4.0"
+  test_sequence: 5
   run_ui: false
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Fix: buyDomainOnline() accept optional NS params"
+    - "Fix: domain-service passes NS to buyDomainOnline for CR"
+    - "Fix: buyDomainFullProcess uses buyResult.nameservers instead of getAccountNameservers()"
+    - "Fix: registerDomainAndCreateCpanel reorder + no double CF zone"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
     - agent: "main"
-      message: "Implemented 6 tasks: (1) Verified all 9 DynoPay crypto webhook handlers have base_amount fix - credits exact USD amount. BlockBee handlers (legacy/OFF) use convert(). (2) Changed all '30 minutes' crypto confirmation language to 'confirmed quickly — usually within a few minutes' across all 4 lang files (en/fr/hi/zh) — DNS messages kept at 30 min. (3) Removed 'I have sent the payment' button from all payment flows — handler removed, keyboard removed, message catch removed. (4) Added JS Challenge recommendation in bot (antiRedStatusOn/Off/Disabled messages) and frontend SecurityPanel.js (description + confirmation dialog when disabling). (5) Underpayment/overpayment: all handlers use 6% tolerance (usdIn*1.06 < price = underpayment refund; usdIn > price = overpayment refund difference). (6) Fixed 29 missing translation keys across fr/hi/zh files — now 0 gaps."
-    - agent: "testing"
-      message: "✅ ALL TESTS PASSED - Panel domain fix is working perfectly! Comprehensive testing completed: 7/7 tests passed including all required curl commands. Key results: panel.hostbay.io/testslug and panel.hostbay.io/abc123 both correctly return JSON 404 {error: 'Panel page not found'} instead of shortener HTML. Shortener still works correctly on goog.link domain. All services healthy (Node.js :5000, FastAPI :8001/api, React :3000). No errors in Node.js logs. The fix successfully prevents the /:id route from catching panel domain requests. No issues found - the implementation is solid."
-    - agent: "testing"
-      message: "✅ COMPREHENSIVE TESTING COMPLETED - All 10 tests passed flawlessly! Both fixes working perfectly: (FIX 1) Panel domain root path: panel.hostbay.io/ → 302 redirect to /panel, panel.hostbay.io/testslug+abc123 → JSON 404 'Panel page not found', regular root → 200 with Nomadly greeting, shortener still works on goog.link. (FIX 2) JS challenge toggle endpoint: POST /panel/security/js-challenge/toggle → 401 auth required (endpoint exists and secured). All services healthy (Node.js, FastAPI, React), error logs clean. The implementation is rock solid and ready for production."
-    - agent: "testing"
-      message: "✅ FINAL COMPREHENSIVE TESTING COMPLETE - All 9/9 tests passed perfectly! Tested multiple Node.js Express server fixes as requested: (1) Panel domain root path: panel.hostbay.io/ → 302 redirect to /panel ✓, panel.hostbay.io/testslug → JSON 404 ✓, regular localhost:5000/ → 200 with Nomadly greeting ✓. (2) Reserved username fix: testinghostingplan.sbs → starts with 'ntes' ✓, admin-site.com → starts with 'nadm' ✓, mysite.com → starts with 'mysi' ✓. (3) Translation strings loaded correctly: domainActionAntiRed, antiRedTurnOn, antiRedTurnOff all present ✓. (4) JS challenge toggle endpoint exists and secured (401 auth) ✓. (5) All health checks pass: Node.js :5000 ✓, FastAPI :8001/api ✓, React :3000 ✓, error logs clean ✓. No critical issues found. All implementations working as expected."
+      message: "Implemented 4 fixes for domain registration flows: (1) cr-domain-register.js: buyDomainOnline() now accepts optional ns1, ns2 params — uses them if provided, falls back to CR defaults. (2) domain-service.js: registerDomain() now extracts ns1/ns2 from CF/custom nameservers array and passes to buyDomainOnline() for CR registrations. (3) _index.js buyDomainFullProcess: Removed entire post-reg NS update block (60s/10s sleeps + getAccountNameservers calls) — NS is now set at registration time, just shows confirmation with buyResult.nameservers. (4) cr-register-domain-&-create-cpanel.js: Reordered to domain reg FIRST, then WHM account creation. For new domains with cloudflare, captures cfZoneId from registerDomain() result and reuses it in DNS setup (no double createZone). Domain reg failure now aborts early (no orphan WHM). Test focus: code review verification that all 4 changes are structurally correct, Node.js starts without errors, and services are healthy."
