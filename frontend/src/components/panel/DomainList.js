@@ -91,9 +91,8 @@ export default function DomainList() {
     try {
       const res = await api(`/domains/ns-status?domain=${encodeURIComponent(domain)}`);
       setNsStatus(p => ({ ...p, [domain]: res }));
-      // If NS is active, also trigger AutoSSL + refresh SSL status
+      // If NS is active, refresh SSL status (but don't auto-trigger AutoSSL — that's a manual action)
       if (res.status === 'active') {
-        triggerAutoSSL();
         fetchSSL();
       }
     } catch (_) {
