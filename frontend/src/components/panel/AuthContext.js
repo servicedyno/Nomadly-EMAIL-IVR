@@ -47,7 +47,19 @@ export function AuthProvider({ children }) {
       logout();
       throw new Error('Session expired');
     }
-    return res.json();
+    // Safely parse JSON — avoid "body stream already read" errors
+    let data;
+    try {
+      const text = await res.text();
+      data = JSON.parse(text);
+    } catch (e) {
+      if (!res.ok) throw new Error(`Request failed (${res.status})`);
+      throw new Error('Invalid response from server');
+    }
+    if (!res.ok) {
+      throw new Error(data.error || data.message || `Request failed (${res.status})`);
+    }
+    return data;
   }, [user, logout]);
 
   return (
