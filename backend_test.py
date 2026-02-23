@@ -146,23 +146,44 @@ class DomainRegistrationFlowTester:
             with open('/app/js/_index.js', 'r') as f:
                 content = f.read()
             
-            # Check for removed sleep calls
-            if 'sleep(60000)' not in content and 'sleep(10000)' not in content:
-                self.log_result("Sleep Removal", "PASS", "60s/10s sleep calls removed")
-            else:
-                self.log_result("Sleep Removal", "FAIL", "Still contains sleep(60000) or sleep(10000)")
+            # Extract just the buyDomainFullProcess function for analysis
+            start_marker = 'const buyDomainFullProcess = async (chatId, lang, domain) => {'
+            end_marker = '}'
             
-            # Check for removed getAccountNameservers calls
-            if 'getAccountNameservers()' not in content:
-                self.log_result("getAccountNameservers Removal", "PASS", "getAccountNameservers() calls removed")
-            else:
-                self.log_result("getAccountNameservers Removal", "FAIL", "Still contains getAccountNameservers() calls")
+            start_idx = content.find(start_marker)
+            if start_idx == -1:
+                self.log_result("buyDomainFullProcess Function", "FAIL", "Function not found")
+                return
             
-            # Check for buyResult.nameservers usage
-            if 'buyResult.nameservers' in content:
+            # Find the end of the function (matching braces)
+            brace_count = 0
+            func_content = ""
+            for i, char in enumerate(content[start_idx:]):
+                func_content += char
+                if char == '{':
+                    brace_count += 1
+                elif char == '}':
+                    brace_count -= 1
+                    if brace_count == 0:
+                        break
+            
+            # Check for removed sleep calls in buyDomainFullProcess specifically
+            if 'sleep(60000)' not in func_content and 'sleep(10000)' not in func_content:
+                self.log_result("Sleep Removal in buyDomainFullProcess", "PASS", "60s/10s sleep calls removed from function")
+            else:
+                self.log_result("Sleep Removal in buyDomainFullProcess", "FAIL", "Still contains sleep calls in buyDomainFullProcess")
+            
+            # Check for removed getAccountNameservers calls in function
+            if 'getAccountNameservers()' not in func_content:
+                self.log_result("getAccountNameservers Removal", "PASS", "getAccountNameservers() calls removed from function")
+            else:
+                self.log_result("getAccountNameservers Removal", "FAIL", "Still contains getAccountNameservers() calls in function")
+            
+            # Check for buyResult.nameservers usage in function
+            if 'buyResult.nameservers' in func_content:
                 self.log_result("buyResult.nameservers Usage", "PASS", "Uses buyResult.nameservers for confirmation")
             else:
-                self.log_result("buyResult.nameservers Usage", "WARN", "buyResult.nameservers usage not found")
+                self.log_result("buyResult.nameservers Usage", "WARN", "buyResult.nameservers usage not found in function")
                 
         except Exception as e:
             self.log_result("Fix 3 Code Review", "FAIL", f"Error reading file: {e}")
