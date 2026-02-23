@@ -1,5 +1,5 @@
 [phases.install]
-cmds = ["npm install --production", "cd frontend && npm install"]
+cmds = ["npm install --production", "cd frontend && npm install --legacy-peer-deps"]
 
 [phases.build]
 cmds = ["cd frontend && npm run build"]
