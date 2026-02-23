@@ -237,13 +237,37 @@ backend:
           agent: "main"
           comment: "Express 5.2.1 requires named wildcard params. Changed app.get('*') to app.get('/{*splat}'). Verified /phone/test now serves React SPA correctly on both direct Express (5000) and FastAPI proxy (8001)."
 
+  - task: "Multi-user Caller ID (ANI) fix — per-call ANI for all outbound SIP"
+    implemented: true
+    working: true
+    file: "js/voice-service.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: true
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Fixed multi-user ANI issue. Previously auto-routed SIP calls used shared connection-level ANI override (only correct for last user who called prepare-call). Now ALL outbound SIP calls use transferCall with explicit from=num.phoneNumber for per-call ANI. Also updates connection-level ANI in background as belt-and-suspenders. Fixed scoping bug with outboundSession in catch block. @johngambino's calls will now show +18777000068, @hostbay_support's show +18556820054."
+
+  - task: "Billing regression audit — all call types"
+    implemented: true
+    working: true
+    file: "js/voice-service.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Audited all billing paths: SIPOutbound (destination-based rate via getCallRate), Inbound (caller-based rate), Forwarding (forward destination rate), IVR_Outbound, IVR_Transfer, Bridge_Transfer — all correctly use billCallMinutesUnified. Test calls skip billing. Twilio bridge skips Telnyx billing (handled by Twilio /voice-status). Overage billing charges wallet at destination-based rate. No issues found."
+
   - task: "Comprehensive Telnyx SIP voice service testing and verification"
     implemented: true
     working: true
     file: "js/_index.js, js/voice-service.js, js/phone-test-routes.js"
     stuck_count: 0
     priority: "critical"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
         - working: true
           agent: "testing"
