@@ -279,15 +279,18 @@ backend:
 
   - task: "Fix: AutoSSL message showing on every domain page load"
     implemented: true
-    working: "NA"
+    working: true
     file: "frontend/src/components/panel/DomainList.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         - working: "NA"
           agent: "main"
           comment: "Removed triggerAutoSSL() from checkNS callback. AutoSSL was being auto-triggered every page load whenever NS status was active. Now only fetchSSL() is called to refresh status. AutoSSL is manual-only via the button."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: AutoSSL fix correctly implemented. (1) In checkNS function (lines 89-102): fetchSSL() is called on line 96 when NS status is active, but triggerAutoSSL() is NOT called. (2) triggerAutoSSL function still exists (lines 107-123) for manual button usage. (3) Comment on line 94 confirms 'refresh SSL status (but don't auto-trigger AutoSSL — that's a manual action)'. Fix prevents unwanted AutoSSL triggers on every page load while preserving manual functionality."
 
   - task: "Fix: Create folder bug in file manager"
     implemented: true
