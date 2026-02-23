@@ -35,12 +35,58 @@ const PhoneTestPage = () => {
   const timerRef = useRef(null);
   const callStartRef = useRef(null);
   const audioRef = useRef(null);
+  const ringtoneCtxRef = useRef(null);
+  const ringtoneIntervalRef = useRef(null);
 
   // Incoming call state
   const [incomingCall, setIncomingCall] = useState(null);
   const [incomingCaller, setIncomingCaller] = useState('');
   const [incomingCallerName, setIncomingCallerName] = useState('');
   const [incomingCallerLocation, setIncomingCallerLocation] = useState('');
+
+  // ── Ringtone via Web Audio API ──
+  const startRingtone = useCallback(() => {
+    try {
+      if (ringtoneIntervalRef.current) return; // already ringing
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      ringtoneCtxRef.current = ctx;
+      const playRingBurst = () => {
+        const now = ctx.currentTime;
+        // Dual-tone ring (440Hz + 480Hz) for 1s, 2s silence (US ring cadence)
+        const osc1 = ctx.createOscillator();
+        const osc2 = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc1.frequency.value = 440;
+        osc2.frequency.value = 480;
+        osc1.type = 'sine';
+        osc2.type = 'sine';
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
+        osc1.connect(gain);
+        osc2.connect(gain);
+        gain.connect(ctx.destination);
+        osc1.start(now);
+        osc2.start(now);
+        osc1.stop(now + 1);
+        osc2.stop(now + 1);
+      };
+      playRingBurst();
+      ringtoneIntervalRef.current = setInterval(playRingBurst, 3000);
+    } catch (e) {
+      console.warn('Ringtone failed:', e);
+    }
+  }, []);
+
+  const stopRingtone = useCallback(() => {
+    if (ringtoneIntervalRef.current) {
+      clearInterval(ringtoneIntervalRef.current);
+      ringtoneIntervalRef.current = null;
+    }
+    if (ringtoneCtxRef.current) {
+      ringtoneCtxRef.current.close().catch(() => {});
+      ringtoneCtxRef.current = null;
+    }
+  }, []);
 
   const isTestMode = activeTab === 'test';
 
