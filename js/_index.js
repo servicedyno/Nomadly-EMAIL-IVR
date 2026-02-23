@@ -6340,20 +6340,22 @@ bot?.on('message', async msg => {
 
         send(chatId, `⏳ Configuring DNS for <b>${domain}</b>…`, { parse_mode: 'HTML' })
 
-        const dnsResult = await domainService.viewDNSRecords(domain, db)
-        const source = dnsResult?.source || 'connectreseller'
-
-        if (source === 'openprovider') {
-          await sleep(10000)
-          const addResult = await domainService.addDNSRecord(domain, recordType, server, '', db)
-          if (addResult.error || !addResult.success) {
+        // Unified DNS routing — auto-routes to Cloudflare when domain metadata
+        // has nameserverType='cloudflare' + cfZoneId, else falls back to OP/CR
+        await sleep(5000)
+        const addResult = await domainService.addDNSRecord(domain, recordType, server, '', db)
+        if (addResult.error || !addResult.success) {
+          log(`[ActivateShortener] DNS via domainService failed for ${domain}: ${addResult.error || 'unknown'}`)
+          // Fallback: try direct CR DNS add for ConnectReseller-only domains
+          const meta = await domainService.getDomainMeta(domain, db)
+          if (!meta || (!meta.registrar && !meta.nameserverType)) {
+            await sleep(60000)
+            const { error: saveErr } = await saveServerInDomain(domain, server, recordType)
+            if (saveErr) {
+              return send(chatId, `❌ DNS error for <b>${domain}</b>: ${saveErr}`, { parse_mode: 'HTML' })
+            }
+          } else {
             return send(chatId, `❌ DNS error for <b>${domain}</b>: ${addResult.error || 'Unknown error'}`, { parse_mode: 'HTML' })
-          }
-        } else {
-          await sleep(65000)
-          const { error: saveErr } = await saveServerInDomain(domain, server, recordType)
-          if (saveErr) {
-            return send(chatId, `❌ DNS error for <b>${domain}</b>: ${saveErr}`, { parse_mode: 'HTML' })
           }
         }
 
