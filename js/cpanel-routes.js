@@ -843,6 +843,21 @@ function createCpanelRoutes(getCpanelCol) {
   })
 
   /**
+   * POST /security/enforce-protection — run protection enforcement on all domains
+   * Checks all domains in the system and deploys missing worker routes
+   */
+  router.post('/security/enforce-protection', ...auth, async (req, res) => {
+    try {
+      const enforcer = require('./protection-enforcer')
+      const result = await enforcer.runEnforcement()
+      res.json({ success: true, ...result })
+    } catch (err) {
+      log(`[Panel] Protection enforcement error: ${err.message}`)
+      res.status(500).json({ error: 'Enforcement failed: ' + err.message })
+    }
+  })
+
+  /**
    * GET /security/anti-red/status — check anti-red protection status
    */
   router.get('/security/anti-red/status', ...auth, async (req, res) => {
