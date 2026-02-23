@@ -374,12 +374,52 @@ function createCpanelRoutes(getCpanelCol) {
         const { deploySharedWorkerRoute } = require('./anti-red-service')
         deploySharedWorkerRoute(domain, zone.id).catch(() => {})
 
+        // If domain is ours, auto-update NS at registrar if not already cloudflare
+        if (isOwnDomain) {
+          const domainService = require('./domain-service')
+          const opService = require('./op-service')
+          const cpCol3 = getCpanelCol()
+          const db3 = cpCol3?.s?.db
+          const meta = db3 ? await domainService.getDomainMeta(domain, db3) : null
+          if (meta && meta.nameserverType !== 'cloudflare') {
+            try {
+              const status0 = await cfService.checkZoneNSStatus(zone.id)
+              const cfNS = status0.nameservers || []
+              const registrar = meta.registrar || 'OpenProvider'
+              if (cfNS.length >= 2) {
+                if (registrar === 'OpenProvider') {
+                  await opService.updateNameservers(domain, cfNS)
+                } else if (registrar === 'ConnectReseller') {
+                  await domainService.postRegistrationNSUpdate(domain, 'ConnectReseller', 'cloudflare', cfNS, db3)
+                }
+                log(`[Panel] add-enhanced: Auto-updated NS at ${registrar} for existing zone ${domain}`)
+              }
+              if (db3) {
+                await db3.collection('registeredDomains').updateOne(
+                  { _id: domain },
+                  { $set: { 'val.cfZoneId': zone.id, 'val.nameservers': cfNS, 'val.nameserverType': 'cloudflare' } }
+                )
+                await db3.collection('domainsOf').updateOne(
+                  { domainName: domain },
+                  { $set: { nameservers: cfNS, nameserverType: 'cloudflare', cfZoneId: zone.id } },
+                  { upsert: false }
+                )
+              }
+            } catch (err) {
+              log(`[Panel] add-enhanced: NS auto-update for existing zone ${domain} failed: ${err.message}`)
+            }
+          }
+        }
+
         const status = await cfService.checkZoneNSStatus(zone.id)
         nsInfo = {
           status: status.status || 'pending',
           nameservers: status.nameservers || [],
           autoUpdated: true,
-          message: 'DNS records auto-configured via Cloudflare',
+          autoManaged: isOwnDomain,
+          message: isOwnDomain
+            ? 'DNS records auto-configured via Cloudflare. Nameservers managed automatically.'
+            : 'DNS records auto-configured via Cloudflare',
         }
       } else {
         // No zone yet — create one
