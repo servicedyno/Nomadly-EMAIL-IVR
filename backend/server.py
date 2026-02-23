@@ -72,9 +72,13 @@ async def proxy_to_nodejs(request: Request, path: str):
     except httpx.ConnectError:
         logger.error(f"Cannot connect to Node.js server at {NODEJS_URL}/{path}")
         return Response(content='{"error":"Node.js server unavailable"}', status_code=502, media_type="application/json")
+    except httpx.TimeoutException:
+        logger.error(f"Timeout proxying to Node.js for {path}")
+        return Response(content='{"error":"Request timed out — the operation may still be running"}', status_code=504, media_type="application/json")
     except Exception as e:
         logger.error(f"Proxy error for {path}: {str(e)}")
-        return Response(content=f'{{"error":"{str(e)}"}}', status_code=502, media_type="application/json")
+        import json as _json
+        return Response(content=_json.dumps({"error": str(e)}), status_code=502, media_type="application/json")
 
 
 app.add_middleware(
