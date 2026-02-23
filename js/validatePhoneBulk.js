@@ -8,6 +8,7 @@ const validatePhoneNpl = require('./validatePhoneNpl')
 const validatePhoneNeutrino = require('./validatePhoneNeutrino')
 const { lookupCnam } = require('./cnam-service')
 const { translation } = require('./translation')
+const { createJob, startPeriodicSave, stopPeriodicSave, completeJob, failJob } = require('./lead-job-persistence')
 // const { validatePhoneTwilioV2 } = require('./validatePhoneTwilio')
 const TELEGRAM_ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID
 const part1 = customAlphabet('23456789', 1)
