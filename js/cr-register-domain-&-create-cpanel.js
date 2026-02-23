@@ -22,11 +22,99 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state)
   send(chatId, `✅ <b>Payment confirmed</b> — $${info.totalPrice || info.hostingPrice}\n\nProvisioning your hosting now...`, rem)
 
   try {
-    // ── Step 2: Creating hosting account ──
-    send(chatId, `⚙️ Creating hosting account...`, rem)
-
     const nsChoice = info?.nameserver || info?.nsChoice
     const isCloudflareNS = nsChoice === 'cloudflare' || nsChoice === 'Cloudflare'
+    const isExisting = info.existingDomain
+    const isExternal = info.connectExternalDomain
+    const isNewDomain = !isExisting && !isExternal
+
+    // Track CF zone info — populated during domain registration (new domains)
+    // or CF DNS setup (existing/external domains)
+    let cfZoneId = null
+    let cfNameservers = []
+
+    // ── Step 2: Domain registration FIRST (for new domains only) ──
+    // This prevents orphan WHM accounts if domain registration fails.
+    // For cloudflare NS: registerDomain() internally creates CF zone and
+    // passes zone-specific NS to the registrar API at registration time.
+    if (isNewDomain) {
+      send(chatId, `🌐 Registering <b>${domain}</b>...`, rem)
+
+      try {
+        const registrar = info?.registrar || 'ConnectReseller'
+        const regNsChoice = nsChoice || 'cloudflare'
+        const { MongoClient } = require('mongodb')
+        const regClient = new MongoClient(process.env.MONGO_URL)
+        await regClient.connect()
+        const regDb = regClient.db(process.env.DB_NAME || 'test')
+
+        const regResult = await domainService.registerDomain(domain, registrar, regNsChoice, regDb, chatId)
+        await regClient.close()
+
+        if (regResult.success) {
+          log(`[Hosting] Domain ${domain} registered at ${regResult.registrar} (ID: ${regResult.opDomainId || 'N/A'})`)
+          info.registrar = regResult.registrar
+
+          // Capture CF zone info from registration — avoids double createZone later
+          if (regResult.cfZoneId) {
+            cfZoneId = regResult.cfZoneId
+            cfNameservers = regResult.nameservers || []
+            log(`[Hosting] CF zone captured from registration: ${cfZoneId} NS: ${cfNameservers.join(', ')}`)
+          }
+
+          // Store in user's domainsOf + registeredDomains
+          const regClient2 = new MongoClient(process.env.MONGO_URL)
+          await regClient2.connect()
+          const regDb2 = regClient2.db(process.env.DB_NAME || 'test')
+          const domainKey = domain.replace(/\./g, '@')
+          await regDb2.collection('domainsOf').updateOne(
+            { _id: parseFloat(chatId) },
+            { $set: { [domainKey]: true } },
+            { upsert: true }
+          )
+
+          await regDb2.collection('registeredDomains').updateOne(
+            { _id: domain },
+            { $set: {
+              val: {
+                domain,
+                provider: regResult.registrar,
+                registrar: regResult.registrar,
+                nameserverType: regNsChoice,
+                nameservers: regResult.nameservers || [],
+                autoRenew: true,
+                ownerChatId: parseFloat(chatId),
+                status: 'registered',
+                registeredAt: new Date(),
+                linkedAt: new Date(),
+                cfZoneId: regResult.cfZoneId || null,
+                opDomainId: regResult.opDomainId || null,
+              }
+            }},
+            { upsert: true }
+          )
+          await regClient2.close()
+
+          send(chatId, `✅ Domain <b>${domain}</b> registered`, rem)
+        } else {
+          log(`[Hosting] Domain registration failed for ${domain}: ${regResult.error}`)
+          send(chatId, `❌ Domain registration failed: ${regResult.error}\n\nTap 💬 Get Support for help.`, keyboardButtons)
+          return { success: false, error: `Domain registration failed: ${regResult.error}` }
+        }
+      } catch (regErr) {
+        log(`[Hosting] Domain registration error: ${regErr.message}`)
+        send(chatId, `❌ Domain registration failed. Tap 💬 Get Support for help.\n\nError: ${regErr.message}`, keyboardButtons)
+        return { success: false, error: `Domain registration error: ${regErr.message}` }
+      }
+    } else if (isExisting) {
+      send(chatId, `🔗 Linking <b>${domain}</b> to your hosting...`, rem)
+    } else if (isExternal) {
+      send(chatId, `🔗 Connecting external domain <b>${domain}</b>...`, rem)
+    }
+
+    // ── Step 3: Create hosting account (AFTER domain registration) ──
+    send(chatId, `⚙️ Creating hosting account...`, rem)
+
     const result = await whm.createAccount(
       domain,
       info.plan,
@@ -43,92 +131,31 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state)
 
     send(chatId, `✅ Hosting account created`, rem)
 
-    // ── Step 3: Domain setup ──
-    const isExisting = info.existingDomain
-    const isExternal = info.connectExternalDomain
-    if (isExisting) {
-      send(chatId, `🔗 Linking <b>${domain}</b> to your hosting...`, rem)
-    } else if (isExternal) {
-      send(chatId, `🔗 Connecting external domain <b>${domain}</b>...`, rem)
-    } else {
-      send(chatId, `🌐 Registering <b>${domain}</b>...`, rem)
-
-      // ── Actually register the domain at the registrar ──
-      try {
-        const registrar = info?.registrar || 'ConnectReseller'
-        const nsChoice = info?.nameserver || info?.nsChoice || 'cloudflare'
-        const { MongoClient } = require('mongodb')
-        const regClient = new MongoClient(process.env.MONGO_URL)
-        await regClient.connect()
-        const regDb = regClient.db(process.env.DB_NAME || 'test')
-
-        const regResult = await domainService.registerDomain(domain, registrar, nsChoice, regDb, chatId)
-        await regClient.close()
-
-        if (regResult.success) {
-          log(`[Hosting] Domain ${domain} registered at ${regResult.registrar} (ID: ${regResult.opDomainId || 'N/A'})`)
-
-          // Add to user's domainsOf
-          const regClient2 = new MongoClient(process.env.MONGO_URL)
-          await regClient2.connect()
-          const regDb2 = regClient2.db(process.env.DB_NAME || 'test')
-          const domainKey = domain.replace(/\./g, '@')
-          await regDb2.collection('domainsOf').updateOne(
-            { _id: parseFloat(chatId) },
-            { $set: { [domainKey]: true } },
-            { upsert: true }
-          )
-
-          // Store in registeredDomains
-          await regDb2.collection('registeredDomains').updateOne(
-            { _id: domain },
-            { $set: {
-              val: {
-                domain,
-                provider: regResult.registrar,
-                registrar: regResult.registrar,
-                nameserverType: nsChoice,
-                nameservers: regResult.nameservers || [],
-                autoRenew: true,
-                ownerChatId: parseFloat(chatId),
-                status: 'registered',
-                registeredAt: new Date(),
-                linkedAt: new Date(),
-                cfZoneId: regResult.cfZoneId || null,
-                opDomainId: regResult.opDomainId || null,
-              }
-            }},
-            { upsert: true }
-          )
-          await regClient2.close()
-
-          // Update info.registrar with the actual registrar used (may change via fallback)
-          info.registrar = regResult.registrar
-          send(chatId, `✅ Domain <b>${domain}</b> registered`, rem)
-        } else {
-          log(`[Hosting] Domain registration failed for ${domain}: ${regResult.error}`)
-          send(chatId, `⚠️ Domain registration issue: ${regResult.error}. Hosting setup will continue — contact support if needed.`, rem)
-        }
-      } catch (regErr) {
-        log(`[Hosting] Domain registration error (non-blocking): ${regErr.message}`)
-        send(chatId, `⚠️ Domain registration encountered an issue. Hosting setup will continue.`, rem)
-      }
-    }
-
-    // Cloudflare DNS setup
+    // ── Step 4: Cloudflare DNS setup ──
+    // For new domains: reuse CF zone from registration (no double createZone)
+    // For existing/external domains: create CF zone now
     if (isCloudflareNS) {
       try {
-        const zone = await cfService.createZone(domain)
-        if (zone.success && zone.zoneId) {
-          const dnsResult = await cfService.createHostingDNSRecords(zone.zoneId, domain, WHM_HOST)
-          await cfService.setSSLMode(zone.zoneId, 'strict')
-          await cfService.enforceHTTPS(zone.zoneId)
+        if (!cfZoneId) {
+          // Existing/external domain — CF zone not yet created
+          const zone = await cfService.createZone(domain)
+          if (zone.success && zone.zoneId) {
+            cfZoneId = zone.zoneId
+            cfNameservers = zone.nameservers || []
+            log(`[Hosting] CF zone created for existing/external domain ${domain}: ${cfZoneId}`)
+          }
+        }
+
+        if (cfZoneId) {
+          // Create DNS A record (domain → WHM server IP) + CNAME (www)
+          const dnsResult = await cfService.createHostingDNSRecords(cfZoneId, domain, WHM_HOST)
+          await cfService.setSSLMode(cfZoneId, 'strict')
+          await cfService.enforceHTTPS(cfZoneId)
           log(`[Hosting] CF DNS records for ${domain}: ${dnsResult.success ? 'all created' : 'some failed'}`)
 
-          const cfNameservers = zone.nameservers || []
-          if (cfNameservers.length >= 2) {
+          // For existing/external domains: update NS at registrar
+          if (!isNewDomain && cfNameservers.length >= 2) {
             try {
-              // Determine registrar and update NS at the correct provider
               const registrar = info?.registrar || 'ConnectReseller'
               const nsResult = await domainService.postRegistrationNSUpdate(domain, registrar, 'cloudflare', cfNameservers, null)
               if (nsResult.success) {
@@ -141,7 +168,7 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state)
             }
           }
 
-          // Store CF zone info in registeredDomains for Anti-Red cron and panel
+          // Store CF zone info in registeredDomains
           try {
             const { MongoClient } = require('mongodb')
             const nsClient = new MongoClient(process.env.MONGO_URL)
@@ -149,7 +176,7 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state)
             const nsDb = nsClient.db(process.env.DB_NAME || 'test')
             await nsDb.collection('registeredDomains').updateOne(
               { _id: domain },
-              { $set: { 'val.cfZoneId': zone.zoneId, 'val.nameservers': cfNameservers, 'val.nameserverType': 'cloudflare' } },
+              { $set: { 'val.cfZoneId': cfZoneId, 'val.nameservers': cfNameservers, 'val.nameserverType': 'cloudflare' } },
               { upsert: true }
             )
             await nsClient.close()
