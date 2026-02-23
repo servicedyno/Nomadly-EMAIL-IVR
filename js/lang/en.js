@@ -1574,7 +1574,7 @@ ${
   showDepositCryptoInfoVps: (priceCrypto, tickerView, address) =>
     `Please remit ${priceCrypto} ${tickerView} to\n\n<code>${address}</code>
 
-Please note, crypto transactions can take up to 30 minutes to complete. Once the transaction has been confirmed, you will be promptly notified, and your VPS plan will be seamlessly activated.
+Crypto payments are confirmed quickly — usually within a few minutes. Once confirmed, you will be promptly notified, and your VPS plan will be seamlessly activated.
 
 Best regards,
 ${CHAT_BOT_NAME}`,
