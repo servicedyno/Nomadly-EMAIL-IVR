@@ -1376,7 +1376,7 @@ Pay within 1 hr to activate. Your hosting will be provisioned automatically.`
 
 <code>${address}</code>
 
-Confirmation may take up to 30 min. Your ${plan} activates automatically once confirmed.`,
+Crypto payments confirm quickly — usually within a few minutes. Your ${plan} activates automatically once confirmed.`,
 
   successText: (info, response) =>
     `Your hosting is live.
