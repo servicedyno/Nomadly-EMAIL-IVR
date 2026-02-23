@@ -112,6 +112,7 @@ const PhoneTestPage = () => {
 
   const hangup = useCallback(() => {
     stopRingtone();
+    userDialedRef.current = false;
     if (callRef.current) {
       callRef.current.hangup();
       callRef.current = null;
