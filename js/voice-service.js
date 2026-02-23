@@ -391,6 +391,11 @@ async function handleVoiceWebhook(req, res) {
     if (!eventType) return
 
     log(`[Voice] Event: ${eventType}`)
+    
+    // Detailed payload logging for call debugging
+    if (eventType === 'call.initiated' || eventType === 'call.hangup') {
+      log(`[Voice] PAYLOAD DUMP: direction=${payload.direction}, from=${payload.from}, to=${payload.to}, connection_id=${payload.connection_id}, call_control_id=${payload.call_control_id}, call_leg_id=${payload.call_leg_id}, hangup_cause=${payload.hangup_cause || 'N/A'}, hangup_source=${payload.hangup_source || 'N/A'}, sip_hangup_cause=${payload.sip_hangup_cause || 'N/A'}, state=${payload.state}`)
+    }
 
     switch (eventType) {
       case 'call.initiated':
