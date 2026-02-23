@@ -102,9 +102,11 @@ const registerDomain = async (domainName, registrar, nsChoice, db, chatId, custo
   }
 
   if (registrar === 'ConnectReseller') {
-    result = await buyDomainOnline(domainName)
+    const ns1 = nameservers.length >= 1 ? nameservers[0] : undefined
+    const ns2 = nameservers.length >= 2 ? nameservers[1] : undefined
+    result = await buyDomainOnline(domainName, ns1, ns2)
     if (result.success) {
-      log(`[domain-service] ${domainName} registered on ConnectReseller`)
+      log(`[domain-service] ${domainName} registered on ConnectReseller with NS: ${ns1 || 'default'}, ${ns2 || 'default'}`)
     } else {
       // Fallback to OpenProvider when ConnectReseller fails (insufficient balance, API error, etc.)
       log(`[domain-service] ConnectReseller failed for ${domainName}: ${result.error} — falling back to OpenProvider`)
