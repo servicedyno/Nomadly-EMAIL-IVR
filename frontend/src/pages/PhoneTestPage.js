@@ -91,6 +91,8 @@ const PhoneTestPage = () => {
     }
     setIncomingCall(null);
     setIncomingCaller('');
+    setIncomingCallerName('');
+    setIncomingCallerLocation('');
     callRef.current = null;
   }, [incomingCall, addLog]);
 
