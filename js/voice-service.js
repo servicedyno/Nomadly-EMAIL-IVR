@@ -289,10 +289,10 @@ async function handleBridgeTransferAnswered(payload) {
   const parentSession = outboundIvrCalls[transfer.originalCallControlId] || activeCalls[transfer.originalCallControlId]
   if (parentSession) {
     const chatId = parentSession.chatId
-    _bot?.sendMessage(chatId,
-      `✅ <b>Transfer Connected</b>\n📞 ${transfer.forwardTo} connected`,
-      { parse_mode: 'HTML' }
-    ).catch(() => {})
+    const msg = transfer.type === 'sip_ring'
+      ? `✅ <b>SIP Call Connected</b>\nIncoming call bridged to your device`
+      : `✅ <b>Transfer Connected</b>\n📞 ${transfer.forwardTo} connected`
+    _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
   }
   return true
 }
