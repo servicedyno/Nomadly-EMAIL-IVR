@@ -951,7 +951,7 @@ const userKeyboard = {
     keyboard: [
       [user.domainNames],
       [user.urlShortenerMain],
-      [user.cloudPhone],
+      [user.cloudPhone, user.testSip],
       [user.phoneNumberLeads],
       [user.digitalProducts],
       HIDE_SMS_APP === 'true' ? [user.hostingDomainsRedirect] : [user.freeTrialAvailable, user.hostingDomainsRedirect],
