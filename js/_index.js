@@ -3887,15 +3887,16 @@ bot?.on('message', async msg => {
       return send(chatId, '❌ Could not generate test code. Please try again later.')
     }
     if (result.error === 'limit_reached') {
-      // Check if they already have a referral code
+      // User has used their test calls — direct them to subscribe
+      let msg = `📞 <b>SIP Test Complete</b>\n\nYou've used your free test calls. To make unlimited SIP calls, subscribe to a <b>Cloud Phone</b> plan with SIP support.\n\n👉 Tap <b>📞 Cloud Phone + SIP</b> below to browse plans and get your own number with full SIP credentials.`
+
+      // Offer referral if they haven't earned bonus yet
       const refResult = await getOrCreateReferralCode(chatId)
       const refLink = refResult ? `https://t.me/Nomadlybot?start=ref_${refResult.code}` : null
-      let msg = `⚠️ <b>Test limit reached</b>\n\nYou've already used your ${MAX_TEST_CALLS_DISPLAY} free test calls.\nPurchase a Cloud Phone plan to make unlimited calls.`
       if (refLink && !refResult.bonusEarned) {
         msg += `\n\n🎁 <b>Want 1 more free test call?</b>\nShare this link with a friend. When they send /testsip, you'll get a bonus call:\n\n${refLink}`
-      } else if (refResult?.bonusEarned) {
-        msg += `\n\n✅ You already earned your referral bonus.`
       }
+
       return send(chatId, msg, { parse_mode: 'HTML' })
     }
     return send(chatId, `🔑 <b>Your SIP Test Code</b>\n\n<code>${result.otp}</code>\n\nEnter this code on the test page to get your free SIP credentials.\n⏱ Expires in 5 minutes.\n📞 ${result.callsRemaining} test call${result.callsRemaining !== 1 ? 's' : ''} remaining.\n\n🌐 <a href="https://speechcue.com/phone/test">Open Test Page</a>`, { parse_mode: 'HTML' })
