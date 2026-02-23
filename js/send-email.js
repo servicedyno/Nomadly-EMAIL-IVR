@@ -10,80 +10,158 @@ const transporter = nodemailer.createTransport({
   },
 })
 
-async function sendEmail(info, response) {
-  const plan = info.plan === 'Freedom Plan' ? 'Free Trial Plan' : info.plan;
+async function sendEmail(info, response, pin) {
+  const plan = info.plan || 'Hosting Plan'
+  const panelDomain = process.env.PANEL_DOMAIN
+  const panelUrl = panelDomain
+    ? `https://${panelDomain}`
+    : `${(process.env.SELF_URL_PROD || '').replace('/api', '')}/panel`
+  const brandName = process.env.CHAT_BOT_BRAND || 'Nomadly'
+  const supportLink = process.env.APP_SUPPORT_LINK || '#'
+
   const emailHtml = `
-    <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto;">
-        <div style="background-color: #007bff; color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
-            <h1 style="margin: 0;">🎉 Congratulations!</h1>
-        </div>
-        <div style="padding: 10px 20px;  background-color: #f9f9f9; border-radius: 0 0 10px 10px;">
-            <p style="font-size: 18px; line-height: 1.6;">
-                Hello <strong>${info.username}</strong>,
-            </p>
-            <p style="font-size: 18px; line-height: 1.6;">
-                We are excited to inform you that your <strong>(${plan})</strong> has been successfully activated!
-            </p>
-            <p style="font-size: 18px; line-height: 1.6; color: #007bff;">
-                You can now log in to your HostPanel and start exploring your account.
-            </p>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background-color: #f0f2f5; font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #f0f2f5; padding: 30px 0;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; width: 100%;">
 
-            <table style="width: 100%; margin-top: 10px; border-collapse: separate; border-spacing: 0 10px;">
-              <tr>
-                  <td style="font-size: 16px; padding: 15px; background-color: #eee; border: 1px solid #ddd; border-radius: 5px;">
-                      <strong>Domain:</strong> ${info.website_name}
-                  </td>
-              </tr>
-              <tr>
-                  <td style="font-size: 16px; padding: 15px; background-color: #eee; border: 1px solid #ddd; border-radius: 5px;">
-                      <strong>HostPanel Username:</strong> ${response.username}
-                  </td>
-              </tr>
-              <tr>
-                  <td style="font-size: 16px; padding: 15px; background-color: #eee; border: 1px solid #ddd; border-radius: 5px;">
-                      <strong>HostPanel PIN:</strong> Check your Telegram messages for the login PIN
-                  </td>
-              </tr>
-               <tr>
-                  <td style="font-size: 16px; padding: 15px; background-color: #eee; border: 1px solid #ddd; border-radius: 5px;">
-                      <strong>Nameservers</strong>
-                      <ul style="list-style-type: none; padding-left: 0;">
-                          <li>${response.nameservers.ns1}</li>
-                          <li>${response.nameservers.ns2}</li>
-                      </ul>
-                  </td>
-              </tr>
-            </table>
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 30px; text-align: center; border-radius: 16px 16px 0 0;">
+              <div style="font-size: 48px; margin-bottom: 10px;">🚀</div>
+              <h1 style="margin: 0; color: #ffffff; font-size: 26px; font-weight: 700; letter-spacing: -0.5px;">Your Hosting is Live!</h1>
+              <p style="margin: 8px 0 0; color: rgba(255,255,255,0.85); font-size: 15px;">${plan} activated for <strong>${info.website_name}</strong></p>
+            </td>
+          </tr>
 
-            <p style="font-size: 18px; margin-top: 10px; line-height: 1.6;">
-                Please log in to your HostPanel to manage your website and services. 
-                If you need any assistance, feel free to contact our support team.
-                
-                ${info.plan === 'Freedom Plan' 
-                    ? `Remember, your plan will expire in 12 hours. If you like our service, 
-                       consider upgrading to one of our premium plans!` 
-                    : ''}
-            </p>
-            
-            <p style="font-size: 18px; line-height: 1.6; margin-top: 15px;">
-                Best regards,<br>
-                Nomadly Team
-            </p>
-        </div>
-    </div>
-    `
+          <!-- Body -->
+          <tr>
+            <td style="background-color: #ffffff; padding: 35px 30px;">
+
+              <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 25px;">
+                Hello <strong>${info.username || 'there'}</strong>,<br>
+                Your hosting account has been set up and is ready to go. Below are your login credentials — please save them securely.
+              </p>
+
+              <!-- Credentials Card -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background: linear-gradient(135deg, #f5f7ff 0%, #ede9fe 100%); border-radius: 12px; border: 1px solid #e0d4fd; margin-bottom: 25px;">
+                <tr>
+                  <td style="padding: 25px;">
+                    <h2 style="margin: 0 0 18px; font-size: 16px; color: #764ba2; text-transform: uppercase; letter-spacing: 1px;">🔐 Login Credentials</h2>
+
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="padding: 10px 0; border-bottom: 1px solid rgba(118,75,162,0.15);">
+                          <span style="color: #666; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">Domain</span><br>
+                          <span style="color: #1a1a2e; font-size: 16px; font-weight: 600;">${info.website_name}</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 10px 0; border-bottom: 1px solid rgba(118,75,162,0.15);">
+                          <span style="color: #666; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">Username</span><br>
+                          <span style="color: #1a1a2e; font-size: 16px; font-weight: 600; font-family: 'Courier New', monospace; background: #fff; padding: 2px 8px; border-radius: 4px;">${response.username}</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 10px 0; border-bottom: 1px solid rgba(118,75,162,0.15);">
+                          <span style="color: #666; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">Password</span><br>
+                          <span style="color: #1a1a2e; font-size: 16px; font-weight: 600; font-family: 'Courier New', monospace; background: #fff; padding: 2px 8px; border-radius: 4px;">${response.password}</span>
+                        </td>
+                      </tr>${pin ? `
+                      <tr>
+                        <td style="padding: 10px 0; border-bottom: 1px solid rgba(118,75,162,0.15);">
+                          <span style="color: #666; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">HostPanel PIN</span><br>
+                          <span style="color: #764ba2; font-size: 20px; font-weight: 700; font-family: 'Courier New', monospace; background: #fff; padding: 2px 10px; border-radius: 4px; letter-spacing: 3px;">${pin}</span>
+                        </td>
+                      </tr>` : ''}
+                      <tr>
+                        <td style="padding: 10px 0;">
+                          <span style="color: #666; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">HostPanel URL</span><br>
+                          <a href="${panelUrl}" style="color: #667eea; font-size: 16px; font-weight: 600; text-decoration: none;">${panelUrl}</a>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- CTA Button -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 25px;">
+                <tr>
+                  <td align="center">
+                    <a href="${panelUrl}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; padding: 14px 40px; border-radius: 8px; font-size: 16px; font-weight: 600; letter-spacing: 0.3px;">Login to HostPanel →</a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Info Box -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #f0fdf4; border-radius: 10px; border: 1px solid #bbf7d0; margin-bottom: 20px;">
+                <tr>
+                  <td style="padding: 18px 20px;">
+                    <p style="margin: 0; font-size: 14px; color: #166534; line-height: 1.6;">
+                      ✅ <strong>DNS is auto-configured via Cloudflare.</strong><br>
+                      Your domain will be live within minutes. SSL is enabled automatically.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Security Notice -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #fff7ed; border-radius: 10px; border: 1px solid #fed7aa; margin-bottom: 20px;">
+                <tr>
+                  <td style="padding: 18px 20px;">
+                    <p style="margin: 0; font-size: 14px; color: #9a3412; line-height: 1.6;">
+                      🔒 <strong>Keep these credentials safe.</strong> Do not share your password or PIN with anyone. We will never ask for them.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="font-size: 14px; color: #666; line-height: 1.6; margin: 0;">
+                Need help? <a href="${supportLink}" style="color: #667eea; text-decoration: none; font-weight: 600;">Contact Support</a>
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #1a1a2e; padding: 25px 30px; text-align: center; border-radius: 0 0 16px 16px;">
+              <p style="margin: 0 0 5px; color: rgba(255,255,255,0.7); font-size: 13px;">
+                Sent by <strong style="color: #fff;">${brandName}</strong>
+              </p>
+              <p style="margin: 0; color: rgba(255,255,255,0.4); font-size: 12px;">
+                This is an automated message. Please do not reply to this email.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+`
 
   try {
     const mailResponse = await transporter.sendMail({
-      from: process.env.MAIL_SENDER,
+      from: `${brandName} <${process.env.MAIL_SENDER}>`,
       to: info.email,
-      subject: `🎉 Your ${plan} has been Activated!`,
+      subject: `🚀 Your ${plan} is Live — Login Credentials Inside`,
       html: emailHtml,
     })
 
-    console.log('Message sent: %s', mailResponse.messageId)
+    console.log('[Email] Hosting credentials sent to %s (messageId: %s)', info.email, mailResponse.messageId)
   } catch (error) {
-    console.error('Error sending email:', error)
+    console.error('[Email] Error sending hosting credentials:', error)
   }
 }
 
