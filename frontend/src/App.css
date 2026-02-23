@@ -2499,6 +2499,10 @@
   background: rgba(251,191,36,0.08);
   color: #d97706;
 }
+.panel-light .dl-ns-badge--propagating {
+  background: rgba(59,130,246,0.08);
+  color: #2563eb;
+}
 .panel-light .dl-ns-badge--loading,
 .panel-light .dl-ns-badge--unknown {
   background: rgba(0,0,0,0.04);
