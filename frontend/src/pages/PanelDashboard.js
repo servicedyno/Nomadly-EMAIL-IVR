@@ -1,0 +1,91 @@
+import React, { useState } from 'react';
+import { useAuth } from '../components/panel/AuthContext';
+import FileManager from '../components/panel/FileManager';
+import DomainList from '../components/panel/DomainList';
+import EmailManager from '../components/panel/EmailManager';
+import GeoManager from '../components/panel/GeoManager';
+import Analytics from '../components/panel/Analytics';
+import SecurityPanel from '../components/panel/SecurityPanel';
+import useTheme from '../components/panel/useTheme';
+
+const TABS = [
+  { id: 'files', label: 'Files', icon: 'folder' },
+  { id: 'domains', label: 'Domains', icon: 'globe' },
+  { id: 'email', label: 'Email', icon: 'mail' },
+  { id: 'security', label: 'Security', icon: 'shield' },
+  { id: 'geo', label: 'Geo', icon: 'lock' },
+  { id: 'analytics', label: 'Analytics', icon: 'chart' },
+];
+
+export default function PanelDashboard() {
+  const { user, logout } = useAuth();
+  const [activeTab, setActiveTab] = useState('files');
+  const { theme, toggleTheme, isDark } = useTheme();
+
+  return (
+    <div className={`panel-dashboard ${theme === 'light' ? 'panel-light' : ''}`} data-testid="panel-dashboard" data-panel-theme={theme}>
+      <header className="panel-header" data-testid="panel-header">
+        <div className="panel-header-left">
+          <div className="panel-header-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <rect x="2" y="2" width="20" height="8" rx="2"/>
+              <rect x="2" y="14" width="20" height="8" rx="2"/>
+              <circle cx="6" cy="6" r="1" fill="currentColor"/>
+              <circle cx="6" cy="18" r="1" fill="currentColor"/>
+            </svg>
+          </div>
+          <span className="panel-header-title">Hosting Panel</span>
+          <span className="panel-header-domain" data-testid="panel-domain">{user?.domain}</span>
+        </div>
+        <div className="panel-header-right">
+          <button onClick={toggleTheme} className="panel-theme-btn" data-testid="panel-theme-toggle" title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}>
+            {isDark ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+            )}
+          </button>
+          <span className="panel-header-user" data-testid="panel-username">{user?.username}</span>
+          <button onClick={logout} className="panel-logout-btn" data-testid="panel-logout-btn">
+            Sign Out
+          </button>
+        </div>
+      </header>
+
+      <nav className="panel-tabs" data-testid="panel-tabs">
+        {TABS.map(tab => (
+          <button
+            key={tab.id}
+            className={`panel-tab ${activeTab === tab.id ? 'panel-tab--active' : ''}`}
+            onClick={() => setActiveTab(tab.id)}
+            data-testid={`panel-tab-${tab.id}`}
+          >
+            <TabIcon name={tab.icon} />
+            <span>{tab.label}</span>
+          </button>
+        ))}
+      </nav>
+
+      <main className="panel-main" data-testid="panel-main">
+        {activeTab === 'files' && <FileManager />}
+        {activeTab === 'domains' && <DomainList />}
+        {activeTab === 'email' && <EmailManager />}
+        {activeTab === 'security' && <SecurityPanel />}
+        {activeTab === 'geo' && <GeoManager />}
+        {activeTab === 'analytics' && <Analytics />}
+      </main>
+    </div>
+  );
+}
+
+function TabIcon({ name }) {
+  const icons = {
+    folder: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>,
+    globe: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10A15.3 15.3 0 0112 2z"/></svg>,
+    mail: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>,
+    shield: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
+    lock: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>,
+    chart: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
+  };
+  return icons[name] || null;
+}
