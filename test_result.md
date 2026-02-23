@@ -112,11 +112,14 @@ backend:
     file: "js/lead-job-persistence.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         - working: true
           agent: "main"
           comment: "Three fixes: (1) findInterruptedJobs() now queries { status: { $in: ['running', 'interrupted'] } } instead of only 'running'. Covers both SIGTERM-flushed and non-flushed cases. (2) Fixed clearInterval(getState) bug in flushAllJobs() — should be clearInterval(timer). (3) Added SIGINT handler alongside SIGTERM in _index.js — npm may forward either signal."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: All 3 lead job persistence fixes correctly implemented. (1) js/lead-job-persistence.js line 139: findInterruptedJobs() uses { status: { $in: ['running', 'interrupted'] } } query. (2) Line 147: flushAllJobs() properly destructures { timer, getState } and calls clearInterval(timer). (3) js/_index.js lines 14111-14112: Both SIGTERM and SIGINT handlers registered with shared handleShutdown(signal) function. Node.js service running healthy on port 5000."
 
   - task: "Fix: Activate shortener DNS routing — unified domainService.addDNSRecord()"
     implemented: true
@@ -124,11 +127,14 @@ backend:
     file: "js/_index.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         - working: true
           agent: "main"
           comment: "Both activate shortener handlers (DNS menu line 6331 and quick-activate line 5543) now use unified domainService.addDNSRecord() instead of CR/OP split. Auto-routes to Cloudflare zone when domain metadata has nameserverType=cloudflare+cfZoneId. Uses 5s delay instead of 65s. Falls back to direct CR DNS only for legacy domains with no metadata."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: Both activate shortener DNS routing fixes correctly implemented. (1) DNS menu handler (line 6348): Uses domainService.addDNSRecord(domain, recordType, server, '', db) with 5s sleep. (2) Quick-activate handler (line 5558): Same unified pattern. Both have proper fallback to saveServerInDomain for legacy domains via getDomainMeta() check. Node.js service healthy with no critical errors."
 
   - task: "Fix: URL shortener domains use Cloudflare NS + add CNAME to CF zone"
     implemented: true
