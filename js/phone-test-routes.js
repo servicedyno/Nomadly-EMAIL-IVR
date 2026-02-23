@@ -138,7 +138,25 @@ function initPhoneTestRoutes(app, db, telnyxApi, sipConnectionId) {
     }
   })
 
-  console.log('[PhoneTest] Routes initialized: /phone/test/verify-otp, /phone/test/prepare-call')
+  // ── Caller info lookup (CNAM + location) for incoming calls ──
+  app.post('/phone/test/caller-info', async (req, res) => {
+    try {
+      const { number } = req.body
+      if (!number) return res.json({ name: null, location: null })
+      const clean = number.replace(/[^+\d]/g, '')
+      let name = null
+      try {
+        const { lookupCnam } = require('./cnam-service.js')
+        name = await lookupCnam(clean)
+      } catch (_) {}
+      const location = getLocationFromNumber(clean)
+      res.json({ name, location })
+    } catch (e) {
+      res.json({ name: null, location: null })
+    }
+  })
+
+  console.log('[PhoneTest] Routes initialized: /phone/test/verify-otp, /phone/test/prepare-call, /phone/test/caller-info')
 }
 
 // ── Helpers ──
