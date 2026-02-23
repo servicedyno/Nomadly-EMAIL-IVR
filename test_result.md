@@ -103,7 +103,7 @@
 #====================================================================================================
 
 
-user_problem_statement: "5 tasks: (1) panel.hostbay.io as dedicated panel domain, (2) block user file serving on panel domain, (3) fix SSL recheck with AutoSSL trigger, (4) /call route for phone test page, (5) browser calling mentions in bot UI"
+user_problem_statement: "Fix: panel.hostbay.io showing shortener instead of panel login page. Root cause: /:id shortener route was registered before panel domain guard middleware, so shortener caught all requests on panel domain first."
 
 backend:
   - task: "Task 1+2: panel.hostbay.io domain + block user file serving"
