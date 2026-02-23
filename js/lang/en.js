@@ -1010,7 +1010,8 @@ const adminKeyboard = {
 const userKeyboard = {
   reply_markup: {
     keyboard: [
-      [user.cloudPhone, user.digitalProducts],
+      [user.cloudPhone, user.testSip],
+      [user.digitalProducts],
       [user.domainNames],
       [user.urlShortenerMain],
       [user.buyLeads, user.validateLeads],
