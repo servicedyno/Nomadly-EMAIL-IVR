@@ -927,20 +927,33 @@ async function handleOutboundSipCall(payload) {
       }, 60000)
     }
 
-    // SIP calls through credential connection are auto-routed by Telnyx (state=bridging).
-    // Only calls with SIP URI in 'from' (traditional SIP clients) need explicit transfer.
-    if (!isAutoRouted) {
-      try {
-        await _telnyxApi.transferCall(callControlId, destination, num.phoneNumber)
-        log(`[Voice] Outbound SIP (Telnyx): Transfer initiated ${callerDisplay} → ${destination}`)
-      } catch (e) {
-        log(`[Voice] Outbound SIP (Telnyx): Transfer failed — ${e.message}`)
-        clearInterval(outboundSession._limitTimer)
+    // ── MULTI-USER CALLER ID FIX ──
+    // Always set per-call ANI via transferCall for ALL outbound SIP calls.
+    // Auto-routed calls (credential connection) use the shared SIP connection ANI override,
+    // which is a single global value — wrong for multi-user. transferCall's `from` param
+    // overrides this per-call, ensuring each user's correct phone number displays as caller ID.
+    //
+    // Also update the connection-level ANI override in the background (best-effort)
+    // so the next auto-routed call uses the right number even before our transfer fires.
+    if (_sipConnectionId) {
+      _telnyxApi.updateAniOverride(_sipConnectionId, num.phoneNumber).catch(() => {})
+    }
+
+    try {
+      await _telnyxApi.transferCall(callControlId, destination, num.phoneNumber)
+      log(`[Voice] Outbound SIP (Telnyx): Transfer initiated ${callerDisplay} → ${destination} (autoRouted=${isAutoRouted})`)
+    } catch (e) {
+      log(`[Voice] Outbound SIP (Telnyx): Transfer failed — ${e.message}`)
+      // If transfer fails on auto-routed call, it may still proceed with connection-level ANI
+      if (isAutoRouted) {
+        log(`[Voice] Outbound SIP (Telnyx): Auto-routed call may proceed with connection ANI — still tracking`)
+      } else {
+        // Non-auto-routed calls with failed transfer can't proceed
+        const sess = activeCalls[callControlId]
+        if (sess?._limitTimer) clearInterval(sess._limitTimer)
         delete activeCalls[callControlId]
         _bot?.sendMessage(chatId, `🚫 <b>Outbound Call Failed</b>\n📞 ${formatPhone(num.phoneNumber)} → ${formatPhone(destination)}\nReason: Call routing failed. Please try again.`, { parse_mode: 'HTML' }).catch(() => {})
       }
-    } else {
-      log(`[Voice] Outbound SIP (Telnyx): Auto-routed by Telnyx — tracking session for ${callerDisplay} → ${destination}`)
     }
 
     // Notify user about the outbound call
