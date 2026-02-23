@@ -1,0 +1,66 @@
+{
+  "summary": "Completed iteration 4 testing of Speechcue SIP Test system. All features verified: (1) hasUsedCalls flag returned by generateTestOtp (2) Subscribe-to-plan messaging when test calls used (3) Main menu SIP test discovery via greeting line and testSip keyboard button (4) All 4 language files updated with testSip button and keyboard placement.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "PhoneTestPage",
+        "issue": "When OTP verification fails, generic 'Verification failed. Try again.' shown instead of API error with /testsip",
+        "selector": "[data-testid='otp-error']",
+        "priority": "LOW",
+        "note": "Console shows 'body stream already read' error - response body consumed twice. The API returns correct error but frontend catch block overrides it."
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phone_test_iteration4.py",
+    "/app/test_reports/pytest/pytest_results_iteration4.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: Fix PhoneTestPage verifyOtp function to properly display API error message with /testsip reference (currently catch block shows generic error)"
+  ],
+  "critical_code_review_comments": [
+    "✅ phone-test-routes.js generateTestOtp (line 140) returns { error: 'limit_reached', hasUsedCalls: totalCalls > 0 }",
+    "✅ _index.js /testsip handler (line 3896-3907) shows subscribe-to-plan message when limit reached",
+    "✅ _index.js Test SIP Free button handler (line 7084-7098) properly handles limit_reached",
+    "✅ _index.js getMainMenuGreeting (line 1450-1451) shows SIP test line for users who haven't tried SIP test",
+    "✅ All 4 language files (en, hi, fr, zh) have testSip button defined at correct lines",
+    "✅ All 4 language keyboards include testSip button next to cloudPhone in keyboard array",
+    "✅ Old SipTest.js file removed",
+    "✅ Old /api/sip-test-credentials endpoint returns 404"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phone_test_iteration4.py"
+  ],
+  "success_rate": {
+    "backend": "100% (5/5 tests passed)",
+    "frontend": "92% (11/12 UI checks passed - 1 minor issue with error message display)"
+  },
+  "test_credentials": "N/A - OTP required from Telegram bot @Nomadlybot via /testsip command",
+  "seed_data_creation": "None required",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All iteration 4 features verified: (1) generateTestOtp returns hasUsedCalls flag when limit reached (2) Both /testsip command and Test SIP Free button show subscribe-to-plan message with Cloud Phone direction when user has used test calls (3) Main menu greeting includes SIP test line for users with 0 test calls (4) All 4 lang files have testSip button + keyboard placement. Minor frontend issue: error message from API with /testsip reference not displayed correctly - generic catch block message shown instead. The Telegram bot code is correct but actual bot interaction cannot be tested.",
+  "features_tested": {
+    "hasUsedCalls_flag_returned": "PASS - line 140 in phone-test-routes.js",
+    "subscribe_to_plan_message": "PASS - both /testsip (line 3898) and button handler (line 7090) show subscribe message",
+    "main_menu_sip_test_line": "PASS - getMainMenuGreeting shows '🧪 Try SIP calling free — send /testsip' for users with 0 test calls",
+    "test_sip_button_handler": "PASS - line 7084 handles user.testSip and '🧪 Test SIP Free'",
+    "en_testSip_button": "PASS - line 106 defines button, line 1013 in keyboard",
+    "hi_testSip_button": "PASS - line 94 defines button, line 954 in keyboard",
+    "fr_testSip_button": "PASS - line 95 defines button, line 964 in keyboard",
+    "zh_testSip_button": "PASS - line 94 defines button, line 946 in keyboard",
+    "old_siptest_removed": "PASS - SipTest.js does not exist",
+    "old_endpoint_404": "PASS - /api/sip-test-credentials returns 404",
+    "verify_otp_401_with_testsip": "PASS - API returns '/testsip' in error message",
+    "otp_input_6_digits_only": "PASS - filters non-digits and limits to 6 chars",
+    "tab_switching": "PASS - Free Test and My Credentials tabs work",
+    "no_telnyx_branding": "PASS - No Telnyx visible on page",
+    "telegram_link_correct": "PASS - https://t.me/Nomadlybot"
+  }
+}
