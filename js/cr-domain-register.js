@@ -19,6 +19,7 @@ const buyDomainOnline = async (domain, ns1, ns2) => {
 
     const response = await axios.get(apiUrl, { params: requestData, timeout: 15000 })
     console.log('buyDomain Response:', JSON.stringify(response.data, null, 2))
+    console.log(`[CR] Registered ${domain} with NS: ${requestData.ns1}, ${requestData.ns2}`)
 
     if (response?.data?.responseMsg?.statusCode === 200) {
       return { success: true }
