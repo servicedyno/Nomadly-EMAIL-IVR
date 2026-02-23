@@ -16,7 +16,7 @@ const LAYERS = [
   { key: 'scannerUaBlocking', label: 'Scanner UA Blocking', desc: 'Blocks 40+ scanner user-agents via .htaccess' },
   { key: 'cfWafRules', label: 'Cloudflare WAF Rules', desc: 'WAF rules blocking malicious crawlers at the edge' },
   { key: 'cfWorker', label: 'Cloudflare Worker', desc: 'Edge-level challenge injection & scanner blocking' },
-  { key: 'jsChallenge', label: 'JavaScript Challenge', desc: 'Client-side bot detection (headless browser, WebDriver)' },
+  { key: 'jsChallenge', label: 'JavaScript Challenge', desc: 'Client-side bot detection (headless browser, WebDriver) — Recommended: Keep enabled for maximum protection' },
 ];
 
 export default function SecurityPanel() {
