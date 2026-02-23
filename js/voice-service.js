@@ -728,6 +728,44 @@ async function handleOutboundSipCall(payload) {
       direction: 'outgoing',
       recordingEnabled: num.features?.recording === true,
     }
+
+    // Mid-call limit monitor for outbound SIP (same as inbound)
+    const minuteLimit = getMinuteLimit(num.plan)
+    const outboundSession = activeCalls[callControlId]
+    outboundSession._limitTimer = setInterval(async () => {
+      const sess = activeCalls[callControlId]
+      if (!sess) { clearInterval(outboundSession._limitTimer); return }
+      const elapsedSec = Math.floor((Date.now() - sess.startedAt.getTime()) / 1000)
+      const elapsedMin = Math.ceil(elapsedSec / 60)
+      const rate = getCallRate(destination)
+      if (minuteLimit !== Infinity) {
+        const projectedTotal = (num.minutesUsed || 0) + elapsedMin
+        if (projectedTotal >= minuteLimit) {
+          let canContinue = false
+          if (_walletOf) {
+            try {
+              const { usdBal } = await getBalance(_walletOf, chatId)
+              if (usdBal >= rate) {
+                canContinue = true
+                if (!sess._overageNotified) {
+                  sess._overageNotified = true
+                  _bot?.sendMessage(chatId, `💰 <b>Overage Active</b> — Plan minutes exhausted. $${rate}/min (${isUSCanada(destination) ? 'US/CA' : 'Intl'}) from wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+                }
+              }
+            } catch (e) { log(`[Voice] Mid-call overage error: ${e.message}`) }
+          }
+          if (!canContinue) {
+            log(`[Voice] Mid-call limit reached for outbound ${num.phoneNumber}: projected ${projectedTotal}/${minuteLimit} min. Disconnecting.`)
+            clearInterval(outboundSession._limitTimer)
+            sess._limitDisconnect = true
+            await _telnyxApi.hangupCall(callControlId).catch(() => {})
+            _bot?.sendMessage(chatId, `🚫 <b>Call Disconnected</b> — Plan minutes + wallet exhausted.\nTop up via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+            return
+          }
+        }
+      }
+    }, 60000)
+
     // SIP calls through Call Control need explicit routing — transfer to PSTN destination
     // (Unlike API-created calls which route automatically)
     try {
@@ -735,6 +773,7 @@ async function handleOutboundSipCall(payload) {
       log(`[Voice] Outbound SIP (Telnyx): Transfer initiated ${num.phoneNumber} → ${destination}`)
     } catch (e) {
       log(`[Voice] Outbound SIP (Telnyx): Transfer failed — ${e.message}`)
+      clearInterval(outboundSession._limitTimer)
       delete activeCalls[callControlId]
       _bot?.sendMessage(chatId, `🚫 <b>Outbound Call Failed</b>\n📞 ${formatPhone(num.phoneNumber)} → ${formatPhone(destination)}\nReason: Call routing failed. Please try again.`, { parse_mode: 'HTML' }).catch(() => {})
     }
@@ -858,6 +897,19 @@ async function handleCallAnswered(payload) {
   if (!session) return
 
   const { num, chatId, to, from } = session
+
+  // Outbound SIP calls: skip inbound feature routing (IVR, forwarding, voicemail)
+  // Just start recording if enabled and update phase
+  if (session.direction === 'outgoing' || session.phase === 'outbound_telnyx' || session.phase === 'outbound_twilio_bridge') {
+    log(`[Voice] Outbound call answered: ${from} → ${to} (phase: ${session.phase})`)
+    if (session.recordingEnabled) {
+      log(`[Voice] Starting call recording for outbound ${num.phoneNumber}`)
+      await _telnyxApi.startRecording(callControlId, 'single')
+      session.isRecording = true
+    }
+    session.phase = session.phase === 'outbound_telnyx' ? 'outbound_telnyx_active' : session.phase
+    return
+  }
 
   // Start recording if Business plan + recording enabled
   if (session.recordingEnabled) {
