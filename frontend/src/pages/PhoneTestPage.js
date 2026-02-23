@@ -110,6 +110,7 @@ const PhoneTestPage = () => {
   }, []);
 
   const hangup = useCallback(() => {
+    stopRingtone();
     if (callRef.current) {
       callRef.current.hangup();
       callRef.current = null;
@@ -121,16 +122,18 @@ const PhoneTestPage = () => {
     setIncomingCallerLocation('');
     stopCallTimer();
     addLog('Call ended');
-  }, [addLog, stopCallTimer]);
+  }, [addLog, stopCallTimer, stopRingtone]);
 
   const answerIncoming = useCallback(() => {
+    stopRingtone();
     if (incomingCall) {
       addLog('Answering incoming call...');
       incomingCall.answer();
     }
-  }, [incomingCall, addLog]);
+  }, [incomingCall, addLog, stopRingtone]);
 
   const rejectIncoming = useCallback(() => {
+    stopRingtone();
     if (incomingCall) {
       addLog('Rejecting incoming call');
       incomingCall.hangup();
@@ -140,7 +143,7 @@ const PhoneTestPage = () => {
     setIncomingCallerName('');
     setIncomingCallerLocation('');
     callRef.current = null;
-  }, [incomingCall, addLog]);
+  }, [incomingCall, addLog, stopRingtone]);
 
   const startCallTimer = useCallback(() => {
     callStartRef.current = Date.now();
