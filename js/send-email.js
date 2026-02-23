@@ -19,6 +19,15 @@ async function sendEmail(info, response, pin) {
   const brandName = process.env.CHAT_BOT_BRAND || 'Nomadly'
   const supportLink = process.env.APP_SUPPORT_LINK || '#'
 
+  // Determine duration from plan name
+  let duration = ''
+  if (plan.includes('1-Week') || plan.includes('Weekly')) duration = '1 Week'
+  else if (plan.includes('1-Month') || plan.includes('Monthly')) duration = '1 Month'
+  else if (plan.includes('3-Month')) duration = '3 Months'
+  else if (plan.includes('6-Month')) duration = '6 Months'
+  else if (plan.includes('1-Year') || plan.includes('Yearly')) duration = '1 Year'
+  else duration = 'See your plan details'
+
   const emailHtml = `
 <!DOCTYPE html>
 <html>
@@ -47,14 +56,14 @@ async function sendEmail(info, response, pin) {
 
               <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 25px;">
                 Hello <strong>${info.username || 'there'}</strong>,<br>
-                Your hosting account has been set up and is ready to go. Below are your login credentials — please save them securely.
+                Your hosting account is ready. Here are your login details — please save them securely.
               </p>
 
               <!-- Credentials Card -->
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background: linear-gradient(135deg, #f5f7ff 0%, #ede9fe 100%); border-radius: 12px; border: 1px solid #e0d4fd; margin-bottom: 25px;">
                 <tr>
                   <td style="padding: 25px;">
-                    <h2 style="margin: 0 0 18px; font-size: 16px; color: #764ba2; text-transform: uppercase; letter-spacing: 1px;">🔐 Login Credentials</h2>
+                    <h2 style="margin: 0 0 18px; font-size: 16px; color: #764ba2; text-transform: uppercase; letter-spacing: 1px;">🔐 Login Details</h2>
 
                     <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                       <tr>
@@ -65,25 +74,31 @@ async function sendEmail(info, response, pin) {
                       </tr>
                       <tr>
                         <td style="padding: 10px 0; border-bottom: 1px solid rgba(118,75,162,0.15);">
-                          <span style="color: #666; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">Username</span><br>
-                          <span style="color: #1a1a2e; font-size: 16px; font-weight: 600; font-family: 'Courier New', monospace; background: #fff; padding: 2px 8px; border-radius: 4px;">${response.username}</span>
+                          <span style="color: #666; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">Plan</span><br>
+                          <span style="color: #1a1a2e; font-size: 16px; font-weight: 600;">${plan}</span>
                         </td>
                       </tr>
                       <tr>
                         <td style="padding: 10px 0; border-bottom: 1px solid rgba(118,75,162,0.15);">
-                          <span style="color: #666; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">Password</span><br>
-                          <span style="color: #1a1a2e; font-size: 16px; font-weight: 600; font-family: 'Courier New', monospace; background: #fff; padding: 2px 8px; border-radius: 4px;">${response.password}</span>
+                          <span style="color: #666; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">Duration</span><br>
+                          <span style="color: #1a1a2e; font-size: 16px; font-weight: 600;">${duration}</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 10px 0; border-bottom: 1px solid rgba(118,75,162,0.15);">
+                          <span style="color: #666; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">Username</span><br>
+                          <span style="color: #1a1a2e; font-size: 16px; font-weight: 600; font-family: 'Courier New', monospace; background: #fff; padding: 2px 8px; border-radius: 4px;">${response.username}</span>
                         </td>
                       </tr>${pin ? `
                       <tr>
                         <td style="padding: 10px 0; border-bottom: 1px solid rgba(118,75,162,0.15);">
-                          <span style="color: #666; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">HostPanel PIN</span><br>
+                          <span style="color: #666; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">PIN</span><br>
                           <span style="color: #764ba2; font-size: 20px; font-weight: 700; font-family: 'Courier New', monospace; background: #fff; padding: 2px 10px; border-radius: 4px; letter-spacing: 3px;">${pin}</span>
                         </td>
                       </tr>` : ''}
                       <tr>
                         <td style="padding: 10px 0;">
-                          <span style="color: #666; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">HostPanel URL</span><br>
+                          <span style="color: #666; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">Hosting Panel</span><br>
                           <a href="${panelUrl}" style="color: #667eea; font-size: 16px; font-weight: 600; text-decoration: none;">${panelUrl}</a>
                         </td>
                       </tr>
@@ -96,19 +111,7 @@ async function sendEmail(info, response, pin) {
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 25px;">
                 <tr>
                   <td align="center">
-                    <a href="${panelUrl}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; padding: 14px 40px; border-radius: 8px; font-size: 16px; font-weight: 600; letter-spacing: 0.3px;">Login to HostPanel →</a>
-                  </td>
-                </tr>
-              </table>
-
-              <!-- Info Box -->
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #f0fdf4; border-radius: 10px; border: 1px solid #bbf7d0; margin-bottom: 20px;">
-                <tr>
-                  <td style="padding: 18px 20px;">
-                    <p style="margin: 0; font-size: 14px; color: #166534; line-height: 1.6;">
-                      ✅ <strong>DNS is auto-configured via Cloudflare.</strong><br>
-                      Your domain will be live within minutes. SSL is enabled automatically.
-                    </p>
+                    <a href="${panelUrl}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; padding: 14px 40px; border-radius: 8px; font-size: 16px; font-weight: 600; letter-spacing: 0.3px;">Login to Panel →</a>
                   </td>
                 </tr>
               </table>
@@ -118,7 +121,7 @@ async function sendEmail(info, response, pin) {
                 <tr>
                   <td style="padding: 18px 20px;">
                     <p style="margin: 0; font-size: 14px; color: #9a3412; line-height: 1.6;">
-                      🔒 <strong>Keep these credentials safe.</strong> Do not share your password or PIN with anyone. We will never ask for them.
+                      🔒 <strong>Keep these credentials safe.</strong> Do not share your PIN with anyone. We will never ask for it.
                     </p>
                   </td>
                 </tr>
@@ -155,7 +158,7 @@ async function sendEmail(info, response, pin) {
     const mailResponse = await transporter.sendMail({
       from: `${brandName} <${process.env.MAIL_SENDER}>`,
       to: info.email,
-      subject: `🚀 Your ${plan} is Live — Login Credentials Inside`,
+      subject: `🚀 Your ${plan} is Live — Login Details Inside`,
       html: emailHtml,
     })
 
