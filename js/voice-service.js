@@ -1139,7 +1139,8 @@ async function handleCallAnswered(payload) {
   // On timeout → falls through to voicemail/missed call via handleBridgeTransferHangup
   if (num.sipUsername) {
     session.phase = 'ringing_sip'
-    const sipUri = `sip:${num.sipUsername}@sip.telnyx.com`
+    const sipUser = num.telnyxSipUsername || num.sipUsername
+    const sipUri = `sip:${sipUser}@sip.telnyx.com`
     const ringTimeout = fwdConfig?.ringTimeout || 25
     log(`[Voice] Ringing SIP device: ${sipUri} for ${num.phoneNumber} (timeout: ${ringTimeout}s)`)
 
