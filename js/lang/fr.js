@@ -1534,7 +1534,7 @@ ${
   showDepositCryptoInfoVps: (priceCrypto, tickerView, address, vpsDetails) =>
     `Veuillez envoyer ${priceCrypto} ${tickerView} à\n\n<code>${address}</code>
 
-Veuillez noter que les transactions en crypto-monnaie peuvent prendre jusqu'à 30 minutes pour être confirmées. Une fois la transaction confirmée, vous serez rapidement notifié et votre plan VPS sera activé.
+Les paiements crypto sont confirmés rapidement — généralement en quelques minutes. Une fois la transaction confirmée, vous serez rapidement notifié et votre plan VPS sera activé.
 
 Cordialement,
 ${CHAT_BOT_NAME}`,
