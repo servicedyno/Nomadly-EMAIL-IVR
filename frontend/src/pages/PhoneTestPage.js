@@ -4,6 +4,7 @@ import { TelnyxRTC } from '@telnyx/webrtc';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const SIP_DOMAIN = 'sip.speechcue.com';
 const MAX_CALL_DURATION = 60;
+const TELEGRAM_BOT_URL = 'https://t.me/Nomadlybot';
 
 const PhoneTestPage = () => {
   const [activeTab, setActiveTab] = useState('test');
@@ -13,13 +14,16 @@ const PhoneTestPage = () => {
   const [destination, setDestination] = useState('');
   const [logs, setLogs] = useState([]);
 
-  // Test mode creds
+  // OTP state
+  const [otpValue, setOtpValue] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpError, setOtpError] = useState('');
+
+  // Test creds (after OTP verified)
   const [testUsername, setTestUsername] = useState('');
   const [testPassword, setTestPassword] = useState('');
   const [testCallsRemaining, setTestCallsRemaining] = useState(0);
-  const [credsLoading, setCredsLoading] = useState(false);
   const [credsReady, setCredsReady] = useState(false);
-  const [credsError, setCredsError] = useState('');
 
   // Own creds
   const [ownUsername, setOwnUsername] = useState('');
@@ -122,10 +126,8 @@ const PhoneTestPage = () => {
       client.on('telnyx.notification', (notif) => {
         const call = notif.call;
         if (!call) return;
-
         if (notif.type === 'callUpdate') {
           const state = call.state;
-
           if (state === 'trying' || state === 'ringing') {
             setCallStatus('ringing');
           } else if (state === 'early') {
@@ -138,8 +140,7 @@ const PhoneTestPage = () => {
               audioRef.current.play().catch(() => {});
             }
           } else if (state === 'hangup' || state === 'destroy' || state === 'purge') {
-            const cause = call.cause || 'ended';
-            addLog(`Call ended: ${cause}`);
+            addLog(`Call ended: ${call.cause || 'ended'}`);
             setCallStatus('idle');
             stopCallTimer();
             callRef.current = null;
@@ -181,19 +182,28 @@ const PhoneTestPage = () => {
     }
   }, [destination, status, isTestMode, testCallsRemaining, addLog]);
 
-  const getTestCredentials = async () => {
-    setCredsLoading(true);
-    setCredsError('');
-    addLog('Requesting test credentials...', 'info');
+  const verifyOtp = async () => {
+    if (!otpValue || otpValue.length !== 6) {
+      setOtpError('Please enter a valid 6-digit code.');
+      return;
+    }
+
+    setOtpLoading(true);
+    setOtpError('');
+    addLog('Verifying code...', 'info');
 
     try {
-      const resp = await fetch(`${BACKEND_URL}/api/phone/test/credentials`, { method: 'POST' });
+      const resp = await fetch(`${BACKEND_URL}/api/phone/test/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ otp: otpValue }),
+      });
       const data = await resp.json();
 
       if (data.error) {
-        setCredsError(data.message || data.error);
+        setOtpError(data.message || data.error);
         addLog(`Error: ${data.message || data.error}`, 'error');
-        setCredsLoading(false);
+        setOtpLoading(false);
         return;
       }
 
@@ -201,12 +211,12 @@ const PhoneTestPage = () => {
       setTestPassword(data.sipPassword);
       setTestCallsRemaining(data.callsRemaining);
       setCredsReady(true);
-      addLog(`Test credentials ready (${data.callsRemaining} calls remaining)`);
+      addLog(`Credentials ready (${data.callsRemaining} calls remaining)`);
     } catch (e) {
-      setCredsError('Failed to get credentials');
-      addLog(`Failed to get credentials: ${e.message}`, 'error');
+      setOtpError('Verification failed. Try again.');
+      addLog(`Verification failed: ${e.message}`, 'error');
     }
-    setCredsLoading(false);
+    setOtpLoading(false);
   };
 
   const switchTab = (tab) => {
@@ -267,45 +277,99 @@ const PhoneTestPage = () => {
         {/* Test Credentials Tab */}
         {activeTab === 'test' && (
           <div data-testid="tab-test-content">
-            <div className="bg-gradient-to-br from-green-950/40 to-[#0a0a0a] border border-green-900/50 rounded-xl p-4 mb-4 text-center">
-              <h3 className="text-green-400 text-sm font-semibold mb-1.5">Try Before You Buy</h3>
-              <p className="text-neutral-500 text-xs leading-relaxed">
-                Get free test credentials to verify your SIP setup works before purchasing a plan.
-              </p>
-              <div className="text-neutral-400 text-[11px] mt-2 pt-2 border-t border-neutral-800">
-                2 test calls &middot; 1 minute max per call
-              </div>
-            </div>
+            {!credsReady ? (
+              <>
+                {/* Instructions */}
+                <div className="bg-gradient-to-br from-green-950/40 to-[#0a0a0a] border border-green-900/50 rounded-xl p-4 mb-4 text-center">
+                  <h3 className="text-green-400 text-sm font-semibold mb-1.5">Try Before You Buy</h3>
+                  <p className="text-neutral-500 text-xs leading-relaxed mb-3">
+                    Get a one-time code from our Telegram bot to unlock your free SIP test credentials.
+                  </p>
+                  <div className="text-neutral-400 text-[11px] pt-2 border-t border-neutral-800">
+                    2 test calls &middot; 1 minute max per call
+                  </div>
+                </div>
 
-            {!credsReady && (
-              <button
-                className="w-full py-2.5 rounded-lg text-sm font-semibold border border-green-500 text-green-500 hover:bg-green-500/10 disabled:opacity-50 transition-all"
-                onClick={getTestCredentials}
-                disabled={credsLoading}
-                data-testid="btn-get-test-creds"
-              >
-                {credsLoading ? 'Generating...' : credsError || 'Get Test Credentials'}
-              </button>
-            )}
+                {/* Step 1: Get code from bot */}
+                <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 mb-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">1</div>
+                    <div>
+                      <div className="text-sm font-medium text-white mb-1">Get your code</div>
+                      <p className="text-xs text-neutral-500 mb-3">
+                        Send <span className="font-mono text-green-400">/test</span> to our Telegram bot to receive a 6-digit code.
+                      </p>
+                      <a
+                        href={TELEGRAM_BOT_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-[#2AABEE] text-white hover:bg-[#229ED9] transition-colors"
+                        data-testid="telegram-bot-link"
+                      >
+                        <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+                        Open @Nomadlybot
+                      </a>
+                    </div>
+                  </div>
+                </div>
 
-            {credsReady && (
-              <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 mt-3" data-testid="test-credentials-card">
+                {/* Step 2: Enter code */}
+                <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">2</div>
+                    <div className="flex-1">
+                      <div className="text-sm font-medium text-white mb-2">Enter your code</div>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={otpValue}
+                          onChange={(e) => {
+                            const v = e.target.value.replace(/\D/g, '').slice(0, 6);
+                            setOtpValue(v);
+                            setOtpError('');
+                          }}
+                          placeholder="6-digit code"
+                          maxLength={6}
+                          className="flex-1 bg-[#0a0a0a] border border-neutral-700 rounded-lg px-3 py-2 text-sm font-mono text-white text-center tracking-[0.3em] placeholder-neutral-600 focus:border-green-500 outline-none transition-colors"
+                          data-testid="otp-input"
+                        />
+                        <button
+                          onClick={verifyOtp}
+                          disabled={otpLoading || otpValue.length !== 6}
+                          className="px-4 py-2 rounded-lg text-sm font-semibold bg-green-500 text-black hover:bg-green-600 disabled:opacity-50 transition-all"
+                          data-testid="btn-verify-otp"
+                        >
+                          {otpLoading ? 'Verifying...' : 'Verify'}
+                        </button>
+                      </div>
+                      {otpError && (
+                        <p className="text-red-400 text-xs mt-2" data-testid="otp-error">{otpError}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              /* Credentials ready */
+              <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4" data-testid="test-credentials-card">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Test Credentials</div>
+                  <span className="text-[11px] text-green-400 bg-green-500/10 px-2 py-0.5 rounded-full">
+                    {testCallsRemaining} call{testCallsRemaining !== 1 ? 's' : ''} left
+                  </span>
+                </div>
                 <div className="mb-3">
-                  <label className="text-[11px] text-neutral-500 block mb-1">Test Username</label>
+                  <label className="text-[11px] text-neutral-500 block mb-1">Username</label>
                   <input
-                    type="text"
-                    value={testUsername}
-                    readOnly
+                    type="text" value={testUsername} readOnly
                     className="w-full bg-[#0a0a0a] border border-neutral-700 rounded-lg px-3 py-2 text-sm font-mono text-white"
                     data-testid="test-username-input"
                   />
                 </div>
                 <div className="mb-3">
-                  <label className="text-[11px] text-neutral-500 block mb-1">Test Password</label>
+                  <label className="text-[11px] text-neutral-500 block mb-1">Password</label>
                   <input
-                    type="text"
-                    value={testPassword}
-                    readOnly
+                    type="text" value={testPassword} readOnly
                     className="w-full bg-[#0a0a0a] border border-neutral-700 rounded-lg px-3 py-2 text-sm font-mono text-white"
                     data-testid="test-password-input"
                   />
@@ -328,9 +392,7 @@ const PhoneTestPage = () => {
             <div className="mb-3">
               <label className="text-[11px] text-neutral-500 block mb-1">SIP Username</label>
               <input
-                type="text"
-                value={ownUsername}
-                onChange={(e) => setOwnUsername(e.target.value)}
+                type="text" value={ownUsername} onChange={(e) => setOwnUsername(e.target.value)}
                 placeholder="Enter your SIP username"
                 className="w-full bg-[#0a0a0a] border border-neutral-700 rounded-lg px-3 py-2 text-sm font-mono text-white placeholder-neutral-600 focus:border-green-500 outline-none transition-colors"
                 disabled={status === 'connected'}
@@ -340,9 +402,7 @@ const PhoneTestPage = () => {
             <div className="mb-3">
               <label className="text-[11px] text-neutral-500 block mb-1">SIP Password</label>
               <input
-                type="password"
-                value={ownPassword}
-                onChange={(e) => setOwnPassword(e.target.value)}
+                type="password" value={ownPassword} onChange={(e) => setOwnPassword(e.target.value)}
                 placeholder="Enter your SIP password"
                 className="w-full bg-[#0a0a0a] border border-neutral-700 rounded-lg px-3 py-2 text-sm font-mono text-white placeholder-neutral-600 focus:border-green-500 outline-none transition-colors"
                 disabled={status === 'connected'}
@@ -391,9 +451,7 @@ const PhoneTestPage = () => {
           <div className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-3">Make a Call</div>
           <div className="flex gap-2">
             <input
-              type="tel"
-              value={destination}
-              onChange={(e) => setDestination(e.target.value)}
+              type="tel" value={destination} onChange={(e) => setDestination(e.target.value)}
               placeholder="+1 (234) 567-8900"
               className="flex-1 bg-[#0a0a0a] border border-neutral-700 rounded-lg px-3 py-2 text-sm font-mono text-white placeholder-neutral-600 focus:border-green-500 outline-none transition-colors"
               disabled={status !== 'connected' || callStatus !== 'idle'}
@@ -401,8 +459,7 @@ const PhoneTestPage = () => {
             />
             {callStatus === 'idle' ? (
               <button
-                onClick={makeCall}
-                disabled={status !== 'connected'}
+                onClick={makeCall} disabled={status !== 'connected'}
                 className="px-5 py-2 rounded-lg text-sm font-semibold bg-green-500 text-black hover:bg-green-600 disabled:opacity-50 transition-all"
                 data-testid="btn-call"
               >
@@ -422,7 +479,9 @@ const PhoneTestPage = () => {
           {callStatus !== 'idle' && (
             <div className="flex items-center justify-between bg-green-950/50 border border-green-900/50 rounded-lg p-3 mt-3" data-testid="call-info">
               <div>
-                <div className="text-sm text-green-300 capitalize">{callStatus === 'calling' ? 'Calling...' : callStatus === 'ringing' ? 'Ringing...' : callStatus === 'connecting' ? 'Connecting...' : 'Connected'}</div>
+                <div className="text-sm text-green-300 capitalize">
+                  {callStatus === 'calling' ? 'Calling...' : callStatus === 'ringing' ? 'Ringing...' : callStatus === 'connecting' ? 'Connecting...' : 'Connected'}
+                </div>
                 <div className="text-xs text-neutral-500 mt-0.5">{destination}</div>
               </div>
               <div className="font-mono text-xl font-bold text-green-500" data-testid="call-timer">
@@ -432,7 +491,7 @@ const PhoneTestPage = () => {
           )}
         </div>
 
-        {/* Audio element */}
+        {/* Audio */}
         <audio ref={audioRef} autoPlay />
 
         {/* Logs */}
