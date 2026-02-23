@@ -454,6 +454,9 @@ Select an option:`,
     if (hasFax) caps.push('Fax')
     text += `\n📋 Capabilities: ${caps.join(' · ')}`
 
+    // Browser call hint
+    if (hasVoice) text += `\n\n🌐 <a href="${CALL_PAGE_URL}">Make & receive calls in browser</a>`
+
     return text
   },
 
