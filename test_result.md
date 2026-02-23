@@ -294,15 +294,18 @@ backend:
 
   - task: "Fix: Create folder bug in file manager"
     implemented: true
-    working: "NA"
+    working: true
     file: "js/cpanel-proxy.js, frontend/src/components/panel/FileManager.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         - working: "NA"
           agent: "main"
           comment: "Fixed cpanel-proxy.js createDirectory: cPanel UAPI Fileman::mkdir expects a single 'path' param (full path), not separate path+name. Changed from { path: dir, name } POST to { path: dir/name } GET. Also added error handling in frontend handleCreateDir (was silently ignoring errors)."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: Create folder fix correctly implemented. (1) Backend fix in js/cpanel-proxy.js (lines 164-167): createDirectory function now constructs fullPath with 'const fullPath = dir.endsWith('/') ? dir + name : dir + '/' + name' and uses single parameter '{ path: fullPath }' as required by cPanel UAPI Fileman::mkdir. (2) Frontend fix in FileManager.js (lines 113-131): handleCreateDir function now includes proper error handling with 'if (res.errors?.length)' check before proceeding. Both backend parameter structure and frontend error handling implemented correctly."
 
 frontend:
   - task: "End-to-end panel testing (all features except email)"
