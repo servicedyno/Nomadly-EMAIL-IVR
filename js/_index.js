@@ -687,6 +687,13 @@ const loadData = async () => {
     try {
       telnyxResources = await telnyxApi.initializeTelnyxResources(SELF_URL)
       log('[CloudPhone] Telnyx resources initialized')
+      // Migrate existing numbers from SIP Connection to Call Control App
+      // This ensures inbound calls route through our webhook (IVR, forwarding, voicemail)
+      // instead of going directly to SIP devices (which causes 480 errors)
+      if (telnyxResources.callControlAppId) {
+        const migrated = await telnyxApi.migrateNumbersToCallControlApp(telnyxResources.callControlAppId)
+        if (migrated > 0) log(`[CloudPhone] Migrated ${migrated} numbers to Call Control App for proper inbound routing`)
+      }
     } catch (e) {
       log('[CloudPhone] Telnyx init error:', e.message)
     }
