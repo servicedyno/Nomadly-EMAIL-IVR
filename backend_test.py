@@ -14,7 +14,7 @@ from urllib.parse import urlparse
 
 # Test configuration
 BASE_URL = "http://localhost:5000"
-BACKEND_URL = "https://onboard-quick.preview.emergentagent.com/api"
+BACKEND_URL = "https://nomadly-deployment.preview.emergentagent.com/api"
 
 def test_health_check():
     """Test 1: Health check - GET http://localhost:5000/ should return 200"""
@@ -58,7 +58,7 @@ def test_voice_webhook():
         },
         "meta": {
             "attempt": 1,
-            "delivered_to": "https://onboard-quick.preview.emergentagent.com/api/telnyx/voice-webhook"
+            "delivered_to": "https://nomadly-deployment.preview.emergentagent.com/api/telnyx/voice-webhook"
         }
     }
     
