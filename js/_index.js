@@ -3625,7 +3625,7 @@ bot?.on('message', async msg => {
       const lang = info?.userLanguage ?? 'en'
       // For targeted leads: requireRealName=true so we keep generating until we have enough leads with actual person names
       const requireRealName = isTargetLeads && cnam
-      const res = await validateBulkNumbers(info?.carrier, info?.amount, cc, areaCodes, cnam, bot, chatId, lang, requireRealName)
+      const res = await validateBulkNumbers(info?.carrier, info?.amount, cc, areaCodes, cnam, bot, chatId, lang, requireRealName, { target: info?.targetName, price: info?.price })
       if (!res) return send(chatId, t.buyLeadsError)
 
       cc = '+' + cc
