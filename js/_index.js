@@ -14170,6 +14170,16 @@ async function resumeInterruptedLeadJobs() {
     if (!jobs || jobs.length === 0) return
     log(`[LeadJobs] Found ${jobs.length} interrupted job(s) — resuming generation`)
 
+    // Safe send — never throws on Telegram errors (chat not found, bot blocked, etc.)
+    const safeSend = async (chatId, text) => {
+      try { bot && await bot.sendMessage(chatId, text, { parse_mode: 'HTML' }) }
+      catch (e) { log(`[LeadJobs] Telegram notify failed for ${chatId}: ${e.message}`) }
+    }
+    const safeDeliver = async (chatId, results, phonesToGenerate, cnam, requireRealName, countryCode, target, lang) => {
+      try { await deliverLeadResults(chatId, results, phonesToGenerate, cnam, requireRealName, countryCode, target, lang) }
+      catch (e) { log(`[LeadJobs] Telegram deliver failed for ${chatId}: ${e.message}`) }
+    }
+
     for (const job of jobs) {
       try {
         const { chatId, results, phonesToGenerate, realNameCount: savedRealNameCount,
@@ -14181,26 +14191,21 @@ async function resumeInterruptedLeadJobs() {
         const currentCount = requireRealName && cnam ? existingRealNames : existingResults.length
         const remaining = phonesToGenerate - currentCount
 
+        log(`[LeadJobs] Job ${jobId}: status=${job.status}, ${currentCount}/${phonesToGenerate}, remaining=${remaining}`)
+
         // ── Already complete — just deliver ──
         if (remaining <= 0 && existingResults.length > 0) {
           log(`[LeadJobs] Job ${jobId} was already complete (${currentCount}/${phonesToGenerate}) — delivering`)
-          await deliverLeadResults(chatId, existingResults, phonesToGenerate, cnam, requireRealName, countryCode, target, jobLang)
+          await safeDeliver(chatId, existingResults, phonesToGenerate, cnam, requireRealName, countryCode, target, jobLang)
           await db.collection('leadJobs').updateOne({ jobId }, { $set: { status: 'completed', completedAt: new Date(), updatedAt: new Date() } })
           continue
         }
 
-        // ── No results at all — restart full generation ──
+        // Notify user (non-blocking — continues even if Telegram fails)
         if (existingResults.length === 0) {
-          bot && bot.sendMessage(chatId,
-            `🔄 Your lead generation for <b>${target || 'phone leads'}</b> was interrupted before any results were saved.\n\n⏳ Restarting full generation now — please wait...`,
-            { parse_mode: 'HTML' }
-          )
+          await safeSend(chatId, `🔄 Your lead generation for <b>${target || 'phone leads'}</b> was interrupted before any results were saved.\n\n⏳ Restarting full generation now — please wait...`)
         } else {
-          // ── Partial results — resume from where we stopped ──
-          bot && bot.sendMessage(chatId,
-            `🔄 Your lead generation for <b>${target || 'phone leads'}</b> was interrupted at ${currentCount}/${phonesToGenerate} by a server update.\n\n⏳ Resuming now — please wait...`,
-            { parse_mode: 'HTML' }
-          )
+          await safeSend(chatId, `🔄 Your lead generation for <b>${target || 'phone leads'}</b> was interrupted at ${currentCount}/${phonesToGenerate} by a server update.\n\n⏳ Resuming now — please wait...`)
         }
 
         // Mark job as running again
@@ -14215,42 +14220,25 @@ async function resumeInterruptedLeadJobs() {
         )
 
         if (fullResults && fullResults.length > 0) {
-          // Deliver the complete results
-          await deliverLeadResults(chatId, fullResults, phonesToGenerate, cnam, requireRealName, countryCode, target, jobLang)
-          bot && bot.sendMessage(chatId,
-            `✅ Your <b>${target || 'phone leads'}</b> order is complete! ${fullResults.length} leads delivered.`,
-            { parse_mode: 'HTML' }
-          )
+          await safeDeliver(chatId, fullResults, phonesToGenerate, cnam, requireRealName, countryCode, target, jobLang)
+          await safeSend(chatId, `✅ Your <b>${target || 'phone leads'}</b> order is complete! ${fullResults.length} leads delivered.`)
+          await db.collection('leadJobs').updateOne({ jobId }, { $set: { status: 'completed', completedAt: new Date(), updatedAt: new Date() } })
           log(`[LeadJobs] Resumed job ${jobId} completed — ${fullResults.length} total leads`)
         } else {
-          // Generation failed (timeout/no hits) — deliver whatever partial results we had
           if (existingResults.length > 0) {
-            await deliverLeadResults(chatId, existingResults, phonesToGenerate, cnam, requireRealName, countryCode, target, jobLang)
-            bot && bot.sendMessage(chatId,
-              `⚠️ Could only generate ${existingResults.length} of ${phonesToGenerate} leads. The remainder could not be sourced. Contact support if needed.`,
-              { parse_mode: 'HTML' }
-            )
+            await safeDeliver(chatId, existingResults, phonesToGenerate, cnam, requireRealName, countryCode, target, jobLang)
+            await safeSend(chatId, `⚠️ Could only generate ${existingResults.length} of ${phonesToGenerate} leads. The remainder could not be sourced. Contact support if needed.`)
           } else {
-            bot && bot.sendMessage(chatId,
-              `⚠️ Lead generation for <b>${target || 'phone leads'}</b> could not be completed after resumption. Please contact support.`,
-              { parse_mode: 'HTML' }
-            )
+            await safeSend(chatId, `⚠️ Lead generation for <b>${target || 'phone leads'}</b> could not be completed after resumption. Please contact support.`)
           }
-          await db.collection('leadJobs').updateOne(
-            { jobId },
-            { $set: { status: 'partial_delivered', updatedAt: new Date() } }
-          ).catch(() => {})
+          await db.collection('leadJobs').updateOne({ jobId }, { $set: { status: 'partial_delivered', updatedAt: new Date() } }).catch(() => {})
         }
       } catch (e) {
         log(`[LeadJobs] Error resuming job ${job.jobId}: ${e.message}`)
-        // Best-effort: deliver whatever partial results we have
         try {
           if (job.results && job.results.length > 0) {
-            await deliverLeadResults(job.chatId, job.results, job.phonesToGenerate, job.cnam, job.requireRealName, job.countryCode, job.target, job.lang)
-            bot && bot.sendMessage(job.chatId,
-              `⚠️ Delivered ${job.results.length} partial leads. Resume encountered an error. Contact support for the remainder.`,
-              { parse_mode: 'HTML' }
-            )
+            await safeDeliver(job.chatId, job.results, job.phonesToGenerate, job.cnam, job.requireRealName, job.countryCode, job.target, job.lang)
+            await safeSend(job.chatId, `⚠️ Delivered ${job.results.length} partial leads. Resume encountered an error. Contact support for the remainder.`)
           }
         } catch (_) {}
         await db.collection('leadJobs').updateOne(
