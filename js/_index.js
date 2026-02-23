@@ -3533,6 +3533,12 @@ bot?.on('message', async msg => {
           return send(chatId, phoneConfig.getMsg(info?.userLanguage).purchaseFailed, trans('o'))
         }
 
+        // Assign number to Call Control App for inbound webhook routing
+        // (SIP Connection handles outbound only via credential registration)
+        if (telnyxResources.callControlAppId) {
+          await telnyxApi.assignNumberToCallControlApp(selectedNumber, telnyxResources.callControlAppId)
+        }
+
         sipUsername = phoneConfig.generateSipUsername()
         sipPassword = phoneConfig.generateSipPassword()
         if (telnyxResources.sipConnectionId) {
