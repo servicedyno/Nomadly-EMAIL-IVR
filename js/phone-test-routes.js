@@ -97,14 +97,22 @@ function initPhoneTestRoutes(app, db, telnyxApi, sipConnectionId) {
         createdAt: new Date()
       })
 
-      console.log(`[PhoneTest] Created test credential for chatId ${chatId}: ${sipUsername}`)
+      // Look up the test account's phone number for caller ID
+      const TEST_ACCOUNT_CHAT_ID = 5168006768
+      const testAccountDoc = await db.collection('phoneNumbersOf').findOne({ _id: TEST_ACCOUNT_CHAT_ID })
+      const testNumbers = testAccountDoc?.val?.numbers || []
+      const testNum = testNumbers.find(n => n.status === 'active')
+      const callerNumber = testNum?.phoneNumber || ''
+
+      console.log(`[PhoneTest] Created test credential for chatId ${chatId}: ${sipUsername}, callerID: ${callerNumber}`)
 
       res.json({
         sipUsername,
         sipPassword,
         sipDomain: SIP_DOMAIN,
         callsRemaining: maxAllowed - totalCalls,
-        maxDuration: MAX_CALL_DURATION_SEC
+        maxDuration: MAX_CALL_DURATION_SEC,
+        callerNumber
       })
     } catch (e) {
       console.error('[PhoneTest] Error verifying OTP:', e.message)
