@@ -934,8 +934,11 @@ async function handleOutboundSipCall(payload) {
     }
 
     // Notify user about the outbound call
-    _bot?.sendMessage(chatId, `📞 <b>SIP Outbound Call</b>\nFrom: ${formatPhone(num.phoneNumber)}\nTo: ${formatPhone(destination)}\nRate: $${sipRate}/min ${isUSCanada(destination) ? '(US/CA)' : '(Intl)'}`, { parse_mode: 'HTML' }).catch(() => {})
-    return
+    if (testCallInfo.isTestCall) {
+      _bot?.sendMessage(chatId, `📞 <b>Free SIP Test Call</b>\nFrom: ${formatPhone(num.phoneNumber)}\nTo: ${formatPhone(destination)}\n🆓 Free test call (${testCallInfo.callsRemaining ?? 0} remaining, max ${testCallInfo.maxDuration}s)`, { parse_mode: 'HTML' }).catch(() => {})
+    } else {
+      _bot?.sendMessage(chatId, `📞 <b>SIP Outbound Call</b>\nFrom: ${formatPhone(num.phoneNumber)}\nTo: ${formatPhone(destination)}\nRate: $${sipRate}/min ${isUSCanada(destination) ? '(US/CA)' : '(Intl)'}`, { parse_mode: 'HTML' }).catch(() => {})
+    }    return
   }
 
   // ── TWILIO NUMBER: Bridge through Twilio SIP → Twilio PSTN ──
