@@ -10798,6 +10798,88 @@ bot?.on('message', async msg => {
       }
       return
     }
+    // Anti-Red Protection toggle
+    if (message === t.domainActionAntiRed) {
+      const domain = info?.domainToManage
+      if (!domain) return send(chatId, t.noDomainSelected || 'No domain selected.')
+      // Check if domain has Cloudflare
+      const domainDoc = await db.collection('registeredDomains').findOne({ _id: domain })
+      const val = domainDoc?.val || {}
+      if (!val.cfZoneId || val.nameserverType !== 'cloudflare') {
+        return send(chatId, t.antiRedNoCF(domain), { parse_mode: 'HTML' })
+      }
+      const isOff = val.antiRedOff === true
+      set(state, chatId, 'action', 'anti-red-toggle')
+      if (isOff) {
+        send(chatId, t.antiRedStatusOff(domain), k.of([[t.antiRedTurnOn], [t.back]]), { parse_mode: 'HTML' })
+      } else {
+        send(chatId, t.antiRedStatusOn(domain), k.of([[t.antiRedTurnOff], [t.back]]), { parse_mode: 'HTML' })
+      }
+      return
+    }
+    return send(chatId, t.selectValidOption || 'Please select a valid option.')
+  }
+  if (action === 'anti-red-toggle') {
+    if (message === t.back) {
+      // Go back to domain actions
+      const domain = info?.domainToManage
+      if (!domain) return send(chatId, t.noDomainSelected || 'No domain selected.')
+      const dnsResult = await domainService.viewDNSRecords(domain, db)
+      const records = dnsResult?.records || []
+      const shortenerActive = records.some(r =>
+        r.recordType === 'CNAME' && r.recordContent && r.recordContent.includes('.up.railway.app')
+      )
+      const shortenerBtn = shortenerActive ? t.domainActionDeactivateShortener : t.domainActionShortener
+      set(state, chatId, 'action', 'view-domain-actions')
+      return send(chatId, t.selectDomainAction(domain), k.of([[t.domainActionDns], [shortenerBtn], [t.domainActionAntiRed], [t.back]]))
+    }
+    if (message === t.antiRedTurnOn) {
+      const domain = info?.domainToManage
+      if (!domain) return send(chatId, t.noDomainSelected || 'No domain selected.')
+      send(chatId, t.antiRedTurningOn(domain), { parse_mode: 'HTML' })
+      try {
+        const domainDoc = await db.collection('registeredDomains').findOne({ _id: domain })
+        const zoneId = domainDoc?.val?.cfZoneId
+        if (!zoneId) return send(chatId, t.antiRedNoCF(domain), { parse_mode: 'HTML' })
+        const result = await deploySharedWorkerRoute(domain, zoneId)
+        if (result.success) {
+          await db.collection('registeredDomains').updateOne(
+            { _id: domain },
+            { $unset: { 'val.antiRedOff': '' } }
+          )
+          set(state, chatId, 'action', 'view-domain-actions')
+          return send(chatId, t.antiRedEnabled(domain), k.of([[t.domainActionAntiRed], [t.back]]), { parse_mode: 'HTML' })
+        }
+        return send(chatId, t.antiRedError)
+      } catch (e) {
+        log(`[AntiRed-Bot] Error enabling for ${domain}: ${e.message}`)
+        return send(chatId, t.antiRedError)
+      }
+    }
+    if (message === t.antiRedTurnOff) {
+      const domain = info?.domainToManage
+      if (!domain) return send(chatId, t.noDomainSelected || 'No domain selected.')
+      send(chatId, t.antiRedTurningOff(domain), { parse_mode: 'HTML' })
+      try {
+        const domainDoc = await db.collection('registeredDomains').findOne({ _id: domain })
+        const zoneId = domainDoc?.val?.cfZoneId
+        if (!zoneId) return send(chatId, t.antiRedNoCF(domain), { parse_mode: 'HTML' })
+        const { removeWorkerRoutes } = require('./anti-red-service')
+        const result = await removeWorkerRoutes(domain, zoneId)
+        if (result.success) {
+          await db.collection('registeredDomains').updateOne(
+            { _id: domain },
+            { $set: { 'val.antiRedOff': true } }
+          )
+          set(state, chatId, 'action', 'view-domain-actions')
+          return send(chatId, t.antiRedDisabled(domain), k.of([[t.domainActionAntiRed], [t.back]]), { parse_mode: 'HTML' })
+        }
+        return send(chatId, t.antiRedError)
+      } catch (e) {
+        log(`[AntiRed-Bot] Error disabling for ${domain}: ${e.message}`)
+        return send(chatId, t.antiRedError)
+      }
+    }
     return send(chatId, t.selectValidOption || 'Please select a valid option.')
   }
   if (message === 'Backup Data') {
