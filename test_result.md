@@ -102,217 +102,86 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "Analyze Railway logs for 3 issues, fix CNAM integration, job persistence, SIP webhook race condition, and /phone/test routing"
+
+user_problem_statement: "5 tasks: (1) panel.hostbay.io as dedicated panel domain, (2) block user file serving on panel domain, (3) fix SSL recheck with AutoSSL trigger, (4) /call route for phone test page, (5) browser calling mentions in bot UI"
 
 backend:
-  - task: "Fix 1A: Wire Telnyx CNAM into bulk lead generation"
+  - task: "Task 1+2: panel.hostbay.io domain + block user file serving"
     implemented: true
     working: true
-    file: "js/validatePhoneBulk.js"
+    file: "js/_index.js, backend/.env"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
         - working: true
           agent: "main"
-          comment: "Replaced direct validatePhoneSignalwire() call with lookupCnam() from cnam-service.js (Telnyx → Multitel → SignalWire + cache). Falls back to legacy SignalWire if cnam-service not initialized."
+          comment: "Added PANEL_DOMAIN env var. Express middleware detects panel domain hostname, blocks non-panel routes (returns 404 for /userpage etc). Allows /panel/*, static assets, /."
 
-  - task: "Fix 1B: Lead job persistence for interrupted deployments"
+  - task: "Task 3: SSL AutoSSL trigger"
     implemented: true
     working: true
-    file: "js/lead-job-persistence.js, js/validatePhoneBulk.js, js/_index.js"
+    file: "js/whm-service.js, js/cpanel-routes.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
         - working: true
           agent: "main"
-          comment: "Created lead-job-persistence.js module. Jobs saved to MongoDB 'leadJobs' collection. SIGTERM handler flushes progress. On startup, interrupted jobs deliver partial results to users via Telegram."
+          comment: "Added startAutoSSL() in whm-service.js (WHM API start_autossl_check_for_one_user). Added POST /panel/domains/ssl/autossl endpoint in cpanel-routes.js."
 
-  - task: "Fix 2: SIP webhook race condition (event buffer)"
+  - task: "Task 4: /call route"
     implemented: true
     working: true
-    file: "js/voice-service.js"
+    file: "frontend/src/App.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
         - working: true
           agent: "main"
-          comment: "Added event buffer in voice-service.js. When call.hangup arrives before call.initiated, it's buffered for up to 5s. Once call.initiated is processed, the buffered hangup is replayed in correct order."
+          comment: "Added /call route in React Router pointing to PhoneTestPage. Express SPA catch-all serves index.html for /call."
 
-  - task: "Fix 3: /phone/test route on Railway"
+  - task: "Task 5: Browser calling in bot UI"
     implemented: true
     working: true
-    file: "nixpacks.toml, railway.json, js/_index.js"
+    file: "js/phone-config.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
         - working: true
           agent: "main"
-          comment: "Updated nixpacks.toml and railway.json to build React frontend during deploy. Added express.static serving + catch-all route in _index.js for SPA routing."
+          comment: "Updated hubWelcome, activated, manageNumber, softphoneGuide, sipTestCode (all 4 langs), sipTestComplete (all 4 langs). Added CALL_PAGE_URL env var."
 
-  - task: "Deployment setup: .env + Node.js server + webhooks"
+  - task: "Frontend: Panel domain detection + AutoSSL UI"
     implemented: true
     working: true
-    file: "backend/.env, scripts/setup-nodejs.sh, memory/PRD.md, README.md"
+    file: "frontend/src/App.js, frontend/src/components/panel/DomainList.js, frontend/src/App.css"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
         - working: true
           agent: "main"
-          comment: "Updated 5 placeholder env vars. Created setup-nodejs.sh script that auto-detects pod URL, updates SELF_URL with /api, creates .env symlink, installs deps, adds supervisor config. Documented in PRD.md and README.md for future agent pickup."
-
-  - task: "Fix SIP inbound calls (480 error) — Assign numbers to Call Control App"
-    implemented: true
-    working: true
-    file: "js/telnyx-service.js, js/_index.js, js/voice-service.js"
-    stuck_count: 0
-    priority: "critical"
-    needs_retesting: false
-    status_history:
-        - working: true
-          agent: "main"
-          comment: "Root cause: Numbers assigned to SIP Connection caused inbound calls to go directly to SIP devices (480 if not registered). Fix: Added assignNumberToCallControlApp() and migrateNumbersToCallControlApp() to telnyx-service.js. Numbers now assigned to Call Control App for inbound webhook routing. Startup migration confirmed: 1 number migrated successfully."
-
-  - task: "Fix SIP outbound calls — Remove broken transferCall for SIP-originated calls"
-    implemented: true
-    working: true
-    file: "js/voice-service.js"
-    stuck_count: 0
-    priority: "critical"
-    needs_retesting: false
-    status_history:
-        - working: true
-          agent: "main"
-          comment: "Root cause: Code was calling transferCall() on SIP-originated outbound calls, interfering with Telnyx auto-routing via outbound voice profile. Fix: Removed transferCall for all SIP outbound — Telnyx auto-routes through credential connection's outbound voice profile."
-
-  - task: "Fix telnyxHeaders not defined in phone-scheduler.js"
-    implemented: true
-    working: true
-    file: "js/phone-scheduler.js"
-    stuck_count: 0
-    priority: "medium"
-    needs_retesting: false
-    status_history:
-        - working: true
-          agent: "main"
-          comment: "Added telnyxHeaders() function definition that was missing, causing CDR fetch to fail."
-
-  - task: "Clean up outbound-fallback pattern in voice-service.js"
-    implemented: true
-    working: true
-    file: "js/voice-service.js"
-    stuck_count: 0
-    priority: "medium"
-    needs_retesting: false
-    status_history:
-        - working: true
-          agent: "main"
-          comment: "Removed flawed try-answer-catch-redirect-to-outbound pattern from handleCallInitiated. With numbers on Call Control App, inbound and outbound calls are now cleanly separated."
-
-  - task: "Implement SIP device ringing for inbound calls"
-    implemented: true
-    working: true
-    file: "js/voice-service.js"
-    stuck_count: 0
-    priority: "critical"
-    needs_retesting: false
-    status_history:
-        - working: true
-          agent: "main"
-          comment: "Added SIP device ringing via bridge approach. Inbound call → answer → create outbound to sip:username@sip.telnyx.com → bridge on answer → voicemail/forwarding/missed fallback on timeout. Uses activeBridgeTransfers with type=sip_ring for proper fallback handling."
-
-  - task: "Fix /phone/test 'Cannot GET' on Railway (Express 5 wildcard)"
-    implemented: true
-    working: true
-    file: "js/_index.js"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-        - working: true
-          agent: "main"
-          comment: "Express 5.2.1 requires named wildcard params. Changed app.get('*') to app.get('/{*splat}'). Verified /phone/test now serves React SPA correctly on both direct Express (5000) and FastAPI proxy (8001)."
-
-  - task: "Multi-user Caller ID (ANI) fix — per-call ANI for all outbound SIP"
-    implemented: true
-    working: true
-    file: "js/voice-service.js"
-    stuck_count: 0
-    priority: "critical"
-    needs_retesting: false
-    status_history:
-        - working: true
-          agent: "main"
-          comment: "Fixed multi-user ANI issue. Previously auto-routed SIP calls used shared connection-level ANI override (only correct for last user who called prepare-call). Now ALL outbound SIP calls use transferCall with explicit from=num.phoneNumber for per-call ANI. Also updates connection-level ANI in background as belt-and-suspenders. Fixed scoping bug with outboundSession in catch block. @johngambino's calls will now show +18777000068, @hostbay_support's show +18556820054."
-        - working: true
-          agent: "testing"
-          comment: "MULTI-USER ANI FIX VERIFIED - Tested prepare-call endpoint with callerNumber +18556820054, returned 200 with success: true. The /phone/test/prepare-call endpoint correctly updates SIP connection ANI override via Telnyx API. Per-call ANI functionality confirmed working for multi-user scenarios."
-
-  - task: "Billing regression audit — all call types"
-    implemented: true
-    working: true
-    file: "js/voice-service.js"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-        - working: true
-          agent: "main"
-          comment: "Audited all billing paths: SIPOutbound (destination-based rate via getCallRate), Inbound (caller-based rate), Forwarding (forward destination rate), IVR_Outbound, IVR_Transfer, Bridge_Transfer — all correctly use billCallMinutesUnified. Test calls skip billing. Twilio bridge skips Telnyx billing (handled by Twilio /voice-status). Overage billing charges wallet at destination-based rate. No issues found."
-        - working: true
-          agent: "testing"
-          comment: "BILLING SYSTEM AUDIT VERIFIED - All voice service endpoints responding correctly. No billing-related errors in logs. Test call handling working properly with OTP verification endpoint rejecting invalid credentials (401 status). System correctly handling test vs production call scenarios."
-
-  - task: "Comprehensive Telnyx SIP voice service testing and verification"
-    implemented: true
-    working: true
-    file: "js/_index.js, js/voice-service.js, js/phone-test-routes.js"
-    stuck_count: 0
-    priority: "critical"
-    needs_retesting: false
-    status_history:
-        - working: true
-          agent: "testing"
-          comment: "COMPREHENSIVE TESTING COMPLETE - All 7/7 tests PASSED: (1) Health check endpoint on port 5000 working correctly, (2) React SPA serving at /phone/test with proper HTML and root div, (3) FastAPI proxy routing from 8001/api to 5000 working correctly, (4) OTP API endpoint /phone/test/verify-otp properly rejecting invalid OTP with 401 status, (5) Inbound call webhook /telnyx/voice-webhook accepting and processing call.initiated events correctly, (6) Startup logs verification showing all required services initialized (React frontend serving from build directory, Telnyx resources ready, number migration to Call Control App complete, no PathError messages), (7) Clean error logs with no stderr output. Node.js Express server fully operational with React frontend integration and Telnyx SIP voice service production-ready."
-        - working: true
-          agent: "testing"
-          comment: "RE-VERIFIED TESTING COMPLETE - All 7/7 SIP credential system tests PASSED: ✅ Health check (localhost:5000) returned 200 OK with Nomadly branding, ✅ Test portal page /phone/test serves React SPA with proper HTML and root div, ✅ OTP verification endpoint /phone/test/verify-otp correctly rejects invalid OTP with 401 status confirming API works, ✅ DB credentials format verified via clean startup logs showing React frontend serving, Telnyx resources ready, number migration complete, no PathErrors, ✅ Voice webhook /telnyx/voice-webhook accepts POST requests and returns 200 OK for call.initiated events. Node.js Express server on port 5000 fully operational and production-ready."
-        - working: true
-          agent: "testing"
-          comment: "🎯 FINAL COMPREHENSIVE VERIFICATION COMPLETE - All 7/7 review request tests PASSED: ✅ Health check GET http://localhost:5000/ returns 200 OK with Nomadly branding, ✅ Voice webhook POST http://localhost:5000/telnyx/voice-webhook with call.initiated event returns 200, ✅ Prepare-call endpoint POST http://localhost:5000/phone/test/prepare-call with callerNumber +18556820054 returns 200 with success: true, ✅ OTP endpoint POST http://localhost:5000/phone/test/verify-otp with otp 000000 correctly returns 401 (invalid OTP), ✅ Both users verified in MongoDB: chatId 5168006768 has +18556820054 (active, telnyx) and chatId 817673476 has +18777000068 (active, telnyx), ✅ Node.js startup logs show Telnyx ready and migration complete with no critical errors, ✅ Error logs are clean with no stderr output. The Nomadly Node.js application running on port 5000 with FastAPI proxy on 8001/api is fully operational and production-ready."
-        - working: true
-          agent: "testing"
-          comment: "🎯 POST-SIP-CHANGES VERIFICATION COMPLETE - All 7/7 review request tests PASSED after major SIP voice service changes: ✅ Health check GET localhost:5000/ returns 200 OK with Nomadly branding, ✅ Voice webhook POST localhost:5000/telnyx/voice-webhook with call.initiated event returns 200, ✅ Prepare-call endpoint POST localhost:5000/phone/test/prepare-call with callerNumber +18556820054 returns 200 with success: true, ✅ Both users verified in MongoDB test.phoneNumbersOf collection: chatId 5168006768 has +18556820054 with sipUsername gencredN2Z16rdKi8cLL... and sipPassword set, chatId 817673476 has +18777000068 with sipUsername gencredUSNCL1YE9K1sX... and sipPassword set, ✅ Node.js startup logs show clean initialization with 'Telnyx Resources Ready' and 'migration complete' messages present, ✅ Error logs /var/log/supervisor/nodejs.err.log are empty (0 chars), ✅ Ringback audio GET localhost:5000/assets/us-ringback.wav returns 200 with audio/wav content (480044 bytes). The Nomadly Node.js application on port 5000 is fully functional and production-ready after SIP voice service changes."
+          comment: "App.js detects panel domain hostname, renders panel at root /. DomainList.js: added triggerAutoSSL function, Run AutoSSL button, NS recheck auto-triggers AutoSSL when active. Added .fm-success CSS class."
 
 metadata:
   created_by: "main_agent"
-  version: "2.0"
-  test_sequence: 1
+  version: "3.0"
+  test_sequence: 2
   run_ui: false
 
 test_plan:
   current_focus:
-    - "Multi-user Caller ID (ANI) fix — per-call ANI for all outbound SIP"
-    - "Billing regression audit — all call types"
-    - "Comprehensive Telnyx SIP voice service testing and verification"
+    - "Task 1+2: panel.hostbay.io domain + block user file serving"
+    - "Task 3: SSL AutoSSL trigger"
+    - "Task 4: /call route"
+    - "Task 5: Browser calling in bot UI"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
     - agent: "main"
-      message: "Implemented all 3 fixes. Node.js process starts successfully with all services initialized. LeadJobs persistence initialized. CNAM service priority confirmed: Telnyx → Multitel → SignalWire."
-    - agent: "testing"
-      message: "✅ COMPREHENSIVE TELNYX SIP VOICE SERVICE TESTS COMPLETED. All 7/7 tests PASSED. Node.js Express app on port 5000 fully operational. Key findings: (1) Health check endpoint working correctly, (2) POST /telnyx/voice-webhook endpoint properly handling all webhook events, (3) Startup logs confirm successful migration of +18777000068 to Call Control App ID 2898117434361775526, (4) Inbound calls via Call Control App processed correctly (no 'outbound call error'), (5) Outbound SIP calls from credential connection tracked and handled properly, (6) Event buffering system working for race conditions, (7) Error logs completely clean. Migration message confirmed: 'Migrated +18777000068 to Call Control App'. All services initialized successfully: Telnyx resources, voice service with IVR + recording + analytics, SMS limits, CNAM service. The Telnyx SIP voice integration is fully functional and ready for production use."
-    - agent: "testing"
-      message: "🚀 FINAL VERIFICATION COMPLETE - All 7/7 Telnyx SIP tests PASSED: ✅ Health check (port 5000), ✅ React SPA serving (/phone/test), ✅ FastAPI proxy routing (8001→5000), ✅ OTP API endpoint validation, ✅ Inbound webhook processing, ✅ Startup logs verification (React frontend serving, Telnyx resources ready, number migration complete, no PathErrors), ✅ Clean error logs. Node.js Express server fully operational with React frontend integration. The comprehensive Telnyx SIP voice service deployment is production-ready."
-    - agent: "main"
-      message: "Fixed 3 SIP client compatibility gaps: (1) Caller ID on SIP devices now shows actual caller number instead of user's own number, (2) E.164 normalization for outbound dial strings from SIP clients (10-digit→+1, 11-digit→+), (3) Phone number matching normalization in findNumberBySipUser. Also implemented unanswered SIP ring (caller hears real ringback), SIP ring cleanup on caller hangup, and bridge transfer fallback fixes. Test: health check, voice webhook, prepare-call, DB users, startup logs."
-    - agent: "testing"
-      message: "🎯 REVIEW REQUEST TESTING COMPLETE - All 7/7 specific tests from review request PASSED: ✅ Health check GET http://localhost:5000/ returns 200 OK with Nomadly branding, ✅ Voice webhook POST http://localhost:5000/telnyx/voice-webhook with call.initiated event returns 200, ✅ Prepare-call endpoint POST http://localhost:5000/phone/test/prepare-call with callerNumber +18556820054 returns 200 with success: true, ✅ OTP endpoint POST http://localhost:5000/phone/test/verify-otp with otp 000000 returns 401 (invalid OTP), ✅ Both users verified in MongoDB: chatId 5168006768 has +18556820054 (active, telnyx) and chatId 817673476 has +18777000068 (active, telnyx), ✅ Node.js startup logs /var/log/supervisor/nodejs.out.log show clean startup with all services initialized, no errors, ✅ Error logs /var/log/supervisor/nodejs.err.log are clean with no stderr output. The Nomadly Node.js application (port 5000, proxied through FastAPI on 8001/api) is fully operational and ready for production use."
-    - agent: "testing"
-      message: "🚀 POST-MAJOR-SIP-CHANGES TESTING COMPLETE - All 7/7 review request tests PASSED after major SIP voice service changes. Key findings: (1) Health check localhost:5000/ returns 200 OK with Nomadly branding, (2) Voice webhook localhost:5000/telnyx/voice-webhook accepts call.initiated events and returns 200, (3) Prepare-call endpoint localhost:5000/phone/test/prepare-call with callerNumber +18556820054 returns 200 with success: true, (4) Both users verified in MongoDB test.phoneNumbersOf: chatId 5168006768 has +18556820054 with sipUsername gencredN2Z16rdKi8cLL... and sipPassword set, chatId 817673476 has +18777000068 with sipUsername gencredUSNCL1YE9K1sX... and sipPassword set, (5) Node.js startup logs show clean initialization with 'Telnyx Resources Ready' and 'migration complete' present, (6) Error logs are completely empty (0 chars), (7) Ringback audio localhost:5000/assets/us-ringback.wav returns 200 with audio/wav (480044 bytes). The Nomadly Node.js application is production-ready after SIP voice service changes."
+      message: "Implemented all 5 tasks. Test: (1) Health check localhost:5000, (2) POST /panel/domains/ssl/autossl (needs auth), (3) GET localhost:3000/call serves PhoneTestPage, (4) Check phone-config.js for CALL_PAGE_URL references, (5) Startup logs clean. Note: AutoSSL endpoint needs valid cPanel auth token to test fully."
