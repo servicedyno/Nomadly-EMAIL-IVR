@@ -172,7 +172,7 @@ const PhoneTestPage = () => {
     try {
       const call = clientRef.current.newCall({
         destinationNumber: dest,
-        callerNumber: '',
+        callerNumber: callerNumber || '',
         audio: true,
         video: false,
       });
