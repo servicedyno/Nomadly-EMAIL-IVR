@@ -231,6 +231,11 @@ export default function DomainList() {
       </button>
     );
     if (info.status === 'active') return <span className="dl-ns-badge dl-ns-badge--active" data-testid={`dl-ns-active-${domain}`}>NS Active</span>;
+    if (info.status === 'pending' && info.autoManaged) return (
+      <span className="dl-ns-badge dl-ns-badge--propagating" data-testid={`dl-ns-propagating-${domain}`}>
+        Propagating
+      </span>
+    );
     if (info.status === 'pending') return (
       <span className="dl-ns-badge dl-ns-badge--pending" data-testid={`dl-ns-pending-${domain}`}>
         NS Pending
