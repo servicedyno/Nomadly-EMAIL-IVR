@@ -542,37 +542,64 @@ const PhoneTestPage = () => {
           )}
         </div>
 
-        {/* Incoming Call Overlay */}
+        {/* Incoming Call Overlay — fixed at bottom, non-obstructive */}
         {incomingCall && callStatus !== 'active' && (
-          <div className="bg-gradient-to-b from-green-950/80 to-neutral-900 border border-green-500/30 rounded-xl p-6 mt-4 text-center animate-pulse-slow" data-testid="incoming-call-overlay">
-            <div className="mb-2">
-              <div className="w-16 h-16 mx-auto rounded-full bg-green-500/20 flex items-center justify-center mb-3">
-                <svg className="w-8 h-8 text-green-400 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                </svg>
+          <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center pb-6 px-4" data-testid="incoming-call-overlay">
+            <div className="w-full max-w-[440px] bg-[#111] border border-neutral-700 rounded-2xl shadow-2xl shadow-black/60 overflow-hidden">
+              {/* Ringing indicator bar */}
+              <div className="h-1 bg-green-500 animate-pulse" />
+              <div className="px-5 py-4">
+                <div className="flex items-center gap-4">
+                  {/* Caller avatar */}
+                  <div className="relative flex-shrink-0">
+                    <div className="w-14 h-14 rounded-full bg-neutral-800 border-2 border-green-500/40 flex items-center justify-center">
+                      <svg className="w-7 h-7 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                    </div>
+                    <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-[#111] animate-pulse" />
+                  </div>
+                  {/* Caller info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[11px] text-green-400 font-semibold uppercase tracking-widest mb-0.5">Incoming Call</div>
+                    {incomingCallerName && (
+                      <div className="text-white font-semibold text-base truncate" data-testid="incoming-caller-name">{incomingCallerName}</div>
+                    )}
+                    <div className={`font-mono ${incomingCallerName ? 'text-sm text-neutral-400' : 'text-white font-semibold text-base'}`} data-testid="incoming-caller-number">
+                      {incomingCaller || 'Unknown'}
+                    </div>
+                    {incomingCallerLocation && (
+                      <div className="text-xs text-neutral-500 mt-0.5 flex items-center gap-1" data-testid="incoming-caller-location">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                        {incomingCallerLocation}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {/* Action buttons */}
+                <div className="flex gap-3 mt-4">
+                  <button
+                    onClick={rejectIncoming}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-400 font-semibold text-sm transition-all active:scale-95"
+                    data-testid="btn-reject-incoming"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Decline
+                  </button>
+                  <button
+                    onClick={answerIncoming}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-green-500 hover:bg-green-400 text-black font-semibold text-sm transition-all active:scale-95 shadow-lg shadow-green-500/25"
+                    data-testid="btn-answer-incoming"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                    </svg>
+                    Answer
+                  </button>
+                </div>
               </div>
-              <div className="text-green-400 text-xs font-semibold uppercase tracking-wider mb-1">Incoming Call</div>
-              <div className="text-white text-lg font-bold font-mono">{incomingCaller}</div>
-            </div>
-            <div className="flex justify-center gap-6 mt-5">
-              <button
-                onClick={rejectIncoming}
-                className="w-14 h-14 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center transition-all shadow-lg shadow-red-500/30"
-                data-testid="btn-reject-incoming"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-              <button
-                onClick={answerIncoming}
-                className="w-14 h-14 rounded-full bg-green-500 hover:bg-green-600 text-black flex items-center justify-center transition-all shadow-lg shadow-green-500/30 animate-pulse"
-                data-testid="btn-answer-incoming"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                </svg>
-              </button>
             </div>
           </div>
         )}
