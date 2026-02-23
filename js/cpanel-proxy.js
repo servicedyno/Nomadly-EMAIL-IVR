@@ -162,10 +162,16 @@ async function saveFileContent(cpUser, cpPass, dir, file, content) {
 }
 
 async function createDirectory(cpUser, cpPass, dir, name) {
-  return api2(cpUser, cpPass, 'Fileman', 'mkdir', {
+  const result = await api2(cpUser, cpPass, 'Fileman', 'mkdir', {
     path: dir,
     name: name,
   })
+  // api2 normalizer misreads mkdir success — check data for actual result
+  if (result.data?.length > 0 && result.data[0]?.path && result.data[0]?.name) {
+    result.status = 1
+    result.errors = null
+  }
+  return result
 }
 
 async function deleteFile(cpUser, cpPass, dir, file) {
