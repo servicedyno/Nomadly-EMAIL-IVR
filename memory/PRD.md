@@ -80,6 +80,13 @@ grep "Voice webhook:" /var/log/supervisor/nodejs.out.log
 - [x] Telegram bot running via supervisor
 - [x] FastAPI reverse proxy to Node.js Express
 - [x] SIP call routing fix in `voice-service.js`
+- [x] **SIP Credential Revert** — Removed 6-digit PIN system, reverted to Telnyx `gencred...` credentials
+- [x] **Outbound SIP Call Fix** — Fixed ANI Override misconfiguration on Telnyx SIP Connection
+- [x] **Billing Logic Overhaul** — Fixed zero-minute billing for SIP calls, correct billing notifications
+- [x] **Inbound Call UI** — WebRTC page handles incoming calls with Answer/Reject overlay
+- [x] **Domain Management Fix** — Corrected Cloudflare zone creation for user-owned domains
+- [x] **Tap-to-Copy SIP Username** — Made SIP username copyable in Telegram bot messages
+- [x] **Inbound Call Disconnect Fix (Feb 2026)** — Fixed 3 issues: (1) Ring leg now uses correct SIP Connection ID, (2) Removed `webhook_url: null` from API calls, (3) Added bridge transfer check to prevent outbound handler from interfering with ring legs
 - [x] **Speechcue SIP Test Page** — React at `/phone/test`, OTP via `/testsip`, 2 calls + 1 referral bonus
 - [x] **Refer-a-Friend** — Referral deep links `t.me/Nomadlybot?start=ref_XXXX`, +1 bonus call
 - [x] **Subscribe-to-plan messaging** — After using test calls, `/testsip` directs to Cloud Phone plan
