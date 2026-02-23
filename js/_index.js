@@ -767,6 +767,9 @@ const loadData = async () => {
       selfUrl: SELF_URL,
     })
     log('[CloudPhone] Voice Service initialized with IVR + Recording + Overage')
+
+    // Initialize Phone Test routes (Speechcue SIP test page)
+    initPhoneTestRoutes(app, db, telnyxApi, telnyxResources.sipConnectionId)
   }
 
   // Initialize SMS Service limits (real-time enforcement)
