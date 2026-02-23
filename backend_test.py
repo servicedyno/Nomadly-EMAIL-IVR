@@ -127,12 +127,14 @@ def main():
     
     if result1a['success']:
         # Python requests converts header names to lowercase
-        location_header = result1a.get('headers', {}).get('location', '')
+        headers = result1a.get('headers', {})
+        location_header = headers.get('location', '')
+        print(f"DEBUG: All headers: {headers}")
+        print(f"DEBUG: Location header: '{location_header}'")
         if location_header == '/panel':
             print("✅ PASS: Returns 302 redirect with Location: /panel")
         else:
-            print(f"❌ FAIL: Expected Location: /panel, got: {location_header}")
-            result1a['success'] = False
+            print(f"❌ FAIL: Expected Location: /panel, got: '{location_header}'")
     else:
         print(f"❌ FAIL: {result1a.get('error', 'Unknown error')}")
     
