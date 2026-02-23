@@ -5857,7 +5857,7 @@ bot?.on('message', async msg => {
 
   // Hosting payment
   if (action === 'hosting-pay') {
-    if (message === t.back || message === t.backButton || message === '⬅️ Back') return goto.proceedWithEmail()
+    if (message === t.back || message === t.backButton || message === '⬅️ Back') return goto.enterYourEmail()
     
     // Handle Apply Coupon button
     if (message === '🎟️ Apply Coupon') {
