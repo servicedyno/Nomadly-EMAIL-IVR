@@ -17,38 +17,29 @@ Set up and configure a multi-service application (Telegram bot + Telnyx voice/SI
 - [x] Telegram bot running via supervisor
 - [x] FastAPI reverse proxy to Node.js Express
 - [x] SIP call routing fix in `voice-service.js`
-- [x] **Speechcue SIP Test Page** (Feb 2026)
-  - React component at `/phone/test`
-  - Telegram OTP authentication via `/testsip` command
-  - Rate limiting by chatId: 2 base calls + 1 referral bonus (max 3)
-  - 60-second auto-disconnect for test calls
-  - "Free Test" and "My Credentials" tabs
-- [x] **Refer-a-Friend System** (Feb 2026)
-  - When test limit reached, bot generates referral link: `t.me/Nomadlybot?start=ref_XXXX`
-  - New user joining via link triggers +1 bonus call for referrer
-  - Max 1 bonus per referrer (total max = 3 calls)
-  - Deep link handling in `/start ref_` command
-- [x] **SIP Guide Updated** — `phone-config.js` softphoneGuide includes speechcue.com/phone/test link + `/testsip` mention
-- [x] **Cleanup** — Removed old `SipTest.js`, `/api/sip-test-credentials` endpoint, unused imports
-- [x] **server.py cleaned up** — Pure proxy, no redundant endpoints
+- [x] **Speechcue SIP Test Page** — React at `/phone/test`, OTP via `/testsip`, 2 calls + 1 referral bonus
+- [x] **Refer-a-Friend** — Referral deep links `t.me/Nomadlybot?start=ref_XXXX`, +1 bonus call
+- [x] **Subscribe-to-plan messaging** — After using test calls, `/testsip` directs to Cloud Phone plan
+- [x] **Main menu SIP discovery** — Greeting shows "Try SIP calling free" for new users + keyboard button "🧪 Test SIP Free" in all 4 languages (en/hi/fr/zh)
+- [x] **SIP guide updated** — `phone-config.js` includes speechcue.com/phone/test + `/testsip`
+- [x] **Cleanup** — Removed `SipTest.js`, `/api/sip-test-credentials`, unused imports
 
 ### Key Files
-- `/app/frontend/src/pages/PhoneTestPage.js` - SIP test page with OTP flow
-- `/app/frontend/src/App.js` - React router
+- `/app/frontend/src/pages/PhoneTestPage.js` - SIP test page
 - `/app/js/phone-test-routes.js` - OTP + referral + credential logic
+- `/app/js/_index.js` - Bot handlers: `/testsip`, Test SIP Free button, `/start ref_`, main menu greeting
+- `/app/js/lang/{en,hi,fr,zh}.js` - All languages have testSip button + keyboard
 - `/app/js/phone-config.js` - SIP guide with test page link
-- `/app/js/_index.js` - Bot handlers: `/testsip`, `/start ref_`
-- `/app/js/voice-service.js` - Telnyx voice call handling
-- `/app/backend/server.py` - FastAPI proxy server
+- `/app/backend/server.py` - Clean proxy server
 
 ### MongoDB Collections
-- `testOtps` - OTPs with chatId + TTL index (5 min expiry)
-- `testCredentials` - SIP creds linked to chatId
-- `testReferrals` - Referral codes, referrer chatId, bonus tracking
+- `testOtps` - OTPs with chatId + TTL (5 min)
+- `testCredentials` - SIP creds linked to chatId, tracks callsMade
+- `testReferrals` - Referral codes, bonus tracking
 
 ## Prioritized Backlog
 
 ### P3 - Future
-- Production domain DNS setup (`speechcue.com` → app)
+- Production DNS setup for `speechcue.com`
 - Test call analytics dashboard
-- Multi-language support for test page
+- Multi-language support for web test page
