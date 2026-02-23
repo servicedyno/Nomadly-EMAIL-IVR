@@ -142,11 +142,14 @@ backend:
     file: "js/_index.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         - working: true
           agent: "main"
           comment: "Removed entire post-registration NS update block (4 branches with 60s/10s sleeps + getAccountNameservers calls). Replaced with simple confirmation message using buyResult.nameservers. NS is now set at registration time."
+        - working: true
+          agent: "testing"
+          comment: "✅ Verified: getAccountNameservers() calls removed, buyResult.nameservers used for confirmation. Note: Function still has sleep calls for DNS record linking (different from removed post-reg NS update sleeps)."
 
   - task: "Fix: registerDomainAndCreateCpanel reorder + no double CF zone"
     implemented: true
