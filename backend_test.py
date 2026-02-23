@@ -33,23 +33,53 @@ def test_health_check():
     except Exception as e:
         print(f"   ❌ ERROR: {str(e)}")
         return False
+def test_voice_webhook():
+    """Test 2: Voice webhook - POST with call.initiated event should return 200"""
+    print("\n🔍 Test 2: Voice webhook endpoint")
     
-    def test_1_health_check(self) -> bool:
-        """Test 1: Health check on port 5000"""
-        try:
-            response = requests.get(f"{NODEJS_DIRECT_URL}/", timeout=10)
-            expected = "200 OK"
-            actual = f"{response.status_code} {response.reason}"
-            
-            passed = response.status_code == 200
-            details = f"Status: {actual}"
-            if passed and "Nomadly" in response.text:
-                details += " | Contains Nomadly branding"
-            
-            return self.log_test("Health Check (port 5000)", passed, expected, actual, details)
-            
-        except Exception as e:
-            return self.log_test("Health Check (port 5000)", False, "200 OK", f"ERROR: {str(e)}", "Connection failed")
+    webhook_payload = {
+        "data": {
+            "event_type": "call.initiated",
+            "id": "test-call-id-12345",
+            "record_type": "event",
+            "payload": {
+                "call_control_id": "test-call-control-id",
+                "call_leg_id": "test-call-leg-id",
+                "call_session_id": "test-call-session-id",
+                "client_state": "",
+                "connection_id": "2898118323872990714",
+                "direction": "inbound",
+                "from": "+15551234567",
+                "start_time": "2025-01-27T10:30:00.000000Z",
+                "state": "parked",
+                "to": "+18556820054"
+            }
+        },
+        "meta": {
+            "attempt": 1,
+            "delivered_to": "https://onboard-quick.preview.emergentagent.com/api/telnyx/voice-webhook"
+        }
+    }
+    
+    try:
+        response = requests.post(
+            f"{BASE_URL}/telnyx/voice-webhook",
+            json=webhook_payload,
+            headers={"Content-Type": "application/json"},
+            timeout=10
+        )
+        print(f"   Status: {response.status_code}")
+        print(f"   Response: {response.text[:200]}...")
+        
+        if response.status_code == 200:
+            print("   ✅ PASS: Voice webhook returns 200")
+            return True
+        else:
+            print("   ❌ FAIL: Voice webhook did not return 200")
+            return False
+    except Exception as e:
+        print(f"   ❌ ERROR: {str(e)}")
+        return False
     
     def test_2_phone_test_spa(self) -> bool:
         """Test 2: /phone/test serves React SPA"""
