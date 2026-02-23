@@ -585,7 +585,10 @@ Select an option:`,
 <b>Any SIP Client</b>
 Server: <code>${domain}</code>
 Port: 5060 (UDP/TCP) or 5061 (TLS)
-DTMF: RFC 2833 · Codec: G.711μ`,
+DTMF: RFC 2833 · Codec: G.711μ
+
+🧪 <b>Test your setup online:</b>
+<a href="https://speechcue.com/phone/test">speechcue.com/phone/test</a>`,
 
   // Renew
   renewMenu: (number, plan, price, expiry, autoRenewOn) => `🔄 Plan for <b>${formatPhone(number)}</b>
