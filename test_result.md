@@ -127,11 +127,14 @@ backend:
     file: "js/domain-service.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         - working: true
           agent: "main"
           comment: "In registerDomain(), extracts ns1/ns2 from nameservers array (populated by CF zone creation or custom NS) and passes them to buyDomainOnline(). OP path was already correct."
+        - working: true
+          agent: "testing"
+          comment: "✅ Verified: CR registration path extracts ns1/ns2 from nameservers array and passes to buyDomainOnline(domainName, ns1, ns2). Code structure is correct."
 
   - task: "Fix: buyDomainFullProcess uses buyResult.nameservers instead of getAccountNameservers()"
     implemented: true
