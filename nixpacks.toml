@@ -1,8 +1,8 @@
 [phases.install]
-cmds = ["npm install --production", "cd frontend && yarn install"]
+cmds = ["npm install --production", "cd frontend && npm install"]
 
 [phases.build]
-cmds = ["cd frontend && yarn build"]
+cmds = ["cd frontend && npm run build"]
 
 [start]
 cmd = "npm start"
