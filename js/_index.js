@@ -10969,6 +10969,41 @@ bot?.on('message', async msg => {
     }
     return send(chatId, t.selectValidOption || 'Please select a valid option.')
   }
+  
+  // DNS Management Confirmation for Hosting Domains
+  if (action === 'confirm-dns-management-for-hosting') {
+    if (message === '⚠️ Proceed Anyway') {
+      // User confirmed — proceed to DNS management
+      return goto['choose-dns-action']()
+    }
+    if (message === '❌ Cancel') {
+      // User canceled — return to domain actions menu
+      const domain = info?.domainToManage
+      set(state, chatId, 'action', 'view-domain-actions')
+      
+      // Check if domain has hosting for correct menu display
+      const hostingPlan = await cpanelAccounts.findOne({ domain: domain })
+      const menuButtons = [[t.domainActionDns]]
+      if (hostingPlan) {
+        menuButtons.push([t.domainActionAntiRed])
+      }
+      menuButtons.push([t.domainActionShortener], [t.back])
+      
+      return send(chatId, t.domainActionsMenu || `<b>Actions for ${domain}</b>\n\nSelect an option:`, 
+        k.of(menuButtons), { parse_mode: 'HTML' })
+    }
+    return send(chatId, 'Please select "Proceed Anyway" or "Cancel".', {
+      parse_mode: 'HTML',
+      reply_markup: {
+        keyboard: [
+          ['⚠️ Proceed Anyway'],
+          ['❌ Cancel']
+        ],
+        resize_keyboard: true
+      }
+    })
+  }
+  
   if (message === 'Backup Data') {
     if (!isDeveloper(chatId)) return send(chatId, 'not authorized')
 
