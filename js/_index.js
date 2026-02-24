@@ -5763,7 +5763,7 @@ bot?.on('message', async msg => {
     if (!yesNo.includes(message)) return send(chatId, t.what)
     saveInfo('askDomainToUseWithShortener', message === yesNo[0])
 
-    // Yes = shortener: skip NS selection, use Cloudflare for DNS management + Anti-Red
+    // Yes = shortener: skip NS selection, use Cloudflare for DNS management
     if (message === yesNo[0]) {
       saveInfo('nsChoice', 'cloudflare')
 
