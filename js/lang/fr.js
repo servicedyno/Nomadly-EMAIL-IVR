@@ -610,33 +610,52 @@ ${CHAT_BOT_NAME}`,
 
 Cordialement,
 ${CHAT_BOT_NAME}`,
-  showDepositCryptoInfoPlan: (priceCrypto, tickerView, address, plan) =>
-    `Veuillez envoyer ${priceCrypto} ${tickerView} à\n\n<code>${address}</code>
+  showDepositCryptoInfoPlan: (priceUsd, priceCrypto, tickerView, address, plan) =>
+    `💰 <b>Montant du paiement : ${Number(priceUsd).toFixed(2)} $ USD</b>
 
-Les paiements crypto sont confirmés rapidement — généralement en quelques minutes. Une fois confirmé, vous serez notifié immédiatement et votre plan ${plan} sera activé sans encombre.
+Envoyez exactement <b>${priceCrypto} ${tickerView}</b> à :
 
-Cordialement,
-${CHAT_BOT_NAME}`,
-  showDepositCryptoInfoDomain: (priceCrypto, tickerView, address, domain) =>
-    `Veuillez envoyer ${priceCrypto} ${tickerView} à\n\n<code>${address}</code>
+<code>${address}</code>
 
-Les paiements crypto sont confirmés rapidement — généralement en quelques minutes. Une fois confirmé, vous serez notifié immédiatement et votre domaine ${domain} sera activé sans encombre.
+Votre plan ${plan} sera activé automatiquement une fois le paiement confirmé (généralement en quelques minutes).
 
 Cordialement,
 ${CHAT_BOT_NAME}`,
+  showDepositCryptoInfoDomain: (priceUsd, priceCrypto, tickerView, address, domain) =>
+    `💰 <b>Montant du paiement : ${Number(priceUsd).toFixed(2)} $ USD</b>
 
-  showDepositCryptoInfoLeads: (priceCrypto, tickerView, address, label) =>
-    `Veuillez envoyer ${priceCrypto} ${tickerView} à\n\n<code>${address}</code>
+Envoyez exactement <b>${priceCrypto} ${tickerView}</b> à :
 
-Les paiements crypto sont confirmés rapidement — généralement en quelques minutes. Une fois confirmé, vous serez notifié immédiatement et vos ${label} seront livrés.
+<code>${address}</code>
+
+Votre domaine ${domain} sera activé automatiquement une fois le paiement confirmé (généralement en quelques minutes).
 
 Cordialement,
 ${CHAT_BOT_NAME}`,
 
-  showDepositCryptoInfoPhone: (priceCrypto, tickerView, address, phoneNumber) =>
-    `Veuillez envoyer ${priceCrypto} ${tickerView} à\n\n<code>${address}</code>
+  showDepositCryptoInfoLeads: (priceUsd, priceCrypto, tickerView, address, label) =>
+    `💰 <b>Montant du paiement : ${Number(priceUsd).toFixed(2)} $ USD</b>
 
-Les paiements crypto sont confirmés rapidement — généralement en quelques minutes. Une fois confirmé, vous serez notifié immédiatement et votre numéro Cloud Phone ${phoneNumber} sera activé.
+Envoyez exactement <b>${priceCrypto} ${tickerView}</b> à :
+
+<code>${address}</code>
+
+Vos ${label} seront livrés automatiquement une fois le paiement confirmé (généralement en quelques minutes).
+
+Cordialement,
+${CHAT_BOT_NAME}`,
+
+  showDepositCryptoInfoPhone: (priceUsd, priceCrypto, tickerView, address, phoneNumber) =>
+    `💰 <b>Montant du paiement : ${Number(priceUsd).toFixed(2)} $ USD</b>
+
+Envoyez exactement <b>${priceCrypto} ${tickerView}</b> à :
+
+<code>${address}</code>
+
+Votre numéro Cloud Phone ${phoneNumber} sera activé automatiquement une fois le paiement confirmé (généralement en quelques minutes).
+
+Cordialement,
+${CHAT_BOT_NAME}`,
 
 Cordialement,
 ${CHAT_BOT_NAME}`,
