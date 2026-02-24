@@ -235,7 +235,25 @@ function createCpanelRoutes(getCpanelCol) {
   router.post('/subdomains/create', ...auth, async (req, res) => {
     const { subdomain, rootdomain, dir } = req.body
     if (!subdomain || !rootdomain) return res.status(400).json({ error: 'subdomain and rootdomain are required' })
+
+    // 1. Create subdomain in cPanel
     const result = await cpProxy.createSubdomain(req.cpUser, req.cpPass, subdomain, rootdomain, dir)
+
+    // 2. Create DNS record in Cloudflare for the subdomain
+    try {
+      const WHM_HOST = process.env.WHM_HOST
+      const zone = await cfService.getZoneByName(rootdomain)
+      if (zone && WHM_HOST) {
+        const fqdn = `${subdomain}.${rootdomain}`
+        // Create A record for the subdomain pointing to our WHM server, proxied
+        await cfService.createDNSRecord(zone.id, 'A', fqdn, WHM_HOST, 1, true)
+        log(`[Panel] Created CF DNS A record for subdomain: ${fqdn} → ${WHM_HOST}`)
+      }
+    } catch (cfErr) {
+      // Non-blocking — subdomain still works via wildcard if CF has one
+      log(`[Panel] CF DNS for subdomain ${subdomain}.${rootdomain} warning: ${cfErr.message}`)
+    }
+
     res.json(result)
   })
 
