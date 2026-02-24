@@ -312,6 +312,12 @@ export default function FileManager() {
       )}
 
       {error && <div className="fm-error" data-testid="fm-error">{error}</div>}
+      
+      {successMessage && (
+        <div className="fm-success" data-testid="fm-success">
+          {successMessage}
+        </div>
+      )}
 
       {/* File List */}
       <div className="fm-list" data-testid="fm-file-list">
