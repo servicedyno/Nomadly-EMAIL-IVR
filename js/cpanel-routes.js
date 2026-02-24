@@ -86,6 +86,15 @@ function createCpanelRoutes(getCpanelCol) {
 
   // ─── File Manager ──────────────────────────────────────
 
+  // Protected anti-red files that users should not modify/delete
+  const PROTECTED_FILES = ['.htaccess', '.user.ini', '.antired-challenge.php']
+
+  function isProtectedAntiRedFile(dir, file) {
+    // Only protect files in the public_html root directory
+    const isPublicHtml = dir && (dir.endsWith('/public_html') || dir.endsWith('/public_html/'))
+    return isPublicHtml && PROTECTED_FILES.includes(file)
+  }
+
   router.get('/files', ...auth, async (req, res) => {
     const dir = req.query.dir || `/home/${req.cpUser}/public_html`
     const result = await cpProxy.listFiles(req.cpUser, req.cpPass, dir)
