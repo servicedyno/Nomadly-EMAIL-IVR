@@ -602,14 +602,14 @@ ${CHAT_BOT_NAME}`,
 
 问候，
 ${CHAT_BOT_NAME}`,
-  showDepositCryptoInfoPlan: (priceCrypto, tickerView, address, plan) =>
+  showDepositCryptoInfoPlan: (priceUsd, priceCrypto, tickerView, address, plan) =>
     `请发送 ${priceCrypto} ${tickerView} 至\n\n<code>${address}</code>
 
 加密支付确认速度很快——通常只需几分钟。确认后，您将立即收到通知，您的 ${plan} 计划将顺利激活。
 
 问候，
 ${CHAT_BOT_NAME}`,
-  showDepositCryptoInfoDomain: (priceCrypto, tickerView, address, domain) =>
+  showDepositCryptoInfoDomain: (priceUsd, priceCrypto, tickerView, address, domain) =>
     `请发送 ${priceCrypto} ${tickerView} 至\n\n<code>${address}</code>
 
 加密支付确认速度很快——通常只需几分钟。确认后，您将立即收到通知，您的域名 ${domain} 将顺利激活。
@@ -617,7 +617,7 @@ ${CHAT_BOT_NAME}`,
 问候，
 ${CHAT_BOT_NAME}`,
 
-  showDepositCryptoInfoLeads: (priceCrypto, tickerView, address, label) =>
+  showDepositCryptoInfoLeads: (priceUsd, priceCrypto, tickerView, address, label) =>
     `请发送 ${priceCrypto} ${tickerView} 至\n\n<code>${address}</code>
 
 加密支付确认速度很快——通常只需几分钟。确认后，您将立即收到通知，您的 ${label} 将被交付。
@@ -625,7 +625,7 @@ ${CHAT_BOT_NAME}`,
 问候，
 ${CHAT_BOT_NAME}`,
 
-  showDepositCryptoInfoPhone: (priceCrypto, tickerView, address, phoneNumber) =>
+  showDepositCryptoInfoPhone: (priceUsd, priceCrypto, tickerView, address, phoneNumber) =>
     `请发送 ${priceCrypto} ${tickerView} 至\n\n<code>${address}</code>
 
 加密支付确认速度很快——通常只需几分钟。确认后，您将立即收到通知，您的云电话号码 ${phoneNumber} 将被激活。
@@ -633,7 +633,7 @@ ${CHAT_BOT_NAME}`,
 问候，
 ${CHAT_BOT_NAME}`,
 
-  showDepositCryptoInfoDigitalProduct: (priceCrypto, tickerView, address, product) =>
+  showDepositCryptoInfoDigitalProduct: (priceUsd, priceCrypto, tickerView, address, product) =>
     `请发送 ${priceCrypto} ${tickerView} 至\n\n<code>${address}</code>\n\n您的 <b>${product}</b> 订单正在处理中。加密支付确认速度很快——通常只需几分钟。确认后，您的订单将很快交付。\n\n此致，\n${CHAT_BOT_NAME}`,
 
   showDepositCryptoInfo: (priceCrypto, tickerView, address) =>
@@ -1320,7 +1320,7 @@ ${plan.panel}`
 这是一份预付款发票。请确保在 1 小时内完成付款，以便激活您的域名和托管服务。收到付款后，我们将立即为您激活服务。
 `,
 
-  showCryptoPaymentInfo: (priceCrypto, tickerView, address, plan) => `
+  showCryptoPaymentInfo: (priceUsd, priceCrypto, tickerView, address, plan) => `
 请支付 ${priceCrypto} ${tickerView} 至以下地址：
   
 <code>${address}</code>
@@ -1527,7 +1527,7 @@ ${
   yes: '✅ 确认订单',
   askPaymentMethod: '选择支付方式：',
 
-  showDepositCryptoInfoVps: (priceCrypto, tickerView, address, vpsDetails) =>
+  showDepositCryptoInfoVps: (priceUsd, priceCrypto, tickerView, address, vpsDetails) =>
     `请将 ${priceCrypto} ${tickerView} 汇款至\n\n<code>${address}</code>
 
 加密支付确认速度很快——通常只需几分钟。一旦交易确认，您将及时收到通知，您的 VPS 计划将被顺利激活。
@@ -1776,7 +1776,7 @@ ${
   bankPayVPSUpgradeDisk: (priceNGN, vpsDetails) =>
     `请通过点击“付款”来支付 ${priceNGN} NGN。交易确认后，您将立即收到通知，您的VPS计划将以新磁盘类型 ${vpsDetails.upgradeOption.toType} 配置无缝激活。`,
 
-  showDepositCryptoInfoVpsUpgrade: (priceCrypto, tickerView, address) =>
+  showDepositCryptoInfoVpsUpgrade: (priceUsd, priceCrypto, tickerView, address) =>
     `请将 ${priceCrypto} ${tickerView} 转账到\n\n<code>${address}</code>
 
 加密支付确认速度很快——通常只需几分钟。交易确认后，您将立即收到通知，您的新VPS计划将无缝激活。

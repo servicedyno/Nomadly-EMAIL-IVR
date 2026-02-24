@@ -605,38 +605,42 @@ ${CHAT_BOT_NAME}`,
     `कृपया "भुगतान करें" पर क्लिक करके ${priceNGN} NGN भेजें। एक बार जब लेनदेन की पुष्टि हो जाती है, तो आप स्वचालित रूप से सूचित किए जाएंगे और आपका डोमेन ${domain} सुचारू रूप से सक्रिय हो जाएगा।
 
 संपर्क: ${CHAT_BOT_NAME}`,
-  showDepositCryptoInfoPlan: (priceCrypto, tickerView, address, plan) =>
+  showDepositCryptoInfoPlan: (priceUsd, priceCrypto, tickerView, address, plan) =>
     `कृपया ${priceCrypto} ${tickerView} को\n\n<code>${address}</code> भेजें
 
 क्रिप्टो भुगतान तेज़ी से पुष्टि होते हैं — आमतौर पर कुछ ही मिनटों में। पुष्टि होने पर, आप स्वचालित रूप से सूचित किए जाएंगे और आपका ${plan} योजना सुचारू रूप से सक्रिय हो जाएगा।
 
 संपर्क: ${CHAT_BOT_NAME}`,
-  showDepositCryptoInfoDomain: (priceCrypto, tickerView, address, domain) =>
+  showDepositCryptoInfoDomain: (priceUsd, priceCrypto, tickerView, address, domain) =>
     `कृपया ${priceCrypto} ${tickerView} को\n\n<code>${address}</code> भेजें
 
 क्रिप्टो भुगतान तेज़ी से पुष्टि होते हैं — आमतौर पर कुछ ही मिनटों में। पुष्टि होने पर, आप स्वचालित रूप से सूचित किए जाएंगे और आपका डोमेन ${domain} सुचारू रूप से सक्रिय हो जाएगा।
 
 संपर्क: ${CHAT_BOT_NAME}`,
 
-  showDepositCryptoInfoLeads: (priceCrypto, tickerView, address, label) =>
+  showDepositCryptoInfoLeads: (priceUsd, priceCrypto, tickerView, address, label) =>
     `कृपया ${priceCrypto} ${tickerView} को\n\n<code>${address}</code> भेजें
 
 क्रिप्टो भुगतान तेज़ी से पुष्टि होते हैं — आमतौर पर कुछ ही मिनटों में। पुष्टि होने पर, आप स्वचालित रूप से सूचित किए जाएंगे और आपके ${label} वितरित किए जाएंगे।
 
 संपर्क: ${CHAT_BOT_NAME}`,
 
-  showDepositCryptoInfoPhone: (priceCrypto, tickerView, address, phoneNumber) =>
+  showDepositCryptoInfoPhone: (priceUsd, priceCrypto, tickerView, address, phoneNumber) =>
     `कृपया ${priceCrypto} ${tickerView} को\n\n<code>${address}</code> भेजें
 
 क्रिप्टो भुगतान तेज़ी से पुष्टि होते हैं — आमतौर पर कुछ ही मिनटों में। पुष्टि होने पर, आप स्वचालित रूप से सूचित किए जाएंगे और आपका क्लाउड फ़ोन नंबर ${phoneNumber} सक्रिय हो जाएगा।
 
 संपर्क: ${CHAT_BOT_NAME}`,
 
-  showDepositCryptoInfoDigitalProduct: (priceCrypto, tickerView, address, product) =>
-    `कृपया ${priceCrypto} ${tickerView} भेजें\n\n<code>${address}</code>\n\n<b>${product}</b> के लिए आपका ऑर्डर प्रोसेस हो रहा है। क्रिप्टो भुगतान तेज़ी से पुष्टि होते हैं — आमतौर पर कुछ ही मिनटों में। पुष्टि होने पर, आपका ऑर्डर जल्द डिलीवर किया जाएगा।\n\nसादर,\n${CHAT_BOT_NAME}`,
+  showDepositCryptoInfoDigitalProduct: (priceUsd, priceCrypto, tickerView, address, product) =>
+    `💰 <b>भुगतान राशि: $${Number(priceUsd).toFixed(2)} USD</b>
+
+बिल्कुल <b>${priceCrypto} ${tickerView}</b> भेजें:\n\n<code>${address}</code>\n\n<b>${product}</b> के लिए आपका ऑर्डर प्रोसेस हो रहा है। क्रिप्टो भुगतान तेज़ी से पुष्टि होते हैं — आमतौर पर कुछ ही मिनटों में। पुष्टि होने पर, आपका ऑर्डर जल्द डिलीवर किया जाएगा।\n\nसादर,\n${CHAT_BOT_NAME}`,
 
   showDepositCryptoInfo: (priceCrypto, tickerView, address) =>
-    `कृपया ${priceCrypto} ${tickerView} भेजें\n\n<code>${address}</code>\n\nक्रिप्टो भुगतान तेज़ी से पुष्टि होते हैं — आमतौर पर कुछ ही मिनटों में। पुष्टि होने पर आपको तुरंत सूचना दी जाएगी और आपके वॉलेट को अपडेट किया जाएगा।\n\nसादर,\n${CHAT_BOT_NAME}`,
+    `💰 <b>भुगतान राशि: $${Number(priceUsd).toFixed(2)} USD</b>
+
+बिल्कुल <b>${priceCrypto} ${tickerView}</b> भेजें:\n\n<code>${address}</code>\n\nक्रिप्टो भुगतान तेज़ी से पुष्टि होते हैं — आमतौर पर कुछ ही मिनटों में। पुष्टि होने पर आपको तुरंत सूचना दी जाएगी और आपके वॉलेट को अपडेट किया जाएगा।\n\nसादर,\n${CHAT_BOT_NAME}`,
 
   confirmationDepositMoney: (amount, usd) =>
     `आपकी ${amount} ($${usd}) की राशि संसाधित हो गई है। हमें चुनने के लिए धन्यवाद।\nसादर,\n${CHAT_BOT_NAME}`,
@@ -1334,7 +1338,7 @@ ${plan.panel}`
 यह एक अग्रिम भुगतान चालान है। कृपया सुनिश्चित करें कि भुगतान 1 घंटे के भीतर पूरा हो ताकि आपका डोमेन और होस्टिंग सेवाएं सक्रिय हो सकें। भुगतान प्राप्त होने के बाद, हम आपकी सेवा को सक्रिय करेंगे।
 `,
 
-  showCryptoPaymentInfo: (priceCrypto, tickerView, address, plan) => `
+  showCryptoPaymentInfo: (priceUsd, priceCrypto, tickerView, address, plan) => `
 कृपया ${priceCrypto} ${tickerView} को निम्नलिखित पते पर भेजें:
   
 <code>${address}</code>
@@ -1544,7 +1548,7 @@ ${
 
   askPaymentMethod: 'भुगतान विधि चुनें:',
 
-  showDepositCryptoInfoVps: (priceCrypto, tickerView, address, vpsDetails) =>
+  showDepositCryptoInfoVps: (priceUsd, priceCrypto, tickerView, address, vpsDetails) =>
     `कृपया ${priceCrypto} ${tickerView} को\n\n<code>${address}</code> पर भेजें
 
 क्रिप्टो भुगतान तेज़ी से पुष्टि होते हैं — आमतौर पर कुछ ही मिनटों में। एक बार लेन-देन की पुष्टि हो जाने पर, आपको तुरंत सूचित किया जाएगा और आपकी VPS योजना सक्रिय हो जाएगी।
@@ -1798,7 +1802,7 @@ ${
   bankPayVPSUpgradeDisk: (priceNGN, vpsDetails) =>
     `कृपया “भुगतान करें” पर क्लिक करके ${priceNGN} NGN जमा करें। एक बार लेन-देन की पुष्टि हो जाने पर, आपको तुरंत सूचित किया जाएगा, और आपका VPS योजना नए डिस्क प्रकार ${vpsDetails.upgradeOption.toType} के साथ सुचारू रूप से सक्रिय हो जाएगा।`,
 
-  showDepositCryptoInfoVpsUpgrade: (priceCrypto, tickerView, address) =>
+  showDepositCryptoInfoVpsUpgrade: (priceUsd, priceCrypto, tickerView, address) =>
     `कृपया ${priceCrypto} ${tickerView} जमा करें\n\n<code>${address}</code>
 
 क्रिप्टो भुगतान तेज़ी से पुष्टि होते हैं — आमतौर पर कुछ ही मिनटों में। एक बार लेन-देन की पुष्टि हो जाने पर, आपको तुरंत सूचित किया जाएगा, और आपकी नई VPS योजना सक्रिय हो जाएगी।
