@@ -445,6 +445,7 @@ let state = {},
   planEndingTime = {},
   chatIdOfPayment = {},
   chatIdOfDynopayPayment = {},
+  paymentIntents = {}, // P0: Payment intent persistence
   vpsPlansOf = {},
   totalShortLinks = {},
   freeShortLinksOf = {},
@@ -513,6 +514,7 @@ const loadData = async () => {
   planEndingTime = db.collection('planEndingTime')
   chatIdOfPayment = db.collection('chatIdOfPayment')
   chatIdOfDynopayPayment = db.collection('chatIdOfDynopayPayment')
+  paymentIntents = db.collection('paymentIntents') // P0: Payment intent persistence
   vpsPlansOf = db.collection('vpsPlansOf')
   totalShortLinks = db.collection('totalShortLinks')
   freeShortLinksOf = db.collection('freeShortLinksOf')
