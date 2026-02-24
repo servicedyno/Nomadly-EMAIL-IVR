@@ -1372,7 +1372,7 @@ ${plan.panel}`
 Ceci est une facture de prépaiement. Veuillez vous assurer que le paiement est effectué dans l'heure afin d'activer vos services de domaine et d'hébergement. Une fois le paiement reçu, nous procéderons à l'activation de votre service.
 `,
 
-  showCryptoPaymentInfo: (priceCrypto, tickerView, address, plan) => `
+  showCryptoPaymentInfo: (priceUsd, priceCrypto, tickerView, address, plan) => `
 Veuillez transférer ${priceCrypto} ${tickerView} à l’adresse suivante :
   
 <code>${address}</code>
