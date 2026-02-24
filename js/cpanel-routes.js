@@ -438,13 +438,25 @@ function createCpanelRoutes(getCpanelCol) {
         // No zone yet — create one
         const newZone = await cfService.createZone(domain)
         if (newZone.success) {
+          await cfService.cleanupConflictingDNS(newZone.zoneId, domain)
           await cfService.createHostingDNSRecords(newZone.zoneId, domain, WHM_HOST)
           await cfService.setSSLMode(newZone.zoneId, 'full')
           await cfService.enforceHTTPS(newZone.zoneId)
 
-          // Auto-deploy anti-red Worker route
-          const { deploySharedWorkerRoute } = require('./anti-red-service')
-          deploySharedWorkerRoute(domain, newZone.zoneId).catch(() => {})
+          // Deploy full anti-red protection for hosting domain
+          try {
+            const antiRedService = require('./anti-red-service')
+            const col = getCpanelCol()
+            const account = col ? await col.findOne({ _id: req.cpUser.toLowerCase() }) : null
+            if (account) {
+              antiRedService.deployFullProtection(req.cpUser, domain, account.plan || '').catch(e =>
+                log(`[Panel] add-enhanced: anti-red deploy warning for ${domain}: ${e.message}`)
+              )
+            } else {
+              const { deploySharedWorkerRoute } = require('./anti-red-service')
+              deploySharedWorkerRoute(domain, newZone.zoneId).catch(() => {})
+            }
+          } catch (_) {}
 
           if (isOwnDomain) {
             // Domain is on user's account — auto-update nameservers at registrar
