@@ -108,15 +108,18 @@ user_problem_statement: "Fix domain registration flows + lead job persistence re
 backend:
   - task: "Clean: Decouple shortener from Anti-Red + simplify post-registration"
     implemented: true
-    working: "NA"
+    working: true
     file: "js/_index.js, js/domain-service.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         - working: "NA"
           agent: "main"
           comment: "3 changes: (1) Removed Anti-Red references from shortener/domain registration contexts — shortener just means Cloudflare NS for DNS management, Anti-Red is hosting-only. (2) Removed NS confirmation message to user in buyDomainFullProcess — NS is set at registration time, no redundant 'Nameservers set to...' message needed, just 'domain registered'. (3) Removed unused anti-red-service import from domain-service.js. Internal registrar tracking (CR→OP fallback) kept with clearer comment. Shortener flow unchanged: forces cloudflare NS, adds Railway CNAME to CF zone."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: All 4 requested changes correctly implemented with 100% test success rate (5/5 tests passed). (1) domain-service.js cleanup: NO Anti-Red/anti-red references found anywhere in file, require('./anti-red-service') import REMOVED, all existing functionality preserved (checkDomainPrice, registerDomain, addDNSRecord, etc. exports present). (2) buyDomainFullProcess around line 11364: old sendMessage(chatId, '✅ Nameservers set to...') REMOVED, only log(...) remains in NS check block, comment correctly says 'Track actual registrar' (not 'Use the actual registrar'), registrar = buyResult.registrar || registrar line still exists. (3) Shortener comment around line 5766: says 'use Cloudflare for DNS management' WITHOUT Anti-Red reference, saveInfo('nsChoice', 'cloudflare') still present. (4) Node.js health: Service running healthy on port 5000 with database connected, no critical startup errors. All cleanup changes working correctly — shortener is now properly decoupled from Anti-Red hosting concepts."
 
   - task: "Fix: Lead job persistence — full resume + delivery after deployment"
     implemented: true
