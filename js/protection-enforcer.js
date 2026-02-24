@@ -150,6 +150,39 @@ async function findCFZone(domain) {
 // ─── Worker Route Enforcement ────────────────────────────
 
 /**
+ * Check if a domain's root A record in Cloudflare points to our server.
+ * Domains pointing elsewhere (user's own server) should NOT get anti-red Workers.
+ * Returns true if domain points to our server, false otherwise.
+ */
+async function domainPointsToOurServer(domain, zoneId) {
+  try {
+    const res = await axios.get(`${CF_BASE}/zones/${zoneId}/dns_records`, {
+      params: { type: 'A', name: domain },
+      headers: CF_HEADERS,
+      timeout: 10000,
+    })
+    const records = res.data?.result || []
+    if (records.length === 0) {
+      // No A record — might be CNAME; check if CNAME points to our infrastructure
+      const cnameRes = await axios.get(`${CF_BASE}/zones/${zoneId}/dns_records`, {
+        params: { type: 'CNAME', name: domain },
+        headers: CF_HEADERS,
+        timeout: 10000,
+      })
+      const cnames = cnameRes.data?.result || []
+      // If no records at all, skip protection
+      return cnames.length === 0 ? false : true
+    }
+    // Check if the A record points to our WHM server or Render app IP
+    const ourIPs = [OUR_SERVER_IP, WHM_HOST_IP].filter(Boolean)
+    return records.some(r => ourIPs.includes(r.content))
+  } catch {
+    // On error, default to protecting (safer)
+    return true
+  }
+}
+
+/**
  * Ensure a domain has both `domain/*` and `www.domain/*` worker routes.
  * Returns { domain, status, actions[] }
  */
