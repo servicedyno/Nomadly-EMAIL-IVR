@@ -660,8 +660,17 @@ ${CHAT_BOT_NAME}`,
 Cordialement,
 ${CHAT_BOT_NAME}`,
 
-  showDepositCryptoInfoDigitalProduct: (priceCrypto, tickerView, address, product) =>
-    `Veuillez envoyer ${priceCrypto} ${tickerView} à\n\n<code>${address}</code>\n\nVotre commande pour <b>${product}</b> est en cours de traitement. Les paiements crypto sont confirmés rapidement — généralement en quelques minutes. Une fois confirmé, votre commande sera livrée sous peu.\n\nCordialement,\n${CHAT_BOT_NAME}`,
+  showDepositCryptoInfoDigitalProduct: (priceUsd, priceCrypto, tickerView, address, product) =>
+    `💰 <b>Montant du paiement : ${Number(priceUsd).toFixed(2)} $ USD</b>
+
+Envoyez exactement <b>${priceCrypto} ${tickerView}</b> à :
+
+<code>${address}</code>
+
+Votre commande pour <b>${product}</b> sera livrée automatiquement une fois le paiement confirmé (généralement en quelques minutes).
+
+Cordialement,
+${CHAT_BOT_NAME}`,
 
   showDepositCryptoInfo: (priceCrypto, tickerView, address) =>
     `Veuillez envoyer ${priceCrypto} ${tickerView} à\n\n<code>${address}</code>\n\nLes paiements crypto sont confirmés rapidement — généralement en quelques minutes. Une fois confirmé, vous serez notifié rapidement et votre portefeuille sera mis à jour.\n\nCordialement,\n${CHAT_BOT_NAME}`,
@@ -1582,10 +1591,14 @@ ${
 
   askPaymentMethod: 'Choisissez une méthode de paiement :',
 
-  showDepositCryptoInfoVps: (priceCrypto, tickerView, address, vpsDetails) =>
-    `Veuillez envoyer ${priceCrypto} ${tickerView} à\n\n<code>${address}</code>
+  showDepositCryptoInfoVps: (priceUsd, priceCrypto, tickerView, address, vpsDetails) =>
+    `💰 <b>Montant du paiement : ${Number(priceUsd).toFixed(2)} $ USD</b>
 
-Les paiements crypto sont confirmés rapidement — généralement en quelques minutes. Une fois la transaction confirmée, vous serez rapidement notifié et votre plan VPS sera activé.
+Envoyez exactement <b>${priceCrypto} ${tickerView}</b> à :
+
+<code>${address}</code>
+
+Votre plan ${vpsDetails?.plan || 'VPS'} sera activé automatiquement une fois le paiement confirmé (généralement en quelques minutes).
 
 Cordialement,
 ${CHAT_BOT_NAME}`,
