@@ -6079,7 +6079,7 @@ bot?.on('message', async msg => {
       await sendQrCode(bot, chatId, bb, info?.userLanguage ?? 'en')
       set(state, chatId, 'action', 'none')
       const priceCrypto = await convert(price, 'usd', coin)
-      return send(chatId, vp.showDepositCryptoInfoVps(priceCrypto, ticker, address, vpsDetails), trans('o'))
+      return send(chatId, vp.showDepositCryptoInfoVps(price, priceCrypto, ticker, address, vpsDetails), trans('o'))
     } else {
       const coin = tickerOfDyno[ticker]
       const redirect_url = `${SELF_URL}/dynopay/crypto-pay-vps`
@@ -6094,7 +6094,7 @@ bot?.on('message', async msg => {
       await generateQr(bot, chatId, qr_code, info?.userLanguage ?? 'en')
       set(state, chatId, 'action', 'none')
       const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
-      return send(chatId, vp.showDepositCryptoInfoVps(priceCrypto, ticker, address, vpsDetails), trans('o'))
+      return send(chatId, vp.showDepositCryptoInfoVps(price, priceCrypto, ticker, address, vpsDetails), trans('o'))
     }
   }
   //
@@ -6169,7 +6169,7 @@ bot?.on('message', async msg => {
       await sendQrCode(bot, chatId, bb, info?.userLanguage ?? 'en')
       set(state, chatId, 'action', 'none')
       const priceCrypto = await convert(price, 'usd', coin)
-      return send(chatId, vp.showDepositCryptoInfoVpsUpgrade(priceCrypto, ticker, address), trans('o'))
+      return send(chatId, vp.showDepositCryptoInfoVpsUpgrade(price, priceCrypto, ticker, address), trans('o'))
     } else {
       const coin = tickerOfDyno[ticker]
       const redirect_url = `${SELF_URL}/dynopay/crypto-pay-upgrade-vps`
@@ -6184,7 +6184,7 @@ bot?.on('message', async msg => {
       await generateQr(bot, chatId, qr_code, info?.userLanguage ?? 'en')
       set(state, chatId, 'action', 'none')
       const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
-      return send(chatId, vp.showDepositCryptoInfoVpsUpgrade(priceCrypto, ticker, address), trans('o'))
+      return send(chatId, vp.showDepositCryptoInfoVpsUpgrade(price, priceCrypto, ticker, address), trans('o'))
     }
   }
   //
@@ -7963,7 +7963,7 @@ bot?.on('message', async msg => {
       await sendQrCode(bot, chatId, url, info?.userLanguage ?? 'en')
       set(state, chatId, 'action', 'none')
       const priceCrypto = await convert(price, 'usd', coin)
-      return send(chatId, t.showDepositCryptoInfoPhone(priceCrypto, ticker, url, info?.cpSelectedNumber || 'Cloud Phone'), trans('o'))
+      return send(chatId, t.showDepositCryptoInfoPhone(price, priceCrypto, ticker, url, info?.cpSelectedNumber || 'Cloud Phone'), trans('o'))
     } else {
       const coin = tickerOfDyno[ticker]
       const redirect_url = `${SELF_URL}/dynopay/crypto-pay-phone`
@@ -7979,7 +7979,7 @@ bot?.on('message', async msg => {
       await generateQr(bot, chatId, qr_code, info?.userLanguage ?? 'en')
       set(state, chatId, 'action', 'none')
       const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
-      return send(chatId, t.showDepositCryptoInfoPhone(priceCrypto, ticker, address, info?.cpSelectedNumber || 'Cloud Phone'), trans('o'))
+      return send(chatId, t.showDepositCryptoInfoPhone(price, priceCrypto, ticker, address, info?.cpSelectedNumber || 'Cloud Phone'), trans('o'))
     }
   }
 
