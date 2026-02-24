@@ -685,16 +685,29 @@ Your ${label} will be delivered automatically once payment is confirmed (usually
 Best regards,
 ${CHAT_BOT_NAME}`,
 
-  showDepositCryptoInfoPhone: (priceCrypto, tickerView, address, phoneNumber) =>
-    `Please remit ${priceCrypto} ${tickerView} to\n\n<code>${address}</code>
+  showDepositCryptoInfoPhone: (priceUsd, priceCrypto, tickerView, address, phoneNumber) =>
+    `💰 <b>Payment Amount: $${Number(priceUsd).toFixed(2)} USD</b>
 
-Crypto payments are confirmed quickly — usually within a few minutes. Once confirmed, you will be promptly notified, and your Cloud Phone number ${phoneNumber} will be activated.
+Send exactly <b>${priceCrypto} ${tickerView}</b> to:
+
+<code>${address}</code>
+
+Your Cloud Phone number ${phoneNumber} will be activated automatically once payment is confirmed (usually within a few minutes).
 
 Best regards,
 ${CHAT_BOT_NAME}`,
 
-  showDepositCryptoInfoDigitalProduct: (priceCrypto, tickerView, address, product) =>
-    `Please remit ${priceCrypto} ${tickerView} to\n\n<code>${address}</code>\n\nYour order for <b>${product}</b> is being processed. Crypto payments are confirmed quickly — usually within a few minutes. Once confirmed, your order will be delivered shortly.\n\nBest regards,\n${CHAT_BOT_NAME}`,
+  showDepositCryptoInfoDigitalProduct: (priceUsd, priceCrypto, tickerView, address, product) =>
+    `💰 <b>Payment Amount: $${Number(priceUsd).toFixed(2)} USD</b>
+
+Send exactly <b>${priceCrypto} ${tickerView}</b> to:
+
+<code>${address}</code>
+
+Your order for <b>${product}</b> will be delivered automatically once payment is confirmed (usually within a few minutes).
+
+Best regards,
+${CHAT_BOT_NAME}`,
 
   showDepositCryptoInfo: (priceCrypto, tickerView, address) =>
     `Please remit ${priceCrypto} ${tickerView} to\n\n<code>${address}</code>
@@ -1595,10 +1608,14 @@ ${
 
   askPaymentMethod: 'Choose a payment method:',
 
-  showDepositCryptoInfoVps: (priceCrypto, tickerView, address) =>
-    `Please remit ${priceCrypto} ${tickerView} to\n\n<code>${address}</code>
+  showDepositCryptoInfoVps: (priceUsd, priceCrypto, tickerView, address, vpsDetails) =>
+    `💰 <b>Payment Amount: $${Number(priceUsd).toFixed(2)} USD</b>
 
-Crypto payments are confirmed quickly — usually within a few minutes. Once confirmed, you will be promptly notified, and your VPS plan will be seamlessly activated.
+Send exactly <b>${priceCrypto} ${tickerView}</b> to:
+
+<code>${address}</code>
+
+Your ${vpsDetails?.plan || 'VPS'} plan will activate automatically once payment is confirmed (usually within a few minutes).
 
 Best regards,
 ${CHAT_BOT_NAME}`,
@@ -1848,10 +1865,14 @@ Note: A $${VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE} USD deposit is included in yo
   bankPayVPSUpgradeDisk: (priceNGN, vpsDetails) =>
     `Please remit ${priceNGN} NGN by clicking “Make Payment” below. Once the transaction has been confirmed, you will be promptly notified, and your VPS plan with new disk type ${vpsDetails.upgradeOption.toType} config will be seamlessly activated.`,
 
-  showDepositCryptoInfoVpsUpgrade: (priceCrypto, tickerView, address) =>
-    `Please remit ${priceCrypto} ${tickerView} to\n\n<code>${address}</code>
+  showDepositCryptoInfoVpsUpgrade: (priceUsd, priceCrypto, tickerView, address) =>
+    `💰 <b>Payment Amount: $${Number(priceUsd).toFixed(2)} USD</b>
 
-Crypto payments are confirmed quickly — usually within a few minutes. Once confirmed, you will be promptly notified, and your new VPS plan will be seamlessly activated.
+Send exactly <b>${priceCrypto} ${tickerView}</b> to:
+
+<code>${address}</code>
+
+Your upgraded VPS plan will activate automatically once payment is confirmed (usually within a few minutes).
 
 Best regards,
 ${CHAT_BOT_NAME}`,
