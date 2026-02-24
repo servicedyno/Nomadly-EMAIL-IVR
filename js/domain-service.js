@@ -360,7 +360,10 @@ const addDNSRecord = async (domainName, recordType, recordValue, hostName, db, p
 
   if (meta?.nameserverType === 'cloudflare' && meta?.cfZoneId) {
     const name = hostName ? `${hostName}.${domainName}` : domainName
-    return await cfService.createDNSRecord(meta.cfZoneId, recordType, name, recordValue, 300, false, priority, extraData)
+    // A and CNAME records should be proxied through Cloudflare for SSL & CDN
+    // Other record types (MX, TXT, SRV, etc.) must be DNS-only
+    const shouldProxy = ['A', 'AAAA', 'CNAME'].includes(recordType.toUpperCase())
+    return await cfService.createDNSRecord(meta.cfZoneId, recordType, name, recordValue, 300, shouldProxy, priority, extraData)
   }
 
   if (meta?.registrar === 'OpenProvider') {
