@@ -352,13 +352,13 @@ frontend:
 
 metadata:
   created_by: "main_agent"
-  version: "7.0"
-  test_sequence: 8
+  version: "8.0"
+  test_sequence: 9
   run_ui: false
 
 test_plan:
   current_focus:
-    - "Fix: Full CF protection coverage at zone creation"
+    - "Clean: Decouple shortener from Anti-Red + simplify post-registration"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
