@@ -10846,10 +10846,15 @@ bot?.on('message', async msg => {
       }
       return
     }
-    // Anti-Red Protection toggle
+    // Anti-Red Protection toggle — only for domains with hosting plans
     if (message === t.domainActionAntiRed) {
       const domain = info?.domainToManage
       if (!domain) return send(chatId, t.noDomainSelected || 'No domain selected.')
+      // Check if domain has a hosting plan (cpanelAccount)
+      const hasHosting = await db.collection('cpanelAccounts').findOne({ domain: { $regex: new RegExp('^' + domain.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') } })
+      if (!hasHosting) {
+        return send(chatId, `⚠️ <b>Anti-Red Protection</b> is only available for domains with a hosting plan.\n\nDomain: <b>${domain}</b> is registered without hosting.\n\nTo enable Anti-Red, purchase a hosting plan for this domain first.`, { parse_mode: 'HTML' })
+      }
       // Check if domain has Cloudflare
       const domainDoc = await db.collection('registeredDomains').findOne({ _id: domain })
       const val = domainDoc?.val || {}
