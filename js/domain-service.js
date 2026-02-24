@@ -534,10 +534,6 @@ const switchToCloudflare = async (domainName, db) => {
     )
   }
 
-  // NOTE: Anti-red Worker routes are NOT deployed during NS switch.
-  // Workers are only deployed during hosting provisioning via deployFullProtection().
-  // This prevents domain-only users from getting the anti-red challenge on their own server.
-
   return {
     success: true,
     nameservers: cfNameservers,
