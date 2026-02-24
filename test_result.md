@@ -106,6 +106,18 @@
 user_problem_statement: "Fix domain registration flows + lead job persistence recovery + activate shortener DNS routing + Fix NS alert on hosting panel domain page"
 
 backend:
+  - task: "Clean: Decouple shortener from Anti-Red + simplify post-registration"
+    implemented: true
+    working: "NA"
+    file: "js/_index.js, js/domain-service.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "3 changes: (1) Removed Anti-Red references from shortener/domain registration contexts — shortener just means Cloudflare NS for DNS management, Anti-Red is hosting-only. (2) Removed NS confirmation message to user in buyDomainFullProcess — NS is set at registration time, no redundant 'Nameservers set to...' message needed, just 'domain registered'. (3) Removed unused anti-red-service import from domain-service.js. Internal registrar tracking (CR→OP fallback) kept with clearer comment. Shortener flow unchanged: forces cloudflare NS, adds Railway CNAME to CF zone."
+
   - task: "Fix: Lead job persistence — full resume + delivery after deployment"
     implemented: true
     working: true
