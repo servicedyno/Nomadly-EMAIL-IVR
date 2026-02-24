@@ -131,6 +131,10 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state)
 
     send(chatId, `✅ Hosting account created`, rem)
 
+    // P0 FIX: Save cPanel username for cleanup if subsequent steps fail
+    const cpanelUsername = result.username
+    let dnsSetupSuccess = false
+
     // ── Step 4: Cloudflare DNS setup ──
     // For new domains: reuse CF zone from registration (no double createZone)
     // For existing/external domains: create CF zone now
@@ -167,6 +171,7 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state)
           await cfService.setSSLMode(cfZoneId, 'full')
           await cfService.enforceHTTPS(cfZoneId)
           log(`[Hosting] CF DNS records for ${domain}: ${dnsResult.success ? 'all created' : 'some failed'}`)
+          dnsSetupSuccess = true // Mark DNS as successful
 
           // For existing/external domains: update NS at registrar
           if (!isNewDomain && cfNameservers.length >= 2) {
