@@ -5,7 +5,6 @@ const { checkDomainPriceOnline } = require('./cr-domain-price-get')
 const { buyDomainOnline } = require('./cr-domain-register')
 const opService = require('./op-service')
 const cfService = require('./cf-service')
-const { deploySharedWorkerRoute } = require('./anti-red-service')
 
 /**
  * Unified Domain Service
