@@ -5986,7 +5986,7 @@ bot?.on('message', async msg => {
       await sendQrCode(bot, chatId, bb, info?.userLanguage ?? 'en')
       set(state, chatId, 'action', a.proceedWithPaymentProcess)
       const priceCrypto = await convert(price, 'usd', coin)
-      return send(chatId, hP.showCryptoPaymentInfo(priceCrypto, ticker, address, plan))
+      return send(chatId, hP.showCryptoPaymentInfo(price, priceCrypto, ticker, address, plan))
     } else {
       const coin = tickerOfDyno[ticker]
       if (!coin) return send(chatId, t.askValidCrypto)
@@ -6002,7 +6002,7 @@ bot?.on('message', async msg => {
       await generateQr(bot, chatId, qr_code, info?.userLanguage ?? 'en')
       set(state, chatId, 'action', a.proceedWithPaymentProcess)
       const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
-      return send(chatId, hP.showCryptoPaymentInfo(priceCrypto, ticker, address, plan))
+      return send(chatId, hP.showCryptoPaymentInfo(price, priceCrypto, ticker, address, plan))
     }
   }
   if (action === 'get-free-domain') {
