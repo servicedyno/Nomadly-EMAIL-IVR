@@ -658,7 +658,6 @@ Cordialement,
 ${CHAT_BOT_NAME}`,
 
 
-  showDepositCryptoInfoDigitalProduct: (priceUsd, priceCrypto, tickerView, address, product) =>
     `💰 <b>Montant du paiement : ${Number(priceUsd).toFixed(2)} $ USD</b>
 
 Envoyez exactement <b>${priceCrypto} ${tickerView}</b> à :
