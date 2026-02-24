@@ -3300,6 +3300,7 @@ bot?.on('message', async msg => {
     },
     'hosting-pay': async coin => {
       set(state, chatId, 'action', 'none')
+      saveInfo('processingPayment', false) // Clear processing flag
       const price = info?.couponApplied ? info?.newPrice : info?.totalPrice
       const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
@@ -6010,7 +6011,10 @@ bot?.on('message', async msg => {
     return send(chatId, hP.bankPayDomain(priceNGN, info.plan), trans('payBank', url))
   }
   if (action === 'crypto-pay-hosting') {
-    if (message === t.back) return goto['hosting-pay']()
+    if (message === t.back) {
+      saveInfo('processingPayment', false) // Clear processing flag
+      return goto['hosting-pay']()
+    }
     const tickerView = message
     const supportedCryptoView = trans('supportedCryptoView')
     const ticker = supportedCryptoView[tickerView]
