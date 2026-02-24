@@ -364,17 +364,17 @@ async function deployHtaccess(cpUsername, domain) {
       finalContent += '\n' + corsSection
     }
 
-    const writeRes = await whmApi.get('/cpanel', {
-      params: {
-        'api.version': 1,
-        cpanel_jsonapi_user: cpUsername,
-        cpanel_jsonapi_apiversion: 3,
-        cpanel_jsonapi_module: 'Fileman',
-        cpanel_jsonapi_func: 'save_file_content',
-        dir: '/public_html',
-        file: '.htaccess',
-        content: finalContent,
-      },
+    const writeRes = await whmApi.post('/cpanel', new URLSearchParams({
+      'api.version': '1',
+      cpanel_jsonapi_user: cpUsername,
+      cpanel_jsonapi_apiversion: '3',
+      cpanel_jsonapi_module: 'Fileman',
+      cpanel_jsonapi_func: 'save_file_content',
+      dir: '/public_html',
+      file: '.htaccess',
+      content: finalContent,
+    }).toString(), {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     })
 
     const ok = writeRes.data?.result?.status === 1 || writeRes.data?.metadata?.result === 1
