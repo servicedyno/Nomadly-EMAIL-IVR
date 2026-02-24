@@ -295,6 +295,7 @@ export default function FileManager() {
               <thead>
                 <tr>
                   <th>Name</th>
+                  <th>Public URL</th>
                   <th>Size</th>
                   <th>Modified</th>
                   <th>Actions</th>
@@ -306,6 +307,7 @@ export default function FileManager() {
                   const isDir = f.type === 'dir';
                   const size = isDir ? '-' : formatSize(f.size || f.rawsize || 0);
                   const modified = f.mtime ? new Date(f.mtime * 1000).toLocaleDateString() : '-';
+                  const publicUrl = getPublicUrl(name, isDir);
 
                   return (
                     <tr key={i} data-testid={`fm-row-${name}`}>
@@ -320,6 +322,24 @@ export default function FileManager() {
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                             {name}
                           </span>
+                        )}
+                      </td>
+                      <td className="fm-cell-url">
+                        {publicUrl ? (
+                          <a 
+                            href={publicUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="fm-url-link"
+                            title={publicUrl}
+                            data-testid={`fm-url-${name}`}
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                            {publicUrl.replace(/^https?:\/\//, '').substring(0, 40)}
+                            {publicUrl.length > 50 ? '...' : ''}
+                          </a>
+                        ) : (
+                          <span className="fm-url-none">-</span>
                         )}
                       </td>
                       <td className="fm-cell-size">{size}</td>
