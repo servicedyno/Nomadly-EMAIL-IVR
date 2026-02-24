@@ -6013,6 +6013,21 @@ bot?.on('message', async msg => {
     const domain = info?.domain
     const plan = info?.plan
     const ref = nanoid()
+    
+    // P0 FIX: Save payment intent to MongoDB BEFORE getting crypto address
+    await paymentIntents.insertOne({
+      ref,
+      chatId,
+      amount: price,
+      type: 'hosting',
+      domain,
+      plan,
+      provider: BLOCKBEE_CRYTPO_PAYMENT_ON === 'true' ? 'blockbee' : 'dynopay',
+      status: 'pending',
+      createdAt: new Date(),
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+    })
+    
     if (BLOCKBEE_CRYTPO_PAYMENT_ON === 'true') {
       const coin = tickerOf[ticker]
       const { address, bb } = await getCryptoDepositAddress(coin, chatId, SELF_URL, `/crypto-pay-hosting?a=b&ref=${ref}&`)
