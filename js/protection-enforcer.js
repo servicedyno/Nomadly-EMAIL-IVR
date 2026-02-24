@@ -361,10 +361,11 @@ async function triggerAutoSSLFix(domain, zoneId, entry) {
       })
       const vhost = (vhostsCheck.data?.data?.vhosts || []).find(v => v.servername === domain)
       const certs = vhost?.crt?.domains || []
+      const stillSelfSigned = !!vhost?.crt?.is_self_signed && vhost.crt.is_self_signed != 0
 
-      if (certs.includes(domain) && certs.includes(`www.${domain}`)) {
+      if (certs.includes(domain) && certs.includes(`www.${domain}`) && !stillSelfSigned) {
         certOk = true
-        log(`[ProtectionEnforcer] AutoSSL cert issued for ${domain} (root+www covered)`)
+        log(`[ProtectionEnforcer] AutoSSL CA cert issued for ${domain} (root+www covered, CA-signed)`)
         break
       }
     }
