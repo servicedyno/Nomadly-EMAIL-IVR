@@ -1851,10 +1851,14 @@ Note : Un dépôt de $${VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE} USD est inclus d
   bankPayVPSUpgradeDisk: (priceNGN, vpsDetails) =>
     `Veuillez verser ${priceNGN} NGN en cliquant sur “Effectuer le paiement” ci-dessous. Une fois la transaction confirmée, vous serez rapidement informé, et votre plan VPS avec le nouveau type de disque ${vpsDetails.upgradeOption.toType} sera activé sans problème.`,
 
-  showDepositCryptoInfoVpsUpgrade: (priceCrypto, tickerView, address) =>
-    `Veuillez verser ${priceCrypto} ${tickerView} à\n\n<code>${address}</code>
+  showDepositCryptoInfoVpsUpgrade: (priceUsd, priceCrypto, tickerView, address) =>
+    `💰 <b>Montant du paiement : ${Number(priceUsd).toFixed(2)} $ USD</b>
 
-Les paiements crypto sont confirmés rapidement — généralement en quelques minutes. Une fois la transaction confirmée, vous serez rapidement informé, et votre nouveau plan VPS sera activé sans problème.
+Envoyez exactement <b>${priceCrypto} ${tickerView}</b> à :
+
+<code>${address}</code>
+
+Votre plan VPS mis à niveau sera activé automatiquement une fois le paiement confirmé (généralement en quelques minutes).
 
 Cordialement,
 ${CHAT_BOT_NAME}`,
