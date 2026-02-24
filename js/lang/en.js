@@ -649,26 +649,38 @@ ${CHAT_BOT_NAME}`,
 Best regards,
 ${CHAT_BOT_NAME}`,
 
-  showDepositCryptoInfoPlan: (priceCrypto, tickerView, address, plan) =>
-    `Please remit ${priceCrypto} ${tickerView} to\n\n<code>${address}</code>
+  showDepositCryptoInfoPlan: (priceUsd, priceCrypto, tickerView, address, plan) =>
+    `💰 <b>Payment Amount: $${Number(priceUsd).toFixed(2)} USD</b>
 
-Crypto payments are confirmed quickly — usually within a few minutes. Once confirmed, you will be promptly notified, and your ${plan} plan will be seamlessly activated.
+Send exactly <b>${priceCrypto} ${tickerView}</b> to:
 
-Best regards,
-${CHAT_BOT_NAME}`,
+<code>${address}</code>
 
-  showDepositCryptoInfoDomain: (priceCrypto, tickerView, address, domain) =>
-    `Please remit ${priceCrypto} ${tickerView} to\n\n<code>${address}</code>
-
-Crypto payments are confirmed quickly — usually within a few minutes. Once confirmed, you will be promptly notified, and your ${domain} domain will be seamlessly activated.
+Your ${plan} plan will activate automatically once payment is confirmed (usually within a few minutes).
 
 Best regards,
 ${CHAT_BOT_NAME}`,
 
-  showDepositCryptoInfoLeads: (priceCrypto, tickerView, address, label) =>
-    `Please remit ${priceCrypto} ${tickerView} to\n\n<code>${address}</code>
+  showDepositCryptoInfoDomain: (priceUsd, priceCrypto, tickerView, address, domain) =>
+    `💰 <b>Payment Amount: $${Number(priceUsd).toFixed(2)} USD</b>
 
-Crypto payments are confirmed quickly — usually within a few minutes. Once confirmed, you will be promptly notified, and your ${label} will be delivered.
+Send exactly <b>${priceCrypto} ${tickerView}</b> to:
+
+<code>${address}</code>
+
+Your ${domain} domain will activate automatically once payment is confirmed (usually within a few minutes).
+
+Best regards,
+${CHAT_BOT_NAME}`,
+
+  showDepositCryptoInfoLeads: (priceUsd, priceCrypto, tickerView, address, label) =>
+    `💰 <b>Payment Amount: $${Number(priceUsd).toFixed(2)} USD</b>
+
+Send exactly <b>${priceCrypto} ${tickerView}</b> to:
+
+<code>${address}</code>
+
+Your ${label} will be delivered automatically once payment is confirmed (usually within a few minutes).
 
 Best regards,
 ${CHAT_BOT_NAME}`,
@@ -1382,11 +1394,13 @@ Pay within 1 hr to activate. Your hosting will be provisioned automatically.`
     return text
   },
 
-  showCryptoPaymentInfo: (priceCrypto, tickerView, address, plan) => `Send <b>${priceCrypto} ${tickerView}</b> to:
+  showCryptoPaymentInfo: (priceUsd, priceCrypto, tickerView, address, plan) => `💰 <b>Total: $${Number(priceUsd).toFixed(2)} USD</b>
+
+Send exactly <b>${priceCrypto} ${tickerView}</b> to:
 
 <code>${address}</code>
 
-Crypto payments confirm quickly — usually within a few minutes. Your ${plan} activates automatically once confirmed.`,
+Your ${plan} activates automatically once payment is confirmed (usually within a few minutes).`,
 
   successText: (info, response) =>
     `Your hosting is live.
