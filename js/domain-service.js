@@ -342,10 +342,8 @@ const addDNSRecord = async (domainName, recordType, recordValue, hostName, db, p
         const cfResult = await cfService.createZone(domainName)
         if (cfResult.success && cfResult.zoneId) {
           newCfZoneId = cfResult.zoneId
-          // Auto-deploy anti-red Worker route to the new zone
-          deploySharedWorkerRoute(domainName, newCfZoneId).catch(err =>
-            log(`[domain-service] Worker auto-deploy failed for ${domainName}: ${err.message}`)
-          )
+          // NOTE: Anti-red Worker routes are NOT deployed here.
+          // Workers are only deployed during hosting provisioning via deployFullProtection().
         }
       }
       // Update DB with new nameservers and zone
