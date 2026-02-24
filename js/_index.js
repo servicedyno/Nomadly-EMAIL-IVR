@@ -11361,15 +11361,13 @@ const buyDomainFullProcess = async (chatId, lang, domain) => {
       sendMessage(chatId, m)
       return m
     }
-    // Use the actual registrar from result (may differ if CR→OP fallback occurred)
+    // Track actual registrar — may differ from original if CR→OP fallback occurred
     registrar = buyResult.registrar || registrar
     send(chatId, translation('t.domainBoughtSuccess', lang, domain), translation('o', lang))
 
-    // NS is now set at registration time (passed to registrar API directly)
-    // No post-registration NS update needed — just confirm to user
+    // NS was set at registration time (passed to registrar API directly) — no post-reg update needed
     if (nsChoice !== 'provider_default' && buyResult.nameservers && buyResult.nameservers.length >= 2) {
       const nsLabel = nsChoice === 'cloudflare' ? 'Cloudflare' : 'Custom'
-      sendMessage(chatId, `✅ Nameservers set to ${nsLabel}: ${buyResult.nameservers.join(', ')}`)
       log(`[buyDomainFullProcess] ${domain} registered with ${nsLabel} NS: ${buyResult.nameservers.join(', ')} (registrar: ${registrar})`)
     }
 
