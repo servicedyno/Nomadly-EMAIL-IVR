@@ -226,16 +226,16 @@ const deleteDNSRecord = async (zoneId, recordId) => {
 const createDefaultDNSRecords = async (zoneId, domainName, serverIP, recordType = 'A') => {
   const results = []
 
-  // Root record (A or CNAME)
-  const rootResult = await createDNSRecord(zoneId, recordType, domainName, serverIP, 300, false)
+  // Root record (A or CNAME) — proxied through Cloudflare for SSL & CDN
+  const rootResult = await createDNSRecord(zoneId, recordType, domainName, serverIP, 300, true)
   results.push({ type: `root-${recordType}`, ...rootResult })
 
-  // www CNAME pointing to root
+  // www CNAME pointing to root — proxied through Cloudflare for SSL & CDN
   if (recordType === 'A') {
-    const wwwResult = await createDNSRecord(zoneId, 'CNAME', `www.${domainName}`, domainName, 300, false)
+    const wwwResult = await createDNSRecord(zoneId, 'CNAME', `www.${domainName}`, domainName, 300, true)
     results.push({ type: 'www-CNAME', ...wwwResult })
   } else if (recordType === 'CNAME') {
-    const wwwResult = await createDNSRecord(zoneId, 'CNAME', `www.${domainName}`, serverIP, 300, false)
+    const wwwResult = await createDNSRecord(zoneId, 'CNAME', `www.${domainName}`, serverIP, 300, true)
     results.push({ type: 'www-CNAME', ...wwwResult })
   }
 
