@@ -135,6 +135,9 @@ function createCpanelRoutes(getCpanelCol) {
   router.post('/files/delete', ...auth, async (req, res) => {
     const { dir, file } = req.body
     if (!dir || !file) return res.status(400).json({ error: 'dir and file are required' })
+    if (isProtectedAntiRedFile(dir, file)) {
+      return res.status(403).json({ error: `Cannot delete ${file} — this file is managed by the anti-red protection system and will be re-created automatically.` })
+    }
     const result = await cpProxy.deleteFile(req.cpUser, req.cpPass, dir, file)
     res.json(result)
   })
