@@ -1766,6 +1766,12 @@ bot?.on('message', async msg => {
       set(state, chatId, 'action', 'domain-pay')
     },
     'hosting-pay': () => {
+      // P0 FIX: Prevent duplicate payment processing
+      if (info?.processingPayment) {
+        return send(chatId, '⏳ Payment already in progress. Please wait...', trans('o'))
+      }
+      saveInfo('processingPayment', true)
+      
       const payload = {
         domainName: info.website_name,
         domainPrice: info.price,
