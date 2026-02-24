@@ -2828,9 +2828,14 @@ bot?.on('message', async msg => {
       const autoRenewStatus = plan.autoRenew !== false ? '✅ ON' : '❌ OFF'
       const isWeekly = (plan.plan || '').toLowerCase().includes('week')
 
+      // Check domain origin - is it registered with us or external?
+      const registeredDomain = await db.collection('registeredDomains').findOne({ _id: domain })
+      const domainType = registeredDomain ? '🏷️ Registered with us' : '🌍 External'
+
       const text = `🌐 <b>${plan.domain}</b>\n\n`
         + `<b>Plan:</b> ${plan.plan}\n`
         + `<b>Status:</b> ${status}\n`
+        + `<b>Domain Type:</b> ${domainType}\n`
         + `<b>Created:</b> ${created}\n`
         + `<b>Expires:</b> ${expiry}\n`
         + `<b>Auto-Renew:</b> ${autoRenewStatus}${isWeekly ? ' (weekly plans do not auto-renew)' : ''}\n`
