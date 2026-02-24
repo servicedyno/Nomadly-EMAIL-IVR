@@ -1771,6 +1771,41 @@
   color: #34d399;
 }
 
+.fm-action-btn--view {
+  text-decoration: none;
+  display: inline-flex;
+}
+
+.fm-action-btn--view:hover {
+  background: rgba(109, 158, 255, 0.1);
+  border-color: rgba(109, 158, 255, 0.2);
+  color: #6d9eff;
+}
+
+.fm-action-btn--success {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #34d399;
+}
+
+.fm-action-chip--view {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fm-action-chip--view:hover {
+  background: rgba(109, 158, 255, 0.1);
+  color: #6d9eff;
+}
+
+.fm-action-chip--success {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+}
+
 .fm-action-btn--spinning {
   opacity: 0.6;
   pointer-events: none;
