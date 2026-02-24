@@ -841,6 +841,16 @@ ${bal(usd, ngn)}`,
   domainActionShortener: '🔗 Activate for URL Shortener',
   domainActionDeactivateShortener: '🔗 Deactivate URL Shortener',
   domainActionAntiRed: '🛡️ Anti-Red Protection',
+  
+  // DNS Management Warning for Hosted Domains
+  dnsWarningHostedDomain: (domain, plan) => `⚠️ <b>WARNING: This domain has an active hosting plan</b>\n\nDomain: <b>${domain}</b>\nPlan: ${plan}\n\n<b>⚠️ Modifying DNS records can break your hosting and anti-red protection!</b>\n\nDNS changes should only be made if you fully understand the impact. Incorrect changes may cause your website to become inaccessible or lose security protections.\n\n<b>Are you sure you want to proceed?</b>`,
+  dnsProceedAnyway: '⚠️ Proceed Anyway',
+  dnsCancel: '❌ Cancel',
+  
+  // Domain Origin Indicator
+  domainTypeRegistered: '🏷️ Registered with us',
+  domainTypeExternal: '🌍 External',
+  
   antiRedStatusOn: domain => `🛡️ <b>Anti-Red Protection</b> for <b>${domain}</b>\n\nStatus: <b>✅ ON</b>\n\nThis protects your domain from phishing scanners & browser-based red flags. Turn it off only if you know what you're doing.\n\n⚠️ <b>Recommendation:</b> Keep JS Challenge enabled — it provides maximum protection against automated scanners and bots.`,
   antiRedStatusOff: domain => `🛡️ <b>Anti-Red Protection</b> for <b>${domain}</b>\n\nStatus: <b>❌ OFF</b>\n\nYour domain is NOT protected. Turn it on to block scanners and avoid red flags.\n\n⚠️ <b>Recommendation:</b> Enable Anti-Red protection with JS Challenge for maximum security.`,
   antiRedTurnOff: '❌ Turn OFF Protection',
