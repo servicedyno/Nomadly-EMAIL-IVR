@@ -485,6 +485,34 @@ export default function FileManager() {
                       </div>
                     </div>
                     <div className="fm-card-actions">
+                      {publicUrl && (
+                        <>
+                          <button 
+                            onClick={() => copyUrl(publicUrl, name)} 
+                            className={`fm-action-chip ${copiedUrl === name ? 'fm-action-chip--success' : ''}`}
+                            data-testid={`fm-copy-mobile-${name}`}
+                          >
+                            {copiedUrl === name ? (
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
+                            ) : (
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                            )}
+                            <span>{copiedUrl === name ? 'Copied!' : 'Copy URL'}</span>
+                          </button>
+                          {!isDir && isWebFile(name) && (
+                            <a 
+                              href={publicUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              className="fm-action-chip fm-action-chip--view"
+                              data-testid={`fm-view-mobile-${name}`}
+                            >
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                              <span>View</span>
+                            </a>
+                          )}
+                        </>
+                      )}
                       {!isDir && isArchive(name) && (
                         <button
                           onClick={() => handleExtract(name)}
