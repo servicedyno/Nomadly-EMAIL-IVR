@@ -184,6 +184,30 @@ export default function FileManager() {
   const isTextFile = (name) => /\.(html?|css|js|json|xml|txt|php|py|md|htaccess|conf|log|yml|yaml|env|sh|sql|csv)$/i.test(name);
   const isArchive = (name) => /\.(zip|tar\.gz|tgz|tar\.bz2|gz|bz2|tar)$/i.test(name);
 
+  // Calculate public URL for a file/folder
+  const getPublicUrl = (fileName, isDirectory) => {
+    // Extract path relative to public_html
+    const publicHtmlIndex = currentDir.indexOf('/public_html');
+    if (publicHtmlIndex === -1) return null;
+    
+    const relativePath = currentDir.substring(publicHtmlIndex + '/public_html'.length);
+    const fullPath = relativePath ? `${relativePath}/${fileName}` : `/${fileName}`;
+    
+    // Construct the full URL
+    const domain = user?.domain || 'yourdomain.com';
+    const protocol = 'https://';
+    
+    // For directories, add trailing slash; for index files, show directory URL
+    if (isDirectory) {
+      return `${protocol}${domain}${fullPath}/`;
+    } else if (fileName === 'index.html' || fileName === 'index.php') {
+      // For index files, show the directory URL (cleaner)
+      return `${protocol}${domain}${relativePath || '/'}`;
+    } else {
+      return `${protocol}${domain}${fullPath}`;
+    }
+  };
+
   return (
     <div className="fm" data-testid="file-manager">
       {/* Editor Modal */}
