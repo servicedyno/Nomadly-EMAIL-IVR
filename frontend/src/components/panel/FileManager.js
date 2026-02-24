@@ -385,6 +385,7 @@ export default function FileManager() {
                 const isDir = f.type === 'dir';
                 const size = isDir ? '-' : formatSize(f.size || f.rawsize || 0);
                 const modified = f.mtime ? new Date(f.mtime * 1000).toLocaleDateString() : '-';
+                const publicUrl = getPublicUrl(name, isDir);
 
                 return (
                   <div key={i} className="fm-card" data-testid={`fm-card-${name}`}>
@@ -401,6 +402,21 @@ export default function FileManager() {
                       <div className="fm-card-info">
                         <span className={`fm-card-name ${isDir ? 'fm-card-name--dir' : ''}`}>{name}</span>
                         <span className="fm-card-meta">{size} &middot; {modified}</span>
+                        {publicUrl && (
+                          <a 
+                            href={publicUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="fm-card-url"
+                            title={publicUrl}
+                            data-testid={`fm-url-mobile-${name}`}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                            {publicUrl.replace(/^https?:\/\//, '').substring(0, 35)}
+                            {publicUrl.length > 45 ? '...' : ''}
+                          </a>
+                        )}
                       </div>
                     </div>
                     <div className="fm-card-actions">
