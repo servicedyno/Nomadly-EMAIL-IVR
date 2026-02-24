@@ -2003,15 +2003,23 @@ bot?.on('message', async msg => {
       set(state, chatId, 'nameserverType', nameserverType)
       set(state, chatId, 'action', 'choose-dns-action')
 
-      // Dynamic keyboard
+      // Dynamic keyboard — custom NS domains only get Switch to CF + Update NS
       const shortenerBtn = shortenerActive ? t.deactivateShortener : t.activateShortener
       const _bc = [t.backButton || '⬅️ Back']
-      const kbRows = [[t.quickActions], [t.checkDns], [t.addDns], [t.updateDns], [t.deleteDns]]
-      // Only show "Switch to Cloudflare" if not already on CF
-      if (nameserverType !== 'cloudflare') {
-        kbRows.push([t.switchToCf])
+      let kbRows
+      if (nameserverType === 'custom') {
+        // Custom nameservers: DNS is managed externally, only allow NS changes
+        kbRows = [[t.updateDns]]
+        if (nameserverType !== 'cloudflare') kbRows.push([t.switchToCf])
+        kbRows.push(_bc)
+      } else {
+        // Cloudflare or provider_default: full DNS management
+        kbRows = [[t.quickActions], [t.checkDns], [t.addDns], [t.updateDns], [t.deleteDns]]
+        if (nameserverType !== 'cloudflare') {
+          kbRows.push([t.switchToCf])
+        }
+        kbRows.push([shortenerBtn], _bc)
       }
-      kbRows.push([shortenerBtn], _bc)
       const dnsKeyboard = {
         parse_mode: 'HTML',
         reply_markup: { keyboard: kbRows },
