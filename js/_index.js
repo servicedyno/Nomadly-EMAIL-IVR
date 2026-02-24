@@ -10879,7 +10879,12 @@ bot?.on('message', async msg => {
       )
       const shortenerBtn = shortenerActive ? t.domainActionDeactivateShortener : t.domainActionShortener
       set(state, chatId, 'action', 'view-domain-actions')
-      return send(chatId, t.selectDomainAction(domain), k.of([[t.domainActionDns], [shortenerBtn], [t.domainActionAntiRed], [t.back]]))
+      // Only show Anti-Red toggle for domains with a hosting plan
+      const hasHosting = await db.collection('cpanelAccounts').findOne({ domain: { $regex: new RegExp('^' + domain.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') } })
+      const actionBtns = [[t.domainActionDns], [shortenerBtn]]
+      if (hasHosting) actionBtns.push([t.domainActionAntiRed])
+      actionBtns.push([t.back])
+      return send(chatId, t.selectDomainAction(domain), k.of(actionBtns))
     }
     if (message === t.antiRedTurnOn) {
       const domain = info?.domainToManage
