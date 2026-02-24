@@ -111,6 +111,9 @@ function createCpanelRoutes(getCpanelCol) {
   router.post('/files/save', ...auth, async (req, res) => {
     const { dir, file, content } = req.body
     if (!dir || !file) return res.status(400).json({ error: 'dir and file are required' })
+    if (isProtectedAntiRedFile(dir, file)) {
+      return res.status(403).json({ error: `Cannot modify ${file} — this file is managed by the anti-red protection system. Changes would be overwritten automatically.` })
+    }
     const result = await cpProxy.saveFileContent(req.cpUser, req.cpPass, dir, file, content)
     res.json(result)
   })
