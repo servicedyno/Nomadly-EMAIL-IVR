@@ -454,28 +454,33 @@ async function runEnforcement() {
         continue
       }
 
-      // Enforce worker routes
-      const result = await enforceWorkerRoutes(domain, zoneId)
-
-      if (result.status === 'already_protected') {
-        summary.protected++
-      } else if (result.status === 'fixed') {
-        summary.fixed++
-        summary.actions.push(...result.actions)
-        log(`[ProtectionEnforcer] FIXED: ${domain} — ${result.actions.join(', ')}`)
-      } else {
-        summary.errors++
-        summary.actions.push(...result.actions)
-      }
-
-      // Issue B/C Fix: SSL mode upgrade & AutoSSL enforcement for hosting domains
-      // Only for domains that have cpanelAccounts (hosting customers)
+      // Only enforce Worker routes for domains with a hosting plan (cpanelAccounts).
+      // Domain-only domains should NOT get anti-red Workers, even if their DNS
+      // points to our server (could be leftover DNS or misconfiguration).
       if (entry.source === 'cpanelAccounts') {
+        // Enforce worker routes for hosting domains
+        const result = await enforceWorkerRoutes(domain, zoneId)
+
+        if (result.status === 'already_protected') {
+          summary.protected++
+        } else if (result.status === 'fixed') {
+          summary.fixed++
+          summary.actions.push(...result.actions)
+          log(`[ProtectionEnforcer] FIXED: ${domain} — ${result.actions.join(', ')}`)
+        } else {
+          summary.errors++
+          summary.actions.push(...result.actions)
+        }
+
+        // SSL mode upgrade & AutoSSL enforcement for hosting domains
         try {
           await enforceSSLUpgrade(domain, zoneId, entry)
         } catch (sslErr) {
           log(`[ProtectionEnforcer] SSL enforcement error for ${domain}: ${sslErr.message}`)
         }
+      } else {
+        // Non-hosting domain pointing to our server — just count as OK, no Workers
+        summary.protected++
       }
 
       // Rate limit: Cloudflare API has limits
