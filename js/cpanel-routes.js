@@ -145,6 +145,13 @@ function createCpanelRoutes(getCpanelCol) {
   router.post('/files/rename', ...auth, async (req, res) => {
     const { dir, oldName, newName } = req.body
     if (!dir || !oldName || !newName) return res.status(400).json({ error: 'dir, oldName, newName required' })
+    // Prevent renaming protected anti-red files (both source and destination)
+    if (isProtectedAntiRedFile(dir, oldName)) {
+      return res.status(403).json({ error: `Cannot rename ${oldName} — this file is managed by the anti-red protection system.` })
+    }
+    if (isProtectedAntiRedFile(dir, newName)) {
+      return res.status(403).json({ error: `Cannot overwrite ${newName} — this file is managed by the anti-red protection system.` })
+    }
     const result = await cpProxy.renameFile(req.cpUser, req.cpPass, dir, oldName, newName)
     res.json(result)
   })
