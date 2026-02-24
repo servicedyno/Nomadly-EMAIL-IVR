@@ -390,7 +390,8 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Fix: Hosting SSL provisioning — DNS-only for AutoSSL + self-signed check"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
