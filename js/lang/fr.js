@@ -657,8 +657,6 @@ Votre numéro Cloud Phone ${phoneNumber} sera activé automatiquement une fois l
 Cordialement,
 ${CHAT_BOT_NAME}`,
 
-Cordialement,
-${CHAT_BOT_NAME}`,
 
   showDepositCryptoInfoDigitalProduct: (priceUsd, priceCrypto, tickerView, address, product) =>
     `💰 <b>Montant du paiement : ${Number(priceUsd).toFixed(2)} $ USD</b>
