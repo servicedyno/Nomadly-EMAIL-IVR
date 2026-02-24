@@ -16,6 +16,8 @@ export default function FileManager() {
   const [saving, setSaving] = useState(false);
   const [renaming, setRenaming] = useState(null);
   const [renameValue, setRenameValue] = useState('');
+  const [copiedUrl, setCopiedUrl] = useState(null);
+  const [successMessage, setSuccessMessage] = useState('');
   const fileInputRef = useRef(null);
 
   const fetchFiles = useCallback(async (dir) => {
@@ -63,11 +65,20 @@ export default function FileManager() {
     if (!file) return;
     setUploading(true);
     setError('');
+    setSuccessMessage('');
     try {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('dir', currentDir);
       await api('/files/upload', { method: 'POST', body: formData });
+      
+      // Show success message with URL
+      const uploadedUrl = getPublicUrl(file.name, false);
+      if (uploadedUrl) {
+        setSuccessMessage(`✅ File uploaded! Access it at: ${uploadedUrl}`);
+        setTimeout(() => setSuccessMessage(''), 8000);
+      }
+      
       fetchFiles(currentDir);
     } catch (err) {
       setError(err.message);
@@ -93,6 +104,7 @@ export default function FileManager() {
   const handleExtract = async (fileName) => {
     setExtracting(fileName);
     setError('');
+    setSuccessMessage('');
     try {
       const res = await api('/files/extract', {
         method: 'POST',
@@ -101,6 +113,13 @@ export default function FileManager() {
       if (res.errors?.length) {
         setError(`Extract failed: ${res.errors[0]}`);
       } else {
+        // Show success with directory URL
+        const folderName = fileName.replace(/\.(zip|tar\.gz|tgz|tar)$/i, '');
+        const extractedUrl = getPublicUrl(folderName, true);
+        if (extractedUrl) {
+          setSuccessMessage(`✅ Files extracted! View your site at: ${extractedUrl}`);
+          setTimeout(() => setSuccessMessage(''), 10000);
+        }
         fetchFiles(currentDir);
       }
     } catch (err) {
@@ -183,6 +202,7 @@ export default function FileManager() {
   const breadcrumbs = currentDir.split('/').filter(Boolean);
   const isTextFile = (name) => /\.(html?|css|js|json|xml|txt|php|py|md|htaccess|conf|log|yml|yaml|env|sh|sql|csv)$/i.test(name);
   const isArchive = (name) => /\.(zip|tar\.gz|tgz|tar\.bz2|gz|bz2|tar)$/i.test(name);
+  const isWebFile = (name) => /\.(html?|php|htm)$/i.test(name);
 
   // Calculate public URL for a file/folder
   const getPublicUrl = (fileName, isDirectory) => {
@@ -205,6 +225,17 @@ export default function FileManager() {
       return `${protocol}${domain}${relativePath || '/'}`;
     } else {
       return `${protocol}${domain}${fullPath}`;
+    }
+  };
+
+  // Copy URL to clipboard
+  const copyUrl = async (url, fileName) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedUrl(fileName);
+      setTimeout(() => setCopiedUrl(null), 2000);
+    } catch (err) {
+      setError('Failed to copy URL');
     }
   };
 
