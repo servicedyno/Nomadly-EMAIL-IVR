@@ -260,7 +260,29 @@ function createCpanelRoutes(getCpanelCol) {
   router.post('/subdomains/delete', ...auth, async (req, res) => {
     const { subdomain } = req.body
     if (!subdomain) return res.status(400).json({ error: 'subdomain is required' })
+
+    // 1. Delete subdomain from cPanel
     const result = await cpProxy.deleteSubdomain(req.cpUser, req.cpPass, subdomain)
+
+    // 2. Clean up CF DNS record for the deleted subdomain
+    try {
+      // subdomain format from cPanel: "sub.rootdomain.com" or just "sub" with cpDomain as root
+      const rootdomain = req.cpDomain
+      const fqdn = subdomain.includes('.') ? subdomain : `${subdomain}.${rootdomain}`
+      const rootOfFqdn = fqdn.split('.').slice(1).join('.') // e.g. "rootdomain.com" from "sub.rootdomain.com"
+      const zone = await cfService.getZoneByName(rootOfFqdn) || await cfService.getZoneByName(rootdomain)
+      if (zone) {
+        const records = await cfService.listDNSRecords(zone.id)
+        const matching = records.filter(r => r.name === fqdn)
+        for (const record of matching) {
+          await cfService.deleteDNSRecord(zone.id, record.id)
+          log(`[Panel] Deleted CF DNS ${record.type} record for subdomain: ${fqdn}`)
+        }
+      }
+    } catch (cfErr) {
+      log(`[Panel] CF DNS cleanup for deleted subdomain warning: ${cfErr.message}`)
+    }
+
     res.json(result)
   })
 
