@@ -164,14 +164,32 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state)
             log(`[Hosting] DNS cleanup warning (non-blocking): ${cleanupErr.message}`)
           }
 
-          // Create DNS A record (domain → WHM server IP) + CNAME (www)
-          const dnsResult = await cfService.createHostingDNSRecords(cfZoneId, domain, WHM_HOST)
-          // Use 'full' SSL initially (accepts self-signed certs from new cPanel accounts)
-          // AutoSSL will issue a proper Let's Encrypt cert, then we can upgrade to 'strict'
+          // Create DNS records as DNS-only first so AutoSSL can validate against origin directly
+          const dnsResult = await cfService.createHostingDNSRecords(cfZoneId, domain, WHM_HOST, false)
           await cfService.setSSLMode(cfZoneId, 'full')
           await cfService.enforceHTTPS(cfZoneId)
-          log(`[Hosting] CF DNS records for ${domain}: ${dnsResult.success ? 'all created' : 'some failed'}`)
+          log(`[Hosting] CF DNS records for ${domain}: ${dnsResult.success ? 'all created' : 'some failed'} (DNS-only for AutoSSL)`)
           dnsSetupSuccess = true // Mark DNS as successful
+
+          // Trigger AutoSSL while records are unproxied (Let's Encrypt needs direct access)
+          try {
+            const sslRes = await require('./whm-service').startAutoSSL(result.username)
+            log(`[Hosting] AutoSSL triggered for ${result.username}: ${sslRes.success ? 'started' : sslRes.error}`)
+          } catch (sslErr) {
+            log(`[Hosting] AutoSSL trigger warning (non-blocking): ${sslErr.message}`)
+          }
+
+          // Wait for AutoSSL cert issuance, then proxy records for CDN + DDoS protection
+          // This runs in background — doesn't block the user response
+          ;(async () => {
+            try {
+              await new Promise(r => setTimeout(r, 120000)) // 2 min for AutoSSL
+              await cfService.proxyHostingDNSRecords(cfZoneId, domain)
+              log(`[Hosting] DNS records proxied for ${domain} after AutoSSL window`)
+            } catch (proxyErr) {
+              log(`[Hosting] Background proxy error (non-critical): ${proxyErr.message}`)
+            }
+          })()
 
           // For existing/external domains: update NS at registrar
           if (!isNewDomain && cfNameservers.length >= 2) {
