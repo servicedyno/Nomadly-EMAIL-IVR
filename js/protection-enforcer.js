@@ -295,6 +295,15 @@ async function runEnforcement() {
         continue
       }
 
+      // Skip domains that don't point to our server (e.g., domain-only purchases
+      // where the user set their own A record to their own server)
+      const pointsToUs = await domainPointsToOurServer(domain, zoneId)
+      if (!pointsToUs) {
+        log(`[ProtectionEnforcer] SKIP: ${domain} — A record does not point to our server`)
+        summary.protected++ // count as OK, just not ours to protect
+        continue
+      }
+
       // Enforce worker routes
       const result = await enforceWorkerRoutes(domain, zoneId)
 
