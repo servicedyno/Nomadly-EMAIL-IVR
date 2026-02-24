@@ -123,15 +123,18 @@ backend:
 
   - task: "Fix: OP registration always gets nameservers — OP_DEFAULT_NS fallback"
     implemented: true
-    working: "NA"
+    working: true
     file: "js/op-service.js, js/domain-service.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         - working: "NA"
           agent: "main"
           comment: "Bug: when provider_default selected + OP registrar, nameservers=[] was passed → OP registered domain with NO nameservers. Fix in op-service.js: Added OP_DEFAULT_NS=['ns1.openprovider.nl','ns2.openprovider.be','ns3.openprovider.eu']. registerDomain() now falls back to OP_DEFAULT_NS when nameservers array is empty (and not a NS_REQUIRED_TLD). Also removed name_servers conditional — always passes nsPayload since effectiveNS is always populated. Added log lines in domain-service.js showing NS passed to OP for both direct and CR→OP fallback paths."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: All 5 key OP nameserver fix requirements validated with 100% success rate (5/5 tests passed). (1) OP_DEFAULT_NS constant correctly implemented at line 14 in js/op-service.js with all 3 expected nameservers. (2) registerDomain() NS resolution logic properly implemented: effectiveNS = nameservers → NS_REQUIRED_TLDs check for CF defaults → ELSE IF effectiveNS.length === 0 then effectiveNS = OP_DEFAULT_NS. (3) Unconditional name_servers: nsPayload assignment verified (no ternary operator). (4) Both required log lines found: direct OP path at line 130 and CR→OP fallback at line 120 in js/domain-service.js. (5) All 4 scenarios traced successfully: provider_default + OP → OP_DEFAULT_NS, cloudflare + OP → CF nameservers, custom + OP → custom NS, .fr TLD with empty NS → CF defaults. (6) Node.js service running healthy on port 5000 with database connected. Fix working correctly - OP registrations now always receive proper nameservers."
 
   - task: "Fix: Lead job persistence — full resume + delivery after deployment"
     implemented: true
