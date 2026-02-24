@@ -815,6 +815,74 @@ const createAntiBotRules = async (zoneId) => {
   return { success: results.some(r => r.success), rules: results }
 }
 
+// ─── DNS Cleanup for Domain Transition ────────────────────
+
+/**
+ * Remove conflicting A/AAAA/CNAME records for root and www before creating hosting records.
+ * Essential when transitioning a domain from shortener (CNAME→Railway) to hosting (A→WHM).
+ * Cloudflare doesn't allow both CNAME and A records for the same name.
+ * @param {string} zoneId - Cloudflare zone ID
+ * @param {string} domainName - Domain name (e.g. "example.com")
+ * @returns {{ success, deleted[] }}
+ */
+const cleanupConflictingDNS = async (zoneId, domainName) => {
+  const deleted = []
+  try {
+    const records = await listDNSRecords(zoneId)
+    const conflicting = records.filter(r => {
+      const isRootOrWww = r.name === domainName || r.name === `www.${domainName}`
+      const isConflictType = ['A', 'AAAA', 'CNAME'].includes(r.type)
+      return isRootOrWww && isConflictType
+    })
+
+    for (const record of conflicting) {
+      const result = await deleteDNSRecord(zoneId, record.id)
+      if (result.success) {
+        deleted.push({ type: record.type, name: record.name, content: record.content })
+        log(`[CF] Cleaned up conflicting ${record.type} ${record.name} → ${record.content}`)
+      }
+    }
+
+    return { success: true, deleted }
+  } catch (err) {
+    log(`[CF] cleanupConflictingDNS error: ${err.message}`)
+    return { success: false, deleted, error: err.message }
+  }
+}
+
+/**
+ * Set the proxied (orange/gray cloud) state for a DNS record.
+ * @param {string} zoneId - Cloudflare zone ID
+ * @param {string} domainName - Full record name (e.g. "example.com" or "www.example.com")
+ * @param {boolean} proxied - true = orange cloud, false = gray cloud
+ * @param {string} [recordType] - Record type filter (A, AAAA, CNAME), defaults to any
+ * @returns {{ success, updated[] }}
+ */
+const setProxiedState = async (zoneId, domainName, proxied, recordType) => {
+  const updated = []
+  try {
+    const records = await listDNSRecords(zoneId)
+    const matching = records.filter(r => {
+      const nameMatch = r.name === domainName
+      const typeMatch = recordType ? r.type === recordType.toUpperCase() : ['A', 'AAAA', 'CNAME'].includes(r.type)
+      return nameMatch && typeMatch && r.proxied !== proxied
+    })
+
+    for (const record of matching) {
+      const result = await updateDNSRecord(zoneId, record.id, record.type, record.name, record.content, record.ttl || 1, proxied)
+      if (result.success) {
+        updated.push({ type: record.type, name: record.name, proxied })
+        log(`[CF] Set ${record.name} (${record.type}) proxied=${proxied}`)
+      }
+    }
+
+    return { success: true, updated }
+  } catch (err) {
+    log(`[CF] setProxiedState error: ${err.message}`)
+    return { success: false, updated, error: err.message }
+  }
+}
+
 module.exports = {
   testConnection,
   getAccountNameservers,
