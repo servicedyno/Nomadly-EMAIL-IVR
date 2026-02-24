@@ -365,14 +365,27 @@ function createCpanelRoutes(getCpanelCol) {
       const WHM_HOST = process.env.WHM_HOST
 
       if (zone) {
+        // Clean up conflicting DNS records before creating hosting records
+        await cfService.cleanupConflictingDNS(zone.id, domain)
         // Domain is on our Cloudflare — create hosting DNS records
         await cfService.createHostingDNSRecords(zone.id, domain, WHM_HOST)
         await cfService.setSSLMode(zone.id, 'full')
         await cfService.enforceHTTPS(zone.id)
 
-        // Auto-deploy anti-red Worker route
-        const { deploySharedWorkerRoute } = require('./anti-red-service')
-        deploySharedWorkerRoute(domain, zone.id).catch(() => {})
+        // Deploy full anti-red protection (Worker routes deployed as part of hosting)
+        try {
+          const antiRedService = require('./anti-red-service')
+          const col = getCpanelCol()
+          const account = col ? await col.findOne({ _id: req.cpUser.toLowerCase() }) : null
+          if (account) {
+            antiRedService.deployFullProtection(req.cpUser, domain, account.plan || '').catch(e =>
+              log(`[Panel] add-enhanced: anti-red deploy warning for ${domain}: ${e.message}`)
+            )
+          } else {
+            const { deploySharedWorkerRoute } = require('./anti-red-service')
+            deploySharedWorkerRoute(domain, zone.id).catch(() => {})
+          }
+        } catch (_) {}
 
         // If domain is ours, auto-update NS at registrar if not already cloudflare
         if (isOwnDomain) {
