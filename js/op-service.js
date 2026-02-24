@@ -347,12 +347,18 @@ const registerDomain = async (domainName, nameservers = []) => {
     const contactHandle = await getContactHandleForTLD(tld)
     if (!contactHandle) return { error: 'Failed to get contact handle for OpenProvider registration' }
 
-    // TLDs that REQUIRE nameservers at registration (.fr needs 2+)
+    // Resolve effective nameservers:
+    // 1. Use provided NS (cloudflare or custom) if available
+    // 2. For NS-required TLDs without NS, fall back to Cloudflare defaults
+    // 3. For all other cases with no NS, use OP built-in DNS hosting nameservers
     const NS_REQUIRED_TLDS = ['fr', 're', 'pm', 'tf', 'wf', 'yt']
     let effectiveNS = nameservers
-    if (NS_REQUIRED_TLDS.includes(tld) && effectiveNS.length < 2) {
+    if (effectiveNS.length < 2 && NS_REQUIRED_TLDS.includes(tld)) {
       log(`[registerDomain] .${tld} requires 2+ nameservers, adding Cloudflare defaults`)
       effectiveNS = ['hank.ns.cloudflare.com', 'nova.ns.cloudflare.com']
+    } else if (effectiveNS.length === 0) {
+      log(`[registerDomain] No nameservers provided for ${domainName}, using OP built-in: ${OP_DEFAULT_NS.join(', ')}`)
+      effectiveNS = OP_DEFAULT_NS
     }
 
     const nsPayload = effectiveNS.map((ns, i) => ({ name: ns, seq_nr: i + 1 }))
@@ -364,7 +370,7 @@ const registerDomain = async (domainName, nameservers = []) => {
       admin_handle: contactHandle,
       tech_handle: contactHandle,
       billing_handle: contactHandle,
-      name_servers: nsPayload.length > 0 ? nsPayload : undefined,
+      name_servers: nsPayload,
       autorenew: 'off',
     }
 
