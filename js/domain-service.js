@@ -267,8 +267,6 @@ const viewDNSRecords = async (domainName, db) => {
           { $set: { 'val.cfZoneId': cfResult.zoneId, 'val.nameservers': newNS } }
         )
       }
-      // NOTE: Anti-red Worker routes are NOT deployed here.
-      // Workers are only deployed during hosting provisioning via deployFullProtection().
       const cfRecords = await cfService.listDNSRecords(cfResult.zoneId)
       const records = cfRecords.map(r => ({
         recordType: r.type,
