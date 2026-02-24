@@ -165,7 +165,25 @@ function createCpanelRoutes(getCpanelCol) {
   router.post('/domains/remove', ...auth, async (req, res) => {
     const { domain, subDomain } = req.body
     if (!domain) return res.status(400).json({ error: 'domain is required' })
+
+    // 1. Remove addon domain from cPanel
     const result = await cpProxy.removeAddonDomain(req.cpUser, req.cpPass, domain, subDomain, req.cpDomain)
+
+    // 2. Clean up Cloudflare: remove DNS records and Worker routes for the removed domain
+    try {
+      const zone = await cfService.getZoneByName(domain)
+      if (zone) {
+        // Remove Worker routes
+        const antiRedService = require('./anti-red-service')
+        await antiRedService.removeWorkerRoutes(domain, zone.id).catch(() => {})
+        // Remove DNS records pointing to our WHM
+        await cfService.cleanupConflictingDNS(zone.id, domain).catch(() => {})
+        log(`[Panel] Cleaned up CF resources for removed domain: ${domain}`)
+      }
+    } catch (cfErr) {
+      log(`[Panel] CF cleanup warning for removed domain ${domain}: ${cfErr.message}`)
+    }
+
     res.json(result)
   })
 
