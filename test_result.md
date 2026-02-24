@@ -390,8 +390,7 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus:
-    - "Fix: protection-enforcer SSL upgrade skips self-signed certs"
+  current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
