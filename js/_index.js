@@ -2831,7 +2831,9 @@ bot?.on('message', async msg => {
 
       // Check domain origin - is it registered with us or external?
       const registeredDomain = await db.collection('registeredDomains').findOne({ _id: domain })
-      const domainType = registeredDomain ? '🏷️ Registered with us' : '🌍 External'
+      const domainType = registeredDomain 
+        ? (t.domainTypeRegistered || '🏷️ Registered with us')
+        : (t.domainTypeExternal || '🌍 External')
 
       const text = `🌐 <b>${plan.domain}</b>\n\n`
         + `<b>Plan:</b> ${plan.plan}\n`
@@ -10802,20 +10804,16 @@ bot?.on('message', async msg => {
       if (hostingPlan) {
         // Domain has hosting — show warning with confirmation
         set(state, chatId, 'action', 'confirm-dns-management-for-hosting')
-        const warningText = `⚠️ <b>WARNING: This domain has an active hosting plan</b>\n\n` +
-          `Domain: <b>${domain}</b>\n` +
-          `Plan: ${hostingPlan.plan || 'N/A'}\n\n` +
-          `<b>⚠️ Modifying DNS records can break your hosting and anti-red protection!</b>\n\n` +
-          `DNS changes should only be made if you fully understand the impact. ` +
-          `Incorrect changes may cause your website to become inaccessible or lose security protections.\n\n` +
-          `<b>Are you sure you want to proceed?</b>`
+        const warningText = t.dnsWarningHostedDomain 
+          ? t.dnsWarningHostedDomain(domain, hostingPlan.plan || 'N/A')
+          : `⚠️ <b>WARNING: This domain has an active hosting plan</b>\n\nDomain: <b>${domain}</b>\nPlan: ${hostingPlan.plan || 'N/A'}\n\n<b>⚠️ Modifying DNS records can break your hosting and anti-red protection!</b>\n\nDNS changes should only be made if you fully understand the impact. Incorrect changes may cause your website to become inaccessible or lose security protections.\n\n<b>Are you sure you want to proceed?</b>`
         
         return send(chatId, warningText, {
           parse_mode: 'HTML',
           reply_markup: {
             keyboard: [
-              ['⚠️ Proceed Anyway'],
-              ['❌ Cancel']
+              [t.dnsProceedAnyway || '⚠️ Proceed Anyway'],
+              [t.dnsCancel || '❌ Cancel']
             ],
             resize_keyboard: true
           }
@@ -10979,11 +10977,14 @@ bot?.on('message', async msg => {
   
   // DNS Management Confirmation for Hosting Domains
   if (action === 'confirm-dns-management-for-hosting') {
-    if (message === '⚠️ Proceed Anyway') {
+    const proceedBtn = t.dnsProceedAnyway || '⚠️ Proceed Anyway'
+    const cancelBtn = t.dnsCancel || '❌ Cancel'
+    
+    if (message === proceedBtn) {
       // User confirmed — proceed to DNS management
       return goto['choose-dns-action']()
     }
-    if (message === '❌ Cancel') {
+    if (message === cancelBtn) {
       // User canceled — return to domain actions menu
       const domain = info?.domainToManage
       set(state, chatId, 'action', 'view-domain-actions')
@@ -11003,8 +11004,8 @@ bot?.on('message', async msg => {
       parse_mode: 'HTML',
       reply_markup: {
         keyboard: [
-          ['⚠️ Proceed Anyway'],
-          ['❌ Cancel']
+          [proceedBtn],
+          [cancelBtn]
         ],
         resize_keyboard: true
       }
