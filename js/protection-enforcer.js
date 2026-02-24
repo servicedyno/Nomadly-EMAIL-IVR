@@ -318,6 +318,16 @@ async function runEnforcement() {
         summary.actions.push(...result.actions)
       }
 
+      // Issue B/C Fix: SSL mode upgrade & AutoSSL enforcement for hosting domains
+      // Only for domains that have cpanelAccounts (hosting customers)
+      if (entry.source === 'cpanelAccounts') {
+        try {
+          await enforceSSLUpgrade(domain, zoneId, entry)
+        } catch (sslErr) {
+          log(`[ProtectionEnforcer] SSL enforcement error for ${domain}: ${sslErr.message}`)
+        }
+      }
+
       // Rate limit: Cloudflare API has limits
       await new Promise(r => setTimeout(r, 200))
     }
