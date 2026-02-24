@@ -1493,7 +1493,7 @@ async function deployFullProtection(cpUsername, domain, plan = '') {
     htaccess: { success: false },
     jsChallenge: { success: false },
     ja3Rules: { success: false },
-    hardened Worker: { success: false },
+    hardenedWorker: { success: false },
     cleanupWAF: { success: false },
   }
 
