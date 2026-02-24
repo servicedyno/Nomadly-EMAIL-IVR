@@ -117,6 +117,7 @@ const registerDomain = async (domainName, registrar, nsChoice, db, chatId, custo
       // Fallback to OpenProvider when ConnectReseller fails (insufficient balance, API error, etc.)
       log(`[domain-service] ConnectReseller failed for ${domainName}: ${result.error} — falling back to OpenProvider`)
       const ns = (nsChoice === 'cloudflare' || nsChoice === 'custom') ? nameservers : []
+      log(`[domain-service] Fallback OP registration for ${domainName} with NS: ${ns.length > 0 ? ns.join(', ') : 'provider_default (OP built-in)'}`)
       result = await opService.registerDomain(domainName, ns)
       if (result.success) {
         registrar = 'OpenProvider'
