@@ -376,7 +376,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Fix: OP registration always gets nameservers — OP_DEFAULT_NS fallback"
+    - "Fix: protection-enforcer SSL upgrade skips self-signed certs"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
