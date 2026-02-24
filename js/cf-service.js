@@ -915,6 +915,7 @@ module.exports = {
   deleteZone,
   createDefaultDNSRecords,
   createHostingDNSRecords,
+  proxyHostingDNSRecords,
   cleanupConflictingDNS,
   setSSLMode,
   enforceHTTPS,
