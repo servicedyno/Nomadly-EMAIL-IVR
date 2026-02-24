@@ -285,6 +285,26 @@ const createHostingDNSRecords = async (zoneId, domainName, serverIP, proxied = t
 }
 
 /**
+ * Switch hosting DNS records (root A + www) from DNS-only to proxied mode.
+ * Called after AutoSSL has had time to issue a CA cert via HTTP-01 validation.
+ */
+const proxyHostingDNSRecords = async (zoneId, domainName) => {
+  const headers = cfHeaders()
+  const records = await listDNSRecords(zoneId)
+  const targets = records.filter(r =>
+    r.type === 'A' && (r.name === domainName || r.name === `www.${domainName}`) && !r.proxied
+  )
+  for (const r of targets) {
+    await axios.patch(`${CF_BASE_URL}/zones/${zoneId}/dns_records/${r.id}`, {
+      type: r.type, name: r.name, content: r.content, proxied: true, ttl: 1,
+    }, { headers, timeout: 10000 })
+    log(`[CF] Proxied: ${r.name} → ${r.content}`)
+  }
+  return { proxied: targets.length }
+}
+
+
+/**
  * Set Cloudflare SSL mode for a zone to Full (Strict)
  */
 const setSSLMode = async (zoneId, mode = 'full') => {
