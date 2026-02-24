@@ -2686,7 +2686,8 @@ bot?.on('message', async msg => {
     // Step 2.4: Connect External Domain
     connectExternalDomain: () => {
       set(state, chatId, 'action', a.connectExternalDomain)
-      saveInfo('existingDomain', true)
+      saveInfo('connectExternalDomain', true)
+      saveInfo('existingDomain', false)  // External domains are NOT existing (owned) domains
       send(chatId, hP.generatePlanStepText("connectExternalDomainText"), bc)
     },
 
@@ -4355,6 +4356,7 @@ bot?.on('message', async msg => {
   if (action === a.connectExternalDomainFound) {
     if (message === t.back || message === user.searchAnotherDomain) return goto.connectExternalDomain()
     if (message === user.continueWithDomain(info.website_name)) {
+      saveInfo('connectExternalDomain', true)
       saveInfo('nameserver', 'cloudflare')
       return goto.enterYourEmail()
     }
