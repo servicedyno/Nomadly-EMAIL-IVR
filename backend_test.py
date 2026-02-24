@@ -1,321 +1,226 @@
 #!/usr/bin/env python3
+"""
+Backend Test Suite for Hosting SSL Provisioning Fixes
+Tests 5 specific changes for preventing 526 SSL errors
+"""
 
-import requests
 import json
-import os
-import sys
-import time
 import re
 import subprocess
-from typing import Dict, List, Tuple, Optional
+import sys
+from pathlib import Path
 
-class ProtectionEnforcerSSLTest:
-    def __init__(self):
-        self.backend_url = "https://deployment-ready-20.preview.emergentagent.com/api"
-        self.results = []
-        self.protection_enforcer_path = "/app/js/protection-enforcer.js"
-        self.cpanel_routes_path = "/app/js/cpanel-routes.js"
-        
-    def log_result(self, test_name: str, passed: bool, details: str = ""):
-        """Log test results"""
-        status = "✅ PASS" if passed else "❌ FAIL"
-        self.results.append({
-            "test": test_name,
-            "passed": passed,
-            "details": details,
-            "status": status
-        })
-        print(f"{status}: {test_name}")
-        if details:
-            print(f"   Details: {details}")
-            
-    def check_backend_health(self) -> bool:
-        """Check if backend service is healthy"""
-        try:
-            response = requests.get(f"{self.backend_url}/health", timeout=10)
-            if response.status_code == 200:
-                data = response.json()
-                is_healthy = data.get('status') == 'healthy' and data.get('database') == 'connected'
-                self.log_result(
-                    "Backend Health Check",
-                    is_healthy,
-                    f"Status: {data.get('status')}, DB: {data.get('database')}, Uptime: {data.get('uptime', 'N/A')}"
-                )
-                return is_healthy
-            else:
-                self.log_result("Backend Health Check", False, f"HTTP {response.status_code}")
-                return False
-        except Exception as e:
-            self.log_result("Backend Health Check", False, f"Connection error: {str(e)}")
-            return False
-            
-    def check_nodejs_port_5000(self) -> bool:
-        """Check if Node.js service is running on port 5000"""
-        try:
-            response = requests.get("http://localhost:5000/api/health", timeout=5)
-            if response.status_code == 200:
-                data = response.json()
-                is_healthy = data.get('status') == 'healthy'
-                self.log_result(
-                    "Node.js Service (Port 5000) Health",
-                    is_healthy,
-                    f"Response: {json.dumps(data)}"
-                )
-                return is_healthy
-            else:
-                self.log_result("Node.js Service (Port 5000) Health", False, f"HTTP {response.status_code}")
-                return False
-        except Exception as e:
-            self.log_result("Node.js Service (Port 5000) Health", False, f"Error: {str(e)}")
-            return False
-            
-    def read_file_content(self, file_path: str) -> Optional[str]:
-        """Read file content safely"""
-        try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                return f.read()
-        except Exception as e:
-            print(f"Error reading {file_path}: {str(e)}")
-            return None
-            
-    def verify_protection_enforcer_ssl_fix(self) -> bool:
-        """Verify the SSL upgrade fix in protection-enforcer.js"""
-        content = self.read_file_content(self.protection_enforcer_path)
-        if not content:
-            self.log_result("Protection Enforcer File Access", False, "Could not read file")
-            return False
-            
-        lines = content.split('\n')
-        
-        # Check 1: Self-signed check exists around line 294
-        self_signed_check_found = False
-        upgrade_condition_correct = False
-        autossl_branch_found = False
-        
-        for i, line in enumerate(lines):
-            line_num = i + 1
-            
-            # Look for self-signed check
-            if 'isSelfSigned' in line and 'is_self_signed' in line and '||' in line:
-                self_signed_check_found = True
-                self.log_result(
-                    "Self-signed Certificate Check",
-                    True,
-                    f"Found at line {line_num}: {line.strip()}"
-                )
-                
-            # Look for upgrade condition with !isSelfSigned
-            if 'hasRoot && hasWww && !isSelfSigned' in line:
-                upgrade_condition_correct = True
-                self.log_result(
-                    "SSL Upgrade Condition (includes !isSelfSigned)",
-                    True,
-                    f"Found at line {line_num}: {line.strip()}"
-                )
-                
-            # Look for AutoSSL branch for self-signed certs
-            if 'hasRoot && hasWww && isSelfSigned' in line:
-                autossl_branch_found = True
-                self.log_result(
-                    "AutoSSL Branch for Self-signed Certs",
-                    True,
-                    f"Found at line {line_num}: {line.strip()}"
-                )
-                
-        if not self_signed_check_found:
-            self.log_result("Self-signed Certificate Check", False, "isSelfSigned check not found")
-            
-        if not upgrade_condition_correct:
-            self.log_result("SSL Upgrade Condition (includes !isSelfSigned)", False, "Condition should include !isSelfSigned")
-            
-        if not autossl_branch_found:
-            self.log_result("AutoSSL Branch for Self-signed Certs", False, "else if branch for self-signed certs not found")
-            
-        return self_signed_check_found and upgrade_condition_correct and autossl_branch_found
-        
-    def verify_cpanel_routes_ssl_check(self) -> bool:
-        """Verify the SSL check in cpanel-routes.js around line 759-761"""
-        content = self.read_file_content(self.cpanel_routes_path)
-        if not content:
-            self.log_result("cPanel Routes File Access", False, "Could not read file")
-            return False
-            
-        lines = content.split('\n')
-        
-        # Look for self-signed check around line 759-761
-        ssl_check_found = False
-        upgrade_with_check = False
-        
-        for i, line in enumerate(lines[750:770]):  # Check around lines 750-770
-            line_num = i + 751
-            
-            # Look for isSelfSigned check
-            if 'isSelfSigned' in line and ('cPanel, Inc.' in line or 'organization_name' in line):
-                ssl_check_found = True
-                self.log_result(
-                    "cPanel Routes Self-signed Check",
-                    True,
-                    f"Found at line {line_num}: {line.strip()}"
-                )
-                
-            # Look for SSL upgrade with !isSelfSigned condition
-            if '!isSelfSigned' in line and 'strict' in lines[min(i+752, len(lines)-1)]:
-                upgrade_with_check = True
-                self.log_result(
-                    "cPanel Routes SSL Upgrade Check",
-                    True,
-                    f"Found condition at line {line_num}: {line.strip()}"
-                )
-                
-        if not ssl_check_found:
-            self.log_result("cPanel Routes Self-signed Check", False, "Self-signed check not found around line 759-761")
-            
-        if not upgrade_with_check:
-            self.log_result("cPanel Routes SSL Upgrade Check", False, "SSL upgrade with !isSelfSigned check not found")
-            
-        return ssl_check_found and upgrade_with_check
-        
-    def verify_triggerautossl_function(self) -> bool:
-        """Verify triggerAutoSSLFix function exists"""
-        content = self.read_file_content(self.protection_enforcer_path)
-        if not content:
-            return False
-            
-        # Look for triggerAutoSSLFix function
-        if 'triggerAutoSSLFix' in content:
-            self.log_result(
-                "triggerAutoSSLFix Function Exists",
-                True,
-                "Function found in protection-enforcer.js"
-            )
+def run_test(test_name, test_func):
+    """Run a test and return results"""
+    try:
+        result = test_func()
+        if result:
+            print(f"✅ {test_name}: PASSED")
             return True
         else:
-            self.log_result(
-                "triggerAutoSSLFix Function Exists", 
-                False, 
-                "Function not found"
-            )
+            print(f"❌ {test_name}: FAILED")
             return False
-            
-    def check_supervisor_logs(self) -> bool:
-        """Check supervisor backend logs for errors"""
+    except Exception as e:
+        print(f"❌ {test_name}: ERROR - {str(e)}")
+        return False
+
+def test_node_js_health():
+    """Test 1: Verify Node.js is running on port 5000"""
+    result = subprocess.run(['curl', '-s', 'http://127.0.0.1:5000/health'], 
+                          capture_output=True, text=True, timeout=10)
+    if result.returncode == 0:
         try:
-            # Check for backend log files
-            result = subprocess.run(
-                ['find', '/var/log/supervisor/', '-name', 'backend.*'],
-                capture_output=True,
-                text=True
-            )
-            
-            if result.stdout.strip():
-                log_files = result.stdout.strip().split('\n')
-                error_found = False
-                
-                for log_file in log_files:
-                    try:
-                        with open(log_file, 'r') as f:
-                            content = f.read()
-                            if 'ERROR' in content or 'FATAL' in content:
-                                error_found = True
-                    except Exception:
-                        pass  # Skip files that can't be read
-                                
-                self.log_result(
-                    "Supervisor Backend Logs Check",
-                    not error_found,
-                    f"Checked {len(log_files)} log files, errors found: {error_found}"
-                )
-                return not error_found
-            else:
-                self.log_result(
-                    "Supervisor Backend Logs Check",
-                    True,
-                    "No supervisor log files found (service may be running directly)"
-                )
-                return True
-                
-        except Exception as e:
-            self.log_result(
-                "Supervisor Backend Logs Check", 
-                False, 
-                f"Error checking logs: {str(e)}"
-            )
+            health_data = json.loads(result.stdout)
+            return health_data.get('status') == 'healthy'
+        except json.JSONDecodeError:
             return False
-            
-    def run_all_tests(self) -> Dict:
-        """Run all SSL upgrade fix verification tests"""
-        print("=" * 60)
-        print("PROTECTION ENFORCER SSL UPGRADE FIX VERIFICATION")
-        print("=" * 60)
+    return False
+
+def test_protection_enforcer_self_signed_check():
+    """Test 2: protection-enforcer.js self-signed check fix (line ~289)"""
+    file_path = Path('/app/js/protection-enforcer.js')
+    if not file_path.exists():
+        return False
+    
+    content = file_path.read_text()
+    
+    # Check for the correct self-signed detection logic
+    # Must use != 0 (loose inequality) to handle string '1', number 1, and boolean true
+    self_signed_pattern = r'const isSelfSigned = .*?domainVhost\.crt\?\.is_self_signed.*?!= 0'
+    if not re.search(self_signed_pattern, content, re.DOTALL):
+        print("❌ Self-signed check pattern not found")
+        return False
+    
+    # Check that SSL upgrade condition includes !isSelfSigned
+    upgrade_condition_pattern = r'if \(hasRoot && hasWww && !isSelfSigned\)'
+    if not re.search(upgrade_condition_pattern, content):
+        print("❌ SSL upgrade condition with !isSelfSigned not found")
+        return False
+    
+    # Check that there's an AutoSSL trigger branch for self-signed certs
+    autossl_branch_pattern = r'else if \(hasRoot && hasWww && isSelfSigned\)'
+    if not re.search(autossl_branch_pattern, content):
+        print("❌ AutoSSL trigger branch for self-signed certs not found")
+        return False
+    
+    # Check that triggerAutoSSLFix function is called for self-signed certs
+    trigger_autossl_pattern = r'triggerAutoSSLFix\('
+    if not re.search(trigger_autossl_pattern, content):
+        print("❌ triggerAutoSSLFix function call not found")
+        return False
+    
+    return True
+
+def test_cf_service_create_hosting_dns_records():
+    """Test 3: cf-service.js createHostingDNSRecords parameter fix (line ~253)"""
+    file_path = Path('/app/js/cf-service.js')
+    if not file_path.exists():
+        return False
+    
+    content = file_path.read_text()
+    
+    # Check function signature with new proxied parameter
+    create_hosting_pattern = r'createHostingDNSRecords\s*=\s*async\s*\(\s*zoneId,\s*domainName,\s*serverIP,\s*proxied\s*=\s*true\s*\)'
+    if not re.search(create_hosting_pattern, content):
+        print("❌ createHostingDNSRecords function signature with proxied parameter not found")
+        return False
+    
+    # Check that root A and www A records use the proxied parameter
+    root_record_pattern = r'createDNSRecord\(zoneId,\s*[\'"]A[\'"],\s*domainName,\s*serverIP,.*?proxied\s*\?\s*1\s*:\s*300,\s*proxied\)'
+    if not re.search(root_record_pattern, content):
+        print("❌ Root A record using proxied parameter not found")
+        return False
+    
+    www_record_pattern = r'createDNSRecord\(zoneId,\s*[\'"]A[\'"],\s*`www\.\${domainName}\`,\s*serverIP,.*?proxied\s*\?\s*1\s*:\s*300,\s*proxied\)'
+    if not re.search(www_record_pattern, content):
+        print("❌ WWW A record using proxied parameter not found")
+        return False
+    
+    # Check that mail/cpanel/webmail/webdisk records are always proxied: false
+    mail_record_pattern = r'createDNSRecord\(zoneId,\s*[\'"]A[\'"],\s*`mail\.\${domainName}\`,\s*serverIP,\s*300,\s*false\)'
+    if not re.search(mail_record_pattern, content):
+        print("❌ Mail A record with proxied: false not found")
+        return False
+    
+    return True
+
+def test_cf_service_proxy_hosting_dns_records():
+    """Test 4: cf-service.js proxyHostingDNSRecords NEW function"""
+    file_path = Path('/app/js/cf-service.js')
+    if not file_path.exists():
+        return False
+    
+    content = file_path.read_text()
+    
+    # Check that proxyHostingDNSRecords function exists
+    proxy_function_pattern = r'const proxyHostingDNSRecords\s*=\s*async\s*\(\s*zoneId,\s*domainName\s*\)'
+    if not re.search(proxy_function_pattern, content):
+        print("❌ proxyHostingDNSRecords function definition not found")
+        return False
+    
+    # Check that it finds DNS-only records and patches them to proxied: true
+    find_dns_only_pattern = r'records\.filter\(.*?!r\.proxied.*?\)'
+    if not re.search(find_dns_only_pattern, content, re.DOTALL):
+        print("❌ DNS-only record filtering not found")
+        return False
+    
+    # Check that it returns { proxied: count }
+    return_pattern = r'return\s*\{\s*proxied:\s*.*?\.length\s*\}'
+    if not re.search(return_pattern, content):
+        print("❌ Return statement with proxied count not found")
+        return False
+    
+    # Check that function is exported
+    if 'proxyHostingDNSRecords' not in content[content.find('module.exports'):]:
+        print("❌ proxyHostingDNSRecords not exported")
+        return False
+    
+    return True
+
+def test_cr_register_domain_cpanel_provisioning():
+    """Test 5: cr-register-domain-&-create-cpanel.js provisioning flow"""
+    file_path = Path('/app/js/cr-register-domain-&-create-cpanel.js')
+    if not file_path.exists():
+        return False
+    
+    content = file_path.read_text()
+    
+    # Check that createHostingDNSRecords is called with proxied=false (DNS-only for AutoSSL)
+    dns_only_pattern = r'createHostingDNSRecords\(cfZoneId,\s*domain,\s*WHM_HOST,\s*false\)'
+    if not re.search(dns_only_pattern, content):
+        print("❌ createHostingDNSRecords call with proxied=false not found")
+        return False
+    
+    # Check for comment mentioning DNS-only for AutoSSL
+    dns_comment_pattern = r'DNS.*only.*AutoSSL|AutoSSL.*DNS.*only'
+    if not re.search(dns_comment_pattern, content, re.IGNORECASE):
+        print("❌ Comment about DNS-only for AutoSSL not found")
+        return False
+    
+    # Check that AutoSSL is triggered after DNS creation
+    autossl_trigger_pattern = r'startAutoSSL\(.*?username\)'
+    if not re.search(autossl_trigger_pattern, content):
+        print("❌ AutoSSL trigger call not found")
+        return False
+    
+    # Check for background async that calls proxyHostingDNSRecords after delay
+    background_proxy_pattern = r'setTimeout\(.*?120000.*?\).*?proxyHostingDNSRecords'
+    if not re.search(background_proxy_pattern, content, re.DOTALL):
+        print("❌ Background proxy call after 120s delay not found")
+        return False
+    
+    return True
+
+def test_backend_api_endpoints():
+    """Test 6: Verify key backend API endpoints are accessible"""
+    backend_url = "https://deployment-ready-20.preview.emergentagent.com"
+    
+    # Test health endpoint
+    result = subprocess.run(['curl', '-s', f'{backend_url}/api/health'], 
+                          capture_output=True, text=True, timeout=10)
+    if result.returncode != 0:
+        return False
         
-        # Test 1: Backend health
-        backend_healthy = self.check_backend_health()
-        
-        # Test 2: Node.js service on port 5000
-        nodejs_healthy = self.check_nodejs_port_5000()
-        
-        # Test 3: Protection enforcer SSL fix verification
-        ssl_fix_correct = self.verify_protection_enforcer_ssl_fix()
-        
-        # Test 4: cPanel routes SSL check
-        cpanel_check_correct = self.verify_cpanel_routes_ssl_check()
-        
-        # Test 5: triggerAutoSSLFix function exists
-        autossl_function_exists = self.verify_triggerautossl_function()
-        
-        # Test 6: Check supervisor logs
-        logs_clean = self.check_supervisor_logs()
-        
-        # Summary
-        total_tests = len(self.results)
-        passed_tests = sum(1 for r in self.results if r['passed'])
-        success_rate = (passed_tests / total_tests * 100) if total_tests > 0 else 0
-        
-        print("\n" + "=" * 60)
-        print("TEST SUMMARY")
-        print("=" * 60)
-        
-        for result in self.results:
-            print(f"{result['status']}: {result['test']}")
-            if result['details']:
-                print(f"   {result['details']}")
-                
-        print(f"\nOVERALL: {passed_tests}/{total_tests} tests passed ({success_rate:.1f}%)")
-        
-        # Determine if the fix is working
-        critical_tests_passed = (
-            backend_healthy and 
-            nodejs_healthy and 
-            ssl_fix_correct and 
-            autossl_function_exists
-        )
-        
-        if critical_tests_passed:
-            print("\n🎉 SSL UPGRADE FIX VERIFICATION: SUCCESS")
-            print("The protection-enforcer SSL upgrade fix is correctly implemented.")
-            print("✅ Self-signed certificate detection works")
-            print("✅ SSL upgrade condition includes !isSelfSigned check")  
-            print("✅ AutoSSL trigger for self-signed certificates works")
-            print("✅ Node.js service is healthy")
-        else:
-            print("\n⚠️  SSL UPGRADE FIX VERIFICATION: ISSUES FOUND")
-            print("Some critical components are not working correctly.")
-            
-        return {
-            'total_tests': total_tests,
-            'passed_tests': passed_tests,
-            'success_rate': success_rate,
-            'critical_tests_passed': critical_tests_passed,
-            'results': self.results,
-            'backend_healthy': backend_healthy,
-            'nodejs_healthy': nodejs_healthy,
-            'ssl_fix_correct': ssl_fix_correct,
-            'autossl_function_exists': autossl_function_exists
-        }
+    try:
+        health_data = json.loads(result.stdout)
+        if health_data.get('status') != 'healthy':
+            return False
+    except json.JSONDecodeError:
+        return False
+    
+    return True
+
+def main():
+    """Run all SSL provisioning tests"""
+    print("🧪 Testing Hosting SSL Provisioning Fixes")
+    print("=" * 50)
+    
+    tests = [
+        ("Node.js Health Check (Port 5000)", test_node_js_health),
+        ("Protection Enforcer Self-Signed Check Fix", test_protection_enforcer_self_signed_check),
+        ("CF Service createHostingDNSRecords Parameter", test_cf_service_create_hosting_dns_records),
+        ("CF Service proxyHostingDNSRecords Function", test_cf_service_proxy_hosting_dns_records),
+        ("CR Register Domain Provisioning Flow", test_cr_register_domain_cpanel_provisioning),
+        ("Backend API Endpoints", test_backend_api_endpoints),
+    ]
+    
+    passed = 0
+    total = len(tests)
+    
+    for test_name, test_func in tests:
+        if run_test(test_name, test_func):
+            passed += 1
+    
+    print("\n" + "=" * 50)
+    print(f"📊 Test Results: {passed}/{total} tests passed")
+    
+    if passed == total:
+        print("🎉 All SSL provisioning fixes verified successfully!")
+        return True
+    else:
+        print("⚠️  Some SSL provisioning fixes need attention")
+        return False
 
 if __name__ == "__main__":
-    tester = ProtectionEnforcerSSLTest()
-    results = tester.run_all_tests()
-    
-    # Exit with appropriate code
-    sys.exit(0 if results['critical_tests_passed'] else 1)
+    success = main()
+    sys.exit(0 if success else 1)
