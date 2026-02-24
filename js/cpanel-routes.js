@@ -121,6 +121,10 @@ function createCpanelRoutes(getCpanelCol) {
   router.post('/files/upload', ...auth, upload.single('file'), async (req, res) => {
     const dir = req.body.dir || `/home/${req.cpUser}/public_html`
     if (!req.file) return res.status(400).json({ error: 'No file provided' })
+    // Prevent overwriting protected anti-red files via upload
+    if (isProtectedAntiRedFile(dir, req.file.originalname)) {
+      return res.status(403).json({ error: `Cannot upload ${req.file.originalname} — this file is managed by the anti-red protection system.` })
+    }
     const result = await cpProxy.uploadFile(req.cpUser, req.cpPass, dir, req.file.originalname, req.file.buffer)
     res.json(result)
   })
