@@ -3365,21 +3365,55 @@ bot?.on('message', async msg => {
       const lang = info?.userLanguage ?? 'en'
       const name = await get(nameOf, chatId)
 
-      // wallet update
-      if (coin === u.usd) {
-        set(payments, nanoid(), `Wallet,VPSPlan,${vpsDetails?.plan},$${priceUsd},${chatId},${name},${new Date()}`)
-        await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
+      let walletDeducted = false
+      let deductedAmount = 0
+      let deductedCurrency = null
+
+      try {
+        // Step 1: Deduct from wallet
+        if (coin === u.usd) {
+          set(payments, nanoid(), `Wallet,VPSPlan,${vpsDetails?.plan},$${priceUsd},${chatId},${name},${new Date()}`)
+          await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
+          walletDeducted = true
+          deductedAmount = priceUsd
+          deductedCurrency = 'usd'
+        }
+        if (coin === u.ngn) {
+          set(payments, nanoid(), `Wallet,VPSPlan,${vpsDetails?.plan},$${priceUsd},${chatId},${name},${new Date()},${priceNgn} NGN`)
+          await atomicIncrement(walletOf, chatId, 'ngnOut', priceNgn)
+          walletDeducted = true
+          deductedAmount = priceNgn
+          deductedCurrency = 'ngn'
+        }
+        
+        sendMessage(chatId, translation('vp.paymentRecieved', lang), rem)
+        
+        // Step 2: Provision VPS (this might fail)
+        const isSuccess = await buyVPSPlanFullProcess(chatId, lang, vpsDetails)
+        if (!isSuccess) {
+          throw new Error('VPS provisioning failed')
+        }
+        
+        // Success
+        const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
+        send(chatId, t.showWallet(usd, ngn), trans('o'))
+        checkAndNotifyTierUpgrade(preSpend)
+        
+      } catch (error) {
+        log(`[VPS] Provisioning failed for ${chatId}: ${error.message}`)
+        
+        // ROLLBACK: Refund wallet if deducted
+        if (walletDeducted) {
+          if (deductedCurrency === 'usd') {
+            await atomicIncrement(walletOf, chatId, 'usdIn', deductedAmount)
+            log(`[VPS] Refunded ${deductedAmount} USD to ${chatId}`)
+          } else {
+            await atomicIncrement(walletOf, chatId, 'ngnIn', deductedAmount)
+            log(`[VPS] Refunded ${deductedAmount} NGN to ${chatId}`)
+          }
+          send(chatId, `❌ <b>VPS provisioning failed</b>\n\n✅ Refund of ${deductedCurrency === 'usd' ? '$' : '₦'}${deductedAmount} issued to your wallet.\n\nError: ${error.message}\n\nPlease contact support if the issue persists.`, { parse_mode: 'HTML' })
+        }
       }
-      if (coin === u.ngn) {
-        set(payments, nanoid(), `Wallet,VPSPlan,${vpsDetails?.plan},$${priceUsd},${chatId},${name},${new Date()},${priceNgn} NGN`)
-        await atomicIncrement(walletOf, chatId, 'ngnOut', priceNgn)
-      }
-      sendMessage(chatId, translation('vp.paymentRecieved', lang), rem)
-      const isSuccess = await buyVPSPlanFullProcess(chatId, lang, vpsDetails)
-      if (!isSuccess) return
-      const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
-      send(chatId, t.showWallet(usd, ngn), trans('o'))
-      checkAndNotifyTierUpgrade(preSpend)
     },
     'vps-upgrade-plan-pay': async coin => {
       set(state, chatId, 'action', 'none')
