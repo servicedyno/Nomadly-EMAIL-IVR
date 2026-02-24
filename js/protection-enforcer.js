@@ -25,6 +25,10 @@ const CF_HEADERS = {
 const CF_BASE = 'https://api.cloudflare.com/client/v4'
 const WORKER_NAME = 'antired-challenge'
 
+// Our WHM/hosting server IP — only domains pointing here should get anti-red protection
+const OUR_SERVER_IP = process.env.RENDER_APP_IP_ADDRESS || '199.247.22.196'
+const WHM_HOST_IP = process.env.WHM_HOST || '199.247.22.196'
+
 // How often to run enforcement (default: every 6 hours)
 const ENFORCE_INTERVAL_MS = parseInt(process.env.PROTECTION_ENFORCE_INTERVAL_HOURS || '6', 10) * 60 * 60 * 1000
 
