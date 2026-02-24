@@ -291,14 +291,19 @@ async function enforceSSLUpgrade(domain, zoneId, entry) {
     const certDomains = domainVhost.crt?.domains || []
     const hasRoot = certDomains.includes(domain)
     const hasWww = certDomains.includes(`www.${domain}`)
+    const isSelfSigned = domainVhost.crt?.is_self_signed === 1 || domainVhost.crt?.is_self_signed === true
 
-    if (hasRoot && hasWww) {
-      // Valid cert covering both — upgrade to 'strict'
+    if (hasRoot && hasWww && !isSelfSigned) {
+      // Valid CA-signed cert covering both — safe to upgrade to 'strict'
       await axios.patch(`${CF_BASE}/zones/${zoneId}/settings/ssl`, { value: 'strict' }, {
         headers: CF_HEADERS,
         timeout: 10000,
       })
-      log(`[ProtectionEnforcer] SSL UPGRADED: ${domain} from '${currentSSL}' → 'strict'`)
+      log(`[ProtectionEnforcer] SSL UPGRADED: ${domain} from '${currentSSL}' → 'strict' (CA-signed cert verified)`)
+    } else if (hasRoot && hasWww && isSelfSigned) {
+      // Self-signed cert covers domain but can't use strict — trigger AutoSSL to get CA cert
+      log(`[ProtectionEnforcer] ${domain} has self-signed cert, skipping strict upgrade. Triggering AutoSSL.`)
+      await triggerAutoSSLFix(domain, zoneId, entry)
     } else if (!hasRoot || !hasWww) {
       // Missing root or www — trigger AutoSSL with temporary unproxy
       log(`[ProtectionEnforcer] AutoSSL fix needed for ${domain}: root=${hasRoot}, www=${hasWww}`)
