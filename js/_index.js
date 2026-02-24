@@ -6392,6 +6392,12 @@ bot?.on('message', async msg => {
 
     if (![t.addDns, t.updateDns, t.deleteDns, t.activateShortener, t.deactivateShortener, t.quickActions, t.checkDns, t.switchToCf].includes(message)) return send(chatId, t.selectValidOption)
 
+    // Custom NS domains: only allow Switch to CF + Update NS (for nameserver changes)
+    const nsType = info?.nameserverType
+    if (nsType === 'custom' && ![t.updateDns, t.switchToCf].includes(message)) {
+      return send(chatId, 'DNS records are managed by your custom nameserver provider. You can only update nameservers or switch to Cloudflare.')
+    }
+
     if (message === t.switchToCf) {
       const domain = info?.domainToManage
       const nsType = info?.nameserverType
