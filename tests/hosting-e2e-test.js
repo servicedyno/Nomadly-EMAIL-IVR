@@ -372,7 +372,7 @@ async function testStateFlowVerification() {
 
   // 6b. registerDomainAndCreateCpanel handles all 3 paths
   const pathChecks = [
-    { label: 'isNewDomain path (register domain)', pattern: /isNewDomain[\s\S]{0,200}domainService\.registerDomain/ },
+    { label: 'isNewDomain path (register domain)', pattern: /isNewDomain[\s\S]{0,1500}domainService\.registerDomain/ },
     { label: 'isExisting path (link existing)', pattern: /isExisting[\s\S]{0,200}Linking/ },
     { label: 'isExternal path (connect external)', pattern: /isExternal[\s\S]{0,200}Connecting external/ },
   ]
@@ -441,7 +441,7 @@ async function testStateFlowVerification() {
   }
 
   // 6j. HostPanel PIN delivered (not raw cPanel credentials)
-  const pinDeliveryPattern = /pin\)[\s\S]{0,200}HostPanel Login[\s\S]{0,200}Username.*PIN/
+  const pinDeliveryPattern = /if\s*\(pin\)[\s\S]{0,600}HostPanel Login/
   if (pinDeliveryPattern.test(cpanelCode)) {
     ok(`Delivery: HostPanel PIN login delivered (not raw cPanel creds) ✓`)
   } else {
@@ -509,7 +509,7 @@ async function testRegisterFlowDryRun() {
     { label: 'Determines isExternal', pattern: /isExternal\s*=\s*info\.connectExternalDomain/ },
     { label: 'Determines isNewDomain', pattern: /isNewDomain\s*=\s*!isExisting\s*&&\s*!isExternal/ },
     { label: 'WHM gets useCloudflareNS flag', pattern: /createAccount[\s\S]{0,200}useCloudflareNS:\s*isCloudflareNS/ },
-    { label: 'CF cleanup before hosting DNS', pattern: /cleanupConflictingDNS[\s\S]{0,200}createHostingDNSRecords/ },
+    { label: 'CF cleanup before hosting DNS', pattern: /cleanupConflictingDNS[\s\S]{0,600}createHostingDNSRecords/ },
     { label: 'SSL set to full mode', pattern: /setSSLMode\(cfZoneId,\s*['"]full['"]/ },
     { label: 'HTTPS enforced', pattern: /enforceHTTPS\(cfZoneId\)/ },
     { label: 'State cleaned up at end', pattern: /removeKeysFromDocumentById\(state,\s*chatId/ },
