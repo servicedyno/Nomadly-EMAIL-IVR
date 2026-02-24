@@ -325,6 +325,8 @@ function createCpanelRoutes(getCpanelCol) {
         try {
           const newZone = await cfService.createZone(domain)
           if (newZone.success) {
+            // Clean up conflicting DNS records before creating hosting records
+            await cfService.cleanupConflictingDNS(newZone.zoneId, domain)
             // Create hosting DNS records
             if (WHM_HOST) {
               await cfService.createHostingDNSRecords(newZone.zoneId, domain, WHM_HOST)
@@ -332,11 +334,9 @@ function createCpanelRoutes(getCpanelCol) {
               await cfService.enforceHTTPS(newZone.zoneId)
             }
 
-            // Auto-deploy anti-red Worker route
-            try {
-              const { deploySharedWorkerRoute } = require('./anti-red-service')
-              deploySharedWorkerRoute(domain, newZone.zoneId).catch(() => {})
-            } catch (_) {}
+            // NOTE: Worker routes are NOT deployed from a status-check endpoint.
+            // Workers are deployed via deployFullProtection() during hosting provisioning
+            // or via the /security/anti-red/deploy panel endpoint.
 
             // Update NS at registrar
             const registrar = domainMeta.registrar || 'OpenProvider'
