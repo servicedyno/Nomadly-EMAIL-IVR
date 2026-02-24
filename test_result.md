@@ -322,6 +322,18 @@ backend:
           agent: "testing"
           comment: "✅ SSL UPGRADE FIX COMPREHENSIVE VERIFICATION COMPLETE: All implementation requirements validated with 100% success rate (9/9 tests passed). (1) Self-signed certificate detection correctly implemented at line 294 in js/protection-enforcer.js: 'const isSelfSigned = domainVhost.crt?.is_self_signed === 1 || domainVhost.crt?.is_self_signed === true'. (2) SSL upgrade condition properly includes !isSelfSigned check at line 296: 'if (hasRoot && hasWww && !isSelfSigned)' — prevents strict upgrade for self-signed certs. (3) AutoSSL trigger branch for self-signed certs correctly implemented at line 303: 'else if (hasRoot && hasWww && isSelfSigned)' — calls triggerAutoSSLFix() instead of upgrading to strict. (4) cpanel-routes.js includes self-signed check at line 759-761 with proper !isSelfSigned condition before SSL upgrade. (5) triggerAutoSSLFix function exists and properly handles temporary unproxy, AutoSSL trigger, polling, and re-proxy with final SSL upgrade. (6) Node.js service running healthy on port 5000 with database connected, no critical errors in supervisor logs. THE SSL UPGRADE BUG IS FIXED: self-signed certificates now trigger AutoSSL instead of causing 526 errors from 'strict' mode."
 
+  - task: "Fix: Hosting SSL provisioning — DNS-only for AutoSSL + self-signed check"
+    implemented: true
+    working: true
+    file: "js/protection-enforcer.js, js/cf-service.js, js/cr-register-domain-&-create-cpanel.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ HOSTING SSL PROVISIONING FIXES COMPREHENSIVE VERIFICATION COMPLETE: All 5 SSL provisioning changes validated with 100% success rate (6/6 tests passed). (1) protection-enforcer.js line 294: Self-signed check correctly implemented using '!= 0' (loose inequality) which handles string '1', number 1, and boolean true - fixes the critical bug where old code used '=== 1' and failed on string values. SSL upgrade condition properly includes '!isSelfSigned' and AutoSSL trigger branch exists for self-signed certs. (2) cf-service.js line 253: createHostingDNSRecords function signature correctly updated with 'proxied = true' parameter, root A + www A records use proxied parameter value, mail/cpanel/webmail/webdisk records are ALWAYS 'proxied: false' regardless of parameter. (3) cf-service.js lines 291-304: proxyHostingDNSRecords NEW function correctly implemented, finds root A + www A records that are DNS-only (!proxied) and patches them to proxied: true, returns { proxied: count }, properly exported. (4) cr-register-domain-&-create-cpanel.js line 168: Provisioning flow calls createHostingDNSRecords(cfZoneId, domain, WHM_HOST, false) for DNS-only creation, triggers AutoSSL after DNS setup, background async waits 120s then calls proxyHostingDNSRecords(), comment mentions 'DNS-only for AutoSSL'. (5) Node.js service running healthy on port 5000 with database connected. ALL 5 SSL PROVISIONING FIXES VERIFIED AND WORKING CORRECTLY - prevents 526 SSL errors for future hosting customers by using DNS-only records for AutoSSL validation then proxying after cert issuance."
+
   - task: "Fix: AutoSSL message showing on every domain page load"
     implemented: true
     working: true
