@@ -147,6 +147,19 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state)
         }
 
         if (cfZoneId) {
+          // Issue E Fix: Clean up any conflicting A/AAAA/CNAME records for root and www
+          // before creating hosting records. This is essential when transitioning a domain
+          // from shortener (CNAME→Railway) to hosting (A→WHM), since Cloudflare doesn't
+          // allow both CNAME and A records for the same name.
+          try {
+            const cleanup = await cfService.cleanupConflictingDNS(cfZoneId, domain)
+            if (cleanup.deleted.length > 0) {
+              log(`[Hosting] Cleaned up ${cleanup.deleted.length} conflicting DNS records for ${domain}`)
+            }
+          } catch (cleanupErr) {
+            log(`[Hosting] DNS cleanup warning (non-blocking): ${cleanupErr.message}`)
+          }
+
           // Create DNS A record (domain → WHM server IP) + CNAME (www)
           const dnsResult = await cfService.createHostingDNSRecords(cfZoneId, domain, WHM_HOST)
           // Use 'full' SSL initially (accepts self-signed certs from new cPanel accounts)
