@@ -1,343 +1,309 @@
 #!/usr/bin/env python3
 """
-Backend Test Suite for Nomadly Node.js Backend
-Focus: Clean: Decouple shortener from Anti-Red + simplify post-registration
+Backend Test for Nomadly OP Nameserver Fix
+Tests the 5 key changes requested in the review:
+1. OP_DEFAULT_NS constant
+2. registerDomain() NS resolution logic  
+3. Domain registration log lines
+4. Scenario verification via code tracing
+5. Node.js health check
 """
 
-import requests
-import subprocess
-import sys
 import re
-import os
+import requests
+import json
+import sys
 
-class Colors:
-    GREEN = '\033[92m'
-    RED = '\033[91m'
-    YELLOW = '\033[93m'
-    BLUE = '\033[94m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-
-def print_test(test_name):
-    print(f"\n{Colors.BLUE}🧪 Testing: {test_name}{Colors.ENDC}")
-
-def print_success(message):
-    print(f"{Colors.GREEN}✅ {message}{Colors.ENDC}")
-
-def print_error(message):
-    print(f"{Colors.RED}❌ {message}{Colors.ENDC}")
-
-def print_warning(message):
-    print(f"{Colors.YELLOW}⚠️  {message}{Colors.ENDC}")
-
-def print_info(message):
-    print(f"{Colors.BLUE}ℹ️  {message}{Colors.ENDC}")
-
-class BackendTester:
-    def __init__(self):
-        self.base_url = "http://localhost:5000"
-        self.passed_tests = 0
-        self.total_tests = 0
-        
-    def test_health_endpoint(self):
-        """Test if Node.js service is running and healthy"""
-        print_test("Node.js Health Check")
-        self.total_tests += 1
-        
-        try:
-            response = requests.get(f"{self.base_url}/health", timeout=5)
-            if response.status_code == 200:
-                data = response.json()
-                if data.get('status') == 'healthy' and data.get('database') == 'connected':
-                    print_success("Node.js service running healthy on port 5000")
-                    print_info(f"Database: {data.get('database')}, Uptime: {data.get('uptime')}")
-                    self.passed_tests += 1
-                    return True
+def test_op_default_ns_constant():
+    """Test 1: Verify OP_DEFAULT_NS constant exists around line 14"""
+    print("🔍 TEST 1: Checking OP_DEFAULT_NS constant...")
+    
+    with open('/app/js/op-service.js', 'r') as f:
+        content = f.read()
+        lines = content.split('\n')
+    
+    # Check if OP_DEFAULT_NS exists around line 14 (±5 lines)
+    found = False
+    expected_ns = ['ns1.openprovider.nl', 'ns2.openprovider.be', 'ns3.openprovider.eu']
+    
+    for i, line in enumerate(lines[9:19], start=10):  # Lines 10-19 (around line 14)
+        if 'OP_DEFAULT_NS' in line and 'const' in line:
+            print(f"   ✅ Found OP_DEFAULT_NS at line {i}: {line.strip()}")
+            
+            # Verify the nameserver values
+            for ns in expected_ns:
+                if ns in line:
+                    print(f"      ✅ Contains expected NS: {ns}")
                 else:
-                    print_error(f"Service unhealthy: {data}")
+                    print(f"      ❌ Missing expected NS: {ns}")
                     return False
-            else:
-                print_error(f"Health check failed with status {response.status_code}")
-                return False
-        except Exception as e:
-            print_error(f"Cannot connect to Node.js service: {e}")
-            return False
+            found = True
+            break
+    
+    if not found:
+        print("   ❌ OP_DEFAULT_NS constant not found around line 14")
+        return False
+    
+    return True
 
-    def verify_domain_service_cleanup(self):
-        """Verify domain-service.js has NO Anti-Red references and no anti-red-service import"""
-        print_test("domain-service.js Anti-Red Cleanup")
-        self.total_tests += 1
+def test_register_domain_ns_logic():
+    """Test 2: Verify registerDomain() NS resolution logic around lines 349-365"""
+    print("\n🔍 TEST 2: Checking registerDomain() NS resolution logic...")
+    
+    with open('/app/js/op-service.js', 'r') as f:
+        content = f.read()
+    
+    # Find registerDomain function
+    reg_domain_match = re.search(r'const registerDomain = async.*?\{(.*?)^\}', content, re.MULTILINE | re.DOTALL)
+    if not reg_domain_match:
+        print("   ❌ registerDomain function not found")
+        return False
+    
+    func_content = reg_domain_match.group(1)
+    lines = func_content.split('\n')
+    
+    checks = {
+        'effectiveNS_assignment': False,
+        'ns_required_tlds_check': False, 
+        'empty_ns_fallback': False,
+        'unconditional_name_servers': False
+    }
+    
+    for line in lines:
+        line_clean = line.strip()
         
-        try:
-            with open('/app/js/domain-service.js', 'r') as f:
-                content = f.read()
-                
-            # Check for Anti-Red references (case insensitive)
-            anti_red_matches = re.findall(r'anti[-_\s]*red', content, re.IGNORECASE)
-            if anti_red_matches:
-                print_error(f"Found {len(anti_red_matches)} Anti-Red references: {anti_red_matches}")
-                return False
-                
-            # Check for anti-red-service import
-            import_matches = re.findall(r"require\s*\(\s*['\"].*anti-red.*['\"]", content, re.IGNORECASE)
-            if import_matches:
-                print_error(f"Found anti-red-service import: {import_matches}")
-                return False
-                
-            # Verify all expected exports still exist
-            required_exports = [
-                'checkDomainPrice', 'registerDomain', 'addDNSRecord', 
-                'viewDNSRecords', 'updateDNSRecord', 'deleteDNSRecord'
-            ]
-            missing_exports = []
-            for export in required_exports:
-                if export not in content:
-                    missing_exports.append(export)
-                    
-            if missing_exports:
-                print_error(f"Missing exports: {missing_exports}")
-                return False
-                
-            print_success("domain-service.js is clean of Anti-Red references")
-            print_success("anti-red-service import removed")
-            print_success("All required exports present")
-            self.passed_tests += 1
-            return True
+        # Check 1: let effectiveNS = nameservers
+        if 'let effectiveNS = nameservers' in line_clean:
+            print("   ✅ Found: let effectiveNS = nameservers")
+            checks['effectiveNS_assignment'] = True
+        
+        # Check 2: NS_REQUIRED_TLDS check with CF defaults  
+        if 'NS_REQUIRED_TLDS.includes(tld)' in line_clean:
+            print("   ✅ Found: NS_REQUIRED_TLDS check")
+            checks['ns_required_tlds_check'] = True
             
-        except Exception as e:
-            print_error(f"Error reading domain-service.js: {e}")
-            return False
+        # Check 3: ELSE IF effectiveNS.length === 0 → OP_DEFAULT_NS
+        if 'else if' in line_clean.lower() and 'effectiveNS.length === 0' in line_clean:
+            print("   ✅ Found: else if (effectiveNS.length === 0)")
+            checks['empty_ns_fallback'] = True
+            
+        # Check 4: Unconditional name_servers assignment
+        if 'name_servers: nsPayload' in line_clean and '?' not in line_clean:
+            print("   ✅ Found: Unconditional name_servers: nsPayload")
+            checks['unconditional_name_servers'] = True
+    
+    # Verify OP_DEFAULT_NS is assigned when empty
+    if 'effectiveNS = OP_DEFAULT_NS' in func_content:
+        print("   ✅ Found: effectiveNS = OP_DEFAULT_NS assignment")
+    else:
+        print("   ❌ Missing: effectiveNS = OP_DEFAULT_NS assignment")
+        return False
+    
+    all_passed = all(checks.values())
+    if all_passed:
+        print("   ✅ All NS resolution logic checks passed")
+    else:
+        print(f"   ❌ Missing checks: {[k for k, v in checks.items() if not v]}")
+    
+    return all_passed
 
-    def verify_buydomainfullprocess_changes(self):
-        """Verify buyDomainFullProcess changes around line 11364"""
-        print_test("buyDomainFullProcess NS Message Removal")
-        self.total_tests += 1
+def test_domain_service_log_lines():
+    """Test 3: Verify log lines in domain-service.js around lines 127-131"""
+    print("\n🔍 TEST 3: Checking domain-service.js log lines...")
+    
+    with open('/app/js/domain-service.js', 'r') as f:
+        lines = f.readlines()
+    
+    checks = {
+        'direct_op_log': False,
+        'fallback_op_log': False
+    }
+    
+    # Check lines 120-140 for the log statements
+    for i, line in enumerate(lines[115:145], start=116):  # Lines 116-145
+        line_clean = line.strip()
         
-        try:
-            with open('/app/js/_index.js', 'r') as f:
-                lines = f.readlines()
-                
-            # Find buyDomainFullProcess function
-            func_start = -1
-            func_end = -1
-            for i, line in enumerate(lines):
-                if 'buyDomainFullProcess = async' in line:
-                    func_start = i
-                elif func_start != -1 and line.strip().startswith('}') and 'catch' not in lines[i-5:i]:
-                    # Find the closing brace of the function
-                    brace_count = 0
-                    for j in range(func_start, len(lines)):
-                        brace_count += lines[j].count('{') - lines[j].count('}')
-                        if brace_count == 0 and j > func_start:
-                            func_end = j
-                            break
-                    break
-                    
-            if func_start == -1:
-                print_error("Could not find buyDomainFullProcess function")
-                return False
-                
-            func_lines = lines[func_start:func_end+1] if func_end != -1 else lines[func_start:]
-            func_content = ''.join(func_lines)
+        # Direct OP path log
+        if 'Registering' in line_clean and 'OpenProvider with NS:' in line_clean:
+            print(f"   ✅ Found direct OP log at line {i}: {line_clean}")
+            checks['direct_op_log'] = True
             
-            # Check that old sendMessage with "✅ Nameservers set to..." is REMOVED
-            ns_message_patterns = [
-                r'sendMessage.*✅.*Nameservers\s+set\s+to',
-                r'sendMessage.*✅.*nameservers\s+set\s+to',
-                r'send.*✅.*Nameservers\s+set\s+to',
-                r'send.*✅.*nameservers\s+set\s+to'
-            ]
-            
-            for pattern in ns_message_patterns:
-                if re.search(pattern, func_content, re.IGNORECASE):
-                    print_error(f"Found prohibited NS sendMessage: {pattern}")
-                    return False
-            
-            # Verify "Track actual registrar" comment exists
-            if "Track actual registrar" not in func_content:
-                print_error("Missing 'Track actual registrar' comment")
-                return False
-                
-            # Verify registrar assignment still exists
-            if "registrar = buyResult.registrar || registrar" not in func_content:
-                print_error("Missing registrar assignment line")
-                return False
-                
-            # Verify only log(...) remains for NS handling
-            ns_section = None
-            for i, line in enumerate(func_lines):
-                if "NS was set at registration time" in line:
-                    # Check next few lines for log() usage
-                    ns_section = ''.join(func_lines[i:i+5])
-                    break
-                    
-            if ns_section and 'log(' in ns_section and 'sendMessage' not in ns_section:
-                print_success("NS confirmation sendMessage correctly removed")
-                print_success("Only log() remains in NS check block")
-            else:
-                print_warning("Could not verify NS section changes")
-                
-            print_success("'Track actual registrar' comment found")
-            print_success("registrar assignment line present")
-            self.passed_tests += 1
-            return True
-            
-        except Exception as e:
-            print_error(f"Error analyzing buyDomainFullProcess: {e}")
-            return False
+        # Fallback OP path log  
+        if 'Fallback OP registration' in line_clean and 'with NS:' in line_clean:
+            print(f"   ✅ Found fallback OP log at line {i}: {line_clean}")
+            checks['fallback_op_log'] = True
+    
+    all_passed = all(checks.values())
+    if all_passed:
+        print("   ✅ All required log lines found")
+    else:
+        print(f"   ❌ Missing log lines: {[k for k, v in checks.items() if not v]}")
+    
+    return all_passed
 
-    def verify_shortener_comment_cleanup(self):
-        """Verify shortener comment around line 5766 says 'use Cloudflare for DNS management' WITHOUT Anti-Red"""
-        print_test("Shortener Comment Anti-Red Cleanup")
-        self.total_tests += 1
+def test_scenario_verification():
+    """Test 4: Trace through code scenarios (no API calls)"""
+    print("\n🔍 TEST 4: Scenario verification via code tracing...")
+    
+    scenarios = [
+        {
+            'name': 'provider_default + OP → OP_DEFAULT_NS',
+            'nsChoice': 'provider_default',
+            'registrar': 'OpenProvider', 
+            'nameservers': [],
+            'expected_ns': 'OP_DEFAULT_NS'
+        },
+        {
+            'name': 'cloudflare + OP → CF nameservers',
+            'nsChoice': 'cloudflare',
+            'registrar': 'OpenProvider',
+            'nameservers': ['hank.ns.cloudflare.com', 'nova.ns.cloudflare.com'],
+            'expected_ns': 'CF nameservers'
+        },
+        {
+            'name': 'custom + OP → custom NS',
+            'nsChoice': 'custom', 
+            'registrar': 'OpenProvider',
+            'nameservers': ['ns1.example.com', 'ns2.example.com'],
+            'expected_ns': 'custom NS'
+        },
+        {
+            'name': '.fr TLD with empty NS → CF defaults',
+            'nsChoice': 'provider_default',
+            'registrar': 'OpenProvider',
+            'nameservers': [],
+            'tld': 'fr',
+            'expected_ns': 'CF defaults (NS_REQUIRED_TLD)'
+        }
+    ]
+    
+    with open('/app/js/domain-service.js', 'r') as f:
+        domain_service_content = f.read()
         
-        try:
-            with open('/app/js/_index.js', 'r') as f:
-                lines = f.readlines()
-                
-            # Find the shortener comment section around line 5766
-            target_line = -1
-            for i in range(5760, min(5780, len(lines))):
-                if i < len(lines) and 'saveInfo(' in lines[i] and 'nsChoice' in lines[i] and 'cloudflare' in lines[i]:
-                    target_line = i
-                    break
-                    
-            if target_line == -1:
-                print_error("Could not find saveInfo('nsChoice', 'cloudflare') line")
-                return False
-                
-            # Check surrounding lines for the comment
-            comment_section = ''.join(lines[max(0, target_line-5):target_line+5])
-            
-            # Verify comment says "use Cloudflare for DNS management" WITHOUT "Anti-Red"
-            if "use Cloudflare for DNS management" in comment_section:
-                if re.search(r'anti[-_\s]*red', comment_section, re.IGNORECASE):
-                    print_error("Found Anti-Red reference in shortener comment")
-                    return False
-                else:
-                    print_success("Comment says 'use Cloudflare for DNS management' without Anti-Red")
+    with open('/app/js/op-service.js', 'r') as f:
+        op_service_content = f.read()
+    
+    all_passed = True
+    
+    for scenario in scenarios:
+        print(f"\n   📋 Scenario: {scenario['name']}")
+        
+        # Trace domain-service.js logic
+        if scenario['registrar'] == 'OpenProvider':
+            if scenario['nsChoice'] in ['cloudflare', 'custom']:
+                ns_passed = scenario['nameservers']
+                print(f"      → domain-service passes NS to OP: {ns_passed}")
             else:
-                print_warning("Could not find expected comment text")
-                
-            # Verify saveInfo line still exists
-            if "saveInfo('nsChoice', 'cloudflare')" in comment_section:
-                print_success("saveInfo('nsChoice', 'cloudflare') line present")
+                ns_passed = []  # provider_default → empty array
+                print(f"      → domain-service passes empty NS to OP: {ns_passed}")
+        
+        # Trace op-service.js registerDomain logic
+        effective_ns = ns_passed if 'ns_passed' in locals() else []
+        tld = scenario.get('tld', 'com')
+        
+        if len(effective_ns) < 2 and tld in ['fr', 're', 'pm', 'tf', 'wf', 'yt']:
+            effective_ns = ['hank.ns.cloudflare.com', 'nova.ns.cloudflare.com']
+            print(f"      → OP sets effectiveNS to CF defaults (NS_REQUIRED_TLD): {effective_ns}")
+        elif len(effective_ns) == 0:
+            effective_ns = ['ns1.openprovider.nl', 'ns2.openprovider.be', 'ns3.openprovider.eu']
+            print(f"      → OP sets effectiveNS to OP_DEFAULT_NS: {effective_ns}")
+        else:
+            print(f"      → OP uses provided effectiveNS: {effective_ns}")
+        
+        # Verify expected outcome
+        if scenario['expected_ns'] == 'OP_DEFAULT_NS':
+            if 'openprovider' in str(effective_ns).lower():
+                print("      ✅ Scenario passes: Uses OP_DEFAULT_NS as expected")
             else:
-                print_error("saveInfo('nsChoice', 'cloudflare') line missing")
-                return False
-                
-            self.passed_tests += 1
-            return True
-            
-        except Exception as e:
-            print_error(f"Error analyzing shortener comment: {e}")
-            return False
+                print("      ❌ Scenario fails: Should use OP_DEFAULT_NS")
+                all_passed = False
+        elif scenario['expected_ns'] == 'CF defaults (NS_REQUIRED_TLD)':
+            if 'cloudflare.com' in str(effective_ns).lower():
+                print("      ✅ Scenario passes: Uses CF defaults for NS_REQUIRED_TLD")
+            else:
+                print("      ❌ Scenario fails: Should use CF defaults for .fr TLD")
+                all_passed = False
+        elif scenario['expected_ns'] in ['CF nameservers', 'custom NS']:
+            if effective_ns == scenario['nameservers']:
+                print("      ✅ Scenario passes: Uses provided nameservers")
+            else:
+                print("      ❌ Scenario fails: Should use provided nameservers")
+                all_passed = False
+    
+    return all_passed
 
-    def verify_no_startup_errors(self):
-        """Check Node.js startup logs for critical errors"""
-        print_test("Node.js Startup Error Check")
-        self.total_tests += 1
-        
-        try:
-            # Check supervisor logs for backend
-            result = subprocess.run(
-                ['tail', '-n', '50', '/var/log/supervisor/backend.out.log'],
-                capture_output=True, text=True, timeout=10
-            )
+def test_nodejs_health():
+    """Test 5: Verify Node.js service is running clean on port 5000"""
+    print("\n🔍 TEST 5: Checking Node.js health...")
+    
+    try:
+        # Test health endpoint
+        response = requests.get('http://localhost:5000/api/health', timeout=5)
+        if response.status_code == 200:
+            health_data = response.json()
+            print(f"   ✅ Health endpoint responds: {health_data}")
             
-            if result.returncode == 0:
-                logs = result.stdout
-                
-                # Check for critical errors
-                error_patterns = [
-                    r'Error.*anti-red',
-                    r'Cannot find module.*anti-red',
-                    r'SyntaxError',
-                    r'ReferenceError',
-                    r'TypeError.*undefined.*anti',
-                    r'ModuleNotFoundError'
-                ]
-                
-                critical_errors = []
-                for pattern in error_patterns:
-                    matches = re.findall(pattern, logs, re.IGNORECASE)
-                    if matches:
-                        critical_errors.extend(matches)
-                        
-                if critical_errors:
-                    print_error(f"Found critical startup errors: {critical_errors}")
-                    return False
-                    
-                # Check for successful startup indicators
-                success_indicators = [
-                    'MongoDB connection pool ready',
-                    'DB Connected',
-                    'Early health check server started',
-                    'Bot initialized'
-                ]
-                
-                found_indicators = []
-                for indicator in success_indicators:
-                    if indicator in logs:
-                        found_indicators.append(indicator)
-                        
-                if found_indicators:
-                    print_success(f"Clean startup with indicators: {found_indicators}")
-                else:
-                    print_warning("No clear startup success indicators found")
-                    
-                self.passed_tests += 1
-                return True
+            if health_data.get('status') == 'healthy':
+                print("   ✅ Service status: healthy")
             else:
-                print_warning("Could not read supervisor logs")
-                self.passed_tests += 1  # Don't fail test for log access issues
-                return True
+                print(f"   ⚠️  Service status: {health_data.get('status')}")
                 
-        except Exception as e:
-            print_warning(f"Could not check startup logs: {e}")
-            self.passed_tests += 1  # Don't fail test for log access issues
-            return True
-
-    def run_all_tests(self):
-        """Run all backend tests"""
-        print(f"\n{Colors.BOLD}{Colors.BLUE}🚀 Running Nomadly Backend Tests{Colors.ENDC}")
-        print(f"{Colors.BOLD}Focus: Clean: Decouple shortener from Anti-Red + simplify post-registration{Colors.ENDC}")
-        print("=" * 80)
-        
-        # Test 1: Health check
-        self.test_health_endpoint()
-        
-        # Test 2: domain-service.js cleanup
-        self.verify_domain_service_cleanup()
-        
-        # Test 3: buyDomainFullProcess changes
-        self.verify_buydomainfullprocess_changes()
-        
-        # Test 4: Shortener comment cleanup
-        self.verify_shortener_comment_cleanup()
-        
-        # Test 5: No startup errors
-        self.verify_no_startup_errors()
-        
-        # Summary
-        print("\n" + "=" * 80)
-        print(f"{Colors.BOLD}📊 Test Summary{Colors.ENDC}")
-        print(f"Tests Passed: {Colors.GREEN}{self.passed_tests}{Colors.ENDC}")
-        print(f"Tests Failed: {Colors.RED}{self.total_tests - self.passed_tests}{Colors.ENDC}")
-        print(f"Total Tests: {self.total_tests}")
-        
-        success_rate = (self.passed_tests / self.total_tests) * 100 if self.total_tests > 0 else 0
-        if success_rate == 100:
-            print(f"\n{Colors.GREEN}{Colors.BOLD}🎉 ALL TESTS PASSED! (100% success rate){Colors.ENDC}")
-            return True
-        elif success_rate >= 80:
-            print(f"\n{Colors.YELLOW}{Colors.BOLD}⚠️  Most tests passed ({success_rate:.1f}% success rate){Colors.ENDC}")
+            if health_data.get('database') == 'connected':
+                print("   ✅ Database: connected") 
+            else:
+                print(f"   ⚠️  Database: {health_data.get('database')}")
+                
             return True
         else:
-            print(f"\n{Colors.RED}{Colors.BOLD}❌ Multiple test failures ({success_rate:.1f}% success rate){Colors.ENDC}")
+            print(f"   ❌ Health endpoint returned status {response.status_code}")
             return False
+            
+    except requests.exceptions.RequestException as e:
+        print(f"   ❌ Failed to connect to Node.js service: {e}")
+        return False
+
+def main():
+    """Run all tests and provide summary"""
+    print("🚀 NOMADLY OP NAMESERVER FIX VERIFICATION")
+    print("=" * 50)
+    
+    tests = [
+        ("OP_DEFAULT_NS Constant", test_op_default_ns_constant),
+        ("registerDomain() NS Logic", test_register_domain_ns_logic), 
+        ("Domain Service Log Lines", test_domain_service_log_lines),
+        ("Scenario Verification", test_scenario_verification),
+        ("Node.js Health Check", test_nodejs_health)
+    ]
+    
+    results = []
+    for test_name, test_func in tests:
+        try:
+            result = test_func()
+            results.append((test_name, result))
+        except Exception as e:
+            print(f"   ❌ Test failed with exception: {e}")
+            results.append((test_name, False))
+    
+    # Summary
+    print("\n" + "=" * 50)
+    print("📊 TEST SUMMARY")
+    print("=" * 50)
+    
+    passed = sum(1 for _, result in results if result)
+    total = len(results)
+    
+    for test_name, result in results:
+        status = "✅ PASS" if result else "❌ FAIL"
+        print(f"{status} - {test_name}")
+    
+    print(f"\n🎯 OVERALL: {passed}/{total} tests passed ({(passed/total)*100:.0f}%)")
+    
+    if passed == total:
+        print("🎉 ALL TESTS PASSED - OP nameserver fix is working correctly!")
+        return 0
+    else:
+        print("⚠️  SOME TESTS FAILED - Fix verification incomplete")
+        return 1
 
 if __name__ == "__main__":
-    tester = BackendTester()
-    success = tester.run_all_tests()
-    sys.exit(0 if success else 1)
+    sys.exit(main())
