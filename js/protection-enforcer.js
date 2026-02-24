@@ -99,8 +99,18 @@ async function collectAllDomains() {
     for (const account of cpAccounts) {
       const mainDomain = account.domain
       if (mainDomain && mainDomain.includes('.')) {
-        if (!domains.has(mainDomain.toLowerCase())) {
-          domains.set(mainDomain.toLowerCase(), { source: 'cpanelAccount', cfZoneId: null })
+        // Include cpUser for SSL upgrade logic (AutoSSL needs the cPanel username)
+        const existing = domains.get(mainDomain.toLowerCase())
+        if (existing) {
+          // Merge cpUser into existing entry
+          existing.source = 'cpanelAccounts'
+          existing.cpUser = account._id || account.cpUser || null
+        } else {
+          domains.set(mainDomain.toLowerCase(), {
+            source: 'cpanelAccounts',
+            cfZoneId: null,
+            cpUser: account._id || account.cpUser || null,
+          })
         }
       }
       // Check for addon domains stored in the account
