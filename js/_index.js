@@ -4729,7 +4729,7 @@ bot?.on('message', async msg => {
       log({ ref })
       await sendQrCode(bot, chatId, bb, info?.userLanguage ?? 'en')
       const priceCrypto = await convert(price, 'usd', ticker)
-      send(chatId, t.showDepositCryptoInfoDigitalProduct(priceCrypto, tickerKey, address, product), trans('o'))
+      send(chatId, t.showDepositCryptoInfoDigitalProduct(price, priceCrypto, tickerKey, address, product), trans('o'))
     } else {
       const coin = tickerOfDyno[tickerKey]
       const redirect_url = `${SELF_URL}/dynopay/crypto-pay-digital-product`
@@ -4740,7 +4740,7 @@ bot?.on('message', async msg => {
       log({ ref })
       await generateQr(bot, chatId, qr_code, info?.userLanguage ?? 'en')
       const priceCrypto = await convert(price, 'usd', ticker)
-      send(chatId, t.showDepositCryptoInfoDigitalProduct(priceCrypto, tickerKey, address, product), trans('o'))
+      send(chatId, t.showDepositCryptoInfoDigitalProduct(price, priceCrypto, tickerKey, address, product), trans('o'))
     }
 
     return notifyGroup(`🛒 <b>New Digital Product Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n📦 Product: <b>${product}</b>\n💵 Price: <b>$${price}</b> (Crypto: ${tickerKey})\n⏳ Awaiting crypto payment\n\n📩 After payment confirms:\n<code>/deliver ${orderId} [details]</code>`)
@@ -6272,10 +6272,11 @@ bot?.on('message', async msg => {
       if (!address) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
       set(chatIdOfPayment, ref, { chatId, price, plan })
       log({ ref })
+      log({ ref })
       await sendQrCode(bot, chatId, bb, info?.userLanguage ?? 'en')
       set(state, chatId, 'action', 'none')
       const priceCrypto = await convert(price, 'usd', coin)
-      return send(chatId, t.showDepositCryptoInfoPlan(priceCrypto, ticker, address, plan), trans('o'))
+      return send(chatId, t.showDepositCryptoInfoPlan(price, priceCrypto, ticker, address, plan), trans('o'))
     } else {
       const coin = tickerOfDyno[ticker]
       if (!coin) return send(chatId, t.askValidCrypto)
@@ -6290,7 +6291,7 @@ bot?.on('message', async msg => {
       log({ ref })
       await generateQr(bot, chatId, qr_code, info?.userLanguage ?? 'en')
       const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
-      return send(chatId, t.showDepositCryptoInfoPlan(priceCrypto, ticker, address, plan), trans('o'))
+      return send(chatId, t.showDepositCryptoInfoPlan(price, priceCrypto, ticker, address, plan), trans('o'))
     }
   }
   //
@@ -8130,7 +8131,7 @@ bot?.on('message', async msg => {
       await sendQrCode(bot, chatId, url, info?.userLanguage ?? 'en')
       set(state, chatId, 'action', 'none')
       const priceCrypto = await convert(price, 'usd', coin)
-      return send(chatId, t.showDepositCryptoInfoLeads(priceCrypto, ticker, url, label), trans('o'))
+      return send(chatId, t.showDepositCryptoInfoLeads(price, priceCrypto, ticker, url, label), trans('o'))
     } else {
       const coin = tickerOfDyno[ticker]
       const redirect_url = `${SELF_URL}/dynopay/crypto-pay-leads`
@@ -8143,7 +8144,7 @@ bot?.on('message', async msg => {
       await generateQr(bot, chatId, qr_code, info?.userLanguage ?? 'en')
       set(state, chatId, 'action', 'none')
       const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
-      return send(chatId, t.showDepositCryptoInfoLeads(priceCrypto, ticker, address, label), trans('o'))
+      return send(chatId, t.showDepositCryptoInfoLeads(price, priceCrypto, ticker, address, label), trans('o'))
     }
   }
 
