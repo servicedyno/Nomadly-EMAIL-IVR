@@ -250,28 +250,28 @@ const createDefaultDNSRecords = async (zoneId, domainName, serverIP, recordType 
  * @param {string} domainName - Domain name
  * @param {string} serverIP - WHM server IP
  */
-const createHostingDNSRecords = async (zoneId, domainName, serverIP) => {
+const createHostingDNSRecords = async (zoneId, domainName, serverIP, proxied = true) => {
   const results = []
 
-  // Web: root A record (proxied for CDN + DDoS protection)
-  results.push({ type: 'root-A', ...(await createDNSRecord(zoneId, 'A', domainName, serverIP, 1, true)) })
+  // Web: root A record
+  results.push({ type: 'root-A', ...(await createDNSRecord(zoneId, 'A', domainName, serverIP, proxied ? 1 : 300, proxied)) })
 
-  // Web: www A record (proxied)
-  results.push({ type: 'www-A', ...(await createDNSRecord(zoneId, 'A', `www.${domainName}`, serverIP, 1, true)) })
+  // Web: www A record
+  results.push({ type: 'www-A', ...(await createDNSRecord(zoneId, 'A', `www.${domainName}`, serverIP, proxied ? 1 : 300, proxied)) })
 
-  // Mail: A record (DNS only — mail can't go through CF proxy)
+  // Mail: A record (always DNS only — mail can't go through CF proxy)
   results.push({ type: 'mail-A', ...(await createDNSRecord(zoneId, 'A', `mail.${domainName}`, serverIP, 300, false)) })
 
   // MX record for email
   results.push({ type: 'MX', ...(await createDNSRecord(zoneId, 'MX', domainName, `mail.${domainName}`, 300, false, 10)) })
 
-  // cPanel access (DNS only — needs direct connection)
+  // cPanel access (always DNS only — needs direct connection)
   results.push({ type: 'cpanel-A', ...(await createDNSRecord(zoneId, 'A', `cpanel.${domainName}`, serverIP, 300, false)) })
 
-  // Webmail access (DNS only)
+  // Webmail access (always DNS only)
   results.push({ type: 'webmail-A', ...(await createDNSRecord(zoneId, 'A', `webmail.${domainName}`, serverIP, 300, false)) })
 
-  // Webdisk access (DNS only)
+  // Webdisk access (always DNS only)
   results.push({ type: 'webdisk-A', ...(await createDNSRecord(zoneId, 'A', `webdisk.${domainName}`, serverIP, 300, false)) })
 
   const allSuccess = results.every(r => r.success)
