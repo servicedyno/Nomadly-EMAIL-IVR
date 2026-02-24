@@ -291,7 +291,7 @@ async function enforceSSLUpgrade(domain, zoneId, entry) {
     const certDomains = domainVhost.crt?.domains || []
     const hasRoot = certDomains.includes(domain)
     const hasWww = certDomains.includes(`www.${domain}`)
-    const isSelfSigned = domainVhost.crt?.is_self_signed === 1 || domainVhost.crt?.is_self_signed === true
+    const isSelfSigned = !!domainVhost.crt?.is_self_signed && domainVhost.crt.is_self_signed != 0
 
     if (hasRoot && hasWww && !isSelfSigned) {
       // Valid CA-signed cert covering both — safe to upgrade to 'strict'
