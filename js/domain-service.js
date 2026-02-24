@@ -541,10 +541,9 @@ const switchToCloudflare = async (domainName, db) => {
     )
   }
 
-  // Auto-deploy anti-red Worker route to the new CF zone
-  deploySharedWorkerRoute(domainName, cfResult.zoneId).catch(err =>
-    log(`[domain-service] Worker auto-deploy failed for ${domainName}: ${err.message}`)
-  )
+  // NOTE: Anti-red Worker routes are NOT deployed during NS switch.
+  // Workers are only deployed during hosting provisioning via deployFullProtection().
+  // This prevents domain-only users from getting the anti-red challenge on their own server.
 
   return {
     success: true,
