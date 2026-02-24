@@ -206,6 +206,22 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state)
 
     send(chatId, `✅ Domain configured · DNS auto-set via Cloudflare`, rem)
 
+    // Issue 10 Fix: For external domains, user must manually update NS at their registrar
+    if (isExternal && cfNameservers.length >= 2) {
+      const nsMsg = `⚠️ <b>Action Required for External Domain</b>
+
+Your domain <b>${domain}</b> requires a nameserver update at your domain registrar.
+
+Please update the nameservers to:
+NS1: <code>${cfNameservers[0]}</code>
+NS2: <code>${cfNameservers[1]}</code>
+
+Go to your domain registrar's panel → DNS/Nameserver settings → Replace existing NS with the above.
+
+Your site won't be live until nameservers are updated and propagated (up to 24h).`
+      send(chatId, nsMsg, rem)
+    }
+
     // ── Step 4: Storing credentials & deploying protection ──
     send(chatId, `🛡️ Activating Anti-Red protection...`, rem)
 
