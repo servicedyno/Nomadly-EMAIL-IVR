@@ -1372,15 +1372,13 @@ ${plan.panel}`
 Ceci est une facture de prépaiement. Veuillez vous assurer que le paiement est effectué dans l'heure afin d'activer vos services de domaine et d'hébergement. Une fois le paiement reçu, nous procéderons à l'activation de votre service.
 `,
 
-  showCryptoPaymentInfo: (priceUsd, priceCrypto, tickerView, address, plan) => `
-Veuillez transférer ${priceCrypto} ${tickerView} à l’adresse suivante :
-  
+  showCryptoPaymentInfo: (priceUsd, priceCrypto, tickerView, address, plan) => `💰 <b>Total : ${Number(priceUsd).toFixed(2)} $ USD</b>
+
+Envoyez exactement <b>${priceCrypto} ${tickerView}</b> à :
+
 <code>${address}</code>
-  
-Veuillez noter que les paiements crypto sont confirmés rapidement — généralement en quelques minutes. Une fois la transaction confirmée, vous serez immédiatement notifié, et votre ${plan} sera activé en toute transparence.
-  
-Cordialement,
-${CHAT_BOT_NAME}`,
+
+Votre ${plan} sera activé automatiquement une fois le paiement confirmé (généralement en quelques minutes).`,
 
   successText: (info, response) =>
     `Voici vos informations d'identification pour HostPanel pour ${info.plan} :
