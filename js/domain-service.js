@@ -124,8 +124,9 @@ const registerDomain = async (domainName, registrar, nsChoice, db, chatId, custo
       }
     }
   } else if (registrar === 'OpenProvider') {
-    // OP can accept nameservers at registration time
+    // Pass CF/custom NS if selected, otherwise empty → OP will use its built-in defaults
     const ns = (nsChoice === 'cloudflare' || nsChoice === 'custom') ? nameservers : []
+    log(`[domain-service] Registering ${domainName} on OpenProvider with NS: ${ns.length > 0 ? ns.join(', ') : 'provider_default (OP built-in)'}`)
     result = await opService.registerDomain(domainName, ns)
     if (result.success) {
       log(`[domain-service] ${domainName} registered on OpenProvider (ID: ${result.domainId})`)
