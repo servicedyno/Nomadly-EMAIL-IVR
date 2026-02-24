@@ -217,6 +217,8 @@ class ProtectionEnforcerSSLTest:
                             content = f.read()
                             if 'ERROR' in content or 'FATAL' in content:
                                 error_found = True
+                    except Exception:
+                        pass  # Skip files that can't be read
                                 
                 self.log_result(
                     "Supervisor Backend Logs Check",
