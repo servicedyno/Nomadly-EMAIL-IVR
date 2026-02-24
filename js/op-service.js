@@ -10,6 +10,9 @@ const SERVICE_EMAIL = process.env.NOMADLY_SERVICE_EMAIL || 'cloakhost@tutamail.c
 const PERCENT_INCREASE_DOMAIN = 1 + Number(process.env.PERCENT_INCREASE_DOMAIN || 0)
 const MIN_DOMAIN_PRICE = Number(process.env.MIN_DOMAIN_PRICE || 30)
 
+// OpenProvider built-in DNS hosting nameservers — used when provider_default is selected
+const OP_DEFAULT_NS = ['ns1.openprovider.nl', 'ns2.openprovider.be', 'ns3.openprovider.eu']
+
 let cachedToken = null
 let tokenExpiry = 0
 
