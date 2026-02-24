@@ -10786,7 +10786,36 @@ bot?.on('message', async msg => {
       return send(chatId, t.registeredDomainList(domainsText), k.of([...purchasedDomains.map(d => [d]), [user.buyDomainName], [t.back]]))
     }
     if (message === t.domainActionDns) {
-      // Route directly to DNS actions — domain is already selected
+      // Check if domain has an active hosting plan
+      const domain = info?.domainToManage
+      if (!domain) return send(chatId, t.noDomainSelected || 'No domain selected.')
+      
+      const hostingPlan = await cpanelAccounts.findOne({ domain: domain })
+      
+      if (hostingPlan) {
+        // Domain has hosting — show warning with confirmation
+        set(state, chatId, 'action', 'confirm-dns-management-for-hosting')
+        const warningText = `⚠️ <b>WARNING: This domain has an active hosting plan</b>\n\n` +
+          `Domain: <b>${domain}</b>\n` +
+          `Plan: ${hostingPlan.plan || 'N/A'}\n\n` +
+          `<b>⚠️ Modifying DNS records can break your hosting and anti-red protection!</b>\n\n` +
+          `DNS changes should only be made if you fully understand the impact. ` +
+          `Incorrect changes may cause your website to become inaccessible or lose security protections.\n\n` +
+          `<b>Are you sure you want to proceed?</b>`
+        
+        return send(chatId, warningText, {
+          parse_mode: 'HTML',
+          reply_markup: {
+            keyboard: [
+              ['⚠️ Proceed Anyway'],
+              ['❌ Cancel']
+            ],
+            resize_keyboard: true
+          }
+        })
+      }
+      
+      // No hosting plan — proceed directly to DNS actions
       return goto['choose-dns-action']()
     }
     if (message === t.domainActionShortener) {
