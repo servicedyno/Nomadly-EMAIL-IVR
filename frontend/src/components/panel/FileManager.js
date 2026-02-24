@@ -382,6 +382,34 @@ export default function FileManager() {
                       <td className="fm-cell-size">{size}</td>
                       <td className="fm-cell-date">{modified}</td>
                       <td className="fm-cell-actions">
+                        {publicUrl && (
+                          <>
+                            <button 
+                              onClick={() => copyUrl(publicUrl, name)} 
+                              className={`fm-action-btn ${copiedUrl === name ? 'fm-action-btn--success' : ''}`}
+                              title={copiedUrl === name ? 'Copied!' : 'Copy URL'}
+                              data-testid={`fm-copy-${name}`}
+                            >
+                              {copiedUrl === name ? (
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
+                              ) : (
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                              )}
+                            </button>
+                            {!isDir && isWebFile(name) && (
+                              <a 
+                                href={publicUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer" 
+                                className="fm-action-btn fm-action-btn--view"
+                                title="Open in browser"
+                                data-testid={`fm-view-${name}`}
+                              >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                              </a>
+                            )}
+                          </>
+                        )}
                         {!isDir && isTextFile(name) && (
                           <button onClick={() => handleEdit(name)} className="fm-action-btn" title="Edit" data-testid={`fm-edit-${name}`}>
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
