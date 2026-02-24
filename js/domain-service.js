@@ -99,9 +99,6 @@ const registerDomain = async (domainName, registrar, nsChoice, db, chatId, custo
       nameservers = cfResult.nameservers || []
       cfZoneId = cfResult.zoneId
       log(`[domain-service] Cloudflare zone created. NS: ${nameservers.join(', ')}`)
-      // NOTE: Anti-red Worker routes are NOT deployed here for domain-only purchases.
-      // Workers are only deployed during hosting provisioning via deployFullProtection().
-      // This prevents domain-only users from getting the anti-red challenge on their own server.
     } else {
       log(`[domain-service] Cloudflare zone creation failed:`, cfResult.errors)
       nsChoice = 'provider_default'
