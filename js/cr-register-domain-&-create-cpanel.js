@@ -159,6 +159,17 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state)
             const cleanup = await cfService.cleanupConflictingDNS(cfZoneId, domain)
             if (cleanup.deleted.length > 0) {
               log(`[Hosting] Cleaned up ${cleanup.deleted.length} conflicting DNS records for ${domain}`)
+              // If a Railway CNAME was deleted (shortener was active), also remove from Railway
+              const hadShortenerCNAME = cleanup.deleted.some(r =>
+                r.type === 'CNAME' && r.content && r.content.includes('.up.railway.app')
+              )
+              if (hadShortenerCNAME) {
+                log(`[Hosting] Shortener CNAME detected — removing domain from Railway`)
+                const { removeDomainFromRailway } = require('./rl-save-domain-in-server')
+                await removeDomainFromRailway(domain).catch(e =>
+                  log(`[Hosting] Railway cleanup warning: ${e.message}`)
+                )
+              }
             }
           } catch (cleanupErr) {
             log(`[Hosting] DNS cleanup warning (non-blocking): ${cleanupErr.message}`)
