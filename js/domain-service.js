@@ -978,13 +978,13 @@ const switchToProviderDefault = async (domainName, db) => {
       if (defaultNS.length === 0) {
         defaultNS = ['8307.dns1.managedns.org', '8307.dns2.managedns.org']
       }
-      // If current NS are cloudflare, update back to CR defaults
-      const { updateDNSRecordNs } = require('./cr-dns-record-update-ns')
+      // If current NS are cloudflare, update ALL back to CR defaults in one call
       const crDefaultNS = ['8307.dns1.managedns.org', '8307.dns2.managedns.org']
-      for (let i = 0; i < crDefaultNS.length && i < nsRecords.length; i++) {
-        const existing = nsRecords[i]
-        if (existing && existing.recordContent.includes('cloudflare')) {
-          await updateDNSRecordNs(crData.domainNameId, domainName, crDefaultNS[i], existing.nsId, nsRecords)
+      const hasCloudflareNS = nsRecords.some(r => r.recordContent && r.recordContent.includes('cloudflare'))
+      if (hasCloudflareNS) {
+        const crResult = await updateAllNameservers(domainName, crDefaultNS, null) // null db — caller updates DB later
+        if (crResult.error) {
+          log(`[switchToProvider] CR NS restore failed for ${domainName}: ${crResult.error}`)
         }
       }
       defaultNS = crDefaultNS
