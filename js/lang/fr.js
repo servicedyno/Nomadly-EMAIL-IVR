@@ -561,7 +561,7 @@ ${CHAT_BOT_NAME}`,
   dpOrderConfirmed: (product, price, orderId) => `✅ <b>Commande confirmée !</b>\n\n🛒 Produit : <b>${product}</b>\n💵 Montant : <b>$${price}</b>\n🆔 ID de commande : <code>${orderId}</code>\n\nVotre commande sera livrée via ce bot sous peu.\nPour toute question, contactez le support.`,
 
   // Virtual Card
-  vcWelcome: `💳 <b>Carte de Débit Virtuelle</b>\n\nObtenez une Mastercard virtuelle chargée du montant de votre choix.\n\n✅ Fonctionne en ligne dans le monde entier\n✅ Livraison instantanée\n✅ Montant : 50$ – 1 000$\n\nAperçu de la carte ci-dessus (derniers chiffres et CVV masqués).\n\n💵 Entrez le montant à charger (<b>50$ – 1 000$</b>) :`,
+  vcWelcome: `💳 <b>Carte de Débit Virtuelle</b>\n\nChargez une carte virtuelle du montant de votre choix.\n\n✅ Fonctionne en ligne dans le monde entier\n✅ Livraison instantanée\n✅ 50$ – 1 000$\n\nSélectionnez un montant ou entrez un montant personnalisé :`,
   vcInvalidAmount: `❌ Veuillez entrer un montant valide entre <b>50$</b> et <b>1 000$</b>.`,
   vcAskAddress: `📬 <b>Adresse de livraison</b>\n\nEntrez votre adresse complète au format international :\n\n<i>Exemple :\nJean Dupont\n123 Rue Principale, Apt 4B\nParis, 75001\nFrance</i>`,
   vcAddressTooShort: `❌ L'adresse semble trop courte. Veuillez inclure nom, rue, ville, code postal et pays.`,
