@@ -448,16 +448,17 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Honeypot: Worker script with 6 trap types"
-    - "Honeypot: KV namespace + multipart worker upload"
-    - "Honeypot: MongoDB analytics + Express routes"
+    - "Fix: upgradeSharedWorker() called at startup + inside deployFullProtection()"
+    - "Fix: Progressive SSL upgrade (Full → Full Strict after AutoSSL)"
+    - "Fix: checkSSLCert() function in whm-service.js"
+    - "Fix: BACKEND_REPORT_URL prefers SELF_URL_PROD with dev warning"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
     - agent: "main"
-      message: "Implemented full honeypot integration with 6 trap types. Changes in 3 files: (1) js/honeypot-service.js (NEW): KV namespace management (creates 'antired-honeypot-bans' namespace via CF API), MongoDB honeypotTriggers collection with 30-day TTL + indexes, Express routes for /honeypot/report (POST), /honeypot/stats (GET), /honeypot/check/:ip (GET). (2) js/anti-red-service.js: generateHardenedWorkerScript() rewritten with 6 honeypot types — link traps (hidden links), mouse tracking (12s no-move check), cookie tampering detection, JS traps (fake webdriver getter, adminAPI, selenium prop), robots.txt honeypot with /__honeypot/* Disallow. Worker handler: checks KV ban list → handles /__honeypot/ triggers (ban IP + fake content) → serves honeypot robots.txt → bot score → challenge → inject traps into pass-through HTML. upgradeSharedWorker() now uses multipart form-data upload with KV binding (BANNED_IPS). (3) js/_index.js: imports honeypot-service, initializes on startup, mounts Express routes. KV namespace successfully created (812aca1cbade413d9814bff1708e74db). Node.js starts cleanly with no errors. Test focus: Verify code structure of all 3 files, worker script correctness, Express routes respond, Node.js health."
+      message: "Implemented 3 hosting flow fixes after full flow trace: (1) Fix upgradeSharedWorker() gap: Added startup call in _index.js (10s delay after KV init) — ensures shared CF worker always has latest honeypot code. Also added upgradeSharedWorker() inside deployFullProtection() in anti-red-service.js before route deployment — every new hosting plan now gets the latest worker version. Verified: startup log shows 'Startup worker upgrade: OK (KV: true)'. (2) Fix AutoSSL/SSL timing: In cr-register-domain-&-create-cpanel.js, increased initial wait from 2min→3min before proxying DNS records. Added progressive SSL upgrade loop after proxying: checks cert at 2min, 5min, 10min intervals via new whm-service.js checkSSLCert() function (connects to WHM_HOST:443 with domain SNI, inspects cert validity). When valid CA cert detected, automatically upgrades CF SSL mode from 'full' to 'strict' (Full Strict). Falls back gracefully — stays on 'Full' if AutoSSL hasn't completed after all checks. (3) Fix BACKEND_REPORT_URL: Changed preference order to SELF_URL_PROD first (production URL) then SELF_URL fallback. Added warning log when URL contains 'preview.emergentagent' or 'localhost'. Test focus: Verify code structure of all changes, Node.js health, startup worker upgrade, checkSSLCert export, background task structure."
     - agent: "main"
       message: "Implemented 4 fixes for domain registration flows: (1) cr-domain-register.js: buyDomainOnline() now accepts optional ns1, ns2 params — uses them if provided, falls back to CR defaults. (2) domain-service.js: registerDomain() now extracts ns1/ns2 from CF/custom nameservers array and passes to buyDomainOnline() for CR registrations. (3) _index.js buyDomainFullProcess: Removed entire post-reg NS update block (60s/10s sleeps + getAccountNameservers calls) — NS is now set at registration time, just shows confirmation with buyResult.nameservers. (4) cr-register-domain-&-create-cpanel.js: Reordered to domain reg FIRST, then WHM account creation. For new domains with cloudflare, captures cfZoneId from registerDomain() result and reuses it in DNS setup (no double createZone). Domain reg failure now aborts early (no orphan WHM). Test focus: code review verification that all 4 changes are structurally correct, Node.js starts without errors, and services are healthy."
     - agent: "testing"
