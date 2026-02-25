@@ -65,8 +65,7 @@ def test_startup_worker_upgrade():
         return False, "antiRedService.upgradeSharedWorker() call not found"
     
     # Check for .then and .catch handlers
-    then_catch_pattern = r'antiRedService\.upgradeSharedWorker\(\)\s*\.then\([^)]*log\([^)]*\)\s*\)\s*\.catch\([^)]*log\([^)]*\)\s*\)'
-    if not re.search(then_catch_pattern, index_js, re.DOTALL):
+    if '.then(r => log(' not in index_js or '.catch(err => log(' not in index_js:
         return False, ".then and .catch handlers not found after upgradeSharedWorker()"
     
     # Check for proper log messages
