@@ -789,21 +789,12 @@ const _createZoneAndUpdateNS = async (domainName, meta) => {
     if (nsResult.error) return { error: `Failed to update nameservers at OpenProvider: ${nsResult.error}` }
     log(`[switchToCloudflare] OP NS updated for ${domainName}: ${cfNameservers.join(', ')}`)
   } else {
-    const viewCRDNS = require('./cr-view-dns-records')
-    const crData = await viewCRDNS(domainName)
-    if (!crData || !crData.domainNameId) {
-      return { error: 'Could not fetch ConnectReseller domain data for NS update' }
+    // ConnectReseller: update ALL nameservers in one API call to avoid stale-state revert
+    const crResult = await updateAllNameservers(domainName, cfNameservers, null) // null db — caller updates DB
+    if (crResult.error) {
+      return { error: `Failed to update nameservers at ConnectReseller: ${crResult.error}` }
     }
-    const nsRecords = (crData.records || []).filter(r => r.recordType === 'NS')
-    const { updateDNSRecordNs } = require('./cr-dns-record-update-ns')
-    for (let i = 0; i < cfNameservers.length && i < 4; i++) {
-      const existingNS = nsRecords[i]
-      if (existingNS) {
-        const result = await updateDNSRecordNs(crData.domainNameId, domainName, cfNameservers[i], existingNS.nsId, nsRecords)
-        if (result.error) log(`[switchToCloudflare] Warning: CR NS slot ${i + 1} update failed: ${result.error}`)
-      }
-    }
-    log(`[switchToCloudflare] CR NS updated for ${domainName}`)
+    log(`[switchToCloudflare] CR NS updated for ${domainName}: ${cfNameservers.join(', ')}`)
   }
 
   return { success: true, zoneId: cfResult.zoneId, nameservers: cfNameservers, registrar }
