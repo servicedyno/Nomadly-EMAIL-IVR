@@ -6,7 +6,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://env-config-staging.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://config-dashboard-14.preview.emergentagent.com')
 
 class TestVerifyOtpEndpoint:
     """Test /api/phone/test/verify-otp endpoint"""
