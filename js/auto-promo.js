@@ -148,106 +148,91 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 const promoMessages = {
   en: {
     showcase_morning: [
-      `<b>EVERYTHING YOU NEED — ONE BOT</b>
+      `<b>BUILD YOUR DIGITAL EMPIRE — ALL IN ONE PLACE</b>
 
-<b>DOMAINS</b>
-DMCA-ignored offshore registration. 400+ TLDs.
-Free .sbs/.xyz with subscription plans.
-Tap <b>Register Bulletproof Domain</b>
+<b>Offshore Domains</b> — Register DMCA-ignored domains across 400+ TLDs. Get free .sbs/.xyz with plans.
 
-<b>SHORTIT URL SHORTENER</b>
-5 FREE trial links. Custom branded URLs.
-Real-time click analytics.
-Tap <b>URL Shortener</b>
+<b>Shortit URL Shortener</b> — Start with 5 FREE branded links. Track every click in real-time.
 
-<b>HQ PHONE LEADS</b>
-Verified leads by country, state, carrier.
-From $20/1K. Validate for $15/1K.
-Tap <b>Buy Valid Leads</b>
+<b>CloudPhone</b> — Get virtual numbers in 30+ countries with IVR, SMS & SIP from just $5/mo.
 
-<b>CLOUDPHONE by SpeechCue</b>
-Virtual numbers in 30+ countries. IVR, SMS, SIP.
-Plans from $5/mo. Business plan coming soon.
-Tap <b>CloudPhone</b>
+<b>Digital Products</b> — Twilio, AWS, Google Cloud, Workspace, Zoho & more. Delivered in 30 minutes.
 
-<b>DIGITAL PRODUCTS</b>
-Twilio | Telnyx | AWS | Google Cloud
-Google Workspace | Zoho Mail | eSIM T-Mobile
-All delivered within 30 minutes.
-Tap <b>Digital Products</b>
+Pay with crypto or fiat. Everything instant.
 
-Type /start to explore`,
+Type <b>/start</b> to explore`,
 
-      `<b>NOMADLY BOT — ALL SERVICES</b>
+      `<b>ONE BOT. ZERO LIMITS.</b>
 
-<b>Offshore Domains</b> — 400+ TLDs, zero takedowns
-<b>Shortit Links</b> — 5 free, then unlimited
-<b>Phone Leads</b> — buy & validate in bulk
-<b>CloudPhone</b> — virtual numbers from $5/mo
-<b>Digital Products</b> — Twilio, Telnyx, AWS, GCloud, Workspace, Zoho, eSIM
+Tired of juggling multiple platforms? Nomadly brings everything under one roof:
 
-Pay with crypto, bank, or wallet.
-All delivered via bot.
+<b>Domains</b> — 400+ TLDs, offshore protection
+<b>URL Shortener</b> — 5 free links to start
+<b>CloudPhone</b> — Virtual numbers from $5/mo
+<b>Digital Store</b> — Twilio, Telnyx, AWS, Google Cloud, Workspace, Zoho, eSIM
 
-Type /start to get started`,
+Crypto payments accepted. Instant delivery.
 
-      `<b>YOUR DIGITAL TOOLKIT</b>
+Type <b>/start</b> now`,
 
-Domains — DMCA-ignored, 400+ TLDs
-Short Links — 5 FREE, branded URLs
-Leads — verified by country & carrier
-CloudPhone — IVR, SMS, SIP from $5/mo
-Digital Store — 13 products, delivered in 30 min
+      `<b>SCALE YOUR BUSINESS WITH NOMADLY</b>
 
-Everything in one bot. Tap /start`,
+Get everything you need to grow online:
+
+<b>DMCA-Ignored Domains</b> — 400+ TLDs available
+<b>Branded Short Links</b> — 5 FREE trial links
+<b>Virtual Phone Numbers</b> — 30+ countries, $5/mo
+<b>Premium Digital Products</b> — Twilio, AWS, GCloud & more
+
+All delivered via Telegram. Pay with crypto or bank.
+
+Type <b>/start</b> to begin`,
     ],
 
     showcase_afternoon: [
-      `<b>NOMADLY BOT — YOUR DIGITAL TOOLKIT</b>
+      `<b>PREMIUM DIGITAL PRODUCTS — INSTANT DELIVERY</b>
 
-<b>Offshore Domains</b> — 400+ TLDs, zero takedowns
-<b>Shortit Links</b> — 5 free, then unlimited with plans
-<b>Phone Leads</b> — buy & validate in bulk
-<b>CloudPhone</b> — virtual numbers from $5/mo
-<b>Digital Store:</b>
-  Twilio Main $450 | Sub $200
-  Telnyx Main $400 | Sub $150
-  AWS Main $400 | Sub $150
-  Google Cloud $300
-  Google Workspace from $100
-  Zoho Mail from $100
-  eSIM T-Mobile $60
-
-Pay with crypto, bank, or wallet.
-All delivered via bot.
-
-Type /start to get started`,
-
-      `<b>ONE BOT. EVERY TOOL.</b>
-
-Register DMCA-ignored domains — 400+ TLDs
-Shorten links — 5 FREE branded URLs
-Buy verified phone leads — from $20/1K
-Get a virtual number — CloudPhone from $5/mo
-
-<b>Digital Products:</b>
-Twilio | Telnyx | AWS | Google Cloud
-Google Workspace | Zoho Mail | eSIM
-
-Crypto, bank, or wallet. Instant delivery.
-Tap /start`,
-
-      `<b>STOP SWITCHING BETWEEN TOOLS</b>
-
-Domains + Short Links + Leads + CloudPhone + Digital Products — all in one bot.
-
-Twilio from $200 | Telnyx from $150
-AWS from $150 | Google Cloud $300
-Workspace from $100 | Zoho from $100
+<b>Top Services Available:</b>
+Twilio Main $450 | Sub $200
+Telnyx Main $400 | Sub $150
+AWS Main $400 | Sub $150
+Google Cloud $300
+Google Workspace from $100
+Zoho Mail from $100
 eSIM T-Mobile $60
 
-Everything delivered within 30 minutes.
-Type /start to explore`,
+<b>Plus:</b> Offshore domains (400+ TLDs), URL shortener (5 free links), CloudPhone ($5/mo).
+
+Crypto & bank payments. Delivered in 30 minutes via bot.
+
+Type <b>/start</b> to order`,
+
+      `<b>EVERYTHING YOU NEED TO RUN ONLINE</b>
+
+<b>Domains</b> — DMCA-ignored, 400+ TLDs available
+<b>Short Links</b> — 5 FREE branded URLs with analytics
+<b>Virtual Numbers</b> — CloudPhone from $5/mo in 30+ countries
+
+<b>Digital Store:</b>
+Twilio, Telnyx, AWS, Google Cloud, Workspace, Zoho Mail, eSIM T-Mobile
+
+Pay with crypto or bank. Instant delivery to your Telegram.
+
+Type <b>/start</b> to explore`,
+
+      `<b>WHY USE 10 PLATFORMS WHEN ONE IS ENOUGH?</b>
+
+Nomadly Bot = Your complete digital toolkit.
+
+<b>Get:</b> Offshore domains, branded short links, virtual phone numbers, premium digital products.
+
+<b>Prices:</b>
+Twilio from $200 | AWS from $150 | Telnyx from $150
+Google Cloud $300 | Workspace $100+ | Zoho $100+
+
+All delivered in 30 minutes. Crypto payments welcome.
+
+Type <b>/start</b> now`,
     ],
   },
 
