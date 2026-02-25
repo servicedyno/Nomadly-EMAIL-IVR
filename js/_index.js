@@ -6582,7 +6582,22 @@ bot?.on('message', async msg => {
         send(chatId, t.switchToCfError(result.error), { parse_mode: 'HTML' })
         return goto['choose-dns-action']()
       }
-      send(chatId, t.switchToCfSuccess(domain, result.nameservers), { parse_mode: 'HTML' })
+
+      // Build success message with migration details
+      let msg = t.switchToCfSuccess(domain, result.nameservers)
+      const migration = result.migration || {}
+      if (migration.migrated && migration.migrated.length > 0) {
+        msg += `\n\n✅ <b>Records migrated to Cloudflare:</b>\n`
+        msg += migration.migrated.map(r => `• ${r.type} ${r.name} → ${r.content}`).join('\n')
+      }
+      if (migration.failed && migration.failed.length > 0) {
+        msg += `\n\n⚠️ <b>Failed to migrate:</b>\n`
+        msg += migration.failed.map(r => `• ${r.type} ${r.name}: ${r.error}`).join('\n')
+      }
+      if (migration.isEmpty) {
+        msg += `\n\n📋 <b>Note:</b> No existing DNS records were found to migrate. Please add your A, CNAME, MX, and TXT records as needed.`
+      }
+      send(chatId, msg, { parse_mode: 'HTML' })
     } catch (e) {
       log(`[SwitchToCF] Error for ${domain}: ${e.message}`)
       send(chatId, t.switchToCfError(e.message), { parse_mode: 'HTML' })
