@@ -366,7 +366,7 @@ const addDNSRecord = async (domainName, recordType, recordValue, hostName, db, p
     return { error: result.error || 'Failed to update nameservers at registrar' }
   }
 
-  if (meta?.nameserverType === 'cloudflare' && meta?.cfZoneId) {
+  if ((meta?.nameserverType === 'cloudflare' || meta?.cfZoneId) && meta?.cfZoneId) {
     const name = hostName ? `${hostName}.${domainName}` : domainName
     // A and CNAME records should be proxied through Cloudflare for SSL & CDN
     // Other record types (MX, TXT, SRV, etc.) must be DNS-only
