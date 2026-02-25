@@ -209,28 +209,22 @@ async function testFix2Shortener() {
       logTest('fix2_shortener', 'dns_helper_usage', 'FAIL', 'addDnsForShortener helper not using addShortenerCNAME')
     }
     
-    // Test 2.14: Verify NO domainService.addDNSRecord in shortener contexts
-    const shortenerContexts = [
-      'QuickActivateShortener',
-      'ActivateShortener', 
-      'DomainActionShortener',
-      'addDnsForShortener'
-    ]
+    // Test 2.14: Verify NO domainService.addDNSRecord with CNAME recordType in shortener contexts
+    // We specifically look for CNAME or recordType parameter that would indicate shortener DNS calls
+    const shortenerPattern = /domainService\.addDNSRecord\([^)]*(?:CNAME|recordType)[^)]*\)/gi
+    const shortenerMatches = indexCode.match(shortenerPattern) || []
     
-    let foundOldPattern = false
-    for (const context of shortenerContexts) {
-      // Look for pattern like domainService.addDNSRecord(domain, recordType, server, '', db) in shortener contexts
-      const contextMatch = indexCode.match(new RegExp(`\\[${context}\\][\\s\\S]*?domainService\\.addDNSRecord\\([^)]*server[^)]*''[^)]*\\)`, 'i'))
-      if (contextMatch) {
-        foundOldPattern = true
-        break
-      }
-    }
+    // Filter out legitimate non-shortener uses (like MX records)
+    const suspiciousMatches = shortenerMatches.filter(match => 
+      !match.includes('MX') && 
+      !match.includes('mx.server') &&
+      (match.includes('CNAME') || match.includes('recordType'))
+    )
     
-    if (!foundOldPattern) {
-      logTest('fix2_shortener', 'old_pattern_removed', 'PASS', 'No domainService.addDNSRecord(domain, recordType, server, \'\', db) in shortener contexts')
+    if (suspiciousMatches.length === 0) {
+      logTest('fix2_shortener', 'old_pattern_removed', 'PASS', 'No domainService.addDNSRecord with CNAME/recordType in shortener contexts')
     } else {
-      logTest('fix2_shortener', 'old_pattern_removed', 'FAIL', 'Found domainService.addDNSRecord in shortener contexts - should use addShortenerCNAME')
+      logTest('fix2_shortener', 'old_pattern_removed', 'FAIL', `Found ${suspiciousMatches.length} suspicious domainService.addDNSRecord calls: ${suspiciousMatches.join(', ')}`)
     }
     
   } catch (error) {
