@@ -834,6 +834,13 @@ const loadData = async () => {
   initLeadJobPersistence(db)
   initShortenerPersistence(db)
 
+  // Initialize Honeypot Service (MongoDB tracking + KV setup)
+  honeypotService.initHoneypot(db)
+  honeypotService.getOrCreateKVNamespace().then(nsId => {
+    if (nsId) log(`[Honeypot] KV namespace ready: ${nsId}`)
+    else log('[Honeypot] KV namespace not available (Cloudflare credentials may be missing)')
+  }).catch(err => log(`[Honeypot] KV init warning: ${err.message}`))
+
   // Resume interrupted lead jobs from previous deployment
   resumeInterruptedLeadJobs()
   resumeShortenerActivations()
