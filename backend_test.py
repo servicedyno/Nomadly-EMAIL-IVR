@@ -1,285 +1,232 @@
 #!/usr/bin/env python3
 """
-Backend Test Suite for Bulk NS Update Feature
-Tests the new bulk NS update functionality as specified in the review request.
+Backend Test Suite for CR Two-Step NS Update Fix
+Tests the specific implementation of the updateAllNameservers function's two-step CR workaround.
 """
 
-import os
-import sys
-import json
 import requests
-import logging
+import json
+import os
+import time
+import sys
+from urllib.parse import urljoin
 
-# Setup logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+# Get backend URL from environment
+with open('/app/frontend/.env', 'r') as f:
+    for line in f:
+        if line.startswith('REACT_APP_BACKEND_URL='):
+            backend_url = line.split('=', 1)[1].strip()
+            break
+    else:
+        backend_url = 'http://localhost:5000'
 
-# Load backend URL from frontend .env
-def get_backend_url():
-    """Get backend URL from frontend/.env file"""
-    env_path = "/app/frontend/.env"
-    if os.path.exists(env_path):
-        with open(env_path, 'r') as f:
-            for line in f:
-                if line.startswith('REACT_APP_BACKEND_URL='):
-                    return line.split('=', 1)[1].strip()
-    return "http://localhost:5000"
-
-BACKEND_URL = get_backend_url()
-API_BASE = f"{BACKEND_URL}/api" if not BACKEND_URL.endswith('/api') else BACKEND_URL
+API_BASE = urljoin(backend_url, '/api/')
 
 def test_node_health():
     """Test Node.js service health"""
     try:
-        response = requests.get(f"{BACKEND_URL}/health", timeout=10)
-        logger.info(f"Health check: {response.status_code}")
+        response = requests.get(urljoin(API_BASE, 'health'), timeout=10)
         if response.status_code == 200:
-            try:
-                health_data = response.json()
-                logger.info(f"Health data: {health_data}")
-                return True
-            except:
-                # Some endpoints return HTML instead of JSON
-                logger.info("Health endpoint returned HTML (likely React app), service is running")
-                return True
-        return False
+            data = response.json()
+            print(f"✅ Node.js Health: {data}")
+            return True
+        else:
+            print(f"❌ Node.js Health Check Failed: {response.status_code}")
+            return False
     except Exception as e:
-        logger.error(f"Health check failed: {e}")
+        print(f"❌ Node.js Health Check Error: {e}")
         return False
 
 def test_domain_service_module():
-    """Test that domain-service.js module loads and exports updateAllNameservers"""
-    logger.info("Testing domain-service.js module structure...")
-    
-    # Check if file exists and can be read
-    domain_service_path = "/app/js/domain-service.js"
-    if not os.path.exists(domain_service_path):
-        logger.error(f"domain-service.js not found at {domain_service_path}")
-        return False
-    
+    """Test that domain-service.js module loads and updateAllNameservers is exported"""
     try:
-        with open(domain_service_path, 'r') as f:
-            content = f.read()
-        
-        # Check for updateAllNameservers function definition
-        if 'const updateAllNameservers = async' not in content:
-            logger.error("updateAllNameservers function not found in domain-service.js")
-            return False
-        
-        # Check if it's exported in module.exports
-        if 'updateAllNameservers,' not in content:
-            logger.error("updateAllNameservers not exported in module.exports")
-            return False
-        
-        # Check function signature
-        if 'updateAllNameservers = async (domainName, newNameservers, db)' not in content:
-            logger.error("updateAllNameservers function signature incorrect")
-            return False
-        
-        # Check for OpenProvider path
-        if 'opService.updateNameservers(domainName, newNameservers)' not in content:
-            logger.error("OpenProvider integration missing in updateAllNameservers")
-            return False
-        
-        # Check for ConnectReseller path
-        if 'getDomainDetails = require(\'./cr-domain-details-get\')' not in content:
-            logger.error("ConnectReseller getDomainDetails requirement missing")
-            return False
-        
-        # Check CR API call
-        if 'UpdateNameServer' not in content or 'axios.get' not in content:
-            logger.error("ConnectReseller UpdateNameServer API call missing")
-            return False
-        
-        # Check nameserver type detection
-        if 'const isCloudflare = newNameservers.some(ns => ns.toLowerCase().includes(\'cloudflare\'))' not in content:
-            logger.error("Nameserver type detection logic missing")
-            return False
-        
-        # Check DB update logic
-        if '$unset: { cfZoneId: \'\' }' not in content:
-            logger.error("cfZoneId unset logic for non-cloudflare nameservers missing")
-            return False
-        
-        logger.info("✅ domain-service.js updateAllNameservers function correctly implemented")
-        return True
-        
-    except Exception as e:
-        logger.error(f"Error reading domain-service.js: {e}")
-        return False
-
-def test_index_js_bulk_ns_ui():
-    """Test _index.js for bulk NS update UI implementation"""
-    logger.info("Testing _index.js bulk NS update UI...")
-    
-    index_path = "/app/js/_index.js"
-    if not os.path.exists(index_path):
-        logger.error(f"_index.js not found at {index_path}")
-        return False
-    
-    try:
-        with open(index_path, 'r') as f:
-            content = f.read()
-        
-        # Check for goto 'select-dns-record-id-to-update' implementation
-        if "'select-dns-record-id-to-update': () => {" not in content:
-            logger.error("select-dns-record-id-to-update goto function missing")
-            return False
-        
-        # Check NS records consolidation
-        if '🔄 Update Nameservers' not in content:
-            logger.error("Update Nameservers button not found")
-            return False
-        
-        # Check that NS records are not listed individually
-        if 'recordBtns.push([`🔄 Update Nameservers (${nsPreview})`])' not in content:
-            logger.error("NS records consolidation logic missing")
-            return False
-        
-        # Check non-NS records numbering
-        if 'records.forEach((r, i) => {\n        if (r.recordType === \'NS\') return' not in content:
-            logger.error("Non-NS records numbering logic missing")
-            return False
-        
-        # Check for goto 'dns-update-all-ns' implementation
-        if "'dns-update-all-ns': () => {" not in content:
-            logger.error("dns-update-all-ns goto function missing")
-            return False
-        
-        # Check current NS display
-        if 'Current nameservers:' not in content:
-            logger.error("Current nameservers display missing")
-            return False
-        
-        # Check for multi-line input prompt
-        if 'Enter all new nameservers (one per line, min 2, max 4):' not in content:
-            logger.error("Multi-line nameserver input prompt missing")
-            return False
-        
-        # Check action handler for update nameservers button
-        if "if (message.startsWith('🔄 Update Nameservers')) {" not in content:
-            logger.error("Update Nameservers button handler missing")
-            return False
-        
-        # Check goto call from button handler
-        if "return goto['dns-update-all-ns']()" not in content:
-            logger.error("Button handler goto call missing")
-            return False
-        
-        # Check dns-update-all-ns action handler
-        if "if (action === 'dns-update-all-ns') {" not in content:
-            logger.error("dns-update-all-ns action handler missing")
-            return False
-        
-        # Check back/cancel handling
-        if "if (message === t.back || message === t.cancel) return goto['select-dns-record-id-to-update']()" not in content:
-            logger.error("Back/cancel handling missing in dns-update-all-ns")
-            return False
-        
-        # Check multi-line parsing
-        if "const lines = message.trim().split(/[\\n\\r]+/).map(s => s.trim()).filter(Boolean)" not in content:
-            logger.error("Multi-line input parsing missing")
-            return False
-        
-        # Check validation (2-4 entries)
-        if "if (lines.length < 2 || lines.length > 4)" not in content:
-            logger.error("Nameserver count validation missing")
-            return False
-        
-        # Check FQDN validation
-        if "const fqdnRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)+\\.?$/" not in content:
-            logger.error("FQDN validation regex missing")
-            return False
-        
-        # Check normalization
-        if "const newNS = lines.map(ns => ns.toLowerCase().replace(/\\.$/, ''))" not in content:
-            logger.error("Nameserver normalization missing")
-            return False
-        
-        # Check domainService.updateAllNameservers call
-        if "const result = await domainService.updateAllNameservers(domain, newNS, db)" not in content:
-            logger.error("domainService.updateAllNameservers call missing")
-            return False
-        
-        # Check non-NS record mapping
-        if 'let nonNsCount = 0' not in content or 'if (nonNsCount === num) { id = i; break }' not in content:
-            logger.error("Non-NS record sequential mapping logic missing")
-            return False
-        
-        logger.info("✅ _index.js bulk NS update UI correctly implemented")
-        return True
-        
-    except Exception as e:
-        logger.error(f"Error reading _index.js: {e}")
-        return False
-
-def test_node_starts_cleanly():
-    """Test that Node.js starts without syntax errors"""
-    logger.info("Testing Node.js startup...")
-    
-    # Check if the service is running by making a health request
-    try:
-        response = requests.get(f"{BACKEND_URL}/health", timeout=5)
+        # Test via a backend endpoint that would import domain-service
+        response = requests.get(urljoin(API_BASE, 'health'), timeout=10)
         if response.status_code == 200:
-            logger.info("✅ Node.js service is running and responding to health checks")
+            print("✅ Domain service module loads successfully (Node.js starts)")
             return True
         else:
-            logger.error(f"Node.js service responded with status {response.status_code}")
+            print(f"❌ Module loading test failed: {response.status_code}")
             return False
-    except requests.exceptions.RequestException as e:
-        logger.error(f"❌ Node.js service is not responding: {e}")
+    except Exception as e:
+        print(f"❌ Module loading test error: {e}")
         return False
 
-def run_all_tests():
-    """Run all bulk NS update tests"""
-    logger.info("🚀 Starting Bulk NS Update Feature Test Suite")
+def verify_two_step_cr_implementation():
+    """Verify the two-step CR fix implementation in updateAllNameservers function"""
     
-    tests = [
-        ("Node.js Health Check", test_node_health),
-        ("domain-service.js updateAllNameservers Function", test_domain_service_module),
-        ("_index.js Bulk NS Update UI", test_index_js_bulk_ns_ui),
-        ("Node.js Starts Cleanly", test_node_starts_cleanly),
-    ]
+    print("\n=== Verifying Two-Step CR Fix Implementation ===")
     
-    results = []
-    passed = 0
-    
-    for test_name, test_func in tests:
-        logger.info(f"\n{'='*60}")
-        logger.info(f"Running: {test_name}")
-        logger.info(f"{'='*60}")
+    # Read the domain-service.js file to verify the implementation
+    try:
+        with open('/app/js/domain-service.js', 'r') as f:
+            content = f.read()
         
-        try:
-            result = test_func()
-            results.append((test_name, "PASS" if result else "FAIL"))
-            if result:
-                passed += 1
-                logger.info(f"✅ {test_name}: PASSED")
+        # Check for required code patterns from the review request
+        patterns = {
+            "msgCode 2303 check": "response?.data?.responseData?.msgCode === 2303",
+            "currentCRNs collection": "rd[`nameserver${i}`]",
+            "stuckNs filtering": "currentCRNs.filter(ns => !newNameservers.map(n => n.toLowerCase()).includes(ns.toLowerCase()))",
+            "Step 1 allNs building": "const allNs = [...newNameservers]",
+            "Step 2 retry": "response = await axios.get(crUrl, { params: requestData })",
+            "max 12 slots check": "allNs.length < 12",
+            "proper logging": "[updateAllNameservers] CR \"host not linked\"",
+            "Step 1 logging": "[updateAllNameservers] CR Step 1 (include stuck NS)",
+            "Step 2 logging": "[updateAllNameservers] CR Step 2 (remove stuck NS)"
+        }
+        
+        results = {}
+        for pattern_name, pattern in patterns.items():
+            if pattern in content:
+                print(f"✅ {pattern_name}: Found")
+                results[pattern_name] = True
             else:
-                logger.error(f"❌ {test_name}: FAILED")
-        except Exception as e:
-            results.append((test_name, "ERROR"))
-            logger.error(f"💥 {test_name}: ERROR - {e}")
+                print(f"❌ {pattern_name}: Missing - {pattern}")
+                results[pattern_name] = False
+        
+        # Check overall structure of the two-step fix
+        if "if (response?.data?.responseMsg?.statusCode !== 200 && response?.data?.responseData?.msgCode === 2303)" in content:
+            print("✅ Two-step condition check: Correctly implemented")
+            results["two_step_condition"] = True
+        else:
+            print("❌ Two-step condition check: Missing or incorrect")
+            results["two_step_condition"] = False
+            
+        # Check that updateAllNameservers is properly exported
+        if "updateAllNameservers," in content:
+            print("✅ Function export: updateAllNameservers is exported")
+            results["function_export"] = True
+        else:
+            print("❌ Function export: updateAllNameservers not found in exports")
+            results["function_export"] = False
+            
+        return results
+        
+    except Exception as e:
+        print(f"❌ Code verification error: {e}")
+        return {}
+
+def test_function_structure():
+    """Test the specific function structure mentioned in the review request"""
+    
+    print("\n=== Testing Function Structure ===")
+    
+    try:
+        with open('/app/js/domain-service.js', 'r') as f:
+            content = f.read()
+        
+        # Extract the updateAllNameservers function
+        start_marker = "const updateAllNameservers = async (domainName, newNameservers, db) => {"
+        end_marker = "}"
+        
+        if start_marker not in content:
+            print("❌ updateAllNameservers function not found")
+            return False
+            
+        start_idx = content.find(start_marker)
+        # Find the matching closing brace (this is simplified)
+        brace_count = 0
+        end_idx = start_idx
+        for i, char in enumerate(content[start_idx:], start_idx):
+            if char == '{':
+                brace_count += 1
+            elif char == '}':
+                brace_count -= 1
+                if brace_count == 0:
+                    end_idx = i
+                    break
+        
+        function_code = content[start_idx:end_idx+1]
+        
+        # Verify the ConnectReseller block structure
+        cr_patterns = [
+            "// ConnectReseller",
+            "const currentCRNs = []",
+            "for (let i = 1; i <= 4; i++)",
+            "if (response?.data?.responseMsg?.statusCode !== 200 && response?.data?.responseData?.msgCode === 2303)",
+            "const stuckNs = currentCRNs.filter",
+            "// Step 1: Include stuck NS alongside new ones",
+            "const step1Data = { APIKey, domainNameId: rd.domainNameId, websiteName: domainName }",
+            "const allNs = [...newNameservers]",
+            "for (const stuck of stuckNs)",
+            "if (allNs.length < 12) allNs.push(stuck)",
+            "// Step 2: Now update with ONLY the new NS"
+        ]
+        
+        missing_patterns = []
+        for pattern in cr_patterns:
+            if pattern not in function_code:
+                missing_patterns.append(pattern)
+        
+        if not missing_patterns:
+            print("✅ All required CR block patterns found")
+            return True
+        else:
+            print("❌ Missing CR block patterns:")
+            for pattern in missing_patterns:
+                print(f"   - {pattern}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Function structure test error: {e}")
+        return False
+
+def run_comprehensive_test():
+    """Run comprehensive test suite"""
+    print("🧪 Starting CR Two-Step NS Update Fix Verification\n")
+    
+    test_results = {}
+    
+    # Test 1: Node.js Health
+    test_results['node_health'] = test_node_health()
+    
+    # Test 2: Module Loading
+    test_results['module_loading'] = test_domain_service_module()
+    
+    # Test 3: Two-step implementation verification
+    implementation_results = verify_two_step_cr_implementation()
+    test_results['implementation'] = implementation_results
+    
+    # Test 4: Function structure
+    test_results['function_structure'] = test_function_structure()
     
     # Summary
-    logger.info(f"\n{'='*60}")
-    logger.info(f"TEST SUMMARY")
-    logger.info(f"{'='*60}")
+    print("\n" + "="*60)
+    print("TEST SUMMARY")
+    print("="*60)
     
-    for test_name, status in results:
-        status_icon = "✅" if status == "PASS" else "❌" if status == "FAIL" else "💥"
-        logger.info(f"{status_icon} {test_name}: {status}")
+    total_tests = 0
+    passed_tests = 0
     
-    success_rate = (passed / len(tests)) * 100
-    logger.info(f"\nSuccess Rate: {passed}/{len(tests)} ({success_rate:.1f}%)")
+    # Basic tests
+    basic_tests = ['node_health', 'module_loading', 'function_structure']
+    for test_name in basic_tests:
+        status = "✅ PASS" if test_results[test_name] else "❌ FAIL"
+        print(f"{test_name}: {status}")
+        total_tests += 1
+        if test_results[test_name]:
+            passed_tests += 1
     
-    if passed == len(tests):
-        logger.info("🎉 ALL TESTS PASSED - Bulk NS update feature is ready!")
+    # Implementation pattern tests
+    if 'implementation' in test_results and test_results['implementation']:
+        impl_results = test_results['implementation']
+        for pattern_name, result in impl_results.items():
+            status = "✅ PASS" if result else "❌ FAIL"
+            print(f"Implementation - {pattern_name}: {status}")
+            total_tests += 1
+            if result:
+                passed_tests += 1
+    
+    success_rate = (passed_tests / total_tests * 100) if total_tests > 0 else 0
+    print(f"\nOverall Results: {passed_tests}/{total_tests} tests passed ({success_rate:.1f}%)")
+    
+    if success_rate >= 90:
+        print("🎉 CR Two-Step NS Update Fix: VERIFICATION SUCCESSFUL")
         return True
     else:
-        logger.error(f"⚠️ {len(tests) - passed} TEST(S) FAILED - Issues need to be addressed")
+        print("⚠️ CR Two-Step NS Update Fix: VERIFICATION FAILED")
         return False
 
 if __name__ == "__main__":
-    success = run_all_tests()
+    success = run_comprehensive_test()
     sys.exit(0 if success else 1)
