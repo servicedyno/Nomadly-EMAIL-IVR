@@ -1000,16 +1000,16 @@ const adminKeyboard = {
 const userKeyboard = {
   reply_markup: {
     keyboard: [
-      [user.domainNames],
-      [user.urlShortenerMain],
       [user.cloudPhone, user.testSip],
-      [user.phoneNumberLeads],
       [user.digitalProducts, user.virtualCard],
-      HIDE_SMS_APP === 'true' ? [user.hostingDomainsRedirect] : [user.freeTrialAvailable, user.hostingDomainsRedirect],
-      [user.wallet, user.viewPlan],
+      [user.domainNames, user.urlShortenerMain],
+      [user.phoneNumberLeads],
+      HIDE_SMS_APP === 'true'
+        ? [user.hostingDomainsRedirect, user.wallet, user.viewPlan]
+        : [user.freeTrialAvailable, user.hostingDomainsRedirect, user.wallet],
       HIDE_BECOME_RESELLER === 'true'
         ? [user.changeSetting, user.getSupport, user.joinChannel]
-        : [user.changeSetting, user.becomeReseller, user.getSupport],
+        : [user.becomeReseller, user.changeSetting, user.getSupport],
     ],
   },
   parse_mode: 'HTML',
