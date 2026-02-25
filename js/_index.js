@@ -6662,17 +6662,37 @@ bot?.on('message', async msg => {
     send(chatId, t.switchToProviderProgress ? t.switchToProviderProgress(domain) : `⏳ Switching <b>${domain}</b> to provider DNS…`, { parse_mode: 'HTML' })
 
     try {
+      // Deactivate shortener if flagged (root CNAME won't work without CF CNAME flattening)
+      const shouldDeactivateShortener = info?.switchToProviderDeactivateShortener
+      if (shouldDeactivateShortener) {
+        log(`[SwitchToProvider] Deactivating shortener for ${domain} (CF CNAME flattening required)`)
+        const removeResult = await removeDomainFromRailway(domain)
+        if (removeResult.error) {
+          log(`[SwitchToProvider] Warning: Railway remove failed for ${domain}: ${removeResult.error}`)
+        } else {
+          log(`[SwitchToProvider] Railway domain removed for ${domain}`)
+        }
+      }
+
       const result = await domainService.switchToProviderDefault(domain, db)
       if (result.error) {
         send(chatId, t.switchToProviderError ? t.switchToProviderError(result.error) : `❌ Switch failed: ${result.error}`, { parse_mode: 'HTML' })
         return goto['choose-dns-action']()
       }
 
+      // If shortener was deactivated, filter out the Railway CNAME from migrated records
+      // (root CNAME won't work on provider DNS, so don't migrate it)
+      const migration = result.migration || {}
+      if (shouldDeactivateShortener && migration.migrated) {
+        migration.migrated = migration.migrated.filter(r =>
+          !(r.type === 'CNAME' && r.content && r.content.includes('.up.railway.app'))
+        )
+      }
+
       // Build success message with migration details
       let msg = t.switchToProviderSuccess
         ? t.switchToProviderSuccess(domain, result.nameservers)
         : `✅ <b>${domain}</b> switched back to provider DNS.\n\nNew Nameservers:\n${result.nameservers.map((ns, i) => `NS${i + 1}: <code>${ns}</code>`).join('\n')}`
-      const migration = result.migration || {}
       if (migration.migrated && migration.migrated.length > 0) {
         msg += `\n\n✅ <b>Records migrated to provider DNS:</b>\n`
         msg += migration.migrated.map(r => `• ${r.type} ${r.name} → ${r.content}`).join('\n')
@@ -6681,8 +6701,11 @@ bot?.on('message', async msg => {
         msg += `\n\n⚠️ <b>Failed to migrate:</b>\n`
         msg += migration.failed.map(r => `• ${r.type} ${r.name}: ${r.error}`).join('\n')
       }
-      if (migration.isEmpty) {
-        msg += `\n\n📋 <b>Note:</b> No DNS records were found on Cloudflare to migrate. Please add your A, CNAME, MX, and TXT records as needed.`
+      if (migration.isEmpty || (migration.migrated && migration.migrated.length === 0 && (!migration.failed || migration.failed.length === 0))) {
+        msg += `\n\n📋 <b>Note:</b> No DNS records were found to migrate. Please add your A, CNAME, MX, and TXT records as needed.`
+      }
+      if (shouldDeactivateShortener) {
+        msg += `\n\n🔗 URL shortener has been deactivated (requires Cloudflare CNAME flattening).`
       }
       msg += `\n\n⏱ DNS changes may take 24-48 hours to propagate.`
       send(chatId, msg, { parse_mode: 'HTML' })
