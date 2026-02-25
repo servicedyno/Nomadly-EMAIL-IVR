@@ -464,44 +464,137 @@ const updateNameserverAtRegistrar = async (domainName, nsSlot, newValue, db) => 
   return { useDefaultCR: true }
 }
 
-// ─── Switch to Cloudflare ───────────────────────────────
+// ─── Migrate records helper ─────────────────────────────
 
 /**
- * Switch a domain's DNS to Cloudflare:
- * 1. Create CF zone (get NS)
- * 2. Update NS at registrar (CR or OP)
- * 3. Update DB metadata
+ * Migrate existing DNS records from old provider (OP/CR) to a Cloudflare zone.
+ * Skips NS records (handled by zone-level nameservers).
+ * Returns { migrated: [], failed: [], isEmpty: boolean }
  */
-const switchToCloudflare = async (domainName, db) => {
-  const meta = await getDomainMeta(domainName, db)
-  if (!meta) return { error: 'Domain metadata not found' }
+const migrateRecordsToCF = async (domainName, cfZoneId, meta) => {
+  const migrated = []
+  const failed = []
+  let oldRecords = []
 
-  // Already on Cloudflare?
-  if (meta.nameserverType === 'cloudflare' && meta.cfZoneId) {
-    return { error: 'Domain is already using Cloudflare DNS' }
+  try {
+    // Fetch existing records from old provider
+    const registrar = meta.registrar || 'ConnectReseller'
+    if (registrar === 'OpenProvider') {
+      const opResult = await opService.listDNSRecords(domainName)
+      oldRecords = (opResult.records || [])
+    } else {
+      const viewCRDNS = require('./cr-view-dns-records')
+      const crData = await viewCRDNS(domainName)
+      oldRecords = (crData?.records || []).map(r => ({
+        recordType: r.recordType,
+        recordContent: r.recordContent || r.value,
+        recordName: r.recordName || r.hostName || domainName,
+        ttl: r.ttl,
+        priority: r.priority,
+      }))
+    }
+
+    // Filter out NS records and empty entries
+    const toMigrate = oldRecords.filter(r =>
+      r.recordType && r.recordType !== 'NS' && r.recordContent
+    )
+
+    if (toMigrate.length === 0) {
+      log(`[migrateRecordsToCF] No records to migrate for ${domainName}`)
+      return { migrated, failed, isEmpty: true }
+    }
+
+    log(`[migrateRecordsToCF] Migrating ${toMigrate.length} records for ${domainName}`)
+
+    for (const record of toMigrate) {
+      const type = record.recordType.toUpperCase()
+      const name = record.recordName || domainName
+      const content = record.recordContent
+      const shouldProxy = ['A', 'AAAA', 'CNAME'].includes(type)
+      const priority = record.priority
+
+      const result = await cfService.createDNSRecord(
+        cfZoneId, type, name, content, record.ttl || 300, shouldProxy, priority
+      )
+
+      if (result.success || result.alreadyExists) {
+        migrated.push({ type, name, content })
+        log(`[migrateRecordsToCF] ✅ ${type} ${name} → ${content}`)
+      } else {
+        failed.push({ type, name, content, error: result.errors?.[0]?.message || 'Unknown' })
+        log(`[migrateRecordsToCF] ❌ ${type} ${name} → ${content}: ${result.errors?.[0]?.message || 'Unknown'}`)
+      }
+    }
+  } catch (err) {
+    log(`[migrateRecordsToCF] Error: ${err.message}`)
   }
 
-  log(`[switchToCloudflare] Starting for ${domainName} (registrar: ${meta.registrar || 'ConnectReseller'})`)
+  return { migrated, failed, isEmpty: oldRecords.filter(r => r.recordType !== 'NS').length === 0 }
+}
 
-  // 1. Create CF zone
+// ─── Background NS verification ────────────────────────
+
+/**
+ * Background task: re-check CF zone NS after 30s to detect CF reassignment.
+ * Auto-corrects at registrar + DB if drift detected.
+ */
+const backgroundNSVerify = (domainName, cfNameservers, registrar, db) => {
+  ;(async () => {
+    try {
+      await new Promise(r => setTimeout(r, 30000))
+      const zoneData = await cfService.getZoneByName(domainName)
+      if (!zoneData) return
+      const currentNS = (zoneData.name_servers || []).sort().join(',')
+      const savedNS = [...cfNameservers].sort().join(',')
+      if (currentNS !== savedNS) {
+        log(`[NSVerify] ⚠️ CF reassigned NS for ${domainName}: was [${cfNameservers}] now [${zoneData.name_servers}]`)
+        const correctNS = zoneData.name_servers
+        if (registrar === 'OpenProvider') {
+          await opService.updateNameservers(domainName, correctNS)
+        } else {
+          const viewCRDNS = require('./cr-view-dns-records')
+          const crData = await viewCRDNS(domainName)
+          if (crData?.domainNameId) {
+            const nsRecords = (crData.records || []).filter(r => r.recordType === 'NS')
+            const { updateDNSRecordNs } = require('./cr-dns-record-update-ns')
+            for (let i = 0; i < correctNS.length && i < 4; i++) {
+              if (nsRecords[i]) await updateDNSRecordNs(crData.domainNameId, domainName, correctNS[i], nsRecords[i].nsId, nsRecords)
+            }
+          }
+        }
+        if (db) {
+          await db.collection('domainsOf').updateOne({ domainName }, { $set: { nameservers: correctNS } })
+          await db.collection('registeredDomains').updateOne({ _id: domainName }, { $set: { 'val.nameservers': correctNS } })
+        }
+        log(`[NSVerify] NS drift corrected for ${domainName}`)
+      } else {
+        log(`[NSVerify] NS verified OK for ${domainName}`)
+      }
+    } catch (err) {
+      log(`[NSVerify] Error for ${domainName}: ${err.message}`)
+    }
+  })()
+}
+
+// ─── Core: create CF zone + update NS at registrar ──────
+
+const _createZoneAndUpdateNS = async (domainName, meta) => {
   const cfResult = await cfService.createZone(domainName)
   if (!cfResult.success || !cfResult.zoneId) {
     return { error: 'Failed to create Cloudflare zone: ' + (cfResult.errors?.[0]?.message || 'Unknown error') }
   }
-  let cfNameservers = cfResult.nameservers || []
+  const cfNameservers = cfResult.nameservers || []
   log(`[switchToCloudflare] CF zone created for ${domainName}: ${cfResult.zoneId}, NS: ${cfNameservers.join(', ')}`)
   if (cfNameservers.length < 2) {
     return { error: 'Cloudflare did not return nameservers' }
   }
 
-  // 2. Update NS at registrar
   const registrar = meta.registrar || 'ConnectReseller'
   if (registrar === 'OpenProvider') {
     const nsResult = await opService.updateNameservers(domainName, cfNameservers)
     if (nsResult.error) return { error: `Failed to update nameservers at OpenProvider: ${nsResult.error}` }
     log(`[switchToCloudflare] OP NS updated for ${domainName}: ${cfNameservers.join(', ')}`)
   } else {
-    // ConnectReseller
     const viewCRDNS = require('./cr-view-dns-records')
     const crData = await viewCRDNS(domainName)
     if (!crData || !crData.domainNameId) {
@@ -513,95 +606,77 @@ const switchToCloudflare = async (domainName, db) => {
       const existingNS = nsRecords[i]
       if (existingNS) {
         const result = await updateDNSRecordNs(crData.domainNameId, domainName, cfNameservers[i], existingNS.nsId, nsRecords)
-        if (result.error) {
-          log(`[switchToCloudflare] Warning: CR NS slot ${i + 1} update failed: ${result.error}`)
-        }
+        if (result.error) log(`[switchToCloudflare] Warning: CR NS slot ${i + 1} update failed: ${result.error}`)
       }
     }
     log(`[switchToCloudflare] CR NS updated for ${domainName}`)
   }
 
-  // 3. Update DB metadata
-  if (db) {
-    const updateData = {
-      nameserverType: 'cloudflare',
-      cfZoneId: cfResult.zoneId,
-      nameservers: cfNameservers,
-    }
-    await db.collection('domainsOf').updateOne(
-      { domainName },
-      { $set: updateData },
-      { upsert: false }
-    )
-    await db.collection('registeredDomains').updateOne(
-      { _id: domainName },
-      { $set: { 'val.nameserverType': 'cloudflare', 'val.cfZoneId': cfResult.zoneId, 'val.nameservers': cfNameservers } },
-      { upsert: false }
-    )
+  return { success: true, zoneId: cfResult.zoneId, nameservers: cfNameservers, registrar }
+}
+
+const _updateDBMeta = async (domainName, cfZoneId, cfNameservers, db) => {
+  if (!db) return
+  const updateData = { nameserverType: 'cloudflare', cfZoneId, nameservers: cfNameservers }
+  await db.collection('domainsOf').updateOne({ domainName }, { $set: updateData }, { upsert: false })
+  await db.collection('registeredDomains').updateOne(
+    { _id: domainName },
+    { $set: { 'val.nameserverType': 'cloudflare', 'val.cfZoneId': cfZoneId, 'val.nameservers': cfNameservers } },
+    { upsert: false }
+  )
+}
+
+// ─── Switch to Cloudflare ───────────────────────────────
+
+/**
+ * Switch a domain's DNS to Cloudflare:
+ * 1. Create CF zone (get NS)
+ * 2. Migrate existing DNS records from old provider to CF zone
+ * 3. Update NS at registrar (CR or OP)
+ * 4. Update DB metadata
+ * 5. Background NS drift detection
+ * Returns { success, nameservers, zoneId, migration: { migrated, failed, isEmpty } }
+ */
+const switchToCloudflare = async (domainName, db) => {
+  const meta = await getDomainMeta(domainName, db)
+  if (!meta) return { error: 'Domain metadata not found' }
+
+  if (meta.nameserverType === 'cloudflare' && meta.cfZoneId) {
+    return { error: 'Domain is already using Cloudflare DNS' }
   }
 
-  // 4. Background: verify CF NS after 30s — CF can reassign NS for pending zones
-  const bgZoneId = cfResult.zoneId
-  const bgDomain = domainName
-  const bgRegistrar = registrar
-  ;(async () => {
-    try {
-      await new Promise(r => setTimeout(r, 30000))
-      const zoneData = await cfService.getZoneByName(bgDomain)
-      if (!zoneData) return
-      const currentNS = (zoneData.name_servers || []).sort().join(',')
-      const savedNS = cfNameservers.sort().join(',')
-      if (currentNS !== savedNS) {
-        log(`[switchToCloudflare] ⚠️ CF reassigned NS for ${bgDomain}: ${cfNameservers.join(',')} → ${zoneData.name_servers.join(',')}`)
-        const correctNS = zoneData.name_servers
-        // Re-update NS at registrar
-        if (bgRegistrar === 'OpenProvider') {
-          await opService.updateNameservers(bgDomain, correctNS)
-          log(`[switchToCloudflare] OP NS re-updated for ${bgDomain}: ${correctNS.join(', ')}`)
-        } else {
-          const viewCRDNS2 = require('./cr-view-dns-records')
-          const crData2 = await viewCRDNS2(bgDomain)
-          if (crData2?.domainNameId) {
-            const nsRecords2 = (crData2.records || []).filter(r => r.recordType === 'NS')
-            const { updateDNSRecordNs: updNs2 } = require('./cr-dns-record-update-ns')
-            for (let i = 0; i < correctNS.length && i < 4; i++) {
-              const existingNS = nsRecords2[i]
-              if (existingNS) await updNs2(crData2.domainNameId, bgDomain, correctNS[i], existingNS.nsId, nsRecords2)
-            }
-          }
-          log(`[switchToCloudflare] CR NS re-updated for ${bgDomain}: ${correctNS.join(', ')}`)
-        }
-        // Re-update DB
-        if (db) {
-          await db.collection('domainsOf').updateOne({ domainName: bgDomain }, { $set: { nameservers: correctNS } })
-          await db.collection('registeredDomains').updateOne({ _id: bgDomain }, { $set: { 'val.nameservers': correctNS } })
-        }
-        log(`[switchToCloudflare] NS drift corrected for ${bgDomain}`)
-      } else {
-        log(`[switchToCloudflare] NS verified OK for ${bgDomain}`)
-      }
-    } catch (err) {
-      log(`[switchToCloudflare] NS verification error for ${bgDomain}: ${err.message}`)
-    }
-  })()
+  log(`[switchToCloudflare] Starting for ${domainName} (registrar: ${meta.registrar || 'ConnectReseller'})`)
+
+  // 1+3. Create CF zone + update NS at registrar
+  const zoneResult = await _createZoneAndUpdateNS(domainName, meta)
+  if (zoneResult.error) return zoneResult
+
+  // 2. Migrate existing DNS records to CF zone
+  const migration = await migrateRecordsToCF(domainName, zoneResult.zoneId, meta)
+
+  // 4. Update DB metadata
+  await _updateDBMeta(domainName, zoneResult.zoneId, zoneResult.nameservers, db)
+
+  // 5. Background NS verification
+  backgroundNSVerify(domainName, zoneResult.nameservers, zoneResult.registrar, db)
 
   return {
     success: true,
-    nameservers: cfNameservers,
-    zoneId: cfResult.zoneId,
+    nameservers: zoneResult.nameservers,
+    zoneId: zoneResult.zoneId,
+    migration,
   }
 }
 
 /**
  * ensureCloudflare — idempotent: if already on CF, returns existing zone info.
- * If not, creates CF zone, updates NS at registrar, updates DB.
+ * If not, creates CF zone, migrates records, updates NS at registrar, updates DB.
  * Used by shortener activation to guarantee domain is on Cloudflare before adding CNAME.
  */
 const ensureCloudflare = async (domainName, db) => {
   const meta = await getDomainMeta(domainName, db)
   if (!meta) return { error: 'Domain metadata not found' }
 
-  // Already on Cloudflare — return existing zone info
   if (meta.nameserverType === 'cloudflare' && meta.cfZoneId) {
     log(`[ensureCloudflare] ${domainName} already on CF (zone: ${meta.cfZoneId})`)
     return { success: true, cfZoneId: meta.cfZoneId, nameservers: meta.nameservers || [], alreadyActive: true }
@@ -609,107 +684,83 @@ const ensureCloudflare = async (domainName, db) => {
 
   log(`[ensureCloudflare] ${domainName} NOT on Cloudflare — switching now`)
 
-  // Reuse switchToCloudflare logic but return success format
-  // 1. Create CF zone
-  const cfResult = await cfService.createZone(domainName)
-  if (!cfResult.success || !cfResult.zoneId) {
-    return { error: 'Failed to create Cloudflare zone: ' + (cfResult.errors?.[0]?.message || 'Unknown error') }
-  }
-  const cfNameservers = cfResult.nameservers || []
-  log(`[ensureCloudflare] CF zone created for ${domainName}: ${cfResult.zoneId}, NS: ${cfNameservers.join(', ')}`)
-  if (cfNameservers.length < 2) {
-    return { error: 'Cloudflare did not return nameservers' }
-  }
+  // Create CF zone + update NS
+  const zoneResult = await _createZoneAndUpdateNS(domainName, meta)
+  if (zoneResult.error) return { error: zoneResult.error }
 
-  // 2. Update NS at registrar
-  const registrar = meta.registrar || 'ConnectReseller'
-  if (registrar === 'OpenProvider') {
-    const nsResult = await opService.updateNameservers(domainName, cfNameservers)
-    if (nsResult.error) {
-      log(`[ensureCloudflare] OP NS update failed for ${domainName}: ${nsResult.error}`)
-      // Non-fatal: zone is created, NS can be fixed later
-    } else {
-      log(`[ensureCloudflare] OP NS updated for ${domainName}: ${cfNameservers.join(', ')}`)
-    }
-  } else {
-    const viewCRDNS = require('./cr-view-dns-records')
-    const crData = await viewCRDNS(domainName)
-    if (crData?.domainNameId) {
-      const nsRecords = (crData.records || []).filter(r => r.recordType === 'NS')
-      const { updateDNSRecordNs } = require('./cr-dns-record-update-ns')
-      for (let i = 0; i < cfNameservers.length && i < 4; i++) {
-        const existingNS = nsRecords[i]
-        if (existingNS) {
-          await updateDNSRecordNs(crData.domainNameId, domainName, cfNameservers[i], existingNS.nsId, nsRecords)
-        }
-      }
-      log(`[ensureCloudflare] CR NS updated for ${domainName}`)
-    }
-  }
+  // Migrate existing records to CF zone
+  const migration = await migrateRecordsToCF(domainName, zoneResult.zoneId, meta)
 
-  // 3. Update DB metadata
-  if (db) {
-    const updateData = {
-      nameserverType: 'cloudflare',
-      cfZoneId: cfResult.zoneId,
-      nameservers: cfNameservers,
-    }
-    await db.collection('domainsOf').updateOne(
-      { domainName },
-      { $set: updateData },
-      { upsert: false }
-    )
-    await db.collection('registeredDomains').updateOne(
-      { _id: domainName },
-      { $set: { 'val.nameserverType': 'cloudflare', 'val.cfZoneId': cfResult.zoneId, 'val.nameservers': cfNameservers } },
-      { upsert: false }
-    )
-  }
+  // Update DB
+  await _updateDBMeta(domainName, zoneResult.zoneId, zoneResult.nameservers, db)
 
-  // 4. Background NS verification (CF can reassign NS for pending zones)
-  const bgZoneId = cfResult.zoneId
-  const bgDomain = domainName
-  const bgRegistrar = registrar
-  ;(async () => {
-    try {
-      await new Promise(r => setTimeout(r, 30000))
-      const zoneData = await cfService.getZoneByName(bgDomain)
-      if (!zoneData) return
-      const currentNS = (zoneData.name_servers || []).sort().join(',')
-      const savedNS = [...cfNameservers].sort().join(',')
-      if (currentNS !== savedNS) {
-        log(`[ensureCloudflare] ⚠️ CF reassigned NS for ${bgDomain}: was [${cfNameservers}] now [${zoneData.name_servers}]`)
-        const correctNS = zoneData.name_servers
-        if (bgRegistrar === 'OpenProvider') {
-          await opService.updateNameservers(bgDomain, correctNS)
-        } else {
-          const viewCRDNS2 = require('./cr-view-dns-records')
-          const crData2 = await viewCRDNS2(bgDomain)
-          if (crData2?.domainNameId) {
-            const nsRecords2 = (crData2.records || []).filter(r => r.recordType === 'NS')
-            const { updateDNSRecordNs: updNs2 } = require('./cr-dns-record-update-ns')
-            for (let i = 0; i < correctNS.length && i < 4; i++) {
-              if (nsRecords2[i]) await updNs2(crData2.domainNameId, bgDomain, correctNS[i], nsRecords2[i].nsId, nsRecords2)
-            }
-          }
-        }
-        if (db) {
-          await db.collection('domainsOf').updateOne({ domainName: bgDomain }, { $set: { nameservers: correctNS } })
-          await db.collection('registeredDomains').updateOne({ _id: bgDomain }, { $set: { 'val.nameservers': correctNS } })
-        }
-        log(`[ensureCloudflare] NS drift corrected for ${bgDomain}`)
-      }
-    } catch (err) {
-      log(`[ensureCloudflare] NS verify error for ${bgDomain}: ${err.message}`)
-    }
-  })()
+  // Background NS verification
+  backgroundNSVerify(domainName, zoneResult.nameservers, zoneResult.registrar, db)
 
   return {
     success: true,
-    cfZoneId: cfResult.zoneId,
-    nameservers: cfNameservers,
+    cfZoneId: zoneResult.zoneId,
+    nameservers: zoneResult.nameservers,
     alreadyActive: false,
+    migration,
   }
+}
+
+/**
+ * checkDNSConflict — check if adding a record type would conflict with existing records.
+ * A/AAAA and CNAME cannot coexist on the same hostname in Cloudflare.
+ * Returns { hasConflict, conflictingRecords: [], message } or { hasConflict: false }
+ */
+const checkDNSConflict = async (domainName, recordType, hostname, db) => {
+  const meta = await getDomainMeta(domainName, db)
+  if (!meta?.cfZoneId) return { hasConflict: false } // Only relevant for CF zones
+
+  const type = recordType.toUpperCase()
+  if (!['A', 'AAAA', 'CNAME'].includes(type)) return { hasConflict: false }
+
+  const fullName = hostname ? `${hostname}.${domainName}` : domainName
+  const cfRecords = await cfService.listDNSRecords(meta.cfZoneId)
+  const conflicting = cfRecords.filter(r => {
+    if (r.name !== fullName) return false
+    if (type === 'CNAME') return ['A', 'AAAA'].includes(r.type)
+    if (['A', 'AAAA'].includes(type)) return r.type === 'CNAME'
+    return false
+  })
+
+  if (conflicting.length === 0) return { hasConflict: false }
+
+  const conflictTypes = [...new Set(conflicting.map(r => r.type))].join('/')
+  const isCNAME = type === 'CNAME'
+  const message = isCNAME
+    ? `⚠️ An existing ${conflictTypes} record for <b>${fullName}</b> will be deleted to add this CNAME.\n\n`
+      + conflicting.map(r => `• ${r.type} → ${r.content}`).join('\n')
+      + `\n\nProceed?`
+    : `⚠️ An existing CNAME record for <b>${fullName}</b> will be deleted to add this ${type} record.\n\n`
+      + conflicting.map(r => `• ${r.type} → ${r.content}`).join('\n')
+      + `\n\nProceed?`
+
+  return { hasConflict: true, conflictingRecords: conflicting, message }
+}
+
+/**
+ * resolveConflictAndAdd — delete conflicting records, then add the new one.
+ */
+const resolveConflictAndAdd = async (domainName, recordType, recordValue, hostname, conflictingRecords, db, priority) => {
+  const meta = await getDomainMeta(domainName, db)
+  if (!meta?.cfZoneId) return { error: 'No Cloudflare zone' }
+
+  // Delete conflicting records
+  for (const record of conflictingRecords) {
+    const delResult = await cfService.deleteDNSRecord(meta.cfZoneId, record.id)
+    if (delResult.success) {
+      log(`[resolveConflict] Deleted ${record.type} ${record.name} → ${record.content}`)
+    } else {
+      log(`[resolveConflict] Warning: failed to delete ${record.type} ${record.name}`)
+    }
+  }
+
+  // Add the new record
+  return await addDNSRecord(domainName, recordType, recordValue, hostname, db, priority)
 }
 
 // ─── Auto-create CF zone in viewDNSRecords also triggers worker ─────
