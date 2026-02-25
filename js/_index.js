@@ -6779,15 +6779,28 @@ bot?.on('message', async msg => {
     const price = info?.couponApplied ? info?.newPrice : info?.price 
     if (BLOCKBEE_CRYTPO_PAYMENT_ON === 'true') {
       const coin = tickerOf[ticker]
-      const { address, bb } = await getCryptoDepositAddress(coin, chatId, SELF_URL, `/crypto-pay-plan?a=b&ref=${ref}&`)
-      if (!address) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
-      set(chatIdOfPayment, ref, { chatId, price, plan })
-      log({ ref })
-      log({ ref })
-      await sendQrCode(bot, chatId, bb, info?.userLanguage ?? 'en')
-      set(state, chatId, 'action', 'none')
-      const priceCrypto = await convert(price, 'usd', coin)
-      return send(chatId, t.showDepositCryptoInfoPlan(price, priceCrypto, ticker, address, plan), trans('o'))
+      const bbResult = await getCryptoDepositAddress(coin, chatId, SELF_URL, `/crypto-pay-plan?a=b&ref=${ref}&`)
+      if (bbResult?.address) {
+        set(chatIdOfPayment, ref, { chatId, price, plan })
+        log({ ref })
+        log({ ref })
+        await sendQrCode(bot, chatId, bbResult.bb, info?.userLanguage ?? 'en')
+        set(state, chatId, 'action', 'none')
+        const priceCrypto = await convert(price, 'usd', coin)
+        return send(chatId, t.showDepositCryptoInfoPlan(price, priceCrypto, ticker, bbResult.address, plan), trans('o'))
+      } else {
+        log('[CryptoFallback] BlockBee unavailable for plan, falling back to DynoPay')
+        const dynoCoin = tickerOfDyno[ticker]
+        if (!dynoCoin) return send(chatId, t.askValidCrypto)
+        const dynoResult = await getDynopayCryptoAddress(price, dynoCoin, `${SELF_URL}/dynopay/crypto-pay-plan`, { "product_name": dynopayActions.payPlan, "refId": ref })
+        if (!dynoResult?.address) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
+        set(chatIdOfDynopayPayment, ref, { chatId, price, plan, action: dynopayActions.payPlan, address: dynoResult.address })
+        log({ ref })
+        await generateQr(bot, chatId, dynoResult.qr_code, info?.userLanguage ?? 'en')
+        set(state, chatId, 'action', 'none')
+        const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
+        return send(chatId, t.showDepositCryptoInfoPlan(price, priceCrypto, ticker, dynoResult.address, plan), trans('o'))
+      }
     } else {
       const coin = tickerOfDyno[ticker]
       if (!coin) return send(chatId, t.askValidCrypto)
