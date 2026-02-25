@@ -4920,13 +4920,23 @@ bot?.on('message', async msg => {
       const coin = tickerOfDyno[tickerKey]
       const redirect_url = `${SELF_URL}/dynopay/crypto-pay-digital-product`
       const meta_data = { "product_name": "payDigitalProduct", "refId": ref }
-      const { qr_code, address } = await getDynopayCryptoAddress(price, coin, redirect_url, meta_data)
-      if (!address) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
-      set(chatIdOfDynopayPayment, ref, { chatId, price, product, orderId, action: 'payDigitalProduct', address })
-      log({ ref })
-      await generateQr(bot, chatId, qr_code, info?.userLanguage ?? 'en')
-      const priceCrypto = await convert(price, 'usd', ticker)
-      send(chatId, t.showDepositCryptoInfoDigitalProduct(price, priceCrypto, tickerKey, address, product), trans('o'))
+      const dynoResult = await getDynopayCryptoAddress(price, coin, redirect_url, meta_data)
+      if (dynoResult?.address) {
+        set(chatIdOfDynopayPayment, ref, { chatId, price, product, orderId, action: 'payDigitalProduct', address: dynoResult.address })
+        log({ ref })
+        await generateQr(bot, chatId, dynoResult.qr_code, info?.userLanguage ?? 'en')
+        const priceCrypto = await convert(price, 'usd', ticker)
+        send(chatId, t.showDepositCryptoInfoDigitalProduct(price, priceCrypto, tickerKey, dynoResult.address, product), trans('o'))
+      } else {
+        log('[CryptoFallback] DynoPay unavailable for digital product, falling back to BlockBee')
+        const { address: bbAddr, bb } = await getCryptoDepositAddress(ticker, chatId, SELF_URL, `/crypto-pay-digital-product?a=b&ref=${ref}&`)
+        if (!bbAddr) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
+        set(chatIdOfPayment, ref, { chatId, price, product, orderId })
+        log({ ref })
+        await sendQrCode(bot, chatId, bb, info?.userLanguage ?? 'en')
+        const priceCrypto = await convert(price, 'usd', ticker)
+        send(chatId, t.showDepositCryptoInfoDigitalProduct(price, priceCrypto, tickerKey, bbAddr, product), trans('o'))
+      }
     }
 
     return notifyGroup(`🛒 <b>New Digital Product Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n📦 Product: <b>${product}</b>\n💵 Price: <b>$${price}</b> (Crypto: ${tickerKey})\n⏳ Awaiting crypto payment\n\n📩 After payment confirms:\n<code>/deliver ${orderId} [details]</code>`)
