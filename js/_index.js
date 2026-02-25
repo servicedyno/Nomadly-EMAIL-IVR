@@ -6422,7 +6422,7 @@ bot?.on('message', async msg => {
 
     // Custom NS domains: only allow Switch to CF + Update NS (for nameserver changes)
     const nsType = info?.nameserverType
-    if (nsType === 'custom' && ![t.updateDns, t.switchToCf].includes(message)) {
+    if (nsType === 'custom' && ![t.updateDns, t.switchToCf, t.switchToProviderDefault].includes(message)) {
       return send(chatId, 'DNS records are managed by your custom nameserver provider. You can only update nameservers or switch to Cloudflare.')
     }
 
