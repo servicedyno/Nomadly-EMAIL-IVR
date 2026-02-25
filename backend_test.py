@@ -161,14 +161,14 @@ def test_tracking_collections():
                 dynopay_primary_count += 1
         
         # Count BlockBee fallback (after DynoPay fails -> chatIdOfPayment)
-        if '[CryptoFallback] DynoPay unavailable' in line and i+5 < len(lines):
-            next_lines = '\n'.join(lines[i+1:i+6])
+        if '[CryptoFallback] DynoPay unavailable' in line and i+8 < len(lines):
+            next_lines = '\n'.join(lines[i+1:i+9])  # Increased range
             if 'set(chatIdOfPayment' in next_lines:
                 blockbee_fallback_count += 1
                 
         # Count DynoPay fallback (after BlockBee fails -> chatIdOfDynopayPayment)
-        if '[CryptoFallback] BlockBee unavailable' in line and i+5 < len(lines):
-            next_lines = '\n'.join(lines[i+1:i+6])
+        if '[CryptoFallback] BlockBee unavailable' in line and i+8 < len(lines):
+            next_lines = '\n'.join(lines[i+1:i+9])  # Increased range
             if 'set(chatIdOfDynopayPayment' in next_lines:
                 dynopay_fallback_count += 1
     
