@@ -425,7 +425,7 @@ const PhoneTestPage = () => {
   }, []);
 
   // ━━━ Reviews ━━━
-  const BACKEND = process.env.REACT_APP_BACKEND_URL;
+  const BACKEND = BACKEND_URL;
 
   const fetchReviews = useCallback(async () => {
     try {
