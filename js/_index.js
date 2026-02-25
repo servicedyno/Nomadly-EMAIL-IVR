@@ -5624,6 +5624,15 @@ bot?.on('message', async msg => {
       // ── Persist intent before starting ──
       await createActivationTask(chatId, domain, info?.userLanguage || 'en')
 
+      // ── Ensure domain is on Cloudflare (create zone + update NS if needed) ──
+      const cfEnsure = await domainService.ensureCloudflare(domain, db)
+      if (cfEnsure.error) {
+        log(`[QuickActivateShortener] ensureCloudflare failed for ${domain}: ${cfEnsure.error}`)
+        // Non-fatal: proceed anyway, DNS will be added to whatever provider manages it
+      } else if (!cfEnsure.alreadyActive) {
+        log(`[QuickActivateShortener] Switched ${domain} to Cloudflare (zone: ${cfEnsure.cfZoneId})`)
+      }
+
       const { server, error, recordType } =
         process.env.HOSTED_ON === 'render'
           ? await saveDomainInServerRender(domain)
@@ -5639,8 +5648,7 @@ bot?.on('message', async msg => {
 
       send(chatId, `⏳ Configuring DNS for <b>${domain}</b>…`, { parse_mode: 'HTML' })
 
-      // Unified DNS routing — auto-routes to Cloudflare when domain metadata
-      // has nameserverType='cloudflare' + cfZoneId, else falls back to OP/CR
+      // Unified DNS routing — now guaranteed to route to Cloudflare after ensureCloudflare
       await sleep(5000)
       const addResult = await domainService.addDNSRecord(domain, recordType, server, '', db)
       if (addResult.error || !addResult.success) {
