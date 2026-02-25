@@ -820,116 +820,152 @@ const PhoneTestPage = () => {
           Speechcue Cloud Phone &middot; Powered by Speechcue
         </div>
 
-        {/* ━━━ Reviews Section ━━━ */}
-        <div className="mt-8 space-y-6" data-testid="reviews-section">
+        {/* ━━━ Reviews & Testimonials Section ━━━ */}
+        <div className="mt-8 space-y-5" data-testid="reviews-section" id="reviews-section">
 
-          {/* Rating Summary */}
-          {reviews.length > 0 && (
-            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 flex items-center gap-4">
-              <div className="text-center">
-                <div className="text-3xl font-bold text-amber-400">{avgStars}</div>
-                <div className="flex gap-0.5 mt-1 justify-center">
-                  {[1,2,3,4,5].map(s => (
-                    <svg key={s} className={`w-4 h-4 ${s <= Math.round(parseFloat(avgStars)) ? 'text-amber-400' : 'text-neutral-700'}`} fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                    </svg>
-                  ))}
-                </div>
-                <div className="text-xs text-neutral-500 mt-1">{reviews.length} review{reviews.length !== 1 ? 's' : ''}</div>
-              </div>
-              <div className="flex-1 space-y-1">
-                {[5,4,3,2,1].map(s => {
-                  const count = reviews.filter(r => r.stars === s).length;
-                  const pct = reviews.length ? (count / reviews.length) * 100 : 0;
-                  return (
-                    <div key={s} className="flex items-center gap-2 text-xs">
-                      <span className="text-neutral-500 w-3 text-right">{s}</span>
-                      <svg className="w-3 h-3 text-amber-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
-                      <div className="flex-1 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
-                        <div className="h-full bg-amber-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
-                      </div>
-                      <span className="text-neutral-600 w-5 text-right">{count}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Leave Feedback Form */}
-          <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5" data-testid="review-form">
-            <div className="text-sm font-semibold text-neutral-300 mb-4">
-              {reviewSubmitted ? '✅ Thank you for your feedback!' : '⭐ Rate Your Experience'}
-            </div>
-
-            {!reviewSubmitted ? (
-              <div className="space-y-4">
-                {/* Stars */}
-                <div className="flex gap-1" data-testid="star-selector">
-                  {[1,2,3,4,5].map(s => (
-                    <button
-                      key={s}
-                      onClick={() => setReviewStars(s)}
-                      onMouseEnter={() => setReviewHover(s)}
-                      onMouseLeave={() => setReviewHover(0)}
-                      className="transition-transform hover:scale-110 focus:outline-none"
-                    >
-                      <svg className={`w-8 h-8 ${s <= (reviewHover || reviewStars) ? 'text-amber-400' : 'text-neutral-700'} transition-colors`} fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                      </svg>
-                    </button>
-                  ))}
-                  {reviewStars > 0 && (
-                    <span className="ml-2 text-sm text-amber-400 self-center">
-                      {['', 'Poor', 'Fair', 'Good', 'Great', 'Excellent'][reviewStars]}
-                    </span>
-                  )}
-                </div>
-
-                {/* Name */}
-                <input
-                  type="text"
-                  placeholder="Your name (optional)"
-                  value={reviewName}
-                  onChange={(e) => setReviewName(e.target.value)}
-                  maxLength={50}
-                  className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-amber-500/50"
-                />
-
-                {/* Comment */}
-                <textarea
-                  placeholder="Share your experience..."
-                  value={reviewComment}
-                  onChange={(e) => setReviewComment(e.target.value)}
-                  maxLength={500}
-                  rows={3}
-                  className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-amber-500/50 resize-none"
-                />
-
-                {/* Submit */}
-                <button
-                  onClick={submitReview}
-                  disabled={!reviewStars || !reviewComment.trim() || reviewSubmitting}
-                  className="w-full py-2.5 rounded-lg text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-amber-500 hover:bg-amber-400 text-black"
-                >
-                  {reviewSubmitting ? 'Submitting...' : 'Submit Feedback'}
-                </button>
-              </div>
-            ) : (
+          {/* Section Header */}
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-white">Customer Reviews</h2>
+            {!showReviewForm && (
               <button
-                onClick={() => setReviewSubmitted(false)}
-                className="text-sm text-amber-400 hover:underline"
+                onClick={() => { setShowReviewForm(true); setReviewSubmitted(false); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-all"
               >
-                Leave another review
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                Write a Review
               </button>
             )}
           </div>
 
-          {/* Reviews List */}
+          {/* Rating Summary Bar */}
           {reviews.length > 0 && (
+            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+              <div className="flex items-center gap-5">
+                <div className="text-center flex-shrink-0">
+                  <div className="text-4xl font-bold text-amber-400">{avgStars}</div>
+                  <div className="flex gap-0.5 mt-1.5 justify-center">
+                    {[1,2,3,4,5].map(s => (
+                      <svg key={s} className={`w-4 h-4 ${s <= Math.round(parseFloat(avgStars)) ? 'text-amber-400' : 'text-neutral-700'}`} fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                      </svg>
+                    ))}
+                  </div>
+                  <div className="text-xs text-neutral-500 mt-1">{reviews.length} review{reviews.length !== 1 ? 's' : ''}</div>
+                </div>
+                <div className="flex-1 space-y-1">
+                  {[5,4,3,2,1].map(s => {
+                    const count = reviews.filter(r => r.stars === s).length;
+                    const pct = reviews.length ? (count / reviews.length) * 100 : 0;
+                    return (
+                      <div key={s} className="flex items-center gap-2 text-xs">
+                        <span className="text-neutral-500 w-3 text-right">{s}</span>
+                        <svg className="w-3 h-3 text-amber-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                        <div className="flex-1 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+                          <div className="h-full bg-amber-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="text-neutral-600 w-5 text-right">{count}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Write Review Form (togglable) */}
+          {showReviewForm && (
+            <div className="bg-neutral-900 border border-amber-500/20 rounded-xl p-5 relative" data-testid="review-form" id="review-form">
+              {/* Close button */}
+              <button
+                onClick={() => setShowReviewForm(false)}
+                className="absolute top-3 right-3 text-neutral-600 hover:text-neutral-400 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+
+              <div className="text-sm font-semibold text-neutral-300 mb-4">
+                {reviewSubmitted ? '✅ Thank you for your feedback!' : '⭐ Share Your Experience'}
+              </div>
+
+              {!reviewSubmitted ? (
+                <div className="space-y-4">
+                  {/* Stars */}
+                  <div className="flex gap-1 items-center" data-testid="star-selector">
+                    {[1,2,3,4,5].map(s => (
+                      <button
+                        key={s}
+                        onClick={() => setReviewStars(s)}
+                        onMouseEnter={() => setReviewHover(s)}
+                        onMouseLeave={() => setReviewHover(0)}
+                        className="transition-transform hover:scale-110 focus:outline-none"
+                      >
+                        <svg className={`w-8 h-8 ${s <= (reviewHover || reviewStars) ? 'text-amber-400' : 'text-neutral-700'} transition-colors`} fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                      </button>
+                    ))}
+                    {reviewStars > 0 && (
+                      <span className="ml-2 text-sm text-amber-400">
+                        {['', 'Poor', 'Fair', 'Good', 'Great', 'Excellent'][reviewStars]}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Name */}
+                  <input
+                    type="text"
+                    placeholder="Your name (optional)"
+                    value={reviewName}
+                    onChange={(e) => setReviewName(e.target.value)}
+                    maxLength={50}
+                    className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-amber-500/50"
+                  />
+
+                  {/* Comment */}
+                  <textarea
+                    placeholder="What was your experience like?"
+                    value={reviewComment}
+                    onChange={(e) => setReviewComment(e.target.value)}
+                    maxLength={500}
+                    rows={3}
+                    className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-amber-500/50 resize-none"
+                  />
+
+                  {/* Submit */}
+                  <button
+                    onClick={submitReview}
+                    disabled={!reviewStars || !reviewComment.trim() || reviewSubmitting}
+                    className="w-full py-2.5 rounded-lg text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-amber-500 hover:bg-amber-400 text-black"
+                  >
+                    {reviewSubmitting ? 'Submitting...' : 'Submit Review'}
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-sm text-neutral-400">Your review has been published!</p>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => { setReviewSubmitted(false); setReviewStars(0); setReviewComment(''); setReviewName(''); }}
+                      className="text-sm text-amber-400 hover:underline"
+                    >
+                      Write another
+                    </button>
+                    <button
+                      onClick={() => setShowReviewForm(false)}
+                      className="text-sm text-neutral-500 hover:underline"
+                    >
+                      Done
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Reviews List */}
+          {reviews.length > 0 ? (
             <div className="space-y-3" data-testid="reviews-list">
-              <div className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Recent Reviews</div>
-              {reviews.map((r, i) => (
+              {reviews.slice(0, showAllReviews ? reviews.length : 3).map((r, i) => (
                 <div key={r.id || i} className="bg-neutral-900 border border-neutral-800 rounded-lg p-4">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
@@ -952,6 +988,34 @@ const PhoneTestPage = () => {
                   </div>
                 </div>
               ))}
+              {reviews.length > 3 && !showAllReviews && (
+                <button
+                  onClick={() => setShowAllReviews(true)}
+                  className="w-full py-2 text-sm text-amber-400 hover:text-amber-300 transition-colors"
+                >
+                  Show all {reviews.length} reviews
+                </button>
+              )}
+              {showAllReviews && reviews.length > 3 && (
+                <button
+                  onClick={() => setShowAllReviews(false)}
+                  className="w-full py-2 text-sm text-neutral-500 hover:text-neutral-400 transition-colors"
+                >
+                  Show less
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="bg-neutral-900/50 border border-dashed border-neutral-800 rounded-xl p-6 text-center">
+              <div className="text-neutral-600 text-sm mb-3">No reviews yet — be the first!</div>
+              {!showReviewForm && (
+                <button
+                  onClick={() => setShowReviewForm(true)}
+                  className="px-4 py-2 rounded-lg text-sm font-semibold bg-amber-500 hover:bg-amber-400 text-black transition-all"
+                >
+                  Write a Review
+                </button>
+              )}
             </div>
           )}
         </div>
