@@ -1867,6 +1867,28 @@ bot?.on('message', async msg => {
       const price = info?.dpPrice
       send(chatId, t.dpPaymentPrompt(product, price), k.pay)
     },
+    // ━━━ Virtual Card ━━━
+    'virtual-card-start': async () => {
+      set(state, chatId, 'action', a.vcEnterAmount)
+      const imagePath = require('path').join(__dirname, 'assets', 'virtual-card-masked.jpg')
+      try {
+        await bot.sendPhoto(chatId, imagePath, { caption: t.vcWelcome, parse_mode: 'HTML' })
+      } catch (e) {
+        log('[VirtualCard] sendPhoto error:', e?.message)
+        send(chatId, t.vcWelcome)
+      }
+    },
+    'virtual-card-address': () => {
+      set(state, chatId, 'action', a.vcEnterAddress)
+      send(chatId, t.vcAskAddress)
+    },
+    'virtual-card-pay': () => {
+      set(state, chatId, 'action', a.virtualCardPay)
+      const amount = info?.vcAmount
+      const fee = amount < 200 ? 20 : Math.round(amount * 0.1 * 100) / 100
+      const total = Math.round((amount + fee) * 100) / 100
+      send(chatId, t.vcOrderSummary(amount, fee, total), k.pay)
+    },
     'leads-pay': async () => {
       set(state, chatId, 'action', 'leads-pay')
       const price = info?.couponApplied ? info?.newPrice : info?.price
