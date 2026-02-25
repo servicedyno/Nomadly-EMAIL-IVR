@@ -117,6 +117,7 @@ const user = {
 
   // Sub Menu 6: Digital Products
   digitalProducts: '🛒 Digital Products',
+  virtualCard: '💳 Virtual Card',
 
   // Sub Menu 2: domainNames
   buyDomainName: '🛒🌐 Buy Domain Names',
