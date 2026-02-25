@@ -173,7 +173,7 @@ def test_cr_register_domain_cpanel_provisioning():
 
 def test_backend_api_endpoints():
     """Test 6: Verify key backend API endpoints are accessible"""
-    backend_url = "https://readme-config-deploy.preview.emergentagent.com"
+    backend_url = "https://api-integration-test-5.preview.emergentagent.com"
     
     # Test health endpoint
     result = subprocess.run(['curl', '-s', f'{backend_url}/api/health'], 
