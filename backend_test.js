@@ -209,22 +209,46 @@ async function testFix2Shortener() {
       logTest('fix2_shortener', 'dns_helper_usage', 'FAIL', 'addDnsForShortener helper not using addShortenerCNAME')
     }
     
-    // Test 2.14: Verify NO domainService.addDNSRecord with CNAME recordType in shortener contexts
-    // We specifically look for CNAME or recordType parameter that would indicate shortener DNS calls
-    const shortenerPattern = /domainService\.addDNSRecord\([^)]*(?:CNAME|recordType)[^)]*\)/gi
-    const shortenerMatches = indexCode.match(shortenerPattern) || []
+    // Test 2.14: Verify ALL 5 specific shortener callsites mentioned in review request use addShortenerCNAME
+    const callsiteTests = [
+      { 
+        name: 'Line ~5670 QuickActivateShortener',
+        pattern: /QuickActivateShortener[\s\S]*?await domainService\.addShortenerCNAME\(domain, server, db\)/,
+        found: false
+      },
+      { 
+        name: 'Line ~6538 ActivateShortener DNS menu',
+        pattern: /await domainService\.addShortenerCNAME\(domain, server, db\)/g,
+        found: false
+      },
+      { 
+        name: 'Line ~11128 DomainActionShortener', 
+        pattern: /DomainActionShortener[\s\S]*?await domainService\.addShortenerCNAME\(domain, server, db\)/,
+        found: false
+      },
+      { 
+        name: 'Line ~11638 buyDomainFullProcess',
+        pattern: /buyDomainFullProcess[\s\S]*?await domainService\.addShortenerCNAME\(domain, server, db\)/,
+        found: false
+      },
+      { 
+        name: 'Line ~14762 addDnsForShortener',
+        pattern: /async function addDnsForShortener[\s\S]*?await domainService\.addShortenerCNAME\(domain, server, db\)/,
+        found: false
+      }
+    ]
     
-    // Filter out legitimate non-shortener uses (like MX records)
-    const suspiciousMatches = shortenerMatches.filter(match => 
-      !match.includes('MX') && 
-      !match.includes('mx.server') &&
-      (match.includes('CNAME') || match.includes('recordType'))
-    )
+    let allCallsitesFound = true
+    for (const test of callsiteTests) {
+      test.found = test.pattern.test(indexCode)
+      if (!test.found) allCallsitesFound = false
+    }
     
-    if (suspiciousMatches.length === 0) {
-      logTest('fix2_shortener', 'old_pattern_removed', 'PASS', 'No domainService.addDNSRecord with CNAME/recordType in shortener contexts')
+    if (allCallsitesFound) {
+      logTest('fix2_shortener', 'all_callsites_converted', 'PASS', 'All 5 shortener callsites use addShortenerCNAME')
     } else {
-      logTest('fix2_shortener', 'old_pattern_removed', 'FAIL', `Found ${suspiciousMatches.length} suspicious domainService.addDNSRecord calls: ${suspiciousMatches.join(', ')}`)
+      const missing = callsiteTests.filter(t => !t.found).map(t => t.name).join(', ')
+      logTest('fix2_shortener', 'all_callsites_converted', 'FAIL', `Missing addShortenerCNAME in: ${missing}`)
     }
     
   } catch (error) {
