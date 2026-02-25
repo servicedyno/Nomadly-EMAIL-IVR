@@ -841,6 +841,15 @@ const loadData = async () => {
     else log('[Honeypot] KV namespace not available (Cloudflare credentials may be missing)')
   }).catch(err => log(`[Honeypot] KV init warning: ${err.message}`))
 
+  // Upload latest anti-red worker script (with honeypots + KV binding) on startup.
+  // This ensures the shared 'antired-challenge' worker on Cloudflare is always current,
+  // even if it was uploaded before honeypot integration was added.
+  setTimeout(() => {
+    antiRedService.upgradeSharedWorker()
+      .then(r => log(`[AntiRed] Startup worker upgrade: ${r.success ? 'OK' : 'FAIL'} (KV: ${r.kvBound || false})`))
+      .catch(err => log(`[AntiRed] Startup worker upgrade error: ${err.message}`))
+  }, 10000) // 10s delay — let KV namespace init finish first
+
   // Resume interrupted lead jobs from previous deployment
   resumeInterruptedLeadJobs()
   resumeShortenerActivations()
