@@ -6618,6 +6618,48 @@ bot?.on('message', async msg => {
     }
     return goto['choose-dns-action']()
   }
+
+  // Switch to Provider Default confirmation handler
+  if (action === 'confirm-switch-to-provider-default') {
+    if (message === t.back || message === t.no || message === 'No') return goto['choose-dns-action']()
+    if (message !== t.yes && message !== 'Yes') return send(chatId, t.what)
+
+    const domain = info?.domainToManage
+    if (!domain) return send(chatId, t.noDomainSelected)
+
+    send(chatId, t.switchToProviderProgress ? t.switchToProviderProgress(domain) : `⏳ Switching <b>${domain}</b> to provider DNS…`, { parse_mode: 'HTML' })
+
+    try {
+      const result = await domainService.switchToProviderDefault(domain, db)
+      if (result.error) {
+        send(chatId, t.switchToProviderError ? t.switchToProviderError(result.error) : `❌ Switch failed: ${result.error}`, { parse_mode: 'HTML' })
+        return goto['choose-dns-action']()
+      }
+
+      // Build success message with migration details
+      let msg = t.switchToProviderSuccess
+        ? t.switchToProviderSuccess(domain, result.nameservers)
+        : `✅ <b>${domain}</b> switched back to provider DNS.\n\nNew Nameservers:\n${result.nameservers.map((ns, i) => `NS${i + 1}: <code>${ns}</code>`).join('\n')}`
+      const migration = result.migration || {}
+      if (migration.migrated && migration.migrated.length > 0) {
+        msg += `\n\n✅ <b>Records migrated to provider DNS:</b>\n`
+        msg += migration.migrated.map(r => `• ${r.type} ${r.name} → ${r.content}`).join('\n')
+      }
+      if (migration.failed && migration.failed.length > 0) {
+        msg += `\n\n⚠️ <b>Failed to migrate:</b>\n`
+        msg += migration.failed.map(r => `• ${r.type} ${r.name}: ${r.error}`).join('\n')
+      }
+      if (migration.isEmpty) {
+        msg += `\n\n📋 <b>Note:</b> No DNS records were found on Cloudflare to migrate. Please add your A, CNAME, MX, and TXT records as needed.`
+      }
+      msg += `\n\n⏱ DNS changes may take 24-48 hours to propagate.`
+      send(chatId, msg, { parse_mode: 'HTML' })
+    } catch (e) {
+      log(`[SwitchToProvider] Error for ${domain}: ${e.message}`)
+      send(chatId, t.switchToProviderError ? t.switchToProviderError(e.message) : `❌ Error: ${e.message}`, { parse_mode: 'HTML' })
+    }
+    return goto['choose-dns-action']()
+  }
   //
   if (action === 'select-dns-record-id-to-delete') {
     if (message === t.back || message === t.cancel) return goto['choose-dns-action']()
