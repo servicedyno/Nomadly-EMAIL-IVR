@@ -1075,11 +1075,11 @@ const userKeyboard = {
     keyboard: [
       [user.cloudPhone, user.testSip],
       [user.digitalProducts, user.virtualCard],
-      [user.domainNames],
-      [user.urlShortenerMain],
+      [user.domainNames, user.urlShortenerMain],
       [user.buyLeads, user.validateLeads],
-      HIDE_SMS_APP === 'true' ? [user.hostingDomainsRedirect] : [user.freeTrialAvailable, user.hostingDomainsRedirect],
-      [user.wallet, user.viewPlan],
+      HIDE_SMS_APP === 'true'
+        ? [user.hostingDomainsRedirect, user.wallet, user.viewPlan]
+        : [user.freeTrialAvailable, user.hostingDomainsRedirect, user.wallet],
       HIDE_BECOME_RESELLER === 'true'
         ? [user.changeSetting, user.getSupport, user.joinChannel]
         : [user.becomeReseller, user.changeSetting, user.getSupport],
