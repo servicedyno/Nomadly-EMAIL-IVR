@@ -389,7 +389,7 @@ const addDNSRecord = async (domainName, recordType, recordValue, hostName, db, p
 const updateDNSRecord = async (domainName, recordData, db) => {
   const meta = await getDomainMeta(domainName, db)
 
-  if (meta?.nameserverType === 'cloudflare' && meta?.cfZoneId && recordData.cfRecordId) {
+  if ((meta?.nameserverType === 'cloudflare' || meta?.cfZoneId) && meta?.cfZoneId && recordData.cfRecordId) {
     return await cfService.updateDNSRecord(
       meta.cfZoneId, recordData.cfRecordId,
       recordData.recordType, recordData.recordName || domainName,
