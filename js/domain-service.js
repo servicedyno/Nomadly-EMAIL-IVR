@@ -890,6 +890,54 @@ const switchToProviderDefault = async (domainName, db) => {
   }
 }
 
+/**
+ * addShortenerCNAME — Add a root CNAME for URL shortener, auto-resolving A/AAAA conflicts.
+ * 
+ * The shortener always needs a root CNAME pointing to Railway/Render.
+ * If the domain has existing A/AAAA records at root (e.g. from hosting),
+ * they must be deleted first since CNAME cannot coexist with A/AAAA.
+ * 
+ * Returns { success: true } or { error: 'message' }
+ */
+const addShortenerCNAME = async (domainName, cnameTarget, db) => {
+  try {
+    const meta = await getDomainMeta(domainName, db)
+
+    if (meta?.nameserverType === 'cloudflare' && meta?.cfZoneId) {
+      // 1. Check for A/AAAA conflicts at root
+      const conflict = await checkDNSConflict(domainName, 'CNAME', '', db)
+      if (conflict.hasConflict && conflict.conflictingRecords?.length > 0) {
+        log(`[addShortenerCNAME] ${domainName}: removing ${conflict.conflictingRecords.length} conflicting A/AAAA record(s) before CNAME`)
+        for (const rec of conflict.conflictingRecords) {
+          const delResult = await cfService.deleteDNSRecord(meta.cfZoneId, rec.id)
+          if (delResult.success) {
+            log(`[addShortenerCNAME] Deleted ${rec.type} ${rec.name} → ${rec.content}`)
+          } else {
+            log(`[addShortenerCNAME] Warning: failed to delete ${rec.type} ${rec.name} → ${rec.content}`)
+          }
+        }
+      }
+
+      // 2. Add the CNAME (proxied for CF CNAME flattening at root)
+      const result = await cfService.createDNSRecord(meta.cfZoneId, 'CNAME', domainName, cnameTarget, 300, true)
+      if (result.success || result.alreadyExists) {
+        return { success: true }
+      }
+      const errMsg = result.errors?.map(e => e.message || e.code).join(', ') || 'Cloudflare DNS add failed'
+      return { error: errMsg }
+    }
+
+    // Non-CF domains: use generic addDNSRecord (OP/CR don't have CNAME flattening at root)
+    const result = await addDNSRecord(domainName, 'CNAME', cnameTarget, '', db)
+    if (result.success || result.alreadyExists) return { success: true }
+    const errMsg = result.error || result.errors?.map(e => e.message).join(', ') || 'DNS add failed'
+    return { error: errMsg }
+  } catch (err) {
+    log(`[addShortenerCNAME] Error for ${domainName}: ${err.message}`)
+    return { error: err.message }
+  }
+}
+
 module.exports = {
   checkDomainPrice,
   checkAlternativeTLDs,
