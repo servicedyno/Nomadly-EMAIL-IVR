@@ -176,21 +176,9 @@ const postRegistrationNSUpdate = async (domainName, registrar, nsChoice, nameser
   if (!nameservers || nameservers.length < 2) return { success: true }
 
   if (registrar === 'ConnectReseller') {
-    // CR: update NS via the CR API
-    const { updateDNSRecordNs } = require('./cr-dns-record-update-ns')
-    const viewCRDNS = require('./cr-view-dns-records')
-    const crData = await viewCRDNS(domainName)
-    if (!crData || !crData.domainNameId) {
-      return { error: 'Could not fetch CR domain data for NS update' }
-    }
-    const nsRecords = (crData.records || []).filter(r => r.recordType === 'NS')
-    // Update each NS record
-    for (let i = 0; i < nameservers.length && i < 4; i++) {
-      const existingNS = nsRecords[i]
-      if (existingNS) {
-        await updateDNSRecordNs(crData.domainNameId, domainName, nameservers[i], existingNS.nsId, nsRecords)
-      }
-    }
+    // CR: update ALL NS in one API call (avoids stale-state revert from one-at-a-time loop)
+    const crResult = await updateAllNameservers(domainName, nameservers, db)
+    if (crResult.error) return { error: crResult.error }
     return { success: true }
   } else if (registrar === 'OpenProvider') {
     // OP was already registered with the nameservers, but update if needed
