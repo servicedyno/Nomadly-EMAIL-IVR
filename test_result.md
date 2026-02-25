@@ -536,6 +536,66 @@ metadata:
           agent: "testing"
           comment: "✅ NS REASSIGNMENT DRIFT DETECTION VERIFIED: Background NS verification IIFE correctly implemented in both switchToCloudflare() and ensureCloudflare() functions. (1) 30-second delay implemented with 'await new Promise(r => setTimeout(r, 30000))'. (2) Uses cfService.getZoneByName(bgDomain) to re-query zone data. (3) Compares currentNS with savedNS and detects drift. (4) Auto-corrects at registrar (OP or CR) when CF reassigns nameservers. (5) Updates DB collections (domainsOf, registeredDomains) with correct NS. (6) Comprehensive logging with [switchToCloudflare] and [ensureCloudflare] prefixes for drift detection and correction. This prevents the perthuspeagee.com scenario where CF reassigned NS after zone creation - system now automatically detects and fixes NS drift."
 
+  - task: "Fix: switchToCloudflare migrates existing DNS records to CF zone"
+    implemented: true
+    working: true
+    file: "js/domain-service.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Implemented 4 critical fixes. (1) domain-service.js: Added migrateRecordsToCF() — fetches records from old OP/CR, creates on CF zone. Refactored switchToCloudflare()/ensureCloudflare() to use shared helpers and call migration. Added checkDNSConflict() and resolveConflictAndAdd() for CNAME/A conflict handling. (2) rl-save-domain-in-server.js: saveDomainInServerRailway() handles 'already exists' by remove+recreate. (3) _index.js: confirm-switch-to-cloudflare shows migration results + empty zone advisory. dns-add-value checks CNAME/A conflicts with new dns-confirm-conflict-replace action. Test: verify all new functions exist/exported, handlers call them, Node.js health."
+        - working: true
+          agent: "testing"
+          comment: "✅ COMPREHENSIVE VERIFICATION COMPLETE (8/8 tests passed): (1) migrateRecordsToCF function correctly implemented at line 474 with signature (domainName, cfZoneId, meta) and returns {migrated, failed, isEmpty} structure. (2) switchToCloudflare calls migrateRecordsToCF and returns migration field in result. (3) ensureCloudflare calls migrateRecordsToCF and returns migration field in result. (4) Helper functions verified: _createZoneAndUpdateNS creates CF zone + updates NS at registrar, _updateDBMeta updates DB collections, backgroundNSVerify handles NS drift detection. (5) Migration logic fetches records from old provider (OP/CR), filters out NS records, creates on CF zone with proper proxy settings, returns detailed migration results. (6) Function skips NS records as expected (handled by zone-level nameservers). ALL MIGRATION REQUIREMENTS WORKING CORRECTLY."
+
+  - task: "Fix: saveDomainInServerRailway handles domain-already-exists"
+    implemented: true
+    working: true
+    file: "js/rl-save-domain-in-server.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Implemented 4 critical fixes. (1) domain-service.js: Added migrateRecordsToCF() — fetches records from old OP/CR, creates on CF zone. Refactored switchToCloudflare()/ensureCloudflare() to use shared helpers and call migration. Added checkDNSConflict() and resolveConflictAndAdd() for CNAME/A conflict handling. (2) rl-save-domain-in-server.js: saveDomainInServerRailway() handles 'already exists' by remove+recreate. (3) _index.js: confirm-switch-to-cloudflare shows migration results + empty zone advisory. dns-add-value checks CNAME/A conflicts with new dns-confirm-conflict-replace action. Test: verify all new functions exist/exported, handlers call them, Node.js health."
+        - working: true
+          agent: "testing"
+          comment: "✅ RAILWAY RETRY LOGIC FULLY VERIFIED (7/7 tests passed): (1) Error detection correctly implemented for all keywords: 'already', 'exists', 'duplicate', 'failed to create custom domain' using toLowerCase().includes() checks. (2) Retry logic calls removeDomainFromRailway(domain) when conflict detected. (3) 3-second wait implemented with 'await new Promise(r => setTimeout(r, 3000))' before retry. (4) Retry creation uses same GraphQL mutation structure. (5) Full error handling with proper return values. (6) Both saveDomainInServerRailway and removeDomainFromRailway functions properly exported. DOMAIN-ALREADY-EXISTS HANDLING WORKING CORRECTLY."
+
+  - task: "Fix: DNS add conflict detection for CNAME/A"
+    implemented: true
+    working: true
+    file: "js/domain-service.js, js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Implemented 4 critical fixes. (1) domain-service.js: Added migrateRecordsToCF() — fetches records from old OP/CR, creates on CF zone. Refactored switchToCloudflare()/ensureCloudflare() to use shared helpers and call migration. Added checkDNSConflict() and resolveConflictAndAdd() for CNAME/A conflict handling. (2) rl-save-domain-in-server.js: saveDomainInServerRailway() handles 'already exists' by remove+recreate. (3) _index.js: confirm-switch-to-cloudflare shows migration results + empty zone advisory. dns-add-value checks CNAME/A conflicts with new dns-confirm-conflict-replace action. Test: verify all new functions exist/exported, handlers call them, Node.js health."
+        - working: true
+          agent: "testing"
+          comment: "✅ DNS CONFLICT DETECTION FULLY IMPLEMENTED (10/10 tests passed): (1) checkDNSConflict function exported with signature (domainName, recordType, hostname, db), returns {hasConflict, conflictingRecords, message} or {hasConflict: false}. (2) resolveConflictAndAdd function exported with signature (domainName, recordType, recordValue, hostname, conflictingRecords, db, priority). (3) _index.js dns-add-value handler calls domainService.checkDNSConflict for A/AAAA/CNAME types only. (4) dns-confirm-conflict-replace action handler exists and calls domainService.resolveConflictAndAdd. (5) Conflict detection only applies to Cloudflare zones, checks A/AAAA vs CNAME coexistence rules. (6) Proper user confirmation flow implemented with HTML message formatting. CNAME/A CONFLICT DETECTION WORKING CORRECTLY."
+
+  - task: "Fix: switchToCloudflare success message shows migration results"
+    implemented: true
+    working: true
+    file: "js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Implemented 4 critical fixes. (1) domain-service.js: Added migrateRecordsToCF() — fetches records from old OP/CR, creates on CF zone. Refactored switchToCloudflare()/ensureCloudflare() to use shared helpers and call migration. Added checkDNSConflict() and resolveConflictAndAdd() for CNAME/A conflict handling. (2) rl-save-domain-in-server.js: saveDomainInServerRailway() handles 'already exists' by remove+recreate. (3) _index.js: confirm-switch-to-cloudflare shows migration results + empty zone advisory. dns-add-value checks CNAME/A conflicts with new dns-confirm-conflict-replace action. Test: verify all new functions exist/exported, handlers call them, Node.js health."
+        - working: true
+          agent: "testing"
+          comment: "✅ MIGRATION RESULTS DISPLAY VERIFIED (2/2 tests passed): (1) confirm-switch-to-cloudflare handler exists in _index.js and correctly accesses result.migration field. (2) Migration results from switchToCloudflare() include {migrated, failed, isEmpty} data for user display. Success message enhanced to show detailed migration information including number of migrated records, any failed records, and empty zone advisory. USER MIGRATION FEEDBACK WORKING CORRECTLY."
+
 test_plan:
   current_focus: []
   stuck_tasks: []
