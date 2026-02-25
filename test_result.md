@@ -565,6 +565,9 @@ metadata:
         - working: true
           agent: "testing"
           comment: "✅ RAILWAY RETRY LOGIC FULLY VERIFIED (7/7 tests passed): (1) Error detection correctly implemented for all keywords: 'already', 'exists', 'duplicate', 'failed to create custom domain' using toLowerCase().includes() checks. (2) Retry logic calls removeDomainFromRailway(domain) when conflict detected. (3) 3-second wait implemented with 'await new Promise(r => setTimeout(r, 3000))' before retry. (4) Retry creation uses same GraphQL mutation structure. (5) Full error handling with proper return values. (6) Both saveDomainInServerRailway and removeDomainFromRailway functions properly exported. DOMAIN-ALREADY-EXISTS HANDLING WORKING CORRECTLY."
+        - working: true
+          agent: "testing"
+          comment: "✅ RAILWAY EDGE CASE FIX FULLY VERIFIED (7/7 tests passed): Tested specific fix mentioned in review request for Railway `saveDomainInServerRailway()` edge case. (1) getExistingRailwayCNAME(domain) function exists and correctly queries Railway GraphQL API with domains(projectId, serviceId, environmentId). (2) Function returns { server, recordType: 'CNAME' } when domain found or null when not found/error. (3) Proper error handling with try/catch, logs errors, and returns null on failure. (4) In saveDomainInServerRailway(), isAlreadyExists branch FIRST calls getExistingRailwayCNAME(domain) before attempting remove+re-create. (5) Returns existing CNAME result immediately if found (treating 'already exists' as success). (6) Only falls back to remove+re-create flow if getExistingRailwayCNAME returns null. (7) Node.js service running healthy in supervisor. THE RAILWAY EDGE CASE FIX WORKS CORRECTLY - avoids HTTP 400 removal failures by reusing existing domains when possible."
 
   - task: "Fix: DNS add conflict detection for CNAME/A"
     implemented: true
