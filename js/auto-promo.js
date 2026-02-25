@@ -238,106 +238,91 @@ Type <b>/start</b> now`,
 
   fr: {
     showcase_morning: [
-      `<b>TOUT CE DONT VOUS AVEZ BESOIN — UN SEUL BOT</b>
+      `<b>CONSTRUISEZ VOTRE EMPIRE DIGITAL — TOUT EN UN SEUL ENDROIT</b>
 
-<b>DOMAINES</b>
-Enregistrement offshore DMCA-ignore. 400+ TLDs.
-.sbs/.xyz gratuits avec abonnements.
-Appuyez sur <b>Enregistrer des noms de domaine</b>
+<b>Domaines Offshore</b> — Enregistrez des domaines DMCA-ignorés parmi 400+ TLD. .sbs/.xyz gratuits avec abonnement.
 
-<b>RACCOURCISSEUR D'URL SHORTIT</b>
-5 liens d'essai GRATUITS. URLs personnalisees.
-Analyses de clics en temps reel.
-Appuyez sur <b>Raccourcisseur d'URL</b>
+<b>Raccourcisseur Shortit</b> — Commencez avec 5 liens de marque GRATUITS. Suivez chaque clic en temps réel.
 
-<b>PISTES SMS HQ</b>
-Leads verifies par pays, etat, operateur.
-A partir de $20/1K. Validation $15/1K.
-Appuyez sur <b>Pistes SMS HQ</b>
+<b>CloudPhone</b> — Obtenez des numéros virtuels dans 30+ pays avec IVR, SMS & SIP dès $5/mois.
 
-<b>CLOUDPHONE par SpeechCue</b>
-Numeros virtuels dans 30+ pays. IVR, SMS, SIP.
-Forfaits des $5/mois.
-Appuyez sur <b>CloudPhone</b>
+<b>Produits Digitaux</b> — Twilio, AWS, Google Cloud, Workspace, Zoho & plus. Livrés en 30 minutes.
 
-<b>PRODUITS DIGITAUX</b>
-Twilio | Telnyx | AWS | Google Cloud
-Google Workspace | Zoho Mail | eSIM T-Mobile
-Livraison en 30 minutes.
-Appuyez sur <b>Produits Digitaux</b>
+Paiement crypto ou fiat. Tout instantané.
 
-Tapez /start pour explorer`,
+Tapez <b>/start</b> pour explorer`,
 
-      `<b>NOMADLY BOT — TOUS LES SERVICES</b>
+      `<b>UN BOT. ZÉRO LIMITE.</b>
 
-<b>Domaines Offshore</b> — 400+ TLDs, zero suppression
-<b>Liens Shortit</b> — 5 gratuits, puis illimites
-<b>Leads Telephone</b> — achat & validation en masse
-<b>CloudPhone</b> — numeros virtuels des $5/mois
-<b>Produits Digitaux</b> — Twilio, Telnyx, AWS, GCloud, Workspace, Zoho, eSIM
+Fatigué de jongler entre plusieurs plateformes? Nomadly regroupe tout:
 
-Crypto, virement ou portefeuille.
-Tout livre via bot.
+<b>Domaines</b> — 400+ TLD, protection offshore
+<b>Raccourcisseur URL</b> — 5 liens gratuits pour commencer
+<b>CloudPhone</b> — Numéros virtuels dès $5/mois
+<b>Boutique Digitale</b> — Twilio, Telnyx, AWS, Google Cloud, Workspace, Zoho, eSIM
 
-Tapez /start pour commencer`,
+Paiements crypto acceptés. Livraison instantanée.
 
-      `<b>VOTRE BOITE A OUTILS DIGITALE</b>
+Tapez <b>/start</b> maintenant`,
 
-Domaines — DMCA-ignore, 400+ TLDs
-Liens courts — 5 GRATUITS, URLs de marque
-Leads — verifies par pays & operateur
-CloudPhone — IVR, SMS, SIP des $5/mois
-Boutique Digitale — 13 produits, livres en 30 min
+      `<b>DÉVELOPPEZ VOTRE BUSINESS AVEC NOMADLY</b>
 
-Tout en un bot. Tapez /start`,
+Obtenez tout ce dont vous avez besoin pour grandir en ligne:
+
+<b>Domaines DMCA-Ignorés</b> — 400+ TLD disponibles
+<b>Liens Courts de Marque</b> — 5 liens d'essai GRATUITS
+<b>Numéros Virtuels</b> — 30+ pays, $5/mois
+<b>Produits Digitaux Premium</b> — Twilio, AWS, GCloud & plus
+
+Tout livré via Telegram. Paiement crypto ou virement.
+
+Tapez <b>/start</b> pour commencer`,
     ],
 
     showcase_afternoon: [
-      `<b>NOMADLY BOT — VOTRE BOITE A OUTILS</b>
+      `<b>PRODUITS DIGITAUX PREMIUM — LIVRAISON INSTANTANÉE</b>
 
-<b>Domaines Offshore</b> — 400+ TLDs, zero suppression
-<b>Liens Shortit</b> — 5 gratuits, illimites avec abo
-<b>Leads Telephone</b> — achat & validation en masse
-<b>CloudPhone</b> — numeros virtuels des $5/mois
-<b>Boutique Digitale :</b>
-  Twilio Main $450 | Sub $200
-  Telnyx Main $400 | Sub $150
-  AWS Main $400 | Sub $150
-  Google Cloud $300
-  Google Workspace des $100
-  Zoho Mail des $100
-  eSIM T-Mobile $60
-
-Crypto, virement ou portefeuille.
-Tout livre via bot.
-
-Tapez /start pour commencer`,
-
-      `<b>UN BOT. CHAQUE OUTIL.</b>
-
-Domaines DMCA-ignores — 400+ TLDs
-Liens courts — 5 URLs de marque GRATUITS
-Leads verifies — des $20/1K
-Numero virtuel — CloudPhone des $5/mois
-
-<b>Produits Digitaux :</b>
-Twilio | Telnyx | AWS | Google Cloud
-Google Workspace | Zoho Mail | eSIM
-
-Crypto, virement ou portefeuille. Livraison instantanee.
-Tapez /start`,
-
-      `<b>ARRETEZ DE JONGLER ENTRE LES OUTILS</b>
-
-Domaines + Liens + Leads + CloudPhone + Produits Digitaux — tout en un bot.
-
-Twilio des $200 | Telnyx des $150
-AWS des $150 | Google Cloud $300
-Workspace des $100 | Zoho des $100
+<b>Services Disponibles:</b>
+Twilio Main $450 | Sub $200
+Telnyx Main $400 | Sub $150
+AWS Main $400 | Sub $150
+Google Cloud $300
+Google Workspace dès $100
+Zoho Mail dès $100
 eSIM T-Mobile $60
 
-Tout livre en 30 minutes.
-Tapez /start pour explorer`,
+<b>Plus:</b> Domaines offshore (400+ TLD), raccourcisseur URL (5 gratuits), CloudPhone ($5/mois).
+
+Paiements crypto & virement. Livrés en 30 minutes via bot.
+
+Tapez <b>/start</b> pour commander`,
+
+      `<b>TOUT CE DONT VOUS AVEZ BESOIN POUR TRAVAILLER EN LIGNE</b>
+
+<b>Domaines</b> — DMCA-ignorés, 400+ TLD disponibles
+<b>Liens Courts</b> — 5 URLs de marque GRATUITS avec analytics
+<b>Numéros Virtuels</b> — CloudPhone dès $5/mois dans 30+ pays
+
+<b>Boutique Digitale:</b>
+Twilio, Telnyx, AWS, Google Cloud, Workspace, Zoho Mail, eSIM T-Mobile
+
+Paiement crypto ou virement. Livraison instantanée sur Telegram.
+
+Tapez <b>/start</b> pour explorer`,
+
+      `<b>POURQUOI UTILISER 10 PLATEFORMES QUAND UNE SUFFIT?</b>
+
+Nomadly Bot = Votre boîte à outils digitale complète.
+
+<b>Obtenez:</b> Domaines offshore, liens courts de marque, numéros virtuels, produits digitaux premium.
+
+<b>Prix:</b>
+Twilio dès $200 | AWS dès $150 | Telnyx dès $150
+Google Cloud $300 | Workspace $100+ | Zoho $100+
+
+Tout livré en 30 minutes. Paiements crypto acceptés.
+
+Tapez <b>/start</b> maintenant`,
     ],
   },
 
