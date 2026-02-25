@@ -99,7 +99,15 @@ async function saveDomainInServerRailway(domain) {
       error.toLowerCase().includes('duplicate') ||
       error.toLowerCase().includes('failed to create custom domain')
     if (isAlreadyExists) {
-      log(`[Railway] Domain ${domain} already exists — removing and re-creating`)
+      log(`[Railway] Domain ${domain} already exists — querying existing CNAME target`)
+      // ── Try to get the existing CNAME target first (domain is already on Railway = success) ──
+      const existing = await getExistingRailwayCNAME(domain)
+      if (existing) {
+        log(`[Railway] Domain ${domain} already on Railway → ${existing.server} (reusing)`)
+        return existing
+      }
+      // ── Couldn't fetch CNAME — try remove + re-create as fallback ──
+      log(`[Railway] Could not fetch CNAME for ${domain} — attempting remove + re-create`)
       const removeResult = await removeDomainFromRailway(domain)
       if (removeResult.error) {
         log(`[Railway] Remove failed for ${domain}: ${removeResult.error}`)
