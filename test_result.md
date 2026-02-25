@@ -108,39 +108,48 @@ user_problem_statement: "Honeypot integration — all 6 trap types + KV banning 
 backend:
   - task: "Honeypot: Worker script with 6 trap types"
     implemented: true
-    working: "NA"
+    working: true
     file: "js/anti-red-service.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         - working: "NA"
           agent: "main"
           comment: "Modified generateHardenedWorkerScript() to include all 6 honeypot types: (1) Link honeypots — hidden links injected into HTML responses. (2) Form field honeypots — via injection. (3) Mouse tracking — JS detects no mouse movement in 12s. (4) Cookie honeypots — trap cookie tampering. (5) JS honeypots — fake APIs (webdriver getter, adminAPI, selenium prop). (6) robots.txt honeypots — serves /__honeypot/* Disallow paths. Worker checks KV ban list first, handles /__honeypot/* triggers, injects traps into pass-through HTML, reports to backend."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: All 6 honeypot trap types correctly implemented in generateHardenedWorkerScript(). (1) BACKEND_REPORT_URL constant points to /honeypot/report. (2) banIP() and isIPBanned() KV functions implemented with BANNED_IPS namespace. (3) reportToBackend() uses fire-and-forget fetch to backend. (4) handleHoneypotTrigger() detects all 6 types (link/form/mouse/cookie/js/robots) and returns fake content. (5) honeypotRobotsTxt() serves /__honeypot/* Disallow entries. (6) injectHoneypots() includes 4 injection types: hidden link traps, 12s mouse tracking, _hp_trap cookie detection, and JS webdriver/adminAPI/selenium prop traps. (7) Main handleRequest() flow: KV ban check → honeypot trigger handling → robots.txt serving → bot scoring → challenge → HTML trap injection. (8) 'txt' removed from staticExts so robots.txt isn't skipped. Worker script comprehensive and ready for deployment."
 
   - task: "Honeypot: KV namespace + multipart worker upload"
     implemented: true
-    working: "NA"
+    working: true
     file: "js/anti-red-service.js, js/honeypot-service.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         - working: "NA"
           agent: "main"
           comment: "upgradeSharedWorker() now uses multipart form upload with KV binding (BANNED_IPS namespace). honeypot-service.js creates/finds KV namespace via Cloudflare API. KV namespace created: 812aca1cbade413d9814bff1708e74db. Falls back to simple upload if KV unavailable."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: KV namespace integration fully functional. (1) honeypot-service.js getOrCreateKVNamespace() correctly creates 'antired-honeypot-bans' namespace via CF API. (2) upgradeSharedWorker() uses FormData multipart upload with kv_namespace binding type. (3) BANNED_IPS namespace binding correctly configured in metadata. (4) Fallback to simple upload when KV unavailable implemented. (5) honeypotService.getOrCreateKVNamespace() called from upgradeSharedWorker(). KV namespace operational for edge-level IP banning."
 
   - task: "Honeypot: MongoDB analytics + Express routes"
     implemented: true
-    working: "NA"
+    working: true
     file: "js/honeypot-service.js, js/_index.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         - working: "NA"
           agent: "main"
           comment: "honeypot-service.js: initHoneypot(db) creates honeypotTriggers collection with 30-day TTL + indexes. Express routes: POST /honeypot/report (receives trigger reports from CF Workers), GET /honeypot/stats (analytics by domain), GET /honeypot/check/:ip (ban status). Integrated in _index.js at startup + route mounting."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: MongoDB analytics and Express routes fully operational. (1) honeypot-service.js: initHoneypot(db) creates honeypotTriggers collection with 30-day TTL index + ip/domain/type indexes. (2) logHoneypotTrigger() inserts records with ip, type, path, domain, ua, details, triggeredAt fields. (3) getHoneypotStats() aggregates total, byType, recentIPs, last24h counts. (4) Express routes working: POST /api/honeypot/report (✅ 200), GET /api/honeypot/stats (✅ 200, shows total: 1, byType: {link: 1}, recentIPs with test data), GET /api/honeypot/check/:ip (✅ 200, shows banned: true for triggered IPs). (5) _index.js integration: honeypot-service imported, initHoneypot(db) called, getOrCreateKVNamespace() called, createHoneypotRoutes(app) mounted. (6) Test trigger successfully logged and retrievable via all endpoints. MongoDB analytics pipeline complete and functional."
 
   - task: "Clean: Decouple shortener from Anti-Red + simplify post-registration"
     implemented: true
