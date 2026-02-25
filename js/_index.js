@@ -4920,13 +4920,24 @@ bot?.on('message', async msg => {
     set(state, chatId, 'action', 'none')
 
     if (BLOCKBEE_CRYTPO_PAYMENT_ON === 'true') {
-      const { address, bb } = await getCryptoDepositAddress(ticker, chatId, SELF_URL, `/crypto-pay-digital-product?a=b&ref=${ref}&`)
-      if (!address) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
-      set(chatIdOfPayment, ref, { chatId, price, product, orderId })
-      log({ ref })
-      await sendQrCode(bot, chatId, bb, info?.userLanguage ?? 'en')
-      const priceCrypto = await convert(price, 'usd', ticker)
-      send(chatId, t.showDepositCryptoInfoDigitalProduct(price, priceCrypto, tickerKey, address, product), trans('o'))
+      const bbResult = await getCryptoDepositAddress(ticker, chatId, SELF_URL, `/crypto-pay-digital-product?a=b&ref=${ref}&`)
+      if (bbResult?.address) {
+        set(chatIdOfPayment, ref, { chatId, price, product, orderId })
+        log({ ref })
+        await sendQrCode(bot, chatId, bbResult.bb, info?.userLanguage ?? 'en')
+        const priceCrypto = await convert(price, 'usd', ticker)
+        send(chatId, t.showDepositCryptoInfoDigitalProduct(price, priceCrypto, tickerKey, bbResult.address, product), trans('o'))
+      } else {
+        log('[CryptoFallback] BlockBee unavailable for digital product, falling back to DynoPay')
+        const dynoCoin = tickerOfDyno[tickerKey]
+        const dynoResult = await getDynopayCryptoAddress(price, dynoCoin, `${SELF_URL}/dynopay/crypto-pay-digital-product`, { "product_name": "payDigitalProduct", "refId": ref })
+        if (!dynoResult?.address) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
+        set(chatIdOfDynopayPayment, ref, { chatId, price, product, orderId, action: 'payDigitalProduct', address: dynoResult.address })
+        log({ ref })
+        await generateQr(bot, chatId, dynoResult.qr_code, info?.userLanguage ?? 'en')
+        const priceCrypto = await convert(price, 'usd', ticker)
+        send(chatId, t.showDepositCryptoInfoDigitalProduct(price, priceCrypto, tickerKey, dynoResult.address, product), trans('o'))
+      }
     } else {
       const coin = tickerOfDyno[tickerKey]
       const redirect_url = `${SELF_URL}/dynopay/crypto-pay-digital-product`
