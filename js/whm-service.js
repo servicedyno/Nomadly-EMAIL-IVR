@@ -475,6 +475,54 @@ async function startAutoSSL(cpUser) {
   }
 }
 
+/**
+ * Check if AutoSSL has issued a valid (CA-signed) cert for a domain on the WHM server.
+ * Connects directly to WHM_HOST:443 with the domain as SNI and inspects the certificate.
+ * @param {string} domain - Domain to check
+ * @returns {{ valid: boolean, selfSigned: boolean, issuer?: string, subject?: string, expiresAt?: string }}
+ */
+async function checkSSLCert(domain) {
+  const https = require('https')
+  return new Promise((resolve) => {
+    const req = https.request({
+      hostname: WHM_HOST,
+      port: 443,
+      path: '/',
+      method: 'HEAD',
+      servername: domain, // SNI — tells server which cert to present
+      rejectUnauthorized: false, // Don't reject — we want to inspect, not enforce
+      timeout: 15000,
+    }, (res) => {
+      try {
+        const cert = res.socket.getPeerCertificate()
+        const authorized = res.socket.authorized // true if cert is from a trusted CA
+
+        if (!cert || !cert.issuer) {
+          resolve({ valid: false, selfSigned: true, issuer: 'none', subject: 'none' })
+          return
+        }
+
+        const issuerOrg = cert.issuer.O || cert.issuer.CN || 'unknown'
+        const subjectCN = cert.subject?.CN || 'unknown'
+        const isSelfSigned = !authorized || issuerOrg.toLowerCase().includes('cpanel') || issuerOrg.toLowerCase().includes('self')
+
+        resolve({
+          valid: authorized,
+          selfSigned: isSelfSigned,
+          issuer: issuerOrg,
+          subject: subjectCN,
+          expiresAt: cert.valid_to || null,
+        })
+      } catch (e) {
+        resolve({ valid: false, selfSigned: true, error: e.message })
+      }
+    })
+    req.on('error', (err) => resolve({ valid: false, selfSigned: true, error: err.message }))
+    req.on('timeout', () => { req.destroy(); resolve({ valid: false, selfSigned: true, error: 'timeout' }) })
+    req.end()
+  })
+}
+
 module.exports = {
   createAccount,
   domainExists,
@@ -489,5 +537,6 @@ module.exports = {
   ensureCloudflareTweaks,
   autoWhitelistIP,
   startAutoSSL,
+  checkSSLCert,
   PLAN_MAP,
 }
