@@ -684,8 +684,8 @@ Votre commande pour <b>${product}</b> sera livrée automatiquement une fois le p
 Cordialement,
 ${CHAT_BOT_NAME}`,
 
-  showDepositCryptoInfo: (priceCrypto, tickerView, address) =>
-    `Veuillez envoyer ${priceCrypto} ${tickerView} à\n\n<code>${address}</code>\n\nLes paiements crypto sont confirmés rapidement — généralement en quelques minutes. Une fois confirmé, vous serez notifié rapidement et votre portefeuille sera mis à jour.\n\nCordialement,\n${CHAT_BOT_NAME}`,
+  showDepositCryptoInfo: (priceUsd, priceCrypto, tickerView, address) =>
+    `💰 <b>Montant du paiement : $${Number(priceUsd).toFixed(2)} USD</b>\n\nEnvoyez exactement <b>${priceCrypto} ${tickerView}</b> à :\n\n<code>${address}</code>\n\nLes paiements crypto sont confirmés rapidement — généralement en quelques minutes. Une fois confirmé, vous serez notifié rapidement et votre portefeuille sera mis à jour.\n\nCordialement,\n${CHAT_BOT_NAME}`,
 
   confirmationDepositMoney: (amount, usd) =>
     `Votre paiement de ${amount} ($${usd}) a été traité. Merci de nous avoir choisi.\nCordialement,\n${CHAT_BOT_NAME}`,
