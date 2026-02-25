@@ -598,10 +598,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Fix: switchToProviderDefault — switch back from CF to provider DNS"
-    - "Fix: Dynamic DNS switch buttons"
-    - "Fix: Anti-Red return menu dynamic shortener"
-    - "Fix: Shortener submenu domain check"
+    - "Fix: Railway saveDomainInServerRailway handles already-exists gracefully"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
