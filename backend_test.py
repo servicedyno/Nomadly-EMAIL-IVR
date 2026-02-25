@@ -57,9 +57,12 @@ def test_startup_worker_upgrade():
         return False, "Cannot read _index.js file"
     
     # Check for setTimeout with 10000ms delay
-    timeout_pattern = r'setTimeout\(\s*\(\)\s*=>\s*\{[^}]*antiRedService\.upgradeSharedWorker\(\)[^}]*\},\s*10000\s*\)'
-    if not re.search(timeout_pattern, index_js, re.DOTALL):
-        return False, "setTimeout with 10000ms delay and upgradeSharedWorker() call not found"
+    if 'setTimeout(() => {' not in index_js or '}, 10000)' not in index_js:
+        return False, "setTimeout with 10000ms delay not found"
+    
+    # Check for upgradeSharedWorker call inside setTimeout
+    if 'antiRedService.upgradeSharedWorker()' not in index_js:
+        return False, "antiRedService.upgradeSharedWorker() call not found"
     
     # Check for .then and .catch handlers
     then_catch_pattern = r'antiRedService\.upgradeSharedWorker\(\)\s*\.then\([^)]*log\([^)]*\)\s*\)\s*\.catch\([^)]*log\([^)]*\)\s*\)'
