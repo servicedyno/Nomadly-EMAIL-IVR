@@ -38,6 +38,8 @@ const PhoneTestPage = () => {
   const [reviewName, setReviewName] = useState('');
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [showAllReviews, setShowAllReviews] = useState(false);
 
   const clientRef = useRef(null);
   const callRef = useRef(null);
