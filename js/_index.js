@@ -8896,13 +8896,26 @@ bot?.on('message', async msg => {
     const label = lastStep === a.validatorSelectFormat ? 'Phone Validation' : 'Phone Leads'
     if (BLOCKBEE_CRYTPO_PAYMENT_ON === 'true') {
       const coin = tickerOf[ticker]
-      set(chatIdOfPayment, ref, { chatId, price, lastStep, leadsData })
-      const url = await generateBlockBeeAddress(price, coin, `${SELF_URL}/crypto-pay-leads?ref=${ref}`, { chatId, coin })
-      if (!url) return send(chatId, t.cryptoPayError)
-      await sendQrCode(bot, chatId, url, info?.userLanguage ?? 'en')
-      set(state, chatId, 'action', 'none')
-      const priceCrypto = await convert(price, 'usd', coin)
-      return send(chatId, t.showDepositCryptoInfoLeads(price, priceCrypto, ticker, url, label), trans('o'))
+      const bbResult = await getCryptoDepositAddress(coin, chatId, SELF_URL, `/crypto-pay-leads?a=b&ref=${ref}&`)
+      if (bbResult?.address) {
+        set(chatIdOfPayment, ref, { chatId, price, lastStep, leadsData })
+        await sendQrCode(bot, chatId, bbResult.bb, info?.userLanguage ?? 'en')
+        set(state, chatId, 'action', 'none')
+        const priceCrypto = await convert(price, 'usd', coin)
+        return send(chatId, t.showDepositCryptoInfoLeads(price, priceCrypto, ticker, bbResult.address, label), trans('o'))
+      } else {
+        log('[CryptoFallback] BlockBee unavailable for leads, falling back to DynoPay')
+        const dynoCoin = tickerOfDyno[ticker]
+        const dynoResult = await getDynopayCryptoAddress(price, dynoCoin, `${SELF_URL}/dynopay/crypto-pay-leads`, { "product_name": dynopayActions.payLeads, "refId": ref })
+        if (!dynoResult?.address) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
+        set(chatIdOfDynopayPayment, ref, { chatId, price, lastStep, leadsData, action: dynopayActions.payLeads, address: dynoResult.address })
+        saveInfo('ref', ref)
+        log({ ref })
+        await generateQr(bot, chatId, dynoResult.qr_code, info?.userLanguage ?? 'en')
+        set(state, chatId, 'action', 'none')
+        const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
+        return send(chatId, t.showDepositCryptoInfoLeads(price, priceCrypto, ticker, dynoResult.address, label), trans('o'))
+      }
     } else {
       const coin = tickerOfDyno[ticker]
       const redirect_url = `${SELF_URL}/dynopay/crypto-pay-leads`
