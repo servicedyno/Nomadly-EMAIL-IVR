@@ -424,6 +424,51 @@ const PhoneTestPage = () => {
     };
   }, []);
 
+  // ━━━ Reviews ━━━
+  const BACKEND = process.env.REACT_APP_BACKEND_URL;
+
+  const fetchReviews = useCallback(async () => {
+    try {
+      const res = await fetch(`${BACKEND}/api/phone/reviews`);
+      if (res.ok) {
+        const data = await res.json();
+        setReviews(data.reviews || []);
+      }
+    } catch (e) { /* silent */ }
+  }, [BACKEND]);
+
+  useEffect(() => {
+    fetchReviews();
+  }, [fetchReviews]);
+
+  const submitReview = async () => {
+    if (!reviewStars || !reviewComment.trim()) return;
+    setReviewSubmitting(true);
+    try {
+      const res = await fetch(`${BACKEND}/api/phone/reviews`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stars: reviewStars,
+          comment: reviewComment.trim(),
+          name: reviewName.trim() || null,
+        }),
+      });
+      if (res.ok) {
+        setReviewSubmitted(true);
+        setReviewStars(0);
+        setReviewComment('');
+        setReviewName('');
+        fetchReviews();
+      }
+    } catch (e) { /* silent */ }
+    setReviewSubmitting(false);
+  };
+
+  const avgStars = reviews.length
+    ? (reviews.reduce((s, r) => s + r.stars, 0) / reviews.length).toFixed(1)
+    : '0.0';
+
   const formatDuration = (s) => {
     const m = Math.floor(s / 60);
     const sec = s % 60;
