@@ -676,7 +676,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Fix: CR nameserver stale-state revert bug — replace loops with bulk updateAllNameservers"
+    - "Feature: Virtual Card — new Telegram bot menu item with full purchase flow"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
