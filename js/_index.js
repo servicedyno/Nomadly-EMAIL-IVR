@@ -1872,10 +1872,10 @@ bot?.on('message', async msg => {
       set(state, chatId, 'action', a.vcEnterAmount)
       const imagePath = require('path').join(__dirname, 'assets', 'virtual-card-masked.jpg')
       try {
-        await bot.sendPhoto(chatId, imagePath, { caption: t.vcWelcome, parse_mode: 'HTML' })
+        await bot.sendPhoto(chatId, imagePath, { caption: t.vcWelcome, parse_mode: 'HTML', reply_markup: k.vcAmount.reply_markup })
       } catch (e) {
         log('[VirtualCard] sendPhoto error:', e?.message)
-        send(chatId, t.vcWelcome)
+        send(chatId, t.vcWelcome, k.vcAmount)
       }
     },
     'virtual-card-address': () => {
