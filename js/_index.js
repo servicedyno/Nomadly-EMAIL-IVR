@@ -11742,6 +11742,9 @@ app.set('json spaces', 2)
 const { createCpanelRoutes } = require('./cpanel-routes')
 app.use('/panel', createCpanelRoutes(() => cpanelAccounts))
 
+// ── Honeypot Routes (receive reports from CF Workers + analytics) ──
+honeypotService.createHoneypotRoutes(app)
+
 const addFundsTo = async (walletOf, chatId, coin, valueIn, lang) => {
   if (!['usd', 'ngn'].includes(coin)) throw Error('Dev Please Debug')
 
