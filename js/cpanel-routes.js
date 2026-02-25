@@ -352,7 +352,13 @@ function createCpanelRoutes(getCpanelCol) {
           const newZone = await cfService.createZone(domain)
           if (newZone.success) {
             // Clean up conflicting DNS records before creating hosting records
-            await cfService.cleanupConflictingDNS(newZone.zoneId, domain)
+            const cleanupResult = await cfService.cleanupConflictingDNS(newZone.zoneId, domain)
+            // If a Railway CNAME was deleted (shortener was active), also remove from Railway
+            if (cleanupResult?.deleted?.some(r => r.type === 'CNAME' && r.content?.includes('.up.railway.app'))) {
+              log(`[Panel] NS-status: Shortener CNAME detected — removing domain from Railway`)
+              const { removeDomainFromRailway } = require('./rl-save-domain-in-server')
+              await removeDomainFromRailway(domain).catch(e => log(`[Panel] Railway cleanup: ${e.message}`))
+            }
             // Create hosting DNS records
             if (WHM_HOST) {
               await cfService.createHostingDNSRecords(newZone.zoneId, domain, WHM_HOST)
