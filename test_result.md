@@ -447,11 +447,7 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus:
-    - "Fix: upgradeSharedWorker() called at startup + inside deployFullProtection()"
-    - "Fix: Progressive SSL upgrade (Full → Full Strict after AutoSSL)"
-    - "Fix: checkSSLCert() function in whm-service.js"
-    - "Fix: BACKEND_REPORT_URL prefers SELF_URL_PROD with dev warning"
+  current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
