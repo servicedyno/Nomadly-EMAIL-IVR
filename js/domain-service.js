@@ -962,7 +962,7 @@ const addShortenerCNAME = async (domainName, cnameTarget, db) => {
   try {
     const meta = await getDomainMeta(domainName, db)
 
-    if (meta?.nameserverType === 'cloudflare' && meta?.cfZoneId) {
+    if ((meta?.nameserverType === 'cloudflare' || meta?.cfZoneId) && meta?.cfZoneId) {
       // 1. Check for A/AAAA conflicts at root
       const conflict = await checkDNSConflict(domainName, 'CNAME', '', db)
       if (conflict.hasConflict && conflict.conflictingRecords?.length > 0) {
