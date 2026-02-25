@@ -6415,14 +6415,28 @@ bot?.on('message', async msg => {
     
     if (BLOCKBEE_CRYTPO_PAYMENT_ON === 'true') {
       const coin = tickerOf[ticker]
-      const { address, bb } = await getCryptoDepositAddress(coin, chatId, SELF_URL, `/crypto-pay-hosting?a=b&ref=${ref}&`)
-      if (!address) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
-      set(chatIdOfPayment, ref, { chatId, price, domain })
-      log({ ref })
-      await sendQrCode(bot, chatId, bb, info?.userLanguage ?? 'en')
-      set(state, chatId, 'action', a.proceedWithPaymentProcess)
-      const priceCrypto = await convert(price, 'usd', coin)
-      return send(chatId, hP.showCryptoPaymentInfo(price, priceCrypto, ticker, address, plan))
+      const bbResult = await getCryptoDepositAddress(coin, chatId, SELF_URL, `/crypto-pay-hosting?a=b&ref=${ref}&`)
+      if (bbResult?.address) {
+        set(chatIdOfPayment, ref, { chatId, price, domain })
+        log({ ref })
+        await sendQrCode(bot, chatId, bbResult.bb, info?.userLanguage ?? 'en')
+        set(state, chatId, 'action', a.proceedWithPaymentProcess)
+        const priceCrypto = await convert(price, 'usd', coin)
+        return send(chatId, hP.showCryptoPaymentInfo(price, priceCrypto, ticker, bbResult.address, plan))
+      } else {
+        log('[CryptoFallback] BlockBee unavailable for hosting, falling back to DynoPay')
+        await paymentIntents.updateOne({ ref }, { $set: { provider: 'dynopay' } })
+        const dynoCoin = tickerOfDyno[ticker]
+        if (!dynoCoin) return send(chatId, t.askValidCrypto)
+        const dynoResult = await getDynopayCryptoAddress(price, dynoCoin, `${SELF_URL}/dynopay/crypto-pay-hosting`, { "product_name": dynopayActions.payHosting, "refId": ref })
+        if (!dynoResult?.address) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
+        set(chatIdOfDynopayPayment, ref, { chatId, price, domain, action: dynopayActions.payHosting, address: dynoResult.address })
+        log({ ref })
+        await generateQr(bot, chatId, dynoResult.qr_code, info?.userLanguage ?? 'en')
+        set(state, chatId, 'action', a.proceedWithPaymentProcess)
+        const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
+        return send(chatId, hP.showCryptoPaymentInfo(price, priceCrypto, ticker, dynoResult.address, plan))
+      }
     } else {
       const coin = tickerOfDyno[ticker]
       if (!coin) return send(chatId, t.askValidCrypto)
