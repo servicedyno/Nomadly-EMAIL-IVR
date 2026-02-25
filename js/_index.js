@@ -2056,15 +2056,22 @@ bot?.on('message', async msg => {
 
     'select-dns-record-id-to-update': () => {
       const records = info?.dnsRecords || []
-      let nsSlotCounter = 0
-      const recordBtns = records.map((r, i) => {
+      const hasNS = records.some(r => r.recordType === 'NS')
+      let nonNsIndex = 0
+      const recordBtns = []
+      // Add consolidated "Update Nameservers" button if NS records exist
+      if (hasNS) {
+        const nsRecords = records.filter(r => r.recordType === 'NS')
+        const nsPreview = nsRecords.map((r, i) => `NS${i + 1}: ${(r.recordContent || '—').length > 25 ? r.recordContent.substring(0, 23) + '..' : r.recordContent}`).join(', ')
+        recordBtns.push([`🔄 Update Nameservers (${nsPreview})`])
+      }
+      // Add non-NS records
+      records.forEach((r, i) => {
+        if (r.recordType === 'NS') return
+        nonNsIndex++
         const label = r.recordContent || '—'
         const short = label.length > 30 ? label.substring(0, 28) + '..' : label
-        if (r.recordType === 'NS') {
-          nsSlotCounter++
-          return [`${i + 1}. NS${nsSlotCounter}: ${short}`]
-        }
-        return [`${i + 1}. ${r.recordType} → ${short}`]
+        recordBtns.push([`${nonNsIndex}. ${r.recordType} → ${short}`])
       })
       const keyboard = { parse_mode: 'HTML', reply_markup: { keyboard: [...recordBtns, [t.back, t.cancel]] } }
       send(chatId, t.updateDnsTxt, keyboard)
