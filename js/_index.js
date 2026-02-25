@@ -8703,13 +8703,26 @@ bot?.on('message', async msg => {
     const ref = nanoid()
     if (BLOCKBEE_CRYTPO_PAYMENT_ON === 'true') {
       const coin = tickerOf[ticker]
-      set(chatIdOfPayment, ref, { chatId, price, cpData: { selectedNumber: info?.cpSelectedNumber, planKey: info?.cpPlanKey, provider: info?.cpProvider || 'telnyx', countryCode: info?.cpCountryCode || 'US', countryName: info?.cpCountryName || 'US' } })
-      const url = await generateBlockBeeAddress(price, coin, `${SELF_URL}/crypto-pay-phone?ref=${ref}`, { chatId, coin })
-      if (!url) return send(chatId, t.cryptoPayError)
-      await sendQrCode(bot, chatId, url, info?.userLanguage ?? 'en')
-      set(state, chatId, 'action', 'none')
-      const priceCrypto = await convert(price, 'usd', coin)
-      return send(chatId, t.showDepositCryptoInfoPhone(price, priceCrypto, ticker, url, info?.cpSelectedNumber || 'Cloud Phone'), trans('o'))
+      const bbResult = await getCryptoDepositAddress(coin, chatId, SELF_URL, `/crypto-pay-phone?a=b&ref=${ref}&`)
+      if (bbResult?.address) {
+        set(chatIdOfPayment, ref, { chatId, price, cpData: { selectedNumber: info?.cpSelectedNumber, planKey: info?.cpPlanKey, provider: info?.cpProvider || 'telnyx', countryCode: info?.cpCountryCode || 'US', countryName: info?.cpCountryName || 'US' } })
+        await sendQrCode(bot, chatId, bbResult.bb, info?.userLanguage ?? 'en')
+        set(state, chatId, 'action', 'none')
+        const priceCrypto = await convert(price, 'usd', coin)
+        return send(chatId, t.showDepositCryptoInfoPhone(price, priceCrypto, ticker, bbResult.address, info?.cpSelectedNumber || 'Cloud Phone'), trans('o'))
+      } else {
+        log('[CryptoFallback] BlockBee unavailable for phone, falling back to DynoPay')
+        const dynoCoin = tickerOfDyno[ticker]
+        const dynoResult = await getDynopayCryptoAddress(price, dynoCoin, `${SELF_URL}/dynopay/crypto-pay-phone`, { "product_name": dynopayActions.payPhone, "refId": ref })
+        if (!dynoResult?.address) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
+        set(chatIdOfDynopayPayment, ref, { chatId, price, cpData: { selectedNumber: info?.cpSelectedNumber, planKey: info?.cpPlanKey, provider: info?.cpProvider || 'telnyx', countryCode: info?.cpCountryCode || 'US', countryName: info?.cpCountryName || 'US' }, action: dynopayActions.payPhone, address: dynoResult.address })
+        saveInfo('ref', ref)
+        log({ ref })
+        await generateQr(bot, chatId, dynoResult.qr_code, info?.userLanguage ?? 'en')
+        set(state, chatId, 'action', 'none')
+        const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
+        return send(chatId, t.showDepositCryptoInfoPhone(price, priceCrypto, ticker, dynoResult.address, info?.cpSelectedNumber || 'Cloud Phone'), trans('o'))
+      }
     } else {
       const coin = tickerOfDyno[ticker]
       const redirect_url = `${SELF_URL}/dynopay/crypto-pay-phone`
