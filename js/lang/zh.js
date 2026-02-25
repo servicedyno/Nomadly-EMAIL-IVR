@@ -553,7 +553,7 @@ ${CHAT_BOT_NAME}`,
   dpOrderConfirmed: (product, price, orderId) => `✅ <b>订单已确认！</b>\n\n🛒 产品：<b>${product}</b>\n💵 金额：<b>$${price}</b>\n🆔 订单号：<code>${orderId}</code>\n\n您的订单将很快通过此机器人送达。\n如有问题，请联系客服。`,
 
   // Virtual Card
-  vcWelcome: `💳 <b>虚拟借记卡</b>\n\n获取一张预充值的虚拟万事达卡。\n\n✅ 全球在线使用\n✅ 即时交付\n✅ 充值范围：$50 – $1,000\n\n上方为卡片预览（末尾数字和CVV已隐藏）。\n\n💵 请输入充值金额（<b>$50 – $1,000</b>）：`,
+  vcWelcome: `💳 <b>虚拟借记卡</b>\n\n充值一张虚拟卡。\n\n✅ 全球在线使用\n✅ 即时交付\n✅ $50 – $1,000\n\n选择金额或输入自定义金额：`,
   vcInvalidAmount: `❌ 请输入 <b>$50</b> 到 <b>$1,000</b> 之间的有效金额。`,
   vcAskAddress: `📬 <b>收件地址</b>\n\n请输入完整的国际格式地址：\n\n<i>示例：\n张三\n北京市朝阳区建国路123号\n100022\n中国</i>`,
   vcAddressTooShort: `❌ 地址过短，请填写完整地址，包括姓名、街道、城市、邮编和国家。`,
