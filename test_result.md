@@ -538,8 +538,10 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Fix: Shortener activation must ensureCloudflare before adding CNAME"
-    - "Fix: switchToCloudflare NS reassignment drift detection"
+    - "Fix: switchToCloudflare migrates existing DNS records to CF zone"
+    - "Fix: saveDomainInServerRailway handles domain-already-exists"
+    - "Fix: DNS add conflict detection for CNAME/A"
+    - "Fix: switchToCloudflare success message shows migration results"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
