@@ -14758,7 +14758,7 @@ async function addDnsForShortener(chatId, domain, server, recordType, lang) {
   }
 
   await sleep(5000)
-  const addResult = await domainService.addDNSRecord(domain, recordType, server, '', db)
+  const addResult = await domainService.addShortenerCNAME(domain, server, db)
 
   if (addResult.error || !addResult.success) {
     log(`[ShortenerResume] DNS via domainService failed for ${domain}: ${addResult.error || 'unknown'}`)
