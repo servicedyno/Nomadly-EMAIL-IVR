@@ -641,6 +641,18 @@ metadata:
           agent: "testing"
           comment: "✅ COMPREHENSIVE VERIFICATION COMPLETE: Both DNS routing fixes tested with 100% success rate (23/23 tests passed). FIX 1 - viewDNSRecords auto-create zone VERIFIED: In lines 275-282, auto-create path correctly updates BOTH collections: registeredDomains.updateOne with 'val.cfZoneId' and 'val.nameservers', and domainsOf.updateOne with cfZoneId and nameservers fields. FIX 2 - cfZoneId-based CF routing VERIFIED: All 9 specified locations correctly use (nameserverType === 'cloudflare' || cfZoneId) && cfZoneId pattern: (1) viewDNSRecords isCfManaged at line 242, (2) addDNSRecord NS handler at line 340, (3) addDNSRecord CF path at line 369, (4) updateDNSRecord at line 392, (5) deleteDNSRecord at line 416, (6) switchToCloudflare at line 703, (7) ensureCloudflare at line 739, (8) switchToProviderDefault at line 840 (negated form), (9) addShortenerCNAME at line 965. AUTO-NORMALIZATION VERIFIED: Lines 259-262 correctly detect nameserverType !== 'cloudflare' but cfZoneId exists and auto-normalize both collections to 'cloudflare'. checkDNSConflict function correctly unchanged - uses meta?.cfZoneId directly. NO OLD PATTERNS: Confirmed all old 'nameserverType === cloudflare && cfZoneId' patterns successfully replaced. Node.js service running healthy with no syntax errors. BOTH DNS ROUTING FIXES ARE WORKING CORRECTLY - domains with cfZoneId but non-'cloudflare' nameserverType (like 'external') now route to Cloudflare API instead of failing on CR/OP paths, and auto-create zone updates both database collections."
 
+  - task: "Feature: Bulk NS update — send all nameservers at once instead of one-by-one"
+    implemented: true
+    working: true
+    file: "js/domain-service.js, js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Implemented bulk NS update for both OP and CR domains. Changes: (1) domain-service.js: New updateAllNameservers(domainName, newNameservers, db) — for OP calls opService.updateNameservers, for CR looks up domainNameId via getDomainDetails then calls CR UpdateNameServer API with all NS at once. Auto-detects nameserverType. Updates both DB collections. Exported. (2) _index.js goto select-dns-record-id-to-update: NS records consolidated into single Update Nameservers button. (3) _index.js goto dns-update-all-ns: Shows current NS, prompts for all new NS. (4) _index.js action handlers: Handles Update Nameservers button, parses multi-line input (2-4 FQDN), validates, calls updateAllNameservers. Node.js starts clean."
+
 test_plan:
   current_focus:
     - "Feature: Bulk NS update — send all nameservers at once"
