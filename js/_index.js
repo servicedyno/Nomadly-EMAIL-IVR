@@ -11631,11 +11631,10 @@ const buyDomainFullProcess = async (chatId, lang, domain) => {
 
     sendMessage(chatId, translation('t.domainLinking', lang, domain))
 
-    // Add DNS record via unified domainService — auto-routes to Cloudflare
-    // when domain metadata has nameserverType='cloudflare' + cfZoneId,
-    // otherwise falls back to registrar DNS (CR/OP) for legacy domains.
+    // Add shortener DNS via unified service — auto-resolves A/CNAME conflicts,
+    // routes to Cloudflare when domain metadata has nameserverType='cloudflare' + cfZoneId.
     await sleep(5000) // Brief delay for DB metadata propagation
-    const addResult = await domainService.addDNSRecord(domain, recordType, server, '', db)
+    const addResult = await domainService.addShortenerCNAME(domain, server, db)
     if (addResult.error || !addResult.success) {
       log(`[buyDomainFullProcess] DNS record add failed via domainService for ${domain}: ${addResult.error || 'unknown'}`)
       // Fallback: try direct CR DNS add for ConnectReseller domains
