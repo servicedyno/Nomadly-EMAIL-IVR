@@ -139,21 +139,57 @@ def test_tracking_collections():
     with open('/app/js/_index.js', 'r') as f:
         content = f.read()
     
-    # Check BlockBee success uses chatIdOfPayment
-    blockbee_tracking = re.findall(r'set\(chatIdOfPayment,.*bbResult', content, re.DOTALL)
+    # Find all contexts where tracking is set after crypto address generation
+    lines = content.split('\n')
     
-    # Check DynoPay success uses chatIdOfDynopayPayment
-    dynopay_tracking = re.findall(r'set\(chatIdOfDynopayPayment,.*dynoResult', content, re.DOTALL)
+    blockbee_primary_count = 0
+    dynopay_primary_count = 0
+    blockbee_fallback_count = 0
+    dynopay_fallback_count = 0
     
-    print(f"Found BlockBee tracking patterns: {len(blockbee_tracking)}")
-    print(f"Found DynoPay tracking patterns: {len(dynopay_tracking)}")
+    for i, line in enumerate(lines):
+        # Count BlockBee primary success (bbResult -> chatIdOfPayment)
+        if 'bbResult?.address' in line and i+3 < len(lines):
+            next_lines = '\n'.join(lines[i+1:i+4])
+            if 'set(chatIdOfPayment' in next_lines:
+                blockbee_primary_count += 1
+        
+        # Count DynoPay primary success (dynoResult -> chatIdOfDynopayPayment)
+        if 'dynoResult?.address' in line and i+3 < len(lines):
+            next_lines = '\n'.join(lines[i+1:i+4])
+            if 'set(chatIdOfDynopayPayment' in next_lines:
+                dynopay_primary_count += 1
+        
+        # Count BlockBee fallback (after DynoPay fails -> chatIdOfPayment)
+        if '[CryptoFallback] DynoPay unavailable' in line and i+5 < len(lines):
+            next_lines = '\n'.join(lines[i+1:i+6])
+            if 'set(chatIdOfPayment' in next_lines:
+                blockbee_fallback_count += 1
+                
+        # Count DynoPay fallback (after BlockBee fails -> chatIdOfDynopayPayment)
+        if '[CryptoFallback] BlockBee unavailable' in line and i+5 < len(lines):
+            next_lines = '\n'.join(lines[i+1:i+6])
+            if 'set(chatIdOfDynopayPayment' in next_lines:
+                dynopay_fallback_count += 1
     
-    if len(blockbee_tracking) < 10:
-        print(f"❌ Insufficient BlockBee tracking patterns: {len(blockbee_tracking)}")
+    print(f"BlockBee primary success tracking: {blockbee_primary_count}")
+    print(f"DynoPay primary success tracking: {dynopay_primary_count}")
+    print(f"BlockBee fallback tracking: {blockbee_fallback_count}")
+    print(f"DynoPay fallback tracking: {dynopay_fallback_count}")
+    
+    # Each payment type should have proper tracking
+    expected_count = 10  # 10 payment types
+    
+    if blockbee_primary_count != expected_count:
+        print(f"❌ Expected {expected_count} BlockBee primary patterns, found {blockbee_primary_count}")
         return False
         
-    if len(dynopay_tracking) < 10:
-        print(f"❌ Insufficient DynoPay tracking patterns: {len(dynopay_tracking)}")
+    if blockbee_fallback_count != expected_count:
+        print(f"❌ Expected {expected_count} BlockBee fallback patterns, found {blockbee_fallback_count}")
+        return False
+        
+    if dynopay_fallback_count != expected_count:
+        print(f"❌ Expected {expected_count} DynoPay fallback patterns, found {dynopay_fallback_count}")
         return False
     
     print("✅ Tracking collections are correctly used")
