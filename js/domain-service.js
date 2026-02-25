@@ -726,4 +726,5 @@ module.exports = {
   deleteDNSRecord,
   updateNameserverAtRegistrar,
   switchToCloudflare,
+  ensureCloudflare,
 }
