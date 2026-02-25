@@ -6254,15 +6254,28 @@ bot?.on('message', async msg => {
           "product_name": dynopayActions.payDomain,
           "refId" : ref
         }
-        const { qr_code, address } = await getDynopayCryptoAddress(price, coin, redirect_url, meta_data)
-        if (!address) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
-        set(chatIdOfDynopayPayment, ref, { chatId, price, domain, action: dynopayActions.payDomain, address })
-        saveInfo('ref', ref)
-        log({ ref })
-        await generateQr(bot, chatId, qr_code, info?.userLanguage ?? 'en')
-        set(state, chatId, 'action', 'none')
-        const priceCrypto = await convert(price, 'usd',  tickerOf[ticker])
-        return send(chatId, t.showDepositCryptoInfoDomain(price, priceCrypto, ticker, address, domain), trans('o'))
+        const dynoResult = await getDynopayCryptoAddress(price, coin, redirect_url, meta_data)
+        if (dynoResult?.address) {
+          set(chatIdOfDynopayPayment, ref, { chatId, price, domain, action: dynopayActions.payDomain, address: dynoResult.address })
+          saveInfo('ref', ref)
+          log({ ref })
+          await generateQr(bot, chatId, dynoResult.qr_code, info?.userLanguage ?? 'en')
+          set(state, chatId, 'action', 'none')
+          const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
+          return send(chatId, t.showDepositCryptoInfoDomain(price, priceCrypto, ticker, dynoResult.address, domain), trans('o'))
+        } else {
+          log('[CryptoFallback] DynoPay unavailable for domain, falling back to BlockBee')
+          const bbCoin = tickerOf[ticker]
+          const { address: bbAddr, bb } = await getCryptoDepositAddress(bbCoin, chatId, SELF_URL, `/crypto-pay-domain?a=b&ref=${ref}&`)
+          if (!bbAddr) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
+          set(chatIdOfPayment, ref, { chatId, price, domain })
+          saveInfo('ref', ref)
+          log({ ref })
+          await sendQrCode(bot, chatId, bb, info?.userLanguage ?? 'en')
+          set(state, chatId, 'action', 'none')
+          const priceCrypto = await convert(price, 'usd', bbCoin)
+          return send(chatId, t.showDepositCryptoInfoDomain(price, priceCrypto, ticker, bbAddr, domain), trans('o'))
+        }
       }
   }
 
