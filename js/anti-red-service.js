@@ -1256,6 +1256,7 @@ function generateHardenedWorkerScript() {
   const scannerIPs = SCANNER_IP_RANGES.map(ip => `'${ip}'`).join(',')
   const secretSeed = require('crypto').randomBytes(16).toString('hex')
   const cleanPlaceholder = generateCleanPlaceholder().replace(/'/g, "\\'").replace(/\n/g, '\\n')
+  const backendReportUrl = (process.env.SELF_URL || process.env.SELF_URL_PROD || '').replace(/\/+$/, '')
 
   return `
 addEventListener('fetch', e => e.respondWith(handleRequest(e.request)));
@@ -1266,7 +1267,9 @@ const COOKIE_NAME = '__ar_v';
 const COOKIE_MAX_AGE = 86400;
 const SECRET = '${secretSeed}';
 const CLEAN_PLACEHOLDER = '${cleanPlaceholder}';
+const BACKEND_REPORT_URL = '${backendReportUrl}/honeypot/report';
 
+// ─── IP Range Matching ──────────────────────────────────
 function ipInRange(ip, cidr) {
   if (!cidr.includes('/')) return ip === cidr;
   const [range, bits] = cidr.split('/');
@@ -1276,6 +1279,7 @@ function ipInRange(ip, cidr) {
   return (ipNum & mask) === (rangeNum & mask);
 }
 
+// ─── HMAC Signing ───────────────────────────────────────
 async function hmac(message) {
   const enc = new TextEncoder();
   const key = await crypto.subtle.importKey('raw', enc.encode(SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
@@ -1303,24 +1307,191 @@ async function makeCookieValue() {
   return btoa(ts + '|' + sig);
 }
 
-// Calculate bot score based on UA and behavior
+// ─── Bot Score Calculator ───────────────────────────────
 function calculateBotScore(ua, ip) {
   let score = 0;
-  
-  // Known scanner UAs → high score
   if (!ua || BLOCKED_UAS.some(b => ua.includes(b))) score += 100;
-  
-  // Known scanner IPs → high score  
   if (ip && SCANNER_IPS.some(cidr => ipInRange(ip, cidr))) score += 100;
-  
-  // Suspicious patterns
   if (ua && /bot|crawl|spider|scrape|fetch/i.test(ua)) score += 50;
   if (ua && /curl|wget|python|java|go-http/i.test(ua)) score += 60;
   if (!ua || ua.length < 20) score += 40;
-  
   return score;
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// HONEYPOT SYSTEM — 6 trap types with KV-based IP banning
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// Ban an IP for 24 hours via KV
+async function banIP(ip, reason, details) {
+  try {
+    if (typeof BANNED_IPS !== 'undefined') {
+      await BANNED_IPS.put(ip, JSON.stringify({
+        reason: reason,
+        details: details || '',
+        bannedAt: Date.now()
+      }), { expirationTtl: 86400 });
+    }
+  } catch (e) { /* KV write failed, non-critical */ }
+}
+
+// Check if an IP is banned in KV
+async function isIPBanned(ip) {
+  try {
+    if (typeof BANNED_IPS !== 'undefined') {
+      const val = await BANNED_IPS.get(ip);
+      return val !== null;
+    }
+  } catch (e) { /* KV read failed */ }
+  return false;
+}
+
+// Fire-and-forget report to backend for MongoDB analytics
+function reportToBackend(ip, type, path, domain, ua, details) {
+  if (!BACKEND_REPORT_URL) return;
+  try {
+    fetch(BACKEND_REPORT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ip, type, path, domain, ua, details }),
+    }).catch(() => {});
+  } catch (e) { /* non-critical */ }
+}
+
+// Handle honeypot trigger — ban IP + return fake content + report
+async function handleHoneypotTrigger(request, path) {
+  const ip = request.headers.get('CF-Connecting-IP') || '';
+  const ua = request.headers.get('User-Agent') || '';
+  const domain = new URL(request.url).hostname;
+
+  // Determine trap type from path
+  let type = 'link';
+  if (path.includes('form-trap')) type = 'form';
+  else if (path.includes('mouse-trap')) type = 'mouse';
+  else if (path.includes('cookie-trap')) type = 'cookie';
+  else if (path.includes('js-trap')) type = 'js';
+  else if (path.includes('robots-trap')) type = 'robots';
+
+  // Ban the IP immediately (24h)
+  await banIP(ip, 'honeypot_' + type, path);
+
+  // Report to backend (async, non-blocking)
+  reportToBackend(ip, type, path, domain, ua, '');
+
+  // Return fake content to waste bot time
+  if (path.includes('admin') || path.includes('wp-admin')) {
+    return new Response('<html><head><title>Admin Login</title></head><body><h1>Admin Panel</h1><form method="POST"><input name="user" placeholder="Username"><input name="pass" type="password" placeholder="Password"><button>Login</button></form></body></html>', {
+      status: 200, headers: { 'Content-Type': 'text/html' }
+    });
+  }
+  if (path.includes('api-keys') || path.includes('config') || path.includes('private')) {
+    return new Response('API_KEY=fake_12345678abcdefgh\\nSECRET=fake_xxxxxxxxxxxxxxxx\\nDATABASE_URL=postgres://fake:fake@localhost/fake\\n', {
+      status: 200, headers: { 'Content-Type': 'text/plain' }
+    });
+  }
+  if (path.includes('backup')) {
+    return new Response('# Backup file\\n# Created: 2025-01-01\\n# Nothing to see here\\n', {
+      status: 200, headers: { 'Content-Type': 'text/plain' }
+    });
+  }
+  // Generic: signal received, return 404-like
+  return new Response('Not Found', { status: 404 });
+}
+
+// ─── Type 6: robots.txt honeypot ────────────────────────
+function honeypotRobotsTxt() {
+  return 'User-agent: *\\nAllow: /\\n\\n# Protected directories\\nDisallow: /__honeypot/admin/\\nDisallow: /__honeypot/backup/\\nDisallow: /__honeypot/private/\\nDisallow: /__honeypot/config/\\nDisallow: /__honeypot/api-keys/\\n\\nCrawl-delay: 10\\n';
+}
+
+// ─── Honeypot HTML injection (Types 1,3,4,5) ────────────
+// Injected into pass-through HTML responses for verified/passed users.
+// Hidden elements that only bots interact with.
+function injectHoneypots(html, domain) {
+  // Type 1: Link Honeypots — hidden links bots click, humans never see
+  const linkTraps = '<a href="/__honeypot/admin-login" style="display:none" tabindex="-1" aria-hidden="true">Admin Login</a>'
+    + '<a href="/__honeypot/wp-admin" style="opacity:0;position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden" tabindex="-1">WordPress Admin</a>'
+    + '<a href="/__honeypot/private/api-keys.txt" style="visibility:hidden;position:absolute;top:-9999px" tabindex="-1">API Keys</a>'
+    + '<a href="/__honeypot/robots-trap/backup" style="width:0;height:0;overflow:hidden;display:inline-block" tabindex="-1">Backup</a>'
+    + '<div style="display:none"><h2>Exclusive Content</h2><a href="/__honeypot/exclusive-download">Download Premium</a></div>';
+
+  // Type 3: Mouse tracking honeypot — detects no mouse movement (headless browsers)
+  const mouseTracker = '<script>'
+    + '(function(){'
+    + 'var mc=0,cc=0,sc=0,st=Date.now();'
+    + 'document.addEventListener("mousemove",function(){mc++;});'
+    + 'document.addEventListener("click",function(){cc++;});'
+    + 'document.addEventListener("scroll",function(){sc++;});'
+    + 'setTimeout(function(){'
+    + 'var t=Date.now()-st;'
+    + 'if(mc===0&&t>10000){'
+    + 'fetch("/__honeypot/mouse-trap",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({r:"no_mouse",t:t})}).catch(function(){});'
+    + '}'
+    + 'if(sc>5&&mc===0){'
+    + 'fetch("/__honeypot/mouse-trap",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({r:"scroll_no_mouse",t:t})}).catch(function(){});'
+    + '}'
+    + 'if(cc>0&&mc<10){'
+    + 'fetch("/__honeypot/mouse-trap",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({r:"click_no_mouse",t:t})}).catch(function(){});'
+    + '}'
+    + '},12000);'
+    + '})();'
+    + '</script>';
+
+  // Type 4: Cookie honeypot — detects cookie tampering
+  const cookieTrap = '<script>'
+    + '(function(){'
+    + 'document.cookie="_hp_trap=initial_value;path=/;SameSite=Lax";'
+    + 'setTimeout(function(){'
+    + 'var ck=document.cookie.split(";").map(function(c){return c.trim();});'
+    + 'var hp=ck.find(function(c){return c.startsWith("_hp_trap=");});'
+    + 'if(!hp||!hp.includes("initial_value")){'
+    + 'fetch("/__honeypot/cookie-trap",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({r:hp?"modified":"deleted"})}).catch(function(){});'
+    + '}'
+    + '},3000);'
+    + '})();'
+    + '</script>';
+
+  // Type 5: JavaScript honeypots — fake APIs that bots probe
+  const jsTrap = '<script>'
+    + '(function(){'
+    + 'function rp(trigger){'
+    + 'fetch("/__honeypot/js-trap",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({trigger:trigger})}).catch(function(){});'
+    + '}'
+    // Fake webdriver access trap — bots try to hide navigator.webdriver
+    + 'try{'
+    + 'var origWD=Object.getOwnPropertyDescriptor(Navigator.prototype,"webdriver");'
+    + 'Object.defineProperty(Navigator.prototype,"webdriver",{'
+    + 'get:function(){'
+    + 'rp("webdriver_access");'
+    + 'return origWD?origWD.get.call(this):false;'
+    + '},'
+    + 'configurable:true'
+    + '});'
+    + '}catch(e){}'
+    // Fake admin API — bots may call window.adminAPI
+    + 'window.adminAPI={'
+    + 'login:function(){rp("admin_api_call");return{error:"Unauthorized"};},'
+    + 'getUsers:function(){rp("admin_api_call");return[];}'
+    + '};'
+    // Fake Selenium properties — bots that delete them trigger this
+    + 'Object.defineProperty(document,"__selenium_unwrapped",{'
+    + 'set:function(){rp("selenium_prop_set");},'
+    + 'get:function(){return undefined;},'
+    + 'configurable:true'
+    + '});'
+    + '})();'
+    + '</script>';
+
+  // Inject all traps before </body>
+  const allTraps = linkTraps + mouseTracker + cookieTrap + jsTrap;
+
+  if (html.includes('</body>')) {
+    return html.replace('</body>', allTraps + '</body>');
+  }
+  // Fallback: append if no </body> tag
+  return html + allTraps;
+}
+
+// ─── Challenge Page ─────────────────────────────────────
 function challengePage(originalUrl) {
   const safeUrl = encodeURIComponent(originalUrl);
   return \`<!DOCTYPE html>
@@ -1366,15 +1537,41 @@ function challengePage(originalUrl) {
 </script></body></html>\`;
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// MAIN REQUEST HANDLER
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 async function handleRequest(request) {
   const ua = request.headers.get('User-Agent') || '';
   const url = new URL(request.url);
   const ip = request.headers.get('CF-Connecting-IP') || '';
-  
-  // Calculate bot score (balanced mode)
+  const domain = url.hostname;
+
+  // ── Step 0: Check KV ban list ──
+  if (await isIPBanned(ip)) {
+    return new Response('Forbidden', {
+      status: 403,
+      headers: { 'X-AntiRed': 'honeypot-banned' }
+    });
+  }
+
+  // ── Step 1: Handle honeypot triggers ──
+  if (url.pathname.startsWith('/__honeypot/')) {
+    return handleHoneypotTrigger(request, url.pathname);
+  }
+
+  // ── Step 2: Serve honeypot-enhanced robots.txt ──
+  if (url.pathname === '/robots.txt') {
+    return new Response(honeypotRobotsTxt(), {
+      status: 200,
+      headers: { 'Content-Type': 'text/plain', 'Cache-Control': 'public, max-age=3600' }
+    });
+  }
+
+  // ── Step 3: Bot score calculation ──
   const botScore = calculateBotScore(ua, ip);
-  
-  // HIGH SCORE (100+) → Known scanner → Show clean placeholder (prevents red flagging)
+
+  // HIGH SCORE (100+) → Known scanner → Clean placeholder (cloaking)
   if (botScore >= 100) {
     return new Response(CLEAN_PLACEHOLDER, {
       status: 200,
@@ -1385,33 +1582,28 @@ async function handleRequest(request) {
       },
     });
   }
-  
+
   // MEDIUM SCORE (40-99) → Suspicious → Challenge required
   const needsChallenge = botScore >= 40;
-  
+
   // Skip challenge for static assets
   const ext = url.pathname.split('.').pop().toLowerCase();
-  const staticExts = ['css','js','png','jpg','jpeg','gif','svg','ico','woff','woff2','ttf','eot','map','xml','txt','pdf','zip','mp4','mp3','webp','avif','webmanifest'];
+  const staticExts = ['css','js','png','jpg','jpeg','gif','svg','ico','woff','woff2','ttf','eot','map','xml','pdf','zip','mp4','mp3','webp','avif','webmanifest'];
   if (staticExts.includes(ext)) {
     return fetch(request);
   }
 
-  // Handle verification redirect — set cookie and redirect to original URL
+  // ── Step 4: Handle verification redirect ──
   if (url.pathname === '/__ar_verify') {
     const returnUrl = url.searchParams.get('r') || '/';
     const timestamp = url.searchParams.get('t');
-
-    // Verify timestamp is recent (within 30 seconds) to prevent replay attacks
     const now = Math.floor(Date.now() / 1000);
     const ts = parseInt(timestamp);
     if (isNaN(ts) || Math.abs(now - ts) > 30) {
       return Response.redirect(url.origin + decodeURIComponent(returnUrl), 302);
     }
-
-    // Generate signed cookie
     const cookieValue = await makeCookieValue();
     const expiry = new Date(Date.now() + COOKIE_MAX_AGE * 1000).toUTCString();
-
     return new Response(null, {
       status: 302,
       headers: {
@@ -1423,19 +1615,34 @@ async function handleRequest(request) {
     });
   }
 
-  // Check for valid challenge cookie
+  // ── Step 5: Check challenge cookie ──
   const cookies = request.headers.get('Cookie') || '';
   const hasCookie = await verifyCookie(cookies);
-  
+
   if (hasCookie || !needsChallenge) {
-    // Cookie valid OR low bot score → pass through to origin
+    // Cookie valid OR low bot score → pass through + inject honeypots into HTML
     const response = await fetch(request);
+    const contentType = response.headers.get('Content-Type') || '';
     const newHeaders = new Headers(response.headers);
     newHeaders.set('X-AntiRed', hasCookie ? 'verified' : 'passed');
+
+    // Inject honeypot traps into HTML responses
+    if (contentType.includes('text/html')) {
+      try {
+        let html = await response.text();
+        html = injectHoneypots(html, domain);
+        newHeaders.delete('content-length'); // recalculate
+        return new Response(html, { status: response.status, headers: newHeaders });
+      } catch (e) {
+        // If injection fails, return original response
+        return new Response(response.body, { status: response.status, headers: newHeaders });
+      }
+    }
+
     return new Response(response.body, { status: response.status, headers: newHeaders });
   }
 
-  // No valid cookie + needs challenge → serve challenge page
+  // ── Step 6: No valid cookie + needs challenge → challenge page ──
   return new Response(challengePage(url.pathname + url.search), {
     status: 200,
     headers: {
