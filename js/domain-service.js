@@ -765,6 +765,138 @@ const resolveConflictAndAdd = async (domainName, recordType, recordValue, hostna
 
 // ─── Auto-create CF zone in viewDNSRecords also triggers worker ─────
 
+/**
+ * Switch a domain's DNS BACK from Cloudflare to the registrar's default nameservers.
+ * 1. Fetch all DNS records from CF zone
+ * 2. Restore default NS at registrar (OP: openprovider NS, CR: managedns NS)
+ * 3. Create records on OP/CR DNS zone
+ * 4. Delete CF zone (cleanup)
+ * 5. Update DB metadata
+ * Returns { success, nameservers, migration: { migrated, failed, isEmpty } }
+ */
+const switchToProviderDefault = async (domainName, db) => {
+  const meta = await getDomainMeta(domainName, db)
+  if (!meta) return { error: 'Domain metadata not found' }
+
+  if (meta.nameserverType !== 'cloudflare' || !meta.cfZoneId) {
+    return { error: 'Domain is not currently using Cloudflare DNS' }
+  }
+
+  const registrar = meta.registrar || 'ConnectReseller'
+  log(`[switchToProvider] Starting for ${domainName} (registrar: ${registrar})`)
+
+  // 1. Fetch existing records from CF zone
+  const cfRecords = await cfService.listDNSRecords(meta.cfZoneId)
+  const toMigrate = cfRecords.filter(r => !['NS', 'SOA'].includes(r.type))
+  log(`[switchToProvider] Found ${toMigrate.length} records to migrate from CF`)
+
+  // 2. Restore default NS at registrar
+  let defaultNS = []
+  if (registrar === 'OpenProvider') {
+    defaultNS = ['ns1.openprovider.nl', 'ns2.openprovider.be', 'ns3.openprovider.eu']
+    const nsResult = await opService.updateNameservers(domainName, defaultNS)
+    if (nsResult.error) return { error: `Failed to restore nameservers at OpenProvider: ${nsResult.error}` }
+    log(`[switchToProvider] OP NS restored to defaults for ${domainName}`)
+  } else {
+    // ConnectReseller — update NS to CR defaults via NS update
+    const viewCRDNS = require('./cr-view-dns-records')
+    const crData = await viewCRDNS(domainName)
+    if (crData?.domainNameId) {
+      const nsRecords = (crData.records || []).filter(r => r.recordType === 'NS')
+      defaultNS = nsRecords.map(r => r.recordContent)
+      // NS should already be managedns.org — just ensure they're set
+      if (defaultNS.length === 0) {
+        defaultNS = ['8307.dns1.managedns.org', '8307.dns2.managedns.org']
+      }
+      // If current NS are cloudflare, update back to CR defaults
+      const { updateDNSRecordNs } = require('./cr-dns-record-update-ns')
+      const crDefaultNS = ['8307.dns1.managedns.org', '8307.dns2.managedns.org']
+      for (let i = 0; i < crDefaultNS.length && i < nsRecords.length; i++) {
+        const existing = nsRecords[i]
+        if (existing && existing.recordContent.includes('cloudflare')) {
+          await updateDNSRecordNs(crData.domainNameId, domainName, crDefaultNS[i], existing.nsId, nsRecords)
+        }
+      }
+      defaultNS = crDefaultNS
+      log(`[switchToProvider] CR NS restored for ${domainName}`)
+    } else {
+      return { error: 'Could not fetch ConnectReseller domain data' }
+    }
+  }
+
+  // 3. Migrate DNS records from CF to provider DNS zone
+  const migrated = []
+  const failed = []
+  for (const record of toMigrate) {
+    const type = record.type
+    const name = record.name
+    // Extract hostname relative to domain
+    const hostname = name === domainName ? '' : name.replace(`.${domainName}`, '')
+    const content = record.content
+    const priority = record.priority
+
+    let result
+    if (registrar === 'OpenProvider') {
+      const extraData = {}
+      if (type === 'SRV') {
+        // Parse SRV: name is _service._proto.hostname, content is "weight port target"
+        extraData.service = name.split('.')[0]
+        extraData.proto = name.split('.')[1]
+      }
+      if (type === 'CAA') {
+        // Parse CAA: content is "flags tag value"
+        const parts = content.split(' ')
+        extraData.flags = parts[0]
+        extraData.tag = parts[1]
+      }
+      result = await opService.addDNSRecord(domainName, type, content, hostname || domainName, priority, Object.keys(extraData).length ? extraData : undefined)
+    } else {
+      // ConnectReseller — use saveServerInDomain or CR API
+      const { saveServerInDomain } = require('./cr-save-server-in-domain')
+      result = await saveServerInDomain(domainName, content, type)
+    }
+
+    if (result?.success || !result?.error) {
+      migrated.push({ type, name, content })
+      log(`[switchToProvider] ✅ ${type} ${name} → ${content}`)
+    } else {
+      failed.push({ type, name, content, error: result?.error || 'Unknown' })
+      log(`[switchToProvider] ❌ ${type} ${name} → ${content}: ${result?.error}`)
+    }
+  }
+
+  // 4. Delete CF zone (cleanup)
+  if (meta.cfZoneId) {
+    const delResult = await cfService.deleteZone(meta.cfZoneId)
+    log(`[switchToProvider] CF zone ${meta.cfZoneId} deleted: ${delResult.success}`)
+  }
+
+  // 5. Update DB metadata
+  if (db) {
+    const updateData = {
+      nameserverType: 'provider_default',
+      nameservers: defaultNS,
+    }
+    // Remove cfZoneId
+    await db.collection('domainsOf').updateOne(
+      { domainName },
+      { $set: updateData, $unset: { cfZoneId: '' } },
+      { upsert: false }
+    )
+    await db.collection('registeredDomains').updateOne(
+      { _id: domainName },
+      { $set: { 'val.nameserverType': 'provider_default', 'val.nameservers': defaultNS }, $unset: { 'val.cfZoneId': '' } },
+      { upsert: false }
+    )
+  }
+
+  return {
+    success: true,
+    nameservers: defaultNS,
+    migration: { migrated, failed, isEmpty: toMigrate.length === 0 },
+  }
+}
+
 module.exports = {
   checkDomainPrice,
   checkAlternativeTLDs,
@@ -777,6 +909,7 @@ module.exports = {
   deleteDNSRecord,
   updateNameserverAtRegistrar,
   switchToCloudflare,
+  switchToProviderDefault,
   ensureCloudflare,
   checkDNSConflict,
   resolveConflictAndAdd,
