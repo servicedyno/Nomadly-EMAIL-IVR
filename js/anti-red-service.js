@@ -1899,6 +1899,7 @@ module.exports = {
   upgradeSharedWorker,
   generateHardenedWorkerScript,
   deployFullProtection,
+  generateCleanPlaceholder,
   SCANNER_IP_RANGES,
   SCANNER_USER_AGENTS,
   SCANNER_JA3_HASHES,
