@@ -24,6 +24,47 @@ function initPhoneTestRoutes(app, db, telnyxApi, sipConnectionId) {
   db.collection('testReferrals').createIndex({ code: 1 }, { unique: true }).catch(() => {})
   db.collection('testReferrals').createIndex({ referrerChatId: 1 }).catch(() => {})
 
+  // ── Phone Reviews / Feedback ──
+  db.collection('phoneReviews').createIndex({ createdAt: -1 }).catch(() => {})
+
+  app.get('/phone/reviews', async (req, res) => {
+    try {
+      const reviews = await db.collection('phoneReviews')
+        .find({}, { projection: { _id: 0 } })
+        .sort({ createdAt: -1 })
+        .limit(50)
+        .toArray()
+      res.json({ reviews })
+    } catch (e) {
+      console.error('[PhoneTest] Error fetching reviews:', e.message)
+      res.status(500).json({ error: 'Failed to fetch reviews' })
+    }
+  })
+
+  app.post('/phone/reviews', async (req, res) => {
+    try {
+      const { stars, comment, name } = req.body
+      if (!stars || stars < 1 || stars > 5) {
+        return res.status(400).json({ error: 'Stars must be between 1 and 5' })
+      }
+      if (!comment || typeof comment !== 'string' || !comment.trim()) {
+        return res.status(400).json({ error: 'Comment is required' })
+      }
+      const review = {
+        stars: Math.round(stars),
+        comment: comment.trim().substring(0, 500),
+        name: name ? name.trim().substring(0, 50) : 'Anonymous',
+        createdAt: new Date()
+      }
+      await db.collection('phoneReviews').insertOne(review)
+      console.log(`[PhoneTest] New review: ${review.stars}★ by ${review.name}`)
+      res.json({ success: true })
+    } catch (e) {
+      console.error('[PhoneTest] Error submitting review:', e.message)
+      res.status(500).json({ error: 'Failed to submit review' })
+    }
+  })
+
   // ── Verify OTP and generate/return test credentials ──
   app.post('/phone/test/verify-otp', async (req, res) => {
     try {
