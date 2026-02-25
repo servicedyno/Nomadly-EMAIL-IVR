@@ -6418,7 +6418,7 @@ bot?.on('message', async msg => {
   if (action === 'choose-dns-action') {
     if (message === t.back || message === t.backButton || message === '⬅️ Back') return goto['choose-domain-to-manage']()
 
-    if (![t.addDns, t.updateDns, t.deleteDns, t.activateShortener, t.deactivateShortener, t.quickActions, t.checkDns, t.switchToCf].includes(message)) return send(chatId, t.selectValidOption)
+    if (![t.addDns, t.updateDns, t.deleteDns, t.activateShortener, t.deactivateShortener, t.quickActions, t.checkDns, t.switchToCf, t.switchToProviderDefault].includes(message)) return send(chatId, t.selectValidOption)
 
     // Custom NS domains: only allow Switch to CF + Update NS (for nameserver changes)
     const nsType = info?.nameserverType
