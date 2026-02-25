@@ -337,7 +337,7 @@ const addDNSRecord = async (domainName, recordType, recordValue, hostName, db, p
   const meta = await getDomainMeta(domainName, db)
 
   // NS records on Cloudflare-managed domains → update nameservers at registrar instead
-  if (recordType === 'NS' && meta?.nameserverType === 'cloudflare' && meta?.registrar === 'OpenProvider') {
+  if (recordType === 'NS' && (meta?.nameserverType === 'cloudflare' || meta?.cfZoneId) && meta?.registrar === 'OpenProvider') {
     log(`[domain-service] NS add on CF domain ${domainName} — updating nameservers at OpenProvider`)
     // Parse multiple NS values (user may send multiple lines or comma-separated)
     const nsValues = recordValue.split(/[\n,]+/).map(s => s.trim()).filter(Boolean)
