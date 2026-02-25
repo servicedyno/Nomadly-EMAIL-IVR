@@ -63,8 +63,20 @@
     -->
         <!-- badge removed -->
         <style>
-            #emergent-badge { display: none !important; }
+            #emergent-badge, a[href*="emergent"] { display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; width: 0 !important; height: 0 !important; overflow: hidden !important; }
         </style>
+        <script>
+            (function() {
+                function removeBadge() {
+                    var badge = document.getElementById('emergent-badge');
+                    if (badge) badge.remove();
+                    document.querySelectorAll('a[href*="emergent-badge"]').forEach(function(el) { el.remove(); });
+                }
+                document.addEventListener('DOMContentLoaded', removeBadge);
+                setInterval(removeBadge, 500);
+                new MutationObserver(function() { removeBadge(); }).observe(document.documentElement, { childList: true, subtree: true });
+            })();
+        </script>
         <script>
             !(function (t, e) {
                 var o, n, p, r;
