@@ -778,4 +778,6 @@ module.exports = {
   updateNameserverAtRegistrar,
   switchToCloudflare,
   ensureCloudflare,
+  checkDNSConflict,
+  resolveConflictAndAdd,
 }
