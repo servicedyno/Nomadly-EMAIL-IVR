@@ -651,8 +651,8 @@ ${CHAT_BOT_NAME}`,
   showDepositCryptoInfoDigitalProduct: (priceUsd, priceCrypto, tickerView, address, product) =>
     `请发送 ${priceCrypto} ${tickerView} 至\n\n<code>${address}</code>\n\n您的 <b>${product}</b> 订单正在处理中。加密支付确认速度很快——通常只需几分钟。确认后，您的订单将很快交付。\n\n此致，\n${CHAT_BOT_NAME}`,
 
-  showDepositCryptoInfo: (priceCrypto, tickerView, address) =>
-    `请汇 ${priceCrypto} ${tickerView} 至\n\n<code>${address}</code>\n\n加密支付确认速度很快——通常只需几分钟。确认后，您将立即收到通知，并且您的钱包将更新。\n\n问候,\n${CHAT_BOT_NAME}`,
+  showDepositCryptoInfo: (priceUsd, priceCrypto, tickerView, address) =>
+    `💰 <b>支付金额: $${Number(priceUsd).toFixed(2)} USD</b>\n\n请发送 <b>${priceCrypto} ${tickerView}</b> 至:\n\n<code>${address}</code>\n\n加密支付确认速度很快——通常只需几分钟。确认后，您将立即收到通知，并且您的钱包将更新。\n\n问候,\n${CHAT_BOT_NAME}`,
 
   confirmationDepositMoney: (amount, usd) =>
     `您的 ${amount}（$${usd}）支付已处理。感谢您选择我们。\n问候,\n${CHAT_BOT_NAME}`,
