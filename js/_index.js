@@ -7033,9 +7033,46 @@ bot?.on('message', async msg => {
       return goto['dns-add-mx-priority']()
     }
 
+    // Check for CNAME/A conflict on Cloudflare zones before adding
+    if (['A', 'AAAA', 'CNAME'].includes(recordType)) {
+      const conflict = await domainService.checkDNSConflict(info?.domainToManage, recordType, hostname, db)
+      if (conflict.hasConflict) {
+        // Store pending record info for confirmation
+        await set(state, chatId, 'dnsAddValue', value)
+        await set(state, chatId, 'dnsConflictRecords', conflict.conflictingRecords)
+        set(state, chatId, 'action', 'dns-confirm-conflict-replace')
+        return send(chatId, conflict.message, { parse_mode: 'HTML', reply_markup: { keyboard: [[t.yes || 'Yes'], [t.no || 'No']], resize_keyboard: true } })
+      }
+    }
+
     // For A, CNAME, TXT — create record immediately
     const domain = info?.domainToManage
     const result = await domainService.addDNSRecord(domain, recordType, value, hostname, db)
+    if (!result.success) {
+      return send(chatId, t.errorSavingDns(result.error || 'Failed'))
+    }
+    send(chatId, t.dnsRecordSaved)
+    const checkName = hostname ? `${hostname}.${domain}` : domain
+    dnsAutoCheck(send, chatId, t, checkName, recordType, value)
+    return goto['choose-dns-action']()
+  }
+
+  // Handle CNAME/A conflict confirmation
+  if (action === 'dns-confirm-conflict-replace') {
+    if (message === t.no || message === 'No' || message === t.back || message === t.cancel) {
+      return goto['choose-dns-action']()
+    }
+    if (message !== t.yes && message !== 'Yes') return send(chatId, t.what)
+
+    const domain = info?.domainToManage
+    const recordType = info?.dnsAddRecordType
+    const hostname = info?.dnsAddHostname || ''
+    const value = info?.dnsAddValue
+    const conflictingRecords = info?.dnsConflictRecords || []
+
+    send(chatId, '🔄 Removing conflicting record and adding new one...', { parse_mode: 'HTML' })
+
+    const result = await domainService.resolveConflictAndAdd(domain, recordType, value, hostname, conflictingRecords, db)
     if (!result.success) {
       return send(chatId, t.errorSavingDns(result.error || 'Failed'))
     }
