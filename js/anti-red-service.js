@@ -1657,7 +1657,8 @@ async function handleRequest(request) {
 
 /**
  * Upload/update the shared 'antired-challenge' worker script to Cloudflare.
- * This is the hardened version with cookie-gated challenge.
+ * This is the hardened version with cookie-gated challenge + honeypot system.
+ * Uses multipart upload to bind KV namespace for honeypot IP banning.
  */
 async function upgradeSharedWorker() {
   const CF_API_KEY = process.env.CLOUDFLARE_API_KEY
@@ -1670,22 +1671,80 @@ async function upgradeSharedWorker() {
 
   const workerScript = generateHardenedWorkerScript()
 
+  // Try to get KV namespace for honeypot bans
+  let kvNamespaceId = null
   try {
-    const res = await axios.put(
-      `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/workers/scripts/antired-challenge`,
-      workerScript,
-      {
-        headers: {
-          'X-Auth-Email': CF_EMAIL,
-          'X-Auth-Key': CF_API_KEY,
-          'Content-Type': 'application/javascript',
-        },
-        timeout: 30000,
+    const honeypotService = require('./honeypot-service')
+    kvNamespaceId = await honeypotService.getOrCreateKVNamespace()
+    if (kvNamespaceId) {
+      log(`[AntiRed] KV namespace for honeypot bans: ${kvNamespaceId}`)
+    }
+  } catch (err) {
+    log(`[AntiRed] KV setup warning (non-critical): ${err.message}`)
+  }
+
+  try {
+    let res
+
+    if (kvNamespaceId) {
+      // ── Multipart upload with KV binding ──
+      const FormData = require('form-data')
+      const form = new FormData()
+
+      // Worker script part
+      form.append('worker.js', Buffer.from(workerScript), {
+        filename: 'worker.js',
+        contentType: 'application/javascript',
+      })
+
+      // Metadata part with KV binding
+      const metadata = {
+        body_part: 'worker.js',
+        bindings: [
+          {
+            type: 'kv_namespace',
+            name: 'BANNED_IPS',
+            namespace_id: kvNamespaceId,
+          }
+        ]
       }
-    )
+      form.append('metadata', JSON.stringify(metadata), {
+        filename: 'metadata.json',
+        contentType: 'application/json',
+      })
+
+      res = await axios.put(
+        `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/workers/scripts/antired-challenge`,
+        form,
+        {
+          headers: {
+            ...form.getHeaders(),
+            'X-Auth-Email': CF_EMAIL,
+            'X-Auth-Key': CF_API_KEY,
+          },
+          timeout: 30000,
+        }
+      )
+    } else {
+      // ── Simple upload without KV (fallback) ──
+      // Honeypot still works but bans are not persistent at edge
+      res = await axios.put(
+        `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/workers/scripts/antired-challenge`,
+        workerScript,
+        {
+          headers: {
+            'X-Auth-Email': CF_EMAIL,
+            'X-Auth-Key': CF_API_KEY,
+            'Content-Type': 'application/javascript',
+          },
+          timeout: 30000,
+        }
+      )
+    }
+
     const ok = res.data?.success !== false
-    log(`[AntiRed] Shared worker upgraded: ${ok ? 'OK' : 'FAIL'}`)
-    return { success: ok }
+    log(`[AntiRed] Shared worker upgraded: ${ok ? 'OK' : 'FAIL'} (KV: ${kvNamespaceId ? 'bound' : 'none'})`)
+    return { success: ok, kvBound: !!kvNamespaceId }
   } catch (err) {
     log(`[AntiRed] Shared worker upgrade error: ${err.message}`)
     return { success: false, error: err.message }
