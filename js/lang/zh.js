@@ -955,6 +955,18 @@ const k = {
     parse_mode: 'HTML',
   },
 
+  vcAmount: {
+    reply_markup: {
+      keyboard: [
+        ['$50', '$100', '$200'],
+        ['$500', '$1000'],
+        ['✏️ Custom Amount'],
+        _bc,
+      ],
+    },
+    parse_mode: 'HTML',
+  },
+
   phoneNumberLeads: kOf(phoneNumberLeads),
   buyLeadsSelectCountry: kOf(buyLeadsSelectCountry),
   buyLeadsSelectSmsVoice: kOf(buyLeadsSelectSmsVoice),
