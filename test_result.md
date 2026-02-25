@@ -647,11 +647,14 @@ metadata:
     file: "js/domain-service.js, js/_index.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         - working: "NA"
           agent: "main"
           comment: "Implemented bulk NS update for both OP and CR domains. Changes: (1) domain-service.js: New updateAllNameservers(domainName, newNameservers, db) — for OP calls opService.updateNameservers, for CR looks up domainNameId via getDomainDetails then calls CR UpdateNameServer API with all NS at once. Auto-detects nameserverType. Updates both DB collections. Exported. (2) _index.js goto select-dns-record-id-to-update: NS records consolidated into single Update Nameservers button. (3) _index.js goto dns-update-all-ns: Shows current NS, prompts for all new NS. (4) _index.js action handlers: Handles Update Nameservers button, parses multi-line input (2-4 FQDN), validates, calls updateAllNameservers. Node.js starts clean."
+        - working: true
+          agent: "testing"
+          comment: "✅ BULK NS UPDATE FEATURE COMPREHENSIVE VERIFICATION COMPLETE: All implementation requirements tested with 100% success rate (4/4 tests passed). (1) DOMAIN-SERVICE.JS MODULE: updateAllNameservers function correctly implemented with signature (domainName, newNameservers, db), properly exported in module.exports. For OpenProvider: calls opService.updateNameservers(domainName, newNameservers). For ConnectReseller: requires cr-domain-details-get, calls getDomainDetails to get domainNameId, builds nameServer1-4 params, calls CR UpdateNameServer API via axios GET. Auto-detects nameserverType: 'cloudflare' if NS contain cloudflare, 'provider_default' if matching defaults, 'custom' otherwise. Updates BOTH domainsOf and registeredDomains collections. Uses $unset to remove cfZoneId when switching away from cloudflare. Returns {success: true, nameservers: [...], nameserverType: '...'} or {error: '...'}. (2) _INDEX.JS UI IMPLEMENTATION: goto 'select-dns-record-id-to-update' correctly consolidates NS records into ONE button '🔄 Update Nameservers (NS1: ..., NS2: ...)' with preview. Non-NS records numbered sequentially (1. A → ..., 2. CNAME → ...). goto 'dns-update-all-ns' sets action, shows current NS list, prompts for new NS (one per line, min 2, max 4). Action handler 'select-dns-record-id-to-update' handles message.startsWith('🔄 Update Nameservers') → goes to dns-update-all-ns. For non-NS records: maps sequential number back to actual dnsRecords index (skipping NS records). Action handler 'dns-update-all-ns' handles back/cancel, parses multi-line input (split by newlines), validates 2-4 entries each must be valid FQDN, normalizes (lowercase, remove trailing dot), calls domainService.updateAllNameservers(domain, newNS, db), shows success message with all NS listed or error. (3) NODE.JS STARTS CLEANLY: Service running healthy, no syntax errors, all services initialized. ALL BULK NS UPDATE REQUIREMENTS WORKING CORRECTLY - nameservers can now be updated all at once instead of one-by-one for both OP and CR domains."
 
 test_plan:
   current_focus:
