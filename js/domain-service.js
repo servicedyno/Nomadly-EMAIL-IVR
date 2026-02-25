@@ -746,14 +746,11 @@ const backgroundNSVerify = (domainName, cfNameservers, registrar, db) => {
         if (registrar === 'OpenProvider') {
           await opService.updateNameservers(domainName, correctNS)
         } else {
-          const viewCRDNS = require('./cr-view-dns-records')
-          const crData = await viewCRDNS(domainName)
-          if (crData?.domainNameId) {
-            const nsRecords = (crData.records || []).filter(r => r.recordType === 'NS')
-            const { updateDNSRecordNs } = require('./cr-dns-record-update-ns')
-            for (let i = 0; i < correctNS.length && i < 4; i++) {
-              if (nsRecords[i]) await updateDNSRecordNs(crData.domainNameId, domainName, correctNS[i], nsRecords[i].nsId, nsRecords)
-            }
+          // ConnectReseller: update ALL nameservers in one call (avoids stale-state revert)
+          const crResult = await updateAllNameservers(domainName, correctNS, null)
+          if (crResult.error) {
+            log(`[NSVerify] CR NS drift correction failed for ${domainName}: ${crResult.error}`)
+            return
           }
         }
         if (db) {
