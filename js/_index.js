@@ -1731,6 +1731,11 @@ bot?.on('message', async msg => {
     cpVmGreetingPreview: 'cpVmGreetingPreview',
     cpVmTextGreeting: 'cpVmTextGreeting',
 
+    // Virtual Card
+    vcEnterAmount: 'vcEnterAmount',
+    vcEnterAddress: 'vcEnterAddress',
+    virtualCardPay: 'virtual-card-pay',
+
     // IVR Outbound Call
     ivrObStart: 'ivrObStart',
     ivrObSelectCallerId: 'ivrObSelectCallerId',
