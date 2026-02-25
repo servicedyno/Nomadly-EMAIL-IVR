@@ -559,6 +559,14 @@ ${CHAT_BOT_NAME}`,
     return `💰 <b>Commande : ${product}</b>\n\n💵 Prix : <b>$${price}</b>${desc ? '\n\n' + desc : ''}\n\nSélectionnez le mode de paiement :`
   },
   dpOrderConfirmed: (product, price, orderId) => `✅ <b>Commande confirmée !</b>\n\n🛒 Produit : <b>${product}</b>\n💵 Montant : <b>$${price}</b>\n🆔 ID de commande : <code>${orderId}</code>\n\nVotre commande sera livrée via ce bot sous peu.\nPour toute question, contactez le support.`,
+
+  // Virtual Card
+  vcWelcome: `💳 <b>Carte de Débit Virtuelle</b>\n\nObtenez une Mastercard virtuelle chargée du montant de votre choix.\n\n✅ Fonctionne en ligne dans le monde entier\n✅ Livraison instantanée\n✅ Montant : 50$ – 1 000$\n\nAperçu de la carte ci-dessus (derniers chiffres et CVV masqués).\n\n💵 Entrez le montant à charger (<b>50$ – 1 000$</b>) :`,
+  vcInvalidAmount: `❌ Veuillez entrer un montant valide entre <b>50$</b> et <b>1 000$</b>.`,
+  vcAskAddress: `📬 <b>Adresse de livraison</b>\n\nEntrez votre adresse complète au format international :\n\n<i>Exemple :\nJean Dupont\n123 Rue Principale, Apt 4B\nParis, 75001\nFrance</i>`,
+  vcAddressTooShort: `❌ L'adresse semble trop courte. Veuillez inclure nom, rue, ville, code postal et pays.`,
+  vcOrderSummary: (amount, fee, total) => `📋 <b>Récapitulatif</b>\n\n💳 Charge carte virtuelle : <b>${amount}$</b>\n💰 Frais de service : <b>${fee.toFixed(2)}$</b>${amount < 200 ? ' (min. 20$)' : ' (10%)'}\n━━━━━━━━━━━━━━━━━\n💵 <b>Total : ${total.toFixed(2)}$</b>\n\nChoisissez le mode de paiement :`,
+  vcOrderConfirmed: (amount, total, orderId) => `✅ <b>Commande de carte virtuelle confirmée !</b>\n\n💳 Charge : <b>${amount}$</b>\n💵 Total payé : <b>${total.toFixed(2)}$</b>\n🆔 ID : <code>${orderId}</code>\n\n⏱ <b>Les détails de votre carte seront livrés ici sous peu.</b>`,
   leadsFileNumbersOnly: `📄 <b>Fichier 1 — Numéros de téléphone</b>\nTous les numéros vérifiés de votre lot.`,
   leadsFileWithNames: (count) => `📄 <b>Fichier 2 — Numéros + Nom du propriétaire (${count} correspondances)</b>\nCes leads incluent le vrai nom du propriétaire. Adressez-vous à eux personnellement — cela crée une confiance instantanée et augmente considérablement votre taux de réponse.`,
   addDnsTxt: "Sélectionnez le type d'enregistrement :",
