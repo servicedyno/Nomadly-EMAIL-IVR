@@ -537,11 +537,7 @@ metadata:
           comment: "✅ NS REASSIGNMENT DRIFT DETECTION VERIFIED: Background NS verification IIFE correctly implemented in both switchToCloudflare() and ensureCloudflare() functions. (1) 30-second delay implemented with 'await new Promise(r => setTimeout(r, 30000))'. (2) Uses cfService.getZoneByName(bgDomain) to re-query zone data. (3) Compares currentNS with savedNS and detects drift. (4) Auto-corrects at registrar (OP or CR) when CF reassigns nameservers. (5) Updates DB collections (domainsOf, registeredDomains) with correct NS. (6) Comprehensive logging with [switchToCloudflare] and [ensureCloudflare] prefixes for drift detection and correction. This prevents the perthuspeagee.com scenario where CF reassigned NS after zone creation - system now automatically detects and fixes NS drift."
 
 test_plan:
-  current_focus:
-    - "Fix: switchToCloudflare migrates existing DNS records to CF zone"
-    - "Fix: saveDomainInServerRailway handles domain-already-exists"
-    - "Fix: DNS add conflict detection for CNAME/A"
-    - "Fix: switchToCloudflare success message shows migration results"
+  current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
