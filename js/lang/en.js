@@ -476,7 +476,7 @@ ${CHAT_BOT_NAME}`,
   dpOrderConfirmed: (product, price, orderId) => `✅ <b>Order Confirmed!</b>\n\n🛒 Product: <b>${product}</b>\n💵 Amount: <b>$${price}</b>\n🆔 Order ID: <code>${orderId}</code>\n\n⏱ <b>We'll deliver right here in this chat shortly.</b>\nFor urgent requests, tap 💬 Get Support.\n\n💡 <b>Need more accounts?</b> Browse our full catalog in 🛒 Digital Products.`,
 
   // Virtual Card
-  vcWelcome: `💳 <b>Virtual Debit Card</b>\n\nGet a virtual Mastercard loaded with your chosen amount.\n\n✅ Works online worldwide\n✅ Instant delivery\n✅ $50 – $1,000 load range\n\nCard preview shown above (last digits & CVV hidden for security).\n\n💵 Enter the amount you'd like to load (<b>$50 – $1,000</b>):`,
+  vcWelcome: `💳 <b>Virtual Debit Card</b>\n\nLoad a virtual card with your chosen amount.\n\n✅ Works online worldwide\n✅ Instant delivery\n✅ $50 – $1,000\n\nSelect an amount or enter a custom one:`,
   vcInvalidAmount: `❌ Please enter a valid amount between <b>$50</b> and <b>$1,000</b>.`,
   vcAskAddress: `📬 <b>Shipping Address</b>\n\nEnter your full address in international format:\n\n<i>Example:\nJohn Doe\n123 Main Street, Apt 4B\nNew York, NY 10001\nUnited States</i>`,
   vcAddressTooShort: `❌ Address seems too short. Please include your full name, street, city, postal code, and country.`,
