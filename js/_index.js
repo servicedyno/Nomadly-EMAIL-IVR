@@ -2316,7 +2316,7 @@ bot?.on('message', async msg => {
           set(chatIdOfPayment, ref, { chatId })
           set(state, chatId, 'action', 'none')
           const usdIn = await convert(amount, 'usd', ticker)
-          send(chatId, t.showDepositCryptoInfo(usdIn, tickerView, bbResult.address), trans('o'))
+          send(chatId, t.showDepositCryptoInfo(amount, usdIn, tickerView, bbResult.address), trans('o'))
         } else {
           log('[CryptoFallback] BlockBee unavailable for wallet, falling back to DynoPay')
           const dynoCoin = tickerOfDyno[tickerView]
@@ -2326,7 +2326,7 @@ bot?.on('message', async msg => {
           set(chatIdOfDynopayPayment, ref, { chatId, action: dynopayActions.walletFund, address: dynoResult.address })
           set(state, chatId, 'action', 'none')
           const usdIn = await convert(amount, 'usd', ticker)
-          send(chatId, t.showDepositCryptoInfo(usdIn, tickerView, dynoResult.address), trans('o'))
+          send(chatId, t.showDepositCryptoInfo(amount, usdIn, tickerView, dynoResult.address), trans('o'))
         }
       } else {
         const tickerDyno = tickerOfDyno[tickerView]
