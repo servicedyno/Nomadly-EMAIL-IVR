@@ -240,6 +240,7 @@ const { initPhoneTestRoutes, generateTestOtp, checkTestCredentialCall, getOrCrea
 const antiRedService = require('./anti-red-service.js')
 const { initLeadJobPersistence, flushAllJobs, findInterruptedJobs, resumeJob } = require('./lead-job-persistence.js')
 const { initShortenerPersistence, createActivationTask, markRailwayLinked, markDnsAdded, markCompleted, markFailed, findIncompleteTasks } = require('./shortener-activation-persistence.js')
+const honeypotService = require('./honeypot-service.js')
 
 process.env['NTBA_FIX_350'] = 1
 
