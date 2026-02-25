@@ -835,33 +835,26 @@ const switchToProviderDefault = async (domainName, db) => {
     const content = record.content
     const priority = record.priority
 
-    let result
-    if (registrar === 'OpenProvider') {
-      const extraData = {}
-      if (type === 'SRV') {
-        // Parse SRV: name is _service._proto.hostname, content is "weight port target"
-        extraData.service = name.split('.')[0]
-        extraData.proto = name.split('.')[1]
+    try {
+      let result
+      if (registrar === 'OpenProvider') {
+        result = await opService.addDNSRecord(domainName, type, content, hostname || domainName, priority)
+      } else {
+        // ConnectReseller
+        const { saveServerInDomain } = require('./cr-dns-record-add')
+        result = await saveServerInDomain(domainName, content, type, undefined, undefined, undefined, hostname || undefined, priority)
       }
-      if (type === 'CAA') {
-        // Parse CAA: content is "flags tag value"
-        const parts = content.split(' ')
-        extraData.flags = parts[0]
-        extraData.tag = parts[1]
-      }
-      result = await opService.addDNSRecord(domainName, type, content, hostname || domainName, priority, Object.keys(extraData).length ? extraData : undefined)
-    } else {
-      // ConnectReseller — use saveServerInDomain or CR API
-      const { saveServerInDomain } = require('./cr-save-server-in-domain')
-      result = await saveServerInDomain(domainName, content, type)
-    }
 
-    if (result?.success || !result?.error) {
-      migrated.push({ type, name, content })
-      log(`[switchToProvider] ✅ ${type} ${name} → ${content}`)
-    } else {
-      failed.push({ type, name, content, error: result?.error || 'Unknown' })
-      log(`[switchToProvider] ❌ ${type} ${name} → ${content}: ${result?.error}`)
+      if (result?.success || result?.error === undefined || result?.error === null) {
+        migrated.push({ type, name, content })
+        log(`[switchToProvider] ✅ ${type} ${name} → ${content}`)
+      } else {
+        failed.push({ type, name, content, error: result?.error || 'Unknown' })
+        log(`[switchToProvider] ❌ ${type} ${name} → ${content}: ${result?.error}`)
+      }
+    } catch (err) {
+      failed.push({ type, name, content, error: err.message })
+      log(`[switchToProvider] ❌ ${type} ${name} → ${content}: ${err.message}`)
     }
   }
 
