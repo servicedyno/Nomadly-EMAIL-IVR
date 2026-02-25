@@ -10939,28 +10939,42 @@ bot?.on('message', async msg => {
       if (!domain) return send(chatId, t.noDomainSelected || 'No domain selected.')
       send(chatId, `🔗 Activating shortener for <b>${domain}</b>...`, { parse_mode: 'HTML' })
       try {
+        // ── Ensure domain is on Cloudflare (create zone + update NS if needed) ──
+        const cfEnsure = await domainService.ensureCloudflare(domain, db)
+        if (cfEnsure.error) {
+          log(`[DomainActionShortener] ensureCloudflare failed for ${domain}: ${cfEnsure.error}`)
+        } else if (!cfEnsure.alreadyActive) {
+          log(`[DomainActionShortener] Switched ${domain} to Cloudflare (zone: ${cfEnsure.cfZoneId})`)
+        }
+
         const { server, error, recordType } =
           process.env.HOSTED_ON === 'render'
             ? await saveDomainInServerRender(domain)
             : await saveDomainInServerRailway(domain)
         if (error) return send(chatId, `❌ Could not link <b>${domain}</b>: ${error}`, { parse_mode: 'HTML' })
         send(chatId, `⏳ Configuring DNS for <b>${domain}</b>...`, { parse_mode: 'HTML' })
-        const dnsResult = await domainService.viewDNSRecords(domain, db)
-        const source = dnsResult?.source || 'connectreseller'
-        if (source === 'openprovider') {
-          await sleep(10000)
-          const addResult = await domainService.addDNSRecord(domain, recordType, server, '', db)
-          if (addResult.error || !addResult.success) return send(chatId, `❌ DNS error: ${addResult.error || 'Unknown error'}`, { parse_mode: 'HTML' })
-        } else {
-          await sleep(65000)
-          const { error: saveErr } = await saveServerInDomain(domain, server, recordType)
-          if (saveErr) return send(chatId, `❌ DNS error: ${saveErr}`, { parse_mode: 'HTML' })
+
+        // Unified DNS routing — now guaranteed to route to Cloudflare after ensureCloudflare
+        await sleep(5000)
+        const addResult = await domainService.addDNSRecord(domain, recordType, server, '', db)
+        if (addResult.error || !addResult.success) {
+          log(`[DomainActionShortener] DNS failed for ${domain}: ${addResult.error || 'unknown'}`)
+          // Fallback for legacy CR domains
+          const meta = await domainService.getDomainMeta(domain, db)
+          if (!meta || (!meta.registrar && !meta.nameserverType)) {
+            await sleep(60000)
+            const { error: saveErr } = await saveServerInDomain(domain, server, recordType)
+            if (saveErr) return send(chatId, `❌ DNS error: ${saveErr}`, { parse_mode: 'HTML' })
+          } else {
+            return send(chatId, `❌ DNS error: ${addResult.error || 'Unknown error'}`, { parse_mode: 'HTML' })
+          }
         }
+
         send(chatId, `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`, { parse_mode: 'HTML' })
         const lang = info?.userLanguage || 'en'
         regularCheckDns(bot, chatId, domain, lang)
       } catch (e) {
-        log(`[ActivateShortener] Error for ${domain}: ${e.message}`)
+        log(`[DomainActionShortener] Error for ${domain}: ${e.message}`)
         send(chatId, `❌ Error: ${e.message}`, { parse_mode: 'HTML' })
       }
       return
