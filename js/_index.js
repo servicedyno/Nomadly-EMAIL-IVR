@@ -8797,15 +8797,27 @@ bot?.on('message', async msg => {
       const coin = tickerOfDyno[ticker]
       const redirect_url = `${SELF_URL}/dynopay/crypto-pay-leads`
       const meta_data = { "product_name": dynopayActions.payLeads, "refId": ref }
-      const { qr_code, address } = await getDynopayCryptoAddress(price, coin, redirect_url, meta_data)
-      if (!address) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
-      set(chatIdOfDynopayPayment, ref, { chatId, price, lastStep, leadsData, action: dynopayActions.payLeads, address })
-      saveInfo('ref', ref)
-      log({ ref })
-      await generateQr(bot, chatId, qr_code, info?.userLanguage ?? 'en')
-      set(state, chatId, 'action', 'none')
-      const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
-      return send(chatId, t.showDepositCryptoInfoLeads(price, priceCrypto, ticker, address, label), trans('o'))
+      const dynoResult = await getDynopayCryptoAddress(price, coin, redirect_url, meta_data)
+      if (dynoResult?.address) {
+        set(chatIdOfDynopayPayment, ref, { chatId, price, lastStep, leadsData, action: dynopayActions.payLeads, address: dynoResult.address })
+        saveInfo('ref', ref)
+        log({ ref })
+        await generateQr(bot, chatId, dynoResult.qr_code, info?.userLanguage ?? 'en')
+        set(state, chatId, 'action', 'none')
+        const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
+        return send(chatId, t.showDepositCryptoInfoLeads(price, priceCrypto, ticker, dynoResult.address, label), trans('o'))
+      } else {
+        log('[CryptoFallback] DynoPay unavailable for leads, falling back to BlockBee')
+        const bbCoin = tickerOf[ticker]
+        const { address: bbAddr, bb } = await getCryptoDepositAddress(bbCoin, chatId, SELF_URL, `/crypto-pay-leads?a=b&ref=${ref}&`)
+        if (!bbAddr) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
+        set(chatIdOfPayment, ref, { chatId, price, lastStep, leadsData })
+        log({ ref })
+        await sendQrCode(bot, chatId, bb, info?.userLanguage ?? 'en')
+        set(state, chatId, 'action', 'none')
+        const priceCrypto = await convert(price, 'usd', bbCoin)
+        return send(chatId, t.showDepositCryptoInfoLeads(price, priceCrypto, ticker, bbAddr, label), trans('o'))
+      }
     }
   }
 
