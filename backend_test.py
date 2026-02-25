@@ -1,146 +1,282 @@
 #!/usr/bin/env python3
 """
-Backend Test for CR Nameserver Stale-State Revert Bug Fix
-Testing agent verifying the root cause fix implementation.
+Test script for bidirectional crypto payment fallback logic in Nomadly Telegram bot.
+This script performs static code analysis to verify all fallback patterns are correctly implemented.
 """
 
-import subprocess
-import sys
-import os
 import re
+import requests
+import sys
 
-def test_nameserver_fix_implementation():
-    """Test that the CR nameserver stale-state revert bug fix is properly implemented."""
+def test_fallback_log_lines():
+    """Test 1: Verify all 20 fallback log lines exist"""
+    print("TEST 1: Verifying 20 [CryptoFallback] log lines...")
     
-    print("=== TESTING CR NAMESERVER STALE-STATE REVERT BUG FIX ===")
-    
-    domain_service_path = "/app/js/domain-service.js"
-    
-    if not os.path.exists(domain_service_path):
-        print("❌ CRITICAL: domain-service.js not found!")
-        return False
-    
-    # Read the domain-service.js file
-    with open(domain_service_path, 'r') as f:
+    with open('/app/js/_index.js', 'r') as f:
         content = f.read()
     
-    # Test 1: Verify updateDNSRecordNs appears at most 2 times (only in updateNameserverAtRegistrar)
-    updateDNSRecordNs_count = content.count('updateDNSRecordNs')
-    print(f"✓ updateDNSRecordNs appears {updateDNSRecordNs_count} times (should be ≤ 2)")
+    # Find all [CryptoFallback] lines
+    fallback_lines = re.findall(r'\[CryptoFallback\][^\']*', content)
     
-    if updateDNSRecordNs_count > 2:
-        print("❌ FAIL: updateDNSRecordNs appears more than 2 times!")
-        return False
-    
-    # Test 2: Verify the 4 locations now use updateAllNameservers instead of loops
-    test_cases = [
-        {
-            "function": "postRegistrationNSUpdate",
-            "pattern": r"updateAllNameservers\(domainName,\s*nameservers,\s*db\)",
-            "description": "CR block uses updateAllNameservers"
-        },
-        {
-            "function": "_createZoneAndUpdateNS", 
-            "pattern": r"updateAllNameservers\(domainName,\s*cfNameservers,\s*null\)",
-            "description": "CR else block uses updateAllNameservers with null db"
-        },
-        {
-            "function": "backgroundNSVerify",
-            "pattern": r"updateAllNameservers\(domainName,\s*correctNS,\s*null\)",
-            "description": "CR else block uses updateAllNameservers"
-        },
-        {
-            "function": "switchToProviderDefault",
-            "pattern": r"updateAllNameservers\(domainName,\s*crDefaultNS,\s*null\)",
-            "description": "CR block uses updateAllNameservers with null db"
-        }
+    expected_patterns = [
+        # BlockBee → DynoPay fallback (10 lines)
+        'BlockBee unavailable for wallet, falling back to DynoPay',
+        'BlockBee unavailable for digital product, falling back to DynoPay',
+        'BlockBee unavailable for virtual card, falling back to DynoPay',
+        'BlockBee unavailable for domain, falling back to DynoPay',
+        'BlockBee unavailable for hosting, falling back to DynoPay',
+        'BlockBee unavailable for VPS, falling back to DynoPay',
+        'BlockBee unavailable for VPS upgrade, falling back to DynoPay',
+        'BlockBee unavailable for plan, falling back to DynoPay',
+        'BlockBee unavailable for phone, falling back to DynoPay',
+        'BlockBee unavailable for leads, falling back to DynoPay',
+        # DynoPay → BlockBee fallback (10 lines)
+        'DynoPay unavailable for wallet, falling back to BlockBee',
+        'DynoPay unavailable for digital product, falling back to BlockBee',
+        'DynoPay unavailable for virtual card, falling back to BlockBee',
+        'DynoPay unavailable for domain, falling back to BlockBee',
+        'DynoPay unavailable for hosting, falling back to BlockBee',
+        'DynoPay unavailable for VPS, falling back to BlockBee',
+        'DynoPay unavailable for VPS upgrade, falling back to BlockBee',
+        'DynoPay unavailable for plan, falling back to BlockBee',
+        'DynoPay unavailable for phone, falling back to BlockBee',
+        'DynoPay unavailable for leads, falling back to BlockBee',
     ]
     
-    all_passed = True
-    for test in test_cases:
-        if re.search(test["pattern"], content):
-            print(f"✓ {test['function']}: {test['description']}")
-        else:
-            print(f"❌ {test['function']}: MISSING - {test['description']}")
-            all_passed = False
+    found_patterns = [line.strip("'") for line in fallback_lines]
     
-    # Test 3: Verify NO remaining for loops that call updateDNSRecordNs
-    for_loop_pattern = r'for\s*\([^)]*\)[^{]*\{[^}]*updateDNSRecordNs'
-    if re.search(for_loop_pattern, content, re.DOTALL):
-        print("❌ FAIL: Found for loop still calling updateDNSRecordNs!")
-        all_passed = False
-    else:
-        print("✓ NO remaining for loops calling updateDNSRecordNs")
+    print(f"Expected: {len(expected_patterns)} lines")
+    print(f"Found: {len(found_patterns)} lines")
     
-    # Test 4: Verify updateNameserverAtRegistrar single-slot function still exists and is valid
-    if "updateNameserverAtRegistrar" in content:
-        print("✓ updateNameserverAtRegistrar function exists (valid single-slot function)")
-    else:
-        print("❌ FAIL: updateNameserverAtRegistrar function missing!")
-        all_passed = False
+    missing = []
+    for pattern in expected_patterns:
+        if not any(pattern in found for found in found_patterns):
+            missing.append(pattern)
     
-    return all_passed
+    if missing:
+        print(f"❌ MISSING PATTERNS: {missing}")
+        return False
+    
+    if len(found_patterns) != 20:
+        print(f"❌ Expected exactly 20 lines, found {len(found_patterns)}")
+        return False
+        
+    print("✅ All 20 [CryptoFallback] log lines found")
+    return True
 
-def test_nodejs_startup():
-    """Test that Node.js starts cleanly without syntax errors."""
+def test_no_generate_blockbee_address():
+    """Test 2: Verify no references to broken generateBlockBeeAddress remain"""
+    print("\nTEST 2: Checking for generateBlockBeeAddress references...")
     
-    print("\n=== TESTING NODE.JS STARTUP ===")
+    with open('/app/js/_index.js', 'r') as f:
+        content = f.read()
+    
+    if 'generateBlockBeeAddress' in content:
+        count = content.count('generateBlockBeeAddress')
+        print(f"❌ Found {count} references to generateBlockBeeAddress")
+        return False
+    
+    print("✅ No generateBlockBeeAddress references found")
+    return True
+
+def test_blockbee_bbresult_pattern():
+    """Test 3: Verify BlockBee if-blocks use bbResult pattern"""
+    print("\nTEST 3: Verifying BlockBee if-blocks use bbResult pattern...")
+    
+    with open('/app/js/_index.js', 'r') as f:
+        content = f.read()
+    
+    # Find all BlockBee if-blocks
+    blockbee_patterns = re.findall(
+        r'const bbResult = await getCryptoDepositAddress.*?\n.*?if \(bbResult\?\.address\)', 
+        content, 
+        re.DOTALL
+    )
+    
+    expected_count = 10  # 10 payment types
+    found_count = len(blockbee_patterns)
+    
+    print(f"Expected: {expected_count} BlockBee patterns")
+    print(f"Found: {found_count} BlockBee patterns")
+    
+    if found_count != expected_count:
+        print(f"❌ Expected {expected_count} BlockBee patterns, found {found_count}")
+        return False
+    
+    print("✅ All BlockBee if-blocks use bbResult pattern correctly")
+    return True
+
+def test_dynopay_dynoresult_pattern():
+    """Test 4: Verify DynoPay else-blocks use dynoResult pattern"""
+    print("\nTEST 4: Verifying DynoPay else-blocks use dynoResult pattern...")
+    
+    with open('/app/js/_index.js', 'r') as f:
+        content = f.read()
+    
+    # Find DynoPay patterns
+    dynopay_patterns = re.findall(
+        r'const dynoResult = await getDynopayCryptoAddress', 
+        content
+    )
+    
+    expected_count = 20  # 10 primary + 10 fallback patterns
+    found_count = len(dynopay_patterns)
+    
+    print(f"Expected: {expected_count} DynoPay patterns")
+    print(f"Found: {found_count} DynoPay patterns")
+    
+    if found_count != expected_count:
+        print(f"❌ Expected {expected_count} DynoPay patterns, found {found_count}")
+        return False
+    
+    print("✅ All DynoPay else-blocks use dynoResult pattern correctly")
+    return True
+
+def test_tracking_collections():
+    """Test 5: Verify correct tracking collections"""
+    print("\nTEST 5: Verifying correct tracking collections...")
+    
+    with open('/app/js/_index.js', 'r') as f:
+        content = f.read()
+    
+    # Check BlockBee success uses chatIdOfPayment
+    blockbee_tracking = re.findall(r'set\(chatIdOfPayment,.*bbResult', content, re.DOTALL)
+    
+    # Check DynoPay success uses chatIdOfDynopayPayment
+    dynopay_tracking = re.findall(r'set\(chatIdOfDynopayPayment,.*dynoResult', content, re.DOTALL)
+    
+    print(f"Found BlockBee tracking patterns: {len(blockbee_tracking)}")
+    print(f"Found DynoPay tracking patterns: {len(dynopay_tracking)}")
+    
+    if len(blockbee_tracking) < 10:
+        print(f"❌ Insufficient BlockBee tracking patterns: {len(blockbee_tracking)}")
+        return False
+        
+    if len(dynopay_tracking) < 10:
+        print(f"❌ Insufficient DynoPay tracking patterns: {len(dynopay_tracking)}")
+        return False
+    
+    print("✅ Tracking collections are correctly used")
+    return True
+
+def test_qr_code_generation():
+    """Test 6: Verify correct QR code generation"""
+    print("\nTEST 6: Verifying correct QR code generation...")
+    
+    with open('/app/js/_index.js', 'r') as f:
+        content = f.read()
+    
+    # Check BlockBee uses sendQrCode with bbResult.bb
+    blockbee_qr = re.findall(r'sendQrCode\(bot, chatId, bbResult\.bb', content)
+    
+    # Check DynoPay uses generateQr with dynoResult.qr_code
+    dynopay_qr = re.findall(r'generateQr\(bot, chatId, dynoResult\.qr_code', content)
+    
+    print(f"Found BlockBee QR patterns: {len(blockbee_qr)}")
+    print(f"Found DynoPay QR patterns: {len(dynopay_qr)}")
+    
+    if len(blockbee_qr) < 10:
+        print(f"❌ Insufficient BlockBee QR patterns: {len(blockbee_qr)}")
+        return False
+        
+    if len(dynopay_qr) < 10:
+        print(f"❌ Insufficient DynoPay QR patterns: {len(dynopay_qr)}")
+        return False
+    
+    print("✅ QR code generation patterns are correct")
+    return True
+
+def test_hosting_provider_updates():
+    """Test 7: Verify hosting paymentIntents provider update on fallback"""
+    print("\nTEST 7: Verifying hosting paymentIntents provider updates...")
+    
+    with open('/app/js/_index.js', 'r') as f:
+        content = f.read()
+    
+    # Check BlockBee→DynoPay fallback updates provider to 'dynopay'
+    dynopay_update = re.findall(r'paymentIntents\.updateOne.*provider.*dynopay', content)
+    
+    # Check DynoPay→BlockBee fallback updates provider to 'blockbee'
+    blockbee_update = re.findall(r'paymentIntents\.updateOne.*provider.*blockbee', content)
+    
+    print(f"Found DynoPay provider updates: {len(dynopay_update)}")
+    print(f"Found BlockBee provider updates: {len(blockbee_update)}")
+    
+    if len(dynopay_update) < 1:
+        print("❌ Missing DynoPay provider update")
+        return False
+        
+    if len(blockbee_update) < 1:
+        print("❌ Missing BlockBee provider update")
+        return False
+    
+    print("✅ Hosting paymentIntents provider updates are correct")
+    return True
+
+def test_nodejs_health():
+    """Test 8: Verify Node.js health check"""
+    print("\nTEST 8: Checking Node.js health...")
     
     try:
-        # Change to the correct directory and test syntax
-        os.chdir("/app/js")
+        response = requests.get('http://localhost:5000/health', timeout=10)
+        data = response.json()
         
-        # Check if the main index file exists
-        if not os.path.exists("_index.js"):
-            print("❌ FAIL: _index.js not found!")
-            return False
-        
-        # Test Node.js syntax by requiring the domain-service module
-        result = subprocess.run([
-            "node", "-e", 
-            "try { require('./domain-service.js'); console.log('✓ domain-service.js syntax OK'); } catch(e) { console.error('❌ Syntax error:', e.message); process.exit(1); }"
-        ], capture_output=True, text=True, timeout=30)
-        
-        if result.returncode == 0:
-            print("✓ domain-service.js syntax validation passed")
-        else:
-            print(f"❌ domain-service.js syntax error: {result.stderr}")
+        if response.status_code != 200:
+            print(f"❌ Health check failed with status {response.status_code}")
             return False
             
+        if data.get('status') != 'healthy':
+            print(f"❌ Service status is {data.get('status')}, expected 'healthy'")
+            return False
+            
+        if data.get('database') != 'connected':
+            print(f"❌ Database status is {data.get('database')}, expected 'connected'")
+            return False
+        
+        print(f"✅ Node.js service healthy (uptime: {data.get('uptime', 'unknown')})")
         return True
         
-    except subprocess.TimeoutExpired:
-        print("❌ FAIL: Node.js syntax check timed out")
-        return False
     except Exception as e:
-        print(f"❌ FAIL: Error testing Node.js startup: {e}")
+        print(f"❌ Health check failed: {e}")
         return False
 
 def main():
-    """Main test execution."""
+    """Run all tests"""
+    print("🧪 TESTING BIDIRECTIONAL CRYPTO PAYMENT FALLBACK LOGIC")
+    print("=" * 60)
     
-    print("Backend Testing Agent: CR Nameserver Stale-State Revert Bug Fix Verification")
-    print("=" * 80)
+    tests = [
+        test_fallback_log_lines,
+        test_no_generate_blockbee_address,
+        test_blockbee_bbresult_pattern,
+        test_dynopay_dynoresult_pattern,
+        test_tracking_collections,
+        test_qr_code_generation,
+        test_hosting_provider_updates,
+        test_nodejs_health
+    ]
     
-    # Test 1: Fix Implementation
-    fix_test_passed = test_nameserver_fix_implementation()
+    passed = 0
+    failed = 0
     
-    # Test 2: Node.js Startup
-    nodejs_test_passed = test_nodejs_startup()
+    for test in tests:
+        try:
+            if test():
+                passed += 1
+            else:
+                failed += 1
+        except Exception as e:
+            print(f"❌ Test failed with exception: {e}")
+            failed += 1
     
-    # Summary
-    print("\n" + "=" * 80)
-    print("TEST SUMMARY:")
+    print("\n" + "=" * 60)
+    print(f"SUMMARY: {passed} passed, {failed} failed")
     
-    if fix_test_passed and nodejs_test_passed:
-        print("✅ ALL TESTS PASSED - CR nameserver stale-state revert bug fix verified")
+    if failed == 0:
+        print("🎉 ALL TESTS PASSED - Bidirectional crypto payment fallback logic is working correctly!")
         return True
     else:
-        print("❌ SOME TESTS FAILED")
-        if not fix_test_passed:
-            print("  - Fix implementation verification failed")
-        if not nodejs_test_passed:
-            print("  - Node.js startup test failed")
+        print("❌ SOME TESTS FAILED - Review the implementation")
         return False
 
 if __name__ == "__main__":
