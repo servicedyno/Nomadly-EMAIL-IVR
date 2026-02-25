@@ -643,7 +643,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Fix: viewDNSRecords auto-create zone updates both collections + cfZoneId-based CF routing"
+    - "Feature: Bulk NS update — send all nameservers at once"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
