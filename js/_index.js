@@ -11226,7 +11226,14 @@ bot?.on('message', async msg => {
       if (hostingPlan) {
         menuButtons.push([t.domainActionAntiRed])
       }
-      menuButtons.push([t.domainActionShortener], [t.back])
+      // Check shortener state for dynamic button
+      const dnsData = await domainService.viewDNSRecords(domain, db)
+      const records = dnsData?.records || []
+      const shortenerActive2 = records.some(r =>
+        r.recordType === 'CNAME' && r.recordContent && r.recordContent.includes('.up.railway.app')
+      )
+      const shortenerBtnReturn = shortenerActive2 ? t.domainActionDeactivateShortener : t.domainActionShortener
+      menuButtons.push([shortenerBtnReturn], [t.back])
       
       return send(chatId, t.domainActionsMenu || `<b>Actions for ${domain}</b>\n\nSelect an option:`, 
         k.of(menuButtons), { parse_mode: 'HTML' })
