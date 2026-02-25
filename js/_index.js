@@ -3603,6 +3603,50 @@ bot?.on('message', async msg => {
       // Admin notification with deliver command
       notifyGroup(`🛒 <b>New Digital Product Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${priceUsd}</b> (${coin === u.usd ? 'Wallet USD' : 'Wallet NGN'})\n\n📩 Deliver with:\n<code>/deliver ${orderId} [product details/credentials]</code>`)
     },
+    // ━━━ Virtual Card wallet payment ━━━
+    'virtual-card-pay': async coin => {
+      set(state, chatId, 'action', 'none')
+      const vcAmount = info?.vcAmount
+      const fee = vcAmount < 200 ? 20 : Math.round(vcAmount * 0.1 * 100) / 100
+      const price = Math.round((vcAmount + fee) * 100) / 100
+      const address = info?.vcAddress
+      const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
+      const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
+
+      if (![u.usd, u.ngn].includes(coin)) return send(chatId, 'Some Issue')
+
+      const priceUsd = price
+      if (coin === u.usd && usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
+      const priceNgn = await usdToNgn(price)
+      if (coin === u.ngn && ngnBal < priceNgn) return send(chatId, t.walletBalanceLow, k.of([u.deposit]))
+
+      const name = await get(nameOf, chatId)
+      const orderId = nanoid(8).toUpperCase()
+
+      if (coin === u.usd) {
+        set(payments, nanoid(), `Wallet,VirtualCard,$${vcAmount}+fee,$${priceUsd},${chatId},${name},${new Date()}`)
+        await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
+      } else {
+        set(payments, nanoid(), `Wallet,VirtualCard,$${vcAmount}+fee,$${priceUsd},${chatId},${name},${new Date()},${priceNgn} NGN`)
+        await atomicIncrement(walletOf, chatId, 'ngnOut', priceNgn)
+      }
+
+      await digitalOrdersCol.insertOne({
+        orderId, chatId, username: username || '', name: name || '',
+        product: `Virtual Card ($${vcAmount})`, productKey: 'virtual_card',
+        price: priceUsd, vcAmount, vcAddress: address,
+        currency: coin === u.usd ? 'USD' : 'NGN',
+        paymentMethod: coin === u.usd ? 'wallet_usd' : 'wallet_ngn',
+        status: 'pending', createdAt: new Date(), deliveredAt: null,
+      })
+
+      const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
+      send(chatId, t.showWallet(usd, ngn))
+      send(chatId, t.vcOrderConfirmed(vcAmount, priceUsd, orderId), trans('o'))
+      checkAndNotifyTierUpgrade(preSpend)
+
+      notifyGroup(`💳 <b>New Virtual Card Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n💵 Card: <b>$${vcAmount}</b> | Total: <b>$${priceUsd}</b>\n📬 Address:\n<pre>${address}</pre>\n💳 Payment: ${coin === u.usd ? 'Wallet USD' : 'Wallet NGN'}\n\n📩 Deliver with:\n<code>/deliver ${orderId} [card number, expiry, CVV]</code>`)
+    },
     'phone-pay': async coin => {
       set(state, chatId, 'action', 'none')
       const price = info?.cpPrice
