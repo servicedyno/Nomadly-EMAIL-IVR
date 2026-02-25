@@ -55,8 +55,9 @@ function runFocusedRailwayTest() {
     
     // 4. Verify error handling (try/catch, returns null on failure)
     const hasTryCatch = rlServiceCode.includes('try {') && rlServiceCode.includes('} catch (err) {')
-    const errorReturnsNull = rlServiceCode.match(/catch \(err\) {[^}]*return null[^}]*}/s)
-    logTest('4. Has proper error handling', (hasTryCatch && errorReturnsNull) ? 'PASS' : 'FAIL')
+    const hasLogError = rlServiceCode.includes('log(`[Railway] getExistingRailwayCNAME error for ${domain}')
+    const errorReturnsNull = rlServiceCode.includes('return null') && rlServiceCode.includes('} catch (err) {')
+    logTest('4. Has proper error handling', (hasTryCatch && errorReturnsNull && hasLogError) ? 'PASS' : 'FAIL')
     
     // 5. Verify saveDomainInServerRailway isAlreadyExists branch calls getExistingRailwayCNAME FIRST
     const callsGetExistingFirst = rlServiceCode.includes('const existing = await getExistingRailwayCNAME(domain)')
