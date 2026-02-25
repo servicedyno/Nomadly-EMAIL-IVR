@@ -413,7 +413,7 @@ const updateDNSRecord = async (domainName, recordData, db) => {
 const deleteDNSRecord = async (domainName, recordData, db) => {
   const meta = await getDomainMeta(domainName, db)
 
-  if (meta?.nameserverType === 'cloudflare' && meta?.cfZoneId && recordData.cfRecordId) {
+  if ((meta?.nameserverType === 'cloudflare' || meta?.cfZoneId) && meta?.cfZoneId && recordData.cfRecordId) {
     return await cfService.deleteDNSRecord(meta.cfZoneId, recordData.cfRecordId)
   }
 
