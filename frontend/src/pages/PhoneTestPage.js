@@ -861,7 +861,7 @@ const PhoneTestPage = () => {
           {/* Rating Summary Bar */}
           {reviews.length > 0 && (
             <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
-              <div className="flex items-center gap-5">
+              <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-5">
                 <div className="text-center flex-shrink-0">
                   <div className="text-4xl font-bold text-amber-400">{avgStars}</div>
                   <div className="flex gap-0.5 mt-1.5 justify-center">
@@ -873,7 +873,7 @@ const PhoneTestPage = () => {
                   </div>
                   <div className="text-xs text-neutral-500 mt-1">{reviews.length} review{reviews.length !== 1 ? 's' : ''}</div>
                 </div>
-                <div className="flex-1 space-y-1">
+                <div className="w-full space-y-1">
                   {[5,4,3,2,1].map(s => {
                     const count = reviews.filter(r => r.stars === s).length;
                     const pct = reviews.length ? (count / reviews.length) * 100 : 0;
