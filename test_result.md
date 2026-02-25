@@ -424,6 +424,66 @@ backend:
           agent: "testing"
           comment: "✅ VERIFIED: All 4 CF protection coverage fixes correctly implemented and tested with 100% success rate (10/10 tests passed). Fix A: deploySharedWorkerRoute creates 3 routes - verified main route (${domain}/*), bare route (domain), and www route (www.${domain}/*) deployment logic. Fix B: deployFullProtection uses deploySharedWorkerRoute instead of deployCFWorker at line 1443. Fix C: removeWorkerRoutes handles bare domain removal with correct triple pattern filter. Fix D: createAntiBotRules creates 3 separate batches (search engines: Googlebot/bingbot/Baiduspider, SEO bots: AhrefsBot/SemrushBot/MJ12bot, AI bots: serpstatbot/Bytespider/GPTBot) with existingCount>=3 check and batch processing loop. All functions properly exported, JavaScript syntax valid, Node.js service healthy at /api/health endpoint. Fixed minor issue: replaced undefined CF_BASE variable with full Cloudflare API URL in removeWorkerRoutes function."
 
+  - task: "Fix: upgradeSharedWorker() called at startup + inside deployFullProtection()"
+    implemented: true
+    working: true
+    file: "js/_index.js, js/anti-red-service.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Added startup call in _index.js (10s delay after KV init) — ensures shared CF worker always has latest honeypot code. Also added upgradeSharedWorker() inside deployFullProtection() before route deployment — every new hosting plan gets the latest worker version."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: upgradeSharedWorker() correctly implemented in both locations. (1) Startup call in _index.js lines 847-851: setTimeout with 10000ms delay, calls antiRedService.upgradeSharedWorker() with proper .then/.catch handlers and log message '[AntiRed] Startup worker upgrade:'. (2) deployFullProtection call in anti-red-service.js: upgradeSharedWorker() called BEFORE deploySharedWorkerRoute() with comment '3d. Ensure shared Worker script is up-to-date' and '3e. Deploy HARDENED shared Worker routes', properly wrapped in try/catch for non-blocking operation. Startup logs confirm '[AntiRed] Startup worker upgrade: OK (KV: true)'."
+
+  - task: "Fix: Progressive SSL upgrade (Full → Full Strict after AutoSSL)"
+    implemented: true
+    working: true
+    file: "js/cr-register-domain-&-create-cpanel.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Increased initial wait from 2min→3min before proxying DNS records. Added progressive SSL upgrade loop after proxying: checks cert at 2min, 5min, 10min intervals via checkSSLCert() function. When valid CA cert detected, automatically upgrades CF SSL mode from 'full' to 'strict' (Full Strict). Falls back gracefully — stays on 'Full' if AutoSSL hasn't completed after all checks."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: Progressive SSL upgrade correctly implemented with all required components. Initial 180000ms (3 min) wait verified, SSL_CHECK_INTERVALS = [2*60000, 5*60000, 10*60000] correctly defined, calls whmSvc.checkSSLCert(bgDomain), upgrades to 'strict' when certStatus.valid && !certStatus.selfSigned, variables bgZoneId/bgDomain/bgUsername properly captured before IIFE, fallback message 'staying on Full SSL mode' present. Background task structure prevents 526 errors by only upgrading AFTER valid CA cert confirmation."
+
+  - task: "Fix: checkSSLCert() function in whm-service.js"
+    implemented: true
+    working: true
+    file: "js/whm-service.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "New function checkSSLCert(domain) connects to WHM_HOST:443 with domain SNI, inspects cert validity. Uses https.request() with rejectUnauthorized: false (inspect, don't enforce). Returns object with valid, selfSigned, issuer, subject, expiresAt fields. Handles errors and timeouts gracefully."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: checkSSLCert() function correctly implemented and exported. Function exists in whm-service.js, uses https.request() with all required options: hostname: WHM_HOST, port: 443, servername: domain (SNI), rejectUnauthorized: false. Returns object with valid, selfSigned, issuer, subject, expiresAt fields, handles errors and timeouts gracefully (returns { valid: false, selfSigned: true }), function properly exported in module.exports. Ready for use in progressive SSL upgrade workflow."
+
+  - task: "Fix: BACKEND_REPORT_URL prefers SELF_URL_PROD with dev warning"
+    implemented: true
+    working: true
+    file: "js/anti-red-service.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Changed preference order to SELF_URL_PROD first (production URL) then SELF_URL fallback in generateHardenedWorkerScript(). Added warning log when URL contains 'preview.emergentagent' or 'localhost' - warns about 'Worker BACKEND_REPORT_URL points to dev environment'."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: BACKEND_REPORT_URL preference correctly implemented in generateHardenedWorkerScript(). Uses process.env.SELF_URL_PROD || process.env.SELF_URL (PROD first), warning condition for 'preview.emergentagent' or 'localhost' properly implemented, warning message 'Worker BACKEND_REPORT_URL points to dev environment' present. Dev environment warning correctly logged in startup: '[AntiRed] ⚠️ Worker BACKEND_REPORT_URL points to dev environment' with instruction to set SELF_URL_PROD for production deployment."
+
 frontend:
   - task: "End-to-end panel testing (all features except email)"
     implemented: true
