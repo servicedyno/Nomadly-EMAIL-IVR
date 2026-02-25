@@ -461,7 +461,9 @@ const PhoneTestPage = () => {
         setReviewStars(0);
         setReviewComment('');
         setReviewName('');
-        fetchReviews();
+        // Small delay to ensure DB write completes before re-fetch
+        await new Promise(r => setTimeout(r, 500));
+        await fetchReviews();
       }
     } catch (e) { /* silent */ }
     setReviewSubmitting(false);
