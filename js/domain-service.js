@@ -906,4 +906,5 @@ module.exports = {
   ensureCloudflare,
   checkDNSConflict,
   resolveConflictAndAdd,
+  addShortenerCNAME,
 }
