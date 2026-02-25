@@ -6385,14 +6385,27 @@ bot?.on('message', async msg => {
         "product_name": dynopayActions.payHosting,
         "refId" : ref
       }
-      const { qr_code, address } = await getDynopayCryptoAddress(price, coin, redirect_url, meta_data)
-      if (!address) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
-      set(chatIdOfDynopayPayment, ref, { chatId, price, domain, action: dynopayActions.payHosting, address })
-      log({ ref })
-      await generateQr(bot, chatId, qr_code, info?.userLanguage ?? 'en')
-      set(state, chatId, 'action', a.proceedWithPaymentProcess)
-      const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
-      return send(chatId, hP.showCryptoPaymentInfo(price, priceCrypto, ticker, address, plan))
+      const dynoResult = await getDynopayCryptoAddress(price, coin, redirect_url, meta_data)
+      if (dynoResult?.address) {
+        set(chatIdOfDynopayPayment, ref, { chatId, price, domain, action: dynopayActions.payHosting, address: dynoResult.address })
+        log({ ref })
+        await generateQr(bot, chatId, dynoResult.qr_code, info?.userLanguage ?? 'en')
+        set(state, chatId, 'action', a.proceedWithPaymentProcess)
+        const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
+        return send(chatId, hP.showCryptoPaymentInfo(price, priceCrypto, ticker, dynoResult.address, plan))
+      } else {
+        log('[CryptoFallback] DynoPay unavailable for hosting, falling back to BlockBee')
+        await paymentIntents.updateOne({ ref }, { $set: { provider: 'blockbee' } })
+        const bbCoin = tickerOf[ticker]
+        const { address: bbAddr, bb } = await getCryptoDepositAddress(bbCoin, chatId, SELF_URL, `/crypto-pay-hosting?a=b&ref=${ref}&`)
+        if (!bbAddr) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
+        set(chatIdOfPayment, ref, { chatId, price, domain })
+        log({ ref })
+        await sendQrCode(bot, chatId, bb, info?.userLanguage ?? 'en')
+        set(state, chatId, 'action', a.proceedWithPaymentProcess)
+        const priceCrypto = await convert(price, 'usd', bbCoin)
+        return send(chatId, hP.showCryptoPaymentInfo(price, priceCrypto, ticker, bbAddr, plan))
+      }
     }
   }
   if (action === 'get-free-domain') {
