@@ -726,8 +726,12 @@ Your order for <b>${product}</b> will be delivered automatically once payment is
 Best regards,
 ${CHAT_BOT_NAME}`,
 
-  showDepositCryptoInfo: (priceCrypto, tickerView, address) =>
-    `Please remit ${priceCrypto} ${tickerView} to\n\n<code>${address}</code>
+  showDepositCryptoInfo: (priceUsd, priceCrypto, tickerView, address) =>
+    `💰 <b>Payment Amount: $${Number(priceUsd).toFixed(2)} USD</b>
+
+Send exactly <b>${priceCrypto} ${tickerView}</b> to:
+
+<code>${address}</code>
 
 Crypto payments are confirmed quickly — usually within a few minutes. Once confirmed, you will be promptly notified, and your wallet will be updated.
 
