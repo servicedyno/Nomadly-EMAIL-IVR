@@ -666,6 +666,18 @@ metadata:
     stuck_count: 0
     priority: "high"
     needs_retesting: false
+
+  - task: "Feature: Virtual Card — new Telegram bot menu item with full purchase flow"
+    implemented: true
+    working: "NA"
+    file: "js/_index.js, js/lang/en.js, js/lang/fr.js, js/lang/zh.js, js/lang/hi.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Implemented full Virtual Card feature. (1) Image masking: Used sharp to overlay rectangles on card image to hide last 6 digits, CVV, and 'bcp' brand text. Saved to js/assets/virtual-card-masked.jpg. (2) Language files (en/fr/zh/hi): Added user.virtualCard button, vcWelcome/vcInvalidAmount/vcAskAddress/vcAddressTooShort/vcOrderSummary/vcOrderConfirmed strings. Updated userKeyboard to show [Digital Products, Virtual Card] row. (3) _index.js actions: Added vcEnterAmount, vcEnterAddress, virtualCardPay. Added vcEnterAmount to firstSteps. (4) _index.js goto: virtual-card-start (sends masked photo + welcome), virtual-card-address, virtual-card-pay (calculates fee). (5) _index.js message handlers: Main menu button handler, amount validation ($50-$1000), address collection (min 10 chars), payment method selection (wallet/bank/crypto). (6) walletOk: virtual-card-pay handler with full deduction, order creation in digitalOrdersCol (productKey: virtual_card), admin notification with /deliver command. (7) Bank webhook: /bank-pay-virtual-card endpoint. (8) Crypto webhooks: /crypto-pay-virtual-card (BlockBee) + /dynopay/crypto-pay-virtual-card (DynoPay) endpoints. Fee logic: 10% or min $20 if amount < $200. No coupon. All 3 payment methods supported."
     status_history:
         - working: "NA"
           agent: "main"
