@@ -652,7 +652,7 @@ ${CHAT_BOT_NAME}`,
 
 बिल्कुल <b>${priceCrypto} ${tickerView}</b> भेजें:\n\n<code>${address}</code>\n\n<b>${product}</b> के लिए आपका ऑर्डर प्रोसेस हो रहा है। क्रिप्टो भुगतान तेज़ी से पुष्टि होते हैं — आमतौर पर कुछ ही मिनटों में। पुष्टि होने पर, आपका ऑर्डर जल्द डिलीवर किया जाएगा।\n\nसादर,\n${CHAT_BOT_NAME}`,
 
-  showDepositCryptoInfo: (priceCrypto, tickerView, address) =>
+  showDepositCryptoInfo: (priceUsd, priceCrypto, tickerView, address) =>
     `💰 <b>भुगतान राशि: $${Number(priceUsd).toFixed(2)} USD</b>
 
 बिल्कुल <b>${priceCrypto} ${tickerView}</b> भेजें:\n\n<code>${address}</code>\n\nक्रिप्टो भुगतान तेज़ी से पुष्टि होते हैं — आमतौर पर कुछ ही मिनटों में। पुष्टि होने पर आपको तुरंत सूचना दी जाएगी और आपके वॉलेट को अपडेट किया जाएगा।\n\nसादर,\n${CHAT_BOT_NAME}`,
