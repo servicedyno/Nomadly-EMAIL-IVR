@@ -5080,13 +5080,24 @@ bot?.on('message', async msg => {
     set(state, chatId, 'action', 'none')
 
     if (BLOCKBEE_CRYTPO_PAYMENT_ON === 'true') {
-      const { address: addr, bb } = await getCryptoDepositAddress(ticker, chatId, SELF_URL, `/crypto-pay-virtual-card?a=b&ref=${ref}&`)
-      if (!addr) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
-      set(chatIdOfPayment, ref, { chatId, price, product: `Virtual Card ($${vcAmount})`, orderId })
-      log({ ref })
-      await sendQrCode(bot, chatId, bb, info?.userLanguage ?? 'en')
-      const priceCrypto = await convert(price, 'usd', ticker)
-      send(chatId, t.showDepositCryptoInfoDigitalProduct(price, priceCrypto, tickerKey, addr, `Virtual Card ($${vcAmount})`), trans('o'))
+      const bbResult = await getCryptoDepositAddress(ticker, chatId, SELF_URL, `/crypto-pay-virtual-card?a=b&ref=${ref}&`)
+      if (bbResult?.address) {
+        set(chatIdOfPayment, ref, { chatId, price, product: `Virtual Card ($${vcAmount})`, orderId })
+        log({ ref })
+        await sendQrCode(bot, chatId, bbResult.bb, info?.userLanguage ?? 'en')
+        const priceCrypto = await convert(price, 'usd', ticker)
+        send(chatId, t.showDepositCryptoInfoDigitalProduct(price, priceCrypto, tickerKey, bbResult.address, `Virtual Card ($${vcAmount})`), trans('o'))
+      } else {
+        log('[CryptoFallback] BlockBee unavailable for virtual card, falling back to DynoPay')
+        const dynoCoin = tickerOfDyno[tickerKey]
+        const dynoResult = await getDynopayCryptoAddress(price, dynoCoin, `${SELF_URL}/dynopay/crypto-pay-virtual-card`, { "product_name": "payVirtualCard", "refId": ref })
+        if (!dynoResult?.address) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
+        set(chatIdOfDynopayPayment, ref, { chatId, price, product: `Virtual Card ($${vcAmount})`, orderId, action: 'payVirtualCard', address: dynoResult.address })
+        log({ ref })
+        await generateQr(bot, chatId, dynoResult.qr_code, info?.userLanguage ?? 'en')
+        const priceCrypto = await convert(price, 'usd', ticker)
+        send(chatId, t.showDepositCryptoInfoDigitalProduct(price, priceCrypto, tickerKey, dynoResult.address, `Virtual Card ($${vcAmount})`), trans('o'))
+      }
     } else {
       const coin = tickerOfDyno[tickerKey]
       const redirect_url = `${SELF_URL}/dynopay/crypto-pay-virtual-card`
