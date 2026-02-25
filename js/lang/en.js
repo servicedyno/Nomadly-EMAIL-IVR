@@ -601,12 +601,20 @@ ${CHAT_BOT_NAME}`,
   dnsCheckError: 'DNS lookup failed. Please try again later.',
 
   // Switch to Cloudflare
-  switchToCf: 'Switch to Cloudflare',
-  switchToCfConfirm: (domain) => `<b>Switch ${domain} to Cloudflare DNS?</b>\n\nThis will:\n1. Create a Cloudflare zone for your domain\n2. Update your nameservers at the registrar\n3. Route all DNS through Cloudflare\n\nDNS propagation may take up to 24-48h.\n\nProceed?`,
-  switchToCfProgress: (domain) => `Switching <b>${domain}</b> to Cloudflare DNS...`,
-  switchToCfSuccess: (domain, ns) => `<b>Done!</b> ${domain} is now on Cloudflare DNS.\n\n<b>New Nameservers:</b>\n${ns.map((n, i) => `NS${i + 1}: <code>${n}</code>`).join('\n')}\n\nDNS changes may take up to 24-48h to propagate globally.`,
-  switchToCfError: (error) => `Failed to switch to Cloudflare: ${error}`,
+  switchToCf: '☁️ Switch to Cloudflare',
+  switchToCfConfirm: (domain) => `<b>Switch ${domain} to Cloudflare DNS?</b>\n\nThis will:\n1. Create a Cloudflare zone for your domain\n2. Migrate existing DNS records to Cloudflare\n3. Update your nameservers at the registrar\n\nDNS propagation may take up to 24-48h.\n\nProceed?`,
+  switchToCfProgress: (domain) => `⏳ Switching <b>${domain}</b> to Cloudflare DNS…`,
+  switchToCfSuccess: (domain, ns) => `<b>Done!</b> ${domain} is now on Cloudflare DNS.\n\n<b>New Nameservers:</b>\n${ns.map((n, i) => `NS${i + 1}: <code>${n}</code>`).join('\n')}`,
+  switchToCfError: (error) => `❌ Failed to switch to Cloudflare: ${error}`,
   switchToCfAlreadyCf: 'This domain is already using Cloudflare DNS.',
+
+  // Switch to Provider Default
+  switchToProviderDefault: '🏠 Switch to Provider DNS',
+  switchToProviderConfirm: (domain) => `<b>Switch ${domain} back to provider DNS?</b>\n\nThis will:\n1. Migrate existing DNS records from Cloudflare to your registrar\n2. Restore default nameservers at your registrar\n3. Remove the Cloudflare zone\n\nDNS propagation may take up to 24-48h.\n\nProceed?`,
+  switchToProviderProgress: (domain) => `⏳ Switching <b>${domain}</b> to provider DNS…`,
+  switchToProviderSuccess: (domain, ns) => `<b>Done!</b> ${domain} is now on provider DNS.\n\n<b>New Nameservers:</b>\n${ns.map((n, i) => `NS${i + 1}: <code>${n}</code>`).join('\n')}`,
+  switchToProviderError: (error) => `❌ Failed to switch to provider DNS: ${error}`,
+  switchToProviderAlreadyProvider: 'This domain is already using provider default DNS.',
 
   // NS update arrangement prompt
   updateNsPrompt: (nsRecords, slotIndex) => {
