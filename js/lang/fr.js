@@ -998,7 +998,17 @@ const k = {
     parse_mode: 'HTML',
   },
 
-  phoneNumberLeads: kOf(phoneNumberLeads),
+  vcAmount: {
+    reply_markup: {
+      keyboard: [
+        ['$50', '$100', '$200'],
+        ['$500', '$1000'],
+        ['✏️ Custom Amount'],
+        _bc,
+      ],
+    },
+    parse_mode: 'HTML',
+  },
   buyLeadsSelectCountry: kOf(buyLeadsSelectCountry),
   buyLeadsSelectSmsVoice: kOf(buyLeadsSelectSmsVoice),
   buyLeadsSelectArea: country => kOf(buyLeadsSelectArea(country)),
