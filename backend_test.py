@@ -163,8 +163,8 @@ def test_auto_normalization():
         checks = [
             ("Normalization condition check", "if (meta.nameserverType !== 'cloudflare' && db)" in content),
             ("Normalization log message", "normalizing to 'cloudflare'" in content),
-            ("domainsOf normalization", "db.collection('domainsOf').updateOne({ domainName }, { $set: { nameserverType: 'cloudflare' } })" in content),
-            ("registeredDomains normalization", "db.collection('registeredDomains').updateOne({ _id: domainName }, { $set: { 'val.nameserverType': 'cloudflare' } })" in content)
+            ("domainsOf normalization", "await db.collection('domainsOf').updateOne({ domainName }, { $set: { nameserverType: 'cloudflare' } }, { upsert: false })" in content),
+            ("registeredDomains normalization", "await db.collection('registeredDomains').updateOne({ _id: domainName }, { $set: { 'val.nameserverType': 'cloudflare' } }, { upsert: false })" in content)
         ]
         
         passed = 0
