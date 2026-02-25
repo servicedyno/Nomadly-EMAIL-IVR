@@ -506,8 +506,34 @@ metadata:
   test_sequence: 11
   run_ui: false
 
+  - task: "Fix: Shortener activation must ensureCloudflare before adding CNAME"
+    implemented: true
+    working: "NA"
+    file: "js/domain-service.js, js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Root cause: all 3 shortener activation handlers (quick-activate, DNS menu, domain action) just called addDNSRecord() which routes to whatever DNS provider the domain is on. For domains NOT on Cloudflare, the Railway CNAME was added on OP/CR DNS instead of Cloudflare. Fix: (1) New ensureCloudflare(domain, db) function in domain-service.js — idempotent: if already on CF returns existing zone info, if not creates CF zone + updates NS at registrar + updates DB. Includes 30s background NS verification to catch CF NS reassignment. (2) All 3 shortener handlers now call ensureCloudflare() before addDNSRecord(). (3) switchToCloudflare() enhanced with logging + same 30s background NS verification. (4) Data fix for perthuspeagee.com: corrected NS at OP to anderson+leanna, updated DB, replaced stale A record with Railway CNAME on CF zone."
+
+  - task: "Fix: switchToCloudflare NS reassignment drift detection"
+    implemented: true
+    working: "NA"
+    file: "js/domain-service.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Added background NS verification in both switchToCloudflare() and ensureCloudflare(). After 30s delay, re-queries CF zone NS and compares with what was stored. If CF reassigned NS, auto-corrects at registrar (OP or CR) and updates DB. Prevents the perthuspeagee.com scenario where CF reassigned rihana→anderson after zone creation."
+
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Fix: Shortener activation must ensureCloudflare before adding CNAME"
+    - "Fix: switchToCloudflare NS reassignment drift detection"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
