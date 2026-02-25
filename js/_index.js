@@ -6592,14 +6592,26 @@ bot?.on('message', async msg => {
         "product_name": dynopayActions.payVps,
         "refId" : ref
       }
-      const { qr_code, address } = await getDynopayCryptoAddress(price, coin, redirect_url, meta_data)
-      if (!address) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
-      set(chatIdOfDynopayPayment, ref, { chatId, price, vpsDetails, action: dynopayActions.payVps, address })
-      log({ ref })
-      await generateQr(bot, chatId, qr_code, info?.userLanguage ?? 'en')
-      set(state, chatId, 'action', 'none')
-      const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
-      return send(chatId, vp.showDepositCryptoInfoVpsUpgrade(price, priceCrypto, ticker, address), trans('o'))
+      const dynoResult = await getDynopayCryptoAddress(price, coin, redirect_url, meta_data)
+      if (dynoResult?.address) {
+        set(chatIdOfDynopayPayment, ref, { chatId, price, vpsDetails, action: dynopayActions.payVps, address: dynoResult.address })
+        log({ ref })
+        await generateQr(bot, chatId, dynoResult.qr_code, info?.userLanguage ?? 'en')
+        set(state, chatId, 'action', 'none')
+        const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
+        return send(chatId, vp.showDepositCryptoInfoVpsUpgrade(price, priceCrypto, ticker, dynoResult.address), trans('o'))
+      } else {
+        log('[CryptoFallback] DynoPay unavailable for VPS upgrade, falling back to BlockBee')
+        const bbCoin = tickerOf[ticker]
+        const { address: bbAddr, bb } = await getCryptoDepositAddress(bbCoin, chatId, SELF_URL, `/crypto-pay-upgrade-vps?a=b&ref=${ref}&`)
+        if (!bbAddr) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
+        set(chatIdOfPayment, ref, { chatId, price, vpsDetails })
+        log({ ref })
+        await sendQrCode(bot, chatId, bb, info?.userLanguage ?? 'en')
+        set(state, chatId, 'action', 'none')
+        const priceCrypto = await convert(price, 'usd', bbCoin)
+        return send(chatId, vp.showDepositCryptoInfoVpsUpgrade(price, priceCrypto, ticker, bbAddr), trans('o'))
+      }
     }
   }
   //
