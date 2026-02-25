@@ -237,8 +237,10 @@ const getDomainMeta = async (domainName, db) => {
 const viewDNSRecords = async (domainName, db) => {
   const meta = await getDomainMeta(domainName, db)
 
-  // Cloudflare DNS
-  if (meta?.nameserverType === 'cloudflare' && meta?.cfZoneId) {
+  // Cloudflare DNS — route to CF if nameserverType is 'cloudflare' OR if cfZoneId exists
+  // (handles 'external' and other non-standard types that actually have a CF zone)
+  const isCfManaged = (meta?.nameserverType === 'cloudflare' || meta?.cfZoneId) && meta?.cfZoneId
+  if (isCfManaged) {
     const cfRecords = await cfService.listDNSRecords(meta.cfZoneId)
     const records = cfRecords.map(r => ({
       recordType: r.type,
@@ -253,6 +255,12 @@ const viewDNSRecords = async (domainName, db) => {
     for (const ns of nameservers) {
       records.unshift({ recordType: 'NS', recordContent: ns, recordName: domainName, isNameserver: true })
     }
+    // Normalize: if nameserverType wasn't 'cloudflare' but cfZoneId exists, fix the DB metadata
+    if (meta.nameserverType !== 'cloudflare' && db) {
+      log(`[domain-service] ${domainName} has cfZoneId but nameserverType='${meta.nameserverType}' — normalizing to 'cloudflare'`)
+      await db.collection('domainsOf').updateOne({ domainName }, { $set: { nameserverType: 'cloudflare' } }, { upsert: false })
+      await db.collection('registeredDomains').updateOne({ _id: domainName }, { $set: { 'val.nameserverType': 'cloudflare' } }, { upsert: false })
+    }
     return { records, source: 'cloudflare', cfZoneId: meta.cfZoneId }
   }
 
@@ -263,9 +271,15 @@ const viewDNSRecords = async (domainName, db) => {
     if (cfResult.success && cfResult.zoneId) {
       const newNS = cfResult.nameservers || []
       if (db) {
+        // Update BOTH collections to keep metadata consistent
         await db.collection('registeredDomains').updateOne(
           { _id: domainName },
           { $set: { 'val.cfZoneId': cfResult.zoneId, 'val.nameservers': newNS } }
+        )
+        await db.collection('domainsOf').updateOne(
+          { domainName },
+          { $set: { cfZoneId: cfResult.zoneId, nameservers: newNS } },
+          { upsert: false }
         )
       }
       const cfRecords = await cfService.listDNSRecords(cfResult.zoneId)
