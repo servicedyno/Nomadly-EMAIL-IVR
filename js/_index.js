@@ -11123,9 +11123,9 @@ bot?.on('message', async msg => {
         if (error) return send(chatId, `❌ Could not link <b>${domain}</b>: ${error}`, { parse_mode: 'HTML' })
         send(chatId, `⏳ Configuring DNS for <b>${domain}</b>...`, { parse_mode: 'HTML' })
 
-        // Unified DNS routing — now guaranteed to route to Cloudflare after ensureCloudflare
+        // Unified DNS routing — auto-resolves A/CNAME conflicts before adding shortener CNAME
         await sleep(5000)
-        const addResult = await domainService.addDNSRecord(domain, recordType, server, '', db)
+        const addResult = await domainService.addShortenerCNAME(domain, server, db)
         if (addResult.error || !addResult.success) {
           log(`[DomainActionShortener] DNS failed for ${domain}: ${addResult.error || 'unknown'}`)
           // Fallback for legacy CR domains
