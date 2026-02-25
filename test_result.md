@@ -103,7 +103,7 @@
 #====================================================================================================
 
 
-user_problem_statement: "Honeypot integration — all 6 trap types + KV banning + MongoDB analytics"
+user_problem_statement: "Honeypot integration — all 6 trap types + KV banning + MongoDB analytics + Hosting flow fixes"
 
 backend:
   - task: "Honeypot: Worker script with 6 trap types"
