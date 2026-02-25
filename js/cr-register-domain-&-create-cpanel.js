@@ -179,15 +179,49 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state)
             log(`[Hosting] AutoSSL trigger warning (non-blocking): ${sslErr.message}`)
           }
 
-          // Wait for AutoSSL cert issuance, then proxy records for CDN + DDoS protection
+          // Background task: Wait for AutoSSL → proxy DNS records → upgrade SSL to Full (Strict)
           // This runs in background — doesn't block the user response
+          const bgZoneId = cfZoneId
+          const bgDomain = domain
+          const bgUsername = result.username
           ;(async () => {
             try {
-              await new Promise(r => setTimeout(r, 120000)) // 2 min for AutoSSL
-              await cfService.proxyHostingDNSRecords(cfZoneId, domain)
-              log(`[Hosting] DNS records proxied for ${domain} after AutoSSL window`)
-            } catch (proxyErr) {
-              log(`[Hosting] Background proxy error (non-critical): ${proxyErr.message}`)
+              // Phase 1: Wait 3 min for AutoSSL to issue cert, then proxy records
+              await new Promise(r => setTimeout(r, 180000)) // 3 min
+              await cfService.proxyHostingDNSRecords(bgZoneId, bgDomain)
+              log(`[Hosting] DNS records proxied for ${bgDomain} after 3 min AutoSSL window`)
+
+              // Phase 2: Progressive SSL upgrade — check cert and upgrade to Full (Strict) when ready
+              // This prevents 526 errors by only upgrading AFTER a valid CA cert is confirmed on origin
+              const whmSvc = require('./whm-service')
+              const SSL_CHECK_INTERVALS = [2 * 60000, 5 * 60000, 10 * 60000] // 2, 5, 10 min after proxying
+
+              for (let i = 0; i < SSL_CHECK_INTERVALS.length; i++) {
+                await new Promise(r => setTimeout(r, SSL_CHECK_INTERVALS[i]))
+                try {
+                  const certStatus = await whmSvc.checkSSLCert(bgDomain)
+                  log(`[Hosting] SSL cert check #${i + 1} for ${bgDomain}: valid=${certStatus.valid} selfSigned=${certStatus.selfSigned} issuer=${certStatus.issuer || 'n/a'}`)
+
+                  if (certStatus.valid && !certStatus.selfSigned) {
+                    // AutoSSL has issued a valid CA cert — safe to upgrade to Full (Strict)
+                    await cfService.setSSLMode(bgZoneId, 'strict')
+                    log(`[Hosting] ✅ SSL upgraded to Full (Strict) for ${bgDomain} — cert from ${certStatus.issuer}`)
+
+                    // Also re-trigger AutoSSL for fresh renewal scheduling
+                    try { await whmSvc.startAutoSSL(bgUsername) } catch (_) {}
+                    break // Done — no more checks needed
+                  }
+
+                  if (i === SSL_CHECK_INTERVALS.length - 1) {
+                    // All checks exhausted — stay on "Full" mode (safe with self-signed cert)
+                    log(`[Hosting] AutoSSL not ready after ${SSL_CHECK_INTERVALS.length} checks for ${bgDomain} — staying on Full SSL mode`)
+                  }
+                } catch (checkErr) {
+                  log(`[Hosting] SSL cert check #${i + 1} error for ${bgDomain} (non-critical): ${checkErr.message}`)
+                }
+              }
+            } catch (bgErr) {
+              log(`[Hosting] Background SSL/proxy error (non-critical): ${bgErr.message}`)
             }
           })()
 
