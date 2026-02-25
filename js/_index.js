@@ -4922,6 +4922,138 @@ bot?.on('message', async msg => {
     return notifyGroup(`🛒 <b>New Digital Product Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n📦 Product: <b>${product}</b>\n💵 Price: <b>$${price}</b> (Crypto: ${tickerKey})\n⏳ Awaiting crypto payment\n\n📩 After payment confirms:\n<code>/deliver ${orderId} [details]</code>`)
   }
 
+  // ━━━ Virtual Card Flow ━━━
+
+  // Virtual Card: enter amount
+  if (action === a.vcEnterAmount) {
+    if (message === t.back || message === t.cancel) return goto.displayMainMenuButtons()
+    const amount = parseFloat(message.replace(/[^0-9.]/g, ''))
+    if (isNaN(amount) || amount < 50 || amount > 1000) return send(chatId, t.vcInvalidAmount)
+    await saveInfo('vcAmount', amount)
+    const fee = amount < 200 ? 20 : Math.round(amount * 0.1 * 100) / 100
+    const total = Math.round((amount + fee) * 100) / 100
+    await saveInfo('vcFee', fee)
+    await saveInfo('vcTotal', total)
+    return goto['virtual-card-address']()
+  }
+
+  // Virtual Card: enter address
+  if (action === a.vcEnterAddress) {
+    if (message === t.back) return goto['virtual-card-start']()
+    if (message.length < 10) return send(chatId, t.vcAddressTooShort)
+    await saveInfo('vcAddress', message)
+    await saveInfo('lastStep', 'virtual-card-pay')
+    return goto['virtual-card-pay']()
+  }
+
+  // Virtual Card: payment method selection
+  if (action === a.virtualCardPay) {
+    if (message === t.back) return goto['virtual-card-address']()
+
+    const payOption = message
+
+    if (payOption === payIn.crypto) {
+      set(state, chatId, 'action', 'crypto-pay-virtual-card')
+      return send(chatId, t.selectCryptoToDeposit, trans('k.of', trans('supportedCryptoViewOf')))
+    }
+
+    if (payOption === payIn.bank) {
+      set(state, chatId, 'action', 'bank-pay-virtual-card')
+      return send(chatId, t.askEmail, bc)
+    }
+
+    if (payOption === payIn.wallet) {
+      set(state, chatId, 'lastStep', 'virtual-card-pay')
+      return goto.walletSelectCurrency()
+    }
+
+    return send(chatId, t.askValidPayOption)
+  }
+
+  // Virtual Card: bank payment
+  if (action === 'bank-pay-virtual-card') {
+    if (message === t.back) return goto['virtual-card-pay']()
+    const email = message
+    if (!isValidEmail(email)) return send(chatId, t.askValidEmail)
+
+    const vcAmount = info?.vcAmount
+    const fee = vcAmount < 200 ? 20 : Math.round(vcAmount * 0.1 * 100) / 100
+    const price = Math.round((vcAmount + fee) * 100) / 100
+    const address = info?.vcAddress
+    const ref = nanoid()
+    set(state, chatId, 'action', 'none')
+    const priceNGN = Number(await usdToNgn(price))
+    const orderId = nanoid(8).toUpperCase()
+    const name = await get(nameOf, chatId)
+
+    await digitalOrdersCol.insertOne({
+      orderId, chatId, username: username || '', name: name || '',
+      product: `Virtual Card ($${vcAmount})`, productKey: 'virtual_card',
+      price, vcAmount, vcAddress: address,
+      currency: 'NGN', paymentMethod: 'bank', paymentRef: ref,
+      status: 'pending_payment', createdAt: new Date(), deliveredAt: null,
+    })
+
+    set(chatIdOfPayment, ref, { chatId, price, product: `Virtual Card ($${vcAmount})`, orderId, endpoint: '/bank-pay-virtual-card' })
+    notifyGroup(`💳 <b>New Virtual Card Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n💵 Card: <b>$${vcAmount}</b> | Total: <b>$${price}</b>\n📬 Address:\n<pre>${address}</pre>\n💳 Payment: Bank\n⏳ Awaiting payment\n\n📩 After payment confirms:\n<code>/deliver ${orderId} [card details]</code>`)
+    const { url, error } = await createCheckout(priceNGN, `/ok?a=b&ref=${ref}&`, email, username, ref)
+    if (error) return send(chatId, error, trans('o'))
+    send(chatId, `Bank ₦aira + Card 🌐︎`, trans('o'))
+    return send(chatId, `<a href="${url}">Click here to pay ₦${priceNGN.toLocaleString()}</a>`, { parse_mode: 'HTML', disable_web_page_preview: true })
+  }
+
+  // Virtual Card: crypto payment
+  if (action === 'crypto-pay-virtual-card') {
+    if (message === t.back) return goto['virtual-card-pay']()
+    const supportedCryptoView = trans('supportedCryptoView')
+    const tickerKey = supportedCryptoView[message]
+    if (!tickerKey) return send(chatId, t.askValidCrypto)
+    const ticker = tickerOf[tickerKey]
+    await saveInfo('cryptoTicker', ticker)
+
+    const vcAmount = info?.vcAmount
+    const fee = vcAmount < 200 ? 20 : Math.round(vcAmount * 0.1 * 100) / 100
+    const price = Math.round((vcAmount + fee) * 100) / 100
+    const address = info?.vcAddress
+    const orderId = nanoid(8).toUpperCase()
+    const name = await get(nameOf, chatId)
+    const ref = nanoid()
+
+    await digitalOrdersCol.insertOne({
+      orderId, chatId, username: username || '', name: name || '',
+      product: `Virtual Card ($${vcAmount})`, productKey: 'virtual_card',
+      price, vcAmount, vcAddress: address,
+      currency: 'crypto', paymentMethod: `crypto_${tickerKey}`,
+      status: 'pending_payment', createdAt: new Date(), deliveredAt: null,
+    })
+
+    await saveInfo('dpOrderId', orderId)
+    set(state, chatId, 'action', 'none')
+
+    if (BLOCKBEE_CRYTPO_PAYMENT_ON === 'true') {
+      const { address: addr, bb } = await getCryptoDepositAddress(ticker, chatId, SELF_URL, `/crypto-pay-virtual-card?a=b&ref=${ref}&`)
+      if (!addr) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
+      set(chatIdOfPayment, ref, { chatId, price, product: `Virtual Card ($${vcAmount})`, orderId })
+      log({ ref })
+      await sendQrCode(bot, chatId, bb, info?.userLanguage ?? 'en')
+      const priceCrypto = await convert(price, 'usd', ticker)
+      send(chatId, t.showDepositCryptoInfoDigitalProduct(price, priceCrypto, tickerKey, addr, `Virtual Card ($${vcAmount})`), trans('o'))
+    } else {
+      const coin = tickerOfDyno[tickerKey]
+      const redirect_url = `${SELF_URL}/dynopay/crypto-pay-virtual-card`
+      const meta_data = { "product_name": "payVirtualCard", "refId": ref }
+      const { qr_code, address: addr } = await getDynopayCryptoAddress(price, coin, redirect_url, meta_data)
+      if (!addr) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
+      set(chatIdOfDynopayPayment, ref, { chatId, price, product: `Virtual Card ($${vcAmount})`, orderId, action: 'payVirtualCard', address: addr })
+      log({ ref })
+      await generateQr(bot, chatId, qr_code, info?.userLanguage ?? 'en')
+      const priceCrypto = await convert(price, 'usd', ticker)
+      send(chatId, t.showDepositCryptoInfoDigitalProduct(price, priceCrypto, tickerKey, addr, `Virtual Card ($${vcAmount})`), trans('o'))
+    }
+
+    return notifyGroup(`💳 <b>New Virtual Card Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n💵 Card: <b>$${vcAmount}</b> | Total: <b>$${price}</b>\n📬 Address:\n<pre>${address}</pre>\n💳 Payment: Crypto (${tickerKey})\n⏳ Awaiting payment\n\n📩 After payment confirms:\n<code>/deliver ${orderId} [card details]</code>`)
+  }
+
   if (message === user.buyVpsPlan) {
     return goto.createNewVpsFlow()
   }
