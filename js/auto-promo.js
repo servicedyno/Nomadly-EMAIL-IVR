@@ -35,7 +35,6 @@ const SERVICE_CONTEXT = {
     details: [
       'Offshore DMCA-ignored domains: 400+ TLDs, free .sbs/.xyz with plans',
       'Shortit URL Shortener: 5 free trial links, custom branded URLs, analytics',
-      'HQ Phone Leads: verified by country, state, carrier — from $20/1K, validate $15/1K',
       'CloudPhone by SpeechCue: virtual numbers in 30+ countries, IVR, SMS, SIP — from $5/mo',
       'Digital Products: Twilio ($200-$450), Telnyx ($150-$400), AWS ($150-$400), Google Cloud ($300), Google Workspace ($100-$150), Zoho Mail ($100-$150), eSIM T-Mobile ($60) — all delivered in 30 min',
     ],
@@ -47,7 +46,6 @@ const SERVICE_CONTEXT = {
     details: [
       'Offshore DMCA-ignored domains: 400+ TLDs, free .sbs/.xyz with plans',
       'Shortit URL Shortener: 5 free trial links, custom branded URLs, analytics',
-      'HQ Phone Leads: verified by country, state, carrier — from $20/1K, validate $15/1K',
       'CloudPhone by SpeechCue: virtual numbers in 30+ countries, IVR, SMS, SIP — from $5/mo',
       'Digital Products: Twilio ($200-$450), Telnyx ($150-$400), AWS ($150-$400), Google Cloud ($300), Google Workspace ($100-$150), Zoho Mail ($100-$150), eSIM T-Mobile ($60) — all delivered in 30 min',
       'Pay with crypto, bank, or wallet',
@@ -94,22 +92,24 @@ async function generateDynamicPromo(theme, lang) {
   const ctx = SERVICE_CONTEXT[theme]
   const langName = LANG_NAMES[lang] || 'English'
 
-  const prompt = `You are a Telegram bot copywriter. Write a SHORT promo showcasing ALL services on ${ctx.services}.
+  const prompt = `You are a Telegram bot copywriter. Create a unique, persuasive promotional message for ${ctx.services}.
 
-Key points:
+Key services to highlight:
 ${ctx.details.map(d => '- ' + d).join('\n')}
 
-Rules:
+Requirements:
 - Write in ${langName}
-- Use ONLY <b>bold</b> and <code>code</code> HTML tags
-- Start with a catchy <b>HEADLINE</b>
-- List ALL services briefly (domains, shortener, leads, cloudphone, digital products)
-- Keep under 500 characters total
-- End with: type <b>/start</b> to explore
-- Do NOT mention hosting, VPS, RDP, or @hostbay_bot
+- Use ONLY <b>bold</b> and <code>code</code> HTML tags (no other formatting)
+- Start with a compelling <b>HEADLINE</b> that grabs attention
+- Highlight ONE key benefit or unique value proposition
+- Keep the message concise (under 400 characters)
+- End with a clear call-to-action: type <b>/start</b> to explore
+- Be creative and vary your approach each time
+- Focus on benefits, not just features
+- Do NOT mention hosting, VPS, RDP, leads, or @hostbay_bot
 - No emoji characters
 
-Return ONLY the message text.`
+Return ONLY the promotional message text.`
 
   try {
     const res = await ai.chat.completions.create({
@@ -119,14 +119,20 @@ Return ONLY the message text.`
       temperature: 0.9,
     })
     let content = res.choices?.[0]?.message?.content?.trim()
-    if (!content || content.length < 30) return null
+    if (!content || content.length < 30) {
+      log(`[AutoPromo] OpenAI returned empty or too short content for ${theme}/${lang}`)
+      return null
+    }
     content = sanitizeForTelegram(content)
     if (content.length <= 1024) return content
     const truncated = content.substring(0, 500)
     const lastNewline = truncated.lastIndexOf('\n')
     return sanitizeForTelegram(lastNewline > 200 ? truncated.substring(0, lastNewline) : truncated)
   } catch (error) {
-    log(`[AutoPromo] OpenAI error: ${error.message}`)
+    log(`[AutoPromo] OpenAI error for ${theme}/${lang}: ${error.message}`)
+    if (error.response) {
+      log(`[AutoPromo] OpenAI response status: ${error.response.status}, data: ${JSON.stringify(error.response.data)}`)
+    }
     return null
   }
 }
