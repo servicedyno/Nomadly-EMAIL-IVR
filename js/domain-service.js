@@ -432,6 +432,94 @@ const deleteDNSRecord = async (domainName, recordData, db) => {
 // ─── NS update (registrar-level) ────────────────────────
 
 /**
+ * Update ALL nameservers at the registrar in one operation.
+ * For OP: calls opService.updateNameservers(domainName, nsArray).
+ * For CR: looks up domainNameId via getDomainDetails, calls UpdateNameServer API with all NS.
+ * Updates DB (both collections) with new NS array.
+ */
+const updateAllNameservers = async (domainName, newNameservers, db) => {
+  const meta = await getDomainMeta(domainName, db)
+  if (!meta) return { error: 'Domain metadata not found' }
+
+  const registrar = meta.registrar || 'ConnectReseller'
+
+  if (registrar === 'OpenProvider') {
+    const result = await opService.updateNameservers(domainName, newNameservers)
+    if (result.error) return result
+    log(`[updateAllNameservers] OP NS updated for ${domainName}: ${newNameservers.join(', ')}`)
+  } else {
+    // ConnectReseller
+    try {
+      const getDomainDetails = require('./cr-domain-details-get')
+      const details = await getDomainDetails(domainName)
+      const rd = details?.responseData
+      if (!rd?.domainNameId) {
+        return { error: 'Could not find domain at ConnectReseller' }
+      }
+
+      const APIKey = process.env.API_KEY_CONNECT_RESELLER
+      const requestData = { APIKey, domainNameId: rd.domainNameId, websiteName: domainName }
+      for (let i = 0; i < newNameservers.length && i < 4; i++) {
+        requestData[`nameServer${i + 1}`] = newNameservers[i]
+      }
+
+      log(`[updateAllNameservers] CR NS update for ${domainName}:`, requestData)
+      const axios = require('axios')
+      const response = await axios.get('https://api.connectreseller.com/ConnectReseller/ESHOP/UpdateNameServer', { params: requestData })
+
+      if (response?.data?.responseMsg?.statusCode !== 200) {
+        const errMsg = response?.data?.responseMsg?.message || 'CR nameserver update failed'
+        log(`[updateAllNameservers] CR error for ${domainName}: ${errMsg}`)
+        return { error: errMsg }
+      }
+      log(`[updateAllNameservers] CR NS updated for ${domainName}: ${newNameservers.join(', ')}`)
+    } catch (err) {
+      log(`[updateAllNameservers] CR error for ${domainName}: ${err.message}`)
+      return { error: `Nameserver update failed: ${err.message}` }
+    }
+  }
+
+  // Determine new nameserverType based on NS values
+  const isCloudflare = newNameservers.some(ns => ns.toLowerCase().includes('cloudflare'))
+  const isCRDefault = newNameservers.some(ns => ns.toLowerCase().includes('managedns.org'))
+  const isOPDefault = newNameservers.some(ns => ns.toLowerCase().includes('openprovider'))
+  let newNsType = 'custom'
+  if (isCloudflare) newNsType = 'cloudflare'
+  else if ((registrar === 'ConnectReseller' && isCRDefault) || (registrar === 'OpenProvider' && isOPDefault)) newNsType = 'provider_default'
+
+  // Update DB
+  if (db) {
+    const updateFields = { nameservers: newNameservers, nameserverType: newNsType }
+    // If switching away from cloudflare, clear cfZoneId
+    if (newNsType !== 'cloudflare' && meta.cfZoneId) {
+      await db.collection('domainsOf').updateOne(
+        { domainName },
+        { $set: updateFields, $unset: { cfZoneId: '' } },
+        { upsert: false }
+      )
+      await db.collection('registeredDomains').updateOne(
+        { _id: domainName },
+        { $set: { 'val.nameservers': newNameservers, 'val.nameserverType': newNsType }, $unset: { 'val.cfZoneId': '' } },
+        { upsert: false }
+      )
+    } else {
+      await db.collection('domainsOf').updateOne(
+        { domainName },
+        { $set: updateFields },
+        { upsert: false }
+      )
+      await db.collection('registeredDomains').updateOne(
+        { _id: domainName },
+        { $set: { 'val.nameservers': newNameservers, 'val.nameserverType': newNsType } },
+        { upsert: false }
+      )
+    }
+  }
+
+  return { success: true, nameservers: newNameservers, nameserverType: newNsType }
+}
+
+/**
  * Update a single NS slot at the registrar.
  * For OP: replaces all nameservers (fetches current, swaps the slot, PUTs all).
  * For CR: calls the CR UpdateNameServer API.
