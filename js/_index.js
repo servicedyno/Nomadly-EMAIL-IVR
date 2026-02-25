@@ -6889,17 +6889,11 @@ bot?.on('message', async msg => {
       const nsIdx = nsRecords.findIndex(r => dnsRecords.indexOf(r) === id)
       const nsSlot = nsIdx >= 0 ? nsIdx + 1 : (nsId || 1)
 
-      if (dnsSource === 'openprovider' || info?.nameserverType === 'cloudflare') {
-        // Use domainService for OP or CF-managed OP domains
-        const result = await domainService.updateNameserverAtRegistrar(domain, nsSlot, recordContent, db)
-        if (result.error) return send(chatId, t.errorSavingDns(result.error))
-        if (result.useDefaultCR) {
-          // Fallback to CR direct
-          const { error } = await updateDNSRecord(dnszoneID, dnszoneRecordID, domain, recordType, recordContent, domainNameId, nsId, nsRecords, null)
-          if (error) return send(chatId, t.errorSavingDns(error))
-        }
-      } else {
-        // ConnectReseller direct
+      // Route ALL NS updates through updateNameserverAtRegistrar (handles both OP + CR)
+      const result = await domainService.updateNameserverAtRegistrar(domain, nsSlot, recordContent, db)
+      if (result.error) return send(chatId, t.errorSavingDns(result.error))
+      if (result.useDefaultCR) {
+        // Final fallback to legacy CR direct path (needs session-level domainNameId)
         const { error } = await updateDNSRecord(dnszoneID, dnszoneRecordID, domain, recordType, recordContent, domainNameId, nsId, nsRecords, null)
         if (error) return send(chatId, t.errorSavingDns(error))
       }
