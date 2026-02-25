@@ -686,9 +686,21 @@ metadata:
           agent: "testing"
           comment: "✅ CR NAMESERVER STALE-STATE REVERT BUG FIX VERIFIED: Comprehensive verification completed with 100% success rate (8/8 tests passed). ROOT CAUSE FIX CONFIRMED: All 4 specified locations in js/domain-service.js now use updateAllNameservers() instead of one-at-a-time updateDNSRecordNs() loops: (1) postRegistrationNSUpdate line 180 - CR block uses updateAllNameservers(domainName, nameservers, db), (2) backgroundNSVerify line 738 - CR else block uses updateAllNameservers(domainName, correctNS, null), (3) _createZoneAndUpdateNS line 778 - CR else block uses updateAllNameservers(domainName, cfNameservers, null), (4) switchToProviderDefault line 985 - CR block uses updateAllNameservers(domainName, crDefaultNS, null). VALIDATION CHECKS PASSED: updateDNSRecordNs appears exactly 2 times (lines 602, 619) only in updateNameserverAtRegistrar single-slot function as required. NO remaining for loops calling updateDNSRecordNs found. Node.js syntax validation passed. Backend service running healthy via supervisor. THE STALE-STATE REVERT BUG IS FIXED - CR nameserver updates now use atomic bulk API calls instead of iterative loops that used stale data."
 
+  - task: "Fix: DynoPay crypto fallback to BlockBee when DynoPay is down"
+    implemented: true
+    working: "NA"
+    file: "js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "DynoPay SSL cert broken (api.dynopay.com resolves to *.up.railway.app cert). All 10 crypto payment flows updated: wallet, digital product, virtual card, domain, hosting, VPS, VPS upgrade, plan, phone, leads. Each DynoPay else-branch now tries DynoPay first, and if getDynopayCryptoAddress returns no address, falls back to BlockBee via getCryptoDepositAddress(). Fallback tracks payment in chatIdOfPayment (BlockBee collection) instead of chatIdOfDynopayPayment, uses sendQrCode instead of generateQr. Log lines tagged [CryptoFallback]. Hosting payment also updates paymentIntents provider field to 'blockbee' on fallback."
+
 test_plan:
   current_focus:
-    - "Feature: Virtual Card — new Telegram bot menu item with full purchase flow"
+    - "Fix: DynoPay crypto fallback to BlockBee when DynoPay is down"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
