@@ -2575,9 +2575,17 @@ bot?.on('message', async msg => {
       set(state, chatId, 'action', a.redSelectCustomExt)
     },
 
-    submenu1: () => {
+    submenu1: async () => {
       set(state, chatId, 'action', a.submenu1)
-      send(chatId, t.urlShortenerSelect || t.select, trans('k.of', [[user.redBitly, user.redShortit], [user.urlShortener], [user.activateDomainShortener], [user.viewShortLinks]]))
+      const domains = await getPurchasedDomains(chatId)
+      const rows = [[user.redBitly, user.redShortit], [user.urlShortener]]
+      if (domains && domains.length > 0) {
+        rows.push([user.activateDomainShortener])
+      } else {
+        rows.push([`${user.activateDomainShortener} (Buy domain first)`])
+      }
+      rows.push([user.viewShortLinks])
+      send(chatId, t.urlShortenerSelect || t.select, trans('k.of', rows))
     },
     submenu2: () => {
       set(state, chatId, 'action', a.submenu2)
