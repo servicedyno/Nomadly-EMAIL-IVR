@@ -627,7 +627,8 @@ metadata:
           comment: "✅ NS UPDATE 400 ERROR FIX COMPREHENSIVE VERIFICATION COMPLETE: All implementation requirements validated with 94.1% success rate (16/17 tests passed). (1) Domain Service updateNameserverAtRegistrar() ConnectReseller handler correctly implemented at lines 463-509 in js/domain-service.js: requires './cr-domain-details-get' and './cr-dns-record-update-ns', calls getDomainDetails(domainName) to get CR's domainNameId, builds currentNSRecords array from rd.nameserver1-4, calls updateDNSRecordNs(rd.domainNameId, domainName, newValue, nsSlot, currentNSRecords), updates DB (domainsOf + registeredDomains collections) with new nameservers, only falls back to {useDefaultCR: true} if CR lookup fails. (2) _index.js NS update block (line 6886-6899): ALL NS updates route through domainService.updateNameserverAtRegistrar() with no OP/CF conditional branching, only falls back to legacy CR direct path if result.useDefaultCR is true, no more separate 'else { // ConnectReseller direct }' branch. (3) Required CR modules exist: cr-domain-details-get.js and cr-dns-record-update-ns.js both present. (4) Node.js service running healthy with supervisor status RUNNING, accessible at backend URL. THE NS UPDATE 400 ERROR FOR CR DOMAINS ON CLOUDFLARE DNS IS FIXED: ConnectReseller domains now properly look up domainNameId via CR API and update nameservers correctly instead of failing with 400 errors."
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Fix: viewDNSRecords auto-create zone updates both collections + cfZoneId-based CF routing"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
