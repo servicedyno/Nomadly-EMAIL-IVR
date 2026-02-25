@@ -6854,14 +6854,29 @@ bot?.on('message', async msg => {
   if (action === 'select-dns-record-id-to-update') {
     if (message === t.back || message === t.cancel) return goto['choose-dns-action']()
 
+    // Handle consolidated "Update Nameservers" button
+    if (message.startsWith('🔄 Update Nameservers')) {
+      return goto['dns-update-all-ns']()
+    }
+
     const dnsRecords = info?.dnsRecords
-    // Parse record number from button text like "1. A → 1.2.3.4" or plain number
+    // Non-NS records are numbered sequentially (NS records are excluded from numbering)
     const match = message.match(/^(\d+)/)
-    let id = match ? Number(match[1]) : NaN
-    if (isNaN(id) || !(id > 0 && id <= dnsRecords.length)) {
+    let num = match ? Number(match[1]) : NaN
+    if (isNaN(num) || num < 1) {
       return send(chatId, t.selectValidOption)
     }
-    id-- // User See id as 1,2,3 and we see as 0,1,2
+    // Map the non-NS sequential number back to the actual record index
+    let nonNsCount = 0
+    let id = -1
+    for (let i = 0; i < dnsRecords.length; i++) {
+      if (dnsRecords[i].recordType === 'NS') continue
+      nonNsCount++
+      if (nonNsCount === num) { id = i; break }
+    }
+    if (id < 0 || id >= dnsRecords.length) {
+      return send(chatId, t.selectValidOption)
+    }
     const record = dnsRecords[id]
     return goto['type-dns-record-data-to-update'](id, record?.recordType, record?.recordContent)
   }
