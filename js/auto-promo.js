@@ -328,106 +328,91 @@ Tapez <b>/start</b> maintenant`,
 
   zh: {
     showcase_morning: [
-      `<b>一个机器人，满足所有需求</b>
+      `<b>打造您的数字帝国 — 一站式解决方案</b>
 
-<b>域名</b>
-DMCA 忽略的离岸注册。400+ TLD。
-订阅计划可免费获得 .sbs/.xyz。
-点击 <b>注册域名</b>
+<b>离岸域名</b> — 注册 DMCA 忽略域名，400+ TLD 可选。订阅计划免费获得 .sbs/.xyz。
 
-<b>SHORTIT 短链接</b>
-5 个免费试用链接。自定义品牌 URL。
-实时点击分析。
-点击 <b>URL 缩短器</b>
+<b>Shortit 短链接</b> — 免费使用 5 个品牌链接。实时跟踪每次点击。
 
-<b>高质量电话线索</b>
-按国家、州、运营商筛选的验证线索。
-$20/1K 起。验证 $15/1K。
-点击 <b>购买有效线索</b>
+<b>CloudPhone</b> — 在 30+ 国家获取虚拟号码，支持 IVR、SMS 和 SIP，仅 $5/月起。
 
-<b>CLOUDPHONE by SpeechCue</b>
-30+ 国家的虚拟号码。IVR、SMS、SIP。
-$5/月起。
-点击 <b>CloudPhone</b>
+<b>数字产品</b> — Twilio、AWS、Google Cloud、Workspace、Zoho 等。30 分钟内交付。
 
-<b>数字产品</b>
-Twilio | Telnyx | AWS | Google Cloud
-Google Workspace | Zoho Mail | eSIM T-Mobile
-30 分钟内交付。
-点击 <b>数字产品</b>
+接受加密货币或法币支付。一切即时完成。
 
-输入 /start 开始探索`,
+输入 <b>/start</b> 开始探索`,
 
-      `<b>NOMADLY BOT — 全部服务</b>
+      `<b>一个机器人。无限可能。</b>
 
-<b>离岸域名</b> — 400+ TLD，零下架
-<b>Shortit 链接</b> — 5 个免费，之后无限
-<b>电话线索</b> — 批量购买和验证
+厌倦了在多个平台之间切换？Nomadly 将一切集于一处：
+
+<b>域名</b> — 400+ TLD，离岸保护
+<b>URL 缩短器</b> — 5 个免费链接起步
 <b>CloudPhone</b> — 虚拟号码 $5/月起
-<b>数字产品</b> — Twilio、Telnyx、AWS、GCloud、Workspace、Zoho、eSIM
+<b>数字商店</b> — Twilio、Telnyx、AWS、Google Cloud、Workspace、Zoho、eSIM
 
-加密货币、银行或钱包支付。
-全部通过机器人交付。
+接受加密货币支付。即时交付。
 
-输入 /start 开始`,
+现在输入 <b>/start</b>`,
 
-      `<b>您的数字工具箱</b>
+      `<b>使用 NOMADLY 扩展您的业务</b>
 
-域名 — DMCA 忽略，400+ TLD
-短链接 — 5 个免费，品牌 URL
-线索 — 按国家和运营商验证
-CloudPhone — IVR、SMS、SIP $5/月起
-数字商店 — 13 种产品，30 分钟交付
+获取在线成长所需的一切：
 
-一个机器人搞定一切。输入 /start`,
+<b>DMCA 忽略域名</b> — 400+ TLD 可用
+<b>品牌短链接</b> — 5 个免费试用链接
+<b>虚拟电话号码</b> — 30+ 国家，$5/月
+<b>高级数字产品</b> — Twilio、AWS、GCloud 等
+
+全部通过 Telegram 交付。接受加密货币或银行支付。
+
+输入 <b>/start</b> 开始`,
     ],
 
     showcase_afternoon: [
-      `<b>NOMADLY BOT — 您的数字工具箱</b>
+      `<b>高级数字产品 — 即时交付</b>
 
-<b>离岸域名</b> — 400+ TLD，零下架
-<b>Shortit 链接</b> — 5 个免费，订阅后无限
-<b>电话线索</b> — 批量购买和验证
-<b>CloudPhone</b> — 虚拟号码 $5/月起
-<b>数字商店：</b>
-  Twilio Main $450 | Sub $200
-  Telnyx Main $400 | Sub $150
-  AWS Main $400 | Sub $150
-  Google Cloud $300
-  Google Workspace $100 起
-  Zoho Mail $100 起
-  eSIM T-Mobile $60
-
-加密货币、银行或钱包支付。
-全部通过机器人交付。
-
-输入 /start 开始`,
-
-      `<b>一个机器人，所有工具</b>
-
-注册 DMCA 忽略域名 — 400+ TLD
-缩短链接 — 5 个免费品牌 URL
-购买验证线索 — $20/1K 起
-虚拟号码 — CloudPhone $5/月起
-
-<b>数字产品：</b>
-Twilio | Telnyx | AWS | Google Cloud
-Google Workspace | Zoho Mail | eSIM
-
-加密货币、银行或钱包。即时交付。
-输入 /start`,
-
-      `<b>别再在工具之间切换了</b>
-
-域名 + 短链接 + 线索 + CloudPhone + 数字产品 — 全在一个机器人里。
-
-Twilio $200 起 | Telnyx $150 起
-AWS $150 起 | Google Cloud $300
-Workspace $100 起 | Zoho $100 起
+<b>可用服务：</b>
+Twilio Main $450 | Sub $200
+Telnyx Main $400 | Sub $150
+AWS Main $400 | Sub $150
+Google Cloud $300
+Google Workspace $100 起
+Zoho Mail $100 起
 eSIM T-Mobile $60
 
-30 分钟内全部交付。
-输入 /start 探索`,
+<b>另外：</b>离岸域名（400+ TLD）、URL 缩短器（5 个免费）、CloudPhone（$5/月）。
+
+加密货币和银行支付。30 分钟内通过机器人交付。
+
+输入 <b>/start</b> 订购`,
+
+      `<b>在线运营所需的一切</b>
+
+<b>域名</b> — DMCA 忽略，400+ TLD 可用
+<b>短链接</b> — 5 个免费品牌 URL，带分析功能
+<b>虚拟号码</b> — CloudPhone 在 30+ 国家 $5/月起
+
+<b>数字商店：</b>
+Twilio、Telnyx、AWS、Google Cloud、Workspace、Zoho Mail、eSIM T-Mobile
+
+接受加密货币或银行支付。即时交付到您的 Telegram。
+
+输入 <b>/start</b> 探索`,
+
+      `<b>为什么用 10 个平台而一个就够了？</b>
+
+Nomadly Bot = 您完整的数字工具包。
+
+<b>获取：</b>离岸域名、品牌短链接、虚拟电话号码、高级数字产品。
+
+<b>价格：</b>
+Twilio $200 起 | AWS $150 起 | Telnyx $150 起
+Google Cloud $300 | Workspace $100+ | Zoho $100+
+
+全部在 30 分钟内交付。欢迎加密货币支付。
+
+现在输入 <b>/start</b>`,
     ],
   },
 
