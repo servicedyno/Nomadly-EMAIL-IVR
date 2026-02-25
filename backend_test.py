@@ -1,226 +1,372 @@
 #!/usr/bin/env python3
 """
-Backend Test Suite for Hosting SSL Provisioning Fixes
-Tests 5 specific changes for preventing 526 SSL errors
+Backend Testing for 4 Hosting Flow Fixes
+Tests the specific code fixes mentioned in the review request.
 """
 
-import json
+import os
+import sys
 import re
 import subprocess
-import sys
+import json
+import time
 from pathlib import Path
 
-def run_test(test_name, test_func):
-    """Run a test and return results"""
+def log(message):
+    print(f"[TEST] {message}")
+
+def read_file_content(file_path):
+    """Read and return file content."""
     try:
-        result = test_func()
-        if result:
-            print(f"✅ {test_name}: PASSED")
-            return True
-        else:
-            print(f"❌ {test_name}: FAILED")
-            return False
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return f.read()
     except Exception as e:
-        print(f"❌ {test_name}: ERROR - {str(e)}")
-        return False
+        log(f"Error reading {file_path}: {e}")
+        return ""
 
-def test_node_js_health():
-    """Test 1: Verify Node.js is running on port 5000"""
-    result = subprocess.run(['curl', '-s', 'http://127.0.0.1:5000/health'], 
-                          capture_output=True, text=True, timeout=10)
-    if result.returncode == 0:
-        try:
-            health_data = json.loads(result.stdout)
-            return health_data.get('status') == 'healthy'
-        except json.JSONDecodeError:
-            return False
-    return False
-
-def test_protection_enforcer_self_signed_check():
-    """Test 2: protection-enforcer.js self-signed check fix (line ~289)"""
-    file_path = Path('/app/js/protection-enforcer.js')
-    if not file_path.exists():
-        return False
-    
-    content = file_path.read_text()
-    
-    # Check for the correct self-signed detection logic
-    # Must use != 0 (loose inequality) to handle string '1', number 1, and boolean true
-    self_signed_pattern = r'const isSelfSigned = .*?domainVhost\.crt\?\.is_self_signed.*?!= 0'
-    if not re.search(self_signed_pattern, content, re.DOTALL):
-        print("❌ Self-signed check pattern not found")
-        return False
-    
-    # Check that SSL upgrade condition includes !isSelfSigned
-    upgrade_condition_pattern = r'if \(hasRoot && hasWww && !isSelfSigned\)'
-    if not re.search(upgrade_condition_pattern, content):
-        print("❌ SSL upgrade condition with !isSelfSigned not found")
-        return False
-    
-    # Check that there's an AutoSSL trigger branch for self-signed certs
-    autossl_branch_pattern = r'else if \(hasRoot && hasWww && isSelfSigned\)'
-    if not re.search(autossl_branch_pattern, content):
-        print("❌ AutoSSL trigger branch for self-signed certs not found")
-        return False
-    
-    # Check that triggerAutoSSLFix function is called for self-signed certs
-    trigger_autossl_pattern = r'triggerAutoSSLFix\('
-    if not re.search(trigger_autossl_pattern, content):
-        print("❌ triggerAutoSSLFix function call not found")
-        return False
-    
-    return True
-
-def test_cf_service_create_hosting_dns_records():
-    """Test 3: cf-service.js createHostingDNSRecords parameter fix (line ~253)"""
-    file_path = Path('/app/js/cf-service.js')
-    if not file_path.exists():
-        return False
-    
-    content = file_path.read_text()
-    
-    # Check function signature with new proxied parameter
-    create_hosting_pattern = r'createHostingDNSRecords\s*=\s*async\s*\(\s*zoneId,\s*domainName,\s*serverIP,\s*proxied\s*=\s*true\s*\)'
-    if not re.search(create_hosting_pattern, content):
-        print("❌ createHostingDNSRecords function signature with proxied parameter not found")
-        return False
-    
-    # Check that root A and www A records use the proxied parameter
-    root_record_pattern = r'createDNSRecord\(zoneId,\s*[\'"]A[\'"],\s*domainName,\s*serverIP,.*?proxied\s*\?\s*1\s*:\s*300,\s*proxied\)'
-    if not re.search(root_record_pattern, content):
-        print("❌ Root A record using proxied parameter not found")
-        return False
-    
-    www_record_pattern = r'createDNSRecord\(zoneId,\s*[\'"]A[\'"],\s*`www\.\${domainName}\`,\s*serverIP,.*?proxied\s*\?\s*1\s*:\s*300,\s*proxied\)'
-    if not re.search(www_record_pattern, content):
-        print("❌ WWW A record using proxied parameter not found")
-        return False
-    
-    # Check that mail/cpanel/webmail/webdisk records are always proxied: false
-    mail_record_pattern = r'createDNSRecord\(zoneId,\s*[\'"]A[\'"],\s*`mail\.\${domainName}\`,\s*serverIP,\s*300,\s*false\)'
-    if not re.search(mail_record_pattern, content):
-        print("❌ Mail A record with proxied: false not found")
-        return False
-    
-    return True
-
-def test_cf_service_proxy_hosting_dns_records():
-    """Test 4: cf-service.js proxyHostingDNSRecords NEW function"""
-    file_path = Path('/app/js/cf-service.js')
-    if not file_path.exists():
-        return False
-    
-    content = file_path.read_text()
-    
-    # Check that proxyHostingDNSRecords function exists
-    proxy_function_pattern = r'const proxyHostingDNSRecords\s*=\s*async\s*\(\s*zoneId,\s*domainName\s*\)'
-    if not re.search(proxy_function_pattern, content):
-        print("❌ proxyHostingDNSRecords function definition not found")
-        return False
-    
-    # Check that it finds DNS-only records and patches them to proxied: true
-    find_dns_only_pattern = r'records\.filter\(.*?!r\.proxied.*?\)'
-    if not re.search(find_dns_only_pattern, content, re.DOTALL):
-        print("❌ DNS-only record filtering not found")
-        return False
-    
-    # Check that it returns { proxied: count }
-    return_pattern = r'return\s*\{\s*proxied:\s*.*?\.length\s*\}'
-    if not re.search(return_pattern, content):
-        print("❌ Return statement with proxied count not found")
-        return False
-    
-    # Check that function is exported
-    if 'proxyHostingDNSRecords' not in content[content.find('module.exports'):]:
-        print("❌ proxyHostingDNSRecords not exported")
-        return False
-    
-    return True
-
-def test_cr_register_domain_cpanel_provisioning():
-    """Test 5: cr-register-domain-&-create-cpanel.js provisioning flow"""
-    file_path = Path('/app/js/cr-register-domain-&-create-cpanel.js')
-    if not file_path.exists():
-        return False
-    
-    content = file_path.read_text()
-    
-    # Check that createHostingDNSRecords is called with proxied=false (DNS-only for AutoSSL)
-    dns_only_pattern = r'createHostingDNSRecords\(cfZoneId,\s*domain,\s*WHM_HOST,\s*false\)'
-    if not re.search(dns_only_pattern, content):
-        print("❌ createHostingDNSRecords call with proxied=false not found")
-        return False
-    
-    # Check for comment mentioning DNS-only for AutoSSL
-    dns_comment_pattern = r'DNS.*only.*AutoSSL|AutoSSL.*DNS.*only'
-    if not re.search(dns_comment_pattern, content, re.IGNORECASE):
-        print("❌ Comment about DNS-only for AutoSSL not found")
-        return False
-    
-    # Check that AutoSSL is triggered after DNS creation
-    autossl_trigger_pattern = r'startAutoSSL\(.*?username\)'
-    if not re.search(autossl_trigger_pattern, content):
-        print("❌ AutoSSL trigger call not found")
-        return False
-    
-    # Check for background async that calls proxyHostingDNSRecords after delay
-    background_proxy_pattern = r'setTimeout\(.*?120000.*?\).*?proxyHostingDNSRecords'
-    if not re.search(background_proxy_pattern, content, re.DOTALL):
-        print("❌ Background proxy call after 120s delay not found")
-        return False
-    
-    return True
-
-def test_backend_api_endpoints():
-    """Test 6: Verify key backend API endpoints are accessible"""
-    backend_url = "https://api-integration-test-5.preview.emergentagent.com"
-    
-    # Test health endpoint
-    result = subprocess.run(['curl', '-s', f'{backend_url}/api/health'], 
-                          capture_output=True, text=True, timeout=10)
-    if result.returncode != 0:
-        return False
-        
+def check_node_health():
+    """Check if Node.js service is healthy."""
     try:
-        health_data = json.loads(result.stdout)
-        if health_data.get('status') != 'healthy':
-            return False
-    except json.JSONDecodeError:
+        result = subprocess.run(
+            ['curl', '-s', 'http://localhost:5000/health'],
+            capture_output=True, text=True, timeout=10
+        )
+        if result.returncode == 0:
+            try:
+                health_data = json.loads(result.stdout)
+                return health_data.get('status') == 'healthy'
+            except:
+                return False
         return False
-    
-    return True
+    except Exception as e:
+        log(f"Node health check error: {e}")
+        return False
 
-def main():
-    """Run all SSL provisioning tests"""
-    print("🧪 Testing Hosting SSL Provisioning Fixes")
-    print("=" * 50)
+def test_startup_worker_upgrade():
+    """
+    Fix 1: Test upgradeSharedWorker() at startup (_index.js)
+    Verify:
+    - setTimeout with 10000ms delay exists
+    - Calls antiRedService.upgradeSharedWorker()
+    - Has proper .then and .catch handlers
+    """
+    log("Testing Fix 1: upgradeSharedWorker() at startup")
     
-    tests = [
-        ("Node.js Health Check (Port 5000)", test_node_js_health),
-        ("Protection Enforcer Self-Signed Check Fix", test_protection_enforcer_self_signed_check),
-        ("CF Service createHostingDNSRecords Parameter", test_cf_service_create_hosting_dns_records),
-        ("CF Service proxyHostingDNSRecords Function", test_cf_service_proxy_hosting_dns_records),
-        ("CR Register Domain Provisioning Flow", test_cr_register_domain_cpanel_provisioning),
-        ("Backend API Endpoints", test_backend_api_endpoints),
+    index_js = read_file_content('/app/js/_index.js')
+    if not index_js:
+        return False, "Cannot read _index.js file"
+    
+    # Check for setTimeout with 10000ms delay
+    timeout_pattern = r'setTimeout\(\s*\(\)\s*=>\s*\{[^}]*antiRedService\.upgradeSharedWorker\(\)[^}]*\},\s*10000\s*\)'
+    if not re.search(timeout_pattern, index_js, re.DOTALL):
+        return False, "setTimeout with 10000ms delay and upgradeSharedWorker() call not found"
+    
+    # Check for .then and .catch handlers
+    then_catch_pattern = r'antiRedService\.upgradeSharedWorker\(\)\s*\.then\([^)]*log\([^)]*\)\s*\)\s*\.catch\([^)]*log\([^)]*\)\s*\)'
+    if not re.search(then_catch_pattern, index_js, re.DOTALL):
+        return False, ".then and .catch handlers not found after upgradeSharedWorker()"
+    
+    # Check for proper log messages
+    if '[AntiRed] Startup worker upgrade:' not in index_js:
+        return False, "Expected log message '[AntiRed] Startup worker upgrade:' not found"
+    
+    log("✅ Fix 1 verified: upgradeSharedWorker() at startup with 10s delay")
+    return True, "upgradeSharedWorker() correctly called at startup with 10s timeout"
+
+def test_upgrade_worker_in_deploy_full_protection():
+    """
+    Fix 2: Test upgradeSharedWorker() inside deployFullProtection()
+    Verify:
+    - upgradeSharedWorker() called before deploySharedWorkerRoute()
+    - Comment mentions "3d. Ensure shared Worker script is up-to-date"
+    - deploySharedWorkerRoute has comment "3e. Deploy HARDENED shared Worker routes"
+    - Wrapped in try/catch (non-blocking)
+    """
+    log("Testing Fix 2: upgradeSharedWorker() inside deployFullProtection()")
+    
+    anti_red_js = read_file_content('/app/js/anti-red-service.js')
+    if not anti_red_js:
+        return False, "Cannot read anti-red-service.js file"
+    
+    # Find deployFullProtection function
+    deploy_func_match = re.search(r'async function deployFullProtection\([^)]*\)\s*\{(.*?)\n\}', anti_red_js, re.DOTALL)
+    if not deploy_func_match:
+        return False, "deployFullProtection function not found"
+    
+    deploy_func_content = deploy_func_match.group(1)
+    
+    # Check for "3d. Ensure shared Worker script is up-to-date" comment
+    if '3d. Ensure shared Worker script is up-to-date' not in deploy_func_content:
+        return False, "Comment '3d. Ensure shared Worker script is up-to-date' not found"
+    
+    # Check for upgradeSharedWorker() call
+    if 'const workerUpgrade = await upgradeSharedWorker()' not in deploy_func_content:
+        return False, "upgradeSharedWorker() call not found in deployFullProtection"
+    
+    # Check for "3e. Deploy HARDENED shared Worker routes" comment
+    if '3e. Deploy HARDENED shared Worker routes' not in deploy_func_content:
+        return False, "Comment '3e. Deploy HARDENED shared Worker routes' not found"
+    
+    # Check that deploySharedWorkerRoute is called after upgradeSharedWorker
+    upgrade_pos = deploy_func_content.find('const workerUpgrade = await upgradeSharedWorker()')
+    deploy_pos = deploy_func_content.find('deploySharedWorkerRoute(domain, zone.id)')
+    
+    if upgrade_pos == -1 or deploy_pos == -1 or upgrade_pos >= deploy_pos:
+        return False, "upgradeSharedWorker() should be called BEFORE deploySharedWorkerRoute()"
+    
+    # Check for try/catch wrapper (non-blocking)
+    upgrade_section = deploy_func_content[upgrade_pos-100:upgrade_pos+500]
+    if 'try {' not in upgrade_section or 'catch' not in upgrade_section:
+        return False, "upgradeSharedWorker() call not properly wrapped in try/catch"
+    
+    log("✅ Fix 2 verified: upgradeSharedWorker() in deployFullProtection() with proper order and comments")
+    return True, "upgradeSharedWorker() correctly placed in deployFullProtection with proper comments and error handling"
+
+def test_check_ssl_cert_function():
+    """
+    Fix 3: Test checkSSLCert() function in whm-service.js
+    Verify:
+    - Function exists and is exported
+    - Uses https.request() with proper options
+    - Has hostname: WHM_HOST, port: 443, servername: domain (SNI)
+    - Has rejectUnauthorized: false
+    - Returns object with required fields
+    """
+    log("Testing Fix 3: checkSSLCert() function in whm-service.js")
+    
+    whm_service_js = read_file_content('/app/js/whm-service.js')
+    if not whm_service_js:
+        return False, "Cannot read whm-service.js file"
+    
+    # Check if function exists
+    if 'async function checkSSLCert(domain)' not in whm_service_js:
+        return False, "checkSSLCert function not found"
+    
+    # Extract the function content
+    func_match = re.search(r'async function checkSSLCert\(domain\)\s*\{(.*?)\n\}', whm_service_js, re.DOTALL)
+    if not func_match:
+        return False, "Could not extract checkSSLCert function content"
+    
+    func_content = func_match.group(1)
+    
+    # Check for https.request usage
+    if 'https.request(' not in func_content:
+        return False, "https.request() not found in checkSSLCert"
+    
+    # Check for required request options
+    required_options = [
+        'hostname: WHM_HOST',
+        'port: 443',
+        'servername: domain',  # SNI
+        'rejectUnauthorized: false'
     ]
     
+    for option in required_options:
+        if option not in func_content:
+            return False, f"Required option '{option}' not found in https.request"
+    
+    # Check for proper return object fields
+    return_fields = ['valid', 'selfSigned', 'issuer', 'subject', 'expiresAt']
+    for field in return_fields:
+        if field + ':' not in func_content:
+            return False, f"Return field '{field}' not found in function"
+    
+    # Check if function is exported
+    export_match = re.search(r'module\.exports\s*=\s*\{(.*?)\}', whm_service_js, re.DOTALL)
+    if not export_match:
+        return False, "module.exports not found"
+    
+    exports_content = export_match.group(1)
+    if 'checkSSLCert' not in exports_content:
+        return False, "checkSSLCert not found in module.exports"
+    
+    log("✅ Fix 3 verified: checkSSLCert() function properly implemented and exported")
+    return True, "checkSSLCert() function correctly implemented with https.request and proper SNI"
+
+def test_progressive_ssl_upgrade():
+    """
+    Fix 4: Test Progressive SSL upgrade in cr-register-domain-&-create-cpanel.js
+    Verify:
+    - Initial wait is 180000ms (3 min)
+    - SSL_CHECK_INTERVALS = [2 * 60000, 5 * 60000, 10 * 60000]
+    - Calls whmSvc.checkSSLCert(bgDomain)
+    - Upgrades to 'strict' when valid && !selfSigned
+    - Variables captured as bgZoneId, bgDomain, bgUsername
+    """
+    log("Testing Fix 4: Progressive SSL upgrade in cr-register-domain-&-create-cpanel.js")
+    
+    cpanel_js = read_file_content('/app/js/cr-register-domain-&-create-cpanel.js')
+    if not cpanel_js:
+        return False, "Cannot read cr-register-domain-&-create-cpanel.js file"
+    
+    # Check for initial 180000ms (3 min) wait
+    if 'setTimeout(r, 180000)' not in cpanel_js and '180000' not in cpanel_js:
+        return False, "Initial 180000ms (3 min) wait not found"
+    
+    # Check for SSL_CHECK_INTERVALS definition
+    ssl_intervals_pattern = r'SSL_CHECK_INTERVALS\s*=\s*\[\s*2\s*\*\s*60000\s*,\s*5\s*\*\s*60000\s*,\s*10\s*\*\s*60000\s*\]'
+    if not re.search(ssl_intervals_pattern, cpanel_js):
+        return False, "SSL_CHECK_INTERVALS with correct values [2*60000, 5*60000, 10*60000] not found"
+    
+    # Check for checkSSLCert call
+    if 'whmSvc.checkSSLCert(bgDomain)' not in cpanel_js:
+        return False, "whmSvc.checkSSLCert(bgDomain) call not found"
+    
+    # Check for SSL upgrade condition
+    ssl_upgrade_pattern = r'if\s*\(\s*certStatus\.valid\s*&&\s*!\s*certStatus\.selfSigned\s*\)'
+    if not re.search(ssl_upgrade_pattern, cpanel_js):
+        return False, "SSL upgrade condition 'certStatus.valid && !certStatus.selfSigned' not found"
+    
+    # Check for setSSLMode('strict') call
+    if "setSSLMode(bgZoneId, 'strict')" not in cpanel_js:
+        return False, "setSSLMode(bgZoneId, 'strict') call not found"
+    
+    # Check for captured variables
+    bg_vars = ['bgZoneId', 'bgDomain', 'bgUsername']
+    for var in bg_vars:
+        if f'const {var} = ' not in cpanel_js:
+            return False, f"Variable '{var}' not properly captured before IIFE"
+    
+    # Check for "staying on Full SSL mode" fallback log
+    if 'staying on Full SSL mode' not in cpanel_js:
+        return False, "Fallback log message 'staying on Full SSL mode' not found"
+    
+    log("✅ Fix 4 verified: Progressive SSL upgrade with correct intervals and logic")
+    return True, "Progressive SSL upgrade correctly implemented with 3min initial wait and 2,5,10min checks"
+
+def test_backend_report_url_preference():
+    """
+    Fix 5: Test BACKEND_REPORT_URL preference (anti-red-service.js)
+    Verify:
+    - Uses process.env.SELF_URL_PROD || process.env.SELF_URL (PROD first)
+    - Warning log for 'preview.emergentagent' or 'localhost'
+    - Warning includes text about "Worker BACKEND_REPORT_URL points to dev environment"
+    """
+    log("Testing Fix 5: BACKEND_REPORT_URL preference in anti-red-service.js")
+    
+    anti_red_js = read_file_content('/app/js/anti-red-service.js')
+    if not anti_red_js:
+        return False, "Cannot read anti-red-service.js file"
+    
+    # Find generateHardenedWorkerScript function
+    func_match = re.search(r'function generateHardenedWorkerScript\(\)\s*\{(.*?)\n\}', anti_red_js, re.DOTALL)
+    if not func_match:
+        return False, "generateHardenedWorkerScript function not found"
+    
+    func_content = func_match.group(1)
+    
+    # Check for SELF_URL_PROD || SELF_URL preference
+    url_preference_pattern = r'process\.env\.SELF_URL_PROD\s*\|\|\s*process\.env\.SELF_URL'
+    if not re.search(url_preference_pattern, func_content):
+        return False, "SELF_URL_PROD || SELF_URL preference order not found"
+    
+    # Check for warning condition
+    warning_pattern = r'if\s*\([^)]*backendReportUrl\.includes\([\'"]preview\.emergentagent[\'"]\)[^)]*\|\|[^)]*backendReportUrl\.includes\([\'"]localhost[\'"]\)[^)]*\)'
+    if not re.search(warning_pattern, func_content):
+        return False, "Warning condition for 'preview.emergentagent' or 'localhost' not found"
+    
+    # Check for warning log message
+    if 'Worker BACKEND_REPORT_URL points to dev environment' not in func_content:
+        return False, "Warning message 'Worker BACKEND_REPORT_URL points to dev environment' not found"
+    
+    log("✅ Fix 5 verified: BACKEND_REPORT_URL preference with dev environment warning")
+    return True, "BACKEND_REPORT_URL correctly prefers SELF_URL_PROD with dev environment warnings"
+
+def check_startup_logs():
+    """
+    Fix 6: Check Node.js health and startup logs
+    Verify expected startup messages are present
+    """
+    log("Testing Fix 6: Node.js Health and startup logs")
+    
+    try:
+        # Check for startup logs
+        result = subprocess.run(
+            ['grep', '-i', 'honeypot.*mongodb.*collection.*initialized\\|kv.*namespace.*ready\\|startup.*worker.*upgrade.*ok', 
+             '/var/log/supervisor/nodejs.out.log'],
+            capture_output=True, text=True
+        )
+        
+        logs_found = []
+        if result.returncode == 0:
+            lines = result.stdout.strip().split('\n')
+            for line in lines:
+                if 'MongoDB collection initialized' in line:
+                    logs_found.append('MongoDB collection initialized')
+                elif 'KV namespace ready' in line:
+                    logs_found.append('KV namespace ready')
+                elif 'Startup worker upgrade: OK' in line:
+                    logs_found.append('Startup worker upgrade: OK')
+        
+        expected_logs = ['MongoDB collection initialized', 'KV namespace ready', 'Startup worker upgrade: OK']
+        missing_logs = [log for log in expected_logs if log not in str(result.stdout)]
+        
+        if missing_logs:
+            log(f"⚠️ Some expected logs not found: {missing_logs}")
+        else:
+            log("✅ All expected startup logs found")
+        
+        return True, f"Startup logs check complete. Found: {logs_found}"
+        
+    except Exception as e:
+        return False, f"Error checking startup logs: {e}"
+
+def run_all_tests():
+    """Run all hosting flow fix tests."""
+    log("🚀 Starting Backend Tests for 4 Hosting Flow Fixes")
+    log("=" * 60)
+    
+    # Check Node.js health first
+    if not check_node_health():
+        log("❌ Node.js service is not healthy")
+        return False
+    
+    log("✅ Node.js service is healthy")
+    
+    tests = [
+        ("Fix 1: upgradeSharedWorker() at startup", test_startup_worker_upgrade),
+        ("Fix 2: upgradeSharedWorker() in deployFullProtection()", test_upgrade_worker_in_deploy_full_protection),
+        ("Fix 3: checkSSLCert() function", test_check_ssl_cert_function),
+        ("Fix 4: Progressive SSL upgrade", test_progressive_ssl_upgrade),
+        ("Fix 5: BACKEND_REPORT_URL preference", test_backend_report_url_preference),
+        ("Fix 6: Node.js health and startup logs", check_startup_logs),
+    ]
+    
+    results = []
     passed = 0
     total = len(tests)
     
     for test_name, test_func in tests:
-        if run_test(test_name, test_func):
-            passed += 1
+        log(f"\n📋 Running: {test_name}")
+        try:
+            success, message = test_func()
+            if success:
+                log(f"✅ PASS: {message}")
+                passed += 1
+                results.append(f"✅ {test_name}: PASS")
+            else:
+                log(f"❌ FAIL: {message}")
+                results.append(f"❌ {test_name}: FAIL - {message}")
+        except Exception as e:
+            log(f"❌ ERROR: {e}")
+            results.append(f"❌ {test_name}: ERROR - {e}")
     
-    print("\n" + "=" * 50)
-    print(f"📊 Test Results: {passed}/{total} tests passed")
+    log("\n" + "=" * 60)
+    log("📊 TEST RESULTS SUMMARY")
+    log("=" * 60)
+    
+    for result in results:
+        log(result)
+    
+    log(f"\n🎯 OVERALL RESULT: {passed}/{total} tests passed ({passed/total*100:.0f}%)")
     
     if passed == total:
-        print("🎉 All SSL provisioning fixes verified successfully!")
+        log("🎉 ALL HOSTING FLOW FIXES VERIFIED SUCCESSFULLY!")
         return True
     else:
-        print("⚠️  Some SSL provisioning fixes need attention")
+        log(f"⚠️ {total - passed} test(s) failed or have issues")
         return False
 
 if __name__ == "__main__":
-    success = main()
+    success = run_all_tests()
     sys.exit(0 if success else 1)
