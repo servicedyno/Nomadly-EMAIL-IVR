@@ -30,6 +30,15 @@ const PhoneTestPage = () => {
   const [ownUsername, setOwnUsername] = useState('');
   const [ownPassword, setOwnPassword] = useState('');
 
+  // Reviews state
+  const [reviews, setReviews] = useState([]);
+  const [reviewStars, setReviewStars] = useState(0);
+  const [reviewHover, setReviewHover] = useState(0);
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewName, setReviewName] = useState('');
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewSubmitted, setReviewSubmitted] = useState(false);
+
   const clientRef = useRef(null);
   const callRef = useRef(null);
   const timerRef = useRef(null);
