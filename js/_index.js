@@ -4927,8 +4927,15 @@ bot?.on('message', async msg => {
   // Virtual Card: enter amount
   if (action === a.vcEnterAmount) {
     if (message === t.back || message === t.cancel) return goto.displayMainMenuButtons()
+
+    // Handle "Custom Amount" button — re-prompt for manual entry
+    if (message === '✏️ Custom Amount') {
+      return send(chatId, '💵 Enter the amount you\'d like to load ($50 – $1,000):', k.vcAmount)
+    }
+
+    // Parse amount from preset buttons ($50, $100, etc.) or manual input
     const amount = parseFloat(message.replace(/[^0-9.]/g, ''))
-    if (isNaN(amount) || amount < 50 || amount > 1000) return send(chatId, t.vcInvalidAmount)
+    if (isNaN(amount) || amount < 50 || amount > 1000) return send(chatId, t.vcInvalidAmount, k.vcAmount)
     await saveInfo('vcAmount', amount)
     const fee = amount < 200 ? 20 : Math.round(amount * 0.1 * 100) / 100
     const total = Math.round((amount + fee) * 100) / 100
