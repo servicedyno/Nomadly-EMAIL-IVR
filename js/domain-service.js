@@ -458,10 +458,55 @@ const updateNameserverAtRegistrar = async (domainName, nsSlot, newValue, db) => 
     return result
   }
 
-  // Default: ConnectReseller
-  // CR uses the existing cr-dns-record-update-ns flow
-  // (handled by the caller in _index.js passing nsId + nsRecords)
-  return { useDefaultCR: true }
+  // ConnectReseller: look up domainNameId + current NS from CR API directly
+  // (session state may not have CR data if domain DNS is managed via Cloudflare)
+  try {
+    const getDomainDetails = require('./cr-domain-details-get')
+    const { updateDNSRecordNs } = require('./cr-dns-record-update-ns')
+
+    const details = await getDomainDetails(domainName)
+    const rd = details?.responseData
+    if (!rd || !rd.domainNameId) {
+      log(`[updateNameserverAtRegistrar] CR domain lookup failed for ${domainName}`)
+      return { useDefaultCR: true }
+    }
+
+    // Build current NS array from CR response
+    const currentNSRecords = []
+    if (rd.nameserver1) currentNSRecords.push({ nsId: 1, recordContent: rd.nameserver1 })
+    if (rd.nameserver2) currentNSRecords.push({ nsId: 2, recordContent: rd.nameserver2 })
+    if (rd.nameserver3) currentNSRecords.push({ nsId: 3, recordContent: rd.nameserver3 })
+    if (rd.nameserver4) currentNSRecords.push({ nsId: 4, recordContent: rd.nameserver4 })
+
+    log(`[updateNameserverAtRegistrar] CR domain ${domainName}: domainNameId=${rd.domainNameId}, slot=${nsSlot} → ${newValue}`)
+    const result = await updateDNSRecordNs(rd.domainNameId, domainName, newValue, nsSlot, currentNSRecords)
+
+    if (result.success) {
+      // Build updated NS list for DB
+      const updatedNS = [...(meta?.nameservers || [])]
+      const idx = nsSlot - 1
+      while (updatedNS.length <= idx) updatedNS.push('')
+      updatedNS[idx] = newValue
+      const filtered = updatedNS.filter(Boolean)
+      if (db) {
+        await db.collection('domainsOf').updateOne(
+          { domainName },
+          { $set: { nameservers: filtered } },
+          { upsert: false }
+        )
+        await db.collection('registeredDomains').updateOne(
+          { _id: domainName },
+          { $set: { 'val.nameservers': filtered } },
+          { upsert: false }
+        )
+      }
+      return { success: true }
+    }
+    return result
+  } catch (err) {
+    log(`[updateNameserverAtRegistrar] CR path error for ${domainName}:`, err.message)
+    return { useDefaultCR: true }
+  }
 }
 
 // ─── Migrate records helper ─────────────────────────────
