@@ -1,349 +1,285 @@
 #!/usr/bin/env python3
 """
-Backend Testing Script for DNS Routing Fixes
-Testing both fixes mentioned in the review request:
-
-FIX 1: viewDNSRecords auto-create zone updates BOTH collections
-FIX 2: cfZoneId-based CF routing for external/non-standard nameserverType
-
-Key components tested:
-1. viewDNSRecords auto-create zone path updates both registeredDomains and domainsOf
-2. All CF routing checks use (nameserverType === 'cloudflare' || cfZoneId) && cfZoneId pattern
-3. Auto-normalization when nameserverType !== 'cloudflare' but cfZoneId exists
-4. Node.js service health
+Backend Test Suite for Bulk NS Update Feature
+Tests the new bulk NS update functionality as specified in the review request.
 """
 
 import os
 import sys
-import requests
 import json
-from pathlib import Path
+import requests
+import logging
 
-# Backend URL from environment
-BACKEND_URL = "https://env-config-setup-3.preview.emergentagent.com"
+# Setup logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-def log_test(name, status, details=""):
-    """Log test results with consistent formatting"""
-    status_emoji = "✅" if status == "PASS" else "❌" if status == "FAIL" else "⚠️"
-    print(f"{status_emoji} {status}: {name}")
-    if details:
-        print(f"   Details: {details}")
+# Load backend URL from frontend .env
+def get_backend_url():
+    """Get backend URL from frontend/.env file"""
+    env_path = "/app/frontend/.env"
+    if os.path.exists(env_path):
+        with open(env_path, 'r') as f:
+            for line in f:
+                if line.startswith('REACT_APP_BACKEND_URL='):
+                    return line.split('=', 1)[1].strip()
+    return "http://localhost:5000"
 
-def test_node_service_health():
-    """Test 1: Verify Node.js service is running and accessible"""
+BACKEND_URL = get_backend_url()
+API_BASE = f"{BACKEND_URL}/api" if not BACKEND_URL.endswith('/api') else BACKEND_URL
+
+def test_node_health():
+    """Test Node.js service health"""
     try:
-        # Test health endpoint
-        health_url = f"{BACKEND_URL}/api/health"
-        response = requests.get(health_url, timeout=10)
-        
+        response = requests.get(f"{BACKEND_URL}/health", timeout=10)
+        logger.info(f"Health check: {response.status_code}")
         if response.status_code == 200:
-            log_test("Node.js Service Health Check", "PASS", f"Service accessible at {BACKEND_URL}")
+            try:
+                health_data = response.json()
+                logger.info(f"Health data: {health_data}")
+                return True
+            except:
+                # Some endpoints return HTML instead of JSON
+                logger.info("Health endpoint returned HTML (likely React app), service is running")
+                return True
+        return False
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return False
+
+def test_domain_service_module():
+    """Test that domain-service.js module loads and exports updateAllNameservers"""
+    logger.info("Testing domain-service.js module structure...")
+    
+    # Check if file exists and can be read
+    domain_service_path = "/app/js/domain-service.js"
+    if not os.path.exists(domain_service_path):
+        logger.error(f"domain-service.js not found at {domain_service_path}")
+        return False
+    
+    try:
+        with open(domain_service_path, 'r') as f:
+            content = f.read()
+        
+        # Check for updateAllNameservers function definition
+        if 'const updateAllNameservers = async' not in content:
+            logger.error("updateAllNameservers function not found in domain-service.js")
+            return False
+        
+        # Check if it's exported in module.exports
+        if 'updateAllNameservers,' not in content:
+            logger.error("updateAllNameservers not exported in module.exports")
+            return False
+        
+        # Check function signature
+        if 'updateAllNameservers = async (domainName, newNameservers, db)' not in content:
+            logger.error("updateAllNameservers function signature incorrect")
+            return False
+        
+        # Check for OpenProvider path
+        if 'opService.updateNameservers(domainName, newNameservers)' not in content:
+            logger.error("OpenProvider integration missing in updateAllNameservers")
+            return False
+        
+        # Check for ConnectReseller path
+        if 'getDomainDetails = require(\'./cr-domain-details-get\')' not in content:
+            logger.error("ConnectReseller getDomainDetails requirement missing")
+            return False
+        
+        # Check CR API call
+        if 'UpdateNameServer' not in content or 'axios.get' not in content:
+            logger.error("ConnectReseller UpdateNameServer API call missing")
+            return False
+        
+        # Check nameserver type detection
+        if 'const isCloudflare = newNameservers.some(ns => ns.toLowerCase().includes(\'cloudflare\'))' not in content:
+            logger.error("Nameserver type detection logic missing")
+            return False
+        
+        # Check DB update logic
+        if '$unset: { cfZoneId: \'\' }' not in content:
+            logger.error("cfZoneId unset logic for non-cloudflare nameservers missing")
+            return False
+        
+        logger.info("✅ domain-service.js updateAllNameservers function correctly implemented")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error reading domain-service.js: {e}")
+        return False
+
+def test_index_js_bulk_ns_ui():
+    """Test _index.js for bulk NS update UI implementation"""
+    logger.info("Testing _index.js bulk NS update UI...")
+    
+    index_path = "/app/js/_index.js"
+    if not os.path.exists(index_path):
+        logger.error(f"_index.js not found at {index_path}")
+        return False
+    
+    try:
+        with open(index_path, 'r') as f:
+            content = f.read()
+        
+        # Check for goto 'select-dns-record-id-to-update' implementation
+        if "'select-dns-record-id-to-update': () => {" not in content:
+            logger.error("select-dns-record-id-to-update goto function missing")
+            return False
+        
+        # Check NS records consolidation
+        if '🔄 Update Nameservers' not in content:
+            logger.error("Update Nameservers button not found")
+            return False
+        
+        # Check that NS records are not listed individually
+        if 'recordBtns.push([`🔄 Update Nameservers (${nsPreview})`])' not in content:
+            logger.error("NS records consolidation logic missing")
+            return False
+        
+        # Check non-NS records numbering
+        if 'records.forEach((r, i) => {\n        if (r.recordType === \'NS\') return' not in content:
+            logger.error("Non-NS records numbering logic missing")
+            return False
+        
+        # Check for goto 'dns-update-all-ns' implementation
+        if "'dns-update-all-ns': () => {" not in content:
+            logger.error("dns-update-all-ns goto function missing")
+            return False
+        
+        # Check current NS display
+        if 'Current nameservers:' not in content:
+            logger.error("Current nameservers display missing")
+            return False
+        
+        # Check for multi-line input prompt
+        if 'Enter all new nameservers (one per line, min 2, max 4):' not in content:
+            logger.error("Multi-line nameserver input prompt missing")
+            return False
+        
+        # Check action handler for update nameservers button
+        if "if (message.startsWith('🔄 Update Nameservers')) {" not in content:
+            logger.error("Update Nameservers button handler missing")
+            return False
+        
+        # Check goto call from button handler
+        if "return goto['dns-update-all-ns']()" not in content:
+            logger.error("Button handler goto call missing")
+            return False
+        
+        # Check dns-update-all-ns action handler
+        if "if (action === 'dns-update-all-ns') {" not in content:
+            logger.error("dns-update-all-ns action handler missing")
+            return False
+        
+        # Check back/cancel handling
+        if "if (message === t.back || message === t.cancel) return goto['select-dns-record-id-to-update']()" not in content:
+            logger.error("Back/cancel handling missing in dns-update-all-ns")
+            return False
+        
+        # Check multi-line parsing
+        if "const lines = message.trim().split(/[\\n\\r]+/).map(s => s.trim()).filter(Boolean)" not in content:
+            logger.error("Multi-line input parsing missing")
+            return False
+        
+        # Check validation (2-4 entries)
+        if "if (lines.length < 2 || lines.length > 4)" not in content:
+            logger.error("Nameserver count validation missing")
+            return False
+        
+        # Check FQDN validation
+        if "const fqdnRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)+\\.?$/" not in content:
+            logger.error("FQDN validation regex missing")
+            return False
+        
+        # Check normalization
+        if "const newNS = lines.map(ns => ns.toLowerCase().replace(/\\.$/, ''))" not in content:
+            logger.error("Nameserver normalization missing")
+            return False
+        
+        # Check domainService.updateAllNameservers call
+        if "const result = await domainService.updateAllNameservers(domain, newNS, db)" not in content:
+            logger.error("domainService.updateAllNameservers call missing")
+            return False
+        
+        # Check non-NS record mapping
+        if 'let nonNsCount = 0' not in content or 'if (nonNsCount === num) { id = i; break }' not in content:
+            logger.error("Non-NS record sequential mapping logic missing")
+            return False
+        
+        logger.info("✅ _index.js bulk NS update UI correctly implemented")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error reading _index.js: {e}")
+        return False
+
+def test_node_starts_cleanly():
+    """Test that Node.js starts without syntax errors"""
+    logger.info("Testing Node.js startup...")
+    
+    # Check if the service is running by making a health request
+    try:
+        response = requests.get(f"{BACKEND_URL}/health", timeout=5)
+        if response.status_code == 200:
+            logger.info("✅ Node.js service is running and responding to health checks")
             return True
         else:
-            log_test("Node.js Service Health Check", "FAIL", f"HTTP {response.status_code}")
+            logger.error(f"Node.js service responded with status {response.status_code}")
             return False
     except requests.exceptions.RequestException as e:
-        log_test("Node.js Service Health Check", "FAIL", f"Connection error: {e}")
+        logger.error(f"❌ Node.js service is not responding: {e}")
         return False
 
-def test_fix1_viewdns_both_collections():
-    """Test FIX 1: viewDNSRecords auto-create zone updates BOTH collections"""
-    domain_service_path = "/app/js/domain-service.js"
+def run_all_tests():
+    """Run all bulk NS update tests"""
+    logger.info("🚀 Starting Bulk NS Update Feature Test Suite")
     
-    try:
-        with open(domain_service_path, 'r') as f:
-            content = f.read()
+    tests = [
+        ("Node.js Health Check", test_node_health),
+        ("domain-service.js updateAllNameservers Function", test_domain_service_module),
+        ("_index.js Bulk NS Update UI", test_index_js_bulk_ns_ui),
+        ("Node.js Starts Cleanly", test_node_starts_cleanly),
+    ]
+    
+    results = []
+    passed = 0
+    
+    for test_name, test_func in tests:
+        logger.info(f"\n{'='*60}")
+        logger.info(f"Running: {test_name}")
+        logger.info(f"{'='*60}")
         
-        # Find the auto-create zone section around line 260-278
-        lines = content.split('\n')
-        auto_create_section = None
-        
-        # Look for the auto-create zone logic
-        for i, line in enumerate(lines):
-            if "Cloudflare NS but no zone yet — try to auto-create zone" in line:
-                # Get the next 30 lines to capture both DB updates
-                auto_create_section = '\n'.join(lines[i:i+30])
-                break
-        
-        if not auto_create_section:
-            log_test("FIX 1 - Auto-create section found", "FAIL", "Auto-create zone section not found")
-            return 0, 1
-            
-        # Check for both collection updates
-        checks = [
-            ("registeredDomains update", "db.collection('registeredDomains').updateOne" in auto_create_section),
-            ("domainsOf update", "db.collection('domainsOf').updateOne" in auto_create_section),
-            ("cfZoneId set in registeredDomains", "'val.cfZoneId': cfResult.zoneId" in auto_create_section),
-            ("cfZoneId set in domainsOf", "cfZoneId: cfResult.zoneId" in auto_create_section),
-            ("nameservers set in registeredDomains", "'val.nameservers': newNS" in auto_create_section),
-            ("nameservers set in domainsOf", "nameservers: newNS" in auto_create_section)
-        ]
-        
-        passed = 0
-        failed = 0
-        
-        for check_name, condition in checks:
-            if condition:
-                log_test(f"FIX 1 - {check_name}", "PASS")
+        try:
+            result = test_func()
+            results.append((test_name, "PASS" if result else "FAIL"))
+            if result:
                 passed += 1
+                logger.info(f"✅ {test_name}: PASSED")
             else:
-                log_test(f"FIX 1 - {check_name}", "FAIL")
-                failed += 1
-        
-        return passed, failed
-        
-    except Exception as e:
-        log_test("FIX 1 - Code Review", "FAIL", f"Error reading file: {e}")
-        return 0, 1
-
-def test_fix2_cfzoneid_routing():
-    """Test FIX 2: cfZoneId-based CF routing pattern in all locations"""
-    domain_service_path = "/app/js/domain-service.js"
-    
-    try:
-        with open(domain_service_path, 'r') as f:
-            content = f.read()
-        
-        # Check for the new CF routing pattern in specific locations
-        expected_locations = [
-            # Location 1: viewDNSRecords isCfManaged check
-            ("viewDNSRecords isCfManaged", "const isCfManaged = (meta?.nameserverType === 'cloudflare' || meta?.cfZoneId) && meta?.cfZoneId"),
-            
-            # Location 2: addDNSRecord NS handler
-            ("addDNSRecord NS handler", "recordType === 'NS' && (meta?.nameserverType === 'cloudflare' || meta?.cfZoneId)"),
-            
-            # Location 3: addDNSRecord CF path
-            ("addDNSRecord CF path", "if ((meta?.nameserverType === 'cloudflare' || meta?.cfZoneId) && meta?.cfZoneId)"),
-            
-            # Location 4: updateDNSRecord
-            ("updateDNSRecord CF check", "if ((meta?.nameserverType === 'cloudflare' || meta?.cfZoneId) && meta?.cfZoneId && recordData.cfRecordId)"),
-            
-            # Location 5: deleteDNSRecord
-            ("deleteDNSRecord CF check", "if ((meta?.nameserverType === 'cloudflare' || meta?.cfZoneId) && meta?.cfZoneId && recordData.cfRecordId)"),
-            
-            # Location 6: switchToCloudflare
-            ("switchToCloudflare CF check", "if ((meta.nameserverType === 'cloudflare' || meta.cfZoneId) && meta.cfZoneId)"),
-            
-            # Location 7: ensureCloudflare
-            ("ensureCloudflare CF check", "if ((meta.nameserverType === 'cloudflare' || meta.cfZoneId) && meta.cfZoneId)"),
-            
-            # Location 8: switchToProviderDefault (negated form)
-            ("switchToProviderDefault CF check", "if (!(meta.nameserverType === 'cloudflare' || meta.cfZoneId) || !meta.cfZoneId)"),
-            
-            # Location 9: addShortenerCNAME
-            ("addShortenerCNAME CF check", "if ((meta?.nameserverType === 'cloudflare' || meta?.cfZoneId) && meta?.cfZoneId)")
-        ]
-        
-        passed = 0
-        failed = 0
-        
-        for check_name, pattern in expected_locations:
-            if pattern in content:
-                log_test(f"FIX 2 - {check_name}", "PASS")
-                passed += 1
-            else:
-                log_test(f"FIX 2 - {check_name}", "FAIL", f"Pattern not found: {pattern}")
-                failed += 1
-        
-        return passed, failed
-        
-    except Exception as e:
-        log_test("FIX 2 - Code Review", "FAIL", f"Error reading file: {e}")
-        return 0, 1
-
-def test_auto_normalization():
-    """Test auto-normalization logic when nameserverType !== 'cloudflare' but cfZoneId exists"""
-    domain_service_path = "/app/js/domain-service.js"
-    
-    try:
-        with open(domain_service_path, 'r') as f:
-            content = f.read()
-        
-        # Check for auto-normalization logic in viewDNSRecords
-        checks = [
-            ("Normalization condition check", "if (meta.nameserverType !== 'cloudflare' && db)" in content),
-            ("Normalization log message", "normalizing to 'cloudflare'" in content),
-            ("domainsOf normalization", "await db.collection('domainsOf').updateOne({ domainName }, { $set: { nameserverType: 'cloudflare' } }, { upsert: false })" in content),
-            ("registeredDomains normalization", "await db.collection('registeredDomains').updateOne({ _id: domainName }, { $set: { 'val.nameserverType': 'cloudflare' } }, { upsert: false })" in content)
-        ]
-        
-        passed = 0
-        failed = 0
-        
-        for check_name, condition in checks:
-            if condition:
-                log_test(f"Auto-normalization - {check_name}", "PASS")
-                passed += 1
-            else:
-                log_test(f"Auto-normalization - {check_name}", "FAIL")
-                failed += 1
-        
-        return passed, failed
-        
-    except Exception as e:
-        log_test("Auto-normalization - Code Review", "FAIL", f"Error reading file: {e}")
-        return 0, 1
-
-def test_no_old_patterns():
-    """Test that no old CF routing patterns remain"""
-    domain_service_path = "/app/js/domain-service.js"
-    
-    try:
-        with open(domain_service_path, 'r') as f:
-            content = f.read()
-        
-        # Search for old patterns that should have been replaced
-        old_patterns = [
-            "nameserverType === 'cloudflare' && meta?.cfZoneId",
-            "nameserverType === 'cloudflare' && cfZoneId",
-            "meta.nameserverType === 'cloudflare' && meta.cfZoneId"
-        ]
-        
-        found_old_patterns = []
-        for pattern in old_patterns:
-            if pattern in content:
-                found_old_patterns.append(pattern)
-        
-        if found_old_patterns:
-            log_test("No old CF routing patterns", "FAIL", f"Found old patterns: {found_old_patterns}")
-            return 0, 1
-        else:
-            log_test("No old CF routing patterns", "PASS", "All old patterns successfully replaced")
-            return 1, 0
-        
-    except Exception as e:
-        log_test("Old patterns check", "FAIL", f"Error reading file: {e}")
-        return 0, 1
-
-def test_checkdns_conflict_cfzoneid():
-    """Test that checkDNSConflict uses meta?.cfZoneId directly (should remain unchanged)"""
-    domain_service_path = "/app/js/domain-service.js"
-    
-    try:
-        with open(domain_service_path, 'r') as f:
-            content = f.read()
-        
-        # checkDNSConflict should use meta?.cfZoneId directly
-        if "if (!meta?.cfZoneId) return { hasConflict: false }" in content:
-            log_test("checkDNSConflict cfZoneId usage", "PASS", "Uses meta?.cfZoneId directly as expected")
-            return 1, 0
-        else:
-            log_test("checkDNSConflict cfZoneId usage", "FAIL", "checkDNSConflict pattern not found")
-            return 0, 1
-        
-    except Exception as e:
-        log_test("checkDNSConflict check", "FAIL", f"Error reading file: {e}")
-        return 0, 1
-
-def test_supervisor_service():
-    """Test supervisor status for nodejs service"""
-    try:
-        import subprocess
-        result = subprocess.run(['sudo', 'supervisorctl', 'status', 'nodejs'], 
-                               capture_output=True, text=True, timeout=10)
-        
-        if result.returncode == 0 and 'RUNNING' in result.stdout:
-            log_test("Supervisor nodejs Service", "PASS", "Service is RUNNING")
-            return True
-        else:
-            log_test("Supervisor nodejs Service", "FAIL", f"Status: {result.stdout.strip()}")
-            return False
-    except Exception as e:
-        log_test("Supervisor nodejs Service", "FAIL", f"Error checking status: {e}")
-        return False
-
-def run_comprehensive_dns_routing_test():
-    """Run all DNS routing fix tests and provide summary"""
-    print("🧪 COMPREHENSIVE DNS ROUTING FIXES TESTING")
-    print("=" * 60)
-    print("Testing two specific fixes:")
-    print("FIX 1: viewDNSRecords auto-create zone updates BOTH collections")
-    print("FIX 2: cfZoneId-based CF routing for external/non-standard nameserverType")
-    print(f"Backend URL: {BACKEND_URL}")
-    print("=" * 60)
-    
-    total_passed = 0
-    total_failed = 0
-    
-    # Test 1: Service Health
-    print("\n📡 SERVICE HEALTH TESTS")
-    print("-" * 30)
-    if test_node_service_health():
-        total_passed += 1
-    else:
-        total_failed += 1
-        
-    if test_supervisor_service():
-        total_passed += 1
-    else:
-        total_failed += 1
-    
-    # Test 2: FIX 1 - viewDNSRecords both collections update
-    print("\n🔧 FIX 1: viewDNSRecords Auto-Create Zone Updates BOTH Collections")
-    print("-" * 60)
-    
-    fix1_passed, fix1_failed = test_fix1_viewdns_both_collections()
-    total_passed += fix1_passed
-    total_failed += fix1_failed
-    
-    # Test 3: FIX 2 - cfZoneId-based CF routing
-    print("\n🔧 FIX 2: cfZoneId-based CF Routing Pattern")
-    print("-" * 50)
-    
-    fix2_passed, fix2_failed = test_fix2_cfzoneid_routing()
-    total_passed += fix2_passed
-    total_failed += fix2_failed
-    
-    # Test 4: Auto-normalization
-    print("\n🔄 AUTO-NORMALIZATION LOGIC")
-    print("-" * 30)
-    
-    norm_passed, norm_failed = test_auto_normalization()
-    total_passed += norm_passed
-    total_failed += norm_failed
-    
-    # Test 5: No old patterns remain
-    print("\n🧹 OLD PATTERNS CLEANUP")
-    print("-" * 25)
-    
-    cleanup_passed, cleanup_failed = test_no_old_patterns()
-    total_passed += cleanup_passed
-    total_failed += cleanup_failed
-    
-    # Test 6: checkDNSConflict unchanged
-    print("\n✅ UNCHANGED FUNCTIONS")
-    print("-" * 20)
-    
-    unchanged_passed, unchanged_failed = test_checkdns_conflict_cfzoneid()
-    total_passed += unchanged_passed
-    total_failed += unchanged_failed
+                logger.error(f"❌ {test_name}: FAILED")
+        except Exception as e:
+            results.append((test_name, "ERROR"))
+            logger.error(f"💥 {test_name}: ERROR - {e}")
     
     # Summary
-    print("\n" + "=" * 60)
-    print("📊 DNS ROUTING FIXES TEST SUMMARY")
-    print("=" * 60)
-    success_rate = (total_passed / (total_passed + total_failed)) * 100 if (total_passed + total_failed) > 0 else 0
+    logger.info(f"\n{'='*60}")
+    logger.info(f"TEST SUMMARY")
+    logger.info(f"{'='*60}")
     
-    print(f"✅ PASSED: {total_passed}")
-    print(f"❌ FAILED: {total_failed}")
-    print(f"📈 SUCCESS RATE: {success_rate:.1f}%")
+    for test_name, status in results:
+        status_icon = "✅" if status == "PASS" else "❌" if status == "FAIL" else "💥"
+        logger.info(f"{status_icon} {test_name}: {status}")
     
-    if total_failed == 0:
-        print("\n🎉 ALL TESTS PASSED - BOTH DNS ROUTING FIXES ARE CORRECTLY IMPLEMENTED")
-        print("\n📋 VERIFICATION SUMMARY:")
-        print("✅ FIX 1: viewDNSRecords auto-create zone updates BOTH registeredDomains AND domainsOf collections")
-        print("✅ FIX 2: All CF routing checks now use (nameserverType === 'cloudflare' || cfZoneId) && cfZoneId pattern")
-        print("✅ Auto-normalization when nameserverType !== 'cloudflare' but cfZoneId exists")
-        print("✅ No old CF routing patterns remain")
-        print("✅ Node.js service running cleanly")
+    success_rate = (passed / len(tests)) * 100
+    logger.info(f"\nSuccess Rate: {passed}/{len(tests)} ({success_rate:.1f}%)")
+    
+    if passed == len(tests):
+        logger.info("🎉 ALL TESTS PASSED - Bulk NS update feature is ready!")
         return True
-    elif success_rate >= 80:
-        print(f"\n⚠️  MOSTLY WORKING - {total_failed} issue(s) need attention")
-        return False
     else:
-        print(f"\n❌ SIGNIFICANT ISSUES - {total_failed} critical problems found")
+        logger.error(f"⚠️ {len(tests) - passed} TEST(S) FAILED - Issues need to be addressed")
         return False
 
 if __name__ == "__main__":
-    success = run_comprehensive_dns_routing_test()
+    success = run_all_tests()
     sys.exit(0 if success else 1)
