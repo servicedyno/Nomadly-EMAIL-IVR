@@ -701,6 +701,18 @@ metadata:
           agent: "testing"
           comment: "✅ CR NAMESERVER STALE-STATE REVERT BUG FIX VERIFIED: Comprehensive verification completed with 100% success rate (8/8 tests passed). ROOT CAUSE FIX CONFIRMED: All 4 specified locations in js/domain-service.js now use updateAllNameservers() instead of one-at-a-time updateDNSRecordNs() loops: (1) postRegistrationNSUpdate line 180 - CR block uses updateAllNameservers(domainName, nameservers, db), (2) backgroundNSVerify line 738 - CR else block uses updateAllNameservers(domainName, correctNS, null), (3) _createZoneAndUpdateNS line 778 - CR else block uses updateAllNameservers(domainName, cfNameservers, null), (4) switchToProviderDefault line 985 - CR block uses updateAllNameservers(domainName, crDefaultNS, null). VALIDATION CHECKS PASSED: updateDNSRecordNs appears exactly 2 times (lines 602, 619) only in updateNameserverAtRegistrar single-slot function as required. NO remaining for loops calling updateDNSRecordNs found. Node.js syntax validation passed. Backend service running healthy via supervisor. THE STALE-STATE REVERT BUG IS FIXED - CR nameserver updates now use atomic bulk API calls instead of iterative loops that used stale data."
 
+  - task: "Fix: showDepositCryptoInfo wallet template missing USD amount"
+    implemented: true
+    working: "NA"
+    file: "js/lang/en.js, js/lang/fr.js, js/lang/zh.js, js/lang/hi.js, js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "showDepositCryptoInfo (wallet funding) was the only crypto template missing USD amount. Fixed template in all 4 lang files: added priceUsd param, updated body to show Payment Amount $XX.XX USD. Updated all 4 callers to pass amount (USD). Also fixed Hindi which had undefined priceUsd."
+
   - task: "Fix: DynoPay crypto fallback to BlockBee when DynoPay is down"
     implemented: true
     working: "NA"
