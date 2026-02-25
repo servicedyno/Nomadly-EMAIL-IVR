@@ -6423,7 +6423,7 @@ bot?.on('message', async msg => {
     // Custom NS domains: only allow Switch to CF + Update NS (for nameserver changes)
     const nsType = info?.nameserverType
     if (nsType === 'custom' && ![t.updateDns, t.switchToCf, t.switchToProviderDefault].includes(message)) {
-      return send(chatId, 'DNS records are managed by your custom nameserver provider. You can only update nameservers or switch to Cloudflare.')
+      return send(chatId, 'DNS records are managed by your custom nameserver provider. You can only update nameservers or switch DNS provider.')
     }
 
     if (message === t.switchToCf) {
@@ -6434,6 +6434,17 @@ bot?.on('message', async msg => {
       }
       send(chatId, t.switchToCfConfirm(domain), trans('yes_no'))
       set(state, chatId, 'action', 'confirm-switch-to-cloudflare')
+      return
+    }
+
+    if (message === t.switchToProviderDefault) {
+      const domain = info?.domainToManage
+      const nsType = info?.nameserverType
+      if (nsType !== 'cloudflare') {
+        return send(chatId, t.switchToProviderAlreadyProvider || 'Already using provider default DNS.')
+      }
+      send(chatId, t.switchToProviderConfirm(domain), trans('yes_no'))
+      set(state, chatId, 'action', 'confirm-switch-to-provider-default')
       return
     }
 
