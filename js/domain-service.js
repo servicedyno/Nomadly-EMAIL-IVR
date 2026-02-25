@@ -700,7 +700,7 @@ const switchToCloudflare = async (domainName, db) => {
   const meta = await getDomainMeta(domainName, db)
   if (!meta) return { error: 'Domain metadata not found' }
 
-  if (meta.nameserverType === 'cloudflare' && meta.cfZoneId) {
+  if ((meta.nameserverType === 'cloudflare' || meta.cfZoneId) && meta.cfZoneId) {
     return { error: 'Domain is already using Cloudflare DNS' }
   }
 
