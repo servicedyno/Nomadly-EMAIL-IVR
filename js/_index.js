@@ -4765,6 +4765,11 @@ bot?.on('message', async msg => {
     return goto.submenu6()
   }
 
+  // ━━━ Virtual Card ━━━
+  if (message === user.virtualCard || message === '💳 Virtual Card') {
+    return goto['virtual-card-start']()
+  }
+
   // Digital Products: product selection
   if (action === a.submenu6) {
     if (message === t.back || message === t.cancel) return goto.displayMainMenuButtons()
