@@ -6457,7 +6457,19 @@ bot?.on('message', async msg => {
       if (nsType !== 'cloudflare') {
         return send(chatId, t.switchToProviderAlreadyProvider || 'Already using provider default DNS.')
       }
-      send(chatId, t.switchToProviderConfirm(domain), trans('yes_no'))
+      // Check if shortener is active — root CNAME won't work without CF CNAME flattening
+      const dnsData = await domainService.viewDNSRecords(domain, db)
+      const hasShortener = (dnsData?.records || []).some(r =>
+        r.recordType === 'CNAME' && r.recordContent && r.recordContent.includes('.up.railway.app')
+      )
+      let confirmMsg = t.switchToProviderConfirm(domain)
+      if (hasShortener) {
+        confirmMsg += `\n\n⚠️ <b>Warning:</b> Your URL shortener is active on this domain. Provider DNS does not support root CNAME flattening like Cloudflare. <b>The shortener will be deactivated</b> and the domain removed from Railway.`
+      }
+      send(chatId, confirmMsg, trans('yes_no'))
+      if (hasShortener) {
+        await set(state, chatId, 'switchToProviderDeactivateShortener', true)
+      }
       set(state, chatId, 'action', 'confirm-switch-to-provider-default')
       return
     }
