@@ -611,8 +611,21 @@ metadata:
           agent: "testing"
           comment: "✅ BOTH RAILWAY & SHORTENER FIXES FULLY VERIFIED: Comprehensive testing completed with 100% success rate (24/24 tests passed). FIX 1 - Railway already-exists handling (6/6 tests): (1) getExistingRailwayCNAME function correctly implemented with GraphQL query to domains(projectId, serviceId, environmentId) → customDomains → dnsRecords → requiredValue. (2) Returns { server: cname, recordType: 'CNAME' } when found or null on error/not found. (3) isAlreadyExists branch in saveDomainInServerRailway() calls getExistingRailwayCNAME(domain) FIRST, returns existing result if found, only falls back to remove+re-create if null. (4) Proper error handling with try/catch and logging. FIX 2 - Shortener A/CNAME conflict resolution (13/13 tests): (1) addShortenerCNAME function correctly implemented in domain-service.js with signature (domainName, cnameTarget, db) and properly exported. (2) Uses checkDNSConflict to detect A/AAAA records at root, deletes conflicting records before adding CNAME. (3) Creates CNAME with cfService.createDNSRecord proxied for CF CNAME flattening. (4) Returns { success: true } or { error: 'message' }. (5) ALL 5 shortener callsites in _index.js verified using addShortenerCNAME: QuickActivateShortener (line ~5670), ActivateShortener DNS menu (line ~6538), DomainActionShortener (line ~11128), buyDomainFullProcess (line ~11637), addDnsForShortener helper (line ~14761). (6) NO domainService.addDNSRecord in shortener contexts - all legitimate DNS management uses (MX, user CNAME creation) correctly preserved. (7) Node.js service loads cleanly with all modules syntactically correct. BOTH FIXES WORKING CORRECTLY."
 
+  - task: "Fix: NS update 400 for CR domains on Cloudflare DNS"
+    implemented: true
+    working: true
+    file: "js/domain-service.js, js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Root cause: @pacelolx tried to update NS for qbreverse.com (ConnectReseller domain on Cloudflare DNS). updateNameserverAtRegistrar() only handled OpenProvider domains and returned {useDefaultCR:true} for everything else. The fallback CR path in _index.js needed domainNameId from session state, but for CF-managed domains this was never populated (DNS records fetched from CF, not CR). Fix: (1) Added ConnectReseller handler in updateNameserverAtRegistrar() — looks up CR domainNameId via getDomainDetails(), builds NS array from CR response, calls updateDNSRecordNs() with proper params, updates DB. (2) Simplified _index.js NS update flow — all NS updates now route through updateNameserverAtRegistrar() which handles both OP and CR, with legacy CR direct path only as final fallback."
+
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Fix: NS update 400 for CR domains on Cloudflare DNS"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
