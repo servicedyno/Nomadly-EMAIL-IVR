@@ -13798,6 +13798,44 @@ app.post('/dynopay/crypto-pay-digital-product', authDyno, async (req, res) => {
   res.send(html())
 })
 
+app.post('/dynopay/crypto-pay-virtual-card', authDyno, async (req, res) => {
+  const { ref, chatId, price, product, orderId } = req.pay
+  const { amount: value, currency: coin, payment_id: id } = req.body
+  log({ method: 'dynopay/crypto-pay-virtual-card', ref, chatId, product, price, coin, value })
+  if (!ref || !chatId || !product || !price || !coin || !value) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
+  const info = await state.findOne({ _id: parseFloat(chatId) })
+  const lang = info?.userLanguage ?? 'en'
+  const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
+  del(chatIdOfDynopayPayment, ref)
+  const name = await get(nameOf, chatId)
+  set(payments, ref, `Crypto,VirtualCard,${product},$${price},${chatId},${name},${new Date()},${value} ${coin},transaction,${id}`)
+  const ticker = tickerViewOfDyno[coin]
+  const baseAmount = req.body.base_amount
+  const feePayer = req.body.fee_payer
+  let usdIn
+  if (baseAmount && feePayer === 'company') {
+    usdIn = parseFloat(baseAmount)
+  } else {
+    usdIn = await convert(value, ticker, 'usd')
+  }
+  if (usdIn * 1.06 < price) {
+    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
+    addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
+    return res.send(html(translation('t.lowPrice')))
+  }
+  if (usdIn > price) {
+    addFundsTo(walletOf, chatId, 'usd', usdIn - price, lang)
+    sendMessage(chatId, translation('t.sentMoreMoney', lang, `$${price}`, `$${usdIn}`))
+  }
+  const vcAmount = info?.vcAmount || 0
+  const vcAddress = info?.vcAddress || ''
+  await digitalOrdersCol.updateOne({ orderId }, { $set: { status: 'pending', paymentConfirmedAt: new Date() } })
+  sendMessage(chatId, translation('t.vcOrderConfirmed', lang, vcAmount, price, orderId))
+  notifyGroup(`💳 <b>Virtual Card Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b> (Crypto)\n📬 Address:\n<pre>${vcAddress}</pre>\n\n📩 Deliver with:\n<code>/deliver ${orderId} [card details]</code>`)
+  webhookTierCheck(chatId, preSpend, lang)
+  res.send(html())
+})
+
 
 // Dynopay wallet 
 app.post('/dynopay/crypto-wallet', authDyno, async (req, res) => {
