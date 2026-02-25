@@ -12,6 +12,42 @@ const PROJECT_ID = process.env.RAILWAY_PROJECT_ID
 const SERVICE_ID = process.env.RAILWAY_SERVICE_ID
 const GRAPHQL_ENDPOINT = 'https://backboard.railway.app/graphql/v2'
 
+/**
+ * Query Railway for an existing custom domain's CNAME target.
+ * Returns { server, recordType } if found, or null.
+ */
+async function getExistingRailwayCNAME(domain) {
+  try {
+    const query = `query {
+      domains(projectId: "${PROJECT_ID}", serviceId: "${SERVICE_ID}", environmentId: "${ENVIRONMENT_ID}") {
+        customDomains {
+          domain
+          status {
+            dnsRecords {
+              requiredValue
+              recordType
+            }
+          }
+        }
+      }
+    }`
+    const res = await axios.post(GRAPHQL_ENDPOINT, { query }, {
+      headers: { Authorization: `Bearer ${API_TOKEN}`, 'Content-Type': 'application/json' },
+      timeout: 15000,
+    })
+    const customDomains = res.data?.data?.domains?.customDomains || []
+    const match = customDomains.find(d => d.domain === domain)
+    if (match) {
+      const cname = match.status?.dnsRecords?.[0]?.requiredValue
+      if (cname) return { server: cname, recordType: 'CNAME' }
+    }
+    return null
+  } catch (err) {
+    log(`[Railway] getExistingRailwayCNAME error for ${domain}: ${err.message}`)
+    return null
+  }
+}
+
 const saveDomainInServerRender = async domain => {
   const url = `https://api.render.com/v1/services/${DOMAINS_CONNECT_TO_RENDER_SERVICE_ID}/custom-domains`
   const payload = { name: domain }
