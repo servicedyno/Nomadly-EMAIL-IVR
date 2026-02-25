@@ -2025,14 +2025,17 @@ bot?.on('message', async msg => {
       const _bc = [t.backButton || '⬅️ Back']
       let kbRows
       if (nameserverType === 'custom') {
-        // Custom nameservers: DNS is managed externally, only allow NS changes
+        // Custom nameservers: DNS is managed externally, allow NS changes to either CF or provider
         kbRows = [[t.updateDns]]
-        if (nameserverType !== 'cloudflare') kbRows.push([t.switchToCf])
+        kbRows.push([t.switchToCf])
+        kbRows.push([t.switchToProviderDefault])
         kbRows.push(_bc)
       } else {
         // Cloudflare or provider_default: full DNS management
         kbRows = [[t.quickActions], [t.checkDns], [t.addDns], [t.updateDns], [t.deleteDns]]
-        if (nameserverType !== 'cloudflare') {
+        if (nameserverType === 'cloudflare') {
+          kbRows.push([t.switchToProviderDefault])
+        } else {
           kbRows.push([t.switchToCf])
         }
         kbRows.push([shortenerBtn], _bc)
