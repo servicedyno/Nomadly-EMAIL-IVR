@@ -12680,6 +12680,37 @@ const bankApis = {
     webhookTierCheck(chatId, preSpend, lang)
     res.send(html())
   },
+  '/bank-pay-virtual-card': async (req, res, ngnIn) => {
+    const { ref, chatId, price, product, orderId } = req.pay || {}
+    if (!ref || !chatId || !price || !product || !orderId) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
+    const info = await state.findOne({ _id: parseFloat(chatId) })
+    const lang = info?.userLanguage ?? 'en'
+    const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
+
+    del(chatIdOfPayment, ref)
+    const usdIn = await ngnToUsd(ngnIn)
+    const name = await get(nameOf, chatId)
+    set(payments, ref, `Bank,VirtualCard,${product},$${usdIn},${chatId},${name},${new Date()},${ngnIn} NGN`)
+
+    const ngnPrice = await usdToNgn(price)
+    if (usdIn * 1.06 < price) {
+      sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`))
+      addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
+      return res.send(html(translation('t.lowPrice')))
+    }
+    if (ngnIn > ngnPrice) {
+      addFundsTo(walletOf, chatId, 'ngn', ngnIn - ngnPrice, lang)
+      sendMessage(chatId, translation('t.sentMoreMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`))
+    }
+
+    const vcAmount = info?.vcAmount || 0
+    const vcAddress = info?.vcAddress || ''
+    await digitalOrdersCol.updateOne({ orderId }, { $set: { status: 'pending', paymentConfirmedAt: new Date() } })
+    sendMessage(chatId, translation('t.vcOrderConfirmed', lang, vcAmount, price, orderId))
+    notifyGroup(`💳 <b>Virtual Card Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b> (Bank)\n📬 Address:\n<pre>${vcAddress}</pre>\n\n📩 Deliver with:\n<code>/deliver ${orderId} [card details]</code>`)
+    webhookTierCheck(chatId, preSpend, lang)
+    res.send(html())
+  },
   '/bank-wallet': async (req, res, ngnIn) => {
     // Validate
     const { ref, chatId } = req.pay
