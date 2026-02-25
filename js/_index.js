@@ -6271,15 +6271,28 @@ bot?.on('message', async msg => {
       const ref = nanoid()
       if (BLOCKBEE_CRYTPO_PAYMENT_ON === 'true') {
         const coin = tickerOf[ticker]
-        const { address, bb } = await getCryptoDepositAddress(coin, chatId, SELF_URL, `/crypto-pay-domain?a=b&ref=${ref}&`)
-        if (!address) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
-        set(chatIdOfPayment, ref, { chatId, price, domain })
-        saveInfo('ref', ref)
-        log({ ref })
-        await sendQrCode(bot, chatId, bb, info?.userLanguage ?? 'en')
-        set(state, chatId, 'action', 'none')
-        const priceCrypto = await convert(price, 'usd', coin)
-        return send(chatId, t.showDepositCryptoInfoDomain(price, priceCrypto, ticker, address, domain), trans('o'))
+        const bbResult = await getCryptoDepositAddress(coin, chatId, SELF_URL, `/crypto-pay-domain?a=b&ref=${ref}&`)
+        if (bbResult?.address) {
+          set(chatIdOfPayment, ref, { chatId, price, domain })
+          saveInfo('ref', ref)
+          log({ ref })
+          await sendQrCode(bot, chatId, bbResult.bb, info?.userLanguage ?? 'en')
+          set(state, chatId, 'action', 'none')
+          const priceCrypto = await convert(price, 'usd', coin)
+          return send(chatId, t.showDepositCryptoInfoDomain(price, priceCrypto, ticker, bbResult.address, domain), trans('o'))
+        } else {
+          log('[CryptoFallback] BlockBee unavailable for domain, falling back to DynoPay')
+          const dynoCoin = tickerOfDyno[ticker]
+          const dynoResult = await getDynopayCryptoAddress(price, dynoCoin, `${SELF_URL}/dynopay/crypto-pay-domain`, { "product_name": dynopayActions.payDomain, "refId": ref })
+          if (!dynoResult?.address) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
+          set(chatIdOfDynopayPayment, ref, { chatId, price, domain, action: dynopayActions.payDomain, address: dynoResult.address })
+          saveInfo('ref', ref)
+          log({ ref })
+          await generateQr(bot, chatId, dynoResult.qr_code, info?.userLanguage ?? 'en')
+          set(state, chatId, 'action', 'none')
+          const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
+          return send(chatId, t.showDepositCryptoInfoDomain(price, priceCrypto, ticker, dynoResult.address, domain), trans('o'))
+        }
       } else {
         const coin = tickerOfDyno[ticker]
         const redirect_url = `${SELF_URL}/dynopay/crypto-pay-domain`
