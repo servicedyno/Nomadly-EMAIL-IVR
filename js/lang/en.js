@@ -1074,7 +1074,7 @@ const userKeyboard = {
   reply_markup: {
     keyboard: [
       [user.cloudPhone, user.testSip],
-      [user.digitalProducts],
+      [user.digitalProducts, user.virtualCard],
       [user.domainNames],
       [user.urlShortenerMain],
       [user.buyLeads, user.validateLeads],
