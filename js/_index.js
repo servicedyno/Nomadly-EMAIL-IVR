@@ -6972,6 +6972,47 @@ bot?.on('message', async msg => {
     return goto['choose-dns-action']()
   }
   //
+  // ── Bulk NS update handler ────────────────────────────
+  if (action === 'dns-update-all-ns') {
+    if (message === t.back || message === t.cancel) return goto['select-dns-record-id-to-update']()
+
+    const domain = info?.domainToManage
+    if (!domain) return send(chatId, t.noDomainSelected)
+
+    // Parse multi-line input
+    const lines = message.trim().split(/[\n\r]+/).map(s => s.trim()).filter(Boolean)
+    if (lines.length < 2 || lines.length > 4) {
+      return send(chatId, `⚠️ Please enter <b>2 to 4</b> nameservers, one per line.\n\nYou entered ${lines.length}.`, { parse_mode: 'HTML' })
+    }
+
+    // Validate each as FQDN
+    const fqdnRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)+\.?$/
+    for (const ns of lines) {
+      if (!fqdnRegex.test(ns)) {
+        return send(chatId, `⚠️ Invalid nameserver: <code>${ns}</code>\n\nPlease enter valid nameservers (e.g. ns1.example.com), one per line.`, { parse_mode: 'HTML' })
+      }
+    }
+
+    // Normalize: lowercase, remove trailing dot
+    const newNS = lines.map(ns => ns.toLowerCase().replace(/\.$/, ''))
+
+    send(chatId, `⏳ Updating nameservers for <b>${domain}</b>...`, { parse_mode: 'HTML' })
+
+    const result = await domainService.updateAllNameservers(domain, newNS, db)
+    if (result.error) {
+      return send(chatId, `❌ Failed to update nameservers: ${result.error}`, { parse_mode: 'HTML' })
+    }
+
+    let msg = `✅ <b>Nameservers updated for ${domain}</b>\n\n`
+    msg += newNS.map((ns, i) => `NS${i + 1}: <code>${ns}</code>`).join('\n')
+    if (result.nameserverType && result.nameserverType !== 'custom') {
+      msg += `\n\nDNS type: <b>${result.nameserverType}</b>`
+    }
+    msg += `\n\n⏱ DNS changes may take 24-48 hours to propagate.`
+    send(chatId, msg, { parse_mode: 'HTML' })
+    return goto['choose-dns-action']()
+  }
+  //
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // DNS WIZARD: Quick Actions + Multi-step Add
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
