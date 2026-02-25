@@ -13264,6 +13264,36 @@ app.get('/crypto-pay-digital-product', auth, async (req, res) => {
 })
 
 
+app.get('/crypto-pay-virtual-card', auth, async (req, res) => {
+  const { ref, chatId, price, product, orderId } = req.pay
+  const coin = req?.query?.coin
+  const value = req?.query?.value_coin
+  if (!ref || !chatId || !price || !product || !orderId || !coin || !value) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
+  const info = await state.findOne({ _id: parseFloat(chatId) })
+  const lang = info?.userLanguage ?? 'en'
+  const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
+  del(chatIdOfPayment, ref)
+  const name = await get(nameOf, chatId)
+  set(payments, ref, `Crypto,VirtualCard,${product},$${price},${chatId},${name},${new Date()},${value} ${coin}`)
+  const usdIn = await convert(value, coin, 'usd')
+  if (usdIn * 1.06 < price) {
+    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
+    addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
+    return res.send(html(translation('t.lowPrice')))
+  }
+  if (usdIn > price) {
+    addFundsTo(walletOf, chatId, 'usd', usdIn - price, lang)
+    sendMessage(chatId, translation('t.sentMoreMoney', lang, `$${price}`, `$${usdIn}`))
+  }
+  const vcAmount = info?.vcAmount || 0
+  const vcAddress = info?.vcAddress || ''
+  await digitalOrdersCol.updateOne({ orderId }, { $set: { status: 'pending', paymentConfirmedAt: new Date() } })
+  sendMessage(chatId, translation('t.vcOrderConfirmed', lang, vcAmount, price, orderId))
+  notifyGroup(`💳 <b>Virtual Card Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b> (Crypto)\n📬 Address:\n<pre>${vcAddress}</pre>\n\n📩 Deliver with:\n<code>/deliver ${orderId} [card details]</code>`)
+  webhookTierCheck(chatId, preSpend, lang)
+  res.send(html())
+})
+
 app.get('/crypto-wallet', auth, async (req, res) => {
   // Validate
   const { ref, chatId } = req.pay
