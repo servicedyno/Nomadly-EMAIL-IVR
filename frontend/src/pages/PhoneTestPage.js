@@ -427,7 +427,8 @@ const PhoneTestPage = () => {
   }, []);
 
   // ━━━ Reviews ━━━
-  const BACKEND = BACKEND_URL;
+  // Use relative URLs so reviews work on any domain (Emergent preview, Railway, speechcue.com)
+  const BACKEND = '';
 
   const fetchReviews = useCallback(async () => {
     try {
