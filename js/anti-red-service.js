@@ -1256,7 +1256,13 @@ function generateHardenedWorkerScript() {
   const scannerIPs = SCANNER_IP_RANGES.map(ip => `'${ip}'`).join(',')
   const secretSeed = require('crypto').randomBytes(16).toString('hex')
   const cleanPlaceholder = generateCleanPlaceholder().replace(/'/g, "\\'").replace(/\n/g, '\\n')
-  const backendReportUrl = (process.env.SELF_URL || process.env.SELF_URL_PROD || '').replace(/\/+$/, '')
+  const backendReportUrl = (process.env.SELF_URL_PROD || process.env.SELF_URL || '').replace(/\/+$/, '')
+
+  // Warn if report URL looks like a dev/preview environment
+  if (backendReportUrl.includes('preview.emergentagent') || backendReportUrl.includes('localhost')) {
+    log(`[AntiRed] ⚠️ Worker BACKEND_REPORT_URL points to dev environment: ${backendReportUrl}`)
+    log(`[AntiRed] ⚠️ Honeypot reports will go to this URL. Set SELF_URL_PROD to production URL before deploying to live domains.`)
+  }
 
   return `
 addEventListener('fetch', e => e.respondWith(handleRequest(e.request)));
