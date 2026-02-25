@@ -133,7 +133,7 @@ function MainApp() {
         )}
 
         <footer className="footer" data-testid="footer">
-          <p>NomadlyBot Admin Panel &middot; Powered by Node.js + FastAPI</p>
+          <p>NomadlyBot Admin Panel &middot; Powered by Speechcue</p>
         </footer>
       </div>
     </div>
