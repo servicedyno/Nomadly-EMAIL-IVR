@@ -103,9 +103,45 @@
 #====================================================================================================
 
 
-user_problem_statement: "Fix domain registration flows + lead job persistence recovery + activate shortener DNS routing + Fix NS alert on hosting panel domain page"
+user_problem_statement: "Honeypot integration — all 6 trap types + KV banning + MongoDB analytics"
 
 backend:
+  - task: "Honeypot: Worker script with 6 trap types"
+    implemented: true
+    working: "NA"
+    file: "js/anti-red-service.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Modified generateHardenedWorkerScript() to include all 6 honeypot types: (1) Link honeypots — hidden links injected into HTML responses. (2) Form field honeypots — via injection. (3) Mouse tracking — JS detects no mouse movement in 12s. (4) Cookie honeypots — trap cookie tampering. (5) JS honeypots — fake APIs (webdriver getter, adminAPI, selenium prop). (6) robots.txt honeypots — serves /__honeypot/* Disallow paths. Worker checks KV ban list first, handles /__honeypot/* triggers, injects traps into pass-through HTML, reports to backend."
+
+  - task: "Honeypot: KV namespace + multipart worker upload"
+    implemented: true
+    working: "NA"
+    file: "js/anti-red-service.js, js/honeypot-service.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "upgradeSharedWorker() now uses multipart form upload with KV binding (BANNED_IPS namespace). honeypot-service.js creates/finds KV namespace via Cloudflare API. KV namespace created: 812aca1cbade413d9814bff1708e74db. Falls back to simple upload if KV unavailable."
+
+  - task: "Honeypot: MongoDB analytics + Express routes"
+    implemented: true
+    working: "NA"
+    file: "js/honeypot-service.js, js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "honeypot-service.js: initHoneypot(db) creates honeypotTriggers collection with 30-day TTL + indexes. Express routes: POST /honeypot/report (receives trigger reports from CF Workers), GET /honeypot/stats (analytics by domain), GET /honeypot/check/:ip (ban status). Integrated in _index.js at startup + route mounting."
+
   - task: "Clean: Decouple shortener from Anti-Red + simplify post-registration"
     implemented: true
     working: true
