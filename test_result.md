@@ -433,17 +433,22 @@ frontend:
 
 metadata:
   created_by: "main_agent"
-  version: "8.1"
-  test_sequence: 10
+  version: "9.0"
+  test_sequence: 11
   run_ui: false
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Honeypot: Worker script with 6 trap types"
+    - "Honeypot: KV namespace + multipart worker upload"
+    - "Honeypot: MongoDB analytics + Express routes"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
+    - agent: "main"
+      message: "Implemented full honeypot integration with 6 trap types. Changes in 3 files: (1) js/honeypot-service.js (NEW): KV namespace management (creates 'antired-honeypot-bans' namespace via CF API), MongoDB honeypotTriggers collection with 30-day TTL + indexes, Express routes for /honeypot/report (POST), /honeypot/stats (GET), /honeypot/check/:ip (GET). (2) js/anti-red-service.js: generateHardenedWorkerScript() rewritten with 6 honeypot types — link traps (hidden links), mouse tracking (12s no-move check), cookie tampering detection, JS traps (fake webdriver getter, adminAPI, selenium prop), robots.txt honeypot with /__honeypot/* Disallow. Worker handler: checks KV ban list → handles /__honeypot/ triggers (ban IP + fake content) → serves honeypot robots.txt → bot score → challenge → inject traps into pass-through HTML. upgradeSharedWorker() now uses multipart form-data upload with KV binding (BANNED_IPS). (3) js/_index.js: imports honeypot-service, initializes on startup, mounts Express routes. KV namespace successfully created (812aca1cbade413d9814bff1708e74db). Node.js starts cleanly with no errors. Test focus: Verify code structure of all 3 files, worker script correctness, Express routes respond, Node.js health."
     - agent: "main"
       message: "Implemented 4 fixes for domain registration flows: (1) cr-domain-register.js: buyDomainOnline() now accepts optional ns1, ns2 params — uses them if provided, falls back to CR defaults. (2) domain-service.js: registerDomain() now extracts ns1/ns2 from CF/custom nameservers array and passes to buyDomainOnline() for CR registrations. (3) _index.js buyDomainFullProcess: Removed entire post-reg NS update block (60s/10s sleeps + getAccountNameservers calls) — NS is now set at registration time, just shows confirmation with buyResult.nameservers. (4) cr-register-domain-&-create-cpanel.js: Reordered to domain reg FIRST, then WHM account creation. For new domains with cloudflare, captures cfZoneId from registerDomain() result and reuses it in DNS setup (no double createZone). Domain reg failure now aborts early (no orphan WHM). Test focus: code review verification that all 4 changes are structurally correct, Node.js starts without errors, and services are healthy."
     - agent: "testing"
