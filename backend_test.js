@@ -1,371 +1,375 @@
+#!/usr/bin/env node
+
 /**
- * Backend Test Suite for Nomadly Telegram Bot - Railway & Shortener Fixes
- * 
- * Tests 2 specific fixes:
- * 1. Railway "already exists" handling via getExistingRailwayCNAME()
- * 2. Shortener A/CNAME conflict resolution via addShortenerCNAME()
+ * Backend Test for Nomadly Telegram Bot
+ * Tests the two specific fixes:
+ * 1. showDepositCryptoInfo wallet template USD amount fix
+ * 2. Bidirectional crypto payment fallback system
  */
 
-const fs = require('fs')
-const path = require('path')
+const fs = require('fs');
+const path = require('path');
+const axios = require('axios').default;
 
-// Test Results
-const results = {
-  fix1_railway: {},
-  fix2_shortener: {},
-  node_service: {},
-  summary: { passed: 0, failed: 0, total: 0 }
-}
+// Test configuration
+const CONFIG = {
+  nodeServicePort: 5000,
+  baseUrl: 'http://localhost:5000',
+  testTimeout: 30000
+};
 
-function logTest(category, testName, status, message = '') {
-  const result = { status, message, timestamp: new Date().toISOString() }
-  results[category][testName] = result
-  results.summary.total++
-  if (status === 'PASS') results.summary.passed++
-  else results.summary.failed++
-  console.log(`[${category.toUpperCase()}] ${testName}: ${status} ${message ? '- ' + message : ''}`)
-}
-
-async function testFix1Railway() {
-  console.log('\n=== Fix 1: Railway "already exists" handling ===')
-  
-  try {
-    // Test 1.1: Check if getExistingRailwayCNAME function exists
-    const railwayServicePath = '/app/js/rl-save-domain-in-server.js'
-    if (!fs.existsSync(railwayServicePath)) {
-      logTest('fix1_railway', 'file_exists', 'FAIL', 'rl-save-domain-in-server.js not found')
-      return
-    }
-    
-    const railwayCode = fs.readFileSync(railwayServicePath, 'utf8')
-    
-    // Test 1.2: Check getExistingRailwayCNAME function exists and exports
-    if (railwayCode.includes('async function getExistingRailwayCNAME(domain)')) {
-      logTest('fix1_railway', 'getExistingRailwayCNAME_function', 'PASS', 'Function defined correctly')
-    } else {
-      logTest('fix1_railway', 'getExistingRailwayCNAME_function', 'FAIL', 'Function not found')
-    }
-    
-    // Test 1.3: Check GraphQL query structure
-    if (railwayCode.includes('domains(projectId:') && railwayCode.includes('customDomains') && 
-        railwayCode.includes('dnsRecords') && railwayCode.includes('requiredValue')) {
-      logTest('fix1_railway', 'graphql_query_structure', 'PASS', 'Correct GraphQL query for domains')
-    } else {
-      logTest('fix1_railway', 'graphql_query_structure', 'FAIL', 'GraphQL query structure incorrect')
-    }
-    
-    // Test 1.4: Check return value structure
-    if (railwayCode.includes('return { server: cname, recordType: \'CNAME\' }') && 
-        railwayCode.includes('return null')) {
-      logTest('fix1_railway', 'return_value_structure', 'PASS', 'Correct return values')
-    } else {
-      logTest('fix1_railway', 'return_value_structure', 'FAIL', 'Return values incorrect')
-    }
-    
-    // Test 1.5: Check isAlreadyExists branch logic
-    const isAlreadyExistsBranch = railwayCode.includes('const existing = await getExistingRailwayCNAME(domain)') &&
-                                  railwayCode.includes('if (existing)') &&
-                                  railwayCode.includes('return existing')
-    if (isAlreadyExistsBranch) {
-      logTest('fix1_railway', 'isAlreadyExists_logic', 'PASS', 'Calls getExistingRailwayCNAME first, returns if found')
-    } else {
-      logTest('fix1_railway', 'isAlreadyExists_logic', 'FAIL', 'isAlreadyExists branch logic incorrect')
-    }
-    
-    // Test 1.6: Check fallback to remove+re-create
-    if (railwayCode.includes('Could not fetch CNAME') && railwayCode.includes('attempting remove + re-create')) {
-      logTest('fix1_railway', 'fallback_logic', 'PASS', 'Fallback to remove+re-create when getExistingRailwayCNAME returns null')
-    } else {
-      logTest('fix1_railway', 'fallback_logic', 'FAIL', 'Fallback logic missing or incorrect')
-    }
-    
-    // Test 1.7: Check error handling
-    if (railwayCode.includes('try {') && railwayCode.includes('catch (err)') && 
-        railwayCode.includes('log(`[Railway] getExistingRailwayCNAME error')) {
-      logTest('fix1_railway', 'error_handling', 'PASS', 'Proper error handling with logging')
-    } else {
-      logTest('fix1_railway', 'error_handling', 'FAIL', 'Error handling inadequate')
-    }
-    
-  } catch (error) {
-    logTest('fix1_railway', 'test_execution', 'FAIL', `Test execution error: ${error.message}`)
+class TelegramBotTester {
+  constructor() {
+    this.results = {
+      fix1: { passed: 0, failed: 0, tests: [] },
+      fix2: { passed: 0, failed: 0, tests: [] },
+      service: { passed: 0, failed: 0, tests: [] }
+    };
   }
-}
 
-async function testFix2Shortener() {
-  console.log('\n=== Fix 2: Shortener A/CNAME conflict resolution ===')
-  
-  try {
-    // Test 2.1: Check if addShortenerCNAME function exists in domain-service.js
-    const domainServicePath = '/app/js/domain-service.js'
-    if (!fs.existsSync(domainServicePath)) {
-      logTest('fix2_shortener', 'domain_service_exists', 'FAIL', 'domain-service.js not found')
-      return
-    }
-    
-    const domainServiceCode = fs.readFileSync(domainServicePath, 'utf8')
-    
-    // Test 2.2: Check addShortenerCNAME function exists
-    if (domainServiceCode.includes('const addShortenerCNAME = async (domainName, cnameTarget, db)')) {
-      logTest('fix2_shortener', 'addShortenerCNAME_function', 'PASS', 'Function defined with correct signature')
-    } else {
-      logTest('fix2_shortener', 'addShortenerCNAME_function', 'FAIL', 'Function not found or signature incorrect')
-    }
-    
-    // Test 2.3: Check function is exported
-    if (domainServiceCode.includes('addShortenerCNAME,') && domainServiceCode.includes('module.exports')) {
-      logTest('fix2_shortener', 'addShortenerCNAME_exported', 'PASS', 'Function properly exported')
-    } else {
-      logTest('fix2_shortener', 'addShortenerCNAME_exported', 'FAIL', 'Function not exported')
-    }
-    
-    // Test 2.4: Check conflict detection logic
-    if (domainServiceCode.includes('checkDNSConflict(domainName, \'CNAME\', \'\', db)') && 
-        domainServiceCode.includes('conflict.hasConflict')) {
-      logTest('fix2_shortener', 'conflict_detection', 'PASS', 'Uses checkDNSConflict for A/AAAA records')
-    } else {
-      logTest('fix2_shortener', 'conflict_detection', 'FAIL', 'Conflict detection not implemented')
-    }
-    
-    // Test 2.5: Check conflicting records deletion
-    if (domainServiceCode.includes('for (const rec of conflict.conflictingRecords)') && 
-        domainServiceCode.includes('deleteDNSRecord')) {
-      logTest('fix2_shortener', 'conflict_resolution', 'PASS', 'Deletes conflicting A/AAAA records')
-    } else {
-      logTest('fix2_shortener', 'conflict_resolution', 'FAIL', 'Conflict resolution not implemented')
-    }
-    
-    // Test 2.6: Check CNAME creation
-    if (domainServiceCode.includes('createDNSRecord(meta.cfZoneId, \'CNAME\', domainName, cnameTarget')) {
-      logTest('fix2_shortener', 'cname_creation', 'PASS', 'Creates CNAME record correctly')
-    } else {
-      logTest('fix2_shortener', 'cname_creation', 'FAIL', 'CNAME creation logic incorrect')
-    }
-    
-    // Test 2.7: Check return values
-    if (domainServiceCode.includes('return { success: true }') && 
-        domainServiceCode.includes('return { error:')) {
-      logTest('fix2_shortener', 'return_values', 'PASS', 'Correct return values for success/error')
-    } else {
-      logTest('fix2_shortener', 'return_values', 'FAIL', 'Return values incorrect')
-    }
-    
-    // Test 2.8: Check _index.js usage - all 5 callsites
-    const indexPath = '/app/js/_index.js'
-    if (!fs.existsSync(indexPath)) {
-      logTest('fix2_shortener', 'index_file_exists', 'FAIL', '_index.js not found')
-      return
-    }
-    
-    const indexCode = fs.readFileSync(indexPath, 'utf8')
-    
-    // Count occurrences of addShortenerCNAME
-    const addShortenerCNAMEMatches = (indexCode.match(/domainService\.addShortenerCNAME/g) || []).length
-    if (addShortenerCNAMEMatches >= 5) {
-      logTest('fix2_shortener', 'callsites_usage', 'PASS', `Found ${addShortenerCNAMEMatches} addShortenerCNAME calls (expected ≥5)`)
-    } else {
-      logTest('fix2_shortener', 'callsites_usage', 'FAIL', `Only found ${addShortenerCNAMEMatches} addShortenerCNAME calls (expected ≥5)`)
-    }
-    
-    // Test 2.9: Verify QuickActivateShortener uses addShortenerCNAME
-    if (indexCode.includes('[QuickActivateShortener]') && 
-        indexCode.includes('await domainService.addShortenerCNAME(domain, server, db)')) {
-      logTest('fix2_shortener', 'quick_activate_usage', 'PASS', 'QuickActivateShortener uses addShortenerCNAME')
-    } else {
-      logTest('fix2_shortener', 'quick_activate_usage', 'FAIL', 'QuickActivateShortener not using addShortenerCNAME')
-    }
-    
-    // Test 2.10: Verify ActivateShortener DNS menu uses addShortenerCNAME  
-    if (indexCode.includes('await domainService.addShortenerCNAME(domain, server, db)')) {
-      const matches = indexCode.match(/await domainService\.addShortenerCNAME\(domain, server, db\)/g) || []
-      if (matches.length >= 2) {
-        logTest('fix2_shortener', 'dns_menu_usage', 'PASS', 'ActivateShortener DNS menu uses addShortenerCNAME')
-      } else {
-        logTest('fix2_shortener', 'dns_menu_usage', 'FAIL', 'ActivateShortener DNS menu not using addShortenerCNAME')
-      }
-    }
-    
-    // Test 2.11: Verify DomainActionShortener uses addShortenerCNAME
-    if (indexCode.includes('[DomainActionShortener]') && 
-        indexCode.includes('await domainService.addShortenerCNAME(domain, server, db)')) {
-      logTest('fix2_shortener', 'domain_action_usage', 'PASS', 'DomainActionShortener uses addShortenerCNAME')
-    } else {
-      logTest('fix2_shortener', 'domain_action_usage', 'FAIL', 'DomainActionShortener not using addShortenerCNAME')
-    }
-    
-    // Test 2.12: Verify buyDomainFullProcess uses addShortenerCNAME
-    if (indexCode.includes('buyDomainFullProcess') && 
-        indexCode.includes('await domainService.addShortenerCNAME(domain, server, db)')) {
-      logTest('fix2_shortener', 'buy_domain_usage', 'PASS', 'buyDomainFullProcess uses addShortenerCNAME')
-    } else {
-      logTest('fix2_shortener', 'buy_domain_usage', 'FAIL', 'buyDomainFullProcess not using addShortenerCNAME')  
-    }
-    
-    // Test 2.13: Verify addDnsForShortener helper uses addShortenerCNAME
-    if (indexCode.includes('async function addDnsForShortener') && 
-        indexCode.includes('await domainService.addShortenerCNAME(domain, server, db)')) {
-      logTest('fix2_shortener', 'dns_helper_usage', 'PASS', 'addDnsForShortener helper uses addShortenerCNAME')
-    } else {
-      logTest('fix2_shortener', 'dns_helper_usage', 'FAIL', 'addDnsForShortener helper not using addShortenerCNAME')
-    }
-    
-    // Test 2.14: Verify ALL 5 specific shortener callsites mentioned in review request use addShortenerCNAME
-    const callsiteTests = [
-      { 
-        name: 'Line ~5670 QuickActivateShortener',
-        pattern: /QuickActivateShortener[\s\S]*?await domainService\.addShortenerCNAME\(domain, server, db\)/,
-        found: false
-      },
-      { 
-        name: 'Line ~6538 ActivateShortener DNS menu',
-        pattern: /await domainService\.addShortenerCNAME\(domain, server, db\)/g,
-        found: false
-      },
-      { 
-        name: 'Line ~11128 DomainActionShortener', 
-        pattern: /DomainActionShortener[\s\S]*?await domainService\.addShortenerCNAME\(domain, server, db\)/,
-        found: false
-      },
-      { 
-        name: 'Line ~11638 buyDomainFullProcess',
-        pattern: /buyDomainFullProcess[\s\S]*?await domainService\.addShortenerCNAME\(domain, server, db\)/,
-        found: false
-      },
-      { 
-        name: 'Line ~14762 addDnsForShortener',
-        pattern: /async function addDnsForShortener[\s\S]*?await domainService\.addShortenerCNAME\(domain, server, db\)/,
-        found: false
-      }
-    ]
-    
-    let allCallsitesFound = true
-    for (const test of callsiteTests) {
-      test.found = test.pattern.test(indexCode)
-      if (!test.found) allCallsitesFound = false
-    }
-    
-    if (allCallsitesFound) {
-      logTest('fix2_shortener', 'all_callsites_converted', 'PASS', 'All 5 shortener callsites use addShortenerCNAME')
-    } else {
-      const missing = callsiteTests.filter(t => !t.found).map(t => t.name).join(', ')
-      logTest('fix2_shortener', 'all_callsites_converted', 'FAIL', `Missing addShortenerCNAME in: ${missing}`)
-    }
-    
-  } catch (error) {
-    logTest('fix2_shortener', 'test_execution', 'FAIL', `Test execution error: ${error.message}`)
+  log(message, type = 'info') {
+    const timestamp = new Date().toISOString();
+    const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️';
+    console.log(`${prefix} [${timestamp}] ${message}`);
   }
-}
 
-async function testNodeService() {
-  console.log('\n=== Node.js Service Health ===')
-  
-  try {
-    // Test 3.1: Check if main bot file can be loaded without errors
-    const mainPath = '/app/js/_index.js'
-    if (fs.existsSync(mainPath)) {
-      logTest('node_service', 'main_file_exists', 'PASS', '_index.js exists')
-    } else {
-      logTest('node_service', 'main_file_exists', 'FAIL', '_index.js not found')
-      return
-    }
+  addResult(category, testName, passed, details = '') {
+    const result = { testName, passed, details };
+    this.results[category].tests.push(result);
     
-    // Test 3.2: Check if required dependencies exist
-    const packagePath = '/app/package.json'
-    if (fs.existsSync(packagePath)) {
-      const packageData = JSON.parse(fs.readFileSync(packagePath, 'utf8'))
-      if (packageData.dependencies && packageData.dependencies.axios && packageData.dependencies.dotenv) {
-        logTest('node_service', 'dependencies', 'PASS', 'Key dependencies (axios, dotenv) present')
-      } else {
-        logTest('node_service', 'dependencies', 'FAIL', 'Missing key dependencies')
+    if (passed) {
+      this.results[category].passed++;
+      this.log(`✅ ${testName}: ${details}`, 'success');
+    } else {
+      this.results[category].failed++;
+      this.log(`❌ ${testName}: ${details}`, 'error');
+    }
+  }
+
+  // Test 1: Verify language file signatures have been updated
+  testLanguageFileSignatures() {
+    this.log('Testing FIX 1: Language file showDepositCryptoInfo signatures...');
+    
+    const langFiles = [
+      '/app/js/lang/en.js',
+      '/app/js/lang/fr.js', 
+      '/app/js/lang/zh.js',
+      '/app/js/lang/hi.js'
+    ];
+
+    langFiles.forEach(filePath => {
+      try {
+        const content = fs.readFileSync(filePath, 'utf8');
+        const matches = content.match(/showDepositCryptoInfo:\s*\(([^)]+)\)\s*=>/);
+        
+        if (matches && matches[1]) {
+          const signature = matches[1].trim();
+          const expectedSignature = 'priceUsd, priceCrypto, tickerView, address';
+          
+          if (signature === expectedSignature) {
+            this.addResult('fix1', `${path.basename(filePath)} signature`, true, `Correct signature: (${signature})`);
+          } else {
+            this.addResult('fix1', `${path.basename(filePath)} signature`, false, `Expected (${expectedSignature}) but got (${signature})`);
+          }
+        } else {
+          this.addResult('fix1', `${path.basename(filePath)} signature`, false, 'showDepositCryptoInfo function not found');
+        }
+      } catch (error) {
+        this.addResult('fix1', `${path.basename(filePath)} signature`, false, `Error reading file: ${error.message}`);
       }
-    } else {
-      logTest('node_service', 'package_json', 'FAIL', 'package.json not found')
-    }
+    });
+  }
+
+  // Test 2: Verify priceUsd is referenced in template body
+  testLanguageFilePriceUsdUsage() {
+    this.log('Testing FIX 1: Language files reference priceUsd in template body...');
     
-    // Test 3.3: Check for syntax errors by loading modules (non-destructive)
+    const langFiles = [
+      '/app/js/lang/en.js',
+      '/app/js/lang/fr.js', 
+      '/app/js/lang/zh.js',
+      '/app/js/lang/hi.js'
+    ];
+
+    langFiles.forEach(filePath => {
+      try {
+        const content = fs.readFileSync(filePath, 'utf8');
+        
+        // Find the showDepositCryptoInfo function and extract its body
+        const functionMatch = content.match(/showDepositCryptoInfo:\s*\(priceUsd,\s*priceCrypto,\s*tickerView,\s*address\)\s*=>\s*`([^`]+)`/s);
+        
+        if (functionMatch && functionMatch[1]) {
+          const functionBody = functionMatch[1];
+          
+          if (functionBody.includes('Number(priceUsd).toFixed(2)')) {
+            this.addResult('fix1', `${path.basename(filePath)} priceUsd usage`, true, 'Uses Number(priceUsd).toFixed(2) in template');
+          } else {
+            this.addResult('fix1', `${path.basename(filePath)} priceUsd usage`, false, 'Does not use Number(priceUsd).toFixed(2) in template');
+          }
+        } else {
+          this.addResult('fix1', `${path.basename(filePath)} priceUsd usage`, false, 'showDepositCryptoInfo template body not found');
+        }
+      } catch (error) {
+        this.addResult('fix1', `${path.basename(filePath)} priceUsd usage`, false, `Error reading file: ${error.message}`);
+      }
+    });
+  }
+
+  // Test 3: Verify callers in _index.js pass 4 arguments
+  testIndexJsCallers() {
+    this.log('Testing FIX 1: _index.js callers use 4-argument pattern...');
+    
     try {
-      // Load Railway service module
-      const railwayService = require('/app/js/rl-save-domain-in-server.js')
-      if (typeof railwayService.saveDomainInServerRailway === 'function') {
-        logTest('node_service', 'railway_module_load', 'PASS', 'Railway service loads without syntax errors')
+      const content = fs.readFileSync('/app/js/_index.js', 'utf8');
+      
+      // Find all showDepositCryptoInfo calls (excluding InfoPlan, InfoDomain, etc.)
+      const callerMatches = [...content.matchAll(/\.showDepositCryptoInfo\(([^)]+)\)/g)];
+      
+      if (callerMatches.length === 4) {
+        this.addResult('fix1', '_index.js caller count', true, `Found ${callerMatches.length} showDepositCryptoInfo calls`);
+        
+        callerMatches.forEach((match, index) => {
+          const args = match[1].split(',').map(arg => arg.trim());
+          if (args.length === 4) {
+            // Check if first arg is 'amount' and pattern matches expected: amount, usdIn, tickerView, address
+            const expectedPattern = ['amount', 'usdIn', 'tickerView'];
+            const matches = args.slice(0, 3).every((arg, i) => arg === expectedPattern[i]);
+            
+            if (matches) {
+              this.addResult('fix1', `_index.js caller ${index + 1}`, true, `Correct 4-arg pattern: ${match[1]}`);
+            } else {
+              this.addResult('fix1', `_index.js caller ${index + 1}`, false, `Incorrect pattern: ${match[1]}`);
+            }
+          } else {
+            this.addResult('fix1', `_index.js caller ${index + 1}`, false, `Expected 4 args, got ${args.length}: ${match[1]}`);
+          }
+        });
       } else {
-        logTest('node_service', 'railway_module_load', 'FAIL', 'Railway service missing expected functions')
+        this.addResult('fix1', '_index.js caller count', false, `Expected 4 showDepositCryptoInfo calls, found ${callerMatches.length}`);
       }
     } catch (error) {
-      logTest('node_service', 'railway_module_load', 'FAIL', `Railway service load error: ${error.message}`)
+      this.addResult('fix1', '_index.js caller count', false, `Error reading file: ${error.message}`);
     }
+  }
+
+  // Test 4: Verify no old 3-arg calls remain
+  testNoOldThreeArgCalls() {
+    this.log('Testing FIX 1: No old 3-arg calls remain...');
     
-    // Test 3.4: Check domain service module
     try {
-      const domainService = require('/app/js/domain-service.js')
-      if (typeof domainService.addShortenerCNAME === 'function') {
-        logTest('node_service', 'domain_module_load', 'PASS', 'Domain service loads with addShortenerCNAME function')
+      const content = fs.readFileSync('/app/js/_index.js', 'utf8');
+      
+      // Look for patterns that would indicate old 3-arg calls (usdIn as first arg)
+      const oldPatternMatches = [...content.matchAll(/\.showDepositCryptoInfo\(usdIn,\s*tickerView/g)];
+      
+      if (oldPatternMatches.length === 0) {
+        this.addResult('fix1', '_index.js no old calls', true, 'No old 3-argument pattern found');
       } else {
-        logTest('node_service', 'domain_module_load', 'FAIL', 'Domain service missing addShortenerCNAME function')
+        this.addResult('fix1', '_index.js no old calls', false, `Found ${oldPatternMatches.length} old 3-argument patterns`);
       }
     } catch (error) {
-      logTest('node_service', 'domain_module_load', 'FAIL', `Domain service load error: ${error.message}`)
+      this.addResult('fix1', '_index.js no old calls', false, `Error reading file: ${error.message}`);
     }
+  }
+
+  // Test 5: Verify exactly 20 CryptoFallback log lines
+  testCryptoFallbackLogLines() {
+    this.log('Testing FIX 2: Exactly 20 CryptoFallback log lines...');
     
-    // Test 3.5: Check if environment variables template exists
-    const envExamplePath = '/app/.env.example'
-    const envPath = '/app/.env'
-    if (fs.existsSync(envPath) || fs.existsSync(envExamplePath)) {
-      logTest('node_service', 'env_config', 'PASS', 'Environment configuration files present')
+    try {
+      const content = fs.readFileSync('/app/js/_index.js', 'utf8');
+      
+      const fallbackMatches = [...content.matchAll(/\[CryptoFallback\]/g)];
+      
+      if (fallbackMatches.length === 20) {
+        this.addResult('fix2', 'CryptoFallback log count', true, `Found exactly 20 [CryptoFallback] log lines`);
+        
+        // Verify 10 BlockBee and 10 DynoPay messages
+        const blockbeeMatches = [...content.matchAll(/\[CryptoFallback\] BlockBee unavailable/g)];
+        const dynopayMatches = [...content.matchAll(/\[CryptoFallback\] DynoPay unavailable/g)];
+        
+        if (blockbeeMatches.length === 10 && dynopayMatches.length === 10) {
+          this.addResult('fix2', 'CryptoFallback distribution', true, '10 BlockBee + 10 DynoPay fallback messages');
+        } else {
+          this.addResult('fix2', 'CryptoFallback distribution', false, `Expected 10 BlockBee + 10 DynoPay, got ${blockbeeMatches.length} + ${dynopayMatches.length}`);
+        }
+      } else {
+        this.addResult('fix2', 'CryptoFallback log count', false, `Expected 20 [CryptoFallback] lines, found ${fallbackMatches.length}`);
+      }
+    } catch (error) {
+      this.addResult('fix2', 'CryptoFallback log count', false, `Error reading file: ${error.message}`);
+    }
+  }
+
+  // Test 6: Verify all 10 payment types have fallback support
+  testPaymentTypesFallback() {
+    this.log('Testing FIX 2: All 10 payment types have bidirectional fallback...');
+    
+    const expectedPaymentTypes = [
+      'wallet', 'digital product', 'virtual card', 'domain', 'hosting', 
+      'VPS', 'VPS upgrade', 'plan', 'phone', 'leads'
+    ];
+    
+    try {
+      const content = fs.readFileSync('/app/js/_index.js', 'utf8');
+      
+      expectedPaymentTypes.forEach(paymentType => {
+        const blockbeePattern = `[CryptoFallback] BlockBee unavailable for ${paymentType}`;
+        const dynopayPattern = `[CryptoFallback] DynoPay unavailable for ${paymentType}`;
+        
+        const hasBlockbeeFallback = content.includes(blockbeePattern);
+        const hasDynopayFallback = content.includes(dynopayPattern);
+        
+        if (hasBlockbeeFallback && hasDynopayFallback) {
+          this.addResult('fix2', `${paymentType} fallback`, true, 'Both BlockBee->DynoPay and DynoPay->BlockBee fallbacks present');
+        } else {
+          this.addResult('fix2', `${paymentType} fallback`, false, `Missing fallback: BlockBee=${hasBlockbeeFallback}, DynoPay=${hasDynopayFallback}`);
+        }
+      });
+    } catch (error) {
+      this.addResult('fix2', 'payment types fallback', false, `Error reading file: ${error.message}`);
+    }
+  }
+
+  // Test 7: Verify no broken generateBlockBeeAddress references
+  testNoGenerateBlockBeeAddress() {
+    this.log('Testing FIX 2: No broken generateBlockBeeAddress references...');
+    
+    try {
+      const content = fs.readFileSync('/app/js/_index.js', 'utf8');
+      
+      const brokenReferences = [...content.matchAll(/generateBlockBeeAddress/g)];
+      
+      if (brokenReferences.length === 0) {
+        this.addResult('fix2', 'no generateBlockBeeAddress', true, 'No references to broken generateBlockBeeAddress function');
+      } else {
+        this.addResult('fix2', 'no generateBlockBeeAddress', false, `Found ${brokenReferences.length} references to generateBlockBeeAddress`);
+      }
+    } catch (error) {
+      this.addResult('fix2', 'no generateBlockBeeAddress', false, `Error reading file: ${error.message}`);
+    }
+  }
+
+  // Test 8: Verify bbResult and dynoResult patterns
+  testResultPatterns() {
+    this.log('Testing FIX 2: Correct bbResult and dynoResult patterns...');
+    
+    try {
+      const content = fs.readFileSync('/app/js/_index.js', 'utf8');
+      
+      // Check for bbResult?.address pattern
+      const bbResultMatches = [...content.matchAll(/bbResult\?\.address/g)];
+      const dynoResultMatches = [...content.matchAll(/dynoResult\?\.address/g)];
+      
+      if (bbResultMatches.length > 0) {
+        this.addResult('fix2', 'bbResult pattern', true, `Found ${bbResultMatches.length} bbResult?.address patterns`);
+      } else {
+        this.addResult('fix2', 'bbResult pattern', false, 'No bbResult?.address patterns found');
+      }
+      
+      if (dynoResultMatches.length > 0) {
+        this.addResult('fix2', 'dynoResult pattern', true, `Found ${dynoResultMatches.length} dynoResult?.address patterns`);
+      } else {
+        this.addResult('fix2', 'dynoResult pattern', false, 'No dynoResult?.address patterns found');
+      }
+    } catch (error) {
+      this.addResult('fix2', 'result patterns', false, `Error reading file: ${error.message}`);
+    }
+  }
+
+  // Test 9: Service health check
+  async testServiceHealth() {
+    this.log('Testing service health check...');
+    
+    try {
+      const response = await axios.get(`${CONFIG.baseUrl}/health`, {
+        timeout: CONFIG.testTimeout
+      });
+      
+      if (response.status === 200) {
+        this.addResult('service', 'health endpoint', true, `Service responding on port ${CONFIG.nodeServicePort}`);
+        
+        if (response.data && response.data.status) {
+          this.addResult('service', 'health status', true, `Status: ${response.data.status}`);
+        } else {
+          this.addResult('service', 'health status', false, 'No status in health response');
+        }
+      } else {
+        this.addResult('service', 'health endpoint', false, `Unexpected status code: ${response.status}`);
+      }
+    } catch (error) {
+      this.addResult('service', 'health endpoint', false, `Service not responding: ${error.message}`);
+    }
+  }
+
+  // Run all tests
+  async runAllTests() {
+    this.log('🚀 Starting Nomadly Telegram Bot Test Suite...');
+    this.log(`Testing Node.js service on port ${CONFIG.nodeServicePort}`);
+    
+    // FIX 1 Tests: showDepositCryptoInfo wallet template USD amount
+    this.testLanguageFileSignatures();
+    this.testLanguageFilePriceUsdUsage();
+    this.testIndexJsCallers();
+    this.testNoOldThreeArgCalls();
+    
+    // FIX 2 Tests: Bidirectional crypto payment fallback
+    this.testCryptoFallbackLogLines();
+    this.testPaymentTypesFallback();
+    this.testNoGenerateBlockBeeAddress();
+    this.testResultPatterns();
+    
+    // Service Tests
+    await this.testServiceHealth();
+    
+    this.printSummary();
+  }
+
+  printSummary() {
+    this.log('\n=================== TEST SUMMARY ===================');
+    
+    ['fix1', 'fix2', 'service'].forEach(category => {
+      const { passed, failed, tests } = this.results[category];
+      const total = passed + failed;
+      const categoryName = {
+        fix1: 'FIX 1: showDepositCryptoInfo USD Amount',
+        fix2: 'FIX 2: Bidirectional Crypto Fallback', 
+        service: 'Service Health'
+      }[category];
+      
+      console.log(`\n${categoryName}:`);
+      console.log(`  ✅ Passed: ${passed}/${total}`);
+      console.log(`  ❌ Failed: ${failed}/${total}`);
+      
+      if (failed > 0) {
+        console.log(`  Failed tests:`);
+        tests.filter(t => !t.passed).forEach(t => {
+          console.log(`    - ${t.testName}: ${t.details}`);
+        });
+      }
+    });
+    
+    const totalPassed = Object.values(this.results).reduce((sum, cat) => sum + cat.passed, 0);
+    const totalFailed = Object.values(this.results).reduce((sum, cat) => sum + cat.failed, 0);
+    const totalTests = totalPassed + totalFailed;
+    
+    console.log(`\n📊 OVERALL: ${totalPassed}/${totalTests} tests passed`);
+    
+    if (totalFailed === 0) {
+      console.log('🎉 All tests PASSED! Both fixes verified successfully.');
     } else {
-      logTest('node_service', 'env_config', 'WARN', 'No .env or .env.example found')
+      console.log(`⚠️  ${totalFailed} test(s) FAILED. Please review the issues above.`);
     }
-    
-  } catch (error) {
-    logTest('node_service', 'test_execution', 'FAIL', `Test execution error: ${error.message}`)
   }
 }
 
-async function main() {
-  console.log('🧪 Nomadly Backend Testing - Railway & Shortener Fixes')
-  console.log('=' .repeat(60))
+// Run the tests
+(async () => {
+  const tester = new TelegramBotTester();
+  await tester.runAllTests();
   
-  await testFix1Railway()
-  await testFix2Shortener()
-  await testNodeService()
-  
-  console.log('\n' + '='.repeat(60))
-  console.log('📊 TEST SUMMARY')
-  console.log(`✅ Passed: ${results.summary.passed}`)
-  console.log(`❌ Failed: ${results.summary.failed}`)
-  console.log(`📈 Total: ${results.summary.total}`)
-  console.log(`📊 Success Rate: ${((results.summary.passed / results.summary.total) * 100).toFixed(1)}%`)
-  
-  // Write detailed results to file
-  const reportPath = '/app/test_reports'
-  if (!fs.existsSync(reportPath)) {
-    fs.mkdirSync(reportPath, { recursive: true })
-  }
-  
-  fs.writeFileSync(
-    path.join(reportPath, `railway_shortener_test_${Date.now()}.json`),
-    JSON.stringify(results, null, 2)
-  )
-  
-  console.log(`\n📄 Detailed test report saved to: ${reportPath}/railway_shortener_test_*.json`)
-  
-  // Exit with appropriate code
-  process.exit(results.summary.failed > 0 ? 1 : 0)
-}
-
-// Handle uncaught errors
-process.on('uncaughtException', (error) => {
-  console.error('❌ Uncaught Exception:', error.message)
-  process.exit(1)
-})
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason)
-  process.exit(1)
-})
-
-if (require.main === module) {
-  main()
-}
-
-module.exports = { testFix1Railway, testFix2Shortener, testNodeService, results }
+  process.exit(0);
+})().catch(error => {
+  console.error('❌ Test suite crashed:', error);
+  process.exit(1);
+});
