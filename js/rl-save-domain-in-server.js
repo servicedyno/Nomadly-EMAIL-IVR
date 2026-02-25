@@ -57,6 +57,40 @@ async function saveDomainInServerRailway(domain) {
   const error = response?.data?.errors?.[0]?.message
 
   if (error) {
+    // Domain already exists on Railway — remove and re-create for clean state
+    const isAlreadyExists = error.toLowerCase().includes('already') ||
+      error.toLowerCase().includes('exists') ||
+      error.toLowerCase().includes('duplicate') ||
+      error.toLowerCase().includes('failed to create custom domain')
+    if (isAlreadyExists) {
+      log(`[Railway] Domain ${domain} already exists — removing and re-creating`)
+      const removeResult = await removeDomainFromRailway(domain)
+      if (removeResult.error) {
+        log(`[Railway] Remove failed for ${domain}: ${removeResult.error}`)
+        return { error: `Domain exists on Railway but could not be removed: ${removeResult.error}` }
+      }
+      // Wait briefly for Railway to process the deletion
+      await new Promise(r => setTimeout(r, 3000))
+      // Re-create
+      const retryResponse = await axios.post(
+        GRAPHQL_ENDPOINT,
+        { query: GRAPHQL_QUERY },
+        {
+          headers: {
+            Authorization: `Bearer ${API_TOKEN}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      )
+      const retryError = retryResponse?.data?.errors?.[0]?.message
+      if (retryError) {
+        log(`[Railway] Re-create failed for ${domain}: ${retryError}`)
+        return { error: retryError }
+      }
+      const server = retryResponse?.data?.data?.customDomainCreate?.status?.dnsRecords[0]?.requiredValue
+      log(`[Railway] Re-created ${domain} → ${server}`)
+      return { server, recordType: 'CNAME' }
+    }
     log('Error saveDomainInServerRailway', error)
     log('domain', domain, 'GraphQL Response:', JSON.stringify(response.data, null, 2))
     return { error }
