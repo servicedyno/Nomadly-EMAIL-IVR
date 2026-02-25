@@ -819,6 +819,142 @@ const PhoneTestPage = () => {
         <div className="text-center mt-6 text-[11px] text-neutral-600">
           Speechcue Cloud Phone &middot; Powered by Speechcue
         </div>
+
+        {/* ━━━ Reviews Section ━━━ */}
+        <div className="mt-8 space-y-6" data-testid="reviews-section">
+
+          {/* Rating Summary */}
+          {reviews.length > 0 && (
+            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 flex items-center gap-4">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-amber-400">{avgStars}</div>
+                <div className="flex gap-0.5 mt-1 justify-center">
+                  {[1,2,3,4,5].map(s => (
+                    <svg key={s} className={`w-4 h-4 ${s <= Math.round(parseFloat(avgStars)) ? 'text-amber-400' : 'text-neutral-700'}`} fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                  ))}
+                </div>
+                <div className="text-xs text-neutral-500 mt-1">{reviews.length} review{reviews.length !== 1 ? 's' : ''}</div>
+              </div>
+              <div className="flex-1 space-y-1">
+                {[5,4,3,2,1].map(s => {
+                  const count = reviews.filter(r => r.stars === s).length;
+                  const pct = reviews.length ? (count / reviews.length) * 100 : 0;
+                  return (
+                    <div key={s} className="flex items-center gap-2 text-xs">
+                      <span className="text-neutral-500 w-3 text-right">{s}</span>
+                      <svg className="w-3 h-3 text-amber-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                      <div className="flex-1 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+                        <div className="h-full bg-amber-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="text-neutral-600 w-5 text-right">{count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Leave Feedback Form */}
+          <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5" data-testid="review-form">
+            <div className="text-sm font-semibold text-neutral-300 mb-4">
+              {reviewSubmitted ? '✅ Thank you for your feedback!' : '⭐ Rate Your Experience'}
+            </div>
+
+            {!reviewSubmitted ? (
+              <div className="space-y-4">
+                {/* Stars */}
+                <div className="flex gap-1" data-testid="star-selector">
+                  {[1,2,3,4,5].map(s => (
+                    <button
+                      key={s}
+                      onClick={() => setReviewStars(s)}
+                      onMouseEnter={() => setReviewHover(s)}
+                      onMouseLeave={() => setReviewHover(0)}
+                      className="transition-transform hover:scale-110 focus:outline-none"
+                    >
+                      <svg className={`w-8 h-8 ${s <= (reviewHover || reviewStars) ? 'text-amber-400' : 'text-neutral-700'} transition-colors`} fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                      </svg>
+                    </button>
+                  ))}
+                  {reviewStars > 0 && (
+                    <span className="ml-2 text-sm text-amber-400 self-center">
+                      {['', 'Poor', 'Fair', 'Good', 'Great', 'Excellent'][reviewStars]}
+                    </span>
+                  )}
+                </div>
+
+                {/* Name */}
+                <input
+                  type="text"
+                  placeholder="Your name (optional)"
+                  value={reviewName}
+                  onChange={(e) => setReviewName(e.target.value)}
+                  maxLength={50}
+                  className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-amber-500/50"
+                />
+
+                {/* Comment */}
+                <textarea
+                  placeholder="Share your experience..."
+                  value={reviewComment}
+                  onChange={(e) => setReviewComment(e.target.value)}
+                  maxLength={500}
+                  rows={3}
+                  className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-amber-500/50 resize-none"
+                />
+
+                {/* Submit */}
+                <button
+                  onClick={submitReview}
+                  disabled={!reviewStars || !reviewComment.trim() || reviewSubmitting}
+                  className="w-full py-2.5 rounded-lg text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-amber-500 hover:bg-amber-400 text-black"
+                >
+                  {reviewSubmitting ? 'Submitting...' : 'Submit Feedback'}
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setReviewSubmitted(false)}
+                className="text-sm text-amber-400 hover:underline"
+              >
+                Leave another review
+              </button>
+            )}
+          </div>
+
+          {/* Reviews List */}
+          {reviews.length > 0 && (
+            <div className="space-y-3" data-testid="reviews-list">
+              <div className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Recent Reviews</div>
+              {reviews.map((r, i) => (
+                <div key={r.id || i} className="bg-neutral-900 border border-neutral-800 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-400 text-xs font-bold">
+                        {(r.name || 'A')[0].toUpperCase()}
+                      </div>
+                      <span className="text-sm font-medium text-neutral-300">{r.name || 'Anonymous'}</span>
+                    </div>
+                    <div className="flex gap-0.5">
+                      {[1,2,3,4,5].map(s => (
+                        <svg key={s} className={`w-3.5 h-3.5 ${s <= r.stars ? 'text-amber-400' : 'text-neutral-700'}`} fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-sm text-neutral-400 leading-relaxed">{r.comment}</p>
+                  <div className="text-[10px] text-neutral-600 mt-2">
+                    {new Date(r.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
