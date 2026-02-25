@@ -676,7 +676,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Feature: Bulk NS update — send all nameservers at once"
+    - "Fix: CR nameserver stale-state revert bug — replace loops with bulk updateAllNameservers"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
