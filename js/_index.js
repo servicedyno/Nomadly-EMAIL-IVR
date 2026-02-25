@@ -5069,13 +5069,23 @@ bot?.on('message', async msg => {
       const coin = tickerOfDyno[tickerKey]
       const redirect_url = `${SELF_URL}/dynopay/crypto-pay-virtual-card`
       const meta_data = { "product_name": "payVirtualCard", "refId": ref }
-      const { qr_code, address: addr } = await getDynopayCryptoAddress(price, coin, redirect_url, meta_data)
-      if (!addr) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
-      set(chatIdOfDynopayPayment, ref, { chatId, price, product: `Virtual Card ($${vcAmount})`, orderId, action: 'payVirtualCard', address: addr })
-      log({ ref })
-      await generateQr(bot, chatId, qr_code, info?.userLanguage ?? 'en')
-      const priceCrypto = await convert(price, 'usd', ticker)
-      send(chatId, t.showDepositCryptoInfoDigitalProduct(price, priceCrypto, tickerKey, addr, `Virtual Card ($${vcAmount})`), trans('o'))
+      const dynoResult = await getDynopayCryptoAddress(price, coin, redirect_url, meta_data)
+      if (dynoResult?.address) {
+        set(chatIdOfDynopayPayment, ref, { chatId, price, product: `Virtual Card ($${vcAmount})`, orderId, action: 'payVirtualCard', address: dynoResult.address })
+        log({ ref })
+        await generateQr(bot, chatId, dynoResult.qr_code, info?.userLanguage ?? 'en')
+        const priceCrypto = await convert(price, 'usd', ticker)
+        send(chatId, t.showDepositCryptoInfoDigitalProduct(price, priceCrypto, tickerKey, dynoResult.address, `Virtual Card ($${vcAmount})`), trans('o'))
+      } else {
+        log('[CryptoFallback] DynoPay unavailable for virtual card, falling back to BlockBee')
+        const { address: bbAddr, bb } = await getCryptoDepositAddress(ticker, chatId, SELF_URL, `/crypto-pay-virtual-card?a=b&ref=${ref}&`)
+        if (!bbAddr) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
+        set(chatIdOfPayment, ref, { chatId, price, product: `Virtual Card ($${vcAmount})`, orderId })
+        log({ ref })
+        await sendQrCode(bot, chatId, bb, info?.userLanguage ?? 'en')
+        const priceCrypto = await convert(price, 'usd', ticker)
+        send(chatId, t.showDepositCryptoInfoDigitalProduct(price, priceCrypto, tickerKey, bbAddr, `Virtual Card ($${vcAmount})`), trans('o'))
+      }
     }
 
     return notifyGroup(`💳 <b>New Virtual Card Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n💵 Card: <b>$${vcAmount}</b> | Total: <b>$${price}</b>\n📬 Address:\n<pre>${address}</pre>\n💳 Payment: Crypto (${tickerKey})\n⏳ Awaiting payment\n\n📩 After payment confirms:\n<code>/deliver ${orderId} [card details]</code>`)
