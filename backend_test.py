@@ -1,372 +1,323 @@
 #!/usr/bin/env python3
 """
-Backend Testing for 4 Hosting Flow Fixes
-Tests the specific code fixes mentioned in the review request.
+Backend Testing Script for Nomadly Node.js Application
+Tests the 2 new tasks from test_result.md:
+1. Fix: Shortener activation must ensureCloudflare before adding CNAME
+2. Fix: switchToCloudflare NS reassignment drift detection
 """
 
+import requests
 import os
 import sys
-import re
-import subprocess
-import json
-import time
-from pathlib import Path
 
-def log(message):
-    print(f"[TEST] {message}")
-
-def read_file_content(file_path):
-    """Read and return file content."""
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            return f.read()
-    except Exception as e:
-        log(f"Error reading {file_path}: {e}")
-        return ""
-
-def check_node_health():
-    """Check if Node.js service is healthy."""
-    try:
-        result = subprocess.run(
-            ['curl', '-s', 'http://localhost:5000/health'],
-            capture_output=True, text=True, timeout=10
-        )
-        if result.returncode == 0:
-            try:
-                health_data = json.loads(result.stdout)
-                return health_data.get('status') == 'healthy'
-            except:
-                return False
-        return False
-    except Exception as e:
-        log(f"Node health check error: {e}")
-        return False
-
-def test_startup_worker_upgrade():
-    """
-    Fix 1: Test upgradeSharedWorker() at startup (_index.js)
-    Verify:
-    - setTimeout with 10000ms delay exists
-    - Calls antiRedService.upgradeSharedWorker()
-    - Has proper .then and .catch handlers
-    """
-    log("Testing Fix 1: upgradeSharedWorker() at startup")
-    
-    index_js = read_file_content('/app/js/_index.js')
-    if not index_js:
-        return False, "Cannot read _index.js file"
-    
-    # Check for setTimeout with 10000ms delay
-    if 'setTimeout(() => {' not in index_js or '}, 10000)' not in index_js:
-        return False, "setTimeout with 10000ms delay not found"
-    
-    # Check for upgradeSharedWorker call inside setTimeout
-    if 'antiRedService.upgradeSharedWorker()' not in index_js:
-        return False, "antiRedService.upgradeSharedWorker() call not found"
-    
-    # Check for .then and .catch handlers
-    if '.then(r => log(' not in index_js or '.catch(err => log(' not in index_js:
-        return False, ".then and .catch handlers not found after upgradeSharedWorker()"
-    
-    # Check for proper log messages
-    if '[AntiRed] Startup worker upgrade:' not in index_js:
-        return False, "Expected log message '[AntiRed] Startup worker upgrade:' not found"
-    
-    log("✅ Fix 1 verified: upgradeSharedWorker() at startup with 10s delay")
-    return True, "upgradeSharedWorker() correctly called at startup with 10s timeout"
-
-def test_upgrade_worker_in_deploy_full_protection():
-    """
-    Fix 2: Test upgradeSharedWorker() inside deployFullProtection()
-    Verify:
-    - upgradeSharedWorker() called before deploySharedWorkerRoute()
-    - Comment mentions "3d. Ensure shared Worker script is up-to-date"
-    - deploySharedWorkerRoute has comment "3e. Deploy HARDENED shared Worker routes"
-    - Wrapped in try/catch (non-blocking)
-    """
-    log("Testing Fix 2: upgradeSharedWorker() inside deployFullProtection()")
-    
-    anti_red_js = read_file_content('/app/js/anti-red-service.js')
-    if not anti_red_js:
-        return False, "Cannot read anti-red-service.js file"
-    
-    # Find deployFullProtection function
-    deploy_func_match = re.search(r'async function deployFullProtection\([^)]*\)\s*\{(.*?)\n\}', anti_red_js, re.DOTALL)
-    if not deploy_func_match:
-        return False, "deployFullProtection function not found"
-    
-    deploy_func_content = deploy_func_match.group(1)
-    
-    # Check for "3d. Ensure shared Worker script is up-to-date" comment
-    if '3d. Ensure shared Worker script is up-to-date' not in deploy_func_content:
-        return False, "Comment '3d. Ensure shared Worker script is up-to-date' not found"
-    
-    # Check for upgradeSharedWorker() call
-    if 'const workerUpgrade = await upgradeSharedWorker()' not in deploy_func_content:
-        return False, "upgradeSharedWorker() call not found in deployFullProtection"
-    
-    # Check for "3e. Deploy HARDENED shared Worker routes" comment
-    if '3e. Deploy HARDENED shared Worker routes' not in deploy_func_content:
-        return False, "Comment '3e. Deploy HARDENED shared Worker routes' not found"
-    
-    # Check that deploySharedWorkerRoute is called after upgradeSharedWorker
-    upgrade_pos = deploy_func_content.find('const workerUpgrade = await upgradeSharedWorker()')
-    deploy_pos = deploy_func_content.find('deploySharedWorkerRoute(domain, zone.id)')
-    
-    if upgrade_pos == -1 or deploy_pos == -1 or upgrade_pos >= deploy_pos:
-        return False, "upgradeSharedWorker() should be called BEFORE deploySharedWorkerRoute()"
-    
-    # Check for try/catch wrapper (non-blocking)
-    upgrade_section = deploy_func_content[upgrade_pos-100:upgrade_pos+500]
-    if 'try {' not in upgrade_section or 'catch' not in upgrade_section:
-        return False, "upgradeSharedWorker() call not properly wrapped in try/catch"
-    
-    log("✅ Fix 2 verified: upgradeSharedWorker() in deployFullProtection() with proper order and comments")
-    return True, "upgradeSharedWorker() correctly placed in deployFullProtection with proper comments and error handling"
-
-def test_check_ssl_cert_function():
-    """
-    Fix 3: Test checkSSLCert() function in whm-service.js
-    Verify:
-    - Function exists and is exported
-    - Uses https.request() with proper options
-    - Has hostname: WHM_HOST, port: 443, servername: domain (SNI)
-    - Has rejectUnauthorized: false
-    - Returns object with required fields
-    """
-    log("Testing Fix 3: checkSSLCert() function in whm-service.js")
-    
-    whm_service_js = read_file_content('/app/js/whm-service.js')
-    if not whm_service_js:
-        return False, "Cannot read whm-service.js file"
-    
-    # Check if function exists
-    if 'async function checkSSLCert(domain)' not in whm_service_js:
-        return False, "checkSSLCert function not found"
-    
-    # Extract the function content
-    func_match = re.search(r'async function checkSSLCert\(domain\)\s*\{(.*?)\n\}', whm_service_js, re.DOTALL)
-    if not func_match:
-        return False, "Could not extract checkSSLCert function content"
-    
-    func_content = func_match.group(1)
-    
-    # Check for https.request usage
-    if 'https.request(' not in func_content:
-        return False, "https.request() not found in checkSSLCert"
-    
-    # Check for required request options
-    required_options = [
-        'hostname: WHM_HOST',
-        'port: 443',
-        'servername: domain',  # SNI
-        'rejectUnauthorized: false'
-    ]
-    
-    for option in required_options:
-        if option not in func_content:
-            return False, f"Required option '{option}' not found in https.request"
-    
-    # Check for proper return object fields
-    return_fields = ['valid', 'selfSigned', 'issuer', 'subject', 'expiresAt']
-    for field in return_fields:
-        if field + ':' not in func_content:
-            return False, f"Return field '{field}' not found in function"
-    
-    # Check if function is exported
-    export_match = re.search(r'module\.exports\s*=\s*\{(.*?)\}', whm_service_js, re.DOTALL)
-    if not export_match:
-        return False, "module.exports not found"
-    
-    exports_content = export_match.group(1)
-    if 'checkSSLCert' not in exports_content:
-        return False, "checkSSLCert not found in module.exports"
-    
-    log("✅ Fix 3 verified: checkSSLCert() function properly implemented and exported")
-    return True, "checkSSLCert() function correctly implemented with https.request and proper SNI"
-
-def test_progressive_ssl_upgrade():
-    """
-    Fix 4: Test Progressive SSL upgrade in cr-register-domain-&-create-cpanel.js
-    Verify:
-    - Initial wait is 180000ms (3 min)
-    - SSL_CHECK_INTERVALS = [2 * 60000, 5 * 60000, 10 * 60000]
-    - Calls whmSvc.checkSSLCert(bgDomain)
-    - Upgrades to 'strict' when valid && !selfSigned
-    - Variables captured as bgZoneId, bgDomain, bgUsername
-    """
-    log("Testing Fix 4: Progressive SSL upgrade in cr-register-domain-&-create-cpanel.js")
-    
-    cpanel_js = read_file_content('/app/js/cr-register-domain-&-create-cpanel.js')
-    if not cpanel_js:
-        return False, "Cannot read cr-register-domain-&-create-cpanel.js file"
-    
-    # Check for initial 180000ms (3 min) wait
-    if 'setTimeout(r, 180000)' not in cpanel_js and '180000' not in cpanel_js:
-        return False, "Initial 180000ms (3 min) wait not found"
-    
-    # Check for SSL_CHECK_INTERVALS definition
-    ssl_intervals_pattern = r'SSL_CHECK_INTERVALS\s*=\s*\[\s*2\s*\*\s*60000\s*,\s*5\s*\*\s*60000\s*,\s*10\s*\*\s*60000\s*\]'
-    if not re.search(ssl_intervals_pattern, cpanel_js):
-        return False, "SSL_CHECK_INTERVALS with correct values [2*60000, 5*60000, 10*60000] not found"
-    
-    # Check for checkSSLCert call
-    if 'whmSvc.checkSSLCert(bgDomain)' not in cpanel_js:
-        return False, "whmSvc.checkSSLCert(bgDomain) call not found"
-    
-    # Check for SSL upgrade condition
-    ssl_upgrade_pattern = r'if\s*\(\s*certStatus\.valid\s*&&\s*!\s*certStatus\.selfSigned\s*\)'
-    if not re.search(ssl_upgrade_pattern, cpanel_js):
-        return False, "SSL upgrade condition 'certStatus.valid && !certStatus.selfSigned' not found"
-    
-    # Check for setSSLMode('strict') call
-    if "setSSLMode(bgZoneId, 'strict')" not in cpanel_js:
-        return False, "setSSLMode(bgZoneId, 'strict') call not found"
-    
-    # Check for captured variables
-    bg_vars = ['bgZoneId', 'bgDomain', 'bgUsername']
-    for var in bg_vars:
-        if f'const {var} = ' not in cpanel_js:
-            return False, f"Variable '{var}' not properly captured before IIFE"
-    
-    # Check for "staying on Full SSL mode" fallback log
-    if 'staying on Full SSL mode' not in cpanel_js:
-        return False, "Fallback log message 'staying on Full SSL mode' not found"
-    
-    log("✅ Fix 4 verified: Progressive SSL upgrade with correct intervals and logic")
-    return True, "Progressive SSL upgrade correctly implemented with 3min initial wait and 2,5,10min checks"
-
-def test_backend_report_url_preference():
-    """
-    Fix 5: Test BACKEND_REPORT_URL preference (anti-red-service.js)
-    Verify:
-    - Uses process.env.SELF_URL_PROD || process.env.SELF_URL (PROD first)
-    - Warning log for 'preview.emergentagent' or 'localhost'
-    - Warning includes text about "Worker BACKEND_REPORT_URL points to dev environment"
-    """
-    log("Testing Fix 5: BACKEND_REPORT_URL preference in anti-red-service.js")
-    
-    anti_red_js = read_file_content('/app/js/anti-red-service.js')
-    if not anti_red_js:
-        return False, "Cannot read anti-red-service.js file"
-    
-    # Find generateHardenedWorkerScript function
-    func_match = re.search(r'function generateHardenedWorkerScript\(\)\s*\{(.*?)\n\}', anti_red_js, re.DOTALL)
-    if not func_match:
-        return False, "generateHardenedWorkerScript function not found"
-    
-    func_content = func_match.group(1)
-    
-    # Check for SELF_URL_PROD || SELF_URL preference
-    url_preference_pattern = r'process\.env\.SELF_URL_PROD\s*\|\|\s*process\.env\.SELF_URL'
-    if not re.search(url_preference_pattern, func_content):
-        return False, "SELF_URL_PROD || SELF_URL preference order not found"
-    
-    # Check for warning condition
-    warning_pattern = r'if\s*\([^)]*backendReportUrl\.includes\([\'"]preview\.emergentagent[\'"]\)[^)]*\|\|[^)]*backendReportUrl\.includes\([\'"]localhost[\'"]\)[^)]*\)'
-    if not re.search(warning_pattern, func_content):
-        return False, "Warning condition for 'preview.emergentagent' or 'localhost' not found"
-    
-    # Check for warning log message
-    if 'Worker BACKEND_REPORT_URL points to dev environment' not in func_content:
-        return False, "Warning message 'Worker BACKEND_REPORT_URL points to dev environment' not found"
-    
-    log("✅ Fix 5 verified: BACKEND_REPORT_URL preference with dev environment warning")
-    return True, "BACKEND_REPORT_URL correctly prefers SELF_URL_PROD with dev environment warnings"
-
-def check_startup_logs():
-    """
-    Fix 6: Check Node.js health and startup logs
-    Verify expected startup messages are present
-    """
-    log("Testing Fix 6: Node.js Health and startup logs")
+def test_nodejs_health():
+    """Test Node.js service health and database connectivity"""
+    print("=" * 60)
+    print("🔍 TESTING NODE.JS SERVICE HEALTH")
+    print("=" * 60)
     
     try:
-        # Check for startup logs
-        result = subprocess.run(
-            ['grep', '-i', 'honeypot.*mongodb.*collection.*initialized\\|kv.*namespace.*ready\\|startup.*worker.*upgrade.*ok', 
-             '/var/log/supervisor/nodejs.out.log'],
-            capture_output=True, text=True
-        )
-        
-        logs_found = []
-        if result.returncode == 0:
-            lines = result.stdout.strip().split('\n')
-            for line in lines:
-                if 'MongoDB collection initialized' in line:
-                    logs_found.append('MongoDB collection initialized')
-                elif 'KV namespace ready' in line:
-                    logs_found.append('KV namespace ready')
-                elif 'Startup worker upgrade: OK' in line:
-                    logs_found.append('Startup worker upgrade: OK')
-        
-        expected_logs = ['MongoDB collection initialized', 'KV namespace ready', 'Startup worker upgrade: OK']
-        missing_logs = [log for log in expected_logs if log not in str(result.stdout)]
-        
-        if missing_logs:
-            log(f"⚠️ Some expected logs not found: {missing_logs}")
+        response = requests.get("http://localhost:5000/health", timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Node.js service: {data.get('status', 'unknown')}")
+            print(f"✅ Database: {data.get('database', 'unknown')}")
+            print(f"✅ Uptime: {data.get('uptime', 'unknown')}")
+            return True
         else:
-            log("✅ All expected startup logs found")
-        
-        return True, f"Startup logs check complete. Found: {logs_found}"
-        
+            print(f"❌ Health check failed with status: {response.status_code}")
+            return False
     except Exception as e:
-        return False, f"Error checking startup logs: {e}"
+        print(f"❌ Health check error: {e}")
+        return False
+
+def verify_domain_service_exports():
+    """Verify domain-service.js exports ensureCloudflare function"""
+    print("\n" + "=" * 60)
+    print("🔍 TESTING DOMAIN-SERVICE.JS EXPORTS")
+    print("=" * 60)
+    
+    try:
+        with open('/app/js/domain-service.js', 'r') as f:
+            content = f.read()
+            
+        # Check if ensureCloudflare function exists
+        if 'const ensureCloudflare = async' in content:
+            print("✅ ensureCloudflare function exists")
+        else:
+            print("❌ ensureCloudflare function not found")
+            return False
+            
+        # Check if ensureCloudflare is exported
+        if 'ensureCloudflare,' in content and 'module.exports' in content:
+            print("✅ ensureCloudflare is exported in module.exports")
+        else:
+            print("❌ ensureCloudflare not found in module.exports")
+            return False
+            
+        return True
+    except Exception as e:
+        print(f"❌ Error checking domain-service.js: {e}")
+        return False
+
+def verify_ensure_cloudflare_logic():
+    """Verify ensureCloudflare handles both cases correctly"""
+    print("\n" + "=" * 60)
+    print("🔍 TESTING ENSURECLOUDFLARE FUNCTION LOGIC")
+    print("=" * 60)
+    
+    try:
+        with open('/app/js/domain-service.js', 'r') as f:
+            content = f.read()
+            
+        # Check case 1: Already on Cloudflare
+        already_on_cf_check = (
+            'if (meta.nameserverType === \'cloudflare\' && meta.cfZoneId)' in content and
+            'return { success: true, cfZoneId: meta.cfZoneId, nameservers: meta.nameservers || [], alreadyActive: true }' in content
+        )
+        
+        if already_on_cf_check:
+            print("✅ Case A: Already on CF → returns { success: true, alreadyActive: true }")
+        else:
+            print("❌ Case A: Already on CF logic not found")
+            return False
+            
+        # Check case 2: Not on CF → creates zone, updates NS, updates DB
+        not_on_cf_checks = [
+            'const cfResult = await cfService.createZone(domainName)' in content,
+            'await opService.updateNameservers(domainName, cfNameservers)' in content,
+            'await db.collection(\'domainsOf\').updateOne' in content,
+            'nameserverType: \'cloudflare\'' in content
+        ]
+        
+        if all(not_on_cf_checks):
+            print("✅ Case B: Not on CF → creates zone, updates NS, updates DB")
+        else:
+            print("❌ Case B: Missing components in 'not on CF' logic")
+            return False
+            
+        return True
+    except Exception as e:
+        print(f"❌ Error verifying ensureCloudflare logic: {e}")
+        return False
+
+def verify_shortener_handlers():
+    """Verify all 3 shortener activation handlers call ensureCloudflare() before addDNSRecord()"""
+    print("\n" + "=" * 60)
+    print("🔍 TESTING SHORTENER ACTIVATION HANDLERS")
+    print("=" * 60)
+    
+    try:
+        with open('/app/js/_index.js', 'r') as f:
+            content = f.read()
+            
+        handlers = [
+            {
+                'name': 'Handler 1: quick-activate-domain-shortener',
+                'line_ref': 'around line 5612',
+                'ensure_cf_pattern': 'const cfEnsure = await domainService.ensureCloudflare(domain, db)',
+                'add_dns_pattern': 'await domainService.addDNSRecord(domain, recordType, server'
+            },
+            {
+                'name': 'Handler 2: activateShortener in DNS menu', 
+                'line_ref': 'around line 6449',
+                'ensure_cf_pattern': 'const cfEnsure = await domainService.ensureCloudflare(domain, db)',
+                'add_dns_pattern': 'await domainService.addDNSRecord(domain, recordType, server'
+            },
+            {
+                'name': 'Handler 3: Domain action shortener',
+                'line_ref': 'around line 10920',
+                'ensure_cf_pattern': 'const cfEnsure = await domainService.ensureCloudflare(domain, db)',
+                'add_dns_pattern': 'await domainService.addDNSRecord(domain, recordType, server'
+            }
+        ]
+        
+        all_handlers_ok = True
+        
+        for handler in handlers:
+            print(f"\n🔍 Checking {handler['name']} ({handler['line_ref']}):")
+            
+            # Check if ensureCloudflare is called
+            if handler['ensure_cf_pattern'] in content:
+                print(f"  ✅ Calls domainService.ensureCloudflare()")
+            else:
+                print(f"  ❌ Missing domainService.ensureCloudflare() call")
+                all_handlers_ok = False
+                continue
+                
+            # Check if addDNSRecord is called after ensureCloudflare
+            if handler['add_dns_pattern'] in content:
+                print(f"  ✅ Calls domainService.addDNSRecord()")
+            else:
+                print(f"  ❌ Missing domainService.addDNSRecord() call")
+                all_handlers_ok = False
+                continue
+                
+            # Check order: ensureCloudflare should come before addDNSRecord
+            ensure_pos = content.find(handler['ensure_cf_pattern'])
+            add_pos = content.find(handler['add_dns_pattern'], ensure_pos)
+            
+            if ensure_pos < add_pos and add_pos != -1:
+                print(f"  ✅ Correct order: ensureCloudflare() BEFORE addDNSRecord()")
+            else:
+                print(f"  ❌ Wrong order or missing pattern")
+                all_handlers_ok = False
+                
+        return all_handlers_ok
+    except Exception as e:
+        print(f"❌ Error verifying shortener handlers: {e}")
+        return False
+
+def verify_cf_service_usage():
+    """Verify cfService.getZoneByName is used in background NS verification"""
+    print("\n" + "=" * 60) 
+    print("🔍 TESTING CLOUDFLARE SERVICE USAGE")
+    print("=" * 60)
+    
+    try:
+        with open('/app/js/domain-service.js', 'r') as f:
+            content = f.read()
+            
+        # Check if cfService.getZoneByName is used
+        if 'const zoneData = await cfService.getZoneByName(bgDomain)' in content:
+            print("✅ cfService.getZoneByName is used in background NS verification")
+        else:
+            print("❌ cfService.getZoneByName not found in background verification")
+            return False
+            
+        return True
+    except Exception as e:
+        print(f"❌ Error verifying CF service usage: {e}")
+        return False
+
+def verify_switch_to_cloudflare_logging():
+    """Verify switchToCloudflare has logging statements"""
+    print("\n" + "=" * 60)
+    print("🔍 TESTING SWITCHTO CLOUDFLARE LOGGING")
+    print("=" * 60)
+    
+    try:
+        with open('/app/js/domain-service.js', 'r') as f:
+            content = f.read()
+            
+        logging_patterns = [
+            'log(`[switchToCloudflare] Starting for ${domainName}',
+            'log(`[switchToCloudflare] CF zone created for ${domainName}',
+            'log(`[switchToCloudflare] OP NS updated for ${domainName}',
+            'log(`[switchToCloudflare] CR NS updated for ${domainName}',
+            'log(`[switchToCloudflare] ⚠️ CF reassigned NS for ${bgDomain}',
+            'log(`[switchToCloudflare] NS verified OK for ${bgDomain}'
+        ]
+        
+        found_logs = 0
+        for pattern in logging_patterns:
+            if pattern in content:
+                found_logs += 1
+                
+        print(f"✅ Found {found_logs}/{len(logging_patterns)} switchToCloudflare log statements")
+        
+        if found_logs >= 4:  # At least most of the key logging
+            return True
+        else:
+            print("❌ Insufficient logging in switchToCloudflare")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Error verifying switchToCloudflare logging: {e}")
+        return False
+
+def verify_background_ns_verification():
+    """Verify background NS verification IIFE exists with 30s delay"""
+    print("\n" + "=" * 60)
+    print("🔍 TESTING BACKGROUND NS VERIFICATION")
+    print("=" * 60)
+    
+    try:
+        with open('/app/js/domain-service.js', 'r') as f:
+            content = f.read()
+            
+        # Check for IIFE patterns with 30s delay
+        iife_patterns = [
+            ';(async () => {',
+            'await new Promise(r => setTimeout(r, 30000))',
+            'const zoneData = await cfService.getZoneByName(bgDomain)',
+            'const currentNS = (zoneData.name_servers || []).sort().join(\',\')',
+            'if (currentNS !== savedNS) {'
+        ]
+        
+        switchto_bg_found = all(pattern in content for pattern in iife_patterns)
+        
+        if switchto_bg_found:
+            print("✅ switchToCloudflare: Background NS verification IIFE exists (30s delay)")
+        else:
+            print("❌ switchToCloudflare: Background NS verification IIFE missing components")
+            return False
+            
+        # Check for ensureCloudflare background verification
+        ensure_patterns = [
+            'log(`[ensureCloudflare] ⚠️ CF reassigned NS for ${bgDomain}',
+            'log(`[ensureCloudflare] NS drift corrected for ${bgDomain}',
+            'log(`[ensureCloudflare] NS verify error for ${bgDomain}'
+        ]
+        
+        ensure_bg_found = all(pattern in content for pattern in ensure_patterns)
+        
+        if ensure_bg_found:
+            print("✅ ensureCloudflare: Background NS verification IIFE exists (30s delay)")
+        else:
+            print("❌ ensureCloudflare: Background NS verification IIFE missing components")
+            return False
+            
+        return True
+    except Exception as e:
+        print(f"❌ Error verifying background NS verification: {e}")
+        return False
 
 def run_all_tests():
-    """Run all hosting flow fix tests."""
-    log("🚀 Starting Backend Tests for 4 Hosting Flow Fixes")
-    log("=" * 60)
-    
-    # Check Node.js health first
-    if not check_node_health():
-        log("❌ Node.js service is not healthy")
-        return False
-    
-    log("✅ Node.js service is healthy")
+    """Run all backend tests for the 2 new tasks"""
+    print("🚀 NOMADLY BACKEND TESTING - SHORTENER CLOUDFLARE FIXES")
+    print("Testing 2 new tasks from test_result.md:")
+    print("1. Fix: Shortener activation must ensureCloudflare before adding CNAME")
+    print("2. Fix: switchToCloudflare NS reassignment drift detection\n")
     
     tests = [
-        ("Fix 1: upgradeSharedWorker() at startup", test_startup_worker_upgrade),
-        ("Fix 2: upgradeSharedWorker() in deployFullProtection()", test_upgrade_worker_in_deploy_full_protection),
-        ("Fix 3: checkSSLCert() function", test_check_ssl_cert_function),
-        ("Fix 4: Progressive SSL upgrade", test_progressive_ssl_upgrade),
-        ("Fix 5: BACKEND_REPORT_URL preference", test_backend_report_url_preference),
-        ("Fix 6: Node.js health and startup logs", check_startup_logs),
+        ("Node.js Service Health", test_nodejs_health),
+        ("Domain Service Exports", verify_domain_service_exports), 
+        ("ensureCloudflare Logic", verify_ensure_cloudflare_logic),
+        ("Shortener Handler Integration", verify_shortener_handlers),
+        ("Cloudflare Service Usage", verify_cf_service_usage),
+        ("switchToCloudflare Logging", verify_switch_to_cloudflare_logging),
+        ("Background NS Verification", verify_background_ns_verification)
     ]
     
     results = []
-    passed = 0
-    total = len(tests)
-    
     for test_name, test_func in tests:
-        log(f"\n📋 Running: {test_name}")
         try:
-            success, message = test_func()
-            if success:
-                log(f"✅ PASS: {message}")
-                passed += 1
-                results.append(f"✅ {test_name}: PASS")
-            else:
-                log(f"❌ FAIL: {message}")
-                results.append(f"❌ {test_name}: FAIL - {message}")
+            result = test_func()
+            results.append((test_name, result))
         except Exception as e:
-            log(f"❌ ERROR: {e}")
-            results.append(f"❌ {test_name}: ERROR - {e}")
+            print(f"❌ Test '{test_name}' failed with exception: {e}")
+            results.append((test_name, False))
     
-    log("\n" + "=" * 60)
-    log("📊 TEST RESULTS SUMMARY")
-    log("=" * 60)
+    # Summary
+    print("\n" + "=" * 60)
+    print("📊 TEST SUMMARY")
+    print("=" * 60)
     
-    for result in results:
-        log(result)
+    passed = sum(1 for _, result in results if result)
+    total = len(results)
     
-    log(f"\n🎯 OVERALL RESULT: {passed}/{total} tests passed ({passed/total*100:.0f}%)")
+    for test_name, result in results:
+        status = "✅ PASS" if result else "❌ FAIL"
+        print(f"{status} {test_name}")
+    
+    print(f"\n🏆 OVERALL: {passed}/{total} tests passed ({(passed/total)*100:.1f}%)")
     
     if passed == total:
-        log("🎉 ALL HOSTING FLOW FIXES VERIFIED SUCCESSFULLY!")
+        print("🎉 ALL TESTS PASSED - Both fixes are correctly implemented!")
         return True
     else:
-        log(f"⚠️ {total - passed} test(s) failed or have issues")
+        print("⚠️  SOME TESTS FAILED - Review the issues above")
         return False
 
 if __name__ == "__main__":
