@@ -2309,14 +2309,25 @@ bot?.on('message', async msg => {
       const { amount, tickerView, userLanguage } = info
       const ticker = tickerOf[tickerView]
       if (BLOCKBEE_CRYTPO_PAYMENT_ON === 'true') {
-        const { address, bb } = await getCryptoDepositAddress(ticker, chatId, SELF_URL, `/crypto-wallet?a=b&ref=${ref}&`)
-        if (!address) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
-        log({ ref })
-        sendQrCode(bot, chatId, bb, userLanguage ?? 'en')
-        set(chatIdOfPayment, ref, { chatId })
-        set(state, chatId, 'action', 'none')
-        const usdIn = await convert(amount, 'usd', ticker)
-        send(chatId, t.showDepositCryptoInfo(usdIn, tickerView, address), trans('o'))
+        const bbResult = await getCryptoDepositAddress(ticker, chatId, SELF_URL, `/crypto-wallet?a=b&ref=${ref}&`)
+        if (bbResult?.address) {
+          log({ ref })
+          sendQrCode(bot, chatId, bbResult.bb, userLanguage ?? 'en')
+          set(chatIdOfPayment, ref, { chatId })
+          set(state, chatId, 'action', 'none')
+          const usdIn = await convert(amount, 'usd', ticker)
+          send(chatId, t.showDepositCryptoInfo(usdIn, tickerView, bbResult.address), trans('o'))
+        } else {
+          log('[CryptoFallback] BlockBee unavailable for wallet, falling back to DynoPay')
+          const dynoCoin = tickerOfDyno[tickerView]
+          const dynoResult = await getDynopayCryptoAddress(amount, dynoCoin, `${SELF_URL}/dynopay/crypto-wallet`, { "product_name": dynopayActions.walletFund, "refId": ref })
+          if (!dynoResult?.address) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
+          await generateQr(bot, chatId, dynoResult.qr_code, userLanguage ?? 'en')
+          set(chatIdOfDynopayPayment, ref, { chatId, action: dynopayActions.walletFund, address: dynoResult.address })
+          set(state, chatId, 'action', 'none')
+          const usdIn = await convert(amount, 'usd', ticker)
+          send(chatId, t.showDepositCryptoInfo(usdIn, tickerView, dynoResult.address), trans('o'))
+        }
       } else {
         const tickerDyno = tickerOfDyno[tickerView]
         const redirect_url = `${SELF_URL}/dynopay/crypto-wallet`
