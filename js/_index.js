@@ -2105,6 +2105,19 @@ bot?.on('message', async msg => {
       }
     },
 
+    'dns-update-all-ns': () => {
+      set(state, chatId, 'action', 'dns-update-all-ns')
+      const domain = info?.domainToManage || ''
+      const records = info?.dnsRecords || []
+      const nsRecords = records.filter(r => r.recordType === 'NS')
+      let msg = `<b>🔄 Update Nameservers for ${domain}</b>\n\n<b>Current nameservers:</b>\n`
+      nsRecords.forEach((r, i) => {
+        msg += `  NS${i + 1}: <code>${r.recordContent || '—'}</code>\n`
+      })
+      msg += `\nEnter all new nameservers (one per line, min 2, max 4):\n\n<i>Example:\nns1.example.com\nns2.example.com\nns3.example.com</i>`
+      send(chatId, msg, { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back, t.cancel]] } })
+    },
+
     'select-dns-record-type-to-add': () => {
       set(state, chatId, 'action', 'select-dns-record-type-to-add')
       const dnsSource = info?.dnsSource || ''
