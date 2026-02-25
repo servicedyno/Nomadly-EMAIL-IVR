@@ -600,7 +600,8 @@ metadata:
           comment: "✅ MIGRATION RESULTS DISPLAY VERIFIED (2/2 tests passed): (1) confirm-switch-to-cloudflare handler exists in _index.js and correctly accesses result.migration field. (2) Migration results from switchToCloudflare() include {migrated, failed, isEmpty} data for user display. Success message enhanced to show detailed migration information including number of migrated records, any failed records, and empty zone advisory. USER MIGRATION FEEDBACK WORKING CORRECTLY."
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Fix: Shortener activation auto-resolves A/CNAME conflicts via addShortenerCNAME"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
