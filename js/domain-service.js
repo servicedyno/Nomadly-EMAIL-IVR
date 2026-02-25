@@ -1096,6 +1096,7 @@ module.exports = {
   updateDNSRecord,
   deleteDNSRecord,
   updateNameserverAtRegistrar,
+  updateAllNameservers,
   switchToCloudflare,
   switchToProviderDefault,
   ensureCloudflare,
