@@ -11067,6 +11067,12 @@ bot?.on('message', async msg => {
       if (!domain) return send(chatId, t.noDomainSelected || 'No domain selected.')
       send(chatId, `🔗 Activating shortener for <b>${domain}</b>...`, { parse_mode: 'HTML' })
       try {
+        // ── Check for hosting plan conflict ──
+        const existingHosting = await cpanelAccounts.findOne({ domain })
+        if (existingHosting) {
+          return send(chatId, `❌ Cannot activate URL shortener — <b>${domain}</b> has an active hosting plan (<b>${existingHosting.plan || 'cPanel'}</b>).\n\nThe shortener CNAME would replace your hosting A records and take your website offline.\n\nPlease use a different domain, or deactivate your hosting plan first.`, { parse_mode: 'HTML' })
+        }
+
         // ── Ensure domain is on Cloudflare (create zone + update NS if needed) ──
         const cfEnsure = await domainService.ensureCloudflare(domain, db)
         if (cfEnsure.error) {
