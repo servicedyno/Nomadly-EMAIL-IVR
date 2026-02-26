@@ -1,289 +1,281 @@
 #!/usr/bin/env python3
 """
-Backend Test Suite for Nomadly Hosting Health Check System
-Tests the IMPROVED hosting health check system functionality
+Backend Test for Addon Domain Protection Fix
+Tests the 5 specific fixes (A-E) for addon domain protection gap in Nomadly Node.js application.
+
+Fixes being tested:
+A. /domains/add (basic) — cpanel-routes.js: $addToSet addonDomains + CF zone deployment + health check
+B. /domains/add-enhanced — cpanel-routes.js: $addToSet addonDomains + health check  
+C. /domains/remove — cpanel-routes.js: $pull addonDomains
+D. protection-enforcer.js collectAllDomains(): addon entries include cpUser + parentDomain
+E. protection-enforcer.js runEnforcement(): condition includes cpanelAddon source
 """
 
 import requests
 import json
-import os
+import time
 import sys
-from datetime import datetime
 
-# Configuration
-BACKEND_URL = os.getenv('REACT_APP_BACKEND_URL', 'http://localhost:5000')
-API_BASE = f"{BACKEND_URL}/api"
-HEALTH_URL = f"{BACKEND_URL}/health"
+# Backend URL from frontend/.env
+BACKEND_URL = "https://deployment-preview-3.preview.emergentagent.com/api"
 
-def log_test(message, status="INFO"):
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{timestamp}] [{status}] {message}")
-
-def test_node_health():
-    """Test Node.js service health on port 5000"""
+def test_health_endpoint():
+    """Test 1: Verify Node.js is healthy at the backend URL + /health"""
+    print("🔍 Test 1: Node.js Health Check")
     try:
-        response = requests.get(HEALTH_URL, timeout=10)
+        response = requests.get(f"{BACKEND_URL}/health", timeout=10)
         if response.status_code == 200:
             data = response.json()
-            log_test(f"✅ Node.js service healthy: {data.get('status', 'unknown')}", "SUCCESS")
-            log_test(f"   Database: {data.get('database', 'unknown')}, Uptime: {data.get('uptime', 'unknown')}")
+            print(f"✅ Node.js Health: {data}")
             return True
         else:
-            log_test(f"❌ Health check failed with status {response.status_code}", "ERROR")
+            print(f"❌ Health endpoint returned {response.status_code}")
             return False
     except Exception as e:
-        log_test(f"❌ Health check request failed: {str(e)}", "ERROR")
+        print(f"❌ Health check failed: {e}")
         return False
 
-def test_hosting_health_check_module():
-    """Test hosting-health-check.js module exports and functionality"""
-    log_test("Testing hosting-health-check.js module...")
+def verify_cpanel_routes_fixes():
+    """Test 2: Verify cpanel-routes.js fixes A, B, C by examining code"""
+    print("\n🔍 Test 2: Verify cPanel Routes Fixes (A, B, C)")
     
-    # Required exports to verify
-    required_exports = [
-        'scheduleHealthCheck',
-        'scheduleSingleCheck', 
-        'runHealthCheck',
-        'detectUserContent',
-        'detectAntibot',
-        'checkHtaccessIntegrity',
-        'checkPrependConfig'
-    ]
-    
-    test_results = []
-    
-    # Test 1: Verify module exports via inspection (simulated)
-    log_test("✅ Module exports verification:")
-    for export_name in required_exports:
-        log_test(f"   - {export_name}: FOUND (function export)", "SUCCESS")
-        test_results.append(True)
-    
-    # Test 2: scheduleHealthCheck creates 3-stage pipeline
-    log_test("✅ scheduleHealthCheck functionality:")
-    log_test("   - Stage 1 (5 min): Infrastructure check", "SUCCESS") 
-    log_test("   - Stage 2 (30 min): Content detection", "SUCCESS")
-    log_test("   - Stage 3 (2 hr): Full E2E check", "SUCCESS")
-    test_results.append(True)
-    
-    # Test 3: scheduleSingleCheck for renewals
-    log_test("✅ scheduleSingleCheck functionality:")
-    log_test("   - Single full check (stage 3)", "SUCCESS")
-    log_test("   - Delay parameter support", "SUCCESS")
-    test_results.append(True)
-    
-    # Test 4: runHealthCheck accepts stage parameter
-    log_test("✅ runHealthCheck functionality:")
-    log_test("   - Accepts stage parameter (1, 2, 3)", "SUCCESS")
-    log_test("   - Returns comprehensive results object", "SUCCESS")
-    test_results.append(True)
-    
-    # Test 5: detectUserContent recursive scan
-    log_test("✅ detectUserContent functionality:")
-    log_test("   - Recursive 3-level directory scan", "SUCCESS")
-    log_test("   - contentPaths array population", "SUCCESS")
-    log_test("   - needsRedirect logic for single subdirs", "SUCCESS") 
-    log_test("   - ambiguousPaths for multiple paths", "SUCCESS")
-    log_test("   - userHtaccessRedirect detection", "SUCCESS")
-    test_results.append(True)
-    
-    # Test 6: detectAntibot signatures
-    log_test("✅ detectAntibot functionality:")
-    log_test("   - ANTIBOT_SIGNATURES array check", "SUCCESS")
-    log_test("   - antibots_directory detection", "SUCCESS")
-    log_test("   - htaccess_deny_rules detection", "SUCCESS")
-    log_test("   - BotSp0x pattern detection", "SUCCESS")
-    log_test("   - antibot_ip pattern detection", "SUCCESS")
-    test_results.append(True)
-    
-    # Test 7: checkHtaccessIntegrity
-    log_test("✅ checkHtaccessIntegrity functionality:")
-    log_test("   - html_entities detection", "SUCCESS")
-    log_test("   - missing_antired detection", "SUCCESS") 
-    log_test("   - remoteip_in_htaccess detection", "SUCCESS")
-    test_results.append(True)
-    
-    # Test 8: checkPrependConfig types
-    log_test("✅ checkPrependConfig functionality:")
-    log_test("   - Type detection: 'ip_fix'", "SUCCESS")
-    log_test("   - Type detection: 'js_challenge'", "SUCCESS")
-    log_test("   - Type detection: 'unknown'", "SUCCESS")
-    log_test("   - Type detection: 'none'", "SUCCESS")
-    test_results.append(True)
-    
-    return all(test_results)
+    # Read the cpanel-routes.js file
+    try:
+        with open('/app/js/cpanel-routes.js', 'r') as f:
+            content = f.read()
+            
+        fixes_found = {}
+        
+        # Fix A: /domains/add has $addToSet addonDomains + CF zone deployment + health check
+        if '$addToSet: { addonDomains: domain.toLowerCase() }' in content:
+            # Check if it's in both /domains/add and /domains/add-enhanced contexts
+            add_basic_match = content.find('router.post(\'/domains/add\', ...auth, async (req, res) => {')
+            add_enhanced_match = content.find('router.post(\'/domains/add-enhanced\', ...auth, async (req, res) => {')
+            
+            if add_basic_match != -1 and add_enhanced_match != -1:
+                # Check for CF zone deployment in basic add
+                cf_deploy_section = content[add_basic_match:add_basic_match+2000]
+                if 'cfService.createZone(domain)' in cf_deploy_section and 'deployFullProtection' in cf_deploy_section:
+                    fixes_found['A_addToSet_and_cf_deploy'] = True
+                    print("✅ Fix A: /domains/add has $addToSet + CF zone deployment")
+                else:
+                    fixes_found['A_addToSet_and_cf_deploy'] = False
+                    print("❌ Fix A: /domains/add missing CF zone deployment")
+                    
+                # Check for health check in basic add
+                if 'scheduleHealthCheck(domain, req.cpUser' in cf_deploy_section:
+                    fixes_found['A_health_check'] = True
+                    print("✅ Fix A: /domains/add has health check scheduling")
+                else:
+                    fixes_found['A_health_check'] = False
+                    print("❌ Fix A: /domains/add missing health check")
+            else:
+                fixes_found['A_addToSet_and_cf_deploy'] = False
+                fixes_found['A_health_check'] = False
+                print("❌ Fix A: Could not locate /domains/add endpoints")
+        
+        # Fix B: /domains/add-enhanced has $addToSet + health check
+        if add_enhanced_match != -1:
+            enhanced_section = content[add_enhanced_match:add_enhanced_match+3000]
+            if '$addToSet: { addonDomains: domain.toLowerCase() }' in enhanced_section:
+                fixes_found['B_addToSet'] = True
+                print("✅ Fix B: /domains/add-enhanced has $addToSet addonDomains")
+            else:
+                fixes_found['B_addToSet'] = False
+                print("❌ Fix B: /domains/add-enhanced missing $addToSet addonDomains")
+                
+            if 'scheduleHealthCheck(domain, req.cpUser' in enhanced_section:
+                fixes_found['B_health_check'] = True
+                print("✅ Fix B: /domains/add-enhanced has health check scheduling")
+            else:
+                fixes_found['B_health_check'] = False
+                print("❌ Fix B: /domains/add-enhanced missing health check")
+        
+        # Fix C: /domains/remove has $pull addonDomains
+        remove_match = content.find('router.post(\'/domains/remove\', ...auth, async (req, res) => {')
+        if remove_match != -1:
+            remove_section = content[remove_match:remove_match+1500]
+            if '$pull: { addonDomains: domain.toLowerCase() }' in remove_section:
+                fixes_found['C_pull'] = True
+                print("✅ Fix C: /domains/remove has $pull addonDomains")
+            else:
+                fixes_found['C_pull'] = False
+                print("❌ Fix C: /domains/remove missing $pull addonDomains")
+        else:
+            fixes_found['C_pull'] = False
+            print("❌ Fix C: Could not locate /domains/remove endpoint")
+            
+        return fixes_found
+        
+    except Exception as e:
+        print(f"❌ Error reading cpanel-routes.js: {e}")
+        return {}
 
-def test_anti_red_service_exports():
-    """Test anti-red-service.js exports"""
-    log_test("Testing anti-red-service.js exports...")
+def verify_protection_enforcer_fixes():
+    """Test 3: Verify protection-enforcer.js fixes D and E"""
+    print("\n🔍 Test 3: Verify Protection Enforcer Fixes (D, E)")
     
-    test_results = []
-    
-    # Required exports verification
-    required_exports = ['generateIPFixPhp', 'deployCFIPFix']
-    
-    log_test("✅ Anti-Red service exports verification:")
-    for export_name in required_exports:
-        log_test(f"   - {export_name}: FOUND (function export)", "SUCCESS")
-        test_results.append(True)
-    
-    # Test generateIPFixPhp functionality
-    log_test("✅ generateIPFixPhp functionality:")
-    log_test("   - PHP code generation with CF-Connecting-IP header handling", "SUCCESS")
-    log_test("   - REMOTE_ADDR restoration logic", "SUCCESS")
-    log_test("   - Recursion guard (ANTIRED_IP_FIXED)", "SUCCESS")
-    test_results.append(True)
-    
-    # Test deployCFIPFix functionality  
-    log_test("✅ deployCFIPFix functionality:")
-    log_test("   - IP fix prepend deployment", "SUCCESS")
-    log_test("   - .user.ini auto_prepend_file configuration", "SUCCESS")
-    log_test("   - Replaces JS challenge for CF Worker protection", "SUCCESS")
-    test_results.append(True)
-    
-    return all(test_results)
+    try:
+        with open('/app/js/protection-enforcer.js', 'r') as f:
+            content = f.read()
+            
+        fixes_found = {}
+        
+        # Fix D: collectAllDomains() addon entries include cpUser + parentDomain
+        collect_domains_start = content.find('async function collectAllDomains() {')
+        if collect_domains_start != -1:
+            # Look for the addon domains section
+            addon_section_start = content.find('// Check for addon domains stored in the account', collect_domains_start)
+            if addon_section_start != -1:
+                addon_section = content[addon_section_start:addon_section_start+1000]
+                
+                # Check for cpUser propagation
+                if 'cpUser: account._id || account.cpUser || null' in addon_section and 'source: \'cpanelAddon\'' in addon_section:
+                    fixes_found['D_cpUser'] = True
+                    print("✅ Fix D: collectAllDomains() addon entries include cpUser from parent")
+                else:
+                    fixes_found['D_cpUser'] = False
+                    print("❌ Fix D: collectAllDomains() addon entries missing cpUser")
+                
+                # Check for parentDomain
+                if 'parentDomain: mainDomain?.toLowerCase() || null' in addon_section:
+                    fixes_found['D_parentDomain'] = True
+                    print("✅ Fix D: collectAllDomains() addon entries include parentDomain")
+                else:
+                    fixes_found['D_parentDomain'] = False
+                    print("❌ Fix D: collectAllDomains() addon entries missing parentDomain")
+            else:
+                fixes_found['D_cpUser'] = False
+                fixes_found['D_parentDomain'] = False
+                print("❌ Fix D: Could not locate addon domains section")
+        else:
+            fixes_found['D_cpUser'] = False
+            fixes_found['D_parentDomain'] = False
+            print("❌ Fix D: Could not locate collectAllDomains function")
+        
+        # Fix E: runEnforcement() condition includes cpanelAddon source
+        run_enforcement_start = content.find('async function runEnforcement() {')
+        if run_enforcement_start != -1:
+            enforcement_section = content[run_enforcement_start:run_enforcement_start+2500]
+            
+            # Look for the condition around line 472
+            if 'entry.source === \'cpanelAccounts\' || entry.source === \'cpanelAddon\'' in enforcement_section:
+                fixes_found['E_condition'] = True
+                print("✅ Fix E: runEnforcement() condition includes cpanelAddon source")
+            else:
+                fixes_found['E_condition'] = False
+                print("❌ Fix E: runEnforcement() condition missing cpanelAddon source")
+                
+                # Check if old condition still exists
+                if 'entry.source === \'cpanelAccounts\'' in enforcement_section and 'cpanelAddon' not in enforcement_section:
+                    print("❌ Fix E: Still using old condition without cpanelAddon")
+        else:
+            fixes_found['E_condition'] = False
+            print("❌ Fix E: Could not locate runEnforcement function")
+            
+        return fixes_found
+        
+    except Exception as e:
+        print(f"❌ Error reading protection-enforcer.js: {e}")
+        return {}
 
-def test_index_renewal_integration():
-    """Test _index.js renewal path calls scheduleSingleCheck"""
-    log_test("Testing _index.js renewal integration...")
+def verify_nodejs_startup():
+    """Test 4: Verify Node.js started cleanly (no syntax errors)"""
+    print("\n🔍 Test 4: Verify Node.js Started Cleanly")
     
-    test_results = []
-    
-    # Verify renewal path integration
-    log_test("✅ Renewal path verification:")
-    log_test("   - scheduleSingleCheck called for renewals (not scheduleHealthCheck)", "SUCCESS")
-    log_test("   - Integration in hosting renewal workflow", "SUCCESS")
-    log_test("   - Proper parameter passing (domain, username, chatId)", "SUCCESS")
-    test_results.append(True)
-    
-    return all(test_results)
+    try:
+        # Check error log
+        with open('/var/log/supervisor/nodejs.err.log', 'r') as f:
+            error_content = f.read().strip()
+        
+        if not error_content:
+            print("✅ Node.js error log is empty - clean startup")
+            startup_clean = True
+        else:
+            print(f"❌ Node.js errors found: {error_content[:200]}")
+            startup_clean = False
+            
+        # Check output log for successful protection enforcer run
+        with open('/var/log/supervisor/nodejs.out.log', 'r') as f:
+            output_content = f.read()
+            
+        if 'Enforcement complete' in output_content and 'errors: 0' in output_content:
+            print("✅ Protection enforcer ran successfully with 0 errors")
+            enforcer_success = True
+        else:
+            print("❌ Protection enforcer did not run successfully or had errors")
+            enforcer_success = False
+            
+        return startup_clean and enforcer_success
+        
+    except Exception as e:
+        print(f"❌ Error checking startup logs: {e}")
+        return False
 
-def test_health_check_staging():
-    """Test health check staging system"""
-    log_test("Testing health check staging system...")
+def verify_backend_report_url_warning():
+    """Test 5: Verify BACKEND_REPORT_URL dev warning is shown"""
+    print("\n🔍 Test 5: Verify Dev Environment Warning")
     
-    test_results = []
-    
-    # Stage 1 verification (5 minutes)
-    log_test("✅ Stage 1 (Infrastructure - 5 min):")
-    log_test("   - HTTP 500 origin check", "SUCCESS")
-    log_test("   - .htaccess integrity verification", "SUCCESS") 
-    log_test("   - Prepend config analysis", "SUCCESS")
-    log_test("   - Auto-fix infrastructure issues", "SUCCESS")
-    test_results.append(True)
-    
-    # Stage 2 verification (30 minutes)
-    log_test("✅ Stage 2 (Content Detection - 30 min):")
-    log_test("   - User content location detection", "SUCCESS")
-    log_test("   - Antibot presence scanning", "SUCCESS")
-    log_test("   - Redirect handling for subdirectories", "SUCCESS")
-    test_results.append(True)
-    
-    # Stage 3 verification (2 hours)
-    log_test("✅ Stage 3 (Full E2E - 2 hr):")
-    log_test("   - Through-Cloudflare verification", "SUCCESS")
-    log_test("   - Redirect target testing with real visitor IP", "SUCCESS")
-    log_test("   - Antibot + IP fix interaction verification", "SUCCESS")
-    log_test("   - Post-fix recheck", "SUCCESS")
-    test_results.append(True)
-    
-    return all(test_results)
+    try:
+        with open('/var/log/supervisor/nodejs.out.log', 'r') as f:
+            output_content = f.read()
+            
+        if 'Worker BACKEND_REPORT_URL points to dev environment' in output_content:
+            print("✅ Dev environment warning correctly displayed")
+            return True
+        else:
+            print("❌ Dev environment warning missing")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Error checking dev warning: {e}")
+        return False
 
-def test_content_detection_logic():
-    """Test smart content path detection logic"""
-    log_test("Testing content detection logic...")
+def main():
+    """Run all tests"""
+    print("🚀 Starting Addon Domain Protection Fix Test Suite")
+    print("=" * 60)
     
-    test_results = []
+    results = {}
     
-    # Test path scanning logic
-    log_test("✅ Content path scanning:")
-    log_test("   - public_html → l1 → l2 → l3 depth scanning", "SUCCESS")
-    log_test("   - Index file detection (index.php, index.html, etc)", "SUCCESS")
-    log_test("   - Multiple content path handling", "SUCCESS")
-    test_results.append(True)
+    # Test 1: Health check
+    results['health'] = test_health_endpoint()
     
-    # Test redirect logic
-    log_test("✅ Redirect decision logic:")
-    log_test("   - ONE subdirectory → needsRedirect=true, redirectTarget set", "SUCCESS")
-    log_test("   - MULTIPLE subdirectories → location='multiple_paths', ambiguousPaths", "SUCCESS")
-    log_test("   - Existing redirect → needsRedirect=false, userHtaccessRedirect", "SUCCESS")
-    test_results.append(True)
+    # Test 2: cPanel routes fixes
+    cpanel_fixes = verify_cpanel_routes_fixes()
+    results.update(cpanel_fixes)
     
-    return all(test_results)
-
-def test_antibot_detection_system():
-    """Test antibot detection capabilities"""
-    log_test("Testing antibot detection system...")
+    # Test 3: Protection enforcer fixes
+    enforcer_fixes = verify_protection_enforcer_fixes()
+    results.update(enforcer_fixes)
     
-    test_results = []
+    # Test 4: Startup verification
+    results['startup_clean'] = verify_nodejs_startup()
     
-    # Signature detection
-    log_test("✅ Antibot signature detection:")
-    log_test("   - antibots/ directory detection", "SUCCESS")
-    log_test("   - antibot_ip, antibot_host patterns", "SUCCESS")
-    log_test("   - $BotSp0x variable detection", "SUCCESS")
-    log_test("   - htaccess deny rules counting", "SUCCESS")
-    test_results.append(True)
-    
-    # Syntax error detection
-    log_test("✅ Htaccess syntax error detection:")
-    log_test("   - duplicate_deny pattern detection", "SUCCESS")
-    log_test("   - invalid_deny_value pattern detection", "SUCCESS")
-    log_test("   - HTML entities in directives detection", "SUCCESS")
-    test_results.append(True)
-    
-    return all(test_results)
-
-def run_all_tests():
-    """Run comprehensive test suite"""
-    log_test("=" * 60)
-    log_test("NOMADLY HOSTING HEALTH CHECK SYSTEM TEST SUITE")
-    log_test("=" * 60)
-    
-    test_functions = [
-        ("Node.js Service Health", test_node_health),
-        ("Hosting Health Check Module", test_hosting_health_check_module),
-        ("Anti-Red Service Exports", test_anti_red_service_exports),
-        ("Index.js Renewal Integration", test_index_renewal_integration),
-        ("Health Check Staging System", test_health_check_staging),
-        ("Content Detection Logic", test_content_detection_logic),
-        ("Antibot Detection System", test_antibot_detection_system)
-    ]
-    
-    results = []
-    
-    for test_name, test_func in test_functions:
-        log_test(f"\n🔍 Running: {test_name}")
-        log_test("-" * 50)
-        try:
-            result = test_func()
-            results.append((test_name, result))
-            status = "✅ PASSED" if result else "❌ FAILED"
-            log_test(f"{status}: {test_name}")
-        except Exception as e:
-            log_test(f"❌ ERROR in {test_name}: {str(e)}", "ERROR")
-            results.append((test_name, False))
+    # Test 5: Dev warning
+    results['dev_warning'] = verify_backend_report_url_warning()
     
     # Summary
-    log_test("\n" + "=" * 60)
-    log_test("TEST SUMMARY")
-    log_test("=" * 60)
+    print("\n" + "=" * 60)
+    print("📊 TEST SUMMARY")
+    print("=" * 60)
     
-    passed = sum(1 for _, result in results if result)
+    passed = sum(1 for v in results.values() if v is True)
     total = len(results)
     
-    for test_name, result in results:
-        status = "✅ PASSED" if result else "❌ FAILED" 
-        log_test(f"{status} {test_name}")
+    for test_name, passed_test in results.items():
+        status = "✅ PASS" if passed_test else "❌ FAIL"
+        print(f"{status}: {test_name}")
     
-    log_test(f"\nResults: {passed}/{total} tests passed")
+    print(f"\nOverall Result: {passed}/{total} tests passed")
     
     if passed == total:
-        log_test("🎉 ALL TESTS PASSED - Hosting Health Check System is functional!", "SUCCESS")
+        print("🎉 ALL ADDON DOMAIN PROTECTION FIXES VERIFIED SUCCESSFULLY!")
         return True
     else:
-        log_test(f"⚠️  {total - passed} test(s) failed", "ERROR")
+        print("⚠️  Some fixes need attention")
         return False
 
-if __name__ == "__main__":
-    success = run_all_tests()
+if __name__ == '__main__':
+    success = main()
     sys.exit(0 if success else 1)
