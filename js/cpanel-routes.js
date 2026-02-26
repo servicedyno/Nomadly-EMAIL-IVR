@@ -250,7 +250,21 @@ function createCpanelRoutes(getCpanelCol) {
     // 1. Remove addon domain from cPanel
     const result = await cpProxy.removeAddonDomain(req.cpUser, req.cpPass, domain, subDomain, req.cpDomain)
 
-    // 2. Clean up Cloudflare: remove DNS records and Worker routes for the removed domain
+    // 2. Remove addon domain from cpanelAccounts.addonDomains[] (protection-enforcer tracking)
+    try {
+      const col = getCpanelCol()
+      if (col) {
+        await col.updateOne(
+          { _id: req.cpUser.toLowerCase() },
+          { $pull: { addonDomains: domain.toLowerCase() } }
+        )
+        log(`[Panel] Removed addon domain ${domain} from cpanelAccounts for ${req.cpUser}`)
+      }
+    } catch (dbErr) {
+      log(`[Panel] remove: failed to unpersist addon ${domain}: ${dbErr.message}`)
+    }
+
+    // 3. Clean up Cloudflare: remove DNS records and Worker routes for the removed domain
     try {
       const zone = await cfService.getZoneByName(domain)
       if (zone) {
