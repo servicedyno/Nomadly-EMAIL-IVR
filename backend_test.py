@@ -13,7 +13,7 @@ import subprocess
 import sys
 
 # Configuration
-BACKEND_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://config-management.preview.emergentagent.com')
+BACKEND_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://setup-guide-preview.preview.emergentagent.com')
 NODEJS_URL = "http://localhost:5000"
 FASTAPI_URL = "http://localhost:8001"
 
