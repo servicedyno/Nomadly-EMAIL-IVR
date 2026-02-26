@@ -466,11 +466,11 @@ async function runEnforcement() {
         continue
       }
 
-      // Only enforce Worker routes for domains with a hosting plan (cpanelAccounts).
+      // Only enforce Worker routes for domains with a hosting plan (cpanelAccounts or addon domains).
       // Domain-only domains should NOT get anti-red Workers, even if their DNS
       // points to our server (could be leftover DNS or misconfiguration).
-      if (entry.source === 'cpanelAccounts') {
-        // Enforce worker routes for hosting domains
+      if (entry.source === 'cpanelAccounts' || entry.source === 'cpanelAddon') {
+        // Enforce worker routes for hosting domains (main + addon)
         const result = await enforceWorkerRoutes(domain, zoneId)
 
         if (result.status === 'already_protected') {
@@ -484,7 +484,7 @@ async function runEnforcement() {
           summary.actions.push(...result.actions)
         }
 
-        // SSL mode upgrade & AutoSSL enforcement for hosting domains
+        // SSL mode upgrade & AutoSSL enforcement for hosting domains (main + addon)
         try {
           await enforceSSLUpgrade(domain, zoneId, entry)
         } catch (sslErr) {
