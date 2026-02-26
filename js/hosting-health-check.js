@@ -2,14 +2,19 @@
 /**
  * Hosting Health Check Service
  * 
- * Automated post-setup health checks for hosting plans.
- * Runs 5 minutes after hosting plan activation to detect and auto-fix common issues:
+ * Multi-stage automated health checks for hosting plans.
  * 
- * 1. HTTP 500 from broken .htaccess (syntax errors, mod_remoteip in .htaccess, etc.)
- * 2. Blank pages from conflicting JS challenge + CF Worker + user anti-bot code
- * 3. User content uploaded outside public_html or in wrong folder
- * 4. CF IP not being restored (user's antibot blocking CF datacenter IPs)
- * 5. User's .htaccess with syntax errors (e.g. "deny from Amazon Technologies Inc")
+ * STAGES:
+ *   Stage 1 (5 min)  — Infrastructure: no 500, Anti-Red deployed, SSL started
+ *   Stage 2 (30 min) — Content: detect uploads, find correct path, add redirect
+ *   Stage 3 (2 hr)   — Full E2E: verify through CF, auto-fix remaining issues
+ * 
+ * HANDLES:
+ *   - Users WITH their own antibot code (antibots/, antibot_ip.php, etc.)
+ *   - Users WITHOUT antibot code (plain PHP/HTML sites)
+ *   - Content in subdirectories (smart path detection + auto-redirect)
+ *   - Broken .htaccess (syntax errors, HTML entities, etc.)
+ *   - CF Worker + prepend conflicts (JS challenge → IP-fix migration)
  */
 
 require('dotenv').config()
@@ -19,7 +24,6 @@ const { log } = require('console')
 
 const WHM_HOST = process.env.WHM_HOST
 const WHM_TOKEN = process.env.WHM_TOKEN
-const RENDER_APP_IP = process.env.RENDER_APP_IP_ADDRESS || '216.24.57.1'
 const TELEGRAM_DEV_CHAT_ID = process.env.TELEGRAM_DEV_CHAT_ID
 
 const whmApi = WHM_HOST && WHM_TOKEN ? axios.create({
@@ -29,140 +33,829 @@ const whmApi = WHM_HOST && WHM_TOKEN ? axios.create({
   httpsAgent: new https.Agent({ rejectUnauthorized: false }),
 }) : null
 
-// Track scheduled health checks to avoid duplicates
+// Track scheduled health checks to avoid duplicates per stage
 const scheduledChecks = new Map()
 
+// Common antibot signatures to detect in user files
+const ANTIBOT_SIGNATURES = [
+  'antibots/', 'antibot_ip', 'antibot_host', 'antibot_userAgent',
+  'antibot_phishtank', '$BotSp0x', '$badBots', 'isBot(', 'botDetect',
+  'blockBots', 'anti-bot', 'crawlerDetect', 'BotSp0x',
+]
+
+// ─── SCHEDULING ─────────────────────────────────────────────────────
+
 /**
- * Schedule a health check to run after a delay (default: 5 minutes)
+ * Schedule the full 3-stage health check pipeline.
+ * 
+ * Stage 1 (5 min):  Infrastructure — verify hosting is up, no 500, Anti-Red OK
+ * Stage 2 (30 min): Content — detect user uploads, auto-redirect if needed
+ * Stage 3 (2 hr):   Full — end-to-end through CF, fix remaining issues
  */
-function scheduleHealthCheck(domain, cpUsername, chatId, delayMs = 5 * 60 * 1000) {
+function scheduleHealthCheck(domain, cpUsername, chatId) {
   const key = `${domain}:${cpUsername}`
-  
-  // Cancel any existing scheduled check for this domain
+
+  // Cancel any existing checks for this domain
+  if (scheduledChecks.has(key)) {
+    for (const timer of scheduledChecks.get(key)) {
+      clearTimeout(timer)
+    }
+  }
+
+  const timers = []
+  const stages = [
+    { stage: 1, delay: 5 * 60 * 1000, name: 'infra' },       // 5 min
+    { stage: 2, delay: 30 * 60 * 1000, name: 'content' },     // 30 min
+    { stage: 3, delay: 2 * 60 * 60 * 1000, name: 'full' },    // 2 hr
+  ]
+
+  for (const { stage, delay, name } of stages) {
+    const timer = setTimeout(async () => {
+      try {
+        log(`[HealthCheck] Stage ${stage} (${name}) starting for ${domain}...`)
+        const results = await runHealthCheck(domain, cpUsername, stage)
+        await reportResults(domain, cpUsername, chatId, results, stage)
+      } catch (err) {
+        log(`[HealthCheck] Stage ${stage} error for ${domain}: ${err.message}`)
+      }
+    }, delay)
+    timers.push(timer)
+  }
+
+  scheduledChecks.set(key, timers)
+  log(`[HealthCheck] 3-stage pipeline scheduled for ${domain} (${cpUsername}): 5min/30min/2hr`)
+}
+
+/**
+ * Schedule a single-stage health check (for renewals or manual triggers)
+ */
+function scheduleSingleCheck(domain, cpUsername, chatId, delayMs = 2 * 60 * 1000) {
+  const key = `${domain}:${cpUsername}:single`
+
   if (scheduledChecks.has(key)) {
     clearTimeout(scheduledChecks.get(key))
   }
 
-  log(`[HealthCheck] Scheduled for ${domain} (${cpUsername}) in ${delayMs / 1000}s`)
-  
   const timer = setTimeout(async () => {
     scheduledChecks.delete(key)
     try {
-      const results = await runHealthCheck(domain, cpUsername)
-      await reportResults(domain, cpUsername, chatId, results)
+      const results = await runHealthCheck(domain, cpUsername, 3) // full check
+      await reportResults(domain, cpUsername, chatId, results, 3)
     } catch (err) {
-      log(`[HealthCheck] Error running health check for ${domain}: ${err.message}`)
+      log(`[HealthCheck] Single check error for ${domain}: ${err.message}`)
     }
   }, delayMs)
 
   scheduledChecks.set(key, timer)
+  log(`[HealthCheck] Single check scheduled for ${domain} in ${delayMs / 1000}s`)
 }
 
+
+// ─── CORE HEALTH CHECK ──────────────────────────────────────────────
+
 /**
- * Run a comprehensive health check on a hosted domain
+ * Run health check for a specific stage
+ * 
+ * @param {string} domain 
+ * @param {string} cpUsername 
+ * @param {number} stage - 1=infra, 2=content, 3=full
  */
-async function runHealthCheck(domain, cpUsername) {
+async function runHealthCheck(domain, cpUsername, stage = 3) {
   const results = {
     timestamp: new Date().toISOString(),
     domain,
     cpUsername,
+    stage,
     checks: {},
     autoFixes: [],
     issues: [],
     warnings: [],
   }
 
-  log(`[HealthCheck] Running health check for ${domain} (${cpUsername})...`)
-
-  // ── Check 1: Direct origin access (root path) ──
-  try {
-    const originRoot = await httpCheck(domain, '/', WHM_HOST, {
-      followRedirects: false,
-    })
-    results.checks.originRoot = originRoot
-    log(`[HealthCheck] ${domain} origin root: HTTP ${originRoot.status}`)
-  } catch (err) {
-    results.checks.originRoot = { error: err.message }
-  }
-
-  // ── Check 2: Detect user content location ──
-  try {
-    const contentInfo = await detectUserContent(cpUsername)
-    results.checks.contentLocation = contentInfo
-    log(`[HealthCheck] ${domain} content: ${contentInfo.location || 'not found'}`)
-  } catch (err) {
-    results.checks.contentLocation = { error: err.message }
-  }
-
-  // ── Check 3: If root returned redirect, follow it ──
-  const rootRedirect = results.checks.originRoot?.redirectUrl
-  if (rootRedirect) {
+  // ── Stage 1: Infrastructure (always runs) ──
+  if (stage >= 1) {
+    // 1a. Direct origin check (root)
     try {
-      const redirectPath = new URL(rootRedirect, `https://${domain}`).pathname
-      const originRedirect = await httpCheck(domain, redirectPath, WHM_HOST, {
-        headers: { 'CF-Connecting-IP': '98.45.123.67' }, // Simulate real user IP
-      })
-      results.checks.originRedirectTarget = originRedirect
-      log(`[HealthCheck] ${domain} redirect target (${redirectPath}): HTTP ${originRedirect.status}`)
+      results.checks.originRoot = await httpCheck(domain, '/', WHM_HOST, { followRedirects: false })
+      log(`[HealthCheck] ${domain} origin root: HTTP ${results.checks.originRoot.status}`)
     } catch (err) {
-      results.checks.originRedirectTarget = { error: err.message }
+      results.checks.originRoot = { error: err.message }
+    }
+
+    // 1b. Check .htaccess integrity
+    try {
+      results.checks.htaccess = await checkHtaccessIntegrity(cpUsername)
+    } catch (err) {
+      results.checks.htaccess = { error: err.message }
+    }
+
+    // 1c. Check prepend config
+    try {
+      results.checks.prepend = await checkPrependConfig(cpUsername)
+    } catch (err) {
+      results.checks.prepend = { error: err.message }
+    }
+
+    // 1d. Auto-fix infrastructure issues
+    await fixInfraIssues(results)
+  }
+
+  // ── Stage 2: Content detection (30 min — user had time to upload) ──
+  if (stage >= 2) {
+    // 2a. Detect user content location (recursive, up to 3 levels)
+    try {
+      results.checks.content = await detectUserContent(cpUsername)
+      log(`[HealthCheck] ${domain} content: ${results.checks.content.location || 'not found'}`)
+    } catch (err) {
+      results.checks.content = { error: err.message }
+    }
+
+    // 2b. Detect antibot presence
+    try {
+      results.checks.antibot = await detectAntibot(cpUsername, results.checks.content)
+      if (results.checks.antibot.detected) {
+        log(`[HealthCheck] ${domain} has user antibot in: ${results.checks.antibot.locations.join(', ')}`)
+      }
+    } catch (err) {
+      results.checks.antibot = { error: err.message }
+    }
+
+    // 2c. Handle redirect needs
+    await fixContentIssues(results)
+  }
+
+  // ── Stage 3: Full E2E (2 hr — DNS + SSL should be fully propagated) ──
+  if (stage >= 3) {
+    // 3a. Check through Cloudflare
+    try {
+      results.checks.throughCF = await httpCheck(domain, '/', null, { followRedirects: true })
+      log(`[HealthCheck] ${domain} through CF: HTTP ${results.checks.throughCF.status}`)
+    } catch (err) {
+      results.checks.throughCF = { error: err.message }
+    }
+
+    // 3b. If there's a redirect, test the target with a simulated real user
+    const redirectUrl = results.checks.originRoot?.redirectUrl
+    if (redirectUrl) {
+      try {
+        const path = new URL(redirectUrl, `https://${domain}`).pathname
+        results.checks.redirectTarget = await httpCheck(domain, path, WHM_HOST, {
+          headers: { 'CF-Connecting-IP': '98.45.123.67' }, // Simulate real visitor IP
+        })
+        log(`[HealthCheck] ${domain} redirect target: HTTP ${results.checks.redirectTarget.status}`)
+      } catch (err) {
+        results.checks.redirectTarget = { error: err.message }
+      }
+    }
+
+    // 3c. Verify antibot + IP fix interaction
+    if (results.checks.antibot?.detected) {
+      await verifyAntibotIPFix(results)
+    }
+
+    // 3d. Final fixes
+    await fixE2EIssues(results)
+
+    // 3e. Post-fix recheck
+    if (results.autoFixes.length > 0) {
+      await sleep(5000)
+      try {
+        results.checks.postFix = await httpCheck(domain, '/', WHM_HOST, {
+          followRedirects: true,
+          headers: { 'CF-Connecting-IP': '98.45.123.67' },
+        })
+        log(`[HealthCheck] ${domain} post-fix: HTTP ${results.checks.postFix.status}`)
+      } catch (err) {
+        results.checks.postFix = { error: err.message }
+      }
     }
   }
 
-  // ── Check 4: Check through Cloudflare ──
-  try {
-    const cfCheck = await httpCheck(domain, '/', null, {
-      followRedirects: true,
-    })
-    results.checks.throughCF = cfCheck
-    log(`[HealthCheck] ${domain} through CF: HTTP ${cfCheck.status}, size=${cfCheck.bodySize}`)
-  } catch (err) {
-    results.checks.throughCF = { error: err.message }
-  }
-
-  // ── Check 5: Verify .htaccess integrity ──
-  try {
-    const htaccessCheck = await checkHtaccessIntegrity(cpUsername)
-    results.checks.htaccess = htaccessCheck
-  } catch (err) {
-    results.checks.htaccess = { error: err.message }
-  }
-
-  // ── Check 6: Verify prepend configuration ──
-  try {
-    const prependCheck = await checkPrependConfig(cpUsername)
-    results.checks.prepend = prependCheck
-  } catch (err) {
-    results.checks.prepend = { error: err.message }
-  }
-
-  // ── Analysis & Auto-Fix Phase ──
-  await analyzeAndFix(results)
-
-  // ── Post-fix recheck if fixes were applied ──
-  if (results.autoFixes.length > 0) {
-    log(`[HealthCheck] ${results.autoFixes.length} auto-fixes applied, rechecking ${domain}...`)
-    await sleep(5000) // Wait for changes to propagate
-
-    try {
-      const recheck = await httpCheck(domain, '/', WHM_HOST, {
-        followRedirects: true,
-        headers: { 'CF-Connecting-IP': '98.45.123.67' },
-      })
-      results.checks.postFixRecheck = recheck
-      log(`[HealthCheck] ${domain} post-fix: HTTP ${recheck.status}`)
-    } catch (err) {
-      results.checks.postFixRecheck = { error: err.message }
-    }
-  }
-
-  log(`[HealthCheck] Complete for ${domain}: ${results.issues.length} issues, ${results.autoFixes.length} fixes, ${results.warnings.length} warnings`)
+  log(`[HealthCheck] Stage ${stage} complete for ${domain}: ${results.issues.length} issues, ${results.autoFixes.length} fixes, ${results.warnings.length} warnings`)
   return results
 }
 
+
+// ─── CONTENT DETECTION (SMART PATH FINDING) ─────────────────────────
+
 /**
- * HTTP check helper — makes a request and returns status + metadata
+ * Recursively detect where user uploaded their content.
+ * Scans up to 3 levels deep, finds index.php/index.html, detects content folders.
+ * 
+ * Returns:
+ *   location: 'public_html' | 'public_html/SubDir/...' | 'empty'
+ *   needsRedirect: true if content is in subdirectory and root has no index
+ *   redirectTarget: '/SubDir/path/' — the deepest path with an index file
+ *   contentPaths: all paths where index files were found
+ *   userHtaccessRedirect: existing redirect in user's .htaccess (if any)
  */
+async function detectUserContent(cpUsername) {
+  if (!whmApi) return { error: 'WHM not configured' }
+
+  const result = {
+    location: 'empty',
+    needsRedirect: false,
+    redirectTarget: null,
+    contentPaths: [],       // all paths with index files
+    hasRootIndex: false,
+    userHtaccessRedirect: null,
+    totalFiles: 0,
+  }
+
+  try {
+    // Scan root level
+    const rootScan = await scanDirectory(cpUsername, '/public_html')
+    result.hasRootIndex = rootScan.hasIndex
+    result.totalFiles = rootScan.fileCount
+
+    if (rootScan.hasIndex) {
+      result.contentPaths.push({ path: '/', files: rootScan.files, indexFile: rootScan.indexFile })
+      result.location = 'public_html'
+    }
+
+    // Check if user already has a redirect in their sub-.htaccess
+    if (rootScan.files.includes('.htaccess')) {
+      result.userHtaccessRedirect = await detectExistingRedirect(cpUsername, '/public_html')
+    }
+
+    // Scan subdirectories (level 1)
+    const userDirs = rootScan.dirs.filter(d => d !== 'cgi-bin')
+    for (const dir of userDirs) {
+      const l1Path = `/public_html/${dir}`
+      const l1Scan = await scanDirectory(cpUsername, l1Path)
+
+      if (l1Scan.hasIndex) {
+        result.contentPaths.push({ path: `/${dir}/`, files: l1Scan.files, indexFile: l1Scan.indexFile })
+      }
+
+      // Scan level 2
+      for (const subDir of l1Scan.dirs) {
+        const l2Path = `${l1Path}/${subDir}`
+        const l2Scan = await scanDirectory(cpUsername, l2Path)
+
+        if (l2Scan.hasIndex) {
+          result.contentPaths.push({ path: `/${dir}/${subDir}/`, files: l2Scan.files, indexFile: l2Scan.indexFile })
+        }
+
+        // Scan level 3
+        for (const subSubDir of l2Scan.dirs) {
+          const l3Path = `${l2Path}/${subSubDir}`
+          const l3Scan = await scanDirectory(cpUsername, l3Path)
+
+          if (l3Scan.hasIndex) {
+            result.contentPaths.push({ path: `/${dir}/${subDir}/${subSubDir}/`, files: l3Scan.files, indexFile: l3Scan.indexFile })
+          }
+        }
+      }
+    }
+
+    // Determine redirect needs
+    if (!result.hasRootIndex && result.contentPaths.length === 1) {
+      // Content in exactly ONE subdirectory — safe to auto-redirect
+      result.needsRedirect = true
+      result.redirectTarget = result.contentPaths[0].path
+      result.location = `public_html${result.contentPaths[0].path}`
+    } else if (!result.hasRootIndex && result.contentPaths.length > 1) {
+      // Content in MULTIPLE subdirectories — can't auto-decide
+      result.needsRedirect = false
+      result.redirectTarget = null
+      result.location = 'multiple_paths'
+      result.ambiguousPaths = result.contentPaths.map(p => p.path)
+    } else if (!result.hasRootIndex && result.contentPaths.length === 0) {
+      result.location = 'empty'
+    }
+
+    // If user already has their own redirect, respect it
+    if (result.userHtaccessRedirect) {
+      result.needsRedirect = false
+      result.location = `user_redirect:${result.userHtaccessRedirect}`
+    }
+
+    return result
+  } catch (err) {
+    return { error: err.message }
+  }
+}
+
+/**
+ * Scan a single directory for files, subdirectories, and index presence
+ */
+async function scanDirectory(cpUsername, dirPath) {
+  const result = { files: [], dirs: [], hasIndex: false, indexFile: null, fileCount: 0 }
+
+  try {
+    // List files
+    const fileRes = await whmApi.get('/cpanel', {
+      params: {
+        cpanel_jsonapi_user: cpUsername,
+        cpanel_jsonapi_apiversion: 2,
+        cpanel_jsonapi_module: 'Fileman',
+        cpanel_jsonapi_func: 'listfiles',
+        dir: `/home/${cpUsername}${dirPath}`,
+        types: 'file',
+        showdotfiles: 1,
+      },
+    })
+    result.files = (fileRes.data?.cpanelresult?.data || [])
+      .map(f => f.file || f.name)
+      .filter(Boolean)
+    result.fileCount = result.files.length
+
+    // Check for index files (priority: index.php > index.html > default.php)
+    for (const idx of ['index.php', 'index.html', 'default.php', 'home.php', 'main.php']) {
+      if (result.files.includes(idx)) {
+        result.hasIndex = true
+        result.indexFile = idx
+        break
+      }
+    }
+
+    // List directories
+    const dirRes = await whmApi.get('/cpanel', {
+      params: {
+        cpanel_jsonapi_user: cpUsername,
+        cpanel_jsonapi_apiversion: 2,
+        cpanel_jsonapi_module: 'Fileman',
+        cpanel_jsonapi_func: 'listfiles',
+        dir: `/home/${cpUsername}${dirPath}`,
+        types: 'dir',
+        showdotfiles: 0,
+      },
+    })
+    result.dirs = (dirRes.data?.cpanelresult?.data || [])
+      .map(d => d.file || d.name)
+      .filter(Boolean)
+  } catch (_) {}
+
+  return result
+}
+
+/**
+ * Detect if the user already has a redirect rule in their .htaccess
+ * (e.g., RewriteRule ^$ /something/ [R=301,L])
+ */
+async function detectExistingRedirect(cpUsername, dirPath) {
+  try {
+    const res = await whmApi.get('/cpanel', {
+      params: {
+        'api.version': 1,
+        cpanel_jsonapi_user: cpUsername,
+        cpanel_jsonapi_apiversion: 3,
+        cpanel_jsonapi_module: 'Fileman',
+        cpanel_jsonapi_func: 'get_file_content',
+        dir: dirPath.replace(`/home/${cpUsername}`, ''),
+        file: '.htaccess',
+      },
+    })
+    const content = res.data?.result?.data?.content || ''
+
+    // Look for redirect rules (not our Anti-Red ones)
+    const lines = content.split('\n')
+    for (const line of lines) {
+      const trimmed = line.trim()
+      // Skip comments and our own rules
+      if (trimmed.startsWith('#') || trimmed.includes('Anti-Red')) continue
+      // Detect RewriteRule with [R] or [R=30x] or Redirect directive
+      const redirectMatch = trimmed.match(/RewriteRule\s+\^\$?\s+(\S+)\s+\[.*R.*\]/i)
+        || trimmed.match(/Redirect\s+\d+\s+\/\s+(\S+)/i)
+      if (redirectMatch) {
+        return redirectMatch[1]
+      }
+    }
+    return null
+  } catch (_) {
+    return null
+  }
+}
+
+
+// ─── ANTIBOT DETECTION ──────────────────────────────────────────────
+
+/**
+ * Detect if user uploaded files contain their own anti-bot protection.
+ * This affects how we test the site and what fixes we apply.
+ */
+async function detectAntibot(cpUsername, contentInfo) {
+  if (!whmApi || !contentInfo?.contentPaths?.length) {
+    return { detected: false, locations: [], signatures: [] }
+  }
+
+  const result = { detected: false, locations: [], signatures: [] }
+
+  for (const cp of contentInfo.contentPaths) {
+    const dirPath = `/public_html${cp.path}`.replace(/\/$/, '')
+
+    try {
+      // Check if there's an antibots/ directory
+      const scan = await scanDirectory(cpUsername, dirPath)
+      if (scan.dirs.some(d => d.toLowerCase().includes('antibot') || d.toLowerCase().includes('anti-bot'))) {
+        result.detected = true
+        result.locations.push(cp.path)
+        result.signatures.push('antibots_directory')
+      }
+
+      // Check the index file for antibot signatures
+      if (cp.indexFile) {
+        try {
+          const fileRes = await whmApi.get('/cpanel', {
+            params: {
+              'api.version': 1,
+              cpanel_jsonapi_user: cpUsername,
+              cpanel_jsonapi_apiversion: 3,
+              cpanel_jsonapi_module: 'Fileman',
+              cpanel_jsonapi_func: 'get_file_content',
+              dir: dirPath,
+              file: cp.indexFile,
+            },
+          })
+          const content = fileRes.data?.result?.data?.content || ''
+          const contentLower = content.toLowerCase()
+
+          for (const sig of ANTIBOT_SIGNATURES) {
+            if (contentLower.includes(sig.toLowerCase())) {
+              if (!result.signatures.includes(sig)) result.signatures.push(sig)
+              result.detected = true
+              if (!result.locations.includes(cp.path)) result.locations.push(cp.path)
+            }
+          }
+        } catch (_) {}
+      }
+
+      // Check for user's .htaccess with deny rules
+      if (scan.files.includes('.htaccess')) {
+        try {
+          const htRes = await whmApi.get('/cpanel', {
+            params: {
+              'api.version': 1,
+              cpanel_jsonapi_user: cpUsername,
+              cpanel_jsonapi_apiversion: 3,
+              cpanel_jsonapi_module: 'Fileman',
+              cpanel_jsonapi_func: 'get_file_content',
+              dir: dirPath,
+              file: '.htaccess',
+            },
+          })
+          const htContent = htRes.data?.result?.data?.content || ''
+
+          // Check for extensive deny rules (more than 10 deny lines = user has antibot)
+          const denyCount = (htContent.match(/deny from/gi) || []).length
+          if (denyCount > 10) {
+            result.detected = true
+            if (!result.signatures.includes('htaccess_deny_rules')) result.signatures.push('htaccess_deny_rules')
+            if (!result.locations.includes(cp.path)) result.locations.push(cp.path)
+          }
+
+          // Check for .htaccess syntax errors
+          const syntaxIssues = detectHtaccessSyntaxErrors(htContent)
+          if (syntaxIssues.length > 0) {
+            result.htaccessIssues = result.htaccessIssues || []
+            result.htaccessIssues.push({ path: cp.path, issues: syntaxIssues })
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+  }
+
+  return result
+}
+
+/**
+ * Detect common .htaccess syntax errors that cause 500s
+ */
+function detectHtaccessSyntaxErrors(content) {
+  const issues = []
+  const lines = content.split('\n')
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim()
+    const lineNum = i + 1
+
+    // "deny from deny from ..." — duplicate keyword
+    if (/^deny\s+from\s+deny\s+from/i.test(line)) {
+      issues.push({ line: lineNum, type: 'duplicate_deny', text: line.substring(0, 80) })
+    }
+
+    // "deny from [non-IP text]" — invalid value
+    if (/^deny\s+from\s+/i.test(line)) {
+      const value = line.replace(/^deny\s+from\s+/i, '').trim()
+      if (value && !/^[\d\.\/]+$/.test(value) && !/^env=/.test(value) && !/^all$/i.test(value)) {
+        // Value is not an IP, CIDR, env=, or 'all'
+        issues.push({ line: lineNum, type: 'invalid_deny_value', text: line.substring(0, 80) })
+      }
+    }
+
+    // HTML entities in directives
+    if (/&lt;|&gt;|&amp;/.test(line)) {
+      issues.push({ line: lineNum, type: 'html_entities', text: line.substring(0, 80) })
+    }
+  }
+
+  return issues
+}
+
+
+// ─── FIX FUNCTIONS ──────────────────────────────────────────────────
+
+/**
+ * Stage 1 fixes: Infrastructure issues (500 errors, broken .htaccess, wrong prepend)
+ */
+async function fixInfraIssues(results) {
+  const { checks, domain, cpUsername } = results
+
+  // Fix HTTP 500 from origin
+  if (checks.originRoot?.status === 500) {
+    results.issues.push('Origin returns HTTP 500')
+
+    // Redeploy .htaccess if it has issues
+    const htIssues = checks.htaccess?.issues || []
+    if (htIssues.some(i => i.type === 'html_entities' || i.type === 'remoteip_in_htaccess' || i.type === 'missing_antired')) {
+      try {
+        const antiRedService = require('./anti-red-service')
+        await antiRedService.deployHtaccess(cpUsername, domain)
+        results.autoFixes.push(`Redeployed .htaccess (${htIssues.map(i => i.type).join(', ')})`)
+      } catch (err) {
+        results.issues.push(`Failed to redeploy .htaccess: ${err.message}`)
+      }
+    }
+  }
+
+  // Fix JS challenge when CF Worker is active
+  if (checks.prepend?.hasJsChallenge) {
+    try {
+      const antiRedService = require('./anti-red-service')
+      await antiRedService.deployCFIPFix(cpUsername)
+      results.autoFixes.push('Replaced JS challenge with IP-fix prepend (CF Worker handles bot detection)')
+    } catch (err) {
+      results.issues.push(`Failed to replace JS challenge: ${err.message}`)
+    }
+  }
+
+  // Ensure IP fix is deployed
+  if (!checks.prepend?.hasIPFix && !checks.prepend?.hasJsChallenge) {
+    try {
+      const antiRedService = require('./anti-red-service')
+      await antiRedService.deployCFIPFix(cpUsername)
+      results.autoFixes.push('Deployed IP-fix prepend (was missing)')
+    } catch (err) {
+      results.issues.push(`Failed to deploy IP fix: ${err.message}`)
+    }
+  }
+}
+
+/**
+ * Stage 2 fixes: Content issues (redirects, missing uploads)
+ */
+async function fixContentIssues(results) {
+  const { checks, domain, cpUsername } = results
+  const content = checks.content
+
+  if (!content) return
+
+  // Auto-redirect when content is in exactly one subdirectory
+  if (content.needsRedirect && content.redirectTarget) {
+    try {
+      await addRootRedirect(cpUsername, content.redirectTarget)
+      results.autoFixes.push(`Added root redirect → ${content.redirectTarget} (content in subdirectory)`)
+    } catch (err) {
+      results.issues.push(`Failed to add redirect to ${content.redirectTarget}: ${err.message}`)
+    }
+  }
+
+  // Multiple content paths — can't auto-decide, notify admin
+  if (content.location === 'multiple_paths') {
+    results.warnings.push(
+      `Content found in multiple paths: ${content.ambiguousPaths.join(', ')}. `
+      + `Cannot auto-redirect — user should be asked which is their main page.`
+    )
+  }
+
+  // No content uploaded
+  if (content.location === 'empty') {
+    results.warnings.push(
+      'No user content found in public_html. User needs to upload files via HostPanel File Manager. '
+      + 'Files should be uploaded to the public_html folder (or a subfolder like /site/).'
+    )
+  }
+
+  // User's .htaccess in subdirectory has syntax errors
+  if (checks.antibot?.htaccessIssues?.length > 0) {
+    for (const { path, issues } of checks.antibot.htaccessIssues) {
+      const fixable = issues.filter(i => i.type === 'duplicate_deny' || i.type === 'invalid_deny_value')
+      if (fixable.length > 0) {
+        try {
+          await fixUserHtaccessSyntax(cpUsername, path, fixable)
+          results.autoFixes.push(`Fixed ${fixable.length} .htaccess syntax errors in ${path}`)
+        } catch (err) {
+          results.warnings.push(`Could not auto-fix .htaccess in ${path}: ${err.message}`)
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Stage 3 fixes: E2E issues (CF worker, SSL, final verification)
+ */
+async function fixE2EIssues(results) {
+  const { checks } = results
+
+  // CF Worker showing Access Denied too aggressively
+  if (checks.throughCF?.hasAccessDenied) {
+    results.warnings.push('CF Worker blocking automated browsers — real users with standard browsers should pass through.')
+  }
+
+  // Redirect target returning 404 (user's antibot blocking)
+  if (checks.redirectTarget?.has404Content) {
+    if (results.checks.antibot?.detected) {
+      results.warnings.push(
+        'User\'s antibot code returns 404 for datacenter IPs. '
+        + 'IP-fix prepend restores real visitor IP from CF-Connecting-IP — real users should see the page.'
+      )
+    } else {
+      results.issues.push('Redirect target returns 404 but no antibot detected — content may be missing or broken')
+    }
+  }
+}
+
+/**
+ * Verify that the IP fix works correctly with the user's antibot code.
+ * Tests: request with CF-Connecting-IP header should get through (not 404).
+ */
+async function verifyAntibotIPFix(results) {
+  const { domain, checks } = results
+  const redirectUrl = checks.originRoot?.redirectUrl
+  const path = redirectUrl
+    ? new URL(redirectUrl, `https://${domain}`).pathname
+    : '/'
+
+  try {
+    // Test WITHOUT CF-Connecting-IP (should be blocked by antibot)
+    const withoutIP = await httpCheck(domain, path, WHM_HOST, {})
+    
+    // Test WITH CF-Connecting-IP (should pass through)
+    const withIP = await httpCheck(domain, path, WHM_HOST, {
+      headers: { 'CF-Connecting-IP': '76.187.45.123' },
+    })
+
+    results.checks.antibotIPTest = {
+      withoutCFIP: { status: withIP.status, blocked: withoutIP.has404Content || withoutIP.status === 403 },
+      withCFIP: { status: withIP.status, blocked: withIP.has404Content || withIP.status === 403 },
+      ipFixWorking: !withIP.has404Content && !withIP.has500Content && withIP.status !== 403,
+    }
+
+    if (results.checks.antibotIPTest.ipFixWorking) {
+      log(`[HealthCheck] ✅ IP fix working for ${domain}: real users pass antibot with CF-Connecting-IP`)
+    } else {
+      results.warnings.push(
+        'IP-fix test inconclusive — user\'s antibot may check more than just IP (referrer, cookies, etc.)'
+      )
+    }
+  } catch (err) {
+    results.checks.antibotIPTest = { error: err.message }
+  }
+}
+
+
+// ─── HTACCESS FIXES ─────────────────────────────────────────────────
+
+/**
+ * Add a root redirect to .htaccess (only when we're sure about the target)
+ */
+async function addRootRedirect(cpUsername, targetPath) {
+  if (!whmApi) throw new Error('WHM not configured')
+
+  // Read current .htaccess
+  const readRes = await whmApi.get('/cpanel', {
+    params: {
+      'api.version': 1,
+      cpanel_jsonapi_user: cpUsername,
+      cpanel_jsonapi_apiversion: 3,
+      cpanel_jsonapi_module: 'Fileman',
+      cpanel_jsonapi_func: 'get_file_content',
+      dir: '/public_html',
+      file: '.htaccess',
+    },
+  })
+  let content = readRes.data?.result?.data?.content || ''
+
+  // Don't add if redirect already exists
+  if (content.includes('Redirect root to website content') || content.includes(`RewriteRule ^$ ${targetPath}`)) {
+    return
+  }
+
+  // Don't add if user has their own redirect
+  if (content.match(/RewriteRule\s+\^\$?\s+\S+\s+\[.*R.*\]/i)) {
+    return
+  }
+
+  // Insert redirect AFTER UA blocking rules (so scanners get blocked before redirect)
+  // Look for the last RewriteRule that returns [F,L] and insert after it
+  const lines = content.split('\n')
+  let insertAfter = -1
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].includes('[F,L]') && lines[i].includes('RewriteRule')) {
+      insertAfter = i
+    }
+  }
+
+  const redirectLine = `\n  # Redirect root to website content (auto-detected by Health Check)\n  RewriteRule ^$ ${targetPath} [L,R=302]\n`
+
+  if (insertAfter >= 0) {
+    lines.splice(insertAfter + 1, 0, redirectLine)
+    content = lines.join('\n')
+  } else if (content.includes('RewriteEngine On')) {
+    // Fallback: insert after RewriteEngine On
+    content = content.replace('RewriteEngine On', 'RewriteEngine On\n' + redirectLine)
+  }
+
+  // Write back
+  await whmApi.get('/cpanel', {
+    params: {
+      'api.version': 1,
+      cpanel_jsonapi_user: cpUsername,
+      cpanel_jsonapi_apiversion: 3,
+      cpanel_jsonapi_module: 'Fileman',
+      cpanel_jsonapi_func: 'save_file_content',
+      dir: '/public_html',
+      file: '.htaccess',
+      content,
+    },
+  })
+
+  log(`[HealthCheck] Added root redirect → ${targetPath} for ${cpUsername}`)
+}
+
+/**
+ * Fix syntax errors in user's .htaccess (comment out bad lines)
+ */
+async function fixUserHtaccessSyntax(cpUsername, contentPath, issues) {
+  if (!whmApi) throw new Error('WHM not configured')
+
+  const dirPath = `/public_html${contentPath}`.replace(/\/$/, '')
+
+  const readRes = await whmApi.get('/cpanel', {
+    params: {
+      'api.version': 1,
+      cpanel_jsonapi_user: cpUsername,
+      cpanel_jsonapi_apiversion: 3,
+      cpanel_jsonapi_module: 'Fileman',
+      cpanel_jsonapi_func: 'get_file_content',
+      dir: dirPath,
+      file: '.htaccess',
+    },
+  })
+  let content = readRes.data?.result?.data?.content || ''
+  if (!content) return
+
+  const lines = content.split('\n')
+  let fixed = 0
+
+  for (const issue of issues) {
+    const lineIdx = issue.line - 1
+    if (lineIdx >= 0 && lineIdx < lines.length) {
+      const originalLine = lines[lineIdx]
+      // Comment out the broken line with explanation
+      lines[lineIdx] = `# [Auto-fixed by Nomadly Health Check] ${originalLine}`
+      fixed++
+    }
+  }
+
+  if (fixed > 0) {
+    // Create backup first
+    await whmApi.get('/cpanel', {
+      params: {
+        'api.version': 1,
+        cpanel_jsonapi_user: cpUsername,
+        cpanel_jsonapi_apiversion: 3,
+        cpanel_jsonapi_module: 'Fileman',
+        cpanel_jsonapi_func: 'save_file_content',
+        dir: dirPath,
+        file: '.htaccess.bak',
+        content,
+      },
+    })
+
+    // Write fixed version
+    await whmApi.get('/cpanel', {
+      params: {
+        'api.version': 1,
+        cpanel_jsonapi_user: cpUsername,
+        cpanel_jsonapi_apiversion: 3,
+        cpanel_jsonapi_module: 'Fileman',
+        cpanel_jsonapi_func: 'save_file_content',
+        dir: dirPath,
+        file: '.htaccess',
+        content: lines.join('\n'),
+      },
+    })
+
+    log(`[HealthCheck] Fixed ${fixed} syntax errors in ${dirPath}/.htaccess`)
+  }
+}
+
+
+// ─── HTTP CHECK HELPER ──────────────────────────────────────────────
+
 async function httpCheck(domain, path, directIP, options = {}) {
   const { followRedirects = false, headers = {} } = options
   const url = `https://${domain}${path}`
@@ -172,7 +865,7 @@ async function httpCheck(domain, path, directIP, options = {}) {
     method: 'GET',
     timeout: 15000,
     maxRedirects: followRedirects ? 5 : 0,
-    validateStatus: () => true, // Accept all status codes
+    validateStatus: () => true,
     httpsAgent: new https.Agent({ rejectUnauthorized: false }),
     headers: {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -180,11 +873,10 @@ async function httpCheck(domain, path, directIP, options = {}) {
     },
   }
 
-  // If directIP provided, resolve to that IP
   if (directIP) {
     requestConfig.httpsAgent = new https.Agent({
       rejectUnauthorized: false,
-      lookup: (hostname, opts, callback) => {
+      lookup: (_hostname, _opts, callback) => {
         callback(null, directIP, 4)
       },
     })
@@ -218,112 +910,14 @@ async function httpCheck(domain, path, directIP, options = {}) {
   }
 }
 
-/**
- * Detect where the user uploaded their content
- */
-async function detectUserContent(cpUsername) {
-  if (!whmApi) return { error: 'WHM not configured' }
 
-  try {
-    // List directories in public_html
-    const dirRes = await whmApi.get('/cpanel', {
-      params: {
-        cpanel_jsonapi_user: cpUsername,
-        cpanel_jsonapi_apiversion: 2,
-        cpanel_jsonapi_module: 'Fileman',
-        cpanel_jsonapi_func: 'listfiles',
-        dir: `/home/${cpUsername}/public_html`,
-        types: 'dir',
-        showdotfiles: 0,
-      },
-    })
-    const dirs = (dirRes.data?.cpanelresult?.data || []).map(d => d.file || d.name).filter(Boolean)
+// ─── HTACCESS INTEGRITY CHECK ───────────────────────────────────────
 
-    // List files in public_html
-    const fileRes = await whmApi.get('/cpanel', {
-      params: {
-        cpanel_jsonapi_user: cpUsername,
-        cpanel_jsonapi_apiversion: 2,
-        cpanel_jsonapi_module: 'Fileman',
-        cpanel_jsonapi_func: 'listfiles',
-        dir: `/home/${cpUsername}/public_html`,
-        types: 'file',
-        showdotfiles: 0,
-      },
-    })
-    const files = (fileRes.data?.cpanelresult?.data || []).map(f => f.file || f.name).filter(Boolean)
-
-    // Check for user content indicators
-    const hasIndexPhp = files.includes('index.php')
-    const hasIndexHtml = files.includes('index.html')
-    const userDirs = dirs.filter(d => d !== 'cgi-bin')
-
-    // Check subdirectories for content
-    const contentDirs = []
-    for (const dir of userDirs) {
-      try {
-        const subFileRes = await whmApi.get('/cpanel', {
-          params: {
-            cpanel_jsonapi_user: cpUsername,
-            cpanel_jsonapi_apiversion: 2,
-            cpanel_jsonapi_module: 'Fileman',
-            cpanel_jsonapi_func: 'listfiles',
-            dir: `/home/${cpUsername}/public_html/${dir}`,
-            types: 'file',
-            showdotfiles: 0,
-          },
-        })
-        const subFiles = (subFileRes.data?.cpanelresult?.data || []).map(f => f.file || f.name).filter(Boolean)
-        if (subFiles.includes('index.php') || subFiles.includes('index.html')) {
-          contentDirs.push({ dir, hasIndex: true, fileCount: subFiles.length })
-        } else if (subFiles.length > 0) {
-          contentDirs.push({ dir, hasIndex: false, fileCount: subFiles.length })
-        }
-      } catch (_) {}
-    }
-
-    // Determine content location
-    let location = 'public_html'
-    let needsRedirect = false
-    let redirectTarget = null
-
-    if (!hasIndexPhp && !hasIndexHtml && contentDirs.length > 0) {
-      // User uploaded content to a subdirectory, not public_html root
-      const mainContent = contentDirs.find(d => d.hasIndex) || contentDirs[0]
-      location = `public_html/${mainContent.dir}`
-      needsRedirect = true
-      redirectTarget = `/${mainContent.dir}/`
-    } else if (hasIndexPhp || hasIndexHtml) {
-      location = 'public_html'
-    } else {
-      location = 'empty'
-    }
-
-    return {
-      location,
-      rootFiles: files,
-      rootDirs: dirs,
-      contentDirs,
-      hasIndexPhp,
-      hasIndexHtml,
-      needsRedirect,
-      redirectTarget,
-    }
-  } catch (err) {
-    return { error: err.message }
-  }
-}
-
-/**
- * Check .htaccess integrity — look for syntax errors
- */
 async function checkHtaccessIntegrity(cpUsername) {
   if (!whmApi) return { error: 'WHM not configured' }
 
   const issues = []
-
   try {
-    // Check root .htaccess
     const readRes = await whmApi.get('/cpanel', {
       params: {
         'api.version': 1,
@@ -335,33 +929,31 @@ async function checkHtaccessIntegrity(cpUsername) {
         file: '.htaccess',
       },
     })
-    const rootHtaccess = readRes.data?.result?.data?.content || ''
+    const content = readRes.data?.result?.data?.content || ''
 
-    // Check for common issues
-    if (rootHtaccess.includes('&lt;') || rootHtaccess.includes('&gt;')) {
-      issues.push({ file: '.htaccess', type: 'html_entities', desc: 'Contains HTML entities instead of < >' })
+    if (content.includes('&lt;') || content.includes('&gt;')) {
+      issues.push({ type: 'html_entities', desc: 'Contains HTML entities instead of < >' })
     }
-    if (!rootHtaccess.includes('Anti-Red')) {
-      issues.push({ file: '.htaccess', type: 'missing_antired', desc: 'Anti-Red rules not present' })
+    if (!content.includes('Anti-Red')) {
+      issues.push({ type: 'missing_antired', desc: 'Anti-Red rules not present' })
     }
-    if (rootHtaccess.includes('RemoteIPHeader')) {
-      issues.push({ file: '.htaccess', type: 'remoteip_in_htaccess', desc: 'mod_remoteip directives in .htaccess (causes 500)' })
+    if (content.includes('RemoteIPHeader')) {
+      issues.push({ type: 'remoteip_in_htaccess', desc: 'mod_remoteip in .htaccess (causes 500)' })
     }
 
-    return { issues, rootHtaccessLength: rootHtaccess.length }
+    return { issues, rootHtaccessLength: content.length }
   } catch (err) {
     return { error: err.message, issues }
   }
 }
 
-/**
- * Check if the prepend configuration is correct
- */
+
+// ─── PREPEND CONFIG CHECK ───────────────────────────────────────────
+
 async function checkPrependConfig(cpUsername) {
   if (!whmApi) return { error: 'WHM not configured' }
 
   try {
-    // Read .user.ini
     let userIniContent = ''
     try {
       const iniRes = await whmApi.get('/cpanel', {
@@ -378,7 +970,6 @@ async function checkPrependConfig(cpUsername) {
       userIniContent = iniRes.data?.result?.data?.content || ''
     } catch (_) {}
 
-    // Read .antired-challenge.php
     let challengeContent = ''
     try {
       const phpRes = await whmApi.get('/cpanel', {
@@ -410,222 +1001,80 @@ async function checkPrependConfig(cpUsername) {
   }
 }
 
-/**
- * Analyze health check results and apply auto-fixes
- */
-async function analyzeAndFix(results) {
-  const { checks, autoFixes, issues, warnings } = results
-  const { domain, cpUsername } = results
 
-  // ── Issue: HTTP 500 from origin ──
-  if (checks.originRoot?.status === 500) {
-    issues.push('Origin returns HTTP 500 (Internal Server Error)')
-    
-    // Check if .htaccess has issues
-    if (checks.htaccess?.issues?.length > 0) {
-      for (const issue of checks.htaccess.issues) {
-        if (issue.type === 'html_entities') {
-          // .htaccess has HTML entities — redeploy
-          try {
-            const antiRedService = require('./anti-red-service')
-            await antiRedService.deployHtaccess(cpUsername, domain)
-            autoFixes.push('Redeployed .htaccess (HTML entity corruption detected)')
-          } catch (err) {
-            issues.push(`Failed to redeploy .htaccess: ${err.message}`)
-          }
-        }
-        if (issue.type === 'remoteip_in_htaccess') {
-          // mod_remoteip in .htaccess causes 500 — redeploy without it
-          try {
-            const antiRedService = require('./anti-red-service')
-            await antiRedService.deployHtaccess(cpUsername, domain)
-            autoFixes.push('Redeployed .htaccess (removed mod_remoteip directives)')
-          } catch (err) {
-            issues.push(`Failed to redeploy .htaccess: ${err.message}`)
-          }
-        }
-      }
-    } else {
-      // 500 but no .htaccess issues detected — try redeploying anyway
-      try {
-        const antiRedService = require('./anti-red-service')
-        await antiRedService.deployHtaccess(cpUsername, domain)
-        autoFixes.push('Redeployed .htaccess (500 error, precautionary)')
-      } catch (err) {
-        issues.push(`Failed to redeploy .htaccess: ${err.message}`)
-      }
-    }
-  }
+// ─── TELEGRAM REPORTING ─────────────────────────────────────────────
 
-  // ── Issue: JS challenge still active with CF Worker ──
-  if (checks.prepend?.hasJsChallenge && checks.throughCF?.xAntiRed) {
-    // CF Worker is active (x-antired header present) but JS challenge is still deployed
-    try {
-      const antiRedService = require('./anti-red-service')
-      await antiRedService.deployCFIPFix(cpUsername)
-      autoFixes.push('Replaced JS challenge with IP-fix prepend (CF Worker handles bot detection)')
-    } catch (err) {
-      issues.push(`Failed to deploy IP fix: ${err.message}`)
-    }
-  }
-
-  // ── Issue: No IP fix for CF-proxied domain ──
-  if (!checks.prepend?.hasIPFix && checks.throughCF?.xAntiRed) {
-    // Domain is behind CF but no IP fix
-    try {
-      const antiRedService = require('./anti-red-service')
-      await antiRedService.deployCFIPFix(cpUsername)
-      autoFixes.push('Deployed CF IP-fix prepend (PHP sees real visitor IP)')
-    } catch (err) {
-      issues.push(`Failed to deploy IP fix: ${err.message}`)
-    }
-  }
-
-  // ── Issue: Content in subdirectory without redirect ──
-  if (checks.contentLocation?.needsRedirect) {
-    const target = checks.contentLocation.redirectTarget
-    try {
-      await addRootRedirect(cpUsername, target)
-      autoFixes.push(`Added root redirect to ${target} (user content in subdirectory)`)
-    } catch (err) {
-      issues.push(`Failed to add redirect: ${err.message}`)
-    }
-  }
-
-  // ── Issue: Empty content ──
-  if (checks.contentLocation?.location === 'empty') {
-    warnings.push('No user content found in public_html — user needs to upload files via HostPanel')
-  }
-
-  // ── Warning: User has 404-returning antibot ──
-  if (checks.originRedirectTarget?.has404Content && !checks.originRedirectTarget?.hasActualContent) {
-    warnings.push('Origin returns 404 content — likely user\'s anti-bot code. IP fix should resolve for real visitors.')
-  }
-
-  // ── Warning: Through CF shows Access Denied ──
-  if (checks.throughCF?.hasAccessDenied) {
-    warnings.push('CF Worker showing Access Denied — may be too aggressive for some browsers')
-  }
-}
-
-/**
- * Add a root redirect to the .htaccess when user content is in a subdirectory
- */
-async function addRootRedirect(cpUsername, targetPath) {
-  if (!whmApi) throw new Error('WHM not configured')
-
-  // Read current .htaccess
-  const readRes = await whmApi.get('/cpanel', {
-    params: {
-      'api.version': 1,
-      cpanel_jsonapi_user: cpUsername,
-      cpanel_jsonapi_apiversion: 3,
-      cpanel_jsonapi_module: 'Fileman',
-      cpanel_jsonapi_func: 'get_file_content',
-      dir: '/public_html',
-      file: '.htaccess',
-    },
-  })
-  let content = readRes.data?.result?.data?.content || ''
-
-  // Check if redirect already exists
-  if (content.includes('Redirect root to website content') || content.includes(`RewriteRule ^$ ${targetPath}`)) {
-    return // Already has redirect
-  }
-
-  // Add redirect after RewriteEngine On
-  const redirectRule = `\n  # Redirect root to website content\n  RewriteRule ^$ ${targetPath} [L,R=302]\n`
-  content = content.replace(
-    'RewriteEngine On\n',
-    'RewriteEngine On\n' + redirectRule
-  )
-
-  // Write back
-  await whmApi.post('/cpanel', new URLSearchParams({
-    'api.version': '1',
-    cpanel_jsonapi_user: cpUsername,
-    cpanel_jsonapi_apiversion: '3',
-    cpanel_jsonapi_module: 'Fileman',
-    cpanel_jsonapi_func: 'save_file_content',
-    dir: '/public_html',
-    file: '.htaccess',
-    content,
-  }).toString(), {
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-  })
-
-  log(`[HealthCheck] Added root redirect to ${targetPath} for ${cpUsername}`)
-}
-
-/**
- * Report health check results via Telegram
- */
-async function reportResults(domain, cpUsername, chatId, results) {
+async function reportResults(domain, cpUsername, chatId, results, stage) {
   const { issues, autoFixes, warnings, checks } = results
 
-  // Build status summary
+  const stageNames = { 1: '🔧 Infra', 2: '📁 Content', 3: '🌐 Full E2E' }
   let status = '✅'
   if (issues.length > 0) status = '❌'
   else if (warnings.length > 0) status = '⚠️'
 
-  let msg = `${status} <b>Health Check: ${domain}</b>\n`
+  let msg = `${status} <b>Health Check Stage ${stage} (${stageNames[stage]}): ${domain}</b>\n`
   msg += `User: <code>${cpUsername}</code>\n\n`
 
-  // Origin check
-  const originStatus = checks.originRoot?.status || 'N/A'
-  msg += `<b>Origin:</b> HTTP ${originStatus}`
-  if (checks.originRoot?.redirectUrl) {
-    msg += ` → ${checks.originRoot.redirectUrl}`
+  // Origin status
+  if (checks.originRoot) {
+    msg += `<b>Origin:</b> HTTP ${checks.originRoot.status || 'N/A'}`
+    if (checks.originRoot.redirectUrl) msg += ` → ${checks.originRoot.redirectUrl}`
+    msg += '\n'
   }
-  msg += '\n'
 
-  // CF check
-  const cfStatus = checks.throughCF?.status || 'N/A'
-  msg += `<b>Through CF:</b> HTTP ${cfStatus}`
-  if (checks.throughCF?.xAntiRed) {
-    msg += ` (${checks.throughCF.xAntiRed})`
+  // CF status (Stage 3 only)
+  if (checks.throughCF) {
+    msg += `<b>Through CF:</b> HTTP ${checks.throughCF.status || 'N/A'}`
+    if (checks.throughCF.xAntiRed) msg += ` (${checks.throughCF.xAntiRed})`
+    msg += '\n'
   }
-  msg += '\n'
 
-  // Content location
-  if (checks.contentLocation?.location) {
-    msg += `<b>Content:</b> ${checks.contentLocation.location}\n`
+  // Content info
+  if (checks.content) {
+    msg += `<b>Content:</b> ${checks.content.location || 'unknown'}`
+    if (checks.content.contentPaths?.length > 0) {
+      msg += ` (${checks.content.contentPaths.map(p => p.path).join(', ')})`
+    }
+    msg += '\n'
+  }
+
+  // Antibot info
+  if (checks.antibot?.detected) {
+    msg += `<b>Antibot:</b> Detected (${checks.antibot.signatures.join(', ')})\n`
+  }
+
+  // IP fix test (Stage 3)
+  if (checks.antibotIPTest) {
+    const ipTest = checks.antibotIPTest
+    msg += `<b>IP Fix:</b> ${ipTest.ipFixWorking ? '✅ Working' : '⚠️ Inconclusive'}\n`
   }
 
   // Prepend type
-  if (checks.prepend?.type) {
+  if (checks.prepend) {
     msg += `<b>Prepend:</b> ${checks.prepend.type}\n`
   }
 
   // Auto-fixes
   if (autoFixes.length > 0) {
-    msg += '\n<b>🔧 Auto-Fixes Applied:</b>\n'
-    for (const fix of autoFixes) {
-      msg += `• ${fix}\n`
-    }
+    msg += '\n<b>🔧 Auto-Fixes:</b>\n'
+    for (const fix of autoFixes) msg += `• ${fix}\n`
   }
 
   // Issues
   if (issues.length > 0) {
-    msg += '\n<b>❌ Unresolved Issues:</b>\n'
-    for (const issue of issues) {
-      msg += `• ${issue}\n`
-    }
+    msg += '\n<b>❌ Issues:</b>\n'
+    for (const issue of issues) msg += `• ${issue}\n`
   }
 
   // Warnings
   if (warnings.length > 0) {
     msg += '\n<b>⚠️ Warnings:</b>\n'
-    for (const warn of warnings) {
-      msg += `• ${warn}\n`
-    }
+    for (const warn of warnings) msg += `• ${warn}\n`
   }
 
   // Post-fix status
-  if (checks.postFixRecheck) {
-    msg += `\n<b>Post-Fix:</b> HTTP ${checks.postFixRecheck.status}`
-    if (checks.postFixRecheck.hasActualContent) msg += ' ✅'
-    msg += '\n'
+  if (checks.postFix) {
+    msg += `\n<b>Post-Fix:</b> HTTP ${checks.postFix.status}${checks.postFix.hasActualContent ? ' ✅' : ''}\n`
   }
 
   // Send to admin
@@ -640,20 +1089,28 @@ async function reportResults(domain, cpUsername, chatId, results) {
       }, { timeout: 10000 })
     }
   } catch (err) {
-    log(`[HealthCheck] Failed to send Telegram report for ${domain}: ${err.message}`)
+    log(`[HealthCheck] Telegram report failed for ${domain}: ${err.message}`)
   }
 
   return msg
 }
 
+
+// ─── UTILITIES ──────────────────────────────────────────────────────
+
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
+
+// ─── EXPORTS ────────────────────────────────────────────────────────
+
 module.exports = {
   scheduleHealthCheck,
+  scheduleSingleCheck,
   runHealthCheck,
   detectUserContent,
+  detectAntibot,
   checkHtaccessIntegrity,
   checkPrependConfig,
 }
