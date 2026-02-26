@@ -505,6 +505,20 @@ function createCpanelRoutes(getCpanelCol) {
         return res.json(cpResult)
       }
 
+      // 1b. Persist addon domain in cpanelAccounts.addonDomains[] for protection-enforcer discovery
+      try {
+        const colPersist = getCpanelCol()
+        if (colPersist) {
+          await colPersist.updateOne(
+            { _id: req.cpUser.toLowerCase() },
+            { $addToSet: { addonDomains: domain.toLowerCase() } }
+          )
+          log(`[Panel] add-enhanced: stored addon ${domain} in cpanelAccounts for ${req.cpUser}`)
+        }
+      } catch (dbErr) {
+        log(`[Panel] add-enhanced: failed to persist addon ${domain}: ${dbErr.message}`)
+      }
+
       // 2. Check if domain is on user's account (registeredDomains or domainsOf)
       const chatId = req.cpChatId || req.chatId
       let isOwnDomain = false
