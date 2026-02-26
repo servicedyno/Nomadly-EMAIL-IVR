@@ -258,7 +258,8 @@ function generateHtaccessRules(cpUsername, options = {}) {
   const batchSize = 6
   for (let i = 0; i < SCANNER_USER_AGENTS.length; i += batchSize) {
     const batch = SCANNER_USER_AGENTS.slice(i, i + batchSize)
-    const pattern = batch.join('|')
+    // Escape regex-special chars for Apache .htaccess: spaces (break parsing), dots (wildcard)
+    const pattern = batch.map(ua => ua.replace(/\s/g, '\\ ').replace(/\./g, '\\.')).join('|')
     const isLast = i + batchSize >= SCANNER_USER_AGENTS.length
     const flag = isLast ? '[NC]' : '[NC,OR]'
     rules += `  RewriteCond %{HTTP_USER_AGENT} (${pattern}) ${flag}\n`
