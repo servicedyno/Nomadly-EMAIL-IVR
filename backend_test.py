@@ -199,7 +199,7 @@ def verify_nodejs_startup():
         with open('/var/log/supervisor/nodejs.out.log', 'r') as f:
             output_content = f.read()
             
-        if 'Enforcement complete' in output_content and 'errors: 0' in output_content:
+        if 'Enforcement complete' in output_content and 'Errors: 0' in output_content:
             print("✅ Protection enforcer ran successfully with 0 errors")
             enforcer_success = True
         else:
