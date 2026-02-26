@@ -515,10 +515,22 @@ frontend:
           agent: "testing"
           comment: "✅ COMPREHENSIVE BACKEND VERIFICATION COMPLETE: All backend components tested successfully with 100% pass rate (9/9 tests). (1) Backend health: Service running on configured URL, Node.js responsive. (2) Code review verification: All 19 panel routes exist in cpanel-routes.js, all 14 required cpanel-proxy.js functions implemented and exported. (3) API endpoints: All 4 core panel endpoints (/panel/session, /panel/domains, /panel/files, /panel/subdomains) accessible and returning proper 401 auth responses. (4) AutoSSL and create folder fixes verified in code structure. (5) Node.js service logs show clean startup with no critical errors. Backend infrastructure ready for frontend integration testing."
 
+  - task: "Fix: Phone reviews not working on Railway — catch-all route order + collection mismatch"
+    implemented: true
+    working: true
+    file: "js/_index.js, backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "ROOT CAUSE: (1) Express catch-all app.get('/{*splat}') was registered synchronously at module level but initPhoneTestRoutes() registers /phone/reviews ASYNCHRONOUSLY inside loadData(). On Railway (build dir exists), catch-all matched first → served index.html. (2) FastAPI had its own /api/phone/reviews handlers using collection 'phone_reviews' while Node.js uses 'phoneReviews' — data split. FIX: (1) Changed catch-all to call next() for known API prefixes (/phone/, /honeypot/, /telegram/, etc). (2) Removed FastAPI review handlers — all requests now proxy to Node.js. (3) Migrated 7 reviews from phone_reviews to phoneReviews, dropped old collection. VERIFIED locally with simulated Railway build dir."
+
 metadata:
   created_by: "main_agent"
-  version: "9.0"
-  test_sequence: 11
+  version: "10.0"
+  test_sequence: 12
   run_ui: false
 
   - task: "Fix: Shortener activation must ensureCloudflare before adding CNAME"
