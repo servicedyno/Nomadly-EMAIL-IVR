@@ -841,3 +841,26 @@ agent_communication:
         - working: true
           agent: "testing"
           comment: "✅ HOSTING 500 ERROR FIX & HEALTH CHECK SYSTEM COMPREHENSIVE VERIFICATION COMPLETE: All implementation requirements tested with 100% success rate (16/16 tests passed). (1) ANTI-RED-SERVICE CHANGES VERIFIED: generateIPFixPhp() function exists and creates lightweight PHP prepend that restores REMOTE_ADDR from CF-Connecting-IP header with no HTML output (contains ANTIRED_IP_FIXED constant and CF_CONNECTING_IP handling). deployCFIPFix() function correctly exported and available for deployment. deployFullProtection() modified to deploy CF Worker FIRST before JS challenge, uses deployCFIPFix when CF Worker is active. (2) HOSTING-HEALTH-CHECK MODULE VERIFIED: New module hosting-health-check.js loads correctly and exports all 5 required functions: scheduleHealthCheck, runHealthCheck, detectUserContent, checkHtaccessIntegrity, checkPrependConfig. (3) INTEGRATION POINTS VERIFIED: cr-register-domain-&-create-cpanel.js properly requires hosting-health-check module and calls scheduleHealthCheck after hosting setup (line 341). _index.js hosting renewal path calls scheduleHealthCheck in proper hosting context (line 4747). (4) NODE.JS HEALTH: Service runs healthy on port 5000 with database connected throughout all tests (uptime: 0.08 hours). THE HOSTING 500 ERROR FIX AND AUTOMATED HEALTH CHECK SYSTEM IS PRODUCTION-READY AND FULLY FUNCTIONAL."
+
+  - task: "Fix: Protection enforcer + health check covers addon domains (added after primary)"
+    implemented: true
+    working: "NA"
+    file: "js/protection-enforcer.js, js/cpanel-routes.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "4 fixes implemented for addon domain protection gap: (A) cpanel-routes.js /domains/add: now persists addon in cpanelAccounts.addonDomains[] via $addToSet, deploys CF zone+DNS+anti-red protection (non-blocking), schedules 3-stage health check. (B) cpanel-routes.js /domains/add-enhanced: now persists addon in cpanelAccounts.addonDomains[] via $addToSet + schedules health check after add. (C) cpanel-routes.js /domains/remove: now $pull from addonDomains on delete. (D) protection-enforcer.js collectAllDomains(): addon entries now include cpUser + parentDomain from parent account for SSL enforcement. (E) protection-enforcer.js runEnforcement(): condition changed from source==='cpanelAccounts' to source==='cpanelAccounts'||source==='cpanelAddon' — addon domains now get Worker route enforcement + SSL upgrade. Node.js starts cleanly, enforcer ran: 68 domains, 62 protected, 0 errors."
+
+test_plan:
+  current_focus:
+    - "Fix: Protection enforcer + health check covers addon domains (added after primary)"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    - agent: "main"
+      message: "Implemented 5 fixes for addon domain protection gap. Test: (1) cpanel-routes.js has $addToSet addonDomains in both /domains/add and /domains/add-enhanced. (2) /domains/remove has $pull addonDomains. (3) protection-enforcer.js collectAllDomains passes cpUser+parentDomain to cpanelAddon entries. (4) runEnforcement condition includes cpanelAddon source. (5) Both add endpoints schedule health check. (6) /domains/add (basic) now deploys CF zone+DNS+anti-red. Node.js running cleanly."
