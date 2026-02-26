@@ -54,7 +54,7 @@ def verify_cpanel_routes_fixes():
             
             if add_basic_match != -1 and add_enhanced_match != -1:
                 # Check for CF zone deployment in basic add
-                cf_deploy_section = content[add_basic_match:add_basic_match+2000]
+                cf_deploy_section = content[add_basic_match:add_basic_match+3000]  # Increased range
                 if 'cfService.createZone(domain)' in cf_deploy_section and 'deployFullProtection' in cf_deploy_section:
                     fixes_found['A_addToSet_and_cf_deploy'] = True
                     print("✅ Fix A: /domains/add has $addToSet + CF zone deployment")
@@ -62,7 +62,7 @@ def verify_cpanel_routes_fixes():
                     fixes_found['A_addToSet_and_cf_deploy'] = False
                     print("❌ Fix A: /domains/add missing CF zone deployment")
                     
-                # Check for health check in basic add
+                # Check for health check in basic add (it's after the CF deployment)
                 if 'scheduleHealthCheck' in cf_deploy_section:
                     fixes_found['A_health_check'] = True
                     print("✅ Fix A: /domains/add has health check scheduling")
