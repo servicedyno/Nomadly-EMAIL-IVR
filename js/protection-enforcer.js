@@ -118,7 +118,13 @@ async function collectAllDomains() {
         for (const addon of account.addonDomains) {
           const d = (typeof addon === 'string' ? addon : addon.domain || '').toLowerCase()
           if (d && d.includes('.') && !domains.has(d)) {
-            domains.set(d, { source: 'cpanelAddon', cfZoneId: null })
+            // Propagate cpUser from parent account so SSL enforcement works on addon domains
+            domains.set(d, {
+              source: 'cpanelAddon',
+              cfZoneId: null,
+              cpUser: account._id || account.cpUser || null,
+              parentDomain: mainDomain?.toLowerCase() || null,
+            })
           }
         }
       }
