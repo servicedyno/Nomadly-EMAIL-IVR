@@ -4741,10 +4741,10 @@ bot?.on('message', async msg => {
         antiRedSvc.deployFullProtection(plan.cpUser, domain, plan.plan).catch(() => {})
       } catch (_) {}
 
-      // Schedule health check after renewal too (2 min delay for re-deployments)
+      // Schedule health check after renewal too (single full check after 2 min)
       try {
         const healthCheck = require('./hosting-health-check')
-        healthCheck.scheduleHealthCheck(domain, plan.cpUser, chatId, 2 * 60 * 1000)
+        healthCheck.scheduleSingleCheck(domain, plan.cpUser, chatId, 2 * 60 * 1000)
       } catch (_) {}
 
       const newExpiryStr = newExpiry.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
