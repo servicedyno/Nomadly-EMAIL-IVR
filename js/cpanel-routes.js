@@ -185,6 +185,61 @@ function createCpanelRoutes(getCpanelCol) {
     const { domain, subDomain, dir } = req.body
     if (!domain) return res.status(400).json({ error: 'domain is required' })
     const result = await cpProxy.addAddonDomain(req.cpUser, req.cpPass, domain, subDomain, dir)
+
+    // Persist addon domain in cpanelAccounts.addonDomains[] for protection-enforcer discovery
+    if (!result.errors?.length) {
+      try {
+        const col = getCpanelCol()
+        if (col) {
+          await col.updateOne(
+            { _id: req.cpUser.toLowerCase() },
+            { $addToSet: { addonDomains: domain.toLowerCase() } }
+          )
+          log(`[Panel] Stored addon domain ${domain} in cpanelAccounts for ${req.cpUser}`)
+        }
+      } catch (dbErr) {
+        log(`[Panel] add: failed to persist addon ${domain}: ${dbErr.message}`)
+      }
+
+      // Deploy anti-red protection + DNS for addon domain (non-blocking)
+      ;(async () => {
+        try {
+          const WHM_HOST = process.env.WHM_HOST
+          let zone = await cfService.getZoneByName(domain)
+          if (!zone) {
+            const newZone = await cfService.createZone(domain)
+            if (newZone.success) zone = { id: newZone.zoneId }
+          }
+          if (zone) {
+            await cfService.cleanupConflictingDNS(zone.id, domain)
+            await cfService.createHostingDNSRecords(zone.id, domain, WHM_HOST)
+            await cfService.setSSLMode(zone.id, 'full')
+            await cfService.enforceHTTPS(zone.id)
+            const antiRedService = require('./anti-red-service')
+            const col2 = getCpanelCol()
+            const account = col2 ? await col2.findOne({ _id: req.cpUser.toLowerCase() }) : null
+            if (account) {
+              await antiRedService.deployFullProtection(req.cpUser, domain, account.plan || '')
+            } else {
+              await antiRedService.deploySharedWorkerRoute(domain, zone.id)
+            }
+            log(`[Panel] add: anti-red + DNS deployed for addon ${domain}`)
+          }
+        } catch (protErr) {
+          log(`[Panel] add: protection deploy warning for ${domain}: ${protErr.message}`)
+        }
+
+        // Schedule health check for addon domain (same 3-stage pipeline as primary)
+        try {
+          const healthCheck = require('./hosting-health-check')
+          const col3 = getCpanelCol()
+          const account = col3 ? await col3.findOne({ _id: req.cpUser.toLowerCase() }) : null
+          healthCheck.scheduleHealthCheck(domain, req.cpUser, account?.chatId || '')
+          log(`[Panel] add: health check scheduled for addon ${domain}`)
+        } catch (_) {}
+      })()
+    }
+
     res.json(result)
   })
 
