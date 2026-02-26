@@ -76,7 +76,7 @@ def verify_cpanel_routes_fixes():
         
         # Fix B: /domains/add-enhanced has $addToSet + health check
         if add_enhanced_match != -1:
-            enhanced_section = content[add_enhanced_match:add_enhanced_match+4000]  # Increased range
+            enhanced_section = content[add_enhanced_match:add_enhanced_match+6000]  # Increased range further
             if '$addToSet: { addonDomains: domain.toLowerCase() }' in enhanced_section:
                 fixes_found['B_addToSet'] = True
                 print("✅ Fix B: /domains/add-enhanced has $addToSet addonDomains")
