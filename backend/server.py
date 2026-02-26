@@ -39,37 +39,10 @@ http_client = httpx.AsyncClient(timeout=60.0)
 
 
 # ============================================================
-# PHONE TEST REVIEWS API
+# PHONE TEST REVIEWS API — handled by Node.js Express via proxy
+# (removed FastAPI direct handlers to avoid collection name mismatch:
+#  FastAPI was using 'phone_reviews', Node.js uses 'phoneReviews')
 # ============================================================
-reviews_col = db['phone_reviews']
-
-
-class ReviewSubmit(BaseModel):
-    stars: int = Field(..., ge=1, le=5)
-    comment: str = Field(..., min_length=1, max_length=500)
-    name: Optional[str] = Field(None, max_length=50)
-
-
-@app.get("/api/phone/reviews")
-async def get_reviews():
-    """Fetch recent reviews, newest first."""
-    cursor = reviews_col.find({}, {"_id": 0}).sort("createdAt", -1).limit(50)
-    reviews = await cursor.to_list(length=50)
-    return {"reviews": reviews}
-
-
-@app.post("/api/phone/reviews")
-async def submit_review(review: ReviewSubmit):
-    """Submit a star rating + comment."""
-    doc = {
-        "id": str(uuid.uuid4())[:8],
-        "stars": review.stars,
-        "comment": review.comment.strip(),
-        "name": (review.name or "").strip() or "Anonymous",
-        "createdAt": datetime.now(timezone.utc).isoformat(),
-    }
-    await reviews_col.insert_one(doc)
-    return {"ok": True, "review": {k: v for k, v in doc.items() if k != "_id"}}
 
 
 # ============================================================
