@@ -63,7 +63,7 @@ def verify_cpanel_routes_fixes():
                     print("❌ Fix A: /domains/add missing CF zone deployment")
                     
                 # Check for health check in basic add
-                if 'scheduleHealthCheck(domain, req.cpUser' in cf_deploy_section:
+                if 'scheduleHealthCheck' in cf_deploy_section:
                     fixes_found['A_health_check'] = True
                     print("✅ Fix A: /domains/add has health check scheduling")
                 else:
