@@ -90,6 +90,11 @@ def verify_cpanel_routes_fixes():
             else:
                 fixes_found['B_health_check'] = False
                 print("❌ Fix B: /domains/add-enhanced missing health check")
+                # Debug: print part of the section to see what's there
+                debug_section = enhanced_section[-500:] if len(enhanced_section) > 500 else enhanced_section
+                print(f"   Debug: Last 500 chars: ...{debug_section}")
+                if 'scheduleHealthCheck' in content:
+                    print("   Debug: scheduleHealthCheck found somewhere in file")
         
         # Fix C: /domains/remove has $pull addonDomains
         remove_match = content.find('router.post(\'/domains/remove\', ...auth, async (req, res) => {')
