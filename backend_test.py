@@ -76,7 +76,13 @@ def verify_cpanel_routes_fixes():
         
         # Fix B: /domains/add-enhanced has $addToSet + health check
         if add_enhanced_match != -1:
-            enhanced_section = content[add_enhanced_match:add_enhanced_match+6000]  # Increased range further
+            # Look for the entire enhanced function section until next router.post
+            next_route = content.find('router.post(', add_enhanced_match + 50)
+            if next_route == -1:
+                enhanced_section = content[add_enhanced_match:add_enhanced_match+8000]
+            else:
+                enhanced_section = content[add_enhanced_match:next_route]
+                
             if '$addToSet: { addonDomains: domain.toLowerCase() }' in enhanced_section:
                 fixes_found['B_addToSet'] = True
                 print("✅ Fix B: /domains/add-enhanced has $addToSet addonDomains")
@@ -90,11 +96,6 @@ def verify_cpanel_routes_fixes():
             else:
                 fixes_found['B_health_check'] = False
                 print("❌ Fix B: /domains/add-enhanced missing health check")
-                # Debug: print part of the section to see what's there
-                debug_section = enhanced_section[-500:] if len(enhanced_section) > 500 else enhanced_section
-                print(f"   Debug: Last 500 chars: ...{debug_section}")
-                if 'scheduleHealthCheck' in content:
-                    print("   Debug: scheduleHealthCheck found somewhere in file")
         
         # Fix C: /domains/remove has $pull addonDomains
         remove_match = content.find('router.post(\'/domains/remove\', ...auth, async (req, res) => {')
