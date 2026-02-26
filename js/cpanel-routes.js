@@ -688,6 +688,14 @@ function createCpanelRoutes(getCpanelCol) {
         }
       }
 
+      // Schedule health check for addon domain (same 3-stage pipeline as primary domain)
+      try {
+        const healthCheck = require('./hosting-health-check')
+        const chatIdForHealth = req.cpChatId || req.chatId || ''
+        healthCheck.scheduleHealthCheck(domain, req.cpUser, chatIdForHealth)
+        log(`[Panel] add-enhanced: health check scheduled for addon ${domain}`)
+      } catch (_) {}
+
       res.json({
         ...cpResult,
         nsInfo,
