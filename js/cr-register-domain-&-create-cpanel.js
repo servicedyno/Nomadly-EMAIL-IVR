@@ -335,6 +335,13 @@ Your site won't be live until nameservers are updated and propagated (up to 24h)
         .catch(err => log(`[Hosting] Anti-Red protection failed (non-blocking): ${err.message}`))
     } catch (_) {}
 
+    // Schedule automated health check (runs 5 minutes after setup)
+    try {
+      const healthCheck = require('./hosting-health-check')
+      healthCheck.scheduleHealthCheck(domain, result.username, chatId)
+      log(`[Hosting] Health check scheduled for ${domain} (5 min)`)
+    } catch (_) {}
+
     // ── Step 5: Finalizing ──
     send(chatId, `✅ Anti-Red protection active`, rem)
 
