@@ -1997,6 +1997,8 @@ module.exports = {
   deployHtaccess,
   generateJSChallenge,
   generateChallengePhp,
+  generateIPFixPhp,
+  deployCFIPFix,
   ensurePhpEntrypoint,
   deployJSChallenge,
   removeJSChallenge,
