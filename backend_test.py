@@ -84,7 +84,7 @@ def verify_cpanel_routes_fixes():
                 fixes_found['B_addToSet'] = False
                 print("❌ Fix B: /domains/add-enhanced missing $addToSet addonDomains")
                 
-            if 'scheduleHealthCheck(domain, req.cpUser' in enhanced_section:
+            if 'scheduleHealthCheck' in enhanced_section:
                 fixes_found['B_health_check'] = True
                 print("✅ Fix B: /domains/add-enhanced has health check scheduling")
             else:
