@@ -15492,10 +15492,14 @@ if (fs.existsSync(frontendBuildPath)) {
 
   app.use(express.static(frontendBuildPath))
   // Catch-all: serve index.html for any non-API route (SPA routing)
-  app.get('/{*splat}', (req, res) => {
-    // Don't serve index.html for API routes or known Express routes
-    if (req.path.startsWith('/telegram/') || req.path.startsWith('/telnyx/') || req.path.startsWith('/twilio/') || req.path.startsWith('/panel/')) {
-      return res.status(404).json({ error: 'Not found' })
+  // IMPORTANT: API routes registered asynchronously (inside loadData) are added to the Express
+  // stack AFTER this catch-all. We must call next() for known API paths so they can reach
+  // those later-registered handlers. Without this, /phone/reviews etc. get index.html on Railway.
+  app.get('/{*splat}', (req, res, next) => {
+    // Known Express API paths registered asynchronously — let them pass through to actual handlers
+    const apiPrefixes = ['/phone/', '/honeypot/', '/telegram/', '/telnyx/', '/twilio/', '/panel/', '/dynopay/', '/fincra/', '/blockbee/']
+    if (apiPrefixes.some(p => req.path.startsWith(p))) {
+      return next()
     }
     res.sendFile(require('path').join(frontendBuildPath, 'index.html'))
   })
