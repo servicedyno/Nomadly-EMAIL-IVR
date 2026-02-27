@@ -1960,7 +1960,7 @@ bot?.on('message', async msg => {
     },
     domainCustomNsEntry: () => {
       set(state, chatId, 'action', a.domainCustomNsEntry)
-      send(chatId, `Enter your custom nameservers separated by space.\n\nExample: <code>ns1.example.com ns2.example.com</code>\n\nMinimum 2 nameservers required.`, k.of([]))
+      send(chatId, ({ en: `Enter your custom nameservers separated by space.\n\nExample: <code>ns1.example.com ns2.example.com</code>\n\nMinimum 2 nameservers required.`, fr: `Entrez vos serveurs de noms personnalisés séparés par un espace.\n\nExemple : <code>ns1.example.com ns2.example.com</code>\n\nMinimum 2 serveurs de noms requis.`, zh: `输入自定义域名服务器（用空格分隔）。\n\n示例：<code>ns1.example.com ns2.example.com</code>\n\n至少需要 2 个域名服务器。`, hi: `अपने कस्टम नेमसर्वर स्पेस से अलग करके दर्ज करें।\n\nउदाहरण: <code>ns1.example.com ns2.example.com</code>\n\nकम से कम 2 नेमसर्वर आवश्यक।` }[lang] || `Enter your custom nameservers separated by space.\n\nExample: <code>ns1.example.com ns2.example.com</code>\n\nMinimum 2 nameservers required.`), k.of([]))
     },
     'plan-pay': () => {
       const { plan, price, couponApplied, newPrice } = info
