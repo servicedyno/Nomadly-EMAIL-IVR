@@ -11688,7 +11688,7 @@ bot?.on('message', async msg => {
     const validCities = [t.leadAllCities || 'All Cities', ...targetLeadsCities(target)]
     if (!validCities.includes(message)) return send(chatId, t.what)
     await saveInfo('targetCity', message)
-    if (message === 'All Cities') {
+    if (message === (t.leadAllCities || 'All Cities')) {
       const allCodes = targetLeadsAreaCodes(target, 'All Cities')
       await saveInfo('areaCode', 'Mixed Area Codes')
       await saveInfo('targetAreaCodes', allCodes)
