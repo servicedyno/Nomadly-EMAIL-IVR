@@ -650,7 +650,7 @@ const loadData = async () => {
     await set(phoneNumbersOf, chatId, userData)
 
     await phoneTransactions.insertOne({ chatId, phoneNumber: selectedNumber, action: 'purchase', plan: planKey, amount: price, paymentMethod, timestamp: new Date().toISOString() })
-    notifyGroup(phoneConfig.txt.adminPurchase(maskName(name), selectedNumber, plan?.name || planKey, price, paymentMethod))
+    notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, plan?.name || planKey, price, paymentMethod))
 
     return { success: true, sipUsername, sipPassword, expiresAt, plan }
   }
@@ -1199,7 +1199,7 @@ bot?.on('message', async msg => {
           num.features.voicemail = vm
           await set(state, chatId + '_info', { ...infoData, cpActiveNumber: num })
           const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
-          send(chatId, phoneConfig.txt.vmAudioSaved)
+          send(chatId, cpTxt.vmAudioSaved)
           await set(state, chatId, { ...userInfo, action: 'cpVoicemail' })
           const btns = vm.enabled
             ? [['🔊 Greeting'],
@@ -1208,7 +1208,7 @@ bot?.on('message', async msg => {
                [`⏰ Ring Time: ${vm.ringTimeout || 25}s`],
                [pc.disableVoicemail]]
             : [[pc.enableVoicemail]]
-          return send(chatId, phoneConfig.txt.voicemailMenu(num.phoneNumber, vm), { reply_markup: { keyboard: btns }, parse_mode: 'HTML' })
+          return send(chatId, cpTxt.voicemailMenu(num.phoneNumber, vm), { reply_markup: { keyboard: btns }, parse_mode: 'HTML' })
         }
       } catch (e) {
         log(`[Voice] Audio greeting upload error: ${e.message}`)
@@ -1868,7 +1868,7 @@ bot?.on('message', async msg => {
       set(state, chatId, 'action', a.submenu5)
       const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
       const lang = info?.userLanguage || 'en'
-      send(chatId, phoneConfig.txt.hubWelcome, k.of([
+      send(chatId, cpTxt.hubWelcome, k.of([
         [pc.ivrOutboundCall],
         [pc.bulkCallCampaign],
         [pc.audioLibrary],
@@ -1882,7 +1882,7 @@ bot?.on('message', async msg => {
       set(state, chatId, 'action', 'phone-pay')
       const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
       send(chatId, t.showWallet(usdBal, ngnBal))
-      send(chatId, phoneConfig.txt.paymentPrompt(info.cpPrice), k.pay)
+      send(chatId, cpTxt.paymentPrompt(info.cpPrice), k.pay)
     },
     // ━━━ Digital Products goto functions ━━━
     submenu6: () => {
@@ -3776,7 +3776,7 @@ bot?.on('message', async msg => {
         sipPassword = result.sipPassword
         const { usdBal: usd2, ngnBal: ngn2 } = await getBalance(walletOf, chatId)
         send(chatId, t.showWallet(usd2, ngn2))
-        send(chatId, phoneConfig.txt.activated(
+        send(chatId, cpTxt.activated(
           selectedNumber, result.plan?.name || planKey, price, sipUsername,
           phoneConfig.SIP_DOMAIN,
           phoneConfig.shortDate(result.expiresAt.toISOString())
@@ -3850,8 +3850,8 @@ bot?.on('message', async msg => {
 
         const { usdBal: usd2, ngnBal: ngn2 } = await getBalance(walletOf, chatId)
         send(chatId, t.showWallet(usd2, ngn2))
-        send(chatId, phoneConfig.txt.activated(selectedNumber, plan.name, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())), trans('o'))
-        notifyGroup(phoneConfig.txt.adminPurchase(maskName(name), selectedNumber, plan.name, price, coin === u.usd ? 'Wallet USD' : 'Wallet NGN'))
+        send(chatId, cpTxt.activated(selectedNumber, plan.name, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())), trans('o'))
+        notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, plan.name, price, coin === u.usd ? 'Wallet USD' : 'Wallet NGN'))
       }
       checkAndNotifyTierUpgrade(preSpend)
     },
@@ -7998,12 +7998,12 @@ bot?.on('message', async msg => {
       const userData = await get(phoneNumbersOf, chatId)
       const numbers = (userData?.numbers || []).filter(n => n.status === 'active' || n.status === 'suspended')
       if (!numbers.length) {
-        return send(chatId, phoneConfig.txt.noNumbers, k.of([[buyLabel]]))
+        return send(chatId, cpTxt.noNumbers, k.of([[buyLabel]]))
       }
       set(state, chatId, 'action', a.cpMyNumbers)
       await saveInfo('cpNumbers', numbers)
       const numBtns = numbers.map((_, i) => String(i + 1))
-      return send(chatId, phoneConfig.txt.myNumbersList(numbers), k.of([numBtns, [pc.buyAnother]]))
+      return send(chatId, cpTxt.myNumbersList(numbers), k.of([numBtns, [pc.buyAnother]]))
     }
     if (message === pc.ivrOutboundCall) {
       // IVR Outbound Call — requires Pro or Business plan
@@ -8044,7 +8044,7 @@ bot?.on('message', async msg => {
       return send(chatId, `📢 <b>IVR Outbound Call</b>\n\nSelect the number to call FROM (Caller ID):`, k.of(rows))
     }
     if (message === pc.sipSettings) {
-      return send(chatId, phoneConfig.txt.softphoneGuide(phoneConfig.SIP_DOMAIN), k.of([]))
+      return send(chatId, cpTxt.softphoneGuide(phoneConfig.SIP_DOMAIN), k.of([]))
     }
     if (message === pc.usageBilling) {
       // Show overall usage if they have numbers
@@ -8055,7 +8055,7 @@ bot?.on('message', async msg => {
       set(state, chatId, 'action', a.cpMyNumbers)
       await saveInfo('cpNumbers', numbers)
       const numBtns = numbers.map((_, i) => String(i + 1))
-      return send(chatId, phoneConfig.txt.myNumbersList(numbers), k.of([numBtns]))
+      return send(chatId, cpTxt.myNumbersList(numbers), k.of([numBtns]))
     }
 
     // ── Bulk Call Campaign ──
@@ -8944,7 +8944,7 @@ bot?.on('message', async msg => {
     if (types.includes('mobile')) typeBtns.push([pc.mobileNumber])
     if (types.includes('national')) typeBtns.push([pc.nationalNumber])
     if (types.includes('toll_free')) typeBtns.push([pc.tollFreeNumber])
-    return send(chatId, phoneConfig.txt.selectType(message), k.of(typeBtns))
+    return send(chatId, cpTxt.selectType(message), k.of(typeBtns))
   }
 
   // ── BUY FLOW: Select Type ──
@@ -8956,7 +8956,7 @@ bot?.on('message', async msg => {
       const rows = []
       for (let i = 0; i < countryBtns.length; i += 2) rows.push(countryBtns.slice(i, i + 2))
       if (phoneConfig.moreCountries.length > 0) rows.push([pc.moreCountries])
-      return send(chatId, phoneConfig.txt.selectCountry, k.of(rows))
+      return send(chatId, cpTxt.selectCountry, k.of(rows))
     }
     let numberType = null
     if (message === pc.localNumber) numberType = 'local'
@@ -8976,11 +8976,11 @@ bot?.on('message', async msg => {
       const rows = []
       for (let i = 0; i < areaBtns.length; i += 2) rows.push(areaBtns.slice(i, i + 2))
       rows.push([pc.searchByArea])
-      return send(chatId, phoneConfig.txt.selectArea, k.of(rows))
+      return send(chatId, cpTxt.selectArea, k.of(rows))
     }
     // Non-US or toll-free: search directly with the appropriate provider
     set(state, chatId, 'action', a.cpSelectNumber)
-    send(chatId, phoneConfig.txt.searching)
+    send(chatId, cpTxt.searching)
 
     // Search numbers — for dual-provider countries, search both and merge
     const canSearchBoth = info?.cpCanSearchBoth || false
@@ -9006,7 +9006,7 @@ bot?.on('message', async msg => {
       })
     }
 
-    if (!results.length) return send(chatId, phoneConfig.txt.noSearchResults, k.of([]))
+    if (!results.length) return send(chatId, cpTxt.noSearchResults, k.of([]))
     await saveInfo('cpSearchResults', results)
     const location = info?.cpCountryName || cc
     // Build tagged number display
@@ -9023,11 +9023,11 @@ bot?.on('message', async msg => {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     if (message === t.back || message === pc.back) {
       set(state, chatId, 'action', a.cpSelectType)
-      return send(chatId, phoneConfig.txt.selectType(info?.cpCountryName || ''), k.of([[pc.localNumber], [pc.tollFreeNumber]]))
+      return send(chatId, cpTxt.selectType(info?.cpCountryName || ''), k.of([[pc.localNumber], [pc.tollFreeNumber]]))
     }
     if (message === pc.searchByArea) {
       set(state, chatId, 'action', a.cpEnterAreaCode)
-      return send(chatId, phoneConfig.txt.enterAreaCode)
+      return send(chatId, cpTxt.enterAreaCode)
     }
     const areaCode = phoneConfig.areaByLabel[message]
     if (!areaCode) return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectValidArea)
@@ -9035,7 +9035,7 @@ bot?.on('message', async msg => {
     await saveInfo('cpAreaName', message)
 
     set(state, chatId, 'action', a.cpSelectNumber)
-    send(chatId, phoneConfig.txt.searching)
+    send(chatId, cpTxt.searching)
     const provider = info?.cpProvider || 'telnyx'
     const canSearchBoth = info?.cpCanSearchBoth || false
     let results = []
@@ -9057,7 +9057,7 @@ bot?.on('message', async msg => {
       results.forEach(r => { r._provider = provider; r._bulkIvrCapable = (provider === 'twilio') })
     }
 
-    if (!results.length) return send(chatId, phoneConfig.txt.noSearchResults, k.of([]))
+    if (!results.length) return send(chatId, cpTxt.noSearchResults, k.of([]))
     await saveInfo('cpSearchResults', results)
     const numberLines = results.map((r, i) => {
       const tag = r._bulkIvrCapable ? ' ☎️ Bulk IVR' : ''
@@ -9076,7 +9076,7 @@ bot?.on('message', async msg => {
       const rows = []
       for (let i = 0; i < areaBtns.length; i += 2) rows.push(areaBtns.slice(i, i + 2))
       rows.push([pc.searchByArea])
-      return send(chatId, phoneConfig.txt.selectArea, k.of(rows))
+      return send(chatId, cpTxt.selectArea, k.of(rows))
     }
     const areaCode = message.replace(/\D/g, '')
     if (!areaCode || areaCode.length < 2) return send(chatId, phoneConfig.getMsg(info?.userLanguage).enterValidAreaCode)
@@ -9084,7 +9084,7 @@ bot?.on('message', async msg => {
     await saveInfo('cpAreaName', `Area ${areaCode}`)
 
     set(state, chatId, 'action', a.cpSelectNumber)
-    send(chatId, phoneConfig.txt.searching)
+    send(chatId, cpTxt.searching)
     const provider = info?.cpProvider || 'telnyx'
     const canSearchBoth = info?.cpCanSearchBoth || false
     let results = []
@@ -9106,7 +9106,7 @@ bot?.on('message', async msg => {
       results.forEach(r => { r._provider = provider; r._bulkIvrCapable = (provider === 'twilio') })
     }
 
-    if (!results.length) return send(chatId, phoneConfig.txt.noSearchResults + '\nTry a different area code.', k.of([]))
+    if (!results.length) return send(chatId, cpTxt.noSearchResults + '\nTry a different area code.', k.of([]))
     await saveInfo('cpSearchResults', results)
     const numberLines = results.map((r, i) => {
       const tag = r._bulkIvrCapable ? ' ☎️ Bulk IVR' : ''
@@ -9127,13 +9127,13 @@ bot?.on('message', async msg => {
         const rows = []
         for (let i = 0; i < areaBtns.length; i += 2) rows.push(areaBtns.slice(i, i + 2))
         rows.push([pc.searchByArea])
-        return send(chatId, phoneConfig.txt.selectArea, k.of(rows))
+        return send(chatId, cpTxt.selectArea, k.of(rows))
       }
       set(state, chatId, 'action', a.cpSelectType)
-      return send(chatId, phoneConfig.txt.selectType(info?.cpCountryName || ''), k.of([[pc.localNumber], [pc.tollFreeNumber]]))
+      return send(chatId, cpTxt.selectType(info?.cpCountryName || ''), k.of([[pc.localNumber], [pc.tollFreeNumber]]))
     }
     if (message === pc.showMore) {
-      send(chatId, phoneConfig.txt.searching)
+      send(chatId, cpTxt.searching)
       const provider = info?.cpProvider || 'telnyx'
       const canSearchBoth = info?.cpCanSearchBoth || false
       let results = []
@@ -9155,7 +9155,7 @@ bot?.on('message', async msg => {
         results.forEach(r => { r._provider = provider; r._bulkIvrCapable = (provider === 'twilio') })
       }
 
-      if (!results.length) return send(chatId, phoneConfig.txt.noSearchResults, k.of([]))
+      if (!results.length) return send(chatId, cpTxt.noSearchResults, k.of([]))
       await saveInfo('cpSearchResults', results)
       const location = info?.cpAreaName || info?.cpCountryName || 'US'
       const numberLines = results.map((r, i) => {
@@ -9201,7 +9201,7 @@ bot?.on('message', async msg => {
     if (caps.sms) capLabels.push('SMS')
     if (caps.fax) capLabels.push('Fax')
     const bulkTag = selected._bulkIvrCapable ? '\n☎️ <b>Bulk IVR capable</b>' : ''
-    let summaryText = phoneConfig.txt.orderSummary(selected.phone_number, info?.cpCountryName || 'US', plan, totalPrice)
+    let summaryText = cpTxt.orderSummary(selected.phone_number, info?.cpCountryName || 'US', plan, totalPrice)
     summaryText += `\n📋 Capabilities: ${capLabels.join(' · ')}${bulkTag}`
     if (surcharge > 0) {
       summaryText += `\n\n💰 <b>Number Cost:</b> $${surcharge.toFixed(2)}/mo (added to plan)\n📋 Plan: $${plan.price}/mo + Number: $${surcharge.toFixed(2)}/mo = <b>$${totalPrice.toFixed(2)}/mo</b>`
@@ -9248,7 +9248,7 @@ bot?.on('message', async msg => {
       if (phoneConfig.isPlanAvailable('starter')) availBtns2.push([pc.starterPlan])
       if (phoneConfig.isPlanAvailable('pro')) availBtns2.push([pc.proPlan])
       if (phoneConfig.isPlanAvailable('business')) availBtns2.push([pc.businessPlan])
-      return send(chatId, phoneConfig.txt.selectPlan(info?.cpSelectedNumber), k.of(availBtns2))
+      return send(chatId, cpTxt.selectPlan(info?.cpSelectedNumber), k.of(availBtns2))
     }
     if (message === pc.applyCoupon) {
       return goto.askCoupon('cpOrderSummary')
@@ -9266,7 +9266,7 @@ bot?.on('message', async msg => {
       const plan = phoneConfig.plans[info?.cpPlanKey]
       const totalPrice = info?.cpPrice || plan?.price
       const surcharge = info?.cpNumberSurcharge || 0
-      let summaryText = phoneConfig.txt.orderSummary(
+      let summaryText = cpTxt.orderSummary(
         info?.cpSelectedNumber, info?.cpCountryName || 'US', plan, totalPrice
       )
       if (surcharge > 0) {
@@ -9444,7 +9444,7 @@ bot?.on('message', async msg => {
 
     set(state, chatId, 'action', 'none')
     const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
-    send(chatId, phoneConfig.txt.purchaseSuccess(selectedNumber, result.plan, result.sipUsername, result.sipPassword, phoneConfig.SIP_DOMAIN, result.expiresAt), { parse_mode: 'HTML' })
+    send(chatId, cpTxt.purchaseSuccess(selectedNumber, result.plan, result.sipUsername, result.sipPassword, phoneConfig.SIP_DOMAIN, result.expiresAt), { parse_mode: 'HTML' })
     send(chatId, t.showWallet(usd, ngn))
     checkAndNotifyTierUpgrade(preSpend || 0)
     // Post-purchase upsell: guide user to set up their number
@@ -9600,7 +9600,7 @@ bot?.on('message', async msg => {
       .toArray()
 
     if (!messages.length && page === 1) {
-      return send(chatId, phoneConfig.txt.smsInboxEmpty, k.of([[pc.inboxRefresh]]))
+      return send(chatId, cpTxt.smsInboxEmpty, k.of([[pc.inboxRefresh]]))
     }
 
     // Batch CNAM lookup for sender numbers
@@ -9613,13 +9613,13 @@ bot?.on('message', async msg => {
     }
 
     // Build inbox text
-    let text = phoneConfig.txt.smsInboxHeader(num.phoneNumber, totalCount)
+    let text = cpTxt.smsInboxHeader(num.phoneNumber, totalCount)
     messages.forEach((m, i) => {
       const senderName = cnamResults[m.from] || null
       const time = m.timestamp ? new Date(m.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—'
-      text += phoneConfig.txt.smsInboxEntry(skip + i + 1, m.from, senderName, m.body || '(no content)', time)
+      text += cpTxt.smsInboxEntry(skip + i + 1, m.from, senderName, m.body || '(no content)', time)
     })
-    text += phoneConfig.txt.smsInboxFooter(page, totalPages)
+    text += cpTxt.smsInboxFooter(page, totalPages)
 
     // Build pagination buttons
     const navBtns = []
@@ -9638,7 +9638,7 @@ bot?.on('message', async msg => {
       const rows = []
       for (let i = 0; i < countryBtns.length; i += 2) rows.push(countryBtns.slice(i, i + 2))
       if (phoneConfig.moreCountries.length > 0) rows.push([pc.moreCountries])
-      return send(chatId, phoneConfig.txt.selectCountry, k.of(rows))
+      return send(chatId, cpTxt.selectCountry, k.of(rows))
     }
     const idx = parseInt(message) - 1
     const numbers = info?.cpNumbers || []
@@ -9646,7 +9646,7 @@ bot?.on('message', async msg => {
     const num = numbers[idx]
     await saveInfo('cpActiveNumber', num)
     set(state, chatId, 'action', a.cpManageNumber)
-    return send(chatId, phoneConfig.txt.manageNumber(num), k.of(buildManageMenu(num)))
+    return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
   }
 
   // ━━━ MANAGE NUMBER ━━━
@@ -9661,7 +9661,7 @@ bot?.on('message', async msg => {
       await saveInfo('cpNumbers', numbers)
       set(state, chatId, 'action', a.cpMyNumbers)
       const numBtns = numbers.map((_, i) => String(i + 1))
-      return send(chatId, phoneConfig.txt.myNumbersList(numbers), k.of([numBtns, [pc.buyAnother]]))
+      return send(chatId, cpTxt.myNumbersList(numbers), k.of([numBtns, [pc.buyAnother]]))
     }
 
     // Call Forwarding
@@ -9674,7 +9674,7 @@ bot?.on('message', async msg => {
       const btns = fwd.enabled
         ? [[pc.alwaysForward], [pc.forwardBusy], [pc.forwardNoAnswer], [holdLabel], ['📲 Change Forward-To Number'], [pc.disableForwarding]]
         : [[pc.alwaysForward], [pc.forwardBusy], [pc.forwardNoAnswer]]
-      return send(chatId, phoneConfig.txt.forwardingStatus(num.phoneNumber, fwd, walletBal), k.of(btns))
+      return send(chatId, cpTxt.forwardingStatus(num.phoneNumber, fwd, walletBal), k.of(btns))
     }
 
     // SMS Settings
@@ -9695,7 +9695,7 @@ bot?.on('message', async msg => {
       } else {
         smsBtns.push([`🔒 Webhook URL (Pro+)`])
       }
-      return send(chatId, phoneConfig.txt.smsSettingsMenu(num.phoneNumber, smsConf, num.plan), k.of(smsBtns))
+      return send(chatId, cpTxt.smsSettingsMenu(num.phoneNumber, smsConf, num.plan), k.of(smsBtns))
     }
 
     // SMS Inbox
@@ -9719,7 +9719,7 @@ bot?.on('message', async msg => {
            [`⏰ Ring Time: ${vm.ringTimeout || 25}s`],
            [pc.disableVoicemail]]
         : [[pc.enableVoicemail]]
-      return send(chatId, phoneConfig.txt.voicemailMenu(num.phoneNumber, vm), k.of(btns))
+      return send(chatId, cpTxt.voicemailMenu(num.phoneNumber, vm), k.of(btns))
     }
 
     // SIP Credentials — Pro/Business only
@@ -9729,7 +9729,7 @@ bot?.on('message', async msg => {
       }
       set(state, chatId, 'action', a.cpSipCredentials)
       const numSipDomain = phoneConfig.getSipDomainForNumber()
-      return send(chatId, phoneConfig.txt.sipCredentialsMsg(num.phoneNumber, num.sipUsername, numSipDomain), k.of([
+      return send(chatId, cpTxt.sipCredentialsMsg(num.phoneNumber, num.sipUsername, numSipDomain), k.of([
         [pc.revealPassword], [pc.resetPassword], [pc.softphoneGuide]
       ]))
     }
@@ -9741,7 +9741,7 @@ bot?.on('message', async msg => {
       }
       set(state, chatId, 'action', a.cpCallRecording)
       const isEnabled = num.features?.recording === true
-      return send(chatId, phoneConfig.txt.recordingMenu(num.phoneNumber, num.features), k.of(
+      return send(chatId, cpTxt.recordingMenu(num.phoneNumber, num.features), k.of(
         isEnabled ? [[pc.disableRecording]] : [[pc.enableRecording]]
       ))
     }
@@ -9756,7 +9756,7 @@ bot?.on('message', async msg => {
       const btns = ivrConf.enabled
         ? [[pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]]
         : [[pc.enableIvr]]
-      return send(chatId, phoneConfig.txt.ivrMenu(num.phoneNumber, ivrConf), k.of(btns))
+      return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of(btns))
     }
 
     // Fax Settings
@@ -9766,10 +9766,10 @@ bot?.on('message', async msg => {
       const provider = num.provider || 'telnyx'
       if (provider === 'twilio') {
         // Twilio deprecated fax — inform user
-        return send(chatId, phoneConfig.txt.faxSettingsMenu(num.phoneNumber, faxConf, 'twilio'), k.of([]))
+        return send(chatId, cpTxt.faxSettingsMenu(num.phoneNumber, faxConf, 'twilio'), k.of([]))
       }
       const tgLabel = `📲 Fax to Telegram ${faxConf.toTelegram !== false ? '✅ ON' : '❌ OFF'}`
-      return send(chatId, phoneConfig.txt.faxSettingsMenu(num.phoneNumber, faxConf, provider), k.of([[tgLabel]]))
+      return send(chatId, cpTxt.faxSettingsMenu(num.phoneNumber, faxConf, provider), k.of([[tgLabel]]))
     }
 
     // Call & SMS Logs
@@ -9807,7 +9807,7 @@ bot?.on('message', async msg => {
     if (message === pc.renewChangePlan) {
       set(state, chatId, 'action', a.cpRenewPlan)
       const plan = phoneConfig.plans[num.plan] || { name: num.plan, price: num.planPrice }
-      return send(chatId, phoneConfig.txt.renewMenu(num.phoneNumber, plan.name, num.planPrice, num.expiresAt, num.autoRenew), k.of([
+      return send(chatId, cpTxt.renewMenu(num.phoneNumber, plan.name, num.planPrice, num.expiresAt, num.autoRenew), k.of([
         ['🔄 Renew Now ($' + num.planPrice + ')'],
         [pc.changePlan],
         ['🔁 Auto-Renew: ' + (num.autoRenew ? '✅ ON' : '❌ OFF')],
@@ -9817,7 +9817,7 @@ bot?.on('message', async msg => {
     // Release Number
     if (message === pc.releaseNumber) {
       set(state, chatId, 'action', a.cpReleaseConfirm)
-      return send(chatId, phoneConfig.txt.releaseConfirm(num.phoneNumber), k.of([
+      return send(chatId, cpTxt.releaseConfirm(num.phoneNumber), k.of([
         [pc.yesRelease, pc.noKeep]
       ]))
     }
@@ -9832,15 +9832,15 @@ bot?.on('message', async msg => {
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, phoneConfig.txt.manageNumber(num), k.of(buildManageMenu(num)))
+      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
     }
     if (message === pc.disableForwarding) {
       await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'callForwarding', { enabled: false, mode: 'disabled', forwardTo: null })
       num.features.callForwarding = { enabled: false, mode: 'disabled', forwardTo: null }
       await saveInfo('cpActiveNumber', num)
-      send(chatId, phoneConfig.txt.forwardingDisabled(num.phoneNumber))
+      send(chatId, cpTxt.forwardingDisabled(num.phoneNumber))
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, phoneConfig.txt.manageNumber(num), k.of(buildManageMenu(num)))
+      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
     }
     // ── Toggle Hold Music ──
     if (message === pc.holdMusicOn || message === pc.holdMusicOff) {
@@ -9855,7 +9855,7 @@ bot?.on('message', async msg => {
       try { const { usdBal } = await getBalance(walletOf, chatId); walletBal = usdBal } catch (e) {}
       const holdLabel = newState ? pc.holdMusicOn : pc.holdMusicOff
       const btns = [[pc.alwaysForward], [pc.forwardBusy], [pc.forwardNoAnswer], [holdLabel], ['📲 Change Forward-To Number'], [pc.disableForwarding]]
-      return send(chatId, phoneConfig.txt.forwardingStatus(num.phoneNumber, num.features.callForwarding, walletBal), k.of(btns))
+      return send(chatId, cpTxt.forwardingStatus(num.phoneNumber, num.features.callForwarding, walletBal), k.of(btns))
     }
     let mode = null
     if (message === pc.alwaysForward) mode = 'always'
@@ -9873,7 +9873,7 @@ bot?.on('message', async msg => {
       if (walletBal < phoneConfig.CALL_FORWARDING_RATE_MIN) {
         send(chatId, t.fwdInsufficientBalance(walletBal, phoneConfig.CALL_FORWARDING_RATE_MIN), { parse_mode: 'HTML' })
         set(state, chatId, 'action', a.cpManageNumber)
-        return send(chatId, phoneConfig.txt.manageNumber(num), k.of(buildManageMenu(num)))
+        return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
       }
       set(state, chatId, 'action', a.cpEnterForwardNumber)
       return send(chatId, t.fwdEnterNumber(phoneConfig.CALL_FORWARDING_RATE_MIN, walletBal), { parse_mode: 'HTML' })
@@ -9893,7 +9893,7 @@ bot?.on('message', async msg => {
       const btns = fwd.enabled
         ? [[pc.alwaysForward], [pc.forwardBusy], [pc.forwardNoAnswer], [holdLabel], ['📲 Change Forward-To Number'], [pc.disableForwarding]]
         : [[pc.alwaysForward], [pc.forwardBusy], [pc.forwardNoAnswer]]
-      return send(chatId, phoneConfig.txt.forwardingStatus(num.phoneNumber, fwd, walletBal), k.of(btns))
+      return send(chatId, cpTxt.forwardingStatus(num.phoneNumber, fwd, walletBal), k.of(btns))
     }
     const forwardTo = message.replace(/[^+\d]/g, '')
     if (!forwardTo || forwardTo.length < 7) return send(chatId, phoneConfig.getMsg(info?.userLanguage).enterValidPhone)
@@ -9909,7 +9909,7 @@ bot?.on('message', async msg => {
     if (walletBal < phoneConfig.CALL_FORWARDING_RATE_MIN) {
       send(chatId, t.fwdInsufficientBalance(walletBal, phoneConfig.CALL_FORWARDING_RATE_MIN), { parse_mode: 'HTML' })
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, phoneConfig.txt.manageNumber(num), k.of(buildManageMenu(num)))
+      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
     }
 
     // ── Validate destination is routable via Telnyx ──
@@ -9925,9 +9925,9 @@ bot?.on('message', async msg => {
     num.features.callForwarding = { enabled: true, mode, forwardTo, ringTimeout: 25, holdMusic: existingFwd.holdMusic || false }
     await saveInfo('cpActiveNumber', num)
     const modeLabel = mode === 'always' ? 'Always Forward' : mode === 'busy' ? 'Forward When Busy' : 'Forward If No Answer'
-    send(chatId, phoneConfig.txt.forwardingUpdated(num.phoneNumber, forwardTo, modeLabel, walletBal), { parse_mode: 'HTML' })
+    send(chatId, cpTxt.forwardingUpdated(num.phoneNumber, forwardTo, modeLabel, walletBal), { parse_mode: 'HTML' })
     set(state, chatId, 'action', a.cpManageNumber)
-    return send(chatId, phoneConfig.txt.manageNumber(num), k.of(buildManageMenu(num)))
+    return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
   }
 
   // ━━━ SMS SETTINGS ━━━
@@ -9937,7 +9937,7 @@ bot?.on('message', async msg => {
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, phoneConfig.txt.manageNumber(num), k.of(buildManageMenu(num)))
+      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
     }
     const smsConf = num.features?.smsForwarding || {}
     // Toggle Telegram
@@ -9946,7 +9946,7 @@ bot?.on('message', async msg => {
       await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'smsForwarding', { ...smsConf, toTelegram: newState })
       num.features.smsForwarding = { ...smsConf, toTelegram: newState }
       await saveInfo('cpActiveNumber', num)
-      send(chatId, phoneConfig.txt.smsToggled('📲 SMS to Telegram', newState))
+      send(chatId, cpTxt.smsToggled('📲 SMS to Telegram', newState))
       const tgLabel = `📲 SMS to Telegram ${newState ? '✅ ON' : '❌ OFF'}`
       const smsBtns = [[tgLabel]]
       if (phoneConfig.canAccessFeature(num.plan, 'smsToEmail')) {
@@ -9959,7 +9959,7 @@ bot?.on('message', async msg => {
       } else {
         smsBtns.push([`🔒 Webhook URL (Pro+)`])
       }
-      return send(chatId, phoneConfig.txt.smsSettingsMenu(num.phoneNumber, { ...smsConf, toTelegram: newState }, num.plan), k.of(smsBtns))
+      return send(chatId, cpTxt.smsSettingsMenu(num.phoneNumber, { ...smsConf, toTelegram: newState }, num.plan), k.of(smsBtns))
     }
     // Locked features — show upgrade message
     if (message.startsWith('🔒 SMS to Email')) {
@@ -9974,7 +9974,7 @@ bot?.on('message', async msg => {
         return send(chatId, phoneConfig.upgradeMessage('smsToEmail', num.plan))
       }
       set(state, chatId, 'action', a.cpEnterEmail)
-      return send(chatId, phoneConfig.txt.enterEmail)
+      return send(chatId, cpTxt.enterEmail)
     }
     // Webhook (gated)
     if (message.startsWith('🔗 Webhook URL')) {
@@ -9982,7 +9982,7 @@ bot?.on('message', async msg => {
         return send(chatId, phoneConfig.upgradeMessage('smsWebhook', num.plan))
       }
       set(state, chatId, 'action', a.cpEnterWebhook)
-      return send(chatId, phoneConfig.txt.enterWebhook)
+      return send(chatId, cpTxt.enterWebhook)
     }
     return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectOption)
   }
@@ -9996,16 +9996,16 @@ bot?.on('message', async msg => {
       const tgLabel = `📲 SMS to Telegram ${smsConf.toTelegram !== false ? '✅ ON' : '❌ OFF'}`
       const emLabel = `📧 SMS to Email ${smsConf.toEmail ? '✅ ' + smsConf.toEmail : '❌ OFF'}`
       const whLabel = `🔗 Webhook URL ${smsConf.webhookUrl ? '✅ Set' : '❌ Not Set'}`
-      return send(chatId, phoneConfig.txt.smsSettingsMenu(num.phoneNumber, smsConf), k.of([[tgLabel], [emLabel], [whLabel]]))
+      return send(chatId, cpTxt.smsSettingsMenu(num.phoneNumber, smsConf), k.of([[tgLabel], [emLabel], [whLabel]]))
     }
     if (!isValidEmail(message)) return send(chatId, phoneConfig.getMsg(info?.userLanguage).enterValidEmail)
     const smsConf = num.features?.smsForwarding || {}
     await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'smsForwarding', { ...smsConf, toEmail: message })
     num.features.smsForwarding = { ...smsConf, toEmail: message }
     await saveInfo('cpActiveNumber', num)
-    send(chatId, phoneConfig.txt.emailSet(message))
+    send(chatId, cpTxt.emailSet(message))
     set(state, chatId, 'action', a.cpManageNumber)
-    return send(chatId, phoneConfig.txt.manageNumber(num), k.of(buildManageMenu(num)))
+    return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
   }
   if (action === a.cpEnterWebhook) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
@@ -10017,16 +10017,16 @@ bot?.on('message', async msg => {
       const tgLabel = `📲 SMS to Telegram ${smsConf.toTelegram !== false ? '✅ ON' : '❌ OFF'}`
       const emLabel = `📧 SMS to Email ${smsConf.toEmail ? '✅ ' + smsConf.toEmail : '❌ OFF'}`
       const whLabel = `🔗 Webhook URL ${smsConf.webhookUrl ? '✅ Set' : '❌ Not Set'}`
-      return send(chatId, phoneConfig.txt.smsSettingsMenu(num.phoneNumber, smsConf), k.of([[tgLabel], [emLabel], [whLabel]]))
+      return send(chatId, cpTxt.smsSettingsMenu(num.phoneNumber, smsConf), k.of([[tgLabel], [emLabel], [whLabel]]))
     }
     if (!message.startsWith('http')) return send(chatId, 'Enter a valid URL starting with http:// or https://.')
     const smsConf = num.features?.smsForwarding || {}
     await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'smsForwarding', { ...smsConf, webhookUrl: message })
     num.features.smsForwarding = { ...smsConf, webhookUrl: message }
     await saveInfo('cpActiveNumber', num)
-    send(chatId, phoneConfig.txt.webhookSet(message))
+    send(chatId, cpTxt.webhookSet(message))
     set(state, chatId, 'action', a.cpManageNumber)
-    return send(chatId, phoneConfig.txt.manageNumber(num), k.of(buildManageMenu(num)))
+    return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
   }
 
   // ━━━ SMS INBOX ━━━
@@ -10036,7 +10036,7 @@ bot?.on('message', async msg => {
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, phoneConfig.txt.manageNumber(num), k.of(buildManageMenu(num)))
+      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
     }
     if (message === pc.inboxRefresh) {
       await saveInfo('cpInboxPage', 1)
@@ -10062,7 +10062,7 @@ bot?.on('message', async msg => {
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, phoneConfig.txt.manageNumber(num), k.of(buildManageMenu(num)))
+      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
     }
     const faxConf = num.features?.faxForwarding || { toTelegram: true }
     // Toggle Telegram forwarding
@@ -10072,9 +10072,9 @@ bot?.on('message', async msg => {
       num.features = num.features || {}
       num.features.faxForwarding = { ...faxConf, toTelegram: newState }
       await saveInfo('cpActiveNumber', num)
-      send(chatId, phoneConfig.txt.faxToggled(newState))
+      send(chatId, cpTxt.faxToggled(newState))
       const tgLabel = `📲 Fax to Telegram ${newState ? '✅ ON' : '❌ OFF'}`
-      return send(chatId, phoneConfig.txt.faxSettingsMenu(num.phoneNumber, { ...faxConf, toTelegram: newState }, num.provider || 'telnyx'), k.of([[tgLabel]]))
+      return send(chatId, cpTxt.faxSettingsMenu(num.phoneNumber, { ...faxConf, toTelegram: newState }, num.provider || 'telnyx'), k.of([[tgLabel]]))
     }
     return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectOption)
   }
@@ -10086,29 +10086,29 @@ bot?.on('message', async msg => {
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, phoneConfig.txt.manageNumber(num), k.of(buildManageMenu(num)))
+      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
     }
     if (message === pc.enableVoicemail) {
       await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'voicemail', { enabled: true, greetingType: 'default', forwardToTelegram: true, forwardToEmail: null, ringTimeout: 25 })
       num.features.voicemail = { enabled: true, greetingType: 'default', forwardToTelegram: true, forwardToEmail: null, ringTimeout: 25 }
       await saveInfo('cpActiveNumber', num)
-      send(chatId, phoneConfig.txt.voicemailEnabled(num.phoneNumber))
+      send(chatId, cpTxt.voicemailEnabled(num.phoneNumber))
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, phoneConfig.txt.manageNumber(num), k.of(buildManageMenu(num)))
+      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
     }
     if (message === pc.disableVoicemail) {
       await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'voicemail', { enabled: false })
       num.features.voicemail = { enabled: false }
       await saveInfo('cpActiveNumber', num)
-      send(chatId, phoneConfig.txt.voicemailDisabled(num.phoneNumber))
+      send(chatId, cpTxt.voicemailDisabled(num.phoneNumber))
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, phoneConfig.txt.manageNumber(num), k.of(buildManageMenu(num)))
+      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
     }
     // Greeting management
     if (message === pc.vmGreeting || message === '🔊 Greeting') {
       set(state, chatId, 'action', a.cpVmGreeting)
       const vm = num.features?.voicemail || {}
-      return send(chatId, phoneConfig.txt.vmGreetingMenu(num.phoneNumber, vm), k.of([
+      return send(chatId, cpTxt.vmGreetingMenu(num.phoneNumber, vm), k.of([
         [pc.vmCustomGreeting],
         [pc.vmDefaultGreeting],
         [pc.back]
@@ -10136,7 +10136,7 @@ bot?.on('message', async msg => {
       await saveInfo('cpActiveNumber', num)
       send(chatId, phoneConfig.getMsg(info?.userLanguage).ringTimeUpdated(seconds))
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, phoneConfig.txt.manageNumber(num), k.of(buildManageMenu(num)))
+      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
     }
     return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectOption)
   }
@@ -10156,7 +10156,7 @@ bot?.on('message', async msg => {
            [`⏰ Ring Time: ${vm.ringTimeout || 25}s`],
            [pc.disableVoicemail]]
         : [[pc.enableVoicemail]]
-      return send(chatId, phoneConfig.txt.voicemailMenu(num.phoneNumber, vm), k.of(btns))
+      return send(chatId, cpTxt.voicemailMenu(num.phoneNumber, vm), k.of(btns))
     }
     if (message === pc.vmCustomGreeting) {
       set(state, chatId, 'action', a.cpVmAudioUpload)
@@ -10182,9 +10182,9 @@ bot?.on('message', async msg => {
            ['📧 VM to Email ' + (vm.forwardToEmail ? '✅ ' + vm.forwardToEmail : '❌ OFF')],
            [`⏰ Ring Time: ${vm.ringTimeout || 25}s`],
            [pc.disableVoicemail]]
-      return send(chatId, phoneConfig.txt.voicemailMenu(num.phoneNumber, vm), k.of(btns))
+      return send(chatId, cpTxt.voicemailMenu(num.phoneNumber, vm), k.of(btns))
     }
-    return send(chatId, phoneConfig.txt.vmGreetingMenu(num.phoneNumber, num.features?.voicemail || {}), k.of([
+    return send(chatId, cpTxt.vmGreetingMenu(num.phoneNumber, num.features?.voicemail || {}), k.of([
       [pc.vmCustomGreeting], [pc.vmDefaultGreeting],
     ]))
   }
@@ -10196,7 +10196,7 @@ bot?.on('message', async msg => {
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
       set(state, chatId, 'action', a.cpVmGreeting)
-      return send(chatId, phoneConfig.txt.vmGreetingMenu(num.phoneNumber, num.features?.voicemail || {}), k.of([
+      return send(chatId, cpTxt.vmGreetingMenu(num.phoneNumber, num.features?.voicemail || {}), k.of([
         [pc.vmCustomGreeting], [pc.vmDefaultGreeting],
       ]))
     }
@@ -10402,7 +10402,7 @@ bot?.on('message', async msg => {
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
       set(state, chatId, 'action', a.cpVmGreeting)
-      return send(chatId, phoneConfig.txt.vmGreetingMenu(num.phoneNumber, num.features?.voicemail || {}), k.of([
+      return send(chatId, cpTxt.vmGreetingMenu(num.phoneNumber, num.features?.voicemail || {}), k.of([
         [pc.vmCustomGreeting], [pc.vmDefaultGreeting],
       ]))
     }
@@ -10468,7 +10468,7 @@ bot?.on('message', async msg => {
            ['📧 VM to Email ' + (vm.forwardToEmail ? '✅ ' + vm.forwardToEmail : '❌ OFF')],
            [`⏰ Ring Time: ${vm.ringTimeout || 25}s`],
            [pc.disableVoicemail]]
-      return send(chatId, phoneConfig.txt.voicemailMenu(num.phoneNumber, vm), k.of(btns))
+      return send(chatId, cpTxt.voicemailMenu(num.phoneNumber, vm), k.of(btns))
     }
     return send(chatId, `Choose:`, k.of([['✅ Save Greeting'], ['🔄 Try Different Voice'], ['📝 Re-type Text']]))
   }
@@ -10480,25 +10480,25 @@ bot?.on('message', async msg => {
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, phoneConfig.txt.manageNumber(num), k.of(buildManageMenu(num)))
+      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
     }
     if (message === pc.enableRecording) {
       await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'recording', true)
       num.features = num.features || {}
       num.features.recording = true
       await saveInfo('cpActiveNumber', num)
-      send(chatId, phoneConfig.txt.recordingEnabled(num.phoneNumber))
+      send(chatId, cpTxt.recordingEnabled(num.phoneNumber))
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, phoneConfig.txt.manageNumber(num), k.of(buildManageMenu(num)))
+      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
     }
     if (message === pc.disableRecording) {
       await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'recording', false)
       num.features = num.features || {}
       num.features.recording = false
       await saveInfo('cpActiveNumber', num)
-      send(chatId, phoneConfig.txt.recordingDisabled(num.phoneNumber))
+      send(chatId, cpTxt.recordingDisabled(num.phoneNumber))
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, phoneConfig.txt.manageNumber(num), k.of(buildManageMenu(num)))
+      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
     }
     return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectOption)
   }
@@ -10510,7 +10510,7 @@ bot?.on('message', async msg => {
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, phoneConfig.txt.manageNumber(num), k.of(buildManageMenu(num)))
+      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
     }
     if (message === pc.enableIvr) {
       const ivrConf = { enabled: true, greeting: 'Thank you for calling. Please listen to the following options.', options: {} }
@@ -10518,8 +10518,8 @@ bot?.on('message', async msg => {
       num.features = num.features || {}
       num.features.ivr = ivrConf
       await saveInfo('cpActiveNumber', num)
-      send(chatId, phoneConfig.txt.ivrEnabled(num.phoneNumber))
-      return send(chatId, phoneConfig.txt.ivrMenu(num.phoneNumber, ivrConf), k.of([
+      send(chatId, cpTxt.ivrEnabled(num.phoneNumber))
+      return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
         [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
       ]))
     }
@@ -10528,9 +10528,9 @@ bot?.on('message', async msg => {
       num.features = num.features || {}
       num.features.ivr = { enabled: false }
       await saveInfo('cpActiveNumber', num)
-      send(chatId, phoneConfig.txt.ivrDisabled(num.phoneNumber))
+      send(chatId, cpTxt.ivrDisabled(num.phoneNumber))
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, phoneConfig.txt.manageNumber(num), k.of(buildManageMenu(num)))
+      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
     }
     if (message === pc.ivrGreeting) {
       set(state, chatId, 'action', a.cpIvrGreeting)
@@ -10558,13 +10558,13 @@ bot?.on('message', async msg => {
     }
     if (message === pc.ivrViewOptions) {
       const ivrConf = num.features?.ivr || {}
-      return send(chatId, phoneConfig.txt.ivrMenu(num.phoneNumber, ivrConf), k.of([
+      return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
         [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
       ]))
     }
     if (message === pc.ivrAnalytics) {
       const analytics = await getIvrAnalytics(num.phoneNumber, 30)
-      return send(chatId, phoneConfig.txt.ivrAnalyticsReport(num.phoneNumber, analytics), k.of([
+      return send(chatId, cpTxt.ivrAnalyticsReport(num.phoneNumber, analytics), k.of([
         [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
       ]))
     }
@@ -10579,7 +10579,7 @@ bot?.on('message', async msg => {
     if (message === t.back || message === pc.back || message === t.cancel) {
       set(state, chatId, 'action', a.cpIvr)
       const ivrConf = num.features?.ivr || {}
-      return send(chatId, phoneConfig.txt.ivrMenu(num.phoneNumber, ivrConf), k.of([
+      return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
         [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
       ]))
     }
@@ -10776,7 +10776,7 @@ bot?.on('message', async msg => {
     if (message === t.back || message === pc.back || message === t.cancel) {
       set(state, chatId, 'action', a.cpIvr)
       const ivrConf = num.features?.ivr || {}
-      return send(chatId, phoneConfig.txt.ivrMenu(num.phoneNumber, ivrConf), k.of([
+      return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
         [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
       ]))
     }
@@ -10855,7 +10855,7 @@ bot?.on('message', async msg => {
       await saveInfo('cpTtsDraft', null)
       send(chatId, `✅ IVR greeting saved!`)
       set(state, chatId, 'action', a.cpIvr)
-      return send(chatId, phoneConfig.txt.ivrMenu(num.phoneNumber, ivrConf), k.of([
+      return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
         [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
       ]))
     }
@@ -10889,7 +10889,7 @@ bot?.on('message', async msg => {
     if (message === t.back || message === pc.back || message === t.cancel) {
       set(state, chatId, 'action', a.cpIvr)
       const ivrConf = num.features?.ivr || {}
-      return send(chatId, phoneConfig.txt.ivrMenu(num.phoneNumber, ivrConf), k.of([
+      return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
         [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
       ]))
     }
@@ -10953,7 +10953,7 @@ bot?.on('message', async msg => {
       await saveInfo('cpIvrDraft', null)
       send(chatId, `✅ Key <b>${draft.key}</b> → Send to Voicemail — saved!`)
       set(state, chatId, 'action', a.cpIvr)
-      return send(chatId, phoneConfig.txt.ivrMenu(num.phoneNumber, ivrConf), k.of([
+      return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
         [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
       ]))
     }
@@ -10991,7 +10991,7 @@ bot?.on('message', async msg => {
       await saveInfo('cpIvrDraft', null)
       send(chatId, `✅ Key <b>${draft.key}</b> → Forward to <b>${phone}</b> — saved!`)
       set(state, chatId, 'action', a.cpIvr)
-      return send(chatId, phoneConfig.txt.ivrMenu(num.phoneNumber, ivrConf), k.of([
+      return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
         [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
       ]))
     }
@@ -11175,7 +11175,7 @@ bot?.on('message', async msg => {
     if (message === t.back || message === pc.back || message === t.cancel) {
       set(state, chatId, 'action', a.cpIvr)
       const ivrConf = num.features?.ivr || {}
-      return send(chatId, phoneConfig.txt.ivrMenu(num.phoneNumber, ivrConf), k.of([
+      return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
         [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
       ]))
     }
@@ -11241,7 +11241,7 @@ bot?.on('message', async msg => {
       const actionLabel = draft.action === 'message' ? 'Play Message' : draft.action === 'forward' ? 'Forward Call' : 'Voicemail'
       send(chatId, `✅ Key <b>${draft.key}</b> → ${actionLabel} — saved!`)
       set(state, chatId, 'action', a.cpIvr)
-      return send(chatId, phoneConfig.txt.ivrMenu(num.phoneNumber, ivrConf), k.of([
+      return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
         [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
       ]))
     }
@@ -11256,7 +11256,7 @@ bot?.on('message', async msg => {
     if (message === t.back || message === pc.back) {
       set(state, chatId, 'action', a.cpIvr)
       const ivrConf = num.features?.ivr || {}
-      return send(chatId, phoneConfig.txt.ivrMenu(num.phoneNumber, ivrConf), k.of([
+      return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
         [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
       ]))
     }
@@ -11268,12 +11268,12 @@ bot?.on('message', async msg => {
       await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'ivr', ivrConf)
       num.features.ivr = ivrConf
       await saveInfo('cpActiveNumber', num)
-      send(chatId, phoneConfig.txt.ivrOptionRemoved(key))
+      send(chatId, cpTxt.ivrOptionRemoved(key))
     } else {
       send(chatId, phoneConfig.getMsg(info?.userLanguage).noOptionForKey(key))
     }
     set(state, chatId, 'action', a.cpIvr)
-    return send(chatId, phoneConfig.txt.ivrMenu(num.phoneNumber, ivrConf), k.of([
+    return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
       [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
     ]))
   }
@@ -11285,10 +11285,10 @@ bot?.on('message', async msg => {
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, phoneConfig.txt.manageNumber(num), k.of(buildManageMenu(num)))
+      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
     }
     if (message === pc.revealPassword) {
-      const msg = await bot?.sendMessage(chatId, phoneConfig.txt.sipRevealed(num.sipPassword), { parse_mode: 'HTML' })
+      const msg = await bot?.sendMessage(chatId, cpTxt.sipRevealed(num.sipPassword), { parse_mode: 'HTML' })
       // Auto-delete after 30 seconds
       if (msg?.message_id) {
         setTimeout(() => {
@@ -11319,7 +11319,7 @@ bot?.on('message', async msg => {
       if (num.provider === 'twilio' && twilioResources?.credentialListSid) {
         await twilioService.addSipCredential(twilioResources.credentialListSid, newSipUsername, newSipPassword)
       }
-      const msg = await bot?.sendMessage(chatId, phoneConfig.txt.sipReset(newSipPassword), { parse_mode: 'HTML' })
+      const msg = await bot?.sendMessage(chatId, cpTxt.sipReset(newSipPassword), { parse_mode: 'HTML' })
       if (msg?.message_id) {
         setTimeout(() => {
           bot?.deleteMessage(chatId, msg.message_id)?.catch(() => {})
@@ -11329,7 +11329,7 @@ bot?.on('message', async msg => {
     }
     if (message === pc.softphoneGuide) {
       const numSipDomain = phoneConfig.getSipDomainForNumber()
-      return send(chatId, phoneConfig.txt.softphoneGuide(numSipDomain), k.of([]))
+      return send(chatId, cpTxt.softphoneGuide(numSipDomain), k.of([]))
     }
     return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectOption)
   }
@@ -11341,7 +11341,7 @@ bot?.on('message', async msg => {
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, phoneConfig.txt.manageNumber(num), k.of(buildManageMenu(num)))
+      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
     }
     // Toggle Auto-Renew
     if (message.startsWith('🔁 Auto-Renew')) {
@@ -11351,7 +11351,7 @@ bot?.on('message', async msg => {
       await saveInfo('cpActiveNumber', num)
       send(chatId, phoneConfig.getMsg(info?.userLanguage).autoRenewToggled(newState))
       const plan = phoneConfig.plans[num.plan] || { name: num.plan, price: num.planPrice }
-      return send(chatId, phoneConfig.txt.renewMenu(num.phoneNumber, plan.name, num.planPrice, num.expiresAt, newState), k.of([
+      return send(chatId, cpTxt.renewMenu(num.phoneNumber, plan.name, num.planPrice, num.expiresAt, newState), k.of([
         ['🔄 Renew Now ($' + num.planPrice + ')'],
         [pc.changePlan],
         ['🔁 Auto-Renew: ' + (newState ? '✅ ON' : '❌ OFF')],
@@ -11387,7 +11387,7 @@ bot?.on('message', async msg => {
     if (message === t.back || message === pc.back) {
       set(state, chatId, 'action', a.cpRenewPlan)
       const plan = phoneConfig.plans[num.plan] || { name: num.plan, price: num.planPrice }
-      return send(chatId, phoneConfig.txt.renewMenu(num.phoneNumber, plan.name, num.planPrice, num.expiresAt, num.autoRenew), k.of([
+      return send(chatId, cpTxt.renewMenu(num.phoneNumber, plan.name, num.planPrice, num.expiresAt, num.autoRenew), k.of([
         ['🔄 Renew Now ($' + num.planPrice + ')'],
         [pc.changePlan],
         ['🔁 Auto-Renew: ' + (num.autoRenew ? '✅ ON' : '❌ OFF')],
@@ -11436,7 +11436,7 @@ bot?.on('message', async msg => {
             await saveInfo('cpPendingPlan', null)
             send(chatId, phoneConfig.getMsg(info?.userLanguage).insufficientBalUpgrade(chargeAmount, walletBal))
             set(state, chatId, 'action', a.cpManageNumber)
-            return send(chatId, phoneConfig.txt.manageNumber(num), k.of(buildManageMenu(num)))
+            return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
           }
           // Deduct the pro-rated amount
           await atomicIncrement(walletOf, chatId, 'usdBal', -chargeAmount)
@@ -11498,7 +11498,7 @@ bot?.on('message', async msg => {
       }
       send(chatId, confirmMsg)
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, phoneConfig.txt.manageNumber(num), k.of(buildManageMenu(num)))
+      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
     }
 
     let newPlan = null
@@ -11613,12 +11613,12 @@ bot?.on('message', async msg => {
     if (!num) return goto.submenu5()
     if (message === pc.noKeep || message === t.back) {
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, phoneConfig.txt.manageNumber(num), k.of(buildManageMenu(num)))
+      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
     }
     if (message === pc.yesRelease) {
       const last4 = num.phoneNumber.replace(/\D/g, '').slice(-4)
       set(state, chatId, 'action', a.cpReleaseDigits)
-      return send(chatId, phoneConfig.txt.releaseConfirmDigits(last4))
+      return send(chatId, cpTxt.releaseConfirmDigits(last4))
     }
     return send(chatId, phoneConfig.getMsg(info?.userLanguage).confirmOrCancel)
   }
@@ -11628,7 +11628,7 @@ bot?.on('message', async msg => {
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       set(state, chatId, 'action', a.cpReleaseConfirm)
-      return send(chatId, phoneConfig.txt.releaseConfirm(num.phoneNumber), k.of([[pc.yesRelease, pc.noKeep]]))
+      return send(chatId, cpTxt.releaseConfirm(num.phoneNumber), k.of([[pc.yesRelease, pc.noKeep]]))
     }
     const last4 = num.phoneNumber.replace(/\D/g, '').slice(-4)
     if (message !== last4) return send(chatId, phoneConfig.getMsg(info?.userLanguage).typeLast4(last4))
@@ -11650,7 +11650,7 @@ bot?.on('message', async msg => {
     // Update DB
     await updatePhoneNumberField(phoneNumbersOf, chatId, num.phoneNumber, 'status', 'released')
     const name = await get(nameOf, chatId)
-    notifyGroup(phoneConfig.txt.adminRelease(maskName(name), num.phoneNumber, num.plan))
+    notifyGroup(cpTxt.adminRelease(maskName(name), num.phoneNumber, num.plan))
     
     // Log transaction
     await phoneTransactions.insertOne({
@@ -11660,7 +11660,7 @@ bot?.on('message', async msg => {
       timestamp: new Date().toISOString(),
     })
 
-    send(chatId, phoneConfig.txt.released(num.phoneNumber), trans('o'))
+    send(chatId, cpTxt.released(num.phoneNumber), trans('o'))
     return
   }
   if (action === a.phoneNumberLeads) {
@@ -13347,7 +13347,7 @@ const bankApis = {
             addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
             return res.send(html(phoneConfig.getMsg(lang).purchaseFailed))
           }
-          sendMessage(chatId, phoneConfig.txt.activated(selectedNumber, result.plan?.name || planKey, price, result.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(result.expiresAt.toISOString())))
+          sendMessage(chatId, cpTxt.activated(selectedNumber, result.plan?.name || planKey, price, result.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(result.expiresAt.toISOString())))
           return res.send(html())
         } else {
           // Need address — save state, prompt user
@@ -13370,7 +13370,7 @@ const bankApis = {
         addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
         return res.send(html(phoneConfig.getMsg(lang).purchaseFailed))
       }
-      sendMessage(chatId, phoneConfig.txt.activated(selectedNumber, result.plan?.name || planKey, price, result.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(result.expiresAt.toISOString())))
+      sendMessage(chatId, cpTxt.activated(selectedNumber, result.plan?.name || planKey, price, result.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(result.expiresAt.toISOString())))
       return res.send(html())
     }
 
@@ -13414,8 +13414,8 @@ const bankApis = {
     if (existing?.numbers) { existing.numbers.push(numberDoc); await set(phoneNumbersOf, chatId, { numbers: existing.numbers }) }
     else { await set(phoneNumbersOf, chatId, { numbers: [numberDoc] }) }
     await phoneTransactions.insertOne({ chatId, phoneNumber: selectedNumber, action: 'purchase', plan: planKey, amount: price, paymentMethod: 'bank_ngn', timestamp: new Date().toISOString() })
-    sendMessage(chatId, phoneConfig.txt.activated(selectedNumber, plan.name, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())))
-    notifyGroup(phoneConfig.txt.adminPurchase(maskName(name), selectedNumber, plan.name, price, 'Bank NGN'))
+    sendMessage(chatId, cpTxt.activated(selectedNumber, plan.name, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())))
+    notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, plan.name, price, 'Bank NGN'))
     webhookTierCheck(chatId, preSpend, lang)
     res.send(html())
   },
@@ -13858,7 +13858,7 @@ app.get('/crypto-pay-phone', auth, async (req, res) => {
         sendMessage(chatId, phoneConfig.getMsg(lang).purchasingNumber)
         const result = await executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, info?.cpNumberType || 'local', 'crypto_' + coin, cachedAddr)
         if (result.error) { addFundsTo(walletOf, chatId, 'usd', Number(price), lang); return res.send(html(phoneConfig.getMsg(lang).purchaseFailed)) }
-        sendMessage(chatId, phoneConfig.txt.activated(selectedNumber, result.plan?.name || planKey, price, result.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(result.expiresAt.toISOString())))
+        sendMessage(chatId, cpTxt.activated(selectedNumber, result.plan?.name || planKey, price, result.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(result.expiresAt.toISOString())))
         return res.send(html())
       } else {
         await state.updateOne({ _id: parseFloat(chatId) }, { $set: {
@@ -13872,7 +13872,7 @@ app.get('/crypto-pay-phone', auth, async (req, res) => {
     sendMessage(chatId, phoneConfig.getMsg(lang).purchasingNumber)
     const result = await executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, info?.cpNumberType || 'local', 'crypto_' + coin, null)
     if (result.error) { addFundsTo(walletOf, chatId, 'usd', Number(price), lang); return res.send(html(phoneConfig.getMsg(lang).purchaseFailed)) }
-    sendMessage(chatId, phoneConfig.txt.activated(selectedNumber, result.plan?.name || planKey, price, result.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(result.expiresAt.toISOString())))
+    sendMessage(chatId, cpTxt.activated(selectedNumber, result.plan?.name || planKey, price, result.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(result.expiresAt.toISOString())))
     return res.send(html())
   }
 
@@ -13902,8 +13902,8 @@ app.get('/crypto-pay-phone', auth, async (req, res) => {
   if (existing?.numbers) { existing.numbers.push(numberDoc); await set(phoneNumbersOf, chatId, { numbers: existing.numbers }) }
   else { await set(phoneNumbersOf, chatId, { numbers: [numberDoc] }) }
   await phoneTransactions.insertOne({ chatId, phoneNumber: selectedNumber, action: 'purchase', plan: planKey, amount: price, paymentMethod: 'crypto_' + coin, timestamp: new Date().toISOString() })
-  sendMessage(chatId, phoneConfig.txt.activated(selectedNumber, plan.name, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())))
-  notifyGroup(phoneConfig.txt.adminPurchase(maskName(name), selectedNumber, plan.name, price, 'Crypto ' + coin))
+  sendMessage(chatId, cpTxt.activated(selectedNumber, plan.name, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())))
+  notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, plan.name, price, 'Crypto ' + coin))
   webhookTierCheck(chatId, preSpend, lang)
   res.send(html())
 })
@@ -14365,7 +14365,7 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
         sendMessage(chatId, phoneConfig.getMsg(lang).purchasingNumber)
         const result = await executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, info?.cpNumberType || 'local', 'crypto_dynopay_' + coin, cachedAddr)
         if (result.error) { addFundsTo(walletOf, chatId, 'usd', Number(price), lang); return res.send(html(phoneConfig.getMsg(lang).purchaseFailed)) }
-        sendMessage(chatId, phoneConfig.txt.activated(selectedNumber, result.plan?.name || planKey, price, result.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(result.expiresAt.toISOString())))
+        sendMessage(chatId, cpTxt.activated(selectedNumber, result.plan?.name || planKey, price, result.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(result.expiresAt.toISOString())))
         return res.send(html())
       } else {
         await state.updateOne({ _id: parseFloat(chatId) }, { $set: {
@@ -14379,7 +14379,7 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
     sendMessage(chatId, phoneConfig.getMsg(lang).purchasingNumber)
     const result = await executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, info?.cpNumberType || 'local', 'crypto_dynopay_' + coin, null)
     if (result.error) { addFundsTo(walletOf, chatId, 'usd', Number(price), lang); return res.send(html(phoneConfig.getMsg(lang).purchaseFailed)) }
-    sendMessage(chatId, phoneConfig.txt.activated(selectedNumber, result.plan?.name || planKey, price, result.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(result.expiresAt.toISOString())))
+    sendMessage(chatId, cpTxt.activated(selectedNumber, result.plan?.name || planKey, price, result.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(result.expiresAt.toISOString())))
     return res.send(html())
   }
 
@@ -14409,8 +14409,8 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
   if (existing?.numbers) { existing.numbers.push(numberDoc); await set(phoneNumbersOf, chatId, { numbers: existing.numbers }) }
   else { await set(phoneNumbersOf, chatId, { numbers: [numberDoc] }) }
   await phoneTransactions.insertOne({ chatId, phoneNumber: selectedNumber, action: 'purchase', plan: planKey, amount: price, paymentMethod: 'crypto_dynopay_' + coin, timestamp: new Date().toISOString() })
-  sendMessage(chatId, phoneConfig.txt.activated(selectedNumber, plan.name, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())))
-  notifyGroup(phoneConfig.txt.adminPurchase(maskName(name), selectedNumber, plan.name, price, 'Crypto DynoPay'))
+  sendMessage(chatId, cpTxt.activated(selectedNumber, plan.name, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())))
+  notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, plan.name, price, 'Crypto DynoPay'))
   webhookTierCheck(chatId, preSpend, lang)
   res.send(html())
 })
@@ -15118,7 +15118,7 @@ app.post('/telnyx/fax-webhook', async (req, res) => {
         if (match) {
           const faxFwd = match.features?.faxForwarding
           if (faxFwd?.toTelegram !== false) {
-            bot?.sendMessage(user._id, phoneConfig.txt.faxFailed(from, to, reason), { parse_mode: 'HTML' }).catch(() => {})
+            bot?.sendMessage(user._id, cpTxt.faxFailed(from, to, reason), { parse_mode: 'HTML' }).catch(() => {})
           }
           break
         }
@@ -15159,7 +15159,7 @@ async function handleInboundFax(payload) {
   }
 
   // Notify user
-  bot?.sendMessage(owner, phoneConfig.txt.faxReceived(from, to, pages), { parse_mode: 'HTML' }).catch(() => {})
+  bot?.sendMessage(owner, cpTxt.faxReceived(from, to, pages), { parse_mode: 'HTML' }).catch(() => {})
 
   // Download and send the PDF
   if (mediaUrl) {
