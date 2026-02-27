@@ -8571,13 +8571,13 @@ bot?.on('message', async msg => {
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   if (action === a.bulkSelectCaller) {
     if (message === '↩️ Back' || message === t.back || message === t.cancel) return goto.submenu5()
-    const userData = await get(phoneNumbersOf, chatId)
-    const numbers = (userData?.numbers || []).filter(n => n.status === 'active')
-    const found = numbers.find(n => n.phoneNumber === message)
-    if (!found) return send(chatId, `Please select a number from the list.`)
+    // Match against caller ID labels
+    const allCallerIds = info?.bulkCallerIds || []
+    const found = allCallerIds.find(c => c.label === message)
+    if (!found) return send(chatId, `Please select a caller ID from the list.`)
     const bulkData = info?.bulkData || {}
     bulkData.callerId = found.phoneNumber
-    bulkData.callerProvider = found.provider || 'telnyx'
+    bulkData.callerType = found.type
     await saveInfo('bulkData', bulkData)
     set(state, chatId, 'action', a.bulkUploadLeads)
     return send(chatId, `📱 Caller ID: <b>${found.phoneNumber}</b>\n\n📋 <b>Upload Leads File</b>\n\nSend a text file (.txt or .csv) with one phone number per line.\nOptional: <code>number,name</code> per line.\n\nOr paste the numbers directly (one per line):`, k.of([['↩️ Back']]))
