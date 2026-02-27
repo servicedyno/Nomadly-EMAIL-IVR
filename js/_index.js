@@ -8300,7 +8300,7 @@ Choose an IVR template category:`), k.of(rows))
     const tmplBtns = ivrOb.getTemplateButtons(cat)
     const rows = tmplBtns.map(b => [b])
     rows.push(['↩️ Back'])
-    return send(chatId, `Select a template:`, k.of(rows))
+    return send(chatId, ({ en: "Select a template:", fr: "Sélectionnez un modèle :", zh: "选择模板：", hi: "टेम्पलेट चुनें:" }[lang] || "Select a template:"), k.of(rows))
   }
 
   if (action === a.ivrObCustomScript) {
@@ -10343,7 +10343,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     const tpl = ttsService.getTemplateByButton(draft.templateCategory, message)
     if (!tpl) {
       const tplBtns = ttsService.getTemplateButtons(draft.templateCategory).map(b => [b])
-      return send(chatId, `Select a template:`, k.of(tplBtns))
+      return send(chatId, ({ en: "Select a template:", fr: "Sélectionnez un modèle :", zh: "选择模板：", hi: "टेम्पलेट चुनें:" }[lang] || "Select a template:"), k.of(tplBtns))
     }
     draft.templateKey = tpl.key
     draft.text = tpl.text
@@ -10702,7 +10702,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     const tpl = ttsService.getTemplateByButton(draft.templateCategory, message)
     if (!tpl) {
       const tplBtns = ttsService.getTemplateButtons(draft.templateCategory).map(b => [b])
-      return send(chatId, `Select a template:`, k.of(tplBtns))
+      return send(chatId, ({ en: "Select a template:", fr: "Sélectionnez un modèle :", zh: "选择模板：", hi: "टेम्पलेट चुनें:" }[lang] || "Select a template:"), k.of(tplBtns))
     }
     draft.templateKey = tpl.key
     draft.text = tpl.text
@@ -11188,7 +11188,7 @@ Select a category:`), k.of(catBtns))
           return send(chatId, `📋 <b>${tpl.icon} ${tpl.name}</b>\n\n<code>${tpl.text}</code>\n\n({ en: "✏️ Type your modified version, or tap <b>✅ Use As-Is</b>", fr: "✏️ Tapez votre version modifiée, ou appuyez sur <b>✅ Utiliser tel quel</b>", zh: "✏️ 输入修改版本，或点击 <b>✅ 直接使用</b>", hi: "✏️ अपना संशोधित संस्करण टाइप करें, या <b>✅ जैसा है</b> दबाएं" }[lang] || "✏️ Type your modified version, or tap <b>✅ Use As-Is</b>"):`, k.of([['✅ Use As-Is']]))
         }
         const tplBtns = ttsService.getTemplateButtons(draft.templateCategory).map(b => [b])
-        return send(chatId, `Select a template:`, k.of(tplBtns))
+        return send(chatId, ({ en: "Select a template:", fr: "Sélectionnez un modèle :", zh: "选择模板：", hi: "टेम्पलेट चुनें:" }[lang] || "Select a template:"), k.of(tplBtns))
       }
       // Template "Use As-Is" or user edited text → go to language selection
       if (draft.method === 'template' && draft.text && !draft.lang) {
