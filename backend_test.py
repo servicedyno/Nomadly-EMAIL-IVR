@@ -17,7 +17,7 @@ import time
 import sys
 
 # Backend URL from frontend/.env
-BACKEND_URL = "https://deployment-preview-3.preview.emergentagent.com/api"
+BACKEND_URL = "https://config-setup-guide.preview.emergentagent.com/api"
 
 def test_health_endpoint():
     """Test 1: Verify Node.js is healthy at the backend URL + /health"""
