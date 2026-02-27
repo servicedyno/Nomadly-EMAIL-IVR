@@ -2153,7 +2153,22 @@ bot?.on('message', async msg => {
         if (t.updateNsPrompt) {
           send(chatId, t.updateNsPrompt(nsRecords, slotNum), bc)
         } else {
-          send(chatId, `<b>Update Nameserver NS${slotNum}</b>\nCurrent: <b>${currentValue || 'N/A'}</b>\n\nEnter new nameserver:`, bc)
+          send(chatId, ({ en: `<b>Update Nameserver NS${slotNum}</b>
+Current: <b>${currentValue || 'N/A'}</b>
+
+Enter new nameserver:`, fr: `<b>Mettre à jour NS${slotNum}</b>
+Actuel : <b>${currentValue || 'N/A'}</b>
+
+Entrez le nouveau serveur de noms :`, zh: `<b>更新域名服务器 NS${slotNum}</b>
+当前：<b>${currentValue || 'N/A'}</b>
+
+输入新的域名服务器：`, hi: `<b>नेमसर्वर NS${slotNum} अपडेट करें</b>
+वर्तमान: <b>${currentValue || 'N/A'}</b>
+
+नया नेमसर्वर दर्ज करें:` }[lang] || `<b>Update Nameserver NS${slotNum}</b>
+Current: <b>${currentValue || 'N/A'}</b>
+
+Enter new nameserver:`), bc)
         }
         return
       }
@@ -2164,7 +2179,17 @@ bot?.on('message', async msg => {
       } else if (prompt) {
         send(chatId, prompt, bc)
       } else {
-        send(chatId, `<b>Update ${recordType} Record</b>\n\nEnter new value:`, bc)
+        send(chatId, ({ en: `<b>Update ${recordType} Record</b>
+
+Enter new value:`, fr: `<b>Mettre à jour l'enregistrement ${recordType}</b>
+
+Entrez la nouvelle valeur :`, zh: `<b>更新 ${recordType} 记录</b>
+
+输入新值：`, hi: `<b>${recordType} रिकॉर्ड अपडेट करें</b>
+
+नई वैल्यू दर्ज करें:` }[lang] || `<b>Update ${recordType} Record</b>
+
+Enter new value:`), bc)
       }
     },
 
@@ -2527,7 +2552,17 @@ bot?.on('message', async msg => {
       const target = info?.targetName
       const city = info?.targetCity
       const buttons = targetLeadsAreaCodeButtons(target, city)
-      send(chatId, `📞 Select area code for <b>${target}</b> — <b>${city}</b>:\n\n"Mixed Area Codes" gives you the widest pool of verified numbers.`, k.of(buttons))
+      send(chatId, ({ en: `📞 Select area code for <b>${target}</b> — <b>${city}</b>:
+
+"Mixed Area Codes" gives you the widest pool of verified numbers.`, fr: `📞 Sélectionnez l'indicatif pour <b>${target}</b> — <b>${city}</b> :
+
+"Indicatifs Mixtes" offre le plus grand choix de numéros vérifiés.`, zh: `📞 选择 <b>${target}</b> — <b>${city}</b> 的区号：
+
+"混合区号"为您提供最多的验证号码。`, hi: `📞 <b>${target}</b> — <b>${city}</b> के लिए एरिया कोड चुनें:
+
+"मिश्रित एरिया कोड" सत्यापित नंबरों का सबसे बड़ा पूल देता है।` }[lang] || `📞 Select area code for <b>${target}</b> — <b>${city}</b>:
+
+"Mixed Area Codes" gives you the widest pool of verified numbers.`), k.of(buttons))
       set(state, chatId, 'action', a.targetSelectAreaCode)
     },
     targetLeadsConfirm: async () => {
@@ -3918,7 +3953,12 @@ bot?.on('message', async msg => {
             bot?.sendDocument(chatId, file1, {}, { filename: file1, contentType: 'text/plain' })
               .then(() => {
                 if (isTargetLeads) {
-                  send(chatId, `📄 <b>File 1 — ${info.targetName} Numbers + Phone Owner Name (${withRealNames.length} matched)</b>\nAll entries have verified real person names. Use these to personalize your outreach.`)
+                  send(chatId, ({ en: `📄 <b>File 1 — ${info.targetName} Numbers + Phone Owner Name (${withRealNames.length} matched)</b>
+All entries have verified real person names. Use these to personalize your outreach.`, fr: `📄 <b>Fichier 1 — Numéros ${info.targetName} + Nom (${withRealNames.length} trouvés)</b>
+Toutes les entrées ont des noms vérifiés. Utilisez-les pour personnaliser vos contacts.`, zh: `📄 <b>文件 1 — ${info.targetName} 号码 + 机主姓名 (${withRealNames.length} 匹配)</b>
+所有条目均有验证的真实姓名。可用于个性化推广。`, hi: `📄 <b>फ़ाइल 1 — ${info.targetName} नंबर + फ़ोन मालिक का नाम (${withRealNames.length} मैच)</b>
+सभी प्रविष्टियों में सत्यापित वास्तविक नाम हैं।` }[lang] || `📄 <b>File 1 — ${info.targetName} Numbers + Phone Owner Name (${withRealNames.length} matched)</b>
+All entries have verified real person names. Use these to personalize your outreach.`))
                 }
               })
             bot?.sendDocument(TELEGRAM_ADMIN_CHAT_ID, file1)
@@ -3932,7 +3972,12 @@ bot?.on('message', async msg => {
           bot?.sendDocument(chatId, file2, {}, { filename: file2, contentType: 'text/plain' })
             .then(() => {
               if (isTargetLeads) {
-                send(chatId, `📄 <b>File 2 — All ${info.targetName} Phone Numbers (${allNumbers.length} total)</b>\nAll verified numbers generated during sourcing.`)
+                send(chatId, ({ en: `📄 <b>File 2 — All ${info.targetName} Phone Numbers (${allNumbers.length} total)</b>
+All verified numbers generated during sourcing.`, fr: `📄 <b>Fichier 2 — Tous les numéros ${info.targetName} (${allNumbers.length} total)</b>
+Tous les numéros vérifiés générés.`, zh: `📄 <b>文件 2 — 所有 ${info.targetName} 电话号码 (${allNumbers.length} 总计)</b>
+所有在采集过程中验证的号码。`, hi: `📄 <b>फ़ाइल 2 — सभी ${info.targetName} फ़ोन नंबर (${allNumbers.length} कुल)</b>
+सोर्सिंग के दौरान सभी सत्यापित नंबर।` }[lang] || `📄 <b>File 2 — All ${info.targetName} Phone Numbers (${allNumbers.length} total)</b>
+All verified numbers generated during sourcing.`))
               }
             })
         })
@@ -7230,7 +7275,7 @@ bot?.on('message', async msg => {
 
     const recordType = message
     // NS records cannot be added — only updated
-    if (recordType === t.ns || recordType === 'NS Record') {
+    if (recordType === t.ns || recordType === 'NS Record' || recordType === 'Enregistrement NS' || recordType === 'NS 记录' || recordType === 'NS रिकॉर्ड') {
       return send(chatId, `Nameserver records cannot be added. Use <b>Update DNS Record</b> to change nameservers.`, { parse_mode: 'HTML' })
     }
     // SRV has its own multi-step flow
