@@ -15102,6 +15102,7 @@ app.post('/telnyx/voice-webhook', async (req, res) => {
 app.post('/telnyx/fax-webhook', async (req, res) => {
   res.sendStatus(200)
   try {
+    const cpTxt = phoneConfig.getTxt('en') // fax webhooks default to English
     const event = req.body?.data || req.body
     const eventType = event?.event_type || event?.type
     const payload = event?.payload || event
