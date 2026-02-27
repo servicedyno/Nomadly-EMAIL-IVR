@@ -8457,6 +8457,382 @@ bot?.on('message', async msg => {
     return send(chatId, `Press <b>/yes</b> to place the call or <b>/cancel</b> to abort.`)
   }
 
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // AUDIO LIBRARY — Upload, list, delete audio files
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  if (action === a.audioLibMenu) {
+    if (message === '↩️ Back' || message === t.back) return goto.submenu5()
+    if (message === '📎 Upload Audio') {
+      set(state, chatId, 'action', a.audioLibUpload)
+      return send(chatId, `🎵 <b>Upload Audio</b>\n\nSend me an audio file (MP3, WAV, OGG) or a voice message.\n\nThis will be saved to your library for use in IVR campaigns.`, k.of([['↩️ Back']]))
+    }
+    if (message.startsWith('🗑 Delete: ')) {
+      const nameToDelete = message.replace('🗑 Delete: ', '').trim()
+      const audios = await audioLibraryService.listAudios(chatId)
+      const found = audios.find(a => a.name.substring(0, 25) === nameToDelete)
+      if (found) {
+        await audioLibraryService.deleteAudio(found.id, chatId)
+        send(chatId, `✅ Deleted: <b>${found.name}</b>`, { parse_mode: 'HTML' })
+      }
+      // Refresh list
+      set(state, chatId, 'action', a.audioLibMenu)
+      const remaining = await audioLibraryService.listAudios(chatId)
+      if (remaining.length === 0) {
+        return send(chatId, `🎵 <b>Audio Library</b>\n\nNo audio files. Upload one to get started.`, k.of([['📎 Upload Audio'], ['↩️ Back']]))
+      }
+      const audioList = remaining.map((a, i) => `${i + 1}. 🎵 <b>${a.name}</b>`).join('\n')
+      const btns = [['📎 Upload Audio'], ...remaining.map(a => [`🗑 Delete: ${a.name.substring(0, 25)}`]), ['↩️ Back']]
+      return send(chatId, `🎵 <b>Audio Library</b>\n\n${audioList}`, k.of(btns))
+    }
+    return send(chatId, `Select an option:`, k.of([['📎 Upload Audio'], ['↩️ Back']]))
+  }
+
+  if (action === a.audioLibUpload) {
+    if (message === '↩️ Back' || message === t.back) {
+      set(state, chatId, 'action', a.audioLibMenu)
+      const audios = await audioLibraryService.listAudios(chatId)
+      const btns = [['📎 Upload Audio'], ...audios.map(a => [`🗑 Delete: ${a.name.substring(0, 25)}`]), ['↩️ Back']]
+      const audioList = audios.length > 0 ? audios.map((a, i) => `${i + 1}. 🎵 <b>${a.name}</b>`).join('\n') : 'No files yet.'
+      return send(chatId, `🎵 <b>Audio Library</b>\n\n${audioList}`, k.of(btns))
+    }
+    // Handle audio/voice/document upload
+    if (msg.voice || msg.audio || (msg.document && (msg.document.mime_type || '').startsWith('audio/'))) {
+      const fileId = msg.voice?.file_id || msg.audio?.file_id || msg.document?.file_id
+      const mimeType = msg.voice?.mime_type || msg.audio?.mime_type || msg.document?.mime_type || 'audio/mpeg'
+      const originalName = msg.audio?.file_name || msg.document?.file_name || 'voice_message'
+      const duration = msg.voice?.duration || msg.audio?.duration || 0
+
+      try {
+        const fileLink = await bot.getFileLink(fileId)
+        send(chatId, `⏳ Downloading and saving audio...`)
+        const saved = await audioLibraryService.downloadAndSave(fileLink, chatId, originalName, mimeType)
+        await saveInfo('audioLibPending', { ...saved, duration, mimeType, originalName })
+        set(state, chatId, 'action', a.audioLibName)
+        return send(chatId, `✅ Audio received! (${(saved.size / 1024).toFixed(0)} KB)\n\nGive it a name for your library:`, k.of([[originalName !== 'voice_message' ? originalName.replace(/\.[^.]+$/, '') : 'My IVR Audio']]))
+      } catch (e) {
+        log(`[AudioLibrary] Upload error: ${e.message}`)
+        return send(chatId, `❌ Failed to save audio: ${e.message}\n\nPlease try again.`, k.of([['↩️ Back']]))
+      }
+    }
+    return send(chatId, `Please send an audio file (MP3, WAV, OGG) or a voice message.`, k.of([['↩️ Back']]))
+  }
+
+  if (action === a.audioLibName) {
+    if (message === '↩️ Back' || message === t.back) {
+      set(state, chatId, 'action', a.audioLibUpload)
+      return send(chatId, `Send me an audio file or voice message:`, k.of([['↩️ Back']]))
+    }
+    const pending = info?.audioLibPending
+    if (!pending) return goto.submenu5()
+    const name = message.trim().substring(0, 50) || 'Unnamed Audio'
+    await audioLibraryService.saveAudio({
+      chatId,
+      name,
+      filename: pending.filename,
+      originalName: pending.originalName,
+      duration: pending.duration,
+      mimeType: pending.mimeType,
+      size: pending.size,
+      audioUrl: pending.audioUrl,
+      localPath: pending.localPath,
+    })
+    send(chatId, `✅ Audio saved as: <b>${name}</b>\n\nYou can now use it in Bulk Call Campaigns!`, { parse_mode: 'HTML' })
+    return goto.submenu5()
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // BULK CALL CAMPAIGN — Full conversational flow
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  if (action === a.bulkSelectCaller) {
+    if (message === '↩️ Back' || message === t.back || message === t.cancel) return goto.submenu5()
+    const userData = await get(phoneNumbersOf, chatId)
+    const numbers = (userData?.numbers || []).filter(n => n.status === 'active')
+    const found = numbers.find(n => n.phoneNumber === message)
+    if (!found) return send(chatId, `Please select a number from the list.`)
+    const bulkData = info?.bulkData || {}
+    bulkData.callerId = found.phoneNumber
+    bulkData.callerProvider = found.provider || 'telnyx'
+    await saveInfo('bulkData', bulkData)
+    set(state, chatId, 'action', a.bulkUploadLeads)
+    return send(chatId, `📱 Caller ID: <b>${found.phoneNumber}</b>\n\n📋 <b>Upload Leads File</b>\n\nSend a text file (.txt or .csv) with one phone number per line.\nOptional: <code>number,name</code> per line.\n\nOr paste the numbers directly (one per line):`, k.of([['↩️ Back']]))
+  }
+
+  if (action === a.bulkUploadLeads) {
+    if (message === '↩️ Back' || message === t.back) {
+      set(state, chatId, 'action', a.bulkSelectCaller)
+      const userData = await get(phoneNumbersOf, chatId)
+      const numbers = (userData?.numbers || []).filter(n => n.status === 'active')
+      const numBtns = numbers.map(n => [n.phoneNumber])
+      return send(chatId, `Select the Caller ID:`, k.of(numBtns))
+    }
+    let content = ''
+    // Handle file upload
+    if (msg.document) {
+      try {
+        const fileLink = await bot.getFileLink(msg.document.file_id)
+        const response = await require('axios').get(fileLink, { responseType: 'text', timeout: 15000 })
+        content = typeof response.data === 'string' ? response.data : JSON.stringify(response.data)
+      } catch (e) {
+        return send(chatId, `❌ Failed to read file: ${e.message}\n\nTry again or paste numbers directly.`, k.of([['↩️ Back']]))
+      }
+    } else if (message) {
+      content = message
+    }
+
+    if (!content.trim()) return send(chatId, `Please send a file or paste phone numbers.`, k.of([['↩️ Back']]))
+
+    const { leads, errors } = bulkCallService.parseLeadsFile(content)
+    if (leads.length === 0) {
+      const errMsg = errors.length > 0 ? `\n\nErrors:\n${errors.slice(0, 5).join('\n')}` : ''
+      return send(chatId, `❌ No valid phone numbers found.${errMsg}\n\nPlease check format: one number per line, with + country code.`, k.of([['↩️ Back']]))
+    }
+
+    const bulkData = info?.bulkData || {}
+    bulkData.leads = leads
+    await saveInfo('bulkData', bulkData)
+
+    const preview = leads.slice(0, 5).map(l => `  ${l.number}${l.name ? ' — ' + l.name : ''}`).join('\n')
+    const more = leads.length > 5 ? `\n  ... and ${leads.length - 5} more` : ''
+    const errNote = errors.length > 0 ? `\n⚠️ ${errors.length} invalid lines skipped` : ''
+
+    set(state, chatId, 'action', a.bulkSelectAudio)
+    const audios = await audioLibraryService.listAudios(chatId)
+    const audioBtns = audios.map(a => [`🎵 ${a.name.substring(0, 30)}`])
+    const btns = [...audioBtns, ['📎 Upload New Audio'], ['🎤 Generate with TTS'], ['↩️ Back']]
+    return send(chatId, `✅ <b>${leads.length} leads loaded!</b>\n\n${preview}${more}${errNote}\n\n🎵 <b>Select IVR Audio</b>\n\nChoose an audio file from your library, upload new, or generate with TTS:`, k.of(btns))
+  }
+
+  if (action === a.bulkSelectAudio) {
+    if (message === '↩️ Back' || message === t.back) {
+      set(state, chatId, 'action', a.bulkUploadLeads)
+      return send(chatId, `📋 Send a leads file or paste numbers:`, k.of([['↩️ Back']]))
+    }
+    if (message === '📎 Upload New Audio') {
+      set(state, chatId, 'action', a.bulkUploadAudio)
+      return send(chatId, `🎵 Send an audio file (MP3, WAV, OGG) or voice message:`, k.of([['↩️ Back']]))
+    }
+    if (message === '🎤 Generate with TTS') {
+      // Redirect to IVR Outbound flow to generate audio, then come back
+      // For simplicity, ask user to use Audio Library first
+      return send(chatId, `💡 To use TTS, first generate audio via <b>📢 IVR Outbound Call</b> flow, or upload a pre-recorded audio file.\n\nSelect from your library or upload new:`, k.of([['📎 Upload New Audio'], ['↩️ Back']]))
+    }
+    // Select from library
+    if (message.startsWith('🎵 ')) {
+      const audioName = message.replace('🎵 ', '').trim()
+      const audios = await audioLibraryService.listAudios(chatId)
+      const found = audios.find(a => a.name.substring(0, 30) === audioName)
+      if (!found) return send(chatId, `Audio not found. Select from the list.`)
+      const bulkData = info?.bulkData || {}
+      bulkData.audioId = found.id
+      bulkData.audioUrl = found.audioUrl
+      bulkData.audioName = found.name
+      await saveInfo('bulkData', bulkData)
+      set(state, chatId, 'action', a.bulkSelectMode)
+      return send(chatId, `🎵 Audio: <b>${found.name}</b>\n\n📋 <b>Select Campaign Mode</b>\n\n🔗 <b>Transfer + Report</b> — When lead presses 1, bridge to your SIP/phone + always report\n📊 <b>Report Only</b> — Just track who pressed 1, no transfer + always report\n\nBoth modes report full results (who pressed, who hung up, etc.)`, k.of([['🔗 Transfer + Report'], ['📊 Report Only'], ['↩️ Back']]))
+    }
+    return send(chatId, `Select an audio file:`)
+  }
+
+  if (action === a.bulkUploadAudio) {
+    if (message === '↩️ Back' || message === t.back) {
+      set(state, chatId, 'action', a.bulkSelectAudio)
+      const audios = await audioLibraryService.listAudios(chatId)
+      const audioBtns = audios.map(a => [`🎵 ${a.name.substring(0, 30)}`])
+      const btns = [...audioBtns, ['📎 Upload New Audio'], ['🎤 Generate with TTS'], ['↩️ Back']]
+      return send(chatId, `Select IVR Audio:`, k.of(btns))
+    }
+    if (msg.voice || msg.audio || (msg.document && (msg.document.mime_type || '').startsWith('audio/'))) {
+      const fileId = msg.voice?.file_id || msg.audio?.file_id || msg.document?.file_id
+      const mimeType = msg.voice?.mime_type || msg.audio?.mime_type || msg.document?.mime_type || 'audio/mpeg'
+      const originalName = msg.audio?.file_name || msg.document?.file_name || 'voice_message'
+      const duration = msg.voice?.duration || msg.audio?.duration || 0
+      try {
+        const fileLink = await bot.getFileLink(fileId)
+        send(chatId, `⏳ Saving audio...`)
+        const saved = await audioLibraryService.downloadAndSave(fileLink, chatId, originalName, mimeType)
+        await saveInfo('bulkAudioPending', { ...saved, duration, mimeType, originalName })
+        set(state, chatId, 'action', a.bulkNameAudio)
+        return send(chatId, `✅ Audio received!\n\nGive it a name:`, k.of([[originalName !== 'voice_message' ? originalName.replace(/\.[^.]+$/, '') : 'Campaign Audio']]))
+      } catch (e) {
+        return send(chatId, `❌ Upload failed: ${e.message}`, k.of([['↩️ Back']]))
+      }
+    }
+    return send(chatId, `Send an audio file or voice message:`, k.of([['↩️ Back']]))
+  }
+
+  if (action === a.bulkNameAudio) {
+    const pending = info?.bulkAudioPending
+    if (!pending) return goto.submenu5()
+    const name = (message || '').trim().substring(0, 50) || 'Campaign Audio'
+    const savedAudio = await audioLibraryService.saveAudio({
+      chatId, name, filename: pending.filename, originalName: pending.originalName,
+      duration: pending.duration, mimeType: pending.mimeType, size: pending.size,
+      audioUrl: pending.audioUrl, localPath: pending.localPath,
+    })
+    const bulkData = info?.bulkData || {}
+    bulkData.audioId = savedAudio.id
+    bulkData.audioUrl = savedAudio.audioUrl
+    bulkData.audioName = name
+    await saveInfo('bulkData', bulkData)
+    set(state, chatId, 'action', a.bulkSelectMode)
+    return send(chatId, `✅ Saved as: <b>${name}</b>\n\n📋 <b>Select Campaign Mode</b>\n\n🔗 <b>Transfer + Report</b> — Pressing 1 bridges to your phone\n📊 <b>Report Only</b> — Just track responses\n\nBoth modes always report full results.`, k.of([['🔗 Transfer + Report'], ['📊 Report Only'], ['↩️ Back']]))
+  }
+
+  if (action === a.bulkSelectMode) {
+    if (message === '↩️ Back' || message === t.back) {
+      set(state, chatId, 'action', a.bulkSelectAudio)
+      const audios = await audioLibraryService.listAudios(chatId)
+      const audioBtns = audios.map(a => [`🎵 ${a.name.substring(0, 30)}`])
+      return send(chatId, `Select IVR Audio:`, k.of([...audioBtns, ['📎 Upload New Audio'], ['↩️ Back']]))
+    }
+    const bulkData = info?.bulkData || {}
+    if (message === '🔗 Transfer + Report') {
+      bulkData.mode = 'transfer'
+      await saveInfo('bulkData', bulkData)
+      set(state, chatId, 'action', a.bulkEnterTransfer)
+      return send(chatId, `🔗 <b>Transfer Mode</b>\n\nEnter the number to transfer calls when lead presses 1:\n<i>(Your SIP number or any phone number)</i>\n<i>Example: +41791234567</i>`, k.of([['↩️ Back']]))
+    }
+    if (message === '📊 Report Only') {
+      bulkData.mode = 'report_only'
+      bulkData.transferNumber = null
+      await saveInfo('bulkData', bulkData)
+      set(state, chatId, 'action', a.bulkSetConcurrency)
+      return send(chatId, `📊 <b>Report Only</b> — no transfers, just tracking.\n\n⚡ <b>Set Concurrency</b>\n\nHow many simultaneous calls? (1-20)\nDefault: <b>10</b>`, k.of([['5'], ['10'], ['15'], ['20'], ['↩️ Back']]))
+    }
+    return send(chatId, `Select a mode:`, k.of([['🔗 Transfer + Report'], ['📊 Report Only'], ['↩️ Back']]))
+  }
+
+  if (action === a.bulkEnterTransfer) {
+    if (message === '↩️ Back' || message === t.back) {
+      set(state, chatId, 'action', a.bulkSelectMode)
+      return send(chatId, `Select Campaign Mode:`, k.of([['🔗 Transfer + Report'], ['📊 Report Only'], ['↩️ Back']]))
+    }
+    const clean = message.replace(/[^+\d]/g, '')
+    if (!clean.match(/^\+\d{8,15}$/)) {
+      return send(chatId, `Enter a valid phone number with + country code.\n<i>Example: +41791234567</i>`, k.of([['↩️ Back']]))
+    }
+    const bulkData = info?.bulkData || {}
+    bulkData.transferNumber = clean
+    await saveInfo('bulkData', bulkData)
+    set(state, chatId, 'action', a.bulkSetConcurrency)
+    return send(chatId, `🔗 Transfer to: <b>${clean}</b>\n\n⚡ <b>Set Concurrency</b>\n\nHow many simultaneous calls? (1-20)\nDefault: <b>10</b>`, k.of([['5'], ['10'], ['15'], ['20'], ['↩️ Back']]))
+  }
+
+  if (action === a.bulkSetConcurrency) {
+    if (message === '↩️ Back' || message === t.back) {
+      const bulkData = info?.bulkData || {}
+      if (bulkData.mode === 'transfer') {
+        set(state, chatId, 'action', a.bulkEnterTransfer)
+        return send(chatId, `Enter the transfer number:`, k.of([['↩️ Back']]))
+      }
+      set(state, chatId, 'action', a.bulkSelectMode)
+      return send(chatId, `Select Campaign Mode:`, k.of([['🔗 Transfer + Report'], ['📊 Report Only'], ['↩️ Back']]))
+    }
+    const num = parseInt(message, 10)
+    if (isNaN(num) || num < 1 || num > 20) {
+      return send(chatId, `Enter a number between 1 and 20:`, k.of([['5'], ['10'], ['15'], ['20']]))
+    }
+    const bulkData = info?.bulkData || {}
+    bulkData.concurrency = num
+    await saveInfo('bulkData', bulkData)
+
+    // Show campaign preview
+    set(state, chatId, 'action', a.bulkConfirm)
+    const leadCount = (bulkData.leads || []).length
+    const preview = [
+      `📋 <b>Campaign Preview</b>`,
+      ``,
+      `📱 Caller ID: <b>${bulkData.callerId}</b>`,
+      `📞 Leads: <b>${leadCount}</b>`,
+      `🎵 Audio: <b>${bulkData.audioName || 'Selected'}</b>`,
+      `📊 Mode: <b>${bulkData.mode === 'transfer' ? '🔗 Transfer + Report' : '📊 Report Only'}</b>`,
+      bulkData.transferNumber ? `🔗 Transfer to: <b>${bulkData.transferNumber}</b>` : null,
+      `⚡ Concurrency: <b>${num}</b>`,
+      `🔘 Active key: <b>1</b>`,
+      ``,
+      `Ready to launch? Tap <b>🚀 Launch Campaign</b>`,
+    ].filter(Boolean).join('\n')
+    return send(chatId, preview, k.of([['🚀 Launch Campaign'], ['↩️ Back']]))
+  }
+
+  if (action === a.bulkConfirm) {
+    if (message === '↩️ Back' || message === t.back) {
+      set(state, chatId, 'action', a.bulkSetConcurrency)
+      return send(chatId, `Set concurrency (1-20):`, k.of([['5'], ['10'], ['15'], ['20'], ['↩️ Back']]))
+    }
+    if (message === '🚀 Launch Campaign') {
+      const bulkData = info?.bulkData || {}
+      if (!bulkData.leads?.length || !bulkData.callerId || !bulkData.audioUrl) {
+        return send(chatId, `❌ Missing campaign data. Please start over.`)
+      }
+      try {
+        send(chatId, `⏳ Creating campaign...`)
+        const campaign = await bulkCallService.createCampaign({
+          chatId,
+          callerId: bulkData.callerId,
+          audioUrl: bulkData.audioUrl,
+          audioName: bulkData.audioName,
+          mode: bulkData.mode,
+          transferNumber: bulkData.transferNumber,
+          activeKeys: ['1'],
+          concurrency: bulkData.concurrency || 10,
+          holdMusic: bulkData.mode === 'transfer',
+          leads: bulkData.leads,
+        })
+        await saveInfo('activeCampaignId', campaign.id)
+        set(state, chatId, 'action', a.bulkRunning)
+        const startResult = await bulkCallService.startCampaign(campaign.id)
+        if (startResult.error) {
+          return send(chatId, `❌ Failed to start: ${startResult.error}`, k.of([['↩️ Back']]))
+        }
+        // Campaign is now running — user gets real-time updates
+        return send(chatId, `Campaign is running! You'll see progress updates here.\n\nTap <b>🛑 Stop Campaign</b> to cancel.`, k.of([['🛑 Stop Campaign'], ['📊 Show Status']]))
+      } catch (e) {
+        log(`[BulkCall] Launch error: ${e.message}`)
+        return send(chatId, `❌ Campaign launch failed: ${e.message}`, k.of([['↩️ Back']]))
+      }
+    }
+    return send(chatId, `Tap 🚀 Launch Campaign or ↩️ Back.`)
+  }
+
+  if (action === a.bulkRunning) {
+    if (message === '🛑 Stop Campaign') {
+      const campaignId = info?.activeCampaignId
+      if (campaignId) {
+        await bulkCallService.cancelCampaign(campaignId)
+        send(chatId, `🛑 <b>Campaign cancelled.</b>\n\nActive calls will finish, no new calls will be made.`, { parse_mode: 'HTML' })
+      }
+      return goto.submenu5()
+    }
+    if (message === '📊 Show Status') {
+      const campaignId = info?.activeCampaignId
+      if (campaignId) {
+        const campaign = await bulkCallService.getCampaign(campaignId)
+        if (campaign) {
+          const s = campaign.stats
+          const pct = s.total > 0 ? Math.round((s.completed / s.total) * 100) : 0
+          const statusMsg = [
+            `📊 <b>Campaign Status</b>`,
+            ``,
+            `Progress: <b>${s.completed}/${s.total}</b> (${pct}%)`,
+            `✅ Answered: <b>${s.answered}</b>`,
+            `🔘 Key Pressed: <b>${s.keyPressed}</b>`,
+            campaign.mode === 'transfer' ? `🔗 Transferred: <b>${s.transferred}</b>` : null,
+            `📵 No Answer: <b>${s.noAnswer}</b>`,
+            `📵 Hung Up: <b>${s.hungUp}</b>`,
+            `❌ Failed: <b>${s.failed}</b>`,
+            ``,
+            `Status: <b>${campaign.status.toUpperCase()}</b>`,
+          ].filter(Boolean).join('\n')
+          send(chatId, statusMsg, { parse_mode: 'HTML' })
+        }
+      }
+      return send(chatId, `Tap for options:`, k.of([['🛑 Stop Campaign'], ['📊 Show Status']]))
+    }
+    // Any other message while campaign is running
+    return send(chatId, `Campaign in progress. Use the buttons below:`, k.of([['🛑 Stop Campaign'], ['📊 Show Status']]))
+  }
+
   // ── BUY FLOW: Select Country ──
   if (action === a.cpSelectCountry) {
     const pc = phoneConfig.btn
