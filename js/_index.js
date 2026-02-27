@@ -7980,6 +7980,7 @@ bot?.on('message', async msg => {
 
   if (action === a.submenu5) {
     const pc = phoneConfig.btn
+    const buyLabel = phoneConfig.getBtnLabel('buyPhoneNumber', info?.userLanguage || 'en')
     if (message === t.back || message === pc.back || message === t.cancel || message === pc.cancel) return send(chatId, t.userPressedBtn(message), trans('o'))
     if (phoneConfig.isBtnMatch(message, 'buyPhoneNumber')) {
       // Step 1: Select Plan FIRST
