@@ -7981,14 +7981,13 @@ bot?.on('message', async msg => {
     const pc = phoneConfig.btn
     if (message === t.back || message === pc.back || message === t.cancel || message === pc.cancel) return send(chatId, t.userPressedBtn(message), trans('o'))
     if (message === pc.buyPhoneNumber) {
-      set(state, chatId, 'action', a.cpSelectCountry)
-      const countryBtns = phoneConfig.allCountries.map(c => c.name)
-      const rows = []
-      for (let i = 0; i < countryBtns.length; i += 2) {
-        rows.push(countryBtns.slice(i, i + 2))
-      }
-      if (phoneConfig.moreCountries.length > 0) rows.push([pc.moreCountries])
-      return send(chatId, phoneConfig.txt.selectCountry, k.of(rows))
+      // Step 1: Select Plan FIRST
+      set(state, chatId, 'action', a.cpSelectPlan)
+      const availablePlanBtns = []
+      if (phoneConfig.isPlanAvailable('starter')) availablePlanBtns.push([pc.starterPlan])
+      if (phoneConfig.isPlanAvailable('pro')) availablePlanBtns.push([pc.proPlan])
+      if (phoneConfig.isPlanAvailable('business')) availablePlanBtns.push([pc.businessPlan])
+      return send(chatId, `🛒 <b>Buy Phone Number</b>\n\nFirst, choose your plan:\n\n💡 <b>Starter</b> — $${phoneConfig.plans.starter.price}/mo\n   Call forwarding, SMS to Telegram\n\n⭐ <b>Pro</b> — $${phoneConfig.plans.pro.price}/mo\n   + SIP, Voicemail, IVR Outbound, Bulk Calls\n\n👑 <b>Business</b> — $${phoneConfig.plans.business.price}/mo\n   + Call Recording, IVR Auto-attendant\n\n⚡ Pro & Business numbers are powered by <b>Twilio</b>`, k.of(availablePlanBtns))
     }
     if (message === pc.myNumbers) {
       const userData = await get(phoneNumbersOf, chatId)
