@@ -81,7 +81,7 @@ function parseLeadsFile(content) {
  * Create a new campaign
  */
 async function createCampaign(params) {
-  const { chatId, callerId, audioUrl, audioName, mode, transferNumber, activeKeys, concurrency, holdMusic, leads } = params
+  const { chatId, callerId, audioUrl, audioName, mode, transferNumber, activeKeys, concurrency, holdMusic, leads, twilioSubAccountSid, twilioSubAccountToken } = params
 
   const campaign = {
     id: crypto.randomUUID(),
@@ -94,6 +94,8 @@ async function createCampaign(params) {
     activeKeys: activeKeys || ['1'],
     concurrency: Math.min(concurrency || 10, 20),
     holdMusic: holdMusic || false,
+    twilioSubAccountSid: twilioSubAccountSid || null,
+    twilioSubAccountToken: twilioSubAccountToken || null,
     leads: leads.map((l, i) => ({
       index: i,
       number: l.number,
