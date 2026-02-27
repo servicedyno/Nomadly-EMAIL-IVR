@@ -6037,7 +6037,7 @@ bot?.on('message', async msg => {
     } catch (e) {
       log(`[QuickActivateShortener] Error for ${domain}: ${e.message}`)
       await markFailed(domain, e.message).catch(() => {})
-      send(chatId, `❌ Error activating shortener for <b>${domain}</b>: ${e.message}\n\nPlease try again later.`)
+      send(chatId, ({ en: `❌ Error activating shortener for <b>${domain}</b>`, fr: `❌ Erreur d'activation du raccourcisseur pour <b>${domain}</b>`, zh: `❌ 为 <b>${domain}</b> 激活短链接时出错`, hi: `❌ <b>${domain}</b> के लिए शॉर्टनर सक्रिय करने में त्रुटि` }[lang] || `❌ Error activating shortener for <b>${domain}</b>`): ${e.message}\n\nPlease try again later.`)
     }
     return
   }
@@ -7173,7 +7173,7 @@ bot?.on('message', async msg => {
       if (shouldDeactivateShortener) {
         msg += `\n\n🔗 URL shortener has been deactivated (requires Cloudflare CNAME flattening).`
       }
-      msg += `\n\n⏱ DNS changes may take 24-48 hours to propagate.`
+      msg += ({ en: `\n\n⏱ DNS changes may take 24-48 hours to propagate.`, fr: `\n\n⏱ Les changements DNS peuvent prendre 24-48h pour se propager.`, zh: `\n\n⏱ DNS 更改可能需要 24-48 小时传播。`, hi: `\n\n⏱ DNS परिवर्तन प्रसारित होने में 24-48 घंटे लग सकते हैं।` }[lang] || `\n\n⏱ DNS changes may take 24-48 hours to propagate.`)
       send(chatId, msg, { parse_mode: 'HTML' })
     } catch (e) {
       log(`[SwitchToProvider] Error for ${domain}: ${e.message}`)
@@ -7428,25 +7428,45 @@ bot?.on('message', async msg => {
     // Parse multi-line input
     const lines = message.trim().split(/[\n\r]+/).map(s => s.trim()).filter(Boolean)
     if (lines.length < 2 || lines.length > 4) {
-      return send(chatId, `⚠️ Please enter <b>2 to 4</b> nameservers, one per line.\n\nYou entered ${lines.length}.`, { parse_mode: 'HTML' })
+      return send(chatId, ({ en: `⚠️ Please enter <b>2 to 4</b> nameservers, one per line.
+
+You entered ${lines.length}.`, fr: `⚠️ Veuillez entrer <b>2 à 4</b> serveurs de noms, un par ligne.
+
+Vous en avez saisi ${lines.length}.`, zh: `⚠️ 请输入 <b>2 到 4</b> 个域名服务器，每行一个。
+
+您输入了 ${lines.length} 个。`, hi: `⚠️ कृपया <b>2 से 4</b> नेमसर्वर दर्ज करें, प्रति पंक्ति एक।
+
+आपने ${lines.length} दर्ज किए।` }[lang] || `⚠️ Please enter <b>2 to 4</b> nameservers, one per line.
+
+You entered ${lines.length}.`), { parse_mode: 'HTML' })
     }
 
     // Validate each as FQDN
     const fqdnRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)+\.?$/
     for (const ns of lines) {
       if (!fqdnRegex.test(ns)) {
-        return send(chatId, `⚠️ Invalid nameserver: <code>${ns}</code>\n\nPlease enter valid nameservers (e.g. ns1.example.com), one per line.`, { parse_mode: 'HTML' })
+        return send(chatId, ({ en: `⚠️ Invalid nameserver: <code>${ns}</code>
+
+Please enter valid nameservers (e.g. ns1.example.com), one per line.`, fr: `⚠️ Serveur de noms invalide : <code>${ns}</code>
+
+Entrez des serveurs de noms valides (ex : ns1.example.com), un par ligne.`, zh: `⚠️ 无效的域名服务器：<code>${ns}</code>
+
+请输入有效的域名服务器（如 ns1.example.com），每行一个。`, hi: `⚠️ अमान्य नेमसर्वर: <code>${ns}</code>
+
+मान्य नेमसर्वर दर्ज करें (जैसे ns1.example.com), प्रति पंक्ति एक।` }[lang] || `⚠️ Invalid nameserver: <code>${ns}</code>
+
+Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_mode: 'HTML' })
       }
     }
 
     // Normalize: lowercase, remove trailing dot
     const newNS = lines.map(ns => ns.toLowerCase().replace(/\.$/, ''))
 
-    send(chatId, `⏳ Updating nameservers for <b>${domain}</b>...`, { parse_mode: 'HTML' })
+    send(chatId, ({ en: `⏳ Updating nameservers for <b>${domain}</b>...`, fr: `⏳ Mise à jour des serveurs de noms pour <b>${domain}</b>...`, zh: `⏳ 正在更新 <b>${domain}</b> 的域名服务器...`, hi: `⏳ <b>${domain}</b> के नेमसर्वर अपडेट कर रहे हैं...` }[lang] || `⏳ Updating nameservers for <b>${domain}</b>...`), { parse_mode: 'HTML' })
 
     const result = await domainService.updateAllNameservers(domain, newNS, db)
     if (result.error) {
-      return send(chatId, `❌ Failed to update nameservers: ${result.error}`, { parse_mode: 'HTML' })
+      return send(chatId, ({ en: `❌ Failed to update nameservers: ${result.error}`, fr: `❌ Échec de la mise à jour des serveurs de noms : ${result.error}`, zh: `❌ 域名服务器更新失败：${result.error}`, hi: `❌ नेमसर्वर अपडेट विफल: ${result.error}` }[lang] || `❌ Failed to update nameservers: ${result.error}`), { parse_mode: 'HTML' })
     }
 
     let msg = `✅ <b>Nameservers updated for ${domain}</b>\n\n`
@@ -9399,10 +9419,10 @@ bot?.on('message', async msg => {
         const { usdBal: refUsd, ngnBal: refNgn } = await getBalance(walletOf, chatId)
         log(`[CloudPhone] Address failed for ${chatId}, refunded $${priceUsd} to wallet. Balance: $${refUsd}`)
         set(state, chatId, 'action', 'none')
-        return send(chatId, `❌ Address creation failed.\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> has been refunded to your wallet.\n${t.showWallet(refUsd, refNgn)}`, { parse_mode: 'HTML' })
+        return send(chatId, ({ en: `❌ Address creation failed`, fr: `❌ Échec de la création de l'adresse`, zh: `❌ 地址创建失败`, hi: `❌ पता बनाना विफल` }[lang] || `❌ Address creation failed`).\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> has been refunded to your wallet.\n${t.showWallet(refUsd, refNgn)}`, { parse_mode: 'HTML' })
       }
       set(state, chatId, 'action', 'none')
-      return send(chatId, `❌ Address creation failed: ${addrResult.error}\nYour wallet has been refunded.`, { parse_mode: 'HTML' })
+      return send(chatId, ({ en: `❌ Address creation failed`, fr: `❌ Échec de la création de l'adresse`, zh: `❌ 地址创建失败`, hi: `❌ पता बनाना विफल` }[lang] || `❌ Address creation failed`): ${addrResult.error}\nYour wallet has been refunded.`, { parse_mode: 'HTML' })
     }
 
     const addressSid = addrResult.sid
