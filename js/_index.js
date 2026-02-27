@@ -9054,7 +9054,13 @@ bot?.on('message', async msg => {
 
     set(state, chatId, 'action', a.cpSelectNumber)
     send(chatId, phoneConfig.txt.searching)
-    const results = await telnyxApi.searchNumbers(info?.cpCountryCode || 'US', info?.cpNumberType || 'local', areaCode, 5)
+    const provider = info?.cpProvider || 'telnyx'
+    let results
+    if (provider === 'twilio') {
+      results = await twilioService.searchNumbers(info?.cpCountryCode || 'US', info?.cpNumberType || 'local', 5, areaCode)
+    } else {
+      results = await telnyxApi.searchNumbers(info?.cpCountryCode || 'US', info?.cpNumberType || 'local', areaCode, 5)
+    }
     if (!results.length) return send(chatId, phoneConfig.txt.noSearchResults + '\nTry a different area code.', k.of([]))
     await saveInfo('cpSearchResults', results)
     const numBtns = results.map((_, i) => String(i + 1))
