@@ -499,14 +499,15 @@ function buildAutoRenewFailedMsg(num, lang) {
 This action is irreversible. To get a new number, visit 📞☁️ Cloud Phone → ${buyLabel}.`
 }
 
-function buildSuspendedMsg(num) {
+function buildSuspendedMsg(num, lang) {
+  const buyLabel = phoneConfig.getBtnLabel('buyPhoneNumber', lang || 'en')
   return `⚠️ <b>Number Expired — Permanently Deleted</b>
 
 📞 ${formatPhone(num.phoneNumber)} has expired and been <b>permanently deleted</b>.
 
 Auto-Renew was OFF. To avoid losing numbers in the future, enable Auto-Renew on your next number.
 
-Get a new number: 📞☁️ Cloud Phone → Buy Cloud Phone Plans.`
+Get a new number: 📞☁️ Cloud Phone → ${buyLabel}.`
 }
 
 function buildUsageAlertMsg(num, type, used, limit, percent) {
