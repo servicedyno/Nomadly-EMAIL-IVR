@@ -884,6 +884,7 @@ const msg = {
     sipTestMenuHint: '🧪 <i>Essayez le SIP gratuitement — envoyez /testsip</i>',
     buyPlansHeader: `🛒 <b>Acheter un Forfait Cloud Phone</b>\n\nChoisissez d'abord votre forfait :`,
   },
+  zh: {
     selectOption: '请选择一个选项。',
     selectValidCountry: '请选择一个有效的国家。',
     selectLocalOrTollFree: '请选择本地号码或免费号码。',
