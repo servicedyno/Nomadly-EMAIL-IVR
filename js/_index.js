@@ -1814,7 +1814,7 @@ bot?.on('message', async msg => {
       const { domain, price, couponApplied, newPrice } = info
       const payKeyboard = k.of([
         Object.values(payIn),
-        ['🎟️ Apply Coupon'],
+        [({ en: "🎟️ Apply Coupon", fr: "🎟️ Appliquer un Coupon", zh: "🎟️ 使用优惠券", hi: "🎟️ कूपन लागू करें" }[lang] || "🎟️ Apply Coupon")],
       ])
       couponApplied
         ? send(chatId, t.domainNewPrice(domain, price, newPrice), k.pay)
@@ -1844,7 +1844,7 @@ bot?.on('message', async msg => {
         ? k.pay
         : k.of([
             Object.values(payIn),
-            ['🎟️ Apply Coupon'],
+            [({ en: "🎟️ Apply Coupon", fr: "🎟️ Appliquer un Coupon", zh: "🎟️ 使用优惠券", hi: "🎟️ कूपन लागू करें" }[lang] || "🎟️ Apply Coupon")],
             [t.backButton],
           ])
       set(state, chatId, 'action', 'hosting-pay')
@@ -2535,7 +2535,7 @@ bot?.on('message', async msg => {
       const finalPrice = couponApplied ? newPrice : price
       const { usdBal } = await getBalance(walletOf, chatId)
       const summary = `📋 <b>Order Summary</b>\n\n🏦 Institution: <b>${targetName}</b>\n📍 Area: <b>${targetCity}</b>\n📞 Carrier: <b>${carrier}</b>\n📊 Leads: <b>${amount}</b>\n📄 Format: <b>International</b>\n📇 Includes: <b>Phone owner's name</b>${couponApplied ? `\n💰 Price: <s>$${price}</s> <b>$${view(finalPrice)}</b>` : `\n💰 Price: <b>$${finalPrice}</b>`}\n\n💳 Wallet: <b>$${view(usdBal)}</b>`
-      send(chatId, summary, k.of([`✅ Pay $${view(finalPrice)} USD`, '🎟️ Apply Coupon']))
+      send(chatId, summary, k.of([({ en: `✅ Pay ${view(finalPrice)} USD`, fr: `✅ Payer ${view(finalPrice)} USD`, zh: `✅ 支付 ${view(finalPrice)} USD`, hi: `✅ ${view(finalPrice)} USD भुगतान करें` }[lang] || `✅ Pay ${view(finalPrice)} USD`), ({ en: "🎟️ Apply Coupon", fr: "🎟️ Appliquer un Coupon", zh: "🎟️ 使用优惠券", hi: "🎟️ कूपन लागू करें" }[lang] || "🎟️ Apply Coupon")]))
       set(state, chatId, 'action', a.targetLeadsConfirm)
     },
 
@@ -2828,7 +2828,7 @@ bot?.on('message', async msg => {
       saveInfo('existingDomain', true)
       const domainButtons = domains.map(d => [d])
       domainButtons.push([t.backButton])
-      send(chatId, 'Select a domain from your registered domains:', k.of(domainButtons))
+      send(chatId, ({ en: 'Select a domain from your registered domains:', fr: 'Sélectionnez un domaine parmi vos domaines enregistrés :', zh: '从您的注册域名中选择一个：', hi: 'अपने पंजीकृत डोमेन में से एक चुनें:' }[lang] || 'Select a domain from your registered domains:', k.of(domainButtons))
     },
 
     // Step 2.4: Connect External Domain
@@ -4924,7 +4924,7 @@ bot?.on('message', async msg => {
     const { url, error } = await createCheckout(priceNGN, `/ok?a=b&ref=${ref}&`, email, username, ref)
     if (error) return send(chatId, error, trans('o'))
     send(chatId, `Bank ₦aira + Card 🌐︎`, trans('o'))
-    return send(chatId, `<a href="${url}">Click here to pay ₦${priceNGN.toLocaleString()}</a>`, { parse_mode: 'HTML', disable_web_page_preview: true })
+    return send(chatId, ({ en: `<a href="${url}">Click here to pay ₦${priceNGN.toLocaleString()}</a>`, fr: `<a href="${url}">Cliquez ici pour payer ₦${priceNGN.toLocaleString()}</a>`, zh: `<a href="${url}">点击此处支付 ₦${priceNGN.toLocaleString()}</a>`, hi: `<a href="${url}">₦${priceNGN.toLocaleString()} भुगतान करने के लिए यहाँ क्लिक करें</a>` }[lang] || `<a href="${url}">Click here to pay ₦${priceNGN.toLocaleString()}</a>`), { parse_mode: 'HTML', disable_web_page_preview: true })
   }
 
   // Digital Products: crypto payment
@@ -5089,7 +5089,7 @@ bot?.on('message', async msg => {
     const { url, error } = await createCheckout(priceNGN, `/ok?a=b&ref=${ref}&`, email, username, ref)
     if (error) return send(chatId, error, trans('o'))
     send(chatId, `Bank ₦aira + Card 🌐︎`, trans('o'))
-    return send(chatId, `<a href="${url}">Click here to pay ₦${priceNGN.toLocaleString()}</a>`, { parse_mode: 'HTML', disable_web_page_preview: true })
+    return send(chatId, ({ en: `<a href="${url}">Click here to pay ₦${priceNGN.toLocaleString()}</a>`, fr: `<a href="${url}">Cliquez ici pour payer ₦${priceNGN.toLocaleString()}</a>`, zh: `<a href="${url}">点击此处支付 ₦${priceNGN.toLocaleString()}</a>`, hi: `<a href="${url}">₦${priceNGN.toLocaleString()} भुगतान करने के लिए यहाँ क्लिक करें</a>` }[lang] || `<a href="${url}">Click here to pay ₦${priceNGN.toLocaleString()}</a>`), { parse_mode: 'HTML', disable_web_page_preview: true })
   }
 
   // Virtual Card: crypto payment
@@ -6259,7 +6259,7 @@ bot?.on('message', async msg => {
     }
 
     // Handle coupon inline
-    if (message === '🎟️ Apply Coupon') {
+    if (message === ({ en: "🎟️ Apply Coupon", fr: "🎟️ Appliquer un Coupon", zh: "🎟️ 使用优惠券", hi: "🎟️ कूपन लागू करें" }[lang] || "🎟️ Apply Coupon")) {
       return goto.askCoupon('choose-domain-to-buy')
     }
 
@@ -6371,7 +6371,7 @@ bot?.on('message', async msg => {
     if (message === t.back || message === t.backButton || message === '⬅️ Back') return goto.enterYourEmail()
     
     // Handle Apply Coupon button
-    if (message === '🎟️ Apply Coupon') {
+    if (message === ({ en: "🎟️ Apply Coupon", fr: "🎟️ Appliquer un Coupon", zh: "🎟️ 使用优惠券", hi: "🎟️ कूपन लागू करें" }[lang] || "🎟️ Apply Coupon")) {
       set(state, chatId, 'action', 'hosting-apply-coupon')
       return send(chatId, t.enterCouponCode || 'Enter coupon code:', k.of([t.skip]))
     }
@@ -10226,10 +10226,10 @@ bot?.on('message', async msg => {
         set(state, chatId, 'action', a.cpVmGreetingPreview)
         return send(chatId, `✅ Audio received. Save as greeting?`, k.of([['✅ Save Greeting'], ['🎙️ Re-upload']]))
       } catch (e) {
-        return send(chatId, `❌ Failed. Try again.`, k.of([]))
+        return send(chatId, ({ en: "❌ Failed. Try again.", fr: "❌ Échec. Réessayez.", zh: "❌ 失败。请重试。", hi: "❌ विफल। पुनः प्रयास करें।" }[lang] || "❌ Failed. Try again."), k.of([]))
       }
     }
-    return send(chatId, `Choose:`, k.of([[{ en: "📋 Use Template", fr: "📋 Utiliser un Modèle", zh: "📋 使用模板", hi: "📋 टेम्पलेट उपयोग" }[lang] || "📋 Use Template"], [{ en: "📝 Type Text (AI Voice)", fr: "📝 Saisir Texte (IA Vocale)", zh: "📝 输入文字 (AI 语音)", hi: "📝 टेक्स्ट टाइप (AI वॉइस)" }[lang] || "📝 Type Text (AI Voice)"], [{ en: "🎙️ Upload Audio", fr: "🎙️ Uploader Audio", zh: "🎙️ 上传音频", hi: "🎙️ ऑडियो अपलोड" }[lang] || "🎙️ Upload Audio"]]))
+    return send(chatId, ({ en: "Choose:", fr: "Choisissez :", zh: "请选择：", hi: "चुनें:" }[lang] || "Choose:"), k.of([[{ en: "📋 Use Template", fr: "📋 Utiliser un Modèle", zh: "📋 使用模板", hi: "📋 टेम्पलेट उपयोग" }[lang] || "📋 Use Template"], [{ en: "📝 Type Text (AI Voice)", fr: "📝 Saisir Texte (IA Vocale)", zh: "📝 输入文字 (AI 语音)", hi: "📝 टेक्स्ट टाइप (AI वॉइस)" }[lang] || "📝 Type Text (AI Voice)"], [{ en: "🎙️ Upload Audio", fr: "🎙️ Uploader Audio", zh: "🎙️ 上传音频", hi: "🎙️ ऑडियो अपलोड" }[lang] || "🎙️ Upload Audio"]]))
   }
 
   // ── VM Template: Select category → select template → edit → proceed ──
@@ -10436,7 +10436,7 @@ bot?.on('message', async msg => {
         await bot.sendVoice(chatId, localPath)
         return send(chatId, `✅ Audio received. Save?`, k.of([['✅ Save Greeting'], ['🎙️ Re-upload']]))
       } catch (e) {
-        return send(chatId, `❌ Failed. Try again.`, k.of([]))
+        return send(chatId, ({ en: "❌ Failed. Try again.", fr: "❌ Échec. Réessayez.", zh: "❌ 失败。请重试。", hi: "❌ विफल। पुनः प्रयास करें।" }[lang] || "❌ Failed. Try again."), k.of([]))
       }
     }
     if (message === '✅ Save Greeting') {
@@ -10463,7 +10463,7 @@ bot?.on('message', async msg => {
            [pc.disableVoicemail]]
       return send(chatId, cpTxt.voicemailMenu(num.phoneNumber, vm), k.of(btns))
     }
-    return send(chatId, `Choose:`, k.of([['✅ Save Greeting'], ['🔄 Try Different Voice'], ['📝 Re-type Text']]))
+    return send(chatId, ({ en: "Choose:", fr: "Choisissez :", zh: "请选择：", hi: "चुनें:" }[lang] || "Choose:"), k.of([['✅ Save Greeting'], ['🔄 Try Different Voice'], ['📝 Re-type Text']]))
   }
 
   // ━━━ CALL RECORDING (Business) ━━━
@@ -11069,7 +11069,17 @@ How do you want to create the message?`), k.of([[{ en: "📋 Use Template", fr: 
         draft.templateCategory = null
         await saveInfo('cpIvrDraft', draft)
         const catBtns = ttsService.getTemplateCategoryButtons().map(b => [b])
-        return send(chatId, `📋 <b>Message Templates</b>\n\nSelect a category:`, k.of(catBtns))
+        return send(chatId, ({ en: `📋 <b>Message Templates</b>
+
+Select a category:`, fr: `📋 <b>Modèles de Messages</b>
+
+Sélectionnez une catégorie :`, zh: `📋 <b>消息模板</b>
+
+选择分类：`, hi: `📋 <b>मैसेज टेम्पलेट</b>
+
+श्रेणी चुनें:` }[lang] || `📋 <b>Message Templates</b>
+
+Select a category:`), k.of(catBtns))
       }
       // Template category selected
       if (draft.method === 'template' && !draft.templateCategory) {
@@ -11090,7 +11100,7 @@ How do you want to create the message?`), k.of([[{ en: "📋 Use Template", fr: 
           draft.text = tpl.text
           draft.templateKey = tpl.key
           await saveInfo('cpIvrDraft', draft)
-          return send(chatId, `📋 <b>${tpl.icon} ${tpl.name}</b>\n\n<code>${tpl.text}</code>\n\n✏️ Type your modified version, or tap <b>✅ Use As-Is</b>:`, k.of([['✅ Use As-Is']]))
+          return send(chatId, `📋 <b>${tpl.icon} ${tpl.name}</b>\n\n<code>${tpl.text}</code>\n\n({ en: "✏️ Type your modified version, or tap <b>✅ Use As-Is</b>", fr: "✏️ Tapez votre version modifiée, ou appuyez sur <b>✅ Utiliser tel quel</b>", zh: "✏️ 输入修改版本，或点击 <b>✅ 直接使用</b>", hi: "✏️ अपना संशोधित संस्करण टाइप करें, या <b>✅ जैसा है</b> दबाएं" }[lang] || "✏️ Type your modified version, or tap <b>✅ Use As-Is</b>"):`, k.of([['✅ Use As-Is']]))
         }
         const tplBtns = ttsService.getTemplateButtons(draft.templateCategory).map(b => [b])
         return send(chatId, `Select a template:`, k.of(tplBtns))
@@ -11131,9 +11141,9 @@ How do you want to create the message?`), k.of([[{ en: "📋 Use Template", fr: 
           await saveInfo('cpIvrDraft', draft)
           await bot.sendVoice(chatId, localPath)
           set(state, chatId, 'action', a.cpIvrOptionPreview)
-          return send(chatId, ({ en: `✅ Audio received for key <b>${draft.key}</b>. Save this?`, fr: `✅ Audio reçu pour la touche <b>${draft.key}</b>. Enregistrer ?`, zh: `✅ 已收到按键 <b>${draft.key}</b> 的音频。保存吗？`, hi: `✅ कुंजी <b>${draft.key}</b> के लिए ऑडियो प्राप्त। सेव करें?` }[lang] || `✅ Audio received for key <b>${draft.key}</b>. Save this?`), k.of([['✅ Save Option'], ['🎙️ Re-upload']]))
+          return send(chatId, ({ en: `✅ Audio received for key <b>${draft.key}</b>. Save this?`, fr: `✅ Audio reçu pour la touche <b>${draft.key}</b>. Enregistrer ?`, zh: `✅ 已收到按键 <b>${draft.key}</b> 的音频。保存吗？`, hi: `✅ कुंजी <b>${draft.key}</b> के लिए ऑडियो प्राप्त। सेव करें?` }[lang] || `✅ Audio received for key <b>${draft.key}</b>. Save this?`), k.of([[{ en: "✅ Save Option", fr: "✅ Enregistrer", zh: "✅ 保存选项", hi: "✅ सेव करें" }[lang] || "✅ Save Option"], [{ en: "🎙️ Re-upload", fr: "🎙️ Ré-uploader", zh: "🎙️ 重新上传", hi: "🎙️ फिर से अपलोड" }[lang] || "🎙️ Re-upload"]]))
         } catch (e) {
-          return send(chatId, `❌ Failed. Try again.`, k.of([]))
+          return send(chatId, ({ en: "❌ Failed. Try again.", fr: "❌ Échec. Réessayez.", zh: "❌ 失败。请重试。", hi: "❌ विफल। पुनः प्रयास करें।" }[lang] || "❌ Failed. Try again."), k.of([]))
         }
       }
       // User typed TTS text
@@ -11148,9 +11158,9 @@ How do you want to create the message?`), k.of([[{ en: "📋 Use Template", fr: 
         for (let i = 0; i < langBtns.length; i += 2) langRows.push(langBtns.slice(i, i + 2))
         return send(chatId, `🌐 Select the language:\n\n<i>"${message.length > 80 ? message.slice(0, 80) + '...' : message}"</i>`, k.of(langRows))
       }
-      return send(chatId, `Choose:`, k.of([[{ en: "📋 Use Template", fr: "📋 Utiliser un Modèle", zh: "📋 使用模板", hi: "📋 टेम्पलेट उपयोग" }[lang] || "📋 Use Template"], [{ en: "📝 Type Text (AI Voice)", fr: "📝 Saisir Texte (IA Vocale)", zh: "📝 输入文字 (AI 语音)", hi: "📝 टेक्स्ट टाइप (AI वॉइस)" }[lang] || "📝 Type Text (AI Voice)"], [{ en: "🎙️ Upload Audio", fr: "🎙️ Uploader Audio", zh: "🎙️ 上传音频", hi: "🎙️ ऑडियो अपलोड" }[lang] || "🎙️ Upload Audio"]]))
+      return send(chatId, ({ en: "Choose:", fr: "Choisissez :", zh: "请选择：", hi: "चुनें:" }[lang] || "Choose:"), k.of([[{ en: "📋 Use Template", fr: "📋 Utiliser un Modèle", zh: "📋 使用模板", hi: "📋 टेम्पलेट उपयोग" }[lang] || "📋 Use Template"], [{ en: "📝 Type Text (AI Voice)", fr: "📝 Saisir Texte (IA Vocale)", zh: "📝 输入文字 (AI 语音)", hi: "📝 टेक्स्ट टाइप (AI वॉइस)" }[lang] || "📝 Type Text (AI Voice)"], [{ en: "🎙️ Upload Audio", fr: "🎙️ Uploader Audio", zh: "🎙️ 上传音频", hi: "🎙️ ऑडियो अपलोड" }[lang] || "🎙️ Upload Audio"]]))
     }
-    return send(chatId, `Unexpected state. Try again.`, k.of([]))
+    return send(chatId, ({ en: "Unexpected state. Try again.", fr: "État inattendu. Réessayez.", zh: "意外状态。请重试。", hi: "अप्रत्याशित स्थिति। पुनः प्रयास करें।" }[lang] || "Unexpected state. Try again."), k.of([]))
   }
 
   // ── IVR Option: Step 4 — Language + Provider + Voice selection for TTS ──
@@ -11164,7 +11174,7 @@ How do you want to create the message?`), k.of([[{ en: "📋 Use Template", fr: 
       await saveInfo('cpIvrDraft', draft)
       set(state, chatId, 'action', a.cpIvrOptionMsg)
       if (draft.method === 'template') {
-        return send(chatId, `📋 <b>Message</b>\n\n<code>${draft.text}</code>\n\n✏️ Type your modified version, or tap <b>✅ Use As-Is</b>:`, k.of([['✅ Use As-Is']]))
+        return send(chatId, `📋 <b>Message</b>\n\n<code>${draft.text}</code>\n\n({ en: "✏️ Type your modified version, or tap <b>✅ Use As-Is</b>", fr: "✏️ Tapez votre version modifiée, ou appuyez sur <b>✅ Utiliser tel quel</b>", zh: "✏️ 输入修改版本，或点击 <b>✅ 直接使用</b>", hi: "✏️ अपना संशोधित संस्करण टाइप करें, या <b>✅ जैसा है</b> दबाएं" }[lang] || "✏️ Type your modified version, or tap <b>✅ Use As-Is</b>"):`, k.of([['✅ Use As-Is']]))
       }
       return send(chatId, ({ en: `📝 Type the message callers will hear when they press <b>${draft.key}</b>:`, fr: `📝 Tapez le message que les appelants entendront quand ils appuieront sur <b>${draft.key}</b> :`, zh: `📝 输入来电者按 <b>${draft.key}</b> 时听到的消息：`, hi: `📝 वह मैसेज टाइप करें जो कॉलर <b>${draft.key}</b> दबाने पर सुनेंगे:` }[lang] || `📝 Type the message callers will hear when they press <b>${draft.key}</b>:`), k.of([]))
     }
@@ -11229,7 +11239,7 @@ How do you want to create the message?`), k.of([[{ en: "📋 Use Template", fr: 
       for (let i = 0; i < langBtns.length; i += 2) langRows.push(langBtns.slice(i, i + 2))
       return send(chatId, `🌐 Select the language:`, k.of(langRows))
     }
-    return send(chatId, `Type the message text:`, k.of([]))
+    return send(chatId, ({ en: "Type the message text:", fr: "Tapez le texte du message :", zh: "输入消息文本：", hi: "मैसेज टेक्स्ट टाइप करें:" }[lang] || "Type the message text:"), k.of([]))
   }
 
   // ── IVR Option: Step 5 — Preview & Save ──
@@ -11282,9 +11292,9 @@ How do you want to create the message?`), k.of([[{ en: "📋 Use Template", fr: 
         draft.audioPath = localPath; draft.method = 'uploaded'
         await saveInfo('cpIvrDraft', draft)
         await bot.sendVoice(chatId, localPath)
-        return send(chatId, ({ en: `✅ Audio received for key <b>${draft.key}</b>. Save this?`, fr: `✅ Audio reçu pour la touche <b>${draft.key}</b>. Enregistrer ?`, zh: `✅ 已收到按键 <b>${draft.key}</b> 的音频。保存吗？`, hi: `✅ कुंजी <b>${draft.key}</b> के लिए ऑडियो प्राप्त। सेव करें?` }[lang] || `✅ Audio received for key <b>${draft.key}</b>. Save this?`), k.of([['✅ Save Option'], ['🎙️ Re-upload']]))
+        return send(chatId, ({ en: `✅ Audio received for key <b>${draft.key}</b>. Save this?`, fr: `✅ Audio reçu pour la touche <b>${draft.key}</b>. Enregistrer ?`, zh: `✅ 已收到按键 <b>${draft.key}</b> 的音频。保存吗？`, hi: `✅ कुंजी <b>${draft.key}</b> के लिए ऑडियो प्राप्त। सेव करें?` }[lang] || `✅ Audio received for key <b>${draft.key}</b>. Save this?`), k.of([[{ en: "✅ Save Option", fr: "✅ Enregistrer", zh: "✅ 保存选项", hi: "✅ सेव करें" }[lang] || "✅ Save Option"], [{ en: "🎙️ Re-upload", fr: "🎙️ Ré-uploader", zh: "🎙️ 重新上传", hi: "🎙️ फिर से अपलोड" }[lang] || "🎙️ Re-upload"]]))
       } catch (e) {
-        return send(chatId, `❌ Failed. Try again.`, k.of([]))
+        return send(chatId, ({ en: "❌ Failed. Try again.", fr: "❌ Échec. Réessayez.", zh: "❌ 失败。请重试。", hi: "❌ विफल। पुनः प्रयास करें।" }[lang] || "❌ Failed. Try again."), k.of([]))
       }
     }
     if (message === '✅ Save Option') {
@@ -11310,7 +11320,7 @@ How do you want to create the message?`), k.of([[{ en: "📋 Use Template", fr: 
         [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
       ]))
     }
-    return send(chatId, `Choose:`, k.of([['✅ Save Option'], ['🔄 Try Different Voice'], ['📝 Re-type Text']]))
+    return send(chatId, ({ en: "Choose:", fr: "Choisissez :", zh: "请选择：", hi: "चुनें:" }[lang] || "Choose:"), k.of([['✅ Save Option'], ['🔄 Try Different Voice'], ['📝 Re-type Text']]))
   }
 
   // IVR Remove Option
@@ -11783,7 +11793,7 @@ How do you want to create the message?`), k.of([[{ en: "📋 Use Template", fr: 
   }
   if (action === a.targetLeadsConfirm) {
     if (message === t.back) return goto.buyLeadsSelectAmount()
-    if (message === '🎟️ Apply Coupon') {
+    if (message === ({ en: "🎟️ Apply Coupon", fr: "🎟️ Appliquer un Coupon", zh: "🎟️ 使用优惠券", hi: "🎟️ कूपन लागू करें" }[lang] || "🎟️ Apply Coupon")) {
       return goto.askCoupon(a.buyLeadsSelectFormat)
     }
     if (message.startsWith('✅ Pay') || message.startsWith('✅ Confirm')) {
@@ -12352,7 +12362,7 @@ How do you want to create the message?`), k.of([[{ en: "📋 Use Template", fr: 
       set(state, chatId, 'action', 'choose-dns-action')
       const domain = info?.domainToManage
       if (!domain) return send(chatId, t.noDomainSelected || 'No domain selected.')
-      send(chatId, `🔗 Deactivating shortener for <b>${domain}</b>...`, { parse_mode: 'HTML' })
+      send(chatId, ({ en: `🔗 Deactivating shortener for <b>${domain}</b>...`, fr: `🔗 Désactivation du raccourcisseur pour <b>${domain}</b>...`, zh: `🔗 正在为 <b>${domain}</b> 停用短链接...`, hi: `🔗 <b>${domain}</b> के लिए शॉर्टनर निष्क्रिय कर रहे हैं...` }[lang] || `🔗 Deactivating shortener for <b>${domain}</b>...`), { parse_mode: 'HTML' })
       try {
         const { removeDomainFromRailway } = require('./rl-save-domain-in-server.js')
         const removeResult = await removeDomainFromRailway(domain)
@@ -12364,7 +12374,7 @@ How do you want to create the message?`), k.of([[{ en: "📋 Use Template", fr: 
           const deleteResult = await domainService.deleteDNSRecord(domain, railwayCname, db)
           if (deleteResult?.error) log(`[DeactivateShortener] DNS delete warning: ${deleteResult.error}`)
         }
-        send(chatId, `✅ <b>${domain}</b> unlinked from URL shortener.`, { parse_mode: 'HTML' })
+        send(chatId, ({ en: `✅ <b>${domain}</b> unlinked from URL shortener.`, fr: `✅ <b>${domain}</b> délié du raccourcisseur d'URL.`, zh: `✅ <b>${domain}</b> 已取消短链接服务。`, hi: `✅ <b>${domain}</b> URL शॉर्टनर से अनलिंक।` }[lang] || `✅ <b>${domain}</b> unlinked from URL shortener.`), { parse_mode: 'HTML' })
       } catch (e) {
         log(`[DeactivateShortener] Error for ${domain}: ${e.message}`)
         send(chatId, `❌ Error: ${e.message}`, { parse_mode: 'HTML' })
@@ -12498,7 +12508,7 @@ How do you want to create the message?`), k.of([[{ en: "📋 Use Template", fr: 
       return send(chatId, t.domainActionsMenu || `<b>Actions for ${domain}</b>\n\nSelect an option:`, 
         k.of(menuButtons), { parse_mode: 'HTML' })
     }
-    return send(chatId, 'Please select "Proceed Anyway" or "Cancel".', {
+    return send(chatId, ({ en: 'Please select "Proceed Anyway" or "Cancel".', fr: 'Veuillez sélectionner "Continuer quand même" ou "Annuler".', zh: '请选择仍然继续或取消。', hi: 'कृपया "फिर भी जारी रखें" या "रद्द करें" चुनें।' }[lang] || 'Please select "Proceed Anyway" or "Cancel".' ), {
       parse_mode: 'HTML',
       reply_markup: {
         keyboard: [
