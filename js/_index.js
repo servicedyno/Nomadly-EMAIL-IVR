@@ -2011,7 +2011,7 @@ bot?.on('message', async msg => {
       // Filter out NS records — nameservers can only be updated, not deleted
       const deletableRecords = records.map((r, i) => ({ ...r, originalIndex: i })).filter(r => r.recordType !== 'NS')
       if (deletableRecords.length === 0) {
-        send(chatId, 'No deletable records found. Nameserver records can only be updated.', { parse_mode: 'HTML' })
+          send(chatId, ({ en: 'No deletable records found. Nameserver records can only be updated.', fr: 'Aucun enregistrement supprimable trouvé. Les enregistrements NS ne peuvent être que mis à jour.', zh: '没有找到可删除的记录。域名服务器记录只能更新。', hi: 'कोई हटाने योग्य रिकॉर्ड नहीं मिला। नेमसर्वर रिकॉर्ड केवल अपडेट किए जा सकते हैं।' }[lang] || 'No deletable records found. Nameserver records can only be updated.'), { parse_mode: 'HTML' })
         return
       }
       const recordBtns = deletableRecords.map((r) => {
