@@ -327,7 +327,7 @@ async function onCallStatusUpdate(callSid, campaignId, leadIndex, status, durati
       hangupCause: hangupCause || null,
       completedAt: new Date(),
       transferred,
-      transferConnected: transferred, // Twilio Dial handles this — if completed it connected
+      transferConnected: transferred, // Speechcue Dial handles this — if completed it connected
     })
 
     await recalcStats(campaignId)
