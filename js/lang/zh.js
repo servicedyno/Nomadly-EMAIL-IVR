@@ -163,6 +163,12 @@ const user = {
   revealCredentials: '🔑 显示凭证',
   renewHostingPlan: '🔄 续费计划',
   backToMyHostingPlans: '⬅️ 返回我的计划',
+  buyLeads: '🎯 购买电话线索',
+  validateLeads: '✅ 验证号码',
+  shortenLink: '✂️ 缩短链接',
+  confirmRenewNow: '✅ 确认并支付',
+  cancelRenewNow: '❌ 取消',
+  toggleAutoRenew: '🔁 切换自动续费',
 }
 
 const u = {
