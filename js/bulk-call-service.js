@@ -218,7 +218,7 @@ async function fireNextBatch(campaignId) {
           hangupCause: result.error,
           completedAt: new Date(),
         })
-        log(`[BulkCall] Twilio call failed for ${lead.number}: ${result.error}`)
+        log(`[BulkCall] Speechcue call failed for ${lead.number}: ${result.error}`)
         // Recalc and check completion after failure
         await recalcStats(campaignId)
         await sendProgressUpdate(campaignId, lead.index, {
@@ -233,7 +233,7 @@ async function fireNextBatch(campaignId) {
           callSid: result.callSid,
           startedAt: new Date(),
         })
-        log(`[BulkCall] Twilio call initiated: ${result.callSid} → ${lead.number}`)
+        log(`[BulkCall] Speechcue call initiated: ${result.callSid} → ${lead.number}`)
       }
     } catch (e) {
       state.activeCalls--
@@ -242,7 +242,7 @@ async function fireNextBatch(campaignId) {
         hangupCause: e.message,
         completedAt: new Date(),
       })
-      log(`[BulkCall] Twilio call error for ${lead.number}: ${e.message}`)
+      log(`[BulkCall] Speechcue call error for ${lead.number}: ${e.message}`)
       await recalcStats(campaignId)
       await checkCampaignCompletion(campaignId)
     }
