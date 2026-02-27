@@ -11676,7 +11676,7 @@ bot?.on('message', async msg => {
     if (message === t.back) return goto.displayMainMenuButtons ? goto.displayMainMenuButtons() : send(chatId, t.userPressedBtn(message), isAdmin(chatId) ? aO : trans('o'))
     const validateBtn = trans('phoneNumberLeads')[1] || '✅📲 Validate PhoneLeads'
     if (message === validateBtn) return goto.validatorSelectCountry()
-    if (message === '📝 Request Custom Target') return goto.customLeadRequestName()
+    if (message === (t.leadRequestTarget || '📝 Request Custom Target')) return goto.customLeadRequestName()
     if (!targetLeadsTargets.includes(message)) return send(chatId, t.what)
     await saveInfo('targetName', message)
     await saveInfo('country', 'USA')
