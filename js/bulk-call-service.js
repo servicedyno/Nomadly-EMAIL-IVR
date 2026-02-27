@@ -203,7 +203,8 @@ async function fireNextBatch(campaignId) {
         campaign.callerId,
         lead.number,
         twimlUrl,
-        null, null, // no sub-account
+        campaign.twilioSubAccountSid || null,
+        campaign.twilioSubAccountToken || null,
         {
           statusCallback: statusUrl,
           statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
