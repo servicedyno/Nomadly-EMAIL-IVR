@@ -65,6 +65,14 @@ function initPhoneScheduler(deps) {
   log('[PhoneScheduler] Scheduled: expiry check (hourly), usage tracking (daily 3AM), monthly reset (daily 0:05AM)')
 }
 
+async function _getUserLang(chatId) {
+  try {
+    if (!_stateOf) return 'en'
+    const info = await get(_stateOf, chatId)
+    return info?.userLanguage || 'en'
+  } catch { return 'en' }
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // EXPIRY CHECK — Reminders + Auto-Renew
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
