@@ -8046,15 +8046,35 @@ bot?.on('message', async msg => {
 
     // ── Bulk Call Campaign ──
     if (message === pc.bulkCallCampaign) {
+      // Get user's active numbers + Twilio verified caller IDs
       const userData = await get(phoneNumbersOf, chatId)
-      const numbers = (userData?.numbers || []).filter(n => n.status === 'active')
-      if (!numbers.length) {
-        return send(chatId, `📞 <b>Bulk Call Campaign</b>\n\nYou need a Cloud Phone number to launch bulk campaigns.\n\nTap <b>${pc.buyPhoneNumber}</b> to get started.`, k.of([[pc.buyPhoneNumber]]))
+      const userNumbers = (userData?.numbers || []).filter(n => n.status === 'active')
+
+      // Also fetch Twilio verified caller IDs for outbound calls
+      let verifiedIds = []
+      try {
+        const twilioClient = twilioService.getClient()
+        if (twilioClient) {
+          const ids = await twilioClient.outgoingCallerIds.list({ limit: 20 })
+          verifiedIds = ids.map(id => ({ phoneNumber: id.phoneNumber, label: `${id.phoneNumber} (Twilio Verified)`, type: 'verified' }))
+        }
+      } catch (e) {
+        log(`[BulkCall] Error fetching verified IDs: ${e.message}`)
+      }
+
+      const allCallerIds = [
+        ...userNumbers.map(n => ({ phoneNumber: n.phoneNumber, label: `${n.phoneNumber} (${n.provider})`, type: 'owned' })),
+        ...verifiedIds,
+      ]
+
+      if (allCallerIds.length === 0) {
+        return send(chatId, `📞 <b>Bulk Call Campaign</b>\n\nYou need a phone number or verified Twilio caller ID to launch campaigns.\n\nTap <b>${pc.buyPhoneNumber}</b> to get a number, or verify a caller ID on Twilio.`, k.of([[pc.buyPhoneNumber]]))
       }
       await saveInfo('bulkData', {})
+      await saveInfo('bulkCallerIds', allCallerIds)
       set(state, chatId, 'action', a.bulkSelectCaller)
-      const numBtns = numbers.map(n => [n.phoneNumber])
-      return send(chatId, `📞 <b>Bulk Call Campaign</b>\n\nLaunch automated IVR calls to multiple leads at once.\n\nSelect the Caller ID (your number):`, k.of(numBtns))
+      const numBtns = allCallerIds.map(c => [c.label])
+      return send(chatId, `📞 <b>Bulk Call Campaign</b>\n\nLaunch automated Twilio IVR calls to multiple leads at once.\n\n📱 Select the Caller ID:`, k.of([...numBtns, ['↩️ Back']]))
     }
 
     // ── Audio Library ──
