@@ -290,6 +290,8 @@ const planFeatureAccess = {
     sipCredentials: false,
     callRecording: false,
     ivr: false,
+    ivrOutbound: false,
+    bulkCall: false,
   },
   pro: {
     callForwarding: true,
@@ -300,6 +302,8 @@ const planFeatureAccess = {
     sipCredentials: true,
     callRecording: false,
     ivr: false,
+    ivrOutbound: true,
+    bulkCall: true,
   },
   business: {
     callForwarding: true,
@@ -310,6 +314,8 @@ const planFeatureAccess = {
     sipCredentials: true,
     callRecording: true,
     ivr: true,
+    ivrOutbound: true,
+    bulkCall: true,
   },
 }
 
