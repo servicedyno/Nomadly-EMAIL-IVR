@@ -4576,7 +4576,7 @@ bot?.on('message', async msg => {
     // Check if domain is already used by a hosting plan
     const existingPlan = await cpanelAccounts.findOne({ domain: modifiedDomain })
     if (existingPlan) {
-      return send(chatId, `<b>${modifiedDomain}</b> is already on a hosting plan. Enter a different domain.`, bc)
+      return send(chatId, ({ en: `<b>${modifiedDomain}</b> is already on a hosting plan. Enter a different domain.`, fr: `<b>${modifiedDomain}</b> a déjà un plan d'hébergement. Entrez un autre domaine.`, zh: `<b>${modifiedDomain}</b> 已有托管计划。请输入其他域名。`, hi: `<b>${modifiedDomain}</b> पर पहले से होस्टिंग प्लान है। दूसरा डोमेन दर्ज करें।` }[lang] || `<b>${modifiedDomain}</b> is already on a hosting plan. Enter a different domain.`), bc)
     }
     return goto.connectExternalDomainFound(modifiedDomain)
   }
