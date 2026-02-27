@@ -1867,12 +1867,11 @@ bot?.on('message', async msg => {
     submenu5: () => {
       set(state, chatId, 'action', a.submenu5)
       const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
-      const lang = info?.userLanguage || 'en'
       send(chatId, cpTxt.hubWelcome, k.of([
         [pc.ivrOutboundCall],
         [pc.bulkCallCampaign],
         [pc.audioLibrary],
-        [phoneConfig.getBtnLabel('buyPhoneNumber', lang)],
+        [pc.buyPhoneNumber],
         [pc.myNumbers],
         [pc.sipSettings],
         [pc.usageBilling],
