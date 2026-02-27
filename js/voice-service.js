@@ -2152,7 +2152,55 @@ async function handleOutboundIvrHangup(payload) {
     ? `\n📊 ${minutesBilled} min deducted · <b>${remaining}/${billingInfo.limit}</b> min remaining`
     : minutesBilled > 0 ? `\n📊 ${minutesBilled} min used` : ''
 
-  // Notify bot user
+  // ── Bulk campaign call: report to bulk-call-service ──
+  if (session.campaignId) {
+    try {
+      const bulkCallService = require('./bulk-call-service.js')
+      // Determine transfer status
+      let transferred = false
+      let transferConnected = false
+      if (session.bulkMode === 'transfer' && session.digitPressed) {
+        transferred = true
+        for (const [, transfer] of Object.entries(ivrTransferLegs)) {
+          if (transfer.parentCallControlId === callControlId && transfer.phase === 'answered') {
+            transferConnected = true
+            break
+          }
+        }
+      }
+
+      const resultStatus = notifType === 'no_answer' ? 'no_answer'
+        : notifType === 'busy' ? 'busy'
+        : notifType === 'failed' ? 'failed'
+        : 'completed'
+
+      await bulkCallService.onCallComplete(callControlId, {
+        status: resultStatus,
+        digitPressed: session.digitPressed,
+        duration,
+        hangupCause,
+        transferred,
+        transferConnected,
+        answeredAt: session.answerTime ? new Date(session.answerTime) : null,
+      })
+    } catch (e) {
+      log(`[OutboundIVR] Bulk campaign report error: ${e.message}`)
+    }
+
+    // Skip per-call bot notification for bulk calls (bulk service sends progress)
+    logEvent(session.callerId, session.targetNumber, 'outbound_ivr_bulk', duration)
+    // Clean up
+    for (const [transferLegId, transfer] of Object.entries(activeBridgeTransfers)) {
+      if (transfer.originalCallControlId === callControlId) {
+        await _telnyxApi.hangupCall(transferLegId).catch(() => {})
+        delete activeBridgeTransfers[transferLegId]
+      }
+    }
+    delete outboundIvrCalls[callControlId]
+    return true
+  }
+
+  // Notify bot user (non-bulk calls only)
   const baseNotif = ivrOutbound.formatCallNotification(notifType, {
     ...session,
     duration,
