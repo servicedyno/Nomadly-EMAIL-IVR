@@ -1603,6 +1603,247 @@ Sélectionnez une option :`,
     bulkConcurrency: (transferTo) => `${transferTo ? `🔗 转接到：<b>${transferTo}</b>\n\n` : '📊 <b>仅报告</b> — 不转接。\n\n'}⚡ <b>并发设置</b>\n\n同时拨打多少通电话？（1-20）\n默认：<b>10</b>`,
     bulkRunning: '活动正在运行！您将看到进度更新。\n\n点击 <b>🛑 停止</b> 取消。',
     bulkCancelled: '🛑 <b>活动已取消。</b>\n\n进行中的通话将完成，不会发起新通话。',
+    // ── 电话号码选择与管理 ──
+    selectType: (country) => `📱 选择 <b>${country}</b> 的号码类型：\n\n<b>📍 本地</b> — 带区号的地理号码\n<b>🆓 免费</b> — 800/888/877 前缀，全国通用`,
+    selectArea: '🏙️ 选择地区或输入区号：',
+    enterAreaCode: '输入区号（如 415）：',
+    showNumbers: (location, numbers) => {
+      let text = `📞 <b>${location}</b> 的可用号码：\n\n`
+      numbers.forEach((n, i) => {
+        const caps = n._capabilities || n.capabilities || {}
+        const voice = caps.voice === true || caps.voice === 'True'
+        const sms = caps.sms === true || caps.sms === 'True'
+        const fax = caps.fax === true || caps.fax === 'True'
+        let capLabel = ''
+        if (voice) capLabel += '📞'
+        if (sms) capLabel += '💬'
+        if (fax) capLabel += '📠'
+        text += `${i + 1}️⃣  ${formatPhone(n.phone_number)} ${capLabel}\n`
+      })
+      text += '\n📞 = 语音  💬 = 短信  📠 = 传真\n点击号码进行选择。'
+      return text
+    },
+    selectPlan: (number) => {
+      let text = `✅ 已选择：<b>${formatPhone(number)}</b>\n\n📋 选择您的套餐：\n\n`
+      if (PHONE_STARTER_ON) text += `<b>💡 入门版 — $${PHONE_STARTER_PRICE}/月</b>\n${plans.starter.minutes} 分钟 · ${plans.starter.sms} 短信 · ${plans.starter.features.join(' · ')}\n\n`
+      if (PHONE_PRO_ON) text += `<b>⭐ 专业版 — $${PHONE_PRO_PRICE}/月</b>\n${plans.pro.minutes} 分钟 · ${plans.pro.sms} 短信 · ${plans.pro.features.join(' · ')}\n\n`
+      if (PHONE_BUSINESS_ON) text += `<b>👑 商务版 — $${PHONE_BUSINESS_PRICE}/月</b>\n${plans.business.minutes} 分钟 · ${plans.business.sms} 短信 · ${plans.business.features.join(' · ')}\n\n`
+      text += `<i>外呼和转发：$${CALL_FORWARDING_RATE_MIN}/分钟（从钱包扣费）</i>`
+      return text
+    },
+    orderSummary: (number, country, plan, price) => `📋 <b>订单摘要</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/月\n📩 ${plan.sms} 短信 · 📞 ${plan.minutes} 分钟 · 📲 外呼和转发 $${CALL_FORWARDING_RATE_MIN}/分钟\n⚡ ${plan.features.join(', ')}\n\n💰 合计：<b>$${price}</b>（首月）`,
+    paymentPrompt: (price) => `价格：<b>$${price}</b>。选择支付方式：`,
+    activated: (number, plan, price, sipUser, sipDomain, expiry) => `🎉 <b>您的云电话已激活！</b>\n\n📞 号码：${formatPhone(number)}\n📦 套餐：${plan}（$${price}/月）\n📅 续费日期：${expiry}\n\n━━━ <b>SIP 凭据</b> ━━━\n🌐 服务器：${sipDomain}\n👤 用户名：${sipUser}\n🔑 密码：●●●●●●●●（使用 🔑 SIP 凭据 查看）\n📡 端口：5060 (UDP/TCP) | 5061 (TLS)\n\n━━━ <b>快速设置</b> ━━━\n• 浏览器：在 <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a> 拨打电话\n• 软电话：下载 Zoiper/Ooma，输入 SIP 凭据\n• 短信：来电短信自动转发到此聊天\n• 转发：通过 📱 我的号码 → 呼叫转移 设置`,
+    myNumbersList: (numbers) => {
+      let text = '📱 <b>您的云电话号码：</b>\n\n'
+      numbers.forEach((n, i) => {
+        const status = n.status === 'active' ? '✅ 活跃' : n.status === 'suspended' ? '⚠️ 已暂停' : '🗑️ 已删除'
+        text += `${i + 1}️⃣  ${formatPhone(n.phoneNumber)}  ${status}\n`
+        text += `    ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} 套餐 · 续费 ${shortDate(n.expiresAt)}\n\n`
+      })
+      return text
+    },
+    manageNumber: (n) => {
+      const plan = plans[n.plan]
+      const minLimit = plan?.minutes === 'Unlimited' ? '无限' : (plan?.minutes || 0)
+      const smsLimit = plan?.sms || 0
+      const minUsed = n.minutesUsed || 0
+      const smsUsed = n.smsUsed || 0
+      const minDisplay = minLimit === '无限' ? `${minUsed}（无限）` : `${minUsed} / ${minLimit}`
+      const smsDisplay = `${smsUsed} / ${smsLimit}`
+      const minWarning = minLimit !== '无限' && minUsed >= minLimit ? `\n💰 <b>超额计费中</b> — $${OVERAGE_RATE_MIN}/分钟（从钱包扣费）` : ''
+      const smsWarning = smsUsed >= smsLimit ? `\n💰 <b>超额计费中</b> — $${OVERAGE_RATE_SMS}/条（从钱包扣费）` : ''
+      const hasSms = n.capabilities?.sms !== false && n.features?.sms !== false
+      const hasFax = n.capabilities?.fax === true
+      const hasVoice = n.capabilities?.voice !== false
+      let text = `⚙️ 管理：<b>${formatPhone(n.phoneNumber)}</b>\n\n状态：${n.status === 'active' ? '✅ 活跃' : '⚠️ ' + n.status}\n套餐：${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)}（$${n.planPrice}/月）`
+      if (hasVoice) text += `\n📞 来电分钟：${minDisplay}${minWarning}`
+      if (hasSms) text += `\n📩 来电短信：${smsDisplay}（仅接收）${smsWarning}`
+      if (hasFax) text += `\n📠 传真：已包含 — 来电传真转发到 Telegram`
+      const caps = []
+      if (hasVoice) caps.push('语音')
+      if (hasSms) caps.push('短信')
+      if (hasFax) caps.push('传真')
+      text += `\n📋 功能：${caps.join(' · ')}`
+      if (hasVoice) text += `\n\n🌐 <a href="${CALL_PAGE_URL}">在浏览器中拨打电话</a>`
+      return text
+    },
+    // 呼叫转移
+    forwardingStatus: (number, config, walletBal) => {
+      const status = config?.enabled ? '✅ 已启用' : '❌ 已关闭'
+      let text = `📞 <b>呼叫转移</b> — ${formatPhone(number)}\n\n状态：${status}`
+      if (config?.enabled) {
+        text += `\n📲 ${formatPhone(config.forwardTo)} · ${config.mode}`
+        text += `\n🎵 等待音乐：${config.holdMusic ? '开' : '关'}`
+      }
+      const rate = config?.forwardTo && config.forwardTo.startsWith('+1') ? OVERAGE_RATE_MIN : CALL_FORWARDING_RATE_MIN
+      text += `\n💰 使用套餐分钟，超出后 $${rate}/分钟`
+      if (walletBal !== undefined) text += ` · 💳 $${walletBal.toFixed(2)}`
+      return text
+    },
+    enterForwardNumber: (walletBal) => {
+      let text = `输入带国家代码的转发号码（如 +14155551234）\n💰 费率：<b>$${CALL_FORWARDING_RATE_MIN}/分钟</b>`
+      if (walletBal !== undefined) {
+        text += ` · 💳 $${walletBal.toFixed(2)}`
+        if (walletBal < CALL_FORWARDING_RATE_MIN) text += `\n⚠️ 请先通过 👛 钱包 充值 <b>$25</b>。`
+      }
+      return text
+    },
+    forwardingUpdated: (number, forwardTo, mode, walletBal) => {
+      let text = `✅ <b>转发已启用</b>\n\n📞 ${formatPhone(number)} → ${formatPhone(forwardTo)}\n📋 ${mode} · $${CALL_FORWARDING_RATE_MIN}/分钟`
+      if (walletBal !== undefined) {
+        const estMin = Math.floor(walletBal / CALL_FORWARDING_RATE_MIN)
+        text += `\n💳 $${walletBal.toFixed(2)}（约 ${estMin} 分钟）`
+        if (walletBal < 25) text += `\n💡 充值到 <b>$25</b> 以确保不间断转发。`
+      }
+      return text
+    },
+    forwardingBlocked: (number) => `🚫 <b>已阻止</b> — ${formatPhone(number)} 是高级目的地。\n点击 💬 <b>获取支持</b> 申请开通。`,
+    forwardingNotRoutable: (number) => `⚠️ ${formatPhone(number)} 无法路由。请检查号码或点击 💬 <b>获取支持</b>。`,
+    forwardingInsufficientBalance: (walletBal) => `🚫 <b>余额不足</b>\n\n💳 $${(walletBal || 0).toFixed(2)} · 需要 $${CALL_FORWARDING_RATE_MIN}/分钟\n\n👉 通过 👛 钱包 充值 <b>$25</b> 以启用转发。`,
+    forwardingDisabled: (number) => `✅ 已关闭 ${formatPhone(number)} 的呼叫转移。`,
+    // 短信设置
+    smsSettingsMenu: (number, config, plan) => {
+      const tg = config?.toTelegram ? '✅ 开' : '❌ 关'
+      const em = config?.toEmail ? '✅ ' + config.toEmail : '❌ 关'
+      const wh = config?.webhookUrl ? '✅ 已设置' : '❌ 未设置'
+      const canEmail = canAccessFeature(plan, 'smsToEmail')
+      const canWebhook = canAccessFeature(plan, 'smsWebhook')
+      const planName = plan ? plan.charAt(0).toUpperCase() + plan.slice(1) : '未知'
+      return `📩 <b>来电短信设置</b> — <b>${formatPhone(number)}</b>\n\n📌 短信为 <b>仅接收</b> — 您可以接收短信但不能发送。\n\n📲 转发到 Telegram：${tg}\n📧 转发到邮箱：${canEmail ? em : `🔒 需要 Pro 或更高套餐（当前：${planName}）`}\n🔗 Webhook URL：${canWebhook ? wh : `🔒 需要 Pro 或更高套餐（当前：${planName}）`}`
+    },
+    smsToggled: (channel, state) => `${channel} 现在 ${state ? '✅ 已开启' : '❌ 已关闭'}`,
+    // 传真设置
+    faxSettingsMenu: (number, config, provider) => {
+      const tg = config?.toTelegram !== false ? '✅ 开' : '❌ 关'
+      if (provider === 'twilio') {
+        return `📠 <b>传真设置</b> — <b>${formatPhone(number)}</b>\n\n⚠️ <b>Twilio 号码不支持传真。</b>\nTwilio 已停止可编程传真服务。此号码无法接收传真。\n\n如需使用传真，请购买支持传真的 Telnyx 号码。`
+      }
+      return `📠 <b>传真设置</b> — <b>${formatPhone(number)}</b>\n\n来电传真以 PDF 格式接收并转发到此 Telegram 聊天。\n\n📲 转发到 Telegram：${tg}`
+    },
+    faxToggled: (state) => `📠 传真转发到 Telegram 现在 ${state ? '✅ 已开启' : '❌ 已关闭'}`,
+    faxReceived: (from, to, pages) => `📠 <b>收到传真</b>\n发件人：${from}\n收件人：${formatPhone(to)}${pages ? `\n页数：${pages}` : ''}`,
+    faxFailed: (from, to, reason) => `📠 <b>传真失败</b>\n发件人：${from}\n收件人：${formatPhone(to)}\n原因：${reason || '未知'}`,
+    enterEmail: '输入用于转发短信的电子邮件地址：',
+    emailSet: (email) => `✅ 短信转发到邮箱已启用！\n所有来电短信也将发送到 <b>${email}</b>。`,
+    enterWebhook: '输入您的 Webhook URL（来电短信将以 JSON 格式 POST）：',
+    webhookSet: (url) => `✅ Webhook URL 已配置！\n短信将 POST 到：${url}`,
+    // 语音信箱
+    voicemailMenu: (number, config) => {
+      if (!config?.enabled) {
+        return `🎙️ <b>${formatPhone(number)}</b> 的语音信箱\n\n状态：❌ 已关闭\n\n启用后，未接来电将听到问候语，来电者可以留言。`
+      }
+      const tg = config.forwardToTelegram ? '✅ 开' : '❌ 关'
+      const em = config.forwardToEmail ? '✅ ' + config.forwardToEmail : '❌ 关'
+      let greetInfo = ''
+      if (config.greetingType === 'custom' && config.customAudioGreetingUrl) {
+        greetInfo = '🎤 自定义音频'
+      } else if (config.greetingType === 'custom' && config.customGreetingText) {
+        greetInfo = `📝 自定义："${config.customGreetingText}"`
+      } else {
+        greetInfo = '🔊 默认："您已接通 ' + formatPhone(number) + '。请在提示音后留言。"'
+      }
+      return `🎙️ <b>${formatPhone(number)}</b> 的语音信箱\n\n状态：✅ 已启用\n🎤 问候语：${greetInfo}\n\n📲 发送到 Telegram：${tg}\n📧 发送到邮箱：${em}\n⏰ 响铃时间：${config.ringTimeout || 25}秒`
+    },
+    voicemailEnabled: (number) => `✅ 已为 ${formatPhone(number)} 启用语音信箱！\n录音将发送到此 Telegram 聊天。`,
+    voicemailDisabled: (number) => `✅ 已为 ${formatPhone(number)} 关闭语音信箱。`,
+    vmGreetingMenu: (number, vm) => {
+      let current = ''
+      if (vm?.greetingType === 'custom' && vm?.customAudioGreetingUrl) {
+        current = '🎤 自定义音频\n📎 已上传音频文件'
+      } else if (vm?.greetingType === 'custom' && vm?.customGreetingText) {
+        current = `📝 自定义文本："${vm.customGreetingText}"`
+      } else {
+        current = `🔊 默认："您已接通 ${formatPhone(number)}。请在提示音后留言。"`
+      }
+      return `🔊 <b>语音信箱问候语</b> — <b>${formatPhone(number)}</b>\n\n当前：${current}\n\n请选择一个选项：`
+    },
+    vmSendAudioPrompt: '🎤 <b>自定义音频问候语</b>\n\n发送语音消息或音频文件作为语音信箱问候语。\n\n来电者将在到达语音信箱时听到此音频。\n\n<i>提示：录制专业问候语，如"您好，这里是[姓名]。我暂时无法接听。请在提示音后留言。"</i>',
+    vmAudioSaved: '✅ 自定义音频问候语已保存！来电者现在将听到您上传的问候语。',
+    vmDefaultRestored: '✅ 语音信箱问候语已恢复为默认。',
+    vmTextGreetingPrompt: '输入自定义问候语文本（将通过文字转语音朗读）：',
+    vmTextGreetingSet: (text) => `✅ 自定义文本问候语已保存！\n\n"${text}"`,
+    // SIP
+    sipCredentialsMsg: (number, username, domain) => `🔑 <b>${formatPhone(number)}</b> 的 SIP 凭据\n\n🌐 SIP 服务器：${domain}\n👤 用户名：<code>${username}</code>\n🔑 密码：●●●●●●●●\n📡 端口：5060 (UDP/TCP) · 5061 (TLS)\n🎵 编解码器：G.711μ, G.711a, Opus`,
+    sipRevealed: (password) => `🔑 密码：<code>${password}</code>\n\n⚠️ 请立即保存 — 此消息将在 30 秒后删除。`,
+    sipReset: (password) => `✅ SIP 密码已重置！\n\n🔑 新密码：<code>${password}</code>\n\n⚠️ 请立即保存。请在所有 SIP 设备上更新此密码。`,
+    softphoneGuide: (domain) => `📖 <b>SIP 设置指南</b>\n\n<b>🌐 浏览器（最简单）</b>\n直接在浏览器中拨打和接听电话：\n<a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>\n无需注册或安装应用。\n\n<b>Zoiper</b>（iOS / Android / 桌面）\n1. 从 App Store 或 Google Play 下载\n2. 添加账户 → SIP\n3. 输入 SIP 凭据（来自 🔑 SIP 凭据）\n4. 域名：<code>${domain}</code>\n5. 保存并拨打测试电话\n\n<b>任何 SIP 客户端</b>\n服务器：<code>${domain}</code>\n端口：5060 (UDP/TCP) 或 5061 (TLS)\nDTMF：RFC 2833 · 编解码器：G.711μ\n\n🧪 <b>免费测试通话：</b>\n在此发送 /testsip 获取测试码`,
+    // 续费
+    renewMenu: (number, plan, price, expiry, autoRenewOn) => `🔄 <b>${formatPhone(number)}</b> 的套餐\n\n当前套餐：${plan} — $${price}/月\n续费日期：${shortDate(expiry)}\n自动续费：${autoRenewOn ? '✅ 已开启' : '❌ 已关闭'}`,
+    // 删除
+    releaseConfirm: (number) => `🗑️ <b>删除 ${formatPhone(number)}？</b>\n\n⚠️ <b>此操作不可撤销。</b>\n\n• 号码将被永久删除\n• 月度套餐立即取消\n• 所有设置（转发、语音信箱、SIP）将被移除\n• 剩余天数不予退款\n\n确定要删除吗？`,
+    releaseConfirmDigits: (digits) => `⚠️ <b>最终确认</b>\n\n输入号码的最后 4 位以永久删除：<b>${digits}</b>`,
+    released: (number) => `✅ ${formatPhone(number)} 已被永久删除。\n\n套餐已取消。所有设置已移除。`,
+    // 实时事件
+    inboundSms: (to, from, body, time) => `📩 <b>收到短信</b>\n\n📞 收件人：${formatPhone(to)}\n👤 发件人：${formatPhone(from)}\n🕐 ${time}\n\n💬 "${body}"`,
+    missedCall: (to, from, time) => `📞 <b>未接来电</b>\n\n📞 被叫：${formatPhone(to)}\n👤 主叫：${formatPhone(from)}\n🕐 ${time}`,
+    callForwarded: (to, from, forwardedTo, duration, time) => `📞 <b>已转接来电</b>\n\n📞 被叫：${formatPhone(to)}\n👤 主叫：${formatPhone(from)}\n📲 转接到：${formatPhone(forwardedTo)}\n⏱️ 时长：${formatDuration(duration)}\n🕐 ${time}`,
+    newVoicemail: (to, from, duration, time) => `🎙️ <b>新语音留言</b>\n\n📞 被叫：${formatPhone(to)}\n👤 主叫：${formatPhone(from)}\n⏱️ 时长：${formatDuration(duration)}\n🕐 ${time}`,
+    // 到期提醒
+    expiryReminder: (number, days, plan, price, balance) => `🔔 <b>续费提醒</b>\n\n您的云电话号码 ${formatPhone(number)}（${plan} 套餐）将在 <b>${days} 天</b>后到期。\n\n钱包余额：$${balance}\n套餐价格：$${price}/月${balance < price ? '\n\n⚠️ 余额不足。请充值。' : ''}`,
+    autoRenewed: (number, plan, price, newExpiry, oldBal, newBal) => `✅ <b>自动续费成功</b>\n\n📞 ${formatPhone(number)}\n📦 套餐：${plan}（$${price}/月）\n📅 新到期日：${shortDate(newExpiry)}\n钱包：$${oldBal} → $${newBal}`,
+    autoRenewFailed: (number, plan, price, balance) => `❌ <b>自动续费失败</b>\n\n📞 ${formatPhone(number)}\n📦 套餐：${plan}（$${price}/月）\n💰 钱包：$${balance}（需要 $${price}）\n\n⚠️ 您的号码已被暂停。请在 7 天内充值并续费。`,
+    // IVR
+    ivrMenu: (number, config) => {
+      if (!config?.enabled) {
+        return `🤖 <b>IVR / 自动应答</b> — <b>${formatPhone(number)}</b>\n\n状态：❌ 已关闭\n\n启用后，来电者将听到问候菜单并可按键到达相应目的地。`
+      }
+      let text = `🤖 <b>IVR / 自动应答</b> — <b>${formatPhone(number)}</b>\n\n状态：✅ 已启用\n\n🎤 问候语："${config.greeting || '默认'}"\n\n📋 <b>菜单选项：</b>\n`
+      if (config.options && Object.keys(config.options).length > 0) {
+        Object.entries(config.options).forEach(([key, opt]) => {
+          text += `  按 <b>${key}</b> → ${opt.action === 'forward' ? '📲 转接到 ' + formatPhone(opt.forwardTo) : opt.action === 'voicemail' ? '🎙️ 语音信箱' : '🔊 ' + (opt.message || '播放消息')}\n`
+        })
+      } else {
+        text += '  尚未配置选项。\n'
+      }
+      return text
+    },
+    ivrEnabled: (number) => `✅ 已为 ${formatPhone(number)} 启用 IVR / 自动应答！\n\n来电者将听到您的问候语并可按键导航。`,
+    ivrDisabled: (number) => `✅ 已为 ${formatPhone(number)} 关闭 IVR / 自动应答。`,
+    ivrSetGreeting: '输入 IVR 问候语（来电者将听到的内容）：\n\n示例："感谢来电。按 1 转支持，按 2 转销售，或继续等待。"',
+    ivrGreetingSet: (greeting) => `✅ IVR 问候语已更新！\n\n"${greeting}"`,
+    ivrAddOption: '输入按键和操作，格式如下：\n\n<code>按键 操作 目标</code>\n\n示例：\n• <code>1 forward +14155551234</code>\n• <code>2 voicemail</code>\n• <code>3 message 我们会回电给您</code>\n• <code>0 forward +14155559999</code>',
+    ivrOptionAdded: (key, action, destination) => `✅ IVR 选项已添加！\n\n按 <b>${key}</b> → ${action === 'forward' ? '📲 转接到 ' + formatPhone(destination) : action === 'voicemail' ? '🎙️ 语音信箱' : '🔊 ' + destination}`,
+    ivrOptionRemoved: (key) => `✅ 按键 <b>${key}</b> 的 IVR 选项已删除。`,
+    ivrInvalidFormat: '❌ 格式无效。请使用：\n<code>按键 操作 目标</code>\n\n示例：<code>1 forward +14155551234</code>',
+    ivrAnalyticsReport: (number, data) => {
+      let text = `📊 <b>IVR 分析</b> — <b>${formatPhone(number)}</b>\n（最近 30 天）\n\n`
+      text += `📞 IVR 总来电：<b>${data.totalCalls}</b>\n`
+      if (data.topOption) text += `🏆 最常按键：<b>${data.topOption.digit}</b>（${data.topOption.count} 次，${data.topOption.percent}%）\n`
+      text += '\n'
+      if (data.optionBreakdown.length > 0) {
+        text += '📋 <b>选项分布：</b>\n'
+        data.optionBreakdown.forEach(o => {
+          const bar = '█'.repeat(Math.max(1, Math.round(o.percent / 10))) + '░'.repeat(Math.max(0, 10 - Math.round(o.percent / 10)))
+          text += `  按键 <b>${o.digit}</b>：${bar} ${o.count}（${o.percent}%）\n`
+        })
+        text += '\n'
+      }
+      if (data.recentCalls.length > 0) {
+        text += '📱 <b>最近 IVR 来电：</b>\n'
+        data.recentCalls.forEach(c => {
+          text += `  ${formatPhone(c.from)} → 按键 <b>${c.digit}</b>（${c.action}）${shortDate(c.time)}\n`
+        })
+      }
+      if (data.totalCalls === 0) text += '\n暂无 IVR 通话记录。'
+      return text
+    },
+    // 录音
+    recordingMenu: (number, config) => {
+      const enabled = config?.recording === true
+      return `🔴 <b>通话录音</b> — <b>${formatPhone(number)}</b>\n\n状态：${enabled ? '✅ 已启用' : '❌ 已关闭'}\n\n启用后，所有来电和去电将自动录音。录音将发送到您的 Telegram 聊天。`
+    },
+    recordingEnabled: (number) => `✅ 已为 ${formatPhone(number)} 启用通话录音！\n\n所有通话将被录音并发送到此聊天。`,
+    recordingDisabled: (number) => `✅ 已为 ${formatPhone(number)} 关闭通话录音。`,
+    // 短信收件箱
+    smsInboxHeader: (number, total) => `📨 <b>短信收件箱</b> — <b>${formatPhone(number)}</b>\n\n${total === 0 ? '暂无收到的消息。' : `收到 ${total} 条消息：`}`,
+    smsInboxEntry: (i, from, name, body, time) => {
+      const nameDisplay = name && name !== 'None' ? `（${name}）` : ''
+      const bodyPreview = body.length > 80 ? body.substring(0, 80) + '...' : body
+      return `\n<b>${i}.</b> ${formatPhone(from)}${nameDisplay}\n   💬 "${bodyPreview}"\n   🕐 ${time}\n`
+    },
+    smsInboxEmpty: '此号码暂未收到来电短信。\n\n<i>当有人给您的号码发短信时，消息将显示在这里。</i>',
+    smsInboxFooter: (page, totalPages) => totalPages > 1 ? `\n📄 第 ${page}/${totalPages} 页` : '',
     btnUploadAudio: '📎 上传音频',
     btnConfirm: '✅ 确认',
     btnChangeVoice: '🎤 更换语音',
