@@ -153,7 +153,8 @@ async function runExpiryCheck() {
             modified = true
             suspended++
             await releaseFromProvider(num, user.val)
-            sendToUser(chatId, buildSuspendedMsg(num))
+            const userLang = await _getUserLang(chatId)
+            sendToUser(chatId, buildSuspendedMsg(num, userLang))
             const name = await get(_nameOf, chatId)
             _notifyGroup?.(`📤 <b>Expired + Released:</b> ${_maskName?.(name)} lost ${formatPhone(num.phoneNumber)} (no auto-renew)`)
             log(`[PhoneScheduler] Expired, released from provider (no auto-renew): ${chatId} ${num.phoneNumber}`)
