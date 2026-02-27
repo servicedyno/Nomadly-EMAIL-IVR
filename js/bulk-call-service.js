@@ -1,6 +1,7 @@
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Bulk Call Campaign Service — Launch, manage, and report on multi-call campaigns
+// Bulk Call Campaign Service — Twilio-based IVR campaigns
 // Handles concurrent call queues, per-lead result tracking, and final reporting
+// Uses Twilio's TwiML webhooks for IVR logic (play audio, gather DTMF, transfer)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const crypto = require('crypto')
 const fs = require('fs')
@@ -10,26 +11,26 @@ const { log } = require('console')
 let _db = null
 let _collection = null
 let _bot = null
-let _voiceService = null
+let _twilioService = null
 
 // Active campaigns in memory: campaignId → { queue state }
 const activeCampaigns = {}
 
-// Map: callControlId → { campaignId, leadIndex }
+// Map: callSid → { campaignId, leadIndex }
 const callToCampaign = {}
 
 /**
  * Initialize bulk call service
  */
-async function initBulkCallService(db, bot, voiceService) {
+async function initBulkCallService(db, bot, twilioService) {
   _db = db
   _bot = bot
-  _voiceService = voiceService
+  _twilioService = twilioService
   _collection = db.collection('bulkCallCampaigns')
   await _collection.createIndex({ chatId: 1 })
   await _collection.createIndex({ id: 1 }, { unique: true })
   await _collection.createIndex({ status: 1 })
-  log('[BulkCall] Service initialized')
+  log('[BulkCall] Service initialized (Twilio mode)')
 }
 
 /**
@@ -102,7 +103,7 @@ async function createCampaign(params) {
       transferred: false,
       transferConnected: false,
       duration: 0,
-      callControlId: null,
+      callSid: null,
       startedAt: null,
       answeredAt: null,
       completedAt: null,
@@ -131,7 +132,7 @@ async function createCampaign(params) {
 }
 
 /**
- * Start a campaign — begin dialing leads
+ * Start a campaign — begin dialing leads via Twilio
  */
 async function startCampaign(campaignId) {
   const campaign = await _collection.findOne({ id: campaignId })
@@ -158,7 +159,8 @@ async function startCampaign(campaignId) {
     `🎵 Audio: <b>${campaign.audioName}</b>\n` +
     `📱 Caller ID: <b>${campaign.callerId}</b>\n` +
     `⚡ Concurrency: <b>${campaign.concurrency}</b>\n` +
-    `📊 Mode: <b>${campaign.mode === 'transfer' ? '🔗 Transfer + Report' : '📊 Report Only'}</b>\n\n` +
+    `📊 Mode: <b>${campaign.mode === 'transfer' ? '🔗 Transfer + Report' : '📊 Report Only'}</b>\n` +
+    `☎️ Provider: <b>Twilio</b>\n\n` +
     `Dialing now... You'll receive updates as calls complete.`,
     { parse_mode: 'HTML' }
   ).catch(() => {})
@@ -169,7 +171,7 @@ async function startCampaign(campaignId) {
 }
 
 /**
- * Fire the next batch of calls up to concurrency limit
+ * Fire the next batch of calls up to concurrency limit via Twilio
  */
 async function fireNextBatch(campaignId) {
   const state = activeCampaigns[campaignId]
@@ -181,6 +183,8 @@ async function fireNextBatch(campaignId) {
   const available = campaign.concurrency - state.activeCalls
   if (available <= 0) return
 
+  const SELF_URL = process.env.SELF_URL_PROD || process.env.SELF_URL || ''
+
   // Find pending leads
   const pendingLeads = campaign.leads.filter(l => l.status === 'pending')
   const toFire = pendingLeads.slice(0, available)
@@ -189,23 +193,21 @@ async function fireNextBatch(campaignId) {
     state.activeCalls++
 
     try {
-      const result = await _voiceService.initiateOutboundIvrCall({
-        chatId: campaign.chatId,
-        callerId: campaign.callerId,
-        targetNumber: lead.number,
-        ivrNumber: campaign.transferNumber || campaign.callerId, // fallback to callerId
-        audioUrl: campaign.audioUrl,
-        activeKeys: campaign.activeKeys,
-        templateName: `Bulk Campaign`,
-        placeholderValues: {},
-        voiceName: 'Campaign',
-        isTrial: false,
-        holdMusic: campaign.holdMusic,
-        // Bulk campaign metadata
-        campaignId: campaignId,
-        leadIndex: lead.index,
-        bulkMode: campaign.mode, // 'transfer' or 'report_only'
-      })
+      // Build TwiML URL with campaign context
+      const twimlUrl = `${SELF_URL}/twilio/bulk-ivr?campaignId=${encodeURIComponent(campaignId)}&leadIndex=${lead.index}`
+      const statusUrl = `${SELF_URL}/twilio/bulk-status?campaignId=${encodeURIComponent(campaignId)}&leadIndex=${lead.index}`
+
+      const result = await _twilioService.makeOutboundCall(
+        campaign.callerId,
+        lead.number,
+        twimlUrl,
+        null, null, // no sub-account
+        {
+          statusCallback: statusUrl,
+          statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
+          timeout: 30, // ring for 30s
+        }
+      )
 
       if (result.error) {
         state.activeCalls--
@@ -214,15 +216,22 @@ async function fireNextBatch(campaignId) {
           hangupCause: result.error,
           completedAt: new Date(),
         })
-        log(`[BulkCall] Call failed for ${lead.number}: ${result.error}`)
+        log(`[BulkCall] Twilio call failed for ${lead.number}: ${result.error}`)
+        // Recalc and check completion after failure
+        await recalcStats(campaignId)
+        await sendProgressUpdate(campaignId, lead.index, {
+          status: 'failed', hangupCause: result.error, duration: 0,
+        })
+        await checkCampaignCompletion(campaignId)
       } else {
-        // Map callControlId to campaign
-        callToCampaign[result.callControlId] = { campaignId, leadIndex: lead.index }
+        // Map callSid to campaign
+        callToCampaign[result.callSid] = { campaignId, leadIndex: lead.index }
         await updateLeadResult(campaignId, lead.index, {
           status: 'calling',
-          callControlId: result.callControlId,
+          callSid: result.callSid,
           startedAt: new Date(),
         })
+        log(`[BulkCall] Twilio call initiated: ${result.callSid} → ${lead.number}`)
       }
     } catch (e) {
       state.activeCalls--
@@ -231,12 +240,16 @@ async function fireNextBatch(campaignId) {
         hangupCause: e.message,
         completedAt: new Date(),
       })
-      log(`[BulkCall] Call error for ${lead.number}: ${e.message}`)
+      log(`[BulkCall] Twilio call error for ${lead.number}: ${e.message}`)
+      await recalcStats(campaignId)
+      await checkCampaignCompletion(campaignId)
     }
   }
 
-  // Check if all calls have been attempted and none are active
-  await checkCampaignCompletion(campaignId)
+  // Check if all done (in case all calls failed immediately)
+  if (toFire.length === 0) {
+    await checkCampaignCompletion(campaignId)
+  }
 }
 
 /**
@@ -251,45 +264,84 @@ async function updateLeadResult(campaignId, leadIndex, updates) {
 }
 
 /**
- * Called by voice-service when a bulk campaign call completes (hangup)
- * @param {string} callControlId
- * @param {object} result - { status, digitPressed, duration, hangupCause, transferred, transferConnected }
+ * Called when a DTMF digit is received (from TwiML gather callback)
  */
-async function onCallComplete(callControlId, result) {
-  const mapping = callToCampaign[callControlId]
-  if (!mapping) return false
-
-  const { campaignId, leadIndex } = mapping
-  delete callToCampaign[callControlId]
-
-  const state = activeCampaigns[campaignId]
-  if (state) state.activeCalls = Math.max(0, state.activeCalls - 1)
-
-  // Update lead result
+async function onDigitReceived(campaignId, leadIndex, digit) {
   await updateLeadResult(campaignId, leadIndex, {
-    status: result.status || 'completed',
-    digitPressed: result.digitPressed || null,
-    transferred: result.transferred || false,
-    transferConnected: result.transferConnected || false,
-    duration: result.duration || 0,
-    answeredAt: result.answeredAt || null,
-    completedAt: new Date(),
-    hangupCause: result.hangupCause || null,
+    digitPressed: digit,
   })
+  log(`[BulkCall] Digit received: campaign=${campaignId} lead=${leadIndex} digit=${digit}`)
+}
 
-  // Update campaign stats
-  await recalcStats(campaignId)
+/**
+ * Called when a call status update is received from Twilio
+ * This handles ringing, answered, and completed statuses
+ */
+async function onCallStatusUpdate(callSid, campaignId, leadIndex, status, duration, hangupCause) {
+  const campaign = await _collection.findOne({ id: campaignId })
+  if (!campaign) return
 
-  // Send progress update
-  await sendProgressUpdate(campaignId, leadIndex, result)
+  const lead = campaign.leads[leadIndex]
+  if (!lead) return
 
-  // Fire next calls
-  await fireNextBatch(campaignId)
+  if (status === 'ringing' && lead.status === 'calling') {
+    await updateLeadResult(campaignId, leadIndex, { status: 'ringing' })
+    return
+  }
 
-  // Check if campaign is complete
-  await checkCampaignCompletion(campaignId)
+  if (status === 'in-progress' && lead.status !== 'answered') {
+    await updateLeadResult(campaignId, leadIndex, {
+      status: 'answered',
+      answeredAt: new Date(),
+    })
+    return
+  }
 
-  return true
+  // Terminal statuses
+  if (['completed', 'no-answer', 'busy', 'failed', 'canceled'].includes(status)) {
+    const state = activeCampaigns[campaignId]
+    if (state) state.activeCalls = Math.max(0, state.activeCalls - 1)
+
+    // Clean up callSid mapping
+    if (callSid) delete callToCampaign[callSid]
+
+    // Refresh lead data to get digitPressed
+    const freshCampaign = await _collection.findOne({ id: campaignId })
+    const freshLead = freshCampaign?.leads[leadIndex]
+    const digitPressed = freshLead?.digitPressed || null
+
+    // Map Twilio status to our status
+    let finalStatus = 'completed'
+    if (status === 'no-answer') finalStatus = 'no_answer'
+    else if (status === 'busy') finalStatus = 'busy'
+    else if (status === 'failed' || status === 'canceled') finalStatus = 'failed'
+
+    // Determine if transferred (transfer mode + digit pressed)
+    const transferred = freshCampaign.mode === 'transfer' && digitPressed && freshCampaign.activeKeys.includes(digitPressed)
+
+    await updateLeadResult(campaignId, leadIndex, {
+      status: finalStatus,
+      duration: duration || 0,
+      hangupCause: hangupCause || null,
+      completedAt: new Date(),
+      transferred,
+      transferConnected: transferred, // Twilio Dial handles this — if completed it connected
+    })
+
+    await recalcStats(campaignId)
+    await sendProgressUpdate(campaignId, leadIndex, {
+      status: finalStatus,
+      digitPressed,
+      duration: duration || 0,
+      hangupCause,
+      transferred,
+      transferConnected: transferred,
+    })
+
+    // Fire next batch
+    await fireNextBatch(campaignId)
+    await checkCampaignCompletion(campaignId)
+  }
 }
 
 /**
@@ -319,10 +371,11 @@ async function recalcStats(campaignId) {
     else if (lead.status === 'failed') stats.failed++
     else {
       // answered/completed/transferred
-      stats.answered++
+      if (lead.duration > 0 || lead.status === 'answered' || lead.digitPressed) stats.answered++
       if (lead.digitPressed) stats.keyPressed++
       if (lead.transferred) stats.transferred++
-      if (!lead.digitPressed && lead.duration > 0) stats.hungUp++
+      if (!lead.digitPressed && lead.duration > 0 && lead.duration < 3) stats.hungUp++
+      else if (!lead.digitPressed && lead.duration > 0) stats.hungUp++
     }
   }
 
@@ -416,6 +469,7 @@ async function sendFinalReport(campaignId) {
     ``,
     `📱 Caller ID: <b>${campaign.callerId}</b>`,
     `🎵 Audio: <b>${campaign.audioName}</b>`,
+    `☎️ Provider: <b>Twilio</b>`,
     `⏱ Duration: <b>${durMin}m ${durSec}s</b>`,
     ``,
     `📞 Total Calls: <b>${stats.total}</b>`,
@@ -484,8 +538,8 @@ async function cancelCampaign(campaignId) {
   delete activeCampaigns[campaignId]
 
   // Clean up callToCampaign mappings for this campaign
-  for (const [ccId, mapping] of Object.entries(callToCampaign)) {
-    if (mapping.campaignId === campaignId) delete callToCampaign[ccId]
+  for (const [sid, mapping] of Object.entries(callToCampaign)) {
+    if (mapping.campaignId === campaignId) delete callToCampaign[sid]
   }
 
   log(`[BulkCall] Campaign ${campaignId} cancelled`)
@@ -518,17 +572,17 @@ async function getUserCampaigns(chatId, limit = 10) {
 }
 
 /**
- * Check if a callControlId belongs to a bulk campaign
+ * Check if a callSid belongs to a bulk campaign
  */
-function isBulkCall(callControlId) {
-  return !!callToCampaign[callControlId]
+function isBulkCall(callSid) {
+  return !!callToCampaign[callSid]
 }
 
 /**
- * Get campaign mapping for a callControlId
+ * Get campaign mapping for a callSid
  */
-function getCampaignMapping(callControlId) {
-  return callToCampaign[callControlId] || null
+function getCampaignMapping(callSid) {
+  return callToCampaign[callSid] || null
 }
 
 module.exports = {
@@ -536,7 +590,8 @@ module.exports = {
   parseLeadsFile,
   createCampaign,
   startCampaign,
-  onCallComplete,
+  onDigitReceived,
+  onCallStatusUpdate,
   cancelCampaign,
   pauseCampaign,
   getCampaign,
