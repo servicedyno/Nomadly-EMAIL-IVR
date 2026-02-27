@@ -430,6 +430,18 @@ metadata:
           agent: "main"
           comment: "DynoPay SSL cert broken (api.dynopay.com resolves to *.up.railway.app cert). All 10 crypto payment flows updated: wallet, digital product, virtual card, domain, hosting, VPS, VPS upgrade, plan, phone, leads. Each DynoPay else-branch now tries DynoPay first, and if getDynopayCryptoAddress returns no address, falls back to BlockBee via getCryptoDepositAddress(). Fallback tracks payment in chatIdOfPayment (BlockBee collection) instead of chatIdOfDynopayPayment, uses sendQrCode instead of generateQr. Log lines tagged [CryptoFallback]. Hosting payment also updates paymentIntents provider field to 'blockbee' on fallback."
 
+  - task: "Plan Gating — IVR Outbound Call and Bulk Call Campaign features"
+    implemented: true
+    working: true
+    file: "js/phone-config.js, js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ PLAN GATING COMPREHENSIVE VERIFICATION COMPLETE: All plan gating requirements tested with 100% success rate (35/35 tests passed). (1) SERVICE STARTUP: Node.js backend running healthy on port 5000 with database connected. (2) FEATURE ACCESS MATRIX: Complete verification of planFeatureAccess structure - starter has 2 true values (callForwarding, smsToTelegram), pro has 8 true values (adds smsToEmail, smsWebhook, voicemail, sipCredentials, ivrOutbound, bulkCall), business has 10 true values (all features). All canAccessFeature() calls return correct boolean values matching specification. (3) UPGRADE MESSAGES: upgradeMessage() function correctly generates messages for ivrOutbound→Pro, bulkCall→Pro, ivr→Business, sipCredentials→Pro with proper feature names and required plans. (4) BOT FLOW GATING: Both IVR Outbound Call and Bulk Call Campaign handlers in _index.js call phoneConfig.canAccessFeature(n.plan, 'ivrOutbound'/'bulkCall') before allowing access and show phoneConfig.upgradeMessage() for insufficient plans. (5) EXISTING FEATURES: All legacy feature gating still works correctly (callRecording→Business, voicemail→Pro+, etc.). (6) STRUCTURAL INTEGRITY: All plans have exactly 10 feature keys as expected, planFeatureAccess object properly structured. ALL REVIEW REQUEST REQUIREMENTS MET - plan gating is production-ready and working correctly."
+
 test_plan:
   current_focus:
     - "Fix: Phone reviews not working on Railway — catch-all route order + collection mismatch"
