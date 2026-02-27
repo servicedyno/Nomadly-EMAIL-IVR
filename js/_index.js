@@ -8070,43 +8070,46 @@ bot?.on('message', async msg => {
         return send(chatId, phoneConfig.upgradeMessage('bulkCall', currentPlan), k.of([]))
       }
 
-      // Get Twilio verified caller IDs
+      // Get verified caller IDs that support bulk IVR
       let verifiedIds = []
       try {
         const twilioClient = twilioService.getClient()
         if (twilioClient) {
           const ids = await twilioClient.outgoingCallerIds.list({ limit: 20 })
-          verifiedIds = ids.map(id => ({ phoneNumber: id.phoneNumber, label: `${id.phoneNumber} (Twilio Verified)`, type: 'verified' }))
+          verifiedIds = ids.map(id => ({ phoneNumber: id.phoneNumber, label: `${id.phoneNumber} (Verified)`, type: 'verified' }))
         }
       } catch (e) {
         log(`[BulkCall] Error fetching verified IDs: ${e.message}`)
       }
 
-      // Build caller ID list — only numbers with eligible plans + verified IDs
-      const eligibleNumbers = userNumbers.filter(n => phoneConfig.canAccessFeature(n.plan, 'bulkCall'))
-      const twilioNumbers = eligibleNumbers.filter(n => n.provider === 'twilio').map(n => ({
+      // Build caller ID list — only Bulk IVR capable numbers (Twilio) + verified IDs
+      const bulkCapableNumbers = eligibleNumbers.filter(n => n.provider === 'twilio').map(n => ({
         phoneNumber: n.phoneNumber,
-        label: `${n.phoneNumber} (Twilio)`,
+        label: `${n.phoneNumber} ☎️`,
         type: 'owned_twilio',
         subAccountSid: n.twilioSubAccountSid || userData?.twilioSubAccountSid || null,
         subAccountToken: n.twilioSubAccountToken || userData?.twilioSubAccountToken || null,
       }))
-      const telnyxNumbers = eligibleNumbers.filter(n => n.provider === 'telnyx').map(n => ({
+      const nonBulkNumbers = eligibleNumbers.filter(n => n.provider !== 'twilio').map(n => ({
         phoneNumber: n.phoneNumber,
-        label: `${n.phoneNumber} (Telnyx ⚠️)`,
-        type: 'telnyx',
+        label: `${n.phoneNumber} ⚠️ Not supported`,
+        type: 'not_bulk_capable',
       }))
 
-      const allCallerIds = [...twilioNumbers, ...verifiedIds, ...telnyxNumbers]
+      const allCallerIds = [...bulkCapableNumbers, ...verifiedIds]
 
       if (allCallerIds.length === 0) {
-        return send(chatId, `📞 <b>Bulk Call Campaign</b>\n\nYou need a Twilio phone number or verified Twilio caller ID to launch campaigns.\n\n⚠️ Telnyx numbers cannot be used as Twilio caller IDs.\n\nTap <b>${pc.buyPhoneNumber}</b> to get a Twilio number.`, k.of([[pc.buyPhoneNumber]]))
+        const hasNonBulk = nonBulkNumbers.length > 0
+        const msg = hasNonBulk
+          ? `📞 <b>Bulk Call Campaign</b>\n\n⚠️ None of your numbers support Bulk IVR.\n\nWhen purchasing a new number, look for the ☎️ <b>Bulk IVR</b> badge to get a Bulk IVR capable number.`
+          : `📞 <b>Bulk Call Campaign</b>\n\nYou need a ☎️ Bulk IVR capable number to launch campaigns.\n\nTap <b>${pc.buyPhoneNumber}</b> and choose a number with the ☎️ badge.`
+        return send(chatId, msg, k.of([[pc.buyPhoneNumber]]))
       }
       await saveInfo('bulkData', {})
       await saveInfo('bulkCallerIds', allCallerIds)
       set(state, chatId, 'action', a.bulkSelectCaller)
       const numBtns = allCallerIds.map(c => [c.label])
-      return send(chatId, `📞 <b>Bulk Call Campaign</b>\n\nLaunch automated Twilio IVR calls to multiple leads.\n\n⚠️ <b>Twilio numbers</b> and <b>Verified IDs</b> work as caller ID.\n⚠️ <b>Telnyx numbers</b> marked with ⚠️ — Twilio may reject them unless verified.\n\n📱 Select the Caller ID:`, k.of([...numBtns, ['↩️ Back']]))
+      return send(chatId, `📞 <b>Bulk Call Campaign</b>\n\nLaunch automated IVR calls to multiple leads.\n\n☎️ = Bulk IVR capable numbers\n\n📱 Select the Caller ID:`, k.of([...numBtns, ['↩️ Back']]))
     }
 
     // ── Audio Library ──
