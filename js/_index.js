@@ -13831,6 +13831,7 @@ app.get('/crypto-pay-phone', auth, async (req, res) => {
   if (!ref || !chatId || !price || !coin || !value || !cpData) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
   const info = await state.findOne({ _id: parseFloat(chatId) })
   const lang = info?.userLanguage ?? 'en'
+  const cpTxt = phoneConfig.getTxt(lang)
   const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
   del(chatIdOfPayment, ref)
   const name = await get(nameOf, chatId)
