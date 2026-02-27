@@ -9,10 +9,12 @@ const crypto = require('crypto')
 const axios = require('axios')
 const { MongoClient } = require('mongodb')
 
-// Configuration
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000'
+// Configuration - Load env from backend .env file
+require('dotenv').config({ path: '/app/backend/.env' })
+const BACKEND_URL = 'https://config-setup-guide.preview.emergentagent.com'
 const API_BASE = `${BACKEND_URL}/api`
 const MONGO_URL = process.env.MONGO_URL
+const DB_NAME = process.env.DB_NAME || 'test'
 
 // Test state
 let db = null
