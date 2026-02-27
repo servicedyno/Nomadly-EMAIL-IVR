@@ -39,6 +39,7 @@ function initPhoneScheduler(deps) {
   _walletOf = deps.walletOf
   _payments = deps.payments
   _nameOf = deps.nameOf
+  _stateOf = deps.stateOf
   _notifyGroup = deps.notifyGroup
   _maskName = deps.maskName
   _nanoid = deps.nanoid
