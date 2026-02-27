@@ -163,6 +163,12 @@ const user = {
   revealCredentials: '🔑 क्रेडेंशियल दिखाएं',
   renewHostingPlan: '🔄 प्लान नवीनीकरण',
   backToMyHostingPlans: '⬅️ मेरे प्लान पर वापस',
+  buyLeads: '🎯 फ़ोन लीड्स खरीदें',
+  validateLeads: '✅ नंबर सत्यापित करें',
+  shortenLink: '✂️ लिंक छोटा करें',
+  confirmRenewNow: '✅ पुष्टि करें और भुगतान करें',
+  cancelRenewNow: '❌ रद्द करें',
+  toggleAutoRenew: '🔁 ऑटो-रिन्यू चालू/बंद',
 }
 
 const u = {
