@@ -1202,7 +1202,7 @@ bot?.on('message', async msg => {
           send(chatId, cpTxt.vmAudioSaved)
           await set(state, chatId, { ...userInfo, action: 'cpVoicemail' })
           const btns = vm.enabled
-            ? [['🔊 Greeting'],
+            ? [[({ en: '🔊 Greeting', fr: '🔊 Message', zh: '🔊 问候语', hi: '🔊 ग्रीटिंग' }[lang] || '🔊 Greeting')],
                ['📲 VM to Telegram ' + (vm.forwardToTelegram !== false ? '✅ ON' : '❌ OFF')],
                ['📧 VM to Email ' + (vm.forwardToEmail ? '✅ ' + vm.forwardToEmail : '❌ OFF')],
                [`⏰ Ring Time: ${vm.ringTimeout || 25}s`],
@@ -10134,7 +10134,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       ]))
     }
     // Toggle VM to Telegram
-    if (message.startsWith('📲 VM to Telegram')) {
+    if ((message.startsWith('📲 VM to Telegram') || message.startsWith('📲 VM sur Telegram') || message.startsWith('📲 语音信箱到 Telegram') || message.startsWith('📲 VM Telegram'))) {
       const vm = num.features?.voicemail || {}
       const newState = vm.forwardToTelegram === false
       await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'voicemail', { ...vm, forwardToTelegram: newState })
@@ -10143,8 +10143,8 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       send(chatId, phoneConfig.getMsg(info?.userLanguage).vmTelegramToggled(newState))
     }
     // Ring time
-    if (message.startsWith('⏰ Ring Time')) {
-      return send(chatId, 'How long should the phone ring before voicemail?', k.of([['15s', '20s', '25s', '30s']]))
+    if ((message.startsWith('⏰ Ring Time') || message.startsWith('⏰ Temps de sonnerie') || message.startsWith('⏰ 响铃时间') || message.startsWith('⏰ रिंग टाइम'))) {
+      return send(chatId, ({ en: 'How long should the phone ring before voicemail?', fr: 'Combien de temps le téléphone doit-il sonner avant la messagerie ?', zh: '电话应该响多长时间才转语音信箱？', hi: 'वॉइसमेल से पहले फ़ोन कितनी देर बजे?' }[lang] || 'How long should the phone ring before voicemail?'), k.of([['15s', '20s', '25s', '30s']]))
     }
     const ringMatch = message.match(/^(\d+)s$/)
     if (ringMatch) {
@@ -10180,7 +10180,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     if (message === pc.vmCustomGreeting) {
       set(state, chatId, 'action', a.cpVmAudioUpload)
       await saveInfo('cpTtsDraft', { type: 'vmGreeting' })
-      return send(chatId, `🎤 <b>Custom Greeting</b>\n\nChoose how to create your greeting:`, k.of([[{ en: "📋 Use Template", fr: "📋 Utiliser un Modèle", zh: "📋 使用模板", hi: "📋 टेम्पलेट उपयोग" }[lang] || "📋 Use Template"], [{ en: "📝 Type Text (AI Voice)", fr: "📝 Saisir Texte (IA Vocale)", zh: "📝 输入文字 (AI 语音)", hi: "📝 टेक्स्ट टाइप (AI वॉइस)" }[lang] || "📝 Type Text (AI Voice)"], [{ en: "🎙️ Upload Audio", fr: "🎙️ Uploader Audio", zh: "🎙️ 上传音频", hi: "🎙️ ऑडियो अपलोड" }[lang] || "🎙️ Upload Audio"]]))
+      return send(chatId, ({ en: `🎤 <b>Custom Greeting</b>\n\nChoose how to create your greeting:`, fr: `🎤 <b>Message personnalisé</b>\n\nChoisissez comment créer votre message :`, zh: `🎤 <b>自定义问候语</b>\n\n选择创建方式：`, hi: `🎤 <b>कस्टम ग्रीटिंग</b>\n\nग्रीटिंग बनाने का तरीका चुनें:` }[lang] || `🎤 <b>Custom Greeting</b>\n\nChoose how to create your greeting:`), k.of([[{ en: "📋 Use Template", fr: "📋 Utiliser un Modèle", zh: "📋 使用模板", hi: "📋 टेम्पलेट उपयोग" }[lang] || "📋 Use Template"], [{ en: "📝 Type Text (AI Voice)", fr: "📝 Saisir Texte (IA Vocale)", zh: "📝 输入文字 (AI 语音)", hi: "📝 टेक्स्ट टाइप (AI वॉइस)" }[lang] || "📝 Type Text (AI Voice)"], [{ en: "🎙️ Upload Audio", fr: "🎙️ Uploader Audio", zh: "🎙️ 上传音频", hi: "🎙️ ऑडियो अपलोड" }[lang] || "🎙️ Upload Audio"]]))
     }
     if (message === pc.vmDefaultGreeting) {
       const vm = num.features?.voicemail || {}
@@ -10190,7 +10190,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'voicemail', vm)
       num.features.voicemail = vm
       await saveInfo('cpActiveNumber', num)
-      send(chatId, `✅ Default greeting restored.`)
+      send(chatId, ({ en: '✅ Default greeting restored.', fr: '✅ Message par défaut restauré.', zh: '✅ 默认问候语已恢复。', hi: '✅ डिफ़ॉल्ट ग्रीटिंग बहाल।' }[lang] || '✅ Default greeting restored.'))
       set(state, chatId, 'action', a.cpVoicemail)
       const btns = [['🔊 Greeting'],
            ['📲 VM to Telegram ' + (vm.forwardToTelegram !== false ? '✅ ON' : '❌ OFF')],
