@@ -1445,6 +1445,7 @@ bot?.on('message', async msg => {
   }
 
   const action = info?.action
+  const cpTxt = phoneConfig.getTxt(info?.userLanguage || 'en')
 
   const trans = (key, ...args) => {
     const lang = info?.userLanguage || 'en';
