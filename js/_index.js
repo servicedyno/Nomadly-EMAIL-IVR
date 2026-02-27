@@ -7981,9 +7981,9 @@ bot?.on('message', async msg => {
 
   if (action === a.submenu5) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
-    const buyLabel = phoneConfig.getBtnLabel('buyPhoneNumber', info?.userLanguage || 'en')
+    const buyLabel = pc.buyPhoneNumber
     if (message === t.back || message === pc.back || message === t.cancel || message === pc.cancel) return send(chatId, t.userPressedBtn(message), trans('o'))
-    if (phoneConfig.isBtnMatch(message, 'buyPhoneNumber')) {
+    if (phoneConfig.btnKeyOf(message) === 'buyPhoneNumber') {
       // Step 1: Select Plan FIRST
       set(state, chatId, 'action', a.cpSelectPlan)
       const availablePlanBtns = []
