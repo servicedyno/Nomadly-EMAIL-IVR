@@ -843,6 +843,10 @@ const loadData = async () => {
     else log('[Honeypot] KV namespace not available (Cloudflare credentials may be missing)')
   }).catch(err => log(`[Honeypot] KV init warning: ${err.message}`))
 
+  // Initialize Audio Library + Bulk Call Service
+  audioLibraryService.initAudioLibrary(db)
+  bulkCallService.initBulkCallService(db, bot, require('./voice-service.js'))
+
   // Upload latest anti-red worker script (with honeypots + KV binding) on startup.
   // This ensures the shared 'antired-challenge' worker on Cloudflare is always current,
   // even if it was uploaded before honeypot integration was added.
