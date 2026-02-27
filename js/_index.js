@@ -2545,7 +2545,7 @@ bot?.on('message', async msg => {
       set(state, chatId, 'action', a.customLeadRequestName)
     },
     customLeadRequestCity: () => {
-      send(chatId, `🏙️ Which city or area do you want leads from?\n\nTarget: <b>${info?.customLeadTarget}</b>\n\nType the city name or "Nationwide" for all areas:`, { parse_mode: 'HTML', reply_markup: { keyboard: [['Nationwide'], [t.backButton || '⬅️ Back']], resize_keyboard: true } })
+      send(chatId, t.leadCustomCity ? t.leadCustomCity(info?.customLeadTarget) : `🏙️ Which city or area do you want leads from?\n\nTarget: <b>${info?.customLeadTarget}</b>\n\nType the city name or "Nationwide" for all areas:`, { parse_mode: 'HTML', reply_markup: { keyboard: [[t.leadNationwide || 'Nationwide'], [t.backButton || '⬅️ Back']], resize_keyboard: true } })
       set(state, chatId, 'action', a.customLeadRequestCity)
     },
     customLeadRequestDetails: () => {
