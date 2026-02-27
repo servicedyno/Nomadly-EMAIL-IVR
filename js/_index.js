@@ -10,6 +10,7 @@ const cors = require('cors')
 const earlyApp = express()
 earlyApp.use(cors())
 earlyApp.use(express.json())
+earlyApp.use(express.urlencoded({ extended: true }))
 earlyApp.use('/assets', express.static(require('path').join(__dirname, 'assets')))
 
 let appReady = false
