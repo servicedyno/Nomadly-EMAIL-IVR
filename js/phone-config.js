@@ -323,22 +323,26 @@ const canAccessFeature = (planKey, feature) => {
   return planFeatureAccess[planKey]?.[feature] === true
 }
 
-const upgradeMessage = (feature, currentPlan) => {
+const upgradeMessage = (feature, currentPlan, lang) => {
   const needed = (feature === 'callRecording' || feature === 'ivr') ? 'Business'
     : (feature === 'ivrOutbound' || feature === 'bulkCall') ? 'Pro'
     : 'Pro'
-  const featureNames = {
-    voicemail: 'Voicemail',
-    sipCredentials: 'SIP Credentials',
-    smsToEmail: 'SMS to Email',
-    smsWebhook: 'SMS Webhook',
-    callRecording: 'Call Recording',
-    ivr: 'IVR / Auto-attendant',
-    ivrOutbound: 'IVR Outbound Call',
-    bulkCall: 'Bulk Call Campaign',
+  const featureNamesI18n = {
+    en: { voicemail: 'Voicemail', sipCredentials: 'SIP Credentials', smsToEmail: 'SMS to Email', smsWebhook: 'SMS Webhook', callRecording: 'Call Recording', ivr: 'IVR / Auto-attendant', ivrOutbound: 'IVR Outbound Call', bulkCall: 'Bulk Call Campaign' },
+    fr: { voicemail: 'Messagerie Vocale', sipCredentials: 'Identifiants SIP', smsToEmail: 'SMS par Email', smsWebhook: 'Webhook SMS', callRecording: 'Enregistrement d\'Appels', ivr: 'SVI / Standard Auto', ivrOutbound: 'Appel IVR Sortant', bulkCall: 'Campagne d\'Appels en Masse' },
+    zh: { voicemail: '语音信箱', sipCredentials: 'SIP 凭据', smsToEmail: '短信转邮箱', smsWebhook: '短信 Webhook', callRecording: '通话录音', ivr: 'IVR / 自动应答', ivrOutbound: 'IVR 外呼', bulkCall: '批量呼叫活动' },
+    hi: { voicemail: 'वॉइसमेल', sipCredentials: 'SIP क्रेडेंशियल्स', smsToEmail: 'SMS ईमेल पर', smsWebhook: 'SMS Webhook', callRecording: 'कॉल रिकॉर्डिंग', ivr: 'IVR / ऑटो-अटेंडेंट', ivrOutbound: 'IVR आउटबाउंड कॉल', bulkCall: 'बल्क कॉल अभियान' },
   }
+  const templates = {
+    en: (fn, nd, cp) => `🔒 <b>${fn}</b> requires the <b>${nd}</b> plan or higher.\n\nYour current plan: <b>${cp || 'Starter'}</b>\n\nUpgrade via 🔄 Renew / Change Plan.`,
+    fr: (fn, nd, cp) => `🔒 <b>${fn}</b> nécessite le forfait <b>${nd}</b> ou supérieur.\n\nVotre forfait actuel : <b>${cp || 'Starter'}</b>\n\nMise à niveau via 🔄 Renouveler / Changer.`,
+    zh: (fn, nd, cp) => `🔒 <b>${fn}</b> 需要 <b>${nd}</b> 或更高套餐。\n\n当前套餐：<b>${cp || 'Starter'}</b>\n\n通过 🔄 续费 / 更换套餐 升级。`,
+    hi: (fn, nd, cp) => `🔒 <b>${fn}</b> के लिए <b>${nd}</b> या उच्चतर प्लान आवश्यक है।\n\nआपका वर्तमान प्लान: <b>${cp || 'Starter'}</b>\n\n🔄 नवीनीकरण / प्लान बदलें से अपग्रेड करें।`,
+  }
+  const l = lang && templates[lang] ? lang : 'en'
+  const featureNames = featureNamesI18n[l] || featureNamesI18n.en
   const featureName = featureNames[feature] || feature
-  return `🔒 <b>${featureName}</b> requires the <b>${needed}</b> plan or higher.\n\nYour current plan: <b>${currentPlan || 'Starter'}</b>\n\nUpgrade via 🔄 Renew / Change Plan.`
+  return (templates[l] || templates.en)(featureName, needed, currentPlan)
 }
 
 const planByButton = {}
