@@ -1913,6 +1913,247 @@ Sélectionnez une option :`,
     bulkConcurrency: (transferTo) => `${transferTo ? `🔗 ट्रांसफर: <b>${transferTo}</b>\n\n` : '📊 <b>केवल रिपोर्ट</b> — कोई ट्रांसफर नहीं।\n\n'}⚡ <b>कॉनकरेंसी</b>\n\nएक साथ कितने कॉल? (1-20)\nडिफ़ॉल्ट: <b>10</b>`,
     bulkRunning: 'अभियान चल रहा है! आपको यहाँ अपडेट दिखेंगे।\n\n<b>🛑 रोकें</b> पर टैप करें।',
     bulkCancelled: '🛑 <b>अभियान रद्द।</b>\n\nसक्रिय कॉल पूरे होंगे, नए कॉल नहीं होंगे।',
+    // ── फ़ोन नंबर चयन और प्रबंधन ──
+    selectType: (country) => `📱 <b>${country}</b> के लिए नंबर प्रकार चुनें:\n\n<b>📍 लोकल</b> — एरिया कोड वाला भौगोलिक नंबर\n<b>🆓 टोल-फ्री</b> — 800/888/877 प्रीफिक्स, राष्ट्रीय`,
+    selectArea: '🏙️ क्षेत्र चुनें या अपना एरिया कोड दर्ज करें:',
+    enterAreaCode: 'एरिया कोड दर्ज करें (जैसे 415):',
+    showNumbers: (location, numbers) => {
+      let text = `📞 <b>${location}</b> में उपलब्ध नंबर:\n\n`
+      numbers.forEach((n, i) => {
+        const caps = n._capabilities || n.capabilities || {}
+        const voice = caps.voice === true || caps.voice === 'True'
+        const sms = caps.sms === true || caps.sms === 'True'
+        const fax = caps.fax === true || caps.fax === 'True'
+        let capLabel = ''
+        if (voice) capLabel += '📞'
+        if (sms) capLabel += '💬'
+        if (fax) capLabel += '📠'
+        text += `${i + 1}️⃣  ${formatPhone(n.phone_number)} ${capLabel}\n`
+      })
+      text += '\n📞 = वॉइस  💬 = SMS  📠 = फैक्स\nचुनने के लिए नंबर पर टैप करें।'
+      return text
+    },
+    selectPlan: (number) => {
+      let text = `✅ चयनित: <b>${formatPhone(number)}</b>\n\n📋 अपना प्लान चुनें:\n\n`
+      if (PHONE_STARTER_ON) text += `<b>💡 स्टार्टर — $${PHONE_STARTER_PRICE}/माह</b>\n${plans.starter.minutes} मिनट · ${plans.starter.sms} SMS · ${plans.starter.features.join(' · ')}\n\n`
+      if (PHONE_PRO_ON) text += `<b>⭐ प्रो — $${PHONE_PRO_PRICE}/माह</b>\n${plans.pro.minutes} मिनट · ${plans.pro.sms} SMS · ${plans.pro.features.join(' · ')}\n\n`
+      if (PHONE_BUSINESS_ON) text += `<b>👑 बिज़नेस — $${PHONE_BUSINESS_PRICE}/माह</b>\n${plans.business.minutes} मिनट · ${plans.business.sms} SMS · ${plans.business.features.join(' · ')}\n\n`
+      text += `<i>आउटबाउंड और फ़ॉरवर्डिंग: $${CALL_FORWARDING_RATE_MIN}/मिनट (वॉलेट से)</i>`
+      return text
+    },
+    orderSummary: (number, country, plan, price) => `📋 <b>ऑर्डर सारांश</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/माह\n📩 ${plan.sms} SMS · 📞 ${plan.minutes} मिनट · 📲 आउटबाउंड और फ़ॉरवर्डिंग $${CALL_FORWARDING_RATE_MIN}/मिनट\n⚡ ${plan.features.join(', ')}\n\n💰 कुल: <b>$${price}</b> (पहला महीना)`,
+    paymentPrompt: (price) => `मूल्य: <b>$${price}</b>। भुगतान विधि चुनें:`,
+    activated: (number, plan, price, sipUser, sipDomain, expiry) => `🎉 <b>आपका Cloud Phone सक्रिय है!</b>\n\n📞 नंबर: ${formatPhone(number)}\n📦 प्लान: ${plan} ($${price}/माह)\n📅 नवीनीकरण: ${expiry}\n\n━━━ <b>SIP क्रेडेंशियल्स</b> ━━━\n🌐 सर्वर: ${sipDomain}\n👤 उपयोगकर्ता: ${sipUser}\n🔑 पासवर्ड: ●●●●●●●● (देखने के लिए 🔑 SIP क्रेडेंशियल्स उपयोग करें)\n📡 पोर्ट: 5060 (UDP/TCP) | 5061 (TLS)\n\n━━━ <b>त्वरित सेटअप</b> ━━━\n• ब्राउज़र: <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a> पर कॉल करें\n• सॉफ्टफ़ोन: Zoiper/Ooma डाउनलोड करें, SIP क्रेडेंशियल्स दर्ज करें\n• SMS: इनबाउंड SMS स्वचालित रूप से यहाँ फ़ॉरवर्ड होते हैं\n• फ़ॉरवर्डिंग: 📱 मेरे नंबर → कॉल फ़ॉरवर्डिंग से सेट करें`,
+    myNumbersList: (numbers) => {
+      let text = '📱 <b>आपके Cloud Phone नंबर:</b>\n\n'
+      numbers.forEach((n, i) => {
+        const status = n.status === 'active' ? '✅ सक्रिय' : n.status === 'suspended' ? '⚠️ निलंबित' : '🗑️ हटाया गया'
+        text += `${i + 1}️⃣  ${formatPhone(n.phoneNumber)}  ${status}\n`
+        text += `    ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} प्लान · नवीनीकरण ${shortDate(n.expiresAt)}\n\n`
+      })
+      return text
+    },
+    manageNumber: (n) => {
+      const plan = plans[n.plan]
+      const minLimit = plan?.minutes === 'Unlimited' ? 'असीमित' : (plan?.minutes || 0)
+      const smsLimit = plan?.sms || 0
+      const minUsed = n.minutesUsed || 0
+      const smsUsed = n.smsUsed || 0
+      const minDisplay = minLimit === 'असीमित' ? `${minUsed} (असीमित)` : `${minUsed} / ${minLimit}`
+      const smsDisplay = `${smsUsed} / ${smsLimit}`
+      const minWarning = minLimit !== 'असीमित' && minUsed >= minLimit ? `\n💰 <b>अतिरिक्त शुल्क सक्रिय</b> — $${OVERAGE_RATE_MIN}/मिनट (वॉलेट से)` : ''
+      const smsWarning = smsUsed >= smsLimit ? `\n💰 <b>अतिरिक्त शुल्क सक्रिय</b> — $${OVERAGE_RATE_SMS}/SMS (वॉलेट से)` : ''
+      const hasSms = n.capabilities?.sms !== false && n.features?.sms !== false
+      const hasFax = n.capabilities?.fax === true
+      const hasVoice = n.capabilities?.voice !== false
+      let text = `⚙️ प्रबंधन: <b>${formatPhone(n.phoneNumber)}</b>\n\nस्थिति: ${n.status === 'active' ? '✅ सक्रिय' : '⚠️ ' + n.status}\nप्लान: ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} ($${n.planPrice}/माह)`
+      if (hasVoice) text += `\n📞 इनबाउंड मिनट: ${minDisplay}${minWarning}`
+      if (hasSms) text += `\n📩 इनबाउंड SMS: ${smsDisplay} (केवल प्राप्ति)${smsWarning}`
+      if (hasFax) text += `\n📠 फैक्स: शामिल — इनबाउंड फैक्स Telegram पर फ़ॉरवर्ड`
+      const caps = []
+      if (hasVoice) caps.push('वॉइस')
+      if (hasSms) caps.push('SMS')
+      if (hasFax) caps.push('फैक्स')
+      text += `\n📋 क्षमताएँ: ${caps.join(' · ')}`
+      if (hasVoice) text += `\n\n🌐 <a href="${CALL_PAGE_URL}">ब्राउज़र में कॉल करें</a>`
+      return text
+    },
+    // कॉल फ़ॉरवर्डिंग
+    forwardingStatus: (number, config, walletBal) => {
+      const status = config?.enabled ? '✅ सक्रिय' : '❌ बंद'
+      let text = `📞 <b>कॉल फ़ॉरवर्डिंग</b> — ${formatPhone(number)}\n\nस्थिति: ${status}`
+      if (config?.enabled) {
+        text += `\n📲 ${formatPhone(config.forwardTo)} · ${config.mode}`
+        text += `\n🎵 होल्ड म्यूज़िक: ${config.holdMusic ? 'चालू' : 'बंद'}`
+      }
+      const rate = config?.forwardTo && config.forwardTo.startsWith('+1') ? OVERAGE_RATE_MIN : CALL_FORWARDING_RATE_MIN
+      text += `\n💰 प्लान मिनट उपयोग, फिर $${rate}/मिनट अतिरिक्त`
+      if (walletBal !== undefined) text += ` · 💳 $${walletBal.toFixed(2)}`
+      return text
+    },
+    enterForwardNumber: (walletBal) => {
+      let text = `देश कोड के साथ फ़ॉरवर्डिंग नंबर दर्ज करें (जैसे +14155551234)\n💰 दर: <b>$${CALL_FORWARDING_RATE_MIN}/मिनट</b>`
+      if (walletBal !== undefined) {
+        text += ` · 💳 $${walletBal.toFixed(2)}`
+        if (walletBal < CALL_FORWARDING_RATE_MIN) text += `\n⚠️ पहले 👛 वॉलेट से <b>$25</b> रिचार्ज करें।`
+      }
+      return text
+    },
+    forwardingUpdated: (number, forwardTo, mode, walletBal) => {
+      let text = `✅ <b>फ़ॉरवर्डिंग सक्रिय</b>\n\n📞 ${formatPhone(number)} → ${formatPhone(forwardTo)}\n📋 ${mode} · $${CALL_FORWARDING_RATE_MIN}/मिनट`
+      if (walletBal !== undefined) {
+        const estMin = Math.floor(walletBal / CALL_FORWARDING_RATE_MIN)
+        text += `\n💳 $${walletBal.toFixed(2)} (~${estMin} मिनट)`
+        if (walletBal < 25) text += `\n💡 निर्बाध फ़ॉरवर्डिंग के लिए <b>$25</b> तक रिचार्ज करें।`
+      }
+      return text
+    },
+    forwardingBlocked: (number) => `🚫 <b>अवरुद्ध</b> — ${formatPhone(number)} प्रीमियम गंतव्य है।\n💬 <b>सहायता प्राप्त करें</b> पर टैप करके सक्रियण का अनुरोध करें।`,
+    forwardingNotRoutable: (number) => `⚠️ ${formatPhone(number)} रूट करने योग्य नहीं है। नंबर जाँचें या 💬 <b>सहायता प्राप्त करें</b> पर टैप करें।`,
+    forwardingInsufficientBalance: (walletBal) => `🚫 <b>अपर्याप्त बैलेंस</b>\n\n💳 $${(walletBal || 0).toFixed(2)} · आवश्यक $${CALL_FORWARDING_RATE_MIN}/मिनट\n\n👉 फ़ॉरवर्डिंग सक्रिय करने के लिए 👛 वॉलेट से <b>$25</b> रिचार्ज करें।`,
+    forwardingDisabled: (number) => `✅ ${formatPhone(number)} के लिए फ़ॉरवर्डिंग बंद।`,
+    // SMS सेटिंग्स
+    smsSettingsMenu: (number, config, plan) => {
+      const tg = config?.toTelegram ? '✅ चालू' : '❌ बंद'
+      const em = config?.toEmail ? '✅ ' + config.toEmail : '❌ बंद'
+      const wh = config?.webhookUrl ? '✅ सेट' : '❌ सेट नहीं'
+      const canEmail = canAccessFeature(plan, 'smsToEmail')
+      const canWebhook = canAccessFeature(plan, 'smsWebhook')
+      const planName = plan ? plan.charAt(0).toUpperCase() + plan.slice(1) : 'अज्ञात'
+      return `📩 <b>इनबाउंड SMS सेटिंग्स</b> — <b>${formatPhone(number)}</b>\n\n📌 SMS <b>केवल इनबाउंड</b> है — आप SMS प्राप्त कर सकते हैं लेकिन भेज नहीं सकते।\n\n📲 Telegram पर फ़ॉरवर्ड: ${tg}\n📧 ईमेल पर फ़ॉरवर्ड: ${canEmail ? em : `🔒 Pro या उच्चतर प्लान आवश्यक (वर्तमान: ${planName})`}\n🔗 Webhook URL: ${canWebhook ? wh : `🔒 Pro या उच्चतर प्लान आवश्यक (वर्तमान: ${planName})`}`
+    },
+    smsToggled: (channel, state) => `${channel} अब ${state ? '✅ चालू' : '❌ बंद'} है`,
+    // फैक्स सेटिंग्स
+    faxSettingsMenu: (number, config, provider) => {
+      const tg = config?.toTelegram !== false ? '✅ चालू' : '❌ बंद'
+      if (provider === 'twilio') {
+        return `📠 <b>फैक्स सेटिंग्स</b> — <b>${formatPhone(number)}</b>\n\n⚠️ <b>Twilio नंबरों पर फैक्स उपलब्ध नहीं है।</b>\nTwilio ने प्रोग्रामेबल फैक्स बंद कर दिया है। इस नंबर पर फैक्स प्राप्त नहीं हो सकते।\n\nफैक्स उपयोग के लिए, फैक्स क्षमता वाला Telnyx नंबर खरीदें।`
+      }
+      return `📠 <b>फैक्स सेटिंग्स</b> — <b>${formatPhone(number)}</b>\n\nइनबाउंड फैक्स PDF के रूप में प्राप्त होते हैं और इस Telegram चैट पर फ़ॉरवर्ड होते हैं।\n\n📲 Telegram पर फ़ॉरवर्ड: ${tg}`
+    },
+    faxToggled: (state) => `📠 Telegram पर फैक्स अब ${state ? '✅ चालू' : '❌ बंद'} है`,
+    faxReceived: (from, to, pages) => `📠 <b>फैक्स प्राप्त</b>\nप्रेषक: ${from}\nप्राप्तकर्ता: ${formatPhone(to)}${pages ? `\nपृष्ठ: ${pages}` : ''}`,
+    faxFailed: (from, to, reason) => `📠 <b>फैक्स विफल</b>\nप्रेषक: ${from}\nप्राप्तकर्ता: ${formatPhone(to)}\nकारण: ${reason || 'अज्ञात'}`,
+    enterEmail: 'SMS फ़ॉरवर्ड करने के लिए ईमेल पता दर्ज करें:',
+    emailSet: (email) => `✅ SMS ईमेल पर फ़ॉरवर्ड सक्रिय!\nसभी इनबाउंड SMS <b>${email}</b> पर भी भेजे जाएँगे।`,
+    enterWebhook: 'अपना Webhook URL दर्ज करें (इनबाउंड SMS JSON के रूप में POST होंगे):',
+    webhookSet: (url) => `✅ Webhook URL कॉन्फ़िगर!\nSMS POST होंगे: ${url}`,
+    // वॉइसमेल
+    voicemailMenu: (number, config) => {
+      if (!config?.enabled) {
+        return `🎙️ <b>${formatPhone(number)}</b> का वॉइसमेल\n\nस्थिति: ❌ बंद\n\nसक्रिय होने पर, अनुत्तरित कॉल पर ग्रीटिंग बजेगी और कॉलर मैसेज छोड़ सकते हैं।`
+      }
+      const tg = config.forwardToTelegram ? '✅ चालू' : '❌ बंद'
+      const em = config.forwardToEmail ? '✅ ' + config.forwardToEmail : '❌ बंद'
+      let greetInfo = ''
+      if (config.greetingType === 'custom' && config.customAudioGreetingUrl) {
+        greetInfo = '🎤 कस्टम ऑडियो'
+      } else if (config.greetingType === 'custom' && config.customGreetingText) {
+        greetInfo = `📝 कस्टम: "${config.customGreetingText}"`
+      } else {
+        greetInfo = '🔊 डिफ़ॉल्ट: "आप ' + formatPhone(number) + ' से जुड़े हैं। कृपया बीप के बाद मैसेज छोड़ें।"'
+      }
+      return `🎙️ <b>${formatPhone(number)}</b> का वॉइसमेल\n\nस्थिति: ✅ सक्रिय\n🎤 ग्रीटिंग: ${greetInfo}\n\n📲 Telegram पर भेजें: ${tg}\n📧 ईमेल पर भेजें: ${em}\n⏰ रिंग टाइम: ${config.ringTimeout || 25}s`
+    },
+    voicemailEnabled: (number) => `✅ ${formatPhone(number)} के लिए वॉइसमेल सक्रिय!\nरिकॉर्डिंग इस Telegram चैट पर भेजी जाएँगी।`,
+    voicemailDisabled: (number) => `✅ ${formatPhone(number)} के लिए वॉइसमेल बंद।`,
+    vmGreetingMenu: (number, vm) => {
+      let current = ''
+      if (vm?.greetingType === 'custom' && vm?.customAudioGreetingUrl) {
+        current = '🎤 कस्टम ऑडियो\n📎 ऑडियो फ़ाइल अपलोड'
+      } else if (vm?.greetingType === 'custom' && vm?.customGreetingText) {
+        current = `📝 कस्टम टेक्स्ट: "${vm.customGreetingText}"`
+      } else {
+        current = `🔊 डिफ़ॉल्ट: "आप ${formatPhone(number)} से जुड़े हैं। कृपया बीप के बाद मैसेज छोड़ें।"`
+      }
+      return `🔊 <b>वॉइसमेल ग्रीटिंग</b> — <b>${formatPhone(number)}</b>\n\nवर्तमान: ${current}\n\nएक विकल्प चुनें:`
+    },
+    vmSendAudioPrompt: '🎤 <b>कस्टम ऑडियो ग्रीटिंग</b>\n\nवॉइसमेल ग्रीटिंग के रूप में वॉइस मैसेज या ऑडियो फ़ाइल भेजें।\n\nकॉलर वॉइसमेल पर पहुँचने पर यह ऑडियो सुनेंगे।\n\n<i>सुझाव: प्रोफेशनल ग्रीटिंग रिकॉर्ड करें जैसे "नमस्ते, आप [नाम] से जुड़े हैं। मैं अभी उत्तर नहीं दे सकता। कृपया बीप के बाद मैसेज छोड़ें।"</i>',
+    vmAudioSaved: '✅ कस्टम ऑडियो ग्रीटिंग सेव! कॉलर अब आपकी अपलोड की गई ग्रीटिंग सुनेंगे।',
+    vmDefaultRestored: '✅ वॉइसमेल ग्रीटिंग डिफ़ॉल्ट पर रीसेट।',
+    vmTextGreetingPrompt: 'कस्टम ग्रीटिंग टेक्स्ट दर्ज करें (टेक्स्ट-टू-स्पीच द्वारा पढ़ा जाएगा):',
+    vmTextGreetingSet: (text) => `✅ कस्टम टेक्स्ट ग्रीटिंग सेव!\n\n"${text}"`,
+    // SIP
+    sipCredentialsMsg: (number, username, domain) => `🔑 <b>${formatPhone(number)}</b> के SIP क्रेडेंशियल्स\n\n🌐 SIP सर्वर: ${domain}\n👤 उपयोगकर्ता: <code>${username}</code>\n🔑 पासवर्ड: ●●●●●●●●\n📡 पोर्ट: 5060 (UDP/TCP) · 5061 (TLS)\n🎵 कोडेक: G.711μ, G.711a, Opus`,
+    sipRevealed: (password) => `🔑 पासवर्ड: <code>${password}</code>\n\n⚠️ अभी सेव करें — यह मैसेज 30 सेकंड में हटा दिया जाएगा।`,
+    sipReset: (password) => `✅ SIP पासवर्ड रीसेट!\n\n🔑 नया पासवर्ड: <code>${password}</code>\n\n⚠️ अभी सेव करें। अपने सभी SIP डिवाइस पर यह पासवर्ड अपडेट करें।`,
+    softphoneGuide: (domain) => `📖 <b>SIP सेटअप गाइड</b>\n\n<b>🌐 ब्राउज़र (सबसे आसान)</b>\nसीधे ब्राउज़र में कॉल करें:\n<a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>\nकोई साइन-अप या ऐप इंस्टॉल नहीं।\n\n<b>Zoiper</b> (iOS / Android / डेस्कटॉप)\n1. App Store या Google Play से डाउनलोड करें\n2. अकाउंट जोड़ें → SIP\n3. SIP क्रेडेंशियल्स दर्ज करें (🔑 SIP क्रेडेंशियल्स से)\n4. डोमेन: <code>${domain}</code>\n5. सेव करें और टेस्ट कॉल करें\n\n<b>कोई भी SIP क्लाइंट</b>\nसर्वर: <code>${domain}</code>\nपोर्ट: 5060 (UDP/TCP) या 5061 (TLS)\nDTMF: RFC 2833 · कोडेक: G.711μ\n\n🧪 <b>मुफ्त टेस्ट कॉल:</b>\nटेस्ट कोड पाने के लिए यहाँ /testsip भेजें`,
+    // नवीनीकरण
+    renewMenu: (number, plan, price, expiry, autoRenewOn) => `🔄 <b>${formatPhone(number)}</b> का प्लान\n\nवर्तमान प्लान: ${plan} — $${price}/माह\nनवीनीकरण तिथि: ${shortDate(expiry)}\nऑटो-रिन्यू: ${autoRenewOn ? '✅ चालू' : '❌ बंद'}`,
+    // हटाना
+    releaseConfirm: (number) => `🗑️ <b>${formatPhone(number)} हटाएं?</b>\n\n⚠️ <b>यह पूर्ववत नहीं किया जा सकता।</b>\n\n• नंबर स्थायी रूप से हटा दिया जाएगा\n• मासिक प्लान तुरंत रद्द\n• सभी सेटिंग्स (फ़ॉरवर्डिंग, वॉइसमेल, SIP) हटा दी जाएँगी\n• शेष दिनों का कोई रिफंड नहीं\n\nक्या आप सुनिश्चित हैं?`,
+    releaseConfirmDigits: (digits) => `⚠️ <b>अंतिम पुष्टि</b>\n\nस्थायी रूप से हटाने के लिए नंबर के अंतिम 4 अंक टाइप करें: <b>${digits}</b>`,
+    released: (number) => `✅ ${formatPhone(number)} स्थायी रूप से हटा दिया गया।\n\nप्लान रद्द। सभी सेटिंग्स हटाई गईं।`,
+    // रियल-टाइम इवेंट
+    inboundSms: (to, from, body, time) => `📩 <b>SMS प्राप्त</b>\n\n📞 प्राप्तकर्ता: ${formatPhone(to)}\n👤 प्रेषक: ${formatPhone(from)}\n🕐 ${time}\n\n💬 "${body}"`,
+    missedCall: (to, from, time) => `📞 <b>मिस्ड कॉल</b>\n\n📞 प्राप्तकर्ता: ${formatPhone(to)}\n👤 कॉलर: ${formatPhone(from)}\n🕐 ${time}`,
+    callForwarded: (to, from, forwardedTo, duration, time) => `📞 <b>कॉल फ़ॉरवर्ड</b>\n\n📞 प्राप्तकर्ता: ${formatPhone(to)}\n👤 कॉलर: ${formatPhone(from)}\n📲 फ़ॉरवर्ड: ${formatPhone(forwardedTo)}\n⏱️ अवधि: ${formatDuration(duration)}\n🕐 ${time}`,
+    newVoicemail: (to, from, duration, time) => `🎙️ <b>नया वॉइसमेल</b>\n\n📞 प्राप्तकर्ता: ${formatPhone(to)}\n👤 कॉलर: ${formatPhone(from)}\n⏱️ अवधि: ${formatDuration(duration)}\n🕐 ${time}`,
+    // समाप्ति अनुस्मारक
+    expiryReminder: (number, days, plan, price, balance) => `🔔 <b>नवीनीकरण अनुस्मारक</b>\n\nआपका Cloud Phone नंबर ${formatPhone(number)} (${plan} प्लान) <b>${days} दिन</b> में समाप्त हो रहा है।\n\nवॉलेट बैलेंस: $${balance}\nप्लान मूल्य: $${price}/माह${balance < price ? '\n\n⚠️ अपर्याप्त बैलेंस। कृपया रिचार्ज करें।' : ''}`,
+    autoRenewed: (number, plan, price, newExpiry, oldBal, newBal) => `✅ <b>ऑटो-नवीनीकरण सफल</b>\n\n📞 ${formatPhone(number)}\n📦 प्लान: ${plan} ($${price}/माह)\n📅 नई समाप्ति: ${shortDate(newExpiry)}\nवॉलेट: $${oldBal} → $${newBal}`,
+    autoRenewFailed: (number, plan, price, balance) => `❌ <b>ऑटो-नवीनीकरण विफल</b>\n\n📞 ${formatPhone(number)}\n📦 प्लान: ${plan} ($${price}/माह)\n💰 वॉलेट: $${balance} (आवश्यक $${price})\n\n⚠️ आपका नंबर अब निलंबित है। 7 दिनों के भीतर रिचार्ज करें और नवीनीकरण करें।`,
+    // IVR
+    ivrMenu: (number, config) => {
+      if (!config?.enabled) {
+        return `🤖 <b>IVR / ऑटो-अटेंडेंट</b> — <b>${formatPhone(number)}</b>\n\nस्थिति: ❌ बंद\n\nसक्रिय होने पर, कॉलर ग्रीटिंग मेनू सुनेंगे और कुंजी दबाकर सही गंतव्य तक पहुँच सकते हैं।`
+      }
+      let text = `🤖 <b>IVR / ऑटो-अटेंडेंट</b> — <b>${formatPhone(number)}</b>\n\nस्थिति: ✅ सक्रिय\n\n🎤 ग्रीटिंग: "${config.greeting || 'डिफ़ॉल्ट'}"\n\n📋 <b>मेनू विकल्प:</b>\n`
+      if (config.options && Object.keys(config.options).length > 0) {
+        Object.entries(config.options).forEach(([key, opt]) => {
+          text += `  <b>${key}</b> दबाएं → ${opt.action === 'forward' ? '📲 फ़ॉरवर्ड ' + formatPhone(opt.forwardTo) : opt.action === 'voicemail' ? '🎙️ वॉइसमेल' : '🔊 ' + (opt.message || 'मैसेज चलाएं')}\n`
+        })
+      } else {
+        text += '  कोई विकल्प कॉन्फ़िगर नहीं।\n'
+      }
+      return text
+    },
+    ivrEnabled: (number) => `✅ ${formatPhone(number)} के लिए IVR / ऑटो-अटेंडेंट सक्रिय!\n\nकॉलर आपकी ग्रीटिंग सुनेंगे और कुंजी दबाकर नेविगेट कर सकते हैं।`,
+    ivrDisabled: (number) => `✅ ${formatPhone(number)} के लिए IVR / ऑटो-अटेंडेंट बंद।`,
+    ivrSetGreeting: 'IVR ग्रीटिंग मैसेज दर्ज करें (कॉलर यही सुनेंगे):\n\nउदाहरण: "कॉल करने के लिए धन्यवाद। सहायता के लिए 1 दबाएं, सेल्स के लिए 2, या लाइन पर रहें।"',
+    ivrGreetingSet: (greeting) => `✅ IVR ग्रीटिंग अपडेट!\n\n"${greeting}"`,
+    ivrAddOption: 'कुंजी और कार्रवाई इस प्रारूप में दर्ज करें:\n\n<code>कुंजी कार्रवाई गंतव्य</code>\n\nउदाहरण:\n• <code>1 forward +14155551234</code>\n• <code>2 voicemail</code>\n• <code>3 message हम आपको वापस कॉल करेंगे</code>\n• <code>0 forward +14155559999</code>',
+    ivrOptionAdded: (key, action, destination) => `✅ IVR विकल्प जोड़ा!\n\n<b>${key}</b> दबाएं → ${action === 'forward' ? '📲 फ़ॉरवर्ड ' + formatPhone(destination) : action === 'voicemail' ? '🎙️ वॉइसमेल' : '🔊 ' + destination}`,
+    ivrOptionRemoved: (key) => `✅ कुंजी <b>${key}</b> का IVR विकल्प हटाया।`,
+    ivrInvalidFormat: '❌ अमान्य प्रारूप। इस्तेमाल करें:\n<code>कुंजी कार्रवाई गंतव्य</code>\n\nउदाहरण: <code>1 forward +14155551234</code>',
+    ivrAnalyticsReport: (number, data) => {
+      let text = `📊 <b>IVR एनालिटिक्स</b> — <b>${formatPhone(number)}</b>\n(पिछले 30 दिन)\n\n`
+      text += `📞 कुल IVR कॉल: <b>${data.totalCalls}</b>\n`
+      if (data.topOption) text += `🏆 सबसे अधिक दबाई: कुंजी <b>${data.topOption.digit}</b> (${data.topOption.count} बार, ${data.topOption.percent}%)\n`
+      text += '\n'
+      if (data.optionBreakdown.length > 0) {
+        text += '📋 <b>विकल्प विवरण:</b>\n'
+        data.optionBreakdown.forEach(o => {
+          const bar = '█'.repeat(Math.max(1, Math.round(o.percent / 10))) + '░'.repeat(Math.max(0, 10 - Math.round(o.percent / 10)))
+          text += `  कुंजी <b>${o.digit}</b>: ${bar} ${o.count} (${o.percent}%)\n`
+        })
+        text += '\n'
+      }
+      if (data.recentCalls.length > 0) {
+        text += '📱 <b>हालिया IVR कॉल:</b>\n'
+        data.recentCalls.forEach(c => {
+          text += `  ${formatPhone(c.from)} → कुंजी <b>${c.digit}</b> (${c.action}) ${shortDate(c.time)}\n`
+        })
+      }
+      if (data.totalCalls === 0) text += '\nकोई IVR कॉल रिकॉर्ड नहीं।'
+      return text
+    },
+    // रिकॉर्डिंग
+    recordingMenu: (number, config) => {
+      const enabled = config?.recording === true
+      return `🔴 <b>कॉल रिकॉर्डिंग</b> — <b>${formatPhone(number)}</b>\n\nस्थिति: ${enabled ? '✅ सक्रिय' : '❌ बंद'}\n\nसक्रिय होने पर, सभी इनकमिंग और आउटगोइंग कॉल स्वचालित रूप से रिकॉर्ड होंगे। रिकॉर्डिंग आपके Telegram चैट पर भेजी जाएँगी।`
+    },
+    recordingEnabled: (number) => `✅ ${formatPhone(number)} के लिए कॉल रिकॉर्डिंग सक्रिय!\n\nसभी कॉल रिकॉर्ड होंगे और इस चैट पर भेजे जाएँगे।`,
+    recordingDisabled: (number) => `✅ ${formatPhone(number)} के लिए कॉल रिकॉर्डिंग बंद।`,
+    // SMS इनबॉक्स
+    smsInboxHeader: (number, total) => `📨 <b>SMS इनबॉक्स</b> — <b>${formatPhone(number)}</b>\n\n${total === 0 ? 'अभी तक कोई मैसेज नहीं।' : `${total} मैसेज प्राप्त:`}`,
+    smsInboxEntry: (i, from, name, body, time) => {
+      const nameDisplay = name && name !== 'None' ? ` (${name})` : ''
+      const bodyPreview = body.length > 80 ? body.substring(0, 80) + '...' : body
+      return `\n<b>${i}.</b> ${formatPhone(from)}${nameDisplay}\n   💬 "${bodyPreview}"\n   🕐 ${time}\n`
+    },
+    smsInboxEmpty: 'इस नंबर पर अभी तक कोई इनबाउंड SMS नहीं।\n\n<i>जब कोई आपके नंबर पर SMS भेजेगा, मैसेज यहाँ दिखेंगे।</i>',
+    smsInboxFooter: (page, totalPages) => totalPages > 1 ? `\n📄 पृष्ठ ${page}/${totalPages}` : '',
     btnUploadAudio: '📎 ऑडियो अपलोड',
     btnConfirm: '✅ पुष्टि करें',
     btnChangeVoice: '🎤 आवाज़ बदलें',
