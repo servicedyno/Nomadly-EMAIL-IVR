@@ -924,6 +924,7 @@ const msg = {
     sipTestMenuHint: '🧪 <i>免费试用SIP通话 — 发送 /testsip</i>',
     buyPlansHeader: `🛒 <b>购买云电话套餐</b>\n\n请先选择您的套餐：`,
   },
+  hi: {
     selectOption: 'कृपया एक विकल्प चुनें।',
     selectValidCountry: 'कृपया एक मान्य देश चुनें।',
     selectLocalOrTollFree: 'कृपया लोकल या टोल-फ्री चुनें।',
