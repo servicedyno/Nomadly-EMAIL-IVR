@@ -1,7 +1,7 @@
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Bulk Call Campaign Service — Twilio-based IVR campaigns
+// Bulk Call Campaign Service — Speechcue-based IVR campaigns
 // Handles concurrent call queues, per-lead result tracking, and final reporting
-// Uses Twilio's TwiML webhooks for IVR logic (play audio, gather DTMF, transfer)
+// Uses Speechcue's TwiML webhooks for IVR logic (play audio, gather DTMF, transfer)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const crypto = require('crypto')
 const fs = require('fs')
@@ -30,7 +30,7 @@ async function initBulkCallService(db, bot, twilioService) {
   await _collection.createIndex({ chatId: 1 })
   await _collection.createIndex({ id: 1 }, { unique: true })
   await _collection.createIndex({ status: 1 })
-  log('[BulkCall] Service initialized (Twilio mode)')
+  log('[BulkCall] Service initialized (Speechcue mode)')
 }
 
 /**
