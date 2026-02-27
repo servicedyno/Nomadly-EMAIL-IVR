@@ -486,8 +486,9 @@ function buildAutoRenewSuccessMsg(num, newExpiry, oldBal, newBal) {
 Wallet: $${oldBal.toFixed(2)} → $${newBal.toFixed(2)}`
 }
 
-function buildAutoRenewFailedMsg(num) {
+function buildAutoRenewFailedMsg(num, lang) {
   const plan = plans[num.plan] || { name: num.plan }
+  const buyLabel = phoneConfig.getBtnLabel('buyPhoneNumber', lang || 'en')
   return `❌ <b>Auto-Renewal Failed — Number Deleted</b>
 
 📞 ${formatPhone(num.phoneNumber)}
@@ -495,7 +496,7 @@ function buildAutoRenewFailedMsg(num) {
 
 ⚠️ Insufficient wallet balance. Your number has been <b>permanently deleted</b> to prevent further billing.
 
-This action is irreversible. To get a new number, visit 📞☁️ Cloud Phone → Buy Cloud Phone Plans.`
+This action is irreversible. To get a new number, visit 📞☁️ Cloud Phone → ${buyLabel}.`
 }
 
 function buildSuspendedMsg(num) {
