@@ -8048,7 +8048,7 @@ bot?.on('message', async msg => {
       // Show overall usage if they have numbers
       const userData = await get(phoneNumbersOf, chatId)
       const numbers = (userData?.numbers || []).filter(n => n.status === 'active')
-      if (!numbers.length) return send(chatId, phoneConfig.getMsg(info?.userLanguage).noActiveNumbers, k.of([[pc.buyPhoneNumber]]))
+      if (!numbers.length) return send(chatId, phoneConfig.getMsg(info?.userLanguage).noActiveNumbers, k.of([[buyLabel]]))
       // Show list to pick a number
       set(state, chatId, 'action', a.cpMyNumbers)
       await saveInfo('cpNumbers', numbers)
