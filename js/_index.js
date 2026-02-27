@@ -1213,8 +1213,14 @@ bot?.on('message', async msg => {
         return send(chatId, t.failedAudio)
       }
     }
-    // If not in audio upload state, ignore voice/audio messages
-    return
+    // ── Handle voice/audio for Audio Library upload ──
+    if (userInfo?.action === 'audioLibUpload' || userInfo?.action === 'bulkUploadAudio') {
+      // Let the main message handler process it (it checks msg.voice/msg.audio)
+      // Don't return here — fall through to main handler
+    } else {
+      // If not in audio upload state, ignore voice/audio messages
+      return
+    }
   }
   
   log('message: ' + message + '\tfrom: ' + chatId + ' ' + msg?.from?.username)
