@@ -1392,7 +1392,7 @@ bot?.on('message', async msg => {
 
   // License check cached at startup to avoid blocking every message
 
-  if (!db) return send(chatId, 'Database is connecting, please try again in a moment')
+  if (!db) return send(chatId, t.dbConnecting || 'Database is connecting, please try again in a moment')
   // ConnectReseller status never blocks the bot — domain ops fallback to OpenProvider
   if (!connect_reseller_working && NOT_TRY_CR === undefined) {
     tryConnectReseller() // non-blocking background retry
