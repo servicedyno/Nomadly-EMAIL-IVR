@@ -9091,16 +9091,34 @@ bot?.on('message', async msg => {
     set(state, chatId, 'action', a.cpSelectNumber)
     send(chatId, phoneConfig.txt.searching)
     const provider = info?.cpProvider || 'telnyx'
-    let results
-    if (provider === 'twilio') {
-      results = await twilioService.searchNumbers(info?.cpCountryCode || 'US', info?.cpNumberType || 'local', 5, areaCode)
+    const canSearchBoth = info?.cpCanSearchBoth || false
+    let results = []
+
+    if (canSearchBoth) {
+      const [telnyxResults, twilioResults] = await Promise.all([
+        telnyxApi.searchNumbers(info?.cpCountryCode || 'US', info?.cpNumberType || 'local', areaCode, 3).catch(() => []),
+        twilioService.searchNumbers(info?.cpCountryCode || 'US', info?.cpNumberType || 'local', 3, areaCode).catch(() => []),
+      ])
+      telnyxResults.forEach(r => { r._provider = 'telnyx'; r._bulkIvrCapable = false })
+      twilioResults.forEach(r => { r._provider = 'twilio'; r._bulkIvrCapable = true })
+      results = [...telnyxResults, ...twilioResults]
     } else {
-      results = await telnyxApi.searchNumbers(info?.cpCountryCode || 'US', info?.cpNumberType || 'local', areaCode, 5)
+      if (provider === 'twilio') {
+        results = await twilioService.searchNumbers(info?.cpCountryCode || 'US', info?.cpNumberType || 'local', 5, areaCode)
+      } else {
+        results = await telnyxApi.searchNumbers(info?.cpCountryCode || 'US', info?.cpNumberType || 'local', areaCode, 5)
+      }
+      results.forEach(r => { r._provider = provider; r._bulkIvrCapable = (provider === 'twilio') })
     }
+
     if (!results.length) return send(chatId, phoneConfig.txt.noSearchResults + '\nTry a different area code.', k.of([]))
     await saveInfo('cpSearchResults', results)
+    const numberLines = results.map((r, i) => {
+      const tag = r._bulkIvrCapable ? ' ☎️ Bulk IVR' : ''
+      return `${i + 1}. <code>${r.phone_number}</code>${tag}`
+    }).join('\n')
     const numBtns = results.map((_, i) => String(i + 1))
-    return send(chatId, phoneConfig.txt.showNumbers(`Area ${areaCode}`, results), k.of([numBtns, [pc.showMore]]))
+    return send(chatId, `📱 <b>Available Numbers — Area ${areaCode}</b>\n\n${numberLines}\n\n☎️ = Supports Bulk IVR Campaigns\n\nTap a number to select:`, k.of([numBtns, [pc.showMore]]))
   }
 
   // ── BUY FLOW: Select Number ──
