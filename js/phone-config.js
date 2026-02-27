@@ -920,8 +920,8 @@ const msg = {
     sipTestReferral: (link) => `\n\n🎁 <b>想要再获得1次免费测试通话？</b>\n将此链接分享给朋友。当他们发送 /testsip 时，您将获得一次额外通话：\n\n${link}`,
     sipTestError: '❌ 无法生成测试码。请稍后重试。',
     sipTestMenuHint: '🧪 <i>免费试用SIP通话 — 发送 /testsip</i>',
+    buyPlansHeader: `🛒 <b>购买云电话套餐</b>\n\n请先选择您的套餐：`,
   },
-  hi: {
     selectOption: 'कृपया एक विकल्प चुनें।',
     selectValidCountry: 'कृपया एक मान्य देश चुनें।',
     selectLocalOrTollFree: 'कृपया लोकल या टोल-फ्री चुनें।',
