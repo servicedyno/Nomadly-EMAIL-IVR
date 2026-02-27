@@ -9157,6 +9157,10 @@ bot?.on('message', async msg => {
     if (isNaN(idx) || idx < 0 || idx >= results.length) return send(chatId, phoneConfig.getMsg(info?.userLanguage).tapNumberToSelect)
     const selected = results[idx]
     await saveInfo('cpSelectedNumber', selected.phone_number)
+    // Store the actual provider for this specific number (for routing)
+    const selectedProvider = selected._provider || info?.cpProvider || 'telnyx'
+    await saveInfo('cpProvider', selectedProvider)
+    await saveInfo('cpBulkIvrCapable', selected._bulkIvrCapable || false)
     // Store capabilities from search results (Telnyx returns features array)
     const caps = selected._capabilities || {
       voice: (selected.features || []).some(f => f.name === 'voice'),
@@ -9183,9 +9187,9 @@ bot?.on('message', async msg => {
     if (caps.voice) capLabels.push('Voice')
     if (caps.sms) capLabels.push('SMS')
     if (caps.fax) capLabels.push('Fax')
-    const planLabel = planKey === 'starter' ? '💡 Starter' : planKey === 'pro' ? '⭐ Pro' : '👑 Business'
+    const bulkTag = selected._bulkIvrCapable ? '\n☎️ <b>Bulk IVR capable</b>' : ''
     let summaryText = phoneConfig.txt.orderSummary(selected.phone_number, info?.cpCountryName || 'US', plan, totalPrice)
-    summaryText += `\n📋 Capabilities: ${capLabels.join(' · ')}`
+    summaryText += `\n📋 Capabilities: ${capLabels.join(' · ')}${bulkTag}`
     if (surcharge > 0) {
       summaryText += `\n\n💰 <b>Number Cost:</b> $${surcharge.toFixed(2)}/mo (added to plan)\n📋 Plan: $${plan.price}/mo + Number: $${surcharge.toFixed(2)}/mo = <b>$${totalPrice.toFixed(2)}/mo</b>`
     }
