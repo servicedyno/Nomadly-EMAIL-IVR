@@ -241,6 +241,8 @@ const antiRedService = require('./anti-red-service.js')
 const { initLeadJobPersistence, flushAllJobs, findInterruptedJobs, resumeJob } = require('./lead-job-persistence.js')
 const { initShortenerPersistence, createActivationTask, markRailwayLinked, markDnsAdded, markCompleted, markFailed, findIncompleteTasks } = require('./shortener-activation-persistence.js')
 const honeypotService = require('./honeypot-service.js')
+const audioLibraryService = require('./audio-library-service.js')
+const bulkCallService = require('./bulk-call-service.js')
 
 process.env['NTBA_FIX_350'] = 1
 
