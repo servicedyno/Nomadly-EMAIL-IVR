@@ -9271,7 +9271,7 @@ bot?.on('message', async msg => {
       if (surcharge > 0) {
         summaryText += `\n\n💰 <b>Number Cost:</b> $${surcharge.toFixed(2)}/mo (added to plan)\n📋 Plan: $${info?.cpPlanBasePrice || plan?.price}/mo + Number: $${surcharge.toFixed(2)}/mo = <b>$${totalPrice.toFixed ? totalPrice.toFixed(2) : totalPrice}/mo</b>`
       }
-      return send(chatId, summaryText, k.of([[phoneConfig.btn.proceedPayment], [phoneConfig.btn.applyCoupon]]))
+      return send(chatId, summaryText, k.of([[pc.proceedPayment], [pc.applyCoupon]]))
     }
     const payOption = message
     if (payOption === payIn.crypto) {
