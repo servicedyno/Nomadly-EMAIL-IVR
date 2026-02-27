@@ -116,10 +116,13 @@ async function closeSubAccount(subSid) {
 // PHONE NUMBER MANAGEMENT
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-async function searchNumbers(countryCode, numberType = 'local', limit = 5) {
+async function searchNumbers(countryCode, numberType = 'local', limit = 5, areaCode = null) {
   try {
     const client = getClient()
     const params = { limit, voiceEnabled: true }
+    if (areaCode && numberType === 'local') {
+      params.areaCode = areaCode
+    }
     let numbers
     if (numberType === 'toll_free') {
       numbers = await client.availablePhoneNumbers(countryCode).tollFree.list(params)
