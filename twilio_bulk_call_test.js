@@ -38,7 +38,7 @@ async function connectMongoDB() {
   try {
     const client = new MongoClient(MONGO_URL)
     await client.connect()
-    db = client.db(process.env.DB_NAME || 'nomadly')
+    db = client.db(DB_NAME)
     createTestResult('MongoDB Connection', 'PASS', 'Connected successfully')
     return true
   } catch (e) {
