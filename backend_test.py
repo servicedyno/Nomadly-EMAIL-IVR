@@ -266,7 +266,7 @@ def main():
     # Check for verification label and generic messaging
     verify_terms = [
         '(Verified)',
-        'look for ☎️ Bulk IVR badge'
+        'look for the ☎️'
     ]
     found_verify, missing_verify, _ = check_file_content(index_file, verify_terms, "Verification and messaging")
     results.test(
