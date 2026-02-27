@@ -7996,7 +7996,7 @@ bot?.on('message', async msg => {
       const userData = await get(phoneNumbersOf, chatId)
       const numbers = (userData?.numbers || []).filter(n => n.status === 'active' || n.status === 'suspended')
       if (!numbers.length) {
-        return send(chatId, phoneConfig.txt.noNumbers, k.of([[pc.buyPhoneNumber]]))
+        return send(chatId, phoneConfig.txt.noNumbers, k.of([[buyLabel]]))
       }
       set(state, chatId, 'action', a.cpMyNumbers)
       await saveInfo('cpNumbers', numbers)
