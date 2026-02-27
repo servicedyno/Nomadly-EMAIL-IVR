@@ -845,7 +845,7 @@ const loadData = async () => {
 
   // Initialize Audio Library + Bulk Call Service
   audioLibraryService.initAudioLibrary(db)
-  bulkCallService.initBulkCallService(db, bot, require('./voice-service.js'))
+  bulkCallService.initBulkCallService(db, bot, require('./twilio-service.js'))
 
   // Upload latest anti-red worker script (with honeypots + KV binding) on startup.
   // This ensures the shared 'antired-challenge' worker on Cloudflare is always current,
