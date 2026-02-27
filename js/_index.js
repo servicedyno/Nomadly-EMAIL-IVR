@@ -4199,7 +4199,7 @@ bot?.on('message', async msg => {
       log(`[Support] Session ended by user ${chatId}`)
       return
     }
-    return send(chatId, 'No active support session.', trans('o'))
+    return send(chatId, t.noSupportSession || 'No active support session.', trans('o'))
   }
 
   // ═══════════════════════════════════════════════════
