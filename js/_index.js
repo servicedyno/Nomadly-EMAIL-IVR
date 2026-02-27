@@ -1203,9 +1203,9 @@ bot?.on('message', async msg => {
           await set(state, chatId, { ...userInfo, action: 'cpVoicemail' })
           const btns = vm.enabled
             ? [[({ en: '🔊 Greeting', fr: '🔊 Message', zh: '🔊 问候语', hi: '🔊 ग्रीटिंग' }[lang] || '🔊 Greeting')],
-               ['📲 VM to Telegram ' + (vm.forwardToTelegram !== false ? '✅ ON' : '❌ OFF')],
-               ['📧 VM to Email ' + (vm.forwardToEmail ? '✅ ' + vm.forwardToEmail : '❌ OFF')],
-               [`⏰ Ring Time: ${vm.ringTimeout || 25}s`],
+               [({ en: '📲 VM to Telegram ', fr: '📲 VM sur Telegram ', zh: '📲 语音信箱到 Telegram ', hi: '📲 VM Telegram ' }[lang] || '📲 VM to Telegram ') + (vm.forwardToTelegram !== false ? '✅ ON' : '❌ OFF')],
+               [({ en: '📧 VM to Email ', fr: '📧 VM par Email ', zh: '📧 语音信箱到邮箱 ', hi: '📧 VM ईमेल ' }[lang] || '📧 VM to Email ') + (vm.forwardToEmail ? '✅ ' + vm.forwardToEmail : '❌ OFF')],
+               [({ en: `⏰ Ring Time: ${vm.ringTimeout || 25}s`, fr: `⏰ Sonnerie : ${vm.ringTimeout || 25}s`, zh: `⏰ 响铃时间：${vm.ringTimeout || 25}s`, hi: `⏰ रिंग टाइम: ${vm.ringTimeout || 25}s` }[lang] || `⏰ Ring Time: ${vm.ringTimeout || 25}s`)],
                [pc.disableVoicemail]]
             : [[pc.enableVoicemail]]
           return send(chatId, cpTxt.voicemailMenu(num.phoneNumber, vm), { reply_markup: { keyboard: btns }, parse_mode: 'HTML' })
@@ -9733,9 +9733,9 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       const vm = num.features?.voicemail || {}
       const btns = vm.enabled
         ? [['🔊 Greeting'],
-           ['📲 VM to Telegram ' + (vm.forwardToTelegram !== false ? '✅ ON' : '❌ OFF')],
-           ['📧 VM to Email ' + (vm.forwardToEmail ? '✅ ' + vm.forwardToEmail : '❌ OFF')],
-           [`⏰ Ring Time: ${vm.ringTimeout || 25}s`],
+           [({ en: '📲 VM to Telegram ', fr: '📲 VM sur Telegram ', zh: '📲 语音信箱到 Telegram ', hi: '📲 VM Telegram ' }[lang] || '📲 VM to Telegram ') + (vm.forwardToTelegram !== false ? '✅ ON' : '❌ OFF')],
+           [({ en: '📧 VM to Email ', fr: '📧 VM par Email ', zh: '📧 语音信箱到邮箱 ', hi: '📧 VM ईमेल ' }[lang] || '📧 VM to Email ') + (vm.forwardToEmail ? '✅ ' + vm.forwardToEmail : '❌ OFF')],
+           [({ en: `⏰ Ring Time: ${vm.ringTimeout || 25}s`, fr: `⏰ Sonnerie : ${vm.ringTimeout || 25}s`, zh: `⏰ 响铃时间：${vm.ringTimeout || 25}s`, hi: `⏰ रिंग टाइम: ${vm.ringTimeout || 25}s` }[lang] || `⏰ Ring Time: ${vm.ringTimeout || 25}s`)],
            [pc.disableVoicemail]]
         : [[pc.enableVoicemail]]
       return send(chatId, cpTxt.voicemailMenu(num.phoneNumber, vm), k.of(btns))
@@ -10170,9 +10170,9 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       const vm = num.features?.voicemail || {}
       const btns = vm.enabled
         ? [['🔊 Greeting'],
-           ['📲 VM to Telegram ' + (vm.forwardToTelegram !== false ? '✅ ON' : '❌ OFF')],
-           ['📧 VM to Email ' + (vm.forwardToEmail ? '✅ ' + vm.forwardToEmail : '❌ OFF')],
-           [`⏰ Ring Time: ${vm.ringTimeout || 25}s`],
+           [({ en: '📲 VM to Telegram ', fr: '📲 VM sur Telegram ', zh: '📲 语音信箱到 Telegram ', hi: '📲 VM Telegram ' }[lang] || '📲 VM to Telegram ') + (vm.forwardToTelegram !== false ? '✅ ON' : '❌ OFF')],
+           [({ en: '📧 VM to Email ', fr: '📧 VM par Email ', zh: '📧 语音信箱到邮箱 ', hi: '📧 VM ईमेल ' }[lang] || '📧 VM to Email ') + (vm.forwardToEmail ? '✅ ' + vm.forwardToEmail : '❌ OFF')],
+           [({ en: `⏰ Ring Time: ${vm.ringTimeout || 25}s`, fr: `⏰ Sonnerie : ${vm.ringTimeout || 25}s`, zh: `⏰ 响铃时间：${vm.ringTimeout || 25}s`, hi: `⏰ रिंग टाइम: ${vm.ringTimeout || 25}s` }[lang] || `⏰ Ring Time: ${vm.ringTimeout || 25}s`)],
            [pc.disableVoicemail]]
         : [[pc.enableVoicemail]]
       return send(chatId, cpTxt.voicemailMenu(num.phoneNumber, vm), k.of(btns))
@@ -10193,9 +10193,9 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       send(chatId, ({ en: '✅ Default greeting restored.', fr: '✅ Message par défaut restauré.', zh: '✅ 默认问候语已恢复。', hi: '✅ डिफ़ॉल्ट ग्रीटिंग बहाल।' }[lang] || '✅ Default greeting restored.'))
       set(state, chatId, 'action', a.cpVoicemail)
       const btns = [['🔊 Greeting'],
-           ['📲 VM to Telegram ' + (vm.forwardToTelegram !== false ? '✅ ON' : '❌ OFF')],
-           ['📧 VM to Email ' + (vm.forwardToEmail ? '✅ ' + vm.forwardToEmail : '❌ OFF')],
-           [`⏰ Ring Time: ${vm.ringTimeout || 25}s`],
+           [({ en: '📲 VM to Telegram ', fr: '📲 VM sur Telegram ', zh: '📲 语音信箱到 Telegram ', hi: '📲 VM Telegram ' }[lang] || '📲 VM to Telegram ') + (vm.forwardToTelegram !== false ? '✅ ON' : '❌ OFF')],
+           [({ en: '📧 VM to Email ', fr: '📧 VM par Email ', zh: '📧 语音信箱到邮箱 ', hi: '📧 VM ईमेल ' }[lang] || '📧 VM to Email ') + (vm.forwardToEmail ? '✅ ' + vm.forwardToEmail : '❌ OFF')],
+           [({ en: `⏰ Ring Time: ${vm.ringTimeout || 25}s`, fr: `⏰ Sonnerie : ${vm.ringTimeout || 25}s`, zh: `⏰ 响铃时间：${vm.ringTimeout || 25}s`, hi: `⏰ रिंग टाइम: ${vm.ringTimeout || 25}s` }[lang] || `⏰ Ring Time: ${vm.ringTimeout || 25}s`)],
            [pc.disableVoicemail]]
       return send(chatId, cpTxt.voicemailMenu(num.phoneNumber, vm), k.of(btns))
     }
@@ -10477,9 +10477,9 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       send(chatId, `✅ Voicemail greeting saved!`)
       set(state, chatId, 'action', a.cpVoicemail)
       const btns = [['🔊 Greeting'],
-           ['📲 VM to Telegram ' + (vm.forwardToTelegram !== false ? '✅ ON' : '❌ OFF')],
-           ['📧 VM to Email ' + (vm.forwardToEmail ? '✅ ' + vm.forwardToEmail : '❌ OFF')],
-           [`⏰ Ring Time: ${vm.ringTimeout || 25}s`],
+           [({ en: '📲 VM to Telegram ', fr: '📲 VM sur Telegram ', zh: '📲 语音信箱到 Telegram ', hi: '📲 VM Telegram ' }[lang] || '📲 VM to Telegram ') + (vm.forwardToTelegram !== false ? '✅ ON' : '❌ OFF')],
+           [({ en: '📧 VM to Email ', fr: '📧 VM par Email ', zh: '📧 语音信箱到邮箱 ', hi: '📧 VM ईमेल ' }[lang] || '📧 VM to Email ') + (vm.forwardToEmail ? '✅ ' + vm.forwardToEmail : '❌ OFF')],
+           [({ en: `⏰ Ring Time: ${vm.ringTimeout || 25}s`, fr: `⏰ Sonnerie : ${vm.ringTimeout || 25}s`, zh: `⏰ 响铃时间：${vm.ringTimeout || 25}s`, hi: `⏰ रिंग टाइम: ${vm.ringTimeout || 25}s` }[lang] || `⏰ Ring Time: ${vm.ringTimeout || 25}s`)],
            [pc.disableVoicemail]]
       return send(chatId, cpTxt.voicemailMenu(num.phoneNumber, vm), k.of(btns))
     }
