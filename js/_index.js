@@ -8037,6 +8037,32 @@ bot?.on('message', async msg => {
       const numBtns = numbers.map((_, i) => String(i + 1))
       return send(chatId, phoneConfig.txt.myNumbersList(numbers), k.of([numBtns]))
     }
+
+    // ── Bulk Call Campaign ──
+    if (message === pc.bulkCallCampaign) {
+      const userData = await get(phoneNumbersOf, chatId)
+      const numbers = (userData?.numbers || []).filter(n => n.status === 'active')
+      if (!numbers.length) {
+        return send(chatId, `📞 <b>Bulk Call Campaign</b>\n\nYou need a Cloud Phone number to launch bulk campaigns.\n\nTap <b>${pc.buyPhoneNumber}</b> to get started.`, k.of([[pc.buyPhoneNumber]]))
+      }
+      await saveInfo('bulkData', {})
+      set(state, chatId, 'action', a.bulkSelectCaller)
+      const numBtns = numbers.map(n => [n.phoneNumber])
+      return send(chatId, `📞 <b>Bulk Call Campaign</b>\n\nLaunch automated IVR calls to multiple leads at once.\n\nSelect the Caller ID (your number):`, k.of(numBtns))
+    }
+
+    // ── Audio Library ──
+    if (message === pc.audioLibrary) {
+      set(state, chatId, 'action', a.audioLibMenu)
+      const audios = await audioLibraryService.listAudios(chatId)
+      if (audios.length === 0) {
+        return send(chatId, `🎵 <b>Audio Library</b>\n\nYou have no saved audio files.\n\nUpload an audio file (MP3, WAV, OGG) to use in IVR campaigns.`, k.of([['📎 Upload Audio'], ['↩️ Back']]))
+      }
+      const audioList = audios.map((a, i) => `${i + 1}. 🎵 <b>${a.name}</b> (${(a.size / 1024).toFixed(0)} KB)`).join('\n')
+      const btns = [['📎 Upload Audio'], ...audios.map(a => [`🗑 Delete: ${a.name.substring(0, 25)}`]), ['↩️ Back']]
+      return send(chatId, `🎵 <b>Audio Library</b>\n\n${audioList}\n\nUpload a new audio or delete an existing one:`, k.of(btns))
+    }
+
     return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectOption)
   }
 
