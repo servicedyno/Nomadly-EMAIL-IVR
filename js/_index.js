@@ -2549,7 +2549,7 @@ bot?.on('message', async msg => {
       set(state, chatId, 'action', a.customLeadRequestCity)
     },
     customLeadRequestDetails: () => {
-      send(chatId, `📋 Any additional details? (e.g., preferred area codes, carrier, volume needed)\n\nTarget: <b>${info?.customLeadTarget}</b>\nArea: <b>${info?.customLeadCity}</b>\n\nType details or "None" to skip:`, { parse_mode: 'HTML', reply_markup: { keyboard: [['None'], [t.backButton || '⬅️ Back']], resize_keyboard: true } })
+      send(chatId, t.leadCustomDetails ? t.leadCustomDetails(info?.customLeadTarget, info?.customLeadCity) : `📋 Any additional details? (e.g., preferred area codes, carrier, volume needed)\n\nTarget: <b>${info?.customLeadTarget}</b>\nArea: <b>${info?.customLeadCity}</b>\n\nType details or "None" to skip:`, { parse_mode: 'HTML', reply_markup: { keyboard: [[t.leadNone || 'None'], [t.backButton || '⬅️ Back']], resize_keyboard: true } })
       set(state, chatId, 'action', a.customLeadRequestDetails)
     },
 
