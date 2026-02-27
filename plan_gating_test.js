@@ -210,14 +210,14 @@ async function runPlanGatingTests() {
       test('Starter plan has all expected feature keys', starterHasAllKeys);
       test('Starter plan has exactly 2 true values', starterTrueCount === 2);
       
-      // Check pro plan (should have 7 true values)
+      // Check pro plan (should have 8 true values: callForwarding, smsToTelegram + smsToEmail, smsWebhook, voicemail, sipCredentials, ivrOutbound, bulkCall)
       const proKeys = Object.keys(phoneConfig.planFeatureAccess.pro);
       const proHasAllKeys = expectedKeys.every(key => proKeys.includes(key));
       const proTrueCount = Object.values(phoneConfig.planFeatureAccess.pro).filter(v => v === true).length;
       
       test('Pro plan has exactly 10 feature keys', proKeys.length === 10);
       test('Pro plan has all expected feature keys', proHasAllKeys);
-      test('Pro plan has exactly 7 true values', proTrueCount === 7);
+      test('Pro plan has exactly 8 true values', proTrueCount === 8);
       
       // Check business plan (should have 10 true values - all)
       const businessKeys = Object.keys(phoneConfig.planFeatureAccess.business);
