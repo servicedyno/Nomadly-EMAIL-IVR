@@ -1,333 +1,276 @@
 #!/usr/bin/env python3
 """
-Backend test for the revised phone number buy flow and Bulk Call Campaign changes.
-Tests the Node.js Express server on port 5000 for the specific implementation requirements.
+Backend test for Nomadly Telegram bot translation system
 """
 
 import requests
+import subprocess
 import json
-import time
 import sys
 import os
 
-# Get backend URL from environment or default to localhost
-BACKEND_URL = os.getenv('REACT_APP_BACKEND_URL', 'http://localhost:5000')
-API_BASE = f"{BACKEND_URL}/api" if not BACKEND_URL.endswith('/api') else BACKEND_URL
-
-# Test results tracking
-class TestResults:
-    def __init__(self):
-        self.passed = 0
-        self.failed = 0
-        self.results = []
-        
-    def test(self, name, condition, message=""):
-        if condition:
-            self.passed += 1
-            status = "✅ PASS"
-            print(f"{status}: {name}")
-            if message:
-                print(f"    {message}")
-        else:
-            self.failed += 1 
-            status = "❌ FAIL"
-            print(f"{status}: {name}")
-            if message:
-                print(f"    {message}")
-        
-        self.results.append({
-            "name": name,
-            "status": "PASS" if condition else "FAIL",
-            "message": message
-        })
-        return condition
-        
-    def summary(self):
-        total = self.passed + self.failed
-        print(f"\n=== TEST SUMMARY ===")
-        print(f"Total: {total}, Passed: {self.passed}, Failed: {self.failed}")
-        print(f"Success Rate: {(self.passed/total*100):.1f}%")
-        return self.failed == 0
-
-def test_health_check():
-    """Test that the Node.js service is healthy"""
+# Get backend URL from frontend/.env
+def get_backend_url():
     try:
-        response = requests.get(f"{BACKEND_URL}/health", timeout=10)
-        return response.status_code == 200 and response.json().get('status') == 'healthy'
+        with open('/app/frontend/.env', 'r') as f:
+            for line in f:
+                if line.startswith('REACT_APP_BACKEND_URL='):
+                    return line.strip().split('=', 1)[1]
     except Exception as e:
-        print(f"Health check failed: {e}")
+        print(f"Error reading backend URL: {e}")
+        return None
+
+def test_service_health():
+    """Test Node.js service health endpoint"""
+    print("=== Testing Service Health ===")
+    backend_url = get_backend_url()
+    if not backend_url:
+        print("❌ Could not retrieve backend URL from frontend/.env")
+        return False
+        
+    try:
+        # Test health endpoint
+        health_url = f"{backend_url}/health"
+        print(f"Testing health endpoint: {health_url}")
+        
+        response = requests.get(health_url, timeout=10)
+        print(f"Health endpoint status: {response.status_code}")
+        print(f"Response content type: {response.headers.get('content-type', 'unknown')}")
+        
+        # Check if it's returning HTML (which indicates frontend redirect) or JSON (expected)
+        if response.status_code == 200:
+            content_type = response.headers.get('content-type', '')
+            if 'application/json' in content_type:
+                print("✅ Health endpoint returns proper JSON")
+                return True
+            elif 'text/html' in content_type:
+                print("⚠️  Health endpoint returns HTML (likely frontend route, need to check Node.js directly)")
+                # This indicates the request is being handled by React frontend instead of Node.js
+                return False
+            else:
+                print(f"❌ Health endpoint returns unexpected content type: {content_type}")
+                return False
+        else:
+            print(f"❌ Health endpoint failed with status: {response.status_code}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Health endpoint test failed: {e}")
         return False
 
-def check_file_content(filepath, search_terms, description):
-    """Check if file contains specific content"""
+def test_phone_config_translations():
+    """Test phone-config.js getTxt() returns translated text for FR, ZH, HI"""
+    print("\n=== Testing phone-config.js Translations ===")
+    
+    cmd = '''node -e "
+const pc = require('/app/js/phone-config.js'); 
+const fr = pc.getTxt('fr'); 
+const zh = pc.getTxt('zh'); 
+const hi = pc.getTxt('hi'); 
+console.log('FR selectType:', typeof fr.selectType === 'function' ? '✅ function' : '❌'); 
+console.log('ZH manageNumber:', typeof zh.manageNumber === 'function' ? '✅ function' : '❌'); 
+console.log('HI ivrMenu:', typeof hi.ivrMenu === 'function' ? '✅ function' : '❌'); 
+console.log('FR smsInboxEmpty:', fr.smsInboxEmpty.includes('Aucun') ? '✅' : '❌'); 
+console.log('ZH forwardingDisabled:', typeof zh.forwardingDisabled === 'function' ? '✅' : '❌'); 
+console.log('HI renewMenu:', typeof hi.renewMenu === 'function' ? '✅' : '❌');
+"'''
+    
     try:
-        with open(filepath, 'r', encoding='utf-8') as f:
-            content = f.read()
-        
-        found_terms = []
-        missing_terms = []
-        
-        for term in search_terms:
-            if term in content:
-                found_terms.append(term)
-            else:
-                missing_terms.append(term)
-                
-        return found_terms, missing_terms, content
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, cwd='/app')
+        if result.returncode == 0:
+            print("phone-config.js translation test results:")
+            print(result.stdout)
+            
+            # Check for any failures
+            failures = result.stdout.count('❌')
+            successes = result.stdout.count('✅')
+            
+            print(f"Translation functions test: {successes} successes, {failures} failures")
+            return failures == 0
+        else:
+            print(f"❌ phone-config.js test failed with error:")
+            print(result.stderr)
+            return False
     except Exception as e:
-        return [], search_terms, f"Error reading file: {e}"
+        print(f"❌ phone-config.js test error: {e}")
+        return False
+
+def test_upgrade_message_multilingual():
+    """Test upgradeMessage() returns translated text for FR, ZH, HI"""
+    print("\n=== Testing upgradeMessage Multilingual ===")
+    
+    cmd = '''node -e "
+const pc = require('/app/js/phone-config.js'); 
+console.log('FR:', pc.upgradeMessage('ivr','Starter','fr').includes('nécessite')); 
+console.log('ZH:', pc.upgradeMessage('voicemail','Starter','zh').includes('需要')); 
+console.log('HI:', pc.upgradeMessage('callRecording','Pro','hi').includes('आवश्यक'));
+"'''
+    
+    try:
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, cwd='/app')
+        if result.returncode == 0:
+            print("upgradeMessage multilingual test results:")
+            print(result.stdout)
+            
+            # Check if all translations contain expected text
+            lines = result.stdout.strip().split('\n')
+            all_passed = all('true' in line for line in lines)
+            
+            print(f"upgradeMessage multilingual test: {'✅ PASSED' if all_passed else '❌ FAILED'}")
+            return all_passed
+        else:
+            print(f"❌ upgradeMessage test failed with error:")
+            print(result.stderr)
+            return False
+    except Exception as e:
+        print(f"❌ upgradeMessage test error: {e}")
+        return False
+
+def test_lang_files_completeness():
+    """Test that FR, ZH, HI lang files have no missing user/t keys"""
+    print("\n=== Testing Lang Files Completeness ===")
+    
+    cmd = '''node -e "
+const en = require('/app/js/lang/en.js').en; 
+const fr = require('/app/js/lang/fr.js').fr; 
+const zh = require('/app/js/lang/zh.js').zh; 
+const hi = require('/app/js/lang/hi.js').hi; 
+['fr','zh','hi'].forEach(l => { 
+    const obj = {fr,zh,hi}[l]; 
+    const tMissing = ['dnsWarningHostedDomain','dnsProceedAnyway','dnsCancel','domainTypeRegistered','domainTypeExternal'].filter(k => !obj.t?.hasOwnProperty(k)); 
+    const uMissing = ['buyLeads','validateLeads','shortenLink','confirmRenewNow','cancelRenewNow','toggleAutoRenew'].filter(k => !obj.user?.hasOwnProperty(k)); 
+    console.log(l.toUpperCase() + ': t missing=' + tMissing.length + ', user missing=' + uMissing.length); 
+});
+"'''
+    
+    try:
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, cwd='/app')
+        if result.returncode == 0:
+            print("Lang files completeness test results:")
+            print(result.stdout)
+            
+            # Check if all languages have 0 missing keys
+            lines = result.stdout.strip().split('\n')
+            all_complete = all('missing=0' in line and 'missing=0' in line for line in lines)
+            
+            print(f"Lang files completeness: {'✅ COMPLETE' if all_complete else '❌ MISSING KEYS'}")
+            return all_complete
+        else:
+            print(f"❌ Lang files completeness test failed with error:")
+            print(result.stderr)
+            return False
+    except Exception as e:
+        print(f"❌ Lang files completeness test error: {e}")
+        return False
+
+def test_bot_startup():
+    """Test Node.js startup status"""
+    print("\n=== Testing Bot Startup ===")
+    
+    try:
+        # Check if "Main application ready" exists in logs
+        result = subprocess.run(
+            ['grep', '-c', 'Main application ready', '/var/log/supervisor/nodejs.out.log'],
+            capture_output=True, text=True
+        )
+        
+        if result.returncode == 0 and int(result.stdout.strip()) > 0:
+            print("✅ 'Main application ready' found in logs")
+            startup_ok = True
+        else:
+            print("❌ 'Main application ready' not found in logs")
+            startup_ok = False
+        
+        # Check error log is empty (last 5 lines)
+        error_result = subprocess.run(
+            ['tail', '-5', '/var/log/supervisor/nodejs.err.log'],
+            capture_output=True, text=True
+        )
+        
+        if error_result.returncode == 0 and error_result.stdout.strip() == "":
+            print("✅ Error log is clean (no recent errors)")
+            errors_ok = True
+        else:
+            print(f"⚠️  Error log contains: {error_result.stdout.strip()}")
+            errors_ok = len(error_result.stdout.strip()) == 0
+        
+        return startup_ok and errors_ok
+        
+    except Exception as e:
+        print(f"❌ Bot startup test error: {e}")
+        return False
+
+def test_inline_translations_count():
+    """Test _index.js inline translations count"""
+    print("\n=== Testing _index.js Inline Translations Count ===")
+    
+    try:
+        result = subprocess.run(
+            ['grep', '-c', '[lang]', '/app/js/_index.js'],
+            capture_output=True, text=True
+        )
+        
+        if result.returncode == 0:
+            count = int(result.stdout.strip())
+            print(f"Inline translations found: {count}")
+            
+            if count >= 100:
+                print(f"✅ Inline translations count: {count} (≥100)")
+                return True
+            else:
+                print(f"❌ Inline translations count: {count} (<100)")
+                return False
+        else:
+            print("❌ Failed to count inline translations")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Inline translations count test error: {e}")
+        return False
 
 def main():
-    results = TestResults()
+    """Run all translation system tests"""
+    print("Starting Nomadly Telegram Bot Translation System Tests\n")
     
-    print("🔍 Testing Revised Phone Number Buy Flow and Bulk Call Campaign Changes")
-    print("=" * 70)
-    
-    # 1. Service startup test
-    print("\n📍 1. SERVICE STARTUP")
-    healthy = test_health_check()
-    results.test(
-        "Node.js service health check",
-        healthy,
-        f"Service should be healthy at {BACKEND_URL}/health"
-    )
-    
-    if not healthy:
-        print("❌ Service not healthy - cannot continue testing")
-        return False
-    
-    # 2. Buy flow code analysis - Critical tests from review request
-    print("\n📍 2. BUY FLOW CODE ANALYSIS (CRITICAL)")
-    
-    # Check _index.js file for the specific handlers and logic
-    index_file = "/app/js/_index.js"
-    
-    # 2a. Check buyPhoneNumber handler sets action to cpSelectPlan 
-    buy_terms = [
-        'set(state, chatId, \'action\', a.cpSelectPlan)',
-        'message === pc.buyPhoneNumber'
+    tests = [
+        ("Service Health", test_service_health),
+        ("phone-config.js Translations", test_phone_config_translations),
+        ("upgradeMessage Multilingual", test_upgrade_message_multilingual),
+        ("Lang Files Completeness", test_lang_files_completeness),
+        ("Bot Startup", test_bot_startup),
+        ("Inline Translations Count", test_inline_translations_count)
     ]
-    found_buy, missing_buy, content = check_file_content(index_file, buy_terms, "buyPhoneNumber handler")
-    results.test(
-        "buyPhoneNumber handler sets action to cpSelectPlan",
-        len(missing_buy) == 0,
-        f"Found: {found_buy}, Missing: {missing_buy}"
-    )
     
-    # Check that NO provider names are mentioned in the buy flow messages
-    provider_terms_to_avoid = ['Twilio', 'Telnyx']
-    provider_mentions = []
-    if content and isinstance(content, str):
-        lines = content.split('\n')
-        for i, line in enumerate(lines):
-            if 'send(chatId' in line:
-                for term in provider_terms_to_avoid:
-                    if term in line and 'bulkCall' in line.lower():
-                        provider_mentions.append(f"Line {i+1}: {line.strip()}")
+    results = {}
     
-    results.test(
-        "No provider names in bulk call buy flow messages", 
-        len(provider_mentions) == 0,
-        f"Provider mentions found: {provider_mentions[:3]}" if provider_mentions else "Clean - no provider names in user-facing messages"
-    )
-    
-    # 2b. Check cpSelectPlan handler saves cpPlanKey and cpPlanBasePrice
-    plan_terms = [
-        'await saveInfo(\'cpPlanKey\', planKey)',
-        'await saveInfo(\'cpPlanBasePrice\'',
-        'action === a.cpSelectPlan'
-    ]
-    found_plan, missing_plan, _ = check_file_content(index_file, plan_terms, "cpSelectPlan handler")
-    results.test(
-        "cpSelectPlan handler saves cpPlanKey and cpPlanBasePrice",
-        len(missing_plan) == 0,
-        f"Found: {found_plan}, Missing: {missing_plan}"
-    )
-    
-    # 2c. Check cpSelectCountry sets cpCanSearchBoth = true for telnyx countries
-    country_terms = [
-        'const canSearchBoth = (nativeProvider === \'telnyx\')',
-        'await saveInfo(\'cpCanSearchBoth\', canSearchBoth)',
-        'action === a.cpSelectCountry'
-    ]
-    found_country, missing_country, _ = check_file_content(index_file, country_terms, "cpSelectCountry handler")
-    results.test(
-        "cpSelectCountry sets cpCanSearchBoth = true for telnyx countries",
-        len(missing_country) == 0,
-        f"Found: {found_country}, Missing: {missing_country}"
-    )
-    
-    # 2d. Check cpSelectCountry back button goes to cpSelectPlan
-    back_terms = [
-        'set(state, chatId, \'action\', a.cpSelectPlan)',
-        'if (message === t.back || message === pc.back)',
-    ]
-    # Look specifically in cpSelectCountry handler
-    country_handler_start = content.find('if (action === a.cpSelectCountry)')
-    country_handler_end = content.find('if (action === a.cpSelectType)', country_handler_start)
-    if country_handler_start != -1 and country_handler_end != -1:
-        country_handler = content[country_handler_start:country_handler_end]
-        has_back_to_plan = all(term in country_handler for term in back_terms)
-    else:
-        has_back_to_plan = False
-    
-    results.test(
-        "cpSelectCountry back button goes to cpSelectPlan",
-        has_back_to_plan,
-        "Back navigation should go to plan selection, not submenu5"
-    )
-    
-    # 2e. Check cpSelectType dual-provider search with Promise.all
-    type_terms = [
-        'await Promise.all([',
-        'telnyxApi.searchNumbers',
-        'twilioService.searchNumbers',
-        'canSearchBoth'
-    ]
-    found_type, missing_type, _ = check_file_content(index_file, type_terms, "cpSelectType dual-provider search")
-    results.test(
-        "cpSelectType uses dual-provider search with Promise.all",
-        len(missing_type) == 0,
-        f"Found: {found_type}, Missing: {missing_type}"
-    )
-    
-    # 2f. Check provider tagging logic
-    tagging_terms = [
-        'r._provider = \'telnyx\'',
-        'r._provider = \'twilio\'',
-        'r._bulkIvrCapable = false',
-        'r._bulkIvrCapable = true'
-    ]
-    found_tags, missing_tags, _ = check_file_content(index_file, tagging_terms, "Provider tagging")
-    results.test(
-        "Results tagged with _provider and _bulkIvrCapable",
-        len(missing_tags) == 0,
-        f"Found: {found_tags}, Missing: {missing_tags}"
-    )
-    
-    # 2g. Check cpSelectArea and cpEnterAreaCode use dual-provider search
-    area_search_count = content.count('Promise.all([') if content else 0
-    results.test(
-        "Multiple dual-provider search locations (cpSelectArea, cpEnterAreaCode, Show More)",
-        area_search_count >= 3,
-        f"Found {area_search_count} Promise.all dual-provider searches"
-    )
-    
-    # 2h. Check cpSelectNumber stores cpProvider from selected._provider
-    select_terms = [
-        'const selectedProvider = selected._provider',
-        'await saveInfo(\'cpProvider\', selectedProvider)',
-        'await saveInfo(\'cpBulkIvrCapable\', selected._bulkIvrCapable'
-    ]
-    found_select, missing_select, _ = check_file_content(index_file, select_terms, "cpSelectNumber storage")
-    results.test(
-        "cpSelectNumber stores cpProvider from selected._provider",
-        len(missing_select) == 0,
-        f"Found: {found_select}, Missing: {missing_select}"
-    )
-    
-    # 2i. Check order summary shows Bulk IVR badge
-    badge_terms = [
-        '☎️ Bulk IVR capable',
-        'selected._bulkIvrCapable'
-    ]
-    found_badge, missing_badge, _ = check_file_content(index_file, badge_terms, "Order summary badge")
-    results.test(
-        "Order summary shows ☎️ Bulk IVR capable badge",
-        len(missing_badge) == 0,
-        f"Found: {found_badge}, Missing: {missing_badge}"
-    )
-    
-    # 2j. Check Show More button uses dual-provider search
-    show_more_in_promise = 'pc.showMore' in content and 'Promise.all([' in content
-    results.test(
-        "Show More button uses dual-provider search",
-        show_more_in_promise,
-        "Show More should trigger dual-provider search when canSearchBoth is true"
-    )
-    
-    # 3. Bulk Call Campaign caller selection
-    print("\n📍 3. BULK CALL CAMPAIGN CALLER SELECTION")
-    
-    # Check that only Twilio numbers are shown for bulk calls
-    bulk_terms = [
-        'provider === \'twilio\'',
-        'bulkCapableNumbers',
-        '☎️',
-        'Bulk Call Campaign'
-    ]
-    found_bulk, missing_bulk, _ = check_file_content(index_file, bulk_terms, "Bulk call selection")
-    results.test(
-        "Bulk Call Campaign shows only provider === 'twilio' numbers",
-        len(missing_bulk) == 0,
-        f"Found: {found_bulk}, Missing: {missing_bulk}"
-    )
-    
-    # Check for verification label and generic messaging
-    verify_terms = [
-        '(Verified)',
-        'look for the ☎️'
-    ]
-    found_verify, missing_verify, _ = check_file_content(index_file, verify_terms, "Verification and messaging")
-    results.test(
-        "Verified caller IDs labeled and generic ☎️ messaging used",
-        len(missing_verify) == 0,
-        f"Found: {found_verify}, Missing: {missing_verify}"
-    )
-    
-    # 4. Twilio searchNumbers parameter verification  
-    print("\n📍 4. TWILIO SERVICE INTEGRATION")
-    
-    # Check twilio-service.js for 4-parameter searchNumbers function
-    twilio_file = "/app/js/twilio-service.js"
-    twilio_terms = [
-        'async function searchNumbers(countryCode, numberType = \'local\', limit = 5, areaCode = null)',
-        'if (areaCode && numberType === \'local\')',
-        'params.areaCode = areaCode'
-    ]
-    found_twilio, missing_twilio, _ = check_file_content(twilio_file, twilio_terms, "Twilio searchNumbers")
-    results.test(
-        "Twilio searchNumbers accepts 4 params with areaCode support",
-        len(missing_twilio) == 0,
-        f"Found: {found_twilio}, Missing: {missing_twilio}"
-    )
-    
-    # 5. Phone config verification
-    print("\n📍 5. PHONE CONFIG VERIFICATION")
-    
-    # Check phone-config.js for button definitions
-    config_file = "/app/js/phone-config.js"
-    config_terms = [
-        'bulkCallCampaign: \'📞 Bulk Call Campaign\'',
-        'audioLibrary: \'🎵 Audio Library\'',
-        'provider: \'telnyx\'',
-        'provider: \'twilio\''
-    ]
-    found_config, missing_config, _ = check_file_content(config_file, config_terms, "Phone config")
-    results.test(
-        "Phone config has correct button definitions and provider settings",
-        len(missing_config) == 0,
-        f"Found: {found_config}, Missing: {missing_config}"
-    )
-    
-    # 6. Final health check
-    print("\n📍 6. FINAL HEALTH CHECK")
-    final_health = test_health_check()
-    results.test(
-        "Service remains healthy after analysis",
-        final_health,
-        "Server should still be responsive"
-    )
+    for test_name, test_func in tests:
+        try:
+            print(f"\n{'='*50}")
+            results[test_name] = test_func()
+        except Exception as e:
+            print(f"❌ {test_name} test crashed: {e}")
+            results[test_name] = False
     
     # Summary
-    success = results.summary()
+    print(f"\n{'='*50}")
+    print("=== TRANSLATION SYSTEM TEST SUMMARY ===")
+    print(f"{'='*50}")
     
-    if success:
-        print("\n🎉 All tests passed! The buy flow and bulk call campaign implementation is correct.")
+    passed = sum(1 for success in results.values() if success)
+    total = len(results)
+    
+    for test_name, success in results.items():
+        status = "✅ PASSED" if success else "❌ FAILED"
+        print(f"{test_name}: {status}")
+    
+    print(f"\nOverall: {passed}/{total} tests passed")
+    
+    if passed == total:
+        print("\n🎉 All translation system tests PASSED!")
+        return True
     else:
-        print(f"\n⚠️  {results.failed} test(s) failed. Review the implementation above.")
-        
-    return success
+        print(f"\n⚠️  {total - passed} tests FAILED - requires attention")
+        return False
 
 if __name__ == "__main__":
     success = main()
