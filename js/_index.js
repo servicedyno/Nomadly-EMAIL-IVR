@@ -8108,8 +8108,8 @@ bot?.on('message', async msg => {
         const hasNonBulk = nonBulkNumbers.length > 0
         const msg = hasNonBulk
           ? `📞 <b>Bulk Call Campaign</b>\n\n⚠️ None of your numbers support Bulk IVR.\n\nWhen purchasing a new number, look for the ☎️ <b>Bulk IVR</b> badge to get a Bulk IVR capable number.`
-          : `📞 <b>Bulk Call Campaign</b>\n\nYou need a ☎️ Bulk IVR capable number to launch campaigns.\n\nTap <b>${pc.buyPhoneNumber}</b> and choose a number with the ☎️ badge.`
-        return send(chatId, msg, k.of([[pc.buyPhoneNumber]]))
+          : `📞 <b>Bulk Call Campaign</b>\n\nYou need a ☎️ Bulk IVR capable number to launch campaigns.\n\nTap <b>${buyLabel}</b> and choose a number with the ☎️ badge.`
+        return send(chatId, msg, k.of([[buyLabel]]))
       }
       await saveInfo('bulkData', {})
       await saveInfo('bulkCallerIds', allCallerIds)
