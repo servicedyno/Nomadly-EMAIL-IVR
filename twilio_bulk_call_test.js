@@ -163,10 +163,28 @@ async function testTwiMLEndpoints() {
   // Create a transfer mode campaign for Test 2c
   const transferCampaignId = crypto.randomUUID()
   const transferCampaign = {
-    ...testCampaign,
     id: transferCampaignId,
+    chatId: 987654321, // Different chatId to avoid conflicts
+    callerId: '+18001234567',
+    audioUrl: 'https://config-setup-guide.preview.emergentagent.com/api/assets/user-audio/test.mp3',
+    audioName: 'Test Audio Transfer',
     mode: 'transfer',
-    transferNumber: '+41791234567'
+    transferNumber: '+41791234567',
+    activeKeys: ['1'],
+    concurrency: 1,
+    leads: [{
+      index: 0,
+      number: '+18001234567',
+      name: 'Test Lead Transfer',
+      status: 'calling',
+      digitPressed: null,
+      transferred: false,
+      duration: 0,
+      callSid: null
+    }],
+    status: 'running',
+    stats: { total: 1, completed: 0, answered: 0, keyPressed: 0, transferred: 0, noAnswer: 0, busy: 0, failed: 0, hungUp: 0 },
+    createdAt: new Date()
   }
 
   try {
