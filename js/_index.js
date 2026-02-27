@@ -8986,17 +8986,41 @@ bot?.on('message', async msg => {
     // Non-US or toll-free: search directly with the appropriate provider
     set(state, chatId, 'action', a.cpSelectNumber)
     send(chatId, phoneConfig.txt.searching)
-    let results
-    if (provider === 'twilio') {
-      results = await twilioService.searchNumbers(cc, numberType, 5)
+
+    // Search numbers — for dual-provider countries, search both and merge
+    const canSearchBoth = info?.cpCanSearchBoth || false
+    let results = []
+
+    if (canSearchBoth) {
+      // Search both providers and merge, tagging each with provider + Bulk IVR capability
+      const [telnyxResults, twilioResults] = await Promise.all([
+        telnyxApi.searchNumbers(cc, numberType, null, 3).catch(() => []),
+        twilioService.searchNumbers(cc, numberType, 3).catch(() => []),
+      ])
+      telnyxResults.forEach(r => { r._provider = 'telnyx'; r._bulkIvrCapable = false })
+      twilioResults.forEach(r => { r._provider = 'twilio'; r._bulkIvrCapable = true })
+      results = [...telnyxResults, ...twilioResults]
     } else {
-      results = await telnyxApi.searchNumbers(cc, numberType, null, 5)
+      // Single provider country
+      results = provider === 'twilio'
+        ? await twilioService.searchNumbers(cc, numberType, 5)
+        : await telnyxApi.searchNumbers(cc, numberType, null, 5)
+      results.forEach(r => {
+        r._provider = provider
+        r._bulkIvrCapable = (provider === 'twilio')
+      })
     }
+
     if (!results.length) return send(chatId, phoneConfig.txt.noSearchResults, k.of([]))
     await saveInfo('cpSearchResults', results)
     const location = info?.cpCountryName || cc
+    // Build tagged number display
+    const numberLines = results.map((r, i) => {
+      const tag = r._bulkIvrCapable ? ' ☎️ Bulk IVR' : ''
+      return `${i + 1}. <code>${r.phone_number}</code>${tag}`
+    }).join('\n')
     const numBtns = results.map((_, i) => String(i + 1))
-    return send(chatId, phoneConfig.txt.showNumbers(location, results), k.of([numBtns, [pc.showMore]]))
+    return send(chatId, `📱 <b>Available Numbers — ${location}</b>\n\n${numberLines}\n\n☎️ = Supports Bulk IVR Campaigns\n\nTap a number to select:`, k.of([numBtns, [pc.showMore]]))
   }
 
   // ── BUY FLOW: Select Area ──
