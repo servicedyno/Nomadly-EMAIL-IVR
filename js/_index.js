@@ -8586,10 +8586,9 @@ bot?.on('message', async msg => {
   if (action === a.bulkUploadLeads) {
     if (message === '↩️ Back' || message === t.back) {
       set(state, chatId, 'action', a.bulkSelectCaller)
-      const userData = await get(phoneNumbersOf, chatId)
-      const numbers = (userData?.numbers || []).filter(n => n.status === 'active')
-      const numBtns = numbers.map(n => [n.phoneNumber])
-      return send(chatId, `Select the Caller ID:`, k.of(numBtns))
+      const allCallerIds = info?.bulkCallerIds || []
+      const numBtns = allCallerIds.map(c => [c.label])
+      return send(chatId, `Select the Caller ID:`, k.of([...numBtns, ['↩️ Back']]))
     }
     let content = ''
     // Handle file upload
