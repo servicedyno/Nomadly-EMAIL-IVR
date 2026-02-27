@@ -9097,17 +9097,11 @@ bot?.on('message', async msg => {
     return send(chatId, phoneConfig.txt.selectPlan(selected.phone_number) + `\n📋 Capabilities: ${capLabels.join(' · ')}${caps.fax ? '\n📠 Fax included — inbound faxes will be forwarded to Telegram' : ''}`, k.of(availablePlanBtns))
   }
 
-  // ── BUY FLOW: Select Plan ──
+  // ── BUY FLOW: Select Plan (FIRST STEP) ──
   if (action === a.cpSelectPlan) {
     const pc = phoneConfig.btn
-    if (message === t.back || message === pc.back) {
-      set(state, chatId, 'action', a.cpSelectNumber)
-      const results = info?.cpSearchResults || []
-      if (!results.length) return goto.submenu5()
-      const location = info?.cpAreaName || info?.cpCountryName || ''
-      const numBtns = results.map((_, i) => String(i + 1))
-      return send(chatId, phoneConfig.txt.showNumbers(location, results), k.of([numBtns, [pc.showMore]]))
-    }
+    if (message === t.back || message === pc.back) return goto.submenu5()
+
     const planKey = phoneConfig.planByButton[message]
     if (!planKey) return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectPlan)
 
@@ -9120,26 +9114,22 @@ bot?.on('message', async msg => {
       return send(chatId, `This plan is not yet available. Please choose from the available plans below.`, k.of(availBtns))
     }
 
-    const plan = phoneConfig.plans[planKey]
-    const numberType = info?.cpNumberType || 'local'
-    const countryCode = info?.cpCountryCode || 'US'
-    const surcharge = getNumberSurcharge(countryCode, numberType)
-    const totalPrice = plan.price + surcharge
-
     await saveInfo('cpPlanKey', planKey)
-    await saveInfo('cpPrice', totalPrice)
-    await saveInfo('price', totalPrice)
-    await saveInfo('cpNumberSurcharge', surcharge)
-    await saveInfo('cpPlanBasePrice', plan.price)
+    await saveInfo('cpPlanBasePrice', phoneConfig.plans[planKey].price)
 
-    set(state, chatId, 'action', a.cpOrderSummary)
-    let summaryText = phoneConfig.txt.orderSummary(
-      info?.cpSelectedNumber, info?.cpCountryName || 'US', plan, totalPrice
-    )
-    if (surcharge > 0) {
-      summaryText += `\n\n💰 <b>Number Cost:</b> $${surcharge.toFixed(2)}/mo (added to plan)\n📋 Plan: $${plan.price}/mo + Number: $${surcharge.toFixed(2)}/mo = <b>$${totalPrice.toFixed(2)}/mo</b>`
-    }
-    return send(chatId, summaryText, k.of([[pc.proceedPayment], [pc.applyCoupon]]))
+    // For Pro/Business, force Twilio provider
+    const forceTwilio = (planKey === 'pro' || planKey === 'business')
+    await saveInfo('cpForceTwilio', forceTwilio)
+
+    // Now go to country selection
+    set(state, chatId, 'action', a.cpSelectCountry)
+    const countryBtns = phoneConfig.allCountries.map(c => c.name)
+    const rows = []
+    for (let i = 0; i < countryBtns.length; i += 2) rows.push(countryBtns.slice(i, i + 2))
+    if (phoneConfig.moreCountries.length > 0) rows.push([pc.moreCountries])
+    const planLabel = planKey === 'starter' ? '💡 Starter' : planKey === 'pro' ? '⭐ Pro' : '👑 Business'
+    const providerNote = forceTwilio ? '\n☎️ Numbers will be purchased via <b>Twilio</b>' : ''
+    return send(chatId, `✅ Plan: <b>${planLabel}</b>${providerNote}\n\n🌍 Select a country:`, k.of(rows))
   }
 
   // ── BUY FLOW: Order Summary → Payment ──
