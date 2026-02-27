@@ -8261,7 +8261,17 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const ivrOb = require('./ivr-outbound.js')
     const catBtns = ivrOb.getCategoryButtons()
     const rows = catBtns.map(b => [b])
-    return send(chatId, `📞 Target: <b>${clean}</b>\n\nChoose an IVR template category:`, k.of(rows))
+    return send(chatId, ({ en: `📞 Target: <b>${clean}</b>
+
+Choose an IVR template category:`, fr: `📞 Cible : <b>${clean}</b>
+
+Choisissez une catégorie de modèle IVR :`, zh: `📞 目标：<b>${clean}</b>
+
+选择 IVR 模板分类：`, hi: `📞 लक्ष्य: <b>${clean}</b>
+
+IVR टेम्पलेट श्रेणी चुनें:` }[lang] || `📞 Target: <b>${clean}</b>
+
+Choose an IVR template category:`), k.of(rows))
   }
 
   if (action === a.ivrObSelectCategory) {
@@ -8301,7 +8311,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       const ivrOb = require('./ivr-outbound.js')
       const catBtns = ivrOb.getCategoryButtons()
       const rows = catBtns.map(b => [b])
-      return send(chatId, `Choose an IVR template category:`, k.of(rows))
+      return send(chatId, ({ en: "Choose an IVR template category:", fr: "Choisissez une catégorie de modèle IVR :", zh: "选择 IVR 模板分类：", hi: "IVR टेम्पलेट श्रेणी चुनें:" }[lang] || "Choose an IVR template category:"), k.of(rows))
     }
     const ivrOb = require('./ivr-outbound.js')
     const ivrObData = info?.ivrObData || {}
@@ -8342,7 +8352,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       const ivrOb = require('./ivr-outbound.js')
       const catBtns = ivrOb.getCategoryButtons()
       const rows = catBtns.map(b => [b])
-      return send(chatId, `Choose an IVR template category:`, k.of(rows))
+      return send(chatId, ({ en: "Choose an IVR template category:", fr: "Choisissez une catégorie de modèle IVR :", zh: "选择 IVR 模板分类：", hi: "IVR टेम्पलेट श्रेणी चुनें:" }[lang] || "Choose an IVR template category:"), k.of(rows))
     }
     if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
     const ivrOb = require('./ivr-outbound.js')
@@ -8386,7 +8396,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       const ivrOb = require('./ivr-outbound.js')
       const catBtns = ivrOb.getCategoryButtons()
       const rows = catBtns.map(b => [b])
-      return send(chatId, `Choose an IVR template category:`, k.of(rows))
+      return send(chatId, ({ en: "Choose an IVR template category:", fr: "Choisissez une catégorie de modèle IVR :", zh: "选择 IVR 模板分类：", hi: "IVR टेम्पलेट श्रेणी चुनें:" }[lang] || "Choose an IVR template category:"), k.of(rows))
     }
     const ivrObData = info?.ivrObData || {}
     const placeholders = ivrObData.placeholders || []
@@ -8423,7 +8433,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       const ivrOb = require('./ivr-outbound.js')
       const catBtns = ivrOb.getCategoryButtons()
       const rows = catBtns.map(b => [b])
-      return send(chatId, `Choose an IVR template category:`, k.of(rows))
+      return send(chatId, ({ en: "Choose an IVR template category:", fr: "Choisissez une catégorie de modèle IVR :", zh: "选择 IVR 模板分类：", hi: "IVR टेम्पलेट श्रेणी चुनें:" }[lang] || "Choose an IVR template category:"), k.of(rows))
     }
     const clean = message.replace(/[^+\d]/g, '')
     if (!clean.match(/^\+\d{10,15}$/)) {
@@ -10278,7 +10288,17 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       draft.method = 'template'
       await saveInfo('cpTtsDraft', draft)
       const catBtns = ttsService.getTemplateCategoryButtons().map(b => [b])
-      return send(chatId, `📋 <b>Greeting Templates</b>\n\nProfessional templates for voicemail, customer support, financial institutions, and more. Select a category:`, k.of(catBtns))
+      return send(chatId, ({ en: `📋 <b>Greeting Templates</b>
+
+Professional templates for voicemail, customer support, financial institutions, and more. Select a category:`, fr: `📋 <b>Modèles de Message</b>
+
+Modèles professionnels pour messagerie vocale, support client, institutions financières, etc. Sélectionnez une catégorie :`, zh: `📋 <b>问候语模板</b>
+
+用于语音信箱、客户支持、金融机构等的专业模板。选择分类：`, hi: `📋 <b>ग्रीटिंग टेम्पलेट</b>
+
+वॉइसमेल, ग्राहक सहायता, वित्तीय संस्थानों आदि के लिए पेशेवर टेम्पलेट। श्रेणी चुनें:` }[lang] || `📋 <b>Greeting Templates</b>
+
+Professional templates for voicemail, customer support, financial institutions, and more. Select a category:`), k.of(catBtns))
     }
     if (msg?.voice || msg?.audio) {
       const fileId = msg.voice?.file_id || msg.audio?.file_id
@@ -10312,7 +10332,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       const catKey = ttsService.getCategoryByButton(message)
       if (!catKey) {
         const catBtns = ttsService.getTemplateCategoryButtons().map(b => [b])
-        return send(chatId, `📋 Select a template category:`, k.of(catBtns))
+        return send(chatId, ({ en: "📋 Select a template category:", fr: "📋 Sélectionnez une catégorie de modèle :", zh: "📋 选择模板分类：", hi: "📋 टेम्पलेट श्रेणी चुनें:" }[lang] || "📋 Select a template category:"), k.of(catBtns))
       }
       draft.templateCategory = catKey
       await saveInfo('cpTtsDraft', draft)
@@ -10671,7 +10691,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       const catKey = ttsService.getCategoryByButton(message)
       if (!catKey) {
         const catBtns = ttsService.getTemplateCategoryButtons().map(b => [b])
-        return send(chatId, `📋 Select a template category:`, k.of(catBtns))
+        return send(chatId, ({ en: "📋 Select a template category:", fr: "📋 Sélectionnez une catégorie de modèle :", zh: "📋 选择模板分类：", hi: "📋 टेम्पलेट श्रेणी चुनें:" }[lang] || "📋 Select a template category:"), k.of(catBtns))
       }
       draft.templateCategory = catKey
       await saveInfo('cpTtsDraft', draft)
