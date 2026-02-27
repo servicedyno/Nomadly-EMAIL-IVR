@@ -9422,7 +9422,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         return send(chatId, ({ en: `❌ Address creation failed`, fr: `❌ Échec de la création de l'adresse`, zh: `❌ 地址创建失败`, hi: `❌ पता बनाना विफल` }[lang] || `❌ Address creation failed`).\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> has been refunded to your wallet.\n${t.showWallet(refUsd, refNgn)}`, { parse_mode: 'HTML' })
       }
       set(state, chatId, 'action', 'none')
-      return send(chatId, ({ en: `❌ Address creation failed`, fr: `❌ Échec de la création de l'adresse`, zh: `❌ 地址创建失败`, hi: `❌ पता बनाना विफल` }[lang] || `❌ Address creation failed`): ${addrResult.error}\nYour wallet has been refunded.`, { parse_mode: 'HTML' })
+      return send(chatId, ({ en: `❌ Address creation failed: ${addrResult.error}\nYour wallet has been refunded.`, fr: `❌ Échec de la création de l'adresse : ${addrResult.error}\nVotre portefeuille a été remboursé.`, zh: `❌ 地址创建失败：${addrResult.error}\n您的钱包已退款。`, hi: `❌ पता बनाना विफल: ${addrResult.error}\nआपके वॉलेट में रिफंड किया गया।` }[lang] || `❌ Address creation failed: ${addrResult.error}\nYour wallet has been refunded.`), { parse_mode: 'HTML' })
     }
 
     const addressSid = addrResult.sid
