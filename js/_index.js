@@ -8587,9 +8587,25 @@ bot?.on('message', async msg => {
     const allCallerIds = info?.bulkCallerIds || []
     const found = allCallerIds.find(c => c.label === message)
     if (!found) return send(chatId, `Please select a caller ID from the list.`)
+
+    // Warn if Telnyx number selected
+    if (found.type === 'telnyx') {
+      const bulkData = info?.bulkData || {}
+      bulkData.callerId = found.phoneNumber
+      bulkData.callerType = 'telnyx'
+      bulkData.twilioSubAccountSid = null
+      bulkData.twilioSubAccountToken = null
+      await saveInfo('bulkData', bulkData)
+      set(state, chatId, 'action', a.bulkUploadLeads)
+      return send(chatId, `⚠️ <b>Warning:</b> ${found.phoneNumber} is a Telnyx number.\nTwilio may reject it as a caller ID. If calls fail, use a Twilio number or verified ID instead.\n\n📋 <b>Upload Leads File</b>\n\nSend a text file (.txt or .csv) with one phone number per line.\nOptional: <code>number,name</code> per line.\n\nOr paste the numbers directly (one per line):`, k.of([['↩️ Back']]))
+    }
+
     const bulkData = info?.bulkData || {}
     bulkData.callerId = found.phoneNumber
     bulkData.callerType = found.type
+    // Store sub-account credentials for Twilio-owned numbers
+    bulkData.twilioSubAccountSid = found.subAccountSid || null
+    bulkData.twilioSubAccountToken = found.subAccountToken || null
     await saveInfo('bulkData', bulkData)
     set(state, chatId, 'action', a.bulkUploadLeads)
     return send(chatId, `📱 Caller ID: <b>${found.phoneNumber}</b>\n\n📋 <b>Upload Leads File</b>\n\nSend a text file (.txt or .csv) with one phone number per line.\nOptional: <code>number,name</code> per line.\n\nOr paste the numbers directly (one per line):`, k.of([['↩️ Back']]))
