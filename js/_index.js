@@ -8068,7 +8068,7 @@ bot?.on('message', async msg => {
       if (!hasEligiblePlan) {
         const currentPlan = userNumbers.length > 0 ? (userNumbers[0]?.plan || 'starter') : 'none'
         if (userNumbers.length === 0) {
-          return send(chatId, `📞 <b>Bulk Call Campaign</b>\n\n🔒 This feature requires the <b>Pro</b> plan or higher.\n\nGet a Cloud Phone number first!\n\nTap <b>${pc.buyPhoneNumber}</b> to get started.`, k.of([[pc.buyPhoneNumber]]))
+          return send(chatId, `📞 <b>Bulk Call Campaign</b>\n\n🔒 This feature requires the <b>Pro</b> plan or higher.\n\nGet a Cloud Phone number first!\n\nTap <b>${buyLabel}</b> to get started.`, k.of([[buyLabel]]))
         }
         return send(chatId, phoneConfig.upgradeMessage('bulkCall', currentPlan), k.of([]))
       }
