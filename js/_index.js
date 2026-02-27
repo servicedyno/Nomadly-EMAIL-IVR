@@ -8020,7 +8020,7 @@ bot?.on('message', async msg => {
       if (!hasNumbers) {
         // Non-subscriber path — still allow 1 free trial
         if (trialUsed) {
-          return send(chatId, `📢 <b>IVR Outbound Call</b>\n\nYou've already used your free trial call.\n\nSubscribe to Cloud Phone to make unlimited IVR calls with your own Caller ID!\n\nTap <b>${pc.buyPhoneNumber}</b> to get started.`, k.of([[pc.buyPhoneNumber]]))
+          return send(chatId, `📢 <b>IVR Outbound Call</b>\n\nYou've already used your free trial call.\n\nSubscribe to Cloud Phone to make unlimited IVR calls with your own Caller ID!\n\nTap <b>${buyLabel}</b> to get started.`, k.of([[buyLabel]]))
         }
         // Trial path — auto-assign caller ID
         await saveInfo('ivrObData', { callerId: ivrOb.TRIAL_CALLER_ID, isTrial: true })
