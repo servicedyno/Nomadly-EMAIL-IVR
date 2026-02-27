@@ -8056,11 +8056,22 @@ bot?.on('message', async msg => {
 
     // ── Bulk Call Campaign ──
     if (message === pc.bulkCallCampaign) {
-      // Get user's active numbers + Twilio verified caller IDs
+      // Bulk Call Campaign — requires Pro or Business plan
       const userData = await get(phoneNumbersOf, chatId)
       const userNumbers = (userData?.numbers || []).filter(n => n.status === 'active')
 
-      // Also fetch Twilio verified caller IDs for outbound calls
+      // Check if user has at least one number with Pro or Business plan
+      const hasEligiblePlan = userNumbers.some(n => phoneConfig.canAccessFeature(n.plan, 'bulkCall'))
+
+      if (!hasEligiblePlan) {
+        const currentPlan = userNumbers.length > 0 ? (userNumbers[0]?.plan || 'starter') : 'none'
+        if (userNumbers.length === 0) {
+          return send(chatId, `📞 <b>Bulk Call Campaign</b>\n\n🔒 This feature requires the <b>Pro</b> plan or higher.\n\nGet a Cloud Phone number first!\n\nTap <b>${pc.buyPhoneNumber}</b> to get started.`, k.of([[pc.buyPhoneNumber]]))
+        }
+        return send(chatId, phoneConfig.upgradeMessage('bulkCall', currentPlan), k.of([]))
+      }
+
+      // Get Twilio verified caller IDs
       let verifiedIds = []
       try {
         const twilioClient = twilioService.getClient()
@@ -8072,15 +8083,16 @@ bot?.on('message', async msg => {
         log(`[BulkCall] Error fetching verified IDs: ${e.message}`)
       }
 
-      // Build caller ID list — Twilio numbers + verified IDs (Telnyx numbers excluded — can't use as Twilio caller ID)
-      const twilioNumbers = userNumbers.filter(n => n.provider === 'twilio').map(n => ({
+      // Build caller ID list — only numbers with eligible plans + verified IDs
+      const eligibleNumbers = userNumbers.filter(n => phoneConfig.canAccessFeature(n.plan, 'bulkCall'))
+      const twilioNumbers = eligibleNumbers.filter(n => n.provider === 'twilio').map(n => ({
         phoneNumber: n.phoneNumber,
         label: `${n.phoneNumber} (Twilio)`,
         type: 'owned_twilio',
         subAccountSid: n.twilioSubAccountSid || userData?.twilioSubAccountSid || null,
         subAccountToken: n.twilioSubAccountToken || userData?.twilioSubAccountToken || null,
       }))
-      const telnyxNumbers = userNumbers.filter(n => n.provider === 'telnyx').map(n => ({
+      const telnyxNumbers = eligibleNumbers.filter(n => n.provider === 'telnyx').map(n => ({
         phoneNumber: n.phoneNumber,
         label: `${n.phoneNumber} (Telnyx ⚠️)`,
         type: 'telnyx',
