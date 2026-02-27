@@ -11742,7 +11742,7 @@ bot?.on('message', async msg => {
   }
   if (action === a.customLeadRequestDetails) {
     if (message === (t.backButton || '⬅️ Back')) return goto.customLeadRequestCity()
-    const details = message === 'None' ? '' : message
+    const details = (message === (t.leadNone || 'None')) ? '' : message
     const target = info?.customLeadTarget
     const city = info?.customLeadCity
     const name = await get(nameOf, chatId)
