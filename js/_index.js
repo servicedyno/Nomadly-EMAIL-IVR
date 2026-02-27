@@ -8932,13 +8932,15 @@ bot?.on('message', async msg => {
     }
     const countryCode = phoneConfig.countryByName[message]
     if (!countryCode) return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectValidCountry)
-    // Determine provider — Pro/Business forces Twilio
     const countryEntry = phoneConfig.allCountries.find(c => c.name === message) || phoneConfig.moreCountries.find(c => c.name === message)
-    const forceTwilio = info?.cpForceTwilio || false
-    const provider = forceTwilio ? 'twilio' : (countryEntry?.provider || 'telnyx')
+    // Store native provider for this country (used for single-provider countries)
+    const nativeProvider = countryEntry?.provider || 'telnyx'
     await saveInfo('cpCountryCode', countryCode)
     await saveInfo('cpCountryName', message)
-    await saveInfo('cpProvider', provider)
+    await saveInfo('cpProvider', nativeProvider)
+    // Check if this country supports dual-provider search (Telnyx countries can also search Twilio)
+    const canSearchBoth = (nativeProvider === 'telnyx') // Telnyx countries (US, CA) — search both
+    await saveInfo('cpCanSearchBoth', canSearchBoth)
     set(state, chatId, 'action', a.cpSelectType)
     // Show available types for this country
     const types = countryEntry?.types || ['local', 'toll_free']
