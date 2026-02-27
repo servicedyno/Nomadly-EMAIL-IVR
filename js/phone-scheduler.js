@@ -26,6 +26,7 @@ let _phoneLogs = null
 let _walletOf = null
 let _payments = null
 let _nameOf = null
+let _stateOf = null
 let _notifyGroup = null
 let _maskName = null
 let _nanoid = null
