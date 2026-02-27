@@ -495,7 +495,7 @@ function buildAutoRenewFailedMsg(num) {
 
 ⚠️ Insufficient wallet balance. Your number has been <b>permanently deleted</b> to prevent further billing.
 
-This action is irreversible. To get a new number, visit 📞☁️ Cloud Phone → Buy Phone Number.`
+This action is irreversible. To get a new number, visit 📞☁️ Cloud Phone → Buy Cloud Phone Plans.`
 }
 
 function buildSuspendedMsg(num) {
