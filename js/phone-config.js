@@ -324,8 +324,21 @@ const canAccessFeature = (planKey, feature) => {
 }
 
 const upgradeMessage = (feature, currentPlan) => {
-  const needed = feature === 'callRecording' || feature === 'ivr' ? 'Business' : 'Pro'
-  return `🔒 <b>${feature === 'voicemail' ? 'Voicemail' : feature === 'sipCredentials' ? 'SIP Credentials' : feature === 'smsToEmail' ? 'SMS to Email' : feature === 'smsWebhook' ? 'SMS Webhook' : feature === 'callRecording' ? 'Call Recording' : 'IVR / Auto-attendant'}</b> requires the <b>${needed}</b> plan or higher.\n\nYour current plan: <b>${currentPlan}</b>\n\nUpgrade via 🔄 Renew / Change Plan.`
+  const needed = (feature === 'callRecording' || feature === 'ivr') ? 'Business'
+    : (feature === 'ivrOutbound' || feature === 'bulkCall') ? 'Pro'
+    : 'Pro'
+  const featureNames = {
+    voicemail: 'Voicemail',
+    sipCredentials: 'SIP Credentials',
+    smsToEmail: 'SMS to Email',
+    smsWebhook: 'SMS Webhook',
+    callRecording: 'Call Recording',
+    ivr: 'IVR / Auto-attendant',
+    ivrOutbound: 'IVR Outbound Call',
+    bulkCall: 'Bulk Call Campaign',
+  }
+  const featureName = featureNames[feature] || feature
+  return `🔒 <b>${featureName}</b> requires the <b>${needed}</b> plan or higher.\n\nYour current plan: <b>${currentPlan || 'Starter'}</b>\n\nUpgrade via 🔄 Renew / Change Plan.`
 }
 
 const planByButton = {}
