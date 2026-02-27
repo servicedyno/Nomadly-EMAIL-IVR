@@ -4217,8 +4217,8 @@ bot?.on('message', async msg => {
   // /refresh command — force refresh keyboard for users seeing old buttons
   if (message === '/refresh') {
     set(state, chatId, 'action', 'none')
-    if (isAdmin(chatId)) return send(chatId, 'Keyboard refreshed! Please select an option:', aO)
-    return send(chatId, 'Keyboard refreshed! Please select an option:', trans('o'))
+    if (isAdmin(chatId)) return send(chatId, t.keyboardRefreshed || 'Keyboard refreshed! Please select an option:', aO)
+    return send(chatId, t.keyboardRefreshed || 'Keyboard refreshed! Please select an option:', trans('o'))
   }
 
   // /help command
