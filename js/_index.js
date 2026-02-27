@@ -9158,10 +9158,6 @@ bot?.on('message', async msg => {
     await saveInfo('cpPlanKey', planKey)
     await saveInfo('cpPlanBasePrice', phoneConfig.plans[planKey].price)
 
-    // For Pro/Business, force Twilio provider
-    const forceTwilio = (planKey === 'pro' || planKey === 'business')
-    await saveInfo('cpForceTwilio', forceTwilio)
-
     // Now go to country selection
     set(state, chatId, 'action', a.cpSelectCountry)
     const countryBtns = phoneConfig.allCountries.map(c => c.name)
@@ -9169,8 +9165,7 @@ bot?.on('message', async msg => {
     for (let i = 0; i < countryBtns.length; i += 2) rows.push(countryBtns.slice(i, i + 2))
     if (phoneConfig.moreCountries.length > 0) rows.push([pc.moreCountries])
     const planLabel = planKey === 'starter' ? '💡 Starter' : planKey === 'pro' ? '⭐ Pro' : '👑 Business'
-    const providerNote = forceTwilio ? '\n☎️ Numbers will be purchased via <b>Twilio</b>' : ''
-    return send(chatId, `✅ Plan: <b>${planLabel}</b>${providerNote}\n\n🌍 Select a country:`, k.of(rows))
+    return send(chatId, `✅ Plan: <b>${planLabel}</b>\n\n🌍 Select a country:`, k.of(rows))
   }
 
   // ── BUY FLOW: Order Summary → Payment ──
