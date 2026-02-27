@@ -996,6 +996,8 @@ module.exports = {
   txt,
   msg,
   getMsg,
+  getBtnLabel,
+  isBtnMatch,
   plans,
   planByButton,
   planFeatureAccess,
