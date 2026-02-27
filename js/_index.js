@@ -1854,6 +1854,8 @@ bot?.on('message', async msg => {
       const pc = phoneConfig.btn
       send(chatId, phoneConfig.txt.hubWelcome, k.of([
         [pc.ivrOutboundCall],
+        [pc.bulkCallCampaign],
+        [pc.audioLibrary],
         [pc.buyPhoneNumber],
         [pc.myNumbers],
         [pc.sipSettings],
