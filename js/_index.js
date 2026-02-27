@@ -9112,18 +9112,30 @@ bot?.on('message', async msg => {
     }
     await saveInfo('cpSelectedCapabilities', caps)
 
-    set(state, chatId, 'action', a.cpSelectPlan)
-    // Show capabilities in plan selection
+    // Plan already selected at the start — go directly to Order Summary
+    const planKey = info?.cpPlanKey || 'starter'
+    const plan = phoneConfig.plans[planKey]
+    const numberType = info?.cpNumberType || 'local'
+    const countryCode = info?.cpCountryCode || 'US'
+    const surcharge = getNumberSurcharge(countryCode, numberType)
+    const totalPrice = plan.price + surcharge
+
+    await saveInfo('cpPrice', totalPrice)
+    await saveInfo('price', totalPrice)
+    await saveInfo('cpNumberSurcharge', surcharge)
+
+    set(state, chatId, 'action', a.cpOrderSummary)
     const capLabels = []
     if (caps.voice) capLabels.push('Voice')
     if (caps.sms) capLabels.push('SMS')
     if (caps.fax) capLabels.push('Fax')
-    // Only show available plans (hide Coming Soon)
-    const availablePlanBtns = []
-    if (phoneConfig.isPlanAvailable('starter')) availablePlanBtns.push([pc.starterPlan])
-    if (phoneConfig.isPlanAvailable('pro')) availablePlanBtns.push([pc.proPlan])
-    if (phoneConfig.isPlanAvailable('business')) availablePlanBtns.push([pc.businessPlan])
-    return send(chatId, phoneConfig.txt.selectPlan(selected.phone_number) + `\n📋 Capabilities: ${capLabels.join(' · ')}${caps.fax ? '\n📠 Fax included — inbound faxes will be forwarded to Telegram' : ''}`, k.of(availablePlanBtns))
+    const planLabel = planKey === 'starter' ? '💡 Starter' : planKey === 'pro' ? '⭐ Pro' : '👑 Business'
+    let summaryText = phoneConfig.txt.orderSummary(selected.phone_number, info?.cpCountryName || 'US', plan, totalPrice)
+    summaryText += `\n📋 Capabilities: ${capLabels.join(' · ')}`
+    if (surcharge > 0) {
+      summaryText += `\n\n💰 <b>Number Cost:</b> $${surcharge.toFixed(2)}/mo (added to plan)\n📋 Plan: $${plan.price}/mo + Number: $${surcharge.toFixed(2)}/mo = <b>$${totalPrice.toFixed(2)}/mo</b>`
+    }
+    return send(chatId, summaryText, k.of([[pc.proceedPayment], [pc.applyCoupon]]))
   }
 
   // ── BUY FLOW: Select Plan (FIRST STEP) ──
