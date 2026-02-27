@@ -103,7 +103,7 @@
 #====================================================================================================
 
 
-user_problem_statement: "Honeypot integration — all 6 trap types + KV banning + MongoDB analytics + Hosting flow fixes"
+user_problem_statement: "Test the new Bulk Call Campaign and Audio Library features for the Nomadly Telegram Bot platform. Backend is Node.js (Express) running on port 5000."
 
 backend:
   - task: "Fix: DynoPay crypto fallback to BlockBee when DynoPay is down"
