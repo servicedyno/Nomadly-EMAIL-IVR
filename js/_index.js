@@ -1989,7 +1989,7 @@ bot?.on('message', async msg => {
     'quick-activate-domain-shortener': async () => {
       const domains = await getPurchasedDomains(chatId)
       if (!domains || domains.length === 0) {
-        send(chatId, `You don't have any domains yet. Buy a domain first, then activate it for the shortener.`)
+        send(chatId, ({ en: `You don't have any domains yet. Buy a domain first, then activate it for the shortener.`, fr: `Vous n'avez pas encore de domaines. Achetez un domaine d'abord, puis activez-le pour le raccourcisseur.`, zh: `您还没有域名。请先购买域名，然后激活短链接服务。`, hi: `आपके पास अभी कोई डोमेन नहीं है। पहले डोमेन खरीदें, फिर शॉर्टनर के लिए सक्रिय करें।` }[lang] || `You don't have any domains yet. Buy a domain first, then activate it for the shortener.`))
         return goto.submenu1()
       }
       set(state, chatId, 'action', 'quick-activate-domain-shortener')
