@@ -7987,7 +7987,7 @@ bot?.on('message', async msg => {
       if (phoneConfig.isPlanAvailable('starter')) availablePlanBtns.push([pc.starterPlan])
       if (phoneConfig.isPlanAvailable('pro')) availablePlanBtns.push([pc.proPlan])
       if (phoneConfig.isPlanAvailable('business')) availablePlanBtns.push([pc.businessPlan])
-      return send(chatId, `🛒 <b>Buy Phone Number</b>\n\nFirst, choose your plan:\n\n💡 <b>Starter</b> — $${phoneConfig.plans.starter.price}/mo\n   Call forwarding, SMS to Telegram\n\n⭐ <b>Pro</b> — $${phoneConfig.plans.pro.price}/mo\n   + SIP, Voicemail, IVR Outbound, Bulk Calls\n\n👑 <b>Business</b> — $${phoneConfig.plans.business.price}/mo\n   + Call Recording, IVR Auto-attendant`, k.of(availablePlanBtns))
+      return send(chatId, `🛒 <b>Buy Cloud Phone Plans</b>\n\nFirst, choose your plan:\n\n💡 <b>Starter</b> — $${phoneConfig.plans.starter.price}/mo\n   Call forwarding, SMS to Telegram\n\n⭐ <b>Pro</b> — $${phoneConfig.plans.pro.price}/mo\n   + SIP, Voicemail, IVR Outbound, Bulk Calls\n\n👑 <b>Business</b> — $${phoneConfig.plans.business.price}/mo\n   + Call Recording, IVR Auto-attendant`, k.of(availablePlanBtns))
     }
     if (message === pc.myNumbers) {
       const userData = await get(phoneNumbersOf, chatId)
