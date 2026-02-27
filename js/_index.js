@@ -8070,6 +8070,9 @@ bot?.on('message', async msg => {
         return send(chatId, phoneConfig.upgradeMessage('bulkCall', currentPlan), k.of([]))
       }
 
+      // Filter to only numbers with eligible plans for bulk calls
+      const eligibleNumbers = userNumbers.filter(n => phoneConfig.canAccessFeature(n.plan, 'bulkCall'))
+
       // Get verified caller IDs that support bulk IVR
       let verifiedIds = []
       try {
