@@ -8063,19 +8063,30 @@ bot?.on('message', async msg => {
         log(`[BulkCall] Error fetching verified IDs: ${e.message}`)
       }
 
-      const allCallerIds = [
-        ...userNumbers.map(n => ({ phoneNumber: n.phoneNumber, label: `${n.phoneNumber} (${n.provider})`, type: 'owned' })),
-        ...verifiedIds,
-      ]
+      // Build caller ID list — Twilio numbers + verified IDs (Telnyx numbers excluded — can't use as Twilio caller ID)
+      const twilioNumbers = userNumbers.filter(n => n.provider === 'twilio').map(n => ({
+        phoneNumber: n.phoneNumber,
+        label: `${n.phoneNumber} (Twilio)`,
+        type: 'owned_twilio',
+        subAccountSid: n.twilioSubAccountSid || userData?.twilioSubAccountSid || null,
+        subAccountToken: n.twilioSubAccountToken || userData?.twilioSubAccountToken || null,
+      }))
+      const telnyxNumbers = userNumbers.filter(n => n.provider === 'telnyx').map(n => ({
+        phoneNumber: n.phoneNumber,
+        label: `${n.phoneNumber} (Telnyx ⚠️)`,
+        type: 'telnyx',
+      }))
+
+      const allCallerIds = [...twilioNumbers, ...verifiedIds, ...telnyxNumbers]
 
       if (allCallerIds.length === 0) {
-        return send(chatId, `📞 <b>Bulk Call Campaign</b>\n\nYou need a phone number or verified Twilio caller ID to launch campaigns.\n\nTap <b>${pc.buyPhoneNumber}</b> to get a number, or verify a caller ID on Twilio.`, k.of([[pc.buyPhoneNumber]]))
+        return send(chatId, `📞 <b>Bulk Call Campaign</b>\n\nYou need a Twilio phone number or verified Twilio caller ID to launch campaigns.\n\n⚠️ Telnyx numbers cannot be used as Twilio caller IDs.\n\nTap <b>${pc.buyPhoneNumber}</b> to get a Twilio number.`, k.of([[pc.buyPhoneNumber]]))
       }
       await saveInfo('bulkData', {})
       await saveInfo('bulkCallerIds', allCallerIds)
       set(state, chatId, 'action', a.bulkSelectCaller)
       const numBtns = allCallerIds.map(c => [c.label])
-      return send(chatId, `📞 <b>Bulk Call Campaign</b>\n\nLaunch automated Twilio IVR calls to multiple leads at once.\n\n📱 Select the Caller ID:`, k.of([...numBtns, ['↩️ Back']]))
+      return send(chatId, `📞 <b>Bulk Call Campaign</b>\n\nLaunch automated Twilio IVR calls to multiple leads.\n\n⚠️ <b>Twilio numbers</b> and <b>Verified IDs</b> work as caller ID.\n⚠️ <b>Telnyx numbers</b> marked with ⚠️ — Twilio may reject them unless verified.\n\n📱 Select the Caller ID:`, k.of([...numBtns, ['↩️ Back']]))
     }
 
     // ── Audio Library ──
