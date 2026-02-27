@@ -138,7 +138,8 @@ async function runExpiryCheck() {
               modified = true
               suspended++
               await releaseFromProvider(num, user.val)
-              sendToUser(chatId, buildAutoRenewFailedMsg(num))
+              const userLang = await _getUserLang(chatId)
+              sendToUser(chatId, buildAutoRenewFailedMsg(num, userLang))
               const name = await get(_nameOf, chatId)
               _notifyGroup?.(`❌ <b>Auto-Renew Failed + Released:</b> ${_maskName?.(name)} lost ${formatPhone(num.phoneNumber)} (insufficient balance)`)
               log(`[PhoneScheduler] Auto-renew failed, released from provider: ${chatId} ${num.phoneNumber}`)
