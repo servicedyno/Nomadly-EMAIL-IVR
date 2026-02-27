@@ -4571,7 +4571,7 @@ bot?.on('message', async msg => {
     let modifiedDomain = removeProtocolFromDomain(message)
     // Validate it looks like a domain
     if (!modifiedDomain || !modifiedDomain.includes('.')) {
-      return send(chatId, 'Please enter a valid domain name (e.g., example.com).', bc)
+      return send(chatId, ({ en: 'Please enter a valid domain name (e.g., example.com).', fr: 'Veuillez entrer un nom de domaine valide (ex : example.com).', zh: '请输入有效的域名（如 example.com）。', hi: 'कृपया एक मान्य डोमेन नाम दर्ज करें (जैसे example.com)।' }[lang] || 'Please enter a valid domain name (e.g., example.com).'), bc)
     }
     // Check if domain is already used by a hosting plan
     const existingPlan = await cpanelAccounts.findOne({ domain: modifiedDomain })
