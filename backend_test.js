@@ -1,375 +1,403 @@
-#!/usr/bin/env node
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Backend Test for Nomadly Telegram Bot - Bulk Call Campaign and Audio Library Features
+// Testing Node.js Express Backend on Port 5000
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-/**
- * Backend Test for Nomadly Telegram Bot
- * Tests the two specific fixes:
- * 1. showDepositCryptoInfo wallet template USD amount fix
- * 2. Bidirectional crypto payment fallback system
- */
-
+const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
-const axios = require('axios').default;
 
-// Test configuration
-const CONFIG = {
-  nodeServicePort: 5000,
-  baseUrl: 'http://localhost:5000',
-  testTimeout: 30000
-};
+// Get backend URL from environment
+const BACKEND_URL = 'http://localhost:5000';
 
-class TelegramBotTester {
-  constructor() {
-    this.results = {
-      fix1: { passed: 0, failed: 0, tests: [] },
-      fix2: { passed: 0, failed: 0, tests: [] },
-      service: { passed: 0, failed: 0, tests: [] }
-    };
-  }
+// Test counter
+let testCount = 0;
+let passedCount = 0;
 
-  log(message, type = 'info') {
-    const timestamp = new Date().toISOString();
-    const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️';
-    console.log(`${prefix} [${timestamp}] ${message}`);
-  }
-
-  addResult(category, testName, passed, details = '') {
-    const result = { testName, passed, details };
-    this.results[category].tests.push(result);
-    
-    if (passed) {
-      this.results[category].passed++;
-      this.log(`✅ ${testName}: ${details}`, 'success');
-    } else {
-      this.results[category].failed++;
-      this.log(`❌ ${testName}: ${details}`, 'error');
-    }
-  }
-
-  // Test 1: Verify language file signatures have been updated
-  testLanguageFileSignatures() {
-    this.log('Testing FIX 1: Language file showDepositCryptoInfo signatures...');
-    
-    const langFiles = [
-      '/app/js/lang/en.js',
-      '/app/js/lang/fr.js', 
-      '/app/js/lang/zh.js',
-      '/app/js/lang/hi.js'
-    ];
-
-    langFiles.forEach(filePath => {
-      try {
-        const content = fs.readFileSync(filePath, 'utf8');
-        const matches = content.match(/showDepositCryptoInfo:\s*\(([^)]+)\)\s*=>/);
-        
-        if (matches && matches[1]) {
-          const signature = matches[1].trim();
-          const expectedSignature = 'priceUsd, priceCrypto, tickerView, address';
-          
-          if (signature === expectedSignature) {
-            this.addResult('fix1', `${path.basename(filePath)} signature`, true, `Correct signature: (${signature})`);
-          } else {
-            this.addResult('fix1', `${path.basename(filePath)} signature`, false, `Expected (${expectedSignature}) but got (${signature})`);
-          }
-        } else {
-          this.addResult('fix1', `${path.basename(filePath)} signature`, false, 'showDepositCryptoInfo function not found');
-        }
-      } catch (error) {
-        this.addResult('fix1', `${path.basename(filePath)} signature`, false, `Error reading file: ${error.message}`);
-      }
-    });
-  }
-
-  // Test 2: Verify priceUsd is referenced in template body
-  testLanguageFilePriceUsdUsage() {
-    this.log('Testing FIX 1: Language files reference priceUsd in template body...');
-    
-    const langFiles = [
-      '/app/js/lang/en.js',
-      '/app/js/lang/fr.js', 
-      '/app/js/lang/zh.js',
-      '/app/js/lang/hi.js'
-    ];
-
-    langFiles.forEach(filePath => {
-      try {
-        const content = fs.readFileSync(filePath, 'utf8');
-        
-        // Find the showDepositCryptoInfo function and extract its body
-        const functionMatch = content.match(/showDepositCryptoInfo:\s*\(priceUsd,\s*priceCrypto,\s*tickerView,\s*address\)\s*=>\s*`([^`]+)`/s);
-        
-        if (functionMatch && functionMatch[1]) {
-          const functionBody = functionMatch[1];
-          
-          if (functionBody.includes('Number(priceUsd).toFixed(2)')) {
-            this.addResult('fix1', `${path.basename(filePath)} priceUsd usage`, true, 'Uses Number(priceUsd).toFixed(2) in template');
-          } else {
-            this.addResult('fix1', `${path.basename(filePath)} priceUsd usage`, false, 'Does not use Number(priceUsd).toFixed(2) in template');
-          }
-        } else {
-          this.addResult('fix1', `${path.basename(filePath)} priceUsd usage`, false, 'showDepositCryptoInfo template body not found');
-        }
-      } catch (error) {
-        this.addResult('fix1', `${path.basename(filePath)} priceUsd usage`, false, `Error reading file: ${error.message}`);
-      }
-    });
-  }
-
-  // Test 3: Verify callers in _index.js pass 4 arguments
-  testIndexJsCallers() {
-    this.log('Testing FIX 1: _index.js callers use 4-argument pattern...');
-    
-    try {
-      const content = fs.readFileSync('/app/js/_index.js', 'utf8');
-      
-      // Find all showDepositCryptoInfo calls (excluding InfoPlan, InfoDomain, etc.)
-      const callerMatches = [...content.matchAll(/\.showDepositCryptoInfo\(([^)]+)\)/g)];
-      
-      if (callerMatches.length === 4) {
-        this.addResult('fix1', '_index.js caller count', true, `Found ${callerMatches.length} showDepositCryptoInfo calls`);
-        
-        callerMatches.forEach((match, index) => {
-          const args = match[1].split(',').map(arg => arg.trim());
-          if (args.length === 4) {
-            // Check if first arg is 'amount' and pattern matches expected: amount, usdIn, tickerView, address
-            const expectedPattern = ['amount', 'usdIn', 'tickerView'];
-            const matches = args.slice(0, 3).every((arg, i) => arg === expectedPattern[i]);
-            
-            if (matches) {
-              this.addResult('fix1', `_index.js caller ${index + 1}`, true, `Correct 4-arg pattern: ${match[1]}`);
-            } else {
-              this.addResult('fix1', `_index.js caller ${index + 1}`, false, `Incorrect pattern: ${match[1]}`);
-            }
-          } else {
-            this.addResult('fix1', `_index.js caller ${index + 1}`, false, `Expected 4 args, got ${args.length}: ${match[1]}`);
-          }
-        });
-      } else {
-        this.addResult('fix1', '_index.js caller count', false, `Expected 4 showDepositCryptoInfo calls, found ${callerMatches.length}`);
-      }
-    } catch (error) {
-      this.addResult('fix1', '_index.js caller count', false, `Error reading file: ${error.message}`);
-    }
-  }
-
-  // Test 4: Verify no old 3-arg calls remain
-  testNoOldThreeArgCalls() {
-    this.log('Testing FIX 1: No old 3-arg calls remain...');
-    
-    try {
-      const content = fs.readFileSync('/app/js/_index.js', 'utf8');
-      
-      // Look for patterns that would indicate old 3-arg calls (usdIn as first arg)
-      const oldPatternMatches = [...content.matchAll(/\.showDepositCryptoInfo\(usdIn,\s*tickerView/g)];
-      
-      if (oldPatternMatches.length === 0) {
-        this.addResult('fix1', '_index.js no old calls', true, 'No old 3-argument pattern found');
-      } else {
-        this.addResult('fix1', '_index.js no old calls', false, `Found ${oldPatternMatches.length} old 3-argument patterns`);
-      }
-    } catch (error) {
-      this.addResult('fix1', '_index.js no old calls', false, `Error reading file: ${error.message}`);
-    }
-  }
-
-  // Test 5: Verify exactly 20 CryptoFallback log lines
-  testCryptoFallbackLogLines() {
-    this.log('Testing FIX 2: Exactly 20 CryptoFallback log lines...');
-    
-    try {
-      const content = fs.readFileSync('/app/js/_index.js', 'utf8');
-      
-      const fallbackMatches = [...content.matchAll(/\[CryptoFallback\]/g)];
-      
-      if (fallbackMatches.length === 20) {
-        this.addResult('fix2', 'CryptoFallback log count', true, `Found exactly 20 [CryptoFallback] log lines`);
-        
-        // Verify 10 BlockBee and 10 DynoPay messages
-        const blockbeeMatches = [...content.matchAll(/\[CryptoFallback\] BlockBee unavailable/g)];
-        const dynopayMatches = [...content.matchAll(/\[CryptoFallback\] DynoPay unavailable/g)];
-        
-        if (blockbeeMatches.length === 10 && dynopayMatches.length === 10) {
-          this.addResult('fix2', 'CryptoFallback distribution', true, '10 BlockBee + 10 DynoPay fallback messages');
-        } else {
-          this.addResult('fix2', 'CryptoFallback distribution', false, `Expected 10 BlockBee + 10 DynoPay, got ${blockbeeMatches.length} + ${dynopayMatches.length}`);
-        }
-      } else {
-        this.addResult('fix2', 'CryptoFallback log count', false, `Expected 20 [CryptoFallback] lines, found ${fallbackMatches.length}`);
-      }
-    } catch (error) {
-      this.addResult('fix2', 'CryptoFallback log count', false, `Error reading file: ${error.message}`);
-    }
-  }
-
-  // Test 6: Verify all 10 payment types have fallback support
-  testPaymentTypesFallback() {
-    this.log('Testing FIX 2: All 10 payment types have bidirectional fallback...');
-    
-    const expectedPaymentTypes = [
-      'wallet', 'digital product', 'virtual card', 'domain', 'hosting', 
-      'VPS', 'VPS upgrade', 'plan', 'phone', 'leads'
-    ];
-    
-    try {
-      const content = fs.readFileSync('/app/js/_index.js', 'utf8');
-      
-      expectedPaymentTypes.forEach(paymentType => {
-        const blockbeePattern = `[CryptoFallback] BlockBee unavailable for ${paymentType}`;
-        const dynopayPattern = `[CryptoFallback] DynoPay unavailable for ${paymentType}`;
-        
-        const hasBlockbeeFallback = content.includes(blockbeePattern);
-        const hasDynopayFallback = content.includes(dynopayPattern);
-        
-        if (hasBlockbeeFallback && hasDynopayFallback) {
-          this.addResult('fix2', `${paymentType} fallback`, true, 'Both BlockBee->DynoPay and DynoPay->BlockBee fallbacks present');
-        } else {
-          this.addResult('fix2', `${paymentType} fallback`, false, `Missing fallback: BlockBee=${hasBlockbeeFallback}, DynoPay=${hasDynopayFallback}`);
-        }
-      });
-    } catch (error) {
-      this.addResult('fix2', 'payment types fallback', false, `Error reading file: ${error.message}`);
-    }
-  }
-
-  // Test 7: Verify no broken generateBlockBeeAddress references
-  testNoGenerateBlockBeeAddress() {
-    this.log('Testing FIX 2: No broken generateBlockBeeAddress references...');
-    
-    try {
-      const content = fs.readFileSync('/app/js/_index.js', 'utf8');
-      
-      const brokenReferences = [...content.matchAll(/generateBlockBeeAddress/g)];
-      
-      if (brokenReferences.length === 0) {
-        this.addResult('fix2', 'no generateBlockBeeAddress', true, 'No references to broken generateBlockBeeAddress function');
-      } else {
-        this.addResult('fix2', 'no generateBlockBeeAddress', false, `Found ${brokenReferences.length} references to generateBlockBeeAddress`);
-      }
-    } catch (error) {
-      this.addResult('fix2', 'no generateBlockBeeAddress', false, `Error reading file: ${error.message}`);
-    }
-  }
-
-  // Test 8: Verify bbResult and dynoResult patterns
-  testResultPatterns() {
-    this.log('Testing FIX 2: Correct bbResult and dynoResult patterns...');
-    
-    try {
-      const content = fs.readFileSync('/app/js/_index.js', 'utf8');
-      
-      // Check for bbResult?.address pattern
-      const bbResultMatches = [...content.matchAll(/bbResult\?\.address/g)];
-      const dynoResultMatches = [...content.matchAll(/dynoResult\?\.address/g)];
-      
-      if (bbResultMatches.length > 0) {
-        this.addResult('fix2', 'bbResult pattern', true, `Found ${bbResultMatches.length} bbResult?.address patterns`);
-      } else {
-        this.addResult('fix2', 'bbResult pattern', false, 'No bbResult?.address patterns found');
-      }
-      
-      if (dynoResultMatches.length > 0) {
-        this.addResult('fix2', 'dynoResult pattern', true, `Found ${dynoResultMatches.length} dynoResult?.address patterns`);
-      } else {
-        this.addResult('fix2', 'dynoResult pattern', false, 'No dynoResult?.address patterns found');
-      }
-    } catch (error) {
-      this.addResult('fix2', 'result patterns', false, `Error reading file: ${error.message}`);
-    }
-  }
-
-  // Test 9: Service health check
-  async testServiceHealth() {
-    this.log('Testing service health check...');
-    
-    try {
-      const response = await axios.get(`${CONFIG.baseUrl}/health`, {
-        timeout: CONFIG.testTimeout
-      });
-      
-      if (response.status === 200) {
-        this.addResult('service', 'health endpoint', true, `Service responding on port ${CONFIG.nodeServicePort}`);
-        
-        if (response.data && response.data.status) {
-          this.addResult('service', 'health status', true, `Status: ${response.data.status}`);
-        } else {
-          this.addResult('service', 'health status', false, 'No status in health response');
-        }
-      } else {
-        this.addResult('service', 'health endpoint', false, `Unexpected status code: ${response.status}`);
-      }
-    } catch (error) {
-      this.addResult('service', 'health endpoint', false, `Service not responding: ${error.message}`);
-    }
-  }
-
-  // Run all tests
-  async runAllTests() {
-    this.log('🚀 Starting Nomadly Telegram Bot Test Suite...');
-    this.log(`Testing Node.js service on port ${CONFIG.nodeServicePort}`);
-    
-    // FIX 1 Tests: showDepositCryptoInfo wallet template USD amount
-    this.testLanguageFileSignatures();
-    this.testLanguageFilePriceUsdUsage();
-    this.testIndexJsCallers();
-    this.testNoOldThreeArgCalls();
-    
-    // FIX 2 Tests: Bidirectional crypto payment fallback
-    this.testCryptoFallbackLogLines();
-    this.testPaymentTypesFallback();
-    this.testNoGenerateBlockBeeAddress();
-    this.testResultPatterns();
-    
-    // Service Tests
-    await this.testServiceHealth();
-    
-    this.printSummary();
-  }
-
-  printSummary() {
-    this.log('\n=================== TEST SUMMARY ===================');
-    
-    ['fix1', 'fix2', 'service'].forEach(category => {
-      const { passed, failed, tests } = this.results[category];
-      const total = passed + failed;
-      const categoryName = {
-        fix1: 'FIX 1: showDepositCryptoInfo USD Amount',
-        fix2: 'FIX 2: Bidirectional Crypto Fallback', 
-        service: 'Service Health'
-      }[category];
-      
-      console.log(`\n${categoryName}:`);
-      console.log(`  ✅ Passed: ${passed}/${total}`);
-      console.log(`  ❌ Failed: ${failed}/${total}`);
-      
-      if (failed > 0) {
-        console.log(`  Failed tests:`);
-        tests.filter(t => !t.passed).forEach(t => {
-          console.log(`    - ${t.testName}: ${t.details}`);
-        });
-      }
-    });
-    
-    const totalPassed = Object.values(this.results).reduce((sum, cat) => sum + cat.passed, 0);
-    const totalFailed = Object.values(this.results).reduce((sum, cat) => sum + cat.failed, 0);
-    const totalTests = totalPassed + totalFailed;
-    
-    console.log(`\n📊 OVERALL: ${totalPassed}/${totalTests} tests passed`);
-    
-    if (totalFailed === 0) {
-      console.log('🎉 All tests PASSED! Both fixes verified successfully.');
-    } else {
-      console.log(`⚠️  ${totalFailed} test(s) FAILED. Please review the issues above.`);
-    }
-  }
+function log(message) {
+  console.log(`[TEST] ${message}`);
 }
 
-// Run the tests
-(async () => {
-  const tester = new TelegramBotTester();
-  await tester.runAllTests();
+function test(description, result) {
+  testCount++;
+  const status = result ? '✅ PASS' : '❌ FAIL';
+  log(`${testCount}. ${description}: ${status}`);
+  if (result) passedCount++;
+  return result;
+}
+
+async function runTests() {
+  log('Starting Nomadly Telegram Bot Backend Tests...');
+  log(`Backend URL: ${BACKEND_URL}`);
+  log('');
+
+  try {
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // Test 1: Node.js Health Check
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    log('=== HEALTH CHECKS ===');
+    
+    try {
+      const healthResponse = await axios.get(`${BACKEND_URL}/api/health`);
+      const healthData = healthResponse.data;
+      
+      test('Node.js starts cleanly and responds to health check', 
+        healthResponse.status === 200 && 
+        healthData.status === 'healthy' && 
+        healthData.database === 'connected'
+      );
+    } catch (error) {
+      test('Node.js starts cleanly and responds to health check', false);
+      log(`Health check error: ${error.message}`);
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // Test 2: Check Service Logs for Initialization
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    log('=== SERVICE INITIALIZATION ===');
+    
+    try {
+      const { spawn } = require('child_process');
+      const grep = spawn('grep', ['-i', '\\[AudioLibrary\\] Initialized\\|\\[BulkCall\\] Service initialized', '/var/log/supervisor/nodejs.out.log']);
+      
+      let output = '';
+      grep.stdout.on('data', (data) => {
+        output += data.toString();
+      });
+      
+      await new Promise((resolve) => {
+        grep.on('close', () => resolve());
+      });
+      
+      const hasAudioLibInit = output.includes('[AudioLibrary] Initialized');
+      const hasBulkCallInit = output.includes('[BulkCall] Service initialized');
+      
+      test('Audio Library Service initializes correctly', hasAudioLibInit);
+      test('Bulk Call Service initializes correctly', hasBulkCallInit);
+      
+    } catch (error) {
+      test('Audio Library Service initializes correctly', false);
+      test('Bulk Call Service initializes correctly', false);
+      log(`Log check error: ${error.message}`);
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // Test 3: Audio Library Service Exports
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    log('=== AUDIO LIBRARY SERVICE VERIFICATION ===');
+    
+    try {
+      const audioLibraryService = require('/app/js/audio-library-service.js');
+      const expectedExports = [
+        'initAudioLibrary',
+        'downloadAndSave', 
+        'saveAudio',
+        'listAudios',
+        'getAudio',
+        'deleteAudio',
+        'renameAudio',
+        'getAudioUrl',
+        'AUDIO_DIR'
+      ];
+      
+      const hasAllExports = expectedExports.every(exportName => 
+        typeof audioLibraryService[exportName] !== 'undefined'
+      );
+      
+      test('Audio Library Service has all required exports', hasAllExports);
+      
+      if (!hasAllExports) {
+        const missing = expectedExports.filter(name => !audioLibraryService[name]);
+        log(`Missing exports: ${missing.join(', ')}`);
+      }
+      
+    } catch (error) {
+      test('Audio Library Service has all required exports', false);
+      log(`Audio Library Service error: ${error.message}`);
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // Test 4: Bulk Call Service Exports
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    log('=== BULK CALL SERVICE VERIFICATION ===');
+    
+    try {
+      const bulkCallService = require('/app/js/bulk-call-service.js');
+      const expectedExports = [
+        'initBulkCallService',
+        'parseLeadsFile',
+        'createCampaign',
+        'startCampaign',
+        'onCallComplete',
+        'cancelCampaign',
+        'pauseCampaign',
+        'getCampaign',
+        'getUserCampaigns',
+        'isBulkCall',
+        'getCampaignMapping'
+      ];
+      
+      const hasAllExports = expectedExports.every(exportName => 
+        typeof bulkCallService[exportName] !== 'undefined'
+      );
+      
+      test('Bulk Call Service has all required exports', hasAllExports);
+      
+      if (!hasAllExports) {
+        const missing = expectedExports.filter(name => !bulkCallService[name]);
+        log(`Missing exports: ${missing.join(', ')}`);
+      }
+      
+    } catch (error) {
+      test('Bulk Call Service has all required exports', false);
+      log(`Bulk Call Service error: ${error.message}`);
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // Test 5: parseLeadsFile Function Testing
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    log('=== PARSE LEADS FILE TESTING ===');
+    
+    try {
+      const bulkCallService = require('/app/js/bulk-call-service.js');
+      
+      // Test 1: Simple phone numbers
+      const testInput1 = "+41791234567\n+33612345678";
+      const result1 = bulkCallService.parseLeadsFile(testInput1);
+      test('parseLeadsFile handles simple phone numbers', 
+        result1.leads.length === 2 && 
+        result1.leads[0].number === '+41791234567' &&
+        result1.leads[1].number === '+33612345678' &&
+        result1.errors.length === 0
+      );
+      
+      // Test 2: CSV with names
+      const testInput2 = "+41791234567,John\n+33612345678,Marie";
+      const result2 = bulkCallService.parseLeadsFile(testInput2);
+      test('parseLeadsFile handles CSV with names', 
+        result2.leads.length === 2 && 
+        result2.leads[0].name === 'John' &&
+        result2.leads[1].name === 'Marie' &&
+        result2.errors.length === 0
+      );
+      
+      // Test 3: Invalid input
+      const testInput3 = "invalid";
+      const result3 = bulkCallService.parseLeadsFile(testInput3);
+      test('parseLeadsFile handles invalid input correctly', 
+        result3.leads.length === 0 && 
+        result3.errors.length === 1
+      );
+      
+      // Test 4: Duplicate numbers (should be deduplicated)
+      const testInput4 = "+41791234567\n+41791234567\n+33612345678";
+      const result4 = bulkCallService.parseLeadsFile(testInput4);
+      test('parseLeadsFile deduplicates numbers', 
+        result4.leads.length === 2 &&
+        result4.leads.every(lead => ['+41791234567', '+33612345678'].includes(lead.number))
+      );
+      
+    } catch (error) {
+      test('parseLeadsFile handles simple phone numbers', false);
+      test('parseLeadsFile handles CSV with names', false);
+      test('parseLeadsFile handles invalid input correctly', false);
+      test('parseLeadsFile deduplicates numbers', false);
+      log(`parseLeadsFile testing error: ${error.message}`);
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // Test 6: Voice Service Changes
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    log('=== VOICE SERVICE INTEGRATION ===');
+    
+    try {
+      const voiceServicePath = '/app/js/voice-service.js';
+      const voiceServiceContent = fs.readFileSync(voiceServicePath, 'utf8');
+      
+      // Check initiateOutboundIvrCall function signature
+      const hasInitiateOutboundIvrCall = voiceServiceContent.includes('initiateOutboundIvrCall') &&
+        voiceServiceContent.includes('campaignId') &&
+        voiceServiceContent.includes('leadIndex') &&
+        voiceServiceContent.includes('bulkMode');
+      
+      test('initiateOutboundIvrCall supports bulk campaign parameters', hasInitiateOutboundIvrCall);
+      
+      // Check handleOutboundIvrGatherEnded has report_only mode
+      const hasReportOnlyMode = voiceServiceContent.includes('handleOutboundIvrGatherEnded') &&
+        voiceServiceContent.includes('report_only') &&
+        voiceServiceContent.includes('Thank you. Goodbye');
+      
+      test('handleOutboundIvrGatherEnded has report_only mode', hasReportOnlyMode);
+      
+      // Check handleOutboundIvrHangup calls bulkCallService.onCallComplete
+      const hasOnCallComplete = voiceServiceContent.includes('handleOutboundIvrHangup') &&
+        voiceServiceContent.includes('bulkCallService.onCallComplete');
+      
+      test('handleOutboundIvrHangup calls bulkCallService.onCallComplete', hasOnCallComplete);
+      
+    } catch (error) {
+      test('initiateOutboundIvrCall supports bulk campaign parameters', false);
+      test('handleOutboundIvrGatherEnded has report_only mode', false);
+      test('handleOutboundIvrHangup calls bulkCallService.onCallComplete', false);
+      log(`Voice service verification error: ${error.message}`);
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // Test 7: Phone Config Buttons
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    log('=== PHONE CONFIG VERIFICATION ===');
+    
+    try {
+      const phoneConfig = require('/app/js/phone-config.js');
+      
+      const hasBulkCallButton = phoneConfig.btn.bulkCallCampaign === '📞 Bulk Call Campaign';
+      const hasAudioLibraryButton = phoneConfig.btn.audioLibrary === '🎵 Audio Library';
+      
+      test('Phone config has bulkCallCampaign button', hasBulkCallButton);
+      test('Phone config has audioLibrary button', hasAudioLibraryButton);
+      
+    } catch (error) {
+      test('Phone config has bulkCallCampaign button', false);
+      test('Phone config has audioLibrary button', false);
+      log(`Phone config verification error: ${error.message}`);
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // Test 8: Action Constants in _index.js
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    log('=== ACTION CONSTANTS VERIFICATION ===');
+    
+    try {
+      const indexContent = fs.readFileSync('/app/js/_index.js', 'utf8');
+      
+      const requiredActions = [
+        'bulkSelectCaller',
+        'bulkUploadLeads', 
+        'bulkSelectAudio',
+        'bulkUploadAudio',
+        'bulkNameAudio',
+        'bulkSelectMode',
+        'bulkEnterTransfer',
+        'bulkSetConcurrency',
+        'bulkConfirm',
+        'bulkRunning',
+        'audioLibMenu',
+        'audioLibUpload',
+        'audioLibName'
+      ];
+      
+      const hasAllActions = requiredActions.every(action => 
+        indexContent.includes(action)
+      );
+      
+      test('_index.js contains all required action constants', hasAllActions);
+      
+      if (!hasAllActions) {
+        const missing = requiredActions.filter(action => !indexContent.includes(action));
+        log(`Missing actions: ${missing.join(', ')}`);
+      }
+      
+    } catch (error) {
+      test('_index.js contains all required action constants', false);
+      log(`Action constants verification error: ${error.message}`);
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // Test 9: Cloud Phone Hub Menu Integration
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    log('=== CLOUD PHONE HUB MENU VERIFICATION ===');
+    
+    try {
+      const indexContent = fs.readFileSync('/app/js/_index.js', 'utf8');
+      
+      // Check if submenu5 function includes the new buttons
+      const hasHubMenuIntegration = indexContent.includes('pc.bulkCallCampaign') &&
+        indexContent.includes('pc.audioLibrary') &&
+        indexContent.includes('submenu5');
+      
+      test('Cloud Phone hub menu includes bulk campaign and audio library buttons', hasHubMenuIntegration);
+      
+    } catch (error) {
+      test('Cloud Phone hub menu includes bulk campaign and audio library buttons', false);
+      log(`Hub menu verification error: ${error.message}`);
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // Test 10: User-Audio Directory
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    log('=== USER-AUDIO DIRECTORY VERIFICATION ===');
+    
+    try {
+      const userAudioDir = '/app/js/assets/user-audio/';
+      const dirExists = fs.existsSync(userAudioDir);
+      const isDirectory = dirExists && fs.statSync(userAudioDir).isDirectory();
+      
+      test('User-audio directory exists and is accessible', dirExists && isDirectory);
+      
+    } catch (error) {
+      test('User-audio directory exists and is accessible', false);
+      log(`User-audio directory verification error: ${error.message}`);
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // Test 11: Static Assets Serving
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    log('=== STATIC ASSETS SERVING VERIFICATION ===');
+    
+    try {
+      // Check if the static route is configured
+      const indexContent = fs.readFileSync('/app/js/_index.js', 'utf8');
+      const hasStaticRoute = indexContent.includes('/assets') && 
+        indexContent.includes('express.static') &&
+        indexContent.includes('assets');
+      
+      test('Static assets serving route is configured', hasStaticRoute);
+      
+      // Try to access the assets endpoint (should return directory listing or 404, but not error)
+      try {
+        const assetsResponse = await axios.get(`${BACKEND_URL}/assets/`);
+        test('Assets endpoint is accessible', true);
+      } catch (error) {
+        // 404 is acceptable for directory listing, but connection errors are not
+        const is404 = error.response && error.response.status === 404;
+        test('Assets endpoint is accessible', is404);
+        if (!is404) {
+          log(`Assets endpoint error: ${error.message}`);
+        }
+      }
+      
+    } catch (error) {
+      test('Static assets serving route is configured', false);
+      test('Assets endpoint is accessible', false);
+      log(`Static assets verification error: ${error.message}`);
+    }
+
+  } catch (error) {
+    log(`Overall test error: ${error.message}`);
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // Test Summary
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  log('');
+  log('=== TEST SUMMARY ===');
+  log(`Total Tests: ${testCount}`);
+  log(`Passed: ${passedCount}`);
+  log(`Failed: ${testCount - passedCount}`);
+  log(`Success Rate: ${((passedCount / testCount) * 100).toFixed(1)}%`);
   
-  process.exit(0);
-})().catch(error => {
-  console.error('❌ Test suite crashed:', error);
-  process.exit(1);
-});
+  if (passedCount === testCount) {
+    log('🎉 ALL TESTS PASSED!');
+  } else {
+    log(`⚠️  ${testCount - passedCount} tests failed. See details above.`);
+  }
+  
+  return { total: testCount, passed: passedCount, failed: testCount - passedCount };
+}
+
+// Run tests if this file is executed directly
+if (require.main === module) {
+  runTests().catch(console.error);
+}
+
+module.exports = { runTests };
