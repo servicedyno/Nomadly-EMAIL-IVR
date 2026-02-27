@@ -8032,7 +8032,7 @@ bot?.on('message', async msg => {
       // Has numbers but no eligible plan
       if (!hasEligiblePlan) {
         const currentPlan = numbers[0]?.plan || 'starter'
-        return send(chatId, phoneConfig.upgradeMessage('ivrOutbound', currentPlan), k.of([]))
+        return send(chatId, phoneConfig.upgradeMessage('ivrOutbound', currentPlan, info?.userLanguage), k.of([]))
       }
 
       // Subscriber with eligible plan — select caller ID (only show numbers with Pro+ plan)
@@ -8071,7 +8071,7 @@ bot?.on('message', async msg => {
         if (userNumbers.length === 0) {
           return send(chatId, `📞 <b>Bulk Call Campaign</b>\n\n🔒 This feature requires the <b>Pro</b> plan or higher.\n\nGet a Cloud Phone number first!\n\nTap <b>${buyLabel}</b> to get started.`, k.of([[buyLabel]]))
         }
-        return send(chatId, phoneConfig.upgradeMessage('bulkCall', currentPlan), k.of([]))
+        return send(chatId, phoneConfig.upgradeMessage('bulkCall', currentPlan, info?.userLanguage), k.of([]))
       }
 
       // Filter to only numbers with eligible plans for bulk calls
@@ -9707,7 +9707,7 @@ bot?.on('message', async msg => {
     // Voicemail — Pro/Business only (gated by buildManageMenu, but double-check)
     if (message === pc.voicemail) {
       if (!phoneConfig.canAccessFeature(num.plan, 'voicemail')) {
-        return send(chatId, phoneConfig.upgradeMessage('voicemail', num.plan), k.of(buildManageMenu(num)))
+        return send(chatId, phoneConfig.upgradeMessage('voicemail', num.plan, info?.userLanguage), k.of(buildManageMenu(num)))
       }
       set(state, chatId, 'action', a.cpVoicemail)
       const vm = num.features?.voicemail || {}
@@ -9724,7 +9724,7 @@ bot?.on('message', async msg => {
     // SIP Credentials — Pro/Business only
     if (message === pc.sipCredentials) {
       if (num.sipDisabled || !phoneConfig.canAccessFeature(num.plan, 'sipCredentials')) {
-        return send(chatId, phoneConfig.upgradeMessage('sipCredentials', num.plan), k.of(buildManageMenu(num)))
+        return send(chatId, phoneConfig.upgradeMessage('sipCredentials', num.plan, info?.userLanguage), k.of(buildManageMenu(num)))
       }
       set(state, chatId, 'action', a.cpSipCredentials)
       const numSipDomain = phoneConfig.getSipDomainForNumber()
@@ -9736,7 +9736,7 @@ bot?.on('message', async msg => {
     // Call Recording — Business only
     if (message === pc.callRecording) {
       if (!phoneConfig.canAccessFeature(num.plan, 'callRecording')) {
-        return send(chatId, phoneConfig.upgradeMessage('callRecording', num.plan), k.of(buildManageMenu(num)))
+        return send(chatId, phoneConfig.upgradeMessage('callRecording', num.plan, info?.userLanguage), k.of(buildManageMenu(num)))
       }
       set(state, chatId, 'action', a.cpCallRecording)
       const isEnabled = num.features?.recording === true
@@ -9748,7 +9748,7 @@ bot?.on('message', async msg => {
     // IVR / Auto-attendant — Business only
     if (message === pc.ivrAutoAttendant) {
       if (!phoneConfig.canAccessFeature(num.plan, 'ivr')) {
-        return send(chatId, phoneConfig.upgradeMessage('ivr', num.plan), k.of(buildManageMenu(num)))
+        return send(chatId, phoneConfig.upgradeMessage('ivr', num.plan, info?.userLanguage), k.of(buildManageMenu(num)))
       }
       set(state, chatId, 'action', a.cpIvr)
       const ivrConf = num.features?.ivr || {}
@@ -9962,15 +9962,15 @@ bot?.on('message', async msg => {
     }
     // Locked features — show upgrade message
     if (message.startsWith('🔒 SMS to Email')) {
-      return send(chatId, phoneConfig.upgradeMessage('smsToEmail', num.plan))
+      return send(chatId, phoneConfig.upgradeMessage('smsToEmail', num.plan, info?.userLanguage))
     }
     if (message.startsWith('🔒 Webhook URL')) {
-      return send(chatId, phoneConfig.upgradeMessage('smsWebhook', num.plan))
+      return send(chatId, phoneConfig.upgradeMessage('smsWebhook', num.plan, info?.userLanguage))
     }
     // Email (gated)
     if (message.startsWith('📧 SMS to Email')) {
       if (!phoneConfig.canAccessFeature(num.plan, 'smsToEmail')) {
-        return send(chatId, phoneConfig.upgradeMessage('smsToEmail', num.plan))
+        return send(chatId, phoneConfig.upgradeMessage('smsToEmail', num.plan, info?.userLanguage))
       }
       set(state, chatId, 'action', a.cpEnterEmail)
       return send(chatId, cpTxt.enterEmail)
@@ -9978,7 +9978,7 @@ bot?.on('message', async msg => {
     // Webhook (gated)
     if (message.startsWith('🔗 Webhook URL')) {
       if (!phoneConfig.canAccessFeature(num.plan, 'smsWebhook')) {
-        return send(chatId, phoneConfig.upgradeMessage('smsWebhook', num.plan))
+        return send(chatId, phoneConfig.upgradeMessage('smsWebhook', num.plan, info?.userLanguage))
       }
       set(state, chatId, 'action', a.cpEnterWebhook)
       return send(chatId, cpTxt.enterWebhook)
