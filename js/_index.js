@@ -776,6 +776,7 @@ const loadData = async () => {
       walletOf,
       payments,
       nameOf,
+      stateOf: state,
       notifyGroup,
       maskName,
       nanoid,
