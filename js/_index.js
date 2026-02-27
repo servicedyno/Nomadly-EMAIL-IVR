@@ -4405,7 +4405,7 @@ bot?.on('message', async msg => {
   if (message === user.contactSupport || message === user.getSupport) {
     await set(supportSessions, chatId, Date.now())
     await saveInfo('action', a.supportChat)
-    send(chatId, `💬 <b>Live Support</b>\n\nYou're now connected with support. Type your message below and we'll respond as soon as possible.\n\nSend /done when you're finished.`, { parse_mode: 'HTML', reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
+    send(chatId, ({ en: `💬 <b>Live Support</b>\n\nYou're now connected with support. Type your message below and we'll respond as soon as possible.\n\nSend /done when you're finished.`, fr: `💬 <b>Support en Direct</b>\n\nVous êtes maintenant connecté au support. Tapez votre message ci-dessous et nous répondrons dès que possible.\n\nEnvoyez /done quand vous avez terminé.`, zh: `💬 <b>在线客服</b>\n\n您已连接到客服。请在下方输入您的消息，我们会尽快回复。\n\n完成后发送 /done。`, hi: `💬 <b>लाइव सहायता</b>\n\nआप अब सहायता से जुड़े हैं। नीचे अपना संदेश टाइप करें और हम जल्द से जल्द जवाब देंगे।\n\nजब आपका काम हो जाए तो /done भेजें।` }[lang] || `💬 <b>Live Support</b>\n\nYou're now connected with support. Type your message below and we'll respond as soon as possible.\n\nSend /done when you're finished.`), { parse_mode: 'HTML', reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
     // Notify admin — private message only, not to groups
     const name = await get(nameOf, chatId)
     send(TELEGRAM_ADMIN_CHAT_ID, `🔔 <b>Support session opened</b>\nUser: <b>${name || 'unknown'}</b> (${chatId})\n@${msg?.from?.username || 'no_username'}\n\nReply with: /reply ${chatId} <i>your message</i>\nClose with: /close ${chatId}`, { parse_mode: 'HTML' })
