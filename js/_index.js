@@ -2968,7 +2968,7 @@ bot?.on('message', async msg => {
       set(state, chatId, 'action', a.viewHostingPlan)
       saveInfo('selectedHostingDomain', domain)
       const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain: domain })
-      if (!plan) return send(chatId, 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+      if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
 
       const expiry = plan.expiryDate ? new Date(plan.expiryDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
       const created = plan.createdAt ? new Date(plan.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
@@ -3005,7 +3005,7 @@ bot?.on('message', async msg => {
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
       const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain: domain })
-      if (!plan) return send(chatId, 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+      if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
 
       // Reset PIN so we can show it (PIN is bcrypt hashed, can't be reversed)
       const cpanelAuth = require('./cpanel-auth')
@@ -4684,7 +4684,7 @@ bot?.on('message', async msg => {
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
       const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
-      if (!plan) return send(chatId, 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+      if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
       const newAutoRenew = plan.autoRenew === false ? true : false
       await cpanelAccounts.updateOne({ _id: plan._id }, { $set: { autoRenew: newAutoRenew } })
       const statusText = newAutoRenew ? '✅ Auto-Renew is now <b>ON</b>. Your plan will be renewed automatically when it expires.' : '❌ Auto-Renew is now <b>OFF</b>. Your plan will expire and be suspended after grace period.'
@@ -4695,7 +4695,7 @@ bot?.on('message', async msg => {
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
       const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
-      if (!plan) return send(chatId, 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+      if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
 
       const { getPlanPrice, getPlanDuration } = require('./hosting-scheduler')
       const price = getPlanPrice(plan.plan)
@@ -4729,7 +4729,7 @@ bot?.on('message', async msg => {
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
       const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
-      if (!plan) return send(chatId, 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+      if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
 
       const { getPlanPrice, getPlanDuration } = require('./hosting-scheduler')
       const price = getPlanPrice(plan.plan)
