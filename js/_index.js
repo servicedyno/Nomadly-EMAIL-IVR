@@ -10160,11 +10160,7 @@ bot?.on('message', async msg => {
     if (message === pc.vmCustomGreeting) {
       set(state, chatId, 'action', a.cpVmAudioUpload)
       await saveInfo('cpTtsDraft', { type: 'vmGreeting' })
-      return send(chatId, `🎤 <b>Custom Greeting</b>\n\nChoose how to create your greeting:`, k.of([
-        ['📋 Use Template'],
-        ['📝 Type Text (AI Voice)'],
-        ['🎙️ Upload Audio'],
-      ]))
+      return send(chatId, `🎤 <b>Custom Greeting</b>\n\nChoose how to create your greeting:`, k.of([[{ en: "📋 Use Template", fr: "📋 Utiliser un Modèle", zh: "📋 使用模板", hi: "📋 टेम्पलेट उपयोग" }[lang] || "📋 Use Template"], [{ en: "📝 Type Text (AI Voice)", fr: "📝 Saisir Texte (IA Vocale)", zh: "📝 输入文字 (AI 语音)", hi: "📝 टेक्स्ट टाइप (AI वॉइस)" }[lang] || "📝 Type Text (AI Voice)"], [{ en: "🎙️ Upload Audio", fr: "🎙️ Uploader Audio", zh: "🎙️ 上传音频", hi: "🎙️ ऑडियो अपलोड" }[lang] || "🎙️ Upload Audio"]]))
     }
     if (message === pc.vmDefaultGreeting) {
       const vm = num.features?.voicemail || {}
@@ -10233,7 +10229,7 @@ bot?.on('message', async msg => {
         return send(chatId, `❌ Failed. Try again.`, k.of([]))
       }
     }
-    return send(chatId, `Choose:`, k.of([['📋 Use Template'], ['📝 Type Text (AI Voice)'], ['🎙️ Upload Audio']]))
+    return send(chatId, `Choose:`, k.of([[{ en: "📋 Use Template", fr: "📋 Utiliser un Modèle", zh: "📋 使用模板", hi: "📋 टेम्पलेट उपयोग" }[lang] || "📋 Use Template"], [{ en: "📝 Type Text (AI Voice)", fr: "📝 Saisir Texte (IA Vocale)", zh: "📝 输入文字 (AI 语音)", hi: "📝 टेक्स्ट टाइप (AI वॉइस)" }[lang] || "📝 Type Text (AI Voice)"], [{ en: "🎙️ Upload Audio", fr: "🎙️ Uploader Audio", zh: "🎙️ 上传音频", hi: "🎙️ ऑडियो अपलोड" }[lang] || "🎙️ Upload Audio"]]))
   }
 
   // ── VM Template: Select category → select template → edit → proceed ──
@@ -10243,9 +10239,7 @@ bot?.on('message', async msg => {
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
       set(state, chatId, 'action', a.cpVmAudioUpload)
-      return send(chatId, `🎤 <b>Custom Greeting</b>\n\nChoose how to create your greeting:`, k.of([
-        ['📋 Use Template'], ['📝 Type Text (AI Voice)'], ['🎙️ Upload Audio'],
-      ]))
+      return send(chatId, `🎤 <b>Custom Greeting</b>\n\nChoose how to create your greeting:`, k.of([[{ en: "📋 Use Template", fr: "📋 Utiliser un Modèle", zh: "📋 使用模板", hi: "📋 टेम्पलेट उपयोग" }[lang] || "📋 Use Template"], [{ en: "📝 Type Text (AI Voice)", fr: "📝 Saisir Texte (IA Vocale)", zh: "📝 输入文字 (AI 语音)", hi: "📝 टेक्स्ट टाइप (AI वॉइस)" }[lang] || "📝 Type Text (AI Voice)"], [{ en: "🎙️ Upload Audio", fr: "🎙️ Uploader Audio", zh: "🎙️ 上传音频", hi: "🎙️ ऑडियो अपलोड" }[lang] || "🎙️ Upload Audio"]]))
     }
     const draft = info?.cpTtsDraft || {}
     // Step 1: User selects a category
@@ -10319,7 +10313,7 @@ bot?.on('message', async msg => {
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
       set(state, chatId, 'action', a.cpVmAudioUpload)
-      return send(chatId, `🎤 <b>Custom Greeting</b>\n\nChoose:`, k.of([['📋 Use Template'], ['📝 Type Text (AI Voice)'], ['🎙️ Upload Audio']]))
+      return send(chatId, `🎤 <b>Custom Greeting</b>\n\nChoose:`, k.of([[{ en: "📋 Use Template", fr: "📋 Utiliser un Modèle", zh: "📋 使用模板", hi: "📋 टेम्पलेट उपयोग" }[lang] || "📋 Use Template"], [{ en: "📝 Type Text (AI Voice)", fr: "📝 Saisir Texte (IA Vocale)", zh: "📝 输入文字 (AI 语音)", hi: "📝 टेक्स्ट टाइप (AI वॉइस)" }[lang] || "📝 Type Text (AI Voice)"], [{ en: "🎙️ Upload Audio", fr: "🎙️ Uploader Audio", zh: "🎙️ 上传音频", hi: "🎙️ ऑडियो अपलोड" }[lang] || "🎙️ Upload Audio"]]))
     }
     const draft = info?.cpTtsDraft || {}
     // Step 3: Voice selected → generate TTS
@@ -10340,7 +10334,7 @@ bot?.on('message', async msg => {
         ]))
       } catch (e) {
         log(`[TTS] Error: ${e.message}`)
-        return send(chatId, `❌ Audio generation failed: ${e.message}`, k.of([['📋 Use Template'], ['📝 Type Text (AI Voice)'], ['🎙️ Upload Audio']]))
+        return send(chatId, `❌ Audio generation failed: ${e.message}`, k.of([[{ en: "📋 Use Template", fr: "📋 Utiliser un Modèle", zh: "📋 使用模板", hi: "📋 टेम्पलेट उपयोग" }[lang] || "📋 Use Template"], [{ en: "📝 Type Text (AI Voice)", fr: "📝 Saisir Texte (IA Vocale)", zh: "📝 输入文字 (AI 语音)", hi: "📝 टेक्स्ट टाइप (AI वॉइस)" }[lang] || "📝 Type Text (AI Voice)"], [{ en: "🎙️ Upload Audio", fr: "🎙️ Uploader Audio", zh: "🎙️ 上传音频", hi: "🎙️ ऑडियो अपलोड" }[lang] || "🎙️ Upload Audio"]]))
       }
     }
     // Step 2: Provider selected → show voices
@@ -10533,11 +10527,7 @@ bot?.on('message', async msg => {
     }
     if (message === pc.ivrGreeting) {
       set(state, chatId, 'action', a.cpIvrGreeting)
-      return send(chatId, `🎤 <b>Set IVR Greeting</b>\n\nChoose how to create your greeting:`, k.of([
-        ['📋 Use Template'],
-        ['📝 Type Text (AI Voice)'],
-        ['🎙️ Upload Audio'],
-      ]))
+      return send(chatId, `🎤 <b>Set IVR Greeting</b>\n\nChoose how to create your greeting:`, k.of([[{ en: "📋 Use Template", fr: "📋 Utiliser un Modèle", zh: "📋 使用模板", hi: "📋 टेम्पलेट उपयोग" }[lang] || "📋 Use Template"], [{ en: "📝 Type Text (AI Voice)", fr: "📝 Saisir Texte (IA Vocale)", zh: "📝 输入文字 (AI 语音)", hi: "📝 टेक्स्ट टाइप (AI वॉइस)" }[lang] || "📝 Type Text (AI Voice)"], [{ en: "🎙️ Upload Audio", fr: "🎙️ Uploader Audio", zh: "🎙️ 上传音频", hi: "🎙️ ऑडियो अपलोड" }[lang] || "🎙️ Upload Audio"]]))
     }
     if (message === pc.ivrAddOption) {
       set(state, chatId, 'action', a.cpIvrOptionKey)
@@ -10598,7 +10588,7 @@ bot?.on('message', async msg => {
       const catBtns = ttsService.getTemplateCategoryButtons().map(b => [b])
       return send(chatId, `📋 <b>Greeting Templates</b>\n\nProfessional templates for financial institutions — fraud hotlines, customer support, after-hours, and more. Select a category:`, k.of(catBtns))
     }
-    return send(chatId, `Choose an option:`, k.of([['📋 Use Template'], ['📝 Type Text (AI Voice)'], ['🎙️ Upload Audio']]))
+    return send(chatId, `Choose an option:`, k.of([[{ en: "📋 Use Template", fr: "📋 Utiliser un Modèle", zh: "📋 使用模板", hi: "📋 टेम्पलेट उपयोग" }[lang] || "📋 Use Template"], [{ en: "📝 Type Text (AI Voice)", fr: "📝 Saisir Texte (IA Vocale)", zh: "📝 输入文字 (AI 语音)", hi: "📝 टेक्स्ट टाइप (AI वॉइस)" }[lang] || "📝 Type Text (AI Voice)"], [{ en: "🎙️ Upload Audio", fr: "🎙️ Uploader Audio", zh: "🎙️ 上传音频", hi: "🎙️ ऑडियो अपलोड" }[lang] || "🎙️ Upload Audio"]]))
   }
 
   // ── IVR Template: Select category → select template → edit → proceed ──
@@ -10608,9 +10598,7 @@ bot?.on('message', async msg => {
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
       set(state, chatId, 'action', a.cpIvrGreeting)
-      return send(chatId, `🎤 <b>Set IVR Greeting</b>\n\nChoose how to create your greeting:`, k.of([
-        ['📋 Use Template'], ['📝 Type Text (AI Voice)'], ['🎙️ Upload Audio'],
-      ]))
+      return send(chatId, `🎤 <b>Set IVR Greeting</b>\n\nChoose how to create your greeting:`, k.of([[{ en: "📋 Use Template", fr: "📋 Utiliser un Modèle", zh: "📋 使用模板", hi: "📋 टेम्पलेट उपयोग" }[lang] || "📋 Use Template"], [{ en: "📝 Type Text (AI Voice)", fr: "📝 Saisir Texte (IA Vocale)", zh: "📝 输入文字 (AI 语音)", hi: "📝 टेक्स्ट टाइप (AI वॉइस)" }[lang] || "📝 Type Text (AI Voice)"], [{ en: "🎙️ Upload Audio", fr: "🎙️ Uploader Audio", zh: "🎙️ 上传音频", hi: "🎙️ ऑडियो अपलोड" }[lang] || "🎙️ Upload Audio"]]))
     }
     const draft = info?.cpTtsDraft || {}
     // Step 1: User selects a category
@@ -10684,9 +10672,7 @@ bot?.on('message', async msg => {
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
       set(state, chatId, 'action', a.cpIvrGreeting)
-      return send(chatId, `🎤 <b>Set IVR Greeting</b>\n\nChoose how to create your greeting:`, k.of([
-        ['📋 Use Template'], ['📝 Type Text (AI Voice)'], ['🎙️ Upload Audio'],
-      ]))
+      return send(chatId, `🎤 <b>Set IVR Greeting</b>\n\nChoose how to create your greeting:`, k.of([[{ en: "📋 Use Template", fr: "📋 Utiliser un Modèle", zh: "📋 使用模板", hi: "📋 टेम्पलेट उपयोग" }[lang] || "📋 Use Template"], [{ en: "📝 Type Text (AI Voice)", fr: "📝 Saisir Texte (IA Vocale)", zh: "📝 输入文字 (AI 语音)", hi: "📝 टेक्स्ट टाइप (AI वॉइस)" }[lang] || "📝 Type Text (AI Voice)"], [{ en: "🎙️ Upload Audio", fr: "🎙️ Uploader Audio", zh: "🎙️ 上传音频", hi: "🎙️ ऑडियो अपलोड" }[lang] || "🎙️ Upload Audio"]]))
     }
     const draft = info?.cpTtsDraft || {}
     // Step 3: Voice selected → generate TTS
@@ -10944,11 +10930,7 @@ Que doit-il se passer quand un appelant appuie sur <b>${key}</b> ?`, zh: `🔢 �
 
 कॉलर जब <b>${key}</b> दबाए तो क्या होना चाहिए?` }[lang] || `🔢 Key <b>${key}</b> selected.
 
-What should happen when a caller presses <b>${key}</b>?`), k.of([
-      ['📞 Forward Call'],
-      ['💬 Play Message'],
-      ['📬 Send to Voicemail'],
-    ]))
+What should happen when a caller presses <b>${key}</b>?`), k.of([[{ en: "📞 Forward Call", fr: "📞 Transférer l'appel", zh: "📞 转接电话", hi: "📞 कॉल फ़ॉरवर्ड" }[lang] || "📞 Forward Call"], [{ en: "💬 Play Message", fr: "💬 Lire un Message", zh: "💬 播放消息", hi: "💬 मैसेज चलाएं" }[lang] || "💬 Play Message"], [{ en: "📬 Send to Voicemail", fr: "📬 Messagerie vocale", zh: "📬 语音信箱", hi: "📬 वॉइसमेल" }[lang] || "📬 Send to Voicemail"]]))
   }
 
   // ── IVR Option: Step 2 — Select action type ──
@@ -11023,11 +11005,7 @@ Comment souhaitez-vous créer le message ?`, zh: `💬 <b>播放消息</b>
 
 आप मैसेज कैसे बनाना चाहते हैं?` }[lang] || `💬 <b>Play Message</b>
 
-How do you want to create the message?`), k.of([
-        ['📋 Use Template'],
-        ['📝 Type Text (AI Voice)'],
-        ['🎙️ Upload Audio'],
-      ]))
+How do you want to create the message?`), k.of([[{ en: "📋 Use Template", fr: "📋 Utiliser un Modèle", zh: "📋 使用模板", hi: "📋 टेम्पलेट उपयोग" }[lang] || "📋 Use Template"], [{ en: "📝 Type Text (AI Voice)", fr: "📝 Saisir Texte (IA Vocale)", zh: "📝 输入文字 (AI 语音)", hi: "📝 टेक्स्ट टाइप (AI वॉइस)" }[lang] || "📝 Type Text (AI Voice)"], [{ en: "🎙️ Upload Audio", fr: "🎙️ Uploader Audio", zh: "🎙️ 上传音频", hi: "🎙️ ऑडियो अपलोड" }[lang] || "🎙️ Upload Audio"]]))
     }
     if (message === '📬 Send to Voicemail') {
       draft.action = 'voicemail'
@@ -11046,7 +11024,7 @@ How do you want to create the message?`), k.of([
         [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
       ]))
     }
-    return send(chatId, ({ en: `Select an action for this key:`, fr: `Sélectionnez une action pour cette touche :`, zh: `选择此按键的操作：`, hi: `इस कुंजी के लिए कार्रवाई चुनें:` }[lang] || `Select an action for this key:`), k.of([['📞 Forward Call'], ['💬 Play Message'], ['📬 Send to Voicemail']]))
+    return send(chatId, ({ en: `Select an action for this key:`, fr: `Sélectionnez une action pour cette touche :`, zh: `选择此按键的操作：`, hi: `इस कुंजी के लिए कार्रवाई चुनें:` }[lang] || `Select an action for this key:`), k.of([[{ en: "📞 Forward Call", fr: "📞 Transférer l'appel", zh: "📞 转接电话", hi: "📞 कॉल फ़ॉरवर्ड" }[lang] || "📞 Forward Call"], [{ en: "💬 Play Message", fr: "💬 Lire un Message", zh: "💬 播放消息", hi: "💬 मैसेज चलाएं" }[lang] || "💬 Play Message"], [{ en: "📬 Send to Voicemail", fr: "📬 Messagerie vocale", zh: "📬 语音信箱", hi: "📬 वॉइसमेल" }[lang] || "📬 Send to Voicemail"]]))
   }
 
   // ── IVR Option: Step 3 — Enter message text / forward number / upload ──
@@ -11056,9 +11034,7 @@ How do you want to create the message?`), k.of([
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
       set(state, chatId, 'action', a.cpIvrOptionAction)
-      return send(chatId, `What should happen when a caller presses <b>${(info?.cpIvrDraft || {}).key}</b>?`, k.of([
-        ['📞 Forward Call'], ['💬 Play Message'], ['📬 Send to Voicemail'],
-      ]))
+      return send(chatId, `What should happen when a caller presses <b>${(info?.cpIvrDraft || {}).key}</b>?`, k.of([[{ en: "📞 Forward Call", fr: "📞 Transférer l'appel", zh: "📞 转接电话", hi: "📞 कॉल फ़ॉरवर्ड" }[lang] || "📞 Forward Call"], [{ en: "💬 Play Message", fr: "💬 Lire un Message", zh: "💬 播放消息", hi: "💬 मैसेज चलाएं" }[lang] || "💬 Play Message"], [{ en: "📬 Send to Voicemail", fr: "📬 Messagerie vocale", zh: "📬 语音信箱", hi: "📬 वॉइसमेल" }[lang] || "📬 Send to Voicemail"]]))
     }
     const draft = info?.cpIvrDraft || {}
 
@@ -11066,7 +11042,7 @@ How do you want to create the message?`), k.of([
     if (draft.action === 'forward') {
       const phone = message.replace(/[^+\d]/g, '')
       if (phone.length < 7 || phone.length > 16) {
-        return send(chatId, `❌ Invalid phone number. Enter a valid number (e.g. +15551234567):`, k.of([]))
+        return send(chatId, ({ en: `❌ Invalid phone number. Enter a valid number (e.g. +15551234567):`, fr: `❌ Numéro invalide. Entrez un numéro valide (ex : +15551234567) :`, zh: `❌ 号码无效。请输入有效号码（如 +15551234567）：`, hi: `❌ अमान्य फ़ोन नंबर। मान्य नंबर दर्ज करें (जैसे +15551234567):` }[lang] || `❌ Invalid phone number. Enter a valid number (e.g. +15551234567):`), k.of([]))
       }
       draft.forwardTo = phone
       await saveInfo('cpIvrDraft', draft)
@@ -11078,7 +11054,7 @@ How do you want to create the message?`), k.of([
       num.features.ivr = ivrConf
       await saveInfo('cpActiveNumber', num)
       await saveInfo('cpIvrDraft', null)
-      send(chatId, `✅ Key <b>${draft.key}</b> → Forward to <b>${phone}</b> — saved!`)
+      send(chatId, ({ en: `✅ Key <b>${draft.key}</b> → Forward to <b>${phone}</b> — saved!`, fr: `✅ Touche <b>${draft.key}</b> → Transférer vers <b>${phone}</b> — enregistré !`, zh: `✅ 按键 <b>${draft.key}</b> → 转接到 <b>${phone}</b> — 已保存！`, hi: `✅ कुंजी <b>${draft.key}</b> → <b>${phone}</b> पर फ़ॉरवर्ड — सेव!` }[lang] || `✅ Key <b>${draft.key}</b> → Forward to <b>${phone}</b> — saved!`))
       set(state, chatId, 'action', a.cpIvr)
       return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
         [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
@@ -11137,7 +11113,7 @@ How do you want to create the message?`), k.of([
       if (message === '📝 Type Text (AI Voice)') {
         draft.method = 'tts'
         await saveInfo('cpIvrDraft', draft)
-        return send(chatId, `📝 Type the message callers will hear when they press <b>${draft.key}</b>:`, k.of([]))
+        return send(chatId, ({ en: `📝 Type the message callers will hear when they press <b>${draft.key}</b>:`, fr: `📝 Tapez le message que les appelants entendront quand ils appuieront sur <b>${draft.key}</b> :`, zh: `📝 输入来电者按 <b>${draft.key}</b> 时听到的消息：`, hi: `📝 वह मैसेज टाइप करें जो कॉलर <b>${draft.key}</b> दबाने पर सुनेंगे:` }[lang] || `📝 Type the message callers will hear when they press <b>${draft.key}</b>:`), k.of([]))
       }
       // Upload Audio
       if (message === '🎙️ Upload Audio') {
@@ -11155,7 +11131,7 @@ How do you want to create the message?`), k.of([
           await saveInfo('cpIvrDraft', draft)
           await bot.sendVoice(chatId, localPath)
           set(state, chatId, 'action', a.cpIvrOptionPreview)
-          return send(chatId, `✅ Audio received for key <b>${draft.key}</b>. Save this?`, k.of([['✅ Save Option'], ['🎙️ Re-upload']]))
+          return send(chatId, ({ en: `✅ Audio received for key <b>${draft.key}</b>. Save this?`, fr: `✅ Audio reçu pour la touche <b>${draft.key}</b>. Enregistrer ?`, zh: `✅ 已收到按键 <b>${draft.key}</b> 的音频。保存吗？`, hi: `✅ कुंजी <b>${draft.key}</b> के लिए ऑडियो प्राप्त। सेव करें?` }[lang] || `✅ Audio received for key <b>${draft.key}</b>. Save this?`), k.of([['✅ Save Option'], ['🎙️ Re-upload']]))
         } catch (e) {
           return send(chatId, `❌ Failed. Try again.`, k.of([]))
         }
@@ -11172,7 +11148,7 @@ How do you want to create the message?`), k.of([
         for (let i = 0; i < langBtns.length; i += 2) langRows.push(langBtns.slice(i, i + 2))
         return send(chatId, `🌐 Select the language:\n\n<i>"${message.length > 80 ? message.slice(0, 80) + '...' : message}"</i>`, k.of(langRows))
       }
-      return send(chatId, `Choose:`, k.of([['📋 Use Template'], ['📝 Type Text (AI Voice)'], ['🎙️ Upload Audio']]))
+      return send(chatId, `Choose:`, k.of([[{ en: "📋 Use Template", fr: "📋 Utiliser un Modèle", zh: "📋 使用模板", hi: "📋 टेम्पलेट उपयोग" }[lang] || "📋 Use Template"], [{ en: "📝 Type Text (AI Voice)", fr: "📝 Saisir Texte (IA Vocale)", zh: "📝 输入文字 (AI 语音)", hi: "📝 टेक्स्ट टाइप (AI वॉइस)" }[lang] || "📝 Type Text (AI Voice)"], [{ en: "🎙️ Upload Audio", fr: "🎙️ Uploader Audio", zh: "🎙️ 上传音频", hi: "🎙️ ऑडियो अपलोड" }[lang] || "🎙️ Upload Audio"]]))
     }
     return send(chatId, `Unexpected state. Try again.`, k.of([]))
   }
@@ -11190,7 +11166,7 @@ How do you want to create the message?`), k.of([
       if (draft.method === 'template') {
         return send(chatId, `📋 <b>Message</b>\n\n<code>${draft.text}</code>\n\n✏️ Type your modified version, or tap <b>✅ Use As-Is</b>:`, k.of([['✅ Use As-Is']]))
       }
-      return send(chatId, `📝 Type the message callers will hear when they press <b>${draft.key}</b>:`, k.of([]))
+      return send(chatId, ({ en: `📝 Type the message callers will hear when they press <b>${draft.key}</b>:`, fr: `📝 Tapez le message que les appelants entendront quand ils appuieront sur <b>${draft.key}</b> :`, zh: `📝 输入来电者按 <b>${draft.key}</b> 时听到的消息：`, hi: `📝 वह मैसेज टाइप करें जो कॉलर <b>${draft.key}</b> दबाने पर सुनेंगे:` }[lang] || `📝 Type the message callers will hear when they press <b>${draft.key}</b>:`), k.of([]))
     }
     const draft = info?.cpIvrDraft || {}
     // Step 3: Voice selection (after provider was picked)
@@ -11306,7 +11282,7 @@ How do you want to create the message?`), k.of([
         draft.audioPath = localPath; draft.method = 'uploaded'
         await saveInfo('cpIvrDraft', draft)
         await bot.sendVoice(chatId, localPath)
-        return send(chatId, `✅ Audio received for key <b>${draft.key}</b>. Save this?`, k.of([['✅ Save Option'], ['🎙️ Re-upload']]))
+        return send(chatId, ({ en: `✅ Audio received for key <b>${draft.key}</b>. Save this?`, fr: `✅ Audio reçu pour la touche <b>${draft.key}</b>. Enregistrer ?`, zh: `✅ 已收到按键 <b>${draft.key}</b> 的音频。保存吗？`, hi: `✅ कुंजी <b>${draft.key}</b> के लिए ऑडियो प्राप्त। सेव करें?` }[lang] || `✅ Audio received for key <b>${draft.key}</b>. Save this?`), k.of([['✅ Save Option'], ['🎙️ Re-upload']]))
       } catch (e) {
         return send(chatId, `❌ Failed. Try again.`, k.of([]))
       }
@@ -11328,7 +11304,7 @@ How do you want to create the message?`), k.of([
       await saveInfo('cpActiveNumber', num)
       await saveInfo('cpIvrDraft', null)
       const actionLabel = draft.action === 'message' ? 'Play Message' : draft.action === 'forward' ? 'Forward Call' : 'Voicemail'
-      send(chatId, `✅ Key <b>${draft.key}</b> → ${actionLabel} — saved!`)
+      send(chatId, ({ en: `✅ Key <b>${draft.key}</b> → ${actionLabel} — saved!`, fr: `✅ Touche <b>${draft.key}</b> → ${actionLabel} — enregistré !`, zh: `✅ 按键 <b>${draft.key}</b> → ${actionLabel} — 已保存！`, hi: `✅ कुंजी <b>${draft.key}</b> → ${actionLabel} — सेव!` }[lang] || `✅ Key <b>${draft.key}</b> → ${actionLabel} — saved!`))
       set(state, chatId, 'action', a.cpIvr)
       return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
         [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
