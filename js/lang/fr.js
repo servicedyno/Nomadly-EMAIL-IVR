@@ -164,6 +164,12 @@ const user = {
   revealCredentials: '🔑 Afficher les Identifiants',
   renewHostingPlan: '🔄 Renouveler le Plan',
   backToMyHostingPlans: '⬅️ Retour à Mes Plans',
+  buyLeads: '🎯 Acheter des Leads Téléphoniques',
+  validateLeads: '✅ Valider les Numéros',
+  shortenLink: '✂️ Raccourcir un Lien',
+  confirmRenewNow: '✅ Confirmer & Payer',
+  cancelRenewNow: '❌ Annuler',
+  toggleAutoRenew: '🔁 Activer/Désactiver le Renouvellement Auto',
 }
 
 const u = {
