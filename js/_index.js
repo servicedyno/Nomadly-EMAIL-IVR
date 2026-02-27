@@ -6398,8 +6398,8 @@ bot?.on('message', async msg => {
   if (action === 'hosting-apply-coupon') {
     if (message === t.skip || message === t.back) return goto['hosting-pay']()
     const couponResult = await resolveCoupon(message, chatId)
-    if (!couponResult) return send(chatId, 'Invalid coupon. Try again or tap Skip.', k.of([t.skip]))
-    if (couponResult.error === 'already_used') return send(chatId, 'Coupon already used. Try another or tap Skip.', k.of([t.skip]))
+    if (!couponResult) return send(chatId, t.invalidCoupon || 'Invalid coupon. Try again or tap Skip.', k.of([t.skip]))
+    if (couponResult.error === 'already_used') return send(chatId, t.couponAlreadyUsed || 'Coupon already used. Try another or tap Skip.', k.of([t.skip]))
     const discount = couponResult.discount
     saveInfo('couponApplied', true)
     saveInfo('couponDiscount', discount)
