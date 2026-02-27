@@ -10896,15 +10896,55 @@ bot?.on('message', async msg => {
     if (!/^[0-9]$/.test(key)) {
       const ivrConf = num.features?.ivr || {}
       const usedKeys = Object.keys(ivrConf.options || {}).join(', ') || 'none'
-      return send(chatId, `➕ <b>Add Menu Option</b>\n\nUsed keys: ${usedKeys}\n\nEnter a number (0-9):`, k.of([['0','1','2','3','4','5','6','7','8','9']]))
+      return send(chatId, ({ en: `➕ <b>Add Menu Option</b>
+
+Used keys: ${usedKeys}
+
+Enter a number (0-9):`, fr: `➕ <b>Ajouter une Option</b>
+
+Touches utilisées : ${usedKeys}
+
+Entrez un numéro (0-9) :`, zh: `➕ <b>添加菜单选项</b>
+
+已用按键：${usedKeys}
+
+输入数字 (0-9)：`, hi: `➕ <b>मेनू विकल्प जोड़ें</b>
+
+उपयोग की गई कुंजियाँ: ${usedKeys}
+
+नंबर (0-9) दर्ज करें:` }[lang] || `➕ <b>Add Menu Option</b>
+
+Used keys: ${usedKeys}
+
+Enter a number (0-9):`), k.of([['0','1','2','3','4','5','6','7','8','9']]))
     }
     const ivrConf = num.features?.ivr || {}
     if (ivrConf.options?.[key]) {
-      return send(chatId, `⚠️ Key <b>${key}</b> is already assigned. Remove it first, or pick a different key.\n\nUsed keys: ${Object.keys(ivrConf.options).join(', ')}`, k.of([['0','1','2','3','4','5','6','7','8','9']]))
+      return send(chatId, ({ en: `⚠️ Key <b>${key}</b> is already assigned. Remove it first, or pick a different key.
+
+Used keys: ${Object.keys(ivrConf.options).join(', ')}`, fr: `⚠️ La touche <b>${key}</b> est déjà assignée. Supprimez-la d'abord ou choisissez une autre.
+
+Touches utilisées : ${Object.keys(ivrConf.options).join(', ')}`, zh: `⚠️ 按键 <b>${key}</b> 已分配。请先删除或选择其他按键。
+
+已用按键：${Object.keys(ivrConf.options).join(', ')}`, hi: `⚠️ कुंजी <b>${key}</b> पहले से असाइन है। पहले हटाएं या दूसरी चुनें।
+
+उपयोग की गई कुंजियाँ: ${Object.keys(ivrConf.options).join(', ')}` }[lang] || `⚠️ Key <b>${key}</b> is already assigned. Remove it first, or pick a different key.
+
+Used keys: ${Object.keys(ivrConf.options).join(', ')}`), k.of([['0','1','2','3','4','5','6','7','8','9']]))
     }
     await saveInfo('cpIvrDraft', { key })
     set(state, chatId, 'action', a.cpIvrOptionAction)
-    return send(chatId, `🔢 Key <b>${key}</b> selected.\n\nWhat should happen when a caller presses <b>${key}</b>?`, k.of([
+    return send(chatId, ({ en: `🔢 Key <b>${key}</b> selected.
+
+What should happen when a caller presses <b>${key}</b>?`, fr: `🔢 Touche <b>${key}</b> sélectionnée.
+
+Que doit-il se passer quand un appelant appuie sur <b>${key}</b> ?`, zh: `🔢 已选择按键 <b>${key}</b>。
+
+来电者按 <b>${key}</b> 时应该发生什么？`, hi: `🔢 कुंजी <b>${key}</b> चयनित।
+
+कॉलर जब <b>${key}</b> दबाए तो क्या होना चाहिए?` }[lang] || `🔢 Key <b>${key}</b> selected.
+
+What should happen when a caller presses <b>${key}</b>?`), k.of([
       ['📞 Forward Call'],
       ['💬 Play Message'],
       ['📬 Send to Voicemail'],
@@ -10920,20 +10960,70 @@ bot?.on('message', async msg => {
       set(state, chatId, 'action', a.cpIvrOptionKey)
       const ivrConf = num.features?.ivr || {}
       const usedKeys = Object.keys(ivrConf.options || {}).join(', ') || 'none'
-      return send(chatId, `➕ <b>Add Menu Option</b>\n\nUsed keys: ${usedKeys}\n\nEnter the key number (0-9):`, k.of([['0','1','2','3','4','5','6','7','8','9']]))
+      return send(chatId, ({ en: `➕ <b>Add Menu Option</b>
+
+Used keys: ${usedKeys}
+
+Enter the key number (0-9):`, fr: `➕ <b>Ajouter une Option</b>
+
+Touches utilisées : ${usedKeys}
+
+Entrez le numéro de touche (0-9) :`, zh: `➕ <b>添加菜单选项</b>
+
+已用按键：${usedKeys}
+
+输入按键编号 (0-9)：`, hi: `➕ <b>मेनू विकल्प जोड़ें</b>
+
+उपयोग की गई कुंजियाँ: ${usedKeys}
+
+कुंजी नंबर (0-9) दर्ज करें:` }[lang] || `➕ <b>Add Menu Option</b>
+
+Used keys: ${usedKeys}
+
+Enter the key number (0-9):`), k.of([['0','1','2','3','4','5','6','7','8','9']]))
     }
     const draft = info?.cpIvrDraft || {}
     if (message === '📞 Forward Call') {
       draft.action = 'forward'
       await saveInfo('cpIvrDraft', draft)
       set(state, chatId, 'action', a.cpIvrOptionMsg)
-      return send(chatId, `📞 <b>Forward Call</b>\n\nEnter the phone number to forward calls to:\n\n<i>Example: +15551234567</i>`, k.of([]))
+      return send(chatId, ({ en: `📞 <b>Forward Call</b>
+
+Enter the phone number to forward calls to:
+
+<i>Example: +15551234567</i>`, fr: `📞 <b>Transférer l'appel</b>
+
+Entrez le numéro vers lequel transférer :
+
+<i>Exemple : +15551234567</i>`, zh: `📞 <b>转接电话</b>
+
+输入转接号码：
+
+<i>示例：+15551234567</i>`, hi: `📞 <b>कॉल फ़ॉरवर्ड</b>
+
+फ़ॉरवर्ड करने का नंबर दर्ज करें:
+
+<i>उदाहरण: +15551234567</i>` }[lang] || `📞 <b>Forward Call</b>
+
+Enter the phone number to forward calls to:
+
+<i>Example: +15551234567</i>`), k.of([]))
     }
     if (message === '💬 Play Message') {
       draft.action = 'message'
       await saveInfo('cpIvrDraft', draft)
       set(state, chatId, 'action', a.cpIvrOptionMsg)
-      return send(chatId, `💬 <b>Play Message</b>\n\nHow do you want to create the message?`, k.of([
+      return send(chatId, ({ en: `💬 <b>Play Message</b>
+
+How do you want to create the message?`, fr: `💬 <b>Lire un Message</b>
+
+Comment souhaitez-vous créer le message ?`, zh: `💬 <b>播放消息</b>
+
+您想如何创建消息？`, hi: `💬 <b>मैसेज चलाएं</b>
+
+आप मैसेज कैसे बनाना चाहते हैं?` }[lang] || `💬 <b>Play Message</b>
+
+How do you want to create the message?`), k.of([
         ['📋 Use Template'],
         ['📝 Type Text (AI Voice)'],
         ['🎙️ Upload Audio'],
@@ -10950,13 +11040,13 @@ bot?.on('message', async msg => {
       num.features.ivr = ivrConf
       await saveInfo('cpActiveNumber', num)
       await saveInfo('cpIvrDraft', null)
-      send(chatId, `✅ Key <b>${draft.key}</b> → Send to Voicemail — saved!`)
+      send(chatId, ({ en: `✅ Key <b>${draft.key}</b> → Send to Voicemail — saved!`, fr: `✅ Touche <b>${draft.key}</b> → Messagerie vocale — enregistré !`, zh: `✅ 按键 <b>${draft.key}</b> → 语音信箱 — 已保存！`, hi: `✅ कुंजी <b>${draft.key}</b> → वॉइसमेल — सेव!` }[lang] || `✅ Key <b>${draft.key}</b> → Send to Voicemail — saved!`))
       set(state, chatId, 'action', a.cpIvr)
       return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
         [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
       ]))
     }
-    return send(chatId, `Select an action for this key:`, k.of([['📞 Forward Call'], ['💬 Play Message'], ['📬 Send to Voicemail']]))
+    return send(chatId, ({ en: `Select an action for this key:`, fr: `Sélectionnez une action pour cette touche :`, zh: `选择此按键的操作：`, hi: `इस कुंजी के लिए कार्रवाई चुनें:` }[lang] || `Select an action for this key:`), k.of([['📞 Forward Call'], ['💬 Play Message'], ['📬 Send to Voicemail']]))
   }
 
   // ── IVR Option: Step 3 — Enter message text / forward number / upload ──
