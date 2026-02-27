@@ -471,6 +471,7 @@ async function sendFinalReport(campaignId) {
     ``,
     `📱 Caller ID: <b>${campaign.callerId}</b>`,
     `🎵 Audio: <b>${campaign.audioName}</b>`,
+    `📞 Provider: <b>Speechcue</b>`,
     `⏱ Duration: <b>${durMin}m ${durSec}s</b>`,
     ``,
     `📞 Total Calls: <b>${stats.total}</b>`,
