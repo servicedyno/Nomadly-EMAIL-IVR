@@ -2028,10 +2028,27 @@ async function handleOutboundIvrGatherEnded(payload) {
     session.phase = 'transferring'
     session.digitPressed = digits
 
-    // Notify bot user
-    _bot?.sendMessage(session.chatId, ivrOutbound.formatCallNotification('key_pressed', {
-      ...session, digit: digits,
-    }), { parse_mode: 'HTML' }).catch(() => {})
+    // Bulk campaign: report-only mode — log digit, say goodbye, hang up (NO transfer)
+    if (session.bulkMode === 'report_only') {
+      log(`[OutboundIVR] Bulk report-only: ${session.targetNumber} pressed ${digits} — no transfer`)
+      session.phase = 'completed'
+      // Don't notify per-call for bulk (bulk service sends its own progress)
+      if (!session.campaignId) {
+        _bot?.sendMessage(session.chatId, ivrOutbound.formatCallNotification('key_pressed', {
+          ...session, digit: digits,
+        }), { parse_mode: 'HTML' }).catch(() => {})
+      }
+      await _telnyxApi.speakOnCall(callControlId, 'Thank you. Goodbye.')
+      setTimeout(() => _telnyxApi.hangupCall(callControlId), 2000)
+      return true
+    }
+
+    // Normal or bulk transfer mode — notify + transfer
+    if (!session.campaignId) {
+      _bot?.sendMessage(session.chatId, ivrOutbound.formatCallNotification('key_pressed', {
+        ...session, digit: digits,
+      }), { parse_mode: 'HTML' }).catch(() => {})
+    }
 
     // Register pending transfer so we can recognize the new call leg
     // Telnyx creates a new outbound call to ivrNumber with a different callControlId
