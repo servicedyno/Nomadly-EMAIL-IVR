@@ -8914,7 +8914,15 @@ bot?.on('message', async msg => {
   // ── BUY FLOW: Select Country ──
   if (action === a.cpSelectCountry) {
     const pc = phoneConfig.btn
-    if (message === t.back || message === pc.back) return goto.submenu5()
+    if (message === t.back || message === pc.back) {
+      // Go back to plan selection
+      set(state, chatId, 'action', a.cpSelectPlan)
+      const availablePlanBtns = []
+      if (phoneConfig.isPlanAvailable('starter')) availablePlanBtns.push([pc.starterPlan])
+      if (phoneConfig.isPlanAvailable('pro')) availablePlanBtns.push([pc.proPlan])
+      if (phoneConfig.isPlanAvailable('business')) availablePlanBtns.push([pc.businessPlan])
+      return send(chatId, `🛒 <b>Select Plan:</b>`, k.of(availablePlanBtns))
+    }
     // Handle "More Countries" button
     if (message === pc.moreCountries) {
       const allBtns = [...phoneConfig.allCountries, ...phoneConfig.moreCountries].map(c => c.name)
@@ -8924,9 +8932,10 @@ bot?.on('message', async msg => {
     }
     const countryCode = phoneConfig.countryByName[message]
     if (!countryCode) return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectValidCountry)
-    // Determine provider for this country
+    // Determine provider — Pro/Business forces Twilio
     const countryEntry = phoneConfig.allCountries.find(c => c.name === message) || phoneConfig.moreCountries.find(c => c.name === message)
-    const provider = countryEntry?.provider || 'telnyx'
+    const forceTwilio = info?.cpForceTwilio || false
+    const provider = forceTwilio ? 'twilio' : (countryEntry?.provider || 'telnyx')
     await saveInfo('cpCountryCode', countryCode)
     await saveInfo('cpCountryName', message)
     await saveInfo('cpProvider', provider)
@@ -8938,6 +8947,14 @@ bot?.on('message', async msg => {
     if (types.includes('mobile')) typeBtns.push([pc.mobileNumber])
     if (types.includes('national')) typeBtns.push([pc.nationalNumber])
     if (types.includes('toll_free')) typeBtns.push([pc.tollFreeNumber])
+    // For Twilio-forced (Pro/Business) on Telnyx-native countries, show all standard types
+    if (forceTwilio && !countryEntry?.types) {
+      // Country doesn't have explicit types — show local + toll-free
+      if (!typeBtns.length) {
+        typeBtns.push([pc.localNumber])
+        typeBtns.push([pc.tollFreeNumber])
+      }
+    }
     return send(chatId, phoneConfig.txt.selectType(message), k.of(typeBtns))
   }
 
