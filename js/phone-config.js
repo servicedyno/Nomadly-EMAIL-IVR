@@ -846,6 +846,7 @@ const msg = {
     sipTestMenuHint: '🧪 <i>Try SIP calling free — send /testsip</i>',
     buyPlansHeader: `🛒 <b>Buy Cloud Phone Plans</b>\n\nFirst, choose your plan:`,
   },
+  fr: {
     selectOption: 'Veuillez sélectionner une option.',
     selectValidCountry: 'Veuillez sélectionner un pays valide.',
     selectLocalOrTollFree: 'Veuillez sélectionner Local ou Sans frais.',
