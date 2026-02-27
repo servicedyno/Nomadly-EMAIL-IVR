@@ -5969,7 +5969,7 @@ bot?.on('message', async msg => {
       return send(chatId, t.selectValidOption || 'Please choose a valid domain from the list.')
     }
 
-    send(chatId, `🔗 Activating shortener for <b>${domain}</b>…`, { parse_mode: 'HTML' })
+    send(chatId, ({ en: `🔗 Activating shortener for <b>${domain}</b>…`, fr: `🔗 Activation du raccourcisseur pour <b>${domain}</b>…`, zh: `🔗 正在为 <b>${domain}</b> 激活短链接…`, hi: `🔗 <b>${domain}</b> के लिए शॉर्टनर सक्रिय कर रहे हैं…` }[lang] || `🔗 Activating shortener for <b>${domain}</b>…`), { parse_mode: 'HTML' })
 
     try {
       // ── Check for hosting plan conflict ──
@@ -6003,7 +6003,7 @@ bot?.on('message', async msg => {
       // ── Persist Railway link complete ──
       await markRailwayLinked(domain, server, recordType)
 
-      send(chatId, `⏳ Configuring DNS for <b>${domain}</b>…`, { parse_mode: 'HTML' })
+      send(chatId, ({ en: `⏳ Configuring DNS for <b>${domain}</b>…`, fr: `⏳ Configuration DNS pour <b>${domain}</b>…`, zh: `⏳ 正在配置 <b>${domain}</b> 的 DNS…`, hi: `⏳ <b>${domain}</b> के लिए DNS कॉन्फ़िगर कर रहे हैं…` }[lang] || `⏳ Configuring DNS for <b>${domain}</b>…`), { parse_mode: 'HTML' })
 
       // Unified DNS routing — auto-resolves A/CNAME conflicts before adding shortener CNAME
       await sleep(5000)
@@ -6028,7 +6028,7 @@ bot?.on('message', async msg => {
       // ── Persist DNS complete ──
       await markDnsAdded(domain)
 
-      send(chatId, `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`, { parse_mode: 'HTML' })
+      send(chatId, ({ en: `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`, fr: `✅ <b>${domain}</b> lié au raccourcisseur d'URL. La propagation DNS peut prendre jusqu'à 24h.`, zh: `✅ <b>${domain}</b> 已链接到短链接服务。DNS 传播可能需要 24 小时。`, hi: `✅ <b>${domain}</b> URL शॉर्टनर से जोड़ दिया गया। DNS प्रसार में 24 घंटे तक लग सकते हैं।` }[lang] || `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`), { parse_mode: 'HTML' })
       const lang = info?.userLanguage || 'en'
       regularCheckDns(bot, chatId, domain, lang)
 
@@ -6963,7 +6963,7 @@ bot?.on('message', async msg => {
     if (message === t.activateShortener) {
       const domain = info?.domainToManage
       if (!domain) return send(chatId, t.noDomainSelected)
-      send(chatId, `🔗 Activating shortener for <b>${domain}</b>…`, { parse_mode: 'HTML' })
+      send(chatId, ({ en: `🔗 Activating shortener for <b>${domain}</b>…`, fr: `🔗 Activation du raccourcisseur pour <b>${domain}</b>…`, zh: `🔗 正在为 <b>${domain}</b> 激活短链接…`, hi: `🔗 <b>${domain}</b> के लिए शॉर्टनर सक्रिय कर रहे हैं…` }[lang] || `🔗 Activating shortener for <b>${domain}</b>…`), { parse_mode: 'HTML' })
       
       try {
         // ── Check for hosting plan conflict ──
@@ -6997,7 +6997,7 @@ bot?.on('message', async msg => {
         // ── Persist Railway link complete ──
         await markRailwayLinked(domain, server, recordType)
 
-        send(chatId, `⏳ Configuring DNS for <b>${domain}</b>…`, { parse_mode: 'HTML' })
+        send(chatId, ({ en: `⏳ Configuring DNS for <b>${domain}</b>…`, fr: `⏳ Configuration DNS pour <b>${domain}</b>…`, zh: `⏳ 正在配置 <b>${domain}</b> 的 DNS…`, hi: `⏳ <b>${domain}</b> के लिए DNS कॉन्फ़िगर कर रहे हैं…` }[lang] || `⏳ Configuring DNS for <b>${domain}</b>…`), { parse_mode: 'HTML' })
 
         // Unified DNS routing — auto-resolves A/CNAME conflicts before adding shortener CNAME
         await sleep(5000)
@@ -7022,7 +7022,7 @@ bot?.on('message', async msg => {
         // ── Persist DNS complete ──
         await markDnsAdded(domain)
 
-        send(chatId, `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`, { parse_mode: 'HTML' })
+        send(chatId, ({ en: `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`, fr: `✅ <b>${domain}</b> lié au raccourcisseur d'URL. La propagation DNS peut prendre jusqu'à 24h.`, zh: `✅ <b>${domain}</b> 已链接到短链接服务。DNS 传播可能需要 24 小时。`, hi: `✅ <b>${domain}</b> URL शॉर्टनर से जोड़ दिया गया। DNS प्रसार में 24 घंटे तक लग सकते हैं।` }[lang] || `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`), { parse_mode: 'HTML' })
         const lang = info?.userLanguage || 'en'
         regularCheckDns(bot, chatId, domain, lang)
 
@@ -12233,7 +12233,7 @@ bot?.on('message', async msg => {
       set(state, chatId, 'action', 'choose-dns-action')
       const domain = info?.domainToManage
       if (!domain) return send(chatId, t.noDomainSelected || 'No domain selected.')
-      send(chatId, `🔗 Activating shortener for <b>${domain}</b>...`, { parse_mode: 'HTML' })
+      send(chatId, ({ en: `🔗 Activating shortener for <b>${domain}</b>…`, fr: `🔗 Activation du raccourcisseur pour <b>${domain}</b>…`, zh: `🔗 正在为 <b>${domain}</b> 激活短链接…`, hi: `🔗 <b>${domain}</b> के लिए शॉर्टनर सक्रिय कर रहे हैं…` }[lang] || `🔗 Activating shortener for <b>${domain}</b>…`), { parse_mode: 'HTML' })
       try {
         // ── Check for hosting plan conflict ──
         const existingHosting = await cpanelAccounts.findOne({ domain })
@@ -12254,7 +12254,7 @@ bot?.on('message', async msg => {
             ? await saveDomainInServerRender(domain)
             : await saveDomainInServerRailway(domain)
         if (error) return send(chatId, `❌ Could not link <b>${domain}</b>: ${error}`, { parse_mode: 'HTML' })
-        send(chatId, `⏳ Configuring DNS for <b>${domain}</b>...`, { parse_mode: 'HTML' })
+        send(chatId, ({ en: `⏳ Configuring DNS for <b>${domain}</b>…`, fr: `⏳ Configuration DNS pour <b>${domain}</b>…`, zh: `⏳ 正在配置 <b>${domain}</b> 的 DNS…`, hi: `⏳ <b>${domain}</b> के लिए DNS कॉन्फ़िगर कर रहे हैं…` }[lang] || `⏳ Configuring DNS for <b>${domain}</b>…`), { parse_mode: 'HTML' })
 
         // Unified DNS routing — auto-resolves A/CNAME conflicts before adding shortener CNAME
         await sleep(5000)
@@ -12272,7 +12272,7 @@ bot?.on('message', async msg => {
           }
         }
 
-        send(chatId, `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`, { parse_mode: 'HTML' })
+        send(chatId, ({ en: `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`, fr: `✅ <b>${domain}</b> lié au raccourcisseur d'URL. La propagation DNS peut prendre jusqu'à 24h.`, zh: `✅ <b>${domain}</b> 已链接到短链接服务。DNS 传播可能需要 24 小时。`, hi: `✅ <b>${domain}</b> URL शॉर्टनर से जोड़ दिया गया। DNS प्रसार में 24 घंटे तक लग सकते हैं।` }[lang] || `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`), { parse_mode: 'HTML' })
         const lang = info?.userLanguage || 'en'
         regularCheckDns(bot, chatId, domain, lang)
       } catch (e) {
@@ -16164,7 +16164,7 @@ async function addDnsForShortener(chatId, domain, server, recordType, lang) {
   }
 
   await markDnsAdded(domain)
-  await safeSend(chatId, `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`)
+  await safeSend(chatId, ({ en: `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`, fr: `✅ <b>${domain}</b> lié au raccourcisseur d'URL. La propagation DNS peut prendre jusqu'à 24h.`, zh: `✅ <b>${domain}</b> 已链接到短链接服务。DNS 传播可能需要 24 小时。`, hi: `✅ <b>${domain}</b> URL शॉर्टनर से जोड़ दिया गया। DNS प्रसार में 24 घंटे तक लग सकते हैं।` }[lang] || `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`))
   regularCheckDns(bot, chatId, domain, lang || 'en')
   await markCompleted(domain)
   log(`[ShortenerResume] ${domain} — DNS added, notified user, completed`)
