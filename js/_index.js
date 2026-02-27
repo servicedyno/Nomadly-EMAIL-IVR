@@ -2520,7 +2520,7 @@ bot?.on('message', async msg => {
     targetSelectCity: () => {
       const target = info?.targetName
       const cities = targetLeadsCities(target)
-      send(chatId, `📍 Select metro area for <b>${target}</b>:\n\nChoose "All Cities" for maximum reach across all regions.`, k.of(['All Cities', ...cities]))
+      send(chatId, t.leadSelectMetro ? t.leadSelectMetro(target) : `📍 Select metro area for <b>${target}</b>:\n\nChoose "All Cities" for maximum reach across all regions.`, k.of([t.leadAllCities || 'All Cities', ...cities]))
       set(state, chatId, 'action', a.targetSelectCity)
     },
     targetSelectAreaCode: () => {
