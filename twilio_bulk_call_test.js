@@ -11,7 +11,7 @@ const { MongoClient } = require('mongodb')
 
 // Configuration - Load env from backend .env file
 require('dotenv').config({ path: '/app/backend/.env' })
-const BACKEND_URL = 'https://config-setup-guide.preview.emergentagent.com'
+const BACKEND_URL = 'http://localhost:5000'
 const API_BASE = `${BACKEND_URL}/api`
 const MONGO_URL = process.env.MONGO_URL
 const DB_NAME = process.env.DB_NAME || 'test'
