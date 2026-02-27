@@ -1914,6 +1914,10 @@ async function initiateOutboundIvrCall(params) {
     phase: 'initiated',
     digitPressed: null,
     startTime: Date.now(),
+    // Bulk campaign fields
+    campaignId: campaignId || null,
+    leadIndex: leadIndex != null ? leadIndex : null,
+    bulkMode: bulkMode || null, // 'transfer' | 'report_only'
   }
 
   log(`[OutboundIVR] Call initiated: ${callerId} → ${targetNumber} (chatId: ${chatId}, template: ${templateName})`)
