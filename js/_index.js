@@ -8831,6 +8831,8 @@ bot?.on('message', async msg => {
           concurrency: bulkData.concurrency || 10,
           holdMusic: bulkData.mode === 'transfer',
           leads: bulkData.leads,
+          twilioSubAccountSid: bulkData.twilioSubAccountSid || null,
+          twilioSubAccountToken: bulkData.twilioSubAccountToken || null,
         })
         await saveInfo('activeCampaignId', campaign.id)
         set(state, chatId, 'action', a.bulkRunning)
