@@ -8002,18 +8002,21 @@ bot?.on('message', async msg => {
       return send(chatId, phoneConfig.txt.myNumbersList(numbers), k.of([numBtns, [pc.buyAnother]]))
     }
     if (message === pc.ivrOutboundCall) {
-      // IVR Outbound Call — available to all users (trial for non-subscribers)
+      // IVR Outbound Call — requires Pro or Business plan
       const ivrOb = require('./ivr-outbound.js')
       const userData = await get(phoneNumbersOf, chatId)
       const numbers = (userData?.numbers || []).filter(n => n.status === 'active')
       const hasNumbers = numbers.length > 0
+
+      // Check if user has at least one number with Pro or Business plan
+      const hasEligiblePlan = numbers.some(n => phoneConfig.canAccessFeature(n.plan, 'ivrOutbound'))
 
       // Check trial usage
       const trialKey = `ivrTrialUsed_${chatId}`
       const trialUsed = await get(state, trialKey)
 
       if (!hasNumbers) {
-        // Non-subscriber path
+        // Non-subscriber path — still allow 1 free trial
         if (trialUsed) {
           return send(chatId, `📢 <b>IVR Outbound Call</b>\n\nYou've already used your free trial call.\n\nSubscribe to Cloud Phone to make unlimited IVR calls with your own Caller ID!\n\nTap <b>${pc.buyPhoneNumber}</b> to get started.`, k.of([[pc.buyPhoneNumber]]))
         }
@@ -8023,11 +8026,17 @@ bot?.on('message', async msg => {
         return send(chatId, `📢 <b>IVR Outbound Call — Free Trial</b>\n\n🎁 You get <b>1 free trial call!</b>\n📱 Caller ID: <b>${ivrOb.TRIAL_CALLER_ID}</b> (shared)\n\nEnter the phone number to call (with country code):\n<i>Example: +12025551234</i>`, k.of([]))
       }
 
-      // Subscriber path — select caller ID from their numbers
+      // Has numbers but no eligible plan
+      if (!hasEligiblePlan) {
+        const currentPlan = numbers[0]?.plan || 'starter'
+        return send(chatId, phoneConfig.upgradeMessage('ivrOutbound', currentPlan), k.of([]))
+      }
+
+      // Subscriber with eligible plan — select caller ID (only show numbers with Pro+ plan)
+      const eligibleNumbers = numbers.filter(n => phoneConfig.canAccessFeature(n.plan, 'ivrOutbound'))
       set(state, chatId, 'action', a.ivrObSelectCallerId)
       await saveInfo('ivrObData', { isTrial: false })
-      const numBtns = numbers.map(n => n.phoneNumber)
-      const rows = numBtns.map(n => [n])
+      const rows = eligibleNumbers.map(n => [n.phoneNumber])
       return send(chatId, `📢 <b>IVR Outbound Call</b>\n\nSelect the number to call FROM (Caller ID):`, k.of(rows))
     }
     if (message === pc.sipSettings) {
