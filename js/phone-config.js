@@ -205,6 +205,10 @@ const btn = {
   ivrOutboundCall: '📢 IVR Outbound Call',
   ivrOutboundBack: '↩️ Back',
 
+  // Bulk Call Campaign
+  bulkCallCampaign: '📞 Bulk Call Campaign',
+  audioLibrary: '🎵 Audio Library',
+
   back: 'Back',
   cancel: 'Cancel',
 }
