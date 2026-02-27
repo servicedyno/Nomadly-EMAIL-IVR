@@ -234,7 +234,7 @@ async function runPlanGatingTests() {
       test('Starter plan has exactly 2 true values', false);
       test('Pro plan has exactly 10 feature keys', false);
       test('Pro plan has all expected feature keys', false);
-      test('Pro plan has exactly 7 true values', false);
+      test('Pro plan has exactly 8 true values', false);
       test('Business plan has exactly 10 feature keys', false);
       test('Business plan has all expected feature keys', false);
       test('Business plan has exactly 10 true values (all)', false);
