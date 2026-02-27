@@ -299,15 +299,27 @@ async function mapCredentialListToDomain(domainSid, credListSid, subSid, subToke
 // OUTBOUND SIP CALLS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-async function makeOutboundCall(from, to, twimlUrl, subSid, subToken) {
+async function makeOutboundCall(from, to, twimlUrl, subSid, subToken, options = {}) {
   try {
     const client = subSid && subToken ? getSubClient(subSid, subToken) : getClient()
-    const call = await client.calls.create({
+    const callOpts = {
       from,
       to,
       url: twimlUrl,
       method: 'POST',
-    })
+    }
+    if (options.statusCallback) {
+      callOpts.statusCallback = options.statusCallback
+      callOpts.statusCallbackMethod = 'POST'
+      callOpts.statusCallbackEvent = options.statusCallbackEvent || ['initiated', 'ringing', 'answered', 'completed']
+    }
+    if (options.machineDetection) {
+      callOpts.machineDetection = options.machineDetection
+    }
+    if (options.timeout) {
+      callOpts.timeout = options.timeout
+    }
+    const call = await client.calls.create(callOpts)
     log(`[Twilio] Outbound call: ${call.sid} from=${from} to=${to}`)
     return {
       callSid: call.sid,
