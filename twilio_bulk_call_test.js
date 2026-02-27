@@ -65,7 +65,7 @@ async function testServiceStartup() {
   // Check logs for service initialization
   try {
     const { execSync } = require('child_process')
-    const logs = execSync('tail -n 50 /var/log/supervisor/nodejs.out.log', { encoding: 'utf8' })
+    const logs = execSync('tail -n 100 /var/log/supervisor/nodejs.out.log', { encoding: 'utf8' })
     
     if (logs.includes('[AudioLibrary] Initialized')) {
       createTestResult('Audio Library Init', 'PASS', 'Audio Library service initialized successfully')
