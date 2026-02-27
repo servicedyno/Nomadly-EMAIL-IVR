@@ -1198,7 +1198,7 @@ bot?.on('message', async msg => {
           await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'voicemail', vm)
           num.features.voicemail = vm
           await set(state, chatId + '_info', { ...infoData, cpActiveNumber: num })
-          const pc = phoneConfig.btn
+          const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
           send(chatId, phoneConfig.txt.vmAudioSaved)
           await set(state, chatId, { ...userInfo, action: 'cpVoicemail' })
           const btns = vm.enabled
@@ -1865,7 +1865,7 @@ bot?.on('message', async msg => {
     // ━━━ Cloud Phone goto functions ━━━
     submenu5: () => {
       set(state, chatId, 'action', a.submenu5)
-      const pc = phoneConfig.btn
+      const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
       const lang = info?.userLanguage || 'en'
       send(chatId, phoneConfig.txt.hubWelcome, k.of([
         [pc.ivrOutboundCall],
@@ -7980,7 +7980,7 @@ bot?.on('message', async msg => {
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   if (action === a.submenu5) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const buyLabel = phoneConfig.getBtnLabel('buyPhoneNumber', info?.userLanguage || 'en')
     if (message === t.back || message === pc.back || message === t.cancel || message === pc.cancel) return send(chatId, t.userPressedBtn(message), trans('o'))
     if (phoneConfig.isBtnMatch(message, 'buyPhoneNumber')) {
@@ -8907,7 +8907,7 @@ bot?.on('message', async msg => {
 
   // ── BUY FLOW: Select Country ──
   if (action === a.cpSelectCountry) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     if (message === t.back || message === pc.back) {
       // Go back to plan selection
       set(state, chatId, 'action', a.cpSelectPlan)
@@ -8948,7 +8948,7 @@ bot?.on('message', async msg => {
 
   // ── BUY FLOW: Select Type ──
   if (action === a.cpSelectType) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     if (message === t.back || message === pc.back) {
       set(state, chatId, 'action', a.cpSelectCountry)
       const countryBtns = phoneConfig.allCountries.map(c => c.name)
@@ -9019,7 +9019,7 @@ bot?.on('message', async msg => {
 
   // ── BUY FLOW: Select Area ──
   if (action === a.cpSelectArea) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     if (message === t.back || message === pc.back) {
       set(state, chatId, 'action', a.cpSelectType)
       return send(chatId, phoneConfig.txt.selectType(info?.cpCountryName || ''), k.of([[pc.localNumber], [pc.tollFreeNumber]]))
@@ -9068,7 +9068,7 @@ bot?.on('message', async msg => {
 
   // ── BUY FLOW: Enter Area Code ──
   if (action === a.cpEnterAreaCode) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     if (message === t.back || message === pc.back) {
       set(state, chatId, 'action', a.cpSelectArea)
       const areaBtns = phoneConfig.usAreaCodes.map(a => `${a.city} (${a.code})`)
@@ -9117,7 +9117,7 @@ bot?.on('message', async msg => {
 
   // ── BUY FLOW: Select Number ──
   if (action === a.cpSelectNumber) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     if (message === t.back || message === pc.back) {
       const cc = info?.cpCountryCode || 'US'
       if (cc === 'US' && info?.cpNumberType === 'local') {
@@ -9210,7 +9210,7 @@ bot?.on('message', async msg => {
 
   // ── BUY FLOW: Select Plan (FIRST STEP) ──
   if (action === a.cpSelectPlan) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     if (message === t.back || message === pc.back) return goto.submenu5()
 
     const planKey = phoneConfig.planByButton[message]
@@ -9240,7 +9240,7 @@ bot?.on('message', async msg => {
 
   // ── BUY FLOW: Order Summary → Payment ──
   if (action === a.cpOrderSummary) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     if (message === t.back || message === pc.back) {
       set(state, chatId, 'action', a.cpSelectPlan)
       const availBtns2 = []
@@ -9448,7 +9448,7 @@ bot?.on('message', async msg => {
     checkAndNotifyTierUpgrade(preSpend || 0)
     // Post-purchase upsell: guide user to set up their number
     setTimeout(() => {
-      const pc = phoneConfig.btn
+      const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
       send(chatId, `💡 <b>Get the most out of your number</b>\n\n📲 <b>Set up call forwarding</b> — ring your real phone\n🤖 <b>Add IVR greeting</b> — professional auto-attendant\n💬 <b>Enable SMS</b> — send & receive text messages\n\nTap Manage Numbers below to configure.`, k.of([[pc.myNumbers], [pc.back]]))
     }, 2000)
     return
@@ -9554,7 +9554,7 @@ bot?.on('message', async msg => {
 
   // Helper: Build feature-gated manage menu keyboard
   function buildManageMenu(num) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const plan = num.plan || 'starter'
     const hasSms = num.capabilities?.sms !== false && num.features?.sms !== false
     const hasFax = num.capabilities?.fax === true
@@ -9584,7 +9584,7 @@ bot?.on('message', async msg => {
 
   // Helper: Show SMS Inbox with CNAM lookups + pagination
   async function showSmsInbox(chatId, num, page = 1) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const perPage = 5
     const cleanNum = num.phoneNumber.replace(/[^+\d]/g, '')
 
@@ -9629,7 +9629,7 @@ bot?.on('message', async msg => {
     return send(chatId, text, k.of([navBtns, [pc.back]]))
   }
   if (action === a.cpMyNumbers) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     if (message === t.back || message === pc.back) return goto.submenu5()
     if (message === pc.buyAnother || phoneConfig.isBtnMatch(message, 'buyPhoneNumber')) {
       set(state, chatId, 'action', a.cpSelectCountry)
@@ -9650,7 +9650,7 @@ bot?.on('message', async msg => {
 
   // ━━━ MANAGE NUMBER ━━━
   if (action === a.cpManageNumber) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
@@ -9826,7 +9826,7 @@ bot?.on('message', async msg => {
 
   // ━━━ CALL FORWARDING ━━━
   if (action === a.cpCallForwarding) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
@@ -9880,7 +9880,7 @@ bot?.on('message', async msg => {
     return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectForwardMode)
   }
   if (action === a.cpEnterForwardNumber) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
@@ -9931,7 +9931,7 @@ bot?.on('message', async msg => {
 
   // ━━━ SMS SETTINGS ━━━
   if (action === a.cpSmsSettings) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
@@ -9986,7 +9986,7 @@ bot?.on('message', async msg => {
     return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectOption)
   }
   if (action === a.cpEnterEmail) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
@@ -10007,7 +10007,7 @@ bot?.on('message', async msg => {
     return send(chatId, phoneConfig.txt.manageNumber(num), k.of(buildManageMenu(num)))
   }
   if (action === a.cpEnterWebhook) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
@@ -10030,7 +10030,7 @@ bot?.on('message', async msg => {
 
   // ━━━ SMS INBOX ━━━
   if (action === a.cpSmsInbox) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
@@ -10056,7 +10056,7 @@ bot?.on('message', async msg => {
 
   // ━━━ FAX SETTINGS ━━━
   if (action === a.cpFaxSettings) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
@@ -10080,7 +10080,7 @@ bot?.on('message', async msg => {
 
   // ━━━ VOICEMAIL ━━━
   if (action === a.cpVoicemail) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
@@ -10142,7 +10142,7 @@ bot?.on('message', async msg => {
 
   // ━━━ VOICEMAIL GREETING ━━━
   if (action === a.cpVmGreeting) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
@@ -10190,7 +10190,7 @@ bot?.on('message', async msg => {
 
   // ━━━ VOICEMAIL CUSTOM GREETING (TTS / Upload / Template) ━━━
   if (action === a.cpVmAudioUpload) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
@@ -10238,7 +10238,7 @@ bot?.on('message', async msg => {
 
   // ── VM Template: Select category → select template → edit → proceed ──
   if (action === a.cpVmTemplate) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
@@ -10275,7 +10275,7 @@ bot?.on('message', async msg => {
 
   // ── VM Template: Edit text then proceed to language → voice ──
   if (action === a.cpVmTemplateEdit) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
@@ -10314,7 +10314,7 @@ bot?.on('message', async msg => {
 
   // ━━━ VM GREETING: Text → Language → Provider → Voice selection ━━━
   if (action === a.cpVmGreetingVoice) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
@@ -10396,7 +10396,7 @@ bot?.on('message', async msg => {
 
   // ━━━ VM GREETING: Preview & Save ━━━
   if (action === a.cpVmGreetingPreview) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
@@ -10474,7 +10474,7 @@ bot?.on('message', async msg => {
 
   // ━━━ CALL RECORDING (Business) ━━━
   if (action === a.cpCallRecording) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
@@ -10504,7 +10504,7 @@ bot?.on('message', async msg => {
 
   // ━━━ IVR / AUTO-ATTENDANT (Business) ━━━
   if (action === a.cpIvr) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
@@ -10572,7 +10572,7 @@ bot?.on('message', async msg => {
 
   // ── IVR Greeting: Choose method ──
   if (action === a.cpIvrGreeting) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
@@ -10603,7 +10603,7 @@ bot?.on('message', async msg => {
 
   // ── IVR Template: Select category → select template → edit → proceed ──
   if (action === a.cpIvrTemplate) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
@@ -10640,7 +10640,7 @@ bot?.on('message', async msg => {
 
   // ── IVR Template: Edit text then proceed to language → voice ──
   if (action === a.cpIvrTemplateEdit) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
@@ -10679,7 +10679,7 @@ bot?.on('message', async msg => {
 
   // ── IVR Greeting: Enter text → select language → select provider → select voice ──
   if (action === a.cpIvrGreetingVoice) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
@@ -10769,7 +10769,7 @@ bot?.on('message', async msg => {
 
   // ── IVR Greeting: Preview & Save ──
   if (action === a.cpIvrGreetingPreview) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
@@ -10882,7 +10882,7 @@ bot?.on('message', async msg => {
 
   // ── IVR Option: Step 1 — Select key number (0-9) ──
   if (action === a.cpIvrOptionKey) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
@@ -10913,7 +10913,7 @@ bot?.on('message', async msg => {
 
   // ── IVR Option: Step 2 — Select action type ──
   if (action === a.cpIvrOptionAction) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
@@ -10961,7 +10961,7 @@ bot?.on('message', async msg => {
 
   // ── IVR Option: Step 3 — Enter message text / forward number / upload ──
   if (action === a.cpIvrOptionMsg) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
@@ -11089,7 +11089,7 @@ bot?.on('message', async msg => {
 
   // ── IVR Option: Step 4 — Language + Provider + Voice selection for TTS ──
   if (action === a.cpIvrOptionVoice) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
@@ -11168,7 +11168,7 @@ bot?.on('message', async msg => {
 
   // ── IVR Option: Step 5 — Preview & Save ──
   if (action === a.cpIvrOptionPreview) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
@@ -11249,7 +11249,7 @@ bot?.on('message', async msg => {
 
   // IVR Remove Option
   if (action === a.cpIvrRemoveOption) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
@@ -11279,7 +11279,7 @@ bot?.on('message', async msg => {
 
   // ━━━ SIP CREDENTIALS ━━━
   if (action === a.cpSipCredentials) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
@@ -11335,7 +11335,7 @@ bot?.on('message', async msg => {
 
   // ━━━ RENEW / CHANGE PLAN ━━━
   if (action === a.cpRenewPlan) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
@@ -11380,7 +11380,7 @@ bot?.on('message', async msg => {
     return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectOption)
   }
   if (action === a.cpChangePlan) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
@@ -11607,7 +11607,7 @@ bot?.on('message', async msg => {
 
   // ━━━ RELEASE NUMBER ━━━
   if (action === a.cpReleaseConfirm) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === pc.noKeep || message === t.back) {
@@ -11622,7 +11622,7 @@ bot?.on('message', async msg => {
     return send(chatId, phoneConfig.getMsg(info?.userLanguage).confirmOrCancel)
   }
   if (action === a.cpReleaseDigits) {
-    const pc = phoneConfig.btn
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
