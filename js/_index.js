@@ -2828,7 +2828,7 @@ bot?.on('message', async msg => {
       saveInfo('existingDomain', true)
       const domainButtons = domains.map(d => [d])
       domainButtons.push([t.backButton])
-      send(chatId, ({ en: 'Select a domain from your registered domains:', fr: 'Sélectionnez un domaine parmi vos domaines enregistrés :', zh: '从您的注册域名中选择一个：', hi: 'अपने पंजीकृत डोमेन में से एक चुनें:' }[lang] || 'Select a domain from your registered domains:', k.of(domainButtons))
+      send(chatId, ({ en: 'Select a domain from your registered domains:', fr: 'Sélectionnez un domaine parmi vos domaines enregistrés :', zh: '从您的注册域名中选择一个：', hi: 'अपने पंजीकृत डोमेन में से एक चुनें:' }[lang] || 'Select a domain from your registered domains:'), k.of(domainButtons))
     },
 
     // Step 2.4: Connect External Domain
