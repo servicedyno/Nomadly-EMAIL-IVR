@@ -6373,7 +6373,7 @@ bot?.on('message', async msg => {
     // Handle Apply Coupon button
     if (message === '🎟️ Apply Coupon') {
       set(state, chatId, 'action', 'hosting-apply-coupon')
-      return send(chatId, 'Enter coupon code:', k.of([t.skip]))
+      return send(chatId, t.enterCouponCode || 'Enter coupon code:', k.of([t.skip]))
     }
     
     const payOption = message
