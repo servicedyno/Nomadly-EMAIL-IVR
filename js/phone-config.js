@@ -1293,6 +1293,247 @@ Sélectionnez une option :`,
     bulkConcurrency: (transferTo) => `${transferTo ? `🔗 Transfert vers : <b>${transferTo}</b>\n\n` : `📊 <b>Rapport Seul</b> — pas de transferts.\n\n`}⚡ <b>Concurrence</b>\n\nCombien d'appels simultanés ? (1-20)\nDéfaut : <b>10</b>`,
     bulkRunning: 'La campagne est en cours ! Vous verrez les mises à jour ici.\n\nAppuyez sur <b>🛑 Arrêter</b> pour annuler.',
     bulkCancelled: '🛑 <b>Campagne annulée.</b>\n\nLes appels actifs se termineront, aucun nouvel appel ne sera lancé.',
+    // ── Phone number selection & management ──
+    selectType: (country) => `📱 Sélectionnez le type de numéro pour <b>${country}</b> :\n\n<b>📍 Local</b> — Numéro géographique avec indicatif régional\n<b>🆓 Sans frais</b> — Préfixe 800/888/877, national`,
+    selectArea: '🏙️ Sélectionnez la zone ou entrez votre indicatif régional :',
+    enterAreaCode: 'Entrez l\'indicatif régional (ex : 415) :',
+    showNumbers: (location, numbers) => {
+      let text = `📞 Numéros disponibles à <b>${location}</b> :\n\n`
+      numbers.forEach((n, i) => {
+        const caps = n._capabilities || n.capabilities || {}
+        const voice = caps.voice === true || caps.voice === 'True'
+        const sms = caps.sms === true || caps.sms === 'True'
+        const fax = caps.fax === true || caps.fax === 'True'
+        let capLabel = ''
+        if (voice) capLabel += '📞'
+        if (sms) capLabel += '💬'
+        if (fax) capLabel += '📠'
+        text += `${i + 1}️⃣  ${formatPhone(n.phone_number)} ${capLabel}\n`
+      })
+      text += '\n📞 = Voix  💬 = SMS  📠 = Fax\nAppuyez sur un numéro pour le sélectionner.'
+      return text
+    },
+    selectPlan: (number) => {
+      let text = `✅ Sélectionné : <b>${formatPhone(number)}</b>\n\n📋 Choisissez votre forfait :\n\n`
+      if (PHONE_STARTER_ON) text += `<b>💡 Starter — $${PHONE_STARTER_PRICE}/mois</b>\n${plans.starter.minutes} min · ${plans.starter.sms} SMS · ${plans.starter.features.join(' · ')}\n\n`
+      if (PHONE_PRO_ON) text += `<b>⭐ Pro — $${PHONE_PRO_PRICE}/mois</b>\n${plans.pro.minutes} min · ${plans.pro.sms} SMS · ${plans.pro.features.join(' · ')}\n\n`
+      if (PHONE_BUSINESS_ON) text += `<b>👑 Business — $${PHONE_BUSINESS_PRICE}/mois</b>\n${plans.business.minutes} min · ${plans.business.sms} SMS · ${plans.business.features.join(' · ')}\n\n`
+      text += `<i>Sortant & Transfert : $${CALL_FORWARDING_RATE_MIN}/min depuis le portefeuille</i>`
+      return text
+    },
+    orderSummary: (number, country, plan, price) => `📋 <b>Récapitulatif</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/mois\n📩 ${plan.sms} SMS · 📞 ${plan.minutes} min · 📲 Sortant & Transfert $${CALL_FORWARDING_RATE_MIN}/min\n⚡ ${plan.features.join(', ')}\n\n💰 Total : <b>$${price}</b> (premier mois)`,
+    paymentPrompt: (price) => `Prix : <b>$${price}</b>. Choisissez le mode de paiement :`,
+    activated: (number, plan, price, sipUser, sipDomain, expiry) => `🎉 <b>Votre Cloud Phone est Actif !</b>\n\n📞 Numéro : ${formatPhone(number)}\n📦 Forfait : ${plan} ($${price}/mois)\n📅 Renouvellement : ${expiry}\n\n━━━ <b>Identifiants SIP</b> ━━━\n🌐 Serveur : ${sipDomain}\n👤 Utilisateur : ${sipUser}\n🔑 Mot de passe : ●●●●●●●● (utilisez 🔑 Identifiants SIP pour révéler)\n📡 Port : 5060 (UDP/TCP) | 5061 (TLS)\n\n━━━ <b>Configuration Rapide</b> ━━━\n• Navigateur : Appelez sur <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>\n• Softphone : Téléchargez Zoiper/Ooma, entrez les identifiants SIP\n• SMS : Les SMS entrants sont transférés ici automatiquement\n• Transfert : Configurez via 📱 Mes Numéros → Transfert d'Appels`,
+    myNumbersList: (numbers) => {
+      let text = '📱 <b>Vos Numéros Cloud Phone :</b>\n\n'
+      numbers.forEach((n, i) => {
+        const status = n.status === 'active' ? '✅ Actif' : n.status === 'suspended' ? '⚠️ Suspendu' : '🗑️ Supprimé'
+        text += `${i + 1}️⃣  ${formatPhone(n.phoneNumber)}  ${status}\n`
+        text += `    Forfait ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} · Renouvellement ${shortDate(n.expiresAt)}\n\n`
+      })
+      return text
+    },
+    manageNumber: (n) => {
+      const plan = plans[n.plan]
+      const minLimit = plan?.minutes === 'Unlimited' ? 'Illimité' : (plan?.minutes || 0)
+      const smsLimit = plan?.sms || 0
+      const minUsed = n.minutesUsed || 0
+      const smsUsed = n.smsUsed || 0
+      const minDisplay = minLimit === 'Illimité' ? `${minUsed} (Illimité)` : `${minUsed} / ${minLimit}`
+      const smsDisplay = `${smsUsed} / ${smsLimit}`
+      const minWarning = minLimit !== 'Illimité' && minUsed >= minLimit ? `\n💰 <b>Dépassement actif</b> — $${OVERAGE_RATE_MIN}/min depuis le portefeuille` : ''
+      const smsWarning = smsUsed >= smsLimit ? `\n💰 <b>Dépassement actif</b> — $${OVERAGE_RATE_SMS}/SMS depuis le portefeuille` : ''
+      const hasSms = n.capabilities?.sms !== false && n.features?.sms !== false
+      const hasFax = n.capabilities?.fax === true
+      const hasVoice = n.capabilities?.voice !== false
+      let text = `⚙️ Gestion : <b>${formatPhone(n.phoneNumber)}</b>\n\nStatut : ${n.status === 'active' ? '✅ Actif' : '⚠️ ' + n.status}\nForfait : ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} ($${n.planPrice}/mois)`
+      if (hasVoice) text += `\n📞 Minutes entrantes : ${minDisplay}${minWarning}`
+      if (hasSms) text += `\n📩 SMS entrants : ${smsDisplay} (réception uniquement)${smsWarning}`
+      if (hasFax) text += `\n📠 Fax : Inclus — fax entrants transférés sur Telegram`
+      const caps = []
+      if (hasVoice) caps.push('Voix')
+      if (hasSms) caps.push('SMS')
+      if (hasFax) caps.push('Fax')
+      text += `\n📋 Capacités : ${caps.join(' · ')}`
+      if (hasVoice) text += `\n\n🌐 <a href="${CALL_PAGE_URL}">Appeler depuis le navigateur</a>`
+      return text
+    },
+    // Call Forwarding
+    forwardingStatus: (number, config, walletBal) => {
+      const status = config?.enabled ? '✅ Actif' : '❌ Désactivé'
+      let text = `📞 <b>Transfert d'Appels</b> — ${formatPhone(number)}\n\nStatut : ${status}`
+      if (config?.enabled) {
+        text += `\n📲 ${formatPhone(config.forwardTo)} · ${config.mode}`
+        text += `\n🎵 Musique d'attente : ${config.holdMusic ? 'OUI' : 'NON'}`
+      }
+      const rate = config?.forwardTo && config.forwardTo.startsWith('+1') ? OVERAGE_RATE_MIN : CALL_FORWARDING_RATE_MIN
+      text += `\n💰 Utilise les minutes du forfait, puis $${rate}/min en dépassement`
+      if (walletBal !== undefined) text += ` · 💳 $${walletBal.toFixed(2)}`
+      return text
+    },
+    enterForwardNumber: (walletBal) => {
+      let text = `Entrez le numéro de transfert avec l'indicatif pays (ex : +14155551234)\n💰 Tarif : <b>$${CALL_FORWARDING_RATE_MIN}/min</b>`
+      if (walletBal !== undefined) {
+        text += ` · 💳 $${walletBal.toFixed(2)}`
+        if (walletBal < CALL_FORWARDING_RATE_MIN) text += `\n⚠️ Rechargez <b>25$</b> via 👛 Portefeuille d'abord.`
+      }
+      return text
+    },
+    forwardingUpdated: (number, forwardTo, mode, walletBal) => {
+      let text = `✅ <b>Transfert Actif</b>\n\n📞 ${formatPhone(number)} → ${formatPhone(forwardTo)}\n📋 ${mode} · $${CALL_FORWARDING_RATE_MIN}/min`
+      if (walletBal !== undefined) {
+        const estMin = Math.floor(walletBal / CALL_FORWARDING_RATE_MIN)
+        text += `\n💳 $${walletBal.toFixed(2)} (~${estMin} min)`
+        if (walletBal < 25) text += `\n💡 Rechargez à <b>25$</b> pour un transfert ininterrompu.`
+      }
+      return text
+    },
+    forwardingBlocked: (number) => `🚫 <b>Bloqué</b> — ${formatPhone(number)} est une destination premium.\nAppuyez sur 💬 <b>Support</b> pour demander l'activation.`,
+    forwardingNotRoutable: (number) => `⚠️ ${formatPhone(number)} n'est pas routable. Vérifiez le numéro ou appuyez sur 💬 <b>Support</b>.`,
+    forwardingInsufficientBalance: (walletBal) => `🚫 <b>Solde Insuffisant</b>\n\n💳 $${(walletBal || 0).toFixed(2)} · Nécessaire $${CALL_FORWARDING_RATE_MIN}/min\n\n👉 Rechargez <b>25$</b> via 👛 Portefeuille pour activer le transfert.`,
+    forwardingDisabled: (number) => `✅ Transfert désactivé pour ${formatPhone(number)}.`,
+    // SMS Settings
+    smsSettingsMenu: (number, config, plan) => {
+      const tg = config?.toTelegram ? '✅ OUI' : '❌ NON'
+      const em = config?.toEmail ? '✅ ' + config.toEmail : '❌ NON'
+      const wh = config?.webhookUrl ? '✅ Configuré' : '❌ Non configuré'
+      const canEmail = canAccessFeature(plan, 'smsToEmail')
+      const canWebhook = canAccessFeature(plan, 'smsWebhook')
+      const planName = plan ? plan.charAt(0).toUpperCase() + plan.slice(1) : 'Inconnu'
+      return `📩 <b>Paramètres SMS Entrants</b> pour <b>${formatPhone(number)}</b>\n\n📌 Les SMS sont <b>entrants uniquement</b> — vous recevez les SMS mais ne pouvez pas en envoyer.\n\n📲 Transférer sur Telegram : ${tg}\n📧 Transférer par Email : ${canEmail ? em : `🔒 Nécessite le forfait Pro ou supérieur (actuel : ${planName})`}\n🔗 URL Webhook : ${canWebhook ? wh : `🔒 Nécessite le forfait Pro ou supérieur (actuel : ${planName})`}`
+    },
+    smsToggled: (channel, state) => `${channel} est maintenant ${state ? '✅ ACTIVÉ' : '❌ DÉSACTIVÉ'}`,
+    // Fax Settings
+    faxSettingsMenu: (number, config, provider) => {
+      const tg = config?.toTelegram !== false ? '✅ OUI' : '❌ NON'
+      if (provider === 'twilio') {
+        return `📠 <b>Paramètres Fax</b> pour <b>${formatPhone(number)}</b>\n\n⚠️ <b>Le fax n'est pas disponible pour les numéros Twilio.</b>\nTwilio a arrêté le Fax programmable. Les fax entrants ne peuvent pas être reçus.\n\nPour utiliser le fax, achetez un numéro Telnyx avec la capacité fax.`
+      }
+      return `📠 <b>Paramètres Fax</b> pour <b>${formatPhone(number)}</b>\n\nLes fax entrants sont reçus en PDF et transférés sur ce chat Telegram.\n\n📲 Transférer sur Telegram : ${tg}`
+    },
+    faxToggled: (state) => `📠 Fax vers Telegram est maintenant ${state ? '✅ OUI' : '❌ NON'}`,
+    faxReceived: (from, to, pages) => `📠 <b>Fax Reçu</b>\nDe : ${from}\nÀ : ${formatPhone(to)}${pages ? `\nPages : ${pages}` : ''}`,
+    faxFailed: (from, to, reason) => `📠 <b>Échec du Fax</b>\nDe : ${from}\nÀ : ${formatPhone(to)}\nRaison : ${reason || 'Inconnue'}`,
+    enterEmail: 'Entrez l\'adresse email pour transférer les SMS :',
+    emailSet: (email) => `✅ SMS par email activé !\nTous les SMS entrants seront aussi envoyés à <b>${email}</b>.`,
+    enterWebhook: 'Entrez votre URL webhook (les SMS entrants seront envoyés en JSON) :',
+    webhookSet: (url) => `✅ URL Webhook configurée !\nLes SMS seront envoyés à : ${url}`,
+    // Voicemail
+    voicemailMenu: (number, config) => {
+      if (!config?.enabled) {
+        return `🎙️ Messagerie vocale pour <b>${formatPhone(number)}</b>\n\nStatut : ❌ Désactivée\n\nLorsqu'elle est activée, les appels sans réponse entendront un message d'accueil et les appelants pourront laisser un message.`
+      }
+      const tg = config.forwardToTelegram ? '✅ OUI' : '❌ NON'
+      const em = config.forwardToEmail ? '✅ ' + config.forwardToEmail : '❌ NON'
+      let greetInfo = ''
+      if (config.greetingType === 'custom' && config.customAudioGreetingUrl) {
+        greetInfo = '🎤 Audio personnalisé'
+      } else if (config.greetingType === 'custom' && config.customGreetingText) {
+        greetInfo = `📝 Personnalisé : "${config.customGreetingText}"`
+      } else {
+        greetInfo = '🔊 Par défaut : "Vous avez joint le ' + formatPhone(number) + '. Veuillez laisser un message après le bip."'
+      }
+      return `🎙️ Messagerie vocale pour <b>${formatPhone(number)}</b>\n\nStatut : ✅ Activée\n🎤 Message : ${greetInfo}\n\n📲 Envoyer sur Telegram : ${tg}\n📧 Envoyer par Email : ${em}\n⏰ Temps de sonnerie : ${config.ringTimeout || 25}s`
+    },
+    voicemailEnabled: (number) => `✅ Messagerie vocale activée pour ${formatPhone(number)} !\nLes enregistrements seront envoyés sur ce chat Telegram.`,
+    voicemailDisabled: (number) => `✅ Messagerie vocale désactivée pour ${formatPhone(number)}.`,
+    vmGreetingMenu: (number, vm) => {
+      let current = ''
+      if (vm?.greetingType === 'custom' && vm?.customAudioGreetingUrl) {
+        current = '🎤 Audio personnalisé\n📎 Fichier audio chargé'
+      } else if (vm?.greetingType === 'custom' && vm?.customGreetingText) {
+        current = `📝 Texte personnalisé : "${vm.customGreetingText}"`
+      } else {
+        current = `🔊 Par défaut : "Vous avez joint le ${formatPhone(number)}. Veuillez laisser un message après le bip."`
+      }
+      return `🔊 <b>Message d'Accueil</b> pour <b>${formatPhone(number)}</b>\n\nActuel : ${current}\n\nChoisissez une option :`
+    },
+    vmSendAudioPrompt: '🎤 <b>Message Audio Personnalisé</b>\n\nEnvoyez un message vocal ou un fichier audio comme message d\'accueil.\n\nLes appelants entendront cet audio quand ils atteindront votre messagerie.\n\n<i>Conseil : Enregistrez un message professionnel comme "Bonjour, vous avez joint [nom]. Je ne peux pas répondre pour le moment. Laissez un message après le bip."</i>',
+    vmAudioSaved: '✅ Message audio personnalisé enregistré ! Les appelants entendront maintenant votre message.',
+    vmDefaultRestored: '✅ Message d\'accueil réinitialisé au texte par défaut.',
+    vmTextGreetingPrompt: 'Entrez un texte de message d\'accueil personnalisé (sera lu par synthèse vocale) :',
+    vmTextGreetingSet: (text) => `✅ Message texte personnalisé enregistré !\n\n"${text}"`,
+    // SIP
+    sipCredentialsMsg: (number, username, domain) => `🔑 Identifiants SIP pour <b>${formatPhone(number)}</b>\n\n🌐 Serveur SIP : ${domain}\n👤 Utilisateur : <code>${username}</code>\n🔑 Mot de passe : ●●●●●●●●\n📡 Ports : 5060 (UDP/TCP) · 5061 (TLS)\n🎵 Codecs : G.711μ, G.711a, Opus`,
+    sipRevealed: (password) => `🔑 Mot de passe : <code>${password}</code>\n\n⚠️ Sauvegardez maintenant — ce message sera supprimé dans 30 secondes.`,
+    sipReset: (password) => `✅ Mot de passe SIP réinitialisé !\n\n🔑 Nouveau mot de passe : <code>${password}</code>\n\n⚠️ Sauvegardez maintenant. Mettez à jour ce mot de passe sur tous vos appareils SIP.`,
+    softphoneGuide: (domain) => `📖 <b>Guide de Configuration SIP</b>\n\n<b>🌐 Navigateur (Le plus simple)</b>\nAppelez directement depuis votre navigateur :\n<a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>\nAucune inscription ni application nécessaire.\n\n<b>Zoiper</b> (iOS / Android / Bureau)\n1. Téléchargez depuis l'App Store ou Google Play\n2. Ajouter un compte → SIP\n3. Entrez vos identifiants SIP (depuis 🔑 Identifiants SIP)\n4. Domaine : <code>${domain}</code>\n5. Sauvegardez et faites un appel test\n\n<b>Tout client SIP</b>\nServeur : <code>${domain}</code>\nPort : 5060 (UDP/TCP) ou 5061 (TLS)\nDTMF : RFC 2833 · Codec : G.711μ\n\n🧪 <b>Appels test gratuits :</b>\nEnvoyez /testsip ici pour obtenir votre code test`,
+    // Renew
+    renewMenu: (number, plan, price, expiry, autoRenewOn) => `🔄 Forfait pour <b>${formatPhone(number)}</b>\n\nForfait actuel : ${plan} — $${price}/mois\nDate de renouvellement : ${shortDate(expiry)}\nRenouvellement auto : ${autoRenewOn ? '✅ OUI' : '❌ NON'}`,
+    // Delete
+    releaseConfirm: (number) => `🗑️ <b>Supprimer ${formatPhone(number)} ?</b>\n\n⚠️ <b>Cette action est irréversible.</b>\n\n• Numéro supprimé définitivement\n• Forfait mensuel annulé immédiatement\n• Tous les paramètres supprimés\n• Aucun remboursement pour les jours restants\n\nÊtes-vous sûr ?`,
+    releaseConfirmDigits: (digits) => `⚠️ <b>Confirmation finale</b>\n\nTapez les 4 derniers chiffres du numéro pour le supprimer : <b>${digits}</b>`,
+    released: (number) => `✅ ${formatPhone(number)} a été supprimé définitivement.\n\nForfait annulé. Tous les paramètres supprimés.`,
+    // Real-time events
+    inboundSms: (to, from, body, time) => `📩 <b>SMS Reçu</b>\n\n📞 À : ${formatPhone(to)}\n👤 De : ${formatPhone(from)}\n🕐 ${time}\n\n💬 "${body}"`,
+    missedCall: (to, from, time) => `📞 <b>Appel Manqué</b>\n\n📞 À : ${formatPhone(to)}\n👤 De : ${formatPhone(from)}\n🕐 ${time}`,
+    callForwarded: (to, from, forwardedTo, duration, time) => `📞 <b>Appel Transféré</b>\n\n📞 À : ${formatPhone(to)}\n👤 De : ${formatPhone(from)}\n📲 Transféré : ${formatPhone(forwardedTo)}\n⏱️ Durée : ${formatDuration(duration)}\n🕐 ${time}`,
+    newVoicemail: (to, from, duration, time) => `🎙️ <b>Nouveau Message Vocal</b>\n\n📞 À : ${formatPhone(to)}\n👤 De : ${formatPhone(from)}\n⏱️ Durée : ${formatDuration(duration)}\n🕐 ${time}`,
+    // Expiry
+    expiryReminder: (number, days, plan, price, balance) => `🔔 <b>Rappel de Renouvellement</b>\n\nVotre numéro ${formatPhone(number)} (Forfait ${plan}) expire dans <b>${days} jour${days !== 1 ? 's' : ''}</b>.\n\nSolde portefeuille : $${balance}\nPrix du forfait : $${price}/mois${balance < price ? '\n\n⚠️ Solde insuffisant. Veuillez recharger.' : ''}`,
+    autoRenewed: (number, plan, price, newExpiry, oldBal, newBal) => `✅ <b>Renouvellement Automatique Réussi</b>\n\n📞 ${formatPhone(number)}\n📦 Forfait : ${plan} ($${price}/mois)\n📅 Nouvelle expiration : ${shortDate(newExpiry)}\nPortefeuille : $${oldBal} → $${newBal}`,
+    autoRenewFailed: (number, plan, price, balance) => `❌ <b>Échec du Renouvellement Automatique</b>\n\n📞 ${formatPhone(number)}\n📦 Forfait : ${plan} ($${price}/mois)\n💰 Portefeuille : $${balance} (nécessaire $${price})\n\n⚠️ Votre numéro est maintenant SUSPENDU. Rechargez et renouvelez sous 7 jours.`,
+    // IVR
+    ivrMenu: (number, config) => {
+      if (!config?.enabled) {
+        return `🤖 <b>SVI / Standard Auto</b> pour <b>${formatPhone(number)}</b>\n\nStatut : ❌ Désactivé\n\nLorsqu'il est activé, les appelants entendent un menu d'accueil et peuvent appuyer sur des touches pour atteindre la bonne destination.`
+      }
+      let text = `🤖 <b>SVI / Standard Auto</b> pour <b>${formatPhone(number)}</b>\n\nStatut : ✅ Activé\n\n🎤 Message : "${config.greeting || 'Par défaut'}"\n\n📋 <b>Options du Menu :</b>\n`
+      if (config.options && Object.keys(config.options).length > 0) {
+        Object.entries(config.options).forEach(([key, opt]) => {
+          text += `  Appuyez <b>${key}</b> → ${opt.action === 'forward' ? '📲 Transférer vers ' + formatPhone(opt.forwardTo) : opt.action === 'voicemail' ? '🎙️ Messagerie vocale' : '🔊 ' + (opt.message || 'Lire le message')}\n`
+        })
+      } else {
+        text += '  Aucune option configurée.\n'
+      }
+      return text
+    },
+    ivrEnabled: (number) => `✅ SVI / Standard auto activé pour ${formatPhone(number)} !\n\nLes appelants entendront votre message d'accueil et pourront naviguer avec les touches.`,
+    ivrDisabled: (number) => `✅ SVI / Standard auto désactivé pour ${formatPhone(number)}.`,
+    ivrSetGreeting: 'Entrez le message d\'accueil du SVI (ce que les appelants entendront) :\n\nExemple : "Merci d\'appeler. Appuyez sur 1 pour le support, sur 2 pour les ventes, ou restez en ligne."',
+    ivrGreetingSet: (greeting) => `✅ Message d'accueil du SVI mis à jour !\n\n"${greeting}"`,
+    ivrAddOption: 'Entrez la touche et l\'action dans ce format :\n\n<code>TOUCHE ACTION DESTINATION</code>\n\nExemples :\n• <code>1 forward +14155551234</code>\n• <code>2 voicemail</code>\n• <code>3 message Nous vous rappellerons</code>\n• <code>0 forward +14155559999</code>',
+    ivrOptionAdded: (key, action, destination) => `✅ Option SVI ajoutée !\n\nAppuyez <b>${key}</b> → ${action === 'forward' ? '📲 Transférer vers ' + formatPhone(destination) : action === 'voicemail' ? '🎙️ Messagerie vocale' : '🔊 ' + destination}`,
+    ivrOptionRemoved: (key) => `✅ Option SVI pour la touche <b>${key}</b> supprimée.`,
+    ivrInvalidFormat: '❌ Format invalide. Utilisez :\n<code>TOUCHE ACTION DESTINATION</code>\n\nExemple : <code>1 forward +14155551234</code>',
+    ivrAnalyticsReport: (number, data) => {
+      let text = `📊 <b>Analytiques SVI</b> pour <b>${formatPhone(number)}</b>\n(30 derniers jours)\n\n`
+      text += `📞 Total appels SVI : <b>${data.totalCalls}</b>\n`
+      if (data.topOption) text += `🏆 Plus pressée : Touche <b>${data.topOption.digit}</b> (${data.topOption.count} fois, ${data.topOption.percent}%)\n`
+      text += '\n'
+      if (data.optionBreakdown.length > 0) {
+        text += '📋 <b>Répartition :</b>\n'
+        data.optionBreakdown.forEach(o => {
+          const bar = '█'.repeat(Math.max(1, Math.round(o.percent / 10))) + '░'.repeat(Math.max(0, 10 - Math.round(o.percent / 10)))
+          text += `  Touche <b>${o.digit}</b> : ${bar} ${o.count} (${o.percent}%)\n`
+        })
+        text += '\n'
+      }
+      if (data.recentCalls.length > 0) {
+        text += '📱 <b>Appels SVI Récents :</b>\n'
+        data.recentCalls.forEach(c => {
+          text += `  ${formatPhone(c.from)} → Touche <b>${c.digit}</b> (${c.action}) ${shortDate(c.time)}\n`
+        })
+      }
+      if (data.totalCalls === 0) text += '\nAucun appel SVI enregistré.'
+      return text
+    },
+    // Recording
+    recordingMenu: (number, config) => {
+      const enabled = config?.recording === true
+      return `🔴 <b>Enregistrement d'Appels</b> pour <b>${formatPhone(number)}</b>\n\nStatut : ${enabled ? '✅ Activé' : '❌ Désactivé'}\n\nLorsqu'il est activé, tous les appels entrants et sortants sont automatiquement enregistrés. Les enregistrements sont envoyés sur votre chat Telegram.`
+    },
+    recordingEnabled: (number) => `✅ Enregistrement d'appels activé pour ${formatPhone(number)} !\n\nTous les appels seront enregistrés et envoyés sur ce chat.`,
+    recordingDisabled: (number) => `✅ Enregistrement d'appels désactivé pour ${formatPhone(number)}.`,
+    // SMS Inbox
+    smsInboxHeader: (number, total) => `📨 <b>Boîte SMS</b> pour <b>${formatPhone(number)}</b>\n\n${total === 0 ? 'Aucun message reçu.' : `${total} message${total > 1 ? 's' : ''} reçu${total > 1 ? 's' : ''} :`}`,
+    smsInboxEntry: (i, from, name, body, time) => {
+      const nameDisplay = name && name !== 'None' ? ` (${name})` : ''
+      const bodyPreview = body.length > 80 ? body.substring(0, 80) + '...' : body
+      return `\n<b>${i}.</b> ${formatPhone(from)}${nameDisplay}\n   💬 "${bodyPreview}"\n   🕐 ${time}\n`
+    },
+    smsInboxEmpty: 'Aucun SMS entrant reçu pour ce numéro.\n\n<i>Quand quelqu\'un envoie un SMS à votre numéro, les messages apparaîtront ici.</i>',
+    smsInboxFooter: (page, totalPages) => totalPages > 1 ? `\n📄 Page ${page}/${totalPages}` : '',
     btnUploadAudio: '📎 Uploader Audio',
     btnConfirm: '✅ Confirmer',
     btnChangeVoice: '🎤 Changer la Voix',
