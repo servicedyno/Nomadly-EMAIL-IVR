@@ -9088,7 +9088,7 @@ bot?.on('message', async msg => {
       const provider = info?.cpProvider || 'telnyx'
       let results
       if (provider === 'twilio') {
-        results = await twilioService.searchNumbers(info?.cpCountryCode || 'US', info?.cpNumberType || 'local', 5)
+        results = await twilioService.searchNumbers(info?.cpCountryCode || 'US', info?.cpNumberType || 'local', 5, info?.cpAreaCode || null)
       } else {
         results = await telnyxApi.searchNumbers(info?.cpCountryCode || 'US', info?.cpNumberType || 'local', info?.cpAreaCode, 5)
       }
