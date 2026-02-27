@@ -162,7 +162,6 @@ async function startCampaign(campaignId) {
     `📱 Caller ID: <b>${campaign.callerId}</b>\n` +
     `⚡ Concurrency: <b>${campaign.concurrency}</b>\n` +
     `📊 Mode: <b>${campaign.mode === 'transfer' ? '🔗 Transfer + Report' : '📊 Report Only'}</b>\n` +
-    `☎️ Provider: <b>Twilio</b>\n\n` +
     `Dialing now... You'll receive updates as calls complete.`,
     { parse_mode: 'HTML' }
   ).catch(() => {})
