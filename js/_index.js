@@ -6037,7 +6037,7 @@ bot?.on('message', async msg => {
     } catch (e) {
       log(`[QuickActivateShortener] Error for ${domain}: ${e.message}`)
       await markFailed(domain, e.message).catch(() => {})
-      send(chatId, ({ en: `❌ Error activating shortener for <b>${domain}</b>`, fr: `❌ Erreur d'activation du raccourcisseur pour <b>${domain}</b>`, zh: `❌ 为 <b>${domain}</b> 激活短链接时出错`, hi: `❌ <b>${domain}</b> के लिए शॉर्टनर सक्रिय करने में त्रुटि` }[lang] || `❌ Error activating shortener for <b>${domain}</b>`): ${e.message}\n\nPlease try again later.`)
+      send(chatId, ({ en: `❌ Error activating shortener for <b>${domain}</b>: ${e.message}\n\nPlease try again later.`, fr: `❌ Erreur d'activation du raccourcisseur pour <b>${domain}</b> : ${e.message}\n\nVeuillez réessayer plus tard.`, zh: `❌ 为 <b>${domain}</b> 激活短链接时出错：${e.message}\n\n请稍后重试。`, hi: `❌ <b>${domain}</b> के लिए शॉर्टनर सक्रिय करने में त्रुटि: ${e.message}\n\nकृपया बाद में पुनः प्रयास करें।` }[lang] || `❌ Error activating shortener for <b>${domain}</b>: ${e.message}\n\nPlease try again later.`))
     }
     return
   }
