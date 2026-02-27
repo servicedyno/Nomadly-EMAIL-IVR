@@ -1749,6 +1749,24 @@ bot?.on('message', async msg => {
     ivrObAudioPreview: 'ivrObAudioPreview',
     ivrObCallPreview: 'ivrObCallPreview',
     ivrObCustomScript: 'ivrObCustomScript',
+
+    // Bulk Call Campaign
+    bulkSelectCaller: 'bulkSelectCaller',
+    bulkUploadLeads: 'bulkUploadLeads',
+    bulkSelectAudio: 'bulkSelectAudio',
+    bulkUploadAudio: 'bulkUploadAudio',
+    bulkNameAudio: 'bulkNameAudio',
+    bulkSelectMode: 'bulkSelectMode',
+    bulkEnterTransfer: 'bulkEnterTransfer',
+    bulkSetConcurrency: 'bulkSetConcurrency',
+    bulkConfirm: 'bulkConfirm',
+    bulkRunning: 'bulkRunning',
+
+    // Audio Library
+    audioLibMenu: 'audioLibMenu',
+    audioLibUpload: 'audioLibUpload',
+    audioLibName: 'audioLibName',
+    audioLibDelete: 'audioLibDelete',
   }
 
   const firstSteps = [
