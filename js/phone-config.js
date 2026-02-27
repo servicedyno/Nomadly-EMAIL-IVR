@@ -966,29 +966,351 @@ const msg = {
 }
 
 // ── Translated button labels (for multilingual keyboards) ──
-const btnLabels = {
-  buyPhoneNumber: {
-    en: '🛒 Buy Cloud Phone Plans',
-    fr: '🛒 Acheter un Forfait Cloud Phone',
-    zh: '🛒 购买云电话套餐',
-    hi: '🛒 क्लाउड फ़ोन प्लान खरीदें',
+const btnI18n = {
+  fr: {
+    buyPhoneNumber: '🛒 Acheter un Forfait Cloud Phone',
+    myNumbers: '📱 Mes Numéros',
+    sipSettings: '📖 Guide SIP',
+    usageBilling: '📊 Utilisation & Facturation',
+    localNumber: '📍 Numéro Local',
+    tollFreeNumber: '🆓 Numéro Gratuit',
+    mobileNumber: '📱 Numéro Mobile',
+    nationalNumber: '🌐 Numéro National',
+    starterPlan: PHONE_STARTER_ON ? `💡 Starter — $${PHONE_STARTER_PRICE}/mois` : '💡 Starter — Bientôt 🔜',
+    proPlan: PHONE_PRO_ON ? `⭐ Pro — $${PHONE_PRO_PRICE}/mois` : '⭐ Pro — Bientôt 🔜',
+    businessPlan: PHONE_BUSINESS_ON ? `👑 Business — $${PHONE_BUSINESS_PRICE}/mois` : '👑 Business — Bientôt 🔜',
+    callForwarding: '📞 Transfert d\'Appels',
+    smsSettings: '📩 Paramètres SMS',
+    smsInbox: '📨 Boîte SMS',
+    voicemail: '🎙️ Messagerie Vocale',
+    sipCredentials: '🔑 Identifiants SIP',
+    callRecording: '🔴 Enregistrement d\'Appels',
+    ivrAutoAttendant: '🤖 SVI / Standard Auto',
+    callSmsLogs: '📊 Journaux Appels & SMS',
+    renewChangePlan: '🔄 Renouveler / Changer',
+    releaseNumber: '🗑️ Supprimer le Numéro',
+    alwaysForward: '📞 Toujours Transférer',
+    forwardBusy: '📵 Transférer si Occupé',
+    forwardNoAnswer: '⏰ Transférer sans Réponse',
+    disableForwarding: '🚫 Désactiver le Transfert',
+    holdMusicOn: '🎵 Musique d\'Attente: OUI',
+    holdMusicOff: '🎵 Musique d\'Attente: NON',
+    smsToTelegram: '📲 SMS vers Telegram',
+    smsToEmail: '📧 SMS par Email',
+    smsWebhook: '🔗 URL Webhook',
+    enableVoicemail: '✅ Activer Messagerie',
+    disableVoicemail: '🚫 Désactiver Messagerie',
+    vmGreeting: '🔊 Message d\'Accueil',
+    vmCustomGreeting: '🎤 Accueil Personnalisé',
+    vmDefaultGreeting: '🔄 Accueil Par Défaut',
+    vmToTelegram: '📲 Envoyer sur Telegram',
+    vmToEmail: '📧 Envoyer par Email',
+    vmRingTime: '⏰ Temps de Sonnerie',
+    revealPassword: '👁️ Révéler le Mot de Passe',
+    resetPassword: '🔄 Réinitialiser le Mot de Passe',
+    softphoneGuide: '📖 Guide SIP',
+    renewNow: '🔄 Renouveler Maintenant',
+    changePlan: '📦 Changer de Forfait',
+    autoRenew: '🔁 Renouvellement Auto',
+    showMore: '🔄 Plus de Numéros',
+    searchByArea: '🔍 Chercher par Zone',
+    moreCountries: '🌍 Plus de Pays',
+    applyCoupon: '🎟️ Appliquer un Coupon',
+    proceedPayment: '✅ Procéder au Paiement',
+    buyAnother: '🛒 Acheter un Autre Numéro',
+    confirm: '✅ Confirmer',
+    yesRelease: '⚠️ Oui, Supprimer Définitivement',
+    noKeep: '↩️ Non, Garder',
+    yesReset: 'Oui, Réinitialiser',
+    enableIvr: '✅ Activer le SVI',
+    disableIvr: '🚫 Désactiver le SVI',
+    ivrGreeting: '🎤 Message d\'Accueil',
+    ivrAddOption: '➕ Ajouter une Option',
+    ivrRemoveOption: '➖ Supprimer une Option',
+    ivrViewOptions: '📋 Voir les Options',
+    ivrAnalytics: '📊 Analytiques SVI',
+    enableRecording: '✅ Activer l\'Enregistrement',
+    disableRecording: '🚫 Désactiver l\'Enregistrement',
+    inboxNewerPage: '◀️ Plus Récent',
+    inboxOlderPage: '▶️ Plus Ancien',
+    inboxRefresh: '🔄 Actualiser',
+    ivrOutboundCall: '📢 Appel IVR Sortant',
+    ivrOutboundBack: '↩️ Retour',
+    bulkCallCampaign: '📞 Campagne d\'Appels en Masse',
+    audioLibrary: '🎵 Bibliothèque Audio',
+    back: 'Retour',
+    cancel: 'Annuler',
+  },
+  zh: {
+    buyPhoneNumber: '🛒 购买云电话套餐',
+    myNumbers: '📱 我的号码',
+    sipSettings: '📖 SIP 设置指南',
+    usageBilling: '📊 使用量与账单',
+    localNumber: '📍 本地号码',
+    tollFreeNumber: '🆓 免费号码',
+    mobileNumber: '📱 手机号码',
+    nationalNumber: '🌐 全国号码',
+    starterPlan: PHONE_STARTER_ON ? `💡 入门版 — $${PHONE_STARTER_PRICE}/月` : '💡 入门版 — 即将推出 🔜',
+    proPlan: PHONE_PRO_ON ? `⭐ 专业版 — $${PHONE_PRO_PRICE}/月` : '⭐ 专业版 — 即将推出 🔜',
+    businessPlan: PHONE_BUSINESS_ON ? `👑 商务版 — $${PHONE_BUSINESS_PRICE}/月` : '👑 商务版 — 即将推出 🔜',
+    callForwarding: '📞 呼叫转移',
+    smsSettings: '📩 短信设置',
+    smsInbox: '📨 短信收件箱',
+    voicemail: '🎙️ 语音信箱',
+    sipCredentials: '🔑 SIP 凭据',
+    callRecording: '🔴 通话录音',
+    ivrAutoAttendant: '🤖 IVR / 自动应答',
+    callSmsLogs: '📊 通话和短信记录',
+    renewChangePlan: '🔄 续费 / 更换套餐',
+    releaseNumber: '🗑️ 删除号码',
+    alwaysForward: '📞 始终转发',
+    forwardBusy: '📵 忙时转发',
+    forwardNoAnswer: '⏰ 无人接听时转发',
+    disableForwarding: '🚫 关闭转发',
+    holdMusicOn: '🎵 等待音乐: 开',
+    holdMusicOff: '🎵 等待音乐: 关',
+    smsToTelegram: '📲 短信转发到 Telegram',
+    smsToEmail: '📧 短信转发到邮箱',
+    smsWebhook: '🔗 Webhook URL',
+    enableVoicemail: '✅ 启用语音信箱',
+    disableVoicemail: '🚫 关闭语音信箱',
+    vmGreeting: '🔊 问候语',
+    vmCustomGreeting: '🎤 自定义语音问候',
+    vmDefaultGreeting: '🔄 默认问候语',
+    vmToTelegram: '📲 发送到 Telegram',
+    vmToEmail: '📧 发送到邮箱',
+    vmRingTime: '⏰ 响铃时间',
+    revealPassword: '👁️ 显示密码',
+    resetPassword: '🔄 重置密码',
+    softphoneGuide: '📖 SIP 设置指南',
+    renewNow: '🔄 立即续费',
+    changePlan: '📦 更换套餐',
+    autoRenew: '🔁 自动续费',
+    showMore: '🔄 显示更多号码',
+    searchByArea: '🔍 按区号搜索',
+    moreCountries: '🌍 更多国家',
+    applyCoupon: '🎟️ 使用优惠券',
+    proceedPayment: '✅ 继续支付',
+    buyAnother: '🛒 购买另一个号码',
+    confirm: '✅ 确认',
+    yesRelease: '⚠️ 是的，永久删除',
+    noKeep: '↩️ 不，保留',
+    yesReset: '是的，重置',
+    enableIvr: '✅ 启用 IVR',
+    disableIvr: '🚫 关闭 IVR',
+    ivrGreeting: '🎤 设置问候语',
+    ivrAddOption: '➕ 添加菜单选项',
+    ivrRemoveOption: '➖ 删除选项',
+    ivrViewOptions: '📋 查看菜单选项',
+    ivrAnalytics: '📊 IVR 分析',
+    enableRecording: '✅ 启用录音',
+    disableRecording: '🚫 关闭录音',
+    inboxNewerPage: '◀️ 较新',
+    inboxOlderPage: '▶️ 较旧',
+    inboxRefresh: '🔄 刷新',
+    ivrOutboundCall: '📢 IVR 外呼',
+    ivrOutboundBack: '↩️ 返回',
+    bulkCallCampaign: '📞 批量呼叫活动',
+    audioLibrary: '🎵 音频库',
+    back: '返回',
+    cancel: '取消',
+  },
+  hi: {
+    buyPhoneNumber: '🛒 क्लाउड फ़ोन प्लान खरीदें',
+    myNumbers: '📱 मेरे नंबर',
+    sipSettings: '📖 SIP सेटअप गाइड',
+    usageBilling: '📊 उपयोग और बिलिंग',
+    localNumber: '📍 लोकल नंबर',
+    tollFreeNumber: '🆓 टोल-फ्री नंबर',
+    mobileNumber: '📱 मोबाइल नंबर',
+    nationalNumber: '🌐 नेशनल नंबर',
+    starterPlan: PHONE_STARTER_ON ? `💡 स्टार्टर — $${PHONE_STARTER_PRICE}/माह` : '💡 स्टार्टर — जल्द आ रहा है 🔜',
+    proPlan: PHONE_PRO_ON ? `⭐ प्रो — $${PHONE_PRO_PRICE}/माह` : '⭐ प्रो — जल्द आ रहा है 🔜',
+    businessPlan: PHONE_BUSINESS_ON ? `👑 बिज़नेस — $${PHONE_BUSINESS_PRICE}/माह` : '👑 बिज़नेस — जल्द आ रहा है 🔜',
+    callForwarding: '📞 कॉल फ़ॉरवर्डिंग',
+    smsSettings: '📩 SMS सेटिंग्स',
+    smsInbox: '📨 SMS इनबॉक्स',
+    voicemail: '🎙️ वॉइसमेल',
+    sipCredentials: '🔑 SIP क्रेडेंशियल्स',
+    callRecording: '🔴 कॉल रिकॉर्डिंग',
+    ivrAutoAttendant: '🤖 IVR / ऑटो-अटेंडेंट',
+    callSmsLogs: '📊 कॉल और SMS लॉग',
+    renewChangePlan: '🔄 नवीनीकरण / प्लान बदलें',
+    releaseNumber: '🗑️ नंबर हटाएं',
+    alwaysForward: '📞 हमेशा फ़ॉरवर्ड',
+    forwardBusy: '📵 व्यस्त होने पर फ़ॉरवर्ड',
+    forwardNoAnswer: '⏰ जवाब न होने पर फ़ॉरवर्ड',
+    disableForwarding: '🚫 फ़ॉरवर्डिंग बंद करें',
+    holdMusicOn: '🎵 होल्ड म्यूज़िक: चालू',
+    holdMusicOff: '🎵 होल्ड म्यूज़िक: बंद',
+    smsToTelegram: '📲 SMS टेलीग्राम पर',
+    smsToEmail: '📧 SMS ईमेल पर',
+    smsWebhook: '🔗 Webhook URL',
+    enableVoicemail: '✅ वॉइसमेल चालू करें',
+    disableVoicemail: '🚫 वॉइसमेल बंद करें',
+    vmGreeting: '🔊 ग्रीटिंग',
+    vmCustomGreeting: '🎤 कस्टम ग्रीटिंग (ऑडियो)',
+    vmDefaultGreeting: '🔄 डिफ़ॉल्ट ग्रीटिंग',
+    vmToTelegram: '📲 टेलीग्राम पर भेजें',
+    vmToEmail: '📧 ईमेल पर भेजें',
+    vmRingTime: '⏰ रिंग टाइम',
+    revealPassword: '👁️ पासवर्ड दिखाएं',
+    resetPassword: '🔄 पासवर्ड रीसेट करें',
+    softphoneGuide: '📖 SIP सेटअप गाइड',
+    renewNow: '🔄 अभी नवीनीकरण करें',
+    changePlan: '📦 प्लान बदलें',
+    autoRenew: '🔁 ऑटो-रिन्यू',
+    showMore: '🔄 और नंबर दिखाएं',
+    searchByArea: '🔍 एरिया कोड से खोजें',
+    moreCountries: '🌍 और देश',
+    applyCoupon: '🎟️ कूपन लगाएं',
+    proceedPayment: '✅ भुगतान करें',
+    buyAnother: '🛒 और एक नंबर खरीदें',
+    confirm: '✅ पुष्टि करें',
+    yesRelease: '⚠️ हाँ, स्थायी रूप से हटाएं',
+    noKeep: '↩️ नहीं, रखें',
+    yesReset: 'हाँ, रीसेट करें',
+    enableIvr: '✅ IVR चालू करें',
+    disableIvr: '🚫 IVR बंद करें',
+    ivrGreeting: '🎤 ग्रीटिंग सेट करें',
+    ivrAddOption: '➕ विकल्प जोड़ें',
+    ivrRemoveOption: '➖ विकल्प हटाएं',
+    ivrViewOptions: '📋 विकल्प देखें',
+    ivrAnalytics: '📊 IVR एनालिटिक्स',
+    enableRecording: '✅ रिकॉर्डिंग चालू करें',
+    disableRecording: '🚫 रिकॉर्डिंग बंद करें',
+    inboxNewerPage: '◀️ नए',
+    inboxOlderPage: '▶️ पुराने',
+    inboxRefresh: '🔄 रिफ्रेश',
+    ivrOutboundCall: '📢 IVR आउटबाउंड कॉल',
+    ivrOutboundBack: '↩️ वापस',
+    bulkCallCampaign: '📞 बल्क कॉल अभियान',
+    audioLibrary: '🎵 ऑडियो लाइब्रेरी',
+    back: 'वापस',
+    cancel: 'रद्द करें',
   },
 }
 
-// All values for a given button key (for message matching)
-const _allBtnValues = {}
-for (const key of Object.keys(btnLabels)) {
-  _allBtnValues[key] = new Set(Object.values(btnLabels[key]))
+// Build reverse lookup: for any button value → which key it belongs to
+const _allBtnValueToKey = {}
+// Add English btn values
+for (const [key, val] of Object.entries(btn)) {
+  if (typeof val === 'string') _allBtnValueToKey[val] = key
+}
+// Add translated btn values
+for (const [lang, labels] of Object.entries(btnI18n)) {
+  for (const [key, val] of Object.entries(labels)) {
+    if (typeof val === 'string') _allBtnValueToKey[val] = key
+  }
 }
 
-/** Get the translated button label for a key in the given language */
+/** Get full translated btn object for a language (falls back to English) */
+function getBtn(lang) {
+  if (!lang || lang === 'en') return btn
+  const translations = btnI18n[lang]
+  if (!translations) return btn
+  return { ...btn, ...translations }
+}
+
+/** Get the translated button label for a specific key */
 function getBtnLabel(key, lang) {
-  return btnLabels[key]?.[lang] || btnLabels[key]?.en || btn[key]
+  if (!lang || lang === 'en') return btn[key]
+  return btnI18n[lang]?.[key] || btn[key]
 }
 
 /** Check if a message matches ANY language variant of a button key */
 function isBtnMatch(message, key) {
-  return _allBtnValues[key]?.has(message) || message === btn[key]
+  if (message === btn[key]) return true
+  for (const lang of Object.keys(btnI18n)) {
+    if (btnI18n[lang][key] === message) return true
+  }
+  return false
+}
+
+/** Given a button value in any language, return its key name (or null) */
+function btnKeyOf(message) {
+  return _allBtnValueToKey[message] || null
+}
+
+// ── Translated txt (user-facing message texts) ──
+const txtI18n = {
+  fr: {
+    hubWelcome: `📞 <b>CloudPhone</b> <i>par Speechcue</i>
+
+Obtenez un numéro virtuel dans plus de 30 pays — en moins de 2 minutes.
+
+📞 Transférez les appels vers votre vrai téléphone
+💬 Recevez les SMS directement dans Telegram
+🌐 Appelez et recevez des appels dans votre navigateur — sans application
+🤖 Configurez un standard automatique IVR
+🔗 Connectez via un softphone SIP
+
+Forfaits à partir de <b>$${PHONE_STARTER_PRICE}/mois</b> avec ${plans.starter.minutes} min + ${plans.starter.sms} SMS inclus.
+
+Sélectionnez une option :`,
+    selectCountry: '📍 Sélectionnez le pays pour votre nouveau numéro :',
+    searching: '🔍 Recherche de numéros disponibles...',
+    noSearchResults: '❌ Aucun numéro disponible. Essayez une autre zone ou un autre pays.',
+    noNumbers: '📱 Vous n\'avez pas encore de numéro.\n\nAppuyez ci-dessous pour obtenir votre premier numéro virtuel.',
+    enterEmail: 'Entrez l\'adresse email pour recevoir les SMS :',
+    enterWebhook: 'Entrez votre URL webhook (les SMS seront envoyés en JSON) :',
+  },
+  zh: {
+    hubWelcome: `📞 <b>CloudPhone</b> <i>由 Speechcue 提供</i>
+
+在30多个国家获取虚拟号码 — 不到2分钟。
+
+📞 将来电转接到您的真实手机
+💬 在 Telegram 中直接接收短信
+🌐 在浏览器中拨打和接听电话 — 无需安装应用
+🤖 设置 IVR 自动应答
+🔗 通过 SIP 软电话连接
+
+套餐起价 <b>$${PHONE_STARTER_PRICE}/月</b>，含 ${plans.starter.minutes} 分钟 + ${plans.starter.sms} 条短信。
+
+请选择一个选项：`,
+    selectCountry: '📍 为您的新号码选择国家：',
+    searching: '🔍 正在搜索可用号码...',
+    noSearchResults: '❌ 没有可用号码。请尝试其他区域或国家。',
+    noNumbers: '📱 您还没有电话号码。\n\n点击下方获取您的第一个虚拟号码。',
+    enterEmail: '输入用于接收短信的电子邮件地址：',
+    enterWebhook: '输入您的 Webhook URL（短信将以 JSON 格式发送）：',
+  },
+  hi: {
+    hubWelcome: `📞 <b>CloudPhone</b> <i>Speechcue द्वारा</i>
+
+30 से अधिक देशों में वर्चुअल नंबर प्राप्त करें — 2 मिनट से भी कम में।
+
+📞 कॉल अपने असली फ़ोन पर फ़ॉरवर्ड करें
+💬 टेलीग्राम में सीधे SMS प्राप्त करें
+🌐 ब्राउज़र में कॉल करें और प्राप्त करें — कोई ऐप नहीं चाहिए
+🤖 IVR ऑटो-अटेंडेंट सेट करें
+🔗 SIP सॉफ्टफोन से कनेक्ट करें
+
+प्लान <b>$${PHONE_STARTER_PRICE}/माह</b> से शुरू, ${plans.starter.minutes} मिनट + ${plans.starter.sms} SMS शामिल।
+
+एक विकल्प चुनें:`,
+    selectCountry: '📍 अपने नए नंबर के लिए देश चुनें:',
+    searching: '🔍 उपलब्ध नंबर खोज रहे हैं...',
+    noSearchResults: '❌ कोई नंबर उपलब्ध नहीं। कोई और क्षेत्र या देश आज़माएं।',
+    noNumbers: '📱 आपके पास अभी तक कोई फ़ोन नंबर नहीं है।\n\nअपना पहला वर्चुअल नंबर पाने के लिए नीचे टैप करें।',
+    enterEmail: 'SMS प्राप्त करने के लिए ईमेल पता दर्ज करें:',
+    enterWebhook: 'अपना Webhook URL दर्ज करें (SMS JSON में भेजा जाएगा):',
+  },
+}
+
+/** Get translated txt object for a language (falls back to English for missing keys) */
+function getTxt(lang) {
+  if (!lang || lang === 'en') return txt
+  const translations = txtI18n[lang]
+  if (!translations) return txt
+  // Return a proxy-like merged object: translated values override English
+  return new Proxy(txt, {
+    get(target, prop) {
+      if (translations.hasOwnProperty(prop)) return translations[prop]
+      return target[prop]
+    }
+  })
 }
 
 function getMsg(lang) {
