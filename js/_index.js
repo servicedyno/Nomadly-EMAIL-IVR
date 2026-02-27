@@ -8949,14 +8949,6 @@ bot?.on('message', async msg => {
     if (types.includes('mobile')) typeBtns.push([pc.mobileNumber])
     if (types.includes('national')) typeBtns.push([pc.nationalNumber])
     if (types.includes('toll_free')) typeBtns.push([pc.tollFreeNumber])
-    // For Twilio-forced (Pro/Business) on Telnyx-native countries, show all standard types
-    if (forceTwilio && !countryEntry?.types) {
-      // Country doesn't have explicit types — show local + toll-free
-      if (!typeBtns.length) {
-        typeBtns.push([pc.localNumber])
-        typeBtns.push([pc.tollFreeNumber])
-      }
-    }
     return send(chatId, phoneConfig.txt.selectType(message), k.of(typeBtns))
   }
 
