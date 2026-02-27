@@ -12312,7 +12312,7 @@ bot?.on('message', async msg => {
       // Check if domain has a hosting plan (cpanelAccount)
       const hasHosting = await db.collection('cpanelAccounts').findOne({ domain: { $regex: new RegExp('^' + domain.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') } })
       if (!hasHosting) {
-        return send(chatId, `⚠️ <b>Anti-Red Protection</b> is only available for domains with a hosting plan.\n\nDomain: <b>${domain}</b> is registered without hosting.\n\nTo enable Anti-Red, purchase a hosting plan for this domain first.`, { parse_mode: 'HTML' })
+        return send(chatId, ({ en: `⚠️ <b>Anti-Red Protection</b> is only available for domains with a hosting plan.\n\nDomain: <b>${domain}</b> is registered without hosting.\n\nTo enable Anti-Red, purchase a hosting plan for this domain first.`, fr: `⚠️ <b>Protection Anti-Red</b> n'est disponible que pour les domaines avec un plan d'hébergement.\n\nDomaine : <b>${domain}</b> est enregistré sans hébergement.\n\nPour activer l'Anti-Red, achetez d'abord un plan d'hébergement pour ce domaine.`, zh: `⚠️ <b>Anti-Red 保护</b>仅适用于有托管计划的域名。\n\n域名：<b>${domain}</b> 已注册但无托管。\n\n要启用 Anti-Red，请先为此域名购买托管计划。`, hi: `⚠️ <b>Anti-Red सुरक्षा</b> केवल होस्टिंग प्लान वाले डोमेन के लिए उपलब्ध है।\n\nडोमेन: <b>${domain}</b> बिना होस्टिंग के पंजीकृत है।\n\nAnti-Red सक्षम करने के लिए, पहले इस डोमेन के लिए होस्टिंग प्लान खरीदें।` }[lang] || `⚠️ <b>Anti-Red Protection</b> is only available for domains with a hosting plan.\n\nDomain: <b>${domain}</b> is registered without hosting.\n\nTo enable Anti-Red, purchase a hosting plan for this domain first.`), { parse_mode: 'HTML' })
       }
       // Check if domain has Cloudflare
       const domainDoc = await db.collection('registeredDomains').findOne({ _id: domain })
