@@ -2513,7 +2513,7 @@ bot?.on('message', async msg => {
           rows.push([targetLeadsTargets[i]])
         }
       }
-      rows.push(['📝 Request Custom Target', validateBtn])
+      rows.push([t.leadRequestTarget || '📝 Request Custom Target', validateBtn])
       send(chatId, '🎯 Select your target institution.\nReal, verified leads with phone owner names — matched by carrier from high-value metro areas:', k.of(rows))
       set(state, chatId, 'action', a.targetSelectTarget)
     },
