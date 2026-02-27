@@ -3378,7 +3378,7 @@ bot?.on('message', async msg => {
       const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
-      if (![u.usd, u.ngn].includes(coin)) return send(chatId, 'Some Issue')
+      if (![u.usd, u.ngn].includes(coin)) return send(chatId, t.someIssue || 'Some Issue')
 
       if (coin === u.usd) {
         const priceUsd = price
@@ -3405,7 +3405,7 @@ bot?.on('message', async msg => {
       const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
-      if (![u.usd, u.ngn].includes(coin)) return send(chatId, 'Some Issue')
+      if (![u.usd, u.ngn].includes(coin)) return send(chatId, t.someIssue || 'Some Issue')
 
       // price validate
       const priceUsd = price
@@ -3445,7 +3445,7 @@ bot?.on('message', async msg => {
       const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
-      if (![u.usd, u.ngn].includes(coin)) return send(chatId, 'Some Issue')
+      if (![u.usd, u.ngn].includes(coin)) return send(chatId, t.someIssue || 'Some Issue')
 
       // price validate
       const priceUsd = price
@@ -3494,7 +3494,7 @@ bot?.on('message', async msg => {
       const vpsDetails = info?.vpsDetails
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
-      if (![u.usd, u.ngn].includes(coin)) return send(chatId, 'Some Issue')
+      if (![u.usd, u.ngn].includes(coin)) return send(chatId, t.someIssue || 'Some Issue')
 
       // price validate
       const priceUsd = price
@@ -3571,7 +3571,7 @@ bot?.on('message', async msg => {
       const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
-      if (![u.usd, u.ngn].includes(coin)) return send(chatId, 'Some Issue')
+      if (![u.usd, u.ngn].includes(coin)) return send(chatId, t.someIssue || 'Some Issue')
 
       // price validate
       const priceUsd = price
@@ -3616,7 +3616,7 @@ bot?.on('message', async msg => {
       const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
-      if (![u.usd, u.ngn].includes(coin)) return send(chatId, 'Some Issue')
+      if (![u.usd, u.ngn].includes(coin)) return send(chatId, t.someIssue || 'Some Issue')
 
       const priceUsd = price
       if (coin === u.usd && usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
@@ -3669,7 +3669,7 @@ bot?.on('message', async msg => {
       const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
-      if (![u.usd, u.ngn].includes(coin)) return send(chatId, 'Some Issue')
+      if (![u.usd, u.ngn].includes(coin)) return send(chatId, t.someIssue || 'Some Issue')
 
       const priceUsd = price
       if (coin === u.usd && usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
@@ -3709,7 +3709,7 @@ bot?.on('message', async msg => {
       const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
-      if (![u.usd, u.ngn].includes(coin)) return send(chatId, 'Some Issue')
+      if (![u.usd, u.ngn].includes(coin)) return send(chatId, t.someIssue || 'Some Issue')
 
       const priceUsd = price
       if (coin === u.usd && usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
@@ -3860,7 +3860,7 @@ bot?.on('message', async msg => {
       const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
-      if (![u.usd, u.ngn].includes(coin)) return send(chatId, 'Some Issue')
+      if (![u.usd, u.ngn].includes(coin)) return send(chatId, t.someIssue || 'Some Issue')
 
       // price validate
       const priceUsd = price
@@ -3977,7 +3977,7 @@ bot?.on('message', async msg => {
         set(payments, nanoid(), `Wallet,Phone Leads,${leadsAmount} leads,$${priceUsd},${chatId},${name},${new Date()},${priceNgn} NGN`)
         await atomicIncrement(walletOf, chatId, 'ngnOut', priceNgn)
       } else {
-        return send(chatId, 'Some Issue')
+        return send(chatId, t.someIssue || 'Some Issue')
       }
       const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
       send(chatId, t.showWallet(usd, ngn), trans('o'))
@@ -3995,7 +3995,7 @@ bot?.on('message', async msg => {
       const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
-      if (![u.usd, u.ngn].includes(coin)) return send(chatId, 'Some Issue')
+      if (![u.usd, u.ngn].includes(coin)) return send(chatId, t.someIssue || 'Some Issue')
 
       // price validate
       const priceUsd = price
@@ -4069,7 +4069,7 @@ bot?.on('message', async msg => {
         set(payments, nanoid(), `Wallet,Validate Leads,${info?.partialFree ? info?.paidPortionAmount : leadsAmount} leads,$${priceUsd},${chatId},${name},${new Date()},${priceNgn} NGN`)
         await atomicIncrement(walletOf, chatId, 'ngnOut', priceNgn)
       } else {
-        return send(chatId, 'Some Issue')
+        return send(chatId, t.someIssue || 'Some Issue')
       }
       const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
       send(chatId, t.showWallet(usd, ngn), trans('o'))
@@ -4082,7 +4082,7 @@ bot?.on('message', async msg => {
       const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
-      if (![u.usd, u.ngn].includes(coin)) return send(chatId, 'Some Issue')
+      if (![u.usd, u.ngn].includes(coin)) return send(chatId, t.someIssue || 'Some Issue')
 
       // price validate
       const priceUsd = price
@@ -4117,7 +4117,7 @@ bot?.on('message', async msg => {
         set(payments, nanoid(), `Wallet,Bit.ly Link,${_shortUrl},$${priceUsd},${chatId},${name},${new Date()},${priceNgn} NGN`)
         await atomicIncrement(walletOf, chatId, 'ngnOut', priceNgn)
       } else {
-        return send(chatId, 'Some Issue')
+        return send(chatId, t.someIssue || 'Some Issue')
       }
       const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
       send(chatId, t.showWallet(usd, ngn), trans('o'))
