@@ -505,7 +505,7 @@ function buildSuspendedMsg(num) {
 
 Auto-Renew was OFF. To avoid losing numbers in the future, enable Auto-Renew on your next number.
 
-Get a new number: 📞☁️ Cloud Phone → Buy Phone Number.`
+Get a new number: 📞☁️ Cloud Phone → Buy Cloud Phone Plans.`
 }
 
 function buildUsageAlertMsg(num, type, used, limit, percent) {
