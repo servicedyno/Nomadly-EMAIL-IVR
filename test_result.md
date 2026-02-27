@@ -444,7 +444,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Fix: Phone reviews not working on Railway — catch-all route order + collection mismatch"
+    - "Plan Gating — IVR Outbound Call and Bulk Call Campaign features"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
