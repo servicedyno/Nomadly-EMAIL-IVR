@@ -160,6 +160,7 @@ async function startCampaign(campaignId) {
     `📞 Leads: <b>${campaign.leads.length}</b>\n` +
     `🎵 Audio: <b>${campaign.audioName}</b>\n` +
     `📱 Caller ID: <b>${campaign.callerId}</b>\n` +
+    `📞 Provider: <b>Speechcue</b>\n` +
     `⚡ Concurrency: <b>${campaign.concurrency}</b>\n` +
     `📊 Mode: <b>${campaign.mode === 'transfer' ? '🔗 Transfer + Report' : '📊 Report Only'}</b>\n` +
     `Dialing now... You'll receive updates as calls complete.`,
