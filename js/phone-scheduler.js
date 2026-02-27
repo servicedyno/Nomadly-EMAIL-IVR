@@ -7,6 +7,7 @@ const { log } = require('console')
 const { get, set, atomicIncrement } = require('./db.js')
 const { getBalance } = require('./utils.js')
 const { formatPhone, shortDate, plans, OVERAGE_RATE_SMS, OVERAGE_RATE_MIN } = require('./phone-config.js')
+const phoneConfig = require('./phone-config.js')
 const telnyxApi = require('./telnyx-service.js')
 const twilioService = require('./twilio-service.js')
 
