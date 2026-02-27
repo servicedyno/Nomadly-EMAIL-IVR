@@ -961,6 +961,32 @@ const msg = {
   },
 }
 
+// ── Translated button labels (for multilingual keyboards) ──
+const btnLabels = {
+  buyPhoneNumber: {
+    en: '🛒 Buy Cloud Phone Plans',
+    fr: '🛒 Acheter un Forfait Cloud Phone',
+    zh: '🛒 购买云电话套餐',
+    hi: '🛒 क्लाउड फ़ोन प्लान खरीदें',
+  },
+}
+
+// All values for a given button key (for message matching)
+const _allBtnValues = {}
+for (const key of Object.keys(btnLabels)) {
+  _allBtnValues[key] = new Set(Object.values(btnLabels[key]))
+}
+
+/** Get the translated button label for a key in the given language */
+function getBtnLabel(key, lang) {
+  return btnLabels[key]?.[lang] || btnLabels[key]?.en || btn[key]
+}
+
+/** Check if a message matches ANY language variant of a button key */
+function isBtnMatch(message, key) {
+  return _allBtnValues[key]?.has(message) || message === btn[key]
+}
+
 function getMsg(lang) {
   return msg[lang] || msg.en
 }
