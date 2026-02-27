@@ -11809,7 +11809,7 @@ bot?.on('message', async msg => {
   if (action === a.buyLeadsSelectCarrier) {
     if (message === t.back) {
       if (info?.targetName) {
-        return info?.targetCity === 'All Cities' ? goto.targetSelectCity() : goto.targetSelectAreaCode()
+        return info?.targetCity === (t.leadAllCities || 'All Cities') ? goto.targetSelectCity() : goto.targetSelectAreaCode()
       }
       return ['Australia'].includes(info?.country) ? goto.buyLeadsSelectSmsVoice() : goto.buyLeadsSelectAreaCode()
     }
