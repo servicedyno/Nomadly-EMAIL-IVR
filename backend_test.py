@@ -1,287 +1,334 @@
 #!/usr/bin/env python3
 """
-Backend Test for Addon Domain Protection Fix
-Tests the 5 specific fixes (A-E) for addon domain protection gap in Nomadly Node.js application.
-
-Fixes being tested:
-A. /domains/add (basic) — cpanel-routes.js: $addToSet addonDomains + CF zone deployment + health check
-B. /domains/add-enhanced — cpanel-routes.js: $addToSet addonDomains + health check  
-C. /domains/remove — cpanel-routes.js: $pull addonDomains
-D. protection-enforcer.js collectAllDomains(): addon entries include cpUser + parentDomain
-E. protection-enforcer.js runEnforcement(): condition includes cpanelAddon source
+Backend test for the revised phone number buy flow and Bulk Call Campaign changes.
+Tests the Node.js Express server on port 5000 for the specific implementation requirements.
 """
 
 import requests
 import json
 import time
 import sys
+import os
 
-# Backend URL from frontend/.env
-BACKEND_URL = "https://config-setup-guide.preview.emergentagent.com/api"
+# Get backend URL from environment or default to localhost
+BACKEND_URL = os.getenv('REACT_APP_BACKEND_URL', 'http://localhost:5000')
+API_BASE = f"{BACKEND_URL}/api" if not BACKEND_URL.endswith('/api') else BACKEND_URL
 
-def test_health_endpoint():
-    """Test 1: Verify Node.js is healthy at the backend URL + /health"""
-    print("🔍 Test 1: Node.js Health Check")
+# Test results tracking
+class TestResults:
+    def __init__(self):
+        self.passed = 0
+        self.failed = 0
+        self.results = []
+        
+    def test(self, name, condition, message=""):
+        if condition:
+            self.passed += 1
+            status = "✅ PASS"
+            print(f"{status}: {name}")
+            if message:
+                print(f"    {message}")
+        else:
+            self.failed += 1 
+            status = "❌ FAIL"
+            print(f"{status}: {name}")
+            if message:
+                print(f"    {message}")
+        
+        self.results.append({
+            "name": name,
+            "status": "PASS" if condition else "FAIL",
+            "message": message
+        })
+        return condition
+        
+    def summary(self):
+        total = self.passed + self.failed
+        print(f"\n=== TEST SUMMARY ===")
+        print(f"Total: {total}, Passed: {self.passed}, Failed: {self.failed}")
+        print(f"Success Rate: {(self.passed/total*100):.1f}%")
+        return self.failed == 0
+
+def test_health_check():
+    """Test that the Node.js service is healthy"""
     try:
         response = requests.get(f"{BACKEND_URL}/health", timeout=10)
-        if response.status_code == 200:
-            data = response.json()
-            print(f"✅ Node.js Health: {data}")
-            return True
-        else:
-            print(f"❌ Health endpoint returned {response.status_code}")
-            return False
+        return response.status_code == 200 and response.json().get('status') == 'healthy'
     except Exception as e:
-        print(f"❌ Health check failed: {e}")
+        print(f"Health check failed: {e}")
         return False
 
-def verify_cpanel_routes_fixes():
-    """Test 2: Verify cpanel-routes.js fixes A, B, C by examining code"""
-    print("\n🔍 Test 2: Verify cPanel Routes Fixes (A, B, C)")
-    
-    # Read the cpanel-routes.js file
+def check_file_content(filepath, search_terms, description):
+    """Check if file contains specific content"""
     try:
-        with open('/app/js/cpanel-routes.js', 'r') as f:
+        with open(filepath, 'r', encoding='utf-8') as f:
             content = f.read()
-            
-        fixes_found = {}
         
-        # Fix A: /domains/add has $addToSet addonDomains + CF zone deployment + health check
-        if '$addToSet: { addonDomains: domain.toLowerCase() }' in content:
-            # Check if it's in both /domains/add and /domains/add-enhanced contexts
-            add_basic_match = content.find('router.post(\'/domains/add\', ...auth, async (req, res) => {')
-            add_enhanced_match = content.find('router.post(\'/domains/add-enhanced\', ...auth, async (req, res) => {')
-            
-            if add_basic_match != -1 and add_enhanced_match != -1:
-                # Check for CF zone deployment in basic add
-                cf_deploy_section = content[add_basic_match:add_basic_match+3000]  # Increased range
-                if 'cfService.createZone(domain)' in cf_deploy_section and 'deployFullProtection' in cf_deploy_section:
-                    fixes_found['A_addToSet_and_cf_deploy'] = True
-                    print("✅ Fix A: /domains/add has $addToSet + CF zone deployment")
-                else:
-                    fixes_found['A_addToSet_and_cf_deploy'] = False
-                    print("❌ Fix A: /domains/add missing CF zone deployment")
-                    
-                # Check for health check in basic add (it's after the CF deployment)
-                if 'scheduleHealthCheck' in cf_deploy_section:
-                    fixes_found['A_health_check'] = True
-                    print("✅ Fix A: /domains/add has health check scheduling")
-                else:
-                    fixes_found['A_health_check'] = False
-                    print("❌ Fix A: /domains/add missing health check")
-            else:
-                fixes_found['A_addToSet_and_cf_deploy'] = False
-                fixes_found['A_health_check'] = False
-                print("❌ Fix A: Could not locate /domains/add endpoints")
+        found_terms = []
+        missing_terms = []
         
-        # Fix B: /domains/add-enhanced has $addToSet + health check
-        if add_enhanced_match != -1:
-            # Look for the entire enhanced function section until next router.post
-            next_route = content.find('router.post(', add_enhanced_match + 50)
-            if next_route == -1:
-                enhanced_section = content[add_enhanced_match:add_enhanced_match+8000]
+        for term in search_terms:
+            if term in content:
+                found_terms.append(term)
             else:
-                enhanced_section = content[add_enhanced_match:next_route]
+                missing_terms.append(term)
                 
-            if '$addToSet: { addonDomains: domain.toLowerCase() }' in enhanced_section:
-                fixes_found['B_addToSet'] = True
-                print("✅ Fix B: /domains/add-enhanced has $addToSet addonDomains")
-            else:
-                fixes_found['B_addToSet'] = False
-                print("❌ Fix B: /domains/add-enhanced missing $addToSet addonDomains")
-                
-            if 'scheduleHealthCheck' in enhanced_section:
-                fixes_found['B_health_check'] = True
-                print("✅ Fix B: /domains/add-enhanced has health check scheduling")
-            else:
-                fixes_found['B_health_check'] = False
-                print("❌ Fix B: /domains/add-enhanced missing health check")
-        
-        # Fix C: /domains/remove has $pull addonDomains
-        remove_match = content.find('router.post(\'/domains/remove\', ...auth, async (req, res) => {')
-        if remove_match != -1:
-            remove_section = content[remove_match:remove_match+1500]
-            if '$pull: { addonDomains: domain.toLowerCase() }' in remove_section:
-                fixes_found['C_pull'] = True
-                print("✅ Fix C: /domains/remove has $pull addonDomains")
-            else:
-                fixes_found['C_pull'] = False
-                print("❌ Fix C: /domains/remove missing $pull addonDomains")
-        else:
-            fixes_found['C_pull'] = False
-            print("❌ Fix C: Could not locate /domains/remove endpoint")
-            
-        return fixes_found
-        
+        return found_terms, missing_terms, content
     except Exception as e:
-        print(f"❌ Error reading cpanel-routes.js: {e}")
-        return {}
-
-def verify_protection_enforcer_fixes():
-    """Test 3: Verify protection-enforcer.js fixes D and E"""
-    print("\n🔍 Test 3: Verify Protection Enforcer Fixes (D, E)")
-    
-    try:
-        with open('/app/js/protection-enforcer.js', 'r') as f:
-            content = f.read()
-            
-        fixes_found = {}
-        
-        # Fix D: collectAllDomains() addon entries include cpUser + parentDomain
-        collect_domains_start = content.find('async function collectAllDomains() {')
-        if collect_domains_start != -1:
-            # Look for the addon domains section
-            addon_section_start = content.find('// Check for addon domains stored in the account', collect_domains_start)
-            if addon_section_start != -1:
-                addon_section = content[addon_section_start:addon_section_start+1000]
-                
-                # Check for cpUser propagation
-                if 'cpUser: account._id || account.cpUser || null' in addon_section and 'source: \'cpanelAddon\'' in addon_section:
-                    fixes_found['D_cpUser'] = True
-                    print("✅ Fix D: collectAllDomains() addon entries include cpUser from parent")
-                else:
-                    fixes_found['D_cpUser'] = False
-                    print("❌ Fix D: collectAllDomains() addon entries missing cpUser")
-                
-                # Check for parentDomain
-                if 'parentDomain: mainDomain?.toLowerCase() || null' in addon_section:
-                    fixes_found['D_parentDomain'] = True
-                    print("✅ Fix D: collectAllDomains() addon entries include parentDomain")
-                else:
-                    fixes_found['D_parentDomain'] = False
-                    print("❌ Fix D: collectAllDomains() addon entries missing parentDomain")
-            else:
-                fixes_found['D_cpUser'] = False
-                fixes_found['D_parentDomain'] = False
-                print("❌ Fix D: Could not locate addon domains section")
-        else:
-            fixes_found['D_cpUser'] = False
-            fixes_found['D_parentDomain'] = False
-            print("❌ Fix D: Could not locate collectAllDomains function")
-        
-        # Fix E: runEnforcement() condition includes cpanelAddon source
-        run_enforcement_start = content.find('async function runEnforcement() {')
-        if run_enforcement_start != -1:
-            enforcement_section = content[run_enforcement_start:run_enforcement_start+2500]
-            
-            # Look for the condition around line 472
-            if 'entry.source === \'cpanelAccounts\' || entry.source === \'cpanelAddon\'' in enforcement_section:
-                fixes_found['E_condition'] = True
-                print("✅ Fix E: runEnforcement() condition includes cpanelAddon source")
-            else:
-                fixes_found['E_condition'] = False
-                print("❌ Fix E: runEnforcement() condition missing cpanelAddon source")
-                
-                # Check if old condition still exists
-                if 'entry.source === \'cpanelAccounts\'' in enforcement_section and 'cpanelAddon' not in enforcement_section:
-                    print("❌ Fix E: Still using old condition without cpanelAddon")
-        else:
-            fixes_found['E_condition'] = False
-            print("❌ Fix E: Could not locate runEnforcement function")
-            
-        return fixes_found
-        
-    except Exception as e:
-        print(f"❌ Error reading protection-enforcer.js: {e}")
-        return {}
-
-def verify_nodejs_startup():
-    """Test 4: Verify Node.js started cleanly (no syntax errors)"""
-    print("\n🔍 Test 4: Verify Node.js Started Cleanly")
-    
-    try:
-        # Check error log
-        with open('/var/log/supervisor/nodejs.err.log', 'r') as f:
-            error_content = f.read().strip()
-        
-        if not error_content:
-            print("✅ Node.js error log is empty - clean startup")
-            startup_clean = True
-        else:
-            print(f"❌ Node.js errors found: {error_content[:200]}")
-            startup_clean = False
-            
-        # Check output log for successful protection enforcer run
-        with open('/var/log/supervisor/nodejs.out.log', 'r') as f:
-            output_content = f.read()
-            
-        if 'Enforcement complete' in output_content and 'Errors: 0' in output_content:
-            print("✅ Protection enforcer ran successfully with 0 errors")
-            enforcer_success = True
-        else:
-            print("❌ Protection enforcer did not run successfully or had errors")
-            enforcer_success = False
-            
-        return startup_clean and enforcer_success
-        
-    except Exception as e:
-        print(f"❌ Error checking startup logs: {e}")
-        return False
-
-def verify_backend_report_url_warning():
-    """Test 5: Verify BACKEND_REPORT_URL dev warning is shown"""
-    print("\n🔍 Test 5: Verify Dev Environment Warning")
-    
-    try:
-        with open('/var/log/supervisor/nodejs.out.log', 'r') as f:
-            output_content = f.read()
-            
-        if 'Worker BACKEND_REPORT_URL points to dev environment' in output_content:
-            print("✅ Dev environment warning correctly displayed")
-            return True
-        else:
-            print("❌ Dev environment warning missing")
-            return False
-            
-    except Exception as e:
-        print(f"❌ Error checking dev warning: {e}")
-        return False
+        return [], search_terms, f"Error reading file: {e}"
 
 def main():
-    """Run all tests"""
-    print("🚀 Starting Addon Domain Protection Fix Test Suite")
-    print("=" * 60)
+    results = TestResults()
     
-    results = {}
+    print("🔍 Testing Revised Phone Number Buy Flow and Bulk Call Campaign Changes")
+    print("=" * 70)
     
-    # Test 1: Health check
-    results['health'] = test_health_endpoint()
+    # 1. Service startup test
+    print("\n📍 1. SERVICE STARTUP")
+    healthy = test_health_check()
+    results.test(
+        "Node.js service health check",
+        healthy,
+        f"Service should be healthy at {BACKEND_URL}/health"
+    )
     
-    # Test 2: cPanel routes fixes
-    cpanel_fixes = verify_cpanel_routes_fixes()
-    results.update(cpanel_fixes)
+    if not healthy:
+        print("❌ Service not healthy - cannot continue testing")
+        return False
     
-    # Test 3: Protection enforcer fixes
-    enforcer_fixes = verify_protection_enforcer_fixes()
-    results.update(enforcer_fixes)
+    # 2. Buy flow code analysis - Critical tests from review request
+    print("\n📍 2. BUY FLOW CODE ANALYSIS (CRITICAL)")
     
-    # Test 4: Startup verification
-    results['startup_clean'] = verify_nodejs_startup()
+    # Check _index.js file for the specific handlers and logic
+    index_file = "/app/js/_index.js"
     
-    # Test 5: Dev warning
-    results['dev_warning'] = verify_backend_report_url_warning()
+    # 2a. Check buyPhoneNumber handler sets action to cpSelectPlan 
+    buy_terms = [
+        'set(state, chatId, \'action\', a.cpSelectPlan)',
+        'message === pc.buyPhoneNumber'
+    ]
+    found_buy, missing_buy, content = check_file_content(index_file, buy_terms, "buyPhoneNumber handler")
+    results.test(
+        "buyPhoneNumber handler sets action to cpSelectPlan",
+        len(missing_buy) == 0,
+        f"Found: {found_buy}, Missing: {missing_buy}"
+    )
+    
+    # Check that NO provider names are mentioned in the buy flow messages
+    provider_terms_to_avoid = ['Twilio', 'Telnyx']
+    provider_mentions = []
+    if content and isinstance(content, str):
+        lines = content.split('\n')
+        for i, line in enumerate(lines):
+            if 'send(chatId' in line:
+                for term in provider_terms_to_avoid:
+                    if term in line and 'bulkCall' in line.lower():
+                        provider_mentions.append(f"Line {i+1}: {line.strip()}")
+    
+    results.test(
+        "No provider names in bulk call buy flow messages", 
+        len(provider_mentions) == 0,
+        f"Provider mentions found: {provider_mentions[:3]}" if provider_mentions else "Clean - no provider names in user-facing messages"
+    )
+    
+    # 2b. Check cpSelectPlan handler saves cpPlanKey and cpPlanBasePrice
+    plan_terms = [
+        'await saveInfo(\'cpPlanKey\', planKey)',
+        'await saveInfo(\'cpPlanBasePrice\'',
+        'action === a.cpSelectPlan'
+    ]
+    found_plan, missing_plan, _ = check_file_content(index_file, plan_terms, "cpSelectPlan handler")
+    results.test(
+        "cpSelectPlan handler saves cpPlanKey and cpPlanBasePrice",
+        len(missing_plan) == 0,
+        f"Found: {found_plan}, Missing: {missing_plan}"
+    )
+    
+    # 2c. Check cpSelectCountry sets cpCanSearchBoth = true for telnyx countries
+    country_terms = [
+        'const canSearchBoth = (nativeProvider === \'telnyx\')',
+        'await saveInfo(\'cpCanSearchBoth\', canSearchBoth)',
+        'action === a.cpSelectCountry'
+    ]
+    found_country, missing_country, _ = check_file_content(index_file, country_terms, "cpSelectCountry handler")
+    results.test(
+        "cpSelectCountry sets cpCanSearchBoth = true for telnyx countries",
+        len(missing_country) == 0,
+        f"Found: {found_country}, Missing: {missing_country}"
+    )
+    
+    # 2d. Check cpSelectCountry back button goes to cpSelectPlan
+    back_terms = [
+        'set(state, chatId, \'action\', a.cpSelectPlan)',
+        'if (message === t.back || message === pc.back)',
+    ]
+    # Look specifically in cpSelectCountry handler
+    country_handler_start = content.find('if (action === a.cpSelectCountry)')
+    country_handler_end = content.find('if (action === a.cpSelectType)', country_handler_start)
+    if country_handler_start != -1 and country_handler_end != -1:
+        country_handler = content[country_handler_start:country_handler_end]
+        has_back_to_plan = all(term in country_handler for term in back_terms)
+    else:
+        has_back_to_plan = False
+    
+    results.test(
+        "cpSelectCountry back button goes to cpSelectPlan",
+        has_back_to_plan,
+        "Back navigation should go to plan selection, not submenu5"
+    )
+    
+    # 2e. Check cpSelectType dual-provider search with Promise.all
+    type_terms = [
+        'await Promise.all([',
+        'telnyxApi.searchNumbers',
+        'twilioService.searchNumbers',
+        'canSearchBoth'
+    ]
+    found_type, missing_type, _ = check_file_content(index_file, type_terms, "cpSelectType dual-provider search")
+    results.test(
+        "cpSelectType uses dual-provider search with Promise.all",
+        len(missing_type) == 0,
+        f"Found: {found_type}, Missing: {missing_type}"
+    )
+    
+    # 2f. Check provider tagging logic
+    tagging_terms = [
+        'r._provider = \'telnyx\'',
+        'r._provider = \'twilio\'',
+        'r._bulkIvrCapable = false',
+        'r._bulkIvrCapable = true'
+    ]
+    found_tags, missing_tags, _ = check_file_content(index_file, tagging_terms, "Provider tagging")
+    results.test(
+        "Results tagged with _provider and _bulkIvrCapable",
+        len(missing_tags) == 0,
+        f"Found: {found_tags}, Missing: {missing_tags}"
+    )
+    
+    # 2g. Check cpSelectArea and cpEnterAreaCode use dual-provider search
+    area_search_count = content.count('Promise.all([') if content else 0
+    results.test(
+        "Multiple dual-provider search locations (cpSelectArea, cpEnterAreaCode, Show More)",
+        area_search_count >= 3,
+        f"Found {area_search_count} Promise.all dual-provider searches"
+    )
+    
+    # 2h. Check cpSelectNumber stores cpProvider from selected._provider
+    select_terms = [
+        'const selectedProvider = selected._provider',
+        'await saveInfo(\'cpProvider\', selectedProvider)',
+        'await saveInfo(\'cpBulkIvrCapable\', selected._bulkIvrCapable'
+    ]
+    found_select, missing_select, _ = check_file_content(index_file, select_terms, "cpSelectNumber storage")
+    results.test(
+        "cpSelectNumber stores cpProvider from selected._provider",
+        len(missing_select) == 0,
+        f"Found: {found_select}, Missing: {missing_select}"
+    )
+    
+    # 2i. Check order summary shows Bulk IVR badge
+    badge_terms = [
+        '☎️ Bulk IVR capable',
+        'selected._bulkIvrCapable'
+    ]
+    found_badge, missing_badge, _ = check_file_content(index_file, badge_terms, "Order summary badge")
+    results.test(
+        "Order summary shows ☎️ Bulk IVR capable badge",
+        len(missing_badge) == 0,
+        f"Found: {found_badge}, Missing: {missing_badge}"
+    )
+    
+    # 2j. Check Show More button uses dual-provider search
+    show_more_in_promise = 'pc.showMore' in content and 'Promise.all([' in content
+    results.test(
+        "Show More button uses dual-provider search",
+        show_more_in_promise,
+        "Show More should trigger dual-provider search when canSearchBoth is true"
+    )
+    
+    # 3. Bulk Call Campaign caller selection
+    print("\n📍 3. BULK CALL CAMPAIGN CALLER SELECTION")
+    
+    # Check that only Twilio numbers are shown for bulk calls
+    bulk_terms = [
+        'provider === \'twilio\'',
+        'bulkCapableNumbers',
+        '☎️',
+        'Bulk Call Campaign'
+    ]
+    found_bulk, missing_bulk, _ = check_file_content(index_file, bulk_terms, "Bulk call selection")
+    results.test(
+        "Bulk Call Campaign shows only provider === 'twilio' numbers",
+        len(missing_bulk) == 0,
+        f"Found: {found_bulk}, Missing: {missing_bulk}"
+    )
+    
+    # Check for verification label and generic messaging
+    verify_terms = [
+        '(Verified)',
+        'look for ☎️ Bulk IVR badge'
+    ]
+    found_verify, missing_verify, _ = check_file_content(index_file, verify_terms, "Verification and messaging")
+    results.test(
+        "Verified caller IDs labeled and generic ☎️ messaging used",
+        len(missing_verify) == 0,
+        f"Found: {found_verify}, Missing: {missing_verify}"
+    )
+    
+    # 4. Twilio searchNumbers parameter verification  
+    print("\n📍 4. TWILIO SERVICE INTEGRATION")
+    
+    # Check twilio-service.js for 4-parameter searchNumbers function
+    twilio_file = "/app/js/twilio-service.js"
+    twilio_terms = [
+        'async function searchNumbers(countryCode, numberType = \'local\', limit = 5, areaCode = null)',
+        'if (areaCode && numberType === \'local\')',
+        'params.areaCode = areaCode'
+    ]
+    found_twilio, missing_twilio, _ = check_file_content(twilio_file, twilio_terms, "Twilio searchNumbers")
+    results.test(
+        "Twilio searchNumbers accepts 4 params with areaCode support",
+        len(missing_twilio) == 0,
+        f"Found: {found_twilio}, Missing: {missing_twilio}"
+    )
+    
+    # 5. Phone config verification
+    print("\n📍 5. PHONE CONFIG VERIFICATION")
+    
+    # Check phone-config.js for button definitions
+    config_file = "/app/js/phone-config.js"
+    config_terms = [
+        'bulkCallCampaign: \'📞 Bulk Call Campaign\'',
+        'audioLibrary: \'🎵 Audio Library\'',
+        'provider: \'telnyx\'',
+        'provider: \'twilio\''
+    ]
+    found_config, missing_config, _ = check_file_content(config_file, config_terms, "Phone config")
+    results.test(
+        "Phone config has correct button definitions and provider settings",
+        len(missing_config) == 0,
+        f"Found: {found_config}, Missing: {missing_config}"
+    )
+    
+    # 6. Final health check
+    print("\n📍 6. FINAL HEALTH CHECK")
+    final_health = test_health_check()
+    results.test(
+        "Service remains healthy after analysis",
+        final_health,
+        "Server should still be responsive"
+    )
     
     # Summary
-    print("\n" + "=" * 60)
-    print("📊 TEST SUMMARY")
-    print("=" * 60)
+    success = results.summary()
     
-    passed = sum(1 for v in results.values() if v is True)
-    total = len(results)
-    
-    for test_name, passed_test in results.items():
-        status = "✅ PASS" if passed_test else "❌ FAIL"
-        print(f"{status}: {test_name}")
-    
-    print(f"\nOverall Result: {passed}/{total} tests passed")
-    
-    if passed == total:
-        print("🎉 ALL ADDON DOMAIN PROTECTION FIXES VERIFIED SUCCESSFULLY!")
-        return True
+    if success:
+        print("\n🎉 All tests passed! The buy flow and bulk call campaign implementation is correct.")
     else:
-        print("⚠️  Some fixes need attention")
-        return False
+        print(f"\n⚠️  {results.failed} test(s) failed. Review the implementation above.")
+        
+    return success
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     success = main()
     sys.exit(0 if success else 1)
