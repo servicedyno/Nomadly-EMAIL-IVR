@@ -459,7 +459,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Plan Gating — IVR Outbound Call and Bulk Call Campaign features"
+    - "Revised Phone Number Buy Flow — Plan-first, dual-provider search, no provider names to users"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
