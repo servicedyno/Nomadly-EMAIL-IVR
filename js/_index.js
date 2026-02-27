@@ -11685,7 +11685,7 @@ bot?.on('message', async msg => {
   if (action === a.targetSelectCity) {
     if (message === t.back) return goto.targetSelectTarget()
     const target = info?.targetName
-    const validCities = ['All Cities', ...targetLeadsCities(target)]
+    const validCities = [t.leadAllCities || 'All Cities', ...targetLeadsCities(target)]
     if (!validCities.includes(message)) return send(chatId, t.what)
     await saveInfo('targetCity', message)
     if (message === 'All Cities') {
