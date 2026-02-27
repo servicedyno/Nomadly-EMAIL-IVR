@@ -1930,7 +1930,7 @@ bot?.on('message', async msg => {
       const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
       send(chatId, t.showWallet(usdBal, ngnBal))
       const amount = info?.amount || 0
-      send(chatId, `💰 <b>Payment for ${info?.lastStep === a.validatorSelectFormat ? 'Phone Validation' : 'Phone Leads'}</b>\n\n📦 Quantity: <b>${amount.toLocaleString()}</b>\n💵 Total: <b>$${Number(price).toFixed(2)}</b>\n\nSelect payment method:`, k.pay)
+      send(chatId, ({ en: `💰 <b>Payment for ${info?.lastStep === a.validatorSelectFormat ? 'Phone Validation' : 'Phone Leads'}</b>\n\n📦 Quantity: <b>${amount.toLocaleString()}</b>\n💵 Total: <b>$${Number(price).toFixed(2)}</b>\n\nSelect payment method:`, fr: `💰 <b>Paiement pour ${info?.lastStep === a.validatorSelectFormat ? 'Validation Téléphonique' : 'Leads Téléphoniques'}</b>\n\n📦 Quantité : <b>${amount.toLocaleString()}</b>\n💵 Total : <b>$${Number(price).toFixed(2)}</b>\n\nSélectionnez le mode de paiement :`, zh: `💰 <b>${info?.lastStep === a.validatorSelectFormat ? '号码验证' : '电话线索'}付款</b>\n\n📦 数量：<b>${amount.toLocaleString()}</b>\n💵 总计：<b>$${Number(price).toFixed(2)}</b>\n\n选择支付方式：`, hi: `💰 <b>${info?.lastStep === a.validatorSelectFormat ? 'फ़ोन सत्यापन' : 'फ़ोन लीड्स'} का भुगतान</b>\n\n📦 मात्रा: <b>${amount.toLocaleString()}</b>\n💵 कुल: <b>$${Number(price).toFixed(2)}</b>\n\nभुगतान विधि चुनें:` }[lang] || `💰 <b>Payment for ${info?.lastStep === a.validatorSelectFormat ? 'Phone Validation' : 'Phone Leads'}</b>\n\n📦 Quantity: <b>${amount.toLocaleString()}</b>\n💵 Total: <b>$${Number(price).toFixed(2)}</b>\n\nSelect payment method:`), k.pay)
     },
     'choose-domain-to-buy': async () => {
       let text = ``
