@@ -9630,7 +9630,7 @@ bot?.on('message', async msg => {
   if (action === a.cpMyNumbers) {
     const pc = phoneConfig.btn
     if (message === t.back || message === pc.back) return goto.submenu5()
-    if (message === pc.buyAnother || message === pc.buyPhoneNumber) {
+    if (message === pc.buyAnother || phoneConfig.isBtnMatch(message, 'buyPhoneNumber')) {
       set(state, chatId, 'action', a.cpSelectCountry)
       const countryBtns = phoneConfig.countries.map(c => c.name)
       const rows = []
