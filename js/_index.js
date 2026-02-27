@@ -8980,8 +8980,8 @@ bot?.on('message', async msg => {
     const cc = info?.cpCountryCode || 'US'
     const provider = info?.cpProvider || 'telnyx'
 
-    // If US + Telnyx, show area codes. Otherwise, skip to search.
-    if (cc === 'US' && numberType === 'local' && provider === 'telnyx') {
+    // If US + local, show area codes (both Telnyx and Twilio support area code search)
+    if (cc === 'US' && numberType === 'local') {
       set(state, chatId, 'action', a.cpSelectArea)
       const areaBtns = phoneConfig.usAreaCodes.map(a => `${a.city} (${a.code})`)
       const rows = []
@@ -8989,7 +8989,7 @@ bot?.on('message', async msg => {
       rows.push([pc.searchByArea])
       return send(chatId, phoneConfig.txt.selectArea, k.of(rows))
     }
-    // Non-US or toll-free: search directly
+    // Non-US or toll-free: search directly with the appropriate provider
     set(state, chatId, 'action', a.cpSelectNumber)
     send(chatId, phoneConfig.txt.searching)
     let results
