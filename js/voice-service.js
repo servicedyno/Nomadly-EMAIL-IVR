@@ -1870,7 +1870,7 @@ const ivrOutbound = require('./ivr-outbound.js')
  * @returns {{ callControlId, error }}
  */
 async function initiateOutboundIvrCall(params) {
-  const { chatId, callerId, targetNumber, ivrNumber, audioUrl, activeKeys, templateName, placeholderValues, voiceName, isTrial, holdMusic } = params
+  const { chatId, callerId, targetNumber, ivrNumber, audioUrl, activeKeys, templateName, placeholderValues, voiceName, isTrial, holdMusic, campaignId, leadIndex, bulkMode } = params
 
   // ── Wallet balance check (skip for trial calls) ──
   // Only check if plan minutes are exhausted for this callerId
