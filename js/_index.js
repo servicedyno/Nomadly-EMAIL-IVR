@@ -9169,11 +9169,6 @@ bot?.on('message', async msg => {
       }).join('\n')
       const numBtns = results.map((_, i) => String(i + 1))
       return send(chatId, `📱 <b>More Numbers — ${location}</b>\n\n${numberLines}\n\n☎️ = Supports Bulk IVR Campaigns\n\nTap a number to select:`, k.of([numBtns, [pc.showMore]]))
-      if (!results.length) return send(chatId, phoneConfig.txt.noSearchResults, k.of([]))
-      await saveInfo('cpSearchResults', results)
-      const location = info?.cpAreaName || info?.cpCountryName || ''
-      const numBtns = results.map((_, i) => String(i + 1))
-      return send(chatId, phoneConfig.txt.showNumbers(location, results), k.of([numBtns, [pc.showMore]]))
     }
     const idx = parseInt(message) - 1
     const results = info?.cpSearchResults || []
