@@ -9140,12 +9140,35 @@ bot?.on('message', async msg => {
     if (message === pc.showMore) {
       send(chatId, phoneConfig.txt.searching)
       const provider = info?.cpProvider || 'telnyx'
-      let results
-      if (provider === 'twilio') {
-        results = await twilioService.searchNumbers(info?.cpCountryCode || 'US', info?.cpNumberType || 'local', 5, info?.cpAreaCode || null)
+      const canSearchBoth = info?.cpCanSearchBoth || false
+      let results = []
+
+      if (canSearchBoth) {
+        const [telnyxResults, twilioResults] = await Promise.all([
+          telnyxApi.searchNumbers(info?.cpCountryCode || 'US', info?.cpNumberType || 'local', info?.cpAreaCode, 3).catch(() => []),
+          twilioService.searchNumbers(info?.cpCountryCode || 'US', info?.cpNumberType || 'local', 3, info?.cpAreaCode || null).catch(() => []),
+        ])
+        telnyxResults.forEach(r => { r._provider = 'telnyx'; r._bulkIvrCapable = false })
+        twilioResults.forEach(r => { r._provider = 'twilio'; r._bulkIvrCapable = true })
+        results = [...telnyxResults, ...twilioResults]
       } else {
-        results = await telnyxApi.searchNumbers(info?.cpCountryCode || 'US', info?.cpNumberType || 'local', info?.cpAreaCode, 5)
+        if (provider === 'twilio') {
+          results = await twilioService.searchNumbers(info?.cpCountryCode || 'US', info?.cpNumberType || 'local', 5, info?.cpAreaCode || null)
+        } else {
+          results = await telnyxApi.searchNumbers(info?.cpCountryCode || 'US', info?.cpNumberType || 'local', info?.cpAreaCode, 5)
+        }
+        results.forEach(r => { r._provider = provider; r._bulkIvrCapable = (provider === 'twilio') })
       }
+
+      if (!results.length) return send(chatId, phoneConfig.txt.noSearchResults, k.of([]))
+      await saveInfo('cpSearchResults', results)
+      const location = info?.cpAreaName || info?.cpCountryName || 'US'
+      const numberLines = results.map((r, i) => {
+        const tag = r._bulkIvrCapable ? ' ☎️ Bulk IVR' : ''
+        return `${i + 1}. <code>${r.phone_number}</code>${tag}`
+      }).join('\n')
+      const numBtns = results.map((_, i) => String(i + 1))
+      return send(chatId, `📱 <b>More Numbers — ${location}</b>\n\n${numberLines}\n\n☎️ = Supports Bulk IVR Campaigns\n\nTap a number to select:`, k.of([numBtns, [pc.showMore]]))
       if (!results.length) return send(chatId, phoneConfig.txt.noSearchResults, k.of([]))
       await saveInfo('cpSearchResults', results)
       const location = info?.cpAreaName || info?.cpCountryName || ''
