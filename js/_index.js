@@ -5283,7 +5283,7 @@ bot?.on('message', async msg => {
     }
     const couponResult = await resolveCoupon(coupon, chatId)
     if (!couponResult) return send(chatId, vp.couponInvalid)
-    if (couponResult.error === 'already_used') return send(chatId, '⚠️ You have already used this coupon today.')
+    if (couponResult.error === 'already_used') return send(chatId, t.couponUsedToday || '⚠️ You have already used this coupon today.')
     const discount = couponResult.discount
     const couponDiscount = (vpsDetails.plantotalPrice * discount) / 100;
     const newPrice = vpsDetails.plantotalPrice - couponDiscount;
@@ -5942,7 +5942,7 @@ bot?.on('message', async msg => {
     const coupon = message.toUpperCase()
     const couponResult = await resolveCoupon(coupon, chatId)
     if (!couponResult) return send(chatId, t.couponInvalid)
-    if (couponResult.error === 'already_used') return send(chatId, '⚠️ You have already used this coupon today.')
+    if (couponResult.error === 'already_used') return send(chatId, t.couponUsedToday || '⚠️ You have already used this coupon today.')
 
     const newPrice = price - (price * couponResult.discount) / 100
     send(chatId, t.redNewPrice(price, newPrice), k.pay)
@@ -6219,7 +6219,7 @@ bot?.on('message', async msg => {
     const coupon = message.toUpperCase()
     const couponResult = await resolveCoupon(coupon, chatId)
     if (!couponResult) return send(chatId, t.couponInvalid)
-    if (couponResult.error === 'already_used') return send(chatId, '⚠️ You have already used this coupon today.')
+    if (couponResult.error === 'already_used') return send(chatId, t.couponUsedToday || '⚠️ You have already used this coupon today.')
 
     const newPrice = price - (price * couponResult.discount) / 100
     await saveInfo('newPrice', newPrice)
@@ -6239,7 +6239,7 @@ bot?.on('message', async msg => {
     const coupon = message.toUpperCase()
     const couponResult = await resolveCoupon(coupon, chatId)
     if (!couponResult) return send(chatId, t.couponInvalid)
-    if (couponResult.error === 'already_used') return send(chatId, '⚠️ You have already used this coupon today.')
+    if (couponResult.error === 'already_used') return send(chatId, t.couponUsedToday || '⚠️ You have already used this coupon today.')
 
     const couponDiscount = (totalPrice * couponResult.discount) / 100;
     const newPrice = totalPrice - couponDiscount;
@@ -6761,7 +6761,7 @@ bot?.on('message', async msg => {
     const coupon = message.toUpperCase()
     const couponResult = await resolveCoupon(coupon, chatId)
     if (!couponResult) return send(chatId, t.couponInvalid)
-    if (couponResult.error === 'already_used') return send(chatId, '⚠️ You have already used this coupon today.')
+    if (couponResult.error === 'already_used') return send(chatId, t.couponUsedToday || '⚠️ You have already used this coupon today.')
 
     const newPrice = price - (price * couponResult.discount) / 100
     await saveInfo('newPrice', newPrice)
@@ -11874,7 +11874,7 @@ bot?.on('message', async msg => {
     const couponResult = await resolveCoupon(coupon, chatId)
 
     if (!couponResult) return send(chatId, t.couponInvalid)
-    if (couponResult.error === 'already_used') return send(chatId, '⚠️ You have already used this coupon today.')
+    if (couponResult.error === 'already_used') return send(chatId, t.couponUsedToday || '⚠️ You have already used this coupon today.')
 
     const newPrice = price - (price * couponResult.discount) / 100
     await saveInfo('newPrice', newPrice)
@@ -12025,7 +12025,7 @@ bot?.on('message', async msg => {
     const coupon = message.toUpperCase()
     const couponResult = await resolveCoupon(coupon, chatId)
     if (!couponResult) return send(chatId, t.couponInvalid)
-    if (couponResult.error === 'already_used') return send(chatId, '⚠️ You have already used this coupon today.')
+    if (couponResult.error === 'already_used') return send(chatId, t.couponUsedToday || '⚠️ You have already used this coupon today.')
 
     const newPrice = price - (price * couponResult.discount) / 100
     await saveInfo('newPrice', newPrice)
