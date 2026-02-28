@@ -3754,7 +3754,8 @@ Enter new value:`), bc)
       send(chatId, t.vcOrderConfirmed(vcAmount, priceUsd, orderId), trans('o'))
       checkAndNotifyTierUpgrade(preSpend)
 
-      notifyGroup(`💳 <b>New Virtual Card Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n💵 Card: <b>$${vcAmount}</b> | Total: <b>$${priceUsd}</b>\n📬 Address:\n<pre>${address}</pre>\n💳 Payment: ${coin === u.usd ? 'Wallet USD' : 'Wallet NGN'}\n\n📩 Deliver with:\n<code>/deliver ${orderId} [card number, expiry, CVV]</code>`)
+      notifyGroup(`💳 <b>New Virtual Card Order!</b>\n\n👤 User: ${maskName(name)}\n💵 Card: <b>$${vcAmount}</b> | Total: <b>$${priceUsd}</b>\n💳 Payment: ${coin === u.usd ? 'Wallet USD' : 'Wallet NGN'}\n\n✅ Order placed successfully.`)
+      if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `💳 <b>New Virtual Card Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n💵 Card: <b>$${vcAmount}</b> | Total: <b>$${priceUsd}</b>\n📬 Address:\n<pre>${address}</pre>\n💳 Payment: ${coin === u.usd ? 'Wallet USD' : 'Wallet NGN'}\n\n📩 Deliver with:\n<code>/deliver ${orderId} [card number, expiry, CVV]</code>`, { parse_mode: 'HTML' })
     },
     'phone-pay': async coin => {
       set(state, chatId, 'action', 'none')
