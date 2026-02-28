@@ -1909,9 +1909,13 @@ ${
     `कृपया “भुगतान करें” पर क्लिक करके ${priceNGN} NGN जमा करें। एक बार लेन-देन की पुष्टि हो जाने पर, आपको तुरंत सूचित किया जाएगा, और आपका VPS योजना नए डिस्क प्रकार ${vpsDetails.upgradeOption.toType} के साथ सुचारू रूप से सक्रिय हो जाएगा।`,
 
   showDepositCryptoInfoVpsUpgrade: (priceUsd, priceCrypto, tickerView, address) =>
-    `कृपया ${priceCrypto} ${tickerView} जमा करें\n\n<code>${address}</code>
+    `💰 <b>भुगतान राशि: $${Number(priceUsd).toFixed(2)} USD</b>
 
-क्रिप्टो भुगतान तेज़ी से पुष्टि होते हैं — आमतौर पर कुछ ही मिनटों में। एक बार लेन-देन की पुष्टि हो जाने पर, आपको तुरंत सूचित किया जाएगा, और आपकी नई VPS योजना सक्रिय हो जाएगी।
+बिल्कुल <b>${priceCrypto} ${tickerView}</b> भेजें:
+
+<code>${address}</code>
+
+भुगतान की पुष्टि होने पर आपकी उन्नत VPS योजना स्वचालित रूप से सक्रिय हो जाएगी (आमतौर पर कुछ ही मिनटों में)।
 
 सादर,
 ${CHAT_BOT_NAME}`,
