@@ -1859,7 +1859,7 @@ Sélectionnez une option :`,
     btnBack: '↩️ 返回',
   },
   hi: {
-    hubWelcome: `📞 <b>CloudPhone</b> <i>Speechcue द्वारा</i>
+    hubWelcome: `📞 <b>Cloud IVR</b> <i>Speechcue द्वारा</i>
 
 30 से अधिक देशों में वर्चुअल नंबर प्राप्त करें — 2 मिनट से भी कम में।
 
