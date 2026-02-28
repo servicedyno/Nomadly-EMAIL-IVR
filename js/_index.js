@@ -8200,7 +8200,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       await saveInfo('bulkCallerIds', allCallerIds)
       set(state, chatId, 'action', a.bulkSelectCaller)
       const numBtns = allCallerIds.map(c => [c.label])
-      return send(chatId, `📞 <b>Bulk Call Campaign</b>\n\nLaunch automated IVR calls to multiple leads.\n\n☎️ = Bulk IVR capable numbers\n\n📱 Select the Caller ID:`, k.of([...numBtns, ['↩️ Back']]))
+      return send(chatId, `📞 <b>Bulk IVR Campaign</b>\n\nCall multiple numbers with an automated IVR message.\nUpload a CSV of leads and launch a campaign.\n\n☎️ = Bulk IVR capable numbers\n\n📱 Select the Caller ID:`, k.of([...numBtns, ['↩️ Back']]))
     }
 
     // ── Audio Library ──
