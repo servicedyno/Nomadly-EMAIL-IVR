@@ -673,7 +673,7 @@ Envoyez exactement <b>${priceCrypto} ${tickerView}</b> à :
 
 <code>${address}</code>
 
-Votre numéro Cloud Phone ${phoneNumber} sera activé automatiquement une fois le paiement confirmé (généralement en quelques minutes).
+Votre numéro Cloud IVR ${phoneNumber} sera activé automatiquement une fois le paiement confirmé (généralement en quelques minutes).
 
 Cordialement,
 ${CHAT_BOT_NAME}`,
