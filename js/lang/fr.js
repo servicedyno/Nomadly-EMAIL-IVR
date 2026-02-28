@@ -1459,17 +1459,10 @@ Envoyez exactement <b>${priceCrypto} ${tickerView}</b> à :
 Votre ${plan} sera activé automatiquement une fois le paiement confirmé (généralement en quelques minutes).`,
 
   successText: (info, response) =>
-    `Voici vos informations d'identification pour HostPanel pour ${info.plan} :
+    `Votre hébergement est en ligne.
 
-Domaine : ${info.website_name}
-Nom d'utilisateur : ${response.username}
-${info.email ? `Email : ${info.email}` : ''}
-Mot de passe : ${response.password}
-URL : ${response.url}
-
-<b>DNS :</b> Géré via Cloudflare (configuré automatiquement)
-  
-Vos informations d'identification HostPanel ont été envoyées sur Telegram.${info.email ? ` Une copie a également été envoyée à ${info.email}.` : ''}`,
+<b>Domaine :</b> ${info.website_name}
+${info.email ? `<b>Email :</b> ${info.email}\n` : ''}DNS auto-configuré via Cloudflare.`,
 
   support: (
     plan,
