@@ -1832,7 +1832,7 @@ bot?.on('message', async msg => {
       const { domain, price, couponApplied, newPrice } = info
       const payKeyboard = k.of([
         Object.values(payIn),
-        [({ en: "🎟️ Apply Coupon", fr: "🎟️ Appliquer un Coupon", zh: "🎟️ 使用优惠券", hi: "🎟️ कूपन लागू करें" }[lang] || "🎟️ Apply Coupon")],
+        [btn.applyCoupon],
       ])
       couponApplied
         ? send(chatId, t.domainNewPrice(domain, price, newPrice), k.pay)
@@ -1862,7 +1862,7 @@ bot?.on('message', async msg => {
         ? k.pay
         : k.of([
             Object.values(payIn),
-            [({ en: "🎟️ Apply Coupon", fr: "🎟️ Appliquer un Coupon", zh: "🎟️ 使用优惠券", hi: "🎟️ कूपन लागू करें" }[lang] || "🎟️ Apply Coupon")],
+            [btn.applyCoupon],
             [t.backButton],
           ])
       set(state, chatId, 'action', 'hosting-pay')
@@ -2588,7 +2588,7 @@ Enter new value:`), bc)
       const finalPrice = couponApplied ? newPrice : price
       const { usdBal } = await getBalance(walletOf, chatId)
       const summary = `📋 <b>Order Summary</b>\n\n🏦 Institution: <b>${targetName}</b>\n📍 Area: <b>${targetCity}</b>\n📞 Carrier: <b>${carrier}</b>\n📊 Leads: <b>${amount}</b>\n📄 Format: <b>International</b>\n📇 Includes: <b>Phone owner's name</b>${couponApplied ? `\n💰 Price: <s>$${price}</s> <b>$${view(finalPrice)}</b>` : `\n💰 Price: <b>$${finalPrice}</b>`}\n\n💳 Wallet: <b>$${view(usdBal)}</b>`
-      send(chatId, summary, k.of([({ en: `✅ Pay ${view(finalPrice)} USD`, fr: `✅ Payer ${view(finalPrice)} USD`, zh: `✅ 支付 ${view(finalPrice)} USD`, hi: `✅ ${view(finalPrice)} USD भुगतान करें` }[lang] || `✅ Pay ${view(finalPrice)} USD`), ({ en: "🎟️ Apply Coupon", fr: "🎟️ Appliquer un Coupon", zh: "🎟️ 使用优惠券", hi: "🎟️ कूपन लागू करें" }[lang] || "🎟️ Apply Coupon")]))
+      send(chatId, summary, k.of([({ en: `✅ Pay ${view(finalPrice)} USD`, fr: `✅ Payer ${view(finalPrice)} USD`, zh: `✅ 支付 ${view(finalPrice)} USD`, hi: `✅ ${view(finalPrice)} USD भुगतान करें` }[lang] || `✅ Pay ${view(finalPrice)} USD`), btn.applyCoupon]))
       set(state, chatId, 'action', a.targetLeadsConfirm)
     },
 
@@ -6322,7 +6322,7 @@ All verified numbers generated during sourcing.`))
     }
 
     // Handle coupon inline
-    if (message === ({ en: "🎟️ Apply Coupon", fr: "🎟️ Appliquer un Coupon", zh: "🎟️ 使用优惠券", hi: "🎟️ कूपन लागू करें" }[lang] || "🎟️ Apply Coupon")) {
+    if (message === btn.applyCoupon) {
       return goto.askCoupon('choose-domain-to-buy')
     }
 
@@ -6434,7 +6434,7 @@ All verified numbers generated during sourcing.`))
     if (message === t.back || message === t.backButton || message === '⬅️ Back') return goto.enterYourEmail()
     
     // Handle Apply Coupon button
-    if (message === ({ en: "🎟️ Apply Coupon", fr: "🎟️ Appliquer un Coupon", zh: "🎟️ 使用优惠券", hi: "🎟️ कूपन लागू करें" }[lang] || "🎟️ Apply Coupon")) {
+    if (message === btn.applyCoupon) {
       set(state, chatId, 'action', 'hosting-apply-coupon')
       return send(chatId, t.enterCouponCode || 'Enter coupon code:', k.of([t.skip]))
     }
@@ -11896,7 +11896,7 @@ Select a category:`), k.of(catBtns))
   }
   if (action === a.targetLeadsConfirm) {
     if (message === t.back) return goto.buyLeadsSelectAmount()
-    if (message === ({ en: "🎟️ Apply Coupon", fr: "🎟️ Appliquer un Coupon", zh: "🎟️ 使用优惠券", hi: "🎟️ कूपन लागू करें" }[lang] || "🎟️ Apply Coupon")) {
+    if (message === btn.applyCoupon) {
       return goto.askCoupon(a.buyLeadsSelectFormat)
     }
     if (message.startsWith('✅ Pay') || message.startsWith('✅ Confirm')) {
