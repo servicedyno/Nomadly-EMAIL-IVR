@@ -1784,7 +1784,7 @@ bot?.on('message', async msg => {
     ivrObCallPreview: 'ivrObCallPreview',
     ivrObCustomScript: 'ivrObCustomScript',
 
-    // Bulk Call Campaign
+    // Bulk IVR Campaign
     bulkSelectCaller: 'bulkSelectCaller',
     bulkUploadLeads: 'bulkUploadLeads',
     bulkSelectAudio: 'bulkSelectAudio',
@@ -1792,9 +1792,20 @@ bot?.on('message', async msg => {
     bulkNameAudio: 'bulkNameAudio',
     bulkSelectMode: 'bulkSelectMode',
     bulkEnterTransfer: 'bulkEnterTransfer',
+    bulkSelectKeys: 'bulkSelectKeys',
+    bulkEnterCustomKeys: 'bulkEnterCustomKeys',
     bulkSetConcurrency: 'bulkSetConcurrency',
     bulkConfirm: 'bulkConfirm',
     bulkRunning: 'bulkRunning',
+    bulkTTSCategory: 'bulkTTSCategory',
+    bulkTTSTemplate: 'bulkTTSTemplate',
+    bulkTTSPlaceholder: 'bulkTTSPlaceholder',
+    bulkTTSVoice: 'bulkTTSVoice',
+    bulkTTSPreview: 'bulkTTSPreview',
+    bulkTTSCustomScript: 'bulkTTSCustomScript',
+
+    // Quick IVR
+    ivrObConfirmKeys: 'ivrObConfirmKeys',
 
     // Audio Library
     audioLibMenu: 'audioLibMenu',
