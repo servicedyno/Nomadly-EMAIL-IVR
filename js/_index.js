@@ -3500,7 +3500,7 @@ Enter new value:`), bc)
       checkAndNotifyTierUpgrade(preSpend)
       // Post-purchase upsell
       setTimeout(() => {
-        send(chatId, `💡 <b>What's next with ${domain}?</b>\n\n🔗 <b>Activate for URL Shortener</b> — use ${domain} as your branded short link\n🌐 <b>Manage DNS</b> — point it to your server\n📞 <b>Get a Cloud Phone</b> — pair with a virtual number\n\nTap one of the options below to continue.`, k.of([['🔗 Activate Domain for Shortener'], ['📞 Cloud Phone + SIP'], [t.back]]))
+        send(chatId, `💡 <b>What's next with ${domain}?</b>\n\n🔗 <b>Activate for URL Shortener</b> — use ${domain} as your branded short link\n🌐 <b>Manage DNS</b> — point it to your server\n📞 <b>Get a Cloud Phone</b> — pair with a virtual number\n\nTap one of the options below to continue.`, k.of([['🔗 Activate Domain for Shortener'], ['📞 Cloud IVR + SIP'], [t.back]]))
       }, 2000)
     },
     'hosting-pay': async coin => {
@@ -8044,7 +8044,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     }
     return goto.submenu3()
   }
-  if (message === user.cloudPhone || message === phoneConfig.btn.cloudPhone || message === '📞☁️ Cloud Phone + SIP') {
+  if (message === user.cloudPhone || message === phoneConfig.btn.cloudPhone || message === '📞☁️ Cloud IVR + SIP') {
     if (process.env.PHONE_SERVICE_ON !== 'true') {
       return send(chatId, `📞 Cloud Phone is coming soon! Contact ${process.env.SUPPORT_USERNAME || '@support'} for updates.`, trans('o'))
     }
