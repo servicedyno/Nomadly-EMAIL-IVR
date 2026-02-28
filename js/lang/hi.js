@@ -866,7 +866,7 @@ ${CHAT_BOT_NAME}`,
   errorFetchingCryptoAddress: 'क्रिप्टोक्यूरेंसी पता प्राप्त करने में त्रुटि। कृपया बाद में पुनः प्रयास करें।',
   paymentSuccessFul: '✅ भुगतान पुष्टि — अभी आपकी सेवाएं तैयार हो रही हैं।',
 
-  // कॉल फॉरवर्डिंग (Cloud Phone)
+  // कॉल फॉरवर्डिंग (Cloud IVR)
   fwdInsufficientBalance: (walletBal, rate) => `🚫 <b>अपर्याप्त बैलेंस</b>\n\n💳 $${(walletBal || 0).toFixed(2)} · $${rate}/मिनट आवश्यक\n👉 👛 वॉलेट से <b>$25</b> रिचार्ज करें।`,
   fwdBlocked: (number) => `🚫 <b>अवरुद्ध</b> — ${number} प्रीमियम गंतव्य है।\n💬 <b>सहायता प्राप्त करें</b> दबाएं।`,
   fwdNotRoutable: (number) => `⚠️ ${number} उपलब्ध नहीं। नंबर जांचें या 💬 <b>सहायता प्राप्त करें</b> दबाएं।`,
