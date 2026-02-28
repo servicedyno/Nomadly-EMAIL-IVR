@@ -1441,15 +1441,13 @@ ${plan.panel}`
 यह एक अग्रिम भुगतान चालान है। कृपया सुनिश्चित करें कि भुगतान 1 घंटे के भीतर पूरा हो ताकि आपका डोमेन और होस्टिंग सेवाएं सक्रिय हो सकें। भुगतान प्राप्त होने के बाद, हम आपकी सेवा को सक्रिय करेंगे।
 `,
 
-  showCryptoPaymentInfo: (priceUsd, priceCrypto, tickerView, address, plan) => `
-कृपया ${priceCrypto} ${tickerView} को निम्नलिखित पते पर भेजें:
-  
+  showCryptoPaymentInfo: (priceUsd, priceCrypto, tickerView, address, plan) => `💰 <b>कुल: $${Number(priceUsd).toFixed(2)} USD</b>
+
+बिल्कुल <b>${priceCrypto} ${tickerView}</b> भेजें:
+
 <code>${address}</code>
-  
-क्रिप्टो भुगतान तेज़ी से पुष्टि होते हैं — आमतौर पर कुछ ही मिनटों में। जैसे ही लेनदेन की पुष्टि होगी, आपको तुरंत सूचित किया जाएगा और आपका ${plan} सक्रिय कर दिया जाएगा।
-  
-सादर,
-${CHAT_BOT_NAME}`,
+
+भुगतान की पुष्टि होने पर आपका ${plan} स्वचालित रूप से सक्रिय हो जाएगा (आमतौर पर कुछ ही मिनटों में)।`,
 
   successText: (info, response) =>
     `आपकी होस्टिंग लाइव है!
