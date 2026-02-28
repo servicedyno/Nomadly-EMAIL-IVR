@@ -1635,9 +1635,13 @@ ${
   askPaymentMethod: '选择支付方式：',
 
   showDepositCryptoInfoVps: (priceUsd, priceCrypto, tickerView, address, vpsDetails) =>
-    `请将 ${priceCrypto} ${tickerView} 汇款至\n\n<code>${address}</code>
+    `💰 <b>支付金额: $${Number(priceUsd).toFixed(2)} USD</b>
 
-加密支付确认速度很快——通常只需几分钟。一旦交易确认，您将及时收到通知，您的 VPS 计划将被顺利激活。
+请发送 <b>${priceCrypto} ${tickerView}</b> 至:
+
+<code>${address}</code>
+
+您的 ${vpsDetails?.plan || 'VPS'} 计划将在支付确认后自动激活（通常只需几分钟）。
 
 此致,
 ${CHAT_BOT_NAME}`,
