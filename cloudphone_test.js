@@ -54,7 +54,7 @@ async function testCloudPhoneWalletFix() {
         if (!phonePayMatch) {
             console.log('❌ phone-pay handler not found');
             results.push({ test: 'Handler Existence', status: 'FAIL', details: 'phone-pay handler missing' });
-            return;
+            return { success: false, results: [], error: 'Early exit due to missing handler' };
         }
         console.log('✅ phone-pay handler found');
         
@@ -68,7 +68,7 @@ async function testCloudPhoneWalletFix() {
         if (!hasWalletDeduct) {
             console.log('❌ Wallet deduction code not found');
             results.push({ test: 'Wallet Deduction', status: 'FAIL', details: 'Missing atomicIncrement deduction' });
-            return;
+            return { success: false, results: [], error: 'Early exit due to missing handler' };
         }
         console.log('✅ Wallet deduction found');
         
@@ -80,13 +80,13 @@ async function testCloudPhoneWalletFix() {
         if (!hasTryBlock) {
             console.log('❌ Try block missing');
             results.push({ test: 'Try/Catch Block', status: 'FAIL', details: 'Try block not found' });
-            return;
+            return { success: false, results: [], error: 'Early exit due to missing handler' };
         }
         
         if (!hasCatchBlock) {
             console.log('❌ Catch block missing');
             results.push({ test: 'Try/Catch Block', status: 'FAIL', details: 'Catch block with purchaseErr not found' });
-            return;
+            return { success: false, results: [], error: 'Early exit due to missing handler' };
         }
         
         console.log('✅ Try/catch structure exists');
