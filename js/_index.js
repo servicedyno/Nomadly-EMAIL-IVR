@@ -9181,13 +9181,8 @@ Choose an IVR template category:`), k.of(rows))
 
   if (action === a.bulkSetConcurrency) {
     if (message === '↩️ Back' || message === t.back) {
-      const bulkData = info?.bulkData || {}
-      if (bulkData.mode === 'transfer') {
-        set(state, chatId, 'action', a.bulkEnterTransfer)
-        return send(chatId, `Enter the transfer number:`, k.of([['↩️ Back']]))
-      }
-      set(state, chatId, 'action', a.bulkSelectMode)
-      return send(chatId, `Select Campaign Mode:`, k.of([['🔗 Transfer + Report'], ['📊 Report Only'], ['↩️ Back']]))
+      set(state, chatId, 'action', a.bulkSelectKeys)
+      return send(chatId, `🔘 <b>Select Active Keys</b>`, k.of([['1 only'], ['1 and 2'], ['1, 2, and 3'], ['0-9 (any key)'], ['✍️ Custom keys'], ['↩️ Back']]))
     }
     const num = parseInt(message, 10)
     if (isNaN(num) || num < 1 || num > 20) {
