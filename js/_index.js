@@ -3835,6 +3835,7 @@ Enter new value:`), bc)
 
       let orderResult, sipUsername, sipPassword
 
+      try {
       if (provider === 'twilio') {
         // ── TWILIO PURCHASE FLOW (via shared helper) ──
         const addressSid = info?.cpAddressSid || null
@@ -3925,6 +3926,18 @@ Enter new value:`), bc)
         send(chatId, cpTxt.activated(selectedNumber, plan.name, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())), trans('o'))
         notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, plan.name, price, coin === u.usd ? 'Wallet USD' : 'Wallet NGN'))
         if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminPurchasePrivate(maskName(name), selectedNumber, plan.name, price, coin === u.usd ? 'Wallet USD' : 'Wallet NGN'), { parse_mode: 'HTML' })
+      }
+      } catch (purchaseErr) {
+        // ── SAFETY NET: refund wallet on ANY unexpected error ──
+        log(`[CloudPhone] ❌ Purchase crashed for ${chatId}: ${purchaseErr?.message || purchaseErr}`)
+        try {
+          if (coin === u.usd) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
+          else await atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn)
+          log(`[CloudPhone] ✅ Auto-refunded $${priceUsd} to ${chatId} after purchase error`)
+        } catch (refundErr) {
+          log(`[CloudPhone] ❌ CRITICAL: Refund also failed for ${chatId}: ${refundErr?.message}`)
+        }
+        return send(chatId, phoneConfig.getMsg(info?.userLanguage).purchaseFailed + '\n' + (purchaseErr?.message || 'Unexpected error'), trans('o'))
       }
       checkAndNotifyTierUpgrade(preSpend)
     },
