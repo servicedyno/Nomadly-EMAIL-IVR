@@ -8357,6 +8357,35 @@ Choose an IVR template category:`), k.of(rows))
     ivrObData.placeholders = placeholders
     await saveInfo('ivrObData', ivrObData)
 
+    // Show key confirmation before proceeding
+    set(state, chatId, 'action', a.ivrObConfirmKeys)
+    const detectedLabel = ivrObData.activeKeys.join(', ')
+    const keyNote = activeKeys.length > 0
+      ? `🔘 <b>Detected active keys:</b> ${detectedLabel}\n\n(Auto-detected from "press X" in your script)`
+      : `🔘 <b>Default active key:</b> 1\n\n(No "press X" patterns found — using key 1)`
+    return send(chatId, `${keyNote}\n\nTap <b>✅ Continue</b> to keep these keys, or type new ones:\n<i>Example: 1,2,3 or 1,5,9</i>`, k.of([['✅ Continue'], ['↩️ Back']]))
+  }
+
+  // Quick IVR — Confirm/edit active keys (after custom script)
+  if (action === a.ivrObConfirmKeys) {
+    if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
+    if (message === '↩️ Back' || message === t.back) {
+      set(state, chatId, 'action', a.ivrObCustomScript)
+      return send(chatId, `Type your custom IVR script:`, k.of([['↩️ Back']]))
+    }
+    const ivrObData = info?.ivrObData || {}
+    if (message !== '✅ Continue') {
+      // User typed custom keys like "1,2,3" or "1 2 3"
+      const customKeys = [...new Set((message || '').match(/\d/g) || [])]
+      if (customKeys.length === 0) {
+        return send(chatId, `Please enter at least one digit (0-9):\n<i>Example: 1,2,3</i>`, k.of([['✅ Continue'], ['↩️ Back']]))
+      }
+      ivrObData.activeKeys = customKeys.sort()
+      await saveInfo('ivrObData', ivrObData)
+      send(chatId, `🔘 Active keys updated: <b>${customKeys.sort().join(', ')}</b>`, { parse_mode: 'HTML' })
+    }
+
+    const placeholders = ivrObData.placeholders || []
     if (placeholders.length > 0) {
       ivrObData.placeholderValues = {}
       ivrObData.placeholderIndex = 0
