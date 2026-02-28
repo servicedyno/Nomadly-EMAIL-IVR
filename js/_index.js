@@ -1668,7 +1668,6 @@ bot?.on('message', async msg => {
     // user setup
     addUserLanguage: 'addUserLanguage',
     updateUserLanguage: 'updateUserLanguage',
-    askUserEmail: 'askUserEmail',
 
     //vps plans
     submenu4: 'submenu4',
