@@ -624,38 +624,63 @@ ${CHAT_BOT_NAME}`,
 问候，
 ${CHAT_BOT_NAME}`,
   showDepositCryptoInfoPlan: (priceUsd, priceCrypto, tickerView, address, plan) =>
-    `请发送 ${priceCrypto} ${tickerView} 至\n\n<code>${address}</code>
+    `💰 <b>支付金额: $${Number(priceUsd).toFixed(2)} USD</b>
 
-加密支付确认速度很快——通常只需几分钟。确认后，您将立即收到通知，您的 ${plan} 计划将顺利激活。
+请发送 <b>${priceCrypto} ${tickerView}</b> 至:
 
-问候，
+<code>${address}</code>
+
+您的 ${plan} 计划将在支付确认后自动激活（通常只需几分钟）。
+
+此致,
 ${CHAT_BOT_NAME}`,
   showDepositCryptoInfoDomain: (priceUsd, priceCrypto, tickerView, address, domain) =>
-    `请发送 ${priceCrypto} ${tickerView} 至\n\n<code>${address}</code>
+    `💰 <b>支付金额: $${Number(priceUsd).toFixed(2)} USD</b>
 
-加密支付确认速度很快——通常只需几分钟。确认后，您将立即收到通知，您的域名 ${domain} 将顺利激活。
+请发送 <b>${priceCrypto} ${tickerView}</b> 至:
 
-问候，
+<code>${address}</code>
+
+您的域名 ${domain} 将在支付确认后自动激活（通常只需几分钟）。
+
+此致,
 ${CHAT_BOT_NAME}`,
 
   showDepositCryptoInfoLeads: (priceUsd, priceCrypto, tickerView, address, label) =>
-    `请发送 ${priceCrypto} ${tickerView} 至\n\n<code>${address}</code>
+    `💰 <b>支付金额: $${Number(priceUsd).toFixed(2)} USD</b>
 
-加密支付确认速度很快——通常只需几分钟。确认后，您将立即收到通知，您的 ${label} 将被交付。
+请发送 <b>${priceCrypto} ${tickerView}</b> 至:
 
-问候，
+<code>${address}</code>
+
+您的 ${label} 将在支付确认后自动交付（通常只需几分钟）。
+
+此致,
 ${CHAT_BOT_NAME}`,
 
   showDepositCryptoInfoPhone: (priceUsd, priceCrypto, tickerView, address, phoneNumber) =>
-    `请发送 ${priceCrypto} ${tickerView} 至\n\n<code>${address}</code>
+    `💰 <b>支付金额: $${Number(priceUsd).toFixed(2)} USD</b>
 
-加密支付确认速度很快——通常只需几分钟。确认后，您将立即收到通知，您的云电话号码 ${phoneNumber} 将被激活。
+请发送 <b>${priceCrypto} ${tickerView}</b> 至:
 
-问候，
+<code>${address}</code>
+
+您的云电话号码 ${phoneNumber} 将在支付确认后自动激活（通常只需几分钟）。
+
+此致,
 ${CHAT_BOT_NAME}`,
 
   showDepositCryptoInfoDigitalProduct: (priceUsd, priceCrypto, tickerView, address, product) =>
-    `请发送 ${priceCrypto} ${tickerView} 至\n\n<code>${address}</code>\n\n您的 <b>${product}</b> 订单正在处理中。加密支付确认速度很快——通常只需几分钟。确认后，您的订单将很快交付。\n\n此致，\n${CHAT_BOT_NAME}`,
+    `💰 <b>支付金额: $${Number(priceUsd).toFixed(2)} USD</b>
+
+请发送 <b>${priceCrypto} ${tickerView}</b> 至:
+
+<code>${address}</code>
+
+您的 <b>${product}</b> 订单将在支付确认后自动交付（通常只需几分钟）。
+
+此致,
+${CHAT_BOT_NAME}`,
 
   showDepositCryptoInfo: (priceUsd, priceCrypto, tickerView, address) =>
     `💰 <b>支付金额: $${Number(priceUsd).toFixed(2)} USD</b>\n\n请发送 <b>${priceCrypto} ${tickerView}</b> 至:\n\n<code>${address}</code>\n\n加密支付确认速度很快——通常只需几分钟。确认后，您将立即收到通知，并且您的钱包将更新。\n\n问候,\n${CHAT_BOT_NAME}`,
