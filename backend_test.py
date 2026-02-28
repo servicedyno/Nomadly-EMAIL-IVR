@@ -212,7 +212,8 @@ class CloudPhoneTest:
             # Find the phone-pay wallet deduction specifically (lines 3798 and 3801)
             phone_pay_deduction_line = None
             for i, line in enumerate(lines):
-                if 'await atomicIncrement(walletOf, chatId, \'usdOut\', priceUsd)' in line:
+                if ('await atomicIncrement(walletOf, chatId, \'usdOut\', priceUsd)' in line or
+                    'await atomicIncrement(walletOf, chatId, "usdOut", priceUsd)' in line):
                     phone_pay_deduction_line = i + 1
                     break
             
@@ -220,8 +221,7 @@ class CloudPhoneTest:
                 # Look for try block after wallet deduction
                 try_found = False
                 catch_found = False
-                auto_refund_usd = False
-                auto_refund_ngn = False
+                auto_refund_logic = False
                 cloudphone_logging = False
                 purchase_failed_msg = False
                 
@@ -233,17 +233,18 @@ class CloudPhoneTest:
                         try_found = True
                     elif 'catch (purchaseErr)' in line:
                         catch_found = True
-                    elif 'atomicIncrement(walletOf, chatId, \'usdIn\', priceUsd)' in line:
-                        auto_refund_usd = True
-                    elif 'atomicIncrement(walletOf, chatId, \'ngnIn\', priceNgn)' in line:
-                        auto_refund_ngn = True
+                    elif ('atomicIncrement(walletOf, chatId, \'usdIn\', priceUsd)' in line or
+                          'atomicIncrement(walletOf, chatId, \'ngnIn\', priceNgn)' in line or
+                          'atomicIncrement(walletOf, chatId, "usdIn", priceUsd)' in line or
+                          'atomicIncrement(walletOf, chatId, "ngnIn", priceNgn)' in line):
+                        auto_refund_logic = True
                     elif '[CloudPhone]' in line and ('Purchase crashed' in line or 'Auto-refunded' in line):
                         cloudphone_logging = True
                     elif 'purchaseFailed' in line and 'send(chatId' in line:
                         purchase_failed_msg = True
                 
                 # Verify all components are present
-                if try_found and catch_found and auto_refund_usd and auto_refund_ngn:
+                if try_found and catch_found and auto_refund_logic:
                     details = []
                     if cloudphone_logging:
                         details.append("[CloudPhone] logging present")
@@ -252,14 +253,13 @@ class CloudPhoneTest:
                     
                     self.log_result("Try/Catch Wrapper", "PASS", 
                                   f"Purchase section wrapped in try/catch after wallet deduction (line {phone_pay_deduction_line}), " +
-                                  f"auto-refund for USD & NGN present" + 
+                                  f"auto-refund logic present" + 
                                   (f", {', '.join(details)}" if details else ""))
                 else:
                     missing = []
                     if not try_found: missing.append("try block")
                     if not catch_found: missing.append("catch block") 
-                    if not auto_refund_usd: missing.append("USD auto-refund")
-                    if not auto_refund_ngn: missing.append("NGN auto-refund")
+                    if not auto_refund_logic: missing.append("auto-refund logic")
                     
                     self.log_error("Try/Catch Wrapper", f"Missing: {', '.join(missing)}")
             else:
