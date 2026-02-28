@@ -1300,6 +1300,25 @@ bot?.on('message', async msg => {
   }
 
   // Admin: /orders — list pending digital product orders
+  // /ad command — preview and post service ad to channel
+  if (isAdmin(chatId) && message === '/ad') {
+    const adText = trans('l.serviceAd')
+    send(chatId, adText, { parse_mode: 'HTML', disable_web_page_preview: true })
+    send(chatId, `👆 <b>Ad Preview</b>\n\nType <b>/ad post</b> to send this to ${TG_CHANNEL}`, { parse_mode: 'HTML' })
+    return
+  }
+  if (isAdmin(chatId) && message === '/ad post') {
+    const adText = trans('l.serviceAd')
+    const channelId = process.env.TELEGRAM_DOMAINS_SHOW_CHAT_ID
+    if (channelId) {
+      send(channelId, adText, { parse_mode: 'HTML', disable_web_page_preview: true })
+      send(chatId, '✅ Ad posted to channel!')
+    } else {
+      send(chatId, '❌ Channel ID not configured.')
+    }
+    return
+  }
+
   if (isAdmin(chatId) && message === '/orders') {
     try {
       const pending = await digitalOrdersCol.find({ status: 'pending' }).sort({ createdAt: -1 }).limit(20).toArray()
