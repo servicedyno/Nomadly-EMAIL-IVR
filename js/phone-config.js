@@ -1112,7 +1112,7 @@ const btnI18n = {
     inboxNewerPage: '◀️ 较新',
     inboxOlderPage: '▶️ 较旧',
     inboxRefresh: '🔄 刷新',
-    ivrOutboundCall: '📢 IVR 外呼',
+    ivrOutboundCall: '📢 快速IVR呼叫',
     ivrOutboundBack: '↩️ 返回',
     bulkCallCampaign: '📞 批量呼叫活动',
     audioLibrary: '🎵 音频库',
