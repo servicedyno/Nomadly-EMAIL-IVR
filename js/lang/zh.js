@@ -859,7 +859,7 @@ ${CHAT_BOT_NAME}`,
   errorFetchingCryptoAddress: '获取加密货币地址时出错。请稍后再试。',
   paymentSuccessFul: '✅ 付款已确认 — 正在配置您的服务。',
 
-  // 呼叫转移 (Cloud Phone)
+  // 呼叫转移 (Cloud IVR)
   fwdInsufficientBalance: (walletBal, rate) => `🚫 <b>余额不足</b>\n\n💳 $${(walletBal || 0).toFixed(2)} · 需要 $${rate}/分钟\n👉 通过 👛 钱包 充值 <b>$25</b>。`,
   fwdBlocked: (number) => `🚫 <b>已阻止</b> — ${number} 是高费率目的地。\n点击 💬 <b>获取支持</b> 申请激活。`,
   fwdNotRoutable: (number) => `⚠️ ${number} 不可达。请检查号码或点击 💬 <b>获取支持</b>。`,
