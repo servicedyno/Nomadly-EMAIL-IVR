@@ -912,7 +912,7 @@ ${bal(usd, ngn)}`,
   errorFetchingCryptoAddress: `Error fetching cryptocurrency address. Please try again later.`,
   paymentSuccessFul: '✅ Payment confirmed — provisioning your services now.',
 
-  // Call Forwarding (Cloud Phone)
+  // Call Forwarding (Cloud IVR)
   fwdInsufficientBalance: (walletBal, rate) => `🚫 <b>Insufficient Balance</b>\n\n💳 $${(walletBal || 0).toFixed(2)} · Need $${rate}/min\n👉 Top up <b>$25</b> via 👛 Wallet to activate forwarding.`,
   fwdBlocked: (number) => `🚫 <b>Blocked</b> — ${number} is a premium destination.\nTap 💬 <b>Get Support</b> to request activation.`,
   fwdNotRoutable: (number) => `⚠️ ${number} is not routable. Check number or tap 💬 <b>Get Support</b>.`,
