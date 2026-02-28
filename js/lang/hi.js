@@ -92,7 +92,7 @@ const user = {
   hostingDomainsRedirect: '🌐 ऑफ़शोर होस्टिंग',
   wallet: '👛 मेरा वॉलेट',
   urlShortenerMain: `🔗✂️ URL छोटा करें - ${FREE_LINKS} ट्रायल लिंक`,
-  domainNames: '🌐 Register Bulletproof Domain ¹⁰⁰⁰⁺ ᵀᴸᴰ',
+  domainNames: '🌐 बुलेटप्रूफ डोमेन रजिस्टर करें — 1000+ TLDs',
   viewPlan: '📋 मेरी सदस्यताएं',
   becomeReseller: '💼 पुनर्विक्रेता बनें',
   getSupport: '💬 सहायता प्राप्त करें',
