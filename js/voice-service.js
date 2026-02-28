@@ -2444,6 +2444,7 @@ module.exports = {
   activeCalls,
   pendingBridges,
   outboundIvrCalls,
+  twilioIvrSessions,
   ivrTransferLegs,
   getIvrAnalytics,
   initiateOutboundIvrCall,
@@ -2455,4 +2456,6 @@ module.exports = {
   isUSCanada,
   getCallRate,
   billCallMinutesUnified,
+  findNumberOwner,
+  incrementMinutesUsed,
 }
