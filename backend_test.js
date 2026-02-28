@@ -130,7 +130,7 @@ async function testCloudPhoneWalletFix() {
                     results.push({ test: 'Catch Block Refund Logic', status: 'PASS', details: 'Both USD and NGN refunds implemented' });
                     
                     // Check for nested try/catch around refund
-                    if (handlerSection.includes('} catch (refundErr)')) {
+                    if (handlerSection.includes('catch (refundErr)')) {
                         console.log('✅ Nested try/catch around refund logic');
                         results.push({ test: 'Nested Refund Try/Catch', status: 'PASS', details: 'Refund wrapped in nested try/catch' });
                     } else {
