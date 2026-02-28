@@ -8192,8 +8192,8 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       if (allCallerIds.length === 0) {
         const hasNonBulk = nonBulkNumbers.length > 0
         const msg = hasNonBulk
-          ? `📞 <b>Bulk Call Campaign</b>\n\n⚠️ None of your numbers support Bulk IVR.\n\nWhen purchasing a new number, look for the ☎️ <b>Bulk IVR</b> badge to get a Bulk IVR capable number.`
-          : `📞 <b>Bulk Call Campaign</b>\n\nYou need a ☎️ Bulk IVR capable number to launch campaigns.\n\nTap <b>${buyLabel}</b> and choose a number with the ☎️ badge.`
+          ? `📞 <b>Bulk IVR Campaign</b>\n\n⚠️ None of your numbers support Bulk IVR.\n\nWhen purchasing a new number, look for the ☎️ <b>Bulk IVR</b> badge to get a Bulk IVR capable number.`
+          : `📞 <b>Bulk IVR Campaign</b>\n\nYou need a ☎️ Bulk IVR capable number to launch campaigns.\n\nTap <b>${buyLabel}</b> and choose a number with the ☎️ badge.`
         return send(chatId, msg, k.of([[buyLabel]]))
       }
       await saveInfo('bulkData', {})
