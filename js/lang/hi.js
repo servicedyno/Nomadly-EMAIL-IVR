@@ -1651,9 +1651,13 @@ ${
   askPaymentMethod: 'भुगतान विधि चुनें:',
 
   showDepositCryptoInfoVps: (priceUsd, priceCrypto, tickerView, address, vpsDetails) =>
-    `कृपया ${priceCrypto} ${tickerView} को\n\n<code>${address}</code> पर भेजें
+    `💰 <b>भुगतान राशि: $${Number(priceUsd).toFixed(2)} USD</b>
 
-क्रिप्टो भुगतान तेज़ी से पुष्टि होते हैं — आमतौर पर कुछ ही मिनटों में। एक बार लेन-देन की पुष्टि हो जाने पर, आपको तुरंत सूचित किया जाएगा और आपकी VPS योजना सक्रिय हो जाएगी।
+बिल्कुल <b>${priceCrypto} ${tickerView}</b> भेजें:
+
+<code>${address}</code>
+
+भुगतान की पुष्टि होने पर आपका ${vpsDetails?.plan || 'VPS'} प्लान स्वचालित रूप से सक्रिय हो जाएगा (आमतौर पर कुछ ही मिनटों में)।
 
 सादर,
 ${CHAT_BOT_NAME}`,
