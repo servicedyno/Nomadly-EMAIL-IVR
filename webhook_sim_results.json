@@ -44,7 +44,7 @@
     "fr/main_menu/subscriptions": "✅ OK",
     "fr/main_menu/become_reseller": "✅ OK",
     "fr/main_menu/settings": "✅ OK",
-    "fr/main_menu/support": "❌ ERROR",
+    "fr/main_menu/support": "✅ OK",
     "fr/domain_sub/buy": "✅ OK",
     "fr/domain_sub/my_domains": "✅ OK",
     "fr/domain_sub/dns": "✅ OK",
@@ -129,17 +129,11 @@
     "hi/validate/main": "✅ OK",
     "hi/support/get_support": "✅ OK"
   },
-  "errors": [
-    {
-      "key": "fr/main_menu/support",
-      "button_text": "💬 Obtenir de l'aide",
-      "error": "❌ Unhandled Promise Rejection: {}\nPromise: Promise {\n  <rejected> ReferenceError: name is not defined\n      at TelegramBot.<anonymous> (/app/js/_index.js:12721:25)\n      at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n}"
-    }
-  ],
+  "errors": [],
   "summary": {
     "total": 128,
-    "ok": 127,
-    "errors": 1,
+    "ok": 128,
+    "errors": 0,
     "no_reply": 0
   }
 }
