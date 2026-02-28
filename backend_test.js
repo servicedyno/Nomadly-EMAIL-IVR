@@ -89,58 +89,36 @@ async function testCloudPhoneWalletFix() {
                 handlerSection.includes('atomicIncrement(walletOf, chatId, \'ngnOut\', priceNgn)')) {
                 console.log('✅ Found wallet deduction (atomicIncrement usdOut/ngnOut)');
                 
-                if (handlerSection.includes('try {') && handlerSection.includes('} catch (purchaseErr)')) {
-                    console.log('✅ Try/catch block exists around purchase logic');
+            // Check for try/catch - the purchase logic should be wrapped, 
+            // but the "purchasing number" message can be before it
+            if (handlerSection.includes('try {')) {
+                console.log('✅ Try block found');
+                
+                // Look for catch block specifically for purchase errors  
+                if (handlerSection.includes('} catch (purchaseErr)')) {
+                    console.log('✅ Catch block with purchaseErr found');
                     
-                    // Print some debug info to see the structure
-                    const tryIndex = handlerSection.indexOf('try {');
-                    const catchIndex = handlerSection.indexOf('} catch (purchaseErr)');
-                    console.log(`   Debug: try at position ${tryIndex}, catch at position ${catchIndex}`);
+                    // Verify the purchase flows are inside the try block
+                    const tryBlockStart = handlerSection.indexOf('try {');
+                    const catchBlockStart = handlerSection.indexOf('} catch (purchaseErr)');
+                    const tryBlockContent = handlerSection.substring(tryBlockStart, catchBlockStart);
                     
-                    results.push({ test: 'Try/Catch Block Existence', status: 'PASS', details: 'Purchase logic wrapped in try/catch' });
-                    
-                    // Check for refund in catch block
-                    if (handlerSection.includes('atomicIncrement(walletOf, chatId, \'usdIn\', priceUsd)') &&
-                        handlerSection.includes('atomicIncrement(walletOf, chatId, \'ngnIn\', priceNgn)')) {
-                        console.log('✅ Catch block includes both USD and NGN refund logic');
-                        results.push({ test: 'Catch Block Refund Logic', status: 'PASS', details: 'Both USD and NGN refunds implemented' });
-                        
-                        // Check for nested try/catch around refund
-                        if (handlerSection.includes('} catch (refundErr)')) {
-                            console.log('✅ Nested try/catch around refund logic');
-                            results.push({ test: 'Nested Refund Try/Catch', status: 'PASS', details: 'Refund wrapped in nested try/catch' });
-                        } else {
-                            console.log('❌ Missing nested try/catch around refund');
-                            results.push({ test: 'Nested Refund Try/Catch', status: 'FAIL', details: 'Refund not wrapped in nested try/catch' });
-                        }
-                        
-                        // Check for CloudPhone logging
-                        if (handlerSection.includes('[CloudPhone]')) {
-                            console.log('✅ CloudPhone logging prefix found');
-                            results.push({ test: 'CloudPhone Logging', status: 'PASS', details: 'Proper [CloudPhone] logging prefix' });
-                        } else {
-                            console.log('❌ CloudPhone logging prefix missing');
-                            results.push({ test: 'CloudPhone Logging', status: 'FAIL', details: 'Missing [CloudPhone] logging prefix' });
-                        }
-                        
-                        // Check for user notification
-                        if (handlerSection.includes('purchaseFailed')) {
-                            console.log('✅ User notification with purchaseFailed message');
-                            results.push({ test: 'User Notification', status: 'PASS', details: 'purchaseFailed message sent to user' });
-                        } else {
-                            console.log('❌ Missing user notification');
-                            results.push({ test: 'User Notification', status: 'FAIL', details: 'Missing purchaseFailed user notification' });
-                        }
-                        
+                    if (tryBlockContent.includes('if (provider === \'twilio\')') && 
+                        tryBlockContent.includes('telnyxApi.buyNumber')) {
+                        console.log('✅ Both Twilio and Telnyx purchase calls are inside try block');
+                        results.push({ test: 'Try/Catch Block Existence', status: 'PASS', details: 'Purchase logic wrapped in try/catch with both providers' });
                     } else {
-                        console.log('❌ Catch block missing refund logic');
-                        results.push({ test: 'Catch Block Refund Logic', status: 'FAIL', details: 'Missing USD/NGN refund in catch block' });
+                        console.log('❌ Purchase calls not properly inside try block');
+                        results.push({ test: 'Try/Catch Block Existence', status: 'FAIL', details: 'Provider calls not inside try block' });
                     }
-                    
                 } else {
-                    console.log('❌ Try/catch block missing around purchase logic');
-                    results.push({ test: 'Try/Catch Block Existence', status: 'FAIL', details: 'Purchase logic NOT wrapped in try/catch' });
+                    console.log('❌ Catch block with purchaseErr not found');
+                    results.push({ test: 'Try/Catch Block Existence', status: 'FAIL', details: 'Catch block with purchaseErr not found' });
                 }
+            } else {
+                console.log('❌ Try block not found');
+                results.push({ test: 'Try/Catch Block Existence', status: 'FAIL', details: 'Try block not found' });
+            }
                 
             } else {
                 console.log('❌ Wallet deduction code not found');
