@@ -654,6 +654,17 @@ const targetLeadsData = {
     'Michigan statewide': ['269', '517'],
     'Grand Rapids / Western MI': ['616', '231'],
   },
+  'Arvest Bnk': {
+    'Arkansas (NW AR)': ['479', '501', '870'],
+    'Oklahoma (Tulsa)': ['918', '539'],
+    'Oklahoma (OKC/Norman)': ['405', '572', '580'],
+    'Missouri (SW MO)': ['417', '816', '975'],
+    'Kansas (Eastern)': ['913', '785'],
+  },
+  'NymeoFCU': {
+    'Frederick MD': ['301', '240'],
+    'Gaithersburg / Montgomery Co': ['301', '240'],
+  },
 }
 const targetLeadsTargets = Object.keys(targetLeadsData)
 const targetLeadsCities = (target) => Object.keys(targetLeadsData[target] || {})
