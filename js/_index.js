@@ -8783,7 +8783,7 @@ Choose an IVR template category:`), k.of(rows))
     if (message === '🎤 Generate with TTS') {
       // Redirect to IVR Outbound flow to generate audio, then come back
       // For simplicity, ask user to use Audio Library first
-      return send(chatId, `💡 To use TTS, first generate audio via <b>📢 IVR Outbound Call</b> flow, or upload a pre-recorded audio file.\n\nSelect from your library or upload new:`, k.of([['📎 Upload New Audio'], ['↩️ Back']]))
+      return send(chatId, `💡 To use TTS, first generate audio via <b>📢 Quick IVR Call</b> flow, or upload a pre-recorded audio file.\n\nSelect from your library or upload new:`, k.of([['📎 Upload New Audio'], ['↩️ Back']]))
     }
     // Select from library
     if (message.startsWith('🎵 ')) {
