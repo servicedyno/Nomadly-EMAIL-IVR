@@ -110,7 +110,7 @@ function isBlockedPrefix(phoneNumber) {
 // ── Button labels ──
 const btn = {
   cloudPhone: '📞☁️ Cloud Phone — Speechcue',
-  buyPhoneNumber: '🛒 Buy Cloud Phone Plans',
+  buyPhoneNumber: '🛒 Choose a Cloud IVR Plan',
   myNumbers: '📱 My Numbers',
   sipSettings: '📖 SIP Setup Guide',
   usageBilling: '📊 Usage & Billing',
