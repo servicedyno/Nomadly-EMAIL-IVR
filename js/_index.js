@@ -8807,8 +8807,8 @@ Choose an IVR template category:`), k.of(rows))
     set(state, chatId, 'action', a.bulkSelectAudio)
     const audios = await audioLibraryService.listAudios(chatId)
     const audioBtns = audios.map(a => [`🎵 ${a.name.substring(0, 30)}`])
-    const btns = [...audioBtns, ['📎 Upload New Audio'], ['🎤 Generate with TTS'], ['↩️ Back']]
-    return send(chatId, `✅ <b>${leads.length} leads loaded!</b>\n\n${preview}${more}${errNote}\n\n🎵 <b>Select IVR Audio</b>\n\nChoose an audio file from your library, upload new, or generate with TTS:`, k.of(btns))
+    const btns = [...audioBtns, ['📎 Upload New Audio'], ['📝 Use IVR Template'], ['↩️ Back']]
+    return send(chatId, `✅ <b>${leads.length} leads loaded!</b>\n\n${preview}${more}${errNote}\n\n🎵 <b>Select IVR Audio</b>\n\nChoose from your audio library, upload a new recording, or generate from a template with TTS:`, k.of(btns))
   }
 
   if (action === a.bulkSelectAudio) {
