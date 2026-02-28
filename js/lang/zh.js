@@ -92,7 +92,7 @@ const user = {
   hostingDomainsRedirect: '🌐 离岸托管',
   wallet: '👛 我的钱包',
   urlShortenerMain: `🔗✂️ URL 缩短器 - ${FREE_LINKS}次试用`,
-  domainNames: '🌐 Register Bulletproof Domain ¹⁰⁰⁰⁺ ᵀᴸᴰ',
+  domainNames: '🌐 注册防弹域名 — 1000+ TLDs',
   viewPlan: '📋 我的订阅',
   becomeReseller: '💼 成为代理商',
   getSupport: '💬 获取支持',
