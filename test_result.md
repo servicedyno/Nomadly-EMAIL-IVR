@@ -515,7 +515,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "SIP Domain and Call Flow Fixes for Nomadly Telegram Bot Platform"
+    - "Fix: /ad and /ad post commands + Admin bot menu commands registration"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
