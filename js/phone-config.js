@@ -1040,7 +1040,7 @@ const btnI18n = {
     inboxRefresh: '🔄 Actualiser',
     ivrOutboundCall: '📢 Appel IVR Rapide',
     ivrOutboundBack: '↩️ Retour',
-    bulkCallCampaign: '📞 Campagne d\'Appels en Masse',
+    bulkCallCampaign: '📞 Campagne IVR en Masse',
     audioLibrary: '🎵 Bibliothèque Audio',
     back: 'Retour',
     cancel: 'Annuler',
