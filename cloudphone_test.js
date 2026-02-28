@@ -108,7 +108,9 @@ async function testCloudPhoneWalletFix() {
         }
         
         // Check catch block features
-        const catchStart2 = handlerContent.indexOf('catch (purchaseErr)');
+        const catchStart2 = handlerContent.indexOf('} catch (purchaseErr)') >= 0 
+            ? handlerContent.indexOf('} catch (purchaseErr)')
+            : handlerContent.indexOf('catch (purchaseErr)');
         const catchContent = handlerContent.substring(catchStart2, catchStart2 + 800);
         
         // Refund logic
