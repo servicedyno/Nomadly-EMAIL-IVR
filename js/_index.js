@@ -8901,14 +8901,14 @@ Choose an IVR template category:`), k.of(rows))
       bulkData.mode = 'transfer'
       await saveInfo('bulkData', bulkData)
       set(state, chatId, 'action', a.bulkEnterTransfer)
-      return send(chatId, `🔗 <b>Transfer Mode</b>\n\nEnter the number to transfer calls when lead presses 1:\n<i>(Your SIP number or any phone number)</i>\n<i>Example: +41791234567</i>`, k.of([['↩️ Back']]))
+      return send(chatId, `🔗 <b>Transfer Mode</b>\n\nEnter the number to transfer calls when lead presses the active key:\n<i>(Your SIP number or any phone number)</i>\n<i>Example: +41791234567</i>`, k.of([['↩️ Back']]))
     }
     if (message === '📊 Report Only') {
       bulkData.mode = 'report_only'
       bulkData.transferNumber = null
       await saveInfo('bulkData', bulkData)
-      set(state, chatId, 'action', a.bulkSetConcurrency)
-      return send(chatId, `📊 <b>Report Only</b> — no transfers, just tracking.\n\n⚡ <b>Set Concurrency</b>\n\nHow many simultaneous calls? (1-20)\nDefault: <b>10</b>`, k.of([['5'], ['10'], ['15'], ['20'], ['↩️ Back']]))
+      set(state, chatId, 'action', a.bulkSelectKeys)
+      return send(chatId, `📊 <b>Report Only</b> — no transfers, just tracking.\n\n🔘 <b>Select Active Keys</b>\n\nWhich keys should count as a positive response?\n\nPick a preset or enter custom digits:`, k.of([['1 only'], ['1 and 2'], ['1, 2, and 3'], ['0-9 (any key)'], ['✍️ Custom keys'], ['↩️ Back']]))
     }
     return send(chatId, `Select a mode:`, k.of([['🔗 Transfer + Report'], ['📊 Report Only'], ['↩️ Back']]))
   }
