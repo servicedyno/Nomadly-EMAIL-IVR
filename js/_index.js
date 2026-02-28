@@ -4461,6 +4461,12 @@ All verified numbers generated during sourcing.`))
       set(state, chatId, 'hasAcceptedTerms', true)
       send(chatId, trans('l.acceptedTermsMsg'))
       notifyGroup(`🎉 <b>New Member!</b>\nUser ${maskName(username)} just joined ${CHAT_BOT_NAME} — domains, leads, hosting, digital products & more at your fingertips.\nSee what's possible — /start`)
+      // Notify admin directly so they can welcome the new member
+      if (TELEGRAM_ADMIN_CHAT_ID) {
+        const displayName = msg?.from?.first_name || username
+        const tgUsername = msg?.from?.username ? `@${msg.from.username}` : 'no username'
+        send(TELEGRAM_ADMIN_CHAT_ID, `👋 <b>New Member Joined!</b>\n\n👤 Name: <b>${displayName}</b>\n🆔 Chat ID: <code>${chatId}</code>\n📎 Username: ${tgUsername}\n🌐 Language: ${info?.userLanguage || 'en'}\n\n💬 Welcome them:\n/reply ${chatId} Welcome to ${CHAT_BOT_NAME}! 🎉`, { parse_mode: 'HTML' })
+      }
       setTimeout(async () => {
         const freeLinks = await get(freeShortLinksOf, chatId)
         set(state, chatId, 'action', 'none')
