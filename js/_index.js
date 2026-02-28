@@ -12551,7 +12551,7 @@ Select a category:`), k.of(catBtns))
       const activeNums = numbers.filter(n => n.status === 'active')
       if (activeNums.length > 0) {
         hasAnySub = true
-        let cpText = `📞 <b>CloudPhone:</b> ${activeNums.length} number${activeNums.length > 1 ? 's' : ''}`
+        let cpText = `📞 <b>Cloud IVR:</b> ${activeNums.length} number${activeNums.length > 1 ? 's' : ''}`
         activeNums.forEach(n => {
           const plan = n.plan ? n.plan.charAt(0).toUpperCase() + n.plan.slice(1) : '—'
           const exp = n.expiresAt ? new Date(n.expiresAt).toLocaleDateString() : '—'
