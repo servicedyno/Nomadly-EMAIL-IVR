@@ -120,6 +120,48 @@ async function testCloudPhoneWalletFix() {
                 results.push({ test: 'Try/Catch Block Existence', status: 'FAIL', details: 'Try block not found' });
             }
                 
+            
+            // Check for catch block features after confirming try/catch exists  
+            if (handlerSection.includes('} catch (purchaseErr)')) {
+                // Check for refund in catch block
+                if (handlerSection.includes('atomicIncrement(walletOf, chatId, \'usdIn\', priceUsd)') &&
+                    handlerSection.includes('atomicIncrement(walletOf, chatId, \'ngnIn\', priceNgn)')) {
+                    console.log('✅ Catch block includes both USD and NGN refund logic');
+                    results.push({ test: 'Catch Block Refund Logic', status: 'PASS', details: 'Both USD and NGN refunds implemented' });
+                    
+                    // Check for nested try/catch around refund
+                    if (handlerSection.includes('} catch (refundErr)')) {
+                        console.log('✅ Nested try/catch around refund logic');
+                        results.push({ test: 'Nested Refund Try/Catch', status: 'PASS', details: 'Refund wrapped in nested try/catch' });
+                    } else {
+                        console.log('❌ Missing nested try/catch around refund');
+                        results.push({ test: 'Nested Refund Try/Catch', status: 'FAIL', details: 'Refund not wrapped in nested try/catch' });
+                    }
+                    
+                    // Check for CloudPhone logging
+                    if (handlerSection.includes('[CloudPhone]')) {
+                        console.log('✅ CloudPhone logging prefix found');
+                        results.push({ test: 'CloudPhone Logging', status: 'PASS', details: 'Proper [CloudPhone] logging prefix' });
+                    } else {
+                        console.log('❌ CloudPhone logging prefix missing');
+                        results.push({ test: 'CloudPhone Logging', status: 'FAIL', details: 'Missing [CloudPhone] logging prefix' });
+                    }
+                    
+                    // Check for user notification
+                    if (handlerSection.includes('purchaseFailed')) {
+                        console.log('✅ User notification with purchaseFailed message');
+                        results.push({ test: 'User Notification', status: 'PASS', details: 'purchaseFailed message sent to user' });
+                    } else {
+                        console.log('❌ Missing user notification');
+                        results.push({ test: 'User Notification', status: 'FAIL', details: 'Missing purchaseFailed user notification' });
+                    }
+                    
+                } else {
+                    console.log('❌ Catch block missing refund logic');
+                    results.push({ test: 'Catch Block Refund Logic', status: 'FAIL', details: 'Missing USD/NGN refund in catch block' });
+                }
+            }
+            
             } else {
                 console.log('❌ Wallet deduction code not found');
                 results.push({ test: 'Wallet Deduction Code', status: 'FAIL', details: 'atomicIncrement wallet deduction not found' });
