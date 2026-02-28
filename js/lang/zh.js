@@ -665,7 +665,7 @@ ${CHAT_BOT_NAME}`,
 
 <code>${address}</code>
 
-您的云电话号码 ${phoneNumber} 将在支付确认后自动激活（通常只需几分钟）。
+您的 Cloud IVR 号码 ${phoneNumber} 将在支付确认后自动激活（通常只需几分钟）。
 
 此致,
 ${CHAT_BOT_NAME}`,
