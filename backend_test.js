@@ -95,7 +95,7 @@ async function testCloudPhoneWalletFix() {
                 console.log('✅ Try block found');
                 
                 // Look for catch block specifically for purchase errors  
-                if (handlerSection.includes('} catch (purchaseErr)')) {
+                if (handlerSection.includes('catch (purchaseErr)')) {
                     console.log('✅ Catch block with purchaseErr found');
                     
                     // Verify the purchase flows are inside the try block
