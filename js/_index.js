@@ -10289,19 +10289,19 @@ Choose an IVR template category:`), k.of(rows))
       ]))
     }
     const draft = info?.cpTtsDraft || {}
-    if (message === '📝 Type Text (AI Voice)') {
+    if (message === btn.typeText) {
       draft.method = 'tts'
       await saveInfo('cpTtsDraft', draft)
       set(state, chatId, 'action', a.cpVmGreetingVoice)
       return send(chatId, `📝 Type the greeting callers will hear:`, k.of([]))
     }
-    if (message === '🎙️ Upload Audio') {
+    if (message === btn.uploadAudio) {
       draft.method = 'upload'
       await saveInfo('cpTtsDraft', draft)
       set(state, chatId, 'action', a.cpVmGreetingPreview)
       return send(chatId, `🎙️ Send a voice message or audio file.`, k.of([]))
     }
-    if (message === '📋 Use Template') {
+    if (message === btn.useTemplate) {
       set(state, chatId, 'action', a.cpVmTemplate)
       draft.method = 'template'
       await saveInfo('cpTtsDraft', draft)
@@ -10386,7 +10386,7 @@ Professional templates for voicemail, customer support, financial institutions, 
       return send(chatId, `📋 <b>Greeting Templates</b>\n\nSelect a category:`, k.of(catBtns))
     }
     const draft = info?.cpTtsDraft || {}
-    if (message === '✅ Use As-Is') {
+    if (message === btn.useAsIs) {
       // Proceed to language selection with template text
       draft.lang = null
       draft.voice = null
@@ -10503,14 +10503,14 @@ Professional templates for voicemail, customer support, financial institutions, 
       ]))
     }
     const draft = info?.cpTtsDraft || {}
-    if (message === '🔄 Try Different Voice') {
+    if (message === btn.tryDiffVoice) {
       draft.voice = null; draft.audioPath = null; draft.ttsProvider = null
       await saveInfo('cpTtsDraft', draft)
       set(state, chatId, 'action', a.cpVmGreetingVoice)
       const providerBtns = ttsService.getProviderButtons().map(b => [b])
       return send(chatId, `🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine:`, k.of(providerBtns))
     }
-    if (message === '🌐 Change Language') {
+    if (message === btn.changeLang) {
       draft.lang = null; draft.voice = null; draft.audioPath = null; draft.ttsProvider = null
       await saveInfo('cpTtsDraft', draft)
       set(state, chatId, 'action', a.cpVmGreetingVoice)
@@ -10519,13 +10519,13 @@ Professional templates for voicemail, customer support, financial institutions, 
       for (let i = 0; i < langBtns.length; i += 2) langRows.push(langBtns.slice(i, i + 2))
       return send(chatId, `🌐 Select the language for your greeting:`, k.of(langRows))
     }
-    if (message === '📝 Re-type Text') {
+    if (message === btn.retypeText) {
       draft.text = null; draft.voice = null; draft.audioPath = null
       await saveInfo('cpTtsDraft', draft)
       set(state, chatId, 'action', a.cpVmGreetingVoice)
       return send(chatId, `📝 Type the greeting text:`, k.of([]))
     }
-    if (message === '🎙️ Re-upload') {
+    if (message === btn.reupload) {
       draft.audioPath = null; draft.method = 'upload'
       await saveInfo('cpTtsDraft', draft)
       return send(chatId, `🎙️ Send a voice message or audio file.`, k.of([]))
@@ -10542,7 +10542,7 @@ Professional templates for voicemail, customer support, financial institutions, 
         return send(chatId, ({ en: "❌ Failed. Try again.", fr: "❌ Échec. Réessayez.", zh: "❌ 失败。请重试。", hi: "❌ विफल। पुनः प्रयास करें।" }[lang] || "❌ Failed. Try again."), k.of([]))
       }
     }
-    if (message === '✅ Save Greeting') {
+    if (message === btn.saveGreeting) {
       const vm = num.features?.voicemail || {}
       vm.greetingType = 'custom'
       if (draft.audioPath) {
@@ -10675,17 +10675,17 @@ Professional templates for voicemail, customer support, financial institutions, 
         [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
       ]))
     }
-    if (message === '📝 Type Text (AI Voice)') {
+    if (message === btn.typeText) {
       set(state, chatId, 'action', a.cpIvrGreetingVoice)
       await saveInfo('cpTtsDraft', { type: 'ivrGreeting' })
       return send(chatId, `📝 Type the greeting callers will hear.\n\n<i>Example: "Thank you for calling Nomadly. Press 1 for sales, press 2 for support."</i>`, k.of([]))
     }
-    if (message === '🎙️ Upload Audio') {
+    if (message === btn.uploadAudio) {
       set(state, chatId, 'action', a.cpIvrGreetingPreview)
       await saveInfo('cpTtsDraft', { type: 'ivrGreeting', method: 'upload' })
       return send(chatId, `🎙️ Send a voice message or audio file for your IVR greeting.`, k.of([]))
     }
-    if (message === '📋 Use Template') {
+    if (message === btn.useTemplate) {
       set(state, chatId, 'action', a.cpIvrTemplate)
       await saveInfo('cpTtsDraft', { type: 'ivrGreeting', method: 'template' })
       const catBtns = ttsService.getTemplateCategoryButtons().map(b => [b])
@@ -10745,7 +10745,7 @@ Professional templates for voicemail, customer support, financial institutions, 
       return send(chatId, `📋 <b>Greeting Templates</b>\n\nSelect a category:`, k.of(catBtns))
     }
     const draft = info?.cpTtsDraft || {}
-    if (message === '✅ Use As-Is') {
+    if (message === btn.useAsIs) {
       // Proceed to language selection with template text
       draft.lang = null
       draft.voice = null
@@ -10891,7 +10891,7 @@ Professional templates for voicemail, customer support, financial institutions, 
       return send(chatId, `🎙️ Send a voice message or audio file.`, k.of([]))
     }
 
-    if (message === '🔄 Try Different Voice') {
+    if (message === btn.tryDiffVoice) {
       draft.voice = null
       draft.audioPath = null
       draft.ttsProvider = null
@@ -10900,7 +10900,7 @@ Professional templates for voicemail, customer support, financial institutions, 
       const providerBtns = ttsService.getProviderButtons().map(b => [b])
       return send(chatId, `🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine:`, k.of(providerBtns))
     }
-    if (message === '🌐 Change Language') {
+    if (message === btn.changeLang) {
       draft.lang = null
       draft.voice = null
       draft.audioPath = null
@@ -10912,7 +10912,7 @@ Professional templates for voicemail, customer support, financial institutions, 
       for (let i = 0; i < langBtns.length; i += 2) langRows.push(langBtns.slice(i, i + 2))
       return send(chatId, `🌐 Select the language for your IVR greeting:`, k.of(langRows))
     }
-    if (message === '📝 Re-type Text') {
+    if (message === btn.retypeText) {
       draft.text = null
       draft.voice = null
       draft.audioPath = null
@@ -10920,13 +10920,13 @@ Professional templates for voicemail, customer support, financial institutions, 
       set(state, chatId, 'action', a.cpIvrGreetingVoice)
       return send(chatId, `📝 Type the greeting callers will hear:`, k.of([]))
     }
-    if (message === '🎙️ Re-upload') {
+    if (message === btn.reupload) {
       draft.audioPath = null
       draft.method = 'upload'
       await saveInfo('cpTtsDraft', draft)
       return send(chatId, `🎙️ Send a voice message or audio file.`, k.of([]))
     }
-    if (message === '✅ Save Greeting') {
+    if (message === btn.saveGreeting) {
       const ivrConf = num.features?.ivr || { enabled: true, options: {} }
       if (draft.audioPath) {
         ivrConf.greetingType = 'audio'
@@ -11068,7 +11068,7 @@ Used keys: ${usedKeys}
 Enter the key number (0-9):`), k.of([['0','1','2','3','4','5','6','7','8','9']]))
     }
     const draft = info?.cpIvrDraft || {}
-    if (message === '📞 Forward Call') {
+    if (message === btn.forwardCall) {
       draft.action = 'forward'
       await saveInfo('cpIvrDraft', draft)
       set(state, chatId, 'action', a.cpIvrOptionMsg)
@@ -11094,7 +11094,7 @@ Enter the phone number to forward calls to:
 
 <i>Example: +15551234567</i>`), k.of([]))
     }
-    if (message === '💬 Play Message') {
+    if (message === btn.playMessage) {
       draft.action = 'message'
       await saveInfo('cpIvrDraft', draft)
       set(state, chatId, 'action', a.cpIvrOptionMsg)
@@ -11110,7 +11110,7 @@ Comment souhaitez-vous créer le message ?`, zh: `💬 <b>播放消息</b>
 
 How do you want to create the message?`), k.of([[{ en: "📋 Use Template", fr: "📋 Utiliser un Modèle", zh: "📋 使用模板", hi: "📋 टेम्पलेट उपयोग" }[lang] || "📋 Use Template"], [{ en: "📝 Type Text (AI Voice)", fr: "📝 Saisir Texte (IA Vocale)", zh: "📝 输入文字 (AI 语音)", hi: "📝 टेक्स्ट टाइप (AI वॉइस)" }[lang] || "📝 Type Text (AI Voice)"], [{ en: "🎙️ Upload Audio", fr: "🎙️ Uploader Audio", zh: "🎙️ 上传音频", hi: "🎙️ ऑडियो अपलोड" }[lang] || "🎙️ Upload Audio"]]))
     }
-    if (message === '📬 Send to Voicemail') {
+    if (message === btn.sendToVoicemail) {
       draft.action = 'voicemail'
       await saveInfo('cpIvrDraft', draft)
       // Save directly
@@ -11167,7 +11167,7 @@ How do you want to create the message?`), k.of([[{ en: "📋 Use Template", fr: 
     // ── PLAY MESSAGE: sub-options ──
     if (draft.action === 'message') {
       // Template selection
-      if (message === '📋 Use Template') {
+      if (message === btn.useTemplate) {
         draft.method = 'template'
         draft.templateCategory = null
         await saveInfo('cpIvrDraft', draft)
@@ -11223,13 +11223,13 @@ Select a category:`), k.of(catBtns))
         return send(chatId, `🌐 Select the language:\n\n<i>The message will be translated automatically.</i>`, k.of(langRows))
       }
       // Type Text
-      if (message === '📝 Type Text (AI Voice)') {
+      if (message === btn.typeText) {
         draft.method = 'tts'
         await saveInfo('cpIvrDraft', draft)
         return send(chatId, ({ en: `📝 Type the message callers will hear when they press <b>${draft.key}</b>:`, fr: `📝 Tapez le message que les appelants entendront quand ils appuieront sur <b>${draft.key}</b> :`, zh: `📝 输入来电者按 <b>${draft.key}</b> 时听到的消息：`, hi: `📝 वह मैसेज टाइप करें जो कॉलर <b>${draft.key}</b> दबाने पर सुनेंगे:` }[lang] || `📝 Type the message callers will hear when they press <b>${draft.key}</b>:`), k.of([]))
       }
       // Upload Audio
-      if (message === '🎙️ Upload Audio') {
+      if (message === btn.uploadAudio) {
         draft.method = 'upload'
         await saveInfo('cpIvrDraft', draft)
         return send(chatId, `🎙️ Send a voice message or audio file:`, k.of([]))
@@ -11358,14 +11358,14 @@ Select a category:`), k.of(catBtns))
       ]))
     }
     const draft = info?.cpIvrDraft || {}
-    if (message === '🔄 Try Different Voice') {
+    if (message === btn.tryDiffVoice) {
       draft.voice = null; draft.audioPath = null; draft.ttsProvider = null
       await saveInfo('cpIvrDraft', draft)
       set(state, chatId, 'action', a.cpIvrOptionVoice)
       const providerBtns = ttsService.getProviderButtons().map(b => [b])
       return send(chatId, `🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine:`, k.of(providerBtns))
     }
-    if (message === '🌐 Change Language') {
+    if (message === btn.changeLang) {
       draft.lang = null; draft.voice = null; draft.audioPath = null; draft.ttsProvider = null
       if (draft.originalText) draft.text = draft.originalText
       await saveInfo('cpIvrDraft', draft)
@@ -11375,13 +11375,13 @@ Select a category:`), k.of(catBtns))
       for (let i = 0; i < langBtns.length; i += 2) langRows.push(langBtns.slice(i, i + 2))
       return send(chatId, `🌐 Select the language:`, k.of(langRows))
     }
-    if (message === '📝 Re-type Text') {
+    if (message === btn.retypeText) {
       draft.text = null; draft.voice = null; draft.audioPath = null; draft.originalText = null; draft.translatedText = null
       await saveInfo('cpIvrDraft', draft)
       set(state, chatId, 'action', a.cpIvrOptionMsg)
       return send(chatId, `📝 Type the message:`, k.of([]))
     }
-    if (message === '🎙️ Re-upload') {
+    if (message === btn.reupload) {
       draft.audioPath = null; draft.method = 'upload'
       await saveInfo('cpIvrDraft', draft)
       set(state, chatId, 'action', a.cpIvrOptionMsg)
@@ -11400,7 +11400,7 @@ Select a category:`), k.of(catBtns))
         return send(chatId, ({ en: "❌ Failed. Try again.", fr: "❌ Échec. Réessayez.", zh: "❌ 失败。请重试。", hi: "❌ विफल। पुनः प्रयास करें।" }[lang] || "❌ Failed. Try again."), k.of([]))
       }
     }
-    if (message === '✅ Save Option') {
+    if (message === btn.saveOption) {
       const ivrConf = num.features?.ivr || { enabled: true, options: {} }
       if (!ivrConf.options) ivrConf.options = {}
       const optionData = { action: draft.action }
