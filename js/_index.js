@@ -14354,6 +14354,7 @@ app.get('/crypto-pay-phone', auth, async (req, res) => {
   const countryName = cpData.countryName || info?.cpCountryName || 'US'
 
   if (provider === 'twilio') {
+    try {
     if (needsTwilioAddress(countryCode, provider)) {
       const cachedAddr = await getCachedTwilioAddress(chatId, countryCode)
       if (cachedAddr) {
@@ -14376,6 +14377,12 @@ app.get('/crypto-pay-phone', auth, async (req, res) => {
     if (result.error) { addFundsTo(walletOf, chatId, 'usd', Number(price), lang); return res.send(html(phoneConfig.getMsg(lang).purchaseFailed)) }
     sendMessage(chatId, cpTxt.activated(selectedNumber, result.plan?.name || planKey, price, result.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(result.expiresAt.toISOString())))
     return res.send(html())
+    } catch (purchaseErr) {
+      log(`[CloudPhone] ❌ BlockBee/Twilio purchase crashed for ${chatId}: ${purchaseErr?.message || purchaseErr}`)
+      try { addFundsTo(walletOf, chatId, 'usd', Number(price), lang) } catch (e) { log(`[CloudPhone] ❌ CRITICAL: BlockBee refund failed for ${chatId}: ${e?.message}`) }
+      sendMessage(chatId, phoneConfig.getMsg(lang).purchaseFailed + '\n' + (purchaseErr?.message || 'Unexpected error'))
+      return res.send(html(phoneConfig.getMsg(lang).purchaseFailed))
+    }
   }
 
   // ── TELNYX ──
