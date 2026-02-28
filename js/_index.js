@@ -9804,6 +9804,7 @@ Choose an IVR template category:`), k.of(rows))
     const countryName = info?.cpCountryName || ''
     const paymentMethod = info?.cpPaymentMethod || 'wallet'
 
+    try {
     const result = await executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, info?.cpNumberType || 'local', paymentMethod, addressSid)
     if (result.error) {
       // Refund to wallet — only if not already refunded
@@ -9838,6 +9839,21 @@ Choose an IVR template category:`), k.of(rows))
       const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
       send(chatId, `💡 <b>Get the most out of your number</b>\n\n📲 <b>Set up call forwarding</b> — ring your real phone\n🤖 <b>Add IVR greeting</b> — professional auto-attendant\n💬 <b>Enable SMS</b> — send & receive text messages\n\nTap Manage Numbers below to configure.`, k.of([[pc.myNumbers], [pc.back]]))
     }, 2000)
+    } catch (purchaseErr) {
+      log(`[CloudPhone] ❌ Address purchase crashed for ${chatId}: ${purchaseErr?.message || purchaseErr}`)
+      const coin = info?.cpPendingCoin
+      const priceUsd = info?.cpPendingPriceUsd
+      const priceNgn = info?.cpPendingPriceNgn
+      try {
+        if (coin && priceUsd) {
+          if (coin === u.usd) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
+          else if (coin === u.ngn && priceNgn) await atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn)
+          log(`[CloudPhone] ✅ Auto-refunded $${priceUsd} to ${chatId} after address purchase error`)
+        }
+      } catch (refundErr) { log(`[CloudPhone] ❌ CRITICAL: Refund also failed for ${chatId}: ${refundErr?.message}`) }
+      set(state, chatId, 'action', 'none')
+      send(chatId, phoneConfig.getMsg(lang).purchaseFailed + '\n' + (purchaseErr?.message || 'Unexpected error'), trans('o'))
+    }
     return
   }
 
