@@ -28,6 +28,7 @@ const pendingBridges = {}
 
 // Outbound IVR sessions: callControlId → outbound IVR session data
 const outboundIvrCalls = {}
+const twilioIvrSessions = {} // sessionId → { chatId, callerId, targetNumber, ... } for Twilio IVR calls
 
 function initVoiceService(deps) {
   _bot = deps.bot
@@ -42,7 +43,8 @@ function initVoiceService(deps) {
   _nanoid = deps.nanoid
   _twilioSipDomain = deps.twilioSipDomainName || null
   _selfUrl = deps.selfUrl || null
-  log('[VoiceService] Initialized with IVR + Recording + Analytics + Limits + Overage billing + SIP Bridge')
+  _twilioService = deps.twilioService || null
+  log('[VoiceService] Initialized with IVR + Recording + Analytics + Limits + Overage billing + SIP Bridge + Twilio IVR')
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
