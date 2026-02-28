@@ -1177,7 +1177,7 @@ You can always change your language later in the settings.`,
 
 Your all-in-one digital toolkit:
 
-<b>Cloud Phone</b> — Virtual numbers in 30+ countries, IVR, SMS, SIP
+<b>Cloud IVR</b> — Virtual numbers in 30+ countries, IVR, SMS, SIP
 <b>Domains</b> — 400+ TLDs, DMCA-ignored offshore registration
 <b>URL Shortener</b> — ${FREE_LINKS} free branded links to start
 <b>Phone Leads</b> — Verified by country, carrier, and area
