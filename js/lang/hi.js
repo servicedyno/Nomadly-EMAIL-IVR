@@ -96,7 +96,7 @@ const user = {
   viewPlan: '📋 मेरी सदस्यताएं',
   becomeReseller: '💼 पुनर्विक्रेता बनें',
   getSupport: '💬 सहायता प्राप्त करें',
-  cloudPhone: '📞☁️ Cloud Phone + SIP',
+  cloudPhone: '📞 Cloud IVR + SIP',
   testSip: '🧪 SIP मुफ्त टेस्ट',
   vpsPlans: 'बुलेटप्रूफ VPS🛡️ खरीदें - प्रति घंटा/मासिक',
   buyPlan: '⚡ प्लान अपग्रेड करें',
