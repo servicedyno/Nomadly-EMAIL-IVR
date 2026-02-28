@@ -10,7 +10,7 @@
 const axios = require('axios');
 const fs = require('fs');
 
-const BACKEND_URL = 'https://setup-hub-5.preview.emergentagent.com';
+const BACKEND_URL = 'https://api-config-webhook.preview.emergentagent.com';
 const INDEX_FILE_PATH = '/app/js/_index.js';
 
 // ANSI color codes for output
