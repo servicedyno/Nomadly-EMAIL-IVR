@@ -91,6 +91,12 @@ async function testCloudPhoneWalletFix() {
                 
                 if (handlerSection.includes('try {') && handlerSection.includes('} catch (purchaseErr)')) {
                     console.log('✅ Try/catch block exists around purchase logic');
+                    
+                    // Print some debug info to see the structure
+                    const tryIndex = handlerSection.indexOf('try {');
+                    const catchIndex = handlerSection.indexOf('} catch (purchaseErr)');
+                    console.log(`   Debug: try at position ${tryIndex}, catch at position ${catchIndex}`);
+                    
                     results.push({ test: 'Try/Catch Block Existence', status: 'PASS', details: 'Purchase logic wrapped in try/catch' });
                     
                     // Check for refund in catch block
