@@ -1038,7 +1038,7 @@ const btnI18n = {
     inboxNewerPage: '◀️ Plus Récent',
     inboxOlderPage: '▶️ Plus Ancien',
     inboxRefresh: '🔄 Actualiser',
-    ivrOutboundCall: '📢 Appel IVR Sortant',
+    ivrOutboundCall: '📢 Appel IVR Rapide',
     ivrOutboundBack: '↩️ Retour',
     bulkCallCampaign: '📞 Campagne d\'Appels en Masse',
     audioLibrary: '🎵 Bibliothèque Audio',
