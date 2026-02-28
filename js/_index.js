@@ -15714,6 +15714,272 @@ app.post('/twilio/voice-webhook', async (req, res) => {
   }
 })
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Twilio SIP Ring Result — fallback when SIP device doesn't answer
+// Priority: Forward-no-answer > Voicemail > Missed notification
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+app.post('/twilio/sip-ring-result', async (req, res) => {
+  const VoiceResponse = require('twilio').twiml.VoiceResponse
+  try {
+    const { chatId, from, to } = req.query
+    const { DialCallStatus, DialCallDuration } = req.body || {}
+    const response = new VoiceResponse()
+    const decodedFrom = decodeURIComponent(from || 'unknown')
+    const decodedTo = decodeURIComponent(to || '')
+
+    log(`[Twilio] SIP ring result: ${decodedFrom} → ${decodedTo} status=${DialCallStatus} duration=${DialCallDuration || 0}s`)
+
+    // Call connected and completed via SIP — done
+    if (DialCallStatus === 'completed') {
+      response.hangup()
+      return res.type('text/xml').send(response.toString())
+    }
+
+    // SIP ring failed (no-answer/busy/failed) — fallback chain
+    const allUsers = await db.collection('phoneNumbersOf').find({}).toArray()
+    let ownerData = null, num = null
+    for (const user of allUsers) {
+      const numbers = user.val?.numbers || []
+      const match = numbers.find(n => n.phoneNumber === decodedTo && n.status === 'active')
+      if (match) { ownerData = user; num = match; break }
+    }
+
+    if (!num) {
+      response.say('An error occurred.')
+      response.hangup()
+      return res.type('text/xml').send(response.toString())
+    }
+
+    const fwdConfig = num.features?.callForwarding
+    const vmConfig = num.features?.voicemail
+    const recordingEnabled = num.features?.recording === true
+
+    const reason = DialCallStatus === 'no-answer' ? 'No answer'
+      : DialCallStatus === 'busy' ? 'Busy'
+      : DialCallStatus === 'failed' ? 'Call failed'
+      : DialCallStatus || 'No response'
+    bot?.sendMessage(Number(chatId), `📱 <b>SIP Ring — ${reason}</b>\nFrom: ${decodedFrom} → ${decodedTo}`, { parse_mode: 'HTML' }).catch(() => {})
+
+    // Fallback 1: Forward (no_answer mode)
+    if (fwdConfig?.enabled && fwdConfig.forwardTo && fwdConfig.mode !== 'always') {
+      const RATE = parseFloat(process.env.CALL_FORWARDING_RATE_MIN || '0.50')
+      const { usdBal } = await getBalance(walletOf, Number(chatId))
+      if (usdBal >= RATE) {
+        const dialOpts = {
+          callerId: decodedTo,
+          timeout: 30,
+          action: `${SELF_URL}/twilio/voice-dial-status?chatId=${chatId}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+        }
+        if (recordingEnabled) {
+          dialOpts.record = 'record-from-answer-dual'
+          dialOpts.recordingStatusCallback = `${SELF_URL}/twilio/recording-status`
+        }
+        const dial = response.dial(dialOpts)
+        dial.number(fwdConfig.forwardTo)
+        bot?.sendMessage(Number(chatId), `📞 Forwarding to ${fwdConfig.forwardTo}...`, { parse_mode: 'HTML' }).catch(() => {})
+        return res.type('text/xml').send(response.toString())
+      }
+    }
+
+    // Fallback 2: Voicemail
+    if (vmConfig?.enabled) {
+      if (vmConfig.customGreetingUrl && vmConfig.greetingType === 'custom') {
+        response.play(vmConfig.customGreetingUrl)
+      } else {
+        response.say('The person you are calling is unavailable. Please leave a message after the beep.')
+      }
+      response.record({
+        maxLength: 120,
+        action: `${SELF_URL}/twilio/voicemail-complete?chatId=${chatId}&from=${encodeURIComponent(from || '')}&to=${encodeURIComponent(to || '')}`,
+        transcribe: false,
+        playBeep: true,
+        timeout: 5
+      })
+      response.say('No message recorded. Goodbye.')
+      response.hangup()
+      return res.type('text/xml').send(response.toString())
+    }
+
+    // Fallback 3: Missed call
+    response.say('The person you are calling is unavailable. Please try again later.')
+    response.hangup()
+    bot?.sendMessage(Number(chatId), `📞 <b>Missed Call</b>\nFrom: ${decodedFrom}\nTo: ${decodedTo}\n(SIP device didn't answer, no forwarding/voicemail configured)`, { parse_mode: 'HTML' }).catch(() => {})
+
+    res.type('text/xml').send(response.toString())
+  } catch (error) {
+    log('[Twilio] SIP ring result error:', error.message)
+    const VR = new VoiceResponse()
+    VR.say('An error occurred.')
+    VR.hangup()
+    res.type('text/xml').send(VR.toString())
+  }
+})
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SINGLE IVR OUTBOUND VIA TWILIO — TwiML Endpoints
+// Parallel to bulk-ivr but for individual bot-triggered IVR calls on Twilio numbers
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// TwiML: Play audio + gather DTMF
+app.post('/twilio/single-ivr', async (req, res) => {
+  const VoiceResponse = require('twilio').twiml.VoiceResponse
+  try {
+    const { sessionId } = req.query
+    const response = new VoiceResponse()
+    const voiceService = require('./voice-service.js')
+    const session = voiceService.twilioIvrSessions[sessionId]
+
+    if (!session) {
+      response.say('Configuration error. Goodbye.')
+      response.hangup()
+      return res.type('text/xml').send(response.toString())
+    }
+
+    session.phase = 'playing'
+    const gatherUrl = `${SELF_URL}/twilio/single-ivr-gather?sessionId=${encodeURIComponent(sessionId)}`
+
+    // First attempt: play audio and gather
+    const gather = response.gather({ action: gatherUrl, method: 'POST', numDigits: 1, timeout: 8, finishOnKey: '' })
+    if (session.audioUrl) {
+      gather.play(session.audioUrl)
+    } else {
+      gather.say('Thank you for your time. Press 1 to continue.')
+    }
+
+    // Retry once
+    const gather2 = response.gather({ action: gatherUrl, method: 'POST', numDigits: 1, timeout: 5, finishOnKey: '' })
+    if (session.audioUrl) {
+      gather2.play(session.audioUrl)
+    } else {
+      gather2.say('Press 1 to continue or hang up.')
+    }
+
+    response.say('No input received. Goodbye.')
+    response.hangup()
+
+    log(`[SingleIVR] TwiML served for session=${sessionId} target=${session.targetNumber}`)
+    res.type('text/xml').send(response.toString())
+  } catch (error) {
+    log('[SingleIVR] TwiML error:', error.message)
+    const response = new VoiceResponse()
+    response.say('An error occurred. Goodbye.')
+    response.hangup()
+    res.type('text/xml').send(response.toString())
+  }
+})
+
+// TwiML: Handle DTMF digit press
+app.post('/twilio/single-ivr-gather', async (req, res) => {
+  const VoiceResponse = require('twilio').twiml.VoiceResponse
+  try {
+    const { sessionId } = req.query
+    const digits = req.body?.Digits || ''
+    const response = new VoiceResponse()
+    const voiceService = require('./voice-service.js')
+    const session = voiceService.twilioIvrSessions[sessionId]
+
+    log(`[SingleIVR] Gather: session=${sessionId} digits=${digits}`)
+
+    if (!session) {
+      response.say('Goodbye.')
+      response.hangup()
+      return res.type('text/xml').send(response.toString())
+    }
+
+    session.digitPressed = digits
+
+    if (digits && session.activeKeys.includes(digits)) {
+      session.phase = 'transferring'
+
+      if (session.bulkMode === 'report_only' || !session.ivrNumber) {
+        // Report-only: notify and end
+        session.phase = 'completed'
+        response.say('Thank you. Goodbye.')
+        response.hangup()
+        if (!session.campaignId) {
+          bot?.sendMessage(session.chatId,
+            `✅ <b>IVR Call — Key Pressed!</b>\n📞 ${session.targetNumber} pressed <b>${digits}</b>`,
+            { parse_mode: 'HTML' }
+          ).catch(() => {})
+        }
+      } else {
+        // Transfer mode: connect to IVR number
+        if (session.holdMusic) {
+          response.play(`${SELF_URL}/assets/hold-music-jazz.mp3`)
+        } else {
+          response.say('Please hold while we connect you.')
+        }
+        const dial = response.dial({ callerId: session.callerId, timeout: 30 })
+        dial.number(session.ivrNumber)
+        log(`[SingleIVR] Transferring to ${session.ivrNumber}`)
+      }
+    } else {
+      response.say('Invalid input. Goodbye.')
+      response.hangup()
+    }
+
+    res.type('text/xml').send(response.toString())
+  } catch (error) {
+    log('[SingleIVR] Gather error:', error.message)
+    const response = new VoiceResponse()
+    response.say('An error occurred. Goodbye.')
+    response.hangup()
+    res.type('text/xml').send(response.toString())
+  }
+})
+
+// Status callback: track call outcome + bill minutes
+app.post('/twilio/single-ivr-status', async (req, res) => {
+  try {
+    const { sessionId } = req.query
+    const { CallSid, CallStatus, CallDuration } = req.body || {}
+    const duration = parseInt(CallDuration || '0')
+    const voiceService = require('./voice-service.js')
+    const session = voiceService.twilioIvrSessions[sessionId]
+
+    log(`[SingleIVR] Status: session=${sessionId} sid=${CallSid} status=${CallStatus} duration=${duration}s`)
+
+    if (session && CallStatus === 'completed') {
+      const durationStr = duration > 0 ? `${Math.ceil(duration / 60)} min` : 'brief'
+
+      if (session.digitPressed) {
+        bot?.sendMessage(session.chatId,
+          `📊 <b>IVR Call Complete</b>\n📞 ${session.targetNumber}\n🔢 Pressed: <b>${session.digitPressed}</b>\n⏱️ Duration: ${durationStr}${session.phase === 'transferring' ? '\n🔗 Transferred to ' + session.ivrNumber : ''}`,
+          { parse_mode: 'HTML' }
+        ).catch(() => {})
+      } else {
+        const reason = session.phase === 'playing' ? 'No key pressed' : 'Not answered'
+        bot?.sendMessage(session.chatId,
+          `📊 <b>IVR Call Complete</b>\n📞 ${session.targetNumber}\n❌ ${reason}\n⏱️ Duration: ${durationStr}`,
+          { parse_mode: 'HTML' }
+        ).catch(() => {})
+      }
+
+      // Bill minutes using unified billing
+      if (duration > 0) {
+        try {
+          const minutes = Math.ceil(duration / 60)
+          await voiceService.billCallMinutesUnified(session.chatId, session.callerId, minutes, session.targetNumber, 'IVR_Outbound_Twilio')
+        } catch (e) { log(`[SingleIVR] Minutes billing error: ${e.message}`) }
+      }
+
+      setTimeout(() => { delete voiceService.twilioIvrSessions[sessionId] }, 30000)
+    } else if (session && (CallStatus === 'no-answer' || CallStatus === 'busy' || CallStatus === 'failed' || CallStatus === 'canceled')) {
+      const reason = CallStatus === 'no-answer' ? 'No Answer' : CallStatus === 'busy' ? 'Busy' : CallStatus === 'failed' ? 'Failed' : 'Cancelled'
+      bot?.sendMessage(session.chatId,
+        `📊 <b>IVR Call — ${reason}</b>\n📞 ${session.targetNumber}`,
+        { parse_mode: 'HTML' }
+      ).catch(() => {})
+      setTimeout(() => { delete voiceService.twilioIvrSessions[sessionId] }, 5000)
+    }
+
+    res.sendStatus(200)
+  } catch (error) {
+    log('[SingleIVR] Status error:', error.message)
+    res.sendStatus(200)
+  }
+})
+
 // Twilio Dial Status Callback — handles forwarded call result (no answer → voicemail)
 // Also handles SIP bridge and SIP outbound call results
 app.post('/twilio/voice-dial-status', async (req, res) => {
