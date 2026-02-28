@@ -1549,7 +1549,7 @@ Sélectionnez une option :`,
     btnBack: '↩️ Retour',
   },
   zh: {
-    hubWelcome: `📞 <b>CloudPhone</b> <i>由 Speechcue 提供</i>
+    hubWelcome: `📞 <b>Cloud IVR</b> <i>由 Speechcue 提供</i>
 
 在30多个国家获取虚拟号码 — 不到2分钟。
 
