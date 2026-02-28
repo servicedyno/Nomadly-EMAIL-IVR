@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 
 # Configuration
-BASE_URL = "https://config-pod-webhook.preview.emergentagent.com"
+BASE_URL = "https://setup-hub-5.preview.emergentagent.com"
 API_BASE = f"{BASE_URL}/api"
 
 class BulkIVRTestSuite:
