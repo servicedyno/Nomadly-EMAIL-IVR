@@ -667,14 +667,28 @@ agent_communication:
           agent: "testing"
           comment: "✅ CNAM CIRCUIT BREAKER RE-TEST COMPLETE: All 8 requirements now verified with 100% success rate (8/8 tests passed). COMPREHENSIVE RE-VERIFICATION: (1) Node.js Health: Service running healthy on port 5000 with supervisor status RUNNING, no critical errors in logs. (2) Circuit Breaker Structure: circuitBreakers object exists with telnyx/multitel/signalwire entries, all fields present (state, failures, lastFailure, cooldownMs, lastError), initial states CLOSED. (3) Constants: All verified - CONSECUTIVE_FAIL_THRESHOLD=3, CREDIT_FAIL_THRESHOLD=1, COOLDOWN_CREDIT_MS=3600000 (1hr), COOLDOWN_TRANSIENT_MS=300000 (5min). (4) Functions: All circuit breaker functions exist - circuitAllows, circuitSuccess, circuitFailure, getCircuitStatus. (5) lookupCnam Integration: Verified calls to circuitAllows() before each provider (telnyx, multitel, signalwire), circuitSuccess() on success, circuitFailure() on error. (6) Module Exports: All required exports verified - initCnamService, lookupCnam, batchLookupCnam, getCircuitStatus. (7) getCircuitStatus Import & Usage: FIXED - getCircuitStatus imported in _index.js line 234 AND /admin/cnam-circuit endpoint working, returns proper JSON with all 3 provider states, failure counts, last errors, cooldown remaining. (8) Startup Log: '[CnamService] Initialized — priority: Telnyx → Multitel → SignalWire + MongoDB cache + circuit breaker' confirmed in nodejs.out.log. ALL 8 REQUIREMENTS FULLY WORKING - the previously failed requirement #7 is now FIXED and operational."
 
+  - task: "Fix: CloudPhone wallet purchase crash — try/catch safety net + user refund"
+    implemented: true
+    working: "NA"
+    file: "js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "ROOT CAUSE from Railway logs (deployment 7a7e38ad): User pirate_script (chatId 1005284399) selected Pro plan $75 via wallet, wallet was deducted at lines 3795-3801 BEFORE the purchase logic, then executeTwilioPurchase threw ReferenceError (undefined in that deploy). The unhandled rejection meant refund logic at lines 3842-3845 never ran — $75 lost. FIX: (1) Wrapped entire purchase section (Twilio + Telnyx paths) in try/catch. Catch block auto-refunds wallet (atomicIncrement usdIn/ngnIn) and logs [CloudPhone] error + refund. This prevents silent money loss on ANY unexpected throw. (2) Manually refunded $75 to user 1005284399 in DB (usdIn 195→270, balance restored to $126.47). In our local code executeTwilioPurchase IS defined at line 556 in loadData scope, so the ReferenceError won't occur here, but the try/catch protects against any future unexpected throws."
+
 test_plan:
   current_focus:
-    - "Fix: CNAM circuit breaker — auto-skip exhausted providers mid-batch"
+    - "Fix: CloudPhone wallet purchase crash — try/catch safety net + user refund"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
+    - agent: "main"
+      message: "Investigated Railway deployment logs (7a7e38ad-0560-419e-bf22-56350e5cdf64) for failed CloudPhone purchase by user pirate_script (chatId 1005284399). ROOT CAUSE: walletOk['phone-pay'] handler deducts wallet BEFORE calling executeTwilioPurchase(). On Railway, the function was undefined (ReferenceError), so the handler crashed and the refund logic in the error-handling branch never executed — $75 lost silently. FIX: (1) Wrapped entire purchase section (both Twilio and Telnyx paths, lines ~3834-3928) in try/catch. Catch block auto-refunds wallet and logs the error. This prevents money loss on ANY unexpected throw — not just ReferenceError. (2) Manually refunded $75 to user 1005284399 (wallet balance restored from $51.47 to $126.47). In our local code, executeTwilioPurchase IS defined at line 556, same loadData scope — so the ReferenceError won't occur here, but the safety net protects against future unexpected errors. Test focus: (a) try/catch block wraps purchase section, (b) catch block increments usdIn/ngnIn to refund, (c) catch block logs error with [CloudPhone] prefix, (d) catch block sends purchaseFailed message to user, (e) Node.js starts cleanly."
     - agent: "main"
       message: "Fixed the 8th failing test: getCircuitStatus was exported from cnam-service.js but never imported/used in _index.js. FIX: (1) Added getCircuitStatus to the require destructure at line 234. (2) Added /admin/cnam-circuit endpoint (admin-key protected, same auth pattern as /admin/reset-states) that returns JSON with all 3 provider circuit states, failure counts, last errors, cooldown remaining. Verified: curl to endpoint returns proper JSON. Node.js starts clean. Test focus: (a) getCircuitStatus imported in _index.js, (b) /admin/cnam-circuit endpoint exists and returns JSON, (c) endpoint requires admin key, (d) Node.js health."
     - agent: "testing"
