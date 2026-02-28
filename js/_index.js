@@ -584,6 +584,7 @@ async function executeTwilioPurchase(chatId, selectedNumber, planKey, price, cou
     numberSurcharge: surcharge,
     smsUsed: 0,
     minutesUsed: 0,
+    capabilities: { voice: true, sms: true, fax: false },
     features: {
       sms: true,
       callForwarding: { enabled: false, mode: 'disabled', forwardTo: null, ringTimeout: 25 },
