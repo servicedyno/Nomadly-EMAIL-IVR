@@ -8075,7 +8075,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       if (phoneConfig.isPlanAvailable('pro')) availablePlanBtns.push([pc.proPlan])
       if (phoneConfig.isPlanAvailable('business')) availablePlanBtns.push([pc.businessPlan])
       const pMsg = phoneConfig.getMsg(info?.userLanguage || 'en')
-      return send(chatId, `${pMsg.buyPlansHeader}\n\n💡 <b>Starter</b> — $${phoneConfig.plans.starter.price}/mo\n   Call forwarding, SMS to Telegram\n\n⭐ <b>Pro</b> — $${phoneConfig.plans.pro.price}/mo\n   + SIP, Voicemail, IVR Outbound, Bulk Calls\n\n👑 <b>Business</b> — $${phoneConfig.plans.business.price}/mo\n   + Call Recording, IVR Auto-attendant`, k.of(availablePlanBtns))
+      return send(chatId, `${pMsg.buyPlansHeader}\n\n💡 <b>Starter</b> — $${phoneConfig.plans.starter.price}/mo\n   Call forwarding, SMS to Telegram\n\n⭐ <b>Pro</b> — $${phoneConfig.plans.pro.price}/mo\n   + SIP, Voicemail, Quick IVR, Bulk IVR\n\n👑 <b>Business</b> — $${phoneConfig.plans.business.price}/mo\n   + Call Recording, IVR Auto-attendant`, k.of(availablePlanBtns))
     }
     if (message === pc.myNumbers) {
       const userData = await get(phoneNumbersOf, chatId)
