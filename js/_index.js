@@ -13826,6 +13826,7 @@ const bankApis = {
     const countryName = cpData.countryName || info?.cpCountryName || 'US'
 
     if (provider === 'twilio') {
+      try {
       // Check if address is needed and cached
       if (needsTwilioAddress(countryCode, provider)) {
         const cachedAddr = await getCachedTwilioAddress(chatId, countryCode)
@@ -13862,6 +13863,12 @@ const bankApis = {
       }
       sendMessage(chatId, cpTxt.activated(selectedNumber, result.plan?.name || planKey, price, result.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(result.expiresAt.toISOString())))
       return res.send(html())
+      } catch (purchaseErr) {
+        log(`[CloudPhone] ❌ Bank/Twilio purchase crashed for ${chatId}: ${purchaseErr?.message || purchaseErr}`)
+        try { addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang) } catch (e) { log(`[CloudPhone] ❌ CRITICAL: Bank refund failed for ${chatId}: ${e?.message}`) }
+        sendMessage(chatId, phoneConfig.getMsg(lang).purchaseFailed + '\n' + (purchaseErr?.message || 'Unexpected error'))
+        return res.send(html(phoneConfig.getMsg(lang).purchaseFailed))
+      }
     }
 
     // ── TELNYX PURCHASE ──
