@@ -1489,6 +1489,7 @@ bot?.on('message', async msg => {
   const hP = trans('hP')
   const vp = trans('vp')
   const buyLeadsSelectCnam = trans('buyLeadsSelectCnam')
+  const lang = info?.userLanguage || 'en'
 
   // ━━━ Main Menu Greeting with Balance & Tier ━━━
   const getMainMenuGreeting = async () => {
