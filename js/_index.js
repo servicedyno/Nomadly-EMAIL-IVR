@@ -9230,7 +9230,7 @@ Choose an IVR template category:`), k.of(rows))
           audioName: bulkData.audioName,
           mode: bulkData.mode,
           transferNumber: bulkData.transferNumber,
-          activeKeys: ['1'],
+          activeKeys: bulkData.activeKeys || ['1'],
           concurrency: bulkData.concurrency || 10,
           holdMusic: bulkData.mode === 'transfer',
           leads: bulkData.leads,
