@@ -13974,7 +13974,8 @@ const bankApis = {
 
     await digitalOrdersCol.updateOne({ orderId }, { $set: { status: 'pending', paymentConfirmedAt: new Date() } })
     send(chatId, translation('t.dpOrderConfirmed', lang, product, price, orderId), translation('o', lang))
-    notifyGroup(`🛒 <b>Digital Product Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b> (Bank)\n\n📩 Deliver with:\n<code>/deliver ${orderId} [details]</code>`)
+    notifyGroup(`🛒 <b>Digital Product Paid!</b>\n\n👤 User: ${maskName(name)}\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b>\n\n✅ Payment confirmed.`)
+    if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🛒 <b>Digital Product Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b> (Bank)\n\n📩 Deliver with:\n<code>/deliver ${orderId} [details]</code>`, { parse_mode: 'HTML' })
     webhookTierCheck(chatId, preSpend, lang)
     res.send(html())
   },
