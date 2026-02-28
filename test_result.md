@@ -501,6 +501,18 @@ metadata:
           agent: "testing"
           comment: "✅ BULK IVR AND QUICK IVR IMPROVEMENTS COMPREHENSIVE TESTING COMPLETE: All new features verified with 100% success rate (7/7 tests passed). (1) SERVICE HEALTH: Node.js backend running healthy on port 5000 with database connected. (2) NEW ACTION STATES: All 9 required action states verified in js/_index.js: bulkSelectKeys, bulkEnterCustomKeys (Fix #1), bulkTTSCategory, bulkTTSTemplate, bulkTTSPlaceholder, bulkTTSVoice, bulkTTSPreview, bulkTTSCustomScript (Fix #2), ivrObConfirmKeys (Fix #3). (3) BULK IVR KEY SELECTION FLOW: Correct routing from bulkSelectMode→bulkSelectKeys and bulkEnterTransfer→bulkSelectKeys, preset acceptance, activeKeys usage. (4) BULK IVR TTS TEMPLATES: Template button, category selection, placeholder handling, TTS generation, audio saving. (5) QUICK IVR KEY CONFIRMATION: Proper routing from ivrObCustomScript→ivrObConfirmKeys, key detection/customization, flow continuation. (6) UX TEXT VERIFICATION: All 3 text updates confirmed in phone-config.js. (7) STARTUP LOGS: Zero errors. ALL IMPROVEMENTS WORKING CORRECTLY."
 
+  - task: "Fix: /ad and /ad post commands + Admin bot menu commands registration"
+    implemented: true
+    working: true
+    file: "js/_index.js, js/lang/en.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ /AD COMMAND & ADMIN MENU COMMANDS COMPREHENSIVE VERIFICATION COMPLETE: All review request requirements tested with 100% success rate (8/8 tests passed). (1) NODE.JS HEALTH: Service running healthy on port 5000 with supervisor status RUNNING and database connected (MongoDB connection pool ready + DB Connected messages found). (2) /AD COMMAND FIX VERIFIED: Both /ad handlers at lines 1304 and 1310 correctly use `translation('l.serviceAd', 'en')` NOT `trans('l.serviceAd')`. (3) TEMPORAL DEAD ZONE FIX CONFIRMED: trans function defined at line 1472 AFTER /ad handlers (lines 1304-1310), preventing ReferenceError. translation function properly imported at module level (line 191). (4) TRANSLATION KEY EXISTS: l.serviceAd key verified in js/lang/en.js within l object (line 1173) containing full service ad content. (5) SETMYCOMMANDS VERIFICATION: setupTelegramWebhook function correctly calls bot.setMyCommands for default commands (start, testsip) and admin commands (ad, orders, requests, credit, reply, close, deliver) with proper chat scope for TELEGRAM_ADMIN_CHAT_ID. (6) STARTUP LOGS CONFIRMED: Both required messages found - 'Default bot commands registered' and 'Admin bot commands registered for chat 5590563715'. (7) NO ERRORS: nodejs.err.log is empty with no critical errors. THE /AD COMMAND FIX AND ADMIN MENU COMMANDS REGISTRATION IS WORKING CORRECTLY - temporal dead zone issue resolved and all bot commands properly registered."
+
 test_plan:
   current_focus:
     - "SIP Domain and Call Flow Fixes for Nomadly Telegram Bot Platform"
