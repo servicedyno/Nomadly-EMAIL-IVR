@@ -85,8 +85,11 @@ async function testCloudPhoneWalletFix() {
         
         if (!hasCatchBlock) {
             console.log('❌ Catch block missing');
+            // Debug: show what we found
+            const debugCatch = handlerContent.match(/catch\s*\([^)]+\)/g);
+            console.log('  Found catch patterns:', debugCatch);
             results.push({ test: 'Try/Catch Block', status: 'FAIL', details: 'Catch block with purchaseErr not found' });
-            return { success: false, results: [], error: 'Early exit due to missing handler' };
+            return { success: false, results: [], error: 'Missing catch block' };
         }
         
         console.log('✅ Try/catch structure exists');
