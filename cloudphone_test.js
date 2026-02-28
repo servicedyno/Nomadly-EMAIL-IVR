@@ -93,7 +93,9 @@ async function testCloudPhoneWalletFix() {
         
         // Check both providers are in try block
         const tryStart = handlerContent.indexOf('try {');
-        const catchStart = handlerContent.indexOf('catch (purchaseErr)');
+        const catchStart = handlerContent.indexOf('} catch (purchaseErr)') >= 0 
+            ? handlerContent.indexOf('} catch (purchaseErr)')
+            : handlerContent.indexOf('catch (purchaseErr)');
         const tryBlockContent = handlerContent.substring(tryStart, catchStart);
         
         const hasTwilioPath = tryBlockContent.includes('if (provider === \'twilio\')');
