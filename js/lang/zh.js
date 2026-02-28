@@ -1391,6 +1391,7 @@ ${plan.panel}`
       registerNewDomainText: '请输入您要注册的域名（例如：example.com）。',
       domainNotFound: '您输入的域名未找到。请确保输入正确或尝试使用其他域名。',
       useExistingDomainText: '请输入您的现有域名（例如：example.com）。',
+      connectExternalDomainText: '请输入您的外部域名（例如：example.com）\n\n设置完成后，您需要将域名服务器指向 Cloudflare。',
       useExistingDomainNotFound: '您输入的域名与您的账户无关联。请检查输入是否正确或联系支持。',
       enterYourEmail: '请提供您的电子邮件地址以创建账户并发送收据。',
       invalidEmail: '请提供一个有效的电子邮件地址。',
