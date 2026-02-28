@@ -122,7 +122,7 @@ async function testCloudPhoneWalletFix() {
                 
             
             // Check for catch block features after confirming try/catch exists  
-            if (handlerSection.includes('} catch (purchaseErr)')) {
+            if (handlerSection.includes('catch (purchaseErr)')) {
                 // Check for refund in catch block
                 if (handlerSection.includes('atomicIncrement(walletOf, chatId, \'usdIn\', priceUsd)') &&
                     handlerSection.includes('atomicIncrement(walletOf, chatId, \'ngnIn\', priceNgn)')) {
