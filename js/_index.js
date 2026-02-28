@@ -8849,7 +8849,7 @@ Choose an IVR template category:`), k.of(rows))
       set(state, chatId, 'action', a.bulkSelectAudio)
       const audios = await audioLibraryService.listAudios(chatId)
       const audioBtns = audios.map(a => [`🎵 ${a.name.substring(0, 30)}`])
-      const btns = [...audioBtns, ['📎 Upload New Audio'], ['🎤 Generate with TTS'], ['↩️ Back']]
+      const btns = [...audioBtns, ['📎 Upload New Audio'], ['📝 Use IVR Template'], ['↩️ Back']]
       return send(chatId, `Select IVR Audio:`, k.of(btns))
     }
     if (msg.voice || msg.audio || (msg.document && (msg.document.mime_type || '').startsWith('audio/'))) {
