@@ -10,7 +10,7 @@
 const axios = require('axios');
 const fs = require('fs');
 
-const BACKEND_URL = 'https://multiapi-deployment.preview.emergentagent.com';
+const BACKEND_URL = 'https://config-pod-webhook.preview.emergentagent.com';
 const INDEX_FILE_PATH = '/app/js/_index.js';
 
 // ANSI color codes for output
