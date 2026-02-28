@@ -8586,7 +8586,9 @@ Choose an IVR template category:`), k.of(rows))
       // Notify: calling
       send(chatId, ivrOb.formatCallNotification('calling', ivrObData))
 
-      // Place the call
+      // Place the call — detect provider to use correct API (Telnyx or Twilio)
+      const callerProvider = ivrObData.callerProvider || 'telnyx'
+      const userData = await get(phoneNumbersOf, chatId)
       const result = await voiceService.initiateOutboundIvrCall({
         chatId,
         callerId: ivrObData.callerId,
@@ -8599,6 +8601,9 @@ Choose an IVR template category:`), k.of(rows))
         voiceName: ivrObData.voiceName,
         isTrial: ivrObData.isTrial || false,
         holdMusic: ivrObData.holdMusic || false,
+        provider: callerProvider,
+        twilioSubAccountSid: userData?.twilioSubAccountSid || null,
+        twilioSubAccountToken: userData?.twilioSubAccountToken || null,
       })
 
       if (result.error) {
