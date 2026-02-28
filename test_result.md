@@ -474,7 +474,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Fix: ReferenceError lang is not defined — broke leads city selection, domain NS select, and 119 inline lang lookups"
+    - "Fix: Translated button handlers — VM/IVR/Option flows had translated button displays but English-only handlers"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
