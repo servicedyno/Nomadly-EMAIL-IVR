@@ -1639,7 +1639,7 @@ Sélectionnez une option :`,
     paymentPrompt: (price) => `价格：<b>$${price}</b>。选择支付方式：`,
     activated: (number, plan, price, sipUser, sipDomain, expiry) => `🎉 <b>您的 Cloud IVR 已激活！</b>\n\n📞 号码：${formatPhone(number)}\n📦 套餐：${plan}（$${price}/月）\n📅 续费日期：${expiry}\n\n━━━ <b>SIP 凭据</b> ━━━\n🌐 服务器：${sipDomain}\n👤 用户名：${sipUser}\n🔑 密码：●●●●●●●●（使用 🔑 SIP 凭据 查看）\n📡 端口：5060 (UDP/TCP) | 5061 (TLS)\n\n━━━ <b>快速设置</b> ━━━\n• 浏览器：在 <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a> 拨打电话\n• 软电话：下载 Zoiper/Ooma，输入 SIP 凭据\n• 短信：来电短信自动转发到此聊天\n• 转发：通过 📱 我的号码 → 呼叫转移 设置`,
     myNumbersList: (numbers) => {
-      let text = '📱 <b>您的云电话号码：</b>\n\n'
+      let text = '📱 <b>您的 Cloud IVR 号码：</b>\n\n'
       numbers.forEach((n, i) => {
         const status = n.status === 'active' ? '✅ 活跃' : n.status === 'suspended' ? '⚠️ 已暂停' : '🗑️ 已删除'
         text += `${i + 1}️⃣  ${formatPhone(n.phoneNumber)}  ${status}\n`
