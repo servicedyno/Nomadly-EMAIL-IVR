@@ -18,6 +18,7 @@ let _payments = null
 let _nanoid = null
 let _twilioSipDomain = null
 let _selfUrl = null
+let _twilioService = null
 
 // In-memory store for active call sessions (callControlId → session data)
 const activeCalls = {}
