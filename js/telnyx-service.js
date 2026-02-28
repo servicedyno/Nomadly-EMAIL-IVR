@@ -422,8 +422,9 @@ async function initializeTelnyxResources(selfUrl) {
       const currentOutboundProfileId = connRes.data?.data?.outbound?.outbound_voice_profile_id
       const patchBody = {
         webhook_event_url: voiceWebhook,
-        // Enable receiving inbound SIP URI calls (required for Call Control → SIP device ringing)
-        sip_uri_calling_preference: 'internal',
+        // Enable receiving inbound SIP URI calls from ANY source (Telnyx Call Control + external like Twilio)
+        // 'unrestricted' allows Twilio <Dial><Sip> to route through sip.speechcue.com → Telnyx → SIP device
+        sip_uri_calling_preference: 'unrestricted',
       }
 
       // Ensure outbound voice profile is linked (required for SIP outbound calls to reach PSTN)
