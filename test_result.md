@@ -646,14 +646,28 @@ agent_communication:
           agent: "main"
           comment: "TWO FIXES: (1) /ad and /ad post commands crashed with ReferenceError because they called trans('l.serviceAd') at line 1304-1319, but trans is a const defined at line 1472 (temporal dead zone). Fixed by replacing trans('l.serviceAd') with translation('l.serviceAd', 'en') which is module-level import available at line 191. (2) Admin menu button missing — bot never called setMyCommands(). Added setMyCommands in setupTelegramWebhook(): default commands for all users (start, testsip), admin-scoped commands for TELEGRAM_ADMIN_CHAT_ID (ad, orders, requests, credit, reply, close, deliver). Logs confirm: 'Default bot commands registered' and 'Admin bot commands registered for chat 5590563715'. Node.js starts clean."
 
+  - task: "Fix: CNAM circuit breaker — auto-skip exhausted providers mid-batch"
+    implemented: true
+    working: "NA"
+    file: "js/cnam-service.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Added per-provider circuit breaker to CNAM service. If Telnyx credit exhausted (402/403), trips immediately and skips Telnyx for 1 hour. For transient errors (timeout, 5xx), trips after 3 consecutive failures with 5-min cooldown. Half-open state tests one request after cooldown. circuitAllows()/circuitSuccess()/circuitFailure() wrap each provider in lookupCnam(). New getCircuitStatus() export for diagnostics. Batch lookups now skip dead providers instantly instead of trying+failing each number."
+
 test_plan:
   current_focus:
-    - "Fix: /ad and /ad post commands + Admin bot menu commands registration"
+    - "Fix: CNAM circuit breaker — auto-skip exhausted providers mid-batch"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
+    - agent: "main"
+      message: "Added circuit breaker to CNAM service (js/cnam-service.js). ROOT CAUSE: If Telnyx CNAM credit was exhausted mid-batch, every subsequent number still tried Telnyx first, got rejected, then fell back — wasting time and API calls. FIX: Per-provider circuit breaker with 3 states (CLOSED/OPEN/HALF_OPEN). Credit/auth errors (401/402/403) trip immediately with 1hr cooldown. Transient errors trip after 3 consecutive failures with 5min cooldown. After cooldown, half-open state tests one request. circuitAllows() checked before each provider call, circuitSuccess()/circuitFailure() update state. New getCircuitStatus() export for admin diagnostics. Node.js starts clean with '[CnamService] Initialized — priority: Telnyx → Multitel → SignalWire + MongoDB cache + circuit breaker'. Test focus: (a) circuitBreakers object exists with telnyx/multitel/signalwire entries, (b) circuitAllows/circuitSuccess/circuitFailure functions exist, (c) lookupCnam calls circuitAllows before each provider, (d) getCircuitStatus exported, (e) Node.js health."
     - agent: "main"
       message: "Fixed /ad + /ad post commands and added admin menu button. ROOT CAUSE 1: /ad handler at line 1304 called trans('l.serviceAd') but trans is const defined at line 1472 — temporal dead zone ReferenceError. FIX: replaced with translation('l.serviceAd', 'en'). ROOT CAUSE 2: No setMyCommands() call existed. FIX: Added setMyCommands in setupTelegramWebhook() — default commands for all users (start, testsip), admin-scoped commands for admin chat (ad, orders, requests, credit, reply, close, deliver). Startup logs confirm both command sets registered. Test focus: (a) translation('l.serviceAd', 'en') NOT trans('l.serviceAd') used in both /ad handlers, (b) setMyCommands called with admin scope, (c) Node.js starts clean."
     - agent: "main"
