@@ -201,12 +201,12 @@ const btn = {
   inboxOlderPage: '▶️ Older',
   inboxRefresh: '🔄 Refresh',
 
-  // IVR Outbound Call
-  ivrOutboundCall: '📢 IVR Outbound Call',
+  // Quick IVR Call (single number)
+  ivrOutboundCall: '📢 Quick IVR Call',
   ivrOutboundBack: '↩️ Back',
 
-  // Bulk Call Campaign
-  bulkCallCampaign: '📞 Bulk Call Campaign',
+  // Bulk IVR Campaign (multiple numbers)
+  bulkCallCampaign: '📞 Bulk IVR Campaign',
   audioLibrary: '🎵 Audio Library',
 
   back: 'Back',
