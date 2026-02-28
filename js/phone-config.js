@@ -1120,7 +1120,7 @@ const btnI18n = {
     cancel: '取消',
   },
   hi: {
-    buyPhoneNumber: '🛒 क्लाउड फ़ोन प्लान खरीदें',
+    buyPhoneNumber: '🛒 क्लाउड IVR प्लान चुनें',
     myNumbers: '📱 मेरे नंबर',
     sipSettings: '📖 SIP सेटअप गाइड',
     usageBilling: '📊 उपयोग और बिलिंग',
