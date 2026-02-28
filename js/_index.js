@@ -10327,7 +10327,7 @@ Professional templates for voicemail, customer support, financial institutions, 
         await saveInfo('cpTtsDraft', draft)
         await bot.sendVoice(chatId, localPath)
         set(state, chatId, 'action', a.cpVmGreetingPreview)
-        return send(chatId, `✅ Audio received. Save as greeting?`, k.of([['✅ Save Greeting'], ['🎙️ Re-upload']]))
+        return send(chatId, `✅ Audio received. Save as greeting?`, k.of([[btn.saveGreeting], [btn.reupload]]))
       } catch (e) {
         return send(chatId, ({ en: "❌ Failed. Try again.", fr: "❌ Échec. Réessayez.", zh: "❌ 失败。请重试。", hi: "❌ विफल। पुनः प्रयास करें।" }[lang] || "❌ Failed. Try again."), k.of([]))
       }
@@ -10367,7 +10367,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     draft.text = tpl.text
     await saveInfo('cpTtsDraft', draft)
     set(state, chatId, 'action', a.cpVmTemplateEdit)
-    return send(chatId, `📋 <b>${tpl.icon} ${tpl.name}</b>\n\n<code>${tpl.text}</code>\n\n✏️ You can edit this text — just type your modified version below.\nOr tap <b>✅ Use As-Is</b> to proceed with this greeting.`, k.of([['✅ Use As-Is']]))
+    return send(chatId, `📋 <b>${tpl.icon} ${tpl.name}</b>\n\n<code>${tpl.text}</code>\n\n✏️ You can edit this text — just type your modified version below.\nOr tap <b>✅ Use As-Is</b> to proceed with this greeting.`, k.of([[btn.useAsIs]]))
   }
 
   // ── VM Template: Edit text then proceed to language → voice ──
@@ -10433,7 +10433,7 @@ Professional templates for voicemail, customer support, financial institutions, 
         await bot.sendVoice(chatId, result.audioPath)
         set(state, chatId, 'action', a.cpVmGreetingPreview)
         return send(chatId, `✅ Preview (${result.voice})\n\nSave this greeting?`, k.of([
-          ['✅ Save Greeting'], ['🔄 Try Different Voice'], ['🌐 Change Language'], ['📝 Re-type Text'],
+          [btn.saveGreeting], [btn.tryDiffVoice], [btn.changeLang], [btn.retypeText],
         ]))
       } catch (e) {
         log(`[TTS] Error: ${e.message}`)
@@ -10537,7 +10537,7 @@ Professional templates for voicemail, customer support, financial institutions, 
         draft.audioPath = localPath; draft.method = 'uploaded'
         await saveInfo('cpTtsDraft', draft)
         await bot.sendVoice(chatId, localPath)
-        return send(chatId, `✅ Audio received. Save?`, k.of([['✅ Save Greeting'], ['🎙️ Re-upload']]))
+        return send(chatId, `✅ Audio received. Save?`, k.of([[btn.saveGreeting], [btn.reupload]]))
       } catch (e) {
         return send(chatId, ({ en: "❌ Failed. Try again.", fr: "❌ Échec. Réessayez.", zh: "❌ 失败。请重试。", hi: "❌ विफल। पुनः प्रयास करें।" }[lang] || "❌ Failed. Try again."), k.of([]))
       }
@@ -10566,7 +10566,7 @@ Professional templates for voicemail, customer support, financial institutions, 
            [pc.disableVoicemail]]
       return send(chatId, cpTxt.voicemailMenu(num.phoneNumber, vm), k.of(btns))
     }
-    return send(chatId, ({ en: "Choose:", fr: "Choisissez :", zh: "请选择：", hi: "चुनें:" }[lang] || "Choose:"), k.of([['✅ Save Greeting'], ['🔄 Try Different Voice'], ['📝 Re-type Text']]))
+    return send(chatId, ({ en: "Choose:", fr: "Choisissez :", zh: "请选择：", hi: "चुनें:" }[lang] || "Choose:"), k.of([[btn.saveGreeting], [btn.tryDiffVoice], [btn.retypeText]]))
   }
 
   // ━━━ CALL RECORDING (Business) ━━━
@@ -10726,7 +10726,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     draft.text = tpl.text
     await saveInfo('cpTtsDraft', draft)
     set(state, chatId, 'action', a.cpIvrTemplateEdit)
-    return send(chatId, `📋 <b>${tpl.icon} ${tpl.name}</b>\n\n<code>${tpl.text}</code>\n\n✏️ You can edit this text — just type your modified version below.\nOr tap <b>✅ Use As-Is</b> to proceed with this greeting.`, k.of([['✅ Use As-Is']]))
+    return send(chatId, `📋 <b>${tpl.icon} ${tpl.name}</b>\n\n<code>${tpl.text}</code>\n\n✏️ You can edit this text — just type your modified version below.\nOr tap <b>✅ Use As-Is</b> to proceed with this greeting.`, k.of([[btn.useAsIs]]))
   }
 
   // ── IVR Template: Edit text then proceed to language → voice ──
@@ -10792,10 +10792,10 @@ Professional templates for voicemail, customer support, financial institutions, 
         await bot.sendVoice(chatId, result.audioPath)
         set(state, chatId, 'action', a.cpIvrGreetingPreview)
         return send(chatId, `✅ Preview generated (${result.voice})\n\n✅ Save this greeting?\n🔄 Try a different voice?\n📝 Re-type the text?`, k.of([
-          ['✅ Save Greeting'],
-          ['🔄 Try Different Voice'],
-          ['🌐 Change Language'],
-          ['📝 Re-type Text'],
+          [btn.saveGreeting],
+          [btn.tryDiffVoice],
+          [btn.changeLang],
+          [btn.retypeText],
         ]))
       } catch (e) {
         log(`[TTS] Error: ${e.message}`)
@@ -10881,8 +10881,8 @@ Professional templates for voicemail, customer support, financial institutions, 
           await saveInfo('cpTtsDraft', draft)
           await bot.sendVoice(chatId, localPath)
           return send(chatId, `✅ Audio received. Save as your IVR greeting?`, k.of([
-            ['✅ Save Greeting'],
-            ['🎙️ Re-upload'],
+            [btn.saveGreeting],
+            [btn.reupload],
           ]))
         } catch (e) {
           return send(chatId, `❌ Failed to process audio. Try again.`, k.of([]))
@@ -10957,14 +10957,14 @@ Professional templates for voicemail, customer support, financial institutions, 
         await saveInfo('cpTtsDraft', draft)
         await bot.sendVoice(chatId, localPath)
         return send(chatId, `✅ Audio received. Save as your IVR greeting?`, k.of([
-          ['✅ Save Greeting'],
-          ['🎙️ Re-upload'],
+          [btn.saveGreeting],
+          [btn.reupload],
         ]))
       } catch (e) {
         return send(chatId, `❌ Failed to process audio. Try again.`, k.of([]))
       }
     }
-    return send(chatId, `Choose an option:`, k.of([['✅ Save Greeting'], ['🔄 Try Different Voice'], ['📝 Re-type Text']]))
+    return send(chatId, `Choose an option:`, k.of([[btn.saveGreeting], [btn.tryDiffVoice], [btn.retypeText]]))
   }
 
   // (IVR Add Option — step-by-step wizard: cpIvrOptionKey → cpIvrOptionAction → cpIvrOptionMsg → cpIvrOptionVoice → cpIvrOptionPreview)
@@ -11203,7 +11203,7 @@ Select a category:`), k.of(catBtns))
           draft.text = tpl.text
           draft.templateKey = tpl.key
           await saveInfo('cpIvrDraft', draft)
-          return send(chatId, `📋 <b>${tpl.icon} ${tpl.name}</b>\n\n<code>${tpl.text}</code>\n\n({ en: "✏️ Type your modified version, or tap <b>✅ Use As-Is</b>", fr: "✏️ Tapez votre version modifiée, ou appuyez sur <b>✅ Utiliser tel quel</b>", zh: "✏️ 输入修改版本，或点击 <b>✅ 直接使用</b>", hi: "✏️ अपना संशोधित संस्करण टाइप करें, या <b>✅ जैसा है</b> दबाएं" }[lang] || "✏️ Type your modified version, or tap <b>✅ Use As-Is</b>"):`, k.of([['✅ Use As-Is']]))
+          return send(chatId, `📋 <b>${tpl.icon} ${tpl.name}</b>\n\n<code>${tpl.text}</code>\n\n({ en: "✏️ Type your modified version, or tap <b>✅ Use As-Is</b>", fr: "✏️ Tapez votre version modifiée, ou appuyez sur <b>✅ Utiliser tel quel</b>", zh: "✏️ 输入修改版本，或点击 <b>✅ 直接使用</b>", hi: "✏️ अपना संशोधित संस्करण टाइप करें, या <b>✅ जैसा है</b> दबाएं" }[lang] || "✏️ Type your modified version, or tap <b>✅ Use As-Is</b>"):`, k.of([[btn.useAsIs]]))
         }
         const tplBtns = ttsService.getTemplateButtons(draft.templateCategory).map(b => [b])
         return send(chatId, ({ en: "Select a template:", fr: "Sélectionnez un modèle :", zh: "选择模板：", hi: "टेम्पलेट चुनें:" }[lang] || "Select a template:"), k.of(tplBtns))
@@ -11277,7 +11277,7 @@ Select a category:`), k.of(catBtns))
       await saveInfo('cpIvrDraft', draft)
       set(state, chatId, 'action', a.cpIvrOptionMsg)
       if (draft.method === 'template') {
-        return send(chatId, `📋 <b>Message</b>\n\n<code>${draft.text}</code>\n\n({ en: "✏️ Type your modified version, or tap <b>✅ Use As-Is</b>", fr: "✏️ Tapez votre version modifiée, ou appuyez sur <b>✅ Utiliser tel quel</b>", zh: "✏️ 输入修改版本，或点击 <b>✅ 直接使用</b>", hi: "✏️ अपना संशोधित संस्करण टाइप करें, या <b>✅ जैसा है</b> दबाएं" }[lang] || "✏️ Type your modified version, or tap <b>✅ Use As-Is</b>"):`, k.of([['✅ Use As-Is']]))
+        return send(chatId, `📋 <b>Message</b>\n\n<code>${draft.text}</code>\n\n({ en: "✏️ Type your modified version, or tap <b>✅ Use As-Is</b>", fr: "✏️ Tapez votre version modifiée, ou appuyez sur <b>✅ Utiliser tel quel</b>", zh: "✏️ 输入修改版本，或点击 <b>✅ 直接使用</b>", hi: "✏️ अपना संशोधित संस्करण टाइप करें, या <b>✅ जैसा है</b> दबाएं" }[lang] || "✏️ Type your modified version, or tap <b>✅ Use As-Is</b>"):`, k.of([[btn.useAsIs]]))
       }
       return send(chatId, ({ en: `📝 Type the message callers will hear when they press <b>${draft.key}</b>:`, fr: `📝 Tapez le message que les appelants entendront quand ils appuieront sur <b>${draft.key}</b> :`, zh: `📝 输入来电者按 <b>${draft.key}</b> 时听到的消息：`, hi: `📝 वह मैसेज टाइप करें जो कॉलर <b>${draft.key}</b> दबाने पर सुनेंगे:` }[lang] || `📝 Type the message callers will hear when they press <b>${draft.key}</b>:`), k.of([]))
     }
@@ -11296,7 +11296,7 @@ Select a category:`), k.of(catBtns))
         await bot.sendVoice(chatId, result.audioPath)
         set(state, chatId, 'action', a.cpIvrOptionPreview)
         return send(chatId, `✅ Preview for key <b>${draft.key}</b> (${result.voice})\n\nSave this option?`, k.of([
-          ['✅ Save Option'], ['🔄 Try Different Voice'], ['🌐 Change Language'], ['📝 Re-type Text'],
+          [btn.saveOption], [btn.tryDiffVoice], [btn.changeLang], [btn.retypeText],
         ]))
       } catch (e) {
         log(`[TTS] Error: ${e.message}`)
@@ -11423,7 +11423,7 @@ Select a category:`), k.of(catBtns))
         [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
       ]))
     }
-    return send(chatId, ({ en: "Choose:", fr: "Choisissez :", zh: "请选择：", hi: "चुनें:" }[lang] || "Choose:"), k.of([['✅ Save Option'], ['🔄 Try Different Voice'], ['📝 Re-type Text']]))
+    return send(chatId, ({ en: "Choose:", fr: "Choisissez :", zh: "请选择：", hi: "चुनें:" }[lang] || "Choose:"), k.of([[btn.saveOption], [btn.tryDiffVoice], [btn.retypeText]]))
   }
 
   // IVR Remove Option
