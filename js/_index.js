@@ -11210,7 +11210,7 @@ Select a category:`), k.of(catBtns))
       }
       // Template "Use As-Is" or user edited text → go to language selection
       if (draft.method === 'template' && draft.text && !draft.lang) {
-        if (message !== '✅ Use As-Is') {
+        if (message !== btn.useAsIs) {
           draft.text = message // User edited
         }
         draft.lang = null
