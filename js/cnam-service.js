@@ -2,6 +2,7 @@
 // CNAM Lookup Service — Resolve caller/sender names
 // Priority: Telnyx (primary) → Multitel (fallback) → SignalWire (last resort)
 // Results cached in MongoDB to avoid repeat lookups
+// Circuit breaker: auto-skips exhausted/down providers
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const axios = require('axios')
 const { log } = require('console')
@@ -13,13 +14,134 @@ const TOKEN_SIGNALWIRE = process.env.TOKEN_SIGNALWIRE
 
 let _cnamCache = null // MongoDB collection
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Circuit Breaker — per-provider failure tracking
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const BREAKER_STATES = { CLOSED: 'CLOSED', OPEN: 'OPEN', HALF_OPEN: 'HALF_OPEN' }
+
+// Thresholds
+const CONSECUTIVE_FAIL_THRESHOLD = 3        // trip after N general failures
+const CREDIT_FAIL_THRESHOLD = 1             // trip immediately on credit/auth error
+const COOLDOWN_CREDIT_MS = 60 * 60 * 1000   // 1 hour for credit/auth exhaustion
+const COOLDOWN_TRANSIENT_MS = 5 * 60 * 1000 // 5 minutes for transient errors
+
+const circuitBreakers = {
+  telnyx:    { state: BREAKER_STATES.CLOSED, failures: 0, lastFailure: 0, cooldownMs: 0, lastError: '' },
+  multitel:  { state: BREAKER_STATES.CLOSED, failures: 0, lastFailure: 0, cooldownMs: 0, lastError: '' },
+  signalwire:{ state: BREAKER_STATES.CLOSED, failures: 0, lastFailure: 0, cooldownMs: 0, lastError: '' },
+}
+
+/**
+ * Check if a provider's circuit allows a request through.
+ * Returns true if the call should proceed, false if it should be skipped.
+ */
+function circuitAllows(provider) {
+  const cb = circuitBreakers[provider]
+  if (!cb) return true
+
+  if (cb.state === BREAKER_STATES.CLOSED) return true
+
+  if (cb.state === BREAKER_STATES.OPEN) {
+    const elapsed = Date.now() - cb.lastFailure
+    if (elapsed >= cb.cooldownMs) {
+      // Cooldown expired → half-open: allow one test request
+      cb.state = BREAKER_STATES.HALF_OPEN
+      log(`[CNAM:CB] ${provider} circuit → HALF_OPEN (cooldown expired, testing one request)`)
+      return true
+    }
+    // Still in cooldown — skip this provider
+    return false
+  }
+
+  // HALF_OPEN — allow the single test request
+  if (cb.state === BREAKER_STATES.HALF_OPEN) return true
+
+  return true
+}
+
+/**
+ * Record a successful call — reset the circuit breaker.
+ */
+function circuitSuccess(provider) {
+  const cb = circuitBreakers[provider]
+  if (!cb) return
+
+  if (cb.state !== BREAKER_STATES.CLOSED) {
+    log(`[CNAM:CB] ${provider} circuit → CLOSED (success after ${cb.failures} prior failures)`)
+  }
+  cb.state = BREAKER_STATES.CLOSED
+  cb.failures = 0
+  cb.lastFailure = 0
+  cb.cooldownMs = 0
+  cb.lastError = ''
+}
+
+/**
+ * Record a failed call — potentially trip the circuit.
+ * @param {Error} err - The error from the API call
+ */
+function circuitFailure(provider, err) {
+  const cb = circuitBreakers[provider]
+  if (!cb) return
+
+  cb.failures++
+  cb.lastFailure = Date.now()
+
+  const status = err?.response?.status
+  const isCreditOrAuth = status === 402 || status === 403 || status === 401
+  const detail = err?.response?.data?.errors?.[0]?.detail || err?.response?.data?.status?.msg || err.message || ''
+  cb.lastError = `${status || 'network'}: ${detail}`
+
+  if (isCreditOrAuth) {
+    // Credit/auth errors → trip immediately
+    cb.state = BREAKER_STATES.OPEN
+    cb.cooldownMs = COOLDOWN_CREDIT_MS
+    log(`[CNAM:CB] ${provider} circuit → OPEN (credit/auth error ${status}). Cooldown: ${COOLDOWN_CREDIT_MS / 60000}min. Detail: ${detail}`)
+  } else if (cb.failures >= CONSECUTIVE_FAIL_THRESHOLD) {
+    // Transient errors → trip after threshold
+    cb.state = BREAKER_STATES.OPEN
+    cb.cooldownMs = COOLDOWN_TRANSIENT_MS
+    log(`[CNAM:CB] ${provider} circuit → OPEN (${cb.failures} consecutive failures). Cooldown: ${COOLDOWN_TRANSIENT_MS / 60000}min. Last: ${cb.lastError}`)
+  } else if (cb.state === BREAKER_STATES.HALF_OPEN) {
+    // Half-open test failed → re-trip
+    cb.state = BREAKER_STATES.OPEN
+    // Keep the same cooldown type
+    cb.cooldownMs = cb.cooldownMs || COOLDOWN_TRANSIENT_MS
+    log(`[CNAM:CB] ${provider} circuit → OPEN (half-open test failed). Re-cooldown: ${cb.cooldownMs / 60000}min. Error: ${cb.lastError}`)
+  }
+  // else: still accumulating failures, stays CLOSED
+}
+
+/**
+ * Get human-readable circuit breaker status for all providers.
+ */
+function getCircuitStatus() {
+  const now = Date.now()
+  return Object.entries(circuitBreakers).map(([provider, cb]) => {
+    const remaining = cb.state === BREAKER_STATES.OPEN
+      ? Math.max(0, Math.ceil((cb.cooldownMs - (now - cb.lastFailure)) / 1000))
+      : 0
+    return {
+      provider,
+      state: cb.state,
+      failures: cb.failures,
+      lastError: cb.lastError || '—',
+      cooldownRemainingSec: remaining,
+    }
+  })
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Provider Init
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 function initCnamService(deps) {
   _cnamCache = deps.cnamCache
   const providers = []
   if (TELNYX_API_KEY) providers.push('Telnyx')
   if (MULTITEL_USERNAME) providers.push('Multitel')
   if (TOKEN_SIGNALWIRE) providers.push('SignalWire')
-  log(`[CnamService] Initialized — priority: ${providers.join(' → ')} + MongoDB cache`)
+  log(`[CnamService] Initialized — priority: ${providers.join(' → ')} + MongoDB cache + circuit breaker`)
 }
 
 // ── Telnyx Caller Name lookup (primary) ──
@@ -70,7 +192,10 @@ async function lookupSignalwire(phone) {
   return res?.data?.cnam?.caller_id || null
 }
 
-// ── Main CNAM lookup with caching ──
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Main CNAM lookup with caching + circuit breaker
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 async function lookupCnam(phoneNumber) {
   const clean = phoneNumber.replace(/[^+\d]/g, '')
   if (!clean || clean.length < 7) return null
@@ -92,10 +217,12 @@ async function lookupCnam(phoneNumber) {
   let name = null
 
   // 1. Try Telnyx first (cheapest, primary)
-  if (TELNYX_API_KEY) {
+  if (TELNYX_API_KEY && circuitAllows('telnyx')) {
     try {
       name = await lookupTelnyx(clean)
+      circuitSuccess('telnyx')
     } catch (e) {
+      circuitFailure('telnyx', e)
       const status = e.response?.status
       const detail = e.response?.data?.errors?.[0]?.detail || e.message
       log(`[CNAM] Telnyx failed for ${clean} (${status || 'network'}): ${detail}`)
@@ -103,19 +230,23 @@ async function lookupCnam(phoneNumber) {
   }
 
   // 2. Fallback to Multitel
-  if (!name && MULTITEL_USERNAME && MULTITEL_PASSWORD) {
+  if (!name && MULTITEL_USERNAME && MULTITEL_PASSWORD && circuitAllows('multitel')) {
     try {
       name = await lookupMultitel(clean)
+      circuitSuccess('multitel')
     } catch (e) {
+      circuitFailure('multitel', e)
       log(`[CNAM] Multitel failed for ${clean}: ${e.message}`)
     }
   }
 
   // 3. Last resort: SignalWire
-  if (!name && TOKEN_SIGNALWIRE) {
+  if (!name && TOKEN_SIGNALWIRE && circuitAllows('signalwire')) {
     try {
       name = await lookupSignalwire(clean)
+      circuitSuccess('signalwire')
     } catch (e) {
+      circuitFailure('signalwire', e)
       log(`[CNAM] SignalWire failed for ${clean}: ${e.message}`)
     }
   }
@@ -158,4 +289,5 @@ module.exports = {
   initCnamService,
   lookupCnam,
   batchLookupCnam,
+  getCircuitStatus,
 }
