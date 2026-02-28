@@ -1888,11 +1888,15 @@ ${
     `请通过点击“付款”来支付 ${priceNGN} NGN。交易确认后，您将立即收到通知，您的VPS计划将以新磁盘类型 ${vpsDetails.upgradeOption.toType} 配置无缝激活。`,
 
   showDepositCryptoInfoVpsUpgrade: (priceUsd, priceCrypto, tickerView, address) =>
-    `请将 ${priceCrypto} ${tickerView} 转账到\n\n<code>${address}</code>
+    `💰 <b>支付金额: $${Number(priceUsd).toFixed(2)} USD</b>
 
-加密支付确认速度很快——通常只需几分钟。交易确认后，您将立即收到通知，您的新VPS计划将无缝激活。
+请发送 <b>${priceCrypto} ${tickerView}</b> 至:
 
-此致敬礼，
+<code>${address}</code>
+
+您升级的 VPS 计划将在支付确认后自动激活（通常只需几分钟）。
+
+此致,
 ${CHAT_BOT_NAME}`,
 
   linkVpsSSHKeyBtn: '➕ 关联新密钥',
