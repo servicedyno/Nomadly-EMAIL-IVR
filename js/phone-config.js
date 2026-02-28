@@ -1239,7 +1239,7 @@ function btnKeyOf(message) {
 // ── Translated txt (user-facing message texts) ──
 const txtI18n = {
   fr: {
-    hubWelcome: `📞 <b>CloudPhone</b> <i>par Speechcue</i>
+    hubWelcome: `📞 <b>Cloud IVR</b> <i>par Speechcue</i>
 
 Obtenez un numéro virtuel dans plus de 30 pays — en moins de 2 minutes.
 
