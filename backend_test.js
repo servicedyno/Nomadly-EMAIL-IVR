@@ -167,16 +167,8 @@ async function testCloudPhoneWalletFix() {
                 results.push({ test: 'Wallet Deduction Code', status: 'FAIL', details: 'atomicIncrement wallet deduction not found' });
             }
             
-            // Check if both Twilio and Telnyx paths are in try block
-            if (handlerSection.includes('if (provider === \'twilio\')') && 
-                handlerSection.includes('} else {') && 
-                handlerSection.includes('// ── TELNYX PURCHASE FLOW ──')) {
-                console.log('✅ Both Twilio and Telnyx paths found inside try block');
-                results.push({ test: 'Both Provider Paths in Try', status: 'PASS', details: 'Twilio and Telnyx flows both in try block' });
-            } else {
-                console.log('❌ Provider paths not properly covered by try block');
-                results.push({ test: 'Both Provider Paths in Try', status: 'FAIL', details: 'Provider flows not properly in try block' });
-            }
+            // Check if both Twilio and Telnyx paths are in try block - already checked above
+            
             
         } else {
             console.log('❌ walletOk[\'phone-pay\'] handler not found');
