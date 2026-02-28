@@ -102,7 +102,7 @@ const user = {
   getSupport: '💬 Get Support',
   freeTrialAvailable: '📧🆓 BulkSMS -Trial',
   changeSetting: '🌍 Settings',
-  cloudPhone: '📞 Cloud Phone + SIP',
+  cloudPhone: '📞 Cloud IVR + SIP',
   testSip: '🧪 Test SIP Free',
   digitalProducts: '🛒 Digital Products',
 
