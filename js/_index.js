@@ -1492,7 +1492,23 @@ bot?.on('message', async msg => {
   const buyLeadsSelectCnam = trans('buyLeadsSelectCnam')
   const lang = info?.userLanguage || 'en'
 
-  // ━━━ Main Menu Greeting with Balance & Tier ━━━
+  // ━━━ Shared translated button labels for VM/IVR/Option flows ━━━
+  const btn = {
+    useTemplate:      ({en: '📋 Use Template',        fr: '📋 Utiliser un Modèle',     zh: '📋 使用模板',            hi: '📋 टेम्पलेट उपयोग'}[lang]        || '📋 Use Template'),
+    typeText:         ({en: '📝 Type Text (AI Voice)', fr: '📝 Saisir Texte (IA Vocale)',zh: '📝 输入文字 (AI 语音)',    hi: '📝 टेक्स्ट टाइप (AI वॉइस)'}[lang] || '📝 Type Text (AI Voice)'),
+    uploadAudio:      ({en: '🎙️ Upload Audio',        fr: '🎙️ Uploader Audio',        zh: '🎙️ 上传音频',           hi: '🎙️ ऑडियो अपलोड'}[lang]           || '🎙️ Upload Audio'),
+    forwardCall:      ({en: '📞 Forward Call',         fr: "📞 Transférer l'appel",     zh: '📞 转接电话',            hi: '📞 कॉल फ़ॉरवर्ड'}[lang]           || '📞 Forward Call'),
+    playMessage:      ({en: '💬 Play Message',         fr: '💬 Lire un Message',        zh: '💬 播放消息',            hi: '💬 मैसेज चलाएं'}[lang]            || '💬 Play Message'),
+    sendToVoicemail:  ({en: '📬 Send to Voicemail',    fr: '📬 Messagerie vocale',      zh: '📬 语音信箱',            hi: '📬 वॉइसमेल'}[lang]               || '📬 Send to Voicemail'),
+    saveOption:       ({en: '✅ Save Option',           fr: '✅ Enregistrer',             zh: '✅ 保存选项',            hi: '✅ सेव करें'}[lang]               || '✅ Save Option'),
+    reupload:         ({en: '🎙️ Re-upload',            fr: '🎙️ Ré-uploader',           zh: '🎙️ 重新上传',           hi: '🎙️ फिर से अपलोड'}[lang]          || '🎙️ Re-upload'),
+    useAsIs:          ({en: '✅ Use As-Is',             fr: '✅ Utiliser tel quel',       zh: '✅ 直接使用',             hi: '✅ जैसा है उपयोग'}[lang]          || '✅ Use As-Is'),
+    saveGreeting:     ({en: '✅ Save Greeting',         fr: '✅ Enregistrer le message',  zh: '✅ 保存问候语',           hi: '✅ ग्रीटिंग सेव करें'}[lang]      || '✅ Save Greeting'),
+    tryDiffVoice:     ({en: '🔄 Try Different Voice',   fr: '🔄 Essayer une autre voix', zh: '🔄 换个声音',             hi: '🔄 अलग आवाज़ आज़माएं'}[lang]     || '🔄 Try Different Voice'),
+    changeLang:       ({en: '🌐 Change Language',       fr: '🌐 Changer la langue',      zh: '🌐 更换语言',             hi: '🌐 भाषा बदलें'}[lang]            || '🌐 Change Language'),
+    retypeText:       ({en: '📝 Re-type Text',          fr: '📝 Retaper le texte',       zh: '📝 重新输入',             hi: '📝 टेक्स्ट फिर से टाइप'}[lang]   || '📝 Re-type Text'),
+    applyCoupon:      ({en: '🎟️ Apply Coupon',          fr: '🎟️ Appliquer un Coupon',   zh: '🎟️ 使用优惠券',          hi: '🎟️ कूपन लागू करें'}[lang]        || '🎟️ Apply Coupon'),
+  }
   const getMainMenuGreeting = async () => {
     const lang = info?.userLanguage || 'en'
     try {
