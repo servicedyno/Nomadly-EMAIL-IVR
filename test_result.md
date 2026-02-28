@@ -620,14 +620,28 @@ agent_communication:
           agent: "testing"
           comment: "✅ ALL ADDON DOMAIN PROTECTION FIXES COMPREHENSIVE VERIFICATION COMPLETE: All 5 fixes (A-E) tested successfully with 100% pass rate (11/11 tests passed). (A) /domains/add (basic): Verified $addToSet addonDomains persistence + CF zone creation (cfService.createZone) + anti-red protection deployment (deployFullProtection) + 3-stage health check scheduling (scheduleHealthCheck). (B) /domains/add-enhanced: Verified $addToSet addonDomains persistence + health check scheduling for addon domains. (C) /domains/remove: Verified $pull addonDomains cleanup from cpanelAccounts collection. (D) protection-enforcer.js collectAllDomains(): Verified addon domain entries correctly include cpUser (account._id || account.cpUser) and parentDomain (mainDomain?.toLowerCase()) fields from parent cpanelAccount for SSL enforcement compatibility. (E) protection-enforcer.js runEnforcement(): Verified condition correctly updated to 'entry.source === cpanelAccounts || entry.source === cpanelAddon' at line 472 - addon domains now receive Worker route enforcement + SSL upgrade processing. Additional verifications: (1) Node.js service healthy at backend URL /health endpoint. (2) Node.js startup clean with empty error log. (3) Protection enforcer ran successfully: 'Enforcement complete in 35.5s' with 'Total: 68 | Protected: 62 | Fixed: 0 | No Zone: 6 | Errors: 0'. (4) Dev environment warning correctly displayed: 'Worker BACKEND_REPORT_URL points to dev environment'. ADDON DOMAIN PROTECTION GAP IS COMPLETELY FIXED AND VERIFIED."
 
+  - task: "Fix: /ad and /ad post commands + Admin bot menu commands registration"
+    implemented: true
+    working: "NA"
+    file: "js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "TWO FIXES: (1) /ad and /ad post commands crashed with ReferenceError because they called trans('l.serviceAd') at line 1304-1319, but trans is a const defined at line 1472 (temporal dead zone). Fixed by replacing trans('l.serviceAd') with translation('l.serviceAd', 'en') which is module-level import available at line 191. (2) Admin menu button missing — bot never called setMyCommands(). Added setMyCommands in setupTelegramWebhook(): default commands for all users (start, testsip), admin-scoped commands for TELEGRAM_ADMIN_CHAT_ID (ad, orders, requests, credit, reply, close, deliver). Logs confirm: 'Default bot commands registered' and 'Admin bot commands registered for chat 5590563715'. Node.js starts clean."
+
 test_plan:
   current_focus:
-    - "Feature: Bulk Call Campaign + Audio Library"
+    - "Fix: /ad and /ad post commands + Admin bot menu commands registration"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
+    - agent: "main"
+      message: "Fixed /ad + /ad post commands and added admin menu button. ROOT CAUSE 1: /ad handler at line 1304 called trans('l.serviceAd') but trans is const defined at line 1472 — temporal dead zone ReferenceError. FIX: replaced with translation('l.serviceAd', 'en'). ROOT CAUSE 2: No setMyCommands() call existed. FIX: Added setMyCommands in setupTelegramWebhook() — default commands for all users (start, testsip), admin-scoped commands for admin chat (ad, orders, requests, credit, reply, close, deliver). Startup logs confirm both command sets registered. Test focus: (a) translation('l.serviceAd', 'en') NOT trans('l.serviceAd') used in both /ad handlers, (b) setMyCommands called with admin scope, (c) Node.js starts clean."
     - agent: "main"
       message: "Revised buy flow: Both providers available for all plans, no provider names shown to users. Changes: (1) Buy flow is Plan-first: Plan→Country→Type→Search→Number→OrderSummary. (2) Removed cpForceTwilio — provider is NOT forced by plan. (3) For dual-provider countries (US/CA where native is Telnyx), search BOTH Telnyx and Twilio and merge results. (4) Each number tagged with _provider and _bulkIvrCapable fields internally. User sees '☎️ Bulk IVR' badge on Twilio numbers without knowing it's Twilio. (5) cpSelectNumber stores selected number's _provider for routing and _bulkIvrCapable flag. (6) Bulk Call Campaign only shows ☎️ Bulk IVR capable numbers (internally Twilio). Non-capable numbers are excluded. (7) All user-facing text uses generic '☎️ Bulk IVR' badge instead of provider names. (8) Existing Telnyx users unaffected — their numbers route through Telnyx as before. (9) twilio-service.js searchNumbers accepts areaCode for US local number search. Test: (A) Node.js starts cleanly. (B) Buy flow: Plan→Country→Type→Search shows merged results with ☎️ tags. (C) No 'Twilio' or 'Telnyx' in user-facing messages. (D) Bulk Call only shows ☎️ capable numbers. (E) cpProvider stored per-number not per-plan."
     - agent: "main"
