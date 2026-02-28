@@ -200,7 +200,7 @@ const t = {
   skip: '跳过',
   becomeReseller: (() => {
     const services = ['URL缩短', '域名注册']
-    if (process.env.PHONE_SERVICE_ON === 'true') services.push('云电话')
+    if (process.env.PHONE_SERVICE_ON === 'true') services.push('Cloud IVR')
     if (HIDE_SMS_APP !== 'true') services.push('群发短信')
     if (process.env.OFFSHORE_HOSTING_ON !== 'false') services.push('离岸托管')
     return `<b>成为${CHAT_BOT_BRAND}经销商</b>
