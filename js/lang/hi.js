@@ -528,7 +528,7 @@ ${CHAT_BOT_NAME}`,
 
 
   // Digital Products
-  digitalProductsSelect: `🛒 <b>डिजिटल उत्पाद</b>\n\nखरीदने के लिए उत्पाद चुनें:`,
+  digitalProductsSelect: `🛒 <b>डिजिटल उत्पाद</b>\n\nसत्यापित खाते इस बॉट के माध्यम से <b>तेज़ी</b> से वितरित किए जाते हैं।\n\n<b>टेलीकॉम</b> — Twilio, Telnyx (SMS, वॉइस, SIP)\n<b>क्लाउड</b> — AWS, Google Cloud (पूर्ण एक्सेस)\n<b>ईमेल</b> — Google Workspace, Zoho Mail\n<b>मोबाइल</b> — eSIM T-Mobile\n\nक्रिप्टो, बैंक या वॉलेट से भुगतान करें। नीचे चुनें:`,
   dpTwilioMain: `📞 Twilio मुख्य खाता — $${DP_PRICE_TWILIO_MAIN}`,
   dpTwilioSub: `📞 Twilio उप-खाता — $${DP_PRICE_TWILIO_SUB}`,
   dpTelnyxMain: `📡 Telnyx मुख्य खाता — $${DP_PRICE_TELNYX_MAIN}`,
