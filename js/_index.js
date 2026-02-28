@@ -15591,6 +15591,8 @@ app.post('/twilio/voice-webhook', async (req, res) => {
     const fwdConfig = num.features?.callForwarding
     const vmConfig = num.features?.voicemail
     const recordingEnabled = num.features?.recording === true
+    const hasSip = !!num.sipUsername
+    const SIP_DOMAIN = process.env.SIP_DOMAIN || 'sip.speechcue.com'
 
     // Check minute limit
     const planLimits = phoneConfig.plans[num.plan]
@@ -15602,12 +15604,11 @@ app.post('/twilio/voice-webhook', async (req, res) => {
       return res.type('text/xml').send(response.toString())
     }
 
-    // Call Forwarding with wallet check
-    if (fwdConfig?.enabled && fwdConfig.forwardTo) {
+    // ━━━ PRIORITY 1: Forward-always ━━━
+    if (fwdConfig?.enabled && fwdConfig.forwardTo && fwdConfig.mode === 'always') {
       const RATE = parseFloat(process.env.CALL_FORWARDING_RATE_MIN || '0.50')
       const { usdBal } = await getBalance(walletOf, chatId)
       if (usdBal < RATE) {
-        // Insufficient balance — fall through to voicemail if enabled
         if (vmConfig?.enabled) {
           bot?.sendMessage(chatId, `🚫 <b>Call Forwarding Blocked</b> — Wallet $${usdBal.toFixed(2)} (need $${RATE}/min). Sending to voicemail.`, { parse_mode: 'HTML' }).catch(() => {})
         } else {
@@ -15617,7 +15618,6 @@ app.post('/twilio/voice-webhook', async (req, res) => {
           return res.type('text/xml').send(response.toString())
         }
       } else {
-        // Forward the call
         const ringTimeout = fwdConfig.ringTimeout || 25
         const dialOpts = {
           callerId: To,
@@ -15633,7 +15633,51 @@ app.post('/twilio/voice-webhook', async (req, res) => {
       }
     }
 
-    // Voicemail — if enabled and no forwarding (or forwarding failed due to balance)
+    // ━━━ PRIORITY 2: Ring SIP device via sip.speechcue.com ━━━
+    if (hasSip) {
+      const ringTimeout = fwdConfig?.ringTimeout || 25
+      const sipUri = `sip:${num.sipUsername}@${SIP_DOMAIN}`
+      const dialOpts = {
+        callerId: From,
+        timeout: ringTimeout,
+        action: `${SELF_URL}/twilio/sip-ring-result?chatId=${chatId}&from=${encodeURIComponent(From)}&to=${encodeURIComponent(To)}`
+      }
+      if (recordingEnabled) {
+        dialOpts.record = 'record-from-answer-dual'
+        dialOpts.recordingStatusCallback = `${SELF_URL}/twilio/recording-status`
+      }
+      const dial = response.dial(dialOpts)
+      dial.sip(sipUri)
+      bot?.sendMessage(chatId, `📞 <b>Incoming Call</b>\nFrom: ${From} → ${To}\n📱 Ringing your SIP device...`, { parse_mode: 'HTML' }).catch(() => {})
+      return res.type('text/xml').send(response.toString())
+    }
+
+    // ━━━ PRIORITY 3: Call Forwarding (no-answer mode without SIP) ━━━
+    if (fwdConfig?.enabled && fwdConfig.forwardTo) {
+      const RATE = parseFloat(process.env.CALL_FORWARDING_RATE_MIN || '0.50')
+      const { usdBal } = await getBalance(walletOf, chatId)
+      if (usdBal >= RATE) {
+        const ringTimeout = fwdConfig.ringTimeout || 25
+        const dialOpts = {
+          callerId: To,
+          timeout: ringTimeout,
+          action: `${SELF_URL}/twilio/voice-dial-status?chatId=${chatId}&from=${encodeURIComponent(From)}&to=${encodeURIComponent(To)}`
+        }
+        if (recordingEnabled) dialOpts.record = 'record-from-answer-dual'
+        if (recordingEnabled) dialOpts.recordingStatusCallback = `${SELF_URL}/twilio/recording-status`
+        const dial = response.dial(dialOpts)
+        dial.number(fwdConfig.forwardTo)
+        bot?.sendMessage(chatId, `📞 <b>Incoming Call</b>\nFrom: ${From}\nForwarding to: ${fwdConfig.forwardTo}`, { parse_mode: 'HTML' }).catch(() => {})
+        return res.type('text/xml').send(response.toString())
+      } else if (!vmConfig?.enabled) {
+        response.say('Your wallet balance is insufficient for call forwarding. Please try again later.')
+        response.hangup()
+        bot?.sendMessage(chatId, `🚫 <b>Call Forwarding Blocked</b> — Wallet $${usdBal.toFixed(2)} (need $${RATE}/min).\nTop up via Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+        return res.type('text/xml').send(response.toString())
+      }
+    }
+
+    // ━━━ PRIORITY 4: Voicemail ━━━
     if (vmConfig?.enabled) {
       const greeting = vmConfig.greetingType === 'custom' && vmConfig.customGreetingUrl
         ? null
