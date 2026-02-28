@@ -1669,7 +1669,6 @@ bot?.on('message', async msg => {
     addUserLanguage: 'addUserLanguage',
     updateUserLanguage: 'updateUserLanguage',
     askUserEmail: 'askUserEmail',
-    askUserTerms: 'askUserTerms',
 
     //vps plans
     submenu4: 'submenu4',
