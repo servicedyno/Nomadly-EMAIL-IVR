@@ -3707,8 +3707,10 @@ Enter new value:`), bc)
       send(chatId, t.dpOrderConfirmed(product, priceUsd, orderId), trans('o'))
       checkAndNotifyTierUpgrade(preSpend)
 
-      // Admin notification with deliver command
-      notifyGroup(`🛒 <b>New Digital Product Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${priceUsd}</b> (${coin === u.usd ? 'Wallet USD' : 'Wallet NGN'})\n\n📩 Deliver with:\n<code>/deliver ${orderId} [product details/credentials]</code>`)
+      // Group notification (sanitized)
+      notifyGroup(`🛒 <b>New Digital Product Order!</b>\n\n👤 User: ${maskName(name)}\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${priceUsd}</b>\n\n✅ Order placed successfully.`)
+      // Admin notification (full details)
+      if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🛒 <b>New Digital Product Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${priceUsd}</b> (${coin === u.usd ? 'Wallet USD' : 'Wallet NGN'})\n\n📩 Deliver with:\n<code>/deliver ${orderId} [product details/credentials]</code>`, { parse_mode: 'HTML' })
     },
     // ━━━ Virtual Card wallet payment ━━━
     'virtual-card-pay': async coin => {
