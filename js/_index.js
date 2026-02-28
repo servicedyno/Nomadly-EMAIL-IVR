@@ -8703,7 +8703,7 @@ Choose an IVR template category:`), k.of(rows))
       audioUrl: pending.audioUrl,
       localPath: pending.localPath,
     })
-    send(chatId, `✅ Audio saved as: <b>${name}</b>\n\nYou can now use it in Bulk Call Campaigns!`, { parse_mode: 'HTML' })
+    send(chatId, `✅ Audio saved as: <b>${name}</b>\n\nYou can now use it in Bulk IVR Campaigns!`, { parse_mode: 'HTML' })
     return goto.submenu5()
   }
 
