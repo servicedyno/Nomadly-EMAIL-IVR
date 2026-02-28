@@ -1203,7 +1203,7 @@ Enjoy premium features during your free trial period!
   acceptedTermsMsg: `You're all set! Here's how to get started:
 
 <b>1.</b> Try your <b>${FREE_LINKS} free short links</b> — tap URL Shortener
-<b>2.</b> Get a <b>virtual phone number</b> — tap Cloud Phone
+<b>2.</b> Get a <b>virtual phone number</b> — tap Cloud IVR
 <b>3.</b> Browse <b>verified digital products</b> — tap Digital Products
 
 Everything is inside the menu below.`,
