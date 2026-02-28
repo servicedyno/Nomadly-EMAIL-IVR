@@ -8925,8 +8925,8 @@ Choose an IVR template category:`), k.of(rows))
     const bulkData = info?.bulkData || {}
     bulkData.transferNumber = clean
     await saveInfo('bulkData', bulkData)
-    set(state, chatId, 'action', a.bulkSetConcurrency)
-    return send(chatId, `🔗 Transfer to: <b>${clean}</b>\n\n⚡ <b>Set Concurrency</b>\n\nHow many simultaneous calls? (1-20)\nDefault: <b>10</b>`, k.of([['5'], ['10'], ['15'], ['20'], ['↩️ Back']]))
+    set(state, chatId, 'action', a.bulkSelectKeys)
+    return send(chatId, `🔗 Transfer to: <b>${clean}</b>\n\n🔘 <b>Select Active Keys</b>\n\nWhich keys trigger the transfer?\n\nPick a preset or enter custom digits:`, k.of([['1 only'], ['1 and 2'], ['1, 2, and 3'], ['0-9 (any key)'], ['✍️ Custom keys'], ['↩️ Back']]))
   }
 
   if (action === a.bulkSetConcurrency) {
