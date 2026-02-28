@@ -1437,17 +1437,10 @@ ${plan.panel}`
 支付确认后，您的 ${plan} 将自动激活（通常只需几分钟）。`,
 
   successText: (info, response) =>
-    `这是您 HostPanel 的凭证 ${info.plan} 的信息：
+    `您的托管已上线。
 
-域名： ${info.website_name}
-用户名： ${response.username}
-${info.email ? `电子邮件： ${info.email}` : ''}
-密码： ${response.password}
-网址： ${response.url}
-
-<b>DNS：</b> 通过 Cloudflare 管理（自动配置）
-  
-您的 HostPanel 凭证已发送到 Telegram。${info.email ? `副本也已发送到 ${info.email}。` : ''}`,
+<b>域名：</b> ${info.website_name}
+${info.email ? `<b>电子邮件：</b> ${info.email}\n` : ''}DNS 已通过 Cloudflare 自动配置。`,
 
   support: (plan, statusCode) => `设置过程中出现问题 ${plan} | ${statusCode}. 
                                               请点击 💬 获取支持.
