@@ -12973,7 +12973,7 @@ Select a category:`), k.of(catBtns))
   if (msgLower.includes('domain name') || msgLower.includes('register domain') || msgLower.includes('bulletproof domain')) {
     return goto.submenu2()
   }
-  if (msgLower.includes('cloud phone') || msgLower.includes('sip')) {
+  if (msgLower.includes('cloud phone') || msgLower.includes('cloud ivr') || msgLower.includes('sip')) {
     if (process.env.PHONE_SERVICE_ON !== 'true') {
       return send(chatId, `📞 Cloud IVR is coming soon! Contact ${process.env.SUPPORT_USERNAME || '@support'} for updates.`, trans('o'))
     }
