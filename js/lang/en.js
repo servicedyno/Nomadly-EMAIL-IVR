@@ -709,7 +709,7 @@ Send exactly <b>${priceCrypto} ${tickerView}</b> to:
 
 <code>${address}</code>
 
-Your Cloud Phone number ${phoneNumber} will be activated automatically once payment is confirmed (usually within a few minutes).
+Your Cloud IVR number ${phoneNumber} will be activated automatically once payment is confirmed (usually within a few minutes).
 
 Best regards,
 ${CHAT_BOT_NAME}`,
