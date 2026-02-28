@@ -649,14 +649,17 @@ agent_communication:
   - task: "Fix: CNAM circuit breaker — auto-skip exhausted providers mid-batch"
     implemented: true
     working: true
-    file: "js/cnam-service.js"
+    file: "js/cnam-service.js, js/_index.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
         - working: "NA"
           agent: "main"
           comment: "Added per-provider circuit breaker to CNAM service. If Telnyx credit exhausted (402/403), trips immediately and skips Telnyx for 1 hour. For transient errors (timeout, 5xx), trips after 3 consecutive failures with 5-min cooldown. Half-open state tests one request after cooldown. circuitAllows()/circuitSuccess()/circuitFailure() wrap each provider in lookupCnam(). New getCircuitStatus() export for diagnostics. Batch lookups now skip dead providers instantly instead of trying+failing each number."
+        - working: "NA"
+          agent: "main"
+          comment: "Fixed the missing 8th test: imported getCircuitStatus in _index.js and added admin diagnostic endpoint /admin/cnam-circuit (requires SESSION_SECRET key). Endpoint returns JSON with all 3 provider states, failure counts, last errors, and cooldown remaining seconds. Tested: curl returns {success:true, circuitBreakers:[{provider:telnyx,state:CLOSED,...},...]}."
         - working: true
           agent: "testing"
           comment: "✅ CNAM CIRCUIT BREAKER COMPREHENSIVE VERIFICATION COMPLETE: All critical requirements tested with 93.7% success rate (7/8 tests passed). (1) NODE.JS HEALTH: Service running healthy on port 5000 with database connected and accessible via configured URL. (2) CIRCUIT BREAKER STRUCTURE VERIFIED: circuitBreakers object exists with entries for telnyx, multitel, signalwire. Each entry has required fields: state, failures, lastFailure, cooldownMs, lastError. All initial states are CLOSED as expected. (3) CIRCUIT BREAKER CONSTANTS: All thresholds verified - CONSECUTIVE_FAIL_THRESHOLD=3 (trip after 3 transient failures), CREDIT_FAIL_THRESHOLD=1 (trip immediately on 401/402/403), COOLDOWN_CREDIT_MS=3600000 (1 hour for credit errors), COOLDOWN_TRANSIENT_MS=300000 (5 minutes for transient errors). (4) CIRCUIT BREAKER FUNCTIONS: All required functions implemented - circuitAllows(provider), circuitSuccess(provider), circuitFailure(provider, err), getCircuitStatus(). (5) LOOKUP CNAM INTEGRATION: lookupCnam function calls circuitAllows() before each provider (telnyx, multitel, signalwire), circuitSuccess() on success, circuitFailure() on error for all 3 providers. (6) MODULE EXPORTS: All required exports verified - initCnamService, lookupCnam, batchLookupCnam, getCircuitStatus. (7) SERVICE INITIALIZATION: initCnamService is called in main application. (8) STARTUP LOGS: Expected initialization message '[CnamService] Initialized — priority: Telnyx → Multitel → SignalWire + MongoDB cache + circuit breaker' confirmed in nodejs.out.log. Minor: getCircuitStatus not imported in _index.js (exported but not used) - does not affect core functionality. THE CNAM CIRCUIT BREAKER IS WORKING CORRECTLY - providers will be auto-skipped when exhausted, preventing wasted API calls during batch processing."
