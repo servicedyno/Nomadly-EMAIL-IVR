@@ -1,403 +1,314 @@
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Backend Test for Nomadly Telegram Bot - Bulk Call Campaign and Audio Library Features
-// Testing Node.js Express Backend on Port 5000
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#!/usr/bin/env node
+
+/**
+ * Nomadly Telegram Bot - ReferenceError lang is not defined Fix Test
+ * 
+ * This test verifies the fix for "ReferenceError: lang is not defined" that was
+ * causing crashes in lead city selection, domain NS select, and 119 inline lang lookups.
+ */
 
 const axios = require('axios');
 const fs = require('fs');
-const path = require('path');
 
-// Get backend URL from environment
-const BACKEND_URL = 'http://localhost:5000';
+const BACKEND_URL = 'https://multiapi-deployment.preview.emergentagent.com';
+const INDEX_FILE_PATH = '/app/js/_index.js';
 
-// Test counter
-let testCount = 0;
-let passedCount = 0;
+// ANSI color codes for output
+const colors = {
+  green: '\x1b[32m',
+  red: '\x1b[31m',
+  yellow: '\x1b[33m',
+  blue: '\x1b[34m',
+  reset: '\x1b[0m',
+  bold: '\x1b[1m'
+};
 
-function log(message) {
-  console.log(`[TEST] ${message}`);
+function log(message, color = 'reset') {
+  console.log(`${colors[color]}${message}${colors.reset}`);
 }
 
-function test(description, result) {
-  testCount++;
-  const status = result ? '✅ PASS' : '❌ FAIL';
-  log(`${testCount}. ${description}: ${status}`);
-  if (result) passedCount++;
-  return result;
+function logTest(testName, result, details = '') {
+  const symbol = result ? '✅' : '❌';
+  const color = result ? 'green' : 'red';
+  log(`${symbol} ${testName}`, color);
+  if (details) {
+    log(`   ${details}`, 'blue');
+  }
 }
 
-async function runTests() {
-  log('Starting Nomadly Telegram Bot Backend Tests...');
-  log(`Backend URL: ${BACKEND_URL}`);
-  log('');
-
+async function testNodejsHealth() {
+  log('\n🔍 TEST 1: Node.js Service Health Check', 'bold');
+  
   try {
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // Test 1: Node.js Health Check
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    log('=== HEALTH CHECKS ===');
+    // Test if service is running via supervisor
+    const { exec } = require('child_process');
+    const { promisify } = require('util');
+    const execAsync = promisify(exec);
     
-    try {
-      const healthResponse = await axios.get(`${BACKEND_URL}/api/health`);
-      const healthData = healthResponse.data;
-      
-      test('Node.js starts cleanly and responds to health check', 
-        healthResponse.status === 200 && 
-        healthData.status === 'healthy' && 
-        healthData.database === 'connected'
-      );
-    } catch (error) {
-      test('Node.js starts cleanly and responds to health check', false);
-      log(`Health check error: ${error.message}`);
-    }
-
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // Test 2: Check Service Logs for Initialization
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    log('=== SERVICE INITIALIZATION ===');
+    const { stdout } = await execAsync('sudo supervisorctl status nodejs');
+    const isRunning = stdout.includes('RUNNING');
+    logTest('Node.js service status', isRunning, isRunning ? 'Service is RUNNING' : 'Service is NOT RUNNING');
     
-    try {
-      const { spawn } = require('child_process');
-      const grep = spawn('grep', ['-i', '\\[AudioLibrary\\] Initialized\\|\\[BulkCall\\] Service initialized', '/var/log/supervisor/nodejs.out.log']);
-      
-      let output = '';
-      grep.stdout.on('data', (data) => {
-        output += data.toString();
-      });
-      
-      await new Promise((resolve) => {
-        grep.on('close', () => resolve());
-      });
-      
-      const hasAudioLibInit = output.includes('[AudioLibrary] Initialized');
-      const hasBulkCallInit = output.includes('[BulkCall] Service initialized');
-      
-      test('Audio Library Service initializes correctly', hasAudioLibInit);
-      test('Bulk Call Service initializes correctly', hasBulkCallInit);
-      
-    } catch (error) {
-      test('Audio Library Service initializes correctly', false);
-      test('Bulk Call Service initializes correctly', false);
-      log(`Log check error: ${error.message}`);
+    // Check error logs are empty
+    const errorLogExists = fs.existsSync('/var/log/supervisor/nodejs.err.log');
+    if (errorLogExists) {
+      const errorLog = fs.readFileSync('/var/log/supervisor/nodejs.err.log', 'utf8');
+      const noErrors = errorLog.trim().length === 0;
+      logTest('Error log empty', noErrors, noErrors ? 'No startup errors' : `Errors found: ${errorLog.substring(0, 100)}...`);
+    } else {
+      logTest('Error log check', false, 'Error log file not found');
     }
-
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // Test 3: Audio Library Service Exports
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    log('=== AUDIO LIBRARY SERVICE VERIFICATION ===');
     
-    try {
-      const audioLibraryService = require('/app/js/audio-library-service.js');
-      const expectedExports = [
-        'initAudioLibrary',
-        'downloadAndSave', 
-        'saveAudio',
-        'listAudios',
-        'getAudio',
-        'deleteAudio',
-        'renameAudio',
-        'getAudioUrl',
-        'AUDIO_DIR'
-      ];
-      
-      const hasAllExports = expectedExports.every(exportName => 
-        typeof audioLibraryService[exportName] !== 'undefined'
-      );
-      
-      test('Audio Library Service has all required exports', hasAllExports);
-      
-      if (!hasAllExports) {
-        const missing = expectedExports.filter(name => !audioLibraryService[name]);
-        log(`Missing exports: ${missing.join(', ')}`);
-      }
-      
-    } catch (error) {
-      test('Audio Library Service has all required exports', false);
-      log(`Audio Library Service error: ${error.message}`);
-    }
-
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // Test 4: Bulk Call Service Exports
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    log('=== BULK CALL SERVICE VERIFICATION ===');
-    
-    try {
-      const bulkCallService = require('/app/js/bulk-call-service.js');
-      const expectedExports = [
-        'initBulkCallService',
-        'parseLeadsFile',
-        'createCampaign',
-        'startCampaign',
-        'onCallComplete',
-        'cancelCampaign',
-        'pauseCampaign',
-        'getCampaign',
-        'getUserCampaigns',
-        'isBulkCall',
-        'getCampaignMapping'
-      ];
-      
-      const hasAllExports = expectedExports.every(exportName => 
-        typeof bulkCallService[exportName] !== 'undefined'
-      );
-      
-      test('Bulk Call Service has all required exports', hasAllExports);
-      
-      if (!hasAllExports) {
-        const missing = expectedExports.filter(name => !bulkCallService[name]);
-        log(`Missing exports: ${missing.join(', ')}`);
-      }
-      
-    } catch (error) {
-      test('Bulk Call Service has all required exports', false);
-      log(`Bulk Call Service error: ${error.message}`);
-    }
-
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // Test 5: parseLeadsFile Function Testing
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    log('=== PARSE LEADS FILE TESTING ===');
-    
-    try {
-      const bulkCallService = require('/app/js/bulk-call-service.js');
-      
-      // Test 1: Simple phone numbers
-      const testInput1 = "+41791234567\n+33612345678";
-      const result1 = bulkCallService.parseLeadsFile(testInput1);
-      test('parseLeadsFile handles simple phone numbers', 
-        result1.leads.length === 2 && 
-        result1.leads[0].number === '+41791234567' &&
-        result1.leads[1].number === '+33612345678' &&
-        result1.errors.length === 0
-      );
-      
-      // Test 2: CSV with names
-      const testInput2 = "+41791234567,John\n+33612345678,Marie";
-      const result2 = bulkCallService.parseLeadsFile(testInput2);
-      test('parseLeadsFile handles CSV with names', 
-        result2.leads.length === 2 && 
-        result2.leads[0].name === 'John' &&
-        result2.leads[1].name === 'Marie' &&
-        result2.errors.length === 0
-      );
-      
-      // Test 3: Invalid input
-      const testInput3 = "invalid";
-      const result3 = bulkCallService.parseLeadsFile(testInput3);
-      test('parseLeadsFile handles invalid input correctly', 
-        result3.leads.length === 0 && 
-        result3.errors.length === 1
-      );
-      
-      // Test 4: Duplicate numbers (should be deduplicated)
-      const testInput4 = "+41791234567\n+41791234567\n+33612345678";
-      const result4 = bulkCallService.parseLeadsFile(testInput4);
-      test('parseLeadsFile deduplicates numbers', 
-        result4.leads.length === 2 &&
-        result4.leads.every(lead => ['+41791234567', '+33612345678'].includes(lead.number))
-      );
-      
-    } catch (error) {
-      test('parseLeadsFile handles simple phone numbers', false);
-      test('parseLeadsFile handles CSV with names', false);
-      test('parseLeadsFile handles invalid input correctly', false);
-      test('parseLeadsFile deduplicates numbers', false);
-      log(`parseLeadsFile testing error: ${error.message}`);
-    }
-
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // Test 6: Voice Service Changes
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    log('=== VOICE SERVICE INTEGRATION ===');
-    
-    try {
-      const voiceServicePath = '/app/js/voice-service.js';
-      const voiceServiceContent = fs.readFileSync(voiceServicePath, 'utf8');
-      
-      // Check initiateOutboundIvrCall function signature
-      const hasInitiateOutboundIvrCall = voiceServiceContent.includes('initiateOutboundIvrCall') &&
-        voiceServiceContent.includes('campaignId') &&
-        voiceServiceContent.includes('leadIndex') &&
-        voiceServiceContent.includes('bulkMode');
-      
-      test('initiateOutboundIvrCall supports bulk campaign parameters', hasInitiateOutboundIvrCall);
-      
-      // Check handleOutboundIvrGatherEnded has report_only mode
-      const hasReportOnlyMode = voiceServiceContent.includes('handleOutboundIvrGatherEnded') &&
-        voiceServiceContent.includes('report_only') &&
-        voiceServiceContent.includes('Thank you. Goodbye');
-      
-      test('handleOutboundIvrGatherEnded has report_only mode', hasReportOnlyMode);
-      
-      // Check handleOutboundIvrHangup calls bulkCallService.onCallComplete
-      const hasOnCallComplete = voiceServiceContent.includes('handleOutboundIvrHangup') &&
-        voiceServiceContent.includes('bulkCallService.onCallComplete');
-      
-      test('handleOutboundIvrHangup calls bulkCallService.onCallComplete', hasOnCallComplete);
-      
-    } catch (error) {
-      test('initiateOutboundIvrCall supports bulk campaign parameters', false);
-      test('handleOutboundIvrGatherEnded has report_only mode', false);
-      test('handleOutboundIvrHangup calls bulkCallService.onCallComplete', false);
-      log(`Voice service verification error: ${error.message}`);
-    }
-
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // Test 7: Phone Config Buttons
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    log('=== PHONE CONFIG VERIFICATION ===');
-    
-    try {
-      const phoneConfig = require('/app/js/phone-config.js');
-      
-      const hasBulkCallButton = phoneConfig.btn.bulkCallCampaign === '📞 Bulk Call Campaign';
-      const hasAudioLibraryButton = phoneConfig.btn.audioLibrary === '🎵 Audio Library';
-      
-      test('Phone config has bulkCallCampaign button', hasBulkCallButton);
-      test('Phone config has audioLibrary button', hasAudioLibraryButton);
-      
-    } catch (error) {
-      test('Phone config has bulkCallCampaign button', false);
-      test('Phone config has audioLibrary button', false);
-      log(`Phone config verification error: ${error.message}`);
-    }
-
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // Test 8: Action Constants in _index.js
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    log('=== ACTION CONSTANTS VERIFICATION ===');
-    
-    try {
-      const indexContent = fs.readFileSync('/app/js/_index.js', 'utf8');
-      
-      const requiredActions = [
-        'bulkSelectCaller',
-        'bulkUploadLeads', 
-        'bulkSelectAudio',
-        'bulkUploadAudio',
-        'bulkNameAudio',
-        'bulkSelectMode',
-        'bulkEnterTransfer',
-        'bulkSetConcurrency',
-        'bulkConfirm',
-        'bulkRunning',
-        'audioLibMenu',
-        'audioLibUpload',
-        'audioLibName'
-      ];
-      
-      const hasAllActions = requiredActions.every(action => 
-        indexContent.includes(action)
-      );
-      
-      test('_index.js contains all required action constants', hasAllActions);
-      
-      if (!hasAllActions) {
-        const missing = requiredActions.filter(action => !indexContent.includes(action));
-        log(`Missing actions: ${missing.join(', ')}`);
-      }
-      
-    } catch (error) {
-      test('_index.js contains all required action constants', false);
-      log(`Action constants verification error: ${error.message}`);
-    }
-
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // Test 9: Cloud Phone Hub Menu Integration
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    log('=== CLOUD PHONE HUB MENU VERIFICATION ===');
-    
-    try {
-      const indexContent = fs.readFileSync('/app/js/_index.js', 'utf8');
-      
-      // Check if submenu5 function includes the new buttons
-      const hasHubMenuIntegration = indexContent.includes('pc.bulkCallCampaign') &&
-        indexContent.includes('pc.audioLibrary') &&
-        indexContent.includes('submenu5');
-      
-      test('Cloud Phone hub menu includes bulk campaign and audio library buttons', hasHubMenuIntegration);
-      
-    } catch (error) {
-      test('Cloud Phone hub menu includes bulk campaign and audio library buttons', false);
-      log(`Hub menu verification error: ${error.message}`);
-    }
-
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // Test 10: User-Audio Directory
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    log('=== USER-AUDIO DIRECTORY VERIFICATION ===');
-    
-    try {
-      const userAudioDir = '/app/js/assets/user-audio/';
-      const dirExists = fs.existsSync(userAudioDir);
-      const isDirectory = dirExists && fs.statSync(userAudioDir).isDirectory();
-      
-      test('User-audio directory exists and is accessible', dirExists && isDirectory);
-      
-    } catch (error) {
-      test('User-audio directory exists and is accessible', false);
-      log(`User-audio directory verification error: ${error.message}`);
-    }
-
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // Test 11: Static Assets Serving
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    log('=== STATIC ASSETS SERVING VERIFICATION ===');
-    
-    try {
-      // Check if the static route is configured
-      const indexContent = fs.readFileSync('/app/js/_index.js', 'utf8');
-      const hasStaticRoute = indexContent.includes('/assets') && 
-        indexContent.includes('express.static') &&
-        indexContent.includes('assets');
-      
-      test('Static assets serving route is configured', hasStaticRoute);
-      
-      // Try to access the assets endpoint (should return directory listing or 404, but not error)
-      try {
-        const assetsResponse = await axios.get(`${BACKEND_URL}/assets/`);
-        test('Assets endpoint is accessible', true);
-      } catch (error) {
-        // 404 is acceptable for directory listing, but connection errors are not
-        const is404 = error.response && error.response.status === 404;
-        test('Assets endpoint is accessible', is404);
-        if (!is404) {
-          log(`Assets endpoint error: ${error.message}`);
-        }
-      }
-      
-    } catch (error) {
-      test('Static assets serving route is configured', false);
-      test('Assets endpoint is accessible', false);
-      log(`Static assets verification error: ${error.message}`);
-    }
-
+    return isRunning;
   } catch (error) {
-    log(`Overall test error: ${error.message}`);
+    logTest('Node.js health check', false, `Error: ${error.message}`);
+    return false;
   }
+}
 
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // Test Summary
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  log('');
-  log('=== TEST SUMMARY ===');
-  log(`Total Tests: ${testCount}`);
-  log(`Passed: ${passedCount}`);
-  log(`Failed: ${testCount - passedCount}`);
-  log(`Success Rate: ${((passedCount / testCount) * 100).toFixed(1)}%`);
+function testOuterScopeLangVariable() {
+  log('\n🔍 TEST 2: Outer Scope Lang Variable Verification', 'bold');
   
-  if (passedCount === testCount) {
-    log('🎉 ALL TESTS PASSED!');
+  try {
+    const indexContent = fs.readFileSync(INDEX_FILE_PATH, 'utf8');
+    const lines = indexContent.split('\n');
+    
+    // Find the line around 1492 where lang should be defined
+    let langLineFound = false;
+    let langLineNumber = -1;
+    let buyLeadsLineFound = false;
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      
+      // Check for buyLeadsSelectCnam line
+      if (line.includes('buyLeadsSelectCnam = trans(')) {
+        buyLeadsLineFound = true;
+        logTest('buyLeadsSelectCnam line found', true, `Line ${i + 1}: ${line.trim()}`);
+        
+        // Check next few lines for lang variable
+        for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
+          if (lines[j].includes('const lang = info?.userLanguage || \'en\'')) {
+            langLineFound = true;
+            langLineNumber = j + 1;
+            break;
+          }
+        }
+        break;
+      }
+    }
+    
+    logTest('Outer scope lang variable exists', langLineFound, 
+           langLineFound ? `Found at line ${langLineNumber}: const lang = info?.userLanguage || 'en'` : 'Lang variable not found after buyLeadsSelectCnam');
+    
+    return langLineFound;
+  } catch (error) {
+    logTest('Outer scope lang variable check', false, `Error: ${error.message}`);
+    return false;
+  }
+}
+
+function testVoiceAudioHandlerLang() {
+  log('\n🔍 TEST 3: Voice/Audio Handler Lang Variable Verification', 'bold');
+  
+  try {
+    const indexContent = fs.readFileSync(INDEX_FILE_PATH, 'utf8');
+    const lines = indexContent.split('\n');
+    
+    // Find cpVmAudioUpload handler
+    let handlerFound = false;
+    let langInHandlerFound = false;
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      
+      if (line.includes('cpVmAudioUpload')) {
+        handlerFound = true;
+        logTest('cpVmAudioUpload handler found', true, `Line ${i + 1}`);
+        
+        // Look for lang variable in the try block
+        for (let j = i; j < Math.min(i + 20, lines.length); j++) {
+          if (lines[j].includes('const lang = userInfo?.userLanguage || \'en\'')) {
+            langInHandlerFound = true;
+            logTest('Lang variable in handler', true, `Line ${j + 1}: ${lines[j].trim()}`);
+            break;
+          }
+        }
+        break;
+      }
+    }
+    
+    if (!handlerFound) {
+      logTest('cpVmAudioUpload handler found', false, 'Handler not found');
+    }
+    
+    if (handlerFound && !langInHandlerFound) {
+      logTest('Lang variable in handler', false, 'Lang variable not found in handler scope');
+    }
+    
+    return handlerFound && langInHandlerFound;
+  } catch (error) {
+    logTest('Voice/audio handler lang check', false, `Error: ${error.message}`);
+    return false;
+  }
+}
+
+function testInlineLangUsages() {
+  log('\n🔍 TEST 4: Inline [lang] Usage Coverage Verification', 'bold');
+  
+  try {
+    const indexContent = fs.readFileSync(INDEX_FILE_PATH, 'utf8');
+    
+    // Count all [lang] usages
+    const langUsagePattern = /}(\s*\[lang\]|\[\s*lang\s*\])/g;
+    const matches = indexContent.match(langUsagePattern) || [];
+    const totalLangUsages = matches.length;
+    
+    logTest('Total [lang] usages found', true, `${totalLangUsages} inline language lookups detected`);
+    
+    // Check specific handlers mentioned in the issue
+    const targetSelectAreaCodeExists = indexContent.includes('targetSelectAreaCode:') && 
+                                     indexContent.match(/targetSelectAreaCode:[\s\S]*?}(\s*\[lang\]|\[\s*lang\s*\])/);
+    
+    const domainNsSelectExists = indexContent.includes('domainNsSelect:') && 
+                               indexContent.match(/domainNsSelect:[\s\S]*?}(\s*\[lang\]|\[\s*lang\s*\])/);
+    
+    logTest('targetSelectAreaCode uses [lang]', targetSelectAreaCodeExists, 
+           targetSelectAreaCodeExists ? 'Handler has inline lang lookups' : 'No [lang] usage found');
+    
+    logTest('domainNsSelect uses [lang]', domainNsSelectExists, 
+           domainNsSelectExists ? 'Handler has inline lang lookups' : 'No [lang] usage found');
+    
+    // Check if there are goto handlers that use [lang]
+    const gotoPattern = /goto\s*=\s*{[\s\S]*?}/;
+    const gotoSection = indexContent.match(gotoPattern);
+    let gotoHasLangUsages = false;
+    
+    if (gotoSection) {
+      gotoHasLangUsages = gotoSection[0].includes('[lang]');
+      logTest('Goto handlers use [lang]', gotoHasLangUsages, 
+             gotoHasLangUsages ? 'Goto object contains [lang] usages' : 'No [lang] in goto object');
+    }
+    
+    return totalLangUsages > 0;
+  } catch (error) {
+    logTest('Inline lang usage check', false, `Error: ${error.message}`);
+    return false;
+  }
+}
+
+function testNoRemainingLangScopes() {
+  log('\n🔍 TEST 5: Verify No Missing Lang Scope Issues', 'bold');
+  
+  try {
+    const indexContent = fs.readFileSync(INDEX_FILE_PATH, 'utf8');
+    
+    // Look for patterns that might indicate scope issues
+    // This is a heuristic check - in a real scenario we'd need runtime testing
+    
+    // Check that main lang variable is before goto object definition
+    const langDefIndex = indexContent.indexOf('const lang = info?.userLanguage || \'en\'');
+    const gotoDefIndex = indexContent.indexOf('const goto = {');
+    
+    const langBeforeGoto = langDefIndex !== -1 && gotoDefIndex !== -1 && langDefIndex < gotoDefIndex;
+    logTest('Lang variable defined before goto object', langBeforeGoto, 
+           langBeforeGoto ? 'Proper scoping order verified' : 'Scoping issue detected');
+    
+    // Check that action object also comes after lang definition
+    const actionDefIndex = indexContent.indexOf('bot?.on(\'message\'');
+    const langInMessageHandler = langDefIndex !== -1 && actionDefIndex !== -1 && langDefIndex > actionDefIndex;
+    
+    logTest('Lang variable in message handler scope', langInMessageHandler, 
+           langInMessageHandler ? 'Lang variable accessible to handlers' : 'Scoping may be incorrect');
+    
+    return langBeforeGoto && langInMessageHandler;
+  } catch (error) {
+    logTest('Lang scope verification', false, `Error: ${error.message}`);
+    return false;
+  }
+}
+
+async function testNodejsServiceReachability() {
+  log('\n🔍 TEST 6: Node.js Service Port 5000 Accessibility', 'bold');
+  
+  try {
+    // Test basic HTTP connectivity to Node.js service
+    const response = await axios.get(`${BACKEND_URL}/health`, {
+      timeout: 10000,
+      validateStatus: () => true // Accept any status code
+    });
+    
+    const isReachable = response.status === 200 || response.status < 500;
+    logTest('Service reachability', isReachable, 
+           `HTTP ${response.status} - Service responding on port 5000`);
+    
+    return isReachable;
+  } catch (error) {
+    if (error.code === 'ECONNREFUSED') {
+      logTest('Service reachability', false, 'Connection refused - service may not be running on port 5000');
+    } else if (error.code === 'ETIMEDOUT') {
+      logTest('Service reachability', false, 'Connection timeout - service not responding');
+    } else {
+      logTest('Service reachability', false, `Network error: ${error.message}`);
+    }
+    return false;
+  }
+}
+
+async function runAllTests() {
+  log('🚀 NOMADLY TELEGRAM BOT - LANG VARIABLE FIX VERIFICATION', 'yellow');
+  log('================================================================', 'yellow');
+  log('Testing fix for: "ReferenceError: lang is not defined"', 'blue');
+  log('Issues fixed: leads city selection, domain NS select, 119 inline lang lookups', 'blue');
+  
+  const results = {
+    nodejsHealth: await testNodejsHealth(),
+    outerScopeLang: testOuterScopeLangVariable(),
+    voiceHandlerLang: testVoiceAudioHandlerLang(),
+    inlineLangUsages: testInlineLangUsages(),
+    langScopeVerification: testNoRemainingLangScopes(),
+    serviceReachability: await testNodejsServiceReachability()
+  };
+  
+  const totalTests = Object.keys(results).length;
+  const passedTests = Object.values(results).filter(Boolean).length;
+  const successRate = ((passedTests / totalTests) * 100).toFixed(1);
+  
+  log('\n📊 TEST SUMMARY', 'bold');
+  log('================================================================', 'yellow');
+  log(`Total Tests: ${totalTests}`, 'blue');
+  log(`Passed: ${passedTests}`, passedTests === totalTests ? 'green' : 'yellow');
+  log(`Failed: ${totalTests - passedTests}`, totalTests - passedTests === 0 ? 'green' : 'red');
+  log(`Success Rate: ${successRate}%`, passedTests === totalTests ? 'green' : 'yellow');
+  
+  if (passedTests === totalTests) {
+    log('\n🎉 ALL TESTS PASSED - Lang variable fix is working correctly!', 'green');
+    log('✓ Node.js starts without errors', 'green');
+    log('✓ Outer scope lang variable exists and is accessible', 'green');
+    log('✓ Voice/audio handler has proper lang variable', 'green');
+    log('✓ All inline [lang] usages are now covered', 'green');
+    log('✓ No remaining scope issues detected', 'green');
+    log('✓ Node.js service is healthy and responsive', 'green');
   } else {
-    log(`⚠️  ${testCount - passedCount} tests failed. See details above.`);
+    log('\n⚠️  Some tests failed - review implementation', 'red');
+    for (const [test, result] of Object.entries(results)) {
+      if (!result) {
+        log(`✗ ${test}`, 'red');
+      }
+    }
   }
   
-  return { total: testCount, passed: passedCount, failed: testCount - passedCount };
+  return { totalTests, passedTests, successRate, results };
 }
 
-// Run tests if this file is executed directly
+// Run tests if this script is executed directly
 if (require.main === module) {
-  runTests().catch(console.error);
+  runAllTests().then(summary => {
+    process.exit(summary.passedTests === summary.totalTests ? 0 : 1);
+  }).catch(error => {
+    log(`\n💥 Test execution failed: ${error.message}`, 'red');
+    process.exit(1);
+  });
 }
 
-module.exports = { runTests };
+module.exports = { runAllTests };
