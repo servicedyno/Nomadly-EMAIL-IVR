@@ -1115,6 +1115,46 @@ const languageMenu = {
 const l = {
   continueAtHostbay: '🚀 所有服务现已在 Nomadly Bot 上提供 — 域名、线索、Cloud IVR、数字产品等。',
   redirectMessage: '🚀 所有服务现已在 Nomadly Bot 上提供 — 域名、线索、Cloud IVR、数字产品等。',
+
+  serviceAd: `━━━━━━━━━━━━━━━━━━━━━━
+⚡ <b>Nomadly</b> — 您的数字工具箱
+━━━━━━━━━━━━━━━━━━━━━━
+
+📞 <b>Cloud IVR + SIP</b>
+30+ 国家虚拟号码
+IVR 自动应答 · 短信 · 语音信箱 · SIP
+快速IVR和批量IVR活动
+
+🌐 <b>防弹域名</b>
+1,000+ TLDs · DMCA 豁免离岸注册
+DNS 管理 · Anti-Red 保护
+
+🛡️ <b>Anti-Red 托管</b>
+离岸 HostPanel · 按周和按月
+JS Challenge 防护 · SSL 包含
+
+🛒 <b>数字产品</b>
+Twilio · Telnyx · AWS · Google Cloud
+Google Workspace · Zoho Mail · eSIM
+
+💳 <b>虚拟借记卡</b>
+即时虚拟卡 · 全球使用
+
+🎯 <b>验证电话线索</b>
+按国家、运营商和区号筛选
+高级线索含机主姓名
+
+🔗 <b>短链接服务</b>
+品牌链接 · 自定义域名 · 数据分析
+
+━━━━━━━━━━━━━━━━━━━━━━
+💰 支付方式：<b>加密货币 · 银行转账 · 钱包</b>
+━━━━━━━━━━━━━━━━━━━━━━
+
+🤖 <b>立即开始 →</b> @Nomadlybot
+💬 <b>需要帮助？</b> 在机器人中点击获取支持
+📢 <b>更新 →</b> ${TG_CHANNEL}`,
+
   askPreferredLanguage: `🌍 为了确保一切都符合您的首选语言，请在下面选择一种：
   
   您随时可以在设置中更改您的语言。`,
