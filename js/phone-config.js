@@ -1186,7 +1186,7 @@ const btnI18n = {
     inboxNewerPage: '◀️ नए',
     inboxOlderPage: '▶️ पुराने',
     inboxRefresh: '🔄 रिफ्रेश',
-    ivrOutboundCall: '📢 IVR आउटबाउंड कॉल',
+    ivrOutboundCall: '📢 त्वरित IVR कॉल',
     ivrOutboundBack: '↩️ वापस',
     bulkCallCampaign: '📞 बल्क कॉल अभियान',
     audioLibrary: '🎵 ऑडियो लाइब्रेरी',
