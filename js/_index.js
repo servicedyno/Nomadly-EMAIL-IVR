@@ -9204,7 +9204,7 @@ Choose an IVR template category:`), k.of(rows))
       `📊 Mode: <b>${bulkData.mode === 'transfer' ? '🔗 Transfer + Report' : '📊 Report Only'}</b>`,
       bulkData.transferNumber ? `🔗 Transfer to: <b>${bulkData.transferNumber}</b>` : null,
       `⚡ Concurrency: <b>${num}</b>`,
-      `🔘 Active key: <b>1</b>`,
+      `🔘 Active keys: <b>${(bulkData.activeKeys || ['1']).join(', ')}</b>`,
       ``,
       `Ready to launch? Tap <b>🚀 Launch Campaign</b>`,
     ].filter(Boolean).join('\n')
