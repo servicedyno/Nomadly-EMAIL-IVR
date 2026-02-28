@@ -1538,7 +1538,7 @@ bot?.on('message', async msg => {
         const trialKey = `ivrTrialUsed_${chatId}`
         const trialUsed = await get(state, trialKey)
         if (!trialUsed) {
-          freeTrialLine = `\n📞 <i>You have a free trial Quick IVR Call! Tap CloudPhone to try it.</i>\n`
+          freeTrialLine = `\n📞 <i>You have a free trial Quick IVR Call! Tap Cloud IVR to try it.</i>\n`
         }
       }
 
