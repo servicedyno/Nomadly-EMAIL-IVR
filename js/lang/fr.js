@@ -1410,6 +1410,7 @@ ${plan.panel}`
       registerNewDomainText: 'Veuillez entrer le nom de domaine que vous souhaitez enregistrer (ex. : exemple.com).',
       domainNotFound: 'Le domaine que vous avez entré est introuvable. Veuillez vérifier ou essayer un autre.',
       useExistingDomainText: 'Veuillez entrer le nom de votre domaine existant (ex. : exemple.com).',
+      connectExternalDomainText: 'Veuillez entrer votre domaine externe (ex. : exemple.com)\n\nAprès la configuration, vous devrez pointer les serveurs de noms vers Cloudflare.',
       useExistingDomainNotFound:
         'Le domaine que vous avez entré n’est pas associé à votre compte. Veuillez vérifier ou contacter le support.',
       enterYourEmail: 'Veuillez fournir votre adresse email pour créer votre compte et recevoir votre reçu.',
