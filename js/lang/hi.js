@@ -1450,13 +1450,10 @@ ${plan.panel}`
 भुगतान की पुष्टि होने पर आपका ${plan} स्वचालित रूप से सक्रिय हो जाएगा (आमतौर पर कुछ ही मिनटों में)।`,
 
   successText: (info, response) =>
-    `आपकी होस्टिंग लाइव है!
+    `आपकी होस्टिंग लाइव है।
 
-डोमेन : ${info.website_name}
-${info.email ? `ईमेल : ${info.email}\n` : ''}
-<b>DNS:</b> Cloudflare के माध्यम से प्रबंधित (स्वतः कॉन्फ़िगर)
-  
-आपके HostPanel क्रेडेंशियल्स Telegram पर भेजे गए हैं।${info.email ? ` एक प्रति ${info.email} पर भी भेजी गई है।` : ''}`,
+<b>डोमेन:</b> ${info.website_name}
+${info.email ? `<b>ईमेल:</b> ${info.email}\n` : ''}DNS Cloudflare के माध्यम से स्वतः कॉन्फ़िगर।`,
 
   support: (plan, statusCode) => `किसी तकनीकी समस्या का सामना हुआ है ${plan} के साथ | ${statusCode}. 
                                               कृपया 💬 सहायता प्राप्त करें बटन दबाएं।
