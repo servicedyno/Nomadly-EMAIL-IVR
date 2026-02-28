@@ -1169,6 +1169,46 @@ const languageMenu = {
 const l = {
   continueAtHostbay: '🚀 All services are now available right here on Nomadly Bot — domains, leads, Cloud IVR, digital products & more.',
   redirectMessage: '🚀 All services are now available right here on Nomadly Bot — domains, leads, Cloud IVR, digital products & more.',
+
+  serviceAd: `━━━━━━━━━━━━━━━━━━━━━━
+⚡ <b>Nomadly</b> — Your Digital Toolkit
+━━━━━━━━━━━━━━━━━━━━━━
+
+📞 <b>Cloud IVR + SIP</b>
+Virtual numbers in 30+ countries
+IVR Auto-Attendant · SMS · Voicemail · SIP
+Quick IVR & Bulk IVR campaigns
+
+🌐 <b>Bulletproof Domains</b>
+1,000+ TLDs · DMCA-ignored offshore
+DNS management · Anti-Red protection
+
+🛡️ <b>Anti-Red Hosting</b>
+Offshore HostPanel · Weekly & monthly
+JS Challenge shield · SSL included
+
+🛒 <b>Digital Products</b>
+Twilio · Telnyx · AWS · Google Cloud
+Google Workspace · Zoho Mail · eSIM
+
+💳 <b>Virtual Debit Cards</b>
+Instant virtual cards · Worldwide use
+
+🎯 <b>Verified Phone Leads</b>
+Filter by country, carrier & area code
+Premium leads with owner names
+
+🔗 <b>URL Shortener</b>
+Branded links · Custom domains · Analytics
+
+━━━━━━━━━━━━━━━━━━━━━━
+💰 Pay with <b>Crypto · Bank · Wallet</b>
+━━━━━━━━━━━━━━━━━━━━━━
+
+🤖 <b>Start Now →</b> @Nomadlybot
+💬 <b>Need help?</b> Tap Get Support in the bot
+📢 <b>Updates →</b> ${TG_CHANNEL}`,
+
   askPreferredLanguage: `🌍 To ensure everything is in your preferred language, please select one below:
   
 You can always change your language later in the settings.`,
