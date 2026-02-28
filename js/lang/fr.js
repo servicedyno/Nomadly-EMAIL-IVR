@@ -99,7 +99,7 @@ const user = {
   viewPlan: '📋 Mes Abonnements',
   becomeReseller: '💼 Devenir revendeur',
   getSupport: "💬 Obtenir de l'aide",
-  cloudPhone: '📞☁️ Cloud Phone + SIP',
+  cloudPhone: '📞 Cloud IVR + SIP',
   testSip: '🧪 Tester SIP Gratuit',
   freeTrialAvailable: '📧🆓 SMS en masse - Essai gratuit',
   changeSetting: '🌍 Modifier les paramètres',
