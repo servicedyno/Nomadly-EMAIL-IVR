@@ -96,7 +96,7 @@ const user = {
   viewPlan: '📋 我的订阅',
   becomeReseller: '💼 成为代理商',
   getSupport: '💬 获取支持',
-  cloudPhone: '📞☁️ Cloud Phone + SIP',
+  cloudPhone: '📞 Cloud IVR + SIP',
   testSip: '🧪 免费测试 SIP',
   vpsPlans: '购买防弹 VPS🛡️ - 按小时/按月',
   buyPlan: '⚡ 升级计划',
