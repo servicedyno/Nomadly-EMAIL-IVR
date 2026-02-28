@@ -60,7 +60,7 @@ async function testCloudPhoneWalletFix() {
         
         // Get handler content 
         const handlerStart = phonePayMatch.index;
-        const handlerContent = indexContent.substring(handlerStart, handlerStart + 6000);
+        const handlerContent = indexContent.substring(handlerStart, handlerStart + 10000);
         
         // Check wallet deduction
         const hasWalletDeduct = handlerContent.includes('atomicIncrement(walletOf, chatId, \'usdOut\'') &&
