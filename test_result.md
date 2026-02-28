@@ -457,9 +457,21 @@ metadata:
           agent: "testing"  
           comment: "✅ REVISED BUY FLOW & BULK CALL CAMPAIGN VERIFICATION COMPLETE: Comprehensive testing with 100% success rate (17/17 tests passed). CRITICAL BUY FLOW ANALYSIS VERIFIED: (1) buyPhoneNumber handler correctly sets action to cpSelectPlan (plan-first workflow). (2) cpSelectPlan saves cpPlanKey and cpPlanBasePrice, does NOT set cpForceTwilio (logic removed). (3) cpSelectCountry sets cpCanSearchBoth = true for Telnyx countries (US/CA), back button goes to cpSelectPlan not submenu5. (4) cpSelectType uses Promise.all dual-provider search when canSearchBoth=true, searches both telnyxApi.searchNumbers AND twilioService.searchNumbers. (5) Provider tagging: telnyxResults get _provider='telnyx' + _bulkIvrCapable=false, twilioResults get _provider='twilio' + _bulkIvrCapable=true. (6) cpSelectNumber stores cpProvider from selected._provider and cpBulkIvrCapable from selected._bulkIvrCapable. (7) Order summary shows ☎️ Bulk IVR capable badge when _bulkIvrCapable=true. (8) Show More, cpSelectArea, cpEnterAreaCode all use dual-provider search (4 Promise.all locations found). NO PROVIDER NAMES: Clean verification - no 'Twilio' or 'Telnyx' mentions in user-facing buy flow messages. BULK CALL CAMPAIGN: Only numbers with provider === 'twilio' shown as caller IDs with ☎️ badge, verified IDs labeled (Verified), generic messaging uses 'look for the ☎️' pattern. TWILIO SERVICE: searchNumbers correctly accepts 4 params (countryCode, numberType, limit, areaCode) with proper areaCode handling. PHONE CONFIG: Button definitions verified (bulkCallCampaign, audioLibrary) and provider settings (telnyx/twilio countries) correctly configured. CRITICAL BUG FIXED: Added missing eligibleNumbers definition in bulk call handler (was undefined, causing runtime errors). ALL REVIEW REQUEST REQUIREMENTS MET - revised buy flow working correctly with proper dual-provider search and user-friendly generic badges."
 
+  - task: "Fix: ReferenceError lang is not defined — broke leads city selection, domain NS select, and 119 inline lang lookups"
+    implemented: true
+    working: "NA"
+    file: "js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "ROOT CAUSE: Recent language fixes added inline multilang objects ({en:...,fr:...,zh:...,hi:...}[lang]) in goto handlers and action handlers, but the `lang` variable was only defined inside inner scopes (trans() function at line 1451, getMainMenuGreeting at line 1496), NOT at the outer scope where goto handlers (line 1808+) and action handlers use it. Result: 'ReferenceError: lang is not defined' crashed any flow hitting these inline lookups (leads city select, domain NS select, etc). FIX: (1) Added `const lang = info?.userLanguage || 'en'` at outer scope (line 1492) after trans() calls — covers all 119 [lang] usages in goto and action handlers. (2) Added `const lang = userInfo?.userLanguage || 'en'` inside the early voice/audio cpVmAudioUpload handler (line 1188) which has [lang] usages at lines 1205-1208 before the outer scope variable. Both fixes ensure lang is always accessible. Node.js starts clean with zero errors."
+
 test_plan:
   current_focus:
-    - "Revised Phone Number Buy Flow — Plan-first, dual-provider search, no provider names to users"
+    - "Fix: ReferenceError lang is not defined — broke leads city selection, domain NS select, and 119 inline lang lookups"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
