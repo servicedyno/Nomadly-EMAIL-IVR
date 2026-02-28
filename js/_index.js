@@ -710,7 +710,7 @@ const loadData = async () => {
     log('[AutoPromo] Skipped — Telegram bot is disabled')
   }
 
-  // Initialize Telnyx Cloud Phone resources
+  // Initialize Telnyx Cloud IVR resources
   if (process.env.TELNYX_API_KEY && process.env.PHONE_SERVICE_ON === 'true') {
     try {
       telnyxResources = await telnyxApi.initializeTelnyxResources(SELF_URL)
@@ -729,7 +729,7 @@ const loadData = async () => {
     log('[CloudPhone] Skipped — TELNYX_API_KEY or PHONE_SERVICE_ON not set')
   }
 
-  // Initialize Twilio Cloud Phone resources
+  // Initialize Twilio Cloud IVR resources
   if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.PHONE_SERVICE_ON === 'true') {
     try {
       twilioResources = await twilioService.initializeTwilioResources(SELF_URL)
@@ -766,7 +766,7 @@ const loadData = async () => {
     }
   }
 
-  // Initialize Cloud Phone scheduler (expiry, usage tracking, monthly reset)
+  // Initialize Cloud IVR scheduler (expiry, usage tracking, monthly reset)
   if (process.env.PHONE_SERVICE_ON === 'true') {
     initPhoneScheduler({
       bot,
@@ -1715,7 +1715,7 @@ bot?.on('message', async msg => {
     submenu6: 'submenu6',
     digitalProductPay: 'digital-product-pay',
 
-    // Cloud Phone
+    // Cloud IVR
     submenu5: 'submenu5',
     cpSelectCountry: 'cpSelectCountry',
     cpSelectType: 'cpSelectType',
@@ -1893,7 +1893,7 @@ bot?.on('message', async msg => {
       send(chatId, t.showWallet(usdBal, ngnBal))
       send(chatId, vp.askPaymentMethod, info.vpsDetails?.billingCycle === 'Hourly' && !lowBalance ? k.of([payIn.wallet]) : k.pay)
     },
-    // ━━━ Cloud Phone goto functions ━━━
+    // ━━━ Cloud IVR goto functions ━━━
     submenu5: () => {
       set(state, chatId, 'action', a.submenu5)
       const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
@@ -3500,7 +3500,7 @@ Enter new value:`), bc)
       checkAndNotifyTierUpgrade(preSpend)
       // Post-purchase upsell
       setTimeout(() => {
-        send(chatId, `💡 <b>What's next with ${domain}?</b>\n\n🔗 <b>Activate for URL Shortener</b> — use ${domain} as your branded short link\n🌐 <b>Manage DNS</b> — point it to your server\n📞 <b>Get a Cloud Phone</b> — pair with a virtual number\n\nTap one of the options below to continue.`, k.of([['🔗 Activate Domain for Shortener'], ['📞 Cloud IVR + SIP'], [t.back]]))
+        send(chatId, `💡 <b>What's next with ${domain}?</b>\n\n🔗 <b>Activate for URL Shortener</b> — use ${domain} as your branded short link\n🌐 <b>Manage DNS</b> — point it to your server\n📞 <b>Get a Cloud IVR</b> — pair with a virtual number\n\nTap one of the options below to continue.`, k.of([['🔗 Activate Domain for Shortener'], ['📞 Cloud IVR + SIP'], [t.back]]))
       }, 2000)
     },
     'hosting-pay': async coin => {
@@ -4060,7 +4060,7 @@ All verified numbers generated during sourcing.`))
       checkAndNotifyTierUpgrade(preSpend)
       // Post-purchase upsell
       setTimeout(() => {
-        send(chatId, `💡 <b>Maximize your leads</b>\n\n📞 <b>Get a Cloud Phone</b> — call these leads with a local number\n🎯 <b>Buy more leads</b> — target a different area or carrier\n🔗 <b>Shorten your links</b> — track your outreach campaigns\n\nTap an option below.`, k.of([[user.cloudPhone], [user.buyLeads], [t.back]]))
+        send(chatId, `💡 <b>Maximize your leads</b>\n\n📞 <b>Get a Cloud IVR</b> — call these leads with a local number\n🎯 <b>Buy more leads</b> — target a different area or carrier\n🔗 <b>Shorten your links</b> — track your outreach campaigns\n\nTap an option below.`, k.of([[user.cloudPhone], [user.buyLeads], [t.back]]))
       }, 3000)
     },
 
@@ -8046,7 +8046,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
   if (message === user.cloudPhone || message === phoneConfig.btn.cloudPhone || message === '📞☁️ Cloud IVR + SIP') {
     if (process.env.PHONE_SERVICE_ON !== 'true') {
-      return send(chatId, `📞 Cloud Phone is coming soon! Contact ${process.env.SUPPORT_USERNAME || '@support'} for updates.`, trans('o'))
+      return send(chatId, `📞 Cloud IVR is coming soon! Contact ${process.env.SUPPORT_USERNAME || '@support'} for updates.`, trans('o'))
     }
     return goto.submenu5()
   }
@@ -8116,7 +8116,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       if (!hasNumbers) {
         // Non-subscriber path — still allow 1 free trial
         if (trialUsed) {
-          return send(chatId, `📢 <b>Quick IVR Call</b>\n\nYou've already used your free trial call.\n\nSubscribe to Cloud Phone to make unlimited IVR calls with your own Caller ID!\n\nTap <b>${buyLabel}</b> to get started.`, k.of([[buyLabel]]))
+          return send(chatId, `📢 <b>Quick IVR Call</b>\n\nYou've already used your free trial call.\n\nSubscribe to Cloud IVR to make unlimited IVR calls with your own Caller ID!\n\nTap <b>${buyLabel}</b> to get started.`, k.of([[buyLabel]]))
         }
         // Trial path — auto-assign caller ID
         await saveInfo('ivrObData', { callerId: ivrOb.TRIAL_CALLER_ID, isTrial: true })
@@ -8164,7 +8164,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       if (!hasEligiblePlan) {
         const currentPlan = userNumbers.length > 0 ? (userNumbers[0]?.plan || 'starter') : 'none'
         if (userNumbers.length === 0) {
-          return send(chatId, `📞 <b>Bulk IVR Campaign</b>\n\n🔒 This feature requires the <b>Pro</b> plan or higher.\n\nGet a Cloud Phone number first!\n\nTap <b>${buyLabel}</b> to get started.`, k.of([[buyLabel]]))
+          return send(chatId, `📞 <b>Bulk IVR Campaign</b>\n\n🔒 This feature requires the <b>Pro</b> plan or higher.\n\nGet a Cloud IVR number first!\n\nTap <b>${buyLabel}</b> to get started.`, k.of([[buyLabel]]))
         }
         return send(chatId, phoneConfig.upgradeMessage('bulkCall', currentPlan, info?.userLanguage), k.of([]))
       }
@@ -9685,7 +9685,7 @@ Choose an IVR template category:`), k.of(rows))
     set(chatIdOfPayment, ref, { chatId, price, cpData: { selectedNumber: info?.cpSelectedNumber, planKey: info?.cpPlanKey, provider: info?.cpProvider || 'telnyx', countryCode: info?.cpCountryCode || 'US', countryName: info?.cpCountryName || 'US' }, endpoint: '/bank-pay-phone' })
     const { url, error } = await createCheckout(priceNGN, `/ok?a=b&ref=${ref}&`, email, username, ref)
     if (error) return send(chatId, error, trans('o'))
-    return send(chatId, `Cloud Phone ₦${priceNGN.toLocaleString()}`, trans('payBank', url))
+    return send(chatId, `Cloud IVR ₦${priceNGN.toLocaleString()}`, trans('payBank', url))
   }
   if (action === 'crypto-pay-phone') {
     if (message === t.back) return goto['phone-pay']()
@@ -9703,7 +9703,7 @@ Choose an IVR template category:`), k.of(rows))
         await sendQrCode(bot, chatId, bbResult.bb, info?.userLanguage ?? 'en')
         set(state, chatId, 'action', 'none')
         const priceCrypto = await convert(price, 'usd', coin)
-        return send(chatId, t.showDepositCryptoInfoPhone(price, priceCrypto, ticker, bbResult.address, info?.cpSelectedNumber || 'Cloud Phone'), trans('o'))
+        return send(chatId, t.showDepositCryptoInfoPhone(price, priceCrypto, ticker, bbResult.address, info?.cpSelectedNumber || 'Cloud IVR'), trans('o'))
       } else {
         log('[CryptoFallback] BlockBee unavailable for phone, falling back to DynoPay')
         const dynoCoin = tickerOfDyno[ticker]
@@ -9715,7 +9715,7 @@ Choose an IVR template category:`), k.of(rows))
         await generateQr(bot, chatId, dynoResult.qr_code, info?.userLanguage ?? 'en')
         set(state, chatId, 'action', 'none')
         const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
-        return send(chatId, t.showDepositCryptoInfoPhone(price, priceCrypto, ticker, dynoResult.address, info?.cpSelectedNumber || 'Cloud Phone'), trans('o'))
+        return send(chatId, t.showDepositCryptoInfoPhone(price, priceCrypto, ticker, dynoResult.address, info?.cpSelectedNumber || 'Cloud IVR'), trans('o'))
       }
     } else {
       const coin = tickerOfDyno[ticker]
@@ -9732,7 +9732,7 @@ Choose an IVR template category:`), k.of(rows))
         await generateQr(bot, chatId, dynoResult.qr_code, info?.userLanguage ?? 'en')
         set(state, chatId, 'action', 'none')
         const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
-        return send(chatId, t.showDepositCryptoInfoPhone(price, priceCrypto, ticker, dynoResult.address, info?.cpSelectedNumber || 'Cloud Phone'), trans('o'))
+        return send(chatId, t.showDepositCryptoInfoPhone(price, priceCrypto, ticker, dynoResult.address, info?.cpSelectedNumber || 'Cloud IVR'), trans('o'))
       } else {
         log('[CryptoFallback] DynoPay unavailable for phone, falling back to BlockBee')
         const bbCoin = tickerOf[ticker]
@@ -9743,7 +9743,7 @@ Choose an IVR template category:`), k.of(rows))
         await sendQrCode(bot, chatId, bb, info?.userLanguage ?? 'en')
         set(state, chatId, 'action', 'none')
         const priceCrypto = await convert(price, 'usd', bbCoin)
-        return send(chatId, t.showDepositCryptoInfoPhone(price, priceCrypto, ticker, bbAddr, info?.cpSelectedNumber || 'Cloud Phone'), trans('o'))
+        return send(chatId, t.showDepositCryptoInfoPhone(price, priceCrypto, ticker, bbAddr, info?.cpSelectedNumber || 'Cloud IVR'), trans('o'))
       }
     }
   }
@@ -12544,7 +12544,7 @@ Select a category:`), k.of(catBtns))
       }
     }
 
-    // 2. Cloud Phone Numbers
+    // 2. Cloud IVR Numbers
     try {
       const phoneData = await get(phoneNumbersOf, chatId)
       const numbers = phoneData?.numbers || []
@@ -12975,7 +12975,7 @@ Select a category:`), k.of(catBtns))
   }
   if (msgLower.includes('cloud phone') || msgLower.includes('sip')) {
     if (process.env.PHONE_SERVICE_ON !== 'true') {
-      return send(chatId, `📞 Cloud Phone is coming soon! Contact ${process.env.SUPPORT_USERNAME || '@support'} for updates.`, trans('o'))
+      return send(chatId, `📞 Cloud IVR is coming soon! Contact ${process.env.SUPPORT_USERNAME || '@support'} for updates.`, trans('o'))
     }
     return goto.submenu5()
   }
@@ -13469,7 +13469,7 @@ const upgradeVPSDetails = async (chatId, lang, vpsDetails) => {
   }
 }
 
-// ── Cloud Phone DB helpers ──
+// ── Cloud IVR DB helpers ──
 async function updatePhoneNumberFeature(col, chatId, phoneNumber, featureKey, value) {
   const userData = await get(col, chatId)
   if (!userData?.numbers) return
@@ -14294,7 +14294,7 @@ app.get('/crypto-pay-hosting', auth, async (req, res) => {
   res.send(html())
 })
 
-// Cloud Phone — BlockBee callback
+// Cloud IVR — BlockBee callback
 app.get('/crypto-pay-phone', auth, async (req, res) => {
   const { ref, chatId, price, cpData } = req.pay
   const coin = req?.query?.coin
@@ -14794,7 +14794,7 @@ app.post('/dynopay/crypto-pay-hosting', authDyno, async (req, res) => {
   res.send(html())
 })
 
-// Dynopay Cloud Phone
+// Dynopay Cloud IVR
 app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
   const { ref, chatId, price, cpData } = req.pay
   const { amount:value, currency:coin, payment_id:id } = req.body
