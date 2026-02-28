@@ -74,7 +74,8 @@ async function testCloudPhoneWalletFix() {
         
         // Check try/catch structure
         const hasTryBlock = handlerContent.includes('try {');
-        const hasCatchBlock = handlerContent.includes('catch (purchaseErr)');
+        const hasCatchBlock = handlerContent.includes('catch (purchaseErr)') || 
+                             handlerContent.includes('} catch (purchaseErr)');
         
         if (!hasTryBlock) {
             console.log('❌ Try block missing');
