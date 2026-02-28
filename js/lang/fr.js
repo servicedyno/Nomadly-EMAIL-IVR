@@ -201,7 +201,7 @@ const t = {
   skip: 'Ignorer',
   becomeReseller: (() => {
     const services = ['Raccourcissement URL', 'Enregistrement de domaines']
-    if (process.env.PHONE_SERVICE_ON === 'true') services.push('Cloud Phone')
+    if (process.env.PHONE_SERVICE_ON === 'true') services.push('Cloud IVR')
     if (HIDE_SMS_APP !== 'true') services.push('BulkSMS')
     if (process.env.OFFSHORE_HOSTING_ON !== 'false') services.push('Hébergement Anti-Red')
     return `<b>Devenez revendeur ${CHAT_BOT_BRAND}</b>
