@@ -972,7 +972,7 @@ const msg = {
 // ── Translated button labels (for multilingual keyboards) ──
 const btnI18n = {
   fr: {
-    buyPhoneNumber: '🛒 Acheter un Forfait Cloud Phone',
+    buyPhoneNumber: '🛒 Choisir un Forfait Cloud IVR',
     myNumbers: '📱 Mes Numéros',
     sipSettings: '📖 Guide SIP',
     usageBilling: '📊 Utilisation & Facturation',
