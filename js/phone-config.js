@@ -1046,7 +1046,7 @@ const btnI18n = {
     cancel: 'Annuler',
   },
   zh: {
-    buyPhoneNumber: '🛒 购买云电话套餐',
+    buyPhoneNumber: '🛒 选择云IVR套餐',
     myNumbers: '📱 我的号码',
     sipSettings: '📖 SIP 设置指南',
     usageBilling: '📊 使用量与账单',
