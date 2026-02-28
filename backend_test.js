@@ -120,6 +120,9 @@ async function testCloudPhoneWalletFix() {
                     }
                 } else {
                     console.log('❌ Catch block with purchaseErr not found');
+                    // Debug: let's see what catch blocks are there
+                    const catchMatches = handlerSection.match(/catch \([^)]+\)/g);
+                    console.log('   Found catch blocks:', catchMatches);
                     results.push({ test: 'Try/Catch Block Existence', status: 'FAIL', details: 'Catch block with purchaseErr not found' });
                 }
             } else {
