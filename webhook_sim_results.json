@@ -80,7 +80,7 @@
     "zh/domain_sub/buy": "✅ OK",
     "zh/domain_sub/my_domains": "✅ OK",
     "zh/domain_sub/dns": "✅ OK",
-    "zh/wallet_sub/deposit": "✅ OK",
+    "zh/wallet_sub/deposit": "❌ ERROR",
     "zh/wallet_sub/withdraw": "✅ OK",
     "zh/wallet_sub/transfer": "✅ OK",
     "zh/wallet_sub/history": "✅ OK",
@@ -129,11 +129,17 @@
     "hi/validate/main": "✅ OK",
     "hi/support/get_support": "✅ OK"
   },
-  "errors": [],
+  "errors": [
+    {
+      "key": "zh/wallet_sub/deposit",
+      "button_text": "➕💵 充值",
+      "error": "❌ Unhandled Promise Rejection: {}\nPromise: Promise {\n  <rejected> ReferenceError: Cannot access 't' before initialization\n      at TelegramBot.<anonymous> (/app/js/_index.js:1396:32)\n      at TelegramBot.emit (/app/node_modules/eventemitter3/index.js:182:35)\n      at TelegramBot.processUpdate (/app/node_modules/node-telegram-bot-api/src/telegram.js:794:12)\n      at /app/js/_index.js:16059:9\n      at Layer.handleRequest (/app/node_modules/router/lib/layer.js:152:17)\n      at next (/app/node_modul"
+    }
+  ],
   "summary": {
     "total": 128,
-    "ok": 128,
-    "errors": 0,
+    "ok": 127,
+    "errors": 1,
     "no_reply": 0
   }
 }
