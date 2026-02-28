@@ -207,55 +207,63 @@ class CloudPhoneTest:
             with open('/app/js/_index.js', 'r') as f:
                 content = f.read()
             
-            # Find walletOk['phone-pay'] handler
-            phone_pay_pattern = r"walletOf,\s*chatId,\s*coin\s*===\s*u\.usd\s*\?\s*'usdOut'\s*:\s*'ngnOut',\s*coin\s*===\s*u\.usd\s*\?\s*priceUsd\s*:\s*priceNgn"
-            
             lines = content.split('\n')
-            wallet_deduction_line = None
             
-            # Find wallet deduction line
+            # Find the phone-pay wallet deduction specifically (lines 3798 and 3801)
+            phone_pay_deduction_line = None
             for i, line in enumerate(lines):
-                if 'atomicIncrement(walletOf, chatId,' in line and ('usdOut' in line or 'ngnOut' in line):
-                    wallet_deduction_line = i + 1
+                if 'await atomicIncrement(walletOf, chatId, \'usdOut\', priceUsd)' in line:
+                    phone_pay_deduction_line = i + 1
                     break
             
-            if wallet_deduction_line:
+            if phone_pay_deduction_line:
                 # Look for try block after wallet deduction
                 try_found = False
                 catch_found = False
-                auto_refund_found = False
+                auto_refund_usd = False
+                auto_refund_ngn = False
                 cloudphone_logging = False
+                purchase_failed_msg = False
                 
-                # Search in next 200 lines after wallet deduction
-                for i in range(wallet_deduction_line, min(len(lines), wallet_deduction_line + 200)):
+                # Search in next 150 lines after wallet deduction
+                for i in range(phone_pay_deduction_line, min(len(lines), phone_pay_deduction_line + 150)):
                     line = lines[i].strip()
                     
                     if 'try {' in line:
                         try_found = True
-                    elif '} catch (purchaseErr)' in line or 'catch (purchaseErr)' in line:
+                    elif 'catch (purchaseErr)' in line:
                         catch_found = True
-                    elif 'atomicIncrement(walletOf, chatId,' in line and 'In,' in line:
-                        auto_refund_found = True
-                    elif '[CloudPhone]' in line and 'catch' in lines[max(0, i-5):i+5]:
+                    elif 'atomicIncrement(walletOf, chatId, \'usdIn\', priceUsd)' in line:
+                        auto_refund_usd = True
+                    elif 'atomicIncrement(walletOf, chatId, \'ngnIn\', priceNgn)' in line:
+                        auto_refund_ngn = True
+                    elif '[CloudPhone]' in line and ('Purchase crashed' in line or 'Auto-refunded' in line):
                         cloudphone_logging = True
+                    elif 'purchaseFailed' in line and 'send(chatId' in line:
+                        purchase_failed_msg = True
                 
-                if try_found and catch_found and auto_refund_found:
+                # Verify all components are present
+                if try_found and catch_found and auto_refund_usd and auto_refund_ngn:
                     details = []
                     if cloudphone_logging:
-                        details.append("[CloudPhone] logging found")
+                        details.append("[CloudPhone] logging present")
+                    if purchase_failed_msg:
+                        details.append("purchaseFailed message")
                     
                     self.log_result("Try/Catch Wrapper", "PASS", 
-                                  f"Purchase section wrapped in try/catch after wallet deduction (line {wallet_deduction_line}), auto-refund logic present" + 
+                                  f"Purchase section wrapped in try/catch after wallet deduction (line {phone_pay_deduction_line}), " +
+                                  f"auto-refund for USD & NGN present" + 
                                   (f", {', '.join(details)}" if details else ""))
                 else:
                     missing = []
                     if not try_found: missing.append("try block")
                     if not catch_found: missing.append("catch block") 
-                    if not auto_refund_found: missing.append("auto-refund")
+                    if not auto_refund_usd: missing.append("USD auto-refund")
+                    if not auto_refund_ngn: missing.append("NGN auto-refund")
                     
                     self.log_error("Try/Catch Wrapper", f"Missing: {', '.join(missing)}")
             else:
-                self.log_error("Try/Catch Wrapper", "Could not locate wallet deduction line")
+                self.log_error("Try/Catch Wrapper", "Could not locate phone-pay wallet deduction line")
                 
         except Exception as e:
             self.log_error("Try/Catch Wrapper", f"Analysis failed: {str(e)}")
