@@ -1,5 +1,5 @@
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Cloud Phone Config — Texts, keyboards, state actions
+// Cloud IVR Config — Texts, keyboards, state actions
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 const PHONE_STARTER_PRICE = parseFloat(process.env.PHONE_STARTER_PRICE || '5')
@@ -109,7 +109,7 @@ function isBlockedPrefix(phoneNumber) {
 
 // ── Button labels ──
 const btn = {
-  cloudPhone: '📞☁️ Cloud Phone — Speechcue',
+  cloudPhone: '📞☁️ Cloud IVR — Speechcue',
   buyPhoneNumber: '🛒 Choose a Cloud IVR Plan',
   myNumbers: '📱 My Numbers',
   sipSettings: '📖 SIP Setup Guide',
@@ -423,7 +423,7 @@ Select an option:`,
 
   paymentPrompt: (price) => `Price: <b>$${price}</b>. Choose payment method:`,
 
-  activated: (number, plan, price, sipUser, sipDomain, expiry) => `🎉 <b>Your Cloud Phone is Active!</b>
+  activated: (number, plan, price, sipUser, sipDomain, expiry) => `🎉 <b>Your Cloud IVR is Active!</b>
 
 📞 Number: ${formatPhone(number)}
 📦 Plan: ${plan} ($${price}/mo)
@@ -444,7 +444,7 @@ Select an option:`,
   noNumbers: '📱 You don\'t have any phone numbers yet.\n\nTap below to get your first virtual number.',
 
   myNumbersList: (numbers) => {
-    let text = '📱 <b>Your Cloud Phone Numbers:</b>\n\n'
+    let text = '📱 <b>Your Cloud IVR Numbers:</b>\n\n'
     numbers.forEach((n, i) => {
       const status = n.status === 'active' ? '✅ Active' : n.status === 'suspended' ? '⚠️ Suspended' : '🗑️ Deleted'
       text += `${i + 1}️⃣  ${formatPhone(n.phoneNumber)}  ${status}\n`
@@ -686,7 +686,7 @@ Are you sure?`,
   // Expiry reminders
   expiryReminder: (number, days, plan, price, balance) => `🔔 <b>Renewal Reminder</b>
 
-Your Cloud Phone number ${formatPhone(number)} (${plan} Plan) expires in <b>${days} day${days !== 1 ? 's' : ''}</b>.
+Your Cloud IVR number ${formatPhone(number)} (${plan} Plan) expires in <b>${days} day${days !== 1 ? 's' : ''}</b>.
 
 Wallet Balance: $${balance}
 Plan Price: $${price}/mo${balance < price ? '\n\n⚠️ Insufficient balance. Please deposit funds.' : ''}`,
@@ -809,7 +809,7 @@ function generateSipPassword() {
   return crypto.randomBytes(16).toString('hex')
 }
 
-// ── Multilingual UI messages for Cloud Phone ──
+// ── Multilingual UI messages for Cloud IVR ──
 const msg = {
   en: {
     selectOption: 'Please select an option.',
@@ -844,7 +844,7 @@ const msg = {
     noActivity: 'No activity yet.',
     insufficientBalUpgrade: (needed, bal) => `❌ Insufficient balance. You need $${needed.toFixed(2)} but have $${bal.toFixed(2)}.\n\nPlease top up your wallet first.`,
     sipTestCode: (otp, remaining) => `🔑 <b>Your SIP Test Code</b>\n\n<code>${otp}</code>\n\nEnter this code on the call page to get your free SIP credentials.\n⏱ Expires in 5 minutes.\n📞 ${remaining} test call${remaining !== 1 ? 's' : ''} remaining.\n\n🌐 <a href="${CALL_PAGE_URL}">Open Call Page</a>`,
-    sipTestComplete: `📞 <b>SIP Test Complete</b>\n\nYou've used your free test calls. To make unlimited SIP calls, subscribe to a <b>Cloud Phone</b> plan with SIP support.\n\n👉 Tap <b>📞 Cloud IVR + SIP</b> below to browse plans and get your own number with full SIP credentials.\n\n🌐 You can also make & receive calls directly in your browser at <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>`,
+    sipTestComplete: `📞 <b>SIP Test Complete</b>\n\nYou've used your free test calls. To make unlimited SIP calls, subscribe to a <b>Cloud IVR</b> plan with SIP support.\n\n👉 Tap <b>📞 Cloud IVR + SIP</b> below to browse plans and get your own number with full SIP credentials.\n\n🌐 You can also make & receive calls directly in your browser at <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>`,
     sipTestReferral: (link) => `\n\n🎁 <b>Want 1 more free test call?</b>\nShare this link with a friend. When they send /testsip, you'll get a bonus call:\n\n${link}`,
     sipTestError: '❌ Could not generate test code. Please try again later.',
     sipTestMenuHint: '🧪 <i>Try SIP calling free — send /testsip</i>',
@@ -883,7 +883,7 @@ const msg = {
     noActivity: 'Aucune activité pour le moment.',
     insufficientBalUpgrade: (needed, bal) => `❌ Solde insuffisant. Vous avez besoin de $${needed.toFixed(2)} mais n'avez que $${bal.toFixed(2)}.\n\nVeuillez recharger votre portefeuille.`,
     sipTestCode: (otp, remaining) => `🔑 <b>Votre code de test SIP</b>\n\n<code>${otp}</code>\n\nEntrez ce code sur la page d'appel pour obtenir vos identifiants SIP gratuits.\n⏱ Expire dans 5 minutes.\n📞 ${remaining} appel${remaining !== 1 ? 's' : ''} test restant${remaining !== 1 ? 's' : ''}.\n\n🌐 <a href="${CALL_PAGE_URL}">Ouvrir la page d'appel</a>`,
-    sipTestComplete: `📞 <b>Test SIP terminé</b>\n\nVous avez utilisé vos appels test gratuits. Pour des appels SIP illimités, souscrivez à un forfait <b>Cloud Phone</b> avec support SIP.\n\n👉 Appuyez sur <b>📞 Cloud IVR + SIP</b> pour parcourir les forfaits.\n\n🌐 Appelez depuis votre navigateur : <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>`,
+    sipTestComplete: `📞 <b>Test SIP terminé</b>\n\nVous avez utilisé vos appels test gratuits. Pour des appels SIP illimités, souscrivez à un forfait <b>Cloud IVR</b> avec support SIP.\n\n👉 Appuyez sur <b>📞 Cloud IVR + SIP</b> pour parcourir les forfaits.\n\n🌐 Appelez depuis votre navigateur : <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>`,
     sipTestReferral: (link) => `\n\n🎁 <b>Voulez-vous 1 appel test gratuit de plus ?</b>\nPartagez ce lien avec un ami. Quand il enverra /testsip, vous obtiendrez un appel bonus :\n\n${link}`,
     sipTestError: '❌ Impossible de générer le code test. Veuillez réessayer.',
     sipTestMenuHint: '🧪 <i>Essayez le SIP gratuitement — envoyez /testsip</i>',
@@ -922,7 +922,7 @@ const msg = {
     noActivity: '暂无活动记录。',
     insufficientBalUpgrade: (needed, bal) => `❌ 余额不足。需要 $${needed.toFixed(2)}，但仅有 $${bal.toFixed(2)}。\n\n请先充值。`,
     sipTestCode: (otp, remaining) => `🔑 <b>您的SIP测试码</b>\n\n<code>${otp}</code>\n\n在通话页面输入此代码以获取免费SIP凭据。\n⏱ 5分钟后过期。\n📞 剩余 ${remaining} 次测试通话。\n\n🌐 <a href="${CALL_PAGE_URL}">打开通话页面</a>`,
-    sipTestComplete: `📞 <b>SIP测试完成</b>\n\n您已使用完免费测试通话。如需无限SIP通话，请订阅支持SIP的 <b>Cloud Phone</b> 套餐。\n\n👉 点击 <b>📞 Cloud IVR + SIP</b> 浏览套餐。\n\n🌐 在浏览器中拨打电话：<a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>`,
+    sipTestComplete: `📞 <b>SIP测试完成</b>\n\n您已使用完免费测试通话。如需无限SIP通话，请订阅支持SIP的 <b>Cloud IVR</b> 套餐。\n\n👉 点击 <b>📞 Cloud IVR + SIP</b> 浏览套餐。\n\n🌐 在浏览器中拨打电话：<a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>`,
     sipTestReferral: (link) => `\n\n🎁 <b>想要再获得1次免费测试通话？</b>\n将此链接分享给朋友。当他们发送 /testsip 时，您将获得一次额外通话：\n\n${link}`,
     sipTestError: '❌ 无法生成测试码。请稍后重试。',
     sipTestMenuHint: '🧪 <i>免费试用SIP通话 — 发送 /testsip</i>',
@@ -961,7 +961,7 @@ const msg = {
     noActivity: 'अभी तक कोई गतिविधि नहीं।',
     insufficientBalUpgrade: (needed, bal) => `❌ अपर्याप्त बैलेंस। आपको $${needed.toFixed(2)} चाहिए लेकिन $${bal.toFixed(2)} है।\n\nकृपया पहले वॉलेट में रिचार्ज करें।`,
     sipTestCode: (otp, remaining) => `🔑 <b>आपका SIP टेस्ट कोड</b>\n\n<code>${otp}</code>\n\nमुफ्त SIP क्रेडेंशियल्स पाने के लिए कॉल पेज पर यह कोड दर्ज करें।\n⏱ 5 मिनट में समाप्त।\n📞 ${remaining} टेस्ट कॉल शेष।\n\n🌐 <a href="${CALL_PAGE_URL}">कॉल पेज खोलें</a>`,
-    sipTestComplete: `📞 <b>SIP टेस्ट पूरा</b>\n\nआपके मुफ्त टेस्ट कॉल समाप्त हो गए। असीमित SIP कॉल के लिए, SIP सपोर्ट वाला <b>Cloud Phone</b> प्लान लें।\n\n👉 प्लान देखने के लिए <b>📞 Cloud IVR + SIP</b> दबाएं।\n\n🌐 ब्राउज़र में कॉल करें: <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>`,
+    sipTestComplete: `📞 <b>SIP टेस्ट पूरा</b>\n\nआपके मुफ्त टेस्ट कॉल समाप्त हो गए। असीमित SIP कॉल के लिए, SIP सपोर्ट वाला <b>Cloud IVR</b> प्लान लें।\n\n👉 प्लान देखने के लिए <b>📞 Cloud IVR + SIP</b> दबाएं।\n\n🌐 ब्राउज़र में कॉल करें: <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>`,
     sipTestReferral: (link) => `\n\n🎁 <b>1 और मुफ्त टेस्ट कॉल चाहिए?</b>\nयह लिंक किसी दोस्त को भेजें। जब वे /testsip भेजेंगे, आपको बोनस कॉल मिलेगा:\n\n${link}`,
     sipTestError: '❌ टेस्ट कोड जनरेट नहीं हो सका। कृपया बाद में पुनः प्रयास करें।',
     sipTestMenuHint: '🧪 <i>SIP कॉलिंग मुफ्त आज़माएं — /testsip भेजें</i>',
@@ -1258,7 +1258,7 @@ Sélectionnez une option :`,
     noNumbers: '📱 Vous n\'avez pas encore de numéro.\n\nAppuyez ci-dessous pour obtenir votre premier numéro virtuel.',
     enterEmail: 'Entrez l\'adresse email pour recevoir les SMS :',
     enterWebhook: 'Entrez votre URL webhook (les SMS seront envoyés en JSON) :',
-    ivrTrialUsed: (buyLabel) => `📢 <b>Appel IVR Sortant</b>\n\nVous avez déjà utilisé votre appel d'essai gratuit.\n\nAbonnez-vous à Cloud Phone pour des appels IVR illimités avec votre propre Caller ID !\n\nAppuyez sur <b>${buyLabel}</b> pour commencer.`,
+    ivrTrialUsed: (buyLabel) => `📢 <b>Appel IVR Sortant</b>\n\nVous avez déjà utilisé votre appel d'essai gratuit.\n\nAbonnez-vous à Cloud IVR pour des appels IVR illimités avec votre propre Caller ID !\n\nAppuyez sur <b>${buyLabel}</b> pour commencer.`,
     ivrTrialOffer: (callerId) => `📢 <b>Appel IVR Sortant — Essai Gratuit</b>\n\n🎁 Vous avez <b>1 appel d'essai gratuit !</b>\n📱 Caller ID: <b>${callerId}</b> (partagé)\n\nEntrez le numéro à appeler (avec indicatif pays) :\n<i>Exemple : +33612345678</i>`,
     ivrSelectCallerId: '📢 <b>Appel IVR Sortant</b>\n\nSélectionnez le numéro pour l\'appel (Caller ID) :',
     ivrEnterNumber: (phone) => `📱 Caller ID: <b>${phone}</b>\n\nEntrez le numéro à appeler (avec indicatif pays) :\n<i>Exemple : +33612345678</i>`,
@@ -1273,7 +1273,7 @@ Sélectionnez une option :`,
     ivrHoldMusicStatus: (on) => `🎵 Musique d'Attente : <b>${on ? 'OUI' : 'NON'}</b>\n${on ? 'La cible entendra "Veuillez patienter" + musique avant le transfert.' : 'La cible entend la sonnerie standard pendant le transfert.'}`,
     ivrConfirmPrompt: 'Appuyez sur <b>✅ Confirmer</b> pour continuer, <b>🎤 Changer la Voix</b>, ou <b>Retour</b>.',
     ivrTemplatePreview: (icon, name, text, keys) => `📋 <b>${icon} ${name}</b>\n\n<i>"${text}"</i>\n\n🔘 Touches actives : <b>${keys}</b>`,
-    bulkCallNoPlan: (buyLabel) => `📞 <b>Campagne IVR en Masse</b>\n\n🔒 Cette fonctionnalité nécessite le forfait <b>Pro</b> ou supérieur.\n\nObtenez d'abord un numéro Cloud Phone !\n\nAppuyez sur <b>${buyLabel}</b> pour commencer.`,
+    bulkCallNoPlan: (buyLabel) => `📞 <b>Campagne IVR en Masse</b>\n\n🔒 Cette fonctionnalité nécessite le forfait <b>Pro</b> ou supérieur.\n\nObtenez d'abord un numéro Cloud IVR !\n\nAppuyez sur <b>${buyLabel}</b> pour commencer.`,
     bulkCallNoNumber: (buyLabel) => `📞 <b>Campagne IVR en Masse</b>\n\nVous avez besoin d'un numéro ☎️ capable IVR en masse.\n\nAppuyez sur <b>${buyLabel}</b> et choisissez un numéro avec le badge ☎️.`,
     bulkCallSelect: '📞 <b>Campagne d\'Appels en Masse</b>\n\nLancez des appels IVR automatisés vers plusieurs leads.\n\n☎️ = Numéros capables IVR en masse\n\n📱 Sélectionnez le Caller ID :',
     audioLibEmpty: '🎵 <b>Bibliothèque Audio</b>\n\nVous n\'avez pas de fichiers audio enregistrés.\n\nUploadez un fichier audio (MP3, WAV, OGG) pour les campagnes IVR.',
@@ -1327,9 +1327,9 @@ Sélectionnez une option :`,
     },
     orderSummary: (number, country, plan, price) => `📋 <b>Récapitulatif</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/mois\n📩 ${plan.sms} SMS · 📞 ${plan.minutes} min · 📲 Sortant & Transfert $${CALL_FORWARDING_RATE_MIN}/min\n⚡ ${plan.features.join(', ')}\n\n💰 Total : <b>$${price}</b> (premier mois)`,
     paymentPrompt: (price) => `Prix : <b>$${price}</b>. Choisissez le mode de paiement :`,
-    activated: (number, plan, price, sipUser, sipDomain, expiry) => `🎉 <b>Votre Cloud Phone est Actif !</b>\n\n📞 Numéro : ${formatPhone(number)}\n📦 Forfait : ${plan} ($${price}/mois)\n📅 Renouvellement : ${expiry}\n\n━━━ <b>Identifiants SIP</b> ━━━\n🌐 Serveur : ${sipDomain}\n👤 Utilisateur : ${sipUser}\n🔑 Mot de passe : ●●●●●●●● (utilisez 🔑 Identifiants SIP pour révéler)\n📡 Port : 5060 (UDP/TCP) | 5061 (TLS)\n\n━━━ <b>Configuration Rapide</b> ━━━\n• Navigateur : Appelez sur <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>\n• Softphone : Téléchargez Zoiper/Ooma, entrez les identifiants SIP\n• SMS : Les SMS entrants sont transférés ici automatiquement\n• Transfert : Configurez via 📱 Mes Numéros → Transfert d'Appels`,
+    activated: (number, plan, price, sipUser, sipDomain, expiry) => `🎉 <b>Votre Cloud IVR est Actif !</b>\n\n📞 Numéro : ${formatPhone(number)}\n📦 Forfait : ${plan} ($${price}/mois)\n📅 Renouvellement : ${expiry}\n\n━━━ <b>Identifiants SIP</b> ━━━\n🌐 Serveur : ${sipDomain}\n👤 Utilisateur : ${sipUser}\n🔑 Mot de passe : ●●●●●●●● (utilisez 🔑 Identifiants SIP pour révéler)\n📡 Port : 5060 (UDP/TCP) | 5061 (TLS)\n\n━━━ <b>Configuration Rapide</b> ━━━\n• Navigateur : Appelez sur <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>\n• Softphone : Téléchargez Zoiper/Ooma, entrez les identifiants SIP\n• SMS : Les SMS entrants sont transférés ici automatiquement\n• Transfert : Configurez via 📱 Mes Numéros → Transfert d'Appels`,
     myNumbersList: (numbers) => {
-      let text = '📱 <b>Vos Numéros Cloud Phone :</b>\n\n'
+      let text = '📱 <b>Vos Numéros Cloud IVR :</b>\n\n'
       numbers.forEach((n, i) => {
         const status = n.status === 'active' ? '✅ Actif' : n.status === 'suspended' ? '⚠️ Suspendu' : '🗑️ Supprimé'
         text += `${i + 1}️⃣  ${formatPhone(n.phoneNumber)}  ${status}\n`
@@ -1568,7 +1568,7 @@ Sélectionnez une option :`,
     noNumbers: '📱 您还没有电话号码。\n\n点击下方获取您的第一个虚拟号码。',
     enterEmail: '输入用于接收短信的电子邮件地址：',
     enterWebhook: '输入您的 Webhook URL（短信将以 JSON 格式发送）：',
-    ivrTrialUsed: (buyLabel) => `📢 <b>IVR 外呼</b>\n\n您已使用了免费试用通话。\n\n订阅 Cloud Phone 即可使用您自己的来电显示进行无限 IVR 通话！\n\n点击 <b>${buyLabel}</b> 开始。`,
+    ivrTrialUsed: (buyLabel) => `📢 <b>IVR 外呼</b>\n\n您已使用了免费试用通话。\n\n订阅 Cloud IVR 即可使用您自己的来电显示进行无限 IVR 通话！\n\n点击 <b>${buyLabel}</b> 开始。`,
     ivrTrialOffer: (callerId) => `📢 <b>IVR 外呼 — 免费试用</b>\n\n🎁 您有 <b>1 次免费试用通话！</b>\n📱 来电显示：<b>${callerId}</b>（共享）\n\n输入要拨打的电话号码（含国际区号）：\n<i>示例：+8613812345678</i>`,
     ivrSelectCallerId: '📢 <b>IVR 外呼</b>\n\n选择拨出号码（来电显示）：',
     ivrEnterNumber: (phone) => `📱 来电显示：<b>${phone}</b>\n\n输入要拨打的电话号码（含国际区号）：\n<i>示例：+8613812345678</i>`,
@@ -1583,7 +1583,7 @@ Sélectionnez une option :`,
     ivrHoldMusicStatus: (on) => `🎵 等待音乐：<b>${on ? '开' : '关'}</b>\n${on ? '目标将听到"请稍候"+ 音乐。' : '目标听到标准回铃音。'}`,
     ivrConfirmPrompt: '点击 <b>✅ 确认</b> 继续，<b>🎤 更换语音</b>，或 <b>返回</b>。',
     ivrTemplatePreview: (icon, name, text, keys) => `📋 <b>${icon} ${name}</b>\n\n<i>"${text}"</i>\n\n🔘 活动按键：<b>${keys}</b>`,
-    bulkCallNoPlan: (buyLabel) => `📞 <b>批量IVR活动</b>\n\n🔒 此功能需要 <b>Pro</b> 或更高套餐。\n\n请先获取 Cloud Phone 号码！\n\n点击 <b>${buyLabel}</b> 开始。`,
+    bulkCallNoPlan: (buyLabel) => `📞 <b>批量IVR活动</b>\n\n🔒 此功能需要 <b>Pro</b> 或更高套餐。\n\n请先获取 Cloud IVR 号码！\n\n点击 <b>${buyLabel}</b> 开始。`,
     bulkCallNoNumber: (buyLabel) => `📞 <b>批量IVR活动</b>\n\n您需要一个 ☎️ 支持批量 IVR 的号码。\n\n点击 <b>${buyLabel}</b> 并选择带有 ☎️ 标记的号码。`,
     bulkCallSelect: '📞 <b>批量呼叫活动</b>\n\n向多个线索发起自动 IVR 通话。\n\n☎️ = 支持批量 IVR 的号码\n\n📱 选择来电显示：',
     audioLibEmpty: '🎵 <b>音频库</b>\n\n您没有保存的音频文件。\n\n上传音频文件（MP3、WAV、OGG）用于 IVR 活动。',
@@ -1878,7 +1878,7 @@ Sélectionnez une option :`,
     noNumbers: '📱 आपके पास अभी तक कोई फ़ोन नंबर नहीं है।\n\nअपना पहला वर्चुअल नंबर पाने के लिए नीचे टैप करें।',
     enterEmail: 'SMS प्राप्त करने के लिए ईमेल पता दर्ज करें:',
     enterWebhook: 'अपना Webhook URL दर्ज करें (SMS JSON में भेजा जाएगा):',
-    ivrTrialUsed: (buyLabel) => `📢 <b>IVR आउटबाउंड कॉल</b>\n\nआपने अपना मुफ्त ट्रायल कॉल पहले ही उपयोग कर लिया है।\n\nCloud Phone की सदस्यता लें और अपनी Caller ID से असीमित IVR कॉल करें!\n\n<b>${buyLabel}</b> पर टैप करें।`,
+    ivrTrialUsed: (buyLabel) => `📢 <b>IVR आउटबाउंड कॉल</b>\n\nआपने अपना मुफ्त ट्रायल कॉल पहले ही उपयोग कर लिया है।\n\nCloud IVR की सदस्यता लें और अपनी Caller ID से असीमित IVR कॉल करें!\n\n<b>${buyLabel}</b> पर टैप करें।`,
     ivrTrialOffer: (callerId) => `📢 <b>IVR आउटबाउंड कॉल — मुफ्त ट्रायल</b>\n\n🎁 आपके पास <b>1 मुफ्त ट्रायल कॉल है!</b>\n📱 Caller ID: <b>${callerId}</b> (साझा)\n\nकॉल करने के लिए फ़ोन नंबर दर्ज करें (देश कोड के साथ):\n<i>उदाहरण: +919876543210</i>`,
     ivrSelectCallerId: '📢 <b>IVR आउटबाउंड कॉल</b>\n\nकॉल करने के लिए नंबर चुनें (Caller ID):',
     ivrEnterNumber: (phone) => `📱 Caller ID: <b>${phone}</b>\n\nकॉल करने के लिए फ़ोन नंबर दर्ज करें (देश कोड के साथ):\n<i>उदाहरण: +919876543210</i>`,
@@ -1893,7 +1893,7 @@ Sélectionnez une option :`,
     ivrHoldMusicStatus: (on) => `🎵 होल्ड म्यूज़िक: <b>${on ? 'चालू' : 'बंद'}</b>\n${on ? 'लक्ष्य को "कृपया प्रतीक्षा करें" + संगीत सुनाई देगा।' : 'लक्ष्य को स्टैंडर्ड रिंगबैक सुनाई देगी।'}`,
     ivrConfirmPrompt: '<b>✅ पुष्टि करें</b> जारी रखने के लिए, <b>🎤 आवाज़ बदलें</b>, या <b>वापस</b>।',
     ivrTemplatePreview: (icon, name, text, keys) => `📋 <b>${icon} ${name}</b>\n\n<i>"${text}"</i>\n\n🔘 सक्रिय कुंजियाँ: <b>${keys}</b>`,
-    bulkCallNoPlan: (buyLabel) => `📞 <b>बल्क IVR अभियान</b>\n\n🔒 इस सुविधा के लिए <b>Pro</b> या उससे ऊपर का प्लान चाहिए।\n\nपहले Cloud Phone नंबर लें!\n\n<b>${buyLabel}</b> पर टैप करें।`,
+    bulkCallNoPlan: (buyLabel) => `📞 <b>बल्क IVR अभियान</b>\n\n🔒 इस सुविधा के लिए <b>Pro</b> या उससे ऊपर का प्लान चाहिए।\n\nपहले Cloud IVR नंबर लें!\n\n<b>${buyLabel}</b> पर टैप करें।`,
     bulkCallNoNumber: (buyLabel) => `📞 <b>बल्क IVR अभियान</b>\n\nआपको ☎️ बल्क IVR सक्षम नंबर चाहिए।\n\n<b>${buyLabel}</b> पर टैप करें और ☎️ बैज वाला नंबर चुनें।`,
     bulkCallSelect: '📞 <b>बल्क कॉल अभियान</b>\n\nएकाधिक लीड्स पर ऑटोमेटेड IVR कॉल लॉन्च करें।\n\n☎️ = बल्क IVR सक्षम नंबर\n\n📱 Caller ID चुनें:',
     audioLibEmpty: '🎵 <b>ऑडियो लाइब्रेरी</b>\n\nकोई ऑडियो फ़ाइल नहीं।\n\nIVR अभियानों के लिए ऑडियो फ़ाइल (MP3, WAV, OGG) अपलोड करें।',
@@ -1947,9 +1947,9 @@ Sélectionnez une option :`,
     },
     orderSummary: (number, country, plan, price) => `📋 <b>ऑर्डर सारांश</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/माह\n📩 ${plan.sms} SMS · 📞 ${plan.minutes} मिनट · 📲 आउटबाउंड और फ़ॉरवर्डिंग $${CALL_FORWARDING_RATE_MIN}/मिनट\n⚡ ${plan.features.join(', ')}\n\n💰 कुल: <b>$${price}</b> (पहला महीना)`,
     paymentPrompt: (price) => `मूल्य: <b>$${price}</b>। भुगतान विधि चुनें:`,
-    activated: (number, plan, price, sipUser, sipDomain, expiry) => `🎉 <b>आपका Cloud Phone सक्रिय है!</b>\n\n📞 नंबर: ${formatPhone(number)}\n📦 प्लान: ${plan} ($${price}/माह)\n📅 नवीनीकरण: ${expiry}\n\n━━━ <b>SIP क्रेडेंशियल्स</b> ━━━\n🌐 सर्वर: ${sipDomain}\n👤 उपयोगकर्ता: ${sipUser}\n🔑 पासवर्ड: ●●●●●●●● (देखने के लिए 🔑 SIP क्रेडेंशियल्स उपयोग करें)\n📡 पोर्ट: 5060 (UDP/TCP) | 5061 (TLS)\n\n━━━ <b>त्वरित सेटअप</b> ━━━\n• ब्राउज़र: <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a> पर कॉल करें\n• सॉफ्टफ़ोन: Zoiper/Ooma डाउनलोड करें, SIP क्रेडेंशियल्स दर्ज करें\n• SMS: इनबाउंड SMS स्वचालित रूप से यहाँ फ़ॉरवर्ड होते हैं\n• फ़ॉरवर्डिंग: 📱 मेरे नंबर → कॉल फ़ॉरवर्डिंग से सेट करें`,
+    activated: (number, plan, price, sipUser, sipDomain, expiry) => `🎉 <b>आपका Cloud IVR सक्रिय है!</b>\n\n📞 नंबर: ${formatPhone(number)}\n📦 प्लान: ${plan} ($${price}/माह)\n📅 नवीनीकरण: ${expiry}\n\n━━━ <b>SIP क्रेडेंशियल्स</b> ━━━\n🌐 सर्वर: ${sipDomain}\n👤 उपयोगकर्ता: ${sipUser}\n🔑 पासवर्ड: ●●●●●●●● (देखने के लिए 🔑 SIP क्रेडेंशियल्स उपयोग करें)\n📡 पोर्ट: 5060 (UDP/TCP) | 5061 (TLS)\n\n━━━ <b>त्वरित सेटअप</b> ━━━\n• ब्राउज़र: <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a> पर कॉल करें\n• सॉफ्टफ़ोन: Zoiper/Ooma डाउनलोड करें, SIP क्रेडेंशियल्स दर्ज करें\n• SMS: इनबाउंड SMS स्वचालित रूप से यहाँ फ़ॉरवर्ड होते हैं\n• फ़ॉरवर्डिंग: 📱 मेरे नंबर → कॉल फ़ॉरवर्डिंग से सेट करें`,
     myNumbersList: (numbers) => {
-      let text = '📱 <b>आपके Cloud Phone नंबर:</b>\n\n'
+      let text = '📱 <b>आपके Cloud IVR नंबर:</b>\n\n'
       numbers.forEach((n, i) => {
         const status = n.status === 'active' ? '✅ सक्रिय' : n.status === 'suspended' ? '⚠️ निलंबित' : '🗑️ हटाया गया'
         text += `${i + 1}️⃣  ${formatPhone(n.phoneNumber)}  ${status}\n`
@@ -2094,7 +2094,7 @@ Sélectionnez une option :`,
     callForwarded: (to, from, forwardedTo, duration, time) => `📞 <b>कॉल फ़ॉरवर्ड</b>\n\n📞 प्राप्तकर्ता: ${formatPhone(to)}\n👤 कॉलर: ${formatPhone(from)}\n📲 फ़ॉरवर्ड: ${formatPhone(forwardedTo)}\n⏱️ अवधि: ${formatDuration(duration)}\n🕐 ${time}`,
     newVoicemail: (to, from, duration, time) => `🎙️ <b>नया वॉइसमेल</b>\n\n📞 प्राप्तकर्ता: ${formatPhone(to)}\n👤 कॉलर: ${formatPhone(from)}\n⏱️ अवधि: ${formatDuration(duration)}\n🕐 ${time}`,
     // समाप्ति अनुस्मारक
-    expiryReminder: (number, days, plan, price, balance) => `🔔 <b>नवीनीकरण अनुस्मारक</b>\n\nआपका Cloud Phone नंबर ${formatPhone(number)} (${plan} प्लान) <b>${days} दिन</b> में समाप्त हो रहा है।\n\nवॉलेट बैलेंस: $${balance}\nप्लान मूल्य: $${price}/माह${balance < price ? '\n\n⚠️ अपर्याप्त बैलेंस। कृपया रिचार्ज करें।' : ''}`,
+    expiryReminder: (number, days, plan, price, balance) => `🔔 <b>नवीनीकरण अनुस्मारक</b>\n\nआपका Cloud IVR नंबर ${formatPhone(number)} (${plan} प्लान) <b>${days} दिन</b> में समाप्त हो रहा है।\n\nवॉलेट बैलेंस: $${balance}\nप्लान मूल्य: $${price}/माह${balance < price ? '\n\n⚠️ अपर्याप्त बैलेंस। कृपया रिचार्ज करें।' : ''}`,
     autoRenewed: (number, plan, price, newExpiry, oldBal, newBal) => `✅ <b>ऑटो-नवीनीकरण सफल</b>\n\n📞 ${formatPhone(number)}\n📦 प्लान: ${plan} ($${price}/माह)\n📅 नई समाप्ति: ${shortDate(newExpiry)}\nवॉलेट: $${oldBal} → $${newBal}`,
     autoRenewFailed: (number, plan, price, balance) => `❌ <b>ऑटो-नवीनीकरण विफल</b>\n\n📞 ${formatPhone(number)}\n📦 प्लान: ${plan} ($${price}/माह)\n💰 वॉलेट: $${balance} (आवश्यक $${price})\n\n⚠️ आपका नंबर अब निलंबित है। 7 दिनों के भीतर रिचार्ज करें और नवीनीकरण करें।`,
     // IVR
