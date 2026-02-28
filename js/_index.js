@@ -808,6 +808,7 @@ const loadData = async () => {
       nanoid,
       twilioSipDomainName: twilioResources?.sipDomainName || null,
       selfUrl: SELF_URL,
+      twilioService: require('./twilio-service.js'),
     })
     log('[CloudPhone] Voice Service initialized with IVR + Recording + Overage')
 
