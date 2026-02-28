@@ -1186,6 +1186,7 @@ bot?.on('message', async msg => {
     const userInfo = await get(state, chatId)
     if (userInfo?.action === 'cpVmAudioUpload') {
       try {
+        const lang = userInfo?.userLanguage || 'en'
         const fileId = msg.voice?.file_id || msg.audio?.file_id
         const fileLink = await bot.getFileLink(fileId)
         const infoData = await get(state, chatId + '_info')
