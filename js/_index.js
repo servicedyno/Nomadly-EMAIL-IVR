@@ -8105,7 +8105,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       if (!hasNumbers) {
         // Non-subscriber path — still allow 1 free trial
         if (trialUsed) {
-          return send(chatId, `📢 <b>IVR Outbound Call</b>\n\nYou've already used your free trial call.\n\nSubscribe to Cloud Phone to make unlimited IVR calls with your own Caller ID!\n\nTap <b>${buyLabel}</b> to get started.`, k.of([[buyLabel]]))
+          return send(chatId, `📢 <b>Quick IVR Call</b>\n\nYou've already used your free trial call.\n\nSubscribe to Cloud Phone to make unlimited IVR calls with your own Caller ID!\n\nTap <b>${buyLabel}</b> to get started.`, k.of([[buyLabel]]))
         }
         // Trial path — auto-assign caller ID
         await saveInfo('ivrObData', { callerId: ivrOb.TRIAL_CALLER_ID, isTrial: true })
