@@ -1894,6 +1894,56 @@ async function initiateOutboundIvrCall(params) {
     }
   }
 
+  // ── TWILIO PATH: Use Twilio REST API + TwiML endpoints ──
+  const provider = params.provider || 'telnyx'
+  if (provider === 'twilio' && _twilioService) {
+    const crypto = require('crypto')
+    const sessionId = crypto.randomUUID()
+    twilioIvrSessions[sessionId] = {
+      chatId,
+      callerId,
+      targetNumber,
+      ivrNumber,
+      audioUrl,
+      activeKeys: activeKeys || ['1'],
+      templateName: templateName || 'Custom',
+      placeholderValues: placeholderValues || {},
+      voiceName: voiceName || 'Rachel',
+      isTrial: isTrial || false,
+      holdMusic: holdMusic || false,
+      bulkMode: bulkMode || null,
+      campaignId: campaignId || null,
+      leadIndex: leadIndex != null ? leadIndex : null,
+      phase: 'initiated',
+      digitPressed: null,
+      startTime: Date.now(),
+    }
+
+    const twimlUrl = `${_selfUrl}/twilio/single-ivr?sessionId=${encodeURIComponent(sessionId)}`
+    const statusUrl = `${_selfUrl}/twilio/single-ivr-status?sessionId=${encodeURIComponent(sessionId)}`
+
+    const result = await _twilioService.makeOutboundCall(
+      callerId, targetNumber, twimlUrl,
+      params.twilioSubAccountSid || null,
+      params.twilioSubAccountToken || null,
+      {
+        statusCallback: statusUrl,
+        statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
+        timeout: 30,
+      }
+    )
+
+    if (result.error) {
+      delete twilioIvrSessions[sessionId]
+      return { error: result.error }
+    }
+
+    twilioIvrSessions[sessionId].callSid = result.callSid
+    log(`[OutboundIVR] Twilio call initiated: ${result.callSid} ${callerId} → ${targetNumber} (sessionId: ${sessionId})`)
+    return { callSid: result.callSid, sessionId, provider: 'twilio' }
+  }
+
+  // ── TELNYX PATH (default): Use Telnyx Call Control API ──
   const webhookUrl = `${_selfUrl}/telnyx/voice-webhook`
   const result = await _telnyxApi.createOutboundCall(callerId, targetNumber, webhookUrl)
 
