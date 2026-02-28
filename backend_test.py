@@ -1,559 +1,348 @@
 #!/usr/bin/env python3
 """
-Backend Test for SIP Domain and Call Flow Fixes - Nomadly Telegram Bot Platform
-Tests the Node.js Express backend (port 5000) proxied through FastAPI (port 8001)
+Backend testing script for Nomadly Telegram Bot - Bulk IVR and Quick IVR improvements
 """
 
 import requests
+import os
+import time
 import json
-import sys
-import logging
-from urllib.parse import urljoin
+from pathlib import Path
 
-# Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+# Configuration
+BASE_URL = "https://config-pod-webhook.preview.emergentagent.com"
+API_BASE = f"{BASE_URL}/api"
 
-class SipDomainTestRunner:
+class BulkIVRTestSuite:
     def __init__(self):
-        # Read the REACT_APP_BACKEND_URL from frontend/.env
-        self.base_url = None
-        try:
-            with open('/app/frontend/.env', 'r') as f:
-                for line in f:
-                    if line.startswith('REACT_APP_BACKEND_URL='):
-                        self.base_url = line.split('=', 1)[1].strip()
-                        break
-        except Exception as e:
-            logger.error(f"Failed to read frontend/.env: {e}")
-            self.base_url = "https://config-pod-webhook.preview.emergentagent.com"
-        
-        logger.info(f"Using base URL: {self.base_url}")
-        
-        self.session = requests.Session()
-        self.session.timeout = 30
         self.results = []
+        self.passed = 0
+        self.failed = 0
         
-    def log_result(self, test_name, success, message, details=None):
-        """Log test result and add to results list"""
-        status = "✅ PASS" if success else "❌ FAIL"
-        logger.info(f"{status} - {test_name}: {message}")
+    def log_result(self, test_name, passed, details=""):
+        status = "✅ PASS" if passed else "❌ FAIL"
+        self.results.append(f"{status}: {test_name}")
+        if details:
+            self.results.append(f"   Details: {details}")
         
-        result = {
-            "test": test_name,
-            "success": success,
-            "message": message,
-            "details": details or {}
-        }
-        self.results.append(result)
-        return success
-    
+        if passed:
+            self.passed += 1
+        else:
+            self.failed += 1
+            
     def test_service_health(self):
-        """Test 1: Service Health - Verify Node.js is running and healthy"""
+        """Test 1: Service Health - verify Node.js running"""
         try:
-            url = urljoin(self.base_url, '/api/health')
-            response = self.session.get(url)
-            
+            response = requests.get(f"{API_BASE}/health", timeout=10)
             if response.status_code == 200:
-                try:
-                    data = response.json()
-                    # Check if it's a proper JSON health response
-                    if isinstance(data, dict) and ('status' in data or 'database' in data or 'uptime' in data):
-                        return self.log_result(
-                            "Service Health",
-                            True,
-                            "Node.js backend healthy",
-                            {"status_code": 200, "response": data}
-                        )
-                    else:
-                        # Might be HTML response (React app), check if service responds
-                        return self.log_result(
-                            "Service Health", 
-                            True,
-                            "Backend responds (HTML/React app detected - service running)",
-                            {"status_code": 200, "content_type": response.headers.get('content-type', '')}
-                        )
-                except json.JSONDecodeError:
-                    # Not JSON, but 200 response means service is running
-                    return self.log_result(
-                        "Service Health",
-                        True, 
-                        "Backend responds (non-JSON response but service running)",
-                        {"status_code": 200, "content_length": len(response.content)}
-                    )
-            else:
-                return self.log_result(
-                    "Service Health",
-                    False,
-                    f"Health endpoint returned {response.status_code}",
-                    {"status_code": response.status_code, "response": response.text[:200]}
-                )
-        except Exception as e:
-            return self.log_result("Service Health", False, f"Health check failed: {str(e)}")
-    
-    def test_sip_ring_result_endpoint(self):
-        """Test 2: SIP Ring Result Endpoint - POST /api/twilio/sip-ring-result"""
-        try:
-            url = urljoin(self.base_url, '/api/twilio/sip-ring-result')
-            params = {
-                'chatId': '123',
-                'from': '%2B15551234567',  # URL encoded +15551234567
-                'to': '%2B15559876543'     # URL encoded +15559876543
-            }
-            data = {
-                'DialCallStatus': 'no-answer',
-                'DialCallDuration': '0'
-            }
-            
-            response = self.session.post(url, params=params, json=data)
-            
-            # Check if response is TwiML XML
-            content_type = response.headers.get('content-type', '')
-            
-            if response.status_code == 200:
-                if 'xml' in content_type.lower() or response.text.strip().startswith('<'):
-                    return self.log_result(
-                        "SIP Ring Result Endpoint",
-                        True,
-                        "Endpoint exists and returns TwiML XML",
-                        {
-                            "status_code": 200,
-                            "content_type": content_type,
-                            "response_preview": response.text[:200]
-                        }
-                    )
+                data = response.json()
+                if data.get('status') == 'healthy' and data.get('database') == 'connected':
+                    self.log_result("Service Health Check", True, f"Node.js healthy, DB connected, uptime: {data.get('uptime', 'unknown')}")
+                    return True
                 else:
-                    return self.log_result(
-                        "SIP Ring Result Endpoint",
-                        True,
-                        "Endpoint exists but may not return proper TwiML XML",
-                        {
-                            "status_code": 200,
-                            "content_type": content_type,
-                            "response_preview": response.text[:200]
-                        }
-                    )
-            elif response.status_code == 404:
-                return self.log_result(
-                    "SIP Ring Result Endpoint",
-                    False,
-                    "Endpoint not found (404)",
-                    {"status_code": 404, "url": url}
-                )
+                    self.log_result("Service Health Check", False, f"Service not healthy: {data}")
+                    return False
             else:
-                return self.log_result(
-                    "SIP Ring Result Endpoint",
-                    False,
-                    f"Unexpected response: {response.status_code}",
-                    {"status_code": response.status_code, "response": response.text[:200]}
-                )
+                self.log_result("Service Health Check", False, f"HTTP {response.status_code}")
+                return False
         except Exception as e:
-            return self.log_result("SIP Ring Result Endpoint", False, f"Request failed: {str(e)}")
-    
-    def test_single_ivr_endpoint(self):
-        """Test 3: Single IVR TwiML Endpoint - POST /api/twilio/single-ivr"""
-        try:
-            url = urljoin(self.base_url, '/api/twilio/single-ivr')
-            params = {'sessionId': 'test-nonexistent'}
+            self.log_result("Service Health Check", False, f"Connection failed: {str(e)}")
+            return False
             
-            response = self.session.post(url, params=params)
-            
-            if response.status_code == 200:
-                # Should return TwiML with error message (session not found is OK)
-                if 'xml' in response.headers.get('content-type', '').lower() or response.text.strip().startswith('<'):
-                    return self.log_result(
-                        "Single IVR Endpoint",
-                        True,
-                        "Endpoint exists and returns TwiML",
-                        {
-                            "status_code": 200,
-                            "content_type": response.headers.get('content-type', ''),
-                            "response_preview": response.text[:200]
-                        }
-                    )
-                else:
-                    return self.log_result(
-                        "Single IVR Endpoint",
-                        True,
-                        "Endpoint exists but response format needs verification",
-                        {"status_code": 200, "response_preview": response.text[:200]}
-                    )
-            elif response.status_code == 404:
-                return self.log_result(
-                    "Single IVR Endpoint",
-                    False,
-                    "Endpoint not found (404)",
-                    {"status_code": 404, "url": url}
-                )
-            else:
-                return self.log_result(
-                    "Single IVR Endpoint",
-                    False,
-                    f"Unexpected response: {response.status_code}",
-                    {"status_code": response.status_code, "response": response.text[:200]}
-                )
-        except Exception as e:
-            return self.log_result("Single IVR Endpoint", False, f"Request failed: {str(e)}")
-    
-    def test_single_ivr_gather_endpoint(self):
-        """Test 4: Single IVR Gather Endpoint - POST /api/twilio/single-ivr-gather"""
-        try:
-            url = urljoin(self.base_url, '/api/twilio/single-ivr-gather')
-            params = {'sessionId': 'test-nonexistent'}
-            data = {'Digits': '1'}
-            
-            response = self.session.post(url, params=params, json=data)
-            
-            if response.status_code == 200:
-                # Should return TwiML (session not found is expected)
-                if 'xml' in response.headers.get('content-type', '').lower() or response.text.strip().startswith('<'):
-                    return self.log_result(
-                        "Single IVR Gather Endpoint",
-                        True,
-                        "Endpoint exists and returns TwiML",
-                        {
-                            "status_code": 200,
-                            "content_type": response.headers.get('content-type', ''),
-                            "response_preview": response.text[:200]
-                        }
-                    )
-                else:
-                    return self.log_result(
-                        "Single IVR Gather Endpoint",
-                        True,
-                        "Endpoint exists but response format needs verification",
-                        {"status_code": 200, "response_preview": response.text[:200]}
-                    )
-            elif response.status_code == 404:
-                return self.log_result(
-                    "Single IVR Gather Endpoint",
-                    False,
-                    "Endpoint not found (404)",
-                    {"status_code": 404, "url": url}
-                )
-            else:
-                return self.log_result(
-                    "Single IVR Gather Endpoint",
-                    False,
-                    f"Unexpected response: {response.status_code}",
-                    {"status_code": response.status_code, "response": response.text[:200]}
-                )
-        except Exception as e:
-            return self.log_result("Single IVR Gather Endpoint", False, f"Request failed: {str(e)}")
-    
-    def test_single_ivr_status_endpoint(self):
-        """Test 5: Single IVR Status Endpoint - POST /api/twilio/single-ivr-status"""
-        try:
-            url = urljoin(self.base_url, '/api/twilio/single-ivr-status')
-            params = {'sessionId': 'test-nonexistent'}
-            data = {
-                'CallSid': 'test',
-                'CallStatus': 'completed',
-                'CallDuration': '60'
-            }
-            
-            response = self.session.post(url, params=params, json=data)
-            
-            if response.status_code == 200:
-                return self.log_result(
-                    "Single IVR Status Endpoint",
-                    True,
-                    "Endpoint exists and returns 200",
-                    {
-                        "status_code": 200,
-                        "content_type": response.headers.get('content-type', ''),
-                        "response_preview": response.text[:200]
-                    }
-                )
-            elif response.status_code == 404:
-                return self.log_result(
-                    "Single IVR Status Endpoint",
-                    False,
-                    "Endpoint not found (404)",
-                    {"status_code": 404, "url": url}
-                )
-            else:
-                return self.log_result(
-                    "Single IVR Status Endpoint",
-                    False,
-                    f"Unexpected response: {response.status_code}",
-                    {"status_code": response.status_code, "response": response.text[:200]}
-                )
-        except Exception as e:
-            return self.log_result("Single IVR Status Endpoint", False, f"Request failed: {str(e)}")
-    
-    def test_telnyx_service_sip_config(self):
-        """Test 6a: Verify telnyx-service.js contains sip_uri_calling_preference: 'unrestricted'"""
-        try:
-            with open('/app/js/telnyx-service.js', 'r') as f:
-                content = f.read()
-            
-            # Check for the specific configuration
-            if "sip_uri_calling_preference: 'unrestricted'" in content:
-                return self.log_result(
-                    "Telnyx SIP Config",
-                    True,
-                    "telnyx-service.js contains sip_uri_calling_preference: 'unrestricted'",
-                    {"file": "/app/js/telnyx-service.js"}
-                )
-            elif "sip_uri_calling_preference: 'internal'" in content:
-                return self.log_result(
-                    "Telnyx SIP Config",
-                    False,
-                    "telnyx-service.js still has 'internal' instead of 'unrestricted'",
-                    {"file": "/app/js/telnyx-service.js"}
-                )
-            else:
-                return self.log_result(
-                    "Telnyx SIP Config",
-                    False,
-                    "sip_uri_calling_preference not found in telnyx-service.js",
-                    {"file": "/app/js/telnyx-service.js"}
-                )
-        except Exception as e:
-            return self.log_result("Telnyx SIP Config", False, f"Failed to read file: {str(e)}")
-    
-    def test_voice_service_exports(self):
-        """Test 6b: Verify voice-service.js exports twilioIvrSessions and findNumberOwner"""
-        try:
-            with open('/app/js/voice-service.js', 'r') as f:
-                content = f.read()
-            
-            # Check for exports
-            has_twilio_ivr = 'twilioIvrSessions' in content
-            has_find_number = 'findNumberOwner' in content
-            
-            if has_twilio_ivr and has_find_number:
-                return self.log_result(
-                    "Voice Service Exports",
-                    True,
-                    "voice-service.js exports twilioIvrSessions and findNumberOwner",
-                    {"file": "/app/js/voice-service.js", "exports": ["twilioIvrSessions", "findNumberOwner"]}
-                )
-            else:
-                missing = []
-                if not has_twilio_ivr:
-                    missing.append("twilioIvrSessions")
-                if not has_find_number:
-                    missing.append("findNumberOwner")
-                
-                return self.log_result(
-                    "Voice Service Exports",
-                    False,
-                    f"Missing exports: {', '.join(missing)}",
-                    {"file": "/app/js/voice-service.js", "missing": missing}
-                )
-        except Exception as e:
-            return self.log_result("Voice Service Exports", False, f"Failed to read file: {str(e)}")
-    
-    def test_voice_service_init_params(self):
-        """Test 6c: Verify voice-service.js initVoiceService accepts twilioService parameter"""
-        try:
-            with open('/app/js/voice-service.js', 'r') as f:
-                content = f.read()
-            
-            # Check for twilioService parameter
-            if '_twilioService = deps.twilioService' in content:
-                return self.log_result(
-                    "Voice Service Init Params",
-                    True,
-                    "initVoiceService accepts twilioService parameter",
-                    {"file": "/app/js/voice-service.js"}
-                )
-            else:
-                return self.log_result(
-                    "Voice Service Init Params",
-                    False,
-                    "twilioService parameter not found in initVoiceService",
-                    {"file": "/app/js/voice-service.js"}
-                )
-        except Exception as e:
-            return self.log_result("Voice Service Init Params", False, f"Failed to read file: {str(e)}")
-    
-    def test_index_twillio_service_passing(self):
-        """Test 6d: Verify _index.js passes twilioService to initVoiceService"""
-        try:
-            with open('/app/js/_index.js', 'r') as f:
-                content = f.read()
-            
-            # Check if twilioService is passed to initVoiceService
-            if 'twilioService: require(\'./twilio-service.js\')' in content:
-                return self.log_result(
-                    "Index TwilioService Passing",
-                    True,
-                    "_index.js passes twilioService to initVoiceService",
-                    {"file": "/app/js/_index.js"}
-                )
-            elif 'initVoiceService(' in content:
-                return self.log_result(
-                    "Index TwilioService Passing",
-                    False,
-                    "initVoiceService called but twilioService parameter not found",
-                    {"file": "/app/js/_index.js"}
-                )
-            else:
-                return self.log_result(
-                    "Index TwilioService Passing",
-                    False,
-                    "initVoiceService not found in _index.js",
-                    {"file": "/app/js/_index.js"}
-                )
-        except Exception as e:
-            return self.log_result("Index TwilioService Passing", False, f"Failed to read file: {str(e)}")
-    
-    def test_twilio_voice_webhook_sip_logic(self):
-        """Test 6e: Verify _index.js /twilio/voice-webhook has SIP ring logic with dial.sip(sipUri)"""
-        try:
-            with open('/app/js/_index.js', 'r') as f:
-                content = f.read()
-            
-            # Check for SIP dial logic in Twilio voice webhook
-            has_voice_webhook = '/twilio/voice-webhook' in content
-            has_sip_dial = 'dial.sip(' in content
-            
-            if has_voice_webhook and has_sip_dial:
-                return self.log_result(
-                    "Twilio Voice Webhook SIP Logic",
-                    True,
-                    "/twilio/voice-webhook has SIP ring logic with dial.sip()",
-                    {"file": "/app/js/_index.js"}
-                )
-            elif has_voice_webhook:
-                return self.log_result(
-                    "Twilio Voice Webhook SIP Logic",
-                    False,
-                    "/twilio/voice-webhook found but dial.sip() logic missing",
-                    {"file": "/app/js/_index.js"}
-                )
-            else:
-                return self.log_result(
-                    "Twilio Voice Webhook SIP Logic",
-                    False,
-                    "/twilio/voice-webhook endpoint not found",
-                    {"file": "/app/js/_index.js"}
-                )
-        except Exception as e:
-            return self.log_result("Twilio Voice Webhook SIP Logic", False, f"Failed to read file: {str(e)}")
-    
-    def test_outbound_ivr_caller_provider(self):
-        """Test 6f: Verify initiateOutboundIvrCall caller passes provider: callerProvider"""
-        try:
-            with open('/app/js/_index.js', 'r') as f:
-                content = f.read()
-            
-            # Check for provider parameter in initiateOutboundIvrCall calls
-            if 'provider: callerProvider' in content:
-                return self.log_result(
-                    "Outbound IVR Caller Provider",
-                    True,
-                    "initiateOutboundIvrCall caller passes provider: callerProvider",
-                    {"file": "/app/js/_index.js"}
-                )
-            else:
-                return self.log_result(
-                    "Outbound IVR Caller Provider",
-                    False,
-                    "provider: callerProvider not found in initiateOutboundIvrCall calls",
-                    {"file": "/app/js/_index.js"}
-                )
-        except Exception as e:
-            return self.log_result("Outbound IVR Caller Provider", False, f"Failed to read file: {str(e)}")
-    
-    def test_startup_logs(self):
-        """Test 7: Verify Node.js startup logs contain expected initialization message"""
-        try:
-            # Check supervisor logs for the expected startup message
-            import subprocess
-            result = subprocess.run(
-                ['tail', '-n', '100', '/var/log/supervisor/backend.out.log'],
-                capture_output=True, text=True, timeout=10
-            )
-            
-            if result.returncode == 0:
-                log_content = result.stdout
-                expected_msg = "Initialized with IVR + Recording + Analytics + Limits + Overage billing + SIP Bridge + Twilio IVR"
-                
-                if expected_msg in log_content:
-                    return self.log_result(
-                        "Startup Logs",
-                        True,
-                        "Expected initialization message found in startup logs",
-                        {"log_file": "/var/log/supervisor/backend.out.log"}
-                    )
-                else:
-                    return self.log_result(
-                        "Startup Logs",
-                        False,
-                        "Expected initialization message not found in startup logs",
-                        {"log_file": "/var/log/supervisor/backend.out.log", "log_preview": log_content[-300:]}
-                    )
-            else:
-                return self.log_result(
-                    "Startup Logs",
-                    False,
-                    "Could not read supervisor logs",
-                    {"error": result.stderr}
-                )
-        except Exception as e:
-            return self.log_result("Startup Logs", False, f"Failed to check startup logs: {str(e)}")
-    
-    def run_all_tests(self):
-        """Run all tests and return summary"""
-        logger.info("=" * 70)
-        logger.info("STARTING SIP DOMAIN AND CALL FLOW FIXES TEST SUITE")
-        logger.info("=" * 70)
-        
-        # Execute all tests
-        tests = [
-            self.test_service_health,
-            self.test_sip_ring_result_endpoint,
-            self.test_single_ivr_endpoint, 
-            self.test_single_ivr_gather_endpoint,
-            self.test_single_ivr_status_endpoint,
-            self.test_telnyx_service_sip_config,
-            self.test_voice_service_exports,
-            self.test_voice_service_init_params,
-            self.test_index_twillio_service_passing,
-            self.test_twilio_voice_webhook_sip_logic,
-            self.test_outbound_ivr_caller_provider,
-            self.test_startup_logs
+    def test_code_verification_new_states(self):
+        """Test 2: Code Verification - 9 new action states exist in js/_index.js"""
+        required_states = [
+            'bulkSelectKeys', 'bulkEnterCustomKeys',  # Fix #1: key selection for Bulk IVR
+            'bulkTTSCategory', 'bulkTTSTemplate', 'bulkTTSPlaceholder', 
+            'bulkTTSVoice', 'bulkTTSPreview', 'bulkTTSCustomScript',  # Fix #2: inline TTS templates for Bulk IVR
+            'ivrObConfirmKeys'  # Fix #3: key confirmation for Quick IVR custom scripts
         ]
         
-        for test in tests:
-            test()
+        try:
+            with open('/app/js/_index.js', 'r') as f:
+                content = f.read()
+                
+            found_states = []
+            missing_states = []
+            
+            for state in required_states:
+                # Look for state definition like "bulkSelectKeys: 'bulkSelectKeys',"
+                if f"{state}: '{state}'" in content:
+                    found_states.append(state)
+                else:
+                    missing_states.append(state)
+                    
+            if len(found_states) == 9:
+                self.log_result("New Action States Verification", True, f"All 9 states found: {', '.join(found_states)}")
+                return True
+            else:
+                self.log_result("New Action States Verification", False, 
+                              f"Found {len(found_states)}/9 states. Missing: {missing_states}")
+                return False
+                
+        except Exception as e:
+            self.log_result("New Action States Verification", False, f"File read error: {str(e)}")
+            return False
+            
+    def test_bulk_ivr_key_selection_flow(self):
+        """Test 3: Code Verification - Bulk IVR Key Selection Flow"""
+        try:
+            with open('/app/js/_index.js', 'r') as f:
+                content = f.read()
+                
+            tests = []
+            
+            # Test 1: bulkSelectMode routes to bulkSelectKeys (NOT bulkSetConcurrency)
+            if "set(state, chatId, 'action', a.bulkSelectKeys)" in content and "bulkSelectMode" in content:
+                # Look for the specific pattern where bulkSelectMode routes to bulkSelectKeys
+                if "'📊 Report Only'" in content and "a.bulkSelectKeys" in content:
+                    tests.append(("bulkSelectMode routes to bulkSelectKeys", True))
+                else:
+                    tests.append(("bulkSelectMode routes to bulkSelectKeys", False))
+            else:
+                tests.append(("bulkSelectMode routes to bulkSelectKeys", False))
+                
+            # Test 2: bulkEnterTransfer routes to bulkSelectKeys (NOT bulkSetConcurrency)  
+            if "bulkEnterTransfer" in content and "set(state, chatId, 'action', a.bulkSelectKeys)" in content:
+                tests.append(("bulkEnterTransfer routes to bulkSelectKeys", True))
+            else:
+                tests.append(("bulkEnterTransfer routes to bulkSelectKeys", False))
+                
+            # Test 3: bulkSelectKeys accepts presets
+            presets_check = all([
+                "'1 only'" in content,
+                "'1 and 2'" in content, 
+                "'1, 2, and 3'" in content,
+                "'0-9 (any key)'" in content,
+                "'✍️ Custom keys'" in content
+            ])
+            tests.append(("bulkSelectKeys accepts all presets", presets_check))
+            
+            # Test 4: Campaign uses bulkData.activeKeys || ['1']
+            activekeys_usage = "bulkData.activeKeys || ['1']" in content
+            tests.append(("Campaign uses activeKeys fallback", activekeys_usage))
+            
+            # Test 5: Preview shows bulkData.activeKeys
+            preview_check = "bulkData.activeKeys" in content and "Active keys" in content
+            tests.append(("Preview shows activeKeys", preview_check))
+            
+            passed_tests = [name for name, result in tests if result]
+            failed_tests = [name for name, result in tests if not result]
+            
+            if len(passed_tests) == 5:
+                self.log_result("Bulk IVR Key Selection Flow", True, f"All 5 checks passed")
+                return True
+            else:
+                self.log_result("Bulk IVR Key Selection Flow", False, 
+                              f"Passed: {len(passed_tests)}/5. Failed: {failed_tests}")
+                return False
+                
+        except Exception as e:
+            self.log_result("Bulk IVR Key Selection Flow", False, f"Error: {str(e)}")
+            return False
+            
+    def test_bulk_ivr_tts_templates(self):
+        """Test 4: Code Verification - Bulk IVR TTS Templates"""
+        try:
+            with open('/app/js/_index.js', 'r') as f:
+                content = f.read()
+                
+            tests = []
+            
+            # Test 1: bulkSelectAudio has '📝 Use IVR Template' button
+            template_button = "'📝 Use IVR Template'" in content and "bulkTTSCategory" in content
+            tests.append(("bulkSelectAudio has TTS Template button", template_button))
+            
+            # Test 2: bulkTTSCategory shows categories from ivr-outbound.js + Custom Script
+            category_check = "ivrOb.getCategoryButtons()" in content and "'✍️ Custom Script'" in content
+            tests.append(("bulkTTSCategory shows categories + custom", category_check))
+            
+            # Test 3: bulkTTSTemplate handles template selection with placeholders
+            template_check = "bulkTTSTemplate" in content and "template.placeholders" in content
+            tests.append(("bulkTTSTemplate handles placeholders", template_check))
+            
+            # Test 4: bulkTTSVoice generates TTS via ttsService.generateTTS()
+            voice_check = "ttsService.generateTTS" in content and "bulkTTSVoice" in content
+            tests.append(("bulkTTSVoice generates TTS", voice_check))
+            
+            # Test 5: bulkTTSPreview saves audio and sets bulkData
+            preview_check = ("audioLibraryService.saveAudio" in content and 
+                           "bulkData.audioUrl" in content and 
+                           "bulkData.activeKeys" in content)
+            tests.append(("bulkTTSPreview saves audio and sets data", preview_check))
+            
+            passed_tests = [name for name, result in tests if result]
+            failed_tests = [name for name, result in tests if not result]
+            
+            if len(passed_tests) == 5:
+                self.log_result("Bulk IVR TTS Templates", True, f"All 5 TTS template checks passed")
+                return True
+            else:
+                self.log_result("Bulk IVR TTS Templates", False, 
+                              f"Passed: {len(passed_tests)}/5. Failed: {failed_tests}")
+                return False
+                
+        except Exception as e:
+            self.log_result("Bulk IVR TTS Templates", False, f"Error: {str(e)}")
+            return False
+            
+    def test_quick_ivr_key_confirmation(self):
+        """Test 5: Code Verification - Quick IVR Key Confirmation"""
+        try:
+            with open('/app/js/_index.js', 'r') as f:
+                content = f.read()
+                
+            tests = []
+            
+            # Test 1: ivrObCustomScript routes to ivrObConfirmKeys
+            custom_script_routing = ("ivrObCustomScript" in content and 
+                                   "set(state, chatId, 'action', a.ivrObConfirmKeys)" in content)
+            tests.append(("ivrObCustomScript routes to ivrObConfirmKeys", custom_script_routing))
+            
+            # Test 2: ivrObConfirmKeys shows detected keys
+            confirm_shows_keys = ("ivrObConfirmKeys" in content and 
+                                "Detected active keys" in content and
+                                "activeKeys.join" in content)
+            tests.append(("ivrObConfirmKeys shows detected keys", confirm_shows_keys))
+            
+            # Test 3: ivrObConfirmKeys allows custom keys input
+            custom_keys_input = ("'✅ Continue'" in content and 
+                               "customKeys = [...new Set((message || '').match(/\\d/g)" in content)
+            tests.append(("ivrObConfirmKeys allows custom keys", custom_keys_input))
+            
+            # Test 4: On Continue or custom keys → proceeds to placeholders/IVR
+            proceed_logic = ("ivrObFillPlaceholder" in content and "ivrObEnterIvrNumber" in content)
+            tests.append(("Proceeds to placeholders or IVR number", proceed_logic))
+            
+            passed_tests = [name for name, result in tests if result]
+            failed_tests = [name for name, result in tests if not result]
+            
+            if len(passed_tests) == 4:
+                self.log_result("Quick IVR Key Confirmation", True, f"All 4 confirmation checks passed")
+                return True
+            else:
+                self.log_result("Quick IVR Key Confirmation", False, 
+                              f"Passed: {len(passed_tests)}/4. Failed: {failed_tests}")
+                return False
+                
+        except Exception as e:
+            self.log_result("Quick IVR Key Confirmation", False, f"Error: {str(e)}")
+            return False
+            
+    def test_ux_text_verification(self):
+        """Test 6: UX Text Verification"""
+        try:
+            with open('/app/js/phone-config.js', 'r') as f:
+                content = f.read()
+                
+            tests = []
+            
+            # Test 1: 'Choose a Cloud IVR Plan' (instead of 'Buy Cloud Phone Plans')
+            plan_text = "'Choose a Cloud IVR Plan'" in content or '"Choose a Cloud IVR Plan"' in content
+            tests.append(("'Choose a Cloud IVR Plan' text", plan_text))
+            
+            # Test 2: 'Quick IVR Call' (instead of 'IVR Outbound Call')
+            quick_ivr_text = "'Quick IVR Call'" in content or '"Quick IVR Call"' in content
+            tests.append(("'Quick IVR Call' text", quick_ivr_text))
+            
+            # Test 3: 'Bulk IVR Campaign' (instead of 'Bulk Call Campaign')
+            bulk_ivr_text = "'Bulk IVR Campaign'" in content or '"Bulk IVR Campaign"' in content  
+            tests.append(("'Bulk IVR Campaign' text", bulk_ivr_text))
+            
+            passed_tests = [name for name, result in tests if result]
+            failed_tests = [name for name, result in tests if not result]
+            
+            if len(passed_tests) == 3:
+                self.log_result("UX Text Verification", True, f"All 3 text updates verified")
+                return True
+            else:
+                self.log_result("UX Text Verification", False, 
+                              f"Passed: {len(passed_tests)}/3. Failed: {failed_tests}")
+                return False
+                
+        except Exception as e:
+            self.log_result("UX Text Verification", False, f"Error: {str(e)}")
+            return False
+            
+    def test_startup_logs(self):
+        """Test 7: Startup Logs - Zero errors in nodejs.err.log"""
+        try:
+            err_log_path = '/var/log/supervisor/nodejs.err.log'
+            
+            if os.path.exists(err_log_path):
+                with open(err_log_path, 'r') as f:
+                    err_content = f.read().strip()
+                    
+                if not err_content:
+                    self.log_result("Startup Logs Check", True, "nodejs.err.log is empty (no errors)")
+                    return True
+                else:
+                    # Count lines to see if there are actual errors
+                    lines = err_content.split('\n')
+                    self.log_result("Startup Logs Check", False, f"Found {len(lines)} error lines in nodejs.err.log")
+                    return False
+            else:
+                self.log_result("Startup Logs Check", False, "nodejs.err.log not found")
+                return False
+                
+        except Exception as e:
+            self.log_result("Startup Logs Check", False, f"Error reading logs: {str(e)}")
+            return False
+            
+    def run_all_tests(self):
+        """Run all tests in sequence"""
+        print("🚀 Starting Bulk IVR and Quick IVR Testing Suite")
+        print("=" * 60)
         
-        # Calculate summary
-        total_tests = len(self.results)
-        passed_tests = sum(1 for r in self.results if r["success"])
-        failed_tests = total_tests - passed_tests
-        success_rate = (passed_tests / total_tests) * 100 if total_tests > 0 else 0
+        # Test 1: Service Health
+        health_ok = self.test_service_health()
         
-        logger.info("=" * 70)
-        logger.info("TEST SUMMARY")
-        logger.info("=" * 70)
-        logger.info(f"Total Tests: {total_tests}")
-        logger.info(f"Passed: {passed_tests}")
-        logger.info(f"Failed: {failed_tests}")
-        logger.info(f"Success Rate: {success_rate:.1f}%")
+        # Test 2: Code Verification - New Action States  
+        self.test_code_verification_new_states()
         
-        # List failed tests
-        if failed_tests > 0:
-            logger.info("\nFAILED TESTS:")
-            for result in self.results:
-                if not result["success"]:
-                    logger.info(f"❌ {result['test']}: {result['message']}")
+        # Test 3: Bulk IVR Key Selection Flow
+        self.test_bulk_ivr_key_selection_flow()
         
-        return {
-            "total": total_tests,
-            "passed": passed_tests, 
-            "failed": failed_tests,
-            "success_rate": success_rate,
-            "results": self.results
-        }
+        # Test 4: Bulk IVR TTS Templates
+        self.test_bulk_ivr_tts_templates()
+        
+        # Test 5: Quick IVR Key Confirmation
+        self.test_quick_ivr_key_confirmation()
+        
+        # Test 6: UX Text Verification
+        self.test_ux_text_verification()
+        
+        # Test 7: Startup Logs
+        self.test_startup_logs()
+        
+        # Print results
+        print("\n" + "=" * 60)
+        print("🧪 TEST RESULTS")
+        print("=" * 60)
+        
+        for result in self.results:
+            print(result)
+            
+        print("\n" + "=" * 60)
+        print(f"📊 SUMMARY: {self.passed} passed, {self.failed} failed")
+        
+        if self.failed == 0:
+            print("🎉 ALL TESTS PASSED - Bulk IVR and Quick IVR improvements are working correctly!")
+        else:
+            print("⚠️  Some tests failed - see details above")
+            
+        success_rate = (self.passed / (self.passed + self.failed)) * 100 if (self.passed + self.failed) > 0 else 0
+        print(f"📈 Success Rate: {success_rate:.1f}%")
+        
+        return self.failed == 0
+
+def main():
+    """Main test execution"""
+    test_suite = BulkIVRTestSuite()
+    success = test_suite.run_all_tests()
+    
+    # Return exit code based on test results
+    exit(0 if success else 1)
 
 if __name__ == "__main__":
-    tester = SipDomainTestRunner()
-    summary = tester.run_all_tests()
-    
-    # Exit with error code if any tests failed
-    sys.exit(0 if summary["failed"] == 0 else 1)
+    main()
