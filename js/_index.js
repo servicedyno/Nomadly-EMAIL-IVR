@@ -3091,19 +3091,6 @@ Enter new value:`), bc)
       await set(state, chatId, 'action', a.addUserLanguage)
       return send(chatId, trans('l.askPreferredLanguage') , trans('languageMenu'))
     },
-    askUserEmail : () => {
-      set(state, chatId, 'action', a.askUserEmail)
-      return send(chatId, trans('l.askUserEmail'), trans('k.of', [[trans('t.backButton')]]))    
-    },
-    askUserTerms: () => {
-      set(state, chatId, 'action', a.askUserTerms)
-      send(chatId, trans('l.termsAndCond'), trans('termsAndConditionType', info?.userLanguage ?? 'en'))
-      setTimeout(() => {
-        return send(chatId, trans('l.acceptTermMsg'), trans('k.of', [[trans('l.acceptTermButton')], [trans('l.declineTermButton')], [trans('t.backButton')]]))
-      },1000)
-      return
-    },
-
     submenu4: async () => {
       set(state, chatId, 'action', a.submenu4)
       if (!info.isRegisteredTelegramForVps) {
