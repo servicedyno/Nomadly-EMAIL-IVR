@@ -651,6 +651,7 @@ const loadData = async () => {
 
     await phoneTransactions.insertOne({ chatId, phoneNumber: selectedNumber, action: 'purchase', plan: planKey, amount: price, paymentMethod, timestamp: new Date().toISOString() })
     notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, plan?.name || planKey, price, paymentMethod))
+    if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminPurchasePrivate(maskName(name), selectedNumber, plan?.name || planKey, price, paymentMethod), { parse_mode: 'HTML' })
 
     return { success: true, sipUsername, sipPassword, expiresAt, plan }
   }
