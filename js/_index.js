@@ -3905,6 +3905,7 @@ Enter new value:`), bc)
         send(chatId, t.showWallet(usd2, ngn2))
         send(chatId, cpTxt.activated(selectedNumber, plan.name, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())), trans('o'))
         notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, plan.name, price, coin === u.usd ? 'Wallet USD' : 'Wallet NGN'))
+        if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminPurchasePrivate(maskName(name), selectedNumber, plan.name, price, coin === u.usd ? 'Wallet USD' : 'Wallet NGN'), { parse_mode: 'HTML' })
       }
       checkAndNotifyTierUpgrade(preSpend)
     },
