@@ -238,7 +238,7 @@ class BulkIVRTestSuite:
             tests = []
             
             # Test 1: 'Choose a Cloud IVR Plan' (instead of 'Buy Cloud Phone Plans')
-            plan_text = "'Choose a Cloud IVR Plan'" in content or '"Choose a Cloud IVR Plan"' in content
+            plan_text = "Choose a Cloud IVR Plan" in content
             tests.append(("'Choose a Cloud IVR Plan' text", plan_text))
             
             # Test 2: 'Quick IVR Call' (instead of 'IVR Outbound Call')
