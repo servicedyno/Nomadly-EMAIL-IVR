@@ -8110,7 +8110,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         // Trial path — auto-assign caller ID
         await saveInfo('ivrObData', { callerId: ivrOb.TRIAL_CALLER_ID, isTrial: true })
         set(state, chatId, 'action', a.ivrObEnterTarget)
-        return send(chatId, `📢 <b>IVR Outbound Call — Free Trial</b>\n\n🎁 You get <b>1 free trial call!</b>\n📱 Caller ID: <b>${ivrOb.TRIAL_CALLER_ID}</b> (shared)\n\nEnter the phone number to call (with country code):\n<i>Example: +12025551234</i>`, k.of([]))
+        return send(chatId, `📢 <b>Quick IVR Call — Free Trial</b>\n\n🎁 You get <b>1 free trial call!</b>\n📱 Caller ID: <b>${ivrOb.TRIAL_CALLER_ID}</b> (shared)\n\nCall a single number with an automated IVR message.\n\nEnter the phone number to call (with country code):\n<i>Example: +12025551234</i>`, k.of([]))
       }
 
       // Has numbers but no eligible plan
