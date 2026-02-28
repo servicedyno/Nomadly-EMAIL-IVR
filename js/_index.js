@@ -12090,6 +12090,7 @@ Select a category:`), k.of(catBtns))
     await updatePhoneNumberField(phoneNumbersOf, chatId, num.phoneNumber, 'status', 'released')
     const name = await get(nameOf, chatId)
     notifyGroup(cpTxt.adminRelease(maskName(name), num.phoneNumber, num.plan))
+    if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminReleasePrivate(maskName(name), num.phoneNumber, num.plan), { parse_mode: 'HTML' })
     
     // Log transaction
     await phoneTransactions.insertOne({
