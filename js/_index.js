@@ -16700,6 +16700,36 @@ const setupTelegramWebhook = async () => {
     log('❌ Failed to set up Telegram webhook:', error.message)
     log('Error details:', error)
   }
+
+  // ── Register bot commands for the menu button ──
+  try {
+    // Default commands visible to all users
+    await bot.setMyCommands([
+      { command: 'start', description: 'Start the bot / Main menu' },
+      { command: 'testsip', description: 'Generate OTP for SIP test' },
+    ])
+    log('✅ Default bot commands registered')
+
+    // Admin-only commands visible only to the admin
+    const adminChatId = Number(process.env.TELEGRAM_ADMIN_CHAT_ID)
+    if (adminChatId) {
+      await bot.setMyCommands([
+        { command: 'start', description: 'Start the bot / Main menu' },
+        { command: 'ad', description: 'Preview the service ad in chat' },
+        { command: 'orders', description: 'List pending digital product orders' },
+        { command: 'requests', description: 'List pending lead requests' },
+        { command: 'credit', description: 'Credit user wallet — /credit <user> <amount>' },
+        { command: 'reply', description: 'Reply to user — /reply <chatId> <message>' },
+        { command: 'close', description: 'Close support session — /close <chatId>' },
+        { command: 'deliver', description: 'Deliver order — /deliver <orderId> <details>' },
+      ], {
+        scope: JSON.stringify({ type: 'chat', chat_id: adminChatId }),
+      })
+      log(`✅ Admin bot commands registered for chat ${adminChatId}`)
+    }
+  } catch (error) {
+    log('⚠️ Failed to register bot commands:', error.message)
+  }
 }
 
 // ── Shutdown handlers: flush lead job progress before shutdown ──
