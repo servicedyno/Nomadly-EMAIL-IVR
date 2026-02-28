@@ -200,7 +200,7 @@ const t = {
   skip: 'छोड़ें',
   becomeReseller: (() => {
     const services = ['URL शॉर्टनिंग', 'डोमेन पंजीकरण']
-    if (process.env.PHONE_SERVICE_ON === 'true') services.push('क्लाउड फ़ोन')
+    if (process.env.PHONE_SERVICE_ON === 'true') services.push('Cloud IVR')
     if (HIDE_SMS_APP !== 'true') services.push('बल्कSMS')
     if (process.env.OFFSHORE_HOSTING_ON !== 'false') services.push('ऑफशोर होस्टिंग')
     return `<b>${CHAT_BOT_BRAND} पुनर्विक्रेता बनें</b>
