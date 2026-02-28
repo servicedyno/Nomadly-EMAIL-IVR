@@ -489,6 +489,18 @@ metadata:
           agent: "testing"
           comment: "✅ REFERENCEERROR LANG IS NOT DEFINED FIX COMPREHENSIVE VERIFICATION COMPLETE: All fix requirements tested with 100% success rate (6/6 tests passed). (1) NODE.JS HEALTH: Service running healthy with supervisor status RUNNING, no critical startup errors in logs (only non-critical CR whitelist warnings unrelated to fix). (2) OUTER SCOPE LANG VARIABLE: Verified `const lang = info?.userLanguage || 'en'` correctly implemented at line 1493, positioned right after `buyLeadsSelectCnam = trans('buyLeadsSelectCnam')` as specified. Variable is accessible to all goto and action handlers. (3) VOICE/AUDIO HANDLER LANG: Verified `const lang = userInfo?.userLanguage || 'en'` correctly implemented at line 1189 inside cpVmAudioUpload handler, covers [lang] usages at lines 1206-1209 in voicemail buttons. (4) INLINE LANG COVERAGE: 152 inline [lang] usages detected throughout the file, including critical handlers mentioned in issue - targetSelectAreaCode (line 2565) and domainNsSelect (line 1961) both use [lang] and are now accessible from outer scope. (5) SCOPE VERIFICATION: Lang variable properly positioned before goto object definition, ensuring proper scoping for all handlers and preventing 'ReferenceError: lang is not defined' crashes. (6) SERVICE REACHABILITY: Backend responding correctly on port 5000 via configured URL. THE LANG VARIABLE SCOPING FIX IS WORKING CORRECTLY - leads city selection, domain NS selection, and all 152 inline language lookups are now properly covered and will no longer cause ReferenceError crashes."
 
+  - task: "Bulk IVR and Quick IVR Improvements - New action states, key selection, TTS templates, key confirmation, UX text updates"
+    implemented: true
+    working: true
+    file: "js/_index.js, js/phone-config.js, js/ivr-outbound.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ BULK IVR AND QUICK IVR IMPROVEMENTS COMPREHENSIVE TESTING COMPLETE: All new features verified with 100% success rate (7/7 tests passed). (1) SERVICE HEALTH: Node.js backend running healthy on port 5000 with database connected. (2) NEW ACTION STATES: All 9 required action states verified in js/_index.js: bulkSelectKeys, bulkEnterCustomKeys (Fix #1), bulkTTSCategory, bulkTTSTemplate, bulkTTSPlaceholder, bulkTTSVoice, bulkTTSPreview, bulkTTSCustomScript (Fix #2), ivrObConfirmKeys (Fix #3). (3) BULK IVR KEY SELECTION FLOW: Correct routing from bulkSelectMode→bulkSelectKeys and bulkEnterTransfer→bulkSelectKeys, preset acceptance, activeKeys usage. (4) BULK IVR TTS TEMPLATES: Template button, category selection, placeholder handling, TTS generation, audio saving. (5) QUICK IVR KEY CONFIRMATION: Proper routing from ivrObCustomScript→ivrObConfirmKeys, key detection/customization, flow continuation. (6) UX TEXT VERIFICATION: All 3 text updates confirmed in phone-config.js. (7) STARTUP LOGS: Zero errors. ALL IMPROVEMENTS WORKING CORRECTLY."
+
 test_plan:
   current_focus:
     - "SIP Domain and Call Flow Fixes for Nomadly Telegram Bot Platform"
