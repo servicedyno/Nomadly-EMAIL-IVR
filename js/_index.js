@@ -8929,6 +8929,256 @@ Choose an IVR template category:`), k.of(rows))
     return send(chatId, `🔗 Transfer to: <b>${clean}</b>\n\n🔘 <b>Select Active Keys</b>\n\nWhich keys trigger the transfer?\n\nPick a preset or enter custom digits:`, k.of([['1 only'], ['1 and 2'], ['1, 2, and 3'], ['0-9 (any key)'], ['✍️ Custom keys'], ['↩️ Back']]))
   }
 
+  // ── Bulk IVR: Select Active Keys ──
+  if (action === a.bulkSelectKeys) {
+    if (message === '↩️ Back' || message === t.back) {
+      const bulkData = info?.bulkData || {}
+      if (bulkData.mode === 'transfer') {
+        set(state, chatId, 'action', a.bulkEnterTransfer)
+        return send(chatId, `Enter the transfer number:`, k.of([['↩️ Back']]))
+      }
+      set(state, chatId, 'action', a.bulkSelectMode)
+      return send(chatId, `Select Campaign Mode:`, k.of([['🔗 Transfer + Report'], ['📊 Report Only'], ['↩️ Back']]))
+    }
+    const bulkData = info?.bulkData || {}
+    let selectedKeys = null
+    if (message === '1 only') selectedKeys = ['1']
+    else if (message === '1 and 2') selectedKeys = ['1', '2']
+    else if (message === '1, 2, and 3') selectedKeys = ['1', '2', '3']
+    else if (message === '0-9 (any key)') selectedKeys = ['0','1','2','3','4','5','6','7','8','9']
+    else if (message === '✍️ Custom keys') {
+      set(state, chatId, 'action', a.bulkEnterCustomKeys)
+      return send(chatId, `Enter the digits that count as active keys:\n<i>Example: 1,3,5 or 1 2 3</i>`, k.of([['↩️ Back']]))
+    }
+    if (!selectedKeys) {
+      // Try parsing as digits
+      const parsed = [...new Set((message || '').match(/\d/g) || [])]
+      if (parsed.length > 0) selectedKeys = parsed.sort()
+    }
+    if (!selectedKeys || selectedKeys.length === 0) {
+      return send(chatId, `Please select a preset or enter digits:`, k.of([['1 only'], ['1 and 2'], ['1, 2, and 3'], ['0-9 (any key)'], ['✍️ Custom keys'], ['↩️ Back']]))
+    }
+    bulkData.activeKeys = selectedKeys
+    await saveInfo('bulkData', bulkData)
+    set(state, chatId, 'action', a.bulkSetConcurrency)
+    return send(chatId, `🔘 Active keys: <b>${selectedKeys.join(', ')}</b>\n\n⚡ <b>Set Concurrency</b>\n\nHow many simultaneous calls? (1-20)\nDefault: <b>10</b>`, k.of([['5'], ['10'], ['15'], ['20'], ['↩️ Back']]))
+  }
+
+  if (action === a.bulkEnterCustomKeys) {
+    if (message === '↩️ Back' || message === t.back) {
+      set(state, chatId, 'action', a.bulkSelectKeys)
+      return send(chatId, `🔘 <b>Select Active Keys</b>`, k.of([['1 only'], ['1 and 2'], ['1, 2, and 3'], ['0-9 (any key)'], ['✍️ Custom keys'], ['↩️ Back']]))
+    }
+    const parsed = [...new Set((message || '').match(/\d/g) || [])]
+    if (parsed.length === 0) {
+      return send(chatId, `Enter at least one digit (0-9):\n<i>Example: 1,3,5</i>`, k.of([['↩️ Back']]))
+    }
+    const bulkData = info?.bulkData || {}
+    bulkData.activeKeys = parsed.sort()
+    await saveInfo('bulkData', bulkData)
+    set(state, chatId, 'action', a.bulkSetConcurrency)
+    return send(chatId, `🔘 Active keys: <b>${parsed.sort().join(', ')}</b>\n\n⚡ <b>Set Concurrency</b>\n\nHow many simultaneous calls? (1-20)\nDefault: <b>10</b>`, k.of([['5'], ['10'], ['15'], ['20'], ['↩️ Back']]))
+  }
+
+  // ── Bulk IVR: Inline TTS Template Flow ──
+  if (action === a.bulkTTSCategory) {
+    if (message === '↩️ Back' || message === t.back) {
+      set(state, chatId, 'action', a.bulkSelectAudio)
+      const audios = await audioLibraryService.listAudios(chatId)
+      const audioBtns = audios.map(a => [`🎵 ${a.name.substring(0, 30)}`])
+      return send(chatId, `Select IVR Audio:`, k.of([...audioBtns, ['📎 Upload New Audio'], ['📝 Use IVR Template'], ['↩️ Back']]))
+    }
+    if (message === '✍️ Custom Script') {
+      set(state, chatId, 'action', a.bulkTTSCustomScript)
+      return send(chatId, `✍️ <b>Custom Script</b>\n\nType the message to be spoken.\nUse "press 1", "press 2" etc. in your text to define active keys.\n\n<i>Example: Hello, this is a reminder about your appointment. Press 1 to confirm or press 2 to reschedule.</i>`, k.of([['↩️ Back']]))
+    }
+    const ivrOb = require('./ivr-outbound.js')
+    const category = ivrOb.getCategoryByButton(message)
+    if (!category) {
+      const catBtns = ivrOb.getCategoryButtons().map(b => [b])
+      return send(chatId, `Please select a category:`, k.of([...catBtns, ['✍️ Custom Script'], ['↩️ Back']]))
+    }
+    const bulkTTS = info?.bulkTTS || {}
+    bulkTTS.category = category
+    await saveInfo('bulkTTS', bulkTTS)
+    set(state, chatId, 'action', a.bulkTTSTemplate)
+    const templates = ivrOb.getTemplateButtons(category)
+    const templateBtns = templates.map(b => [b])
+    return send(chatId, `Select a template:`, k.of([...templateBtns, ['↩️ Back']]))
+  }
+
+  if (action === a.bulkTTSCustomScript) {
+    if (message === '↩️ Back' || message === t.back) {
+      const ivrOb = require('./ivr-outbound.js')
+      const catBtns = ivrOb.getCategoryButtons().map(b => [b])
+      set(state, chatId, 'action', a.bulkTTSCategory)
+      return send(chatId, `Choose a template category:`, k.of([...catBtns, ['✍️ Custom Script'], ['↩️ Back']]))
+    }
+    const ivrOb = require('./ivr-outbound.js')
+    const bulkTTS = info?.bulkTTS || {}
+    bulkTTS.templateName = 'Custom Script'
+    bulkTTS.templateText = message
+    const keyMatches = message.match(/press\s+(\d)/gi) || []
+    bulkTTS.activeKeys = [...new Set(keyMatches.map(m => m.replace(/press\s+/i, '')))]
+    if (bulkTTS.activeKeys.length === 0) bulkTTS.activeKeys = ['1']
+    const placeholders = ivrOb.extractPlaceholders(message)
+    bulkTTS.placeholders = placeholders
+    bulkTTS.placeholderValues = {}
+    bulkTTS.placeholderIndex = 0
+    await saveInfo('bulkTTS', bulkTTS)
+
+    if (placeholders.length > 0) {
+      set(state, chatId, 'action', a.bulkTTSPlaceholder)
+      return send(chatId, `Enter value for <b>[${placeholders[0]}]</b>:`, k.of([]))
+    }
+    // No placeholders — go to voice selection
+    set(state, chatId, 'action', a.bulkTTSVoice)
+    const ttsService = require('./tts-service.js')
+    const voiceBtns = ttsService.getVoiceButtons('en').map(b => [b])
+    return send(chatId, `🔘 Active keys: <b>${bulkTTS.activeKeys.join(', ')}</b>\n\n🎙 <b>Select Voice</b>:`, k.of([...voiceBtns, ['↩️ Back']]))
+  }
+
+  if (action === a.bulkTTSTemplate) {
+    if (message === '↩️ Back' || message === t.back) {
+      const ivrOb = require('./ivr-outbound.js')
+      const catBtns = ivrOb.getCategoryButtons().map(b => [b])
+      set(state, chatId, 'action', a.bulkTTSCategory)
+      return send(chatId, `Choose a template category:`, k.of([...catBtns, ['✍️ Custom Script'], ['↩️ Back']]))
+    }
+    const ivrOb = require('./ivr-outbound.js')
+    const bulkTTS = info?.bulkTTS || {}
+    const template = ivrOb.getTemplateByButton(bulkTTS.category, message)
+    if (!template) return send(chatId, `Please select a template from the buttons.`)
+
+    bulkTTS.templateKey = template.key
+    bulkTTS.templateName = template.name
+    bulkTTS.templateText = template.text
+    bulkTTS.activeKeys = template.activeKeys || ['1']
+    bulkTTS.placeholders = template.placeholders || []
+    bulkTTS.placeholderValues = {}
+    bulkTTS.placeholderIndex = 0
+    await saveInfo('bulkTTS', bulkTTS)
+
+    send(chatId, `📋 <b>${template.icon} ${template.name}</b>\n\n<i>"${template.text}"</i>\n\n🔘 Active keys: <b>${bulkTTS.activeKeys.join(', ')}</b>`)
+
+    if (bulkTTS.placeholders.length > 0) {
+      set(state, chatId, 'action', a.bulkTTSPlaceholder)
+      return send(chatId, `Enter value for <b>[${bulkTTS.placeholders[0]}]</b>:`, k.of([]))
+    }
+    // No placeholders — go to voice selection
+    set(state, chatId, 'action', a.bulkTTSVoice)
+    const ttsService = require('./tts-service.js')
+    const voiceBtns = ttsService.getVoiceButtons('en').map(b => [b])
+    return send(chatId, `🎙 <b>Select Voice</b>:`, k.of([...voiceBtns, ['↩️ Back']]))
+  }
+
+  if (action === a.bulkTTSPlaceholder) {
+    if (message === '↩️ Back' || message === t.back) {
+      const ivrOb = require('./ivr-outbound.js')
+      const catBtns = ivrOb.getCategoryButtons().map(b => [b])
+      set(state, chatId, 'action', a.bulkTTSCategory)
+      return send(chatId, `Choose a template category:`, k.of([...catBtns, ['✍️ Custom Script'], ['↩️ Back']]))
+    }
+    const bulkTTS = info?.bulkTTS || {}
+    const idx = bulkTTS.placeholderIndex || 0
+    const placeholders = bulkTTS.placeholders || []
+    bulkTTS.placeholderValues[placeholders[idx]] = message
+    bulkTTS.placeholderIndex = idx + 1
+    await saveInfo('bulkTTS', bulkTTS)
+
+    if (bulkTTS.placeholderIndex < placeholders.length) {
+      return send(chatId, `Enter value for <b>[${placeholders[bulkTTS.placeholderIndex]}]</b>:`, k.of([]))
+    }
+    // All placeholders filled — go to voice selection
+    set(state, chatId, 'action', a.bulkTTSVoice)
+    const ttsService = require('./tts-service.js')
+    const voiceBtns = ttsService.getVoiceButtons('en').map(b => [b])
+    return send(chatId, `✅ All values filled!\n\n🎙 <b>Select Voice</b>:`, k.of([...voiceBtns, ['↩️ Back']]))
+  }
+
+  if (action === a.bulkTTSVoice) {
+    if (message === '↩️ Back' || message === t.back) {
+      const ivrOb = require('./ivr-outbound.js')
+      const catBtns = ivrOb.getCategoryButtons().map(b => [b])
+      set(state, chatId, 'action', a.bulkTTSCategory)
+      return send(chatId, `Choose a template category:`, k.of([...catBtns, ['✍️ Custom Script'], ['↩️ Back']]))
+    }
+    const ttsService = require('./tts-service.js')
+    const voiceKey = ttsService.getVoiceKeyByButton(message)
+    if (!voiceKey) {
+      const voiceBtns = ttsService.getVoiceButtons('en').map(b => [b])
+      return send(chatId, `Please select a voice:`, k.of([...voiceBtns, ['↩️ Back']]))
+    }
+    const voice = ttsService.VOICES[voiceKey] || ttsService.VOICES[ttsService.DEFAULT_VOICE]
+    const bulkTTS = info?.bulkTTS || {}
+    bulkTTS.voiceKey = voiceKey
+    bulkTTS.voiceName = voice.name
+    await saveInfo('bulkTTS', bulkTTS)
+
+    set(state, chatId, 'action', a.bulkTTSPreview)
+    send(chatId, `🎤 Voice: <b>${voice.name}</b>\n\n⏳ Generating audio...`)
+
+    try {
+      const ivrOb = require('./ivr-outbound.js')
+      const filledText = ivrOb.fillTemplate(bulkTTS.templateText, bulkTTS.placeholderValues || {})
+      const result = await ttsService.generateTTS(filledText, voiceKey)
+      bulkTTS.audioPath = result.audioPath
+      bulkTTS.audioUrl = result.audioUrl
+      bulkTTS.filledText = filledText
+      await saveInfo('bulkTTS', bulkTTS)
+
+      const previewKB = k.of([['✅ Use This Audio'], ['🎤 Change Voice'], ['↩️ Back']])
+      await bot.sendAudio(chatId, result.audioPath, {
+        caption: `🔊 <b>Audio Preview</b>\n\nListen to the generated IVR audio.\n\nTap <b>✅ Use This Audio</b> to use in campaign, or <b>🎤 Change Voice</b>.`,
+        parse_mode: 'HTML',
+        reply_markup: previewKB.reply_markup,
+      })
+      return
+    } catch (err) {
+      log(`[BulkTTS] TTS error: ${err.message}`)
+      return send(chatId, `❌ Audio generation failed: ${err.message}\n\nTry a different voice.`, k.of([['🎤 Change Voice'], ['↩️ Back']]))
+    }
+  }
+
+  if (action === a.bulkTTSPreview) {
+    if (message === '↩️ Back' || message === t.back) {
+      const ivrOb = require('./ivr-outbound.js')
+      const catBtns = ivrOb.getCategoryButtons().map(b => [b])
+      set(state, chatId, 'action', a.bulkTTSCategory)
+      return send(chatId, `Choose a template category:`, k.of([...catBtns, ['✍️ Custom Script'], ['↩️ Back']]))
+    }
+    if (message === '🎤 Change Voice') {
+      set(state, chatId, 'action', a.bulkTTSVoice)
+      const ttsService = require('./tts-service.js')
+      const voiceBtns = ttsService.getVoiceButtons('en').map(b => [b])
+      return send(chatId, `🎙 <b>Select Voice</b>:`, k.of([...voiceBtns, ['↩️ Back']]))
+    }
+    if (message === '✅ Use This Audio') {
+      const bulkTTS = info?.bulkTTS || {}
+      if (!bulkTTS.audioUrl) return send(chatId, `❌ No audio generated. Try again.`, k.of([['↩️ Back']]))
+
+      // Save to audio library
+      const audioName = `${bulkTTS.templateName || 'Campaign'} (TTS)`
+      const savedAudio = await audioLibraryService.saveAudio({
+        chatId, name: audioName, filename: require('path').basename(bulkTTS.audioPath || 'tts.mp3'),
+        originalName: `${audioName}.mp3`, duration: 0, mimeType: 'audio/mpeg', size: 0,
+        audioUrl: bulkTTS.audioUrl, localPath: bulkTTS.audioPath,
+      })
+
+      // Set as campaign audio + carry over activeKeys from template
+      const bulkData = info?.bulkData || {}
+      bulkData.audioId = savedAudio.id
+      bulkData.audioUrl = savedAudio.audioUrl || bulkTTS.audioUrl
+      bulkData.audioName = audioName
+      bulkData.activeKeys = bulkTTS.activeKeys || ['1']
+      await saveInfo('bulkData', bulkData)
+
+      set(state, chatId, 'action', a.bulkSelectMode)
+      return send(chatId, `✅ Audio saved: <b>${audioName}</b>\n🔘 Active keys (from template): <b>${(bulkTTS.activeKeys || ['1']).join(', ')}</b>\n\n📋 <b>Select Campaign Mode</b>\n\n🔗 <b>Transfer + Report</b> — When lead presses a key, bridge to your phone + always report\n📊 <b>Report Only</b> — Just track who pressed a key, no transfer + always report`, k.of([['🔗 Transfer + Report'], ['📊 Report Only'], ['↩️ Back']]))
+    }
+    return send(chatId, `Tap <b>✅ Use This Audio</b> or <b>🎤 Change Voice</b>.`, k.of([['✅ Use This Audio'], ['🎤 Change Voice'], ['↩️ Back']]))
+  }
+
   if (action === a.bulkSetConcurrency) {
     if (message === '↩️ Back' || message === t.back) {
       const bulkData = info?.bulkData || {}
