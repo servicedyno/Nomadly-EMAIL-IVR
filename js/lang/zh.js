@@ -1113,8 +1113,8 @@ const languageMenu = {
 }
 
 const l = {
-  continueAtHostbay: '🚀 所有服务现已在 Nomadly Bot 上提供 — 域名、线索、CloudPhone、数字产品等。',
-  redirectMessage: '🚀 所有服务现已在 Nomadly Bot 上提供 — 域名、线索、CloudPhone、数字产品等。',
+  continueAtHostbay: '🚀 所有服务现已在 Nomadly Bot 上提供 — 域名、线索、Cloud IVR、数字产品等。',
+  redirectMessage: '🚀 所有服务现已在 Nomadly Bot 上提供 — 域名、线索、Cloud IVR、数字产品等。',
   askPreferredLanguage: `🌍 为了确保一切都符合您的首选语言，请在下面选择一种：
   
   您随时可以在设置中更改您的语言。`,
