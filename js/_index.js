@@ -8153,7 +8153,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       if (!hasEligiblePlan) {
         const currentPlan = userNumbers.length > 0 ? (userNumbers[0]?.plan || 'starter') : 'none'
         if (userNumbers.length === 0) {
-          return send(chatId, `📞 <b>Bulk Call Campaign</b>\n\n🔒 This feature requires the <b>Pro</b> plan or higher.\n\nGet a Cloud Phone number first!\n\nTap <b>${buyLabel}</b> to get started.`, k.of([[buyLabel]]))
+          return send(chatId, `📞 <b>Bulk IVR Campaign</b>\n\n🔒 This feature requires the <b>Pro</b> plan or higher.\n\nGet a Cloud Phone number first!\n\nTap <b>${buyLabel}</b> to get started.`, k.of([[buyLabel]]))
         }
         return send(chatId, phoneConfig.upgradeMessage('bulkCall', currentPlan, info?.userLanguage), k.of([]))
       }
