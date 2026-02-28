@@ -8839,7 +8839,7 @@ Choose an IVR template category:`), k.of(rows))
       bulkData.audioName = found.name
       await saveInfo('bulkData', bulkData)
       set(state, chatId, 'action', a.bulkSelectMode)
-      return send(chatId, `🎵 Audio: <b>${found.name}</b>\n\n📋 <b>Select Campaign Mode</b>\n\n🔗 <b>Transfer + Report</b> — When lead presses 1, bridge to your SIP/phone + always report\n📊 <b>Report Only</b> — Just track who pressed 1, no transfer + always report\n\nBoth modes report full results (who pressed, who hung up, etc.)`, k.of([['🔗 Transfer + Report'], ['📊 Report Only'], ['↩️ Back']]))
+      return send(chatId, `🎵 Audio: <b>${found.name}</b>\n\n📋 <b>Select Campaign Mode</b>\n\n🔗 <b>Transfer + Report</b> — When lead presses a key, bridge to your phone + always report\n📊 <b>Report Only</b> — Just track who pressed a key, no transfer + always report\n\nBoth modes report full results (who pressed, who hung up, etc.)`, k.of([['🔗 Transfer + Report'], ['📊 Report Only'], ['↩️ Back']]))
     }
     return send(chatId, `Select an audio file:`)
   }
