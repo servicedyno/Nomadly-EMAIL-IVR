@@ -1114,7 +1114,7 @@ const btnI18n = {
     inboxRefresh: '🔄 刷新',
     ivrOutboundCall: '📢 快速IVR呼叫',
     ivrOutboundBack: '↩️ 返回',
-    bulkCallCampaign: '📞 批量呼叫活动',
+    bulkCallCampaign: '📞 批量IVR活动',
     audioLibrary: '🎵 音频库',
     back: '返回',
     cancel: '取消',
