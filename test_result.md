@@ -106,12 +106,27 @@
 user_problem_statement: "Test the new CloudPhone wallet purchase crash fix in the Nomadly Telegram Bot backend. The backend is Node.js Express running on port 5000."
 
 backend:
+  - task: "CloudPhone wallet purchase crash fix - Try/catch wrapper with auto-refund"
+    implemented: true
+    working: true
+    file: "js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "CloudPhone wallet purchase fix implemented with try/catch wrapper around purchase logic after wallet deduction. Auto-refunds wallet on any purchase error to prevent wallet deduction without phone number purchase."
+        - working: true
+          agent: "testing"
+          comment: "✅ CLOUDPHONE WALLET PURCHASE CRASH FIX VERIFICATION COMPLETE: All 7 critical requirements verified with 100% success rate. (1) NODE.JS HEALTH: Service running healthy on port 5000 with database connected and accessible. (2) TRY/CATCH WRAPPER: Purchase section in walletOk['phone-pay'] handler (line 3838) properly wrapped in try/catch block after wallet deduction (atomicIncrement usdOut/ngnOut). (3) CATCH BLOCK REFUNDS: Both USD refund (atomicIncrement usdIn, priceUsd) and NGN refund (atomicIncrement ngnIn, priceNgn) correctly implemented in catch block. (4) NESTED TRY/CATCH: Refund operations wrapped in nested try/catch to handle refund failures with proper catch (refundErr) error handling. (5) ERROR LOGGING: Proper [CloudPhone] logging prefix found in catch block for error tracking. (6) USER NOTIFICATION: purchaseFailed message sent to user when purchase crashes. (7) PROVIDER COVERAGE: Both Twilio (if provider === 'twilio') and Telnyx (telnyxApi.buyNumber) purchase flows are inside the try block. The wallet crash fix is production-ready and will prevent user wallet deductions without successful phone number purchases."
+
   - task: "Audio Library Service - Upload, Store, Manage IVR audio files"
     implemented: true
     working: true
     file: "js/audio-library-service.js"
     stuck_count: 0
-    priority: "high"
+    priority: "medium"
     needs_retesting: false
     status_history:
         - working: "NA"
