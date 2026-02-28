@@ -252,9 +252,9 @@ agent_communication:
 frontend:
 
 metadata:
-  created_by: "main_agent"
-  version: "11.0"
-  test_sequence: 13
+  created_by: "testing_agent"
+  version: "12.0"
+  test_sequence: 14
   run_ui: false
 
   - task: "Fix: Shortener activation must ensureCloudflare before adding CNAME"
