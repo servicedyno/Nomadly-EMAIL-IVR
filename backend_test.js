@@ -81,7 +81,8 @@ async function testCloudPhoneWalletFix() {
             console.log('✅ Found walletOk[\'phone-pay\'] handler');
             
             const handlerStart = phonePayMatch.index;
-            const handlerSection = indexContent.substring(handlerStart, handlerStart + 5000);
+            // Get a larger section to capture the full handler
+            const handlerSection = indexContent.substring(handlerStart, handlerStart + 8000);
             
             // Check for try/catch after wallet deduction
             if (handlerSection.includes('atomicIncrement(walletOf, chatId, \'usdOut\', priceUsd)') ||
