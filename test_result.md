@@ -103,7 +103,7 @@
 #====================================================================================================
 
 
-user_problem_statement: "Test the new Bulk Call Campaign and Audio Library features for the Nomadly Telegram Bot platform. Backend is Node.js (Express) running on port 5000."
+user_problem_statement: "Test the new CloudPhone wallet purchase crash fix in the Nomadly Telegram Bot backend. The backend is Node.js Express running on port 5000."
 
 backend:
   - task: "Audio Library Service - Upload, Store, Manage IVR audio files"
