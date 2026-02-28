@@ -1120,8 +1120,8 @@ const languageMenu = {
 }
 
 const l = {
-  continueAtHostbay: '🚀 सभी सेवाएं अब Nomadly Bot पर उपलब्ध हैं — डोमेन, लीड्स, CloudPhone, डिजिटल उत्पाद और बहुत कुछ।',
-  redirectMessage: '🚀 सभी सेवाएं अब Nomadly Bot पर उपलब्ध हैं — डोमेन, लीड्स, CloudPhone, डिजिटल उत्पाद और बहुत कुछ।',
+  continueAtHostbay: '🚀 सभी सेवाएं अब Nomadly Bot पर उपलब्ध हैं — डोमेन, लीड्स, Cloud IVR, डिजिटल उत्पाद और बहुत कुछ।',
+  redirectMessage: '🚀 सभी सेवाएं अब Nomadly Bot पर उपलब्ध हैं — डोमेन, लीड्स, Cloud IVR, डिजिटल उत्पाद और बहुत कुछ।',
   askPreferredLanguage: `🌍 सुनिश्चित करें कि सब कुछ आपकी वरीय भाषा में है, नीचे एक का चयन करें:
   
 आप हमेशा बाद में अपनी भाषा सेटिंग्स में बदल सकते हैं।`,
