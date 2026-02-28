@@ -145,14 +145,22 @@ def test_lookup_cnam_integration():
     
     # Check for circuitAllows calls before each provider
     circuit_allow_patterns = [
-        r'circuitAllows\([\'"]telnyx[\'"\]',
-        r'circuitAllows\([\'"]multitel[\'"\]',
-        r'circuitAllows\([\'"]signalwire[\'"\]'
+        r'circuitAllows\([\'"]telnyx[\'"]',
+        r'circuitAllows\([\'"]multitel[\'"]',
+        r'circuitAllows\([\'"]signalwire[\'"]'
     ]
     
     for pattern in circuit_allow_patterns:
         if not re.search(pattern, content):
-            provider = pattern.split('"')[1] if '"' in pattern else pattern.split("'")[1]
+            # Extract provider name for error message
+            if "'telnyx'" in pattern or '"telnyx"' in pattern:
+                provider = "telnyx"
+            elif "'multitel'" in pattern or '"multitel"' in pattern:
+                provider = "multitel" 
+            elif "'signalwire'" in pattern or '"signalwire"' in pattern:
+                provider = "signalwire"
+            else:
+                provider = "unknown"
             return False, f"circuitAllows() call missing for {provider}"
     
     # Check for circuitSuccess calls
