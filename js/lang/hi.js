@@ -627,31 +627,51 @@ ${CHAT_BOT_NAME}`,
 
 संपर्क: ${CHAT_BOT_NAME}`,
   showDepositCryptoInfoPlan: (priceUsd, priceCrypto, tickerView, address, plan) =>
-    `कृपया ${priceCrypto} ${tickerView} को\n\n<code>${address}</code> भेजें
+    `💰 <b>भुगतान राशि: $${Number(priceUsd).toFixed(2)} USD</b>
 
-क्रिप्टो भुगतान तेज़ी से पुष्टि होते हैं — आमतौर पर कुछ ही मिनटों में। पुष्टि होने पर, आप स्वचालित रूप से सूचित किए जाएंगे और आपका ${plan} योजना सुचारू रूप से सक्रिय हो जाएगा।
+बिल्कुल <b>${priceCrypto} ${tickerView}</b> भेजें:
 
-संपर्क: ${CHAT_BOT_NAME}`,
+<code>${address}</code>
+
+भुगतान की पुष्टि होने पर आपका ${plan} प्लान स्वचालित रूप से सक्रिय हो जाएगा (आमतौर पर कुछ ही मिनटों में)।
+
+सादर,
+${CHAT_BOT_NAME}`,
   showDepositCryptoInfoDomain: (priceUsd, priceCrypto, tickerView, address, domain) =>
-    `कृपया ${priceCrypto} ${tickerView} को\n\n<code>${address}</code> भेजें
+    `💰 <b>भुगतान राशि: $${Number(priceUsd).toFixed(2)} USD</b>
 
-क्रिप्टो भुगतान तेज़ी से पुष्टि होते हैं — आमतौर पर कुछ ही मिनटों में। पुष्टि होने पर, आप स्वचालित रूप से सूचित किए जाएंगे और आपका डोमेन ${domain} सुचारू रूप से सक्रिय हो जाएगा।
+बिल्कुल <b>${priceCrypto} ${tickerView}</b> भेजें:
 
-संपर्क: ${CHAT_BOT_NAME}`,
+<code>${address}</code>
+
+भुगतान की पुष्टि होने पर आपका डोमेन ${domain} स्वचालित रूप से सक्रिय हो जाएगा (आमतौर पर कुछ ही मिनटों में)।
+
+सादर,
+${CHAT_BOT_NAME}`,
 
   showDepositCryptoInfoLeads: (priceUsd, priceCrypto, tickerView, address, label) =>
-    `कृपया ${priceCrypto} ${tickerView} को\n\n<code>${address}</code> भेजें
+    `💰 <b>भुगतान राशि: $${Number(priceUsd).toFixed(2)} USD</b>
 
-क्रिप्टो भुगतान तेज़ी से पुष्टि होते हैं — आमतौर पर कुछ ही मिनटों में। पुष्टि होने पर, आप स्वचालित रूप से सूचित किए जाएंगे और आपके ${label} वितरित किए जाएंगे।
+बिल्कुल <b>${priceCrypto} ${tickerView}</b> भेजें:
 
-संपर्क: ${CHAT_BOT_NAME}`,
+<code>${address}</code>
+
+भुगतान की पुष्टि होने पर आपके ${label} स्वचालित रूप से वितरित किए जाएंगे (आमतौर पर कुछ ही मिनटों में)।
+
+सादर,
+${CHAT_BOT_NAME}`,
 
   showDepositCryptoInfoPhone: (priceUsd, priceCrypto, tickerView, address, phoneNumber) =>
-    `कृपया ${priceCrypto} ${tickerView} को\n\n<code>${address}</code> भेजें
+    `💰 <b>भुगतान राशि: $${Number(priceUsd).toFixed(2)} USD</b>
 
-क्रिप्टो भुगतान तेज़ी से पुष्टि होते हैं — आमतौर पर कुछ ही मिनटों में। पुष्टि होने पर, आप स्वचालित रूप से सूचित किए जाएंगे और आपका क्लाउड फ़ोन नंबर ${phoneNumber} सक्रिय हो जाएगा।
+बिल्कुल <b>${priceCrypto} ${tickerView}</b> भेजें:
 
-संपर्क: ${CHAT_BOT_NAME}`,
+<code>${address}</code>
+
+भुगतान की पुष्टि होने पर आपका क्लाउड फ़ोन नंबर ${phoneNumber} स्वचालित रूप से सक्रिय हो जाएगा (आमतौर पर कुछ ही मिनटों में)।
+
+सादर,
+${CHAT_BOT_NAME}`,
 
   showDepositCryptoInfoDigitalProduct: (priceUsd, priceCrypto, tickerView, address, product) =>
     `💰 <b>भुगतान राशि: $${Number(priceUsd).toFixed(2)} USD</b>
