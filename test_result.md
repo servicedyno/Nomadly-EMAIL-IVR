@@ -474,7 +474,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Fix: Translated button handlers — VM/IVR/Option flows had translated button displays but English-only handlers"
+    - "SIP Domain and Call Flow Fixes for Nomadly Telegram Bot Platform"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
