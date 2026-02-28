@@ -8820,10 +8820,12 @@ Choose an IVR template category:`), k.of(rows))
       set(state, chatId, 'action', a.bulkUploadAudio)
       return send(chatId, `🎵 Send an audio file (MP3, WAV, OGG) or voice message:`, k.of([['↩️ Back']]))
     }
-    if (message === '🎤 Generate with TTS') {
-      // Redirect to IVR Outbound flow to generate audio, then come back
-      // For simplicity, ask user to use Audio Library first
-      return send(chatId, `💡 To use TTS, first generate audio via <b>📢 Quick IVR Call</b> flow, or upload a pre-recorded audio file.\n\nSelect from your library or upload new:`, k.of([['📎 Upload New Audio'], ['↩️ Back']]))
+    if (message === '📝 Use IVR Template' || message === '🎤 Generate with TTS') {
+      // Inline TTS: show template categories
+      const ivrOb = require('./ivr-outbound.js')
+      const catBtns = ivrOb.getCategoryButtons().map(b => [b])
+      set(state, chatId, 'action', a.bulkTTSCategory)
+      return send(chatId, `📝 <b>Generate Audio from Template</b>\n\nChoose a template category, or write your own custom script:`, k.of([...catBtns, ['✍️ Custom Script'], ['↩️ Back']]))
     }
     // Select from library
     if (message.startsWith('🎵 ')) {
