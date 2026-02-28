@@ -1428,15 +1428,13 @@ ${plan.panel}`
 这是一份预付款发票。请确保在 1 小时内完成付款，以便激活您的域名和托管服务。收到付款后，我们将立即为您激活服务。
 `,
 
-  showCryptoPaymentInfo: (priceUsd, priceCrypto, tickerView, address, plan) => `
-请支付 ${priceCrypto} ${tickerView} 至以下地址：
-  
+  showCryptoPaymentInfo: (priceUsd, priceCrypto, tickerView, address, plan) => `💰 <b>合计: $${Number(priceUsd).toFixed(2)} USD</b>
+
+请发送 <b>${priceCrypto} ${tickerView}</b> 至:
+
 <code>${address}</code>
-  
-加密支付确认速度很快——通常只需几分钟。一旦交易确认，您将立即收到通知，并且您的 ${plan} 将顺利激活。
-  
-此致，
-${CHAT_BOT_NAME}`,
+
+支付确认后，您的 ${plan} 将自动激活（通常只需几分钟）。`,
 
   successText: (info, response) =>
     `这是您 HostPanel 的凭证 ${info.plan} 的信息：
