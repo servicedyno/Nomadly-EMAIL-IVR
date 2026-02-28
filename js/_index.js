@@ -15390,6 +15390,21 @@ app.get('/admin/reset-states', async (req, res) => {
   }
 })
 
+// CNAM circuit breaker diagnostics (admin-only)
+app.get('/admin/cnam-circuit', async (req, res) => {
+  const adminKey = req?.query?.key
+  if (adminKey !== process.env.SESSION_SECRET?.slice(0, 16)) {
+    return res.status(403).json({ error: 'Unauthorized' })
+  }
+  try {
+    const status = getCircuitStatus()
+    res.json({ success: true, circuitBreakers: status })
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
+
 app.get('/planInfo', async (req, res) => {
   if (process.env.OLD_APP_ACTIVE === 'false') return res.send('old app off now')
 
