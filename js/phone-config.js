@@ -352,7 +352,7 @@ planByButton[btn.businessPlan] = 'business'
 
 // ── Text messages ──
 const txt = {
-  hubWelcome: `📞 <b>CloudPhone</b> <i>by Speechcue</i>
+  hubWelcome: `📞 <b>Cloud IVR</b> <i>by Speechcue</i>
 
 Get a virtual number in 30+ countries — in under 2 minutes.
 
