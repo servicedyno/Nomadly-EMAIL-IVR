@@ -8124,7 +8124,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       set(state, chatId, 'action', a.ivrObSelectCallerId)
       await saveInfo('ivrObData', { isTrial: false })
       const rows = eligibleNumbers.map(n => [n.phoneNumber])
-      return send(chatId, `📢 <b>IVR Outbound Call</b>\n\nSelect the number to call FROM (Caller ID):`, k.of(rows))
+      return send(chatId, `📢 <b>Quick IVR Call</b>\n\nCall a single number with an automated IVR message.\n\nSelect the number to call FROM (Caller ID):`, k.of(rows))
     }
     if (message === pc.sipSettings) {
       return send(chatId, cpTxt.softphoneGuide(phoneConfig.SIP_DOMAIN), k.of([]))
@@ -8246,7 +8246,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       const numbers = (userData?.numbers || []).filter(n => n.status === 'active')
       const numBtns = numbers.map(n => n.phoneNumber)
       const rows = numBtns.map(n => [n])
-      return send(chatId, `📢 <b>IVR Outbound Call</b>\n\nSelect the number to call FROM (Caller ID):`, k.of(rows))
+      return send(chatId, `📢 <b>Quick IVR Call</b>\n\nCall a single number with an automated IVR message.\n\nSelect the number to call FROM (Caller ID):`, k.of(rows))
     }
     const clean = message.replace(/[^+\d]/g, '')
     if (!clean.match(/^\+\d{10,15}$/)) {
