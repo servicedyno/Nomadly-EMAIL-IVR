@@ -4430,43 +4430,6 @@ All verified numbers generated during sourcing.`))
     return send(chatId, greeting, trans('o'))
   }
 
-  if (action === a.askUserEmail) {
-    if (message === trans('t.backButton')) return goto.userLanguage();
-    const email = message;
-    if (!isValidEmail(message)) {
-      return send(chatId, hP.generatePlanStepText('invalidEmail'), trans('k.of', [[trans('t.backButton')]]))
-    }
-    set(state, chatId, 'userEmail', email)
-    send(chatId, trans('l.processUserEmail'))
-    setTimeout(() => {
-      send(chatId, trans('l.confirmUserEmail'))
-      return goto.askUserTerms()
-    },1000)
-    return
-  }
-
-  if (action === a.askUserTerms) {
-    if (message === trans('t.backButton')) return goto.askUserEmail();
-    if (message === trans('l.viewTermsAgainButton')) return goto.askUserTerms()
-    if (message === trans('l.exitSetupButton')) {
-      set(state, chatId, 'action', 'none')
-      return send(chatId, trans('l.userExitMsg'), rem)
-    }
-    if (message === trans('l.acceptTermButton')) {
-      set(state, chatId, 'hasAcceptedTerms', true)
-      send(chatId, trans('l.acceptedTermsMsg'))
-      notifyGroup(`🎉 <b>New Member!</b>\nUser ${maskName(username)} just joined ${CHAT_BOT_NAME} — domains, leads, hosting, digital products & more at your fingertips.\nSee what's possible — /start`)
-      setTimeout(async () => {
-        const freeLinks = await get(freeShortLinksOf, chatId)
-        set(state, chatId, 'action', 'none')
-        if (freeLinks === undefined || freeLinks > 0) return send(chatId, t.welcomeFreeTrial, trans('o'))
-        return send(chatId, t.welcome, trans('o'))      
-      },1000)
-      return
-    }
-    return send(chatId, trans('l.declinedTermsMsg'),  trans('k.of', [[trans('l.viewTermsAgainButton')], [trans('l.exitSetupButton')], [trans('t.backButton')]]))
-  }
-
   // cPanel Plans Events Handlers
   if ([user.cPanelWebHostingPlans, user.pleskWebHostingPlans].includes(message)) {
     return goto.selectPlan(a.premiumWeekly)
