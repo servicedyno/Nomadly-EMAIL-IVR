@@ -1784,7 +1784,7 @@ Sélectionnez une option :`,
     callForwarded: (to, from, forwardedTo, duration, time) => `📞 <b>已转接来电</b>\n\n📞 被叫：${formatPhone(to)}\n👤 主叫：${formatPhone(from)}\n📲 转接到：${formatPhone(forwardedTo)}\n⏱️ 时长：${formatDuration(duration)}\n🕐 ${time}`,
     newVoicemail: (to, from, duration, time) => `🎙️ <b>新语音留言</b>\n\n📞 被叫：${formatPhone(to)}\n👤 主叫：${formatPhone(from)}\n⏱️ 时长：${formatDuration(duration)}\n🕐 ${time}`,
     // 到期提醒
-    expiryReminder: (number, days, plan, price, balance) => `🔔 <b>续费提醒</b>\n\n您的云电话号码 ${formatPhone(number)}（${plan} 套餐）将在 <b>${days} 天</b>后到期。\n\n钱包余额：$${balance}\n套餐价格：$${price}/月${balance < price ? '\n\n⚠️ 余额不足。请充值。' : ''}`,
+    expiryReminder: (number, days, plan, price, balance) => `🔔 <b>续费提醒</b>\n\n您的 Cloud IVR 号码 ${formatPhone(number)}（${plan} 套餐）将在 <b>${days} 天</b>后到期。\n\n钱包余额：$${balance}\n套餐价格：$${price}/月${balance < price ? '\n\n⚠️ 余额不足。请充值。' : ''}`,
     autoRenewed: (number, plan, price, newExpiry, oldBal, newBal) => `✅ <b>自动续费成功</b>\n\n📞 ${formatPhone(number)}\n📦 套餐：${plan}（$${price}/月）\n📅 新到期日：${shortDate(newExpiry)}\n钱包：$${oldBal} → $${newBal}`,
     autoRenewFailed: (number, plan, price, balance) => `❌ <b>自动续费失败</b>\n\n📞 ${formatPhone(number)}\n📦 套餐：${plan}（$${price}/月）\n💰 钱包：$${balance}（需要 $${price}）\n\n⚠️ 您的号码已被暂停。请在 7 天内充值并续费。`,
     // IVR
