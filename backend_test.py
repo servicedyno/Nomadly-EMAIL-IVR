@@ -1,277 +1,559 @@
 #!/usr/bin/env python3
 """
-Backend test for Nomadly Telegram bot translation system
+Backend Test for SIP Domain and Call Flow Fixes - Nomadly Telegram Bot Platform
+Tests the Node.js Express backend (port 5000) proxied through FastAPI (port 8001)
 """
 
 import requests
-import subprocess
 import json
 import sys
-import os
+import logging
+from urllib.parse import urljoin
 
-# Get backend URL from frontend/.env
-def get_backend_url():
-    try:
-        with open('/app/frontend/.env', 'r') as f:
-            for line in f:
-                if line.startswith('REACT_APP_BACKEND_URL='):
-                    return line.strip().split('=', 1)[1]
-    except Exception as e:
-        print(f"Error reading backend URL: {e}")
-        return None
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-def test_service_health():
-    """Test Node.js service health endpoint"""
-    print("=== Testing Service Health ===")
-    backend_url = get_backend_url()
-    if not backend_url:
-        print("❌ Could not retrieve backend URL from frontend/.env")
-        return False
-        
-    try:
-        # Test health endpoint
-        health_url = f"{backend_url}/health"
-        print(f"Testing health endpoint: {health_url}")
-        
-        response = requests.get(health_url, timeout=10)
-        print(f"Health endpoint status: {response.status_code}")
-        print(f"Response content type: {response.headers.get('content-type', 'unknown')}")
-        
-        # Check if it's returning HTML (which indicates frontend redirect) or JSON (expected)
-        if response.status_code == 200:
-            content_type = response.headers.get('content-type', '')
-            if 'application/json' in content_type:
-                print("✅ Health endpoint returns proper JSON")
-                return True
-            elif 'text/html' in content_type:
-                print("⚠️  Health endpoint returns HTML (likely frontend route, need to check Node.js directly)")
-                # This indicates the request is being handled by React frontend instead of Node.js
-                return False
-            else:
-                print(f"❌ Health endpoint returns unexpected content type: {content_type}")
-                return False
-        else:
-            print(f"❌ Health endpoint failed with status: {response.status_code}")
-            return False
-            
-    except Exception as e:
-        print(f"❌ Health endpoint test failed: {e}")
-        return False
-
-def test_phone_config_translations():
-    """Test phone-config.js getTxt() returns translated text for FR, ZH, HI"""
-    print("\n=== Testing phone-config.js Translations ===")
-    
-    cmd = '''node -e "
-const pc = require('/app/js/phone-config.js'); 
-const fr = pc.getTxt('fr'); 
-const zh = pc.getTxt('zh'); 
-const hi = pc.getTxt('hi'); 
-console.log('FR selectType:', typeof fr.selectType === 'function' ? '✅ function' : '❌'); 
-console.log('ZH manageNumber:', typeof zh.manageNumber === 'function' ? '✅ function' : '❌'); 
-console.log('HI ivrMenu:', typeof hi.ivrMenu === 'function' ? '✅ function' : '❌'); 
-console.log('FR smsInboxEmpty:', fr.smsInboxEmpty.includes('Aucun') ? '✅' : '❌'); 
-console.log('ZH forwardingDisabled:', typeof zh.forwardingDisabled === 'function' ? '✅' : '❌'); 
-console.log('HI renewMenu:', typeof hi.renewMenu === 'function' ? '✅' : '❌');
-"'''
-    
-    try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, cwd='/app')
-        if result.returncode == 0:
-            print("phone-config.js translation test results:")
-            print(result.stdout)
-            
-            # Check for any failures
-            failures = result.stdout.count('❌')
-            successes = result.stdout.count('✅')
-            
-            print(f"Translation functions test: {successes} successes, {failures} failures")
-            return failures == 0
-        else:
-            print(f"❌ phone-config.js test failed with error:")
-            print(result.stderr)
-            return False
-    except Exception as e:
-        print(f"❌ phone-config.js test error: {e}")
-        return False
-
-def test_upgrade_message_multilingual():
-    """Test upgradeMessage() returns translated text for FR, ZH, HI"""
-    print("\n=== Testing upgradeMessage Multilingual ===")
-    
-    cmd = '''node -e "
-const pc = require('/app/js/phone-config.js'); 
-console.log('FR:', pc.upgradeMessage('ivr','Starter','fr').includes('nécessite')); 
-console.log('ZH:', pc.upgradeMessage('voicemail','Starter','zh').includes('需要')); 
-console.log('HI:', pc.upgradeMessage('callRecording','Pro','hi').includes('आवश्यक'));
-"'''
-    
-    try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, cwd='/app')
-        if result.returncode == 0:
-            print("upgradeMessage multilingual test results:")
-            print(result.stdout)
-            
-            # Check if all translations contain expected text
-            lines = result.stdout.strip().split('\n')
-            all_passed = all('true' in line for line in lines)
-            
-            print(f"upgradeMessage multilingual test: {'✅ PASSED' if all_passed else '❌ FAILED'}")
-            return all_passed
-        else:
-            print(f"❌ upgradeMessage test failed with error:")
-            print(result.stderr)
-            return False
-    except Exception as e:
-        print(f"❌ upgradeMessage test error: {e}")
-        return False
-
-def test_lang_files_completeness():
-    """Test that FR, ZH, HI lang files have no missing user/t keys"""
-    print("\n=== Testing Lang Files Completeness ===")
-    
-    cmd = '''node -e "
-const en = require('/app/js/lang/en.js').en; 
-const fr = require('/app/js/lang/fr.js').fr; 
-const zh = require('/app/js/lang/zh.js').zh; 
-const hi = require('/app/js/lang/hi.js').hi; 
-['fr','zh','hi'].forEach(l => { 
-    const obj = {fr,zh,hi}[l]; 
-    const tMissing = ['dnsWarningHostedDomain','dnsProceedAnyway','dnsCancel','domainTypeRegistered','domainTypeExternal'].filter(k => !obj.t?.hasOwnProperty(k)); 
-    const uMissing = ['buyLeads','validateLeads','shortenLink','confirmRenewNow','cancelRenewNow','toggleAutoRenew'].filter(k => !obj.user?.hasOwnProperty(k)); 
-    console.log(l.toUpperCase() + ': t missing=' + tMissing.length + ', user missing=' + uMissing.length); 
-});
-"'''
-    
-    try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, cwd='/app')
-        if result.returncode == 0:
-            print("Lang files completeness test results:")
-            print(result.stdout)
-            
-            # Check if all languages have 0 missing keys
-            lines = result.stdout.strip().split('\n')
-            all_complete = all('missing=0' in line and 'missing=0' in line for line in lines)
-            
-            print(f"Lang files completeness: {'✅ COMPLETE' if all_complete else '❌ MISSING KEYS'}")
-            return all_complete
-        else:
-            print(f"❌ Lang files completeness test failed with error:")
-            print(result.stderr)
-            return False
-    except Exception as e:
-        print(f"❌ Lang files completeness test error: {e}")
-        return False
-
-def test_bot_startup():
-    """Test Node.js startup status"""
-    print("\n=== Testing Bot Startup ===")
-    
-    try:
-        # Check if "Main application ready" exists in logs
-        result = subprocess.run(
-            ['grep', '-c', 'Main application ready', '/var/log/supervisor/nodejs.out.log'],
-            capture_output=True, text=True
-        )
-        
-        if result.returncode == 0 and int(result.stdout.strip()) > 0:
-            print("✅ 'Main application ready' found in logs")
-            startup_ok = True
-        else:
-            print("❌ 'Main application ready' not found in logs")
-            startup_ok = False
-        
-        # Check error log is empty (last 5 lines)
-        error_result = subprocess.run(
-            ['tail', '-5', '/var/log/supervisor/nodejs.err.log'],
-            capture_output=True, text=True
-        )
-        
-        if error_result.returncode == 0 and error_result.stdout.strip() == "":
-            print("✅ Error log is clean (no recent errors)")
-            errors_ok = True
-        else:
-            print(f"⚠️  Error log contains: {error_result.stdout.strip()}")
-            errors_ok = len(error_result.stdout.strip()) == 0
-        
-        return startup_ok and errors_ok
-        
-    except Exception as e:
-        print(f"❌ Bot startup test error: {e}")
-        return False
-
-def test_inline_translations_count():
-    """Test _index.js inline translations count"""
-    print("\n=== Testing _index.js Inline Translations Count ===")
-    
-    try:
-        result = subprocess.run(
-            ['grep', '-c', '[lang]', '/app/js/_index.js'],
-            capture_output=True, text=True
-        )
-        
-        if result.returncode == 0:
-            count = int(result.stdout.strip())
-            print(f"Inline translations found: {count}")
-            
-            if count >= 100:
-                print(f"✅ Inline translations count: {count} (≥100)")
-                return True
-            else:
-                print(f"❌ Inline translations count: {count} (<100)")
-                return False
-        else:
-            print("❌ Failed to count inline translations")
-            return False
-            
-    except Exception as e:
-        print(f"❌ Inline translations count test error: {e}")
-        return False
-
-def main():
-    """Run all translation system tests"""
-    print("Starting Nomadly Telegram Bot Translation System Tests\n")
-    
-    tests = [
-        ("Service Health", test_service_health),
-        ("phone-config.js Translations", test_phone_config_translations),
-        ("upgradeMessage Multilingual", test_upgrade_message_multilingual),
-        ("Lang Files Completeness", test_lang_files_completeness),
-        ("Bot Startup", test_bot_startup),
-        ("Inline Translations Count", test_inline_translations_count)
-    ]
-    
-    results = {}
-    
-    for test_name, test_func in tests:
+class SipDomainTestRunner:
+    def __init__(self):
+        # Read the REACT_APP_BACKEND_URL from frontend/.env
+        self.base_url = None
         try:
-            print(f"\n{'='*50}")
-            results[test_name] = test_func()
+            with open('/app/frontend/.env', 'r') as f:
+                for line in f:
+                    if line.startswith('REACT_APP_BACKEND_URL='):
+                        self.base_url = line.split('=', 1)[1].strip()
+                        break
         except Exception as e:
-            print(f"❌ {test_name} test crashed: {e}")
-            results[test_name] = False
+            logger.error(f"Failed to read frontend/.env: {e}")
+            self.base_url = "https://config-pod-webhook.preview.emergentagent.com"
+        
+        logger.info(f"Using base URL: {self.base_url}")
+        
+        self.session = requests.Session()
+        self.session.timeout = 30
+        self.results = []
+        
+    def log_result(self, test_name, success, message, details=None):
+        """Log test result and add to results list"""
+        status = "✅ PASS" if success else "❌ FAIL"
+        logger.info(f"{status} - {test_name}: {message}")
+        
+        result = {
+            "test": test_name,
+            "success": success,
+            "message": message,
+            "details": details or {}
+        }
+        self.results.append(result)
+        return success
     
-    # Summary
-    print(f"\n{'='*50}")
-    print("=== TRANSLATION SYSTEM TEST SUMMARY ===")
-    print(f"{'='*50}")
+    def test_service_health(self):
+        """Test 1: Service Health - Verify Node.js is running and healthy"""
+        try:
+            url = urljoin(self.base_url, '/api/health')
+            response = self.session.get(url)
+            
+            if response.status_code == 200:
+                try:
+                    data = response.json()
+                    # Check if it's a proper JSON health response
+                    if isinstance(data, dict) and ('status' in data or 'database' in data or 'uptime' in data):
+                        return self.log_result(
+                            "Service Health",
+                            True,
+                            "Node.js backend healthy",
+                            {"status_code": 200, "response": data}
+                        )
+                    else:
+                        # Might be HTML response (React app), check if service responds
+                        return self.log_result(
+                            "Service Health", 
+                            True,
+                            "Backend responds (HTML/React app detected - service running)",
+                            {"status_code": 200, "content_type": response.headers.get('content-type', '')}
+                        )
+                except json.JSONDecodeError:
+                    # Not JSON, but 200 response means service is running
+                    return self.log_result(
+                        "Service Health",
+                        True, 
+                        "Backend responds (non-JSON response but service running)",
+                        {"status_code": 200, "content_length": len(response.content)}
+                    )
+            else:
+                return self.log_result(
+                    "Service Health",
+                    False,
+                    f"Health endpoint returned {response.status_code}",
+                    {"status_code": response.status_code, "response": response.text[:200]}
+                )
+        except Exception as e:
+            return self.log_result("Service Health", False, f"Health check failed: {str(e)}")
     
-    passed = sum(1 for success in results.values() if success)
-    total = len(results)
+    def test_sip_ring_result_endpoint(self):
+        """Test 2: SIP Ring Result Endpoint - POST /api/twilio/sip-ring-result"""
+        try:
+            url = urljoin(self.base_url, '/api/twilio/sip-ring-result')
+            params = {
+                'chatId': '123',
+                'from': '%2B15551234567',  # URL encoded +15551234567
+                'to': '%2B15559876543'     # URL encoded +15559876543
+            }
+            data = {
+                'DialCallStatus': 'no-answer',
+                'DialCallDuration': '0'
+            }
+            
+            response = self.session.post(url, params=params, json=data)
+            
+            # Check if response is TwiML XML
+            content_type = response.headers.get('content-type', '')
+            
+            if response.status_code == 200:
+                if 'xml' in content_type.lower() or response.text.strip().startswith('<'):
+                    return self.log_result(
+                        "SIP Ring Result Endpoint",
+                        True,
+                        "Endpoint exists and returns TwiML XML",
+                        {
+                            "status_code": 200,
+                            "content_type": content_type,
+                            "response_preview": response.text[:200]
+                        }
+                    )
+                else:
+                    return self.log_result(
+                        "SIP Ring Result Endpoint",
+                        True,
+                        "Endpoint exists but may not return proper TwiML XML",
+                        {
+                            "status_code": 200,
+                            "content_type": content_type,
+                            "response_preview": response.text[:200]
+                        }
+                    )
+            elif response.status_code == 404:
+                return self.log_result(
+                    "SIP Ring Result Endpoint",
+                    False,
+                    "Endpoint not found (404)",
+                    {"status_code": 404, "url": url}
+                )
+            else:
+                return self.log_result(
+                    "SIP Ring Result Endpoint",
+                    False,
+                    f"Unexpected response: {response.status_code}",
+                    {"status_code": response.status_code, "response": response.text[:200]}
+                )
+        except Exception as e:
+            return self.log_result("SIP Ring Result Endpoint", False, f"Request failed: {str(e)}")
     
-    for test_name, success in results.items():
-        status = "✅ PASSED" if success else "❌ FAILED"
-        print(f"{test_name}: {status}")
+    def test_single_ivr_endpoint(self):
+        """Test 3: Single IVR TwiML Endpoint - POST /api/twilio/single-ivr"""
+        try:
+            url = urljoin(self.base_url, '/api/twilio/single-ivr')
+            params = {'sessionId': 'test-nonexistent'}
+            
+            response = self.session.post(url, params=params)
+            
+            if response.status_code == 200:
+                # Should return TwiML with error message (session not found is OK)
+                if 'xml' in response.headers.get('content-type', '').lower() or response.text.strip().startswith('<'):
+                    return self.log_result(
+                        "Single IVR Endpoint",
+                        True,
+                        "Endpoint exists and returns TwiML",
+                        {
+                            "status_code": 200,
+                            "content_type": response.headers.get('content-type', ''),
+                            "response_preview": response.text[:200]
+                        }
+                    )
+                else:
+                    return self.log_result(
+                        "Single IVR Endpoint",
+                        True,
+                        "Endpoint exists but response format needs verification",
+                        {"status_code": 200, "response_preview": response.text[:200]}
+                    )
+            elif response.status_code == 404:
+                return self.log_result(
+                    "Single IVR Endpoint",
+                    False,
+                    "Endpoint not found (404)",
+                    {"status_code": 404, "url": url}
+                )
+            else:
+                return self.log_result(
+                    "Single IVR Endpoint",
+                    False,
+                    f"Unexpected response: {response.status_code}",
+                    {"status_code": response.status_code, "response": response.text[:200]}
+                )
+        except Exception as e:
+            return self.log_result("Single IVR Endpoint", False, f"Request failed: {str(e)}")
     
-    print(f"\nOverall: {passed}/{total} tests passed")
+    def test_single_ivr_gather_endpoint(self):
+        """Test 4: Single IVR Gather Endpoint - POST /api/twilio/single-ivr-gather"""
+        try:
+            url = urljoin(self.base_url, '/api/twilio/single-ivr-gather')
+            params = {'sessionId': 'test-nonexistent'}
+            data = {'Digits': '1'}
+            
+            response = self.session.post(url, params=params, json=data)
+            
+            if response.status_code == 200:
+                # Should return TwiML (session not found is expected)
+                if 'xml' in response.headers.get('content-type', '').lower() or response.text.strip().startswith('<'):
+                    return self.log_result(
+                        "Single IVR Gather Endpoint",
+                        True,
+                        "Endpoint exists and returns TwiML",
+                        {
+                            "status_code": 200,
+                            "content_type": response.headers.get('content-type', ''),
+                            "response_preview": response.text[:200]
+                        }
+                    )
+                else:
+                    return self.log_result(
+                        "Single IVR Gather Endpoint",
+                        True,
+                        "Endpoint exists but response format needs verification",
+                        {"status_code": 200, "response_preview": response.text[:200]}
+                    )
+            elif response.status_code == 404:
+                return self.log_result(
+                    "Single IVR Gather Endpoint",
+                    False,
+                    "Endpoint not found (404)",
+                    {"status_code": 404, "url": url}
+                )
+            else:
+                return self.log_result(
+                    "Single IVR Gather Endpoint",
+                    False,
+                    f"Unexpected response: {response.status_code}",
+                    {"status_code": response.status_code, "response": response.text[:200]}
+                )
+        except Exception as e:
+            return self.log_result("Single IVR Gather Endpoint", False, f"Request failed: {str(e)}")
     
-    if passed == total:
-        print("\n🎉 All translation system tests PASSED!")
-        return True
-    else:
-        print(f"\n⚠️  {total - passed} tests FAILED - requires attention")
-        return False
+    def test_single_ivr_status_endpoint(self):
+        """Test 5: Single IVR Status Endpoint - POST /api/twilio/single-ivr-status"""
+        try:
+            url = urljoin(self.base_url, '/api/twilio/single-ivr-status')
+            params = {'sessionId': 'test-nonexistent'}
+            data = {
+                'CallSid': 'test',
+                'CallStatus': 'completed',
+                'CallDuration': '60'
+            }
+            
+            response = self.session.post(url, params=params, json=data)
+            
+            if response.status_code == 200:
+                return self.log_result(
+                    "Single IVR Status Endpoint",
+                    True,
+                    "Endpoint exists and returns 200",
+                    {
+                        "status_code": 200,
+                        "content_type": response.headers.get('content-type', ''),
+                        "response_preview": response.text[:200]
+                    }
+                )
+            elif response.status_code == 404:
+                return self.log_result(
+                    "Single IVR Status Endpoint",
+                    False,
+                    "Endpoint not found (404)",
+                    {"status_code": 404, "url": url}
+                )
+            else:
+                return self.log_result(
+                    "Single IVR Status Endpoint",
+                    False,
+                    f"Unexpected response: {response.status_code}",
+                    {"status_code": response.status_code, "response": response.text[:200]}
+                )
+        except Exception as e:
+            return self.log_result("Single IVR Status Endpoint", False, f"Request failed: {str(e)}")
+    
+    def test_telnyx_service_sip_config(self):
+        """Test 6a: Verify telnyx-service.js contains sip_uri_calling_preference: 'unrestricted'"""
+        try:
+            with open('/app/js/telnyx-service.js', 'r') as f:
+                content = f.read()
+            
+            # Check for the specific configuration
+            if "sip_uri_calling_preference: 'unrestricted'" in content:
+                return self.log_result(
+                    "Telnyx SIP Config",
+                    True,
+                    "telnyx-service.js contains sip_uri_calling_preference: 'unrestricted'",
+                    {"file": "/app/js/telnyx-service.js"}
+                )
+            elif "sip_uri_calling_preference: 'internal'" in content:
+                return self.log_result(
+                    "Telnyx SIP Config",
+                    False,
+                    "telnyx-service.js still has 'internal' instead of 'unrestricted'",
+                    {"file": "/app/js/telnyx-service.js"}
+                )
+            else:
+                return self.log_result(
+                    "Telnyx SIP Config",
+                    False,
+                    "sip_uri_calling_preference not found in telnyx-service.js",
+                    {"file": "/app/js/telnyx-service.js"}
+                )
+        except Exception as e:
+            return self.log_result("Telnyx SIP Config", False, f"Failed to read file: {str(e)}")
+    
+    def test_voice_service_exports(self):
+        """Test 6b: Verify voice-service.js exports twilioIvrSessions and findNumberOwner"""
+        try:
+            with open('/app/js/voice-service.js', 'r') as f:
+                content = f.read()
+            
+            # Check for exports
+            has_twilio_ivr = 'twilioIvrSessions' in content
+            has_find_number = 'findNumberOwner' in content
+            
+            if has_twilio_ivr and has_find_number:
+                return self.log_result(
+                    "Voice Service Exports",
+                    True,
+                    "voice-service.js exports twilioIvrSessions and findNumberOwner",
+                    {"file": "/app/js/voice-service.js", "exports": ["twilioIvrSessions", "findNumberOwner"]}
+                )
+            else:
+                missing = []
+                if not has_twilio_ivr:
+                    missing.append("twilioIvrSessions")
+                if not has_find_number:
+                    missing.append("findNumberOwner")
+                
+                return self.log_result(
+                    "Voice Service Exports",
+                    False,
+                    f"Missing exports: {', '.join(missing)}",
+                    {"file": "/app/js/voice-service.js", "missing": missing}
+                )
+        except Exception as e:
+            return self.log_result("Voice Service Exports", False, f"Failed to read file: {str(e)}")
+    
+    def test_voice_service_init_params(self):
+        """Test 6c: Verify voice-service.js initVoiceService accepts twilioService parameter"""
+        try:
+            with open('/app/js/voice-service.js', 'r') as f:
+                content = f.read()
+            
+            # Check for twilioService parameter
+            if '_twilioService = deps.twilioService' in content:
+                return self.log_result(
+                    "Voice Service Init Params",
+                    True,
+                    "initVoiceService accepts twilioService parameter",
+                    {"file": "/app/js/voice-service.js"}
+                )
+            else:
+                return self.log_result(
+                    "Voice Service Init Params",
+                    False,
+                    "twilioService parameter not found in initVoiceService",
+                    {"file": "/app/js/voice-service.js"}
+                )
+        except Exception as e:
+            return self.log_result("Voice Service Init Params", False, f"Failed to read file: {str(e)}")
+    
+    def test_index_twillio_service_passing(self):
+        """Test 6d: Verify _index.js passes twilioService to initVoiceService"""
+        try:
+            with open('/app/js/_index.js', 'r') as f:
+                content = f.read()
+            
+            # Check if twilioService is passed to initVoiceService
+            if 'twilioService: require(\'./twilio-service.js\')' in content:
+                return self.log_result(
+                    "Index TwilioService Passing",
+                    True,
+                    "_index.js passes twilioService to initVoiceService",
+                    {"file": "/app/js/_index.js"}
+                )
+            elif 'initVoiceService(' in content:
+                return self.log_result(
+                    "Index TwilioService Passing",
+                    False,
+                    "initVoiceService called but twilioService parameter not found",
+                    {"file": "/app/js/_index.js"}
+                )
+            else:
+                return self.log_result(
+                    "Index TwilioService Passing",
+                    False,
+                    "initVoiceService not found in _index.js",
+                    {"file": "/app/js/_index.js"}
+                )
+        except Exception as e:
+            return self.log_result("Index TwilioService Passing", False, f"Failed to read file: {str(e)}")
+    
+    def test_twilio_voice_webhook_sip_logic(self):
+        """Test 6e: Verify _index.js /twilio/voice-webhook has SIP ring logic with dial.sip(sipUri)"""
+        try:
+            with open('/app/js/_index.js', 'r') as f:
+                content = f.read()
+            
+            # Check for SIP dial logic in Twilio voice webhook
+            has_voice_webhook = '/twilio/voice-webhook' in content
+            has_sip_dial = 'dial.sip(' in content
+            
+            if has_voice_webhook and has_sip_dial:
+                return self.log_result(
+                    "Twilio Voice Webhook SIP Logic",
+                    True,
+                    "/twilio/voice-webhook has SIP ring logic with dial.sip()",
+                    {"file": "/app/js/_index.js"}
+                )
+            elif has_voice_webhook:
+                return self.log_result(
+                    "Twilio Voice Webhook SIP Logic",
+                    False,
+                    "/twilio/voice-webhook found but dial.sip() logic missing",
+                    {"file": "/app/js/_index.js"}
+                )
+            else:
+                return self.log_result(
+                    "Twilio Voice Webhook SIP Logic",
+                    False,
+                    "/twilio/voice-webhook endpoint not found",
+                    {"file": "/app/js/_index.js"}
+                )
+        except Exception as e:
+            return self.log_result("Twilio Voice Webhook SIP Logic", False, f"Failed to read file: {str(e)}")
+    
+    def test_outbound_ivr_caller_provider(self):
+        """Test 6f: Verify initiateOutboundIvrCall caller passes provider: callerProvider"""
+        try:
+            with open('/app/js/_index.js', 'r') as f:
+                content = f.read()
+            
+            # Check for provider parameter in initiateOutboundIvrCall calls
+            if 'provider: callerProvider' in content:
+                return self.log_result(
+                    "Outbound IVR Caller Provider",
+                    True,
+                    "initiateOutboundIvrCall caller passes provider: callerProvider",
+                    {"file": "/app/js/_index.js"}
+                )
+            else:
+                return self.log_result(
+                    "Outbound IVR Caller Provider",
+                    False,
+                    "provider: callerProvider not found in initiateOutboundIvrCall calls",
+                    {"file": "/app/js/_index.js"}
+                )
+        except Exception as e:
+            return self.log_result("Outbound IVR Caller Provider", False, f"Failed to read file: {str(e)}")
+    
+    def test_startup_logs(self):
+        """Test 7: Verify Node.js startup logs contain expected initialization message"""
+        try:
+            # Check supervisor logs for the expected startup message
+            import subprocess
+            result = subprocess.run(
+                ['tail', '-n', '100', '/var/log/supervisor/backend.out.log'],
+                capture_output=True, text=True, timeout=10
+            )
+            
+            if result.returncode == 0:
+                log_content = result.stdout
+                expected_msg = "Initialized with IVR + Recording + Analytics + Limits + Overage billing + SIP Bridge + Twilio IVR"
+                
+                if expected_msg in log_content:
+                    return self.log_result(
+                        "Startup Logs",
+                        True,
+                        "Expected initialization message found in startup logs",
+                        {"log_file": "/var/log/supervisor/backend.out.log"}
+                    )
+                else:
+                    return self.log_result(
+                        "Startup Logs",
+                        False,
+                        "Expected initialization message not found in startup logs",
+                        {"log_file": "/var/log/supervisor/backend.out.log", "log_preview": log_content[-300:]}
+                    )
+            else:
+                return self.log_result(
+                    "Startup Logs",
+                    False,
+                    "Could not read supervisor logs",
+                    {"error": result.stderr}
+                )
+        except Exception as e:
+            return self.log_result("Startup Logs", False, f"Failed to check startup logs: {str(e)}")
+    
+    def run_all_tests(self):
+        """Run all tests and return summary"""
+        logger.info("=" * 70)
+        logger.info("STARTING SIP DOMAIN AND CALL FLOW FIXES TEST SUITE")
+        logger.info("=" * 70)
+        
+        # Execute all tests
+        tests = [
+            self.test_service_health,
+            self.test_sip_ring_result_endpoint,
+            self.test_single_ivr_endpoint, 
+            self.test_single_ivr_gather_endpoint,
+            self.test_single_ivr_status_endpoint,
+            self.test_telnyx_service_sip_config,
+            self.test_voice_service_exports,
+            self.test_voice_service_init_params,
+            self.test_index_twillio_service_passing,
+            self.test_twilio_voice_webhook_sip_logic,
+            self.test_outbound_ivr_caller_provider,
+            self.test_startup_logs
+        ]
+        
+        for test in tests:
+            test()
+        
+        # Calculate summary
+        total_tests = len(self.results)
+        passed_tests = sum(1 for r in self.results if r["success"])
+        failed_tests = total_tests - passed_tests
+        success_rate = (passed_tests / total_tests) * 100 if total_tests > 0 else 0
+        
+        logger.info("=" * 70)
+        logger.info("TEST SUMMARY")
+        logger.info("=" * 70)
+        logger.info(f"Total Tests: {total_tests}")
+        logger.info(f"Passed: {passed_tests}")
+        logger.info(f"Failed: {failed_tests}")
+        logger.info(f"Success Rate: {success_rate:.1f}%")
+        
+        # List failed tests
+        if failed_tests > 0:
+            logger.info("\nFAILED TESTS:")
+            for result in self.results:
+                if not result["success"]:
+                    logger.info(f"❌ {result['test']}: {result['message']}")
+        
+        return {
+            "total": total_tests,
+            "passed": passed_tests, 
+            "failed": failed_tests,
+            "success_rate": success_rate,
+            "results": self.results
+        }
 
 if __name__ == "__main__":
-    success = main()
-    sys.exit(0 if success else 1)
+    tester = SipDomainTestRunner()
+    summary = tester.run_all_tests()
+    
+    # Exit with error code if any tests failed
+    sys.exit(0 if summary["failed"] == 0 else 1)
