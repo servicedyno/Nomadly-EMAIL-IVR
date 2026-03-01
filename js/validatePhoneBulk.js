@@ -235,45 +235,42 @@ const validateBulkNumbers = async (carrier, phonesToGenerate, countryCode, areaC
   try {
     // When requireRealName is true, we keep going until we have enough leads with real person names
     const targetCount = phonesToGenerate
-    const isComplete = () => requireRealName && cnam ? realNameCount >= targetCount : res.length >= targetCount
 
-    // ── FIX #3 & #2: Area code yield tracking — dynamically remove low-yield codes ──
+    // ── Area code CNAM management — disable CNAM for low-yield codes instead of dropping them ──
     const acYield = {} // { areaCode: { lookups: N, realNames: N } }
-    let activeAreaCodes = [...areaCodes] // Mutable copy — codes can be removed
-    let totalCnamLookups = 0 // Track total CNAM lookups for cost cap
-    const jobPrice = jobMeta.price || 0
+    const cnamDisabledAreas = new Set() // Area codes where CNAM is disabled (still generate numbers)
+    let totalCnamLookups = 0
+
+    // Completion check: once ANY area code has CNAM disabled, count total numbers (mix of named + unnamed)
+    const isComplete = () => {
+      if (requireRealName && cnam && cnamDisabledAreas.size === 0) {
+        // All area codes still have CNAM — count only real names
+        return realNameCount >= targetCount
+      }
+      // Some area codes lost CNAM — count all validated numbers toward target
+      return res.length >= targetCount
+    }
 
     for (i = 0; !isComplete(); i++) {
-      // ── FIX #2: Skip depleted area codes — use only active codes ──
-      if (requireRealName && cnam && activeAreaCodes.length === 0) {
-        const msg = `⚠️ All area codes exhausted (low real-name yield). Delivering ${realNameCount} of ${targetCount} leads.`
-        bot && bot.sendMessage(chatId, msg)
-        bot && bot.sendMessage(TELEGRAM_ADMIN_CHAT_ID,
-          `⚠️ [LeadJobs] All area codes dropped for ${chatId}: ${realNameCount}/${targetCount}. Original codes: ${areaCodes.join(',')}`)
-        if (jobId) await completeJob(jobId, res, realNameCount)
-        res._partialReason = 'area_codes_exhausted'
-        res._deliveredCount = realNameCount
-        res._targetCount = targetCount
-        return res
-      }
-
       // Gen Phone Numbers and Verify
-      const areaCode = activeAreaCodes[getRandom(activeAreaCodes.length)]
+      const areaCode = areaCodes[getRandom(areaCodes.length)]
+      // Use CNAM only if enabled for this area code
+      const useCnam = cnam && !cnamDisabledAreas.has(areaCode)
       const r = await Promise.all([
         sleep(waitAfterParallelApiCalls),
-        validateNumbersParallel(carrier, parallelApiCalls, countryCode, areaCode, cnam),
+        validateNumbersParallel(carrier, parallelApiCalls, countryCode, areaCode, useCnam),
       ])
       if (r[1]) {
         res.push(...r[1])
 
-        // Track CNAM lookups (each result with a name field = 1 CNAM lookup, unless VoIP skipped)
-        if (cnam) {
+        // Track CNAM lookups (only for area codes where CNAM is still active)
+        if (useCnam) {
           const batchCnamLookups = r[1].filter(e => e[3] && e[3] !== 'VoIP Carrier').length
           totalCnamLookups += batchCnamLookups
         }
 
-        // Count entries with real person names
-        if (requireRealName && cnam) {
+        // Count entries with real person names (only from CNAM-enabled area codes)
+        if (requireRealName && cnam && useCnam) {
           let batchRealNames = 0
           for (const entry of r[1]) {
             if (entry[3] && isRealPersonName(entry[3])) {
@@ -282,20 +279,19 @@ const validateBulkNumbers = async (carrier, phonesToGenerate, countryCode, areaC
             }
           }
 
-          // ── FIX #3: Track per-area-code yield ──
+          // Track per-area-code yield
           if (!acYield[areaCode]) acYield[areaCode] = { lookups: 0, realNames: 0 }
           acYield[areaCode].lookups += r[1].length
           acYield[areaCode].realNames += batchRealNames
 
-          // Evaluate area code after enough samples
+          // Evaluate area code after enough samples — disable CNAM if yield too low
           if (acYield[areaCode].lookups >= AREA_CODE_SAMPLE_SIZE) {
             const yieldRate = acYield[areaCode].realNames / acYield[areaCode].lookups
-            if (yieldRate < AREA_CODE_MIN_YIELD && activeAreaCodes.length > 1) {
-              // Drop this low-yield area code
-              activeAreaCodes = activeAreaCodes.filter(ac => ac !== areaCode)
-              log(`[LeadJobs] Dropped area code ${areaCode} — yield ${(yieldRate * 100).toFixed(1)}% (${acYield[areaCode].realNames}/${acYield[areaCode].lookups}) < ${AREA_CODE_MIN_YIELD * 100}% threshold. ${activeAreaCodes.length} codes remaining.`)
+            if (yieldRate < AREA_CODE_MIN_YIELD) {
+              cnamDisabledAreas.add(areaCode)
+              log(`[LeadJobs] CNAM disabled for area code ${areaCode} — yield ${(yieldRate * 100).toFixed(1)}% (${acYield[areaCode].realNames}/${acYield[areaCode].lookups}) < ${AREA_CODE_MIN_YIELD * 100}% threshold. Will continue generating without CNAM.`)
               bot && bot.sendMessage(TELEGRAM_ADMIN_CHAT_ID,
-                `📉 [CNAM] Dropped area code <b>${areaCode}</b> — ${(yieldRate * 100).toFixed(1)}% yield (${acYield[areaCode].realNames}/${acYield[areaCode].lookups}). ${activeAreaCodes.length} codes active.`,
+                `📉 [CNAM] Disabled CNAM for area code <b>${areaCode}</b> — ${(yieldRate * 100).toFixed(1)}% yield (${acYield[areaCode].realNames}/${acYield[areaCode].lookups}). Numbers from this code will be delivered without names.`,
                 { parse_mode: 'HTML' }).catch(() => {})
             }
           }
@@ -306,25 +302,6 @@ const validateBulkNumbers = async (carrier, phonesToGenerate, countryCode, areaC
           } else {
             cnamMissStreak = 0
           }
-        }
-      }
-
-      // ── FIX #1: CNAM cost cap — stop if we're burning too much on lookups ──
-      if (requireRealName && cnam && jobPrice > 0) {
-        const estimatedCost = totalCnamLookups * CNAM_COST_PER_LOOKUP
-        const costCap = jobPrice * CNAM_COST_CAP_MULTIPLIER
-        if (estimatedCost >= costCap) {
-          const msg = `⚠️ Lead generation stopped — CNAM lookup cost limit reached. Delivering ${realNameCount} of ${targetCount} leads with real names.`
-          bot && bot.sendMessage(chatId, msg)
-          bot && bot.sendMessage(TELEGRAM_ADMIN_CHAT_ID,
-            `💸 [LeadJobs] CNAM cost cap hit for ${chatId}: ~$${estimatedCost.toFixed(2)} (cap $${costCap.toFixed(2)}). ${realNameCount}/${targetCount} real names. ${totalCnamLookups} lookups.`,
-            { parse_mode: 'HTML' }).catch(() => {})
-          log(`[LeadJobs] CNAM cost cap: $${estimatedCost.toFixed(2)} >= $${costCap.toFixed(2)}. ${realNameCount}/${targetCount} real names.`)
-          if (jobId) await completeJob(jobId, res, realNameCount)
-          res._partialReason = 'cnam_cost_cap'
-          res._deliveredCount = realNameCount
-          res._targetCount = targetCount
-          return res
         }
       }
 
