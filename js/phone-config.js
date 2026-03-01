@@ -1723,9 +1723,9 @@ Sélectionnez une option :`,
     },
     selectPlan: (number) => {
       let text = `✅ 已选择：<b>${formatPhone(number)}</b>\n\n📋 选择您的套餐：\n\n`
-      if (PHONE_STARTER_ON) text += `<b>💡 入门版 — $${PHONE_STARTER_PRICE}/月</b>\n${plans.starter.minutes} 分钟 · ${plans.starter.sms} 短信 · ${plans.starter.features.join(' · ')}\n\n`
-      if (PHONE_PRO_ON) text += `<b>⭐ 专业版 — $${PHONE_PRO_PRICE}/月</b>\n${plans.pro.minutes} 分钟 · ${plans.pro.sms} 短信 · ${plans.pro.features.join(' · ')}\n\n`
-      if (PHONE_BUSINESS_ON) text += `<b>👑 商务版 — $${PHONE_BUSINESS_PRICE}/月</b>\n${plans.business.minutes} 分钟 · ${plans.business.sms} 短信 · ${plans.business.features.join(' · ')}\n\n`
+      if (PHONE_STARTER_ON) text += `<b>💡 入门版 — $${PHONE_STARTER_PRICE}/月</b>\n${plans.starter.minutes} 分钟 · ${plans.starter.sms} 短信 · ${plans.starter.features.join(' · ')}\n➕ 可添加最多 ${SUB_NUMBER_LIMITS.starter} 个额外号码（每个 $${SUB_NUMBER_BASE_PRICE}/月起）\n\n`
+      if (PHONE_PRO_ON) text += `<b>⭐ 专业版 — $${PHONE_PRO_PRICE}/月</b>\n${plans.pro.minutes} 分钟 · ${plans.pro.sms} 短信 · ${plans.pro.features.join(' · ')}\n➕ 可添加最多 ${SUB_NUMBER_LIMITS.pro} 个额外号码（每个 $${SUB_NUMBER_BASE_PRICE}/月起）\n\n`
+      if (PHONE_BUSINESS_ON) text += `<b>👑 商务版 — $${PHONE_BUSINESS_PRICE}/月</b>\n${plans.business.minutes} 分钟 · ${plans.business.sms} 短信 · ${plans.business.features.join(' · ')}\n➕ 可添加最多 ${SUB_NUMBER_LIMITS.business} 个额外号码（每个 $${SUB_NUMBER_BASE_PRICE}/月起）\n\n`
       text += `<i>外呼和转发：$${CALL_FORWARDING_RATE_MIN}/分钟（从钱包扣费）</i>`
       return text
     },
