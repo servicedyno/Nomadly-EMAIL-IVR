@@ -10067,7 +10067,7 @@ Choose an IVR template category:`), k.of(rows))
         send(chatId, phoneConfig.getMsg(lang).purchaseFailed + `\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> has been refunded to your wallet.\n${t.showWallet(refUsd, refNgn)}`, trans('o'))
       } else {
         set(state, chatId, 'action', 'none')
-        send(chatId, phoneConfig.getMsg(lang).purchaseFailed + `\n${result.error}`, trans('o'))
+        send(chatId, phoneConfig.getMsg(lang).purchaseFailed + `\n${sanitizeProviderError(result.error, 'voice')}`, trans('o'))
       }
       return
     }
