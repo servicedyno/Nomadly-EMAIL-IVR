@@ -7,6 +7,7 @@ const path = require('path')
 const axios = require('axios')
 const crypto = require('crypto')
 const { log } = require('console')
+const { execSync } = require('child_process')
 
 const AUDIO_DIR = path.join(__dirname, 'assets', 'user-audio')
 
