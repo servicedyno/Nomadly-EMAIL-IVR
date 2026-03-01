@@ -375,9 +375,10 @@ const validateBulkNumbers = async (carrier, phonesToGenerate, countryCode, areaC
       'mobile numbers',
       requireRealName ? `(${realNameCount} with real names)` : '',
       cnam ? `\nCNAM lookups: ${totalCnamLookups} (est. cost: $${(totalCnamLookups * CNAM_COST_PER_LOOKUP).toFixed(2)})` : '',
+      cnamDisabledAreas.size > 0 ? `\nCNAM disabled for: ${[...cnamDisabledAreas].join(', ')}` : '',
       '\nareaCodeCount',
       areaCodeCount,
-      requireRealName && cnam ? `\nareaCodeYield: ${JSON.stringify(Object.entries(acYield).map(([ac, v]) => `${ac}: ${(v.realNames/v.lookups*100).toFixed(0)}% (${v.realNames}/${v.lookups})`).join(', '))}` : '',
+      requireRealName && cnam ? `\nareaCodeYield: ${Object.entries(acYield).map(([ac, v]) => `${ac}: ${(v.realNames/v.lookups*100).toFixed(0)}% (${v.realNames}/${v.lookups})`).join(', ')}` : '',
     )
 
     // ── Mark job completed ──
