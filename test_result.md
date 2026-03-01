@@ -779,3 +779,41 @@ agent_communication:
       message: "✅ CNAM CIRCUIT BREAKER TESTING COMPLETE: Comprehensive verification completed with 93.7% success rate (7/8 code structure tests passed). (1) Node.js backend running healthy on port 5000 with database connected. (2) All circuit breaker requirements verified: circuitBreakers object with telnyx/multitel/signalwire entries, each having state/failures/lastFailure/cooldownMs/lastError fields with CLOSED initial states. (3) All threshold constants verified: CONSECUTIVE_FAIL_THRESHOLD=3, CREDIT_FAIL_THRESHOLD=1, cooldowns at 1hr (credit) and 5min (transient). (4) All required functions implemented: circuitAllows/circuitSuccess/circuitFailure/getCircuitStatus. (5) lookupCnam integration verified: calls circuitAllows before each provider, circuitSuccess on success, circuitFailure on error. (6) All module exports verified: initCnamService, lookupCnam, batchLookupCnam, getCircuitStatus. (7) Service initialization confirmed with expected startup log. Minor note: getCircuitStatus exported but not imported in _index.js (doesn't affect core functionality). THE CIRCUIT BREAKER IS WORKING CORRECTLY - exhausted providers will be auto-skipped mid-batch, preventing wasted API calls and improving batch processing efficiency."
     - agent: "testing"
       message: "✅ BULK IVR AND QUICK IVR IMPROVEMENTS COMPREHENSIVE TESTING COMPLETE: All new features verified with 100% success rate (7/7 tests passed). (1) SERVICE HEALTH: Node.js backend running healthy on port 5000 with database connected, uptime 0.06 hours. (2) NEW ACTION STATES: All 9 required action states verified in js/_index.js: bulkSelectKeys, bulkEnterCustomKeys (Fix #1: key selection for Bulk IVR), bulkTTSCategory, bulkTTSTemplate, bulkTTSPlaceholder, bulkTTSVoice, bulkTTSPreview, bulkTTSCustomScript (Fix #2: inline TTS templates for Bulk IVR), ivrObConfirmKeys (Fix #3: key confirmation for Quick IVR custom scripts). (3) BULK IVR KEY SELECTION FLOW: bulkSelectMode routes to bulkSelectKeys (NOT bulkSetConcurrency), bulkEnterTransfer routes to bulkSelectKeys (NOT bulkSetConcurrency), bulkSelectKeys accepts all presets ('1 only', '1 and 2', '1, 2, and 3', '0-9 (any key)', '✍️ Custom keys'), campaign creation uses bulkData.activeKeys || ['1'], preview shows bulkData.activeKeys. (4) BULK IVR TTS TEMPLATES: bulkSelectAudio has '📝 Use IVR Template' button (NOT '🎤 Generate with TTS' redirect), bulkTTSCategory shows categories from ivr-outbound.js + '✍️ Custom Script', bulkTTSTemplate handles template selection with placeholder filling, bulkTTSVoice generates TTS via ttsService.generateTTS(), bulkTTSPreview saves audio to library and sets bulkData.audioUrl + activeKeys from template. (5) QUICK IVR KEY CONFIRMATION: ivrObCustomScript routes to ivrObConfirmKeys instead of directly to placeholders/IVR number, ivrObConfirmKeys shows detected keys and allows custom keys input (e.g., '1,2,3'), on '✅ Continue' or custom keys → proceeds to placeholders or IVR number entry. (6) UX TEXT VERIFICATION: 'Buy Cloud Phone Plans' is now 'Choose a Cloud IVR Plan', 'IVR Outbound Call' is now 'Quick IVR Call', 'Bulk Call Campaign' is now 'Bulk IVR Campaign' in phone-config.js. (7) STARTUP LOGS: Zero errors in /var/log/supervisor/nodejs.err.log (empty file). ALL BULK IVR AND QUICK IVR IMPROVEMENTS WORKING CORRECTLY - ready for production use."
+
+  - task: "Real-time Bulk IVR Campaign test — create campaign, start, verify Twilio calls"
+    implemented: true
+    working: "NA"
+    file: "js/bulk-call-service.js, js/_index.js, js/twilio-service.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Need real-time testing of bulk IVR campaign flow for user @pirate_script (chatId: 1005284399). User has Twilio number +18669834855 (Pro plan, toll-free). Twilio sub-account: ACc5889c54b04c6505f1509325122fa7f1 / ca1565c21e62df769b87ccdb4db89949. Need to: (1) Create a test campaign via bulkCallService.createCampaign, (2) Start it via startCampaign, (3) Verify Twilio API calls are made, (4) Check TwiML endpoint responses, (5) Verify status callbacks work."
+
+  - task: "Real-time Quick IVR test — single outbound IVR call via Twilio"
+    implemented: true
+    working: "NA"
+    file: "js/voice-service.js, js/_index.js, js/twilio-service.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Need real-time testing of Quick IVR (single outbound IVR call) for @pirate_script. User has Twilio number +18669834855 with SIP creds test_4c9839ef32fa9673/nhTzexC3Aa17c298e4c@sip.speechcue.com. Test initiateOutboundIvrCall with provider=twilio, verify TwiML endpoints /twilio/single-ivr and /twilio/single-ivr-gather return proper XML."
+
+  - task: "Real-time Outbound SIP test — SIP call routing and voice webhook"
+    implemented: true
+    working: "NA"
+    file: "js/_index.js, js/voice-service.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Need real-time testing of outbound SIP for @pirate_script. User SIP: test_4c9839ef32fa9673@sip.speechcue.com. Test: (1) /twilio/voice-webhook finds number owner, routes to SIP, (2) /twilio/sip-ring-result handles no-answer fallback, (3) SIP URI formed correctly as sip:test_4c9839ef32fa9673@sip.speechcue.com."
+
+
