@@ -9978,7 +9978,7 @@ Choose an IVR template category:`), k.of(rows))
   }
 
   // Helper: Build feature-gated manage menu keyboard
-  function buildManageMenu(num) {
+  function buildManageMenu(num, subCount, subLimit) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const plan = num.plan || 'starter'
     const hasSms = num.capabilities?.sms !== false && num.features?.sms !== false
@@ -9999,6 +9999,10 @@ Choose an IVR template category:`), k.of(rows))
     if (phoneConfig.canAccessFeature(plan, 'ivr')) rows.push([pc.ivrAutoAttendant])
     // Fax
     if (hasFax) rows.push(['📠 Fax Settings'])
+    // Add Number to Plan (only for primary numbers, not sub-numbers)
+    if (!num.isSubNumber && subLimit > 0 && subCount < subLimit) {
+      rows.push([pc.addNumber])
+    }
     // Logs & Billing
     rows.push([pc.callSmsLogs])
     rows.push([pc.renewChangePlan, pc.releaseNumber])
