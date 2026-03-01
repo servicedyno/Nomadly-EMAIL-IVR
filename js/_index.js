@@ -6316,7 +6316,7 @@ All verified numbers generated during sourcing.`))
 
       if (error) {
         await markFailed(domain, error)
-        return send(chatId, `❌ Could not link <b>${domain}</b>: ${error}`, { parse_mode: 'HTML' })
+        return send(chatId, `❌ Could not link <b>${domain}</b>: ${sanitizeProviderError(error, 'domain')}`, { parse_mode: 'HTML' })
       }
 
       // ── Persist Railway link complete ──
@@ -6336,11 +6336,11 @@ All verified numbers generated during sourcing.`))
           const { error: saveErr } = await saveServerInDomain(domain, server, recordType)
           if (saveErr) {
             await markFailed(domain, saveErr)
-            return send(chatId, `❌ DNS error for <b>${domain}</b>: ${saveErr}`, { parse_mode: 'HTML' })
+            return send(chatId, `❌ DNS error for <b>${domain}</b>: ${sanitizeProviderError(saveErr, 'domain')}`, { parse_mode: 'HTML' })
           }
         } else {
           await markFailed(domain, addResult.error || 'DNS add failed')
-          return send(chatId, `❌ DNS error for <b>${domain}</b>: ${addResult.error || 'Unknown error'}`, { parse_mode: 'HTML' })
+          return send(chatId, `❌ DNS error for <b>${domain}</b>: ${sanitizeProviderError(addResult.error || 'Unknown error', 'domain')}`, { parse_mode: 'HTML' })
         }
       }
 
