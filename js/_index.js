@@ -9491,7 +9491,7 @@ Choose an IVR template category:`), k.of(rows))
         return send(chatId, `Campaign is running! You'll see progress updates here.\n\nTap <b>🛑 Stop Campaign</b> to cancel.`, k.of([['🛑 Stop Campaign'], ['📊 Show Status']]))
       } catch (e) {
         log(`[BulkCall] Launch error: ${e.message}`)
-        return send(chatId, `❌ Campaign launch failed: ${e.message}`, k.of([['↩️ Back']]))
+        return send(chatId, `❌ Campaign launch failed: ${sanitizeProviderError(e.message, 'voice')}`, k.of([['↩️ Back']]))
       }
     }
     return send(chatId, `Tap 🚀 Launch Campaign or ↩️ Back.`)
