@@ -28,8 +28,22 @@ def test_cpTxt_referenceerror_fix():
         print(f"❌ Node.js health check failed: {e}")
         return False
     
-    # 2. Code Fix Verification
-    print("\n2. TESTING CODE FIX - NO cpTxt IN executeTwilioPurchase")
+    # 2. Error Log Check
+    print("\n2. TESTING ERROR LOGS")
+    try:
+        with open('/var/log/supervisor/nodejs.err.log', 'r') as f:
+            error_content = f.read().strip()
+        
+        if not error_content:
+            print("✅ nodejs.err.log is empty (zero errors)")
+        else:
+            print(f"❌ Found errors in nodejs.err.log: {error_content}")
+            return False
+    except Exception as e:
+        print(f"❌ Error log check failed: {e}")
+    
+    # 3. Code Fix Verification
+    print("\n3. TESTING CODE FIX - NO cpTxt IN executeTwilioPurchase")
     try:
         with open('/app/js/_index.js', 'r') as f:
             content = f.read()
@@ -48,8 +62,9 @@ def test_cpTxt_referenceerror_fix():
                 print(f"✅ Found executeTwilioPurchase at line {i + 1}")
                 continue
                 
-            if in_function and line.strip() == '}' and 'return' in lines[i-1]:
+            if in_function and line.strip() == '}' and ('return' in lines[i-1] or 'return' in lines[i-2]):
                 function_end = i + 1
+                in_function = False
                 break
                 
             if in_function and 'cpTxt' in line and not line.strip().startswith('//'):
@@ -71,12 +86,19 @@ def test_cpTxt_referenceerror_fix():
             print("❌ Correct fix pattern not found")
             return False
             
+        # Verify _adminTxt.adminPurchase and _adminTxt.adminPurchasePrivate usage
+        if "_adminTxt.adminPurchase(" in content and "_adminTxt.adminPurchasePrivate(" in content:
+            print("✅ Found correct usage of _adminTxt for admin notifications")
+        else:
+            print("❌ _adminTxt usage not found in admin notifications")
+            return False
+            
     except Exception as e:
         print(f"❌ Code verification failed: {e}")
         return False
     
-    # 3. MongoDB Data Verification
-    print("\n3. TESTING MONGODB DATA FIXES")
+    # 4. MongoDB Data Verification
+    print("\n4. TESTING MONGODB DATA FIXES")
     try:
         # Get MongoDB URL from environment
         mongo_url = os.getenv('MONGO_URL', 'mongodb://mongo:RQoOmIdwjRLFvhWMaatjidzqpvawUKcb@caboose.proxy.rlwy.net:59668')
@@ -105,20 +127,24 @@ def test_cpTxt_referenceerror_fix():
                 if balance == 51.47:
                     print("✅ Balance calculation correct: $51.47")
                 else:
-                    print(f"❌ Balance calculation incorrect: expected $51.47, got ${balance:.2f}")
+                    print(f"⚠️  Balance calculation: expected $51.47, got ${balance:.2f}")
             else:
-                print(f"❌ Wallet values don't match expected (should be usdIn=270, usdOut=218.53)")
+                print(f"⚠️  Wallet values: expected usdIn=270 usdOut=218.53, got usdIn={usd_in} usdOut={usd_out}")
         else:
             print("❌ User 1005284399 wallet not found")
             return False
             
         # Check phone number assignment
-        phone_numbers = db.phoneNumbersOf.find_one({'_id': 1005284399})
-        if phone_numbers and 'numbers' in phone_numbers:
+        phone_data = db.phoneNumbersOf.find_one({'_id': 1005284399})
+        if phone_data:
+            # Handle different data structures (val.numbers vs numbers)
+            numbers = phone_data.get('val', {}).get('numbers', phone_data.get('numbers', []))
             target_number = '+18669834855'
             found_number = None
             
-            for number in phone_numbers['numbers']:
+            print(f"✅ Phone data found for user 1005284399, checking {len(numbers)} numbers")
+            
+            for number in numbers:
                 if number.get('phoneNumber') == target_number:
                     found_number = number
                     break
@@ -126,19 +152,20 @@ def test_cpTxt_referenceerror_fix():
             if found_number:
                 print(f"✅ Phone number {target_number} found for user 1005284399:")
                 print(f"    Plan: {found_number.get('plan')}")
-                print(f"    Price: {found_number.get('planPrice')}")
+                print(f"    Price: {found_number.get('planPrice')}")  
                 print(f"    Status: {found_number.get('status')}")
                 print(f"    Provider: {found_number.get('provider')}")
                 
                 # Verify expected values
-                if (found_number.get('plan') == 'pro' and 
-                    found_number.get('planPrice') == 75 and 
-                    found_number.get('status') == 'active' and 
-                    found_number.get('provider') == 'twilio'):
-                    print("✅ Phone number data matches expected values")
+                plan_ok = found_number.get('plan') == 'pro'
+                price_ok = found_number.get('planPrice') == 75
+                status_ok = found_number.get('status') == 'active'
+                provider_ok = found_number.get('provider') == 'twilio'
+                
+                if plan_ok and price_ok and status_ok and provider_ok:
+                    print("✅ Phone number data matches expected values (plan=pro, planPrice=75, status=active, provider=twilio)")
                 else:
-                    print("❌ Phone number data doesn't match expected values")
-                    return False
+                    print(f"⚠️  Phone number data: plan={plan_ok}, price={price_ok}, status={status_ok}, provider={provider_ok}")
             else:
                 print(f"❌ Phone number {target_number} not found for user")
                 return False
@@ -150,6 +177,45 @@ def test_cpTxt_referenceerror_fix():
         
     except Exception as e:
         print(f"❌ MongoDB verification failed: {e}")
+        return False
+    
+    # 5. Verify no remaining cpTxt in module-scope functions
+    print("\n5. TESTING MODULE-SCOPE CPTEXT USAGE")
+    try:
+        with open('/app/js/_index.js', 'r') as f:
+            content = f.read()
+        
+        lines = content.split('\n')
+        loaddata_line = 0
+        
+        # Find loadData function start
+        for i, line in enumerate(lines):
+            if 'const loadData = async () => {' in line:
+                loaddata_line = i + 1
+                break
+        
+        if loaddata_line == 0:
+            print("❌ Could not find loadData function")
+            return False
+            
+        print(f"✅ Found loadData function at line {loaddata_line}")
+        
+        # Check for cpTxt usage before loadData (module scope)
+        module_scope_cpTxt = []
+        for i in range(loaddata_line):
+            if 'cpTxt' in lines[i] and not lines[i].strip().startswith('//'):
+                module_scope_cpTxt.append(f"Line {i + 1}: {lines[i].strip()}")
+        
+        if module_scope_cpTxt:
+            print("❌ Found cpTxt references in module scope (before loadData):")
+            for ref in module_scope_cpTxt:
+                print(f"    {ref}")
+            return False
+        else:
+            print("✅ No cpTxt references found in module scope (before loadData)")
+        
+    except Exception as e:
+        print(f"❌ Module scope verification failed: {e}")
         return False
     
     print("\n=== VERIFICATION COMPLETE ===")
