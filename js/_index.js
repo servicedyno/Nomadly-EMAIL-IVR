@@ -9362,6 +9362,30 @@ Choose an IVR template category:`), k.of(rows))
     return send(chatId, `✅ All values filled!\n\n🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine:`, k.of([...providerBtns, ['↩️ Back']]))
   }
 
+  // ── Bulk TTS: Provider Selection (OpenAI / ElevenLabs) ──
+  if (action === a.bulkTTSProvider) {
+    if (message === '↩️ Back' || message === t.back) {
+      const ivrOb = require('./ivr-outbound.js')
+      const catBtns = ivrOb.getCategoryButtons().map(b => [b])
+      set(state, chatId, 'action', a.bulkTTSCategory)
+      return send(chatId, `Choose a template category:`, k.of([...catBtns, ['✍️ Custom Script'], ['↩️ Back']]))
+    }
+    const ttsService = require('./tts-service.js')
+    const providerKey = ttsService.getProviderByButton(message)
+    if (!providerKey) {
+      const providerBtns = ttsService.getProviderButtons().map(b => [b])
+      return send(chatId, `Please select a voice provider:`, k.of([...providerBtns, ['↩️ Back']]))
+    }
+    const bulkTTS = info?.bulkTTS || {}
+    bulkTTS.ttsProvider = providerKey
+    await saveInfo('bulkTTS', bulkTTS)
+
+    set(state, chatId, 'action', a.bulkTTSVoice)
+    const voiceBtns = ttsService.getVoiceButtons('en', providerKey).map(b => [b])
+    return send(chatId, `🎙 <b>Select Voice</b>:`, k.of([...voiceBtns, ['↩️ Back']]))
+  }
+
+
   if (action === a.bulkTTSVoice) {
     if (message === '↩️ Back' || message === t.back) {
       const ivrOb = require('./ivr-outbound.js')
