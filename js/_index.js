@@ -4481,7 +4481,7 @@ All verified numbers generated during sourcing.`))
       await set(supportSessions, chatId, 0)
       set(state, chatId, 'action', 'none')
       const name = await get(nameOf, chatId)
-      send(chatId, '✅ Support session ended. Thank you for reaching out!', trans('o'))
+      send(chatId, t.supportEnded, trans('o'))
       send(TELEGRAM_ADMIN_CHAT_ID, `📴 Support session closed by user <b>${name || chatId}</b> (${chatId})`, { parse_mode: 'HTML' })
       clearAiHistory(chatId) // Clear AI conversation history
       log(`[Support] Session ended by user ${chatId}`)
