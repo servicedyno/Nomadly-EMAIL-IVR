@@ -721,6 +721,7 @@ module.exports = {
   createSIPConnection,
   getSIPConnection,
   createSIPCredential,
+  deleteSIPCredential,
   createMessagingProfile,
   updateMessagingProfile,
   createCallControlApp,
