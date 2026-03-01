@@ -345,7 +345,7 @@ const registerDomain = async (domainName, nameservers = []) => {
 
     // Use TLD-specific contact handle (IT for .fr/.it, CA for .ca, EU for .eu, default US for others)
     const contactHandle = await getContactHandleForTLD(tld)
-    if (!contactHandle) return { error: 'Failed to get contact handle for OpenProvider registration' }
+    if (!contactHandle) return { error: 'Failed to prepare domain registration. Please try again or contact support.' }
 
     // Resolve effective nameservers:
     // 1. Use provided NS (cloudflare or custom) if available
@@ -389,16 +389,63 @@ const registerDomain = async (domainName, nameservers = []) => {
 
     if (res.data?.code === 0) {
       const domainId = res.data?.data?.id
-      log(`OpenProvider domain registered: ${domainName}, ID: ${domainId}`)
+      log(`[OP] Domain registered: ${domainName}, ID: ${domainId}`)
       return { success: true, domainId, registrar: 'OpenProvider' }
     }
 
-    const errMsg = res.data?.desc || 'Unknown OpenProvider registration error'
-    log('OP registerDomain failed:', errMsg)
-    return { error: errMsg }
+    // Non-zero code but not an HTTP error — check if domain was actually registered (false-negative)
+    const errMsg = res.data?.desc || 'Unknown registration error'
+    log(`[OP] registerDomain non-zero code (${res.data?.code}): ${errMsg}`)
+    const verifyResult = await _verifyRegistration(domainName)
+    if (verifyResult) {
+      log(`[OP] FALSE NEGATIVE: ${domainName} actually registered despite error code ${res.data?.code}. ID: ${verifyResult.domainId}`)
+      return { success: true, domainId: verifyResult.domainId, registrar: 'OpenProvider' }
+    }
+    return { error: `Registration failed: ${errMsg}` }
   } catch (err) {
-    log('OP registerDomain error:', err.message, err?.response?.data)
-    return { error: `OpenProvider registration error: ${err.message}` }
+    const opDesc = err?.response?.data?.desc || ''
+    const opCode = err?.response?.data?.code || ''
+    const statusCode = err?.response?.status || ''
+    log(`[OP] registerDomain error: ${err.message} | HTTP ${statusCode} | OP code: ${opCode} | desc: ${opDesc}`)
+
+    // For 5xx server errors, the registrar may have processed the request despite the error.
+    // Wait briefly and verify if the domain was actually registered (false-negative protection).
+    if (statusCode >= 500) {
+      log(`[OP] Server error ${statusCode} for ${domainName} — waiting 5s then verifying registration...`)
+      await new Promise(r => setTimeout(r, 5000))
+      const verifyResult = await _verifyRegistration(domainName)
+      if (verifyResult) {
+        log(`[OP] FALSE NEGATIVE CONFIRMED: ${domainName} registered despite HTTP ${statusCode}. ID: ${verifyResult.domainId}`)
+        return { success: true, domainId: verifyResult.domainId, registrar: 'OpenProvider' }
+      }
+      log(`[OP] Verification negative — ${domainName} NOT registered after HTTP ${statusCode}`)
+    }
+
+    return { error: opDesc || 'Domain registration failed due to a server error. Please try again.' }
+  }
+}
+
+/**
+ * Verify if a domain was actually registered on OP (handles false-negative API errors).
+ * Returns { domainId } if found, null otherwise.
+ */
+const _verifyRegistration = async (domainName) => {
+  try {
+    const headers = await authHeaders()
+    const { name, extension } = parseDomain(domainName)
+    const searchRes = await axios.get(`${OP_BASE_URL}/v1beta/domains`, {
+      headers, params: { domain_name_pattern: name, extension, limit: 1 }, timeout: 15000,
+    })
+    if (searchRes.data?.code === 0 && searchRes.data?.data?.results?.length > 0) {
+      const found = searchRes.data.data.results[0]
+      if (found.status === 'ACT' || found.status === 'REQ') {
+        return { domainId: found.id }
+      }
+    }
+    return null
+  } catch (verifyErr) {
+    log(`[OP] _verifyRegistration error for ${domainName}: ${verifyErr.message}`)
+    return null
   }
 }
 
