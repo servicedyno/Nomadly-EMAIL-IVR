@@ -364,6 +364,8 @@ const validateBulkNumbers = async (carrier, phonesToGenerate, countryCode, areaC
         ? (res.length > targetCount ? targetCount : res.length)
         : (requireRealName && cnam ? realNameCount : (res.length > targetCount ? targetCount : res.length))
     }
+
+    log(
       'elapsedTime',
       elapsedTime / 1000,
       'seconds, total tries',
