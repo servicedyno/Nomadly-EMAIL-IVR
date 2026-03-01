@@ -292,6 +292,30 @@ const plans = {
   business: { name: 'Business', price: PHONE_BUSINESS_PRICE, minutes: BUSINESS_MINUTES, sms: BUSINESS_SMS, features: ['All Pro features', 'Call recording', 'IVR / Auto-attendant', `Add up to ${SUB_NUMBER_LIMITS.business} extra numbers`] },
 }
 
+// Language-specific plan features
+const plansI18n = {
+  en: {
+    starter: { features: ['Call forwarding', 'SMS to Telegram', `Add up to ${SUB_NUMBER_LIMITS.starter} extra numbers`] },
+    pro: { features: ['Forwarding', 'Voicemail', 'SIP access', 'SMS to Telegram & Email', `Add up to ${SUB_NUMBER_LIMITS.pro} extra numbers`] },
+    business: { features: ['All Pro features', 'Call recording', 'IVR / Auto-attendant', `Add up to ${SUB_NUMBER_LIMITS.business} extra numbers`] },
+  },
+  fr: {
+    starter: { features: ['Transfert d\'appels', 'SMS vers Telegram', `Jusqu'à ${SUB_NUMBER_LIMITS.starter} numéros supplémentaires`] },
+    pro: { features: ['Transfert', 'Messagerie vocale', 'Accès SIP', 'SMS vers Telegram & Email', `Jusqu'à ${SUB_NUMBER_LIMITS.pro} numéros supplémentaires`] },
+    business: { features: ['Toutes fonctions Pro', 'Enregistrement d\'appels', 'SVI / Standard auto', `Jusqu'à ${SUB_NUMBER_LIMITS.business} numéros supplémentaires`] },
+  },
+  zh: {
+    starter: { features: ['呼叫转移', '短信转Telegram', `添加最多 ${SUB_NUMBER_LIMITS.starter} 个号码`] },
+    pro: { features: ['转移', '语音信箱', 'SIP访问', '短信转Telegram和邮箱', `添加最多 ${SUB_NUMBER_LIMITS.pro} 个号码`] },
+    business: { features: ['所有专业版功能', '通话录音', 'IVR / 自动应答', `添加最多 ${SUB_NUMBER_LIMITS.business} 个号码`] },
+  },
+  hi: {
+    starter: { features: ['कॉल फ़ॉरवर्डिंग', 'SMS से Telegram', `${SUB_NUMBER_LIMITS.starter} अतिरिक्त नंबर तक`] },
+    pro: { features: ['फ़ॉरवर्डिंग', 'वॉइसमेल', 'SIP एक्सेस', 'SMS से Telegram और Email', `${SUB_NUMBER_LIMITS.pro} अतिरिक्त नंबर तक`] },
+    business: { features: ['सभी Pro सुविधाएँ', 'कॉल रिकॉर्डिंग', 'IVR / ऑटो-अटेंडेंट', `${SUB_NUMBER_LIMITS.business} अतिरिक्त नंबर तक`] },
+  },
+}
+
 // Feature gating per plan — which features each plan unlocks
 const planFeatureAccess = {
   starter: {
