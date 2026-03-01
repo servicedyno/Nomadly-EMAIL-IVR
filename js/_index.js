@@ -600,8 +600,10 @@ async function executeTwilioPurchase(chatId, selectedNumber, planKey, price, cou
   await set(phoneNumbersOf, chatId, userData)
 
   await phoneTransactions.insertOne({ chatId, phoneNumber: selectedNumber, action: 'purchase', plan: planKey, amount: price, paymentMethod, timestamp: new Date().toISOString() })
-  notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, plan?.name || planKey, price, paymentMethod))
-  if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminPurchasePrivate(maskName(name), selectedNumber, plan?.name || planKey, price, paymentMethod), { parse_mode: 'HTML' })
+  // Use phoneConfig.getTxt directly (module-scope safe) — cpTxt is only available inside loadData
+  const _adminTxt = phoneConfig.getTxt('en')
+  notifyGroup(_adminTxt.adminPurchase(maskName(name), selectedNumber, plan?.name || planKey, price, paymentMethod))
+  if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, _adminTxt.adminPurchasePrivate(maskName(name), selectedNumber, plan?.name || planKey, price, paymentMethod), { parse_mode: 'HTML' })
 
   return { success: true, sipUsername, sipPassword, expiresAt, plan }
 }
