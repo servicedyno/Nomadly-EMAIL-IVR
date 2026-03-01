@@ -7606,7 +7606,7 @@ All verified numbers generated during sourcing.`))
       const nextId = nextNumber(nsRecords.map(r => r.nsId))
       const { error } = await saveServerInDomain(domain, recordContent, t[recordType], domainNameId, nextId, nsRecords, hostName)
       if (error) {
-        const m = t.errorSavingDns(error)
+        const m = t.errorSavingDns(sanitizeProviderError(error, 'domain'))
         return send(chatId, m)
       }
     }
