@@ -15,6 +15,9 @@ const sanitizeErrorForUser = (errorMsg) => {
   return errorMsg
     .replace(/OpenProvider/gi, 'registrar')
     .replace(/ConnectReseller/gi, 'registrar')
+    .replace(/Connect Reseller/gi, 'registrar')
+    .replace(/\bTwilio\b/gi, 'Speechcue')
+    .replace(/\bTelnyx\b/gi, 'Speechcue')
     .replace(/\bOP\b/g, 'registrar')
     .replace(/\bCR\b/g, 'registrar')
 }
