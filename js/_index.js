@@ -7527,7 +7527,7 @@ All verified numbers generated during sourcing.`))
 
       if (dnsSource === 'cloudflare' && record.cfRecordId) {
         const result = await domainService.deleteDNSRecord(domainToManage, record, db)
-        if (!result.success) return send(chatId, t.errorDeletingDns(result.error || 'Cloudflare delete failed'))
+        if (!result.success) return send(chatId, t.errorDeletingDns(sanitizeProviderError(result.error || 'Delete failed', 'domain')))
       } else if (dnsSource === 'openprovider') {
         const result = await domainService.deleteDNSRecord(domainToManage, record, db)
         if (result.error || !result.success) return send(chatId, t.errorDeletingDns(result.error || 'Delete failed'))
