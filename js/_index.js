@@ -4284,8 +4284,26 @@ All verified numbers generated during sourcing.`))
       send(chatId, t.validatorBulkNumbersStart, trans('o')) // main keyboard view
       const phones = info?.phones?.slice(0, info?.amount)
       const leadsAmount = info?.amount
+
+      // ── Deduct wallet BEFORE validation to prevent lost charges on crash ──
+      if (coin === u.usd) {
+        await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
+      } else if (coin === u.ngn) {
+        await atomicIncrement(walletOf, chatId, 'ngnOut', priceNgn)
+      }
+      log(`[Validator] Wallet pre-charged $${priceUsd} for ${chatId} before validation`)
+
       const res = await validatePhoneBulkFile(info?.carrier, phones, cc, cnam, bot, chatId)
-      if (!res) return send(chatId, t.validatorError)
+      if (!res) {
+        // ── Refund wallet on total failure ──
+        if (coin === u.usd) {
+          await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
+        } else if (coin === u.ngn) {
+          await atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn)
+        }
+        log(`[Validator] Wallet refunded $${priceUsd} for ${chatId} — validation failed`)
+        return send(chatId, t.validatorError)
+      }
 
       send(chatId, t.validatorSuccess(info?.amount, res.length)) // send success message
 
