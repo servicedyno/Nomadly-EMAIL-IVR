@@ -16424,6 +16424,9 @@ app.post('/twilio/bulk-ivr', async (req, res) => {
     const selfUrl = process.env.SELF_URL_PROD || process.env.SELF_URL || ''
     const gatherActionUrl = `${selfUrl}/twilio/bulk-ivr-gather?campaignId=${encodeURIComponent(campaignId)}&leadIndex=${leadIndex}`
 
+    // Use audio proxy to serve with correct Content-Type for Twilio
+    const audioUrl = `${selfUrl}/twilio/audio-proxy?url=${encodeURIComponent(campaign.audioUrl)}`
+
     // Gather DTMF while playing audio
     const gather = response.gather({
       action: gatherActionUrl,
@@ -16432,7 +16435,7 @@ app.post('/twilio/bulk-ivr', async (req, res) => {
       timeout: 8,
       finishOnKey: '',
     })
-    gather.play(campaign.audioUrl)
+    gather.play(audioUrl)
 
     // No input — try once more
     const gather2 = response.gather({
@@ -16442,7 +16445,7 @@ app.post('/twilio/bulk-ivr', async (req, res) => {
       timeout: 5,
       finishOnKey: '',
     })
-    gather2.play(campaign.audioUrl)
+    gather2.play(audioUrl)
 
     // Still no input — hang up
     response.say('No input received. Goodbye.')
