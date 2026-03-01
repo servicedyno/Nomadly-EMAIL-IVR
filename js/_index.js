@@ -551,17 +551,22 @@ async function executeTwilioPurchase(chatId, selectedNumber, planKey, price, cou
   }
 
   // 4. SIP credentials (Twilio + Telnyx)
-  // Use seed credentials for user-facing auth (Twilio SIP domain registration)
-  // Telnyx credential is created for SIP bridge outbound but does NOT override user creds
+  // Use seed credentials for Twilio SIP domain registration
+  // Telnyx credential (gencred...) is stored separately for SIP bridge routing via sip.speechcue.com
   const seedUser = phoneConfig.generateSipUsername()
   const seedPass = phoneConfig.generateSipPassword()
   let sipUsername = seedUser
   let sipPassword = seedPass
+  let telnyxSipUsername = null
+  let telnyxSipPassword = null
+  let telnyxCredentialId = null
   if (telnyxResources?.sipConnectionId) {
     const telnyxCred = await telnyxApi.createSIPCredential(telnyxResources.sipConnectionId, seedUser, seedPass)
     if (telnyxCred?.sip_username) {
-      log(`[CloudPhone] Telnyx SIP credential created: ${telnyxCred.sip_username}`)
-      // Do NOT override sipUsername — Telnyx may return >32 chars which Twilio rejects
+      telnyxSipUsername = telnyxCred.sip_username
+      telnyxSipPassword = telnyxCred.sip_password || seedPass
+      telnyxCredentialId = telnyxCred.id || null
+      log(`[CloudPhone] Telnyx SIP credential created: ${telnyxSipUsername} (ID: ${telnyxCredentialId})`)
     }
   }
   if (twilioResources?.credentialListSid) {
