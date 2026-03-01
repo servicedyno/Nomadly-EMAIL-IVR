@@ -306,7 +306,9 @@ const validateBulkNumbers = async (carrier, phonesToGenerate, countryCode, areaC
       }
 
       // Publish Progress
-      const currentProgress = requireRealName && cnam ? realNameCount : (res.length > targetCount ? targetCount : res.length)
+      const currentProgress = cnamDisabledAreas.size > 0
+        ? (res.length > targetCount ? targetCount : res.length)
+        : (requireRealName && cnam ? realNameCount : (res.length > targetCount ? targetCount : res.length))
       const progress = t.buyLeadsProgress(currentProgress, targetCount)
 
       if (i % showProgressEveryXTime === 0) {
