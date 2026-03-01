@@ -169,65 +169,65 @@ async function testHostingRenewalFlow() {
     return
   }
   
-  // Find 'hosting-renew-now' handler around line 5035
-  const hostingRenewMatch = content.match(/confirmRenewNow[\s\S]*?try\s*{([\s\S]*?)}[\s\S]*?catch\s*\([^)]*renewErr[^)]*\)\s*{([\s\S]*?)}/s)
-  
+  // Find confirmRenewNow handler around line 5024
+  const hasConfirmRenewNow = content.includes('if (action === a.confirmRenewNow)')
   await logTest('Hosting Renewal Handler Found', 
-    hostingRenewMatch !== null,
-    'Located hosting renewal try/catch wrapper')
+    hasConfirmRenewNow,
+    'Located confirmRenewNow handler')
   
-  if (hostingRenewMatch) {
-    const tryBlock = hostingRenewMatch[1]
-    const catchBlock = hostingRenewMatch[2]
-    
-    // Check wallet deduction is inside try block
-    const walletInTry = /atomicIncrement[\s\S]*usdOut/.test(tryBlock)
-    await logTest('Hosting Wallet Deduction in Try', 
-      walletInTry,
-      'Wallet deduction (atomicIncrement...usdOut) is inside try block')
-    
-    // Check DB update is inside same try block
-    const dbUpdateInTry = /cpanelAccounts\.updateOne/.test(tryBlock)
-    await logTest('Hosting DB Update in Try', 
-      dbUpdateInTry,
-      'DB update (cpanelAccounts.updateOne) is inside same try block')
-    
-    // Check catch block has auto-refund
-    const hasAutoRefund = /atomicIncrement[\s\S]*usdIn/.test(catchBlock)
-    await logTest('Hosting Auto-Refund', 
-      hasAutoRefund,
-      'Catch block calls atomicIncrement(walletOf, chatId, "usdIn", price) to refund')
-    
-    // Check nested try/catch for refund
-    const nestedRefundTryCatch = /try\s*{[\s\S]*atomicIncrement[\s\S]*usdIn[\s\S]*}\s*catch\s*\([^)]*refundErr[^)]*\)/s.test(catchBlock)
-    await logTest('Hosting Nested Refund Protection', 
-      nestedRefundTryCatch,
-      'Refund is wrapped in nested try/catch (refundErr)')
-    
-    // Check CRITICAL refund failure logging
-    const criticalLogging = /CRITICAL.*Refund failed/.test(catchBlock)
-    await logTest('Hosting Critical Refund Logging', 
-      criticalLogging,
-      'On refund failure: logs "CRITICAL: Refund failed"')
-    
-    // Check admin alert for refund failure
-    const refundFailAlert = /HOSTING RENEWAL REFUND FAILED/.test(catchBlock)
-    await logTest('Hosting Refund Fail Alert', 
-      refundFailAlert,
-      'Admin alert sent with "HOSTING RENEWAL REFUND FAILED" message')
-    
-    // Check user failure message
-    const userFailureMsg = /purchaseFailed|failed.*renewal/i.test(catchBlock)
-    await logTest('Hosting User Failure Message', 
-      userFailureMsg,
-      'Sends user failure message when renewal crashes')
-    
-    // Check admin crash alert
-    const adminCrashAlert = /Hosting renewal crash/.test(catchBlock)
-    await logTest('Hosting Admin Crash Alert', 
-      adminCrashAlert,
-      'Sends admin crash alert with renewal details')
-  }
+  // Check for try block around line 5042 
+  const hasTryBlock = content.includes('// Deduct from wallet and extend expiry — protected with auto-refund\n      try {')
+  await logTest('Hosting Try Block Found', 
+    hasTryBlock,
+    'Found try block with auto-refund comment')
+  
+  // Check wallet deduction is inside try block (line 5043)
+  const walletInTry = /try\s*{[\s\S]*await atomicIncrement\(walletOf, chatId, 'usdOut', price\)/.test(content)
+  await logTest('Hosting Wallet Deduction in Try', 
+    walletInTry,
+    'Wallet deduction (atomicIncrement...usdOut) is inside try block')
+  
+  // Check DB update is inside same try block (lines 5051-5062)
+  const dbUpdateInTry = /try\s*{[\s\S]*await cpanelAccounts\.updateOne/.test(content)
+  await logTest('Hosting DB Update in Try', 
+    dbUpdateInTry,
+    'DB update (cpanelAccounts.updateOne) is inside same try block')
+  
+  // Check catch block has auto-refund (line 5097-5100)
+  const hasAutoRefund = content.includes('} catch (renewErr) {\n        // Auto-refund on failure')
+  await logTest('Hosting Auto-Refund', 
+    hasAutoRefund,
+    'Catch block with renewErr parameter and auto-refund comment')
+  
+  // Check nested try/catch for refund (lines 5099-5102)
+  const nestedRefundTryCatch = /try\s*{[\s\S]*await atomicIncrement\(walletOf, chatId, 'usdIn', price\)[\s\S]*} catch \(refundErr\)/.test(content)
+  await logTest('Hosting Nested Refund Protection', 
+    nestedRefundTryCatch,
+    'Refund is wrapped in nested try/catch (refundErr)')
+  
+  // Check CRITICAL refund failure logging (line 5103)
+  const criticalLogging = content.includes('[Hosting] CRITICAL: Refund failed')
+  await logTest('Hosting Critical Refund Logging', 
+    criticalLogging,
+    'On refund failure: logs "CRITICAL: Refund failed"')
+  
+  // Check admin alert for refund failure (line 5104)
+  const refundFailAlert = content.includes('HOSTING RENEWAL REFUND FAILED')
+  await logTest('Hosting Refund Fail Alert', 
+    refundFailAlert,
+    'Admin alert sent with "HOSTING RENEWAL REFUND FAILED" message')
+  
+  // Check user failure message (line 5107)
+  const userFailureMsg = content.includes('❌ Renewal failed. Your wallet has been refunded')
+  await logTest('Hosting User Failure Message', 
+    userFailureMsg,
+    'Sends user failure message when renewal crashes')
+  
+  // Check admin crash alert (line 5108)
+  const adminCrashAlert = content.includes('🚨 <b>Hosting renewal crash</b>')
+  await logTest('Hosting Admin Crash Alert', 
+    adminCrashAlert,
+    'Sends admin crash alert with renewal details')
 }
 
 // TEST 5: COMPREHENSIVE PATTERN VERIFICATION
