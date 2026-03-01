@@ -14461,8 +14461,23 @@ const bankApis = {
         else if (['Australia'].includes(ld.country)) { areaCodes = ['4'] }
         else { areaCodes = ld.area === 'Mixed Area Codes' ? _buyLeadsSelectAreaCode(ld.country, ld.area) : [ld.area] }
         const requireRealName = isTargetLeads && cnam
-        const result = await validateBulkNumbers(ld.carrier, ld.amount, cc, areaCodes, cnam, bot, chatId, lang, requireRealName)
+        const result = await validateBulkNumbers(ld.carrier, ld.amount, cc, areaCodes, cnam, bot, chatId, lang, requireRealName, { target: ld.targetName, price: price, walletDeducted: true, paymentCoin: 'BANK' })
         if (!result) return sendMessage(chatId, translation('t.buyLeadsError', lang)) || res.send(html())
+        // ── Partial delivery refund for bank — credit wallet NGN ──
+        if (result._partialReason) {
+          const requested = result._targetCount || ld.amount || 1
+          const delivered = result._deliveredCount || result.length
+          if (delivered < requested && price > 0) {
+            const undeliveredRatio = (requested - delivered) / requested
+            const refundAmount = Math.round(undeliveredRatio * price * 100) / 100
+            if (refundAmount > 0) {
+              const refundNgn = await usdToNgn(refundAmount)
+              await atomicIncrement(walletOf, chatId, 'ngnIn', refundNgn)
+              sendMessage(chatId, `💰 <b>Partial Refund</b>\n📊 ${delivered}/${requested} leads delivered\n💵 Refund: <b>₦${refundNgn.toFixed(2)}</b> ($${refundAmount.toFixed(2)}) → wallet`)
+              if (TELEGRAM_ADMIN_CHAT_ID) bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID, `💰 <b>Partial Lead Refund (Bank)</b>\n👤 ${name} (${chatId})\n📊 ${delivered}/${requested}\n💵 ₦${refundNgn.toFixed(2)} → wallet`, { parse_mode: 'HTML' }).catch(() => {})
+            }
+          }
+        }
         cc = '+' + cc; const re = cc === '+1' ? '' : '0'
         if (cnam) {
           const withRealNames = result.filter(a => a[3] && isRealPersonName(a[3]))
