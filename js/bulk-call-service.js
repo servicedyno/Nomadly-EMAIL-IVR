@@ -449,7 +449,7 @@ async function sendProgressUpdate(campaignId, leadIndex, result) {
   } else if (result.duration > 0) {
     icon = '📵'; statusText = 'Listened but no key pressed'
   } else {
-    statusText = result.hangupCause || 'Completed'
+    statusText = sanitizeHangupCause(result.hangupCause) || 'Completed'
   }
 
   const durText = result.duration > 0 ? ` (${Math.floor(result.duration / 60)}:${String(result.duration % 60).padStart(2, '0')})` : ''
