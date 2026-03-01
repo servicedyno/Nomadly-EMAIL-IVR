@@ -5038,61 +5038,75 @@ All verified numbers generated during sourcing.`))
         return send(chatId, `⚠️ Insufficient wallet balance. You have $${usdBal.toFixed(2)} but need $${price}.\nPlease deposit funds first.`, k.of([[trans('u.deposit')], [user.cancelRenewNow]]))
       }
 
-      // Deduct from wallet
-      await atomicIncrement(walletOf, chatId, 'usdOut', price)
+      // Deduct from wallet and extend expiry — protected with auto-refund
+      try {
+        await atomicIncrement(walletOf, chatId, 'usdOut', price)
 
-      // Extend expiry
-      const now = new Date()
-      const currentExpiry = plan.expiryDate ? new Date(plan.expiryDate) : now
-      const baseDate = currentExpiry > now ? currentExpiry : now
-      const newExpiry = new Date(baseDate.getTime() + duration * 24 * 60 * 60 * 1000)
+        // Extend expiry
+        const now = new Date()
+        const currentExpiry = plan.expiryDate ? new Date(plan.expiryDate) : now
+        const baseDate = currentExpiry > now ? currentExpiry : now
+        const newExpiry = new Date(baseDate.getTime() + duration * 24 * 60 * 60 * 1000)
 
-      await cpanelAccounts.updateOne(
-        { _id: plan._id },
-        {
-          $set: {
-            expiryDate: newExpiry,
-            expiryNotified: false,
-            lastRenewedAt: now,
-            suspended: false,
-            renewalCount: (plan.renewalCount || 0) + 1,
-          },
+        await cpanelAccounts.updateOne(
+          { _id: plan._id },
+          {
+            $set: {
+              expiryDate: newExpiry,
+              expiryNotified: false,
+              lastRenewedAt: now,
+              suspended: false,
+              renewalCount: (plan.renewalCount || 0) + 1,
+            },
+          }
+        )
+
+        // Unsuspend if was suspended
+        if (plan.suspended) {
+          try {
+            const whmService = require('./whm-service')
+            await whmService.unsuspendAccount(plan.cpUser)
+          } catch (_) {}
         }
-      )
 
-      // Unsuspend if was suspended
-      if (plan.suspended) {
+        // Re-deploy anti-red protection (non-blocking)
         try {
-          const whmService = require('./whm-service')
-          await whmService.unsuspendAccount(plan.cpUser)
+          const antiRedSvc = require('./anti-red-service')
+          antiRedSvc.deployFullProtection(plan.cpUser, domain, plan.plan).catch(() => {})
         } catch (_) {}
+
+        // Schedule health check after renewal too (single full check after 2 min)
+        try {
+          const healthCheck = require('./hosting-health-check')
+          healthCheck.scheduleSingleCheck(domain, plan.cpUser, chatId, 2 * 60 * 1000)
+        } catch (_) {}
+
+        const newExpiryStr = newExpiry.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        const { usdBal: newBal } = await getBalance(walletOf, chatId)
+
+        await send(chatId,
+          `✅ <b>Plan Renewed Successfully!</b>\n\n`
+          + `<b>Plan:</b> ${plan.plan}\n`
+          + `<b>Domain:</b> ${domain}\n`
+          + `<b>Charged:</b> $${price}\n`
+          + `<b>New Expiry:</b> ${newExpiryStr}\n`
+          + `<b>Remaining Balance:</b> $${newBal.toFixed(2)}\n\n`
+          + `Anti-Red protection has been refreshed.`
+        )
+        return goto.viewHostingPlanDetails(domain)
+      } catch (renewErr) {
+        // Auto-refund on failure
+        try {
+          await atomicIncrement(walletOf, chatId, 'usdIn', price)
+          log(`[Hosting] Renewal refunded $${price} for ${chatId} — renewal failed`)
+        } catch (refundErr) {
+          log(`[Hosting] CRITICAL: Refund failed for ${chatId}, $${price}: ${refundErr.message}`)
+          send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>HOSTING RENEWAL REFUND FAILED</b>\nUser: ${chatId}\nAmount: $${price}\nDomain: ${domain}\nError: ${refundErr.message}`, { parse_mode: 'HTML' })
+        }
+        log(`[Hosting] Renewal crashed for ${chatId}: ${renewErr.message}`)
+        send(chatId, t.purchaseFailed || '❌ Renewal failed. Your wallet has been refunded. Please try again or contact support.', trans('o'))
+        send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>Hosting renewal crash</b>\nUser: ${chatId}\nDomain: ${domain}\nAmount: $${price}\nError: ${renewErr.message}`, { parse_mode: 'HTML' })
       }
-
-      // Re-deploy anti-red protection (non-blocking)
-      try {
-        const antiRedSvc = require('./anti-red-service')
-        antiRedSvc.deployFullProtection(plan.cpUser, domain, plan.plan).catch(() => {})
-      } catch (_) {}
-
-      // Schedule health check after renewal too (single full check after 2 min)
-      try {
-        const healthCheck = require('./hosting-health-check')
-        healthCheck.scheduleSingleCheck(domain, plan.cpUser, chatId, 2 * 60 * 1000)
-      } catch (_) {}
-
-      const newExpiryStr = newExpiry.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-      const { usdBal: newBal } = await getBalance(walletOf, chatId)
-
-      await send(chatId,
-        `✅ <b>Plan Renewed Successfully!</b>\n\n`
-        + `<b>Plan:</b> ${plan.plan}\n`
-        + `<b>Domain:</b> ${domain}\n`
-        + `<b>Charged:</b> $${price}\n`
-        + `<b>New Expiry:</b> ${newExpiryStr}\n`
-        + `<b>Remaining Balance:</b> $${newBal.toFixed(2)}\n\n`
-        + `Anti-Red protection has been refreshed.`
-      )
-      return goto.viewHostingPlanDetails(domain)
     }
   }
 
