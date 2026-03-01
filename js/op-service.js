@@ -587,7 +587,7 @@ const addDNSRecord = async (domainName, recordType, recordValue, hostName, prior
     }, { headers, timeout: 15000 })
 
     if (res.data?.code === 0) return { success: true }
-    return { error: res.data?.desc || 'Failed to add DNS record via OpenProvider' }
+    return { error: res.data?.desc || 'Failed to add DNS record' }
   } catch (err) {
     log('OP addDNSRecord error:', err.message)
     return { error: err.message }
