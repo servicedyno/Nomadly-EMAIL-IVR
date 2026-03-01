@@ -248,7 +248,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Credential Storage Fix + Reset + Bulk IVR Billing Integration"
+    - "Node.js Health Check and Service Initialization Verification"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
