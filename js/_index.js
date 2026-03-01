@@ -16830,18 +16830,21 @@ app.post('/twilio/single-ivr', async (req, res) => {
     session.phase = 'playing'
     const gatherUrl = `${SELF_URL}/twilio/single-ivr-gather?sessionId=${encodeURIComponent(sessionId)}`
 
+    // Use audio proxy to serve with correct Content-Type for Twilio
+    const audioProxyUrl = session.audioUrl ? `${SELF_URL}/twilio/audio-proxy?url=${encodeURIComponent(session.audioUrl)}` : null
+
     // First attempt: play audio and gather
     const gather = response.gather({ action: gatherUrl, method: 'POST', numDigits: 1, timeout: 8, finishOnKey: '' })
-    if (session.audioUrl) {
-      gather.play(session.audioUrl)
+    if (audioProxyUrl) {
+      gather.play(audioProxyUrl)
     } else {
       gather.say('Thank you for your time. Press 1 to continue.')
     }
 
     // Retry once
     const gather2 = response.gather({ action: gatherUrl, method: 'POST', numDigits: 1, timeout: 5, finishOnKey: '' })
-    if (session.audioUrl) {
-      gather2.play(session.audioUrl)
+    if (audioProxyUrl) {
+      gather2.play(audioProxyUrl)
     } else {
       gather2.say('Press 1 to continue or hang up.')
     }
