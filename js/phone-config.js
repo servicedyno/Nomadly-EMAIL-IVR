@@ -2179,6 +2179,15 @@ Sélectionnez une option :`,
     subActivated: (number, parentNumber, price, sipUser, sipDomain, expiry) => `🎉 <b>अतिरिक्त नंबर जोड़ा गया!</b>\n\n📞 नंबर: ${formatPhone(number)}\n🔗 जुड़ा हुआ: ${formatPhone(parentNumber)}\n💰 मूल्य: $${typeof price === 'number' ? price.toFixed(2) : price}/माह\n📅 नवीनीकरण: ${expiry}\n\n━━━ <b>SIP क्रेडेंशियल्स</b> ━━━\n🌐 सर्वर: ${sipDomain}\n👤 उपयोगकर्ता: ${sipUser}\n🔑 पासवर्ड: ●●●●●●●● (देखने के लिए 🔑 SIP क्रेडेंशियल्स उपयोग करें)\n📡 पोर्ट: 5060 (UDP/TCP) | 5061 (TLS)\n\n━━━ <b>त्वरित सेटअप</b> ━━━\n• ब्राउज़र: <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>\n• सॉफ्टफ़ोन: Zoiper/Ooma में SIP सेट करें\n• मिनट और SMS मुख्य नंबर के साथ साझा`,
     adminSubPurchase: (name, number, parentNumber, price, paymentMethod) => `➕ <b>अतिरिक्त नंबर</b>\n👤 ${name}\n📞 ${formatPhone(number)} → ${formatPhone(parentNumber)}\n💰 $${price} · ${paymentMethod}`,
     adminSubPurchasePrivate: (name, number, parentNumber, price, paymentMethod) => `➕ <b>अतिरिक्त नंबर</b>\n👤 ${name}\n📞 नया: ${formatPhone(number)}\n🔗 मुख्य: ${formatPhone(parentNumber)}\n💰 $${price}/माह · ${paymentMethod}`,
+    
+    // Sub-number flow messages
+    subAddNumberHeader: (plan, parentNumber) => `➕ <b>${plan.charAt(0).toUpperCase() + plan.slice(1)} प्लान में नंबर जोड़ें</b>\n📞 मुख्य: ${formatPhone(parentNumber)}\n\n🌍 अपने नए नंबर के लिए देश चुनें:`,
+    subNumbersAvailable: '📱 <b>अतिरिक्त नंबर — उपलब्ध</b>',
+    subNumberArea: (area) => `📱 <b>अतिरिक्त नंबर — क्षेत्र ${area}</b>`,
+    subNumberSelected: (location) => `📱 <b>अतिरिक्त नंबर — ${location}</b>`,
+    bulkIvrSupport: '☎️ = बल्क IVR समर्थन',
+    tapToSelect: 'चुनने के लिए टैप करें:',
+    
     // कॉल फ़ॉरवर्डिंग
     forwardingStatus: (number, config, walletBal) => {
       const status = config?.enabled ? '✅ सक्रिय' : '❌ बंद'
