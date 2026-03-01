@@ -10525,7 +10525,7 @@ Choose an IVR template category:`), k.of(rows))
       return `${i + 1}. <code>${r.phone_number}</code>${tag}`
     }).join('\n')
     const numBtns = results.map((_, i) => String(i + 1))
-    return send(chatId, `📱 <b>Sub-Number — Area ${areaCode}</b>\n\n${numberLines}\n\n☎️ = Supports Bulk IVR\n\nTap to select:`, k.of([numBtns, [pc.showMore]]))
+    return send(chatId, `${cpTxt.subNumberArea(areaCode)}\n\n${numberLines}\n\n${cpTxt.bulkIvrSupport}\n\n${cpTxt.tapToSelect}`, k.of([numBtns, [pc.showMore]]))
   }
 
   // ━━━ SUB-NUMBER: Select Number ━━━
