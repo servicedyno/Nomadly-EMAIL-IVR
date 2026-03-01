@@ -108,61 +108,55 @@ async function testDomainPurchaseFlow() {
     return
   }
   
-  // Find 'domain-pay' handler around line 3573
-  const domainPayMatch = content.match(/'domain-pay':\s*async[^}]*(?:{(?:[^{}]*{[^}]*})*[^}]*})/s)
+  // Check around line 3573 for domain-pay handler
+  const domainPayPattern = /'domain-pay':\s*async\s+coin\s*=>\s*{[\s\S]*?}/
+  const domainPayMatch = content.match(domainPayPattern)
   
   await logTest('Domain Pay Handler Found', 
-    domainPayMatch !== null,
+    content.includes("'domain-pay': async coin =>"),
     'Located domain-pay handler in code')
   
-  if (domainPayMatch) {
-    const handlerCode = domainPayMatch[0]
-    
-    // Check for try/catch wrapper
-    const hasTryCatch = /try\s*{[\s\S]*}\s*catch\s*\([^)]*\)\s*{[\s\S]*}/s.test(handlerCode)
-    await logTest('Domain Purchase Try/Catch Wrapper', 
-      hasTryCatch,
-      'Try/catch block wraps domain purchase logic')
-    
-    // Check buyDomainFullProcess is inside try block
-    const buyDomainInTry = /try\s*{[\s\S]*buyDomainFullProcess[\s\S]*}/.test(handlerCode)
-    await logTest('BuyDomainFullProcess in Try Block', 
-      buyDomainInTry,
-      'buyDomainFullProcess() call is inside try block')
-    
-    // Check wallet deduction AFTER buyDomainFullProcess
-    const walletAfterBuy = /buyDomainFullProcess[\s\S]*atomicIncrement[\s\S]*Out/.test(handlerCode)
-    await logTest('Wallet Deduction After Purchase', 
-      walletAfterBuy,
-      'Wallet deduction happens AFTER successful domain purchase')
-    
-    // Check catch block exists with proper error handling
-    const catchBlock = /catch\s*\([^)]*domainErr[^)]*\)\s*{([\s\S]*?)}/s.exec(handlerCode)
-    if (catchBlock) {
-      const catchCode = catchBlock[1]
-      
-      // Check for crash logging
-      const hasCrashLogging = /\[Domain\].*Purchase crashed/.test(catchCode)
-      await logTest('Domain Crash Logging', 
-        hasCrashLogging,
-        'Catch block logs with [Domain] Purchase crashed')
-      
-      // Check for user failure message
-      const hasUserMessage = /purchaseFailed|failed.*purchase/i.test(catchCode)
-      await logTest('Domain User Failure Message', 
-        hasUserMessage,
-        'Sends user failure message (t.purchaseFailed or fallback)')
-      
-      // Check for admin alert
-      const hasAdminAlert = /TELEGRAM_ADMIN_CHAT_ID/.test(catchCode)
-      await logTest('Domain Admin Alert', 
-        hasAdminAlert,
-        'Sends admin alert to TELEGRAM_ADMIN_CHAT_ID with crash details')
-      
-    } else {
-      await logTest('Domain Catch Block', false, 'No catch block found with domainErr parameter')
-    }
-  }
+  // Verify try/catch wrapper exists around buyDomainFullProcess
+  const hasTryBuyDomain = /try\s*{[\s\S]*buyDomainFullProcess[\s\S]*}\s*catch\s*\(\s*domainErr\s*\)/.test(content)
+  await logTest('Domain Purchase Try/Catch Wrapper', 
+    hasTryBuyDomain,
+    'Try/catch block wraps buyDomainFullProcess() with domainErr parameter')
+  
+  // Check buyDomainFullProcess is inside try block (line 3592)
+  const buyDomainInTry = content.includes('const error = await buyDomainFullProcess(chatId, lang, domain)')
+  await logTest('BuyDomainFullProcess in Try Block', 
+    buyDomainInTry,
+    'buyDomainFullProcess() call is inside try block at line 3592')
+  
+  // Check wallet deduction AFTER buyDomainFullProcess (lines 3597-3604)
+  const walletAfterBuy = /buyDomainFullProcess[\s\S]*?if \(error\) return[\s\S]*?atomicIncrement[\s\S]*Out/.test(content)
+  await logTest('Wallet Deduction After Purchase', 
+    walletAfterBuy,
+    'Wallet deduction happens AFTER successful domain purchase (after error check)')
+  
+  // Check catch block with domainErr parameter (line 3613)
+  const hasDomainErrCatch = content.includes('catch (domainErr)')
+  await logTest('Domain Catch Block', 
+    hasDomainErrCatch,
+    'Catch block uses domainErr parameter')
+  
+  // Check for crash logging with [Domain] prefix (line 3614)
+  const hasCrashLogging = content.includes('[Domain] Purchase crashed')
+  await logTest('Domain Crash Logging', 
+    hasCrashLogging,
+    'Catch block logs with "[Domain] Purchase crashed" prefix')
+  
+  // Check for user failure message (line 3615)
+  const hasUserMessage = content.includes('t.purchaseFailed || \'❌ Domain purchase failed')
+  await logTest('Domain User Failure Message', 
+    hasUserMessage,
+    'Sends user failure message (t.purchaseFailed or fallback)')
+  
+  // Check for admin alert to TELEGRAM_ADMIN_CHAT_ID (line 3616)
+  const hasAdminAlert = /send\(TELEGRAM_ADMIN_CHAT_ID,.*Domain purchase crash/.test(content)
+  await logTest('Domain Admin Alert', 
+    hasAdminAlert,
+    'Sends admin alert to TELEGRAM_ADMIN_CHAT_ID with crash details')
 }
 
 // TEST 4: HOSTING RENEWAL FLOW ANALYSIS  
