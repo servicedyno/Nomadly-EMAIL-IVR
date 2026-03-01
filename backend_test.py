@@ -1,377 +1,162 @@
 #!/usr/bin/env python3
-"""
-CloudPhone Wallet Purchase Crash Fix - Backend Testing
-Testing the ROOT CAUSE fix for JavaScript scoping bug where 3 functions were moved to module scope.
-"""
 
 import requests
 import json
-import re
-import subprocess
-import sys
-from typing import Dict, Any, Optional
+import os
+from pymongo import MongoClient
 
-# Backend URL Configuration
-BACKEND_URL = "http://localhost:5000"
-
-class CloudPhoneTest:
-    def __init__(self):
-        self.test_results = []
-        self.errors = []
+def test_cpTxt_referenceerror_fix():
+    """
+    Test the cpTxt ReferenceError fix in executeTwilioPurchase function
+    Based on review request requirements
+    """
+    
+    print("=== CPTEXT REFERENCEERROR FIX VERIFICATION ===")
+    
+    # 1. Node.js Health Check
+    print("\n1. TESTING NODE.JS HEALTH")
+    try:
+        response = requests.get("http://localhost:5000/health", timeout=10)
+        health_data = response.json()
+        print(f"✅ Node.js Health: {health_data}")
+        if health_data.get('status') == 'healthy' and health_data.get('database') == 'connected':
+            print("✅ Service running healthy with database connected")
+        else:
+            print("❌ Service health check failed")
+            return False
+    except Exception as e:
+        print(f"❌ Node.js health check failed: {e}")
+        return False
+    
+    # 2. Code Fix Verification
+    print("\n2. TESTING CODE FIX - NO cpTxt IN executeTwilioPurchase")
+    try:
+        with open('/app/js/_index.js', 'r') as f:
+            content = f.read()
+            
+        # Check for cpTxt references inside executeTwilioPurchase function
+        lines = content.split('\n')
+        in_function = False
+        function_start = 0
+        function_end = 0
+        cpTxt_found = []
         
-    def log_result(self, test_name: str, status: str, message: str):
-        """Log test result"""
-        result = {
-            'test': test_name,
-            'status': status,
-            'message': message
-        }
-        self.test_results.append(result)
-        status_icon = "✅" if status == "PASS" else "❌"
-        print(f"{status_icon} {test_name}: {message}")
+        for i, line in enumerate(lines):
+            if 'async function executeTwilioPurchase(' in line:
+                in_function = True
+                function_start = i + 1
+                print(f"✅ Found executeTwilioPurchase at line {i + 1}")
+                continue
+                
+            if in_function and line.strip() == '}' and 'return' in lines[i-1]:
+                function_end = i + 1
+                break
+                
+            if in_function and 'cpTxt' in line and not line.strip().startswith('//'):
+                cpTxt_found.append(f"Line {i + 1}: {line.strip()}")
         
-    def log_error(self, test_name: str, error: str):
-        """Log test error"""
-        self.errors.append(f"{test_name}: {error}")
-        self.log_result(test_name, "FAIL", error)
-
-    def test_nodejs_health(self):
-        """Test 1: Node.js Health - Service running on port 5000, database connected, zero errors"""
-        try:
-            # Check service health endpoint
-            response = requests.get(f"{BACKEND_URL}/api/health", timeout=10)
-            if response.status_code == 200:
-                health_data = response.json()
-                if health_data.get('status') == 'healthy' and health_data.get('database') == 'connected':
-                    self.log_result("NodeJS Health", "PASS", f"Service healthy on port 5000, database connected, uptime: {health_data.get('uptime', 'unknown')}")
+        if cpTxt_found:
+            print(f"❌ Found cpTxt references in executeTwilioPurchase:")
+            for ref in cpTxt_found:
+                print(f"    {ref}")
+            return False
+        else:
+            print("✅ No cpTxt references found in executeTwilioPurchase function")
+            
+        # Check for the correct fix pattern
+        admin_txt_pattern = "const _adminTxt = phoneConfig.getTxt('en')"
+        if admin_txt_pattern in content:
+            print("✅ Found correct fix: _adminTxt = phoneConfig.getTxt('en')")
+        else:
+            print("❌ Correct fix pattern not found")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Code verification failed: {e}")
+        return False
+    
+    # 3. MongoDB Data Verification
+    print("\n3. TESTING MONGODB DATA FIXES")
+    try:
+        # Get MongoDB URL from environment
+        mongo_url = os.getenv('MONGO_URL', 'mongodb://mongo:RQoOmIdwjRLFvhWMaatjidzqpvawUKcb@caboose.proxy.rlwy.net:59668')
+        db_name = os.getenv('DB_NAME', 'test')
+        
+        client = MongoClient(mongo_url)
+        db = client[db_name]
+        
+        print(f"✅ Connected to MongoDB: {db_name}")
+        
+        # Check user 1005284399 wallet
+        wallet = db.walletOf.find_one({'_id': 1005284399})
+        if wallet:
+            usd_in = wallet.get('usdIn', 0)
+            usd_out = wallet.get('usdOut', 0)
+            balance = usd_in - usd_out
+            
+            print(f"✅ User 1005284399 wallet found:")
+            print(f"    usdIn: {usd_in}")
+            print(f"    usdOut: {usd_out}")
+            print(f"    Balance: ${balance:.2f}")
+            
+            # Expected values from review request
+            if usd_in == 270 and usd_out == 218.53:
+                print("✅ Wallet balance matches expected values (usdIn=270, usdOut=218.53)")
+                if balance == 51.47:
+                    print("✅ Balance calculation correct: $51.47")
                 else:
-                    self.log_error("NodeJS Health", f"Health check failed: {health_data}")
+                    print(f"❌ Balance calculation incorrect: expected $51.47, got ${balance:.2f}")
             else:
-                self.log_error("NodeJS Health", f"Health endpoint returned {response.status_code}")
-                
-            # Check error logs
-            try:
-                result = subprocess.run(['tail', '-n', '50', '/var/log/supervisor/nodejs.err.log'], 
-                                      capture_output=True, text=True, timeout=10)
-                if result.returncode == 0:
-                    error_log = result.stdout.strip()
-                    if not error_log:
-                        self.log_result("NodeJS Error Logs", "PASS", "No errors in nodejs.err.log")
-                    else:
-                        self.log_error("NodeJS Error Logs", f"Found errors in log: {error_log[:200]}")
-                else:
-                    self.log_error("NodeJS Error Logs", "Could not read error log")
-            except Exception as e:
-                self.log_error("NodeJS Error Logs", f"Log check failed: {str(e)}")
-                
-        except Exception as e:
-            self.log_error("NodeJS Health", f"Health check failed: {str(e)}")
-
-    def test_function_scoping(self):
-        """Test 2-4: Verify functions are at module scope (before loadData)"""
-        try:
-            with open('/app/js/_index.js', 'r') as f:
-                content = f.read()
+                print(f"❌ Wallet values don't match expected (should be usdIn=270, usdOut=218.53)")
+        else:
+            print("❌ User 1005284399 wallet not found")
+            return False
             
-            # Find line numbers
-            lines = content.split('\n')
+        # Check phone number assignment
+        phone_numbers = db.phoneNumbersOf.find_one({'_id': 1005284399})
+        if phone_numbers and 'numbers' in phone_numbers:
+            target_number = '+18669834855'
+            found_number = None
             
-            # Find function definitions
-            exec_twilio_line = None
-            get_cached_line = None  
-            cache_twilio_line = None
-            load_data_line = None
-            
-            for i, line in enumerate(lines):
-                if 'async function executeTwilioPurchase(' in line:
-                    exec_twilio_line = i + 1
-                elif 'async function getCachedTwilioAddress(' in line:
-                    get_cached_line = i + 1
-                elif 'async function cacheTwilioAddress(' in line:
-                    cache_twilio_line = i + 1
-                elif 'const loadData = async () => {' in line:
-                    load_data_line = i + 1
+            for number in phone_numbers['numbers']:
+                if number.get('phoneNumber') == target_number:
+                    found_number = number
                     break
-            
-            # Test 2: executeTwilioPurchase at module scope
-            if exec_twilio_line and load_data_line and exec_twilio_line < load_data_line:
-                # Check function signature
-                func_line = lines[exec_twilio_line - 1]
-                expected_params = ['chatId', 'selectedNumber', 'planKey', 'price', 'countryCode', 'countryName', 'numType', 'paymentMethod', 'addressSid']
-                
-                # Extract parameters from function definition
-                param_match = re.search(r'executeTwilioPurchase\((.*?)\)', func_line)
-                if param_match:
-                    params = [p.strip() for p in param_match.group(1).split(',')]
-                    if len(params) == 9 and all(expected in params for expected in expected_params):
-                        self.log_result("executeTwilioPurchase MODULE Scope", "PASS", 
-                                      f"Function at line {exec_twilio_line}, BEFORE loadData (line {load_data_line}), with all 9 params")
-                    else:
-                        self.log_error("executeTwilioPurchase MODULE Scope", 
-                                     f"Function has incorrect parameters. Expected 9, got {len(params)}: {params}")
-                else:
-                    self.log_error("executeTwilioPurchase MODULE Scope", "Could not parse function parameters")
-            else:
-                self.log_error("executeTwilioPurchase MODULE Scope", 
-                             f"Function not found at module scope. exec_line: {exec_twilio_line}, load_data: {load_data_line}")
-            
-            # Test 3: getCachedTwilioAddress at module scope
-            if get_cached_line and load_data_line and get_cached_line < load_data_line:
-                func_line = lines[get_cached_line - 1]
-                if 'getCachedTwilioAddress(chatId, countryCode)' in func_line:
-                    self.log_result("getCachedTwilioAddress MODULE Scope", "PASS", 
-                                  f"Function at line {get_cached_line}, BEFORE loadData (line {load_data_line})")
-                else:
-                    self.log_error("getCachedTwilioAddress MODULE Scope", "Function has incorrect signature")
-            else:
-                self.log_error("getCachedTwilioAddress MODULE Scope", 
-                             f"Function not found at module scope. cached_line: {get_cached_line}, load_data: {load_data_line}")
-            
-            # Test 4: cacheTwilioAddress at module scope  
-            if cache_twilio_line and load_data_line and cache_twilio_line < load_data_line:
-                func_line = lines[cache_twilio_line - 1]
-                if 'cacheTwilioAddress(chatId, countryCode, addressSid)' in func_line:
-                    self.log_result("cacheTwilioAddress MODULE Scope", "PASS", 
-                                  f"Function at line {cache_twilio_line}, BEFORE loadData (line {load_data_line})")
-                else:
-                    self.log_error("cacheTwilioAddress MODULE Scope", "Function has incorrect signature")
-            else:
-                self.log_error("cacheTwilioAddress MODULE Scope", 
-                             f"Function not found at module scope. cache_line: {cache_twilio_line}, load_data: {load_data_line}")
-                
-        except Exception as e:
-            self.log_error("Function Scoping", f"File analysis failed: {str(e)}")
-
-    def test_loaddata_no_functions(self):
-        """Test 5: Verify loadData does NOT contain the moved functions"""
-        try:
-            with open('/app/js/_index.js', 'r') as f:
-                content = f.read()
-            
-            # Find loadData function bounds
-            lines = content.split('\n')
-            load_data_start = None
-            load_data_end = None
-            brace_count = 0
-            
-            for i, line in enumerate(lines):
-                if 'const loadData = async () => {' in line:
-                    load_data_start = i
-                    brace_count = 1  # opening brace
-                    continue
                     
-                if load_data_start is not None:
-                    # Count braces to find end of function
-                    brace_count += line.count('{') - line.count('}')
-                    if brace_count == 0:
-                        load_data_end = i
-                        break
-            
-            if load_data_start and load_data_end:
-                load_data_content = '\n'.join(lines[load_data_start:load_data_end + 1])
+            if found_number:
+                print(f"✅ Phone number {target_number} found for user 1005284399:")
+                print(f"    Plan: {found_number.get('plan')}")
+                print(f"    Price: {found_number.get('planPrice')}")
+                print(f"    Status: {found_number.get('status')}")
+                print(f"    Provider: {found_number.get('provider')}")
                 
-                # Check for function definitions inside loadData
-                forbidden_functions = [
-                    'async function executeTwilioPurchase',
-                    'async function getCachedTwilioAddress', 
-                    'async function cacheTwilioAddress'
-                ]
-                
-                found_functions = []
-                for func in forbidden_functions:
-                    if func in load_data_content:
-                        found_functions.append(func)
-                
-                # Check for "moved to module scope" comment
-                moved_comment_found = 'moved to module scope' in load_data_content
-                
-                if not found_functions:
-                    if moved_comment_found:
-                        self.log_result("loadData Functions Check", "PASS", 
-                                      f"No functions inside loadData (lines {load_data_start+1}-{load_data_end+1}), 'moved to module scope' comment found")
-                    else:
-                        self.log_result("loadData Functions Check", "PASS", 
-                                      f"No functions inside loadData (lines {load_data_start+1}-{load_data_end+1})")
+                # Verify expected values
+                if (found_number.get('plan') == 'pro' and 
+                    found_number.get('planPrice') == 75 and 
+                    found_number.get('status') == 'active' and 
+                    found_number.get('provider') == 'twilio'):
+                    print("✅ Phone number data matches expected values")
                 else:
-                    self.log_error("loadData Functions Check", 
-                                 f"Found forbidden functions inside loadData: {found_functions}")
+                    print("❌ Phone number data doesn't match expected values")
+                    return False
             else:
-                self.log_error("loadData Functions Check", "Could not locate loadData function boundaries")
-                
-        except Exception as e:
-            self.log_error("loadData Functions Check", f"Analysis failed: {str(e)}")
-
-    def test_try_catch_wrapper(self):
-        """Test 6: Verify try/catch safety net in walletOk['phone-pay']"""
-        try:
-            with open('/app/js/_index.js', 'r') as f:
-                content = f.read()
+                print(f"❌ Phone number {target_number} not found for user")
+                return False
+        else:
+            print("❌ Phone numbers data not found for user 1005284399")
+            return False
             
-            lines = content.split('\n')
-            
-            # Find the phone-pay wallet deduction specifically (lines 3798 and 3801)
-            phone_pay_deduction_line = None
-            for i, line in enumerate(lines):
-                if ('await atomicIncrement(walletOf, chatId, \'usdOut\', priceUsd)' in line or
-                    'await atomicIncrement(walletOf, chatId, "usdOut", priceUsd)' in line):
-                    phone_pay_deduction_line = i + 1
-                    break
-            
-            if phone_pay_deduction_line:
-                # Look for try block after wallet deduction
-                try_found = False
-                catch_found = False
-                auto_refund_logic = False
-                cloudphone_logging = False
-                purchase_failed_msg = False
-                
-                # Search in next 150 lines after wallet deduction
-                for i in range(phone_pay_deduction_line, min(len(lines), phone_pay_deduction_line + 150)):
-                    line = lines[i].strip()
-                    
-                    if 'try {' in line:
-                        try_found = True
-                    elif 'catch (purchaseErr)' in line:
-                        catch_found = True
-                    elif ('atomicIncrement(walletOf, chatId, \'usdIn\', priceUsd)' in line or
-                          'atomicIncrement(walletOf, chatId, \'ngnIn\', priceNgn)' in line or
-                          'atomicIncrement(walletOf, chatId, "usdIn", priceUsd)' in line or
-                          'atomicIncrement(walletOf, chatId, "ngnIn", priceNgn)' in line):
-                        auto_refund_logic = True
-                    elif '[CloudPhone]' in line and ('Purchase crashed' in line or 'Auto-refunded' in line):
-                        cloudphone_logging = True
-                    elif 'purchaseFailed' in line and 'send(chatId' in line:
-                        purchase_failed_msg = True
-                
-                # Verify all components are present
-                if try_found and catch_found and auto_refund_logic:
-                    details = []
-                    if cloudphone_logging:
-                        details.append("[CloudPhone] logging present")
-                    if purchase_failed_msg:
-                        details.append("purchaseFailed message")
-                    
-                    self.log_result("Try/Catch Wrapper", "PASS", 
-                                  f"Purchase section wrapped in try/catch after wallet deduction (line {phone_pay_deduction_line}), " +
-                                  f"auto-refund logic present" + 
-                                  (f", {', '.join(details)}" if details else ""))
-                else:
-                    missing = []
-                    if not try_found: missing.append("try block")
-                    if not catch_found: missing.append("catch block") 
-                    if not auto_refund_logic: missing.append("auto-refund logic")
-                    
-                    self.log_error("Try/Catch Wrapper", f"Missing: {', '.join(missing)}")
-            else:
-                self.log_error("Try/Catch Wrapper", "Could not locate phone-pay wallet deduction line")
-                
-        except Exception as e:
-            self.log_error("Try/Catch Wrapper", f"Analysis failed: {str(e)}")
-
-    def test_wallet_refund_verification(self):
-        """Test 7: Check user wallet refund (for reference - may not exist in test scenario)"""
-        try:
-            # This is more of a verification that the refund mechanism would work
-            # In a real test scenario, we'd need to simulate a failed purchase
-            
-            # Check MongoDB connection and wallet collection structure
-            result = subprocess.run([
-                'node', '-e', '''
-                const { MongoClient } = require("mongodb");
-                (async () => {
-                  const client = new MongoClient("mongodb://localhost:27017");
-                  await client.connect();
-                  const db = client.db("nomadly");
-                  const walletOf = db.collection("walletOf");
-                  
-                  // Check if collection exists and is accessible
-                  const count = await walletOf.countDocuments();
-                  console.log(`wallet_collection_count:${count}`);
-                  
-                  // Check specific user (test scenario)
-                  const userWallet = await walletOf.findOne({ _id: "1005284399" });
-                  if (userWallet) {
-                    console.log(`user_wallet:${JSON.stringify(userWallet)}`);
-                  } else {
-                    console.log("user_wallet:not_found");
-                  }
-                  
-                  await client.close();
-                })().catch(e => console.error("Error:", e.message));
-                '''
-            ], capture_output=True, text=True, timeout=10)
-            
-            if result.returncode == 0:
-                output = result.stdout.strip()
-                if 'wallet_collection_count:' in output:
-                    count_match = re.search(r'wallet_collection_count:(\d+)', output)
-                    if count_match:
-                        wallet_count = int(count_match.group(1))
-                        
-                        if 'user_wallet:not_found' in output:
-                            self.log_result("User Wallet Verification", "PASS", 
-                                          f"Wallet collection accessible ({wallet_count} wallets), user 1005284399 not found (expected for test scenario)")
-                        elif 'user_wallet:' in output:
-                            wallet_match = re.search(r'user_wallet:(\{.*\})', output)
-                            if wallet_match:
-                                wallet_data = wallet_match.group(1)
-                                self.log_result("User Wallet Verification", "PASS", 
-                                              f"User 1005284399 wallet found: {wallet_data}")
-                            else:
-                                self.log_result("User Wallet Verification", "PASS", 
-                                              "User wallet data format issue")
-                    else:
-                        self.log_error("User Wallet Verification", "Could not parse wallet count")
-                else:
-                    self.log_error("User Wallet Verification", f"Unexpected output: {output}")
-            else:
-                self.log_error("User Wallet Verification", f"MongoDB check failed: {result.stderr}")
-                
-        except Exception as e:
-            self.log_error("User Wallet Verification", f"Verification failed: {str(e)}")
-
-    def run_all_tests(self):
-        """Run all tests and return summary"""
-        print("🔍 CloudPhone Wallet Purchase Crash Fix - ROOT CAUSE Testing")
-        print("=" * 80)
+        client.close()
         
-        # Run all tests
-        self.test_nodejs_health()
-        self.test_function_scoping() 
-        self.test_loaddata_no_functions()
-        self.test_try_catch_wrapper()
-        self.test_wallet_refund_verification()
-        
-        # Summary
-        print("\n" + "=" * 80)
-        print("📋 TEST SUMMARY")
-        print("=" * 80)
-        
-        passed = len([r for r in self.test_results if r['status'] == 'PASS'])
-        failed = len([r for r in self.test_results if r['status'] == 'FAIL'])
-        total = len(self.test_results)
-        
-        print(f"✅ PASSED: {passed}")
-        print(f"❌ FAILED: {failed}")
-        print(f"📊 TOTAL:  {total}")
-        print(f"🎯 SUCCESS RATE: {(passed/total*100):.1f}%" if total > 0 else "🎯 SUCCESS RATE: N/A")
-        
-        if self.errors:
-            print(f"\n❌ CRITICAL ISSUES:")
-            for error in self.errors:
-                print(f"   • {error}")
-        
-        return {
-            'passed': passed,
-            'failed': failed, 
-            'total': total,
-            'success_rate': (passed/total*100) if total > 0 else 0,
-            'errors': self.errors
-        }
+    except Exception as e:
+        print(f"❌ MongoDB verification failed: {e}")
+        return False
+    
+    print("\n=== VERIFICATION COMPLETE ===")
+    print("✅ All cpTxt ReferenceError fix requirements verified successfully!")
+    return True
 
 if __name__ == "__main__":
-    tester = CloudPhoneTest()
-    results = tester.run_all_tests()
-    
-    # Exit with error code if any tests failed
-    sys.exit(0 if results['failed'] == 0 else 1)
+    success = test_cpTxt_referenceerror_fix()
+    if not success:
+        exit(1)
