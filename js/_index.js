@@ -8015,7 +8015,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const domain = info?.domainToManage
     const result = await domainService.addDNSRecord(domain, recordType, value, hostname, db)
     if (!result.success) {
-      return send(chatId, t.errorSavingDns(result.error || 'Failed'))
+      return send(chatId, t.errorSavingDns(sanitizeProviderError(result.error || 'Failed', 'domain')))
     }
     send(chatId, t.dnsRecordSaved)
     const checkName = hostname ? `${hostname}.${domain}` : domain
@@ -8040,7 +8040,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
     const result = await domainService.resolveConflictAndAdd(domain, recordType, value, hostname, conflictingRecords, db)
     if (!result.success) {
-      return send(chatId, t.errorSavingDns(result.error || 'Failed'))
+      return send(chatId, t.errorSavingDns(sanitizeProviderError(result.error || 'Failed', 'domain')))
     }
     send(chatId, t.dnsRecordSaved)
     const checkName = hostname ? `${hostname}.${domain}` : domain
