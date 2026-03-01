@@ -4243,15 +4243,11 @@ All verified numbers generated during sourcing.`))
       }
       const name = await get(nameOf, chatId)
 
-      // wallet update
+      // wallet already deducted before generation — just log payment record
       if (coin === u.usd) {
         set(payments, nanoid(), `Wallet,Phone Leads,${leadsAmount} leads,$${priceUsd},${chatId},${name},${new Date()}`)
-        await atomicIncrement(walletOf, chatId, 'usdOut', Number(priceUsd))
       } else if (coin === u.ngn) {
         set(payments, nanoid(), `Wallet,Phone Leads,${leadsAmount} leads,$${priceUsd},${chatId},${name},${new Date()},${priceNgn} NGN`)
-        await atomicIncrement(walletOf, chatId, 'ngnOut', priceNgn)
-      } else {
-        return send(chatId, t.someIssue || 'Some Issue')
       }
       const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
       send(chatId, t.showWallet(usd, ngn), trans('o'))
