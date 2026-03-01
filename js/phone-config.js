@@ -509,6 +509,14 @@ Select an option:`,
 
   adminSubPurchase: (name, number, parentNumber, price, paymentMethod) => `➕ <b>Sub-Number Added</b>\n👤 ${name}\n📞 ${formatPhone(number)} → ${formatPhone(parentNumber)}\n💰 $${price} · ${paymentMethod}`,
   adminSubPurchasePrivate: (name, number, parentNumber, price, paymentMethod) => `➕ <b>Sub-Number Added</b>\n👤 ${name}\n📞 New: ${formatPhone(number)}\n🔗 Parent: ${formatPhone(parentNumber)}\n💰 $${price}/mo · ${paymentMethod}`,
+  
+  // Sub-number flow messages
+  subAddNumberHeader: (plan, parentNumber) => `➕ <b>Add Number to ${plan.charAt(0).toUpperCase() + plan.slice(1)} Plan</b>\n📞 Parent: ${formatPhone(parentNumber)}\n\n🌍 Select country for your new number:`,
+  subNumbersAvailable: '📱 <b>Sub-Number — Available</b>',
+  subNumberArea: (area) => `📱 <b>Sub-Number — Area ${area}</b>`,
+  subNumberSelected: (location) => `📱 <b>Sub-Number — ${location}</b>`,
+  bulkIvrSupport: '☎️ = Supports Bulk IVR',
+  tapToSelect: 'Tap to select:',
 
   myNumbersList: (numbers) => {
     let text = '📱 <b>Your Cloud IVR Numbers:</b>\n\n'
