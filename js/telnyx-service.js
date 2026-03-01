@@ -183,6 +183,19 @@ async function createSIPCredential(connectionId, username, password) {
   }
 }
 
+// ── Delete SIP Credential ──
+async function deleteSIPCredential(credentialId) {
+  try {
+    await axios.delete(`${BASE}/telephony_credentials/${credentialId}`, { headers: headers() })
+    log(`[Telnyx] Deleted SIP credential: ${credentialId}`)
+    return true
+  } catch (e) {
+    log(`[Telnyx] deleteSIPCredential error: ${e.response?.data?.errors?.[0]?.detail || e.message}`)
+    return false
+  }
+}
+
+
 // ── Create Messaging Profile ──
 async function createMessagingProfile(name, webhookUrl) {
   try {
