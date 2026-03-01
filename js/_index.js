@@ -9297,11 +9297,11 @@ Choose an IVR template category:`), k.of(rows))
       set(state, chatId, 'action', a.bulkTTSPlaceholder)
       return send(chatId, `Enter value for <b>[${placeholders[0]}]</b>:`, k.of([]))
     }
-    // No placeholders — go to voice selection
-    set(state, chatId, 'action', a.bulkTTSVoice)
+    // No placeholders — go to provider selection
+    set(state, chatId, 'action', a.bulkTTSProvider)
     const ttsService = require('./tts-service.js')
-    const voiceBtns = ttsService.getVoiceButtons('en').map(b => [b])
-    return send(chatId, `🔘 Active keys: <b>${bulkTTS.activeKeys.join(', ')}</b>\n\n🎙 <b>Select Voice</b>:`, k.of([...voiceBtns, ['↩️ Back']]))
+    const providerBtns = ttsService.getProviderButtons().map(b => [b])
+    return send(chatId, `🔘 Active keys: <b>${bulkTTS.activeKeys.join(', ')}</b>\n\n🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine:`, k.of([...providerBtns, ['↩️ Back']]))
   }
 
   if (action === a.bulkTTSTemplate) {
