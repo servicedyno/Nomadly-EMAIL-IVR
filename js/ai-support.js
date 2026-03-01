@@ -494,7 +494,7 @@ async function getAiResponse(chatId, userMessage, lang = 'en') {
     // Build language instruction
     const langName = LANG_NAMES[lang] || LANG_NAMES.en
     const langInstruction = lang !== 'en'
-      ? `\n\n## LANGUAGE REQUIREMENT\n**CRITICAL**: The user's preferred language is ${langName}. You MUST respond entirely in ${langName}. Do NOT respond in English. Translate all product names, instructions, and support information into ${langName}. Use HTML tags (<b>, <i>, <code>) for formatting, not markdown.`
+      ? `\n\n## LANGUAGE REQUIREMENT\n**CRITICAL**: The user's preferred language is ${langName}. You MUST:\n1. Respond entirely in ${langName}. Do NOT respond in English.\n2. Use the TRANSLATED BUTTON LABELS from the "BUTTON LABELS BY LANGUAGE" table above for the "${langName}" column. For example, instead of "📱 My Numbers" use the ${langName} version from the table.\n3. Use HTML tags (<b>, <i>, <code>) for formatting, not markdown.`
       : ''
 
     // Build messages array
