@@ -17439,6 +17439,32 @@ async function resumeInterruptedLeadJobs() {
         if (fullResults && fullResults.length > 0) {
           await safeDeliver(chatId, fullResults, phonesToGenerate, cnam, requireRealName, countryCode, target, jobLang)
 
+          // ── Wallet deduction for resumed jobs that weren't charged before crash ──
+          if (!job.walletDeducted && job.price > 0) {
+            try {
+              const deductCoin = job.paymentCoin
+              if (deductCoin === '💵 Pay with USD') {
+                await atomicIncrement(walletOf, chatId, 'usdOut', Number(job.price))
+              } else if (deductCoin === '💵 Pay with NGN') {
+                const ngnPrice = await usdToNgn(job.price)
+                await atomicIncrement(walletOf, chatId, 'ngnOut', ngnPrice)
+              } else {
+                // Default to USD if coin type unknown
+                await atomicIncrement(walletOf, chatId, 'usdOut', Number(job.price))
+              }
+              await db.collection('leadJobs').updateOne({ jobId }, { $set: { walletDeducted: true } })
+              log(`[LeadJobs] Wallet charged $${job.price} for resumed job ${jobId} (user ${chatId}) — was not charged before crash`)
+              if (TELEGRAM_ADMIN_CHAT_ID) {
+                bot && bot.sendMessage(Number(TELEGRAM_ADMIN_CHAT_ID),
+                  `💳 <b>Resumed Job Wallet Charge</b>\n👤 ${chatId}\n💵 Charged: <b>$${job.price}</b>\n🎯 ${target || 'Leads'}\n📝 Wallet was not deducted before deployment restart`,
+                  { parse_mode: 'HTML' }
+                ).catch(() => {})
+              }
+            } catch (walletErr) {
+              log(`[LeadJobs] ❌ Wallet deduction failed for resumed job ${jobId}: ${walletErr.message}`)
+            }
+          }
+
           // ── Partial delivery refund for resumed jobs ──
           if (fullResults._partialReason && job.price) {
             const requested = fullResults._targetCount || phonesToGenerate
