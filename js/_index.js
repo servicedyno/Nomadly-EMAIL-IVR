@@ -1302,6 +1302,7 @@ bot?.on('message', async msg => {
     const targetName = await get(nameOf, targetChatId)
     send(targetChatId, '✅ Support session closed. Use the menu below to continue.', translation('o', 'en'))
     send(chatId, `✅ Closed support session for ${targetName || targetChatId}`)
+    clearAiHistory(targetChatId) // Clear AI conversation history
     log(`[Support] Admin closed session for ${targetChatId}`)
     return
   }
