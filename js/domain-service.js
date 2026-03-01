@@ -978,7 +978,7 @@ const switchToProviderDefault = async (domainName, db) => {
   if (registrar === 'OpenProvider') {
     defaultNS = ['ns1.openprovider.nl', 'ns2.openprovider.be', 'ns3.openprovider.eu']
     const nsResult = await opService.updateNameservers(domainName, defaultNS)
-    if (nsResult.error) return { error: `Failed to restore nameservers at OpenProvider: ${nsResult.error}` }
+    if (nsResult.error) return { error: `Failed to restore nameservers: ${nsResult.error}` }
     log(`[switchToProvider] OP NS restored to defaults for ${domainName}`)
   } else {
     // ConnectReseller — update NS to CR defaults via NS update
