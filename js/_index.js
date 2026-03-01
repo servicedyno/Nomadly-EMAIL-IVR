@@ -513,7 +513,7 @@ let twilioResources = { sipDomainSid: null, sipDomainName: null, credentialListS
 // Shared Twilio Purchase Helper — used by wallet, bank, crypto flows
 // MUST be at module scope so bot.on('message') handler can access it
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-async function executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, numType, paymentMethod, addressSid) {
+async function executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, numType, paymentMethod, addressSid, subOpts) {
   const plan = phoneConfig.plans[planKey]
   const name = await get(nameOf, chatId)
   const surcharge = getNumberSurcharge(countryCode, numType)
