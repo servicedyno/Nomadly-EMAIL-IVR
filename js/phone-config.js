@@ -1489,6 +1489,15 @@ Sélectionnez une option :`,
     subActivated: (number, parentNumber, price, sipUser, sipDomain, expiry) => `🎉 <b>Numéro Supplémentaire Ajouté !</b>\n\n📞 Numéro : ${formatPhone(number)}\n🔗 Lié à : ${formatPhone(parentNumber)}\n💰 Prix : $${typeof price === 'number' ? price.toFixed(2) : price}/mois\n📅 Renouvellement : ${expiry}\n\n━━━ <b>Identifiants SIP</b> ━━━\n🌐 Serveur : ${sipDomain}\n👤 Utilisateur : ${sipUser}\n🔑 Mot de passe : ●●●●●●●● (utilisez 🔑 Identifiants SIP pour révéler)\n📡 Port : 5060 (UDP/TCP) | 5061 (TLS)\n\n━━━ <b>Configuration Rapide</b> ━━━\n• Navigateur : <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>\n• Softphone : Zoiper/Ooma avec identifiants SIP\n• Minutes & SMS partagés avec le forfait parent`,
     adminSubPurchase: (name, number, parentNumber, price, paymentMethod) => `➕ <b>Numéro Ajouté</b>\n👤 ${name}\n📞 ${formatPhone(number)} → ${formatPhone(parentNumber)}\n💰 $${price} · ${paymentMethod}`,
     adminSubPurchasePrivate: (name, number, parentNumber, price, paymentMethod) => `➕ <b>Numéro Ajouté</b>\n👤 ${name}\n📞 Nouveau : ${formatPhone(number)}\n🔗 Parent : ${formatPhone(parentNumber)}\n💰 $${price}/mois · ${paymentMethod}`,
+    
+    // Sub-number flow messages
+    subAddNumberHeader: (plan, parentNumber) => `➕ <b>Ajouter un Numéro au Forfait ${plan.charAt(0).toUpperCase() + plan.slice(1)}</b>\n📞 Parent : ${formatPhone(parentNumber)}\n\n🌍 Sélectionnez le pays pour votre nouveau numéro :`,
+    subNumbersAvailable: '📱 <b>Numéro Supplémentaire — Disponible</b>',
+    subNumberArea: (area) => `📱 <b>Numéro Supplémentaire — Zone ${area}</b>`,
+    subNumberSelected: (location) => `📱 <b>Numéro Supplémentaire — ${location}</b>`,
+    bulkIvrSupport: '☎️ = Prend en charge IVR en Masse',
+    tapToSelect: 'Tapez pour sélectionner :',
+    
     // Call Forwarding
     forwardingStatus: (number, config, walletBal) => {
       const status = config?.enabled ? '✅ Actif' : '❌ Désactivé'
