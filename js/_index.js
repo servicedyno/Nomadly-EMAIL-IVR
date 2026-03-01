@@ -157,6 +157,7 @@ const { updateDNSRecord } = require('./cr-dns-record-update.js')
 const { checkDomainPriceOnline } = require('./cr-domain-price-get.js')
 const domainService = require('./domain-service.js')
 const dnsChecker = require('./dns-checker.js')
+const { sanitizeProviderError, sanitizeHangupCause } = require('./sanitize-provider.js')
 
 // Auto-check DNS after record add/update (non-blocking)
 const dnsAutoCheck = async (send, chatId, t, domain, recordType, recordValue) => {
