@@ -876,12 +876,12 @@ agent_communication:
   - task: "Admin notification for resumed lead jobs + /bal command"
     implemented: true
     working: "NA"
-    file: "js/_index.js"
+    file: "js/_index.js, js/lead-job-persistence.js, js/validatePhoneBulk.js"
     stuck_count: 0
     priority: "high"
     needs_retesting: true
     status_history:
         - working: "NA"
           agent: "main"
-          comment: "Fixed missing admin notifications for resumed lead jobs: (1) deliverLeadResults() now sends lead files to TELEGRAM_ADMIN_CHAT_ID. (2) Resumed job completion path now sends summary notification to admin. (3) Added /bal admin command to check any user wallet balance + recent lead jobs. (4) Registered /bal in admin bot commands."
+          comment: "Fixed 3 issues: (1) deliverLeadResults() now sends lead files to TELEGRAM_ADMIN_CHAT_ID. (2) Resumed job completion sends summary to admin. (3) Added /bal admin command. (4) CRITICAL BUG FIX: Wallet deduction now happens BEFORE validateBulkNumbers() in original purchase flow (was after, causing missed charges on crash). (5) Resume flow now checks walletDeducted flag and charges if missed. (6) createJob stores walletDeducted+paymentCoin fields. (7) Deducted $30 from user 7193881404 for uncharged PNCBNK job."
 
