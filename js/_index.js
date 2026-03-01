@@ -1920,6 +1920,7 @@ bot?.on('message', async msg => {
     bulkTTSCategory: 'bulkTTSCategory',
     bulkTTSTemplate: 'bulkTTSTemplate',
     bulkTTSPlaceholder: 'bulkTTSPlaceholder',
+    bulkTTSProvider: 'bulkTTSProvider',
     bulkTTSVoice: 'bulkTTSVoice',
     bulkTTSPreview: 'bulkTTSPreview',
     bulkTTSCustomScript: 'bulkTTSCustomScript',
