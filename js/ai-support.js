@@ -310,7 +310,41 @@ You MUST escalate to a human agent (set needsEscalation: true) for:
 - Use Telegram HTML formatting (<b>bold</b>, <i>italic</i>, <code>code</code>)
 - Be friendly but professional
 - When giving navigation instructions, use → arrows between steps and <b>bold</b> button names
-- Always end with asking if they need anything else, OR if escalating, let them know a human agent will follow up`
+- Always end with asking if they need anything else, OR if escalating, let them know a human agent will follow up
+
+## BUTTON LABELS BY LANGUAGE
+When guiding users to navigation, you MUST use the button labels that match their language. Below are the key buttons translated:
+
+### Main Menu Buttons
+| English | French | Chinese | Hindi |
+| 📞 Cloud IVR + SIP | 📞 Cloud IVR + SIP | 📞 Cloud IVR + SIP | 📞 Cloud IVR + SIP |
+| 🧪 Test SIP Free | 🧪 Tester SIP Gratuit | 🧪 免费测试 SIP | 🧪 SIP मुफ्त टेस्ट |
+| 🛒 Digital Products | 🛒 Produits numériques | 🛒 数字产品 | 🛒 डिजिटल उत्पाद |
+| 💳 Virtual Card | 💳 Carte Virtuelle | 💳 虚拟卡 | 💳 वर्चुअल कार्ड |
+| 🌐 Register Domain | 🌐 Enregistrer un Domaine Blindé | 🌐 注册防弹域名 | 🌐 बुलेटप्रूफ डोमेन रजिस्टर करें |
+| 🔗 URL Shortener | 🔗✂️ Raccourcisseur d'URL | 🔗✂️ URL 缩短器 | 🔗✂️ URL छोटा करें |
+| 🎯 Buy Phone Leads | 🎯 Acheter des Leads | 🎯 购买电话线索 | 🎯 फ़ोन लीड्स खरीदें |
+| ✅ Validate Numbers | ✅ Valider les Numéros | ✅ 验证号码 | ✅ नंबर सत्यापित करें |
+| 🛡️🔥 Anti-Red Hosting | 🛡️🔥 Anti-Red Hosting | 🌐 离岸托管 | 🌐 ऑफ़शोर होस्टिंग |
+| 👛 My Wallet | 👛 Mon portefeuille | 👛 我的钱包 | 👛 मेरा वॉलेट |
+| 🌍 Settings | 🌍 Modifier les paramètres | 🌍 更改设置 | 🌍 सेटिंग्स बदलें |
+| 💬 Get Support | 💬 Obtenir de l'aide | 💬 获取支持 | 💬 सहायता प्राप्त करें |
+| 💼 Become A Reseller | 💼 Devenir revendeur | 💼 成为代理商 | 💼 पुनर्विक्रेता बनें |
+
+### Cloud Phone Buttons (inside number management)
+| English | French | Chinese | Hindi |
+| 📱 My Numbers | 📱 Mes Numéros | 📱 我的号码 | 📱 मेरे नंबर |
+| 📞 Call Forwarding | 📞 Transfert d'Appels | 📞 呼叫转移 | 📞 कॉल फ़ॉरवर्डिंग |
+| 📩 SMS Settings | 📩 Paramètres SMS | 📩 短信设置 | 📩 SMS सेटिंग्स |
+| 📨 SMS Inbox | 📨 Boîte SMS | 📨 短信收件箱 | 📨 SMS इनबॉक्स |
+| 🔑 SIP Credentials | 🔑 Identifiants SIP | 🔑 SIP 凭据 | 🔑 SIP क्रेडेंशियल्स |
+| 👁️ Reveal Password | 👁️ Révéler le Mot de Passe | 👁️ 显示密码 | 👁️ पासवर्ड दिखाएं |
+| 🔄 Reset Password | 🔄 Réinitialiser le Mot de Passe | 🔄 重置密码 | 🔄 पासवर्ड रीसेट करें |
+| 📖 SIP Setup Guide | 📖 Guide SIP | 📖 SIP 设置指南 | 📖 SIP सेटअप गाइड |
+| 🔄 Renew / Change Plan | 🔄 Renouveler / Changer | 🔄 续费 / 更换套餐 | 🔄 नवीनीकरण / प्लान बदलें |
+| 📊 Usage & Billing | 📊 Utilisation & Facturation | 📊 使用量和账单 | 📊 उपयोग और बिलिंग |
+
+IMPORTANT: When the user's language is NOT English, you MUST use the translated button labels from the table above in your navigation instructions. Do NOT use English button names for non-English users.`
 
 // ── Escalation detection (multi-language) ──
 const ESCALATION_KEYWORDS = {
