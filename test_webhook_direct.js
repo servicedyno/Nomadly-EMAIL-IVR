@@ -189,8 +189,9 @@ async function testSelectPlanDisplay() {
       return false
     }
     
-    // Test French version
-    const frenchText = phoneConfig.txt.fr.selectPlan(testNumber)
+    // Test French version using getTxt
+    const txtFr = phoneConfig.getTxt('fr')
+    const frenchText = txtFr.selectPlan(testNumber)
     if (frenchText.includes('numéros supplémentaires')) {
       console.log('✅ French selectPlan displays sub-number info')
     } else {
@@ -199,7 +200,8 @@ async function testSelectPlanDisplay() {
     }
     
     // Test Chinese version
-    const chineseText = phoneConfig.txt.zh.selectPlan(testNumber)
+    const txtZh = phoneConfig.getTxt('zh')
+    const chineseText = txtZh.selectPlan(testNumber)
     if (chineseText.includes('添加最多')) {
       console.log('✅ Chinese selectPlan displays sub-number info')
     } else {
@@ -208,7 +210,8 @@ async function testSelectPlanDisplay() {
     }
     
     // Test Hindi version
-    const hindiText = phoneConfig.txt.hi.selectPlan(testNumber)
+    const txtHi = phoneConfig.getTxt('hi')
+    const hindiText = txtHi.selectPlan(testNumber)
     if (hindiText.includes('अतिरिक्त नंबर')) {
       console.log('✅ Hindi selectPlan displays sub-number info')
     } else {
