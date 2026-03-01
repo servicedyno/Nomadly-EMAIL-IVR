@@ -3954,7 +3954,7 @@ Enter new value:`), bc)
         if (result.error) {
           if (coin === u.usd) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
           else await atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn)
-          return send(chatId, phoneConfig.getMsg(info?.userLanguage).purchaseFailed + `\n${result.error}`, trans('o'))
+          return send(chatId, phoneConfig.getMsg(info?.userLanguage).purchaseFailed + `\n${sanitizeProviderError(result.error, 'voice')}`, trans('o'))
         }
         sipUsername = result.sipUsername
         sipPassword = result.sipPassword
