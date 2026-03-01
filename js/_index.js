@@ -1439,6 +1439,62 @@ bot?.on('message', async msg => {
     return
   }
 
+  // Admin: /bal <username|chatId> — check user wallet balance and recent lead jobs
+  if (isAdmin(chatId) && message.startsWith('/bal ')) {
+    const userRef = message.substring(5).trim().replace('@', '')
+    if (!userRef) {
+      return send(chatId, '⚠️ Usage: /bal <@username or chatId>\n\nExamples:\n<code>/bal @john</code>\n<code>/bal 7193881404</code>', { parse_mode: 'HTML' })
+    }
+    try {
+      let targetChatId = null
+      let targetName = null
+
+      if (/^\d+$/.test(userRef)) {
+        targetChatId = Number(userRef)
+        targetName = await get(nameOf, targetChatId)
+      } else {
+        const allNames = await nameOf.find({}).toArray()
+        const match = allNames.find(n => typeof n.val === 'string' && n.val.toLowerCase() === userRef.toLowerCase())
+        if (match) {
+          targetChatId = match._id
+          targetName = match.val
+        }
+      }
+
+      if (!targetChatId) {
+        return send(chatId, `⚠️ User <b>${userRef}</b> not found.`, { parse_mode: 'HTML' })
+      }
+
+      // Get wallet balance
+      const { usdBal, ngnBal } = await getBalance(walletOf, targetChatId)
+      const wallet = await get(walletOf, targetChatId)
+
+      // Get recent lead jobs
+      const recentJobs = await db.collection('leadJobs').find({ chatId: targetChatId }).sort({ createdAt: -1 }).limit(5).toArray()
+      let jobsSummary = ''
+      if (recentJobs.length > 0) {
+        jobsSummary = '\n\n📋 <b>Recent Lead Jobs:</b>\n'
+        for (const j of recentJobs) {
+          const resultsCount = j.results ? j.results.length : 0
+          const createdStr = j.createdAt ? new Date(j.createdAt).toISOString().replace('T', ' ').substring(0, 19) : '?'
+          const statusEmoji = j.status === 'completed' ? '✅' : j.status === 'partial_delivered' ? '⚠️' : j.status === 'running' ? '🔄' : j.status === 'failed' ? '❌' : '❓'
+          jobsSummary += `${statusEmoji} <b>${j.target || 'General'}</b> — ${j.phonesToGenerate || '?'} leads — $${j.price || '?'} — ${j.status}\n   📅 ${createdStr} | 📊 ${resultsCount} results\n`
+        }
+      } else {
+        jobsSummary = '\n\n📋 No lead jobs found.'
+      }
+
+      const msg = `💳 <b>Wallet Balance</b>\n\n👤 <b>${targetName || 'Unknown'}</b> (${targetChatId})\n\n💵 USD Balance: <b>$${usdBal.toFixed(2)}</b>\n   ├ In: $${(wallet?.usdIn || 0).toFixed(2)}\n   └ Out: $${(wallet?.usdOut || 0).toFixed(2)}\n\n💶 NGN Balance: <b>₦${ngnBal.toFixed(2)}</b>\n   ├ In: ₦${(wallet?.ngnIn || 0).toFixed(2)}\n   └ Out: ₦${(wallet?.ngnOut || 0).toFixed(2)}${jobsSummary}`
+
+      send(chatId, msg, { parse_mode: 'HTML' })
+      log(`[Admin] Checked balance for ${targetName || targetChatId} (${targetChatId}): $${usdBal.toFixed(2)} USD / ₦${ngnBal.toFixed(2)} NGN`)
+    } catch (e) {
+      send(chatId, `❌ Error checking balance: ${e.message}`)
+      log(`[Admin] Balance check error: ${e.message}`)
+    }
+    return
+  }
+
   // Throttle Connect Reseller IP check to once per hour instead of every message
   const now_cr = Date.now()
   if (NOT_TRY_CR === undefined && now_cr - last_cr_check_time > 3600000) {
