@@ -7,7 +7,7 @@
 const http = require('http')
 
 // Test configuration
-const PORT = 3001
+const PORT = 5000
 const TEST_CHAT_ID = 888888888
 
 // Helper to send webhook request
