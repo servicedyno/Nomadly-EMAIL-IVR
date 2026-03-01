@@ -16387,7 +16387,9 @@ app.post('/twilio/voice-webhook', async (req, res) => {
     // ━━━ PRIORITY 2: Ring SIP device via sip.speechcue.com ━━━
     if (hasSip) {
       const ringTimeout = fwdConfig?.ringTimeout || 25
-      const sipUri = `sip:${num.sipUsername}@${SIP_DOMAIN}`
+      // Use Telnyx credential (gencred...) for SIP routing since sip.speechcue.com → sip.telnyx.com
+      const sipUser = num.telnyxSipUsername || num.sipUsername
+      const sipUri = `sip:${sipUser}@${SIP_DOMAIN}`
       const dialOpts = {
         callerId: From,
         timeout: ringTimeout,
