@@ -784,13 +784,13 @@ const _createZoneAndUpdateNS = async (domainName, meta) => {
   const registrar = meta.registrar || 'ConnectReseller'
   if (registrar === 'OpenProvider') {
     const nsResult = await opService.updateNameservers(domainName, cfNameservers)
-    if (nsResult.error) return { error: `Failed to update nameservers at OpenProvider: ${nsResult.error}` }
+    if (nsResult.error) return { error: `Failed to update nameservers: ${nsResult.error}` }
     log(`[switchToCloudflare] OP NS updated for ${domainName}: ${cfNameservers.join(', ')}`)
   } else {
     // ConnectReseller: update ALL nameservers in one API call to avoid stale-state revert
     const crResult = await updateAllNameservers(domainName, cfNameservers, null) // null db — caller updates DB
     if (crResult.error) {
-      return { error: `Failed to update nameservers at ConnectReseller: ${crResult.error}` }
+      return { error: `Failed to update nameservers: ${crResult.error}` }
     }
     log(`[switchToCloudflare] CR NS updated for ${domainName}: ${cfNameservers.join(', ')}`)
   }
