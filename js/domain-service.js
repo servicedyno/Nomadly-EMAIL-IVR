@@ -7,6 +7,19 @@ const opService = require('./op-service')
 const cfService = require('./cf-service')
 
 /**
+ * Strip internal provider names from error messages before they reach users.
+ * Keeps the meaningful error description while removing brand references.
+ */
+const sanitizeErrorForUser = (errorMsg) => {
+  if (!errorMsg || typeof errorMsg !== 'string') return 'Domain registration failed. Please try again or contact support.'
+  return errorMsg
+    .replace(/OpenProvider/gi, 'registrar')
+    .replace(/ConnectReseller/gi, 'registrar')
+    .replace(/\bOP\b/g, 'registrar')
+    .replace(/\bCR\b/g, 'registrar')
+}
+
+/**
  * Unified Domain Service
  * - CR first, fallback to OP for availability/pricing
  * - Supports: provider_default, cloudflare, custom nameservers
