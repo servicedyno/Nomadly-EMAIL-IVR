@@ -1798,6 +1798,14 @@ bot?.on('message', async msg => {
     cpVmGreetingPreview: 'cpVmGreetingPreview',
     cpVmTextGreeting: 'cpVmTextGreeting',
 
+    // Sub-Number (Add Number to Plan)
+    cpSubAddCountry: 'cpSubAddCountry',
+    cpSubAddType: 'cpSubAddType',
+    cpSubAddArea: 'cpSubAddArea',
+    cpSubAddEnterArea: 'cpSubAddEnterArea',
+    cpSubAddNumber: 'cpSubAddNumber',
+    cpSubAddConfirm: 'cpSubAddConfirm',
+
     // Virtual Card
     vcEnterAmount: 'vcEnterAmount',
     vcEnterAddress: 'vcEnterAddress',
