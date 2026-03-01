@@ -10259,7 +10259,303 @@ Choose an IVR template category:`), k.of(rows))
       ]))
     }
 
+    // ➕ Add Number to Plan (sub-number)
+    if (message === pc.addNumber) {
+      if (num.isSubNumber) return showManageScreen(chatId, num)
+      const userData = await get(phoneNumbersOf, chatId)
+      const allNumbers = userData?.numbers || []
+      const currentSubCount = allNumbers.filter(n => n.isSubNumber && n.parentNumber === num.phoneNumber && (n.status === 'active' || n.status === 'suspended')).length
+      const subLimit = phoneConfig.getSubNumberLimit(num.plan)
+      if (currentSubCount >= subLimit) {
+        return send(chatId, cpTxt.subNumberLimitReached(num.plan.charAt(0).toUpperCase() + num.plan.slice(1), subLimit))
+      }
+      await saveInfo('cpSubParentNumber', num.phoneNumber)
+      await saveInfo('cpSubParentPlan', num.plan)
+      await saveInfo('cpSubParentPlanPrice', num.planPrice)
+      await saveInfo('cpSubParentExpiresAt', num.expiresAt)
+      set(state, chatId, 'action', a.cpSubAddCountry)
+      const countryBtns = phoneConfig.allCountries.map(c => c.name)
+      const rows = []
+      for (let i = 0; i < countryBtns.length; i += 2) rows.push(countryBtns.slice(i, i + 2))
+      if (phoneConfig.moreCountries.length > 0) rows.push([pc.moreCountries])
+      return send(chatId, `➕ <b>Add Number to ${num.plan.charAt(0).toUpperCase() + num.plan.slice(1)} Plan</b>\n📞 Parent: ${phoneConfig.formatPhone(num.phoneNumber)}\n\n🌍 Select country for your new number:`, k.of(rows))
+    }
+
     return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectOption)
+  }
+
+  // ━━━ SUB-NUMBER: Select Country ━━━
+  if (action === a.cpSubAddCountry) {
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
+    if (message === t.back || message === pc.back) {
+      set(state, chatId, 'action', a.cpManageNumber)
+      const num = info?.cpActiveNumber
+      if (!num) return goto.submenu5()
+      return showManageScreen(chatId, num)
+    }
+    if (message === pc.moreCountries) {
+      const allBtns = [...phoneConfig.allCountries, ...phoneConfig.moreCountries].map(c => c.name)
+      const rows = []
+      for (let i = 0; i < allBtns.length; i += 2) rows.push(allBtns.slice(i, i + 2))
+      return send(chatId, `🌍 <b>All Available Countries</b>\n\nSelect a country:`, k.of(rows))
+    }
+    const countryCode = phoneConfig.countryByName[message]
+    if (!countryCode) return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectValidCountry)
+    const countryEntry = phoneConfig.allCountries.find(c => c.name === message) || phoneConfig.moreCountries.find(c => c.name === message)
+    const nativeProvider = countryEntry?.provider || 'telnyx'
+    await saveInfo('cpCountryCode', countryCode)
+    await saveInfo('cpCountryName', message)
+    await saveInfo('cpProvider', nativeProvider)
+    const canSearchBoth = (nativeProvider === 'telnyx')
+    await saveInfo('cpCanSearchBoth', canSearchBoth)
+    set(state, chatId, 'action', a.cpSubAddType)
+    const types = countryEntry?.types || ['local', 'toll_free']
+    const typeBtns = []
+    if (types.includes('local')) typeBtns.push([pc.localNumber])
+    if (types.includes('mobile')) typeBtns.push([pc.mobileNumber])
+    if (types.includes('national')) typeBtns.push([pc.nationalNumber])
+    if (types.includes('toll_free')) typeBtns.push([pc.tollFreeNumber])
+    return send(chatId, cpTxt.selectType(message), k.of(typeBtns))
+  }
+
+  // ━━━ SUB-NUMBER: Select Type ━━━
+  if (action === a.cpSubAddType) {
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
+    if (message === t.back || message === pc.back) {
+      set(state, chatId, 'action', a.cpSubAddCountry)
+      const countryBtns = phoneConfig.allCountries.map(c => c.name)
+      const rows = []
+      for (let i = 0; i < countryBtns.length; i += 2) rows.push(countryBtns.slice(i, i + 2))
+      if (phoneConfig.moreCountries.length > 0) rows.push([pc.moreCountries])
+      return send(chatId, cpTxt.selectCountry, k.of(rows))
+    }
+    let numberType = null
+    if (message === pc.localNumber) numberType = 'local'
+    if (message === pc.tollFreeNumber) numberType = 'toll_free'
+    if (message === (pc.mobileNumber || '📱 Mobile Number')) numberType = 'mobile'
+    if (message === (pc.nationalNumber || '🌐 National Number')) numberType = 'national'
+    if (!numberType) return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectLocalOrTollFree)
+    await saveInfo('cpNumberType', numberType)
+    const cc = info?.cpCountryCode || 'US'
+    const provider = info?.cpProvider || 'telnyx'
+    if (cc === 'US' && numberType === 'local') {
+      set(state, chatId, 'action', a.cpSubAddArea)
+      const areaBtns = phoneConfig.usAreaCodes.map(ab => `${ab.city} (${ab.code})`)
+      const rows = []
+      for (let i = 0; i < areaBtns.length; i += 2) rows.push(areaBtns.slice(i, i + 2))
+      rows.push([pc.searchByArea])
+      return send(chatId, cpTxt.selectArea, k.of(rows))
+    }
+    set(state, chatId, 'action', a.cpSubAddNumber)
+    send(chatId, cpTxt.searching)
+    const canSearchBoth = info?.cpCanSearchBoth || false
+    let results = []
+    if (canSearchBoth) {
+      const [telnyxResults, twilioResults] = await Promise.all([
+        telnyxApi.searchNumbers(cc, numberType, null, 3).catch(() => []),
+        twilioService.searchNumbers(cc, numberType, 3).catch(() => []),
+      ])
+      telnyxResults.forEach(r => { r._provider = 'telnyx'; r._bulkIvrCapable = false })
+      twilioResults.forEach(r => { r._provider = 'twilio'; r._bulkIvrCapable = true })
+      results = [...telnyxResults, ...twilioResults]
+    } else {
+      results = provider === 'twilio'
+        ? await twilioService.searchNumbers(cc, numberType, 5)
+        : await telnyxApi.searchNumbers(cc, numberType, null, 5)
+      results.forEach(r => { r._provider = provider; r._bulkIvrCapable = (provider === 'twilio') })
+    }
+    if (!results.length) return send(chatId, cpTxt.noSearchResults, k.of([]))
+    await saveInfo('cpSearchResults', results)
+    const numberLines = results.map((r, i) => {
+      const tag = r._bulkIvrCapable ? ' ☎️ Bulk IVR' : ''
+      return `${i + 1}. <code>${r.phone_number}</code>${tag}`
+    }).join('\n')
+    const numBtns = results.map((_, i) => String(i + 1))
+    return send(chatId, `📱 <b>Sub-Number — Available</b>\n\n${numberLines}\n\n☎️ = Supports Bulk IVR\n\nTap to select:`, k.of([numBtns, [pc.showMore]]))
+  }
+
+  // ━━━ SUB-NUMBER: Select Area (US local) ━━━
+  if (action === a.cpSubAddArea) {
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
+    if (message === t.back || message === pc.back) {
+      set(state, chatId, 'action', a.cpSubAddType)
+      return send(chatId, cpTxt.selectType(info?.cpCountryName || ''), k.of([[pc.localNumber], [pc.tollFreeNumber]]))
+    }
+    if (message === pc.searchByArea) {
+      set(state, chatId, 'action', a.cpSubAddEnterArea)
+      return send(chatId, cpTxt.enterAreaCode)
+    }
+    const areaCode = phoneConfig.areaByLabel[message]
+    if (!areaCode) return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectValidArea)
+    await saveInfo('cpAreaCode', areaCode)
+    await saveInfo('cpAreaName', message)
+    set(state, chatId, 'action', a.cpSubAddNumber)
+    send(chatId, cpTxt.searching)
+    const canSearchBoth = info?.cpCanSearchBoth || false
+    let results = []
+    if (canSearchBoth) {
+      const [telnyxResults, twilioResults] = await Promise.all([
+        telnyxApi.searchNumbers(info?.cpCountryCode || 'US', info?.cpNumberType || 'local', areaCode, 3).catch(() => []),
+        twilioService.searchNumbers(info?.cpCountryCode || 'US', info?.cpNumberType || 'local', 3, areaCode).catch(() => []),
+      ])
+      telnyxResults.forEach(r => { r._provider = 'telnyx'; r._bulkIvrCapable = false })
+      twilioResults.forEach(r => { r._provider = 'twilio'; r._bulkIvrCapable = true })
+      results = [...telnyxResults, ...twilioResults]
+    } else {
+      const provider = info?.cpProvider || 'telnyx'
+      if (provider === 'twilio') {
+        results = await twilioService.searchNumbers(info?.cpCountryCode || 'US', info?.cpNumberType || 'local', 5, areaCode)
+      } else {
+        results = await telnyxApi.searchNumbers(info?.cpCountryCode || 'US', info?.cpNumberType || 'local', areaCode, 5)
+      }
+      results.forEach(r => { r._provider = provider; r._bulkIvrCapable = (provider === 'twilio') })
+    }
+    if (!results.length) return send(chatId, cpTxt.noSearchResults, k.of([]))
+    await saveInfo('cpSearchResults', results)
+    const numberLines = results.map((r, i) => {
+      const tag = r._bulkIvrCapable ? ' ☎️ Bulk IVR' : ''
+      return `${i + 1}. <code>${r.phone_number}</code>${tag}`
+    }).join('\n')
+    const numBtns = results.map((_, i) => String(i + 1))
+    return send(chatId, `📱 <b>Sub-Number — ${message}</b>\n\n${numberLines}\n\n☎️ = Supports Bulk IVR\n\nTap to select:`, k.of([numBtns, [pc.showMore]]))
+  }
+
+  // ━━━ SUB-NUMBER: Enter Area Code ━━━
+  if (action === a.cpSubAddEnterArea) {
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
+    if (message === t.back || message === pc.back) {
+      set(state, chatId, 'action', a.cpSubAddArea)
+      const areaBtns = phoneConfig.usAreaCodes.map(ab => `${ab.city} (${ab.code})`)
+      const rows = []
+      for (let i = 0; i < areaBtns.length; i += 2) rows.push(areaBtns.slice(i, i + 2))
+      rows.push([pc.searchByArea])
+      return send(chatId, cpTxt.selectArea, k.of(rows))
+    }
+    const areaCode = message.replace(/\D/g, '')
+    if (!areaCode || areaCode.length < 2) return send(chatId, phoneConfig.getMsg(info?.userLanguage).enterValidAreaCode)
+    await saveInfo('cpAreaCode', areaCode)
+    await saveInfo('cpAreaName', `Area ${areaCode}`)
+    set(state, chatId, 'action', a.cpSubAddNumber)
+    send(chatId, cpTxt.searching)
+    const canSearchBoth = info?.cpCanSearchBoth || false
+    let results = []
+    if (canSearchBoth) {
+      const [telnyxResults, twilioResults] = await Promise.all([
+        telnyxApi.searchNumbers(info?.cpCountryCode || 'US', info?.cpNumberType || 'local', areaCode, 3).catch(() => []),
+        twilioService.searchNumbers(info?.cpCountryCode || 'US', info?.cpNumberType || 'local', 3, areaCode).catch(() => []),
+      ])
+      telnyxResults.forEach(r => { r._provider = 'telnyx'; r._bulkIvrCapable = false })
+      twilioResults.forEach(r => { r._provider = 'twilio'; r._bulkIvrCapable = true })
+      results = [...telnyxResults, ...twilioResults]
+    } else {
+      const provider = info?.cpProvider || 'telnyx'
+      if (provider === 'twilio') {
+        results = await twilioService.searchNumbers(info?.cpCountryCode || 'US', info?.cpNumberType || 'local', 5, areaCode)
+      } else {
+        results = await telnyxApi.searchNumbers(info?.cpCountryCode || 'US', info?.cpNumberType || 'local', areaCode, 5)
+      }
+      results.forEach(r => { r._provider = provider; r._bulkIvrCapable = (provider === 'twilio') })
+    }
+    if (!results.length) return send(chatId, cpTxt.noSearchResults + '\nTry a different area code.', k.of([]))
+    await saveInfo('cpSearchResults', results)
+    const numberLines = results.map((r, i) => {
+      const tag = r._bulkIvrCapable ? ' ☎️ Bulk IVR' : ''
+      return `${i + 1}. <code>${r.phone_number}</code>${tag}`
+    }).join('\n')
+    const numBtns = results.map((_, i) => String(i + 1))
+    return send(chatId, `📱 <b>Sub-Number — Area ${areaCode}</b>\n\n${numberLines}\n\n☎️ = Supports Bulk IVR\n\nTap to select:`, k.of([numBtns, [pc.showMore]]))
+  }
+
+  // ━━━ SUB-NUMBER: Select Number ━━━
+  if (action === a.cpSubAddNumber) {
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
+    if (message === t.back || message === pc.back) {
+      set(state, chatId, 'action', a.cpSubAddCountry)
+      const countryBtns = phoneConfig.allCountries.map(c => c.name)
+      const rows = []
+      for (let i = 0; i < countryBtns.length; i += 2) rows.push(countryBtns.slice(i, i + 2))
+      if (phoneConfig.moreCountries.length > 0) rows.push([pc.moreCountries])
+      return send(chatId, cpTxt.selectCountry, k.of(rows))
+    }
+    if (message === pc.showMore) {
+      send(chatId, cpTxt.searching)
+      const provider = info?.cpProvider || 'telnyx'
+      const canSearchBoth = info?.cpCanSearchBoth || false
+      let results = []
+      if (canSearchBoth) {
+        const [telnyxResults, twilioResults] = await Promise.all([
+          telnyxApi.searchNumbers(info?.cpCountryCode || 'US', info?.cpNumberType || 'local', info?.cpAreaCode, 3).catch(() => []),
+          twilioService.searchNumbers(info?.cpCountryCode || 'US', info?.cpNumberType || 'local', 3, info?.cpAreaCode || null).catch(() => []),
+        ])
+        telnyxResults.forEach(r => { r._provider = 'telnyx'; r._bulkIvrCapable = false })
+        twilioResults.forEach(r => { r._provider = 'twilio'; r._bulkIvrCapable = true })
+        results = [...telnyxResults, ...twilioResults]
+      } else {
+        if (provider === 'twilio') {
+          results = await twilioService.searchNumbers(info?.cpCountryCode || 'US', info?.cpNumberType || 'local', 5, info?.cpAreaCode || null)
+        } else {
+          results = await telnyxApi.searchNumbers(info?.cpCountryCode || 'US', info?.cpNumberType || 'local', info?.cpAreaCode, 5)
+        }
+        results.forEach(r => { r._provider = provider; r._bulkIvrCapable = (provider === 'twilio') })
+      }
+      if (!results.length) return send(chatId, cpTxt.noSearchResults, k.of([]))
+      await saveInfo('cpSearchResults', results)
+      const numberLines = results.map((r, i) => {
+        const tag = r._bulkIvrCapable ? ' ☎️ Bulk IVR' : ''
+        return `${i + 1}. <code>${r.phone_number}</code>${tag}`
+      }).join('\n')
+      const numBtns = results.map((_, i) => String(i + 1))
+      return send(chatId, `📱 <b>More Numbers</b>\n\n${numberLines}\n\n☎️ = Supports Bulk IVR\n\nTap to select:`, k.of([numBtns, [pc.showMore]]))
+    }
+    const idx = parseInt(message) - 1
+    const results = info?.cpSearchResults || []
+    if (isNaN(idx) || idx < 0 || idx >= results.length) return send(chatId, phoneConfig.getMsg(info?.userLanguage).tapNumberToSelect)
+    const selected = results[idx]
+    await saveInfo('cpSelectedNumber', selected.phone_number)
+    const selectedProvider = selected._provider || info?.cpProvider || 'telnyx'
+    await saveInfo('cpProvider', selectedProvider)
+    await saveInfo('cpBulkIvrCapable', selected._bulkIvrCapable || false)
+    const caps = selected._capabilities || {
+      voice: (selected.features || []).some(f => f.name === 'voice'),
+      sms: (selected.features || []).some(f => f.name === 'sms'),
+      mms: (selected.features || []).some(f => f.name === 'mms'),
+      fax: (selected.features || []).some(f => f.name === 'fax'),
+    }
+    await saveInfo('cpSelectedCapabilities', caps)
+    const numberType = info?.cpNumberType || 'local'
+    const countryCode = info?.cpCountryCode || 'US'
+    const subPrice = getSubNumberPrice(countryCode, numberType, selectedProvider)
+    await saveInfo('cpPrice', subPrice)
+    await saveInfo('price', subPrice)
+    set(state, chatId, 'action', a.cpSubAddConfirm)
+    const parentNumber = info?.cpSubParentNumber
+    const parentPlan = info?.cpSubParentPlan || 'starter'
+    const planLabel = parentPlan.charAt(0).toUpperCase() + parentPlan.slice(1)
+    const capLabels = []
+    if (caps.voice) capLabels.push('Voice')
+    if (caps.sms) capLabels.push('SMS')
+    if (caps.fax) capLabels.push('Fax')
+    const bulkTag = selected._bulkIvrCapable ? '\n☎️ <b>Bulk IVR capable</b>' : ''
+    let summaryText = cpTxt.subNumberOrderSummary(selected.phone_number, info?.cpCountryName || 'US', parentNumber, subPrice, planLabel)
+    summaryText += `\n📋 Capabilities: ${capLabels.join(' · ')}${bulkTag}`
+    return send(chatId, summaryText, k.of([[pc.proceedPayment], [pc.cancel]]))
+  }
+
+  // ━━━ SUB-NUMBER: Confirm & Pay ━━━
+  if (action === a.cpSubAddConfirm) {
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
+    if (message === t.back || message === pc.back || message === pc.cancel) {
+      set(state, chatId, 'action', a.cpManageNumber)
+      const num = info?.cpActiveNumber
+      if (!num) return goto.submenu5()
+      return showManageScreen(chatId, num)
+    }
+    if (message === pc.proceedPayment) {
+      await saveInfo('cpIsSubNumber', true)
+      await saveInfo('cpPlanKey', info?.cpSubParentPlan || 'starter')
+      return goto['phone-pay']()
+    }
+    return send(chatId, phoneConfig.getMsg(info?.userLanguage).proceedOrBack)
   }
 
   // ━━━ CALL FORWARDING ━━━
