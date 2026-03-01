@@ -806,9 +806,10 @@ function generateSipUsername() {
 }
 
 function generateSipPassword() {
-  // Random seed for Telnyx API — actual sip_password comes from Telnyx response
+  // Must meet Twilio's requirements: 12+ chars, at least one number, uppercase, lowercase
   const crypto = require('crypto')
-  return crypto.randomBytes(16).toString('hex')
+  const base = crypto.randomBytes(6).toString('base64').replace(/[^a-zA-Z0-9]/g, '')
+  return base + 'Aa1' + crypto.randomBytes(4).toString('hex')
 }
 
 // ── Multilingual UI messages for Cloud IVR ──
