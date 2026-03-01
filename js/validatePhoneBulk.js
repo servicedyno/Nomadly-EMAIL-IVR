@@ -20,8 +20,9 @@ const parallelApiCalls = 5
 const waitAfterParallelApiCalls = 1 * 1000 // 1 second
 
 const showProgressEveryXTime = 60 // 30 iterations = 1 minute
-const phoneGenTimeout = 10 * 60 * 60 * 1000 // 2 hour // 1 hr = 2000 hits almost
+const phoneGenTimeout = 30 * 60 * 1000 // 30 minutes (safety net)
 const phoneGenStopAtNoXHits = 250 // 250 Hits with 0 phone number found then break the loop
+const CNAM_MISS_THRESHOLD = 50 // 50 consecutive batches with 0 new real names → stop
 
 // ── Real Person Name Filter ──
 // US state abbreviations for city/state pattern detection
