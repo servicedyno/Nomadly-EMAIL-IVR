@@ -343,7 +343,7 @@ const validateBulkNumbers = async (carrier, phonesToGenerate, countryCode, areaC
         return res
       }
       noHitCount = !r[1] || r[1].length === 0 ? noHitCount + parallelApiCalls : 0
-      log({ noHitCount, realNameCount, totalGenerated: res.length, cnamMissStreak, totalCnamLookups, activeAreaCodes: activeAreaCodes.length })
+      log({ noHitCount, realNameCount, totalGenerated: res.length, cnamMissStreak, totalCnamLookups, cnamDisabledCodes: cnamDisabledAreas.size })
       if (noHitCount > phoneGenStopAtNoXHits) {
         const deliveredCount = requireRealName && cnam ? realNameCount : res.length
         const msg = `⚠️ Could not find more valid phone numbers in this area. Delivering ${deliveredCount} of ${targetCount} leads.`
@@ -356,6 +356,11 @@ const validateBulkNumbers = async (carrier, phonesToGenerate, countryCode, areaC
         res._targetCount = targetCount
         return res
       }
+
+      // Publish Progress
+      const currentProgress = cnamDisabledAreas.size > 0
+        ? (res.length > targetCount ? targetCount : res.length)
+        : (requireRealName && cnam ? realNameCount : (res.length > targetCount ? targetCount : res.length))
     }
 
     log(
