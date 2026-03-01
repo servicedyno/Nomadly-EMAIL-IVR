@@ -23,6 +23,15 @@ function getSipDomainForNumber() {
   return SIP_DOMAIN
 }
 
+// ── Sub-Number Pricing ──
+const SUB_NUMBER_BASE_PRICE = 25  // Minimum price for a sub-number
+const SUB_NUMBER_MARKUP = 0.5     // 50% markup on Twilio number cost
+const SUB_NUMBER_LIMITS = { starter: 3, pro: 15, business: 30 }
+
+function getSubNumberLimit(planKey) {
+  return SUB_NUMBER_LIMITS[planKey] || 0
+}
+
 // ── Plan availability (admin toggle via .env) ──
 const PHONE_STARTER_ON = (process.env.PHONE_STARTER_ON || 'true').toLowerCase() === 'true'
 const PHONE_PRO_ON = (process.env.PHONE_PRO_ON || 'true').toLowerCase() === 'true'
