@@ -4044,7 +4044,35 @@ Enter new value:`), bc)
       // For targeted leads: requireRealName=true so we keep generating until we have enough leads with actual person names
       const requireRealName = isTargetLeads && cnam
       const res = await validateBulkNumbers(info?.carrier, info?.amount, cc, areaCodes, cnam, bot, chatId, lang, requireRealName, { target: info?.targetName, price: info?.price })
-      if (!res) return send(chatId, t.buyLeadsError)
+      if (!res || res.length === 0) return send(chatId, t.buyLeadsError)
+
+      // ── Partial delivery: refund undelivered portion ──
+      if (res._partialReason) {
+        const requested = res._targetCount || info?.amount || 1
+        const delivered = res._deliveredCount || res.length
+        if (delivered < requested && price > 0) {
+          const undeliveredRatio = (requested - delivered) / requested
+          const refundAmount = Math.round(undeliveredRatio * price * 100) / 100
+          if (refundAmount > 0) {
+            // Refund proportional amount to wallet
+            if (coin === u.usd) {
+              await atomicIncrement(walletOf, chatId, 'usdIn', refundAmount)
+            } else {
+              const refundNgn = await usdToNgn(refundAmount)
+              await atomicIncrement(walletOf, chatId, 'ngnIn', refundNgn)
+            }
+            const { usdBal: rb1, ngnBal: rb2 } = await getBalance(walletOf, chatId)
+            const reasonText = res._partialReason === 'cnam_exhausted' ? 'Name lookup services temporarily unavailable'
+              : res._partialReason === 'timeout' ? 'Generation timed out'
+              : 'Not enough valid numbers in this area'
+            send(chatId, `💰 <b>Partial Refund</b>\n\n📊 Ordered: ${requested} leads\n✅ Delivered: ${delivered} leads\n❌ Undelivered: ${requested - delivered} leads\n\n💵 Refund: <b>$${refundAmount.toFixed(2)}</b> returned to your wallet\n📝 Reason: ${reasonText}\n\n💰 Wallet: $${rb1.toFixed(2)} USD · ₦${rb2.toFixed(2)} NGN`)
+            // Admin notification
+            const name = await get(nameOf, chatId)
+            notifyGroup(`💰 Partial refund: $${refundAmount.toFixed(2)} → ${maskName(name)} (${delivered}/${requested} leads, ${res._partialReason})`)
+            if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `💰 <b>Partial Lead Refund</b>\n👤 ${maskName(name)} (${chatId})\n📊 ${delivered}/${requested} leads delivered\n💵 Refund: $${refundAmount.toFixed(2)}\n📝 Reason: ${res._partialReason}`, { parse_mode: 'HTML' })
+          }
+        }
+      }
 
       cc = '+' + cc
       const re = cc === '+1' ? '' : '0'
