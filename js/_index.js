@@ -17453,13 +17453,11 @@ async function resumeInterruptedLeadJobs() {
           if (!job.walletDeducted && job.price > 0) {
             try {
               const deductCoin = job.paymentCoin
-              if (deductCoin === '💵 Pay with USD') {
-                await atomicIncrement(walletOf, chatId, 'usdOut', Number(job.price))
-              } else if (deductCoin === '💵 Pay with NGN') {
+              if (deductCoin === 'NGN') {
                 const ngnPrice = await usdToNgn(job.price)
                 await atomicIncrement(walletOf, chatId, 'ngnOut', ngnPrice)
               } else {
-                // Default to USD if coin type unknown
+                // Default to USD
                 await atomicIncrement(walletOf, chatId, 'usdOut', Number(job.price))
               }
               await db.collection('leadJobs').updateOne({ jobId }, { $set: { walletDeducted: true } })
