@@ -17414,6 +17414,16 @@ async function resumeInterruptedLeadJobs() {
         if (remaining <= 0 && existingResults.length > 0) {
           log(`[LeadJobs] Job ${jobId} was already complete (${currentCount}/${phonesToGenerate}) — delivering`)
           await safeDeliver(chatId, existingResults, phonesToGenerate, cnam, requireRealName, countryCode, target, jobLang)
+          // Wallet deduction for jobs that weren't charged before crash
+          if (!job.walletDeducted && job.price > 0) {
+            try {
+              await atomicIncrement(walletOf, chatId, 'usdOut', Number(job.price))
+              await db.collection('leadJobs').updateOne({ jobId }, { $set: { walletDeducted: true } })
+              log(`[LeadJobs] Wallet charged $${job.price} for already-complete job ${jobId} (user ${chatId})`)
+            } catch (walletErr) {
+              log(`[LeadJobs] ❌ Wallet deduction failed for job ${jobId}: ${walletErr.message}`)
+            }
+          }
           await db.collection('leadJobs').updateOne({ jobId }, { $set: { status: 'completed', completedAt: new Date(), updatedAt: new Date() } })
           continue
         }
