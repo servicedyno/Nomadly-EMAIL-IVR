@@ -27,6 +27,7 @@ async function initBulkCallService(db, bot, twilioService) {
   _db = db
   _bot = bot
   _twilioService = twilioService
+  _voiceService = require('./voice-service.js')
   _collection = db.collection('bulkCallCampaigns')
   await _collection.createIndex({ chatId: 1 })
   await _collection.createIndex({ id: 1 }, { unique: true })
