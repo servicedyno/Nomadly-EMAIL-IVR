@@ -554,7 +554,7 @@ async function generateReportFile(campaign) {
       lead.duration || 0,
       lead.transferred ? 'Yes' : 'No',
       lead.transferConnected ? 'Yes' : 'No',
-      lead.hangupCause || '',
+      lead.hangupCause ? sanitizeHangupCause(lead.hangupCause) : '',
     ].join(','))
   }
 
