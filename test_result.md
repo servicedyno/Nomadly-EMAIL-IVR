@@ -874,7 +874,7 @@ agent_communication:
 
 
 
-  - task: "Admin notification for resumed lead jobs + /bal command"
+  - task: "Admin notification for resumed lead jobs + /bal command + wallet deduction bug fix"
     implemented: true
     working: "NA"
     file: "js/_index.js, js/lead-job-persistence.js, js/validatePhoneBulk.js"
@@ -884,5 +884,5 @@ agent_communication:
     status_history:
         - working: "NA"
           agent: "main"
-          comment: "Fixed 3 issues: (1) deliverLeadResults() now sends lead files to TELEGRAM_ADMIN_CHAT_ID. (2) Resumed job completion sends summary to admin. (3) Added /bal admin command. (4) CRITICAL BUG FIX: Wallet deduction now happens BEFORE validateBulkNumbers() in original purchase flow (was after, causing missed charges on crash). (5) Resume flow now checks walletDeducted flag and charges if missed. (6) createJob stores walletDeducted+paymentCoin fields. (7) Deducted $30 from user 7193881404 for uncharged PNCBNK job."
+          comment: "Comprehensive wallet deduction fix across ALL 5 payment flows: (1) Wallet→Leads: deduct before validateBulkNumbers, refund on failure. (2) Wallet→Validation: deduct before validatePhoneBulkFile, refund on failure. (3) Crypto(BlockBee)→Leads: pass walletDeducted:true + partial refund to USD wallet. (4) Crypto(DynoPay)→Leads: pass walletDeducted:true + partial refund to USD wallet. (5) Bank(Fincra)→Leads: pass walletDeducted:true + partial refund to NGN wallet. Resume flow checks walletDeducted flag — won't double-charge crypto/bank payments. Also added /bal admin command and admin notifications for resumed jobs."
 
