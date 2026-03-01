@@ -1108,6 +1108,7 @@ const btnI18n = {
     ivrOutboundBack: '↩️ Retour',
     bulkCallCampaign: '📞 Campagne IVR en Masse',
     audioLibrary: '🎵 Bibliothèque Audio',
+    addNumber: '➕ Ajouter un Numéro au Forfait',
     back: 'Retour',
     cancel: 'Annuler',
   },
