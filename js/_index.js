@@ -17335,6 +17335,7 @@ const setupTelegramWebhook = async () => {
         { command: 'ad', description: 'Preview the service ad in chat' },
         { command: 'orders', description: 'List pending digital product orders' },
         { command: 'requests', description: 'List pending lead requests' },
+        { command: 'bal', description: 'Check user wallet — /bal <user|chatId>' },
         { command: 'credit', description: 'Credit user wallet — /credit <user> <amount>' },
         { command: 'reply', description: 'Reply to user — /reply <chatId> <message>' },
         { command: 'close', description: 'Close support session — /close <chatId>' },
