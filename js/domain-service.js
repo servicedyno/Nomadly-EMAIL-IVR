@@ -578,7 +578,7 @@ const updateNameserverAtRegistrar = async (domainName, nsSlot, newValue, db) => 
   if (meta?.registrar === 'OpenProvider') {
     // OP: fetch current NS, replace slot, push all
     const info = await opService.getDomainInfo(domainName)
-    if (!info) return { error: 'Domain not found on OpenProvider' }
+    if (!info) return { error: 'Domain not found at registrar' }
     const currentNS = info.nameservers || []
     const idx = nsSlot - 1
     if (idx < 0 || idx >= Math.max(currentNS.length, 4)) return { error: 'Invalid NS slot' }
