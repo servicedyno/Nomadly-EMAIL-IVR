@@ -123,16 +123,28 @@ async function searchNumbers(countryCode, numberType = 'local', limit = 5, areaC
     if (areaCode && numberType === 'local') {
       params.areaCode = areaCode
     }
-    let numbers
-    if (numberType === 'toll_free') {
-      numbers = await client.availablePhoneNumbers(countryCode).tollFree.list(params)
-    } else if (numberType === 'mobile') {
-      numbers = await client.availablePhoneNumbers(countryCode).mobile.list(params)
-    } else if (numberType === 'national') {
-      numbers = await client.availablePhoneNumbers(countryCode).national.list(params)
-    } else {
-      numbers = await client.availablePhoneNumbers(countryCode).local.list(params)
+
+    const doSearch = async (searchParams) => {
+      if (numberType === 'toll_free') {
+        return client.availablePhoneNumbers(countryCode).tollFree.list(searchParams)
+      } else if (numberType === 'mobile') {
+        return client.availablePhoneNumbers(countryCode).mobile.list(searchParams)
+      } else if (numberType === 'national') {
+        return client.availablePhoneNumbers(countryCode).national.list(searchParams)
+      } else {
+        return client.availablePhoneNumbers(countryCode).local.list(searchParams)
+      }
     }
+
+    let numbers = await doSearch(params)
+
+    // Fallback: if exact area code returned 0, try nearNumber with a seed from that area
+    if (numbers.length === 0 && areaCode && numberType === 'local') {
+      log(`[Twilio] No numbers for area code ${areaCode}, trying nearNumber fallback`)
+      const fallbackParams = { limit, voiceEnabled: true, nearNumber: `+1${areaCode}0000000` }
+      numbers = await doSearch(fallbackParams).catch(() => [])
+    }
+
     // Check if country has custom address requirements
     const countryConfig = NO_COMPLIANCE_COUNTRIES.find(c => c.code === countryCode)
     const allowedAddrReqs = countryConfig?.addrReq || ['none']
