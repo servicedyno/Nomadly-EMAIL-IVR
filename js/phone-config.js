@@ -508,7 +508,7 @@ Select an option:`,
     return text
   },
 
-  manageNumber: (n) => {
+  manageNumber: (n, subCount, subLimit) => {
     const plan = plans[n.plan]
     const minLimit = plan?.minutes === 'Unlimited' ? 'Unlimited' : (plan?.minutes || 0)
     const smsLimit = plan?.sms || 0
@@ -524,7 +524,10 @@ Select an option:`,
     const hasFax = n.capabilities?.fax === true
     const hasVoice = n.capabilities?.voice !== false
 
-    let text = `⚙️ Managing: <b>${formatPhone(n.phoneNumber)}</b>\n\nStatus: ${n.status === 'active' ? '✅ Active' : '⚠️ ' + n.status}\nPlan: ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} ($${n.planPrice}/mo)`
+    let text = `⚙️ Managing: <b>${formatPhone(n.phoneNumber)}</b>`
+    if (n.isSubNumber) text += ` <i>(sub-number)</i>`
+    text += `\n\nStatus: ${n.status === 'active' ? '✅ Active' : '⚠️ ' + n.status}\nPlan: ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} ($${n.planPrice}/mo)`
+    if (n.isSubNumber && n.parentNumber) text += `\n🔗 Parent: ${formatPhone(n.parentNumber)}`
     if (hasVoice) text += `\n📞 Inbound Minutes: ${minDisplay}${minWarning}`
     if (hasSms) text += `\n📩 Inbound SMS: ${smsDisplay} (receive only)${smsWarning}`
     if (hasFax) text += `\n📠 Fax: Included — inbound faxes forwarded to Telegram`
@@ -535,6 +538,11 @@ Select an option:`,
     if (hasSms) caps.push('SMS')
     if (hasFax) caps.push('Fax')
     text += `\n📋 Capabilities: ${caps.join(' · ')}`
+
+    // Sub-number count for primary numbers
+    if (!n.isSubNumber && subCount !== undefined && subLimit !== undefined) {
+      text += `\n➕ Sub-numbers: ${subCount} / ${subLimit}`
+    }
 
     // Browser call hint
     if (hasVoice) text += `\n\n🌐 <a href="${CALL_PAGE_URL}">Make & receive calls in browser</a>`
