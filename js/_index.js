@@ -13766,11 +13766,14 @@ const buyDomainFullProcess = async (chatId, lang, domain) => {
     const customNS = info?.customNS || null
     const buyResult = await buyDomain(chatId, domain, registrar, nsChoice, customNS)
     if (buyResult.error) {
-      const m = translation('t.domainPurchasedFailed', lang, domain, buyResult.error)
-      log(m)
-      sendMessage(TELEGRAM_DEV_CHAT_ID, m)
-      sendMessage(chatId, m)
-      return m
+      // Send detailed error to admin/dev only — user gets generic message
+      const adminMsg = `❌ Domain purchase failed: ${domain} | user: ${chatId} | error: ${buyResult.error}`
+      log(adminMsg)
+      sendMessage(TELEGRAM_DEV_CHAT_ID, adminMsg)
+      // User-facing message — no provider names, no raw errors
+      const userMsg = translation('t.domainPurchasedFailed', lang, domain)
+      sendMessage(chatId, userMsg)
+      return userMsg
     }
     // Track actual registrar — may differ from original if CR→OP fallback occurred
     registrar = buyResult.registrar || registrar
