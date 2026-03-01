@@ -10269,7 +10269,7 @@ Choose an IVR template category:`), k.of(rows))
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
+      return showManageScreen(chatId, num)
     }
     if (message === pc.disableForwarding) {
       await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'callForwarding', { enabled: false, mode: 'disabled', forwardTo: null })
@@ -10277,7 +10277,7 @@ Choose an IVR template category:`), k.of(rows))
       await saveInfo('cpActiveNumber', num)
       send(chatId, cpTxt.forwardingDisabled(num.phoneNumber))
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
+      return showManageScreen(chatId, num)
     }
     // ── Toggle Hold Music ──
     if (message === pc.holdMusicOn || message === pc.holdMusicOff) {
@@ -10310,7 +10310,7 @@ Choose an IVR template category:`), k.of(rows))
       if (walletBal < phoneConfig.CALL_FORWARDING_RATE_MIN) {
         send(chatId, t.fwdInsufficientBalance(walletBal, phoneConfig.CALL_FORWARDING_RATE_MIN), { parse_mode: 'HTML' })
         set(state, chatId, 'action', a.cpManageNumber)
-        return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
+        return showManageScreen(chatId, num)
       }
       set(state, chatId, 'action', a.cpEnterForwardNumber)
       return send(chatId, t.fwdEnterNumber(phoneConfig.CALL_FORWARDING_RATE_MIN, walletBal), { parse_mode: 'HTML' })
@@ -10346,7 +10346,7 @@ Choose an IVR template category:`), k.of(rows))
     if (walletBal < phoneConfig.CALL_FORWARDING_RATE_MIN) {
       send(chatId, t.fwdInsufficientBalance(walletBal, phoneConfig.CALL_FORWARDING_RATE_MIN), { parse_mode: 'HTML' })
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
+      return showManageScreen(chatId, num)
     }
 
     // ── Validate destination is routable via Telnyx ──
@@ -10364,7 +10364,7 @@ Choose an IVR template category:`), k.of(rows))
     const modeLabel = mode === 'always' ? 'Always Forward' : mode === 'busy' ? 'Forward When Busy' : 'Forward If No Answer'
     send(chatId, cpTxt.forwardingUpdated(num.phoneNumber, forwardTo, modeLabel, walletBal), { parse_mode: 'HTML' })
     set(state, chatId, 'action', a.cpManageNumber)
-    return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
+    return showManageScreen(chatId, num)
   }
 
   // ━━━ SMS SETTINGS ━━━
@@ -10374,7 +10374,7 @@ Choose an IVR template category:`), k.of(rows))
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
+      return showManageScreen(chatId, num)
     }
     const smsConf = num.features?.smsForwarding || {}
     // Toggle Telegram
@@ -10442,7 +10442,7 @@ Choose an IVR template category:`), k.of(rows))
     await saveInfo('cpActiveNumber', num)
     send(chatId, cpTxt.emailSet(message))
     set(state, chatId, 'action', a.cpManageNumber)
-    return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
+    return showManageScreen(chatId, num)
   }
   if (action === a.cpEnterWebhook) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
@@ -10463,7 +10463,7 @@ Choose an IVR template category:`), k.of(rows))
     await saveInfo('cpActiveNumber', num)
     send(chatId, cpTxt.webhookSet(message))
     set(state, chatId, 'action', a.cpManageNumber)
-    return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
+    return showManageScreen(chatId, num)
   }
 
   // ━━━ SMS INBOX ━━━
@@ -10473,7 +10473,7 @@ Choose an IVR template category:`), k.of(rows))
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
+      return showManageScreen(chatId, num)
     }
     if (message === pc.inboxRefresh) {
       await saveInfo('cpInboxPage', 1)
@@ -10499,7 +10499,7 @@ Choose an IVR template category:`), k.of(rows))
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
+      return showManageScreen(chatId, num)
     }
     const faxConf = num.features?.faxForwarding || { toTelegram: true }
     // Toggle Telegram forwarding
@@ -10523,7 +10523,7 @@ Choose an IVR template category:`), k.of(rows))
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
+      return showManageScreen(chatId, num)
     }
     if (message === pc.enableVoicemail) {
       await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'voicemail', { enabled: true, greetingType: 'default', forwardToTelegram: true, forwardToEmail: null, ringTimeout: 25 })
@@ -10531,7 +10531,7 @@ Choose an IVR template category:`), k.of(rows))
       await saveInfo('cpActiveNumber', num)
       send(chatId, cpTxt.voicemailEnabled(num.phoneNumber))
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
+      return showManageScreen(chatId, num)
     }
     if (message === pc.disableVoicemail) {
       await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'voicemail', { enabled: false })
@@ -10539,7 +10539,7 @@ Choose an IVR template category:`), k.of(rows))
       await saveInfo('cpActiveNumber', num)
       send(chatId, cpTxt.voicemailDisabled(num.phoneNumber))
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
+      return showManageScreen(chatId, num)
     }
     // Greeting management
     if (message === pc.vmGreeting || message === '🔊 Greeting') {
@@ -10573,7 +10573,7 @@ Choose an IVR template category:`), k.of(rows))
       await saveInfo('cpActiveNumber', num)
       send(chatId, phoneConfig.getMsg(info?.userLanguage).ringTimeUpdated(seconds))
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
+      return showManageScreen(chatId, num)
     }
     return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectOption)
   }
@@ -10921,7 +10921,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
+      return showManageScreen(chatId, num)
     }
     if (message === pc.enableRecording) {
       await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'recording', true)
@@ -10930,7 +10930,7 @@ Professional templates for voicemail, customer support, financial institutions, 
       await saveInfo('cpActiveNumber', num)
       send(chatId, cpTxt.recordingEnabled(num.phoneNumber))
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
+      return showManageScreen(chatId, num)
     }
     if (message === pc.disableRecording) {
       await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'recording', false)
@@ -10939,7 +10939,7 @@ Professional templates for voicemail, customer support, financial institutions, 
       await saveInfo('cpActiveNumber', num)
       send(chatId, cpTxt.recordingDisabled(num.phoneNumber))
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
+      return showManageScreen(chatId, num)
     }
     return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectOption)
   }
@@ -10951,7 +10951,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
+      return showManageScreen(chatId, num)
     }
     if (message === pc.enableIvr) {
       const ivrConf = { enabled: true, greeting: 'Thank you for calling. Please listen to the following options.', options: {} }
@@ -10971,7 +10971,7 @@ Professional templates for voicemail, customer support, financial institutions, 
       await saveInfo('cpActiveNumber', num)
       send(chatId, cpTxt.ivrDisabled(num.phoneNumber))
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
+      return showManageScreen(chatId, num)
     }
     if (message === pc.ivrGreeting) {
       set(state, chatId, 'action', a.cpIvrGreeting)
@@ -11808,7 +11808,7 @@ Select a category:`), k.of(catBtns))
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
+      return showManageScreen(chatId, num)
     }
     if (message === pc.revealPassword) {
       const msg = await bot?.sendMessage(chatId, cpTxt.sipRevealed(num.sipPassword), { parse_mode: 'HTML' })
@@ -11864,7 +11864,7 @@ Select a category:`), k.of(catBtns))
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
+      return showManageScreen(chatId, num)
     }
     // Toggle Auto-Renew
     if (message.startsWith('🔁 Auto-Renew')) {
@@ -11959,7 +11959,7 @@ Select a category:`), k.of(catBtns))
             await saveInfo('cpPendingPlan', null)
             send(chatId, phoneConfig.getMsg(info?.userLanguage).insufficientBalUpgrade(chargeAmount, walletBal))
             set(state, chatId, 'action', a.cpManageNumber)
-            return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
+            return showManageScreen(chatId, num)
           }
           // Deduct the pro-rated amount
           await atomicIncrement(walletOf, chatId, 'usdBal', -chargeAmount)
@@ -12021,7 +12021,7 @@ Select a category:`), k.of(catBtns))
       }
       send(chatId, confirmMsg)
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
+      return showManageScreen(chatId, num)
     }
 
     let newPlan = null
@@ -12136,7 +12136,7 @@ Select a category:`), k.of(catBtns))
     if (!num) return goto.submenu5()
     if (message === pc.noKeep || message === t.back) {
       set(state, chatId, 'action', a.cpManageNumber)
-      return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
+      return showManageScreen(chatId, num)
     }
     if (message === pc.yesRelease) {
       const last4 = num.phoneNumber.replace(/\D/g, '').slice(-4)
