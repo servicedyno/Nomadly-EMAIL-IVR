@@ -15505,6 +15505,20 @@ app.post('/dynopay/crypto-pay-leads', authDyno, async (req, res) => {
       else { areaCodes = ld.area === 'Mixed Area Codes' ? _buyLeadsSelectAreaCode(ld.country, ld.area) : [ld.area] }
       const result = await validateBulkNumbers(ld.carrier, ld.amount, cc, areaCodes, cnam, bot, chatId, lang)
       if (!result) return sendMessage(chatId, translation('t.buyLeadsError', lang)) || res.send(html())
+      // ── Partial delivery refund for DynoPay crypto — credit wallet USD ──
+      if (result._partialReason) {
+        const requested = result._targetCount || ld.amount || 1
+        const delivered = result._deliveredCount || result.length
+        if (delivered < requested && price > 0) {
+          const undeliveredRatio = (requested - delivered) / requested
+          const refundAmount = Math.round(undeliveredRatio * price * 100) / 100
+          if (refundAmount > 0) {
+            await atomicIncrement(walletOf, chatId, 'usdIn', refundAmount)
+            sendMessage(chatId, `💰 <b>Partial Refund</b>\n📊 ${delivered}/${requested} leads delivered\n💵 Refund: <b>$${refundAmount.toFixed(2)}</b> → wallet`)
+            if (TELEGRAM_ADMIN_CHAT_ID) bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID, `💰 <b>Partial Lead Refund (DynoPay)</b>\n👤 ${chatId}\n📊 ${delivered}/${requested}\n💵 $${refundAmount.toFixed(2)} → wallet`, { parse_mode: 'HTML' }).catch(() => {})
+          }
+        }
+      }
       const _successMsg = ld.targetName ? `🎯 Your ${ld.amount} targeted leads are ready — including phone owner names where matched.` : translation('t.buyLeadsSuccess', lang, ld.amount)
       sendMessage(chatId, _successMsg)
       cc = '+' + cc; const re = cc === '+1' ? '' : '0'
