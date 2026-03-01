@@ -1402,14 +1402,24 @@ Sélectionnez une option :`,
     activated: (number, plan, price, sipUser, sipDomain, expiry) => `🎉 <b>Votre Cloud IVR est Actif !</b>\n\n📞 Numéro : ${formatPhone(number)}\n📦 Forfait : ${plan} ($${price}/mois)\n📅 Renouvellement : ${expiry}\n\n━━━ <b>Identifiants SIP</b> ━━━\n🌐 Serveur : ${sipDomain}\n👤 Utilisateur : ${sipUser}\n🔑 Mot de passe : ●●●●●●●● (utilisez 🔑 Identifiants SIP pour révéler)\n📡 Port : 5060 (UDP/TCP) | 5061 (TLS)\n\n━━━ <b>Configuration Rapide</b> ━━━\n• Navigateur : Appelez sur <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>\n• Softphone : Téléchargez Zoiper/Ooma, entrez les identifiants SIP\n• SMS : Les SMS entrants sont transférés ici automatiquement\n• Transfert : Configurez via 📱 Mes Numéros → Transfert d'Appels`,
     myNumbersList: (numbers) => {
       let text = '📱 <b>Vos Numéros Cloud IVR :</b>\n\n'
-      numbers.forEach((n, i) => {
+      const primaryNumbers = numbers.filter(n => !n.isSubNumber)
+      const subNumbers = numbers.filter(n => n.isSubNumber)
+      primaryNumbers.forEach((n, i) => {
         const status = n.status === 'active' ? '✅ Actif' : n.status === 'suspended' ? '⚠️ Suspendu' : '🗑️ Supprimé'
         text += `${i + 1}️⃣  ${formatPhone(n.phoneNumber)}  ${status}\n`
-        text += `    Forfait ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} · Renouvellement ${shortDate(n.expiresAt)}\n\n`
+        text += `    Forfait ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} · Renouvellement ${shortDate(n.expiresAt)}\n`
+        const subs = subNumbers.filter(s => s.parentNumber === n.phoneNumber && (s.status === 'active' || s.status === 'suspended'))
+        if (subs.length > 0) {
+          subs.forEach(s => {
+            const subStatus = s.status === 'active' ? '✅' : '⚠️'
+            text += `    ├ ${formatPhone(s.phoneNumber)} ${subStatus} (ajouté · $${s.planPrice}/mois)\n`
+          })
+        }
+        text += '\n'
       })
       return text
     },
-    manageNumber: (n) => {
+    manageNumber: (n, subCount, subLimit) => {
       const plan = plans[n.plan]
       const minLimit = plan?.minutes === 'Unlimited' ? 'Illimité' : (plan?.minutes || 0)
       const smsLimit = plan?.sms || 0
@@ -1418,6 +1428,34 @@ Sélectionnez une option :`,
       const minDisplay = minLimit === 'Illimité' ? `${minUsed} (Illimité)` : `${minUsed} / ${minLimit}`
       const smsDisplay = `${smsUsed} / ${smsLimit}`
       const minWarning = minLimit !== 'Illimité' && minUsed >= minLimit ? `\n💰 <b>Dépassement actif</b> — $${OVERAGE_RATE_MIN}/min depuis le portefeuille` : ''
+      const smsWarning = smsUsed >= smsLimit ? `\n💰 <b>Dépassement actif</b> — $${OVERAGE_RATE_SMS}/SMS depuis le portefeuille` : ''
+      const hasSms = n.capabilities?.sms !== false && n.features?.sms !== false
+      const hasFax = n.capabilities?.fax === true
+      const hasVoice = n.capabilities?.voice !== false
+      let text = `⚙️ Gestion : <b>${formatPhone(n.phoneNumber)}</b>`
+      if (n.isSubNumber) text += ` <i>(numéro ajouté)</i>`
+      text += `\n\nStatut : ${n.status === 'active' ? '✅ Actif' : '⚠️ ' + n.status}\nForfait : ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} ($${n.planPrice}/mois)`
+      if (n.isSubNumber && n.parentNumber) text += `\n🔗 Parent : ${formatPhone(n.parentNumber)}`
+      if (hasVoice) text += `\n📞 Minutes entrantes : ${minDisplay}${minWarning}`
+      if (hasSms) text += `\n📩 SMS entrants : ${smsDisplay} (réception seule)${smsWarning}`
+      if (hasFax) text += `\n📠 Fax : Inclus — fax entrants transférés vers Telegram`
+      const caps = []
+      if (hasVoice) caps.push('Voix')
+      if (hasSms) caps.push('SMS')
+      if (hasFax) caps.push('Fax')
+      text += `\n📋 Capacités : ${caps.join(' · ')}`
+      if (!n.isSubNumber && subCount !== undefined && subLimit !== undefined) {
+        text += `\n➕ Numéros ajoutés : ${subCount} / ${subLimit}`
+      }
+      if (hasVoice) text += `\n\n🌐 <a href="${CALL_PAGE_URL}">Appeler et recevoir dans le navigateur</a>`
+      return text
+    },
+    // ── Sub-number texts ──
+    subNumberLimitReached: (plan, limit) => `⚠️ Vous avez atteint la limite de numéros ajoutés pour le forfait <b>${plan}</b> (${limit} numéros).\n\nPassez à un forfait supérieur pour plus de numéros.`,
+    subNumberOrderSummary: (number, country, parentNumber, price, parentPlan) => `📋 <b>Commande Numéro Supplémentaire</b>\n\n📞 Nouveau : ${formatPhone(number)} · ${country}\n🔗 Ajouté à : ${formatPhone(parentNumber)} (Forfait ${parentPlan})\n💰 Prix : <b>$${typeof price === 'number' ? price.toFixed(2) : price}/mois</b>\n\n⚡ Partage les minutes & SMS du forfait parent\n🔑 Identifiants SIP propres inclus`,
+    subActivated: (number, parentNumber, price, sipUser, sipDomain, expiry) => `🎉 <b>Numéro Supplémentaire Ajouté !</b>\n\n📞 Numéro : ${formatPhone(number)}\n🔗 Lié à : ${formatPhone(parentNumber)}\n💰 Prix : $${typeof price === 'number' ? price.toFixed(2) : price}/mois\n📅 Renouvellement : ${expiry}\n\n━━━ <b>Identifiants SIP</b> ━━━\n🌐 Serveur : ${sipDomain}\n👤 Utilisateur : ${sipUser}\n🔑 Mot de passe : ●●●●●●●● (utilisez 🔑 Identifiants SIP pour révéler)\n📡 Port : 5060 (UDP/TCP) | 5061 (TLS)\n\n━━━ <b>Configuration Rapide</b> ━━━\n• Navigateur : <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>\n• Softphone : Zoiper/Ooma avec identifiants SIP\n• Minutes & SMS partagés avec le forfait parent`,
+    adminSubPurchase: (name, number, parentNumber, price, paymentMethod) => `➕ <b>Numéro Ajouté</b>\n👤 ${name}\n📞 ${formatPhone(number)} → ${formatPhone(parentNumber)}\n💰 $${price} · ${paymentMethod}`,
+    adminSubPurchasePrivate: (name, number, parentNumber, price, paymentMethod) => `➕ <b>Numéro Ajouté</b>\n👤 ${name}\n📞 Nouveau : ${formatPhone(number)}\n🔗 Parent : ${formatPhone(parentNumber)}\n💰 $${price}/mois · ${paymentMethod}`,
       const smsWarning = smsUsed >= smsLimit ? `\n💰 <b>Dépassement actif</b> — $${OVERAGE_RATE_SMS}/SMS depuis le portefeuille` : ''
       const hasSms = n.capabilities?.sms !== false && n.features?.sms !== false
       const hasFax = n.capabilities?.fax === true
