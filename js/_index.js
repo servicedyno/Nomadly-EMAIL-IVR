@@ -13580,7 +13580,7 @@ Select a category:`), k.of(catBtns))
     // Re-open session for them
     await set(supportSessions, chatId, Date.now())
     await set(state, chatId, 'action', 'supportChat')
-    send(chatId, '✉️ Message sent to support. We\'ll respond shortly.', { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
+    send(chatId, t.supportMsgSent, { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
     log(`[Support] Fallback: forwarded unrecognized message from ${chatId} to admin (recent session detected)`)
     return
   }
