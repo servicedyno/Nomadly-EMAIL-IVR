@@ -1834,6 +1834,15 @@ Sélectionnez une option :`,
     subActivated: (number, parentNumber, price, sipUser, sipDomain, expiry) => `🎉 <b>附加号码已添加！</b>\n\n📞 号码：${formatPhone(number)}\n🔗 关联到：${formatPhone(parentNumber)}\n💰 价格：$${typeof price === 'number' ? price.toFixed(2) : price}/月\n📅 续费：${expiry}\n\n━━━ <b>SIP 凭据</b> ━━━\n🌐 服务器：${sipDomain}\n👤 用户名：${sipUser}\n🔑 密码：●●●●●●●●（使用 🔑 SIP 凭据 查看）\n📡 端口：5060 (UDP/TCP) | 5061 (TLS)\n\n━━━ <b>快速设置</b> ━━━\n• 浏览器：<a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>\n• 软电话：使用 Zoiper/Ooma 配置 SIP\n• 分钟和短信与主号码共享`,
     adminSubPurchase: (name, number, parentNumber, price, paymentMethod) => `➕ <b>附加号码</b>\n👤 ${name}\n📞 ${formatPhone(number)} → ${formatPhone(parentNumber)}\n💰 $${price} · ${paymentMethod}`,
     adminSubPurchasePrivate: (name, number, parentNumber, price, paymentMethod) => `➕ <b>附加号码</b>\n👤 ${name}\n📞 新：${formatPhone(number)}\n🔗 主：${formatPhone(parentNumber)}\n💰 $${price}/月 · ${paymentMethod}`,
+    
+    // Sub-number flow messages
+    subAddNumberHeader: (plan, parentNumber) => `➕ <b>添加号码到 ${plan.charAt(0).toUpperCase() + plan.slice(1)} 套餐</b>\n📞 主号码：${formatPhone(parentNumber)}\n\n🌍 选择新号码的国家：`,
+    subNumbersAvailable: '📱 <b>附加号码 — 可用</b>',
+    subNumberArea: (area) => `📱 <b>附加号码 — 区域 ${area}</b>`,
+    subNumberSelected: (location) => `📱 <b>附加号码 — ${location}</b>`,
+    bulkIvrSupport: '☎️ = 支持批量IVR',
+    tapToSelect: '点击选择：',
+    
     // 呼叫转移
     forwardingStatus: (number, config, walletBal) => {
       const status = config?.enabled ? '✅ 已启用' : '❌ 已关闭'
