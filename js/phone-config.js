@@ -287,9 +287,9 @@ usAreaCodes.forEach(a => { areaByLabel[`${a.city} (${a.code})`] = a.code })
 
 // ── Plans ──
 const plans = {
-  starter: { name: 'Starter', price: PHONE_STARTER_PRICE, minutes: STARTER_MINUTES, sms: STARTER_SMS, features: ['Call forwarding', 'SMS to Telegram'] },
-  pro: { name: 'Pro', price: PHONE_PRO_PRICE, minutes: PRO_MINUTES, sms: PRO_SMS, features: ['Forwarding', 'Voicemail', 'SIP access', 'SMS to Telegram & Email'] },
-  business: { name: 'Business', price: PHONE_BUSINESS_PRICE, minutes: BUSINESS_MINUTES, sms: BUSINESS_SMS, features: ['All Pro features', 'Call recording', 'IVR / Auto-attendant'] },
+  starter: { name: 'Starter', price: PHONE_STARTER_PRICE, minutes: STARTER_MINUTES, sms: STARTER_SMS, features: ['Call forwarding', 'SMS to Telegram', `Add up to ${SUB_NUMBER_LIMITS.starter} extra numbers`] },
+  pro: { name: 'Pro', price: PHONE_PRO_PRICE, minutes: PRO_MINUTES, sms: PRO_SMS, features: ['Forwarding', 'Voicemail', 'SIP access', 'SMS to Telegram & Email', `Add up to ${SUB_NUMBER_LIMITS.pro} extra numbers`] },
+  business: { name: 'Business', price: PHONE_BUSINESS_PRICE, minutes: BUSINESS_MINUTES, sms: BUSINESS_SMS, features: ['All Pro features', 'Call recording', 'IVR / Auto-attendant', `Add up to ${SUB_NUMBER_LIMITS.business} extra numbers`] },
 }
 
 // Feature gating per plan — which features each plan unlocks
