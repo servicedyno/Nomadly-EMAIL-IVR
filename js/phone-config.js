@@ -1220,8 +1220,8 @@ const btnI18n = {
     cancel: '取消',
   },
   hi: {
-    buyPhoneNumber: '🛒 क्लाउड IVR प्लान चुनें',
-    myNumbers: '📱 मेरे नंबर',
+    buyPhoneNumber: '🛒 प्लान चुनें',
+    myNumbers: '📋 मेरे प्लान',
     sipSettings: '📖 SIP सेटअप गाइड',
     usageBilling: '📊 उपयोग और बिलिंग',
     localNumber: '📍 लोकल नंबर',
