@@ -68,11 +68,12 @@ async function makeRequest(method, url, data = null, params = {}) {
     }
     
     if (data) {
-      if (method.toUpperCase() === 'POST' && typeof data === 'object') {
-        // For POST requests, send as form data for webhooks
+      if (url.includes('/twilio/') && method.toUpperCase() === 'POST') {
+        // For Twilio webhooks, send as form data
         config.headers['Content-Type'] = 'application/x-www-form-urlencoded'
         config.data = new URLSearchParams(data).toString()
       } else {
+        // For other endpoints, send as JSON
         config.data = data
       }
     }
