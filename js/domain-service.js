@@ -381,7 +381,7 @@ const addDNSRecord = async (domainName, recordType, recordValue, hostName, db, p
 
   // Default: ConnectReseller — SRV/CAA not supported
   if (['SRV', 'CAA'].includes(recordType.toUpperCase())) {
-    return { error: 'SRV and CAA records are not supported by ConnectReseller. Use Cloudflare or OpenProvider nameservers.' }
+    return { error: 'SRV and CAA records are not supported with your current DNS provider. Switch to Cloudflare nameservers to use these record types.' }
   }
   const { saveServerInDomain } = require('./cr-dns-record-add')
   return await saveServerInDomain(domainName, recordValue, recordType, null, null, null, hostName, priority)
