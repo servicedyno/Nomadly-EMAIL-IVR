@@ -304,11 +304,11 @@ def test_environment_variables(content):
     prompt_match = re.search(r'const SYSTEM_PROMPT = `(.+?)`', content, re.DOTALL)
     if prompt_match:
         system_prompt = prompt_match.group(1)
-        if '${process.env.PHONE_STARTER_PRICE' not in system_prompt:
+        if 'process.env.PHONE_STARTER_PRICE' not in system_prompt:
             return False, "PHONE_STARTER_PRICE not used in SYSTEM_PROMPT"
-        if '${process.env.PHONE_PRO_PRICE' not in system_prompt:
+        if 'process.env.PHONE_PRO_PRICE' not in system_prompt:
             return False, "PHONE_PRO_PRICE not used in SYSTEM_PROMPT"
-        if '${process.env.PHONE_BUSINESS_PRICE' not in system_prompt:
+        if 'process.env.PHONE_BUSINESS_PRICE' not in system_prompt:
             return False, "PHONE_BUSINESS_PRICE not used in SYSTEM_PROMPT"
     
     print(f"✅ All required environment variables found and properly used")
