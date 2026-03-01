@@ -366,7 +366,7 @@ const validateBulkNumbers = async (carrier, phonesToGenerate, countryCode, areaC
         return res
       }
       noHitCount = !r[1] || r[1].length === 0 ? noHitCount + parallelApiCalls : 0
-      log({ noHitCount, realNameCount, totalGenerated: res.length, cnamMissStreak })
+      log({ noHitCount, realNameCount, totalGenerated: res.length, cnamMissStreak, totalCnamLookups, activeAreaCodes: activeAreaCodes.length })
       if (noHitCount > phoneGenStopAtNoXHits) {
         const deliveredCount = requireRealName && cnam ? realNameCount : res.length
         const msg = `⚠️ Could not find more valid phone numbers in this area. Delivering ${deliveredCount} of ${targetCount} leads.`
