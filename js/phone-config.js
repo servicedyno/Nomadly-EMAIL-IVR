@@ -136,6 +136,7 @@ const btn = {
   businessPlan: PHONE_BUSINESS_ON ? `👑 Business — $${PHONE_BUSINESS_PRICE}/mo` : `👑 Business — Coming Soon 🔜`,
 
   // Management
+  addNumber: '➕ Add Number to Plan',
   callForwarding: '📞 Call Forwarding',
   smsSettings: '📩 SMS Settings',
   smsInbox: '📨 SMS Inbox',
