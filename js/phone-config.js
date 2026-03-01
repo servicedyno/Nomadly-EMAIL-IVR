@@ -2370,6 +2370,7 @@ module.exports = {
   isBtnMatch,
   btnKeyOf,
   plans,
+  plansI18n,
   planByButton,
   planFeatureAccess,
   canAccessFeature,
