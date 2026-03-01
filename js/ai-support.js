@@ -150,19 +150,48 @@ You MUST escalate to a human agent (set needsEscalation: true) for:
 - Be friendly but professional
 - Always end with asking if they need anything else, OR if escalating, let them know a human agent will follow up`
 
-// ── Escalation detection ──
-const ESCALATION_KEYWORDS = [
-  'refund', 'money back', 'charge back', 'chargeback', 'dispute',
-  'scam', 'fraud', 'steal', 'stolen', 'hack', 'hacked',
-  'not working', 'broken', 'error', 'bug', 'crash',
-  'angry', 'furious', 'terrible', 'worst', 'lawsuit', 'legal',
-  'manager', 'supervisor', 'human', 'real person', 'talk to someone',
-  'cancel', 'delete account', 'close account',
-]
+// ── Escalation detection (multi-language) ──
+const ESCALATION_KEYWORDS = {
+  en: [
+    'refund', 'money back', 'charge back', 'chargeback', 'dispute',
+    'scam', 'fraud', 'steal', 'stolen', 'hack', 'hacked',
+    'not working', 'broken', 'error', 'bug', 'crash',
+    'angry', 'furious', 'terrible', 'worst', 'lawsuit', 'legal',
+    'manager', 'supervisor', 'human', 'real person', 'talk to someone',
+    'cancel', 'delete account', 'close account',
+  ],
+  fr: [
+    'remboursement', 'rembourser', 'argent', 'fraude', 'arnaque', 'volé',
+    'ne fonctionne pas', 'cassé', 'erreur', 'bug', 'plantage',
+    'en colère', 'furieux', 'terrible', 'pire', 'avocat', 'juridique',
+    'responsable', 'superviseur', 'humain', 'personne réelle', 'parler à quelqu\'un',
+    'annuler', 'supprimer le compte', 'fermer le compte', 'litige',
+  ],
+  zh: [
+    '退款', '退钱', '欺诈', '骗局', '被盗', '黑客',
+    '不工作', '坏了', '错误', '故障', '崩溃',
+    '生气', '愤怒', '糟糕', '最差', '律师', '法律',
+    '经理', '主管', '真人', '人工客服', '找人',
+    '取消', '删除账户', '关闭账户', '纠纷',
+  ],
+  hi: [
+    'रिफंड', 'पैसे वापस', 'धोखाधड़ी', 'धोखा', 'चोरी', 'हैक',
+    'काम नहीं कर रहा', 'टूटा', 'त्रुटि', 'बग', 'क्रैश',
+    'गुस्सा', 'नाराज', 'भयानक', 'सबसे खराब', 'वकील', 'कानूनी',
+    'मैनेजर', 'सुपरवाइजर', 'इंसान', 'असली व्यक्ति', 'किसी से बात',
+    'रद्द', 'अकाउंट हटाओ', 'अकाउंट बंद', 'विवाद',
+  ],
+}
 
-function needsEscalation(message) {
+// Combine all language keywords for detection
+const ALL_ESCALATION_KEYWORDS = Object.values(ESCALATION_KEYWORDS).flat()
+
+function needsEscalation(message, lang) {
   const lower = message.toLowerCase()
-  return ESCALATION_KEYWORDS.some(kw => lower.includes(kw))
+  // Check keywords for the user's language + always check English as base
+  const langKeywords = ESCALATION_KEYWORDS[lang] || []
+  const keywords = [...new Set([...ESCALATION_KEYWORDS.en, ...langKeywords])]
+  return keywords.some(kw => lower.includes(kw))
 }
 
 // ── Get user context for AI ──
