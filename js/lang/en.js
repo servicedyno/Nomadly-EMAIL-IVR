@@ -877,8 +877,8 @@ ${bal(usd, ngn)}`,
 
   qrCodeText: 'Here is your QR code!',
   scanQrOrUseChat: chatId => `Scan QR with sms marketing app to login. You can also use this code to login: ${chatId}`,
-  domainPurchasedFailed: (domain, buyDomainError) =>
-    `Domain purchase fails, try another name. ${domain} ${buyDomainError}`,
+  domainPurchasedFailed: (domain) =>
+    `❌ Domain registration for <b>${domain}</b> could not be completed. Please try again or contact support if the issue persists.`,
 
   noDomainRegistered: 'You have no purchased domains yet.',
   registeredDomainList: domainsText => `Here are your purchased domains:\n${domainsText}`,
