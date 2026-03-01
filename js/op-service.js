@@ -484,7 +484,7 @@ const getDomainInfo = async (domainName) => {
 const updateNameservers = async (domainName, nameservers) => {
   try {
     const info = await getDomainInfo(domainName)
-    if (!info || !info.domainId) return { error: 'Domain not found on OpenProvider' }
+    if (!info || !info.domainId) return { error: 'Domain not found at registrar' }
 
     const headers = await authHeaders()
     const nsPayload = nameservers.map((ns, i) => ({ name: ns, seq_nr: i + 1 }))
