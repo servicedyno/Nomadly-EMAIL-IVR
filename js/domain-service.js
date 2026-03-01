@@ -1139,4 +1139,5 @@ module.exports = {
   checkDNSConflict,
   resolveConflictAndAdd,
   addShortenerCNAME,
+  sanitizeErrorForUser,
 }
