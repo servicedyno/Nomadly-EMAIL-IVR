@@ -1258,6 +1258,7 @@ const btnI18n = {
     ivrOutboundBack: '↩️ वापस',
     bulkCallCampaign: '📞 बल्क IVR अभियान',
     audioLibrary: '🎵 ऑडियो लाइब्रेरी',
+    addNumber: '➕ प्लान में नंबर जोड़ें',
     back: 'वापस',
     cancel: 'रद्द करें',
   },
