@@ -605,16 +605,27 @@ async function executeTwilioPurchase(chatId, selectedNumber, planKey, price, cou
     }
   }
 
+  // Add sub-number fields if this is a sub-number purchase
+  if (subOpts?.isSubNumber && subOpts?.parentNumber) {
+    numberDoc.isSubNumber = true
+    numberDoc.parentNumber = subOpts.parentNumber
+  }
+
   userData = await get(phoneNumbersOf, chatId)
   if (userData?.numbers) { userData.numbers.push(numberDoc) }
   else { userData = userData || {}; userData.numbers = [numberDoc] }
   await set(phoneNumbersOf, chatId, userData)
 
-  await phoneTransactions.insertOne({ chatId, phoneNumber: selectedNumber, action: 'purchase', plan: planKey, amount: price, paymentMethod, timestamp: new Date().toISOString() })
+  await phoneTransactions.insertOne({ chatId, phoneNumber: selectedNumber, action: subOpts?.isSubNumber ? 'sub-number-purchase' : 'purchase', plan: planKey, amount: price, paymentMethod, timestamp: new Date().toISOString() })
   // Use phoneConfig.getTxt directly (module-scope safe) — cpTxt is only available inside loadData
   const _adminTxt = phoneConfig.getTxt('en')
-  notifyGroup(_adminTxt.adminPurchase(maskName(name), selectedNumber, plan?.name || planKey, price, paymentMethod))
-  if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, _adminTxt.adminPurchasePrivate(maskName(name), selectedNumber, plan?.name || planKey, price, paymentMethod), { parse_mode: 'HTML' })
+  if (subOpts?.isSubNumber) {
+    notifyGroup(_adminTxt.adminSubPurchase(maskName(name), selectedNumber, subOpts.parentNumber, price, paymentMethod))
+    if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, _adminTxt.adminSubPurchasePrivate(maskName(name), selectedNumber, subOpts.parentNumber, price, paymentMethod), { parse_mode: 'HTML' })
+  } else {
+    notifyGroup(_adminTxt.adminPurchase(maskName(name), selectedNumber, plan?.name || planKey, price, paymentMethod))
+    if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, _adminTxt.adminPurchasePrivate(maskName(name), selectedNumber, plan?.name || planKey, price, paymentMethod), { parse_mode: 'HTML' })
+  }
 
   return { success: true, sipUsername, sipPassword, expiresAt, plan }
 }
