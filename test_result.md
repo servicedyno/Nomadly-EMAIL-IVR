@@ -248,7 +248,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "CloudPhone wallet purchase crash fix - Try/catch wrapper with auto-refund"
+    - "Leads generation partial delivery + refund fixes"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
