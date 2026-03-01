@@ -274,10 +274,18 @@ async function saveMessage(chatId, role, content) {
   }
 }
 
+// ── Language display names for AI instruction ──
+const LANG_NAMES = {
+  en: 'English',
+  fr: 'French (Français)',
+  zh: 'Chinese (中文)',
+  hi: 'Hindi (हिन्दी)',
+}
+
 // ── Main AI response function ──
-async function getAiResponse(chatId, userMessage) {
+async function getAiResponse(chatId, userMessage, lang = 'en') {
   if (!openai) {
-    return { response: null, escalate: needsEscalation(userMessage), error: 'OpenAI not initialized' }
+    return { response: null, escalate: needsEscalation(userMessage, lang), error: 'OpenAI not initialized' }
   }
 
   try {
@@ -287,9 +295,15 @@ async function getAiResponse(chatId, userMessage) {
       getConversationHistory(chatId),
     ])
 
+    // Build language instruction
+    const langName = LANG_NAMES[lang] || LANG_NAMES.en
+    const langInstruction = lang !== 'en'
+      ? `\n\n## LANGUAGE REQUIREMENT\n**CRITICAL**: The user's preferred language is ${langName}. You MUST respond entirely in ${langName}. Do NOT respond in English. Translate all product names, instructions, and support information into ${langName}. Use HTML tags (<b>, <i>, <code>) for formatting, not markdown.`
+      : ''
+
     // Build messages array
     const messages = [
-      { role: 'system', content: SYSTEM_PROMPT + userContext },
+      { role: 'system', content: SYSTEM_PROMPT + langInstruction + userContext },
       ...history,
       { role: 'user', content: userMessage },
     ]
@@ -309,10 +323,14 @@ async function getAiResponse(chatId, userMessage) {
     await saveMessage(chatId, 'assistant', aiResponse)
 
     // Check if AI itself flagged escalation or if keywords match
-    const escalate = needsEscalation(userMessage) ||
+    const escalate = needsEscalation(userMessage, lang) ||
       aiResponse.toLowerCase().includes('human agent') ||
       aiResponse.toLowerCase().includes('support team') ||
-      aiResponse.toLowerCase().includes('escalat')
+      aiResponse.toLowerCase().includes('escalat') ||
+      // Multi-language escalation phrases in AI response
+      (lang === 'fr' && (aiResponse.toLowerCase().includes('agent humain') || aiResponse.toLowerCase().includes('équipe de support'))) ||
+      (lang === 'zh' && (aiResponse.includes('人工客服') || aiResponse.includes('支持团队'))) ||
+      (lang === 'hi' && (aiResponse.includes('सहायता टीम') || aiResponse.includes('मानव एजेंट')))
 
     return { response: aiResponse, escalate, error: null }
   } catch (e) {
