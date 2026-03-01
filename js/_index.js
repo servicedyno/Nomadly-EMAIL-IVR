@@ -14966,8 +14966,24 @@ app.get('/crypto-pay-leads', auth, async (req, res) => {
       else if (['Australia'].includes(ld.country)) { areaCodes = ['4'] }
       else { areaCodes = ld.area === 'Mixed Area Codes' ? _buyLeadsSelectAreaCode(ld.country, ld.area) : [ld.area] }
       const requireRealName = isTargetLeads && cnam
-      const result = await validateBulkNumbers(ld.carrier, ld.amount, cc, areaCodes, cnam, bot, chatId, lang, requireRealName)
+      const result = await validateBulkNumbers(ld.carrier, ld.amount, cc, areaCodes, cnam, bot, chatId, lang, requireRealName, { target: ld.targetName, price: price, walletDeducted: true, paymentCoin: 'CRYPTO' })
       if (!result) return sendMessage(chatId, translation('t.buyLeadsError', lang)) || res.send(html())
+      // ── Partial delivery refund for crypto — credit wallet USD ──
+      if (result._partialReason) {
+        const requested = result._targetCount || ld.amount || 1
+        const delivered = result._deliveredCount || result.length
+        if (delivered < requested && price > 0) {
+          const undeliveredRatio = (requested - delivered) / requested
+          const refundAmount = Math.round(undeliveredRatio * price * 100) / 100
+          if (refundAmount > 0) {
+            await atomicIncrement(walletOf, chatId, 'usdIn', refundAmount)
+            const { usdBal: rb1 } = await getBalance(walletOf, chatId)
+            sendMessage(chatId, `💰 <b>Partial Refund</b>\n\n📊 Ordered: ${requested} leads\n✅ Delivered: ${delivered}\n💵 Refund: <b>$${refundAmount.toFixed(2)}</b> credited to your wallet\n💰 Wallet: $${rb1.toFixed(2)} USD`)
+            if (TELEGRAM_ADMIN_CHAT_ID) bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID, `💰 <b>Partial Lead Refund (Crypto)</b>\n👤 ${name} (${chatId})\n📊 ${delivered}/${requested} leads\n💵 Refund: $${refundAmount.toFixed(2)} → wallet`, { parse_mode: 'HTML' }).catch(() => {})
+            log(`[crypto-pay-leads] Partial refund: $${refundAmount} to ${chatId} wallet (${delivered}/${requested}, ${result._partialReason})`)
+          }
+        }
+      }
       cc = '+' + cc; const re = cc === '+1' ? '' : '0'
       if (cnam) {
         const withRealNames = result.filter(a => a[3] && isRealPersonName(a[3]))
