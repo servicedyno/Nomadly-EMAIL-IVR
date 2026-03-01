@@ -4116,8 +4116,27 @@ Enter new value:`), bc)
       const lang = info?.userLanguage ?? 'en'
       // For targeted leads: requireRealName=true so we keep generating until we have enough leads with actual person names
       const requireRealName = isTargetLeads && cnam
-      const res = await validateBulkNumbers(info?.carrier, info?.amount, cc, areaCodes, cnam, bot, chatId, lang, requireRealName, { target: info?.targetName, price: info?.price })
-      if (!res || res.length === 0) return send(chatId, t.buyLeadsError)
+
+      // ── Deduct wallet BEFORE starting lead generation ──
+      // This ensures the charge persists even if the process crashes mid-generation
+      if (coin === u.usd) {
+        await atomicIncrement(walletOf, chatId, 'usdOut', Number(priceUsd))
+      } else if (coin === u.ngn) {
+        await atomicIncrement(walletOf, chatId, 'ngnOut', priceNgn)
+      }
+      log(`[Leads] Wallet pre-charged $${priceUsd} for ${chatId} before generation`)
+
+      const res = await validateBulkNumbers(info?.carrier, info?.amount, cc, areaCodes, cnam, bot, chatId, lang, requireRealName, { target: info?.targetName, price: info?.price, walletDeducted: true, paymentCoin: coin })
+      if (!res || res.length === 0) {
+        // ── Refund wallet on total failure ──
+        if (coin === u.usd) {
+          await atomicIncrement(walletOf, chatId, 'usdIn', Number(priceUsd))
+        } else if (coin === u.ngn) {
+          await atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn)
+        }
+        log(`[Leads] Wallet refunded $${priceUsd} for ${chatId} — generation failed`)
+        return send(chatId, t.buyLeadsError)
+      }
 
       // ── Partial delivery: refund undelivered portion ──
       if (res._partialReason) {
