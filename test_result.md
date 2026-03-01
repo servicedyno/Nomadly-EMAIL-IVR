@@ -248,7 +248,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Leads generation partial delivery + refund fixes"
+    - "Real-Time Bulk IVR, Quick IVR, and Outbound SIP Testing"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
