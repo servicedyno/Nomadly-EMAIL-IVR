@@ -1070,8 +1070,8 @@ const msg = {
 // ── Translated button labels (for multilingual keyboards) ──
 const btnI18n = {
   fr: {
-    buyPhoneNumber: '🛒 Choisir un Forfait Cloud IVR',
-    myNumbers: '📱 Mes Numéros',
+    buyPhoneNumber: '🛒 Choisir un Forfait',
+    myNumbers: '📋 Mes Forfaits',
     sipSettings: '📖 Guide SIP',
     usageBilling: '📊 Utilisation & Facturation',
     localNumber: '📍 Numéro Local',
