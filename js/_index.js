@@ -3873,7 +3873,9 @@ Enter new value:`), bc)
       if (provider === 'twilio') {
         // ── TWILIO PURCHASE FLOW (via shared helper) ──
         const addressSid = info?.cpAddressSid || null
-        const result = await executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, info?.cpNumberType || 'local', coin === u.usd ? 'wallet_usd' : 'wallet_ngn', addressSid)
+        const isSubNumber = info?.cpIsSubNumber || false
+        const subOpts = isSubNumber ? { isSubNumber: true, parentNumber: info?.cpSubParentNumber } : null
+        const result = await executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, info?.cpNumberType || 'local', coin === u.usd ? 'wallet_usd' : 'wallet_ngn', addressSid, subOpts)
         if (result.error) {
           if (coin === u.usd) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
           else await atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn)
@@ -3883,11 +3885,19 @@ Enter new value:`), bc)
         sipPassword = result.sipPassword
         const { usdBal: usd2, ngnBal: ngn2 } = await getBalance(walletOf, chatId)
         send(chatId, t.showWallet(usd2, ngn2))
-        send(chatId, cpTxt.activated(
-          selectedNumber, result.plan?.name || planKey, price, sipUsername,
-          phoneConfig.SIP_DOMAIN,
-          phoneConfig.shortDate(result.expiresAt.toISOString())
-        ), trans('o'))
+        if (isSubNumber) {
+          send(chatId, cpTxt.subActivated(
+            selectedNumber, info?.cpSubParentNumber, price, sipUsername,
+            phoneConfig.SIP_DOMAIN,
+            phoneConfig.shortDate(result.expiresAt.toISOString())
+          ), trans('o'))
+        } else {
+          send(chatId, cpTxt.activated(
+            selectedNumber, result.plan?.name || planKey, price, sipUsername,
+            phoneConfig.SIP_DOMAIN,
+            phoneConfig.shortDate(result.expiresAt.toISOString())
+          ), trans('o'))
+        }
       } else {
         // ── TELNYX PURCHASE FLOW ──
         orderResult = await telnyxApi.buyNumber(
