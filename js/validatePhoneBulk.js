@@ -193,6 +193,8 @@ const validateBulkNumbers = async (carrier, phonesToGenerate, countryCode, areaC
       target: jobMeta.target,
       price: jobMeta.price,
       lang,
+      walletDeducted: jobMeta.walletDeducted || false,
+      paymentCoin: jobMeta.paymentCoin || null,
     }).catch(e => { log(`[LeadJobs] Create error: ${e.message}`); return null })
 
     // ── Start periodic progress saves ──
