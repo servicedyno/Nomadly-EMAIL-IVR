@@ -857,3 +857,17 @@ agent_communication:
           agent: "main"
           comment: "Implemented 7 fixes: (1) executeTwilioPurchase now stores telnyxSipUsername/telnyxSipPassword/telnyxCredentialId in number doc. (2) Twilio voice webhook uses telnyxSipUsername || sipUsername for SIP routing. (3) Telnyx voice-service.js uses telnyxSipUsername for SIP routing (both initial and fallback paths). (4) Added deleteSIPCredential to telnyx-service.js. (5) Added removeSipCredential to twilio-service.js. (6) Added /phone/reset-credentials endpoint that regenerates both Twilio+Telnyx credentials, stores new telnyxSipUsername, notifies user via Telegram. (7) Bulk IVR billing: onCallStatusUpdate now calls billCallMinutesUnified after call completion with duration>0. Also ensured Telnyx purchase flow stores telnyxSipUsername/telnyxSipPassword/telnyxCredentialId."
 
+
+
+  - task: "Admin notification for resumed lead jobs + /bal command"
+    implemented: true
+    working: "NA"
+    file: "js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Fixed missing admin notifications for resumed lead jobs: (1) deliverLeadResults() now sends lead files to TELEGRAM_ADMIN_CHAT_ID. (2) Resumed job completion path now sends summary notification to admin. (3) Added /bal admin command to check any user wallet balance + recent lead jobs. (4) Registered /bal in admin bot commands."
+
