@@ -3587,27 +3587,34 @@ Enter new value:`), bc)
       // buy domain
       const domain = info?.domain
       const lang = info?.userLanguage ?? 'en'
-      const error = await buyDomainFullProcess(chatId, lang, domain)
-      if (error) return
-      const name = await get(nameOf, chatId)
 
-      // wallet update
-      if (coin === u.usd) {
-        set(payments, nanoid(), `Wallet,Domain,${domain},$${priceUsd},${chatId},${name},${new Date()}`)
-        await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
+      try {
+        const error = await buyDomainFullProcess(chatId, lang, domain)
+        if (error) return
+        const name = await get(nameOf, chatId)
+
+        // wallet update — charged AFTER successful domain registration
+        if (coin === u.usd) {
+          set(payments, nanoid(), `Wallet,Domain,${domain},$${priceUsd},${chatId},${name},${new Date()}`)
+          await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
+        }
+        if (coin === u.ngn) {
+          set(payments, nanoid(), `Wallet,Domain,${domain},$${priceUsd},${chatId},${name},${new Date()},${priceNgn} NGN`)
+          await atomicIncrement(walletOf, chatId, 'ngnOut', priceNgn)
+        }
+        const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
+        send(chatId, t.showWallet(usd, ngn), trans('o'))
+        notifyGroup(`🌐 <b>Domain Registered!</b>\nUser ${maskName(name)} just claimed <b>${domain}</b> — your dream domain could be next.\nGrab yours before it's taken — /start`)
+        checkAndNotifyTierUpgrade(preSpend)
+        // Post-purchase upsell
+        setTimeout(() => {
+          send(chatId, `💡 <b>What's next with ${domain}?</b>\n\n🔗 <b>Activate for URL Shortener</b> — use ${domain} as your branded short link\n🌐 <b>Manage DNS</b> — point it to your server\n📞 <b>Get a Cloud IVR</b> — pair with a virtual number\n\nTap one of the options below to continue.`, k.of([['🔗 Activate Domain for Shortener'], ['📞 Cloud IVR + SIP'], [t.back]]))
+        }, 2000)
+      } catch (domainErr) {
+        log(`[Domain] Purchase crashed for ${chatId}: ${domainErr.message}`)
+        send(chatId, t.purchaseFailed || '❌ Domain purchase failed. Your wallet was not charged. Please try again or contact support.', trans('o'))
+        send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>Domain purchase crash</b>\nUser: ${chatId}\nDomain: ${domain}\nError: ${domainErr.message}`, { parse_mode: 'HTML' })
       }
-      if (coin === u.ngn) {
-        set(payments, nanoid(), `Wallet,Domain,${domain},$${priceUsd},${chatId},${name},${new Date()},${priceNgn} NGN`)
-        await atomicIncrement(walletOf, chatId, 'ngnOut', priceNgn)
-      }
-      const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
-      send(chatId, t.showWallet(usd, ngn), trans('o'))
-      notifyGroup(`🌐 <b>Domain Registered!</b>\nUser ${maskName(name)} just claimed <b>${domain}</b> — your dream domain could be next.\nGrab yours before it's taken — /start`)
-      checkAndNotifyTierUpgrade(preSpend)
-      // Post-purchase upsell
-      setTimeout(() => {
-        send(chatId, `💡 <b>What's next with ${domain}?</b>\n\n🔗 <b>Activate for URL Shortener</b> — use ${domain} as your branded short link\n🌐 <b>Manage DNS</b> — point it to your server\n📞 <b>Get a Cloud IVR</b> — pair with a virtual number\n\nTap one of the options below to continue.`, k.of([['🔗 Activate Domain for Shortener'], ['📞 Cloud IVR + SIP'], [t.back]]))
-      }, 2000)
     },
     'hosting-pay': async coin => {
       set(state, chatId, 'action', 'none')
