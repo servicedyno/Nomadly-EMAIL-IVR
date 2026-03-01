@@ -63,14 +63,40 @@ async function downloadAndSave(fileLink, chatId, originalName, mimeType) {
   }
 
   const id = crypto.randomUUID().slice(0, 12)
-  const filename = `${chatId}_${id}.${ext}`
-  const localPath = path.join(AUDIO_DIR, filename)
+  const rawFilename = `${chatId}_${id}.${ext}`
+  const rawPath = path.join(AUDIO_DIR, rawFilename)
 
   // Download file
   const response = await axios.get(fileLink, { responseType: 'arraybuffer', timeout: 30000 })
-  fs.writeFileSync(localPath, Buffer.from(response.data))
+  fs.writeFileSync(rawPath, Buffer.from(response.data))
 
-  const size = response.data.byteLength || 0
+  let filename = rawFilename
+  let localPath = rawPath
+  let finalMimeType = mimeType || 'audio/mpeg'
+
+  // Convert OGG/non-MP3 to MP3 for Twilio compatibility
+  // Twilio only supports: MP3, WAV, AIFF, µ-law
+  if (ext === 'ogg' || ext === 'opus' || ext === 'mp4' || ext === 'webm') {
+    try {
+      const mp3Filename = `${chatId}_${id}.mp3`
+      const mp3Path = path.join(AUDIO_DIR, mp3Filename)
+      execSync(`ffmpeg -i "${rawPath}" -codec:a libmp3lame -b:a 128k -y "${mp3Path}"`, {
+        timeout: 30000,
+        stdio: 'pipe',
+      })
+      // Remove original OGG, use MP3
+      fs.unlinkSync(rawPath)
+      filename = mp3Filename
+      localPath = mp3Path
+      finalMimeType = 'audio/mpeg'
+      log(`[AudioLibrary] Converted ${ext} → MP3: ${mp3Filename}`)
+    } catch (e) {
+      log(`[AudioLibrary] ffmpeg conversion failed (${ext} → MP3): ${e.message}, keeping original`)
+      // Keep original file as fallback
+    }
+  }
+
+  const size = fs.statSync(localPath).size
   const audioUrl = getAudioUrl(filename)
 
   log(`[AudioLibrary] Saved: ${filename} (${(size / 1024).toFixed(1)} KB) for chatId ${chatId}`)
