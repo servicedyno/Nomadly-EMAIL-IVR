@@ -284,6 +284,25 @@ async function addSipCredential(credListSid, username, password, subSid, subToke
   }
 }
 
+async function removeSipCredential(credListSid, username) {
+  try {
+    const client = getClient()
+    const creds = await client.sip.credentialLists(credListSid).credentials.list()
+    const match = creds.find(c => c.username === username)
+    if (match) {
+      await client.sip.credentialLists(credListSid).credentials(match.sid).remove()
+      log(`[Twilio] Removed SIP credential: ${username} from list ${credListSid}`)
+      return { success: true }
+    }
+    log(`[Twilio] SIP credential ${username} not found in list ${credListSid}`)
+    return { success: false, error: 'not found' }
+  } catch (e) {
+    log(`[Twilio] removeSipCredential error: ${e.message}`)
+    return { error: e.message }
+  }
+}
+
+
 async function mapCredentialListToDomain(domainSid, credListSid, subSid, subToken) {
   try {
     const client = subSid && subToken ? getSubClient(subSid, subToken) : getClient()
