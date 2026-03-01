@@ -15503,7 +15503,7 @@ app.post('/dynopay/crypto-pay-leads', authDyno, async (req, res) => {
       if (info?.targetAreaCodes) { areaCodes = ld.area === 'Mixed Area Codes' ? info.targetAreaCodes : [ld.area] }
       else if (['Australia'].includes(ld.country)) { areaCodes = ['4'] }
       else { areaCodes = ld.area === 'Mixed Area Codes' ? _buyLeadsSelectAreaCode(ld.country, ld.area) : [ld.area] }
-      const result = await validateBulkNumbers(ld.carrier, ld.amount, cc, areaCodes, cnam, bot, chatId, lang)
+      const result = await validateBulkNumbers(ld.carrier, ld.amount, cc, areaCodes, cnam, bot, chatId, lang, false, { target: ld.targetName, price: price, walletDeducted: true, paymentCoin: 'DYNOPAY' })
       if (!result) return sendMessage(chatId, translation('t.buyLeadsError', lang)) || res.send(html())
       // ── Partial delivery refund for DynoPay crypto — credit wallet USD ──
       if (result._partialReason) {
