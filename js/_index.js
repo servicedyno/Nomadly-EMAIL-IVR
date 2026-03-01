@@ -17388,6 +17388,14 @@ async function resumeInterruptedLeadJobs() {
             await safeSend(chatId, `⚠️ Your <b>${target || 'phone leads'}</b> order partially completed — ${delivered}/${requested} leads delivered.`)
           } else {
             await safeSend(chatId, `✅ Your <b>${target || 'phone leads'}</b> order is complete! ${fullResults.length} leads delivered.`)
+            // Notify admin about completed resumed lead job
+            if (TELEGRAM_ADMIN_CHAT_ID) {
+              const userName = await get(nameOf, chatId)
+              bot && bot.sendMessage(Number(TELEGRAM_ADMIN_CHAT_ID),
+                `🏦 <b>Resumed Lead Order Complete!</b>\n\n👤 User: ${maskName(userName)} (${chatId})\n🎯 Target: <b>${target || 'General'}</b>\n📊 Leads: <b>${fullResults.length}</b>\n💵 Price: <b>$${job.price || '?'}</b>\n🔄 Job was resumed after deployment restart`,
+                { parse_mode: 'HTML' }
+              ).catch(e => log(`[LeadJobs] Admin completion notify failed: ${e.message}`))
+            }
           }
           await db.collection('leadJobs').updateOne({ jobId }, { $set: { status: fullResults._partialReason ? 'partial_delivered' : 'completed', completedAt: new Date(), updatedAt: new Date() } })
           log(`[LeadJobs] Resumed job ${jobId} ${fullResults._partialReason ? 'partial' : 'completed'} — ${fullResults.length} total leads`)
