@@ -79,7 +79,7 @@ This opens the Cloud IVR hub with these buttons:
 - 📊 Usage & Billing — View call/SMS usage stats
 
 #### How to buy a phone number:
-📞 Cloud IVR + SIP → 🛒 Choose a Cloud IVR Plan → Select plan (Starter/Pro/Business) → Select country → Select number type (Local/Toll-Free/Mobile) → Pick a number from the list → Confirm order → Choose payment method → ✅ Number activated
+📞 Cloud IVR + SIP → 🛒 Choose a Plan → Select plan (Starter/Pro/Business) → Select country → Select number type (Local/Toll-Free/Mobile) → Pick a number from the list → Confirm order → Choose payment method → ✅ Number activated
 
 #### Plans & Pricing:
 ${process.env.PHONE_SERVICE_ON === 'true' ? `- <b>Starter — $${process.env.PHONE_STARTER_PRICE || '50'}/mo</b>: ${process.env.STARTER_MINUTES || '100'} min + ${process.env.STARTER_SMS || '50'} SMS. Features: Call forwarding, SMS to Telegram. Up to 3 extra numbers.
@@ -102,7 +102,7 @@ ${process.env.PHONE_SERVICE_ON === 'true' ? `- <b>Starter — $${process.env.PHO
 | IVR Auto-attendant | ❌ | ❌ | ✅ |
 
 #### How to manage a phone number:
-📞 Cloud IVR + SIP → 📱 My Numbers → Tap a number → You see the management menu:
+📞 Cloud IVR + SIP → 📋 My Plans → Tap a number → You see the management menu:
 - 📞 Call Forwarding — Set up always forward, forward when busy/no answer, or disable
 - 📩 SMS Settings — Configure SMS to Telegram, Email, or Webhook URL
 - 📨 SMS Inbox — Read received SMS messages (with pagination)
@@ -116,7 +116,7 @@ ${process.env.PHONE_SERVICE_ON === 'true' ? `- <b>Starter — $${process.env.PHO
 
 #### How to find/generate SIP Credentials:
 SIP credentials are <b>automatically generated</b> when you purchase a Cloud IVR number (Pro or Business plan).
-To view them later: 📞 Cloud IVR + SIP → 📱 My Numbers → Select your number → 🔑 SIP Credentials
+To view them later: 📞 Cloud IVR + SIP → 📋 My Plans → Select your number → 🔑 SIP Credentials
 From there you can:
 - 👁️ Reveal Password — Show the SIP password
 - 🔄 Reset Password — Generate new SIP credentials
@@ -135,11 +135,11 @@ Visit ${CALL_PAGE_URL} — enter your SIP credentials and call directly from bro
 
 #### How to set up a softphone (Zoiper, etc.):
 📞 Cloud IVR + SIP → 📖 SIP Setup Guide, OR:
-📞 Cloud IVR + SIP → 📱 My Numbers → Select number → 🔑 SIP Credentials → 📖 SIP Setup Guide
+📞 Cloud IVR + SIP → 📋 My Plans → Select number → 🔑 SIP Credentials → 📖 SIP Setup Guide
 Steps: Download Zoiper → Add SIP account → Enter username + password (from 🔑 SIP Credentials) → Domain: ${SIP_DOMAIN} → Save → Make a test call
 
 #### How to set up call forwarding:
-📞 Cloud IVR + SIP → 📱 My Numbers → Select number → 📞 Call Forwarding → Choose mode:
+📞 Cloud IVR + SIP → 📋 My Plans → Select number → 📞 Call Forwarding → Choose mode:
 - 📞 Always Forward — All calls go to your forwarding number
 - 📵 Forward When Busy — Only when line is busy
 - ⏰ Forward If No Answer — After ring timeout
@@ -237,10 +237,10 @@ From main menu → tap <b>💼 Become A Reseller</b>
 ## COMMON SUPPORT SCENARIOS
 
 ### "Where can I generate/find my SIP credentials?"
-→ Go to <b>📞 Cloud IVR + SIP</b> → <b>📱 My Numbers</b> → Select your number → <b>🔑 SIP Credentials</b>. From there tap <b>👁️ Reveal Password</b> to see your password. Note: SIP requires <b>Pro</b> or <b>Business</b> plan — Starter users need to upgrade first via <b>🔄 Renew / Change Plan</b>.
+→ Go to <b>📞 Cloud IVR + SIP</b> → <b>📋 My Plans</b> → Select your number → <b>🔑 SIP Credentials</b>. From there tap <b>👁️ Reveal Password</b> to see your password. Note: SIP requires <b>Pro</b> or <b>Business</b> plan — Starter users need to upgrade first via <b>🔄 Renew / Change Plan</b>.
 
 ### "How do I make calls from my browser?"
-→ Visit <b>${CALL_PAGE_URL}</b> and enter your SIP credentials (get them from 📞 Cloud IVR → 📱 My Numbers → your number → 🔑 SIP Credentials). No app download needed.
+→ Visit <b>${CALL_PAGE_URL}</b> and enter your SIP credentials (get them from 📞 Cloud IVR → 📋 My Plans → your number → 🔑 SIP Credentials). No app download needed.
 
 ### "My leads haven't arrived"
 → Lead generation can take 5-30 minutes depending on quantity and type. Targeted leads with real names take longer. If it's been over 30 minutes, a human agent will investigate.
@@ -264,19 +264,19 @@ From main menu → tap <b>💼 Become A Reseller</b>
 → DNS changes can take up to 24-48 hours to propagate. Check your DNS records via <b>🌐 Register Domain</b> → <b>📂 My Domain Names</b> → select domain → <b>🔧 DNS Management</b>. If issues persist, a human agent will help.
 
 ### "How do I set up SIP / connect a softphone?"
-→ Two ways: (1) From hub: <b>📞 Cloud IVR + SIP</b> → <b>📖 SIP Setup Guide</b>. (2) From your number: <b>📱 My Numbers</b> → select number → <b>🔑 SIP Credentials</b> → <b>📖 SIP Setup Guide</b>. Download Zoiper/Ooma, enter username + password from 🔑 SIP Credentials, domain: <code>${SIP_DOMAIN}</code>.
+→ Two ways: (1) From hub: <b>📞 Cloud IVR + SIP</b> → <b>📖 SIP Setup Guide</b>. (2) From your number: <b>📋 My Plans</b> → select number → <b>🔑 SIP Credentials</b> → <b>📖 SIP Setup Guide</b>. Download Zoiper/Ooma, enter username + password from 🔑 SIP Credentials, domain: <code>${SIP_DOMAIN}</code>.
 
 ### "How do I set up voicemail?"
-→ <b>📞 Cloud IVR + SIP</b> → <b>📱 My Numbers</b> → select your number → <b>🎙️ Voicemail</b>. You can enable/disable, record a custom greeting, set ring time, and forward voicemails to Telegram or Email. Requires <b>Pro</b> or <b>Business</b> plan.
+→ <b>📞 Cloud IVR + SIP</b> → <b>📋 My Plans</b> → select your number → <b>🎙️ Voicemail</b>. You can enable/disable, record a custom greeting, set ring time, and forward voicemails to Telegram or Email. Requires <b>Pro</b> or <b>Business</b> plan.
 
 ### "How do I set up call forwarding?"
-→ <b>📞 Cloud IVR + SIP</b> → <b>📱 My Numbers</b> → select your number → <b>📞 Call Forwarding</b>. Choose: Always Forward, Forward When Busy, Forward If No Answer, or Disable. Forwarding costs $${process.env.CALL_FORWARDING_RATE_MIN || '0.50'}/min from wallet.
+→ <b>📞 Cloud IVR + SIP</b> → <b>📋 My Plans</b> → select your number → <b>📞 Call Forwarding</b>. Choose: Always Forward, Forward When Busy, Forward If No Answer, or Disable. Forwarding costs $${process.env.CALL_FORWARDING_RATE_MIN || '0.50'}/min from wallet.
 
 ### "How do I change my plan / upgrade?"
-→ <b>📞 Cloud IVR + SIP</b> → <b>📱 My Numbers</b> → select your number → <b>🔄 Renew / Change Plan</b>. You can renew your current plan or switch to a higher/lower plan.
+→ <b>📞 Cloud IVR + SIP</b> → <b>📋 My Plans</b> → select your number → <b>🔄 Renew / Change Plan</b>. You can renew your current plan or switch to a higher/lower plan.
 
 ### "How do I read my SMS messages?"
-→ <b>📞 Cloud IVR + SIP</b> → <b>📱 My Numbers</b> → select your number → <b>📨 SMS Inbox</b>. SMS are also automatically forwarded to this Telegram chat.
+→ <b>📞 Cloud IVR + SIP</b> → <b>📋 My Plans</b> → select your number → <b>📨 SMS Inbox</b>. SMS are also automatically forwarded to this Telegram chat.
 
 ### "How do I change language / settings?"
 → Tap <b>🌍 Settings</b> from the main menu → Select your preferred language (English, French, Chinese, Hindi).
@@ -333,7 +333,7 @@ When guiding users to navigation, you MUST use the button labels that match thei
 
 ### Cloud Phone Buttons (inside number management)
 | English | French | Chinese | Hindi |
-| 📱 My Numbers | 📱 Mes Numéros | 📱 我的号码 | 📱 मेरे नंबर |
+| 📋 My Plans | 📋 Mes Forfaits | 📋 我的套餐 | 📋 मेरे प्लान |
 | 📞 Call Forwarding | 📞 Transfert d'Appels | 📞 呼叫转移 | 📞 कॉल फ़ॉरवर्डिंग |
 | 📩 SMS Settings | 📩 Paramètres SMS | 📩 短信设置 | 📩 SMS सेटिंग्स |
 | 📨 SMS Inbox | 📨 Boîte SMS | 📨 短信收件箱 | 📨 SMS इनबॉक्स |
@@ -494,7 +494,7 @@ async function getAiResponse(chatId, userMessage, lang = 'en') {
     // Build language instruction
     const langName = LANG_NAMES[lang] || LANG_NAMES.en
     const langInstruction = lang !== 'en'
-      ? `\n\n## LANGUAGE REQUIREMENT\n**CRITICAL**: The user's preferred language is ${langName}. You MUST:\n1. Respond entirely in ${langName}. Do NOT respond in English.\n2. Use the TRANSLATED BUTTON LABELS from the "BUTTON LABELS BY LANGUAGE" table above for the "${langName}" column. For example, instead of "📱 My Numbers" use the ${langName} version from the table.\n3. Use HTML tags (<b>, <i>, <code>) for formatting, not markdown.`
+      ? `\n\n## LANGUAGE REQUIREMENT\n**CRITICAL**: The user's preferred language is ${langName}. You MUST:\n1. Respond entirely in ${langName}. Do NOT respond in English.\n2. Use the TRANSLATED BUTTON LABELS from the "BUTTON LABELS BY LANGUAGE" table above for the "${langName}" column. For example, instead of "📋 My Plans" use the ${langName} version from the table.\n3. Use HTML tags (<b>, <i>, <code>) for formatting, not markdown.`
       : ''
 
     // Build messages array
