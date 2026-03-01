@@ -2055,9 +2055,9 @@ Sélectionnez une option :`,
     },
     selectPlan: (number) => {
       let text = `✅ चयनित: <b>${formatPhone(number)}</b>\n\n📋 अपना प्लान चुनें:\n\n`
-      if (PHONE_STARTER_ON) text += `<b>💡 स्टार्टर — $${PHONE_STARTER_PRICE}/माह</b>\n${plans.starter.minutes} मिनट · ${plans.starter.sms} SMS · ${plans.starter.features.join(' · ')}\n\n`
-      if (PHONE_PRO_ON) text += `<b>⭐ प्रो — $${PHONE_PRO_PRICE}/माह</b>\n${plans.pro.minutes} मिनट · ${plans.pro.sms} SMS · ${plans.pro.features.join(' · ')}\n\n`
-      if (PHONE_BUSINESS_ON) text += `<b>👑 बिज़नेस — $${PHONE_BUSINESS_PRICE}/माह</b>\n${plans.business.minutes} मिनट · ${plans.business.sms} SMS · ${plans.business.features.join(' · ')}\n\n`
+      if (PHONE_STARTER_ON) text += `<b>💡 स्टार्टर — $${PHONE_STARTER_PRICE}/माह</b>\n${plans.starter.minutes} मिनट · ${plans.starter.sms} SMS · ${plans.starter.features.join(' · ')}\n➕ ${SUB_NUMBER_LIMITS.starter} अतिरिक्त नंबर जोड़ें ($${SUB_NUMBER_BASE_PRICE}/माह प्रत्येक से)\n\n`
+      if (PHONE_PRO_ON) text += `<b>⭐ प्रो — $${PHONE_PRO_PRICE}/माह</b>\n${plans.pro.minutes} मिनट · ${plans.pro.sms} SMS · ${plans.pro.features.join(' · ')}\n➕ ${SUB_NUMBER_LIMITS.pro} अतिरिक्त नंबर जोड़ें ($${SUB_NUMBER_BASE_PRICE}/माह प्रत्येक से)\n\n`
+      if (PHONE_BUSINESS_ON) text += `<b>👑 बिज़नेस — $${PHONE_BUSINESS_PRICE}/माह</b>\n${plans.business.minutes} मिनट · ${plans.business.sms} SMS · ${plans.business.features.join(' · ')}\n➕ ${SUB_NUMBER_LIMITS.business} अतिरिक्त नंबर जोड़ें ($${SUB_NUMBER_BASE_PRICE}/माह प्रत्येक से)\n\n`
       text += `<i>आउटबाउंड और फ़ॉरवर्डिंग: $${CALL_FORWARDING_RATE_MIN}/मिनट (वॉलेट से)</i>`
       return text
     },
