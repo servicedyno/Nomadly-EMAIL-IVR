@@ -358,10 +358,6 @@ const validateBulkNumbers = async (carrier, phonesToGenerate, countryCode, areaC
         return res
       }
 
-      // Publish Progress
-      const currentProgress = cnamDisabledAreas.size > 0
-        ? (res.length > targetCount ? targetCount : res.length)
-        : (requireRealName && cnam ? realNameCount : (res.length > targetCount ? targetCount : res.length))
     }
 
     log(
