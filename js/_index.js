@@ -8912,7 +8912,7 @@ Choose an IVR template category:`), k.of(rows))
       })
 
       if (result.error) {
-        send(chatId, ivrOb.formatCallNotification('failed', { ...ivrObData, reason: sanitizeProviderError(result.error, 'voice') }))
+        send(chatId, ivrOb.formatCallNotification('failed', { ...ivrObData, reason: sanitizeHangupCause(result.error) }))
         return goto.submenu5()
       }
 
