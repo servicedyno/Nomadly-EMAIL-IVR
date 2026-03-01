@@ -801,7 +801,7 @@ async function handleCallInitiated(payload) {
   // Only do unanswered SIP ring if: has SIP, no IVR, no forward-always (those need answered call)
   if (hasSip && !hasIvr && !hasForwardAlways) {
     sessionRef.phase = 'ringing_sip'
-    const sipUser = num.sipUsername
+    const sipUser = num.telnyxSipUsername || num.sipUsername
     const sipUri = `sip:${sipUser}@sip.telnyx.com`
     const ringTimeout = fwdConfig?.ringTimeout || 25
     const vmConfig = num.features?.voicemail
