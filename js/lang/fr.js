@@ -826,8 +826,8 @@ ${CHAT_BOT_NAME}`,
   qrCodeText: `Voici votre code QR !`,
   scanQrOrUseChat: chatId =>
     `Scannez le QR avec l'application de marketing SMS pour vous connecter. Vous pouvez également utiliser ce code pour vous connecter : ${chatId}`,
-  domainPurchasedFailed: (domain, buyDomainError) =>
-    `Échec de l'achat du domaine, essayez un autre nom. ${domain} ${buyDomainError}`,
+  domainPurchasedFailed: (domain) =>
+    `❌ L'enregistrement du domaine <b>${domain}</b> n'a pas pu être complété. Veuillez réessayer ou contacter le support si le problème persiste.`,
   noDomainRegistered: `Vous n'avez pas encore acheté de domaines.`,
   registeredDomainList: domainsText => `Voici vos domaines achetés :\n${domainsText}`,
   selectDomainAction: domain => `<b>${domain}</b>\n\nQue souhaitez-vous faire avec ce domaine ?`,
