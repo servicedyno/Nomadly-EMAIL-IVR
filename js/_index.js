@@ -7785,7 +7785,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
     const result = await domainService.updateAllNameservers(domain, newNS, db)
     if (result.error) {
-      return send(chatId, ({ en: `❌ Failed to update nameservers: ${result.error}`, fr: `❌ Échec de la mise à jour des serveurs de noms : ${result.error}`, zh: `❌ 域名服务器更新失败：${result.error}`, hi: `❌ नेमसर्वर अपडेट विफल: ${result.error}` }[lang] || `❌ Failed to update nameservers: ${result.error}`), { parse_mode: 'HTML' })
+      return send(chatId, ({ en: `❌ Failed to update nameservers: ${sanitizeProviderError(result.error, 'domain')}`, fr: `❌ Échec de la mise à jour des serveurs de noms : ${sanitizeProviderError(result.error, 'domain')}`, zh: `❌ 域名服务器更新失败：${sanitizeProviderError(result.error, 'domain')}`, hi: `❌ नेमसर्वर अपडेट विफल: ${sanitizeProviderError(result.error, 'domain')}` }[lang] || `❌ Failed to update nameservers: ${sanitizeProviderError(result.error, 'domain')}`), { parse_mode: 'HTML' })
     }
 
     let msg = `✅ <b>Nameservers updated for ${domain}</b>\n\n`
