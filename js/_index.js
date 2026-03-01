@@ -223,7 +223,7 @@ const {
   renewVPSPlan,
   renewVPSCPanel
 } = require('./vm-instance-setup.js')
-const { console } = require('inspector')
+// const { console } = require('inspector') // removed — shadows global console
 const BROADCAST_CONFIG = require('./broadcast-config.js')
 const { initAutoPromo } = require('./auto-promo.js')
 const { initDailyCoupons } = require('./daily-coupons.js')
