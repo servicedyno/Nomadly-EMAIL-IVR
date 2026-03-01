@@ -4504,7 +4504,7 @@ All verified numbers generated during sourcing.`))
     // AI auto-response
     if (isAiEnabled()) {
       try {
-        const { response: aiResponse, escalate, error } = await getAiResponse(chatId, message)
+        const { response: aiResponse, escalate, error } = await getAiResponse(chatId, message, lang)
 
         if (aiResponse) {
           // Send AI response to user
@@ -4518,17 +4518,17 @@ All verified numbers generated during sourcing.`))
           log(`[Support] AI -> ${chatId}: ${aiResponse.substring(0, 100)}... (escalate: ${escalate})`)
         } else {
           // AI failed — tell user support will follow up, alert admin
-          send(chatId, '✉️ Message received! A support agent will respond shortly.', { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
+          send(chatId, t.supportMsgReceived, { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
           send(TELEGRAM_ADMIN_CHAT_ID, `⚠️ <b>AI failed for ${displayName}</b> (${chatId}) — needs manual reply\nError: ${error || 'unknown'}`, { parse_mode: 'HTML' })
         }
       } catch (e) {
         // Fallback to manual
-        send(chatId, '✉️ Message sent to support. We\'ll respond shortly.', { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
+        send(chatId, t.supportMsgSent, { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
         log(`[Support] AI error: ${e.message}`)
       }
     } else {
       // AI not available — original manual flow
-      send(chatId, '✉️ Message sent to support. We\'ll respond shortly.', { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
+      send(chatId, t.supportMsgSent, { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
     }
     return
   }
