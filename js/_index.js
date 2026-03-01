@@ -873,6 +873,7 @@ const loadData = async () => {
 
   // Initialize Lead Job Persistence
   initLeadJobPersistence(db)
+  initAiSupport(db)
   initShortenerPersistence(db)
 
   // Initialize Honeypot Service (MongoDB tracking + KV setup)
