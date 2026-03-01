@@ -1751,13 +1751,17 @@ Sélectionnez une option :`,
     },
     selectPlan: (number) => {
       let text = `✅ 已选择：<b>${formatPhone(number)}</b>\n\n📋 选择您的套餐：\n\n`
-      if (PHONE_STARTER_ON) text += `<b>💡 入门版 — $${PHONE_STARTER_PRICE}/月</b>\n${plans.starter.minutes} 分钟 · ${plans.starter.sms} 短信 · ${plans.starter.features.join(' · ')}\n➕ 可添加最多 ${SUB_NUMBER_LIMITS.starter} 个额外号码（每个 $${SUB_NUMBER_BASE_PRICE}/月起）\n\n`
-      if (PHONE_PRO_ON) text += `<b>⭐ 专业版 — $${PHONE_PRO_PRICE}/月</b>\n${plans.pro.minutes} 分钟 · ${plans.pro.sms} 短信 · ${plans.pro.features.join(' · ')}\n➕ 可添加最多 ${SUB_NUMBER_LIMITS.pro} 个额外号码（每个 $${SUB_NUMBER_BASE_PRICE}/月起）\n\n`
-      if (PHONE_BUSINESS_ON) text += `<b>👑 商务版 — $${PHONE_BUSINESS_PRICE}/月</b>\n${plans.business.minutes} 分钟 · ${plans.business.sms} 短信 · ${plans.business.features.join(' · ')}\n➕ 可添加最多 ${SUB_NUMBER_LIMITS.business} 个额外号码（每个 $${SUB_NUMBER_BASE_PRICE}/月起）\n\n`
+      if (PHONE_STARTER_ON) text += `<b>💡 入门版 — $${PHONE_STARTER_PRICE}/月</b>\n${plans.starter.minutes} 分钟 · ${plans.starter.sms} 短信 · ${plansI18n.zh.starter.features.join(' · ')}\n➕ 可添加最多 ${SUB_NUMBER_LIMITS.starter} 个额外号码（每个 $${SUB_NUMBER_BASE_PRICE}/月起）\n\n`
+      if (PHONE_PRO_ON) text += `<b>⭐ 专业版 — $${PHONE_PRO_PRICE}/月</b>\n${plans.pro.minutes} 分钟 · ${plans.pro.sms} 短信 · ${plansI18n.zh.pro.features.join(' · ')}\n➕ 可添加最多 ${SUB_NUMBER_LIMITS.pro} 个额外号码（每个 $${SUB_NUMBER_BASE_PRICE}/月起）\n\n`
+      if (PHONE_BUSINESS_ON) text += `<b>👑 商务版 — $${PHONE_BUSINESS_PRICE}/月</b>\n${plans.business.minutes} 分钟 · ${plans.business.sms} 短信 · ${plansI18n.zh.business.features.join(' · ')}\n➕ 可添加最多 ${SUB_NUMBER_LIMITS.business} 个额外号码（每个 $${SUB_NUMBER_BASE_PRICE}/月起）\n\n`
       text += `<i>外呼和转发：$${CALL_FORWARDING_RATE_MIN}/分钟（从钱包扣费）</i>`
       return text
     },
-    orderSummary: (number, country, plan, price) => `📋 <b>订单摘要</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/月\n📩 ${plan.sms} 短信 · 📞 ${plan.minutes} 分钟 · 📲 外呼和转发 $${CALL_FORWARDING_RATE_MIN}/分钟\n⚡ ${plan.features.join(', ')}\n\n💰 合计：<b>$${price}</b>（首月）`,
+    orderSummary: (number, country, plan, price) => {
+      const planKey = plan.name.toLowerCase()
+      const features = plansI18n.zh[planKey]?.features || plan.features
+      return `📋 <b>订单摘要</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/月\n📩 ${plan.sms} 短信 · 📞 ${plan.minutes} 分钟 · 📲 外呼和转发 $${CALL_FORWARDING_RATE_MIN}/分钟\n⚡ ${features.join(', ')}\n\n💰 合计：<b>$${price}</b>（首月）`
+    },
     paymentPrompt: (price) => `价格：<b>$${price}</b>。选择支付方式：`,
     activated: (number, plan, price, sipUser, sipDomain, expiry) => `🎉 <b>您的 Cloud IVR 已激活！</b>\n\n📞 号码：${formatPhone(number)}\n📦 套餐：${plan}（$${price}/月）\n📅 续费日期：${expiry}\n\n━━━ <b>SIP 凭据</b> ━━━\n🌐 服务器：${sipDomain}\n👤 用户名：${sipUser}\n🔑 密码：●●●●●●●●（使用 🔑 SIP 凭据 查看）\n📡 端口：5060 (UDP/TCP) | 5061 (TLS)\n\n━━━ <b>快速设置</b> ━━━\n• 浏览器：在 <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a> 拨打电话\n• 软电话：下载 Zoiper/Ooma，输入 SIP 凭据\n• 短信：来电短信自动转发到此聊天\n• 转发：通过 📱 我的号码 → 呼叫转移 设置`,
     myNumbersList: (numbers) => {
