@@ -455,7 +455,7 @@ const updateAllNameservers = async (domainName, newNameservers, db) => {
       const details = await getDomainDetails(domainName)
       const rd = details?.responseData
       if (!rd?.domainNameId) {
-        return { error: 'Could not find domain at ConnectReseller' }
+        return { error: 'Could not find domain at registrar' }
       }
 
       const APIKey = process.env.API_KEY_CONNECT_RESELLER
