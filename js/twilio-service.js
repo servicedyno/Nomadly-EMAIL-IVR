@@ -395,7 +395,10 @@ async function makeOutboundCall(from, to, twimlUrl, subSid, subToken, options = 
     }
   } catch (e) {
     log(`[Twilio] makeOutboundCall error: ${e.message}`)
-    return { error: e.message }
+    const sanitized = e.message
+      .replace(/\bTwilio\b/gi, 'Speechcue')
+      .replace(/\bTelnyx\b/gi, 'Speechcue')
+    return { error: sanitized }
   }
 }
 
