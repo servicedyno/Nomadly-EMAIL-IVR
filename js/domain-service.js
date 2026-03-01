@@ -146,10 +146,10 @@ const registerDomain = async (domainName, registrar, nsChoice, db, chatId, custo
       log(`[domain-service] ${domainName} registered on OpenProvider (ID: ${result.domainId})`)
     }
   } else {
-    return { error: `Unknown registrar: ${registrar}` }
+    return { error: 'Domain registration failed. Please try again or contact support.' }
   }
 
-  if (result.error) return { error: result.error }
+  if (result.error) return { error: sanitizeErrorForUser(result.error) }
 
   // Store metadata in MongoDB
   if (db) {
