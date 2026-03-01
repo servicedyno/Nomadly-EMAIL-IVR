@@ -69,7 +69,7 @@ def test_system_prompt_navigation_knowledge(content):
     # Test Main Menu Layout
     required_main_menu_buttons = [
         '📞 Cloud IVR + SIP', '🧪 Test SIP Free', '🛒 Digital Products', 
-        '💳 Virtual Card', '🌐 Register Domain', '🔗 URL Shortener',
+        '💳 Virtual Card', '🌐 Register Bulletproof Domain', '🔗 URL Shortener',
         '🎯 Buy Phone Leads', '✅ Validate Numbers', '🛡️🔥 Anti-Red Hosting',
         '👛 My Wallet', '📋 My Subscriptions', '🌍 Settings', 
         '💬 Get Support', '💼 Become A Reseller'
