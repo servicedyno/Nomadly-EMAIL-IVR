@@ -21,22 +21,24 @@ async function searchNumbers(countryCode, numberType, areaCode, limit = 5) {
     'filter[best_effort]': true,
   }
   if (areaCode) params['filter[national_destination_code]'] = areaCode
-  // Request voice and sms capable numbers
-  params['filter[features][]'] = ['sms', 'voice']
+  // Note: filter[features] removed — it causes Telnyx 10007 errors for
+  // popular area codes (e.g. 212). Numbers are validated client-side instead.
 
   try {
     const res = await axios.get(`${BASE}/available_phone_numbers`, { headers: headers(), params })
     const numbers = res.data?.data || []
-    // Enrich each result with parsed capabilities
-    return numbers.map(n => ({
-      ...n,
-      _capabilities: {
-        voice: (n.features || []).some(f => f.name === 'voice'),
-        sms: (n.features || []).some(f => f.name === 'sms'),
-        mms: (n.features || []).some(f => f.name === 'mms'),
-        fax: (n.features || []).some(f => f.name === 'fax'),
-      }
-    }))
+    // Enrich each result with parsed capabilities + filter for voice+sms
+    return numbers
+      .map(n => ({
+        ...n,
+        _capabilities: {
+          voice: (n.features || []).some(f => f.name === 'voice'),
+          sms: (n.features || []).some(f => f.name === 'sms'),
+          mms: (n.features || []).some(f => f.name === 'mms'),
+          fax: (n.features || []).some(f => f.name === 'fax'),
+        }
+      }))
+      .filter(n => n._capabilities.voice && n._capabilities.sms) // ensure voice+sms
   } catch (e) {
     log('Telnyx searchNumbers error:', e.response?.data || e.message)
     return []
