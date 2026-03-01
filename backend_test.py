@@ -1,192 +1,221 @@
 #!/usr/bin/env python3
 """
-Final comprehensive backend test for AI Support navigation knowledge
-Tests all 7 requirements from the review request
+Backend testing for Nomadly domain purchase provider name leak fix and OP false-negative protection
 """
 
 import requests
-import json
-import sys
+import time
+import os
 import re
-from pathlib import Path
+import json
+import subprocess
 
 # Test configuration
-BACKEND_URL = "http://localhost:5000"
-HEALTH_ENDPOINT = f"{BACKEND_URL}/health"
-AI_SUPPORT_FILE = "/app/js/ai-support.js"
+BASE_URL = "http://localhost:5000"
+HEALTH_ENDPOINT = f"{BASE_URL}/health"
 
-def run_comprehensive_test():
-    """Run all tests comprehensively"""
-    print("🚀 AI Support Navigation Knowledge - COMPREHENSIVE TESTING")
-    print("=" * 80)
-    
-    results = []
-    
-    # Test 1: Node.js Health
-    print("🔍 Test 1: Node.js Health Check")
+def log_test_result(test_name, result, details=""):
+    """Log test results in consistent format"""
+    status = "✅ PASS" if result else "❌ FAIL"
+    print(f"{status}: {test_name}")
+    if details:
+        print(f"   Details: {details}")
+    return result
+
+def test_nodejs_health():
+    """Test 1: Node.js Health Check"""
     try:
         response = requests.get(HEALTH_ENDPOINT, timeout=10)
-        
         if response.status_code == 200:
             data = response.json()
-            if data.get('status') == 'healthy' and data.get('database') == 'connected':
-                # Check error log
-                error_log = Path("/var/log/supervisor/nodejs.err.log")
-                if error_log.exists() and error_log.stat().st_size == 0:
-                    results.append(("Node.js health + empty error log", True, "Service healthy, database connected, no errors"))
-                else:
-                    results.append(("Node.js health", False, "Error log not empty"))
-            else:
-                results.append(("Node.js health", False, f"Status: {data}"))
+            healthy = data.get('status') == 'healthy'
+            return log_test_result("Node.js Health Check", healthy, f"Status: {data.get('status')}, DB: {data.get('database')}")
         else:
-            results.append(("Node.js health", False, f"HTTP {response.status_code}"))
+            return log_test_result("Node.js Health Check", False, f"HTTP {response.status_code}")
     except Exception as e:
-        results.append(("Node.js health", False, f"Request failed: {str(e)}"))
-    
-    # Read ai-support.js file
-    print("🔍 Test 2-7: AI Support Content Analysis")
-    try:
-        with open(AI_SUPPORT_FILE, 'r', encoding='utf-8') as f:
-            content = f.read()
-    except Exception as e:
-        results.append(("File reading", False, f"Cannot read ai-support.js: {str(e)}"))
-        return results
-    
-    # Extract SYSTEM_PROMPT (from line with const SYSTEM_PROMPT to line with const ESCALATION_KEYWORDS)
-    lines = content.split('\n')
-    start_idx = next((i for i, line in enumerate(lines) if 'const SYSTEM_PROMPT =' in line), None)
-    end_idx = next((i for i, line in enumerate(lines) if i > (start_idx or 0) and line.strip().startswith('const ') and 'SYSTEM_PROMPT' not in line), None)
-    
-    if start_idx is None or end_idx is None:
-        results.append(("SYSTEM_PROMPT extraction", False, "Could not extract SYSTEM_PROMPT"))
-        return results
-    
-    system_prompt_section = '\n'.join(lines[start_idx:end_idx])
-    
-    # Test 2: SYSTEM_PROMPT Navigation Knowledge
-    main_menu_items = [
-        '📞 Cloud IVR + SIP', '🧪 Test SIP Free', '🛒 Digital Products', 
-        '💳 Virtual Card', 'Register Bulletproof Domain', '🔗 URL Shortener',
-        '🎯 Buy Phone Leads', '✅ Validate Numbers', 'Anti-Red Hosting',
-        '👛 My Wallet', '📋 My Subscriptions', '🌍 Settings', 
-        '💬 Get Support', '💼 Become A Reseller'
-    ]
-    
-    cloud_ivr_items = [
-        '📢 Quick IVR Call', '📞 Bulk IVR Campaign', '🎵 Audio Library',
-        '🛒 Choose a Cloud IVR Plan', '📱 My Numbers', '📖 SIP Setup Guide',
-        '📊 Usage & Billing'
-    ]
-    
-    number_mgmt_items = [
-        'Call Forwarding', 'SMS Settings', 'SMS Inbox', 'Voicemail', 
-        'SIP Credentials', 'Call Recording', 'Auto-attendant', 'Call & SMS Logs'
-    ]
-    
-    missing_main = [item for item in main_menu_items if item not in system_prompt_section]
-    missing_ivr = [item for item in cloud_ivr_items if item not in system_prompt_section]  
-    missing_mgmt = [item for item in number_mgmt_items if item not in system_prompt_section]
-    
-    nav_success = len(missing_main) == 0 and len(missing_ivr) == 0 and len(missing_mgmt) == 0
-    nav_msg = f"Main:{len(missing_main)} missing, IVR:{len(missing_ivr)} missing, Mgmt:{len(missing_mgmt)} missing" if not nav_success else "All navigation elements present"
-    results.append(("SYSTEM_PROMPT navigation knowledge", nav_success, nav_msg))
-    
-    # Test 3: SIP Credentials Navigation Path
-    sip_checks = [
-        'My Numbers → Select your number → 🔑 SIP Credentials',
-        'Reveal Password', 'Reset Password', '${SIP_DOMAIN}', '5060', '5061',
-        'Pro', 'Business'
-    ]
-    missing_sip = [item for item in sip_checks if item not in system_prompt_section]
-    sip_success = len(missing_sip) == 0
-    results.append(("SIP Credentials navigation path", sip_success, f"Missing: {missing_sip}" if missing_sip else "Complete with domain/ports/plans"))
-    
-    # Test 4: Feature-by-plan Table
-    table_checks = [
-        '| SIP Credentials |', '| Call Recording |', '| Voicemail |', 
-        '| IVR Auto-attendant |', 'Starter', 'Pro', 'Business'
-    ]
-    missing_table = [item for item in table_checks if item not in system_prompt_section]
-    table_success = len(missing_table) == 0
-    results.append(("Feature-by-plan table", table_success, f"Missing: {missing_table}" if missing_table else "Table with required features present"))
-    
-    # Test 5: FAQ Scenarios Navigation
-    faq_checks = [
-        'Where can I generate/find my SIP credentials?',
-        'How do I deposit money?', 'How do I set up call forwarding?',
-        'How do I set up voicemail?', 'How do I manage DNS records?',
-        'How do I change language', 'How do I shorten a link?'
-    ]
-    missing_faq = [item for item in faq_checks if item not in system_prompt_section]
-    faq_success = len(missing_faq) == 0
-    results.append(("FAQ scenarios navigation", faq_success, f"Missing: {missing_faq}" if missing_faq else "All key FAQ scenarios present"))
-    
-    # Test 6: Environment Variables  
-    env_vars = ['SIP_DOMAIN', 'CALL_PAGE_URL', 'PHONE_STARTER_PRICE', 'PHONE_PRO_PRICE', 'PHONE_BUSINESS_PRICE']
-    env_usage = [
-        'process.env.SIP_DOMAIN', 'process.env.CALL_PAGE_URL',
-        'process.env.PHONE_STARTER_PRICE', 'process.env.PHONE_PRO_PRICE', 
-        'process.env.PHONE_BUSINESS_PRICE'
-    ]
-    missing_env = [var for var in env_usage if var not in content]
-    env_success = len(missing_env) == 0
-    results.append(("Environment variables usage", env_success, f"Missing: {missing_env}" if missing_env else "All env vars used with defaults"))
-    
-    # Test 7: getAiResponse Function
-    func_checks = [
-        'async function getAiResponse(chatId, userMessage, lang = \'en\')',
-        'SYSTEM_PROMPT + langInstruction + userContext',
-        'messages = [', 'LANG_NAMES'
-    ]
-    export_checks = ['getAiResponse', 'initAiSupport', 'clearHistory', 'needsEscalation', 'isAiEnabled']
-    
-    missing_func = [item for item in func_checks if item not in content]
-    exports_section = content[content.find('module.exports'):] if 'module.exports' in content else ''
-    missing_exports = [item for item in export_checks if item not in exports_section]
-    
-    func_success = len(missing_func) == 0 and len(missing_exports) == 0
-    func_msg = f"Missing func parts: {missing_func}, exports: {missing_exports}" if not func_success else "Function signature and exports correct"
-    results.append(("getAiResponse function", func_success, func_msg))
-    
-    return results
+        return log_test_result("Node.js Health Check", False, str(e))
 
-def main():
-    """Main execution"""
-    results = run_comprehensive_test()
+def test_nodejs_error_log():
+    """Test: Node.js error log should be empty"""
+    try:
+        result = subprocess.run(['wc', '-c', '/var/log/supervisor/nodejs.err.log'], 
+                              capture_output=True, text=True, check=True)
+        size = int(result.stdout.split()[0])
+        is_empty = size == 0
+        return log_test_result("Node.js Error Log Empty", is_empty, f"Log size: {size} bytes")
+    except Exception as e:
+        return log_test_result("Node.js Error Log Empty", False, str(e))
+
+def check_file_content(filepath, description=""):
+    """Helper to read file content safely"""
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            content = f.read()
+        return content
+    except Exception as e:
+        log_test_result(f"Read {filepath} {description}", False, str(e))
+        return None
+
+def test_verify_registration_function():
+    """Test 2: Check _verifyRegistration function in op-service.js"""
+    content = check_file_content('/app/js/op-service.js', '(_verifyRegistration function)')
+    if content is None:
+        return False
     
-    print("\n" + "=" * 80)  
-    print("📊 COMPREHENSIVE TEST RESULTS")
+    # Check if _verifyRegistration function exists
+    has_function = '_verifyRegistration' in content and 'const _verifyRegistration = async (domainName) => {' in content
+    
+    # Check if it's called after 5xx errors
+    has_500_check = 'statusCode >= 500' in content
+    has_wait_call = 'setTimeout(r, 5000)' in content and '_verifyRegistration(domainName)' in content
+    
+    all_checks = has_function and has_500_check and has_wait_call
+    details = f"Function exists: {has_function}, 5xx check: {has_500_check}, Wait+call: {has_wait_call}"
+    
+    return log_test_result("_verifyRegistration function implementation", all_checks, details)
+
+def test_no_openprovider_error_leaks():
+    """Test 3: No OpenProvider in error returns"""
+    try:
+        result = subprocess.run(['grep', '-rn', 'return.*error.*OpenProvider', '/app/js/'], 
+                              capture_output=True, text=True)
+        no_leaks = result.returncode != 0  # grep returns non-zero when no matches found
+        return log_test_result("No OpenProvider in error returns", no_leaks, 
+                             "Found leaks" if not no_leaks else "No leaks found")
+    except Exception as e:
+        return log_test_result("No OpenProvider in error returns", False, str(e))
+
+def test_no_connectreseller_error_leaks():
+    """Test 3b: No ConnectReseller in error returns"""
+    try:
+        result = subprocess.run(['grep', '-rn', 'return.*error.*ConnectReseller', '/app/js/'], 
+                              capture_output=True, text=True)
+        no_leaks = result.returncode != 0  # grep returns non-zero when no matches found
+        return log_test_result("No ConnectReseller in error returns", no_leaks, 
+                             "Found leaks" if not no_leaks else "No leaks found")
+    except Exception as e:
+        return log_test_result("No ConnectReseller in error returns", False, str(e))
+
+def test_cr_domain_register_clean_errors():
+    """Test 4: cr-domain-register.js clean error messages"""
+    content = check_file_content('/app/js/cr-domain-register.js', '(clean error messages)')
+    if content is None:
+        return False
+    
+    # Check that JSON.stringify is only used for logging, not in error returns
+    json_stringify_matches = re.findall(r'return.*JSON\.stringify', content, re.IGNORECASE)
+    clean_errors = len(json_stringify_matches) == 0
+    
+    return log_test_result("cr-domain-register.js clean error messages", clean_errors,
+                          f"JSON.stringify in returns: {len(json_stringify_matches)}")
+
+def test_sanitize_error_function():
+    """Test 5: sanitizeErrorForUser function in domain-service.js"""
+    content = check_file_content('/app/js/domain-service.js', '(sanitizeErrorForUser)')
+    if content is None:
+        return False
+    
+    # Check function exists and is exported
+    has_function = 'const sanitizeErrorForUser = (errorMsg) => {' in content
+    is_exported = 'sanitizeErrorForUser,' in content or 'module.exports' in content and 'sanitizeErrorForUser' in content
+    
+    # Check it strips provider names
+    strips_op = 'OpenProvider' in content and ('replace' in content or 'replaceAll' in content)
+    strips_cr = 'ConnectReseller' in content and ('replace' in content or 'replaceAll' in content)
+    
+    # Check no error returns contain provider names
+    op_in_returns = 'return { error:' in content and 'OpenProvider' in content
+    cr_in_returns = 'return { error:' in content and 'ConnectReseller' in content
+    
+    # Check sanitizeErrorForUser is used in registerDomain
+    is_used = 'sanitizeErrorForUser(result.error)' in content
+    
+    all_checks = has_function and is_exported and strips_op and strips_cr and not op_in_returns and not cr_in_returns and is_used
+    details = f"Function: {has_function}, Exported: {is_exported}, Strips OP: {strips_op}, Strips CR: {strips_cr}, Used: {is_used}, Clean returns: {not op_in_returns and not cr_in_returns}"
+    
+    return log_test_result("sanitizeErrorForUser function", all_checks, details)
+
+def test_buy_domain_full_process_error_handling():
+    """Test 6: _index.js buyDomainFullProcess error handling"""
+    content = check_file_content('/app/js/_index.js', '(buyDomainFullProcess)')
+    if content is None:
+        return False
+    
+    # Check that buyResult.error goes to admin only
+    admin_error_msg = 'TELEGRAM_DEV_CHAT_ID' in content and 'buyResult.error' in content
+    
+    # Check user gets translation only (no raw error)
+    user_gets_translation = "translation('t.domainPurchasedFailed', lang, domain)" in content
+    
+    # Check admin message contains "error:" for debugging
+    admin_has_error_label = 'error: ${buyResult.error}' in content
+    
+    all_checks = admin_error_msg and user_gets_translation and admin_has_error_label
+    details = f"Admin gets error: {admin_error_msg}, User gets translation: {user_gets_translation}, Admin has 'error:': {admin_has_error_label}"
+    
+    return log_test_result("buyDomainFullProcess error handling", all_checks, details)
+
+def test_language_files_signatures():
+    """Test 7: Language files domainPurchasedFailed signatures"""
+    results = []
+    languages = ['en', 'fr', 'zh', 'hi']
+    
+    for lang in languages:
+        filepath = f'/app/js/lang/{lang}.js'
+        content = check_file_content(filepath, f'({lang} language file)')
+        if content is None:
+            results.append(False)
+            continue
+        
+        # Check function signature takes only domain parameter
+        correct_signature = f'domainPurchasedFailed: (domain) =>' in content
+        # Check it doesn't contain buyDomainError parameter
+        no_error_param = 'buyDomainError' not in content or '(domain, buyDomainError)' not in content
+        # Check template doesn't use ${buyDomainError}
+        no_error_in_template = '${buyDomainError}' not in content
+        
+        lang_ok = correct_signature and no_error_param and no_error_in_template
+        results.append(lang_ok)
+        
+        details = f"Signature OK: {correct_signature}, No error param: {no_error_param}, No error in template: {no_error_in_template}"
+        log_test_result(f"Language {lang}.js domainPurchasedFailed signature", lang_ok, details)
+    
+    return all(results)
+
+def run_all_tests():
+    """Run all verification tests"""
+    print("🔍 Starting Nomadly Domain Purchase Provider Leak Fix Verification")
     print("=" * 80)
     
-    passed = 0
-    failed = 0
+    test_results = []
     
-    for test_name, success, message in results:
-        status = "✅ PASS" if success else "❌ FAIL"
-        print(f"{status:8} | {test_name:35} | {message}")
-        if success:
-            passed += 1
-        else:
-            failed += 1
+    # Node.js health checks
+    test_results.append(test_nodejs_health())
+    test_results.append(test_nodejs_error_log())
     
-    print("=" * 80)
-    success_rate = (passed / len(results)) * 100 if results else 0
-    print(f"📈 SUCCESS RATE: {success_rate:.1f}% ({passed}/{len(results)} tests passed)")
+    # Core functionality tests
+    test_results.append(test_verify_registration_function())
+    test_results.append(test_no_openprovider_error_leaks())
+    test_results.append(test_no_connectreseller_error_leaks())
+    test_results.append(test_cr_domain_register_clean_errors())
+    test_results.append(test_sanitize_error_function())
+    test_results.append(test_buy_domain_full_process_error_handling())
+    test_results.append(test_language_files_signatures())
     
-    # Summary for agent
-    if success_rate >= 85:
-        print("🎉 EXCELLENT: AI Support navigation knowledge is comprehensive and production-ready!")
-    elif success_rate >= 70:
-        print("✅ GOOD: Most navigation knowledge implemented, minor issues to address")
+    # Summary
+    passed = sum(test_results)
+    total = len(test_results)
+    
+    print("\n" + "=" * 80)
+    print(f"📊 TEST SUMMARY: {passed}/{total} tests passed")
+    
+    if passed == total:
+        print("✅ ALL TESTS PASSED - Provider name leak fix is working correctly!")
+        return True
     else:
-        print("⚠️  NEEDS WORK: Several navigation knowledge gaps identified")
-    
-    if failed > 0:
-        print(f"❌ {failed} test(s) failed - see details above")
-        return 1
-    else:
-        print("🎉 All AI Support navigation knowledge requirements verified!")
-        return 0
+        print("❌ SOME TESTS FAILED - Issues need to be addressed")
+        return False
 
 if __name__ == "__main__":
-    sys.exit(main())
+    success = run_all_tests()
+    exit(0 if success else 1)
