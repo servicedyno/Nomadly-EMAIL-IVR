@@ -2066,14 +2066,24 @@ Sélectionnez une option :`,
     activated: (number, plan, price, sipUser, sipDomain, expiry) => `🎉 <b>आपका Cloud IVR सक्रिय है!</b>\n\n📞 नंबर: ${formatPhone(number)}\n📦 प्लान: ${plan} ($${price}/माह)\n📅 नवीनीकरण: ${expiry}\n\n━━━ <b>SIP क्रेडेंशियल्स</b> ━━━\n🌐 सर्वर: ${sipDomain}\n👤 उपयोगकर्ता: ${sipUser}\n🔑 पासवर्ड: ●●●●●●●● (देखने के लिए 🔑 SIP क्रेडेंशियल्स उपयोग करें)\n📡 पोर्ट: 5060 (UDP/TCP) | 5061 (TLS)\n\n━━━ <b>त्वरित सेटअप</b> ━━━\n• ब्राउज़र: <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a> पर कॉल करें\n• सॉफ्टफ़ोन: Zoiper/Ooma डाउनलोड करें, SIP क्रेडेंशियल्स दर्ज करें\n• SMS: इनबाउंड SMS स्वचालित रूप से यहाँ फ़ॉरवर्ड होते हैं\n• फ़ॉरवर्डिंग: 📱 मेरे नंबर → कॉल फ़ॉरवर्डिंग से सेट करें`,
     myNumbersList: (numbers) => {
       let text = '📱 <b>आपके Cloud IVR नंबर:</b>\n\n'
-      numbers.forEach((n, i) => {
+      const primaryNumbers = numbers.filter(n => !n.isSubNumber)
+      const subNumbers = numbers.filter(n => n.isSubNumber)
+      primaryNumbers.forEach((n, i) => {
         const status = n.status === 'active' ? '✅ सक्रिय' : n.status === 'suspended' ? '⚠️ निलंबित' : '🗑️ हटाया गया'
         text += `${i + 1}️⃣  ${formatPhone(n.phoneNumber)}  ${status}\n`
-        text += `    ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} प्लान · नवीनीकरण ${shortDate(n.expiresAt)}\n\n`
+        text += `    ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} प्लान · नवीनीकरण ${shortDate(n.expiresAt)}\n`
+        const subs = subNumbers.filter(s => s.parentNumber === n.phoneNumber && (s.status === 'active' || s.status === 'suspended'))
+        if (subs.length > 0) {
+          subs.forEach(s => {
+            const subStatus = s.status === 'active' ? '✅' : '⚠️'
+            text += `    ├ ${formatPhone(s.phoneNumber)} ${subStatus} (अतिरिक्त · $${s.planPrice}/माह)\n`
+          })
+        }
+        text += '\n'
       })
       return text
     },
-    manageNumber: (n) => {
+    manageNumber: (n, subCount, subLimit) => {
       const plan = plans[n.plan]
       const minLimit = plan?.minutes === 'Unlimited' ? 'असीमित' : (plan?.minutes || 0)
       const smsLimit = plan?.sms || 0
@@ -2086,7 +2096,10 @@ Sélectionnez une option :`,
       const hasSms = n.capabilities?.sms !== false && n.features?.sms !== false
       const hasFax = n.capabilities?.fax === true
       const hasVoice = n.capabilities?.voice !== false
-      let text = `⚙️ प्रबंधन: <b>${formatPhone(n.phoneNumber)}</b>\n\nस्थिति: ${n.status === 'active' ? '✅ सक्रिय' : '⚠️ ' + n.status}\nप्लान: ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} ($${n.planPrice}/माह)`
+      let text = `⚙️ प्रबंधन: <b>${formatPhone(n.phoneNumber)}</b>`
+      if (n.isSubNumber) text += ` <i>(अतिरिक्त नंबर)</i>`
+      text += `\n\nस्थिति: ${n.status === 'active' ? '✅ सक्रिय' : '⚠️ ' + n.status}\nप्लान: ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} ($${n.planPrice}/माह)`
+      if (n.isSubNumber && n.parentNumber) text += `\n🔗 मुख्य नंबर: ${formatPhone(n.parentNumber)}`
       if (hasVoice) text += `\n📞 इनबाउंड मिनट: ${minDisplay}${minWarning}`
       if (hasSms) text += `\n📩 इनबाउंड SMS: ${smsDisplay} (केवल प्राप्ति)${smsWarning}`
       if (hasFax) text += `\n📠 फैक्स: शामिल — इनबाउंड फैक्स Telegram पर फ़ॉरवर्ड`
@@ -2095,9 +2108,18 @@ Sélectionnez une option :`,
       if (hasSms) caps.push('SMS')
       if (hasFax) caps.push('फैक्स')
       text += `\n📋 क्षमताएँ: ${caps.join(' · ')}`
+      if (!n.isSubNumber && subCount !== undefined && subLimit !== undefined) {
+        text += `\n➕ अतिरिक्त नंबर: ${subCount} / ${subLimit}`
+      }
       if (hasVoice) text += `\n\n🌐 <a href="${CALL_PAGE_URL}">ब्राउज़र में कॉल करें</a>`
       return text
     },
+    // ── अतिरिक्त नंबर ──
+    subNumberLimitReached: (plan, limit) => `⚠️ आपने <b>${plan}</b> प्लान की अतिरिक्त नंबर सीमा (${limit} नंबर) पूरी कर ली है।\n\nअधिक नंबरों के लिए उच्च प्लान में अपग्रेड करें।`,
+    subNumberOrderSummary: (number, country, parentNumber, price, parentPlan) => `📋 <b>अतिरिक्त नंबर ऑर्डर</b>\n\n📞 नया: ${formatPhone(number)} · ${country}\n🔗 जोड़ा गया: ${formatPhone(parentNumber)} (${parentPlan} प्लान)\n💰 मूल्य: <b>$${typeof price === 'number' ? price.toFixed(2) : price}/माह</b>\n\n⚡ मुख्य प्लान के मिनट और SMS साझा\n🔑 अपने SIP क्रेडेंशियल्स शामिल`,
+    subActivated: (number, parentNumber, price, sipUser, sipDomain, expiry) => `🎉 <b>अतिरिक्त नंबर जोड़ा गया!</b>\n\n📞 नंबर: ${formatPhone(number)}\n🔗 जुड़ा हुआ: ${formatPhone(parentNumber)}\n💰 मूल्य: $${typeof price === 'number' ? price.toFixed(2) : price}/माह\n📅 नवीनीकरण: ${expiry}\n\n━━━ <b>SIP क्रेडेंशियल्स</b> ━━━\n🌐 सर्वर: ${sipDomain}\n👤 उपयोगकर्ता: ${sipUser}\n🔑 पासवर्ड: ●●●●●●●● (देखने के लिए 🔑 SIP क्रेडेंशियल्स उपयोग करें)\n📡 पोर्ट: 5060 (UDP/TCP) | 5061 (TLS)\n\n━━━ <b>त्वरित सेटअप</b> ━━━\n• ब्राउज़र: <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>\n• सॉफ्टफ़ोन: Zoiper/Ooma में SIP सेट करें\n• मिनट और SMS मुख्य नंबर के साथ साझा`,
+    adminSubPurchase: (name, number, parentNumber, price, paymentMethod) => `➕ <b>अतिरिक्त नंबर</b>\n👤 ${name}\n📞 ${formatPhone(number)} → ${formatPhone(parentNumber)}\n💰 $${price} · ${paymentMethod}`,
+    adminSubPurchasePrivate: (name, number, parentNumber, price, paymentMethod) => `➕ <b>अतिरिक्त नंबर</b>\n👤 ${name}\n📞 नया: ${formatPhone(number)}\n🔗 मुख्य: ${formatPhone(parentNumber)}\n💰 $${price}/माह · ${paymentMethod}`,
     // कॉल फ़ॉरवर्डिंग
     forwardingStatus: (number, config, walletBal) => {
       const status = config?.enabled ? '✅ सक्रिय' : '❌ बंद'
