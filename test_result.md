@@ -879,15 +879,15 @@ agent_communication:
 
 
 
-  - task: "Admin notification for resumed lead jobs + /bal command + wallet deduction bug fix"
+  - task: "CNAM optimization + AI support chat"
     implemented: true
     working: "NA"
-    file: "js/_index.js, js/lead-job-persistence.js, js/validatePhoneBulk.js"
+    file: "js/validatePhoneBulk.js, js/ai-support.js, js/_index.js"
     stuck_count: 0
     priority: "high"
     needs_retesting: true
     status_history:
         - working: "NA"
           agent: "main"
-          comment: "Comprehensive wallet deduction fix across ALL 5 payment flows: (1) Wallet→Leads: deduct before validateBulkNumbers, refund on failure. (2) Wallet→Validation: deduct before validatePhoneBulkFile, refund on failure. (3) Crypto(BlockBee)→Leads: pass walletDeducted:true + partial refund to USD wallet. (4) Crypto(DynoPay)→Leads: pass walletDeducted:true + partial refund to USD wallet. (5) Bank(Fincra)→Leads: pass walletDeducted:true + partial refund to NGN wallet. Resume flow checks walletDeducted flag — won't double-charge crypto/bank payments. Also added /bal admin command and admin notifications for resumed jobs."
+          comment: "CNAM optimizations: (1) VoIP carrier pre-filter — skip CNAM for known VoIP/wholesale carriers. (2) Area code yield tracking — dynamically drop codes below 8% real-name yield. (3) CNAM cost cap — stop if cost exceeds 2.5x job price, deliver partial + refund. (4) Enhanced logging with CNAM cost estimates and area code yield stats. AI Support: Created ai-support.js with OpenAI GPT-4o integration. Support chat now auto-responds with AI using product knowledge base + user context (wallet, orders). Admin sees ALL messages + AI responses. Escalation detection for refunds, complaints, technical issues. Conversation history in MongoDB. Admin can override anytime with /reply."
 
