@@ -296,7 +296,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "AI Support comprehensive navigation knowledge for all bot screens"
+    - "Domain Purchase + Hosting Renewal wallet crash protection"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
