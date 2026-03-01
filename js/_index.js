@@ -7681,7 +7681,7 @@ All verified numbers generated during sourcing.`))
         recordValue: recordContent,
       }, db)
       if (result.error || !result.success) {
-        return send(chatId, t.errorSavingDns(result.error || 'Update failed'))
+        return send(chatId, t.errorSavingDns(sanitizeProviderError(result.error || 'Update failed', 'domain')))
       }
     } else if (recordType === 'NS') {
       // NS records: always update at the registrar level
@@ -7691,11 +7691,11 @@ All verified numbers generated during sourcing.`))
 
       // Route ALL NS updates through updateNameserverAtRegistrar (handles both OP + CR)
       const result = await domainService.updateNameserverAtRegistrar(domain, nsSlot, recordContent, db)
-      if (result.error) return send(chatId, t.errorSavingDns(result.error))
+      if (result.error) return send(chatId, t.errorSavingDns(sanitizeProviderError(result.error, 'domain')))
       if (result.useDefaultCR) {
         // Final fallback to legacy CR direct path (needs session-level domainNameId)
         const { error } = await updateDNSRecord(dnszoneID, dnszoneRecordID, domain, recordType, recordContent, domainNameId, nsId, nsRecords, null)
-        if (error) return send(chatId, t.errorSavingDns(error))
+        if (error) return send(chatId, t.errorSavingDns(sanitizeProviderError(error, 'domain')))
       }
     } else if (dnsSource === 'openprovider') {
       // Non-NS records on OP: use domainService routing
@@ -7707,7 +7707,7 @@ All verified numbers generated during sourcing.`))
         ttl: 300,
       }, db)
       if (result.error || !result.success) {
-        return send(chatId, t.errorSavingDns(result.error || 'Update failed'))
+        return send(chatId, t.errorSavingDns(sanitizeProviderError(result.error || 'Update failed', 'domain')))
       }
     } else {
       // ConnectReseller non-NS records
@@ -7727,7 +7727,7 @@ All verified numbers generated during sourcing.`))
         crHostName
       )
       if (error) {
-        return send(chatId, t.errorSavingDns(error))
+        return send(chatId, t.errorSavingDns(sanitizeProviderError(error, 'domain')))
       }
     }
 
