@@ -439,7 +439,7 @@ async function sendProgressUpdate(campaignId, leadIndex, result) {
   let statusText = 'Unknown'
   if (result.status === 'no_answer') { icon = '📵'; statusText = 'No answer' }
   else if (result.status === 'busy') { icon = '📵'; statusText = 'Busy' }
-  else if (result.status === 'failed') { icon = '❌'; statusText = `Failed: ${result.hangupCause || 'unknown'}` }
+  else if (result.status === 'failed') { icon = '❌'; statusText = `Failed: ${sanitizeHangupCause(result.hangupCause)}` }
   else if (result.digitPressed) {
     icon = '🔘'
     statusText = `Pressed ${result.digitPressed}`
