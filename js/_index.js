@@ -7410,7 +7410,7 @@ All verified numbers generated during sourcing.`))
     try {
       const result = await domainService.switchToCloudflare(domain, db)
       if (result.error) {
-        send(chatId, t.switchToCfError(result.error), { parse_mode: 'HTML' })
+        send(chatId, t.switchToCfError(sanitizeProviderError(result.error, 'domain')), { parse_mode: 'HTML' })
         return goto['choose-dns-action']()
       }
 
