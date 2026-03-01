@@ -7530,12 +7530,12 @@ All verified numbers generated during sourcing.`))
         if (!result.success) return send(chatId, t.errorDeletingDns(sanitizeProviderError(result.error || 'Delete failed', 'domain')))
       } else if (dnsSource === 'openprovider') {
         const result = await domainService.deleteDNSRecord(domainToManage, record, db)
-        if (result.error || !result.success) return send(chatId, t.errorDeletingDns(result.error || 'Delete failed'))
+        if (result.error || !result.success) return send(chatId, t.errorDeletingDns(sanitizeProviderError(result.error || 'Delete failed', 'domain')))
       } else {
         const nsRecords = dnsRecords.filter(r => r.recordType === 'NS')
         const { dnszoneID, dnszoneRecordID, nsId } = record
         const { error } = await deleteDNSRecord(dnszoneID, dnszoneRecordID, domainToManage, domainNameId, nsId, nsRecords)
-        if (error) return send(chatId, t.errorDeletingDns(error))
+        if (error) return send(chatId, t.errorDeletingDns(sanitizeProviderError(error, 'domain')))
       }
   
       send(chatId, t.dnsRecordDeleted)
