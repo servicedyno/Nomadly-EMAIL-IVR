@@ -9355,11 +9355,11 @@ Choose an IVR template category:`), k.of(rows))
     if (bulkTTS.placeholderIndex < placeholders.length) {
       return send(chatId, `Enter value for <b>[${placeholders[bulkTTS.placeholderIndex]}]</b>:`, k.of([]))
     }
-    // All placeholders filled — go to voice selection
-    set(state, chatId, 'action', a.bulkTTSVoice)
+    // All placeholders filled — go to provider selection
+    set(state, chatId, 'action', a.bulkTTSProvider)
     const ttsService = require('./tts-service.js')
-    const voiceBtns = ttsService.getVoiceButtons('en').map(b => [b])
-    return send(chatId, `✅ All values filled!\n\n🎙 <b>Select Voice</b>:`, k.of([...voiceBtns, ['↩️ Back']]))
+    const providerBtns = ttsService.getProviderButtons().map(b => [b])
+    return send(chatId, `✅ All values filled!\n\n🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine:`, k.of([...providerBtns, ['↩️ Back']]))
   }
 
   if (action === a.bulkTTSVoice) {
