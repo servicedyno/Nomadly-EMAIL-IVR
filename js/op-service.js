@@ -618,7 +618,7 @@ const updateDNSRecord = async (domainName, originalRecord, newValue, newType) =>
     }, { headers, timeout: 15000 })
 
     if (res.data?.code === 0) return { success: true }
-    return { error: res.data?.desc || 'Failed to update DNS record via OpenProvider' }
+    return { error: res.data?.desc || 'Failed to update DNS record' }
   } catch (err) {
     log('OP updateDNSRecord error:', err.message)
     return { error: err.message }
@@ -643,7 +643,7 @@ const deleteDNSRecord = async (domainName, record) => {
     }, { headers, timeout: 15000 })
 
     if (res.data?.code === 0) return { success: true }
-    return { error: res.data?.desc || 'Failed to delete DNS record via OpenProvider' }
+    return { error: res.data?.desc || 'Failed to delete DNS record' }
   } catch (err) {
     log('OP deleteDNSRecord error:', err.message)
     return { error: err.message }
