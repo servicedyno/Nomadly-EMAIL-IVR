@@ -453,12 +453,57 @@ Select an option:`,
 
   noNumbers: '📱 You don\'t have any phone numbers yet.\n\nTap below to get your first virtual number.',
 
+  // ── Sub-Number Messages ──
+  subNumberLimitReached: (plan, limit) => `⚠️ You've reached the sub-number limit for <b>${plan}</b> plan (${limit} numbers).\n\nUpgrade to a higher plan for more sub-numbers.`,
+  
+  subNumberOrderSummary: (number, country, parentNumber, price, parentPlan) => `📋 <b>Sub-Number Order</b>
+
+📞 New: ${formatPhone(number)} · ${country}
+🔗 Added to: ${formatPhone(parentNumber)} (${parentPlan} Plan)
+💰 Price: <b>$${typeof price === 'number' ? price.toFixed(2) : price}/mo</b>
+
+⚡ Shares parent plan minutes & SMS pool
+🔑 Own SIP credentials included`,
+
+  subActivated: (number, parentNumber, price, sipUser, sipDomain, expiry) => `🎉 <b>Sub-Number Added!</b>
+
+📞 Number: ${formatPhone(number)}
+🔗 Linked to: ${formatPhone(parentNumber)}
+💰 Price: $${typeof price === 'number' ? price.toFixed(2) : price}/mo
+📅 Renewal: ${expiry}
+
+━━━ <b>SIP Credentials</b> ━━━
+🌐 Server: ${sipDomain}
+👤 Username: ${sipUser}
+🔑 Password: ●●●●●●●● (use 🔑 SIP Credentials to reveal)
+📡 Port: 5060 (UDP/TCP) | 5061 (TLS)
+
+━━━ <b>Quick Setup</b> ━━━
+• Browser: <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>
+• Softphone: Download Zoiper/Ooma, enter SIP credentials
+• Minutes & SMS shared with parent number's plan pool`,
+
+  adminSubPurchase: (name, number, parentNumber, price, paymentMethod) => `➕ <b>Sub-Number Added</b>\n👤 ${name}\n📞 ${formatPhone(number)} → ${formatPhone(parentNumber)}\n💰 $${price} · ${paymentMethod}`,
+  adminSubPurchasePrivate: (name, number, parentNumber, price, paymentMethod) => `➕ <b>Sub-Number Added</b>\n👤 ${name}\n📞 New: ${formatPhone(number)}\n🔗 Parent: ${formatPhone(parentNumber)}\n💰 $${price}/mo · ${paymentMethod}`,
+
   myNumbersList: (numbers) => {
     let text = '📱 <b>Your Cloud IVR Numbers:</b>\n\n'
-    numbers.forEach((n, i) => {
+    // Separate primary and sub numbers
+    const primaryNumbers = numbers.filter(n => !n.isSubNumber)
+    const subNumbers = numbers.filter(n => n.isSubNumber)
+    primaryNumbers.forEach((n, i) => {
       const status = n.status === 'active' ? '✅ Active' : n.status === 'suspended' ? '⚠️ Suspended' : '🗑️ Deleted'
       text += `${i + 1}️⃣  ${formatPhone(n.phoneNumber)}  ${status}\n`
-      text += `    ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} Plan · Renews ${shortDate(n.expiresAt)}\n\n`
+      text += `    ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} Plan · Renews ${shortDate(n.expiresAt)}\n`
+      // Show sub-numbers under this parent
+      const subs = subNumbers.filter(s => s.parentNumber === n.phoneNumber && (s.status === 'active' || s.status === 'suspended'))
+      if (subs.length > 0) {
+        subs.forEach(s => {
+          const subStatus = s.status === 'active' ? '✅' : '⚠️'
+          text += `    ├ ${formatPhone(s.phoneNumber)} ${subStatus} (sub · $${s.planPrice}/mo)\n`
+        })
+      }
+      text += '\n'
     })
     return text
   },
