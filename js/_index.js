@@ -270,6 +270,17 @@ function getNumberSurcharge(countryCode, numberType) {
   return monthlyPrice >= twilioService.NUMBER_COST_FREE_THRESHOLD ? monthlyPrice : 0
 }
 
+// Get sub-number price: max($25, twilioMonthlyCost * 1.5)
+function getSubNumberPrice(countryCode, numberType, provider) {
+  if (provider !== 'twilio') {
+    return phoneConfig.SUB_NUMBER_BASE_PRICE // Telnyx numbers: flat $25
+  }
+  const cc = twilioService.NO_COMPLIANCE_COUNTRIES.find(c => c.code === countryCode)
+  const monthlyPrice = cc?.prices?.[numberType] || 0
+  const withMarkup = monthlyPrice * (1 + phoneConfig.SUB_NUMBER_MARKUP) // cost + 50% markup
+  return Math.max(phoneConfig.SUB_NUMBER_BASE_PRICE, Math.round(withMarkup * 100) / 100)
+}
+
 // Load environment variables from .env file first
 require('dotenv').config()
 const DB_NAME = process.env.DB_NAME
