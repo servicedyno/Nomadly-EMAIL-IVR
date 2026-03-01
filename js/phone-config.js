@@ -413,13 +413,13 @@ Select an option:`,
   selectPlan: (number) => {
     let text = `✅ Selected: <b>${formatPhone(number)}</b>\n\n📋 Choose your plan:\n\n`
     if (PHONE_STARTER_ON) {
-      text += `<b>💡 Starter — $${PHONE_STARTER_PRICE}/mo</b>\n${plans.starter.minutes} min · ${plans.starter.sms} SMS · ${plans.starter.features.join(' · ')}\n\n`
+      text += `<b>💡 Starter — $${PHONE_STARTER_PRICE}/mo</b>\n${plans.starter.minutes} min · ${plans.starter.sms} SMS · ${plans.starter.features.join(' · ')}\n➕ Add up to ${SUB_NUMBER_LIMITS.starter} extra numbers (from $${SUB_NUMBER_BASE_PRICE}/mo each)\n\n`
     }
     if (PHONE_PRO_ON) {
-      text += `<b>⭐ Pro — $${PHONE_PRO_PRICE}/mo</b>\n${plans.pro.minutes} min · ${plans.pro.sms} SMS · ${plans.pro.features.join(' · ')}\n\n`
+      text += `<b>⭐ Pro — $${PHONE_PRO_PRICE}/mo</b>\n${plans.pro.minutes} min · ${plans.pro.sms} SMS · ${plans.pro.features.join(' · ')}\n➕ Add up to ${SUB_NUMBER_LIMITS.pro} extra numbers (from $${SUB_NUMBER_BASE_PRICE}/mo each)\n\n`
     }
     if (PHONE_BUSINESS_ON) {
-      text += `<b>👑 Business — $${PHONE_BUSINESS_PRICE}/mo</b>\n${plans.business.minutes} min · ${plans.business.sms} SMS · ${plans.business.features.join(' · ')}\n\n`
+      text += `<b>👑 Business — $${PHONE_BUSINESS_PRICE}/mo</b>\n${plans.business.minutes} min · ${plans.business.sms} SMS · ${plans.business.features.join(' · ')}\n➕ Add up to ${SUB_NUMBER_LIMITS.business} extra numbers (from $${SUB_NUMBER_BASE_PRICE}/mo each)\n\n`
     }
     text += `<i>Outbound & Forwarding: $${CALL_FORWARDING_RATE_MIN}/min from wallet</i>`
     return text
