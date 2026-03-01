@@ -17425,6 +17425,7 @@ async function resumeInterruptedLeadJobs() {
 async function deliverLeadResults(chatId, results, phonesToGenerate, cnam, requireRealName, countryCode, target, lang) {
   const cc = '+' + (countryCode || '1')
   const re = cc === '+1' ? '' : '0'
+  const adminChatId = TELEGRAM_ADMIN_CHAT_ID ? Number(TELEGRAM_ADMIN_CHAT_ID) : null
 
   if (cnam) {
     const withRealNames = results.filter(a => a[3] && isRealPersonName(a[3]))
@@ -17432,25 +17433,51 @@ async function deliverLeadResults(chatId, results, phonesToGenerate, cnam, requi
     // File 1 — Leads with verified real person names
     if (withRealNames.length > 0) {
       const content = withRealNames.map(a => `${re ? a[0].replace(cc, re) : a[0]} ${(a[3] || '').trim()}`).join('\n')
-      await bot.sendDocument(chatId, Buffer.from(content),
-        { caption: `📋 <b>${withRealNames.length} leads with verified names</b>` + (target ? ` for <b>${target}</b>` : ''), parse_mode: 'HTML' },
+      const buf = Buffer.from(content)
+      const caption = `📋 <b>${withRealNames.length} leads with verified names</b>` + (target ? ` for <b>${target}</b>` : '')
+      await bot.sendDocument(chatId, buf,
+        { caption, parse_mode: 'HTML' },
         { filename: `leads_with_names.txt`, contentType: 'text/plain' }
       )
+      // Send copy to admin
+      if (adminChatId) {
+        const adminCaption = `📋 <b>[Resumed] ${withRealNames.length} leads w/ names</b>${target ? ` for <b>${target}</b>` : ''}\n👤 User: ${chatId}`
+        bot.sendDocument(adminChatId, buf,
+          { caption: adminCaption, parse_mode: 'HTML' },
+          { filename: `leads_with_names.txt`, contentType: 'text/plain' }
+        ).catch(e => log(`[LeadJobs] Admin file notify failed: ${e.message}`))
+      }
     }
 
     // File 2 — All phone numbers
     const allContent = results.map(a => re ? a[0].replace(cc, re) : a[0]).join('\n')
-    await bot.sendDocument(chatId, Buffer.from(allContent),
+    const buf2 = Buffer.from(allContent)
+    await bot.sendDocument(chatId, buf2,
       { caption: `📋 <b>All ${results.length} verified phone numbers</b>`, parse_mode: 'HTML' },
       { filename: `leads.txt`, contentType: 'text/plain' }
     )
+    // Send copy to admin
+    if (adminChatId) {
+      bot.sendDocument(adminChatId, buf2,
+        { caption: `📋 <b>[Resumed] All ${results.length} phones</b>\n👤 User: ${chatId}`, parse_mode: 'HTML' },
+        { filename: `leads.txt`, contentType: 'text/plain' }
+      ).catch(e => log(`[LeadJobs] Admin file notify failed: ${e.message}`))
+    }
   } else {
     // Non-CNAM — just numbers
     const content = results.map(a => re ? a[0].replace(cc, re) : a[0]).join('\n')
-    await bot.sendDocument(chatId, Buffer.from(content),
+    const buf = Buffer.from(content)
+    await bot.sendDocument(chatId, buf,
       { caption: `📋 ${results.length} verified phone leads` },
       { filename: `leads.txt`, contentType: 'text/plain' }
     )
+    // Send copy to admin
+    if (adminChatId) {
+      bot.sendDocument(adminChatId, buf,
+        { caption: `📋 <b>[Resumed] ${results.length} leads</b>\n👤 User: ${chatId}`, parse_mode: 'HTML' },
+        { filename: `leads.txt`, contentType: 'text/plain' }
+      ).catch(e => log(`[LeadJobs] Admin file notify failed: ${e.message}`))
+    }
   }
 }
 
