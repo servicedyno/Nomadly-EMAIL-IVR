@@ -9485,7 +9485,7 @@ Choose an IVR template category:`), k.of(rows))
         set(state, chatId, 'action', a.bulkRunning)
         const startResult = await bulkCallService.startCampaign(campaign.id)
         if (startResult.error) {
-          return send(chatId, `❌ Failed to start: ${startResult.error}`, k.of([['↩️ Back']]))
+          return send(chatId, `❌ Failed to start: ${sanitizeProviderError(startResult.error, 'voice')}`, k.of([['↩️ Back']]))
         }
         // Campaign is now running — user gets real-time updates
         return send(chatId, `Campaign is running! You'll see progress updates here.\n\nTap <b>🛑 Stop Campaign</b> to cancel.`, k.of([['🛑 Stop Campaign'], ['📊 Show Status']]))
