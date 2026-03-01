@@ -1328,7 +1328,7 @@ async function handleCallAnswered(payload) {
   // Primary unanswered SIP ring is handled in handleCallInitiated
   if (num.sipUsername && session.phase !== 'ringing_sip') {
     session.phase = 'ringing_sip'
-    const sipUser = num.sipUsername
+    const sipUser = num.telnyxSipUsername || num.sipUsername
     const sipUri = `sip:${sipUser}@sip.telnyx.com`
     const ringTimeout = fwdConfig?.ringTimeout || 25
     log(`[Voice] Ringing SIP device (answered path): ${sipUri} for ${num.phoneNumber} (timeout: ${ringTimeout}s)`)
