@@ -9440,10 +9440,10 @@ Choose an IVR template category:`), k.of(rows))
       return send(chatId, `Choose a template category:`, k.of([...catBtns, ['✍️ Custom Script'], ['↩️ Back']]))
     }
     if (message === '🎤 Change Voice') {
-      set(state, chatId, 'action', a.bulkTTSVoice)
+      set(state, chatId, 'action', a.bulkTTSProvider)
       const ttsService = require('./tts-service.js')
-      const voiceBtns = ttsService.getVoiceButtons('en').map(b => [b])
-      return send(chatId, `🎙 <b>Select Voice</b>:`, k.of([...voiceBtns, ['↩️ Back']]))
+      const providerBtns = ttsService.getProviderButtons().map(b => [b])
+      return send(chatId, `🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine:`, k.of([...providerBtns, ['↩️ Back']]))
     }
     if (message === '✅ Use This Audio') {
       const bulkTTS = info?.bulkTTS || {}
