@@ -1415,13 +1415,17 @@ Sélectionnez une option :`,
     },
     selectPlan: (number) => {
       let text = `✅ Sélectionné : <b>${formatPhone(number)}</b>\n\n📋 Choisissez votre forfait :\n\n`
-      if (PHONE_STARTER_ON) text += `<b>💡 Starter — $${PHONE_STARTER_PRICE}/mois</b>\n${plans.starter.minutes} min · ${plans.starter.sms} SMS · ${plans.starter.features.join(' · ')}\n➕ Ajoutez jusqu'à ${SUB_NUMBER_LIMITS.starter} numéros supplémentaires (à partir de $${SUB_NUMBER_BASE_PRICE}/mois chacun)\n\n`
-      if (PHONE_PRO_ON) text += `<b>⭐ Pro — $${PHONE_PRO_PRICE}/mois</b>\n${plans.pro.minutes} min · ${plans.pro.sms} SMS · ${plans.pro.features.join(' · ')}\n➕ Ajoutez jusqu'à ${SUB_NUMBER_LIMITS.pro} numéros supplémentaires (à partir de $${SUB_NUMBER_BASE_PRICE}/mois chacun)\n\n`
-      if (PHONE_BUSINESS_ON) text += `<b>👑 Business — $${PHONE_BUSINESS_PRICE}/mois</b>\n${plans.business.minutes} min · ${plans.business.sms} SMS · ${plans.business.features.join(' · ')}\n➕ Ajoutez jusqu'à ${SUB_NUMBER_LIMITS.business} numéros supplémentaires (à partir de $${SUB_NUMBER_BASE_PRICE}/mois chacun)\n\n`
+      if (PHONE_STARTER_ON) text += `<b>💡 Starter — $${PHONE_STARTER_PRICE}/mois</b>\n${plans.starter.minutes} min · ${plans.starter.sms} SMS · ${plansI18n.fr.starter.features.join(' · ')}\n➕ Ajoutez jusqu'à ${SUB_NUMBER_LIMITS.starter} numéros supplémentaires (à partir de $${SUB_NUMBER_BASE_PRICE}/mois chacun)\n\n`
+      if (PHONE_PRO_ON) text += `<b>⭐ Pro — $${PHONE_PRO_PRICE}/mois</b>\n${plans.pro.minutes} min · ${plans.pro.sms} SMS · ${plansI18n.fr.pro.features.join(' · ')}\n➕ Ajoutez jusqu'à ${SUB_NUMBER_LIMITS.pro} numéros supplémentaires (à partir de $${SUB_NUMBER_BASE_PRICE}/mois chacun)\n\n`
+      if (PHONE_BUSINESS_ON) text += `<b>👑 Business — $${PHONE_BUSINESS_PRICE}/mois</b>\n${plans.business.minutes} min · ${plans.business.sms} SMS · ${plansI18n.fr.business.features.join(' · ')}\n➕ Ajoutez jusqu'à ${SUB_NUMBER_LIMITS.business} numéros supplémentaires (à partir de $${SUB_NUMBER_BASE_PRICE}/mois chacun)\n\n`
       text += `<i>Sortant & Transfert : $${CALL_FORWARDING_RATE_MIN}/min depuis le portefeuille</i>`
       return text
     },
-    orderSummary: (number, country, plan, price) => `📋 <b>Récapitulatif</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/mois\n📩 ${plan.sms} SMS · 📞 ${plan.minutes} min · 📲 Sortant & Transfert $${CALL_FORWARDING_RATE_MIN}/min\n⚡ ${plan.features.join(', ')}\n\n💰 Total : <b>$${price}</b> (premier mois)`,
+    orderSummary: (number, country, plan, price) => {
+      const planKey = plan.name.toLowerCase()
+      const features = plansI18n.fr[planKey]?.features || plan.features
+      return `📋 <b>Récapitulatif</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/mois\n📩 ${plan.sms} SMS · 📞 ${plan.minutes} min · 📲 Sortant & Transfert $${CALL_FORWARDING_RATE_MIN}/min\n⚡ ${features.join(', ')}\n\n💰 Total : <b>$${price}</b> (premier mois)`
+    },
     paymentPrompt: (price) => `Prix : <b>$${price}</b>. Choisissez le mode de paiement :`,
     activated: (number, plan, price, sipUser, sipDomain, expiry) => `🎉 <b>Votre Cloud IVR est Actif !</b>\n\n📞 Numéro : ${formatPhone(number)}\n📦 Forfait : ${plan} ($${price}/mois)\n📅 Renouvellement : ${expiry}\n\n━━━ <b>Identifiants SIP</b> ━━━\n🌐 Serveur : ${sipDomain}\n👤 Utilisateur : ${sipUser}\n🔑 Mot de passe : ●●●●●●●● (utilisez 🔑 Identifiants SIP pour révéler)\n📡 Port : 5060 (UDP/TCP) | 5061 (TLS)\n\n━━━ <b>Configuration Rapide</b> ━━━\n• Navigateur : Appelez sur <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>\n• Softphone : Téléchargez Zoiper/Ooma, entrez les identifiants SIP\n• SMS : Les SMS entrants sont transférés ici automatiquement\n• Transfert : Configurez via 📱 Mes Numéros → Transfert d'Appels`,
     myNumbersList: (numbers) => {
