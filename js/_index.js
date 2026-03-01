@@ -7461,7 +7461,7 @@ All verified numbers generated during sourcing.`))
 
       const result = await domainService.switchToProviderDefault(domain, db)
       if (result.error) {
-        send(chatId, t.switchToProviderError ? t.switchToProviderError(result.error) : `❌ Switch failed: ${result.error}`, { parse_mode: 'HTML' })
+        send(chatId, t.switchToProviderError ? t.switchToProviderError(sanitizeProviderError(result.error, 'domain')) : `❌ Switch failed: ${sanitizeProviderError(result.error, 'domain')}`, { parse_mode: 'HTML' })
         return goto['choose-dns-action']()
       }
 
