@@ -1003,7 +1003,7 @@ const switchToProviderDefault = async (domainName, db) => {
       defaultNS = crDefaultNS
       log(`[switchToProvider] CR NS restored for ${domainName}`)
     } else {
-      return { error: 'Could not fetch ConnectReseller domain data' }
+      return { error: 'Could not fetch domain data from registrar' }
     }
   }
 
