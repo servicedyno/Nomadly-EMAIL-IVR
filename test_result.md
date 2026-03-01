@@ -258,19 +258,35 @@ backend:
           agent: "testing"
           comment: "COMPREHENSIVE VERIFICATION PASSED ✅ All requirements verified: (1) Translation keys supportMsgReceived, supportMsgSent, supportEnded, noSupportSession exist in all 4 language files (en,fr,zh,hi). (2) _index.js support handler correctly uses t.supportEnded, t.supportMsgReceived, t.supportMsgSent - NO hardcoded English strings. (3) getAiResponse accepts lang param with default 'en' and passes to needsEscalation. (4) LANG_NAMES object has entries for all 4 languages. (5) ESCALATION_KEYWORDS defined for all languages with correct keywords (remboursement,arnaque,ne fonctionne pas for fr; 退款,欺诈,不工作 for zh; रिफंड,धोखाधड़ी,काम नहीं कर रहा for hi). (6) Multi-language escalation detection in AI responses (agent humain, 人工客服, सहायता टीम). (7) Node.js service healthy at port 5000. Fixed one minor hardcoded string on line 13583."
 
+  - task: "AI Support comprehensive navigation knowledge for all bot screens"
+    implemented: true
+    working: "NA"
+    file: "js/ai-support.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Massively enhanced SYSTEM_PROMPT with complete bot navigation knowledge."
+
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 1
+  test_sequence: 2
   run_ui: false
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "AI Support comprehensive navigation knowledge for all bot screens"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
+    - agent: "main"
+      message: "Enhanced ai-support.js SYSTEM_PROMPT with full navigation knowledge. Verify: Node.js healthy, SYSTEM_PROMPT has main menu layout, Cloud IVR hub buttons, SIP credentials path, feature-by-plan table, wallet/domain/DNS paths, 20+ FAQ scenarios."
+
     - agent: "main"
       message: "Implemented multi-language support for AI support chat. Key changes: (1) _index.js lines 4484/4507/4521/4526/4531 now use t.supportEnded, t.supportMsgReceived, t.supportMsgSent translation keys and pass lang to getAiResponse. (2) All 4 lang files have supportMsgReceived/supportMsgSent keys. (3) ai-support.js: getAiResponse accepts lang param, adds LANGUAGE REQUIREMENT to system prompt for non-English, escalation keywords expanded to fr/zh/hi, multi-language escalation detection in AI responses. Please verify: (a) translation keys exist in all 4 lang files, (b) _index.js handler uses translated strings, (c) ai-support.js accepts lang param and builds correct system prompt, (d) needsEscalation works with multi-language keywords." (1) NODE.JS BACKEND HEALTH: Service running healthy on port 5000 with MongoDB connected, no critical startup errors in supervisor logs. (2) TRY/CATCH IMPLEMENTATION: walletOk['phone-pay'] handler around line 3779 has purchase section properly wrapped in try/catch block starting at line 3838, positioned correctly AFTER wallet deduction (atomicIncrement usdOut/ngnOut). (3) CATCH BLOCK REFUND LOGIC: Auto-refund implemented with both atomicIncrement(walletOf, chatId, 'usdIn', priceUsd) for USD and atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn) for NGN refunds. (4) NESTED REFUND PROTECTION: Refund operations wrapped in nested try/catch with proper catch (refundErr) error handling to prevent refund failures. (5) ERROR LOGGING: [CloudPhone] logging prefix correctly implemented in catch block for error tracking and debugging. (6) USER NOTIFICATION: purchaseFailed message properly sent to user when purchase crashes. (7) PROVIDER COVERAGE: Both Twilio (if provider === 'twilio') and Telnyx (telnyxApi.buyNumber) purchase flows confirmed inside try block. (8) USER WALLET STATUS: User 1005284399 wallet not found in database (expected for test scenario). THE CLOUDPHONE WALLET CRASH FIX IS PRODUCTION-READY - prevents wallet deductions without successful phone number purchases through comprehensive error handling and auto-refund mechanism."
     - agent: "testing"
