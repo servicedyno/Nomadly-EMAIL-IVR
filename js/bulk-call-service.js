@@ -333,6 +333,24 @@ async function onCallStatusUpdate(callSid, campaignId, leadIndex, status, durati
       transferConnected: transferred, // Speechcue Dial handles this — if completed it connected
     })
 
+    // ━━━ BILLING: Deduct minutes for completed calls with duration > 0 ━━━
+    if (_voiceService && (duration || 0) > 0 && freshCampaign.chatId && freshCampaign.callerId) {
+      try {
+        const minutesBilled = Math.ceil((duration || 0) / 60)
+        const leadNumber = freshLead?.number || '+10000000000'
+        const billingResult = await _voiceService.billCallMinutesUnified(
+          freshCampaign.chatId,
+          freshCampaign.callerId,
+          minutesBilled,
+          leadNumber,
+          'BulkIVR'
+        )
+        log(`[BulkCall] Billed ${minutesBilled} min for campaign=${campaignId} lead=${leadIndex} (plan: ${billingResult.planMinUsed}, overage: ${billingResult.overageMin} @ $${billingResult.rate})`)
+      } catch (billErr) {
+        log(`[BulkCall] Billing error for campaign=${campaignId} lead=${leadIndex}: ${billErr.message}`)
+      }
+    }
+
     await recalcStats(campaignId)
     await sendProgressUpdate(campaignId, leadIndex, {
       status: finalStatus,
