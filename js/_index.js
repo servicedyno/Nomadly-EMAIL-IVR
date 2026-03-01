@@ -240,6 +240,7 @@ const { initScheduler: initHostingScheduler } = require('./hosting-scheduler.js'
 const { initPhoneTestRoutes, generateTestOtp, checkTestCredentialCall, getOrCreateReferralCode, trackReferral } = require('./phone-test-routes.js')
 const antiRedService = require('./anti-red-service.js')
 const { initLeadJobPersistence, flushAllJobs, findInterruptedJobs, resumeJob } = require('./lead-job-persistence.js')
+const { initAiSupport, getAiResponse, clearHistory: clearAiHistory, isAiEnabled } = require('./ai-support.js')
 const { initShortenerPersistence, createActivationTask, markRailwayLinked, markDnsAdded, markCompleted, markFailed, findIncompleteTasks } = require('./shortener-activation-persistence.js')
 const honeypotService = require('./honeypot-service.js')
 const audioLibraryService = require('./audio-library-service.js')
