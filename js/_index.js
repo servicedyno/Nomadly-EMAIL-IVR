@@ -17264,9 +17264,31 @@ async function resumeInterruptedLeadJobs() {
 
         if (fullResults && fullResults.length > 0) {
           await safeDeliver(chatId, fullResults, phonesToGenerate, cnam, requireRealName, countryCode, target, jobLang)
-          await safeSend(chatId, `✅ Your <b>${target || 'phone leads'}</b> order is complete! ${fullResults.length} leads delivered.`)
-          await db.collection('leadJobs').updateOne({ jobId }, { $set: { status: 'completed', completedAt: new Date(), updatedAt: new Date() } })
-          log(`[LeadJobs] Resumed job ${jobId} completed — ${fullResults.length} total leads`)
+
+          // ── Partial delivery refund for resumed jobs ──
+          if (fullResults._partialReason && job.price) {
+            const requested = fullResults._targetCount || phonesToGenerate
+            const delivered = fullResults._deliveredCount || fullResults.length
+            if (delivered < requested) {
+              const undeliveredRatio = (requested - delivered) / requested
+              const refundAmount = Math.round(undeliveredRatio * job.price * 100) / 100
+              if (refundAmount > 0) {
+                await atomicIncrement(walletOf, chatId, 'usdIn', refundAmount)
+                const { usdBal: rb1, ngnBal: rb2 } = await getBalance(walletOf, chatId)
+                const reasonText = fullResults._partialReason === 'cnam_exhausted' ? 'Name lookup services temporarily unavailable'
+                  : fullResults._partialReason === 'timeout' ? 'Generation timed out'
+                  : 'Not enough valid numbers in this area'
+                await safeSend(chatId, `💰 <b>Partial Refund</b>\n\n📊 Ordered: ${requested} leads\n✅ Delivered: ${delivered} leads\n❌ Undelivered: ${requested - delivered} leads\n\n💵 Refund: <b>$${refundAmount.toFixed(2)}</b> returned to your wallet\n📝 Reason: ${reasonText}\n\n💰 Wallet: $${rb1.toFixed(2)} USD · ₦${rb2.toFixed(2)} NGN`)
+                if (TELEGRAM_ADMIN_CHAT_ID) bot && bot.sendMessage(TELEGRAM_ADMIN_CHAT_ID, `💰 <b>Partial Lead Refund (Resumed)</b>\n👤 ${chatId}\n📊 ${delivered}/${requested} leads\n💵 Refund: $${refundAmount.toFixed(2)}\n📝 Reason: ${fullResults._partialReason}`, { parse_mode: 'HTML' })
+                log(`[LeadJobs] Partial refund: $${refundAmount} to ${chatId} (${delivered}/${requested}, ${fullResults._partialReason})`)
+              }
+            }
+            await safeSend(chatId, `⚠️ Your <b>${target || 'phone leads'}</b> order partially completed — ${delivered}/${requested} leads delivered.`)
+          } else {
+            await safeSend(chatId, `✅ Your <b>${target || 'phone leads'}</b> order is complete! ${fullResults.length} leads delivered.`)
+          }
+          await db.collection('leadJobs').updateOne({ jobId }, { $set: { status: fullResults._partialReason ? 'partial_delivered' : 'completed', completedAt: new Date(), updatedAt: new Date() } })
+          log(`[LeadJobs] Resumed job ${jobId} ${fullResults._partialReason ? 'partial' : 'completed'} — ${fullResults.length} total leads`)
         } else {
           if (existingResults.length > 0) {
             await safeDeliver(chatId, existingResults, phonesToGenerate, cnam, requireRealName, countryCode, target, jobLang)
