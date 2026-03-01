@@ -149,6 +149,16 @@ const validateNumber = async (carrier, countryCode, areaCode, cnam) => {
     return [...res1]
   }
 
+  // ── FIX #4: VoIP/Wholesale carrier pre-filter ──
+  // Skip CNAM lookup for known VoIP/wholesale carriers — they rarely have real person names
+  // This saves a paid CNAM lookup per number from these carriers
+  const carrierName = (res1[1] || '').toUpperCase()
+  for (const voip of VOIP_WHOLESALE_CARRIERS) {
+    if (carrierName.includes(voip)) {
+      return [...res1, 'VoIP Carrier'] // Skip CNAM — return placeholder
+    }
+  }
+
   // Use unified CNAM service (Telnyx → Multitel → SignalWire + cache)
   // Falls back to legacy SignalWire-only lookup if cnam-service not initialized
   try {
