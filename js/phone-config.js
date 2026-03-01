@@ -122,8 +122,8 @@ function isBlockedPrefix(phoneNumber) {
 // ── Button labels ──
 const btn = {
   cloudPhone: '📞☁️ Cloud IVR — Speechcue',
-  buyPhoneNumber: '🛒 Choose a Cloud IVR Plan',
-  myNumbers: '📱 My Numbers',
+  buyPhoneNumber: '🛒 Choose a Plan',
+  myNumbers: '📋 My Plans',
   sipSettings: '📖 SIP Setup Guide',
   usageBilling: '📊 Usage & Billing',
 
