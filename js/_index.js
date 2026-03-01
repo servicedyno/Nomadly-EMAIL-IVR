@@ -10083,7 +10083,7 @@ Choose an IVR template category:`), k.of(rows))
     const num = numbers[idx]
     await saveInfo('cpActiveNumber', num)
     set(state, chatId, 'action', a.cpManageNumber)
-    return send(chatId, cpTxt.manageNumber(num), k.of(buildManageMenu(num)))
+    return showManageScreen(chatId, num)
   }
 
   // ━━━ MANAGE NUMBER ━━━
