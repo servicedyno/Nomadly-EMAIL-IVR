@@ -3959,17 +3959,30 @@ Enter new value:`), bc)
             recording: false }
         }
 
+        // Add sub-number fields if applicable
+        const isSubNumber = info?.cpIsSubNumber || false
+        if (isSubNumber && info?.cpSubParentNumber) {
+          numberDoc.isSubNumber = true
+          numberDoc.parentNumber = info.cpSubParentNumber
+        }
+
         const existing = await get(phoneNumbersOf, chatId)
         if (existing?.numbers) { existing.numbers.push(numberDoc); await set(phoneNumbersOf, chatId, { numbers: existing.numbers }) }
         else { await set(phoneNumbersOf, chatId, { numbers: [numberDoc] }) }
 
-        await phoneTransactions.insertOne({ chatId, phoneNumber: selectedNumber, action: 'purchase', plan: planKey, amount: price, paymentMethod: coin === u.usd ? 'wallet_usd' : 'wallet_ngn', timestamp: new Date().toISOString() })
+        await phoneTransactions.insertOne({ chatId, phoneNumber: selectedNumber, action: isSubNumber ? 'sub-number-purchase' : 'purchase', plan: planKey, amount: price, paymentMethod: coin === u.usd ? 'wallet_usd' : 'wallet_ngn', timestamp: new Date().toISOString() })
 
         const { usdBal: usd2, ngnBal: ngn2 } = await getBalance(walletOf, chatId)
         send(chatId, t.showWallet(usd2, ngn2))
-        send(chatId, cpTxt.activated(selectedNumber, plan.name, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())), trans('o'))
-        notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, plan.name, price, coin === u.usd ? 'Wallet USD' : 'Wallet NGN'))
-        if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminPurchasePrivate(maskName(name), selectedNumber, plan.name, price, coin === u.usd ? 'Wallet USD' : 'Wallet NGN'), { parse_mode: 'HTML' })
+        if (isSubNumber) {
+          send(chatId, cpTxt.subActivated(selectedNumber, info?.cpSubParentNumber, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())), trans('o'))
+          notifyGroup(cpTxt.adminSubPurchase(maskName(name), selectedNumber, info?.cpSubParentNumber, price, coin === u.usd ? 'Wallet USD' : 'Wallet NGN'))
+          if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminSubPurchasePrivate(maskName(name), selectedNumber, info?.cpSubParentNumber, price, coin === u.usd ? 'Wallet USD' : 'Wallet NGN'), { parse_mode: 'HTML' })
+        } else {
+          send(chatId, cpTxt.activated(selectedNumber, plan.name, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())), trans('o'))
+          notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, plan.name, price, coin === u.usd ? 'Wallet USD' : 'Wallet NGN'))
+          if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminPurchasePrivate(maskName(name), selectedNumber, plan.name, price, coin === u.usd ? 'Wallet USD' : 'Wallet NGN'), { parse_mode: 'HTML' })
+        }
       }
       } catch (purchaseErr) {
         // ── SAFETY NET: refund wallet on ANY unexpected error ──
