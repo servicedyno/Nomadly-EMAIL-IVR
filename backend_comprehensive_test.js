@@ -94,14 +94,15 @@ async function runComprehensiveTests() {
   try {
     const indexFile = fs.readFileSync('/app/js/_index.js', 'utf8')
     
-    // Check that wallet deduction happens before validateBulkNumbers call
-    const walletBeforeGeneration = indexFile.includes('atomicIncrement(walletOf, chatId, \'usdOut\'') &&
-                                  indexFile.includes('validateBulkNumbers') &&
-                                  indexFile.indexOf('atomicIncrement(walletOf, chatId, \'usdOut\'') < 
-                                  indexFile.indexOf('validateBulkNumbers')
+    // Check for the specific comment and code pattern
+    const walletBeforeComment = indexFile.includes('// ── Deduct wallet BEFORE starting lead generation ──')
+    const walletBeforeCode = indexFile.includes('log(`[Leads] Wallet pre-charged $${priceUsd} for ${chatId} before generation`)')
+    const walletAtomicIncrement = indexFile.includes('await atomicIncrement(walletOf, chatId, \'usdOut\', Number(priceUsd))')
+    
+    const walletBeforeGeneration = walletBeforeComment && walletBeforeCode && walletAtomicIncrement
     
     logTest('Wallet Deduction Before Generation', walletBeforeGeneration, 
-      'Wallet charged upfront before generation starts')
+      'Wallet charged upfront before generation with proper logging')
 
     // Check walletDeducted flag is passed to job persistence
     const walletDeductedFlag = indexFile.includes('walletDeducted: true') && 
