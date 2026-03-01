@@ -16378,6 +16378,29 @@ async function handleInboundFax(payload) {
 // TWILIO BULK CALL CAMPAIGN — TwiML Webhooks
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+
+// ── Audio Proxy for Twilio — serves audio with correct Content-Type ──
+// CloudFront/EdenAI returns binary/octet-stream which Twilio can't play.
+// This proxy streams the audio back with audio/mpeg content type.
+app.get('/twilio/audio-proxy', async (req, res) => {
+  const { url } = req.query
+  if (!url) return res.status(400).send('Missing url parameter')
+  try {
+    const axios = require('axios')
+    const audioRes = await axios.get(url, {
+      responseType: 'stream',
+      timeout: 15000,
+      headers: { 'Accept': 'audio/mpeg, audio/*' },
+    })
+    res.set('Content-Type', 'audio/mpeg')
+    res.set('Cache-Control', 'public, max-age=3600')
+    audioRes.data.pipe(res)
+  } catch (e) {
+    log(`[AudioProxy] Error fetching audio: ${e.message}`)
+    res.status(502).send('Audio fetch failed')
+  }
+})
+
 // TwiML: Initial IVR — play audio + gather DTMF
 app.post('/twilio/bulk-ivr', async (req, res) => {
   const VoiceResponse = require('twilio').twiml.VoiceResponse
