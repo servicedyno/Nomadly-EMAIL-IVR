@@ -144,6 +144,22 @@ async function startCampaign(campaignId) {
   if (!campaign) return { error: 'Campaign not found' }
   if (campaign.status === 'running') return { error: 'Campaign already running' }
 
+  // ── Resolve sub-account token if SID is present but token is missing ──
+  if (campaign.twilioSubAccountSid && !campaign.twilioSubAccountToken && _twilioService?.getSubAccount) {
+    try {
+      const subAccount = await _twilioService.getSubAccount(campaign.twilioSubAccountSid)
+      if (subAccount && subAccount.authToken) {
+        campaign.twilioSubAccountToken = subAccount.authToken
+        await _collection.updateOne({ id: campaignId }, { $set: { twilioSubAccountToken: subAccount.authToken } })
+        log(`[BulkCall] Resolved sub-account token for ${campaign.twilioSubAccountSid}`)
+      } else {
+        log(`[BulkCall] WARNING: Could not resolve sub-account token for ${campaign.twilioSubAccountSid}`)
+      }
+    } catch (e) {
+      log(`[BulkCall] Failed to resolve sub-account token: ${e.message}`)
+    }
+  }
+
   await _collection.updateOne({ id: campaignId }, { $set: { status: 'running', startedAt: new Date() } })
   campaign.status = 'running'
   campaign.startedAt = new Date()
