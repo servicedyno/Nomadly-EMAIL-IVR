@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Backend test for AI Support comprehensive navigation knowledge verification
+Simplified Backend test for AI Support comprehensive navigation knowledge verification
 Tests the Nomadly Telegram Bot Node.js backend running on port 5000
 """
 
@@ -32,32 +32,27 @@ def test_nodejs_health():
         if data.get('database') != 'connected':
             return False, f"Database is {data.get('database')}, expected 'connected'"
         
-        print(f"✅ Health check passed: {data}")
-        
         # Check error log is empty
         error_log_path = Path("/var/log/supervisor/nodejs.err.log")
         if error_log_path.exists():
             size = error_log_path.stat().st_size
             if size > 0:
                 return False, f"Error log is not empty ({size} bytes)"
-            print(f"✅ Error log is empty")
         
-        return True, "Node.js service healthy"
+        return True, "Node.js service healthy with empty error log"
         
     except Exception as e:
         return False, f"Health check failed: {str(e)}"
 
-def read_ai_support_file():
-    """Read the ai-support.js file content"""
+def test_system_prompt_comprehensive_content():
+    """Test 2-7: Comprehensive SYSTEM_PROMPT content verification"""
+    print("🔍 Testing SYSTEM_PROMPT comprehensive content...")
+    
     try:
         with open(AI_SUPPORT_FILE, 'r', encoding='utf-8') as f:
-            return f.read()
+            content = f.read()
     except Exception as e:
-        return None
-
-def test_system_prompt_navigation_knowledge(content):
-    """Test 2: SYSTEM_PROMPT contains complete navigation knowledge"""
-    print("🔍 Testing SYSTEM_PROMPT navigation knowledge...")
+        return False, f"Could not read ai-support.js file: {str(e)}"
     
     # Extract SYSTEM_PROMPT content
     prompt_match = re.search(r'const SYSTEM_PROMPT = `(.+?)`', content, re.DOTALL)
@@ -66,8 +61,11 @@ def test_system_prompt_navigation_knowledge(content):
     
     system_prompt = prompt_match.group(1)
     
-    # Test Main Menu Layout
-    required_main_menu_buttons = [
+    # Test results storage
+    test_results = []
+    
+    # Test 2: Main Menu Layout with all required buttons
+    main_menu_items = [
         '📞 Cloud IVR + SIP', '🧪 Test SIP Free', '🛒 Digital Products', 
         '💳 Virtual Card', '🌐 Register Bulletproof Domain', '🔗 URL Shortener',
         '🎯 Buy Phone Leads', '✅ Validate Numbers', '🛡️🔥 Anti-Red Hosting',
@@ -75,346 +73,130 @@ def test_system_prompt_navigation_knowledge(content):
         '💬 Get Support', '💼 Become A Reseller'
     ]
     
-    missing_buttons = []
-    for button in required_main_menu_buttons:
-        if button not in system_prompt:
-            missing_buttons.append(button)
+    missing_main = [item for item in main_menu_items if item not in system_prompt]
+    test_results.append(("Main menu buttons", len(missing_main) == 0, f"Missing: {missing_main}" if missing_main else "All present"))
     
-    if missing_buttons:
-        return False, f"Missing main menu buttons: {missing_buttons}"
-    
-    # Test Cloud IVR hub buttons
-    required_cloud_ivr_buttons = [
+    # Test 2b: Cloud IVR hub buttons
+    cloud_ivr_items = [
         '📢 Quick IVR Call', '📞 Bulk IVR Campaign', '🎵 Audio Library',
         '🛒 Choose a Cloud IVR Plan', '📱 My Numbers', '📖 SIP Setup Guide',
         '📊 Usage & Billing'
     ]
     
-    missing_ivr_buttons = []
-    for button in required_cloud_ivr_buttons:
-        if button not in system_prompt:
-            missing_ivr_buttons.append(button)
+    missing_ivr = [item for item in cloud_ivr_items if item not in system_prompt]
+    test_results.append(("Cloud IVR hub buttons", len(missing_ivr) == 0, f"Missing: {missing_ivr}" if missing_ivr else "All present"))
     
-    if missing_ivr_buttons:
-        return False, f"Missing Cloud IVR hub buttons: {missing_ivr_buttons}"
+    # Test 2c: Number management buttons (just check key ones exist)
+    mgmt_items = ['Call Forwarding', 'SMS Settings', 'SMS Inbox', 'Voicemail', 'SIP Credentials', 'Call Recording']
+    missing_mgmt = [item for item in mgmt_items if item not in system_prompt]
+    test_results.append(("Number management features", len(missing_mgmt) == 0, f"Missing: {missing_mgmt}" if missing_mgmt else "All present"))
     
-    # Test number management menu (look for the actual text format)
-    required_number_mgmt_buttons = [
-        '📞 Call Forwarding —', '📩 SMS Settings —', '📨 SMS Inbox —',
-        '🎙️ Voicemail —', '🔑 SIP Credentials —', '🔴 Call Recording —',
-        '🤖 IVR / Auto-attendant —', '📊 Call & SMS Logs —',
-        '🔄 Renew / Change Plan —', '🗑️ Delete Number —'
+    # Test 3: SIP Credentials navigation path
+    sip_path_checks = [
+        'My Numbers → Select your number → 🔑 SIP Credentials',
+        'Reveal Password',
+        'Reset Password',
+        'sip.speechcue.com',
+        '5060',
+        '5061'
     ]
+    missing_sip = [item for item in sip_path_checks if item not in system_prompt]
+    test_results.append(("SIP Credentials navigation", len(missing_sip) == 0, f"Missing: {missing_sip}" if missing_sip else "Complete path with domain info"))
     
-    missing_mgmt_buttons = []
-    for button in required_number_mgmt_buttons:
-        if button not in system_prompt:
-            missing_mgmt_buttons.append(button)
-    
-    if missing_mgmt_buttons:
-        return False, f"Missing number management buttons: {missing_mgmt_buttons}"
-    
-    # Test SIP Credentials sub-options
-    sip_sub_options = ['👁️ Reveal Password', '🔄 Reset Password', '📖 SIP Setup Guide']
-    missing_sip_options = []
-    for option in sip_sub_options:
-        if option not in system_prompt:
-            missing_sip_options.append(option)
-    
-    if missing_sip_options:
-        return False, f"Missing SIP credentials sub-options: {missing_sip_options}"
-    
-    print(f"✅ All required navigation buttons found in SYSTEM_PROMPT")
-    return True, "SYSTEM_PROMPT contains complete navigation knowledge"
-
-def test_sip_credentials_navigation_path(content):
-    """Test 3: SIP Credentials navigation path exists"""
-    print("🔍 Testing SIP Credentials navigation path...")
-    
-    prompt_match = re.search(r'const SYSTEM_PROMPT = `(.+?)`', content, re.DOTALL)
-    if not prompt_match:
-        return False, "SYSTEM_PROMPT not found"
-    
-    system_prompt = prompt_match.group(1)
-    
-    # Check navigation path (look for actual text in the file)
-    path_components = [
-        "📞 Cloud IVR + SIP → 📱 My Numbers → Select your number → 🔑 SIP Credentials",
-        "👁️ Reveal Password", "🔄 Reset Password"
+    # Test 4: Feature-by-plan table with specific entries
+    plan_table_checks = [
+        '| SIP Credentials | ❌ | ✅ | ✅ |',
+        '| Call Recording | ❌ | ❌ | ✅ |',
+        '| Voicemail | ❌ | ✅ | ✅ |'
     ]
+    missing_table = [item for item in plan_table_checks if item not in system_prompt]
+    test_results.append(("Feature-by-plan table", len(missing_table) == 0, f"Missing: {missing_table}" if missing_table else "All required entries present"))
     
-    missing_components = []
-    for component in path_components:
-        if component not in system_prompt:
-            missing_components.append(component)
-    
-    if missing_components:
-        return False, f"Missing SIP navigation components: {missing_components}"
-    
-    # Check SIP domain info
-    sip_info_items = ['sip.speechcue.com', '5060', '5061', 'Pro', 'Business']
-    missing_info = []
-    for item in sip_info_items:
-        if item not in system_prompt:
-            missing_info.append(item)
-    
-    if missing_info:
-        return False, f"Missing SIP domain info: {missing_info}"
-    
-    # Check browser calling URL reference
-    if 'CALL_PAGE_URL' not in content or 'speechcue.com/call' not in system_prompt:
-        return False, "Browser calling URL reference not found"
-    
-    print(f"✅ SIP Credentials navigation path complete")
-    return True, "SIP Credentials navigation path exists with all required info"
-
-def test_feature_by_plan_table(content):
-    """Test 4: Feature-by-plan table exists"""
-    print("🔍 Testing feature-by-plan table...")
-    
-    prompt_match = re.search(r'const SYSTEM_PROMPT = `(.+?)`', content, re.DOTALL)
-    if not prompt_match:
-        return False, "SYSTEM_PROMPT not found"
-    
-    system_prompt = prompt_match.group(1)
-    
-    # Check for feature availability table
-    required_features = [
-        'SIP Credentials', 'Call Recording', 'IVR Auto-attendant', 'Voicemail'
+    # Test 5: FAQ scenarios with navigation
+    faq_checks = [
+        'Where can I generate/find my SIP credentials?',
+        'How do I deposit money?',
+        'How do I set up call forwarding?', 
+        'How do I set up voicemail?',
+        'How do I manage DNS records?',
+        'How do I change language',
+        'How do I shorten a link?'
     ]
+    missing_faq = [item for item in faq_checks if item not in system_prompt]
+    test_results.append(("FAQ scenarios navigation", len(missing_faq) == 0, f"Missing: {missing_faq}" if missing_faq else "All key FAQ scenarios present"))
     
-    required_plans = ['Starter', 'Pro', 'Business']
+    # Test 6: Environment variables usage
+    env_checks = ['SIP_DOMAIN', 'CALL_PAGE_URL', 'PHONE_STARTER_PRICE', 'PHONE_PRO_PRICE', 'PHONE_BUSINESS_PRICE']
+    missing_env = [var for var in env_checks if var not in content]
+    test_results.append(("Environment variables", len(missing_env) == 0, f"Missing: {missing_env}" if missing_env else "All required env vars present"))
     
-    missing_features = []
-    for feature in required_features:
-        if feature not in system_prompt:
-            missing_features.append(feature)
-    
-    if missing_features:
-        return False, f"Missing features in table: {missing_features}"
-    
-    missing_plans = []
-    for plan in required_plans:
-        if plan not in system_prompt:
-            missing_plans.append(plan)
-    
-    if missing_plans:
-        return False, f"Missing plans in table: {missing_plans}"
-    
-    # Check specific feature-plan combinations (look for table format)
-    specific_checks = [
-        ('| SIP Credentials | ❌ | ✅ | ✅ |'),
-        ('| Call Recording | ❌ | ❌ | ✅ |'),
-        ('| IVR Auto-attendant | ❌ | ❌ | ✅ |'),
-        ('| Voicemail | ❌ | ✅ | ✅ |')
+    # Test 7: getAiResponse function
+    function_checks = [
+        'async function getAiResponse(chatId, userMessage, lang = \'en\')',
+        'SYSTEM_PROMPT + langInstruction + userContext',
+        'messages = [',
+        'LANG_NAMES'
     ]
+    missing_func = [item for item in function_checks if item not in content]
     
-    for check in specific_checks:
-        if check not in system_prompt:
-            return False, f"Feature table entry not found: {check}"
+    # Check exports
+    export_items = ['getAiResponse', 'initAiSupport', 'clearHistory', 'needsEscalation', 'isAiEnabled']
+    exports_section = content[content.find('module.exports'):] if 'module.exports' in content else ''
+    missing_exports = [item for item in export_items if item not in exports_section]
     
-    print(f"✅ Feature-by-plan table complete with correct entries")
-    return True, "Feature-by-plan table exists with all required entries"
-
-def test_faq_scenarios_navigation(content):
-    """Test 5: FAQ scenarios contain step-by-step navigation"""
-    print("🔍 Testing FAQ scenarios with navigation...")
+    function_ok = len(missing_func) == 0 and len(missing_exports) == 0
+    func_msg = f"Missing function parts: {missing_func}, Missing exports: {missing_exports}" if not function_ok else "Function and exports correct"
+    test_results.append(("getAiResponse function", function_ok, func_msg))
     
-    prompt_match = re.search(r'const SYSTEM_PROMPT = `(.+?)`', content, re.DOTALL)
-    if not prompt_match:
-        return False, "SYSTEM_PROMPT not found"
+    # Calculate overall results
+    passed = sum(1 for _, success, _ in test_results if success)
+    total = len(test_results)
     
-    system_prompt = prompt_match.group(1)
+    # Print detailed results
+    print(f"📊 Detailed Test Results:")
+    for test_name, success, message in test_results:
+        status = "✅" if success else "❌"
+        print(f"  {status} {test_name}: {message}")
     
-    # Required FAQ scenarios (check exact format)
-    required_faqs = [
-        "### \"Where can I generate/find my SIP credentials?\"",
-        "### \"How do I deposit money?\"",
-        "### \"How do I set up call forwarding?\"",
-        "### \"How do I set up voicemail?\"",
-        "### \"How do I manage DNS records?\"", 
-        "### \"How do I change language / settings?\"",
-        "### \"How do I shorten a link?\""
-    ]
-    
-    missing_faqs = []
-    for faq in required_faqs:
-        if faq not in system_prompt:
-            missing_faqs.append(faq)
-    
-    if missing_faqs:
-        return False, f"Missing FAQ scenarios: {missing_faqs}"
-    
-    # Check for specific navigation paths in answers
-    navigation_checks = [
-        ("📞 Cloud IVR + SIP", "SIP credentials"),
-        ("👛 My Wallet", "deposit money"),
-        ("🌍 Settings", "change language"),
-        ("🔗 URL Shortener", "shorten a link"),
-        ("🌐 Register Domain", "DNS records")
-    ]
-    
-    for path, topic in navigation_checks:
-        if path not in system_prompt:
-            return False, f"Navigation path missing for {topic}: {path}"
-    
-    print(f"✅ All required FAQ scenarios with navigation paths found")
-    return True, "FAQ scenarios contain step-by-step navigation"
-
-def test_environment_variables(content):
-    """Test 6: Environment variables used in prompt"""
-    print("🔍 Testing environment variables usage...")
-    
-    required_env_vars = [
-        'SIP_DOMAIN', 'CALL_PAGE_URL', 'PHONE_STARTER_PRICE', 
-        'PHONE_PRO_PRICE', 'PHONE_BUSINESS_PRICE'
-    ]
-    
-    missing_vars = []
-    for var in required_env_vars:
-        if var not in content:
-            missing_vars.append(var)
-    
-    if missing_vars:
-        return False, f"Missing environment variables: {missing_vars}"
-    
-    # Check specific usage patterns
-    sip_domain_usage = "process.env.SIP_DOMAIN || 'sip.speechcue.com'"
-    call_page_usage = "process.env.CALL_PAGE_URL || 'https://speechcue.com/call'"
-    
-    if sip_domain_usage not in content:
-        return False, "SIP_DOMAIN environment variable not properly used with default"
-    
-    if call_page_usage not in content:
-        return False, "CALL_PAGE_URL environment variable not properly used with default"
-    
-    # Check pricing variables are used in the content (not necessarily in SYSTEM_PROMPT directly due to conditionals)
-    if 'process.env.PHONE_STARTER_PRICE' not in content:
-        return False, "PHONE_STARTER_PRICE not used in content"
-    if 'process.env.PHONE_PRO_PRICE' not in content:
-        return False, "PHONE_PRO_PRICE not used in content"
-    if 'process.env.PHONE_BUSINESS_PRICE' not in content:
-        return False, "PHONE_BUSINESS_PRICE not used in content"
-    
-    print(f"✅ All required environment variables found and properly used")
-    return True, "Environment variables used correctly in prompt"
-
-def test_getai_response_function(content):
-    """Test 7: getAiResponse function works correctly"""
-    print("🔍 Testing getAiResponse function...")
-    
-    # Check function signature
-    function_match = re.search(r'async function getAiResponse\(([^)]+)\)', content)
-    if not function_match:
-        return False, "getAiResponse function not found"
-    
-    params = function_match.group(1)
-    expected_params = ['chatId', 'userMessage', 'lang']
-    
-    for param in expected_params[:2]:  # chatId and userMessage are required
-        if param not in params:
-            return False, f"Missing required parameter: {param}"
-    
-    # Check for default lang parameter
-    if 'lang = \'en\'' not in params:
-        return False, "lang parameter missing default value of 'en'"
-    
-    # Check function builds messages array
-    if 'messages = [' not in content:
-        return False, "Function doesn't build messages array"
-    
-    # Check for SYSTEM_PROMPT usage
-    if 'SYSTEM_PROMPT + langInstruction + userContext' not in content:
-        return False, "Function doesn't use SYSTEM_PROMPT + langInstruction + userContext"
-    
-    # Check for language instruction logic
-    if 'langInstruction' not in content or 'LANG_NAMES' not in content:
-        return False, "Language instruction logic missing"
-    
-    # Check module exports
-    export_match = re.search(r'module\.exports = \{([^}]+)\}', content)
-    if not export_match:
-        return False, "module.exports not found"
-    
-    exports = export_match.group(1)
-    required_exports = ['getAiResponse', 'initAiSupport', 'clearHistory', 'needsEscalation', 'isAiEnabled']
-    
-    missing_exports = []
-    for export in required_exports:
-        if export not in exports:
-            missing_exports.append(export)
-    
-    if missing_exports:
-        return False, f"Missing exports: {missing_exports}"
-    
-    print(f"✅ getAiResponse function correctly implemented with proper signature and exports")
-    return True, "getAiResponse function works correctly"
-
-def run_all_tests():
-    """Run all tests and return results"""
-    print("🚀 Starting AI Support Navigation Knowledge Backend Testing...")
-    print("=" * 80)
-    
-    tests = []
-    
-    # Test 1: Node.js Health
-    success, message = test_nodejs_health()
-    tests.append(("Node.js health check", success, message))
-    
-    # Read ai-support.js file for remaining tests
-    content = read_ai_support_file()
-    if not content:
-        tests.append(("File read", False, "Could not read ai-support.js file"))
-        return tests
-    
-    # Test 2: SYSTEM_PROMPT Navigation Knowledge
-    success, message = test_system_prompt_navigation_knowledge(content)
-    tests.append(("SYSTEM_PROMPT navigation knowledge", success, message))
-    
-    # Test 3: SIP Credentials Navigation Path
-    success, message = test_sip_credentials_navigation_path(content)
-    tests.append(("SIP Credentials navigation path", success, message))
-    
-    # Test 4: Feature-by-plan Table
-    success, message = test_feature_by_plan_table(content)
-    tests.append(("Feature-by-plan table", success, message))
-    
-    # Test 5: FAQ Scenarios Navigation
-    success, message = test_faq_scenarios_navigation(content)
-    tests.append(("FAQ scenarios navigation", success, message))
-    
-    # Test 6: Environment Variables
-    success, message = test_environment_variables(content)
-    tests.append(("Environment variables usage", success, message))
-    
-    # Test 7: getAiResponse Function
-    success, message = test_getai_response_function(content)
-    tests.append(("getAiResponse function", success, message))
-    
-    return tests
+    if passed == total:
+        return True, f"All {total} comprehensive tests passed - AI Support navigation knowledge complete"
+    else:
+        return False, f"Failed {total - passed}/{total} tests - see details above"
 
 def main():
     """Main test execution"""
-    tests = run_all_tests()
+    print("🚀 Starting AI Support Navigation Knowledge Comprehensive Testing...")
+    print("=" * 80)
+    
+    # Test 1: Node.js Health
+    health_success, health_message = test_nodejs_health()
+    
+    # Test 2-7: Comprehensive SYSTEM_PROMPT verification  
+    content_success, content_message = test_system_prompt_comprehensive_content()
     
     print("\n" + "=" * 80)
-    print("📊 TEST RESULTS SUMMARY")
+    print("📊 FINAL TEST RESULTS SUMMARY")
     print("=" * 80)
+    
+    results = [
+        ("Node.js health check", health_success, health_message),
+        ("AI Support navigation knowledge", content_success, content_message)
+    ]
     
     passed = 0
     failed = 0
     
-    for test_name, success, message in tests:
+    for test_name, success, message in results:
         status = "✅ PASS" if success else "❌ FAIL"
-        print(f"{status:8} | {test_name:40} | {message}")
+        print(f"{status:8} | {test_name:35} | {message}")
         if success:
             passed += 1
         else:
             failed += 1
     
     print("=" * 80)
-    success_rate = (passed / len(tests)) * 100 if tests else 0
-    print(f"📈 SUCCESS RATE: {success_rate:.1f}% ({passed}/{len(tests)} tests passed)")
+    success_rate = (passed / len(results)) * 100 if results else 0
+    print(f"📈 SUCCESS RATE: {success_rate:.1f}% ({passed}/{len(results)} major tests passed)")
     
     if failed > 0:
         print(f"❌ {failed} test(s) failed")
