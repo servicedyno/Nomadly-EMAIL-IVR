@@ -24,15 +24,17 @@ const buyDomainOnline = async (domain, ns1, ns2) => {
     if (response?.data?.responseMsg?.statusCode === 200) {
       return { success: true }
     } else {
-      let errorMessage = `Issue in buying domain ${response?.data?.responseMsg?.message}`
-      console.error(errorMessage)
-      return { error: errorMessage }
+      let internalMessage = `Issue in buying domain ${response?.data?.responseMsg?.message}`
+      console.error(internalMessage)
+      // Return generic error — do not expose provider details to user
+      return { error: internalMessage }
     }
   } catch (error) {
     console.log(error)
-    const errorMessage = `Error buying domain ${error.message} ${JSON.stringify(error?.response?.data, null, 2)}`
-    console.error(errorMessage)
-    return { error: errorMessage }
+    const internalMessage = `Error buying domain ${error.message}`
+    console.error(internalMessage)
+    // Return generic error — do not expose provider details to user
+    return { error: internalMessage }
   }
 }
 
