@@ -73,8 +73,8 @@ This opens the Cloud IVR hub with these buttons:
 - 📢 Quick IVR Call — Make a single automated IVR call (Pro/Business plan required, 1 free trial for non-subscribers)
 - 📞 Bulk IVR Campaign — Run automated IVR campaigns to multiple numbers (Pro/Business)
 - 🎵 Audio Library — Upload and manage IVR audio files
-- 🛒 Choose a Cloud IVR Plan — Purchase a phone number with a plan
-- 📱 My Numbers — View and manage your phone numbers
+- 🛒 Choose a Plan — Purchase a phone number with a plan
+- 📋 My Plans — View and manage your phone plans and numbers
 - 📖 SIP Setup Guide — General SIP configuration instructions
 - 📊 Usage & Billing — View call/SMS usage stats
 
