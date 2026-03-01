@@ -248,7 +248,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Real-Time Bulk IVR, Quick IVR, and Outbound SIP Testing"
+    - "Credential Storage Fix + Reset + Bulk IVR Billing Integration"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
