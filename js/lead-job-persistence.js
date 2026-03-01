@@ -22,7 +22,7 @@ function initLeadJobPersistence(db) {
 /**
  * Create a new job before starting generation
  */
-async function createJob({ chatId, carrier, phonesToGenerate, countryCode, areaCodes, cnam, requireRealName, target, price, lang }) {
+async function createJob({ chatId, carrier, phonesToGenerate, countryCode, areaCodes, cnam, requireRealName, target, price, lang, walletDeducted, paymentCoin }) {
   if (!_db) return null
   const jobId = require('crypto').randomUUID()
   const job = {
@@ -37,6 +37,8 @@ async function createJob({ chatId, carrier, phonesToGenerate, countryCode, areaC
     target: target || 'unknown',
     price: price || 0,
     lang: lang || 'en',
+    walletDeducted: walletDeducted || false,
+    paymentCoin: paymentCoin || null,
     status: 'running',       // running | completed | failed | interrupted
     results: [],             // accumulated leads
     realNameCount: 0,
