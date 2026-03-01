@@ -7599,7 +7599,7 @@ All verified numbers generated during sourcing.`))
     if (dnsSource === 'cloudflare') {
       const result = await domainService.addDNSRecord(domain, t[recordType], recordContent, hostName || '', db)
       if (result.error || !result.success) {
-        const m = t.errorSavingDns(result.error || 'Cloudflare add failed')
+        const m = t.errorSavingDns(sanitizeProviderError(result.error || 'Failed to add record', 'domain'))
         return send(chatId, m)
       }
     } else {
