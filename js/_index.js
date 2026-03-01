@@ -7431,7 +7431,7 @@ All verified numbers generated during sourcing.`))
       send(chatId, msg, { parse_mode: 'HTML' })
     } catch (e) {
       log(`[SwitchToCF] Error for ${domain}: ${e.message}`)
-      send(chatId, t.switchToCfError(e.message), { parse_mode: 'HTML' })
+      send(chatId, t.switchToCfError(sanitizeProviderError(e.message, 'domain')), { parse_mode: 'HTML' })
     }
     return goto['choose-dns-action']()
   }
