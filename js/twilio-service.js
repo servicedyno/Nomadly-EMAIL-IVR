@@ -116,6 +116,27 @@ async function closeSubAccount(subSid) {
 // PHONE NUMBER MANAGEMENT
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+// ── Area code overlay groups: same metro, alternative codes when primary is exhausted ──
+const AREA_CODE_OVERLAYS = {
+  '212': ['332', '646', '917', '718', '347', '929'],
+  '332': ['212', '646', '917', '718', '347', '929'],
+  '646': ['212', '332', '917', '718', '347', '929'],
+  '310': ['424', '213', '323', '818', '747', '626'],
+  '213': ['323', '310', '424', '818', '747', '626'],
+  '312': ['773', '872', '708', '630'],
+  '773': ['312', '872', '708', '630'],
+  '305': ['786', '954', '754'],
+  '786': ['305', '954', '754'],
+  '713': ['832', '281', '346'],
+  '832': ['713', '281', '346'],
+  '214': ['972', '469', '945'],
+  '972': ['214', '469', '945'],
+  '415': ['628', '510'],
+  '628': ['415', '510'],
+  '206': ['253', '425', '564'],
+  '253': ['206', '425', '564'],
+}
+
 async function searchNumbers(countryCode, numberType = 'local', limit = 5, areaCode = null) {
   try {
     const client = getClient()
@@ -138,11 +159,22 @@ async function searchNumbers(countryCode, numberType = 'local', limit = 5, areaC
 
     let numbers = await doSearch(params)
 
-    // Fallback: if exact area code returned 0, try nearNumber with a seed from that area
+    // Fallback: if exact area code returned 0, try overlay area codes for same metro
     if (numbers.length === 0 && areaCode && numberType === 'local') {
-      log(`[Twilio] No numbers for area code ${areaCode}, trying nearNumber fallback`)
-      const fallbackParams = { limit, voiceEnabled: true, nearNumber: `+1${areaCode}0000000` }
-      numbers = await doSearch(fallbackParams).catch(() => [])
+      const overlays = AREA_CODE_OVERLAYS[areaCode]
+      if (overlays) {
+        log(`[Twilio] No numbers for ${areaCode}, trying overlay codes: ${overlays.join(',')}`)
+        for (const alt of overlays) {
+          if (numbers.length >= limit) break
+          const altResults = await doSearch({ limit: limit - numbers.length, voiceEnabled: true, areaCode: alt }).catch(() => [])
+          numbers = numbers.concat(altResults)
+        }
+      }
+      // Last resort: search by state region if still empty
+      if (numbers.length === 0 && countryCode === 'US') {
+        log(`[Twilio] Overlay search empty, trying inRegion fallback`)
+        numbers = await doSearch({ limit, voiceEnabled: true, inRegion: 'NY' }).catch(() => [])
+      }
     }
 
     // Check if country has custom address requirements
