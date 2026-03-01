@@ -4349,15 +4349,11 @@ All verified numbers generated during sourcing.`))
         send(chatId, t.freeValidationUsed(freePortionAmount, 0), trans('o'))
       }
 
-      // wallet update
+      // wallet already deducted before validation — just log payment record
       if (coin === u.usd) {
         set(payments, nanoid(), `Wallet,Validate Leads,${info?.partialFree ? info?.paidPortionAmount : leadsAmount} leads,$${priceUsd},${chatId},${name},${new Date()}`)
-        await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
       } else if (coin === u.ngn) {
         set(payments, nanoid(), `Wallet,Validate Leads,${info?.partialFree ? info?.paidPortionAmount : leadsAmount} leads,$${priceUsd},${chatId},${name},${new Date()},${priceNgn} NGN`)
-        await atomicIncrement(walletOf, chatId, 'ngnOut', priceNgn)
-      } else {
-        return send(chatId, t.someIssue || 'Some Issue')
       }
       const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
       send(chatId, t.showWallet(usd, ngn), trans('o'))
