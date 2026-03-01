@@ -8059,7 +8059,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const value = info?.dnsAddValue
     const result = await domainService.addDNSRecord(domain, 'MX', value, hostname, db, priority)
     if (!result.success) {
-      return send(chatId, t.errorSavingDns(result.error || 'Failed'))
+      return send(chatId, t.errorSavingDns(sanitizeProviderError(result.error || 'Failed', 'domain')))
     }
     send(chatId, t.dnsRecordSaved)
     const checkName = hostname ? `${hostname}.${domain}` : domain
