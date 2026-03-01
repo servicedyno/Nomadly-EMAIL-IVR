@@ -10009,6 +10009,15 @@ Choose an IVR template category:`), k.of(rows))
     return rows
   }
 
+  // Helper: Show manage screen with sub-number data
+  async function showManageScreen(chatId, num) {
+    const userData = await get(phoneNumbersOf, chatId)
+    const allNumbers = userData?.numbers || []
+    const subCount = num.isSubNumber ? 0 : allNumbers.filter(n => n.isSubNumber && n.parentNumber === num.phoneNumber && (n.status === 'active' || n.status === 'suspended')).length
+    const subLimit = num.isSubNumber ? 0 : phoneConfig.getSubNumberLimit(num.plan)
+    return send(chatId, cpTxt.manageNumber(num, subCount, subLimit), k.of(buildManageMenu(num, subCount, subLimit)))
+  }
+
   // ━━━ MY NUMBERS ━━━
 
   // Helper: Show SMS Inbox with CNAM lookups + pagination
