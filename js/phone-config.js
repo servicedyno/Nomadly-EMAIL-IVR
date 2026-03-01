@@ -1456,22 +1456,6 @@ Sélectionnez une option :`,
     subActivated: (number, parentNumber, price, sipUser, sipDomain, expiry) => `🎉 <b>Numéro Supplémentaire Ajouté !</b>\n\n📞 Numéro : ${formatPhone(number)}\n🔗 Lié à : ${formatPhone(parentNumber)}\n💰 Prix : $${typeof price === 'number' ? price.toFixed(2) : price}/mois\n📅 Renouvellement : ${expiry}\n\n━━━ <b>Identifiants SIP</b> ━━━\n🌐 Serveur : ${sipDomain}\n👤 Utilisateur : ${sipUser}\n🔑 Mot de passe : ●●●●●●●● (utilisez 🔑 Identifiants SIP pour révéler)\n📡 Port : 5060 (UDP/TCP) | 5061 (TLS)\n\n━━━ <b>Configuration Rapide</b> ━━━\n• Navigateur : <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>\n• Softphone : Zoiper/Ooma avec identifiants SIP\n• Minutes & SMS partagés avec le forfait parent`,
     adminSubPurchase: (name, number, parentNumber, price, paymentMethod) => `➕ <b>Numéro Ajouté</b>\n👤 ${name}\n📞 ${formatPhone(number)} → ${formatPhone(parentNumber)}\n💰 $${price} · ${paymentMethod}`,
     adminSubPurchasePrivate: (name, number, parentNumber, price, paymentMethod) => `➕ <b>Numéro Ajouté</b>\n👤 ${name}\n📞 Nouveau : ${formatPhone(number)}\n🔗 Parent : ${formatPhone(parentNumber)}\n💰 $${price}/mois · ${paymentMethod}`,
-      const smsWarning = smsUsed >= smsLimit ? `\n💰 <b>Dépassement actif</b> — $${OVERAGE_RATE_SMS}/SMS depuis le portefeuille` : ''
-      const hasSms = n.capabilities?.sms !== false && n.features?.sms !== false
-      const hasFax = n.capabilities?.fax === true
-      const hasVoice = n.capabilities?.voice !== false
-      let text = `⚙️ Gestion : <b>${formatPhone(n.phoneNumber)}</b>\n\nStatut : ${n.status === 'active' ? '✅ Actif' : '⚠️ ' + n.status}\nForfait : ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} ($${n.planPrice}/mois)`
-      if (hasVoice) text += `\n📞 Minutes entrantes : ${minDisplay}${minWarning}`
-      if (hasSms) text += `\n📩 SMS entrants : ${smsDisplay} (réception uniquement)${smsWarning}`
-      if (hasFax) text += `\n📠 Fax : Inclus — fax entrants transférés sur Telegram`
-      const caps = []
-      if (hasVoice) caps.push('Voix')
-      if (hasSms) caps.push('SMS')
-      if (hasFax) caps.push('Fax')
-      text += `\n📋 Capacités : ${caps.join(' · ')}`
-      if (hasVoice) text += `\n\n🌐 <a href="${CALL_PAGE_URL}">Appeler depuis le navigateur</a>`
-      return text
-    },
     // Call Forwarding
     forwardingStatus: (number, config, walletBal) => {
       const status = config?.enabled ? '✅ Actif' : '❌ Désactivé'
