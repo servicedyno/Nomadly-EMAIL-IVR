@@ -51,6 +51,7 @@ const comingSoonFeatures = {
     'Call forwarding to any number',
     'SMS forwarded to Telegram',
     'Dedicated local phone number',
+    `➕ Add up to ${SUB_NUMBER_LIMITS.starter} extra numbers`,
   ],
   pro: [
     `${PRO_MINUTES} minutes/mo + ${PRO_SMS} SMS`,
@@ -58,6 +59,7 @@ const comingSoonFeatures = {
     'SIP credentials for softphones',
     'SMS to Telegram & Email',
     'Webhook integrations',
+    `➕ Add up to ${SUB_NUMBER_LIMITS.pro} extra numbers`,
   ],
   business: [
     `${BUSINESS_MINUTES === 'Unlimited' ? 'Unlimited' : BUSINESS_MINUTES} minutes + ${BUSINESS_SMS} SMS`,
@@ -65,6 +67,7 @@ const comingSoonFeatures = {
     'Call recording & analytics',
     'All Pro features included',
     'Priority support',
+    `➕ Add up to ${SUB_NUMBER_LIMITS.business} extra numbers`,
   ],
 }
 
