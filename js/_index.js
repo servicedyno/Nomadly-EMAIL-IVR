@@ -4489,14 +4489,45 @@ All verified numbers generated during sourcing.`))
   }
 
   // ═══════════════════════════════════════════════════
-  // Support chat mode — forward user messages to admin (private only, not groups)
+  // Support chat mode — AI auto-responds + admin sees everything
   // ═══════════════════════════════════════════════════
   if (action === a.supportChat) {
     const name = await get(nameOf, chatId)
     const displayName = name || msg?.from?.username || chatId
+
+    // Always forward user message to admin first
     send(TELEGRAM_ADMIN_CHAT_ID, `💬 <b>${displayName}</b> (${chatId}):\n${message}\n\n↩️ /reply ${chatId} <i>type response</i>`, { parse_mode: 'HTML' })
-    send(chatId, '✉️ Message sent to support. We\'ll respond shortly.', { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
     log(`[Support] ${chatId} -> admin: ${message}`)
+
+    // AI auto-response
+    if (isAiEnabled()) {
+      try {
+        const { response: aiResponse, escalate, error } = await getAiResponse(chatId, message)
+
+        if (aiResponse) {
+          // Send AI response to user
+          send(chatId, `${aiResponse}`, { parse_mode: 'HTML', reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
+
+          // Show AI response to admin with escalation flag
+          const escalateTag = escalate ? '\n\n🚨 <b>NEEDS HUMAN ATTENTION</b>' : ''
+          send(TELEGRAM_ADMIN_CHAT_ID,
+            `🤖 <b>AI replied to ${displayName}</b> (${chatId}):\n<i>${aiResponse.substring(0, 500)}${aiResponse.length > 500 ? '...' : ''}</i>${escalateTag}`,
+            { parse_mode: 'HTML' })
+          log(`[Support] AI -> ${chatId}: ${aiResponse.substring(0, 100)}... (escalate: ${escalate})`)
+        } else {
+          // AI failed — tell user support will follow up, alert admin
+          send(chatId, '✉️ Message received! A support agent will respond shortly.', { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
+          send(TELEGRAM_ADMIN_CHAT_ID, `⚠️ <b>AI failed for ${displayName}</b> (${chatId}) — needs manual reply\nError: ${error || 'unknown'}`, { parse_mode: 'HTML' })
+        }
+      } catch (e) {
+        // Fallback to manual
+        send(chatId, '✉️ Message sent to support. We\'ll respond shortly.', { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
+        log(`[Support] AI error: ${e.message}`)
+      }
+    } else {
+      // AI not available — original manual flow
+      send(chatId, '✉️ Message sent to support. We\'ll respond shortly.', { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
+    }
     return
   }
 
