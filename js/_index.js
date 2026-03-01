@@ -7496,7 +7496,7 @@ All verified numbers generated during sourcing.`))
       send(chatId, msg, { parse_mode: 'HTML' })
     } catch (e) {
       log(`[SwitchToProvider] Error for ${domain}: ${e.message}`)
-      send(chatId, t.switchToProviderError ? t.switchToProviderError(e.message) : `❌ Error: ${e.message}`, { parse_mode: 'HTML' })
+      send(chatId, t.switchToProviderError ? t.switchToProviderError(sanitizeProviderError(e.message, 'domain')) : `❌ Error: ${sanitizeProviderError(e.message, 'domain')}`, { parse_mode: 'HTML' })
     }
     return goto['choose-dns-action']()
   }
