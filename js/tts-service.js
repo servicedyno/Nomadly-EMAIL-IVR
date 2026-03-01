@@ -164,10 +164,20 @@ async function generateTTS(text, voiceKey = DEFAULT_VOICE, langCode = null) {
     throw new Error('No audio data in EdenAI response')
   }
 
+  // Also save a copy in user-audio/ for reliable self-hosted URL (avoids CloudFront expiration)
+  const userAudioDir = path.join(__dirname, 'assets', 'user-audio')
+  if (!fs.existsSync(userAudioDir)) fs.mkdirSync(userAudioDir, { recursive: true })
+  const userAudioFilename = `tts_${Date.now()}_${voiceKey}.mp3`
+  const userAudioPath = path.join(userAudioDir, userAudioFilename)
+  fs.copyFileSync(audioPath, userAudioPath)
+
+  const baseUrl = process.env.SELF_URL_PROD || process.env.SELF_URL || ''
+  const selfHostedUrl = `${baseUrl}/assets/user-audio/${userAudioFilename}`
+
   log(`[TTS] Generated: ${filename} (provider: ${provider}, voice: ${voice.name}, ${text.length} chars)`)
   return {
     audioPath,
-    audioUrl: result.audio_resource_url || null,
+    audioUrl: selfHostedUrl,
     voice: voice.name,
   }
 }
