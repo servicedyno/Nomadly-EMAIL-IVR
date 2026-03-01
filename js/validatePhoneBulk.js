@@ -26,8 +26,7 @@ const CNAM_MISS_THRESHOLD = 50 // 50 consecutive batches with 0 new real names �
 
 // ── CNAM Cost Optimization Constants ──
 const CNAM_COST_PER_LOOKUP = 0.004 // Estimated average CNAM cost per lookup (USD)
-const CNAM_COST_CAP_MULTIPLIER = 2.5 // Stop if CNAM cost exceeds 2.5x job price
-const AREA_CODE_MIN_YIELD = 0.08 // 8% — drop area codes below this real-name yield
+const AREA_CODE_MIN_YIELD = 0.08 // 8% — disable CNAM for area codes below this real-name yield
 const AREA_CODE_SAMPLE_SIZE = 30 // Evaluate area code after this many CNAM lookups
 const VOIP_WHOLESALE_CARRIERS = new Set([
   'ONVOY', 'BANDWIDTH', 'LEVEL 3', 'LEVEL3', 'LUMEN', 'THINQ', 'INTELIQUENT',
