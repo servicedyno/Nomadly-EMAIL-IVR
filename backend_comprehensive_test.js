@@ -71,7 +71,7 @@ async function runComprehensiveTests() {
     logTest('Output Log Exists', outLogExists, 'Output log file accessible')
     
     if (outLogExists) {
-      const { stdout } = await execPromise('tail -n 50 /var/log/supervisor/nodejs.out.log')
+      const { stdout } = await execPromise('tail -n 200 /var/log/supervisor/nodejs.out.log')
       
       // Check for required service initializations
       const hasLeadJobs = stdout.includes('[LeadJobs] Persistence initialized')
