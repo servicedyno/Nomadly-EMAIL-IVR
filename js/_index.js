@@ -7423,7 +7423,7 @@ All verified numbers generated during sourcing.`))
       }
       if (migration.failed && migration.failed.length > 0) {
         msg += `\n\n⚠️ <b>Failed to migrate:</b>\n`
-        msg += migration.failed.map(r => `• ${r.type} ${r.name}: ${r.error}`).join('\n')
+        msg += migration.failed.map(r => `• ${r.type} ${r.name}: ${sanitizeProviderError(r.error, 'domain')}`).join('\n')
       }
       if (migration.isEmpty) {
         msg += `\n\n📋 <b>Note:</b> No existing DNS records were found to migrate. Please add your A, CNAME, MX, and TXT records as needed.`
@@ -7484,7 +7484,7 @@ All verified numbers generated during sourcing.`))
       }
       if (migration.failed && migration.failed.length > 0) {
         msg += `\n\n⚠️ <b>Failed to migrate:</b>\n`
-        msg += migration.failed.map(r => `• ${r.type} ${r.name}: ${r.error}`).join('\n')
+        msg += migration.failed.map(r => `• ${r.type} ${r.name}: ${sanitizeProviderError(r.error, 'domain')}`).join('\n')
       }
       if (migration.isEmpty || (migration.migrated && migration.migrated.length === 0 && (!migration.failed || migration.failed.length === 0))) {
         msg += `\n\n📋 <b>Note:</b> No DNS records were found to migrate. Please add your A, CNAME, MX, and TXT records as needed.`
