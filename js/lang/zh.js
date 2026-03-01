@@ -810,7 +810,7 @@ ${CHAT_BOT_NAME}`,
 
   qrCodeText: `这是您的二维码！`,
   scanQrOrUseChat: chatId => `使用短信营销应用扫描二维码登录。您也可以使用此代码登录：${chatId}`,
-  domainPurchasedFailed: (domain, buyDomainError) => `域名购买失败，请尝试其他名称。 ${domain} ${buyDomainError}`,
+  domainPurchasedFailed: (domain) => `❌ 域名 <b>${domain}</b> 注册未能完成。请重试，如果问题仍然存在，请联系支持。`,
   noDomainRegistered: '您还没有购买任何域名。',
   registeredDomainList: domainsText => `以下是您购买的域名：\n${domainsText}`,
   selectDomainAction: domain => `<b>${domain}</b>\n\n您想对此域名执行什么操作？`,
