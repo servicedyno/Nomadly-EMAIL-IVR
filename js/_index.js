@@ -8891,7 +8891,7 @@ Choose an IVR template category:`), k.of(rows))
       })
 
       if (result.error) {
-        send(chatId, ivrOb.formatCallNotification('failed', { ...ivrObData, reason: result.error }))
+        send(chatId, ivrOb.formatCallNotification('failed', { ...ivrObData, reason: sanitizeProviderError(result.error, 'voice') }))
         return goto.submenu5()
       }
 
