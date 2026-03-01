@@ -1734,14 +1734,24 @@ Sélectionnez une option :`,
     activated: (number, plan, price, sipUser, sipDomain, expiry) => `🎉 <b>您的 Cloud IVR 已激活！</b>\n\n📞 号码：${formatPhone(number)}\n📦 套餐：${plan}（$${price}/月）\n📅 续费日期：${expiry}\n\n━━━ <b>SIP 凭据</b> ━━━\n🌐 服务器：${sipDomain}\n👤 用户名：${sipUser}\n🔑 密码：●●●●●●●●（使用 🔑 SIP 凭据 查看）\n📡 端口：5060 (UDP/TCP) | 5061 (TLS)\n\n━━━ <b>快速设置</b> ━━━\n• 浏览器：在 <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a> 拨打电话\n• 软电话：下载 Zoiper/Ooma，输入 SIP 凭据\n• 短信：来电短信自动转发到此聊天\n• 转发：通过 📱 我的号码 → 呼叫转移 设置`,
     myNumbersList: (numbers) => {
       let text = '📱 <b>您的 Cloud IVR 号码：</b>\n\n'
-      numbers.forEach((n, i) => {
+      const primaryNumbers = numbers.filter(n => !n.isSubNumber)
+      const subNumbers = numbers.filter(n => n.isSubNumber)
+      primaryNumbers.forEach((n, i) => {
         const status = n.status === 'active' ? '✅ 活跃' : n.status === 'suspended' ? '⚠️ 已暂停' : '🗑️ 已删除'
         text += `${i + 1}️⃣  ${formatPhone(n.phoneNumber)}  ${status}\n`
-        text += `    ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} 套餐 · 续费 ${shortDate(n.expiresAt)}\n\n`
+        text += `    ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} 套餐 · 续费 ${shortDate(n.expiresAt)}\n`
+        const subs = subNumbers.filter(s => s.parentNumber === n.phoneNumber && (s.status === 'active' || s.status === 'suspended'))
+        if (subs.length > 0) {
+          subs.forEach(s => {
+            const subStatus = s.status === 'active' ? '✅' : '⚠️'
+            text += `    ├ ${formatPhone(s.phoneNumber)} ${subStatus} (附加 · $${s.planPrice}/月)\n`
+          })
+        }
+        text += '\n'
       })
       return text
     },
-    manageNumber: (n) => {
+    manageNumber: (n, subCount, subLimit) => {
       const plan = plans[n.plan]
       const minLimit = plan?.minutes === 'Unlimited' ? '无限' : (plan?.minutes || 0)
       const smsLimit = plan?.sms || 0
@@ -1754,7 +1764,10 @@ Sélectionnez une option :`,
       const hasSms = n.capabilities?.sms !== false && n.features?.sms !== false
       const hasFax = n.capabilities?.fax === true
       const hasVoice = n.capabilities?.voice !== false
-      let text = `⚙️ 管理：<b>${formatPhone(n.phoneNumber)}</b>\n\n状态：${n.status === 'active' ? '✅ 活跃' : '⚠️ ' + n.status}\n套餐：${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)}（$${n.planPrice}/月）`
+      let text = `⚙️ 管理：<b>${formatPhone(n.phoneNumber)}</b>`
+      if (n.isSubNumber) text += ` <i>(附加号码)</i>`
+      text += `\n\n状态：${n.status === 'active' ? '✅ 活跃' : '⚠️ ' + n.status}\n套餐：${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)}（$${n.planPrice}/月）`
+      if (n.isSubNumber && n.parentNumber) text += `\n🔗 主号码：${formatPhone(n.parentNumber)}`
       if (hasVoice) text += `\n📞 来电分钟：${minDisplay}${minWarning}`
       if (hasSms) text += `\n📩 来电短信：${smsDisplay}（仅接收）${smsWarning}`
       if (hasFax) text += `\n📠 传真：已包含 — 来电传真转发到 Telegram`
@@ -1763,9 +1776,18 @@ Sélectionnez une option :`,
       if (hasSms) caps.push('短信')
       if (hasFax) caps.push('传真')
       text += `\n📋 功能：${caps.join(' · ')}`
+      if (!n.isSubNumber && subCount !== undefined && subLimit !== undefined) {
+        text += `\n➕ 附加号码：${subCount} / ${subLimit}`
+      }
       if (hasVoice) text += `\n\n🌐 <a href="${CALL_PAGE_URL}">在浏览器中拨打电话</a>`
       return text
     },
+    // ── 附加号码 ──
+    subNumberLimitReached: (plan, limit) => `⚠️ 您已达到 <b>${plan}</b> 套餐的附加号码上限（${limit} 个）。\n\n升级到更高套餐以获取更多号码。`,
+    subNumberOrderSummary: (number, country, parentNumber, price, parentPlan) => `📋 <b>附加号码订单</b>\n\n📞 新号码：${formatPhone(number)} · ${country}\n🔗 添加到：${formatPhone(parentNumber)}（${parentPlan} 套餐）\n💰 价格：<b>$${typeof price === 'number' ? price.toFixed(2) : price}/月</b>\n\n⚡ 共享主号码的通话分钟和短信\n🔑 独立 SIP 凭据`,
+    subActivated: (number, parentNumber, price, sipUser, sipDomain, expiry) => `🎉 <b>附加号码已添加！</b>\n\n📞 号码：${formatPhone(number)}\n🔗 关联到：${formatPhone(parentNumber)}\n💰 价格：$${typeof price === 'number' ? price.toFixed(2) : price}/月\n📅 续费：${expiry}\n\n━━━ <b>SIP 凭据</b> ━━━\n🌐 服务器：${sipDomain}\n👤 用户名：${sipUser}\n🔑 密码：●●●●●●●●（使用 🔑 SIP 凭据 查看）\n📡 端口：5060 (UDP/TCP) | 5061 (TLS)\n\n━━━ <b>快速设置</b> ━━━\n• 浏览器：<a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>\n• 软电话：使用 Zoiper/Ooma 配置 SIP\n• 分钟和短信与主号码共享`,
+    adminSubPurchase: (name, number, parentNumber, price, paymentMethod) => `➕ <b>附加号码</b>\n👤 ${name}\n📞 ${formatPhone(number)} → ${formatPhone(parentNumber)}\n💰 $${price} · ${paymentMethod}`,
+    adminSubPurchasePrivate: (name, number, parentNumber, price, paymentMethod) => `➕ <b>附加号码</b>\n👤 ${name}\n📞 新：${formatPhone(number)}\n🔗 主：${formatPhone(parentNumber)}\n💰 $${price}/月 · ${paymentMethod}`,
     // 呼叫转移
     forwardingStatus: (number, config, walletBal) => {
       const status = config?.enabled ? '✅ 已启用' : '❌ 已关闭'
