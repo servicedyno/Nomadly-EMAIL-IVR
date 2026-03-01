@@ -8130,7 +8130,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const extraData = { service, proto, srvName, priority, weight, port }
     const result = await domainService.addDNSRecord(domain, 'SRV', target, '', db, priority, extraData)
     if (!result.success) {
-      return send(chatId, t.errorSavingDns ? t.errorSavingDns(result.error || 'Failed') : `Error: ${result.error || 'Failed'}`)
+      return send(chatId, t.errorSavingDns ? t.errorSavingDns(sanitizeProviderError(result.error || 'Failed', 'domain')) : `Error: ${sanitizeProviderError(result.error || 'Failed', 'domain')}`)
     }
     send(chatId, t.dnsRecordSaved)
     dnsAutoCheck(send, chatId, t, srvName, 'SRV', target)
@@ -8178,7 +8178,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const name = hostname ? `${hostname}.${domain}` : domain
     const result = await domainService.addDNSRecord(domain, 'CAA', value, hostname, db, undefined, extraData)
     if (!result.success) {
-      return send(chatId, t.errorSavingDns ? t.errorSavingDns(result.error || 'Failed') : `Error: ${result.error || 'Failed'}`)
+      return send(chatId, t.errorSavingDns ? t.errorSavingDns(sanitizeProviderError(result.error || 'Failed', 'domain')) : `Error: ${sanitizeProviderError(result.error || 'Failed', 'domain')}`)
     }
     send(chatId, t.dnsRecordSaved)
     dnsAutoCheck(send, chatId, t, name, 'CAA', value)
