@@ -8873,6 +8873,27 @@ Choose an IVR template category:`), k.of(rows))
       // Place the call — detect provider to use correct API (Telnyx or Twilio)
       const callerProvider = ivrObData.callerProvider || 'telnyx'
       const userData = await get(phoneNumbersOf, chatId)
+
+      // Resolve sub-account credentials from the specific number (not top-level)
+      const callerNumber = (userData?.numbers || []).find(n => n.phoneNumber === ivrObData.callerId)
+      let subAccountSid = callerNumber?.twilioSubAccountSid || userData?.twilioSubAccountSid || null
+      let subAccountToken = callerNumber?.twilioSubAccountToken || userData?.twilioSubAccountToken || null
+
+      // Auto-resolve sub-account token if SID exists but token is missing
+      if (subAccountSid && !subAccountToken) {
+        try {
+          const subAcct = await twilioService.getSubAccount(subAccountSid)
+          if (subAcct?.authToken) {
+            subAccountToken = subAcct.authToken
+            // Cache token on the number for future calls
+            if (callerNumber) {
+              callerNumber.twilioSubAccountToken = subAccountToken
+              await set(phoneNumbersOf, chatId, userData)
+            }
+          }
+        } catch (e) { log(`[QuickIVR] Sub-account token resolve error: ${e.message}`) }
+      }
+
       const result = await voiceService.initiateOutboundIvrCall({
         chatId,
         callerId: ivrObData.callerId,
@@ -8886,8 +8907,8 @@ Choose an IVR template category:`), k.of(rows))
         isTrial: ivrObData.isTrial || false,
         holdMusic: ivrObData.holdMusic || false,
         provider: callerProvider,
-        twilioSubAccountSid: userData?.twilioSubAccountSid || null,
-        twilioSubAccountToken: userData?.twilioSubAccountToken || null,
+        twilioSubAccountSid: subAccountSid,
+        twilioSubAccountToken: subAccountToken,
       })
 
       if (result.error) {
