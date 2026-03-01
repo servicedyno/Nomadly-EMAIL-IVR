@@ -1,296 +1,243 @@
 #!/usr/bin/env python3
+"""
+Backend test for AI Support Chat multi-language fix verification
+Tests all requirements from the review request
+"""
 
-import os
-import sys
 import requests
-import subprocess
 import json
-import re
+import sys
+import os
 
-# Load environment variables
-def load_env():
-    env_path = '/app/backend/.env'
-    if os.path.exists(env_path):
-        with open(env_path, 'r') as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith('#') and '=' in line:
-                    key, value = line.split('=', 1)
-                    os.environ[key] = value
+# Backend URL from environment
+BACKEND_URL = "http://localhost:5000"
 
-load_env()
-MONGO_URL = os.environ.get('MONGO_URL', '')
-DB_NAME = os.environ.get('DB_NAME', 'test')
-
-def test_result(name, passed, details=""):
-    status = "✅ PASS" if passed else "❌ FAIL"
-    print(f"{status} {name}")
-    if details:
-        print(f"   {details}")
-
-def run_node_command(command):
-    """Run a node.js command and return the result"""
+def test_health_check():
+    """Test Node.js health endpoint"""
     try:
-        result = subprocess.run(['node', '-e', command], 
-                              capture_output=True, text=True, timeout=10)
-        return result.returncode == 0, result.stdout.strip(), result.stderr.strip()
+        response = requests.get(f"{BACKEND_URL}/health", timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('status') == 'healthy':
+                print("✅ Health check: Node.js service is healthy")
+                return True
+            else:
+                print(f"❌ Health check: Service unhealthy - {data}")
+                return False
+        else:
+            print(f"❌ Health check: HTTP {response.status_code}")
+            return False
     except Exception as e:
-        return False, "", str(e)
-
-def grep_file(file_path, pattern):
-    """Search for a pattern in a file"""
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-            return re.search(pattern, content, re.MULTILINE | re.DOTALL) is not None
-    except Exception:
+        print(f"❌ Health check failed: {e}")
         return False
 
-def main():
-    print("🧪 SUB-NUMBERS FEATURE VERIFICATION")
-    print("=" * 50)
+def verify_translation_keys():
+    """Verify translation keys exist in all 4 language files"""
+    required_keys = ['supportMsgReceived', 'supportMsgSent', 'supportEnded', 'noSupportSession']
+    languages = ['en', 'fr', 'zh', 'hi']
     
-    # 1. NODE.JS HEALTH CHECK
-    print("\n1️⃣ NODE.JS HEALTH CHECK")
-    try:
-        response = requests.get('http://localhost:5000/health', timeout=5)
-        health_data = response.json()
-        
-        # Check status and database
-        status_ok = health_data.get('status') == 'healthy'
-        db_ok = health_data.get('database') == 'connected'
-        
-        test_result("Health endpoint responds", response.status_code == 200, f"Status: {response.status_code}")
-        test_result("Service status healthy", status_ok, f"Status: {health_data.get('status')}")
-        test_result("Database connected", db_ok, f"Database: {health_data.get('database')}")
-        
-        # Check error logs
+    results = []
+    for lang in languages:
+        lang_file = f"/app/js/lang/{lang}.js"
         try:
-            with open('/var/log/supervisor/nodejs.err.log', 'r') as f:
-                error_log = f.read().strip()
-                test_result("No errors in nodejs.err.log", len(error_log) == 0, 
-                          f"Log length: {len(error_log)} chars")
-        except Exception:
-            test_result("No errors in nodejs.err.log", False, "Could not read error log")
+            with open(lang_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+                
+            missing_keys = []
+            for key in required_keys:
+                if f"{key}:" not in content:
+                    missing_keys.append(key)
+            
+            if missing_keys:
+                print(f"❌ Language {lang}: Missing keys {missing_keys}")
+                results.append(False)
+            else:
+                print(f"✅ Language {lang}: All required translation keys present")
+                results.append(True)
+                
+        except Exception as e:
+            print(f"❌ Language {lang}: Error reading file - {e}")
+            results.append(False)
+    
+    return all(results)
+
+def verify_index_js_support_handler():
+    """Verify _index.js support handler uses translated strings"""
+    try:
+        with open("/app/js/_index.js", 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # Check for translated strings (NOT hardcoded English)
+        checks = [
+            ("send(chatId, t.supportEnded", "Line ~4484: Uses t.supportEnded"),
+            ("getAiResponse(chatId, message, lang)", "Line ~4507: Passes lang parameter"),
+            ("send(chatId, t.supportMsgReceived", "Line ~4521: Uses t.supportMsgReceived"),
+            ("send(chatId, t.supportMsgSent", "Line ~4526/4531: Uses t.supportMsgSent")
+        ]
+        
+        results = []
+        for check_text, description in checks:
+            if check_text in content:
+                print(f"✅ {description}")
+                results.append(True)
+            else:
+                print(f"❌ {description} - NOT FOUND")
+                results.append(False)
+        
+        # Check for hardcoded English strings (should NOT exist)
+        hardcoded_strings = [
+            "Message received!",
+            "Message sent to support", 
+            "Support session ended",
+            "No active support session"
+        ]
+        
+        hardcoded_found = []
+        for hardcoded in hardcoded_strings:
+            if hardcoded in content:
+                hardcoded_found.append(hardcoded)
+        
+        if hardcoded_found:
+            print(f"❌ Found hardcoded English strings: {hardcoded_found}")
+            results.append(False)
+        else:
+            print("✅ No hardcoded English support strings found")
+            results.append(True)
+        
+        return all(results)
+        
+    except Exception as e:
+        print(f"❌ Error reading _index.js: {e}")
+        return False
+
+def verify_ai_support_multilang():
+    """Verify ai-support.js multi-language implementation"""
+    try:
+        with open("/app/js/ai-support.js", 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        checks = [
+            # Function signature with lang parameter and default
+            ("getAiResponse(chatId, userMessage, lang = 'en')", "getAiResponse accepts lang param with default 'en'"),
+            
+            # LANG_NAMES object
+            ("LANG_NAMES = {", "LANG_NAMES object exists"),
+            ("en: 'English'", "LANG_NAMES has en entry"),
+            ("fr: 'French", "LANG_NAMES has fr entry"), 
+            ("zh: 'Chinese", "LANG_NAMES has zh entry"),
+            ("hi: 'Hindi", "LANG_NAMES has hi entry"),
+            
+            # Language instruction logic
+            ("lang !== 'en'", "Non-English language instruction logic"),
+            ("LANGUAGE REQUIREMENT", "Language requirement instruction"),
+            
+            # needsEscalation with lang parameter
+            ("needsEscalation(message, lang)", "needsEscalation accepts lang param"),
+            
+            # ESCALATION_KEYWORDS object structure
+            ("ESCALATION_KEYWORDS = {", "ESCALATION_KEYWORDS object exists"),
+            ("en: [", "English escalation keywords"),
+            ("fr: [", "French escalation keywords"),
+            ("zh: [", "Chinese escalation keywords"),
+            ("hi: [", "Hindi escalation keywords"),
+            
+            # Specific French keywords
+            ("'remboursement'", "French keyword: remboursement"),
+            ("'arnaque'", "French keyword: arnaque"),
+            ("'ne fonctionne pas'", "French keyword: ne fonctionne pas"),
+            
+            # Specific Chinese keywords
+            ("'退款'", "Chinese keyword: 退款"),
+            ("'欺诈'", "Chinese keyword: 欺诈"),
+            ("'不工作'", "Chinese keyword: 不工作"),
+            
+            # Specific Hindi keywords
+            ("'रिफंड'", "Hindi keyword: रिफंड"),
+            ("'धोखाधड़ी'", "Hindi keyword: धोखाधड़ी"),
+            ("'काम नहीं कर रहा'", "Hindi keyword: काम नहीं कर रहा"),
+            
+            # Multi-language escalation detection in AI response
+            ("agent humain", "French escalation phrase detection"),
+            ("人工客服", "Chinese escalation phrase detection"),
+            ("सहायता टीम", "Hindi escalation phrase detection")
+        ]
+        
+        results = []
+        for check_text, description in checks:
+            if check_text in content:
+                print(f"✅ {description}")
+                results.append(True)
+            else:
+                print(f"❌ {description} - NOT FOUND")
+                results.append(False)
+        
+        return all(results)
+        
+    except Exception as e:
+        print(f"❌ Error reading ai-support.js: {e}")
+        return False
+
+def check_error_logs():
+    """Check if error log is empty"""
+    try:
+        with open("/var/log/supervisor/nodejs.err.log", 'r') as f:
+            content = f.read().strip()
+        
+        if not content:
+            print("✅ Error log is empty (no startup errors)")
+            return True
+        else:
+            print(f"❌ Error log contains errors: {content[:200]}...")
+            return False
             
     except Exception as e:
-        test_result("Health endpoint responds", False, f"Error: {str(e)}")
-        test_result("Service status healthy", False, "Could not connect")
-        test_result("Database connected", False, "Could not connect")
+        print(f"❌ Error reading error log: {e}")
+        return False
+
+def run_all_tests():
+    """Run all verification tests"""
+    print("🚀 Starting AI Support Chat Multi-Language Fix Verification")
+    print("=" * 60)
     
-    # 2. SUB-NUMBER PRICING VERIFICATION
-    print("\n2️⃣ SUB-NUMBER PRICING VERIFICATION")
-    
-    # Check getSubNumberPrice function exists at module scope
-    success, stdout, stderr = run_node_command("""
-    try {
-        const fs = require('fs');
-        const content = fs.readFileSync('/app/js/_index.js', 'utf8');
-        const funcMatch = content.match(/^function getSubNumberPrice\\(/m);
-        console.log(JSON.stringify({
-            functionExists: !!funcMatch,
-            isModuleScope: funcMatch && funcMatch.index < content.indexOf('const loadData')
-        }));
-    } catch (e) {
-        console.log(JSON.stringify({error: e.message}));
-    }
-    """)
-    
-    if success:
-        try:
-            result = json.loads(stdout)
-            test_result("getSubNumberPrice function exists", result.get('functionExists', False))
-            test_result("getSubNumberPrice at module scope", result.get('isModuleScope', False))
-        except:
-            test_result("getSubNumberPrice function verification", False, "Parse error")
-    else:
-        test_result("getSubNumberPrice function verification", False, f"Error: {stderr}")
-    
-    # Verify pricing formula
-    success, stdout, stderr = run_node_command("""
-    try {
-        const phoneConfig = require('/app/js/phone-config.js');
-        // Test pricing formula for Twilio numbers
-        const BASE = 25;
-        const MARKUP = 0.5;
-        // Simulate a Twilio number with $10/month cost
-        const monthlyPrice = 10;
-        const expectedPrice = Math.max(BASE, monthlyPrice * (1 + MARKUP));
-        console.log(JSON.stringify({
-            basePrice: BASE,
-            markup: MARKUP,
-            expectedPrice: expectedPrice,
-            formulaCorrect: expectedPrice === 15  // 10 * 1.5 = 15, which is > 25
-        }));
-    } catch (e) {
-        console.log(JSON.stringify({error: e.message}));
-    }
-    """)
-    
-    if success:
-        try:
-            result = json.loads(stdout)
-            test_result("Pricing formula verification", result.get('formulaCorrect', False),
-                      f"Expected: 15, Base: {result.get('basePrice')}, Markup: {result.get('markup')}")
-        except:
-            test_result("Pricing formula verification", False, "Parse error")
-    else:
-        test_result("Pricing formula verification", False, f"Error: {stderr}")
-    
-    # 3. PHONE-CONFIG.JS EXPORTS
-    print("\n3️⃣ PHONE-CONFIG.JS EXPORTS VERIFICATION")
-    
-    success, stdout, stderr = run_node_command("""
-    try {
-        const phoneConfig = require('/app/js/phone-config.js');
-        console.log(JSON.stringify({
-            SUB_NUMBER_BASE_PRICE: phoneConfig.SUB_NUMBER_BASE_PRICE,
-            SUB_NUMBER_MARKUP: phoneConfig.SUB_NUMBER_MARKUP,
-            SUB_NUMBER_LIMITS: phoneConfig.SUB_NUMBER_LIMITS,
-            getSubNumberLimit_pro: phoneConfig.getSubNumberLimit('pro'),
-            getSubNumberLimit_starter: phoneConfig.getSubNumberLimit('starter')
-        }));
-    } catch (e) {
-        console.log(JSON.stringify({error: e.message}));
-    }
-    """)
-    
-    if success:
-        try:
-            result = json.loads(stdout)
-            test_result("SUB_NUMBER_BASE_PRICE === 25", result.get('SUB_NUMBER_BASE_PRICE') == 25)
-            test_result("SUB_NUMBER_MARKUP === 0.5", result.get('SUB_NUMBER_MARKUP') == 0.5)
-            
-            limits = result.get('SUB_NUMBER_LIMITS', {})
-            expected_limits = {'starter': 3, 'pro': 15, 'business': 30}
-            test_result("SUB_NUMBER_LIMITS correct", limits == expected_limits, f"Got: {limits}")
-            
-            test_result("getSubNumberLimit('pro') === 15", result.get('getSubNumberLimit_pro') == 15)
-            test_result("getSubNumberLimit('starter') === 3", result.get('getSubNumberLimit_starter') == 3)
-            
-        except Exception as e:
-            test_result("Phone config exports verification", False, f"Parse error: {e}")
-    else:
-        test_result("Phone config exports verification", False, f"Error: {stderr}")
-    
-    # 4. NEW ACTION STATES
-    print("\n4️⃣ NEW ACTION STATES VERIFICATION")
-    
-    action_states = [
-        'cpSubAddCountry', 'cpSubAddType', 'cpSubAddArea', 
-        'cpSubAddEnterArea', 'cpSubAddNumber', 'cpSubAddConfirm'
+    tests = [
+        ("Node.js Health Check", test_health_check),
+        ("Translation Keys Verification", verify_translation_keys), 
+        ("_index.js Support Handler Verification", verify_index_js_support_handler),
+        ("ai-support.js Multi-Language Verification", verify_ai_support_multilang),
+        ("Error Log Check", check_error_logs)
     ]
     
-    for state in action_states:
-        found = grep_file('/app/js/_index.js', f'{state}: [\'"]cpSubAdd')
-        test_result(f"Action state '{state}' exists", found)
+    results = []
     
-    # 5. ADD NUMBER BUTTON
-    print("\n5️⃣ ADD NUMBER BUTTON VERIFICATION")
+    for test_name, test_func in tests:
+        print(f"\n📋 {test_name}")
+        print("-" * 40)
+        result = test_func()
+        results.append((test_name, result))
+        print()
     
-    # Check btn.addNumber exists in phone-config.js
-    success, stdout, stderr = run_node_command("""
-    try {
-        const phoneConfig = require('/app/js/phone-config.js');
-        const btn = phoneConfig.btn || {};
-        console.log(JSON.stringify({
-            addNumberButton: btn.addNumber
-        }));
-    } catch (e) {
-        console.log(JSON.stringify({error: e.message}));
-    }
-    """)
+    print("=" * 60)
+    print("📊 FINAL RESULTS")
+    print("=" * 60)
     
-    if success:
-        try:
-            result = json.loads(stdout)
-            expected_text = '➕ Add Number to Plan'
-            actual_text = result.get('addNumberButton')
-            test_result("btn.addNumber exists", actual_text == expected_text, 
-                      f"Expected: '{expected_text}', Got: '{actual_text}'")
-        except:
-            test_result("btn.addNumber verification", False, "Parse error")
+    passed = 0
+    total = len(results)
+    
+    for test_name, result in results:
+        status = "✅ PASS" if result else "❌ FAIL"
+        print(f"{status}: {test_name}")
+        if result:
+            passed += 1
+    
+    print(f"\n🎯 SUMMARY: {passed}/{total} tests passed ({(passed/total)*100:.1f}%)")
+    
+    if passed == total:
+        print("🎉 ALL TESTS PASSED! AI Support Chat multi-language fix is working correctly.")
+        return True
     else:
-        test_result("btn.addNumber verification", False, f"Error: {stderr}")
-    
-    # Check buildManageMenu logic
-    build_menu_check = grep_file('/app/js/_index.js', 
-        r'!num\.isSubNumber && subLimit > 0 && subCount < subLimit')
-    test_result("buildManageMenu sub-number check exists", build_menu_check)
-    
-    # 6. EXECUTETWILOPURCHASE SUB-NUMBER SUPPORT
-    print("\n6️⃣ EXECUTETWILOPURCHASE SUB-NUMBER SUPPORT")
-    
-    # Check function signature includes subOpts
-    function_sig_check = grep_file('/app/js/_index.js',
-        r'function executeTwilioPurchase\([^)]*subOpts[^)]*\)')
-    test_result("executeTwilioPurchase includes subOpts parameter", function_sig_check)
-    
-    # Check sub-number fields addition
-    sub_fields_check = grep_file('/app/js/_index.js',
-        r'if \(subOpts\?\.isSubNumber && subOpts\?\.parentNumber\)')
-    test_result("Sub-number fields addition logic exists", sub_fields_check)
-    
-    # Check transaction action logic
-    transaction_check = grep_file('/app/js/_index.js',
-        r"action: subOpts\?\.isSubNumber \? 'sub-number-purchase' : 'purchase'")
-    test_result("Transaction action sub-number logic exists", transaction_check)
-    
-    # Check admin notification logic
-    admin_notify_check = grep_file('/app/js/_index.js',
-        r'if \(subOpts\?\.isSubNumber\)')
-    test_result("Admin notification sub-number logic exists", admin_notify_check)
-    
-    # 7. WALLET HANDLER SUB-NUMBER SUPPORT
-    print("\n7️⃣ WALLET HANDLER SUB-NUMBER SUPPORT")
-    
-    # Check Twilio path passes subOpts
-    twilio_subopts_check = grep_file('/app/js/_index.js',
-        r'executeTwilioPurchase\([^)]*subOpts\)')
-    test_result("Twilio path passes subOpts", twilio_subopts_check)
-    
-    # Check cpTxt.subActivated usage
-    sub_activated_check = grep_file('/app/js/_index.js', 
-        r'cpTxt\.subActivated\(')
-    test_result("cpTxt.subActivated usage exists", sub_activated_check)
-    
-    # Check Telnyx path sub-number support
-    telnyx_sub_check = grep_file('/app/js/_index.js',
-        r'numberDoc\.isSubNumber.*info\?\.cpIsSubNumber')
-    test_result("Telnyx path sub-number support exists", telnyx_sub_check)
-    
-    # 8. TEXT MESSAGES VERIFICATION
-    print("\n8️⃣ TEXT MESSAGES VERIFICATION")
-    
-    success, stdout, stderr = run_node_command("""
-    try {
-        const phoneConfig = require('/app/js/phone-config.js');
-        const txt = phoneConfig.getTxt('en');
-        console.log(JSON.stringify({
-            subActivated: typeof txt.subActivated,
-            subNumberOrderSummary: typeof txt.subNumberOrderSummary,
-            subNumberLimitReached: typeof txt.subNumberLimitReached,
-            adminSubPurchase: typeof txt.adminSubPurchase
-        }));
-    } catch (e) {
-        console.log(JSON.stringify({error: e.message}));
-    }
-    """)
-    
-    if success:
-        try:
-            result = json.loads(stdout)
-            test_result("subActivated is function", result.get('subActivated') == 'function')
-            test_result("subNumberOrderSummary is function", result.get('subNumberOrderSummary') == 'function')
-            test_result("subNumberLimitReached is function", result.get('subNumberLimitReached') == 'function')
-            test_result("adminSubPurchase is function", result.get('adminSubPurchase') == 'function')
-        except:
-            test_result("Text messages verification", False, "Parse error")
-    else:
-        test_result("Text messages verification", False, f"Error: {stderr}")
-    
-    print("\n" + "=" * 50)
-    print("🏁 SUB-NUMBERS FEATURE VERIFICATION COMPLETE")
+        print("⚠️  Some tests failed. Please review the issues above.")
+        return False
 
 if __name__ == "__main__":
-    main()
+    success = run_all_tests()
+    sys.exit(0 if success else 1)
