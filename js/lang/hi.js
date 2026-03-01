@@ -816,8 +816,8 @@ ${CHAT_BOT_NAME}`,
   qrCodeText: `यह आपका क्यूआर कोड है!`,
   scanQrOrUseChat: chatId =>
     `क्यूआर को स्कैन करें SMS मार्केटिंग ऐप के साथ लॉगिन करने के लिए। आप इस कोड का उपयोग करके भी लॉगिन कर सकते हैं: ${chatId}`,
-  domainPurchasedFailed: (domain, buyDomainError) =>
-    `डोमेन खरीद विफल, एक अन्य नाम का प्रयास करें। ${domain} ${buyDomainError}`,
+  domainPurchasedFailed: (domain) =>
+    `❌ डोमेन <b>${domain}</b> का पंजीकरण पूरा नहीं हो सका। कृपया पुनः प्रयास करें या समस्या बनी रहने पर सहायता से संपर्क करें।`,
   noDomainRegistered: 'आपके पास अभी तक कोई खरीदा हुआ डोमेन नहीं है।',
   registeredDomainList: domainsText => `यहाँ आपके खरीदे हुए डोमेन हैं:\n${domainsText}`,
   selectDomainAction: domain => `<b>${domain}</b>\n\nआप इस डोमेन के साथ क्या करना चाहेंगे?`,
