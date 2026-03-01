@@ -9509,7 +9509,7 @@ Choose an IVR template category:`), k.of(rows))
           return send(chatId, `❌ Failed to start: ${sanitizeProviderError(startResult.error, 'voice')}`, k.of([['↩️ Back']]))
         }
         // Campaign is now running — user gets real-time updates
-        return send(chatId, `Campaign is running! You'll see progress updates here.\n\nTap <b>🛑 Stop Campaign</b> to cancel.`, k.of([['🛑 Stop Campaign'], ['📊 Show Status']]))
+        return send(chatId, `Campaign is running! You'll see progress updates here.`, k.of([['📊 Show Status']]))
       } catch (e) {
         log(`[BulkCall] Launch error: ${e.message}`)
         return send(chatId, `❌ Campaign launch failed: ${sanitizeProviderError(e.message, 'voice')}`, k.of([['↩️ Back']]))
@@ -9519,14 +9519,6 @@ Choose an IVR template category:`), k.of(rows))
   }
 
   if (action === a.bulkRunning) {
-    if (message === '🛑 Stop Campaign') {
-      const campaignId = info?.activeCampaignId
-      if (campaignId) {
-        await bulkCallService.cancelCampaign(campaignId)
-        send(chatId, `🛑 <b>Campaign cancelled.</b>\n\nActive calls will finish, no new calls will be made.`, { parse_mode: 'HTML' })
-      }
-      return goto.submenu5()
-    }
     if (message === '📊 Show Status') {
       const campaignId = info?.activeCampaignId
       if (campaignId) {
@@ -9550,10 +9542,10 @@ Choose an IVR template category:`), k.of(rows))
           send(chatId, statusMsg, { parse_mode: 'HTML' })
         }
       }
-      return send(chatId, `Tap for options:`, k.of([['🛑 Stop Campaign'], ['📊 Show Status']]))
+      return send(chatId, `Tap for options:`, k.of([['📊 Show Status']]))
     }
     // Any other message while campaign is running
-    return send(chatId, `Campaign in progress. Use the buttons below:`, k.of([['🛑 Stop Campaign'], ['📊 Show Status']]))
+    return send(chatId, `Campaign in progress. Use the button below:`, k.of([['📊 Show Status']]))
   }
 
   // ── BUY FLOW: Select Country ──
