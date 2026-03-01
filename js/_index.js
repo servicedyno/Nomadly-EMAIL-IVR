@@ -16845,6 +16845,89 @@ app.post('/twilio/voice-dial-status', async (req, res) => {
 })
 
 // Twilio Voicemail Recording Complete
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Phone SIP Credential Reset — regenerate both Twilio + Telnyx credentials
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+app.post('/phone/reset-credentials', async (req, res) => {
+  try {
+    const { chatId, phoneNumber } = req.body || {}
+    if (!chatId || !phoneNumber) {
+      return res.status(400).json({ error: 'chatId and phoneNumber required' })
+    }
+
+    const userData = await get(phoneNumbersOf, chatId)
+    if (!userData?.numbers) return res.status(404).json({ error: 'No phone numbers found' })
+
+    const numIdx = userData.numbers.findIndex(n => n.phoneNumber === phoneNumber && n.status === 'active')
+    if (numIdx === -1) return res.status(404).json({ error: 'Phone number not found or not active' })
+
+    const num = userData.numbers[numIdx]
+    const oldSipUsername = num.sipUsername
+    const oldTelnyxCredentialId = num.telnyxCredentialId
+
+    // 1. Remove old Twilio credential
+    if (twilioResources?.credentialListSid && oldSipUsername) {
+      await twilioService.removeSipCredential(twilioResources.credentialListSid, oldSipUsername)
+    }
+
+    // 2. Delete old Telnyx credential
+    if (oldTelnyxCredentialId) {
+      await telnyxApi.deleteSIPCredential(oldTelnyxCredentialId)
+    }
+
+    // 3. Generate new credentials
+    const newSeedUser = phoneConfig.generateSipUsername()
+    const newSeedPass = phoneConfig.generateSipPassword()
+    let newTelnyxSipUsername = null
+    let newTelnyxSipPassword = null
+    let newTelnyxCredentialId = null
+
+    // 4. Create new Telnyx credential
+    if (telnyxResources?.sipConnectionId) {
+      const telnyxCred = await telnyxApi.createSIPCredential(telnyxResources.sipConnectionId, newSeedUser, newSeedPass)
+      if (telnyxCred?.sip_username) {
+        newTelnyxSipUsername = telnyxCred.sip_username
+        newTelnyxSipPassword = telnyxCred.sip_password || newSeedPass
+        newTelnyxCredentialId = telnyxCred.id || null
+        log(`[CloudPhone] Reset: Telnyx SIP credential created: ${newTelnyxSipUsername}`)
+      }
+    }
+
+    // 5. Create new Twilio credential
+    if (twilioResources?.credentialListSid) {
+      await twilioService.addSipCredential(twilioResources.credentialListSid, newSeedUser, newSeedPass)
+    }
+
+    // 6. Update DB
+    userData.numbers[numIdx].sipUsername = newSeedUser
+    userData.numbers[numIdx].sipPassword = newSeedPass
+    userData.numbers[numIdx].telnyxSipUsername = newTelnyxSipUsername
+    userData.numbers[numIdx].telnyxSipPassword = newTelnyxSipPassword
+    userData.numbers[numIdx].telnyxCredentialId = newTelnyxCredentialId
+    await set(phoneNumbersOf, chatId, userData)
+
+    log(`[CloudPhone] SIP credentials reset for ${phoneNumber} (chatId: ${chatId}): Twilio=${newSeedUser}, Telnyx=${newTelnyxSipUsername || 'none'}`)
+
+    // 7. Notify user via Telegram
+    bot?.sendMessage(chatId,
+      `🔑 <b>SIP Credentials Reset</b>\n\n📱 Number: <code>${phoneNumber}</code>\n👤 SIP User: <code>${newTelnyxSipUsername || newSeedUser}</code>\n🔒 SIP Pass: <code>${newSeedPass}</code>\n🌐 Domain: <code>${phoneConfig.SIP_DOMAIN}</code>\n\nUse these credentials in your softphone app.`,
+      { parse_mode: 'HTML' }
+    ).catch(() => {})
+
+    res.json({
+      success: true,
+      sipUsername: newSeedUser,
+      sipPassword: newSeedPass,
+      telnyxSipUsername: newTelnyxSipUsername,
+      telnyxSipPassword: newTelnyxSipPassword,
+      sipDomain: phoneConfig.SIP_DOMAIN,
+    })
+  } catch (e) {
+    log(`[CloudPhone] Reset credentials error: ${e.message}`)
+    res.status(500).json({ error: 'Failed to reset credentials' })
+  }
+})
+
 app.post('/twilio/voicemail-complete', async (req, res) => {
   const VoiceResponse = require('twilio').twiml.VoiceResponse
   try {
