@@ -10340,7 +10340,7 @@ Choose an IVR template category:`), k.of(rows))
       const rows = []
       for (let i = 0; i < countryBtns.length; i += 2) rows.push(countryBtns.slice(i, i + 2))
       if (phoneConfig.moreCountries.length > 0) rows.push([pc.moreCountries])
-      return send(chatId, `➕ <b>Add Number to ${num.plan.charAt(0).toUpperCase() + num.plan.slice(1)} Plan</b>\n📞 Parent: ${phoneConfig.formatPhone(num.phoneNumber)}\n\n🌍 Select country for your new number:`, k.of(rows))
+      return send(chatId, cpTxt.subAddNumberHeader(num.plan, num.phoneNumber), k.of(rows))
     }
 
     return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectOption)
