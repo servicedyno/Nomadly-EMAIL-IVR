@@ -12,6 +12,7 @@ let _db = null
 let _collection = null
 let _bot = null
 let _twilioService = null
+let _voiceService = null
 
 // Active campaigns in memory: campaignId → { queue state }
 const activeCampaigns = {}
