@@ -3928,9 +3928,15 @@ Enter new value:`), bc)
 
         sipUsername = phoneConfig.generateSipUsername()
         sipPassword = phoneConfig.generateSipPassword()
+        let telnyxSipUsernameLocal = null
+        let telnyxSipPasswordLocal = null
+        let telnyxCredIdLocal = null
         if (telnyxResources.sipConnectionId) {
           const telnyxCred = await telnyxApi.createSIPCredential(telnyxResources.sipConnectionId, sipUsername, sipPassword)
           if (telnyxCred?.sip_username) {
+            telnyxSipUsernameLocal = telnyxCred.sip_username
+            telnyxSipPasswordLocal = telnyxCred.sip_password || sipPassword
+            telnyxCredIdLocal = telnyxCred.id || null
             sipUsername = telnyxCred.sip_username
             sipPassword = telnyxCred.sip_password
             log(`[CloudPhone] Telnyx SIP credential created: ${sipUsername}`)
@@ -3954,6 +3960,9 @@ Enter new value:`), bc)
           autoRenew: true,
           status: 'active',
           sipUsername, sipPassword,
+          telnyxSipUsername: telnyxSipUsernameLocal,
+          telnyxSipPassword: telnyxSipPasswordLocal,
+          telnyxCredentialId: telnyxCredIdLocal,
           sipDomain: phoneConfig.SIP_DOMAIN,
           messagingProfileId: telnyxResources.messagingProfileId,
           connectionId: telnyxResources.sipConnectionId,
