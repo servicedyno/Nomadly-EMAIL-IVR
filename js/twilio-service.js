@@ -521,6 +521,7 @@ module.exports = {
   createSipDomain,
   getOrCreateCredentialList,
   addSipCredential,
+  removeSipCredential,
   mapCredentialListToDomain,
   makeOutboundCall,
   generateDialTwiml,
