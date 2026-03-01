@@ -16408,10 +16408,27 @@ async function handleInboundFax(payload) {
 // ── Audio Proxy for Twilio — serves audio with correct Content-Type ──
 // CloudFront/EdenAI returns binary/octet-stream which Twilio can't play.
 // This proxy streams the audio back with audio/mpeg content type.
+// Also handles local files served from /assets/user-audio/ to avoid self-referential requests.
 app.get('/twilio/audio-proxy', async (req, res) => {
   const { url } = req.query
   if (!url) return res.status(400).send('Missing url parameter')
   try {
+    const selfUrl = process.env.SELF_URL_PROD || process.env.SELF_URL || ''
+
+    // Detect local file — avoid HTTP self-request
+    const isLocal = url.includes('/assets/user-audio/') || (selfUrl && url.startsWith(selfUrl + '/assets/'))
+    if (isLocal) {
+      // Extract filename from URL path
+      const urlPath = new URL(url).pathname
+      const localPath = require('path').join(__dirname, urlPath)
+      if (require('fs').existsSync(localPath)) {
+        res.set('Content-Type', 'audio/mpeg')
+        res.set('Cache-Control', 'public, max-age=3600')
+        return require('fs').createReadStream(localPath).pipe(res)
+      }
+    }
+
+    // External URL — proxy with correct Content-Type
     const axios = require('axios')
     const audioRes = await axios.get(url, {
       responseType: 'stream',
