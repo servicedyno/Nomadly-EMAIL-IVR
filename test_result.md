@@ -829,3 +829,17 @@ agent_communication:
           comment: "Need real-time testing of outbound SIP for @pirate_script. User SIP: test_4c9839ef32fa9673@sip.speechcue.com. Test: (1) /twilio/voice-webhook finds number owner, routes to SIP, (2) /twilio/sip-ring-result handles no-answer fallback, (3) SIP URI formed correctly as sip:test_4c9839ef32fa9673@sip.speechcue.com."
 
 
+
+
+  - task: "Credential storage fix — store telnyxSipUsername + credential reset + bulk IVR billing"
+    implemented: true
+    working: "NA"
+    file: "js/_index.js, js/voice-service.js, js/bulk-call-service.js, js/twilio-service.js, js/telnyx-service.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Implemented 7 fixes: (1) executeTwilioPurchase now stores telnyxSipUsername/telnyxSipPassword/telnyxCredentialId in number doc. (2) Twilio voice webhook uses telnyxSipUsername || sipUsername for SIP routing. (3) Telnyx voice-service.js uses telnyxSipUsername for SIP routing (both initial and fallback paths). (4) Added deleteSIPCredential to telnyx-service.js. (5) Added removeSipCredential to twilio-service.js. (6) Added /phone/reset-credentials endpoint that regenerates both Twilio+Telnyx credentials, stores new telnyxSipUsername, notifies user via Telegram. (7) Bulk IVR billing: onCallStatusUpdate now calls billCallMinutesUnified after call completion with duration>0. Also ensured Telnyx purchase flow stores telnyxSipUsername/telnyxSipPassword/telnyxCredentialId."
+
