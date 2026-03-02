@@ -1239,6 +1239,7 @@ Google Workspace · Zoho Mail · eSIM
   
   您随时可以在设置中更改您的语言。`,
   askValidLanguage: '请选择一个有效的语言：',
+  settingsMenuText: '⚙️ <b>设置</b>\n\n在下方管理您的偏好：',
   welcomeMessage: `👋 欢迎来到 ${CHAT_BOT_NAME}！
 我们很高兴您来到这里！🎉
 让我们帮您快速开始，探索我们提供的所有精彩功能吧！🌟
