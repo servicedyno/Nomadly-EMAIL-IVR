@@ -4943,6 +4943,19 @@ All verified numbers generated during sourcing.`))
     return send(chatId, greeting, trans('o'))
   }
 
+  // ━━━ Settings Menu ━━━
+  if (action === a.settingsMenu) {
+    // Change Language
+    if (message === user.changeLanguage || message === '🌍 Change Language' || message === '🌍 Changer de langue' || message === '🌍 更改语言' || message === '🌍 भाषा बदलें') {
+      set(state, chatId, 'action', a.updateUserLanguage)
+      return send(chatId, trans('l.askPreferredLanguage'), trans('languageMenu'))
+    }
+    // Join Channel
+    if (message === user.joinChannel || message === '📢 Join Channel' || message === '📢 Rejoindre le canal' || message === '📢 加入频道' || message === '📢 चैनल जॉइन करें') {
+      return send(chatId, t.joinChannel)
+    }
+    return send(chatId, t.what)
+  }
   if (action === a.updateUserLanguage) {
     const language = message
     const supportedLanguages = trans('supportedLanguages')
