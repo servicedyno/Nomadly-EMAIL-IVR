@@ -627,18 +627,9 @@ if CONV_ID:
     state = get_state(BUYER_ID)
     test("Buyer returned to mpHome after /done", state.get("action") == "mpHome", f"action={state.get('action')}")
 
-    convs = get_conversations(BUYER_ID)
-    # After close, it won't show in active query, so check directly
-    mongo_cmd = f"JSON.stringify(db.marketplaceConversations.findOne({{_id: '{CONV_ID}'}}))"
-    try:
-        result = subprocess.run(
-            ["mongosh", "mongodb://localhost:27017/test", "--quiet", "--eval", mongo_cmd],
-            capture_output=True, text=True, timeout=10
-        )
-        conv_data = json.loads(result.stdout.strip()) if result.stdout.strip() and result.stdout.strip() != 'null' else {}
-        test("Conversation closed in DB", conv_data.get("status") == "closed", f"status={conv_data.get('status')}")
-    except Exception as e:
-        test("Conversation closed in DB", False, str(e))
+    # After close, check directly
+    conv_data = get_one("marketplaceConversations", {"_id": CONV_ID})
+    test("Conversation closed in DB", conv_data.get("status") == "closed", f"status={conv_data.get('status')}")
 
 # ══════════════════════════════════════════════════════
 # TEST 22: Seller — Own product check
