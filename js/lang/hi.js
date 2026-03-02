@@ -992,9 +992,9 @@ ${CHAT_BOT_NAME}`,
   mpListingRemoved: '📦 [लिस्टिंग हटाई गई]',
   mpSellerStats: (sales, since) => `⭐ विक्रेता: ${sales} बिक्री | ${since} से सदस्य`,
   mpProductCard: (title, price, category, sellerStats) =>
-    `🏷️ <b>${title}</b>\n💰 <b>$${Number(price).toFixed(2)}</b>\n📂 ${category}\n${sellerStats}\n🔒 @Lockbaybot एस्क्रो द्वारा सुरक्षित`,
+    `🏷️ <b>${title}</b>\n💰 <b>$${Number(price).toFixed(2)}</b>  ·  ${category}\n${sellerStats}\n🔒 विश्वास से खरीदें — एस्क्रो सुरक्षित`,
   mpProductDetail: (title, desc, price, category, sellerStats, listedAgo) =>
-    `📦 <b>${title}</b>\n\n📄 ${desc}\n\n💰 मूल्य: <b>$${Number(price).toFixed(2)}</b>\n📂 श्रेणी: ${category}\n${sellerStats}\n📅 सूचीबद्ध: ${listedAgo}\n🔒 <b>एस्क्रो सुरक्षित</b> — @Lockbaybot के माध्यम से सुरक्षित भुगतान`,
+    `📦 <b>${title}</b>\n\n📄 ${desc}\n\n💰 मूल्य: <b>$${Number(price).toFixed(2)}</b>\n📂 ${category}\n${sellerStats}\n📅 सूचीबद्ध: ${listedAgo}\n\n🔒 <b>100% खरीदार सुरक्षा</b>\n@Lockbaybot एस्क्रो से सुरक्षित भुगतान — आपका पैसा डिलीवरी पुष्टि तक सुरक्षित।`,
   mpMyListingsHeader: (count, max) => `📦 <b>मेरी लिस्टिंग</b> (${count}/${max})`,
   mpConvHeader: '💬 <b>मेरी बातचीत</b>',
   mpConvItem: (title, role, lastMsg) => `💬 <b>${title}</b> (${role}) — ${lastMsg}`,
