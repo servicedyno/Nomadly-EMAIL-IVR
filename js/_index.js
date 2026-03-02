@@ -1326,8 +1326,8 @@ bot?.on('callback_query', async (query) => {
       if (!conv || conv.status === 'closed') return sendMsg(chatId, t.mpChatEnded)
       if (conv.sellerId !== chatId && conv.buyerId !== chatId) return
 
-      await set2(state, chatId + '_info', 'mpActiveConversation', conv._id)
-      await set2(state, chatId, 'action', 'mpChat')
+      await set(state, chatId, 'mpActiveConversation', conv._id)
+      await set(state, chatId, 'action', 'mpChat')
       const role = conv.buyerId === chatId ? 'Buyer' : 'Seller'
       return sendMsg(chatId, `💬 You entered chat for <b>${conv.productTitle}</b> ($${conv.agreedPrice || conv.originalPrice})\nSend /done to exit, /escrow to start escrow, /price XX to suggest price.`)
     }
