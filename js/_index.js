@@ -1221,12 +1221,7 @@ bot?.on('callback_query', async (query) => {
     const trans = (key, ...args) => translation(key, lang, ...args)
     const t = trans('t')
     const k = trans('k')
-    const set2 = async (coll, key, field, val) => {
-      if (val !== undefined) { await coll.updateOne({ _id: parseFloat(key) }, { $set: { [field]: val } }, { upsert: true }) }
-      else { await coll.updateOne({ _id: parseFloat(key) }, { $set: { val: field } }, { upsert: true }) }
-    }
     const sendMsg = (cid, text, opts) => bot?.sendMessage(cid, text, { parse_mode: 'HTML', ...opts })
-    const infoData = await state.findOne({ _id: parseFloat(chatId + '_info') })
 
     const parts = data.split(':')
     const action = parts[1]
