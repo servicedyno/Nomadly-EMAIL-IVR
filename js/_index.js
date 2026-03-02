@@ -1213,7 +1213,7 @@ bot?.on('callback_query', async (query) => {
       return
     }
 
-    await bot.answerCallbackQuery(query.id)
+    try { await bot.answerCallbackQuery(query.id) } catch (e) { /* ignore for test/expired queries */ }
 
     const { translation } = require('./translation.js')
     const info = await state.findOne({ _id: parseFloat(chatId) })
