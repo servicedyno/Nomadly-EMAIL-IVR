@@ -2263,6 +2263,7 @@ bot?.on('message', async msg => {
         [pc.ivrOutboundCall],
         [pc.bulkCallCampaign],
         [pc.audioLibrary],
+        [pc.testSipFree],
         [pc.buyPhoneNumber],
         [pc.myNumbers],
         [pc.sipSettings],
