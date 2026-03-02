@@ -82,74 +82,94 @@ def send_callback(chat_id, callback_data, username="testseller"):
 
 def check_db(collection, query=None):
     """Query MongoDB for marketplace records"""
-    mongo_cmd = f"""
-    const db = connect('mongodb://localhost:27017/test');
-    const result = db.{collection}.find({json.dumps(query) if query else '{}'}).toArray();
-    printjson(result.length);
-    printjson(result.map(r => ({{ _id: r._id, title: r.title || r.productTitle || '', status: r.status || '', sellerId: r.sellerId || '', buyerId: r.buyerId || '' }})));
-    """
-    # Use mongosh instead
+    from pymongo import MongoClient
     try:
-        result = subprocess.run(
-            ["mongosh", "mongodb://localhost:27017/test", "--quiet", "--eval", mongo_cmd.strip()],
-            capture_output=True, text=True, timeout=10
-        )
-        return result.stdout.strip()
+        client = MongoClient(MONGO_URI)
+        db = client[DB_NAME]
+        result = list(db[collection].find(query or {}))
+        client.close()
+        return str(len(result))
     except Exception as e:
         return f"DB Error: {e}"
 
 def check_db_count(collection, query=None):
     """Count documents in collection"""
-    q = json.dumps(query) if query else '{}'
-    mongo_cmd = f"db.{collection}.countDocuments({q})"
+    from pymongo import MongoClient
     try:
-        result = subprocess.run(
-            ["mongosh", "mongodb://localhost:27017/test", "--quiet", "--eval", mongo_cmd],
-            capture_output=True, text=True, timeout=10
-        )
-        return result.stdout.strip()
+        client = MongoClient(MONGO_URI)
+        db = client[DB_NAME]
+        count = db[collection].count_documents(query or {})
+        client.close()
+        return str(count)
     except Exception as e:
         return f"DB Error: {e}"
 
 def get_products(seller_id=None):
     """Get marketplace products"""
-    q = {"sellerId": seller_id, "status": "active"} if seller_id else {"status": "active"}
-    q_str = json.dumps(q)
-    mongo_cmd = f"JSON.stringify(db.marketplaceProducts.find({q_str}).toArray())"
+    from pymongo import MongoClient
     try:
-        result = subprocess.run(
-            ["mongosh", "mongodb://localhost:27017/test", "--quiet", "--eval", mongo_cmd],
-            capture_output=True, text=True, timeout=10
-        )
-        return json.loads(result.stdout.strip()) if result.stdout.strip() else []
+        client = MongoClient(MONGO_URI)
+        db = client[DB_NAME]
+        q = {"sellerId": seller_id, "status": "active"} if seller_id else {"status": "active"}
+        result = list(db.marketplaceProducts.find(q).sort("createdAt", -1))
+        client.close()
+        return result
     except Exception:
         return []
 
 def get_conversations(buyer_id=None):
     """Get marketplace conversations"""
-    q = {"buyerId": buyer_id} if buyer_id else {}
-    q_str = json.dumps(q)
-    mongo_cmd = f"JSON.stringify(db.marketplaceConversations.find({q_str}).toArray())"
+    from pymongo import MongoClient
     try:
-        result = subprocess.run(
-            ["mongosh", "mongodb://localhost:27017/test", "--quiet", "--eval", mongo_cmd],
-            capture_output=True, text=True, timeout=10
-        )
-        return json.loads(result.stdout.strip()) if result.stdout.strip() else []
+        client = MongoClient(MONGO_URI)
+        db = client[DB_NAME]
+        q = {"buyerId": buyer_id} if buyer_id else {}
+        result = list(db.marketplaceConversations.find(q))
+        client.close()
+        return result
     except Exception:
         return []
 
 def get_state(chat_id):
     """Get user state"""
-    mongo_cmd = f"JSON.stringify(db.state.findOne({{_id: {chat_id}}}))"
+    from pymongo import MongoClient
     try:
-        result = subprocess.run(
-            ["mongosh", "mongodb://localhost:27017/test", "--quiet", "--eval", mongo_cmd],
-            capture_output=True, text=True, timeout=10
-        )
-        return json.loads(result.stdout.strip()) if result.stdout.strip() and result.stdout.strip() != 'null' else {}
+        client = MongoClient(MONGO_URI)
+        db = client[DB_NAME]
+        result = db.state.find_one({"_id": float(chat_id)})
+        client.close()
+        return result or {}
     except Exception:
         return {}
+
+def get_one(collection, query):
+    """Get one document from collection"""
+    from pymongo import MongoClient
+    try:
+        client = MongoClient(MONGO_URI)
+        db = client[DB_NAME]
+        result = db[collection].find_one(query)
+        client.close()
+        return result or {}
+    except Exception:
+        return {}
+
+def clean_test_data():
+    """Clean previous test data"""
+    from pymongo import MongoClient
+    try:
+        client = MongoClient(MONGO_URI)
+        db = client[DB_NAME]
+        db.marketplaceProducts.delete_many({"sellerId": SELLER_ID})
+        db.marketplaceConversations.delete_many({"$or": [{"buyerId": BUYER_ID}, {"sellerId": SELLER_ID}]})
+        db.marketplaceMessages.delete_many({})
+        # Reset seller and buyer state for marketplace
+        db.state.update_one({"_id": float(SELLER_ID)}, {"$set": {"action": None, "mpImages": None, "mpTitle": None, "mpDesc": None, "mpPrice": None, "mpCategory": None, "mpActiveProduct": None, "mpListingsList": None, "mpConvList": None, "mpActiveConversation": None}})
+        db.state.delete_one({"_id": float(BUYER_ID)})
+        client.close()
+        print("  Cleaned up previous test data.")
+    except Exception as e:
+        print(f"  Clean error: {e}")
 
 def check_recent_logs(lines=20, pattern=None):
     """Check recent nodejs logs"""
