@@ -1037,9 +1037,9 @@ ${bal(usd, ngn)}`,
   mpListingRemoved: '📦 [Listing Removed]',
   mpSellerStats: (sales, since) => `⭐ Seller: ${sales} sale${sales !== 1 ? 's' : ''} | Joined ${since}`,
   mpProductCard: (title, price, category, sellerStats) =>
-    `🏷️ <b>${title}</b>\n💰 <b>$${Number(price).toFixed(2)}</b>\n📂 ${category}\n${sellerStats}\n🔒 Escrow Protected via @Lockbaybot`,
+    `🏷️ <b>${title}</b>\n💰 <b>$${Number(price).toFixed(2)}</b>  ·  ${category}\n${sellerStats}\n🔒 Buy with confidence — Escrow Protected`,
   mpProductDetail: (title, desc, price, category, sellerStats, listedAgo) =>
-    `📦 <b>${title}</b>\n\n📄 ${desc}\n\n💰 Price: <b>$${Number(price).toFixed(2)}</b>\n📂 Category: ${category}\n${sellerStats}\n📅 Listed: ${listedAgo}\n🔒 <b>ESCROW PROTECTED</b> — Pay safely via @Lockbaybot`,
+    `📦 <b>${title}</b>\n\n📄 ${desc}\n\n💰 Price: <b>$${Number(price).toFixed(2)}</b>\n📂 ${category}\n${sellerStats}\n📅 Listed: ${listedAgo}\n\n🔒 <b>100% BUYER PROTECTION</b>\nPay safely via @Lockbaybot escrow — your money is held until you confirm delivery.`,
   mpMyListingsHeader: (count, max) => `📦 <b>MY LISTINGS</b> (${count}/${max})`,
   mpConvHeader: '💬 <b>MY CONVERSATIONS</b>',
   mpConvItem: (title, role, lastMsg) => `💬 <b>${title}</b> (${role}) — ${lastMsg}`,
