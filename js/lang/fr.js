@@ -1020,6 +1020,16 @@ ${CHAT_BOT_NAME}`,
   mpEscrowCmd: '/escrow',
   mpPriceCmd: '/price',
   mpReportCmd: '/report',
+  mpEnteredChat: (title, price) => `💬 Vous êtes dans le chat pour <b>${title}</b> (${price} $)\nEnvoyez /done pour quitter, /escrow pour démarrer l'escrow, /price XX pour proposer un prix.`,
+  mpResumedChat: (title, price, role) => `💬 Chat repris : <b>${title}</b> (${price} $) — Vous êtes ${role}\n🔒 Protégé par escrow via @Lockbaybot\n\nEnvoyez /done pour quitter, /escrow pour démarrer l'escrow, /price XX pour proposer un prix.`,
+  mpBuyerPhotoCaption: '💬 L\'acheteur a envoyé une photo :',
+  mpSellerPhotoCaption: '💬 Le vendeur a envoyé une photo :',
+  mpChatClosedReset: (title) => `💬 La conversation sur <b>${title}</b> a été fermée par l'autre partie. Vous avez été redirigé vers le marché.`,
+  mpSellerBusy: (title) => `🆕 Nouvelle demande pour <b>${title}</b> ! Appuyez sur le bouton ci-dessous pour répondre quand vous êtes prêt.`,
+  mpCatDigitalGoods: '💻 Produits Numériques',
+  mpCatBnkLogs: '🏦 Logs Bancaires',
+  mpCatBnkOpening: '🏧 Ouverture Bancaire',
+  mpCatTools: '🔧 Outils',
 }
 
 const phoneNumberLeads = ['🎯 Leads Premium Ciblés', '✅📲 Valider les leads téléphoniques']

@@ -1054,6 +1054,16 @@ ${bal(usd, ngn)}`,
   mpEscrowCmd: '/escrow',
   mpPriceCmd: '/price',
   mpReportCmd: '/report',
+  mpEnteredChat: (title, price) => `💬 You entered chat for <b>${title}</b> ($${price})\nSend /done to exit, /escrow to start escrow, /price XX to suggest price.`,
+  mpResumedChat: (title, price, role) => `💬 Resumed chat: <b>${title}</b> ($${price}) — You are the ${role}\n🔒 Escrow-protected via @Lockbaybot\n\nSend /done to exit, /escrow to start escrow, /price XX to suggest price.`,
+  mpBuyerPhotoCaption: '💬 Buyer sent a photo:',
+  mpSellerPhotoCaption: '💬 Seller sent a photo:',
+  mpChatClosedReset: (title) => `💬 The conversation about <b>${title}</b> was closed by the other party. You have been returned to the marketplace.`,
+  mpSellerBusy: (title) => `🆕 New inquiry for <b>${title}</b>! Tap the button below to reply when you\'re ready.`,
+  mpCatDigitalGoods: '💻 Digital Goods',
+  mpCatBnkLogs: '🏦 Bnk Logs',
+  mpCatBnkOpening: '🏧 Bnk Opening',
+  mpCatTools: '🔧 Tools',
 }
 
 const phoneNumberLeads = ['🎯 Premium Targeted Leads', '✅📲 Validate PhoneLeads']

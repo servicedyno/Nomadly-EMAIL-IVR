@@ -1009,6 +1009,16 @@ ${CHAT_BOT_NAME}`,
   mpEscrowCmd: '/escrow',
   mpPriceCmd: '/price',
   mpReportCmd: '/report',
+  mpEnteredChat: (title, price) => `💬 आप <b>${title}</b> ($${price}) की चैट में हैं\nबाहर निकलने के लिए /done भेजें, एस्क्रो शुरू करने के लिए /escrow, कीमत सुझाने के लिए /price XX भेजें।`,
+  mpResumedChat: (title, price, role) => `💬 चैट फिर से शुरू: <b>${title}</b> ($${price}) — आप ${role} हैं\n🔒 @Lockbaybot एस्क्रो द्वारा सुरक्षित\n\nबाहर निकलने के लिए /done भेजें, एस्क्रो शुरू करने के लिए /escrow, कीमत सुझाने के लिए /price XX भेजें।`,
+  mpBuyerPhotoCaption: '💬 खरीदार ने एक फोटो भेजी:',
+  mpSellerPhotoCaption: '💬 विक्रेता ने एक फोटो भेजी:',
+  mpChatClosedReset: (title) => `💬 <b>${title}</b> के बारे में बातचीत दूसरे पक्ष द्वारा बंद कर दी गई। आपको मार्केटप्लेस पर वापस भेज दिया गया है।`,
+  mpSellerBusy: (title) => `🆕 <b>${title}</b> के लिए नई पूछताछ! जब तैयार हों तो जवाब देने के लिए नीचे बटन दबाएं।`,
+  mpCatDigitalGoods: '💻 डिजिटल सामान',
+  mpCatBnkLogs: '🏦 बैंक लॉग्स',
+  mpCatBnkOpening: '🏧 बैंक खाता खुलवाना',
+  mpCatTools: '🔧 उपकरण',
 }
 
 const phoneNumberLeads = ['🎯 प्रीमियम टार्गेटेड लीड्स', '✅📲 फोन लीड्स सत्यापित करें']

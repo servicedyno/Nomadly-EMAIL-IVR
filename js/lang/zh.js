@@ -1002,6 +1002,16 @@ ${CHAT_BOT_NAME}`,
   mpEscrowCmd: '/escrow',
   mpPriceCmd: '/price',
   mpReportCmd: '/report',
+  mpEnteredChat: (title, price) => `💬 您已进入 <b>${title}</b>（$${price}）的聊天\n发送 /done 退出，/escrow 开始托管，/price XX 建议价格。`,
+  mpResumedChat: (title, price, role) => `💬 恢复聊天：<b>${title}</b>（$${price}）— 您是${role}\n🔒 通过 @Lockbaybot 托管保护\n\n发送 /done 退出，/escrow 开始托管，/price XX 建议价格。`,
+  mpBuyerPhotoCaption: '💬 买家发送了一张照片：',
+  mpSellerPhotoCaption: '💬 卖家发送了一张照片：',
+  mpChatClosedReset: (title) => `💬 关于 <b>${title}</b> 的对话已被对方关闭。您已返回市场。`,
+  mpSellerBusy: (title) => `🆕 <b>${title}</b> 有新的咨询！准备好后点击下方按钮回复。`,
+  mpCatDigitalGoods: '💻 数字商品',
+  mpCatBnkLogs: '🏦 银行日志',
+  mpCatBnkOpening: '🏧 银行开户',
+  mpCatTools: '🔧 工具',
 }
 
 const phoneNumberLeads = ['🎯 精准目标线索', '✅📲 验证电话线索']

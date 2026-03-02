@@ -890,6 +890,39 @@ const loadData = async () => {
   bulkCallService.initBulkCallService(db, bot, require('./twilio-service.js'))
   marketplaceService.initMarketplace(db)
 
+  // Schedule stale marketplace conversation cleanup every 6 hours
+  setInterval(async () => {
+    try {
+      const stale = await marketplaceService.closeStaleConversations()
+      if (stale.length > 0) {
+        log(`[Marketplace] Closed ${stale.length} stale conversation(s)`)
+        // Notify both parties of each closed stale conversation
+        for (const conv of stale) {
+          const buyerInfo = await get(state, conv.buyerId)
+          const sellerInfo = await get(state, conv.sellerId)
+          const buyerLang = buyerInfo?.userLanguage || 'en'
+          const sellerLang = sellerInfo?.userLanguage || 'en'
+          const buyerT = translation('t', buyerLang)
+          const sellerT = translation('t', sellerLang)
+          send(conv.buyerId, buyerT.mpChatInactive(conv.productTitle || 'Product'), { parse_mode: 'HTML' })
+          send(conv.sellerId, sellerT.mpChatInactive(conv.productTitle || 'Product'), { parse_mode: 'HTML' })
+          // Reset state if either party is still stuck in mpChat for this conv
+          if (buyerInfo?.action === 'mpChat' && buyerInfo?.mpActiveConversation === conv._id) {
+            await set(state, conv.buyerId, 'action', 'none')
+            await set(state, conv.buyerId, 'mpActiveConversation', null)
+          }
+          if (sellerInfo?.action === 'mpChat' && sellerInfo?.mpActiveConversation === conv._id) {
+            await set(state, conv.sellerId, 'action', 'none')
+            await set(state, conv.sellerId, 'mpActiveConversation', null)
+          }
+        }
+      }
+    } catch (e) {
+      log(`[Marketplace] Stale cleanup error: ${e.message}`)
+    }
+  }, 6 * 60 * 60 * 1000) // every 6 hours
+  log('[Marketplace] Stale conversation cleanup scheduled (every 6h)')
+
   // Upload latest anti-red worker script (with honeypots + KV binding) on startup.
   // This ensures the shared 'antired-challenge' worker on Cloudflare is always current,
   // even if it was uploaded before honeypot integration was added.
@@ -1202,6 +1235,16 @@ schedule.scheduleJob('0 */6 * * *', async function() {
 })
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Marketplace: Category translation map (module-level, shared across handlers)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const _MP_CAT_MAP_GLOBAL = {
+  '💻 Digital Goods': 'mpCatDigitalGoods',
+  '🏦 Bnk Logs': 'mpCatBnkLogs',
+  '🏧 Bnk Opening': 'mpCatBnkOpening',
+  '🔧 Tools': 'mpCatTools',
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Marketplace: Inline Keyboard callback_query handler
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 bot?.on('callback_query', async (query) => {
@@ -1241,7 +1284,7 @@ bot?.on('callback_query', async (query) => {
         const stats = await marketplaceService.getSellerStats(p.sellerId)
         const since = stats.memberSince ? new Date(stats.memberSince).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'recently'
         const sellerLine = t.mpSellerStats(stats.salesCount, since)
-        const caption = t.mpProductCard(p.title, p.price, p.category, sellerLine)
+        const caption = t.mpProductCard(p.title, p.price, t[_MP_CAT_MAP_GLOBAL[p.category]] || p.category, sellerLine)
         const inlineBtns = {
           reply_markup: {
             inline_keyboard: [
@@ -1302,23 +1345,40 @@ bot?.on('callback_query', async (query) => {
       await set(state, chatId, 'action', 'mpChat')
       sendMsg(chatId, t.mpChatStartBuyer(product.title, product.price))
 
-      // Set seller into chat mode too — so they can reply immediately without tapping a button
-      await set(state, parseFloat(product.sellerId), 'mpActiveConversation', conv._id)
-      await set(state, parseFloat(product.sellerId), 'action', 'mpChat')
-
-      // Notify seller with context + inline buttons as convenience
+      // Notify seller — only auto-set into mpChat if seller is idle (not mid-flow)
       const sellerInfo = await state.findOne({ _id: parseFloat(product.sellerId) })
       const sellerLang = sellerInfo?.userLanguage || 'en'
       const sellerT = translation('t', sellerLang)
-      const sellerBtns = {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: '🔒 Start Escrow', callback_data: `mp:escrow:${conv._id}` }],
-          ]
-        },
-        parse_mode: 'HTML',
+      const sellerAction = sellerInfo?.action || 'none'
+      const sellerIsIdle = sellerAction === 'none' || sellerAction === a.mpHome
+
+      if (sellerIsIdle) {
+        // Seller is idle — safe to auto-set into chat mode
+        await set(state, parseFloat(product.sellerId), 'mpActiveConversation', conv._id)
+        await set(state, parseFloat(product.sellerId), 'action', 'mpChat')
+        const sellerBtns = {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '🔒 Start Escrow', callback_data: `mp:escrow:${conv._id}` }],
+            ]
+          },
+          parse_mode: 'HTML',
+        }
+        sendMsg(product.sellerId, sellerT.mpChatStartSeller(product.title) + '\n\n' + sellerT.mpSellerChatReady(product.title), sellerBtns)
+      } else {
+        // Seller is busy in another flow — don't hijack, just notify with reply button
+        const sellerBtns = {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '💬 Reply', callback_data: `mp:reply:${conv._id}` }],
+              [{ text: '🔒 Start Escrow', callback_data: `mp:escrow:${conv._id}` }],
+            ]
+          },
+          parse_mode: 'HTML',
+        }
+        sendMsg(product.sellerId, sellerT.mpSellerBusy(product.title), sellerBtns)
+        log(`[Marketplace] Seller ${product.sellerId} busy (action=${sellerAction}), sent notification instead of auto-chat`)
       }
-      sendMsg(product.sellerId, sellerT.mpChatStartSeller(product.title) + '\n\n' + sellerT.mpSellerChatReady(product.title), sellerBtns)
       return
     }
 
@@ -1332,8 +1392,7 @@ bot?.on('callback_query', async (query) => {
 
       await set(state, chatId, 'mpActiveConversation', conv._id)
       await set(state, chatId, 'action', 'mpChat')
-      const role = conv.buyerId === chatId ? 'Buyer' : 'Seller'
-      return sendMsg(chatId, `💬 You entered chat for <b>${conv.productTitle}</b> ($${conv.agreedPrice || conv.originalPrice})\nSend /done to exit, /escrow to start escrow, /price XX to suggest price.`)
+      return sendMsg(chatId, t.mpEnteredChat(conv.productTitle, conv.agreedPrice || conv.originalPrice))
     }
 
     // mp:escrow:convId — start escrow from conversation
@@ -1482,7 +1541,11 @@ bot?.on('message', async msg => {
           const senderRole = conv.buyerId === chatId ? 'buyer' : 'seller'
           await marketplaceService.addMessage({ conversationId: convId, senderId: chatId, senderRole, text: '[photo]', type: 'photo' })
           const otherParty = conv.buyerId === chatId ? conv.sellerId : conv.buyerId
-          const caption = senderRole === 'buyer' ? '💬 Buyer sent a photo:' : '💬 Seller sent a photo:'
+          // Use translated caption for the receiver's language
+          const otherInfo = await get(state, otherParty)
+          const otherLang = otherInfo?.userLanguage || 'en'
+          const otherT = translation('t', otherLang)
+          const caption = senderRole === 'buyer' ? otherT.mpBuyerPhotoCaption : otherT.mpSellerPhotoCaption
           try { await bot.sendPhoto(otherParty, photo.file_id, { caption }) } catch (e) { log(`[Marketplace] Photo relay error: ${e.message}`) }
           const t = translation('t', userInfo?.userLanguage || 'en')
           send(chatId, t.mpMessageSent, { parse_mode: 'HTML' })
@@ -5785,6 +5848,21 @@ All verified numbers generated during sourcing.`))
     return `${days}d ago`
   }
 
+  // Helper: translate category English → user language (uses module-level _MP_CAT_MAP_GLOBAL)
+  const _mpTranslateCategories = () => marketplaceService.CATEGORIES.map(c => t[_MP_CAT_MAP_GLOBAL[c]] || c)
+  const _mpCategoryFromTranslated = (userInput) => {
+    // Try direct match first (English)
+    if (marketplaceService.CATEGORIES.includes(userInput)) return userInput
+    // Try reverse lookup from translated name
+    for (const [engCat, key] of Object.entries(_MP_CAT_MAP_GLOBAL)) {
+      if (t[key] === userInput) return engCat
+    }
+    return null
+  }
+
+  // Helper: translate a single category for display
+  const _mpTranslateCategory = (cat) => t[_MP_CAT_MAP_GLOBAL[cat]] || cat
+
   // Helper: format seller stats
   const _mpSellerLine = async (sellerId) => {
     const stats = await marketplaceService.getSellerStats(sellerId)
@@ -5802,7 +5880,19 @@ All verified numbers generated during sourcing.`))
       await marketplaceService.closeConversation(convId)
       const conv = await marketplaceService.getConversation(convId)
       const otherParty = conv?.buyerId === chatId ? conv?.sellerId : conv?.buyerId
-      if (otherParty) send(otherParty, t.mpChatEndedNotify(conv?.productTitle || 'Product'), { parse_mode: 'HTML' })
+      if (otherParty) {
+        // Reset other party's state if they're still in this chat
+        const otherInfo = await get(state, otherParty)
+        if (otherInfo?.action === 'mpChat' && otherInfo?.mpActiveConversation === convId) {
+          const otherLang = otherInfo?.userLanguage || 'en'
+          const otherT = translation('t', otherLang)
+          await set(state, otherParty, 'action', a.mpHome)
+          await set(state, otherParty, 'mpActiveConversation', null)
+          send(otherParty, otherT.mpChatClosedReset(conv?.productTitle || 'Product'), { parse_mode: 'HTML' })
+        } else {
+          send(otherParty, t.mpChatEndedNotify(conv?.productTitle || 'Product'), { parse_mode: 'HTML' })
+        }
+      }
       send(chatId, t.mpChatEnded, { parse_mode: 'HTML' })
       return goto.marketplace()
     }
@@ -5913,7 +6003,7 @@ All verified numbers generated during sourcing.`))
 
     if (message === t.mpBrowse) {
       set(state, chatId, 'action', a.mpBrowseCategory)
-      const cats = marketplaceService.CATEGORIES.map(c => [c])
+      const cats = _mpTranslateCategories().map(c => [c])
       return send(chatId, t.mpSelectCategory, k.of([[t.mpAllCategories], ...cats]))
     }
 
@@ -5972,9 +6062,9 @@ All verified numbers generated during sourcing.`))
   if (action === a.mpBrowseCategory) {
     if (message === t.back || message === t.backButton) return goto.marketplace()
 
-    let cat = message === t.mpAllCategories ? 'all' : message
+    let cat = message === t.mpAllCategories ? 'all' : _mpCategoryFromTranslated(message) || message
     if (cat !== 'all' && !marketplaceService.CATEGORIES.includes(cat)) {
-      return send(chatId, t.mpSelectCategory, k.of([[t.mpAllCategories], ...marketplaceService.CATEGORIES.map(c => [c])]))
+      return send(chatId, t.mpSelectCategory, k.of([[t.mpAllCategories], ..._mpTranslateCategories().map(c => [c])]))
     }
 
     const result = await marketplaceService.browseProducts({ category: cat, page: 0, limit: 5 })
@@ -5983,7 +6073,7 @@ All verified numbers generated during sourcing.`))
     for (let i = 0; i < result.products.length; i++) {
       const p = result.products[i]
       const sellerLine = await _mpSellerLine(p.sellerId)
-      const caption = t.mpProductCard(p.title, p.price, p.category, sellerLine)
+      const caption = t.mpProductCard(p.title, p.price, _mpTranslateCategory(p.category), sellerLine)
       const inlineBtns = {
         reply_markup: {
           inline_keyboard: [
@@ -6034,7 +6124,7 @@ All verified numbers generated during sourcing.`))
     await saveInfo('mpActiveProduct', product._id)
     set(state, chatId, 'action', a.mpManageListing)
     const sellerLine = await _mpSellerLine(product.sellerId)
-    const detail = t.mpProductDetail(product.title, product.description, product.price, product.category, sellerLine, _mpTimeAgo(product.createdAt))
+    const detail = t.mpProductDetail(product.title, product.description, product.price, _mpTranslateCategory(product.category), sellerLine, _mpTimeAgo(product.createdAt))
     const manageBtns = product.status === 'active'
       ? [[t.mpEditProduct], [t.mpMarkSold], [t.mpRemoveProduct]]
       : [[t.mpRemoveProduct]]
@@ -6159,7 +6249,7 @@ All verified numbers generated during sourcing.`))
     if (isNaN(price) || price < marketplaceService.MIN_PRICE || price > marketplaceService.MAX_PRICE) return send(chatId, t.mpPriceError)
     await saveInfo('mpPrice', price)
     set(state, chatId, 'action', a.mpNewCategory)
-    const cats = marketplaceService.CATEGORIES.map(c => [c])
+    const cats = _mpTranslateCategories().map(c => [c])
     return send(chatId, t.mpSelectCategory, k.of(cats))
   }
 
@@ -6169,11 +6259,12 @@ All verified numbers generated during sourcing.`))
       set(state, chatId, 'action', a.mpNewPrice)
       return send(chatId, t.mpEnterPrice, bc)
     }
-    if (!marketplaceService.CATEGORIES.includes(message)) {
-      const cats = marketplaceService.CATEGORIES.map(c => [c])
+    const engCategory = _mpCategoryFromTranslated(message)
+    if (!engCategory) {
+      const cats = _mpTranslateCategories().map(c => [c])
       return send(chatId, t.mpSelectCategory, k.of(cats))
     }
-    await saveInfo('mpCategory', message)
+    await saveInfo('mpCategory', engCategory)
     set(state, chatId, 'action', a.mpNewConfirm)
     const preview = t.mpPreview(info?.mpTitle, info?.mpDesc, info?.mpPrice, message, (info?.mpImages || []).length)
     return send(chatId, preview, k.of([[t.mpPublish], [t.mpCancel]]))
@@ -6219,7 +6310,7 @@ All verified numbers generated during sourcing.`))
     await saveInfo('mpActiveConversation', conv._id)
     set(state, chatId, 'action', a.mpChat)
     const role = conv.buyerId === chatId ? ({ en: 'Buyer', fr: 'Acheteur', zh: '买家', hi: 'खरीदार' }[lang] || 'Buyer') : ({ en: 'Seller', fr: 'Vendeur', zh: '卖家', hi: 'विक्रेता' }[lang] || 'Seller')
-    return send(chatId, `💬 Resumed chat: <b>${conv.productTitle}</b> ($${conv.agreedPrice || conv.originalPrice}) — You are the ${role}\n🔒 Escrow-protected via @Lockbaybot\n\nSend /done to exit, /escrow to start escrow, /price XX to suggest price.`, { parse_mode: 'HTML' })
+    return send(chatId, t.mpResumedChat(conv.productTitle, conv.agreedPrice || conv.originalPrice, role), { parse_mode: 'HTML' })
   }
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
