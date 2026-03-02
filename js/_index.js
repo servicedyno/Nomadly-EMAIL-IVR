@@ -1455,6 +1455,7 @@ bot?.on('message', async msg => {
   
   // ── Handle photo messages for Marketplace product uploads & chat relay ──
   if (msg?.photo && chatId) {
+    log(`[Marketplace] Photo received from ${chatId}, photo count: ${msg.photo.length}`)
     const userInfo = await get(state, chatId)
     if (userInfo?.action === 'mpNewImage') {
       const images = userInfo?.mpImages || []
