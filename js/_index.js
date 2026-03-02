@@ -246,6 +246,7 @@ const { initShortenerPersistence, createActivationTask, markRailwayLinked, markD
 const honeypotService = require('./honeypot-service.js')
 const audioLibraryService = require('./audio-library-service.js')
 const bulkCallService = require('./bulk-call-service.js')
+const marketplaceService = require('./marketplace-service.js')
 
 process.env['NTBA_FIX_350'] = 1
 
