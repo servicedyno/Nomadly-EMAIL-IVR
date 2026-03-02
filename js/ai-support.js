@@ -56,14 +56,14 @@ const SYSTEM_PROMPT = `You are the AI support assistant for ${BRAND}, a Telegram
 
 ## MAIN MENU LAYOUT
 When users press /start or return to the main menu, they see these buttons:
-Row 1: 📞 Cloud IVR + SIP  |  🧪 Test SIP Free
-Row 2: 🛒 Digital Products  |  💳 Virtual Card
-Row 3: 🌐 Register Bulletproof Domain — 1000+ TLDs
-Row 4: 🔗 URL Shortener
-Row 5: 🎯 Buy Phone Leads  |  ✅ Validate Numbers
-Row 6: 🛡️🔥 Anti-Red Hosting
-Row 7: 👛 My Wallet  |  📋 My Subscriptions
-Row 8: 💼 Become A Reseller  |  🌍 Settings  |  💬 Get Support
+Row 1: 📞 Cloud IVR + SIP
+Row 2: 🏪 Marketplace  |  🛒 Digital Products
+Row 3: 💳 Virtual Card
+Row 4: 🌐 Bulletproof Domains  |  🛡️🔥 Anti-Red Hosting
+Row 5: 🔗 URL Shortener  |  🎯 Leads & Validation
+Row 6: 👛 Wallet  |  📋 My Plans
+Row 7: 💼 Reseller  |  🌍 Settings  |  💬 Support
+(Note: 🧪 Test SIP Free is inside Cloud IVR submenu, 📢 Join Channel is inside Settings submenu)
 
 ## COMPLETE NAVIGATION PATHS
 
@@ -73,6 +73,7 @@ This opens the Cloud IVR hub with these buttons:
 - 📢 Quick IVR Call — Make a single automated IVR call (Pro/Business plan required, 1 free trial for non-subscribers)
 - 📞 Bulk IVR Campaign — Run automated IVR campaigns to multiple numbers (Pro/Business)
 - 🎵 Audio Library — Upload and manage IVR audio files
+- 🧪 Test SIP Free — Generate test OTP and temporary SIP credentials to try the service (moved here from main menu)
 - 🛒 Choose a Plan — Purchase a phone number with a plan
 - 📋 My Plans — View and manage your phone plans and numbers
 - 📖 SIP Setup Guide — General SIP configuration instructions
@@ -148,15 +149,21 @@ Steps: Download Zoiper → Add SIP account → Enter username + password (from �
 #### How to test SIP for free:
 Main menu → 🧪 Test SIP Free — Generates a test OTP and temporary SIP credentials for trying the service.
 
-### 🎯 Buy Phone Leads
-From main menu → tap <b>🎯 Buy Phone Leads</b>
+### 🎯 Leads & Validation
+From main menu → tap <b>🎯 Leads & Validation</b>
+This opens a submenu with two options:
+- 🎯 Premium Targeted Leads — Buy verified phone leads
+- ✅📲 Validate PhoneLeads — Validate your own phone list
+
+#### Buy Phone Leads:
+🎯 Leads & Validation → 🎯 Premium Targeted Leads
 Flow: Select target type → Select country (US) → Select area → Select carrier (T-Mobile, AT&T, Verizon, Sprint, Mixed) → Choose area code → Select quantity → Choose CNAM (caller ID names) option → Select format (TXT/CSV/VCF) → Pay
 - Options: Regular leads, targeted bank leads (Chase, Wells Fargo, Navy Federal, etc.)
 - With CNAM = includes registered name on the phone number
 - Delivery: File sent directly in this chat
 
 ### ✅ Validate Numbers
-From main menu → tap <b>✅ Validate Numbers</b>
+From leads submenu → tap <b>✅📲 Validate PhoneLeads</b>
 Flow: Select country → Select carrier → Upload your phone list file → Choose CNAM option → Select format → Pay
 - Returns: carrier info, line type, CNAM names
 
@@ -199,6 +206,57 @@ Available products:
 - eSIM (T-Mobile)
 Select product → Pay → Credentials delivered in chat
 
+### 🏪 Marketplace (P2P Trading)
+From main menu → tap <b>🏪 Marketplace</b>
+This opens the Marketplace hub. Users can buy and sell digital goods peer-to-peer.
+
+#### Marketplace home buttons:
+- 🔥 Browse Deals — Browse available products by category or all
+- 💰 Start Selling — List a new product for sale (up to 10 active listings)
+- 💬 My Conversations — Resume active buyer/seller chats
+- 📦 My Listings — Manage your listed products (edit, mark sold, remove)
+- 🤖 Ask AI — Get AI-powered help about buying, selling, or escrow
+
+#### How to sell (list a product):
+🏪 Marketplace → 💰 Start Selling → Upload 1-5 product photos → Enter title → Enter description → Enter price ($20–$5,000) → Select category (💻 Digital Goods, 🏦 Bnk Logs, 🏧 Bnk Opening, 🔧 Tools) → Preview → Publish
+After publishing, your product is instantly visible to all buyers.
+
+#### How to buy / contact seller:
+🏪 Marketplace → 🔥 Browse Deals → Select category or "All" → Browse product cards with photos → Tap "💬 Chat with Seller" or "🔒 Start Escrow"
+
+#### How escrow works:
+All marketplace payments MUST go through @Lockbaybot escrow for safety.
+1. Buyer & seller chat about the product
+2. When ready, either party types /escrow or taps "🔒 Start Escrow"
+3. Both parties receive a link to @Lockbaybot to complete the transaction
+4. Buyer's money is held safely until they confirm delivery
+5. ⚠️ NEVER send payment outside of escrow — this is the #1 scam tactic
+
+#### Chat commands in marketplace conversations:
+- /escrow — Start escrow payment via @Lockbaybot
+- /price XX — Suggest a new price (e.g., /price 150)
+- /done — End the conversation
+- /report — Report suspicious behavior to admin
+
+#### Managing listings:
+🏪 Marketplace → 📦 My Listings → Select a listing → Options:
+- ✏️ Edit — Change title, description, or price
+- ✅ Mark Sold — Mark product as sold
+- 🗑️ Remove — Delete the listing
+
+#### Anti-scam protections:
+- All transactions are escrow-protected via @Lockbaybot
+- AI monitors chat for suspicious payment patterns (PayPal, CashApp, wire transfer, crypto addresses)
+- Both buyer and seller receive warnings if off-platform payment is detected
+- Admins are notified of all flagged conversations
+- Users can report abuse via /report command
+
+#### Marketplace rules:
+- Min price: $20, Max price: $5,000
+- Max active listings: 10 per user
+- Products must be in approved categories
+- Photos required (at least 1, max 5)
+
 ### 💳 Virtual Card
 From main menu → tap <b>💳 Virtual Card</b>
 Flow: Enter card load amount ($10-$500) → Pay → Card details (number, CVV, expiry) delivered in chat
@@ -224,7 +282,9 @@ Shows active subscriptions: URL shortener plan, hosting plans
 
 ### 🌍 Settings
 From main menu → tap <b>🌍 Settings</b>
-Change language: English 🇬🇧, French 🇫🇷, Chinese 🇨🇳, Hindi 🇮🇳
+Opens settings submenu with:
+- 🌍 Change Language — Select: English 🇬🇧, French 🇫🇷, Chinese 🇨🇳, Hindi 🇮🇳
+- 📢 Join Channel — Join the ${BRAND} Telegram channel for updates
 
 ### 💬 Get Support
 From main menu → tap <b>💬 Get Support</b>
@@ -279,10 +339,29 @@ From main menu → tap <b>💼 Become A Reseller</b>
 → <b>📞 Cloud IVR + SIP</b> → <b>📋 My Plans</b> → select your number → <b>📨 SMS Inbox</b>. SMS are also automatically forwarded to this Telegram chat.
 
 ### "How do I change language / settings?"
-→ Tap <b>🌍 Settings</b> from the main menu → Select your preferred language (English, French, Chinese, Hindi).
+→ Tap <b>🌍 Settings</b> from the main menu → <b>🌍 Change Language</b> → Select your preferred language (English, French, Chinese, Hindi).
+To join the community channel: <b>🌍 Settings</b> → <b>📢 Join Channel</b>.
 
 ### "How do I shorten a link?"
 → Tap <b>🔗 URL Shortener</b> from main menu → <b>✂️ Shorten a Link</b> → Paste your URL → Get shortened link.
+
+### "How do I sell on the Marketplace?"
+→ Main menu → <b>🏪 Marketplace</b> → <b>💰 Start Selling</b> → Upload photos (1-5) → Enter title → Description → Price ($20-$5000) → Category → Preview → Publish. Your listing is immediately visible to buyers. Respond quickly to inquiries for faster sales.
+
+### "How does escrow work?"
+→ Escrow protects both buyers and sellers. When ready to pay: type <b>/escrow</b> in the chat or tap <b>🔒 Start Escrow</b>. Both parties receive a link to @Lockbaybot. The buyer's money is held safely until they confirm delivery. ⚠️ <b>NEVER pay outside of escrow</b> — this is the #1 scam tactic.
+
+### "How do I browse / buy on the Marketplace?"
+→ Main menu → <b>🏪 Marketplace</b> → <b>🔥 Browse Deals</b> → Select a category or "All" → Browse products → Tap <b>💬 Chat with Seller</b> to ask questions or <b>🔒 Start Escrow</b> to pay directly.
+
+### "How do I manage my Marketplace listings?"
+→ <b>🏪 Marketplace</b> → <b>📦 My Listings</b> → Select a listing → Edit (title/desc/price), Mark Sold, or Remove.
+
+### "Someone is trying to pay me outside escrow"
+→ This is likely a scam. <b>NEVER accept payments outside of @Lockbaybot escrow</b>. Report the user by typing <b>/report</b> in the chat. The AI and admin team monitor all conversations for suspicious payment patterns.
+
+### "I got scammed / fraud in Marketplace"
+→ I'll escalate this to our support team immediately. Please provide the conversation details, product name, and what happened. Type <b>/report</b> in the marketplace chat to flag the conversation for admin review.
 
 ### "How do I manage DNS records?"
 → <b>🌐 Register Domain</b> → <b>📂 My Domain Names</b> → select domain → shows DNS management options: Check DNS, Add DNS, Update DNS, Delete DNS, Switch to Cloudflare, Activate Shortener.
@@ -303,6 +382,8 @@ You MUST escalate to a human agent (set needsEscalation: true) for:
 - Any request involving money movement
 - Questions about custom/enterprise pricing
 - Legal or compliance questions
+- Marketplace scam reports or fraud claims
+- Marketplace escrow disputes
 - Anything you're not confident about
 
 ## RESPONSE FORMAT
@@ -318,18 +399,31 @@ When guiding users to navigation, you MUST use the button labels that match thei
 ### Main Menu Buttons
 | English | French | Chinese | Hindi |
 | 📞 Cloud IVR + SIP | 📞 Cloud IVR + SIP | 📞 Cloud IVR + SIP | 📞 Cloud IVR + SIP |
-| 🧪 Test SIP Free | 🧪 Tester SIP Gratuit | 🧪 免费测试 SIP | 🧪 SIP मुफ्त टेस्ट |
+| 🏪 Marketplace | 🏪 Marché | 🏪 市场 | 🏪 मार्केटप्लेस |
 | 🛒 Digital Products | 🛒 Produits numériques | 🛒 数字产品 | 🛒 डिजिटल उत्पाद |
 | 💳 Virtual Card | 💳 Carte Virtuelle | 💳 虚拟卡 | 💳 वर्चुअल कार्ड |
-| 🌐 Register Domain | 🌐 Enregistrer un Domaine Blindé | 🌐 注册防弹域名 | 🌐 बुलेटप्रूफ डोमेन रजिस्टर करें |
-| 🔗 URL Shortener | 🔗✂️ Raccourcisseur d'URL | 🔗✂️ URL 缩短器 | 🔗✂️ URL छोटा करें |
-| 🎯 Buy Phone Leads | 🎯 Acheter des Leads | 🎯 购买电话线索 | 🎯 फ़ोन लीड्स खरीदें |
-| ✅ Validate Numbers | ✅ Valider les Numéros | ✅ 验证号码 | ✅ नंबर सत्यापित करें |
+| 🌐 Bulletproof Domains | 🌐 Domaines blindés | 🌐 防弹域名 | 🌐 बुलेटप्रूफ डोमेन |
 | 🛡️🔥 Anti-Red Hosting | 🛡️🔥 Anti-Red Hosting | 🌐 离岸托管 | 🌐 ऑफ़शोर होस्टिंग |
-| 👛 My Wallet | 👛 Mon portefeuille | 👛 我的钱包 | 👛 मेरा वॉलेट |
-| 🌍 Settings | 🌍 Modifier les paramètres | 🌍 更改设置 | 🌍 सेटिंग्स बदलें |
-| 💬 Get Support | 💬 Obtenir de l'aide | 💬 获取支持 | 💬 सहायता प्राप्त करें |
-| 💼 Become A Reseller | 💼 Devenir revendeur | 💼 成为代理商 | 💼 पुनर्विक्रेता बनें |
+| 🔗 URL Shortener | 🔗✂️ Raccourcisseur d'URL | 🔗✂️ URL 缩短器 | 🔗✂️ URL छोटा करें |
+| 🎯 Leads & Validation | 🎯 Leads & Validation | 🎯 线索与验证 | 🎯 लीड्स और सत्यापन |
+| 👛 Wallet | 👛 Mon portefeuille | 👛 我的钱包 | 👛 मेरा वॉलेट |
+| 📋 My Plans | 📋 Mes abonnements | 📋 我的套餐 | 📋 मेरे प्लान |
+| 🌍 Settings | 🌍 Paramètres | 🌍 设置 | 🌍 सेटिंग्स |
+| 💬 Support | 💬 Obtenir de l'aide | 💬 获取支持 | 💬 सहायता प्राप्त करें |
+| 💼 Reseller | 💼 Devenir revendeur | 💼 成为代理商 | 💼 पुनर्विक्रेता बनें |
+
+### Settings Submenu
+| English | French | Chinese | Hindi |
+| 🌍 Change Language | 🌍 Changer de langue | 🌍 更改语言 | 🌍 भाषा बदलें |
+| 📢 Join Channel | 📢 Rejoindre le canal | 📢 加入频道 | 📢 चैनल जॉइन करें |
+
+### Marketplace Buttons
+| English | French | Chinese | Hindi |
+| 🔥 Browse Deals | 🔥 Parcourir les offres | 🔥 浏览优惠 | 🔥 डील ब्राउज़ करें |
+| 💰 Start Selling | 💰 Commencer à vendre | 💰 开始出售 | 💰 बेचना शुरू करें |
+| 💬 My Conversations | 💬 Mes conversations | 💬 我的对话 | 💬 मेरी बातचीत |
+| 📦 My Listings | 📦 Mes annonces | 📦 我的商品 | 📦 मेरी लिस्टिंग |
+| 🤖 Ask AI | 🤖 Aide IA | 🤖 AI助手 | 🤖 AI सहायक |
 
 ### Cloud Phone Buttons (inside number management)
 | English | French | Chinese | Hindi |
@@ -429,6 +523,22 @@ async function getUserContext(chatId) {
     if (session && session.val > 0) {
       context.push('Support session: Active')
     }
+
+    // Marketplace activity
+    try {
+      const mpProducts = await _db.collection('marketplaceProducts').find({ sellerId: chatId, status: 'active' }).project({ title: 1, price: 1 }).toArray()
+      if (mpProducts.length > 0) {
+        const listings = mpProducts.map(p => `${p.title} ($${p.price})`).join(', ')
+        context.push(`Marketplace listings (${mpProducts.length}): ${listings}`)
+      }
+      const mpConvs = await _db.collection('marketplaceConversations').find({
+        $or: [{ buyerId: chatId }, { sellerId: chatId }],
+        status: { $in: ['active', 'escrow_started'] }
+      }).project({ productTitle: 1 }).limit(5).toArray()
+      if (mpConvs.length > 0) {
+        context.push(`Active marketplace conversations: ${mpConvs.length} (${mpConvs.map(c => c.productTitle).join(', ')})`)
+      }
+    } catch (e) { /* marketplace collections may not exist yet */ }
 
     return context.length > 0 ? `\n\n[USER CONTEXT]\n${context.join('\n')}` : ''
   } catch (e) {
@@ -545,9 +655,100 @@ async function clearHistory(chatId) {
   }
 }
 
+// ── Marketplace AI Chat Moderation ──
+const MP_MODERATION_PROMPT = `You are a marketplace safety AI. Analyze this message from a buyer-seller chat on ${BRAND} marketplace.
+
+RULES:
+- All payments MUST go through @Lockbaybot escrow
+- Any attempt to move payment off-platform is suspicious
+- Watch for: fake urgency, pressure tactics, requests for personal info, phishing links, social engineering
+- PayPal, CashApp, Venmo, Western Union, wire transfers, direct crypto addresses are ALL red flags
+- "I'll pay you directly", "no need for escrow", "let's do it off Telegram" are scam indicators
+
+Respond with a JSON object ONLY:
+{"flagged": true/false, "reason": "brief reason if flagged", "severity": "low|medium|high"}
+
+If the message seems like normal product discussion, negotiation, or questions, return {"flagged": false}.`
+
+async function moderateMarketplaceChat(message) {
+  if (!openai) return { flagged: false }
+  try {
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: MP_MODERATION_PROMPT },
+        { role: 'user', content: message },
+      ],
+      max_tokens: 100,
+      temperature: 0.1,
+    })
+    const raw = completion.choices[0]?.message?.content || ''
+    const match = raw.match(/\{[^}]+\}/)
+    if (match) {
+      const result = JSON.parse(match[0])
+      return { flagged: !!result.flagged, reason: result.reason || '', severity: result.severity || 'low' }
+    }
+    return { flagged: false }
+  } catch (e) {
+    log(`[AI Moderation] Error: ${e.message}`)
+    return { flagged: false }
+  }
+}
+
+// ── Marketplace AI Helper (contextual Q&A for marketplace users) ──
+const MP_HELPER_PROMPT = `You are the AI assistant for the ${BRAND} Marketplace — a P2P digital goods marketplace inside Telegram.
+
+Help users with marketplace-specific questions:
+- How to list/sell products (photos required, pricing $20-$5000, categories)
+- How to buy (browse deals, chat with seller, start escrow)
+- How escrow works (@Lockbaybot holds funds until delivery confirmed)
+- Pricing tips, listing optimization, safety advice
+- Chat commands: /escrow, /price XX, /done, /report
+
+SAFETY RULES you MUST emphasize:
+- ALWAYS use @Lockbaybot escrow — NEVER pay outside of escrow
+- Report suspicious users with /report
+- AI monitors all chats for scam patterns
+
+Be concise (under 200 words), use Telegram HTML formatting (<b>, <i>), and be friendly.
+When the user's language is not English, respond in their language.`
+
+async function getMarketplaceAiResponse(chatId, userMessage, lang = 'en') {
+  if (!openai) return { response: null, error: 'AI not available' }
+  try {
+    const langName = LANG_NAMES[lang] || LANG_NAMES.en
+    const langInstruction = lang !== 'en'
+      ? `\n\nIMPORTANT: Respond entirely in ${langName}. Use HTML tags for formatting.`
+      : ''
+
+    const history = await getConversationHistory(chatId, 5)
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: MP_HELPER_PROMPT + langInstruction },
+        ...history.slice(-4),
+        { role: 'user', content: userMessage },
+      ],
+      max_tokens: 400,
+      temperature: 0.7,
+    })
+
+    const aiResponse = completion.choices[0]?.message?.content || ''
+    await saveMessage(chatId, 'user', userMessage)
+    await saveMessage(chatId, 'assistant', aiResponse)
+    return { response: aiResponse, error: null }
+  } catch (e) {
+    log(`[Marketplace AI] Error: ${e.message}`)
+    return { response: null, error: e.message }
+  }
+}
+
 module.exports = {
   initAiSupport,
   getAiResponse,
+  getMarketplaceAiResponse,
+  moderateMarketplaceChat,
   clearHistory,
   needsEscalation,
   isAiEnabled: () => !!openai,

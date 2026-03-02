@@ -241,7 +241,7 @@ const { initScheduler: initHostingScheduler } = require('./hosting-scheduler.js'
 const { initPhoneTestRoutes, generateTestOtp, checkTestCredentialCall, getOrCreateReferralCode, trackReferral } = require('./phone-test-routes.js')
 const antiRedService = require('./anti-red-service.js')
 const { initLeadJobPersistence, flushAllJobs, findInterruptedJobs, resumeJob } = require('./lead-job-persistence.js')
-const { initAiSupport, getAiResponse, clearHistory: clearAiHistory, isAiEnabled } = require('./ai-support.js')
+const { initAiSupport, getAiResponse, getMarketplaceAiResponse, moderateMarketplaceChat, clearHistory: clearAiHistory, isAiEnabled } = require('./ai-support.js')
 const { initShortenerPersistence, createActivationTask, markRailwayLinked, markDnsAdded, markCompleted, markFailed, findIncompleteTasks } = require('./shortener-activation-persistence.js')
 const honeypotService = require('./honeypot-service.js')
 const audioLibraryService = require('./audio-library-service.js')
@@ -2170,6 +2170,7 @@ bot?.on('message', async msg => {
     mpEditDesc: 'mpEditDesc',
     mpEditPrice: 'mpEditPrice',
     mpChat: 'mpChat',
+    mpAiHelper: 'mpAiHelper',
     mpConversations: 'mpConversations',
     mpBrowseCategory: 'mpBrowseCategory',
   }
@@ -2195,6 +2196,7 @@ bot?.on('message', async msg => {
     a.submenu6,
     a.vcEnterAmount,
     a.mpHome,
+    a.mpAiHelper,
     a.settingsMenu,
   ]
   const goto = {
@@ -2325,6 +2327,7 @@ bot?.on('message', async msg => {
         [t.mpListProduct],
         [t.mpMyConversations],
         [t.mpMyListings],
+        [t.mpAiHelper],
       ]))
     },
     'leads-pay': async () => {
@@ -5857,6 +5860,17 @@ All verified numbers generated during sourcing.`))
       const otherParty = conv.buyerId === chatId ? conv.sellerId : conv.buyerId
       send(otherParty, t.mpPaymentWarning, { parse_mode: 'HTML' })
       if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🚨 [Marketplace] Payment pattern detected\nConv: ${convId}\nFrom: ${chatId}\nMsg: ${message}`)
+    } else if (isAiEnabled() && message.length > 15) {
+      // AI-powered scam moderation for longer messages that bypass regex
+      moderateMarketplaceChat(message).then(result => {
+        if (result.flagged && (result.severity === 'medium' || result.severity === 'high')) {
+          const otherPartyId = conv.buyerId === chatId ? conv.sellerId : conv.buyerId
+          send(chatId, t.mpAiScamWarning, { parse_mode: 'HTML' })
+          send(otherPartyId, t.mpAiScamWarning, { parse_mode: 'HTML' })
+          if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🤖🚨 [AI Moderation] Flagged (${result.severity})\nConv: ${convId}\nFrom: ${chatId}\nReason: ${result.reason}\nMsg: ${message}`)
+          log(`[AI Moderation] Flagged (${result.severity}): ${result.reason}`)
+        }
+      }).catch(e => log(`[AI Moderation] Error: ${e.message}`))
     }
 
     // Relay text message
@@ -5866,6 +5880,23 @@ All verified numbers generated during sourcing.`))
     const relayMsg = senderRole === 'buyer' ? t.mpBuyerSays(message) : t.mpSellerSays(message)
     send(otherParty, relayMsg, { parse_mode: 'HTML' })
     return
+  }
+
+  // ── Marketplace AI Helper ──
+  if (action === a.mpAiHelper) {
+    if (message === t.back || message === t.backButton) return goto.marketplace()
+    // User asked a question → get AI response
+    send(chatId, t.mpAiThinking)
+    try {
+      const { response, error } = await getMarketplaceAiResponse(chatId, message, lang)
+      if (response) {
+        return send(chatId, response, { parse_mode: 'HTML' })
+      }
+      return send(chatId, t.mpAiHelperPrompt, bc)
+    } catch (e) {
+      log(`[Marketplace AI] Helper error: ${e.message}`)
+      return send(chatId, t.mpAiHelperPrompt, bc)
+    }
   }
 
   // ── Marketplace Home ──
@@ -5920,7 +5951,13 @@ All verified numbers generated during sourcing.`))
       return send(chatId, text, k.of(btns))
     }
 
-    return send(chatId, t.mpHome, k.of([[t.mpBrowse], [t.mpListProduct], [t.mpMyConversations], [t.mpMyListings]]))
+    // 🤖 Ask AI — Marketplace AI helper
+    if (message === t.mpAiHelper) {
+      set(state, chatId, 'action', a.mpAiHelper)
+      return send(chatId, t.mpAiHelperPrompt, bc)
+    }
+
+    return send(chatId, t.mpHome, k.of([[t.mpBrowse], [t.mpListProduct], [t.mpMyConversations], [t.mpMyListings], [t.mpAiHelper]]))
   }
 
   // ── Browse Category Selection ──
@@ -6000,7 +6037,7 @@ All verified numbers generated during sourcing.`))
   if (action === a.mpManageListing) {
     if (message === t.back || message === t.backButton) {
       set(state, chatId, 'action', a.mpHome)
-      return send(chatId, t.mpHome, k.of([[t.mpBrowse], [t.mpListProduct], [t.mpMyConversations], [t.mpMyListings]]))
+      return send(chatId, t.mpHome, k.of([[t.mpBrowse], [t.mpListProduct], [t.mpMyConversations], [t.mpMyListings], [t.mpAiHelper]]))
     }
     const pid = info?.mpActiveProduct
     if (!pid) return goto.marketplace()
