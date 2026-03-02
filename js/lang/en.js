@@ -1006,9 +1006,9 @@ ${bal(usd, ngn)}`,
   mpNoListings: '📭 You have no listings yet.',
   mpNoConversations: '📭 No active conversations.',
   mpChatStartBuyer: (title, price) =>
-    `💬 You're now chatting about <b>${title}</b> ($${price})\n🔒 Escrow-protected via @Lockbaybot\n\nType your message below. Send /done to end chat.`,
+    `💬 You're chatting with the seller about <b>${title}</b> ($${price})\n🔒 Escrow-protected via @Lockbaybot\n\n💡 Tip: Ask for details, samples, or proof before purchasing.\nType /escrow when ready to pay safely.\nSend /done to end chat.`,
   mpChatStartSeller: (title) =>
-    `💬 New inquiry about <b>${title}</b> from a buyer.\n🔒 Escrow-protected via @Lockbaybot\n\nReply below. Send /done to end chat.`,
+    `💬 🔔 A buyer is interested in <b>${title}</b>!\n🔒 Escrow-protected via @Lockbaybot\n\n💡 Tip: Respond quickly — fast sellers close more deals.\nReply below. Send /done to end chat.`,
   mpBuyerSays: (msg) => `💬 <b>Buyer:</b> ${msg}`,
   mpSellerSays: (msg) => `💬 <b>Seller:</b> ${msg}`,
   mpChatEnded: '💬 Conversation ended. Both parties have been notified.',
