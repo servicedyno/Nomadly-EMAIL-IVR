@@ -1219,7 +1219,7 @@ const userKeyboard = {
       ...(HIDE_SMS_APP === 'true' ? [] : [[user.freeTrialAvailable]]),
       [user.wallet, user.viewPlan],
       HIDE_BECOME_RESELLER === 'true'
-        ? [user.changeSetting, user.getSupport, user.joinChannel]
+        ? [user.changeSetting, user.getSupport]
         : [user.becomeReseller, user.changeSetting, user.getSupport],
     ],
     resize_keyboard: true,
