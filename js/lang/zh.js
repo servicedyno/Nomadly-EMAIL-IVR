@@ -985,9 +985,9 @@ ${CHAT_BOT_NAME}`,
   mpListingRemoved: '📦 [商品已删除]',
   mpSellerStats: (sales, since) => `⭐ 卖家：${sales} 笔交易 | 加入于 ${since}`,
   mpProductCard: (title, price, category, sellerStats) =>
-    `🏷️ <b>${title}</b>\n💰 <b>$${Number(price).toFixed(2)}</b>\n📂 ${category}\n${sellerStats}\n🔒 通过 @Lockbaybot 托管保护`,
+    `🏷️ <b>${title}</b>\n💰 <b>$${Number(price).toFixed(2)}</b>  ·  ${category}\n${sellerStats}\n🔒 安心购买 — 托管保护`,
   mpProductDetail: (title, desc, price, category, sellerStats, listedAgo) =>
-    `📦 <b>${title}</b>\n\n📄 ${desc}\n\n💰 价格：<b>$${Number(price).toFixed(2)}</b>\n📂 类别：${category}\n${sellerStats}\n📅 发布：${listedAgo}\n🔒 <b>托管保护</b> — 通过 @Lockbaybot 安全支付`,
+    `📦 <b>${title}</b>\n\n📄 ${desc}\n\n💰 价格：<b>$${Number(price).toFixed(2)}</b>\n📂 ${category}\n${sellerStats}\n📅 发布：${listedAgo}\n\n🔒 <b>100% 买家保护</b>\n通过 @Lockbaybot 托管安全支付 — 您的资金在确认交付前安全保管。`,
   mpMyListingsHeader: (count, max) => `📦 <b>我的商品</b>（${count}/${max}）`,
   mpConvHeader: '💬 <b>我的对话</b>',
   mpConvItem: (title, role, lastMsg) => `💬 <b>${title}</b>（${role}）— ${lastMsg}`,
