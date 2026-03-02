@@ -1157,6 +1157,7 @@ const userKeyboard = {
     keyboard: [
       [user.cloudPhone, user.testSip],
       [user.digitalProducts, user.virtualCard],
+      [user.marketplace],
       [user.domainNames],
       [user.urlShortenerMain],
       [user.phoneNumberLeads],
