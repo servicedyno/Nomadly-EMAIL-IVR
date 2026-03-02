@@ -722,18 +722,8 @@ if PRODUCT_ID_2:
     time.sleep(2)
 
     # Check DB
-    products_all = get_products()
-    sold_products = [p for p in get_products() if False]  # get_products only returns active
-    mongo_cmd = f"JSON.stringify(db.marketplaceProducts.findOne({{_id: '{PRODUCT_ID_2}'}}))"
-    try:
-        result = subprocess.run(
-            ["mongosh", "mongodb://localhost:27017/test", "--quiet", "--eval", mongo_cmd],
-            capture_output=True, text=True, timeout=10
-        )
-        data = json.loads(result.stdout.strip()) if result.stdout.strip() and result.stdout.strip() != 'null' else {}
-        test("Product marked as sold in DB", data.get("status") == "sold", f"status={data.get('status')}")
-    except Exception as e:
-        test("Product marked as sold in DB", False, str(e))
+    prod_data = get_one("marketplaceProducts", {"_id": PRODUCT_ID_2})
+    test("Product marked as sold in DB", prod_data.get("status") == "sold", f"status={prod_data.get('status')}")
 
 # ══════════════════════════════════════════════════════
 # TEST 26: Seller — Remove product
