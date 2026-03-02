@@ -924,9 +924,9 @@ ${CHAT_BOT_NAME}`,
   selectProceedOrCancel: '请选择"继续"或"取消"。',
 
   // ── Marketplace ──
-  mpHome: '🏪 <b>市场</b>\n\n🔒 所有交易均通过 @Lockbaybot 托管保护\n您的资金安全保管，直到您确认交付。\n\n⚠️ 切勿在托管之外付款。',
-  mpBrowse: '🔍 浏览产品',
-  mpListProduct: '➕ 发布产品',
+  mpHome: '🏪 <b>NOMADLY 市场</b>\n\n💰 <b>出售你的数字商品</b> — 60秒发布，即时收款\n🛍️ <b>发现独家优惠</b> — 经验证的卖家，真实交易\n\n🔒 每笔购买均通过 @Lockbaybot <b>托管保护</b>\n您的资金安全保管，直到您确认交付。\n\n👇 准备好赚钱或购物了吗？',
+  mpBrowse: '🔥 浏览优惠',
+  mpListProduct: '💰 开始出售',
   mpMyConversations: '💬 我的对话',
   mpMyListings: '📦 我的商品',
   mpUploadImages: '📸 上传产品图片（1-5张）。\n逐张发送。完成后点击 ✅ 上传完成。',
