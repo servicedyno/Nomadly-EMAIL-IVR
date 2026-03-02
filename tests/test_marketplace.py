@@ -14,6 +14,9 @@ import sys
 BASE = "http://localhost:5000/telegram/webhook"
 HEADERS = {"Content-Type": "application/json"}
 
+MONGO_URI = "mongodb://mongo:RQoOmIdwjRLFvhWMaatjidzqpvawUKcb@caboose.proxy.rlwy.net:59668"
+DB_NAME = "test"
+
 # Two test users
 SELLER_ID = 5590563715   # Real admin — will receive bot messages
 BUYER_ID  = 5590563716   # Simulated buyer (offset by 1 from admin)
