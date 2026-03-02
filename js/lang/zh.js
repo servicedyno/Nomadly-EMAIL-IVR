@@ -961,6 +961,9 @@ ${CHAT_BOT_NAME}`,
     `💬 您正在与卖家讨论 <b>${title}</b>（$${price}）\n🔒 通过 @Lockbaybot 托管保护\n\n💡 提示：购买前请索要详情、样品或证明。\n输入 /escrow 安全支付。\n发送 /done 结束聊天。`,
   mpChatStartSeller: (title) =>
     `💬 🔔 一位买家对 <b>${title}</b> 感兴趣！\n🔒 通过 @Lockbaybot 托管保护\n\n💡 提示：快速回复 — 响应快的卖家成交更多。\n在下方回复。发送 /done 结束聊天。`,
+  mpMessageSent: '✅ 消息已发送',
+  mpSellerChatReady: (title) =>
+    `💬 您已进入 <b>${title}</b> 的聊天。\n在下方输入回复。发送 /done 退出, /escrow 开始托管, /price XX 建议价格。`,
   mpBuyerSays: (msg) => `💬 <b>买家：</b> ${msg}`,
   mpSellerSays: (msg) => `💬 <b>卖家：</b> ${msg}`,
   mpChatEnded: '💬 对话已结束。双方已收到通知。',

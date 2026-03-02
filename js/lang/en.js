@@ -1013,6 +1013,9 @@ ${bal(usd, ngn)}`,
     `💬 You're chatting with the seller about <b>${title}</b> ($${price})\n🔒 Escrow-protected via @Lockbaybot\n\n💡 Tip: Ask for details, samples, or proof before purchasing.\nType /escrow when ready to pay safely.\nSend /done to end chat.`,
   mpChatStartSeller: (title) =>
     `💬 🔔 A buyer is interested in <b>${title}</b>!\n🔒 Escrow-protected via @Lockbaybot\n\n💡 Tip: Respond quickly — fast sellers close more deals.\nReply below. Send /done to end chat.`,
+  mpMessageSent: '✅ Message sent',
+  mpSellerChatReady: (title) =>
+    `💬 You are now in chat for <b>${title}</b>.\nType your reply below. Send /done to exit, /escrow to start escrow, /price XX to suggest price.`,
   mpBuyerSays: (msg) => `💬 <b>Buyer:</b> ${msg}`,
   mpSellerSays: (msg) => `💬 <b>Seller:</b> ${msg}`,
   mpChatEnded: '💬 Conversation ended. Both parties have been notified.',

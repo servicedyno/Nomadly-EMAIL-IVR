@@ -979,6 +979,9 @@ ${CHAT_BOT_NAME}`,
     `💬 Vous discutez avec le vendeur de <b>${title}</b> ($${price})\n🔒 Protégé par escrow via @Lockbaybot\n\n💡 Conseil : Demandez des détails ou des preuves avant d'acheter.\nTapez /escrow quand vous êtes prêt à payer en toute sécurité.\nEnvoyez /done pour quitter.`,
   mpChatStartSeller: (title) =>
     `💬 🔔 Un acheteur s'intéresse à <b>${title}</b> !\n🔒 Protégé par escrow via @Lockbaybot\n\n💡 Conseil : Répondez vite — les vendeurs rapides concluent plus de ventes.\nRépondez ci-dessous. Envoyez /done pour quitter.`,
+  mpMessageSent: '✅ Message envoyé',
+  mpSellerChatReady: (title) =>
+    `💬 Vous êtes en chat pour <b>${title}</b>.\nÉcrivez votre réponse. Envoyez /done pour quitter, /escrow pour démarrer l'escrow, /price XX pour proposer un prix.`,
   mpBuyerSays: (msg) => `💬 <b>Acheteur :</b> ${msg}`,
   mpSellerSays: (msg) => `💬 <b>Vendeur :</b> ${msg}`,
   mpChatEnded: '💬 Conversation terminée. Les deux parties ont été notifiées.',

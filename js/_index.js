@@ -1302,19 +1302,23 @@ bot?.on('callback_query', async (query) => {
       await set(state, chatId, 'action', 'mpChat')
       sendMsg(chatId, t.mpChatStartBuyer(product.title, product.price))
 
-      // Notify seller
+      // Set seller into chat mode too — so they can reply immediately without tapping a button
+      await set(state, parseFloat(product.sellerId), 'mpActiveConversation', conv._id)
+      await set(state, parseFloat(product.sellerId), 'action', 'mpChat')
+
+      // Notify seller with context + inline buttons as convenience
       const sellerInfo = await state.findOne({ _id: parseFloat(product.sellerId) })
       const sellerLang = sellerInfo?.userLanguage || 'en'
       const sellerT = translation('t', sellerLang)
       const sellerBtns = {
         reply_markup: {
           inline_keyboard: [
-            [{ text: '💬 Reply to Buyer', callback_data: `mp:reply:${conv._id}` }],
             [{ text: '🔒 Start Escrow', callback_data: `mp:escrow:${conv._id}` }],
           ]
-        }
+        },
+        parse_mode: 'HTML',
       }
-      sendMsg(product.sellerId, sellerT.mpChatStartSeller(product.title), sellerBtns)
+      sendMsg(product.sellerId, sellerT.mpChatStartSeller(product.title) + '\n\n' + sellerT.mpSellerChatReady(product.title), sellerBtns)
       return
     }
 
@@ -1480,6 +1484,8 @@ bot?.on('message', async msg => {
           const otherParty = conv.buyerId === chatId ? conv.sellerId : conv.buyerId
           const caption = senderRole === 'buyer' ? '💬 Buyer sent a photo:' : '💬 Seller sent a photo:'
           try { await bot.sendPhoto(otherParty, photo.file_id, { caption }) } catch (e) { log(`[Marketplace] Photo relay error: ${e.message}`) }
+          const t = translation('t', userInfo?.userLanguage || 'en')
+          send(chatId, t.mpMessageSent, { parse_mode: 'HTML' })
           return
         }
       }
@@ -5879,6 +5885,8 @@ All verified numbers generated during sourcing.`))
     const otherParty = conv.buyerId === chatId ? conv.sellerId : conv.buyerId
     const relayMsg = senderRole === 'buyer' ? t.mpBuyerSays(message) : t.mpSellerSays(message)
     send(otherParty, relayMsg, { parse_mode: 'HTML' })
+    // Confirm to sender that message was delivered
+    send(chatId, t.mpMessageSent, { parse_mode: 'HTML' })
     return
   }
 
