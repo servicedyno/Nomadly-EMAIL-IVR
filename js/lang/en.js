@@ -976,9 +976,9 @@ ${bal(usd, ngn)}`,
   selectProceedOrCancel: 'Please select "Proceed Anyway" or "Cancel".',
 
   // ── Marketplace ──
-  mpHome: '🏪 <b>MARKETPLACE</b>\n\n🔒 All transactions are escrow-protected via @Lockbaybot\nYour money is held safely until you confirm delivery.\n\n⚠️ Never send payment outside of escrow.',
-  mpBrowse: '🔍 Browse Products',
-  mpListProduct: '➕ List a Product',
+  mpHome: '🏪 <b>NOMADLY MARKETPLACE</b>\n\n💰 <b>Sell your digital goods</b> — list in 60 seconds, get paid instantly\n🛍️ <b>Find exclusive deals</b> — verified sellers, real transactions\n\n🔒 Every purchase is <b>escrow-protected</b> via @Lockbaybot\nYour money stays safe until you confirm delivery.\n\n👇 Ready to earn or shop?',
+  mpBrowse: '🔥 Browse Deals',
+  mpListProduct: '💰 Start Selling',
   mpMyConversations: '💬 My Conversations',
   mpMyListings: '📦 My Listings',
   mpUploadImages: '📸 Upload product images (1-5 photos).\nSend photos one by one. When done, tap ✅ Done Uploading.',
