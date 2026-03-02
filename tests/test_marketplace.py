@@ -636,6 +636,10 @@ if CONV_ID:
 # ══════════════════════════════════════════════════════
 section("TEST 22: Seller — Cannot chat with own product")
 
+# Make sure seller is NOT in mpChat mode first — send /done to exit
+send_text(SELLER_ID, "/done")
+time.sleep(2)
+
 if PRODUCT_ID:
     # Seller tries to chat with own product
     status = send_callback(SELLER_ID, f"mp:chat:{PRODUCT_ID}")
