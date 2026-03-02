@@ -1003,9 +1003,9 @@ ${CHAT_BOT_NAME}`,
   mpListingRemoved: '📦 [Annonce supprimée]',
   mpSellerStats: (sales, since) => `⭐ Vendeur : ${sales} vente${sales !== 1 ? 's' : ''} | Inscrit ${since}`,
   mpProductCard: (title, price, category, sellerStats) =>
-    `🏷️ <b>${title}</b>\n💰 <b>$${Number(price).toFixed(2)}</b>\n📂 ${category}\n${sellerStats}\n🔒 Protégé par escrow via @Lockbaybot`,
+    `🏷️ <b>${title}</b>\n💰 <b>$${Number(price).toFixed(2)}</b>  ·  ${category}\n${sellerStats}\n🔒 Achat en confiance — Escrow Protégé`,
   mpProductDetail: (title, desc, price, category, sellerStats, listedAgo) =>
-    `📦 <b>${title}</b>\n\n📄 ${desc}\n\n💰 Prix : <b>$${Number(price).toFixed(2)}</b>\n📂 Catégorie : ${category}\n${sellerStats}\n📅 Publié : ${listedAgo}\n🔒 <b>ESCROW PROTÉGÉ</b> — Payez en toute sécurité via @Lockbaybot`,
+    `📦 <b>${title}</b>\n\n📄 ${desc}\n\n💰 Prix : <b>$${Number(price).toFixed(2)}</b>\n📂 ${category}\n${sellerStats}\n📅 Publié : ${listedAgo}\n\n🔒 <b>PROTECTION ACHETEUR 100%</b>\nPayez en toute sécurité via @Lockbaybot — votre argent est conservé jusqu'à confirmation de livraison.`,
   mpMyListingsHeader: (count, max) => `📦 <b>MES ANNONCES</b> (${count}/${max})`,
   mpConvHeader: '💬 <b>MES CONVERSATIONS</b>',
   mpConvItem: (title, role, lastMsg) => `💬 <b>${title}</b> (${role}) — ${lastMsg}`,
