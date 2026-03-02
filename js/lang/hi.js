@@ -105,6 +105,7 @@ const user = {
   buyPlan: '⚡ प्लान अपग्रेड करें',
   freeTrialAvailable: '📧🆓 BulkSMS - फ्री ट्रायल',
   changeSetting: '🌍 सेटिंग्स',
+  changeLanguage: '🌍 भाषा बदलें',
 
   // Sub Menu 1: urlShortenerMain
   redSelectUrl: '🔀✂️ रीडायरेक्ट और छोटा करें',
