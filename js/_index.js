@@ -9096,6 +9096,18 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       const numBtns = numbers.map((_, i) => String(i + 1))
       return send(chatId, cpTxt.myNumbersList(numbers), k.of([numBtns]))
     }
+    // 🧪 Test SIP Free — inside Cloud IVR submenu
+    if (phoneConfig.btnKeyOf(message) === 'testSipFree') {
+      const pMsg = phoneConfig.getMsg(info?.userLanguage || 'en')
+      const result = await generateTestOtp(chatId)
+      if (!result) {
+        return send(chatId, pMsg.sipTestError || 'SIP test is currently unavailable.', k.of([]))
+      }
+      if (result === 'USED') {
+        return send(chatId, pMsg.sipTestComplete, k.of([]))
+      }
+      return send(chatId, pMsg.sipTestOtpSent(result.otp, result.testNumber), k.of([]))
+    }
 
     // ── Bulk Call Campaign ──
     if (message === pc.bulkCallCampaign) {
