@@ -2194,7 +2194,8 @@ bot?.on('message', async msg => {
     a.submenu5,
     a.submenu6,
     a.vcEnterAmount,
-    a.mpHome
+    a.mpHome,
+    a.settingsMenu,
   ]
   const goto = {
     askCoupon: action => {
