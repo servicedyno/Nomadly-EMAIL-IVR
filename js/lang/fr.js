@@ -106,6 +106,7 @@ const user = {
   testSip: '🧪 Tester SIP Gratuit',
   freeTrialAvailable: '📧🆓 SMS en masse - Essai gratuit',
   changeSetting: '🌍 Paramètres',
+  changeLanguage: '🌍 Changer de langue',
 
   // Sub Menu 1: urlShortenerMain
   redSelectUrl: '🔀✂️ Rediriger et raccourcir',
