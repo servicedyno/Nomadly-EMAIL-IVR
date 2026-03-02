@@ -1935,6 +1935,23 @@ bot?.on('message', async msg => {
     audioLibUpload: 'audioLibUpload',
     audioLibName: 'audioLibName',
     audioLibDelete: 'audioLibDelete',
+
+    // Marketplace
+    mpHome: 'mpHome',
+    mpNewImage: 'mpNewImage',
+    mpNewTitle: 'mpNewTitle',
+    mpNewDesc: 'mpNewDesc',
+    mpNewPrice: 'mpNewPrice',
+    mpNewCategory: 'mpNewCategory',
+    mpNewConfirm: 'mpNewConfirm',
+    mpMyListings: 'mpMyListings',
+    mpManageListing: 'mpManageListing',
+    mpEditTitle: 'mpEditTitle',
+    mpEditDesc: 'mpEditDesc',
+    mpEditPrice: 'mpEditPrice',
+    mpChat: 'mpChat',
+    mpConversations: 'mpConversations',
+    mpBrowseCategory: 'mpBrowseCategory',
   }
 
   const firstSteps = [
