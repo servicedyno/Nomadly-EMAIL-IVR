@@ -942,9 +942,9 @@ ${CHAT_BOT_NAME}`,
   selectProceedOrCancel: 'Sélectionnez "Continuer" ou "Annuler".',
 
   // ── Marketplace ──
-  mpHome: '🏪 <b>MARCHÉ</b>\n\n🔒 Toutes les transactions sont protégées par escrow via @Lockbaybot\nVotre argent est conservé en toute sécurité jusqu\'à confirmation de livraison.\n\n⚠️ N\'envoyez jamais de paiement en dehors de l\'escrow.',
-  mpBrowse: '🔍 Parcourir les produits',
-  mpListProduct: '➕ Lister un produit',
+  mpHome: '🏪 <b>MARCHÉ NOMADLY</b>\n\n💰 <b>Vendez vos produits numériques</b> — publiez en 60 secondes, soyez payé instantanément\n🛍️ <b>Trouvez des offres exclusives</b> — vendeurs vérifiés, transactions réelles\n\n🔒 Chaque achat est <b>protégé par escrow</b> via @Lockbaybot\nVotre argent reste en sécurité jusqu\'à confirmation de livraison.\n\n👇 Prêt à gagner ou acheter ?',
+  mpBrowse: '🔥 Parcourir les offres',
+  mpListProduct: '💰 Commencer à vendre',
   mpMyConversations: '💬 Mes conversations',
   mpMyListings: '📦 Mes annonces',
   mpUploadImages: '📸 Téléchargez les images du produit (1 à 5 photos).\nEnvoyez les photos une par une. Appuyez sur ✅ Téléchargement terminé quand c\'est fait.',
