@@ -222,6 +222,9 @@ const btn = {
   bulkCallCampaign: '📞 Bulk IVR Campaign',
   audioLibrary: '🎵 Audio Library',
 
+  // Test SIP
+  testSipFree: '🧪 Test SIP Free',
+
   back: 'Back',
   cancel: 'Cancel',
 }
