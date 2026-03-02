@@ -2095,6 +2095,16 @@ bot?.on('message', async msg => {
       const total = Math.round((amount + fee) * 100) / 100
       send(chatId, t.vcOrderSummary(amount, fee, total), k.pay)
     },
+    // ━━━ Marketplace ━━━
+    marketplace: () => {
+      set(state, chatId, 'action', a.mpHome)
+      send(chatId, t.mpHome, k.of([
+        [t.mpBrowse],
+        [t.mpListProduct],
+        [t.mpMyConversations],
+        [t.mpMyListings],
+      ]))
+    },
     'leads-pay': async () => {
       set(state, chatId, 'action', 'leads-pay')
       const price = info?.couponApplied ? info?.newPrice : info?.price
