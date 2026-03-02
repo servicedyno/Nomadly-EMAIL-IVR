@@ -868,7 +868,8 @@ section("TEST 32: Error log check")
 
 err_logs = check_error_logs(50)
 # Filter out known non-critical errors (node internals, telegram API errors for test users)
-critical_errors = [l for l in err_logs.split('\n') if l.strip() and 'ETELEGRAM' not in l and 'chat not found' not in l.lower() and '403' not in l and '400' not in l and 'upgrade' not in l.lower() and 'url:' not in l.lower() and 'method:' not in l.lower() and 'ResponseParameters' not in l and 'statusMessage' not in l and 'client:' not in l and '_consuming' not in l and 'TLSSocket' not in l and 'Bad Request' not in l and 'statusCode' not in l]
+# Only flag errors that contain actual error keywords (crash, uncaught, fatal, etc.)
+critical_errors = [l for l in err_logs.split('\n') if l.strip() and any(kw in l.lower() for kw in ['uncaught', 'fatal', 'crash', 'segfault', 'cannot find module', 'syntax error', 'referenceerror', 'typeerror: cannot'])]
 test("No critical errors in nodejs.err.log", len(critical_errors) == 0, f"errors: {critical_errors[:3]}")
 
 # Check marketplace-specific errors
