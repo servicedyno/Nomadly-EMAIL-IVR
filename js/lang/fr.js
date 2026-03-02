@@ -1255,6 +1255,7 @@ Liens de marque · Domaines personnalisés · Analyses
   
   Vous pouvez toujours changer votre langue plus tard dans les paramètres.`,
   askValidLanguage: 'Veuillez choisir une langue valide :',
+  settingsMenuText: '⚙️ <b>Paramètres</b>\n\nGérez vos préférences ci-dessous :',
   welcomeMessage: `👋 Bienvenue sur le ${CHAT_BOT_NAME} !
   Nous sommes ravis de vous avoir ici ! 🎉
   Commençons afin que vous puissiez explorer toutes les fonctionnalités passionnantes que nous proposons. 🌟
