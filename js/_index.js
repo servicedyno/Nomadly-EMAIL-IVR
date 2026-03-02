@@ -5176,6 +5176,11 @@ All verified numbers generated during sourcing.`))
     return goto['virtual-card-start']()
   }
 
+  // ━━━ Marketplace ━━━
+  if (message === user.marketplace || message === '🏪 Marketplace' || message === '🏪 Marché' || message === '🏪 市场' || message === '🏪 मार्केटप्लेस') {
+    return goto.marketplace()
+  }
+
   // Digital Products: product selection
   if (action === a.submenu6) {
     if (message === t.back || message === t.cancel) return goto.displayMainMenuButtons()
