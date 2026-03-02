@@ -4734,18 +4734,20 @@ All verified numbers generated during sourcing.`))
     return send(chatId, pMsg.sipTestCode(result.otp, result.callsRemaining), { parse_mode: 'HTML' })
   }
 
-  // /done — exit support chat
-  if (message === '/done') {
-    if (action === a.supportChat) {
-      await set(supportSessions, chatId, 0)
-      set(state, chatId, 'action', 'none')
-      const name = await get(nameOf, chatId)
-      send(chatId, t.supportEnded, trans('o'))
-      send(TELEGRAM_ADMIN_CHAT_ID, `📴 Support session closed by user <b>${name || chatId}</b> (${chatId})`, { parse_mode: 'HTML' })
-      clearAiHistory(chatId) // Clear AI conversation history
-      log(`[Support] Session ended by user ${chatId}`)
-      return
-    }
+  // /done — exit support chat (only if in support chat mode)
+  if (message === '/done' && action === a.supportChat) {
+    await set(supportSessions, chatId, 0)
+    set(state, chatId, 'action', 'none')
+    const name = await get(nameOf, chatId)
+    send(chatId, t.supportEnded, trans('o'))
+    send(TELEGRAM_ADMIN_CHAT_ID, `📴 Support session closed by user <b>${name || chatId}</b> (${chatId})`, { parse_mode: 'HTML' })
+    clearAiHistory(chatId) // Clear AI conversation history
+    log(`[Support] Session ended by user ${chatId}`)
+    return
+  }
+
+  // /done — no active session (only show if not in marketplace chat)
+  if (message === '/done' && action !== a.mpChat) {
     return send(chatId, t.noSupportSession || 'No active support session.', trans('o'))
   }
 
