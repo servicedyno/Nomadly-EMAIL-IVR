@@ -225,12 +225,7 @@ def section(title):
 # CLEAN UP — Remove any existing test data
 # ══════════════════════════════════════════════════════
 section("SETUP: Clean previous test data")
-subprocess.run(
-    ["mongosh", "mongodb://localhost:27017/test", "--quiet", "--eval",
-     f"db.marketplaceProducts.deleteMany({{sellerId: {SELLER_ID}}}); db.marketplaceConversations.deleteMany({{$or: [{{buyerId: {BUYER_ID}}}, {{sellerId: {SELLER_ID}}}]}}); db.marketplaceMessages.deleteMany({{}});"],
-    capture_output=True, text=True, timeout=10
-)
-print("  Cleaned up previous test data.")
+clean_test_data()
 time.sleep(1)
 
 # ══════════════════════════════════════════════════════
