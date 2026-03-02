@@ -1143,6 +1143,7 @@ const btnI18n = {
     ivrOutboundBack: '↩️ Retour',
     bulkCallCampaign: '📞 Campagne IVR en Masse',
     audioLibrary: '🎵 Bibliothèque Audio',
+    testSipFree: '🧪 Tester SIP Gratuit',
     addNumber: '➕ Ajouter un Numéro au Forfait',
     back: 'Retour',
     cancel: 'Annuler',
