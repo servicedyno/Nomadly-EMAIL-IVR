@@ -968,3 +968,17 @@ agent_communication:
           agent: "testing"
           comment: "Comprehensive verification completed successfully: ✅ Node.js health check passed (200 status, 0-byte error log). ✅ _verifyRegistration function properly implemented in op-service.js with 5xx error detection and 5s wait + verification call. ✅ No 'OpenProvider' or 'ConnectReseller' strings found in error return statements via grep search. ✅ cr-domain-register.js has clean error messages (no JSON.stringify in returns). ✅ buyDomainFullProcess properly sends detailed errors to admin only, user gets sanitized translation. ✅ All language files (en/fr/zh/hi) have correct domainPurchasedFailed signature taking only domain parameter. Minor: sanitizeErrorForUser function exists and works correctly, but there are a few places in domain-service.js where crResult.error is returned directly - however these are internal DNS operations that don't expose provider names to end users. Core provider name leak protection is working as intended for domain registration errors."
 
+
+  - task: "Marketplace — P2P product listings, chat relay, escrow integration"
+    implemented: true
+    working: "NA"
+    file: "js/marketplace-service.js, js/_index.js, js/lang/en.js, js/lang/fr.js, js/lang/zh.js, js/lang/hi.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Implemented full P2P marketplace: (1) marketplace-service.js — CRUD for products, conversations, messages, payment pattern detection, rate limiting, auto-close stale conversations, seller stats. Uses UUIDs. DB indexes on marketplaceProducts, marketplaceConversations, marketplaceMessages. (2) All 4 lang files — comprehensive marketplace translations (en, fr, zh, hi) for all flows. (3) _index.js: Added 🏪 Marketplace button to main menu keyboard. Added 14 new action states (mpHome, mpNewImage, mpNewTitle, mpNewDesc, mpNewPrice, mpNewCategory, mpNewConfirm, mpMyListings, mpManageListing, mpEditTitle, mpEditDesc, mpEditPrice, mpChat, mpConversations, mpBrowseCategory). Added callback_query handler for inline buttons (pagination, chat with seller, start escrow, reply to buyer). Photo handler for product image uploads and chat relay. Anti-scam payment pattern detection. Escrow integration with @Lockbaybot. Node.js service restarts cleanly with [Marketplace] Initialized."
+
+
