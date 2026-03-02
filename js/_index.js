@@ -1457,20 +1457,20 @@ bot?.on('message', async msg => {
   if (msg?.photo && chatId) {
     const userInfo = await get(state, chatId)
     if (userInfo?.action === 'mpNewImage') {
-      const images = userInfo?.mpImages || (await get(state, chatId + '_info'))?.mpImages || []
+      const images = userInfo?.mpImages || []
       if (images.length >= 5) {
         send(chatId, '📸 Maximum 5 images. Tap ✅ Done Uploading to continue.')
         return
       }
       const photo = msg.photo[msg.photo.length - 1] // highest resolution
       images.push({ fileId: photo.file_id, uniqueId: photo.file_unique_id })
-      await set(state, chatId + '_info', { ...(await get(state, chatId + '_info') || {}), mpImages: images })
+      await set(state, chatId, 'mpImages', images)
       send(chatId, `📸 Image ${images.length}/5 received. Send more or tap ✅ Done Uploading.`)
       return
     }
     if (userInfo?.action === 'mpChat') {
       // Relay photo in chat
-      const convId = userInfo?.mpActiveConversation || (await get(state, chatId + '_info'))?.mpActiveConversation
+      const convId = userInfo?.mpActiveConversation
       if (convId) {
         const conv = await marketplaceService.getConversation(convId)
         if (conv && (conv.status === 'active' || conv.status === 'escrow_started')) {
