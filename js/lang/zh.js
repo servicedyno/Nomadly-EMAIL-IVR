@@ -113,6 +113,7 @@ const user = {
 
   // Sub Menu 6: Digital Products
   digitalProducts: '🛒 数字产品',
+  marketplace: '🏪 市场',
   virtualCard: '💳 虚拟卡',
 
   // Sub Menu 2: domainNames
