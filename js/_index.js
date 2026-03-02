@@ -1973,7 +1973,8 @@ bot?.on('message', async msg => {
     a.submenu4,
     a.submenu5,
     a.submenu6,
-    a.vcEnterAmount
+    a.vcEnterAmount,
+    a.mpHome
   ]
   const goto = {
     askCoupon: action => {
