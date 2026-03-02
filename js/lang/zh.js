@@ -105,6 +105,7 @@ const user = {
   buyPlan: '⚡ 升级计划',
   freeTrialAvailable: '📧🆓 BulkSMS - 免费试用',
   changeSetting: '🌍 设置',
+  changeLanguage: '🌍 更改语言',
 
   // Sub Menu 1: urlShortenerMain
   redSelectUrl: '🔀✂️ 重定向并缩短',
