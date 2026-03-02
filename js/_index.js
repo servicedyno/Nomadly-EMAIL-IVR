@@ -5520,6 +5520,423 @@ All verified numbers generated during sourcing.`))
     return
   }
 
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // MARKETPLACE HANDLERS
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  // Helper: time ago
+  const _mpTimeAgo = (dateStr) => {
+    const diff = Date.now() - new Date(dateStr).getTime()
+    const mins = Math.floor(diff / 60000)
+    if (mins < 60) return `${mins}m ago`
+    const hrs = Math.floor(mins / 60)
+    if (hrs < 24) return `${hrs}h ago`
+    const days = Math.floor(hrs / 24)
+    return `${days}d ago`
+  }
+
+  // Helper: format seller stats
+  const _mpSellerLine = async (sellerId) => {
+    const stats = await marketplaceService.getSellerStats(sellerId)
+    const since = stats.memberSince ? new Date(stats.memberSince).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'recently'
+    return t.mpSellerStats(stats.salesCount, since)
+  }
+
+  // ── Marketplace Chat Relay (must be checked early) ──
+  if (action === a.mpChat) {
+    const convId = info?.mpActiveConversation
+    if (!convId) return goto.marketplace()
+
+    // /done — end conversation
+    if (message === '/done' || message === t.back || message === t.backButton) {
+      await marketplaceService.closeConversation(convId)
+      const conv = await marketplaceService.getConversation(convId)
+      const otherParty = conv?.buyerId === chatId ? conv?.sellerId : conv?.buyerId
+      if (otherParty) send(otherParty, t.mpChatEndedNotify(conv?.productTitle || 'Product'), { parse_mode: 'HTML' })
+      send(chatId, t.mpChatEnded, { parse_mode: 'HTML' })
+      return goto.marketplace()
+    }
+
+    // /escrow — start escrow
+    if (message === '/escrow') {
+      const conv = await marketplaceService.getConversation(convId)
+      if (!conv) return goto.marketplace()
+      await marketplaceService.markEscrowStarted(convId)
+      const product = await marketplaceService.getProduct(conv.productId)
+      const sellerRef = `Seller#${String(conv.sellerId).slice(-4)}`
+      const price = conv.agreedPrice || conv.originalPrice
+      const escrowMsg = t.mpEscrowMsg(conv.productTitle, price, sellerRef)
+      const escrowOpts = { parse_mode: 'HTML', reply_markup: { inline_keyboard: [[{ text: '🔒 Open @Lockbaybot', url: 'https://t.me/Lockbaybot' }]] } }
+      send(conv.buyerId, escrowMsg, escrowOpts)
+      send(conv.sellerId, escrowMsg, escrowOpts)
+      if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🔒 [Marketplace] Escrow started\nProduct: ${conv.productTitle}\nBuyer: ${conv.buyerId}\nSeller: ${conv.sellerId}\nPrice: $${price}`, { parse_mode: 'HTML' })
+      return
+    }
+
+    // /price XX — suggest new price
+    if (message.startsWith('/price')) {
+      const parts = message.split(' ')
+      if (parts.length < 2) return send(chatId, t.mpPriceUsage, { parse_mode: 'HTML' })
+      const suggestedPrice = parseFloat(parts[1])
+      if (isNaN(suggestedPrice) || suggestedPrice < marketplaceService.MIN_PRICE || suggestedPrice > marketplaceService.MAX_PRICE) {
+        return send(chatId, t.mpPriceInvalid)
+      }
+      const conv = await marketplaceService.getConversation(convId)
+      if (!conv) return goto.marketplace()
+      await marketplaceService.updateConversation(convId, { agreedPrice: suggestedPrice })
+      const role = conv.buyerId === chatId ? ({ en: 'Buyer', fr: 'Acheteur', zh: '买家', hi: 'खरीदार' }[lang] || 'Buyer') : ({ en: 'Seller', fr: 'Vendeur', zh: '卖家', hi: 'विक्रेता' }[lang] || 'Seller')
+      const priceMsg = t.mpPriceSuggest(role, suggestedPrice.toFixed(2))
+      const escrowBtn = { reply_markup: { inline_keyboard: [[{ text: `🔒 Start Escrow — $${suggestedPrice.toFixed(2)}`, callback_data: `mp:escrow:${convId}` }]] }, parse_mode: 'HTML' }
+      send(conv.buyerId, priceMsg, escrowBtn)
+      send(conv.sellerId, priceMsg, escrowBtn)
+      return
+    }
+
+    // /report — flag conversation
+    if (message === '/report') {
+      const conv = await marketplaceService.getConversation(convId)
+      if (conv && TELEGRAM_ADMIN_CHAT_ID) {
+        send(TELEGRAM_ADMIN_CHAT_ID, `🚨 [Marketplace] Report\nConv: ${convId}\nProduct: ${conv.productTitle}\nBuyer: ${conv.buyerId}\nSeller: ${conv.sellerId}\nReporter: ${chatId}`, { parse_mode: 'HTML' })
+      }
+      return send(chatId, t.mpReported)
+    }
+
+    // Empty message
+    if (!message || message.trim() === '') return
+
+    // Rate limit check
+    const conv = await marketplaceService.getConversation(convId)
+    if (!conv || conv.status === 'closed') return goto.marketplace()
+    const msgCount = await marketplaceService.getRecentMessageCount(convId, 1)
+    if (msgCount >= marketplaceService.MSG_RATE_LIMIT) return send(chatId, t.mpRateLimit)
+
+    // Payment pattern detection (anti-scam)
+    if (marketplaceService.detectPaymentPattern(message)) {
+      send(chatId, t.mpPaymentWarning, { parse_mode: 'HTML' })
+      const otherParty = conv.buyerId === chatId ? conv.sellerId : conv.buyerId
+      send(otherParty, t.mpPaymentWarning, { parse_mode: 'HTML' })
+      if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🚨 [Marketplace] Payment pattern detected\nConv: ${convId}\nFrom: ${chatId}\nMsg: ${message}`)
+    }
+
+    // Relay text message
+    const senderRole = conv.buyerId === chatId ? 'buyer' : 'seller'
+    await marketplaceService.addMessage({ conversationId: convId, senderId: chatId, senderRole, text: message, type: 'text' })
+    const otherParty = conv.buyerId === chatId ? conv.sellerId : conv.buyerId
+    const relayMsg = senderRole === 'buyer' ? t.mpBuyerSays(message) : t.mpSellerSays(message)
+    send(otherParty, relayMsg, { parse_mode: 'HTML' })
+    return
+  }
+
+  // ── Marketplace Home ──
+  if (action === a.mpHome) {
+    if (message === t.back || message === t.backButton) return goto.displayMainMenuButtons()
+
+    if (message === t.mpBrowse) {
+      set(state, chatId, 'action', a.mpBrowseCategory)
+      const cats = marketplaceService.CATEGORIES.map(c => [c])
+      return send(chatId, t.mpSelectCategory, k.of([[t.mpAllCategories], ...cats]))
+    }
+
+    if (message === t.mpListProduct) {
+      const count = await marketplaceService.getActiveProductCount(chatId)
+      if (count >= marketplaceService.MAX_LISTINGS) return send(chatId, t.mpMaxListings)
+      set(state, chatId, 'action', a.mpNewImage)
+      await saveInfo('mpImages', [])
+      return send(chatId, t.mpUploadImages, k.of([[t.mpDoneUpload]]))
+    }
+
+    if (message === t.mpMyConversations) {
+      const convs = await marketplaceService.getUserConversations(chatId)
+      if (!convs.length) return send(chatId, t.mpNoConversations)
+      let text = t.mpConvHeader + '\n\n'
+      const btns = []
+      for (const c of convs.slice(0, 20)) {
+        const role = c.buyerId === chatId ? ({ en: 'Buyer', fr: 'Acheteur', zh: '买家', hi: 'खरीदार' }[lang] || 'Buyer') : ({ en: 'Seller', fr: 'Vendeur', zh: '卖家', hi: 'विक्रेता' }[lang] || 'Seller')
+        const ago = _mpTimeAgo(c.lastMessageAt)
+        text += `💬 <b>${c.productTitle}</b> (${role}) — ${ago}\n`
+        btns.push([`💬 ${c.productTitle.slice(0, 30)} — ${role}`])
+      }
+      set(state, chatId, 'action', a.mpConversations)
+      await saveInfo('mpConvList', convs.map(c => ({ id: c._id, title: c.productTitle, buyerId: c.buyerId, sellerId: c.sellerId })))
+      return send(chatId, text, k.of(btns))
+    }
+
+    if (message === t.mpMyListings) {
+      const listings = await marketplaceService.getUserProducts(chatId)
+      if (!listings.length) return send(chatId, t.mpNoListings)
+      const count = listings.filter(l => l.status === 'active').length
+      let text = t.mpMyListingsHeader(count, marketplaceService.MAX_LISTINGS) + '\n\n'
+      const btns = []
+      for (let i = 0; i < listings.length; i++) {
+        const l = listings[i]
+        const statusIcon = l.status === 'active' ? '✅' : '🟡 SOLD:'
+        text += `${i + 1}. ${statusIcon} ${l.title} — $${Number(l.price).toFixed(2)} (${l.inquiries} inquiries)\n`
+        btns.push([`${statusIcon} ${l.title.slice(0, 35)}`])
+      }
+      btns.push([t.mpListProduct])
+      set(state, chatId, 'action', a.mpMyListings)
+      await saveInfo('mpListingsList', listings.map(l => ({ id: l._id, title: l.title, status: l.status })))
+      return send(chatId, text, k.of(btns))
+    }
+
+    return send(chatId, t.mpHome, k.of([[t.mpBrowse], [t.mpListProduct], [t.mpMyConversations], [t.mpMyListings]]))
+  }
+
+  // ── Browse Category Selection ──
+  if (action === a.mpBrowseCategory) {
+    if (message === t.back || message === t.backButton) return goto.marketplace()
+
+    let cat = message === t.mpAllCategories ? 'all' : message
+    if (cat !== 'all' && !marketplaceService.CATEGORIES.includes(cat)) {
+      return send(chatId, t.mpSelectCategory, k.of([[t.mpAllCategories], ...marketplaceService.CATEGORIES.map(c => [c])]))
+    }
+
+    const result = await marketplaceService.browseProducts({ category: cat, page: 0, limit: 5 })
+    if (!result.products.length) return send(chatId, t.mpNoProducts)
+
+    for (let i = 0; i < result.products.length; i++) {
+      const p = result.products[i]
+      const sellerLine = await _mpSellerLine(p.sellerId)
+      const caption = t.mpProductCard(p.title, p.price, p.category, sellerLine)
+      const inlineBtns = {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '💬 Chat with Seller', callback_data: `mp:chat:${p._id}` }, { text: '🔒 Start Escrow', callback_data: `mp:escrow_product:${p._id}` }],
+            ...(i === result.products.length - 1 ? [
+              [
+                ...(result.page > 0 ? [{ text: '⬅️ Prev', callback_data: `mp:page:${cat}:${result.page - 1}` }] : []),
+                { text: `${result.page + 1}/${result.totalPages}`, callback_data: 'mp:noop' },
+                ...(result.page < result.totalPages - 1 ? [{ text: 'Next ➡️', callback_data: `mp:page:${cat}:${result.page + 1}` }] : []),
+              ]
+            ] : []),
+          ]
+        },
+        parse_mode: 'HTML'
+      }
+      if (p.images?.length > 0) {
+        try {
+          await bot.sendPhoto(chatId, p.images[0].fileId, { caption, ...inlineBtns })
+        } catch (e) {
+          send(chatId, caption, inlineBtns)
+        }
+      } else {
+        send(chatId, caption, inlineBtns)
+      }
+      await marketplaceService.incrementProductViews(p._id)
+    }
+    return
+  }
+
+  // ── My Listings — select a listing to manage ──
+  if (action === a.mpMyListings) {
+    if (message === t.back || message === t.backButton) return goto.marketplace()
+    if (message === t.mpListProduct) {
+      const count = await marketplaceService.getActiveProductCount(chatId)
+      if (count >= marketplaceService.MAX_LISTINGS) return send(chatId, t.mpMaxListings)
+      set(state, chatId, 'action', a.mpNewImage)
+      await saveInfo('mpImages', [])
+      return send(chatId, t.mpUploadImages, k.of([[t.mpDoneUpload]]))
+    }
+    const listingsList = info?.mpListingsList || []
+    const match = listingsList.find(l => message.includes(l.title.slice(0, 35)))
+    if (!match) return goto.marketplace()
+    const product = await marketplaceService.getProduct(match.id)
+    if (!product) return goto.marketplace()
+    await saveInfo('mpActiveProduct', product._id)
+    set(state, chatId, 'action', a.mpManageListing)
+    const sellerLine = await _mpSellerLine(product.sellerId)
+    const detail = t.mpProductDetail(product.title, product.description, product.price, product.category, sellerLine, _mpTimeAgo(product.createdAt))
+    const manageBtns = product.status === 'active'
+      ? [[t.mpEditProduct], [t.mpMarkSold], [t.mpRemoveProduct]]
+      : [[t.mpRemoveProduct]]
+    return send(chatId, detail, k.of(manageBtns))
+  }
+
+  // ── Manage Listing ──
+  if (action === a.mpManageListing) {
+    if (message === t.back || message === t.backButton) {
+      set(state, chatId, 'action', a.mpHome)
+      return send(chatId, t.mpHome, k.of([[t.mpBrowse], [t.mpListProduct], [t.mpMyConversations], [t.mpMyListings]]))
+    }
+    const pid = info?.mpActiveProduct
+    if (!pid) return goto.marketplace()
+
+    if (message === t.mpRemoveProduct) {
+      await marketplaceService.deleteProduct(pid)
+      send(chatId, t.mpProductRemoved)
+      return goto.marketplace()
+    }
+    if (message === t.mpMarkSold) {
+      await marketplaceService.markProductSold(pid)
+      send(chatId, t.mpProductSold)
+      return goto.marketplace()
+    }
+    if (message === t.mpEditProduct) {
+      set(state, chatId, 'action', a.mpManageListing)
+      return send(chatId, t.mpEditWhat, k.of([[t.mpEditTitle], [t.mpEditDesc], [t.mpEditPrice]]))
+    }
+    if (message === t.mpEditTitle) {
+      set(state, chatId, 'action', a.mpEditTitle)
+      return send(chatId, t.mpEnterTitle, bc)
+    }
+    if (message === t.mpEditDesc) {
+      set(state, chatId, 'action', a.mpEditDesc)
+      return send(chatId, t.mpEnterDesc, bc)
+    }
+    if (message === t.mpEditPrice) {
+      set(state, chatId, 'action', a.mpEditPrice)
+      return send(chatId, t.mpEnterPrice, bc)
+    }
+    return
+  }
+
+  // ── Edit Title ──
+  if (action === a.mpEditTitle) {
+    if (message === t.back || message === t.backButton) { set(state, chatId, 'action', a.mpManageListing); return send(chatId, t.mpEditWhat, k.of([[t.mpEditTitle], [t.mpEditDesc], [t.mpEditPrice]])) }
+    const pid = info?.mpActiveProduct
+    if (!pid) return goto.marketplace()
+    await marketplaceService.updateProduct(pid, { title: message.slice(0, marketplaceService.MAX_TITLE) })
+    send(chatId, t.mpTitleUpdated)
+    set(state, chatId, 'action', a.mpManageListing)
+    return send(chatId, t.mpEditWhat, k.of([[t.mpEditTitle], [t.mpEditDesc], [t.mpEditPrice]]))
+  }
+
+  // ── Edit Description ──
+  if (action === a.mpEditDesc) {
+    if (message === t.back || message === t.backButton) { set(state, chatId, 'action', a.mpManageListing); return send(chatId, t.mpEditWhat, k.of([[t.mpEditTitle], [t.mpEditDesc], [t.mpEditPrice]])) }
+    const pid = info?.mpActiveProduct
+    if (!pid) return goto.marketplace()
+    await marketplaceService.updateProduct(pid, { description: message.slice(0, marketplaceService.MAX_DESC) })
+    send(chatId, t.mpDescUpdated)
+    set(state, chatId, 'action', a.mpManageListing)
+    return send(chatId, t.mpEditWhat, k.of([[t.mpEditTitle], [t.mpEditDesc], [t.mpEditPrice]]))
+  }
+
+  // ── Edit Price ──
+  if (action === a.mpEditPrice) {
+    if (message === t.back || message === t.backButton) { set(state, chatId, 'action', a.mpManageListing); return send(chatId, t.mpEditWhat, k.of([[t.mpEditTitle], [t.mpEditDesc], [t.mpEditPrice]])) }
+    const pid = info?.mpActiveProduct
+    if (!pid) return goto.marketplace()
+    const price = parseFloat(message.replace(/[^0-9.]/g, ''))
+    if (isNaN(price) || price < marketplaceService.MIN_PRICE || price > marketplaceService.MAX_PRICE) return send(chatId, t.mpPriceError)
+    await marketplaceService.updateProduct(pid, { price })
+    send(chatId, t.mpPriceUpdated)
+    set(state, chatId, 'action', a.mpManageListing)
+    return send(chatId, t.mpEditWhat, k.of([[t.mpEditTitle], [t.mpEditDesc], [t.mpEditPrice]]))
+  }
+
+  // ── New Product: Upload Images ──
+  if (action === a.mpNewImage) {
+    if (message === t.back || message === t.backButton || message === t.mpCancel) return goto.marketplace()
+    if (message === t.mpDoneUpload) {
+      const images = info?.mpImages || []
+      if (images.length === 0) return send(chatId, t.mpNoImage)
+      set(state, chatId, 'action', a.mpNewTitle)
+      return send(chatId, t.mpEnterTitle, bc)
+    }
+    // Photo handling is done in the photo handler section above
+    return send(chatId, t.mpImageAsPhoto)
+  }
+
+  // ── New Product: Title ──
+  if (action === a.mpNewTitle) {
+    if (message === t.back || message === t.backButton) {
+      set(state, chatId, 'action', a.mpNewImage)
+      return send(chatId, t.mpUploadImages, k.of([[t.mpDoneUpload]]))
+    }
+    await saveInfo('mpTitle', message.slice(0, marketplaceService.MAX_TITLE))
+    set(state, chatId, 'action', a.mpNewDesc)
+    return send(chatId, t.mpEnterDesc, bc)
+  }
+
+  // ── New Product: Description ──
+  if (action === a.mpNewDesc) {
+    if (message === t.back || message === t.backButton) {
+      set(state, chatId, 'action', a.mpNewTitle)
+      return send(chatId, t.mpEnterTitle, bc)
+    }
+    await saveInfo('mpDesc', message.slice(0, marketplaceService.MAX_DESC))
+    set(state, chatId, 'action', a.mpNewPrice)
+    return send(chatId, t.mpEnterPrice, bc)
+  }
+
+  // ── New Product: Price ──
+  if (action === a.mpNewPrice) {
+    if (message === t.back || message === t.backButton) {
+      set(state, chatId, 'action', a.mpNewDesc)
+      return send(chatId, t.mpEnterDesc, bc)
+    }
+    const price = parseFloat(message.replace(/[^0-9.]/g, ''))
+    if (isNaN(price) || price < marketplaceService.MIN_PRICE || price > marketplaceService.MAX_PRICE) return send(chatId, t.mpPriceError)
+    await saveInfo('mpPrice', price)
+    set(state, chatId, 'action', a.mpNewCategory)
+    const cats = marketplaceService.CATEGORIES.map(c => [c])
+    return send(chatId, t.mpSelectCategory, k.of(cats))
+  }
+
+  // ── New Product: Category ──
+  if (action === a.mpNewCategory) {
+    if (message === t.back || message === t.backButton) {
+      set(state, chatId, 'action', a.mpNewPrice)
+      return send(chatId, t.mpEnterPrice, bc)
+    }
+    if (!marketplaceService.CATEGORIES.includes(message)) {
+      const cats = marketplaceService.CATEGORIES.map(c => [c])
+      return send(chatId, t.mpSelectCategory, k.of(cats))
+    }
+    await saveInfo('mpCategory', message)
+    set(state, chatId, 'action', a.mpNewConfirm)
+    const preview = t.mpPreview(info?.mpTitle, info?.mpDesc, info?.mpPrice, message, (info?.mpImages || []).length)
+    return send(chatId, preview, k.of([[t.mpPublish], [t.mpCancel]]))
+  }
+
+  // ── New Product: Confirm & Publish ──
+  if (action === a.mpNewConfirm) {
+    if (message === t.mpCancel || message === t.back || message === t.backButton) return goto.marketplace()
+    if (message === t.mpPublish) {
+      try {
+        const product = await marketplaceService.createProduct({
+          sellerId: chatId,
+          sellerUsername: msg?.from?.username || 'anonymous',
+          title: info?.mpTitle,
+          description: info?.mpDesc,
+          price: info?.mpPrice,
+          category: info?.mpCategory,
+          images: info?.mpImages || [],
+        })
+        send(chatId, t.mpProductPublished)
+        if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🏪 [Marketplace] New listing\n📦 ${product.title}\n💰 $${product.price}\n📂 ${product.category}\nSeller: ${chatId} (@${msg?.from?.username || 'anon'})`, { parse_mode: 'HTML' })
+        return goto.marketplace()
+      } catch (e) {
+        log(`[Marketplace] Create product error: ${e.message}`)
+        send(chatId, '❌ Error publishing product. Please try again.')
+        return goto.marketplace()
+      }
+    }
+    return
+  }
+
+  // ── My Conversations — select one to resume ──
+  if (action === a.mpConversations) {
+    if (message === t.back || message === t.backButton) return goto.marketplace()
+    const convList = info?.mpConvList || []
+    const match = convList.find(c => message.includes(c.title.slice(0, 30)))
+    if (!match) return goto.marketplace()
+    const conv = await marketplaceService.getConversation(match.id)
+    if (!conv || conv.status === 'closed') {
+      send(chatId, t.mpChatEnded)
+      return goto.marketplace()
+    }
+    await saveInfo('mpActiveConversation', conv._id)
+    set(state, chatId, 'action', a.mpChat)
+    const role = conv.buyerId === chatId ? ({ en: 'Buyer', fr: 'Acheteur', zh: '买家', hi: 'खरीदार' }[lang] || 'Buyer') : ({ en: 'Seller', fr: 'Vendeur', zh: '卖家', hi: 'विक्रेता' }[lang] || 'Seller')
+    return send(chatId, `💬 Resumed chat: <b>${conv.productTitle}</b> ($${conv.agreedPrice || conv.originalPrice}) — You are the ${role}\n🔒 Escrow-protected via @Lockbaybot\n\nSend /done to exit, /escrow to start escrow, /price XX to suggest price.`, { parse_mode: 'HTML' })
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // END MARKETPLACE HANDLERS
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
   if (message === user.buyVpsPlan) {
     return goto.createNewVpsFlow()
   }
