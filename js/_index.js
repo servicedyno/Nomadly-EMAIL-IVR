@@ -1298,8 +1298,8 @@ bot?.on('callback_query', async (query) => {
       })
 
       // Set buyer into chat mode
-      await set2(state, chatId + '_info', 'mpActiveConversation', conv._id)
-      await set2(state, chatId, 'action', 'mpChat')
+      await set(state, chatId, 'mpActiveConversation', conv._id)
+      await set(state, chatId, 'action', 'mpChat')
       sendMsg(chatId, t.mpChatStartBuyer(product.title, product.price))
 
       // Notify seller
