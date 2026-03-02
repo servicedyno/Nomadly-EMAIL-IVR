@@ -2003,6 +2003,7 @@ bot?.on('message', async msg => {
     // user setup
     addUserLanguage: 'addUserLanguage',
     updateUserLanguage: 'updateUserLanguage',
+    settingsMenu: 'settingsMenu',
 
     //vps plans
     submenu4: 'submenu4',
