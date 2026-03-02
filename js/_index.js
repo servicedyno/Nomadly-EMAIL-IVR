@@ -1201,6 +1201,197 @@ schedule.scheduleJob('0 */6 * * *', async function() {
   }
 })
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Marketplace: Inline Keyboard callback_query handler
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+bot?.on('callback_query', async (query) => {
+  try {
+    const data = query?.data || ''
+    const chatId = query?.message?.chat?.id
+    if (!chatId || !data.startsWith('mp:')) {
+      // Not a marketplace callback, ignore
+      return
+    }
+
+    await bot.answerCallbackQuery(query.id)
+
+    const { translation } = require('./translation.js')
+    const info = await state.findOne({ _id: parseFloat(chatId) })
+    const lang = info?.userLanguage || 'en'
+    const trans = (key, ...args) => translation(key, lang, ...args)
+    const t = trans('t')
+    const k = trans('k')
+    const set2 = async (coll, key, field, val) => {
+      if (val !== undefined) { await coll.updateOne({ _id: parseFloat(key) }, { $set: { [field]: val } }, { upsert: true }) }
+      else { await coll.updateOne({ _id: parseFloat(key) }, { $set: { val: field } }, { upsert: true }) }
+    }
+    const sendMsg = (cid, text, opts) => bot?.sendMessage(cid, text, { parse_mode: 'HTML', ...opts })
+    const infoData = await state.findOne({ _id: parseFloat(chatId + '_info') })
+
+    const parts = data.split(':')
+    const action = parts[1]
+
+    // mp:noop — do nothing (pagination page indicator)
+    if (action === 'noop') return
+
+    // mp:page:category:pageNum — browse pagination
+    if (action === 'page') {
+      const cat = parts[2] || 'all'
+      const page = parseInt(parts[3]) || 0
+      const result = await marketplaceService.browseProducts({ category: cat === 'all' ? null : cat, page, limit: 5 })
+      if (!result.products.length) return sendMsg(chatId, t.mpNoProducts)
+
+      for (let i = 0; i < result.products.length; i++) {
+        const p = result.products[i]
+        const stats = await marketplaceService.getSellerStats(p.sellerId)
+        const since = stats.memberSince ? new Date(stats.memberSince).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'recently'
+        const sellerLine = t.mpSellerStats(stats.salesCount, since)
+        const caption = t.mpProductCard(p.title, p.price, p.category, sellerLine)
+        const inlineBtns = {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '💬 Chat with Seller', callback_data: `mp:chat:${p._id}` }, { text: '🔒 Start Escrow', callback_data: `mp:escrow_product:${p._id}` }],
+              ...(i === result.products.length - 1 ? [
+                [
+                  ...(result.page > 0 ? [{ text: '⬅️ Prev', callback_data: `mp:page:${cat}:${result.page - 1}` }] : []),
+                  { text: `${result.page + 1}/${result.totalPages}`, callback_data: 'mp:noop' },
+                  ...(result.page < result.totalPages - 1 ? [{ text: 'Next ➡️', callback_data: `mp:page:${cat}:${result.page + 1}` }] : []),
+                ]
+              ] : []),
+            ]
+          },
+          parse_mode: 'HTML'
+        }
+        if (p.images?.length > 0) {
+          try {
+            await bot.sendPhoto(chatId, p.images[0].fileId, { caption, ...inlineBtns })
+          } catch (e) {
+            sendMsg(chatId, caption, inlineBtns)
+          }
+        } else {
+          sendMsg(chatId, caption, inlineBtns)
+        }
+        await marketplaceService.incrementProductViews(p._id)
+      }
+      return
+    }
+
+    // mp:chat:productId — start chat with seller
+    if (action === 'chat') {
+      const productId = parts[2]
+      if (!productId) return
+      const product = await marketplaceService.getProduct(productId)
+      if (!product || product.status !== 'active') return sendMsg(chatId, t.mpListingRemoved)
+      if (product.sellerId === chatId) return sendMsg(chatId, t.mpOwnProduct)
+
+      // Check for existing conversation
+      let conv = await marketplaceService.findConversation(productId, chatId)
+      if (conv) {
+        // Resume existing conversation
+        await set2(state, chatId + '_info', 'mpActiveConversation', conv._id)
+        await set2(state, chatId, 'action', 'mpChat')
+        return sendMsg(chatId, t.mpExistingConv + '\n\n' + t.mpChatStartBuyer(product.title, product.price))
+      }
+
+      // Create new conversation
+      conv = await marketplaceService.createConversation({
+        productId,
+        productTitle: product.title,
+        originalPrice: product.price,
+        buyerId: chatId,
+        sellerId: product.sellerId,
+      })
+
+      // Set buyer into chat mode
+      await set2(state, chatId + '_info', 'mpActiveConversation', conv._id)
+      await set2(state, chatId, 'action', 'mpChat')
+      sendMsg(chatId, t.mpChatStartBuyer(product.title, product.price))
+
+      // Notify seller
+      const sellerInfo = await state.findOne({ _id: parseFloat(product.sellerId) })
+      const sellerLang = sellerInfo?.userLanguage || 'en'
+      const sellerT = translation('t', sellerLang)
+      const sellerBtns = {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '💬 Reply to Buyer', callback_data: `mp:reply:${conv._id}` }],
+            [{ text: '🔒 Start Escrow', callback_data: `mp:escrow:${conv._id}` }],
+          ]
+        }
+      }
+      sendMsg(product.sellerId, sellerT.mpChatStartSeller(product.title), sellerBtns)
+      return
+    }
+
+    // mp:reply:convId — seller enters chat mode to reply
+    if (action === 'reply') {
+      const convId = parts[2]
+      if (!convId) return
+      const conv = await marketplaceService.getConversation(convId)
+      if (!conv || conv.status === 'closed') return sendMsg(chatId, t.mpChatEnded)
+      if (conv.sellerId !== chatId && conv.buyerId !== chatId) return
+
+      await set2(state, chatId + '_info', 'mpActiveConversation', conv._id)
+      await set2(state, chatId, 'action', 'mpChat')
+      const role = conv.buyerId === chatId ? 'Buyer' : 'Seller'
+      return sendMsg(chatId, `💬 You entered chat for <b>${conv.productTitle}</b> ($${conv.agreedPrice || conv.originalPrice})\nSend /done to exit, /escrow to start escrow, /price XX to suggest price.`)
+    }
+
+    // mp:escrow:convId — start escrow from conversation
+    if (action === 'escrow') {
+      const convId = parts[2]
+      if (!convId) return
+      const conv = await marketplaceService.getConversation(convId)
+      if (!conv) return
+      await marketplaceService.markEscrowStarted(convId)
+      const product = await marketplaceService.getProduct(conv.productId)
+      const sellerRef = `Seller#${String(conv.sellerId).slice(-4)}`
+      const price = conv.agreedPrice || conv.originalPrice
+      const escrowMsg = t.mpEscrowMsg(conv.productTitle, price, sellerRef)
+      const escrowOpts = { reply_markup: { inline_keyboard: [[{ text: '🔒 Open @Lockbaybot', url: 'https://t.me/Lockbaybot' }]] } }
+      sendMsg(conv.buyerId, escrowMsg, escrowOpts)
+      sendMsg(conv.sellerId, escrowMsg, escrowOpts)
+      if (TELEGRAM_ADMIN_CHAT_ID) sendMsg(TELEGRAM_ADMIN_CHAT_ID, `🔒 [Marketplace] Escrow started\nProduct: ${conv.productTitle}\nPrice: $${price}\nBuyer: ${conv.buyerId}\nSeller: ${conv.sellerId}`)
+      return
+    }
+
+    // mp:escrow_product:productId — start escrow directly from product card (creates conv + escrow)
+    if (action === 'escrow_product') {
+      const productId = parts[2]
+      if (!productId) return
+      const product = await marketplaceService.getProduct(productId)
+      if (!product || product.status !== 'active') return sendMsg(chatId, t.mpListingRemoved)
+      if (product.sellerId === chatId) return sendMsg(chatId, t.mpOwnProduct)
+
+      // Find or create conversation
+      let conv = await marketplaceService.findConversation(productId, chatId)
+      if (!conv) {
+        conv = await marketplaceService.createConversation({
+          productId,
+          productTitle: product.title,
+          originalPrice: product.price,
+          buyerId: chatId,
+          sellerId: product.sellerId,
+        })
+      }
+
+      // Start escrow
+      await marketplaceService.markEscrowStarted(conv._id)
+      const sellerRef = `Seller#${String(conv.sellerId).slice(-4)}`
+      const price = conv.agreedPrice || conv.originalPrice
+      const escrowMsg = t.mpEscrowMsg(conv.productTitle, price, sellerRef)
+      const escrowOpts = { reply_markup: { inline_keyboard: [[{ text: '🔒 Open @Lockbaybot', url: 'https://t.me/Lockbaybot' }]] } }
+      sendMsg(conv.buyerId, escrowMsg, escrowOpts)
+      sendMsg(conv.sellerId, escrowMsg, escrowOpts)
+      if (TELEGRAM_ADMIN_CHAT_ID) sendMsg(TELEGRAM_ADMIN_CHAT_ID, `🔒 [Marketplace] Direct escrow started\nProduct: ${conv.productTitle}\nPrice: $${price}\nBuyer: ${conv.buyerId}\nSeller: ${conv.sellerId}`)
+      return
+    }
+
+  } catch (e) {
+    console.error('[Marketplace] callback_query error:', e.message)
+  }
+})
+
 bot?.on('message', async msg => {
   const chatId = msg?.chat?.id
   const chatType = msg?.chat?.type
