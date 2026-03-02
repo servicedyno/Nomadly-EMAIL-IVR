@@ -1219,6 +1219,7 @@ const btnI18n = {
     ivrOutboundBack: '↩️ 返回',
     bulkCallCampaign: '📞 批量IVR活动',
     audioLibrary: '🎵 音频库',
+    testSipFree: '🧪 免费测试 SIP',
     addNumber: '➕ 添加号码到套餐',
     back: '返回',
     cancel: '取消',
