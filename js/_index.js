@@ -5958,7 +5958,10 @@ All verified numbers generated during sourcing.`))
       return send(chatId, t.mpUploadImages, k.of([[t.mpDoneUpload]]))
     }
     const listingsList = info?.mpListingsList || []
-    const match = listingsList.find(l => message.includes(l.title.slice(0, 35)))
+    const match = listingsList.find(l => {
+      const titleSlice = l.title.slice(0, 35)
+      return message.includes(titleSlice) || titleSlice.includes(message.replace(/^[✅🟡]+ ?(SOLD:?)?\s*/, '').trim())
+    })
     if (!match) return goto.marketplace()
     const product = await marketplaceService.getProduct(match.id)
     if (!product) return goto.marketplace()
