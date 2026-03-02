@@ -1283,8 +1283,8 @@ bot?.on('callback_query', async (query) => {
       let conv = await marketplaceService.findConversation(productId, chatId)
       if (conv) {
         // Resume existing conversation
-        await set2(state, chatId + '_info', 'mpActiveConversation', conv._id)
-        await set2(state, chatId, 'action', 'mpChat')
+        await set(state, chatId, 'mpActiveConversation', conv._id)
+        await set(state, chatId, 'action', 'mpChat')
         return sendMsg(chatId, t.mpExistingConv + '\n\n' + t.mpChatStartBuyer(product.title, product.price))
       }
 
