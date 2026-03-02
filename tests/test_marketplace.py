@@ -745,16 +745,8 @@ send_text(SELLER_ID, "❌ Remove Listing")
 time.sleep(2)
 
 if PRODUCT_ID:
-    mongo_cmd = f"JSON.stringify(db.marketplaceProducts.findOne({{_id: '{PRODUCT_ID}'}}))"
-    try:
-        result = subprocess.run(
-            ["mongosh", "mongodb://localhost:27017/test", "--quiet", "--eval", mongo_cmd],
-            capture_output=True, text=True, timeout=10
-        )
-        data = json.loads(result.stdout.strip()) if result.stdout.strip() and result.stdout.strip() != 'null' else {}
-        test("Product removed in DB", data.get("status") == "removed", f"status={data.get('status')}")
-    except Exception as e:
-        test("Product removed in DB", False, str(e))
+    prod_data = get_one("marketplaceProducts", {"_id": PRODUCT_ID})
+    test("Product removed in DB", prod_data.get("status") == "removed", f"status={prod_data.get('status')}")
 
 # ══════════════════════════════════════════════════════
 # TEST 27: My Conversations view
