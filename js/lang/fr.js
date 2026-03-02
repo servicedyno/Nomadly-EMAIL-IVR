@@ -1174,13 +1174,12 @@ const adminKeyboard = {
 const userKeyboard = {
   reply_markup: {
     keyboard: [
-      [user.cloudPhone, user.testSip],
-      [user.digitalProducts, user.virtualCard],
-      [user.marketplace],
-      [user.domainNames],
-      [user.urlShortenerMain],
-      [user.phoneNumberLeads],
-      HIDE_SMS_APP === 'true' ? [user.hostingDomainsRedirect] : [user.freeTrialAvailable, user.hostingDomainsRedirect],
+      [user.cloudPhone],
+      [user.marketplace, user.digitalProducts],
+      [user.virtualCard],
+      [user.domainNames, user.hostingDomainsRedirect],
+      [user.urlShortenerMain, user.leadsValidation],
+      ...(HIDE_SMS_APP === 'true' ? [] : [[user.freeTrialAvailable]]),
       [user.wallet, user.viewPlan],
       HIDE_BECOME_RESELLER === 'true'
         ? [user.changeSetting, user.getSupport, user.joinChannel]
