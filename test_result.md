@@ -1015,12 +1015,15 @@ agent_communication:
 
   - task: "Marketplace P2P — 5 gap fixes: seller auto-chat guard, /done reset, i18n strings, stale cleanup, category translation"
     implemented: true
-    working: "NA"
+    working: true
     file: "js/_index.js, js/lang/en.js, js/lang/fr.js, js/lang/zh.js, js/lang/hi.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         - working: "NA"
           agent: "main"
           comment: "Implemented 5 fixes: (1) Fix#1 Seller auto-chat guard: Before force-setting seller into mpChat, checks sellerAction — only auto-sets if seller is idle (action=none or mpHome). If busy, sends notification with Reply+Escrow buttons instead via mpSellerBusy key. (2) Fix#2 /done resets other party: When one party /done closes chat, checks if other party is still in mpChat for that convId — if so, resets their action to mpHome, clears mpActiveConversation, and sends mpChatClosedReset notification in their language. (3) Fix#3 Translated 3 hardcoded strings: mpEnteredChat (was 'You entered chat for...'), mpResumedChat (was 'Resumed chat:...'), mpBuyerPhotoCaption/mpSellerPhotoCaption (was 'Buyer/Seller sent a photo:'). All 4 lang files updated. (4) Fix#4 Stale conversation cleanup: setInterval every 6h calls closeStaleConversations(), notifies both parties via mpChatInactive, resets their state if stuck in mpChat. Log: '[Marketplace] Stale conversation cleanup scheduled (every 6h)'. (5) Fix#5 Category translation: Added mpCatDigitalGoods/mpCatBnkLogs/mpCatBnkOpening/mpCatTools to all 4 lang files. Module-level _MP_CAT_MAP_GLOBAL maps English→key. _mpTranslateCategories() for buttons, _mpCategoryFromTranslated() for input matching, _mpTranslateCategory() for display. DB always stores English. Node.js healthy, zero errors."
+        - working: true
+          agent: "testing"
+          comment: "✅ All 5 marketplace P2P gap fixes verified with 100% success rate (7/7 tests passed). (1) Seller auto-chat guard correctly checks sellerAction idle before override, sends mpSellerBusy with Reply+Escrow buttons if busy. (2) /done resets other party's action to mpHome, clears mpActiveConversation, sends mpChatClosedReset if still in chat. (3) No hardcoded English strings remain — uses t.mpEnteredChat, t.mpResumedChat, otherT.mpBuyerPhotoCaption/mpSellerPhotoCaption. All keys in all 4 lang files. (4) Stale cleanup scheduled every 6h with state reset and notifications. (5) Category translation with _MP_CAT_MAP_GLOBAL, helpers, and DB stores English. Health: port 5000 healthy, err.log empty."
