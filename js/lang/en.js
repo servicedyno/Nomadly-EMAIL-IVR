@@ -105,6 +105,7 @@ const user = {
   cloudPhone: '📞 Cloud IVR + SIP',
   testSip: '🧪 Test SIP Free',
   digitalProducts: '🛒 Digital Products',
+  marketplace: '🏪 Marketplace',
 
   // Sub Menu 1: urlShortenerMain
   shortenLink: '✂️ Shorten a Link',
