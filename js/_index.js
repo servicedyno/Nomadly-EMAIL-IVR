@@ -9101,12 +9101,18 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       const pMsg = phoneConfig.getMsg(info?.userLanguage || 'en')
       const result = await generateTestOtp(chatId)
       if (!result) {
-        return send(chatId, pMsg.sipTestError || 'SIP test is currently unavailable.', k.of([]))
+        return send(chatId, pMsg.sipTestError, { parse_mode: 'HTML' })
       }
-      if (result === 'USED') {
-        return send(chatId, pMsg.sipTestComplete, k.of([]))
+      if (result.error === 'limit_reached') {
+        let msg = pMsg.sipTestComplete
+        const refResult = await getOrCreateReferralCode(chatId)
+        const refLink = refResult ? `https://t.me/Nomadlybot?start=ref_${refResult.code}` : null
+        if (refLink && !refResult.bonusEarned) {
+          msg += pMsg.sipTestReferral(refLink)
+        }
+        return send(chatId, msg, { parse_mode: 'HTML' })
       }
-      return send(chatId, pMsg.sipTestOtpSent(result.otp, result.testNumber), k.of([]))
+      return send(chatId, pMsg.sipTestCode(result.otp, result.callsRemaining), { parse_mode: 'HTML' })
     }
 
     // ── Bulk Call Campaign ──
