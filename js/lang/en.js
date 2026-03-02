@@ -103,6 +103,7 @@ const user = {
   getSupport: '💬 Support',
   freeTrialAvailable: '📧🆓 BulkSMS -Trial',
   changeSetting: '🌍 Settings',
+  changeLanguage: '🌍 Change Language',
   cloudPhone: '📞 Cloud IVR + SIP',
   testSip: '🧪 Test SIP Free',
   digitalProducts: '🛒 Digital Products',
