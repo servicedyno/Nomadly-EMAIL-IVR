@@ -1291,6 +1291,7 @@ Branded links · Custom domains · Analytics
   
 You can always change your language later in the settings.`,
   askValidLanguage: 'Please choose a valid language:',
+  settingsMenuText: '⚙️ <b>Settings</b>\n\nManage your preferences below:',
   welcomeMessage: `Welcome to ${CHAT_BOT_NAME}!
 
 Your all-in-one digital toolkit:
