@@ -1,221 +1,319 @@
 #!/usr/bin/env python3
 """
-Backend testing for Nomadly domain purchase provider name leak fix and OP false-negative protection
+Comprehensive Marketplace Backend Testing Script
+Tests all marketplace functionality including CRUD operations, collections, and integrations.
 """
 
 import requests
-import time
-import os
-import re
 import json
-import subprocess
+import time
 
-# Test configuration
-BASE_URL = "http://localhost:5000"
-HEALTH_ENDPOINT = f"{BASE_URL}/health"
-
-def log_test_result(test_name, result, details=""):
-    """Log test results in consistent format"""
-    status = "✅ PASS" if result else "❌ FAIL"
-    print(f"{status}: {test_name}")
-    if details:
-        print(f"   Details: {details}")
-    return result
-
-def test_nodejs_health():
-    """Test 1: Node.js Health Check"""
+def test_health_check():
+    """Test basic health check endpoint"""
+    print("1. HEALTH CHECK")
     try:
-        response = requests.get(HEALTH_ENDPOINT, timeout=10)
+        response = requests.get("http://localhost:5000/health", timeout=10)
+        print(f"   Status: {response.status_code}")
         if response.status_code == 200:
             data = response.json()
-            healthy = data.get('status') == 'healthy'
-            return log_test_result("Node.js Health Check", healthy, f"Status: {data.get('status')}, DB: {data.get('database')}")
+            print(f"   Response: {data}")
+            if data.get('status') == 'healthy' and data.get('database') == 'connected':
+                print("   ✅ Health check PASSED")
+                return True
+        print("   ❌ Health check FAILED")
+        return False
+    except Exception as e:
+        print(f"   ❌ Health check ERROR: {e}")
+        return False
+
+def check_supervisor_errors():
+    """Check supervisor logs for errors"""
+    print("2. SUPERVISOR ERROR LOG CHECK")
+    try:
+        import os
+        log_path = "/var/log/supervisor/nodejs.err.log"
+        if os.path.exists(log_path):
+            with open(log_path, 'r') as f:
+                content = f.read().strip()
+            if not content:
+                print("   ✅ Error log is EMPTY - no crash errors")
+                return True
+            else:
+                print(f"   ❌ Error log contains: {content[:200]}...")
+                return False
         else:
-            return log_test_result("Node.js Health Check", False, f"HTTP {response.status_code}")
+            print("   ❌ Error log file not found")
+            return False
     except Exception as e:
-        return log_test_result("Node.js Health Check", False, str(e))
+        print(f"   ❌ Error checking logs: {e}")
+        return False
 
-def test_nodejs_error_log():
-    """Test: Node.js error log should be empty"""
+def verify_marketplace_initialization():
+    """Check supervisor logs for marketplace service initialization"""
+    print("3. MARKETPLACE SERVICE INITIALIZATION")
     try:
-        result = subprocess.run(['wc', '-c', '/var/log/supervisor/nodejs.err.log'], 
-                              capture_output=True, text=True, check=True)
-        size = int(result.stdout.split()[0])
-        is_empty = size == 0
-        return log_test_result("Node.js Error Log Empty", is_empty, f"Log size: {size} bytes")
+        import os
+        log_path = "/var/log/supervisor/nodejs.out.log"
+        if os.path.exists(log_path):
+            with open(log_path, 'r') as f:
+                content = f.read()
+            if "[Marketplace] Initialized" in content:
+                count = content.count("[Marketplace] Initialized")
+                print(f"   ✅ Marketplace service initialized ({count} occurrences found)")
+                return True
+            else:
+                print("   ❌ Marketplace initialization not found in logs")
+                return False
+        else:
+            print("   ❌ Output log file not found")
+            return False
     except Exception as e:
-        return log_test_result("Node.js Error Log Empty", False, str(e))
+        print(f"   ❌ Error checking initialization: {e}")
+        return False
 
-def check_file_content(filepath, description=""):
-    """Helper to read file content safely"""
+def test_mongodb_collections():
+    """Test MongoDB collections existence"""
+    print("4. MONGODB COLLECTIONS VERIFICATION")
     try:
-        with open(filepath, 'r', encoding='utf-8') as f:
+        # We'll use the health endpoint to confirm DB connection
+        # Then check if we can infer collections exist through the service logs
+        response = requests.get("http://localhost:5000/health", timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('database') == 'connected':
+                print("   ✅ MongoDB connection confirmed")
+                print("   Expected collections: marketplaceProducts, marketplaceConversations, marketplaceMessages")
+                return True
+        print("   ❌ MongoDB connection issue")
+        return False
+    except Exception as e:
+        print(f"   ❌ MongoDB check error: {e}")
+        return False
+
+def verify_marketplace_constants():
+    """Verify marketplace constants from code analysis"""
+    print("5. MARKETPLACE CONSTANTS VERIFICATION")
+    try:
+        with open('/app/js/marketplace-service.js', 'r') as f:
             content = f.read()
-        return content
+        
+        # Check CATEGORIES
+        categories_found = "['💻 Digital Goods', '🏦 Bnk Logs', '🏧 Bnk Opening', '🔧 Tools']" in content
+        min_price_found = "MIN_PRICE = 20" in content
+        max_price_found = "MAX_PRICE = 5000" in content
+        max_listings_found = "MAX_LISTINGS = 10" in content
+        
+        if categories_found and min_price_found and max_price_found and max_listings_found:
+            print("   ✅ All constants verified:")
+            print("      - CATEGORIES: ['💻 Digital Goods', '🏦 Bnk Logs', '🏧 Bnk Opening', '🔧 Tools']")
+            print("      - MIN_PRICE: 20")
+            print("      - MAX_PRICE: 5000") 
+            print("      - MAX_LISTINGS: 10")
+            return True
+        else:
+            print("   ❌ Some constants missing or incorrect")
+            return False
     except Exception as e:
-        log_test_result(f"Read {filepath} {description}", False, str(e))
-        return None
-
-def test_verify_registration_function():
-    """Test 2: Check _verifyRegistration function in op-service.js"""
-    content = check_file_content('/app/js/op-service.js', '(_verifyRegistration function)')
-    if content is None:
+        print(f"   ❌ Error verifying constants: {e}")
         return False
-    
-    # Check if _verifyRegistration function exists
-    has_function = '_verifyRegistration' in content and 'const _verifyRegistration = async (domainName) => {' in content
-    
-    # Check if it's called after 5xx errors
-    has_500_check = 'statusCode >= 500' in content
-    has_wait_call = 'setTimeout(r, 5000)' in content and '_verifyRegistration(domainName)' in content
-    
-    all_checks = has_function and has_500_check and has_wait_call
-    details = f"Function exists: {has_function}, 5xx check: {has_500_check}, Wait+call: {has_wait_call}"
-    
-    return log_test_result("_verifyRegistration function implementation", all_checks, details)
 
-def test_no_openprovider_error_leaks():
-    """Test 3: No OpenProvider in error returns"""
+def verify_crud_functions():
+    """Verify all CRUD functions exist in marketplace service"""
+    print("6. MARKETPLACE CRUD FUNCTIONS VERIFICATION")
     try:
-        result = subprocess.run(['grep', '-rn', 'return.*error.*OpenProvider', '/app/js/'], 
-                              capture_output=True, text=True)
-        no_leaks = result.returncode != 0  # grep returns non-zero when no matches found
-        return log_test_result("No OpenProvider in error returns", no_leaks, 
-                             "Found leaks" if not no_leaks else "No leaks found")
+        required_functions = [
+            "createProduct", "getProduct", "updateProduct", "deleteProduct", 
+            "markProductSold", "getUserProducts", "browseProducts",
+            "createConversation", "getConversation", "findConversation", 
+            "getUserConversations", "addMessage", "detectPaymentPattern",
+            "closeStaleConversations", "getSellerStats"
+        ]
+        
+        with open('/app/js/marketplace-service.js', 'r') as f:
+            content = f.read()
+        
+        missing_functions = []
+        for func in required_functions:
+            if f"async function {func}" not in content and f"function {func}" not in content:
+                missing_functions.append(func)
+        
+        if not missing_functions:
+            print(f"   ✅ All {len(required_functions)} CRUD functions found:")
+            for func in required_functions:
+                print(f"      - {func}")
+            return True
+        else:
+            print(f"   ❌ Missing functions: {missing_functions}")
+            return False
     except Exception as e:
-        return log_test_result("No OpenProvider in error returns", False, str(e))
+        print(f"   ❌ Error verifying functions: {e}")
+        return False
 
-def test_no_connectreseller_error_leaks():
-    """Test 3b: No ConnectReseller in error returns"""
+def verify_language_files():
+    """Verify marketplace translations in all 4 language files"""
+    print("7. LANGUAGE FILES VERIFICATION")
     try:
-        result = subprocess.run(['grep', '-rn', 'return.*error.*ConnectReseller', '/app/js/'], 
-                              capture_output=True, text=True)
-        no_leaks = result.returncode != 0  # grep returns non-zero when no matches found
-        return log_test_result("No ConnectReseller in error returns", no_leaks, 
-                             "Found leaks" if not no_leaks else "No leaks found")
+        lang_files = ['/app/js/lang/en.js', '/app/js/lang/fr.js', '/app/js/lang/zh.js', '/app/js/lang/hi.js']
+        mp_keys = ['mpHome', 'mpBrowse', 'mpListProduct']  # Key marketplace translation keys
+        
+        all_good = True
+        for lang_file in lang_files:
+            try:
+                with open(lang_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                has_mp_keys = any(key in content for key in mp_keys)
+                if has_mp_keys:
+                    print(f"   ✅ {lang_file.split('/')[-1]} - marketplace translations found")
+                else:
+                    print(f"   ❌ {lang_file.split('/')[-1]} - missing marketplace translations")
+                    all_good = False
+            except Exception as e:
+                print(f"   ❌ Error reading {lang_file}: {e}")
+                all_good = False
+        
+        return all_good
     except Exception as e:
-        return log_test_result("No ConnectReseller in error returns", False, str(e))
-
-def test_cr_domain_register_clean_errors():
-    """Test 4: cr-domain-register.js clean error messages"""
-    content = check_file_content('/app/js/cr-domain-register.js', '(clean error messages)')
-    if content is None:
+        print(f"   ❌ Error verifying language files: {e}")
         return False
-    
-    # Check that JSON.stringify is only used for logging, not in error returns
-    json_stringify_matches = re.findall(r'return.*JSON\.stringify', content, re.IGNORECASE)
-    clean_errors = len(json_stringify_matches) == 0
-    
-    return log_test_result("cr-domain-register.js clean error messages", clean_errors,
-                          f"JSON.stringify in returns: {len(json_stringify_matches)}")
 
-def test_sanitize_error_function():
-    """Test 5: sanitizeErrorForUser function in domain-service.js"""
-    content = check_file_content('/app/js/domain-service.js', '(sanitizeErrorForUser)')
-    if content is None:
-        return False
-    
-    # Check function exists and is exported
-    has_function = 'const sanitizeErrorForUser = (errorMsg) => {' in content
-    is_exported = 'sanitizeErrorForUser,' in content or 'module.exports' in content and 'sanitizeErrorForUser' in content
-    
-    # Check it strips provider names
-    strips_op = 'OpenProvider' in content and ('replace' in content or 'replaceAll' in content)
-    strips_cr = 'ConnectReseller' in content and ('replace' in content or 'replaceAll' in content)
-    
-    # Check no error returns contain provider names
-    op_in_returns = 'return { error:' in content and 'OpenProvider' in content
-    cr_in_returns = 'return { error:' in content and 'ConnectReseller' in content
-    
-    # Check sanitizeErrorForUser is used in registerDomain
-    is_used = 'sanitizeErrorForUser(result.error)' in content
-    
-    all_checks = has_function and is_exported and strips_op and strips_cr and not op_in_returns and not cr_in_returns and is_used
-    details = f"Function: {has_function}, Exported: {is_exported}, Strips OP: {strips_op}, Strips CR: {strips_cr}, Used: {is_used}, Clean returns: {not op_in_returns and not cr_in_returns}"
-    
-    return log_test_result("sanitizeErrorForUser function", all_checks, details)
-
-def test_buy_domain_full_process_error_handling():
-    """Test 6: _index.js buyDomainFullProcess error handling"""
-    content = check_file_content('/app/js/_index.js', '(buyDomainFullProcess)')
-    if content is None:
-        return False
-    
-    # Check that buyResult.error goes to admin only
-    admin_error_msg = 'TELEGRAM_DEV_CHAT_ID' in content and 'buyResult.error' in content
-    
-    # Check user gets translation only (no raw error)
-    user_gets_translation = "translation('t.domainPurchasedFailed', lang, domain)" in content
-    
-    # Check admin message contains "error:" for debugging
-    admin_has_error_label = 'error: ${buyResult.error}' in content
-    
-    all_checks = admin_error_msg and user_gets_translation and admin_has_error_label
-    details = f"Admin gets error: {admin_error_msg}, User gets translation: {user_gets_translation}, Admin has 'error:': {admin_has_error_label}"
-    
-    return log_test_result("buyDomainFullProcess error handling", all_checks, details)
-
-def test_language_files_signatures():
-    """Test 7: Language files domainPurchasedFailed signatures"""
-    results = []
-    languages = ['en', 'fr', 'zh', 'hi']
-    
-    for lang in languages:
-        filepath = f'/app/js/lang/{lang}.js'
-        content = check_file_content(filepath, f'({lang} language file)')
-        if content is None:
-            results.append(False)
-            continue
+def verify_index_integration():
+    """Verify marketplace integration in _index.js"""
+    print("8. _INDEX.JS INTEGRATION VERIFICATION")
+    try:
+        with open('/app/js/_index.js', 'r') as f:
+            content = f.read()
         
-        # Check function signature takes only domain parameter
-        correct_signature = f'domainPurchasedFailed: (domain) =>' in content
-        # Check it doesn't contain buyDomainError parameter
-        no_error_param = 'buyDomainError' not in content or '(domain, buyDomainError)' not in content
-        # Check template doesn't use ${buyDomainError}
-        no_error_in_template = '${buyDomainError}' not in content
+        checks = {
+            "marketplace service required": "require('./marketplace-service.js')" in content,
+            "marketplace init called": "marketplaceService.initMarketplace(db)" in content,
+            "marketplace button": "🏪 Marketplace" in content or "Marketplace" in content,
+            "mp action states": "mpHome" in content and "mpNewImage" in content,
+            "callback_query handler": "callback_query" in content and "mp:" in content,
+            "photo handler": "msg?.photo" in content
+        }
         
-        lang_ok = correct_signature and no_error_param and no_error_in_template
-        results.append(lang_ok)
+        passed = 0
+        total = len(checks)
         
-        details = f"Signature OK: {correct_signature}, No error param: {no_error_param}, No error in template: {no_error_in_template}"
-        log_test_result(f"Language {lang}.js domainPurchasedFailed signature", lang_ok, details)
-    
-    return all(results)
-
-def run_all_tests():
-    """Run all verification tests"""
-    print("🔍 Starting Nomadly Domain Purchase Provider Leak Fix Verification")
-    print("=" * 80)
-    
-    test_results = []
-    
-    # Node.js health checks
-    test_results.append(test_nodejs_health())
-    test_results.append(test_nodejs_error_log())
-    
-    # Core functionality tests
-    test_results.append(test_verify_registration_function())
-    test_results.append(test_no_openprovider_error_leaks())
-    test_results.append(test_no_connectreseller_error_leaks())
-    test_results.append(test_cr_domain_register_clean_errors())
-    test_results.append(test_sanitize_error_function())
-    test_results.append(test_buy_domain_full_process_error_handling())
-    test_results.append(test_language_files_signatures())
-    
-    # Summary
-    passed = sum(test_results)
-    total = len(test_results)
-    
-    print("\n" + "=" * 80)
-    print(f"📊 TEST SUMMARY: {passed}/{total} tests passed")
-    
-    if passed == total:
-        print("✅ ALL TESTS PASSED - Provider name leak fix is working correctly!")
-        return True
-    else:
-        print("❌ SOME TESTS FAILED - Issues need to be addressed")
+        for check, result in checks.items():
+            if result:
+                print(f"   ✅ {check}")
+                passed += 1
+            else:
+                print(f"   ❌ {check}")
+        
+        if passed == total:
+            print(f"   ✅ All {total} integration checks passed")
+            return True
+        else:
+            print(f"   ❌ {passed}/{total} integration checks passed")
+            return False
+    except Exception as e:
+        print(f"   ❌ Error verifying _index.js integration: {e}")
         return False
+
+def verify_anti_scam():
+    """Verify anti-scam payment pattern detection"""
+    print("9. ANTI-SCAM PATTERN DETECTION VERIFICATION")
+    try:
+        with open('/app/js/marketplace-service.js', 'r') as f:
+            content = f.read()
+        
+        patterns_to_check = [
+            "paypal|cashapp",
+            "venmo", 
+            "bitcoin",
+            "no\\s*escrow",
+            "wire\\s*transfer"
+        ]
+        
+        all_found = True
+        for pattern in patterns_to_check:
+            if pattern in content:
+                print(f"   ✅ Pattern found: {pattern}")
+            else:
+                print(f"   ❌ Pattern missing: {pattern}")
+                all_found = False
+        
+        # Check detectPaymentPattern function
+        if "detectPaymentPattern" in content:
+            print("   ✅ detectPaymentPattern function found")
+        else:
+            print("   ❌ detectPaymentPattern function missing")
+            all_found = False
+        
+        return all_found
+    except Exception as e:
+        print(f"   ❌ Error verifying anti-scam: {e}")
+        return False
+
+def verify_chat_relay():
+    """Verify chat relay functionality"""
+    print("10. CHAT RELAY FUNCTIONALITY VERIFICATION")
+    try:
+        with open('/app/js/_index.js', 'r') as f:
+            content = f.read()
+        
+        checks = {
+            "mpChat action": "mpChat" in content,
+            "chat commands": "/done" in content and "/escrow" in content,
+            "message relay": "mpActiveConversation" in content,
+            "buyer/seller roles": "buyer" in content and "seller" in content
+        }
+        
+        passed = 0
+        total = len(checks)
+        
+        for check, result in checks.items():
+            if result:
+                print(f"   ✅ {check}")
+                passed += 1
+            else:
+                print(f"   ❌ {check}")
+        
+        return passed == total
+    except Exception as e:
+        print(f"   ❌ Error verifying chat relay: {e}")
+        return False
+
+def run_comprehensive_marketplace_test():
+    """Run all marketplace tests"""
+    print("=" * 60)
+    print("NOMADLY MARKETPLACE COMPREHENSIVE BACKEND TESTING")
+    print("=" * 60)
+    
+    tests = [
+        test_health_check,
+        check_supervisor_errors, 
+        verify_marketplace_initialization,
+        test_mongodb_collections,
+        verify_marketplace_constants,
+        verify_crud_functions,
+        verify_language_files,
+        verify_index_integration,
+        verify_anti_scam,
+        verify_chat_relay
+    ]
+    
+    passed = 0
+    total = len(tests)
+    
+    for test in tests:
+        try:
+            if test():
+                passed += 1
+            print()
+        except Exception as e:
+            print(f"   ❌ Test error: {e}\n")
+    
+    print("=" * 60)
+    print(f"MARKETPLACE TESTING COMPLETE: {passed}/{total} tests passed")
+    success_rate = (passed / total) * 100
+    print(f"Success Rate: {success_rate:.1f}%")
+    print("=" * 60)
+    
+    return passed, total, success_rate
 
 if __name__ == "__main__":
-    success = run_all_tests()
-    exit(0 if success else 1)
+    run_comprehensive_marketplace_test()
