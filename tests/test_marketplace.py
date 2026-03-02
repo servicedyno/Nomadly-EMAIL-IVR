@@ -687,13 +687,12 @@ if PRODUCT_ID:
     test("Direct escrow webhook accepted", status == 200)
 
     # Check that a conversation was created and escrow started
-    mongo_cmd = f"JSON.stringify(db.marketplaceConversations.find({{productId: '{PRODUCT_ID}', buyerId: {BUYER_ID}, status: 'escrow_started'}}).toArray())"
+    from pymongo import MongoClient
     try:
-        result = subprocess.run(
-            ["mongosh", "mongodb://localhost:27017/test", "--quiet", "--eval", mongo_cmd],
-            capture_output=True, text=True, timeout=10
-        )
-        data = json.loads(result.stdout.strip()) if result.stdout.strip() else []
+        client = MongoClient(MONGO_URI)
+        db = client[DB_NAME]
+        data = list(db.marketplaceConversations.find({"productId": PRODUCT_ID, "buyerId": BUYER_ID, "status": "escrow_started"}))
+        client.close()
         test("Escrow conversation created", len(data) >= 1, f"count={len(data)}")
     except Exception as e:
         test("Escrow conversation created", False, str(e))
