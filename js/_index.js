@@ -4825,9 +4825,13 @@ All verified numbers generated during sourcing.`))
     return
   }
 
-  if (message === user.changeSetting || message === '🌍 Change Settings') {
-    set(state, chatId, 'action', a.updateUserLanguage)
-    return send(chatId, trans('l.askPreferredLanguage') , trans('languageMenu'))
+  if (message === user.changeSetting || message === '🌍 Change Settings' || message === '🌍 Settings' || message === '🌍 Paramètres' || message === '🌍 设置' || message === '🌍 सेटिंग्स') {
+    set(state, chatId, 'action', a.settingsMenu)
+    return send(chatId, trans('l.settingsMenuText') || '⚙️ <b>Settings</b>\n\nManage your preferences below:', k.of([
+      [user.changeLanguage || '🌍 Change Language'],
+      [user.joinChannel || '📢 Join Channel'],
+      [t.back],
+    ]))
   }
   //
   if (message === t.cancel || (firstSteps.includes(action) && message === t.back)) {
