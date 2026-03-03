@@ -3465,7 +3465,8 @@ Enter new value:`), bc)
         const expiry = p.expiryDate ? new Date(p.expiryDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
         const isExpired = p.expiryDate && new Date(p.expiryDate) < new Date()
         const status = p.suspended ? '🚫 Suspended' : isExpired ? '❌ Expired' : '✅ Active'
-        const autoRenew = p.autoRenew !== false ? '🔁' : ''
+        const planIsWeekly = (p.plan || '').toLowerCase().includes('week')
+        const autoRenew = (!planIsWeekly && p.autoRenew !== false) ? '🔁' : ''
         text += `<b>${p.domain}</b> (${p.plan})\n   ${status} ${autoRenew} · Expires: ${expiry}\n\n`
         planButtons.push([`🔍 ${p.domain}`])
       }
@@ -3484,7 +3485,7 @@ Enter new value:`), bc)
       const created = plan.createdAt ? new Date(plan.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
       const isExpired = plan.expiryDate && new Date(plan.expiryDate) < new Date()
       const status = plan.suspended ? '🚫 Suspended' : isExpired ? '❌ Expired' : '✅ Active'
-      const autoRenewStatus = plan.autoRenew !== false ? '✅ ON' : '❌ OFF'
+      const autoRenewStatus = isWeekly ? '❌ OFF (weekly plans never auto-renew)' : (plan.autoRenew !== false ? '✅ ON' : '❌ OFF')
       const isWeekly = (plan.plan || '').toLowerCase().includes('week')
 
       // Check domain origin - is it registered with us or external?
@@ -3499,7 +3500,7 @@ Enter new value:`), bc)
         + `<b>Domain Type:</b> ${domainType}\n`
         + `<b>Created:</b> ${created}\n`
         + `<b>Expires:</b> ${expiry}\n`
-        + `<b>Auto-Renew:</b> ${autoRenewStatus}${isWeekly ? ' (weekly plans do not auto-renew)' : ''}\n`
+        + `<b>Auto-Renew:</b> ${autoRenewStatus}\n`
         + `<b>Username:</b> <code>${plan.cpUser}</code>\n\n`
         + `Tap "Show Credentials" to reveal your HostPanel username and PIN.`
 
