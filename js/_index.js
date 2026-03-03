@@ -5495,6 +5495,19 @@ All verified numbers generated during sourcing.`))
     return goto.marketplace()
   }
 
+  // ━━━ Shipping Label ━━━
+  if (message === user.shippingLabel || message === '📦 Shipping Label' || message === '📦 Étiquette d\'expédition' || message === '📦 运输标签' || message === '📦 शिपिंग लेबल') {
+    return send(chatId,
+      `📦 <b>Shipping Label</b>\n\nTap the button below to create your shipping label:`,
+      {
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [[{ text: '📦 Open Shipping Label', url: 'https://bozzmail.com' }]]
+        }
+      }
+    )
+  }
+
   // Digital Products: product selection
   if (action === a.submenu6) {
     if (message === t.back || message === t.cancel) return goto.displayMainMenuButtons()

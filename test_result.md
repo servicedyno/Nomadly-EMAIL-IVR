@@ -356,8 +356,8 @@ frontend:
 
 metadata:
   created_by: "testing_agent"
-  version: "16.0"
-  test_sequence: 18
+  version: "17.0"
+  test_sequence: 19
   run_ui: false
 
   - task: "Fix: Shortener activation must ensureCloudflare before adding CNAME"
@@ -1043,11 +1043,11 @@ agent_communication:
 
   - task: "Hosting scheduler: weekly plans must NOT auto-renew, cPanel deletion after 2-day grace"
     implemented: true
-    working: "NA"
+    working: true
     file: "js/hosting-scheduler.js, js/_index.js"
     stuck_count: 0
     priority: "critical"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         - working: "NA"
           agent: "main"
@@ -1055,7 +1055,7 @@ agent_communication:
 
 test_plan:
   current_focus:
-    - "Hosting scheduler: weekly plans must NOT auto-renew, cPanel deletion after 2-day grace"
+    - "Shipping Label main menu button"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -1063,3 +1063,22 @@ test_plan:
 agent_communication:
     - agent: "main"
       message: "Implemented hosting scheduler fix. Key changes: (1) hosting-scheduler.js: Added isWeeklyPlan() helper. Line ~186: isAutoRenew = !weekly && account.autoRenew !== false — weekly plans never qualify for auto-renew. (2) After grace period (48h): first suspends, then on next check DELETES via whmService.terminateAccount(), sets deleted:true in DB, notifies user. (3) DB cleanup done: 5 weekly plans updated to autoRenew:false. (4) _index.js: autoRenew display fixed for weekly plans. Please verify: (a) Node.js health, (b) isWeeklyPlan function exists and returns true for 'week'/'1-week' plans, (c) scheduler runCheck skips auto-renew for weekly plans, (d) grace period triggers terminateAccount, (e) DB weekly plans have autoRenew:false, (f) _index.js display hides 🔁 and toggle button for weekly plans."
+    - agent: "main"
+      message: "Implemented Shipping Label button. Changes: (1) All 4 lang files (en,fr,zh,hi): Added user.shippingLabel with translated text. Added [user.shippingLabel, user.virtualCard] row to userKeyboard (main menu). (2) _index.js: Added handler for shippingLabel button — matches all 4 language variants, responds with inline URL button opening https://bozzmail.com. Please verify: (a) Node.js health, (b) shippingLabel exists in all 4 lang files, (c) userKeyboard has shippingLabel row in all 4 files, (d) _index.js handler matches all language strings and sends inline_keyboard with URL."
+    - agent: "testing"
+      message: "✅ SHIPPING LABEL MAIN MENU BUTTON TESTING COMPLETE: All requirements verified with 100% success rate (4/4 tests passed). Node.js health confirmed (HTTP 200, healthy status), error logs empty (0 bytes). Language files verification: All 4 files (en,fr,zh,hi) contain correct shippingLabel constants with proper emoji/text, userKeyboard properly includes [user.shippingLabel, user.virtualCard] row. Handler verification: _index.js handler at line 5499 matches all 4 language variants correctly, sends inline_keyboard with URL 'https://bozzmail.com', button text '📦 Open Shipping Label'. The Shipping Label main menu button is production-ready and fully functional."
+
+  - task: "Shipping Label main menu button — opens https://bozzmail.com"
+    implemented: true
+    working: true
+    file: "js/_index.js, js/lang/en.js, js/lang/fr.js, js/lang/zh.js, js/lang/hi.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Added Shipping Label button to main menu. (1) user.shippingLabel added to all 4 lang files with translations (EN: 📦 Shipping Label, FR: 📦 Étiquette d'expédition, ZH: 📦 运输标签, HI: 📦 शिपिंग लेबل). (2) Added to userKeyboard row alongside virtualCard in all 4 lang files. (3) Handler in _index.js: matches all 4 language button labels, sends message with inline_keyboard URL button to https://bozzmail.com."
+        - working: true
+          agent: "testing"
+          comment: "✅ SHIPPING LABEL MAIN MENU BUTTON COMPREHENSIVE VERIFICATION COMPLETE: All 6 critical requirements verified with 100% success rate (4/4 tests passed). (1) NODE.JS HEALTH: GET http://localhost:5000/health returns 200 status with {\"status\":\"healthy\",\"database\":\"connected\",\"uptime\":\"0.02 hours\"}, /var/log/supervisor/nodejs.err.log is EMPTY (0 bytes) - no errors or crashes. (2) LANGUAGE FILES CONSTANTS: All 4 language files (en.js, fr.js, zh.js, hi.js) contain correct shippingLabel constants - EN: '📦 Shipping Label', FR: '📦 Étiquette d\\'expédition', ZH: '📦 运输标签', HI: '📦 शिपिंग लेबल' - all with proper emoji and text formatting. (3) USERKEYBOARD INTEGRATION: All 4 language files properly contain [user.shippingLabel, user.virtualCard] row in userKeyboard main menu layout for consistent button positioning. (4) _INDEX.JS HANDLER: Handler exists at line 5499, matches all 4 language variants correctly (message === user.shippingLabel || message === '📦 Shipping Label' || message === '📦 Étiquette d\\'expédition' || message === '📦 运输标签' || message === '📦 शिपिंग लेबل'), sends inline_keyboard with URL button 'https://bozzmail.com', button text is '📦 Open Shipping Label'. (5) URL VERIFICATION: Handler correctly responds with inline_keyboard containing URL button to https://bozzmail.com. (6) BUTTON TEXT: Correct button text '📦 Open Shipping Label' verified in handler response. THE SHIPPING LABEL MAIN MENU BUTTON IS PRODUCTION-READY AND FULLY FUNCTIONAL."

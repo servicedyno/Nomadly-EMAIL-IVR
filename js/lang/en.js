@@ -108,6 +108,7 @@ const user = {
   testSip: '🧪 Test SIP Free',
   digitalProducts: '🛒 Digital Products',
   marketplace: '🏪 Marketplace',
+  shippingLabel: '📦 Shipping Label',
 
   // Sub Menu 1: urlShortenerMain
   shortenLink: '✂️ Shorten a Link',
@@ -1230,7 +1231,7 @@ const userKeyboard = {
     keyboard: [
       [user.cloudPhone],
       [user.marketplace, user.digitalProducts],
-      [user.virtualCard],
+      [user.shippingLabel, user.virtualCard],
       [user.domainNames, user.hostingDomainsRedirect],
       [user.urlShortenerMain, user.leadsValidation],
       ...(HIDE_SMS_APP === 'true' ? [] : [[user.freeTrialAvailable]]),

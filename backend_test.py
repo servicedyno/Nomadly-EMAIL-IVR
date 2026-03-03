@@ -1,387 +1,197 @@
 #!/usr/bin/env python3
 """
-Hosting Scheduler Fix Backend Testing
-Tests the weekly plans auto-renew fix and cPanel deletion after 2-day grace period
+Backend Test for Shipping Label Feature
+Tests the Nomadly Telegram Bot backend (Node.js on port 5000)
 """
 
-import json
 import requests
-import subprocess
+import json
 import sys
-import time
-from typing import Dict, Any
 
-def run_command(cmd: str, description: str = "") -> Dict[str, Any]:
-    """Run shell command and return result"""
-    try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
-        return {
-            'success': result.returncode == 0,
-            'stdout': result.stdout.strip(),
-            'stderr': result.stderr.strip(),
-            'returncode': result.returncode,
-            'description': description
-        }
-    except subprocess.TimeoutExpired:
-        return {'success': False, 'error': f'Command timeout: {cmd}', 'description': description}
-    except Exception as e:
-        return {'success': False, 'error': str(e), 'description': description}
+# Backend URL
+BACKEND_URL = "http://localhost:5000"
 
-def check_nodejs_health() -> Dict[str, Any]:
-    """Test 1: Node.js health endpoint"""
+def test_nodejs_health():
+    """Test Node.js health endpoint"""
+    print("=== Testing Node.js Health ===")
     try:
-        response = requests.get('http://localhost:5000/health', timeout=10)
+        response = requests.get(f"{BACKEND_URL}/health", timeout=10)
         if response.status_code == 200:
             data = response.json()
-            return {
-                'success': True,
-                'status_code': 200,
-                'data': data,
-                'healthy': data.get('status') == 'healthy' and data.get('database') == 'connected'
-            }
+            if data.get('status') == 'healthy':
+                print("✅ Node.js health check PASSED")
+                return True
+            else:
+                print(f"❌ Node.js health check FAILED: Status is {data.get('status', 'unknown')}")
+                return False
         else:
-            return {'success': False, 'status_code': response.status_code, 'text': response.text}
+            print(f"❌ Node.js health check FAILED: HTTP {response.status_code}")
+            return False
     except Exception as e:
-        return {'success': False, 'error': str(e)}
+        print(f"❌ Node.js health check FAILED: {str(e)}")
+        return False
 
-def check_error_logs() -> Dict[str, Any]:
-    """Check Node.js error logs are empty"""
-    result = run_command('wc -c /var/log/supervisor/nodejs.err.log', 'Check error log size')
-    if result['success']:
-        size = result['stdout'].split()[0]
-        return {'success': True, 'empty': size == '0', 'size_bytes': size}
-    return result
+def read_file_content(filepath):
+    """Read file content safely"""
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            return f.read()
+    except Exception as e:
+        print(f"❌ Error reading file {filepath}: {str(e)}")
+        return None
 
-def verify_isweekly_function() -> Dict[str, Any]:
-    """Test 2: Verify isWeeklyPlan function exists and works correctly"""
-    test_script = '''
-const hostingScheduler = require('./js/hosting-scheduler.js');
-console.log('=== Testing isWeeklyPlan function ===');
-console.log('isWeeklyPlan exported:', typeof hostingScheduler.isWeeklyPlan === 'function');
-
-// Test cases
-const testCases = [
-    { plan: 'Premium Anti-Red (1-Week)', expected: true },
-    { plan: 'premium weekly plan', expected: true },
-    { plan: 'Test Week Plan', expected: true },
-    { plan: 'Premium Anti-Red Monthly', expected: false },
-    { plan: 'Golden Anti-Red (Monthly)', expected: false },
-    { plan: 'Business Plan', expected: false },
-    { plan: null, expected: false },
-    { plan: undefined, expected: false }
-];
-
-let passed = 0;
-let failed = 0;
-testCases.forEach(test => {
-    const result = hostingScheduler.isWeeklyPlan(test.plan);
-    const success = result === test.expected;
-    console.log(`Test: "${test.plan}" => ${result} (expected: ${test.expected}) ${success ? 'PASS' : 'FAIL'}`);
-    if (success) passed++; else failed++;
-});
-
-console.log(`Total: ${testCases.length} | Passed: ${passed} | Failed: ${failed}`);
-    '''
+def test_language_files():
+    """Test all language files for shippingLabel constants"""
+    print("\n=== Testing Language Files ===")
     
-    result = run_command(f'cd /app && node -e "{test_script}"', 'Test isWeeklyPlan function')
-    if result['success']:
-        output = result['stdout']
-        return {
-            'success': True,
-            'exported': 'isWeeklyPlan exported: true' in output,
-            'all_tests_passed': 'Failed: 0' in output,
-            'output': output
-        }
-    return result
-
-def verify_autorenew_logic() -> Dict[str, Any]:
-    """Test 3: Verify auto-renew logic in hosting-scheduler.js"""
-    # Check the auto-renew logic implementation
-    result = run_command(
-        'cd /app && grep -n "const isAutoRenew = !weekly && account.autoRenew !== false" js/hosting-scheduler.js',
-        'Verify auto-renew logic'
-    )
-    
-    if result['success']:
-        return {
-            'success': True,
-            'line_found': bool(result['stdout']),
-            'line_content': result['stdout']
-        }
-    return result
-
-def verify_terminate_function() -> Dict[str, Any]:
-    """Test 4: Verify terminateAccount function exists"""
-    result = run_command(
-        'cd /app && grep -A 10 "async function terminateAccount" js/hosting-scheduler.js',
-        'Verify terminateAccount function'
-    )
-    
-    if result['success'] and result['stdout']:
-        # Check if function calls whmService.terminateAccount
-        whm_call_check = run_command(
-            'cd /app && grep "whmService.terminateAccount" js/hosting-scheduler.js',
-            'Check WHM service call'
-        )
-        
-        # Check if it sets deleted: true
-        deleted_flag_check = run_command(
-            'cd /app && grep "deleted: true, deletedAt:" js/hosting-scheduler.js',
-            'Check deleted flag setting'
-        )
-        
-        return {
-            'success': True,
-            'function_exists': bool(result['stdout']),
-            'calls_whm_service': whm_call_check['success'] and bool(whm_call_check['stdout']),
-            'sets_deleted_flag': deleted_flag_check['success'] and bool(deleted_flag_check['stdout']),
-            'function_code': result['stdout']
-        }
-    return result
-
-def verify_database_weekly_plans() -> Dict[str, Any]:
-    """Test 5: Verify all weekly plans have autoRenew: false"""
-    db_script = '''
-const { MongoClient } = require('mongodb');
-const client = new MongoClient(process.env.MONGO_URL);
-(async () => {
-  try {
-    await client.connect();
-    const db = client.db(process.env.DB_NAME);
-    const cpanelAccounts = db.collection('cpanelAccounts');
-    
-    const weeklyPlans = await cpanelAccounts.find({
-      plan: { $regex: /week/i }
-    }).toArray();
-    
-    console.log('=== Weekly Plans Database Check ===');
-    console.log('Total weekly plans:', weeklyPlans.length);
-    
-    let correctCount = 0;
-    weeklyPlans.forEach(plan => {
-      const correct = plan.autoRenew === false;
-      console.log(`${plan.domain}: autoRenew=${plan.autoRenew} ${correct ? 'CORRECT' : 'INCORRECT'}`);
-      if (correct) correctCount++;
-    });
-    
-    console.log(`Correct: ${correctCount}/${weeklyPlans.length}`);
-    console.log('All weekly plans have autoRenew false:', correctCount === weeklyPlans.length);
-    
-    await client.close();
-  } catch (e) {
-    console.error('Database error:', e.message);
-  }
-})();
-    '''
-    
-    result = run_command(f'cd /app && MONGO_URL="{get_mongo_url()}" DB_NAME="test" node -e "{db_script}"', 'Check weekly plans in database')
-    if result['success']:
-        output = result['stdout']
-        return {
-            'success': True,
-            'all_correct': 'All weekly plans have autoRenew false: true' in output,
-            'output': output
-        }
-    return result
-
-def get_mongo_url() -> str:
-    """Get MongoDB URL from environment"""
-    result = run_command('cd /app && grep MONGO_URL backend/.env | cut -d= -f2', 'Get MongoDB URL')
-    return result['stdout'] if result['success'] else "mongodb://localhost:27017"
-
-def verify_index_display_fixes() -> Dict[str, Any]:
-    """Test 6: Verify _index.js display fixes for weekly plans"""
-    checks = []
-    
-    # Check planIsWeekly variable
-    result1 = run_command(
-        'cd /app && grep -n "planIsWeekly.*includes.*week" js/_index.js',
-        'Check planIsWeekly calculation'
-    )
-    checks.append(('planIsWeekly_check', result1['success'] and bool(result1['stdout'])))
-    
-    # Check weekly plans auto-renew status display
-    result2 = run_command(
-        'cd /app && grep -A 2 -B 2 "weekly plans never auto-renew" js/_index.js',
-        'Check weekly auto-renew message'
-    )
-    checks.append(('weekly_autorenew_message', result2['success'] and bool(result2['stdout'])))
-    
-    # Check 🔁 icon hiding for weekly plans
-    result3 = run_command(
-        'cd /app && grep -B 5 -A 5 "planIsWeekly.*🔁" js/_index.js',
-        'Check 🔁 icon hiding'
-    )
-    checks.append(('icon_hiding', result3['success'] and bool(result3['stdout'])))
-    
-    return {
-        'success': True,
-        'checks': dict(checks),
-        'all_passed': all(check[1] for check in checks),
-        'details': {
-            'planIsWeekly': result1['stdout'] if result1['success'] else '',
-            'autorenew_message': result2['stdout'] if result2['success'] else '',
-            'icon_hiding': result3['stdout'] if result3['success'] else ''
-        }
+    expected_constants = {
+        'en.js': '📦 Shipping Label',
+        'fr.js': '📦 Étiquette d\\\'expédition', 
+        'zh.js': '📦 运输标签',
+        'hi.js': '📦 शिपिंग लेबल'
     }
-
-def verify_startup_logs() -> Dict[str, Any]:
-    """Test 7: Verify startup policy message in logs"""
-    result = run_command(
-        'grep "Policy: weekly plans NEVER auto-renew" /var/log/supervisor/nodejs.out.log',
-        'Check startup policy message'
-    )
     
-    return {
-        'success': True,
-        'message_found': result['success'] and bool(result['stdout']),
-        'message': result['stdout'] if result['success'] else ''
-    }
-
-def verify_module_exports() -> Dict[str, Any]:
-    """Test 8: Verify module exports from hosting-scheduler.js"""
-    test_script = '''
-const scheduler = require('./js/hosting-scheduler.js');
-console.log('=== Module Exports Check ===');
-console.log('isWeeklyPlan exported:', typeof scheduler.isWeeklyPlan === 'function');
-console.log('initScheduler exported:', typeof scheduler.initScheduler === 'function');
-console.log('getPlanPrice exported:', typeof scheduler.getPlanPrice === 'function');
-console.log('getPlanDuration exported:', typeof scheduler.getPlanDuration === 'function');
-
-const allExported = [
-    scheduler.isWeeklyPlan,
-    scheduler.initScheduler,
-    scheduler.getPlanPrice,
-    scheduler.getPlanDuration
-].every(fn => typeof fn === 'function');
-
-console.log('All required functions exported:', allExported);
-    '''
+    all_passed = True
     
-    result = run_command(f'cd /app && node -e "{test_script}"', 'Check module exports')
-    if result['success']:
-        output = result['stdout']
-        return {
-            'success': True,
-            'all_exported': 'All required functions exported: true' in output,
-            'output': output
-        }
-    return result
-
-def run_all_tests():
-    """Run all hosting scheduler tests"""
-    print("🧪 HOSTING SCHEDULER FIX - COMPREHENSIVE TESTING")
-    print("=" * 60)
+    for lang_file, expected_text in expected_constants.items():
+        filepath = f"/app/js/lang/{lang_file}"
+        content = read_file_content(filepath)
+        
+        if content is None:
+            all_passed = False
+            continue
+            
+        # Check if shippingLabel constant exists with correct text
+        if f"shippingLabel: '{expected_text}'" in content:
+            print(f"✅ {lang_file}: shippingLabel constant found with correct text")
+        else:
+            print(f"❌ {lang_file}: shippingLabel constant NOT found or incorrect text")
+            all_passed = False
+            continue
+            
+        # Check if userKeyboard contains the shippingLabel and virtualCard row
+        if '[user.shippingLabel, user.virtualCard]' in content:
+            print(f"✅ {lang_file}: userKeyboard contains [user.shippingLabel, user.virtualCard] row")
+        else:
+            print(f"❌ {lang_file}: userKeyboard does NOT contain [user.shippingLabel, user.virtualCard] row")
+            all_passed = False
     
-    tests = [
-        ("1. Node.js Health Check", check_nodejs_health),
-        ("2. isWeeklyPlan Function Verification", verify_isweekly_function),
-        ("3. Auto-Renew Logic Verification", verify_autorenew_logic),
-        ("4. Grace Period Deletion Verification", verify_terminate_function),
-        ("5. Database Weekly Plans Verification", verify_database_weekly_plans),
-        ("6. _index.js Display Fixes", verify_index_display_fixes),
-        ("7. Startup Logs Verification", verify_startup_logs),
-        ("8. Module Exports Verification", verify_module_exports),
-        ("Error Log Check", check_error_logs)
+    return all_passed
+
+def test_index_handler():
+    """Test _index.js handler for shipping label"""
+    print("\n=== Testing _index.js Handler ===")
+    
+    filepath = "/app/js/_index.js"
+    content = read_file_content(filepath)
+    
+    if content is None:
+        return False
+    
+    all_passed = True
+    
+    # Test 1: Check if handler exists and matches all 4 language strings
+    expected_strings = [
+        '📦 Shipping Label',
+        '📦 Étiquette d\\\'expédition',
+        '📦 运输标签', 
+        '📦 शिपिंग लेबल'
     ]
     
-    results = {}
-    passed = 0
-    failed = 0
+    handler_found = False
+    for expected_str in expected_strings:
+        if expected_str in content:
+            handler_found = True
+        else:
+            print(f"❌ Handler does NOT match string: {expected_str}")
+            all_passed = False
     
-    for test_name, test_func in tests:
-        print(f"\n🔍 {test_name}")
-        print("-" * 40)
-        
-        try:
-            result = test_func()
-            results[test_name] = result
-            
-            if result.get('success'):
-                # Determine if test actually passed based on specific criteria
-                test_passed = False
-                
-                if test_name.startswith("1."):  # Node.js Health
-                    test_passed = result.get('healthy', False)
-                    print(f"✅ Service healthy: {result.get('data', {})}")
-                    
-                elif test_name.startswith("2."):  # isWeeklyPlan Function
-                    test_passed = result.get('exported', False) and result.get('all_tests_passed', False)
-                    print(f"✅ Function exported: {result.get('exported')}")
-                    print(f"✅ All tests passed: {result.get('all_tests_passed')}")
-                    
-                elif test_name.startswith("3."):  # Auto-Renew Logic
-                    test_passed = result.get('line_found', False)
-                    print(f"✅ Auto-renew logic found: {result.get('line_content')}")
-                    
-                elif test_name.startswith("4."):  # Grace Period Deletion
-                    test_passed = (result.get('function_exists', False) and 
-                                 result.get('calls_whm_service', False) and 
-                                 result.get('sets_deleted_flag', False))
-                    print(f"✅ terminateAccount function exists: {result.get('function_exists')}")
-                    print(f"✅ Calls WHM service: {result.get('calls_whm_service')}")
-                    print(f"✅ Sets deleted flag: {result.get('sets_deleted_flag')}")
-                    
-                elif test_name.startswith("5."):  # Database Weekly Plans
-                    test_passed = result.get('all_correct', False)
-                    print(f"✅ All weekly plans have autoRenew: false: {test_passed}")
-                    
-                elif test_name.startswith("6."):  # Display Fixes
-                    test_passed = result.get('all_passed', False)
-                    checks = result.get('checks', {})
-                    for check_name, check_result in checks.items():
-                        print(f"✅ {check_name}: {check_result}")
-                        
-                elif test_name.startswith("7."):  # Startup Logs
-                    test_passed = result.get('message_found', False)
-                    print(f"✅ Policy message found: {result.get('message')}")
-                    
-                elif test_name.startswith("8."):  # Module Exports
-                    test_passed = result.get('all_exported', False)
-                    print(f"✅ All functions exported: {test_passed}")
-                    
-                elif "Error Log" in test_name:
-                    test_passed = result.get('empty', False)
-                    print(f"✅ Error log empty: {result.get('size_bytes')} bytes")
-                
-                if test_passed:
-                    passed += 1
-                    print(f"🟢 PASSED")
-                else:
-                    failed += 1
-                    print(f"🔴 FAILED - Test criteria not met")
-                    
-            else:
-                failed += 1
-                print(f"🔴 FAILED - {result.get('error', 'Unknown error')}")
-                
-        except Exception as e:
-            failed += 1
-            print(f"🔴 FAILED - Exception: {str(e)}")
-            results[test_name] = {'success': False, 'error': str(e)}
+    if handler_found and all_passed:
+        print("✅ Handler exists and matches all 4 language strings")
     
-    # Summary
-    print(f"\n{'=' * 60}")
-    print(f"📊 TESTING SUMMARY")
-    print(f"{'=' * 60}")
-    print(f"Total Tests: {passed + failed}")
-    print(f"✅ Passed: {passed}")
-    print(f"❌ Failed: {failed}")
-    print(f"Success Rate: {(passed / (passed + failed) * 100):.1f}%")
-    
-    if failed == 0:
-        print(f"\n🎉 ALL HOSTING SCHEDULER TESTS PASSED!")
-        print("✅ Weekly plans NEVER auto-renew")
-        print("✅ cPanel deletion after 2-day grace period")
-        print("✅ isWeeklyPlan function working correctly")
-        print("✅ Database in correct state")
-        print("✅ Display fixes implemented")
+    # Test 2: Check if handler sends inline_keyboard with URL to https://bozzmail.com
+    if 'url: \'https://bozzmail.com\'' in content:
+        print("✅ Handler sends inline_keyboard with URL 'https://bozzmail.com'")
     else:
-        print(f"\n⚠️  {failed} TEST(S) FAILED")
-        print("Please review the failed tests above")
+        print("❌ Handler does NOT send correct URL to https://bozzmail.com")
+        all_passed = False
     
-    return results, passed, failed
+    # Test 3: Check if button text is correct
+    if "'📦 Open Shipping Label'" in content:
+        print("✅ Button text is '📦 Open Shipping Label'")
+    else:
+        print("❌ Button text is NOT '📦 Open Shipping Label'")
+        all_passed = False
+    
+    # Test 4: Check if handler condition includes all required strings
+    handler_condition_line = None
+    lines = content.split('\n')
+    for i, line in enumerate(lines):
+        if 'message === user.shippingLabel' in line and all(s in line for s in expected_strings):
+            handler_condition_line = line.strip()
+            break
+    
+    if handler_condition_line:
+        print("✅ Handler condition matches all 4 language variants correctly")
+    else:
+        print("❌ Handler condition does NOT match all 4 language variants")
+        all_passed = False
+    
+    return all_passed
+
+def test_error_logs():
+    """Check Node.js error logs"""
+    print("\n=== Checking Node.js Error Logs ===")
+    
+    try:
+        with open('/var/log/supervisor/nodejs.err.log', 'r') as f:
+            log_content = f.read().strip()
+            
+        if not log_content:
+            print("✅ Node.js error log is empty")
+            return True
+        else:
+            print(f"❌ Node.js error log contains errors:\n{log_content}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Error checking Node.js logs: {str(e)}")
+        return False
+
+def main():
+    """Run all tests"""
+    print("🧪 Testing Shipping Label Implementation\n")
+    
+    test_results = []
+    
+    # Run all tests
+    test_results.append(('Node.js Health', test_nodejs_health()))
+    test_results.append(('Error Logs Check', test_error_logs()))
+    test_results.append(('Language Files', test_language_files()))
+    test_results.append(('Index Handler', test_index_handler()))
+    
+    # Print summary
+    print("\n" + "="*50)
+    print("🎯 TEST SUMMARY")
+    print("="*50)
+    
+    passed_count = 0
+    total_count = len(test_results)
+    
+    for test_name, passed in test_results:
+        status = "✅ PASSED" if passed else "❌ FAILED"
+        print(f"{test_name}: {status}")
+        if passed:
+            passed_count += 1
+    
+    print(f"\nOverall: {passed_count}/{total_count} tests passed")
+    
+    if passed_count == total_count:
+        print("🎉 All tests PASSED! Shipping Label feature is working correctly.")
+        return 0
+    else:
+        print("⚠️ Some tests FAILED. Please check the implementation.")
+        return 1
 
 if __name__ == "__main__":
-    results, passed, failed = run_all_tests()
-    sys.exit(0 if failed == 0 else 1)
+    sys.exit(main())
