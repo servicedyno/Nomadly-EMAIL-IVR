@@ -26,6 +26,14 @@ function getSubClient(subSid, subToken) {
   return twilio(subSid, subToken)
 }
 
+// ── Countries that require a full Regulatory Bundle (not just an address) ──
+// Twilio requires a submitted+approved bundle before number purchase
+const BUNDLE_REQUIRED_COUNTRIES = ['ZA']
+
+function needsBundle(countryCode) {
+  return BUNDLE_REQUIRED_COUNTRIES.includes(countryCode)
+}
+
 // ── Available countries (verified via live Twilio API query — voice=true) ──
 // addrReq: ['none'] = no address needed, ['any'] = address any country, ['local'] = address must be in-country
 // prices: monthly Twilio cost per number type. Numbers < $5/mo are free with plan, >= $5 added as surcharge
@@ -196,7 +204,7 @@ async function searchNumbers(countryCode, numberType = 'local', limit = 5, areaC
   }
 }
 
-async function buyNumber(phoneNumber, subSid, subToken, webhookBaseUrl, addressSid) {
+async function buyNumber(phoneNumber, subSid, subToken, webhookBaseUrl, addressSid, bundleSid) {
   try {
     const client = subSid && subToken ? getSubClient(subSid, subToken) : getClient()
     const voiceUrl = webhookBaseUrl ? `${webhookBaseUrl}/twilio/voice-webhook` : undefined
@@ -212,6 +220,7 @@ async function buyNumber(phoneNumber, subSid, subToken, webhookBaseUrl, addressS
       statusCallbackMethod: 'POST',
     }
     if (addressSid) opts.addressSid = addressSid
+    if (bundleSid) opts.bundleSid = bundleSid
     const num = await client.incomingPhoneNumbers.create(opts)
     log(`[Twilio] Purchased number: ${num.phoneNumber} (sid=${num.sid})`)
     return {
@@ -552,6 +561,140 @@ async function updateSubAccountNumberWebhooks(subSid, numberSid, webhookBaseUrl)
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// REGULATORY BUNDLE MANAGEMENT
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/**
+ * Fetch the Regulation SID for a given country + number type + end-user type.
+ * Twilio requires this when creating a regulatory bundle.
+ */
+async function getRegulationSid(isoCountry, numberType, endUserType) {
+  try {
+    const client = getClient()
+    if (!client) throw new Error('Twilio client not initialized')
+    const regulations = await client.numbers.v2.regulatoryCompliance.regulations.list({
+      isoCountry,
+      numberType: numberType || 'local',
+      endUserType: endUserType || 'individual',
+      limit: 5,
+    })
+    if (regulations.length === 0) {
+      log(`[Twilio] No regulation found for ${isoCountry}/${numberType}/${endUserType}`)
+      return { error: `No regulation found for ${isoCountry}` }
+    }
+    const reg = regulations[0]
+    log(`[Twilio] Regulation SID for ${isoCountry}: ${reg.sid} (${reg.friendlyName})`)
+    return { sid: reg.sid, friendlyName: reg.friendlyName }
+  } catch (e) {
+    log(`[Twilio] getRegulationSid error: ${e.message}`)
+    return { error: e.message }
+  }
+}
+
+/**
+ * Create an End-User entity (individual or business) for regulatory compliance.
+ */
+async function createEndUser(friendlyName, type, attributes) {
+  try {
+    const client = getClient()
+    if (!client) throw new Error('Twilio client not initialized')
+    const endUser = await client.numbers.v2.regulatoryCompliance.endUsers.create({
+      friendlyName,
+      type: type || 'individual',
+      attributes: attributes || {},
+    })
+    log(`[Twilio] Created end-user: ${endUser.sid} (${friendlyName}, ${type})`)
+    return { sid: endUser.sid, type: endUser.type }
+  } catch (e) {
+    log(`[Twilio] createEndUser error: ${e.message}`)
+    return { error: e.message }
+  }
+}
+
+/**
+ * Create a Regulatory Compliance Bundle for a specific country/number type.
+ */
+async function createBundle(friendlyName, email, isoCountry, numberType, endUserType, regulationSid, statusCallback) {
+  try {
+    const client = getClient()
+    if (!client) throw new Error('Twilio client not initialized')
+    const opts = {
+      friendlyName,
+      email: email || process.env.NOMADLY_SERVICE_EMAIL || 'support@nomadly.com',
+      endUserType: endUserType || 'individual',
+      isoCountry: isoCountry || 'ZA',
+      numberType: numberType || 'local',
+    }
+    if (regulationSid) opts.regulationSid = regulationSid
+    if (statusCallback) opts.statusCallback = statusCallback
+    const bundle = await client.numbers.v2.regulatoryCompliance.bundles.create(opts)
+    log(`[Twilio] Created bundle: ${bundle.sid} (${friendlyName}, ${isoCountry}, status=${bundle.status})`)
+    return { sid: bundle.sid, status: bundle.status }
+  } catch (e) {
+    log(`[Twilio] createBundle error: ${e.message}`)
+    return { error: e.message }
+  }
+}
+
+/**
+ * Add an item (address or end-user) to a regulatory bundle.
+ */
+async function addBundleItem(bundleSid, objectSid) {
+  try {
+    const client = getClient()
+    if (!client) throw new Error('Twilio client not initialized')
+    const item = await client.numbers.v2.regulatoryCompliance.bundles(bundleSid).itemAssignments.create({
+      objectSid,
+    })
+    log(`[Twilio] Added item ${objectSid} to bundle ${bundleSid}`)
+    return { sid: item.sid }
+  } catch (e) {
+    log(`[Twilio] addBundleItem error: ${e.message}`)
+    return { error: e.message }
+  }
+}
+
+/**
+ * Submit a bundle for review (changes status from 'draft' to 'pending-review').
+ */
+async function submitBundle(bundleSid) {
+  try {
+    const client = getClient()
+    if (!client) throw new Error('Twilio client not initialized')
+    const bundle = await client.numbers.v2.regulatoryCompliance.bundles(bundleSid).update({
+      status: 'pending-review',
+    })
+    log(`[Twilio] Bundle ${bundleSid} submitted for review (status=${bundle.status})`)
+    return { sid: bundle.sid, status: bundle.status }
+  } catch (e) {
+    log(`[Twilio] submitBundle error: ${e.message}`)
+    return { error: e.message }
+  }
+}
+
+/**
+ * Fetch the current status of a regulatory bundle.
+ * Possible statuses: draft, pending-review, in-review, twilio-approved, twilio-rejected, provisionally-approved
+ */
+async function getBundleStatus(bundleSid) {
+  try {
+    const client = getClient()
+    if (!client) throw new Error('Twilio client not initialized')
+    const bundle = await client.numbers.v2.regulatoryCompliance.bundles(bundleSid).fetch()
+    log(`[Twilio] Bundle ${bundleSid} status: ${bundle.status}`)
+    return {
+      sid: bundle.sid,
+      status: bundle.status,
+      friendlyName: bundle.friendlyName,
+      validUntil: bundle.validUntil,
+    }
+  } catch (e) {
+    log(`[Twilio] getBundleStatus error: ${e.message}`)
+    return { error: e.message }
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // EXPORTS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -582,4 +725,13 @@ module.exports = {
   NO_COMPLIANCE_COUNTRIES,
   NUMBER_COST_FREE_THRESHOLD,
   CALL_FORWARDING_RATE_MIN,
+  // Regulatory bundle
+  BUNDLE_REQUIRED_COUNTRIES,
+  needsBundle,
+  getRegulationSid,
+  createEndUser,
+  createBundle,
+  addBundleItem,
+  submitBundle,
+  getBundleStatus,
 }

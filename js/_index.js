@@ -495,7 +495,8 @@ let nameOf = {},
 // Support chat & lead request collections
 let supportSessions = {},
   leadRequests = {},
-  cpanelAccounts = {}
+  cpanelAccounts = {},
+  pendingBundles = {}
 
 // Daily coupon system reference
 let dailyCouponSystem = null
@@ -516,7 +517,7 @@ let twilioResources = { sipDomainSid: null, sipDomainName: null, credentialListS
 // Shared Twilio Purchase Helper — used by wallet, bank, crypto flows
 // MUST be at module scope so bot.on('message') handler can access it
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-async function executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, numType, paymentMethod, addressSid, subOpts) {
+async function executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, numType, paymentMethod, addressSid, subOpts, bundleSid) {
   const plan = phoneConfig.plans[planKey]
   const name = await get(nameOf, chatId)
   const surcharge = getNumberSurcharge(countryCode, numType)
@@ -540,8 +541,8 @@ async function executeTwilioPurchase(chatId, selectedNumber, planKey, price, cou
     }
   }
 
-  // 2. Buy number on main account with optional address
-  const buyResult = await twilioService.buyNumber(selectedNumber, null, null, SELF_URL, addressSid || null)
+  // 2. Buy number on main account with optional address + bundle
+  const buyResult = await twilioService.buyNumber(selectedNumber, null, null, SELF_URL, addressSid || null, bundleSid || null)
   if (buyResult.error) return { error: buyResult.error }
 
   // 3. Transfer to sub-account
@@ -695,6 +696,7 @@ const loadData = async () => {
   supportSessions = db.collection('supportSessions')
   leadRequests = db.collection('leadRequests')
   cpanelAccounts = db.collection('cpanelAccounts')
+  pendingBundles = db.collection('pendingBundles')
 
   // variables to view system information
   nameOf = db.collection('nameOf')
@@ -969,6 +971,125 @@ const loadData = async () => {
   cleanupStaleStates()
   setInterval(cleanupStaleStates, CLEANUP_INTERVAL_MS)
   log(`[StateCleanup] Scheduled every ${CLEANUP_INTERVAL_MS / 3600000}h (stale threshold: ${STALE_THRESHOLD_MS / 3600000}h)`)
+
+  // ── Regulatory Bundle status checker (auto-purchase on approval, refund on rejection) ──
+  setTimeout(() => checkPendingBundles(), 60000) // first check 1 min after startup
+  setInterval(checkPendingBundles, BUNDLE_CHECK_INTERVAL_MS)
+  log(`[BundleChecker] Scheduled every ${BUNDLE_CHECK_INTERVAL_MS / 60000}min`)
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// REGULATORY BUNDLE STATUS CHECKER
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const BUNDLE_CHECK_INTERVAL_MS = 30 * 60 * 1000 // 30 minutes
+
+async function checkPendingBundles() {
+  try {
+    if (!pendingBundles?.find) return
+    const pending = await pendingBundles.find({
+      status: { $in: ['draft', 'pending-review', 'in-review', 'provisionally-approved'] }
+    }).toArray()
+    if (pending.length === 0) return
+    log(`[BundleChecker] Checking ${pending.length} pending bundle(s)...`)
+
+    for (const pb of pending) {
+      try {
+        const result = await twilioService.getBundleStatus(pb.bundleSid)
+        if (result.error) {
+          log(`[BundleChecker] Error checking bundle ${pb.bundleSid}: ${result.error}`)
+          continue
+        }
+
+        const newStatus = result.status
+        if (newStatus === pb.status) continue // No change
+
+        log(`[BundleChecker] Bundle ${pb.bundleSid} status changed: ${pb.status} → ${newStatus}`)
+        await pendingBundles.updateOne({ _id: pb._id }, { $set: { status: newStatus, updatedAt: new Date() } })
+
+        // ── APPROVED → auto-purchase number ──
+        if (newStatus === 'twilio-approved' || newStatus === 'provisionally-approved') {
+          log(`[BundleChecker] Bundle APPROVED for chatId=${pb.chatId}, purchasing ${pb.selectedNumber}...`)
+          const lang = pb.lang || 'en'
+          try {
+            const purchaseResult = await executeTwilioPurchase(
+              pb.chatId, pb.selectedNumber, pb.planKey, pb.price,
+              pb.countryCode, pb.countryName, pb.numType || 'local',
+              pb.paymentMethod, pb.addressSid, null, pb.bundleSid
+            )
+            if (purchaseResult.error) {
+              log(`[BundleChecker] Purchase FAILED after bundle approval: ${purchaseResult.error}`)
+              // Refund wallet
+              const refundCoin = pb.paymentCoin || 'usd'
+              if (refundCoin === 'usd' || refundCoin.startsWith('wallet_usd')) {
+                await atomicIncrement(walletOf, pb.chatId, 'usdIn', pb.priceUsd || pb.price)
+              } else {
+                await atomicIncrement(walletOf, pb.chatId, 'ngnIn', pb.priceNgn || 0)
+              }
+              const { usdBal, ngnBal } = await getBalance(walletOf, pb.chatId)
+              await pendingBundles.updateOne({ _id: pb._id }, { $set: { status: 'purchase_failed', error: purchaseResult.error, updatedAt: new Date() } })
+              const t = translation('l', lang)
+              send(pb.chatId, `❌ ${t.purchaseFailed || 'Number purchase failed after regulatory approval.'}\n\n💰 <b>$${Number(pb.priceUsd || pb.price).toFixed(2)}</b> has been refunded to your wallet.\n${t.showWallet ? t.showWallet(usdBal, ngnBal) : `Balance: $${usdBal}`}`, { parse_mode: 'HTML' })
+              notifyAdmin(`⚠️ [BundleChecker] Purchase failed after bundle approval\nchatId: ${pb.chatId}\nnumber: ${pb.selectedNumber}\nerror: ${purchaseResult.error}`)
+            } else {
+              // SUCCESS!
+              await pendingBundles.updateOne({ _id: pb._id }, { $set: { status: 'completed', completedAt: new Date(), updatedAt: new Date() } })
+              const cpTxt = phoneConfig.getMsg(lang)
+              const { usdBal, ngnBal } = await getBalance(walletOf, pb.chatId)
+              const t = translation('l', lang)
+              send(pb.chatId, t.showWallet ? t.showWallet(usdBal, ngnBal) : `Balance: $${usdBal}`)
+              send(pb.chatId, cpTxt.activated
+                ? cpTxt.activated(pb.selectedNumber, pb.planKey, pb.price, purchaseResult.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(purchaseResult.expiresAt?.toISOString()))
+                : `✅ Your number <b>${pb.selectedNumber}</b> is now active!`, { parse_mode: 'HTML' })
+              notifyAdmin(`✅ [BundleChecker] Auto-purchased number after bundle approval\nchatId: ${pb.chatId}\nnumber: ${pb.selectedNumber}\nbundle: ${pb.bundleSid}`)
+              log(`[BundleChecker] ✅ Number ${pb.selectedNumber} purchased for chatId=${pb.chatId}`)
+            }
+          } catch (purchaseErr) {
+            log(`[BundleChecker] Purchase exception: ${purchaseErr.message}`)
+            // Refund on exception
+            try {
+              const refundCoin = pb.paymentCoin || 'usd'
+              if (refundCoin === 'usd' || refundCoin.startsWith('wallet_usd')) {
+                await atomicIncrement(walletOf, pb.chatId, 'usdIn', pb.priceUsd || pb.price)
+              } else {
+                await atomicIncrement(walletOf, pb.chatId, 'ngnIn', pb.priceNgn || 0)
+              }
+            } catch (refundErr) {
+              log(`[BundleChecker] CRITICAL: Refund failed: ${refundErr.message}`)
+              notifyAdmin(`🚨 CRITICAL [BundleChecker] Refund failed\nchatId: ${pb.chatId}\nprice: $${pb.price}\nerror: ${refundErr.message}`)
+            }
+            await pendingBundles.updateOne({ _id: pb._id }, { $set: { status: 'purchase_failed', error: purchaseErr.message, updatedAt: new Date() } })
+            send(pb.chatId, `❌ Number purchase failed after regulatory approval. Your wallet has been refunded. Please contact support.`)
+            notifyAdmin(`⚠️ [BundleChecker] Purchase exception\nchatId: ${pb.chatId}\nerror: ${purchaseErr.message}`)
+          }
+        }
+
+        // ── REJECTED → refund wallet ──
+        if (newStatus === 'twilio-rejected') {
+          log(`[BundleChecker] Bundle REJECTED for chatId=${pb.chatId}`)
+          const refundCoin = pb.paymentCoin || 'usd'
+          try {
+            if (refundCoin === 'usd' || refundCoin.startsWith('wallet_usd')) {
+              await atomicIncrement(walletOf, pb.chatId, 'usdIn', pb.priceUsd || pb.price)
+            } else {
+              await atomicIncrement(walletOf, pb.chatId, 'ngnIn', pb.priceNgn || 0)
+            }
+          } catch (refundErr) {
+            log(`[BundleChecker] CRITICAL: Refund failed on rejection: ${refundErr.message}`)
+            notifyAdmin(`🚨 CRITICAL [BundleChecker] Refund failed on rejection\nchatId: ${pb.chatId}\nprice: $${pb.price}\nerror: ${refundErr.message}`)
+          }
+          const { usdBal, ngnBal } = await getBalance(walletOf, pb.chatId)
+          const lang = pb.lang || 'en'
+          const t = translation('l', lang)
+          send(pb.chatId, `❌ <b>Regulatory bundle rejected</b>\n\nYour ${pb.countryName || pb.countryCode} number request could not be approved by the telecom regulator.\n\n💰 <b>$${Number(pb.priceUsd || pb.price).toFixed(2)}</b> has been refunded to your wallet.\n${t.showWallet ? t.showWallet(usdBal, ngnBal) : `Balance: $${usdBal}`}\n\nPlease try a different country or contact support.`, { parse_mode: 'HTML' })
+          notifyAdmin(`❌ [BundleChecker] Bundle rejected\nchatId: ${pb.chatId}\nnumber: ${pb.selectedNumber}\nbundle: ${pb.bundleSid}`)
+        }
+      } catch (innerErr) {
+        log(`[BundleChecker] Error processing bundle ${pb.bundleSid}: ${innerErr.message}`)
+      }
+    }
+  } catch (err) {
+    log(`[BundleChecker] Error: ${err.message}`)
+  }
 }
 
 const client = new MongoClient(process.env.MONGO_URL, {
@@ -11027,6 +11148,149 @@ Choose an IVR template category:`), k.of(rows))
     const countryName = info?.cpCountryName || ''
     const paymentMethod = info?.cpPaymentMethod || 'wallet'
 
+    // ── BUNDLE-REQUIRED COUNTRIES (e.g. ZA) → create regulatory bundle, defer purchase ──
+    if (twilioService.needsBundle(countryCode)) {
+      log(`[CloudPhone] Country ${countryCode} requires regulatory bundle — creating for chatId=${chatId}`)
+      try {
+        // 1. Get regulation SID
+        const numType = info?.cpNumberType || 'local'
+        const regResult = await twilioService.getRegulationSid(countryCode, numType, 'individual')
+        if (regResult.error) {
+          log(`[CloudPhone] getRegulationSid failed: ${regResult.error}`)
+          // Refund
+          const coin = info?.cpPendingCoin
+          const priceUsd = info?.cpPendingPriceUsd
+          const priceNgn = info?.cpPendingPriceNgn
+          if (coin && priceUsd) {
+            if (coin === u.usd) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
+            else if (coin === u.ngn && priceNgn) await atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn)
+            await saveInfo('cpPendingCoin', null); await saveInfo('cpPendingPriceUsd', null); await saveInfo('cpPendingPriceNgn', null)
+          }
+          const { usdBal: refUsd, ngnBal: refNgn } = await getBalance(walletOf, chatId)
+          set(state, chatId, 'action', 'none')
+          send(chatId, `❌ Regulatory setup failed for ${countryName}.\n\n💰 <b>$${Number(priceUsd || price).toFixed(2)}</b> refunded.\n${t.showWallet(refUsd, refNgn)}`, { parse_mode: 'HTML' })
+          return notifyAdmin(`⚠️ [Bundle] getRegulationSid failed\nchatId: ${chatId}\ncountry: ${countryCode}\nerror: ${regResult.error}`)
+        }
+
+        // 2. Create end-user
+        const endUserResult = await twilioService.createEndUser(customerName, 'individual', {
+          first_name: customerName.split(' ')[0] || customerName,
+          last_name: customerName.split(' ').slice(1).join(' ') || 'User',
+        })
+        if (endUserResult.error) {
+          log(`[CloudPhone] createEndUser failed: ${endUserResult.error}`)
+          const coin = info?.cpPendingCoin
+          const priceUsd = info?.cpPendingPriceUsd
+          const priceNgn = info?.cpPendingPriceNgn
+          if (coin && priceUsd) {
+            if (coin === u.usd) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
+            else if (coin === u.ngn && priceNgn) await atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn)
+            await saveInfo('cpPendingCoin', null); await saveInfo('cpPendingPriceUsd', null); await saveInfo('cpPendingPriceNgn', null)
+          }
+          const { usdBal: refUsd, ngnBal: refNgn } = await getBalance(walletOf, chatId)
+          set(state, chatId, 'action', 'none')
+          send(chatId, `❌ Regulatory setup failed.\n\n💰 <b>$${Number(priceUsd || price).toFixed(2)}</b> refunded.\n${t.showWallet(refUsd, refNgn)}`, { parse_mode: 'HTML' })
+          return notifyAdmin(`⚠️ [Bundle] createEndUser failed\nchatId: ${chatId}\nerror: ${endUserResult.error}`)
+        }
+
+        // 3. Create bundle
+        const bundleCallbackUrl = SELF_URL ? `${SELF_URL}/twilio/bundle-status` : undefined
+        const bundleResult = await twilioService.createBundle(
+          `Nomadly-${chatId}-${countryCode}-${numType}`,
+          process.env.NOMADLY_SERVICE_EMAIL || 'support@nomadly.com',
+          countryCode, numType, 'individual', regResult.sid, bundleCallbackUrl
+        )
+        if (bundleResult.error) {
+          log(`[CloudPhone] createBundle failed: ${bundleResult.error}`)
+          const coin = info?.cpPendingCoin
+          const priceUsd = info?.cpPendingPriceUsd
+          const priceNgn = info?.cpPendingPriceNgn
+          if (coin && priceUsd) {
+            if (coin === u.usd) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
+            else if (coin === u.ngn && priceNgn) await atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn)
+            await saveInfo('cpPendingCoin', null); await saveInfo('cpPendingPriceUsd', null); await saveInfo('cpPendingPriceNgn', null)
+          }
+          const { usdBal: refUsd, ngnBal: refNgn } = await getBalance(walletOf, chatId)
+          set(state, chatId, 'action', 'none')
+          send(chatId, `❌ Regulatory setup failed.\n\n💰 <b>$${Number(priceUsd || price).toFixed(2)}</b> refunded.\n${t.showWallet(refUsd, refNgn)}`, { parse_mode: 'HTML' })
+          return notifyAdmin(`⚠️ [Bundle] createBundle failed\nchatId: ${chatId}\nerror: ${bundleResult.error}`)
+        }
+
+        // 4. Add end-user + address as item assignments
+        const addEndUser = await twilioService.addBundleItem(bundleResult.sid, endUserResult.sid)
+        const addAddress = await twilioService.addBundleItem(bundleResult.sid, addressSid)
+        if (addEndUser.error || addAddress.error) {
+          log(`[CloudPhone] addBundleItem failed: endUser=${addEndUser.error || 'ok'}, address=${addAddress.error || 'ok'}`)
+        }
+
+        // 5. Submit for review
+        const submitResult = await twilioService.submitBundle(bundleResult.sid)
+        const bundleStatus = submitResult.error ? 'draft' : (submitResult.status || 'pending-review')
+
+        // 6. Store pending purchase in DB
+        await pendingBundles.insertOne({
+          chatId,
+          bundleSid: bundleResult.sid,
+          endUserSid: endUserResult.sid,
+          addressSid,
+          regulationSid: regResult.sid,
+          countryCode,
+          countryName,
+          numType,
+          selectedNumber,
+          planKey,
+          price,
+          priceUsd: info?.cpPendingPriceUsd || price,
+          priceNgn: info?.cpPendingPriceNgn || 0,
+          paymentCoin: info?.cpPendingCoin || 'usd',
+          paymentMethod,
+          lang,
+          status: bundleStatus,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+
+        // Clear pending info
+        await saveInfo('cpPendingCoin', null)
+        await saveInfo('cpPendingPriceUsd', null)
+        await saveInfo('cpPendingPriceNgn', null)
+        set(state, chatId, 'action', 'none')
+
+        // 7. Notify user
+        const bundleMsg = {
+          en: `📋 <b>Regulatory Approval Required</b>\n\n🇿🇦 ${countryName} requires telecom regulatory approval before a number can be activated.\n\n✅ Your address has been submitted\n✅ Your payment of <b>$${Number(price).toFixed(2)}</b> is held securely\n⏳ <b>Approval typically takes 1-3 business days</b>\n\nYou will be notified automatically when:\n• ✅ Approved — your number will be activated instantly\n• ❌ Rejected — your wallet will be fully refunded\n\nNo action needed from you. We'll handle everything!`,
+          fr: `📋 <b>Approbation réglementaire requise</b>\n\n🇿🇦 ${countryName} nécessite une approbation réglementaire des télécoms.\n\n✅ Votre adresse a été soumise\n✅ Votre paiement de <b>$${Number(price).toFixed(2)}</b> est sécurisé\n⏳ <b>L'approbation prend généralement 1 à 3 jours ouvrables</b>\n\nVous serez notifié automatiquement.`,
+          zh: `📋 <b>需要监管审批</b>\n\n🇿🇦 ${countryName} 需要电信监管审批。\n\n✅ 您的地址已提交\n✅ 您的 <b>$${Number(price).toFixed(2)}</b> 付款已安全持有\n⏳ <b>审批通常需要1-3个工作日</b>\n\n审批完成后将自动通知您。`,
+          hi: `📋 <b>नियामक अनुमोदन आवश्यक</b>\n\n🇿🇦 ${countryName} में टेलीकॉम नियामक अनुमोदन आवश्यक है।\n\n✅ आपका पता सबमिट किया गया\n✅ <b>$${Number(price).toFixed(2)}</b> का भुगतान सुरक्षित है\n⏳ <b>अनुमोदन में आमतौर पर 1-3 कार्य दिवस लगते हैं</b>\n\nआपको स्वचालित रूप से सूचित किया जाएगा।`,
+        }
+        send(chatId, bundleMsg[lang] || bundleMsg.en, { parse_mode: 'HTML' })
+        notifyAdmin(`📋 [Bundle] Regulatory bundle submitted\nchatId: ${chatId}\nnumber: ${selectedNumber}\ncountry: ${countryCode}\nbundle: ${bundleResult.sid}\nstatus: ${bundleStatus}`)
+        log(`[CloudPhone] Bundle ${bundleResult.sid} submitted for ${chatId}, status=${bundleStatus}`)
+        return
+      } catch (bundleErr) {
+        log(`[CloudPhone] Bundle creation error: ${bundleErr.message}`)
+        // Refund on any unexpected error
+        const coin = info?.cpPendingCoin
+        const priceUsd = info?.cpPendingPriceUsd
+        const priceNgn = info?.cpPendingPriceNgn
+        try {
+          if (coin && priceUsd) {
+            if (coin === u.usd) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
+            else if (coin === u.ngn && priceNgn) await atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn)
+            await saveInfo('cpPendingCoin', null); await saveInfo('cpPendingPriceUsd', null); await saveInfo('cpPendingPriceNgn', null)
+          }
+        } catch (refundErr) {
+          log(`[CloudPhone] CRITICAL: Refund failed after bundle error: ${refundErr.message}`)
+          notifyAdmin(`🚨 CRITICAL [Bundle] Refund failed\nchatId: ${chatId}\nprice: $${priceUsd || price}\nerror: ${refundErr.message}`)
+        }
+        const { usdBal: refUsd, ngnBal: refNgn } = await getBalance(walletOf, chatId)
+        set(state, chatId, 'action', 'none')
+        send(chatId, `❌ Regulatory setup failed.\n\n💰 Your wallet has been refunded.\n${t.showWallet(refUsd, refNgn)}`, { parse_mode: 'HTML' })
+        return notifyAdmin(`⚠️ [Bundle] Exception\nchatId: ${chatId}\nerror: ${bundleErr.message}`)
+      }
+    }
+
+    // ── NON-BUNDLE COUNTRIES → direct purchase (existing flow) ──
     try {
     const result = await executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, info?.cpNumberType || 'local', paymentMethod, addressSid)
     if (result.error) {
@@ -17400,6 +17664,26 @@ app.get('/twilio/audio-proxy', async (req, res) => {
   } catch (e) {
     log(`[AudioProxy] Error fetching audio: ${e.message}`)
     res.status(502).send('Audio fetch failed')
+  }
+})
+
+// ── Twilio Regulatory Bundle Status Callback ──
+app.post('/twilio/bundle-status', async (req, res) => {
+  try {
+    const { bundleSid, bundleStatus } = req.body || {}
+    log(`[BundleWebhook] Received status update: bundle=${bundleSid}, status=${bundleStatus}`)
+    if (bundleSid && bundleStatus && pendingBundles?.updateOne) {
+      await pendingBundles.updateOne(
+        { bundleSid },
+        { $set: { status: bundleStatus, updatedAt: new Date() } }
+      )
+      // Trigger immediate check for this bundle
+      setTimeout(() => checkPendingBundles(), 5000)
+    }
+    res.status(200).json({ received: true })
+  } catch (e) {
+    log(`[BundleWebhook] Error: ${e.message}`)
+    res.status(200).json({ received: true })
   }
 })
 

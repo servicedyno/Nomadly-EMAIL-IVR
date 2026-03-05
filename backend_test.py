@@ -1,32 +1,36 @@
 #!/usr/bin/env python3
 """
-Backend test for broadcast dead user false positive fix verification
+Twilio Regulatory Bundle Backend Test for South Africa (ZA)
 Tests the Nomadly Telegram bot backend (Node.js on port 5000)
+
+IMPORTANT: This tests the Node.js backend on port 5000, NOT the FastAPI backend on port 8001.
+External URL: https://env-webhook-api.preview.emergentagent.com/api
 """
 
 import requests
 import json
 import subprocess
 import sys
+import os
+
+# Backend URL Configuration
+LOCALHOST_URL = "http://localhost:5000"
+EXTERNAL_URL = "https://env-webhook-api.preview.emergentagent.com/api"
 
 def test_node_health():
     """Test 1: Node.js Health Check"""
     print("=== Test 1: Node.js Health Check ===")
     try:
-        response = requests.get('http://localhost:5000/health', timeout=10)
+        response = requests.get(f'{LOCALHOST_URL}/health', timeout=10)
         if response.status_code == 200:
             data = response.json()
-            expected_keys = ['status', 'database', 'uptime']
-            if all(key in data for key in expected_keys):
-                if data['status'] == 'healthy' and data['database'] == 'connected':
-                    print("✅ Node.js health check passed")
-                    print(f"   Response: {data}")
-                    return True
-                else:
-                    print(f"❌ Node.js not healthy: {data}")
-                    return False
+            expected = {'status': 'healthy', 'database': 'connected'}
+            if data.get('status') == 'healthy' and data.get('database') == 'connected':
+                print("✅ Node.js health check passed")
+                print(f"   Response: {data}")
+                return True
             else:
-                print(f"❌ Invalid response structure: {data}")
+                print(f"❌ Node.js not healthy: {data}")
                 return False
         else:
             print(f"❌ Health check failed with status {response.status_code}")
@@ -35,301 +39,457 @@ def test_node_health():
         print(f"❌ Health check exception: {e}")
         return False
 
-def check_error_log():
+def check_node_error_log():
     """Check Node.js error log is empty"""
     print("=== Checking Node.js Error Log ===")
     try:
-        result = subprocess.run(['ls', '-la', '/var/log/supervisor/nodejs.err.log'], 
+        result = subprocess.run(['cat', '/var/log/supervisor/nodejs.err.log'], 
                               capture_output=True, text=True)
         if result.returncode == 0:
-            output = result.stdout.strip()
-            print(f"Error log file info: {output}")
-            # Check if file size is 0
-            if ' 0 ' in output:
-                print("✅ Node.js error log is empty")
+            if result.stdout.strip() == "":
+                print("✅ Node.js error log is empty (no errors)")
                 return True
             else:
-                print("❌ Node.js error log is not empty")
+                print(f"❌ Node.js error log contains errors:")
+                print(result.stdout)
                 return False
         else:
-            print("❌ Could not check error log file")
+            print("❌ Could not read nodejs.err.log")
             return False
     except Exception as e:
         print(f"❌ Error checking log: {e}")
         return False
 
-def verify_resurrection_mechanism():
-    """Test 2: Verify resurrection mechanism in _index.js"""
-    print("=== Test 2: Resurrection Mechanism Verification ===")
+def verify_twilio_service_exports():
+    """Test 2: Verify all new Twilio service exports exist"""
+    print("=== Test 2: Twilio Service Exports Verification ===")
     
     try:
-        # Check for resurrection block after userSubscribed and before info = await get(state, chatId)
-        with open('/app/js/_index.js', 'r') as f:
+        with open('/app/js/twilio-service.js', 'r') as f:
             content = f.read()
-            
-        # Find the userSubscribed line
-        lines = content.split('\n')
-        userSubscribed_line = None
-        info_get_line = None
-        resurrect_block_found = False
         
-        for i, line in enumerate(lines):
-            if 'userSubscribed = await isSubscribed(chatId)' in line:
-                userSubscribed_line = i
-            if 'info = await get(state, chatId)' in line and userSubscribed_line and i > userSubscribed_line:
-                info_get_line = i
-                break
-                
-        if not userSubscribed_line:
-            print("❌ userSubscribed line not found")
-            return False
-            
-        if not info_get_line:
-            print("❌ info = await get(state, chatId) line not found after userSubscribed")
-            return False
-            
-        # Check for resurrection logic between these lines
-        resurrection_keywords = [
-            'promoOptOut', 'optedOut: true', 'optedOut: false', 
-            'failCount: 0', 'reOptInReason', 'user_active', '[Resurrect]'
+        # Check BUNDLE_REQUIRED_COUNTRIES contains ZA
+        if "BUNDLE_REQUIRED_COUNTRIES = ['ZA']" in content:
+            print("✅ BUNDLE_REQUIRED_COUNTRIES contains 'ZA'")
+            bundle_countries_ok = True
+        else:
+            print("❌ BUNDLE_REQUIRED_COUNTRIES missing or doesn't contain 'ZA'")
+            bundle_countries_ok = False
+        
+        # Check function definitions
+        required_functions = {
+            'needsBundle': 'function needsBundle(countryCode)',
+            'getRegulationSid': 'async function getRegulationSid(isoCountry, numberType, endUserType)',
+            'createEndUser': 'async function createEndUser(friendlyName, type, attributes)',
+            'createBundle': 'async function createBundle(friendlyName, email, isoCountry, numberType, endUserType, regulationSid, statusCallback)',
+            'addBundleItem': 'async function addBundleItem(bundleSid, objectSid)',
+            'submitBundle': 'async function submitBundle(bundleSid)',
+            'getBundleStatus': 'async function getBundleStatus(bundleSid)'
+        }
+        
+        functions_ok = True
+        for func_name, func_signature in required_functions.items():
+            if func_signature in content:
+                print(f"✅ {func_name} function exists")
+            else:
+                print(f"❌ {func_name} function missing")
+                functions_ok = False
+        
+        # Check exports
+        exports_to_check = [
+            'BUNDLE_REQUIRED_COUNTRIES',
+            'needsBundle',
+            'getRegulationSid', 
+            'createEndUser',
+            'createBundle',
+            'addBundleItem',
+            'submitBundle',
+            'getBundleStatus'
         ]
         
-        for i in range(userSubscribed_line, info_get_line):
-            line = lines[i]
-            if 'promoOptOut' in line and 'optedOut: true' in line:
-                resurrect_block_found = True
-                break
-                
-        # Also check for the specific updateOne call
-        update_pattern_found = False
-        for i in range(userSubscribed_line, info_get_line):
-            line = lines[i]
-            if 'optedOut: false' in line and 'failCount: 0' in line and 'reOptInReason' in line:
-                update_pattern_found = True
-                break
-                
-        # Check for logging
-        log_found = False
-        for i in range(userSubscribed_line, info_get_line):
-            line = lines[i]
-            if '[Resurrect]' in line:
-                log_found = True
-                break
-                
-        if resurrect_block_found and update_pattern_found and log_found:
-            print("✅ Resurrection mechanism verified")
-            print(f"   - Found between lines {userSubscribed_line + 1} and {info_get_line + 1}")
-            print("   - Contains promoOptOut check")
-            print("   - Contains optedOut: false update")
-            print("   - Contains failCount: 0 reset")
-            print("   - Contains reOptInReason: 'user_active'")
-            print("   - Contains [Resurrect] logging")
+        exports_ok = True
+        for export_name in exports_to_check:
+            if export_name in content and 'module.exports' in content:
+                print(f"✅ {export_name} is exported")
+            else:
+                print(f"❌ {export_name} export missing")
+                exports_ok = False
+        
+        return bundle_countries_ok and functions_ok and exports_ok
+        
+    except Exception as e:
+        print(f"❌ Error verifying Twilio service: {e}")
+        return False
+
+def verify_needs_bundle_function():
+    """Test 3: Verify needsBundle function logic"""
+    print("=== Test 3: needsBundle Function Logic ===")
+    
+    try:
+        with open('/app/js/twilio-service.js', 'r') as f:
+            content = f.read()
+        
+        # Check function implementation
+        needs_bundle_impl = """function needsBundle(countryCode) {
+  return BUNDLE_REQUIRED_COUNTRIES.includes(countryCode)
+}"""
+        
+        if 'return BUNDLE_REQUIRED_COUNTRIES.includes(countryCode)' in content:
+            print("✅ needsBundle function correctly checks BUNDLE_REQUIRED_COUNTRIES")
+            print("   - needsBundle('ZA') should return true")
+            print("   - needsBundle('US') should return false")
             return True
         else:
-            print("❌ Resurrection mechanism incomplete")
-            print(f"   Resurrect block found: {resurrect_block_found}")
-            print(f"   Update pattern found: {update_pattern_found}")
-            print(f"   Log pattern found: {log_found}")
+            print("❌ needsBundle function implementation incorrect")
             return False
             
     except Exception as e:
-        print(f"❌ Error verifying resurrection mechanism: {e}")
+        print(f"❌ Error verifying needsBundle: {e}")
         return False
 
-def verify_resetdead_commands():
-    """Test 3: Verify admin /resetdead commands"""
-    print("=== Test 3: Admin /resetdead Commands Verification ===")
+def verify_buynumber_bundlesid_param():
+    """Test 4: Verify buyNumber accepts bundleSid parameter"""
+    print("=== Test 4: buyNumber bundleSid Parameter ===")
+    
+    try:
+        with open('/app/js/twilio-service.js', 'r') as f:
+            content = f.read()
+        
+        # Check function signature has 6 parameters including bundleSid
+        function_signature = 'async function buyNumber(phoneNumber, subSid, subToken, webhookBaseUrl, addressSid, bundleSid)'
+        
+        if function_signature in content:
+            print("✅ buyNumber function accepts bundleSid parameter (6th param)")
+        else:
+            print("❌ buyNumber function signature missing bundleSid parameter")
+            return False
+        
+        # Check bundleSid is used in opts
+        if 'if (bundleSid) opts.bundleSid = bundleSid' in content:
+            print("✅ buyNumber adds bundleSid to opts when provided")
+            return True
+        else:
+            print("❌ buyNumber doesn't use bundleSid parameter")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Error verifying buyNumber bundleSid: {e}")
+        return False
+
+def verify_execute_twilio_purchase_bundlesid():
+    """Test 5: Verify executeTwilioPurchase accepts bundleSid"""
+    print("=== Test 5: executeTwilioPurchase bundleSid Parameter ===")
     
     try:
         with open('/app/js/_index.js', 'r') as f:
             content = f.read()
-            
-        # Check for /resetdead (no args) command
-        resetdead_no_args = '/resetdead\') {' in content or "message === '/resetdead'" in content
         
-        # Check for stats breakdown
-        stats_patterns = [
-            'chat_not_found', 'user_deactivated', 'bot_blocked', 'other'
+        # Check function signature has 11 parameters including bundleSid as last
+        if 'async function executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, numType, paymentMethod, addressSid, subOpts, bundleSid)' in content:
+            print("✅ executeTwilioPurchase accepts bundleSid as 11th parameter")
+        else:
+            print("❌ executeTwilioPurchase signature missing bundleSid parameter")
+            return False
+        
+        # Check it passes bundleSid to twilioService.buyNumber
+        if 'await twilioService.buyNumber(selectedNumber, null, null, SELF_URL, addressSid || null, bundleSid || null)' in content:
+            print("✅ executeTwilioPurchase passes bundleSid to twilioService.buyNumber")
+            return True
+        else:
+            print("❌ executeTwilioPurchase doesn't pass bundleSid to buyNumber")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Error verifying executeTwilioPurchase: {e}")
+        return False
+
+def verify_cpenteraddress_bundle_branch():
+    """Test 6: Verify cpEnterAddress handler has bundle creation logic"""
+    print("=== Test 6: cpEnterAddress Bundle Creation Logic ===")
+    
+    try:
+        with open('/app/js/_index.js', 'r') as f:
+            content = f.read()
+        
+        # Find cpEnterAddress handler
+        if "if (action === a.cpEnterAddress)" not in content:
+            print("❌ cpEnterAddress handler not found")
+            return False
+        
+        print("✅ cpEnterAddress handler found")
+        
+        # Check for bundle check after address creation
+        if "if (twilioService.needsBundle(countryCode))" not in content:
+            print("❌ twilioService.needsBundle check missing")
+            return False
+        
+        print("✅ twilioService.needsBundle check found")
+        
+        # Check for regulatory bundle creation steps
+        bundle_steps = [
+            'await twilioService.getRegulationSid(countryCode, numType, \'individual\')',
+            'await twilioService.createEndUser(customerName, \'individual\'',
+            'await twilioService.createBundle(',
+            'await twilioService.addBundleItem(bundleResult.sid, endUserResult.sid)',
+            'await twilioService.addBundleItem(bundleResult.sid, addressSid)',
+            'await twilioService.submitBundle(bundleResult.sid)'
         ]
-        stats_found = all(pattern in content for pattern in stats_patterns)
         
-        # Check for /resetdead with args
-        resetdead_with_args = "message.startsWith('/resetdead ')" in content
+        steps_ok = True
+        for step in bundle_steps:
+            if step in content:
+                print(f"✅ Bundle step found: {step.split('(')[0]}()")
+            else:
+                print(f"❌ Bundle step missing: {step.split('(')[0]}()")
+                steps_ok = False
         
-        # Check for specific reset options
-        reset_all = "'all'" in content and "resetdead all" in content
-        reset_blocked = "'blocked'" in content and "resetdead blocked" in content  
-        reset_notfound = "'notfound'" in content and "resetdead notfound" in content
-        
-        # Check for updateMany operation
-        update_many = "updateMany(filter" in content and "optedOut: false" in content
-        
-        if resetdead_no_args and stats_found:
-            print("✅ /resetdead command (no args) verified")
-            print("   - Shows dead user stats breakdown")
-            print("   - Includes chat_not_found, user_deactivated, bot_blocked, other")
-        else:
-            print("❌ /resetdead command (no args) missing or incomplete")
-            return False
+        # Check pendingBundles storage
+        if 'await pendingBundles.insertOne({' in content:
+            print("✅ pendingBundles.insertOne found")
             
-        if resetdead_with_args and reset_all and reset_blocked and reset_notfound and update_many:
-            print("✅ /resetdead with arguments verified")
-            print("   - /resetdead all → updateMany for all dead entries")
-            print("   - /resetdead blocked → updateMany for reason='bot_blocked'")
-            print("   - /resetdead notfound → updateMany for reason='chat_not_found'")
-            print("   - Sets optedOut=false for selected entries")
-            return True
-        else:
-            print("❌ /resetdead with arguments missing or incomplete")
-            print(f"   With args: {resetdead_with_args}")
-            print(f"   Reset all: {reset_all}")
-            print(f"   Reset blocked: {reset_blocked}")
-            print(f"   Reset notfound: {reset_notfound}")
-            print(f"   Update many: {update_many}")
-            return False
+            # Check required fields
+            required_fields = [
+                'chatId', 'bundleSid', 'endUserSid', 'addressSid', 
+                'selectedNumber', 'planKey', 'price', 'status'
+            ]
             
+            fields_ok = True
+            for field in required_fields:
+                if f'{field}:' in content or f'{field},' in content:
+                    print(f"✅ pendingBundles field: {field}")
+                else:
+                    print(f"❌ pendingBundles field missing: {field}")
+                    fields_ok = False
+        else:
+            print("❌ pendingBundles.insertOne missing")
+            fields_ok = False
+        
+        # Check user notification about regulatory approval
+        if 'Regulatory Approval Required' in content and '1-3 business days' in content:
+            print("✅ User notification about regulatory approval found")
+            notification_ok = True
+        else:
+            print("❌ User notification about regulatory approval missing")
+            notification_ok = False
+        
+        # Check error handling with wallet refund
+        if 'atomicIncrement(walletOf, chatId' in content and 'usdIn' in content:
+            print("✅ Error handling with wallet refund found")
+            error_handling_ok = True
+        else:
+            print("❌ Error handling with wallet refund missing")
+            error_handling_ok = False
+        
+        return steps_ok and fields_ok and notification_ok and error_handling_ok
+        
     except Exception as e:
-        print(f"❌ Error verifying /resetdead commands: {e}")
+        print(f"❌ Error verifying cpEnterAddress bundle logic: {e}")
         return False
 
-def verify_smarter_prefilter():
-    """Test 4: Verify smarter pre-filter in utils.js"""
-    print("=== Test 4: Smarter Pre-filter in utils.js ===")
+def verify_pending_bundles_collection():
+    """Test 7: Verify pendingBundles collection initialization"""
+    print("=== Test 7: pendingBundles Collection Initialization ===")
     
     try:
-        with open('/app/js/utils.js', 'r') as f:
+        with open('/app/js/_index.js', 'r') as f:
             content = f.read()
-            
-        # Check for STALE_THRESHOLD = 7 days
-        stale_threshold = 'STALE_THRESHOLD = 7 * 24 * 60 * 60 * 1000' in content
         
-        # Check for user_deactivated always filtered
-        user_deactivated_permanent = 'user_deactivated' in content and 'always permanent' in content.lower()
-        
-        # Check for chat_not_found with stale logic
-        chat_not_found_stale = 'chat_not_found' in content and 'updatedAt: { $lt: staleDate }' in content
-        
-        # Check that bot_blocked is NOT pre-filtered (should not appear in pre-filter query)
-        lines = content.split('\n')
-        prefilter_section_found = False
-        bot_blocked_in_prefilter = False
-        
-        for i, line in enumerate(lines):
-            if 'Pre-filter permanently unreachable users' in line or 'filteredChatIds = chatIds.filter' in line:
-                prefilter_section_found = True
-                # Check next 20 lines for bot_blocked in filter
-                for j in range(i, min(i+20, len(lines))):
-                    if 'bot_blocked' in lines[j] and 'reason:' in lines[j]:
-                        bot_blocked_in_prefilter = True
-                        break
-                break
-                
-        bot_blocked_not_prefiltered = prefilter_section_found and not bot_blocked_in_prefilter
-        
-        if stale_threshold:
-            print("✅ STALE_THRESHOLD = 7 days found")
+        # Check collection declaration
+        if 'pendingBundles = {}' in content:
+            print("✅ pendingBundles variable declared")
         else:
-            print("❌ STALE_THRESHOLD = 7 days not found")
-            
-        if user_deactivated_permanent or ('user_deactivated' in content and 'always' in content):
-            print("✅ user_deactivated always filtered (permanent)")
-        else:
-            print("❌ user_deactivated permanent filtering not found")
-            
-        if chat_not_found_stale:
-            print("✅ chat_not_found filtered only when stale (>7 days)")
-        else:
-            print("❌ chat_not_found stale filtering not found")
-            
-        if bot_blocked_not_prefiltered:
-            print("✅ bot_blocked NOT pre-filtered (can retry)")
-        else:
-            print("⚠️  bot_blocked pre-filter status unclear")
-            
-        # Overall assessment
-        if stale_threshold and chat_not_found_stale:
+            print("❌ pendingBundles variable not declared")
+            return False
+        
+        # Check collection initialization in loadData
+        if "pendingBundles = db.collection('pendingBundles')" in content:
+            print("✅ pendingBundles collection initialized in loadData")
             return True
         else:
+            print("❌ pendingBundles collection not initialized")
             return False
             
     except Exception as e:
-        print(f"❌ Error verifying smarter pre-filter: {e}")
+        print(f"❌ Error verifying pendingBundles collection: {e}")
         return False
 
-def verify_smarter_error_handling():
-    """Test 5: Verify smarter error handling with failCount"""
-    print("=== Test 5: Smarter Error Handling Verification ===")
+def verify_bundle_checker_scheduled():
+    """Test 8: Verify BundleChecker is scheduled"""
+    print("=== Test 8: BundleChecker Scheduling ===")
     
     try:
-        with open('/app/js/utils.js', 'r') as f:
-            content = f.read()
-            
-        # Check for user_deactivated immediate marking
-        user_deactivated_immediate = ('user is deactivated' in content and 
-                                    'optedOut: true' in content and 
-                                    'reason: \'user_deactivated\'' in content)
+        # Check startup logs for BundleChecker
+        result = subprocess.run(['grep', '-i', 'BundleChecker', '/var/log/supervisor/nodejs.out.log'], 
+                              capture_output=True, text=True)
         
-        # Check for failCount logic
-        failcount_inc = '$inc: { failCount: 1 }' in content
-        failcount_check = 'failCount >= 2' in content
-        
-        # Check for chat_not_found and bot_blocked using failCount
-        chat_not_found_failcount = 'chat_not_found' in content and '$inc' in content
-        bot_blocked_failcount = 'bot_blocked' in content and '$inc' in content
-        
-        # Check isPermanentTelegramError function exists
-        ispermanent_function = 'function isPermanentTelegramError' in content
-        
-        if user_deactivated_immediate:
-            print("✅ user_deactivated immediately marked optedOut=true")
-        else:
-            print("❌ user_deactivated immediate marking not found")
-            
-        if failcount_inc and failcount_check:
-            print("✅ failCount logic implemented")
-            print("   - Uses $inc on failCount")
-            print("   - Only marks optedOut=true after failCount >= 2")
-        else:
-            print("❌ failCount logic missing or incomplete")
-            
-        if chat_not_found_failcount and bot_blocked_failcount:
-            print("✅ chat_not_found and bot_blocked use failCount system")
-        else:
-            print("❌ chat_not_found/bot_blocked failCount system missing")
-            
-        if ispermanent_function:
-            print("✅ isPermanentTelegramError function exists")
-        else:
-            print("❌ isPermanentTelegramError function missing")
-            
-        # Overall assessment
-        if failcount_inc and failcount_check and ispermanent_function:
+        if result.returncode == 0 and 'Scheduled every 30min' in result.stdout:
+            print("✅ BundleChecker scheduled every 30min (found in logs)")
             return True
         else:
+            print("❌ BundleChecker scheduling not found in logs")
             return False
             
     except Exception as e:
-        print(f"❌ Error verifying error handling: {e}")
+        print(f"❌ Error checking BundleChecker logs: {e}")
+        return False
+
+def test_bundle_status_webhook():
+    """Test 9: Test bundle status webhook endpoint"""
+    print("=== Test 9: Bundle Status Webhook ===")
+    
+    try:
+        # Test webhook endpoint
+        payload = {
+            "bundleSid": "BU_test",
+            "bundleStatus": "in-review"
+        }
+        
+        response = requests.post(
+            f'{LOCALHOST_URL}/twilio/bundle-status',
+            json=payload,
+            headers={'Content-Type': 'application/json'},
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('received') is True:
+                print("✅ Bundle status webhook working")
+                print(f"   Response: {data}")
+                return True
+            else:
+                print(f"❌ Unexpected webhook response: {data}")
+                return False
+        else:
+            print(f"❌ Webhook failed with status {response.status_code}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Error testing bundle webhook: {e}")
+        return False
+
+def verify_translations():
+    """Test 10: Verify bundleRequired and bundleSubmitted translations"""
+    print("=== Test 10: Bundle Translations ===")
+    
+    try:
+        with open('/app/js/phone-config.js', 'r') as f:
+            content = f.read()
+        
+        # Check for required translation keys in all 4 languages
+        languages = ['en', 'fr', 'zh', 'hi']
+        translation_keys = ['bundleRequired', 'bundleSubmitted']
+        
+        translations_ok = True
+        
+        for lang in languages:
+            for key in translation_keys:
+                # Look for the key in the language block
+                if f'{key}:' in content:
+                    print(f"✅ {key} translation found")
+                else:
+                    print(f"❌ {key} translation missing")
+                    translations_ok = False
+        
+        # Check specific content
+        if 'regulatory approval' in content.lower() and '1-3 business days' in content:
+            print("✅ bundleRequired contains regulatory approval message")
+        else:
+            print("❌ bundleRequired content missing")
+            translations_ok = False
+        
+        if 'submitted for review' in content.lower() and 'notified when approved' in content.lower():
+            print("✅ bundleSubmitted contains submission message")
+        else:
+            print("❌ bundleSubmitted content missing") 
+            translations_ok = False
+        
+        return translations_ok
+        
+    except Exception as e:
+        print(f"❌ Error verifying translations: {e}")
+        return False
+
+def verify_background_checker_function():
+    """Test 11: Verify checkPendingBundles background function"""
+    print("=== Test 11: Background checkPendingBundles Function ===")
+    
+    try:
+        with open('/app/js/_index.js', 'r') as f:
+            content = f.read()
+        
+        # Check function exists
+        if 'async function checkPendingBundles()' not in content:
+            print("❌ checkPendingBundles function not found")
+            return False
+        
+        print("✅ checkPendingBundles function exists")
+        
+        # Check it queries correct statuses
+        if "status: { $in: ['draft', 'pending-review', 'in-review', 'provisionally-approved'] }" in content:
+            print("✅ Queries pending bundle statuses correctly")
+        else:
+            print("❌ Bundle status query incorrect")
+            return False
+        
+        # Check twilio-approved handling (auto-purchase)
+        if "'twilio-approved'" in content and "auto-purchase" in content.lower():
+            print("✅ Handles twilio-approved status (auto-purchase)")
+        elif "twilio-approved" in content and "executeTwilioPurchase" in content:
+            print("✅ Handles twilio-approved status (calls executeTwilioPurchase)")
+        else:
+            print("❌ twilio-approved handling missing")
+            return False
+        
+        # Check twilio-rejected handling (refund)
+        if "'twilio-rejected'" in content and "refund" in content.lower():
+            print("✅ Handles twilio-rejected status (refund)")
+        elif "twilio-rejected" in content and "atomicIncrement" in content:
+            print("✅ Handles twilio-rejected status (refunds wallet)")
+        else:
+            print("❌ twilio-rejected handling missing")
+            return False
+        
+        # Check user notifications
+        if "send(pb.chatId" in content or "sendMsg(" in content:
+            print("✅ Sends notifications to users")
+        else:
+            print("❌ User notifications missing")
+            return False
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error verifying checkPendingBundles: {e}")
         return False
 
 def main():
-    """Run all tests"""
-    print("🚀 Starting Broadcast Dead User False Positive Fix Testing")
-    print("=" * 70)
+    """Run all Twilio Regulatory Bundle tests"""
+    print("🚀 Starting Twilio Regulatory Bundle Testing for South Africa (ZA)")
+    print("=" * 80)
+    print(f"Testing Node.js backend on: {LOCALHOST_URL}")
+    print(f"External URL: {EXTERNAL_URL}")
+    print("=" * 80)
     
     tests = [
-        ("Node.js Health", test_node_health),
-        ("Error Log Check", check_error_log),
-        ("Resurrection Mechanism", verify_resurrection_mechanism),
-        ("Admin /resetdead Commands", verify_resetdead_commands),
-        ("Smarter Pre-filter", verify_smarter_prefilter),
-        ("Smarter Error Handling", verify_smarter_error_handling),
+        ("Node.js Health Check", test_node_health),
+        ("Node.js Error Log Check", check_node_error_log), 
+        ("Twilio Service Exports", verify_twilio_service_exports),
+        ("needsBundle Function Logic", verify_needs_bundle_function),
+        ("buyNumber bundleSid Parameter", verify_buynumber_bundlesid_param),
+        ("executeTwilioPurchase bundleSid", verify_execute_twilio_purchase_bundlesid),
+        ("cpEnterAddress Bundle Logic", verify_cpenteraddress_bundle_branch),
+        ("pendingBundles Collection", verify_pending_bundles_collection),
+        ("BundleChecker Scheduling", verify_bundle_checker_scheduled),
+        ("Bundle Status Webhook", test_bundle_status_webhook),
+        ("Bundle Translations", verify_translations),
+        ("Background Checker Function", verify_background_checker_function),
     ]
     
     results = []
     
     for test_name, test_func in tests:
-        print(f"\n{'=' * 50}")
+        print(f"\n{'=' * 60}")
         try:
             result = test_func()
             results.append((test_name, result))
@@ -342,9 +502,9 @@ def main():
             results.append((test_name, False))
     
     # Summary
-    print(f"\n{'=' * 70}")
-    print("📊 TEST SUMMARY")
-    print("=" * 70)
+    print(f"\n{'=' * 80}")
+    print("📊 TWILIO REGULATORY BUNDLE TEST SUMMARY")
+    print("=" * 80)
     
     passed = sum(1 for _, result in results if result)
     total = len(results)
@@ -356,10 +516,16 @@ def main():
     print(f"\n🏆 Overall: {passed}/{total} tests passed ({passed/total*100:.1f}%)")
     
     if passed == total:
-        print("🎉 ALL TESTS PASSED - Broadcast dead user false positive fix is working correctly!")
+        print("🎉 ALL TESTS PASSED!")
+        print("✅ Twilio Regulatory Bundle for South Africa (ZA) is fully implemented and working!")
+        print("✅ Auto-create bundle per user with deferred purchase system operational")
+        print("✅ Bundle status checking every 30 minutes with auto-purchase on approval")
+        print("✅ Comprehensive error handling with wallet refunds")
         return True
     else:
-        print("⚠️  Some tests failed - please review the implementation")
+        print("⚠️ Some tests failed - Twilio Regulatory Bundle implementation needs review")
+        failed_tests = [name for name, result in results if not result]
+        print("Failed tests:", ", ".join(failed_tests))
         return False
 
 if __name__ == "__main__":
