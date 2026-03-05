@@ -1,197 +1,332 @@
 #!/usr/bin/env python3
 """
-Backend Test for Shipping Label Feature
-Tests the Nomadly Telegram Bot backend (Node.js on port 5000)
+Backend Test for Virtual Card Purchase Race Condition Fix + Per-user Message Queue + ReferenceError Fix
+Testing Nomadly Telegram Bot backend (Node.js on port 5000)
 """
 
 import requests
-import json
-import sys
+import os
+import subprocess
+import re
 
-# Backend URL
-BACKEND_URL = "http://localhost:5000"
-
-def test_nodejs_health():
+def test_node_health():
     """Test Node.js health endpoint"""
-    print("=== Testing Node.js Health ===")
+    print("=" * 60)
+    print("1. NODE.JS HEALTH CHECK")
+    print("=" * 60)
+    
     try:
-        response = requests.get(f"{BACKEND_URL}/health", timeout=10)
+        response = requests.get('http://localhost:5000/health', timeout=10)
+        print(f"✅ Health endpoint status: {response.status_code}")
+        
         if response.status_code == 200:
             data = response.json()
-            if data.get('status') == 'healthy':
-                print("✅ Node.js health check PASSED")
+            print(f"✅ Response data: {data}")
+            
+            # Check required fields
+            if data.get('status') == 'healthy' and data.get('database') == 'connected':
+                print("✅ Node.js backend is healthy and database is connected")
                 return True
             else:
-                print(f"❌ Node.js health check FAILED: Status is {data.get('status', 'unknown')}")
+                print("❌ Health check failed: status or database not as expected")
                 return False
         else:
-            print(f"❌ Node.js health check FAILED: HTTP {response.status_code}")
+            print(f"❌ Health endpoint returned {response.status_code}")
             return False
+            
     except Exception as e:
-        print(f"❌ Node.js health check FAILED: {str(e)}")
+        print(f"❌ Health check failed: {e}")
         return False
 
-def read_file_content(filepath):
-    """Read file content safely"""
+def test_error_log_empty():
+    """Test that nodejs.err.log is empty"""
+    print("\n" + "=" * 60)
+    print("2. ERROR LOG CHECK")
+    print("=" * 60)
+    
     try:
-        with open(filepath, 'r', encoding='utf-8') as f:
-            return f.read()
+        result = subprocess.run(['ls', '-la', '/var/log/supervisor/nodejs.err.log'], 
+                               capture_output=True, text=True)
+        if result.returncode == 0:
+            print(f"✅ Error log file exists: {result.stdout.strip()}")
+            
+            # Check if file size is 0 bytes
+            if " 0 " in result.stdout:
+                print("✅ nodejs.err.log is EMPTY (0 bytes)")
+                return True
+            else:
+                print("❌ nodejs.err.log is NOT empty")
+                # Show contents if not empty
+                cat_result = subprocess.run(['cat', '/var/log/supervisor/nodejs.err.log'], 
+                                          capture_output=True, text=True)
+                if cat_result.returncode == 0:
+                    print(f"Error log contents:\n{cat_result.stdout}")
+                return False
+        else:
+            print("❌ Could not check error log file")
+            return False
+            
     except Exception as e:
-        print(f"❌ Error reading file {filepath}: {str(e)}")
-        return None
+        print(f"❌ Error log check failed: {e}")
+        return False
 
-def test_language_files():
-    """Test all language files for shippingLabel constants"""
-    print("\n=== Testing Language Files ===")
+def test_per_user_message_queue():
+    """Test per-user message queue implementation in _index.js"""
+    print("\n" + "=" * 60)
+    print("3. PER-USER MESSAGE QUEUE VERIFICATION")
+    print("=" * 60)
     
-    expected_constants = {
-        'en.js': '📦 Shipping Label',
-        'fr.js': '📦 Étiquette d\\\'expédition', 
-        'zh.js': '📦 运输标签',
-        'hi.js': '📦 शिपिंग लेबल'
-    }
-    
-    all_passed = True
-    
-    for lang_file, expected_text in expected_constants.items():
-        filepath = f"/app/js/lang/{lang_file}"
-        content = read_file_content(filepath)
+    try:
+        with open('/app/js/_index.js', 'r') as f:
+            content = f.read()
         
-        if content is None:
-            all_passed = False
-            continue
-            
-        # Check if shippingLabel constant exists with correct text
-        if f"shippingLabel: '{expected_text}'" in content:
-            print(f"✅ {lang_file}: shippingLabel constant found with correct text")
+        results = []
+        
+        # Check 1: _userMsgQueue Map defined at module scope
+        if '_userMsgQueue = new Map()' in content:
+            print("✅ _userMsgQueue Map found in file")
+            results.append(True)
         else:
-            print(f"❌ {lang_file}: shippingLabel constant NOT found or incorrect text")
-            all_passed = False
-            continue
+            print("❌ _userMsgQueue Map NOT found")
+            results.append(False)
             
-        # Check if userKeyboard contains the shippingLabel and virtualCard row
-        if '[user.shippingLabel, user.virtualCard]' in content:
-            print(f"✅ {lang_file}: userKeyboard contains [user.shippingLabel, user.virtualCard] row")
+        # Check 2: _enqueue function defined at module scope
+        enqueue_pattern = r'function _enqueue\(chatId, fn\)'
+        if re.search(enqueue_pattern, content):
+            print("✅ _enqueue function found in file")
+            results.append(True)
         else:
-            print(f"❌ {lang_file}: userKeyboard does NOT contain [user.shippingLabel, user.virtualCard] row")
-            all_passed = False
-    
-    return all_passed
-
-def test_index_handler():
-    """Test _index.js handler for shipping label"""
-    print("\n=== Testing _index.js Handler ===")
-    
-    filepath = "/app/js/_index.js"
-    content = read_file_content(filepath)
-    
-    if content is None:
+            print("❌ _enqueue function NOT found")
+            results.append(False)
+            
+        # Check 3: bot.on('message') is NOT async
+        bot_on_pattern = r"bot\?\.on\('message', msg => \{"
+        if re.search(bot_on_pattern, content):
+            print("✅ bot.on('message', msg => { found (NOT async)")
+            results.append(True)
+        else:
+            print("❌ bot.on('message') handler not found or incorrect signature")
+            results.append(False)
+            
+        # Check 4: Group chat handling OUTSIDE the queue
+        group_chat_pattern = r'// Group chats don\'t need queuing — handle inline\s+if \(isGroupChat\)'
+        if re.search(group_chat_pattern, content):
+            print("✅ Group chat handling found OUTSIDE the queue")
+            results.append(True)
+        else:
+            print("❌ Group chat handling not found or incorrectly placed")
+            results.append(False)
+            
+        # Check 5: Private chat processing INSIDE _enqueue
+        private_chat_pattern = r'_enqueue\(chatId, async \(\) => \{'
+        if re.search(private_chat_pattern, content):
+            print("✅ Private chat processing found INSIDE _enqueue")
+            results.append(True)
+        else:
+            print("❌ Private chat processing not found inside _enqueue")
+            results.append(False)
+            
+        # Check 6: Proper handler closing
+        closing_pattern = r'\}\) // end _enqueue async callback'
+        if re.search(closing_pattern, content):
+            print("✅ _enqueue async callback closure found")
+            results.append(True)
+        else:
+            print("❌ _enqueue async callback closure not found")
+            results.append(False)
+            
+        bot_on_close_pattern = r'\}\) // end bot\.on\(\'message\'\)'
+        if re.search(bot_on_close_pattern, content):
+            print("✅ bot.on('message') closure found")
+            results.append(True)
+        else:
+            print("❌ bot.on('message') closure not found")
+            results.append(False)
+            
+        return all(results)
+        
+    except Exception as e:
+        print(f"❌ Per-user message queue verification failed: {e}")
         return False
-    
-    all_passed = True
-    
-    # Test 1: Check if handler exists and matches all 4 language strings
-    expected_strings = [
-        '📦 Shipping Label',
-        '📦 Étiquette d\\\'expédition',
-        '📦 运输标签', 
-        '📦 शिपिंग लेबल'
-    ]
-    
-    handler_found = False
-    for expected_str in expected_strings:
-        if expected_str in content:
-            handler_found = True
-        else:
-            print(f"❌ Handler does NOT match string: {expected_str}")
-            all_passed = False
-    
-    if handler_found and all_passed:
-        print("✅ Handler exists and matches all 4 language strings")
-    
-    # Test 2: Check if handler sends inline_keyboard with URL to https://bozzmail.com
-    if 'url: \'https://bozzmail.com\'' in content:
-        print("✅ Handler sends inline_keyboard with URL 'https://bozzmail.com'")
-    else:
-        print("❌ Handler does NOT send correct URL to https://bozzmail.com")
-        all_passed = False
-    
-    # Test 3: Check if button text is correct
-    if "'📦 Open Shipping Label'" in content:
-        print("✅ Button text is '📦 Open Shipping Label'")
-    else:
-        print("❌ Button text is NOT '📦 Open Shipping Label'")
-        all_passed = False
-    
-    # Test 4: Check if handler condition includes all required strings
-    handler_condition_line = None
-    lines = content.split('\n')
-    for i, line in enumerate(lines):
-        if 'message === user.shippingLabel' in line and all(s in line for s in expected_strings):
-            handler_condition_line = line.strip()
-            break
-    
-    if handler_condition_line:
-        print("✅ Handler condition matches all 4 language variants correctly")
-    else:
-        print("❌ Handler condition does NOT match all 4 language variants")
-        all_passed = False
-    
-    return all_passed
 
-def test_error_logs():
-    """Check Node.js error logs"""
-    print("\n=== Checking Node.js Error Logs ===")
+def test_virtual_card_await_fix():
+    """Test Virtual Card await fixes in goto handlers"""
+    print("\n" + "=" * 60)
+    print("4. VIRTUAL CARD AWAIT FIX VERIFICATION")
+    print("=" * 60)
     
     try:
-        with open('/var/log/supervisor/nodejs.err.log', 'r') as f:
-            log_content = f.read().strip()
-            
-        if not log_content:
-            print("✅ Node.js error log is empty")
-            return True
+        with open('/app/js/_index.js', 'r') as f:
+            content = f.read()
+        
+        results = []
+        
+        # Check 1: virtual-card-start has await set
+        start_pattern = r"'virtual-card-start'.*?await set\(state, chatId, 'action', a\.vcEnterAmount\)"
+        if re.search(start_pattern, content, re.DOTALL):
+            print("✅ 'virtual-card-start' has await set(state, chatId, 'action', a.vcEnterAmount)")
+            results.append(True)
         else:
-            print(f"❌ Node.js error log contains errors:\n{log_content}")
+            print("❌ 'virtual-card-start' await set NOT found")
+            results.append(False)
+            
+        # Check 2: virtual-card-address has await set
+        address_pattern = r"'virtual-card-address'.*?await set\(state, chatId, 'action', a\.vcEnterAddress\)"
+        if re.search(address_pattern, content, re.DOTALL):
+            print("✅ 'virtual-card-address' has await set(state, chatId, 'action', a.vcEnterAddress)")
+            results.append(True)
+        else:
+            print("❌ 'virtual-card-address' await set NOT found")
+            results.append(False)
+            
+        # Check 3: virtual-card-pay has await set
+        pay_pattern = r"'virtual-card-pay'.*?await set\(state, chatId, 'action', a\.virtualCardPay\)"
+        if re.search(pay_pattern, content, re.DOTALL):
+            print("✅ 'virtual-card-pay' has await set(state, chatId, 'action', a.virtualCardPay)")
+            results.append(True)
+        else:
+            print("❌ 'virtual-card-pay' await set NOT found")
+            results.append(False)
+            
+        return all(results)
+        
+    except Exception as e:
+        print(f"❌ Virtual Card await fix verification failed: {e}")
+        return False
+
+def test_referenceerror_fix():
+    """Test ReferenceError fix at fallback support handler"""
+    print("\n" + "=" * 60)
+    print("5. REFERENCEERROR FIX VERIFICATION")
+    print("=" * 60)
+    
+    try:
+        with open('/app/js/_index.js', 'r') as f:
+            content = f.read()
+        
+        results = []
+        
+        # Check 1: _fallbackName variable definition
+        fallback_name_pattern = r'const _fallbackName = await get\(nameOf, chatId\)'
+        if re.search(fallback_name_pattern, content):
+            print("✅ const _fallbackName = await get(nameOf, chatId) found")
+            results.append(True)
+        else:
+            print("❌ _fallbackName definition NOT found")
+            results.append(False)
+            
+        # Check 2: displayName using _fallbackName
+        display_name_pattern = r'const displayName = _fallbackName \|\| msg\?\.from\?\.username \|\| chatId'
+        if re.search(display_name_pattern, content):
+            print("✅ const displayName = _fallbackName || msg?.from?.username || chatId found")
+            results.append(True)
+        else:
+            print("❌ displayName with _fallbackName NOT found")
+            results.append(False)
+            
+        return all(results)
+        
+    except Exception as e:
+        print(f"❌ ReferenceError fix verification failed: {e}")
+        return False
+
+def test_service_initialization():
+    """Test service initialization from logs"""
+    print("\n" + "=" * 60)
+    print("6. SERVICE INITIALIZATION VERIFICATION")
+    print("=" * 60)
+    
+    try:
+        result = subprocess.run(['tail', '-n', '200', '/var/log/supervisor/nodejs.out.log'], 
+                               capture_output=True, text=True)
+        if result.returncode != 0:
+            print("❌ Could not read supervisor logs")
             return False
             
+        log_content = result.stdout
+        
+        # Expected initialization messages
+        expected_services = [
+            '[AI Support] OpenAI initialized',
+            '[VoiceService] Initialized',
+            '[AudioLibrary] Initialized', 
+            '[BulkCall] Service initialized',
+            '[Marketplace] Initialized',
+            '[CloudPhone] Telnyx resources initialized',
+            '[LeadJobs] Persistence initialized'
+        ]
+        
+        results = []
+        for service in expected_services:
+            if service in log_content:
+                print(f"✅ Found: {service}")
+                results.append(True)
+            else:
+                print(f"❌ NOT found: {service}")
+                results.append(False)
+                
+        # Check for any critical errors during initialization
+        if 'Error:' in log_content or 'FATAL' in log_content or 'crashed' in log_content:
+            print("❌ Critical errors found during initialization")
+            results.append(False)
+        else:
+            print("✅ No critical errors found during initialization")
+            results.append(True)
+            
+        return all(results)
+        
     except Exception as e:
-        print(f"❌ Error checking Node.js logs: {str(e)}")
+        print(f"❌ Service initialization verification failed: {e}")
         return False
 
 def main():
     """Run all tests"""
-    print("🧪 Testing Shipping Label Implementation\n")
+    print("VIRTUAL CARD RACE CONDITION FIX + PER-USER MESSAGE QUEUE + REFERENCEERROR FIX")
+    print("COMPREHENSIVE BACKEND TESTING")
+    print("=" * 80)
     
     test_results = []
     
     # Run all tests
-    test_results.append(('Node.js Health', test_nodejs_health()))
-    test_results.append(('Error Logs Check', test_error_logs()))
-    test_results.append(('Language Files', test_language_files()))
-    test_results.append(('Index Handler', test_index_handler()))
+    test_results.append(test_node_health())
+    test_results.append(test_error_log_empty())
+    test_results.append(test_per_user_message_queue())
+    test_results.append(test_virtual_card_await_fix())
+    test_results.append(test_referenceerror_fix())
+    test_results.append(test_service_initialization())
     
-    # Print summary
-    print("\n" + "="*50)
-    print("🎯 TEST SUMMARY")
-    print("="*50)
+    # Summary
+    print("\n" + "=" * 80)
+    print("COMPREHENSIVE TEST RESULTS SUMMARY")
+    print("=" * 80)
     
-    passed_count = 0
-    total_count = len(test_results)
+    passed = sum(test_results)
+    total = len(test_results)
+    success_rate = (passed / total) * 100
     
-    for test_name, passed in test_results:
-        status = "✅ PASSED" if passed else "❌ FAILED"
-        print(f"{test_name}: {status}")
-        if passed:
-            passed_count += 1
+    test_names = [
+        "Node.js Health Check",
+        "Error Log Empty Check", 
+        "Per-user Message Queue",
+        "Virtual Card Await Fix",
+        "ReferenceError Fix",
+        "Service Initialization"
+    ]
     
-    print(f"\nOverall: {passed_count}/{total_count} tests passed")
+    for i, (name, result) in enumerate(zip(test_names, test_results)):
+        status = "✅ PASS" if result else "❌ FAIL"
+        print(f"{i+1}. {name}: {status}")
     
-    if passed_count == total_count:
-        print("🎉 All tests PASSED! Shipping Label feature is working correctly.")
-        return 0
+    print(f"\nOVERALL RESULT: {passed}/{total} tests passed ({success_rate:.1f}% success rate)")
+    
+    if success_rate == 100:
+        print("🎉 ALL TESTS PASSED - VIRTUAL CARD RACE CONDITION FIX IS WORKING CORRECTLY")
+    elif success_rate >= 80:
+        print("⚠️  MOST TESTS PASSED - Minor issues detected")
     else:
-        print("⚠️ Some tests FAILED. Please check the implementation.")
-        return 1
+        print("❌ CRITICAL ISSUES DETECTED - Major problems found")
+    
+    return success_rate == 100
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

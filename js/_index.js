@@ -1450,15 +1450,41 @@ bot?.on('callback_query', async (query) => {
   }
 })
 
-bot?.on('message', async msg => {
+// ── Per-user message queue to prevent race conditions ──
+// Serializes message processing per chatId so concurrent webhooks don't interleave
+const _userMsgQueue = new Map()
+function _enqueue(chatId, fn) {
+  const prev = _userMsgQueue.get(chatId) || Promise.resolve()
+  const next = prev.then(() => fn()).catch(err => {
+    log(`[Queue] Error processing message for ${chatId}:`, err?.message || err)
+  })
+  _userMsgQueue.set(chatId, next)
+  next.finally(() => { if (_userMsgQueue.get(chatId) === next) _userMsgQueue.delete(chatId) })
+}
+
+bot?.on('message', msg => {
   const chatId = msg?.chat?.id
   const chatType = msg?.chat?.type
   const isGroupChat = chatType === 'group' || chatType === 'supergroup'
-  let message = msg?.text || ''
-  
-  // Auto-register group for event notifications if not already registered
-  // Then ignore the message (bot only sends notifications to groups, never responds)
+
+  // Group chats don't need queuing — handle inline
   if (isGroupChat) {
+    if (notifyGroupsCol?.updateOne && chatId) {
+      notifyGroupsCol.updateOne(
+        { _id: chatId },
+        { $set: { _id: chatId, title: msg?.chat?.title || 'Unknown Group', addedAt: new Date().toISOString(), source: 'auto-detected' } },
+        { upsert: true }
+      ).then(() => { log(`[NotifyGroups] Auto-registered group: ${msg?.chat?.title} (${chatId})`) }).catch(() => {})
+    }
+    return
+  }
+
+  // Private chats — enqueue per user to serialize processing
+  _enqueue(chatId, async () => {
+  let message = msg?.text || ''
+
+  // (group handling moved above the queue)
+  if (false) {
     if (notifyGroupsCol?.updateOne && chatId) {
       notifyGroupsCol.updateOne(
         { _id: chatId },
@@ -2368,7 +2394,7 @@ bot?.on('message', async msg => {
     },
     // ━━━ Virtual Card ━━━
     'virtual-card-start': async () => {
-      set(state, chatId, 'action', a.vcEnterAmount)
+      await set(state, chatId, 'action', a.vcEnterAmount)
       const imagePath = require('path').join(__dirname, 'assets', 'virtual-card-masked.jpg')
       try {
         await bot.sendPhoto(chatId, imagePath, { caption: t.vcWelcome, parse_mode: 'HTML', reply_markup: k.vcAmount.reply_markup })
@@ -2377,12 +2403,12 @@ bot?.on('message', async msg => {
         send(chatId, t.vcWelcome, k.vcAmount)
       }
     },
-    'virtual-card-address': () => {
-      set(state, chatId, 'action', a.vcEnterAddress)
+    'virtual-card-address': async () => {
+      await set(state, chatId, 'action', a.vcEnterAddress)
       send(chatId, t.vcAskAddress)
     },
-    'virtual-card-pay': () => {
-      set(state, chatId, 'action', a.virtualCardPay)
+    'virtual-card-pay': async () => {
+      await set(state, chatId, 'action', a.virtualCardPay)
       const amount = info?.vcAmount
       const fee = amount < 200 ? 20 : Math.round(amount * 0.1 * 100) / 100
       const total = Math.round((amount + fee) * 100) / 100
@@ -14505,7 +14531,8 @@ Select a category:`), k.of(catBtns))
   const recentSession = await get(supportSessions, chatId)
   if (recentSession && recentSession > 0 && (Date.now() - recentSession) < 3600000) {
     // User had a support session within the last hour — forward to admin as safety net
-    const displayName = name || msg?.from?.username || chatId
+    const _fallbackName = await get(nameOf, chatId)
+    const displayName = _fallbackName || msg?.from?.username || chatId
     send(TELEGRAM_ADMIN_CHAT_ID, `⚠️ <b>Missed support message</b>\n👤 <b>${displayName}</b> (${chatId}):\n${message}\n\n<i>Session was inactive but user appears to still need help.</i>\n\n↩️ /reply ${chatId} <i>type response</i>`, { parse_mode: 'HTML' })
     // Re-open session for them
     await set(supportSessions, chatId, Date.now())
@@ -14517,7 +14544,8 @@ Select a category:`), k.of(catBtns))
   set(state, chatId, 'action', 'none')
   log(`[reset] Unrecognized message from ${chatId}: "${message}" (was action: ${action || 'none'}). Resetting to main menu.`)
   return send(chatId, t.what + '\n' + t.welcome, isAdmin(chatId) ? aO : trans('o'))
-})?.then(a => console.log(a))?.catch(b => console.log('the error: ', b))
+  }) // end _enqueue async callback
+}) // end bot.on('message')
 
 async function getPurchasedDomains(chatId) {
   let ans = await get(domainsOf, chatId)
