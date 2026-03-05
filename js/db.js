@@ -90,6 +90,16 @@ async function get(c, key) {
       c.findOne({ _id: key }),
       `get(${c.collectionName}, ${key})`
     )
+    if (!result) return undefined
+
+    // If document has meaningful top-level fields beyond _id and val,
+    // return the full document (handles state collection with action, userLanguage, etc.)
+    const keys = Object.keys(result)
+    const hasExtraFields = keys.some(k => k !== '_id' && k !== 'val')
+    if (hasExtraFields && (result.val === null || result.val === undefined)) {
+      return result
+    }
+
     if (result?.val === 0) return 0
     if (result?.val === false) return false
     if (result?.val === null) return null

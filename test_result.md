@@ -1142,3 +1142,16 @@ agent_communication:
     - agent: "testing"
       message: "✅ COMPREHENSIVE GOTO HANDLER ASYNC+AWAIT FIX VERIFICATION COMPLETE: All 7 verification points tested with 100% success rate. (1) NODE.JS HEALTH: Service running healthy on port 5000 with database connected, uptime 0.02 hours, nodejs.err.log EMPTY (0 bytes). (2) SYNTAX CHECK: node --check /app/js/_index.js passes with exit code 0. (3) GOTO HANDLERS ASYNC: askCoupon, domain-pay, hosting-pay all converted to async functions as required. (4) ZERO NON-AWAITED SET(): Command verification confirms ALL set(state,'action') calls in goto block (lines 2343-2850) properly use await. (5) LANGUAGE HANDLERS: Lines 5075-5076 and 5110-5111 both use await for userLanguage and action state persistence. (6) PER-USER QUEUE: _userMsgQueue and _enqueue properly defined before bot.on('message') handler. (7) SERVICE INITIALIZATION: All services (VoiceService, LeadJobs, AudioLibrary, BulkCall) initialize successfully. THE COMPREHENSIVE GOTO HANDLER ASYNC+AWAIT FIX IS WORKING CORRECTLY - all 117 goto handlers converted to async with proper await usage, race conditions eliminated through combined async/await + message queue approach."
 
+
+  - task: "CRITICAL FIX: db.js get() function returning null for state documents with val:null — root cause of Virtual Card failure for 220 users"
+    implemented: true
+    working: "NA"
+    file: "js/db.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: true
+
+agent_communication:
+    - agent: "main"
+      message: "ROOT CAUSE FOUND via Railway deployment cbfcb623 and 37071a3d logs + local simulation + database analysis. The get() function in db.js line 95 returned null when val===null, even if the document had meaningful fields like action, userLanguage, etc. User 8585422151 had val:null in their state doc, causing get(state, chatId) to return null, info=null, action=undefined — so NO action handler ever matched. 220 users were affected. FIX: (1) db.js get() now checks for extra fields — if document has fields beyond _id and val, returns full document even when val is null/undefined. (2) Database cleanup: removed val:null from 220 state documents using $unset. (3) Verified locally: Virtual Card → $50 flow now correctly reads action=vcEnterAmount and advances to vcEnterAddress. Debug logging removed. Please verify: (a) Node health OK, (b) db.js get() function has the hasExtraFields check, (c) no debug logging remains."
+
