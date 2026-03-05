@@ -9,7 +9,7 @@ require('dotenv').config()
 
 // Test Configuration
 const BASE_URL = 'http://localhost:5000' // Direct Node.js backend
-const PROXY_URL = 'https://deployment-env-vars.preview.emergentagent.com/api' // Proxied via FastAPI
+const PROXY_URL = 'https://env-webhook-api.preview.emergentagent.com/api' // Proxied via FastAPI
 const DB_URL = 'mongodb://mongo:RQoOmIdwjRLFvhWMaatjidzqpvawUKcb@caboose.proxy.rlwy.net:59668'
 const DB_NAME = 'test'
 
