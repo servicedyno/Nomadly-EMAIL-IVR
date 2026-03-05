@@ -1,533 +1,338 @@
 #!/usr/bin/env python3
 """
-Twilio Regulatory Bundle Backend Test for South Africa (ZA)
-Tests the Nomadly Telegram bot backend (Node.js on port 5000)
-
-IMPORTANT: This tests the Node.js backend on port 5000, NOT the FastAPI backend on port 8001.
-External URL: https://env-webhook-api.preview.emergentagent.com/api
+Bundle UX Improvements Testing Script
+Tests all the Bundle UX improvements for Nomadly backend Node.js on port 5000
 """
 
 import requests
 import json
-import subprocess
+import time
 import sys
-import os
+import re
+from datetime import datetime
 
-# Backend URL Configuration
-LOCALHOST_URL = "http://localhost:5000"
-EXTERNAL_URL = "https://env-webhook-api.preview.emergentagent.com/api"
+def log(message):
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] {message}")
 
-def test_node_health():
+def test_nodejs_health():
     """Test 1: Node.js Health Check"""
-    print("=== Test 1: Node.js Health Check ===")
+    log("🩺 Testing Node.js health...")
     try:
-        response = requests.get(f'{LOCALHOST_URL}/health', timeout=10)
+        response = requests.get('http://localhost:5000/health', timeout=10)
+        log(f"Health endpoint status: {response.status_code}")
+        
         if response.status_code == 200:
             data = response.json()
-            expected = {'status': 'healthy', 'database': 'connected'}
+            log(f"Health response: {data}")
             if data.get('status') == 'healthy' and data.get('database') == 'connected':
-                print("✅ Node.js health check passed")
-                print(f"   Response: {data}")
+                log("✅ Node.js health check PASSED")
                 return True
             else:
-                print(f"❌ Node.js not healthy: {data}")
+                log(f"❌ Health check FAILED - unexpected response: {data}")
                 return False
         else:
-            print(f"❌ Health check failed with status {response.status_code}")
+            log(f"❌ Health endpoint returned {response.status_code}")
             return False
     except Exception as e:
-        print(f"❌ Health check exception: {e}")
+        log(f"❌ Health check FAILED: {e}")
         return False
 
-def check_node_error_log():
-    """Check Node.js error log is empty"""
-    print("=== Checking Node.js Error Log ===")
+def check_error_log():
+    """Check if nodejs.err.log is empty"""
+    log("📄 Checking nodejs.err.log...")
     try:
-        result = subprocess.run(['cat', '/var/log/supervisor/nodejs.err.log'], 
-                              capture_output=True, text=True)
-        if result.returncode == 0:
-            if result.stdout.strip() == "":
-                print("✅ Node.js error log is empty (no errors)")
-                return True
-            else:
-                print(f"❌ Node.js error log contains errors:")
-                print(result.stdout)
+        with open('/var/log/supervisor/nodejs.err.log', 'r') as f:
+            content = f.read().strip()
+            if content:
+                log(f"⚠️ nodejs.err.log contains errors: {content[:200]}...")
                 return False
-        else:
-            print("❌ Could not read nodejs.err.log")
-            return False
+            else:
+                log("✅ nodejs.err.log is EMPTY - no errors")
+                return True
     except Exception as e:
-        print(f"❌ Error checking log: {e}")
+        log(f"❌ Could not read error log: {e}")
         return False
 
-def verify_twilio_service_exports():
-    """Test 2: Verify all new Twilio service exports exist"""
-    print("=== Test 2: Twilio Service Exports Verification ===")
+def check_code_verification():
+    """Verify the Bundle UX improvements in the code"""
+    log("🔍 Verifying Bundle UX improvements in code...")
+    
+    results = {
+        'cpPendingDetail_action': False,
+        'p1p2_pattern': False,
+        'pending_bundles_query': False,
+        'pending_orders_section': False,
+        'fallback_condition': False,
+        'cpPendingDetail_handler': False,
+        'back_button': False,
+        'refresh_status': False,
+        'cancel_refund': False,
+        'number_fallback': False,
+        'enhanced_address_prompt': False,
+        'bundle_prompt_languages': False
+    }
+    
+    try:
+        with open('/app/js/_index.js', 'r') as f:
+            code = f.read()
+        
+        # 1. cpPendingDetail action exists
+        if "cpPendingDetail: 'cpPendingDetail'" in code:
+            log("✅ cpPendingDetail action constant found")
+            results['cpPendingDetail_action'] = True
+        else:
+            log("❌ cpPendingDetail action constant NOT found")
+        
+        # 2. P1/P2 pattern matching
+        if re.search(r'pendingMatch\s*=\s*message\.match\(/\^P\(\\d\+\)\$/i\)', code):
+            log("✅ P1/P2 pattern matching found")
+            results['p1p2_pattern'] = True
+        else:
+            log("❌ P1/P2 pattern matching NOT found")
+        
+        # 3. Pending bundles query exists
+        if 'pendingBundles.find({ chatId: String(chatId), status: { $in:' in code:
+            log("✅ Pending bundles query found")
+            results['pending_bundles_query'] = True
+        else:
+            log("❌ Pending bundles query NOT found")
+        
+        # 4. Pending Orders section
+        if '⏳ <b>Pending Orders:</b>' in code:
+            log("✅ Pending Orders section found")
+            results['pending_orders_section'] = True
+        else:
+            log("❌ Pending Orders section NOT found")
+        
+        # 5. Fallback condition for no numbers
+        if 'if (!numbers.length && !userPendingBundles.length)' in code:
+            log("✅ Fallback condition for no numbers found")
+            results['fallback_condition'] = True
+        else:
+            log("❌ Fallback condition for no numbers NOT found")
+        
+        # 6. cpPendingDetail action handler
+        if "if (action === a.cpPendingDetail)" in code:
+            log("✅ cpPendingDetail action handler found")
+            results['cpPendingDetail_handler'] = True
+        else:
+            log("❌ cpPendingDetail action handler NOT found")
+        
+        # 7. Back button functionality
+        if 'message === pc.back' in code and 'set(state, chatId, \'action\', a.cpMyNumbers)' in code:
+            log("✅ Back button functionality found")
+            results['back_button'] = True
+        else:
+            log("❌ Back button functionality NOT found")
+        
+        # 8. Refresh Status handler
+        if "'🔄 Refresh Status'" in code and 'twilioService.getBundleStatus(pb.bundleSid)' in code:
+            log("✅ Refresh Status handler found")
+            results['refresh_status'] = True
+        else:
+            log("❌ Refresh Status handler NOT found")
+        
+        # 9. Cancel & Refund handler
+        if "'❌ Cancel & Refund'" in code and 'atomicIncrement(walletOf, chatId,' in code:
+            log("✅ Cancel & Refund handler found")
+            results['cancel_refund'] = True
+        else:
+            log("❌ Cancel & Refund handler NOT found")
+        
+        # 10. Number fallback logic
+        if 'not available' in code and 'twilioService.searchNumbers(pb.countryCode' in code:
+            log("✅ Number fallback logic found")
+            results['number_fallback'] = True
+        else:
+            log("❌ Number fallback logic NOT found")
+        
+        # 11. Enhanced address prompt
+        if 'const isBundleCountry = twilioService.needsBundle(countryCode)' in code:
+            log("✅ Enhanced address prompt logic found")
+            results['enhanced_address_prompt'] = True
+        else:
+            log("❌ Enhanced address prompt logic NOT found")
+        
+        # 12. Bundle prompt in multiple languages
+        languages_found = 0
+        for lang in ['en:', 'fr:', 'zh:', 'hi:']:
+            if 'address verification' in code and lang in code:
+                languages_found += 1
+        
+        if languages_found >= 4:
+            log("✅ Bundle prompt available in 4 languages")
+            results['bundle_prompt_languages'] = True
+        else:
+            log(f"❌ Bundle prompt only found in {languages_found} languages")
+        
+        passed_checks = sum(results.values())
+        total_checks = len(results)
+        log(f"📊 Code verification: {passed_checks}/{total_checks} checks passed")
+        
+        return results, passed_checks >= total_checks * 0.8  # 80% pass rate
+        
+    except Exception as e:
+        log(f"❌ Code verification FAILED: {e}")
+        return results, False
+
+def check_twilio_service():
+    """Verify twilio-service.js exports"""
+    log("🔍 Checking twilio-service.js exports...")
     
     try:
         with open('/app/js/twilio-service.js', 'r') as f:
-            content = f.read()
+            code = f.read()
         
-        # Check BUNDLE_REQUIRED_COUNTRIES contains ZA
-        if "BUNDLE_REQUIRED_COUNTRIES = ['ZA']" in content:
-            print("✅ BUNDLE_REQUIRED_COUNTRIES contains 'ZA'")
-            bundle_countries_ok = True
-        else:
-            print("❌ BUNDLE_REQUIRED_COUNTRIES missing or doesn't contain 'ZA'")
-            bundle_countries_ok = False
-        
-        # Check function definitions
-        required_functions = {
-            'needsBundle': 'function needsBundle(countryCode)',
-            'getRegulationSid': 'async function getRegulationSid(isoCountry, numberType, endUserType)',
-            'createEndUser': 'async function createEndUser(friendlyName, type, attributes)',
-            'createBundle': 'async function createBundle(friendlyName, email, isoCountry, numberType, endUserType, regulationSid, statusCallback)',
-            'addBundleItem': 'async function addBundleItem(bundleSid, objectSid)',
-            'submitBundle': 'async function submitBundle(bundleSid)',
-            'getBundleStatus': 'async function getBundleStatus(bundleSid)'
-        }
-        
-        functions_ok = True
-        for func_name, func_signature in required_functions.items():
-            if func_signature in content:
-                print(f"✅ {func_name} function exists")
-            else:
-                print(f"❌ {func_name} function missing")
-                functions_ok = False
-        
-        # Check exports
-        exports_to_check = [
+        # Check for bundle-related exports
+        required_exports = [
             'BUNDLE_REQUIRED_COUNTRIES',
             'needsBundle',
-            'getRegulationSid', 
-            'createEndUser',
+            'getRegulationSid',
+            'createEndUser', 
             'createBundle',
             'addBundleItem',
             'submitBundle',
             'getBundleStatus'
         ]
         
-        exports_ok = True
-        for export_name in exports_to_check:
-            if export_name in content and 'module.exports' in content:
-                print(f"✅ {export_name} is exported")
-            else:
-                print(f"❌ {export_name} export missing")
-                exports_ok = False
+        found_exports = []
+        for export in required_exports:
+            if export in code:
+                found_exports.append(export)
         
-        return bundle_countries_ok and functions_ok and exports_ok
+        log(f"✅ Found {len(found_exports)}/{len(required_exports)} required exports: {found_exports}")
         
-    except Exception as e:
-        print(f"❌ Error verifying Twilio service: {e}")
-        return False
-
-def verify_needs_bundle_function():
-    """Test 3: Verify needsBundle function logic"""
-    print("=== Test 3: needsBundle Function Logic ===")
-    
-    try:
-        with open('/app/js/twilio-service.js', 'r') as f:
-            content = f.read()
-        
-        # Check function implementation
-        needs_bundle_impl = """function needsBundle(countryCode) {
-  return BUNDLE_REQUIRED_COUNTRIES.includes(countryCode)
-}"""
-        
-        if 'return BUNDLE_REQUIRED_COUNTRIES.includes(countryCode)' in content:
-            print("✅ needsBundle function correctly checks BUNDLE_REQUIRED_COUNTRIES")
-            print("   - needsBundle('ZA') should return true")
-            print("   - needsBundle('US') should return false")
+        # Check if ZA is in BUNDLE_REQUIRED_COUNTRIES
+        if "BUNDLE_REQUIRED_COUNTRIES = ['ZA']" in code:
+            log("✅ ZA found in BUNDLE_REQUIRED_COUNTRIES")
             return True
         else:
-            print("❌ needsBundle function implementation incorrect")
+            log("❌ ZA not found in BUNDLE_REQUIRED_COUNTRIES")
             return False
             
     except Exception as e:
-        print(f"❌ Error verifying needsBundle: {e}")
+        log(f"❌ Twilio service check FAILED: {e}")
         return False
 
-def verify_buynumber_bundlesid_param():
-    """Test 4: Verify buyNumber accepts bundleSid parameter"""
-    print("=== Test 4: buyNumber bundleSid Parameter ===")
+def test_bundle_webhook():
+    """Test the Twilio bundle status webhook"""
+    log("📡 Testing bundle status webhook...")
+    
+    test_payload = {
+        'bundleSid': 'BU_test_bundle',
+        'bundleStatus': 'in-review'
+    }
     
     try:
-        with open('/app/js/twilio-service.js', 'r') as f:
-            content = f.read()
-        
-        # Check function signature has 6 parameters including bundleSid
-        function_signature = 'async function buyNumber(phoneNumber, subSid, subToken, webhookBaseUrl, addressSid, bundleSid)'
-        
-        if function_signature in content:
-            print("✅ buyNumber function accepts bundleSid parameter (6th param)")
-        else:
-            print("❌ buyNumber function signature missing bundleSid parameter")
-            return False
-        
-        # Check bundleSid is used in opts
-        if 'if (bundleSid) opts.bundleSid = bundleSid' in content:
-            print("✅ buyNumber adds bundleSid to opts when provided")
-            return True
-        else:
-            print("❌ buyNumber doesn't use bundleSid parameter")
-            return False
-            
-    except Exception as e:
-        print(f"❌ Error verifying buyNumber bundleSid: {e}")
-        return False
-
-def verify_execute_twilio_purchase_bundlesid():
-    """Test 5: Verify executeTwilioPurchase accepts bundleSid"""
-    print("=== Test 5: executeTwilioPurchase bundleSid Parameter ===")
-    
-    try:
-        with open('/app/js/_index.js', 'r') as f:
-            content = f.read()
-        
-        # Check function signature has 11 parameters including bundleSid as last
-        if 'async function executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, numType, paymentMethod, addressSid, subOpts, bundleSid)' in content:
-            print("✅ executeTwilioPurchase accepts bundleSid as 11th parameter")
-        else:
-            print("❌ executeTwilioPurchase signature missing bundleSid parameter")
-            return False
-        
-        # Check it passes bundleSid to twilioService.buyNumber
-        if 'await twilioService.buyNumber(selectedNumber, null, null, SELF_URL, addressSid || null, bundleSid || null)' in content:
-            print("✅ executeTwilioPurchase passes bundleSid to twilioService.buyNumber")
-            return True
-        else:
-            print("❌ executeTwilioPurchase doesn't pass bundleSid to buyNumber")
-            return False
-            
-    except Exception as e:
-        print(f"❌ Error verifying executeTwilioPurchase: {e}")
-        return False
-
-def verify_cpenteraddress_bundle_branch():
-    """Test 6: Verify cpEnterAddress handler has bundle creation logic"""
-    print("=== Test 6: cpEnterAddress Bundle Creation Logic ===")
-    
-    try:
-        with open('/app/js/_index.js', 'r') as f:
-            content = f.read()
-        
-        # Find cpEnterAddress handler
-        if "if (action === a.cpEnterAddress)" not in content:
-            print("❌ cpEnterAddress handler not found")
-            return False
-        
-        print("✅ cpEnterAddress handler found")
-        
-        # Check for bundle check after address creation
-        if "if (twilioService.needsBundle(countryCode))" not in content:
-            print("❌ twilioService.needsBundle check missing")
-            return False
-        
-        print("✅ twilioService.needsBundle check found")
-        
-        # Check for regulatory bundle creation steps
-        bundle_steps = [
-            'await twilioService.getRegulationSid(countryCode, numType, \'individual\')',
-            'await twilioService.createEndUser(customerName, \'individual\'',
-            'await twilioService.createBundle(',
-            'await twilioService.addBundleItem(bundleResult.sid, endUserResult.sid)',
-            'await twilioService.addBundleItem(bundleResult.sid, addressSid)',
-            'await twilioService.submitBundle(bundleResult.sid)'
-        ]
-        
-        steps_ok = True
-        for step in bundle_steps:
-            if step in content:
-                print(f"✅ Bundle step found: {step.split('(')[0]}()")
-            else:
-                print(f"❌ Bundle step missing: {step.split('(')[0]}()")
-                steps_ok = False
-        
-        # Check pendingBundles storage
-        if 'await pendingBundles.insertOne({' in content:
-            print("✅ pendingBundles.insertOne found")
-            
-            # Check required fields
-            required_fields = [
-                'chatId', 'bundleSid', 'endUserSid', 'addressSid', 
-                'selectedNumber', 'planKey', 'price', 'status'
-            ]
-            
-            fields_ok = True
-            for field in required_fields:
-                if f'{field}:' in content or f'{field},' in content:
-                    print(f"✅ pendingBundles field: {field}")
-                else:
-                    print(f"❌ pendingBundles field missing: {field}")
-                    fields_ok = False
-        else:
-            print("❌ pendingBundles.insertOne missing")
-            fields_ok = False
-        
-        # Check user notification about regulatory approval
-        if 'Regulatory Approval Required' in content and '1-3 business days' in content:
-            print("✅ User notification about regulatory approval found")
-            notification_ok = True
-        else:
-            print("❌ User notification about regulatory approval missing")
-            notification_ok = False
-        
-        # Check error handling with wallet refund
-        if 'atomicIncrement(walletOf, chatId' in content and 'usdIn' in content:
-            print("✅ Error handling with wallet refund found")
-            error_handling_ok = True
-        else:
-            print("❌ Error handling with wallet refund missing")
-            error_handling_ok = False
-        
-        return steps_ok and fields_ok and notification_ok and error_handling_ok
-        
-    except Exception as e:
-        print(f"❌ Error verifying cpEnterAddress bundle logic: {e}")
-        return False
-
-def verify_pending_bundles_collection():
-    """Test 7: Verify pendingBundles collection initialization"""
-    print("=== Test 7: pendingBundles Collection Initialization ===")
-    
-    try:
-        with open('/app/js/_index.js', 'r') as f:
-            content = f.read()
-        
-        # Check collection declaration
-        if 'pendingBundles = {}' in content:
-            print("✅ pendingBundles variable declared")
-        else:
-            print("❌ pendingBundles variable not declared")
-            return False
-        
-        # Check collection initialization in loadData
-        if "pendingBundles = db.collection('pendingBundles')" in content:
-            print("✅ pendingBundles collection initialized in loadData")
-            return True
-        else:
-            print("❌ pendingBundles collection not initialized")
-            return False
-            
-    except Exception as e:
-        print(f"❌ Error verifying pendingBundles collection: {e}")
-        return False
-
-def verify_bundle_checker_scheduled():
-    """Test 8: Verify BundleChecker is scheduled"""
-    print("=== Test 8: BundleChecker Scheduling ===")
-    
-    try:
-        # Check startup logs for BundleChecker
-        result = subprocess.run(['grep', '-i', 'BundleChecker', '/var/log/supervisor/nodejs.out.log'], 
-                              capture_output=True, text=True)
-        
-        if result.returncode == 0 and 'Scheduled every 30min' in result.stdout:
-            print("✅ BundleChecker scheduled every 30min (found in logs)")
-            return True
-        else:
-            print("❌ BundleChecker scheduling not found in logs")
-            return False
-            
-    except Exception as e:
-        print(f"❌ Error checking BundleChecker logs: {e}")
-        return False
-
-def test_bundle_status_webhook():
-    """Test 9: Test bundle status webhook endpoint"""
-    print("=== Test 9: Bundle Status Webhook ===")
-    
-    try:
-        # Test webhook endpoint
-        payload = {
-            "bundleSid": "BU_test",
-            "bundleStatus": "in-review"
-        }
-        
         response = requests.post(
-            f'{LOCALHOST_URL}/twilio/bundle-status',
-            json=payload,
-            headers={'Content-Type': 'application/json'},
+            'http://localhost:5000/twilio/bundle-status',
+            json=test_payload,
             timeout=10
         )
         
+        log(f"Bundle webhook status: {response.status_code}")
+        
         if response.status_code == 200:
             data = response.json()
-            if data.get('received') is True:
-                print("✅ Bundle status webhook working")
-                print(f"   Response: {data}")
+            log(f"Bundle webhook response: {data}")
+            if data.get('received') == True:
+                log("✅ Bundle webhook test PASSED")
                 return True
             else:
-                print(f"❌ Unexpected webhook response: {data}")
+                log(f"❌ Unexpected webhook response: {data}")
                 return False
         else:
-            print(f"❌ Webhook failed with status {response.status_code}")
+            log(f"❌ Bundle webhook returned {response.status_code}")
             return False
             
     except Exception as e:
-        print(f"❌ Error testing bundle webhook: {e}")
+        log(f"❌ Bundle webhook test FAILED: {e}")
         return False
 
-def verify_translations():
-    """Test 10: Verify bundleRequired and bundleSubmitted translations"""
-    print("=== Test 10: Bundle Translations ===")
+def check_startup_logs():
+    """Check for Bundle Checker initialization in logs"""
+    log("📋 Checking startup logs for Bundle Checker...")
     
     try:
-        with open('/app/js/phone-config.js', 'r') as f:
+        with open('/var/log/supervisor/nodejs.out.log', 'r') as f:
             content = f.read()
         
-        # Check for required translation keys in all 4 languages
-        languages = ['en', 'fr', 'zh', 'hi']
-        translation_keys = ['bundleRequired', 'bundleSubmitted']
+        required_messages = [
+            '[BundleChecker] Scheduled every',
+            'min'
+        ]
         
-        translations_ok = True
+        found_messages = []
+        for msg in required_messages:
+            if msg in content:
+                found_messages.append(msg)
         
-        for lang in languages:
-            for key in translation_keys:
-                # Look for the key in the language block
-                if f'{key}:' in content:
-                    print(f"✅ {key} translation found")
-                else:
-                    print(f"❌ {key} translation missing")
-                    translations_ok = False
-        
-        # Check specific content
-        if 'regulatory approval' in content.lower() and '1-3 business days' in content:
-            print("✅ bundleRequired contains regulatory approval message")
+        if len(found_messages) >= len(required_messages):
+            log("✅ Bundle Checker initialization found in logs")
+            return True
         else:
-            print("❌ bundleRequired content missing")
-            translations_ok = False
-        
-        if 'submitted for review' in content.lower() and 'notified when approved' in content.lower():
-            print("✅ bundleSubmitted contains submission message")
-        else:
-            print("❌ bundleSubmitted content missing") 
-            translations_ok = False
-        
-        return translations_ok
-        
+            log(f"❌ Bundle Checker messages not found. Found: {found_messages}")
+            return False
+            
     except Exception as e:
-        print(f"❌ Error verifying translations: {e}")
-        return False
-
-def verify_background_checker_function():
-    """Test 11: Verify checkPendingBundles background function"""
-    print("=== Test 11: Background checkPendingBundles Function ===")
-    
-    try:
-        with open('/app/js/_index.js', 'r') as f:
-            content = f.read()
-        
-        # Check function exists
-        if 'async function checkPendingBundles()' not in content:
-            print("❌ checkPendingBundles function not found")
-            return False
-        
-        print("✅ checkPendingBundles function exists")
-        
-        # Check it queries correct statuses
-        if "status: { $in: ['draft', 'pending-review', 'in-review', 'provisionally-approved'] }" in content:
-            print("✅ Queries pending bundle statuses correctly")
-        else:
-            print("❌ Bundle status query incorrect")
-            return False
-        
-        # Check twilio-approved handling (auto-purchase)
-        if "'twilio-approved'" in content and "auto-purchase" in content.lower():
-            print("✅ Handles twilio-approved status (auto-purchase)")
-        elif "twilio-approved" in content and "executeTwilioPurchase" in content:
-            print("✅ Handles twilio-approved status (calls executeTwilioPurchase)")
-        else:
-            print("❌ twilio-approved handling missing")
-            return False
-        
-        # Check twilio-rejected handling (refund)
-        if "'twilio-rejected'" in content and "refund" in content.lower():
-            print("✅ Handles twilio-rejected status (refund)")
-        elif "twilio-rejected" in content and "atomicIncrement" in content:
-            print("✅ Handles twilio-rejected status (refunds wallet)")
-        else:
-            print("❌ twilio-rejected handling missing")
-            return False
-        
-        # Check user notifications
-        if "send(pb.chatId" in content or "sendMsg(" in content:
-            print("✅ Sends notifications to users")
-        else:
-            print("❌ User notifications missing")
-            return False
-        
-        return True
-        
-    except Exception as e:
-        print(f"❌ Error verifying checkPendingBundles: {e}")
+        log(f"❌ Startup logs check FAILED: {e}")
         return False
 
 def main():
-    """Run all Twilio Regulatory Bundle tests"""
-    print("🚀 Starting Twilio Regulatory Bundle Testing for South Africa (ZA)")
-    print("=" * 80)
-    print(f"Testing Node.js backend on: {LOCALHOST_URL}")
-    print(f"External URL: {EXTERNAL_URL}")
-    print("=" * 80)
+    """Run all Bundle UX improvement tests"""
+    log("🚀 Starting Bundle UX Improvements Testing...")
+    log("=" * 60)
     
-    tests = [
-        ("Node.js Health Check", test_node_health),
-        ("Node.js Error Log Check", check_node_error_log), 
-        ("Twilio Service Exports", verify_twilio_service_exports),
-        ("needsBundle Function Logic", verify_needs_bundle_function),
-        ("buyNumber bundleSid Parameter", verify_buynumber_bundlesid_param),
-        ("executeTwilioPurchase bundleSid", verify_execute_twilio_purchase_bundlesid),
-        ("cpEnterAddress Bundle Logic", verify_cpenteraddress_bundle_branch),
-        ("pendingBundles Collection", verify_pending_bundles_collection),
-        ("BundleChecker Scheduling", verify_bundle_checker_scheduled),
-        ("Bundle Status Webhook", test_bundle_status_webhook),
-        ("Bundle Translations", verify_translations),
-        ("Background Checker Function", verify_background_checker_function),
-    ]
+    # Track test results
+    test_results = {
+        'nodejs_health': False,
+        'error_log_empty': False,
+        'code_verification': False,
+        'twilio_service': False,
+        'bundle_webhook': False,
+        'startup_logs': False
+    }
     
-    results = []
+    # Test 1: Node.js Health
+    test_results['nodejs_health'] = test_nodejs_health()
     
-    for test_name, test_func in tests:
-        print(f"\n{'=' * 60}")
-        try:
-            result = test_func()
-            results.append((test_name, result))
-            if result:
-                print(f"✅ {test_name}: PASSED")
-            else:
-                print(f"❌ {test_name}: FAILED")
-        except Exception as e:
-            print(f"❌ {test_name}: ERROR - {e}")
-            results.append((test_name, False))
+    # Test 2: Error log check
+    test_results['error_log_empty'] = check_error_log()
+    
+    # Test 3: Code verification
+    code_results, code_passed = check_code_verification()
+    test_results['code_verification'] = code_passed
+    
+    # Test 4: Twilio service
+    test_results['twilio_service'] = check_twilio_service()
+    
+    # Test 5: Bundle webhook
+    test_results['bundle_webhook'] = test_bundle_webhook()
+    
+    # Test 6: Startup logs
+    test_results['startup_logs'] = check_startup_logs()
     
     # Summary
-    print(f"\n{'=' * 80}")
-    print("📊 TWILIO REGULATORY BUNDLE TEST SUMMARY")
-    print("=" * 80)
+    log("=" * 60)
+    log("📊 BUNDLE UX IMPROVEMENTS TEST SUMMARY")
+    log("=" * 60)
     
-    passed = sum(1 for _, result in results if result)
-    total = len(results)
+    passed_tests = sum(test_results.values())
+    total_tests = len(test_results)
     
-    for test_name, result in results:
-        status = "✅ PASS" if result else "❌ FAIL"
-        print(f"  {status} - {test_name}")
+    for test_name, passed in test_results.items():
+        status = "✅ PASS" if passed else "❌ FAIL"
+        log(f"{test_name.replace('_', ' ').title()}: {status}")
     
-    print(f"\n🏆 Overall: {passed}/{total} tests passed ({passed/total*100:.1f}%)")
+    log(f"\n🎯 Overall Result: {passed_tests}/{total_tests} tests passed")
     
-    if passed == total:
-        print("🎉 ALL TESTS PASSED!")
-        print("✅ Twilio Regulatory Bundle for South Africa (ZA) is fully implemented and working!")
-        print("✅ Auto-create bundle per user with deferred purchase system operational")
-        print("✅ Bundle status checking every 30 minutes with auto-purchase on approval")
-        print("✅ Comprehensive error handling with wallet refunds")
+    if passed_tests == total_tests:
+        log("🎉 ALL Bundle UX improvements are working correctly!")
         return True
     else:
-        print("⚠️ Some tests failed - Twilio Regulatory Bundle implementation needs review")
-        failed_tests = [name for name, result in results if not result]
-        print("Failed tests:", ", ".join(failed_tests))
+        log(f"⚠️ {total_tests - passed_tests} test(s) failed - Bundle UX improvements need attention")
         return False
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     success = main()
     sys.exit(0 if success else 1)

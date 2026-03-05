@@ -1011,11 +1011,40 @@ async function checkPendingBundles() {
           log(`[BundleChecker] Bundle APPROVED for chatId=${pb.chatId}, purchasing ${pb.selectedNumber}...`)
           const lang = pb.lang || 'en'
           try {
-            const purchaseResult = await executeTwilioPurchase(
-              pb.chatId, pb.selectedNumber, pb.planKey, pb.price,
+            let purchaseNumber = pb.selectedNumber
+            let purchaseResult = await executeTwilioPurchase(
+              pb.chatId, purchaseNumber, pb.planKey, pb.price,
               pb.countryCode, pb.countryName, pb.numType || 'local',
               pb.paymentMethod, pb.addressSid, null, pb.bundleSid
             )
+
+            // ── NUMBER UNAVAILABLE FALLBACK: try to find a replacement ──
+            if (purchaseResult.error && (purchaseResult.error.includes('not available') || purchaseResult.error.includes('not found') || purchaseResult.error.includes('Phone number not available') || purchaseResult.error.includes('21422') || purchaseResult.error.includes('21452'))) {
+              log(`[BundleChecker] Original number ${purchaseNumber} unavailable, searching for replacement...`)
+              try {
+                const replacements = await twilioService.searchNumbers(pb.countryCode, pb.numType || 'local', 1, null)
+                if (replacements.length > 0) {
+                  const replacement = replacements[0]
+                  purchaseNumber = replacement.phone_number
+                  log(`[BundleChecker] Trying replacement number: ${purchaseNumber}`)
+                  purchaseResult = await executeTwilioPurchase(
+                    pb.chatId, purchaseNumber, pb.planKey, pb.price,
+                    pb.countryCode, pb.countryName, pb.numType || 'local',
+                    pb.paymentMethod, pb.addressSid, null, pb.bundleSid
+                  )
+                  if (!purchaseResult.error) {
+                    // Update the pending bundle with the new number
+                    await pendingBundles.updateOne({ _id: pb._id }, { $set: { selectedNumber: purchaseNumber, originalNumber: pb.selectedNumber, updatedAt: new Date() } })
+                    log(`[BundleChecker] Replacement number ${purchaseNumber} purchased successfully`)
+                  }
+                } else {
+                  log(`[BundleChecker] No replacement numbers found for ${pb.countryCode}`)
+                }
+              } catch (searchErr) {
+                log(`[BundleChecker] Replacement search failed: ${searchErr.message}`)
+              }
+            }
+
             if (purchaseResult.error) {
               log(`[BundleChecker] Purchase FAILED after bundle approval: ${purchaseResult.error}`)
               // Refund wallet
@@ -1037,11 +1066,15 @@ async function checkPendingBundles() {
               const { usdBal, ngnBal } = await getBalance(walletOf, pb.chatId)
               const t = translation('l', lang)
               send(pb.chatId, t.showWallet ? t.showWallet(usdBal, ngnBal) : `Balance: $${usdBal}`)
-              send(pb.chatId, cpTxt.activated
-                ? cpTxt.activated(pb.selectedNumber, pb.planKey, pb.price, purchaseResult.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(purchaseResult.expiresAt?.toISOString()))
-                : `✅ Your number <b>${pb.selectedNumber}</b> is now active!`, { parse_mode: 'HTML' })
-              notifyAdmin(`✅ [BundleChecker] Auto-purchased number after bundle approval\nchatId: ${pb.chatId}\nnumber: ${pb.selectedNumber}\nbundle: ${pb.bundleSid}`)
-              log(`[BundleChecker] ✅ Number ${pb.selectedNumber} purchased for chatId=${pb.chatId}`)
+              // If a replacement number was used, let the user know
+              const replacementNote = (purchaseNumber !== pb.selectedNumber)
+                ? `\n\n<i>ℹ️ Your original number ${pb.selectedNumber} was no longer available. We activated ${purchaseNumber} instead.</i>`
+                : ''
+              send(pb.chatId, (cpTxt.activated
+                ? cpTxt.activated(purchaseNumber, pb.planKey, pb.price, purchaseResult.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(purchaseResult.expiresAt?.toISOString()))
+                : `✅ Your number <b>${purchaseNumber}</b> is now active!`) + replacementNote, { parse_mode: 'HTML' })
+              notifyAdmin(`✅ [BundleChecker] Auto-purchased number after bundle approval\nchatId: ${pb.chatId}\nnumber: ${purchaseNumber}${purchaseNumber !== pb.selectedNumber ? ` (replacement for ${pb.selectedNumber})` : ''}\nbundle: ${pb.bundleSid}`)
+              log(`[BundleChecker] ✅ Number ${purchaseNumber} purchased for chatId=${pb.chatId}`)
             }
           } catch (purchaseErr) {
             log(`[BundleChecker] Purchase exception: ${purchaseErr.message}`)
@@ -2368,6 +2401,9 @@ bot?.on('message', msg => {
     cpSubAddEnterArea: 'cpSubAddEnterArea',
     cpSubAddNumber: 'cpSubAddNumber',
     cpSubAddConfirm: 'cpSubAddConfirm',
+
+    // Pending Bundle
+    cpPendingDetail: 'cpPendingDetail',
 
     // Virtual Card
     vcEnterAmount: 'vcEnterAmount',
@@ -4455,6 +4491,11 @@ Enter new value:`), bc)
           saveInfo('cpPaymentMethod', 'wallet_' + coin)
           set(state, chatId, 'action', a.cpEnterAddress)
           const addrLoc = getAddressLocationText(countryCode)
+          const isBundleCountry = twilioService.needsBundle(countryCode)
+          if (isBundleCountry) {
+            // Bundle-required country: reassuring message about the process
+            return send(chatId, ({ en: `✅ Payment received!\n\n📍 <b>${countryName}</b> requires address verification for number activation.\n\nPlease enter your full address:\n<code>Street, City, Postal Code, Country</code>\n\n<i>Example: 42 Hamilton Ave, Bryanston, 2191, South Africa</i>\n\nOnce submitted, we'll handle the telecom verification process and activate your number automatically.`, fr: `✅ Paiement reçu !\n\n📍 <b>${countryName}</b> nécessite une vérification d'adresse pour l'activation du numéro.\n\nVeuillez entrer votre adresse complète :\n<code>Rue, Ville, Code Postal, Pays</code>\n\n<i>Exemple : 42 Hamilton Ave, Bryanston, 2191, Afrique du Sud</i>\n\nUne fois soumise, nous gérerons le processus de vérification télécom et activerons votre numéro automatiquement.`, zh: `✅ 付款成功！\n\n📍 <b>${countryName}</b> 需要地址验证才能激活号码。\n\n请输入您的完整地址：\n<code>街道, 城市, 邮编, 国家</code>\n\n<i>示例：42 Hamilton Ave, Bryanston, 2191, South Africa</i>\n\n提交后，我们将处理电信验证并自动激活您的号码。`, hi: `✅ भुगतान प्राप्त!\n\n📍 <b>${countryName}</b> में नंबर सक्रिय करने के लिए पता सत्यापन आवश्यक है।\n\nकृपया अपना पूरा पता दर्ज करें:\n<code>सड़क, शहर, पिन कोड, देश</code>\n\n<i>उदाहरण: 42 Hamilton Ave, Bryanston, 2191, South Africa</i>\n\nजमा करने के बाद, हम टेलीकॉम सत्यापन प्रक्रिया संभालेंगे और आपका नंबर स्वचालित रूप से सक्रिय करेंगे।` }[lang] || `✅ Payment received!\n\n📍 <b>${countryName}</b> requires address verification for number activation.\n\nPlease enter your full address:\n<code>Street, City, Postal Code, Country</code>\n\n<i>Example: 42 Hamilton Ave, Bryanston, 2191, South Africa</i>\n\nOnce submitted, we'll handle the telecom verification process and activate your number automatically.`), { parse_mode: 'HTML' })
+          }
           return send(chatId, ({ en: `✅ Payment received!\n\n📍 <b>${countryName}</b> requires a billing address to activate the number.\nAddress ${addrLoc?.text || 'required'}.\n\nPlease enter your address:\n<code>Street, City, Country</code>\n\nExample: <i>123 Main St, Sydney, Australia</i>`, fr: `✅ Paiement reçu !\n\n📍 <b>${countryName}</b> nécessite une adresse de facturation pour activer le numéro.\nAdresse ${addrLoc?.text || 'requise'}.\n\nEntrez votre adresse :\n<code>Rue, Ville, Pays</code>\n\nExemple : <i>123 Rue Principale, Paris, France</i>`, zh: `✅ 付款成功！\n\n📍 <b>${countryName}</b> 需要账单地址才能激活号码。\n地址${addrLoc?.text || '必填'}。\n\n请输入您的地址：\n<code>街道, 城市, 国家</code>\n\n示例：<i>123 Main St, Sydney, Australia</i>`, hi: `✅ भुगतान प्राप्त!\n\n📍 <b>${countryName}</b> में नंबर सक्रिय करने के लिए बिलिंग पता आवश्यक है।\nपता ${addrLoc?.text || 'आवश्यक'}।\n\nअपना पता दर्ज करें:\n<code>सड़क, शहर, देश</code>\n\nउदाहरण: <i>123 Main St, Sydney, Australia</i>` }[lang] || `✅ Payment received!\n\n📍 <b>${countryName}</b> requires a billing address to activate the number.\nAddress ${addrLoc?.text || 'required'}.\n\nPlease enter your address:\n<code>Street, City, Country</code>\n\nExample: <i>123 Main St, Sydney, Australia</i>`), { parse_mode: 'HTML' })
         }
       }
@@ -9379,13 +9420,62 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     if (message === pc.myNumbers) {
       const userData = await get(phoneNumbersOf, chatId)
       const numbers = (userData?.numbers || []).filter(n => n.status === 'active' || n.status === 'suspended')
-      if (!numbers.length) {
+
+      // Fetch pending bundles for this user
+      let userPendingBundles = []
+      try {
+        if (pendingBundles?.find) {
+          userPendingBundles = await pendingBundles.find({
+            chatId: String(chatId),
+            status: { $in: ['draft', 'pending-review', 'in-review', 'provisionally-approved'] }
+          }).toArray()
+        }
+      } catch (e) { log(`[MyNumbers] Error fetching pending bundles: ${e.message}`) }
+
+      if (!numbers.length && !userPendingBundles.length) {
         return send(chatId, cpTxt.noNumbers, k.of([[buyLabel]]))
       }
+
       set(state, chatId, 'action', a.cpMyNumbers)
       await saveInfo('cpNumbers', numbers)
+      await saveInfo('cpPendingBundlesList', userPendingBundles.map(pb => ({
+        _id: pb._id?.toString(),
+        bundleSid: pb.bundleSid,
+        selectedNumber: pb.selectedNumber,
+        countryName: pb.countryName || pb.countryCode,
+        planKey: pb.planKey,
+        price: pb.price,
+        status: pb.status,
+        createdAt: pb.createdAt,
+      })))
+
+      // Build display text
+      let displayText = ''
+      if (numbers.length) {
+        displayText += cpTxt.myNumbersList(numbers)
+      }
+      if (userPendingBundles.length) {
+        if (numbers.length) displayText += '\n'
+        displayText += '⏳ <b>Pending Orders:</b>\n\n'
+        userPendingBundles.forEach((pb, i) => {
+          const statusEmoji = pb.status === 'in-review' ? '🔍' : pb.status === 'provisionally-approved' ? '✅' : '⏳'
+          const statusText = pb.status === 'in-review' ? 'Under Review' : pb.status === 'provisionally-approved' ? 'Pre-Approved' : 'Submitted'
+          const elapsed = pb.createdAt ? Math.round((Date.now() - new Date(pb.createdAt).getTime()) / 3600000) : 0
+          const timeAgo = elapsed < 1 ? 'just now' : elapsed < 24 ? `${elapsed}h ago` : `${Math.round(elapsed / 24)}d ago`
+          displayText += `${statusEmoji} P${i + 1}. <code>${pb.selectedNumber}</code>\n`
+          displayText += `    ${pb.countryName || pb.countryCode} · ${(pb.planKey || 'starter').charAt(0).toUpperCase() + (pb.planKey || 'starter').slice(1)} · $${pb.price}/mo\n`
+          displayText += `    Status: <b>${statusText}</b> · ${timeAgo}\n\n`
+        })
+        displayText += '<i>Tap P1, P2... to check status or cancel</i>\n'
+      }
+
       const numBtns = numbers.map((_, i) => String(i + 1))
-      return send(chatId, cpTxt.myNumbersList(numbers), k.of([numBtns, [pc.buyAnother]]))
+      const pendingBtns = userPendingBundles.map((_, i) => `P${i + 1}`)
+      const allBtns = []
+      if (numBtns.length) allBtns.push(numBtns)
+      if (pendingBtns.length) allBtns.push(pendingBtns)
+      allBtns.push([pc.buyAnother])
+      return send(chatId, displayText, k.of(allBtns))
     }
     if (message === pc.ivrOutboundCall) {
       // IVR Outbound Call — requires Pro or Business plan
@@ -11544,11 +11634,181 @@ Choose an IVR template category:`), k.of(rows))
     }
     const idx = parseInt(message) - 1
     const numbers = info?.cpNumbers || []
+
+    // Handle pending bundle taps (P1, P2, etc.)
+    const pendingMatch = message.match(/^P(\d+)$/i)
+    if (pendingMatch) {
+      const pIdx = parseInt(pendingMatch[1]) - 1
+      const pendingList = info?.cpPendingBundlesList || []
+      if (pIdx < 0 || pIdx >= pendingList.length) return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectByIndex)
+      const pb = pendingList[pIdx]
+      await saveInfo('cpActivePendingBundle', pb)
+
+      // Live status check from Twilio
+      let liveStatus = pb.status
+      let statusLabel = 'Submitted'
+      try {
+        const liveResult = await twilioService.getBundleStatus(pb.bundleSid)
+        if (!liveResult.error) {
+          liveStatus = liveResult.status
+          // Update DB if status changed
+          if (liveStatus !== pb.status && pendingBundles?.updateOne) {
+            await pendingBundles.updateOne({ bundleSid: pb.bundleSid }, { $set: { status: liveStatus, updatedAt: new Date() } })
+          }
+        }
+      } catch (e) { log(`[PendingDetail] Live check failed: ${e.message}`) }
+
+      const statusMap = {
+        'draft': '📝 Draft',
+        'pending-review': '⏳ Submitted — Under Review',
+        'in-review': '🔍 Being Reviewed',
+        'provisionally-approved': '✅ Pre-Approved',
+        'twilio-approved': '✅ Approved — Purchasing...',
+        'twilio-rejected': '❌ Rejected',
+      }
+      statusLabel = statusMap[liveStatus] || liveStatus
+
+      const elapsed = pb.createdAt ? Math.round((Date.now() - new Date(pb.createdAt).getTime()) / 3600000) : 0
+      const timeAgo = elapsed < 1 ? 'just now' : elapsed < 24 ? `${elapsed}h ago` : `${Math.round(elapsed / 24)}d ago`
+
+      const detailText = `📋 <b>Pending Order Details</b>\n\n📞 Number: <code>${pb.selectedNumber}</code>\n🌍 Country: ${pb.countryName || pb.countryCode}\n📦 Plan: ${(pb.planKey || 'starter').charAt(0).toUpperCase() + (pb.planKey || 'starter').slice(1)} — $${pb.price}/mo\n\n📊 <b>Status: ${statusLabel}</b>\n🕐 Submitted: ${timeAgo}\n\n${liveStatus === 'twilio-approved' || liveStatus === 'provisionally-approved'
+        ? '✅ <i>Great news! Your number is being activated now. You will receive a confirmation shortly.</i>'
+        : liveStatus === 'twilio-rejected'
+        ? '❌ <i>Unfortunately your request was not approved. A refund has been issued.</i>'
+        : '⏳ <i>Telecom verification typically takes 1-3 business days. We\'ll notify you automatically when it\'s ready.</i>'}`
+
+      set(state, chatId, 'action', a.cpPendingDetail)
+      const cancelBtn = (liveStatus !== 'twilio-approved' && liveStatus !== 'provisionally-approved' && liveStatus !== 'twilio-rejected' && liveStatus !== 'completed')
+        ? [['🔄 Refresh Status'], ['❌ Cancel & Refund'], [pc.back]]
+        : [['🔄 Refresh Status'], [pc.back]]
+      return send(chatId, detailText, k.of(cancelBtn))
+    }
+
     if (isNaN(idx) || idx < 0 || idx >= numbers.length) return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectByIndex)
     const num = numbers[idx]
     await saveInfo('cpActiveNumber', num)
     set(state, chatId, 'action', a.cpManageNumber)
     return showManageScreen(chatId, num)
+  }
+
+  // ━━━ PENDING BUNDLE DETAIL (status check + cancel/refund) ━━━
+  if (action === a.cpPendingDetail) {
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
+    const pb = info?.cpActivePendingBundle
+    if (!pb) return goto.submenu5()
+
+    if (message === t.back || message === pc.back) {
+      // Go back to My Numbers (with pending)
+      const userData = await get(phoneNumbersOf, chatId)
+      const numbers = (userData?.numbers || []).filter(n => n.status === 'active' || n.status === 'suspended')
+      let userPendingBundles = []
+      try {
+        if (pendingBundles?.find) {
+          userPendingBundles = await pendingBundles.find({
+            chatId: String(chatId),
+            status: { $in: ['draft', 'pending-review', 'in-review', 'provisionally-approved'] }
+          }).toArray()
+        }
+      } catch (e) {}
+      set(state, chatId, 'action', a.cpMyNumbers)
+      await saveInfo('cpNumbers', numbers)
+      await saveInfo('cpPendingBundlesList', userPendingBundles.map(p => ({
+        _id: p._id?.toString(), bundleSid: p.bundleSid, selectedNumber: p.selectedNumber,
+        countryName: p.countryName || p.countryCode, planKey: p.planKey, price: p.price,
+        status: p.status, createdAt: p.createdAt,
+      })))
+      let displayText = ''
+      if (numbers.length) displayText += cpTxt.myNumbersList(numbers)
+      if (userPendingBundles.length) {
+        if (numbers.length) displayText += '\n'
+        displayText += '⏳ <b>Pending Orders:</b>\n\n'
+        userPendingBundles.forEach((p, i) => {
+          const statusEmoji = p.status === 'in-review' ? '🔍' : p.status === 'provisionally-approved' ? '✅' : '⏳'
+          const statusText = p.status === 'in-review' ? 'Under Review' : p.status === 'provisionally-approved' ? 'Pre-Approved' : 'Submitted'
+          const elapsed = p.createdAt ? Math.round((Date.now() - new Date(p.createdAt).getTime()) / 3600000) : 0
+          const timeAgo = elapsed < 1 ? 'just now' : elapsed < 24 ? `${elapsed}h ago` : `${Math.round(elapsed / 24)}d ago`
+          displayText += `${statusEmoji} P${i + 1}. <code>${p.selectedNumber}</code>\n    ${p.countryName || p.countryCode} · ${(p.planKey || 'starter').charAt(0).toUpperCase() + (p.planKey || 'starter').slice(1)} · $${p.price}/mo\n    Status: <b>${statusText}</b> · ${timeAgo}\n\n`
+        })
+        displayText += '<i>Tap P1, P2... to check status or cancel</i>\n'
+      }
+      if (!numbers.length && !userPendingBundles.length) return send(chatId, cpTxt.noNumbers, k.of([[pc.buyAnother]]))
+      const numBtns = numbers.map((_, i) => String(i + 1))
+      const pendingBtns = userPendingBundles.map((_, i) => `P${i + 1}`)
+      const allBtns = []
+      if (numBtns.length) allBtns.push(numBtns)
+      if (pendingBtns.length) allBtns.push(pendingBtns)
+      allBtns.push([pc.buyAnother])
+      return send(chatId, displayText, k.of(allBtns))
+    }
+
+    // ── Refresh Status ──
+    if (message === '🔄 Refresh Status') {
+      try {
+        const liveResult = await twilioService.getBundleStatus(pb.bundleSid)
+        let liveStatus = pb.status
+        if (!liveResult.error) {
+          liveStatus = liveResult.status
+          if (liveStatus !== pb.status && pendingBundles?.updateOne) {
+            await pendingBundles.updateOne({ bundleSid: pb.bundleSid }, { $set: { status: liveStatus, updatedAt: new Date() } })
+          }
+          // If approved, trigger immediate purchase check
+          if (liveStatus === 'twilio-approved' || liveStatus === 'provisionally-approved') {
+            send(chatId, `✅ <b>Great news! Your bundle has been approved!</b>\n\n🔄 We're activating your number <code>${pb.selectedNumber}</code> now...`, { parse_mode: 'HTML' })
+            setTimeout(() => checkPendingBundles(), 3000)
+            return
+          }
+        }
+        const statusMap = {
+          'draft': '📝 Draft', 'pending-review': '⏳ Submitted — Under Review',
+          'in-review': '🔍 Being Reviewed', 'provisionally-approved': '✅ Pre-Approved',
+          'twilio-approved': '✅ Approved', 'twilio-rejected': '❌ Rejected',
+        }
+        const statusLabel = statusMap[liveStatus] || liveStatus
+        const elapsed = pb.createdAt ? Math.round((Date.now() - new Date(pb.createdAt).getTime()) / 3600000) : 0
+        const timeAgo = elapsed < 1 ? 'just now' : elapsed < 24 ? `${elapsed}h ago` : `${Math.round(elapsed / 24)}d ago`
+        const refreshText = `📋 <b>Pending Order — Status Refreshed</b>\n\n📞 Number: <code>${pb.selectedNumber}</code>\n🌍 Country: ${pb.countryName || pb.countryCode}\n📦 Plan: ${(pb.planKey || 'starter').charAt(0).toUpperCase() + (pb.planKey || 'starter').slice(1)} — $${pb.price}/mo\n\n📊 <b>Status: ${statusLabel}</b>\n🕐 Submitted: ${timeAgo}\n\n⏳ <i>Telecom verification typically takes 1-3 business days. We'll notify you automatically.</i>`
+        const cancelBtn = (liveStatus !== 'twilio-approved' && liveStatus !== 'provisionally-approved' && liveStatus !== 'twilio-rejected')
+          ? [['🔄 Refresh Status'], ['❌ Cancel & Refund'], [pc.back]]
+          : [['🔄 Refresh Status'], [pc.back]]
+        return send(chatId, refreshText, k.of(cancelBtn))
+      } catch (e) {
+        return send(chatId, `⚠️ Could not refresh status. Please try again.`, k.of([['🔄 Refresh Status'], [pc.back]]))
+      }
+    }
+
+    // ── Cancel & Refund ──
+    if (message === '❌ Cancel & Refund') {
+      try {
+        // Find the actual pending bundle in DB
+        const dbBundle = await pendingBundles.findOne({ bundleSid: pb.bundleSid, chatId: String(chatId) })
+        if (!dbBundle || dbBundle.status === 'completed' || dbBundle.status === 'twilio-approved' || dbBundle.status === 'provisionally-approved') {
+          return send(chatId, `⚠️ This order cannot be cancelled — it's already being processed or completed.`, k.of([[pc.back]]))
+        }
+
+        // Refund wallet
+        const refundCoin = dbBundle.paymentCoin || 'usd'
+        if (refundCoin === 'usd' || refundCoin.startsWith('wallet_usd')) {
+          await atomicIncrement(walletOf, chatId, 'usdIn', dbBundle.priceUsd || dbBundle.price)
+        } else {
+          await atomicIncrement(walletOf, chatId, 'ngnIn', dbBundle.priceNgn || 0)
+        }
+
+        // Update DB status
+        await pendingBundles.updateOne({ _id: dbBundle._id }, { $set: { status: 'cancelled', cancelledAt: new Date(), updatedAt: new Date() } })
+
+        const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
+        log(`[PendingDetail] Order cancelled by user ${chatId}, bundle ${pb.bundleSid}, refunded $${dbBundle.priceUsd || dbBundle.price}`)
+        notifyAdmin(`❌ [Bundle] User cancelled pending order\nchatId: ${chatId}\nnumber: ${pb.selectedNumber}\nbundle: ${pb.bundleSid}\nrefunded: $${dbBundle.priceUsd || dbBundle.price}`)
+
+        send(chatId, `✅ <b>Order Cancelled</b>\n\nYour pending order for <code>${pb.selectedNumber}</code> has been cancelled.\n\n💰 <b>$${Number(dbBundle.priceUsd || dbBundle.price).toFixed(2)}</b> has been refunded to your wallet.\n${t.showWallet(usdBal, ngnBal)}`, { parse_mode: 'HTML' })
+        return goto.submenu5()
+      } catch (e) {
+        log(`[PendingDetail] Cancel error: ${e.message}`)
+        return send(chatId, `⚠️ Could not cancel order. Please contact support.`, k.of([[pc.back]]))
+      }
+    }
+
+    return send(chatId, `Please choose an option:`, k.of([['🔄 Refresh Status'], ['❌ Cancel & Refund'], [pc.back]]))
   }
 
   // ━━━ MANAGE NUMBER ━━━
