@@ -251,15 +251,30 @@ const sendMessageToAllUsers = async (bot, message, method, nameOf, myChatId, db)
     }
 
     // Pre-filter permanently unreachable users if DB is available
+    // Only skip users marked dead who are TRULY permanent (user_deactivated)
+    // AND chat_not_found/bot_blocked entries older than 7 days (stale, likely real)
+    // Recent entries might be false positives from rate-limiting
     let filteredChatIds = chatIds
     let skippedPermanent = 0
     if (db) {
       const promoOptOut = db.collection('promoOptOut')
-      const permanentlyDead = await promoOptOut.find({
+      const STALE_THRESHOLD = 7 * 24 * 60 * 60 * 1000 // 7 days
+      const staleDate = new Date(Date.now() - STALE_THRESHOLD)
+      
+      // user_deactivated is always permanent
+      const deactivated = await promoOptOut.find({
         optedOut: true,
-        reason: { $in: ['chat_not_found', 'user_deactivated'] }
+        reason: 'user_deactivated'
       }).toArray()
-      const deadSet = new Set(permanentlyDead.map(r => r._id))
+      
+      // chat_not_found only if older than 7 days (recent ones might be false positives)
+      const staleNotFound = await promoOptOut.find({
+        optedOut: true,
+        reason: 'chat_not_found',
+        updatedAt: { $lt: staleDate }
+      }).toArray()
+      
+      const deadSet = new Set([...deactivated, ...staleNotFound].map(r => r._id))
       filteredChatIds = chatIds.filter(id => !deadSet.has(id))
       skippedPermanent = chatIds.length - filteredChatIds.length
     }
@@ -303,21 +318,52 @@ const sendMessageToAllUsers = async (bot, message, method, nameOf, myChatId, db)
             successCount++
             return { success: true, chatId, attempts: attempt }
           } catch (error) {
-            // For permanent errors, skip retries and mark user immediately
-            if (isPermanentTelegramError(error)) {
+            // For truly permanent errors (user deactivated), skip retries immediately
+            // For potentially recoverable errors (bot_blocked, chat_not_found), only mark after all retries fail
+            const errMsg = (error.message || '').toLowerCase()
+            const isTrulyPermanent = errMsg.includes('user is deactivated')
+            const isLikelyPermanent = errMsg.includes('chat not found') || errMsg.includes('bot was blocked') || errMsg.includes('have no rights to send a message')
+            
+            if (isTrulyPermanent) {
               errorCount++
               newlyDeadCount++
-              // Mark permanently unreachable in DB
               if (db) {
-                const reason = (error.message || '').includes('chat not found') ? 'chat_not_found' : 
-                               (error.message || '').includes('user is deactivated') ? 'user_deactivated' :
-                               (error.message || '').includes('bot was blocked') ? 'bot_blocked' : 'no_rights'
                 await db.collection('promoOptOut').updateOne(
                   { _id: chatId },
-                  { $set: { optedOut: true, reason, updatedAt: new Date() } },
+                  { $set: { optedOut: true, reason: 'user_deactivated', updatedAt: new Date() } },
                   { upsert: true }
                 )
               }
+              return { success: false, chatId, error: error.message, permanent: true }
+            }
+            
+            if (isLikelyPermanent && attempt === MAX_RETRIES) {
+              // Only mark after ALL retries exhausted (reduces false positives from rate limiting)
+              errorCount++
+              newlyDeadCount++
+              if (db) {
+                const reason = errMsg.includes('chat not found') ? 'chat_not_found' : 
+                               errMsg.includes('bot was blocked') ? 'bot_blocked' : 'no_rights'
+                // Use $inc on failCount to track consecutive failures instead of immediately marking dead
+                await db.collection('promoOptOut').updateOne(
+                  { _id: chatId },
+                  { $set: { reason, updatedAt: new Date() }, $inc: { failCount: 1 } },
+                  { upsert: true }
+                )
+                // Only mark as optedOut after 2+ consecutive broadcast failures
+                const record = await db.collection('promoOptOut').findOne({ _id: chatId })
+                if (record?.failCount >= 2) {
+                  await db.collection('promoOptOut').updateOne(
+                    { _id: chatId },
+                    { $set: { optedOut: true } }
+                  )
+                }
+              }
+              return { success: false, chatId, error: error.message, permanent: true }
+            }
+            
+            if (!isLikelyPermanent && isPermanentTelegramError(error)) {
+              errorCount++
               return { success: false, chatId, error: error.message, permanent: true }
             }
 

@@ -1661,6 +1661,36 @@ bot?.on('message', msg => {
     send(chatId, `👆 <b>Ad Preview</b>\n\nType <b>/ad post</b> to send this to ${TG_CHANNEL}`, { parse_mode: 'HTML' })
     return
   }
+
+  // ── Admin: Reset dead users list ──
+  if (isAdmin(chatId) && message === '/resetdead') {
+    try {
+      const promoOptOutCol = db.collection('promoOptOut')
+      const totalDead = await promoOptOutCol.countDocuments({ optedOut: true })
+      const chatNotFound = await promoOptOutCol.countDocuments({ optedOut: true, reason: 'chat_not_found' })
+      const userDeactivated = await promoOptOutCol.countDocuments({ optedOut: true, reason: 'user_deactivated' })
+      const botBlocked = await promoOptOutCol.countDocuments({ optedOut: true, reason: 'bot_blocked' })
+      const other = totalDead - chatNotFound - userDeactivated - botBlocked
+
+      send(chatId, `📊 <b>Dead Users Report</b>\n\nTotal marked dead: <b>${totalDead}</b>\n• chat_not_found: ${chatNotFound}\n• user_deactivated: ${userDeactivated}\n• bot_blocked: ${botBlocked}\n• other: ${other}\n\nCommands:\n<code>/resetdead all</code> — Clear ALL dead entries\n<code>/resetdead blocked</code> — Clear only bot_blocked\n<code>/resetdead notfound</code> — Clear only chat_not_found`, { parse_mode: 'HTML' })
+      return
+    } catch (e) { return send(chatId, '❌ Error: ' + e.message) }
+  }
+  if (isAdmin(chatId) && message.startsWith('/resetdead ')) {
+    try {
+      const sub = message.split(' ')[1]
+      const promoOptOutCol = db.collection('promoOptOut')
+      let filter = { optedOut: true }
+      if (sub === 'blocked') filter.reason = 'bot_blocked'
+      else if (sub === 'notfound') filter.reason = 'chat_not_found'
+      else if (sub !== 'all') return send(chatId, '❌ Usage: /resetdead all | blocked | notfound')
+
+      const result = await promoOptOutCol.updateMany(filter, { $set: { optedOut: false, updatedAt: new Date(), reOptInReason: 'admin_reset' } })
+      send(chatId, `✅ Reset <b>${result.modifiedCount}</b> dead user entries (${sub}).`, { parse_mode: 'HTML' })
+      log(`[Admin] Dead users reset: ${result.modifiedCount} entries (filter: ${sub}) by ${chatId}`)
+      return
+    } catch (e) { return send(chatId, '❌ Error: ' + e.message) }
+  }
   if (isAdmin(chatId) && message === '/ad post') {
     const adText = translation('l.serviceAd', 'en')
     const channelId = process.env.TELEGRAM_DOMAINS_SHOW_CHAT_ID
@@ -1869,6 +1899,22 @@ bot?.on('message', msg => {
   }
 
   const userSubscribed = await isSubscribed(chatId)
+
+  // ── Resurrection: Un-dead user if they're in promoOptOut but clearly alive ──
+  // This user just sent a message, so they're reachable. Remove from dead list.
+  if (db) {
+    try {
+      const promoOptOutCol = db.collection('promoOptOut')
+      const deadRecord = await promoOptOutCol.findOne({ _id: chatId, optedOut: true })
+      if (deadRecord) {
+        await promoOptOutCol.updateOne(
+          { _id: chatId },
+          { $set: { optedOut: false, updatedAt: new Date(), reOptInReason: 'user_active', failCount: 0 } }
+        )
+        log(`[Resurrect] User ${chatId} was marked dead (${deadRecord.reason}) but just sent a message — un-deaded`)
+      }
+    } catch (e) { /* non-critical, don't block message processing */ }
+  }
 
   let info = await get(state, chatId)
   const saveInfo = async (label, data) => {
