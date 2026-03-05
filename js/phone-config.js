@@ -644,7 +644,7 @@ Select an option:`,
   faxSettingsMenu: (number, config, provider) => {
     const tg = config?.toTelegram !== false ? '✅ ON' : '❌ OFF'
     if (provider === 'twilio') {
-      return `📠 <b>Fax Settings</b> for <b>${formatPhone(number)}</b>\n\n⚠️ <b>Fax is not available for Twilio numbers.</b>\nTwilio discontinued Programmable Fax. Inbound faxes on this number cannot be received.\n\nTo use fax, purchase a Telnyx number with fax capability.`
+      return `📠 <b>Fax Settings</b> for <b>${formatPhone(number)}</b>\n\n⚠️ <b>Fax is not available for this number type.</b>\nThe provider for this number has discontinued fax service. Inbound faxes cannot be received.\n\nTo use fax, purchase a number with fax capability from a supported provider.`
     }
     return `📠 <b>Fax Settings</b> for <b>${formatPhone(number)}</b>\n\nInbound faxes are received as PDF and forwarded to this Telegram chat.\n\n📲 Forward to Telegram: ${tg}`
   },
@@ -1561,7 +1561,7 @@ Sélectionnez une option :`,
     faxSettingsMenu: (number, config, provider) => {
       const tg = config?.toTelegram !== false ? '✅ OUI' : '❌ NON'
       if (provider === 'twilio') {
-        return `📠 <b>Paramètres Fax</b> pour <b>${formatPhone(number)}</b>\n\n⚠️ <b>Le fax n'est pas disponible pour les numéros Twilio.</b>\nTwilio a arrêté le Fax programmable. Les fax entrants ne peuvent pas être reçus.\n\nPour utiliser le fax, achetez un numéro Telnyx avec la capacité fax.`
+        return `📠 <b>Paramètres Fax</b> pour <b>${formatPhone(number)}</b>\n\n⚠️ <b>Le fax n'est pas disponible pour ce type de numéro.</b>\nLe fournisseur a arrêté le service fax. Les fax entrants ne peuvent pas être reçus.\n\nPour utiliser le fax, achetez un numéro compatible fax auprès d'un fournisseur pris en charge.`
       }
       return `📠 <b>Paramètres Fax</b> pour <b>${formatPhone(number)}</b>\n\nLes fax entrants sont reçus en PDF et transférés sur ce chat Telegram.\n\n📲 Transférer sur Telegram : ${tg}`
     },
@@ -1906,7 +1906,7 @@ Sélectionnez une option :`,
     faxSettingsMenu: (number, config, provider) => {
       const tg = config?.toTelegram !== false ? '✅ 开' : '❌ 关'
       if (provider === 'twilio') {
-        return `📠 <b>传真设置</b> — <b>${formatPhone(number)}</b>\n\n⚠️ <b>Twilio 号码不支持传真。</b>\nTwilio 已停止可编程传真服务。此号码无法接收传真。\n\n如需使用传真，请购买支持传真的 Telnyx 号码。`
+        return `📠 <b>传真设置</b> — <b>${formatPhone(number)}</b>\n\n⚠️ <b>此号码类型不支持传真。</b>\n该号码的服务商已停止传真服务。此号码无法接收传真。\n\n如需使用传真，请购买支持传真的号码。`
       }
       return `📠 <b>传真设置</b> — <b>${formatPhone(number)}</b>\n\n来电传真以 PDF 格式接收并转发到此 Telegram 聊天。\n\n📲 转发到 Telegram：${tg}`
     },
@@ -2251,7 +2251,7 @@ Sélectionnez une option :`,
     faxSettingsMenu: (number, config, provider) => {
       const tg = config?.toTelegram !== false ? '✅ चालू' : '❌ बंद'
       if (provider === 'twilio') {
-        return `📠 <b>फैक्स सेटिंग्स</b> — <b>${formatPhone(number)}</b>\n\n⚠️ <b>Twilio नंबरों पर फैक्स उपलब्ध नहीं है।</b>\nTwilio ने प्रोग्रामेबल फैक्स बंद कर दिया है। इस नंबर पर फैक्स प्राप्त नहीं हो सकते।\n\nफैक्स उपयोग के लिए, फैक्स क्षमता वाला Telnyx नंबर खरीदें।`
+        return `📠 <b>फैक्स सेटिंग्स</b> — <b>${formatPhone(number)}</b>\n\n⚠️ <b>इस नंबर प्रकार पर फैक्स उपलब्ध नहीं है।</b>\nइस नंबर के प्रदाता ने फैक्स सेवा बंद कर दी है। इस नंबर पर फैक्स प्राप्त नहीं हो सकते।\n\nफैक्स उपयोग के लिए, समर्थित प्रदाता से फैक्स-सक्षम नंबर खरीदें।`
       }
       return `📠 <b>फैक्स सेटिंग्स</b> — <b>${formatPhone(number)}</b>\n\nइनबाउंड फैक्स PDF के रूप में प्राप्त होते हैं और इस Telegram चैट पर फ़ॉरवर्ड होते हैं।\n\n📲 Telegram पर फ़ॉरवर्ड: ${tg}`
     },

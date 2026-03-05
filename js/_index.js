@@ -266,6 +266,23 @@ function getAddressLocationText(countryCode) {
   return null
 }
 
+/**
+ * Determine if a payment coin should be refunded as USD.
+ * Crypto payments (crypto_dynopay_ETH, crypto_blockbee_BTC, etc.) are always USD-equivalent.
+ * Wallet USD payments use the u.usd label or 'wallet_usd'.
+ * Everything else that isn't explicitly NGN → treat as USD.
+ */
+function isUsdRefundCoin(coin, u) {
+  if (!coin) return true // default to USD
+  if (coin === u?.usd || coin === 'USD') return true
+  if (coin.startsWith('wallet_usd') || coin.startsWith('wallet_USD')) return true
+  if (coin.startsWith('crypto')) return true // all crypto → USD
+  if (coin === u?.ngn || coin === 'NGN') return false
+  if (coin.startsWith('wallet_ngn') || coin.startsWith('wallet_NGN')) return false
+  if (coin.startsWith('bank_ngn')) return false
+  return true // default to USD for unknown coins
+}
+
 // Get number monthly cost surcharge (>= $5 = surcharge, < $5 = free with plan)
 function getNumberSurcharge(countryCode, numberType) {
   const cc = twilioService.NO_COMPLIANCE_COUNTRIES.find(c => c.code === countryCode)
@@ -1049,7 +1066,7 @@ async function checkPendingBundles() {
               log(`[BundleChecker] Purchase FAILED after bundle approval: ${purchaseResult.error}`)
               // Refund wallet
               const refundCoin = pb.paymentCoin || 'usd'
-              if (refundCoin === 'usd' || refundCoin.startsWith('wallet_usd')) {
+              if (isUsdRefundCoin(refundCoin, { usd: 'USD', ngn: 'NGN' })) {
                 await atomicIncrement(walletOf, pb.chatId, 'usdIn', pb.priceUsd || pb.price)
               } else {
                 await atomicIncrement(walletOf, pb.chatId, 'ngnIn', pb.priceNgn || 0)
@@ -1081,7 +1098,7 @@ async function checkPendingBundles() {
             // Refund on exception
             try {
               const refundCoin = pb.paymentCoin || 'usd'
-              if (refundCoin === 'usd' || refundCoin.startsWith('wallet_usd')) {
+              if (isUsdRefundCoin(refundCoin, { usd: 'USD', ngn: 'NGN' })) {
                 await atomicIncrement(walletOf, pb.chatId, 'usdIn', pb.priceUsd || pb.price)
               } else {
                 await atomicIncrement(walletOf, pb.chatId, 'ngnIn', pb.priceNgn || 0)
@@ -1101,7 +1118,7 @@ async function checkPendingBundles() {
           log(`[BundleChecker] Bundle REJECTED for chatId=${pb.chatId}`)
           const refundCoin = pb.paymentCoin || 'usd'
           try {
-            if (refundCoin === 'usd' || refundCoin.startsWith('wallet_usd')) {
+            if (isUsdRefundCoin(refundCoin, { usd: 'USD', ngn: 'NGN' })) {
               await atomicIncrement(walletOf, pb.chatId, 'usdIn', pb.priceUsd || pb.price)
             } else {
               await atomicIncrement(walletOf, pb.chatId, 'ngnIn', pb.priceNgn || 0)
@@ -4638,7 +4655,7 @@ Enter new value:`), bc)
         } catch (refundErr) {
           log(`[CloudPhone] ❌ CRITICAL: Refund also failed for ${chatId}: ${refundErr?.message}`)
         }
-        return send(chatId, phoneConfig.getMsg(info?.userLanguage).purchaseFailed + '\n' + (purchaseErr?.message || 'Unexpected error'), trans('o'))
+        return send(chatId, phoneConfig.getMsg(info?.userLanguage).purchaseFailed + '\n' + sanitizeProviderError(purchaseErr?.message || 'Unexpected error', 'voice'), trans('o'))
       }
       checkAndNotifyTierUpgrade(preSpend)
     },
@@ -11211,7 +11228,7 @@ Choose an IVR template category:`), k.of(rows))
       const priceUsd = info?.cpPendingPriceUsd
       const priceNgn = info?.cpPendingPriceNgn
       if (coin && priceUsd) {
-        if (coin === u.usd) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
+        if (isUsdRefundCoin(coin, u)) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
         else if (coin === u.ngn && priceNgn) await atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn)
         // Clear pending to prevent duplicate refund
         await saveInfo('cpPendingCoin', null)
@@ -11252,7 +11269,7 @@ Choose an IVR template category:`), k.of(rows))
           const priceUsd = info?.cpPendingPriceUsd
           const priceNgn = info?.cpPendingPriceNgn
           if (coin && priceUsd) {
-            if (coin === u.usd) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
+            if (isUsdRefundCoin(coin, u)) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
             else if (coin === u.ngn && priceNgn) await atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn)
             await saveInfo('cpPendingCoin', null); await saveInfo('cpPendingPriceUsd', null); await saveInfo('cpPendingPriceNgn', null)
           }
@@ -11273,7 +11290,7 @@ Choose an IVR template category:`), k.of(rows))
           const priceUsd = info?.cpPendingPriceUsd
           const priceNgn = info?.cpPendingPriceNgn
           if (coin && priceUsd) {
-            if (coin === u.usd) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
+            if (isUsdRefundCoin(coin, u)) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
             else if (coin === u.ngn && priceNgn) await atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn)
             await saveInfo('cpPendingCoin', null); await saveInfo('cpPendingPriceUsd', null); await saveInfo('cpPendingPriceNgn', null)
           }
@@ -11296,7 +11313,7 @@ Choose an IVR template category:`), k.of(rows))
           const priceUsd = info?.cpPendingPriceUsd
           const priceNgn = info?.cpPendingPriceNgn
           if (coin && priceUsd) {
-            if (coin === u.usd) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
+            if (isUsdRefundCoin(coin, u)) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
             else if (coin === u.ngn && priceNgn) await atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn)
             await saveInfo('cpPendingCoin', null); await saveInfo('cpPendingPriceUsd', null); await saveInfo('cpPendingPriceNgn', null)
           }
@@ -11365,7 +11382,7 @@ Choose an IVR template category:`), k.of(rows))
         const priceNgn = info?.cpPendingPriceNgn
         try {
           if (coin && priceUsd) {
-            if (coin === u.usd) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
+            if (isUsdRefundCoin(coin, u)) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
             else if (coin === u.ngn && priceNgn) await atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn)
             await saveInfo('cpPendingCoin', null); await saveInfo('cpPendingPriceUsd', null); await saveInfo('cpPendingPriceNgn', null)
           }
@@ -11389,7 +11406,7 @@ Choose an IVR template category:`), k.of(rows))
       const priceUsd = info?.cpPendingPriceUsd
       const priceNgn = info?.cpPendingPriceNgn
       if (coin && priceUsd) {
-        if (coin === u.usd) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
+        if (isUsdRefundCoin(coin, u)) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
         else if (coin === u.ngn && priceNgn) await atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn)
         // Clear pending to prevent duplicate refund
         await saveInfo('cpPendingCoin', null)
@@ -11423,13 +11440,13 @@ Choose an IVR template category:`), k.of(rows))
       const priceNgn = info?.cpPendingPriceNgn
       try {
         if (coin && priceUsd) {
-          if (coin === u.usd) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
+          if (isUsdRefundCoin(coin, u)) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
           else if (coin === u.ngn && priceNgn) await atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn)
           log(`[CloudPhone] ✅ Auto-refunded $${priceUsd} to ${chatId} after address purchase error`)
         }
       } catch (refundErr) { log(`[CloudPhone] ❌ CRITICAL: Refund also failed for ${chatId}: ${refundErr?.message}`) }
       set(state, chatId, 'action', 'none')
-      send(chatId, phoneConfig.getMsg(lang).purchaseFailed + '\n' + (purchaseErr?.message || 'Unexpected error'), trans('o'))
+      send(chatId, phoneConfig.getMsg(lang).purchaseFailed + '\n' + sanitizeProviderError(purchaseErr?.message || 'Unexpected error', 'voice'), trans('o'))
     }
     return
   }
@@ -11787,7 +11804,7 @@ Choose an IVR template category:`), k.of(rows))
 
         // Refund wallet
         const refundCoin = dbBundle.paymentCoin || 'usd'
-        if (refundCoin === 'usd' || refundCoin.startsWith('wallet_usd')) {
+        if (isUsdRefundCoin(refundCoin, { usd: 'USD', ngn: 'NGN' })) {
           await atomicIncrement(walletOf, chatId, 'usdIn', dbBundle.priceUsd || dbBundle.price)
         } else {
           await atomicIncrement(walletOf, chatId, 'ngnIn', dbBundle.priceNgn || 0)
@@ -15944,7 +15961,7 @@ const bankApis = {
       } catch (purchaseErr) {
         log(`[CloudPhone] ❌ Bank/Twilio purchase crashed for ${chatId}: ${purchaseErr?.message || purchaseErr}`)
         try { addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang) } catch (e) { log(`[CloudPhone] ❌ CRITICAL: Bank refund failed for ${chatId}: ${e?.message}`) }
-        sendMessage(chatId, phoneConfig.getMsg(lang).purchaseFailed + '\n' + (purchaseErr?.message || 'Unexpected error'))
+        sendMessage(chatId, phoneConfig.getMsg(lang).purchaseFailed + '\n' + sanitizeProviderError(purchaseErr?.message || 'Unexpected error', 'voice'))
         return res.send(html(phoneConfig.getMsg(lang).purchaseFailed))
       }
     }
@@ -16473,7 +16490,7 @@ app.get('/crypto-pay-phone', auth, async (req, res) => {
     } catch (purchaseErr) {
       log(`[CloudPhone] ❌ BlockBee/Twilio purchase crashed for ${chatId}: ${purchaseErr?.message || purchaseErr}`)
       try { addFundsTo(walletOf, chatId, 'usd', Number(price), lang) } catch (e) { log(`[CloudPhone] ❌ CRITICAL: BlockBee refund failed for ${chatId}: ${e?.message}`) }
-      sendMessage(chatId, phoneConfig.getMsg(lang).purchaseFailed + '\n' + (purchaseErr?.message || 'Unexpected error'))
+      sendMessage(chatId, phoneConfig.getMsg(lang).purchaseFailed + '\n' + sanitizeProviderError(purchaseErr?.message || 'Unexpected error', 'voice'))
       return res.send(html(phoneConfig.getMsg(lang).purchaseFailed))
     }
   }
@@ -17007,7 +17024,7 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
     } catch (purchaseErr) {
       log(`[CloudPhone] ❌ DynoPay/Twilio purchase crashed for ${chatId}: ${purchaseErr?.message || purchaseErr}`)
       try { addFundsTo(walletOf, chatId, 'usd', Number(price), lang) } catch (e) { log(`[CloudPhone] ❌ CRITICAL: DynoPay refund failed for ${chatId}: ${e?.message}`) }
-      sendMessage(chatId, phoneConfig.getMsg(lang).purchaseFailed + '\n' + (purchaseErr?.message || 'Unexpected error'))
+      sendMessage(chatId, phoneConfig.getMsg(lang).purchaseFailed + '\n' + sanitizeProviderError(purchaseErr?.message || 'Unexpected error', 'voice'))
       return res.send(html(phoneConfig.getMsg(lang).purchaseFailed))
     }
   }
