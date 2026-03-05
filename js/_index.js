@@ -14491,6 +14491,23 @@ Select a category:`), k.of(catBtns))
     send(chatId, `Analytics Data:\n${analyticsData.join('\n')}`)
     return
   }
+
+  // Admin: Reset Dead Users button
+  if (message === admin.resetDead || message === '🗑️ Reset Dead Users') {
+    if (!isAdmin(chatId)) return send(chatId, 'not authorized')
+    try {
+      const promoOptOutCol = db.collection('promoOptOut')
+      const totalDead = await promoOptOutCol.countDocuments({ optedOut: true })
+      const chatNotFound = await promoOptOutCol.countDocuments({ optedOut: true, reason: 'chat_not_found' })
+      const userDeactivated = await promoOptOutCol.countDocuments({ optedOut: true, reason: 'user_deactivated' })
+      const botBlocked = await promoOptOutCol.countDocuments({ optedOut: true, reason: 'bot_blocked' })
+      const other = totalDead - chatNotFound - userDeactivated - botBlocked
+
+      send(chatId, `📊 <b>Dead Users Report</b>\n\nTotal marked dead: <b>${totalDead}</b>\n• chat_not_found: ${chatNotFound}\n• user_deactivated: ${userDeactivated}\n• bot_blocked: ${botBlocked}\n• other: ${other}\n\n<b>Actions:</b>\n/resetdead all — Clear ALL\n/resetdead blocked — Clear bot_blocked\n/resetdead notfound — Clear chat_not_found`, { parse_mode: 'HTML' })
+      return
+    } catch (e) { return send(chatId, '❌ Error: ' + e.message) }
+  }
+
   if (message === user.freeTrialAvailable) {
     sendQr(
       bot,

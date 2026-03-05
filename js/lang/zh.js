@@ -82,6 +82,7 @@ const admin = {
   blockUser: '✋ 阻止用户',
   unblockUser: '👌 解除阻止用户',
   messageUsers: '👋 向所有用户发送消息',
+  resetDead: '🗑️ Reset Dead Users',
 }
 const user = {
   // main keyboards

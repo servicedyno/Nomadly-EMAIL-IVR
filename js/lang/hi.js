@@ -82,6 +82,7 @@ const admin = {
   blockUser: '✋ उपयोगकर्ता को ब्लॉक करें',
   unblockUser: '👌 उपयोगकर्ता को अनब्लॉक करें',
   messageUsers: '👋 सभी उपयोगकर्ताओं को संदेश भेजें',
+  resetDead: '🗑️ Reset Dead Users',
 }
 const user = {
   // main keyboards
