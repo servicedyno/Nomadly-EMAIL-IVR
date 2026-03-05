@@ -2341,11 +2341,11 @@ bot?.on('message', msg => {
     a.settingsMenu,
   ]
   const goto = {
-    askCoupon: action => {
+    askCoupon: async (action) => {
       send(chatId, t.askCoupon(info?.price), k.of([t.skip]))
-      set(state, chatId, 'action', a.askCoupon + action)
+      await set(state, chatId, 'action', a.askCoupon + action)
     },
-    'domain-pay': () => {
+    'domain-pay': async () => {
       const { domain, price, couponApplied, newPrice } = info
       const payKeyboard = k.of([
         Object.values(payIn),
@@ -2354,9 +2354,9 @@ bot?.on('message', msg => {
       couponApplied
         ? send(chatId, t.domainNewPrice(domain, price, newPrice), k.pay)
         : send(chatId, t.domainPrice(domain, price), payKeyboard)
-      set(state, chatId, 'action', 'domain-pay')
+      await set(state, chatId, 'action', 'domain-pay')
     },
-    'hosting-pay': () => {
+    'hosting-pay': async () => {
       // P0 FIX: Prevent duplicate payment processing
       if (info?.processingPayment) {
         return send(chatId, '⏳ Payment already in progress. Please wait...', trans('o'))
@@ -2382,25 +2382,25 @@ bot?.on('message', msg => {
             [btn.applyCoupon],
             [t.backButton],
           ])
-      set(state, chatId, 'action', 'hosting-pay')
+      await set(state, chatId, 'action', 'hosting-pay')
       send(chatId, hP.generateInvoiceText(payload), payKeyboard)
     },
     'vps-plan-pay' : async () => {
-      set(state, chatId, 'action', 'vps-plan-pay')
+      await set(state, chatId, 'action', 'vps-plan-pay')
       const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
       send(chatId, t.showWallet(usdBal, ngnBal))
       send(chatId, vp.askPaymentMethod, k.pay)
     },
     'vps-upgrade-plan-pay' : async () => {
-      set(state, chatId, 'action', 'vps-upgrade-plan-pay')
+      await set(state, chatId, 'action', 'vps-upgrade-plan-pay')
       const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
       const lowBalance = info.vpsDetails?.billingCycle === 'Hourly' && usdBal < info.vpsDetails.totalPrice
       send(chatId, t.showWallet(usdBal, ngnBal))
       send(chatId, vp.askPaymentMethod, info.vpsDetails?.billingCycle === 'Hourly' && !lowBalance ? k.of([payIn.wallet]) : k.pay)
     },
     // ━━━ Cloud IVR goto functions ━━━
-    submenu5: () => {
-      set(state, chatId, 'action', a.submenu5)
+    submenu5: async () => {
+      await set(state, chatId, 'action', a.submenu5)
       const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
       send(chatId, cpTxt.hubWelcome, k.of([
         [pc.ivrOutboundCall],
@@ -2414,14 +2414,14 @@ bot?.on('message', msg => {
       ]))
     },
     'phone-pay': async () => {
-      set(state, chatId, 'action', 'phone-pay')
+      await set(state, chatId, 'action', 'phone-pay')
       const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
       send(chatId, t.showWallet(usdBal, ngnBal))
       send(chatId, cpTxt.paymentPrompt(info.cpPrice), k.pay)
     },
     // ━━━ Digital Products goto functions ━━━
-    submenu6: () => {
-      set(state, chatId, 'action', a.submenu6)
+    submenu6: async () => {
+      await set(state, chatId, 'action', a.submenu6)
       send(chatId, t.digitalProductsSelect, k.of([
         [t.dpTwilioMain, t.dpTwilioSub],
         [t.dpTelnyxMain, t.dpTelnyxSub],
@@ -2432,8 +2432,8 @@ bot?.on('message', msg => {
         [t.dpEsim],
       ]))
     },
-    'digital-product-pay': () => {
-      set(state, chatId, 'action', a.digitalProductPay)
+    'digital-product-pay': async () => {
+      await set(state, chatId, 'action', a.digitalProductPay)
       const product = info?.dpProductName
       const price = info?.dpPrice
       send(chatId, t.dpPaymentPrompt(product, price), k.pay)
@@ -2461,8 +2461,8 @@ bot?.on('message', msg => {
       send(chatId, t.vcOrderSummary(amount, fee, total), k.pay)
     },
     // ━━━ Marketplace ━━━
-    marketplace: () => {
-      set(state, chatId, 'action', a.mpHome)
+    marketplace: async () => {
+      await set(state, chatId, 'action', a.mpHome)
       send(chatId, t.mpHome, k.of([
         [t.mpBrowse],
         [t.mpListProduct],
@@ -2472,7 +2472,7 @@ bot?.on('message', msg => {
       ]))
     },
     'leads-pay': async () => {
-      set(state, chatId, 'action', 'leads-pay')
+      await set(state, chatId, 'action', 'leads-pay')
       const price = info?.couponApplied ? info?.newPrice : info?.price
       const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
       send(chatId, t.showWallet(usdBal, ngnBal))
@@ -2490,7 +2490,7 @@ bot?.on('message', msg => {
             ? ``
             : t.availablefreeDomain(plan, available, s)
       }
-      set(state, chatId, 'action', 'choose-domain-to-buy')
+      await set(state, chatId, 'action', 'choose-domain-to-buy')
       send(chatId, t.chooseDomainToBuy(text), bc)
     },
     askDomainToUseWithShortener: async () => {
@@ -2500,38 +2500,38 @@ bot?.on('message', msg => {
       const priceText = domain && price ? `✅ <b>${domain}</b> — <b>$${price}</b>\n\n` : ''
       send(chatId, `${priceText}${t.askDomainToUseWithShortener}`, trans('yes_no'))
     },
-    domainNsSelect: () => {
-      set(state, chatId, 'action', a.domainNsSelect)
+    domainNsSelect: async () => {
+      await set(state, chatId, 'action', a.domainNsSelect)
       const domain = info?.domain || ''
       send(chatId, ({ en: `Select DNS for <b>${domain}</b>:\n\n<b>${configUser.nsProviderDefault}</b> — Default nameservers\n<b>${configUser.nsCloudflare}</b> — Enhanced security & performance\n<b>${configUser.nsCustom}</b> — Use your own nameservers`, fr: `Sélectionnez DNS pour <b>${domain}</b> :\n\n<b>${configUser.nsProviderDefault}</b> — Serveurs de noms par défaut\n<b>${configUser.nsCloudflare}</b> — Sécurité et performance améliorées\n<b>${configUser.nsCustom}</b> — Utiliser vos propres serveurs de noms`, zh: `选择 <b>${domain}</b> 的 DNS：\n\n<b>${configUser.nsProviderDefault}</b> — 默认域名服务器\n<b>${configUser.nsCloudflare}</b> — 增强安全与性能\n<b>${configUser.nsCustom}</b> — 使用自定义域名服务器`, hi: `<b>${domain}</b> के लिए DNS चुनें:\n\n<b>${configUser.nsProviderDefault}</b> — डिफ़ॉल्ट नेमसर्वर\n<b>${configUser.nsCloudflare}</b> — बेहतर सुरक्षा और प्रदर्शन\n<b>${configUser.nsCustom}</b> — अपने खुद के नेमसर्वर उपयोग करें` }[lang] || `Select DNS for <b>${domain}</b>:\n\n<b>${configUser.nsProviderDefault}</b> — Default nameservers\n<b>${configUser.nsCloudflare}</b> — Enhanced security & performance\n<b>${configUser.nsCustom}</b> — Use your own nameservers`), k.of([[configUser.nsProviderDefault, configUser.nsCloudflare], [configUser.nsCustom]]))
     },
-    domainCustomNsEntry: () => {
-      set(state, chatId, 'action', a.domainCustomNsEntry)
+    domainCustomNsEntry: async () => {
+      await set(state, chatId, 'action', a.domainCustomNsEntry)
       send(chatId, ({ en: `Enter your custom nameservers separated by space.\n\nExample: <code>ns1.example.com ns2.example.com</code>\n\nMinimum 2 nameservers required.`, fr: `Entrez vos serveurs de noms personnalisés séparés par un espace.\n\nExemple : <code>ns1.example.com ns2.example.com</code>\n\nMinimum 2 serveurs de noms requis.`, zh: `输入自定义域名服务器（用空格分隔）。\n\n示例：<code>ns1.example.com ns2.example.com</code>\n\n至少需要 2 个域名服务器。`, hi: `अपने कस्टम नेमसर्वर स्पेस से अलग करके दर्ज करें।\n\nउदाहरण: <code>ns1.example.com ns2.example.com</code>\n\nकम से कम 2 नेमसर्वर आवश्यक।` }[lang] || `Enter your custom nameservers separated by space.\n\nExample: <code>ns1.example.com ns2.example.com</code>\n\nMinimum 2 nameservers required.`), k.of([]))
     },
-    'plan-pay': () => {
+    'plan-pay': async () => {
       const { plan, price, couponApplied, newPrice } = info
       couponApplied
         ? send(chatId, t.planNewPrice(plan, price, newPrice), k.pay)
         : send(chatId, t.planPrice(plan, price), k.pay)
-      set(state, chatId, 'action', 'plan-pay')
+      await set(state, chatId, 'action', 'plan-pay')
     },
-    'choose-subscription': () => {
-      set(state, chatId, 'action', 'choose-subscription')
+    'choose-subscription': async () => {
+      await set(state, chatId, 'action', 'choose-subscription')
       send(chatId, t.chooseSubscription, trans('chooseSubscription'))
     },
     'choose-url-to-shorten': async () => {
-      set(state, chatId, 'action', 'choose-url-to-shorten')
+      await set(state, chatId, 'action', 'choose-url-to-shorten')
       send(chatId, t.shortenedUrlLink, bc)
       adminDomains = await getPurchasedDomains(TELEGRAM_DOMAINS_SHOW_CHAT_ID)
     },
-    'choose-domain-with-shorten': domains => {
+    'choose-domain-with-shorten': async (domains) => {
       send(chatId, t.chooseDomainWithShortener, trans('show', domains))
-      set(state, chatId, 'action', 'choose-domain-with-shorten')
+      await set(state, chatId, 'action', 'choose-domain-with-shorten')
     },
-    'choose-link-type': () => {
+    'choose-link-type': async () => {
       send(chatId, `Choose link type:`, trans('linkType'))
-      set(state, chatId, 'action', 'choose-link-type')
+      await set(state, chatId, 'action', 'choose-link-type')
     },
     'quick-activate-domain-shortener': async () => {
       const domains = await getPurchasedDomains(chatId)
@@ -2539,21 +2539,21 @@ bot?.on('message', msg => {
         send(chatId, ({ en: `You don't have any domains yet. Buy a domain first, then activate it for the shortener.`, fr: `Vous n'avez pas encore de domaines. Achetez un domaine d'abord, puis activez-le pour le raccourcisseur.`, zh: `您还没有域名。请先购买域名，然后激活短链接服务。`, hi: `आपके पास अभी कोई डोमेन नहीं है। पहले डोमेन खरीदें, फिर शॉर्टनर के लिए सक्रिय करें।` }[lang] || `You don't have any domains yet. Buy a domain first, then activate it for the shortener.`))
         return goto.submenu1()
       }
-      set(state, chatId, 'action', 'quick-activate-domain-shortener')
+      await set(state, chatId, 'action', 'quick-activate-domain-shortener')
       send(chatId, `🔗 <b>Activate Domain for URL Shortener</b>\n\nSelect a domain to link with the shortener. DNS will be auto-configured so you can create branded short links (e.g. <code>yourdomain.com/abc</code>).`, trans('k.of', [...domains.map(d => [d])]))
     },
-    'get-free-domain': () => {
+    'get-free-domain': async () => {
       send(chatId, t.chooseFreeDomainText,  trans('yes_no'))
-      set(state, chatId, 'action', 'get-free-domain')
+      await set(state, chatId, 'action', 'get-free-domain')
     },
 
     'choose-domain-to-manage': async () => {
       const domains = await getPurchasedDomains(chatId)
-      set(state, chatId, 'action', 'choose-domain-to-manage')
+      await set(state, chatId, 'action', 'choose-domain-to-manage')
       send(chatId, t.chooseDomainToManage, trans('show', domains))
     },
 
-    'select-dns-record-id-to-delete': () => {
+    'select-dns-record-id-to-delete': async () => {
       const records = info?.dnsRecords || []
       // Filter out NS records — nameservers can only be updated, not deleted
       const deletableRecords = records.map((r, i) => ({ ...r, originalIndex: i })).filter(r => r.recordType !== 'NS')
@@ -2568,16 +2568,16 @@ bot?.on('message', msg => {
       })
       const keyboard = { parse_mode: 'HTML', reply_markup: { keyboard: [...recordBtns, [t.back, t.cancel]] } }
       send(chatId, t.deleteDnsTxt, keyboard)
-      set(state, chatId, 'action', 'select-dns-record-id-to-delete')
+      await set(state, chatId, 'action', 'select-dns-record-id-to-delete')
     },
 
-    'confirm-dns-record-id-to-delete': () => {
+    'confirm-dns-record-id-to-delete': async () => {
       const records = info?.dnsRecords || []
       const delId = info?.delId
       const rec = records[delId]
       const label = rec ? `<b>${rec.recordType}</b> → ${rec.recordContent || '—'}` : 'this record'
       send(chatId, `Delete ${label}?`, trans('yes_no'))
-      set(state, chatId, 'action', 'confirm-dns-record-id-to-delete')
+      await set(state, chatId, 'action', 'confirm-dns-record-id-to-delete')
     },
 
     'choose-dns-action': async () => {
@@ -2628,7 +2628,7 @@ bot?.on('message', msg => {
       set(state, chatId, 'cfZoneId', cfZoneId)
       set(state, chatId, 'domainNameId', domainNameId)
       set(state, chatId, 'nameserverType', nameserverType)
-      set(state, chatId, 'action', 'choose-dns-action')
+      await set(state, chatId, 'action', 'choose-dns-action')
 
       // Dynamic keyboard — custom NS domains only get Switch to CF + Update NS
       const shortenerBtn = shortenerActive ? t.deactivateShortener : t.activateShortener
@@ -2658,13 +2658,13 @@ bot?.on('message', msg => {
       send(chatId, t.viewDnsRecords(categorizedRecords, domain, nameserverType), dnsKeyboard)
     },
 
-    'type-dns-record-data-to-add': recordType => {
+    'type-dns-record-data-to-add': async (recordType) => {
       send(chatId, t.askDnsContent[recordType], bc)
       set(state, chatId, 'recordType', recordType)
-      set(state, chatId, 'action', 'type-dns-record-data-to-add')
+      await set(state, chatId, 'action', 'type-dns-record-data-to-add')
     },
 
-    'select-dns-record-id-to-update': () => {
+    'select-dns-record-id-to-update': async () => {
       const records = info?.dnsRecords || []
       const hasNS = records.some(r => r.recordType === 'NS')
       let nonNsIndex = 0
@@ -2685,11 +2685,11 @@ bot?.on('message', msg => {
       })
       const keyboard = { parse_mode: 'HTML', reply_markup: { keyboard: [...recordBtns, [t.back, t.cancel]] } }
       send(chatId, t.updateDnsTxt, keyboard)
-      set(state, chatId, 'action', 'select-dns-record-id-to-update')
+      await set(state, chatId, 'action', 'select-dns-record-id-to-update')
     },
-    'type-dns-record-data-to-update': (id, recordType, currentValue) => {
+    'type-dns-record-data-to-update': async (id, recordType, currentValue) => {
       set(state, chatId, 'dnsRecordIdToUpdate', id)
-      set(state, chatId, 'action', 'type-dns-record-data-to-update')
+      await set(state, chatId, 'action', 'type-dns-record-data-to-update')
 
       // For NS records, show full arrangement context
       if (recordType === 'NS') {
@@ -2740,8 +2740,8 @@ Enter new value:`), bc)
       }
     },
 
-    'dns-update-all-ns': () => {
-      set(state, chatId, 'action', 'dns-update-all-ns')
+    'dns-update-all-ns': async () => {
+      await set(state, chatId, 'action', 'dns-update-all-ns')
       const domain = info?.domainToManage || ''
       const records = info?.dnsRecords || []
       const nsRecords = records.filter(r => r.recordType === 'NS')
@@ -2753,8 +2753,8 @@ Enter new value:`), bc)
       send(chatId, msg, { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back, t.cancel]] } })
     },
 
-    'select-dns-record-type-to-add': () => {
-      set(state, chatId, 'action', 'select-dns-record-type-to-add')
+    'select-dns-record-type-to-add': async () => {
+      await set(state, chatId, 'action', 'select-dns-record-type-to-add')
       const dnsSource = info?.dnsSource || ''
       const dynamicKeyboard = trans('getRecordTypeKeyboard', dnsSource)
       // Fall back to static keyboard if dynamic not available
@@ -2763,86 +2763,86 @@ Enter new value:`), bc)
     },
 
     // DNS Wizard: Quick Actions
-    'dns-quick-action-menu': () => {
-      set(state, chatId, 'action', 'dns-quick-action-menu')
+    'dns-quick-action-menu': async () => {
+      await set(state, chatId, 'action', 'dns-quick-action-menu')
       send(chatId, t.dnsQuickActionMenu, trans('dnsQuickActionKeyboard'))
     },
-    'dns-quick-point-to-ip': () => {
-      set(state, chatId, 'action', 'dns-quick-point-to-ip')
+    'dns-quick-point-to-ip': async () => {
+      await set(state, chatId, 'action', 'dns-quick-point-to-ip')
       send(chatId, t.dnsQuickAskIp, bc)
     },
-    'dns-quick-verification': () => {
-      set(state, chatId, 'action', 'dns-quick-verification')
+    'dns-quick-verification': async () => {
+      await set(state, chatId, 'action', 'dns-quick-verification')
       send(chatId, t.dnsQuickAskVerificationTxt, bc)
     },
-    'dns-quick-subdomain-name': () => {
-      set(state, chatId, 'action', 'dns-quick-subdomain-name')
+    'dns-quick-subdomain-name': async () => {
+      await set(state, chatId, 'action', 'dns-quick-subdomain-name')
       send(chatId, t.dnsQuickAskSubdomainName, bc)
     },
-    'dns-quick-subdomain-target': () => {
+    'dns-quick-subdomain-target': async () => {
       const sub = info?.dnsSubdomainName || 'subdomain'
       const domain = info?.domainToManage || ''
-      set(state, chatId, 'action', 'dns-quick-subdomain-target')
+      await set(state, chatId, 'action', 'dns-quick-subdomain-target')
       send(chatId, t.dnsQuickAskSubdomainTargetType(`${sub}.${domain}`), trans('dnsSubdomainTargetTypeKeyboard'))
     },
-    'dns-quick-subdomain-ip': () => {
-      set(state, chatId, 'action', 'dns-quick-subdomain-ip')
+    'dns-quick-subdomain-ip': async () => {
+      await set(state, chatId, 'action', 'dns-quick-subdomain-ip')
       send(chatId, t.dnsQuickAskSubdomainIp, bc)
     },
-    'dns-quick-subdomain-domain': () => {
-      set(state, chatId, 'action', 'dns-quick-subdomain-domain')
+    'dns-quick-subdomain-domain': async () => {
+      await set(state, chatId, 'action', 'dns-quick-subdomain-domain')
       send(chatId, t.dnsQuickAskSubdomainDomain, bc)
     },
 
     // DNS Wizard: Multi-step add record
-    'dns-add-hostname': (recordType) => {
+    'dns-add-hostname': async (recordType) => {
       set(state, chatId, 'dnsAddRecordType', recordType)
-      set(state, chatId, 'action', 'dns-add-hostname')
+      await set(state, chatId, 'action', 'dns-add-hostname')
       send(chatId, t.askDnsHostname[recordType], bc)
     },
-    'dns-add-value': (recordType) => {
-      set(state, chatId, 'action', 'dns-add-value')
+    'dns-add-value': async (recordType) => {
+      await set(state, chatId, 'action', 'dns-add-value')
       send(chatId, t.askDnsValue[recordType], bc)
     },
-    'dns-add-mx-priority': () => {
-      set(state, chatId, 'action', 'dns-add-mx-priority')
+    'dns-add-mx-priority': async () => {
+      await set(state, chatId, 'action', 'dns-add-mx-priority')
       send(chatId, t.askMxPriority, trans('dnsMxPriorityKeyboard'))
     },
 
     // DNS Wizard: SRV multi-step
-    'dns-srv-service': () => {
-      set(state, chatId, 'action', 'dns-srv-service')
+    'dns-srv-service': async () => {
+      await set(state, chatId, 'action', 'dns-srv-service')
       send(chatId, t.askSrvService, bc)
     },
-    'dns-srv-target': () => {
-      set(state, chatId, 'action', 'dns-srv-target')
+    'dns-srv-target': async () => {
+      await set(state, chatId, 'action', 'dns-srv-target')
       send(chatId, t.askSrvTarget, bc)
     },
-    'dns-srv-port': () => {
-      set(state, chatId, 'action', 'dns-srv-port')
+    'dns-srv-port': async () => {
+      await set(state, chatId, 'action', 'dns-srv-port')
       send(chatId, t.askSrvPort, bc)
     },
-    'dns-srv-priority': () => {
-      set(state, chatId, 'action', 'dns-srv-priority')
+    'dns-srv-priority': async () => {
+      await set(state, chatId, 'action', 'dns-srv-priority')
       send(chatId, t.askSrvPriority, trans('dnsSrvDefaultsKeyboard'))
     },
-    'dns-srv-weight': () => {
-      set(state, chatId, 'action', 'dns-srv-weight')
+    'dns-srv-weight': async () => {
+      await set(state, chatId, 'action', 'dns-srv-weight')
       send(chatId, t.askSrvWeight, bc)
     },
 
     // DNS Wizard: CAA multi-step
-    'dns-caa-hostname': () => {
-      set(state, chatId, 'action', 'dns-caa-hostname')
+    'dns-caa-hostname': async () => {
+      await set(state, chatId, 'action', 'dns-caa-hostname')
       send(chatId, t.askCaaHostname, bc)
     },
-    'dns-caa-tag': () => {
-      set(state, chatId, 'action', 'dns-caa-tag')
+    'dns-caa-tag': async () => {
+      await set(state, chatId, 'action', 'dns-caa-tag')
       send(chatId, t.askCaaTag, trans('dnsCaaTagKeyboard'))
     },
-    'dns-caa-value': () => {
+    'dns-caa-value': async () => {
       const tag = info?.dnsCaaTag || 'issue'
-      set(state, chatId, 'action', 'dns-caa-value')
+      await set(state, chatId, 'action', 'dns-caa-value')
       send(chatId, t.askCaaValue(tag), bc)
     },
 
@@ -2852,15 +2852,15 @@ Enter new value:`), bc)
       send(chatId, t.enterBroadcastMessage, bc)
       set(state, chatId, 'action', admin.messageUsers)
     },
-    adminConfirmMessage: () => {
+    adminConfirmMessage: async () => {
       send(chatId, 'Confirm?',  trans('yes_no'))
-      set(state, chatId, 'action', 'adminConfirmMessage')
+      await set(state, chatId, 'action', 'adminConfirmMessage')
     },
-    broadcastSettings: () => {
+    broadcastSettings: async () => {
       const configText = `⚙️ Broadcast Configuration\n\n📊 Current Settings:\n• Batch Size: ${BROADCAST_CONFIG.BATCH_SIZE} users\n• Delay Between Batches: ${BROADCAST_CONFIG.DELAY_BETWEEN_BATCHES/1000}s\n• Delay Between Messages: ${BROADCAST_CONFIG.DELAY_BETWEEN_MESSAGES}ms\n• Max Retries: ${BROADCAST_CONFIG.MAX_RETRIES}\n• Retry Delay: ${BROADCAST_CONFIG.RETRY_DELAY/1000}s\n\n📝 To modify settings, edit js/broadcast-config.js file`
       
       send(chatId, configText, aO)
-      set(state, chatId, 'action', 'none')
+      await set(state, chatId, 'action', 'none')
     },
     //
     //
@@ -3022,56 +3022,56 @@ Enter new value:`), bc)
       set(state, chatId, 'action', a.walletSelectCurrencyConfirm)
     },
     //
-    phoneNumberLeads: () => {
+    phoneNumberLeads: async () => {
       send(chatId, t.phoneNumberLeads, k.phoneNumberLeads)
-      set(state, chatId, 'action', a.phoneNumberLeads)
+      await set(state, chatId, 'action', a.phoneNumberLeads)
     },
     //
     //
     // buyLeads
-    buyLeadsSelectCountry: () => {
+    buyLeadsSelectCountry: async () => {
       send(chatId, t.buyLeadsSelectCountry, k.buyLeadsSelectCountry)
-      set(state, chatId, 'action', a.buyLeadsSelectCountry)
+      await set(state, chatId, 'action', a.buyLeadsSelectCountry)
     },
-    buyLeadsSelectSmsVoice: () => {
+    buyLeadsSelectSmsVoice: async () => {
       send(chatId, t.buyLeadsSelectSmsVoice, k.buyLeadsSelectSmsVoice)
-      set(state, chatId, 'action', a.buyLeadsSelectSmsVoice)
+      await set(state, chatId, 'action', a.buyLeadsSelectSmsVoice)
     },
-    buyLeadsSelectArea: () => {
+    buyLeadsSelectArea: async () => {
       send(chatId, t.buyLeadsSelectArea, k.buyLeadsSelectArea(info?.country))
-      set(state, chatId, 'action', a.buyLeadsSelectArea)
+      await set(state, chatId, 'action', a.buyLeadsSelectArea)
     },
-    buyLeadsSelectAreaCode: () => {
+    buyLeadsSelectAreaCode: async () => {
       send(
         chatId,
         t.buyLeadsSelectAreaCode,
         k.buyLeadsSelectAreaCode(info?.country, ['USA', 'Canada'].includes(info?.country) ? info?.area : 'Area Codes'),
       )
-      set(state, chatId, 'action', a.buyLeadsSelectAreaCode)
+      await set(state, chatId, 'action', a.buyLeadsSelectAreaCode)
     },
-    buyLeadsSelectCarrier: () => {
+    buyLeadsSelectCarrier: async () => {
       send(chatId, t.buyLeadsSelectCarrier, k.buyLeadsSelectCarrier(info?.country))
-      set(state, chatId, 'action', a.buyLeadsSelectCarrier)
+      await set(state, chatId, 'action', a.buyLeadsSelectCarrier)
     },
-    buyLeadsSelectCnam: () => {
+    buyLeadsSelectCnam: async () => {
       send(chatId, t.buyLeadsSelectCnam, k.buyLeadsSelectCnam)
-      set(state, chatId, 'action', a.buyLeadsSelectCnam)
+      await set(state, chatId, 'action', a.buyLeadsSelectCnam)
     },
-    buyLeadsSelectAmount: () => {
+    buyLeadsSelectAmount: async () => {
       send(
         chatId,
         t.buyLeadsSelectAmount(buyLeadsSelectAmount[0], buyLeadsSelectAmount[buyLeadsSelectAmount.length - 1]),
         k.buyLeadsSelectAmount,
       )
-      set(state, chatId, 'action', a.buyLeadsSelectAmount)
+      await set(state, chatId, 'action', a.buyLeadsSelectAmount)
     },
-    buyLeadsSelectFormat: () => {
+    buyLeadsSelectFormat: async () => {
       send(chatId, t.buyLeadsSelectFormat, k.buyLeadsSelectFormat)
-      set(state, chatId, 'action', a.buyLeadsSelectFormat)
+      await set(state, chatId, 'action', a.buyLeadsSelectFormat)
     },
 
     // target leads
-    targetSelectTarget: () => {
+    targetSelectTarget: async () => {
       const validateBtn = trans('phoneNumberLeads')[1] || '✅📲 Validate PhoneLeads'
       if (!userSubscribed && t.subscriptionLeadsHint) {
         send(chatId, t.subscriptionLeadsHint)
@@ -3087,15 +3087,15 @@ Enter new value:`), bc)
       }
       rows.push([t.leadRequestTarget || '📝 Request Custom Target', validateBtn])
       send(chatId, '🎯 Select your target institution.\nReal, verified leads with phone owner names — matched by carrier from high-value metro areas:', k.of(rows))
-      set(state, chatId, 'action', a.targetSelectTarget)
+      await set(state, chatId, 'action', a.targetSelectTarget)
     },
-    targetSelectCity: () => {
+    targetSelectCity: async () => {
       const target = info?.targetName
       const cities = targetLeadsCities(target)
       send(chatId, t.leadSelectMetro ? t.leadSelectMetro(target) : `📍 Select metro area for <b>${target}</b>:\n\nChoose "All Cities" for maximum reach across all regions.`, k.of([t.leadAllCities || 'All Cities', ...cities]))
-      set(state, chatId, 'action', a.targetSelectCity)
+      await set(state, chatId, 'action', a.targetSelectCity)
     },
-    targetSelectAreaCode: () => {
+    targetSelectAreaCode: async () => {
       const target = info?.targetName
       const city = info?.targetCity
       const buttons = targetLeadsAreaCodeButtons(target, city)
@@ -3110,7 +3110,7 @@ Enter new value:`), bc)
 "मिश्रित एरिया कोड" सत्यापित नंबरों का सबसे बड़ा पूल देता है।` }[lang] || `📞 Select area code for <b>${target}</b> — <b>${city}</b>:
 
 "Mixed Area Codes" gives you the widest pool of verified numbers.`), k.of(buttons))
-      set(state, chatId, 'action', a.targetSelectAreaCode)
+      await set(state, chatId, 'action', a.targetSelectAreaCode)
     },
     targetLeadsConfirm: async () => {
       const { targetName, targetCity, carrier, amount, price, couponApplied, newPrice } = info || {}
@@ -3122,57 +3122,57 @@ Enter new value:`), bc)
     },
 
     // Custom lead request
-    customLeadRequestName: () => {
+    customLeadRequestName: async () => {
       send(chatId, '📝 <b>Request Custom Leads</b>\n\nTell us the institution or company you want targeted leads for.\nWe source real, verified numbers with the phone owner\'s name — from any metro area you need:', { parse_mode: 'HTML', reply_markup: { keyboard: [[t.backButton || '⬅️ Back']], resize_keyboard: true } })
-      set(state, chatId, 'action', a.customLeadRequestName)
+      await set(state, chatId, 'action', a.customLeadRequestName)
     },
-    customLeadRequestCity: () => {
+    customLeadRequestCity: async () => {
       send(chatId, t.leadCustomCity ? t.leadCustomCity(info?.customLeadTarget) : `🏙️ Which city or area do you want leads from?\n\nTarget: <b>${info?.customLeadTarget}</b>\n\nType the city name or "Nationwide" for all areas:`, { parse_mode: 'HTML', reply_markup: { keyboard: [[t.leadNationwide || 'Nationwide'], [t.backButton || '⬅️ Back']], resize_keyboard: true } })
-      set(state, chatId, 'action', a.customLeadRequestCity)
+      await set(state, chatId, 'action', a.customLeadRequestCity)
     },
-    customLeadRequestDetails: () => {
+    customLeadRequestDetails: async () => {
       send(chatId, t.leadCustomDetails ? t.leadCustomDetails(info?.customLeadTarget, info?.customLeadCity) : `📋 Any additional details? (e.g., preferred area codes, carrier, volume needed)\n\nTarget: <b>${info?.customLeadTarget}</b>\nArea: <b>${info?.customLeadCity}</b>\n\nType details or "None" to skip:`, { parse_mode: 'HTML', reply_markup: { keyboard: [[t.leadNone || 'None'], [t.backButton || '⬅️ Back']], resize_keyboard: true } })
-      set(state, chatId, 'action', a.customLeadRequestDetails)
+      await set(state, chatId, 'action', a.customLeadRequestDetails)
     },
 
     // validator
-    validatorSelectCountry: () => {
+    validatorSelectCountry: async () => {
       send(chatId, t.validatorSelectCountry, k.validatorSelectCountry)
-      set(state, chatId, 'action', a.validatorSelectCountry)
+      await set(state, chatId, 'action', a.validatorSelectCountry)
     },
 
-    validatorPhoneNumber: () => {
+    validatorPhoneNumber: async () => {
       send(chatId, t.validatorPhoneNumber, bc)
-      set(state, chatId, 'action', a.validatorPhoneNumber)
+      await set(state, chatId, 'action', a.validatorPhoneNumber)
     },
 
-    validatorSelectSmsVoice: () => {
+    validatorSelectSmsVoice: async () => {
       send(chatId, t.validatorSelectSmsVoice(info?.phones?.length), k.validatorSelectSmsVoice)
-      set(state, chatId, 'action', a.validatorSelectSmsVoice)
+      await set(state, chatId, 'action', a.validatorSelectSmsVoice)
     },
 
-    validatorSelectCarrier: () => {
+    validatorSelectCarrier: async () => {
       send(chatId, t.validatorSelectCarrier, k.validatorSelectCarrier(info?.country))
-      set(state, chatId, 'action', a.validatorSelectCarrier)
+      await set(state, chatId, 'action', a.validatorSelectCarrier)
     },
 
-    validatorSelectCnam: () => {
+    validatorSelectCnam: async () => {
       send(chatId, t.validatorSelectCnam, k.validatorSelectCnam)
-      set(state, chatId, 'action', a.validatorSelectCnam)
+      await set(state, chatId, 'action', a.validatorSelectCnam)
     },
 
-    validatorSelectAmount: () => {
+    validatorSelectAmount: async () => {
       send(
         chatId,
         t.validatorSelectAmount(validatorSelectAmount[0], validatorSelectAmount[validatorSelectAmount.length - 1]),
         k.validatorSelectAmount,
       )
-      set(state, chatId, 'action', a.validatorSelectAmount)
+      await set(state, chatId, 'action', a.validatorSelectAmount)
     },
 
-    validatorSelectFormat: () => {
+    validatorSelectFormat: async () => {
       send(chatId, t.validatorSelectFormat, k.validatorSelectFormat)
-      set(state, chatId, 'action', a.validatorSelectFormat)
+      await set(state, chatId, 'action', a.validatorSelectFormat)
     },
 
     useFreeValidation: async () => {
@@ -3246,19 +3246,19 @@ Enter new value:`), bc)
       send(chatId, t.redSelectUrl, bc)
     },
 
-    redSelectRandomCustom: () => {
+    redSelectRandomCustom: async () => {
       send(chatId, t.redSelectRandomCustom, trans('k.redSelectRandomCustom'))
-      set(state, chatId, 'action', a.redSelectRandomCustom)
+      await set(state, chatId, 'action', a.redSelectRandomCustom)
     },
 
-    redSelectProvider: () => {
+    redSelectProvider: async () => {
       send(chatId, trans('t.redSelectProvider'), trans('k.redSelectProvider'))
-      set(state, chatId, 'action', a.redSelectProvider)
+      await set(state, chatId, 'action', a.redSelectProvider)
     },
 
-    redSelectCustomExt: () => {
+    redSelectCustomExt: async () => {
       send(chatId, t.redSelectCustomExt, bc)
-      set(state, chatId, 'action', a.redSelectCustomExt)
+      await set(state, chatId, 'action', a.redSelectCustomExt)
     },
 
     submenu1: async () => {
@@ -3273,15 +3273,15 @@ Enter new value:`), bc)
       rows.push([user.viewShortLinks])
       send(chatId, t.urlShortenerSelect || t.select, trans('k.of', rows))
     },
-    submenu2: () => {
-      set(state, chatId, 'action', a.submenu2)
+    submenu2: async () => {
+      await set(state, chatId, 'action', a.submenu2)
       send(chatId, t.select, trans('k.of', [user.buyDomainName, user.viewDomainNames, user.dnsManagement]))
     },
 
     // cPanel Plans SubMenu
-    submenu3: () => {
+    submenu3: async () => {
       saveInfo('username', username)
-      set(state, chatId, 'action', a.submenu3)
+      await set(state, chatId, 'action', a.submenu3)
       send( chatId, t.selectPlan, k.of(
         HOSTING_TRIAL_PLAN_ON && HOSTING_TRIAL_PLAN_ON === 'true'
           ? [[user.freeTrial, user.premiumWeekly], [user.premiumCpanel, user.goldenCpanel], [user.myHostingPlans], user.contactSupport]
@@ -3294,37 +3294,37 @@ Enter new value:`), bc)
     },
 
     //free Trial Package
-    freeTrialMenu: () => {
-      set(state, chatId, 'action', a.freeTrial)
+    freeTrialMenu: async () => {
+      await set(state, chatId, 'action', a.freeTrial)
       send(chatId, t.selectedTrialPlan, k.of([user.freeTrialMenuButton, user.contactSupport]))
     },
-    freeTrial: () => {
-      set(state, chatId, 'action', a.freeTrial)
+    freeTrial: async () => {
+      await set(state, chatId, 'action', a.freeTrial)
       send(chatId, t.freeTrialPlanSelected(info.hostingType), k.of([[user.getFreeTrialPlanNow, t.backButton]]))
     },
-    getFreeTrialPlanNow: () => {
-      set(state, chatId, 'action', a.getPlanNow)
+    getFreeTrialPlanNow: async () => {
+      await set(state, chatId, 'action', a.getPlanNow)
       saveInfo('plan', 'Freedom Plan')
       send(chatId, t.getFreeTrialPlan, k.of([[user.backToFreeTrial]]))
     },
-    continueWithDomainNameSBS: (websiteName) => {
-      set(state, chatId, 'action', a.domainAvailableContinue)
+    continueWithDomainNameSBS: async (websiteName) => {
+      await set(state, chatId, 'action', a.domainAvailableContinue)
       saveInfo('website_name', websiteName)
       saveInfo('existingDomain', false)
       send(chatId, t.trialPlanContinueWithDomainNameSBSMatched(websiteName), k.of([[user.continueWithDomainNameSBS(websiteName)], [user.searchAnotherDomain], [t.backButton]]))
     },
-    nameserverSelectionSBS: (websiteName) => {
-      set(state, chatId, 'action', a.nameserverSelectionSBS)
+    nameserverSelectionSBS: async (websiteName) => {
+      await set(state, chatId, 'action', a.nameserverSelectionSBS)
       const actions = [[user.privHostNS], [user.cloudflareNS], [t.backButton]];
       send(chatId, t.trialPlanNameserverSelection(websiteName), k.of(actions))
     },
-    proceedContinueWithDomainNameSBS: () => {
-      set(state, chatId, 'action', a.continueWithDomainNameSBS)
+    proceedContinueWithDomainNameSBS: async () => {
+      await set(state, chatId, 'action', a.continueWithDomainNameSBS)
       send(chatId, t.trialPlanDomainNameMatched, k.of([[t.skipEmail], [t.backButton]]))
     },
-    confirmEmailBeforeProceedingSBS: (email) => {
+    confirmEmailBeforeProceedingSBS: async (email) => {
       saveInfo('email', email)
-      set(state, chatId, 'action', a.confirmEmailBeforeProceedingSBS)
+      await set(state, chatId, 'action', a.confirmEmailBeforeProceedingSBS)
       send(chatId, t.confirmEmailBeforeProceedingSBS(email), k.of([[t.yesProceedWithThisEmail(email)], [t.backButton]]))
     },
     sendcPanelCredentialsAsEmailToUser: async () => {
@@ -3339,7 +3339,7 @@ Enter new value:`), bc)
 
 
     // Step 1: Select Plan
-    selectPlan: plan => {
+    selectPlan: async (plan) => {
       let planName = 'Premium Anti-Red (1-Week)';
 
       if (plan === a.goldenCpanel) {
@@ -3349,7 +3349,7 @@ Enter new value:`), bc)
       }
 
       saveInfo('plan', planName)
-      set(state, chatId, 'action', plan)
+      await set(state, chatId, 'action', plan)
       const message = hP.generatePlanText(info.hostingType, plan);
 
       let actions = [[user.buyPremiumWeekly], [user.viewPremiumCpanel, user.viewGoldenCpanel], [user.backToHostingPlans]];
@@ -3363,15 +3363,15 @@ Enter new value:`), bc)
     },
 
     // Step 1.1: View Plan
-    viewPlan: plan => {
-      set(state, chatId, 'action', plan)
+    viewPlan: async (plan) => {
+      await set(state, chatId, 'action', plan)
       const message = hP.generatePlanText(info.hostingType, plan);
       send(chatId, message, bc)
     },
 
     // Step 2: Buy Plan
-    buyPlan: plan => {
-      set(state, chatId, 'action', plan)
+    buyPlan: async (plan) => {
+      await set(state, chatId, 'action', plan)
       console.log("buyPlan", plan)
       const message = hP.generatePlanStepText("buyText");
       let backBtn = user.backToPremiumWeeklyDetails
@@ -3383,8 +3383,8 @@ Enter new value:`), bc)
     },
 
     // Step 2.1: Register New Domain
-    registerNewDomain: () => {
-      set(state, chatId, 'action', a.registerNewDomain)
+    registerNewDomain: async () => {
+      await set(state, chatId, 'action', a.registerNewDomain)
       saveInfo('existingDomain', false)
 
       const message = hP.generatePlanStepText("registerNewDomainText");
@@ -3392,8 +3392,8 @@ Enter new value:`), bc)
     },
 
     // Step 2.2: Register New Domain - Found
-    registerNewDomainFound: (websiteName, price) => {
-      set(state, chatId, 'action', a.registerNewDomainFound)
+    registerNewDomainFound: async (websiteName, price) => {
+      await set(state, chatId, 'action', a.registerNewDomainFound)
       saveInfo('website_name', websiteName)
       const domainFoundText = hP.generateDomainFoundText(websiteName, price);
       send(chatId, domainFoundText, k.of([[user.continueWithDomain(websiteName)], [user.searchAnotherDomain]]))
@@ -3414,37 +3414,37 @@ Enter new value:`), bc)
     },
 
     // Step 2.4: Connect External Domain
-    connectExternalDomain: () => {
-      set(state, chatId, 'action', a.connectExternalDomain)
+    connectExternalDomain: async () => {
+      await set(state, chatId, 'action', a.connectExternalDomain)
       saveInfo('connectExternalDomain', true)
       saveInfo('existingDomain', false)  // External domains are NOT existing (owned) domains
       send(chatId, hP.generatePlanStepText("connectExternalDomainText"), bc)
     },
 
     // Step 2.5: Connect External Domain - Found
-    connectExternalDomainFound: (websiteName) => {
-      set(state, chatId, 'action', a.connectExternalDomainFound)
+    connectExternalDomainFound: async (websiteName) => {
+      await set(state, chatId, 'action', a.connectExternalDomainFound)
       saveInfo('website_name', websiteName)
       send(chatId, hP.connectExternalDomainText(websiteName), k.of([[user.continueWithDomain(websiteName)], [user.searchAnotherDomain]]))
     },
 
     // Step 2.6: Use Existing Domain (legacy — kept for backward compat)
-    useExistingDomain: () => {
-      set(state, chatId, 'action', a.useExistingDomain)
+    useExistingDomain: async () => {
+      await set(state, chatId, 'action', a.useExistingDomain)
       saveInfo('existingDomain', true)
       const message = hP.generatePlanStepText("useExistingDomainText");
       send(chatId, message, bc)
     },
 
     // Step 2.7: Use Existing Domain - Found
-    useExistingDomainFound: (websiteName) => {
-      set(state, chatId, 'action', a.useExistingDomainFound)
+    useExistingDomainFound: async (websiteName) => {
+      await set(state, chatId, 'action', a.useExistingDomainFound)
       saveInfo('website_name', websiteName)
       send(chatId, hP.generateExistingDomainText(websiteName), k.of([[user.continueWithDomain(websiteName)], [user.searchAnotherDomain]]))
     },
 
-    domainNotFound: (websiteName) => {
-      set(state, chatId, 'action', a.domainNotFound)
+    domainNotFound: async (websiteName) => {
+      await set(state, chatId, 'action', a.domainNotFound)
       send(chatId, hP.domainNotFound(websiteName), bc)
     },
 
@@ -3456,15 +3456,15 @@ Enter new value:`), bc)
     },
 
     // Step 4: Enter your email (optional)
-    enterYourEmail: () => {
-      set(state, chatId, 'action', a.enterYourEmail)
+    enterYourEmail: async () => {
+      await set(state, chatId, 'action', a.enterYourEmail)
       send(chatId, hP.generatePlanStepText('enterYourEmail'), k.of([t.skipEmail]))
     },
 
     // Step 4.1: Confirm Email
-    confirmEmailBeforeProceeding: (email) => {
+    confirmEmailBeforeProceeding: async (email) => {
       saveInfo('email', email)
-      set(state, chatId, 'action', a.confirmEmailBeforeProceeding)
+      await set(state, chatId, 'action', a.confirmEmailBeforeProceeding)
       send(chatId, hP.confirmEmailBeforeProceeding(email), k.of([t.yesProceedWithThisEmail(email)]))
     },
 
@@ -3504,16 +3504,16 @@ Enter new value:`), bc)
     },
 
     // Step 5: Ask Coupon
-    plansAskCoupon: action => {
+    plansAskCoupon: async (action) => {
       saveInfo('couponApplied', false)
       saveInfo('couponDiscount', 0)
       send(chatId, t.planAskCoupon, k.of([t.skip]))
-      set(state, chatId, 'action', a.askCoupon + action)
+      await set(state, chatId, 'action', a.askCoupon + action)
     },
 
     // Step 5.1: Skip Coupon
-    skipCoupon: (action) => {
-      // set(state, chatId, 'action', a.skipCoupon)
+    skipCoupon: async (action) => {
+      // await set(state, chatId, 'action', a.skipCoupon)
       saveInfo('couponApplied', false)
       saveInfo('couponDiscount', 0)
       goto[action]()
@@ -3684,31 +3684,31 @@ Enter new value:`), bc)
       return send(chatId, vp.askVpsConfig(configTypes), vp.of(configList))  
     },
 
-    askUserVpsPlan: () => {
-      set(state, chatId, 'action', a.askUserVpsPlan)
+    askUserVpsPlan: async () => {
+      await set(state, chatId, 'action', a.askUserVpsPlan)
       const vpsDetails = info.vpsDetails
       const plans = vpsDetails.config.billingCycles.map((item) => item.type)
       send(chatId, vp.askPlanType(vpsDetails.config.billingCycles), vp.of(plans)) 
       return send(chatId, vp.hourlyBillingMessage)
     },
 
-    askCouponForVPSPlan: () => {
-      set(state, chatId, 'action', a.askCouponForVPSPlan)
+    askCouponForVPSPlan: async () => {
+      await set(state, chatId, 'action', a.askCouponForVPSPlan)
       return send(chatId, vp.askForCoupon, vp.of([vp.skip]))  
     },
 
-    skipCouponVps: () => {
-      set(state, chatId, 'action', a.skipCouponVps)
+    skipCouponVps: async () => {
+      await set(state, chatId, 'action', a.skipCouponVps)
       return send(chatId, vp.skipCouponwarning, vp.of([vp.confirmSkip, t.goBackToCoupon]))  
     },
 
-    askVPSPlanAutoRenewal: () => {
-      set(state, chatId, 'action', a.askVPSPlanAutoRenewal)
+    askVPSPlanAutoRenewal: async () => {
+      await set(state, chatId, 'action', a.askVPSPlanAutoRenewal)
       return send(chatId, vp.askAutoRenewal, vp.of([vp.enable, vp.skip]))  
     },
 
-    askVpsCpanel: () => {
-      set(state, chatId, 'action', a.askVpsCpanel)
+    askVpsCpanel: async () => {
+      await set(state, chatId, 'action', a.askVpsCpanel)
       return send(chatId, vp.askVpsCpanel, vp.cpanelMenu)
     },
 
@@ -3747,23 +3747,23 @@ Enter new value:`), bc)
         : send(chatId, vp.noExistingSSHMessage, vp.of([vp.generateSSHKeyBtn, vp.skipSSHKeyBtn]))
     },
 
-    vpsLinkSSHKey: () => {
-      set(state, chatId, 'action', a.vpsLinkSSHKey)
+    vpsLinkSSHKey: async () => {
+      await set(state, chatId, 'action', a.vpsLinkSSHKey)
       return send(chatId, vp.selectSSHKey, vp.of([...info.vpsDetails.sshKeysList, vp.uploadNewKeyBtn, vp.cancel]))
     },
 
-    askSkipSSHkeyconfirmation: () => {
-      set(state, chatId, 'action', a.askSkipSSHkeyconfirmation)
+    askSkipSSHkeyconfirmation: async () => {
+      await set(state, chatId, 'action', a.askSkipSSHkeyconfirmation)
       return send(chatId, vp.confirmSkipSSHMsg, vp.of([vp.confirmSkipSSHBtn, vp.setUpSSHBtn]))
     },
 
-    askUploadSSHPublicKey : () => {
-      set(state, chatId, 'action', a.askUploadSSHPublicKey)
+    askUploadSSHPublicKey : async () => {
+      await set(state, chatId, 'action', a.askUploadSSHPublicKey)
       return send(chatId, vp.askToUploadSSHKey, vp.of([]))
     },
 
-    vpsAskPaymentConfirmation: () => {
-      set(state, chatId, 'action', a.proceedWithVpsPayment)
+    vpsAskPaymentConfirmation: async () => {
+      await set(state, chatId, 'action', a.proceedWithVpsPayment)
       return send(chatId, vp.generateBillSummary(info?.vpsDetails), vp.of([vp.yes, vp.no]))
     },
 
@@ -3792,18 +3792,18 @@ Enter new value:`), bc)
       return send(chatId, vp.selectedVpsData(vpsData), vp.of([ ...action, vp.subscriptionBtn, vp.VpsLinkedKeysBtn, vp.upgradeVpsBtn,  vp.deleteVpsBtn]))
     },
 
-    confirmStopVps : () => {
-      set(state, chatId, 'action', a.confirmStopVps)
+    confirmStopVps : async () => {
+      await set(state, chatId, 'action', a.confirmStopVps)
       return send(chatId, vp.confirmStopVpstext(info.vpsDetails.name), vp.of([ vp.confirmChangeBtn, vp.cancel])) 
     },
 
-    confirmDeleteVps: () => {
-      set(state, chatId, 'action', a.confirmDeleteVps)
+    confirmDeleteVps: async () => {
+      await set(state, chatId, 'action', a.confirmDeleteVps)
       return send(chatId, vp.confirmDeleteVpstext(info.vpsDetails.name), vp.of([ vp.confirmChangeBtn, vp.cancel])) 
     },
 
-    upgradeVpsInstance: () => {
-      set(state, chatId, 'action', a.upgradeVpsInstance)
+    upgradeVpsInstance: async () => {
+      await set(state, chatId, 'action', a.upgradeVpsInstance)
       return send(chatId, vp.upgradeVPS, vp.of([ vp.upgradeVpsPlanBtn, vp.upgradeVpsDiskBtn ])) 
     },
 
@@ -3835,23 +3835,23 @@ Enter new value:`), bc)
       return send(chatId, info.vpsDetails.upgradeType === 'plan' ? vp.upgradePlanSummary(info.vpsDetails, info.userVPSDetails, lowBalance) : vp.upgradeDiskSummary(info.vpsDetails, info.userVPSDetails, lowBalance), vp.of([vp.yes, vp.no]))
     },
 
-    vpsSubscription: () => {
-      set(state, chatId, 'action', a.vpsSubscription)
+    vpsSubscription: async () => {
+      await set(state, chatId, 'action', a.vpsSubscription)
       const vpsDetails = info.userVPSDetails
       const availableOptions = vpsDetails.cPanelPlanDetails?.id ? [vp.manageVpsSubBtn, vp.manageVpsPanelBtn] : [vp.manageVpsSubBtn]
       const cPanelRenewDate = vpsDetails.cPanelPlanDetails?.id ? date(vpsDetails.cPanelPlanDetails.expiryDate) : ''
       return send(chatId, vp.vpsSubscriptionData(vpsDetails, date(vpsDetails.subscriptionEnd), cPanelRenewDate), vp.of(availableOptions))
     },
 
-    manageVpsSub: () => {
-      set(state, chatId, 'action', a.manageVpsSub)
+    manageVpsSub: async () => {
+      await set(state, chatId, 'action', a.manageVpsSub)
       const btn = info.userVPSDetails.autoRenewable ? vp.vpsDisableRenewalBtn : vp.vpsEnableRenewalBtn
       const expiryDate = date(info.userVPSDetails.subscriptionEnd)
       return send(chatId, vp.vpsSubDetails(info.userVPSDetails, expiryDate), vp.of([btn, vp.vpsPlanRenewBtn]))
     },
 
-    manageVpsPanel: () => {
-      set(state, chatId, 'action', a.manageVpsPanel)
+    manageVpsPanel: async () => {
+      await set(state, chatId, 'action', a.manageVpsPanel)
       const vpsDetails = info.userVPSDetails
       const expiryDate = date(vpsDetails.cPanelPlanDetails.expiryDate)
       return send(chatId, vp.vpsCPanelDetails(info.userVPSDetails, expiryDate), vp.of([vp.vpsPlanRenewBtn]))
@@ -3873,14 +3873,14 @@ Enter new value:`), bc)
         send(chatId, vp.noLinkedKey(info.userVPSDetails.name), vp.of([vp.linkVpsSSHKeyBtn])) 
     },
 
-    vpsUnlinkSSHKey: () => {
-      set(state, chatId, 'action', a.vpsUnlinkSSHKey)
+    vpsUnlinkSSHKey: async () => {
+      await set(state, chatId, 'action', a.vpsUnlinkSSHKey)
       const linkedSSHKeys = info.vpsDetails.linkedSSHKeys
       return send(chatId, vp.unlinkSSHKeyList(info.userVPSDetails.name), vp.of([...linkedSSHKeys, vp.cancel]))
     },
 
-    confirmVpsUnlinkSSHKey : () => {
-      set(state, chatId, 'action', a.confirmVpsUnlinkSSHKey)
+    confirmVpsUnlinkSSHKey : async () => {
+      await set(state, chatId, 'action', a.confirmVpsUnlinkSSHKey)
       return send(chatId, vp.confirmUnlinkKey(info.vpsDetails), vp.of([vp.confirmUnlinkBtn, vp.cancel]))
     },
 
@@ -3901,13 +3901,13 @@ Enter new value:`), bc)
         send(chatId, vp.noUserKeyList, vp.of([vp.uploadNewKeyBtn, vp.cancel])) 
     },
 
-    uploadSShKeyToAttach: () => {
-      set(state, chatId, 'action', a.uploadSShKeyToAttach)
+    uploadSShKeyToAttach: async () => {
+      await set(state, chatId, 'action', a.uploadSShKeyToAttach)
       return send(chatId, vp.askToUploadSSHKey, vp.of([]))
     },
 
-    downloadSSHKey: () => {
-      set(state, chatId, 'action', a.downloadSSHKey)
+    downloadSSHKey: async () => {
+      await set(state, chatId, 'action', a.downloadSSHKey)
       const list = info.vpsDetails.linkedSSHKeys
       return send(chatId, vp.selectSSHKeyToDownload, vp.of([...list, vp.cancel]))
     },
@@ -5072,8 +5072,8 @@ All verified numbers generated during sourcing.`))
     const validLanguage = supportedLanguages[language]
     if (!validLanguage) return send(chatId, trans('l.askValidLanguage'), trans('languageMenu') )
     info.userLanguage = validLanguage
-    set(state, chatId, 'userLanguage', validLanguage)
-    set(state, chatId, 'action', 'none')
+    await set(state, chatId, 'userLanguage', validLanguage)
+    await set(state, chatId, 'action', 'none')
 
     // Notify admin about new member
     if (TELEGRAM_ADMIN_CHAT_ID) {
@@ -5107,8 +5107,8 @@ All verified numbers generated during sourcing.`))
     const validLanguage = supportedLanguages[language]
     if (!validLanguage) return send(chatId, trans('l.askValidLanguage'), trans('languageMenu') )
     info.userLanguage = validLanguage
-    set(state, chatId, 'userLanguage', validLanguage)
-    set(state, chatId, 'action', 'none')
+    await set(state, chatId, 'userLanguage', validLanguage)
+    await set(state, chatId, 'action', 'none')
     const greeting = await getMainMenuGreeting()
     return send(chatId, greeting, trans('o'))
   }
