@@ -104,7 +104,7 @@ function MainApp() {
 
             <div className="stats-grid" data-testid="stats-grid">
               <StatCard title="Bot Status" value={status === 'online' ? 'Running' : status === 'loading' ? '...' : 'Stopped'} detail="Telegram Bot Engine" accent="emerald" />
-              <StatCard title="Database" value={botHealth?.db === 'connected' ? 'Connected' : status === 'loading' ? '...' : 'N/A'} detail="MongoDB Instance" accent="sky" />
+              <StatCard title="Database" value={botHealth?.database === 'connected' || botHealth?.db === 'connected' ? 'Connected' : status === 'loading' ? '...' : 'N/A'} detail="MongoDB Instance" accent="sky" />
               <StatCard title="REST APIs" value={status === 'online' ? 'Active' : status === 'loading' ? '...' : 'Inactive'} detail="Express Server" accent="violet" />
               <StatCard title="Services" value="5+" detail="Integrated Modules" accent="amber" />
             </div>
