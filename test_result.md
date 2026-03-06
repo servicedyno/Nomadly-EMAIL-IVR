@@ -1367,7 +1367,7 @@ agent_communication:
     file: "js/twilio-service.js, js/_index.js, js/phone-config.js"
     stuck_count: 0
     priority: "critical"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
         - working: "NA"
           agent: "main"
@@ -1375,6 +1375,9 @@ agent_communication:
         - working: true
           agent: "testing"
           comment: "12/12 tests passed. All regulatory bundle functions verified."
+        - working: "NA"
+          agent: "main"
+          comment: "CRITICAL BUG FIX from Railway deployment cee7b7ae logs. ROOT CAUSE: addBundleItem was passing raw Twilio Address SID (AD...) but bundles only accept End-User SIDs and Supporting Document SIDs. Error: 'attempting to add invalid object type to bundle'. Bundle stuck in 'draft' forever. FIX: (1) twilio-service.js: Added createSupportingDocument() function that wraps Address SID into a Supporting Document (type: address, attributes: {address_sids: addressSid}). (2) _index.js cached addr path (~line 4593): Now creates Supporting Document from cachedAddr, then adds doc SID to bundle. Each step throws on error instead of silently continuing. (3) _index.js fresh addr path (~line 11485): Same fix — creates Supporting Document from addressSid before adding to bundle. (4) Both paths: submitBundle error now throws (triggers refund) instead of saving as 'draft'. (5) Shortened regulatory approval message in all 4 languages — removed verbose bullet points. Please verify: (a) createSupportingDocument exported from twilio-service.js, (b) both bundle paths create Supporting Document before addBundleItem, (c) addBundleItem uses addrDoc.sid not raw addressSid, (d) submitBundle error throws instead of saving draft, (e) shortened messages in both paths."
 
   - task: "Bundle UX improvements — pending order visibility, status check, cancel/refund, number fallback, enhanced address prompt"
     implemented: true

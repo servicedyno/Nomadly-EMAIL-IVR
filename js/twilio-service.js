@@ -642,7 +642,34 @@ async function createBundle(friendlyName, email, isoCountry, numberType, endUser
 }
 
 /**
- * Add an item (address or end-user) to a regulatory bundle.
+ * Create a Supporting Document for regulatory compliance.
+ * Twilio bundles only accept End-User SIDs and Supporting Document SIDs,
+ * NOT raw Address SIDs. This wraps an Address SID into a Supporting Document.
+ * For address proof, use type='tax_document' with attributes={address_sids: addressSid}.
+ */
+async function createSupportingDocument(friendlyName, type, attributes) {
+  try {
+    const client = getClient()
+    if (!client) throw new Error('Twilio client not initialized')
+    // Ensure address_sids is always an array (Twilio requires array format)
+    if (attributes && attributes.address_sids && !Array.isArray(attributes.address_sids)) {
+      attributes.address_sids = [attributes.address_sids]
+    }
+    const doc = await client.numbers.v2.regulatoryCompliance.supportingDocuments.create({
+      friendlyName,
+      type: type || 'tax_document',
+      attributes: attributes || {},
+    })
+    log(`[Twilio] Created supporting document: ${doc.sid} (${friendlyName}, type=${type})`)
+    return { sid: doc.sid, status: doc.status }
+  } catch (e) {
+    log(`[Twilio] createSupportingDocument error: ${e.message}`)
+    return { error: e.message }
+  }
+}
+
+/**
+ * Add an item (supporting document or end-user) to a regulatory bundle.
  */
 async function addBundleItem(bundleSid, objectSid) {
   try {
@@ -735,6 +762,7 @@ module.exports = {
   needsBundle,
   getRegulationSid,
   createEndUser,
+  createSupportingDocument,
   createBundle,
   addBundleItem,
   submitBundle,

@@ -4589,13 +4589,21 @@ Enter new value:`), bc)
                   countryCode, numType, 'individual', regResult.sid, bundleCallbackUrl
                 )
                 if (bundleResult.error) throw new Error(`createBundle: ${bundleResult.error}`)
-                await twilioService.addBundleItem(bundleResult.sid, endUserResult.sid)
-                await twilioService.addBundleItem(bundleResult.sid, cachedAddr)
+                // Create supporting document from cached address (bundles don't accept raw Address SIDs)
+                const addrDoc = await twilioService.createSupportingDocument(
+                  `Address-${chatId}-${countryCode}`, 'address', { address_sids: cachedAddr }
+                )
+                if (addrDoc.error) throw new Error(`createSupportingDocument: ${addrDoc.error}`)
+                const addEU = await twilioService.addBundleItem(bundleResult.sid, endUserResult.sid)
+                if (addEU.error) throw new Error(`addBundleItem(endUser): ${addEU.error}`)
+                const addAddr = await twilioService.addBundleItem(bundleResult.sid, addrDoc.sid)
+                if (addAddr.error) throw new Error(`addBundleItem(address): ${addAddr.error}`)
                 const submitResult = await twilioService.submitBundle(bundleResult.sid)
-                const bundleStatus = submitResult.error ? 'draft' : (submitResult.status || 'pending-review')
+                if (submitResult.error) throw new Error(`submitBundle: ${submitResult.error}`)
+                const bundleStatus = submitResult.status || 'pending-review'
                 await pendingBundles.insertOne({
                   chatId, bundleSid: bundleResult.sid, endUserSid: endUserResult.sid,
-                  addressSid: cachedAddr, regulationSid: regResult.sid,
+                  addressSid: cachedAddr, supportingDocSid: addrDoc.sid, regulationSid: regResult.sid,
                   countryCode, countryName, numType, selectedNumber, planKey, price,
                   priceUsd, priceNgn: coin === u.ngn ? priceNgn : 0,
                   paymentCoin: coin, paymentMethod: 'wallet_' + coin, lang,
@@ -4605,7 +4613,7 @@ Enter new value:`), bc)
                 await saveInfo('cpPendingPriceUsd', null)
                 await saveInfo('cpPendingPriceNgn', null)
                 set(state, chatId, 'action', 'none')
-                send(chatId, ({ en: `📋 <b>Regulatory Approval Required</b>\n\n🇿🇦 ${countryName} requires telecom regulatory approval before a number can be activated.\n\n✅ Your address has been submitted\n✅ Your payment of <b>$${Number(price).toFixed(2)}</b> is held securely\n⏳ <b>Approval typically takes 1-3 business days</b>\n\nYou will be notified automatically when:\n• ✅ Approved — your number will be activated instantly\n• ❌ Rejected — your wallet will be fully refunded\n\nNo action needed from you. We'll handle everything!`, fr: `📋 <b>Approbation réglementaire requise</b>\n\n🇿🇦 ${countryName} nécessite une approbation réglementaire.\n\n✅ Votre adresse a été soumise\n✅ Votre paiement de <b>$${Number(price).toFixed(2)}</b> est sécurisé\n⏳ <b>L'approbation prend 1-3 jours ouvrables</b>`, zh: `📋 <b>需要监管审批</b>\n\n🇿🇦 ${countryName} 需要电信监管审批。\n\n✅ 您的地址已提交\n✅ 您的 <b>$${Number(price).toFixed(2)}</b> 付款已安全持有\n⏳ <b>审批通常需要1-3个工作日</b>`, hi: `📋 <b>नियामक अनुमोदन आवश्यक</b>\n\n🇿🇦 ${countryName} में टेलीकॉम नियामक अनुमोदन आवश्यक है।\n\n✅ आपका पता सबमिट किया गया\n✅ <b>$${Number(price).toFixed(2)}</b> का भुगतान सुरक्षित है\n⏳ <b>अनुमोदन में 1-3 कार्य दिवस लगते हैं</b>` }[lang] || `📋 <b>Regulatory Approval Required</b>\n\n🇿🇦 ${countryName} requires telecom regulatory approval.\n\n✅ Your payment of <b>$${Number(price).toFixed(2)}</b> is held securely\n⏳ Approval typically takes 1-3 business days`), { parse_mode: 'HTML' })
+                send(chatId, ({ en: `📋 <b>Regulatory Approval Required</b>\n\n${countryName} requires regulatory approval (1-3 business days).\nYour <b>$${Number(price).toFixed(2)}</b> is held securely. You'll be notified when approved or refunded.`, fr: `📋 <b>Approbation réglementaire requise</b>\n\n${countryName} nécessite une approbation (1-3 jours ouvrables).\nVotre <b>$${Number(price).toFixed(2)}</b> est sécurisé. Vous serez notifié.`, zh: `📋 <b>需要监管审批</b>\n\n${countryName} 需要审批（1-3个工作日）。\n您的 <b>$${Number(price).toFixed(2)}</b> 已安全持有，审批后通知您。`, hi: `📋 <b>नियामक अनुमोदन आवश्यक</b>\n\n${countryName} में अनुमोदन आवश्यक (1-3 कार्य दिवस)।\nआपका <b>$${Number(price).toFixed(2)}</b> सुरक्षित है। अनुमोदन पर सूचित किया जाएगा।` }[lang] || `📋 <b>Regulatory Approval Required</b>\n\n${countryName} requires regulatory approval (1-3 business days).\nYour <b>$${Number(price).toFixed(2)}</b> is held securely. You'll be notified when approved or refunded.`), { parse_mode: 'HTML' })
                 notifyAdmin(`📋 [Bundle] Regulatory bundle submitted (cached address)\nchatId: ${chatId}\nnumber: ${selectedNumber}\ncountry: ${countryCode}\nbundle: ${bundleResult.sid}\nstatus: ${bundleStatus}`)
                 log(`[CloudPhone] Bundle ${bundleResult.sid} submitted for ${chatId} (cached addr), status=${bundleStatus}`)
                 return
@@ -11473,23 +11481,33 @@ Choose an IVR template category:`), k.of(rows))
           return notifyAdmin(`⚠️ [Bundle] createBundle failed\nchatId: ${chatId}\nerror: ${bundleResult.error}`)
         }
 
-        // 4. Add end-user + address as item assignments
-        const addEndUser = await twilioService.addBundleItem(bundleResult.sid, endUserResult.sid)
-        const addAddress = await twilioService.addBundleItem(bundleResult.sid, addressSid)
-        if (addEndUser.error || addAddress.error) {
-          log(`[CloudPhone] addBundleItem failed: endUser=${addEndUser.error || 'ok'}, address=${addAddress.error || 'ok'}`)
+        // 4. Create supporting document from address (bundles don't accept raw Address SIDs)
+        const addrDoc = await twilioService.createSupportingDocument(
+          `Address-${chatId}-${countryCode}`, 'address', { address_sids: addressSid }
+        )
+        if (addrDoc.error) {
+          log(`[CloudPhone] createSupportingDocument failed: ${addrDoc.error}`)
+          throw new Error(`createSupportingDocument: ${addrDoc.error}`)
         }
 
-        // 5. Submit for review
-        const submitResult = await twilioService.submitBundle(bundleResult.sid)
-        const bundleStatus = submitResult.error ? 'draft' : (submitResult.status || 'pending-review')
+        // 5. Add end-user + supporting document as item assignments
+        const addEndUser = await twilioService.addBundleItem(bundleResult.sid, endUserResult.sid)
+        if (addEndUser.error) throw new Error(`addBundleItem(endUser): ${addEndUser.error}`)
+        const addAddress = await twilioService.addBundleItem(bundleResult.sid, addrDoc.sid)
+        if (addAddress.error) throw new Error(`addBundleItem(address): ${addAddress.error}`)
 
-        // 6. Store pending purchase in DB
+        // 6. Submit for review
+        const submitResult = await twilioService.submitBundle(bundleResult.sid)
+        if (submitResult.error) throw new Error(`submitBundle: ${submitResult.error}`)
+        const bundleStatus = submitResult.status || 'pending-review'
+
+        // 7. Store pending purchase in DB
         await pendingBundles.insertOne({
           chatId,
           bundleSid: bundleResult.sid,
           endUserSid: endUserResult.sid,
           addressSid,
+          supportingDocSid: addrDoc.sid,
           regulationSid: regResult.sid,
           countryCode,
           countryName,
@@ -11513,12 +11531,12 @@ Choose an IVR template category:`), k.of(rows))
         await saveInfo('cpPendingPriceNgn', null)
         set(state, chatId, 'action', 'none')
 
-        // 7. Notify user
+        // 8. Notify user
         const bundleMsg = {
-          en: `📋 <b>Regulatory Approval Required</b>\n\n🇿🇦 ${countryName} requires telecom regulatory approval before a number can be activated.\n\n✅ Your address has been submitted\n✅ Your payment of <b>$${Number(price).toFixed(2)}</b> is held securely\n⏳ <b>Approval typically takes 1-3 business days</b>\n\nYou will be notified automatically when:\n• ✅ Approved — your number will be activated instantly\n• ❌ Rejected — your wallet will be fully refunded\n\nNo action needed from you. We'll handle everything!`,
-          fr: `📋 <b>Approbation réglementaire requise</b>\n\n🇿🇦 ${countryName} nécessite une approbation réglementaire des télécoms.\n\n✅ Votre adresse a été soumise\n✅ Votre paiement de <b>$${Number(price).toFixed(2)}</b> est sécurisé\n⏳ <b>L'approbation prend généralement 1 à 3 jours ouvrables</b>\n\nVous serez notifié automatiquement.`,
-          zh: `📋 <b>需要监管审批</b>\n\n🇿🇦 ${countryName} 需要电信监管审批。\n\n✅ 您的地址已提交\n✅ 您的 <b>$${Number(price).toFixed(2)}</b> 付款已安全持有\n⏳ <b>审批通常需要1-3个工作日</b>\n\n审批完成后将自动通知您。`,
-          hi: `📋 <b>नियामक अनुमोदन आवश्यक</b>\n\n🇿🇦 ${countryName} में टेलीकॉम नियामक अनुमोदन आवश्यक है।\n\n✅ आपका पता सबमिट किया गया\n✅ <b>$${Number(price).toFixed(2)}</b> का भुगतान सुरक्षित है\n⏳ <b>अनुमोदन में आमतौर पर 1-3 कार्य दिवस लगते हैं</b>\n\nआपको स्वचालित रूप से सूचित किया जाएगा।`,
+          en: `📋 <b>Regulatory Approval Required</b>\n\n${countryName} requires regulatory approval (1-3 business days).\nYour <b>$${Number(price).toFixed(2)}</b> is held securely. You'll be notified when approved or refunded.`,
+          fr: `📋 <b>Approbation réglementaire requise</b>\n\n${countryName} nécessite une approbation (1-3 jours ouvrables).\nVotre <b>$${Number(price).toFixed(2)}</b> est sécurisé. Vous serez notifié.`,
+          zh: `📋 <b>需要监管审批</b>\n\n${countryName} 需要审批（1-3个工作日）。\n您的 <b>$${Number(price).toFixed(2)}</b> 已安全持有，审批后通知您。`,
+          hi: `📋 <b>नियामक अनुमोदन आवश्यक</b>\n\n${countryName} में अनुमोदन आवश्यक (1-3 कार्य दिवस)।\nआपका <b>$${Number(price).toFixed(2)}</b> सुरक्षित है। अनुमोदन पर सूचित किया जाएगा।`,
         }
         send(chatId, bundleMsg[lang] || bundleMsg.en, { parse_mode: 'HTML' })
         notifyAdmin(`📋 [Bundle] Regulatory bundle submitted\nchatId: ${chatId}\nnumber: ${selectedNumber}\ncountry: ${countryCode}\nbundle: ${bundleResult.sid}\nstatus: ${bundleStatus}`)
