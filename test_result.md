@@ -103,20 +103,20 @@
 #====================================================================================================
 
 
-user_problem_statement: "Test the escrow seller username fix in the Nomadly Telegram Bot backend (Node.js on port 5000)."
+user_problem_statement: "Test the ZA (South Africa) Twilio number purchase fix in the Nomadly Telegram Bot backend (Node.js on port 5000)."
 
 backend:
-  - task: "Escrow seller username fix - Replace anonymized Seller#XXXX with actual @username"
+  - task: "ZA (South Africa) Twilio number purchase fix - saveInfo awaited, bundle bypass, bank path fix"
     implemented: true
-    working: true
-    file: "js/_index.js, js/lang/en.js, js/lang/fr.js, js/lang/zh.js, js/lang/hi.js"
+    working: false
+    file: "js/_index.js"
     stuck_count: 0
     priority: "high"
     needs_retesting: false
     status_history:
-        - working: true
+        - working: false
           agent: "testing"
-          comment: "✅ ESCROW SELLER USERNAME FIX COMPREHENSIVE VERIFICATION COMPLETE: All 5 critical requirements verified with 100% success rate (17/17 tests passed). ROOT CAUSE AND FIX VERIFIED: Previously escrow messages showed anonymized 'Seller#XXXX' (last 4 digits of sellerId) instead of actual Telegram @username. FIX: All 3 escrow message generation points now resolve product.sellerUsername when available. DETAILED VERIFICATION: (1) NODE.JS HEALTH: GET http://localhost:5000/health returns 200 with {'status': 'healthy', 'database': 'connected', 'uptime': '0.02 hours'}, /var/log/supervisor/nodejs.err.log is EMPTY (0 bytes), service running healthy on port 5000. (2) 3 SELLERREF FIXES IN _INDEX.JS: All 3 escrow message generation points correctly implement sellerRef logic - 'mp:escrow' handler (line 1578): 'const sellerRef = product?.sellerUsername && product.sellerUsername !== 'anonymous' ? `@${product.sellerUsername}` : `Seller#${String(conv.sellerId).slice(-4)}`', 'mp:escrow_product' handler (line 1610): same pattern with product.sellerUsername, '/escrow' command (line 6172): same pattern with product?.sellerUsername. (3) FALLBACK LOGIC VERIFIED: All 3 handlers check for missing, undefined, or 'anonymous' sellerUsername and fall back to 'Seller#XXXX' format using last 4 digits of sellerId. (4) MPESCROWMSG UPDATED IN ALL 4 LANGUAGE FILES: Verified en.js, fr.js, zh.js, hi.js all have mpEscrowMsg function with sellerRef parameter, bold formatting '<b>${sellerRef}</b>' in Seller line, and explicit sellerRef inclusion in step 2 instructions ('Create a new escrow with seller <b>${sellerRef}</b> for <b>$XX.XX</b>'). (5) NO HARDCODED ANONYMOUS SELLER# REFERENCES: Only 3 expected 'Seller#${String(conv.sellerId).slice(-4)}' fallback references found in escrow paths, all within proper conditional logic. THE ESCROW SELLER USERNAME FIX IS PRODUCTION-READY AND FULLY FUNCTIONAL - displays actual @username when available, falls back gracefully to Seller#XXXX format when username is missing/anonymous."
+          comment: "✅ ZA TWILIO NUMBER PURCHASE FIX COMPREHENSIVE TESTING COMPLETE: 7/8 critical requirements verified successfully (87.5% success rate). VERIFIED WORKING FIXES: (1) NODE.JS HEALTH: GET http://localhost:5000/health returns 200 with {'status': 'healthy', 'database': 'connected', 'uptime': '0.07 hours'}, /var/log/supervisor/nodejs.err.log is EMPTY (0 bytes), service running healthy on port 5000. (2) WALLET HANDLER AWAITED SAVEINFO: All saveInfo calls in wallet handler (lines 4496-4504) properly use 'await' keyword - cpPendingCoin, cpPendingPriceUsd, cpPendingPriceNgn, cpPaymentMethod, and cpAddressSid all awaited to prevent race conditions. (3) BUNDLE-REQUIRED BYPASS VERIFIED: ZA cached address flow includes twilioService.needsBundle(countryCode) check, pendingBundles.findOne() lookup for approved bundles, and await saveInfo('cpBundleSid', approvedBundle.bundleSid) for approved cases. Creates inline bundle for non-approved cases with proper error handling and refunds. (4) BANK PAYMENT PATH FIXED: /bank-pay-phone endpoint (line 15968) includes proper bundle logic with pendingBundles.findOne() check and approvedBundle.bundleSid parameter in executeTwilioPurchase call. (5) EXECUTETWILIOPURCHASE BUNDLESID PARAMETER: Function signature at line 538 correctly accepts bundleSid as 11th parameter, line 563 passes 'bundleSid || null' to twilioService.buyNumber. (6) WALLET EXECUTETWILIO CALL: Line 4600 passes 'info?.cpBundleSid || null' as 11th parameter to executeTwilioPurchase. ❌ CRITICAL ISSUE FOUND: Two unprotected cached-address paths remain that don't handle bundle requirements: /crypto-pay-phone (line ~16572) and /dynopay/crypto-pay-phone (line ~17106) both call executeTwilioPurchase with cachedAddr but bypass bundle checks for ZA numbers. These paths would fail for ZA purchases requiring regulatory bundles."
 
 backend:
   - task: "Wallet payment bug fix in Cloud IVR phone purchase flow"
@@ -386,14 +386,14 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Wallet payment bug fix in Cloud IVR phone purchase flow"
+    - "ZA (South Africa) Twilio number purchase fix - saveInfo awaited, bundle bypass, bank path fix"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
     - agent: "testing"
-      message: "✅ COMPREHENSIVE WALLET PAYMENT BUG FIX ENHANCED VERIFICATION COMPLETE: All 8 critical requirements verified with 100% success rate (8/8 tests passed). ENHANCED TESTING CONFIRMS: The wallet payment bug fix has been expanded to include LEADS-PAY support. ROOT CAUSE AND FIX VERIFIED: Global 'if (message === user.wallet)' handler at line 9290 was intercepting '👛 Wallet' button presses before payment-specific handlers could process them, affecting phone-pay and leads-pay flows. FIX: Added _payActions guard array with 8 payment actions. DETAILED VERIFICATION: (1) NODE.JS HEALTH: GET http://localhost:5000/health returns 200 with {'status': 'healthy', 'database': 'connected', 'uptime': '0.08 hours'}, /var/log/supervisor/nodejs.err.log is EMPTY (0 bytes). (2) _PAYACTIONS ARRAY ENHANCED: Array at line 9289 now contains exactly 8 required payment actions including 'leads-pay': ['phone-pay', 'domain-pay', 'hosting-pay', 'vps-plan-pay', 'vps-upgrade-plan-pay', 'digital-product-pay', 'virtual-card-pay', 'leads-pay']. (3) GLOBAL WALLET CONDITIONAL GUARD: Line 9290 contains correct conditional 'if (message === user.wallet && !_payActions.includes(action))' that prevents global wallet redirect during payment flows. (4) PHONE-PAY HANDLER WALLET CHECK: Handler at line 11102 has 'if (payOption === payIn.wallet)' check at line 11125 calling 'goto.walletSelectCurrency()'. (5) LEADS-PAY HANDLER WALLET CHECK: Handler at line 11457 has 'if (payOption === payIn.wallet)' check at line 11473 calling 'goto.walletSelectCurrency()'. (6) HANDLER ORDERING VERIFIED: Leads-pay handler (line 11457) is correctly positioned AFTER global wallet check (line 9290). (7) ALL 6 PAYMENT HANDLERS BEFORE GLOBAL CHECK INTACT: digital-product-pay (line 5794), virtual-card-pay (line 5970), domain-pay (line 7671), hosting-pay (line 7787), vps-plan-pay (line 7944), vps-upgrade-plan-pay (line 8048) all have their payIn.wallet checks intact and are positioned before the global wallet check. THE COMPREHENSIVE WALLET PAYMENT BUG FIX IS PRODUCTION-READY AND FULLY FUNCTIONAL - prevents global wallet redirect during payment flows while preserving all payment handler wallet functionality, including leads-pay support."
+      message: "✅ ZA TWILIO NUMBER PURCHASE FIX TESTING COMPLETE: Comprehensive testing of all 6 review request requirements completed with 87.5% success rate (7/8 tests passed). VERIFIED WORKING CORRECTLY: (1) NODE.JS HEALTH: Service healthy on port 5000 with empty error log. (2) WALLET HANDLER SAVEINFO AWAITED: All saveInfo calls (cpPendingCoin, cpPendingPriceUsd, cpPendingPriceNgn, cpPaymentMethod, cpAddressSid) properly awaited at lines 4496-4504. (3) BUNDLE-REQUIRED BYPASS: ZA cached address flow includes twilioService.needsBundle(countryCode) check, pendingBundles.findOne() for approved bundles, inline bundle creation for non-approved. (4) BANK PAYMENT PATH: /bank-pay-phone includes proper bundle logic with approvedBundle.bundleSid parameter. (5) EXECUTETWILIOPURCHASE SIGNATURE: Function accepts bundleSid as 11th parameter, passes to twilioService.buyNumber. (6) WALLET EXECUTETWILIO CALL: Passes info?.cpBundleSid || null correctly. ❌ CRITICAL ISSUE REMAINING: Two unprotected cached-address paths found that bypass bundle requirements for ZA numbers: /crypto-pay-phone (line ~16572) and /dynopay/crypto-pay-phone (line ~17106). These endpoints call executeTwilioPurchase with cachedAddr but don't check twilioService.needsBundle() or handle approved bundles, causing potential failures for ZA regulatory bundle requirements."
 
     - agent: "main"
       message: "Implemented domain purchase fixes for provider name leak + OP false-negative. Key changes: (1) op-service.js registerDomain: Added _verifyRegistration() function that checks if domain was actually registered after 5xx errors (waits 5s, queries OP API). Removed 'OpenProvider' from all error messages. Better error extraction from err.response.data. (2) cr-domain-register.js: Cleaned error messages, no raw JSON dumps. (3) domain-service.js: Added sanitizeErrorForUser() helper, applied to registration error path at line 152. Replaced all 'ConnectReseller'/'OpenProvider' strings in error returns across DNS/NS/switch flows. (4) _index.js buyDomainFullProcess: Admin gets detailed error, user gets generic localized message. (5) All 4 lang files: domainPurchasedFailed takes only domain param now. Please verify: (a) Node.js health, (b) op-service.js _verifyRegistration function exists and is called after 5xx, (c) no 'OpenProvider'/'ConnectReseller' in error return values of op-service.js/domain-service.js/cr-domain-register.js, (d) _index.js buyDomainFullProcess sends detailed error only to TELEGRAM_DEV_CHAT_ID, (e) all 4 lang files domainPurchasedFailed signature is (domain) not (domain, buyDomainError), (f) sanitizeErrorForUser exported from domain-service.js."
@@ -1321,18 +1321,31 @@ agent_communication:
           agent: "main"
           comment: "Fixed escrow message to show seller's actual Telegram @username instead of anonymized Seller#XXXX. All 3 escrow message points in _index.js (mp:escrow, mp:escrow_product, /escrow command) now resolve product.sellerUsername. Falls back to Seller#XXXX only if username is missing/anonymous. Updated mpEscrowMsg template in all 4 lang files to include explicit instruction 'Create escrow with seller @username for $XX.XX'."
 
+  - task: "Fix ZA (South Africa) Twilio number purchase — address + bundle handling"
+    implemented: true
+    working: "NA"
+    file: "js/_index.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Root cause from Railway logs (deployment 06ec36ec): User @usdcethh tried buying ZA local number via Twilio Pro plan ($75) — failed with 'Phone Number Requires an Address but the AddressSid parameter was empty'. Three bugs found and fixed: (1) WALLET HANDLER: saveInfo() calls at lines 4499-4503 were NOT awaited — async saveInfo updates DB+refreshes info, but without await, info.cpAddressSid was still null when read at line 4528. FIX: All saveInfo calls now properly awaited. (2) BUNDLE BYPASS: Cached-address path fell through to direct Twilio purchase without bundleSid — ZA requires regulatory bundle. FIX: For bundle-required countries with cached address, code now checks pendingBundles for approved bundle; if found uses it, if not creates a new bundle inline (address, endUser, regulation, submit) and notifies user to wait. (3) BANK PATH: Same cached-address+no-bundle bug existed in /bank-pay-phone handler (line 16005). FIX: Added same approved-bundle check and bundle-flow redirect."
+
+
 
 
 test_plan:
   current_focus:
-    - "Escrow message shows seller @username instead of anonymous Seller#XXXX"
+    - "Fix ZA (South Africa) Twilio number purchase — address + bundle handling"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
     - agent: "main"
-      message: "Fixed escrow message to show seller's actual Telegram @username instead of anonymized Seller#XXXX. Changes: (1) _index.js: All 3 escrow message points (mp:escrow line 1578, mp:escrow_product line 1610, /escrow command line 6172) now resolve product.sellerUsername — shows @username if available, falls back to Seller#XXXX only if missing/anonymous. (2) All 4 lang files (en/fr/zh/hi): Updated mpEscrowMsg template to bold the seller ref and include explicit instruction like 'Create a new escrow with seller @username for $XX.XX'. Please verify: (a) Node.js health + error log empty, (b) all 3 sellerRef lines in _index.js use product?.sellerUsername check, (c) mpEscrowMsg in all 4 lang files now bolds sellerRef and includes it in step 2 instructions, (d) fallback to Seller#XXXX still works when sellerUsername is 'anonymous' or undefined."
+      message: "Fixed ZA Twilio number purchase failure. Root cause: (1) saveInfo NOT awaited in wallet handler cached-address path — info.cpAddressSid was null. (2) Bundle-required countries bypassed bundle flow when cached address existed. (3) Bank payment path had same bug. All 3 fixed. Please verify: (a) Node.js healthy + 0 errors, (b) Wallet handler line ~4493: all saveInfo calls use 'await', (c) Bundle-required check with pendingBundles.findOne for approved bundle, (d) executeTwilioPurchase at line ~4601 now passes bundleSid as 11th param, (e) Bank path line ~16005 has approved-bundle check and bundle-flow redirect."
     - agent: "main"
       message: "Implemented marketplace listing broadcast feature. When seller publishes a new listing, ALL bot users get a notification with image + details + inline buttons. Please verify: (a) Node.js health, (b) broadcastNewListing function in utils.js is properly defined and exported (line ~447, exported at line ~791), (c) broadcastNewListing is imported in _index.js (line 132), (d) broadcastNewListing is called in mpNewConfirm handler (line ~6556) after product creation as fire-and-forget, (e) the function correctly filters out seller's own chatId and dead users, (f) sends photo with caption + inline keyboard if images exist, text otherwise, (g) uses BROADCAST_CONFIG batching, (h) error log clean."
     - agent: "testing"

@@ -1,283 +1,380 @@
 #!/usr/bin/env python3
 """
-Comprehensive Wallet Payment Bug Fix Testing for Nomadly Node.js Backend
-Testing the fix for global wallet handler intercepting payment-specific handlers.
+Backend Test Suite for ZA Twilio Number Purchase Fix
+Tests the specific fixes mentioned in the review request for South Africa Twilio number purchases.
 """
 
 import requests
-import subprocess
-import re
-import os
 import json
+import sys
 from typing import Dict, List, Tuple
 
-def test_nodejs_health() -> Tuple[bool, str]:
-    """Test 1: Node.js health check"""
-    try:
-        response = requests.get('http://localhost:5000/health', timeout=10)
-        if response.status_code == 200:
-            data = response.json()
-            if data.get('status') == 'healthy' and data.get('database') == 'connected':
-                return True, f"✅ Health check passed: {data}"
-            else:
-                return False, f"❌ Health check failed: {data}"
-        else:
-            return False, f"❌ Health check returned status {response.status_code}"
-    except Exception as e:
-        return False, f"❌ Health check failed with exception: {str(e)}"
+# Test configuration
+BACKEND_URL = "http://localhost:5000"
+HEALTH_ENDPOINT = f"{BACKEND_URL}/health"
 
-def test_error_log_empty() -> Tuple[bool, str]:
-    """Test 2: Error log should be empty"""
-    try:
-        result = subprocess.run(['ls', '-la', '/var/log/supervisor/nodejs.err.log'], 
-                              capture_output=True, text=True)
-        if result.returncode == 0:
-            # Check file size (should be 0 bytes)
-            if ' 0 ' in result.stdout:
-                return True, "✅ Error log is empty (0 bytes)"
-            else:
-                # Check actual content
-                content_result = subprocess.run(['cat', '/var/log/supervisor/nodejs.err.log'], 
-                                              capture_output=True, text=True)
-                if content_result.stdout.strip() == '':
-                    return True, "✅ Error log is empty"
-                else:
-                    return False, f"❌ Error log contains: {content_result.stdout[:200]}"
-        else:
-            return False, "❌ Could not check error log file"
-    except Exception as e:
-        return False, f"❌ Error checking log: {str(e)}"
+def test_result(name: str, success: bool, details: str = "") -> Dict:
+    """Format test result"""
+    return {
+        "test": name,
+        "status": "✅ PASS" if success else "❌ FAIL", 
+        "details": details
+    }
 
-def test_payactions_array() -> Tuple[bool, str]:
-    """Test 3: _payActions array should contain exactly 8 payment actions"""
-    try:
-        with open('/app/js/_index.js', 'r') as f:
-            content = f.read()
+class ZATwilioFixTester:
+    def __init__(self):
+        self.results = []
         
-        # Find the _payActions array definition
-        pattern = r"const _payActions = \[(.*?)\]"
-        match = re.search(pattern, content, re.DOTALL)
+    def log(self, message: str):
+        print(f"[TEST] {message}")
         
-        if match:
-            array_content = match.group(1)
-            # Extract quoted strings
-            actions = re.findall(r"'([^']*)'", array_content)
+    def test_nodejs_health(self) -> bool:
+        """Test 1: Node.js health check"""
+        try:
+            response = requests.get(HEALTH_ENDPOINT, timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                healthy = data.get('status') == 'healthy'
+                self.results.append(test_result(
+                    "Node.js Health Check", 
+                    healthy,
+                    f"Status: {response.status_code}, Response: {data}"
+                ))
+                return healthy
+            else:
+                self.results.append(test_result(
+                    "Node.js Health Check", 
+                    False,
+                    f"HTTP {response.status_code}: {response.text}"
+                ))
+                return False
+        except Exception as e:
+            self.results.append(test_result(
+                "Node.js Health Check", 
+                False,
+                f"Connection error: {str(e)}"
+            ))
+            return False
+    
+    def check_error_log_empty(self) -> bool:
+        """Test 1b: Check error log is empty"""
+        try:
+            import os
+            error_log_path = "/var/log/supervisor/nodejs.err.log"
+            if os.path.exists(error_log_path):
+                size = os.path.getsize(error_log_path)
+                empty = size == 0
+                self.results.append(test_result(
+                    "Error Log Empty Check", 
+                    empty,
+                    f"Error log size: {size} bytes"
+                ))
+                return empty
+            else:
+                self.results.append(test_result(
+                    "Error Log Empty Check", 
+                    False,
+                    "Error log file not found"
+                ))
+                return False
+        except Exception as e:
+            self.results.append(test_result(
+                "Error Log Empty Check", 
+                False,
+                f"Error checking log: {str(e)}"
+            ))
+            return False
+
+    def read_file_content(self, file_path: str, start_line: int = None, end_line: int = None) -> str:
+        """Read file content with optional line range"""
+        try:
+            with open(file_path, 'r') as f:
+                lines = f.readlines()
+                if start_line is not None and end_line is not None:
+                    return ''.join(lines[start_line-1:end_line])
+                return ''.join(lines)
+        except Exception as e:
+            return f"Error reading file: {str(e)}"
+    
+    def test_wallet_handler_awaited_saveinfo(self) -> bool:
+        """Test 2: Wallet handler address flow - awaited saveInfo calls"""
+        try:
+            index_js_path = "/app/js/_index.js"
             
-            expected_actions = [
-                'phone-pay', 'domain-pay', 'hosting-pay', 'vps-plan-pay', 
-                'vps-upgrade-plan-pay', 'digital-product-pay', 'virtual-card-pay', 'leads-pay'
+            # Check lines 4496-4499 for awaited saveInfo calls
+            content = self.read_file_content(index_js_path, 4495, 4505)
+            
+            required_awaited_calls = [
+                "await saveInfo('cpPendingCoin'",
+                "await saveInfo('cpPendingPriceUsd'", 
+                "await saveInfo('cpPendingPriceNgn'",
+                "await saveInfo('cpPaymentMethod'"
             ]
             
-            if len(actions) == 8 and set(actions) == set(expected_actions):
-                return True, f"✅ _payActions array contains exactly 8 required actions: {actions}"
-            else:
-                return False, f"❌ _payActions array mismatch. Found: {actions}, Expected: {expected_actions}"
-        else:
-            return False, "❌ _payActions array not found"
-    except Exception as e:
-        return False, f"❌ Error checking _payActions array: {str(e)}"
-
-def test_global_wallet_conditional() -> Tuple[bool, str]:
-    """Test 4: Global wallet conditional should have proper guard"""
-    try:
-        with open('/app/js/_index.js', 'r') as f:
-            lines = f.readlines()
-        
-        # Find line ~9290
-        for i, line in enumerate(lines[9285:9295], 9286):
-            if 'if (message === user.wallet && !_payActions.includes(action))' in line.strip():
-                return True, f"✅ Global wallet conditional found at line {i}: {line.strip()}"
-        
-        return False, "❌ Global wallet conditional with proper guard not found around line 9290"
-    except Exception as e:
-        return False, f"❌ Error checking global wallet conditional: {str(e)}"
-
-def test_phone_pay_handler() -> Tuple[bool, str]:
-    """Test 5: Phone-pay handler should have wallet check"""
-    try:
-        with open('/app/js/_index.js', 'r') as f:
-            lines = f.readlines()
-        
-        # Find the phone-pay handler and its wallet check
-        found_handler = False
-        found_wallet_check = False
-        
-        for i, line in enumerate(lines):
-            if "if (action === 'phone-pay')" in line:
-                found_handler = True
-                handler_start = i
-                # Look for wallet check in next 50 lines
-                for j in range(i, min(i+50, len(lines))):
-                    if 'if (payOption === payIn.wallet)' in lines[j]:
-                        if 'goto.walletSelectCurrency()' in lines[j+1] or 'goto.walletSelectCurrency()' in lines[j+2]:
-                            found_wallet_check = True
-                            wallet_line = j + 1
-                            break
-                break
-        
-        if found_handler and found_wallet_check:
-            return True, f"✅ Phone-pay handler at line {handler_start+1} has wallet check at line {wallet_line} calling goto.walletSelectCurrency()"
-        else:
-            return False, f"❌ Phone-pay handler wallet check not found. Handler: {found_handler}, Wallet: {found_wallet_check}"
-    except Exception as e:
-        return False, f"❌ Error checking phone-pay handler: {str(e)}"
-
-def test_leads_pay_handler() -> Tuple[bool, str]:
-    """Test 6: Leads-pay handler should have wallet check"""
-    try:
-        with open('/app/js/_index.js', 'r') as f:
-            lines = f.readlines()
-        
-        # Find the leads-pay handler and its wallet check
-        found_handler = False
-        found_wallet_check = False
-        handler_line = 0
-        
-        for i, line in enumerate(lines):
-            if "if (action === 'leads-pay')" in line:
-                found_handler = True
-                handler_line = i + 1
-                # Look for wallet check in next 30 lines
-                for j in range(i, min(i+30, len(lines))):
-                    if 'if (payOption === payIn.wallet)' in lines[j]:
-                        if 'goto.walletSelectCurrency()' in lines[j+1] or 'goto.walletSelectCurrency()' in lines[j+2]:
-                            found_wallet_check = True
-                            wallet_line = j + 1
-                            break
-                break
-        
-        if found_handler and found_wallet_check:
-            return True, f"✅ Leads-pay handler at line {handler_line} has wallet check at line {wallet_line} calling goto.walletSelectCurrency()"
-        else:
-            return False, f"❌ Leads-pay handler wallet check not found. Handler: {found_handler}, Wallet: {found_wallet_check}"
-    except Exception as e:
-        return False, f"❌ Error checking leads-pay handler: {str(e)}"
-
-def test_handler_ordering() -> Tuple[bool, str]:
-    """Test 7: Verify leads-pay handler is AFTER global wallet check"""
-    try:
-        with open('/app/js/_index.js', 'r') as f:
-            lines = f.readlines()
-        
-        global_check_line = 0
-        leads_handler_line = 0
-        
-        for i, line in enumerate(lines):
-            if 'if (message === user.wallet && !_payActions.includes(action))' in line:
-                global_check_line = i + 1
-            if "if (action === 'leads-pay')" in line:
-                leads_handler_line = i + 1
-        
-        if global_check_line > 0 and leads_handler_line > 0:
-            if leads_handler_line > global_check_line:
-                return True, f"✅ Leads-pay handler (line {leads_handler_line}) is AFTER global wallet check (line {global_check_line})"
-            else:
-                return False, f"❌ Leads-pay handler (line {leads_handler_line}) is BEFORE global wallet check (line {global_check_line})"
-        else:
-            return False, f"❌ Could not find both handlers. Global: {global_check_line}, Leads: {leads_handler_line}"
-    except Exception as e:
-        return False, f"❌ Error checking handler ordering: {str(e)}"
-
-def test_payment_handlers_before_global() -> Tuple[bool, str]:
-    """Test 8: Verify 6 payment handlers BEFORE global wallet check have payIn.wallet checks"""
-    try:
-        with open('/app/js/_index.js', 'r') as f:
-            content = f.read()
-            lines = f.readlines()
-        
-        # Use known global wallet check line (confirmed in test 4)
-        global_check_line = 9290
-        
-        # Expected handlers before global check (from review request)
-        expected_handlers = [
-            ('digital-product-pay', r'if \(action === a\.digitalProductPay\)', 5794),
-            ('virtual-card-pay', r'if \(action === a\.virtualCardPay\)', 5970),
-            ('domain-pay', r'if \(action === \'domain-pay\'\)', 7671),
-            ('hosting-pay', r'if \(action === \'hosting-pay\'\)', 7787),
-            ('vps-plan-pay', r'if \(action === \'vps-plan-pay\'\)', 7944),
-            ('vps-upgrade-plan-pay', r'if \(action === \'vps-upgrade-plan-pay\'\)', 8048)
-        ]
-        
-        results = []
-        for name, handler_pattern, expected_line in expected_handlers:
-            # Find handler
-            handler_matches = list(re.finditer(handler_pattern, content))
+            missing_awaits = []
+            for call in required_awaited_calls:
+                if call not in content:
+                    missing_awaits.append(call)
             
-            if handler_matches:
-                handler_match = handler_matches[0]
-                handler_line_num = content[:handler_match.start()].count('\n') + 1
+            # Check line 4504 for cached address saveInfo
+            cached_addr_await = "await saveInfo('cpAddressSid', cachedAddr)" in content
+            if not cached_addr_await:
+                missing_awaits.append("await saveInfo('cpAddressSid', cachedAddr)")
                 
-                # Verify it's before global check
-                if handler_line_num < global_check_line:
-                    # Look for wallet check after this handler
-                    handler_section = content[handler_match.start():handler_match.start()+2000]  # Look in next 2000 chars
-                    if 'if (payOption === payIn.wallet)' in handler_section:
-                        results.append(f"✅ {name} (line {handler_line_num}): before global check (line {global_check_line}), wallet check found")
-                    else:
-                        results.append(f"❌ {name} (line {handler_line_num}): before global check, but wallet check missing")
-                else:
-                    results.append(f"❌ {name} (line {handler_line_num}): handler is AFTER global check (line {global_check_line})")
-            else:
-                results.append(f"❌ {name}: handler not found")
-        
-        # Check if all passed
-        failed_count = sum(1 for r in results if r.startswith('❌'))
-        if failed_count == 0:
-            return True, f"✅ All 6 payment handlers before global check have wallet checks:\n" + "\n".join(results)
-        else:
-            return False, f"❌ {failed_count}/6 payment handlers failed:\n" + "\n".join(results)
+            success = len(missing_awaits) == 0
+            details = f"Found all awaited saveInfo calls" if success else f"Missing awaited calls: {missing_awaits}"
             
-    except Exception as e:
-        return False, f"❌ Error checking payment handlers: {str(e)}"
+            self.results.append(test_result(
+                "Wallet Handler Awaited SaveInfo Calls",
+                success,
+                details
+            ))
+            return success
+            
+        except Exception as e:
+            self.results.append(test_result(
+                "Wallet Handler Awaited SaveInfo Calls",
+                False,
+                f"Error checking file: {str(e)}"
+            ))
+            return False
+    
+    def test_bundle_required_bypass(self) -> bool:
+        """Test 3: Bundle-required bypass for ZA with cached address"""
+        try:
+            index_js_path = "/app/js/_index.js"
+            
+            # Check lines around 4507-4515 for bundle logic
+            content = self.read_file_content(index_js_path, 4505, 4520)
+            
+            required_checks = [
+                "twilioService.needsBundle(countryCode)",
+                "pendingBundles.findOne({ chatId, countryCode, status: 'twilio-approved' })",
+                "await saveInfo('cpBundleSid', approvedBundle.bundleSid)"
+            ]
+            
+            missing_checks = []
+            for check in required_checks:
+                if check not in content:
+                    missing_checks.append(check)
+            
+            success = len(missing_checks) == 0
+            details = f"All bundle checks found" if success else f"Missing checks: {missing_checks}"
+            
+            self.results.append(test_result(
+                "Bundle Required Bypass Logic",
+                success,
+                details
+            ))
+            return success
+            
+        except Exception as e:
+            self.results.append(test_result(
+                "Bundle Required Bypass Logic", 
+                False,
+                f"Error checking file: {str(e)}"
+            ))
+            return False
+    
+    def test_bank_payment_path_fix(self) -> bool:
+        """Test 4: Bank payment path bundle check"""
+        try:
+            index_js_path = "/app/js/_index.js"
+            
+            # Check bank payment path around lines 16000-16030
+            content = self.read_file_content(index_js_path, 16000, 16030)
+            
+            required_elements = [
+                "twilioService.needsBundle(countryCode)",
+                "pendingBundles.findOne({ chatId, countryCode, status: 'twilio-approved' })",
+                "approvedBundle.bundleSid"
+            ]
+            
+            missing_elements = []
+            for element in required_elements:
+                if element not in content:
+                    missing_elements.append(element)
+            
+            success = len(missing_elements) == 0
+            details = f"Bank path bundle logic found" if success else f"Missing elements: {missing_elements}"
+            
+            self.results.append(test_result(
+                "Bank Payment Path Bundle Fix",
+                success,
+                details
+            ))
+            return success
+            
+        except Exception as e:
+            self.results.append(test_result(
+                "Bank Payment Path Bundle Fix",
+                False,
+                f"Error checking file: {str(e)}"
+            ))
+            return False
+    
+    def test_executetwilio_purchase_signature(self) -> bool:
+        """Test 5: executeTwilioPurchase function signature and bundleSid parameter"""
+        try:
+            index_js_path = "/app/js/_index.js"
+            
+            # Check function signature around line 538
+            content = self.read_file_content(index_js_path, 535, 545)
+            
+            # Check for bundleSid parameter in function signature
+            function_signature_ok = "bundleSid" in content and "async function executeTwilioPurchase" in content
+            
+            # Check line 563 for bundleSid parameter passing
+            content2 = self.read_file_content(index_js_path, 560, 570)
+            bundlesid_passed = "bundleSid || null" in content2
+            
+            success = function_signature_ok and bundlesid_passed
+            details = f"Function signature: {'✓' if function_signature_ok else '✗'}, Parameter passing: {'✓' if bundlesid_passed else '✗'}"
+            
+            self.results.append(test_result(
+                "executeTwilioPurchase BundleSid Parameter",
+                success,
+                details
+            ))
+            return success
+            
+        except Exception as e:
+            self.results.append(test_result(
+                "executeTwilioPurchase BundleSid Parameter",
+                False,
+                f"Error checking file: {str(e)}"
+            ))
+            return False
+    
+    def test_wallet_executetwilio_call(self) -> bool:
+        """Test 5b: Wallet handler executeTwilioPurchase call with bundleSid"""
+        try:
+            index_js_path = "/app/js/_index.js"
+            
+            # Check line 4600 for bundleSid parameter in call
+            content = self.read_file_content(index_js_path, 4595, 4605)
+            
+            # Look for the executeTwilioPurchase call with bundleSid as 11th parameter
+            bundlesid_in_call = "info?.cpBundleSid || null" in content
+            
+            success = bundlesid_in_call
+            details = f"bundleSid parameter found in wallet executeTwilioPurchase call" if success else "bundleSid parameter missing in call"
+            
+            self.results.append(test_result(
+                "Wallet executeTwilioPurchase BundleSid Call",
+                success,
+                details
+            ))
+            return success
+            
+        except Exception as e:
+            self.results.append(test_result(
+                "Wallet executeTwilioPurchase BundleSid Call",
+                False,
+                f"Error checking file: {str(e)}"
+            ))
+            return False
+    
+    def test_unprotected_cached_address_paths(self) -> bool:
+        """Test 6: Check for remaining unprotected cached-address paths"""
+        try:
+            index_js_path = "/app/js/_index.js"
+            
+            # Read the entire file to search for problematic patterns
+            content = self.read_file_content(index_js_path)
+            
+            # Look for executeTwilioPurchase calls with cachedAddr that don't handle bundleSid
+            issues_found = []
+            
+            # Check crypto payment paths (known issues from analysis)
+            if "const result = await executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, info?.cpNumberType || 'local', 'crypto_' + coin, cachedAddr)" in content:
+                issues_found.append("Unprotected crypto payment path at line ~16572")
+            
+            if "const result = await executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, info?.cpNumberType || 'local', 'crypto_dynopay_' + coin, cachedAddr)" in content:
+                issues_found.append("Unprotected dynopay crypto payment path at line ~17106")
+            
+            # The bank payment path should be protected now
+            bank_protected = "approvedBundle.bundleSid" in content and "/bank-pay-phone" in content
+            
+            success = len(issues_found) == 0
+            details = f"Bank path protected: {'✓' if bank_protected else '✗'}"
+            if issues_found:
+                details += f", Issues found: {issues_found}"
+            else:
+                details += ", No unprotected paths found"
+            
+            self.results.append(test_result(
+                "Unprotected Cached-Address Paths Check", 
+                success,
+                details
+            ))
+            return success
+            
+        except Exception as e:
+            self.results.append(test_result(
+                "Unprotected Cached-Address Paths Check",
+                False,
+                f"Error checking file: {str(e)}"
+            ))
+            return False
+    
+    def run_all_tests(self) -> Tuple[int, int]:
+        """Run all tests and return (passed, total)"""
+        self.log("Starting ZA Twilio Number Purchase Fix Testing")
+        
+        # Test 1: Node.js health
+        self.test_nodejs_health()
+        self.check_error_log_empty()
+        
+        # Test 2: Wallet handler awaited saveInfo calls
+        self.test_wallet_handler_awaited_saveinfo()
+        
+        # Test 3: Bundle-required bypass logic
+        self.test_bundle_required_bypass()
+        
+        # Test 4: Bank payment path fix  
+        self.test_bank_payment_path_fix()
+        
+        # Test 5: executeTwilioPurchase signature and calls
+        self.test_executetwilio_purchase_signature()
+        self.test_wallet_executetwilio_call()
+        
+        # Test 6: No unprotected cached-address paths
+        self.test_unprotected_cached_address_paths()
+        
+        # Calculate results
+        passed = len([r for r in self.results if "✅" in r['status']])
+        total = len(self.results)
+        
+        return passed, total
+    
+    def print_results(self):
+        """Print test results summary"""
+        print("\n" + "="*80)
+        print("ZA TWILIO NUMBER PURCHASE FIX - TEST RESULTS")
+        print("="*80)
+        
+        for result in self.results:
+            print(f"{result['status']} {result['test']}")
+            if result['details']:
+                print(f"    Details: {result['details']}")
+            print()
+        
+        passed = len([r for r in self.results if "✅" in r['status']])
+        total = len(self.results)
+        success_rate = (passed / total * 100) if total > 0 else 0
+        
+        print(f"SUMMARY: {passed}/{total} tests passed ({success_rate:.1f}% success rate)")
+        print("="*80)
 
 def main():
-    """Run comprehensive wallet payment bug fix tests"""
-    print("=== COMPREHENSIVE WALLET PAYMENT BUG FIX TESTING ===")
-    print("Testing the fix for global wallet handler intercepting payment-specific handlers")
-    print()
+    """Main test execution"""
+    tester = ZATwilioFixTester()
+    passed, total = tester.run_all_tests()
+    tester.print_results()
     
-    tests = [
-        ("Node.js Health Check", test_nodejs_health),
-        ("Error Log Empty", test_error_log_empty),
-        ("_payActions Array (8 actions)", test_payactions_array),
-        ("Global Wallet Conditional Guard", test_global_wallet_conditional),
-        ("Phone-Pay Handler Wallet Check", test_phone_pay_handler),
-        ("Leads-Pay Handler Wallet Check", test_leads_pay_handler),
-        ("Handler Ordering (leads-pay after global)", test_handler_ordering),
-        ("6 Payment Handlers Before Global Check", test_payment_handlers_before_global)
-    ]
-    
-    passed = 0
-    total = len(tests)
-    
-    for i, (test_name, test_func) in enumerate(tests, 1):
-        print(f"Test {i}/{total}: {test_name}")
-        success, message = test_func()
-        print(f"  {message}")
-        if success:
-            passed += 1
-        print()
-    
-    print(f"=== RESULTS ===")
-    print(f"Passed: {passed}/{total} ({passed/total*100:.1f}%)")
-    
-    if passed == total:
-        print("🎉 ALL TESTS PASSED - Wallet payment bug fix is working correctly!")
-        print("\nKEY VERIFICATION POINTS:")
-        print("✅ Node.js backend healthy and accessible")
-        print("✅ _payActions guard array contains exactly 8 payment actions including 'leads-pay'") 
-        print("✅ Global wallet conditional properly guards against payment flow interference")
-        print("✅ Phone-pay and leads-pay handlers have intact wallet checks")
-        print("✅ Leads-pay handler is positioned after global wallet check")
-        print("✅ All 6 payment handlers before global check retain their wallet functionality")
-        print("\n🔧 ROOT CAUSE FIX CONFIRMED: Global 'if (message === user.wallet)' handler")
-        print("   now checks !_payActions.includes(action) to prevent intercepting wallet")
-        print("   button presses during payment flows, allowing payment-specific handlers")
-        print("   to process wallet payments correctly.")
-    else:
-        print(f"❌ {total - passed} tests failed - Issues need to be addressed")
-        
-    return passed == total
+    # Return appropriate exit code
+    sys.exit(0 if passed == total else 1)
 
 if __name__ == "__main__":
     main()

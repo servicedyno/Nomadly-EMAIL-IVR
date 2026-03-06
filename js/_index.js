@@ -4492,21 +4492,89 @@ Enter new value:`), bc)
 
       // Check if this country requires an address (addrReq=any)
       if (needsTwilioAddress(countryCode, provider)) {
+        // Save payment state first (awaited to prevent race conditions)
+        await saveInfo('cpPendingCoin', coin)
+        await saveInfo('cpPendingPriceUsd', priceUsd)
+        await saveInfo('cpPendingPriceNgn', coin === u.ngn ? priceNgn : 0)
+        await saveInfo('cpPaymentMethod', 'wallet_' + coin)
+
         // Check for cached address first
         const cachedAddr = await getCachedTwilioAddress(chatId, countryCode)
         if (cachedAddr) {
-          // Use cached address — proceed directly
-          saveInfo('cpAddressSid', cachedAddr)
-          saveInfo('cpPendingCoin', coin)
-          saveInfo('cpPendingPriceUsd', priceUsd)
-          saveInfo('cpPendingPriceNgn', coin === u.ngn ? priceNgn : 0)
-          saveInfo('cpPaymentMethod', 'wallet_' + coin)
+          await saveInfo('cpAddressSid', cachedAddr)
+
+          // ── Bundle-required countries (e.g. ZA) with cached address ──
+          if (twilioService.needsBundle(countryCode)) {
+            // Check for existing approved bundle for this country
+            const approvedBundle = await pendingBundles.findOne({ chatId, countryCode, status: 'twilio-approved' })
+            if (approvedBundle) {
+              // Has approved bundle — can proceed directly with address + bundle
+              log(`[CloudPhone] Using cached address + approved bundle ${approvedBundle.bundleSid} for ${chatId} (${countryCode})`)
+              await saveInfo('cpBundleSid', approvedBundle.bundleSid)
+              // Fall through to purchase below
+            } else {
+              // No approved bundle — create one using cached address
+              log(`[CloudPhone] Cached address found for ${countryCode}, creating regulatory bundle for chatId=${chatId}`)
+              send(chatId, ({ en: `✅ Payment received! Setting up regulatory approval...`, fr: `✅ Paiement reçu ! Configuration de l'approbation réglementaire...`, zh: `✅ 付款成功！正在设置监管审批...`, hi: `✅ भुगतान प्राप्त! नियामक अनुमोदन सेट अप हो रहा है...` }[lang] || `✅ Payment received! Setting up regulatory approval...`), { parse_mode: 'HTML' })
+              try {
+                const customerName = await get(nameOf, chatId) || `User-${chatId}`
+                const numType = info?.cpNumberType || 'local'
+                const regResult = await twilioService.getRegulationSid(countryCode, numType, 'individual')
+                if (regResult.error) throw new Error(`getRegulationSid: ${regResult.error}`)
+                const endUserResult = await twilioService.createEndUser(customerName, 'individual', {
+                  first_name: customerName.split(' ')[0] || customerName,
+                  last_name: customerName.split(' ').slice(1).join(' ') || 'User',
+                })
+                if (endUserResult.error) throw new Error(`createEndUser: ${endUserResult.error}`)
+                const bundleCallbackUrl = SELF_URL ? `${SELF_URL}/twilio/bundle-status` : undefined
+                const bundleResult = await twilioService.createBundle(
+                  `Nomadly-${chatId}-${countryCode}-${numType}`,
+                  process.env.NOMADLY_SERVICE_EMAIL || 'support@nomadly.com',
+                  countryCode, numType, 'individual', regResult.sid, bundleCallbackUrl
+                )
+                if (bundleResult.error) throw new Error(`createBundle: ${bundleResult.error}`)
+                await twilioService.addBundleItem(bundleResult.sid, endUserResult.sid)
+                await twilioService.addBundleItem(bundleResult.sid, cachedAddr)
+                const submitResult = await twilioService.submitBundle(bundleResult.sid)
+                const bundleStatus = submitResult.error ? 'draft' : (submitResult.status || 'pending-review')
+                await pendingBundles.insertOne({
+                  chatId, bundleSid: bundleResult.sid, endUserSid: endUserResult.sid,
+                  addressSid: cachedAddr, regulationSid: regResult.sid,
+                  countryCode, countryName, numType, selectedNumber, planKey, price,
+                  priceUsd, priceNgn: coin === u.ngn ? priceNgn : 0,
+                  paymentCoin: coin, paymentMethod: 'wallet_' + coin, lang,
+                  status: bundleStatus, createdAt: new Date(), updatedAt: new Date(),
+                })
+                await saveInfo('cpPendingCoin', null)
+                await saveInfo('cpPendingPriceUsd', null)
+                await saveInfo('cpPendingPriceNgn', null)
+                set(state, chatId, 'action', 'none')
+                send(chatId, ({ en: `📋 <b>Regulatory Approval Required</b>\n\n🇿🇦 ${countryName} requires telecom regulatory approval before a number can be activated.\n\n✅ Your address has been submitted\n✅ Your payment of <b>$${Number(price).toFixed(2)}</b> is held securely\n⏳ <b>Approval typically takes 1-3 business days</b>\n\nYou will be notified automatically when:\n• ✅ Approved — your number will be activated instantly\n• ❌ Rejected — your wallet will be fully refunded\n\nNo action needed from you. We'll handle everything!`, fr: `📋 <b>Approbation réglementaire requise</b>\n\n🇿🇦 ${countryName} nécessite une approbation réglementaire.\n\n✅ Votre adresse a été soumise\n✅ Votre paiement de <b>$${Number(price).toFixed(2)}</b> est sécurisé\n⏳ <b>L'approbation prend 1-3 jours ouvrables</b>`, zh: `📋 <b>需要监管审批</b>\n\n🇿🇦 ${countryName} 需要电信监管审批。\n\n✅ 您的地址已提交\n✅ 您的 <b>$${Number(price).toFixed(2)}</b> 付款已安全持有\n⏳ <b>审批通常需要1-3个工作日</b>`, hi: `📋 <b>नियामक अनुमोदन आवश्यक</b>\n\n🇿🇦 ${countryName} में टेलीकॉम नियामक अनुमोदन आवश्यक है।\n\n✅ आपका पता सबमिट किया गया\n✅ <b>$${Number(price).toFixed(2)}</b> का भुगतान सुरक्षित है\n⏳ <b>अनुमोदन में 1-3 कार्य दिवस लगते हैं</b>` }[lang] || `📋 <b>Regulatory Approval Required</b>\n\n🇿🇦 ${countryName} requires telecom regulatory approval.\n\n✅ Your payment of <b>$${Number(price).toFixed(2)}</b> is held securely\n⏳ Approval typically takes 1-3 business days`), { parse_mode: 'HTML' })
+                notifyAdmin(`📋 [Bundle] Regulatory bundle submitted (cached address)\nchatId: ${chatId}\nnumber: ${selectedNumber}\ncountry: ${countryCode}\nbundle: ${bundleResult.sid}\nstatus: ${bundleStatus}`)
+                log(`[CloudPhone] Bundle ${bundleResult.sid} submitted for ${chatId} (cached addr), status=${bundleStatus}`)
+                return
+              } catch (bundleErr) {
+                log(`[CloudPhone] Bundle creation error (cached addr): ${bundleErr.message}`)
+                try {
+                  if (coin === u.usd) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
+                  else if (coin === u.ngn) await atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn)
+                  await saveInfo('cpPendingCoin', null)
+                  await saveInfo('cpPendingPriceUsd', null)
+                  await saveInfo('cpPendingPriceNgn', null)
+                } catch (refundErr) {
+                  log(`[CloudPhone] CRITICAL: Refund failed after bundle error: ${refundErr.message}`)
+                  notifyAdmin(`🚨 CRITICAL [Bundle] Refund failed\nchatId: ${chatId}\nprice: $${priceUsd}\nerror: ${refundErr.message}`)
+                }
+                const { usdBal: refUsd, ngnBal: refNgn } = await getBalance(walletOf, chatId)
+                set(state, chatId, 'action', 'none')
+                send(chatId, `❌ Regulatory setup failed.\n\n💰 Your wallet has been refunded.\n${t.showWallet(refUsd, refNgn)}`, { parse_mode: 'HTML' })
+                return notifyAdmin(`⚠️ [Bundle] Exception (cached addr)\nchatId: ${chatId}\nerror: ${bundleErr.message}`)
+              }
+            }
+          }
+          // Non-bundle country with cached address: fall through to purchase below
         } else {
           // Need to collect address
-          saveInfo('cpPendingCoin', coin)
-          saveInfo('cpPendingPriceUsd', priceUsd)
-          saveInfo('cpPendingPriceNgn', coin === u.ngn ? priceNgn : 0)
-          saveInfo('cpPaymentMethod', 'wallet_' + coin)
           set(state, chatId, 'action', a.cpEnterAddress)
           const addrLoc = getAddressLocationText(countryCode)
           const isBundleCountry = twilioService.needsBundle(countryCode)
@@ -4526,9 +4594,10 @@ Enter new value:`), bc)
       if (provider === 'twilio') {
         // ── TWILIO PURCHASE FLOW (via shared helper) ──
         const addressSid = info?.cpAddressSid || null
+        const bundleSid = info?.cpBundleSid || null
         const isSubNumber = info?.cpIsSubNumber || false
         const subOpts = isSubNumber ? { isSubNumber: true, parentNumber: info?.cpSubParentNumber } : null
-        const result = await executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, info?.cpNumberType || 'local', coin === u.usd ? 'wallet_usd' : 'wallet_ngn', addressSid, subOpts)
+        const result = await executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, info?.cpNumberType || 'local', coin === u.usd ? 'wallet_usd' : 'wallet_ngn', addressSid, subOpts, bundleSid)
         if (result.error) {
           if (coin === u.usd) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
           else await atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn)
@@ -15931,7 +16000,33 @@ const bankApis = {
       if (needsTwilioAddress(countryCode, provider)) {
         const cachedAddr = await getCachedTwilioAddress(chatId, countryCode)
         if (cachedAddr) {
-          // Use cached address — proceed with purchase
+          // ── Bundle-required countries (e.g. ZA) with cached address ──
+          if (twilioService.needsBundle(countryCode)) {
+            const approvedBundle = await pendingBundles.findOne({ chatId, countryCode, status: 'twilio-approved' })
+            if (approvedBundle) {
+              // Has approved bundle — proceed with purchase
+              sendMessage(chatId, phoneConfig.getMsg(lang).purchasingNumber)
+              const result = await executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, info?.cpNumberType || 'local', 'bank_ngn', cachedAddr, null, approvedBundle.bundleSid)
+              if (result.error) {
+                addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
+                return res.send(html(phoneConfig.getMsg(lang).purchaseFailed))
+              }
+              sendMessage(chatId, cpTxt.activated(selectedNumber, result.plan?.name || planKey, price, result.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(result.expiresAt.toISOString())))
+              return res.send(html())
+            } else {
+              // No approved bundle — redirect to address/bundle flow
+              await state.updateOne({ _id: parseFloat(chatId) }, { $set: {
+                action: 'cpEnterAddress',
+                cpPendingCoin: 'bank_ngn',
+                cpPendingPriceUsd: price,
+                cpPendingPriceNgn: ngnPrice,
+                cpPaymentMethod: 'bank_ngn',
+              }}, { upsert: true })
+              sendMessage(chatId, `✅ Bank payment received!\n\n📍 <b>${countryName}</b> requires address verification for number activation.\n\nPlease enter your full address:\n<code>Street, City, Postal Code, Country</code>\n\n<i>Example: 42 Hamilton Ave, Bryanston, 2191, South Africa</i>\n\nOnce submitted, we'll handle the telecom verification process and activate your number automatically.`, { parse_mode: 'HTML' })
+              return res.send(html())
+            }
+          }
+          // Non-bundle: Use cached address — proceed with purchase
           sendMessage(chatId, phoneConfig.getMsg(lang).purchasingNumber)
           const result = await executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, info?.cpNumberType || 'local', 'bank_ngn', cachedAddr)
           if (result.error) {
