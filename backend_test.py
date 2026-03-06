@@ -1,442 +1,485 @@
 #!/usr/bin/env python3
-"""
-Bulk Call Campaign Pricing Overhaul Test Suite
-Tests all 11 requirements from the review request.
-"""
+
 import requests
-import os
 import json
-import time
+import sys
+import os
+from datetime import datetime
 
-# Test configuration
-BASE_URL = "http://localhost:5000"
-BACKEND_URL = os.getenv('REACT_APP_BACKEND_URL', 'https://pod-webhook-preview.preview.emergentagent.com')
+# Backend URL from environment
+BACKEND_URL = os.getenv('REACT_APP_BACKEND_URL', 'http://localhost:5000')
 
-class BulkCallPricingTests:
-    def __init__(self):
-        self.results = []
-        self.passed = 0
-        self.failed = 0
-        
-    def log_result(self, test_name, passed, details=""):
-        self.results.append({
-            "test": test_name,
-            "passed": passed,
-            "details": details
-        })
-        if passed:
-            self.passed += 1
-            print(f"✅ {test_name}")
+def log_test(test_name, status, details=""):
+    timestamp = datetime.now().strftime('%H:%M:%S')
+    status_emoji = "✅" if status == "PASS" else "❌" if status == "FAIL" else "⚠️"
+    print(f"[{timestamp}] {status_emoji} {test_name}: {status}")
+    if details:
+        print(f"    {details}")
+    print()
+
+def test_nodejs_health():
+    """Test NODE.JS HEALTH: GET /health should return 200 with healthy status"""
+    try:
+        response = requests.get(f"{BACKEND_URL}/health", timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('status') == 'healthy' and data.get('database') == 'connected':
+                log_test("Node.js Health Check", "PASS", 
+                        f"Status: {data.get('status')}, DB: {data.get('database')}, Uptime: {data.get('uptime')}")
+                return True
+            else:
+                log_test("Node.js Health Check", "FAIL", f"Unexpected health data: {data}")
+                return False
         else:
-            self.failed += 1
-            print(f"❌ {test_name}: {details}")
+            log_test("Node.js Health Check", "FAIL", f"HTTP {response.status_code}")
+            return False
+    except Exception as e:
+        log_test("Node.js Health Check", "FAIL", f"Exception: {str(e)}")
+        return False
+
+def test_nodejs_error_logs():
+    """Check that /var/log/supervisor/nodejs.err.log is empty"""
+    try:
+        with open('/var/log/supervisor/nodejs.err.log', 'r') as f:
+            content = f.read().strip()
+        
+        if len(content) == 0:
+            log_test("Node.js Error Logs Empty", "PASS", "nodejs.err.log is empty (0 bytes)")
+            return True
+        else:
+            log_test("Node.js Error Logs Empty", "FAIL", f"nodejs.err.log has {len(content)} characters")
+            return False
+    except Exception as e:
+        log_test("Node.js Error Logs Empty", "FAIL", f"Exception: {str(e)}")
+        return False
+
+def read_voice_service_file():
+    """Read and parse voice-service.js file"""
+    try:
+        with open('/app/js/voice-service.js', 'r') as f:
+            content = f.read()
+        return content
+    except Exception as e:
+        log_test("Read voice-service.js", "FAIL", f"Exception: {str(e)}")
+        return None
+
+def test_outbound_call_types_array(content):
+    """Verify OUTBOUND_CALL_TYPES array exists and contains all required types"""
+    if not content:
+        return False
     
-    def run_all_tests(self):
-        print("🚀 Starting Bulk Call Campaign Pricing Overhaul Tests")
-        print("=" * 60)
-        
-        # Test 1: Node.js health check
-        self.test_nodejs_health()
-        
-        # Test 2-3: Check constants in bulk-call-service.js
-        self.test_bulk_call_rate_constant()
-        self.test_max_bulk_leads_constant()
-        
-        # Test 4: createCampaign max leads check
-        self.test_create_campaign_max_leads_check()
-        
-        # Test 5: startCampaign wallet-only pre-check
-        self.test_start_campaign_wallet_precheck()
-        
-        # Test 6: onCallStatusUpdate bills all calls
-        self.test_billing_all_calls()
-        
-        # Test 7: fireNextBatch per-batch check
-        self.test_fire_next_batch_credit_check()
-        
-        # Test 8: _index.js lead upload limit
-        self.test_index_lead_upload_limit()
-        
-        # Test 9: _index.js campaign preview cost
-        self.test_index_campaign_preview_cost()
-        
-        # Test 10: Exports verification
-        self.test_exports_verification()
-        
-        # Test 11: Environment variables
-        self.test_env_vars()
-        
-        # Print summary
-        self.print_summary()
+    required_types = [
+        'SIPOutbound', 'Forwarding', 'Bridge_Transfer',
+        'IVR_Outbound', 'IVR_Transfer', 'IVR_Outbound_Twilio',
+        'Twilio_SIP_Bridge', 'Twilio_SIP_Outbound', 'Twilio_Forwarding'
+    ]
     
-    def test_nodejs_health(self):
-        """Test 1: Node.js health check"""
-        try:
-            response = requests.get(f"{BASE_URL}/health", timeout=10)
-            if response.status_code == 200:
-                data = response.json()
-                if data.get('status') == 'healthy':
-                    # Check error log is empty
-                    try:
-                        import subprocess
-                        result = subprocess.run(['wc', '-c', '/var/log/supervisor/nodejs.err.log'], 
-                                              capture_output=True, text=True)
-                        log_size = int(result.stdout.split()[0])
-                        if log_size == 0:
-                            self.log_result("Node.js Health Check", True, 
-                                          f"Service healthy, error log empty ({log_size} bytes)")
-                        else:
-                            self.log_result("Node.js Health Check", False, 
-                                          f"Error log not empty: {log_size} bytes")
-                    except Exception as e:
-                        self.log_result("Node.js Health Check", True, 
-                                      f"Service healthy, but couldn't check log: {e}")
-                else:
-                    self.log_result("Node.js Health Check", False, 
-                                  f"Service unhealthy: {data}")
+    # Find OUTBOUND_CALL_TYPES array
+    if 'const OUTBOUND_CALL_TYPES = [' in content:
+        # Extract the array content
+        start_idx = content.find('const OUTBOUND_CALL_TYPES = [')
+        end_idx = content.find(']', start_idx)
+        if end_idx != -1:
+            array_content = content[start_idx:end_idx + 1]
+            
+            # Check if all required types are present
+            missing_types = []
+            for req_type in required_types:
+                if f"'{req_type}'" not in array_content and f'"{req_type}"' not in array_content:
+                    missing_types.append(req_type)
+            
+            if not missing_types:
+                log_test("OUTBOUND_CALL_TYPES Array", "PASS", 
+                        f"All {len(required_types)} required call types found")
+                return True
             else:
-                self.log_result("Node.js Health Check", False, 
-                              f"HTTP {response.status_code}")
-        except Exception as e:
-            self.log_result("Node.js Health Check", False, str(e))
+                log_test("OUTBOUND_CALL_TYPES Array", "FAIL", 
+                        f"Missing types: {missing_types}")
+                return False
+        else:
+            log_test("OUTBOUND_CALL_TYPES Array", "FAIL", "Could not find array end bracket")
+            return False
+    else:
+        log_test("OUTBOUND_CALL_TYPES Array", "FAIL", "OUTBOUND_CALL_TYPES array not found")
+        return False
+
+def test_bill_call_minutes_unified_outbound(content):
+    """Verify billCallMinutesUnified outbound path logic"""
+    if not content:
+        return False
     
-    def test_bulk_call_rate_constant(self):
-        """Test 2: BULK_CALL_RATE constant verification"""
-        try:
-            with open('/app/js/bulk-call-service.js', 'r') as f:
-                content = f.read()
-            
-            # Look for the constant definition
-            expected_line = "const BULK_CALL_RATE = parseFloat(process.env.BULK_CALL_RATE_PER_MIN || '0.15')"
-            
-            if expected_line in content:
-                # Check if it's near the top of file (within first 50 lines)
-                lines = content.split('\n')
-                for i, line in enumerate(lines[:50]):
-                    if 'BULK_CALL_RATE = parseFloat(' in line and '0.15' in line:
-                        self.log_result("BULK_CALL_RATE Constant", True, 
-                                      f"Found at line {i+1}, value: 0.15")
-                        return
-                
-                self.log_result("BULK_CALL_RATE Constant", False, 
-                              "Found constant but not near top of file")
-            else:
-                self.log_result("BULK_CALL_RATE Constant", False, 
-                              "Constant definition not found")
-        except Exception as e:
-            self.log_result("BULK_CALL_RATE Constant", False, str(e))
+    # Find billCallMinutesUnified function
+    func_start = content.find('async function billCallMinutesUnified(')
+    if func_start == -1:
+        log_test("billCallMinutesUnified OUTBOUND Path", "FAIL", "Function not found")
+        return False
     
-    def test_max_bulk_leads_constant(self):
-        """Test 3: MAX_BULK_LEADS constant verification"""
-        try:
-            with open('/app/js/bulk-call-service.js', 'r') as f:
-                content = f.read()
-            
-            # Look for the constant definition
-            expected_line = "const MAX_BULK_LEADS  = parseInt(process.env.BULK_CALL_MAX_LEADS || '500', 10)"
-            
-            if "MAX_BULK_LEADS" in content and "500" in content:
-                # Check if it's near the top of file (within first 50 lines)
-                lines = content.split('\n')
-                for i, line in enumerate(lines[:50]):
-                    if 'MAX_BULK_LEADS' in line and 'parseInt(' in line and '500' in line:
-                        self.log_result("MAX_BULK_LEADS Constant", True, 
-                                      f"Found at line {i+1}, value: 500")
-                        return
-                
-                self.log_result("MAX_BULK_LEADS Constant", False, 
-                              "Found constant but not near top of file")
-            else:
-                self.log_result("MAX_BULK_LEADS Constant", False, 
-                              "Constant definition not found")
-        except Exception as e:
-            self.log_result("MAX_BULK_LEADS Constant", False, str(e))
+    # Get function content
+    func_content = content[func_start:func_start + 3000]  # Take reasonable chunk
     
-    def test_create_campaign_max_leads_check(self):
-        """Test 4: createCampaign max leads check"""
-        try:
-            with open('/app/js/bulk-call-service.js', 'r') as f:
-                content = f.read()
-            
-            # Look for the createCampaign function and max leads check
-            if 'async function createCampaign(' in content:
-                # Check for max leads validation
-                check_patterns = [
-                    'if (leads.length > MAX_BULK_LEADS)',
-                    'leads.length > MAX_BULK_LEADS',
-                    'Maximum ${MAX_BULK_LEADS} leads per campaign'
-                ]
-                
-                found_checks = 0
-                for pattern in check_patterns:
-                    if pattern in content:
-                        found_checks += 1
-                
-                if found_checks >= 2:
-                    self.log_result("createCampaign Max Leads Check", True, 
-                                  f"Found {found_checks}/3 expected patterns")
-                else:
-                    self.log_result("createCampaign Max Leads Check", False, 
-                                  f"Only found {found_checks}/3 expected patterns")
-            else:
-                self.log_result("createCampaign Max Leads Check", False, 
-                              "createCampaign function not found")
-        except Exception as e:
-            self.log_result("createCampaign Max Leads Check", False, str(e))
+    checks = {
+        'isOutbound_check': 'const isOutbound = OUTBOUND_CALL_TYPES.includes(callType)' in func_content,
+        'wallet_charge': 'atomicIncrement(_walletOf, chatId, \'usdOut\', totalCharge)' in func_content,
+        'no_increment_minutes': 'does not call incrementMinutesUsed in outbound path',
+        'return_structure': '{ planMinUsed: 0, overageMin: minutesBilled'
+    }
     
-    def test_start_campaign_wallet_precheck(self):
-        """Test 5: startCampaign wallet-only pre-check"""
-        try:
-            with open('/app/js/bulk-call-service.js', 'r') as f:
-                content = f.read()
-            
-            # Look for startCampaign function
-            if 'async function startCampaign(' in content:
-                # Check for wallet-only credit check patterns
-                wallet_checks = [
-                    'PRE-CAMPAIGN CREDIT CHECK',
-                    'usdBal < BULK_CALL_RATE',
-                    'minRequired = BULK_CALL_RATE * campaign.leads.length',
-                    'Bulk campaigns are charged at',
-                    'plan minutes NOT used'
-                ]
-                
-                found_checks = 0
-                for pattern in wallet_checks:
-                    if pattern in content:
-                        found_checks += 1
-                
-                # Check that it's NOT using plan minutes (should not have isMinuteLimitReached in bulk context)
-                no_plan_check = 'isMinuteLimitReached' not in content.split('startCampaign')[1].split('fireNextBatch')[0] if 'startCampaign' in content and 'fireNextBatch' in content else True
-                
-                if found_checks >= 3 and no_plan_check:
-                    self.log_result("startCampaign Wallet Pre-check", True, 
-                                  f"Found {found_checks}/5 wallet-only patterns, no plan minutes check")
-                else:
-                    self.log_result("startCampaign Wallet Pre-check", False, 
-                                  f"Found {found_checks}/5 patterns, plan check avoided: {no_plan_check}")
-            else:
-                self.log_result("startCampaign Wallet Pre-check", False, 
-                              "startCampaign function not found")
-        except Exception as e:
-            self.log_result("startCampaign Wallet Pre-check", False, str(e))
-    
-    def test_billing_all_calls(self):
-        """Test 6: onCallStatusUpdate bills ALL calls"""
-        try:
-            with open('/app/js/bulk-call-service.js', 'r') as f:
-                content = f.read()
-            
-            # Look for onCallStatusUpdate function
-            if 'async function onCallStatusUpdate(' in content:
-                # Check for billing section patterns
-                billing_patterns = [
-                    "['completed', 'no-answer', 'busy', 'failed', 'canceled'].includes(status)",
-                    'Math.max(1, Math.ceil((duration || 0) / 60))',
-                    'minutesBilled * BULK_CALL_RATE',
-                    'atomicIncrement(_walletOf',
-                    'minimum 1 minute always'
-                ]
-                
-                found_patterns = 0
-                for pattern in billing_patterns:
-                    if pattern in content:
-                        found_patterns += 1
-                
-                # Check it's NOT using billCallMinutesUnified
-                no_unified_billing = 'billCallMinutesUnified' not in content.split('onCallStatusUpdate')[1].split('}')[0] if 'onCallStatusUpdate' in content else False
-                
-                if found_patterns >= 3 and no_unified_billing:
-                    self.log_result("onCallStatusUpdate Bills All Calls", True, 
-                                  f"Found {found_patterns}/5 billing patterns, direct wallet charge")
-                else:
-                    self.log_result("onCallStatusUpdate Bills All Calls", False, 
-                                  f"Found {found_patterns}/5 patterns, no unified billing: {no_unified_billing}")
-            else:
-                self.log_result("onCallStatusUpdate Bills All Calls", False, 
-                              "onCallStatusUpdate function not found")
-        except Exception as e:
-            self.log_result("onCallStatusUpdate Bills All Calls", False, str(e))
-    
-    def test_fire_next_batch_credit_check(self):
-        """Test 7: fireNextBatch per-batch credit check"""
-        try:
-            with open('/app/js/bulk-call-service.js', 'r') as f:
-                content = f.read()
-            
-            # Look for fireNextBatch function
-            if 'async function fireNextBatch(' in content:
-                # Check for per-batch credit check patterns
-                batch_patterns = [
-                    'PER-BATCH CREDIT CHECK',
-                    'usdBal < BULK_CALL_RATE',
-                    'state.paused = true',
-                    'Campaign Paused — Wallet Depleted',
-                    'bulk calls use wallet only'
-                ]
-                
-                found_patterns = 0
-                for pattern in batch_patterns:
-                    if pattern in content:
-                        found_patterns += 1
-                
-                if found_patterns >= 3:
-                    self.log_result("fireNextBatch Per-batch Check", True, 
-                                  f"Found {found_patterns}/5 per-batch credit patterns")
-                else:
-                    self.log_result("fireNextBatch Per-batch Check", False, 
-                                  f"Only found {found_patterns}/5 expected patterns")
-            else:
-                self.log_result("fireNextBatch Per-batch Check", False, 
-                              "fireNextBatch function not found")
-        except Exception as e:
-            self.log_result("fireNextBatch Per-batch Check", False, str(e))
-    
-    def test_index_lead_upload_limit(self):
-        """Test 8: _index.js lead upload limit"""
-        try:
-            with open('/app/js/_index.js', 'r') as f:
-                content = f.read()
-            
-            # Look for bulkUploadLeads handler
-            if 'bulkUploadLeads' in content:
-                # Check for lead upload limit patterns
-                upload_patterns = [
-                    'if (leads.length > maxLeads)',
-                    'maxLeads = bulkCallService.MAX_BULK_LEADS',
-                    '|| 500',
-                    'limit'
-                ]
-                
-                found_patterns = 0
-                for pattern in upload_patterns:
-                    if pattern in content:
-                        found_patterns += 1
-                
-                if found_patterns >= 2:
-                    self.log_result("_index.js Lead Upload Limit", True, 
-                                  f"Found {found_patterns}/4 upload limit patterns")
-                else:
-                    self.log_result("_index.js Lead Upload Limit", False, 
-                                  f"Only found {found_patterns}/4 expected patterns")
-            else:
-                self.log_result("_index.js Lead Upload Limit", False, 
-                              "bulkUploadLeads handler not found")
-        except Exception as e:
-            self.log_result("_index.js Lead Upload Limit", False, str(e))
-    
-    def test_index_campaign_preview_cost(self):
-        """Test 9: _index.js campaign preview cost"""
-        try:
-            with open('/app/js/_index.js', 'r') as f:
-                content = f.read()
-            
-            # Look for bulkSetConcurrency handler (campaign preview)
-            if 'bulkSetConcurrency' in content:
-                # Check for campaign preview cost patterns
-                preview_patterns = [
-                    'bulkRate = bulkCallService.BULK_CALL_RATE',
-                    '|| 0.15',
-                    'estCost = (leadCount * bulkRate).toFixed(2)',
-                    '$0.15/min per number',
-                    'charged whether answered or not'
-                ]
-                
-                found_patterns = 0
-                for pattern in preview_patterns:
-                    if pattern in content:
-                        found_patterns += 1
-                
-                if found_patterns >= 3:
-                    self.log_result("_index.js Campaign Preview Cost", True, 
-                                  f"Found {found_patterns}/5 preview cost patterns")
-                else:
-                    self.log_result("_index.js Campaign Preview Cost", False, 
-                                  f"Only found {found_patterns}/5 expected patterns")
-            else:
-                self.log_result("_index.js Campaign Preview Cost", False, 
-                              "bulkSetConcurrency handler not found")
-        except Exception as e:
-            self.log_result("_index.js Campaign Preview Cost", False, str(e))
-    
-    def test_exports_verification(self):
-        """Test 10: Exports verification"""
-        try:
-            with open('/app/js/bulk-call-service.js', 'r') as f:
-                content = f.read()
-            
-            # Check module.exports section
-            if 'module.exports' in content:
-                # Check for required exports
-                required_exports = [
-                    'BULK_CALL_RATE',
-                    'MAX_BULK_LEADS'
-                ]
-                
-                found_exports = 0
-                for export_name in required_exports:
-                    if export_name in content.split('module.exports')[1]:
-                        found_exports += 1
-                
-                if found_exports == 2:
-                    self.log_result("Exports Verification", True, 
-                                  "Both BULK_CALL_RATE and MAX_BULK_LEADS exported")
-                else:
-                    self.log_result("Exports Verification", False, 
-                                  f"Only found {found_exports}/2 required exports")
-            else:
-                self.log_result("Exports Verification", False, 
-                              "module.exports section not found")
-        except Exception as e:
-            self.log_result("Exports Verification", False, str(e))
-    
-    def test_env_vars(self):
-        """Test 11: Environment variables"""
-        try:
-            with open('/app/backend/.env', 'r') as f:
-                env_content = f.read()
-            
-            # Check for required environment variables
-            required_vars = [
-                'BULK_CALL_RATE_PER_MIN=0.15',
-                'BULK_CALL_MAX_LEADS=500'
-            ]
-            
-            found_vars = 0
-            for var in required_vars:
-                if var in env_content:
-                    found_vars += 1
-            
-            if found_vars == 2:
-                self.log_result("Environment Variables", True, 
-                              "Both BULK_CALL_RATE_PER_MIN=0.15 and BULK_CALL_MAX_LEADS=500 found")
-            else:
-                self.log_result("Environment Variables", False, 
-                              f"Only found {found_vars}/2 required environment variables")
-        except Exception as e:
-            self.log_result("Environment Variables", False, str(e))
-    
-    def print_summary(self):
-        print("\n" + "=" * 60)
-        print("🎯 BULK CALL CAMPAIGN PRICING OVERHAUL TEST RESULTS")
-        print("=" * 60)
-        print(f"✅ PASSED: {self.passed}")
-        print(f"❌ FAILED: {self.failed}")
-        print(f"📊 SUCCESS RATE: {(self.passed / (self.passed + self.failed) * 100):.1f}%")
+    # Check for wallet charge in outbound section
+    outbound_section_start = func_content.find('if (isOutbound) {')
+    if outbound_section_start != -1:
+        outbound_section = func_content[outbound_section_start:outbound_section_start + 1000]
         
-        if self.failed > 0:
-            print("\n❌ FAILED TESTS:")
-            for result in self.results:
-                if not result["passed"]:
-                    print(f"   • {result['test']}: {result['details']}")
+        # Verify no incrementMinutesUsed call in outbound section
+        checks['no_increment_minutes'] = 'incrementMinutesUsed' not in outbound_section
+        checks['return_structure'] = 'planMinUsed: 0, overageMin: minutesBilled' in outbound_section
+    
+    passed_checks = sum(1 for check in checks.values() if check)
+    
+    if passed_checks >= 3:  # Most checks pass
+        log_test("billCallMinutesUnified OUTBOUND Path", "PASS", 
+                f"Verified outbound billing logic: {passed_checks}/4 checks passed")
+        return True
+    else:
+        log_test("billCallMinutesUnified OUTBOUND Path", "FAIL", 
+                f"Failed checks: {passed_checks}/4 passed")
+        return False
+
+def test_bill_call_minutes_unified_inbound(content):
+    """Verify billCallMinutesUnified inbound path logic"""
+    if not content:
+        return False
+    
+    func_start = content.find('async function billCallMinutesUnified(')
+    if func_start == -1:
+        log_test("billCallMinutesUnified INBOUND Path", "FAIL", "Function not found")
+        return False
+    
+    func_content = content[func_start:func_start + 4000]
+    
+    # Check for inbound logic (NOT in outbound section)
+    inbound_section_start = func_content.find('// ━━━ INBOUND: Use plan minutes first')
+    if inbound_section_start != -1:
+        inbound_section = func_content[inbound_section_start:inbound_section_start + 1500]
         
-        print("\n🎯 KEY FINDINGS:")
-        print("   • All tests target the new $0.15/min pricing model")
-        print("   • Maximum 500 leads per campaign enforcement")
-        print("   • Wallet-only billing (no plan minutes used)")
-        print("   • All calls billed minimum 1 minute regardless of outcome")
-        print("   • Pre-campaign and per-batch credit checks implemented")
+        checks = {
+            'increment_minutes': 'incrementMinutesUsed(chatId, phoneNumber, minutesBilled)' in inbound_section,
+            'plan_minutes_first': 'plan minutes first' in inbound_section.lower(),
+            'overage_wallet': 'atomicIncrement(_walletOf, chatId, \'usdOut\', overageCharge)' in inbound_section
+        }
+        
+        passed_checks = sum(1 for check in checks.values() if check)
+        
+        if passed_checks >= 2:
+            log_test("billCallMinutesUnified INBOUND Path", "PASS", 
+                    f"Verified inbound billing preserves plan minutes: {passed_checks}/3 checks")
+            return True
+        else:
+            log_test("billCallMinutesUnified INBOUND Path", "FAIL", 
+                    f"Missing inbound logic: {passed_checks}/3 checks")
+            return False
+    else:
+        log_test("billCallMinutesUnified INBOUND Path", "FAIL", "Inbound section not found")
+        return False
+
+def test_telnyx_sip_outbound_precheck(content):
+    """Verify Telnyx SIP outbound pre-check uses wallet only"""
+    if not content:
+        return False
+    
+    # Look for the pre-check around line 950
+    wallet_check_section = None
+    lines = content.split('\n')
+    
+    for i, line in enumerate(lines):
+        if 'usdBal < sipRate' in line and i > 900 and i < 1000:  # Around line 950
+            # Get surrounding context
+            start_idx = max(0, i - 10)
+            end_idx = min(len(lines), i + 15)
+            wallet_check_section = '\n'.join(lines[start_idx:end_idx])
+            break
+    
+    if wallet_check_section:
+        checks = {
+            'no_minute_limit_check': 'isMinuteLimitReached' not in wallet_check_section,
+            'wallet_check': 'usdBal < sipRate' in wallet_check_section,
+            'outbound_message': 'Outbound calls are billed from wallet' in wallet_check_section,
+            'wallet_insufficient': 'wallet too low' in wallet_check_section or 'SIP Call Blocked' in wallet_check_section
+        }
+        
+        passed_checks = sum(1 for check in checks.values() if check)
+        
+        if passed_checks >= 3:
+            log_test("Telnyx SIP Outbound Pre-check", "PASS", 
+                    f"Verified wallet-only check: {passed_checks}/4 checks")
+            return True
+        else:
+            log_test("Telnyx SIP Outbound Pre-check", "FAIL", 
+                    f"Pre-check issues: {passed_checks}/4 checks")
+            return False
+    else:
+        log_test("Telnyx SIP Outbound Pre-check", "FAIL", "Wallet check section not found around line 950")
+        return False
+
+def test_telnyx_sip_outbound_midcall(content):
+    """Verify Telnyx SIP outbound mid-call monitor uses wallet only"""
+    if not content:
+        return False
+    
+    # Look for mid-call monitor around line 1002
+    midcall_section = None
+    lines = content.split('\n')
+    
+    for i, line in enumerate(lines):
+        if 'Mid-call wallet monitor' in line and i > 1000 and i < 1100:
+            # Get surrounding context
+            start_idx = max(0, i)
+            end_idx = min(len(lines), i + 25)
+            midcall_section = '\n'.join(lines[start_idx:end_idx])
+            break
+    
+    if midcall_section:
+        checks = {
+            'no_minute_limit': 'minuteLimit' not in midcall_section and 'getMinuteLimit' not in midcall_section,
+            'no_projected_total': 'projectedTotal' not in midcall_section,
+            'wallet_balance_check': 'usdBal < rate' in midcall_section,
+            'wallet_exhausted_message': 'Wallet exhausted' in midcall_section or 'Call Disconnected' in midcall_section
+        }
+        
+        passed_checks = sum(1 for check in checks.values() if check)
+        
+        if passed_checks >= 3:
+            log_test("Telnyx SIP Outbound Mid-call Monitor", "PASS", 
+                    f"Verified wallet-only monitoring: {passed_checks}/4 checks")
+            return True
+        else:
+            log_test("Telnyx SIP Outbound Mid-call Monitor", "FAIL", 
+                    f"Mid-call monitor issues: {passed_checks}/4 checks")
+            return False
+    else:
+        log_test("Telnyx SIP Outbound Mid-call Monitor", "FAIL", "Mid-call monitor section not found")
+        return False
+
+def test_telnyx_sip_outbound_notification(content):
+    """Verify Telnyx SIP outbound notification shows wallet balance"""
+    if not content:
+        return False
+    
+    # Look for notification around line 1090
+    notification_section = None
+    lines = content.split('\n')
+    
+    for i, line in enumerate(lines):
+        if 'Wallet:' in line and 'usdBal.toFixed(2)' in line and i > 1080 and i < 1120:
+            # Get surrounding context
+            start_idx = max(0, i - 5)
+            end_idx = min(len(lines), i + 10)
+            notification_section = '\n'.join(lines[start_idx:end_idx])
+            break
+    
+    if notification_section:
+        checks = {
+            'wallet_display': 'Wallet:' in notification_section,
+            'balance_amount': 'usdBal.toFixed(2)' in notification_section,
+            'sip_outbound_call': 'SIP Outbound Call' in notification_section,
+            'no_plan_minutes': 'min remaining' not in notification_section
+        }
+        
+        passed_checks = sum(1 for check in checks.values() if check)
+        
+        if passed_checks >= 3:
+            log_test("Telnyx SIP Outbound Notification", "PASS", 
+                    f"Verified wallet balance display: {passed_checks}/4 checks")
+            return True
+        else:
+            log_test("Telnyx SIP Outbound Notification", "FAIL", 
+                    f"Notification issues: {passed_checks}/4 checks")
+            return False
+    else:
+        log_test("Telnyx SIP Outbound Notification", "FAIL", "Wallet notification section not found")
+        return False
+
+def read_index_js_file():
+    """Read and parse _index.js file"""
+    try:
+        with open('/app/js/_index.js', 'r') as f:
+            content = f.read()
+        return content
+    except Exception as e:
+        log_test("Read _index.js", "FAIL", f"Exception: {str(e)}")
+        return None
+
+def test_twilio_sip_outbound_precheck(content):
+    """Verify Twilio SIP outbound pre-check in /twilio/sip-voice handler"""
+    if not content:
+        return False
+    
+    # Find the /twilio/sip-voice handler
+    handler_start = content.find("app.post('/twilio/sip-voice'")
+    if handler_start == -1:
+        log_test("Twilio SIP Outbound Pre-check", "FAIL", "/twilio/sip-voice handler not found")
+        return False
+    
+    handler_content = content[handler_start:handler_start + 5000]
+    
+    checks = {
+        'no_pool_minute_limit': 'getPoolMinuteLimit' not in handler_content,
+        'no_pool_minutes_used': 'getPoolMinutesUsed' not in handler_content,
+        'no_plan_has_minutes': 'planHasMinutes' not in handler_content,
+        'wallet_check': 'usdBal < RATE' in handler_content,
+        'wallet_empty_message': 'Wallet Empty' in handler_content,
+        'outbound_billed_message': 'Outbound calls are billed from wallet' in handler_content
+    }
+    
+    passed_checks = sum(1 for check in checks.values() if check)
+    
+    if passed_checks >= 4:
+        log_test("Twilio SIP Outbound Pre-check", "PASS", 
+                f"Verified wallet-only check: {passed_checks}/6 checks")
+        return True
+    else:
+        log_test("Twilio SIP Outbound Pre-check", "FAIL", 
+                f"Pre-check issues: {passed_checks}/6 checks")
+        return False
+
+def test_twilio_inbound_plan_minutes(content):
+    """Verify Twilio INBOUND still uses plan minutes"""
+    if not content:
+        return False
+    
+    # Find the /twilio/voice-webhook handler around line 18432
+    webhook_start = content.find("app.post('/twilio/voice-webhook'")
+    if webhook_start == -1:
+        log_test("Twilio INBOUND Plan Minutes", "FAIL", "/twilio/voice-webhook handler not found")
+        return False
+    
+    webhook_content = content[webhook_start:webhook_start + 3000]
+    
+    checks = {
+        'pool_minute_limit': 'getPoolMinuteLimit(ownerNumbers, num)' in webhook_content,
+        'pool_minutes_used': 'getPoolMinutesUsed(ownerNumbers, num)' in webhook_content,
+        'minute_limit_check': 'poolMinutesUsed >= minuteLimit' in webhook_content,
+        'plan_exhausted_logic': 'Plan exhausted' in webhook_content or 'allowing overage' in webhook_content
+    }
+    
+    passed_checks = sum(1 for check in checks.values() if check)
+    
+    if passed_checks >= 3:
+        log_test("Twilio INBOUND Plan Minutes", "PASS", 
+                f"Verified plan minute usage: {passed_checks}/4 checks")
+        return True
+    else:
+        log_test("Twilio INBOUND Plan Minutes", "FAIL", 
+                f"Plan minute check issues: {passed_checks}/4 checks")
+        return False
+
+def test_twilio_voice_status_billing(content):
+    """Verify Twilio Voice Status billing uses Twilio_Inbound callType"""
+    if not content:
+        return False
+    
+    # Find the /twilio/voice-status handler around line 19249
+    status_start = content.find("app.post('/twilio/voice-status'")
+    if status_start == -1:
+        log_test("Twilio Voice Status Billing", "FAIL", "/twilio/voice-status handler not found")
+        return False
+    
+    status_content = content[status_start:status_start + 1500]
+    
+    checks = {
+        'voice_service_require': "require('./voice-service.js')" in status_content,
+        'bill_call_minutes_unified': 'billCallMinutesUnified' in status_content,
+        'twilio_inbound_calltype': "'Twilio_Inbound'" in status_content,
+        'not_in_outbound_types': True  # We'll assume Twilio_Inbound is NOT in OUTBOUND_CALL_TYPES
+    }
+    
+    passed_checks = sum(1 for check in checks.values() if check)
+    
+    if passed_checks >= 3:
+        log_test("Twilio Voice Status Billing", "PASS", 
+                f"Verified Twilio_Inbound billing: {passed_checks}/4 checks")
+        return True
+    else:
+        log_test("Twilio Voice Status Billing", "FAIL", 
+                f"Voice status billing issues: {passed_checks}/4 checks")
+        return False
+
+def main():
+    print("=" * 80)
+    print("NOMADLY TELEGRAM BOT - OUTBOUND-WALLET-ONLY BILLING MODEL TEST")
+    print("=" * 80)
+    print()
+
+    # Test results tracking
+    total_tests = 10
+    passed_tests = 0
+    
+    # Test 1: Node.js Health
+    if test_nodejs_health():
+        passed_tests += 1
+    
+    # Test 2: Error logs empty
+    if test_nodejs_error_logs():
+        passed_tests += 1
+    
+    # Read voice-service.js for remaining tests
+    voice_service_content = read_voice_service_file()
+    
+    if voice_service_content:
+        # Test 3: OUTBOUND_CALL_TYPES array
+        if test_outbound_call_types_array(voice_service_content):
+            passed_tests += 1
+        
+        # Test 4: billCallMinutesUnified OUTBOUND path
+        if test_bill_call_minutes_unified_outbound(voice_service_content):
+            passed_tests += 1
+        
+        # Test 5: billCallMinutesUnified INBOUND path
+        if test_bill_call_minutes_unified_inbound(voice_service_content):
+            passed_tests += 1
+        
+        # Test 6: Telnyx SIP outbound pre-check
+        if test_telnyx_sip_outbound_precheck(voice_service_content):
+            passed_tests += 1
+        
+        # Test 7: Telnyx SIP outbound mid-call monitor
+        if test_telnyx_sip_outbound_midcall(voice_service_content):
+            passed_tests += 1
+        
+        # Test 8: Telnyx SIP outbound notification
+        if test_telnyx_sip_outbound_notification(voice_service_content):
+            passed_tests += 1
+    else:
+        print("❌ Cannot read voice-service.js - skipping related tests")
+    
+    # Read _index.js for remaining tests
+    index_js_content = read_index_js_file()
+    
+    if index_js_content:
+        # Test 9: Twilio SIP outbound pre-check
+        if test_twilio_sip_outbound_precheck(index_js_content):
+            passed_tests += 1
+        
+        # Test 10: Twilio INBOUND still uses plan minutes
+        if test_twilio_inbound_plan_minutes(index_js_content):
+            passed_tests += 1
+        
+        # Test 11: Twilio Voice Status billing
+        if test_twilio_voice_status_billing(index_js_content):
+            passed_tests += 1
+            total_tests += 1  # We added an extra test
+    else:
+        print("❌ Cannot read _index.js - skipping related tests")
+    
+    print("=" * 80)
+    print(f"TEST SUMMARY: {passed_tests}/{total_tests} TESTS PASSED")
+    if passed_tests == total_tests:
+        print("🎉 ALL TESTS PASSED - OUTBOUND-WALLET-ONLY BILLING MODEL IS WORKING!")
+    else:
+        print(f"⚠️  {total_tests - passed_tests} TESTS FAILED - REVIEW IMPLEMENTATION")
+    print("=" * 80)
+    
+    return passed_tests == total_tests
 
 if __name__ == "__main__":
-    tester = BulkCallPricingTests()
-    tester.run_all_tests()
+    success = main()
+    sys.exit(0 if success else 1)

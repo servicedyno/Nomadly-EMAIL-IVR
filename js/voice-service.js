@@ -129,11 +129,38 @@ async function incrementMinutesUsed(chatId, phoneNumber, minutes) {
  * @param {string} callType - Label for payment logs (e.g. 'Inbound', 'Forwarding', 'SIPOutbound', 'IVR_Outbound', 'IVR_Transfer')
  * @returns {{ planMinUsed: number, overageMin: number, overageCharge: number, rate: number }}
  */
+// ━━━ Outbound call types: charge wallet directly, do NOT use plan minutes ━━━
+const OUTBOUND_CALL_TYPES = [
+  'SIPOutbound', 'Forwarding', 'Bridge_Transfer',
+  'IVR_Outbound', 'IVR_Transfer',
+  'IVR_Outbound_Twilio', 'Twilio_SIP_Bridge', 'Twilio_SIP_Outbound', 'Twilio_Forwarding',
+]
+
 async function billCallMinutesUnified(chatId, phoneNumber, minutesBilled, destinationNumber, callType) {
   if (minutesBilled <= 0) return { planMinUsed: 0, overageMin: 0, overageCharge: 0, rate: 0, used: 0, limit: 0 }
 
   const rate = getCallRate(destinationNumber)
+  const isOutbound = OUTBOUND_CALL_TYPES.includes(callType)
 
+  // ━━━ OUTBOUND: Charge wallet directly — plan minutes are for inbound only ━━━
+  if (isOutbound) {
+    const totalCharge = +(minutesBilled * rate).toFixed(4)
+    try {
+      if (_walletOf) {
+        await atomicIncrement(_walletOf, chatId, 'usdOut', totalCharge)
+        const ref = _nanoid?.() || `out_${callType}_${Date.now()}`
+        if (_payments) set(_payments, ref, `Outbound,${callType},$${totalCharge.toFixed(2)},${chatId},${phoneNumber},${destinationNumber},${new Date()}`)
+        log(`[Voice] Outbound billed: $${totalCharge.toFixed(2)} (${minutesBilled} min × $${rate} ${isUSCanada(destinationNumber) ? 'US/CA' : 'Intl'}) for ${callType}`)
+        _bot?.sendMessage(chatId,
+          `💰 <b>${callType}</b>: ${minutesBilled} min × $${rate} = <b>$${totalCharge.toFixed(2)}</b> (${isUSCanada(destinationNumber) ? 'US/CA' : 'International'})`,
+          { parse_mode: 'HTML' }
+        ).catch(() => {})
+      }
+    } catch (e) { log(`[Voice] Outbound charge error: ${e.message}`) }
+    return { planMinUsed: 0, overageMin: minutesBilled, overageCharge: totalCharge, rate, used: 0, limit: 0 }
+  }
+
+  // ━━━ INBOUND: Use plan minutes first, then overage from wallet ━━━
   // Step 1: Increment plan minutes
   const { used, limit, overageMinutes } = await incrementMinutesUsed(chatId, phoneNumber, minutesBilled)
 
@@ -947,15 +974,15 @@ async function handleOutboundSipCall(payload) {
     return
   }
 
-  // Wallet balance check — only if plan minutes exhausted, use destination-based rate
+  // Wallet balance check — outbound calls charge directly from wallet (plan minutes are for inbound only)
   const sipRate = getCallRate(destination)
-  if (isMinuteLimitReached(num) && _walletOf) {
+  if (_walletOf) {
     try {
       const { usdBal } = await getBalance(_walletOf, chatId)
       if (usdBal < sipRate) {
-        log(`[Voice] Outbound SIP: Plan exhausted + wallet too low ($${usdBal}) for ${num.phoneNumber}`)
+        log(`[Voice] Outbound SIP: wallet too low ($${usdBal}) for ${num.phoneNumber} → ${destination}`)
         await _telnyxApi.hangupCall(callControlId)
-        _bot?.sendMessage(chatId, `🚫 <b>SIP Call Blocked</b> — Plan exhausted + Wallet $${usdBal.toFixed(2)} (need $${sipRate}/min ${isUSCanada(destination) ? 'US/CA' : 'Intl'}).\nTop up via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+        _bot?.sendMessage(chatId, `🚫 <b>SIP Call Blocked</b> — Wallet $${usdBal.toFixed(2)} (need $${sipRate}/min ${isUSCanada(destination) ? 'US/CA' : 'Intl'}).\nOutbound calls are billed from wallet.\nTop up via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
         return
       }
     } catch (e) { log(`[Voice] Wallet check error: ${e.message}`) }
@@ -999,41 +1026,26 @@ async function handleOutboundSipCall(payload) {
       }, maxMs)
     }
 
-    // Mid-call limit monitor — skip for test calls (they have their own duration limiter)
+    // Mid-call wallet monitor — outbound calls billed from wallet only (plan minutes are for inbound)
     if (!testCallInfo.isTestCall) {
-      const minuteLimit = getMinuteLimit(num.plan)
       const outboundSession = activeCalls[callControlId]
       outboundSession._limitTimer = setInterval(async () => {
         const sess = activeCalls[callControlId]
         if (!sess) { clearInterval(outboundSession._limitTimer); return }
-        const elapsedSec = Math.floor((Date.now() - sess.startedAt.getTime()) / 1000)
-        const elapsedMin = Math.ceil(elapsedSec / 60)
         const rate = getCallRate(destination)
-        if (minuteLimit !== Infinity) {
-          const projectedTotal = (num.minutesUsed || 0) + elapsedMin
-          if (projectedTotal >= minuteLimit) {
-            let canContinue = false
-            if (_walletOf) {
-              try {
-                const { usdBal } = await getBalance(_walletOf, chatId)
-                if (usdBal >= rate) {
-                  canContinue = true
-                  if (!sess._overageNotified) {
-                    sess._overageNotified = true
-                    _bot?.sendMessage(chatId, `💰 <b>Overage Active</b> — Plan minutes exhausted. $${rate}/min (${isUSCanada(destination) ? 'US/CA' : 'Intl'}) from wallet.`, { parse_mode: 'HTML' }).catch(() => {})
-                  }
-                }
-              } catch (e) { log(`[Voice] Mid-call overage error: ${e.message}`) }
-            }
-            if (!canContinue) {
-              log(`[Voice] Mid-call limit reached for outbound ${num.phoneNumber}: projected ${projectedTotal}/${minuteLimit} min. Disconnecting.`)
+        // Check wallet balance each minute
+        if (_walletOf) {
+          try {
+            const { usdBal } = await getBalance(_walletOf, chatId)
+            if (usdBal < rate) {
+              log(`[Voice] Mid-call wallet exhausted for outbound ${num.phoneNumber}: wallet $${usdBal.toFixed(2)} < $${rate}/min. Disconnecting.`)
               clearInterval(outboundSession._limitTimer)
               sess._limitDisconnect = true
               await _telnyxApi.hangupCall(callControlId).catch(() => {})
-              _bot?.sendMessage(chatId, `🚫 <b>Call Disconnected</b> — Plan minutes + wallet exhausted.\nTop up via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+              _bot?.sendMessage(chatId, `🚫 <b>Call Disconnected</b> — Wallet exhausted.\nTop up via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
               return
             }
-          }
+          } catch (e) { log(`[Voice] Mid-call wallet check error: ${e.message}`) }
         }
       }, 60000)
     }
@@ -1071,16 +1083,15 @@ async function handleOutboundSipCall(payload) {
     if (testCallInfo.isTestCall) {
       _bot?.sendMessage(chatId, `📞 <b>Free SIP Test Call</b>\nFrom: ${formatPhone(num.phoneNumber)}\nTo: ${formatPhone(destination)}\n🆓 Free test call (${testCallInfo.callsRemaining ?? 0} remaining, max ${testCallInfo.maxDuration}s)`, { parse_mode: 'HTML' }).catch(() => {})
     } else {
-      const minuteLimit = getMinuteLimit(num.plan)
-      const minutesUsed = num.minutesUsed || 0
-      const minutesRemaining = minuteLimit !== Infinity ? Math.max(0, minuteLimit - minutesUsed) : null
-      const planInfo = minutesRemaining !== null
-        ? `📊 Plan: <b>${minutesRemaining}/${minuteLimit}</b> min remaining`
-        : `📊 Unlimited minutes`
-      const overageInfo = minutesRemaining !== null && minutesRemaining <= 0
-        ? `\n💰 Overage: $${sipRate}/min ${isUSCanada(destination) ? '(US/CA)' : '(Intl)'}`
-        : ''
-      _bot?.sendMessage(chatId, `📞 <b>SIP Outbound Call</b>\nFrom: ${formatPhone(num.phoneNumber)}\nTo: ${formatPhone(destination)}\n${planInfo}${overageInfo}`, { parse_mode: 'HTML' }).catch(() => {})
+      let walletLine = ''
+      if (_walletOf) {
+        try {
+          const { usdBal } = await getBalance(_walletOf, chatId)
+          const estMinutes = Math.floor(usdBal / sipRate)
+          walletLine = `💳 Wallet: <b>$${usdBal.toFixed(2)}</b> (~${estMinutes} min at $${sipRate}/min ${isUSCanada(destination) ? 'US/CA' : 'Intl'})`
+        } catch (e) { /* ignore */ }
+      }
+      _bot?.sendMessage(chatId, `📞 <b>SIP Outbound Call</b>\nFrom: ${formatPhone(num.phoneNumber)}\nTo: ${formatPhone(destination)}\n${walletLine}`, { parse_mode: 'HTML' }).catch(() => {})
     }    return
   }
 

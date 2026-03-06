@@ -19188,33 +19188,19 @@ app.post('/twilio/sip-voice', async (req, res) => {
       return res.type('text/xml').send(response.toString())
     }
 
-    // Check plan minutes first, then wallet balance for overage
+    // Outbound calls charge directly from wallet (plan minutes are for inbound only)
     const isUSCA = (destinationNumber || '').replace(/[^+\d]/g, '').startsWith('+1')
-    const rate = isUSCA ? parseFloat(process.env.OVERAGE_RATE_MIN || '0.04') : parseFloat(process.env.CALL_FORWARDING_RATE_MIN || '0.50')
+    const RATE = isUSCA ? parseFloat(process.env.OVERAGE_RATE_MIN || '0.04') : parseFloat(process.env.CALL_FORWARDING_RATE_MIN || '0.50')
     const chatId = owner
 
-    // Look up all user's numbers to check pooled plan minutes
-    const sipUserData = await get(phoneNumbersOf, chatId)
-    const sipAllNumbers = sipUserData?.numbers || []
-    const sipMinuteLimit = getPoolMinuteLimit(sipAllNumbers, num)
-    const sipMinutesUsed = getPoolMinutesUsed(sipAllNumbers, num)
-    const planHasMinutes = sipMinuteLimit === Infinity || sipMinutesUsed < sipMinuteLimit
-
-    if (planHasMinutes) {
-      // Plan still has minutes — allow call (billing happens at hangup via billCallMinutesUnified)
-      log(`[Twilio] SIP outbound: plan has minutes (${sipMinutesUsed}/${sipMinuteLimit}) — allowing`)
-    } else {
-      // Plan exhausted — check wallet for overage
-      const { usdBal } = await getBalance(walletOf, chatId)
-      if (usdBal < rate) {
-        response.say('Your plan minutes are exhausted and wallet balance is insufficient. Please top up.')
-        response.hangup()
-        bot?.sendMessage(chatId, `🚫 <b>SIP Call Blocked — No Credits</b>\n📞 ${phoneConfig.formatPhone(num.phoneNumber)} → ${phoneConfig.formatPhone(destinationNumber)}\n\nPlan: ${sipMinutesUsed}/${sipMinuteLimit} min used\nWallet: $${usdBal.toFixed(2)} (need $${rate}/min ${isUSCA ? 'US/CA' : 'Intl'})\n\nTop up via 👛 Wallet or upgrade plan.`, { parse_mode: 'HTML' }).catch(() => {})
-        return res.type('text/xml').send(response.toString())
-      }
-      log(`[Twilio] SIP outbound: plan exhausted, wallet $${usdBal.toFixed(2)} — allowing overage at $${rate}/min`)
-      bot?.sendMessage(chatId, `⚠️ <b>Plan Minutes Exhausted</b>\nSIP call to ${phoneConfig.formatPhone(destinationNumber)} via wallet overage ($${rate}/min ${isUSCA ? 'US/CA' : 'Intl'}).\nWallet: $${usdBal.toFixed(2)}`, { parse_mode: 'HTML' }).catch(() => {})
+    const { usdBal } = await getBalance(walletOf, chatId)
+    if (usdBal < RATE) {
+      response.say('Your wallet balance is insufficient for outbound calls. Please top up.')
+      response.hangup()
+      bot?.sendMessage(chatId, `🚫 <b>SIP Call Blocked — Wallet Empty</b>\n📞 ${phoneConfig.formatPhone(num.phoneNumber)} → ${phoneConfig.formatPhone(destinationNumber)}\n\nWallet: $${usdBal.toFixed(2)} (need $${RATE}/min ${isUSCA ? 'US/CA' : 'Intl'})\nOutbound calls are billed from wallet.\n\nTop up via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+      return res.type('text/xml').send(response.toString())
     }
+    log(`[Twilio] SIP outbound: wallet $${usdBal.toFixed(2)} — allowing at $${RATE}/min`)
 
     // Place outbound call
     const recordingEnabled = num.features?.recording === true
