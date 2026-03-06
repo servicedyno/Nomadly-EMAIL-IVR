@@ -2440,6 +2440,7 @@ bot?.on('message', msg => {
 
     // Cloud IVR
     submenu5: 'submenu5',
+    cpResumeDoc: 'cpResumeDoc',
     cpSelectCountry: 'cpSelectCountry',
     cpSelectType: 'cpSelectType',
     cpSelectArea: 'cpSelectArea',
@@ -2653,6 +2654,23 @@ bot?.on('message', msg => {
     // ━━━ Cloud IVR goto functions ━━━
     submenu5: async () => {
       await set(state, chatId, 'action', a.submenu5)
+      // ── Check for incomplete document verification sessions ──
+      const incompleteDoc = await regulatoryFlow.getIncompleteSession(chatId)
+      if (incompleteDoc) {
+        const lang = info?.userLanguage || 'en'
+        const country = incompleteDoc.countryName || incompleteDoc.countryCode
+        const price = Number(incompleteDoc.price || 0).toFixed(2)
+        const resumeMsg = {
+          en: `⚠️ <b>Incomplete Verification Found</b>\n\nYou have a pending ${country} number verification (paid $${price}).\n\nWould you like to resume or cancel for a refund?`,
+          fr: `⚠️ <b>Vérification incomplète</b>\n\nVérification ${country} en attente ($${price}).\n\nReprendre ou annuler pour un remboursement ?`,
+          zh: `⚠️ <b>发现未完成的验证</b>\n\n您有一个待处理的 ${country} 号码验证（已付 $${price}）。\n\n要继续还是取消并退款？`,
+          hi: `⚠️ <b>अधूरा सत्यापन मिला</b>\n\n${country} नंबर सत्यापन लंबित ($${price}).\n\nजारी रखें या रद्द करें और रिफंड पाएं?`,
+        }
+        await set(state, chatId, 'action', a.cpResumeDoc)
+        const resumeBtn = { en: '▶️ Resume Verification', fr: '▶️ Reprendre', zh: '▶️ 继续验证', hi: '▶️ जारी रखें' }[lang] || '▶️ Resume Verification'
+        const cancelBtn = { en: '❌ Cancel & Refund', fr: '❌ Annuler & Rembourser', zh: '❌ 取消并退款', hi: '❌ रद्द करें और रिफंड' }[lang] || '❌ Cancel & Refund'
+        return send(chatId, resumeMsg[lang] || resumeMsg.en, { parse_mode: 'HTML', reply_markup: { keyboard: [[resumeBtn], [cancelBtn]], resize_keyboard: true, one_time_keyboard: true } })
+      }
       const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
       send(chatId, cpTxt.hubWelcome, k.of([
         [pc.ivrOutboundCall],
@@ -9607,6 +9625,31 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // CLOUD PHONE — STATE MACHINE HANDLERS
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  // ── Resume / Cancel incomplete doc verification ──
+  if (action === a.cpResumeDoc) {
+    const lang = info?.userLanguage || 'en'
+    const resumeBtn = { en: '▶️ Resume Verification', fr: '▶️ Reprendre', zh: '▶️ 继续验证', hi: '▶️ जारी रखें' }[lang] || '▶️ Resume Verification'
+    const cancelBtn = { en: '❌ Cancel & Refund', fr: '❌ Annuler & Rembourser', zh: '❌ 取消并退款', hi: '❌ रद्द करें और रिफंड' }[lang] || '❌ Cancel & Refund'
+    if (message === resumeBtn) {
+      const resumed = await regulatoryFlow.resumeSession(chatId)
+      if (!resumed) {
+        send(chatId, '⚠️ Session expired. Please try purchasing again.', { parse_mode: 'HTML' })
+        return goto.submenu5()
+      }
+      return
+    }
+    if (message === cancelBtn) {
+      const cancelled = await regulatoryFlow.cancelAndRefund(chatId)
+      if (cancelled) {
+        return goto.submenu5()
+      }
+      send(chatId, '⚠️ No pending session found.', { parse_mode: 'HTML' })
+      return goto.submenu5()
+    }
+    // Fallback — treat as cancel/back
+    return goto.submenu5()
+  }
 
   if (action === a.submenu5) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')

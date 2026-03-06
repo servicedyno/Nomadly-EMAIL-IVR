@@ -397,6 +397,10 @@ async function createAndSubmitBundle(chatId, session) {
         endUserAttrs[field] = 'N/A'
       }
     }
+    // Auto-fill email with service email — users should never receive Twilio emails
+    if (config.endUserFields.includes('email') && (!endUserAttrs.email || endUserAttrs.email === 'N/A')) {
+      endUserAttrs.email = process.env.NOMADLY_SERVICE_EMAIL || 'support@nomadly.com'
+    }
 
     const endUserResult = await deps.twilioService.createEndUser(
       `${endUserAttrs.first_name || 'User'}-${chatId}`,
@@ -639,6 +643,63 @@ async function isInDocCollection(chatId) {
   return !!session
 }
 
+/**
+ * Get incomplete doc session for a user (for resume detection).
+ * Returns session object or null.
+ */
+async function getIncompleteSession(chatId) {
+  const docSessions = deps.db.collection('docSessions')
+  return await docSessions.findOne({ chatId, status: { $in: ['collecting', 'awaiting_address'] } })
+}
+
+/**
+ * Resume an incomplete doc collection session.
+ * Restores bot state and sends the current step prompt.
+ */
+async function resumeSession(chatId) {
+  const docSessions = deps.db.collection('docSessions')
+  const session = await docSessions.findOne({ chatId, status: { $in: ['collecting', 'awaiting_address'] } })
+  if (!session) return false
+
+  const lang = session.lang || 'en'
+
+  if (session.status === 'awaiting_address') {
+    await deps.set(deps.state, chatId, 'action', 'cpDocAddress')
+    const addrPrompt = {
+      en: `📍 <b>Resuming: Enter Your Address</b>\n\nPlease enter your full address in this format:\n<code>Street, City, State/Region, PostalCode, CountryCode</code>\n\nExample: <code>123 Main St, Cape Town, WC, 8001, ZA</code>`,
+      fr: `📍 <b>Reprise: Adresse</b>\n\n<code>Rue, Ville, Région, Code postal, Pays</code>`,
+      zh: `📍 <b>继续：输入地址</b>\n\n<code>街道, 城市, 州/省, 邮编, 国家代码</code>`,
+      hi: `📍 <b>जारी रखें: पता दर्ज करें</b>\n\n<code>सड़क, शहर, राज्य, पिन कोड, देश कोड</code>`,
+    }
+    deps.send(chatId, addrPrompt[lang] || addrPrompt.en, { parse_mode: 'HTML' })
+  } else {
+    // status === 'collecting'
+    await deps.set(deps.state, chatId, 'action', 'cpDocCollect')
+    const stepNum = session.currentStep + 1
+    const totalSteps = session.steps.length
+    const resumeMsg = {
+      en: `📋 <b>Resuming Verification</b> (Step ${stepNum}/${totalSteps})\n\n${session.countryName} number — type /cancel to cancel and get a full refund.`,
+      fr: `📋 <b>Reprise de la vérification</b> (Étape ${stepNum}/${totalSteps})\n\nNuméro ${session.countryName} — /cancel pour annuler.`,
+      zh: `📋 <b>继续验证</b>（步骤 ${stepNum}/${totalSteps}）\n\n${session.countryName} 号码 — 输入 /cancel 取消并退款。`,
+      hi: `📋 <b>सत्यापन जारी</b> (चरण ${stepNum}/${totalSteps})\n\n${session.countryName} नंबर — /cancel टाइप करें रद्द करने के लिए।`,
+    }
+    deps.send(chatId, resumeMsg[lang] || resumeMsg.en, { parse_mode: 'HTML' })
+    await sendCurrentStepPrompt(chatId, session)
+  }
+  return true
+}
+
+/**
+ * Cancel and refund an incomplete doc session (without requiring /cancel inside the flow).
+ */
+async function cancelAndRefund(chatId) {
+  const docSessions = deps.db.collection('docSessions')
+  const session = await docSessions.findOne({ chatId, status: { $in: ['collecting', 'awaiting_address'] } })
+  if (!session) return false
+  await cancelSession(chatId, session)
+  return true
+}
+
 module.exports = {
   init,
   startDocCollection,
@@ -646,5 +707,8 @@ module.exports = {
   handlePhotoInput,
   handleAddressInput,
   isInDocCollection,
+  getIncompleteSession,
+  resumeSession,
+  cancelAndRefund,
   createAndSubmitBundle,
 }

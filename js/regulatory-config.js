@@ -111,7 +111,6 @@ const COUNTRY_REGS = {
     endUserFields: ['first_name', 'last_name', 'email', 'phone_number'],
     textInputs: [
       ...NAME_INPUTS,
-      { key: 'email', prompt: { en: '📧 Enter your email address:', fr: '📧 Entrez votre adresse email :', zh: '📧 输入您的电子邮箱：', hi: '📧 अपना ईमेल पता दर्ज करें:' } },
       { key: 'phone_number', prompt: { en: '📱 Enter your phone number (with country code, e.g. +44...):', fr: '📱 Entrez votre numéro (+code pays) :', zh: '📱 输入您的电话号码（含国家代码）：', hi: '📱 अपना फ़ोन नंबर दर्ज करें (देश कोड सहित):' } },
     ],
     docs: [
@@ -148,7 +147,6 @@ const COUNTRY_REGS = {
     autoFill: { business_identity: 'DIRECT_CUSTOMER', is_subassigned: 'NO' },
     textInputs: [
       ...NAME_INPUTS,
-      { key: 'email', prompt: { en: '📧 Enter your email address:', fr: '📧 Entrez votre adresse email :', zh: '📧 输入您的电子邮箱：', hi: '📧 अपना ईमेल पता दर्ज करें:' } },
     ],
     docs: [
       {

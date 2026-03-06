@@ -1,485 +1,314 @@
 #!/usr/bin/env python3
+"""
+Backend Test Suite for Auto-fill Email and Resume Doc Sessions
+Tests the Nomadly Telegram Bot Node.js backend for regulatory compliance features.
+"""
 
 import requests
 import json
 import sys
 import os
-from datetime import datetime
-
-# Backend URL from environment
-BACKEND_URL = os.getenv('REACT_APP_BACKEND_URL', 'http://localhost:5000')
-
-def log_test(test_name, status, details=""):
-    timestamp = datetime.now().strftime('%H:%M:%S')
-    status_emoji = "✅" if status == "PASS" else "❌" if status == "FAIL" else "⚠️"
-    print(f"[{timestamp}] {status_emoji} {test_name}: {status}")
-    if details:
-        print(f"    {details}")
-    print()
 
 def test_nodejs_health():
-    """Test NODE.JS HEALTH: GET /health should return 200 with healthy status"""
+    """Test 1: Node.js health and error logs"""
+    print("🔍 Testing Node.js backend health...")
+    
     try:
-        response = requests.get(f"{BACKEND_URL}/health", timeout=10)
+        # Test health endpoint
+        response = requests.get('http://localhost:5000/health', timeout=10)
+        print(f"   ✅ Health endpoint: {response.status_code}")
+        
         if response.status_code == 200:
-            data = response.json()
-            if data.get('status') == 'healthy' and data.get('database') == 'connected':
-                log_test("Node.js Health Check", "PASS", 
-                        f"Status: {data.get('status')}, DB: {data.get('database')}, Uptime: {data.get('uptime')}")
-                return True
-            else:
-                log_test("Node.js Health Check", "FAIL", f"Unexpected health data: {data}")
-                return False
+            health_data = response.json()
+            print(f"   ✅ Status: {health_data.get('status')}")
+            print(f"   ✅ Database: {health_data.get('database')}")
+            print(f"   ✅ Uptime: {health_data.get('uptime')}")
         else:
-            log_test("Node.js Health Check", "FAIL", f"HTTP {response.status_code}")
+            print(f"   ❌ Health check failed: {response.status_code}")
             return False
+            
     except Exception as e:
-        log_test("Node.js Health Check", "FAIL", f"Exception: {str(e)}")
+        print(f"   ❌ Health check error: {e}")
         return False
-
-def test_nodejs_error_logs():
-    """Check that /var/log/supervisor/nodejs.err.log is empty"""
+    
+    # Check error logs
     try:
         with open('/var/log/supervisor/nodejs.err.log', 'r') as f:
-            content = f.read().strip()
-        
-        if len(content) == 0:
-            log_test("Node.js Error Logs Empty", "PASS", "nodejs.err.log is empty (0 bytes)")
-            return True
-        else:
-            log_test("Node.js Error Logs Empty", "FAIL", f"nodejs.err.log has {len(content)} characters")
-            return False
-    except Exception as e:
-        log_test("Node.js Error Logs Empty", "FAIL", f"Exception: {str(e)}")
-        return False
-
-def read_voice_service_file():
-    """Read and parse voice-service.js file"""
-    try:
-        with open('/app/js/voice-service.js', 'r') as f:
-            content = f.read()
-        return content
-    except Exception as e:
-        log_test("Read voice-service.js", "FAIL", f"Exception: {str(e)}")
-        return None
-
-def test_outbound_call_types_array(content):
-    """Verify OUTBOUND_CALL_TYPES array exists and contains all required types"""
-    if not content:
-        return False
-    
-    required_types = [
-        'SIPOutbound', 'Forwarding', 'Bridge_Transfer',
-        'IVR_Outbound', 'IVR_Transfer', 'IVR_Outbound_Twilio',
-        'Twilio_SIP_Bridge', 'Twilio_SIP_Outbound', 'Twilio_Forwarding'
-    ]
-    
-    # Find OUTBOUND_CALL_TYPES array
-    if 'const OUTBOUND_CALL_TYPES = [' in content:
-        # Extract the array content
-        start_idx = content.find('const OUTBOUND_CALL_TYPES = [')
-        end_idx = content.find(']', start_idx)
-        if end_idx != -1:
-            array_content = content[start_idx:end_idx + 1]
-            
-            # Check if all required types are present
-            missing_types = []
-            for req_type in required_types:
-                if f"'{req_type}'" not in array_content and f'"{req_type}"' not in array_content:
-                    missing_types.append(req_type)
-            
-            if not missing_types:
-                log_test("OUTBOUND_CALL_TYPES Array", "PASS", 
-                        f"All {len(required_types)} required call types found")
-                return True
+            error_content = f.read().strip()
+            if error_content:
+                print(f"   ❌ Error log not empty: {len(error_content)} bytes")
+                return False
             else:
-                log_test("OUTBOUND_CALL_TYPES Array", "FAIL", 
-                        f"Missing types: {missing_types}")
+                print("   ✅ Error log is empty (0 bytes)")
+    except Exception as e:
+        print(f"   ❌ Error reading log file: {e}")
+        return False
+        
+    return True
+
+def test_regulatory_config():
+    """Test 2: Verify IE:local and GB:mobile configurations"""
+    print("🔍 Testing regulatory configurations...")
+    
+    config_file = '/app/js/regulatory-config.js'
+    try:
+        with open(config_file, 'r') as f:
+            content = f.read()
+            
+        # Find IE:local config section
+        ie_local_start = content.find("'IE:local': {")
+        if ie_local_start == -1:
+            print("   ❌ IE:local configuration not found")
+            return False
+            
+        # Find the end of IE:local config (look for next country config)
+        ie_local_end = content.find("'AU:mobile':", ie_local_start)  # Next config after IE:local
+        ie_local_config = content[ie_local_start:ie_local_end]
+        
+        # Verify IE:local has email in endUserFields
+        if "'email'" in ie_local_config and "endUserFields:" in ie_local_config:
+            print("   ✅ IE:local has 'email' in endUserFields")
+        else:
+            print("   ❌ IE:local missing 'email' in endUserFields")
+            return False
+            
+        # Check textInputs only has NAME_INPUTS (no email key prompt)
+        if ("textInputs: [\n      ...NAME_INPUTS,\n    ]" in ie_local_config or 
+            "textInputs: [\n      ...NAME_INPUTS\n    ]" in ie_local_config):
+            print("   ✅ IE:local textInputs contains only NAME_INPUTS (no email prompt)")
+        else:
+            print("   ❌ IE:local textInputs format incorrect")
+            print(f"   Debug: Found textInputs section: {repr(ie_local_config[ie_local_config.find('textInputs:'):ie_local_config.find('docs:')])}")
+            return False
+            
+        # Find GB:mobile config
+        gb_mobile_start = content.find("'GB:mobile': {")
+        if gb_mobile_start == -1:
+            print("   ❌ GB:mobile configuration not found")
+            return False
+            
+        gb_mobile_end = content.find("},", gb_mobile_start)
+        gb_mobile_config = content[gb_mobile_start:gb_mobile_end]
+        
+        # Verify GB:mobile has email in endUserFields
+        if "'email'" in gb_mobile_config and "endUserFields:" in gb_mobile_config:
+            print("   ✅ GB:mobile has 'email' in endUserFields")
+        else:
+            print("   ❌ GB:mobile missing 'email' in endUserFields")
+            return False
+            
+        # Check textInputs has NAME_INPUTS + phone_number (no email prompt)
+        if "...NAME_INPUTS" in gb_mobile_config and "phone_number" in gb_mobile_config:
+            if "{ key: 'email'" not in gb_mobile_config:
+                print("   ✅ GB:mobile textInputs contains NAME_INPUTS + phone_number (no email prompt)")
+            else:
+                print("   ❌ GB:mobile textInputs incorrectly contains email prompt")
                 return False
         else:
-            log_test("OUTBOUND_CALL_TYPES Array", "FAIL", "Could not find array end bracket")
+            print("   ❌ GB:mobile textInputs format incorrect")
             return False
-    else:
-        log_test("OUTBOUND_CALL_TYPES Array", "FAIL", "OUTBOUND_CALL_TYPES array not found")
-        return False
-
-def test_bill_call_minutes_unified_outbound(content):
-    """Verify billCallMinutesUnified outbound path logic"""
-    if not content:
-        return False
-    
-    # Find billCallMinutesUnified function
-    func_start = content.find('async function billCallMinutesUnified(')
-    if func_start == -1:
-        log_test("billCallMinutesUnified OUTBOUND Path", "FAIL", "Function not found")
-        return False
-    
-    # Get function content
-    func_content = content[func_start:func_start + 3000]  # Take reasonable chunk
-    
-    checks = {
-        'isOutbound_check': 'const isOutbound = OUTBOUND_CALL_TYPES.includes(callType)' in func_content,
-        'wallet_charge': 'atomicIncrement(_walletOf, chatId, \'usdOut\', totalCharge)' in func_content,
-        'no_increment_minutes': 'does not call incrementMinutesUsed in outbound path',
-        'return_structure': '{ planMinUsed: 0, overageMin: minutesBilled'
-    }
-    
-    # Check for wallet charge in outbound section
-    outbound_section_start = func_content.find('if (isOutbound) {')
-    if outbound_section_start != -1:
-        outbound_section = func_content[outbound_section_start:outbound_section_start + 1000]
-        
-        # Verify no incrementMinutesUsed call in outbound section
-        checks['no_increment_minutes'] = 'incrementMinutesUsed' not in outbound_section
-        checks['return_structure'] = 'planMinUsed: 0, overageMin: minutesBilled' in outbound_section
-    
-    passed_checks = sum(1 for check in checks.values() if check)
-    
-    if passed_checks >= 3:  # Most checks pass
-        log_test("billCallMinutesUnified OUTBOUND Path", "PASS", 
-                f"Verified outbound billing logic: {passed_checks}/4 checks passed")
+            
         return True
-    else:
-        log_test("billCallMinutesUnified OUTBOUND Path", "FAIL", 
-                f"Failed checks: {passed_checks}/4 passed")
-        return False
-
-def test_bill_call_minutes_unified_inbound(content):
-    """Verify billCallMinutesUnified inbound path logic"""
-    if not content:
-        return False
-    
-    func_start = content.find('async function billCallMinutesUnified(')
-    if func_start == -1:
-        log_test("billCallMinutesUnified INBOUND Path", "FAIL", "Function not found")
-        return False
-    
-    func_content = content[func_start:func_start + 4000]
-    
-    # Check for inbound logic (NOT in outbound section)
-    inbound_section_start = func_content.find('// ━━━ INBOUND: Use plan minutes first')
-    if inbound_section_start != -1:
-        inbound_section = func_content[inbound_section_start:inbound_section_start + 1500]
         
-        checks = {
-            'increment_minutes': 'incrementMinutesUsed(chatId, phoneNumber, minutesBilled)' in inbound_section,
-            'plan_minutes_first': 'plan minutes first' in inbound_section.lower(),
-            'overage_wallet': 'atomicIncrement(_walletOf, chatId, \'usdOut\', overageCharge)' in inbound_section
-        }
-        
-        passed_checks = sum(1 for check in checks.values() if check)
-        
-        if passed_checks >= 2:
-            log_test("billCallMinutesUnified INBOUND Path", "PASS", 
-                    f"Verified inbound billing preserves plan minutes: {passed_checks}/3 checks")
-            return True
-        else:
-            log_test("billCallMinutesUnified INBOUND Path", "FAIL", 
-                    f"Missing inbound logic: {passed_checks}/3 checks")
-            return False
-    else:
-        log_test("billCallMinutesUnified INBOUND Path", "FAIL", "Inbound section not found")
-        return False
-
-def test_telnyx_sip_outbound_precheck(content):
-    """Verify Telnyx SIP outbound pre-check uses wallet only"""
-    if not content:
-        return False
-    
-    # Look for the pre-check around line 950
-    wallet_check_section = None
-    lines = content.split('\n')
-    
-    for i, line in enumerate(lines):
-        if 'usdBal < sipRate' in line and i > 900 and i < 1000:  # Around line 950
-            # Get surrounding context
-            start_idx = max(0, i - 10)
-            end_idx = min(len(lines), i + 15)
-            wallet_check_section = '\n'.join(lines[start_idx:end_idx])
-            break
-    
-    if wallet_check_section:
-        checks = {
-            'no_minute_limit_check': 'isMinuteLimitReached' not in wallet_check_section,
-            'wallet_check': 'usdBal < sipRate' in wallet_check_section,
-            'outbound_message': 'Outbound calls are billed from wallet' in wallet_check_section,
-            'wallet_insufficient': 'wallet too low' in wallet_check_section or 'SIP Call Blocked' in wallet_check_section
-        }
-        
-        passed_checks = sum(1 for check in checks.values() if check)
-        
-        if passed_checks >= 3:
-            log_test("Telnyx SIP Outbound Pre-check", "PASS", 
-                    f"Verified wallet-only check: {passed_checks}/4 checks")
-            return True
-        else:
-            log_test("Telnyx SIP Outbound Pre-check", "FAIL", 
-                    f"Pre-check issues: {passed_checks}/4 checks")
-            return False
-    else:
-        log_test("Telnyx SIP Outbound Pre-check", "FAIL", "Wallet check section not found around line 950")
-        return False
-
-def test_telnyx_sip_outbound_midcall(content):
-    """Verify Telnyx SIP outbound mid-call monitor uses wallet only"""
-    if not content:
-        return False
-    
-    # Look for mid-call monitor around line 1002
-    midcall_section = None
-    lines = content.split('\n')
-    
-    for i, line in enumerate(lines):
-        if 'Mid-call wallet monitor' in line and i > 1000 and i < 1100:
-            # Get surrounding context
-            start_idx = max(0, i)
-            end_idx = min(len(lines), i + 25)
-            midcall_section = '\n'.join(lines[start_idx:end_idx])
-            break
-    
-    if midcall_section:
-        checks = {
-            'no_minute_limit': 'minuteLimit' not in midcall_section and 'getMinuteLimit' not in midcall_section,
-            'no_projected_total': 'projectedTotal' not in midcall_section,
-            'wallet_balance_check': 'usdBal < rate' in midcall_section,
-            'wallet_exhausted_message': 'Wallet exhausted' in midcall_section or 'Call Disconnected' in midcall_section
-        }
-        
-        passed_checks = sum(1 for check in checks.values() if check)
-        
-        if passed_checks >= 3:
-            log_test("Telnyx SIP Outbound Mid-call Monitor", "PASS", 
-                    f"Verified wallet-only monitoring: {passed_checks}/4 checks")
-            return True
-        else:
-            log_test("Telnyx SIP Outbound Mid-call Monitor", "FAIL", 
-                    f"Mid-call monitor issues: {passed_checks}/4 checks")
-            return False
-    else:
-        log_test("Telnyx SIP Outbound Mid-call Monitor", "FAIL", "Mid-call monitor section not found")
-        return False
-
-def test_telnyx_sip_outbound_notification(content):
-    """Verify Telnyx SIP outbound notification shows wallet balance"""
-    if not content:
-        return False
-    
-    # Look for notification around line 1090
-    notification_section = None
-    lines = content.split('\n')
-    
-    for i, line in enumerate(lines):
-        if 'Wallet:' in line and 'usdBal.toFixed(2)' in line and i > 1080 and i < 1120:
-            # Get surrounding context
-            start_idx = max(0, i - 5)
-            end_idx = min(len(lines), i + 10)
-            notification_section = '\n'.join(lines[start_idx:end_idx])
-            break
-    
-    if notification_section:
-        checks = {
-            'wallet_display': 'Wallet:' in notification_section,
-            'balance_amount': 'usdBal.toFixed(2)' in notification_section,
-            'sip_outbound_call': 'SIP Outbound Call' in notification_section,
-            'no_plan_minutes': 'min remaining' not in notification_section
-        }
-        
-        passed_checks = sum(1 for check in checks.values() if check)
-        
-        if passed_checks >= 3:
-            log_test("Telnyx SIP Outbound Notification", "PASS", 
-                    f"Verified wallet balance display: {passed_checks}/4 checks")
-            return True
-        else:
-            log_test("Telnyx SIP Outbound Notification", "FAIL", 
-                    f"Notification issues: {passed_checks}/4 checks")
-            return False
-    else:
-        log_test("Telnyx SIP Outbound Notification", "FAIL", "Wallet notification section not found")
-        return False
-
-def read_index_js_file():
-    """Read and parse _index.js file"""
-    try:
-        with open('/app/js/_index.js', 'r') as f:
-            content = f.read()
-        return content
     except Exception as e:
-        log_test("Read _index.js", "FAIL", f"Exception: {str(e)}")
-        return None
-
-def test_twilio_sip_outbound_precheck(content):
-    """Verify Twilio SIP outbound pre-check in /twilio/sip-voice handler"""
-    if not content:
-        return False
-    
-    # Find the /twilio/sip-voice handler
-    handler_start = content.find("app.post('/twilio/sip-voice'")
-    if handler_start == -1:
-        log_test("Twilio SIP Outbound Pre-check", "FAIL", "/twilio/sip-voice handler not found")
-        return False
-    
-    handler_content = content[handler_start:handler_start + 5000]
-    
-    checks = {
-        'no_pool_minute_limit': 'getPoolMinuteLimit' not in handler_content,
-        'no_pool_minutes_used': 'getPoolMinutesUsed' not in handler_content,
-        'no_plan_has_minutes': 'planHasMinutes' not in handler_content,
-        'wallet_check': 'usdBal < RATE' in handler_content,
-        'wallet_empty_message': 'Wallet Empty' in handler_content,
-        'outbound_billed_message': 'Outbound calls are billed from wallet' in handler_content
-    }
-    
-    passed_checks = sum(1 for check in checks.values() if check)
-    
-    if passed_checks >= 4:
-        log_test("Twilio SIP Outbound Pre-check", "PASS", 
-                f"Verified wallet-only check: {passed_checks}/6 checks")
-        return True
-    else:
-        log_test("Twilio SIP Outbound Pre-check", "FAIL", 
-                f"Pre-check issues: {passed_checks}/6 checks")
+        print(f"   ❌ Error reading regulatory config: {e}")
         return False
 
-def test_twilio_inbound_plan_minutes(content):
-    """Verify Twilio INBOUND still uses plan minutes"""
-    if not content:
-        return False
+def test_auto_fill_email():
+    """Test 3: Verify auto-fill email functionality in regulatory-flow.js"""
+    print("🔍 Testing auto-fill email functionality...")
     
-    # Find the /twilio/voice-webhook handler around line 18432
-    webhook_start = content.find("app.post('/twilio/voice-webhook'")
-    if webhook_start == -1:
-        log_test("Twilio INBOUND Plan Minutes", "FAIL", "/twilio/voice-webhook handler not found")
-        return False
-    
-    webhook_content = content[webhook_start:webhook_start + 3000]
-    
-    checks = {
-        'pool_minute_limit': 'getPoolMinuteLimit(ownerNumbers, num)' in webhook_content,
-        'pool_minutes_used': 'getPoolMinutesUsed(ownerNumbers, num)' in webhook_content,
-        'minute_limit_check': 'poolMinutesUsed >= minuteLimit' in webhook_content,
-        'plan_exhausted_logic': 'Plan exhausted' in webhook_content or 'allowing overage' in webhook_content
-    }
-    
-    passed_checks = sum(1 for check in checks.values() if check)
-    
-    if passed_checks >= 3:
-        log_test("Twilio INBOUND Plan Minutes", "PASS", 
-                f"Verified plan minute usage: {passed_checks}/4 checks")
+    flow_file = '/app/js/regulatory-flow.js'
+    try:
+        with open(flow_file, 'r') as f:
+            content = f.read()
+            
+        # Check for auto-fill email logic in createAndSubmitBundle
+        auto_fill_section = content.find("// Auto-fill email with service email")
+        if auto_fill_section == -1:
+            print("   ❌ Auto-fill email comment not found")
+            return False
+            
+        # Verify the auto-fill logic implementation
+        expected_logic = "if (config.endUserFields.includes('email') && (!endUserAttrs.email || endUserAttrs.email === 'N/A')) {"
+        if expected_logic in content:
+            print("   ✅ Auto-fill email condition check found")
+        else:
+            print("   ❌ Auto-fill email condition check missing")
+            return False
+            
+        # Check NOMADLY_SERVICE_EMAIL usage
+        nomadly_email_usage = "endUserAttrs.email = process.env.NOMADLY_SERVICE_EMAIL || 'support@nomadly.com'"
+        if nomadly_email_usage in content:
+            print("   ✅ NOMADLY_SERVICE_EMAIL auto-fill implementation found")
+        else:
+            print("   ❌ NOMADLY_SERVICE_EMAIL auto-fill implementation missing")
+            return False
+            
+        # Verify it's in createAndSubmitBundle function (around line 401)
+        create_bundle_start = content.find("async function createAndSubmitBundle(")
+        if create_bundle_start != -1 and auto_fill_section > create_bundle_start:
+            print("   ✅ Auto-fill email is in createAndSubmitBundle function")
+        else:
+            print("   ❌ Auto-fill email not in correct function")
+            return False
+            
         return True
-    else:
-        log_test("Twilio INBOUND Plan Minutes", "FAIL", 
-                f"Plan minute check issues: {passed_checks}/4 checks")
+        
+    except Exception as e:
+        print(f"   ❌ Error reading regulatory flow: {e}")
         return False
 
-def test_twilio_voice_status_billing(content):
-    """Verify Twilio Voice Status billing uses Twilio_Inbound callType"""
-    if not content:
-        return False
+def test_resume_functions():
+    """Test 4: Verify resume mechanism functions exist and are exported"""
+    print("🔍 Testing resume mechanism functions...")
     
-    # Find the /twilio/voice-status handler around line 19249
-    status_start = content.find("app.post('/twilio/voice-status'")
-    if status_start == -1:
-        log_test("Twilio Voice Status Billing", "FAIL", "/twilio/voice-status handler not found")
-        return False
-    
-    status_content = content[status_start:status_start + 1500]
-    
-    checks = {
-        'voice_service_require': "require('./voice-service.js')" in status_content,
-        'bill_call_minutes_unified': 'billCallMinutesUnified' in status_content,
-        'twilio_inbound_calltype': "'Twilio_Inbound'" in status_content,
-        'not_in_outbound_types': True  # We'll assume Twilio_Inbound is NOT in OUTBOUND_CALL_TYPES
-    }
-    
-    passed_checks = sum(1 for check in checks.values() if check)
-    
-    if passed_checks >= 3:
-        log_test("Twilio Voice Status Billing", "PASS", 
-                f"Verified Twilio_Inbound billing: {passed_checks}/4 checks")
+    flow_file = '/app/js/regulatory-flow.js'
+    try:
+        with open(flow_file, 'r') as f:
+            content = f.read()
+            
+        # Check for getIncompleteSession function
+        if "async function getIncompleteSession(chatId)" in content:
+            print("   ✅ getIncompleteSession function exists")
+        else:
+            print("   ❌ getIncompleteSession function missing")
+            return False
+            
+        # Check for resumeSession function
+        if "async function resumeSession(chatId)" in content:
+            print("   ✅ resumeSession function exists")
+        else:
+            print("   ❌ resumeSession function missing")
+            return False
+            
+        # Check for cancelAndRefund function
+        if "async function cancelAndRefund(chatId)" in content:
+            print("   ✅ cancelAndRefund function exists")
+        else:
+            print("   ❌ cancelAndRefund function missing")
+            return False
+            
+        # Check module.exports
+        exports_section = content[content.rfind("module.exports"):]
+        required_exports = ["getIncompleteSession", "resumeSession", "cancelAndRefund"]
+        
+        for export_func in required_exports:
+            if export_func in exports_section:
+                print(f"   ✅ {export_func} is exported")
+            else:
+                print(f"   ❌ {export_func} not exported")
+                return False
+                
         return True
-    else:
-        log_test("Twilio Voice Status Billing", "FAIL", 
-                f"Voice status billing issues: {passed_checks}/4 checks")
+        
+    except Exception as e:
+        print(f"   ❌ Error reading regulatory flow: {e}")
+        return False
+
+def test_index_integration():
+    """Test 5: Verify _index.js integration with cpResumeDoc action and submenu5"""
+    print("🔍 Testing _index.js integration...")
+    
+    index_file = '/app/js/_index.js'
+    try:
+        with open(index_file, 'r') as f:
+            content = f.read()
+            
+        # Check for cpResumeDoc action constant
+        if "cpResumeDoc: 'cpResumeDoc'" in content:
+            print("   ✅ cpResumeDoc action constant exists")
+        else:
+            print("   ❌ cpResumeDoc action constant missing")
+            return False
+            
+        # Check submenu5 function calls getIncompleteSession
+        submenu5_start = content.find("submenu5: async () => {")
+        if submenu5_start == -1:
+            print("   ❌ submenu5 function not found")
+            return False
+            
+        submenu5_section = content[submenu5_start:submenu5_start + 2000]
+        if "await regulatoryFlow.getIncompleteSession(chatId)" in submenu5_section:
+            print("   ✅ submenu5 calls regulatoryFlow.getIncompleteSession")
+        else:
+            print("   ❌ submenu5 does not call getIncompleteSession")
+            return False
+            
+        # Check for Resume/Cancel buttons in submenu5
+        if "▶️ Resume Verification" in submenu5_section and "❌ Cancel & Refund" in submenu5_section:
+            print("   ✅ submenu5 shows Resume/Cancel buttons when incomplete session found")
+        else:
+            print("   ❌ submenu5 missing Resume/Cancel buttons")
+            return False
+            
+        # Check cpResumeDoc handler
+        cpresume_handler = content.find("if (action === a.cpResumeDoc) {")
+        if cpresume_handler == -1:
+            print("   ❌ cpResumeDoc handler not found")
+            return False
+            
+        handler_section = content[cpresume_handler:cpresume_handler + 1000]
+        
+        # Check for Resume button processing
+        if "await regulatoryFlow.resumeSession(chatId)" in handler_section:
+            print("   ✅ cpResumeDoc handler calls resumeSession")
+        else:
+            print("   ❌ cpResumeDoc handler missing resumeSession call")
+            return False
+            
+        # Check for Cancel button processing  
+        if "await regulatoryFlow.cancelAndRefund(chatId)" in handler_section:
+            print("   ✅ cpResumeDoc handler calls cancelAndRefund")
+        else:
+            print("   ❌ cpResumeDoc handler missing cancelAndRefund call")
+            return False
+            
+        return True
+        
+    except Exception as e:
+        print(f"   ❌ Error reading _index.js: {e}")
         return False
 
 def main():
-    print("=" * 80)
-    print("NOMADLY TELEGRAM BOT - OUTBOUND-WALLET-ONLY BILLING MODEL TEST")
-    print("=" * 80)
-    print()
-
-    # Test results tracking
-    total_tests = 10
-    passed_tests = 0
+    """Run all backend tests"""
+    print("🚀 Starting Auto-fill Email + Resume Doc Sessions Backend Tests\n")
     
-    # Test 1: Node.js Health
-    if test_nodejs_health():
-        passed_tests += 1
+    tests = [
+        ("Node.js Health Check", test_nodejs_health),
+        ("Regulatory Config Verification", test_regulatory_config), 
+        ("Auto-fill Email Functionality", test_auto_fill_email),
+        ("Resume Functions", test_resume_functions),
+        ("Index.js Integration", test_index_integration),
+    ]
     
-    # Test 2: Error logs empty
-    if test_nodejs_error_logs():
-        passed_tests += 1
+    passed = 0
+    total = len(tests)
     
-    # Read voice-service.js for remaining tests
-    voice_service_content = read_voice_service_file()
+    for test_name, test_func in tests:
+        print(f"\n{'='*60}")
+        print(f"TEST: {test_name}")
+        print(f"{'='*60}")
+        
+        try:
+            if test_func():
+                print(f"✅ PASSED: {test_name}")
+                passed += 1
+            else:
+                print(f"❌ FAILED: {test_name}")
+        except Exception as e:
+            print(f"❌ ERROR: {test_name} - {e}")
     
-    if voice_service_content:
-        # Test 3: OUTBOUND_CALL_TYPES array
-        if test_outbound_call_types_array(voice_service_content):
-            passed_tests += 1
-        
-        # Test 4: billCallMinutesUnified OUTBOUND path
-        if test_bill_call_minutes_unified_outbound(voice_service_content):
-            passed_tests += 1
-        
-        # Test 5: billCallMinutesUnified INBOUND path
-        if test_bill_call_minutes_unified_inbound(voice_service_content):
-            passed_tests += 1
-        
-        # Test 6: Telnyx SIP outbound pre-check
-        if test_telnyx_sip_outbound_precheck(voice_service_content):
-            passed_tests += 1
-        
-        # Test 7: Telnyx SIP outbound mid-call monitor
-        if test_telnyx_sip_outbound_midcall(voice_service_content):
-            passed_tests += 1
-        
-        # Test 8: Telnyx SIP outbound notification
-        if test_telnyx_sip_outbound_notification(voice_service_content):
-            passed_tests += 1
+    print(f"\n{'='*60}")
+    print(f"SUMMARY: {passed}/{total} tests passed")
+    print(f"{'='*60}")
+    
+    if passed == total:
+        print("🎉 ALL TESTS PASSED! The auto-fill email and resume doc sessions features are working correctly.")
+        return 0
     else:
-        print("❌ Cannot read voice-service.js - skipping related tests")
-    
-    # Read _index.js for remaining tests
-    index_js_content = read_index_js_file()
-    
-    if index_js_content:
-        # Test 9: Twilio SIP outbound pre-check
-        if test_twilio_sip_outbound_precheck(index_js_content):
-            passed_tests += 1
-        
-        # Test 10: Twilio INBOUND still uses plan minutes
-        if test_twilio_inbound_plan_minutes(index_js_content):
-            passed_tests += 1
-        
-        # Test 11: Twilio Voice Status billing
-        if test_twilio_voice_status_billing(index_js_content):
-            passed_tests += 1
-            total_tests += 1  # We added an extra test
-    else:
-        print("❌ Cannot read _index.js - skipping related tests")
-    
-    print("=" * 80)
-    print(f"TEST SUMMARY: {passed_tests}/{total_tests} TESTS PASSED")
-    if passed_tests == total_tests:
-        print("🎉 ALL TESTS PASSED - OUTBOUND-WALLET-ONLY BILLING MODEL IS WORKING!")
-    else:
-        print(f"⚠️  {total_tests - passed_tests} TESTS FAILED - REVIEW IMPLEMENTATION")
-    print("=" * 80)
-    
-    return passed_tests == total_tests
+        print("💥 Some tests failed. Please review the implementation.")
+        return 1
 
 if __name__ == "__main__":
-    success = main()
-    sys.exit(0 if success else 1)
+    sys.exit(main())
