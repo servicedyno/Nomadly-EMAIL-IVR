@@ -10815,6 +10815,7 @@ Choose an IVR template category:`), k.of(rows))
       ``,
       `💰 <b>Rate: $${bulkRate.toFixed(2)}/min per number</b> (min 1 min, charged whether answered or not)`,
       `💰 <b>Estimated cost: $${estCost}</b>`,
+      `💰 <b>Minimum wallet: $${(bulkCallService.BULK_CALL_MIN_WALLET || 50).toFixed(2)}</b>`,
       ``,
       `Ready to launch? Tap <b>🚀 Launch Campaign</b>`,
     ].filter(Boolean).join('\n')

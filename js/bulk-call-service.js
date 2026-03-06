@@ -12,8 +12,9 @@ const { getBalance } = require('./utils.js')
 const { get } = require('./db.js')
 
 // ━━━ Bulk Call Pricing & Limits ━━━
-const BULK_CALL_RATE = parseFloat(process.env.BULK_CALL_RATE_PER_MIN || '0.15')   // $/min — charged whether answered or not
-const MAX_BULK_LEADS  = parseInt(process.env.BULK_CALL_MAX_LEADS || '500', 10)     // max leads per campaign
+const BULK_CALL_RATE       = parseFloat(process.env.BULK_CALL_RATE_PER_MIN || '0.15')   // $/min — charged whether answered or not
+const MAX_BULK_LEADS       = parseInt(process.env.BULK_CALL_MAX_LEADS || '500', 10)      // max leads per campaign
+const BULK_CALL_MIN_WALLET = parseFloat(process.env.BULK_CALL_MIN_WALLET || '50')        // minimum wallet balance to launch
 
 let _db = null
 let _collection = null
@@ -163,18 +164,20 @@ async function startCampaign(campaignId) {
   try {
     if (_walletOf) {
       const { usdBal } = await getBalance(_walletOf, campaign.chatId)
-      const minRequired = BULK_CALL_RATE * campaign.leads.length  // 1 min minimum per lead
-      if (usdBal < BULK_CALL_RATE) {
+
+      // ── Minimum wallet balance requirement ──
+      if (usdBal < BULK_CALL_MIN_WALLET) {
         _bot?.sendMessage(campaign.chatId,
-          `🚫 <b>Campaign Blocked — Insufficient Wallet Balance</b>\n\n` +
-          `Bulk campaigns are charged at <b>$${BULK_CALL_RATE.toFixed(2)}/min</b> per number (min. 1 min, whether answered or not).\n` +
-          `Wallet: <b>$${usdBal.toFixed(2)}</b>\n` +
-          `Estimated cost: <b>$${minRequired.toFixed(2)}</b> (${campaign.leads.length} leads × $${BULK_CALL_RATE.toFixed(2)})\n\n` +
+          `🚫 <b>Campaign Blocked — Minimum Balance Not Met</b>\n\n` +
+          `Bulk IVR campaigns require a minimum wallet balance of <b>$${BULK_CALL_MIN_WALLET.toFixed(2)}</b>.\n` +
+          `Your wallet: <b>$${usdBal.toFixed(2)}</b>\n\n` +
           `Top up via 👛 Wallet, then retry.`,
           { parse_mode: 'HTML' }
         ).catch(() => {})
-        return { error: `Insufficient wallet balance ($${usdBal.toFixed(2)}). Need at least $${BULK_CALL_RATE.toFixed(2)} per lead.` }
+        return { error: `Minimum wallet balance of $${BULK_CALL_MIN_WALLET.toFixed(2)} required to launch a campaign. Current balance: $${usdBal.toFixed(2)}.` }
       }
+
+      const minRequired = BULK_CALL_RATE * campaign.leads.length  // 1 min minimum per lead
       if (usdBal < minRequired) {
         const estLeadsCovered = Math.floor(usdBal / BULK_CALL_RATE)
         _bot?.sendMessage(campaign.chatId,
@@ -746,4 +749,5 @@ module.exports = {
   activeCampaigns,
   BULK_CALL_RATE,
   MAX_BULK_LEADS,
+  BULK_CALL_MIN_WALLET,
 }
