@@ -247,7 +247,7 @@ async function handlePhotoInput(chatId, msg, lang) {
     await advanceOrComplete(chatId, session)
   } catch (err) {
     deps.log(`[RegulatoryFlow] Photo processing error for chatId=${chatId}: ${err.message}`)
-    deps.send(chatId, `❌ Error processing document: ${err.message}\n\nPlease try uploading again.`, { parse_mode: 'HTML' })
+    deps.send(chatId, `❌ Error processing document. Please try uploading again.`, { parse_mode: 'HTML' })
   }
   return true
 }
@@ -365,7 +365,7 @@ async function handleAddressInput(chatId, text, lang) {
     await createAndSubmitBundle(chatId, session)
   } catch (err) {
     deps.log(`[RegulatoryFlow] Address creation error: ${err.message}`)
-    deps.send(chatId, `❌ Error creating address: ${err.message}\n\nPlease try again.`, { parse_mode: 'HTML' })
+    deps.send(chatId, `❌ Error creating address. Please check the format and try again.`, { parse_mode: 'HTML' })
   }
   return true
 }
@@ -378,7 +378,7 @@ async function createAndSubmitBundle(chatId, session) {
   const lang = session.lang || 'en'
   const docSessions = deps.db.collection('docSessions')
 
-  deps.send(chatId, ({ en: '⏳ Creating regulatory bundle...', fr: '⏳ Création du dossier réglementaire...', zh: '⏳ 正在创建监管包...', hi: '⏳ नियामक बंडल बना रहे हैं...' }[lang] || '⏳ Creating regulatory bundle...'), { parse_mode: 'HTML' })
+  deps.send(chatId, ({ en: '⏳ Submitting your verification...', fr: '⏳ Soumission de votre vérification...', zh: '⏳ 正在提交您的验证...', hi: '⏳ आपका सत्यापन जमा कर रहे हैं...' }[lang] || '⏳ Submitting your verification...'), { parse_mode: 'HTML' })
 
   try {
     const config = getRegConfig(session.countryCode, session.numType)
@@ -515,10 +515,10 @@ async function createAndSubmitBundle(chatId, session) {
     await deps.set(deps.state, chatId, 'action', 'none')
 
     const failMsg = {
-      en: `❌ <b>Regulatory submission failed</b>\n\n${err.message}\n\nYour payment will be refunded to your wallet. Please try again or contact support.`,
-      fr: `❌ <b>Échec de la soumission</b>\n\n${err.message}\n\nVotre paiement sera remboursé.`,
-      zh: `❌ <b>监管提交失败</b>\n\n${err.message}\n\n您的付款将退还。`,
-      hi: `❌ <b>नियामक प्रस्तुति विफल</b>\n\n${err.message}\n\nआपका भुगतान वापस किया जाएगा।`,
+      en: `❌ <b>Verification submission failed</b>\n\nSomething went wrong while processing your documents. Your payment will be refunded to your wallet. Please try again or contact support.`,
+      fr: `❌ <b>Échec de la soumission</b>\n\nUne erreur est survenue. Votre paiement sera remboursé. Veuillez réessayer ou contacter le support.`,
+      zh: `❌ <b>提交失败</b>\n\n处理您的文件时出错。您的付款将退还。请重试或联系支持。`,
+      hi: `❌ <b>सत्यापन प्रस्तुति विफल</b>\n\nआपके दस्तावेज़ों को संसाधित करते समय कुछ गलत हो गया। आपका भुगतान वापस किया जाएगा। कृपया पुनः प्रयास करें या सहायता से संपर्क करें।`,
     }
     deps.send(chatId, failMsg[lang] || failMsg.en, { parse_mode: 'HTML' })
 
