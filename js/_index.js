@@ -302,6 +302,47 @@ function getSubNumberPrice(countryCode, numberType, provider) {
   return Math.max(phoneConfig.SUB_NUMBER_BASE_PRICE, Math.round(withMarkup * 100) / 100)
 }
 
+// ── Get pool-wide minutes used for a number (parent + all sub-numbers sharing the plan) ──
+function getPoolMinutesUsed(numbers, num) {
+  if (num.isSubNumber && num.parentNumber) {
+    // This is a sub-number: find parent + all siblings
+    const parent = numbers.find(n => n.phoneNumber === num.parentNumber && !n.isSubNumber)
+    const siblings = numbers.filter(n => n.isSubNumber && n.parentNumber === num.parentNumber)
+    return (parent?.minutesUsed || 0) + siblings.reduce((sum, n) => sum + (n.minutesUsed || 0), 0)
+  }
+  // This is a parent: own + all sub-numbers under it
+  const subs = numbers.filter(n => n.isSubNumber && n.parentNumber === num.phoneNumber)
+  return (num.minutesUsed || 0) + subs.reduce((sum, n) => sum + (n.minutesUsed || 0), 0)
+}
+
+// ── Get the plan limit for a number (sub-numbers use parent's plan) ──
+function getPoolMinuteLimit(numbers, num) {
+  if (num.isSubNumber && num.parentNumber) {
+    const parent = numbers.find(n => n.phoneNumber === num.parentNumber && !n.isSubNumber)
+    return phoneConfig.plans[parent?.plan || num.plan]?.minutes || Infinity
+  }
+  return phoneConfig.plans[num.plan]?.minutes || Infinity
+}
+
+// ── Get pool-wide SMS used (parent + sub-numbers) ──
+function getPoolSmsUsed(numbers, num) {
+  if (num.isSubNumber && num.parentNumber) {
+    const parent = numbers.find(n => n.phoneNumber === num.parentNumber && !n.isSubNumber)
+    const siblings = numbers.filter(n => n.isSubNumber && n.parentNumber === num.parentNumber)
+    return (parent?.smsUsed || 0) + siblings.reduce((sum, n) => sum + (n.smsUsed || 0), 0)
+  }
+  const subs = numbers.filter(n => n.isSubNumber && n.parentNumber === num.phoneNumber)
+  return (num.smsUsed || 0) + subs.reduce((sum, n) => sum + (n.smsUsed || 0), 0)
+}
+
+function getPoolSmsLimit(numbers, num) {
+  if (num.isSubNumber && num.parentNumber) {
+    const parent = numbers.find(n => n.phoneNumber === num.parentNumber && !n.isSubNumber)
+    return phoneConfig.plans[parent?.plan || num.plan]?.sms || Infinity
+  }
+  return phoneConfig.plans[num.plan]?.sms || Infinity
+}
+
 // Load environment variables from .env file first
 require('dotenv').config()
 const DB_NAME = process.env.DB_NAME
@@ -18360,13 +18401,13 @@ app.post('/twilio/voice-webhook', async (req, res) => {
     const hasSip = !!num.sipUsername
     const SIP_DOMAIN = process.env.SIP_DOMAIN || 'sip.speechcue.com'
 
-    // Check minute limit
-    const planLimits = phoneConfig.plans[num.plan]
-    const minuteLimit = planLimits?.minutes || Infinity
-    if (minuteLimit !== Infinity && (num.minutesUsed || 0) >= minuteLimit) {
+    // Check minute limit — pool across parent + sub-numbers
+    const minuteLimit = getPoolMinuteLimit(numbers, num)
+    const poolMinutesUsed = getPoolMinutesUsed(numbers, num)
+    if (minuteLimit !== Infinity && poolMinutesUsed >= minuteLimit) {
       response.say('This number has reached its monthly minute limit.')
       response.hangup()
-      bot?.sendMessage(chatId, `🚫 <b>Call Blocked</b> — Minute limit reached (${num.minutesUsed}/${minuteLimit} min).\nUpgrade your plan for more minutes.`, { parse_mode: 'HTML' }).catch(() => {})
+      bot?.sendMessage(chatId, `🚫 <b>Call Blocked</b> — Minute limit reached (${poolMinutesUsed}/${minuteLimit} min).\nUpgrade your plan for more minutes.`, { parse_mode: 'HTML' }).catch(() => {})
       return res.type('text/xml').send(response.toString())
     }
 
