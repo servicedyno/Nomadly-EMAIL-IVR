@@ -5244,6 +5244,16 @@ All verified numbers generated during sourcing.`))
     return send(chatId, greeting, trans('o'))
   }
 
+  // /cancel — global handler: cancel orphaned doc collection sessions from any state
+  if (message === '/cancel') {
+    const incompleteDoc = await regulatoryFlow.getIncompleteSession(chatId)
+    if (incompleteDoc) {
+      await regulatoryFlow.cancelAndRefund(chatId)
+      return // cancelAndRefund sends its own refund confirmation message
+    }
+    // No orphaned session — fall through to normal action handling
+  }
+
   // /testsip — generate OTP for SIP test page
   if (message === '/testsip') {
     const pMsg = phoneConfig.getMsg(info?.userLanguage || 'en')
