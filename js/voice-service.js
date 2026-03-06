@@ -1457,13 +1457,32 @@ async function handleGatherEnded(payload) {
   const option = ivrConfig.options[digits]
 
   switch (option.action) {
-    case 'forward':
-      session.phase = 'ivr_forward'
+    case 'forward': {
       const ivrFwdRate = getCallRate(option.forwardTo)
+      // ── Wallet check before IVR forward (same pattern as regular call forwarding) ──
+      if (_walletOf) {
+        try {
+          const { usdBal } = await getBalance(_walletOf, chatId)
+          if (usdBal < ivrFwdRate) {
+            log(`[Voice] IVR forward blocked: wallet $${usdBal} < $${ivrFwdRate}/min for ${option.forwardTo}`)
+            await _telnyxApi.speakOnCall(callControlId, 'Your wallet balance is insufficient for call forwarding. Please top up your wallet.')
+            setTimeout(() => _telnyxApi.hangupCall(callControlId), 5000)
+            _bot?.sendMessage(chatId, `🚫 <b>IVR Forward Blocked — Wallet Empty</b>\n\n📞 ${formatPhone(num.phoneNumber)}\n📲 Forward to: ${formatPhone(option.forwardTo)}\n\nWallet $${usdBal.toFixed(2)} (need $${ivrFwdRate}/min ${isUSCanada(option.forwardTo) ? 'US/CA' : 'Intl'}).\nTop up via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+            break
+          }
+          // Low balance warning
+          const estMinutes = Math.floor(usdBal / ivrFwdRate)
+          if (usdBal < 5) {
+            _bot?.sendMessage(chatId, `⚠️ <b>Low Balance</b> — $${usdBal.toFixed(2)} (~${estMinutes} min IVR fwd). Top up via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+          }
+        } catch (e) { log(`[Voice] IVR forward wallet check error: ${e.message}`) }
+      }
+      session.phase = 'ivr_forward'
       log(`[Voice] IVR: forwarding to ${option.forwardTo} from ${session.to} (rate: $${ivrFwdRate}/min ${isUSCanada(option.forwardTo) ? 'US/CA' : 'Intl'})`)
       await playHoldMusicAndTransfer(callControlId, option.forwardTo, session.to, num.features?.callForwarding || {})
       notifyUser(chatId, num, 'ivr_forward', session, { digit: digits, forwardTo: option.forwardTo })
       break
+    }
 
     case 'voicemail':
       session.phase = 'voicemail_greeting'

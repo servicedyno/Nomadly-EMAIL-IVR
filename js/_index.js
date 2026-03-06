@@ -18393,11 +18393,11 @@ app.post('/twilio/voice-webhook', async (req, res) => {
 
     // Find the number owner
     const allUsers = await db.collection('phoneNumbersOf').find({}).toArray()
-    let owner = null, num = null
+    let owner = null, num = null, ownerNumbers = []
     for (const user of allUsers) {
       const numbers = user.val?.numbers || []
       const match = numbers.find(n => n.phoneNumber === To && n.provider === 'twilio' && n.status === 'active')
-      if (match) { owner = user._id; num = match; break }
+      if (match) { owner = user._id; num = match; ownerNumbers = numbers; break }
     }
 
     const response = new VoiceResponse()
@@ -18416,13 +18416,33 @@ app.post('/twilio/voice-webhook', async (req, res) => {
     const SIP_DOMAIN = process.env.SIP_DOMAIN || 'sip.speechcue.com'
 
     // Check minute limit — pool across parent + sub-numbers
-    const minuteLimit = getPoolMinuteLimit(numbers, num)
-    const poolMinutesUsed = getPoolMinutesUsed(numbers, num)
+    const minuteLimit = getPoolMinuteLimit(ownerNumbers, num)
+    const poolMinutesUsed = getPoolMinutesUsed(ownerNumbers, num)
     if (minuteLimit !== Infinity && poolMinutesUsed >= minuteLimit) {
-      response.say('This number has reached its monthly minute limit.')
-      response.hangup()
-      bot?.sendMessage(chatId, `🚫 <b>Call Blocked</b> — Minute limit reached (${poolMinutesUsed}/${minuteLimit} min).\nUpgrade your plan for more minutes.`, { parse_mode: 'HTML' }).catch(() => {})
-      return res.type('text/xml').send(response.toString())
+      // Plan exhausted — check wallet for overage (same pattern as Telnyx inbound)
+      try {
+        const { usdBal } = await getBalance(walletOf, chatId)
+        const isUSCA = (From || '').replace(/[^+\d]/g, '').startsWith('+1')
+        const rate = isUSCA ? parseFloat(process.env.OVERAGE_RATE_MIN || '0.04') : parseFloat(process.env.CALL_FORWARDING_RATE_MIN || '0.50')
+        if (usdBal >= rate) {
+          // Wallet has balance — allow call with overage
+          log(`[Twilio] Plan exhausted (${poolMinutesUsed}/${minuteLimit}), wallet $${usdBal.toFixed(2)} — allowing overage at $${rate}/min`)
+          bot?.sendMessage(chatId, `⚠️ <b>Plan Minutes Exhausted</b>\nCall from ${phoneConfig.formatPhone(From)} allowed via wallet overage ($${rate}/min ${isUSCA ? 'US/CA' : 'Intl'}).\nWallet: $${usdBal.toFixed(2)}`, { parse_mode: 'HTML' }).catch(() => {})
+          // Fall through to normal call handling below
+        } else {
+          // No wallet balance — block call
+          response.say('This number has reached its monthly minute limit and wallet is empty. Please top up.')
+          response.hangup()
+          bot?.sendMessage(chatId, `🚫 <b>Incoming Call Blocked — No Credits</b>\n📞 ${phoneConfig.formatPhone(From)} → ${phoneConfig.formatPhone(To)}\n\nPlan: ${poolMinutesUsed}/${minuteLimit} min used\nWallet: $${usdBal.toFixed(2)} (need $${rate}/min)\n\nTop up via 👛 Wallet or upgrade your plan.`, { parse_mode: 'HTML' }).catch(() => {})
+          return res.type('text/xml').send(response.toString())
+        }
+      } catch (e) {
+        log(`[Twilio] Wallet check error on limit block: ${e.message}`)
+        response.say('This number has reached its monthly minute limit.')
+        response.hangup()
+        bot?.sendMessage(chatId, `🚫 <b>Call Blocked</b> — Minute limit reached (${poolMinutesUsed}/${minuteLimit} min).\nUpgrade your plan for more minutes.`, { parse_mode: 'HTML' }).catch(() => {})
+        return res.type('text/xml').send(response.toString())
+      }
     }
 
     // ━━━ PRIORITY 1: Forward-always ━━━
@@ -18810,6 +18830,7 @@ app.post('/twilio/single-ivr-status', async (req, res) => {
 // Also handles SIP bridge and SIP outbound call results
 app.post('/twilio/voice-dial-status', async (req, res) => {
   const VoiceResponse = require('twilio').twiml.VoiceResponse
+  const voiceService = require('./voice-service.js')
   try {
     const { DialCallStatus, DialCallDuration } = req.body || {}
     const { chatId, from, to, type } = req.query || {}
@@ -18818,29 +18839,34 @@ app.post('/twilio/voice-dial-status', async (req, res) => {
     log(`[Twilio] Dial status: ${DialCallStatus} (${DialCallDuration || 0}s) chatId=${chatId} type=${type || 'forward'}`)
 
     if (DialCallStatus === 'completed') {
-      // Call was answered and completed — bill the call
+      // Call was answered and completed — bill using unified billing (plan minutes first, then wallet overage)
       const duration = parseInt(DialCallDuration || '0')
       const minutes = duration > 0 ? Math.ceil(duration / 60) : 0
       if (minutes > 0 && chatId && to) {
         try {
+          const decodedTo = decodeURIComponent(to)
+          // Determine destination for rate calculation
+          const destination = type === 'sip_bridge' || type === 'sip_outbound'
+            ? decodeURIComponent(from || '')
+            : ''  // Will be resolved inside billing
+          // Try unified billing first
           const userData = await get(phoneNumbersOf, chatId)
           const numbers = userData?.numbers || []
-          const num = numbers.find(n => n.phoneNumber === decodeURIComponent(to) && n.provider === 'twilio')
+          const num = numbers.find(n => n.phoneNumber === decodedTo && n.provider === 'twilio')
           if (num) {
-            const RATE = parseFloat(process.env.CALL_FORWARDING_RATE_MIN || '0.50')
-            // Determine destination: for SIP calls use 'from' param (the dialed number), for forwards use forwardTo config
-            const destination = type === 'sip_bridge' || type === 'sip_outbound'
-              ? decodeURIComponent(from || '')
-              : (num.features?.callForwarding?.forwardTo || '')
-            const isUSCA = destination.replace(/[^+\d]/g, '').startsWith('+1')
-            const rate = isUSCA ? parseFloat(process.env.OVERAGE_RATE_MIN || '0.04') : RATE
-            const cost = minutes * rate
-            await atomicIncrement(walletOf, chatId, 'usdOut', cost)
-            num.minutesUsed = (num.minutesUsed || 0) + minutes
-            await set(phoneNumbersOf, chatId, { numbers })
+            const fwdDest = destination || (num.features?.callForwarding?.forwardTo || decodeURIComponent(from || ''))
+            const callType = type === 'sip_bridge' ? 'Twilio_SIP_Bridge' : type === 'sip_outbound' ? 'Twilio_SIP_Outbound' : 'Twilio_Forwarding'
+            const billingInfo = await voiceService.billCallMinutesUnified(chatId, num.phoneNumber, minutes, fwdDest, callType)
+            const remaining = billingInfo.limit > 0 ? Math.max(0, billingInfo.limit - billingInfo.used) : null
+            const planLine = remaining !== null
+              ? `${minutes} min · <b>${remaining}/${billingInfo.limit}</b> remaining`
+              : `${minutes} min`
+            const overageLine = billingInfo.overageCharge > 0
+              ? `\n💰 Overage: $${billingInfo.overageCharge.toFixed(2)} from wallet`
+              : ''
             const label = type === 'sip_bridge' ? 'SIP Bridge Call' : type === 'sip_outbound' ? 'SIP Outbound Call' : 'Forwarded Call'
-            log(`[Twilio] ${label} billed: ${minutes} min × $${rate}/min = $${cost.toFixed(2)} (${isUSCA ? 'US/CA' : 'Intl'})`)
-            bot?.sendMessage(chatId, `📞 <b>${label} Ended</b>\n📲 ${destination}\n⏱️ ${minutes} min — $${cost.toFixed(2)} deducted (${isUSCA ? 'US/CA' : 'Intl'} rate)`, { parse_mode: 'HTML' }).catch(() => {})
+            log(`[Twilio] ${label} billed via unified: ${minutes} min (${billingInfo.planMinUsed} plan + ${billingInfo.overageMin} overage)`)
+            bot?.sendMessage(chatId, `📞 <b>${label} Ended</b>\n📲 ${fwdDest ? phoneConfig.formatPhone(fwdDest) : ''}\n⏱️ ${planLine}${overageLine}`, { parse_mode: 'HTML' }).catch(() => {})
           }
         } catch (e) { log(`[Twilio] Call billing error: ${e.message}`) }
       }
@@ -19149,16 +19175,32 @@ app.post('/twilio/sip-voice', async (req, res) => {
       return res.type('text/xml').send(response.toString())
     }
 
-    // Wallet balance check — same rate as call forwarding
-    const RATE = parseFloat(process.env.CALL_FORWARDING_RATE_MIN || '0.50')
+    // Check plan minutes first, then wallet balance for overage
+    const isUSCA = (destinationNumber || '').replace(/[^+\d]/g, '').startsWith('+1')
+    const rate = isUSCA ? parseFloat(process.env.OVERAGE_RATE_MIN || '0.04') : parseFloat(process.env.CALL_FORWARDING_RATE_MIN || '0.50')
     const chatId = owner
-    const { usdBal } = await getBalance(walletOf, chatId)
 
-    if (usdBal < RATE) {
-      response.say('Insufficient wallet balance for outbound calls. Please top up.')
-      response.hangup()
-      bot?.sendMessage(chatId, `🚫 <b>SIP Call Blocked</b> — Wallet $${usdBal.toFixed(2)} (need $${RATE}/min).\nTop up via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
-      return res.type('text/xml').send(response.toString())
+    // Look up all user's numbers to check pooled plan minutes
+    const sipUserData = await get(phoneNumbersOf, chatId)
+    const sipAllNumbers = sipUserData?.numbers || []
+    const sipMinuteLimit = getPoolMinuteLimit(sipAllNumbers, num)
+    const sipMinutesUsed = getPoolMinutesUsed(sipAllNumbers, num)
+    const planHasMinutes = sipMinuteLimit === Infinity || sipMinutesUsed < sipMinuteLimit
+
+    if (planHasMinutes) {
+      // Plan still has minutes — allow call (billing happens at hangup via billCallMinutesUnified)
+      log(`[Twilio] SIP outbound: plan has minutes (${sipMinutesUsed}/${sipMinuteLimit}) — allowing`)
+    } else {
+      // Plan exhausted — check wallet for overage
+      const { usdBal } = await getBalance(walletOf, chatId)
+      if (usdBal < rate) {
+        response.say('Your plan minutes are exhausted and wallet balance is insufficient. Please top up.')
+        response.hangup()
+        bot?.sendMessage(chatId, `🚫 <b>SIP Call Blocked — No Credits</b>\n📞 ${phoneConfig.formatPhone(num.phoneNumber)} → ${phoneConfig.formatPhone(destinationNumber)}\n\nPlan: ${sipMinutesUsed}/${sipMinuteLimit} min used\nWallet: $${usdBal.toFixed(2)} (need $${rate}/min ${isUSCA ? 'US/CA' : 'Intl'})\n\nTop up via 👛 Wallet or upgrade plan.`, { parse_mode: 'HTML' }).catch(() => {})
+        return res.type('text/xml').send(response.toString())
+      }
+      log(`[Twilio] SIP outbound: plan exhausted, wallet $${usdBal.toFixed(2)} — allowing overage at $${rate}/min`)
+      bot?.sendMessage(chatId, `⚠️ <b>Plan Minutes Exhausted</b>\nSIP call to ${phoneConfig.formatPhone(destinationNumber)} via wallet overage ($${rate}/min ${isUSCA ? 'US/CA' : 'Intl'}).\nWallet: $${usdBal.toFixed(2)}`, { parse_mode: 'HTML' }).catch(() => {})
     }
 
     // Place outbound call
@@ -19186,6 +19228,7 @@ app.post('/twilio/sip-voice', async (req, res) => {
 
 // Twilio Voice Status Callback (call duration billing + no-answer safety net)
 app.post('/twilio/voice-status', async (req, res) => {
+  const voiceService = require('./voice-service.js')
   try {
     const { CallSid, CallDuration, CallStatus, To, From } = req.body || {}
     const duration = parseInt(CallDuration || '0')
@@ -19195,23 +19238,27 @@ app.post('/twilio/voice-status', async (req, res) => {
     if (CallStatus === 'completed' && duration > 0) {
       const minutes = Math.ceil(duration / 60)
 
-      // Find owner and deduct from wallet with destination-based rate
+      // Find owner and bill using unified billing (plan minutes first, then wallet overage)
       const allUsers = await db.collection('phoneNumbersOf').find({}).toArray()
       for (const user of allUsers) {
         const numbers = user.val?.numbers || []
         const match = numbers.find(n => (n.phoneNumber === To || n.phoneNumber === From) && n.provider === 'twilio')
         if (match) {
           const chatId = user._id
-          // Determine destination for rate: the number that is NOT the user's number
           const destination = match.phoneNumber === To ? From : To
-          const isUSCA = (destination || '').replace(/[^+\d]/g, '').startsWith('+1')
-          const rate = isUSCA ? parseFloat(process.env.OVERAGE_RATE_MIN || '0.04') : parseFloat(process.env.CALL_FORWARDING_RATE_MIN || '0.50')
-          const cost = minutes * rate
-          await atomicIncrement(walletOf, chatId, 'usdOut', cost)
-          // Increment minutes used
-          match.minutesUsed = (match.minutesUsed || 0) + minutes
-          await set(phoneNumbersOf, chatId, user.val)
-          bot?.sendMessage(chatId, `📊 <b>Call Ended</b> — ${minutes} min — $${cost.toFixed(2)} deducted (${isUSCA ? 'US/CA' : 'Intl'} $${rate}/min)\nBalance updated.`, { parse_mode: 'HTML' }).catch(() => {})
+          try {
+            const billingInfo = await voiceService.billCallMinutesUnified(chatId, match.phoneNumber, minutes, destination, 'Twilio_Inbound')
+            const remaining = billingInfo.limit > 0 ? Math.max(0, billingInfo.limit - billingInfo.used) : null
+            const planLine = remaining !== null
+              ? `📊 ${minutes} min · <b>${remaining}/${billingInfo.limit}</b> min remaining`
+              : `📊 ${minutes} min used`
+            const overageLine = billingInfo.overageCharge > 0
+              ? `\n💰 Overage: $${billingInfo.overageCharge.toFixed(2)} from wallet`
+              : ''
+            bot?.sendMessage(chatId, `📞 <b>Call Ended</b>\n${planLine}${overageLine}`, { parse_mode: 'HTML' }).catch(() => {})
+          } catch (e) {
+            log(`[Twilio] Unified billing error: ${e.message}`)
+          }
           break
         }
       }
@@ -19258,6 +19305,33 @@ app.post('/twilio/sms-webhook', async (req, res) => {
       const match = numbers.find(n => n.phoneNumber === To && n.provider === 'twilio' && n.status === 'active')
       if (match) {
         const chatId = user._id
+        const OVERAGE_SMS_RATE = parseFloat(process.env.OVERAGE_RATE_SMS || '0.02')
+
+        // ── CHECK: SMS limit reached? → Try overage billing ──
+        if (isSmsLimitReached(match)) {
+          let overageAllowed = false
+          try {
+            const { usdBal } = await getBalance(walletOf, chatId)
+            if (usdBal >= OVERAGE_SMS_RATE) {
+              // Charge overage from wallet
+              await atomicIncrement(walletOf, chatId, 'usdOut', OVERAGE_SMS_RATE)
+              overageAllowed = true
+              const ref = nanoid ? nanoid() : `ovsms_twilio_${Date.now()}`
+              await set(payments, ref, `Overage,CloudPhoneSMS,$${OVERAGE_SMS_RATE},${chatId},${To},${new Date()}`)
+              log(`[Twilio SMS] Overage charged: $${OVERAGE_SMS_RATE} for inbound SMS on ${To}`)
+              bot?.sendMessage(chatId, `💰 <b>SMS Overage</b>: $${OVERAGE_SMS_RATE} charged from wallet (plan SMS exhausted).`, { parse_mode: 'HTML' }).catch(() => {})
+            }
+          } catch (e) { log(`[Twilio SMS] Overage check error: ${e.message}`) }
+
+          if (!overageAllowed) {
+            log(`[Twilio SMS] SMS limit reached for ${To} (${match.smsUsed || 0} used), no wallet — dropping`)
+            bot?.sendMessage(chatId, `🚫 <b>Inbound SMS Dropped — No Credits</b>\n\n📞 ${phoneConfig.formatPhone(To)}\nFrom: ${phoneConfig.formatPhone(From)}\n\nPlan SMS exhausted and wallet insufficient for overage ($${OVERAGE_SMS_RATE}/SMS).\nTop up via 👛 Wallet or upgrade plan.`, { parse_mode: 'HTML' }).catch(() => {})
+            const response = new MessagingResponse()
+            return res.type('text/xml').send(response.toString())
+          }
+        }
+
+        // Forward to Telegram
         const fwd = match.features?.smsForwarding
         if (fwd?.toTelegram !== false) {
           bot?.sendMessage(chatId, `💬 <b>SMS Received</b>\nFrom: ${From}\nTo: ${To}\n\n${Body || '(empty)'}`, { parse_mode: 'HTML' }).catch(() => {})
