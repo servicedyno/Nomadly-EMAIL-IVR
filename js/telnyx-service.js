@@ -68,7 +68,7 @@ async function getNumberCapabilities(phoneNumber) {
 }
 
 // ── Buy a phone number ──
-async function buyNumber(phoneNumber, connectionId, messagingProfileId) {
+async function buyNumber(phoneNumber, connectionId, messagingProfileId, retrySearch = null) {
   try {
     const body = {
       phone_numbers: [{ phone_number: phoneNumber }]
@@ -79,6 +79,36 @@ async function buyNumber(phoneNumber, connectionId, messagingProfileId) {
     const res = await axios.post(`${BASE}/number_orders`, body, { headers: headers() })
     return res.data?.data || null
   } catch (e) {
+    const errDetail = e.response?.data?.errors?.[0]?.detail || ''
+    const isStaleNumber = errDetail.includes("don't recognize") || errDetail.includes('Did you first search')
+
+    // ── Stale number retry: re-search and buy a fresh number ──
+    if (isStaleNumber && retrySearch) {
+      log(`[Telnyx] Stale number detected (${phoneNumber}), retrying with fresh search...`)
+      try {
+        const freshResults = await searchNumbers(
+          retrySearch.countryCode || 'US',
+          retrySearch.numberType || 'local',
+          retrySearch.areaCode || null,
+          3
+        )
+        if (freshResults.length > 0) {
+          const freshNumber = freshResults[0].phone_number
+          log(`[Telnyx] Retrying buy with fresh number: ${freshNumber}`)
+          const retryBody = { phone_numbers: [{ phone_number: freshNumber }] }
+          if (connectionId) retryBody.connection_id = connectionId
+          if (messagingProfileId) retryBody.messaging_profile_id = messagingProfileId
+          const retryRes = await axios.post(`${BASE}/number_orders`, retryBody, { headers: headers() })
+          const retryData = retryRes.data?.data || null
+          if (retryData) retryData._retriedNumber = freshNumber
+          return retryData
+        }
+        log('[Telnyx] No fresh numbers found on retry search')
+      } catch (retryErr) {
+        log('[Telnyx] Retry buy also failed:', retryErr.response?.data || retryErr.message)
+      }
+    }
+
     log('Telnyx buyNumber error:', e.response?.data || e.message)
     return null
   }

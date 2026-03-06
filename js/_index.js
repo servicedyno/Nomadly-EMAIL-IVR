@@ -2419,6 +2419,7 @@ bot?.on('message', msg => {
     cpSubAddEnterArea: 'cpSubAddEnterArea',
     cpSubAddNumber: 'cpSubAddNumber',
     cpSubAddConfirm: 'cpSubAddConfirm',
+    cpSelectParentForBuyAnother: 'cpSelectParentForBuyAnother',
 
     // Pending Bundle
     cpPendingDetail: 'cpPendingDetail',
@@ -4483,7 +4484,7 @@ Enter new value:`), bc)
       }
 
       // Buy number via Telnyx or Twilio depending on provider
-      const selectedNumber = info?.cpSelectedNumber
+      let selectedNumber = info?.cpSelectedNumber
       const planKey = info?.cpPlanKey
       const plan = phoneConfig.plans[planKey]
       const countryName = info?.cpCountryName || 'US'
@@ -4625,8 +4626,15 @@ Enter new value:`), bc)
         orderResult = await telnyxApi.buyNumber(
           selectedNumber,
           telnyxResources.sipConnectionId,
-          telnyxResources.messagingProfileId
+          telnyxResources.messagingProfileId,
+          { countryCode, numberType: info?.cpNumberType || 'local', areaCode: info?.cpAreaCode || null }
         )
+        // Update selectedNumber if retry returned a different number
+        if (orderResult?._retriedNumber) {
+          selectedNumber = orderResult._retriedNumber
+          await saveInfo('cpSelectedNumber', selectedNumber)
+          log(`[CloudPhone] Telnyx stale-retry: using fresh number ${selectedNumber} for ${chatId}`)
+        }
 
         if (!orderResult) {
           if (coin === u.usd) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
@@ -11716,6 +11724,39 @@ Choose an IVR template category:`), k.of(rows))
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     if (message === t.back || message === pc.back) return goto.submenu5()
     if (message === pc.buyAnother || phoneConfig.btnKeyOf(message) === 'buyPhoneNumber') {
+      // Check if user already has active primary numbers → route to sub-number (discounted) flow
+      const userData = await get(phoneNumbersOf, chatId)
+      const allNumbers = userData?.numbers || []
+      const primaryNumbers = allNumbers.filter(n => !n.isSubNumber && (n.status === 'active' || n.status === 'suspended'))
+
+      if (primaryNumbers.length === 1) {
+        // Single active plan → auto-select as parent, route to sub-number flow
+        const parentNum = primaryNumbers[0]
+        const subLimit = phoneConfig.getSubNumberLimit(parentNum.plan)
+        const currentSubCount = allNumbers.filter(n => n.isSubNumber && n.parentNumber === parentNum.phoneNumber && (n.status === 'active' || n.status === 'suspended')).length
+        if (currentSubCount >= subLimit) {
+          return send(chatId, cpTxt.subNumberLimitReached(parentNum.plan.charAt(0).toUpperCase() + parentNum.plan.slice(1), subLimit))
+        }
+        await saveInfo('cpSubParentNumber', parentNum.phoneNumber)
+        await saveInfo('cpSubParentPlan', parentNum.plan)
+        await saveInfo('cpSubParentPlanPrice', parentNum.planPrice)
+        await saveInfo('cpSubParentExpiresAt', parentNum.expiresAt)
+        await saveInfo('cpIsSubNumber', true)
+        set(state, chatId, 'action', a.cpSubAddCountry)
+        const countryBtns = phoneConfig.allCountries.map(c => c.name)
+        const rows = []
+        for (let i = 0; i < countryBtns.length; i += 2) rows.push(countryBtns.slice(i, i + 2))
+        if (phoneConfig.moreCountries.length > 0) rows.push([pc.moreCountries])
+        return send(chatId, cpTxt.subAddNumberHeader(parentNum.plan, parentNum.phoneNumber), k.of(rows))
+      } else if (primaryNumbers.length > 1) {
+        // Multiple plans → ask which plan to add under
+        const numLines = primaryNumbers.map((n, i) => `${i + 1}️⃣  ${phoneConfig.formatPhone(n.phoneNumber)}  ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} Plan`).join('\n')
+        await saveInfo('cpBuyAnotherPrimaries', primaryNumbers.map(n => ({ phoneNumber: n.phoneNumber, plan: n.plan, planPrice: n.planPrice, expiresAt: n.expiresAt })))
+        set(state, chatId, 'action', a.cpSelectParentForBuyAnother)
+        const numBtns = primaryNumbers.map((_, i) => String(i + 1))
+        return send(chatId, `📱 <b>Select which plan to add a number to:</b>\n\n${numLines}`, k.of([numBtns, [pc.back, pc.cancel]]))
+      }
+      // No active plans → regular new purchase flow
       set(state, chatId, 'action', a.cpSelectCountry)
       const countryBtns = phoneConfig.countries.map(c => c.name)
       const rows = []
@@ -12099,6 +12140,37 @@ Choose an IVR template category:`), k.of(rows))
 
     return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectOption)
   }
+
+  // ━━━ BUY ANOTHER: Select Parent Plan (multi-plan users) ━━━
+  if (action === a.cpSelectParentForBuyAnother) {
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
+    if (message === t.back || message === pc.back || message === t.cancel || message === pc.cancel) {
+      return goto.submenu5()
+    }
+    const primaries = info?.cpBuyAnotherPrimaries || []
+    const idx = parseInt(message) - 1
+    if (isNaN(idx) || idx < 0 || idx >= primaries.length) return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectByIndex)
+    const parentNum = primaries[idx]
+    const userData = await get(phoneNumbersOf, chatId)
+    const allNumbers = userData?.numbers || []
+    const subLimit = phoneConfig.getSubNumberLimit(parentNum.plan)
+    const currentSubCount = allNumbers.filter(n => n.isSubNumber && n.parentNumber === parentNum.phoneNumber && (n.status === 'active' || n.status === 'suspended')).length
+    if (currentSubCount >= subLimit) {
+      return send(chatId, cpTxt.subNumberLimitReached(parentNum.plan.charAt(0).toUpperCase() + parentNum.plan.slice(1), subLimit))
+    }
+    await saveInfo('cpSubParentNumber', parentNum.phoneNumber)
+    await saveInfo('cpSubParentPlan', parentNum.plan)
+    await saveInfo('cpSubParentPlanPrice', parentNum.planPrice)
+    await saveInfo('cpSubParentExpiresAt', parentNum.expiresAt)
+    await saveInfo('cpIsSubNumber', true)
+    set(state, chatId, 'action', a.cpSubAddCountry)
+    const countryBtns = phoneConfig.allCountries.map(c => c.name)
+    const rows = []
+    for (let i = 0; i < countryBtns.length; i += 2) rows.push(countryBtns.slice(i, i + 2))
+    if (phoneConfig.moreCountries.length > 0) rows.push([pc.moreCountries])
+    return send(chatId, cpTxt.subAddNumberHeader(parentNum.plan, parentNum.phoneNumber), k.of(rows))
+  }
+
 
   // ━━━ SUB-NUMBER: Select Country ━━━
   if (action === a.cpSubAddCountry) {
@@ -15987,7 +16059,7 @@ const bankApis = {
       sendMessage(chatId, translation('t.sentMoreMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`))
     }
 
-    const selectedNumber = cpData.selectedNumber
+    let selectedNumber = cpData.selectedNumber
     const planKey = cpData.planKey
     const plan = phoneConfig.plans[planKey]
     const provider = cpData.provider || 'telnyx'
@@ -16068,7 +16140,8 @@ const bankApis = {
 
     // ── TELNYX PURCHASE ──
     sendMessage(chatId, phoneConfig.getMsg(lang).purchasingNumber)
-    const orderResult = await telnyxApi.buyNumber(selectedNumber, telnyxResources.sipConnectionId, telnyxResources.messagingProfileId)
+    let orderResult = await telnyxApi.buyNumber(selectedNumber, telnyxResources.sipConnectionId, telnyxResources.messagingProfileId, { countryCode, numberType: info?.cpNumberType || 'local', areaCode: info?.cpAreaCode || null })
+    if (orderResult?._retriedNumber) selectedNumber = orderResult._retriedNumber
     if (!orderResult) {
       addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
       return res.send(html(phoneConfig.getMsg(lang).purchaseFailed))
@@ -16556,7 +16629,7 @@ app.get('/crypto-pay-phone', auth, async (req, res) => {
     sendMessage(chatId, translation('t.sentMoreMoney', lang, `$${price}`, `$${usdIn}`))
   }
 
-  const selectedNumber = cpData.selectedNumber
+  let selectedNumber = cpData.selectedNumber
   const planKey = cpData.planKey
   const plan = phoneConfig.plans[planKey]
   const provider = cpData.provider || 'telnyx'
@@ -16616,7 +16689,8 @@ app.get('/crypto-pay-phone', auth, async (req, res) => {
 
   // ── TELNYX ──
   sendMessage(chatId, phoneConfig.getMsg(lang).purchasingNumber)
-  const orderResult = await telnyxApi.buyNumber(selectedNumber, telnyxResources.sipConnectionId, telnyxResources.messagingProfileId)
+  const orderResult = await telnyxApi.buyNumber(selectedNumber, telnyxResources.sipConnectionId, telnyxResources.messagingProfileId, { countryCode, numberType: info?.cpNumberType || 'local', areaCode: info?.cpAreaCode || null })
+  if (orderResult?._retriedNumber) selectedNumber = orderResult._retriedNumber
   if (!orderResult) { addFundsTo(walletOf, chatId, 'usd', Number(price), lang); return res.send(html(phoneConfig.getMsg(lang).purchaseFailed)) }
   // Assign to Call Control App for inbound webhook routing
   if (telnyxResources.callControlAppId) await telnyxApi.assignNumberToCallControlApp(selectedNumber, telnyxResources.callControlAppId)
@@ -17109,7 +17183,7 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
     sendMessage(chatId, translation('t.sentMoreMoney', lang, `$${price}`, `$${usdIn}`))
   }
 
-  const selectedNumber = cpData.selectedNumber
+  let selectedNumber = cpData.selectedNumber
   const planKey = cpData.planKey
   const plan = phoneConfig.plans[planKey]
   const provider = cpData.provider || 'telnyx'
@@ -17169,7 +17243,8 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
 
   // ── TELNYX ──
   sendMessage(chatId, phoneConfig.getMsg(lang).purchasingNumber)
-  const orderResult = await telnyxApi.buyNumber(selectedNumber, telnyxResources.sipConnectionId, telnyxResources.messagingProfileId)
+  const orderResult = await telnyxApi.buyNumber(selectedNumber, telnyxResources.sipConnectionId, telnyxResources.messagingProfileId, { countryCode, numberType: info?.cpNumberType || 'local', areaCode: info?.cpAreaCode || null })
+  if (orderResult?._retriedNumber) selectedNumber = orderResult._retriedNumber
   if (!orderResult) { addFundsTo(walletOf, chatId, 'usd', Number(price), lang); return res.send(html(phoneConfig.getMsg(lang).purchaseFailed)) }
   // Assign to Call Control App for inbound webhook routing
   if (telnyxResources.callControlAppId) await telnyxApi.assignNumberToCallControlApp(selectedNumber, telnyxResources.callControlAppId)
