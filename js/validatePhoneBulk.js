@@ -268,8 +268,8 @@ const validateBulkNumbers = async (carrier, phonesToGenerate, countryCode, areaC
           totalCnamLookups += batchCnamLookups
         }
 
-        // Count entries with real person names (only from CNAM-enabled area codes)
-        if (requireRealName && cnam && useCnam) {
+        // Count entries with real person names (whenever CNAM is enabled for this area code)
+        if (cnam && useCnam) {
           let batchRealNames = 0
           for (const entry of r[1]) {
             if (entry[3] && isRealPersonName(entry[3])) {
