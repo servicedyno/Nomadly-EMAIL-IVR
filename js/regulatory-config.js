@@ -10,7 +10,15 @@
  *   2 = 1 document upload
  *   3 = 2 document uploads
  *   4 = 3+ document uploads or special fields
+ *
+ * IMPORTANT: Users must provide ALL info themselves. Nothing is pulled from Telegram profile.
  */
+
+// Common text inputs reused across all Tier 2+ countries
+const NAME_INPUTS = [
+  { key: 'first_name', prompt: { en: '👤 Enter your <b>first name</b> (as shown on your ID):', fr: '👤 Entrez votre <b>prénom</b> (tel que sur votre pièce d\'identité) :', zh: '👤 输入您的<b>名字</b>（与证件一致）：', hi: '👤 अपना <b>पहला नाम</b> दर्ज करें (ID पर जैसा है):' } },
+  { key: 'last_name', prompt: { en: '👤 Enter your <b>last name</b> (as shown on your ID):', fr: '👤 Entrez votre <b>nom de famille</b> (tel que sur votre pièce d\'identité) :', zh: '👤 输入您的<b>姓氏</b>（与证件一致）：', hi: '👤 अपना <b>उपनाम</b> दर्ज करें (ID पर जैसा है):' } },
+]
 
 const COUNTRY_REGS = {
   // ═══ Tier 0: No documents needed ═══
@@ -38,17 +46,19 @@ const COUNTRY_REGS = {
   'SK:toll_free': { tier: 0 },
   'TH:toll_free': { tier: 0 },
 
-  // ═══ Tier 1: End-user name only (auto-filled, no upload) ═══
+  // ═══ Tier 1: End-user name only (no upload, but user must provide name) ═══
   'NL:mobile': {
     tier: 1,
     regulationSid: 'RN094a796ec7631e296e7900a5a8b02031',
     endUserFields: ['first_name', 'last_name'],
+    textInputs: [...NAME_INPUTS],
     docs: [],
   },
   'FI:mobile': {
     tier: 1,
     regulationSid: 'RN2be8cb3ea08d9dcc15061e9b7ac491f3',
     endUserFields: ['first_name', 'last_name'],
+    textInputs: [...NAME_INPUTS],
     docs: [],
   },
 
@@ -57,7 +67,7 @@ const COUNTRY_REGS = {
     tier: 2,
     regulationSid: 'RN6adcd07a287f1476d92c22d06947115b',
     endUserFields: ['first_name', 'last_name'],
-    textInputs: [],
+    textInputs: [...NAME_INPUTS],
     docs: [
       {
         key: 'id_photo',
@@ -77,7 +87,7 @@ const COUNTRY_REGS = {
     tier: 2,
     regulationSid: 'RN88c2810570ee6cdea58d97e5db9b9c0f',
     endUserFields: ['first_name', 'last_name'],
-    textInputs: [],
+    textInputs: [...NAME_INPUTS],
     docs: [
       {
         key: 'id_photo',
@@ -100,6 +110,7 @@ const COUNTRY_REGS = {
     regulationSid: 'RNbda16e54b024fc1d8a0213f5477dc624',
     endUserFields: ['first_name', 'last_name', 'email', 'phone_number'],
     textInputs: [
+      ...NAME_INPUTS,
       { key: 'email', prompt: { en: '📧 Enter your email address:', fr: '📧 Entrez votre adresse email :', zh: '📧 输入您的电子邮箱：', hi: '📧 अपना ईमेल पता दर्ज करें:' } },
       { key: 'phone_number', prompt: { en: '📱 Enter your phone number (with country code, e.g. +44...):', fr: '📱 Entrez votre numéro (+code pays) :', zh: '📱 输入您的电话号码（含国家代码）：', hi: '📱 अपना फ़ोन नंबर दर्ज करें (देश कोड सहित):' } },
     ],
@@ -136,6 +147,7 @@ const COUNTRY_REGS = {
     endUserFields: ['first_name', 'last_name', 'email', 'business_identity', 'is_subassigned'],
     autoFill: { business_identity: 'DIRECT_CUSTOMER', is_subassigned: 'NO' },
     textInputs: [
+      ...NAME_INPUTS,
       { key: 'email', prompt: { en: '📧 Enter your email address:', fr: '📧 Entrez votre adresse email :', zh: '📧 输入您的电子邮箱：', hi: '📧 अपना ईमेल पता दर्ज करें:' } },
     ],
     docs: [
@@ -169,7 +181,7 @@ const COUNTRY_REGS = {
     tier: 3,
     regulationSid: 'RN6a355ad38b79bb02b8a50d28cb7b9c4b',
     endUserFields: ['first_name', 'last_name'],
-    textInputs: [],
+    textInputs: [...NAME_INPUTS],
     docs: [
       {
         key: 'id_photo',
@@ -201,7 +213,7 @@ const COUNTRY_REGS = {
     tier: 3,
     regulationSid: 'RNe2f0ecbb762d18238fed0634e5af27d9',
     endUserFields: ['first_name', 'last_name'],
-    textInputs: [],
+    textInputs: [...NAME_INPUTS],
     docs: [
       {
         key: 'id_photo',
@@ -234,6 +246,7 @@ const COUNTRY_REGS = {
     regulationSid: 'RN4ff8a1464f14f638da9d9f53a0f53e16',
     endUserFields: ['first_name', 'last_name', 'birth_date'],
     textInputs: [
+      ...NAME_INPUTS,
       { key: 'birth_date', prompt: { en: '📅 Enter your date of birth (YYYY-MM-DD):', fr: '📅 Entrez votre date de naissance (AAAA-MM-JJ) :', zh: '📅 输入您的出生日期（YYYY-MM-DD）：', hi: '📅 अपनी जन्म तिथि दर्ज करें (YYYY-MM-DD):' } },
     ],
     docs: [
@@ -268,6 +281,7 @@ const COUNTRY_REGS = {
     regulationSid: 'RN70bc36ffeee3549155743b66860930ec',
     endUserFields: ['first_name', 'last_name', 'birth_date'],
     textInputs: [
+      ...NAME_INPUTS,
       { key: 'birth_date', prompt: { en: '📅 Enter your date of birth (YYYY-MM-DD):', fr: '📅 Date de naissance (AAAA-MM-JJ) :', zh: '📅 出生日期（YYYY-MM-DD）：', hi: '📅 जन्म तिथि (YYYY-MM-DD):' } },
       { key: 'birth_registration_number', prompt: { en: '🔢 Enter your birth registration number:', fr: '🔢 Numéro d\'enregistrement de naissance :', zh: '🔢 出生登记号码：', hi: '🔢 जन्म पंजीकरण संख्या:' } },
     ],
@@ -290,7 +304,7 @@ const COUNTRY_REGS = {
     tier: 3,
     regulationSid: 'RNb24b8f081b299f6efb9fa30c5730184a',
     endUserFields: ['first_name', 'last_name'],
-    textInputs: [],
+    textInputs: [...NAME_INPUTS],
     docs: [
       {
         key: 'id_photo',
@@ -325,6 +339,7 @@ const COUNTRY_REGS = {
     regulationSid: 'RN233736af8eb71fba1d9b8a92ab711533',
     endUserFields: ['first_name', 'last_name'],
     textInputs: [
+      ...NAME_INPUTS,
       { key: 'document_number', prompt: { en: '🔢 Enter your PESEL / National ID number:', fr: '🔢 Entrez votre numéro PESEL / ID :', zh: '🔢 输入您的PESEL/身份证号码：', hi: '🔢 अपना PESEL/राष्ट्रीय ID नंबर दर्ज करें:' } },
     ],
     docs: [
@@ -347,6 +362,7 @@ const COUNTRY_REGS = {
     regulationSid: 'RNfdbc42b99946ad45548d7f7e036036e9',
     endUserFields: ['first_name', 'last_name', 'nationality'],
     textInputs: [
+      ...NAME_INPUTS,
       { key: 'nationality', prompt: { en: '🌍 Enter your nationality (2-letter code, e.g. ZA, US, GB):', fr: '🌍 Nationalité (code 2 lettres) :', zh: '🌍 国籍（2位代码，如 ZA、US）：', hi: '🌍 राष्ट्रीयता (2-अक्षर कोड, जैसे ZA):' } },
       { key: 'document_number', prompt: { en: '🔢 Enter your ID / passport document number:', fr: '🔢 Numéro de document ID / passeport :', zh: '🔢 身份证/护照号码：', hi: '🔢 ID/पासपोर्ट दस्तावेज़ संख्या:' } },
     ],
@@ -382,6 +398,7 @@ const COUNTRY_REGS = {
     regulationSid: 'RNf43905e9964bd0aed907a5e5ec305bde',
     endUserFields: ['first_name', 'last_name', 'birth_date'],
     textInputs: [
+      ...NAME_INPUTS,
       { key: 'birth_date', prompt: { en: '📅 Enter your date of birth (YYYY-MM-DD):', fr: '📅 Date de naissance (AAAA-MM-JJ) :', zh: '📅 出生日期（YYYY-MM-DD）：', hi: '📅 जन्म तिथि (YYYY-MM-DD):' } },
     ],
     docs: [
@@ -416,6 +433,7 @@ const COUNTRY_REGS = {
     regulationSid: 'RN018e13df8a6e314c7ff5be1358090b68',
     endUserFields: ['first_name', 'last_name', 'phone_number', 'identification_document_number'],
     textInputs: [
+      ...NAME_INPUTS,
       { key: 'phone_number', prompt: { en: '📱 Enter your phone number (with country code):', fr: '📱 Numéro de téléphone (avec code pays) :', zh: '📱 电话号码（含国家代码）：', hi: '📱 फ़ोन नंबर (देश कोड सहित):' } },
       { key: 'identification_document_number', prompt: { en: '🔢 Enter your Thai ID or passport number:', fr: '🔢 Numéro d\'identité thaïlandaise ou passeport :', zh: '🔢 泰国身份证或护照号码：', hi: '🔢 थाई ID या पासपोर्ट नंबर:' } },
     ],
