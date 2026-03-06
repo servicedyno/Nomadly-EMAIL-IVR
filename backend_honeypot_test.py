@@ -12,7 +12,7 @@ import sys
 import time
 from pathlib import Path
 
-BACKEND_URL = "https://pod-webhook-preview.preview.emergentagent.com"
+BACKEND_URL = "https://multi-api-sandbox.preview.emergentagent.com"
 
 def run_test(test_name, test_func):
     """Run a test and return results"""
