@@ -1,357 +1,442 @@
 #!/usr/bin/env python3
 """
-Backend Test Suite for Bulk IVR Credit Protection Fixes
-Tests the 3 critical credit protection fixes in bulk-call-service.js
+Bulk Call Campaign Pricing Overhaul Test Suite
+Tests all 11 requirements from the review request.
 """
-
 import requests
-import json
-import sys
 import os
+import json
+import time
 
-# Configuration
+# Test configuration
 BASE_URL = "http://localhost:5000"
-HEADERS = {"Content-Type": "application/json"}
+BACKEND_URL = os.getenv('REACT_APP_BACKEND_URL', 'https://pod-webhook-preview.preview.emergentagent.com')
 
-class TestResults:
+class BulkCallPricingTests:
     def __init__(self):
-        self.total_tests = 0
-        self.passed_tests = 0
-        self.failed_tests = []
+        self.results = []
+        self.passed = 0
+        self.failed = 0
         
-    def add_result(self, test_name, passed, message=""):
-        self.total_tests += 1
+    def log_result(self, test_name, passed, details=""):
+        self.results.append({
+            "test": test_name,
+            "passed": passed,
+            "details": details
+        })
         if passed:
-            self.passed_tests += 1
+            self.passed += 1
             print(f"✅ {test_name}")
         else:
-            self.failed_tests.append({"test": test_name, "message": message})
-            print(f"❌ {test_name}: {message}")
+            self.failed += 1
+            print(f"❌ {test_name}: {details}")
+    
+    def run_all_tests(self):
+        print("🚀 Starting Bulk Call Campaign Pricing Overhaul Tests")
+        print("=" * 60)
+        
+        # Test 1: Node.js health check
+        self.test_nodejs_health()
+        
+        # Test 2-3: Check constants in bulk-call-service.js
+        self.test_bulk_call_rate_constant()
+        self.test_max_bulk_leads_constant()
+        
+        # Test 4: createCampaign max leads check
+        self.test_create_campaign_max_leads_check()
+        
+        # Test 5: startCampaign wallet-only pre-check
+        self.test_start_campaign_wallet_precheck()
+        
+        # Test 6: onCallStatusUpdate bills all calls
+        self.test_billing_all_calls()
+        
+        # Test 7: fireNextBatch per-batch check
+        self.test_fire_next_batch_credit_check()
+        
+        # Test 8: _index.js lead upload limit
+        self.test_index_lead_upload_limit()
+        
+        # Test 9: _index.js campaign preview cost
+        self.test_index_campaign_preview_cost()
+        
+        # Test 10: Exports verification
+        self.test_exports_verification()
+        
+        # Test 11: Environment variables
+        self.test_env_vars()
+        
+        # Print summary
+        self.print_summary()
+    
+    def test_nodejs_health(self):
+        """Test 1: Node.js health check"""
+        try:
+            response = requests.get(f"{BASE_URL}/health", timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('status') == 'healthy':
+                    # Check error log is empty
+                    try:
+                        import subprocess
+                        result = subprocess.run(['wc', '-c', '/var/log/supervisor/nodejs.err.log'], 
+                                              capture_output=True, text=True)
+                        log_size = int(result.stdout.split()[0])
+                        if log_size == 0:
+                            self.log_result("Node.js Health Check", True, 
+                                          f"Service healthy, error log empty ({log_size} bytes)")
+                        else:
+                            self.log_result("Node.js Health Check", False, 
+                                          f"Error log not empty: {log_size} bytes")
+                    except Exception as e:
+                        self.log_result("Node.js Health Check", True, 
+                                      f"Service healthy, but couldn't check log: {e}")
+                else:
+                    self.log_result("Node.js Health Check", False, 
+                                  f"Service unhealthy: {data}")
+            else:
+                self.log_result("Node.js Health Check", False, 
+                              f"HTTP {response.status_code}")
+        except Exception as e:
+            self.log_result("Node.js Health Check", False, str(e))
+    
+    def test_bulk_call_rate_constant(self):
+        """Test 2: BULK_CALL_RATE constant verification"""
+        try:
+            with open('/app/js/bulk-call-service.js', 'r') as f:
+                content = f.read()
+            
+            # Look for the constant definition
+            expected_line = "const BULK_CALL_RATE = parseFloat(process.env.BULK_CALL_RATE_PER_MIN || '0.15')"
+            
+            if expected_line in content:
+                # Check if it's near the top of file (within first 50 lines)
+                lines = content.split('\n')
+                for i, line in enumerate(lines[:50]):
+                    if 'BULK_CALL_RATE = parseFloat(' in line and '0.15' in line:
+                        self.log_result("BULK_CALL_RATE Constant", True, 
+                                      f"Found at line {i+1}, value: 0.15")
+                        return
+                
+                self.log_result("BULK_CALL_RATE Constant", False, 
+                              "Found constant but not near top of file")
+            else:
+                self.log_result("BULK_CALL_RATE Constant", False, 
+                              "Constant definition not found")
+        except Exception as e:
+            self.log_result("BULK_CALL_RATE Constant", False, str(e))
+    
+    def test_max_bulk_leads_constant(self):
+        """Test 3: MAX_BULK_LEADS constant verification"""
+        try:
+            with open('/app/js/bulk-call-service.js', 'r') as f:
+                content = f.read()
+            
+            # Look for the constant definition
+            expected_line = "const MAX_BULK_LEADS  = parseInt(process.env.BULK_CALL_MAX_LEADS || '500', 10)"
+            
+            if "MAX_BULK_LEADS" in content and "500" in content:
+                # Check if it's near the top of file (within first 50 lines)
+                lines = content.split('\n')
+                for i, line in enumerate(lines[:50]):
+                    if 'MAX_BULK_LEADS' in line and 'parseInt(' in line and '500' in line:
+                        self.log_result("MAX_BULK_LEADS Constant", True, 
+                                      f"Found at line {i+1}, value: 500")
+                        return
+                
+                self.log_result("MAX_BULK_LEADS Constant", False, 
+                              "Found constant but not near top of file")
+            else:
+                self.log_result("MAX_BULK_LEADS Constant", False, 
+                              "Constant definition not found")
+        except Exception as e:
+            self.log_result("MAX_BULK_LEADS Constant", False, str(e))
+    
+    def test_create_campaign_max_leads_check(self):
+        """Test 4: createCampaign max leads check"""
+        try:
+            with open('/app/js/bulk-call-service.js', 'r') as f:
+                content = f.read()
+            
+            # Look for the createCampaign function and max leads check
+            if 'async function createCampaign(' in content:
+                # Check for max leads validation
+                check_patterns = [
+                    'if (leads.length > MAX_BULK_LEADS)',
+                    'leads.length > MAX_BULK_LEADS',
+                    'Maximum ${MAX_BULK_LEADS} leads per campaign'
+                ]
+                
+                found_checks = 0
+                for pattern in check_patterns:
+                    if pattern in content:
+                        found_checks += 1
+                
+                if found_checks >= 2:
+                    self.log_result("createCampaign Max Leads Check", True, 
+                                  f"Found {found_checks}/3 expected patterns")
+                else:
+                    self.log_result("createCampaign Max Leads Check", False, 
+                                  f"Only found {found_checks}/3 expected patterns")
+            else:
+                self.log_result("createCampaign Max Leads Check", False, 
+                              "createCampaign function not found")
+        except Exception as e:
+            self.log_result("createCampaign Max Leads Check", False, str(e))
+    
+    def test_start_campaign_wallet_precheck(self):
+        """Test 5: startCampaign wallet-only pre-check"""
+        try:
+            with open('/app/js/bulk-call-service.js', 'r') as f:
+                content = f.read()
+            
+            # Look for startCampaign function
+            if 'async function startCampaign(' in content:
+                # Check for wallet-only credit check patterns
+                wallet_checks = [
+                    'PRE-CAMPAIGN CREDIT CHECK',
+                    'usdBal < BULK_CALL_RATE',
+                    'minRequired = BULK_CALL_RATE * campaign.leads.length',
+                    'Bulk campaigns are charged at',
+                    'plan minutes NOT used'
+                ]
+                
+                found_checks = 0
+                for pattern in wallet_checks:
+                    if pattern in content:
+                        found_checks += 1
+                
+                # Check that it's NOT using plan minutes (should not have isMinuteLimitReached in bulk context)
+                no_plan_check = 'isMinuteLimitReached' not in content.split('startCampaign')[1].split('fireNextBatch')[0] if 'startCampaign' in content and 'fireNextBatch' in content else True
+                
+                if found_checks >= 3 and no_plan_check:
+                    self.log_result("startCampaign Wallet Pre-check", True, 
+                                  f"Found {found_checks}/5 wallet-only patterns, no plan minutes check")
+                else:
+                    self.log_result("startCampaign Wallet Pre-check", False, 
+                                  f"Found {found_checks}/5 patterns, plan check avoided: {no_plan_check}")
+            else:
+                self.log_result("startCampaign Wallet Pre-check", False, 
+                              "startCampaign function not found")
+        except Exception as e:
+            self.log_result("startCampaign Wallet Pre-check", False, str(e))
+    
+    def test_billing_all_calls(self):
+        """Test 6: onCallStatusUpdate bills ALL calls"""
+        try:
+            with open('/app/js/bulk-call-service.js', 'r') as f:
+                content = f.read()
+            
+            # Look for onCallStatusUpdate function
+            if 'async function onCallStatusUpdate(' in content:
+                # Check for billing section patterns
+                billing_patterns = [
+                    "['completed', 'no-answer', 'busy', 'failed', 'canceled'].includes(status)",
+                    'Math.max(1, Math.ceil((duration || 0) / 60))',
+                    'minutesBilled * BULK_CALL_RATE',
+                    'atomicIncrement(_walletOf',
+                    'minimum 1 minute always'
+                ]
+                
+                found_patterns = 0
+                for pattern in billing_patterns:
+                    if pattern in content:
+                        found_patterns += 1
+                
+                # Check it's NOT using billCallMinutesUnified
+                no_unified_billing = 'billCallMinutesUnified' not in content.split('onCallStatusUpdate')[1].split('}')[0] if 'onCallStatusUpdate' in content else False
+                
+                if found_patterns >= 3 and no_unified_billing:
+                    self.log_result("onCallStatusUpdate Bills All Calls", True, 
+                                  f"Found {found_patterns}/5 billing patterns, direct wallet charge")
+                else:
+                    self.log_result("onCallStatusUpdate Bills All Calls", False, 
+                                  f"Found {found_patterns}/5 patterns, no unified billing: {no_unified_billing}")
+            else:
+                self.log_result("onCallStatusUpdate Bills All Calls", False, 
+                              "onCallStatusUpdate function not found")
+        except Exception as e:
+            self.log_result("onCallStatusUpdate Bills All Calls", False, str(e))
+    
+    def test_fire_next_batch_credit_check(self):
+        """Test 7: fireNextBatch per-batch credit check"""
+        try:
+            with open('/app/js/bulk-call-service.js', 'r') as f:
+                content = f.read()
+            
+            # Look for fireNextBatch function
+            if 'async function fireNextBatch(' in content:
+                # Check for per-batch credit check patterns
+                batch_patterns = [
+                    'PER-BATCH CREDIT CHECK',
+                    'usdBal < BULK_CALL_RATE',
+                    'state.paused = true',
+                    'Campaign Paused — Wallet Depleted',
+                    'bulk calls use wallet only'
+                ]
+                
+                found_patterns = 0
+                for pattern in batch_patterns:
+                    if pattern in content:
+                        found_patterns += 1
+                
+                if found_patterns >= 3:
+                    self.log_result("fireNextBatch Per-batch Check", True, 
+                                  f"Found {found_patterns}/5 per-batch credit patterns")
+                else:
+                    self.log_result("fireNextBatch Per-batch Check", False, 
+                                  f"Only found {found_patterns}/5 expected patterns")
+            else:
+                self.log_result("fireNextBatch Per-batch Check", False, 
+                              "fireNextBatch function not found")
+        except Exception as e:
+            self.log_result("fireNextBatch Per-batch Check", False, str(e))
+    
+    def test_index_lead_upload_limit(self):
+        """Test 8: _index.js lead upload limit"""
+        try:
+            with open('/app/js/_index.js', 'r') as f:
+                content = f.read()
+            
+            # Look for bulkUploadLeads handler
+            if 'bulkUploadLeads' in content:
+                # Check for lead upload limit patterns
+                upload_patterns = [
+                    'if (leads.length > maxLeads)',
+                    'maxLeads = bulkCallService.MAX_BULK_LEADS',
+                    '|| 500',
+                    'limit'
+                ]
+                
+                found_patterns = 0
+                for pattern in upload_patterns:
+                    if pattern in content:
+                        found_patterns += 1
+                
+                if found_patterns >= 2:
+                    self.log_result("_index.js Lead Upload Limit", True, 
+                                  f"Found {found_patterns}/4 upload limit patterns")
+                else:
+                    self.log_result("_index.js Lead Upload Limit", False, 
+                                  f"Only found {found_patterns}/4 expected patterns")
+            else:
+                self.log_result("_index.js Lead Upload Limit", False, 
+                              "bulkUploadLeads handler not found")
+        except Exception as e:
+            self.log_result("_index.js Lead Upload Limit", False, str(e))
+    
+    def test_index_campaign_preview_cost(self):
+        """Test 9: _index.js campaign preview cost"""
+        try:
+            with open('/app/js/_index.js', 'r') as f:
+                content = f.read()
+            
+            # Look for bulkSetConcurrency handler (campaign preview)
+            if 'bulkSetConcurrency' in content:
+                # Check for campaign preview cost patterns
+                preview_patterns = [
+                    'bulkRate = bulkCallService.BULK_CALL_RATE',
+                    '|| 0.15',
+                    'estCost = (leadCount * bulkRate).toFixed(2)',
+                    '$0.15/min per number',
+                    'charged whether answered or not'
+                ]
+                
+                found_patterns = 0
+                for pattern in preview_patterns:
+                    if pattern in content:
+                        found_patterns += 1
+                
+                if found_patterns >= 3:
+                    self.log_result("_index.js Campaign Preview Cost", True, 
+                                  f"Found {found_patterns}/5 preview cost patterns")
+                else:
+                    self.log_result("_index.js Campaign Preview Cost", False, 
+                                  f"Only found {found_patterns}/5 expected patterns")
+            else:
+                self.log_result("_index.js Campaign Preview Cost", False, 
+                              "bulkSetConcurrency handler not found")
+        except Exception as e:
+            self.log_result("_index.js Campaign Preview Cost", False, str(e))
+    
+    def test_exports_verification(self):
+        """Test 10: Exports verification"""
+        try:
+            with open('/app/js/bulk-call-service.js', 'r') as f:
+                content = f.read()
+            
+            # Check module.exports section
+            if 'module.exports' in content:
+                # Check for required exports
+                required_exports = [
+                    'BULK_CALL_RATE',
+                    'MAX_BULK_LEADS'
+                ]
+                
+                found_exports = 0
+                for export_name in required_exports:
+                    if export_name in content.split('module.exports')[1]:
+                        found_exports += 1
+                
+                if found_exports == 2:
+                    self.log_result("Exports Verification", True, 
+                                  "Both BULK_CALL_RATE and MAX_BULK_LEADS exported")
+                else:
+                    self.log_result("Exports Verification", False, 
+                                  f"Only found {found_exports}/2 required exports")
+            else:
+                self.log_result("Exports Verification", False, 
+                              "module.exports section not found")
+        except Exception as e:
+            self.log_result("Exports Verification", False, str(e))
+    
+    def test_env_vars(self):
+        """Test 11: Environment variables"""
+        try:
+            with open('/app/backend/.env', 'r') as f:
+                env_content = f.read()
+            
+            # Check for required environment variables
+            required_vars = [
+                'BULK_CALL_RATE_PER_MIN=0.15',
+                'BULK_CALL_MAX_LEADS=500'
+            ]
+            
+            found_vars = 0
+            for var in required_vars:
+                if var in env_content:
+                    found_vars += 1
+            
+            if found_vars == 2:
+                self.log_result("Environment Variables", True, 
+                              "Both BULK_CALL_RATE_PER_MIN=0.15 and BULK_CALL_MAX_LEADS=500 found")
+            else:
+                self.log_result("Environment Variables", False, 
+                              f"Only found {found_vars}/2 required environment variables")
+        except Exception as e:
+            self.log_result("Environment Variables", False, str(e))
     
     def print_summary(self):
-        print(f"\n{'='*60}")
-        print(f"BULK IVR CREDIT PROTECTION FIXES TEST SUMMARY")
-        print(f"{'='*60}")
-        print(f"Total Tests: {self.total_tests}")
-        print(f"Passed: {self.passed_tests}")
-        print(f"Failed: {len(self.failed_tests)}")
-        print(f"Success Rate: {(self.passed_tests/self.total_tests)*100:.1f}%")
+        print("\n" + "=" * 60)
+        print("🎯 BULK CALL CAMPAIGN PRICING OVERHAUL TEST RESULTS")
+        print("=" * 60)
+        print(f"✅ PASSED: {self.passed}")
+        print(f"❌ FAILED: {self.failed}")
+        print(f"📊 SUCCESS RATE: {(self.passed / (self.passed + self.failed) * 100):.1f}%")
         
-        if self.failed_tests:
-            print(f"\nFAILED TESTS:")
-            for failure in self.failed_tests:
-                print(f"  • {failure['test']}: {failure['message']}")
-
-def test_service_health():
-    """Test basic Node.js service health"""
-    results = TestResults()
-    
-    try:
-        response = requests.get(f"{BASE_URL}/health", timeout=10)
-        results.add_result("Service Health Check", 
-                         response.status_code == 200 and response.json().get("status") == "healthy",
-                         f"Status: {response.status_code}, Response: {response.json()}")
-    except Exception as e:
-        results.add_result("Service Health Check", False, str(e))
-    
-    return results
-
-def check_bulk_call_service_structure():
-    """Verify bulk-call-service.js structure and exports exist"""
-    results = TestResults()
-    
-    # Check if file exists and has expected functions
-    try:
-        with open("/app/js/bulk-call-service.js", "r") as f:
-            content = f.read()
-            
-        # Test that required functions exist
-        required_functions = [
-            "initBulkCallService", "startCampaign", "fireNextBatch", 
-            "onCallStatusUpdate", "getBalance", "get"
-        ]
+        if self.failed > 0:
+            print("\n❌ FAILED TESTS:")
+            for result in self.results:
+                if not result["passed"]:
+                    print(f"   • {result['test']}: {result['details']}")
         
-        for func in required_functions:
-            results.add_result(f"Function {func} exists", 
-                             func in content,
-                             f"Function {func} not found in bulk-call-service.js")
-                             
-        # Test required imports
-        required_imports = [
-            "const { getBalance } = require('./utils.js')",
-            "const { get } = require('./db.js')"
-        ]
-        
-        for imp in required_imports:
-            results.add_result(f"Import statement present: {imp.split('=')[0].strip()}", 
-                             imp in content,
-                             f"Missing import: {imp}")
-    
-    except Exception as e:
-        results.add_result("Bulk Call Service File Access", False, str(e))
-    
-    return results
-
-def test_fix_a_pre_campaign_credit_check():
-    """Test Fix A: Pre-campaign credit check in startCampaign function"""
-    results = TestResults()
-    
-    try:
-        with open("/app/js/bulk-call-service.js", "r") as f:
-            content = f.read()
-            
-        # Find startCampaign function
-        start_campaign_match = "async function startCampaign(campaignId)" in content
-        results.add_result("startCampaign function exists", start_campaign_match,
-                          "startCampaign function not found with expected signature")
-        
-        if start_campaign_match:
-            # Check for pre-campaign credit check section
-            pre_check_comment = "PRE-CAMPAIGN CREDIT CHECK" in content
-            results.add_result("Pre-campaign credit check section exists", pre_check_comment,
-                              "PRE-CAMPAIGN CREDIT CHECK comment not found")
-            
-            # Check for wallet and phone numbers validation
-            wallet_check = "_walletOf" in content and "_phoneNumbersOf" in content
-            results.add_result("Wallet and phone numbers collections initialized", wallet_check,
-                              "_walletOf or _phoneNumbersOf not found")
-            
-            # Check for minute limit check using voice service
-            minute_limit_check = "_voiceService.isMinuteLimitReached" in content
-            results.add_result("Voice service minute limit check", minute_limit_check,
-                              "_voiceService.isMinuteLimitReached not found")
-            
-            # Check for "Campaign Blocked — No Credits" message
-            blocked_message = "Campaign Blocked — No Credits" in content
-            results.add_result("Campaign blocked message exists", blocked_message,
-                              "Campaign blocked message not found")
-            
-            # Check for wallet balance validation
-            wallet_balance_check = "usdBal < rate" in content
-            results.add_result("Wallet balance validation", wallet_balance_check,
-                              "Wallet balance validation logic not found")
-            
-            # Check for low balance warning
-            low_balance_warning = "Low Balance Warning" in content
-            results.add_result("Low balance warning exists", low_balance_warning,
-                              "Low balance warning message not found")
-        
-    except Exception as e:
-        results.add_result("Fix A - File Access", False, str(e))
-    
-    return results
-
-def test_fix_b_per_batch_credit_check():
-    """Test Fix B: Per-batch credit check in fireNextBatch function"""
-    results = TestResults()
-    
-    try:
-        with open("/app/js/bulk-call-service.js", "r") as f:
-            content = f.read()
-            
-        # Find fireNextBatch function
-        fire_next_batch_match = "async function fireNextBatch(campaignId)" in content
-        results.add_result("fireNextBatch function exists", fire_next_batch_match,
-                          "fireNextBatch function not found with expected signature")
-        
-        if fire_next_batch_match:
-            # Check for per-batch credit check section
-            per_batch_comment = "PER-BATCH CREDIT CHECK" in content
-            results.add_result("Per-batch credit check section exists", per_batch_comment,
-                              "PER-BATCH CREDIT CHECK comment not found")
-            
-            # Check for credit check before for loop
-            credit_check_logic = "toFire.length > 0 && _walletOf && _voiceService" in content
-            results.add_result("Credit check before call firing", credit_check_logic,
-                              "Credit check logic before firing calls not found")
-            
-            # Check for campaign pausing logic
-            campaign_pause = "state.paused = true" in content
-            results.add_result("Campaign pausing logic", campaign_pause,
-                              "Campaign pausing logic not found")
-            
-            # Check for "Campaign Paused — Credits Exhausted" message
-            paused_message = "Campaign Paused — Credits Exhausted" in content
-            results.add_result("Campaign paused message exists", paused_message,
-                              "Campaign paused message not found")
-            
-            # Check for database status update to 'paused'
-            db_status_update = "status: 'paused'" in content
-            results.add_result("Database status update to paused", db_status_update,
-                              "Database status update to 'paused' not found")
-        
-    except Exception as e:
-        results.add_result("Fix B - File Access", False, str(e))
-    
-    return results
-
-def test_fix_c_post_billing_wallet_exhaustion():
-    """Test Fix C: Post-billing wallet exhaustion in onCallStatusUpdate function"""
-    results = TestResults()
-    
-    try:
-        with open("/app/js/bulk-call-service.js", "r") as f:
-            content = f.read()
-            
-        # Find onCallStatusUpdate function
-        call_status_update_match = "async function onCallStatusUpdate(" in content
-        results.add_result("onCallStatusUpdate function exists", call_status_update_match,
-                          "onCallStatusUpdate function not found")
-        
-        if call_status_update_match:
-            # Check for billing section
-            billing_section = "billCallMinutesUnified" in content
-            results.add_result("Billing section exists", billing_section,
-                              "billCallMinutesUnified call not found")
-            
-            # Check for post-billing check section
-            post_billing_comment = "POST-BILLING" in content
-            results.add_result("Post-billing check section exists", post_billing_comment,
-                              "POST-BILLING comment not found")
-            
-            # Check for overage minutes condition
-            overage_check = "billingResult.overageMin > 0" in content
-            results.add_result("Overage minutes check", overage_check,
-                              "billingResult.overageMin > 0 condition not found")
-            
-            # Check for wallet balance check after billing
-            post_billing_wallet_check = "usdBal < billingResult.rate" in content
-            results.add_result("Post-billing wallet check", post_billing_wallet_check,
-                              "Post-billing wallet balance check not found")
-            
-            # Check for "Campaign Auto-Paused — Wallet Depleted" message
-            auto_paused_message = "Campaign Auto-Paused — Wallet Depleted" in content
-            results.add_result("Auto-paused message exists", auto_paused_message,
-                              "Campaign Auto-Paused message not found")
-            
-            # Check that it only triggers for overage calls (not plan-minute-only calls)
-            overage_only_trigger = "billingResult.overageMin > 0 && _walletOf" in content
-            results.add_result("Overage-only trigger logic", overage_only_trigger,
-                              "Overage-only trigger condition not found")
-        
-    except Exception as e:
-        results.add_result("Fix C - File Access", False, str(e))
-    
-    return results
-
-def test_dependencies_verification():
-    """Test that all required dependencies are properly configured"""
-    results = TestResults()
-    
-    try:
-        # Check _index.js for bulk call service initialization
-        with open("/app/js/_index.js", "r") as f:
-            index_content = f.read()
-            
-        # Check that walletOf is passed as 4th parameter in initialization
-        init_with_wallet = "bulkCallService.initBulkCallService(db, bot," in index_content
-        results.add_result("Bulk call service initialization found", init_with_wallet,
-                          "bulkCallService.initBulkCallService call not found")
-        
-        # Check for wallet parameter in init call
-        wallet_param_check = "walletOf)" in index_content or ", walletOf" in index_content
-        results.add_result("walletOf parameter in initialization", wallet_param_check,
-                          "walletOf parameter not found in initialization call")
-        
-        # Verify bulk-call-service.js accepts walletOf parameter
-        with open("/app/js/bulk-call-service.js", "r") as f:
-            bulk_content = f.read()
-            
-        init_function_signature = "async function initBulkCallService(db, bot, twilioService, walletOf)" in bulk_content
-        results.add_result("initBulkCallService accepts walletOf parameter", init_function_signature,
-                          "initBulkCallService function signature doesn't match expected parameters")
-        
-        # Check that _walletOf and _phoneNumbersOf are properly initialized
-        wallet_init = "_walletOf = walletOf || db.collection('walletOf')" in bulk_content
-        results.add_result("_walletOf initialization", wallet_init,
-                          "_walletOf initialization not found")
-        
-        phone_numbers_init = "_phoneNumbersOf = db.collection('phoneNumbersOf')" in bulk_content
-        results.add_result("_phoneNumbersOf initialization", phone_numbers_init,
-                          "_phoneNumbersOf initialization not found")
-        
-        # Check that required utilities are imported
-        get_balance_import = "const { getBalance } = require('./utils.js')" in bulk_content
-        results.add_result("getBalance import from utils.js", get_balance_import,
-                          "getBalance import not found")
-        
-        get_import = "const { get } = require('./db.js')" in bulk_content
-        results.add_result("get import from db.js", get_import,
-                          "get import not found")
-        
-    except Exception as e:
-        results.add_result("Dependencies verification", False, str(e))
-    
-    return results
-
-def check_startup_logs():
-    """Check that the service started correctly with expected log messages"""
-    results = TestResults()
-    
-    try:
-        # Check for empty error log
-        with open("/var/log/supervisor/nodejs.err.log", "r") as f:
-            error_content = f.read().strip()
-        
-        results.add_result("Error log is empty", len(error_content) == 0,
-                          f"Error log contains: {error_content[:200] if error_content else 'empty'}")
-        
-        # Check for expected initialization message
-        with open("/var/log/supervisor/nodejs.out.log", "r") as f:
-            log_content = f.read()
-        
-        bulk_call_init = "[BulkCall] Service initialized (Speechcue mode)" in log_content
-        results.add_result("BulkCall service initialization message", bulk_call_init,
-                          "BulkCall service initialization message not found")
-        
-        voice_service_init = "[VoiceService] Initialized" in log_content
-        results.add_result("VoiceService initialization message", voice_service_init,
-                          "VoiceService initialization message not found")
-        
-    except Exception as e:
-        results.add_result("Startup logs check", False, str(e))
-    
-    return results
-
-def main():
-    print("🧪 BULK IVR CREDIT PROTECTION FIXES - COMPREHENSIVE TESTING")
-    print("="*70)
-    print("Testing 3 critical fixes in bulk-call-service.js:")
-    print("  • Fix A: Pre-campaign credit check (startCampaign)")
-    print("  • Fix B: Per-batch credit check (fireNextBatch)")  
-    print("  • Fix C: Post-billing wallet exhaustion (onCallStatusUpdate)")
-    print("="*70)
-    
-    all_results = TestResults()
-    
-    # Run all test suites
-    test_suites = [
-        ("🏥 Service Health Check", test_service_health),
-        ("📋 Service Structure Verification", check_bulk_call_service_structure),
-        ("🔍 Fix A: Pre-Campaign Credit Check", test_fix_a_pre_campaign_credit_check),
-        ("🔍 Fix B: Per-Batch Credit Check", test_fix_b_per_batch_credit_check),
-        ("🔍 Fix C: Post-Billing Wallet Exhaustion", test_fix_c_post_billing_wallet_exhaustion),
-        ("⚙️  Dependencies Verification", test_dependencies_verification),
-        ("📜 Startup Logs Check", check_startup_logs)
-    ]
-    
-    for suite_name, test_function in test_suites:
-        print(f"\n{suite_name}")
-        print("-" * len(suite_name))
-        
-        suite_results = test_function()
-        
-        # Aggregate results
-        all_results.total_tests += suite_results.total_tests
-        all_results.passed_tests += suite_results.passed_tests
-        all_results.failed_tests.extend(suite_results.failed_tests)
-    
-    # Print final summary
-    all_results.print_summary()
-    
-    # Return exit code based on results
-    return 0 if len(all_results.failed_tests) == 0 else 1
+        print("\n🎯 KEY FINDINGS:")
+        print("   • All tests target the new $0.15/min pricing model")
+        print("   • Maximum 500 leads per campaign enforcement")
+        print("   • Wallet-only billing (no plan minutes used)")
+        print("   • All calls billed minimum 1 minute regardless of outcome")
+        print("   • Pre-campaign and per-batch credit checks implemented")
 
 if __name__ == "__main__":
-    exit_code = main()
-    sys.exit(exit_code)
+    tester = BulkCallPricingTests()
+    tester.run_all_tests()

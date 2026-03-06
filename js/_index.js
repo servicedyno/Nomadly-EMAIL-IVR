@@ -10367,10 +10367,18 @@ Choose an IVR template category:`), k.of(rows))
       return send(chatId, `❌ No valid phone numbers found.${errMsg}\n\nPlease check format: one number per line, with + country code.`, k.of([['↩️ Back']]))
     }
 
+    // ━━━ Enforce max lead limit ━━━
+    const maxLeads = bulkCallService.MAX_BULK_LEADS || 500
+    if (leads.length > maxLeads) {
+      return send(chatId, `❌ <b>Too many leads!</b>\n\nMaximum <b>${maxLeads}</b> numbers per campaign.\nYou uploaded <b>${leads.length}</b>.\n\nPlease reduce your list and try again.`, k.of([['↩️ Back']]))
+    }
+
     const bulkData = info?.bulkData || {}
     bulkData.leads = leads
     await saveInfo('bulkData', bulkData)
 
+    const bulkRate = bulkCallService.BULK_CALL_RATE || 0.15
+    const estCost = (leads.length * bulkRate).toFixed(2)
     const preview = leads.slice(0, 5).map(l => `  ${l.number}${l.name ? ' — ' + l.name : ''}`).join('\n')
     const more = leads.length > 5 ? `\n  ... and ${leads.length - 5} more` : ''
     const errNote = errors.length > 0 ? `\n⚠️ ${errors.length} invalid lines skipped` : ''
@@ -10379,7 +10387,7 @@ Choose an IVR template category:`), k.of(rows))
     const audios = await audioLibraryService.listAudios(chatId)
     const audioBtns = audios.map(a => [`🎵 ${a.name.substring(0, 30)}`])
     const btns = [...audioBtns, ['📎 Upload New Audio'], ['📝 Use IVR Template'], ['↩️ Back']]
-    return send(chatId, `✅ <b>${leads.length} leads loaded!</b>\n\n${preview}${more}${errNote}\n\n🎵 <b>Select IVR Audio</b>\n\nChoose from your audio library, upload a new recording, or generate from a template with TTS:`, k.of(btns))
+    return send(chatId, `✅ <b>${leads.length} leads loaded!</b>\n\n${preview}${more}${errNote}\n\n💰 <b>Estimated cost: $${estCost}</b> ($${bulkRate.toFixed(2)}/min per number, min 1 min each — charged whether answered or not)\n\n🎵 <b>Select IVR Audio</b>\n\nChoose from your audio library, upload a new recording, or generate from a template with TTS:`, k.of(btns))
   }
 
   if (action === a.bulkSelectAudio) {
@@ -10792,16 +10800,21 @@ Choose an IVR template category:`), k.of(rows))
     // Show campaign preview
     set(state, chatId, 'action', a.bulkConfirm)
     const leadCount = (bulkData.leads || []).length
+    const bulkRate = bulkCallService.BULK_CALL_RATE || 0.15
+    const estCost = (leadCount * bulkRate).toFixed(2)
     const preview = [
       `📋 <b>Campaign Preview</b>`,
       ``,
       `📱 Caller ID: <b>${bulkData.callerId}</b>`,
-      `📞 Leads: <b>${leadCount}</b>`,
+      `📞 Leads: <b>${leadCount}</b> (max ${bulkCallService.MAX_BULK_LEADS || 500})`,
       `🎵 Audio: <b>${bulkData.audioName || 'Selected'}</b>`,
       `📊 Mode: <b>${bulkData.mode === 'transfer' ? '🔗 Transfer + Report' : '📊 Report Only'}</b>`,
       bulkData.transferNumber ? `🔗 Transfer to: <b>${bulkData.transferNumber}</b>` : null,
       `⚡ Concurrency: <b>${num}</b>`,
       `🔘 Active keys: <b>${(bulkData.activeKeys || ['1']).join(', ')}</b>`,
+      ``,
+      `💰 <b>Rate: $${bulkRate.toFixed(2)}/min per number</b> (min 1 min, charged whether answered or not)`,
+      `💰 <b>Estimated cost: $${estCost}</b>`,
       ``,
       `Ready to launch? Tap <b>🚀 Launch Campaign</b>`,
     ].filter(Boolean).join('\n')
