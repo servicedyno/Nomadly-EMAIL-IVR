@@ -8,12 +8,16 @@ const fs = require('fs')
 const path = require('path')
 const { log } = require('console')
 const { sanitizeProviderError, sanitizeHangupCause } = require('./sanitize-provider')
+const { getBalance } = require('./utils.js')
+const { get } = require('./db.js')
 
 let _db = null
 let _collection = null
 let _bot = null
 let _twilioService = null
 let _voiceService = null
+let _walletOf = null
+let _phoneNumbersOf = null
 
 // Active campaigns in memory: campaignId → { queue state }
 const activeCampaigns = {}
@@ -24,11 +28,13 @@ const callToCampaign = {}
 /**
  * Initialize bulk call service
  */
-async function initBulkCallService(db, bot, twilioService) {
+async function initBulkCallService(db, bot, twilioService, walletOf) {
   _db = db
   _bot = bot
   _twilioService = twilioService
   _voiceService = require('./voice-service.js')
+  _walletOf = walletOf || db.collection('walletOf')
+  _phoneNumbersOf = db.collection('phoneNumbersOf')
   _collection = db.collection('bulkCallCampaigns')
   await _collection.createIndex({ chatId: 1 })
   await _collection.createIndex({ id: 1 }, { unique: true })
@@ -144,6 +150,48 @@ async function startCampaign(campaignId) {
   if (!campaign) return { error: 'Campaign not found' }
   if (campaign.status === 'running') return { error: 'Campaign already running' }
 
+  // ━━━ PRE-CAMPAIGN CREDIT CHECK: Verify user has minutes OR wallet before launching ━━━
+  try {
+    const userData = await get(_phoneNumbersOf, campaign.chatId)
+    const numbers = userData?.numbers || []
+    const callerNum = numbers.find(n => n.phoneNumber === campaign.callerId)
+    if (callerNum && _walletOf) {
+      const minuteLimit = _voiceService.isMinuteLimitReached ? !_voiceService.isMinuteLimitReached(callerNum) : true
+      const planHasMinutes = minuteLimit // true = plan has minutes remaining
+      if (!planHasMinutes) {
+        // Plan exhausted — check wallet for overage
+        const { usdBal } = await getBalance(_walletOf, campaign.chatId)
+        // Need at least enough for 1 call (1 minute)
+        const rate = parseFloat(process.env.OVERAGE_RATE_MIN || '0.04')
+        const minRequired = rate * campaign.leads.length
+        if (usdBal < rate) {
+          _bot?.sendMessage(campaign.chatId,
+            `🚫 <b>Campaign Blocked — No Credits</b>\n\n` +
+            `Plan minutes exhausted and wallet balance ($${usdBal.toFixed(2)}) is insufficient.\n` +
+            `Need at least $${rate.toFixed(2)}/min for overage billing.\n\n` +
+            `Top up via 👛 Wallet or upgrade your plan, then retry.`,
+            { parse_mode: 'HTML' }
+          ).catch(() => {})
+          return { error: 'Insufficient credits — plan exhausted and wallet empty. Top up to launch.' }
+        }
+        // Warn if wallet is low relative to campaign size
+        const estCost = minRequired // ~1 min per lead minimum
+        if (usdBal < estCost) {
+          const estLeadsCovered = Math.floor(usdBal / rate)
+          _bot?.sendMessage(campaign.chatId,
+            `⚠️ <b>Low Balance Warning</b>\n\n` +
+            `Plan minutes exhausted. Wallet: $${usdBal.toFixed(2)} (~${estLeadsCovered} calls at $${rate}/min).\n` +
+            `Campaign has ${campaign.leads.length} leads — may be paused mid-way if balance runs out.\n` +
+            `Consider topping up for uninterrupted dialing.`,
+            { parse_mode: 'HTML' }
+          ).catch(() => {})
+        }
+      }
+    }
+  } catch (e) {
+    log(`[BulkCall] Pre-campaign credit check error: ${e.message}`)
+  }
+
   // ── Resolve sub-account token if SID is present but token is missing ──
   if (campaign.twilioSubAccountSid && !campaign.twilioSubAccountToken && _twilioService?.getSubAccount) {
     try {
@@ -209,6 +257,36 @@ async function fireNextBatch(campaignId) {
   // Find pending leads
   const pendingLeads = campaign.leads.filter(l => l.status === 'pending')
   const toFire = pendingLeads.slice(0, available)
+
+  // ━━━ PER-BATCH CREDIT CHECK: Pause campaign if credits exhausted ━━━
+  if (toFire.length > 0 && _walletOf && _voiceService) {
+    try {
+      const userData = await get(_phoneNumbersOf, campaign.chatId)
+      const numbers = userData?.numbers || []
+      const callerNum = numbers.find(n => n.phoneNumber === campaign.callerId)
+      if (callerNum) {
+        const planHasMinutes = _voiceService.isMinuteLimitReached ? !_voiceService.isMinuteLimitReached(callerNum) : true
+        if (!planHasMinutes) {
+          const { usdBal } = await getBalance(_walletOf, campaign.chatId)
+          const rate = parseFloat(process.env.OVERAGE_RATE_MIN || '0.04')
+          if (usdBal < rate) {
+            // No credits — pause campaign
+            log(`[BulkCall] Pausing campaign ${campaignId}: plan exhausted + wallet $${usdBal.toFixed(2)} < $${rate}/min`)
+            state.paused = true
+            await _collection.updateOne({ id: campaignId }, { $set: { status: 'paused' } })
+            _bot?.sendMessage(campaign.chatId,
+              `⏸️ <b>Campaign Paused — Credits Exhausted</b>\n\n` +
+              `📞 ${campaign.stats.completed}/${campaign.stats.total} calls completed so far.\n` +
+              `Plan minutes exhausted and wallet balance ($${usdBal.toFixed(2)}) is too low.\n\n` +
+              `Top up via 👛 Wallet, then resume the campaign.`,
+              { parse_mode: 'HTML' }
+            ).catch(() => {})
+            return
+          }
+        }
+      }
+    } catch (e) { log(`[BulkCall] Per-batch credit check error: ${e.message}`) }
+  }
 
   for (const lead of toFire) {
     state.activeCalls++
@@ -363,6 +441,28 @@ async function onCallStatusUpdate(callSid, campaignId, leadIndex, status, durati
           'BulkIVR'
         )
         log(`[BulkCall] Billed ${minutesBilled} min for campaign=${campaignId} lead=${leadIndex} (plan: ${billingResult.planMinUsed}, overage: ${billingResult.overageMin} @ $${billingResult.rate})`)
+
+        // ━━━ POST-BILLING: Check if wallet is now exhausted → pause campaign ━━━
+        if (billingResult.overageMin > 0 && _walletOf) {
+          try {
+            const { usdBal } = await getBalance(_walletOf, freshCampaign.chatId)
+            if (usdBal < billingResult.rate) {
+              const campState = activeCampaigns[campaignId]
+              if (campState && !campState.paused) {
+                log(`[BulkCall] Wallet exhausted after billing ($${usdBal.toFixed(2)}) — pausing campaign ${campaignId}`)
+                campState.paused = true
+                await _collection.updateOne({ id: campaignId }, { $set: { status: 'paused' } })
+                _bot?.sendMessage(freshCampaign.chatId,
+                  `⏸️ <b>Campaign Auto-Paused — Wallet Depleted</b>\n\n` +
+                  `Wallet balance: $${usdBal.toFixed(2)} (need $${billingResult.rate}/min).\n` +
+                  `${freshCampaign.stats?.completed || 0}/${freshCampaign.stats?.total || 0} calls completed.\n\n` +
+                  `Top up via 👛 Wallet to resume.`,
+                  { parse_mode: 'HTML' }
+                ).catch(() => {})
+              }
+            }
+          } catch (e) { log(`[BulkCall] Post-billing wallet check error: ${e.message}`) }
+        }
       } catch (billErr) {
         log(`[BulkCall] Billing error for campaign=${campaignId} lead=${leadIndex}: ${billErr.message}`)
       }

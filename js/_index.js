@@ -962,7 +962,7 @@ const loadData = async () => {
 
   // Initialize Audio Library + Bulk Call Service
   audioLibraryService.initAudioLibrary(db)
-  bulkCallService.initBulkCallService(db, bot, require('./twilio-service.js'))
+  bulkCallService.initBulkCallService(db, bot, require('./twilio-service.js'), walletOf)
   marketplaceService.initMarketplace(db)
 
   // Schedule stale marketplace conversation cleanup every 6 hours
