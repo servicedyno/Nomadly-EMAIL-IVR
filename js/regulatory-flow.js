@@ -517,11 +517,19 @@ async function createAndSubmitBundle(chatId, session) {
     }
     deps.send(chatId, failMsg[lang] || failMsg.en, { parse_mode: 'HTML' })
 
-    // Refund wallet
+    // Refund wallet — credit back to walletOf collection
     try {
-      const users = deps.db.collection('users')
-      await users.updateOne({ chatId }, { $inc: { balance: Number(session.price) || 0 } })
-      deps.send(chatId, `💰 $${Number(session.price).toFixed(2)} refunded to your wallet.`, { parse_mode: 'HTML' })
+      const walletOf = deps.db.collection('walletOf')
+      const priceUsd = Number(session.priceUsd || session.price) || 0
+      const priceNgn = Number(session.priceNgn) || 0
+      if (priceUsd > 0) {
+        await walletOf.updateOne({ _id: chatId }, { $inc: { usdIn: priceUsd } }, { upsert: true })
+      }
+      if (priceNgn > 0) {
+        await walletOf.updateOne({ _id: chatId }, { $inc: { ngnIn: priceNgn } }, { upsert: true })
+      }
+      const refundStr = priceNgn > 0 ? `₦${priceNgn.toFixed(2)}` : `$${priceUsd.toFixed(2)}`
+      deps.send(chatId, `💰 ${refundStr} refunded to your wallet.`, { parse_mode: 'HTML' })
     } catch (e) {
       deps.log(`[RegulatoryFlow] Refund error: ${e.message}`)
     }
@@ -619,11 +627,20 @@ async function cancelSession(chatId, session) {
   }
   deps.send(chatId, cancelMsg[lang] || cancelMsg.en, { parse_mode: 'HTML' })
 
-  // Refund
+  // Refund — credit back to walletOf collection
   try {
-    const users = deps.db.collection('users')
-    await users.updateOne({ chatId }, { $inc: { balance: Number(session.price) || 0 } })
-    deps.send(chatId, `💰 $${Number(session.price).toFixed(2)} refunded to your wallet.`, { parse_mode: 'HTML' })
+    const walletOf = deps.db.collection('walletOf')
+    const priceUsd = Number(session.priceUsd || session.price) || 0
+    const priceNgn = Number(session.priceNgn) || 0
+    if (priceUsd > 0) {
+      await walletOf.updateOne({ _id: chatId }, { $inc: { usdIn: priceUsd } }, { upsert: true })
+    }
+    if (priceNgn > 0) {
+      await walletOf.updateOne({ _id: chatId }, { $inc: { ngnIn: priceNgn } }, { upsert: true })
+    }
+    const refundStr = priceNgn > 0 ? `₦${priceNgn.toFixed(2)}` : `$${priceUsd.toFixed(2)}`
+    deps.send(chatId, `💰 ${refundStr} refunded to your wallet.`, { parse_mode: 'HTML' })
+    deps.log(`[RegulatoryFlow] Refunded ${refundStr} to chatId=${chatId}`)
   } catch (e) {
     deps.log(`[RegulatoryFlow] Cancel refund error: ${e.message}`)
   }
