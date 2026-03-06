@@ -439,6 +439,115 @@ const getBroadcastStats = async (nameOf) => {
   }
 }
 
+/**
+ * Broadcast a new marketplace listing to ALL bot users (background, non-blocking).
+ * Sends the first product image with caption + inline buttons for chat & escrow.
+ * Skips the seller who created the listing and known dead users.
+ */
+const broadcastNewListing = async (bot, product, nameOf, db) => {
+  try {
+    let chatIds = await getChatIds(nameOf)
+    if (!chatIds.length) return
+
+    // Exclude the seller themselves
+    chatIds = chatIds.filter(id => String(id) !== String(product.sellerId))
+
+    // Pre-filter dead users
+    let skippedPermanent = 0
+    if (db) {
+      const promoOptOut = db.collection('promoOptOut')
+      const STALE_THRESHOLD = 7 * 24 * 60 * 60 * 1000
+      const staleDate = new Date(Date.now() - STALE_THRESHOLD)
+      const deactivated = await promoOptOut.find({ optedOut: true, reason: 'user_deactivated' }).toArray()
+      const staleNotFound = await promoOptOut.find({ optedOut: true, reason: 'chat_not_found', updatedAt: { $lt: staleDate } }).toArray()
+      const deadSet = new Set([...deactivated, ...staleNotFound].map(r => r._id))
+      const before = chatIds.length
+      chatIds = chatIds.filter(id => !deadSet.has(id))
+      skippedPermanent = before - chatIds.length
+    }
+
+    const total = chatIds.length
+    if (!total) return
+    log(`[Marketplace Broadcast] Starting — product ${product._id} to ${total} users (${skippedPermanent} dead skipped)`)
+
+    const { BATCH_SIZE, DELAY_BETWEEN_BATCHES, DELAY_BETWEEN_MESSAGES, MAX_RETRIES, RETRY_DELAY } = BROADCAST_CONFIG
+
+    const caption = `🆕 <b>New Listing!</b>\n\n` +
+      `🏷️ <b>${product.title}</b>\n` +
+      `📄 ${product.description}\n\n` +
+      `💰 <b>$${Number(product.price).toFixed(2)}</b>  ·  ${product.category}\n` +
+      `👤 Seller: @${product.sellerUsername || 'anonymous'}\n\n` +
+      `🔒 Escrow Protected — Buy with confidence`
+
+    const inlineKeyboard = {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '💬 Chat with Seller', callback_data: `mp:chat:${product._id}` },
+            { text: '🔒 Start Escrow', callback_data: `mp:escrow_product:${product._id}` }
+          ]
+        ]
+      },
+      parse_mode: 'HTML'
+    }
+
+    const hasImage = product.images && product.images.length > 0
+    let successCount = 0
+    let errorCount = 0
+
+    for (let i = 0; i < total; i += BATCH_SIZE) {
+      const batch = chatIds.slice(i, i + BATCH_SIZE)
+      const batchPromises = batch.map(async (cid, index) => {
+        await sleep(index * DELAY_BETWEEN_MESSAGES)
+        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+          try {
+            if (hasImage) {
+              await bot.sendPhoto(cid, product.images[0].fileId, { caption, ...inlineKeyboard })
+            } else {
+              await bot.sendMessage(cid, caption, inlineKeyboard)
+            }
+            successCount++
+            return
+          } catch (error) {
+            const errMsg = (error.message || '').toLowerCase()
+            const isTrulyPermanent = errMsg.includes('user is deactivated')
+            const isLikelyPermanent = errMsg.includes('chat not found') || errMsg.includes('bot was blocked') || errMsg.includes('have no rights to send a message')
+            if (isTrulyPermanent) {
+              errorCount++
+              if (db) {
+                await db.collection('promoOptOut').updateOne({ _id: cid }, { $set: { optedOut: true, reason: 'user_deactivated', updatedAt: new Date() } }, { upsert: true })
+              }
+              return
+            }
+            if (isLikelyPermanent && attempt === MAX_RETRIES) {
+              errorCount++
+              if (db) {
+                const reason = errMsg.includes('chat not found') ? 'chat_not_found' : errMsg.includes('bot was blocked') ? 'bot_blocked' : 'no_rights'
+                await db.collection('promoOptOut').updateOne({ _id: cid }, { $set: { reason, updatedAt: new Date() }, $inc: { failCount: 1 } }, { upsert: true })
+                const record = await db.collection('promoOptOut').findOne({ _id: cid })
+                if (record?.failCount >= 2) {
+                  await db.collection('promoOptOut').updateOne({ _id: cid }, { $set: { optedOut: true } })
+                }
+              }
+              return
+            }
+            if (attempt === MAX_RETRIES) {
+              errorCount++
+              return
+            }
+            await sleep(RETRY_DELAY)
+          }
+        }
+      })
+      await Promise.allSettled(batchPromises)
+      if (i + BATCH_SIZE < total) await sleep(DELAY_BETWEEN_BATCHES)
+    }
+    log(`[Marketplace Broadcast] Done — product ${product._id}: ${successCount} sent, ${errorCount} failed out of ${total}`)
+  } catch (error) {
+    log(`[Marketplace Broadcast] Error: ${error.message}`)
+  }
+}
+
 const sendQrCode = async (bot, chatId, bb, lang) => {
   const qrCode = await bb.getQrcode()
   const buffer = Buffer.from(qrCode?.qr_code, 'base64')
@@ -679,6 +788,7 @@ module.exports = {
   checkFreeTrialTaken,
   extractPhoneNumbers,
   sendMessageToAllUsers,
+  broadcastNewListing,
   getBroadcastStats,
   getChatIds,
   planGetNewDomain,

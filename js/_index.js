@@ -129,6 +129,7 @@ const {
   subscribePlan,
   regularCheckDns,
   sendMessageToAllUsers,
+  broadcastNewListing,
   getBroadcastStats,
   parse,
   extractPhoneNumbers,
@@ -6551,6 +6552,8 @@ All verified numbers generated during sourcing.`))
         })
         send(chatId, t.mpProductPublished)
         if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🏪 [Marketplace] New listing\n📦 ${product.title}\n💰 $${product.price}\n📂 ${product.category}\nSeller: ${chatId} (@${msg?.from?.username || 'anon'})`, { parse_mode: 'HTML' })
+        // Broadcast new listing to ALL bot users in background (non-blocking)
+        broadcastNewListing(bot, product, nameOf, db).catch(e => log(`[Marketplace Broadcast] fire-and-forget error: ${e.message}`))
         return goto.marketplace()
       } catch (e) {
         log(`[Marketplace] Create product error: ${e.message}`)
