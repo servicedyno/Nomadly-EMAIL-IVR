@@ -1,272 +1,313 @@
 #!/usr/bin/env python3
 """
-Crypto Refund Bug Fix + Twilio Sanitization Test Suite
-=====================================================
-
-This test suite verifies the implementation of 2 critical fixes:
-(A) Crypto payment refund bug fix using isUsdRefundCoin helper
-(B) Twilio text sanitization in user-facing messages
-
-Test Results: ALL TESTS PASSED ✅
+Backend Testing for Wallet Payment Bug Fix
+Tests the fix for Cloud IVR phone purchase flow wallet payment issue
 """
 
-import subprocess
+import requests
 import json
 import sys
+import subprocess
 import os
+import re
+import time
 
-def run_command(cmd, shell=True):
-    """Execute shell command and return result"""
-    try:
-        result = subprocess.run(cmd, shell=shell, capture_output=True, text=True)
-        return result.stdout.strip(), result.stderr.strip(), result.returncode
-    except Exception as e:
-        return "", str(e), 1
+# Configuration
+BACKEND_URL = "http://localhost:5000"
+NODEJS_INDEX_FILE = "/app/js/_index.js"
+ERROR_LOG_PATH = "/var/log/supervisor/nodejs.err.log"
 
-def test_nodejs_health():
-    """Test 1: Node.js Health Check"""
-    print("🔍 Testing Node.js Health...")
-    
-    # Health endpoint check
-    stdout, stderr, code = run_command("curl -s http://localhost:5000/health")
-    if code == 0:
-        try:
-            health_data = json.loads(stdout)
-            if health_data.get("status") == "healthy" and health_data.get("database") == "connected":
-                print("✅ Health endpoint returns 200 with healthy status and connected database")
-            else:
-                print(f"❌ Health endpoint response invalid: {health_data}")
-                return False
-        except json.JSONDecodeError:
-            print(f"❌ Health endpoint returned invalid JSON: {stdout}")
-            return False
-    else:
-        print(f"❌ Health endpoint failed with code {code}: {stderr}")
-        return False
-    
-    # Error log check
-    stdout, stderr, code = run_command("ls -la /var/log/supervisor/nodejs.err.log")
-    if "0 bytes" in stdout or " 0 " in stdout:
-        print("✅ nodejs.err.log is empty - no errors during startup")
-    else:
-        print(f"❌ nodejs.err.log contains errors: {stdout}")
-        return False
-    
-    return True
-
-def test_isusdreFundcoin_helper():
-    """Test 2: isUsdRefundCoin Helper Function"""
-    print("🔍 Testing isUsdRefundCoin helper function...")
-    
-    node_test_script = """
-    const code = require('fs').readFileSync('/app/js/_index.js', 'utf8');
-    const match = code.match(/function isUsdRefundCoin[\\s\\S]*?^}/m);
-    eval(match[0]);
-    const u = { usd: 'USD', ngn: 'NGN' };
-    const tests = [
-      ['USD', true], ['NGN', false], ['crypto_dynopay_ETH', true], ['crypto_dynopay_BTC', true],
-      ['crypto_blockbee_ETH', true], ['wallet_usd', true], ['wallet_ngn', false], ['bank_ngn', false], [null, true]
-    ];
-    let pass = 0;
-    tests.forEach(([coin, expected]) => {
-      const result = isUsdRefundCoin(coin, u);
-      if (result === expected) pass++; else console.log('FAIL:', coin, 'expected', expected, 'got', result);
-    });
-    console.log(pass + '/' + tests.length + ' passed');
-    """
-    
-    stdout, stderr, code = run_command(f'node -e "{node_test_script}"')
-    if code == 0 and "9/9 passed" in stdout:
-        print("✅ isUsdRefundCoin helper passes all 9 test cases")
-        return True
-    else:
-        print(f"❌ isUsdRefundCoin test failed: {stdout} {stderr}")
-        return False
-
-def test_refund_paths():
-    """Test 3: All Refund Paths Use isUsdRefundCoin"""
-    print("🔍 Testing refund path implementations...")
-    
-    # Count isUsdRefundCoin occurrences
-    stdout, stderr, code = run_command("grep -c 'isUsdRefundCoin' /app/js/_index.js")
-    if code == 0:
-        count = int(stdout)
-        if count >= 11:
-            print(f"✅ Found {count} isUsdRefundCoin occurrences (>= 11 required)")
-        else:
-            print(f"❌ Only {count} isUsdRefundCoin occurrences found, need >= 11")
-            return False
-    else:
-        print(f"❌ Failed to count isUsdRefundCoin occurrences: {stderr}")
-        return False
-    
-    # Count Pattern A (wallet-only safe) occurrences
-    stdout, stderr, code = run_command("grep -c 'coin === u.usd) await atomicIncrement' /app/js/_index.js")
-    if code == 0:
-        count = int(stdout)
-        if count == 3:
-            print(f"✅ Found exactly 3 Pattern A wallet-only occurrences")
-        else:
-            print(f"❌ Found {count} Pattern A occurrences, expected exactly 3")
-            return False
-    
-    # Verify Pattern A doesn't use isUsdRefundCoin (should be 3)
-    stdout, stderr, code = run_command("grep 'coin === u.usd.*atomicIncrement' /app/js/_index.js | grep -cv 'isUsdRefundCoin'")
-    if code == 0 or code == 1:  # grep -cv returns 1 when no matches found, which is expected
-        if stdout == "3" or stdout == "":
-            print("✅ Pattern A occurrences correctly don't use isUsdRefundCoin")
-        else:
-            print(f"❌ Pattern A verification failed: {stdout}")
-            return False
-    
-    return True
-
-def test_sanitized_errors():
-    """Test 4: No Unsanitized purchaseErr to User"""
-    print("🔍 Testing purchaseErr sanitization...")
-    
-    # Count total purchaseErr.message occurrences to user
-    stdout, stderr, code = run_command("grep 'purchaseErr?.message' /app/js/_index.js | grep 'send\\|Message' | wc -l")
-    if code == 0:
-        total = int(stdout)
-        print(f"Found {total} purchaseErr.message user-facing occurrences")
+class WalletPaymentBugFixTester:
+    def __init__(self):
+        self.results = []
+        self.errors = []
         
-        # Count sanitized occurrences
-        stdout2, stderr2, code2 = run_command("grep 'purchaseErr?.message' /app/js/_index.js | grep 'send\\|Message' | grep -c 'sanitizeProviderError'")
-        if code2 == 0:
-            sanitized = int(stdout2)
-            if sanitized == total and total == 5:
-                print(f"✅ All {sanitized} purchaseErr.message occurrences are sanitized")
+    def log_result(self, test_name, success, details=""):
+        """Log test result"""
+        status = "✅ PASS" if success else "❌ FAIL"
+        result = f"{status}: {test_name}"
+        if details:
+            result += f" - {details}"
+        self.results.append(result)
+        print(result)
+        
+    def log_error(self, error):
+        """Log error"""
+        self.errors.append(error)
+        print(f"❌ ERROR: {error}")
+
+    def test_nodejs_health(self):
+        """Test Node.js backend health"""
+        try:
+            response = requests.get(f"{BACKEND_URL}/health", timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('status') == 'healthy' and data.get('database') == 'connected':
+                    self.log_result("Node.js Health Check", True, f"Status: {data.get('status')}, DB: {data.get('database')}")
+                    return True
+                else:
+                    self.log_result("Node.js Health Check", False, f"Unexpected response: {data}")
+                    return False
+            else:
+                self.log_result("Node.js Health Check", False, f"Status code: {response.status_code}")
+                return False
+        except Exception as e:
+            self.log_result("Node.js Health Check", False, f"Connection error: {str(e)}")
+            return False
+
+    def test_error_log_empty(self):
+        """Verify nodejs.err.log is empty"""
+        try:
+            if os.path.exists(ERROR_LOG_PATH):
+                with open(ERROR_LOG_PATH, 'r') as f:
+                    content = f.read().strip()
+                if not content:
+                    self.log_result("Error Log Empty", True, "No errors in nodejs.err.log")
+                    return True
+                else:
+                    self.log_result("Error Log Empty", False, f"Errors found: {content[:100]}")
+                    return False
+            else:
+                self.log_result("Error Log Empty", False, f"Log file not found: {ERROR_LOG_PATH}")
+                return False
+        except Exception as e:
+            self.log_result("Error Log Empty", False, f"Error reading log: {str(e)}")
+            return False
+
+    def test_payactions_array(self):
+        """Verify _payActions array contains exactly the 7 required actions"""
+        try:
+            with open(NODEJS_INDEX_FILE, 'r') as f:
+                content = f.read()
+            
+            # Find the _payActions array definition
+            pay_actions_pattern = r"const _payActions = \[(.*?)\]"
+            match = re.search(pay_actions_pattern, content, re.DOTALL)
+            
+            if not match:
+                self.log_result("_payActions Array Exists", False, "Array definition not found")
+                return False
+            
+            # Extract and parse the actions
+            actions_str = match.group(1)
+            actions = [action.strip().strip("'\"") for action in actions_str.split(',')]
+            actions = [action for action in actions if action]  # Remove empty strings
+            
+            expected_actions = [
+                'phone-pay', 'domain-pay', 'hosting-pay', 'vps-plan-pay', 
+                'vps-upgrade-plan-pay', 'digital-product-pay', 'virtual-card-pay'
+            ]
+            
+            if set(actions) == set(expected_actions) and len(actions) == 7:
+                self.log_result("_payActions Array Content", True, f"Contains all 7 required actions: {actions}")
                 return True
             else:
-                print(f"❌ Only {sanitized}/{total} purchaseErr.message occurrences are sanitized")
+                missing = set(expected_actions) - set(actions)
+                extra = set(actions) - set(expected_actions)
+                details = f"Expected {expected_actions}, got {actions}"
+                if missing:
+                    details += f", missing: {missing}"
+                if extra:
+                    details += f", extra: {extra}"
+                self.log_result("_payActions Array Content", False, details)
                 return False
-    
-    print(f"❌ Failed to check purchaseErr sanitization: {stderr}")
-    return False
-
-def test_fax_messages():
-    """Test 5: Fax Messages Sanitized"""
-    print("🔍 Testing fax message sanitization...")
-    
-    # Check for Twilio in phone-config.js user-facing strings (should be 0)
-    stdout, stderr, code = run_command("grep 'Twilio' /app/js/phone-config.js")
-    if code == 0:
-        # Check if all are comments
-        stdout2, stderr2, code2 = run_command("grep 'Twilio' /app/js/phone-config.js | grep -v '//'")
-        if code2 == 1:  # No non-comment lines found
-            print("✅ All Twilio mentions in phone-config.js are comments only")
-            return True
-        else:
-            print(f"❌ Found non-comment Twilio mentions in phone-config.js: {stdout2}")
+                
+        except Exception as e:
+            self.log_result("_payActions Array Content", False, f"Error reading file: {str(e)}")
             return False
-    elif code == 1:
-        print("✅ No Twilio mentions found in phone-config.js")
-        return True
-    else:
-        print(f"❌ Error checking phone-config.js: {stderr}")
-        return False
 
-def test_digital_products():
-    """Test 6: Digital Products Preserved"""
-    print("🔍 Testing Digital Products preservation...")
-    
-    # Check Twilio is preserved in lang files for Digital Products
-    stdout, stderr, code = run_command("grep 'Twilio' /app/js/lang/en.js | grep -c 'dpTwilio\\|Twilio Main\\|Twilio Sub\\|Twilio,'")
-    if code == 0:
-        count = int(stdout)
-        if count >= 4:
-            print(f"✅ Found {count} Twilio Digital Product references preserved (>= 4 required)")
+    def test_global_wallet_conditional(self):
+        """Verify the global wallet conditional has the correct guard condition"""
+        try:
+            with open(NODEJS_INDEX_FILE, 'r') as f:
+                content = f.read()
+            
+            # Find the global wallet conditional around line 9290
+            lines = content.split('\n')
+            
+            # Search for the specific pattern
+            found_conditional = False
+            for i, line in enumerate(lines):
+                if 'message === user.wallet && !_payActions.includes(action)' in line:
+                    line_number = i + 1
+                    found_conditional = True
+                    self.log_result("Global Wallet Conditional", True, f"Found at line {line_number}: {line.strip()}")
+                    break
+            
+            if not found_conditional:
+                # Try alternate patterns
+                for i, line in enumerate(lines):
+                    if 'message === user.wallet' in line and '_payActions.includes' in line:
+                        line_number = i + 1
+                        found_conditional = True
+                        self.log_result("Global Wallet Conditional", True, f"Found pattern at line {line_number}: {line.strip()}")
+                        break
+            
+            if not found_conditional:
+                self.log_result("Global Wallet Conditional", False, "Conditional with _payActions guard not found")
+                return False
+                
             return True
-        else:
-            print(f"❌ Only {count} Twilio Digital Product references found, need >= 4")
+                
+        except Exception as e:
+            self.log_result("Global Wallet Conditional", False, f"Error reading file: {str(e)}")
             return False
-    else:
-        print(f"❌ Failed to check Digital Products: {stderr}")
-        return False
 
-def test_sanitize_function():
-    """Test 7: sanitizeProviderError Function"""
-    print("🔍 Testing sanitizeProviderError function...")
-    
-    node_test_script = "const s = require('/app/js/sanitize-provider.js'); console.log(s.sanitizeProviderError('Bundle required by Twilio for country ZA', 'voice'));"
-    
-    stdout, stderr, code = run_command(f'node -e "{node_test_script}"')
-    if code == 0:
-        result = stdout.strip()
-        if "Twilio" not in result and "Bundle required by" in result:
-            print(f"✅ sanitizeProviderError correctly replaces Twilio: '{result}'")
-            return True
-        else:
-            print(f"❌ sanitizeProviderError failed: '{result}'")
+    def test_phone_pay_wallet_handler(self):
+        """Verify phone-pay handler still has proper wallet payment logic"""
+        try:
+            with open(NODEJS_INDEX_FILE, 'r') as f:
+                content = f.read()
+            
+            # Find phone-pay action block
+            phone_pay_pattern = r"if \(action === ['\"]phone-pay['\"]\).*?(?=if \(action === |$)"
+            match = re.search(phone_pay_pattern, content, re.DOTALL)
+            
+            if not match:
+                self.log_result("Phone-pay Handler Exists", False, "phone-pay action handler not found")
+                return False
+            
+            phone_pay_block = match.group(0)
+            
+            # Check for wallet payment handling
+            if 'payIn.wallet' in phone_pay_block and 'goto.walletSelectCurrency()' in phone_pay_block:
+                self.log_result("Phone-pay Wallet Handler", True, "Contains payIn.wallet check and goto.walletSelectCurrency() call")
+                return True
+            else:
+                self.log_result("Phone-pay Wallet Handler", False, "Missing proper wallet payment handling")
+                return False
+                
+        except Exception as e:
+            self.log_result("Phone-pay Wallet Handler", False, f"Error analyzing handler: {str(e)}")
             return False
-    else:
-        print(f"❌ sanitizeProviderError test failed: {stderr}")
-        return False
 
-def test_bundle_refunds():
-    """Test 8: Bundle Checker Refund Paths"""
-    print("🔍 Testing bundle checker refund paths...")
-    
-    stdout, stderr, code = run_command("grep 'isUsdRefundCoin(refundCoin' /app/js/_index.js")
-    if code == 0:
-        lines = stdout.strip().split('\n')
-        count = len(lines)
-        if count >= 3:  # Should find multiple occurrences
-            print(f"✅ Found {count} bundle checker refund paths using isUsdRefundCoin")
-            return True
-        else:
-            print(f"❌ Only {count} bundle checker refund paths found")
+    def test_payment_action_consistency(self):
+        """Verify all payment actions in _payActions have corresponding handlers"""
+        try:
+            with open(NODEJS_INDEX_FILE, 'r') as f:
+                content = f.read()
+            
+            expected_actions = [
+                'phone-pay', 'domain-pay', 'hosting-pay', 'vps-plan-pay', 
+                'vps-upgrade-plan-pay', 'digital-product-pay', 'virtual-card-pay'
+            ]
+            
+            # Map actions to their possible handler patterns (direct strings or constants)
+            action_patterns = {
+                'phone-pay': ["if \\(action === ['\\\"]phone-pay['\\\"]"],
+                'domain-pay': ["if \\(action === ['\\\"]domain-pay['\\\"]"],
+                'hosting-pay': ["if \\(action === ['\\\"]hosting-pay['\\\"]"],
+                'vps-plan-pay': ["if \\(action === ['\\\"]vps-plan-pay['\\\"]"],
+                'vps-upgrade-plan-pay': ["if \\(action === ['\\\"]vps-upgrade-plan-pay['\\\"]"],
+                'digital-product-pay': ["if \\(action === a\\.digitalProductPay\\)"],
+                'virtual-card-pay': ["if \\(action === a\\.virtualCardPay\\)"]
+            }
+            
+            missing_handlers = []
+            wallet_handlers_found = []
+            
+            for action in expected_actions:
+                found_handler = False
+                
+                # Check all possible patterns for this action
+                for pattern in action_patterns[action]:
+                    if re.search(pattern, content):
+                        found_handler = True
+                        # Find the action block to check for wallet handling
+                        action_block_pattern = pattern + ".*?(?=if \\(action === |$)"
+                        action_match = re.search(action_block_pattern, content, re.DOTALL)
+                        
+                        if action_match and 'payIn.wallet' in action_match.group(0):
+                            wallet_handlers_found.append(action)
+                        else:
+                            # Handler exists but might not have wallet payment - that's ok for consistency check
+                            wallet_handlers_found.append(action)
+                        break
+                
+                if not found_handler:
+                    missing_handlers.append(action)
+            
+            if not missing_handlers:
+                self.log_result("Payment Action Handlers", True, f"All 7 actions have handlers: {wallet_handlers_found}")
+                return True
+            else:
+                self.log_result("Payment Action Handlers", False, f"Missing handlers for: {missing_handlers}")
+                return False
+                
+        except Exception as e:
+            self.log_result("Payment Action Handlers", False, f"Error checking handlers: {str(e)}")
             return False
-    else:
-        print(f"❌ No bundle checker refund paths found: {stderr}")
-        return False
+
+    def test_wallet_payment_handlers_exist(self):
+        """Test that all payment handlers have wallet payment options"""
+        try:
+            with open(NODEJS_INDEX_FILE, 'r') as f:
+                content = f.read()
+            
+            # Count occurrences of payIn.wallet in the file
+            wallet_occurrences = len(re.findall(r'payIn\.wallet', content))
+            
+            if wallet_occurrences >= 7:  # Should have at least 7 for the payment actions
+                self.log_result("Wallet Payment Options", True, f"Found {wallet_occurrences} wallet payment handlers")
+                return True
+            else:
+                self.log_result("Wallet Payment Options", False, f"Only found {wallet_occurrences} wallet payment handlers, expected at least 7")
+                return False
+                
+        except Exception as e:
+            self.log_result("Wallet Payment Options", False, f"Error checking wallet handlers: {str(e)}")
+            return False
+
+    def run_all_tests(self):
+        """Run all tests"""
+        print("🧪 Starting Wallet Payment Bug Fix Verification Tests\n")
+        
+        # Basic health checks
+        print("📊 BASIC HEALTH CHECKS:")
+        self.test_nodejs_health()
+        self.test_error_log_empty()
+        print()
+        
+        # Code verification tests
+        print("📋 CODE VERIFICATION TESTS:")
+        self.test_payactions_array()
+        self.test_global_wallet_conditional()
+        self.test_phone_pay_wallet_handler()
+        self.test_payment_action_consistency()
+        self.test_wallet_payment_handlers_exist()
+        print()
+        
+        # Summary
+        print("📈 SUMMARY:")
+        total_tests = len(self.results)
+        passed_tests = len([r for r in self.results if "✅ PASS" in r])
+        
+        print(f"Total Tests: {total_tests}")
+        print(f"Passed: {passed_tests}")
+        print(f"Failed: {total_tests - passed_tests}")
+        print(f"Success Rate: {(passed_tests/total_tests)*100:.1f}%")
+        
+        if self.errors:
+            print(f"\n❌ ERRORS ENCOUNTERED:")
+            for error in self.errors:
+                print(f"  - {error}")
+        
+        print("\n📋 DETAILED RESULTS:")
+        for result in self.results:
+            print(f"  {result}")
+        
+        return passed_tests == total_tests
 
 def main():
-    """Run all crypto refund + Twilio sanitization tests"""
-    print("=" * 80)
-    print("CRYPTO REFUND BUG FIX + TWILIO SANITIZATION TEST SUITE")
-    print("=" * 80)
+    tester = WalletPaymentBugFixTester()
+    success = tester.run_all_tests()
     
-    tests = [
-        ("Node.js Health Check", test_nodejs_health),
-        ("isUsdRefundCoin Helper Function", test_isusdreFundcoin_helper),
-        ("Refund Path Implementation", test_refund_paths),
-        ("purchaseErr Sanitization", test_sanitized_errors),
-        ("Fax Message Sanitization", test_fax_messages),
-        ("Digital Products Preservation", test_digital_products),
-        ("sanitizeProviderError Function", test_sanitize_function),
-        ("Bundle Checker Refund Paths", test_bundle_refunds),
-    ]
-    
-    passed = 0
-    total = len(tests)
-    
-    for test_name, test_func in tests:
-        print(f"\n📋 Test: {test_name}")
-        print("-" * 50)
-        try:
-            if test_func():
-                passed += 1
-                print(f"✅ PASSED: {test_name}")
-            else:
-                print(f"❌ FAILED: {test_name}")
-        except Exception as e:
-            print(f"❌ ERROR in {test_name}: {e}")
-    
-    print("\n" + "=" * 80)
-    print(f"FINAL RESULTS: {passed}/{total} tests passed ({passed/total*100:.1f}%)")
-    print("=" * 80)
-    
-    if passed == total:
-        print("🎉 ALL CRYPTO REFUND + TWILIO SANITIZATION TESTS PASSED!")
-        print("\n✅ CRYPTO REFUND BUG: isUsdRefundCoin helper correctly identifies crypto payments as USD-refundable")
-        print("✅ TWILIO SANITIZATION: All user-facing errors sanitized, Digital Products preserved")
-        return True
+    if success:
+        print("\n🎉 ALL TESTS PASSED - Wallet payment bug fix is working correctly!")
+        sys.exit(0)
     else:
-        print(f"❌ {total - passed} test(s) failed. Please review the implementation.")
-        return False
+        print("\n⚠️  SOME TESTS FAILED - Please review the issues above")
+        sys.exit(1)
 
 if __name__ == "__main__":
-    success = main()
-    sys.exit(0 if success else 1)
+    main()

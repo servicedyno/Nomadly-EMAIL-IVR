@@ -9285,7 +9285,9 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   //
   //
   //
-  if (message === user.wallet) {
+  // ── Skip global wallet redirect when inside a payment flow ──
+  const _payActions = ['phone-pay', 'domain-pay', 'hosting-pay', 'vps-plan-pay', 'vps-upgrade-plan-pay', 'digital-product-pay', 'virtual-card-pay']
+  if (message === user.wallet && !_payActions.includes(action)) {
     return goto[user.wallet]()
   }
   if (action === user.wallet) {
