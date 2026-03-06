@@ -700,6 +700,39 @@ async function cancelAndRefund(chatId) {
   return true
 }
 
+/**
+ * Restart an incomplete doc session from step 1.
+ * Preserves purchase data (country, number, plan, price) but resets all collected inputs.
+ */
+async function restartSession(chatId) {
+  const docSessions = deps.db.collection('docSessions')
+  const session = await docSessions.findOne({ chatId, status: { $in: ['collecting', 'awaiting_address'] } })
+  if (!session) return false
+
+  // Clean up any uploaded files from the old session
+  for (const doc of Object.values(session.uploadedDocs || {})) {
+    if (doc.filePath) try { require('fs').unlinkSync(doc.filePath) } catch (e) { /* ignore */ }
+  }
+
+  // Delete old session and start fresh with same purchase data
+  await docSessions.deleteOne({ _id: session._id })
+
+  // Re-start doc collection with original purchase data
+  await startDocCollection(chatId, {
+    countryCode: session.countryCode,
+    numType: session.numType,
+    countryName: session.countryName,
+    selectedNumber: session.selectedNumber,
+    planKey: session.planKey,
+    price: session.price,
+    priceUsd: session.priceUsd,
+    priceNgn: session.priceNgn,
+    paymentMethod: session.paymentMethod,
+  }, session.lang || 'en')
+
+  return true
+}
+
 module.exports = {
   init,
   startDocCollection,
@@ -709,6 +742,7 @@ module.exports = {
   isInDocCollection,
   getIncompleteSession,
   resumeSession,
+  restartSession,
   cancelAndRefund,
   createAndSubmitBundle,
 }

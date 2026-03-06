@@ -2668,8 +2668,9 @@ bot?.on('message', msg => {
         }
         await set(state, chatId, 'action', a.cpResumeDoc)
         const resumeBtn = { en: '▶️ Resume Verification', fr: '▶️ Reprendre', zh: '▶️ 继续验证', hi: '▶️ जारी रखें' }[lang] || '▶️ Resume Verification'
+        const restartBtn = { en: '🔄 Start Over', fr: '🔄 Recommencer', zh: '🔄 重新开始', hi: '🔄 शुरू से करें' }[lang] || '🔄 Start Over'
         const cancelBtn = { en: '❌ Cancel & Refund', fr: '❌ Annuler & Rembourser', zh: '❌ 取消并退款', hi: '❌ रद्द करें और रिफंड' }[lang] || '❌ Cancel & Refund'
-        return send(chatId, resumeMsg[lang] || resumeMsg.en, { parse_mode: 'HTML', reply_markup: { keyboard: [[resumeBtn], [cancelBtn]], resize_keyboard: true, one_time_keyboard: true } })
+        return send(chatId, resumeMsg[lang] || resumeMsg.en, { parse_mode: 'HTML', reply_markup: { keyboard: [[resumeBtn], [restartBtn], [cancelBtn]], resize_keyboard: true, one_time_keyboard: true } })
       }
       const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
       send(chatId, cpTxt.hubWelcome, k.of([
@@ -9626,14 +9627,23 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // CLOUD PHONE — STATE MACHINE HANDLERS
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  // ── Resume / Cancel incomplete doc verification ──
+  // ── Resume / Start Over / Cancel incomplete doc verification ──
   if (action === a.cpResumeDoc) {
     const lang = info?.userLanguage || 'en'
     const resumeBtn = { en: '▶️ Resume Verification', fr: '▶️ Reprendre', zh: '▶️ 继续验证', hi: '▶️ जारी रखें' }[lang] || '▶️ Resume Verification'
+    const restartBtn = { en: '🔄 Start Over', fr: '🔄 Recommencer', zh: '🔄 重新开始', hi: '🔄 शुरू से करें' }[lang] || '🔄 Start Over'
     const cancelBtn = { en: '❌ Cancel & Refund', fr: '❌ Annuler & Rembourser', zh: '❌ 取消并退款', hi: '❌ रद्द करें और रिफंड' }[lang] || '❌ Cancel & Refund'
     if (message === resumeBtn) {
       const resumed = await regulatoryFlow.resumeSession(chatId)
       if (!resumed) {
+        send(chatId, '⚠️ Session expired. Please try purchasing again.', { parse_mode: 'HTML' })
+        return goto.submenu5()
+      }
+      return
+    }
+    if (message === restartBtn) {
+      const restarted = await regulatoryFlow.restartSession(chatId)
+      if (!restarted) {
         send(chatId, '⚠️ Session expired. Please try purchasing again.', { parse_mode: 'HTML' })
         return goto.submenu5()
       }
