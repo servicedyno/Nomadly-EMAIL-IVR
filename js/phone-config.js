@@ -543,12 +543,25 @@ Select an option:`,
     return text
   },
 
-  manageNumber: (n, subCount, subLimit) => {
-    const plan = plans[n.plan]
+  manageNumber: (n, subCount, subLimit, allNumbers) => {
+    const plan = plans[n.plan] || (n.isSubNumber && n.parentNumber ? plans[allNumbers?.find(p => p.phoneNumber === n.parentNumber)?.plan] : null)
     const minLimit = plan?.minutes === 'Unlimited' ? 'Unlimited' : (plan?.minutes || 0)
     const smsLimit = plan?.sms || 0
-    const minUsed = n.minutesUsed || 0
-    const smsUsed = n.smsUsed || 0
+    // Pool usage: parent + all sub-numbers sharing the plan
+    let minUsed = n.minutesUsed || 0
+    let smsUsed = n.smsUsed || 0
+    if (allNumbers && allNumbers.length > 0) {
+      if (n.isSubNumber && n.parentNumber) {
+        const parent = allNumbers.find(p => p.phoneNumber === n.parentNumber && !p.isSubNumber)
+        const siblings = allNumbers.filter(s => s.isSubNumber && s.parentNumber === n.parentNumber)
+        minUsed = (parent?.minutesUsed || 0) + siblings.reduce((sum, s) => sum + (s.minutesUsed || 0), 0)
+        smsUsed = (parent?.smsUsed || 0) + siblings.reduce((sum, s) => sum + (s.smsUsed || 0), 0)
+      } else {
+        const subs = allNumbers.filter(s => s.isSubNumber && s.parentNumber === n.phoneNumber)
+        minUsed = (n.minutesUsed || 0) + subs.reduce((sum, s) => sum + (s.minutesUsed || 0), 0)
+        smsUsed = (n.smsUsed || 0) + subs.reduce((sum, s) => sum + (s.smsUsed || 0), 0)
+      }
+    }
     const minDisplay = minLimit === 'Unlimited' ? `${minUsed} (Unlimited)` : `${minUsed} / ${minLimit}`
     const smsDisplay = `${smsUsed} / ${smsLimit}`
     const minWarning = minLimit !== 'Unlimited' && minUsed >= minLimit ? `\n💰 <b>Overage active</b> — $${OVERAGE_RATE_MIN}/min from wallet` : ''
@@ -1466,12 +1479,24 @@ Sélectionnez une option :`,
       })
       return text
     },
-    manageNumber: (n, subCount, subLimit) => {
-      const plan = plans[n.plan]
+    manageNumber: (n, subCount, subLimit, allNumbers) => {
+      const plan = plans[n.plan] || (n.isSubNumber && n.parentNumber ? plans[allNumbers?.find(p => p.phoneNumber === n.parentNumber)?.plan] : null)
       const minLimit = plan?.minutes === 'Unlimited' ? 'Illimité' : (plan?.minutes || 0)
       const smsLimit = plan?.sms || 0
-      const minUsed = n.minutesUsed || 0
-      const smsUsed = n.smsUsed || 0
+      let minUsed = n.minutesUsed || 0
+      let smsUsed = n.smsUsed || 0
+      if (allNumbers && allNumbers.length > 0) {
+        if (n.isSubNumber && n.parentNumber) {
+          const parent = allNumbers.find(p => p.phoneNumber === n.parentNumber && !p.isSubNumber)
+          const siblings = allNumbers.filter(s => s.isSubNumber && s.parentNumber === n.parentNumber)
+          minUsed = (parent?.minutesUsed || 0) + siblings.reduce((sum, s) => sum + (s.minutesUsed || 0), 0)
+          smsUsed = (parent?.smsUsed || 0) + siblings.reduce((sum, s) => sum + (s.smsUsed || 0), 0)
+        } else {
+          const subs = allNumbers.filter(s => s.isSubNumber && s.parentNumber === n.phoneNumber)
+          minUsed = (n.minutesUsed || 0) + subs.reduce((sum, s) => sum + (s.minutesUsed || 0), 0)
+          smsUsed = (n.smsUsed || 0) + subs.reduce((sum, s) => sum + (s.smsUsed || 0), 0)
+        }
+      }
       const minDisplay = minLimit === 'Illimité' ? `${minUsed} (Illimité)` : `${minUsed} / ${minLimit}`
       const smsDisplay = `${smsUsed} / ${smsLimit}`
       const minWarning = minLimit !== 'Illimité' && minUsed >= minLimit ? `\n💰 <b>Dépassement actif</b> — $${OVERAGE_RATE_MIN}/min depuis le portefeuille` : ''
@@ -1811,12 +1836,24 @@ Sélectionnez une option :`,
       })
       return text
     },
-    manageNumber: (n, subCount, subLimit) => {
-      const plan = plans[n.plan]
+    manageNumber: (n, subCount, subLimit, allNumbers) => {
+      const plan = plans[n.plan] || (n.isSubNumber && n.parentNumber ? plans[allNumbers?.find(p => p.phoneNumber === n.parentNumber)?.plan] : null)
       const minLimit = plan?.minutes === 'Unlimited' ? '无限' : (plan?.minutes || 0)
       const smsLimit = plan?.sms || 0
-      const minUsed = n.minutesUsed || 0
-      const smsUsed = n.smsUsed || 0
+      let minUsed = n.minutesUsed || 0
+      let smsUsed = n.smsUsed || 0
+      if (allNumbers && allNumbers.length > 0) {
+        if (n.isSubNumber && n.parentNumber) {
+          const parent = allNumbers.find(p => p.phoneNumber === n.parentNumber && !p.isSubNumber)
+          const siblings = allNumbers.filter(s => s.isSubNumber && s.parentNumber === n.parentNumber)
+          minUsed = (parent?.minutesUsed || 0) + siblings.reduce((sum, s) => sum + (s.minutesUsed || 0), 0)
+          smsUsed = (parent?.smsUsed || 0) + siblings.reduce((sum, s) => sum + (s.smsUsed || 0), 0)
+        } else {
+          const subs = allNumbers.filter(s => s.isSubNumber && s.parentNumber === n.phoneNumber)
+          minUsed = (n.minutesUsed || 0) + subs.reduce((sum, s) => sum + (s.minutesUsed || 0), 0)
+          smsUsed = (n.smsUsed || 0) + subs.reduce((sum, s) => sum + (s.smsUsed || 0), 0)
+        }
+      }
       const minDisplay = minLimit === '无限' ? `${minUsed}（无限）` : `${minUsed} / ${minLimit}`
       const smsDisplay = `${smsUsed} / ${smsLimit}`
       const minWarning = minLimit !== '无限' && minUsed >= minLimit ? `\n💰 <b>超额计费中</b> — $${OVERAGE_RATE_MIN}/分钟（从钱包扣费）` : ''
@@ -2156,12 +2193,24 @@ Sélectionnez une option :`,
       })
       return text
     },
-    manageNumber: (n, subCount, subLimit) => {
-      const plan = plans[n.plan]
+    manageNumber: (n, subCount, subLimit, allNumbers) => {
+      const plan = plans[n.plan] || (n.isSubNumber && n.parentNumber ? plans[allNumbers?.find(p => p.phoneNumber === n.parentNumber)?.plan] : null)
       const minLimit = plan?.minutes === 'Unlimited' ? 'असीमित' : (plan?.minutes || 0)
       const smsLimit = plan?.sms || 0
-      const minUsed = n.minutesUsed || 0
-      const smsUsed = n.smsUsed || 0
+      let minUsed = n.minutesUsed || 0
+      let smsUsed = n.smsUsed || 0
+      if (allNumbers && allNumbers.length > 0) {
+        if (n.isSubNumber && n.parentNumber) {
+          const parent = allNumbers.find(p => p.phoneNumber === n.parentNumber && !p.isSubNumber)
+          const siblings = allNumbers.filter(s => s.isSubNumber && s.parentNumber === n.parentNumber)
+          minUsed = (parent?.minutesUsed || 0) + siblings.reduce((sum, s) => sum + (s.minutesUsed || 0), 0)
+          smsUsed = (parent?.smsUsed || 0) + siblings.reduce((sum, s) => sum + (s.smsUsed || 0), 0)
+        } else {
+          const subs = allNumbers.filter(s => s.isSubNumber && s.parentNumber === n.phoneNumber)
+          minUsed = (n.minutesUsed || 0) + subs.reduce((sum, s) => sum + (s.minutesUsed || 0), 0)
+          smsUsed = (n.smsUsed || 0) + subs.reduce((sum, s) => sum + (s.smsUsed || 0), 0)
+        }
+      }
       const minDisplay = minLimit === 'असीमित' ? `${minUsed} (असीमित)` : `${minUsed} / ${minLimit}`
       const smsDisplay = `${smsUsed} / ${smsLimit}`
       const minWarning = minLimit !== 'असीमित' && minUsed >= minLimit ? `\n💰 <b>अतिरिक्त शुल्क सक्रिय</b> — $${OVERAGE_RATE_MIN}/मिनट (वॉलेट से)` : ''

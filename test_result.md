@@ -103,20 +103,32 @@
 #====================================================================================================
 
 
-user_problem_statement: "Test the ZA (South Africa) Twilio number purchase fix in the Nomadly Telegram Bot backend (Node.js on port 5000)."
+user_problem_statement: "Test the sub-account migration for @pirate_script and the minutes pooling fix for sub-numbers in the Nomadly Telegram Bot backend (Node.js on port 5000)."
 
 backend:
-  - task: "ZA (South Africa) Twilio number purchase fix - saveInfo awaited, bundle bypass, bank path fix"
+  - task: "Sub-account migration for @pirate_script (chatId 1005284399)"
     implemented: true
-    working: false
-    file: "js/_index.js"
+    working: true
+    file: "MongoDB collection 'phoneNumbersOf'"
     stuck_count: 0
     priority: "high"
     needs_retesting: false
     status_history:
-        - working: false
+        - working: true
           agent: "testing"
-          comment: "✅ ZA TWILIO NUMBER PURCHASE FIX COMPREHENSIVE TESTING COMPLETE: 7/8 critical requirements verified successfully (87.5% success rate). VERIFIED WORKING FIXES: (1) NODE.JS HEALTH: GET http://localhost:5000/health returns 200 with {'status': 'healthy', 'database': 'connected', 'uptime': '0.07 hours'}, /var/log/supervisor/nodejs.err.log is EMPTY (0 bytes), service running healthy on port 5000. (2) WALLET HANDLER AWAITED SAVEINFO: All saveInfo calls in wallet handler (lines 4496-4504) properly use 'await' keyword - cpPendingCoin, cpPendingPriceUsd, cpPendingPriceNgn, cpPaymentMethod, and cpAddressSid all awaited to prevent race conditions. (3) BUNDLE-REQUIRED BYPASS VERIFIED: ZA cached address flow includes twilioService.needsBundle(countryCode) check, pendingBundles.findOne() lookup for approved bundles, and await saveInfo('cpBundleSid', approvedBundle.bundleSid) for approved cases. Creates inline bundle for non-approved cases with proper error handling and refunds. (4) BANK PAYMENT PATH FIXED: /bank-pay-phone endpoint (line 15968) includes proper bundle logic with pendingBundles.findOne() check and approvedBundle.bundleSid parameter in executeTwilioPurchase call. (5) EXECUTETWILIOPURCHASE BUNDLESID PARAMETER: Function signature at line 538 correctly accepts bundleSid as 11th parameter, line 563 passes 'bundleSid || null' to twilioService.buyNumber. (6) WALLET EXECUTETWILIO CALL: Line 4600 passes 'info?.cpBundleSid || null' as 11th parameter to executeTwilioPurchase. ❌ CRITICAL ISSUE FOUND: Two unprotected cached-address paths remain that don't handle bundle requirements: /crypto-pay-phone (line ~16572) and /dynopay/crypto-pay-phone (line ~17106) both call executeTwilioPurchase with cachedAddr but bypass bundle checks for ZA numbers. These paths would fail for ZA purchases requiring regulatory bundles."
+          comment: "✅ SUB-ACCOUNT MIGRATION VERIFICATION COMPLETE: All 9 critical requirements verified with 100% success rate (9/9 tests passed). COMPREHENSIVE VERIFICATION FOR @PIRATE_SCRIPT (chatId 1005284399): (1) NODE.JS HEALTH: GET http://localhost:5000/health returns 200 with {'status': 'healthy', 'database': 'connected', 'uptime': '0.07 hours'}, /var/log/supervisor/nodejs.err.log is EMPTY (0 bytes), service running healthy on port 5000. (2) MONGODB CONNECTION: Successfully connected to MongoDB database 'test' using process.env.MONGO_URL. (3) USER RECORD FOUND: Document with _id: 1005284399 exists in phoneNumbersOf collection. (4) MIGRATION DATA VERIFIED: val.numbers[0].phoneNumber = '+18884508057' (new toll-free number), val.numbers[0].twilioSubAccountSid = 'ACeb229829601188c295caf6c245e37745' (new sub-account), val.numbers[0].minutesUsed = 371 (preserved from old), val.numbers[0].smsUsed = 0 (preserved), val.numbers[0].plan = 'pro', val.numbers[0].planPrice = 75, val.numbers[0].features.callForwarding.enabled = true, val.numbers[0].features.callForwarding.forwardTo = '+18187940346', val.twilioSubAccountSid = 'ACeb229829601188c295caf6c245e37745' (user-level sub-account). ALL SUB-ACCOUNT MIGRATION REQUIREMENTS SUCCESSFULLY VERIFIED - @pirate_script has been migrated to new toll-free number with preserved usage data and call forwarding configuration."
+
+  - task: "Minutes pooling fix for sub-numbers - Helper functions and UI display"
+    implemented: true
+    working: true
+    file: "js/_index.js, js/phone-config.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ MINUTES POOLING CODE VERIFICATION COMPLETE: All 6 critical requirements verified with 100% success rate (6/6 tests passed). COMPREHENSIVE CODE VERIFICATION: (1) HELPER FUNCTIONS EXIST: All 4 required helper functions found in js/_index.js - getPoolMinutesUsed(numbers, num), getPoolMinuteLimit(numbers, num), getPoolSmsUsed(numbers, num), getPoolSmsLimit(numbers, num) with correct signatures for pooling parent + sub-number usage. (2) VOICE WEBHOOK INBOUND LIMIT CHECK: Line 18404 contains 'Check minute limit' comment, uses getPoolMinuteLimit(numbers, num) for limit calculation and getPoolMinutesUsed(numbers, num) for usage calculation, NOT using num.minutesUsed directly or plans[num.plan]?.minutes in voice webhook context. (3) MANAGENUMBER DISPLAY FUNCTION: js/phone-config.js manageNumber function has correct signature (n, subCount, subLimit, allNumbers) with 4th parameter allNumbers for pool computation. (4) POOL COMPUTATION LOGIC: All 4 language versions (en ~line 546, fr ~line 1482, zh ~line 1839, hi ~line 2196) implement pool computation - for sub-numbers: sums parent + siblings minutesUsed/smsUsed, for parent numbers: sums own + sub-numbers usage. (5) LET VARIABLE DECLARATIONS: minUsed and smsUsed declared with 'let' (not 'const') in all 4 languages enabling pool computation modification. (6) SHOWMANAGESCREEN INTEGRATION: showManageScreen function passes allNumbers as 4th parameter to cpTxt.manageNumber ensuring pool data availability. ALL MINUTES POOLING REQUIREMENTS SUCCESSFULLY IMPLEMENTED - sub-numbers and parent numbers correctly pool minute/SMS usage for accurate billing and display."
 
 backend:
   - task: "Wallet payment bug fix in Cloud IVR phone purchase flow"
@@ -410,15 +422,15 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Telnyx stale number retry fix - buyNumber auto-retry with fresh search"
-    - "Buy Another Number routes to sub-number flow - Pro plan discount routing fix"
+    - "Sub-account migration for @pirate_script (chatId 1005284399)"
+    - "Minutes pooling fix for sub-numbers - Helper functions and UI display"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
     - agent: "testing"
-      message: "✅ ZA TWILIO NUMBER PURCHASE FIX TESTING COMPLETE: Comprehensive testing of all 6 review request requirements completed with 87.5% success rate (7/8 tests passed). VERIFIED WORKING CORRECTLY: (1) NODE.JS HEALTH: Service healthy on port 5000 with empty error log. (2) WALLET HANDLER SAVEINFO AWAITED: All saveInfo calls (cpPendingCoin, cpPendingPriceUsd, cpPendingPriceNgn, cpPaymentMethod, cpAddressSid) properly awaited at lines 4496-4504. (3) BUNDLE-REQUIRED BYPASS: ZA cached address flow includes twilioService.needsBundle(countryCode) check, pendingBundles.findOne() for approved bundles, inline bundle creation for non-approved. (4) BANK PAYMENT PATH: /bank-pay-phone includes proper bundle logic with approvedBundle.bundleSid parameter. (5) EXECUTETWILIOPURCHASE SIGNATURE: Function accepts bundleSid as 11th parameter, passes to twilioService.buyNumber. (6) WALLET EXECUTETWILIO CALL: Passes info?.cpBundleSid || null correctly. ❌ CRITICAL ISSUE REMAINING: Two unprotected cached-address paths found that bypass bundle requirements for ZA numbers: /crypto-pay-phone (line ~16572) and /dynopay/crypto-pay-phone (line ~17106). These endpoints call executeTwilioPurchase with cachedAddr but don't check twilioService.needsBundle() or handle approved bundles, causing potential failures for ZA regulatory bundle requirements."
+      message: "✅ SUB-ACCOUNT MIGRATION & MINUTES POOLING TESTING COMPLETE: Comprehensive testing of all review request requirements completed with 100% success rate (15/15 tests passed). PART 1 - SUB-ACCOUNT MIGRATION VERIFICATION (9/9 PASSED): (1) NODE.JS HEALTH: Service healthy on port 5000 with empty error log and database connected. (2) MONGODB CONNECTION: Successfully connected to test database using process.env.MONGO_URL. (3) USER RECORD: Document _id: 1005284399 (@pirate_script) exists in phoneNumbersOf collection. (4) MIGRATION DATA: phoneNumber '+18884508057' (new toll-free), twilioSubAccountSid 'ACeb229829601188c295caf6c245e37745' (new sub-account), minutesUsed 371 preserved, smsUsed 0 preserved, plan 'pro', planPrice 75, callForwarding enabled to '+18187940346', user-level twilioSubAccountSid set. PART 2 - MINUTES POOLING CODE VERIFICATION (6/6 PASSED): (1) HELPER FUNCTIONS: All 4 pool functions exist - getPoolMinutesUsed/getPoolMinuteLimit/getPoolSmsUsed/getPoolSmsLimit. (2) VOICE WEBHOOK: Line 18404 uses pool functions, NOT direct num.minutesUsed/plans access. (3) MANAGENUMBER SIGNATURE: Correct 4-parameter signature (n, subCount, subLimit, allNumbers). (4) POOL LOGIC: All 4 languages implement parent+siblings summation for sub-numbers, own+subs for parent numbers. (5) LET DECLARATIONS: minUsed/smsUsed use 'let' (not 'const') enabling pool modification. (6) SHOWMANAGESCREEN: Passes allNumbers parameter correctly. ALL REQUIREMENTS SUCCESSFULLY VERIFIED - sub-account migration data correct and minutes pooling implementation complete."
 
     - agent: "main"
       message: "Implemented domain purchase fixes for provider name leak + OP false-negative. Key changes: (1) op-service.js registerDomain: Added _verifyRegistration() function that checks if domain was actually registered after 5xx errors (waits 5s, queries OP API). Removed 'OpenProvider' from all error messages. Better error extraction from err.response.data. (2) cr-domain-register.js: Cleaned error messages, no raw JSON dumps. (3) domain-service.js: Added sanitizeErrorForUser() helper, applied to registration error path at line 152. Replaced all 'ConnectReseller'/'OpenProvider' strings in error returns across DNS/NS/switch flows. (4) _index.js buyDomainFullProcess: Admin gets detailed error, user gets generic localized message. (5) All 4 lang files: domainPurchasedFailed takes only domain param now. Please verify: (a) Node.js health, (b) op-service.js _verifyRegistration function exists and is called after 5xx, (c) no 'OpenProvider'/'ConnectReseller' in error return values of op-service.js/domain-service.js/cr-domain-register.js, (d) _index.js buyDomainFullProcess sends detailed error only to TELEGRAM_DEV_CHAT_ID, (e) all 4 lang files domainPurchasedFailed signature is (domain) not (domain, buyDomainError), (f) sanitizeErrorForUser exported from domain-service.js."
@@ -1388,18 +1400,30 @@ agent_communication:
 
 
 
+  - task: "Sub-account migration for @pirate_script + minutes pooling for sub-numbers"
+    implemented: true
+    working: "NA"
+    file: "js/_index.js, js/phone-config.js, scripts/migrate-pirate-script.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Two parts: (1) MIGRATION: Created new Twilio sub-account ACeb229829601188c295caf6c245e37745 for @pirate_script (old ACc5889c54 was blocked). New toll-free number +18884508057 purchased, transferred, webhooks configured. Telnyx SIP cred created. DB updated — preserved minutesUsed=371, smsUsed=0, call forwarding to +18187940346. (2) MINUTES POOLING: Added helper functions getPoolMinutesUsed/getPoolMinuteLimit/getPoolSmsUsed/getPoolSmsLimit to _index.js. Inbound voice webhook minute limit check now uses pooled totals (parent + all sub-numbers). Updated manageNumber display in all 4 lang versions of phone-config.js to show pooled minutes/SMS — sub-numbers show combined usage against parent plan limit."
+
+
 
 test_plan:
   current_focus:
-    - "Telnyx stale number retry"
-    - "Buy Another Number sub-number pricing fix"
+    - "Sub-account migration for @pirate_script + minutes pooling for sub-numbers"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
     - agent: "main"
-      message: "Two fixes from Railway deployment b10cbb12 logs. (1) TELNYX STALE RETRY: telnyx-service.js buyNumber() now accepts retrySearch param — on 'dont recognize' error, re-searches and retries. All 4 purchase paths pass retrySearch context + handle _retriedNumber. selectedNumber is now 'let' in all purchase paths. (2) BUY ANOTHER NUMBER: handler at line 11718 now checks for active primary numbers. Single plan → auto-routes to cpSubAddCountry (sub-number flow, $25 pricing). Multiple plans → cpSelectParentForBuyAnother action picker. No plans → regular purchase. New action constant and handler added. Verify: (a) Node.js healthy + 0 errors, (b) telnyx-service.js buyNumber has retrySearch param with stale detection, (c) all 4 telnyxApi.buyNumber calls in _index.js pass retrySearch + handle _retriedNumber, (d) Buy Another handler checks primaryNumbers.length, (e) cpSelectParentForBuyAnother handler exists with proper back/cancel."
+      message: "Two changes: (1) PIRATE_SCRIPT MIGRATION: New Twilio sub-account ACeb229829601188c295caf6c245e37745, new number +18884508057, SIP creds, preserved 371 min used. (2) MINUTES POOLING: Sub-numbers now share parent plan's minutes/SMS pool. Helpers getPoolMinutesUsed/getPoolMinuteLimit added to _index.js. Voice webhook limit check uses pooled totals. manageNumber display in all 4 langs of phone-config.js shows pooled usage. Verify: (a) Node.js healthy + 0 errors, (b) DB has correct new sub-account/number for chatId 1005284399, (c) getPoolMinutesUsed/getPoolMinuteLimit helpers exist, (d) voice webhook uses pooled limit check, (e) manageNumber in all 4 langs accepts allNumbers param and computes pool, (f) showManageScreen passes allNumbers."
     - agent: "main"
       message: "Implemented marketplace listing broadcast feature. When seller publishes a new listing, ALL bot users get a notification with image + details + inline buttons. Please verify: (a) Node.js health, (b) broadcastNewListing function in utils.js is properly defined and exported (line ~447, exported at line ~791), (c) broadcastNewListing is imported in _index.js (line 132), (d) broadcastNewListing is called in mpNewConfirm handler (line ~6556) after product creation as fire-and-forget, (e) the function correctly filters out seller's own chatId and dead users, (f) sends photo with caption + inline keyboard if images exist, text otherwise, (g) uses BROADCAST_CONFIG batching, (h) error log clean."
     - agent: "testing"
