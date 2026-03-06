@@ -413,9 +413,14 @@ async function createAndSubmitBundle(chatId, session) {
     // 2. Create Bundle
     const selfUrl = process.env.SELF_URL || process.env.SELF_URL_PROD
     const bundleCallbackUrl = selfUrl ? `${selfUrl}/twilio/bundle-status` : undefined
+    // Extract ISO country code (e.g. 'IE' from 'IE:local') and number type (e.g. 'local')
+    const [isoCountry, numType] = (session.countryCode || '').split(':')
     const bundleResult = await deps.twilioService.createBundle(
-      `Nomadly-${chatId}-${session.countryCode}-${session.numType}`,
+      `Nomadly-${chatId}-${session.countryCode}-${session.numType || numType}`,
       process.env.NOMADLY_SERVICE_EMAIL || 'support@nomadly.com',
+      isoCountry,
+      session.numType || numType || 'local',
+      'individual',
       config.regulationSid,
       bundleCallbackUrl
     )
