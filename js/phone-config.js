@@ -402,7 +402,8 @@ Get a virtual number in 30+ countries — in under 2 minutes.
 🤖 Set up IVR auto-attendant
 🔗 Connect via SIP softphone
 
-Plans from <b>$${PHONE_STARTER_PRICE}/mo</b> with ${plans.starter.minutes} min + ${plans.starter.sms} SMS included.
+Plans from <b>$${PHONE_STARTER_PRICE}/mo</b> with ${plans.starter.minutes} inbound min + ${plans.starter.sms} inbound SMS included.
+💳 Outbound calls charged from wallet balance.
 
 Select an option:`,
 
@@ -440,22 +441,22 @@ Select an option:`,
   selectPlan: (number) => {
     let text = `✅ Selected: <b>${formatPhone(number)}</b>\n\n📋 Choose your plan:\n\n`
     if (PHONE_STARTER_ON) {
-      text += `<b>💡 Starter — $${PHONE_STARTER_PRICE}/mo</b>\n${plans.starter.minutes} min · ${plans.starter.sms} SMS · ${plansI18n.en.starter.features.join(' · ')}\n➕ Add up to ${SUB_NUMBER_LIMITS.starter} extra numbers (from $${SUB_NUMBER_BASE_PRICE}/mo each)\n\n`
+      text += `<b>💡 Starter — $${PHONE_STARTER_PRICE}/mo</b>\n📞 ${plans.starter.minutes} inbound min · 📩 ${plans.starter.sms} inbound SMS · ${plansI18n.en.starter.features.join(' · ')}\n➕ Add up to ${SUB_NUMBER_LIMITS.starter} extra numbers (from $${SUB_NUMBER_BASE_PRICE}/mo each)\n\n`
     }
     if (PHONE_PRO_ON) {
-      text += `<b>⭐ Pro — $${PHONE_PRO_PRICE}/mo</b>\n${plans.pro.minutes} min · ${plans.pro.sms} SMS · ${plansI18n.en.pro.features.join(' · ')}\n➕ Add up to ${SUB_NUMBER_LIMITS.pro} extra numbers (from $${SUB_NUMBER_BASE_PRICE}/mo each)\n\n`
+      text += `<b>⭐ Pro — $${PHONE_PRO_PRICE}/mo</b>\n📞 ${plans.pro.minutes} inbound min · 📩 ${plans.pro.sms} inbound SMS · ${plansI18n.en.pro.features.join(' · ')}\n➕ Add up to ${SUB_NUMBER_LIMITS.pro} extra numbers (from $${SUB_NUMBER_BASE_PRICE}/mo each)\n\n`
     }
     if (PHONE_BUSINESS_ON) {
-      text += `<b>👑 Business — $${PHONE_BUSINESS_PRICE}/mo</b>\n${plans.business.minutes} min · ${plans.business.sms} SMS · ${plansI18n.en.business.features.join(' · ')}\n➕ Add up to ${SUB_NUMBER_LIMITS.business} extra numbers (from $${SUB_NUMBER_BASE_PRICE}/mo each)\n\n`
+      text += `<b>👑 Business — $${PHONE_BUSINESS_PRICE}/mo</b>\n📞 ${plans.business.minutes} inbound min · 📩 ${plans.business.sms} inbound SMS · ${plansI18n.en.business.features.join(' · ')}\n➕ Add up to ${SUB_NUMBER_LIMITS.business} extra numbers (from $${SUB_NUMBER_BASE_PRICE}/mo each)\n\n`
     }
-    text += `<i>Outbound & Forwarding: $${CALL_FORWARDING_RATE_MIN}/min from wallet</i>`
+    text += `<i>📞 Plan minutes are for inbound calls only.\n💳 Outbound calls & forwarding are charged from your wallet balance.</i>`
     return text
   },
 
   orderSummary: (number, country, plan, price) => {
     const planKey = plan.name.toLowerCase()
     const features = plansI18n.en[planKey]?.features || plan.features
-    return `📋 <b>Order Summary</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/mo\n📩 ${plan.sms} SMS · 📞 ${plan.minutes} min · 📲 Outbound & Fwd $${CALL_FORWARDING_RATE_MIN}/min\n⚡ ${features.join(', ')}\n\n💰 Total: <b>$${price}</b> (first month)`
+    return `📋 <b>Order Summary</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/mo\n📩 ${plan.sms} inbound SMS · 📞 ${plan.minutes} inbound min\n💳 Outbound calls & forwarding charged from wallet\n⚡ ${features.join(', ')}\n\n💰 Total: <b>$${price}</b> (first month)`
   },
 
   paymentPrompt: (price) => `Price: <b>$${price}</b>. Choose payment method:`,
@@ -579,6 +580,7 @@ Select an option:`,
     if (hasVoice) text += `\n📞 Inbound Minutes: ${minDisplay}${minWarning}`
     if (hasSms) text += `\n📩 Inbound SMS: ${smsDisplay} (receive only)${smsWarning}`
     if (hasFax) text += `\n📠 Fax: Included — inbound faxes forwarded to Telegram`
+    if (hasVoice) text += `\n💳 Outbound calls charged from wallet`
 
     // Capabilities badge
     const caps = []
@@ -607,7 +609,7 @@ Select an option:`,
       text += `\n🎵 Hold Music: ${config.holdMusic ? 'ON' : 'OFF'}`
     }
     const rate = config?.forwardTo && config.forwardTo.startsWith('+1') ? OVERAGE_RATE_MIN : CALL_FORWARDING_RATE_MIN
-    text += `\n💰 Uses plan minutes, then $${rate}/min overage`
+    text += `\n💳 Charged from wallet at $${rate}/min`
     if (walletBal !== undefined) {
       text += ` · 💳 $${walletBal.toFixed(2)}`
     }
