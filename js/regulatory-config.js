@@ -133,7 +133,8 @@ const COUNTRY_REGS = {
   'IE:local': {
     tier: 3,
     regulationSid: 'RNc2b0d6e647462e65bcc1479e7130315d',
-    endUserFields: ['first_name', 'last_name', 'email'],
+    endUserFields: ['first_name', 'last_name', 'email', 'business_identity', 'is_subassigned'],
+    autoFill: { business_identity: 'DIRECT_CUSTOMER', is_subassigned: 'NO' },
     textInputs: [
       { key: 'email', prompt: { en: '📧 Enter your email address:', fr: '📧 Entrez votre adresse email :', zh: '📧 输入您的电子邮箱：', hi: '📧 अपना ईमेल पता दर्ज करें:' } },
     ],
@@ -144,10 +145,10 @@ const COUNTRY_REGS = {
         type: 'government_issued_document',
         fields: { from: ['first_name', 'last_name'] },
         prompt: {
-          en: '📷 <b>Step {step}/{total}: Upload ID Proof</b>\n\nSend a photo of your <b>Government ID</b> (name visible).',
+          en: '📷 <b>Step {step}/{total}: Upload ID Proof</b>\n\nSend a photo of your <b>Government ID or Passport</b> (showing full name).',
           fr: '📷 <b>Étape {step}/{total}: Preuve d\'identité</b>\n\nEnvoyez une photo de votre <b>pièce d\'identité</b>.',
-          zh: '📷 <b>步骤 {step}/{total}：上传身份证明</b>\n\n请发送<b>政府身份证</b>照片。',
-          hi: '📷 <b>चरण {step}/{total}: पहचान प्रमाण</b>\n\n<b>सरकारी ID</b> की फ़ोटो भेजें।',
+          zh: '📷 <b>步骤 {step}/{total}：上传身份证明</b>\n\n请发送<b>政府身份证或护照</b>的照片。',
+          hi: '📷 <b>चरण {step}/{total}: पहचान प्रमाण</b>\n\n<b>सरकारी ID या पासपोर्ट</b> की फ़ोटो भेजें।',
         },
       },
       {
@@ -157,9 +158,9 @@ const COUNTRY_REGS = {
         fields: { needsAddress: true },
         prompt: {
           en: '📷 <b>Step {step}/{total}: Upload Address Proof</b>\n\nSend a photo of a <b>utility bill, tax notice, or rent receipt</b> showing your Irish address (must include Eircode).',
-          fr: '📷 <b>Étape {step}/{total}: Preuve d\'adresse</b>\n\nEnvoyez une photo d\'une <b>facture</b> avec votre adresse irlandaise.',
-          zh: '📷 <b>步骤 {step}/{total}：上传地址证明</b>\n\n请发送包含爱尔兰地址的<b>账单</b>照片。',
-          hi: '📷 <b>चरण {step}/{total}: पता प्रमाण</b>\n\nआयरिश पता दिखाने वाले <b>बिल</b> की फ़ोटो भेजें।',
+          fr: '📷 <b>Étape {step}/{total}: Preuve d\'adresse</b>\n\nEnvoyez une photo d\'une <b>facture</b> avec votre adresse irlandaise (Eircode requis).',
+          zh: '📷 <b>步骤 {step}/{total}：上传地址证明</b>\n\n请发送包含爱尔兰地址的<b>账单</b>照片（须含Eircode）。',
+          hi: '📷 <b>चरण {step}/{total}: पता प्रमाण</b>\n\nआयरिश पता दिखाने वाले <b>बिल</b> की फ़ोटो भेजें（Eircode आवश्यक）。',
         },
       },
     ],
@@ -294,13 +295,13 @@ const COUNTRY_REGS = {
       {
         key: 'id_photo',
         requirement: 'name_info',
-        type: 'government_issued_document',
+        type: 'passport',
         fields: { from: ['first_name', 'last_name'] },
         prompt: {
-          en: '📷 <b>Step {step}/{total}: Upload Government ID or Passport</b>\n\nSend a clear photo showing your <b>full name</b>.',
-          fr: '📷 <b>Étape {step}/{total}: Pièce d\'identité</b>\n\nEnvoyez une photo avec votre <b>nom complet</b>.',
-          zh: '📷 <b>步骤 {step}/{total}：上传身份证或护照</b>\n\n请发送显示<b>全名</b>的照片。',
-          hi: '📷 <b>चरण {step}/{total}: ID या पासपोर्ट</b>\n\n<b>पूरा नाम</b> दिखाने वाली फ़ोटो भेजें。',
+          en: '📷 <b>Step {step}/{total}: Upload Passport</b>\n\nSend a photo of your <b>passport</b> showing your full name.',
+          fr: '📷 <b>Étape {step}/{total}: Passeport</b>\n\nEnvoyez une photo de votre <b>passeport</b> montrant votre nom.',
+          zh: '📷 <b>步骤 {step}/{total}：上传护照</b>\n\n请发送显示<b>全名</b>的护照照片。',
+          hi: '📷 <b>चरण {step}/{total}: पासपोर्ट अपलोड करें</b>\n\nअपना <b>पूरा नाम</b> दिखाने वाला पासपोर्ट भेजें।',
         },
       },
       {
@@ -309,10 +310,10 @@ const COUNTRY_REGS = {
         type: 'government_issued_document',
         fields: { needsAddress: true },
         prompt: {
-          en: '📷 <b>Step {step}/{total}: Upload Address Proof</b>\n\nSend a photo of a <b>Government ID showing local address, work permit, or student ID</b>.',
-          fr: '📷 <b>Étape {step}/{total}: Preuve d\'adresse locale</b>\n\nEnvoyez une photo d\'un <b>document avec adresse locale</b>.',
-          zh: '📷 <b>步骤 {step}/{total}：上传地址证明</b>\n\n请发送<b>显示当地地址的证件</b>照片。',
-          hi: '📷 <b>चरण {step}/{total}: पता प्रमाण</b>\n\nस्थानीय पता दिखाने वाले <b>दस्तावेज़</b> की फ़ोटो भेजें。',
+          en: '📷 <b>Step {step}/{total}: Upload Address Proof</b>\n\nSend a photo of a <b>Malaysian ID or work permit showing local address</b>.',
+          fr: '📷 <b>Étape {step}/{total}: Preuve d\'adresse</b>\n\nEnvoyez une photo d\'un <b>document avec adresse locale malaisienne</b>.',
+          zh: '📷 <b>步骤 {step}/{total}：上传地址证明</b>\n\n请发送<b>显示马来西亚当地地址的证件</b>照片。',
+          hi: '📷 <b>चरण {step}/{total}: पता प्रमाण</b>\n\nमलेशियाई पता दिखाने वाले <b>दस्तावेज़</b> की फ़ोटो भेजें।',
         },
       },
     ],

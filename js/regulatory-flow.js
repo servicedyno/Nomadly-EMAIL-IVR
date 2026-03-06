@@ -380,8 +380,16 @@ async function createAndSubmitBundle(chatId, session) {
 
     // 1. Create End-User
     const endUserAttrs = {}
+    // Merge autoFill defaults first (e.g. business_identity=DIRECT_CUSTOMER)
+    if (config.autoFill) {
+      Object.assign(endUserAttrs, config.autoFill)
+    }
     for (const field of config.endUserFields) {
-      endUserAttrs[field] = session.collectedData[field] || 'N/A'
+      if (session.collectedData[field]) {
+        endUserAttrs[field] = session.collectedData[field]
+      } else if (!endUserAttrs[field]) {
+        endUserAttrs[field] = 'N/A'
+      }
     }
 
     const endUserResult = await deps.twilioService.createEndUser(
