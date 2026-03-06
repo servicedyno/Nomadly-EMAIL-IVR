@@ -621,11 +621,16 @@ async function createBundle(friendlyName, email, isoCountry, numberType, endUser
     const opts = {
       friendlyName,
       email: email || process.env.NOMADLY_SERVICE_EMAIL || 'support@nomadly.com',
-      endUserType: endUserType || 'individual',
-      isoCountry: isoCountry || 'ZA',
-      numberType: numberType || 'local',
     }
-    if (regulationSid) opts.regulationSid = regulationSid
+    // When regulationSid is provided, use it ALONE — passing isoCountry/numberType/endUserType
+    // alongside regulationSid causes Twilio to return "ambiguous regulation parameters"
+    if (regulationSid) {
+      opts.regulationSid = regulationSid
+    } else {
+      opts.endUserType = endUserType || 'individual'
+      opts.isoCountry = isoCountry || 'ZA'
+      opts.numberType = numberType || 'local'
+    }
     if (statusCallback) opts.statusCallback = statusCallback
     const bundle = await client.numbers.v2.regulatoryCompliance.bundles.create(opts)
     log(`[Twilio] Created bundle: ${bundle.sid} (${friendlyName}, ${isoCountry}, status=${bundle.status})`)

@@ -1,380 +1,285 @@
 #!/usr/bin/env python3
 """
-Backend Test Suite for ZA Twilio Number Purchase Fix
-Tests the specific fixes mentioned in the review request for South Africa Twilio number purchases.
+Nomadly Telegram Bot Bug Fixes Verification Test
+Tests for Railway deployment log 34447901-61be-40db-ae82-647bc5926e82 bug fixes
 """
 
 import requests
+import re
 import json
-import sys
-from typing import Dict, List, Tuple
+import time
+from typing import Dict, List, Optional
 
-# Test configuration
+# Configuration
 BACKEND_URL = "http://localhost:5000"
-HEALTH_ENDPOINT = f"{BACKEND_URL}/health"
+TWILIO_SERVICE_PATH = "/app/js/twilio-service.js"
+INDEX_PATH = "/app/js/_index.js"
 
-def test_result(name: str, success: bool, details: str = "") -> Dict:
-    """Format test result"""
-    return {
-        "test": name,
-        "status": "✅ PASS" if success else "❌ FAIL", 
-        "details": details
-    }
-
-class ZATwilioFixTester:
+class NomadlyBugFixTester:
     def __init__(self):
         self.results = []
-        
-    def log(self, message: str):
-        print(f"[TEST] {message}")
-        
-    def test_nodejs_health(self) -> bool:
-        """Test 1: Node.js health check"""
+        print("🔍 Nomadly Telegram Bot Bug Fixes Verification Test")
+        print("=" * 60)
+
+    def log_test(self, test_name: str, passed: bool, details: str = ""):
+        """Log test result"""
+        status = "✅ PASS" if passed else "❌ FAIL"
+        print(f"{status} {test_name}")
+        if details:
+            print(f"   {details}")
+        self.results.append({
+            "test": test_name,
+            "passed": passed,
+            "details": details
+        })
+
+    def test_service_health(self):
+        """Test 1: Verify Node.js service health"""
         try:
-            response = requests.get(HEALTH_ENDPOINT, timeout=10)
+            response = requests.get(f"{BACKEND_URL}/health", timeout=10)
             if response.status_code == 200:
                 data = response.json()
-                healthy = data.get('status') == 'healthy'
-                self.results.append(test_result(
-                    "Node.js Health Check", 
-                    healthy,
-                    f"Status: {response.status_code}, Response: {data}"
-                ))
-                return healthy
+                if data.get("status") == "healthy" and data.get("database") == "connected":
+                    self.log_test("Service Health Check", True, 
+                                f"Status: {data.get('status')}, Database: {data.get('database')}, Uptime: {data.get('uptime')}")
+                    return True
+                else:
+                    self.log_test("Service Health Check", False, f"Unexpected response: {data}")
+                    return False
             else:
-                self.results.append(test_result(
-                    "Node.js Health Check", 
-                    False,
-                    f"HTTP {response.status_code}: {response.text}"
-                ))
+                self.log_test("Service Health Check", False, f"HTTP {response.status_code}")
                 return False
         except Exception as e:
-            self.results.append(test_result(
-                "Node.js Health Check", 
-                False,
-                f"Connection error: {str(e)}"
-            ))
+            self.log_test("Service Health Check", False, f"Connection error: {str(e)}")
             return False
-    
-    def check_error_log_empty(self) -> bool:
-        """Test 1b: Check error log is empty"""
+
+    def test_error_logs_empty(self):
+        """Test 2: Verify error logs are empty"""
         try:
             import os
             error_log_path = "/var/log/supervisor/nodejs.err.log"
             if os.path.exists(error_log_path):
                 size = os.path.getsize(error_log_path)
-                empty = size == 0
-                self.results.append(test_result(
-                    "Error Log Empty Check", 
-                    empty,
-                    f"Error log size: {size} bytes"
-                ))
-                return empty
+                if size == 0:
+                    self.log_test("Error Log Empty", True, "nodejs.err.log is 0 bytes")
+                    return True
+                else:
+                    # Read first few lines of error log
+                    with open(error_log_path, 'r') as f:
+                        errors = f.read(500)
+                    self.log_test("Error Log Empty", False, f"Log size: {size} bytes, content: {errors[:200]}")
+                    return False
             else:
-                self.results.append(test_result(
-                    "Error Log Empty Check", 
-                    False,
-                    "Error log file not found"
-                ))
+                self.log_test("Error Log Empty", False, "Error log file not found")
                 return False
         except Exception as e:
-            self.results.append(test_result(
-                "Error Log Empty Check", 
-                False,
-                f"Error checking log: {str(e)}"
-            ))
+            self.log_test("Error Log Empty", False, f"Error checking log: {str(e)}")
             return False
 
-    def read_file_content(self, file_path: str, start_line: int = None, end_line: int = None) -> str:
-        """Read file content with optional line range"""
+    def test_createbundle_bug_fix(self):
+        """Test 3: Bug Fix 1 - createBundle ambiguous regulation parameters"""
         try:
-            with open(file_path, 'r') as f:
-                lines = f.readlines()
-                if start_line is not None and end_line is not None:
-                    return ''.join(lines[start_line-1:end_line])
-                return ''.join(lines)
-        except Exception as e:
-            return f"Error reading file: {str(e)}"
-    
-    def test_wallet_handler_awaited_saveinfo(self) -> bool:
-        """Test 2: Wallet handler address flow - awaited saveInfo calls"""
-        try:
-            index_js_path = "/app/js/_index.js"
+            # Read twilio-service.js file
+            with open(TWILIO_SERVICE_PATH, 'r') as f:
+                content = f.read()
             
-            # Check lines 4496-4499 for awaited saveInfo calls
-            content = self.read_file_content(index_js_path, 4495, 4505)
+            # Find createBundle function (around line 617)
+            lines = content.split('\n')
+            createbundle_line = None
+            for i, line in enumerate(lines):
+                if 'async function createBundle(' in line:
+                    createbundle_line = i + 1  # 1-based line numbering
+                    break
             
-            required_awaited_calls = [
-                "await saveInfo('cpPendingCoin'",
-                "await saveInfo('cpPendingPriceUsd'", 
-                "await saveInfo('cpPendingPriceNgn'",
-                "await saveInfo('cpPaymentMethod'"
-            ]
+            if not createbundle_line:
+                self.log_test("createBundle Function Found", False, "createBundle function not found")
+                return False
             
-            missing_awaits = []
-            for call in required_awaited_calls:
-                if call not in content:
-                    missing_awaits.append(call)
+            self.log_test("createBundle Function Found", True, f"Found at line {createbundle_line}")
             
-            # Check line 4504 for cached address saveInfo
-            cached_addr_await = "await saveInfo('cpAddressSid', cachedAddr)" in content
-            if not cached_addr_await:
-                missing_awaits.append("await saveInfo('cpAddressSid', cachedAddr)")
-                
-            success = len(missing_awaits) == 0
-            details = f"Found all awaited saveInfo calls" if success else f"Missing awaited calls: {missing_awaits}"
+            # Check for the fix implementation
+            func_start = createbundle_line - 1
+            func_end = min(func_start + 50, len(lines))  # Check ~50 lines from function start
+            func_content = '\n'.join(lines[func_start:func_end])
             
-            self.results.append(test_result(
-                "Wallet Handler Awaited SaveInfo Calls",
-                success,
-                details
-            ))
-            return success
+            # Verify key elements of the fix
+            checks = {
+                "regulationSid parameter": "regulationSid" in lines[createbundle_line - 1],
+                "ambiguous regulation comment": "ambiguous regulation parameters" in func_content,
+                "conditional regulationSid logic": "if (regulationSid)" in func_content,
+                "else clause for other params": "} else {" in func_content and ("endUserType" in func_content or "isoCountry" in func_content),
+                "opts.regulationSid assignment": "opts.regulationSid = regulationSid" in func_content
+            }
+            
+            all_passed = True
+            for check_name, passed in checks.items():
+                self.log_test(f"createBundle - {check_name}", passed)
+                if not passed:
+                    all_passed = False
+            
+            return all_passed
             
         except Exception as e:
-            self.results.append(test_result(
-                "Wallet Handler Awaited SaveInfo Calls",
-                False,
-                f"Error checking file: {str(e)}"
-            ))
+            self.log_test("createBundle Bug Fix", False, f"Error reading file: {str(e)}")
             return False
-    
-    def test_bundle_required_bypass(self) -> bool:
-        """Test 3: Bundle-required bypass for ZA with cached address"""
+
+    def test_notifyadmin_bug_fix(self):
+        """Test 4: Bug Fix 2 - notifyAdmin is not defined"""
         try:
-            index_js_path = "/app/js/_index.js"
+            # Read _index.js file
+            with open(INDEX_PATH, 'r') as f:
+                content = f.read()
             
-            # Check lines around 4507-4515 for bundle logic
-            content = self.read_file_content(index_js_path, 4505, 4520)
+            lines = content.split('\n')
             
-            required_checks = [
-                "twilioService.needsBundle(countryCode)",
-                "pendingBundles.findOne({ chatId, countryCode, status: 'twilio-approved' })",
-                "await saveInfo('cpBundleSid', approvedBundle.bundleSid)"
-            ]
+            # Find notifyAdmin function definition (around line 514)
+            notifyadmin_def_line = None
+            for i, line in enumerate(lines):
+                if 'const notifyAdmin = (' in line or 'const notifyAdmin=' in line:
+                    notifyadmin_def_line = i + 1  # 1-based line numbering
+                    break
             
-            missing_checks = []
-            for check in required_checks:
-                if check not in content:
-                    missing_checks.append(check)
+            if not notifyadmin_def_line:
+                self.log_test("notifyAdmin Definition Found", False, "notifyAdmin function definition not found")
+                return False
             
-            success = len(missing_checks) == 0
-            details = f"All bundle checks found" if success else f"Missing checks: {missing_checks}"
+            self.log_test("notifyAdmin Definition Found", True, f"Found at line {notifyadmin_def_line}")
             
-            self.results.append(test_result(
-                "Bundle Required Bypass Logic",
-                success,
-                details
-            ))
-            return success
+            # Check function implementation
+            func_start = notifyadmin_def_line - 1
+            func_end = min(func_start + 20, len(lines))
+            func_content = '\n'.join(lines[func_start:func_end])
             
-        except Exception as e:
-            self.results.append(test_result(
-                "Bundle Required Bypass Logic", 
-                False,
-                f"Error checking file: {str(e)}"
-            ))
-            return False
-    
-    def test_bank_payment_path_fix(self) -> bool:
-        """Test 4: Bank payment path bundle check"""
-        try:
-            index_js_path = "/app/js/_index.js"
+            # Verify function structure
+            checks = {
+                "Arrow function syntax": "const notifyAdmin = (" in func_content,
+                "try/catch wrapper": "try {" in func_content and "} catch" in func_content,
+                "TELEGRAM_ADMIN_CHAT_ID check": "TELEGRAM_ADMIN_CHAT_ID" in func_content,
+                "bot.sendMessage call": "bot?.sendMessage" in func_content or "bot.sendMessage" in func_content,
+                "HTML parse_mode": "parse_mode: 'HTML'" in func_content or 'parse_mode: "HTML"' in func_content
+            }
             
-            # Check bank payment path around lines 16000-16030
-            content = self.read_file_content(index_js_path, 16000, 16030)
+            all_passed = True
+            for check_name, passed in checks.items():
+                self.log_test(f"notifyAdmin - {check_name}", passed)
+                if not passed:
+                    all_passed = False
             
-            required_elements = [
-                "twilioService.needsBundle(countryCode)",
-                "pendingBundles.findOne({ chatId, countryCode, status: 'twilio-approved' })",
-                "approvedBundle.bundleSid"
-            ]
+            # Count notifyAdmin usage sites
+            usage_count = content.count('notifyAdmin(')
+            expected_count = 16
+            usage_correct = usage_count == expected_count
+            self.log_test(f"notifyAdmin Usage Count", usage_correct, 
+                         f"Found {usage_count} calls, expected {expected_count}")
             
-            missing_elements = []
-            for element in required_elements:
-                if element not in content:
-                    missing_elements.append(element)
+            if not usage_correct:
+                all_passed = False
             
-            success = len(missing_elements) == 0
-            details = f"Bank path bundle logic found" if success else f"Missing elements: {missing_elements}"
+            # Verify definition comes before first usage
+            first_usage_line = None
+            for i, line in enumerate(lines):
+                if 'notifyAdmin(' in line and i + 1 != notifyadmin_def_line:
+                    first_usage_line = i + 1
+                    break
             
-            self.results.append(test_result(
-                "Bank Payment Path Bundle Fix",
-                success,
-                details
-            ))
-            return success
-            
-        except Exception as e:
-            self.results.append(test_result(
-                "Bank Payment Path Bundle Fix",
-                False,
-                f"Error checking file: {str(e)}"
-            ))
-            return False
-    
-    def test_executetwilio_purchase_signature(self) -> bool:
-        """Test 5: executeTwilioPurchase function signature and bundleSid parameter"""
-        try:
-            index_js_path = "/app/js/_index.js"
-            
-            # Check function signature around line 538
-            content = self.read_file_content(index_js_path, 535, 545)
-            
-            # Check for bundleSid parameter in function signature
-            function_signature_ok = "bundleSid" in content and "async function executeTwilioPurchase" in content
-            
-            # Check line 563 for bundleSid parameter passing
-            content2 = self.read_file_content(index_js_path, 560, 570)
-            bundlesid_passed = "bundleSid || null" in content2
-            
-            success = function_signature_ok and bundlesid_passed
-            details = f"Function signature: {'✓' if function_signature_ok else '✗'}, Parameter passing: {'✓' if bundlesid_passed else '✗'}"
-            
-            self.results.append(test_result(
-                "executeTwilioPurchase BundleSid Parameter",
-                success,
-                details
-            ))
-            return success
-            
-        except Exception as e:
-            self.results.append(test_result(
-                "executeTwilioPurchase BundleSid Parameter",
-                False,
-                f"Error checking file: {str(e)}"
-            ))
-            return False
-    
-    def test_wallet_executetwilio_call(self) -> bool:
-        """Test 5b: Wallet handler executeTwilioPurchase call with bundleSid"""
-        try:
-            index_js_path = "/app/js/_index.js"
-            
-            # Check line 4600 for bundleSid parameter in call
-            content = self.read_file_content(index_js_path, 4595, 4605)
-            
-            # Look for the executeTwilioPurchase call with bundleSid as 11th parameter
-            bundlesid_in_call = "info?.cpBundleSid || null" in content
-            
-            success = bundlesid_in_call
-            details = f"bundleSid parameter found in wallet executeTwilioPurchase call" if success else "bundleSid parameter missing in call"
-            
-            self.results.append(test_result(
-                "Wallet executeTwilioPurchase BundleSid Call",
-                success,
-                details
-            ))
-            return success
-            
-        except Exception as e:
-            self.results.append(test_result(
-                "Wallet executeTwilioPurchase BundleSid Call",
-                False,
-                f"Error checking file: {str(e)}"
-            ))
-            return False
-    
-    def test_unprotected_cached_address_paths(self) -> bool:
-        """Test 6: Check for remaining unprotected cached-address paths"""
-        try:
-            index_js_path = "/app/js/_index.js"
-            
-            # Read the entire file to search for problematic patterns
-            content = self.read_file_content(index_js_path)
-            
-            # Look for executeTwilioPurchase calls with cachedAddr that don't handle bundleSid
-            issues_found = []
-            
-            # Check crypto payment paths (known issues from analysis)
-            if "const result = await executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, info?.cpNumberType || 'local', 'crypto_' + coin, cachedAddr)" in content:
-                issues_found.append("Unprotected crypto payment path at line ~16572")
-            
-            if "const result = await executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, info?.cpNumberType || 'local', 'crypto_dynopay_' + coin, cachedAddr)" in content:
-                issues_found.append("Unprotected dynopay crypto payment path at line ~17106")
-            
-            # The bank payment path should be protected now
-            bank_protected = "approvedBundle.bundleSid" in content and "/bank-pay-phone" in content
-            
-            success = len(issues_found) == 0
-            details = f"Bank path protected: {'✓' if bank_protected else '✗'}"
-            if issues_found:
-                details += f", Issues found: {issues_found}"
+            if first_usage_line and notifyadmin_def_line < first_usage_line:
+                self.log_test("notifyAdmin Definition Before Usage", True, 
+                             f"Definition at line {notifyadmin_def_line}, first usage at line {first_usage_line}")
+            elif first_usage_line:
+                self.log_test("notifyAdmin Definition Before Usage", False,
+                             f"Definition at line {notifyadmin_def_line}, first usage at line {first_usage_line}")
+                all_passed = False
             else:
-                details += ", No unprotected paths found"
+                self.log_test("notifyAdmin Definition Before Usage", False, "No usage found")
+                all_passed = False
             
-            self.results.append(test_result(
-                "Unprotected Cached-Address Paths Check", 
-                success,
-                details
-            ))
-            return success
+            return all_passed
             
         except Exception as e:
-            self.results.append(test_result(
-                "Unprotected Cached-Address Paths Check",
-                False,
-                f"Error checking file: {str(e)}"
-            ))
+            self.log_test("notifyAdmin Bug Fix", False, f"Error reading file: {str(e)}")
             return False
-    
-    def run_all_tests(self) -> Tuple[int, int]:
-        """Run all tests and return (passed, total)"""
-        self.log("Starting ZA Twilio Number Purchase Fix Testing")
+
+    def test_services_initialization(self):
+        """Test 5: Verify all services are initialized in logs"""
+        try:
+            import os
+            log_path = "/var/log/supervisor/nodejs.out.log"
+            if not os.path.exists(log_path):
+                self.log_test("Services Initialization", False, "nodejs.out.log not found")
+                return False
+            
+            with open(log_path, 'r') as f:
+                log_content = f.read()
+            
+            # Check for key service initializations
+            expected_services = [
+                "[AudioLibrary] Initialized",
+                "[BulkCall] Service initialized",
+                "[VoiceService] Initialized",
+                "[LeadJobs] Persistence initialized",
+                "[BundleChecker] Scheduled every 30min"
+            ]
+            
+            all_services_found = True
+            for service in expected_services:
+                if service in log_content:
+                    self.log_test(f"Service Init - {service.split(']')[0][1:]}", True)
+                else:
+                    self.log_test(f"Service Init - {service.split(']')[0][1:]}", False)
+                    all_services_found = False
+            
+            return all_services_found
+            
+        except Exception as e:
+            self.log_test("Services Initialization", False, f"Error reading logs: {str(e)}")
+            return False
+
+    def run_all_tests(self):
+        """Run all tests and return summary"""
+        print("\n🚀 Starting Bug Fix Verification Tests...")
+        print("-" * 40)
         
-        # Test 1: Node.js health
-        self.test_nodejs_health()
-        self.check_error_log_empty()
+        # Run tests in order
+        tests_passed = 0
+        total_tests = 0
         
-        # Test 2: Wallet handler awaited saveInfo calls
-        self.test_wallet_handler_awaited_saveinfo()
+        test_functions = [
+            self.test_service_health,
+            self.test_error_logs_empty, 
+            self.test_createbundle_bug_fix,
+            self.test_notifyadmin_bug_fix,
+            self.test_services_initialization
+        ]
         
-        # Test 3: Bundle-required bypass logic
-        self.test_bundle_required_bypass()
+        for test_func in test_functions:
+            result = test_func()
+            total_tests += 1
+            if result:
+                tests_passed += 1
+            print()  # Blank line between tests
         
-        # Test 4: Bank payment path fix  
-        self.test_bank_payment_path_fix()
-        
-        # Test 5: executeTwilioPurchase signature and calls
-        self.test_executetwilio_purchase_signature()
-        self.test_wallet_executetwilio_call()
-        
-        # Test 6: No unprotected cached-address paths
-        self.test_unprotected_cached_address_paths()
-        
-        # Calculate results
-        passed = len([r for r in self.results if "✅" in r['status']])
-        total = len(self.results)
-        
-        return passed, total
-    
-    def print_results(self):
-        """Print test results summary"""
-        print("\n" + "="*80)
-        print("ZA TWILIO NUMBER PURCHASE FIX - TEST RESULTS")
-        print("="*80)
+        # Summary
+        print("=" * 60)
+        print("📊 FINAL TEST SUMMARY")
+        print("=" * 60)
         
         for result in self.results:
-            print(f"{result['status']} {result['test']}")
-            if result['details']:
-                print(f"    Details: {result['details']}")
-            print()
+            status = "✅" if result["passed"] else "❌"
+            print(f"{status} {result['test']}")
+            if result["details"] and not result["passed"]:
+                print(f"   {result['details']}")
         
-        passed = len([r for r in self.results if "✅" in r['status']])
-        total = len(self.results)
-        success_rate = (passed / total * 100) if total > 0 else 0
+        success_rate = (tests_passed / total_tests) * 100
+        print(f"\n🎯 SUCCESS RATE: {tests_passed}/{total_tests} tests passed ({success_rate:.1f}%)")
         
-        print(f"SUMMARY: {passed}/{total} tests passed ({success_rate:.1f}% success rate)")
-        print("="*80)
-
-def main():
-    """Main test execution"""
-    tester = ZATwilioFixTester()
-    passed, total = tester.run_all_tests()
-    tester.print_results()
-    
-    # Return appropriate exit code
-    sys.exit(0 if passed == total else 1)
+        if tests_passed == total_tests:
+            print("🎉 ALL BUG FIXES VERIFIED SUCCESSFULLY!")
+            return True
+        else:
+            print("⚠️  Some tests failed - see details above")
+            return False
 
 if __name__ == "__main__":
-    main()
+    tester = NomadlyBugFixTester()
+    success = tester.run_all_tests()
+    exit(0 if success else 1)

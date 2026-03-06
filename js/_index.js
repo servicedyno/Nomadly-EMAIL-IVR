@@ -510,6 +510,20 @@ const notifyGroup = async (message) => {
   }
 }
 
+// Send admin-only notification (private, not to groups)
+const notifyAdmin = (message) => {
+  try {
+    if (TELEGRAM_ADMIN_CHAT_ID) {
+      bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID, message + `\n— <b>${CHAT_BOT_NAME}</b>`, { parse_mode: 'HTML' })?.catch(e => {
+        log('notifyAdmin error: ' + e.message)
+      })
+    }
+  } catch (e) {
+    log('notifyAdmin error: ' + e.message)
+  }
+}
+
+
 // variables to implement core functionality
 let state = {},
   walletOf = {},
