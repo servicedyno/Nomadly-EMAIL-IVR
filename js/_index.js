@@ -16568,6 +16568,25 @@ app.get('/crypto-pay-phone', auth, async (req, res) => {
     if (needsTwilioAddress(countryCode, provider)) {
       const cachedAddr = await getCachedTwilioAddress(chatId, countryCode)
       if (cachedAddr) {
+        // ── Bundle-required countries (e.g. ZA) with cached address ──
+        if (twilioService.needsBundle(countryCode)) {
+          const approvedBundle = await pendingBundles.findOne({ chatId, countryCode, status: 'twilio-approved' })
+          if (approvedBundle) {
+            sendMessage(chatId, phoneConfig.getMsg(lang).purchasingNumber)
+            const result = await executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, info?.cpNumberType || 'local', 'crypto_' + coin, cachedAddr, null, approvedBundle.bundleSid)
+            if (result.error) { addFundsTo(walletOf, chatId, 'usd', Number(price), lang); return res.send(html(phoneConfig.getMsg(lang).purchaseFailed)) }
+            sendMessage(chatId, cpTxt.activated(selectedNumber, result.plan?.name || planKey, price, result.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(result.expiresAt.toISOString())))
+            return res.send(html())
+          } else {
+            // No approved bundle — redirect to address/bundle flow
+            await state.updateOne({ _id: parseFloat(chatId) }, { $set: {
+              action: 'cpEnterAddress', cpPendingCoin: 'crypto_' + coin, cpPendingPriceUsd: price, cpPendingPriceNgn: 0, cpPaymentMethod: 'crypto_' + coin,
+            }}, { upsert: true })
+            sendMessage(chatId, `✅ Crypto payment received!\n\n📍 <b>${countryName}</b> requires address verification for number activation.\n\nPlease enter your full address:\n<code>Street, City, Postal Code, Country</code>\n\n<i>Example: 42 Hamilton Ave, Bryanston, 2191, South Africa</i>\n\nOnce submitted, we'll handle the telecom verification process and activate your number automatically.`, { parse_mode: 'HTML' })
+            return res.send(html())
+          }
+        }
+        // Non-bundle: proceed with cached address
         sendMessage(chatId, phoneConfig.getMsg(lang).purchasingNumber)
         const result = await executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, info?.cpNumberType || 'local', 'crypto_' + coin, cachedAddr)
         if (result.error) { addFundsTo(walletOf, chatId, 'usd', Number(price), lang); return res.send(html(phoneConfig.getMsg(lang).purchaseFailed)) }
@@ -17102,6 +17121,25 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
     if (needsTwilioAddress(countryCode, provider)) {
       const cachedAddr = await getCachedTwilioAddress(chatId, countryCode)
       if (cachedAddr) {
+        // ── Bundle-required countries (e.g. ZA) with cached address ──
+        if (twilioService.needsBundle(countryCode)) {
+          const approvedBundle = await pendingBundles.findOne({ chatId, countryCode, status: 'twilio-approved' })
+          if (approvedBundle) {
+            sendMessage(chatId, phoneConfig.getMsg(lang).purchasingNumber)
+            const result = await executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, info?.cpNumberType || 'local', 'crypto_dynopay_' + coin, cachedAddr, null, approvedBundle.bundleSid)
+            if (result.error) { addFundsTo(walletOf, chatId, 'usd', Number(price), lang); return res.send(html(phoneConfig.getMsg(lang).purchaseFailed)) }
+            sendMessage(chatId, cpTxt.activated(selectedNumber, result.plan?.name || planKey, price, result.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(result.expiresAt.toISOString())))
+            return res.send(html())
+          } else {
+            // No approved bundle — redirect to address/bundle flow
+            await state.updateOne({ _id: parseFloat(chatId) }, { $set: {
+              action: 'cpEnterAddress', cpPendingCoin: 'crypto_dynopay_' + coin, cpPendingPriceUsd: price, cpPendingPriceNgn: 0, cpPaymentMethod: 'crypto_dynopay_' + coin,
+            }}, { upsert: true })
+            sendMessage(chatId, `✅ Crypto payment received!\n\n📍 <b>${countryName}</b> requires address verification for number activation.\n\nPlease enter your full address:\n<code>Street, City, Postal Code, Country</code>\n\n<i>Example: 42 Hamilton Ave, Bryanston, 2191, South Africa</i>\n\nOnce submitted, we'll handle the telecom verification process and activate your number automatically.`, { parse_mode: 'HTML' })
+            return res.send(html())
+          }
+        }
+        // Non-bundle: proceed with cached address
         sendMessage(chatId, phoneConfig.getMsg(lang).purchasingNumber)
         const result = await executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, info?.cpNumberType || 'local', 'crypto_dynopay_' + coin, cachedAddr)
         if (result.error) { addFundsTo(walletOf, chatId, 'usd', Number(price), lang); return res.send(html(phoneConfig.getMsg(lang).purchaseFailed)) }
