@@ -67,9 +67,15 @@ async function startDocCollection(chatId, purchaseData, lang) {
   const docs = config.docs || []
 
   // Build ordered step list
+  // IMPORTANT: doc objects have their own 'type' field (e.g. 'government_issued_document')
+  // which is the Twilio Supporting Document type. We must preserve step type as 'photo'
+  // so rename the Twilio doc type to 'twilioDocType' to avoid overwriting step.type.
   const steps = []
   textInputs.forEach((ti, i) => steps.push({ type: 'text', ...ti, index: i }))
-  docs.forEach((doc, i) => steps.push({ type: 'photo', ...doc, index: i }))
+  docs.forEach((doc, i) => {
+    const { type: twilioDocType, ...rest } = doc
+    steps.push({ ...rest, type: 'photo', twilioDocType, index: i })
+  })
 
   const session = {
     chatId,
@@ -557,7 +563,7 @@ async function uploadToTwilio(chatId, session, docConfig, filePath) {
   // Upload to Twilio using REST API with multipart/form-data
   const form = new FormData()
   form.append('FriendlyName', `${docConfig.key}-${chatId}-${session.countryCode}`)
-  form.append('Type', docConfig.type)
+  form.append('Type', docConfig.twilioDocType || docConfig.type)
   form.append('Attributes', JSON.stringify(attributes))
   form.append('File', fs.createReadStream(filePath))
 
