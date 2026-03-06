@@ -983,7 +983,7 @@ ${CHAT_BOT_NAME}`,
   mpOnlyTextPhoto: '⚠️ मार्केटप्लेस चैट में केवल टेक्स्ट और फोटो भेजे जा सकते हैं।',
   mpPaymentWarning: '🚨 चेतावनी: कोई सीधे भुगतान की मांग कर रहा है।\nहमेशा @Lockbaybot एस्क्रो का उपयोग करें।',
   mpEscrowMsg: (title, price, sellerRef) =>
-    `🔒 <b>एस्क्रो — सुरक्षित खरीदारी शुरू करें</b>\n\n📦 उत्पाद: <b>${title}</b>\n💰 सहमत मूल्य: <b>$${Number(price).toFixed(2)}</b>\n👤 विक्रेता: ${sellerRef}\n\nसुरक्षित खरीदारी के लिए:\n1. @Lockbaybot खोलें\n2. एस्क्रो बनाएं\n3. दोनों पक्ष पुष्टि करें\n\n⚠️ एस्क्रो के बाहर कभी भुगतान न करें`,
+    `🔒 <b>एस्क्रो — सुरक्षित खरीदारी शुरू करें</b>\n\n📦 उत्पाद: <b>${title}</b>\n💰 सहमत मूल्य: <b>$${Number(price).toFixed(2)}</b>\n👤 विक्रेता: <b>${sellerRef}</b>\n\nसुरक्षित खरीदारी के लिए:\n1. @Lockbaybot खोलें\n2. विक्रेता <b>${sellerRef}</b> के साथ <b>$${Number(price).toFixed(2)}</b> का एस्क्रो बनाएं\n3. दोनों पक्ष पुष्टि करें\n\n⚠️ एस्क्रो के बाहर कभी भुगतान न करें`,
   mpPriceSuggest: (role, amount) => `💰 <b>${role}</b> सुझाव: <b>$${amount}</b>`,
   mpPriceUsage: 'उपयोग: /price 50 ($50 सुझाव देने के लिए)',
   mpPriceInvalid: '❌ अमान्य राशि। $20 से $5,000 के बीच होनी चाहिए।',

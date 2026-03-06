@@ -976,7 +976,7 @@ ${CHAT_BOT_NAME}`,
   mpOnlyTextPhoto: '⚠️ 市场聊天中只能发送文字和照片。',
   mpPaymentWarning: '🚨 警告：有人似乎在要求直接付款。\n请始终使用 @Lockbaybot 托管。',
   mpEscrowMsg: (title, price, sellerRef) =>
-    `🔒 <b>托管 — 开始安全购买</b>\n\n📦 产品：<b>${title}</b>\n💰 商定价格：<b>$${Number(price).toFixed(2)}</b>\n👤 卖家：${sellerRef}\n\n安全购买步骤：\n1. 打开 @Lockbaybot\n2. 创建托管\n3. 双方确认\n\n⚠️ 切勿在托管之外付款`,
+    `🔒 <b>托管 — 开始安全购买</b>\n\n📦 产品：<b>${title}</b>\n💰 商定价格：<b>$${Number(price).toFixed(2)}</b>\n👤 卖家：<b>${sellerRef}</b>\n\n安全购买步骤：\n1. 打开 @Lockbaybot\n2. 与卖家 <b>${sellerRef}</b> 创建 <b>$${Number(price).toFixed(2)}</b> 的托管\n3. 双方确认\n\n⚠️ 切勿在托管之外付款`,
   mpPriceSuggest: (role, amount) => `💰 <b>${role}</b> 建议：<b>$${amount}</b>`,
   mpPriceUsage: '用法：/price 50 建议 $50',
   mpPriceInvalid: '❌ 金额无效。必须在 $20 到 $5,000 之间。',

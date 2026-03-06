@@ -994,7 +994,7 @@ ${CHAT_BOT_NAME}`,
   mpOnlyTextPhoto: '⚠️ Seuls le texte et les photos sont autorisés.',
   mpPaymentWarning: '🚨 Attention : quelqu\'un semble demander un paiement direct.\nUtilisez toujours l\'escrow @Lockbaybot.',
   mpEscrowMsg: (title, price, sellerRef) =>
-    `🔒 <b>ESCROW — ACHAT PROTÉGÉ</b>\n\n📦 Produit : <b>${title}</b>\n💰 Prix convenu : <b>$${Number(price).toFixed(2)}</b>\n👤 Vendeur : ${sellerRef}\n\nPour acheter en toute sécurité :\n1. Ouvrez @Lockbaybot\n2. Créez un escrow avec les détails du produit\n3. Les deux parties confirment\n\n⚠️ N\'envoyez JAMAIS de paiement en dehors de l\'escrow`,
+    `🔒 <b>ESCROW — ACHAT PROTÉGÉ</b>\n\n📦 Produit : <b>${title}</b>\n💰 Prix convenu : <b>$${Number(price).toFixed(2)}</b>\n👤 Vendeur : <b>${sellerRef}</b>\n\nPour acheter en toute sécurité :\n1. Ouvrez @Lockbaybot\n2. Créez un escrow avec le vendeur <b>${sellerRef}</b> pour <b>$${Number(price).toFixed(2)}</b>\n3. Les deux parties confirment\n\n⚠️ N\'envoyez JAMAIS de paiement en dehors de l\'escrow`,
   mpPriceSuggest: (role, amount) => `💰 <b>${role}</b> propose : <b>$${amount}</b>`,
   mpPriceUsage: 'Usage : /price 50 pour proposer 50 $',
   mpPriceInvalid: '❌ Montant invalide. Doit être entre 20 $ et 5 000 $.',

@@ -1028,7 +1028,7 @@ ${bal(usd, ngn)}`,
   mpOnlyTextPhoto: '⚠️ Only text and photos can be sent in marketplace chat.',
   mpPaymentWarning: '🚨 Warning: It looks like someone is asking for direct payment.\nAlways use @Lockbaybot escrow to protect your money.',
   mpEscrowMsg: (title, price, sellerRef) =>
-    `🔒 <b>ESCROW — START YOUR PROTECTED PURCHASE</b>\n\n📦 Product: <b>${title}</b>\n💰 Agreed Price: <b>$${Number(price).toFixed(2)}</b>\n👤 Seller: ${sellerRef}\n\nTo complete this purchase safely:\n1. Tap the button below to open @Lockbaybot\n2. Create a new escrow with the product details\n3. Both parties confirm in @Lockbaybot\n\n⚠️ NEVER send payment outside of escrow`,
+    `🔒 <b>ESCROW — START YOUR PROTECTED PURCHASE</b>\n\n📦 Product: <b>${title}</b>\n💰 Agreed Price: <b>$${Number(price).toFixed(2)}</b>\n👤 Seller: <b>${sellerRef}</b>\n\nTo complete this purchase safely:\n1. Tap the button below to open @Lockbaybot\n2. Create a new escrow with seller <b>${sellerRef}</b> for <b>$${Number(price).toFixed(2)}</b>\n3. Both parties confirm in @Lockbaybot\n\n⚠️ NEVER send payment outside of escrow`,
   mpPriceSuggest: (role, amount) => `💰 <b>${role}</b> suggests: <b>$${amount}</b>`,
   mpPriceUsage: 'Usage: /price 50 to suggest $50',
   mpPriceInvalid: '❌ Invalid amount. Must be $20 - $5,000.',

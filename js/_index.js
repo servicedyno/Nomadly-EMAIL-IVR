@@ -1575,7 +1575,7 @@ bot?.on('callback_query', async (query) => {
       if (!conv) return
       await marketplaceService.markEscrowStarted(convId)
       const product = await marketplaceService.getProduct(conv.productId)
-      const sellerRef = `Seller#${String(conv.sellerId).slice(-4)}`
+      const sellerRef = product?.sellerUsername && product.sellerUsername !== 'anonymous' ? `@${product.sellerUsername}` : `Seller#${String(conv.sellerId).slice(-4)}`
       const price = conv.agreedPrice || conv.originalPrice
       const escrowMsg = t.mpEscrowMsg(conv.productTitle, price, sellerRef)
       const escrowOpts = { reply_markup: { inline_keyboard: [[{ text: '🔒 Open @Lockbaybot', url: 'https://t.me/Lockbaybot' }]] } }
@@ -1607,7 +1607,7 @@ bot?.on('callback_query', async (query) => {
 
       // Start escrow
       await marketplaceService.markEscrowStarted(conv._id)
-      const sellerRef = `Seller#${String(conv.sellerId).slice(-4)}`
+      const sellerRef = product.sellerUsername && product.sellerUsername !== 'anonymous' ? `@${product.sellerUsername}` : `Seller#${String(conv.sellerId).slice(-4)}`
       const price = conv.agreedPrice || conv.originalPrice
       const escrowMsg = t.mpEscrowMsg(conv.productTitle, price, sellerRef)
       const escrowOpts = { reply_markup: { inline_keyboard: [[{ text: '🔒 Open @Lockbaybot', url: 'https://t.me/Lockbaybot' }]] } }
@@ -6169,7 +6169,7 @@ All verified numbers generated during sourcing.`))
       if (!conv) return goto.marketplace()
       await marketplaceService.markEscrowStarted(convId)
       const product = await marketplaceService.getProduct(conv.productId)
-      const sellerRef = `Seller#${String(conv.sellerId).slice(-4)}`
+      const sellerRef = product?.sellerUsername && product.sellerUsername !== 'anonymous' ? `@${product.sellerUsername}` : `Seller#${String(conv.sellerId).slice(-4)}`
       const price = conv.agreedPrice || conv.originalPrice
       const escrowMsg = t.mpEscrowMsg(conv.productTitle, price, sellerRef)
       const escrowOpts = { parse_mode: 'HTML', reply_markup: { inline_keyboard: [[{ text: '🔒 Open @Lockbaybot', url: 'https://t.me/Lockbaybot' }]] } }
