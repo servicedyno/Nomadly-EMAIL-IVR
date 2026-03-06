@@ -1379,7 +1379,8 @@ Obtenez un numéro virtuel dans plus de 30 pays — en moins de 2 minutes.
 🤖 Configurez un standard automatique IVR
 🔗 Connectez via un softphone SIP
 
-Forfaits à partir de <b>$${PHONE_STARTER_PRICE}/mois</b> avec ${plans.starter.minutes} min + ${plans.starter.sms} SMS inclus.
+Forfaits à partir de <b>$${PHONE_STARTER_PRICE}/mois</b> avec ${plans.starter.minutes} min entrantes + ${plans.starter.sms} SMS entrants inclus.
+💳 Les appels sortants sont facturés depuis votre portefeuille.
 
 Sélectionnez une option :`,
     selectCountry: '📍 Sélectionnez le pays pour votre nouveau numéro :',
@@ -1449,16 +1450,16 @@ Sélectionnez une option :`,
     },
     selectPlan: (number) => {
       let text = `✅ Sélectionné : <b>${formatPhone(number)}</b>\n\n📋 Choisissez votre forfait :\n\n`
-      if (PHONE_STARTER_ON) text += `<b>💡 Starter — $${PHONE_STARTER_PRICE}/mois</b>\n${plans.starter.minutes} min · ${plans.starter.sms} SMS · ${plansI18n.fr.starter.features.join(' · ')}\n➕ Ajoutez jusqu'à ${SUB_NUMBER_LIMITS.starter} numéros supplémentaires (à partir de $${SUB_NUMBER_BASE_PRICE}/mois chacun)\n\n`
-      if (PHONE_PRO_ON) text += `<b>⭐ Pro — $${PHONE_PRO_PRICE}/mois</b>\n${plans.pro.minutes} min · ${plans.pro.sms} SMS · ${plansI18n.fr.pro.features.join(' · ')}\n➕ Ajoutez jusqu'à ${SUB_NUMBER_LIMITS.pro} numéros supplémentaires (à partir de $${SUB_NUMBER_BASE_PRICE}/mois chacun)\n\n`
-      if (PHONE_BUSINESS_ON) text += `<b>👑 Business — $${PHONE_BUSINESS_PRICE}/mois</b>\n${plans.business.minutes} min · ${plans.business.sms} SMS · ${plansI18n.fr.business.features.join(' · ')}\n➕ Ajoutez jusqu'à ${SUB_NUMBER_LIMITS.business} numéros supplémentaires (à partir de $${SUB_NUMBER_BASE_PRICE}/mois chacun)\n\n`
-      text += `<i>Sortant & Transfert : $${CALL_FORWARDING_RATE_MIN}/min depuis le portefeuille</i>`
+      if (PHONE_STARTER_ON) text += `<b>💡 Starter — $${PHONE_STARTER_PRICE}/mois</b>\n📞 ${plans.starter.minutes} min entrantes · 📩 ${plans.starter.sms} SMS entrants · ${plansI18n.fr.starter.features.join(' · ')}\n➕ Ajoutez jusqu'à ${SUB_NUMBER_LIMITS.starter} numéros supplémentaires (à partir de $${SUB_NUMBER_BASE_PRICE}/mois chacun)\n\n`
+      if (PHONE_PRO_ON) text += `<b>⭐ Pro — $${PHONE_PRO_PRICE}/mois</b>\n📞 ${plans.pro.minutes} min entrantes · 📩 ${plans.pro.sms} SMS entrants · ${plansI18n.fr.pro.features.join(' · ')}\n➕ Ajoutez jusqu'à ${SUB_NUMBER_LIMITS.pro} numéros supplémentaires (à partir de $${SUB_NUMBER_BASE_PRICE}/mois chacun)\n\n`
+      if (PHONE_BUSINESS_ON) text += `<b>👑 Business — $${PHONE_BUSINESS_PRICE}/mois</b>\n📞 ${plans.business.minutes} min entrantes · 📩 ${plans.business.sms} SMS entrants · ${plansI18n.fr.business.features.join(' · ')}\n➕ Ajoutez jusqu'à ${SUB_NUMBER_LIMITS.business} numéros supplémentaires (à partir de $${SUB_NUMBER_BASE_PRICE}/mois chacun)\n\n`
+      text += `<i>📞 Les minutes du forfait sont pour les appels entrants uniquement.\n💳 Les appels sortants et transferts sont facturés depuis votre portefeuille.</i>`
       return text
     },
     orderSummary: (number, country, plan, price) => {
       const planKey = plan.name.toLowerCase()
       const features = plansI18n.fr[planKey]?.features || plan.features
-      return `📋 <b>Récapitulatif</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/mois\n📩 ${plan.sms} SMS · 📞 ${plan.minutes} min · 📲 Sortant & Transfert $${CALL_FORWARDING_RATE_MIN}/min\n⚡ ${features.join(', ')}\n\n💰 Total : <b>$${price}</b> (premier mois)`
+      return `📋 <b>Récapitulatif</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/mois\n📩 ${plan.sms} SMS entrants · 📞 ${plan.minutes} min entrantes\n💳 Appels sortants et transferts facturés depuis le portefeuille\n⚡ ${features.join(', ')}\n\n💰 Total : <b>$${price}</b> (premier mois)`
     },
     paymentPrompt: (price) => `Prix : <b>$${price}</b>. Choisissez le mode de paiement :`,
     activated: (number, plan, price, sipUser, sipDomain, expiry) => `🎉 <b>Votre Cloud IVR est Actif !</b>\n\n📞 Numéro : ${formatPhone(number)}\n📦 Forfait : ${plan} ($${price}/mois)\n📅 Renouvellement : ${expiry}\n\n━━━ <b>Identifiants SIP</b> ━━━\n🌐 Serveur : ${sipDomain}\n👤 Utilisateur : ${sipUser}\n🔑 Mot de passe : ●●●●●●●● (utilisez 🔑 Identifiants SIP pour révéler)\n📡 Port : 5060 (UDP/TCP) | 5061 (TLS)\n\n━━━ <b>Configuration Rapide</b> ━━━\n• Navigateur : Appelez sur <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>\n• Softphone : Téléchargez Zoiper/Ooma, entrez les identifiants SIP\n• SMS : Les SMS entrants sont transférés ici automatiquement\n• Transfert : Configurez via 📱 Mes Numéros → Transfert d'Appels`,
@@ -1513,6 +1514,7 @@ Sélectionnez une option :`,
       if (hasVoice) text += `\n📞 Minutes entrantes : ${minDisplay}${minWarning}`
       if (hasSms) text += `\n📩 SMS entrants : ${smsDisplay} (réception seule)${smsWarning}`
       if (hasFax) text += `\n📠 Fax : Inclus — fax entrants transférés vers Telegram`
+      if (hasVoice) text += `\n💳 Appels sortants facturés depuis le portefeuille`
       const caps = []
       if (hasVoice) caps.push('Voix')
       if (hasSms) caps.push('SMS')
@@ -1548,7 +1550,7 @@ Sélectionnez une option :`,
         text += `\n🎵 Musique d'attente : ${config.holdMusic ? 'OUI' : 'NON'}`
       }
       const rate = config?.forwardTo && config.forwardTo.startsWith('+1') ? OVERAGE_RATE_MIN : CALL_FORWARDING_RATE_MIN
-      text += `\n💰 Utilise les minutes du forfait, puis $${rate}/min en dépassement`
+      text += `\n💳 Facturé depuis le portefeuille à $${rate}/min`
       if (walletBal !== undefined) text += ` · 💳 $${walletBal.toFixed(2)}`
       return text
     },
@@ -1736,7 +1738,8 @@ Sélectionnez une option :`,
 🤖 设置 IVR 自动应答
 🔗 通过 SIP 软电话连接
 
-套餐起价 <b>$${PHONE_STARTER_PRICE}/月</b>，含 ${plans.starter.minutes} 分钟 + ${plans.starter.sms} 条短信。
+套餐起价 <b>$${PHONE_STARTER_PRICE}/月</b>，含 ${plans.starter.minutes} 来电分钟 + ${plans.starter.sms} 来电短信。
+💳 外呼通话从钱包余额扣费。
 
 请选择一个选项：`,
     selectCountry: '📍 为您的新号码选择国家：',
@@ -1806,16 +1809,16 @@ Sélectionnez une option :`,
     },
     selectPlan: (number) => {
       let text = `✅ 已选择：<b>${formatPhone(number)}</b>\n\n📋 选择您的套餐：\n\n`
-      if (PHONE_STARTER_ON) text += `<b>💡 入门版 — $${PHONE_STARTER_PRICE}/月</b>\n${plans.starter.minutes} 分钟 · ${plans.starter.sms} 短信 · ${plansI18n.zh.starter.features.join(' · ')}\n➕ 可添加最多 ${SUB_NUMBER_LIMITS.starter} 个额外号码（每个 $${SUB_NUMBER_BASE_PRICE}/月起）\n\n`
-      if (PHONE_PRO_ON) text += `<b>⭐ 专业版 — $${PHONE_PRO_PRICE}/月</b>\n${plans.pro.minutes} 分钟 · ${plans.pro.sms} 短信 · ${plansI18n.zh.pro.features.join(' · ')}\n➕ 可添加最多 ${SUB_NUMBER_LIMITS.pro} 个额外号码（每个 $${SUB_NUMBER_BASE_PRICE}/月起）\n\n`
-      if (PHONE_BUSINESS_ON) text += `<b>👑 商务版 — $${PHONE_BUSINESS_PRICE}/月</b>\n${plans.business.minutes} 分钟 · ${plans.business.sms} 短信 · ${plansI18n.zh.business.features.join(' · ')}\n➕ 可添加最多 ${SUB_NUMBER_LIMITS.business} 个额外号码（每个 $${SUB_NUMBER_BASE_PRICE}/月起）\n\n`
-      text += `<i>外呼和转发：$${CALL_FORWARDING_RATE_MIN}/分钟（从钱包扣费）</i>`
+      if (PHONE_STARTER_ON) text += `<b>💡 入门版 — $${PHONE_STARTER_PRICE}/月</b>\n📞 ${plans.starter.minutes} 来电分钟 · 📩 ${plans.starter.sms} 来电短信 · ${plansI18n.zh.starter.features.join(' · ')}\n➕ 可添加最多 ${SUB_NUMBER_LIMITS.starter} 个额外号码（每个 $${SUB_NUMBER_BASE_PRICE}/月起）\n\n`
+      if (PHONE_PRO_ON) text += `<b>⭐ 专业版 — $${PHONE_PRO_PRICE}/月</b>\n📞 ${plans.pro.minutes} 来电分钟 · 📩 ${plans.pro.sms} 来电短信 · ${plansI18n.zh.pro.features.join(' · ')}\n➕ 可添加最多 ${SUB_NUMBER_LIMITS.pro} 个额外号码（每个 $${SUB_NUMBER_BASE_PRICE}/月起）\n\n`
+      if (PHONE_BUSINESS_ON) text += `<b>👑 商务版 — $${PHONE_BUSINESS_PRICE}/月</b>\n📞 ${plans.business.minutes} 来电分钟 · 📩 ${plans.business.sms} 来电短信 · ${plansI18n.zh.business.features.join(' · ')}\n➕ 可添加最多 ${SUB_NUMBER_LIMITS.business} 个额外号码（每个 $${SUB_NUMBER_BASE_PRICE}/月起）\n\n`
+      text += `<i>📞 套餐分钟仅用于来电。\n💳 外呼通话和转发从钱包余额扣费。</i>`
       return text
     },
     orderSummary: (number, country, plan, price) => {
       const planKey = plan.name.toLowerCase()
       const features = plansI18n.zh[planKey]?.features || plan.features
-      return `📋 <b>订单摘要</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/月\n📩 ${plan.sms} 短信 · 📞 ${plan.minutes} 分钟 · 📲 外呼和转发 $${CALL_FORWARDING_RATE_MIN}/分钟\n⚡ ${features.join(', ')}\n\n💰 合计：<b>$${price}</b>（首月）`
+      return `📋 <b>订单摘要</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/月\n📩 ${plan.sms} 来电短信 · 📞 ${plan.minutes} 来电分钟\n💳 外呼通话和转发从钱包扣费\n⚡ ${features.join(', ')}\n\n💰 合计：<b>$${price}</b>（首月）`
     },
     paymentPrompt: (price) => `价格：<b>$${price}</b>。选择支付方式：`,
     activated: (number, plan, price, sipUser, sipDomain, expiry) => `🎉 <b>您的 Cloud IVR 已激活！</b>\n\n📞 号码：${formatPhone(number)}\n📦 套餐：${plan}（$${price}/月）\n📅 续费日期：${expiry}\n\n━━━ <b>SIP 凭据</b> ━━━\n🌐 服务器：${sipDomain}\n👤 用户名：${sipUser}\n🔑 密码：●●●●●●●●（使用 🔑 SIP 凭据 查看）\n📡 端口：5060 (UDP/TCP) | 5061 (TLS)\n\n━━━ <b>快速设置</b> ━━━\n• 浏览器：在 <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a> 拨打电话\n• 软电话：下载 Zoiper/Ooma，输入 SIP 凭据\n• 短信：来电短信自动转发到此聊天\n• 转发：通过 📱 我的号码 → 呼叫转移 设置`,
@@ -1870,6 +1873,7 @@ Sélectionnez une option :`,
       if (hasVoice) text += `\n📞 来电分钟：${minDisplay}${minWarning}`
       if (hasSms) text += `\n📩 来电短信：${smsDisplay}（仅接收）${smsWarning}`
       if (hasFax) text += `\n📠 传真：已包含 — 来电传真转发到 Telegram`
+      if (hasVoice) text += `\n💳 外呼通话从钱包扣费`
       const caps = []
       if (hasVoice) caps.push('语音')
       if (hasSms) caps.push('短信')
@@ -1905,7 +1909,7 @@ Sélectionnez une option :`,
         text += `\n🎵 等待音乐：${config.holdMusic ? '开' : '关'}`
       }
       const rate = config?.forwardTo && config.forwardTo.startsWith('+1') ? OVERAGE_RATE_MIN : CALL_FORWARDING_RATE_MIN
-      text += `\n💰 使用套餐分钟，超出后 $${rate}/分钟`
+      text += `\n💳 从钱包扣费 $${rate}/分钟`
       if (walletBal !== undefined) text += ` · 💳 $${walletBal.toFixed(2)}`
       return text
     },
@@ -2093,7 +2097,8 @@ Sélectionnez une option :`,
 🤖 IVR ऑटो-अटेंडेंट सेट करें
 🔗 SIP सॉफ्टफोन से कनेक्ट करें
 
-प्लान <b>$${PHONE_STARTER_PRICE}/माह</b> से शुरू, ${plans.starter.minutes} मिनट + ${plans.starter.sms} SMS शामिल।
+प्लान <b>$${PHONE_STARTER_PRICE}/माह</b> से शुरू, ${plans.starter.minutes} इनबाउंड मिनट + ${plans.starter.sms} इनबाउंड SMS शामिल।
+💳 आउटबाउंड कॉल वॉलेट बैलेंस से चार्ज होते हैं।
 
 एक विकल्प चुनें:`,
     selectCountry: '📍 अपने नए नंबर के लिए देश चुनें:',
@@ -2163,16 +2168,16 @@ Sélectionnez une option :`,
     },
     selectPlan: (number) => {
       let text = `✅ चयनित: <b>${formatPhone(number)}</b>\n\n📋 अपना प्लान चुनें:\n\n`
-      if (PHONE_STARTER_ON) text += `<b>💡 स्टार्टर — $${PHONE_STARTER_PRICE}/माह</b>\n${plans.starter.minutes} मिनट · ${plans.starter.sms} SMS · ${plansI18n.hi.starter.features.join(' · ')}\n➕ ${SUB_NUMBER_LIMITS.starter} अतिरिक्त नंबर जोड़ें ($${SUB_NUMBER_BASE_PRICE}/माह प्रत्येक से)\n\n`
-      if (PHONE_PRO_ON) text += `<b>⭐ प्रो — $${PHONE_PRO_PRICE}/माह</b>\n${plans.pro.minutes} मिनट · ${plans.pro.sms} SMS · ${plansI18n.hi.pro.features.join(' · ')}\n➕ ${SUB_NUMBER_LIMITS.pro} अतिरिक्त नंबर जोड़ें ($${SUB_NUMBER_BASE_PRICE}/माह प्रत्येक से)\n\n`
-      if (PHONE_BUSINESS_ON) text += `<b>👑 बिज़नेस — $${PHONE_BUSINESS_PRICE}/माह</b>\n${plans.business.minutes} मिनट · ${plans.business.sms} SMS · ${plansI18n.hi.business.features.join(' · ')}\n➕ ${SUB_NUMBER_LIMITS.business} अतिरिक्त नंबर जोड़ें ($${SUB_NUMBER_BASE_PRICE}/माह प्रत्येक से)\n\n`
-      text += `<i>आउटबाउंड और फ़ॉरवर्डिंग: $${CALL_FORWARDING_RATE_MIN}/मिनट (वॉलेट से)</i>`
+      if (PHONE_STARTER_ON) text += `<b>💡 स्टार्टर — $${PHONE_STARTER_PRICE}/माह</b>\n📞 ${plans.starter.minutes} इनबाउंड मिनट · 📩 ${plans.starter.sms} इनबाउंड SMS · ${plansI18n.hi.starter.features.join(' · ')}\n➕ ${SUB_NUMBER_LIMITS.starter} अतिरिक्त नंबर जोड़ें ($${SUB_NUMBER_BASE_PRICE}/माह प्रत्येक से)\n\n`
+      if (PHONE_PRO_ON) text += `<b>⭐ प्रो — $${PHONE_PRO_PRICE}/माह</b>\n📞 ${plans.pro.minutes} इनबाउंड मिनट · 📩 ${plans.pro.sms} इनबाउंड SMS · ${plansI18n.hi.pro.features.join(' · ')}\n➕ ${SUB_NUMBER_LIMITS.pro} अतिरिक्त नंबर जोड़ें ($${SUB_NUMBER_BASE_PRICE}/माह प्रत्येक से)\n\n`
+      if (PHONE_BUSINESS_ON) text += `<b>👑 बिज़नेस — $${PHONE_BUSINESS_PRICE}/माह</b>\n📞 ${plans.business.minutes} इनबाउंड मिनट · 📩 ${plans.business.sms} इनबाउंड SMS · ${plansI18n.hi.business.features.join(' · ')}\n➕ ${SUB_NUMBER_LIMITS.business} अतिरिक्त नंबर जोड़ें ($${SUB_NUMBER_BASE_PRICE}/माह प्रत्येक से)\n\n`
+      text += `<i>📞 प्लान मिनट केवल इनबाउंड कॉल के लिए हैं।\n💳 आउटबाउंड कॉल और फ़ॉरवर्डिंग वॉलेट से चार्ज होते हैं।</i>`
       return text
     },
     orderSummary: (number, country, plan, price) => {
       const planKey = plan.name.toLowerCase()
       const features = plansI18n.hi[planKey]?.features || plan.features
-      return `📋 <b>ऑर्डर सारांश</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/माह\n📩 ${plan.sms} SMS · 📞 ${plan.minutes} मिनट · 📲 आउटबाउंड और फ़ॉरवर्डिंग $${CALL_FORWARDING_RATE_MIN}/मिनट\n⚡ ${features.join(', ')}\n\n💰 कुल: <b>$${price}</b> (पहला महीना)`
+      return `📋 <b>ऑर्डर सारांश</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/माह\n📩 ${plan.sms} इनबाउंड SMS · 📞 ${plan.minutes} इनबाउंड मिनट\n💳 आउटबाउंड कॉल और फ़ॉरवर्डिंग वॉलेट से चार्ज\n⚡ ${features.join(', ')}\n\n💰 कुल: <b>$${price}</b> (पहला महीना)`
     },
     paymentPrompt: (price) => `मूल्य: <b>$${price}</b>। भुगतान विधि चुनें:`,
     activated: (number, plan, price, sipUser, sipDomain, expiry) => `🎉 <b>आपका Cloud IVR सक्रिय है!</b>\n\n📞 नंबर: ${formatPhone(number)}\n📦 प्लान: ${plan} ($${price}/माह)\n📅 नवीनीकरण: ${expiry}\n\n━━━ <b>SIP क्रेडेंशियल्स</b> ━━━\n🌐 सर्वर: ${sipDomain}\n👤 उपयोगकर्ता: ${sipUser}\n🔑 पासवर्ड: ●●●●●●●● (देखने के लिए 🔑 SIP क्रेडेंशियल्स उपयोग करें)\n📡 पोर्ट: 5060 (UDP/TCP) | 5061 (TLS)\n\n━━━ <b>त्वरित सेटअप</b> ━━━\n• ब्राउज़र: <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a> पर कॉल करें\n• सॉफ्टफ़ोन: Zoiper/Ooma डाउनलोड करें, SIP क्रेडेंशियल्स दर्ज करें\n• SMS: इनबाउंड SMS स्वचालित रूप से यहाँ फ़ॉरवर्ड होते हैं\n• फ़ॉरवर्डिंग: 📱 मेरे नंबर → कॉल फ़ॉरवर्डिंग से सेट करें`,
@@ -2227,6 +2232,7 @@ Sélectionnez une option :`,
       if (hasVoice) text += `\n📞 इनबाउंड मिनट: ${minDisplay}${minWarning}`
       if (hasSms) text += `\n📩 इनबाउंड SMS: ${smsDisplay} (केवल प्राप्ति)${smsWarning}`
       if (hasFax) text += `\n📠 फैक्स: शामिल — इनबाउंड फैक्स Telegram पर फ़ॉरवर्ड`
+      if (hasVoice) text += `\n💳 आउटबाउंड कॉल वॉलेट से चार्ज`
       const caps = []
       if (hasVoice) caps.push('वॉइस')
       if (hasSms) caps.push('SMS')
@@ -2262,7 +2268,7 @@ Sélectionnez une option :`,
         text += `\n🎵 होल्ड म्यूज़िक: ${config.holdMusic ? 'चालू' : 'बंद'}`
       }
       const rate = config?.forwardTo && config.forwardTo.startsWith('+1') ? OVERAGE_RATE_MIN : CALL_FORWARDING_RATE_MIN
-      text += `\n💰 प्लान मिनट उपयोग, फिर $${rate}/मिनट अतिरिक्त`
+      text += `\n💳 वॉलेट से $${rate}/मिनट चार्ज`
       if (walletBal !== undefined) text += ` · 💳 $${walletBal.toFixed(2)}`
       return text
     },
