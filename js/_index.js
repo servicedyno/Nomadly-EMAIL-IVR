@@ -248,6 +248,8 @@ const honeypotService = require('./honeypot-service.js')
 const audioLibraryService = require('./audio-library-service.js')
 const bulkCallService = require('./bulk-call-service.js')
 const marketplaceService = require('./marketplace-service.js')
+const regulatoryFlow = require('./regulatory-flow.js')
+const { needsDocUpload } = require('./regulatory-config.js')
 
 process.env['NTBA_FIX_350'] = 1
 
@@ -964,6 +966,15 @@ const loadData = async () => {
   audioLibraryService.initAudioLibrary(db)
   bulkCallService.initBulkCallService(db, bot, require('./twilio-service.js'), walletOf)
   marketplaceService.initMarketplace(db)
+
+  // Initialize Regulatory Document Collection Flow
+  regulatoryFlow.init({
+    bot, db, state, pendingBundles, twilioService,
+    send: sendMessage, set, get,
+    log,
+    getCachedTwilioAddress,
+    cacheTwilioAddress,
+  })
 
   // Schedule stale marketplace conversation cleanup every 6 hours
   setInterval(async () => {
@@ -1805,6 +1816,16 @@ bot?.on('message', msg => {
           return
         }
       }
+    }
+  }
+
+  // ── Handle photo messages for Regulatory Document Collection ──
+  if (msg?.photo && chatId) {
+    const userInfo = await get(state, chatId)
+    if (userInfo?.action === 'cpDocCollect') {
+      const lang = userInfo?.userLanguage || 'en'
+      const handled = await regulatoryFlow.handlePhotoInput(chatId, msg, lang)
+      if (handled) return
     }
   }
 
@@ -4553,6 +4574,28 @@ Enter new value:`), bc)
         await saveInfo('cpPendingPriceUsd', priceUsd)
         await saveInfo('cpPendingPriceNgn', coin === u.ngn ? priceNgn : 0)
         await saveInfo('cpPaymentMethod', 'wallet_' + coin)
+
+        // ── NEW: Tier 2+ countries need document uploads for regulatory bundle ──
+        const numType = info?.cpNumberType || 'local'
+        if (needsDocUpload(countryCode, numType)) {
+          // Check for existing approved bundle first
+          const approvedBundle = await pendingBundles.findOne({ chatId, countryCode, status: 'twilio-approved' })
+          if (approvedBundle) {
+            log(`[CloudPhone] Using existing approved bundle ${approvedBundle.bundleSid} for ${chatId} (${countryCode})`)
+            await saveInfo('cpBundleSid', approvedBundle.bundleSid)
+            // Fall through to address check + purchase below
+          } else {
+            // Start document collection flow
+            log(`[CloudPhone] Starting doc collection for ${chatId} (${countryCode}:${numType})`)
+            send(chatId, ({ en: `✅ Payment of <b>$${Number(priceUsd).toFixed(2)}</b> received!`, fr: `✅ Paiement de <b>$${Number(priceUsd).toFixed(2)}</b> reçu !`, zh: `✅ 已收到 <b>$${Number(priceUsd).toFixed(2)}</b> 付款！`, hi: `✅ <b>$${Number(priceUsd).toFixed(2)}</b> का भुगतान प्राप्त!` }[lang] || `✅ Payment of <b>$${Number(priceUsd).toFixed(2)}</b> received!`), { parse_mode: 'HTML' })
+            const started = await regulatoryFlow.startDocCollection(chatId, {
+              countryCode, numType, countryName, selectedNumber, planKey, price: priceUsd,
+              priceUsd, priceNgn: coin === u.ngn ? priceNgn : 0,
+              paymentMethod: 'wallet_' + coin,
+            }, lang)
+            if (started) return send(chatId, '') // Flow started, don't fall through
+          }
+        }
 
         // Check for cached address first
         const cachedAddr = await getCachedTwilioAddress(chatId, countryCode)
@@ -11358,6 +11401,20 @@ Choose an IVR template category:`), k.of(rows))
     }
   }
 
+  // ── REGULATORY DOCUMENT COLLECTION (text inputs for Tier 2+ countries) ──
+  if (action === 'cpDocCollect') {
+    const lang = info?.userLanguage ?? 'en'
+    const handled = await regulatoryFlow.handleTextInput(chatId, message, lang)
+    if (handled) return
+  }
+
+  // ── REGULATORY DOCUMENT ADDRESS (address input during doc collection) ──
+  if (action === 'cpDocAddress') {
+    const lang = info?.userLanguage ?? 'en'
+    const handled = await regulatoryFlow.handleAddressInput(chatId, message, lang)
+    if (handled) return
+  }
+
   // ── ADDRESS COLLECTION (for addrReq=any countries like AU, FI, etc.) ──
   if (action === a.cpEnterAddress) {
     const lang = info?.userLanguage ?? 'en'
@@ -16156,6 +16213,19 @@ const bankApis = {
       try {
       // Check if address is needed and cached
       if (needsTwilioAddress(countryCode, provider)) {
+        // ── NEW: Tier 2+ countries need document uploads ──
+        const numType = cpData.numType || info?.cpNumberType || 'local'
+        if (needsDocUpload(countryCode, numType)) {
+          const approvedBundle = await pendingBundles.findOne({ chatId, countryCode, status: 'twilio-approved' })
+          if (!approvedBundle) {
+            sendMessage(chatId, `✅ Payment received!`)
+            const started = await regulatoryFlow.startDocCollection(chatId, {
+              countryCode, numType, countryName, selectedNumber, planKey, price,
+              priceUsd: price, priceNgn: ngnPrice || 0, paymentMethod: 'bank_ngn',
+            }, lang)
+            if (started) return res.send(html())
+          }
+        }
         const cachedAddr = await getCachedTwilioAddress(chatId, countryCode)
         if (cachedAddr) {
           // ── Bundle-required countries (e.g. ZA) with cached address ──
@@ -16725,6 +16795,19 @@ app.get('/crypto-pay-phone', auth, async (req, res) => {
   if (provider === 'twilio') {
     try {
     if (needsTwilioAddress(countryCode, provider)) {
+      // ── Tier 2+ doc upload check for Fincra/crypto path ──
+      const numType_fincra = cpData.numType || info?.cpNumberType || 'local'
+      if (needsDocUpload(countryCode, numType_fincra)) {
+        const approvedBundle_fincra = await pendingBundles.findOne({ chatId, countryCode, status: 'twilio-approved' })
+        if (!approvedBundle_fincra) {
+          sendMessage(chatId, `✅ Crypto payment received!`)
+          const started = await regulatoryFlow.startDocCollection(chatId, {
+            countryCode, numType: numType_fincra, countryName, selectedNumber, planKey, price,
+            priceUsd: price, priceNgn: 0, paymentMethod: 'crypto_' + coin,
+          }, lang)
+          if (started) return res.send(html())
+        }
+      }
       const cachedAddr = await getCachedTwilioAddress(chatId, countryCode)
       if (cachedAddr) {
         // ── Bundle-required countries (e.g. ZA) with cached address ──
@@ -17279,6 +17362,19 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
   if (provider === 'twilio') {
     try {
     if (needsTwilioAddress(countryCode, provider)) {
+      // ── Tier 2+ doc upload check for DynoPay crypto path ──
+      const numType_dp = cpData.numType || info?.cpNumberType || 'local'
+      if (needsDocUpload(countryCode, numType_dp)) {
+        const approvedBundle_dp = await pendingBundles.findOne({ chatId, countryCode, status: 'twilio-approved' })
+        if (!approvedBundle_dp) {
+          sendMessage(chatId, `✅ Crypto payment received!`)
+          const started = await regulatoryFlow.startDocCollection(chatId, {
+            countryCode, numType: numType_dp, countryName, selectedNumber, planKey, price,
+            priceUsd: price, priceNgn: 0, paymentMethod: 'crypto_dynopay',
+          }, lang)
+          if (started) return res.send(html())
+        }
+      }
       const cachedAddr = await getCachedTwilioAddress(chatId, countryCode)
       if (cachedAddr) {
         // ── Bundle-required countries (e.g. ZA) with cached address ──

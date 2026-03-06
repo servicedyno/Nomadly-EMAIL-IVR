@@ -28,7 +28,9 @@ function getSubClient(subSid, subToken) {
 
 // ── Countries that require a full Regulatory Bundle (not just an address) ──
 // Twilio requires a submitted+approved bundle before number purchase
-const BUNDLE_REQUIRED_COUNTRIES = ['ZA']
+// Countries requiring Twilio Regulatory Compliance bundles (Tier 2+)
+// Full list from live API query — all countries needing supporting document uploads
+const BUNDLE_REQUIRED_COUNTRIES = ['GB', 'IE', 'AU', 'NZ', 'HK', 'EE', 'CZ', 'KE', 'MY', 'PL', 'ZA', 'TH']
 
 function needsBundle(countryCode) {
   return BUNDLE_REQUIRED_COUNTRIES.includes(countryCode)
