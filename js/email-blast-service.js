@@ -1,7 +1,8 @@
 /**
  * Email Blast Service — Core sending engine
  * Handles: campaign CRUD, queue processing, Nodemailer + DKIM, domain/IP rotation,
- * bounce handling, throttling, suppression list, progress notifications
+ * bounce handling, throttling, suppression list, progress notifications,
+ * spintax content variation, smart batch scheduling
  */
 
 const nodemailer = require('nodemailer');
@@ -9,6 +10,43 @@ const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const emailWarming = require('./email-warming');
 const emailDns = require('./email-dns');
+
+// ━━━ Spintax Processor ━━━
+// Converts {Hi|Hello|Hey} into a random pick per email
+// Supports nested: {Good {morning|evening}|Hi} → "Good morning" or "Hi"
+function processSpintax(text) {
+  if (!text) return text;
+  const MAX_DEPTH = 10;
+  let depth = 0;
+  let result = text;
+  // Process from innermost brackets outward
+  while (result.includes('{') && depth < MAX_DEPTH) {
+    result = result.replace(/\{([^{}]+)\}/g, (match, group) => {
+      const options = group.split('|');
+      return options[Math.floor(Math.random() * options.length)].trim();
+    });
+    depth++;
+  }
+  return result;
+}
+
+// ━━━ Invisible Uniqueness Injector ━━━
+// Adds invisible zero-width characters to make each email's HTML fingerprint unique
+// This prevents Gmail from clustering identical emails as spam
+function injectUniqueness(html, recipientEmail) {
+  if (!html) return html;
+  const hash = crypto.createHash('md5').update(recipientEmail + Date.now().toString()).digest('hex');
+  // Add invisible unique comment + zero-width space variations
+  const uniqueComment = `<!--${hash.substring(0, 8)}-->`;
+  const zwsp = '\u200B'; // zero-width space
+  // Inject at random position in body content
+  if (html.includes('</body>')) {
+    html = html.replace('</body>', `${uniqueComment}<span style="display:none;font-size:0;line-height:0;max-height:0;opacity:0;overflow:hidden;">${zwsp}${hash.substring(8, 16)}${zwsp}</span></body>`);
+  } else {
+    html += `${uniqueComment}<span style="display:none">${zwsp}${hash.substring(8, 16)}</span>`;
+  }
+  return html;
+}
 
 let _db = null;
 let _bot = null;
@@ -425,12 +463,17 @@ async function sendBatch(campaign, settings) {
       const transporter = getTransporter(selectedIp);
       const msgId = `<${require('crypto').randomBytes(16).toString('hex')}@${domain.domain}>`;
 
+      // Process spintax in subject and body for content variation
+      const spunSubject = processSpintax(campaign.subject);
+      const spunHtml = injectUniqueness(processSpintax(campaign.bodyHtml), email);
+      const spunText = processSpintax(campaign.bodyText || stripHtml(campaign.bodyHtml));
+
       const mailOpts = {
         from: `"${campaign.fromName}" <noreply@${domain.domain}>`,
         to: email,
-        subject: campaign.subject,
-        text: campaign.bodyText || stripHtml(campaign.bodyHtml),
-        html: campaign.bodyHtml,
+        subject: spunSubject,
+        text: spunText,
+        html: spunHtml,
         messageId: msgId,
         headers: {
           'List-Unsubscribe': `<mailto:unsubscribe@${domain.domain}?subject=unsubscribe>`,
@@ -471,8 +514,18 @@ async function sendBatch(campaign, settings) {
       sent++;
     }
 
-    // Throttle: small delay between emails
-    await sleep(100);
+    // Smart Throttle: randomized delay + periodic batch pauses
+    // Base delay: 3-8 seconds (randomized to look human)
+    const baseDelay = 3000 + Math.floor(Math.random() * 5000);
+    await sleep(baseDelay);
+
+    // Every 20 emails, take a longer pause (60-180 seconds)
+    // This mimics natural sending patterns instead of machine-gun bursts
+    if (sent > 0 && sent % 20 === 0) {
+      const batchPause = 60000 + Math.floor(Math.random() * 120000);
+      console.log(`[EmailBlast] Batch pause after ${sent} emails: ${Math.round(batchPause / 1000)}s`);
+      await sleep(batchPause);
+    }
   }
 
   // Update campaign progress
@@ -645,6 +698,7 @@ module.exports = {
   startCampaign,
   pauseCampaign,
   resumeCampaign,
+  processSpintax,
   cancelCampaign,
   getSuppressionCount,
   isEmailSuppressed,

@@ -6198,7 +6198,8 @@ All verified numbers generated during sourcing.`))
         `📝 <b>Enter Email Body (Plain Text)</b>\n\n` +
         `Type or paste your email message below.\n` +
         `It will be automatically formatted for email delivery.\n\n` +
-        `💡 <i>Tip: Use line breaks for paragraphs. The text will be converted to a clean HTML email.</i>`,
+        `💡 <b>Spintax supported!</b> Use {Hello|Hi|Hey} to randomly vary words per recipient. This dramatically improves inbox placement.\n\n` +
+        `<i>Example: "{Hi|Hello|Hey} there, {I wanted|I'd like} to reach out about..."</i>`,
         { parse_mode: 'HTML', reply_markup: { keyboard: [['❌ Cancel']], resize_keyboard: true } }
       )
     }
@@ -16482,7 +16483,8 @@ async function processEmailList(chatId, emails, state, a, set, send, saveInfo) {
     `🚫 Disposable: ${result.disposable.length}\n` +
     `⚠️ Suppressed: ${result.suppressed.length}\n\n` +
     `💰 Estimated cost: <b>$${totalPrice}</b>\n\n` +
-    `📝 Now enter the <b>Subject</b> line for your email:`,
+    `📝 Now enter the <b>Subject</b> line for your email:\n\n` +
+    `💡 <i>Tip: Use spintax for variation — e.g. "{Quick question|Hey|Following up} about {your project|our offer}"</i>`,
     { parse_mode: 'HTML', reply_markup: { keyboard: [['❌ Cancel']], resize_keyboard: true } }
   )
 }
