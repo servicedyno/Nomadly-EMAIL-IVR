@@ -11,6 +11,7 @@ const SUPPORT_USERNAME = process.env.SUPPORT_USERNAME
 
 const HIDE_SMS_APP = process.env.HIDE_SMS_APP
 const HIDE_BECOME_RESELLER = process.env.HIDE_BECOME_RESELLER
+const EMAIL_BLAST_ON = process.env.EMAIL_BLAST_ON
 const TG_HANDLE = process.env.TG_HANDLE
 const TG_CHANNEL = process.env.TG_CHANNEL
 const SMS_APP_NAME = process.env.SMS_APP_NAME
@@ -1233,7 +1234,7 @@ const userKeyboard = {
     keyboard: [
       [user.cloudPhone],
       [user.marketplace, user.digitalProducts],
-      [user.shippingLabel, user.emailBlast],
+      EMAIL_BLAST_ON === 'true' ? [user.shippingLabel, user.emailBlast] : [user.shippingLabel],
       [user.domainNames, user.hostingDomainsRedirect],
       [user.urlShortenerMain, user.leadsValidation],
       ...(HIDE_SMS_APP === 'true' ? [] : [[user.freeTrialAvailable]]),
