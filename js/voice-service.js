@@ -69,6 +69,10 @@ function getCallRate(destinationNumber) {
   return isUSCanada(destinationNumber) ? OVERAGE_RATE_MIN : CALL_FORWARDING_RATE_MIN
 }
 
+// ── IVR outbound flat rate (same as bulk IVR) — plan minutes are for inbound only ──
+const IVR_CALL_RATE = parseFloat(process.env.BULK_CALL_RATE_PER_MIN || '0.15')
+const IVR_CALL_TYPES = ['IVR_Outbound', 'IVR_Transfer', 'IVR_Outbound_Twilio']
+
 function getMinuteLimit(planKey) {
   const plan = plans[planKey]
   if (!plan) return 0
@@ -139,7 +143,8 @@ const OUTBOUND_CALL_TYPES = [
 async function billCallMinutesUnified(chatId, phoneNumber, minutesBilled, destinationNumber, callType) {
   if (minutesBilled <= 0) return { planMinUsed: 0, overageMin: 0, overageCharge: 0, rate: 0, used: 0, limit: 0 }
 
-  const rate = getCallRate(destinationNumber)
+  // IVR outbound calls use flat IVR rate; other calls use destination-based rate
+  const rate = IVR_CALL_TYPES.includes(callType) ? IVR_CALL_RATE : getCallRate(destinationNumber)
   const isOutbound = OUTBOUND_CALL_TYPES.includes(callType)
 
   // ━━━ OUTBOUND: Charge wallet directly — plan minutes are for inbound only ━━━
@@ -1906,18 +1911,16 @@ async function initiateOutboundIvrCall(params) {
   const { chatId, callerId, targetNumber, ivrNumber, audioUrl, activeKeys, templateName, placeholderValues, voiceName, isTrial, holdMusic, campaignId, leadIndex, bulkMode } = params
 
   // ── Wallet balance check (skip for trial calls) ──
-  // Only check if plan minutes are exhausted for this callerId
+  // Outbound IVR always charges wallet at flat IVR rate (plan minutes are for inbound only)
   if (!isTrial && _walletOf) {
     try {
-      const { chatId: ownerId, num } = await findNumberOwner(callerId)
-      if (ownerId && num && isMinuteLimitReached(num)) {
-        // Plan minutes exhausted — need wallet for overage
-        const rate = getCallRate(targetNumber)
+      const { chatId: ownerId } = await findNumberOwner(callerId)
+      if (ownerId) {
         const { usdBal } = await getBalance(_walletOf, ownerId)
-        if (usdBal < rate) {
-          return { error: `Insufficient wallet balance ($${usdBal.toFixed(2)}). Plan minutes exhausted. Need at least $${rate.toFixed(2)}/min (${isUSCanada(targetNumber) ? 'US/CA' : 'Intl'}) for overage. Top up your wallet.` }
+        if (usdBal < IVR_CALL_RATE) {
+          return { error: `Insufficient wallet balance ($${usdBal.toFixed(2)}). Quick IVR calls cost $${IVR_CALL_RATE.toFixed(2)}/min from wallet. Top up your wallet.` }
         }
-        log(`[OutboundIVR] Wallet check passed (plan exhausted): $${usdBal.toFixed(2)} (rate: $${rate}/min)`)
+        log(`[OutboundIVR] Wallet check passed: $${usdBal.toFixed(2)} (IVR rate: $${IVR_CALL_RATE}/min)`)
       }
     } catch (e) {
       log(`[OutboundIVR] Wallet check error: ${e.message}`)
@@ -2034,42 +2037,25 @@ async function handleOutboundIvrAnswered(payload) {
   session.answerTime = Date.now()
   log(`[OutboundIVR] Answered: ${session.targetNumber} — playing IVR audio`)
 
-  // ── MID-CALL LIMIT MONITOR for outbound IVR ──
-  // Prevents burning through entire plan on long bridged calls
+  // ── MID-CALL WALLET MONITOR for outbound IVR ──
+  // Outbound IVR charges wallet at flat IVR rate (plan minutes are for inbound only)
   if (!session.isTrial) {
     try {
-      const { chatId: ownerId, num } = await findNumberOwner(session.callerId)
-      if (ownerId && num) {
-        const minuteLimit = getMinuteLimit(num.plan)
+      const { chatId: ownerId } = await findNumberOwner(session.callerId)
+      if (ownerId) {
         session._limitTimer = setInterval(async () => {
           const sess = outboundIvrCalls[callControlId]
           if (!sess) { clearInterval(session._limitTimer); return }
-          const elapsedSec = Math.floor((Date.now() - sess.answerTime) / 1000)
-          const elapsedMin = Math.ceil(elapsedSec / 60)
-          const destination = sess.targetNumber
-          const rate = getCallRate(destination)
-
-          if (minuteLimit !== Infinity) {
-            const freshData = await findNumberOwner(session.callerId)
-            const freshNum = freshData.num
-            const projectedTotal = (freshNum?.minutesUsed || 0) + elapsedMin
-            if (projectedTotal >= minuteLimit) {
-              let canContinue = false
-              if (_walletOf) {
-                try {
-                  const { usdBal } = await getBalance(_walletOf, ownerId)
-                  if (usdBal >= rate) {
-                    canContinue = true
-                  }
-                } catch (e) {}
-              }
-              if (!canContinue) {
-                log(`[OutboundIVR] Mid-call limit reached for ${session.callerId}: projected ${projectedTotal}/${minuteLimit} min. Disconnecting.`)
+          if (_walletOf) {
+            try {
+              const { usdBal } = await getBalance(_walletOf, ownerId)
+              if (usdBal < IVR_CALL_RATE) {
+                log(`[OutboundIVR] Mid-call wallet exhausted: $${usdBal.toFixed(2)} < $${IVR_CALL_RATE}/min. Disconnecting.`)
                 clearInterval(session._limitTimer)
                 await _telnyxApi.hangupCall(callControlId).catch(() => {})
-                _bot?.sendMessage(session.chatId, `🚫 <b>IVR Call Ended</b> — Plan minutes + wallet exhausted.\n⏱️ ~${elapsedMin} min. Top up wallet or upgrade plan.`, { parse_mode: 'HTML' }).catch(() => {})
+                _bot?.sendMessage(session.chatId, `🚫 <b>IVR Call Ended</b> — Wallet exhausted ($${usdBal.toFixed(2)}).\nIVR calls cost $${IVR_CALL_RATE}/min. Top up via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
               }
-            }
+            } catch (e) { log(`[OutboundIVR] Mid-call wallet check error: ${e.message}`) }
           }
         }, 60000)
       }
@@ -2181,7 +2167,8 @@ async function handleOutboundIvrHangup(payload) {
   const trackedDuration = session.answerTime ? Math.round((Date.now() - session.answerTime) / 1000) : 0
   const duration = telnyxDuration > 0 ? telnyxDuration : trackedDuration
   const hangupCause = payload.hangup_cause || 'unknown'
-  const minutesBilled = duration > 0 ? Math.ceil(duration / 60) : 0
+  // Quick IVR: minimum 1 minute charge regardless of outcome (busy, no answer, etc.)
+  const minutesBilled = Math.max(1, duration > 0 ? Math.ceil(duration / 60) : 1)
   log(`[OutboundIVR] Hangup: ${session.targetNumber} (${duration}s [telnyx=${telnyxDuration}s, tracked=${trackedDuration}s], ${minutesBilled} min, cause: ${hangupCause})`)
 
   let notifType = 'hangup'
@@ -2217,8 +2204,9 @@ async function handleOutboundIvrHangup(payload) {
   }
 
   // ── Bill IVR leg via unified billing (skip trial calls) ──
+  // Quick IVR: always charge min 1 minute regardless of outcome (like bulk IVR)
   let billingInfo = { planMinUsed: 0, overageMin: 0, overageCharge: 0, rate: 0, used: 0, limit: 0 }
-  if (minutesBilled > 0 && !session.isTrial) {
+  if (!session.isTrial) {
     try {
       const { chatId: ownerId, num } = await findNumberOwner(session.callerId)
       if (ownerId && num) {
@@ -2488,4 +2476,5 @@ module.exports = {
   billCallMinutesUnified,
   findNumberOwner,
   incrementMinutesUsed,
+  IVR_CALL_RATE,
 }

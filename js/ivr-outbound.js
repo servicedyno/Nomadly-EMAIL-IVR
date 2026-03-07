@@ -197,6 +197,8 @@ function formatCallPreview(data) {
   lines.push(`🎤 Voice: <b>${data.voiceName || 'Rachel'}</b>`)
   lines.push(`🔘 Transfer key: <b>${data.activeKeys?.join(', ') || '1'}</b>`)
   lines.push(`🎵 Hold Music: <b>${data.holdMusic ? 'ON' : 'OFF'}</b>`)
+  const ivrRate = parseFloat(process.env.BULK_CALL_RATE_PER_MIN || '0.15')
+  lines.push(`💰 Rate: <b>$${ivrRate.toFixed(2)}/min</b> (from wallet)`)
   lines.push(``)
   lines.push(`Press /yes to place the call`)
   lines.push(`/cancel to abort`)
@@ -228,7 +230,7 @@ function formatCallNotification(type, data) {
       return `📵 <b>No response</b> — IVR played but no key pressed\n📞 ${target} | Duration: ${durText}\nThe message was played but the recipient did not interact.`
 
     case 'busy':
-      return `📵 <b>Line busy</b> — ${target} is on another call`
+      return `📵 <b>Line busy</b> — ${target} is on another call\n💰 Charged: 1 min (minimum)`
 
     case 'key_pressed':
       return `🔘 <b>Caller pressed ${data.digit}</b> — Transferring to ${data.ivrNumber}`
@@ -240,7 +242,7 @@ function formatCallNotification(type, data) {
       return `📵 <b>Call Ended</b> — Recipient hung up\n📞 ${target} | Duration: ${durText}\n🔘 Key pressed: ${data.digitPressed || 'None'}`
 
     case 'no_answer':
-      return `📵 <b>No answer</b> — ${target} did not pick up`
+      return `📵 <b>No answer</b> — ${target} did not pick up\n💰 Charged: 1 min (minimum)`
 
     case 'completed':
       return `✅ <b>Call Completed</b>\n📞 ${target} | Duration: ${durText}\n🔘 Key pressed: ${data.digitPressed || 'None'}\n🔗 Transferred to: ${data.ivrNumber || '?'}`
@@ -249,7 +251,7 @@ function formatCallNotification(type, data) {
       return `❌ <b>Transfer Failed</b>\n📞 ${target} | Duration: ${durText}\n🔘 Key pressed: ${data.digitPressed || 'None'}\n🔗 Transfer to ${data.ivrNumber || '?'} — No answer`
 
     case 'failed':
-      return `❌ <b>Call failed</b> — ${target}\n${data.reason || 'Unknown error'}`
+      return `❌ <b>Call failed</b> — ${target}\n${data.reason || 'Unknown error'}\n💰 Charged: 1 min (minimum)`
 
     case 'trial_used':
       return `🎁 <b>Trial call complete!</b>\n\nYou used your free IVR trial call. Subscribe to Cloud Phone for unlimited IVR outbound calls with your own Caller ID.\n\nTap 📞☁️ Cloud Phone to get started!`

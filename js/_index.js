@@ -20043,21 +20043,25 @@ app.post('/twilio/single-ivr-status', async (req, res) => {
         ).catch(() => {})
       }
 
-      // Bill minutes using unified billing
-      if (duration > 0) {
-        try {
-          const minutes = Math.ceil(duration / 60)
-          await voiceService.billCallMinutesUnified(session.chatId, session.callerId, minutes, session.targetNumber, 'IVR_Outbound_Twilio')
-        } catch (e) { log(`[SingleIVR] Minutes billing error: ${e.message}`) }
-      }
+      // Bill minutes using unified billing — min 1 min, always charged
+      try {
+        const minutes = Math.max(1, duration > 0 ? Math.ceil(duration / 60) : 1)
+        await voiceService.billCallMinutesUnified(session.chatId, session.callerId, minutes, session.targetNumber, 'IVR_Outbound_Twilio')
+      } catch (e) { log(`[SingleIVR] Minutes billing error: ${e.message}`) }
 
       setTimeout(() => { delete voiceService.twilioIvrSessions[sessionId] }, 30000)
     } else if (session && (CallStatus === 'no-answer' || CallStatus === 'busy' || CallStatus === 'failed' || CallStatus === 'canceled')) {
       const reason = CallStatus === 'no-answer' ? 'No Answer' : CallStatus === 'busy' ? 'Busy' : CallStatus === 'failed' ? 'Failed' : 'Cancelled'
       bot?.sendMessage(session.chatId,
-        `📊 <b>IVR Call — ${reason}</b>\n📞 ${session.targetNumber}`,
+        `📊 <b>IVR Call — ${reason}</b>\n📞 ${session.targetNumber}\n💰 Charged: $${voiceService.IVR_CALL_RATE.toFixed(2)} (1 min minimum)`,
         { parse_mode: 'HTML' }
       ).catch(() => {})
+
+      // Bill minimum 1 minute even for unanswered calls (same as bulk IVR)
+      try {
+        await voiceService.billCallMinutesUnified(session.chatId, session.callerId, 1, session.targetNumber, 'IVR_Outbound_Twilio')
+      } catch (e) { log(`[SingleIVR] Unanswered billing error: ${e.message}`) }
+
       setTimeout(() => { delete voiceService.twilioIvrSessions[sessionId] }, 5000)
     }
 
