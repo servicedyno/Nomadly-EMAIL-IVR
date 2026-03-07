@@ -4612,7 +4612,7 @@ Enter new value:`), bc)
               priceUsd, priceNgn: coin === u.ngn ? priceNgn : 0,
               paymentMethod: 'wallet_' + coin,
             }, lang)
-            if (started) return send(chatId, '') // Flow started, don't fall through
+            if (started) return // Flow started, don't fall through
           }
         }
 
