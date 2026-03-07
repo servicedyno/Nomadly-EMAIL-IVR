@@ -366,19 +366,51 @@ async function sendBatch(campaign, settings) {
   for (let i = 0; i < batch.length; i++) {
     const email = batch[i];
 
-    // Pick domain (round-robin)
+    // Pick domain (round-robin across domains)
     const domainIdx = (startIdx + i) % domains.length;
     const domain = domains[domainIdx];
 
-    // Pick IP from domain's assigned IPs
-    const ip = domain.assignedIps[0] || VPS_HOST;
+    // Pick IP from domain's assigned IPs (round-robin + warming-aware)
+    // Try each IP in rotation; skip any that have hit their warming limit
+    const ips = (domain.assignedIps && domain.assignedIps.length > 0) ? domain.assignedIps : [VPS_HOST];
+    let selectedIp = null;
+    let warmCheck = null;
 
-    // Check warming limits
-    const warmCheck = await emailWarming.canSend(ip);
-    if (!warmCheck.canSend) {
-      // Can't send more from this IP right now — stop batch
-      console.log(`[EmailBlast] IP ${ip} limit reached: ${warmCheck.reason}`);
-      break;
+    for (let j = 0; j < ips.length; j++) {
+      const candidateIp = ips[(startIdx + i + j) % ips.length];
+      warmCheck = await emailWarming.canSend(candidateIp);
+      if (warmCheck.canSend) {
+        selectedIp = candidateIp;
+        break;
+      }
+    }
+
+    if (!selectedIp) {
+      // All IPs for this domain hit their limits — try other domains' IPs as fallback
+      let fallbackFound = false;
+      for (let d = 0; d < domains.length; d++) {
+        if (d === domainIdx) continue;
+        const fallbackIps = domains[d].assignedIps || [VPS_HOST];
+        for (const fbIp of fallbackIps) {
+          const fbCheck = await emailWarming.canSend(fbIp);
+          if (fbCheck.canSend) {
+            selectedIp = fbIp;
+            // Use the fallback domain for From header too
+            domain.domain = domains[d].domain;
+            domain.dkimSelector = domains[d].dkimSelector;
+            domain.dkimPrivateKey = domains[d].dkimPrivateKey;
+            fallbackFound = true;
+            break;
+          }
+        }
+        if (fallbackFound) break;
+      }
+
+      if (!selectedIp) {
+        // ALL IPs across ALL domains exhausted — stop this batch
+        console.log(`[EmailBlast] All IPs hit warming limits — pausing batch. Processed ${sent} of ${batch.length}`);
+        break;
+      }
     }
 
     // Check suppression list
@@ -390,7 +422,7 @@ async function sendBatch(campaign, settings) {
     }
 
     try {
-      const transporter = getTransporter(ip);
+      const transporter = getTransporter(selectedIp);
 
       const mailOpts = {
         from: `"${campaign.fromName}" <noreply@${domain.domain}>`,
@@ -413,7 +445,7 @@ async function sendBatch(campaign, settings) {
       sent++;
 
       // Record warming stats
-      await emailWarming.recordSent(ip, 1, 0);
+      await emailWarming.recordSent(selectedIp, 1, 0);
 
     } catch (err) {
       const errMsg = err.message || '';
@@ -426,7 +458,7 @@ async function sendBatch(campaign, settings) {
           { $set: { email, reason: 'hard_bounce', bounceCode: errMsg.substring(0, 3), campaignId: campaign.campaignId, addedAt: new Date() } },
           { upsert: true }
         );
-        await emailWarming.recordSent(ip, 1, 1);
+        await emailWarming.recordSent(selectedIp, 1, 1);
       } else {
         failed++;
       }
