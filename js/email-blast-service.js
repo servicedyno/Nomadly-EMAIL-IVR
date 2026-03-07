@@ -423,6 +423,7 @@ async function sendBatch(campaign, settings) {
 
     try {
       const transporter = getTransporter(selectedIp);
+      const msgId = `<${require('crypto').randomBytes(16).toString('hex')}@${domain.domain}>`;
 
       const mailOpts = {
         from: `"${campaign.fromName}" <noreply@${domain.domain}>`,
@@ -430,9 +431,14 @@ async function sendBatch(campaign, settings) {
         subject: campaign.subject,
         text: campaign.bodyText || stripHtml(campaign.bodyHtml),
         html: campaign.bodyHtml,
+        messageId: msgId,
         headers: {
           'List-Unsubscribe': `<mailto:unsubscribe@${domain.domain}?subject=unsubscribe>`,
-          'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click'
+          'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+          'Reply-To': `noreply@${domain.domain}`,
+          'Precedence': 'bulk',
+          'X-Auto-Response-Suppress': 'OOF, AutoReply',
+          'Feedback-ID': `${campaign.campaignId}:nomadly:${domain.domain}`
         },
         dkim: {
           domainName: domain.domain,
