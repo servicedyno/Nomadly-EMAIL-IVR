@@ -2594,6 +2594,9 @@ bot?.on('message', msg => {
     ebAdminPricingRate: 'ebAdminPricingRate',
     ebAdminPricingMin: 'ebAdminPricingMin',
     ebAdminPricingMax: 'ebAdminPricingMax',
+    ebSelectContentType: 'ebSelectContentType',
+    ebTestEmail: 'ebTestEmail',
+    ebTestEmailSent: 'ebTestEmailSent',
   }
 
   const firstSteps = [
@@ -5227,6 +5230,41 @@ All verified numbers generated during sourcing.`))
       notifyGroup(`🔗 <b>Short Link Created!</b>\nUser ${maskName(name)} just shortened a link.\n${FREE_LINKS} free trial links for everyone — try it now — /start`)
       checkAndNotifyTierUpgrade(preSpend)
     },
+
+    'email_blast_crypto': async coin => {
+      try {
+        const campaignId = info.ebCampaignId
+        const campaign = await emailBlastService.getCampaign(campaignId)
+        if (!campaign) return send(chatId, '❌ Campaign not found.')
+
+        const { usdBal } = await getBalance(walletOf, chatId)
+        if (usdBal < campaign.totalPrice) {
+          return send(chatId, `❌ Insufficient wallet balance. Need $${campaign.totalPrice}, have $${usdBal.toFixed(2)}.\nDeposit more to your wallet and try again.`)
+        }
+
+        const name = await get(nameOf, chatId)
+        const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
+        set(payments, nanoid(), `Wallet,EmailBlast,$${campaign.totalPrice},${chatId},${name},${new Date()}`)
+        await atomicIncrement(walletOf, chatId, 'usdOut', campaign.totalPrice)
+
+        await emailBlastService.startCampaign(campaignId, 'crypto', coin || 'usd')
+
+        const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
+        send(chatId, t.showWallet(usd, ngn), trans('o'))
+        checkAndNotifyTierUpgrade(preSpend)
+
+        return send(chatId,
+          `✅ <b>Payment Successful!</b>\n\n` +
+          `💵 $${campaign.totalPrice} deducted from wallet\n` +
+          `📧 Campaign queued: <b>${campaign.totalEmails}</b> emails\n\n` +
+          `📤 Sending will begin shortly. You'll receive progress updates and a completion notification.`,
+          { parse_mode: 'HTML' }
+        )
+      } catch (err) {
+        console.log('[EmailBlast] Crypto payment error:', err.message)
+        return send(chatId, '❌ Payment processing error. Please contact support.')
+      }
+    },
   }
 
   const goBack = () => {
@@ -6136,16 +6174,47 @@ All verified numbers generated during sourcing.`))
   if (action === a.ebEnterFromName) {
     if (message === '❌ Cancel') return goto.displayMainMenuButtons()
     await saveInfo('ebFromName', message)
-    await set(state, chatId, 'action', a.ebEnterContent)
+    await set(state, chatId, 'action', a.ebSelectContentType)
     return send(chatId,
       `✅ From: <b>${message}</b>\n\n` +
-      `📝 Now send the <b>email body</b>.\n\n` +
-      `Options:\n` +
-      `• Send a <b>text message</b> (will be sent as HTML)\n` +
-      `• Upload an <b>HTML file</b> (.html)\n\n` +
-      `Type or upload your email content:`,
-      { parse_mode: 'HTML', reply_markup: { keyboard: [['❌ Cancel']], resize_keyboard: true } }
+      `📝 <b>How would you like to provide your email content?</b>\n\n` +
+      `Choose an option:`,
+      { parse_mode: 'HTML', reply_markup: { keyboard: [
+        ['📝 Type Plain Text'],
+        ['📎 Upload HTML File'],
+        ['❌ Cancel']
+      ], resize_keyboard: true } }
     )
+  }
+
+  // Select Content Type
+  if (action === a.ebSelectContentType) {
+    if (message === '❌ Cancel') return goto.displayMainMenuButtons()
+
+    if (message === '📝 Type Plain Text') {
+      await saveInfo('ebContentType', 'text')
+      await set(state, chatId, 'action', a.ebEnterContent)
+      return send(chatId,
+        `📝 <b>Enter Email Body (Plain Text)</b>\n\n` +
+        `Type or paste your email message below.\n` +
+        `It will be automatically formatted for email delivery.\n\n` +
+        `💡 <i>Tip: Use line breaks for paragraphs. The text will be converted to a clean HTML email.</i>`,
+        { parse_mode: 'HTML', reply_markup: { keyboard: [['❌ Cancel']], resize_keyboard: true } }
+      )
+    }
+
+    if (message === '📎 Upload HTML File') {
+      await saveInfo('ebContentType', 'html')
+      await set(state, chatId, 'action', a.ebEnterContent)
+      return send(chatId,
+        `📎 <b>Upload HTML Email Template</b>\n\n` +
+        `Send me an <b>.html</b> file with your email template.\n\n` +
+        `💡 <i>Tip: Use inline CSS for best compatibility across email clients. Avoid external stylesheets or JavaScript.</i>`,
+        { parse_mode: 'HTML', reply_markup: { keyboard: [['❌ Cancel']], resize_keyboard: true } }
+      )
+    }
+
+    return send(chatId, 'Please choose: "📝 Type Plain Text" or "📎 Upload HTML File"')
   }
 
   // Enter Email Content
@@ -6154,23 +6223,34 @@ All verified numbers generated during sourcing.`))
 
     let htmlContent = ''
     let textContent = ''
+    const contentType = info.ebContentType || 'text'
 
-    if (msg.document && msg.document.file_name && msg.document.file_name.endsWith('.html')) {
+    if (contentType === 'html' || (msg.document && msg.document.file_name && msg.document.file_name.endsWith('.html'))) {
       // HTML file upload
+      if (!msg.document || !msg.document.file_name || !msg.document.file_name.endsWith('.html')) {
+        return send(chatId, '📎 Please upload an <b>.html</b> file, or tap ❌ Cancel to start over.', { parse_mode: 'HTML' })
+      }
       try {
         const fileLink = await bot.getFileLink(msg.document.file_id)
-        const resp = await require('axios').get(fileLink)
-        htmlContent = resp.data
-        textContent = htmlContent.replace(/<[^>]*>/g, '').substring(0, 500)
+        const resp = await require('axios').get(fileLink, { responseType: 'text', timeout: 15000 })
+        htmlContent = typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data)
+        textContent = htmlContent.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 500)
       } catch (e) {
-        return send(chatId, '❌ Failed to read HTML file. Please try again.')
+        return send(chatId, '❌ Failed to read HTML file. Please try again or upload a different file.')
       }
     } else if (message) {
-      // Text content — wrap in basic HTML
-      htmlContent = `<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6;">${message.replace(/\n/g, '<br>')}</div>`
+      // Plain text content — wrap in responsive HTML email template
       textContent = message
+      htmlContent = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f4f4f4;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;"><tr><td align="center" style="padding:20px 0;">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;">
+<tr><td style="padding:30px 40px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#333333;">
+${message.replace(/\n/g, '<br>')}
+</td></tr></table></td></tr></table></body></html>`
     } else {
-      return send(chatId, '📝 Please send text content or upload an HTML file.')
+      return send(chatId, '📝 Please type your email message or upload an HTML file.')
     }
 
     await saveInfo('ebBodyHtml', htmlContent)
@@ -6192,25 +6272,42 @@ All verified numbers generated during sourcing.`))
       `📋 <b>Campaign Preview</b>\n\n` +
       `👤 From: <b>${fromName}</b>\n` +
       `📧 Subject: <b>${subject}</b>\n` +
-      `📝 Content: <i>${textContent.substring(0, 200)}${textContent.length > 200 ? '...' : ''}</i>\n\n` +
+      `📝 Content type: <b>${contentType === 'html' ? 'HTML Template' : 'Plain Text'}</b>\n` +
+      `📝 Preview: <i>${textContent.substring(0, 200)}${textContent.length > 200 ? '...' : ''}</i>\n\n` +
       `━━━━━━━━━━━━━━━━━━━━━━\n` +
       `📬 Recipients: <b>${emailCount}</b>\n` +
       `💰 Rate: $${settings.pricePerEmail}/email\n` +
       `💵 Total: <b>$${totalPrice}</b>\n` +
       `⏱ Est. delivery: ~${estDays} day(s)\n` +
       `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-      `Proceed with payment?`,
-      { parse_mode: 'HTML', reply_markup: { keyboard: [['✅ Pay & Send'], ['✏️ Edit'], ['❌ Cancel']], resize_keyboard: true } }
+      `💡 <i>Send a test email to yourself first to verify how it looks!</i>`,
+      { parse_mode: 'HTML', reply_markup: { keyboard: [
+        ['📧 Send Test Email'],
+        ['✅ Pay & Send'],
+        ['✏️ Edit'],
+        ['❌ Cancel']
+      ], resize_keyboard: true } }
     )
   }
 
-  // Campaign Preview — Confirm/Edit/Cancel
+  // Campaign Preview — Confirm/Edit/Cancel/Test
   if (action === a.ebPreview) {
     if (message === '❌ Cancel') return goto.displayMainMenuButtons()
 
     if (message === '✏️ Edit') {
       await set(state, chatId, 'action', a.ebEnterSubject)
       return send(chatId, '✏️ Enter the new <b>Subject</b> line:', { parse_mode: 'HTML', reply_markup: { keyboard: [['❌ Cancel']], resize_keyboard: true } })
+    }
+
+    if (message === '📧 Send Test Email') {
+      await set(state, chatId, 'action', a.ebTestEmail)
+      return send(chatId,
+        `📧 <b>Send Test Email</b>\n\n` +
+        `Enter your email address to receive a test copy.\n` +
+        `The test will be sent via Brevo so you can preview how it looks in your inbox.\n\n` +
+        `📩 Type your email address:`,
+        { parse_mode: 'HTML', reply_markup: { keyboard: [['🔙 Back']], resize_keyboard: true } }
+      )
     }
 
     if (message === '✅ Pay & Send') {
@@ -6262,32 +6359,27 @@ All verified numbers generated during sourcing.`))
     if (!campaign) return send(chatId, '❌ Campaign not found.')
 
     if (message && message.startsWith('👛 Pay from Wallet')) {
-      const wallet = walletOf[chatId] || { usd: 0, ngn: 0 }
-      if (wallet.usd < campaign.totalPrice) {
-        return send(chatId, `❌ Insufficient balance. You need $${campaign.totalPrice} but have $${wallet.usd.toFixed(2)}. Please deposit first.`)
+      const { usdBal } = await getBalance(walletOf, chatId)
+      if (usdBal < campaign.totalPrice) {
+        return send(chatId, `❌ Insufficient balance. You need $${campaign.totalPrice} but have $${usdBal.toFixed(2)}. Please deposit first.`)
       }
 
-      // Deduct from wallet
-      walletOf[chatId].usd = parseFloat((wallet.usd - campaign.totalPrice).toFixed(2))
-      await set(payments, chatId, `wallet_usd`, walletOf[chatId].usd)
-
-      // Log payment
-      const paymentId = require('nanoid').nanoid()
-      await insert(payments, `email_blast_${paymentId}`, {
-        chatId, campaignId, amount: campaign.totalPrice, currency: 'USD',
-        method: 'wallet', status: 'completed', createdAt: new Date()
-      })
+      // Deduct from wallet (thread-safe)
+      const name = await get(nameOf, chatId)
+      set(payments, nanoid(), `Wallet,EmailBlast,$${campaign.totalPrice},${chatId},${name},${new Date()}`)
+      await atomicIncrement(walletOf, chatId, 'usdOut', campaign.totalPrice)
 
       // Start campaign
       await emailBlastService.startCampaign(campaignId, 'wallet', 'usd')
 
+      const { usdBal: newUsd, ngnBal: newNgn } = await getBalance(walletOf, chatId)
       await set(state, chatId, 'action', '')
       return send(chatId,
         `✅ <b>Payment Successful!</b>\n\n` +
         `💵 $${campaign.totalPrice} deducted from wallet\n` +
         `📧 Campaign queued: ${campaign.totalEmails} emails\n\n` +
         `📤 Sending will begin shortly. You'll receive progress updates and a completion notification.\n\n` +
-        `New wallet balance: <b>$${walletOf[chatId].usd.toFixed(2)}</b>`,
+        `New wallet balance: <b>$${newUsd.toFixed(2)}</b>`,
         { parse_mode: 'HTML' }
       )
     }
@@ -6302,6 +6394,163 @@ All verified numbers generated during sourcing.`))
         `💳 <b>Crypto Payment</b>\n\nAmount: <b>$${campaign.totalPrice}</b>\n\nSelect cryptocurrency:`,
         { parse_mode: 'HTML', reply_markup: { keyboard: [['BTC'], ['USDT (TRC20)'], ['USDT (ERC20)'], ['LTC'], ['❌ Cancel']], resize_keyboard: true } }
       )
+    }
+  }
+
+  // ━━━ Email Blast: Test Email via Brevo ━━━
+  if (action === a.ebTestEmail) {
+    if (message === '🔙 Back') {
+      await set(state, chatId, 'action', a.ebPreview)
+      // Re-show preview
+      const subject = info.ebSubject || 'No Subject'
+      const fromName = info.ebFromName || 'Nomadly'
+      const textContent = info.ebBodyText || ''
+      const emailCount = info.ebValidEmails ? JSON.parse(info.ebValidEmails).length : 0
+      const settings = await emailBlastService.getSettings()
+      const totalPrice = (emailCount * settings.pricePerEmail).toFixed(2)
+      const capacity = await emailWarming.getTotalCapacity()
+      const estDays = capacity.totalDaily > 0 ? Math.ceil(emailCount / capacity.totalDaily) : 'Unknown'
+      return send(chatId,
+        `📋 <b>Campaign Preview</b>\n\n` +
+        `👤 From: <b>${fromName}</b>\n` +
+        `📧 Subject: <b>${subject}</b>\n` +
+        `📝 Preview: <i>${textContent.substring(0, 200)}${textContent.length > 200 ? '...' : ''}</i>\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `📬 Recipients: <b>${emailCount}</b>\n` +
+        `💰 Rate: $${settings.pricePerEmail}/email\n` +
+        `💵 Total: <b>$${totalPrice}</b>\n` +
+        `⏱ Est. delivery: ~${estDays} day(s)\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━`,
+        { parse_mode: 'HTML', reply_markup: { keyboard: [
+          ['📧 Send Test Email'],
+          ['✅ Pay & Send'],
+          ['✏️ Edit'],
+          ['❌ Cancel']
+        ], resize_keyboard: true } }
+      )
+    }
+
+    // Validate email address
+    const testAddr = (message || '').trim().toLowerCase()
+    const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/
+    if (!emailRegex.test(testAddr)) {
+      return send(chatId, '❌ Invalid email address. Please enter a valid email (e.g., you@gmail.com):')
+    }
+
+    await send(chatId, `⏳ Sending test email to <b>${testAddr}</b> via Brevo...`, { parse_mode: 'HTML' })
+
+    try {
+      const nodemailer = require('nodemailer')
+      const brevoTransporter = nodemailer.createTransport({
+        host: process.env.MAIL_DOMAIN || 'smtp-relay.brevo.com',
+        port: parseInt(process.env.MAIL_PORT || '587'),
+        secure: false,
+        auth: {
+          user: process.env.MAIL_AUTH_USER,
+          pass: process.env.MAIL_AUTH_PASSWORD
+        }
+      })
+
+      const subject = info.ebSubject || 'No Subject'
+      const fromName = info.ebFromName || 'Nomadly'
+      const htmlBody = info.ebBodyHtml || ''
+      const textBody = info.ebBodyText || ''
+      const senderEmail = process.env.MAIL_SENDER || 'hosting@priv.host'
+
+      await brevoTransporter.sendMail({
+        from: `"${fromName} [TEST]" <${senderEmail}>`,
+        to: testAddr,
+        subject: `[TEST] ${subject}`,
+        text: textBody,
+        html: htmlBody,
+        headers: {
+          'List-Unsubscribe': `<mailto:unsubscribe@${senderEmail.split('@')[1] || 'nomadly.com'}?subject=unsubscribe>`,
+          'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click'
+        }
+      })
+
+      await saveInfo('ebTestEmailAddr', testAddr)
+      await set(state, chatId, 'action', a.ebTestEmailSent)
+      return send(chatId,
+        `✅ <b>Test Email Sent!</b>\n\n` +
+        `📩 Sent to: <b>${testAddr}</b>\n` +
+        `📧 Subject: <b>[TEST] ${subject}</b>\n\n` +
+        `Check your inbox (and spam folder) to see how it looks.\n\n` +
+        `What would you like to do?`,
+        { parse_mode: 'HTML', reply_markup: { keyboard: [
+          ['✅ Looks Good — Continue to Payment'],
+          ['📧 Send Another Test'],
+          ['✏️ Edit Content'],
+          ['❌ Cancel']
+        ], resize_keyboard: true } }
+      )
+    } catch (err) {
+      console.log('[EmailBlast] Test email via Brevo failed:', err.message)
+      return send(chatId,
+        `❌ <b>Test email failed</b>\n\n` +
+        `Error: ${err.message}\n\n` +
+        `You can still proceed to payment — the actual campaign uses a different sending system.\n\n` +
+        `Try again or continue:`,
+        { parse_mode: 'HTML', reply_markup: { keyboard: [
+          ['📧 Try Again'],
+          ['✅ Continue to Payment Anyway'],
+          ['✏️ Edit Content'],
+          ['❌ Cancel']
+        ], resize_keyboard: true } }
+      )
+    }
+  }
+
+  // Test Email Result — user decides to continue, edit, or resend
+  if (action === a.ebTestEmailSent) {
+    if (message === '❌ Cancel') return goto.displayMainMenuButtons()
+
+    if (message === '✅ Looks Good — Continue to Payment' || message === '✅ Continue to Payment Anyway') {
+      // Go to payment step — reuse the preview's "Pay & Send" logic
+      const emails = info.ebValidEmails ? JSON.parse(info.ebValidEmails) : []
+      const settings = await emailBlastService.getSettings()
+      const totalPrice = parseFloat((emails.length * settings.pricePerEmail).toFixed(2))
+
+      const campaign = await emailBlastService.createCampaign(
+        chatId,
+        emails,
+        info.ebSubject || 'No Subject',
+        info.ebBodyHtml || '',
+        info.ebBodyText || '',
+        info.ebFromName || 'Nomadly'
+      )
+
+      await saveInfo('ebCampaignId', campaign.campaignId)
+      await set(state, chatId, 'action', a.ebPayment)
+
+      const { usdBal } = await getBalance(walletOf, chatId)
+      const hasBalance = usdBal >= totalPrice
+
+      const payBtns = []
+      if (hasBalance) payBtns.push([`👛 Pay from Wallet ($${usdBal.toFixed(2)} available)`])
+      payBtns.push(['💳 Pay with Crypto'])
+      payBtns.push(['❌ Cancel'])
+
+      return send(chatId,
+        `💰 <b>Payment Required</b>\n\n` +
+        `Amount: <b>$${totalPrice}</b>\n` +
+        `Campaign: ${emails.length} emails\n\n` +
+        `Select payment method:`,
+        { parse_mode: 'HTML', reply_markup: { keyboard: payBtns, resize_keyboard: true } }
+      )
+    }
+
+    if (message === '📧 Send Another Test' || message === '📧 Try Again') {
+      await set(state, chatId, 'action', a.ebTestEmail)
+      return send(chatId,
+        `📧 Enter the email address to send a test to:`,
+        { parse_mode: 'HTML', reply_markup: { keyboard: [['🔙 Back']], resize_keyboard: true } }
+      )
+    }
+
+    if (message === '✏️ Edit Content' || message === '✏️ Edit') {
+      await set(state, chatId, 'action', a.ebEnterSubject)
+      return send(chatId, '✏️ Enter the new <b>Subject</b> line:', { parse_mode: 'HTML', reply_markup: { keyboard: [['❌ Cancel']], resize_keyboard: true } })
     }
   }
 
@@ -10115,7 +10364,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   //
   //
   // ── Skip global wallet redirect when inside a payment flow ──
-  const _payActions = ['phone-pay', 'domain-pay', 'hosting-pay', 'vps-plan-pay', 'vps-upgrade-plan-pay', 'digital-product-pay', 'virtual-card-pay', 'leads-pay']
+  const _payActions = ['phone-pay', 'domain-pay', 'hosting-pay', 'vps-plan-pay', 'vps-upgrade-plan-pay', 'digital-product-pay', 'virtual-card-pay', 'leads-pay', 'ebPayment']
   if (message === user.wallet && !_payActions.includes(action)) {
     return goto[user.wallet]()
   }
