@@ -33,6 +33,7 @@ bash /app/scripts/setup-nodejs.sh
 ## What's Been Implemented
 
 ### Completed
+- [x] Ship & Mail (BozzMail) — Renamed from "Shipping Label", opens as Telegram Mini App (Feb 2026)
 - [x] Environment setup with all API keys in `backend/.env`
 - [x] Telegram bot running via supervisor
 - [x] FastAPI reverse proxy to Node.js Express

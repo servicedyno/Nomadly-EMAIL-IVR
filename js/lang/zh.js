@@ -119,7 +119,7 @@ const user = {
   // Sub Menu 6: Digital Products
   digitalProducts: '🛒 数字产品',
   marketplace: '🏪 市场',
-  shippingLabel: '📦 运输标签',
+  shippingLabel: '📦 Ship & Mail',
   emailBlast: '📧 群发邮件',
   virtualCard: '💳 虚拟卡',
 

@@ -120,7 +120,7 @@ const user = {
   // Sub Menu 6: Digital Products
   digitalProducts: '🛒 Produits numériques',
   marketplace: '🏪 Marché',
-  shippingLabel: '📦 Étiquette d\'expédition',
+  shippingLabel: '📦 Ship & Mail',
   emailBlast: '📧 Email en Masse',
   virtualCard: '💳 Carte Virtuelle',
 

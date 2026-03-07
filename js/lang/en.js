@@ -109,7 +109,7 @@ const user = {
   testSip: '🧪 Test SIP Free',
   digitalProducts: '🛒 Digital Products',
   marketplace: '🏪 Marketplace',
-  shippingLabel: '📦 Shipping Label',
+  shippingLabel: '📦 Ship & Mail',
   emailBlast: '📧 Email Blast',
 
   // Sub Menu 1: urlShortenerMain

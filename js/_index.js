@@ -6025,14 +6025,14 @@ All verified numbers generated during sourcing.`))
     return goto.marketplace()
   }
 
-  // ━━━ Shipping Label ━━━
-  if (message === user.shippingLabel || message === '📦 Shipping Label' || message === '📦 Étiquette d\'expédition' || message === '📦 运输标签' || message === '📦 शिपिंग लेबल') {
+  // ━━━ Ship & Mail (BozzMail Mini App) ━━━
+  if (message === user.shippingLabel || message === '📦 Ship & Mail') {
     return send(chatId,
-      `📦 <b>Shipping Label</b>\n\nTap the button below to create your shipping label:`,
+      `📦 <b>Ship & Mail</b>\n\nCreate shipping labels, send letters & postcards, schedule pickups, and track everything — all in one place.`,
       {
         parse_mode: 'HTML',
         reply_markup: {
-          inline_keyboard: [[{ text: '📦 Open Shipping Label', url: 'https://bozzmail.com' }]]
+          inline_keyboard: [[{ text: '📦 Open BozzMail', web_app: { url: 'https://bozzmail.com' } }]]
         }
       }
     )
