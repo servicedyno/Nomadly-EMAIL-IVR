@@ -830,9 +830,13 @@ const loadData = async () => {
   }
 
   // Initialize Telnyx Cloud IVR resources
+  const _skipWebhookSync = process.env.SKIP_WEBHOOK_SYNC === 'true'
+  if (_skipWebhookSync) log('[Webhooks] SKIP_WEBHOOK_SYNC=true — will NOT overwrite production webhook URLs')
   if (process.env.TELNYX_API_KEY && process.env.PHONE_SERVICE_ON === 'true') {
     try {
-      telnyxResources = await telnyxApi.initializeTelnyxResources(SELF_URL)
+      telnyxResources = _skipWebhookSync
+        ? await telnyxApi.getTelnyxResources()
+        : await telnyxApi.initializeTelnyxResources(SELF_URL)
       log('[CloudPhone] Telnyx resources initialized')
       // Migrate existing numbers from SIP Connection to Call Control App
       // This ensures inbound calls route through our webhook (IVR, forwarding, voicemail)
@@ -851,11 +855,17 @@ const loadData = async () => {
   // Initialize Twilio Cloud IVR resources
   if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.PHONE_SERVICE_ON === 'true') {
     try {
-      twilioResources = await twilioService.initializeTwilioResources(SELF_URL)
+      if (_skipWebhookSync) {
+        // Read-only: just get existing resources without updating webhooks
+        twilioResources = twilioService.getTwilioResourcesFromEnv ? twilioService.getTwilioResourcesFromEnv() : await twilioService.initializeTwilioResources(SELF_URL)
+      } else {
+        twilioResources = await twilioService.initializeTwilioResources(SELF_URL)
+      }
       if (twilioResources) {
         log(`[CloudPhone] Twilio initialized — SIP: ${twilioResources.sipDomainName}`)
 
         // Sync all Twilio number webhooks to current SELF_URL (runs in background)
+        if (!_skipWebhookSync) {
         ;(async () => {
           try {
             const allUsers = await db.collection('phoneNumbersOf').find({}).toArray()
@@ -879,6 +889,7 @@ const loadData = async () => {
             log(`[Twilio Sync] Webhook sync complete: ${updated} updated, ${failed} failed`)
           } catch (e) { log(`[Twilio Sync] Error: ${e.message}`) }
         })()
+        } // end if !_skipWebhookSync
       }
     } catch (e) {
       log('[CloudPhone] Twilio init error:', e.message)

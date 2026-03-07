@@ -551,6 +551,19 @@ async function initializeTelnyxResources(selfUrl) {
   return { sipConnectionId, messagingProfileId, callControlAppId }
 }
 
+// ── Get Telnyx Resources without updating webhooks (read-only mode) ──
+async function getTelnyxResources() {
+  log('━━━ Loading Telnyx Resources (read-only — no webhook sync) ━━━')
+  const sipConnectionId = process.env.TELNYX_SIP_CONNECTION_ID || null
+  const messagingProfileId = process.env.TELNYX_MESSAGING_PROFILE_ID || null
+  const callControlAppId = process.env.TELNYX_CALL_CONTROL_APP_ID || null
+  log('SIP Connection ID:', sipConnectionId)
+  log('Messaging Profile ID:', messagingProfileId)
+  log('Call Control App ID:', callControlAppId)
+  return { sipConnectionId, messagingProfileId, callControlAppId }
+}
+
+
 // ── Validate destination number is routable ──
 async function validateForwardingDestination(toNumber) {
   try {
@@ -771,6 +784,7 @@ module.exports = {
   createOutboundCall,
   bridgeCalls,
   initializeTelnyxResources,
+  getTelnyxResources,
   validateForwardingDestination,
   assignNumberToCallControlApp,
   migrateNumbersToCallControlApp,
