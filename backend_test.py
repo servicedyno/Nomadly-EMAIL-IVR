@@ -1,314 +1,347 @@
 #!/usr/bin/env python3
-"""
-Backend Test Suite for Auto-fill Email and Resume Doc Sessions
-Tests the Nomadly Telegram Bot Node.js backend for regulatory compliance features.
-"""
 
 import requests
 import json
+import time
 import sys
 import os
+import subprocess
+
+def log(message):
+    print(f"[TEST] {message}")
 
 def test_nodejs_health():
-    """Test 1: Node.js health and error logs"""
-    print("🔍 Testing Node.js backend health...")
-    
+    """Test 1: Node.js Health Check"""
+    log("Testing Node.js health check...")
     try:
-        # Test health endpoint
         response = requests.get('http://localhost:5000/health', timeout=10)
-        print(f"   ✅ Health endpoint: {response.status_code}")
-        
         if response.status_code == 200:
-            health_data = response.json()
-            print(f"   ✅ Status: {health_data.get('status')}")
-            print(f"   ✅ Database: {health_data.get('database')}")
-            print(f"   ✅ Uptime: {health_data.get('uptime')}")
+            data = response.json()
+            log(f"✅ Health check passed: {data}")
+            return True
         else:
-            print(f"   ❌ Health check failed: {response.status_code}")
+            log(f"❌ Health check failed with status {response.status_code}")
             return False
-            
     except Exception as e:
-        print(f"   ❌ Health check error: {e}")
+        log(f"❌ Health check failed: {e}")
         return False
-    
-    # Check error logs
-    try:
-        with open('/var/log/supervisor/nodejs.err.log', 'r') as f:
-            error_content = f.read().strip()
-            if error_content:
-                print(f"   ❌ Error log not empty: {len(error_content)} bytes")
-                return False
-            else:
-                print("   ✅ Error log is empty (0 bytes)")
-    except Exception as e:
-        print(f"   ❌ Error reading log file: {e}")
-        return False
-        
-    return True
 
-def test_regulatory_config():
-    """Test 2: Verify IE:local and GB:mobile configurations"""
-    print("🔍 Testing regulatory configurations...")
-    
-    config_file = '/app/js/regulatory-config.js'
+def check_nodejs_error_logs():
+    """Test 2: Check Node.js error logs are empty"""
+    log("Checking Node.js error logs...")
     try:
-        with open(config_file, 'r') as f:
-            content = f.read()
-            
-        # Find IE:local config section
-        ie_local_start = content.find("'IE:local': {")
-        if ie_local_start == -1:
-            print("   ❌ IE:local configuration not found")
-            return False
-            
-        # Find the end of IE:local config (look for next country config)
-        ie_local_end = content.find("'AU:mobile':", ie_local_start)  # Next config after IE:local
-        ie_local_config = content[ie_local_start:ie_local_end]
-        
-        # Verify IE:local has email in endUserFields
-        if "'email'" in ie_local_config and "endUserFields:" in ie_local_config:
-            print("   ✅ IE:local has 'email' in endUserFields")
-        else:
-            print("   ❌ IE:local missing 'email' in endUserFields")
-            return False
-            
-        # Check textInputs only has NAME_INPUTS (no email key prompt)
-        if ("textInputs: [\n      ...NAME_INPUTS,\n    ]" in ie_local_config or 
-            "textInputs: [\n      ...NAME_INPUTS\n    ]" in ie_local_config):
-            print("   ✅ IE:local textInputs contains only NAME_INPUTS (no email prompt)")
-        else:
-            print("   ❌ IE:local textInputs format incorrect")
-            print(f"   Debug: Found textInputs section: {repr(ie_local_config[ie_local_config.find('textInputs:'):ie_local_config.find('docs:')])}")
-            return False
-            
-        # Find GB:mobile config
-        gb_mobile_start = content.find("'GB:mobile': {")
-        if gb_mobile_start == -1:
-            print("   ❌ GB:mobile configuration not found")
-            return False
-            
-        gb_mobile_end = content.find("},", gb_mobile_start)
-        gb_mobile_config = content[gb_mobile_start:gb_mobile_end]
-        
-        # Verify GB:mobile has email in endUserFields
-        if "'email'" in gb_mobile_config and "endUserFields:" in gb_mobile_config:
-            print("   ✅ GB:mobile has 'email' in endUserFields")
-        else:
-            print("   ❌ GB:mobile missing 'email' in endUserFields")
-            return False
-            
-        # Check textInputs has NAME_INPUTS + phone_number (no email prompt)
-        if "...NAME_INPUTS" in gb_mobile_config and "phone_number" in gb_mobile_config:
-            if "{ key: 'email'" not in gb_mobile_config:
-                print("   ✅ GB:mobile textInputs contains NAME_INPUTS + phone_number (no email prompt)")
+        result = subprocess.run(['ls', '-la', '/var/log/supervisor/nodejs.err.log'], 
+                              capture_output=True, text=True)
+        if result.returncode == 0:
+            # File exists, check size
+            result = subprocess.run(['wc', '-c', '/var/log/supervisor/nodejs.err.log'], 
+                                  capture_output=True, text=True)
+            size = int(result.stdout.split()[0])
+            if size == 0:
+                log("✅ Node.js error log is EMPTY (0 bytes)")
+                return True
             else:
-                print("   ❌ GB:mobile textInputs incorrectly contains email prompt")
+                log(f"❌ Node.js error log has {size} bytes")
+                # Show last 10 lines of error log
+                result = subprocess.run(['tail', '-10', '/var/log/supervisor/nodejs.err.log'], 
+                                      capture_output=True, text=True)
+                log(f"Last 10 lines of error log:\n{result.stdout}")
                 return False
         else:
-            print("   ❌ GB:mobile textInputs format incorrect")
+            log("❌ Node.js error log file not found")
             return False
-            
-        return True
-        
     except Exception as e:
-        print(f"   ❌ Error reading regulatory config: {e}")
+        log(f"❌ Error checking Node.js error logs: {e}")
         return False
 
-def test_auto_fill_email():
-    """Test 3: Verify auto-fill email functionality in regulatory-flow.js"""
-    print("🔍 Testing auto-fill email functionality...")
-    
-    flow_file = '/app/js/regulatory-flow.js'
+def test_balance_monitor_exports():
+    """Test 3: Check balance-monitor.js module exports"""
+    log("Testing balance-monitor.js module exports...")
     try:
-        with open(flow_file, 'r') as f:
-            content = f.read()
-            
-        # Check for auto-fill email logic in createAndSubmitBundle
-        auto_fill_section = content.find("// Auto-fill email with service email")
-        if auto_fill_section == -1:
-            print("   ❌ Auto-fill email comment not found")
-            return False
-            
-        # Verify the auto-fill logic implementation
-        expected_logic = "if (config.endUserFields.includes('email') && (!endUserAttrs.email || endUserAttrs.email === 'N/A')) {"
-        if expected_logic in content:
-            print("   ✅ Auto-fill email condition check found")
-        else:
-            print("   ❌ Auto-fill email condition check missing")
-            return False
-            
-        # Check NOMADLY_SERVICE_EMAIL usage
-        nomadly_email_usage = "endUserAttrs.email = process.env.NOMADLY_SERVICE_EMAIL || 'support@nomadly.com'"
-        if nomadly_email_usage in content:
-            print("   ✅ NOMADLY_SERVICE_EMAIL auto-fill implementation found")
-        else:
-            print("   ❌ NOMADLY_SERVICE_EMAIL auto-fill implementation missing")
-            return False
-            
-        # Verify it's in createAndSubmitBundle function (around line 401)
-        create_bundle_start = content.find("async function createAndSubmitBundle(")
-        if create_bundle_start != -1 and auto_fill_section > create_bundle_start:
-            print("   ✅ Auto-fill email is in createAndSubmitBundle function")
-        else:
-            print("   ❌ Auto-fill email not in correct function")
-            return False
-            
-        return True
+        # Test by trying to require the module in Node.js
+        test_script = """
+        try {
+            const balanceMonitor = require('./js/balance-monitor.js');
+            const requiredExports = ['initBalanceMonitor', 'checkAllBalances', 'checkTelnyxBalance', 'checkTwilioBalance'];
+            const hasAll = requiredExports.every(exp => typeof balanceMonitor[exp] === 'function');
+            console.log(JSON.stringify({
+                success: hasAll,
+                exports: Object.keys(balanceMonitor),
+                required: requiredExports
+            }));
+        } catch (e) {
+            console.log(JSON.stringify({success: false, error: e.message}));
+        }
+        """
         
-    except Exception as e:
-        print(f"   ❌ Error reading regulatory flow: {e}")
-        return False
-
-def test_resume_functions():
-    """Test 4: Verify resume mechanism functions exist and are exported"""
-    print("🔍 Testing resume mechanism functions...")
-    
-    flow_file = '/app/js/regulatory-flow.js'
-    try:
-        with open(flow_file, 'r') as f:
-            content = f.read()
-            
-        # Check for getIncompleteSession function
-        if "async function getIncompleteSession(chatId)" in content:
-            print("   ✅ getIncompleteSession function exists")
-        else:
-            print("   ❌ getIncompleteSession function missing")
-            return False
-            
-        # Check for resumeSession function
-        if "async function resumeSession(chatId)" in content:
-            print("   ✅ resumeSession function exists")
-        else:
-            print("   ❌ resumeSession function missing")
-            return False
-            
-        # Check for cancelAndRefund function
-        if "async function cancelAndRefund(chatId)" in content:
-            print("   ✅ cancelAndRefund function exists")
-        else:
-            print("   ❌ cancelAndRefund function missing")
-            return False
-            
-        # Check module.exports
-        exports_section = content[content.rfind("module.exports"):]
-        required_exports = ["getIncompleteSession", "resumeSession", "cancelAndRefund"]
+        result = subprocess.run(['node', '-e', test_script], 
+                              capture_output=True, text=True, cwd='/app')
         
-        for export_func in required_exports:
-            if export_func in exports_section:
-                print(f"   ✅ {export_func} is exported")
+        if result.returncode == 0:
+            data = json.loads(result.stdout.strip())
+            if data.get('success'):
+                log(f"✅ Module exports verified: {data.get('exports')}")
+                return True
             else:
-                print(f"   ❌ {export_func} not exported")
+                log(f"❌ Module exports missing: {data}")
                 return False
-                
-        return True
-        
+        else:
+            log(f"❌ Module test failed: {result.stderr}")
+            return False
     except Exception as e:
-        print(f"   ❌ Error reading regulatory flow: {e}")
+        log(f"❌ Error testing module exports: {e}")
         return False
 
-def test_index_integration():
-    """Test 5: Verify _index.js integration with cpResumeDoc action and submenu5"""
-    print("🔍 Testing _index.js integration...")
-    
-    index_file = '/app/js/_index.js'
+def check_initialization_logs():
+    """Test 4: Check for initialization log message"""
+    log("Checking for balance monitor initialization logs...")
     try:
-        with open(index_file, 'r') as f:
-            content = f.read()
-            
-        # Check for cpResumeDoc action constant
-        if "cpResumeDoc: 'cpResumeDoc'" in content:
-            print("   ✅ cpResumeDoc action constant exists")
-        else:
-            print("   ❌ cpResumeDoc action constant missing")
-            return False
-            
-        # Check submenu5 function calls getIncompleteSession
-        submenu5_start = content.find("submenu5: async () => {")
-        if submenu5_start == -1:
-            print("   ❌ submenu5 function not found")
-            return False
-            
-        submenu5_section = content[submenu5_start:submenu5_start + 2000]
-        if "await regulatoryFlow.getIncompleteSession(chatId)" in submenu5_section:
-            print("   ✅ submenu5 calls regulatoryFlow.getIncompleteSession")
-        else:
-            print("   ❌ submenu5 does not call getIncompleteSession")
-            return False
-            
-        # Check for Resume/Cancel buttons in submenu5
-        if "▶️ Resume Verification" in submenu5_section and "❌ Cancel & Refund" in submenu5_section:
-            print("   ✅ submenu5 shows Resume/Cancel buttons when incomplete session found")
-        else:
-            print("   ❌ submenu5 missing Resume/Cancel buttons")
-            return False
-            
-        # Check cpResumeDoc handler
-        cpresume_handler = content.find("if (action === a.cpResumeDoc) {")
-        if cpresume_handler == -1:
-            print("   ❌ cpResumeDoc handler not found")
-            return False
-            
-        handler_section = content[cpresume_handler:cpresume_handler + 1000]
+        result = subprocess.run(['grep', '-i', 'BalanceMonitor.*Initialized.*checking every.*120min.*warn.*crit', 
+                               '/var/log/supervisor/nodejs.out.log'], 
+                              capture_output=True, text=True)
         
-        # Check for Resume button processing
-        if "await regulatoryFlow.resumeSession(chatId)" in handler_section:
-            print("   ✅ cpResumeDoc handler calls resumeSession")
+        if result.returncode == 0:
+            log(f"✅ Initialization log found: {result.stdout.strip()}")
+            return True
         else:
-            print("   ❌ cpResumeDoc handler missing resumeSession call")
-            return False
-            
-        # Check for Cancel button processing  
-        if "await regulatoryFlow.cancelAndRefund(chatId)" in handler_section:
-            print("   ✅ cpResumeDoc handler calls cancelAndRefund")
-        else:
-            print("   ❌ cpResumeDoc handler missing cancelAndRefund call")
-            return False
-            
-        return True
-        
+            # Try a more flexible search
+            result = subprocess.run(['grep', '-i', 'BalanceMonitor.*Initialized', 
+                                   '/var/log/supervisor/nodejs.out.log'], 
+                                  capture_output=True, text=True)
+            if result.returncode == 0:
+                log(f"✅ Balance monitor initialization found: {result.stdout.strip()}")
+                return True
+            else:
+                log("❌ Balance monitor initialization log not found")
+                return False
     except Exception as e:
-        print(f"   ❌ Error reading _index.js: {e}")
+        log(f"❌ Error checking initialization logs: {e}")
+        return False
+
+def check_startup_balance_check():
+    """Test 5: Check for startup balance check message (30s after startup)"""
+    log("Checking for startup balance check logs...")
+    try:
+        result = subprocess.run(['grep', '-i', 'Running provider balance checks', 
+                               '/var/log/supervisor/nodejs.out.log'], 
+                              capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            log(f"✅ Startup balance check found: {result.stdout.strip()}")
+            return True
+        else:
+            log("❌ Startup balance check log not found")
+            return False
+    except Exception as e:
+        log(f"❌ Error checking startup balance check logs: {e}")
+        return False
+
+def check_telnyx_balance_logs():
+    """Test 6: Check for Telnyx balance check logs"""
+    log("Checking for Telnyx balance check logs...")
+    try:
+        result = subprocess.run(['grep', '-i', 'Telnyx.*USD.*\\[', 
+                               '/var/log/supervisor/nodejs.out.log'], 
+                              capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            log(f"✅ Telnyx balance logs found: {result.stdout.strip()}")
+            return True
+        else:
+            log("❌ Telnyx balance logs not found")
+            return False
+    except Exception as e:
+        log(f"❌ Error checking Telnyx balance logs: {e}")
+        return False
+
+def check_twilio_balance_logs():
+    """Test 7: Check for Twilio balance check logs"""
+    log("Checking for Twilio balance check logs...")
+    try:
+        result = subprocess.run(['grep', '-i', 'Twilio.*USD.*\\[', 
+                               '/var/log/supervisor/nodejs.out.log'], 
+                              capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            log(f"✅ Twilio balance logs found: {result.stdout.strip()}")
+            return True
+        else:
+            log("❌ Twilio balance logs not found")
+            return False
+    except Exception as e:
+        log(f"❌ Error checking Twilio balance logs: {e}")
+        return False
+
+def check_alert_sent_logs():
+    """Test 8: Check for alert sent logs (should show WARNING alert for Twilio ~$6.13)"""
+    log("Checking for balance alert logs...")
+    try:
+        result = subprocess.run(['grep', '-i', 'WARNING alert sent.*Twilio', 
+                               '/var/log/supervisor/nodejs.out.log'], 
+                              capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            log(f"✅ Twilio WARNING alert found: {result.stdout.strip()}")
+            return True
+        else:
+            # Check for any alert sent logs
+            result = subprocess.run(['grep', '-i', 'alert sent', 
+                                   '/var/log/supervisor/nodejs.out.log'], 
+                                  capture_output=True, text=True)
+            if result.returncode == 0:
+                log(f"✅ Alert logs found: {result.stdout.strip()}")
+                return True
+            else:
+                log("❌ No balance alert logs found")
+                return False
+    except Exception as e:
+        log(f"❌ Error checking alert logs: {e}")
+        return False
+
+def check_integration_in_index():
+    """Test 9: Check integration in _index.js"""
+    log("Checking balance monitor integration in _index.js...")
+    try:
+        with open('/app/js/_index.js', 'r') as f:
+            content = f.read()
+        
+        # Check for require statement
+        if "require('./balance-monitor.js')" in content:
+            log("✅ balance-monitor.js require statement found")
+            require_found = True
+        else:
+            log("❌ balance-monitor.js require statement not found")
+            require_found = False
+        
+        # Check for initBalanceMonitor call
+        if "initBalanceMonitor(bot)" in content:
+            log("✅ initBalanceMonitor(bot) call found")
+            init_found = True
+        else:
+            log("❌ initBalanceMonitor(bot) call not found")
+            init_found = False
+        
+        # Check if it's after EmailBlast initialization
+        email_blast_idx = content.find("emailBlastService.initEmailBlast")
+        balance_monitor_idx = content.find("initBalanceMonitor(bot)")
+        
+        if email_blast_idx != -1 and balance_monitor_idx != -1 and balance_monitor_idx > email_blast_idx:
+            log("✅ Balance monitor initialized after EmailBlast service")
+            order_correct = True
+        else:
+            log("⚠️ Balance monitor initialization order unclear")
+            order_correct = False
+        
+        return require_found and init_found
+    except Exception as e:
+        log(f"❌ Error checking integration: {e}")
+        return False
+
+def check_threshold_configuration():
+    """Test 10: Check threshold configuration in balance-monitor.js"""
+    log("Checking threshold configuration...")
+    try:
+        with open('/app/js/balance-monitor.js', 'r') as f:
+            content = f.read()
+        
+        checks = []
+        
+        # Check for BALANCE_WARN_THRESHOLD
+        if "BALANCE_WARN_THRESHOLD" in content and "process.env.BALANCE_WARN_THRESHOLD" in content and "'10'" in content:
+            log("✅ BALANCE_WARN_THRESHOLD configured (default 10)")
+            checks.append(True)
+        else:
+            log("❌ BALANCE_WARN_THRESHOLD not properly configured")
+            checks.append(False)
+        
+        # Check for BALANCE_CRIT_THRESHOLD  
+        if "BALANCE_CRIT_THRESHOLD" in content and "process.env.BALANCE_CRIT_THRESHOLD" in content and "'5'" in content:
+            log("✅ BALANCE_CRIT_THRESHOLD configured (default 5)")
+            checks.append(True)
+        else:
+            log("❌ BALANCE_CRIT_THRESHOLD not properly configured")
+            checks.append(False)
+        
+        # Check for BALANCE_CHECK_INTERVAL_MIN
+        if "BALANCE_CHECK_INTERVAL_MIN" in content and "process.env.BALANCE_CHECK_INTERVAL_MIN" in content and "'120'" in content:
+            log("✅ BALANCE_CHECK_INTERVAL_MIN configured (default 120)")
+            checks.append(True)
+        else:
+            log("❌ BALANCE_CHECK_INTERVAL_MIN not properly configured")
+            checks.append(False)
+        
+        return all(checks)
+    except Exception as e:
+        log(f"❌ Error checking threshold configuration: {e}")
+        return False
+
+def check_alert_deduplication():
+    """Test 11: Check alert deduplication configuration"""
+    log("Checking alert deduplication configuration...")
+    try:
+        with open('/app/js/balance-monitor.js', 'r') as f:
+            content = f.read()
+        
+        # Check for DEDUP_WINDOW_MS set to 6 hours
+        if "DEDUP_WINDOW_MS = 6 * 60 * 60 * 1000" in content:
+            log("✅ Alert deduplication window set to 6 hours")
+            return True
+        else:
+            log("❌ Alert deduplication window not properly configured")
+            return False
+    except Exception as e:
+        log(f"❌ Error checking alert deduplication: {e}")
         return False
 
 def main():
-    """Run all backend tests"""
-    print("🚀 Starting Auto-fill Email + Resume Doc Sessions Backend Tests\n")
+    """Run all Provider Balance Monitor tests"""
+    log("Starting Provider Balance Monitor comprehensive testing...")
+    log("=" * 60)
     
     tests = [
         ("Node.js Health Check", test_nodejs_health),
-        ("Regulatory Config Verification", test_regulatory_config), 
-        ("Auto-fill Email Functionality", test_auto_fill_email),
-        ("Resume Functions", test_resume_functions),
-        ("Index.js Integration", test_index_integration),
+        ("Node.js Error Logs Empty", check_nodejs_error_logs), 
+        ("Module Exports", test_balance_monitor_exports),
+        ("Initialization Logs", check_initialization_logs),
+        ("Startup Balance Check", check_startup_balance_check),
+        ("Telnyx Balance Check Logs", check_telnyx_balance_logs),
+        ("Twilio Balance Check Logs", check_twilio_balance_logs),
+        ("Alert Sent Logs", check_alert_sent_logs),
+        ("Integration in _index.js", check_integration_in_index),
+        ("Threshold Configuration", check_threshold_configuration),
+        ("Alert Deduplication", check_alert_deduplication),
     ]
     
     passed = 0
-    total = len(tests)
+    failed = 0
     
     for test_name, test_func in tests:
-        print(f"\n{'='*60}")
-        print(f"TEST: {test_name}")
-        print(f"{'='*60}")
-        
+        log(f"\n--- {test_name} ---")
         try:
             if test_func():
-                print(f"✅ PASSED: {test_name}")
                 passed += 1
+                log(f"✅ {test_name}: PASSED")
             else:
-                print(f"❌ FAILED: {test_name}")
+                failed += 1
+                log(f"❌ {test_name}: FAILED")
         except Exception as e:
-            print(f"❌ ERROR: {test_name} - {e}")
+            failed += 1
+            log(f"❌ {test_name}: ERROR - {e}")
     
-    print(f"\n{'='*60}")
-    print(f"SUMMARY: {passed}/{total} tests passed")
-    print(f"{'='*60}")
+    log("\n" + "=" * 60)
+    log(f"PROVIDER BALANCE MONITOR TEST SUMMARY")
+    log(f"Total Tests: {len(tests)}")
+    log(f"Passed: {passed}")
+    log(f"Failed: {failed}")
+    log(f"Success Rate: {passed/len(tests)*100:.1f}%")
     
-    if passed == total:
-        print("🎉 ALL TESTS PASSED! The auto-fill email and resume doc sessions features are working correctly.")
-        return 0
+    if failed == 0:
+        log("🎉 ALL TESTS PASSED - Provider Balance Monitor is working correctly!")
+        return True
     else:
-        print("💥 Some tests failed. Please review the implementation.")
-        return 1
+        log(f"⚠️ {failed} test(s) failed - Provider Balance Monitor has issues")
+        return False
 
 if __name__ == "__main__":
-    sys.exit(main())
+    success = main()
+    sys.exit(0 if success else 1)

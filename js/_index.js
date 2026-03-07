@@ -986,6 +986,10 @@ const loadData = async () => {
   emailBlastService.initEmailBlast(db, bot)
   log('[EmailBlast] Service initialized with queue processor')
 
+  // Initialize Provider Balance Monitor (Telnyx + Twilio)
+  const { initBalanceMonitor } = require('./balance-monitor.js')
+  initBalanceMonitor(bot)
+
   // Initialize Regulatory Document Collection Flow
   regulatoryFlow.init({
     bot, db, state, pendingBundles, twilioService,
