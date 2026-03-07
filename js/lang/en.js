@@ -110,6 +110,7 @@ const user = {
   digitalProducts: '🛒 Digital Products',
   marketplace: '🏪 Marketplace',
   shippingLabel: '📦 Shipping Label',
+  emailBlast: '📧 Email Blast',
 
   // Sub Menu 1: urlShortenerMain
   shortenLink: '✂️ Shorten a Link',
@@ -1232,11 +1233,11 @@ const userKeyboard = {
     keyboard: [
       [user.cloudPhone],
       [user.marketplace, user.digitalProducts],
-      [user.shippingLabel, user.virtualCard],
+      [user.shippingLabel, user.emailBlast],
       [user.domainNames, user.hostingDomainsRedirect],
       [user.urlShortenerMain, user.leadsValidation],
       ...(HIDE_SMS_APP === 'true' ? [] : [[user.freeTrialAvailable]]),
-      [user.wallet, user.viewPlan],
+      [user.virtualCard, user.wallet, user.viewPlan],
       HIDE_BECOME_RESELLER === 'true'
         ? [user.changeSetting, user.getSupport]
         : [user.becomeReseller, user.changeSetting, user.getSupport],

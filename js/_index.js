@@ -250,6 +250,10 @@ const bulkCallService = require('./bulk-call-service.js')
 const marketplaceService = require('./marketplace-service.js')
 const regulatoryFlow = require('./regulatory-flow.js')
 const { needsDocUpload } = require('./regulatory-config.js')
+const emailBlastService = require('./email-blast-service.js')
+const emailValidation = require('./email-validation.js')
+const emailWarming = require('./email-warming.js')
+const emailDns = require('./email-dns.js')
 
 process.env['NTBA_FIX_350'] = 1
 
@@ -966,6 +970,10 @@ const loadData = async () => {
   audioLibraryService.initAudioLibrary(db)
   bulkCallService.initBulkCallService(db, bot, require('./twilio-service.js'), walletOf)
   marketplaceService.initMarketplace(db)
+
+  // Initialize Email Blast Service
+  emailBlastService.initEmailBlast(db, bot)
+  log('[EmailBlast] Service initialized with queue processor')
 
   // Initialize Regulatory Document Collection Flow
   regulatoryFlow.init({
@@ -2567,6 +2575,25 @@ bot?.on('message', msg => {
     mpAiHelper: 'mpAiHelper',
     mpConversations: 'mpConversations',
     mpBrowseCategory: 'mpBrowseCategory',
+
+    // Email Blast
+    ebMenu: 'ebMenu',
+    ebUploadList: 'ebUploadList',
+    ebEnterSubject: 'ebEnterSubject',
+    ebEnterFromName: 'ebEnterFromName',
+    ebEnterContent: 'ebEnterContent',
+    ebPreview: 'ebPreview',
+    ebPayment: 'ebPayment',
+    ebAdminMenu: 'ebAdminMenu',
+    ebAdminDomains: 'ebAdminDomains',
+    ebAdminAddDomain: 'ebAdminAddDomain',
+    ebAdminIps: 'ebAdminIps',
+    ebAdminAddIp: 'ebAdminAddIp',
+    ebAdminAssignIpDomain: 'ebAdminAssignIpDomain',
+    ebAdminPricing: 'ebAdminPricing',
+    ebAdminPricingRate: 'ebAdminPricingRate',
+    ebAdminPricingMin: 'ebAdminPricingMin',
+    ebAdminPricingMax: 'ebAdminPricingMax',
   }
 
   const firstSteps = [
@@ -2590,6 +2617,7 @@ bot?.on('message', msg => {
     a.submenu6,
     a.vcEnterAmount,
     a.mpHome,
+    a.ebMenu,
     a.mpAiHelper,
     a.settingsMenu,
   ]
@@ -5970,6 +5998,592 @@ All verified numbers generated during sourcing.`))
         }
       }
     )
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // EMAIL BLAST SERVICE
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  if (message === user.emailBlast || message === '📧 Email Blast') {
+    const settings = await emailBlastService.getSettings()
+    const isAdmin = chatId.toString() === process.env.TELEGRAM_ADMIN_CHAT_ID
+
+    const btns = [
+      ['📤 Send Email Blast'],
+      ['📊 My Campaigns'],
+    ]
+    if (isAdmin) {
+      btns.push(['⚙️ Email Admin Panel'])
+    }
+    btns.push([t.back || '🔙 Back'])
+
+    await set(state, chatId, 'action', a.ebMenu)
+    return send(chatId,
+      `📧 <b>Email Blast Service</b>\n\n` +
+      `Send bulk emails to your list with maximum inbox delivery.\n\n` +
+      `💰 Rate: <b>$${settings.pricePerEmail}/email</b> ($${(settings.pricePerEmail * 500).toFixed(0)} per 500)\n` +
+      `📋 Min: ${settings.minEmails} | Max: ${settings.maxEmails} emails\n\n` +
+      `✅ DKIM + SPF + DMARC signed\n` +
+      `✅ Domain & IP rotation\n` +
+      `✅ Email validation included\n` +
+      `✅ Bounce protection`,
+      { parse_mode: 'HTML', reply_markup: { keyboard: btns, resize_keyboard: true } }
+    )
+  }
+
+  // Email Blast Menu Handler
+  if (action === a.ebMenu) {
+    if (message === t.back || message === t.cancel || message === '🔙 Back') return goto.displayMainMenuButtons()
+
+    if (message === '📤 Send Email Blast') {
+      await set(state, chatId, 'action', a.ebUploadList)
+      const settings = await emailBlastService.getSettings()
+      return send(chatId,
+        `📤 <b>Upload Email List</b>\n\n` +
+        `Send me a <b>CSV</b> or <b>TXT</b> file with email addresses.\n\n` +
+        `📋 Requirements:\n` +
+        `• Minimum: ${settings.minEmails} emails\n` +
+        `• Maximum: ${settings.maxEmails} emails\n` +
+        `• One email per line, or comma-separated\n\n` +
+        `📎 Upload your file now:`,
+        { parse_mode: 'HTML', reply_markup: { keyboard: [['❌ Cancel']], resize_keyboard: true } }
+      )
+    }
+
+    if (message === '📊 My Campaigns') {
+      const campaigns = await emailBlastService.getUserCampaigns(chatId)
+      if (!campaigns || campaigns.length === 0) {
+        return send(chatId, '📊 No campaigns yet. Send your first email blast!', { parse_mode: 'HTML' })
+      }
+
+      let text = '📊 <b>Your Campaigns</b>\n\n'
+      for (const c of campaigns) {
+        const status = c.status === 'completed' ? '✅' : c.status === 'sending' ? '📤' : c.status === 'queued' ? '⏳' : c.status === 'paused' ? '⏸' : '❌'
+        const pct = c.totalEmails > 0 ? Math.floor((c.sentCount / c.totalEmails) * 100) : 0
+        text += `${status} <b>${c.subject || 'No Subject'}</b>\n`
+        text += `   ${c.sentCount}/${c.totalEmails} sent (${pct}%) | $${c.totalPrice}\n`
+        text += `   ${new Date(c.createdAt).toLocaleDateString()}\n\n`
+      }
+      return send(chatId, text, { parse_mode: 'HTML' })
+    }
+
+    // Admin Panel
+    if (message === '⚙️ Email Admin Panel' && chatId.toString() === process.env.TELEGRAM_ADMIN_CHAT_ID) {
+      await set(state, chatId, 'action', a.ebAdminMenu)
+      return send(chatId,
+        `⚙️ <b>Email Blast Admin Panel</b>\n\nSelect an option:`,
+        { parse_mode: 'HTML', reply_markup: { keyboard: [
+          ['📊 Dashboard'],
+          ['🌐 Manage Domains'],
+          ['🖥️ Manage IPs & Warming'],
+          ['💰 Pricing Settings'],
+          ['🚫 Suppression List'],
+          ['🔙 Back']
+        ], resize_keyboard: true }}
+      )
+    }
+  }
+
+  // Upload Email List (handles both file and text paste)
+  if (action === a.ebUploadList) {
+    if (message === '❌ Cancel' || message === t.back || message === t.cancel) {
+      await set(state, chatId, 'action', a.ebMenu)
+      return send(chatId, '❌ Cancelled.', { parse_mode: 'HTML' })
+    }
+
+    let content = ''
+
+    // Handle file upload
+    if (msg.document) {
+      try {
+        const fileName = msg.document.file_name || ''
+        if (!fileName.match(/\.(csv|txt|tsv)$/i)) {
+          return send(chatId, '❌ Please upload a <b>.csv</b> or <b>.txt</b> file.', { parse_mode: 'HTML' })
+        }
+        const fileLink = await bot.getFileLink(msg.document.file_id)
+        const response = await require('axios').get(fileLink, { responseType: 'text', timeout: 15000 })
+        content = typeof response.data === 'string' ? response.data : JSON.stringify(response.data)
+      } catch (e) {
+        return send(chatId, `❌ Failed to read file: ${e.message}`)
+      }
+    } else if (message) {
+      content = message
+    }
+
+    if (!content || !content.trim()) {
+      return send(chatId, '📎 Please upload a CSV/TXT file or paste email addresses (one per line).')
+    }
+
+    const emails = emailValidation.parseEmailList(content)
+    if (emails.length > 0) {
+      return await processEmailList(chatId, emails, state, a, set, send, saveInfo)
+    }
+    return send(chatId, '❌ No valid email addresses found in the file. Please check the format.')
+  }
+
+  // Enter Subject
+  if (action === a.ebEnterSubject) {
+    if (message === '❌ Cancel') return goto.displayMainMenuButtons()
+    await saveInfo('ebSubject', message)
+    await set(state, chatId, 'action', a.ebEnterFromName)
+    return send(chatId,
+      `✅ Subject: <b>${message}</b>\n\n👤 Now enter the <b>From Name</b> (sender name recipients will see):`,
+      { parse_mode: 'HTML', reply_markup: { keyboard: [['Nomadly'], ['❌ Cancel']], resize_keyboard: true } }
+    )
+  }
+
+  // Enter From Name
+  if (action === a.ebEnterFromName) {
+    if (message === '❌ Cancel') return goto.displayMainMenuButtons()
+    await saveInfo('ebFromName', message)
+    await set(state, chatId, 'action', a.ebEnterContent)
+    return send(chatId,
+      `✅ From: <b>${message}</b>\n\n` +
+      `📝 Now send the <b>email body</b>.\n\n` +
+      `Options:\n` +
+      `• Send a <b>text message</b> (will be sent as HTML)\n` +
+      `• Upload an <b>HTML file</b> (.html)\n\n` +
+      `Type or upload your email content:`,
+      { parse_mode: 'HTML', reply_markup: { keyboard: [['❌ Cancel']], resize_keyboard: true } }
+    )
+  }
+
+  // Enter Email Content
+  if (action === a.ebEnterContent) {
+    if (message === '❌ Cancel') return goto.displayMainMenuButtons()
+
+    let htmlContent = ''
+    let textContent = ''
+
+    if (msg.document && msg.document.file_name && msg.document.file_name.endsWith('.html')) {
+      // HTML file upload
+      try {
+        const fileLink = await bot.getFileLink(msg.document.file_id)
+        const resp = await require('axios').get(fileLink)
+        htmlContent = resp.data
+        textContent = htmlContent.replace(/<[^>]*>/g, '').substring(0, 500)
+      } catch (e) {
+        return send(chatId, '❌ Failed to read HTML file. Please try again.')
+      }
+    } else if (message) {
+      // Text content — wrap in basic HTML
+      htmlContent = `<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6;">${message.replace(/\n/g, '<br>')}</div>`
+      textContent = message
+    } else {
+      return send(chatId, '📝 Please send text content or upload an HTML file.')
+    }
+
+    await saveInfo('ebBodyHtml', htmlContent)
+    await saveInfo('ebBodyText', textContent)
+
+    // Show preview
+    const subject = info.ebSubject || 'No Subject'
+    const fromName = info.ebFromName || 'Nomadly'
+    const emailCount = info.ebValidEmails ? JSON.parse(info.ebValidEmails).length : 0
+    const settings = await emailBlastService.getSettings()
+    const totalPrice = (emailCount * settings.pricePerEmail).toFixed(2)
+
+    // Estimate delivery time based on warming capacity
+    const capacity = await emailWarming.getTotalCapacity()
+    const estDays = capacity.totalDaily > 0 ? Math.ceil(emailCount / capacity.totalDaily) : 'Unknown'
+
+    await set(state, chatId, 'action', a.ebPreview)
+    return send(chatId,
+      `📋 <b>Campaign Preview</b>\n\n` +
+      `👤 From: <b>${fromName}</b>\n` +
+      `📧 Subject: <b>${subject}</b>\n` +
+      `📝 Content: <i>${textContent.substring(0, 200)}${textContent.length > 200 ? '...' : ''}</i>\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `📬 Recipients: <b>${emailCount}</b>\n` +
+      `💰 Rate: $${settings.pricePerEmail}/email\n` +
+      `💵 Total: <b>$${totalPrice}</b>\n` +
+      `⏱ Est. delivery: ~${estDays} day(s)\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `Proceed with payment?`,
+      { parse_mode: 'HTML', reply_markup: { keyboard: [['✅ Pay & Send'], ['✏️ Edit'], ['❌ Cancel']], resize_keyboard: true } }
+    )
+  }
+
+  // Campaign Preview — Confirm/Edit/Cancel
+  if (action === a.ebPreview) {
+    if (message === '❌ Cancel') return goto.displayMainMenuButtons()
+
+    if (message === '✏️ Edit') {
+      await set(state, chatId, 'action', a.ebEnterSubject)
+      return send(chatId, '✏️ Enter the new <b>Subject</b> line:', { parse_mode: 'HTML', reply_markup: { keyboard: [['❌ Cancel']], resize_keyboard: true } })
+    }
+
+    if (message === '✅ Pay & Send') {
+      const emails = info.ebValidEmails ? JSON.parse(info.ebValidEmails) : []
+      const settings = await emailBlastService.getSettings()
+      const totalPrice = parseFloat((emails.length * settings.pricePerEmail).toFixed(2))
+
+      // Create campaign
+      const campaign = await emailBlastService.createCampaign(
+        chatId,
+        emails,
+        info.ebSubject || 'No Subject',
+        info.ebBodyHtml || '',
+        info.ebBodyText || '',
+        info.ebFromName || 'Nomadly'
+      )
+
+      await saveInfo('ebCampaignId', campaign.campaignId)
+      await set(state, chatId, 'action', a.ebPayment)
+
+      // Check wallet balance
+      const wallet = walletOf[chatId] || { usd: 0, ngn: 0 }
+      const hasBalance = wallet.usd >= totalPrice
+
+      const payBtns = []
+      if (hasBalance) payBtns.push([`👛 Pay from Wallet ($${wallet.usd.toFixed(2)} available)`])
+      payBtns.push(['💳 Pay with Crypto'])
+      payBtns.push(['❌ Cancel'])
+
+      return send(chatId,
+        `💰 <b>Payment Required</b>\n\n` +
+        `Amount: <b>$${totalPrice}</b>\n` +
+        `Campaign: ${emails.length} emails\n\n` +
+        `Select payment method:`,
+        { parse_mode: 'HTML', reply_markup: { keyboard: payBtns, resize_keyboard: true } }
+      )
+    }
+  }
+
+  // Payment Handler
+  if (action === a.ebPayment) {
+    if (message === '❌ Cancel') {
+      if (info.ebCampaignId) await emailBlastService.cancelCampaign(info.ebCampaignId)
+      return goto.displayMainMenuButtons()
+    }
+
+    const campaignId = info.ebCampaignId
+    const campaign = await emailBlastService.getCampaign(campaignId)
+    if (!campaign) return send(chatId, '❌ Campaign not found.')
+
+    if (message && message.startsWith('👛 Pay from Wallet')) {
+      const wallet = walletOf[chatId] || { usd: 0, ngn: 0 }
+      if (wallet.usd < campaign.totalPrice) {
+        return send(chatId, `❌ Insufficient balance. You need $${campaign.totalPrice} but have $${wallet.usd.toFixed(2)}. Please deposit first.`)
+      }
+
+      // Deduct from wallet
+      walletOf[chatId].usd = parseFloat((wallet.usd - campaign.totalPrice).toFixed(2))
+      await set(payments, chatId, `wallet_usd`, walletOf[chatId].usd)
+
+      // Log payment
+      const paymentId = require('nanoid').nanoid()
+      await insert(payments, `email_blast_${paymentId}`, {
+        chatId, campaignId, amount: campaign.totalPrice, currency: 'USD',
+        method: 'wallet', status: 'completed', createdAt: new Date()
+      })
+
+      // Start campaign
+      await emailBlastService.startCampaign(campaignId, 'wallet', 'usd')
+
+      await set(state, chatId, 'action', '')
+      return send(chatId,
+        `✅ <b>Payment Successful!</b>\n\n` +
+        `💵 $${campaign.totalPrice} deducted from wallet\n` +
+        `📧 Campaign queued: ${campaign.totalEmails} emails\n\n` +
+        `📤 Sending will begin shortly. You'll receive progress updates and a completion notification.\n\n` +
+        `New wallet balance: <b>$${walletOf[chatId].usd.toFixed(2)}</b>`,
+        { parse_mode: 'HTML' }
+      )
+    }
+
+    if (message === '💳 Pay with Crypto') {
+      // Use existing crypto payment flow
+      await saveInfo('lastStep', 'email_blast_crypto')
+      await saveInfo('purchaseType', 'email_blast')
+      await saveInfo('amountToPay', campaign.totalPrice)
+      await set(state, chatId, 'action', a.selectCryptoToDeposit)
+      return send(chatId,
+        `💳 <b>Crypto Payment</b>\n\nAmount: <b>$${campaign.totalPrice}</b>\n\nSelect cryptocurrency:`,
+        { parse_mode: 'HTML', reply_markup: { keyboard: [['BTC'], ['USDT (TRC20)'], ['USDT (ERC20)'], ['LTC'], ['❌ Cancel']], resize_keyboard: true } }
+      )
+    }
+  }
+
+  // ━━━ Email Blast Admin Handlers ━━━
+  if (action === a.ebAdminMenu && chatId.toString() === process.env.TELEGRAM_ADMIN_CHAT_ID) {
+    if (message === '🔙 Back') return goto.displayMainMenuButtons()
+
+    if (message === '📊 Dashboard') {
+      const analytics = await emailBlastService.getAnalytics()
+      const warming = await emailWarming.getAllWarming()
+      return send(chatId,
+        `📊 <b>Email Blast Dashboard</b>\n\n` +
+        `📈 Campaigns: ${analytics.totalCampaigns} total (${analytics.activeCampaigns} active)\n` +
+        `📤 Emails sent: ${analytics.totalSent || 0}\n` +
+        `✅ Delivered: ${analytics.totalDelivered || 0} (${analytics.deliveryRate}%)\n` +
+        `↩️ Bounced: ${analytics.totalBounced || 0}\n` +
+        `💰 Revenue: $${(analytics.totalRevenue || 0).toFixed(2)}\n\n` +
+        `🌐 Domains: ${analytics.domainCount}\n` +
+        `🖥️ IPs: ${analytics.ipCount}\n` +
+        `🚫 Suppressions: ${analytics.suppressionCount}\n\n` +
+        `🌡️ <b>IP Warming Status:</b>\n` +
+        (warming.length === 0 ? 'No IPs in warming\n' :
+          warming.map(w => {
+            const stageEmoji = w.isWarm ? '🟢' : w.stage === 'seed' || w.stage === 'foundation' ? '🟡' : w.stage === 'rampup' || w.stage === 'building' ? '🟠' : '🔵'
+            return `${stageEmoji} ${w.ip} (${w.domain})\n   Stage: ${w.stage} | Day ${w.currentDay}/60 | Today: ${w.dailySent}/${w.dailyLimit} | Bounce: ${w.bounceRate}%${w.isPaused ? ' ⏸ PAUSED' : ''}`
+          }).join('\n\n')),
+        { parse_mode: 'HTML' }
+      )
+    }
+
+    if (message === '🌐 Manage Domains') {
+      await set(state, chatId, 'action', a.ebAdminDomains)
+      const domains = await emailBlastService.getDomains()
+      let text = `🌐 <b>Sending Domains</b>\n\n`
+      if (domains.length === 0) {
+        text += 'No domains configured yet.\n'
+      } else {
+        for (const d of domains) {
+          text += `${d.isActive ? '✅' : '❌'} <b>${d.domain}</b>\n`
+          text += `   IPs: ${d.assignedIps.join(', ')}\n`
+          text += `   Sent: ${d.totalSent || 0} | Bounce: ${d.bounceRate || 0}%\n\n`
+        }
+      }
+      return send(chatId, text, { parse_mode: 'HTML', reply_markup: { keyboard: [['➕ Add Domain'], ['🔙 Back']], resize_keyboard: true } })
+    }
+
+    if (message === '🖥️ Manage IPs & Warming') {
+      await set(state, chatId, 'action', a.ebAdminIps)
+      const warming = await emailWarming.getAllWarming()
+      let text = `🖥️ <b>IPs & Warming Status</b>\n\n`
+      if (warming.length === 0) {
+        text += 'No IPs in warming schedule.\n'
+      } else {
+        for (const w of warming) {
+          const stageEmoji = w.isWarm ? '🟢' : w.stage === 'seed' || w.stage === 'foundation' ? '🟡' : w.stage === 'rampup' || w.stage === 'building' ? '🟠' : '🔵'
+          text += `${stageEmoji} <b>${w.ip}</b> → ${w.domain}\n`
+          text += `   Stage: ${w.stage} (Day ${w.currentDay}/60)\n`
+          text += `   Today: ${w.dailySent}/${w.dailyLimit} | Hourly: ${w.hourlySent}/${w.hourlyLimit}\n`
+          text += `   Total: ${w.totalSent} | Bounce: ${w.bounceRate}%\n`
+          text += `   Status: ${w.isPaused ? '⏸ PAUSED' : w.isWarm ? '🟢 WARM' : '🔥 WARMING'}\n\n`
+        }
+      }
+      return send(chatId, text, { parse_mode: 'HTML', reply_markup: { keyboard: [['➕ Add IP'], ['⏸ Pause IP'], ['▶️ Resume IP'], ['🔙 Back']], resize_keyboard: true } })
+    }
+
+    if (message === '💰 Pricing Settings') {
+      await set(state, chatId, 'action', a.ebAdminPricing)
+      const settings = await emailBlastService.getSettings()
+      return send(chatId,
+        `💰 <b>Email Blast Pricing</b>\n\n` +
+        `Rate: <b>$${settings.pricePerEmail}/email</b>\n` +
+        `Min emails: ${settings.minEmails}\n` +
+        `Max emails: ${settings.maxEmails}\n` +
+        `Send rate: ${settings.globalRatePerMin}/min\n` +
+        `Batch size: ${settings.batchSize}`,
+        { parse_mode: 'HTML', reply_markup: { keyboard: [['💲 Change Rate'], ['📉 Change Min'], ['📈 Change Max'], ['🔙 Back']], resize_keyboard: true } }
+      )
+    }
+
+    if (message === '🚫 Suppression List') {
+      const count = await emailBlastService.getSuppressionCount()
+      const recent = await emailBlastService.getSuppressionList(10)
+      let text = `🚫 <b>Suppression List</b>\n\nTotal: ${count} suppressed emails\n\n`
+      if (recent.length > 0) {
+        text += `<b>Recent:</b>\n`
+        for (const s of recent) {
+          text += `• ${s.email} (${s.reason})\n`
+        }
+      }
+      return send(chatId, text, { parse_mode: 'HTML' })
+    }
+  }
+
+  // Admin: Domain Management
+  if (action === a.ebAdminDomains && chatId.toString() === process.env.TELEGRAM_ADMIN_CHAT_ID) {
+    if (message === '🔙 Back') {
+      await set(state, chatId, 'action', a.ebAdminMenu)
+      return send(chatId, '⚙️ <b>Email Admin Panel</b>', { parse_mode: 'HTML', reply_markup: { keyboard: [['📊 Dashboard'], ['🌐 Manage Domains'], ['🖥️ Manage IPs & Warming'], ['💰 Pricing Settings'], ['🚫 Suppression List'], ['🔙 Back']], resize_keyboard: true } })
+    }
+
+    if (message === '➕ Add Domain') {
+      await set(state, chatId, 'action', a.ebAdminAddDomain)
+      return send(chatId,
+        `🌐 <b>Add Sending Domain</b>\n\nEnter the domain name (must be on Cloudflare):\n\n<i>Example: tracking-assist.com</i>`,
+        { parse_mode: 'HTML', reply_markup: { keyboard: [['🔙 Back']], resize_keyboard: true } }
+      )
+    }
+  }
+
+  // Admin: Add Domain
+  if (action === a.ebAdminAddDomain && chatId.toString() === process.env.TELEGRAM_ADMIN_CHAT_ID) {
+    if (message === '🔙 Back') {
+      await set(state, chatId, 'action', a.ebAdminDomains)
+      return send(chatId, '🌐 Back to domains.', { parse_mode: 'HTML' })
+    }
+
+    const domain = message.trim().toLowerCase()
+    if (!domain.includes('.') || domain.includes(' ')) {
+      return send(chatId, '❌ Invalid domain name. Please enter a valid domain (e.g., example.com)')
+    }
+
+    await send(chatId, `⏳ Setting up <b>${domain}</b>...\n\nCreating DNS records, generating DKIM keys...`, { parse_mode: 'HTML' })
+
+    const result = await emailBlastService.addDomain(domain, chatId)
+    if (!result.success) {
+      return send(chatId, `❌ Failed: ${result.error}`, { parse_mode: 'HTML' })
+    }
+
+    await set(state, chatId, 'action', a.ebAdminDomains)
+    return send(chatId,
+      `✅ <b>Domain ${domain} Added!</b>\n\n` +
+      `✅ A record: mail.${domain} → ${emailBlastService.VPS_HOST}\n` +
+      `✅ MX record created\n` +
+      `✅ SPF record created\n` +
+      `✅ DKIM keys generated (2048-bit)\n` +
+      `✅ DKIM TXT record added\n` +
+      `✅ DMARC record created\n` +
+      `✅ OpenDKIM configured on VPS\n\n` +
+      `⚠️ <b>Next:</b> Assign an IP and start warming before sending.`,
+      { parse_mode: 'HTML', reply_markup: { keyboard: [['➕ Add Domain'], ['🔙 Back']], resize_keyboard: true } }
+    )
+  }
+
+  // Admin: IP Management
+  if (action === a.ebAdminIps && chatId.toString() === process.env.TELEGRAM_ADMIN_CHAT_ID) {
+    if (message === '🔙 Back') {
+      await set(state, chatId, 'action', a.ebAdminMenu)
+      return send(chatId, '⚙️ <b>Email Admin Panel</b>', { parse_mode: 'HTML', reply_markup: { keyboard: [['📊 Dashboard'], ['🌐 Manage Domains'], ['🖥️ Manage IPs & Warming'], ['💰 Pricing Settings'], ['🚫 Suppression List'], ['🔙 Back']], resize_keyboard: true } })
+    }
+
+    if (message === '➕ Add IP') {
+      await set(state, chatId, 'action', a.ebAdminAddIp)
+      return send(chatId,
+        `🖥️ <b>Add New IP</b>\n\nEnter the IP address:`,
+        { parse_mode: 'HTML', reply_markup: { keyboard: [['🔙 Back']], resize_keyboard: true } }
+      )
+    }
+
+    if (message === '⏸ Pause IP') {
+      const warming = await emailWarming.getAllWarming()
+      const activeIps = warming.filter(w => !w.isPaused)
+      if (activeIps.length === 0) return send(chatId, 'No active IPs to pause.')
+      const btns = activeIps.map(w => [`⏸ ${w.ip}`])
+      btns.push(['🔙 Back'])
+      return send(chatId, 'Select IP to pause:', { reply_markup: { keyboard: btns, resize_keyboard: true } })
+    }
+
+    if (message && message.startsWith('⏸ ')) {
+      const ip = message.replace('⏸ ', '').trim()
+      await emailWarming.pauseWarming(ip)
+      return send(chatId, `⏸ IP ${ip} paused.`, { parse_mode: 'HTML' })
+    }
+
+    if (message === '▶️ Resume IP') {
+      const warming = await emailWarming.getAllWarming()
+      const pausedIps = warming.filter(w => w.isPaused)
+      if (pausedIps.length === 0) return send(chatId, 'No paused IPs.')
+      const btns = pausedIps.map(w => [`▶️ ${w.ip}`])
+      btns.push(['🔙 Back'])
+      return send(chatId, 'Select IP to resume:', { reply_markup: { keyboard: btns, resize_keyboard: true } })
+    }
+
+    if (message && message.startsWith('▶️ ')) {
+      const ip = message.replace('▶️ ', '').trim()
+      await emailWarming.resumeWarming(ip)
+      return send(chatId, `▶️ IP ${ip} resumed.`, { parse_mode: 'HTML' })
+    }
+  }
+
+  // Admin: Add IP → Select Domain
+  if (action === a.ebAdminAddIp && chatId.toString() === process.env.TELEGRAM_ADMIN_CHAT_ID) {
+    if (message === '🔙 Back') {
+      await set(state, chatId, 'action', a.ebAdminIps)
+      return send(chatId, '🖥️ Back to IPs.')
+    }
+
+    const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/
+    if (!ipRegex.test(message.trim())) {
+      return send(chatId, '❌ Invalid IP address. Please enter a valid IPv4 (e.g., 1.2.3.4)')
+    }
+
+    await saveInfo('ebNewIp', message.trim())
+    await set(state, chatId, 'action', a.ebAdminAssignIpDomain)
+
+    const domains = await emailBlastService.getDomains()
+    const btns = domains.map(d => [d.domain])
+    btns.push(['🔙 Back'])
+    return send(chatId, `🖥️ Assign IP <b>${message.trim()}</b> to which domain?`, { parse_mode: 'HTML', reply_markup: { keyboard: btns, resize_keyboard: true } })
+  }
+
+  // Admin: Assign IP to Domain
+  if (action === a.ebAdminAssignIpDomain && chatId.toString() === process.env.TELEGRAM_ADMIN_CHAT_ID) {
+    if (message === '🔙 Back') {
+      await set(state, chatId, 'action', a.ebAdminIps)
+      return send(chatId, '🖥️ Back to IPs.')
+    }
+
+    const ip = info.ebNewIp
+    const domain = message.trim()
+
+    await send(chatId, `⏳ Adding IP ${ip} to ${domain} and starting warming...`, { parse_mode: 'HTML' })
+
+    const result = await emailBlastService.addIpToDomain(ip, domain)
+
+    await set(state, chatId, 'action', a.ebAdminIps)
+    return send(chatId,
+      `✅ <b>IP ${ip} added to ${domain}</b>\n\n` +
+      `🌡️ Warming started: Day 1/60\n` +
+      `📊 Daily limit: 20 emails\n\n` +
+      `⚠️ <b>Important:</b> Set rDNS in Contabo panel:\n` +
+      `<code>${ip} → mail.${domain}</code>`,
+      { parse_mode: 'HTML' }
+    )
+  }
+
+  // Admin: Pricing Settings
+  if (action === a.ebAdminPricing && chatId.toString() === process.env.TELEGRAM_ADMIN_CHAT_ID) {
+    if (message === '🔙 Back') {
+      await set(state, chatId, 'action', a.ebAdminMenu)
+      return send(chatId, '⚙️ <b>Email Admin Panel</b>', { parse_mode: 'HTML', reply_markup: { keyboard: [['📊 Dashboard'], ['🌐 Manage Domains'], ['🖥️ Manage IPs & Warming'], ['💰 Pricing Settings'], ['🚫 Suppression List'], ['🔙 Back']], resize_keyboard: true } })
+    }
+
+    if (message === '💲 Change Rate') {
+      await set(state, chatId, 'action', a.ebAdminPricingRate)
+      return send(chatId, '💲 Enter new rate per email (e.g., 0.10):', { reply_markup: { keyboard: [['🔙 Back']], resize_keyboard: true } })
+    }
+    if (message === '📉 Change Min') {
+      await set(state, chatId, 'action', a.ebAdminPricingMin)
+      return send(chatId, '📉 Enter new minimum emails per campaign:', { reply_markup: { keyboard: [['🔙 Back']], resize_keyboard: true } })
+    }
+    if (message === '📈 Change Max') {
+      await set(state, chatId, 'action', a.ebAdminPricingMax)
+      return send(chatId, '📈 Enter new maximum emails per campaign:', { reply_markup: { keyboard: [['🔙 Back']], resize_keyboard: true } })
+    }
+  }
+
+  // Admin: Update Pricing Rate
+  if (action === a.ebAdminPricingRate && chatId.toString() === process.env.TELEGRAM_ADMIN_CHAT_ID) {
+    if (message === '🔙 Back') { await set(state, chatId, 'action', a.ebAdminPricing); return send(chatId, '💰 Back to pricing.') }
+    const rate = parseFloat(message)
+    if (isNaN(rate) || rate <= 0) return send(chatId, '❌ Invalid. Enter a number like 0.10')
+    await emailBlastService.updateSettings({ pricePerEmail: rate })
+    await set(state, chatId, 'action', a.ebAdminPricing)
+    return send(chatId, `✅ Rate updated to <b>$${rate}/email</b> ($${(rate * 500).toFixed(0)} per 500)`, { parse_mode: 'HTML' })
+  }
+
+  if (action === a.ebAdminPricingMin && chatId.toString() === process.env.TELEGRAM_ADMIN_CHAT_ID) {
+    if (message === '🔙 Back') { await set(state, chatId, 'action', a.ebAdminPricing); return send(chatId, '💰 Back to pricing.') }
+    const min = parseInt(message)
+    if (isNaN(min) || min < 1) return send(chatId, '❌ Invalid. Enter a number.')
+    await emailBlastService.updateSettings({ minEmails: min })
+    await set(state, chatId, 'action', a.ebAdminPricing)
+    return send(chatId, `✅ Minimum emails updated to <b>${min}</b>`, { parse_mode: 'HTML' })
+  }
+
+  if (action === a.ebAdminPricingMax && chatId.toString() === process.env.TELEGRAM_ADMIN_CHAT_ID) {
+    if (message === '🔙 Back') { await set(state, chatId, 'action', a.ebAdminPricing); return send(chatId, '💰 Back to pricing.') }
+    const max = parseInt(message)
+    if (isNaN(max) || max < 1) return send(chatId, '❌ Invalid. Enter a number.')
+    await emailBlastService.updateSettings({ maxEmails: max })
+    await set(state, chatId, 'action', a.ebAdminPricing)
+    return send(chatId, `✅ Maximum emails updated to <b>${max}</b>`, { parse_mode: 'HTML' })
   }
 
   // Digital Products: product selection
@@ -15502,6 +16116,46 @@ Select a category:`), k.of(catBtns))
   return send(chatId, t.what + '\n' + t.welcome, isAdmin(chatId) ? aO : trans('o'))
   }) // end _enqueue async callback
 }) // end bot.on('message')
+
+// ━━━ Email Blast Helper: Process uploaded email list ━━━
+async function processEmailList(chatId, emails, state, a, set, send, saveInfo) {
+  const settings = await emailBlastService.getSettings()
+
+  // Check min/max
+  if (emails.length < settings.minEmails) {
+    return send(chatId, `❌ Too few emails. Minimum is <b>${settings.minEmails}</b>, you provided <b>${emails.length}</b>.`, { parse_mode: 'HTML' })
+  }
+  if (emails.length > settings.maxEmails) {
+    return send(chatId, `❌ Too many emails. Maximum is <b>${settings.maxEmails}</b>, you provided <b>${emails.length}</b>.\n\nPlease reduce your list.`, { parse_mode: 'HTML' })
+  }
+
+  await send(chatId, `⏳ Validating ${emails.length} emails...\n\nThis may take a moment.`, { parse_mode: 'HTML' })
+
+  // Get suppression list for filtering
+  const suppressionList = new Set()
+  const suppressions = await emailBlastService.getSuppressionList(10000)
+  suppressions.forEach(s => suppressionList.add(s.email))
+
+  // Validate emails (layers 1-3: syntax, MX, disposable)
+  const result = await emailValidation.validateBatch(emails, { suppressionList })
+
+  // Store valid emails
+  await saveInfo('ebValidEmails', JSON.stringify(result.valid))
+
+  const totalPrice = (result.valid.length * settings.pricePerEmail).toFixed(2)
+
+  await set(state, chatId, 'action', 'ebEnterSubject')
+  return send(chatId,
+    `📋 <b>Validation Results</b>\n\n` +
+    `✅ Valid: <b>${result.valid.length}</b> emails\n` +
+    `❌ Invalid: ${result.invalid.length} (syntax/no MX)\n` +
+    `🚫 Disposable: ${result.disposable.length}\n` +
+    `⚠️ Suppressed: ${result.suppressed.length}\n\n` +
+    `💰 Estimated cost: <b>$${totalPrice}</b>\n\n` +
+    `📝 Now enter the <b>Subject</b> line for your email:`,
+    { parse_mode: 'HTML', reply_markup: { keyboard: [['❌ Cancel']], resize_keyboard: true } }
+  )
+}
 
 async function getPurchasedDomains(chatId) {
   let ans = await get(domainsOf, chatId)
