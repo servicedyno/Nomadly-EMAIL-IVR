@@ -247,8 +247,11 @@ async function configureDkimOnVps(domain, selector, privateKeyPem) {
 
 function getTransporter(ip) {
   if (!_transporters[ip]) {
+    // Use the actual IP as SMTP host so each VPS sends from its own IP
+    const smtpHost = ip || VPS_HOST;
+    console.log(`[EmailBlast] Creating transporter for IP ${smtpHost}`);
     _transporters[ip] = nodemailer.createTransport({
-      host: VPS_HOST,
+      host: smtpHost,
       port: 587,
       secure: false,
       auth: {
@@ -258,8 +261,7 @@ function getTransporter(ip) {
       tls: { rejectUnauthorized: false },
       pool: true,
       maxConnections: 5,
-      maxMessages: 100,
-      localAddress: undefined // For future: bind to specific local IP if needed
+      maxMessages: 100
     });
   }
   return _transporters[ip];

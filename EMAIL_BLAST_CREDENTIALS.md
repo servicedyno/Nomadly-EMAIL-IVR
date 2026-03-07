@@ -119,9 +119,9 @@ For each sending domain, the following records must exist:
 | **TXT (DMARC)** | `_dmarc.domain.com` | `v=DMARC1; p=none; ...` |
 | **PTR** | Set at VPS provider (Contabo) | Reverse DNS for each IP |
 
-## 12. Pending Issues
+## 12. Resolved Issues
 
 | Issue | Status |
 |-------|--------|
-| IP2 (`109.199.115.95`) Gmail delivery — SPF/DKIM `none` | Waiting for Google DNS cache to expire |
-| Email Blast menu missing in FR/ZH/HI languages | Not started |
+| IP2 (`109.199.115.95`) Gmail delivery — SPF/DKIM `none` | ✅ DNS cache resolved — SPF/DKIM/DMARC all resolving correctly. `getTransporter` fixed to route through correct IP. |
+| Email Blast menu missing in FR/ZH/HI languages | ✅ Fixed — emailBlast button + virtualCard button added to all language keyboards |
