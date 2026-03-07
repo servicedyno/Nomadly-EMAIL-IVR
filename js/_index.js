@@ -6329,12 +6329,13 @@ ${message.replace(/\n/g, '<br>')}
       await set(state, chatId, 'action', a.ebPayment)
 
       // Check wallet balance
-      const wallet = walletOf[chatId] || { usd: 0, ngn: 0 }
-      const hasBalance = wallet.usd >= totalPrice
+      const { usdBal: walletBal } = await getBalance(walletOf, chatId)
+      const hasBalance = walletBal >= totalPrice
 
       const payBtns = []
-      if (hasBalance) payBtns.push([`👛 Pay from Wallet ($${wallet.usd.toFixed(2)} available)`])
-      payBtns.push(['💳 Pay with Crypto'])
+      if (hasBalance) payBtns.push([`👛 Pay from Wallet ($${walletBal.toFixed(2)} available)`])
+      payBtns.push([payIn.crypto])
+      if (payIn.bank) payBtns.push([payIn.bank])
       payBtns.push(['❌ Cancel'])
 
       return send(chatId,
@@ -6395,6 +6396,48 @@ ${message.replace(/\n/g, '<br>')}
         { parse_mode: 'HTML', reply_markup: { keyboard: [['BTC'], ['USDT (TRC20)'], ['USDT (ERC20)'], ['LTC'], ['❌ Cancel']], resize_keyboard: true } }
       )
     }
+
+    if (message === payIn.bank) {
+      await set(state, chatId, 'action', 'bank-pay-email-blast')
+      return send(chatId, t.askEmail, bc)
+    }
+  }
+
+  // Bank payment for Email Blast: collect email → create Fincra checkout
+  if (action === 'bank-pay-email-blast') {
+    if (message === t.back) {
+      // Return to payment options
+      const emails = info.ebValidEmails ? JSON.parse(info.ebValidEmails) : []
+      const settings = await emailBlastService.getSettings()
+      const totalPrice = parseFloat((emails.length * settings.pricePerEmail).toFixed(2))
+      const { usdBal } = await getBalance(walletOf, chatId)
+      const hasBalance = usdBal >= totalPrice
+      const payBtns = []
+      if (hasBalance) payBtns.push([`👛 Pay from Wallet ($${usdBal.toFixed(2)} available)`])
+      payBtns.push([payIn.crypto])
+      if (payIn.bank) payBtns.push([payIn.bank])
+      payBtns.push(['❌ Cancel'])
+      await set(state, chatId, 'action', a.ebPayment)
+      return send(chatId, `Select payment method:`, { reply_markup: { keyboard: payBtns, resize_keyboard: true } })
+    }
+    const email = message
+    if (!isValidEmail(email)) return send(chatId, t.askValidEmail)
+
+    const campaignId = info.ebCampaignId
+    const campaign = await emailBlastService.getCampaign(campaignId)
+    if (!campaign) return send(chatId, '❌ Campaign not found.')
+
+    const price = campaign.totalPrice
+    const ref = nanoid()
+    log({ ref, action: 'bank-pay-email-blast', price, campaignId })
+
+    await set(state, chatId, 'action', 'none')
+    const priceNGN = Number(await usdToNgn(price))
+    set(chatIdOfPayment, ref, { chatId, price, campaignId, endpoint: '/bank-pay-email-blast' })
+    const { url, error } = await createCheckout(priceNGN, `/ok?a=b&ref=${ref}&`, email, username, ref)
+    if (error) return send(chatId, error, trans('o'))
+    send(chatId, `Bank ₦aira + Card 🌐︎`, trans('o'))
+    return send(chatId, `📧 <b>Email Blast Payment</b>\n\n💵 Amount: <b>₦${priceNGN.toLocaleString()}</b> (~$${price})\n📬 Campaign: ${campaign.totalEmails} emails\n\n🏦 Complete your payment via the link below:`, trans('payBank', url))
   }
 
   // ━━━ Email Blast: Test Email via Brevo ━━━
@@ -6489,8 +6532,8 @@ ${message.replace(/\n/g, '<br>')}
       return send(chatId,
         `❌ <b>Test email failed</b>\n\n` +
         `Error: ${err.message}\n\n` +
-        `You can still proceed to payment — the actual campaign uses a different sending system.\n\n` +
-        `Try again or continue:`,
+        `This may be a temporary issue. You can try again or continue to payment.\n\n` +
+        `What would you like to do?`,
         { parse_mode: 'HTML', reply_markup: { keyboard: [
           ['📧 Try Again'],
           ['✅ Continue to Payment Anyway'],
@@ -6528,7 +6571,8 @@ ${message.replace(/\n/g, '<br>')}
 
       const payBtns = []
       if (hasBalance) payBtns.push([`👛 Pay from Wallet ($${usdBal.toFixed(2)} available)`])
-      payBtns.push(['💳 Pay with Crypto'])
+      payBtns.push([payIn.crypto])
+      if (payIn.bank) payBtns.push([payIn.bank])
       payBtns.push(['❌ Cancel'])
 
       return send(chatId,
@@ -6594,7 +6638,7 @@ ${message.replace(/\n/g, '<br>')}
           text += `   Sent: ${d.totalSent || 0} | Bounce: ${d.bounceRate || 0}%\n\n`
         }
       }
-      return send(chatId, text, { parse_mode: 'HTML', reply_markup: { keyboard: [['➕ Add Domain'], ['🔙 Back']], resize_keyboard: true } })
+      return send(chatId, text, { parse_mode: 'HTML', reply_markup: { keyboard: [['➕ Add Domain'], ['❌ Remove Domain'], ['🔙 Back']], resize_keyboard: true } })
     }
 
     if (message === '🖥️ Manage IPs & Warming') {
@@ -6657,6 +6701,43 @@ ${message.replace(/\n/g, '<br>')}
         `🌐 <b>Add Sending Domain</b>\n\nEnter the domain name (must be on Cloudflare):\n\n<i>Example: tracking-assist.com</i>`,
         { parse_mode: 'HTML', reply_markup: { keyboard: [['🔙 Back']], resize_keyboard: true } }
       )
+    }
+
+    if (message === '❌ Remove Domain') {
+      const domains = await emailBlastService.getDomains()
+      if (!domains || domains.length === 0) {
+        return send(chatId, '📭 No domains configured.', { reply_markup: { keyboard: [['➕ Add Domain'], ['❌ Remove Domain'], ['🔙 Back']], resize_keyboard: true } })
+      }
+      await set(state, chatId, 'action', 'ebAdminRemoveDomain')
+      const domainBtns = domains.map(d => [d.domain])
+      domainBtns.push(['🔙 Back'])
+      return send(chatId, '🗑 <b>Remove Domain</b>\n\nSelect the domain to remove:', { parse_mode: 'HTML', reply_markup: { keyboard: domainBtns, resize_keyboard: true } })
+    }
+  }
+
+  // Admin: Remove Domain
+  if (action === 'ebAdminRemoveDomain' && chatId.toString() === process.env.TELEGRAM_ADMIN_CHAT_ID) {
+    if (message === '🔙 Back') {
+      const domains = await emailBlastService.getDomains()
+      const domainList = domains && domains.length > 0
+        ? domains.map(d => `• <b>${d.domain}</b> (${d.assignedIps?.length || 0} IPs)`).join('\n')
+        : '<i>No domains configured</i>'
+      await set(state, chatId, 'action', a.ebAdminDomains)
+      return send(chatId, `🌐 <b>Sending Domains</b>\n\n${domainList}`, { parse_mode: 'HTML', reply_markup: { keyboard: [['➕ Add Domain'], ['❌ Remove Domain'], ['🔙 Back']], resize_keyboard: true } })
+    }
+
+    const domainToRemove = message.trim().toLowerCase()
+    try {
+      const result = await emailBlastService.removeDomain(domainToRemove)
+      if (result && result.success) {
+        await set(state, chatId, 'action', a.ebAdminDomains)
+        return send(chatId, `✅ Domain <b>${domainToRemove}</b> removed successfully.\n\nDNS records cleaned up.`, { parse_mode: 'HTML', reply_markup: { keyboard: [['➕ Add Domain'], ['❌ Remove Domain'], ['🔙 Back']], resize_keyboard: true } })
+      } else {
+        return send(chatId, `❌ Failed to remove: ${result?.error || 'Domain not found'}`, { reply_markup: { keyboard: [['🔙 Back']], resize_keyboard: true } })
+      }
+    } catch (err) {
+      console.log('[EmailBlast] Remove domain error:', err.message)
+      return send(chatId, `❌ Error removing domain: ${err.message}`, { reply_markup: { keyboard: [['🔙 Back']], resize_keyboard: true } })
     }
   }
 
@@ -17490,6 +17571,57 @@ const bankApis = {
     const name = await get(nameOf, chatId)
     set(payments, ref, `Bank,Wallet,wallet,$${usdIn},${chatId},${name},${new Date()},${ngnIn} NGN`)
     notifyGroup(`💰 <b>Wallet Top-Up!</b>\nUser ${maskName(name)} just loaded their wallet and is ready to buy domains, leads & more.\nFund yours in seconds — /start`)
+  },
+  '/bank-pay-email-blast': async (req, res, ngnIn) => {
+    const { ref, chatId, price, campaignId } = req.pay || {}
+    if (!ref || !chatId || !price || !campaignId) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
+    const info = await state.findOne({ _id: parseFloat(chatId) })
+    const lang = info?.userLanguage ?? 'en'
+    const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
+
+    // Logs
+    del(chatIdOfPayment, ref)
+    const usdIn = await ngnToUsd(ngnIn)
+    const name = await get(nameOf, chatId)
+    set(payments, ref, `Bank,EmailBlast,$${usdIn},${chatId},${name},${new Date()},₦${ngnIn}`)
+
+    // Validate payment amount (allow 6% tolerance)
+    const ngnPrice = await usdToNgn(price)
+    if (usdIn * 1.06 < price) {
+      sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`))
+      addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
+      return res.send(html(translation('t.lowPrice')))
+    }
+    if (ngnIn > ngnPrice) {
+      addFundsTo(walletOf, chatId, 'ngn', ngnIn - ngnPrice, lang)
+      sendMessage(chatId, translation('t.sentMoreMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`))
+    }
+
+    // Start campaign
+    try {
+      const campaign = await emailBlastService.getCampaign(campaignId)
+      if (!campaign) {
+        sendMessage(chatId, '❌ Campaign not found. Payment refunded to wallet.')
+        addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
+        return res.send(html('Campaign not found'))
+      }
+
+      await emailBlastService.startCampaign(campaignId, 'bank', 'NGN')
+      sendMessage(chatId,
+        `✅ <b>Payment Confirmed!</b>\n\n` +
+        `💵 ₦${ngnIn.toLocaleString()} received (~$${usdIn})\n` +
+        `📧 Campaign queued: <b>${campaign.totalEmails}</b> emails\n\n` +
+        `📤 Sending will begin shortly. You'll receive progress updates and a completion notification.`,
+        { parse_mode: 'HTML' }
+      )
+    } catch (err) {
+      console.log('[EmailBlast] Bank payment campaign start error:', err.message)
+      addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
+      sendMessage(chatId, '❌ Failed to start campaign. Payment refunded to your wallet.')
+    }
+
+    webhookTierCheck(chatId, preSpend, lang)
+    res.send(html())
   },
 }
 //

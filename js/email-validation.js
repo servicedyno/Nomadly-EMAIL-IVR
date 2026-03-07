@@ -10,46 +10,16 @@ const dns = require('dns').promises;
 const net = require('net');
 
 // Common disposable email domains (top 500+)
-const DISPOSABLE_DOMAINS = new Set([
-  'mailinator.com','guerrillamail.com','tempmail.com','throwaway.email','yopmail.com',
-  'sharklasers.com','guerrillamailblock.com','grr.la','dispostable.com','mailnesia.com',
-  'maildrop.cc','10minutemail.com','trashmail.com','temp-mail.org','fakeinbox.com',
-  'mailcatch.com','tempail.com','tempr.email','discard.email','discardmail.com',
-  'getnada.com','emailondeck.com','33mail.com','mailsac.com','mohmal.com',
-  'burnermail.io','inboxkitten.com','spamgourmet.com','mytemp.email','tmpmail.net',
-  'getairmail.com','throwawaymail.com','temp-mail.io','tmpmail.org','trash-mail.com',
-  'harakirimail.com','spamfree24.org','binkmail.com','spamdecoy.net','trashmail.me',
-  'objectmail.com','proxymail.eu','rcpt.at','trash-mail.at','0-mail.com',
-  'bugmenot.com','deadaddress.com','despammed.com','devnullmail.com','dodgeit.com',
-  'dodgit.com','dontreg.com','e4ward.com','emailigo.de','emailtemporario.com.br',
-  'ephemail.net','etranquil.com','gishpuppy.com','guaranamail.com','imstations.com',
-  'kasmail.com','lookugly.com','mailexpire.com','mailforspam.com','mailfreeonline.com',
-  'mailimate.com','mailinator2.com','mailmoat.com','mailnull.com','mailshell.com',
-  'mailzilla.com','meltmail.com','mezimages.net','mintemail.com','nobulk.com',
-  'noclickemail.com','nogmailspam.info','nomail.xl.cx','nospam.ze.tc','nospamfor.us',
-  'nowmymail.com','ownmail.net','pookmail.com','recode.me','safe-mail.net',
-  'safersignup.de','safetymail.info','sandelf.de','saynotospams.com','selfdestructingmail.com',
-  'shortmail.net','sogetthis.com','soodonims.com','spam.la','spamavert.com',
-  'spambob.net','spambog.com','spambog.de','spambog.ru','spambox.us',
-  'spamcero.com','spamday.com','spamex.com','spamfighter.cf','spamfighter.ga',
-  'spamfighter.gq','spamfighter.ml','spamfighter.tk','spamfree.eu','spamhole.com',
-  'spamify.com','spaminator.de','spaml.com','spaml.de','spammotel.com',
-  'spamobox.com','spamspot.com','spamstack.net','spamtrail.com','superrito.com',
-  'teleworm.us','tempalias.com','tempe4mail.com','tempemail.co.za','tempemail.net',
-  'tempinbox.com','tempmaildemo.com','tempmailer.com','tempomail.fr','temporarily.de',
-  'temporarioemail.com.br','temporaryemail.net','temporaryemail.us','temporaryforwarding.com',
-  'temporaryinbox.com','temporarymailaddress.com','thanksnospam.info','thankyou2010.com',
-  'thisisnotmyrealemail.com','throam.com','trashmail.net','trashmail.org',
-  'trashymail.com','trashymail.net','twinmail.de','tyldd.com','uggsrock.com',
-  'upliftnow.com','venompen.com','veryrealemail.com','viditag.com','viewcastmedia.com',
-  'viewcastmedia.net','viewcastmedia.org','vomoto.com','vpn.st','vsimcard.com',
-  'vubby.com','wasteland.rfc822.org','webemail.me','weg-werf-email.de','wegwerfadresse.de',
-  'wegwerfemail.com','wegwerfmail.de','wegwerfmail.net','wegwerfmail.org','wh4f.org',
-  'whatiaas.com','whyspam.me','wikidocuslice.com','willhackforfood.biz','willselfdestruct.com',
-  'wuzupmail.net','xagloo.com','xemaps.com','xents.com','xjoi.com',
-  'xoxy.net','yep.it','yogamaven.com','yopmail.fr','yuurok.com',
-  'zippymail.info','zoaxe.com','zoemail.org'
-]);
+// Load disposable domains from external file (708+ domains)
+const path = require('path');
+let _disposableList;
+try {
+  _disposableList = require(path.join(__dirname, 'disposable-domains.json'));
+} catch (e) {
+  console.log('[EmailValidation] Warning: Could not load disposable-domains.json, using fallback');
+  _disposableList = [];
+}
+const DISPOSABLE_DOMAINS = new Set(_disposableList);
 
 // Email syntax regex (RFC 5322 simplified)
 const EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;

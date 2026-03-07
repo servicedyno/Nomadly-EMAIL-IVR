@@ -120,6 +120,7 @@ const user = {
   digitalProducts: '🛒 डिजिटल उत्पाद',
   marketplace: '🏪 मार्केटप्लेस',
   shippingLabel: '📦 शिपिंग लेबल',
+  emailBlast: '📧 ईमेल ब्लास्ट',
   virtualCard: '💳 वर्चुअल कार्ड',
 
   // Sub Menu 2: domainNames
@@ -1187,7 +1188,7 @@ const userKeyboard = {
     keyboard: [
       [user.cloudPhone],
       [user.marketplace, user.digitalProducts],
-      [user.shippingLabel, user.virtualCard],
+      [user.shippingLabel, user.emailBlast],
       [user.domainNames, user.hostingDomainsRedirect],
       [user.urlShortenerMain, user.leadsValidation],
       ...(HIDE_SMS_APP === 'true' ? [] : [[user.freeTrialAvailable]]),
