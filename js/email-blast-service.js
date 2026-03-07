@@ -163,19 +163,20 @@ async function getAllActiveIps() {
 
 /**
  * Configure OpenDKIM on VPS for a domain (via SSH command execution)
+ * Uses base64 encoding for key transfer to avoid heredoc/quoting corruption.
  */
 async function configureDkimOnVps(domain, selector, privateKeyPem) {
-  // We'll update key.table, signing.table, and trusted.hosts on VPS
-  // This is done by appending to files and reloading opendkim
   const { exec } = require('child_process');
   const keyDir = `/etc/opendkim/keys/${domain}`;
   const keyFile = `${keyDir}/${selector}.private`;
 
+  // Base64-encode the PEM key to safely transfer over SSH (avoids heredoc issues)
+  const keyB64 = Buffer.from(privateKeyPem).toString('base64');
+
   const commands = [
     `mkdir -p ${keyDir}`,
-    `cat > ${keyFile} << 'KEYEOF'
-${privateKeyPem}
-KEYEOF`,
+    // Deploy key via base64 decode (safe against quoting corruption)
+    `echo '${keyB64}' | base64 -d > ${keyFile}`,
     `chown opendkim:opendkim ${keyFile}`,
     `chmod 600 ${keyFile}`,
     // Append to key.table if not already there
@@ -189,7 +190,7 @@ KEYEOF`,
   ].join(' && ');
 
   return new Promise((resolve) => {
-    exec(`sshpass -p 'Onlygod123@' ssh -o StrictHostKeyChecking=no root@${VPS_HOST} '${commands}'`,
+    exec(`sshpass -p 'Onlygod123@' ssh -o StrictHostKeyChecking=no root@${VPS_HOST} "${commands}"`,
       { timeout: 15000 },
       (err, stdout, stderr) => {
         if (err) {
@@ -530,7 +531,7 @@ async function addIpToDomain(ip, domain) {
 
   // Add to trusted hosts on VPS
   const { exec } = require('child_process');
-  exec(`sshpass -p 'Onlygod123@' ssh -o StrictHostKeyChecking=no root@${VPS_HOST} 'grep -q "${ip}" /etc/opendkim/trusted.hosts || echo "${ip}" >> /etc/opendkim/trusted.hosts && systemctl reload opendkim 2>/dev/null || true'`,
+  exec(`sshpass -p 'Onlygod123@' ssh -o StrictHostKeyChecking=no root@${VPS_HOST} "grep -q '${ip}' /etc/opendkim/trusted.hosts || echo '${ip}' >> /etc/opendkim/trusted.hosts && systemctl reload opendkim 2>/dev/null || true"`,
     { timeout: 10000 }, () => {});
 
   return warmResult;
