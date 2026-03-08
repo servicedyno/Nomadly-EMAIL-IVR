@@ -17192,6 +17192,7 @@ const bankApis = {
     subscribePlan(planEndingTime, freeDomainNamesAvailableFor, planOf, chatId, plan, bot, lang, freeValidationsAvailableFor)
     notifyGroup(`💎 <b>New Subscription!</b>\nUser ${maskName(name)} just upgraded to the <b>${plan} Plan</b> — unlocking ${freeDomainsOf[plan]} free domains + ${(freeValidationsOf[plan] || 0).toLocaleString()} phone validations.\nDon't miss out — /start`)
     webhookTierCheck(chatId, preSpend, lang)
+    set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
   },
   '/bank-pay-domain': async (req, res, ngnIn) => {
@@ -17225,6 +17226,7 @@ const bankApis = {
     if (error) return res.send(html(error))
     notifyGroup(`🌐 <b>Domain Registered!</b>\nUser ${maskName(name)} just claimed <b>${domain}</b> — your dream domain could be next.\nGrab yours before it's taken — /start`)
     webhookTierCheck(chatId, preSpend, lang)
+    set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
   },
   '/bank-pay-hosting': async (req, res, ngnIn) => {
@@ -17268,6 +17270,8 @@ const bankApis = {
       return res.send(html(hostingResult?.error || 'Hosting creation failed'))
     }
     webhookTierCheck(chatId, preSpend, lang)
+    set(state, chatId, 'action', 'none') // Reset action after bank payment completes
+    set(state, chatId, 'processingPayment', false) // Clear hosting payment lock
     res.send(html())
   },
   '/bank-pay-vps': async (req, res, ngnIn) => {
@@ -17312,6 +17316,7 @@ const bankApis = {
     const isSuccess = await buyVPSPlanFullProcess(chatId, lang, vpsDetails)
     if (!isSuccess) return res.send(html(error))
     webhookTierCheck(chatId, preSpend, lang)
+    set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
   },
   '/bank-pay-upgrade-vps': async (req, res, ngnIn) => {
@@ -17353,6 +17358,7 @@ const bankApis = {
     const isSuccess = await upgradeVPSDetails(chatId, lang, vpsDetails)
     if (!isSuccess) return res.send(html(error))
     webhookTierCheck(chatId, preSpend, lang)
+    set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
   },
   '/bank-pay-phone': async (req, res, ngnIn) => {
@@ -17514,6 +17520,7 @@ const bankApis = {
     notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, plan.name, price, 'Bank NGN'))
     if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminPurchasePrivate(maskName(name), selectedNumber, plan.name, price, 'Bank NGN'), { parse_mode: 'HTML' })
     webhookTierCheck(chatId, preSpend, lang)
+    set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
   },
   '/bank-pay-leads': async (req, res, ngnIn) => {
@@ -17617,6 +17624,7 @@ const bankApis = {
       sendMessage(chatId, `✅ Payment received! Your wallet has been credited ₦${ngnIn}. Use wallet to complete your ${label.toLowerCase()} purchase.`)
       addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
     }
+    set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
   },
   '/bank-pay-digital-product': async (req, res, ngnIn) => {
@@ -17647,6 +17655,7 @@ const bankApis = {
     notifyGroup(`🛒 <b>Digital Product Paid!</b>\n\n👤 User: ${maskName(name)}\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b>\n\n✅ Payment confirmed.`)
     if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🛒 <b>Digital Product Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b> (Bank)\n\n📩 Deliver with:\n<code>/deliver ${orderId} [details]</code>`, { parse_mode: 'HTML' })
     webhookTierCheck(chatId, preSpend, lang)
+    set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
   },
   '/bank-pay-virtual-card': async (req, res, ngnIn) => {
@@ -17679,6 +17688,7 @@ const bankApis = {
     notifyGroup(`💳 <b>Virtual Card Paid!</b>\n\n👤 User: ${maskName(name)}\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b>\n\n✅ Payment confirmed.`)
     if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `💳 <b>Virtual Card Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b> (Bank)\n📬 Address:\n<pre>${vcAddress}</pre>\n\n📩 Deliver with:\n<code>/deliver ${orderId} [card details]</code>`, { parse_mode: 'HTML' })
     webhookTierCheck(chatId, preSpend, lang)
+    set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
   },
   '/bank-wallet': async (req, res, ngnIn) => {
@@ -17699,6 +17709,7 @@ const bankApis = {
     const name = await get(nameOf, chatId)
     set(payments, ref, `Bank,Wallet,wallet,$${usdIn},${chatId},${name},${new Date()},${ngnIn} NGN`)
     notifyGroup(`💰 <b>Wallet Top-Up!</b>\nUser ${maskName(name)} just loaded their wallet and is ready to buy domains, leads & more.\nFund yours in seconds — /start`)
+    set(state, chatId, 'action', 'none') // Reset action after wallet deposit completes
   },
   '/bank-pay-email-blast': async (req, res, ngnIn) => {
     const { ref, chatId, price, campaignId } = req.pay || {}
@@ -17749,6 +17760,7 @@ const bankApis = {
     }
 
     webhookTierCheck(chatId, preSpend, lang)
+    set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
   },
 }
@@ -17906,6 +17918,7 @@ app.get('/crypto-pay-plan', auth, async (req, res) => {
   subscribePlan(planEndingTime, freeDomainNamesAvailableFor, planOf, chatId, plan, bot, lang, freeValidationsAvailableFor)
   notifyGroup(`💎 <b>New Subscription!</b>\nUser ${maskName(name)} just upgraded to the <b>${plan} Plan</b> — unlocking ${freeDomainsOf[plan]} free domains + ${(freeValidationsOf[plan] || 0).toLocaleString()} phone validations.\nDon't miss out — /start`)
   webhookTierCheck(chatId, preSpend, lang)
+  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
 app.get('/crypto-pay-domain', auth, async (req, res) => {
@@ -17939,6 +17952,7 @@ app.get('/crypto-pay-domain', auth, async (req, res) => {
   if (error) return res.send(html(error))
   notifyGroup(`🌐 <b>Domain Registered!</b>\nUser ${maskName(name)} just claimed <b>${domain}</b> — your dream domain could be next.\nGrab yours before it's taken — /start`)
   webhookTierCheck(chatId, preSpend, lang)
+  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
 
@@ -17984,6 +17998,8 @@ app.get('/crypto-pay-hosting', auth, async (req, res) => {
     return res.send(html(hostingResult?.error || 'Hosting creation failed'))
   }
   webhookTierCheck(chatId, preSpend, lang)
+  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
+  set(state, chatId, 'processingPayment', false) // Clear hosting payment lock
   res.send(html())
 })
 
@@ -18113,6 +18129,7 @@ app.get('/crypto-pay-phone', auth, async (req, res) => {
   notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, plan.name, price, 'Crypto ' + coin))
   if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminPurchasePrivate(maskName(name), selectedNumber, plan.name, price, 'Crypto ' + coin), { parse_mode: 'HTML' })
   webhookTierCheck(chatId, preSpend, lang)
+  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
 
@@ -18222,6 +18239,7 @@ app.get('/crypto-pay-leads', auth, async (req, res) => {
   }
   res.send(html())
 })
+  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
 
 app.get('/crypto-pay-vps', auth, async (req, res) => {
   // Validate
@@ -18264,6 +18282,7 @@ app.get('/crypto-pay-vps', auth, async (req, res) => {
   const isSuccess = await buyVPSPlanFullProcess(chatId, lang, vpsDetails)
   if (!isSuccess) return res.send(html(error))
   webhookTierCheck(chatId, preSpend, lang)
+  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
 
@@ -18309,6 +18328,7 @@ app.get('/crypto-pay-upgrade-vps', auth, async (req, res) => {
   const isSuccess = await upgradeVPSDetails(chatId, lang, vpsDetails)
   if (!isSuccess) return res.send(html(error))
   webhookTierCheck(chatId, preSpend, lang)
+  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
 
@@ -18340,6 +18360,7 @@ app.get('/crypto-pay-digital-product', auth, async (req, res) => {
   notifyGroup(`🛒 <b>Digital Product Paid!</b>\n\n👤 User: ${maskName(name)}\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b>\n\n✅ Payment confirmed.`)
   if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🛒 <b>Digital Product Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b> (Crypto)\n\n📩 Deliver with:\n<code>/deliver ${orderId} [details]</code>`, { parse_mode: 'HTML' })
   webhookTierCheck(chatId, preSpend, lang)
+  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
 
@@ -18372,6 +18393,7 @@ app.get('/crypto-pay-virtual-card', auth, async (req, res) => {
   notifyGroup(`💳 <b>Virtual Card Paid!</b>\n\n👤 User: ${maskName(name)}\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b>\n\n✅ Payment confirmed.`)
   if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `💳 <b>Virtual Card Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b> (Crypto)\n📬 Address:\n<pre>${vcAddress}</pre>\n\n📩 Deliver with:\n<code>/deliver ${orderId} [card details]</code>`, { parse_mode: 'HTML' })
   webhookTierCheck(chatId, preSpend, lang)
+  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
 
@@ -18395,6 +18417,7 @@ app.get('/crypto-wallet', auth, async (req, res) => {
   const name = await get(nameOf, chatId)
   set(payments, ref, `Crypto,Wallet,wallet,$${usdIn},${chatId},${name},${new Date()},${value} ${coin}`)
   notifyGroup(`💰 <b>Wallet Top-Up!</b>\nUser ${maskName(name)} just loaded their wallet and is ready to buy domains, leads & more.\nFund yours in seconds — /start`)
+  set(state, chatId, 'action', 'none') // Reset action after crypto wallet deposit
 })
 
 // Dynopay Pay plan
@@ -18441,6 +18464,7 @@ app.post('/dynopay/crypto-pay-plan', authDyno, async (req, res) => {
   subscribePlan(planEndingTime, freeDomainNamesAvailableFor, planOf, chatId, plan, bot, lang, freeValidationsAvailableFor)
   notifyGroup(`💎 <b>New Subscription!</b>\nUser ${maskName(name)} just upgraded to the <b>${plan} Plan</b> — unlocking ${freeDomainsOf[plan]} free domains + ${(freeValidationsOf[plan] || 0).toLocaleString()} phone validations.\nDon't miss out — /start`)
   webhookTierCheck(chatId, preSpend, lang)
+  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
 
@@ -18488,6 +18512,7 @@ app.post('/dynopay/crypto-pay-domain', authDyno, async (req, res) => {
   if (error) return res.send(html(error))
   notifyGroup(`🌐 <b>Domain Registered!</b>\nUser ${maskName(name)} just claimed <b>${domain}</b> — your dream domain could be next.\nGrab yours before it's taken — /start`)
   webhookTierCheck(chatId, preSpend, lang)
+  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
 
@@ -18543,6 +18568,8 @@ app.post('/dynopay/crypto-pay-hosting', authDyno, async (req, res) => {
     return res.send(html(hostingResult?.error || 'Hosting creation failed'))
   }
   webhookTierCheck(chatId, preSpend, lang)
+  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
+  set(state, chatId, 'processingPayment', false) // Clear hosting payment lock
   res.send(html())
 })
 
@@ -18680,6 +18707,7 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
   notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, plan.name, price, 'Crypto DynoPay'))
   if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminPurchasePrivate(maskName(name), selectedNumber, plan.name, price, 'Crypto DynoPay'), { parse_mode: 'HTML' })
   webhookTierCheck(chatId, preSpend, lang)
+  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
 
@@ -18783,6 +18811,7 @@ app.post('/dynopay/crypto-pay-leads', authDyno, async (req, res) => {
     sendMessage(chatId, `✅ Payment received! Your wallet has been credited $${Number(price).toFixed(2)}. Use wallet to complete your ${label.toLowerCase()} purchase.`)
     addFundsTo(walletOf, chatId, 'usd', Number(price), lang)
   }
+  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
 
@@ -18839,6 +18868,7 @@ app.post('/dynopay/crypto-pay-vps', authDyno, async (req, res) => {
   const isSuccess = await buyVPSPlanFullProcess(chatId, lang, vpsDetails)
   if (!isSuccess) return res.send(html(error))
   webhookTierCheck(chatId, preSpend, lang)
+  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
 
@@ -18894,6 +18924,7 @@ app.post('/dynopay/crypto-pay-upgrade-vps', authDyno, async (req, res) => {
   const isSuccess = await upgradeVPSDetails(chatId, lang, vpsDetails)
   if (!isSuccess) return res.send(html(error))
   webhookTierCheck(chatId, preSpend, lang)
+  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
 
@@ -18933,6 +18964,7 @@ app.post('/dynopay/crypto-pay-digital-product', authDyno, async (req, res) => {
   notifyGroup(`🛒 <b>Digital Product Paid!</b>\n\n👤 User: ${maskName(name)}\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b>\n\n✅ Payment confirmed.`)
   if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🛒 <b>Digital Product Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b> (Crypto)\n\n📩 Deliver with:\n<code>/deliver ${orderId} [details]</code>`, { parse_mode: 'HTML' })
   webhookTierCheck(chatId, preSpend, lang)
+  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
 
@@ -18972,6 +19004,7 @@ app.post('/dynopay/crypto-pay-virtual-card', authDyno, async (req, res) => {
   notifyGroup(`💳 <b>Virtual Card Paid!</b>\n\n👤 User: ${maskName(name)}\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b>\n\n✅ Payment confirmed.`)
   if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `💳 <b>Virtual Card Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b> (Crypto)\n📬 Address:\n<pre>${vcAddress}</pre>\n\n📩 Deliver with:\n<code>/deliver ${orderId} [card details]</code>`, { parse_mode: 'HTML' })
   webhookTierCheck(chatId, preSpend, lang)
+  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
 
@@ -19034,6 +19067,7 @@ app.post('/dynopay/crypto-wallet', authDyno, async (req, res) => {
   const name = await get(nameOf, chatId)
   set(payments, ref, `Crypto,Wallet,wallet,$${usdIn},${chatId},${name},${new Date()},${value} ${coin},transaction,${id}`)
   notifyGroup(`💰 <b>Wallet Top-Up!</b>\nUser ${maskName(name)} just loaded their wallet and is ready to buy domains, leads & more.\nFund yours in seconds — /start`)
+  set(state, chatId, 'action', 'none') // Reset action after crypto wallet deposit
   
   log('=== DYNOPAY WALLET WEBHOOK PROCESSING COMPLETE ===')
 })
