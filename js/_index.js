@@ -2682,11 +2682,13 @@ bot?.on('message', msg => {
       await set(state, chatId, 'action', 'domain-pay')
     },
     'hosting-pay': async () => {
-      // P0 FIX: Prevent duplicate payment processing
-      if (info?.processingPayment) {
+      // P0 FIX: Prevent duplicate payment processing (time-based debounce — 30s window)
+      const now = Date.now()
+      if (info?.processingPayment && info?.paymentLockTime && (now - info.paymentLockTime < 30000)) {
         return send(chatId, '⏳ Payment already in progress. Please wait...', trans('o'))
       }
       saveInfo('processingPayment', true)
+      saveInfo('paymentLockTime', now)
       
       const payload = {
         domainName: info.website_name,
@@ -5338,6 +5340,7 @@ All verified numbers generated during sourcing.`))
     // Keep original admin behavior
     if (isAdmin(chatId)) {
       await set(state, chatId, 'action', 'none')
+      await set(state, chatId, 'processingPayment', false)
       return send(chatId, 'Hello, Admin! Please select an option:', aO)
     }
 
@@ -5348,6 +5351,7 @@ All verified numbers generated during sourcing.`))
 
     // Returning user: reset action and show main menu with balance & tier
     await set(state, chatId, 'action', 'none')
+    await set(state, chatId, 'processingPayment', false) // Clear any stale payment lock
     const greeting = await getMainMenuGreeting()
     return send(chatId, greeting, trans('o'))
   }
