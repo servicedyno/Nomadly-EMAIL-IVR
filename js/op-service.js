@@ -556,6 +556,7 @@ const ensureDnsZone = async (domainName) => {
 
 /**
  * Get DNS zone records for a domain from OpenProvider's DNS zone API
+ * IMPORTANT: Must pass with_records=true param, otherwise OP returns no records
  */
 const listDNSRecords = async (domainName) => {
   try {
@@ -563,13 +564,19 @@ const listDNSRecords = async (domainName) => {
 
     const res = await axios.get(`${OP_BASE_URL}/v1beta/dns/zones/${domainName}`, {
       headers, timeout: 15000,
+      params: { with_records: true },
     })
 
     if (res.data?.code === 0 && res.data?.data?.records) {
+      // Filter out SOA/NS records (infrastructure records managed by OP) for cleaner display
+      const userRecords = (res.data.data.records || []).filter(r =>
+        !['SOA'].includes(r.type)
+      )
       return {
-        records: (res.data.data.records || []).map(r => ({
+        records: userRecords.map(r => ({
           recordType: r.type,
           recordContent: r.value,
+          // OP returns full FQDN in name — normalize: strip trailing zone name for display
           recordName: r.name || domainName,
           ttl: r.ttl,
           priority: r.prio,
@@ -602,16 +609,25 @@ const addDNSRecord = async (domainName, recordType, recordValue, hostName, prior
     }
 
     const type = recordType.toUpperCase()
+    // OP auto-appends zone name to record name.
+    // Root records: name must be '' (empty), NOT the domain name.
+    // Subdomains: name should be just the subdomain part (e.g. 'www', 'api').
+    let opName = hostName || ''
+    // If caller passed the full domain as hostname, treat as root → empty
+    if (opName === domainName) opName = ''
+    // Strip the zone suffix if present (e.g. 'www.example.com' → 'www')
+    if (opName.endsWith('.' + domainName)) opName = opName.slice(0, -(domainName.length + 1))
+
     const newRecord = {
       type,
-      name: hostName || domainName,
+      name: opName,
       value: recordValue,
       ttl: 600,
     }
     if (type === 'MX' && priority !== undefined) newRecord.prio = Number(priority)
     // SRV record fields for OpenProvider
     if (type === 'SRV' && extraData) {
-      newRecord.name = `${extraData.service}.${extraData.proto}.${hostName || domainName}`
+      newRecord.name = `${extraData.service}.${extraData.proto}.${opName}`
       newRecord.value = recordValue
       newRecord.prio = Number(extraData.priority || 10)
       // OP uses weight and port embedded in the value or as separate fields
@@ -643,23 +659,33 @@ const addDNSRecord = async (domainName, recordType, recordValue, hostName, prior
 }
 
 /**
- * Update a DNS record in OpenProvider zone
+ * Update a DNS record in OpenProvider zone.
+ * Uses the record's name as-is from listDNSRecords (already in OP format).
  */
 const updateDNSRecord = async (domainName, originalRecord, newValue, newType) => {
   try {
     const headers = await authHeaders()
 
+    // The recordName from listDNSRecords is already in OP's FQDN format
+    // For the update/remove, pass the name as OP returned it
+    const origName = originalRecord.recordName || domainName
+    // Normalize: if name equals the full domain, OP may expect empty for root
+    const opOrigName = origName === domainName ? '' : (origName.endsWith('.' + domainName) ? origName.slice(0, -(domainName.length + 1)) : origName)
+
+    const newType_ = (newType || originalRecord.recordType).toUpperCase()
+    const origType_ = originalRecord.recordType.toUpperCase()
+
     const res = await axios.put(`${OP_BASE_URL}/v1beta/dns/zones/${domainName}`, {
       records: {
         update: [{
-          type: (newType || originalRecord.recordType).toUpperCase(),
-          name: originalRecord.recordName || domainName,
+          type: newType_,
+          name: opOrigName,
           value: newValue,
           ttl: originalRecord.ttl || 600,
         }],
         remove: [{
-          type: originalRecord.recordType.toUpperCase(),
-          name: originalRecord.recordName || domainName,
+          type: origType_,
+          name: opOrigName,
           value: originalRecord.recordContent,
         }],
       },
@@ -674,17 +700,22 @@ const updateDNSRecord = async (domainName, originalRecord, newValue, newType) =>
 }
 
 /**
- * Delete a DNS record from OpenProvider zone
+ * Delete a DNS record from OpenProvider zone.
+ * recordName comes from listDNSRecords — pass as-is in OP FQDN format.
  */
 const deleteDNSRecord = async (domainName, record) => {
   try {
     const headers = await authHeaders()
 
+    // Normalize name for OP: strip domain suffix, root = ''
+    const origName = record.recordName || domainName
+    const opName = origName === domainName ? '' : (origName.endsWith('.' + domainName) ? origName.slice(0, -(domainName.length + 1)) : origName)
+
     const res = await axios.put(`${OP_BASE_URL}/v1beta/dns/zones/${domainName}`, {
       records: {
         remove: [{
           type: record.recordType.toUpperCase(),
-          name: record.recordName || domainName,
+          name: opName,
           value: record.recordContent,
         }],
       },
