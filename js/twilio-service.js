@@ -728,6 +728,56 @@ async function getBundleStatus(bundleSid) {
   }
 }
 
+/**
+ * Get rejection reasons for a bundle by fetching its item assignments
+ * and checking each SupportingDocument for failure_reason.
+ */
+async function getDocRejectionReasons(bundleSid) {
+  try {
+    const client = getClient()
+    if (!client) throw new Error('Twilio client not initialized')
+
+    // Fetch item assignments for the bundle
+    const items = await client.numbers.v2.regulatoryCompliance
+      .bundles(bundleSid).itemAssignments.list()
+
+    const reasons = []
+    for (const item of items) {
+      // Only check SupportingDocuments (SID starts with RD)
+      if (!item.objectSid || !item.objectSid.startsWith('RD')) continue
+      try {
+        const doc = await client.numbers.v2.regulatoryCompliance
+          .supportingDocuments(item.objectSid).fetch()
+        if (doc.status === 'rejected' || doc.failureReason) {
+          // Map Twilio doc types to user-friendly names
+          const typeNames = {
+            government_issued_document: 'Government-issued ID',
+            utility_bill: 'Proof of Address / Utility Bill',
+            tax_document: 'Tax Document / Proof of Address',
+            business_registration: 'Business Registration',
+            power_of_attorney: 'Power of Attorney',
+          }
+          reasons.push({
+            docSid: doc.sid,
+            docType: doc.type,
+            docName: typeNames[doc.type] || doc.type,
+            friendlyName: doc.friendlyName,
+            status: doc.status,
+            failureReason: doc.failureReason || 'Document did not meet verification requirements.',
+          })
+        }
+      } catch (docErr) {
+        log(`[Twilio] Error fetching doc ${item.objectSid}: ${docErr.message}`)
+      }
+    }
+    log(`[Twilio] Bundle ${bundleSid} rejection reasons: ${reasons.length} rejected doc(s)`)
+    return reasons
+  } catch (e) {
+    log(`[Twilio] getDocRejectionReasons error: ${e.message}`)
+    return []
+  }
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // EXPORTS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -769,4 +819,5 @@ module.exports = {
   addBundleItem,
   submitBundle,
   getBundleStatus,
+  getDocRejectionReasons,
 }

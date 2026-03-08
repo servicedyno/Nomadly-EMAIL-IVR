@@ -1203,25 +1203,51 @@ async function checkPendingBundles() {
           }
         }
 
-        // ── REJECTED → refund wallet ──
+        // ── REJECTED → fetch reasons, let user re-upload or cancel ──
         if (newStatus === 'twilio-rejected') {
           log(`[BundleChecker] Bundle REJECTED for chatId=${pb.chatId}`)
-          const refundCoin = pb.paymentCoin || 'usd'
-          try {
-            if (isUsdRefundCoin(refundCoin, { usd: 'USD', ngn: 'NGN' })) {
-              await atomicIncrement(walletOf, pb.chatId, 'usdIn', pb.priceUsd || pb.price)
-            } else {
-              await atomicIncrement(walletOf, pb.chatId, 'ngnIn', pb.priceNgn || 0)
-            }
-          } catch (refundErr) {
-            log(`[BundleChecker] CRITICAL: Refund failed on rejection: ${refundErr.message}`)
-            notifyAdmin(`🚨 CRITICAL [BundleChecker] Refund failed on rejection\nchatId: ${pb.chatId}\nprice: $${pb.price}\nerror: ${refundErr.message}`)
-          }
-          const { usdBal, ngnBal } = await getBalance(walletOf, pb.chatId)
           const lang = pb.lang || 'en'
           const t = translation('l', lang)
-          send(pb.chatId, `❌ <b>Regulatory bundle rejected</b>\n\nYour ${pb.countryName || pb.countryCode} number request could not be approved by the telecom regulator.\n\n💰 <b>$${Number(pb.priceUsd || pb.price).toFixed(2)}</b> has been refunded to your wallet.\n${t.showWallet ? t.showWallet(usdBal, ngnBal) : `Balance: $${usdBal}`}\n\nPlease try a different country or contact support.`, { parse_mode: 'HTML' })
-          notifyAdmin(`❌ [BundleChecker] Bundle rejected\nchatId: ${pb.chatId}\nnumber: ${pb.selectedNumber}\nbundle: ${pb.bundleSid}`)
+
+          // Fetch rejection reasons from supporting documents
+          let reasons = []
+          try {
+            reasons = await twilioService.getDocRejectionReasons(pb.bundleSid)
+          } catch (e) {
+            log(`[BundleChecker] Error fetching rejection reasons: ${e.message}`)
+          }
+
+          // Store reasons in the bundle record
+          await pendingBundles.updateOne({ _id: pb._id }, {
+            $set: { status: 'twilio-rejected', rejectionReasons: reasons, updatedAt: new Date() }
+          })
+
+          // Build user-friendly message — NO mention of Twilio
+          let reasonText = ''
+          if (reasons.length > 0) {
+            reasonText = '\n\n<b>Issues found:</b>\n'
+            for (const r of reasons) {
+              reasonText += `• <b>${r.docName}</b>: ${r.failureReason}\n`
+            }
+          } else {
+            reasonText = '\n\nThe documents provided did not meet the telecom regulatory requirements for this country.'
+          }
+
+          const reuploadBtn = { en: '📄 Re-upload Documents', fr: '📄 Re-soumettre', zh: '📄 重新上传文件', hi: '📄 दस्तावेज़ पुनः अपलोड करें' }[lang] || '📄 Re-upload Documents'
+          const refundBtn = { en: '💰 Cancel & Get Refund', fr: '💰 Annuler et rembourser', zh: '💰 取消并退款', hi: '💰 रद्द करें और धनवापसी प्राप्त करें' }[lang] || '💰 Cancel & Get Refund'
+
+          send(pb.chatId, `❌ <b>Verification Rejected</b>\n\nYour ${pb.countryName || pb.countryCode} number request was not approved.${reasonText}\nYou can re-upload your documents to try again, or cancel for a full refund.`, {
+            parse_mode: 'HTML',
+            reply_markup: {
+              keyboard: [[reuploadBtn], [refundBtn]],
+              resize_keyboard: true,
+              one_time_keyboard: true,
+            }
+          })
+          // Set user action so the bot routes their next message
+          try { await set(state, pb.chatId, 'action', 'bundleRejectedAction') } catch (e) { /* ignore if user unreachable */ }
+
+          notifyAdmin(`❌ [BundleChecker] Bundle rejected\nchatId: ${pb.chatId}\nnumber: ${pb.selectedNumber}\nbundle: ${pb.bundleSid}\nreasons: ${reasons.map(r => r.docName + ': ' + r.failureReason).join('; ') || 'unknown'}`)
         }
       } catch (innerErr) {
         log(`[BundleChecker] Error processing bundle ${pb.bundleSid}: ${innerErr.message}`)
@@ -12436,6 +12462,83 @@ Choose an IVR template category:`), k.of(rows))
     const lang = info?.userLanguage ?? 'en'
     const handled = await regulatoryFlow.handleAddressInput(chatId, message, lang)
     if (handled) return
+  }
+
+  // ── BUNDLE REJECTED: user chooses to re-upload or cancel ──
+  if (action === 'bundleRejectedAction') {
+    const lang = info?.userLanguage ?? 'en'
+    const reuploadBtn = { en: '📄 Re-upload Documents', fr: '📄 Re-soumettre', zh: '📄 重新上传文件', hi: '📄 दस्तावेज़ पुनः अपलोड करें' }[lang] || '📄 Re-upload Documents'
+    const refundBtn = { en: '💰 Cancel & Get Refund', fr: '💰 Annuler et rembourser', zh: '💰 取消并退款', hi: '💰 रद्द करें और धनवापसी प्राप्त करें' }[lang] || '💰 Cancel & Get Refund'
+
+    if (message === reuploadBtn) {
+      // Find the rejected bundle
+      const rejectedBundle = await pendingBundles.findOne({ chatId, status: 'twilio-rejected' })
+      if (!rejectedBundle) {
+        set(state, chatId, 'action', 'none')
+        return send(chatId, '⚠️ No rejected verification found. Please start a new number purchase.', { parse_mode: 'HTML' })
+      }
+
+      log(`[BundleRejected] User ${chatId} chose to re-upload docs for bundle ${rejectedBundle.bundleSid}`)
+      await pendingBundles.updateOne({ _id: rejectedBundle._id }, { $set: { status: 'resubmitting', updatedAt: new Date() } })
+
+      // Start fresh doc collection with the same purchase data
+      await regulatoryFlow.startDocCollection(chatId, {
+        countryCode: rejectedBundle.countryCode,
+        numType: rejectedBundle.numType,
+        countryName: rejectedBundle.countryName,
+        selectedNumber: rejectedBundle.selectedNumber,
+        planKey: rejectedBundle.planKey,
+        price: rejectedBundle.price,
+        priceUsd: rejectedBundle.priceUsd,
+        priceNgn: rejectedBundle.priceNgn,
+        paymentMethod: rejectedBundle.paymentMethod,
+        rejectedBundleId: rejectedBundle._id, // link back so we update instead of creating new
+      }, lang)
+      return
+    }
+
+    if (message === refundBtn) {
+      // Find the rejected bundle and refund
+      const rejectedBundle = await pendingBundles.findOne({ chatId, status: 'twilio-rejected' })
+      if (!rejectedBundle) {
+        set(state, chatId, 'action', 'none')
+        return send(chatId, '⚠️ No rejected verification found.', { parse_mode: 'HTML' })
+      }
+
+      log(`[BundleRejected] User ${chatId} chose to cancel and refund for bundle ${rejectedBundle.bundleSid}`)
+      const refundCoin = rejectedBundle.paymentCoin || 'usd'
+      try {
+        if (isUsdRefundCoin(refundCoin, { usd: 'USD', ngn: 'NGN' })) {
+          await atomicIncrement(walletOf, chatId, 'usdIn', rejectedBundle.priceUsd || rejectedBundle.price)
+        } else {
+          await atomicIncrement(walletOf, chatId, 'ngnIn', rejectedBundle.priceNgn || 0)
+        }
+      } catch (refundErr) {
+        log(`[BundleRejected] Refund error: ${refundErr.message}`)
+        notifyAdmin(`🚨 [BundleRejected] Refund failed\nchatId: ${chatId}\nbundle: ${rejectedBundle.bundleSid}\nerror: ${refundErr.message}`)
+      }
+      await pendingBundles.updateOne({ _id: rejectedBundle._id }, { $set: { status: 'cancelled-refunded', refundedAt: new Date(), updatedAt: new Date() } })
+      set(state, chatId, 'action', 'none')
+
+      const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
+      const t = translation('l', lang)
+      const refundAmt = (rejectedBundle.paymentCoin === 'ngn' || rejectedBundle.priceNgn > 0)
+        ? `₦${Number(rejectedBundle.priceNgn || 0).toFixed(2)}`
+        : `$${Number(rejectedBundle.priceUsd || rejectedBundle.price).toFixed(2)}`
+      send(chatId, `💰 <b>${refundAmt}</b> has been refunded to your wallet.\n${t.showWallet ? t.showWallet(usdBal, ngnBal) : `Balance: $${usdBal}`}`, { parse_mode: 'HTML' })
+      return
+    }
+
+    // If user types something else, re-show the options
+    send(chatId, '⬇️ Please choose an option below:', {
+      parse_mode: 'HTML',
+      reply_markup: {
+        keyboard: [[reuploadBtn], [refundBtn]],
+        resize_keyboard: true,
+        one_time_keyboard: true,
+      }
+    })
+    return
   }
 
   // ── ADDRESS COLLECTION (for addrReq=any countries like AU, FI, etc.) ──

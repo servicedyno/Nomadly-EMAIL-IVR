@@ -51,7 +51,7 @@ function init(dependencies) {
  * Called after payment is confirmed.
  */
 async function startDocCollection(chatId, purchaseData, lang) {
-  const { countryCode, numType, countryName, selectedNumber, planKey, price, priceUsd, priceNgn, paymentMethod } = purchaseData
+  const { countryCode, numType, countryName, selectedNumber, planKey, price, priceUsd, priceNgn, paymentMethod, rejectedBundleId } = purchaseData
   const config = getRegConfig(countryCode, numType)
   if (!config) {
     deps.log(`[RegulatoryFlow] No doc config for ${countryCode}:${numType}, skipping`)
@@ -96,6 +96,7 @@ async function startDocCollection(chatId, purchaseData, lang) {
     collectedData: {},    // text inputs: { first_name: '...', document_number: '...' }
     uploadedDocs: {},     // photo doc keys: { id_photo: { filePath: '...', twilioDocSid: '...' }, ... }
     addressSid: null,
+    rejectedBundleId: rejectedBundleId || null, // link to original pendingBundles record if re-uploading
     status: 'collecting',
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -474,8 +475,9 @@ async function createAndSubmitBundle(chatId, session) {
     const bundleStatus = submitResult.status || 'pending-review'
     deps.log(`[RegulatoryFlow] Bundle submitted: ${bundleResult.sid} status=${bundleStatus}`)
 
-    // 6. Save to pendingBundles collection
-    await deps.db.collection('pendingBundles').insertOne({
+    // 6. Save to pendingBundles collection (update existing if re-uploading, else insert new)
+    const pendingBundlesCol = deps.db.collection('pendingBundles')
+    const pendingData = {
       chatId,
       bundleSid: bundleResult.sid,
       endUserSid: endUserResult.sid,
@@ -493,20 +495,32 @@ async function createAndSubmitBundle(chatId, session) {
       paymentMethod: session.paymentMethod,
       lang: session.lang,
       status: bundleStatus,
-      createdAt: new Date(),
       updatedAt: new Date(),
-    })
+    }
+
+    if (session.rejectedBundleId) {
+      // Re-upload flow: update the existing pending bundle record
+      deps.log(`[RegulatoryFlow] Updating existing pendingBundle ${session.rejectedBundleId} with new bundleSid=${bundleResult.sid}`)
+      await pendingBundlesCol.updateOne(
+        { _id: session.rejectedBundleId },
+        { $set: { ...pendingData, resubmittedAt: new Date(), rejectionReasons: null } }
+      )
+    } else {
+      // New flow: insert fresh record
+      await pendingBundlesCol.insertOne({ ...pendingData, createdAt: new Date() })
+    }
 
     // 7. Update session status
     await docSessions.updateOne({ _id: session._id }, { $set: { status: 'submitted', bundleSid: bundleResult.sid, updatedAt: new Date() } })
     await deps.set(deps.state, chatId, 'action', 'none')
 
     // 8. Notify user
+    const isResubmission = !!session.rejectedBundleId
     const successMsg = {
-      en: `📋 <b>Regulatory Approval Submitted</b>\n\n${session.countryName} number verification submitted (1-3 business days).\nYour <b>$${Number(session.price).toFixed(2)}</b> is held securely. You'll be notified when approved or refunded.`,
-      fr: `📋 <b>Approbation soumise</b>\n\nVérification soumise (1-3 jours ouvrables).\nVotre <b>$${Number(session.price).toFixed(2)}</b> est sécurisé.`,
-      zh: `📋 <b>监管审批已提交</b>\n\n验证已提交（1-3个工作日）。\n您的 <b>$${Number(session.price).toFixed(2)}</b> 已安全持有。`,
-      hi: `📋 <b>नियामक अनुमोदन प्रस्तुत</b>\n\nसत्यापन प्रस्तुत (1-3 कार्य दिवस)।\nआपका <b>$${Number(session.price).toFixed(2)}</b> सुरक्षित है।`,
+      en: `📋 <b>${isResubmission ? 'Documents Re-submitted' : 'Regulatory Approval Submitted'}</b>\n\n${session.countryName} number verification ${isResubmission ? 're-' : ''}submitted (1-3 business days).\nYour <b>$${Number(session.price).toFixed(2)}</b> is held securely. You'll be notified when approved or refunded.`,
+      fr: `📋 <b>${isResubmission ? 'Documents re-soumis' : 'Approbation soumise'}</b>\n\nVérification ${isResubmission ? 're-' : ''}soumise (1-3 jours ouvrables).\nVotre <b>$${Number(session.price).toFixed(2)}</b> est sécurisé.`,
+      zh: `📋 <b>${isResubmission ? '文件已重新提交' : '监管审批已提交'}</b>\n\n验证已${isResubmission ? '重新' : ''}提交（1-3个工作日）。\n您的 <b>$${Number(session.price).toFixed(2)}</b> 已安全持有。`,
+      hi: `📋 <b>${isResubmission ? 'दस्तावेज़ पुनः प्रस्तुत' : 'नियामक अनुमोदन प्रस्तुत'}</b>\n\nसत्यापन ${isResubmission ? 'पुनः ' : ''}प्रस्तुत (1-3 कार्य दिवस)।\nआपका <b>$${Number(session.price).toFixed(2)}</b> सुरक्षित है।`,
     }
     deps.send(chatId, successMsg[lang] || successMsg.en, { parse_mode: 'HTML' })
 
@@ -514,7 +528,7 @@ async function createAndSubmitBundle(chatId, session) {
     const adminChatId = process.env.TELEGRAM_ADMIN_CHAT_ID
     if (adminChatId) {
       try {
-        deps.send(Number(adminChatId), `📋 [RegulatoryFlow] Bundle submitted\nchatId: ${chatId}\nbundle: ${bundleResult.sid}\ncountry: ${session.countryCode} ${session.numType}\nnumber: ${session.selectedNumber}\nstatus: ${bundleStatus}`)
+        deps.send(Number(adminChatId), `📋 [RegulatoryFlow] Bundle ${isResubmission ? 're-' : ''}submitted\nchatId: ${chatId}\nbundle: ${bundleResult.sid}\ncountry: ${session.countryCode} ${session.numType}\nnumber: ${session.selectedNumber}\nstatus: ${bundleStatus}${isResubmission ? '\n🔄 RE-SUBMISSION after rejection' : ''}`)
       } catch (e) { /* ignore */ }
     }
 
