@@ -144,8 +144,9 @@ async function handleTextInput(chatId, text, lang) {
     return true
   }
 
-  // Handle "same" for reuse photo
-  if (step.type === 'photo' && text.toLowerCase() === 'same' && step.reusePhoto) {
+  // Handle "same" for reuse photo (also accept legacy Twilio doc types as photo steps)
+  const isPhotoStepText = step.type !== 'text'
+  if (isPhotoStepText && text.toLowerCase() === 'same' && step.reusePhoto) {
     const reuseKey = step.reusePhoto
     if (session.uploadedDocs[reuseKey]) {
       deps.log(`[RegulatoryFlow] chatId=${chatId} reusing photo from ${reuseKey} for ${step.key}`)
@@ -196,7 +197,8 @@ async function handleTextInput(chatId, text, lang) {
   }
 
   // If step expects photo but got text (and not "same"), tell user
-  if (step.type === 'photo') {
+  // Accept legacy Twilio doc types (stale sessions) as photo steps too
+  if (step.type !== 'text') {
     const hint = step.reusePhoto ? ' Or type <b>same</b> to reuse your previous photo.' : ''
     deps.send(chatId, `📷 Please send a <b>photo</b> for this step.${hint}`, { parse_mode: 'HTML' })
     return true
@@ -215,9 +217,18 @@ async function handlePhotoInput(chatId, msg, lang) {
   if (!session) return false
 
   const step = session.steps[session.currentStep]
-  if (!step || step.type !== 'photo') {
+  // Accept 'photo' type AND legacy Twilio doc types (stale sessions created before type-rename fix)
+  const isPhotoStep = step && step.type !== 'text'
+  if (!step || !isPhotoStep) {
     deps.send(chatId, '⚠️ Not expecting a photo at this step. Please follow the current prompt.', { parse_mode: 'HTML' })
     return true
+  }
+  // Auto-heal legacy sessions: if step.type isn't 'photo', fix it in DB
+  if (step.type !== 'photo') {
+    deps.log(`[RegulatoryFlow] Auto-healing stale step type: ${step.type} → photo for chatId=${chatId}`)
+    step.twilioDocType = step.twilioDocType || step.type
+    step.type = 'photo'
+    await docSessions.updateOne({ _id: session._id }, { $set: { [`steps.${session.currentStep}.type`]: 'photo', [`steps.${session.currentStep}.twilioDocType`]: step.twilioDocType } })
   }
 
   try {
