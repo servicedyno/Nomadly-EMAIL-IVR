@@ -45,6 +45,177 @@ async function initBulkCallService(db, bot, twilioService, walletOf) {
   await _collection.createIndex({ id: 1 }, { unique: true })
   await _collection.createIndex({ status: 1 })
   log('[BulkCall] Service initialized (Speechcue mode)')
+
+  // ━━━ CAMPAIGN RECOVERY: Resume campaigns that were running before deployment ━━━
+  // Delay recovery to let all services fully initialize (Twilio, webhooks, etc.)
+  setTimeout(() => recoverRunningCampaigns().catch(e => log(`[BulkCall] Recovery error: ${e.message}`)), 15000)
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Campaign Recovery — Resumes campaigns after redeployment
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const STALE_CAMPAIGN_HOURS = 24  // Campaigns with no progress for 24h are considered zombie/stale
+
+async function recoverRunningCampaigns() {
+  if (!_collection) return
+  const runningCampaigns = await _collection.find({ status: 'running' }).toArray()
+  if (runningCampaigns.length === 0) {
+    log('[BulkCall] Recovery: No running campaigns to recover')
+    return
+  }
+
+  log(`[BulkCall] Recovery: Found ${runningCampaigns.length} running campaign(s) — analyzing...`)
+
+  let recovered = 0
+  let stale = 0
+  let blocked = 0
+
+  for (const campaign of runningCampaigns) {
+    const campaignId = campaign.id
+    const leads = campaign.leads || []
+    const pendingLeads = leads.filter(l => ['pending', 'calling', 'ringing'].includes(l.status))
+
+    // ── 1. No pending leads → mark as completed ──
+    if (pendingLeads.length === 0) {
+      await _collection.updateOne({ id: campaignId }, { $set: { status: 'completed', completedAt: new Date() } })
+      log(`[BulkCall] Recovery: Campaign ${campaignId} (user ${campaign.chatId}) — no pending leads, marked completed`)
+      // Send final report since it was never sent
+      await sendFinalReport(campaignId).catch(() => {})
+      continue
+    }
+
+    // ── 2. Security: Block campaigns without sub-account (prevents main Twilio account abuse) ──
+    if (!campaign.twilioSubAccountSid) {
+      await _collection.updateOne({ id: campaignId }, {
+        $set: { status: 'cancelled', completedAt: new Date(), cancelledReason: 'Recovery blocked: no Twilio sub-account' }
+      })
+      blocked++
+      log(`[BulkCall] Recovery: Campaign ${campaignId} (user ${campaign.chatId}) — BLOCKED (no sub-account)`)
+      _bot?.sendMessage(campaign.chatId,
+        `🚫 <b>Campaign Cancelled After Restart</b>\n\n` +
+        `Your Bulk IVR campaign could not be resumed because it requires a Twilio-powered number.\n` +
+        `${pendingLeads.length} leads were not dialed.`,
+        { parse_mode: 'HTML' }
+      ).catch(() => {})
+      continue
+    }
+
+    // ── 3. Stale check: >24h with no recent lead activity → zombie campaign ──
+    const lastActivity = getLastLeadActivity(campaign)
+    const hoursSinceActivity = lastActivity ? (Date.now() - lastActivity.getTime()) / (1000 * 60 * 60) : Infinity
+    const hoursSinceStart = campaign.startedAt ? (Date.now() - new Date(campaign.startedAt).getTime()) / (1000 * 60 * 60) : Infinity
+
+    if (hoursSinceActivity > STALE_CAMPAIGN_HOURS && hoursSinceStart > STALE_CAMPAIGN_HOURS) {
+      await _collection.updateOne({ id: campaignId }, {
+        $set: { status: 'cancelled', completedAt: new Date(), cancelledReason: `Recovery cleanup: stale campaign (${Math.round(hoursSinceActivity)}h since last activity)` }
+      })
+      stale++
+      log(`[BulkCall] Recovery: Campaign ${campaignId} (user ${campaign.chatId}) — STALE (${Math.round(hoursSinceActivity)}h idle), cancelled`)
+      _bot?.sendMessage(campaign.chatId,
+        `⚠️ <b>Campaign Auto-Cancelled</b>\n\n` +
+        `Your Bulk IVR campaign was cancelled after a server restart because it had been idle for over ${STALE_CAMPAIGN_HOURS} hours.\n` +
+        `${pendingLeads.length} remaining leads were not dialed.\n\n` +
+        `You can start a new campaign if needed.`,
+        { parse_mode: 'HTML' }
+      ).catch(() => {})
+      continue
+    }
+
+    // ── 4. Credit check: Ensure user still has wallet balance ──
+    let canResume = true
+    if (_walletOf) {
+      try {
+        const { usdBal } = await getBalance(_walletOf, campaign.chatId)
+        if (usdBal < BULK_CALL_RATE) {
+          // Reset in-flight leads before pausing (those calls are dead after restart)
+          await resetInflightLeads(campaignId, leads)
+          await _collection.updateOne({ id: campaignId }, { $set: { status: 'paused' } })
+          log(`[BulkCall] Recovery: Campaign ${campaignId} (user ${campaign.chatId}) — paused (wallet $${usdBal.toFixed(2)} < $${BULK_CALL_RATE}/min)`)
+          _bot?.sendMessage(campaign.chatId,
+            `⏸️ <b>Campaign Paused After Restart</b>\n\n` +
+            `Your Bulk IVR campaign has ${pendingLeads.length} leads remaining but your wallet is too low.\n` +
+            `Wallet: <b>$${usdBal.toFixed(2)}</b> (need $${BULK_CALL_RATE.toFixed(2)}/min)\n\n` +
+            `Top up via 👛 Wallet to resume.`,
+            { parse_mode: 'HTML' }
+          ).catch(() => {})
+          canResume = false
+        }
+      } catch (e) {
+        log(`[BulkCall] Recovery: Credit check error for ${campaignId}: ${e.message}`)
+      }
+    }
+
+    if (!canResume) continue
+
+    // ── 5. RESUME: Reset in-flight leads and re-populate in-memory state ──
+    // Reset leads that were mid-call (calling/ringing) when deployment happened → pending
+    await resetInflightLeads(campaignId, leads)
+
+    // Re-populate in-memory state
+    activeCampaigns[campaignId] = {
+      activeCalls: 0,
+      nextLeadIndex: 0,
+      paused: false,
+    }
+
+    recovered++
+    const completedCount = leads.filter(l => !['pending', 'calling', 'ringing'].includes(l.status)).length
+    log(`[BulkCall] Recovery: Resuming campaign ${campaignId} (user ${campaign.chatId}) — ${pendingLeads.length} pending, ${completedCount} completed`)
+
+    _bot?.sendMessage(campaign.chatId,
+      `🔄 <b>Campaign Resuming</b>\n\n` +
+      `Your Bulk IVR campaign is being resumed after a server restart.\n` +
+      `📞 Remaining: <b>${pendingLeads.length}</b> leads\n` +
+      `✅ Already completed: <b>${completedCount}</b>\n\n` +
+      `Dialing will resume shortly...`,
+      { parse_mode: 'HTML' }
+    ).catch(() => {})
+
+    // Stagger campaign starts to avoid thundering herd (3s between each)
+    await new Promise(r => setTimeout(r, 3000))
+    await fireNextBatch(campaignId).catch(e => {
+      log(`[BulkCall] Recovery: Failed to fire batch for ${campaignId}: ${e.message}`)
+    })
+  }
+
+  log(`[BulkCall] Recovery complete: ${recovered} resumed, ${stale} stale cancelled, ${blocked} blocked (no sub-account)`)
+}
+
+/**
+ * Get the most recent lead activity timestamp for a campaign
+ */
+function getLastLeadActivity(campaign) {
+  let latest = null
+  for (const lead of (campaign.leads || [])) {
+    const ts = lead.completedAt || lead.answeredAt || lead.startedAt
+    if (ts) {
+      const d = new Date(ts)
+      if (!latest || d > latest) latest = d
+    }
+  }
+  return latest
+}
+
+/**
+ * Reset in-flight leads (calling/ringing) to pending after restart
+ * These calls are dead — the old process that initiated them is gone
+ */
+async function resetInflightLeads(campaignId, leads) {
+  const resetOps = {}
+  let count = 0
+  for (let i = 0; i < leads.length; i++) {
+    if (leads[i].status === 'calling' || leads[i].status === 'ringing') {
+      resetOps[`leads.${i}.status`] = 'pending'
+      resetOps[`leads.${i}.callSid`] = null
+      resetOps[`leads.${i}.startedAt`] = null
+      count++
+    }
+  }
+  if (count > 0) {
+    await _collection.updateOne({ id: campaignId }, { $set: resetOps })
+    log(`[BulkCall] Recovery: Reset ${count} in-flight leads to pending for campaign ${campaignId}`)
+  }
+  return count
 }
 
 /**
@@ -745,6 +916,7 @@ function getCampaignMapping(callSid) {
 
 module.exports = {
   initBulkCallService,
+  recoverRunningCampaigns,
   parseLeadsFile,
   createCampaign,
   startCampaign,

@@ -1,0 +1,116 @@
+{
+  "summary": {
+    "total": 13,
+    "passed": 13,
+    "failed": 0,
+    "warnings": 0,
+    "success_rate": "100.0%",
+    "timestamp": "2026-03-08T17:27:01.308866"
+  },
+  "details": [
+    {
+      "test": "Node.js Health Check",
+      "status": "PASS",
+      "details": "Service healthy: {'status': 'healthy', 'database': 'connected', 'uptime': '0.05 hours'}",
+      "expected": "",
+      "actual": "",
+      "timestamp": "2026-03-08T17:27:01.301786"
+    },
+    {
+      "test": "Error Log Check",
+      "status": "PASS",
+      "details": "No errors in nodejs.err.log (0 bytes)",
+      "expected": "",
+      "actual": "",
+      "timestamp": "2026-03-08T17:27:01.305022"
+    },
+    {
+      "test": "Recovery Startup Log Check",
+      "status": "PASS",
+      "details": "All 1 patterns found in logs: BulkCall Recovery Message",
+      "expected": "",
+      "actual": "",
+      "timestamp": "2026-03-08T17:27:01.308152"
+    },
+    {
+      "test": "recoverRunningCampaigns Function Exists",
+      "status": "PASS",
+      "details": "All 5 patterns found: Function Declaration, MongoDB Query, No Running Campaigns Log, Recovery Analysis Log, Function Export",
+      "expected": "",
+      "actual": "",
+      "timestamp": "2026-03-08T17:27:01.308298"
+    },
+    {
+      "test": "Sub-account Security Check",
+      "status": "PASS",
+      "details": "All 4 patterns found: Sub-account Check, Security Block, Cancel Reason, Security Log",
+      "expected": "",
+      "actual": "",
+      "timestamp": "2026-03-08T17:27:01.308367"
+    },
+    {
+      "test": "Stale Campaign Check",
+      "status": "PASS",
+      "details": "All 5 patterns found: Stale Hours Constant, Last Activity Function, Hours Since Activity, Hours Since Start, Stale Cancel Reason",
+      "expected": "",
+      "actual": "",
+      "timestamp": "2026-03-08T17:27:01.308418"
+    },
+    {
+      "test": "Credit Check Logic",
+      "status": "PASS",
+      "details": "All 5 patterns found: Balance Check, Credit Insufficient, Reset Before Pause, Pause Status, Credit Check Log",
+      "expected": "",
+      "actual": "",
+      "timestamp": "2026-03-08T17:27:01.308477"
+    },
+    {
+      "test": "resetInflightLeads Function",
+      "status": "PASS",
+      "details": "All 6 patterns found: Function Declaration, Status Check Calling, Status Check Ringing, Reset Status, Reset CallSid, Reset StartedAt",
+      "expected": "",
+      "actual": "",
+      "timestamp": "2026-03-08T17:27:01.308531"
+    },
+    {
+      "test": "Resume Logic",
+      "status": "PASS",
+      "details": "All 5 patterns found: Active Campaigns Population, Active Calls Reset, Next Lead Index, Paused Flag, Fire Next Batch",
+      "expected": "",
+      "actual": "",
+      "timestamp": "2026-03-08T17:27:01.308584"
+    },
+    {
+      "test": "3-second Stagger",
+      "status": "PASS",
+      "details": "All 3 patterns found: Stagger Comment, Stagger Delay, Stagger Promise",
+      "expected": "",
+      "actual": "",
+      "timestamp": "2026-03-08T17:27:01.308628"
+    },
+    {
+      "test": "Module Export Check",
+      "status": "PASS",
+      "details": "All 2 patterns found: Module Exports, Recovery Export",
+      "expected": "",
+      "actual": "",
+      "timestamp": "2026-03-08T17:27:01.308682"
+    },
+    {
+      "test": "15-second Startup Delay",
+      "status": "PASS",
+      "details": "All 4 patterns found: Init Function, Timeout Call, Recovery Call, 15 Second Delay",
+      "expected": "",
+      "actual": "",
+      "timestamp": "2026-03-08T17:27:01.308720"
+    },
+    {
+      "test": "getLastLeadActivity Helper",
+      "status": "PASS",
+      "details": "All 5 patterns found: Function Declaration, Completed At, Answered At, Started At, Latest Comparison",
+      "expected": "",
+      "actual": "",
+      "timestamp": "2026-03-08T17:27:01.308769"
+    }
+  ]
+}
