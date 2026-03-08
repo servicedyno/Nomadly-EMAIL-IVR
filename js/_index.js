@@ -19560,6 +19560,13 @@ app.get('/twilio/audio-proxy', async (req, res) => {
   const { url } = req.query
   if (!url) return res.status(400).send('Missing url parameter')
   try {
+    // ── Validate URL protocol ──
+    // Only allow http/https protocols; reject garbled/corrupted URLs
+    if (!/^https?:\/\//i.test(url)) {
+      log(`[AudioProxy] Rejected invalid URL protocol: ${url.substring(0, 80)}...`)
+      return res.status(400).send('Invalid audio URL — only http/https allowed')
+    }
+
     const selfUrl = process.env.SELF_URL_PROD || process.env.SELF_URL || ''
 
     // Detect local file — avoid HTTP self-request
@@ -19586,7 +19593,7 @@ app.get('/twilio/audio-proxy', async (req, res) => {
     res.set('Cache-Control', 'public, max-age=3600')
     audioRes.data.pipe(res)
   } catch (e) {
-    log(`[AudioProxy] Error fetching audio: ${e.message}`)
+    log(`[AudioProxy] Error fetching audio: ${e.message} | url=${(url || '').substring(0, 120)}`)
     res.status(502).send('Audio fetch failed')
   }
 })
@@ -19635,7 +19642,11 @@ app.post('/twilio/bulk-ivr', async (req, res) => {
     const gatherActionUrl = `${selfUrl}/twilio/bulk-ivr-gather?campaignId=${encodeURIComponent(campaignId)}&leadIndex=${leadIndex}`
 
     // Use audio proxy to serve with correct Content-Type for Twilio
-    const audioUrl = `${selfUrl}/twilio/audio-proxy?url=${encodeURIComponent(campaign.audioUrl)}`
+    // Guard: only build proxy URL if campaign has a valid http(s) audioUrl
+    const rawAudioUrl = campaign.audioUrl
+    const audioUrl = (rawAudioUrl && /^https?:\/\//i.test(rawAudioUrl))
+      ? `${selfUrl}/twilio/audio-proxy?url=${encodeURIComponent(rawAudioUrl)}`
+      : null
 
     // Gather DTMF while playing audio
     const gather = response.gather({
@@ -19645,7 +19656,12 @@ app.post('/twilio/bulk-ivr', async (req, res) => {
       timeout: 8,
       finishOnKey: '',
     })
-    gather.play(audioUrl)
+    if (audioUrl) {
+      gather.play(audioUrl)
+    } else {
+      log(`[BulkIVR] ⚠️ No valid audioUrl for campaign=${campaignId}, using TTS fallback | raw=${(rawAudioUrl || 'null').substring(0, 80)}`)
+      gather.say('Thank you for your time. Press 1 to continue.')
+    }
 
     // No input — try once more
     const gather2 = response.gather({
@@ -19655,7 +19671,11 @@ app.post('/twilio/bulk-ivr', async (req, res) => {
       timeout: 5,
       finishOnKey: '',
     })
-    gather2.play(audioUrl)
+    if (audioUrl) {
+      gather2.play(audioUrl)
+    } else {
+      gather2.say('Press 1 to continue or hang up.')
+    }
 
     // Still no input — hang up
     response.say('No input received. Goodbye.')
@@ -20061,7 +20081,14 @@ app.post('/twilio/single-ivr', async (req, res) => {
     const gatherUrl = `${SELF_URL}/twilio/single-ivr-gather?sessionId=${encodeURIComponent(sessionId)}`
 
     // Use audio proxy to serve with correct Content-Type for Twilio
-    const audioProxyUrl = session.audioUrl ? `${SELF_URL}/twilio/audio-proxy?url=${encodeURIComponent(session.audioUrl)}` : null
+    // Guard: only build proxy URL if session has a valid http(s) audioUrl
+    const rawAudioUrl = session.audioUrl
+    const audioProxyUrl = (rawAudioUrl && /^https?:\/\//i.test(rawAudioUrl))
+      ? `${SELF_URL}/twilio/audio-proxy?url=${encodeURIComponent(rawAudioUrl)}`
+      : null
+    if (!audioProxyUrl && rawAudioUrl) {
+      log(`[SingleIVR] ⚠️ Invalid audioUrl protocol for session=${sessionId}: ${(rawAudioUrl || '').substring(0, 80)}`)
+    }
 
     // First attempt: play audio and gather
     const gather = response.gather({ action: gatherUrl, method: 'POST', numDigits: 1, timeout: 8, finishOnKey: '' })
