@@ -504,6 +504,57 @@ const updateNameservers = async (domainName, nameservers) => {
 // ─── DNS zone management ────────────────────────────────
 
 /**
+ * Ensure DNS zone exists at OpenProvider. Creates it via POST if missing.
+ * Returns { exists: true } or { created: true } or { error }
+ */
+const ensureDnsZone = async (domainName) => {
+  try {
+    const headers = await authHeaders()
+
+    // Check if zone exists
+    try {
+      const zoneRes = await axios.get(`${OP_BASE_URL}/v1beta/dns/zones/${domainName}`, {
+        headers, timeout: 15000,
+      })
+      if (zoneRes.data?.code === 0) return { exists: true }
+    } catch (e) {
+      if (e.response?.status !== 404 && e.response?.status !== 500) {
+        log(`[OP] ensureDnsZone GET error for ${domainName}: ${e.message}`)
+      }
+    }
+
+    // Zone doesn't exist — create via POST
+    log(`[OP] DNS zone not found for ${domainName}, creating...`)
+    const createRes = await axios.post(`${OP_BASE_URL}/v1beta/dns/zones`, {
+      domain: { name: domainName },
+      type: 'master',
+      active: true,
+    }, { headers, timeout: 15000 })
+
+    if (createRes.data?.code === 0) {
+      log(`[OP] DNS zone created for ${domainName}`)
+      return { created: true }
+    }
+    // Zone may already exist (race condition or error desc says so)
+    const desc = createRes.data?.desc || ''
+    if (desc.toLowerCase().includes('already exists') || desc.toLowerCase().includes('zone for domain')) {
+      log(`[OP] DNS zone already exists for ${domainName} (create returned: ${desc})`)
+      return { exists: true }
+    }
+    return { error: desc || 'Failed to create DNS zone' }
+  } catch (err) {
+    // OP sometimes returns 500 with "Zone for domain already exists" — treat as exists
+    const errMsg = err.response?.data?.desc || err.message || ''
+    if (errMsg.toLowerCase().includes('already exists') || errMsg.toLowerCase().includes('zone for domain')) {
+      log(`[OP] DNS zone already exists for ${domainName} (from error: ${errMsg})`)
+      return { exists: true }
+    }
+    log(`[OP] ensureDnsZone error for ${domainName}: ${errMsg}`)
+    return { error: errMsg }
+  }
+}
+
+/**
  * Get DNS zone records for a domain from OpenProvider's DNS zone API
  */
 const listDNSRecords = async (domainName) => {
@@ -535,26 +586,19 @@ const listDNSRecords = async (domainName) => {
 }
 
 /**
- * Create or enable DNS zone for a domain on OpenProvider,
- * then add a record to it via zone update
+ * Add a DNS record to OpenProvider zone.
+ * Uses records.add (not records.update) for NEW records.
+ * Auto-creates DNS zone via POST if it doesn't exist.
  */
 const addDNSRecord = async (domainName, recordType, recordValue, hostName, priority, extraData) => {
   try {
     const headers = await authHeaders()
 
-    // First try to get existing zone records
-    let existingRecords = []
-    try {
-      const zoneRes = await axios.get(`${OP_BASE_URL}/v1beta/dns/zones/${domainName}`, {
-        headers, timeout: 15000,
-      })
-      if (zoneRes.data?.code === 0) {
-        existingRecords = (zoneRes.data.data.records || []).map(r => ({
-          type: r.type, name: r.name, value: r.value, ttl: r.ttl, prio: r.prio,
-        }))
-      }
-    } catch (e) {
-      // Zone doesn't exist, will create
+    // ── 1. Ensure DNS zone exists (create if needed) ──
+    const zoneCheck = await ensureDnsZone(domainName)
+    if (zoneCheck.error) {
+      log(`[OP] addDNSRecord: zone ensure failed for ${domainName}: ${zoneCheck.error}`)
+      // Still try to add — PUT may create zone implicitly in some OP versions
     }
 
     const type = recordType.toUpperCase()
@@ -579,18 +623,22 @@ const addDNSRecord = async (domainName, recordType, recordValue, hostName, prior
       // OP CAA value format: "flags tag value"
       newRecord.value = `${extraData.flags || 0} ${extraData.tag || 'issue'} "${recordValue}"`
     }
-    existingRecords.push(newRecord)
 
-    // PUT to create/update zone with all records
+    // ── 2. Add record using records.add (NOT records.update) ──
+    log(`[OP] Adding ${type} record to ${domainName}: ${newRecord.name} → ${newRecord.value}`)
     const res = await axios.put(`${OP_BASE_URL}/v1beta/dns/zones/${domainName}`, {
-      records: { update: [newRecord] },
+      records: { add: [newRecord] },
     }, { headers, timeout: 15000 })
 
-    if (res.data?.code === 0) return { success: true }
+    if (res.data?.code === 0) {
+      log(`[OP] ✅ ${type} record added to ${domainName}: ${newRecord.name} → ${newRecord.value}`)
+      return { success: true }
+    }
+    log(`[OP] addDNSRecord API returned code ${res.data?.code}: ${res.data?.desc}`)
     return { error: res.data?.desc || 'Failed to add DNS record' }
   } catch (err) {
-    log('OP addDNSRecord error:', err.message)
-    return { error: err.message }
+    log(`[OP] addDNSRecord error for ${domainName}: ${err.response?.data?.desc || err.message}`)
+    return { error: err.response?.data?.desc || err.message }
   }
 }
 
@@ -660,6 +708,7 @@ module.exports = {
   getContactHandleForTLD,
   parseDomain,
   getCountryTLDData,
+  ensureDnsZone,
   listDNSRecords,
   addDNSRecord,
   updateDNSRecord,

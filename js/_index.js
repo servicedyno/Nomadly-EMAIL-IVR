@@ -8652,8 +8652,8 @@ ${message.replace(/\n/g, '<br>')}
       // ── Persist DNS complete ──
       await markDnsAdded(domain)
 
-      send(chatId, ({ en: `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`, fr: `✅ <b>${domain}</b> lié au raccourcisseur d'URL. La propagation DNS peut prendre jusqu'à 24h.`, zh: `✅ <b>${domain}</b> 已链接到短链接服务。DNS 传播可能需要 24 小时。`, hi: `✅ <b>${domain}</b> URL शॉर्टनर से जोड़ दिया गया। DNS प्रसार में 24 घंटे तक लग सकते हैं।` }[lang] || `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`), { parse_mode: 'HTML' })
       const lang = info?.userLanguage || 'en'
+      send(chatId, ({ en: `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`, fr: `✅ <b>${domain}</b> lié au raccourcisseur d'URL. La propagation DNS peut prendre jusqu'à 24h.`, zh: `✅ <b>${domain}</b> 已链接到短链接服务。DNS 传播可能需要 24 小时。`, hi: `✅ <b>${domain}</b> URL शॉर्टनर से जोड़ दिया गया। DNS प्रसार में 24 घंटे तक लग सकते हैं।` }[lang] || `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`), { parse_mode: 'HTML' })
       regularCheckDns(bot, chatId, domain, lang)
 
       // ── Persist fully completed ──
@@ -8661,7 +8661,8 @@ ${message.replace(/\n/g, '<br>')}
     } catch (e) {
       log(`[QuickActivateShortener] Error for ${domain}: ${e.message}`)
       await markFailed(domain, e.message).catch(() => {})
-      send(chatId, ({ en: `❌ Error activating shortener for <b>${domain}</b>: ${sanitizeProviderError(e.message)}\n\nPlease try again later.`, fr: `❌ Erreur d'activation du raccourcisseur pour <b>${domain}</b> : ${sanitizeProviderError(e.message)}\n\nVeuillez réessayer plus tard.`, zh: `❌ 为 <b>${domain}</b> 激活短链接时出错：${sanitizeProviderError(e.message)}\n\n请稍后重试。`, hi: `❌ <b>${domain}</b> के लिए शॉर्टनर सक्रिय करने में त्रुटि: ${sanitizeProviderError(e.message)}\n\nकृपया बाद में पुनः प्रयास करें।` }[lang] || `❌ Error activating shortener for <b>${domain}</b>: ${sanitizeProviderError(e.message)}\n\nPlease try again later.`))
+      const _lang = info?.userLanguage || 'en'
+      send(chatId, ({ en: `❌ Error activating shortener for <b>${domain}</b>: ${sanitizeProviderError(e.message)}\n\nPlease try again later.`, fr: `❌ Erreur d'activation du raccourcisseur pour <b>${domain}</b> : ${sanitizeProviderError(e.message)}\n\nVeuillez réessayer plus tard.`, zh: `❌ 为 <b>${domain}</b> 激活短链接时出错：${sanitizeProviderError(e.message)}\n\n请稍后重试。`, hi: `❌ <b>${domain}</b> के लिए शॉर्टनर सक्रिय करने में त्रुटि: ${sanitizeProviderError(e.message)}\n\nकृपया बाद में पुनः प्रयास करें।` }[_lang] || `❌ Error activating shortener for <b>${domain}</b>: ${sanitizeProviderError(e.message)}\n\nPlease try again later.`))
     }
     return
   }
@@ -9649,8 +9650,8 @@ ${message.replace(/\n/g, '<br>')}
         // ── Persist DNS complete ──
         await markDnsAdded(domain)
 
-        send(chatId, ({ en: `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`, fr: `✅ <b>${domain}</b> lié au raccourcisseur d'URL. La propagation DNS peut prendre jusqu'à 24h.`, zh: `✅ <b>${domain}</b> 已链接到短链接服务。DNS 传播可能需要 24 小时。`, hi: `✅ <b>${domain}</b> URL शॉर्टनर से जोड़ दिया गया। DNS प्रसार में 24 घंटे तक लग सकते हैं।` }[lang] || `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`), { parse_mode: 'HTML' })
         const lang = info?.userLanguage || 'en'
+        send(chatId, ({ en: `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`, fr: `✅ <b>${domain}</b> lié au raccourcisseur d'URL. La propagation DNS peut prendre jusqu'à 24h.`, zh: `✅ <b>${domain}</b> 已链接到短链接服务。DNS 传播可能需要 24 小时。`, hi: `✅ <b>${domain}</b> URL शॉर्टनर से जोड़ दिया गया। DNS प्रसार में 24 घंटे तक लग सकते हैं।` }[lang] || `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`), { parse_mode: 'HTML' })
         regularCheckDns(bot, chatId, domain, lang)
 
         // ── Persist fully completed ──

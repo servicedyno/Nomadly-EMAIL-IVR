@@ -305,7 +305,18 @@ const viewDNSRecords = async (domainName, db) => {
 
   // OpenProvider DNS (provider_default or custom)
   if (meta?.registrar === 'OpenProvider') {
-    const dnsResult = await opService.listDNSRecords(domainName)
+    let dnsResult = await opService.listDNSRecords(domainName)
+    
+    // If zone returned empty or doesn't exist, try to create it first then re-list
+    if (!dnsResult.records || dnsResult.records.length === 0) {
+      const zoneReady = await opService.ensureDnsZone(domainName)
+      if (zoneReady.created) {
+        log(`[domain-service] Auto-created OP DNS zone for ${domainName}`)
+        // Re-list after zone creation
+        dnsResult = await opService.listDNSRecords(domainName)
+      }
+    }
+
     if (dnsResult.records && dnsResult.records.length > 0) {
       return {
         records: dnsResult.records.map(r => ({
@@ -1011,6 +1022,16 @@ const switchToProviderDefault = async (domainName, db) => {
   }
 
   // 3. Migrate DNS records from CF to provider DNS zone
+  // ── Ensure OP DNS zone exists before migrating records ──
+  if (registrar === 'OpenProvider' && toMigrate.length > 0) {
+    const zoneReady = await opService.ensureDnsZone(domainName)
+    if (zoneReady.error) {
+      log(`[switchToProvider] ⚠️ Could not ensure OP DNS zone for ${domainName}: ${zoneReady.error}`)
+    } else {
+      log(`[switchToProvider] OP DNS zone ready for ${domainName} (${zoneReady.created ? 'created' : 'exists'})`)
+    }
+  }
+
   const migrated = []
   const failed = []
   for (const record of toMigrate) {
