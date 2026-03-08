@@ -12,7 +12,7 @@ import sys
 import time
 from pathlib import Path
 
-BACKEND_URL = "https://config-setup-4.preview.emergentagent.com"
+BACKEND_URL = "https://nomadly-preview-api.preview.emergentagent.com"
 
 def run_test(test_name, test_func):
     """Run a test and return results"""

@@ -18237,9 +18237,9 @@ app.get('/crypto-pay-leads', auth, async (req, res) => {
     sendMessage(chatId, `✅ Payment received! Your wallet has been credited $${Number(price).toFixed(2)}. Use wallet to complete your ${label.toLowerCase()} purchase.`)
     addFundsTo(walletOf, chatId, 'usd', Number(price), lang)
   }
+  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
-  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
 
 app.get('/crypto-pay-vps', auth, async (req, res) => {
   // Validate
