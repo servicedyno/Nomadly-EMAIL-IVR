@@ -2694,6 +2694,7 @@ bot?.on('message', msg => {
         domainName: info.website_name,
         domainPrice: info.price,
         existingDomain: info.existingDomain,
+        connectExternalDomain: info.connectExternalDomain,
         couponDiscount: info.couponDiscount,
         totalPrice: info.totalPrice,
         couponApplied: info.couponApplied,
@@ -3824,7 +3825,7 @@ Enter new value:`), bc)
         hostingPrice = parseFloat(PREMIUM_ANTIRED_CPANEL_PRICE)
       }
 
-      if (info.existingDomain) {
+      if (info.existingDomain || info.connectExternalDomain) {
         domainPrice = 0
       }
       const totalPrice = domainPrice + hostingPrice;
@@ -4379,7 +4380,7 @@ Enter new value:`), bc)
       const hostingResult = await registerDomainAndCreateCpanel(send, info, trans('o'), state)
       if (!hostingResult?.success) {
         // If new domain was registered, charge domain cost only — hosting portion NOT charged
-        if (!info?.existingDomain && info?.domainPrice > 0) {
+        if (!info?.existingDomain && !info?.connectExternalDomain && info?.domainPrice > 0) {
           const domainCost = info.domainPrice
           if (coin === u.usd) {
             set(payments, nanoid(), `Wallet,Domain,${info.domain},$${domainCost},${chatId},${new Date()}`)
@@ -17259,7 +17260,7 @@ const bankApis = {
     const hostingResult = await registerDomainAndCreateCpanel(send, info, translation('o', lang), state)
     if (!hostingResult?.success) {
       // If new domain was registered, refund only hosting portion (domain is consumed)
-      if (!info?.existingDomain && info?.domainPrice > 0) {
+      if (!info?.existingDomain && !info?.connectExternalDomain && info?.domainPrice > 0) {
         const hostingNgn = ngnIn - (await usdToNgn(info.domainPrice))
         if (hostingNgn > 0) addFundsTo(walletOf, chatId, 'ngn', hostingNgn, lang)
         sendMessage(chatId, `Your domain <b>${info?.website_name}</b> has been registered successfully, but hosting setup failed. Domain cost has been charged — hosting portion (₦${Math.round(hostingNgn)}) refunded to your wallet. Please contact support to complete hosting setup: ${process.env.APP_SUPPORT_LINK}`)
@@ -17987,7 +17988,7 @@ app.get('/crypto-pay-hosting', auth, async (req, res) => {
   const hostingResult = await registerDomainAndCreateCpanel(send, info, translation('o', lang), state)
   if (!hostingResult?.success) {
     // If new domain was registered, refund only hosting portion (domain is consumed)
-    if (!info?.existingDomain && info?.domainPrice > 0) {
+    if (!info?.existingDomain && !info?.connectExternalDomain && info?.domainPrice > 0) {
       const hostingRefund = usdIn - info.domainPrice
       if (hostingRefund > 0) addFundsTo(walletOf, chatId, 'usd', hostingRefund, lang)
       sendMessage(chatId, `Your domain <b>${info?.website_name}</b> has been registered successfully, but hosting setup failed. Domain cost ($${info.domainPrice}) charged — hosting portion ($${hostingRefund.toFixed(2)}) refunded to your wallet. Please contact support to complete hosting setup: ${process.env.APP_SUPPORT_LINK}`)
@@ -18557,7 +18558,7 @@ app.post('/dynopay/crypto-pay-hosting', authDyno, async (req, res) => {
   const hostingResult = await registerDomainAndCreateCpanel(send, info, translation('o', lang), state)
   if (!hostingResult?.success) {
     // If new domain was registered, refund only hosting portion (domain is consumed)
-    if (!info?.existingDomain && info?.domainPrice > 0) {
+    if (!info?.existingDomain && !info?.connectExternalDomain && info?.domainPrice > 0) {
       const hostingRefund = usdIn - info.domainPrice
       if (hostingRefund > 0) addFundsTo(walletOf, chatId, 'usd', hostingRefund, lang)
       sendMessage(chatId, `Your domain <b>${info?.website_name}</b> has been registered successfully, but hosting setup failed. Domain cost ($${info.domainPrice}) charged — hosting portion ($${hostingRefund.toFixed(2)}) refunded to your wallet. Please contact support to complete hosting setup: ${process.env.APP_SUPPORT_LINK}`)

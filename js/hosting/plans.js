@@ -80,7 +80,8 @@ const nameserverSelectionText = websiteName => `Select nameserver provider for <
 const confirmEmailBeforeProceeding = email => `Use <b>${email}</b> for this account?`
 
 const generateInvoiceText = payload => {
-  const domain = payload.existingDomain ? `${payload.domainName} (existing)` : `${payload.domainName} — $${payload.domainPrice}`
+  const isOwnDomain = payload.existingDomain || payload.connectExternalDomain
+  const domain = isOwnDomain ? `${payload.domainName} (your domain)` : `${payload.domainName} — $${payload.domainPrice}`
   const total = payload.couponApplied ? payload.newPrice : payload.totalPrice
   let text = `<b>${payload.planName || 'Anti-Red HostPanel'}</b> · ${payload.duration || '1 Month'}
 
