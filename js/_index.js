@@ -3715,6 +3715,7 @@ Enter new value:`), bc)
     // Step 2: Buy Plan
     buyPlan: async (plan) => {
       await set(state, chatId, 'action', plan)
+      saveInfo('processingPayment', false) // Clear stale payment lock on new purchase attempt
       console.log("buyPlan", plan)
       const message = hP.generatePlanStepText("buyText");
       let backBtn = user.backToPremiumWeeklyDetails
@@ -8986,7 +8987,10 @@ ${message.replace(/\n/g, '<br>')}
 
   // Hosting payment
   if (action === 'hosting-pay') {
-    if (message === t.back || message === t.backButton || message === '⬅️ Back') return goto.enterYourEmail()
+    if (message === t.back || message === t.backButton || message === '⬅️ Back') {
+      saveInfo('processingPayment', false) // Clear stale payment lock on Back
+      return goto.enterYourEmail()
+    }
     
     // Handle Apply Coupon button
     if (message === btn.applyCoupon) {
