@@ -606,7 +606,7 @@ const addDNSRecord = async (domainName, recordType, recordValue, hostName, prior
       type,
       name: hostName || domainName,
       value: recordValue,
-      ttl: 300,
+      ttl: 600,
     }
     if (type === 'MX' && priority !== undefined) newRecord.prio = Number(priority)
     // SRV record fields for OpenProvider
@@ -655,7 +655,7 @@ const updateDNSRecord = async (domainName, originalRecord, newValue, newType) =>
           type: (newType || originalRecord.recordType).toUpperCase(),
           name: originalRecord.recordName || domainName,
           value: newValue,
-          ttl: originalRecord.ttl || 300,
+          ttl: originalRecord.ttl || 600,
         }],
         remove: [{
           type: originalRecord.recordType.toUpperCase(),
