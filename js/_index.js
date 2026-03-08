@@ -10831,19 +10831,9 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       // Filter to only numbers with eligible plans for bulk calls
       const eligibleNumbers = userNumbers.filter(n => phoneConfig.canAccessFeature(n.plan, 'bulkCall'))
 
-      // Get verified caller IDs that support bulk IVR
-      let verifiedIds = []
-      try {
-        const twilioClient = twilioService.getClient()
-        if (twilioClient) {
-          const ids = await twilioClient.outgoingCallerIds.list({ limit: 20 })
-          verifiedIds = ids.map(id => ({ phoneNumber: id.phoneNumber, label: `${id.phoneNumber} (Verified)`, type: 'verified' }))
-        }
-      } catch (e) {
-        log(`[BulkCall] Error fetching verified IDs: ${e.message}`)
-      }
-
-      // Build caller ID list — only Bulk IVR capable numbers (Twilio) + verified IDs
+      // Build caller ID list — ONLY user-owned Twilio numbers with sub-accounts
+      // Security: Verified caller IDs from the main Twilio account are NOT exposed to users
+      // This prevents unauthorized use of the main Twilio account for Bulk IVR
       const bulkCapableNumbers = eligibleNumbers.filter(n => n.provider === 'twilio').map(n => ({
         phoneNumber: n.phoneNumber,
         label: `${n.phoneNumber} ☎️`,
@@ -10857,7 +10847,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         type: 'not_bulk_capable',
       }))
 
-      const allCallerIds = [...bulkCapableNumbers, ...verifiedIds]
+      const allCallerIds = [...bulkCapableNumbers]
 
       if (allCallerIds.length === 0) {
         const hasNonBulk = nonBulkNumbers.length > 0

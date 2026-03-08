@@ -160,6 +160,17 @@ async function startCampaign(campaignId) {
   if (!campaign) return { error: 'Campaign not found' }
   if (campaign.status === 'running') return { error: 'Campaign already running' }
 
+  // ━━━ SECURITY: Reject campaigns without a Twilio sub-account — prevents unauthorized use of main Twilio account ━━━
+  if (!campaign.twilioSubAccountSid) {
+    log(`[BulkCall] BLOCKED campaign ${campaignId}: no twilioSubAccountSid — would use main Twilio account`)
+    await _collection.updateOne({ id: campaignId }, { $set: { status: 'cancelled', cancelledReason: 'No Twilio sub-account — bulk IVR requires an owned Twilio number' } })
+    _bot?.sendMessage(campaign.chatId,
+      `🚫 <b>Campaign Blocked</b>\n\nBulk IVR campaigns require a Twilio-powered Cloud IVR number.\nYour current number does not support Bulk IVR.\n\nPurchase a ☎️ Bulk IVR capable number to use this feature.`,
+      { parse_mode: 'HTML' }
+    ).catch(() => {})
+    return { error: 'Bulk IVR requires a Twilio-powered number with a sub-account. Campaign blocked.' }
+  }
+
   // ━━━ PRE-CAMPAIGN CREDIT CHECK: Bulk calls charge $BULK_CALL_RATE/min from wallet (plan minutes NOT used) ━━━
   try {
     if (_walletOf) {

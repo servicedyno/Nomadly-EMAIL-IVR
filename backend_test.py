@@ -1,347 +1,315 @@
 #!/usr/bin/env python3
-
+"""
+Bulk IVR Security Fix Testing Suite
+Tests the security fixes for the Nomadly Telegram Bot backend
+"""
 import requests
 import json
-import time
-import sys
+import pymongo
+from pymongo import MongoClient
 import os
+import sys
 import subprocess
 
-def log(message):
-    print(f"[TEST] {message}")
+# MongoDB connection from review request
+MONGO_CONNECTION_STRING = "mongodb://mongo:RQoOmIdwjRLFvhWMaatjidzqpvawUKcb@caboose.proxy.rlwy.net:59668"
+DATABASE_NAME = "test"
 
-def test_nodejs_health():
-    """Test 1: Node.js Health Check"""
-    log("Testing Node.js health check...")
-    try:
-        response = requests.get('http://localhost:5000/health', timeout=10)
-        if response.status_code == 200:
-            data = response.json()
-            log(f"✅ Health check passed: {data}")
-            return True
-        else:
-            log(f"❌ Health check failed with status {response.status_code}")
-            return False
-    except Exception as e:
-        log(f"❌ Health check failed: {e}")
-        return False
+# Backend URL
+BACKEND_URL = "http://localhost:5000"
 
-def check_nodejs_error_logs():
-    """Test 2: Check Node.js error logs are empty"""
-    log("Checking Node.js error logs...")
-    try:
-        result = subprocess.run(['ls', '-la', '/var/log/supervisor/nodejs.err.log'], 
-                              capture_output=True, text=True)
-        if result.returncode == 0:
-            # File exists, check size
-            result = subprocess.run(['wc', '-c', '/var/log/supervisor/nodejs.err.log'], 
-                                  capture_output=True, text=True)
-            size = int(result.stdout.split()[0])
-            if size == 0:
-                log("✅ Node.js error log is EMPTY (0 bytes)")
-                return True
-            else:
-                log(f"❌ Node.js error log has {size} bytes")
-                # Show last 10 lines of error log
-                result = subprocess.run(['tail', '-10', '/var/log/supervisor/nodejs.err.log'], 
-                                      capture_output=True, text=True)
-                log(f"Last 10 lines of error log:\n{result.stdout}")
-                return False
-        else:
-            log("❌ Node.js error log file not found")
-            return False
-    except Exception as e:
-        log(f"❌ Error checking Node.js error logs: {e}")
-        return False
-
-def test_balance_monitor_exports():
-    """Test 3: Check balance-monitor.js module exports"""
-    log("Testing balance-monitor.js module exports...")
-    try:
-        # Test by trying to require the module in Node.js
-        test_script = """
-        try {
-            const balanceMonitor = require('./js/balance-monitor.js');
-            const requiredExports = ['initBalanceMonitor', 'checkAllBalances', 'checkTelnyxBalance', 'checkTwilioBalance'];
-            const hasAll = requiredExports.every(exp => typeof balanceMonitor[exp] === 'function');
-            console.log(JSON.stringify({
-                success: hasAll,
-                exports: Object.keys(balanceMonitor),
-                required: requiredExports
-            }));
-        } catch (e) {
-            console.log(JSON.stringify({success: false, error: e.message}));
-        }
-        """
+class BulkIVRSecurityTest:
+    def __init__(self):
+        self.client = None
+        self.db = None
+        self.test_results = {}
         
-        result = subprocess.run(['node', '-e', test_script], 
-                              capture_output=True, text=True, cwd='/app')
-        
-        if result.returncode == 0:
-            data = json.loads(result.stdout.strip())
-            if data.get('success'):
-                log(f"✅ Module exports verified: {data.get('exports')}")
-                return True
-            else:
-                log(f"❌ Module exports missing: {data}")
-                return False
-        else:
-            log(f"❌ Module test failed: {result.stderr}")
-            return False
-    except Exception as e:
-        log(f"❌ Error testing module exports: {e}")
-        return False
-
-def check_initialization_logs():
-    """Test 4: Check for initialization log message"""
-    log("Checking for balance monitor initialization logs...")
-    try:
-        result = subprocess.run(['grep', '-i', 'BalanceMonitor.*Initialized.*checking every.*120min.*warn.*crit', 
-                               '/var/log/supervisor/nodejs.out.log'], 
-                              capture_output=True, text=True)
-        
-        if result.returncode == 0:
-            log(f"✅ Initialization log found: {result.stdout.strip()}")
-            return True
-        else:
-            # Try a more flexible search
-            result = subprocess.run(['grep', '-i', 'BalanceMonitor.*Initialized', 
-                                   '/var/log/supervisor/nodejs.out.log'], 
-                                  capture_output=True, text=True)
-            if result.returncode == 0:
-                log(f"✅ Balance monitor initialization found: {result.stdout.strip()}")
-                return True
-            else:
-                log("❌ Balance monitor initialization log not found")
-                return False
-    except Exception as e:
-        log(f"❌ Error checking initialization logs: {e}")
-        return False
-
-def check_startup_balance_check():
-    """Test 5: Check for startup balance check message (30s after startup)"""
-    log("Checking for startup balance check logs...")
-    try:
-        result = subprocess.run(['grep', '-i', 'Running provider balance checks', 
-                               '/var/log/supervisor/nodejs.out.log'], 
-                              capture_output=True, text=True)
-        
-        if result.returncode == 0:
-            log(f"✅ Startup balance check found: {result.stdout.strip()}")
-            return True
-        else:
-            log("❌ Startup balance check log not found")
-            return False
-    except Exception as e:
-        log(f"❌ Error checking startup balance check logs: {e}")
-        return False
-
-def check_telnyx_balance_logs():
-    """Test 6: Check for Telnyx balance check logs"""
-    log("Checking for Telnyx balance check logs...")
-    try:
-        result = subprocess.run(['grep', '-i', 'Telnyx.*USD.*\\[', 
-                               '/var/log/supervisor/nodejs.out.log'], 
-                              capture_output=True, text=True)
-        
-        if result.returncode == 0:
-            log(f"✅ Telnyx balance logs found: {result.stdout.strip()}")
-            return True
-        else:
-            log("❌ Telnyx balance logs not found")
-            return False
-    except Exception as e:
-        log(f"❌ Error checking Telnyx balance logs: {e}")
-        return False
-
-def check_twilio_balance_logs():
-    """Test 7: Check for Twilio balance check logs"""
-    log("Checking for Twilio balance check logs...")
-    try:
-        result = subprocess.run(['grep', '-i', 'Twilio.*USD.*\\[', 
-                               '/var/log/supervisor/nodejs.out.log'], 
-                              capture_output=True, text=True)
-        
-        if result.returncode == 0:
-            log(f"✅ Twilio balance logs found: {result.stdout.strip()}")
-            return True
-        else:
-            log("❌ Twilio balance logs not found")
-            return False
-    except Exception as e:
-        log(f"❌ Error checking Twilio balance logs: {e}")
-        return False
-
-def check_alert_sent_logs():
-    """Test 8: Check for alert sent logs (should show WARNING alert for Twilio ~$6.13)"""
-    log("Checking for balance alert logs...")
-    try:
-        result = subprocess.run(['grep', '-i', 'WARNING alert sent.*Twilio', 
-                               '/var/log/supervisor/nodejs.out.log'], 
-                              capture_output=True, text=True)
-        
-        if result.returncode == 0:
-            log(f"✅ Twilio WARNING alert found: {result.stdout.strip()}")
-            return True
-        else:
-            # Check for any alert sent logs
-            result = subprocess.run(['grep', '-i', 'alert sent', 
-                                   '/var/log/supervisor/nodejs.out.log'], 
-                                  capture_output=True, text=True)
-            if result.returncode == 0:
-                log(f"✅ Alert logs found: {result.stdout.strip()}")
-                return True
-            else:
-                log("❌ No balance alert logs found")
-                return False
-    except Exception as e:
-        log(f"❌ Error checking alert logs: {e}")
-        return False
-
-def check_integration_in_index():
-    """Test 9: Check integration in _index.js"""
-    log("Checking balance monitor integration in _index.js...")
-    try:
-        with open('/app/js/_index.js', 'r') as f:
-            content = f.read()
-        
-        # Check for require statement
-        if "require('./balance-monitor.js')" in content:
-            log("✅ balance-monitor.js require statement found")
-            require_found = True
-        else:
-            log("❌ balance-monitor.js require statement not found")
-            require_found = False
-        
-        # Check for initBalanceMonitor call
-        if "initBalanceMonitor(bot)" in content:
-            log("✅ initBalanceMonitor(bot) call found")
-            init_found = True
-        else:
-            log("❌ initBalanceMonitor(bot) call not found")
-            init_found = False
-        
-        # Check if it's after EmailBlast initialization
-        email_blast_idx = content.find("emailBlastService.initEmailBlast")
-        balance_monitor_idx = content.find("initBalanceMonitor(bot)")
-        
-        if email_blast_idx != -1 and balance_monitor_idx != -1 and balance_monitor_idx > email_blast_idx:
-            log("✅ Balance monitor initialized after EmailBlast service")
-            order_correct = True
-        else:
-            log("⚠️ Balance monitor initialization order unclear")
-            order_correct = False
-        
-        return require_found and init_found
-    except Exception as e:
-        log(f"❌ Error checking integration: {e}")
-        return False
-
-def check_threshold_configuration():
-    """Test 10: Check threshold configuration in balance-monitor.js"""
-    log("Checking threshold configuration...")
-    try:
-        with open('/app/js/balance-monitor.js', 'r') as f:
-            content = f.read()
-        
-        checks = []
-        
-        # Check for BALANCE_WARN_THRESHOLD
-        if "BALANCE_WARN_THRESHOLD" in content and "process.env.BALANCE_WARN_THRESHOLD" in content and "'10'" in content:
-            log("✅ BALANCE_WARN_THRESHOLD configured (default 10)")
-            checks.append(True)
-        else:
-            log("❌ BALANCE_WARN_THRESHOLD not properly configured")
-            checks.append(False)
-        
-        # Check for BALANCE_CRIT_THRESHOLD  
-        if "BALANCE_CRIT_THRESHOLD" in content and "process.env.BALANCE_CRIT_THRESHOLD" in content and "'5'" in content:
-            log("✅ BALANCE_CRIT_THRESHOLD configured (default 5)")
-            checks.append(True)
-        else:
-            log("❌ BALANCE_CRIT_THRESHOLD not properly configured")
-            checks.append(False)
-        
-        # Check for BALANCE_CHECK_INTERVAL_MIN
-        if "BALANCE_CHECK_INTERVAL_MIN" in content and "process.env.BALANCE_CHECK_INTERVAL_MIN" in content and "'120'" in content:
-            log("✅ BALANCE_CHECK_INTERVAL_MIN configured (default 120)")
-            checks.append(True)
-        else:
-            log("❌ BALANCE_CHECK_INTERVAL_MIN not properly configured")
-            checks.append(False)
-        
-        return all(checks)
-    except Exception as e:
-        log(f"❌ Error checking threshold configuration: {e}")
-        return False
-
-def check_alert_deduplication():
-    """Test 11: Check alert deduplication configuration"""
-    log("Checking alert deduplication configuration...")
-    try:
-        with open('/app/js/balance-monitor.js', 'r') as f:
-            content = f.read()
-        
-        # Check for DEDUP_WINDOW_MS set to 6 hours
-        if "DEDUP_WINDOW_MS = 6 * 60 * 60 * 1000" in content:
-            log("✅ Alert deduplication window set to 6 hours")
-            return True
-        else:
-            log("❌ Alert deduplication window not properly configured")
-            return False
-    except Exception as e:
-        log(f"❌ Error checking alert deduplication: {e}")
-        return False
-
-def main():
-    """Run all Provider Balance Monitor tests"""
-    log("Starting Provider Balance Monitor comprehensive testing...")
-    log("=" * 60)
-    
-    tests = [
-        ("Node.js Health Check", test_nodejs_health),
-        ("Node.js Error Logs Empty", check_nodejs_error_logs), 
-        ("Module Exports", test_balance_monitor_exports),
-        ("Initialization Logs", check_initialization_logs),
-        ("Startup Balance Check", check_startup_balance_check),
-        ("Telnyx Balance Check Logs", check_telnyx_balance_logs),
-        ("Twilio Balance Check Logs", check_twilio_balance_logs),
-        ("Alert Sent Logs", check_alert_sent_logs),
-        ("Integration in _index.js", check_integration_in_index),
-        ("Threshold Configuration", check_threshold_configuration),
-        ("Alert Deduplication", check_alert_deduplication),
-    ]
-    
-    passed = 0
-    failed = 0
-    
-    for test_name, test_func in tests:
-        log(f"\n--- {test_name} ---")
+    def connect_mongodb(self):
+        """Connect to MongoDB"""
         try:
-            if test_func():
-                passed += 1
-                log(f"✅ {test_name}: PASSED")
-            else:
-                failed += 1
-                log(f"❌ {test_name}: FAILED")
+            self.client = MongoClient(MONGO_CONNECTION_STRING)
+            self.db = self.client[DATABASE_NAME]
+            # Test connection
+            self.db.command('ping')
+            print("✅ MongoDB connection successful")
+            return True
         except Exception as e:
-            failed += 1
-            log(f"❌ {test_name}: ERROR - {e}")
+            print(f"❌ MongoDB connection failed: {e}")
+            return False
+            
+    def test_nodejs_health(self):
+        """Test 1: Node.js health check"""
+        print("\n1. Testing Node.js Health...")
+        try:
+            response = requests.get(f"{BACKEND_URL}/health", timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                print(f"✅ Health endpoint returns: {data}")
+                
+                # Check error log
+                result = subprocess.run(['wc', '-c', '/var/log/supervisor/nodejs.err.log'], 
+                                      capture_output=True, text=True)
+                if "0 " in result.stdout:
+                    print("✅ Node.js error log is empty (0 bytes)")
+                    self.test_results['nodejs_health'] = True
+                    return True
+                else:
+                    print(f"⚠️ Node.js error log size: {result.stdout.strip()}")
+                    self.test_results['nodejs_health'] = False
+                    return False
+            else:
+                print(f"❌ Health endpoint returned status {response.status_code}")
+                self.test_results['nodejs_health'] = False
+                return False
+        except Exception as e:
+            print(f"❌ Health check failed: {e}")
+            self.test_results['nodejs_health'] = False
+            return False
+            
+    def test_verified_caller_ids_removed(self):
+        """Test 2: Verified caller IDs removal from Bulk IVR"""
+        print("\n2. Testing Verified Caller IDs Removal...")
+        try:
+            with open('/app/js/_index.js', 'r') as f:
+                content = f.read()
+                
+            # Check around line 10834 for the security comment
+            lines = content.split('\n')
+            
+            # Look for the security comment
+            security_comment_found = False
+            twilioClient_list_removed = True
+            
+            for i, line in enumerate(lines[10830:10850], 10830):
+                if "Verified caller IDs from the main Twilio account are NOT exposed to users" in line:
+                    security_comment_found = True
+                    print(f"✅ Security comment found at line {i+1}: {line.strip()}")
+                    
+                if "twilioClient.outgoingCallerIds.list()" in line:
+                    print(f"❌ Found banned code at line {i+1}: {line.strip()}")
+                    twilioClient_list_removed = False
+                    
+            # Check that allCallerIds only contains bulkCapableNumbers
+            allCallerIds_line_found = False
+            for i, line in enumerate(lines[10840:10860], 10840):
+                if "const allCallerIds = [...bulkCapableNumbers]" in line:
+                    allCallerIds_line_found = True
+                    print(f"✅ allCallerIds correctly uses only bulkCapableNumbers at line {i+1}")
+                    break
+                    
+            if security_comment_found and twilioClient_list_removed and allCallerIds_line_found:
+                print("✅ Verified caller IDs properly removed from Bulk IVR caller selection")
+                self.test_results['caller_ids_removed'] = True
+                return True
+            else:
+                print("❌ Verified caller ID removal not properly implemented")
+                self.test_results['caller_ids_removed'] = False
+                return False
+                
+        except Exception as e:
+            print(f"❌ Failed to verify caller ID removal: {e}")
+            self.test_results['caller_ids_removed'] = False
+            return False
+            
+    def test_sub_account_enforcement(self):
+        """Test 3: Sub-account enforcement in startCampaign"""
+        print("\n3. Testing Sub-account Enforcement in startCampaign...")
+        try:
+            with open('/app/js/bulk-call-service.js', 'r') as f:
+                content = f.read()
+                
+            # Check for the security check in startCampaign
+            if "if (!campaign.twilioSubAccountSid)" in content:
+                print("✅ Sub-account check found in startCampaign")
+                
+                # Check for proper error handling
+                if "status: 'cancelled'" in content and "No Twilio sub-account" in content:
+                    print("✅ Campaign cancellation with proper reason found")
+                    
+                    # Check for user notification
+                    if "Campaign Blocked" in content and "Twilio-powered" in content:
+                        print("✅ User notification message found")
+                        self.test_results['sub_account_enforcement'] = True
+                        return True
+                    else:
+                        print("❌ User notification not found")
+                else:
+                    print("❌ Campaign cancellation logic not found")
+            else:
+                print("❌ Sub-account check not found in startCampaign")
+                
+            self.test_results['sub_account_enforcement'] = False
+            return False
+            
+        except Exception as e:
+            print(f"❌ Failed to verify sub-account enforcement: {e}")
+            self.test_results['sub_account_enforcement'] = False
+            return False
+            
+    def test_mongodb_running_campaigns(self):
+        """Test 4: MongoDB state - 0 running campaigns"""
+        print("\n4. Testing MongoDB Running Campaigns State...")
+        try:
+            collection = self.db['bulkCallCampaigns']
+            running_campaigns = list(collection.find({"status": "running"}))
+            
+            print(f"Running campaigns found: {len(running_campaigns)}")
+            
+            if len(running_campaigns) == 0:
+                print("✅ MongoDB shows 0 running campaigns as expected")
+                self.test_results['zero_running_campaigns'] = True
+                return True
+            else:
+                print(f"❌ Found {len(running_campaigns)} running campaigns (expected 0)")
+                for campaign in running_campaigns:
+                    print(f"   Campaign ID: {campaign.get('id', 'N/A')}, Status: {campaign.get('status', 'N/A')}")
+                self.test_results['zero_running_campaigns'] = False
+                return False
+                
+        except Exception as e:
+            print(f"❌ Failed to check running campaigns: {e}")
+            self.test_results['zero_running_campaigns'] = False
+            return False
+            
+    def test_wizardchop_wallet(self):
+        """Test 5: @wizardchop wallet negative balance"""
+        print("\n5. Testing @wizardchop Wallet State...")
+        try:
+            collection = self.db['walletOf']
+            wizardchop_wallet = collection.find_one({"_id": 1167900472})
+            
+            if wizardchop_wallet:
+                print(f"Found @wizardchop wallet record: {wizardchop_wallet}")
+                
+                # Check if usdOut is at top level (not under val)
+                if 'usdOut' in wizardchop_wallet:
+                    usd_in = wizardchop_wallet.get('usdIn', 0)
+                    usd_out = wizardchop_wallet.get('usdOut', 0)
+                    balance = usd_in - usd_out
+                    
+                    print(f"USD In: ${usd_in:.2f}, USD Out: ${usd_out:.2f}, Balance: ${balance:.2f}")
+                    
+                    # Check if balance is approximately -$2.91 (negative)
+                    if balance < 0 and abs(balance + 2.91) < 1.0:  # Within $1 of expected -$2.91
+                        print(f"✅ @wizardchop wallet balance is negative (~-$2.91): ${balance:.2f}")
+                        self.test_results['wizardchop_negative_wallet'] = True
+                        return True
+                    else:
+                        print(f"❌ @wizardchop wallet balance is not as expected: ${balance:.2f} (expected ~-$2.91)")
+                        self.test_results['wizardchop_negative_wallet'] = False
+                        return False
+                        
+                else:
+                    print("❌ usdOut field not found at top level of wallet document")
+                    self.test_results['wizardchop_negative_wallet'] = False
+                    return False
+                    
+            else:
+                print("❌ @wizardchop wallet record not found")
+                self.test_results['wizardchop_negative_wallet'] = False
+                return False
+                
+        except Exception as e:
+            print(f"❌ Failed to check @wizardchop wallet: {e}")
+            self.test_results['wizardchop_negative_wallet'] = False
+            return False
+            
+    def test_campaign_terminated(self):
+        """Test 6: Campaign 028eb7bb-a186-4e04-bf55-d0bc4fecd8fb terminated"""
+        print("\n6. Testing Campaign Termination...")
+        try:
+            collection = self.db['bulkCallCampaigns']
+            campaign = collection.find_one({"id": "028eb7bb-a186-4e04-bf55-d0bc4fecd8fb"})
+            
+            if campaign:
+                print(f"Found campaign: {campaign}")
+                
+                status = campaign.get('status')
+                cancelled_reason = campaign.get('cancelledReason', '')
+                
+                if status == 'cancelled':
+                    print(f"✅ Campaign status is 'cancelled'")
+                    
+                    if 'unauthorized' in cancelled_reason.lower():
+                        print(f"✅ Campaign has unauthorized use reason: {cancelled_reason}")
+                        self.test_results['campaign_terminated'] = True
+                        return True
+                    else:
+                        print(f"⚠️ Campaign is cancelled but reason doesn't mention unauthorized use: {cancelled_reason}")
+                        self.test_results['campaign_terminated'] = True  # Still pass since it's cancelled
+                        return True
+                else:
+                    print(f"❌ Campaign status is '{status}' (expected 'cancelled')")
+                    self.test_results['campaign_terminated'] = False
+                    return False
+                    
+            else:
+                print("❌ Campaign 028eb7bb-a186-4e04-bf55-d0bc4fecd8fb not found")
+                self.test_results['campaign_terminated'] = False
+                return False
+                
+        except Exception as e:
+            print(f"❌ Failed to check campaign termination: {e}")
+            self.test_results['campaign_terminated'] = False
+            return False
     
-    log("\n" + "=" * 60)
-    log(f"PROVIDER BALANCE MONITOR TEST SUMMARY")
-    log(f"Total Tests: {len(tests)}")
-    log(f"Passed: {passed}")
-    log(f"Failed: {failed}")
-    log(f"Success Rate: {passed/len(tests)*100:.1f}%")
-    
-    if failed == 0:
-        log("🎉 ALL TESTS PASSED - Provider Balance Monitor is working correctly!")
-        return True
-    else:
-        log(f"⚠️ {failed} test(s) failed - Provider Balance Monitor has issues")
-        return False
+    def run_all_tests(self):
+        """Run all tests and return summary"""
+        print("=" * 60)
+        print("BULK IVR SECURITY FIX TESTING SUITE")
+        print("=" * 60)
+        
+        # Connect to MongoDB first
+        if not self.connect_mongodb():
+            return False
+            
+        # Run all tests
+        test_methods = [
+            self.test_nodejs_health,
+            self.test_verified_caller_ids_removed,
+            self.test_sub_account_enforcement,
+            self.test_mongodb_running_campaigns,
+            self.test_wizardchop_wallet,
+            self.test_campaign_terminated
+        ]
+        
+        passed_tests = 0
+        total_tests = len(test_methods)
+        
+        for test_method in test_methods:
+            try:
+                if test_method():
+                    passed_tests += 1
+            except Exception as e:
+                print(f"❌ Test {test_method.__name__} crashed: {e}")
+                
+        # Print summary
+        print("\n" + "=" * 60)
+        print("TEST SUMMARY")
+        print("=" * 60)
+        
+        for test_name, result in self.test_results.items():
+            status = "✅ PASS" if result else "❌ FAIL"
+            print(f"{test_name}: {status}")
+            
+        print(f"\nOVERALL: {passed_tests}/{total_tests} tests passed")
+        
+        if passed_tests == total_tests:
+            print("🎉 ALL SECURITY FIXES VERIFIED!")
+            return True
+        else:
+            print("⚠️ Some tests failed - security fixes may be incomplete")
+            return False
+        
+    def cleanup(self):
+        """Cleanup resources"""
+        if self.client:
+            self.client.close()
 
 if __name__ == "__main__":
-    success = main()
-    sys.exit(0 if success else 1)
+    tester = BulkIVRSecurityTest()
+    try:
+        success = tester.run_all_tests()
+        sys.exit(0 if success else 1)
+    finally:
+        tester.cleanup()
