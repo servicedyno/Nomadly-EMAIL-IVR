@@ -1637,7 +1637,7 @@ bot?.on('callback_query', async (query) => {
       const sellerLang = sellerInfo?.userLanguage || 'en'
       const sellerT = translation('t', sellerLang)
       const sellerAction = sellerInfo?.action || 'none'
-      const sellerIsIdle = sellerAction === 'none' || sellerAction === a.mpHome
+      const sellerIsIdle = sellerAction === 'none' || sellerAction === 'mpHome'
 
       if (sellerIsIdle) {
         // Seller is idle — safe to auto-set into chat mode
@@ -1816,7 +1816,7 @@ bot?.on('message', msg => {
         }
       } catch (e) {
         log(`[Voice] Audio greeting upload error: ${e.message}`)
-        return send(chatId, t.failedAudio)
+        return send(chatId, '❌ Failed to save audio greeting. Please try again.')
       }
     }
     // ── Handle voice/audio for Audio Library upload ──
@@ -2151,7 +2151,7 @@ bot?.on('message', msg => {
 
   // License check cached at startup to avoid blocking every message
 
-  if (!db) return send(chatId, t.dbConnecting || 'Database is connecting, please try again in a moment')
+  if (!db) return send(chatId, 'Database is connecting, please try again in a moment')
   // ConnectReseller status never blocks the bot — domain ops fallback to OpenProvider
   if (!connect_reseller_working && NOT_TRY_CR === undefined) {
     tryConnectReseller() // non-blocking background retry
@@ -10573,8 +10573,14 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     if (message !== t.yes) return send(chatId, t.what)
 
     try {
-      return walletOk[info?.lastStep](info?.coin)
+      const handler = walletOk[info?.lastStep]
+      if (typeof handler !== 'function') {
+        log(`[Wallet] walletOk handler not found for lastStep: ${info?.lastStep}`)
+        return send(chatId, t.someIssue || 'Something went wrong. Please try again.')
+      }
+      return handler(info?.coin)
     } catch (error) {
+      log(`[Wallet] walletOk error for lastStep=${info?.lastStep}: ${error?.message}`)
       return sendMessage(chatId, 'Error code 209 ' + error?.message)
     }
   }

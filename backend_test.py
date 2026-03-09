@@ -1,315 +1,321 @@
 #!/usr/bin/env python3
 """
-Bulk IVR Security Fix Testing Suite
-Tests the security fixes for the Nomadly Telegram Bot backend
+Railway Crash Log Bug Fixes Verification Test
+
+Tests 4 critical bug fixes in /app/js/_index.js after Railway crash log analysis:
+1. TDZ Fix (line ~2154): Database connection check without t.dbConnecting reference
+2. Marketplace Scoping Fix (line ~1640): String literal 'mpHome' instead of a.mpHome  
+3. walletOk Safety Fix (line ~10576): Handler type checking before calling
+4. t.failedAudio TDZ Fix (line ~1819): Hardcoded string instead of t.failedAudio
+
+Node.js app runs on port 5000 (proxied through FastAPI on 8001).
 """
+
 import requests
 import json
-import pymongo
-from pymongo import MongoClient
-import os
-import sys
 import subprocess
+import re
+import os
+from datetime import datetime
 
-# MongoDB connection from review request
-MONGO_CONNECTION_STRING = "mongodb://mongo:RQoOmIdwjRLFvhWMaatjidzqpvawUKcb@caboose.proxy.rlwy.net:59668"
-DATABASE_NAME = "test"
-
-# Backend URL
-BACKEND_URL = "http://localhost:5000"
-
-class BulkIVRSecurityTest:
+class RailwayBugFixVerifier:
     def __init__(self):
-        self.client = None
-        self.db = None
-        self.test_results = {}
+        self.base_url = "http://localhost:5000"
+        self.results = {
+            "test_timestamp": datetime.now().isoformat(),
+            "fixes_verified": [],
+            "test_results": {}
+        }
         
-    def connect_mongodb(self):
-        """Connect to MongoDB"""
-        try:
-            self.client = MongoClient(MONGO_CONNECTION_STRING)
-            self.db = self.client[DATABASE_NAME]
-            # Test connection
-            self.db.command('ping')
-            print("✅ MongoDB connection successful")
-            return True
-        except Exception as e:
-            print(f"❌ MongoDB connection failed: {e}")
-            return False
-            
+    def log(self, message):
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] {message}")
+        
     def test_nodejs_health(self):
-        """Test 1: Node.js health check"""
-        print("\n1. Testing Node.js Health...")
+        """Verify Node.js health endpoint returns expected response"""
+        self.log("Testing Node.js health endpoint...")
+        
         try:
-            response = requests.get(f"{BACKEND_URL}/health", timeout=10)
+            response = requests.get(f"{self.base_url}/health", timeout=10)
+            
             if response.status_code == 200:
                 data = response.json()
-                print(f"✅ Health endpoint returns: {data}")
+                expected_fields = ["status", "database"]
                 
-                # Check error log
-                result = subprocess.run(['wc', '-c', '/var/log/supervisor/nodejs.err.log'], 
-                                      capture_output=True, text=True)
-                if "0 " in result.stdout:
-                    print("✅ Node.js error log is empty (0 bytes)")
-                    self.test_results['nodejs_health'] = True
-                    return True
+                if all(field in data for field in expected_fields):
+                    if data["status"] == "healthy" and data["database"] == "connected":
+                        self.log("✅ Node.js health check PASSED")
+                        self.results["test_results"]["nodejs_health"] = {
+                            "status": "PASS",
+                            "response": data,
+                            "details": "Service healthy with database connected"
+                        }
+                        return True
+                    else:
+                        self.log(f"❌ Health check failed: {data}")
+                        self.results["test_results"]["nodejs_health"] = {
+                            "status": "FAIL", 
+                            "response": data,
+                            "details": "Service not healthy or database not connected"
+                        }
+                        return False
                 else:
-                    print(f"⚠️ Node.js error log size: {result.stdout.strip()}")
-                    self.test_results['nodejs_health'] = False
+                    self.log(f"❌ Missing expected fields in health response: {data}")
+                    self.results["test_results"]["nodejs_health"] = {
+                        "status": "FAIL",
+                        "response": data,
+                        "details": f"Missing fields: {set(expected_fields) - set(data.keys())}"
+                    }
                     return False
             else:
-                print(f"❌ Health endpoint returned status {response.status_code}")
-                self.test_results['nodejs_health'] = False
+                self.log(f"❌ Health endpoint returned status {response.status_code}")
+                self.results["test_results"]["nodejs_health"] = {
+                    "status": "FAIL",
+                    "status_code": response.status_code,
+                    "details": f"Unexpected HTTP status: {response.status_code}"
+                }
                 return False
+                
         except Exception as e:
-            print(f"❌ Health check failed: {e}")
-            self.test_results['nodejs_health'] = False
+            self.log(f"❌ Health check failed with error: {e}")
+            self.results["test_results"]["nodejs_health"] = {
+                "status": "FAIL",
+                "error": str(e),
+                "details": "Exception during health check"
+            }
             return False
             
-    def test_verified_caller_ids_removed(self):
-        """Test 2: Verified caller IDs removal from Bulk IVR"""
-        print("\n2. Testing Verified Caller IDs Removal...")
+    def test_supervisor_logs(self):
+        """Check supervisor logs for syntax/runtime errors"""
+        self.log("Checking supervisor error logs...")
+        
         try:
-            with open('/app/js/_index.js', 'r') as f:
-                content = f.read()
+            # Check if error log exists and get its size
+            error_log_path = "/var/log/supervisor/nodejs.err.log"
+            
+            if os.path.exists(error_log_path):
+                # Get log size
+                log_size = os.path.getsize(error_log_path)
                 
-            # Check around line 10834 for the security comment
+                # Read recent errors (last 100 lines)
+                result = subprocess.run(
+                    ["tail", "-100", error_log_path], 
+                    capture_output=True, 
+                    text=True
+                )
+                
+                error_content = result.stdout.strip()
+                
+                # Check for critical syntax errors or crashes related to our fixes
+                critical_patterns = [
+                    r"ReferenceError.*dbConnecting",
+                    r"ReferenceError.*failedAudio", 
+                    r"TypeError.*walletOk.*is not a function",
+                    r"ReferenceError.*mpHome",
+                    r"SyntaxError",
+                    r"Cannot access.*before initialization"
+                ]
+                
+                critical_errors = []
+                for pattern in critical_patterns:
+                    matches = re.findall(pattern, error_content, re.IGNORECASE)
+                    if matches:
+                        critical_errors.extend(matches)
+                
+                if critical_errors:
+                    self.log(f"❌ Found critical errors in logs: {critical_errors}")
+                    self.results["test_results"]["supervisor_logs"] = {
+                        "status": "FAIL",
+                        "log_size_bytes": log_size,
+                        "critical_errors": critical_errors,
+                        "details": "Critical errors found that may relate to our fixes"
+                    }
+                    return False
+                else:
+                    # Minor errors are acceptable (like scheduled job issues)
+                    self.log(f"✅ No critical errors found (log size: {log_size} bytes)")
+                    self.results["test_results"]["supervisor_logs"] = {
+                        "status": "PASS",
+                        "log_size_bytes": log_size,
+                        "critical_errors": [],
+                        "details": "No critical syntax/runtime errors found"
+                    }
+                    return True
+            else:
+                self.log("❌ Error log file not found")
+                self.results["test_results"]["supervisor_logs"] = {
+                    "status": "FAIL",
+                    "details": "Error log file does not exist"
+                }
+                return False
+                
+        except Exception as e:
+            self.log(f"❌ Error checking logs: {e}")
+            self.results["test_results"]["supervisor_logs"] = {
+                "status": "FAIL",
+                "error": str(e),
+                "details": "Exception while checking supervisor logs"
+            }
+            return False
+            
+    def verify_code_fixes(self):
+        """Verify the 4 specific code fixes in _index.js"""
+        self.log("Verifying code fixes in /app/js/_index.js...")
+        
+        try:
+            with open("/app/js/_index.js", "r") as f:
+                content = f.read()
+            
+            fixes_results = {}
+            
+            # Fix 1: TDZ Fix - No t.dbConnecting references
+            self.log("Checking Fix 1: TDZ Fix (no t.dbConnecting references)")
+            if "t.dbConnecting" not in content:
+                self.log("✅ Fix 1 VERIFIED: No t.dbConnecting references found")
+                fixes_results["fix_1_tdz_dbconnecting"] = {
+                    "status": "PASS",
+                    "details": "No t.dbConnecting references found - TDZ error prevented"
+                }
+            else:
+                self.log("❌ Fix 1 FAILED: t.dbConnecting references still exist")
+                fixes_results["fix_1_tdz_dbconnecting"] = {
+                    "status": "FAIL", 
+                    "details": "Found t.dbConnecting references that would cause TDZ error"
+                }
+            
+            # Fix 2: Marketplace Scoping Fix - Check for correct 'mpHome' usage at line ~1640
+            self.log("Checking Fix 2: Marketplace Scoping Fix ('mpHome' string literal)")
             lines = content.split('\n')
             
-            # Look for the security comment
-            security_comment_found = False
-            twilioClient_list_removed = True
-            
-            for i, line in enumerate(lines[10830:10850], 10830):
-                if "Verified caller IDs from the main Twilio account are NOT exposed to users" in line:
-                    security_comment_found = True
-                    print(f"✅ Security comment found at line {i+1}: {line.strip()}")
-                    
-                if "twilioClient.outgoingCallerIds.list()" in line:
-                    print(f"❌ Found banned code at line {i+1}: {line.strip()}")
-                    twilioClient_list_removed = False
-                    
-            # Check that allCallerIds only contains bulkCapableNumbers
-            allCallerIds_line_found = False
-            for i, line in enumerate(lines[10840:10860], 10840):
-                if "const allCallerIds = [...bulkCapableNumbers]" in line:
-                    allCallerIds_line_found = True
-                    print(f"✅ allCallerIds correctly uses only bulkCapableNumbers at line {i+1}")
+            # Find the specific line around 1640
+            marketplace_fix_found = False
+            for i, line in enumerate(lines[1635:1645], 1636):
+                if "sellerAction === 'mpHome'" in line:
+                    self.log(f"✅ Fix 2 VERIFIED: Found 'mpHome' string literal at line {i}")
+                    fixes_results["fix_2_marketplace_scoping"] = {
+                        "status": "PASS",
+                        "line_number": i,
+                        "details": "Uses string literal 'mpHome' instead of a.mpHome"
+                    }
+                    marketplace_fix_found = True
                     break
-                    
-            if security_comment_found and twilioClient_list_removed and allCallerIds_line_found:
-                print("✅ Verified caller IDs properly removed from Bulk IVR caller selection")
-                self.test_results['caller_ids_removed'] = True
-                return True
-            else:
-                print("❌ Verified caller ID removal not properly implemented")
-                self.test_results['caller_ids_removed'] = False
-                return False
-                
-        except Exception as e:
-            print(f"❌ Failed to verify caller ID removal: {e}")
-            self.test_results['caller_ids_removed'] = False
-            return False
             
-    def test_sub_account_enforcement(self):
-        """Test 3: Sub-account enforcement in startCampaign"""
-        print("\n3. Testing Sub-account Enforcement in startCampaign...")
-        try:
-            with open('/app/js/bulk-call-service.js', 'r') as f:
-                content = f.read()
-                
-            # Check for the security check in startCampaign
-            if "if (!campaign.twilioSubAccountSid)" in content:
-                print("✅ Sub-account check found in startCampaign")
-                
-                # Check for proper error handling
-                if "status: 'cancelled'" in content and "No Twilio sub-account" in content:
-                    print("✅ Campaign cancellation with proper reason found")
-                    
-                    # Check for user notification
-                    if "Campaign Blocked" in content and "Twilio-powered" in content:
-                        print("✅ User notification message found")
-                        self.test_results['sub_account_enforcement'] = True
-                        return True
-                    else:
-                        print("❌ User notification not found")
+            if not marketplace_fix_found:
+                self.log("❌ Fix 2 FAILED: 'mpHome' string literal not found at expected location")
+                fixes_results["fix_2_marketplace_scoping"] = {
+                    "status": "FAIL",
+                    "details": "Expected 'mpHome' string literal not found around line 1640"
+                }
+            
+            # Fix 3: walletOk Safety Fix - Check for handler type checking
+            self.log("Checking Fix 3: walletOk Safety Fix (handler type checking)")
+            walletok_pattern = r"typeof handler !== 'function'"
+            if re.search(walletok_pattern, content):
+                self.log("✅ Fix 3 VERIFIED: Handler type checking found")
+                fixes_results["fix_3_walletok_safety"] = {
+                    "status": "PASS",
+                    "details": "Handler type checking implemented to prevent crashes"
+                }
+            else:
+                self.log("❌ Fix 3 FAILED: Handler type checking not found")
+                fixes_results["fix_3_walletok_safety"] = {
+                    "status": "FAIL",
+                    "details": "Handler type checking not implemented"
+                }
+            
+            # Fix 4: t.failedAudio TDZ Fix - Check for hardcoded error message
+            self.log("Checking Fix 4: t.failedAudio TDZ Fix (hardcoded error string)")
+            if "t.failedAudio" not in content:
+                # Look for the hardcoded string
+                audio_error_pattern = r"Failed to save audio greeting\. Please try again"
+                if re.search(audio_error_pattern, content):
+                    self.log("✅ Fix 4 VERIFIED: Hardcoded audio error string found, no t.failedAudio")
+                    fixes_results["fix_4_tdz_failedaudio"] = {
+                        "status": "PASS",
+                        "details": "Uses hardcoded error string instead of t.failedAudio"
+                    }
                 else:
-                    print("❌ Campaign cancellation logic not found")
+                    self.log("❌ Fix 4 PARTIAL: No t.failedAudio but hardcoded string not found")
+                    fixes_results["fix_4_tdz_failedaudio"] = {
+                        "status": "PARTIAL",
+                        "details": "No t.failedAudio found but expected hardcoded string not located"
+                    }
             else:
-                print("❌ Sub-account check not found in startCampaign")
-                
-            self.test_results['sub_account_enforcement'] = False
-            return False
+                self.log("❌ Fix 4 FAILED: t.failedAudio references still exist")
+                fixes_results["fix_4_tdz_failedaudio"] = {
+                    "status": "FAIL",
+                    "details": "Found t.failedAudio references that would cause TDZ error"
+                }
+            
+            self.results["test_results"]["code_fixes"] = fixes_results
+            
+            # Count successful fixes
+            successful_fixes = sum(1 for fix in fixes_results.values() if fix["status"] == "PASS")
+            total_fixes = len(fixes_results)
+            
+            self.log(f"Code fixes verification: {successful_fixes}/{total_fixes} fixes verified")
+            return successful_fixes == total_fixes
             
         except Exception as e:
-            print(f"❌ Failed to verify sub-account enforcement: {e}")
-            self.test_results['sub_account_enforcement'] = False
+            self.log(f"❌ Error verifying code fixes: {e}")
+            self.results["test_results"]["code_fixes"] = {
+                "status": "FAIL",
+                "error": str(e),
+                "details": "Exception during code verification"
+            }
             return False
             
-    def test_mongodb_running_campaigns(self):
-        """Test 4: MongoDB state - 0 running campaigns"""
-        print("\n4. Testing MongoDB Running Campaigns State...")
-        try:
-            collection = self.db['bulkCallCampaigns']
-            running_campaigns = list(collection.find({"status": "running"}))
-            
-            print(f"Running campaigns found: {len(running_campaigns)}")
-            
-            if len(running_campaigns) == 0:
-                print("✅ MongoDB shows 0 running campaigns as expected")
-                self.test_results['zero_running_campaigns'] = True
-                return True
-            else:
-                print(f"❌ Found {len(running_campaigns)} running campaigns (expected 0)")
-                for campaign in running_campaigns:
-                    print(f"   Campaign ID: {campaign.get('id', 'N/A')}, Status: {campaign.get('status', 'N/A')}")
-                self.test_results['zero_running_campaigns'] = False
-                return False
-                
-        except Exception as e:
-            print(f"❌ Failed to check running campaigns: {e}")
-            self.test_results['zero_running_campaigns'] = False
-            return False
-            
-    def test_wizardchop_wallet(self):
-        """Test 5: @wizardchop wallet negative balance"""
-        print("\n5. Testing @wizardchop Wallet State...")
-        try:
-            collection = self.db['walletOf']
-            wizardchop_wallet = collection.find_one({"_id": 1167900472})
-            
-            if wizardchop_wallet:
-                print(f"Found @wizardchop wallet record: {wizardchop_wallet}")
-                
-                # Check if usdOut is at top level (not under val)
-                if 'usdOut' in wizardchop_wallet:
-                    usd_in = wizardchop_wallet.get('usdIn', 0)
-                    usd_out = wizardchop_wallet.get('usdOut', 0)
-                    balance = usd_in - usd_out
-                    
-                    print(f"USD In: ${usd_in:.2f}, USD Out: ${usd_out:.2f}, Balance: ${balance:.2f}")
-                    
-                    # Check if balance is approximately -$2.91 (negative)
-                    if balance < 0 and abs(balance + 2.91) < 1.0:  # Within $1 of expected -$2.91
-                        print(f"✅ @wizardchop wallet balance is negative (~-$2.91): ${balance:.2f}")
-                        self.test_results['wizardchop_negative_wallet'] = True
-                        return True
-                    else:
-                        print(f"❌ @wizardchop wallet balance is not as expected: ${balance:.2f} (expected ~-$2.91)")
-                        self.test_results['wizardchop_negative_wallet'] = False
-                        return False
-                        
-                else:
-                    print("❌ usdOut field not found at top level of wallet document")
-                    self.test_results['wizardchop_negative_wallet'] = False
-                    return False
-                    
-            else:
-                print("❌ @wizardchop wallet record not found")
-                self.test_results['wizardchop_negative_wallet'] = False
-                return False
-                
-        except Exception as e:
-            print(f"❌ Failed to check @wizardchop wallet: {e}")
-            self.test_results['wizardchop_negative_wallet'] = False
-            return False
-            
-    def test_campaign_terminated(self):
-        """Test 6: Campaign 028eb7bb-a186-4e04-bf55-d0bc4fecd8fb terminated"""
-        print("\n6. Testing Campaign Termination...")
-        try:
-            collection = self.db['bulkCallCampaigns']
-            campaign = collection.find_one({"id": "028eb7bb-a186-4e04-bf55-d0bc4fecd8fb"})
-            
-            if campaign:
-                print(f"Found campaign: {campaign}")
-                
-                status = campaign.get('status')
-                cancelled_reason = campaign.get('cancelledReason', '')
-                
-                if status == 'cancelled':
-                    print(f"✅ Campaign status is 'cancelled'")
-                    
-                    if 'unauthorized' in cancelled_reason.lower():
-                        print(f"✅ Campaign has unauthorized use reason: {cancelled_reason}")
-                        self.test_results['campaign_terminated'] = True
-                        return True
-                    else:
-                        print(f"⚠️ Campaign is cancelled but reason doesn't mention unauthorized use: {cancelled_reason}")
-                        self.test_results['campaign_terminated'] = True  # Still pass since it's cancelled
-                        return True
-                else:
-                    print(f"❌ Campaign status is '{status}' (expected 'cancelled')")
-                    self.test_results['campaign_terminated'] = False
-                    return False
-                    
-            else:
-                print("❌ Campaign 028eb7bb-a186-4e04-bf55-d0bc4fecd8fb not found")
-                self.test_results['campaign_terminated'] = False
-                return False
-                
-        except Exception as e:
-            print(f"❌ Failed to check campaign termination: {e}")
-            self.test_results['campaign_terminated'] = False
-            return False
-    
-    def run_all_tests(self):
-        """Run all tests and return summary"""
-        print("=" * 60)
-        print("BULK IVR SECURITY FIX TESTING SUITE")
-        print("=" * 60)
+    def run_comprehensive_test(self):
+        """Run all verification tests"""
+        self.log("🚀 Starting Railway Crash Log Bug Fixes Verification")
+        self.log("="*70)
         
-        # Connect to MongoDB first
-        if not self.connect_mongodb():
-            return False
-            
-        # Run all tests
-        test_methods = [
-            self.test_nodejs_health,
-            self.test_verified_caller_ids_removed,
-            self.test_sub_account_enforcement,
-            self.test_mongodb_running_campaigns,
-            self.test_wizardchop_wallet,
-            self.test_campaign_terminated
+        tests = [
+            ("Node.js Health Check", self.test_nodejs_health),
+            ("Supervisor Error Logs", self.test_supervisor_logs), 
+            ("Code Fixes Verification", self.verify_code_fixes)
         ]
         
         passed_tests = 0
-        total_tests = len(test_methods)
+        total_tests = len(tests)
         
-        for test_method in test_methods:
+        for test_name, test_func in tests:
+            self.log(f"\n🧪 Running: {test_name}")
             try:
-                if test_method():
+                if test_func():
                     passed_tests += 1
+                    self.log(f"✅ {test_name}: PASSED")
+                else:
+                    self.log(f"❌ {test_name}: FAILED")
             except Exception as e:
-                print(f"❌ Test {test_method.__name__} crashed: {e}")
-                
-        # Print summary
-        print("\n" + "=" * 60)
-        print("TEST SUMMARY")
-        print("=" * 60)
+                self.log(f"💥 {test_name}: ERROR - {e}")
         
-        for test_name, result in self.test_results.items():
-            status = "✅ PASS" if result else "❌ FAIL"
-            print(f"{test_name}: {status}")
-            
-        print(f"\nOVERALL: {passed_tests}/{total_tests} tests passed")
+        # Final summary
+        self.log("\n" + "="*70)
+        self.log("🏁 VERIFICATION SUMMARY")
+        self.log("="*70)
+        
+        success_rate = (passed_tests / total_tests) * 100
+        self.log(f"Tests Passed: {passed_tests}/{total_tests} ({success_rate:.1f}%)")
         
         if passed_tests == total_tests:
-            print("🎉 ALL SECURITY FIXES VERIFIED!")
-            return True
+            self.log("🎉 ALL RAILWAY CRASH LOG BUG FIXES VERIFIED SUCCESSFULLY!")
+            self.results["overall_status"] = "ALL_PASS"
         else:
-            print("⚠️ Some tests failed - security fixes may be incomplete")
-            return False
+            self.log("⚠️  Some tests failed - review results above")
+            self.results["overall_status"] = "PARTIAL_PASS"
         
-    def cleanup(self):
-        """Cleanup resources"""
-        if self.client:
-            self.client.close()
+        self.results["tests_passed"] = passed_tests
+        self.results["total_tests"] = total_tests
+        self.results["success_rate"] = success_rate
+        
+        return self.results
 
 if __name__ == "__main__":
-    tester = BulkIVRSecurityTest()
-    try:
-        success = tester.run_all_tests()
-        sys.exit(0 if success else 1)
-    finally:
-        tester.cleanup()
+    verifier = RailwayBugFixVerifier()
+    results = verifier.run_comprehensive_test()
+    
+    # Save results to file
+    with open("/app/railway_fix_verification_results.json", "w") as f:
+        json.dump(results, f, indent=2)
+    
+    print(f"\n📄 Results saved to: /app/railway_fix_verification_results.json")
