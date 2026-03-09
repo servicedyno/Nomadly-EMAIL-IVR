@@ -1930,6 +1930,11 @@ async function initiateOutboundIvrCall(params) {
   // ── TWILIO PATH: Use Twilio REST API + TwiML endpoints ──
   const provider = params.provider || 'telnyx'
   if (provider === 'twilio' && _twilioService) {
+    // ━━━ SECURITY: Block Twilio calls without sub-account credentials ━━━
+    if (!params.twilioSubAccountSid || !params.twilioSubAccountToken) {
+      log(`[OutboundIVR] SECURITY BLOCK: Twilio call rejected — missing sub-account credentials for chatId ${chatId}`)
+      return { error: 'Twilio calls require sub-account credentials. Cannot use main account.' }
+    }
     const crypto = require('crypto')
     const sessionId = crypto.randomUUID()
     twilioIvrSessions[sessionId] = {

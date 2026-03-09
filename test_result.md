@@ -530,6 +530,18 @@ metadata:
           agent: "testing"
           comment: "✅ BULK IVR CAMPAIGN RECOVERY COMPREHENSIVE VERIFICATION COMPLETE: All 12 critical requirements verified with 100% success rate (13/13 tests passed). COMPREHENSIVE DEPLOYMENT RECOVERY VERIFIED: recoverRunningCampaigns() function fully operational with 5-step decision tree for handling campaigns interrupted by deployment restarts. DETAILED VERIFICATION: (1) NODE.JS HEALTH: GET http://localhost:5000/health returns 200 with {'status': 'healthy', 'database': 'connected', 'uptime': '0.05 hours'}, /var/log/supervisor/nodejs.err.log is EMPTY (0 bytes), confirming clean startup with no runtime errors. (2) RECOVERY RUNS ON STARTUP: '[BulkCall] Recovery: No running campaigns to recover' message found in /var/log/supervisor/nodejs.out.log confirming 15-second delayed startup execution after service initialization. (3) RECOVERRUNNINGCAMPAIGNS FUNCTION EXISTS: Function at line 59 with signature 'async function recoverRunningCampaigns()', contains MongoDB query '_collection.find({ status: 'running' })', complete 5-step decision tree implementation, properly exported in module.exports. (4) SUB-ACCOUNT SECURITY CHECK (STEP 2): Before credit check, verifies 'if (!campaign.twilioSubAccountSid)' and cancels with 'cancelledReason: Recovery blocked: no Twilio sub-account', prevents unauthorized use of main Twilio account, logs 'BLOCKED (no sub-account)' with user notification. (5) STALE CAMPAIGN CHECK (STEP 3): Uses 'STALE_CAMPAIGN_HOURS = 24' constant, calls 'getLastLeadActivity()' to find most recent lead timestamp from completedAt/answeredAt/startedAt, cancels if 'hoursSinceActivity > 24 AND hoursSinceStart > 24' with reason 'Recovery cleanup: stale campaign'. (6) CREDIT CHECK (STEP 4): Calls 'getBalance()' and pauses campaign if 'usdBal < BULK_CALL_RATE' ($0.15/min), ALSO calls 'resetInflightLeads()' BEFORE pausing to reset calling/ringing leads to pending status. (7) RESETINFLIGHTLEADS HELPER FUNCTION: Resets leads with status 'calling' or 'ringing' to 'pending', nullifies callSid and startedAt via 'resetOps[`leads.${i}.status`] = pending/null', called for BOTH paused AND resumed campaigns to handle dead calls from restart. (8) RESUME LOGIC (STEP 5): Re-populates 'activeCampaigns[campaignId]' with '{ activeCalls: 0, nextLeadIndex: 0, paused: false }' in-memory state, then calls 'fireNextBatch(campaignId)' to resume dialing remaining leads. (9) 3-SECOND STAGGER: 'await new Promise(r => setTimeout(r, 3000))' between campaign resumes prevents thundering herd effect when multiple campaigns restart simultaneously. (10) MODULE EXPORT: 'recoverRunningCampaigns' properly included in module.exports alongside all other bulk call functions. (11) 15-SECOND STARTUP DELAY: 'initBulkCallService' calls recovery via 'setTimeout(() => recoverRunningCampaigns()..., 15000)' allowing all services (Twilio, webhooks, MongoDB) to fully initialize before recovery attempts. (12) GETLASTLEADACTIVITY HELPER: Returns most recent Date from 'lead.completedAt || lead.answeredAt || lead.startedAt' across all campaign leads, used for stale campaign detection logic. ALL BULK IVR CAMPAIGN RECOVERY REQUIREMENTS ARE PRODUCTION-READY AND FULLY FUNCTIONAL - deployment restarts will automatically resume interrupted campaigns with comprehensive safety checks and proper state management."
 
+  - task: "Twilio Security Hardening - Sub-Account Enforcement & Main Account Prevention"
+    implemented: true
+    working: true
+    file: "js/twilio-service.js, js/_index.js, js/phone-scheduler.js, js/voice-service.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ TWILIO SECURITY HARDENING COMPREHENSIVE VERIFICATION COMPLETE: All 8 critical security requirements verified with 100% success rate (42/42 tests passed). SECURITY STATUS: COMPLIANT - Sub-account enforcement properly implemented, main account fallbacks removed, security blocks active for all Twilio operations. DETAILED VERIFICATION: (1) NODE.JS HEALTH: GET http://localhost:5000/health returns 200 with {'status': 'healthy', 'database': 'connected', 'uptime': '0.03 hours'}, /var/log/supervisor/nodejs.err.log is EMPTY (0 bytes), service running healthy on port 5000. (2) REQUIRESUBCLIENT FUNCTION: Function exists in twilio-service.js with proper signature (subSid, subToken, operation), returns null when subSid missing, returns null when subToken missing, returns null when subSid matches MAIN_ACCOUNT_SID, logs security blocks with operation name, used by ALL required functions: makeOutboundCall, releaseNumber, createAddress, updateNumberWebhooks, createSipDomain, mapCredentialListToDomain. (3) MAKEOUTBOUNDCALL SECURITY: Returns error object when sub-account credentials are null with message 'Cannot use main Twilio account', does NOT fall back to getClient() when requireSubClient returns null. (4) WEBHOOK SYNC SECURITY: _index.js contains 'SKIPPED' log message for numbers without sub-account credentials, does NOT call updateNumberWebhooks when missing creds, only updates when both subSid AND subToken exist, never falls back to main account for user-owned numbers. (5) PHONE-SCHEDULER MAIN ACCOUNT REMOVAL: Does NOT contain old pattern 'Released Twilio number via main account', contains token auto-resolve mechanism for sub-accounts, uses proper security pattern for Twilio releases, skips release when sub-account credentials missing. (6) VOICE-SERVICE SECURITY BLOCK: Has SECURITY BLOCK for Twilio calls without sub-account credentials, blocks when twilioSubAccountSid missing, blocks when twilioSubAccountToken missing, returns error message instead of proceeding with main account. (7) EXECUTETWILIOPURCHASE MANDATORY TRANSFER: Has mandatory subSid check before transfer, returns error if no subSid exists, transfer marked as MANDATORY in comments, numbers bought on main account then IMMEDIATELY transferred, has cleanup logic for failed transfers. (8) MODULE EXPORTS: twilio-service.js exports requireSubClient and getMainAccountSid, getMainAccountSid function returns MAIN_ACCOUNT_SID. ALL TWILIO SECURITY HARDENING REQUIREMENTS ARE PRODUCTION-READY AND FULLY FUNCTIONAL - prevents bot users from using main Twilio account credentials or phone numbers, all user-facing operations require sub-account credentials with no main account fallbacks."
+
 test_plan:
   current_focus:
     - "Bulk IVR campaign recovery on deployment — resume running campaigns after restart"
@@ -539,7 +551,7 @@ test_plan:
 
 agent_communication:
     - agent: "testing"
-      message: "✅ BULK IVR CAMPAIGN RECOVERY COMPREHENSIVE TESTING COMPLETE: All 12 critical requirements for the recoverRunningCampaigns() function verified with 100% success rate (13/13 tests passed). COMPREHENSIVE DEPLOYMENT RECOVERY VERIFICATION: The Bulk IVR Campaign Recovery feature is fully operational and ready for production deployment scenarios. DETAILED VERIFICATION RESULTS: (1) NODE.JS HEALTH: Service running healthy on port 5000 with MongoDB connected, /var/log/supervisor/nodejs.err.log is EMPTY (0 bytes) confirming clean startup. (2) RECOVERY STARTUP EXECUTION: '[BulkCall] Recovery: No running campaigns to recover' message confirmed in supervisor logs showing the 15-second delayed recovery function executed successfully after service initialization. (3) RECOVERRUNNINGCAMPAIGNS FUNCTION: Complete implementation verified at line 59 in js/bulk-call-service.js with async function signature, MongoDB query for status: 'running', 5-step decision tree, and proper module export. (4) SUB-ACCOUNT SECURITY (STEP 2): Verified twilioSubAccountSid validation check that blocks campaigns without sub-accounts to prevent main Twilio account abuse, with proper cancellation reason and user notification. (5) STALE CAMPAIGN CHECK (STEP 3): STALE_CAMPAIGN_HOURS=24 constant verified, getLastLeadActivity() helper function implementation confirmed, hoursSinceActivity/hoursSinceStart logic for zombie campaign cleanup. (6) CREDIT CHECK (STEP 4): getBalance() integration verified, usdBal < BULK_CALL_RATE ($0.15/min) pause logic, resetInflightLeads() call BEFORE pausing confirmed. (7) RESETINFLIGHTLEADS HELPER: Complete function verified that resets calling/ringing leads to pending status, nullifies callSid and startedAt, handles dead calls from deployment restart. (8) RESUME LOGIC (STEP 5): activeCampaigns[campaignId] in-memory state re-population verified with activeCalls: 0, nextLeadIndex: 0, paused: false, followed by fireNextBatch() call. (9) 3-SECOND STAGGER: setTimeout(r, 3000) delay between campaign resumes verified to prevent thundering herd effect. (10) MODULE EXPORTS: recoverRunningCampaigns properly exported alongside other bulk call functions. (11) 15-SECOND STARTUP DELAY: setTimeout(() => recoverRunningCampaigns(), 15000) in initBulkCallService verified for proper service initialization sequence. (12) GETLASTLEADACTIVITY HELPER: Function verified that finds most recent timestamp from completedAt/answeredAt/startedAt across all leads for stale detection. ALL BULK IVR CAMPAIGN RECOVERY REQUIREMENTS ARE PRODUCTION-READY - deployment restarts will automatically and safely resume interrupted campaigns with comprehensive 5-step decision tree handling."
+      message: "✅ TWILIO SECURITY HARDENING COMPREHENSIVE TESTING COMPLETE: All 8 critical security requirements verified with 100% success rate (42/42 tests passed). SECURITY STATUS: COMPLIANT - Sub-account enforcement properly implemented across the Node.js backend running on port 5000. COMPREHENSIVE VERIFICATION RESULTS: (1) NODE.JS HEALTH: Service healthy on port 5000 with MongoDB connected, /var/log/supervisor/nodejs.err.log is EMPTY (0 bytes). (2) REQUIRESUBCLIENT FUNCTION: Verified in twilio-service.js - returns null when subSid missing, returns null when subToken missing, returns null when subSid matches MAIN_ACCOUNT_SID, used by ALL security-critical functions (makeOutboundCall, releaseNumber, createAddress, updateNumberWebhooks, createSipDomain, mapCredentialListToDomain). (3) MAKEOUTBOUNDCALL SECURITY: Verified error response when sub-account credentials null, NO fallback to getClient() preventing main account usage. (4) WEBHOOK SYNC SECURITY: Verified _index.js SKIPPED log for numbers without sub-account credentials, never falls back to main account for user-owned numbers. (5) PHONE-SCHEDULER MAIN ACCOUNT REMOVAL: Verified removal of 'Released Twilio number via main account' pattern, proper security checks implemented. (6) VOICE-SERVICE SECURITY BLOCK: Verified SECURITY BLOCK for Twilio calls without sub-account credentials in voice-service.js. (7) EXECUTETWILIOPURCHASE MANDATORY TRANSFER: Verified mandatory subSid check, IMMEDIATE transfer requirement, cleanup logic for failed transfers. (8) MODULE EXPORTS: Verified requireSubClient and getMainAccountSid exports. ALL TWILIO SECURITY HARDENING REQUIREMENTS ARE PRODUCTION-READY - prevents bot users from using main Twilio account, enforces sub-account credentials for all user-facing operations."
 
     - agent: "testing"
       message: "✅ NOMADLY CLOUD PHONE 6 BILLING/ALERT FIXES COMPREHENSIVE TESTING COMPLETE: All 6 critical billing/alert fixes for the Nomadly Cloud Phone platform verified with 100% success rate (10/10 tests passed). COMPREHENSIVE VERIFICATION: (1) SERVICE HEALTH: Node.js backend running healthy on port 5000 with MongoDB connected and accessible, /var/log/supervisor/nodejs.err.log is EMPTY (0 bytes) confirming clean startup. (2) FIX 1 - IVR FORWARD WALLET CHECK: voice-service.js ~line 1460 case 'forward' properly checks _walletOf wallet balance BEFORE playHoldMusicAndTransfer, blocks with voice message + Telegram notification if wallet < rate, includes low balance warning when wallet < $5. (3) FIX 2 - TWILIO /VOICE-STATUS UNIFIED BILLING: _index.js ~line 19230 requires voice-service.js and calls billCallMinutesUnified() instead of manual atomicIncrement, notification includes plan minutes remaining + overage details. (4) FIX 3 - TWILIO /VOICE-DIAL-STATUS UNIFIED BILLING: _index.js ~line 18831 uses unified billing, handles SIP bridge/outbound/forwarding call types, no manual wallet charging. (5) FIX 4 - TWILIO INBOUND OVERAGE FALLBACK: _index.js ~line 18388 ownerNumbers properly scoped outside loop, minute limit check uses ownerNumbers, plan exhausted + wallet sufficient allows call, insufficient blocks with detailed Telegram notification including plan usage/wallet balance/rate info. (6) FIX 5 - TWILIO SIP OUTBOUND PLAN CHECK: _index.js ~line 19170 checks getPoolMinuteLimit/getPoolMinutesUsed BEFORE wallet check, plan has minutes allows without wallet, plan exhausted + wallet sufficient allows with overage notification, exhausted + empty wallet blocks with 'No Credits' notification. (7) FIX 6 - TWILIO SMS LIMIT + OVERAGE: _index.js ~line 19335 calls isSmsLimitReached before forwarding, limit reached + wallet balance charges OVERAGE_RATE_SMS from wallet with payment logging and user notification, no wallet drops SMS with 'No Credits' notification, isSmsLimitReached properly imported line 235. (8) GENERAL HEALTH: All formatPhone calls use phoneConfig.formatPhone (NO bare formatPhone found), voiceService references properly scoped. ALL 6 BILLING/ALERT FIXES ARE PRODUCTION-READY AND FULLY FUNCTIONAL - comprehensive Telnyx/Twilio phone provider billing system operational with proper wallet protection and overage handling."
@@ -1760,3 +1772,148 @@ agent_communication:
       message: "Analyzed Railway deployment logs for 31b971e1-3f3a-47d1-81c9-3e7a1202d891. Found and fixed 4 code bugs: (1) TDZ bug line 2154 — t.dbConnecting accessed before const t declaration at line 2257, replaced with hardcoded string. (2) Marketplace scoping bug line 1640 — a.mpHome referenced outside loadData() scope where a is defined, replaced with string literal 'mpHome'. (3) walletOk safety line 10576 — walletOk[info?.lastStep] could be undefined, added typeof function check with graceful error. (4) t.failedAudio TDZ bug line 1819 — same TDZ issue, replaced with hardcoded error string. Verify: (a) Node.js healthy at localhost:5000/health, (b) line 2154 uses hardcoded 'Database is connecting...' string NOT t.dbConnecting, (c) line 1640 uses string 'mpHome' NOT a.mpHome, (d) walletOk has typeof handler check before calling, (e) failedAudio uses hardcoded string NOT t.failedAudio."
     - agent: "testing"
       message: "✅ RAILWAY CRASH LOG BUG FIXES VERIFICATION COMPLETE: All 4 critical bug fixes verified with 100% success rate. Comprehensive testing performed: (1) Node.js health check PASSED - service healthy at port 5000 with database connected. (2) Supervisor logs PASSED - no critical syntax/runtime errors found. (3) All 4 code fixes VERIFIED: TDZ fix (no t.dbConnecting), marketplace scoping fix ('mpHome' string literal), walletOk safety fix (handler type checking), t.failedAudio TDZ fix (hardcoded error string). Service stability restored, all fixes production-ready. Railway deployment bugs successfully resolved."
+
+
+backend:
+  - task: "Security: Block main Twilio account usage in makeOutboundCall"
+    implemented: true
+    working: "NA"
+    file: "js/twilio-service.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Added requireSubClient() function that rejects operations without sub-account SID/token and blocks main account SID. makeOutboundCall now returns error if sub-account credentials missing."
+
+  - task: "Security: Block main Twilio account usage in releaseNumber"
+    implemented: true
+    working: "NA"
+    file: "js/twilio-service.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "releaseNumber now requires sub-account credentials via requireSubClient(). Returns error instead of falling back to main account."
+
+  - task: "Security: Block main Twilio account usage in createAddress"
+    implemented: true
+    working: "NA"
+    file: "js/twilio-service.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "createAddress now requires sub-account credentials via requireSubClient(). Returns error instead of falling back to main account."
+
+  - task: "Security: Block main Twilio account usage in updateNumberWebhooks"
+    implemented: true
+    working: "NA"
+    file: "js/twilio-service.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "updateNumberWebhooks now requires sub-account credentials. Returns error instead of falling back to main account."
+
+  - task: "Security: Block main Twilio account usage in createSipDomain and mapCredentialListToDomain"
+    implemented: true
+    working: "NA"
+    file: "js/twilio-service.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "createSipDomain and mapCredentialListToDomain now require sub-account credentials via requireSubClient()."
+
+  - task: "Security: Webhook sync skips numbers without sub-account creds"
+    implemented: true
+    working: "NA"
+    file: "js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Webhook sync at startup now logs and skips Twilio numbers without sub-account credentials instead of falling back to main account."
+
+  - task: "Security: QuickIVR call blocks Twilio calls without sub-account creds"
+    implemented: true
+    working: "NA"
+    file: "js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "QuickIVR outbound call handler now blocks Twilio calls and notifies user if sub-account credentials are missing after auto-resolution attempt."
+
+  - task: "Security: executeTwilioPurchase enforces mandatory sub-account transfer"
+    implemented: true
+    working: "NA"
+    file: "js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "executeTwilioPurchase now requires subSid for transfer, returns error if missing. On transfer failure, attempts to release orphan number from main account."
+
+  - task: "Security: phone-scheduler removes main account fallback for number release"
+    implemented: true
+    working: "NA"
+    file: "js/phone-scheduler.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Removed explicit main account fallback. Now auto-resolves sub-account token if SID exists but token missing. Falls back to parent->sub API (not main account direct) if token resolve fails."
+
+  - task: "Security: voice-service blocks Twilio outbound calls without sub-account"
+    implemented: true
+    working: "NA"
+    file: "js/voice-service.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "initiateOutboundIvrCall for Twilio now returns error if twilioSubAccountSid or twilioSubAccountToken missing."
+
+  - task: "Security: Release number handler resolves sub-account token before release"
+    implemented: true
+    working: "NA"
+    file: "js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Release number handler now reads both number-level and user-level sub-account creds, auto-resolves token via Twilio API if SID exists but token missing."
+
+test_plan:
+  current_focus:
+    - "Verify Twilio security hardening: main account credentials and phone numbers cannot be used by bot users"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    - agent: "main"
+      message: "Implemented comprehensive Twilio security hardening across 4 files. All user-facing Twilio operations (makeOutboundCall, releaseNumber, createAddress, updateNumberWebhooks, createSipDomain, mapCredentialListToDomain) now REQUIRE sub-account credentials and will NOT fall back to main account. Added requireSubClient() guard function that checks for missing creds and blocks main account SID usage. executeTwilioPurchase enforces mandatory sub-account transfer after purchase. phone-scheduler auto-resolves tokens instead of falling back to main. voice-service blocks Twilio calls without sub-account. Please verify: (1) Node.js is healthy at localhost:5000/health, (2) twilio-service.js has requireSubClient function that rejects null subSid/subToken, (3) makeOutboundCall returns error when sub-account missing, (4) _index.js webhook sync skips numbers without sub-account creds, (5) phone-scheduler.js does NOT contain 'main account' fallback pattern, (6) voice-service.js blocks Twilio calls without sub-account credentials."

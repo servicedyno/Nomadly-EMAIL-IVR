@@ -9,6 +9,9 @@ const ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID
 const AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN
 const CALL_FORWARDING_RATE_MIN = parseFloat(process.env.CALL_FORWARDING_RATE_MIN || '0.50')
 
+// ━━━ SECURITY: Main account SID — used to detect and block unauthorized main-account usage ━━━
+const MAIN_ACCOUNT_SID = ACCOUNT_SID
+
 // Stores the active Twilio SIP domain name (set during initialization)
 let activeSipDomainName = null
 function getTwilioSipDomainName() { return activeSipDomainName }
@@ -25,6 +28,22 @@ function getClient() {
 function getSubClient(subSid, subToken) {
   return twilio(subSid, subToken)
 }
+
+// ━━━ SECURITY: Validate sub-account credentials — returns sub-client or throws ━━━
+// User-facing operations MUST use sub-accounts. This prevents fallback to main account.
+function requireSubClient(subSid, subToken, operation) {
+  if (!subSid || !subToken) {
+    log(`[Twilio] SECURITY BLOCK: ${operation} rejected — missing sub-account credentials (subSid=${!!subSid}, subToken=${!!subToken})`)
+    return null
+  }
+  if (subSid === MAIN_ACCOUNT_SID) {
+    log(`[Twilio] SECURITY BLOCK: ${operation} rejected — sub-account SID matches main account SID`)
+    return null
+  }
+  return getSubClient(subSid, subToken)
+}
+
+function getMainAccountSid() { return MAIN_ACCOUNT_SID }
 
 // ── Countries that require a full Regulatory Bundle (not just an address) ──
 // Twilio requires a submitted+approved bundle before number purchase
@@ -208,7 +227,16 @@ async function searchNumbers(countryCode, numberType = 'local', limit = 5, areaC
 
 async function buyNumber(phoneNumber, subSid, subToken, webhookBaseUrl, addressSid, bundleSid) {
   try {
-    const client = subSid && subToken ? getSubClient(subSid, subToken) : getClient()
+    // ━━━ SECURITY: buyNumber on main account is ONLY allowed for buy-then-transfer flow ━━━
+    // When subSid is null, number MUST be immediately transferred to a sub-account after purchase
+    let client
+    if (subSid && subToken) {
+      client = requireSubClient(subSid, subToken, 'buyNumber')
+      if (!client) return { error: 'Number purchase requires valid sub-account credentials.' }
+    } else {
+      log('[Twilio] NOTICE: buyNumber using main account — number MUST be transferred to sub-account immediately after purchase')
+      client = getClient()
+    }
     const voiceUrl = webhookBaseUrl ? `${webhookBaseUrl}/twilio/voice-webhook` : undefined
     const smsUrl = webhookBaseUrl ? `${webhookBaseUrl}/twilio/sms-webhook` : undefined
     const statusUrl = webhookBaseUrl ? `${webhookBaseUrl}/twilio/voice-status` : undefined
@@ -240,7 +268,9 @@ async function buyNumber(phoneNumber, subSid, subToken, webhookBaseUrl, addressS
 // ── Create Address (for addrReq=any countries) ──
 async function createAddress(customerName, street, city, region, postalCode, isoCountry, subSid, subToken) {
   try {
-    const client = subSid && subToken ? getSubClient(subSid, subToken) : getClient()
+    // ━━━ SECURITY: Address creation MUST use sub-account — never main account ━━━
+    const client = requireSubClient(subSid, subToken, 'createAddress')
+    if (!client) return { error: 'Address creation requires sub-account credentials. Cannot use main Twilio account.' }
     const addr = await client.addresses.create({
       customerName,
       street,
@@ -260,7 +290,9 @@ async function createAddress(customerName, street, city, region, postalCode, iso
 
 async function releaseNumber(numberSid, subSid, subToken) {
   try {
-    const client = subSid && subToken ? getSubClient(subSid, subToken) : getClient()
+    // ━━━ SECURITY: Release MUST use sub-account — never main account ━━━
+    const client = requireSubClient(subSid, subToken, 'releaseNumber')
+    if (!client) return { error: 'Number release requires sub-account credentials. Cannot use main Twilio account.' }
     await client.incomingPhoneNumbers(numberSid).remove()
     log(`[Twilio] Released number: ${numberSid}`)
     return { success: true }
@@ -272,7 +304,9 @@ async function releaseNumber(numberSid, subSid, subToken) {
 
 async function updateNumberWebhooks(numberSid, webhookBaseUrl, subSid, subToken) {
   try {
-    const client = subSid && subToken ? getSubClient(subSid, subToken) : getClient()
+    // ━━━ SECURITY: Webhook updates MUST use sub-account — never main account ━━━
+    const client = requireSubClient(subSid, subToken, 'updateNumberWebhooks')
+    if (!client) return { error: 'Webhook update requires sub-account credentials. Cannot use main Twilio account.' }
     await client.incomingPhoneNumbers(numberSid).update({
       voiceUrl: `${webhookBaseUrl}/twilio/voice-webhook`,
       voiceMethod: 'POST',
@@ -294,7 +328,9 @@ async function updateNumberWebhooks(numberSid, webhookBaseUrl, subSid, subToken)
 
 async function createSipDomain(domainName, webhookBaseUrl, subSid, subToken) {
   try {
-    const client = subSid && subToken ? getSubClient(subSid, subToken) : getClient()
+    // ━━━ SECURITY: SIP domain creation MUST use sub-account — never main account ━━━
+    const client = requireSubClient(subSid, subToken, 'createSipDomain')
+    if (!client) return { error: 'SIP domain creation requires sub-account credentials. Cannot use main Twilio account.' }
     const domain = await client.sip.domains.create({
       domainName,
       friendlyName: `Nomadly SIP — ${domainName}`,
@@ -312,6 +348,8 @@ async function createSipDomain(domainName, webhookBaseUrl, subSid, subToken) {
 
 async function getOrCreateCredentialList(friendlyName, subSid, subToken) {
   try {
+    // NOTE: SIP credential lists are managed on the main account (shared SIP domain)
+    // This is intentional — all users share one SIP domain with one credential list
     const client = subSid && subToken ? getSubClient(subSid, subToken) : getClient()
     // Check if credential list already exists
     const lists = await client.sip.credentialLists.list({ limit: 50 })
@@ -329,6 +367,8 @@ async function getOrCreateCredentialList(friendlyName, subSid, subToken) {
 
 async function addSipCredential(credListSid, username, password, subSid, subToken) {
   try {
+    // NOTE: SIP credentials are added to the main account's shared credential list
+    // This is intentional — all users share one SIP domain
     const client = subSid && subToken ? getSubClient(subSid, subToken) : getClient()
     const cred = await client.sip.credentialLists(credListSid).credentials.create({ username, password })
     log(`[Twilio] Added SIP credential: ${username} to list ${credListSid}`)
@@ -360,7 +400,9 @@ async function removeSipCredential(credListSid, username) {
 
 async function mapCredentialListToDomain(domainSid, credListSid, subSid, subToken) {
   try {
-    const client = subSid && subToken ? getSubClient(subSid, subToken) : getClient()
+    // ━━━ SECURITY: Credential list mapping MUST use sub-account — never main account ━━━
+    const client = requireSubClient(subSid, subToken, 'mapCredentialListToDomain')
+    if (!client) return { error: 'Credential list mapping requires sub-account credentials. Cannot use main Twilio account.' }
     const mapping = await client.sip.domains(domainSid).auth.registrations.credentialListMappings.create({
       credentialListSid: credListSid,
     })
@@ -378,7 +420,9 @@ async function mapCredentialListToDomain(domainSid, credListSid, subSid, subToke
 
 async function makeOutboundCall(from, to, twimlUrl, subSid, subToken, options = {}) {
   try {
-    const client = subSid && subToken ? getSubClient(subSid, subToken) : getClient()
+    // ━━━ SECURITY: Outbound calls MUST use sub-account — never main account ━━━
+    const client = requireSubClient(subSid, subToken, 'makeOutboundCall')
+    if (!client) return { error: 'Outbound calls require a sub-account. Cannot use main Twilio account.' }
     const callOpts = {
       from,
       to,
@@ -785,6 +829,8 @@ async function getDocRejectionReasons(bundleSid) {
 module.exports = {
   getClient,
   getSubClient,
+  requireSubClient,
+  getMainAccountSid,
   createSubAccount,
   getSubAccount,
   closeSubAccount,

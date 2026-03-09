@@ -621,15 +621,26 @@ async function executeTwilioPurchase(chatId, selectedNumber, planKey, price, cou
   }
 
   // 2. Buy number on main account with optional address + bundle
+  // ━━━ SECURITY: Number is bought on main account then IMMEDIATELY transferred to sub-account ━━━
+  // The number never stays on the main account — transfer is mandatory
   const buyResult = await twilioService.buyNumber(selectedNumber, null, null, SELF_URL, addressSid || null, bundleSid || null)
   if (buyResult.error) return { error: buyResult.error }
 
-  // 3. Transfer to sub-account
-  if (subSid && buyResult.sid) {
+  // 3. Transfer to sub-account — MANDATORY, number must not stay on main account
+  if (!subSid) {
+    log(`[CloudPhone] CRITICAL: No sub-account SID for transfer after purchase — this should never happen`)
+    return { error: 'Internal error: no sub-account for number transfer.' }
+  }
+  if (buyResult.sid) {
     const transferResult = await twilioService.transferNumberToSubAccount(buyResult.sid, subSid)
     if (transferResult.success) {
       log(`[CloudPhone] Number ${selectedNumber} transferred to sub-account ${subSid}`)
       await twilioService.updateSubAccountNumberWebhooks(subSid, buyResult.sid, SELF_URL)
+    } else {
+      log(`[CloudPhone] CRITICAL: Transfer failed for ${selectedNumber} to ${subSid}: ${transferResult.error}`)
+      // Try to release the number from main account to avoid orphan
+      try { const _mc = twilioService.getClient(); if (_mc) await _mc.incomingPhoneNumbers(buyResult.sid).remove() } catch (_) {}
+      return { error: `Number purchased but transfer to your account failed: ${transferResult.error}` }
     }
   }
 
@@ -880,7 +891,11 @@ const loadData = async () => {
                   if (subSid && subToken) {
                     await twilioService.updateSubAccountNumberWebhooks(subSid, num.twilioNumberSid, SELF_URL)
                   } else {
-                    await twilioService.updateNumberWebhooks(num.twilioNumberSid, SELF_URL)
+                    // ━━━ SECURITY: Skip webhook update for numbers without sub-account credentials ━━━
+                    // Never fall back to main account for user-owned numbers
+                    log(`[Twilio Sync] SKIPPED ${num.phoneNumber}: no sub-account credentials — cannot update via main account`)
+                    failed++
+                    continue
                   }
                   updated++
                 } catch (e) { failed++; log(`[Twilio Sync] Failed ${num.phoneNumber}: ${e.message}`) }
@@ -11306,6 +11321,13 @@ Choose an IVR template category:`), k.of(rows))
         } catch (e) { log(`[QuickIVR] Sub-account token resolve error: ${e.message}`) }
       }
 
+      // ━━━ SECURITY: Block Twilio calls without sub-account credentials ━━━
+      if (callerProvider === 'twilio' && (!subAccountSid || !subAccountToken)) {
+        log(`[QuickIVR] BLOCKED: Twilio call without sub-account credentials for chatId ${chatId}`)
+        send(chatId, '🚫 <b>Call Blocked</b>\n\nYour phone number is missing sub-account credentials. Please contact support.', { parse_mode: 'HTML' })
+        return goto.submenu5()
+      }
+
       const result = await voiceService.initiateOutboundIvrCall({
         chatId,
         callerId: ivrObData.callerId,
@@ -15617,11 +15639,19 @@ Select a category:`), k.of(catBtns))
 
     // Release on provider
     if (num.provider === 'twilio' && num.twilioNumberSid) {
-      // Twilio number — may be on sub-account
+      // Twilio number — MUST use sub-account credentials
       const userData = await get(phoneNumbersOf, chatId)
-      const subSid = userData?.twilioSubAccountSid
-      const subToken = userData?.twilioSubAccountToken
-      await twilioService.releaseNumber(num.twilioNumberSid, subSid, subToken)
+      let subSid = num.twilioSubAccountSid || userData?.twilioSubAccountSid
+      let subToken = num.twilioSubAccountToken || userData?.twilioSubAccountToken
+      // Auto-resolve token if SID exists but token missing
+      if (subSid && !subToken) {
+        try {
+          const subAcct = await twilioService.getSubAccount(subSid)
+          if (subAcct?.authToken) subToken = subAcct.authToken
+        } catch (_) {}
+      }
+      const releaseResult = await twilioService.releaseNumber(num.twilioNumberSid, subSid, subToken)
+      if (releaseResult?.error) log(`[CloudPhone] Release error for ${num.phoneNumber}: ${releaseResult.error}`)
     } else if (num.telnyxOrderId) {
       const ok = await telnyxApi.releaseNumber(num.telnyxOrderId)
       if (!ok) await telnyxApi.releaseByPhoneNumber(num.phoneNumber)

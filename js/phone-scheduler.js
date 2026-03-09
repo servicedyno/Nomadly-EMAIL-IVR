@@ -180,22 +180,37 @@ async function releaseFromProvider(num, userData) {
 
   try {
     if (provider === 'twilio') {
-      // Release from Twilio
+      // Release from Twilio — MUST use sub-account, never main account
       const twilioNumberSid = num.twilioNumberSid
       const subSid = num.twilioSubAccountSid || userData?.twilioSubAccountSid
-      const subToken = userData?.twilioSubAccountToken
-      if (twilioNumberSid) {
+      let subToken = num.twilioSubAccountToken || userData?.twilioSubAccountToken
+
+      // Auto-resolve sub-account token if SID exists but token is missing
+      if (subSid && !subToken) {
+        try {
+          const subAcct = await twilioService.getSubAccount(subSid)
+          if (subAcct?.authToken) {
+            subToken = subAcct.authToken
+            log(`[PhoneScheduler] Resolved sub-account token for ${subSid}`)
+          }
+        } catch (e) { log(`[PhoneScheduler] Sub-account token resolve error: ${e.message}`) }
+      }
+
+      if (twilioNumberSid && subSid && subToken) {
         const result = await twilioService.releaseNumber(twilioNumberSid, subSid, subToken)
         if (result?.success) return log(`[PhoneScheduler] Released Twilio number: ${phoneNumber} (sid=${twilioNumberSid})`)
-        log(`[PhoneScheduler] Twilio release by SID failed for ${phoneNumber}, trying main account`)
-      }
-      // Fallback: try main account release
-      try {
-        const client = twilioService.getClient()
-        await client.incomingPhoneNumbers(twilioNumberSid).remove()
-        return log(`[PhoneScheduler] Released Twilio number via main account: ${phoneNumber}`)
-      } catch (e2) {
-        log(`[PhoneScheduler] Could not release Twilio number ${phoneNumber}: ${e2.message}`)
+        log(`[PhoneScheduler] Twilio release by SID failed for ${phoneNumber}: ${result?.error || 'unknown error'}`)
+      } else if (twilioNumberSid && subSid) {
+        // ━━━ SECURITY: Try release via parent account's sub-account API (no main-account fallback) ━━━
+        try {
+          const client = twilioService.getClient()
+          await client.api.v2010.accounts(subSid).incomingPhoneNumbers(twilioNumberSid).remove()
+          return log(`[PhoneScheduler] Released Twilio number via parent→sub API: ${phoneNumber}`)
+        } catch (e2) {
+          log(`[PhoneScheduler] Could not release Twilio number ${phoneNumber} via parent→sub API: ${e2.message}`)
+        }
+      } else {
+        log(`[PhoneScheduler] SKIPPED Twilio release for ${phoneNumber}: missing sub-account credentials (subSid=${!!subSid}, subToken=${!!subToken})`)
       }
     } else {
       // Release from Telnyx
