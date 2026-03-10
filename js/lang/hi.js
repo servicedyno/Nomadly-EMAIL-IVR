@@ -122,6 +122,7 @@ const user = {
   marketplace: '🏪 मार्केटप्लेस',
   shippingLabel: '📦 Ship & Mail',
   emailBlast: '📧 ईमेल ब्लास्ट',
+  serviceBundles: '🎁 सर्विस बंडल',
   virtualCard: '💳 वर्चुअल कार्ड',
 
   // Sub Menu 2: domainNames
@@ -1193,6 +1194,7 @@ const userKeyboard = {
       [user.domainNames, user.hostingDomainsRedirect],
       [user.urlShortenerMain, user.leadsValidation],
       ...(HIDE_SMS_APP === 'true' ? [] : [[user.freeTrialAvailable]]),
+      [user.serviceBundles],
       [user.virtualCard, user.wallet, user.viewPlan],
       HIDE_BECOME_RESELLER === 'true'
         ? [user.changeSetting, user.getSupport]

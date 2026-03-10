@@ -112,6 +112,7 @@ const user = {
   marketplace: '🏪 Marketplace',
   shippingLabel: '📦 Ship & Mail',
   emailBlast: '📧 Email Blast',
+  serviceBundles: '🎁 Service Bundles',
 
   // Sub Menu 1: urlShortenerMain
   shortenLink: '✂️ Shorten a Link',
@@ -1238,6 +1239,7 @@ const userKeyboard = {
       [user.domainNames, user.hostingDomainsRedirect],
       [user.urlShortenerMain, user.leadsValidation],
       ...(HIDE_SMS_APP === 'true' ? [] : [[user.freeTrialAvailable]]),
+      [user.serviceBundles],
       [user.virtualCard, user.wallet, user.viewPlan],
       HIDE_BECOME_RESELLER === 'true'
         ? [user.changeSetting, user.getSupport]

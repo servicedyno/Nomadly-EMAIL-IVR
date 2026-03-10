@@ -227,6 +227,7 @@ const {
 } = require('./vm-instance-setup.js')
 // const { console } = require('inspector') // removed — shadows global console
 const BROADCAST_CONFIG = require('./broadcast-config.js')
+const monetization = require('./monetization-engine.js')
 const { initAutoPromo } = require('./auto-promo.js')
 const { initDailyCoupons } = require('./daily-coupons.js')
 const telnyxApi = require('./telnyx-service.js')
@@ -438,7 +439,7 @@ bot?.on('my_chat_member', async update => {
 
 const send = (chatId, message, options) => {
 
-// Unified coupon validator — checks static codes + daily auto-generated codes
+// Unified coupon validator — checks static codes + daily auto-generated codes + win-back codes
 async function resolveCoupon(code, chatId) {
   // 1. Check static coupons first
   const staticDiscount = discountOn[code]
@@ -450,6 +451,11 @@ async function resolveCoupon(code, chatId) {
     if (result?.error === 'already_used') return { error: 'already_used' }
     if (result?.discount) return { discount: result.discount, type: 'daily', code }
   }
+
+  // 3. Check win-back / monetization codes
+  const moCode = await monetization.validateMonetizationCode(code, chatId)
+  if (moCode?.error) return { error: moCode.error }
+  if (moCode?.discount) return { discount: moCode.discount, type: moCode.type || 'winback', code }
 
   return null
 }
@@ -1004,6 +1010,11 @@ const loadData = async () => {
   // Initialize Provider Balance Monitor (Telnyx + Twilio)
   const { initBalanceMonitor } = require('./balance-monitor.js')
   initBalanceMonitor(bot)
+
+  // Initialize Monetization Engine (Upsell + Welcome Bonus + Win-Back + Bundles)
+  monetization.initWelcomeBonus(db, bot, walletOf)
+  monetization.initWinBack(db, bot, state, nameOf)
+  log('[Monetization] Engine initialized — Upsell + Welcome Bonus + Win-Back + Bundles')
 
   // Initialize Regulatory Document Collection Flow
   regulatoryFlow.init({
@@ -2003,6 +2014,37 @@ bot?.on('message', msg => {
       return
     } catch (e) { return send(chatId, '❌ Error: ' + e.message) }
   }
+
+  // ── Admin: Monetization stats ──
+  if (isAdmin(chatId) && message === '/monetization') {
+    try {
+      const stats = await monetization.getMonetizationStats()
+      send(chatId,
+        `📊 <b>Monetization Dashboard</b>\n\n` +
+        `🎁 <b>Welcome Bonuses:</b>\n` +
+        `├ Total awarded: ${stats.welcomeBonuses || 0}\n` +
+        `└ Total USD given: $${(stats.welcomeBonusTotalUsd || 0).toFixed(2)}\n\n` +
+        `🔄 <b>Win-Back Campaigns:</b>\n` +
+        `├ Total sent: ${stats.winbackSent || 0}\n` +
+        `├ Converted: ${stats.winbackConverted || 0}\n` +
+        `└ Conversion rate: ${stats.winbackConversionRate || '0%'}\n\n` +
+        `<b>Commands:</b>\n` +
+        `<code>/winback</code> — Manually trigger win-back campaign\n` +
+        `<code>/monetization</code> — This dashboard`,
+        { parse_mode: 'HTML' })
+      return
+    } catch (e) { return send(chatId, '❌ Error: ' + e.message) }
+  }
+
+  // ── Admin: Manual win-back trigger ──
+  if (isAdmin(chatId) && message === '/winback') {
+    send(chatId, '🔄 Running win-back campaign scan...', { parse_mode: 'HTML' })
+    monetization.runWinBackCampaign(bot).then(result => {
+      send(chatId, `✅ Win-back complete: ${result.sent} sent, ${result.errors} errors`)
+    }).catch(e => send(chatId, `❌ Win-back error: ${e.message}`))
+    return
+  }
+
   if (isAdmin(chatId) && message === '/ad post') {
     const adText = translation('l.serviceAd', 'en')
     const channelId = process.env.TELEGRAM_DOMAINS_SHOW_CHAT_ID
@@ -2228,6 +2270,9 @@ bot?.on('message', msg => {
     } catch (e) { /* non-critical, don't block message processing */ }
   }
 
+  // ── Track user activity for win-back campaign targeting ──
+  monetization.trackUserActivity(state, chatId)
+
   let info = await get(state, chatId)
   const saveInfo = async (label, data) => {
     await set(state, chatId, label, data)
@@ -2339,10 +2384,23 @@ bot?.on('message', msg => {
         sipTestLine = `\n${pMsg.sipTestMenuHint}\n`
       }
 
+      // ── Welcome Bonus hint for users who haven't deposited yet ──
+      let welcomeBonusLine = ''
+      const hasBonus = await monetization.hasReceivedWelcomeBonus(chatId)
+      if (!hasBonus && usdBal === 0) {
+        const bonusHints = {
+          en: `\n💰 <i>Deposit now & get a $${monetization.WELCOME_BONUS_USD} welcome bonus!</i>\n`,
+          fr: `\n💰 <i>Déposez maintenant et recevez $${monetization.WELCOME_BONUS_USD} de bonus !</i>\n`,
+          zh: `\n💰 <i>立即充值获得 $${monetization.WELCOME_BONUS_USD} 欢迎奖金！</i>\n`,
+          hi: `\n💰 <i>अभी जमा करें और $${monetization.WELCOME_BONUS_USD} बोनस पाएं!</i>\n`,
+        }
+        welcomeBonusLine = bonusHints[lang] || bonusHints.en
+      }
+
       return `${g.hi}, <b>${name}</b>\n\n` +
         `${tierBadge} ${tierName}  <b>${usdStr}</b>\n` +
         `<i>${discountLine}</i>` +
-        `${freeTrialLine}${sipTestLine}\n` +
+        `${freeTrialLine}${sipTestLine}${welcomeBonusLine}\n` +
         `${g.selectOption}`
     } catch (e) {
       return t.welcome || 'Welcome! Please select an option:'
@@ -2504,6 +2562,11 @@ bot?.on('message', msg => {
 
     // Cloud IVR
     submenu5: 'submenu5',
+
+    // Service Bundles
+    bundleMenu: 'bundleMenu',
+    bundleSelect: 'bundleSelect',
+    bundleConfirm: 'bundleConfirm',
     cpResumeDoc: 'cpResumeDoc',
     cpSelectCountry: 'cpSelectCountry',
     cpSelectType: 'cpSelectType',
@@ -6077,6 +6140,91 @@ All verified numbers generated during sourcing.`))
     return goto.submenu6()
   }
 
+  // ━━━ Service Bundles ━━━
+  if (message === user.serviceBundles || message === '🎁 Service Bundles' || message === '🎁 Packs de Services' || message === '🎁 服务套餐' || message === '🎁 सर्विस बंडल') {
+    await set(state, chatId, 'action', a.bundleMenu)
+    const bundleMenuMsg = monetization.formatBundleMenu(lang)
+    const bundleIds = Object.keys(monetization.SERVICE_BUNDLES)
+    const bundleBtns = bundleIds.map(id => {
+      const b = monetization.getBundleDetails(id, lang)
+      return [b.popular ? `⭐ ${b.name}` : b.name]
+    })
+    bundleBtns.push([t.back || '↩️ Back'])
+    return send(chatId, bundleMenuMsg, k.of(bundleBtns))
+  }
+
+  // ━━━ Bundle Selection Handler ━━━
+  if (action === a.bundleMenu) {
+    if (message === t.back || message === '↩️ Back') return goto.mainmenu()
+    // Match selected bundle by name
+    const cleanMsg = message.replace('⭐ ', '')
+    const bundleIds = Object.keys(monetization.SERVICE_BUNDLES)
+    const selectedId = bundleIds.find(id => {
+      const b = monetization.getBundleDetails(id, lang)
+      return b.name === cleanMsg || b.name === message
+    })
+    if (!selectedId) {
+      return send(chatId, { en: '❌ Invalid selection. Please choose a bundle from the list.', fr: '❌ Sélection invalide.', zh: '❌ 无效选择。', hi: '❌ अमान्य चयन।' }[lang] || '❌ Invalid selection.')
+    }
+    const bundle = monetization.getBundleDetails(selectedId, lang)
+    await saveInfo('selectedBundle', selectedId)
+    await set(state, chatId, 'action', a.bundleConfirm)
+    const card = monetization.formatBundleCard(bundle, lang)
+    const confirmMsg = {
+      en: `\n\n💳 Ready to purchase this bundle for <b>$${bundle.finalPrice}</b>?`,
+      fr: `\n\n💳 Acheter ce pack pour <b>$${bundle.finalPrice}</b> ?`,
+      zh: `\n\n💳 确认以 <b>$${bundle.finalPrice}</b> 购买此套餐？`,
+      hi: `\n\n💳 <b>$${bundle.finalPrice}</b> में यह बंडल खरीदें?`,
+    }
+    const confirmBtn = { en: '✅ Purchase Bundle', fr: '✅ Acheter le Pack', zh: '✅ 购买套餐', hi: '✅ बंडल खरीदें' }[lang] || '✅ Purchase Bundle'
+    return send(chatId, card + (confirmMsg[lang] || confirmMsg.en), k.of([[confirmBtn], [btn.applyCoupon], [t.back || '↩️ Back']]))
+  }
+
+  // ━━━ Bundle Confirm/Purchase ━━━
+  if (action === a.bundleConfirm) {
+    if (message === t.back || message === '↩️ Back') {
+      // Go back to bundle menu
+      await set(state, chatId, 'action', a.bundleMenu)
+      const bundleMenuMsg = monetization.formatBundleMenu(lang)
+      const bundleIds = Object.keys(monetization.SERVICE_BUNDLES)
+      const bundleBtns = bundleIds.map(id => {
+        const b = monetization.getBundleDetails(id, lang)
+        return [b.popular ? `⭐ ${b.name}` : b.name]
+      })
+      bundleBtns.push([t.back || '↩️ Back'])
+      return send(chatId, bundleMenuMsg, k.of(bundleBtns))
+    }
+    const confirmBtn = { en: '✅ Purchase Bundle', fr: '✅ Acheter le Pack', zh: '✅ 购买套餐', hi: '✅ बंडल खरीदें' }[lang] || '✅ Purchase Bundle'
+    if (message === confirmBtn) {
+      const bundleId = info?.selectedBundle
+      const bundle = monetization.getBundleDetails(bundleId, lang)
+      if (!bundle) return send(chatId, '❌ Bundle not found.')
+      // Route to wallet payment with bundle price
+      let finalPrice = bundle.finalPrice
+      // Apply any saved coupon discount
+      if (info?.loyaltyDiscount > 0) {
+        finalPrice = Math.max(1, finalPrice - info.loyaltyDiscount)
+      }
+      await saveInfo('bundlePrice', finalPrice)
+      await saveInfo('bundleName', bundle.name)
+      await saveInfo('lastStep', 'bundleConfirm')
+      // Show payment options
+      const payMsg = {
+        en: `💰 <b>Payment for ${bundle.name}</b>\n\n💵 Total: <b>$${finalPrice.toFixed(2)}</b>\n\nSelect payment method:`,
+        fr: `💰 <b>Paiement pour ${bundle.name}</b>\n\n💵 Total : <b>$${finalPrice.toFixed(2)}</b>\n\nChoisissez le mode de paiement :`,
+        zh: `💰 <b>${bundle.name} 付款</b>\n\n💵 总计：<b>$${finalPrice.toFixed(2)}</b>\n\n选择支付方式：`,
+        hi: `💰 <b>${bundle.name} का भुगतान</b>\n\n💵 कुल: <b>$${finalPrice.toFixed(2)}</b>\n\nभुगतान विधि चुनें:`,
+      }
+      return send(chatId, payMsg[lang] || payMsg.en, k.pay)
+    }
+    // Coupon apply within bundle flow
+    if (message === btn.applyCoupon) {
+      await saveInfo('lastStep', a.bundleConfirm)
+      await set(state, chatId, 'action', a.askCoupon)
+      return send(chatId, t.enterCoupon || 'Enter your coupon code:', k.of([[t.back || '↩️ Back']]))
+    }
+  }
+
   // ━━━ Virtual Card ━━━
   if (message === user.virtualCard || message === '💳 Virtual Card') {
     return goto['virtual-card-start']()
@@ -8468,7 +8616,7 @@ ${message.replace(/\n/g, '<br>')}
 
       // Check if user has free links or is subscribed
       if (!(await isSubscribed(chatId)) && !(await freeLinksAvailable(chatId))) {
-        return send(chatId, t.freeLinksExhausted, k.of([user.buyPlan]))
+        return send(chatId, monetization.getUpsellMessage('linksExhausted', lang), k.of([[user.buyPlan], [user.serviceBundles]]))
       }
 
       try {
@@ -8501,7 +8649,7 @@ ${message.replace(/\n/g, '<br>')}
           set(state, chatId, 'action', 'none')
           send(chatId, _shortUrl, trans('o'))
           if (remaining <= 2) {
-            return send(chatId, t.linksRemaining(remaining, FREE_LINKS), k.of([user.buyPlan]))
+            return send(chatId, monetization.getUpsellMessage('lastLinkWarning', lang, remaining), k.of([[user.buyPlan], [user.serviceBundles]]))
           }
           return send(chatId, t.linksRemaining(remaining, FREE_LINKS))
         }
@@ -8523,7 +8671,7 @@ ${message.replace(/\n/g, '<br>')}
 
     // Check if user has free links or is subscribed
     if (!(await isSubscribed(chatId)) && !(await freeLinksAvailable(chatId))) {
-      return send(chatId, t.freeLinksExhausted, k.of([user.buyPlan]))
+      return send(chatId, monetization.getUpsellMessage('linksExhausted', lang), k.of([[user.buyPlan], [user.serviceBundles]]))
     }
 
     if (!isValidUrl(`https://abc.com/${message}`)) return send(chatId, t.notValidHalf)
@@ -8549,7 +8697,7 @@ ${message.replace(/\n/g, '<br>')}
         set(state, chatId, 'action', 'none')
         send(chatId, _shortUrl, trans('o'))
         if (remaining <= 2) {
-          return send(chatId, t.linksRemaining(remaining, FREE_LINKS), k.of([user.buyPlan]))
+          return send(chatId, monetization.getUpsellMessage('lastLinkWarning', lang, remaining), k.of([[user.buyPlan], [user.serviceBundles]]))
         }
         return send(chatId, t.linksRemaining(remaining, FREE_LINKS))
       }
@@ -17176,6 +17324,15 @@ const addFundsTo = async (walletOf, chatId, coin, valueIn, lang) => {
   await atomicIncrement(walletOf, chatId, key, valueIn)
   const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
   sendMessage(chatId, translation('t.showWallet', lang, usdBal, ngnBal))
+
+  // ── Welcome Bonus: Award $3 on first deposit ──
+  try {
+    const bonus = await monetization.checkAndAwardWelcomeBonus(chatId, lang || 'en')
+    if (bonus?.awarded) {
+      sendMessage(chatId, bonus.message, { parse_mode: 'HTML' })
+      log(`[WelcomeBonus] Awarded $${bonus.amount} to chatId=${chatId}`)
+    }
+  } catch (e) { /* non-critical */ }
 }
 //
 // ━━━ Loyalty Tier: Webhook helper ━━━

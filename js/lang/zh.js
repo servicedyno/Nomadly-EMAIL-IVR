@@ -122,6 +122,7 @@ const user = {
   marketplace: '🏪 市场',
   shippingLabel: '📦 Ship & Mail',
   emailBlast: '📧 群发邮件',
+  serviceBundles: '🎁 服务套餐',
   virtualCard: '💳 虚拟卡',
 
   // Sub Menu 2: domainNames
@@ -1186,6 +1187,7 @@ const userKeyboard = {
       [user.domainNames, user.hostingDomainsRedirect],
       [user.urlShortenerMain, user.leadsValidation],
       ...(HIDE_SMS_APP === 'true' ? [] : [[user.freeTrialAvailable]]),
+      [user.serviceBundles],
       [user.virtualCard, user.wallet, user.viewPlan],
       HIDE_BECOME_RESELLER === 'true'
         ? [user.changeSetting, user.getSupport]

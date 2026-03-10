@@ -1917,3 +1917,65 @@ test_plan:
 agent_communication:
     - agent: "main"
       message: "Implemented comprehensive Twilio security hardening across 4 files. All user-facing Twilio operations (makeOutboundCall, releaseNumber, createAddress, updateNumberWebhooks, createSipDomain, mapCredentialListToDomain) now REQUIRE sub-account credentials and will NOT fall back to main account. Added requireSubClient() guard function that checks for missing creds and blocks main account SID usage. executeTwilioPurchase enforces mandatory sub-account transfer after purchase. phone-scheduler auto-resolves tokens instead of falling back to main. voice-service blocks Twilio calls without sub-account. Please verify: (1) Node.js is healthy at localhost:5000/health, (2) twilio-service.js has requireSubClient function that rejects null subSid/subToken, (3) makeOutboundCall returns error when sub-account missing, (4) _index.js webhook sync skips numbers without sub-account creds, (5) phone-scheduler.js does NOT contain 'main account' fallback pattern, (6) voice-service.js blocks Twilio calls without sub-account credentials."
+
+  - task: "Monetization Engine - Smart Upsell Triggers"
+    implemented: true
+    working: "NA"
+    file: "js/monetization-engine.js, js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Replaced static freeLinksExhausted messages with compelling upsell messages that show pricing breakdown and multiple upgrade options. linksRemaining last-2-links warning also uses smart upsell. Multi-language support (en/fr/zh/hi). Also includes noPhonePlanYet, smsLimitHit, minuteLimitHit, domainLimitHit upsell messages."
+
+  - task: "Monetization Engine - First-Purchase Welcome Bonus ($3)"
+    implemented: true
+    working: "NA"
+    file: "js/monetization-engine.js, js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Auto-credits $3 wallet bonus on first deposit via addFundsTo function. Uses welcomeBonuses MongoDB collection with race-condition-safe upsert. Bonus hint shown in main menu greeting for users with $0 balance who haven't received bonus yet. Multi-language messages."
+
+  - task: "Monetization Engine - Win-Back Campaign for Inactive Users"
+    implemented: true
+    working: "NA"
+    file: "js/monetization-engine.js, js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Daily scheduled scan (10:00 UTC) detects users inactive 7+ days. Sends personalized re-engagement message with unique COMEBACK+code discount (20% off, 48h expiry). Win-back codes integrated into resolveCoupon validator. Activity tracking via lastMessageAt in state collection. Admin commands: /monetization (stats), /winback (manual trigger). promoOptOut integration prevents messaging dead users."
+
+  - task: "Monetization Engine - Service Bundles with Discounts"
+    implemented: true
+    working: "NA"
+    file: "js/monetization-engine.js, js/_index.js, js/lang/en.js, js/lang/fr.js, js/lang/zh.js, js/lang/hi.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "4 bundles: Starter Web ($51→$43, 15% off), Pro Web ($305→$244, 20% off), Phone+Domain ($80→$68, 15% off), Business All-in-One ($380→$304, 20% off). New 🎁 Service Bundles button in main menu (all 4 languages). Full purchase flow: menu → select bundle → view details → confirm → payment. Coupon apply supported within bundle flow. Bundle menu, selection, confirmation actions integrated in _index.js."
+
+test_plan:
+  current_focus:
+    - "Monetization Engine - Smart Upsell Triggers"
+    - "Monetization Engine - First-Purchase Welcome Bonus"
+    - "Monetization Engine - Win-Back Campaign"
+    - "Monetization Engine - Service Bundles"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    - agent: "main"
+      message: "Implemented 4 monetization features to convert bot subscribers into paying customers. Please verify: (1) Node.js healthy at localhost:5000/health with ZERO errors in nodejs.err.log, (2) monetization-engine.js exports all required functions (getUpsellMessage, initWelcomeBonus, checkAndAwardWelcomeBonus, hasReceivedWelcomeBonus, initWinBack, runWinBackCampaign, validateWinbackCode, getBundleDetails, getAllBundles, formatBundleCard, formatBundleMenu, trackUserActivity, getMonetizationStats, validateMonetizationCode), (3) Startup logs contain '[WelcomeBonus] Initialized', '[WinBack] Initialized', '[Monetization] Engine initialized', (4) resolveCoupon function in _index.js now checks monetization.validateMonetizationCode for win-back codes, (5) addFundsTo function calls monetization.checkAndAwardWelcomeBonus after crediting wallet, (6) SERVICE_BUNDLES object has 4 bundles (starter-web, pro-web, phone-domain, business-all) with correct discount percentages, (7) All 4 language files (en/fr/zh/hi) have serviceBundles button and it's in the userKeyboard main menu, (8) Action constants bundleMenu/bundleSelect/bundleConfirm exist in _index.js, (9) UPSELL_MESSAGES has all 6 message types (linksExhausted, lastLinkWarning, smsLimitHit, minuteLimitHit, domainLimitHit, noPhonePlanYet) in all 4 languages."
