@@ -244,10 +244,51 @@ function initWinBack(db, bot, stateCol, nameOfCol) {
   _winbackCodesCol.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }).catch(() => {}) // TTL
   _winbackCodesCol.createIndex({ chatId: 1 }).catch(() => {})
   _winbackCol.createIndex({ chatId: 1 }).catch(() => {})
+  _stateCol.createIndex({ lastMessageAt: 1 }).catch(() => {})
+
+  // ── One-time backfill: seed lastMessageAt for users missing it ──
+  backfillLastMessageAt(stateCol).catch(e => log(`[WinBack] Backfill error: ${e.message}`))
 
   // Schedule: Run daily at 10:00 UTC
   schedule.scheduleJob('0 10 * * *', () => runWinBackCampaign(bot))
   log(`[WinBack] Initialized — scans for ${WINBACK_INACTIVE_DAYS}-day inactive users daily at 10:00 UTC, ${WINBACK_DISCOUNT_PERCENT}% discount, ${WINBACK_CODE_EXPIRY_HOURS}h expiry`)
+}
+
+/**
+ * One-time backfill: For users missing lastMessageAt, seed it from lastUpdated
+ * or a 30-day-ago fallback so they appear in win-back scans.
+ */
+async function backfillLastMessageAt(stateCol) {
+  const alreadyDone = await stateCol.findOne({ _id: '__winback_backfill_done' })
+  if (alreadyDone) return // Already ran
+
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+
+  // 1) Users WITH lastUpdated but NO lastMessageAt → copy lastUpdated
+  const withLastUpdated = await stateCol.find({
+    lastMessageAt: { $exists: false },
+    lastUpdated: { $exists: true },
+    _id: { $type: 'number' }
+  }).project({ _id: 1, lastUpdated: 1 }).toArray()
+
+  let seeded = 0
+  for (const doc of withLastUpdated) {
+    const ts = doc.lastUpdated instanceof Date ? doc.lastUpdated : new Date(doc.lastUpdated)
+    await stateCol.updateOne({ _id: doc._id }, { $set: { lastMessageAt: ts } })
+    seeded++
+  }
+  log(`[WinBack] Backfill: seeded lastMessageAt from lastUpdated for ${seeded} users`)
+
+  // 2) Users with NEITHER field → set to 30 days ago
+  const result = await stateCol.updateMany(
+    { lastMessageAt: { $exists: false }, _id: { $type: 'number' } },
+    { $set: { lastMessageAt: thirtyDaysAgo } }
+  )
+  log(`[WinBack] Backfill: seeded lastMessageAt (30d ago) for ${result.modifiedCount} users with no activity timestamps`)
+
+  // Mark backfill as done so it doesn't re-run
+  await stateCol.insertOne({ _id: '__winback_backfill_done', doneAt: new Date() }).catch(() => {})
+  log(`[WinBack] Backfill complete`)
 }
 
 async function findInactiveUsers() {
@@ -257,13 +298,16 @@ async function findInactiveUsers() {
   cutoffDate.setDate(cutoffDate.getDate() - WINBACK_INACTIVE_DAYS)
 
   try {
-    // Batch query: get users with lastMessageAt before cutoff (inactive)
+    // Query: users inactive for WINBACK_INACTIVE_DAYS+ days
+    // Positive numeric _id only (skip group chats which are negative)
     const inactiveStates = await _stateCol.find({
       lastMessageAt: { $lt: cutoffDate, $exists: true },
-      _id: { $type: 'number' }  // Only numeric chatIds
+      _id: { $type: 'number', $gt: 0 }  // Only positive numeric chatIds (real users)
     }).project({ _id: 1, lastMessageAt: 1, userLanguage: 1 }).toArray()
 
     if (inactiveStates.length === 0) return []
+
+    log(`[WinBack] Raw inactive query returned ${inactiveStates.length} candidates`)
 
     // Batch check: get opted-out users
     const optedOutSet = new Set()
@@ -283,6 +327,7 @@ async function findInactiveUsers() {
     const inactiveUsers = []
     for (const userState of inactiveStates) {
       const chatId = userState._id
+      if (chatId <= 0) continue // extra safety: skip group chats
       if (optedOutSet.has(chatId)) continue
       if (recentWinbackSet.has(chatId)) continue
 
