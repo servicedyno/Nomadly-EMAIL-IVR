@@ -59,28 +59,30 @@ const parseDomain = (domainName) => {
  * Country-specific TLD additional_data for registration
  */
 const getCountryTLDData = (tld) => {
+  // IMPORTANT: OpenProvider v1beta REST API expects additional_data as a FLAT object
+  // e.g. { legal_type: 'CCT' } — NOT nested under TLD key like { ca: { legal_type: 'CCT' } }
   const map = {
-    us: { us: { application_purpose: 'P1', nexus_category: 'C12' } },
-    ca: { ca: { legal_type: 'CCT' } },
-    it: { it: { entity_type: 2, nationality: 'IT', reg_code: 'IT04126990961' } },
-    sg: { sg: {
+    us: { application_purpose: 'P1', nexus_category: 'C12' },
+    ca: { legal_type: 'CCT' },
+    it: { entity_type: 2, nationality: 'IT', reg_code: 'IT04126990961' },
+    sg: {
       registrant_type: 'organization',
       company_registration_number: process.env.SINGAPORE_COMPANY_UEN || '201688888A',
       organization_name: process.env.SINGAPORE_COMPANY_NAME || 'Hostbay PLC',
       admin_singpass_id: process.env.SINGAPORE_ADMIN_SINGPASS_ID || '201688888A',
-    } },
-    eu: { eu: { registrant_citizenship: 'FR' } },
+    },
+    eu: { registrant_citizenship: 'FR' },
     fr: {},
-    es: { es: { registrant_type: 1, id_number: 'X0000000T' } },
+    es: { registrant_type: 1, id_number: 'X0000000T' },
     de: {},
     nl: {},
-    be: { be: { registrant_lang: 'en' } },
-    uk: { uk: { registrant_type: 'IND' } },
-    'co.uk': { uk: { registrant_type: 'IND' } },
-    au: { au: { registrant_id: 'ABN 12345678901', registrant_id_type: 'ABN', eligibility_type: 'Company' } },
+    be: { registrant_lang: 'en' },
+    uk: { registrant_type: 'IND' },
+    'co.uk': { registrant_type: 'IND' },
+    au: { registrant_id: 'ABN 12345678901', registrant_id_type: 'ABN', eligibility_type: 'Company' },
     nz: {},
     in: {},
-    br: { br: { registrant_type: 'individual', cpf: '000.000.000-00' } },
+    br: { registrant_type: 'individual', cpf: '000.000.000-00' },
     cl: {},
     mx: {},
   }
