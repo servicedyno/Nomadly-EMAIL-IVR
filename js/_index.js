@@ -437,8 +437,6 @@ bot?.on('my_chat_member', async update => {
   }
 })
 
-const send = (chatId, message, options) => {
-
 // Unified coupon validator — checks static codes + daily auto-generated codes + win-back codes
 async function resolveCoupon(code, chatId) {
   // 1. Check static coupons first
@@ -459,6 +457,8 @@ async function resolveCoupon(code, chatId) {
 
   return null
 }
+
+const send = (chatId, message, options) => {
   // Auto-detect HTML in message and add parse_mode if not already set
   const opts = options || {}
   if (typeof message === 'string' && !opts.parse_mode && /<\/?(?:b|i|u|s|code|pre|a)\b/.test(message)) {
@@ -5388,6 +5388,72 @@ All verified numbers generated during sourcing.`))
         return send(chatId, '❌ Payment processing error. Please contact support.')
       }
     },
+
+    // ━━━ Service Bundle wallet payment ━━━
+    'bundleConfirm': async coin => {
+      set(state, chatId, 'action', 'none')
+      const bundleId = info?.selectedBundle
+      const bundle = monetization.getBundleDetails(bundleId, lang)
+      if (!bundle) return send(chatId, t.someIssue || 'Something went wrong.')
+
+      let price = info?.bundlePrice || bundle.finalPrice
+      // Apply coupon if exists
+      if (info?.couponApplied && info?.newPrice) price = info.newPrice
+      const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
+      const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
+
+      if (![u.usd, u.ngn].includes(coin)) return send(chatId, t.someIssue || 'Some Issue')
+
+      if (coin === u.usd && usdBal < price) return send(chatId, t.walletBalanceLowAmount(price, usdBal), k.of([u.deposit]))
+      const priceNgn = await usdToNgn(price)
+      if (coin === u.ngn && ngnBal < priceNgn) return send(chatId, t.walletBalanceLow, k.of([u.deposit]))
+
+      const name = await get(nameOf, chatId)
+
+      // Deduct from wallet
+      if (coin === u.usd) {
+        set(payments, nanoid(), `Wallet,Bundle:${bundleId},$${price},${chatId},${name},${new Date()}`)
+        await atomicIncrement(walletOf, chatId, 'usdOut', price)
+      } else {
+        set(payments, nanoid(), `Wallet,Bundle:${bundleId},$${price},${chatId},${name},${new Date()},${priceNgn} NGN`)
+        await atomicIncrement(walletOf, chatId, 'ngnOut', priceNgn)
+      }
+
+      // Mark win-back code as used if applicable
+      if (info?.couponApplied && info?.couponType === 'winback') {
+        await monetization.markMonetizationCodeUsed(info?.couponCode, 'winback')
+      }
+
+      const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
+      send(chatId, t.showWallet(usd, ngn), trans('o'))
+      checkAndNotifyTierUpgrade(preSpend)
+
+      // Success message with bundle items
+      const itemList = bundle.items.map(i => `  ✓ ${i.label}`).join('\n')
+      send(chatId,
+        `🎉 <b>Bundle Purchased!</b>\n\n` +
+        `📦 ${bundle.name}\n${itemList}\n\n` +
+        `💵 $${price.toFixed(2)} deducted from wallet\n` +
+        `🏷️ You saved $${bundle.discountAmount} with this bundle!\n\n` +
+        `📩 Our team will activate your services shortly.\nYou will receive a notification for each service.`,
+        { parse_mode: 'HTML' })
+
+      // Notify admin
+      const adminChatId = process.env.TELEGRAM_ADMIN_CHAT_ID
+      if (adminChatId) {
+        bot.sendMessage(adminChatId,
+          `🛒 <b>New Bundle Sale!</b>\n\n` +
+          `👤 ${maskName(name)} (${chatId})\n` +
+          `📦 ${bundle.name}\n` +
+          `💵 $${price.toFixed(2)} (${coin.toUpperCase()})\n` +
+          `🏷️ Saved: $${bundle.discountAmount} (${bundle.discountPercent}% off)\n` +
+          `📋 Items:\n${itemList}`,
+          { parse_mode: 'HTML' }).catch(() => {})
+      }
+
+      // Broadcast social proof
+      notifyGroup(`🛒 <b>${bundle.name} Sold!</b>\nUser ${maskName(name)} just purchased a full bundle.\nSave up to 20% on services — /start`)
+    },
   }
 
   const goBack = () => {
@@ -6220,7 +6286,7 @@ All verified numbers generated during sourcing.`))
     // Coupon apply within bundle flow
     if (message === btn.applyCoupon) {
       await saveInfo('lastStep', a.bundleConfirm)
-      await set(state, chatId, 'action', a.askCoupon)
+      await set(state, chatId, 'action', a.askCoupon + a.bundleConfirm)
       return send(chatId, t.enterCoupon || 'Enter your coupon code:', k.of([[t.back || '↩️ Back']]))
     }
   }
@@ -10660,7 +10726,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   //
   //
   // ── Skip global wallet redirect when inside a payment flow ──
-  const _payActions = ['phone-pay', 'domain-pay', 'hosting-pay', 'vps-plan-pay', 'vps-upgrade-plan-pay', 'digital-product-pay', 'virtual-card-pay', 'leads-pay', 'ebPayment']
+  const _payActions = ['phone-pay', 'domain-pay', 'hosting-pay', 'vps-plan-pay', 'vps-upgrade-plan-pay', 'digital-product-pay', 'virtual-card-pay', 'leads-pay', 'ebPayment', 'bundleConfirm']
   if (message === user.wallet && !_payActions.includes(action)) {
     return goto[user.wallet]()
   }
@@ -16204,6 +16270,47 @@ Select a category:`), k.of(catBtns))
       return goto.usePartialFreeValidation()
     }
     return goto['leads-pay']()
+  }
+
+  // ━━━ Bundle Coupon Apply ━━━
+  if (action === a.askCoupon + a.bundleConfirm) {
+    if (message === t.back || message === '↩️ Back') {
+      // Go back to bundle confirm
+      const bundleId = info?.selectedBundle
+      const bundle = monetization.getBundleDetails(bundleId, lang)
+      if (!bundle) return goto.mainmenu()
+      await set(state, chatId, 'action', a.bundleConfirm)
+      const card = monetization.formatBundleCard(bundle, lang)
+      const confirmBtn = { en: '✅ Purchase Bundle', fr: '✅ Acheter le Pack', zh: '✅ 购买套餐', hi: '✅ बंडल खरीदें' }[lang] || '✅ Purchase Bundle'
+      return send(chatId, card + `\n\n💳 Total: <b>$${bundle.finalPrice}</b>`, k.of([[confirmBtn], [btn.applyCoupon], [t.back || '↩️ Back']]))
+    }
+
+    const coupon = message.toUpperCase()
+    const couponResult = await resolveCoupon(coupon, chatId)
+    if (!couponResult) return send(chatId, t.couponInvalid || '❌ Invalid coupon code.')
+    if (couponResult.error === 'already_used') return send(chatId, t.couponUsedToday || '⚠️ Coupon already used.')
+
+    const bundleId = info?.selectedBundle
+    const bundle = monetization.getBundleDetails(bundleId, lang)
+    if (!bundle) return goto.mainmenu()
+
+    const basePrice = info?.bundlePrice || bundle.finalPrice
+    const newPrice = Math.max(1, basePrice - (basePrice * couponResult.discount) / 100)
+    await saveInfo('newPrice', newPrice)
+    await saveInfo('couponApplied', true)
+    await saveInfo('couponCode', coupon)
+    await saveInfo('couponType', couponResult.type || 'unknown')
+    await saveInfo('bundlePrice', newPrice)
+    await set(state, chatId, 'action', a.bundleConfirm)
+
+    const confirmBtn = { en: '✅ Purchase Bundle', fr: '✅ Acheter le Pack', zh: '✅ 购买套餐', hi: '✅ बंडल खरीदें' }[lang] || '✅ Purchase Bundle'
+    return send(chatId,
+      `🎟️ <b>Coupon Applied!</b>\n\n` +
+      `Code: <code>${coupon}</code> (${couponResult.discount}% off)\n` +
+      `Original: <s>$${basePrice.toFixed(2)}</s>\n` +
+      `✅ New price: <b>$${newPrice.toFixed(2)}</b>\n\n` +
+      `Ready to purchase?`,
+      k.of([[confirmBtn], [t.back || '↩️ Back']]))
   }
 
   if (message === user.joinChannel) {

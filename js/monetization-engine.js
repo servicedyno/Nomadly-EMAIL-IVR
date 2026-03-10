@@ -257,41 +257,41 @@ async function findInactiveUsers() {
   cutoffDate.setDate(cutoffDate.getDate() - WINBACK_INACTIVE_DAYS)
 
   try {
-    // Get all registered users
-    const allUsers = await _nameOfCol.find({}).toArray()
-    const userIds = allUsers.map(u => u._id).filter(id => typeof id === 'number')
+    // Batch query: get users with lastMessageAt before cutoff (inactive)
+    const inactiveStates = await _stateCol.find({
+      lastMessageAt: { $lt: cutoffDate, $exists: true },
+      _id: { $type: 'number' }  // Only numeric chatIds
+    }).project({ _id: 1, lastMessageAt: 1, userLanguage: 1 }).toArray()
 
+    if (inactiveStates.length === 0) return []
+
+    // Batch check: get opted-out users
+    const optedOutSet = new Set()
+    if (_promoOptOutCol) {
+      const optedOut = await _promoOptOutCol.find({ optedOut: true }).project({ _id: 1 }).toArray()
+      optedOut.forEach(u => optedOutSet.add(u._id))
+    }
+
+    // Batch check: get recent win-back recipients (last 14 days)
+    const recentWinbackSet = new Set()
+    const recentWinbacks = await _winbackCol.find({
+      sentAt: { $gte: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000) }
+    }).project({ chatId: 1 }).toArray()
+    recentWinbacks.forEach(w => recentWinbackSet.add(w.chatId))
+
+    // Filter and build result
     const inactiveUsers = []
-    for (const chatId of userIds) {
-      // Skip opted-out users
-      if (_promoOptOutCol) {
-        const optedOut = await _promoOptOutCol.findOne({ _id: chatId, optedOut: true })
-        if (optedOut) continue
-      }
+    for (const userState of inactiveStates) {
+      const chatId = userState._id
+      if (optedOutSet.has(chatId)) continue
+      if (recentWinbackSet.has(chatId)) continue
 
-      // Check if already sent win-back in the last 14 days
-      const recentWinback = await _winbackCol.findOne({
+      inactiveUsers.push({
         chatId,
-        sentAt: { $gte: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000) }
+        lastActive: new Date(userState.lastMessageAt),
+        lang: userState.userLanguage || 'en',
+        daysSinceActive: Math.floor((Date.now() - new Date(userState.lastMessageAt).getTime()) / 86400000)
       })
-      if (recentWinback) continue
-
-      // Check last activity from state collection
-      const userState = await _stateCol.findOne({ _id: chatId })
-      if (!userState) continue
-
-      // Use lastMessageAt or updatedAt or fallback
-      const lastActive = userState.lastMessageAt || userState.updatedAt || null
-      if (!lastActive) continue
-
-      if (new Date(lastActive) < cutoffDate) {
-        inactiveUsers.push({
-          chatId,
-          lastActive: new Date(lastActive),
-          lang: userState.userLanguage || 'en',
-          daysSinceActive: Math.floor((Date.now() - new Date(lastActive).getTime()) / (86400000))
-        })
-      }
     }
 
     return inactiveUsers
