@@ -21118,6 +21118,8 @@ const setupTelegramWebhook = async () => {
         { command: 'reply', description: 'Reply to user — /reply <chatId> <message>' },
         { command: 'close', description: 'Close support session — /close <chatId>' },
         { command: 'deliver', description: 'Deliver order — /deliver <orderId> <details>' },
+        { command: 'monetization', description: 'Monetization stats — bonuses, win-back, conversions' },
+        { command: 'winback', description: 'Trigger win-back campaign for inactive users' },
       ], {
         scope: JSON.stringify({ type: 'chat', chat_id: adminChatId }),
       })
