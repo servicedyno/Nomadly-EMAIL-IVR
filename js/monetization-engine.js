@@ -222,16 +222,36 @@ async function hasReceivedWelcomeBonus(chatId) {
 
 /**
  * Gift $5 welcome bonus to ALL existing users who haven't received it yet.
- * Sends an announcement message to each gifted user.
+ * Sends a localized announcement message to each gifted user.
  * Rate-limited to avoid Telegram API throttling.
  * @param {Function} getChatIds - async function returning all user chatIds
  * @param {Function} sendMessage - bot.sendMessage
  * @param {Function} adminSend - function to send progress to admin
+ * @param {Function} getUserLang - async function(chatId) => language code string
  * @returns {Object} { gifted, skipped, failed, total }
  */
-async function giftAllUsersWelcomeBonus(getChatIds, sendMessage, adminSend) {
+async function giftAllUsersWelcomeBonus(getChatIds, sendMessage, adminSend, getUserLang) {
   if (!_welcomeBonusCol || !_walletOf) {
     throw new Error('Welcome bonus not initialized')
+  }
+
+  const giftMsgs = {
+    en: `🎉 <b>Welcome Gift!</b>\n\n` +
+        `$${WELCOME_BONUS_USD} has been added to your wallet as a welcome gift from Nomadly!\n\n` +
+        `💡 Use it toward any service — domains, phone numbers, hosting, or more.\n\n` +
+        `Thank you for being part of Nomadly! 🚀`,
+    fr: `🎉 <b>Cadeau de bienvenue !</b>\n\n` +
+        `$${WELCOME_BONUS_USD} ajoutés à votre portefeuille en cadeau de bienvenue de Nomadly !\n\n` +
+        `💡 Utilisez-le pour n'importe quel service — domaines, numéros, hébergement, et plus.\n\n` +
+        `Merci de faire partie de Nomadly ! 🚀`,
+    zh: `🎉 <b>欢迎礼物！</b>\n\n` +
+        `$${WELCOME_BONUS_USD} 已作为 Nomadly 的欢迎礼物添加到您的钱包！\n\n` +
+        `💡 可用于任何服务 — 域名、电话号码、托管等。\n\n` +
+        `感谢您成为 Nomadly 的一员！🚀`,
+    hi: `🎉 <b>स्वागत उपहार!</b>\n\n` +
+        `$${WELCOME_BONUS_USD} Nomadly से स्वागत उपहार के रूप में आपके वॉलेट में जोड़ दिए गए!\n\n` +
+        `💡 किसी भी सेवा पर इस्तेमाल करें — डोमेन, फ़ोन नंबर, होस्टिंग, और बहुत कुछ।\n\n` +
+        `Nomadly का हिस्सा बनने के लिए धन्यवाद! 🚀`,
   }
 
   const chatIds = await getChatIds()
@@ -279,15 +299,15 @@ async function giftAllUsersWelcomeBonus(getChatIds, sendMessage, adminSend) {
           const { atomicIncrement } = require('./db.js')
           await atomicIncrement(_walletOf, chatId, 'usdIn', WELCOME_BONUS_USD)
 
-          // Announce to user
+          // Get user's preferred language, default to English
+          let lang = 'en'
           try {
-            await sendMessage(chatId,
-              `🎉 <b>Welcome Gift!</b>\n\n` +
-              `$${WELCOME_BONUS_USD} has been added to your wallet as a welcome gift from Nomadly!\n\n` +
-              `💡 Use it toward any service — domains, phone numbers, hosting, or more.\n\n` +
-              `Thank you for being part of Nomadly! 🚀`,
-              { parse_mode: 'HTML' }
-            )
+            if (getUserLang) lang = (await getUserLang(chatId)) || 'en'
+          } catch (_) {}
+
+          // Announce to user in their language
+          try {
+            await sendMessage(chatId, giftMsgs[lang] || giftMsgs.en, { parse_mode: 'HTML' })
           } catch (sendErr) {
             // User may have blocked bot — still count as gifted (wallet credited)
             log(`[GiftAll] Could not message ${chatId}: ${sendErr.message}`)

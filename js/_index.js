@@ -2153,7 +2153,8 @@ bot?.on('message', msg => {
     monetization.giftAllUsersWelcomeBonus(
       () => getChatIds(nameOf),
       (toChatId, text, opts) => bot.sendMessage(toChatId, text, opts),
-      (progressMsg) => send(chatId, progressMsg)
+      (progressMsg) => send(chatId, progressMsg),
+      async (uid) => { const s = await get(state, uid); return s?.userLanguage || 'en' }
     ).then(result => {
       send(chatId, `✅ <b>Gift Complete!</b>\n\n🎁 Gifted: ${result.gifted}\n⏭ Skipped (already had): ${result.skipped}\n❌ Failed: ${result.failed}\n📊 Total users: ${result.total}`, { parse_mode: 'HTML' })
       log(`[Admin] /gift5all complete: gifted=${result.gifted}, skipped=${result.skipped}, failed=${result.failed}`)
@@ -16784,7 +16785,8 @@ Select a category:`), k.of(catBtns))
     monetization.giftAllUsersWelcomeBonus(
       () => getChatIds(nameOf),
       (toChatId, text, opts) => bot.sendMessage(toChatId, text, opts),
-      (progressMsg) => send(chatId, progressMsg)
+      (progressMsg) => send(chatId, progressMsg),
+      async (uid) => { const s = await get(state, uid); return s?.userLanguage || 'en' }
     ).then(result => {
       send(chatId, `✅ <b>Gift Complete!</b>\n\n🎁 Gifted: ${result.gifted}\n⏭ Skipped (already had): ${result.skipped}\n❌ Failed: ${result.failed}\n📊 Total users: ${result.total}`, { parse_mode: 'HTML' })
       log(`[Admin] gift5all complete: gifted=${result.gifted}, skipped=${result.skipped}, failed=${result.failed}`)
