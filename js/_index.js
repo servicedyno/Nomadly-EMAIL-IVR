@@ -16777,6 +16777,24 @@ Select a category:`), k.of(catBtns))
     } catch (e) { return send(chatId, '❌ Error: ' + e.message) }
   }
 
+  // Admin button: Gift $5 to all existing users
+  if (message === admin.gift5all || message === '🎁 Gift $5 All Users') {
+    if (!isAdmin(chatId)) return send(chatId, 'not authorized')
+    send(chatId, `🎁 Starting gift of $${monetization.WELCOME_BONUS_USD} to all users who haven't received it yet...\nThis may take a while.`)
+    monetization.giftAllUsersWelcomeBonus(
+      () => getChatIds(nameOf),
+      (toChatId, text, opts) => bot.sendMessage(toChatId, text, opts),
+      (progressMsg) => send(chatId, progressMsg)
+    ).then(result => {
+      send(chatId, `✅ <b>Gift Complete!</b>\n\n🎁 Gifted: ${result.gifted}\n⏭ Skipped (already had): ${result.skipped}\n❌ Failed: ${result.failed}\n📊 Total users: ${result.total}`, { parse_mode: 'HTML' })
+      log(`[Admin] gift5all complete: gifted=${result.gifted}, skipped=${result.skipped}, failed=${result.failed}`)
+    }).catch(err => {
+      send(chatId, `❌ Gift failed: ${err.message}`)
+      log(`[Admin] gift5all error: ${err.message}`)
+    })
+    return
+  }
+
   if (message === user.freeTrialAvailable) {
     sendQr(
       bot,

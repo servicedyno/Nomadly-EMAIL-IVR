@@ -85,6 +85,7 @@ const admin = {
   unblockUser: '👌 解除阻止用户',
   messageUsers: '👋 向所有用户发送消息',
   resetDead: '🗑️ Reset Dead Users',
+  gift5all: '🎁 Gift $5 All Users',
 }
 const user = {
   // main keyboards

@@ -85,6 +85,7 @@ const admin = {
   unblockUser: '👌 Débloquer l’utilisateur',
   messageUsers: '👋 Envoyer un message à tous les utilisateurs',
   resetDead: '🗑️ Reset Dead Users',
+  gift5all: '🎁 Gift $5 All Users',
 }
 
 const user = {
