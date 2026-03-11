@@ -1844,7 +1844,7 @@ bot?.on('message', msg => {
         }
       } catch (e) {
         log(`[Voice] Audio greeting upload error: ${e.message}`)
-        return send(chatId, '❌ Failed to save audio greeting. Please try again.')
+        return send(chatId, t.audioFailedSave || '❌ Failed to save audio greeting. Please try again.')
       }
     }
     // ── Handle voice/audio for Audio Library upload ──
@@ -2085,7 +2085,7 @@ bot?.on('message', msg => {
       const allRequests = await leadRequests.find({}).toArray()
       const pending = allRequests.filter(r => r.val && r.val.status === 'pending')
       if (pending.length === 0) {
-        return send(chatId, '📝 No pending lead requests.')
+        return send(chatId, t.noPendingLeads || '📝 No pending lead requests.')
       }
       let msg = `📝 <b>Pending Lead Requests (${pending.length})</b>\n\n`
       pending.slice(0, 20).forEach((r, i) => {
@@ -2234,7 +2234,7 @@ bot?.on('message', msg => {
 
   // License check cached at startup to avoid blocking every message
 
-  if (!db) return send(chatId, 'Database is connecting, please try again in a moment')
+  if (!db) return send(chatId, ({ en: 'Database is connecting, please try again in a moment', fr: 'La base de données se connecte, veuillez réessayer dans un instant', zh: '数据库正在连接中，请稍后重试', hi: 'डेटाबेस कनेक्ट हो रहा है, कृपया कुछ क्षण में पुनः प्रयास करें' }[lang] || 'Database is connecting, please try again in a moment'))
   // ConnectReseller status never blocks the bot — domain ops fallback to OpenProvider
   if (!connect_reseller_working && NOT_TRY_CR === undefined) {
     tryConnectReseller() // non-blocking background retry
@@ -5460,7 +5460,7 @@ All verified numbers generated during sourcing.`))
       try {
         const campaignId = info.ebCampaignId
         const campaign = await emailBlastService.getCampaign(campaignId)
-        if (!campaign) return send(chatId, '❌ Campaign not found.')
+        if (!campaign) return send(chatId, t.ebCampaignNotFound || '❌ Campaign not found.')
 
         const { usdBal } = await getBalance(walletOf, chatId)
         if (usdBal < campaign.totalPrice) {
@@ -6390,7 +6390,7 @@ All verified numbers generated during sourcing.`))
     if (message === confirmBtn) {
       const bundleId = info?.selectedBundle
       const bundle = monetization.getBundleDetails(bundleId, lang)
-      if (!bundle) return send(chatId, '❌ Bundle not found.')
+      if (!bundle) return send(chatId, t.ebBundleNotFound || '❌ Bundle not found.')
       // Route to wallet payment with bundle price
       let finalPrice = bundle.finalPrice
       // Apply any saved coupon discount
@@ -6446,27 +6446,26 @@ All verified numbers generated during sourcing.`))
 
   if (message === user.emailBlast || message === '📧 Email Blast') {
     const settings = await emailBlastService.getSettings()
-    const isAdmin = chatId.toString() === process.env.TELEGRAM_ADMIN_CHAT_ID
+    const _isAdmin = chatId.toString() === process.env.TELEGRAM_ADMIN_CHAT_ID
 
     const btns = [
-      ['📤 Send Email Blast'],
-      ['📊 My Campaigns'],
+      [t.ebSendBlast],
+      [t.ebMyCampaigns || '📊 My Campaigns'],
     ]
-    if (isAdmin) {
-      btns.push(['⚙️ Email Admin Panel'])
+    if (_isAdmin) {
+      btns.push([t.ebAdminPanel || '⚙️ Email Admin Panel'])
     }
     btns.push([t.back || '🔙 Back'])
 
+    const ebWelcome = {
+      en: `📧 <b>Email Blast Service</b>\n\nSend bulk emails to your list with maximum inbox delivery.\n\n💰 Rate: <b>$${settings.pricePerEmail}/email</b> ($${(settings.pricePerEmail * 500).toFixed(0)} per 500)\n📋 Min: ${settings.minEmails} | Max: ${settings.maxEmails} emails\n\n✅ DKIM + SPF + DMARC signed\n✅ Domain & IP rotation\n✅ Email validation included\n✅ Bounce protection`,
+      fr: `📧 <b>Service d'Email en Masse</b>\n\nEnvoyez des emails en masse avec une livraison maximale en boîte de réception.\n\n💰 Tarif : <b>$${settings.pricePerEmail}/email</b> ($${(settings.pricePerEmail * 500).toFixed(0)} par 500)\n📋 Min : ${settings.minEmails} | Max : ${settings.maxEmails} emails\n\n✅ DKIM + SPF + DMARC signés\n✅ Rotation de domaine & IP\n✅ Validation d'email incluse\n✅ Protection anti-rebond`,
+      zh: `📧 <b>群发邮件服务</b>\n\n向您的列表发送批量邮件，实现最大收件箱投递率。\n\n💰 费率：<b>$${settings.pricePerEmail}/封</b> ($${(settings.pricePerEmail * 500).toFixed(0)}/500封)\n📋 最低：${settings.minEmails} | 最高：${settings.maxEmails} 封\n\n✅ DKIM + SPF + DMARC 签名\n✅ 域名和IP轮换\n✅ 包含邮箱验证\n✅ 退信保护`,
+      hi: `📧 <b>ईमेल ब्लास्ट सेवा</b>\n\nअधिकतम इनबॉक्स डिलीवरी के साथ अपनी सूची में बल्क ईमेल भेजें।\n\n💰 दर: <b>$${settings.pricePerEmail}/ईमेल</b> ($${(settings.pricePerEmail * 500).toFixed(0)} प्रति 500)\n📋 न्यूनतम: ${settings.minEmails} | अधिकतम: ${settings.maxEmails} ईमेल\n\n✅ DKIM + SPF + DMARC हस्ताक्षरित\n✅ डोमेन और IP रोटेशन\n✅ ईमेल सत्यापन शामिल\n✅ बाउंस सुरक्षा`,
+    }
+
     await set(state, chatId, 'action', a.ebMenu)
-    return send(chatId,
-      `📧 <b>Email Blast Service</b>\n\n` +
-      `Send bulk emails to your list with maximum inbox delivery.\n\n` +
-      `💰 Rate: <b>$${settings.pricePerEmail}/email</b> ($${(settings.pricePerEmail * 500).toFixed(0)} per 500)\n` +
-      `📋 Min: ${settings.minEmails} | Max: ${settings.maxEmails} emails\n\n` +
-      `✅ DKIM + SPF + DMARC signed\n` +
-      `✅ Domain & IP rotation\n` +
-      `✅ Email validation included\n` +
-      `✅ Bounce protection`,
+    return send(chatId, ebWelcome[lang] || ebWelcome.en,
       { parse_mode: 'HTML', reply_markup: { keyboard: btns, resize_keyboard: true } }
     )
   }
@@ -6475,50 +6474,53 @@ All verified numbers generated during sourcing.`))
   if (action === a.ebMenu) {
     if (message === t.back || message === t.cancel || message === '🔙 Back') return goto.displayMainMenuButtons()
 
-    if (message === '📤 Send Email Blast') {
+    if (message === t.ebSendBlast || message === '📤 Send Email Blast') {
       await set(state, chatId, 'action', a.ebUploadList)
       const settings = await emailBlastService.getSettings()
-      return send(chatId,
-        `📤 <b>Upload Email List</b>\n\n` +
-        `Send me a <b>CSV</b> or <b>TXT</b> file with email addresses.\n\n` +
-        `📋 Requirements:\n` +
-        `• Minimum: ${settings.minEmails} emails\n` +
-        `• Maximum: ${settings.maxEmails} emails\n` +
-        `• One email per line, or comma-separated\n\n` +
-        `📎 Upload your file now:`,
-        { parse_mode: 'HTML', reply_markup: { keyboard: [['❌ Cancel']], resize_keyboard: true } }
+      const uploadListMsg = {
+        en: `📤 <b>Upload Email List</b>\n\nSend me a <b>CSV</b> or <b>TXT</b> file with email addresses.\n\n📋 Requirements:\n• Minimum: ${settings.minEmails} emails\n• Maximum: ${settings.maxEmails} emails\n• One email per line, or comma-separated\n\n📎 Upload your file now:`,
+        fr: `📤 <b>Télécharger la Liste d'Emails</b>\n\nEnvoyez-moi un fichier <b>CSV</b> ou <b>TXT</b> avec les adresses email.\n\n📋 Exigences :\n• Minimum : ${settings.minEmails} emails\n• Maximum : ${settings.maxEmails} emails\n• Un email par ligne, ou séparés par des virgules\n\n📎 Téléchargez votre fichier :`,
+        zh: `📤 <b>上传邮件列表</b>\n\n请发送包含电子邮件地址的 <b>CSV</b> 或 <b>TXT</b> 文件。\n\n📋 要求：\n• 最低：${settings.minEmails} 封\n• 最高：${settings.maxEmails} 封\n• 每行一个邮箱或用逗号分隔\n\n📎 现在上传您的文件：`,
+        hi: `📤 <b>ईमेल सूची अपलोड करें</b>\n\nमुझे ईमेल पतों वाली <b>CSV</b> या <b>TXT</b> फाइल भेजें।\n\n📋 आवश्यकताएं:\n• न्यूनतम: ${settings.minEmails} ईमेल\n• अधिकतम: ${settings.maxEmails} ईमेल\n• प्रति पंक्ति एक ईमेल, या अल्पविराम से अलग\n\n📎 अभी अपनी फाइल अपलोड करें:`,
+      }
+      return send(chatId, uploadListMsg[lang] || uploadListMsg.en,
+        { parse_mode: 'HTML', reply_markup: { keyboard: [[t.ebCancelBtn || '❌ Cancel']], resize_keyboard: true } }
       )
     }
 
-    if (message === '📊 My Campaigns') {
+    if (message === (t.ebMyCampaigns || '📊 My Campaigns') || message === '📊 My Campaigns') {
       const campaigns = await emailBlastService.getUserCampaigns(chatId)
       if (!campaigns || campaigns.length === 0) {
-        return send(chatId, '📊 No campaigns yet. Send your first email blast!', { parse_mode: 'HTML' })
+        const noCampaignsMsg = { en: '📊 No campaigns yet. Send your first email blast!', fr: '📊 Aucune campagne. Envoyez votre premier email en masse !', zh: '📊 还没有活动。发送您的第一封群发邮件！', hi: '📊 अभी कोई अभियान नहीं। अपना पहला ईमेल ब्लास्ट भेजें!' }
+        return send(chatId, noCampaignsMsg[lang] || noCampaignsMsg.en, { parse_mode: 'HTML' })
       }
 
-      let text = '📊 <b>Your Campaigns</b>\n\n'
+      const campaignTitle = { en: '📊 <b>Your Campaigns</b>\n\n', fr: '📊 <b>Vos Campagnes</b>\n\n', zh: '📊 <b>您的活动</b>\n\n', hi: '📊 <b>आपके अभियान</b>\n\n' }
+      let text = campaignTitle[lang] || campaignTitle.en
+      const sentLabel = { en: 'sent', fr: 'envoyés', zh: '已发送', hi: 'भेजे गए' }
+      const noSubjectLabel = { en: 'No Subject', fr: 'Sans Objet', zh: '无主题', hi: 'कोई विषय नहीं' }
       for (const c of campaigns) {
         const status = c.status === 'completed' ? '✅' : c.status === 'sending' ? '📤' : c.status === 'queued' ? '⏳' : c.status === 'paused' ? '⏸' : '❌'
         const pct = c.totalEmails > 0 ? Math.floor((c.sentCount / c.totalEmails) * 100) : 0
-        text += `${status} <b>${c.subject || 'No Subject'}</b>\n`
-        text += `   ${c.sentCount}/${c.totalEmails} sent (${pct}%) | $${c.totalPrice}\n`
+        text += `${status} <b>${c.subject || (noSubjectLabel[lang] || noSubjectLabel.en)}</b>\n`
+        text += `   ${c.sentCount}/${c.totalEmails} ${sentLabel[lang] || sentLabel.en} (${pct}%) | $${c.totalPrice}\n`
         text += `   ${new Date(c.createdAt).toLocaleDateString()}\n\n`
       }
       return send(chatId, text, { parse_mode: 'HTML' })
     }
 
     // Admin Panel
-    if (message === '⚙️ Email Admin Panel' && chatId.toString() === process.env.TELEGRAM_ADMIN_CHAT_ID) {
+    if ((message === (t.ebAdminPanel || '⚙️ Email Admin Panel') || message === '⚙️ Email Admin Panel') && chatId.toString() === process.env.TELEGRAM_ADMIN_CHAT_ID) {
       await set(state, chatId, 'action', a.ebAdminMenu)
       return send(chatId,
-        `⚙️ <b>Email Blast Admin Panel</b>\n\nSelect an option:`,
+        `${t.ebAdminPanelTitle || '⚙️ <b>Email Blast Admin Panel</b>'}\n\n${t.chooseOption || 'Select an option:'}`,
         { parse_mode: 'HTML', reply_markup: { keyboard: [
-          ['📊 Dashboard'],
-          ['🌐 Manage Domains'],
-          ['🖥️ Manage IPs & Warming'],
-          ['💰 Pricing Settings'],
-          ['🚫 Suppression List'],
-          ['🔙 Back']
+          [t.ebDashboardBtn || '📊 Dashboard'],
+          [t.ebManageDomainsBtn || '🌐 Manage Domains'],
+          [t.ebManageIpsBtn || '🖥️ Manage IPs & Warming'],
+          [t.ebPricingBtn || '💰 Pricing Settings'],
+          [t.ebSuppressionBtn || '🚫 Suppression List'],
+          [t.back || '🔙 Back']
         ], resize_keyboard: true }}
       )
     }
@@ -6526,9 +6528,9 @@ All verified numbers generated during sourcing.`))
 
   // Upload Email List (handles both file and text paste)
   if (action === a.ebUploadList) {
-    if (message === '❌ Cancel' || message === t.back || message === t.cancel) {
+    if (message === (t.ebCancelBtn || '❌ Cancel') || message === '❌ Cancel' || message === t.back || message === t.cancel) {
       await set(state, chatId, 'action', a.ebMenu)
-      return send(chatId, '❌ Cancelled.', { parse_mode: 'HTML' })
+      return send(chatId, t.ebCancelled || '❌ Cancelled.', { parse_mode: 'HTML' })
     }
 
     let content = ''
@@ -6538,7 +6540,7 @@ All verified numbers generated during sourcing.`))
       try {
         const fileName = msg.document.file_name || ''
         if (!fileName.match(/\.(csv|txt|tsv)$/i)) {
-          return send(chatId, '❌ Please upload a <b>.csv</b> or <b>.txt</b> file.', { parse_mode: 'HTML' })
+          return send(chatId, t.ebUploadCsvOnly || '❌ Please upload a <b>.csv</b> or <b>.txt</b> file.', { parse_mode: 'HTML' })
         }
         const fileLink = await bot.getFileLink(msg.document.file_id)
         const response = await require('axios').get(fileLink, { responseType: 'text', timeout: 15000 })
@@ -6551,69 +6553,62 @@ All verified numbers generated during sourcing.`))
     }
 
     if (!content || !content.trim()) {
-      return send(chatId, '📎 Please upload a CSV/TXT file or paste email addresses (one per line).')
+      return send(chatId, t.ebUploadCsvTxt || '📎 Please upload a CSV/TXT file or paste email addresses (one per line).')
     }
 
     const emails = emailValidation.parseEmailList(content)
     if (emails.length > 0) {
       return await processEmailList(chatId, emails, state, a, set, send, saveInfo)
     }
-    return send(chatId, '❌ No valid email addresses found in the file. Please check the format.')
+    const noEmailsMsg = { en: '❌ No valid email addresses found in the file. Please check the format.', fr: '❌ Aucune adresse email valide trouvée. Vérifiez le format.', zh: '❌ 文件中未找到有效的电子邮件地址。请检查格式。', hi: '❌ फाइल में कोई वैध ईमेल पता नहीं मिला। कृपया प्रारूप जांचें।' }
+    return send(chatId, noEmailsMsg[lang] || noEmailsMsg.en)
   }
 
   // Enter Subject
   if (action === a.ebEnterSubject) {
-    if (message === '❌ Cancel') return goto.displayMainMenuButtons()
+    if (message === (t.ebCancelBtn || '❌ Cancel') || message === '❌ Cancel') return goto.displayMainMenuButtons()
     await saveInfo('ebSubject', message)
     await set(state, chatId, 'action', a.ebEnterFromName)
-    return send(chatId,
-      `✅ Subject: <b>${message}</b>\n\n👤 Now enter the <b>From Name</b> (sender name recipients will see):`,
-      { parse_mode: 'HTML', reply_markup: { keyboard: [['Nomadly'], ['❌ Cancel']], resize_keyboard: true } }
+    const subjectConfirmMsg = { en: `✅ Subject: <b>${message}</b>\n\n👤 Now enter the <b>From Name</b> (sender name recipients will see):`, fr: `✅ Objet : <b>${message}</b>\n\n👤 Entrez le <b>Nom de l'expéditeur</b> :`, zh: `✅ 主题：<b>${message}</b>\n\n👤 请输入<b>发件人名称</b>（收件人将看到的名称）：`, hi: `✅ विषय: <b>${message}</b>\n\n👤 अब <b>प्रेषक नाम</b> दर्ज करें:` }
+    return send(chatId, subjectConfirmMsg[lang] || subjectConfirmMsg.en,
+      { parse_mode: 'HTML', reply_markup: { keyboard: [['Nomadly'], [t.ebCancelBtn || '❌ Cancel']], resize_keyboard: true } }
     )
   }
 
   // Enter From Name
   if (action === a.ebEnterFromName) {
-    if (message === '❌ Cancel') return goto.displayMainMenuButtons()
+    if (message === (t.ebCancelBtn || '❌ Cancel') || message === '❌ Cancel') return goto.displayMainMenuButtons()
     await saveInfo('ebFromName', message)
     await set(state, chatId, 'action', a.ebSelectContentType)
-    return send(chatId,
-      `✅ From: <b>${message}</b>\n\n` +
-      `📝 <b>How would you like to provide your email content?</b>\n\n` +
-      `Choose an option:`,
+    const fromConfirmMsg = { en: `✅ From: <b>${message}</b>\n\n📝 <b>How would you like to provide your email content?</b>\n\nChoose an option:`, fr: `✅ De : <b>${message}</b>\n\n📝 <b>Comment souhaitez-vous fournir le contenu ?</b>\n\nChoisissez :`, zh: `✅ 发件人：<b>${message}</b>\n\n📝 <b>您想如何提供邮件内容？</b>\n\n请选择：`, hi: `✅ प्रेषक: <b>${message}</b>\n\n📝 <b>आप ईमेल सामग्री कैसे प्रदान करना चाहेंगे?</b>\n\nविकल्प चुनें:` }
+    return send(chatId, fromConfirmMsg[lang] || fromConfirmMsg.en,
       { parse_mode: 'HTML', reply_markup: { keyboard: [
-        ['📝 Type Plain Text'],
-        ['📎 Upload HTML File'],
-        ['❌ Cancel']
+        [t.ebTypeText || '📝 Type Plain Text'],
+        [t.ebUploadHtml || '📎 Upload HTML File'],
+        [t.ebCancelBtn || '❌ Cancel']
       ], resize_keyboard: true } }
     )
   }
 
   // Select Content Type
   if (action === a.ebSelectContentType) {
-    if (message === '❌ Cancel') return goto.displayMainMenuButtons()
+    if (message === (t.ebCancelBtn || '❌ Cancel') || message === '❌ Cancel') return goto.displayMainMenuButtons()
 
-    if (message === '📝 Type Plain Text') {
+    if (message === (t.ebTypeText || '📝 Type Plain Text') || message === '📝 Type Plain Text') {
       await saveInfo('ebContentType', 'text')
       await set(state, chatId, 'action', a.ebEnterContent)
-      return send(chatId,
-        `📝 <b>Enter Email Body (Plain Text)</b>\n\n` +
-        `Type or paste your email message below.\n` +
-        `It will be automatically formatted for email delivery.\n\n` +
-        `💡 <b>Spintax supported!</b> Use {Hello|Hi|Hey} to randomly vary words per recipient. This dramatically improves inbox placement.\n\n` +
-        `<i>Example: "{Hi|Hello|Hey} there, {I wanted|I'd like} to reach out about..."</i>`,
-        { parse_mode: 'HTML', reply_markup: { keyboard: [['❌ Cancel']], resize_keyboard: true } }
+      const textPrompt = { en: `📝 <b>Enter Email Body (Plain Text)</b>\n\nType or paste your email message below.\nIt will be automatically formatted for email delivery.\n\n💡 <b>Spintax supported!</b> Use {Hello|Hi|Hey} to randomly vary words per recipient. This dramatically improves inbox placement.\n\n<i>Example: "{Hi|Hello|Hey} there, {I wanted|I'd like} to reach out about..."</i>`, fr: `📝 <b>Saisir le Corps (Texte Brut)</b>\n\nTapez ou collez votre message ci-dessous.\nIl sera automatiquement formaté.\n\n💡 <b>Spintax supporté !</b> Utilisez {Bonjour|Salut|Coucou} pour varier aléatoirement.\n\n<i>Exemple : "{Bonjour|Salut}, {je voulais|j'aimerais} vous contacter..."</i>`, zh: `📝 <b>输入邮件正文（纯文本）</b>\n\n请输入或粘贴您的邮件消息。\n将自动格式化用于邮件发送。\n\n💡 <b>支持旋转语法！</b>使用 {你好|您好|嗨} 随机变化每个收件人的用词。\n\n<i>示例："{你好|您好}，{我想|我希望}联系您..."</i>`, hi: `📝 <b>ईमेल बॉडी दर्ज करें (सादा टेक्स्ट)</b>\n\nनीचे अपना ईमेल संदेश टाइप या पेस्ट करें।\nस्वचालित रूप से फॉर्मेट होगा।\n\n💡 <b>स्पिनटैक्स समर्थित!</b> {नमस्ते|हैलो|हाय} का उपयोग करें।\n\n<i>उदाहरण: "{नमस्ते|हैलो}, {मैं चाहता था|मैं चाहूंगा} संपर्क करना..."</i>` }
+      return send(chatId, textPrompt[lang] || textPrompt.en,
+        { parse_mode: 'HTML', reply_markup: { keyboard: [[t.ebCancelBtn || '❌ Cancel']], resize_keyboard: true } }
       )
     }
 
-    if (message === '📎 Upload HTML File') {
+    if (message === (t.ebUploadHtml || '📎 Upload HTML File') || message === '📎 Upload HTML File') {
       await saveInfo('ebContentType', 'html')
       await set(state, chatId, 'action', a.ebEnterContent)
-      return send(chatId,
-        `📎 <b>Upload HTML Email Template</b>\n\n` +
-        `Send me an <b>.html</b> file with your email template.\n\n` +
-        `💡 <i>Tip: Use inline CSS for best compatibility across email clients. Avoid external stylesheets or JavaScript.</i>`,
-        { parse_mode: 'HTML', reply_markup: { keyboard: [['❌ Cancel']], resize_keyboard: true } }
+      const htmlPrompt = { en: `📎 <b>Upload HTML Email Template</b>\n\nSend me an <b>.html</b> file with your email template.\n\n💡 <i>Tip: Use inline CSS for best compatibility across email clients. Avoid external stylesheets or JavaScript.</i>`, fr: `📎 <b>Télécharger le Modèle HTML</b>\n\nEnvoyez-moi un fichier <b>.html</b> avec votre modèle.\n\n💡 <i>Conseil : Utilisez du CSS inline pour une meilleure compatibilité.</i>`, zh: `📎 <b>上传 HTML 邮件模板</b>\n\n请发送包含邮件模板的 <b>.html</b> 文件。\n\n💡 <i>提示：使用内联 CSS 以获得最佳兼容性。避免外部样式表或 JavaScript。</i>`, hi: `📎 <b>HTML ईमेल टेम्पलेट अपलोड</b>\n\nमुझे अपने ईमेल टेम्पलेट वाली <b>.html</b> फाइल भेजें।\n\n💡 <i>सुझाव: बेहतर अनुकूलता के लिए इनलाइन CSS का उपयोग करें।</i>` }
+      return send(chatId, htmlPrompt[lang] || htmlPrompt.en,
+        { parse_mode: 'HTML', reply_markup: { keyboard: [[t.ebCancelBtn || '❌ Cancel']], resize_keyboard: true } }
       )
     }
 
@@ -6631,7 +6626,7 @@ All verified numbers generated during sourcing.`))
     if (contentType === 'html' || (msg.document && msg.document.file_name && msg.document.file_name.endsWith('.html'))) {
       // HTML file upload
       if (!msg.document || !msg.document.file_name || !msg.document.file_name.endsWith('.html')) {
-        return send(chatId, '📎 Please upload an <b>.html</b> file, or tap ❌ Cancel to start over.', { parse_mode: 'HTML' })
+        return send(chatId, t.ebUploadHtmlFile || '📎 Please upload an <b>.html</b> file, or tap ❌ Cancel to start over.', { parse_mode: 'HTML' })
       }
       try {
         const fileLink = await bot.getFileLink(msg.document.file_id)
@@ -6639,7 +6634,7 @@ All verified numbers generated during sourcing.`))
         htmlContent = typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data)
         textContent = htmlContent.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 500)
       } catch (e) {
-        return send(chatId, '❌ Failed to read HTML file. Please try again or upload a different file.')
+        return send(chatId, t.ebFailedReadHtml || '❌ Failed to read HTML file. Please try again or upload a different file.')
       }
     } else if (message) {
       // Plain text content — wrap in responsive HTML email template
@@ -6653,7 +6648,7 @@ All verified numbers generated during sourcing.`))
 ${message.replace(/\n/g, '<br>')}
 </td></tr></table></td></tr></table></body></html>`
     } else {
-      return send(chatId, '📝 Please type your email message or upload an HTML file.')
+      return send(chatId, t.ebTypeOrUpload || '📝 Please type your email message or upload an HTML file.')
     }
 
     await saveInfo('ebBodyHtml', htmlContent)
@@ -6695,11 +6690,11 @@ ${message.replace(/\n/g, '<br>')}
 
   // Campaign Preview — Confirm/Edit/Cancel/Test
   if (action === a.ebPreview) {
-    if (message === '❌ Cancel') return goto.displayMainMenuButtons()
+    if (message === (t.ebCancelBtn || '❌ Cancel') || message === '❌ Cancel') return goto.displayMainMenuButtons()
 
     if (message === '✏️ Edit') {
       await set(state, chatId, 'action', a.ebEnterSubject)
-      return send(chatId, '✏️ Enter the new <b>Subject</b> line:', { parse_mode: 'HTML', reply_markup: { keyboard: [['❌ Cancel']], resize_keyboard: true } })
+      return send(chatId, t.ebEnterSubject || '✏️ Enter the new <b>Subject</b> line:', { parse_mode: 'HTML', reply_markup: { keyboard: [[t.ebCancelBtn || '❌ Cancel']], resize_keyboard: true } })
     }
 
     if (message === '📧 Send Test Email') {
@@ -6753,14 +6748,14 @@ ${message.replace(/\n/g, '<br>')}
 
   // Payment Handler
   if (action === a.ebPayment) {
-    if (message === '❌ Cancel') {
+    if (message === (t.ebCancelBtn || '❌ Cancel') || message === '❌ Cancel') {
       if (info.ebCampaignId) await emailBlastService.cancelCampaign(info.ebCampaignId)
       return goto.displayMainMenuButtons()
     }
 
     const campaignId = info.ebCampaignId
     const campaign = await emailBlastService.getCampaign(campaignId)
-    if (!campaign) return send(chatId, '❌ Campaign not found.')
+    if (!campaign) return send(chatId, t.ebCampaignNotFound || '❌ Campaign not found.')
 
     if (message && message.startsWith('👛 Pay from Wallet')) {
       const { usdBal } = await getBalance(walletOf, chatId)
@@ -6828,7 +6823,7 @@ ${message.replace(/\n/g, '<br>')}
 
     const campaignId = info.ebCampaignId
     const campaign = await emailBlastService.getCampaign(campaignId)
-    if (!campaign) return send(chatId, '❌ Campaign not found.')
+    if (!campaign) return send(chatId, t.ebCampaignNotFound || '❌ Campaign not found.')
 
     const price = campaign.totalPrice
     const ref = nanoid()
@@ -10187,7 +10182,7 @@ ${message.replace(/\n/g, '<br>')}
 
       // NS records can NEVER be deleted — only updated
       if (record.recordType === 'NS') {
-        return send(chatId, `Nameserver records cannot be deleted. Use <b>Update DNS Record</b> to change nameservers.`, { parse_mode: 'HTML' })
+        return send(chatId, (t.nsCannotAdd || `Nameserver records cannot be deleted. Use <b>Update DNS Record</b> to change nameservers.`), { parse_mode: 'HTML' })
       }
 
       if (dnsSource === 'cloudflare' && record.cfRecordId) {
@@ -10215,7 +10210,7 @@ ${message.replace(/\n/g, '<br>')}
     const recordType = message
     // NS records cannot be added — only updated
     if (recordType === t.ns || recordType === 'NS Record' || recordType === 'Enregistrement NS' || recordType === 'NS 记录' || recordType === 'NS रिकॉर्ड') {
-      return send(chatId, `Nameserver records cannot be added. Use <b>Update DNS Record</b> to change nameservers.`, { parse_mode: 'HTML' })
+      return send(chatId, (t.nsCannotAdd || `Nameserver records cannot be added. Use <b>Update DNS Record</b> to change nameservers.`), { parse_mode: 'HTML' })
     }
     // SRV has its own multi-step flow
     if (recordType === t.srvRecord) {
@@ -11722,7 +11717,7 @@ Choose an IVR template category:`), k.of(rows))
     if (message === '↩️ Back' || message === t.back) return goto.submenu5()
     if (message === '📎 Upload Audio') {
       set(state, chatId, 'action', a.audioLibUpload)
-      return send(chatId, `🎵 <b>Upload Audio</b>\n\nSend me an audio file (MP3, WAV, OGG) or a voice message.\n\nThis will be saved to your library for use in IVR campaigns.`, k.of([['↩️ Back']]))
+      return send(chatId, ({ en: `🎵 <b>Upload Audio</b>\n\nSend me an audio file (MP3, WAV, OGG) or a voice message.\n\nThis will be saved to your library for use in IVR campaigns.`, fr: `🎵 <b>Télécharger Audio</b>\n\nEnvoyez-moi un fichier audio (MP3, WAV, OGG) ou un message vocal.\n\nIl sera sauvegardé dans votre bibliothèque pour les campagnes IVR.`, zh: `🎵 <b>上传音频</b>\n\n请发送音频文件（MP3、WAV、OGG）或语音消息。\n\n将保存到您的音频库用于 IVR 活动。`, hi: `🎵 <b>ऑडियो अपलोड</b>\n\nमुझे एक ऑडियो फाइल (MP3, WAV, OGG) या वॉइस मैसेज भेजें।\n\nयह IVR अभियानों के लिए आपकी लाइब्रेरी में सहेजा जाएगा।` }[lang] || `🎵 <b>Upload Audio</b>\n\nSend me an audio file (MP3, WAV, OGG) or a voice message.\n\nThis will be saved to your library for use in IVR campaigns.`), k.of([['↩️ Back']]))
     }
     if (message.startsWith('🗑 Delete: ')) {
       const nameToDelete = message.replace('🗑 Delete: ', '').trim()
@@ -11730,7 +11725,7 @@ Choose an IVR template category:`), k.of(rows))
       const found = audios.find(a => a.name.substring(0, 25) === nameToDelete)
       if (found) {
         await audioLibraryService.deleteAudio(found.id, chatId)
-        send(chatId, `✅ Deleted: <b>${found.name}</b>`, { parse_mode: 'HTML' })
+        send(chatId, (t.audioDeleted ? t.audioDeleted(found.name) : `✅ Deleted: <b>${found.name}</b>`), { parse_mode: 'HTML' })
       }
       // Refresh list
       set(state, chatId, 'action', a.audioLibMenu)
@@ -11766,10 +11761,10 @@ Choose an IVR template category:`), k.of(rows))
         const saved = await audioLibraryService.downloadAndSave(fileLink, chatId, originalName, mimeType)
         await saveInfo('audioLibPending', { ...saved, duration, mimeType, originalName })
         set(state, chatId, 'action', a.audioLibName)
-        return send(chatId, `✅ Audio received! (${(saved.size / 1024).toFixed(0)} KB)\n\nGive it a name for your library:`, k.of([[originalName !== 'voice_message' ? originalName.replace(/\.[^.]+$/, '') : 'My IVR Audio']]))
+        return send(chatId, (t.audioReceived ? t.audioReceived((saved.size / 1024).toFixed(0)) : `✅ Audio received! (${(saved.size / 1024).toFixed(0)} KB)\n\nGive it a name for your library:`), k.of([[originalName !== 'voice_message' ? originalName.replace(/\.[^.]+$/, '') : 'My IVR Audio']]))
       } catch (e) {
         log(`[AudioLibrary] Upload error: ${e.message}`)
-        return send(chatId, `❌ Failed to save audio: ${e.message}\n\nPlease try again.`, k.of([['↩️ Back']]))
+        return send(chatId, ({ en: `❌ Failed to save audio: ${e.message}\n\nPlease try again.`, fr: `❌ Échec de l'enregistrement : ${e.message}\n\nVeuillez réessayer.`, zh: `❌ 保存音频失败：${e.message}\n\n请重试。`, hi: `❌ ऑडियो सहेजने में विफल: ${e.message}\n\nकृपया पुनः प्रयास करें。` }[lang] || `❌ Failed to save audio: ${e.message}\n\nPlease try again.`), k.of([['↩️ Back']]))
       }
     }
     return send(chatId, `Please send an audio file (MP3, WAV, OGG) or a voice message.`, k.of([['↩️ Back']]))
@@ -11922,7 +11917,7 @@ Choose an IVR template category:`), k.of(rows))
         const saved = await audioLibraryService.downloadAndSave(fileLink, chatId, originalName, mimeType)
         await saveInfo('bulkAudioPending', { ...saved, duration, mimeType, originalName })
         set(state, chatId, 'action', a.bulkNameAudio)
-        return send(chatId, `✅ Audio received!\n\nGive it a name:`, k.of([[originalName !== 'voice_message' ? originalName.replace(/\.[^.]+$/, '') : 'Campaign Audio']]))
+        return send(chatId, (t.audioReceivedShort || `✅ Audio received!\n\nGive it a name:`), k.of([[originalName !== 'voice_message' ? originalName.replace(/\.[^.]+$/, '') : 'Campaign Audio']]))
       } catch (e) {
         return send(chatId, `❌ Upload failed: ${e.message}`, k.of([['↩️ Back']]))
       }
