@@ -2762,6 +2762,11 @@ bot?.on('message', msg => {
     },
     'domain-pay': async () => {
       const { domain, price, couponApplied, newPrice } = info
+      // Guard: ensure domain and price exist before showing payment
+      if (!domain || !price) {
+        log(`[Domain] domain-pay called without domain/price for ${chatId} — redirecting`)
+        return goto.submenu2()
+      }
       const payKeyboard = k.of([
         Object.values(payIn),
         [btn.applyCoupon],
@@ -2810,6 +2815,11 @@ bot?.on('message', msg => {
       send(chatId, hP.generateInvoiceText(payload), payKeyboard)
     },
     'vps-plan-pay' : async () => {
+      // Guard: ensure VPS details exist before showing payment (prevents TypeError crash)
+      if (!info?.vpsDetails || !info?.vpsDetails?.totalPrice) {
+        log(`[VPS] vps-plan-pay called without vpsDetails for ${chatId} — redirecting`)
+        return goto.displayMainMenuButtons()
+      }
       await set(state, chatId, 'action', 'vps-plan-pay')
       const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
       send(chatId, t.showWallet(usdBal, ngnBal))
@@ -2856,6 +2866,11 @@ bot?.on('message', msg => {
       ]))
     },
     'phone-pay': async () => {
+      // Guard: ensure phone number and price exist before showing payment
+      if (!info.cpSelectedNumber || !info.cpPrice) {
+        log(`[CloudPhone] phone-pay called without cpSelectedNumber/cpPrice for ${chatId} — redirecting`)
+        return goto.submenu5()
+      }
       await set(state, chatId, 'action', 'phone-pay')
       const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
       send(chatId, t.showWallet(usdBal, ngnBal))
@@ -2876,6 +2891,11 @@ bot?.on('message', msg => {
       ]))
     },
     'digital-product-pay': async () => {
+      // Guard: ensure product and price exist before showing payment
+      if (!info?.dpProductName || !info?.dpPrice) {
+        log(`[DigitalProducts] digital-product-pay called without product/price for ${chatId} — redirecting`)
+        return goto.submenu6()
+      }
       await set(state, chatId, 'action', a.digitalProductPay)
       const product = info?.dpProductName
       const price = info?.dpPrice
@@ -2897,6 +2917,11 @@ bot?.on('message', msg => {
       send(chatId, t.vcAskAddress)
     },
     'virtual-card-pay': async () => {
+      // Guard: ensure amount exists before showing payment (prevents NaN in calculations)
+      if (!info?.vcAmount || !info?.vcAddress) {
+        log(`[VirtualCard] virtual-card-pay called without vcAmount/vcAddress for ${chatId} — redirecting`)
+        return goto['virtual-card-start']()
+      }
       await set(state, chatId, 'action', a.virtualCardPay)
       const amount = info?.vcAmount
       const fee = amount < 200 ? 20 : Math.round(amount * 0.1 * 100) / 100
@@ -2954,6 +2979,11 @@ bot?.on('message', msg => {
     },
     'plan-pay': async () => {
       const { plan, price, couponApplied, newPrice } = info
+      // Guard: ensure plan and price exist before showing payment
+      if (!plan || !price) {
+        log(`[Plan] plan-pay called without plan/price for ${chatId} — redirecting`)
+        return goto['choose-subscription']()
+      }
       couponApplied
         ? send(chatId, t.planNewPrice(plan, price, newPrice), k.pay)
         : send(chatId, t.planPrice(plan, price), k.pay)
@@ -4403,6 +4433,11 @@ Enter new value:`), bc)
       const lang = info?.userLanguage || 'en'
       const name = await get(nameOf, chatId)
       const price = info?.couponApplied ? info?.newPrice : info?.price
+      // Guard: prevent wallet deduction with undefined plan/price
+      if (!plan || !price || price <= 0) {
+        log(`[Plan] walletOk called without valid plan/price for ${chatId}`)
+        return send(chatId, t.someIssue || 'Something went wrong. Please try again.')
+      }
       const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
@@ -4430,6 +4465,12 @@ Enter new value:`), bc)
     'domain-pay': async coin => {
       set(state, chatId, 'action', 'none')
       const price = info?.couponApplied ? info?.newPrice : info?.price
+      const domain = info?.domain
+      // Guard: prevent wallet deduction with undefined domain/price
+      if (!domain || !price || price <= 0) {
+        log(`[Domain] walletOk called without valid domain/price for ${chatId}`)
+        return send(chatId, t.someIssue || 'Something went wrong. Please try again.')
+      }
       const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
@@ -4442,7 +4483,6 @@ Enter new value:`), bc)
       if (coin === u.ngn && ngnBal < priceNgn) return send(chatId, t.walletBalanceLow, k.of([u.deposit]))
 
       // buy domain
-      const domain = info?.domain
       const lang = info?.userLanguage ?? 'en'
 
       try {
@@ -4477,6 +4517,11 @@ Enter new value:`), bc)
       set(state, chatId, 'action', 'none')
       saveInfo('processingPayment', false) // Clear processing flag
       const price = info?.couponApplied ? info?.newPrice : info?.totalPrice
+      // Guard: prevent wallet deduction with undefined website/price
+      if (!info?.website_name || !price || price <= 0) {
+        log(`[Hosting] walletOk called without valid website_name/price for ${chatId}`)
+        return send(chatId, t.someIssue || 'Something went wrong. Please try again.')
+      }
       const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
@@ -4524,9 +4569,14 @@ Enter new value:`), bc)
     },
     'vps-plan-pay': async coin => {
       set(state, chatId, 'action', 'none')
-      const price = Number(info?.vpsDetails.totalPrice)
-      const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
       const vpsDetails = info?.vpsDetails
+      // Guard: prevent TypeError crash and wallet deduction with undefined VPS details
+      if (!vpsDetails || !vpsDetails.totalPrice) {
+        log(`[VPS] walletOk called without valid vpsDetails for ${chatId}`)
+        return send(chatId, t.someIssue || 'Something went wrong. Please try again.')
+      }
+      const price = Number(vpsDetails.totalPrice)
+      const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
       if (![u.usd, u.ngn].includes(coin)) return send(chatId, t.someIssue || 'Some Issue')
@@ -4648,6 +4698,11 @@ Enter new value:`), bc)
       const price = info?.dpPrice
       const product = info?.dpProductName
       const productKey = info?.dpProductKey
+      // Guard: prevent wallet deduction with undefined product/price
+      if (!price || price <= 0 || !product || !productKey) {
+        log(`[DigitalProducts] walletOk called without valid product/price for ${chatId}`)
+        return send(chatId, t.someIssue || 'Something went wrong. Please try again.')
+      }
       const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
@@ -4700,9 +4755,14 @@ Enter new value:`), bc)
     'virtual-card-pay': async coin => {
       set(state, chatId, 'action', 'none')
       const vcAmount = info?.vcAmount
+      const address = info?.vcAddress
+      // Guard: prevent NaN calculations and wallet deduction with undefined amount/address
+      if (!vcAmount || vcAmount <= 0 || !address) {
+        log(`[VirtualCard] walletOk called without valid vcAmount/vcAddress for ${chatId}`)
+        return send(chatId, t.someIssue || 'Something went wrong. Please try again.')
+      }
       const fee = vcAmount < 200 ? 20 : Math.round(vcAmount * 0.1 * 100) / 100
       const price = Math.round((vcAmount + fee) * 100) / 100
-      const address = info?.vcAddress
       const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
@@ -4744,6 +4804,11 @@ Enter new value:`), bc)
     'phone-pay': async coin => {
       set(state, chatId, 'action', 'none')
       const price = info?.cpPrice
+      // Guard: prevent wallet deduction with undefined number/price
+      if (!price || price <= 0 || !info?.cpSelectedNumber) {
+        log(`[CloudPhone] walletOk called without valid cpPrice/cpSelectedNumber for ${chatId}`)
+        return send(chatId, t.someIssue || 'Something went wrong. Please try again.')
+      }
       const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
@@ -10950,7 +11015,18 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const buyLabel = pc.buyPhoneNumber
     if (message === t.back || message === pc.back || message === t.cancel || message === pc.cancel) return send(chatId, t.userPressedBtn(message), trans('o'))
     if (phoneConfig.btnKeyOf(message) === 'buyPhoneNumber') {
-      // Step 1: Select Plan FIRST
+      // Step 1: Select Plan FIRST — reset stale phone purchase state
+      saveInfo('cpIsSubNumber', false)
+      saveInfo('cpSubParentNumber', null)
+      saveInfo('cpSubParentPlan', null)
+      saveInfo('cpSubParentPlanPrice', null)
+      saveInfo('cpSubParentExpiresAt', null)
+      saveInfo('cpSelectedNumber', null)
+      saveInfo('cpPrice', null)
+      saveInfo('cpCountryCode', null)
+      saveInfo('cpCountryName', null)
+      saveInfo('cpProvider', null)
+      saveInfo('cpPlanKey', null)
       set(state, chatId, 'action', a.cpSelectPlan)
       const availablePlanBtns = []
       if (phoneConfig.isPlanAvailable('starter')) availablePlanBtns.push([pc.starterPlan])
@@ -13311,6 +13387,13 @@ Choose an IVR template category:`), k.of(rows))
         return send(chatId, `📱 <b>Select which plan to add a number to:</b>\n\n${numLines}`, k.of([numBtns, [pc.back, pc.cancel]]))
       }
       // No active plans → regular new purchase flow
+      saveInfo('cpIsSubNumber', false)
+      saveInfo('cpSubParentNumber', null)
+      saveInfo('cpSubParentPlan', null)
+      saveInfo('cpSubParentPlanPrice', null)
+      saveInfo('cpSubParentExpiresAt', null)
+      saveInfo('cpSelectedNumber', null)
+      saveInfo('cpPrice', null)
       set(state, chatId, 'action', a.cpSelectCountry)
       const countryBtns = phoneConfig.countries.map(c => c.name)
       const rows = []
