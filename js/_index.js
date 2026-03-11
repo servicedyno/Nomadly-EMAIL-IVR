@@ -2772,6 +2772,12 @@ bot?.on('message', msg => {
       await set(state, chatId, 'action', 'domain-pay')
     },
     'hosting-pay': async () => {
+      // Guard: ensure a domain has been selected before payment
+      if (!info.website_name) {
+        log(`[Hosting] hosting-pay called without website_name for ${chatId} — redirecting to buyPlan`)
+        saveInfo('processingPayment', false)
+        return goto.buyPlan(a.premiumWeekly)
+      }
       // P0 FIX: Prevent duplicate payment processing (time-based debounce — 30s window)
       const now = Date.now()
       if (info?.processingPayment && info?.paymentLockTime && (now - info.paymentLockTime < 30000)) {
@@ -3810,6 +3816,12 @@ Enter new value:`), bc)
     buyPlan: async (plan) => {
       await set(state, chatId, 'action', plan)
       saveInfo('processingPayment', false) // Clear stale payment lock on new purchase attempt
+      // Reset domain-related state to prevent stale flags from previous attempts
+      saveInfo('connectExternalDomain', false)
+      saveInfo('existingDomain', false)
+      saveInfo('website_name', null)
+      saveInfo('price', null)
+      saveInfo('continue_domain_last_state', null)
       console.log("buyPlan", plan)
       const message = hP.generatePlanStepText("buyText");
       let backBtn = user.backToPremiumWeeklyDetails
@@ -3824,6 +3836,7 @@ Enter new value:`), bc)
     registerNewDomain: async () => {
       await set(state, chatId, 'action', a.registerNewDomain)
       saveInfo('existingDomain', false)
+      saveInfo('connectExternalDomain', false)
 
       const message = hP.generatePlanStepText("registerNewDomainText");
       send(chatId, message, bc)
@@ -3846,6 +3859,7 @@ Enter new value:`), bc)
       }
       set(state, chatId, 'action', a.useMyDomain)
       saveInfo('existingDomain', true)
+      saveInfo('connectExternalDomain', false)
       const domainButtons = domains.map(d => [d])
       domainButtons.push([t.backButton])
       send(chatId, ({ en: 'Select a domain from your registered domains:', fr: 'Sélectionnez un domaine parmi vos domaines enregistrés :', zh: '从您的注册域名中选择一个：', hi: 'अपने पंजीकृत डोमेन में से एक चुनें:' }[lang] || 'Select a domain from your registered domains:'), k.of(domainButtons))
@@ -3870,6 +3884,7 @@ Enter new value:`), bc)
     useExistingDomain: async () => {
       await set(state, chatId, 'action', a.useExistingDomain)
       saveInfo('existingDomain', true)
+      saveInfo('connectExternalDomain', false)
       const message = hP.generatePlanStepText("useExistingDomainText");
       send(chatId, message, bc)
     },
@@ -3895,6 +3910,11 @@ Enter new value:`), bc)
 
     // Step 4: Enter your email (optional)
     enterYourEmail: async () => {
+      // Guard: ensure a domain has been selected before reaching email/payment
+      if (!info.website_name) {
+        log(`[Hosting] enterYourEmail called without website_name for ${chatId} — redirecting to buyPlan`)
+        return goto.buyPlan(a.premiumWeekly)
+      }
       await set(state, chatId, 'action', a.enterYourEmail)
       send(chatId, hP.generatePlanStepText('enterYourEmail'), k.of([t.skipEmail]))
     },
@@ -5921,7 +5941,7 @@ All verified numbers generated during sourcing.`))
   }
 
   if (action === a.useExistingDomain) {
-    if (message === t.back) return goto.submenu3()
+    if (message === t.back || message === t.cancel) return goto.submenu3()
     send(chatId, t.checkingExistingDomainAvail)
     let modifiedDomain = removeProtocolFromDomain(message)
     const { available, chatMessage } = await planCheckExistingDomain(modifiedDomain, info.hostingType)
@@ -5954,7 +5974,7 @@ All verified numbers generated during sourcing.`))
 
   // Connect External Domain — user types a domain they own elsewhere
   if (action === a.connectExternalDomain) {
-    if (message === t.back || message === t.backButton) return goto.buyPlan(a.premiumWeekly)
+    if (message === t.back || message === t.backButton || message === t.cancel) return goto.buyPlan(a.premiumWeekly)
     let modifiedDomain = removeProtocolFromDomain(message)
     // Validate it looks like a domain
     if (!modifiedDomain || !modifiedDomain.includes('.')) {
