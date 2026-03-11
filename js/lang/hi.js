@@ -23,6 +23,7 @@ const DP_PRICE_AWS_MAIN = Number(process.env.DP_PRICE_AWS_MAIN) || 400
 const DP_PRICE_AWS_SUB = Number(process.env.DP_PRICE_AWS_SUB) || 150
 const DP_PRICE_GCLOUD_MAIN = Number(process.env.DP_PRICE_GCLOUD_MAIN) || 300
 const DP_PRICE_GCLOUD_SUB = Number(process.env.DP_PRICE_GCLOUD_SUB) || 300
+const DP_PRICE_IONOS_SMTP = Number(process.env.DP_PRICE_IONOS_SMTP) || 150
 
 const HIDE_SMS_APP = process.env.HIDE_SMS_APP
 const HIDE_BECOME_RESELLER = process.env.HIDE_BECOME_RESELLER
@@ -538,7 +539,7 @@ ${CHAT_BOT_NAME}`,
 
 
   // Digital Products
-  digitalProductsSelect: `🛒 <b>डिजिटल उत्पाद</b>\n\nसत्यापित खाते इस बॉट के माध्यम से <b>तेज़ी</b> से वितरित किए जाते हैं।\n\n<b>टेलीकॉम</b> — Twilio, Telnyx (SMS, वॉइस, SIP)\n<b>क्लाउड</b> — AWS, Google Cloud (पूर्ण एक्सेस)\n<b>ईमेल</b> — Google Workspace, Zoho Mail\n<b>मोबाइल</b> — eSIM T-Mobile\n\nक्रिप्टो, बैंक या वॉलेट से भुगतान करें। नीचे चुनें:`,
+  digitalProductsSelect: `🛒 <b>डिजिटल उत्पाद</b>\n\nसत्यापित खाते इस बॉट के माध्यम से <b>तेज़ी</b> से वितरित किए जाते हैं।\n\n<b>टेलीकॉम</b> — Twilio, Telnyx (SMS, वॉइस, SIP)\n<b>क्लाउड</b> — AWS, Google Cloud (पूर्ण एक्सेस)\n<b>ईमेल</b> — Google Workspace, Zoho Mail, IONOS SMTP\n<b>मोबाइल</b> — eSIM T-Mobile\n\nक्रिप्टो, बैंक या वॉलेट से भुगतान करें। नीचे चुनें:`,
   dpTwilioMain: `📞 Twilio मुख्य खाता — $${DP_PRICE_TWILIO_MAIN}`,
   dpTwilioSub: `📞 Twilio उप-खाता — $${DP_PRICE_TWILIO_SUB}`,
   dpTelnyxMain: `📡 Telnyx मुख्य खाता — $${DP_PRICE_TELNYX_MAIN}`,
@@ -552,6 +553,7 @@ ${CHAT_BOT_NAME}`,
   dpAwsSub: `☁️ AWS उप-खाता — $${DP_PRICE_AWS_SUB}`,
   dpGcloudMain: `🌐 Google Cloud मुख्य — $${DP_PRICE_GCLOUD_MAIN}`,
   dpGcloudSub: `🌐 Google Cloud उप — $${DP_PRICE_GCLOUD_SUB}`,
+  dpIonosSmtp: `📧 IONOS SMTP — $${DP_PRICE_IONOS_SMTP}`,
   dpPaymentPrompt: (product, price) => {
     const descriptions = {
       'Twilio Main Account': 'पूर्ण स्वामी-स्तर Twilio खाता, Console एक्सेस, API कुंजियाँ, फ़ोन नंबर, SMS/MMS और वॉइस कॉल।\n\nआपको मिलेगा: लॉगिन क्रेडेंशियल + API SID और Auth Token।',

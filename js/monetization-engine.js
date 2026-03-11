@@ -139,8 +139,8 @@ function getUpsellMessage(type, lang = 'en', ...args) {
 
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// FEATURE 2: First-Purchase Welcome Bonus
-// Auto-credits wallet on first deposit
+// FEATURE 2: Welcome Bonus
+// Auto-credits wallet when user first joins
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 let _welcomeBonusCol = null
@@ -154,7 +154,7 @@ function initWelcomeBonus(db, bot, walletOf) {
 
   // Index for fast lookups
   _welcomeBonusCol.createIndex({ chatId: 1 }, { unique: true }).catch(() => {})
-  log(`[WelcomeBonus] Initialized — $${WELCOME_BONUS_USD} bonus on first deposit`)
+  log(`[WelcomeBonus] Initialized — $${WELCOME_BONUS_USD} welcome gift for new users`)
 }
 
 async function checkAndAwardWelcomeBonus(chatId, lang = 'en') {
@@ -187,18 +187,18 @@ async function checkAndAwardWelcomeBonus(chatId, lang = 'en') {
       log(`[WelcomeBonus] Awarded $${WELCOME_BONUS_USD} to chatId=${chatId}`)
 
       const msgs = {
-        en: `🎉 <b>Welcome Bonus!</b>\n\n` +
-            `$${WELCOME_BONUS_USD} has been added to your wallet as a first-deposit bonus!\n\n` +
+        en: `🎉 <b>Welcome Gift!</b>\n\n` +
+            `$${WELCOME_BONUS_USD} has been added to your wallet as a welcome gift!\n\n` +
             `💡 Use it toward any service — domains, phone numbers, hosting, or more.\n\n` +
             `Thank you for joining Nomadly! 🚀`,
-        fr: `🎉 <b>Bonus de bienvenue !</b>\n\n` +
-            `$${WELCOME_BONUS_USD} ajoutés à votre portefeuille en bonus de premier dépôt !\n\n` +
+        fr: `🎉 <b>Cadeau de bienvenue !</b>\n\n` +
+            `$${WELCOME_BONUS_USD} ajoutés à votre portefeuille en cadeau de bienvenue !\n\n` +
             `💡 Utilisez-le pour n'importe quel service. Merci d'avoir rejoint Nomadly ! 🚀`,
-        zh: `🎉 <b>欢迎奖金！</b>\n\n` +
-            `$${WELCOME_BONUS_USD} 已作为首次充值奖金添加到您的钱包！\n\n` +
+        zh: `🎉 <b>欢迎礼物！</b>\n\n` +
+            `$${WELCOME_BONUS_USD} 已作为欢迎礼物添加到您的钱包！\n\n` +
             `💡 可用于任何服务。感谢加入 Nomadly！🚀`,
-        hi: `🎉 <b>स्वागत बोनस!</b>\n\n` +
-            `$${WELCOME_BONUS_USD} पहली बार जमा करने पर बोनस के रूप में आपके वॉलेट में जोड़ दिए गए!\n\n` +
+        hi: `🎉 <b>स्वागत उपहार!</b>\n\n` +
+            `$${WELCOME_BONUS_USD} स्वागत उपहार के रूप में आपके वॉलेट में जोड़ दिए गए!\n\n` +
             `💡 किसी भी सेवा पर इस्तेमाल करें। Nomadly में स्वागत है! 🚀`,
       }
 
@@ -218,6 +218,106 @@ async function hasReceivedWelcomeBonus(chatId) {
   if (!_welcomeBonusCol) return true // Assume yes if not initialized
   const record = await _welcomeBonusCol.findOne({ chatId })
   return !!record
+}
+
+/**
+ * Gift $5 welcome bonus to ALL existing users who haven't received it yet.
+ * Sends an announcement message to each gifted user.
+ * Rate-limited to avoid Telegram API throttling.
+ * @param {Function} getChatIds - async function returning all user chatIds
+ * @param {Function} sendMessage - bot.sendMessage
+ * @param {Function} adminSend - function to send progress to admin
+ * @returns {Object} { gifted, skipped, failed, total }
+ */
+async function giftAllUsersWelcomeBonus(getChatIds, sendMessage, adminSend) {
+  if (!_welcomeBonusCol || !_walletOf) {
+    throw new Error('Welcome bonus not initialized')
+  }
+
+  const chatIds = await getChatIds()
+  const total = chatIds.length
+  let gifted = 0
+  let skipped = 0
+  let failed = 0
+
+  const BATCH_SIZE = 25
+  const DELAY_BETWEEN_MSGS = 50 // ms (safe for Telegram 30msg/sec)
+  const DELAY_BETWEEN_BATCHES = 2000 // 2s pause between batches
+
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms))
+
+  const totalBatches = Math.ceil(total / BATCH_SIZE)
+
+  for (let i = 0; i < total; i += BATCH_SIZE) {
+    const batch = chatIds.slice(i, i + BATCH_SIZE)
+    const batchNum = Math.floor(i / BATCH_SIZE) + 1
+
+    for (const chatId of batch) {
+      try {
+        // Check if already received
+        const existing = await _welcomeBonusCol.findOne({ chatId })
+        if (existing) {
+          skipped++
+          continue
+        }
+
+        // Award — race-safe upsert
+        const result = await _welcomeBonusCol.findOneAndUpdate(
+          { chatId },
+          {
+            $setOnInsert: {
+              chatId,
+              bonusAmount: WELCOME_BONUS_USD,
+              awardedAt: new Date(),
+              source: 'admin_gift_all',
+            },
+          },
+          { upsert: true, returnDocument: 'after' }
+        )
+
+        if (result && !result.previouslyExisted) {
+          const { atomicIncrement } = require('./db.js')
+          await atomicIncrement(_walletOf, chatId, 'usdIn', WELCOME_BONUS_USD)
+
+          // Announce to user
+          try {
+            await sendMessage(chatId,
+              `🎉 <b>Welcome Gift!</b>\n\n` +
+              `$${WELCOME_BONUS_USD} has been added to your wallet as a welcome gift from Nomadly!\n\n` +
+              `💡 Use it toward any service — domains, phone numbers, hosting, or more.\n\n` +
+              `Thank you for being part of Nomadly! 🚀`,
+              { parse_mode: 'HTML' }
+            )
+          } catch (sendErr) {
+            // User may have blocked bot — still count as gifted (wallet credited)
+            log(`[GiftAll] Could not message ${chatId}: ${sendErr.message}`)
+          }
+
+          gifted++
+        } else {
+          skipped++
+        }
+      } catch (e) {
+        if (e.code === 11000) { skipped++; continue }
+        log(`[GiftAll] Error for ${chatId}: ${e.message}`)
+        failed++
+      }
+
+      await sleep(DELAY_BETWEEN_MSGS)
+    }
+
+    // Progress update to admin every batch
+    if (batchNum % 5 === 0 || batchNum === totalBatches) {
+      try {
+        await adminSend(`📊 Gift progress: ${batchNum}/${totalBatches} batches\n✅ Gifted: ${gifted} | ⏭ Skipped: ${skipped} | ❌ Failed: ${failed}`)
+      } catch (_) {}
+    }
+
+    if (i + BATCH_SIZE < total) await sleep(DELAY_BETWEEN_BATCHES)
+  }
+
+  log(`[GiftAll] Complete — gifted=${gifted}, skipped=${skipped}, failed=${failed}, total=${total}`)
+  return { gifted, skipped, failed, total }
 }
 
 
@@ -713,6 +813,7 @@ module.exports = {
   initWelcomeBonus,
   checkAndAwardWelcomeBonus,
   hasReceivedWelcomeBonus,
+  giftAllUsersWelcomeBonus,
   WELCOME_BONUS_USD,
 
   // Feature 3: Win-Back

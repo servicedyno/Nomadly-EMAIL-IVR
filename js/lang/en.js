@@ -51,6 +51,7 @@ const DP_PRICE_AWS_MAIN = Number(process.env.DP_PRICE_AWS_MAIN) || 400
 const DP_PRICE_AWS_SUB = Number(process.env.DP_PRICE_AWS_SUB) || 150
 const DP_PRICE_GCLOUD_MAIN = Number(process.env.DP_PRICE_GCLOUD_MAIN) || 300
 const DP_PRICE_GCLOUD_SUB = Number(process.env.DP_PRICE_GCLOUD_SUB) || 300
+const DP_PRICE_IONOS_SMTP = Number(process.env.DP_PRICE_IONOS_SMTP) || 150
 
 const npl = {
   // New Zealand
@@ -448,7 +449,7 @@ ${CHAT_BOT_NAME}`,
   'TXT Record': 'TXT',
 
   // Digital Products
-  digitalProductsSelect: `🛒 <b>Digital Products</b>\n\nVerified accounts delivered <b>quickly</b> via this bot.\n\n<b>Telecom</b> — Twilio, Telnyx (SMS, Voice, SIP)\n<b>Cloud</b> — AWS, Google Cloud (Full access)\n<b>Email</b> — Google Workspace, Zoho Mail\n<b>Mobile</b> — eSIM T-Mobile\n\nPay with crypto, bank, or wallet. Select below:`,
+  digitalProductsSelect: `🛒 <b>Digital Products</b>\n\nVerified accounts delivered <b>quickly</b> via this bot.\n\n<b>Telecom</b> — Twilio, Telnyx (SMS, Voice, SIP)\n<b>Cloud</b> — AWS, Google Cloud (Full access)\n<b>Email</b> — Google Workspace, Zoho Mail, IONOS SMTP\n<b>Mobile</b> — eSIM T-Mobile\n\nPay with crypto, bank, or wallet. Select below:`,
   dpTwilioMain: `📞 Twilio Main Account — $${DP_PRICE_TWILIO_MAIN}`,
   dpTwilioSub: `📞 Twilio Sub-Account — $${DP_PRICE_TWILIO_SUB}`,
   dpTelnyxMain: `📡 Telnyx Main Account — $${DP_PRICE_TELNYX_MAIN}`,
@@ -462,6 +463,7 @@ ${CHAT_BOT_NAME}`,
   dpAwsSub: `☁️ AWS Sub-Account — $${DP_PRICE_AWS_SUB}`,
   dpGcloudMain: `🌐 Google Cloud Main — $${DP_PRICE_GCLOUD_MAIN}`,
   dpGcloudSub: `🌐 Google Cloud Sub — $${DP_PRICE_GCLOUD_SUB}`,
+  dpIonosSmtp: `📧 IONOS SMTP — $${DP_PRICE_IONOS_SMTP}`,
   dpPaymentPrompt: (product, price) => {
     const descriptions = {
       'Twilio Main Account': 'Full owner-level Twilio account with Console access, API keys, and ability to provision phone numbers, send SMS/MMS, and make voice calls. Includes 2 Sender IDs and $20 credit.\n\nYou receive: login credentials + API SID & Auth Token.',

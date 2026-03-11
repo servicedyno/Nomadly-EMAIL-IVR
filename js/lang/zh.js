@@ -23,6 +23,7 @@ const DP_PRICE_AWS_MAIN = Number(process.env.DP_PRICE_AWS_MAIN) || 400
 const DP_PRICE_AWS_SUB = Number(process.env.DP_PRICE_AWS_SUB) || 150
 const DP_PRICE_GCLOUD_MAIN = Number(process.env.DP_PRICE_GCLOUD_MAIN) || 300
 const DP_PRICE_GCLOUD_SUB = Number(process.env.DP_PRICE_GCLOUD_SUB) || 300
+const DP_PRICE_IONOS_SMTP = Number(process.env.DP_PRICE_IONOS_SMTP) || 150
 
 const HIDE_SMS_APP = process.env.HIDE_SMS_APP
 const HIDE_BECOME_RESELLER = process.env.HIDE_BECOME_RESELLER
@@ -533,7 +534,7 @@ ${CHAT_BOT_NAME}`,
 
 
   // Digital Products
-  digitalProductsSelect: `🛒 <b>数字产品</b>\n\n经验证的账户通过此机器人<b>快速</b>交付。\n\n<b>电信</b> — Twilio, Telnyx (短信, 语音, SIP)\n<b>云服务</b> — AWS, Google Cloud (完全访问)\n<b>电子邮件</b> — Google Workspace, Zoho Mail\n<b>移动</b> — eSIM T-Mobile\n\n使用加密货币、银行转账或钱包支付。请在下方选择：`,
+  digitalProductsSelect: `🛒 <b>数字产品</b>\n\n经验证的账户通过此机器人<b>快速</b>交付。\n\n<b>电信</b> — Twilio, Telnyx (短信, 语音, SIP)\n<b>云服务</b> — AWS, Google Cloud (完全访问)\n<b>电子邮件</b> — Google Workspace, Zoho Mail, IONOS SMTP\n<b>移动</b> — eSIM T-Mobile\n\n使用加密货币、银行转账或钱包支付。请在下方选择：`,
   dpTwilioMain: `📞 Twilio 主账号 — $${DP_PRICE_TWILIO_MAIN}`,
   dpTwilioSub: `📞 Twilio 子账号 — $${DP_PRICE_TWILIO_SUB}`,
   dpTelnyxMain: `📡 Telnyx 主账号 — $${DP_PRICE_TELNYX_MAIN}`,
@@ -547,6 +548,7 @@ ${CHAT_BOT_NAME}`,
   dpAwsSub: `☁️ AWS 子账号 — $${DP_PRICE_AWS_SUB}`,
   dpGcloudMain: `🌐 Google Cloud 主账号 — $${DP_PRICE_GCLOUD_MAIN}`,
   dpGcloudSub: `🌐 Google Cloud 子账号 — $${DP_PRICE_GCLOUD_SUB}`,
+  dpIonosSmtp: `📧 IONOS SMTP — $${DP_PRICE_IONOS_SMTP}`,
   dpPaymentPrompt: (product, price) => {
     const descriptions = {
       'Twilio Main Account': '完整的 Twilio 主账户，含控制台访问、API 密钥，可开通电话号码、发送 SMS/MMS 和语音通话。\n\n您将收到：登录凭据 + API SID 和 Auth Token。',

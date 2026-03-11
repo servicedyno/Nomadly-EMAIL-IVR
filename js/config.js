@@ -45,6 +45,7 @@ const DP_PRICE_AWS_MAIN = Number(process.env.DP_PRICE_AWS_MAIN) || 400
 const DP_PRICE_AWS_SUB = Number(process.env.DP_PRICE_AWS_SUB) || 150
 const DP_PRICE_GCLOUD_MAIN = Number(process.env.DP_PRICE_GCLOUD_MAIN) || 300
 const DP_PRICE_GCLOUD_SUB = Number(process.env.DP_PRICE_GCLOUD_SUB) || 300
+const DP_PRICE_IONOS_SMTP = Number(process.env.DP_PRICE_IONOS_SMTP) || 150
 
 const discountOn = {}
 discountOn['SA0'] = 10 // Percent
@@ -1054,4 +1055,5 @@ module.exports = {
   DP_PRICE_AWS_SUB,
   DP_PRICE_GCLOUD_MAIN,
   DP_PRICE_GCLOUD_SUB,
+  DP_PRICE_IONOS_SMTP,
 }

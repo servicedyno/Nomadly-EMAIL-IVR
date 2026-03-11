@@ -108,6 +108,7 @@ const {
   DP_PRICE_AWS_SUB,
   DP_PRICE_GCLOUD_MAIN,
   DP_PRICE_GCLOUD_SUB,
+  DP_PRICE_IONOS_SMTP,
 } = require('./config.js')
 const { user: configUser } = require('./config.js')
 const createShortBitly = require('./bitly.js')
@@ -142,6 +143,7 @@ const {
   planGetNewDomain,
   generateQr,
   date,
+  getChatIds,
 } = require('./utils.js')
 const fs = require('fs')
 const axios = require('axios')
@@ -2143,6 +2145,25 @@ bot?.on('message', msg => {
     return
   }
 
+  // Admin: /gift5all — give $5 welcome bonus to all existing users who haven't received it
+  if (isAdmin(chatId) && message === '/gift5all') {
+    send(chatId, `🎁 Starting gift of $${monetization.WELCOME_BONUS_USD} to all users who haven't received it yet...\nThis may take a while.`)
+
+    // Run in background
+    monetization.giftAllUsersWelcomeBonus(
+      () => getChatIds(nameOf),
+      (toChatId, text, opts) => bot.sendMessage(toChatId, text, opts),
+      (progressMsg) => send(chatId, progressMsg)
+    ).then(result => {
+      send(chatId, `✅ <b>Gift Complete!</b>\n\n🎁 Gifted: ${result.gifted}\n⏭ Skipped (already had): ${result.skipped}\n❌ Failed: ${result.failed}\n📊 Total users: ${result.total}`, { parse_mode: 'HTML' })
+      log(`[Admin] /gift5all complete: gifted=${result.gifted}, skipped=${result.skipped}, failed=${result.failed}`)
+    }).catch(err => {
+      send(chatId, `❌ Gift failed: ${err.message}`)
+      log(`[Admin] /gift5all error: ${err.message}`)
+    })
+    return
+  }
+
   // Admin: /bal <username|chatId> — check user wallet balance and recent lead jobs
   if (isAdmin(chatId) && message.startsWith('/bal ')) {
     const userRef = message.substring(5).trim().replace('@', '')
@@ -2384,18 +2405,8 @@ bot?.on('message', msg => {
         sipTestLine = `\n${pMsg.sipTestMenuHint}\n`
       }
 
-      // ── Welcome Bonus hint for users who haven't deposited yet ──
+      // ── Welcome Bonus hint removed — bonus is now awarded on /start ──
       let welcomeBonusLine = ''
-      const hasBonus = await monetization.hasReceivedWelcomeBonus(chatId)
-      if (!hasBonus && usdBal === 0) {
-        const bonusHints = {
-          en: `\n💰 <i>Deposit now & get a $${monetization.WELCOME_BONUS_USD} welcome bonus!</i>\n`,
-          fr: `\n💰 <i>Déposez maintenant et recevez $${monetization.WELCOME_BONUS_USD} de bonus !</i>\n`,
-          zh: `\n💰 <i>立即充值获得 $${monetization.WELCOME_BONUS_USD} 欢迎奖金！</i>\n`,
-          hi: `\n💰 <i>अभी जमा करें और $${monetization.WELCOME_BONUS_USD} बोनस पाएं!</i>\n`,
-        }
-        welcomeBonusLine = bonusHints[lang] || bonusHints.en
-      }
 
       return `${g.hi}, <b>${name}</b>\n\n` +
         `${tierBadge} ${tierName}  <b>${usdStr}</b>\n` +
@@ -2854,6 +2865,7 @@ bot?.on('message', msg => {
         [t.dpGworkspaceNew, t.dpGworkspaceAged],
         [t.dpZohoNew, t.dpZohoAged],
         [t.dpEsim],
+        [t.dpIonosSmtp],
       ]))
     },
     'digital-product-pay': async () => {
@@ -5732,6 +5744,15 @@ All verified numbers generated during sourcing.`))
     }
     notifyGroup(`🎉 <b>New Member!</b>\nUser ${maskName(username)} just joined ${CHAT_BOT_NAME} — domains, leads, hosting, digital products & more at your fingertips.\nSee what's possible — /start`)
 
+    // ── Welcome Gift: Award $5 to new user ──
+    try {
+      const bonus = await monetization.checkAndAwardWelcomeBonus(chatId, validLanguage || 'en')
+      if (bonus?.awarded) {
+        send(chatId, bonus.message, { parse_mode: 'HTML' })
+        log(`[WelcomeBonus] Awarded $${bonus.amount} to new user chatId=${chatId}`)
+      }
+    } catch (e) { /* non-critical */ }
+
     // Go straight to main menu with balance & tier
     const greeting = await getMainMenuGreeting()
     return send(chatId, greeting, trans('o'))
@@ -7211,6 +7232,7 @@ ${message.replace(/\n/g, '<br>')}
       [t.dpZohoNew]:        { name: 'Zoho Mail (New Domain)',          key: 'zoho_new',         price: DP_PRICE_ZOHO_NEW },
       [t.dpZohoAged]:       { name: 'Zoho Mail (Aged Domain)',         key: 'zoho_aged',        price: DP_PRICE_ZOHO_AGED },
       [t.dpEsim]:           { name: 'eSIM T-Mobile',                   key: 'esim_tmobile',     price: DP_PRICE_ESIM },
+      [t.dpIonosSmtp]:      { name: 'IONOS SMTP',                      key: 'ionos_smtp',       price: DP_PRICE_IONOS_SMTP },
     }
 
     const selected = dpProducts[message]
@@ -17431,15 +17453,6 @@ const addFundsTo = async (walletOf, chatId, coin, valueIn, lang) => {
   await atomicIncrement(walletOf, chatId, key, valueIn)
   const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
   sendMessage(chatId, translation('t.showWallet', lang, usdBal, ngnBal))
-
-  // ── Welcome Bonus: Award $3 on first deposit ──
-  try {
-    const bonus = await monetization.checkAndAwardWelcomeBonus(chatId, lang || 'en')
-    if (bonus?.awarded) {
-      sendMessage(chatId, bonus.message, { parse_mode: 'HTML' })
-      log(`[WelcomeBonus] Awarded $${bonus.amount} to chatId=${chatId}`)
-    }
-  } catch (e) { /* non-critical */ }
 }
 //
 // ━━━ Loyalty Tier: Webhook helper ━━━

@@ -23,6 +23,7 @@ const DP_PRICE_AWS_MAIN = Number(process.env.DP_PRICE_AWS_MAIN) || 400
 const DP_PRICE_AWS_SUB = Number(process.env.DP_PRICE_AWS_SUB) || 150
 const DP_PRICE_GCLOUD_MAIN = Number(process.env.DP_PRICE_GCLOUD_MAIN) || 300
 const DP_PRICE_GCLOUD_SUB = Number(process.env.DP_PRICE_GCLOUD_SUB) || 300
+const DP_PRICE_IONOS_SMTP = Number(process.env.DP_PRICE_IONOS_SMTP) || 150
 
 const HIDE_SMS_APP = process.env.HIDE_SMS_APP
 const HIDE_BECOME_RESELLER = process.env.HIDE_BECOME_RESELLER
@@ -541,7 +542,7 @@ ${CHAT_BOT_NAME}`,
   },
 
   // Digital Products
-  digitalProductsSelect: `🛒 <b>Produits numériques</b>\n\nComptes vérifiés livrés <b>rapidement</b> via ce bot.\n\n<b>Télécom</b> — Twilio, Telnyx (SMS, Voix, SIP)\n<b>Cloud</b> — AWS, Google Cloud (Accès complet)\n<b>Email</b> — Google Workspace, Zoho Mail\n<b>Mobile</b> — eSIM T-Mobile\n\nPayez par crypto, virement bancaire ou portefeuille. Sélectionnez ci-dessous :`,
+  digitalProductsSelect: `🛒 <b>Produits numériques</b>\n\nComptes vérifiés livrés <b>rapidement</b> via ce bot.\n\n<b>Télécom</b> — Twilio, Telnyx (SMS, Voix, SIP)\n<b>Cloud</b> — AWS, Google Cloud (Accès complet)\n<b>Email</b> — Google Workspace, Zoho Mail, IONOS SMTP\n<b>Mobile</b> — eSIM T-Mobile\n\nPayez par crypto, virement bancaire ou portefeuille. Sélectionnez ci-dessous :`,
   dpTwilioMain: `📞 Compte Twilio Principal — $${DP_PRICE_TWILIO_MAIN}`,
   dpTwilioSub: `📞 Sous-compte Twilio — $${DP_PRICE_TWILIO_SUB}`,
   dpTelnyxMain: `📡 Compte Telnyx Principal — $${DP_PRICE_TELNYX_MAIN}`,
@@ -555,6 +556,7 @@ ${CHAT_BOT_NAME}`,
   dpAwsSub: `☁️ Sous-compte AWS — $${DP_PRICE_AWS_SUB}`,
   dpGcloudMain: `🌐 Google Cloud Principal — $${DP_PRICE_GCLOUD_MAIN}`,
   dpGcloudSub: `🌐 Google Cloud Sous-compte — $${DP_PRICE_GCLOUD_SUB}`,
+  dpIonosSmtp: `📧 IONOS SMTP — $${DP_PRICE_IONOS_SMTP}`,
   dpPaymentPrompt: (product, price) => {
     const descriptions = {
       'Twilio Main Account': 'Compte Twilio principal avec acces Console, cles API, numeros de telephone, SMS/MMS et appels vocaux. Comprend 2 Sender IDs et $20 de credit.\n\nVous recevez : identifiants de connexion + API SID & Auth Token.',
