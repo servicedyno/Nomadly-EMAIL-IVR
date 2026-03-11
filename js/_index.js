@@ -1925,7 +1925,9 @@ bot?.on('message', msg => {
     // Re-open support session so user's next message goes to admin
     await set(supportSessions, targetChatId, Date.now())
     await set(state, targetChatId, 'action', 'supportChat')
-    log(`[Support] Admin replied to ${targetChatId}: ${replyText} — session re-opened`)
+    // Mark admin takeover — AI will not auto-respond until session is closed and reopened
+    await set(state, targetChatId, 'adminTakeover', true)
+    log(`[Support] Admin replied to ${targetChatId}: ${replyText} — session re-opened, admin takeover ON`)
     return
   }
 
@@ -1945,7 +1947,9 @@ bot?.on('message', msg => {
     send(targetChatId, '✅ Support session closed. Use the menu below to continue.', translation('o', 'en'))
     send(chatId, `✅ Closed support session for ${targetName || targetChatId}`)
     clearAiHistory(targetChatId) // Clear AI conversation history
-    log(`[Support] Admin closed session for ${targetChatId}`)
+    // Clear admin takeover flag on session close
+    await set(state, targetChatId, 'adminTakeover', false)
+    log(`[Support] Admin closed session for ${targetChatId} — admin takeover OFF`)
     return
   }
 
@@ -5632,11 +5636,13 @@ All verified numbers generated during sourcing.`))
   if (message === '/done' && action === a.supportChat) {
     await set(supportSessions, chatId, 0)
     set(state, chatId, 'action', 'none')
+    // Clear admin takeover flag on session close
+    await set(state, chatId, 'adminTakeover', false)
     const name = await get(nameOf, chatId)
     send(chatId, t.supportEnded, trans('o'))
     send(TELEGRAM_ADMIN_CHAT_ID, `📴 Support session closed by user <b>${name || chatId}</b> (${chatId})`, { parse_mode: 'HTML' })
     clearAiHistory(chatId) // Clear AI conversation history
-    log(`[Support] Session ended by user ${chatId}`)
+    log(`[Support] Session ended by user ${chatId} — admin takeover OFF`)
     return
   }
 
@@ -5647,16 +5653,27 @@ All verified numbers generated during sourcing.`))
 
   // ═══════════════════════════════════════════════════
   // Support chat mode — AI auto-responds + admin sees everything
+  // When admin has taken over (via /reply), AI stays silent
   // ═══════════════════════════════════════════════════
   if (action === a.supportChat) {
     const name = await get(nameOf, chatId)
     const displayName = name || msg?.from?.username || chatId
 
-    // Always forward user message to admin first
-    send(TELEGRAM_ADMIN_CHAT_ID, `💬 <b>${displayName}</b> (${chatId}):\n${message}\n\n↩️ /reply ${chatId} <i>type response</i>`, { parse_mode: 'HTML' })
-    log(`[Support] ${chatId} -> admin: ${message}`)
+    // Check if admin has taken over this session
+    const stateObj = await get(state, chatId)
+    const isAdminTakeover = stateObj?.adminTakeover === true
 
-    // AI auto-response
+    // Always forward user message to admin first
+    send(TELEGRAM_ADMIN_CHAT_ID, `💬 <b>${displayName}</b> (${chatId}):\n${message}${isAdminTakeover ? '\n\n🔒 <i>Admin takeover active — AI silenced</i>' : ''}\n\n↩️ /reply ${chatId} <i>type response</i>`, { parse_mode: 'HTML' })
+    log(`[Support] ${chatId} -> admin: ${message} (adminTakeover: ${isAdminTakeover})`)
+
+    // If admin has taken over, skip AI — only forward to admin
+    if (isAdminTakeover) {
+      send(chatId, t.supportMsgReceived || '✅ Message received. Our support team will respond shortly.', { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
+      return
+    }
+
+    // AI auto-response (only when admin has NOT taken over)
     if (isAiEnabled()) {
       try {
         const { response: aiResponse, escalate, error } = await getAiResponse(chatId, message, lang)
@@ -5877,11 +5894,13 @@ All verified numbers generated during sourcing.`))
   if (message === user.contactSupport || message === user.getSupport) {
     await set(supportSessions, chatId, Date.now())
     await saveInfo('action', a.supportChat)
+    // Clear admin takeover flag — fresh session starts with AI enabled
+    await set(state, chatId, 'adminTakeover', false)
     send(chatId, ({ en: `💬 <b>Live Support</b>\n\nYou're now connected with support. Type your message below and we'll respond as soon as possible.\n\nSend /done when you're finished.`, fr: `💬 <b>Support en Direct</b>\n\nVous êtes maintenant connecté au support. Tapez votre message ci-dessous et nous répondrons dès que possible.\n\nEnvoyez /done quand vous avez terminé.`, zh: `💬 <b>在线客服</b>\n\n您已连接到客服。请在下方输入您的消息，我们会尽快回复。\n\n完成后发送 /done。`, hi: `💬 <b>लाइव सहायता</b>\n\nआप अब सहायता से जुड़े हैं। नीचे अपना संदेश टाइप करें और हम जल्द से जल्द जवाब देंगे।\n\nजब आपका काम हो जाए तो /done भेजें।` }[lang] || `💬 <b>Live Support</b>\n\nYou're now connected with support. Type your message below and we'll respond as soon as possible.\n\nSend /done when you're finished.`), { parse_mode: 'HTML', reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
     // Notify admin — private message only, not to groups
     const name = await get(nameOf, chatId)
     send(TELEGRAM_ADMIN_CHAT_ID, `🔔 <b>Support session opened</b>\nUser: <b>${name || 'unknown'}</b> (${chatId})\n@${msg?.from?.username || 'no_username'}\n\nReply with: /reply ${chatId} <i>your message</i>\nClose with: /close ${chatId}`, { parse_mode: 'HTML' })
-    log(`[Support] Session opened for ${chatId} ${name}`)
+    log(`[Support] Session opened for ${chatId} ${name} — admin takeover OFF (fresh session)`)
     return
   }
 

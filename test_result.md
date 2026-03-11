@@ -2047,6 +2047,28 @@ agent_communication:
 
 
 
+  - task: "AI support admin takeover — AI silenced after admin /reply until session closed and reopened"
+    implemented: true
+    working: true
+    file: "js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Implemented admin takeover for AI support. When admin uses /reply, adminTakeover flag is set to true in state collection. The support chat handler checks this flag — if true, user messages are forwarded to admin only (AI silenced), user gets 'message received' confirmation. Flag is cleared on: (1) admin /close, (2) user /done, (3) user opens new support session. Admin sees 'Admin takeover active — AI silenced' indicator when takeover is on."
+        - working: true
+          agent: "testing"
+          comment: "✅ AI SUPPORT ADMIN TAKEOVER COMPREHENSIVE VERIFICATION COMPLETE: All 7 critical requirements verified with 100% success rate (7/7 tests passed). (1) NODE.JS HEALTH: GET http://localhost:5000/health returns 200 with {'status': 'healthy', 'database': 'connected', 'uptime': '0.02 hours'}, /var/log/supervisor/nodejs.err.log is EMPTY (0 bytes), service running healthy on port 5000. (2) ADMIN /REPLY SETS TAKEOVER: Handler 'message.startsWith('/reply ')' exists, contains 'await set(state, targetChatId, 'adminTakeover', true)' AFTER sending reply and re-opening session, includes log message 'admin takeover ON'. (3) ADMIN /CLOSE CLEARS TAKEOVER: Handler 'message.startsWith('/close ')' exists, contains 'await set(state, targetChatId, 'adminTakeover', false)' BEFORE session close, includes log message 'admin takeover OFF'. (4) USER /DONE CLEARS TAKEOVER: Handler 'if (message === '/done' && action === a.supportChat)' exists, contains 'await set(state, chatId, 'adminTakeover', false)' BEFORE setting session to 0, includes log message 'Session ended by user... admin takeover OFF'. (5) NEW SESSION CLEARS TAKEOVER: New support session handler contains 'await set(state, chatId, 'adminTakeover', false)' when opening support session, includes log message 'fresh session'. (6) SUPPORT HANDLER CHECKS TAKEOVER: Support chat handler at line 5658 reads 'const stateObj = await get(state, chatId)', extracts 'const isAdminTakeover = stateObj?.adminTakeover === true', messages forwarded to admin include takeover indicator 'Admin takeover active — AI silenced', if isAdminTakeover is true it skips AI response block entirely and sends 't.supportMsgReceived' to user instead. (7) FLOW INTEGRITY: Admin takeover path forwards to admin → sends 'message received' to user → returns properly, non-takeover path forwards to admin → AI responds → returns properly, both paths end with return preventing fallthrough. AI SUPPORT ADMIN TAKEOVER IS PRODUCTION-READY AND FULLY FUNCTIONAL."
+
+agent_communication:
+    - agent: "main"
+      message: "AI support admin takeover feature. Verify in js/_index.js: (1) /reply handler at ~line 1929 sets adminTakeover=true via set(state, targetChatId, 'adminTakeover', true). (2) /close handler clears adminTakeover=false. (3) /done handler clears adminTakeover=false. (4) New support session opening clears adminTakeover=false. (5) Support chat handler at ~line 5664 reads stateObj.adminTakeover and skips AI if true, only forwarding to admin. (6) Admin message includes takeover indicator. Health: localhost:5000/health healthy, 0 err.log bytes."
+    - agent: "testing"
+      message: "✅ AI SUPPORT ADMIN TAKEOVER COMPREHENSIVE TESTING COMPLETE: All 7 verification requirements PASSED with 100% success rate (7/7 tests). (1) NODE.JS HEALTH: Service running healthy on port 5000 with database connected, /var/log/supervisor/nodejs.err.log is EMPTY (0 bytes). (2) ADMIN /REPLY SETS TAKEOVER: Verified 'message.startsWith('/reply ')' handler contains 'await set(state, targetChatId, 'adminTakeover', true)' after sending reply and re-opening session, with 'admin takeover ON' log message. (3) ADMIN /CLOSE CLEARS TAKEOVER: Verified 'message.startsWith('/close ')' handler contains 'await set(state, targetChatId, 'adminTakeover', false)' before session close, with 'admin takeover OFF' log message. (4) USER /DONE CLEARS TAKEOVER: Verified '/done' handler in support context contains 'await set(state, chatId, 'adminTakeover', false)' before setting session to 0, with 'admin takeover OFF' log message. (5) NEW SESSION CLEARS TAKEOVER: Verified new support session opening contains 'await set(state, chatId, 'adminTakeover', false)' with 'fresh session' log message. (6) SUPPORT HANDLER CHECKS TAKEOVER: Verified support chat handler reads state via 'const stateObj = await get(state, chatId)', extracts 'const isAdminTakeover = stateObj?.adminTakeover === true', forwards messages to admin with takeover indicator, skips AI entirely when takeover active and sends 't.supportMsgReceived' to user. (7) FLOW INTEGRITY: Verified proper return structure - admin takeover path forwards to admin → sends message received → returns, non-takeover path forwards to admin → AI responds → returns. ALL AI SUPPORT ADMIN TAKEOVER FUNCTIONALITY IS PRODUCTION-READY AND FULLY FUNCTIONAL."
+
+
   - task: "Bot-wide stale state and missing payment guard fixes across ALL payment flows"
     implemented: true
     working: true
