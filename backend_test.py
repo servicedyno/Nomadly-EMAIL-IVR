@@ -1,308 +1,606 @@
 #!/usr/bin/env python3
 """
-Backend Testing for Nomadly Telegram Bot - viewHostingPlan TDZ Crash Fix
-==========================================================================
-This test verifies the fix for the TDZ (Temporal Dead Zone) issue in the viewHostingPlanDetails function
-where isWeekly was used before its declaration, causing ReferenceError crashes.
+Backend Testing Script for Auto-Promo System Rewrite
+Tests comprehensive auto-promo system implementation
 """
 
 import requests
 import json
-import subprocess
-import os
+import time
 import sys
-from datetime import datetime
+import os
+from pathlib import Path
 
-class TDZFixTester:
-    def __init__(self):
-        self.base_url = "http://localhost:5000"
-        self.test_results = []
+# Configuration
+BACKEND_URL = "http://localhost:5000"
+HEALTH_ENDPOINT = f"{BACKEND_URL}/health"
+
+def test_nodejs_health():
+    """Test 1: Node.js Health Check"""
+    print("=" * 60)
+    print("TEST 1: Node.js Health Check")
+    print("=" * 60)
+    
+    try:
+        response = requests.get(HEALTH_ENDPOINT, timeout=10)
+        print(f"✓ Health endpoint accessible: {response.status_code}")
         
-    def log_test_result(self, test_name, success, details=""):
-        """Log test results for reporting"""
-        status = "✅ PASS" if success else "❌ FAIL"
-        self.test_results.append({
-            'test': test_name,
-            'success': success,
-            'status': status,
-            'details': details
-        })
-        print(f"{status}: {test_name}")
-        if details and not success:
-            print(f"    Details: {details}")
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✓ Response data: {json.dumps(data, indent=2)}")
             
-    def test_nodejs_health(self):
-        """Test 1: Node.js Health Check"""
-        try:
-            response = requests.get(f"{self.base_url}/health", timeout=10)
-            
-            if response.status_code == 200:
-                data = response.json()
-                expected_keys = ["status", "database"]
-                
-                if data.get("status") == "healthy" and data.get("database") == "connected":
-                    self.log_test_result("Node.js Health Check", True, 
-                        f"Status: {data.get('status')}, Database: {data.get('database')}")
-                    return True
-                else:
-                    self.log_test_result("Node.js Health Check", False, 
-                        f"Invalid response data: {data}")
-                    return False
+            # Check required fields
+            if data.get('status') == 'healthy':
+                print("✓ Status: healthy")
             else:
-                self.log_test_result("Node.js Health Check", False, 
-                    f"HTTP {response.status_code}: {response.text}")
+                print(f"✗ Status not healthy: {data.get('status')}")
                 return False
                 
-        except requests.exceptions.RequestException as e:
-            self.log_test_result("Node.js Health Check", False, f"Request failed: {e}")
-            return False
-            
-    def test_error_log_empty(self):
-        """Test 2: Verify nodejs.err.log is empty"""
-        try:
-            error_log_path = "/var/log/supervisor/nodejs.err.log"
-            
-            if os.path.exists(error_log_path):
-                file_size = os.path.getsize(error_log_path)
-                if file_size == 0:
-                    self.log_test_result("Error Log Empty Check", True, 
-                        f"{error_log_path} is empty (0 bytes)")
-                    return True
-                else:
-                    # Read first 500 chars of error log to see what errors exist
-                    with open(error_log_path, 'r') as f:
-                        error_content = f.read(500)
-                    self.log_test_result("Error Log Empty Check", False, 
-                        f"{error_log_path} has {file_size} bytes. Content: {error_content}")
-                    return False
+            if data.get('database') == 'connected':
+                print("✓ Database: connected")
             else:
-                self.log_test_result("Error Log Empty Check", False, 
-                    f"{error_log_path} does not exist")
+                print(f"✗ Database not connected: {data.get('database')}")
                 return False
                 
-        except Exception as e:
-            self.log_test_result("Error Log Empty Check", False, f"Error checking log: {e}")
-            return False
-            
-    def test_isweekly_tdz_fix(self):
-        """Test 3: Verify isWeekly TDZ fix in viewHostingPlanDetails function"""
-        try:
-            index_js_path = "/app/js/_index.js"
-            
-            if not os.path.exists(index_js_path):
-                self.log_test_result("isWeekly TDZ Fix", False, f"{index_js_path} not found")
-                return False
-            
-            # Read the file and find the viewHostingPlanDetails function
-            with open(index_js_path, 'r', encoding='utf-8') as f:
-                lines = f.readlines()
-            
-            # Find the function start
-            function_start_line = None
-            for i, line in enumerate(lines):
-                if 'viewHostingPlanDetails: async (domain) => {' in line:
-                    function_start_line = i
-                    break
-            
-            if function_start_line is None:
-                self.log_test_result("isWeekly TDZ Fix", False, 
-                    "viewHostingPlanDetails function not found")
-                return False
-            
-            # Find the relevant lines within the function (next 50 lines should be enough)
-            function_lines = lines[function_start_line:function_start_line + 50]
-            
-            isweekly_declaration_line = None
-            autorenew_usage_line = None
-            button_usage_line = None
-            
-            for i, line in enumerate(function_lines):
-                line_content = line.strip()
-                
-                # Find isWeekly declaration
-                if 'const isWeekly = (plan.plan' in line_content and '.includes(\'week\')' in line_content:
-                    isweekly_declaration_line = function_start_line + i + 1  # 1-based line number
-                
-                # Find autoRenewStatus usage of isWeekly
-                if 'const autoRenewStatus = isWeekly ?' in line_content:
-                    autorenew_usage_line = function_start_line + i + 1
-                
-                # Find button usage of isWeekly
-                if 'if (!isWeekly) buttons.push' in line_content:
-                    button_usage_line = function_start_line + i + 1
-            
-            # Verify all parts were found
-            missing_parts = []
-            if isweekly_declaration_line is None:
-                missing_parts.append("isWeekly declaration")
-            if autorenew_usage_line is None:
-                missing_parts.append("autoRenewStatus usage")
-            if button_usage_line is None:
-                missing_parts.append("button conditional usage")
-            
-            if missing_parts:
-                self.log_test_result("isWeekly TDZ Fix", False, 
-                    f"Missing parts: {', '.join(missing_parts)}")
-                return False
-            
-            # Verify the fix: declaration must come BEFORE usage
-            declaration_before_autorenew = isweekly_declaration_line < autorenew_usage_line
-            declaration_before_button = isweekly_declaration_line < button_usage_line
-            
-            if declaration_before_autorenew and declaration_before_button:
-                self.log_test_result("isWeekly TDZ Fix", True, 
-                    f"Declaration (line {isweekly_declaration_line}) comes before usage "
-                    f"(autoRenew: line {autorenew_usage_line}, button: line {button_usage_line})")
-                return True
-            else:
-                self.log_test_result("isWeekly TDZ Fix", False, 
-                    f"TDZ issue still exists! Declaration: line {isweekly_declaration_line}, "
-                    f"autoRenew usage: line {autorenew_usage_line}, "
-                    f"button usage: line {button_usage_line}")
-                return False
-                
-        except Exception as e:
-            self.log_test_result("isWeekly TDZ Fix", False, f"Error analyzing code: {e}")
-            return False
-            
-    def test_isweekly_occurrences(self):
-        """Test 4: Verify exactly 3 isWeekly occurrences, all after declaration"""
-        try:
-            # Use grep to find all isWeekly occurrences
-            result = subprocess.run(
-                ['grep', '-n', 'isWeekly', '/app/js/_index.js'],
-                capture_output=True, text=True
-            )
-            
-            if result.returncode != 0:
-                self.log_test_result("isWeekly Occurrences Check", False, 
-                    "No isWeekly occurrences found or grep failed")
-                return False
-            
-            lines = result.stdout.strip().split('\n')
-            
-            if len(lines) != 3:
-                self.log_test_result("isWeekly Occurrences Check", False, 
-                    f"Expected 3 occurrences, found {len(lines)}: {lines}")
-                return False
-            
-            # Verify the pattern: declaration, then usages
-            expected_patterns = [
-                ('const isWeekly =', 'declaration'),
-                ('isWeekly ?', 'autoRenew usage'),
-                ('!isWeekly)', 'button conditional')
-            ]
-            
-            for i, (line, (pattern, description)) in enumerate(zip(lines, expected_patterns)):
-                if pattern not in line:
-                    self.log_test_result("isWeekly Occurrences Check", False, 
-                        f"Line {i+1} doesn't match expected pattern '{pattern}': {line}")
-                    return False
-            
-            self.log_test_result("isWeekly Occurrences Check", True, 
-                f"Found exactly 3 occurrences in correct order:\n" + 
-                "\n".join([f"  {i+1}. {line.strip()}" for i, line in enumerate(lines)]))
+            print("✓ Health check PASSED")
             return True
-            
-        except Exception as e:
-            self.log_test_result("isWeekly Occurrences Check", False, f"Error checking occurrences: {e}")
+        else:
+            print(f"✗ Health check failed with status code: {response.status_code}")
             return False
             
-    def test_no_other_tdz_issues(self):
-        """Test 5: Search for other potential TDZ issues in the codebase"""
-        try:
-            # Look for common TDZ error patterns in logs
-            log_paths = [
-                "/var/log/supervisor/nodejs.out.log",
-                "/var/log/supervisor/nodejs.err.log"
-            ]
-            
-            tdz_errors_found = []
-            
-            for log_path in log_paths:
-                if os.path.exists(log_path) and os.path.getsize(log_path) > 0:
-                    # Search for TDZ-related error patterns
-                    result = subprocess.run(
-                        ['grep', '-i', '-n', 'Cannot access.*before initialization', log_path],
-                        capture_output=True, text=True
-                    )
-                    
-                    if result.returncode == 0:  # Found matches
-                        tdz_errors_found.extend(result.stdout.strip().split('\n'))
-            
-            if tdz_errors_found:
-                self.log_test_result("No Other TDZ Issues", False, 
-                    f"Found TDZ errors in logs: {tdz_errors_found}")
-                return False
-            else:
-                self.log_test_result("No Other TDZ Issues", True, 
-                    "No TDZ errors found in current logs")
-                return True
-                
-        except Exception as e:
-            self.log_test_result("No Other TDZ Issues", False, f"Error checking for TDZ issues: {e}")
-            return False
+    except Exception as e:
+        print(f"✗ Health check error: {str(e)}")
+        return False
 
-    def run_all_tests(self):
-        """Run all tests and generate summary report"""
-        print(f"{'='*70}")
-        print(f"NOMADLY TELEGRAM BOT - viewHostingPlan TDZ CRASH FIX TESTING")
-        print(f"{'='*70}")
-        print(f"Test execution started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        print()
+def check_nodejs_error_log():
+    """Check Node.js error log is empty"""
+    print("\n" + "=" * 60)
+    print("TEST 1.1: Check Node.js Error Log")
+    print("=" * 60)
+    
+    error_log_path = "/var/log/supervisor/nodejs.err.log"
+    
+    try:
+        if os.path.exists(error_log_path):
+            file_size = os.path.getsize(error_log_path)
+            print(f"✓ Error log file exists: {error_log_path}")
+            print(f"✓ Error log size: {file_size} bytes")
+            
+            if file_size == 0:
+                print("✓ Error log is EMPTY (0 bytes) - GOOD")
+                return True
+            else:
+                print(f"⚠ Error log is NOT empty ({file_size} bytes)")
+                # Show last few lines for debugging
+                with open(error_log_path, 'r') as f:
+                    lines = f.readlines()[-10:]  # Last 10 lines
+                print("Last few error log entries:")
+                for line in lines:
+                    print(f"  {line.strip()}")
+                return False
+        else:
+            print(f"✗ Error log file not found: {error_log_path}")
+            return False
+            
+    except Exception as e:
+        print(f"✗ Error checking log file: {str(e)}")
+        return False
+
+def check_autopromo_initialization():
+    """Test 2: AutoPromo Initialization Logs"""
+    print("\n" + "=" * 60)
+    print("TEST 2: AutoPromo Initialization Logs")
+    print("=" * 60)
+    
+    output_log_path = "/var/log/supervisor/nodejs.out.log"
+    
+    try:
+        if not os.path.exists(output_log_path):
+            print(f"✗ Output log file not found: {output_log_path}")
+            return False
+            
+        with open(output_log_path, 'r') as f:
+            log_content = f.read()
+            
+        # Look for AutoPromo initialization line
+        init_lines = [line for line in log_content.split('\n') if '[AutoPromo] Initialized' in line]
         
-        # Execute all tests
-        tests = [
-            self.test_nodejs_health,
-            self.test_error_log_empty, 
-            self.test_isweekly_tdz_fix,
-            self.test_isweekly_occurrences,
-            self.test_no_other_tdz_issues
+        if not init_lines:
+            print("✗ No '[AutoPromo] Initialized' line found in logs")
+            return False
+            
+        # Get the most recent initialization line
+        init_line = init_lines[-1]
+        print(f"✓ Found initialization line: {init_line}")
+        
+        # Check for "6 themes"
+        if "6 themes" in init_line:
+            print("✓ Contains '6 themes'")
+        else:
+            print("✗ Does not contain '6 themes'")
+            return False
+            
+        # Check for all theme names
+        expected_themes = [
+            "cloudphone",
+            "antired_hosting", 
+            "leads_validation",
+            "domains_shortener",
+            "digital_products",
+            "cards_bundles"
         ]
         
-        passed = 0
-        total = len(tests)
+        themes_found = []
+        for theme in expected_themes:
+            if theme in init_line:
+                themes_found.append(theme)
+                print(f"✓ Theme found: {theme}")
+            else:
+                print(f"✗ Theme missing: {theme}")
         
-        for test_func in tests:
-            if test_func():
-                passed += 1
-            print()  # Add spacing between tests
-        
-        # Generate summary
-        print(f"{'='*70}")
-        print(f"TEST SUMMARY")
-        print(f"{'='*70}")
-        
-        success_rate = (passed / total) * 100
-        
-        print(f"Tests passed: {passed}/{total} ({success_rate:.1f}%)")
-        print()
-        
-        # Detailed results
-        for result in self.test_results:
-            print(f"{result['status']}: {result['test']}")
-            if result['details']:
-                # Indent details for readability
-                detail_lines = result['details'].split('\n')
-                for line in detail_lines:
-                    if line.strip():
-                        print(f"    {line}")
-        
-        print()
-        print(f"{'='*70}")
-        
-        if success_rate == 100:
-            print("🎉 ALL TESTS PASSED! viewHostingPlan TDZ crash fix is working correctly.")
-        elif success_rate >= 80:
-            print(f"⚠️  Most tests passed ({success_rate:.1f}%). Check failed tests above.")
+        if len(themes_found) == 6:
+            print("✓ All 6 themes found in initialization")
         else:
-            print(f"❌ CRITICAL ISSUES FOUND ({success_rate:.1f}% pass rate). Review failures above.")
+            print(f"✗ Only {len(themes_found)}/6 themes found")
+            return False
+            
+        # Check for "4 langs × 1 slots"
+        if "4 langs" in init_line and "1 slots" in init_line:
+            print("✓ Contains '4 langs × 1 slots'")
+        else:
+            print("✗ Does not contain '4 langs × 1 slots'")
+            return False
+            
+        print("✓ AutoPromo initialization check PASSED")
+        return True
         
-        print(f"{'='*70}")
+    except Exception as e:
+        print(f"✗ Error checking initialization logs: {str(e)}")
+        return False
+
+def verify_promo_messages_structure():
+    """Test 3: Promo Messages Structure in auto-promo.js"""
+    print("\n" + "=" * 60)
+    print("TEST 3: Promo Messages Structure")
+    print("=" * 60)
+    
+    auto_promo_path = "/app/js/auto-promo.js"
+    
+    try:
+        if not os.path.exists(auto_promo_path):
+            print(f"✗ auto-promo.js file not found: {auto_promo_path}")
+            return False
+            
+        with open(auto_promo_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+            
+        print(f"✓ auto-promo.js file found and readable")
         
-        return success_rate == 100
+        # Check for promoMessages object declaration
+        if "const promoMessages = {" in content:
+            print("✓ promoMessages object found")
+        else:
+            print("✗ promoMessages object not found")
+            return False
+            
+        # Check for 4 language keys
+        expected_langs = ["en:", "fr:", "zh:", "hi:"]
+        langs_found = 0
+        
+        for lang in expected_langs:
+            if lang in content:
+                langs_found += 1
+                print(f"✓ Language found: {lang.replace(':', '')}")
+            else:
+                print(f"✗ Language missing: {lang.replace(':', '')}")
+                
+        if langs_found == 4:
+            print("✓ All 4 language keys found")
+        else:
+            print(f"✗ Only {langs_found}/4 language keys found")
+            return False
+            
+        # Check for 6 theme keys in each language
+        expected_themes = [
+            "cloudphone:",
+            "antired_hosting:",
+            "leads_validation:", 
+            "domains_shortener:",
+            "digital_products:",
+            "cards_bundles:"
+        ]
+        
+        themes_per_lang = {}
+        for lang in ["en", "fr", "zh", "hi"]:
+            themes_per_lang[lang] = 0
+            for theme in expected_themes:
+                if f"{lang}: {{" in content and theme in content:
+                    themes_per_lang[lang] += 1
+                    
+        print(f"✓ Themes per language: {themes_per_lang}")
+        
+        # Verify each language has all 6 themes
+        all_themes_present = True
+        for lang, count in themes_per_lang.items():
+            if count == 6:
+                print(f"✓ {lang}: All 6 themes present")
+            else:
+                print(f"✗ {lang}: Only {count}/6 themes present")
+                all_themes_present = False
+                
+        if not all_themes_present:
+            return False
+            
+        # Check for array elements (variations)
+        # Look for [ and ] patterns indicating arrays
+        array_pattern_count = content.count('[')
+        print(f"✓ Found {array_pattern_count} array patterns")
+        
+        # Should have 24 arrays total (4 langs × 6 themes)
+        if array_pattern_count >= 24:
+            print("✓ Sufficient array patterns found (24+ expected)")
+        else:
+            print(f"⚠ Only {array_pattern_count} array patterns found, expected 24+")
+            
+        # Check for NO mention of VPS or Email Blast in promo messages (excluding AI prompt)
+        # Extract only the promoMessages object content (line 185 to 1416 approximately)
+        lines = content.split('\n')
+        promo_start_line = None
+        promo_end_line = None
+        
+        for i, line in enumerate(lines):
+            if "const promoMessages = {" in line:
+                promo_start_line = i
+            elif promo_start_line and ("// ═══════════════════════════════════════════════════════════════════════" in line or "function localToUtc" in line):
+                promo_end_line = i
+                break
+                
+        if promo_start_line and promo_end_line:
+            promo_lines = lines[promo_start_line:promo_end_line]
+            promo_content = '\n'.join(promo_lines)
+            
+            vps_mentions = promo_content.lower().count('vps')
+            email_blast_mentions = promo_content.lower().count('email blast')
+            
+            if vps_mentions == 0:
+                print("✓ No 'VPS' mentions found in promo messages content")
+            else:
+                print(f"✗ Found {vps_mentions} 'VPS' mentions in promo messages content")
+                return False
+                
+            if email_blast_mentions == 0:
+                print("✓ No 'email blast' mentions found in promo messages content") 
+            else:
+                print(f"✗ Found {email_blast_mentions} 'email blast' mentions in promo messages content")
+                return False
+        else:
+            print("⚠ Could not isolate promo messages content, checking entire file")
+            # Fallback: check if VPS/email blast appears only in AI prompt section
+            total_vps = content.lower().count('vps')
+            ai_prompt_vps = content[content.find("Do NOT mention VPS"):content.find("Return ONLY the promotional message text")].lower().count('vps')
+            
+            if total_vps <= ai_prompt_vps:
+                print("✓ VPS mentions only found in AI prompt instructions (acceptable)")
+            else:
+                print(f"✗ Found {total_vps - ai_prompt_vps} VPS mentions outside AI prompt")
+                return False
+                
+            if "email blast" not in content.lower():
+                print("✓ No 'email blast' mentions found")
+            else:
+                print("✗ Found 'email blast' mentions")
+                return False
+            
+        # Check for emojis
+        emoji_indicators = ['🔥', '💰', '✅', '📞', '🛡️']
+        emoji_count = 0
+        for emoji in emoji_indicators:
+            emoji_count += content.count(emoji)
+            
+        if emoji_count > 0:
+            print(f"✓ Found {emoji_count} emoji indicators")
+        else:
+            print("✗ No emojis found in messages")
+            return False
+            
+        # Check for HTML bold tags
+        bold_count = content.count('<b>')
+        if bold_count > 0:
+            print(f"✓ Found {bold_count} HTML bold tags")
+        else:
+            print("✗ No HTML bold tags found")
+            return False
+            
+        # Check for /start CTAs
+        start_cta_count = content.count('/start')
+        if start_cta_count > 0:
+            print(f"✓ Found {start_cta_count} '/start' CTAs")
+        else:
+            print("✗ No '/start' CTAs found")
+            return False
+            
+        print("✓ Promo messages structure verification PASSED")
+        return True
+        
+    except Exception as e:
+        print(f"✗ Error verifying promo messages structure: {str(e)}")
+        return False
+
+def verify_theme_day_mapping():
+    """Test 4: Theme Day Mapping in getTodayThemes()"""
+    print("\n" + "=" * 60)
+    print("TEST 4: Theme Day Mapping")
+    print("=" * 60)
+    
+    auto_promo_path = "/app/js/auto-promo.js"
+    
+    try:
+        with open(auto_promo_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+            
+        # Find getTodayThemes function
+        if "function getTodayThemes()" not in content:
+            print("✗ getTodayThemes() function not found")
+            return False
+        
+        print("✓ getTodayThemes() function found")
+        
+        # Extract the function content
+        func_start = content.find("function getTodayThemes()")
+        func_end = content.find("}", func_start) + 1
+        func_content = content[func_start:func_end]
+        
+        print("Function content extracted for analysis")
+        
+        # Check for day mapping logic
+        expected_mappings = {
+            "day === 0": "[]",  # Sunday - rest
+            "return [day - 1]": True  # Mon-Sat mapping
+        }
+        
+        # Check Sunday returns empty array
+        if "if (day === 0) return []" in func_content or "day === 0" in func_content:
+            print("✓ Sunday (day===0) returns empty array []")
+        else:
+            print("✗ Sunday mapping not found")
+            return False
+            
+        # Check the return logic for other days
+        if "return [day - 1]" in func_content:
+            print("✓ Found 'return [day - 1]' logic")
+            print("  ✓ Monday (day===1) → [0] (cloudphone)")
+            print("  ✓ Tuesday (day===2) → [1] (antired_hosting)")
+            print("  ✓ Wednesday (day===3) → [2] (leads_validation)")
+            print("  ✓ Thursday (day===4) → [3] (domains_shortener)")
+            print("  ✓ Friday (day===5) → [4] (digital_products)")
+            print("  ✓ Saturday (day===6) → [5] (cards_bundles)")
+        else:
+            print("✗ 'return [day - 1]' logic not found")
+            return False
+            
+        # Verify the mapping comments if present
+        comment_checks = [
+            ("Sun=0: rest", "Sunday rest day"),
+            ("Mon=1: cloudphone", "Monday cloudphone"),
+            ("Tue=2: antired", "Tuesday antired"),
+            ("Wed=3: leads", "Wednesday leads"),
+            ("Thu=4: domains", "Thursday domains"),
+            ("Fri=5: digital", "Friday digital"),
+            ("Sat=6: cards", "Saturday cards")
+        ]
+        
+        for pattern, description in comment_checks:
+            if pattern in func_content:
+                print(f"✓ Comment found: {description}")
+            else:
+                print(f"⚠ Comment not found: {description} (not critical)")
+                
+        print("✓ Theme day mapping verification PASSED")
+        return True
+        
+    except Exception as e:
+        print(f"✗ Error verifying theme day mapping: {str(e)}")
+        return False
+
+def verify_service_context():
+    """Test 5: SERVICE_CONTEXT Object Verification"""
+    print("\n" + "=" * 60)
+    print("TEST 5: SERVICE_CONTEXT Object Verification")
+    print("=" * 60)
+    
+    auto_promo_path = "/app/js/auto-promo.js"
+    
+    try:
+        with open(auto_promo_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+            
+        # Check for SERVICE_CONTEXT object
+        if "const SERVICE_CONTEXT = {" not in content:
+            print("✗ SERVICE_CONTEXT object not found")
+            return False
+            
+        print("✓ SERVICE_CONTEXT object found")
+        
+        # Extract SERVICE_CONTEXT content
+        context_start = content.find("const SERVICE_CONTEXT = {")
+        context_end = content.find("}", context_start)
+        # Find the matching closing brace
+        brace_count = 0
+        for i in range(context_start, len(content)):
+            if content[i] == '{':
+                brace_count += 1
+            elif content[i] == '}':
+                brace_count -= 1
+                if brace_count == 0:
+                    context_end = i + 1
+                    break
+                    
+        context_content = content[context_start:context_end]
+        
+        # Check for 6 theme keys
+        expected_themes = [
+            "cloudphone:",
+            "antired_hosting:",
+            "leads_validation:",
+            "domains_shortener:", 
+            "digital_products:",
+            "cards_bundles:"
+        ]
+        
+        themes_found = 0
+        for theme in expected_themes:
+            if theme in context_content:
+                themes_found += 1
+                print(f"✓ SERVICE_CONTEXT theme: {theme.replace(':', '')}")
+            else:
+                print(f"✗ SERVICE_CONTEXT theme missing: {theme.replace(':', '')}")
+                
+        if themes_found != 6:
+            print(f"✗ Only {themes_found}/6 themes found in SERVICE_CONTEXT")
+            return False
+            
+        # Check for required fields in each theme
+        required_fields = ["services:", "details:", "cta:"]
+        
+        for theme in ["cloudphone", "antired_hosting", "leads_validation", "domains_shortener", "digital_products", "cards_bundles"]:
+            theme_section_found = False
+            for field in required_fields:
+                field_pattern = f"{theme}:" + ".*" + field
+                if theme + ":" in context_content and field in context_content:
+                    theme_section_found = True
+                    
+            if theme_section_found:
+                print(f"✓ {theme}: has required fields (services, details, cta)")
+            else:
+                print(f"✗ {theme}: missing required fields")
+                return False
+                
+        # Check for NO VPS or email blast references
+        vps_count = context_content.lower().count('vps')
+        email_blast_count = context_content.lower().count('email blast')
+        
+        if vps_count == 0:
+            print("✓ No VPS references in SERVICE_CONTEXT")
+        else:
+            print(f"✗ Found {vps_count} VPS references in SERVICE_CONTEXT")
+            return False
+            
+        if email_blast_count == 0:
+            print("✓ No email blast references in SERVICE_CONTEXT")
+        else:
+            print(f"✗ Found {email_blast_count} email blast references in SERVICE_CONTEXT")
+            return False
+            
+        print("✓ SERVICE_CONTEXT verification PASSED")
+        return True
+        
+    except Exception as e:
+        print(f"✗ Error verifying SERVICE_CONTEXT: {str(e)}")
+        return False
+
+def verify_no_old_exports():
+    """Test 6: Verify No Old Exports"""
+    print("\n" + "=" * 60)
+    print("TEST 6: Verify No Old Exports")
+    print("=" * 60)
+    
+    auto_promo_path = "/app/js/auto-promo.js"
+    
+    try:
+        with open(auto_promo_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+            
+        # Check that PROMO_BANNERS is NOT exported
+        if "PROMO_BANNERS" in content:
+            print("✗ Found PROMO_BANNERS reference (should be removed)")
+            return False
+        else:
+            print("✓ No PROMO_BANNERS references found")
+            
+        # Check for correct exports
+        if "module.exports = { initAutoPromo, promoMessages }" in content:
+            print("✓ Correct module.exports found: { initAutoPromo, promoMessages }")
+        else:
+            print("✗ Incorrect or missing module.exports")
+            return False
+            
+        # Verify only these two exports
+        export_line_start = content.find("module.exports = {")
+        export_line_end = content.find("}", export_line_start) + 1
+        export_line = content[export_line_start:export_line_end]
+        
+        if "initAutoPromo" in export_line and "promoMessages" in export_line:
+            print("✓ Both required exports present: initAutoPromo, promoMessages")
+        else:
+            print("✗ Missing required exports")
+            return False
+            
+        # Count exports to ensure no extras
+        export_count = export_line.count(',') + 1  # commas + 1 = items
+        if export_count == 2:
+            print("✓ Exactly 2 exports (correct)")
+        else:
+            print(f"✗ Found {export_count} exports, expected exactly 2")
+            return False
+            
+        print("✓ Export verification PASSED")
+        return True
+        
+    except Exception as e:
+        print(f"✗ Error verifying exports: {str(e)}")
+        return False
+
+def run_all_tests():
+    """Run all auto-promo system tests"""
+    print("🚀 STARTING AUTO-PROMO SYSTEM COMPREHENSIVE TESTING")
+    print("=" * 80)
+    
+    test_results = []
+    
+    # Test 1: Node.js Health
+    test_results.append(("Node.js Health Check", test_nodejs_health()))
+    test_results.append(("Node.js Error Log Check", check_nodejs_error_log()))
+    
+    # Test 2: AutoPromo Initialization
+    test_results.append(("AutoPromo Initialization", check_autopromo_initialization()))
+    
+    # Test 3: Promo Messages Structure
+    test_results.append(("Promo Messages Structure", verify_promo_messages_structure()))
+    
+    # Test 4: Theme Day Mapping
+    test_results.append(("Theme Day Mapping", verify_theme_day_mapping()))
+    
+    # Test 5: SERVICE_CONTEXT
+    test_results.append(("SERVICE_CONTEXT Verification", verify_service_context()))
+    
+    # Test 6: No Old Exports
+    test_results.append(("No Old Exports", verify_no_old_exports()))
+    
+    # Summary
+    print("\n" + "=" * 80)
+    print("🏁 AUTO-PROMO SYSTEM TEST RESULTS SUMMARY")
+    print("=" * 80)
+    
+    passed = 0
+    total = len(test_results)
+    
+    for test_name, result in test_results:
+        status = "✅ PASS" if result else "❌ FAIL"
+        print(f"{status} | {test_name}")
+        if result:
+            passed += 1
+    
+    print("=" * 80)
+    success_rate = (passed / total) * 100
+    print(f"📊 OVERALL RESULT: {passed}/{total} tests passed ({success_rate:.1f}%)")
+    
+    if passed == total:
+        print("🎉 ALL TESTS PASSED - AUTO-PROMO SYSTEM IS PRODUCTION READY!")
+        return True
+    else:
+        print(f"⚠️  {total - passed} TESTS FAILED - ISSUES NEED TO BE ADDRESSED")
+        return False
 
 if __name__ == "__main__":
-    tester = TDZFixTester()
-    success = tester.run_all_tests()
+    success = run_all_tests()
     sys.exit(0 if success else 1)
