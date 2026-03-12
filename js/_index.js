@@ -2091,7 +2091,8 @@ bot?.on('message', msg => {
       let msg = `📦 <b>Pending Orders (${pending.length})</b>\n\n`
       for (const o of pending) {
         const age = Math.round((Date.now() - new Date(o.createdAt).getTime()) / 60000)
-        msg += `🆔 <code>${o.orderId}</code>\n👤 ${o.name || o.chatId} (${o.chatId})\n📦 ${o.product} — $${o.price}\n⏱ ${age}m ago\n📩 <code>/deliver ${o.orderId} [details]</code>\n\n`
+        const userLabel = o.username ? `@${o.username}` : (o.name || 'Unknown')
+        msg += `🆔 <code>${o.orderId}</code>\n👤 ${userLabel} (${o.chatId})\n📦 ${o.product} — $${o.price}\n⏱ ${age}m ago\n📩 <code>/deliver ${o.orderId} [details]</code>\n\n`
       }
       send(chatId, msg, { parse_mode: 'HTML' })
     } catch (e) {
