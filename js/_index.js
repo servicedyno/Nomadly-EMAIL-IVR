@@ -1250,6 +1250,15 @@ async function checkPendingBundles() {
             $set: { status: 'twilio-rejected', rejectionReasons: reasons, updatedAt: new Date() }
           })
 
+          // Check if user is already in bundleRejectedAction — skip re-notifying to avoid spam
+          let userState = null
+          try { userState = await get(state, pb.chatId) } catch (e) { /* ignore */ }
+          if (userState?.action === 'bundleRejectedAction') {
+            log(`[BundleChecker] User ${pb.chatId} already in bundleRejectedAction — skipping duplicate notification`)
+            notifyAdmin(`❌ [BundleChecker] Additional bundle rejected (user already notified)\nchatId: ${pb.chatId}\nbundle: ${pb.bundleSid}`)
+            continue // Skip — don't re-send rejection UI
+          }
+
           // Build user-friendly message with country-specific guidance — NO mention of Twilio
           const { getAllRejectionGuidance } = require('./regulatory-config')
           let reasonText = ''
@@ -1274,11 +1283,12 @@ async function checkPendingBundles() {
 
           const reuploadBtn = { en: '📄 Re-upload Documents', fr: '📄 Re-soumettre', zh: '📄 重新上传文件', hi: '📄 दस्तावेज़ पुनः अपलोड करें' }[lang] || '📄 Re-upload Documents'
           const refundBtn = { en: '💰 Cancel & Get Refund', fr: '💰 Annuler et rembourser', zh: '💰 取消并退款', hi: '💰 रद्द करें और धनवापसी प्राप्त करें' }[lang] || '💰 Cancel & Get Refund'
+          const startFreshBtn = { en: '🔄 Start Fresh (Refund All)', fr: '🔄 Recommencer (Tout rembourser)', zh: '🔄 重新开始（全部退款）', hi: '🔄 नए सिरे से शुरू करें (सब रिफंड)' }[lang] || '🔄 Start Fresh (Refund All)'
 
-          send(pb.chatId, `❌ <b>Verification Rejected</b>\n\nYour ${pb.countryName || pb.countryCode} number request was not approved.${reasonText}${guidanceText}\nYou can re-upload your documents to try again, or cancel for a full refund.`, {
+          send(pb.chatId, `❌ <b>Verification Rejected</b>\n\nYour ${pb.countryName || pb.countryCode} number request was not approved.${reasonText}${guidanceText}\nYou can re-upload your documents, cancel for a refund, or start completely fresh.`, {
             parse_mode: 'HTML',
             reply_markup: {
-              keyboard: [[reuploadBtn], [refundBtn]],
+              keyboard: [[reuploadBtn], [refundBtn], [startFreshBtn]],
               resize_keyboard: true,
               one_time_keyboard: true,
             }
@@ -5605,6 +5615,49 @@ All verified numbers generated during sourcing.`))
     // New user: no state at all — show language selection first
     if (!info || !info.userLanguage) {
       return goto.userLanguage()
+    }
+
+    // ── Auto-cleanup: clear stale compliance sessions on /start ──
+    try {
+      // 1. Refund + clear ALL rejected pendingBundles
+      if (pendingBundles?.find) {
+        const rejectedBundles = await pendingBundles.find({ chatId: String(chatId), status: 'twilio-rejected' }).toArray()
+        // Also find chatId stored as number
+        const rejectedBundlesNum = await pendingBundles.find({ chatId, status: 'twilio-rejected' }).toArray()
+        const allRejected = [...rejectedBundles, ...rejectedBundlesNum].filter((b, i, arr) => arr.findIndex(x => String(x._id) === String(b._id)) === i)
+        for (const rb of allRejected) {
+          try {
+            const refundAmt = Number(rb.priceUsd || rb.price) || 0
+            const refundNgn = Number(rb.priceNgn) || 0
+            if (refundAmt > 0) await atomicIncrement(walletOf, chatId, 'usdIn', refundAmt)
+            if (refundNgn > 0) await atomicIncrement(walletOf, chatId, 'ngnIn', refundNgn)
+            log(`[AutoCleanup] Refunded $${refundAmt} for rejected bundle ${rb.bundleSid} chatId=${chatId}`)
+          } catch (refErr) {
+            log(`[AutoCleanup] Refund error for bundle ${rb.bundleSid}: ${refErr.message}`)
+          }
+          await pendingBundles.updateOne({ _id: rb._id }, { $set: { status: 'auto-cleaned-refunded', cleanedAt: new Date(), updatedAt: new Date() } })
+        }
+        if (allRejected.length > 0) {
+          const totalRefund = allRejected.reduce((sum, rb) => sum + (Number(rb.priceUsd || rb.price) || 0), 0)
+          if (totalRefund > 0) send(chatId, `💰 Auto-refunded <b>$${totalRefund.toFixed(2)}</b> from ${allRejected.length} rejected verification(s). You can start a fresh purchase anytime.`, { parse_mode: 'HTML' })
+          log(`[AutoCleanup] Cleared ${allRejected.length} rejected bundles for chatId=${chatId}`)
+        }
+      }
+      // 2. Clear stale doc sessions (submitted where bundle was rejected, or stuck collecting for >24h)
+      const docSessions = db.collection('docSessions')
+      const staleThreshold = new Date(Date.now() - 24 * 60 * 60 * 1000)
+      await docSessions.updateMany(
+        { chatId, status: { $in: ['submitted', 'failed'] } },
+        { $set: { status: 'auto-cleaned', cleanedAt: new Date(), updatedAt: new Date() } }
+      )
+      // Cancel collecting sessions older than 24h (with refund via regulatoryFlow)
+      const staleCollecting = await docSessions.findOne({ chatId, status: { $in: ['collecting', 'awaiting_address'] }, updatedAt: { $lt: staleThreshold } })
+      if (staleCollecting) {
+        await regulatoryFlow.cancelAndRefund(chatId)
+        log(`[AutoCleanup] Cancelled stale collecting session for chatId=${chatId}`)
+      }
+    } catch (cleanupErr) {
+      log(`[AutoCleanup] Error during /start cleanup: ${cleanupErr.message}`)
     }
 
     // Returning user: reset action and show main menu with balance & tier
@@ -12850,11 +12903,12 @@ Choose an IVR template category:`), k.of(rows))
     if (handled) return
   }
 
-  // ── BUNDLE REJECTED: user chooses to re-upload or cancel ──
+  // ── BUNDLE REJECTED: user chooses to re-upload, cancel, or start fresh ──
   if (action === 'bundleRejectedAction') {
     const lang = info?.userLanguage ?? 'en'
     const reuploadBtn = { en: '📄 Re-upload Documents', fr: '📄 Re-soumettre', zh: '📄 重新上传文件', hi: '📄 दस्तावेज़ पुनः अपलोड करें' }[lang] || '📄 Re-upload Documents'
     const refundBtn = { en: '💰 Cancel & Get Refund', fr: '💰 Annuler et rembourser', zh: '💰 取消并退款', hi: '💰 रद्द करें और धनवापसी प्राप्त करें' }[lang] || '💰 Cancel & Get Refund'
+    const startFreshBtn = { en: '🔄 Start Fresh (Refund All)', fr: '🔄 Recommencer (Tout rembourser)', zh: '🔄 重新开始（全部退款）', hi: '🔄 नए सिरे से शुरू करें (सब रिफंड)' }[lang] || '🔄 Start Fresh (Refund All)'
 
     if (message === reuploadBtn) {
       // Find the rejected bundle
@@ -12915,11 +12969,62 @@ Choose an IVR template category:`), k.of(rows))
       return
     }
 
-    // If user types something else, re-show the options
+    // ── START FRESH: Refund ALL rejected bundles and clean up everything ──
+    if (message === startFreshBtn) {
+      log(`[BundleRejected] User ${chatId} chose START FRESH — cleaning all rejected bundles`)
+      let totalRefunded = 0
+      let totalCleaned = 0
+      try {
+        // Find ALL rejected bundles for this user (both string and number chatId)
+        const allRejected = await pendingBundles.find({
+          $or: [{ chatId: String(chatId) }, { chatId }],
+          status: 'twilio-rejected'
+        }).toArray()
+        // Deduplicate by _id
+        const uniqueRejected = allRejected.filter((b, i, arr) => arr.findIndex(x => String(x._id) === String(b._id)) === i)
+
+        for (const rb of uniqueRejected) {
+          try {
+            const refundAmt = Number(rb.priceUsd || rb.price) || 0
+            const refundNgn = Number(rb.priceNgn) || 0
+            if (refundAmt > 0) { await atomicIncrement(walletOf, chatId, 'usdIn', refundAmt); totalRefunded += refundAmt }
+            if (refundNgn > 0) await atomicIncrement(walletOf, chatId, 'ngnIn', refundNgn)
+          } catch (refErr) {
+            log(`[StartFresh] Refund error for bundle ${rb.bundleSid}: ${refErr.message}`)
+            notifyAdmin(`🚨 [StartFresh] Refund failed\nchatId: ${chatId}\nbundle: ${rb.bundleSid}\nerror: ${refErr.message}`)
+          }
+          await pendingBundles.updateOne({ _id: rb._id }, { $set: { status: 'start-fresh-refunded', refundedAt: new Date(), updatedAt: new Date() } })
+          totalCleaned++
+        }
+        // Also clean stale doc sessions
+        const docSessions = db.collection('docSessions')
+        await docSessions.updateMany(
+          { chatId, status: { $in: ['submitted', 'failed', 'collecting', 'awaiting_address'] } },
+          { $set: { status: 'start-fresh-cleaned', cleanedAt: new Date(), updatedAt: new Date() } }
+        )
+      } catch (cleanupErr) {
+        log(`[StartFresh] Cleanup error: ${cleanupErr.message}`)
+      }
+
+      await set(state, chatId, 'action', 'none')
+      await set(state, chatId, 'processingPayment', false)
+
+      const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
+      const t = translation('l', lang)
+      const balMsg = t.showWallet ? t.showWallet(usdBal, ngnBal) : `Balance: $${usdBal}`
+      send(chatId, `🔄 <b>Fresh Start!</b>\n\n${totalCleaned > 0 ? `✅ Cleared ${totalCleaned} rejected verification(s)\n💰 $${totalRefunded.toFixed(2)} refunded to your wallet\n` : ''}${balMsg}\n\nYou can now start a new phone number purchase from scratch.`, {
+        parse_mode: 'HTML',
+        reply_markup: { keyboard: trans('o').reply_markup.keyboard, resize_keyboard: true }
+      })
+      log(`[StartFresh] chatId=${chatId} cleaned ${totalCleaned} bundles, refunded $${totalRefunded.toFixed(2)}`)
+      return
+    }
+
+    // If user types something else, re-show the options (now with Start Fresh)
     send(chatId, '⬇️ Please choose an option below:', {
       parse_mode: 'HTML',
       reply_markup: {
-        keyboard: [[reuploadBtn], [refundBtn]],
+        keyboard: [[reuploadBtn], [refundBtn], [startFreshBtn]],
         resize_keyboard: true,
         one_time_keyboard: true,
       }
