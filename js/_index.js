@@ -16800,8 +16800,8 @@ Select a category:`), k.of(catBtns))
           }
         }
 
-        send(chatId, ({ en: `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`, fr: `✅ <b>${domain}</b> lié au raccourcisseur d'URL. La propagation DNS peut prendre jusqu'à 24h.`, zh: `✅ <b>${domain}</b> 已链接到短链接服务。DNS 传播可能需要 24 小时。`, hi: `✅ <b>${domain}</b> URL शॉर्टनर से जोड़ दिया गया। DNS प्रसार में 24 घंटे तक लग सकते हैं।` }[lang] || `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`), { parse_mode: 'HTML' })
         const lang = info?.userLanguage || 'en'
+        send(chatId, ({ en: `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`, fr: `✅ <b>${domain}</b> lié au raccourcisseur d'URL. La propagation DNS peut prendre jusqu'à 24h.`, zh: `✅ <b>${domain}</b> 已链接到短链接服务。DNS 传播可能需要 24 小时。`, hi: `✅ <b>${domain}</b> URL शॉर्टनर से जोड़ दिया गया। DNS प्रसार में 24 घंटे तक लग सकते हैं。` }[lang] || `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`), { parse_mode: 'HTML' })
         regularCheckDns(bot, chatId, domain, lang)
       } catch (e) {
         log(`[DomainActionShortener] Error for ${domain}: ${e.message}`)
