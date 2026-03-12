@@ -773,6 +773,24 @@ async function getBundleStatus(bundleSid) {
 }
 
 /**
+ * Sanitize rejection reason text — remove any provider-specific branding
+ * so users only see neutral telecom compliance language.
+ */
+function sanitizeRejectionReason(reason) {
+  if (!reason || typeof reason !== 'string') return 'Document did not meet verification requirements.'
+  return reason
+    .replace(/Twilio/gi, '')
+    .replace(/our Regulatory Requirements criteria/gi, 'the telecom regulatory requirements')
+    .replace(/our Guidelines/gi, 'the regulatory guidelines')
+    .replace(/our requirements/gi, 'the requirements')
+    .replace(/our criteria/gi, 'the criteria')
+    .replace(/Please upload a Supporting Document according to/gi, 'Please re-upload a document that meets')
+    .replace(/Supporting Document/gi, 'supporting document')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
+/**
  * Get rejection reasons for a bundle by fetching its item assignments
  * and checking each SupportingDocument for failure_reason.
  */
@@ -807,7 +825,7 @@ async function getDocRejectionReasons(bundleSid) {
             docName: typeNames[doc.type] || doc.type,
             friendlyName: doc.friendlyName,
             status: doc.status,
-            failureReason: doc.failureReason || 'Document did not meet verification requirements.',
+            failureReason: sanitizeRejectionReason(doc.failureReason || 'Document did not meet verification requirements.'),
           })
         }
       } catch (docErr) {
@@ -866,4 +884,5 @@ module.exports = {
   submitBundle,
   getBundleStatus,
   getDocRejectionReasons,
+  sanitizeRejectionReason,
 }

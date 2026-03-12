@@ -13459,8 +13459,10 @@ Choose an IVR template category:`), k.of(rows))
         'provisionally-approved': '✅ Pre-Approved',
         'twilio-approved': '✅ Approved — Purchasing...',
         'twilio-rejected': '❌ Rejected',
+        'completed': '✅ Completed',
+        'purchase_failed': '⚠️ Purchase Failed — Refunded',
       }
-      statusLabel = statusMap[liveStatus] || liveStatus
+      statusLabel = statusMap[liveStatus] || '⏳ Processing'
 
       const elapsed = pb.createdAt ? Math.round((Date.now() - new Date(pb.createdAt).getTime()) / 3600000) : 0
       const timeAgo = elapsed < 1 ? 'just now' : elapsed < 24 ? `${elapsed}h ago` : `${Math.round(elapsed / 24)}d ago`
@@ -13556,8 +13558,9 @@ Choose an IVR template category:`), k.of(rows))
           'draft': '📝 Draft', 'pending-review': '⏳ Submitted — Under Review',
           'in-review': '🔍 Being Reviewed', 'provisionally-approved': '✅ Pre-Approved',
           'twilio-approved': '✅ Approved', 'twilio-rejected': '❌ Rejected',
+          'completed': '✅ Completed', 'purchase_failed': '⚠️ Purchase Failed — Refunded',
         }
-        const statusLabel = statusMap[liveStatus] || liveStatus
+        const statusLabel = statusMap[liveStatus] || '⏳ Processing'
         const elapsed = pb.createdAt ? Math.round((Date.now() - new Date(pb.createdAt).getTime()) / 3600000) : 0
         const timeAgo = elapsed < 1 ? 'just now' : elapsed < 24 ? `${elapsed}h ago` : `${Math.round(elapsed / 24)}d ago`
         const refreshText = `📋 <b>Pending Order — Status Refreshed</b>\n\n📞 Number: <code>${pb.selectedNumber}</code>\n🌍 Country: ${pb.countryName || pb.countryCode}\n📦 Plan: ${(pb.planKey || 'starter').charAt(0).toUpperCase() + (pb.planKey || 'starter').slice(1)} — $${pb.price}/mo\n\n📊 <b>Status: ${statusLabel}</b>\n🕐 Submitted: ${timeAgo}\n\n⏳ <i>Telecom verification typically takes 1-3 business days. We'll notify you automatically.</i>`
