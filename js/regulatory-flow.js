@@ -16,7 +16,7 @@ const fs = require('fs')
 const path = require('path')
 const axios = require('axios')
 const FormData = require('form-data')
-const { getRegConfig, getTotalSteps } = require('./regulatory-config')
+const { getRegConfig, getTotalSteps, PHOTO_TIPS } = require('./regulatory-config')
 
 const UPLOAD_DIR = '/tmp/regulatory-docs'
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true })
@@ -278,6 +278,12 @@ async function sendCurrentStepPrompt(chatId, session) {
 
   let promptText = (step.prompt && (step.prompt[lang] || step.prompt.en)) || 'Please provide the requested information.'
   promptText = promptText.replace('{step}', stepNum).replace('{total}', totalSteps)
+
+  // Append photo tips for document upload steps (type === 'photo')
+  if (step.type === 'photo' || step.type !== 'text') {
+    const tips = PHOTO_TIPS[lang] || PHOTO_TIPS.en
+    promptText += tips
+  }
 
   deps.send(chatId, promptText, { parse_mode: 'HTML' })
 }

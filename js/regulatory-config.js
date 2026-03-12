@@ -20,6 +20,113 @@ const NAME_INPUTS = [
   { key: 'last_name', prompt: { en: '👤 Enter your <b>last name</b> (as shown on your ID):', fr: '👤 Entrez votre <b>nom de famille</b> (tel que sur votre pièce d\'identité) :', zh: '👤 输入您的<b>姓氏</b>（与证件一致）：', hi: '👤 अपना <b>उपनाम</b> दर्ज करें (ID पर जैसा है):' } },
 ]
 
+/**
+ * Country-specific rejection guidance — shown to users when their bundle is rejected.
+ * Maps country:numType → per-document specific instructions for re-upload.
+ */
+const REJECTION_GUIDANCE = {
+  'IE:local': {
+    id_photo: {
+      en: '🔹 <b>Government ID</b> — Ireland requires one of:\n• Valid <b>passport</b> (bio page, not expired)\n• National <b>ID card</b> (front side)\n• Irish <b>driving licence</b>\n\n⚠️ Must clearly show: full name, photo, date of birth/expiry.\nPhoto must be flat, no glare, all 4 corners visible.',
+    },
+    address_proof: {
+      en: '🔹 <b>Address Proof</b> — Ireland requires one of:\n• <b>Utility bill</b> (electricity, gas, water, broadband) — <b>not</b> mobile phone bill\n• <b>Bank statement</b>\n• <b>Revenue / tax notice</b>\n• <b>Rent receipt</b> from registered landlord\n\n⚠️ Must be dated <b>within the last 3 months</b>.\nMust show your <b>full name + Irish address with Eircode</b>.\nNo screenshots — photo of the <b>physical document</b> or official PDF.',
+    },
+  },
+  'GB:mobile': {
+    id_photo: {
+      en: '🔹 <b>Government ID</b> — UK requires one of:\n• Valid <b>passport</b> (bio page)\n• UK <b>driving licence</b> (photocard)\n• <b>Biometric Residence Permit</b> (BRP)\n\n⚠️ Must clearly show: full name, photo, and document number.\nPhoto must be flat, no glare, all 4 corners visible.',
+    },
+    address_proof: {
+      en: '🔹 <b>Address Proof</b> — UK requires one of:\n• <b>Utility bill</b> (gas, electricity, water) — <b>not</b> mobile phone bill\n• <b>Bank or building society statement</b>\n• <b>Council tax bill</b>\n• <b>HMRC correspondence</b>\n\n⚠️ Must be dated <b>within the last 3 months</b>.\nMust show your <b>full name + UK address with postcode</b>.\nNo screenshots — photo of the <b>physical document</b> or official PDF.',
+    },
+  },
+  'AU:mobile': {
+    id_photo: {
+      en: '🔹 <b>Government ID</b> — Australia requires one of:\n• Valid <b>passport</b> (bio page)\n• Australian <b>driver licence</b>\n• <b>Proof of Age card</b>\n• <b>ImmiCard</b>\n\n⚠️ Must clearly show: full name, photo, and document number.\nPhoto must be flat, unobstructed, all 4 corners visible.',
+    },
+    address_proof: {
+      en: '🔹 <b>Address Proof</b> — Australia requires one of:\n• <b>Utility bill</b> (electricity, gas, water, internet)\n• <b>Bank statement</b>\n• <b>ATO tax notice</b>\n• <b>Rates notice</b> from local council\n\n⚠️ Must be dated <b>within the last 3 months</b>.\nMust show your <b>full name + Australian address</b>.\nNo screenshots — photo of the <b>physical document</b> or official PDF.',
+    },
+  },
+  'NZ:local': {
+    id_photo: {
+      en: '🔹 <b>Government ID</b> — New Zealand requires one of:\n• Valid <b>passport</b> (bio page)\n• NZ <b>driver licence</b>\n• <b>Firearms licence</b>\n\n⚠️ Must clearly show: full name, photo, and document number.\nPhoto must be flat, all 4 corners visible.',
+    },
+    address_proof: {
+      en: '🔹 <b>Address Proof</b> — New Zealand requires one of:\n• <b>Utility bill</b> (power, water, gas, internet)\n• <b>Bank statement</b>\n• <b>IRD correspondence</b>\n• <b>Tenancy agreement</b>\n\n⚠️ Must be dated <b>within the last 3 months</b>.\nMust show your <b>full name + NZ address</b>.\nNo screenshots — photo of the <b>physical document</b> or official PDF.',
+    },
+  },
+  'HK:mobile': {
+    id_photo: {
+      en: '🔹 <b>Passport or ID Card</b> — Hong Kong requires one of:\n• Valid <b>passport</b> (bio page showing name + DOB)\n• <b>HKID card</b> (front side)\n\n⚠️ Must clearly show: full name, date of birth, photo.\nPhoto must be flat, no glare, all 4 corners visible.',
+    },
+    address_proof: {
+      en: '🔹 <b>Address Proof</b> — Hong Kong requires one of:\n• <b>Utility bill</b> (CLP/HK Electric, Towngas, Water Supplies)\n• <b>Bank statement</b>\n• <b>Government correspondence</b>\n\n⚠️ Must be dated <b>within the last 3 months</b>.\nMust show your <b>full name + HK address</b>.\nNo screenshots — photo of the <b>physical document</b> or official PDF.',
+    },
+  },
+  'CZ:local': {
+    address_proof: {
+      en: '🔹 <b>Address Proof</b> — Czech Republic requires one of:\n• <b>Utility bill</b> (electricity, gas, water)\n• <b>Bank statement</b>\n• Czech <b>ID card</b> showing address\n• <b>Tax notice</b>\n\n⚠️ Must be dated <b>within the last 3 months</b>.\nMust show your <b>full name + Czech Republic address</b>.\nNo screenshots — photo of the <b>physical document</b> or official PDF.',
+    },
+  },
+  'MY:local': {
+    id_photo: {
+      en: '🔹 <b>Passport</b> — Malaysia requires:\n• Valid <b>passport</b> (bio page showing full name, nationality, photo)\n\n⚠️ Must not be expired. Photo must be flat, all 4 corners visible.',
+    },
+    address_proof: {
+      en: '🔹 <b>Address Proof</b> — Malaysia requires one of:\n• <b>MyKad</b> (Malaysian IC) showing address\n• <b>Work permit</b> showing local address\n• <b>Utility bill</b> with Malaysian address\n\n⚠️ Must show your <b>full name + Malaysian address</b>.\nMust be dated <b>within the last 3 months</b> (for bills).\nNo screenshots — photo of the <b>physical document</b> or official PDF.',
+    },
+  },
+  'PL:mobile': {
+    id_photo: {
+      en: '🔹 <b>Government ID</b> — Poland requires one of:\n• Valid <b>passport</b> (bio page)\n• Polish <b>dowód osobisty</b> (national ID card)\n\n⚠️ Must clearly show: full name, PESEL number, and photo.\nPhoto must be flat, no glare, all 4 corners visible.',
+    },
+  },
+  'ZA:local': {
+    id_photo: {
+      en: '🔹 <b>Government ID</b> — South Africa requires one of:\n• Valid <b>passport</b> (bio page)\n• South African <b>ID card</b> or <b>Smart ID</b>\n• <b>Temporary ID certificate</b>\n\n⚠️ Must clearly show: full name, ID/document number, and photo.\nPhoto must be flat, no glare, all 4 corners visible.',
+    },
+    address_proof: {
+      en: '🔹 <b>Address Proof</b> — South Africa requires one of:\n• <b>Tax invoice</b> from SARS\n• <b>Utility bill</b> (Eskom, municipality)\n• <b>Phone bill</b> (landline, not mobile)\n• <b>Driver\'s licence card</b> showing address\n\n⚠️ Must be dated <b>within the last 3 months</b>.\nMust show your <b>full name + South African address</b>.\nNo screenshots — photo of the <b>physical document</b> or official PDF.',
+    },
+  },
+  'KE:local': {
+    id_photo: {
+      en: '🔹 <b>Government ID</b> — Kenya requires one of:\n• Valid <b>passport</b> (bio page showing name + DOB)\n• Kenyan <b>national ID card</b> (Huduma Namba)\n\n⚠️ Must clearly show: full name, date of birth, and photo.\nPhoto must be flat, no glare, all 4 corners visible.',
+    },
+    address_proof: {
+      en: '🔹 <b>Address Proof</b> — Kenya requires one of:\n• <b>Utility bill</b> (KPLC, water, internet)\n• <b>Bank statement</b>\n• <b>KRA PIN certificate</b>\n• <b>Rent receipt</b>\n\n⚠️ Must be dated <b>within the last 3 months</b>.\nMust show your <b>full name + Kenyan address</b>.\nNo screenshots — photo of the <b>physical document</b> or official PDF.',
+    },
+  },
+  'TH:mobile': {
+    id_photo: {
+      en: '🔹 <b>ID Card or Passport</b> — Thailand requires one of:\n• Valid <b>passport</b> (bio page)\n• Thai <b>national ID card</b> (บัตรประชาชน)\n\n⚠️ Must clearly show: full name, ID number, and photo.\nPhoto must be flat, no glare, all 4 corners visible.',
+    },
+    address_proof: {
+      en: '🔹 <b>Address Proof</b> — Thailand requires one of:\n• <b>Utility bill</b> (MEA/PEA electricity, water, internet)\n• <b>Bank statement</b>\n• <b>Hor Ror 3 (house registration)</b>\n• <b>Tax correspondence</b>\n\n⚠️ Must be dated <b>within the last 3 months</b>.\nMust show your <b>full name + Thai address</b>.\nNo screenshots — photo of the <b>physical document</b> or official PDF.',
+    },
+  },
+  'EE:local': {
+    id_photo: {
+      en: '🔹 <b>Government ID</b> — Estonia requires one of:\n• Valid <b>passport</b> (bio page)\n• Estonian <b>ID card</b>\n• <b>Residence permit card</b>\n\n⚠️ Must clearly show: full name, photo, and document number.\nPhoto must be flat, no glare, all 4 corners visible.',
+    },
+  },
+  'EE:mobile': {
+    id_photo: {
+      en: '🔹 <b>Government ID</b> — Estonia requires one of:\n• Valid <b>passport</b> (bio page)\n• Estonian <b>ID card</b>\n• <b>Residence permit card</b>\n\n⚠️ Must clearly show: full name, photo, and document number.\nPhoto must be flat, no glare, all 4 corners visible.',
+    },
+  },
+}
+
+// ── General photo tips appended to all document prompts ──
+const PHOTO_TIPS = {
+  en: '\n\n💡 <b>Tips for approval:</b>\n• Take a clear, well-lit photo\n• All 4 corners of the document must be visible\n• No blur, glare, or shadows on text\n• Do not crop or edit the image\n• <b>No screenshots</b> — use camera to photograph the document',
+  fr: '\n\n💡 <b>Conseils :</b>\n• Photo claire et bien éclairée\n• Les 4 coins du document doivent être visibles\n• Pas de flou ni de reflets\n• Ne pas recadrer l\'image\n• <b>Pas de captures d\'écran</b>',
+  zh: '\n\n💡 <b>拍照提示：</b>\n• 清晰、光线充足\n• 文件4个角都要可见\n• 无模糊、无反光\n• 不要裁剪或编辑\n• <b>不要截图</b>——用相机拍摄',
+  hi: '\n\n💡 <b>अनुमोदन के लिए सुझाव:</b>\n• स्पष्ट, अच्छी रोशनी वाली फ़ोटो लें\n• दस्तावेज़ के सभी 4 कोने दिखने चाहिए\n• कोई धुंधलापन या चमक नहीं\n• छवि को क्रॉप न करें\n• <b>स्क्रीनशॉट नहीं</b> — कैमरे से फ़ोटो लें',
+}
+
 const COUNTRY_REGS = {
   // ═══ Tier 0: No documents needed ═══
   'US:local':     { tier: 0 },
@@ -75,10 +182,10 @@ const COUNTRY_REGS = {
         type: 'government_issued_document',
         fields: { from: ['first_name', 'last_name'] },
         prompt: {
-          en: '📷 <b>Step {step}/{total}: Upload Government ID or Passport</b>\n\nSend a clear photo showing your <b>full name</b>.',
-          fr: '📷 <b>Étape {step}/{total}: Téléchargez votre pièce d\'identité</b>\n\nEnvoyez une photo claire montrant votre <b>nom complet</b>.',
-          zh: '📷 <b>步骤 {step}/{total}：上传身份证或护照</b>\n\n请发送一张清晰显示<b>全名</b>的照片。',
-          hi: '📷 <b>चरण {step}/{total}: सरकारी ID या पासपोर्ट अपलोड करें</b>\n\nअपना <b>पूरा नाम</b> दिखाने वाली स्पष्ट फ़ोटो भेजें।',
+          en: '📷 <b>Step {step}/{total}: Upload Government ID</b>\n\n🇪🇪 <b>Estonia</b> accepts one of:\n• Valid <b>passport</b> (bio data page)\n• Estonian <b>ID card</b> (front side)\n• <b>Residence permit card</b>\n\n⚠️ Must clearly show your <b>full name</b> and <b>photo</b>.\nDocument must <b>not be expired</b>.',
+          fr: '📷 <b>Étape {step}/{total}: Pièce d\'identité</b>\n\n🇪🇪 <b>Estonie</b> — passeport valide, carte d\'identité ou permis de séjour.\nDoit montrer votre <b>nom complet</b> et <b>photo</b>.',
+          zh: '📷 <b>步骤 {step}/{total}：上传身份证件</b>\n\n🇪🇪 <b>爱沙尼亚</b>接受：有效护照、身份证或居留证。\n必须显示<b>全名</b>和<b>照片</b>。',
+          hi: '📷 <b>चरण {step}/{total}: सरकारी ID अपलोड करें</b>\n\n🇪🇪 <b>एस्टोनिया</b> — वैध पासपोर्ट, ID कार्ड, या निवास परमिट।\n<b>पूरा नाम</b> और <b>फ़ोटो</b> दिखना चाहिए।',
         },
       },
     ],
@@ -95,10 +202,10 @@ const COUNTRY_REGS = {
         type: 'government_issued_document',
         fields: { from: ['first_name', 'last_name'] },
         prompt: {
-          en: '📷 <b>Step {step}/{total}: Upload Government ID or Passport</b>\n\nSend a clear photo showing your <b>full name</b>.',
-          fr: '📷 <b>Étape {step}/{total}: Téléchargez votre pièce d\'identité</b>\n\nEnvoyez une photo claire montrant votre <b>nom complet</b>.',
-          zh: '📷 <b>步骤 {step}/{total}：上传身份证或护照</b>\n\n请发送一张清晰显示<b>全名</b>的照片。',
-          hi: '📷 <b>चरण {step}/{total}: सरकारी ID या पासपोर्ट अपलोड करें</b>\n\nअपना <b>पूरा नाम</b> दिखाने वाली स्पष्ट फ़ोटो भेजें।',
+          en: '📷 <b>Step {step}/{total}: Upload Government ID</b>\n\n🇪🇪 <b>Estonia</b> accepts one of:\n• Valid <b>passport</b> (bio data page)\n• Estonian <b>ID card</b> (front side)\n• <b>Residence permit card</b>\n\n⚠️ Must clearly show your <b>full name</b> and <b>photo</b>.\nDocument must <b>not be expired</b>.',
+          fr: '📷 <b>Étape {step}/{total}: Pièce d\'identité</b>\n\n🇪🇪 <b>Estonie</b> — passeport valide, carte d\'identité ou permis de séjour.\nDoit montrer votre <b>nom complet</b> et <b>photo</b>.',
+          zh: '📷 <b>步骤 {step}/{total}：上传身份证件</b>\n\n🇪🇪 <b>爱沙尼亚</b>接受：有效护照、身份证或居留证。\n必须显示<b>全名</b>和<b>照片</b>。',
+          hi: '📷 <b>चरण {step}/{total}: सरकारी ID अपलोड करें</b>\n\n🇪🇪 <b>एस्टोनिया</b> — वैध पासपोर्ट, ID कार्ड, या निवास परमिट।\n<b>पूरा नाम</b> और <b>फ़ोटो</b> दिखना चाहिए।',
         },
       },
     ],
@@ -120,10 +227,10 @@ const COUNTRY_REGS = {
         type: 'government_issued_document',
         fields: { from: ['first_name', 'last_name'] },
         prompt: {
-          en: '📷 <b>Step {step}/{total}: Upload ID Proof</b>\n\nSend a photo of your <b>Government ID or Passport</b> (showing full name).',
-          fr: '📷 <b>Étape {step}/{total}: Preuve d\'identité</b>\n\nEnvoyez une photo de votre <b>pièce d\'identité</b>.',
-          zh: '📷 <b>步骤 {step}/{total}：上传身份证明</b>\n\n请发送<b>政府身份证或护照</b>的照片。',
-          hi: '📷 <b>चरण {step}/{total}: पहचान प्रमाण अपलोड करें</b>\n\n<b>सरकारी ID या पासपोर्ट</b> की फ़ोटो भेजें।',
+          en: '📷 <b>Step {step}/{total}: Upload ID Proof</b>\n\n🇬🇧 <b>United Kingdom</b> accepts one of:\n• Valid <b>passport</b> (bio data page)\n• UK <b>driving licence</b> (photocard front)\n• <b>Biometric Residence Permit</b> (BRP)\n\n⚠️ Must clearly show: <b>full name</b>, <b>photo</b>, and <b>document number</b>.\nDocument must <b>not be expired</b>.',
+          fr: '📷 <b>Étape {step}/{total}: Preuve d\'identité</b>\n\n🇬🇧 <b>Royaume-Uni</b> — passeport, permis de conduire UK, ou BRP.\nNom complet, photo et numéro de document requis.',
+          zh: '📷 <b>步骤 {step}/{total}：上传身份证明</b>\n\n🇬🇧 <b>英国</b>接受：护照、英国驾照或BRP。\n必须显示全名、照片和证件号码。',
+          hi: '📷 <b>चरण {step}/{total}: पहचान प्रमाण</b>\n\n🇬🇧 <b>यूके</b> — पासपोर्ट, ड्राइविंग लाइसेंस, या BRP।\nपूरा नाम, फ़ोटो और दस्तावेज़ संख्या दिखनी चाहिए।',
         },
       },
       {
@@ -132,10 +239,10 @@ const COUNTRY_REGS = {
         type: 'individual_address',
         fields: { needsAddress: true },
         prompt: {
-          en: '📷 <b>Step {step}/{total}: Upload Address Proof</b>\n\nSend a photo of a <b>utility bill, bank statement, or government letter</b> showing your address.',
-          fr: '📷 <b>Étape {step}/{total}: Preuve d\'adresse</b>\n\nEnvoyez une photo d\'une <b>facture ou relevé</b> montrant votre adresse.',
-          zh: '📷 <b>步骤 {step}/{total}：上传地址证明</b>\n\n请发送<b>水电费账单或银行对账单</b>照片。',
-          hi: '📷 <b>चरण {step}/{total}: पता प्रमाण अपलोड करें</b>\n\n<b>बिजली बिल, बैंक स्टेटमेंट</b> की फ़ोटो भेजें।',
+          en: '📷 <b>Step {step}/{total}: Upload Address Proof</b>\n\n🇬🇧 <b>United Kingdom</b> accepts one of:\n• <b>Utility bill</b> (gas, electricity, water) — ❌ <b>not</b> mobile phone bill\n• <b>Bank or building society statement</b>\n• <b>Council tax bill</b>\n• <b>HMRC correspondence</b>\n\n⚠️ Must be dated <b>within the last 3 months</b>.\nMust show your <b>full name</b> + <b>UK address with postcode</b>.\n❌ No screenshots — photograph the <b>physical document</b> or use the official PDF.',
+          fr: '📷 <b>Étape {step}/{total}: Preuve d\'adresse</b>\n\n🇬🇧 <b>Royaume-Uni</b> — facture de services, relevé bancaire, ou taxe d\'habitation.\nDaté de <b>moins de 3 mois</b>. Nom + adresse UK avec code postal.',
+          zh: '📷 <b>步骤 {step}/{total}：上传地址证明</b>\n\n🇬🇧 <b>英国</b>接受：水电气账单、银行对账单或市政税单。\n<b>3个月内</b>，显示全名和英国邮编地址。',
+          hi: '📷 <b>चरण {step}/{total}: पता प्रमाण</b>\n\n🇬🇧 <b>यूके</b> — यूटिलिटी बिल, बैंक स्टेटमेंट, या काउंसिल टैक्स बिल।\n<b>3 महीने</b> के भीतर, पूरा नाम + UK पता + पोस्टकोड।',
         },
       },
     ],
@@ -155,10 +262,10 @@ const COUNTRY_REGS = {
         type: 'government_issued_document',
         fields: { from: ['first_name', 'last_name'] },
         prompt: {
-          en: '📷 <b>Step {step}/{total}: Upload ID Proof</b>\n\nSend a photo of your <b>Government ID or Passport</b> (showing full name).',
-          fr: '📷 <b>Étape {step}/{total}: Preuve d\'identité</b>\n\nEnvoyez une photo de votre <b>pièce d\'identité</b>.',
-          zh: '📷 <b>步骤 {step}/{total}：上传身份证明</b>\n\n请发送<b>政府身份证或护照</b>的照片。',
-          hi: '📷 <b>चरण {step}/{total}: पहचान प्रमाण</b>\n\n<b>सरकारी ID या पासपोर्ट</b> की फ़ोटो भेजें।',
+          en: '📷 <b>Step {step}/{total}: Upload ID Proof</b>\n\n🇮🇪 <b>Ireland</b> accepts one of:\n• Valid <b>passport</b> (bio data page)\n• <b>National ID card</b> (front side)\n• Irish <b>driving licence</b> (photocard)\n\n⚠️ Must clearly show: <b>full name</b>, <b>photo</b>, and <b>date of birth or expiry</b>.\nDocument must <b>not be expired</b>.\n❌ Do NOT send a photo of a credit card, student ID, or work badge.',
+          fr: '📷 <b>Étape {step}/{total}: Preuve d\'identité</b>\n\n🇮🇪 <b>Irlande</b> — passeport valide, carte d\'identité nationale, ou permis de conduire irlandais.\nNom complet, photo et date requis. Document <b>non expiré</b>.',
+          zh: '📷 <b>步骤 {step}/{total}：上传身份证明</b>\n\n🇮🇪 <b>爱尔兰</b>接受：有效护照、国民身份证或爱尔兰驾照。\n必须显示全名、照片和出生/有效日期。<b>不得过期</b>。',
+          hi: '📷 <b>चरण {step}/{total}: पहचान प्रमाण</b>\n\n🇮🇪 <b>आयरलैंड</b> — पासपोर्ट, राष्ट्रीय ID कार्ड, या ड्राइविंग लाइसेंस।\nपूरा नाम, फ़ोटो और तारीख दिखनी चाहिए। <b>समय सीमा समाप्त नहीं</b>।',
         },
       },
       {
@@ -167,10 +274,10 @@ const COUNTRY_REGS = {
         type: 'utility_bill',
         fields: { needsAddress: true },
         prompt: {
-          en: '📷 <b>Step {step}/{total}: Upload Address Proof</b>\n\nSend a photo of a <b>utility bill, tax notice, or rent receipt</b> showing your Irish address (must include Eircode).',
-          fr: '📷 <b>Étape {step}/{total}: Preuve d\'adresse</b>\n\nEnvoyez une photo d\'une <b>facture</b> avec votre adresse irlandaise (Eircode requis).',
-          zh: '📷 <b>步骤 {step}/{total}：上传地址证明</b>\n\n请发送包含爱尔兰地址的<b>账单</b>照片（须含Eircode）。',
-          hi: '📷 <b>चरण {step}/{total}: पता प्रमाण</b>\n\nआयरिश पता दिखाने वाले <b>बिल</b> की फ़ोटो भेजें（Eircode आवश्यक）。',
+          en: '📷 <b>Step {step}/{total}: Upload Address Proof</b>\n\n🇮🇪 <b>Ireland</b> accepts one of:\n• <b>Utility bill</b> (ESB, Bord Gáis, Irish Water, broadband) — ❌ <b>not</b> mobile phone bill\n• <b>Bank statement</b>\n• <b>Revenue notice</b> (from Revenue.ie)\n• <b>Rent receipt</b> from registered landlord\n• <b>Title deed</b>\n\n⚠️ Must be dated <b>within the last 3 months</b>.\nMust show your <b>full name</b> + <b>Irish address with Eircode</b>.\nAddress must be in the same region as the phone number prefix.\n❌ No screenshots — photograph the <b>physical document</b> or use the official PDF.',
+          fr: '📷 <b>Étape {step}/{total}: Preuve d\'adresse</b>\n\n🇮🇪 <b>Irlande</b> — facture de services (ESB, Bord Gáis), relevé bancaire, ou avis fiscal.\nDaté de <b>moins de 3 mois</b>. Nom + adresse irlandaise avec <b>Eircode</b>.',
+          zh: '📷 <b>步骤 {step}/{total}：上传地址证明</b>\n\n🇮🇪 <b>爱尔兰</b>接受：水电气账单（ESB等）、银行对账单或税务通知。\n<b>3个月内</b>，显示全名 + 爱尔兰地址（含<b>Eircode</b>）。',
+          hi: '📷 <b>चरण {step}/{total}: पता प्रमाण</b>\n\n🇮🇪 <b>आयरलैंड</b> — यूटिलिटी बिल (ESB, Bord Gáis), बैंक स्टेटमेंट, या राजस्व नोटिस।\n<b>3 महीने</b> के भीतर, पूरा नाम + आयरिश पता + <b>Eircode</b>।',
         },
       },
     ],
@@ -187,10 +294,10 @@ const COUNTRY_REGS = {
         type: 'government_issued_document',
         fields: { from: ['first_name', 'last_name'] },
         prompt: {
-          en: '📷 <b>Step {step}/{total}: Upload Government ID or Passport</b>\n\nSend a clear photo showing your <b>full name</b>.',
-          fr: '📷 <b>Étape {step}/{total}: Pièce d\'identité</b>\n\nEnvoyez une photo avec votre <b>nom complet</b>.',
-          zh: '📷 <b>步骤 {step}/{total}：上传身份证或护照</b>\n\n请发送显示<b>全名</b>的照片。',
-          hi: '📷 <b>चरण {step}/{total}: ID या पासपोर्ट</b>\n\n<b>पूरा नाम</b> दिखाने वाली फ़ोटो भेजें।',
+          en: '📷 <b>Step {step}/{total}: Upload Government ID</b>\n\n🇦🇺 <b>Australia</b> accepts one of:\n• Valid <b>passport</b> (bio data page)\n• Australian <b>driver licence</b>\n• <b>Proof of Age card</b>\n• <b>ImmiCard</b>\n\n⚠️ Must clearly show your <b>full name</b> and <b>photo</b>.\nDocument must <b>not be expired</b>.',
+          fr: '📷 <b>Étape {step}/{total}: Pièce d\'identité</b>\n\n🇦🇺 <b>Australie</b> — passeport, permis de conduire AU, ou ImmiCard.\nNom complet et photo requis. <b>Non expiré</b>.',
+          zh: '📷 <b>步骤 {step}/{total}：上传政府身份证</b>\n\n🇦🇺 <b>澳大利亚</b>接受：护照、驾照或ImmiCard。\n必须显示全名和照片。<b>不得过期</b>。',
+          hi: '📷 <b>चरण {step}/{total}: सरकारी ID</b>\n\n🇦🇺 <b>ऑस्ट्रेलिया</b> — पासपोर्ट, ड्राइवर लाइसेंस, या ImmiCard।\nपूरा नाम और फ़ोटो। <b>समाप्त नहीं</b>।',
         },
       },
       {
@@ -199,10 +306,10 @@ const COUNTRY_REGS = {
         type: 'utility_bill',
         fields: { needsAddress: true },
         prompt: {
-          en: '📷 <b>Step {step}/{total}: Upload Address Proof</b>\n\nSend a photo of a <b>utility bill, tax notice, or rent receipt</b> showing your Australian address.',
-          fr: '📷 <b>Étape {step}/{total}: Preuve d\'adresse</b>\n\nEnvoyez une photo d\'une <b>facture</b> avec votre adresse australienne.',
-          zh: '📷 <b>步骤 {step}/{total}：上传地址证明</b>\n\n请发送包含澳大利亚地址的<b>账单</b>照片。',
-          hi: '📷 <b>चरण {step}/{total}: पता प्रमाण</b>\n\nऑस्ट्रेलियाई पता दिखाने वाले <b>बिल</b> की फ़ोटो भेजें।',
+          en: '📷 <b>Step {step}/{total}: Upload Address Proof</b>\n\n🇦🇺 <b>Australia</b> accepts one of:\n• <b>Utility bill</b> (electricity, gas, water, internet) — ❌ <b>not</b> mobile phone bill\n• <b>Bank statement</b>\n• <b>ATO tax notice</b>\n• <b>Rates notice</b> from local council\n\n⚠️ Must be dated <b>within the last 3 months</b>.\nMust show your <b>full name</b> + <b>Australian address</b>.\n❌ No screenshots — photograph the <b>physical document</b> or use the official PDF.',
+          fr: '📷 <b>Étape {step}/{total}: Preuve d\'adresse</b>\n\n🇦🇺 <b>Australie</b> — facture, relevé bancaire, ou avis ATO.\nDaté de <b>moins de 3 mois</b>. Nom + adresse australienne.',
+          zh: '📷 <b>步骤 {step}/{total}：上传地址证明</b>\n\n🇦🇺 <b>澳大利亚</b>接受：水电气账单、银行对账单或ATO税单。\n<b>3个月内</b>，显示全名和澳大利亚地址。',
+          hi: '📷 <b>चरण {step}/{total}: पता प्रमाण</b>\n\n🇦🇺 <b>ऑस्ट्रेलिया</b> — यूटिलिटी बिल, बैंक स्टेटमेंट, या ATO नोटिस।\n<b>3 महीने</b> के भीतर, पूरा नाम + ऑस्ट्रेलियाई पता।',
         },
       },
     ],
@@ -219,10 +326,10 @@ const COUNTRY_REGS = {
         type: 'government_issued_document',
         fields: { from: ['first_name', 'last_name'] },
         prompt: {
-          en: '📷 <b>Step {step}/{total}: Upload Government ID or Passport</b>\n\nSend a clear photo showing your <b>full name</b>.',
-          fr: '📷 <b>Étape {step}/{total}: Pièce d\'identité</b>\n\nEnvoyez une photo avec votre <b>nom complet</b>.',
-          zh: '📷 <b>步骤 {step}/{total}：上传身份证或护照</b>\n\n请发送显示<b>全名</b>的照片。',
-          hi: '📷 <b>चरण {step}/{total}: ID या पासपोर्ट</b>\n\n<b>पूरा नाम</b> दिखाने वाली फ़ोटो भेजें।',
+          en: '📷 <b>Step {step}/{total}: Upload Government ID</b>\n\n🇳🇿 <b>New Zealand</b> accepts one of:\n• Valid <b>passport</b> (bio data page)\n• NZ <b>driver licence</b>\n\n⚠️ Must clearly show your <b>full name</b> and <b>photo</b>.\nDocument must <b>not be expired</b>.',
+          fr: '📷 <b>Étape {step}/{total}: Pièce d\'identité</b>\n\n🇳🇿 <b>Nouvelle-Zélande</b> — passeport ou permis de conduire NZ.\nNom complet et photo. <b>Non expiré</b>.',
+          zh: '📷 <b>步骤 {step}/{total}：上传身份证件</b>\n\n🇳🇿 <b>新西兰</b>接受：护照或驾照。\n必须显示全名和照片。<b>不得过期</b>。',
+          hi: '📷 <b>चरण {step}/{total}: सरकारी ID</b>\n\n🇳🇿 <b>न्यूज़ीलैंड</b> — पासपोर्ट या NZ ड्राइवर लाइसेंस।\nपूरा नाम और फ़ोटो। <b>समाप्त नहीं</b>।',
         },
       },
       {
@@ -231,10 +338,10 @@ const COUNTRY_REGS = {
         type: 'utility_bill',
         fields: { needsAddress: true },
         prompt: {
-          en: '📷 <b>Step {step}/{total}: Upload Address Proof</b>\n\nSend a photo of a <b>utility bill, tax notice, or rent receipt</b> showing your <b>New Zealand</b> address.',
-          fr: '📷 <b>Étape {step}/{total}: Preuve d\'adresse</b>\n\nEnvoyez une photo d\'une <b>facture</b> avec votre adresse néo-zélandaise.',
-          zh: '📷 <b>步骤 {step}/{total}：上传地址证明</b>\n\n请发送包含<b>新西兰地址</b>的<b>账单</b>照片。',
-          hi: '📷 <b>चरण {step}/{total}: पता प्रमाण</b>\n\n<b>न्यूज़ीलैंड</b> का पता दिखाने वाले <b>बिल</b> की फ़ोटो भेजें।',
+          en: '📷 <b>Step {step}/{total}: Upload Address Proof</b>\n\n🇳🇿 <b>New Zealand</b> accepts one of:\n• <b>Utility bill</b> (power, water, gas, internet) — ❌ <b>not</b> mobile phone bill\n• <b>Bank statement</b>\n• <b>IRD correspondence</b>\n• <b>Tenancy agreement</b>\n\n⚠️ Must be dated <b>within the last 3 months</b>.\nMust show your <b>full name</b> + <b>New Zealand address</b>.\n❌ No screenshots — photograph the <b>physical document</b> or use the official PDF.',
+          fr: '📷 <b>Étape {step}/{total}: Preuve d\'adresse</b>\n\n🇳🇿 <b>Nouvelle-Zélande</b> — facture, relevé bancaire, ou IRD.\nDaté de <b>moins de 3 mois</b>. Nom + adresse NZ.',
+          zh: '📷 <b>步骤 {step}/{total}：上传地址证明</b>\n\n🇳🇿 <b>新西兰</b>接受：水电气账单、银行对账单或IRD通信。\n<b>3个月内</b>，显示全名和NZ地址。',
+          hi: '📷 <b>चरण {step}/{total}: पता प्रमाण</b>\n\n🇳🇿 <b>न्यूज़ीलैंड</b> — यूटिलिटी बिल, बैंक स्टेटमेंट, या IRD।\n<b>3 महीने</b> के भीतर, पूरा नाम + NZ पता।',
         },
       },
     ],
@@ -254,10 +361,10 @@ const COUNTRY_REGS = {
         type: 'passport',
         fields: { from: ['first_name', 'last_name', 'birth_date'] },
         prompt: {
-          en: '📷 <b>Step {step}/{total}: Upload Passport or ID Card</b>\n\nSend a photo showing your <b>name and date of birth</b>.',
-          fr: '📷 <b>Étape {step}/{total}: Passeport ou carte d\'identité</b>\n\nEnvoyez une photo montrant <b>nom et date de naissance</b>.',
-          zh: '📷 <b>步骤 {step}/{total}：上传护照或身份证</b>\n\n请发送显示<b>姓名和出生日期</b>的照片。',
-          hi: '📷 <b>चरण {step}/{total}: पासपोर्ट या ID कार्ड</b>\n\n<b>नाम और जन्म तिथि</b> दिखाने वाली फ़ोटो भेजें।',
+          en: '📷 <b>Step {step}/{total}: Upload Passport or ID Card</b>\n\n🇭🇰 <b>Hong Kong</b> accepts one of:\n• Valid <b>passport</b> (bio data page)\n• <b>HKID card</b> (front side)\n\n⚠️ Must clearly show: <b>full name</b>, <b>date of birth</b>, and <b>photo</b>.\nDocument must <b>not be expired</b>.',
+          fr: '📷 <b>Étape {step}/{total}: Passeport ou carte d\'identité</b>\n\n🇭🇰 <b>Hong Kong</b> — passeport ou HKID.\nNom, date de naissance et photo requis.',
+          zh: '📷 <b>步骤 {step}/{total}：上传护照或身份证</b>\n\n🇭🇰 <b>香港</b>接受：有效护照或HKID卡。\n必须显示<b>姓名</b>、<b>出生日期</b>和<b>照片</b>。',
+          hi: '📷 <b>चरण {step}/{total}: पासपोर्ट या ID कार्ड</b>\n\n🇭🇰 <b>हॉन्ग कॉन्ग</b> — पासपोर्ट या HKID।\nनाम, जन्म तिथि और फ़ोटो दिखना चाहिए।',
         },
       },
       {
@@ -266,10 +373,10 @@ const COUNTRY_REGS = {
         type: 'utility_bill',
         fields: { needsAddress: true },
         prompt: {
-          en: '📷 <b>Step {step}/{total}: Upload Address Proof</b>\n\nSend a photo of a <b>utility bill or bank statement</b> (issued within last 3 months).',
-          fr: '📷 <b>Étape {step}/{total}: Preuve d\'adresse</b>\n\nEnvoyez une <b>facture</b> (moins de 3 mois).',
-          zh: '📷 <b>步骤 {step}/{total}：上传地址证明</b>\n\n请发送<b>最近3个月内的账单</b>照片。',
-          hi: '📷 <b>चरण {step}/{total}: पता प्रमाण</b>\n\n<b>3 महीने के भीतर का बिल</b> की फ़ोटो भेजें।',
+          en: '📷 <b>Step {step}/{total}: Upload Address Proof</b>\n\n🇭🇰 <b>Hong Kong</b> accepts one of:\n• <b>Utility bill</b> (CLP, HK Electric, Towngas, Water Supplies)\n• <b>Bank statement</b>\n• <b>Government correspondence</b>\n\n⚠️ Must be dated <b>within the last 3 months</b>.\nMust show your <b>full name</b> + <b>Hong Kong address</b>.\n❌ No screenshots — photograph the <b>physical document</b> or use the official PDF.',
+          fr: '📷 <b>Étape {step}/{total}: Preuve d\'adresse</b>\n\n🇭🇰 <b>Hong Kong</b> — facture de services, relevé bancaire, ou correspondance officielle.\nDaté de <b>moins de 3 mois</b>.',
+          zh: '📷 <b>步骤 {step}/{total}：上传地址证明</b>\n\n🇭🇰 <b>香港</b>接受：水电气账单、银行对账单或政府信函。\n<b>3个月内</b>，显示全名和香港地址。',
+          hi: '📷 <b>चरण {step}/{total}: पता प्रमाण</b>\n\n🇭🇰 <b>हॉन्ग कॉन्ग</b> — यूटिलिटी बिल, बैंक स्टेटमेंट, या सरकारी पत्र।\n<b>3 महीने</b> के भीतर, पूरा नाम + HK पता।',
         },
       },
     ],
@@ -290,10 +397,10 @@ const COUNTRY_REGS = {
         type: 'utility_bill',
         fields: { needsAddress: true },
         prompt: {
-          en: '📷 <b>Step {step}/{total}: Upload Address Proof</b>\n\nSend a photo of a <b>utility bill, tax notice, or ID</b> showing your <b>Czech Republic</b> address.',
-          fr: '📷 <b>Étape {step}/{total}: Preuve d\'adresse</b>\n\nEnvoyez une photo avec votre <b>adresse en République tchèque</b>.',
-          zh: '📷 <b>步骤 {step}/{total}：上传地址证明</b>\n\n请发送显示<b>捷克共和国地址</b>的账单照片。',
-          hi: '📷 <b>चरण {step}/{total}: पता प्रमाण</b>\n\n<b>चेक गणराज्य</b> का पता दिखाने वाले <b>बिल</b> की फ़ोटो भेजें।',
+          en: '📷 <b>Step {step}/{total}: Upload Address Proof</b>\n\n🇨🇿 <b>Czech Republic</b> accepts one of:\n• <b>Utility bill</b> (electricity, gas, water)\n• <b>Bank statement</b>\n• Czech <b>ID card</b> showing address\n• <b>Tax notice</b>\n\n⚠️ Must be dated <b>within the last 3 months</b> (for bills).\nMust show your <b>full name</b> + <b>Czech Republic address</b>.\n❌ No screenshots — photograph the <b>physical document</b> or use the official PDF.',
+          fr: '📷 <b>Étape {step}/{total}: Preuve d\'adresse</b>\n\n🇨🇿 <b>République tchèque</b> — facture, relevé bancaire, carte d\'identité CZ, ou avis fiscal.\nDaté de <b>moins de 3 mois</b>. Nom + adresse CZ.',
+          zh: '📷 <b>步骤 {step}/{total}：上传地址证明</b>\n\n🇨🇿 <b>捷克共和国</b>接受：水电气账单、银行对账单、捷克ID卡或税单。\n<b>3个月内</b>，显示全名和捷克地址。',
+          hi: '📷 <b>चरण {step}/{total}: पता प्रमाण</b>\n\n🇨🇿 <b>चेक गणराज्य</b> — यूटिलिटी बिल, बैंक स्टेटमेंट, या CZ ID कार्ड।\n<b>3 महीने</b> के भीतर, पूरा नाम + चेक पता।',
         },
       },
     ],
@@ -310,10 +417,10 @@ const COUNTRY_REGS = {
         type: 'passport',
         fields: { from: ['first_name', 'last_name'] },
         prompt: {
-          en: '📷 <b>Step {step}/{total}: Upload Passport</b>\n\nSend a photo of your <b>passport</b> showing your full name.',
-          fr: '📷 <b>Étape {step}/{total}: Passeport</b>\n\nEnvoyez une photo de votre <b>passeport</b> montrant votre nom.',
-          zh: '📷 <b>步骤 {step}/{total}：上传护照</b>\n\n请发送显示<b>全名</b>的护照照片。',
-          hi: '📷 <b>चरण {step}/{total}: पासपोर्ट अपलोड करें</b>\n\nअपना <b>पूरा नाम</b> दिखाने वाला पासपोर्ट भेजें।',
+          en: '📷 <b>Step {step}/{total}: Upload Passport</b>\n\n🇲🇾 <b>Malaysia</b> requires:\n• Valid <b>passport</b> (bio data page showing full name, nationality, and photo)\n\n⚠️ Must <b>not be expired</b>.\nThe name must match what you entered above.',
+          fr: '📷 <b>Étape {step}/{total}: Passeport</b>\n\n🇲🇾 <b>Malaisie</b> — passeport valide (page bio, nom, nationalité, photo). <b>Non expiré</b>.',
+          zh: '📷 <b>步骤 {step}/{total}：上传护照</b>\n\n🇲🇾 <b>马来西亚</b>要求：有效护照（显示全名、国籍和照片）。<b>不得过期</b>。',
+          hi: '📷 <b>चरण {step}/{total}: पासपोर्ट</b>\n\n🇲🇾 <b>मलेशिया</b> — वैध पासपोर्ट (बायो पेज, नाम, राष्ट्रीयता, फ़ोटो)। <b>समाप्त नहीं</b>।',
         },
       },
       {
@@ -322,10 +429,10 @@ const COUNTRY_REGS = {
         type: 'government_issued_document',
         fields: { needsAddress: true },
         prompt: {
-          en: '📷 <b>Step {step}/{total}: Upload Address Proof</b>\n\nSend a photo of a <b>Malaysian ID or work permit showing local address</b>.',
-          fr: '📷 <b>Étape {step}/{total}: Preuve d\'adresse</b>\n\nEnvoyez une photo d\'un <b>document avec adresse locale malaisienne</b>.',
-          zh: '📷 <b>步骤 {step}/{total}：上传地址证明</b>\n\n请发送<b>显示马来西亚当地地址的证件</b>照片。',
-          hi: '📷 <b>चरण {step}/{total}: पता प्रमाण</b>\n\nमलेशियाई पता दिखाने वाले <b>दस्तावेज़</b> की फ़ोटो भेजें।',
+          en: '📷 <b>Step {step}/{total}: Upload Address Proof</b>\n\n🇲🇾 <b>Malaysia</b> accepts one of:\n• <b>MyKad</b> (Malaysian IC) showing address\n• <b>Work permit</b> with local address\n• <b>Utility bill</b> with Malaysian address\n\n⚠️ Must show your <b>full name</b> + <b>Malaysian address</b>.\nFor bills, must be dated <b>within the last 3 months</b>.\n❌ No screenshots — photograph the <b>physical document</b> or use the official PDF.',
+          fr: '📷 <b>Étape {step}/{total}: Preuve d\'adresse</b>\n\n🇲🇾 <b>Malaisie</b> — MyKad, permis de travail, ou facture avec adresse malaisienne.\nNom + adresse locale.',
+          zh: '📷 <b>步骤 {step}/{total}：上传地址证明</b>\n\n🇲🇾 <b>马来西亚</b>接受：MyKad、工作许可或带有马来西亚地址的账单。\n显示全名和马来西亚地址。',
+          hi: '📷 <b>चरण {step}/{total}: पता प्रमाण</b>\n\n🇲🇾 <b>मलेशिया</b> — MyKad, कार्य परमिट, या यूटिलिटी बिल।\nपूरा नाम + मलेशियाई पता।',
         },
       },
     ],
@@ -347,10 +454,10 @@ const COUNTRY_REGS = {
         type: 'government_issued_document',
         fields: { from: ['first_name', 'last_name', 'document_number'] },
         prompt: {
-          en: '📷 <b>Step {step}/{total}: Upload Government ID or Passport</b>\n\nSend a photo showing your <b>full name and PESEL/ID number</b>.',
-          fr: '📷 <b>Étape {step}/{total}: Pièce d\'identité</b>\n\nEnvoyez une photo montrant <b>nom et numéro PESEL</b>.',
-          zh: '📷 <b>步骤 {step}/{total}：上传身份证或护照</b>\n\n请发送显示<b>全名和PESEL号码</b>的照片。',
-          hi: '📷 <b>चरण {step}/{total}: ID या पासपोर्ट</b>\n\n<b>पूरा नाम और PESEL नंबर</b> दिखाने वाली फ़ोटो भेजें।',
+          en: '📷 <b>Step {step}/{total}: Upload Government ID</b>\n\n🇵🇱 <b>Poland</b> accepts one of:\n• Valid <b>passport</b> (bio data page)\n• Polish <b>dowód osobisty</b> (national ID card, front side)\n\n⚠️ Must clearly show: <b>full name</b>, <b>PESEL number</b>, and <b>photo</b>.\nDocument must <b>not be expired</b>.',
+          fr: '📷 <b>Étape {step}/{total}: Pièce d\'identité</b>\n\n🇵🇱 <b>Pologne</b> — passeport ou dowód osobisty.\nNom, PESEL et photo requis. <b>Non expiré</b>.',
+          zh: '📷 <b>步骤 {step}/{total}：上传身份证件</b>\n\n🇵🇱 <b>波兰</b>接受：护照或dowód osobisty。\n必须显示全名、PESEL号码和照片。<b>不得过期</b>。',
+          hi: '📷 <b>चरण {step}/{total}: सरकारी ID</b>\n\n🇵🇱 <b>पोलैंड</b> — पासपोर्ट या dowód osobisty।\nपूरा नाम, PESEL और फ़ोटो। <b>समाप्त नहीं</b>।',
         },
       },
     ],
@@ -371,10 +478,10 @@ const COUNTRY_REGS = {
         type: 'government_issued_document',
         fields: { from: ['first_name', 'last_name', 'document_number'] },
         prompt: {
-          en: '📷 <b>Step {step}/{total}: Upload Government ID</b>\n\nSend a photo of your <b>government-issued photo ID</b> (showing full name and document number).',
-          fr: '📷 <b>Étape {step}/{total}: Pièce d\'identité officielle</b>\n\nEnvoyez une photo de votre <b>pièce d\'identité</b> (nom et numéro).',
-          zh: '📷 <b>步骤 {step}/{total}：上传政府身份证</b>\n\n请发送<b>政府颁发的带照片ID</b>（显示姓名和证件号码）。',
-          hi: '📷 <b>चरण {step}/{total}: सरकारी ID अपलोड करें</b>\n\n<b>सरकारी फ़ोटो ID</b> भेजें（नाम और दस्तावेज़ संख्या दिखाएं）।',
+          en: '📷 <b>Step {step}/{total}: Upload Government ID</b>\n\n🇿🇦 <b>South Africa</b> accepts one of:\n• Valid <b>passport</b> (bio data page)\n• SA <b>Smart ID card</b> (front side)\n• SA <b>green ID book</b> (photo page)\n\n⚠️ Must clearly show: <b>full name</b>, <b>ID/document number</b>, and <b>photo</b>.\nDocument must <b>not be expired</b>.',
+          fr: '📷 <b>Étape {step}/{total}: Pièce d\'identité</b>\n\n🇿🇦 <b>Afrique du Sud</b> — passeport, Smart ID, ou green ID book.\nNom, numéro de document et photo. <b>Non expiré</b>.',
+          zh: '📷 <b>步骤 {step}/{total}：上传政府身份证</b>\n\n🇿🇦 <b>南非</b>接受：护照、Smart ID卡或绿色ID本。\n全名、证件号码和照片。<b>不得过期</b>。',
+          hi: '📷 <b>चरण {step}/{total}: सरकारी ID</b>\n\n🇿🇦 <b>दक्षिण अफ्रीका</b> — पासपोर्ट, Smart ID, या green ID book।\nपूरा नाम, दस्तावेज़ संख्या और फ़ोटो। <b>समाप्त नहीं</b>।',
         },
       },
       {
@@ -383,10 +490,10 @@ const COUNTRY_REGS = {
         type: 'tax_document',
         fields: { needsAddress: true },
         prompt: {
-          en: '📷 <b>Step {step}/{total}: Upload Address Proof</b>\n\nSend a photo of a <b>tax invoice, phone bill, or driver\'s license</b> (issued within last 3 months, showing local SA address).',
-          fr: '📷 <b>Étape {step}/{total}: Preuve d\'adresse</b>\n\nEnvoyez une <b>facture fiscale ou téléphonique</b> (moins de 3 mois).',
-          zh: '📷 <b>步骤 {step}/{total}：上传地址证明</b>\n\n请发送<b>3个月内的税单或电话账单</b>照片。',
-          hi: '📷 <b>चरण {step}/{total}: पता प्रमाण</b>\n\n<b>3 महीने के भीतर का टैक्स बिल या फ़ोन बिल</b> भेजें。',
+          en: '📷 <b>Step {step}/{total}: Upload Address Proof</b>\n\n🇿🇦 <b>South Africa</b> accepts one of:\n• <b>SARS tax invoice</b> or notice\n• <b>Utility bill</b> (Eskom, municipality water/electricity)\n• <b>Landline phone bill</b> (❌ <b>not</b> mobile phone bill)\n• <b>Driver\'s licence card</b> showing address\n\n⚠️ Must be dated <b>within the last 3 months</b>.\nMust show your <b>full name</b> + <b>South African address</b>.\n❌ No screenshots — photograph the <b>physical document</b> or use the official PDF.',
+          fr: '📷 <b>Étape {step}/{total}: Preuve d\'adresse</b>\n\n🇿🇦 <b>Afrique du Sud</b> — facture SARS, Eskom, ou permis de conduire.\nDaté de <b>moins de 3 mois</b>. Nom + adresse SA.',
+          zh: '📷 <b>步骤 {step}/{total}：上传地址证明</b>\n\n🇿🇦 <b>南非</b>接受：SARS税单、Eskom账单或驾照卡。\n<b>3个月内</b>，显示全名和南非地址。',
+          hi: '📷 <b>चरण {step}/{total}: पता प्रमाण</b>\n\n🇿🇦 <b>दक्षिण अफ्रीका</b> — SARS टैक्स, Eskom बिल, या ड्राइवर लाइसेंस कार्ड।\n<b>3 महीने</b> के भीतर, पूरा नाम + SA पता।',
         },
       },
     ],
@@ -406,10 +513,10 @@ const COUNTRY_REGS = {
         type: 'government_issued_document',
         fields: { from: ['first_name', 'last_name', 'birth_date'] },
         prompt: {
-          en: '📷 <b>Step {step}/{total}: Upload Government ID or Passport</b>\n\nSend a photo showing your <b>full name and date of birth</b>.',
-          fr: '📷 <b>Étape {step}/{total}: Pièce d\'identité</b>\n\nEnvoyez une photo montrant <b>nom et date de naissance</b>.',
-          zh: '📷 <b>步骤 {step}/{total}：上传身份证或护照</b>\n\n请发送显示<b>全名和出生日期</b>的照片。',
-          hi: '📷 <b>चरण {step}/{total}: ID या पासपोर्ट</b>\n\n<b>पूरा नाम और जन्म तिथि</b> दिखाने वाली फ़ोटो भेजें।',
+          en: '📷 <b>Step {step}/{total}: Upload Government ID</b>\n\n🇰🇪 <b>Kenya</b> accepts one of:\n• Valid <b>passport</b> (bio data page showing name + date of birth)\n• Kenyan <b>national ID card</b> (Huduma Namba)\n\n⚠️ Must clearly show: <b>full name</b>, <b>date of birth</b>, and <b>photo</b>.\nDocument must <b>not be expired</b>.',
+          fr: '📷 <b>Étape {step}/{total}: Pièce d\'identité</b>\n\n🇰🇪 <b>Kenya</b> — passeport ou carte Huduma Namba.\nNom, date de naissance et photo. <b>Non expiré</b>.',
+          zh: '📷 <b>步骤 {step}/{total}：上传身份证件</b>\n\n🇰🇪 <b>肯尼亚</b>接受：护照或Huduma Namba卡。\n全名、出生日期和照片。<b>不得过期</b>。',
+          hi: '📷 <b>चरण {step}/{total}: सरकारी ID</b>\n\n🇰🇪 <b>केन्या</b> — पासपोर्ट या Huduma Namba कार्ड।\nपूरा नाम, जन्म तिथि और फ़ोटो। <b>समाप्त नहीं</b>।',
         },
       },
       {
@@ -418,10 +525,10 @@ const COUNTRY_REGS = {
         type: 'utility_bill',
         fields: { needsAddress: true },
         prompt: {
-          en: '📷 <b>Step {step}/{total}: Upload Local Address Proof</b>\n\nSend a photo of a <b>utility bill, tax notice, or rent receipt</b> showing your Kenyan address.',
-          fr: '📷 <b>Étape {step}/{total}: Preuve d\'adresse locale</b>\n\nEnvoyez une <b>facture</b> avec votre adresse kenyane.',
-          zh: '📷 <b>步骤 {step}/{total}：上传本地地址证明</b>\n\n请发送显示<b>肯尼亚地址的账单</b>照片。',
-          hi: '📷 <b>चरण {step}/{total}: स्थानीय पता प्रमाण</b>\n\nकेन्याई पता दिखाने वाले <b>बिल</b> की फ़ोटो भेजें。',
+          en: '📷 <b>Step {step}/{total}: Upload Local Address Proof</b>\n\n🇰🇪 <b>Kenya</b> accepts one of:\n• <b>Utility bill</b> (KPLC electricity, water, internet)\n• <b>Bank statement</b>\n• <b>KRA PIN certificate</b>\n• <b>Rent receipt</b>\n\n⚠️ Must be dated <b>within the last 3 months</b>.\nMust show your <b>full name</b> + <b>Kenyan address</b>.\n❌ No screenshots — photograph the <b>physical document</b> or use the official PDF.',
+          fr: '📷 <b>Étape {step}/{total}: Preuve d\'adresse locale</b>\n\n🇰🇪 <b>Kenya</b> — facture KPLC, relevé bancaire, ou KRA PIN.\nDaté de <b>moins de 3 mois</b>. Nom + adresse kenyane.',
+          zh: '📷 <b>步骤 {step}/{total}：上传本地地址证明</b>\n\n🇰🇪 <b>肯尼亚</b>接受：KPLC电费、银行对账单或KRA PIN证书。\n<b>3个月内</b>，显示全名和肯尼亚地址。',
+          hi: '📷 <b>चरण {step}/{total}: स्थानीय पता प्रमाण</b>\n\n🇰🇪 <b>केन्या</b> — KPLC बिल, बैंक स्टेटमेंट, या KRA PIN।\n<b>3 महीने</b> के भीतर, पूरा नाम + केन्याई पता।',
         },
       },
     ],
@@ -442,10 +549,10 @@ const COUNTRY_REGS = {
         type: 'passport',
         fields: { from: ['first_name', 'last_name', 'identification_document_number'] },
         prompt: {
-          en: '📷 <b>Step {step}/{total}: Upload ID Card or Passport</b>\n\nSend a photo of your <b>Thai ID card or passport</b> (showing name and ID number).',
-          fr: '📷 <b>Étape {step}/{total}: Carte d\'identité ou passeport</b>\n\nEnvoyez une photo de votre <b>pièce d\'identité thaïlandaise</b>.',
-          zh: '📷 <b>步骤 {step}/{total}：上传ID卡或护照</b>\n\n请发送<b>泰国身份证或护照</b>照片。',
-          hi: '📷 <b>चरण {step}/{total}: ID कार्ड या पासपोर्ट</b>\n\n<b>थाई ID कार्ड या पासपोर्ट</b> की फ़ोटो भेजें。',
+          en: '📷 <b>Step {step}/{total}: Upload ID Card or Passport</b>\n\n🇹🇭 <b>Thailand</b> accepts one of:\n• Valid <b>passport</b> (bio data page)\n• Thai <b>national ID card</b> (บัตรประชาชน, front side)\n\n⚠️ Must clearly show: <b>full name</b>, <b>ID number</b>, and <b>photo</b>.\nDocument must <b>not be expired</b>.',
+          fr: '📷 <b>Étape {step}/{total}: Carte d\'identité ou passeport</b>\n\n🇹🇭 <b>Thaïlande</b> — passeport ou carte d\'identité thaïlandaise.\nNom, numéro et photo. <b>Non expiré</b>.',
+          zh: '📷 <b>步骤 {step}/{total}：上传ID卡或护照</b>\n\n🇹🇭 <b>泰国</b>接受：护照或泰国身份证。\n全名、ID号码和照片。<b>不得过期</b>。',
+          hi: '📷 <b>चरण {step}/{total}: ID कार्ड या पासपोर्ट</b>\n\n🇹🇭 <b>थाईलैंड</b> — पासपोर्ट या थाई ID कार्ड।\nपूरा नाम, ID नंबर और फ़ोटो। <b>समाप्त नहीं</b>।',
         },
       },
       {
@@ -454,10 +561,10 @@ const COUNTRY_REGS = {
         type: 'utility_bill',
         fields: { needsAddress: true },
         prompt: {
-          en: '📷 <b>Step {step}/{total}: Upload Address Proof</b>\n\nSend a photo of a <b>utility bill, tax notice, or rent receipt</b> showing your <b>Thai</b> address.',
-          fr: '📷 <b>Étape {step}/{total}: Preuve d\'adresse</b>\n\nEnvoyez une <b>facture ou avis d\'imposition</b> avec votre adresse thaïlandaise.',
-          zh: '📷 <b>步骤 {step}/{total}：上传地址证明</b>\n\n请发送显示<b>泰国地址</b>的<b>账单或税单</b>照片。',
-          hi: '📷 <b>चरण {step}/{total}: पता प्रमाण</b>\n\n<b>थाई</b> पता दिखाने वाले <b>बिल या टैक्स नोटिस</b> की फ़ोटो भेजें।',
+          en: '📷 <b>Step {step}/{total}: Upload Address Proof</b>\n\n🇹🇭 <b>Thailand</b> accepts one of:\n• <b>Utility bill</b> (MEA/PEA electricity, water, internet)\n• <b>Bank statement</b>\n• <b>House registration</b> (ทะเบียนบ้าน)\n• <b>Tax correspondence</b>\n\n⚠️ Must be dated <b>within the last 3 months</b>.\nMust show your <b>full name</b> + <b>Thai address</b>.\n❌ No screenshots — photograph the <b>physical document</b> or use the official PDF.',
+          fr: '📷 <b>Étape {step}/{total}: Preuve d\'adresse</b>\n\n🇹🇭 <b>Thaïlande</b> — facture, relevé bancaire, ou enregistrement de maison.\nDaté de <b>moins de 3 mois</b>. Nom + adresse thaïlandaise.',
+          zh: '📷 <b>步骤 {step}/{total}：上传地址证明</b>\n\n🇹🇭 <b>泰国</b>接受：水电账单、银行对账单或房屋登记。\n<b>3个月内</b>，显示全名和泰国地址。',
+          hi: '📷 <b>चरण {step}/{total}: पता प्रमाण</b>\n\n🇹🇭 <b>थाईलैंड</b> — यूटिलिटी बिल, बैंक स्टेटमेंट, या हाउस रजिस्ट्रेशन।\n<b>3 महीने</b> के भीतर, पूरा नाम + थाई पता।',
         },
       },
     ],
@@ -493,9 +600,35 @@ function getTotalSteps(config) {
   return textSteps + docSteps
 }
 
+/**
+ * Get country-specific rejection guidance for a given doc key.
+ * Returns an object with language keys, or null if no specific guidance.
+ */
+function getRejectionGuidance(countryCode, numType, docKey) {
+  const key = `${countryCode}:${numType}`
+  const guidance = REJECTION_GUIDANCE[key]
+  if (!guidance) return null
+  return guidance[docKey] || null
+}
+
+/**
+ * Get ALL rejection guidance for a country+numType.
+ * Returns array of { docKey, guidance } objects.
+ */
+function getAllRejectionGuidance(countryCode, numType) {
+  const key = `${countryCode}:${numType}`
+  const guidance = REJECTION_GUIDANCE[key]
+  if (!guidance) return []
+  return Object.entries(guidance).map(([docKey, g]) => ({ docKey, guidance: g }))
+}
+
 module.exports = {
   COUNTRY_REGS,
+  REJECTION_GUIDANCE,
+  PHOTO_TIPS,
   getRegConfig,
   needsDocUpload,
   getTotalSteps,
+  getRejectionGuidance,
+  getAllRejectionGuidance,
 }

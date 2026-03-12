@@ -1250,7 +1250,8 @@ async function checkPendingBundles() {
             $set: { status: 'twilio-rejected', rejectionReasons: reasons, updatedAt: new Date() }
           })
 
-          // Build user-friendly message — NO mention of Twilio
+          // Build user-friendly message with country-specific guidance — NO mention of Twilio
+          const { getAllRejectionGuidance } = require('./regulatory-config')
           let reasonText = ''
           if (reasons.length > 0) {
             reasonText = '\n\n<b>Issues found:</b>\n'
@@ -1261,10 +1262,20 @@ async function checkPendingBundles() {
             reasonText = '\n\nThe documents provided did not meet the telecom regulatory requirements for this country.'
           }
 
+          // Add country-specific document guidance so user knows EXACTLY what to upload
+          const guidanceList = getAllRejectionGuidance(pb.countryCode, pb.numType)
+          let guidanceText = ''
+          if (guidanceList.length > 0) {
+            guidanceText = '\n\n📋 <b>What documents are accepted:</b>\n'
+            for (const g of guidanceList) {
+              guidanceText += '\n' + (g.guidance[lang] || g.guidance.en) + '\n'
+            }
+          }
+
           const reuploadBtn = { en: '📄 Re-upload Documents', fr: '📄 Re-soumettre', zh: '📄 重新上传文件', hi: '📄 दस्तावेज़ पुनः अपलोड करें' }[lang] || '📄 Re-upload Documents'
           const refundBtn = { en: '💰 Cancel & Get Refund', fr: '💰 Annuler et rembourser', zh: '💰 取消并退款', hi: '💰 रद्द करें और धनवापसी प्राप्त करें' }[lang] || '💰 Cancel & Get Refund'
 
-          send(pb.chatId, `❌ <b>Verification Rejected</b>\n\nYour ${pb.countryName || pb.countryCode} number request was not approved.${reasonText}\nYou can re-upload your documents to try again, or cancel for a full refund.`, {
+          send(pb.chatId, `❌ <b>Verification Rejected</b>\n\nYour ${pb.countryName || pb.countryCode} number request was not approved.${reasonText}${guidanceText}\nYou can re-upload your documents to try again, or cancel for a full refund.`, {
             parse_mode: 'HTML',
             reply_markup: {
               keyboard: [[reuploadBtn], [refundBtn]],
