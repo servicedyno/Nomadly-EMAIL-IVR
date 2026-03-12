@@ -132,6 +132,7 @@ async function storeCredentials(cpanelAccountsCol, data) {
     email: data.email || null,
     domain: data.domain,
     plan: data.plan,
+    whmHost: process.env.WHM_HOST || null,
     expiryDate: data.expiryDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     createdAt: new Date(),
     lastLogin: null,

@@ -3,6 +3,9 @@
  * cPanel UAPI Proxy Service
  * Proxies requests to cPanel UAPI, hiding the server IP from the frontend.
  * All responses are sanitized to remove server IP references.
+ *
+ * Supports per-account WHM host override — accounts created on different
+ * servers use their stored whmHost instead of the global WHM_HOST.
  */
 
 const axios = require('axios')
@@ -12,15 +15,51 @@ const FormData = require('form-data')
 
 const WHM_HOST = process.env.WHM_HOST
 const CPANEL_PORT = 2083
-const BASE_URL = `https://${WHM_HOST}:${CPANEL_PORT}`
 
 // Accept self-signed certs on WHM
 const httpsAgent = new https.Agent({ rejectUnauthorized: false })
 
+// ─── Helpers ────────────────────────────────────────────
+
+function getBaseUrl(host) {
+  const effectiveHost = host || WHM_HOST
+  return `https://${effectiveHost}:${CPANEL_PORT}`
+}
+
+// ─── Sanitization ───────────────────────────────────────
+
+function sanitizeString(str, extraHost) {
+  if (!str || typeof str !== 'string') return str
+  // Replace server IP with [server]
+  if (WHM_HOST) {
+    str = str.split(WHM_HOST).join('[server]')
+  }
+  if (extraHost && extraHost !== WHM_HOST) {
+    str = str.split(extraHost).join('[server]')
+  }
+  // Also strip common cPanel port references
+  str = str.replace(/:2083/g, '').replace(/:2087/g, '').replace(/:2096/g, '')
+  return str
+}
+
+function sanitize(obj, extraHost) {
+  if (typeof obj === 'string') return sanitizeString(obj, extraHost)
+  if (Array.isArray(obj)) return obj.map(o => sanitize(o, extraHost))
+  if (obj && typeof obj === 'object') {
+    const clean = {}
+    for (const [k, v] of Object.entries(obj)) {
+      clean[k] = sanitize(v, extraHost)
+    }
+    return clean
+  }
+  return obj
+}
+
 // ─── Core UAPI call ─────────────────────────────────────
 
-async function uapi(cpUser, cpPass, module, func, params = {}, method = 'GET') {
-  const url = `${BASE_URL}/execute/${module}/${func}`
+async function uapi(cpUser, cpPass, module, func, params = {}, method = 'GET', host = null) {
+  const baseUrl = getBaseUrl(host)
+  const url = `${baseUrl}/execute/${module}/${func}`
   const auth = { username: cpUser, password: cpPass }
 
   try {
@@ -33,20 +72,21 @@ async function uapi(cpUser, cpPass, module, func, params = {}, method = 'GET') {
 
     const data = res.data
     // Sanitize: strip server IP from response
-    return sanitize(data)
+    return sanitize(data, host)
   } catch (err) {
     const status = err.response?.status
     const msg = err.response?.data?.errors?.[0] || err.message
     log(`[cPanel Proxy] ${module}::${func} error (${status}): ${msg}`)
-    return { status: 0, errors: [sanitizeString(String(msg))], data: null }
+    return { status: 0, errors: [sanitizeString(String(msg), host)], data: null }
   }
 }
 
 /**
  * Upload file to cPanel via multipart/form-data
  */
-async function uploadFile(cpUser, cpPass, dir, fileName, fileBuffer) {
-  const url = `${BASE_URL}/execute/Fileman/upload_files`
+async function uploadFile(cpUser, cpPass, dir, fileName, fileBuffer, host = null) {
+  const baseUrl = getBaseUrl(host)
+  const url = `${baseUrl}/execute/Fileman/upload_files`
   const auth = { username: cpUser, password: cpPass }
 
   const form = new FormData()
@@ -61,44 +101,19 @@ async function uploadFile(cpUser, cpPass, dir, fileName, fileBuffer) {
       headers: form.getHeaders(),
       maxContentLength: 100 * 1024 * 1024, // 100MB
     })
-    return sanitize(res.data)
+    return sanitize(res.data, host)
   } catch (err) {
     log(`[cPanel Proxy] Fileman::upload_files error: ${err.message}`)
-    return { status: 0, errors: [sanitizeString(err.message)], data: null }
+    return { status: 0, errors: [sanitizeString(err.message, host)], data: null }
   }
-}
-
-// ─── Sanitization ───────────────────────────────────────
-
-function sanitizeString(str) {
-  if (!str || typeof str !== 'string') return str
-  // Replace server IP with [server]
-  if (WHM_HOST) {
-    str = str.split(WHM_HOST).join('[server]')
-  }
-  // Also strip common cPanel port references
-  str = str.replace(/:2083/g, '').replace(/:2087/g, '').replace(/:2096/g, '')
-  return str
-}
-
-function sanitize(obj) {
-  if (typeof obj === 'string') return sanitizeString(obj)
-  if (Array.isArray(obj)) return obj.map(sanitize)
-  if (obj && typeof obj === 'object') {
-    const clean = {}
-    for (const [k, v] of Object.entries(obj)) {
-      clean[k] = sanitize(v)
-    }
-    return clean
-  }
-  return obj
 }
 
 // ─── cPanel API2 call (for functions not available in UAPI) ──
 // Normalizes API2 response to match UAPI format: { status, data, errors }
 
-async function api2(cpUser, cpPass, module, func, params = {}) {
-  const url = `${BASE_URL}/json-api/cpanel`
+async function api2(cpUser, cpPass, module, func, params = {}, host = null) {
+  const baseUrl = getBaseUrl(host)
+  const url = `${baseUrl}/json-api/cpanel`
   const auth = { username: cpUser, password: cpPass }
   const queryParams = {
     cpanel_jsonapi_user: cpUser,
@@ -110,7 +125,7 @@ async function api2(cpUser, cpPass, module, func, params = {}) {
 
   try {
     const res = await axios.get(url, { params: queryParams, auth, httpsAgent, timeout: 60000 })
-    const raw = sanitize(res.data)
+    const raw = sanitize(res.data, host)
 
     // Normalize API2 response to UAPI-like format
     const cp = raw?.cpanelresult || {}
@@ -120,7 +135,7 @@ async function api2(cpUser, cpPass, module, func, params = {}) {
     const errors = []
     if (!eventOk || !opOk) {
       const reason = dataArr[0]?.reason || cp.error || 'Operation failed'
-      errors.push(sanitizeString(String(reason)))
+      errors.push(sanitizeString(String(reason), host))
     }
 
     return {
@@ -134,7 +149,7 @@ async function api2(cpUser, cpPass, module, func, params = {}) {
     const status = err.response?.status
     const msg = err.response?.data?.errors?.[0] || err.message
     log(`[cPanel Proxy API2] ${module}::${func} error (${status}): ${msg}`)
-    return { status: 0, errors: [sanitizeString(String(msg))], data: null }
+    return { status: 0, errors: [sanitizeString(String(msg), host)], data: null }
   }
 }
 
@@ -142,7 +157,7 @@ async function api2(cpUser, cpPass, module, func, params = {}) {
 
 // FILE MANAGER
 
-async function listFiles(cpUser, cpPass, dir = '/public_html') {
+async function listFiles(cpUser, cpPass, dir = '/public_html', host = null) {
   return uapi(cpUser, cpPass, 'Fileman', 'list_files', {
     dir,
     include_mime: 1,
@@ -150,22 +165,22 @@ async function listFiles(cpUser, cpPass, dir = '/public_html') {
     include_hash: 0,
     include_content: 0,
     types: 'dir|file',
-  })
+  }, 'GET', host)
 }
 
-async function getFileContent(cpUser, cpPass, dir, file) {
-  return uapi(cpUser, cpPass, 'Fileman', 'get_file_content', { dir, file })
+async function getFileContent(cpUser, cpPass, dir, file, host = null) {
+  return uapi(cpUser, cpPass, 'Fileman', 'get_file_content', { dir, file }, 'GET', host)
 }
 
-async function saveFileContent(cpUser, cpPass, dir, file, content) {
-  return uapi(cpUser, cpPass, 'Fileman', 'save_file_content', { dir, file, content }, 'POST')
+async function saveFileContent(cpUser, cpPass, dir, file, content, host = null) {
+  return uapi(cpUser, cpPass, 'Fileman', 'save_file_content', { dir, file, content }, 'POST', host)
 }
 
-async function createDirectory(cpUser, cpPass, dir, name) {
+async function createDirectory(cpUser, cpPass, dir, name, host = null) {
   const result = await api2(cpUser, cpPass, 'Fileman', 'mkdir', {
     path: dir,
     name: name,
-  })
+  }, host)
   // api2 normalizer misreads mkdir success — check data for actual result
   if (result.data?.length > 0 && result.data[0]?.path && result.data[0]?.name) {
     result.status = 1
@@ -174,53 +189,53 @@ async function createDirectory(cpUser, cpPass, dir, name) {
   return result
 }
 
-async function deleteFile(cpUser, cpPass, dir, file) {
+async function deleteFile(cpUser, cpPass, dir, file, host = null) {
   return api2(cpUser, cpPass, 'Fileman', 'fileop', {
     doubledecode: 0,
     op: 'unlink',
     sourcefiles: `${dir}/${file}`,
-  })
+  }, host)
 }
 
-async function renameFile(cpUser, cpPass, dir, oldName, newName) {
+async function renameFile(cpUser, cpPass, dir, oldName, newName, host = null) {
   return api2(cpUser, cpPass, 'Fileman', 'fileop', {
     doubledecode: 0,
     op: 'rename',
     sourcefiles: `${dir}/${oldName}`,
     destfiles: `${dir}/${newName}`,
-  })
+  }, host)
 }
 
-async function extractFile(cpUser, cpPass, dir, file, destDir) {
+async function extractFile(cpUser, cpPass, dir, file, destDir, host = null) {
   // Extract uses API2 (UAPI has no fileop equivalent)
   return api2(cpUser, cpPass, 'Fileman', 'fileop', {
     doubledecode: 0,
     op: 'extract',
     sourcefiles: `${dir}/${file}`,
     destfiles: destDir || dir,
-  })
+  }, host)
 }
 
-async function compressFiles(cpUser, cpPass, dir, files, destFile) {
+async function compressFiles(cpUser, cpPass, dir, files, destFile, host = null) {
   return api2(cpUser, cpPass, 'Fileman', 'fileop', {
     doubledecode: 0,
     op: 'compress',
     sourcefiles: files.map(f => `${dir}/${f}`).join('\n'),
     destfiles: `${dir}/${destFile}`,
-  })
+  }, host)
 }
 
 // DOMAINS
 
-async function listDomains(cpUser, cpPass) {
-  return uapi(cpUser, cpPass, 'DomainInfo', 'list_domains')
+async function listDomains(cpUser, cpPass, host = null) {
+  return uapi(cpUser, cpPass, 'DomainInfo', 'list_domains', {}, 'GET', host)
 }
 
-async function addAddonDomain(cpUser, cpPass, domain, subDomain, dir) {
+async function addAddonDomain(cpUser, cpPass, domain, subDomain, dir, host = null) {
   // Use cPanel API2 for AddonDomain::addaddondomain (UAPI module not available on all versions)
+  const effectiveHost = host || WHM_HOST
   const auth = { username: cpUser, password: cpPass }
-  const WHM_HOST = process.env.WHM_HOST
-  const url = `https://${WHM_HOST}:2083/json-api/cpanel`
+  const url = `https://${effectiveHost}:2083/json-api/cpanel`
   const params = {
     cpanel_jsonapi_user: cpUser,
     cpanel_jsonapi_apiversion: 2,
@@ -247,10 +262,10 @@ async function addAddonDomain(cpUser, cpPass, domain, subDomain, dir) {
   }
 }
 
-async function removeAddonDomain(cpUser, cpPass, domain, subDomain, mainDomain) {
+async function removeAddonDomain(cpUser, cpPass, domain, subDomain, mainDomain, host = null) {
+  const effectiveHost = host || WHM_HOST
   const auth = { username: cpUser, password: cpPass }
-  const WHM_HOST = process.env.WHM_HOST
-  const url = `https://${WHM_HOST}:2083/json-api/cpanel`
+  const url = `https://${effectiveHost}:2083/json-api/cpanel`
   const params = {
     cpanel_jsonapi_user: cpUser,
     cpanel_jsonapi_apiversion: 2,
@@ -278,57 +293,57 @@ async function removeAddonDomain(cpUser, cpPass, domain, subDomain, mainDomain) 
 
 // EMAIL
 
-async function listEmailAccounts(cpUser, cpPass) {
-  return uapi(cpUser, cpPass, 'Email', 'list_pops_with_disk')
+async function listEmailAccounts(cpUser, cpPass, host = null) {
+  return uapi(cpUser, cpPass, 'Email', 'list_pops_with_disk', {}, 'GET', host)
 }
 
-async function createEmailAccount(cpUser, cpPass, email, password, quota, domain) {
+async function createEmailAccount(cpUser, cpPass, email, password, quota, domain, host = null) {
   return uapi(cpUser, cpPass, 'Email', 'add_pop', {
     email,
     password,
     quota: quota || 250, // MB
     domain,
-  }, 'POST')
+  }, 'POST', host)
 }
 
-async function deleteEmailAccount(cpUser, cpPass, email, domain) {
-  return uapi(cpUser, cpPass, 'Email', 'delete_pop', { email, domain }, 'POST')
+async function deleteEmailAccount(cpUser, cpPass, email, domain, host = null) {
+  return uapi(cpUser, cpPass, 'Email', 'delete_pop', { email, domain }, 'POST', host)
 }
 
-async function changeEmailPassword(cpUser, cpPass, email, password, domain) {
-  return uapi(cpUser, cpPass, 'Email', 'passwd_pop', { email, password, domain }, 'POST')
+async function changeEmailPassword(cpUser, cpPass, email, password, domain, host = null) {
+  return uapi(cpUser, cpPass, 'Email', 'passwd_pop', { email, password, domain }, 'POST', host)
 }
 
-async function getEmailDiskUsage(cpUser, cpPass) {
-  return uapi(cpUser, cpPass, 'Email', 'get_disk_usage')
+async function getEmailDiskUsage(cpUser, cpPass, host = null) {
+  return uapi(cpUser, cpPass, 'Email', 'get_disk_usage', {}, 'GET', host)
 }
 
 // Send test email via cPanel webmail (uses the server's sendmail)
-async function sendTestEmail(cpUser, cpPass, fromEmail, toEmail, domain) {
+async function sendTestEmail(cpUser, cpPass, fromEmail, toEmail, domain, host = null) {
   return uapi(cpUser, cpPass, 'Email', 'send_test', {
     from: fromEmail,
     to: toEmail,
     subject: `Test from ${domain} - ${new Date().toISOString().split('T')[0]}`,
-  }, 'POST')
+  }, 'POST', host)
 }
 
 // STATS
 
-async function getQuotaInfo(cpUser, cpPass) {
-  return uapi(cpUser, cpPass, 'Quota', 'get_local_quota_info')
+async function getQuotaInfo(cpUser, cpPass, host = null) {
+  return uapi(cpUser, cpPass, 'Quota', 'get_local_quota_info', {}, 'GET', host)
 }
 
-async function getBandwidthData(cpUser, cpPass) {
-  return uapi(cpUser, cpPass, 'Stats', 'get_bandwidth')
+async function getBandwidthData(cpUser, cpPass, host = null) {
+  return uapi(cpUser, cpPass, 'Stats', 'get_bandwidth', {}, 'GET', host)
 }
 
 // SUBDOMAINS
 // Note: listing uses DomainInfo::list_domains (subdomains in the domains response)
 // Creation/deletion uses cPanel API2 SubDomain module
 
-async function listSubdomains(cpUser, cpPass) {
+async function listSubdomains(cpUser, cpPass, host = null) {
   // Subdomains are already part of the domains response
-  const domains = await listDomains(cpUser, cpPass)
+  const domains = await listDomains(cpUser, cpPass, host)
   return {
     data: (domains.data?.sub_domains || []).map(s => {
       if (typeof s === 'string') {
@@ -342,11 +357,11 @@ async function listSubdomains(cpUser, cpPass) {
   }
 }
 
-async function createSubdomain(cpUser, cpPass, subdomain, rootdomain, dir) {
+async function createSubdomain(cpUser, cpPass, subdomain, rootdomain, dir, host = null) {
   // Use cpanel API2 for SubDomain::addsubdomain
+  const effectiveHost = host || WHM_HOST
   const auth = { username: cpUser, password: cpPass }
-  const WHM_HOST = process.env.WHM_HOST
-  const url = `https://${WHM_HOST}:2083/json-api/cpanel`
+  const url = `https://${effectiveHost}:2083/json-api/cpanel`
   const params = {
     cpanel_jsonapi_user: cpUser,
     cpanel_jsonapi_apiversion: 2,
@@ -373,11 +388,11 @@ async function createSubdomain(cpUser, cpPass, subdomain, rootdomain, dir) {
   }
 }
 
-async function deleteSubdomain(cpUser, cpPass, fullSubdomain) {
+async function deleteSubdomain(cpUser, cpPass, fullSubdomain, host = null) {
   // Use cpanel API2 for SubDomain::delsubdomain
+  const effectiveHost = host || WHM_HOST
   const auth = { username: cpUser, password: cpPass }
-  const WHM_HOST = process.env.WHM_HOST
-  const url = `https://${WHM_HOST}:2083/json-api/cpanel`
+  const url = `https://${effectiveHost}:2083/json-api/cpanel`
   const params = {
     cpanel_jsonapi_user: cpUser,
     cpanel_jsonapi_apiversion: 2,
@@ -404,8 +419,8 @@ async function deleteSubdomain(cpUser, cpPass, fullSubdomain) {
 
 // SSL
 
-async function getSSLStatus(cpUser, cpPass) {
-  return uapi(cpUser, cpPass, 'SSL', 'installed_hosts')
+async function getSSLStatus(cpUser, cpPass, host = null) {
+  return uapi(cpUser, cpPass, 'SSL', 'installed_hosts', {}, 'GET', host)
 }
 
 module.exports = {

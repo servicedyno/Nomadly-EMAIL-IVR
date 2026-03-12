@@ -2106,15 +2106,26 @@ agent_communication:
           agent: "testing"
           comment: "✅ HOSTING PLAN PURCHASE FLOW BUG FIXES COMPREHENSIVE VERIFICATION COMPLETE: All 9 critical requirements verified with 100% success rate (9/9 tests passed). (1) NODE.JS HEALTH: GET http://localhost:5000/health returns 200 with {'status': 'healthy', 'database': 'connected', 'uptime': '0.05 hours'}, /var/log/supervisor/nodejs.err.log is EMPTY (0 bytes), service running healthy on port 5000. (2) BUYPLAN RESETS DOMAIN STATE: buyPlan function contains all 5 required saveInfo calls AFTER processingPayment reset - saveInfo('connectExternalDomain', false), saveInfo('existingDomain', false), saveInfo('website_name', null), saveInfo('price', null), saveInfo('continue_domain_last_state', null). (3) REGISTERNEWDOMAIN FIX: registerNewDomain function has saveInfo('connectExternalDomain', false) alongside saveInfo('existingDomain', false). (4) USEMYDOMAIN FIX: useMyDomain function has saveInfo('connectExternalDomain', false) after saveInfo('existingDomain', true). (5) USEEXISTINGDOMAIN FIX: useExistingDomain function has saveInfo('connectExternalDomain', false) after saveInfo('existingDomain', true). (6) ENTERYOUREMAIL GUARD: enterYourEmail function has guard 'if (!info.website_name)' that calls 'goto.buyPlan(a.premiumWeekly)' with log message '[Hosting] enterYourEmail called without website_name'. (7) HOSTING-PAY GUARD: 'hosting-pay' handler has guard 'if (!info.website_name)' that calls 'goto.buyPlan(a.premiumWeekly)' with processingPayment reset and log message '[Hosting] hosting-pay called without website_name'. (8) CONNECTEXTERNALDOMAIN CANCEL: Handler 'if (action === a.connectExternalDomain)' checks 'message === t.cancel' in the back/backButton check condition. (9) USEEXISTINGDOMAIN CANCEL: Handler 'if (action === a.useExistingDomain)' checks 'message === t.cancel' in the back check condition. ALL 7 HOSTING PLAN PURCHASE FLOW BUG FIXES ARE PRODUCTION-READY AND FULLY FUNCTIONAL - stale connectExternalDomain flag cleared properly, domain validation guards prevent invalid states, cancel handling prevents crashes."
 
+
+  - task: "Per-account WHM host support for cPanel server migration"
+    implemented: true
+    working: true
+    file: "js/cpanel-proxy.js, js/cpanel-routes.js, js/cpanel-auth.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Fixed hosting panel 401 error after WHM server migration. Root cause: WHM_HOST changed from 199.247.22.196 to 209.38.241.9 but existing cPanel accounts (like even3450) only exist on old server. Fix: (1) cpanel-proxy.js: All functions now accept optional host parameter, falling back to global WHM_HOST. (2) cpanel-routes.js: resolveCpPass middleware reads account.whmHost and sets req.whmHost. All 25 cpProxy calls pass req.whmHost. (3) cpanel-auth.js: storeCredentials() now saves current WHM_HOST as whmHost. (4) MongoDB migration: All 9 existing cpanelAccounts backfilled with whmHost=199.247.22.196."
+
 test_plan:
   current_focus:
-    - "Hosting plan purchase flow - stale connectExternalDomain flag and domain validation fixes"
+    - "Per-account WHM host support for cPanel server migration"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
     - agent: "main"
-      message: "Fixed hosting plan purchase flow bugs. Please verify: (1) Node.js healthy at localhost:5000/health with ZERO errors in nodejs.err.log. (2) buyPlan function resets domain state: saveInfo calls for connectExternalDomain=false, existingDomain=false, website_name=null, price=null, continue_domain_last_state=null. (3) registerNewDomain has saveInfo('connectExternalDomain', false). (4) useMyDomain has saveInfo('connectExternalDomain', false). (5) useExistingDomain has saveInfo('connectExternalDomain', false). (6) enterYourEmail has guard: if (!info.website_name) redirects to buyPlan. (7) hosting-pay goto has guard: if (!info.website_name) redirects to buyPlan. (8) connectExternalDomain handler checks t.cancel. (9) useExistingDomain handler checks t.cancel."
-    - agent: "testing"
-      message: "✅ HOSTING PLAN PURCHASE FLOW BUG FIXES COMPREHENSIVE VERIFICATION COMPLETE: All 9 critical requirements verified with 100% success rate (9/9 tests passed). Node.js service healthy on port 5000 with database connected, /var/log/supervisor/nodejs.err.log is EMPTY (0 bytes). All 7 bug fixes verified through code inspection in js/_index.js: (1) buyPlan resets all domain state flags after processingPayment reset, (2-4) registerNewDomain/useMyDomain/useExistingDomain all clear connectExternalDomain flag, (5-6) enterYourEmail and hosting-pay both have website_name guards with proper logging and redirects, (7) both connectExternalDomain and useExistingDomain handlers check for t.cancel in back conditions. ALL HOSTING PLAN PURCHASE FLOW BUG FIXES ARE PRODUCTION-READY AND FULLY FUNCTIONAL."
+      message: "Implemented per-account WHM host support. Please verify: (1) Node.js healthy at localhost:5000/health with ZERO errors in nodejs.err.log. (2) cpanel-proxy.js: All functions (uapi, api2, uploadFile, listFiles, getFileContent, saveFileContent, createDirectory, deleteFile, renameFile, extractFile, compressFiles, listDomains, addAddonDomain, removeAddonDomain, listEmailAccounts, createEmailAccount, deleteEmailAccount, changeEmailPassword, getQuotaInfo, getBandwidthData, listSubdomains, createSubdomain, deleteSubdomain, getSSLStatus) accept optional host parameter as last argument. (3) cpanel-routes.js: resolveCpPass middleware reads account.whmHost and attaches to req.whmHost. All 25 cpProxy calls pass req.whmHost. (4) cpanel-auth.js: storeCredentials includes whmHost: process.env.WHM_HOST. (5) MongoDB: All 9 cpanelAccounts have whmHost field set to 199.247.22.196 (old server). (6) New accounts will get current WHM_HOST (209.38.241.9)."

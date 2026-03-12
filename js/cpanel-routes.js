@@ -51,6 +51,8 @@ function createCpanelRoutes(getCpanelCol) {
         iv: account.cpPass_iv,
         tag: account.cpPass_tag,
       })
+      // Per-account WHM host — accounts created on different servers keep their original host
+      req.whmHost = account.whmHost || null
       next()
     } catch (err) {
       log(`[Panel] Credential resolve error: ${err.message}`)
@@ -97,14 +99,14 @@ function createCpanelRoutes(getCpanelCol) {
 
   router.get('/files', ...auth, async (req, res) => {
     const dir = req.query.dir || `/home/${req.cpUser}/public_html`
-    const result = await cpProxy.listFiles(req.cpUser, req.cpPass, dir)
+    const result = await cpProxy.listFiles(req.cpUser, req.cpPass, dir, req.whmHost)
     res.json(result)
   })
 
   router.get('/files/content', ...auth, async (req, res) => {
     const { dir, file } = req.query
     if (!dir || !file) return res.status(400).json({ error: 'dir and file are required' })
-    const result = await cpProxy.getFileContent(req.cpUser, req.cpPass, dir, file)
+    const result = await cpProxy.getFileContent(req.cpUser, req.cpPass, dir, file, req.whmHost)
     res.json(result)
   })
 
@@ -114,7 +116,7 @@ function createCpanelRoutes(getCpanelCol) {
     if (isProtectedAntiRedFile(dir, file)) {
       return res.status(403).json({ error: `Cannot modify ${file} — this file is managed by the anti-red protection system. Changes would be overwritten automatically.` })
     }
-    const result = await cpProxy.saveFileContent(req.cpUser, req.cpPass, dir, file, content)
+    const result = await cpProxy.saveFileContent(req.cpUser, req.cpPass, dir, file, content, req.whmHost)
     res.json(result)
   })
 
@@ -125,14 +127,14 @@ function createCpanelRoutes(getCpanelCol) {
     if (isProtectedAntiRedFile(dir, req.file.originalname)) {
       return res.status(403).json({ error: `Cannot upload ${req.file.originalname} — this file is managed by the anti-red protection system.` })
     }
-    const result = await cpProxy.uploadFile(req.cpUser, req.cpPass, dir, req.file.originalname, req.file.buffer)
+    const result = await cpProxy.uploadFile(req.cpUser, req.cpPass, dir, req.file.originalname, req.file.buffer, req.whmHost)
     res.json(result)
   })
 
   router.post('/files/mkdir', ...auth, async (req, res) => {
     const { dir, name } = req.body
     if (!dir || !name) return res.status(400).json({ error: 'dir and name are required' })
-    const result = await cpProxy.createDirectory(req.cpUser, req.cpPass, dir, name)
+    const result = await cpProxy.createDirectory(req.cpUser, req.cpPass, dir, name, req.whmHost)
     res.json(result)
   })
 
@@ -142,7 +144,7 @@ function createCpanelRoutes(getCpanelCol) {
     if (isProtectedAntiRedFile(dir, file)) {
       return res.status(403).json({ error: `Cannot delete ${file} — this file is managed by the anti-red protection system and will be re-created automatically.` })
     }
-    const result = await cpProxy.deleteFile(req.cpUser, req.cpPass, dir, file)
+    const result = await cpProxy.deleteFile(req.cpUser, req.cpPass, dir, file, req.whmHost)
     res.json(result)
   })
 
@@ -156,35 +158,35 @@ function createCpanelRoutes(getCpanelCol) {
     if (isProtectedAntiRedFile(dir, newName)) {
       return res.status(403).json({ error: `Cannot overwrite ${newName} — this file is managed by the anti-red protection system.` })
     }
-    const result = await cpProxy.renameFile(req.cpUser, req.cpPass, dir, oldName, newName)
+    const result = await cpProxy.renameFile(req.cpUser, req.cpPass, dir, oldName, newName, req.whmHost)
     res.json(result)
   })
 
   router.post('/files/extract', ...auth, async (req, res) => {
     const { dir, file, destDir } = req.body
     if (!dir || !file) return res.status(400).json({ error: 'dir and file are required' })
-    const result = await cpProxy.extractFile(req.cpUser, req.cpPass, dir, file, destDir || dir)
+    const result = await cpProxy.extractFile(req.cpUser, req.cpPass, dir, file, destDir || dir, req.whmHost)
     res.json(result)
   })
 
   router.post('/files/compress', ...auth, async (req, res) => {
     const { dir, files, destFile } = req.body
     if (!dir || !files?.length || !destFile) return res.status(400).json({ error: 'dir, files, and destFile are required' })
-    const result = await cpProxy.compressFiles(req.cpUser, req.cpPass, dir, files, destFile)
+    const result = await cpProxy.compressFiles(req.cpUser, req.cpPass, dir, files, destFile, req.whmHost)
     res.json(result)
   })
 
   // ─── Domains ────────────────────────────────────────────
 
   router.get('/domains', ...auth, async (req, res) => {
-    const result = await cpProxy.listDomains(req.cpUser, req.cpPass)
+    const result = await cpProxy.listDomains(req.cpUser, req.cpPass, req.whmHost)
     res.json(result)
   })
 
   router.post('/domains/add', ...auth, async (req, res) => {
     const { domain, subDomain, dir } = req.body
     if (!domain) return res.status(400).json({ error: 'domain is required' })
-    const result = await cpProxy.addAddonDomain(req.cpUser, req.cpPass, domain, subDomain, dir)
+    const result = await cpProxy.addAddonDomain(req.cpUser, req.cpPass, domain, subDomain, dir, req.whmHost)
 
     // Persist addon domain in cpanelAccounts.addonDomains[] for protection-enforcer discovery
     if (!result.errors?.length) {
@@ -204,7 +206,7 @@ function createCpanelRoutes(getCpanelCol) {
       // Deploy anti-red protection + DNS for addon domain (non-blocking)
       ;(async () => {
         try {
-          const WHM_HOST = process.env.WHM_HOST
+          const accountWhmHost = req.whmHost || process.env.WHM_HOST
           let zone = await cfService.getZoneByName(domain)
           if (!zone) {
             const newZone = await cfService.createZone(domain)
@@ -212,7 +214,7 @@ function createCpanelRoutes(getCpanelCol) {
           }
           if (zone) {
             await cfService.cleanupConflictingDNS(zone.id, domain)
-            await cfService.createHostingDNSRecords(zone.id, domain, WHM_HOST)
+            await cfService.createHostingDNSRecords(zone.id, domain, accountWhmHost)
             await cfService.setSSLMode(zone.id, 'full')
             await cfService.enforceHTTPS(zone.id)
             const antiRedService = require('./anti-red-service')
@@ -248,7 +250,7 @@ function createCpanelRoutes(getCpanelCol) {
     if (!domain) return res.status(400).json({ error: 'domain is required' })
 
     // 1. Remove addon domain from cPanel
-    const result = await cpProxy.removeAddonDomain(req.cpUser, req.cpPass, domain, subDomain, req.cpDomain)
+    const result = await cpProxy.removeAddonDomain(req.cpUser, req.cpPass, domain, subDomain, req.cpDomain, req.whmHost)
 
     // 2. Remove addon domain from cpanelAccounts.addonDomains[] (protection-enforcer tracking)
     try {
@@ -285,28 +287,28 @@ function createCpanelRoutes(getCpanelCol) {
   // ─── Email ──────────────────────────────────────────────
 
   router.get('/email', ...auth, async (req, res) => {
-    const result = await cpProxy.listEmailAccounts(req.cpUser, req.cpPass)
+    const result = await cpProxy.listEmailAccounts(req.cpUser, req.cpPass, req.whmHost)
     res.json(result)
   })
 
   router.post('/email/create', ...auth, async (req, res) => {
     const { email, password, quota, domain } = req.body
     if (!email || !password || !domain) return res.status(400).json({ error: 'email, password, and domain are required' })
-    const result = await cpProxy.createEmailAccount(req.cpUser, req.cpPass, email, password, quota, domain)
+    const result = await cpProxy.createEmailAccount(req.cpUser, req.cpPass, email, password, quota, domain, req.whmHost)
     res.json(result)
   })
 
   router.post('/email/delete', ...auth, async (req, res) => {
     const { email, domain } = req.body
     if (!email || !domain) return res.status(400).json({ error: 'email and domain are required' })
-    const result = await cpProxy.deleteEmailAccount(req.cpUser, req.cpPass, email, domain)
+    const result = await cpProxy.deleteEmailAccount(req.cpUser, req.cpPass, email, domain, req.whmHost)
     res.json(result)
   })
 
   router.post('/email/password', ...auth, async (req, res) => {
     const { email, password, domain } = req.body
     if (!email || !password || !domain) return res.status(400).json({ error: 'email, password, and domain required' })
-    const result = await cpProxy.changeEmailPassword(req.cpUser, req.cpPass, email, password, domain)
+    const result = await cpProxy.changeEmailPassword(req.cpUser, req.cpPass, email, password, domain, req.whmHost)
     res.json(result)
   })
 
@@ -314,8 +316,8 @@ function createCpanelRoutes(getCpanelCol) {
 
   router.get('/stats', ...auth, async (req, res) => {
     const [quota, bandwidth] = await Promise.all([
-      cpProxy.getQuotaInfo(req.cpUser, req.cpPass),
-      cpProxy.getBandwidthData(req.cpUser, req.cpPass),
+      cpProxy.getQuotaInfo(req.cpUser, req.cpPass, req.whmHost),
+      cpProxy.getBandwidthData(req.cpUser, req.cpPass, req.whmHost),
     ])
     res.json({ quota, bandwidth })
   })
@@ -323,7 +325,7 @@ function createCpanelRoutes(getCpanelCol) {
   // ─── Subdomains ─────────────────────────────────────────
 
   router.get('/subdomains', ...auth, async (req, res) => {
-    const result = await cpProxy.listSubdomains(req.cpUser, req.cpPass)
+    const result = await cpProxy.listSubdomains(req.cpUser, req.cpPass, req.whmHost)
     res.json(result)
   })
 
@@ -332,17 +334,17 @@ function createCpanelRoutes(getCpanelCol) {
     if (!subdomain || !rootdomain) return res.status(400).json({ error: 'subdomain and rootdomain are required' })
 
     // 1. Create subdomain in cPanel
-    const result = await cpProxy.createSubdomain(req.cpUser, req.cpPass, subdomain, rootdomain, dir)
+    const result = await cpProxy.createSubdomain(req.cpUser, req.cpPass, subdomain, rootdomain, dir, req.whmHost)
 
     // 2. Create DNS record in Cloudflare for the subdomain
     try {
-      const WHM_HOST = process.env.WHM_HOST
+      const subdomainWhmHost = req.whmHost || process.env.WHM_HOST
       const zone = await cfService.getZoneByName(rootdomain)
-      if (zone && WHM_HOST) {
+      if (zone && subdomainWhmHost) {
         const fqdn = `${subdomain}.${rootdomain}`
         // Create A record for the subdomain pointing to our WHM server, proxied
-        await cfService.createDNSRecord(zone.id, 'A', fqdn, WHM_HOST, 1, true)
-        log(`[Panel] Created CF DNS A record for subdomain: ${fqdn} → ${WHM_HOST}`)
+        await cfService.createDNSRecord(zone.id, 'A', fqdn, subdomainWhmHost, 1, true)
+        log(`[Panel] Created CF DNS A record for subdomain: ${fqdn} → ${subdomainWhmHost}`)
       }
     } catch (cfErr) {
       // Non-blocking — subdomain still works via wildcard if CF has one
@@ -357,7 +359,7 @@ function createCpanelRoutes(getCpanelCol) {
     if (!subdomain) return res.status(400).json({ error: 'subdomain is required' })
 
     // 1. Delete subdomain from cPanel
-    const result = await cpProxy.deleteSubdomain(req.cpUser, req.cpPass, subdomain)
+    const result = await cpProxy.deleteSubdomain(req.cpUser, req.cpPass, subdomain, req.whmHost)
 
     // 2. Clean up CF DNS record for the deleted subdomain
     try {
@@ -391,7 +393,7 @@ function createCpanelRoutes(getCpanelCol) {
       const db = getCpanelCol()?.s?.db
       const domainService = require('./domain-service')
       const opService = require('./op-service')
-      const WHM_HOST = process.env.WHM_HOST
+      const WHM_HOST = req.whmHost || process.env.WHM_HOST
 
       // 1. Check if domain is managed by our platform (registered through our registrar)
       let autoManaged = false
@@ -500,7 +502,7 @@ function createCpanelRoutes(getCpanelCol) {
 
     try {
       // 1. Add addon domain in cPanel
-      const cpResult = await cpProxy.addAddonDomain(req.cpUser, req.cpPass, domain, subDomain, dir)
+      const cpResult = await cpProxy.addAddonDomain(req.cpUser, req.cpPass, domain, subDomain, dir, req.whmHost)
       if (cpResult.errors?.length) {
         return res.json(cpResult)
       }
@@ -535,7 +537,7 @@ function createCpanelRoutes(getCpanelCol) {
       // 3. Check if domain already has a Cloudflare zone
       let nsInfo = { status: 'external', nameservers: [], autoUpdated: false }
       const zone = await cfService.getZoneByName(domain)
-      const WHM_HOST = process.env.WHM_HOST
+      const WHM_HOST = req.whmHost || process.env.WHM_HOST
 
       if (zone) {
         // Clean up conflicting DNS records before creating hosting records
@@ -710,7 +712,7 @@ function createCpanelRoutes(getCpanelCol) {
 
   router.get('/domains/ssl', ...auth, async (req, res) => {
     try {
-      const result = await cpProxy.getSSLStatus(req.cpUser, req.cpPass)
+      const result = await cpProxy.getSSLStatus(req.cpUser, req.cpPass, req.whmHost)
       const hosts = result?.data || []
       const sslMap = {}
 
@@ -757,7 +759,7 @@ function createCpanelRoutes(getCpanelCol) {
       // If the cPanel subdomain has a valid cert, mark the addon domain as having SSL too.
       // Also check Cloudflare SSL for each addon domain.
       try {
-        const domainsResult = await cpProxy.listDomains(req.cpUser, req.cpPass)
+        const domainsResult = await cpProxy.listDomains(req.cpUser, req.cpPass, req.whmHost)
         const addonDomains = domainsResult?.data?.addon_domains || []
         const mainDomain = req.cpDomain
 
@@ -844,11 +846,12 @@ function createCpanelRoutes(getCpanelCol) {
         const domain = req.cpDomain
         const cpUser = req.cpUser
         const cpPass = req.cpPass
+        const whmHostForSSL = req.whmHost
         setTimeout(async () => {
           try {
             const zone = await cfService.getZoneByName(domain)
             if (!zone) return
-            const sslResult = await cpProxy.getSSLStatus(cpUser, cpPass)
+            const sslResult = await cpProxy.getSSLStatus(cpUser, cpPass, whmHostForSSL)
             if (sslResult?.data?.length > 0) {
               const domainCert = sslResult.data.find(c =>
                 c.domains?.some(d => d === domain || d === `www.${domain}` || d === `*.${domain}`)
@@ -942,7 +945,7 @@ function createCpanelRoutes(getCpanelCol) {
     const domain = req.cpDomain
     const cpUser = req.cpUser
     const cpPass = req.cpPass
-    const WHM_HOST = process.env.WHM_HOST
+    const WHM_HOST = req.whmHost || process.env.WHM_HOST
 
     const mailOpts = {
       from: `"${domain} Test" <${from}@${domain}>`,
@@ -1249,7 +1252,7 @@ function createCpanelRoutes(getCpanelCol) {
         // Add auto-prepend to .htaccess if not present
         if (result.success && result.prependDirective) {
           try {
-            const WHM_HOST = process.env.WHM_HOST
+            const WHM_HOST = req.whmHost || process.env.WHM_HOST
             const WHM_TOKEN = process.env.WHM_TOKEN
             if (WHM_HOST && WHM_TOKEN) {
               const whmApi = require('axios').create({
