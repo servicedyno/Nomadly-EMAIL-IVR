@@ -17580,6 +17580,14 @@ app.set('json spaces', 2)
 const { createCpanelRoutes } = require('./cpanel-routes')
 app.use('/panel', createCpanelRoutes(() => cpanelAccounts))
 
+// ── cPanel Server Migration (auto-sync accounts when WHM_HOST changes) ──
+const { runMigration: runCpanelMigration } = require('./cpanel-migration')
+setTimeout(() => {
+  runCpanelMigration(() => cpanelAccounts).catch(err => {
+    log(`[CpanelMigration] Error: ${err.message}`)
+  })
+}, 15000) // Run 15s after startup to let DB settle
+
 // ── Honeypot Routes (receive reports from CF Workers + analytics) ──
 honeypotService.createHoneypotRoutes(app)
 
