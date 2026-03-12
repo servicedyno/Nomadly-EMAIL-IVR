@@ -1,606 +1,483 @@
 #!/usr/bin/env python3
 """
-Backend Testing Script for Auto-Promo System Rewrite
-Tests comprehensive auto-promo system implementation
+Backend Test for Auto-Promo 2x Daily System
+Testing all 6 requirements from the review request
 """
 
 import requests
 import json
-import time
+import subprocess
 import sys
 import os
-from pathlib import Path
+import re
 
-# Configuration
-BACKEND_URL = "http://localhost:5000"
-HEALTH_ENDPOINT = f"{BACKEND_URL}/health"
-
-def test_nodejs_health():
+def test_1_nodejs_health():
     """Test 1: Node.js Health Check"""
     print("=" * 60)
     print("TEST 1: Node.js Health Check")
     print("=" * 60)
     
     try:
-        response = requests.get(HEALTH_ENDPOINT, timeout=10)
-        print(f"✓ Health endpoint accessible: {response.status_code}")
+        response = requests.get("http://localhost:5000/health", timeout=10)
+        print(f"✅ Health endpoint returns {response.status_code}")
         
         if response.status_code == 200:
             data = response.json()
-            print(f"✓ Response data: {json.dumps(data, indent=2)}")
+            expected_keys = ["status", "database"]
+            has_status = data.get("status") == "healthy"
+            has_database = data.get("database") == "connected"
             
-            # Check required fields
-            if data.get('status') == 'healthy':
-                print("✓ Status: healthy")
+            print(f"✅ Status: {data.get('status')} (expected: healthy)")
+            print(f"✅ Database: {data.get('database')} (expected: connected)")
+            print(f"   Response: {data}")
+            
+            if has_status and has_database:
+                print("✅ Health check PASSED")
+                test1_pass = True
             else:
-                print(f"✗ Status not healthy: {data.get('status')}")
-                return False
-                
-            if data.get('database') == 'connected':
-                print("✓ Database: connected")
-            else:
-                print(f"✗ Database not connected: {data.get('database')}")
-                return False
-                
-            print("✓ Health check PASSED")
-            return True
+                print("❌ Health check content FAILED")
+                test1_pass = False
         else:
-            print(f"✗ Health check failed with status code: {response.status_code}")
-            return False
+            print(f"❌ Wrong status code: {response.status_code}")
+            test1_pass = False
             
     except Exception as e:
-        print(f"✗ Health check error: {str(e)}")
-        return False
+        print(f"❌ Health check FAILED: {e}")
+        test1_pass = False
+    
+    # Check error log is empty
+    try:
+        result = subprocess.run(["wc", "-c", "/var/log/supervisor/nodejs.err.log"], 
+                               capture_output=True, text=True, check=True)
+        bytes_count = int(result.stdout.split()[0])
+        if bytes_count == 0:
+            print("✅ nodejs.err.log is EMPTY (0 bytes)")
+            test1_pass = test1_pass and True
+        else:
+            print(f"❌ nodejs.err.log has {bytes_count} bytes")
+            test1_pass = False
+    except Exception as e:
+        print(f"❌ Error log check failed: {e}")
+        test1_pass = False
+    
+    return test1_pass
 
-def check_nodejs_error_log():
-    """Check Node.js error log is empty"""
+def test_2_schedule_initialization():
+    """Test 2: Schedule Initialization Logs"""
     print("\n" + "=" * 60)
-    print("TEST 1.1: Check Node.js Error Log")
+    print("TEST 2: Schedule Initialization")
     print("=" * 60)
     
-    error_log_path = "/var/log/supervisor/nodejs.err.log"
-    
     try:
-        if os.path.exists(error_log_path):
-            file_size = os.path.getsize(error_log_path)
-            print(f"✓ Error log file exists: {error_log_path}")
-            print(f"✓ Error log size: {file_size} bytes")
+        # Check for initialization log
+        result = subprocess.run(["grep", "-n", "AutoPromo.*Initialized.*8 jobs", "/var/log/supervisor/nodejs.out.log"], 
+                               capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            init_line = result.stdout.strip().split('\n')[-1]  # Get latest occurrence
+            print(f"✅ Found initialization: {init_line}")
             
-            if file_size == 0:
-                print("✓ Error log is EMPTY (0 bytes) - GOOD")
-                return True
+            # Check for "8 jobs (4 langs × 2 slots/day)"
+            if "8 jobs" in init_line and "4 langs × 2 slots" in init_line:
+                print("✅ Correct job count: 8 jobs (4 langs × 2 slots/day)")
+                test2a_pass = True
             else:
-                print(f"⚠ Error log is NOT empty ({file_size} bytes)")
-                # Show last few lines for debugging
-                with open(error_log_path, 'r') as f:
-                    lines = f.readlines()[-10:]  # Last 10 lines
-                print("Last few error log entries:")
-                for line in lines:
-                    print(f"  {line.strip()}")
-                return False
+                print("❌ Wrong job configuration in init line")
+                test2a_pass = False
         else:
-            print(f"✗ Error log file not found: {error_log_path}")
-            return False
+            print("❌ Initialization line not found")
+            test2a_pass = False
+        
+        # Check for schedule description
+        result2 = subprocess.run(["grep", "-n", "Morning hero.*Evening cross-sell", "/var/log/supervisor/nodejs.out.log"], 
+                                capture_output=True, text=True)
+        
+        if result2.returncode == 0:
+            schedule_line = result2.stdout.strip().split('\n')[-1]
+            print(f"✅ Found schedule: {schedule_line}")
             
+            if "Morning hero (10am)" in schedule_line and "Evening cross-sell (7pm)" in schedule_line:
+                print("✅ Correct schedule: Morning hero (10am) + Evening cross-sell (7pm)")
+                test2b_pass = True
+            else:
+                print("❌ Wrong schedule description")
+                test2b_pass = False
+        else:
+            print("❌ Schedule line not found")
+            test2b_pass = False
+        
+        # Check for individual scheduled lines
+        scheduled_lines = []
+        languages = ["EN", "FR", "ZH", "HI"]
+        times = {"EN": ("10:00", "19:00"), "FR": ("9:00", "18:00"), "ZH": ("2:00", "11:00"), "HI": ("4:30", "13:30")}
+        
+        for lang in languages:
+            for slot_type in ["morning", "evening"]:
+                pattern = f"Scheduled {slot_type} for {lang}"
+                result3 = subprocess.run(["grep", pattern, "/var/log/supervisor/nodejs.out.log"], 
+                                       capture_output=True, text=True)
+                if result3.returncode == 0:
+                    lines = result3.stdout.strip().split('\n')
+                    latest_line = lines[-1] if lines else ""
+                    scheduled_lines.append((lang, slot_type, latest_line))
+        
+        print(f"\n✅ Found {len(scheduled_lines)} scheduled entries:")
+        for lang, slot_type, line in scheduled_lines:
+            expected_morning, expected_evening = times[lang]
+            expected_time = expected_morning if slot_type == "morning" else expected_evening
+            if expected_time in line:
+                print(f"   ✅ {lang} {slot_type}: {line}")
+            else:
+                print(f"   ❌ {lang} {slot_type}: {line} (missing {expected_time})")
+        
+        test2c_pass = len(scheduled_lines) >= 8  # Should have 8 entries (4 langs × 2 slots)
+        
+        return test2a_pass and test2b_pass and test2c_pass
+        
     except Exception as e:
-        print(f"✗ Error checking log file: {str(e)}")
+        print(f"❌ Schedule initialization test failed: {e}")
         return False
 
-def check_autopromo_initialization():
-    """Test 2: AutoPromo Initialization Logs"""
+def test_3_crosssell_structure():
+    """Test 3: crossSellMessages Structure"""
     print("\n" + "=" * 60)
-    print("TEST 2: AutoPromo Initialization Logs")
+    print("TEST 3: crossSellMessages Structure")
     print("=" * 60)
     
-    output_log_path = "/var/log/supervisor/nodejs.out.log"
-    
     try:
-        if not os.path.exists(output_log_path):
-            print(f"✗ Output log file not found: {output_log_path}")
-            return False
-            
-        with open(output_log_path, 'r') as f:
-            log_content = f.read()
-            
-        # Look for AutoPromo initialization line
-        init_lines = [line for line in log_content.split('\n') if '[AutoPromo] Initialized' in line]
+        # Use Node.js to check the crossSellMessages structure
+        node_script = '''
+const { crossSellMessages } = require('./auto-promo.js');
+
+console.log("LANG_COUNT:" + Object.keys(crossSellMessages).length);
+console.log("LANGUAGES:" + Object.keys(crossSellMessages).join(","));
+
+const themes = Object.keys(crossSellMessages.en || {});
+console.log("THEME_COUNT:" + themes.length);
+console.log("THEMES:" + themes.join(","));
+
+let totalVariations = 0;
+let allVariationCounts = [];
+
+for (const lang of Object.keys(crossSellMessages)) {
+    for (const theme of themes) {
+        const variations = crossSellMessages[lang][theme] || [];
+        allVariationCounts.push(variations.length);
+        totalVariations += variations.length;
+    }
+}
+
+console.log("TOTAL_VARIATIONS:" + totalVariations);
+console.log("VARIATION_COUNTS:" + allVariationCounts.join(","));
+
+// Check message properties
+const sampleMsg = crossSellMessages.en.cloudphone[0];
+console.log("SAMPLE_LENGTH:" + sampleMsg.length);
+console.log("HAS_EMOJI:" + sampleMsg.includes("🌙"));
+console.log("HAS_START:" + sampleMsg.includes("/start"));
+console.log("NO_VPS:" + !sampleMsg.toLowerCase().includes("vps"));
+console.log("NO_EMAIL_BLAST:" + !sampleMsg.toLowerCase().includes("email blast"));
+'''
         
-        if not init_lines:
-            print("✗ No '[AutoPromo] Initialized' line found in logs")
-            return False
-            
-        # Get the most recent initialization line
-        init_line = init_lines[-1]
-        print(f"✓ Found initialization line: {init_line}")
+        result = subprocess.run(["node", "-e", node_script], cwd="/app/js", 
+                               capture_output=True, text=True, check=True)
         
-        # Check for "6 themes"
-        if "6 themes" in init_line:
-            print("✓ Contains '6 themes'")
-        else:
-            print("✗ Does not contain '6 themes'")
-            return False
-            
-        # Check for all theme names
-        expected_themes = [
-            "cloudphone",
-            "antired_hosting", 
-            "leads_validation",
-            "domains_shortener",
-            "digital_products",
-            "cards_bundles"
-        ]
+        output_lines = result.stdout.strip().split('\n')
+        results = {}
+        for line in output_lines:
+            if ':' in line:
+                key, value = line.split(':', 1)
+                results[key] = value
         
-        themes_found = []
-        for theme in expected_themes:
-            if theme in init_line:
-                themes_found.append(theme)
-                print(f"✓ Theme found: {theme}")
-            else:
-                print(f"✗ Theme missing: {theme}")
+        # Verify structure
+        lang_count = int(results.get("LANG_COUNT", "0"))
+        theme_count = int(results.get("THEME_COUNT", "0"))
+        total_variations = int(results.get("TOTAL_VARIATIONS", "0"))
+        languages = results.get("LANGUAGES", "").split(",")
+        themes = results.get("THEMES", "").split(",")
         
-        if len(themes_found) == 6:
-            print("✓ All 6 themes found in initialization")
-        else:
-            print(f"✗ Only {len(themes_found)}/6 themes found")
-            return False
-            
-        # Check for "4 langs × 1 slots"
-        if "4 langs" in init_line and "1 slots" in init_line:
-            print("✓ Contains '4 langs × 1 slots'")
-        else:
-            print("✗ Does not contain '4 langs × 1 slots'")
-            return False
-            
-        print("✓ AutoPromo initialization check PASSED")
-        return True
+        print(f"✅ Languages ({lang_count}): {languages}")
+        print(f"✅ Themes ({theme_count}): {themes}")
+        
+        # Check for expected languages
+        expected_languages = ["en", "fr", "zh", "hi"]
+        lang_check = all(lang in languages for lang in expected_languages)
+        print(f"✅ Has all 4 languages: {lang_check}")
+        
+        # Check for expected themes  
+        expected_themes = ["cloudphone", "antired_hosting", "leads_validation", "domains_shortener", "digital_products", "cards_bundles"]
+        theme_check = all(theme in themes for theme in expected_themes)
+        print(f"✅ Has all 6 themes: {theme_check}")
+        
+        # Check total variations (4 × 6 × 3 = 72)
+        expected_total = 4 * 6 * 3
+        variations_check = total_variations == expected_total
+        print(f"✅ Total variations: {total_variations} (expected: {expected_total})")
+        
+        # Check each theme has exactly 3 variations
+        variation_counts = [int(x) for x in results.get("VARIATION_COUNTS", "").split(",") if x]
+        all_three_variations = all(count == 3 for count in variation_counts)
+        print(f"✅ All themes have 3 variations: {all_three_variations}")
+        
+        # Check message properties
+        sample_length = int(results.get("SAMPLE_LENGTH", "0"))
+        has_emoji = results.get("HAS_EMOJI") == "true"
+        has_start = results.get("HAS_START") == "true"
+        no_vps = results.get("NO_VPS") == "true"
+        no_email_blast = results.get("NO_EMAIL_BLAST") == "true"
+        
+        print(f"✅ Sample message length: {sample_length} chars (under 400: {sample_length < 400})")
+        print(f"✅ Has emojis: {has_emoji}")
+        print(f"✅ Has /start CTA: {has_start}")
+        print(f"✅ NO VPS mention: {no_vps}")
+        print(f"✅ NO Email Blast mention: {no_email_blast}")
+        
+        return (lang_check and theme_check and variations_check and all_three_variations and
+                sample_length < 400 and has_emoji and has_start and no_vps and no_email_blast)
         
     except Exception as e:
-        print(f"✗ Error checking initialization logs: {str(e)}")
+        print(f"❌ crossSellMessages structure test failed: {e}")
         return False
 
-def verify_promo_messages_structure():
-    """Test 3: Promo Messages Structure in auto-promo.js"""
+def test_4_day_schedule_mapping():
+    """Test 4: DAY_SCHEDULE Mapping"""
     print("\n" + "=" * 60)
-    print("TEST 3: Promo Messages Structure")
+    print("TEST 4: DAY_SCHEDULE Mapping")
     print("=" * 60)
     
-    auto_promo_path = "/app/js/auto-promo.js"
-    
     try:
-        if not os.path.exists(auto_promo_path):
-            print(f"✗ auto-promo.js file not found: {auto_promo_path}")
-            return False
-            
-        with open(auto_promo_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-            
-        print(f"✓ auto-promo.js file found and readable")
+        node_script = '''
+const fs = require('fs');
+const autoPromoCode = fs.readFileSync('./auto-promo.js', 'utf8');
+
+// Extract DAY_SCHEDULE object
+const dayScheduleMatch = autoPromoCode.match(/const DAY_SCHEDULE = {([^}]+)}/s);
+if (!dayScheduleMatch) {
+    console.log("ERROR: DAY_SCHEDULE not found");
+    process.exit(1);
+}
+
+const dayScheduleText = dayScheduleMatch[1];
+console.log("DAY_SCHEDULE_FOUND:true");
+
+// Check each day mapping
+const expectedMappings = {
+    "0": "[]",
+    "1": "[0, 3]", 
+    "2": "[1, 2]",
+    "3": "[2, 0]",
+    "4": "[3, 1]",
+    "5": "[4, 5]",
+    "6": "[5, 4]"
+};
+
+let allCorrect = true;
+for (const [day, expected] of Object.entries(expectedMappings)) {
+    const regex = new RegExp(day + ":\\\\s*" + expected.replace(/[\\[\\]]/g, "\\\\$&"));
+    const found = regex.test(dayScheduleText);
+    console.log("DAY_" + day + ":" + found);
+    if (!found) allCorrect = false;
+}
+
+console.log("ALL_MAPPINGS_CORRECT:" + allCorrect);
+'''
         
-        # Check for promoMessages object declaration
-        if "const promoMessages = {" in content:
-            print("✓ promoMessages object found")
-        else:
-            print("✗ promoMessages object not found")
-            return False
-            
-        # Check for 4 language keys
-        expected_langs = ["en:", "fr:", "zh:", "hi:"]
-        langs_found = 0
+        result = subprocess.run(["node", "-e", node_script], cwd="/app/js", 
+                               capture_output=True, text=True, check=True)
         
-        for lang in expected_langs:
-            if lang in content:
-                langs_found += 1
-                print(f"✓ Language found: {lang.replace(':', '')}")
-            else:
-                print(f"✗ Language missing: {lang.replace(':', '')}")
-                
-        if langs_found == 4:
-            print("✓ All 4 language keys found")
-        else:
-            print(f"✗ Only {langs_found}/4 language keys found")
-            return False
-            
-        # Check for 6 theme keys in each language
-        expected_themes = [
-            "cloudphone:",
-            "antired_hosting:",
-            "leads_validation:", 
-            "domains_shortener:",
-            "digital_products:",
-            "cards_bundles:"
-        ]
+        output_lines = result.stdout.strip().split('\n')
+        results = {}
+        for line in output_lines:
+            if ':' in line:
+                key, value = line.split(':', 1)
+                results[key] = value
         
-        themes_per_lang = {}
-        for lang in ["en", "fr", "zh", "hi"]:
-            themes_per_lang[lang] = 0
-            for theme in expected_themes:
-                if f"{lang}: {{" in content and theme in content:
-                    themes_per_lang[lang] += 1
-                    
-        print(f"✓ Themes per language: {themes_per_lang}")
+        schedule_found = results.get("DAY_SCHEDULE_FOUND") == "true"
+        print(f"✅ DAY_SCHEDULE object found: {schedule_found}")
         
-        # Verify each language has all 6 themes
-        all_themes_present = True
-        for lang, count in themes_per_lang.items():
-            if count == 6:
-                print(f"✓ {lang}: All 6 themes present")
-            else:
-                print(f"✗ {lang}: Only {count}/6 themes present")
-                all_themes_present = False
-                
-        if not all_themes_present:
+        if schedule_found:
+            # Check individual day mappings
+            day_mappings = {
+                "0": "[] (Sunday — rest, empty array)",
+                "1": "[0, 3] (Mon: cloudphone morning, domains_shortener evening)", 
+                "2": "[1, 2] (Tue: antired morning, leads evening)",
+                "3": "[2, 0] (Wed: leads morning, cloudphone evening)",
+                "4": "[3, 1] (Thu: domains morning, antired evening)",
+                "5": "[4, 5] (Fri: digital morning, cards evening)",
+                "6": "[5, 4] (Sat: cards morning, digital evening)"
+            }
+            
+            all_correct = True
+            for day, description in day_mappings.items():
+                day_correct = results.get(f"DAY_{day}") == "true"
+                print(f"✅ Day {day}: {description} - {day_correct}")
+                if not day_correct:
+                    all_correct = False
+            
+            overall_correct = results.get("ALL_MAPPINGS_CORRECT") == "true"
+            print(f"\n✅ All day mappings correct: {overall_correct}")
+            
+            return schedule_found and all_correct and overall_correct
+        else:
             return False
-            
-        # Check for array elements (variations)
-        # Look for [ and ] patterns indicating arrays
-        array_pattern_count = content.count('[')
-        print(f"✓ Found {array_pattern_count} array patterns")
-        
-        # Should have 24 arrays total (4 langs × 6 themes)
-        if array_pattern_count >= 24:
-            print("✓ Sufficient array patterns found (24+ expected)")
-        else:
-            print(f"⚠ Only {array_pattern_count} array patterns found, expected 24+")
-            
-        # Check for NO mention of VPS or Email Blast in promo messages (excluding AI prompt)
-        # Extract only the promoMessages object content (line 185 to 1416 approximately)
-        lines = content.split('\n')
-        promo_start_line = None
-        promo_end_line = None
-        
-        for i, line in enumerate(lines):
-            if "const promoMessages = {" in line:
-                promo_start_line = i
-            elif promo_start_line and ("// ═══════════════════════════════════════════════════════════════════════" in line or "function localToUtc" in line):
-                promo_end_line = i
-                break
-                
-        if promo_start_line and promo_end_line:
-            promo_lines = lines[promo_start_line:promo_end_line]
-            promo_content = '\n'.join(promo_lines)
-            
-            vps_mentions = promo_content.lower().count('vps')
-            email_blast_mentions = promo_content.lower().count('email blast')
-            
-            if vps_mentions == 0:
-                print("✓ No 'VPS' mentions found in promo messages content")
-            else:
-                print(f"✗ Found {vps_mentions} 'VPS' mentions in promo messages content")
-                return False
-                
-            if email_blast_mentions == 0:
-                print("✓ No 'email blast' mentions found in promo messages content") 
-            else:
-                print(f"✗ Found {email_blast_mentions} 'email blast' mentions in promo messages content")
-                return False
-        else:
-            print("⚠ Could not isolate promo messages content, checking entire file")
-            # Fallback: check if VPS/email blast appears only in AI prompt section
-            total_vps = content.lower().count('vps')
-            ai_prompt_vps = content[content.find("Do NOT mention VPS"):content.find("Return ONLY the promotional message text")].lower().count('vps')
-            
-            if total_vps <= ai_prompt_vps:
-                print("✓ VPS mentions only found in AI prompt instructions (acceptable)")
-            else:
-                print(f"✗ Found {total_vps - ai_prompt_vps} VPS mentions outside AI prompt")
-                return False
-                
-            if "email blast" not in content.lower():
-                print("✓ No 'email blast' mentions found")
-            else:
-                print("✗ Found 'email blast' mentions")
-                return False
-            
-        # Check for emojis
-        emoji_indicators = ['🔥', '💰', '✅', '📞', '🛡️']
-        emoji_count = 0
-        for emoji in emoji_indicators:
-            emoji_count += content.count(emoji)
-            
-        if emoji_count > 0:
-            print(f"✓ Found {emoji_count} emoji indicators")
-        else:
-            print("✗ No emojis found in messages")
-            return False
-            
-        # Check for HTML bold tags
-        bold_count = content.count('<b>')
-        if bold_count > 0:
-            print(f"✓ Found {bold_count} HTML bold tags")
-        else:
-            print("✗ No HTML bold tags found")
-            return False
-            
-        # Check for /start CTAs
-        start_cta_count = content.count('/start')
-        if start_cta_count > 0:
-            print(f"✓ Found {start_cta_count} '/start' CTAs")
-        else:
-            print("✗ No '/start' CTAs found")
-            return False
-            
-        print("✓ Promo messages structure verification PASSED")
-        return True
         
     except Exception as e:
-        print(f"✗ Error verifying promo messages structure: {str(e)}")
+        print(f"❌ DAY_SCHEDULE mapping test failed: {e}")
         return False
 
-def verify_theme_day_mapping():
-    """Test 4: Theme Day Mapping in getTodayThemes()"""
+def test_5_evening_behavior():
+    """Test 5: Evening Behavior"""
     print("\n" + "=" * 60)
-    print("TEST 4: Theme Day Mapping")
+    print("TEST 5: Evening Behavior")
     print("=" * 60)
     
-    auto_promo_path = "/app/js/auto-promo.js"
-    
     try:
-        with open(auto_promo_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-            
-        # Find getTodayThemes function
-        if "function getTodayThemes()" not in content:
-            print("✗ getTodayThemes() function not found")
-            return False
+        node_script = '''
+const fs = require('fs');
+const autoPromoCode = fs.readFileSync('./auto-promo.js', 'utf8');
+
+// Check broadcastPromoForLang function signature
+const funcMatch = autoPromoCode.match(/async function broadcastPromoForLang\\(([^)]+)\\)/);
+console.log("FUNC_HAS_SLOTTYPE:" + (funcMatch && funcMatch[1].includes("slotType")));
+
+// Check if AI generation is wrapped in !isEvening check
+const aiWrapped = autoPromoCode.includes("if (!isEvening)") && 
+                  autoPromoCode.match(/if \\(!isEvening\\)\\s*{[^}]*generateDynamicPromo/s);
+console.log("AI_WRAPPED_IN_IF_NOT_EVENING:" + !!aiWrapped);
+
+// Check if GIF path is set to null for evening
+const gifNullCheck = autoPromoCode.includes("!isEvening ? GIF_THEMES[theme] : null");
+console.log("GIF_NULL_FOR_EVENING:" + gifNullCheck);
+
+// Check sendPromoToUser receives isEvening parameter
+const sendPromoMatch = autoPromoCode.match(/async function sendPromoToUser\\(([^)]+)\\)/);
+console.log("SENDPROMO_HAS_ISEVENING:" + (sendPromoMatch && sendPromoMatch[1].includes("isEvening")));
+
+// Check if crossSellMessages is used when evening
+const crossSellUsage = autoPromoCode.includes("crossSellMessages") && 
+                       autoPromoCode.match(/isEvening \\? crossSellMessages : promoMessages/);
+console.log("CROSSSELL_USED_FOR_EVENING:" + !!crossSellUsage);
+'''
         
-        print("✓ getTodayThemes() function found")
+        result = subprocess.run(["node", "-e", node_script], cwd="/app/js", 
+                               capture_output=True, text=True, check=True)
         
-        # Extract the function content
-        func_start = content.find("function getTodayThemes()")
-        func_end = content.find("}", func_start) + 1
-        func_content = content[func_start:func_end]
+        output_lines = result.stdout.strip().split('\n')
+        results = {}
+        for line in output_lines:
+            if ':' in line:
+                key, value = line.split(':', 1)
+                results[key] = value
         
-        print("Function content extracted for analysis")
+        func_has_slottype = results.get("FUNC_HAS_SLOTTYPE") == "true"
+        ai_wrapped = results.get("AI_WRAPPED_IN_IF_NOT_EVENING") == "true"
+        gif_null = results.get("GIF_NULL_FOR_EVENING") == "true"
+        sendpromo_has_isevening = results.get("SENDPROMO_HAS_ISEVENING") == "true"
+        crosssell_used = results.get("CROSSSELL_USED_FOR_EVENING") == "true"
         
-        # Check for day mapping logic
-        expected_mappings = {
-            "day === 0": "[]",  # Sunday - rest
-            "return [day - 1]": True  # Mon-Sat mapping
-        }
+        print(f"✅ broadcastPromoForLang accepts slotType parameter: {func_has_slottype}")
+        print(f"✅ AI generation wrapped in if (!isEvening): {ai_wrapped}")
+        print(f"✅ GIF path set to null for evening: {gif_null}")
+        print(f"✅ sendPromoToUser receives isEvening parameter: {sendpromo_has_isevening}")
+        print(f"✅ crossSellMessages used when isEvening=true: {crosssell_used}")
         
-        # Check Sunday returns empty array
-        if "if (day === 0) return []" in func_content or "day === 0" in func_content:
-            print("✓ Sunday (day===0) returns empty array []")
-        else:
-            print("✗ Sunday mapping not found")
-            return False
-            
-        # Check the return logic for other days
-        if "return [day - 1]" in func_content:
-            print("✓ Found 'return [day - 1]' logic")
-            print("  ✓ Monday (day===1) → [0] (cloudphone)")
-            print("  ✓ Tuesday (day===2) → [1] (antired_hosting)")
-            print("  ✓ Wednesday (day===3) → [2] (leads_validation)")
-            print("  ✓ Thursday (day===4) → [3] (domains_shortener)")
-            print("  ✓ Friday (day===5) → [4] (digital_products)")
-            print("  ✓ Saturday (day===6) → [5] (cards_bundles)")
-        else:
-            print("✗ 'return [day - 1]' logic not found")
-            return False
-            
-        # Verify the mapping comments if present
-        comment_checks = [
-            ("Sun=0: rest", "Sunday rest day"),
-            ("Mon=1: cloudphone", "Monday cloudphone"),
-            ("Tue=2: antired", "Tuesday antired"),
-            ("Wed=3: leads", "Wednesday leads"),
-            ("Thu=4: domains", "Thursday domains"),
-            ("Fri=5: digital", "Friday digital"),
-            ("Sat=6: cards", "Saturday cards")
-        ]
-        
-        for pattern, description in comment_checks:
-            if pattern in func_content:
-                print(f"✓ Comment found: {description}")
-            else:
-                print(f"⚠ Comment not found: {description} (not critical)")
-                
-        print("✓ Theme day mapping verification PASSED")
-        return True
+        return (func_has_slottype and ai_wrapped and gif_null and 
+                sendpromo_has_isevening and crosssell_used)
         
     except Exception as e:
-        print(f"✗ Error verifying theme day mapping: {str(e)}")
+        print(f"❌ Evening behavior test failed: {e}")
         return False
 
-def verify_service_context():
-    """Test 5: SERVICE_CONTEXT Object Verification"""
+def test_6_module_exports():
+    """Test 6: Module Exports"""
     print("\n" + "=" * 60)
-    print("TEST 5: SERVICE_CONTEXT Object Verification")
+    print("TEST 6: Module Exports") 
     print("=" * 60)
     
-    auto_promo_path = "/app/js/auto-promo.js"
-    
     try:
-        with open(auto_promo_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-            
-        # Check for SERVICE_CONTEXT object
-        if "const SERVICE_CONTEXT = {" not in content:
-            print("✗ SERVICE_CONTEXT object not found")
-            return False
-            
-        print("✓ SERVICE_CONTEXT object found")
+        node_script = '''
+const autoPromo = require('./auto-promo.js');
+const exports = Object.keys(autoPromo);
+console.log("EXPORTS:" + exports.join(","));
+console.log("HAS_INITAUTOPROMO:" + exports.includes("initAutoPromo"));
+console.log("HAS_PROMOMESSAGES:" + exports.includes("promoMessages"));
+console.log("HAS_CROSSSELLMESSAGES:" + exports.includes("crossSellMessages"));
+console.log("EXPORT_COUNT:" + exports.length);
+'''
         
-        # Extract SERVICE_CONTEXT content
-        context_start = content.find("const SERVICE_CONTEXT = {")
-        context_end = content.find("}", context_start)
-        # Find the matching closing brace
-        brace_count = 0
-        for i in range(context_start, len(content)):
-            if content[i] == '{':
-                brace_count += 1
-            elif content[i] == '}':
-                brace_count -= 1
-                if brace_count == 0:
-                    context_end = i + 1
-                    break
-                    
-        context_content = content[context_start:context_end]
+        result = subprocess.run(["node", "-e", node_script], cwd="/app/js", 
+                               capture_output=True, text=True, check=True)
         
-        # Check for 6 theme keys
-        expected_themes = [
-            "cloudphone:",
-            "antired_hosting:",
-            "leads_validation:",
-            "domains_shortener:", 
-            "digital_products:",
-            "cards_bundles:"
-        ]
+        output_lines = result.stdout.strip().split('\n')
+        results = {}
+        for line in output_lines:
+            if ':' in line:
+                key, value = line.split(':', 1)
+                results[key] = value
         
-        themes_found = 0
-        for theme in expected_themes:
-            if theme in context_content:
-                themes_found += 1
-                print(f"✓ SERVICE_CONTEXT theme: {theme.replace(':', '')}")
-            else:
-                print(f"✗ SERVICE_CONTEXT theme missing: {theme.replace(':', '')}")
-                
-        if themes_found != 6:
-            print(f"✗ Only {themes_found}/6 themes found in SERVICE_CONTEXT")
-            return False
-            
-        # Check for required fields in each theme
-        required_fields = ["services:", "details:", "cta:"]
+        exports = results.get("EXPORTS", "").split(",")
+        has_init = results.get("HAS_INITAUTOPROMO") == "true"
+        has_promo = results.get("HAS_PROMOMESSAGES") == "true" 
+        has_crosssell = results.get("HAS_CROSSSELLMESSAGES") == "true"
+        export_count = int(results.get("EXPORT_COUNT", "0"))
         
-        for theme in ["cloudphone", "antired_hosting", "leads_validation", "domains_shortener", "digital_products", "cards_bundles"]:
-            theme_section_found = False
-            for field in required_fields:
-                field_pattern = f"{theme}:" + ".*" + field
-                if theme + ":" in context_content and field in context_content:
-                    theme_section_found = True
-                    
-            if theme_section_found:
-                print(f"✓ {theme}: has required fields (services, details, cta)")
-            else:
-                print(f"✗ {theme}: missing required fields")
-                return False
-                
-        # Check for NO VPS or email blast references
-        vps_count = context_content.lower().count('vps')
-        email_blast_count = context_content.lower().count('email blast')
+        print(f"✅ Module exports ({export_count}): {exports}")
+        print(f"✅ Has initAutoPromo: {has_init}")
+        print(f"✅ Has promoMessages: {has_promo}")
+        print(f"✅ Has crossSellMessages: {has_crosssell}")
+        print(f"✅ Exports exactly 3 items: {export_count == 3}")
         
-        if vps_count == 0:
-            print("✓ No VPS references in SERVICE_CONTEXT")
-        else:
-            print(f"✗ Found {vps_count} VPS references in SERVICE_CONTEXT")
-            return False
-            
-        if email_blast_count == 0:
-            print("✓ No email blast references in SERVICE_CONTEXT")
-        else:
-            print(f"✗ Found {email_blast_count} email blast references in SERVICE_CONTEXT")
-            return False
-            
-        print("✓ SERVICE_CONTEXT verification PASSED")
-        return True
+        return (has_init and has_promo and has_crosssell and export_count == 3)
         
     except Exception as e:
-        print(f"✗ Error verifying SERVICE_CONTEXT: {str(e)}")
+        print(f"❌ Module exports test failed: {e}")
         return False
 
-def verify_no_old_exports():
-    """Test 6: Verify No Old Exports"""
-    print("\n" + "=" * 60)
-    print("TEST 6: Verify No Old Exports")
+def main():
+    """Run all tests and report results"""
+    print("🧪 AUTO-PROMO 2X DAILY SYSTEM TESTING")
+    print("Testing 6 requirements from review request")
     print("=" * 60)
     
-    auto_promo_path = "/app/js/auto-promo.js"
+    tests = [
+        ("Node.js Health Check", test_1_nodejs_health),
+        ("Schedule Initialization", test_2_schedule_initialization), 
+        ("crossSellMessages Structure", test_3_crosssell_structure),
+        ("DAY_SCHEDULE Mapping", test_4_day_schedule_mapping),
+        ("Evening Behavior", test_5_evening_behavior),
+        ("Module Exports", test_6_module_exports)
+    ]
     
-    try:
-        with open(auto_promo_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-            
-        # Check that PROMO_BANNERS is NOT exported
-        if "PROMO_BANNERS" in content:
-            print("✗ Found PROMO_BANNERS reference (should be removed)")
-            return False
-        else:
-            print("✓ No PROMO_BANNERS references found")
-            
-        # Check for correct exports
-        if "module.exports = { initAutoPromo, promoMessages }" in content:
-            print("✓ Correct module.exports found: { initAutoPromo, promoMessages }")
-        else:
-            print("✗ Incorrect or missing module.exports")
-            return False
-            
-        # Verify only these two exports
-        export_line_start = content.find("module.exports = {")
-        export_line_end = content.find("}", export_line_start) + 1
-        export_line = content[export_line_start:export_line_end]
-        
-        if "initAutoPromo" in export_line and "promoMessages" in export_line:
-            print("✓ Both required exports present: initAutoPromo, promoMessages")
-        else:
-            print("✗ Missing required exports")
-            return False
-            
-        # Count exports to ensure no extras
-        export_count = export_line.count(',') + 1  # commas + 1 = items
-        if export_count == 2:
-            print("✓ Exactly 2 exports (correct)")
-        else:
-            print(f"✗ Found {export_count} exports, expected exactly 2")
-            return False
-            
-        print("✓ Export verification PASSED")
-        return True
-        
-    except Exception as e:
-        print(f"✗ Error verifying exports: {str(e)}")
-        return False
-
-def run_all_tests():
-    """Run all auto-promo system tests"""
-    print("🚀 STARTING AUTO-PROMO SYSTEM COMPREHENSIVE TESTING")
-    print("=" * 80)
-    
-    test_results = []
-    
-    # Test 1: Node.js Health
-    test_results.append(("Node.js Health Check", test_nodejs_health()))
-    test_results.append(("Node.js Error Log Check", check_nodejs_error_log()))
-    
-    # Test 2: AutoPromo Initialization
-    test_results.append(("AutoPromo Initialization", check_autopromo_initialization()))
-    
-    # Test 3: Promo Messages Structure
-    test_results.append(("Promo Messages Structure", verify_promo_messages_structure()))
-    
-    # Test 4: Theme Day Mapping
-    test_results.append(("Theme Day Mapping", verify_theme_day_mapping()))
-    
-    # Test 5: SERVICE_CONTEXT
-    test_results.append(("SERVICE_CONTEXT Verification", verify_service_context()))
-    
-    # Test 6: No Old Exports
-    test_results.append(("No Old Exports", verify_no_old_exports()))
+    results = {}
+    for test_name, test_func in tests:
+        try:
+            results[test_name] = test_func()
+        except Exception as e:
+            print(f"❌ {test_name} CRASHED: {e}")
+            results[test_name] = False
     
     # Summary
-    print("\n" + "=" * 80)
-    print("🏁 AUTO-PROMO SYSTEM TEST RESULTS SUMMARY")
-    print("=" * 80)
+    print("\n" + "=" * 60)
+    print("📊 TEST RESULTS SUMMARY")
+    print("=" * 60)
     
     passed = 0
-    total = len(test_results)
+    total = len(tests)
     
-    for test_name, result in test_results:
+    for test_name, result in results.items():
         status = "✅ PASS" if result else "❌ FAIL"
-        print(f"{status} | {test_name}")
+        print(f"{status} {test_name}")
         if result:
             passed += 1
     
-    print("=" * 80)
-    success_rate = (passed / total) * 100
-    print(f"📊 OVERALL RESULT: {passed}/{total} tests passed ({success_rate:.1f}%)")
+    print(f"\n🎯 OVERALL: {passed}/{total} tests passed ({passed/total*100:.1f}%)")
     
     if passed == total:
-        print("🎉 ALL TESTS PASSED - AUTO-PROMO SYSTEM IS PRODUCTION READY!")
-        return True
+        print("🎉 ALL TESTS PASSED - Auto-promo 2x daily system is fully functional!")
+        return 0
     else:
-        print(f"⚠️  {total - passed} TESTS FAILED - ISSUES NEED TO BE ADDRESSED")
-        return False
+        print("⚠️  Some tests failed - check implementation")
+        return 1
 
 if __name__ == "__main__":
-    success = run_all_tests()
-    sys.exit(0 if success else 1)
+    sys.exit(main())

@@ -174,7 +174,7 @@ Return ONLY the promotional message text.`
 
 // ─── Timezone & Schedule Config ───────────────────────────────────────
 const TIMEZONE_OFFSETS = { en: 0, fr: 1, zh: 8, hi: 5.5 }
-const LOCAL_TIMES = [{ hour: 10, minute: 0 }]
+const LOCAL_TIMES = [{ hour: 10, minute: 0 }, { hour: 19, minute: 0 }] // Morning hero + Evening cross-sell
 const THEMES = ['cloudphone', 'antired_hosting', 'leads_validation', 'domains_shortener', 'digital_products', 'cards_bundles']
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -1416,6 +1416,742 @@ Nomadly रिसेलर प्रोग्राम जॉइन करें
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+//  CROSS-SELL MESSAGES — Evening slot: shorter, punchier, pairs with morning theme
+//  6 themes × 3 variations × 4 languages = 72 evening ads
+// ═══════════════════════════════════════════════════════════════════════
+
+const crossSellMessages = {
+
+  // ═══════════════════ ENGLISH CROSS-SELL ═══════════════════
+
+  en: {
+    cloudphone: [
+      `🌙📞 <b>GOT LEADS? NOW CALL THEM.</b>
+
+Get a virtual phone number and start calling your leads today.
+
+📞 30+ countries | 🎙️ Custom IVR | 💬 SMS included
+💰 From <b>$50/mo</b>
+
+Turn data into conversations 🔥
+
+Type <b>/start</b> → 📞 Cloud IVR + SIP`,
+
+      `💡 <b>YOUR LEADS ARE USELESS IF YOU CAN'T CALL THEM</b>
+
+Pick up a virtual number — any country, no SIM needed.
+
+✅ Instant activation
+✅ Call forwarding + voicemail
+✅ SIP integration
+
+💰 <b>$50/month</b> — start calling tonight
+
+Type <b>/start</b> → 📞 Cloud IVR + SIP`,
+
+      `📞 <b>ADD A PHONE NUMBER TO YOUR TOOLKIT</b>
+
+Every business needs a reachable number.
+
+🌍 30+ countries | 🔐 100% private | 📱 No SIM
+🎙️ Professional IVR greeting included
+
+💰 Plans from <b>$50/mo</b>
+
+Type <b>/start</b> → 📞 Cloud IVR + SIP`,
+    ],
+
+    antired_hosting: [
+      `🌙🛡️ <b>GOT A DOMAIN? HOST IT BULLETPROOF.</b>
+
+Don't register a domain just to get it taken down.
+
+🛡️ Anti-Red Hosting = DMCA-ignored + threat scanner
+🌐 Free domain included | ⚡ cPanel access
+
+💰 From <b>$30/week</b>
+
+Protect what you build 🔒
+
+Type <b>/start</b> → 🛡️🔥 Anti-Red Hosting`,
+
+      `🔥 <b>YOUR SITE NEEDS A BULLETPROOF HOME</b>
+
+Anti-Red Hosting: offshore, DMCA-ignored, zero takedowns.
+
+🛡️ Anti-Red scanner | 🌐 Free domain | ⚡ cPanel
+💰 Weekly from <b>$30</b> | Monthly from <b>$75</b>
+
+Hundreds of sites already protected ✅
+
+Type <b>/start</b> → 🛡️🔥 Anti-Red Hosting`,
+
+      `🏴‍☠️ <b>HOSTING THAT NEVER GOES DOWN</b>
+
+Offshore servers + Anti-Red protection = unstoppable.
+
+✅ 99.9% uptime | 🔒 DMCA-ignored | 🌐 Free domain
+💰 From <b>$30/week</b>
+
+Type <b>/start</b> → 🛡️🔥 Anti-Red Hosting`,
+    ],
+
+    leads_validation: [
+      `🌙🎯 <b>YOUR SITE IS LIVE — NOW GET LEADS TO IT.</b>
+
+Targeted phone leads delivered in minutes.
+
+📋 By country, area code & carrier
+👤 CNAM = real names behind numbers
+✅ Only verified, active numbers
+
+💰 From <b>$0.025/lead</b>
+
+Fill your pipeline tonight 🚀
+
+Type <b>/start</b> → 🎯 Leads & Validation`,
+
+      `📊 <b>TRAFFIC IS GREAT. LEADS ARE BETTER.</b>
+
+Get bulk phone leads with owner names — ready for outreach.
+
+🎯 Pick your country & carrier
+👤 CNAM lookup included
+⚡ Delivered in minutes
+
+💰 Leads <b>$0.025</b> | CNAM <b>$0.015</b>
+
+Type <b>/start</b> → 🎯 Leads & Validation`,
+
+      `🎯 <b>NEED FRESH LEADS? WE'VE GOT THOUSANDS.</b>
+
+Validated phone numbers + owner names.
+
+📋 Bulk export | ✅ Only live numbers | 👤 Real names
+💰 From <b>$0.025</b> each
+
+Type <b>/start</b> → 🎯 Leads & Validation`,
+    ],
+
+    domains_shortener: [
+      `🌙🌐 <b>GOT A NUMBER? NOW BRAND IT WITH A DOMAIN.</b>
+
+A custom domain makes everything look professional.
+
+🌐 400+ TLDs | 🔒 DMCA-proof | ☁️ Cloudflare DNS
+✂️ Plus: branded short links FREE
+
+💰 Domains from <b>$3</b>
+
+Look legit. Type <b>/start</b> → 🌐 Domains`,
+
+      `🔗 <b>LONG URLS LOOK SKETCHY. FIX THAT.</b>
+
+Shortit: turn any link into a branded short URL.
+
+✂️ 5 FREE links | 📊 Click tracking | 🌐 Your own domain
+💰 Shortener = <b>FREE</b> | Domains from <b>$3</b>
+
+Type <b>/start</b> → 🔗 URL Shortener`,
+
+      `🌐 <b>YOUR CONTENT NEEDS A BULLETPROOF ADDRESS</b>
+
+Register a domain that can't be seized or taken down.
+
+🔒 DMCA-ignored | 🌍 400+ TLDs | ☁️ Cloudflare
+💰 From <b>$3</b>
+
+Type <b>/start</b> → 🌐 Bulletproof Domains`,
+    ],
+
+    digital_products: [
+      `🌙🛒 <b>WANT TO RESELL? START WITH THE PRODUCTS.</b>
+
+Premium verified accounts — instant delivery.
+
+📞 Twilio from <b>$200</b> | ☁️ AWS from <b>$150</b>
+📱 eSIM <b>$60</b> | 📧 Workspace from <b>$100</b>
+
+⚡ Delivered in 30 minutes
+
+Type <b>/start</b> → 🛒 Digital Products`,
+
+      `⚡ <b>NEED AN ACCOUNT? DON'T WASTE DAYS VERIFYING.</b>
+
+Twilio, AWS, Google Cloud — all pre-verified.
+
+💰 Starting from <b>$60</b>
+🤖 Delivered via Telegram in minutes
+💳 Crypto & bank accepted
+
+Type <b>/start</b> → 🛒 Digital Products`,
+
+      `🛒 <b>PLUG & PLAY ACCOUNTS — 30 MIN DELIVERY</b>
+
+📞 Twilio | 📡 Telnyx | ☁️ AWS | 📱 eSIM
+All verified. All ready. All here.
+
+💰 From <b>$60</b>
+
+Type <b>/start</b> → 🛒 Digital Products`,
+    ],
+
+    cards_bundles: [
+      `🌙💳 <b>NEED TO PAY ONLINE? VIRTUAL CARDS READY.</b>
+
+Instant virtual cards for payments & verifications.
+
+💳 Cards from <b>$5</b>
+📦 Shipping labels from <b>$10</b>
+🎁 Bundles save <b>20%+</b>
+
+All in one bot ⚡ Type <b>/start</b>`,
+
+      `🎁 <b>SAVE BIG WITH SERVICE BUNDLES</b>
+
+Combine any services and get <b>20%+ off</b>.
+
+📞 Phone + 🌐 Domain + 🛡️ Hosting = one bundle
+💳 Virtual cards for instant checkout
+
+💰 Bundles from <b>$50</b>
+
+Type <b>/start</b> → 📦 Service Bundles`,
+
+      `💼 <b>TURN THIS BOT INTO YOUR BUSINESS</b>
+
+Join the Reseller Program — earn on every sale.
+
+✅ Sell any service to your clients
+💰 Commission on every transaction
+🔄 Automated delivery
+
+🔥 Top resellers earn <b>$500+/mo</b>
+
+Type <b>/start</b> → 💼 Reseller`,
+    ],
+  },
+
+  // ═══════════════════ FRENCH CROSS-SELL ═══════════════════
+
+  fr: {
+    cloudphone: [
+      `🌙📞 <b>VOUS AVEZ DES LEADS ? APPELEZ-LES MAINTENANT.</b>
+
+Obtenez un numéro virtuel et commencez à appeler.
+
+📞 30+ pays | 🎙️ IVR personnalisé | 💬 SMS inclus
+💰 À partir de <b>50$/mois</b>
+
+Transformez vos données en conversations 🔥
+
+Tapez <b>/start</b> → 📞 Cloud IVR + SIP`,
+
+      `💡 <b>VOS LEADS NE SERVENT À RIEN SI VOUS NE POUVEZ PAS APPELER</b>
+
+Numéro virtuel — n'importe quel pays, sans carte SIM.
+
+✅ Activation instantanée | ✅ Transfert d'appels | ✅ SIP
+💰 <b>50$/mois</b>
+
+Tapez <b>/start</b> → 📞 Cloud IVR + SIP`,
+
+      `📞 <b>AJOUTEZ UN NUMÉRO À VOTRE ARSENAL</b>
+
+Chaque business a besoin d'un numéro joignable.
+
+🌍 30+ pays | 🔐 100% privé | 📱 Sans SIM
+💰 À partir de <b>50$/mois</b>
+
+Tapez <b>/start</b> → 📞 Cloud IVR + SIP`,
+    ],
+
+    antired_hosting: [
+      `🌙🛡️ <b>VOUS AVEZ UN DOMAINE ? HÉBERGEZ-LE BLINDÉ.</b>
+
+Anti-Red Hosting = DMCA-ignoré + scanner de menaces.
+
+🛡️ Serveurs offshore | 🌐 Domaine gratuit | ⚡ cPanel
+💰 À partir de <b>30$/semaine</b>
+
+Protégez ce que vous construisez 🔒
+
+Tapez <b>/start</b> → 🛡️🔥 Anti-Red Hosting`,
+
+      `🔥 <b>VOTRE SITE A BESOIN D'UN HÉBERGEMENT BLINDÉ</b>
+
+Offshore, DMCA-ignoré, zéro suppression.
+
+🛡️ Scanner Anti-Red | 🌐 Domaine gratuit | ⚡ cPanel
+💰 À partir de <b>30$/semaine</b>
+
+Tapez <b>/start</b> → 🛡️🔥 Anti-Red Hosting`,
+
+      `🏴‍☠️ <b>HÉBERGEMENT QUI NE TOMBE JAMAIS</b>
+
+Serveurs offshore + protection Anti-Red = imbattable.
+
+✅ 99.9% uptime | 🔒 DMCA-ignoré
+💰 À partir de <b>30$/semaine</b>
+
+Tapez <b>/start</b> → 🛡️🔥 Anti-Red Hosting`,
+    ],
+
+    leads_validation: [
+      `🌙🎯 <b>VOTRE SITE EST EN LIGNE — OBTENEZ DES LEADS.</b>
+
+Leads téléphoniques ciblés livrés en minutes.
+
+📋 Par pays et opérateur | 👤 Noms réels | ✅ Numéros vérifiés
+💰 À partir de <b>0.025$/lead</b>
+
+Tapez <b>/start</b> → 🎯 Leads & Validation`,
+
+      `📊 <b>LE TRAFIC C'EST BIEN. LES LEADS C'EST MIEUX.</b>
+
+Leads téléphoniques avec noms de propriétaires.
+
+🎯 Choisissez pays et opérateur | ⚡ Livraison rapide
+💰 Leads <b>0.025$</b> | CNAM <b>0.015$</b>
+
+Tapez <b>/start</b> → 🎯 Leads & Validation`,
+
+      `🎯 <b>BESOIN DE LEADS FRAIS ? ON EN A DES MILLIERS.</b>
+
+Numéros validés + noms de propriétaires.
+
+📋 Export en masse | ✅ Seulement des numéros actifs
+💰 À partir de <b>0.025$</b>
+
+Tapez <b>/start</b> → 🎯 Leads & Validation`,
+    ],
+
+    domains_shortener: [
+      `🌙🌐 <b>VOUS AVEZ UN NUMÉRO ? BRANDEZ-LE AVEC UN DOMAINE.</b>
+
+Un domaine personnalisé rend tout professionnel.
+
+🌐 400+ TLDs | 🔒 DMCA-proof | ✂️ Liens courts GRATUITS
+💰 Domaines à partir de <b>3$</b>
+
+Tapez <b>/start</b> → 🌐 Domaines`,
+
+      `🔗 <b>LES URLs LONGUES FONT PEU SÉRIEUX. CORRIGEZ ÇA.</b>
+
+Shortit : liens courts de marque gratuits.
+
+✂️ 5 liens GRATUITS | 📊 Tracking | 🌐 Votre domaine
+💰 Domaines à partir de <b>3$</b>
+
+Tapez <b>/start</b> → 🔗 Raccourcisseur URL`,
+
+      `🌐 <b>VOTRE CONTENU A BESOIN D'UNE ADRESSE BLINDÉE</b>
+
+Domaines inviolables. 400+ TLDs.
+
+🔒 DMCA-ignoré | ☁️ Cloudflare | 💰 À partir de <b>3$</b>
+
+Tapez <b>/start</b> → 🌐 Bulletproof Domains`,
+    ],
+
+    digital_products: [
+      `🌙🛒 <b>ENVIE DE REVENDRE ? COMMENCEZ PAR LES PRODUITS.</b>
+
+Comptes premium vérifiés — livraison instantanée.
+
+📞 Twilio <b>200$</b> | ☁️ AWS <b>150$</b> | 📱 eSIM <b>60$</b>
+⚡ Livré en 30 minutes
+
+Tapez <b>/start</b> → 🛒 Produits Digitaux`,
+
+      `⚡ <b>NE PERDEZ PAS DES JOURS À VÉRIFIER DES COMPTES</b>
+
+Twilio, AWS, Google Cloud — tous pré-vérifiés.
+
+💰 À partir de <b>60$</b> | 🤖 Livraison Telegram
+Tapez <b>/start</b> → 🛒 Produits Digitaux`,
+
+      `🛒 <b>COMPTES PLUG & PLAY — LIVRAISON 30 MIN</b>
+
+📞 Twilio | ☁️ AWS | 📡 Telnyx | 📱 eSIM
+Tous vérifiés. Tous prêts. 💰 À partir de <b>60$</b>
+
+Tapez <b>/start</b> → 🛒 Produits Digitaux`,
+    ],
+
+    cards_bundles: [
+      `🌙💳 <b>BESOIN DE PAYER EN LIGNE ? CARTES VIRTUELLES PRÊTES.</b>
+
+💳 Cartes à partir de <b>5$</b> | 📦 Étiquettes <b>10$</b>
+🎁 Packs : économisez <b>20%+</b>
+
+Tout en un seul bot ⚡ Tapez <b>/start</b>`,
+
+      `🎁 <b>ÉCONOMISEZ GROS AVEC LES PACKS SERVICES</b>
+
+📞 Phone + 🌐 Domaine + 🛡️ Hosting = un pack
+💰 Économisez <b>20%+</b> en combinant
+
+Tapez <b>/start</b> → 📦 Packs Services`,
+
+      `💼 <b>TRANSFORMEZ CE BOT EN BUSINESS</b>
+
+Rejoignez le Programme Revendeur — gagnez sur chaque vente.
+
+✅ Commission automatique | 🔥 Top revendeurs : <b>500$+/mois</b>
+
+Tapez <b>/start</b> → 💼 Revendeur`,
+    ],
+  },
+
+  // ═══════════════════ CHINESE CROSS-SELL ═══════════════════
+
+  zh: {
+    cloudphone: [
+      `🌙📞 <b>有了线索？现在就打电话。</b>
+
+获取虚拟电话号码，今天就开始联系你的潜在客户。
+
+📞 30+国家 | 🎙️ 自定义IVR | 💬 短信包含
+💰 <b>$50/月</b> 起
+
+将数据转化为对话 🔥
+
+输入 <b>/start</b> → 📞 Cloud IVR + SIP`,
+
+      `💡 <b>不能打电话，线索有何用？</b>
+
+虚拟号码 — 任何国家，无需SIM卡。
+
+✅ 即时开通 | ✅ 呼叫转移 | ✅ SIP集成
+💰 <b>$50/月</b>
+
+输入 <b>/start</b> → 📞 Cloud IVR + SIP`,
+
+      `📞 <b>为你的工具箱添加一个电话号码</b>
+
+每个业务都需要一个可联系的号码。
+
+🌍 30+国家 | 🔐 100%隐私 | 📱 无需SIM
+💰 <b>$50/月</b> 起
+
+输入 <b>/start</b> → 📞 Cloud IVR + SIP`,
+    ],
+
+    antired_hosting: [
+      `🌙🛡️ <b>有域名了？用防弹服务器托管它。</b>
+
+Anti-Red托管 = 无视DMCA + 威胁扫描器。
+
+🛡️ 离岸服务器 | 🌐 免费域名 | ⚡ cPanel
+💰 <b>$30/周</b> 起
+
+保护你的成果 🔒
+
+输入 <b>/start</b> → 🛡️🔥 Anti-Red Hosting`,
+
+      `🔥 <b>你的网站需要防弹之家</b>
+
+离岸、无视DMCA、零关停。
+
+🛡️ Anti-Red扫描 | 🌐 免费域名 | ⚡ cPanel
+💰 <b>$30/周</b> 起
+
+输入 <b>/start</b> → 🛡️🔥 Anti-Red Hosting`,
+
+      `🏴‍☠️ <b>永不宕机的托管</b>
+
+离岸服务器 + Anti-Red保护 = 势不可挡。
+
+✅ 99.9%正常运行 | 🔒 无视DMCA
+💰 <b>$30/周</b> 起
+
+输入 <b>/start</b> → 🛡️🔥 Anti-Red Hosting`,
+    ],
+
+    leads_validation: [
+      `🌙🎯 <b>网站已上线 — 现在获取线索。</b>
+
+定向电话线索，分钟内送达。
+
+📋 按国家和运营商 | 👤 真实姓名 | ✅ 已验证号码
+💰 <b>$0.025/条</b> 起
+
+输入 <b>/start</b> → 🎯 Leads & Validation`,
+
+      `📊 <b>流量很好。线索更好。</b>
+
+批量电话线索 + 机主姓名。
+
+🎯 选择国家和运营商 | ⚡ 快速交付
+💰 线索 <b>$0.025</b> | CNAM <b>$0.015</b>
+
+输入 <b>/start</b> → 🎯 Leads & Validation`,
+
+      `🎯 <b>需要新鲜线索？我们有成千上万条。</b>
+
+验证过的电话号码 + 机主姓名。
+
+📋 批量导出 | ✅ 只有活跃号码
+💰 <b>$0.025</b>/条 起
+
+输入 <b>/start</b> → 🎯 Leads & Validation`,
+    ],
+
+    domains_shortener: [
+      `🌙🌐 <b>有号码了？用域名打造品牌。</b>
+
+自定义域名让一切看起来更专业。
+
+🌐 400+ TLD | 🔒 防DMCA | ✂️ 免费品牌短链接
+💰 域名 <b>$3</b> 起
+
+输入 <b>/start</b> → 🌐 域名`,
+
+      `🔗 <b>长URL看起来不靠谱。修好它。</b>
+
+Shortit：将任何链接变成品牌短URL。
+
+✂️ 5个免费链接 | 📊 点击追踪 | 🌐 自己的域名
+💰 域名 <b>$3</b> 起
+
+输入 <b>/start</b> → 🔗 URL缩短器`,
+
+      `🌐 <b>你的内容需要一个防弹地址</b>
+
+注册不会被查封的域名。400+ TLD。
+
+🔒 无视DMCA | ☁️ Cloudflare | 💰 <b>$3</b> 起
+
+输入 <b>/start</b> → 🌐 Bulletproof Domains`,
+    ],
+
+    digital_products: [
+      `🌙🛒 <b>想要转售？从产品开始。</b>
+
+高级验证账户 — 即时交付。
+
+📞 Twilio <b>$200</b> | ☁️ AWS <b>$150</b> | 📱 eSIM <b>$60</b>
+⚡ 30分钟交付
+
+输入 <b>/start</b> → 🛒 Digital Products`,
+
+      `⚡ <b>不要浪费时间验证账户</b>
+
+Twilio、AWS、Google Cloud — 全部预验证。
+
+💰 <b>$60</b> 起 | 🤖 Telegram交付
+
+输入 <b>/start</b> → 🛒 Digital Products`,
+
+      `🛒 <b>即插即用账户 — 30分钟交付</b>
+
+📞 Twilio | ☁️ AWS | 📡 Telnyx | 📱 eSIM
+全部验证。全部就绪。💰 <b>$60</b> 起
+
+输入 <b>/start</b> → 🛒 Digital Products`,
+    ],
+
+    cards_bundles: [
+      `🌙💳 <b>需要在线支付？虚拟卡已就绪。</b>
+
+💳 卡片 <b>$5</b> 起 | 📦 标签 <b>$10</b> 起
+🎁 套餐节省 <b>20%+</b>
+
+一个机器人搞定一切 ⚡ 输入 <b>/start</b>`,
+
+      `🎁 <b>服务套餐大省钱</b>
+
+📞 电话 + 🌐 域名 + 🛡️ 托管 = 一个套餐
+💰 组合节省 <b>20%+</b>
+
+输入 <b>/start</b> → 📦 服务套餐`,
+
+      `💼 <b>把这个机器人变成你的生意</b>
+
+加入经销商计划 — 每笔销售赚佣金。
+
+✅ 自动佣金 | 🔥 顶级经销商：<b>$500+/月</b>
+
+输入 <b>/start</b> → 💼 Reseller`,
+    ],
+  },
+
+  // ═══════════════════ HINDI CROSS-SELL ═══════════════════
+
+  hi: {
+    cloudphone: [
+      `🌙📞 <b>लीड्स हैं? अब उन्हें कॉल करें।</b>
+
+वर्चुअल फोन नंबर लें और आज ही कॉल शुरू करें।
+
+📞 30+ देश | 🎙️ कस्टम IVR | 💬 SMS शामिल
+💰 <b>$50/महीना</b> से
+
+डेटा को बातचीत में बदलें 🔥
+
+<b>/start</b> → 📞 Cloud IVR + SIP`,
+
+      `💡 <b>कॉल नहीं कर सकते तो लीड्स बेकार हैं</b>
+
+वर्चुअल नंबर — कोई भी देश, SIM नहीं चाहिए।
+
+✅ तुरंत एक्टिवेशन | ✅ कॉल फॉरवर्डिंग | ✅ SIP
+💰 <b>$50/महीना</b>
+
+<b>/start</b> → 📞 Cloud IVR + SIP`,
+
+      `📞 <b>अपने टूलकिट में फोन नंबर जोड़ें</b>
+
+हर बिज़नेस को एक संपर्क नंबर चाहिए।
+
+🌍 30+ देश | 🔐 100% प्राइवेट | 📱 बिना SIM
+💰 <b>$50/महीना</b> से
+
+<b>/start</b> → 📞 Cloud IVR + SIP`,
+    ],
+
+    antired_hosting: [
+      `🌙🛡️ <b>डोमेन है? बुलेटप्रूफ होस्ट करें।</b>
+
+Anti-Red Hosting = DMCA-इग्नोर्ड + थ्रेट स्कैनर।
+
+🛡️ ऑफशोर सर्वर | 🌐 मुफ्त डोमेन | ⚡ cPanel
+💰 <b>$30/सप्ताह</b> से
+
+जो बनाया है उसे सुरक्षित रखें 🔒
+
+<b>/start</b> → 🛡️🔥 Anti-Red Hosting`,
+
+      `🔥 <b>आपकी साइट को बुलेटप्रूफ घर चाहिए</b>
+
+ऑफशोर, DMCA-इग्नोर्ड, ज़ीरो टेकडाउन।
+
+🛡️ Anti-Red स्कैनर | 🌐 मुफ्त डोमेन
+💰 <b>$30/सप्ताह</b> से
+
+<b>/start</b> → 🛡️🔥 Anti-Red Hosting`,
+
+      `🏴‍☠️ <b>होस्टिंग जो कभी डाउन नहीं होती</b>
+
+ऑफशोर + Anti-Red = अजेय।
+
+✅ 99.9% अपटाइम | 🔒 DMCA-इग्नोर्ड
+💰 <b>$30/सप्ताह</b> से
+
+<b>/start</b> → 🛡️🔥 Anti-Red Hosting`,
+    ],
+
+    leads_validation: [
+      `🌙🎯 <b>साइट लाइव है — अब लीड्स लाएं।</b>
+
+टार्गेटेड फोन लीड्स मिनटों में।
+
+📋 देश और कैरियर के अनुसार | 👤 असली नाम | ✅ वेरिफाइड
+💰 <b>$0.025/लीड</b> से
+
+<b>/start</b> → 🎯 Leads & Validation`,
+
+      `📊 <b>ट्रैफिक अच्छा है। लीड्स बेहतर हैं।</b>
+
+बल्क फोन लीड्स + मालिक के नाम।
+
+🎯 देश और कैरियर चुनें | ⚡ तेज़ डिलीवरी
+💰 लीड्स <b>$0.025</b> | CNAM <b>$0.015</b>
+
+<b>/start</b> → 🎯 Leads & Validation`,
+
+      `🎯 <b>फ्रेश लीड्स चाहिए? हमारे पास हज़ारों हैं।</b>
+
+वैलिडेटेड नंबर + मालिक के नाम।
+
+📋 बल्क एक्सपोर्ट | ✅ सिर्फ एक्टिव नंबर
+💰 <b>$0.025</b>/लीड से
+
+<b>/start</b> → 🎯 Leads & Validation`,
+    ],
+
+    domains_shortener: [
+      `🌙🌐 <b>नंबर मिल गया? डोमेन से ब्रांड बनाएं।</b>
+
+कस्टम डोमेन सब कुछ प्रोफेशनल बनाता है।
+
+🌐 400+ TLD | 🔒 DMCA-प्रूफ | ✂️ मुफ्त शॉर्ट लिंक
+💰 डोमेन <b>$3</b> से
+
+<b>/start</b> → 🌐 Domains`,
+
+      `🔗 <b>लंबे URL संदिग्ध लगते हैं। ठीक करें।</b>
+
+Shortit: ब्रांडेड शॉर्ट URL मुफ्त।
+
+✂️ 5 मुफ्त लिंक | 📊 क्लिक ट्रैकिंग
+💰 डोमेन <b>$3</b> से
+
+<b>/start</b> → 🔗 URL शॉर्टनर`,
+
+      `🌐 <b>आपके कंटेंट को बुलेटप्रूफ एड्रेस चाहिए</b>
+
+ऐसा डोमेन जो जब्त न हो सके। 400+ TLD।
+
+🔒 DMCA-इग्नोर्ड | ☁️ Cloudflare | 💰 <b>$3</b> से
+
+<b>/start</b> → 🌐 Bulletproof Domains`,
+    ],
+
+    digital_products: [
+      `🌙🛒 <b>रीसेल करना है? प्रोडक्ट्स से शुरू करें।</b>
+
+प्रीमियम वेरिफाइड अकाउंट — इंस्टेंट डिलीवरी।
+
+📞 Twilio <b>$200</b> | ☁️ AWS <b>$150</b> | 📱 eSIM <b>$60</b>
+⚡ 30 मिनट में डिलीवर
+
+<b>/start</b> → 🛒 Digital Products`,
+
+      `⚡ <b>अकाउंट वेरिफाई करने में दिन बर्बाद न करें</b>
+
+Twilio, AWS, Google Cloud — सब प्री-वेरिफाइड।
+
+💰 <b>$60</b> से | 🤖 Telegram पर डिलीवरी
+
+<b>/start</b> → 🛒 Digital Products`,
+
+      `🛒 <b>प्लग एंड प्ले अकाउंट — 30 मिनट डिलीवरी</b>
+
+📞 Twilio | ☁️ AWS | 📡 Telnyx | 📱 eSIM
+सब वेरिफाइड। सब तैयार। 💰 <b>$60</b> से
+
+<b>/start</b> → 🛒 Digital Products`,
+    ],
+
+    cards_bundles: [
+      `🌙💳 <b>ऑनलाइन पेमेंट? वर्चुअल कार्ड तैयार।</b>
+
+💳 कार्ड <b>$5</b> से | 📦 लेबल <b>$10</b> से
+🎁 बंडल में <b>20%+</b> बचत
+
+एक बॉट में सब कुछ ⚡ <b>/start</b> टाइप करें`,
+
+      `🎁 <b>सर्विस बंडल से बड़ी बचत</b>
+
+📞 फोन + 🌐 डोमेन + 🛡️ होस्टिंग = एक बंडल
+💰 <b>20%+</b> बचत
+
+<b>/start</b> → 📦 Service Bundles`,
+
+      `💼 <b>इस बॉट को अपना बिज़नेस बनाएं</b>
+
+रिसेलर प्रोग्राम — हर बिक्री पर कमाएं।
+
+✅ ऑटो कमीशन | 🔥 टॉप रिसेलर: <b>$500+/महीना</b>
+
+<b>/start</b> → 💼 Reseller`,
+    ],
+  },
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 
 function localToUtc(localHour, localMinute, offsetHours) {
   let utcHour = localHour - Math.floor(offsetHours)
@@ -1440,11 +2176,14 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
     if (adminChatId) bot.sendMessage(adminChatId, `[AutoPromo Alert] ${msg}`).catch(() => {})
   }
 
-  async function getRotationIndex(theme, lang) {
-    const trackerId = `${theme}_${lang}`
+  async function getRotationIndex(theme, lang, customKey) {
+    const trackerId = customKey || `${theme}_${lang}`
     const tracker = await promoTracker.findOne({ _id: trackerId })
     const currentIndex = tracker?.index || 0
-    const variations = promoMessages[lang]?.[theme] || promoMessages.en[theme] || []
+    // Use crossSellMessages for evening keys, promoMessages for morning
+    const isEvening = trackerId.includes('_evening_')
+    const msgPool = isEvening ? crossSellMessages : promoMessages
+    const variations = msgPool[lang]?.[theme] || msgPool.en?.[theme] || promoMessages.en[theme] || []
     const totalVariations = variations.length || 1
     const nextIndex = (currentIndex + 1) % totalVariations
     await promoTracker.updateOne({ _id: trackerId }, { $set: { index: nextIndex, lastSent: new Date() } }, { upsert: true })
@@ -1517,12 +2256,13 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
     cards_bundles: SHOWCASE_GIF,
   }
 
-  async function sendPromoToUser(chatId, theme, variationIndex, lang, dynamicMessage, couponLine) {
+  async function sendPromoToUser(chatId, theme, variationIndex, lang, dynamicMessage, couponLine, isEvening = false) {
     try {
       if (await isOptedOut(chatId)) return { success: true, skipped: true }
-      const variations = promoMessages[lang]?.[theme] || promoMessages.en?.[theme]
+      const msgPool = isEvening ? crossSellMessages : promoMessages
+      const variations = msgPool[lang]?.[theme] || msgPool.en?.[theme] || promoMessages[lang]?.[theme] || promoMessages.en?.[theme]
       if (!variations || variations.length === 0) {
-        log(`[AutoPromo] No variations found for theme=${theme} lang=${lang}, skipping ${chatId}`)
+        log(`[AutoPromo] No variations found for ${isEvening ? 'evening' : 'morning'} theme=${theme} lang=${lang}, skipping ${chatId}`)
         return { success: false, error: 'no variations' }
       }
       let caption = dynamicMessage || variations[variationIndex % variations.length]
@@ -1530,9 +2270,9 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
 
       const trySend = async (useHtml) => {
         const opts = useHtml ? { parse_mode: 'HTML' } : {}
-        const gifPath = GIF_THEMES[theme]
+        const gifPath = !isEvening ? GIF_THEMES[theme] : null // No GIFs for evening (text-only, quick)
 
-        // Try sending with GIF for visual themes
+        // Try sending with GIF for morning visual themes
         if (gifPath) {
           try {
             const fs = require('fs')
@@ -1574,17 +2314,20 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
     }
   }
 
-  async function broadcastPromoForLang(themeIndex, lang) {
+  async function broadcastPromoForLang(themeIndex, lang, slotType = 'morning') {
     if (themeIndex === undefined || themeIndex === null) {
-      log(`[AutoPromo] Skipping broadcast for ${lang} — no theme index (likely rest day)`)
+      log(`[AutoPromo] Skipping ${slotType} broadcast for ${lang} — no theme index (likely rest day)`)
       return
     }
     const theme = THEMES[themeIndex]
     if (!theme) {
-      log(`[AutoPromo] Skipping broadcast for ${lang} — invalid theme index: ${themeIndex}`)
+      log(`[AutoPromo] Skipping ${slotType} broadcast for ${lang} — invalid theme index: ${themeIndex}`)
       return
     }
-    const variationIndex = await getRotationIndex(theme, lang)
+    const isEvening = slotType === 'evening'
+    const messagePool = isEvening ? 'crossSell' : 'hero'
+    const rotationKey = isEvening ? `${theme}_evening_${lang}` : `${theme}_${lang}`
+    const variationIndex = await getRotationIndex(theme, lang, rotationKey)
     const allChatIds = await getAllChatIds()
     if (allChatIds.length === 0) return log(`[AutoPromo] No users found`)
 
@@ -1605,17 +2348,20 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
 
     let dynamicMessage = null
     let usedAI = false
-    try {
-      dynamicMessage = await generateDynamicPromo(theme, lang)
-      if (dynamicMessage) { usedAI = true; log(`[AutoPromo] AI ${theme}/${lang} (${dynamicMessage.length} chars)`) }
-    } catch (err) { log(`[AutoPromo] AI fail: ${err.message}`) }
+    // Only use AI for morning hero ads — evening cross-sells use static (short & punchy)
+    if (!isEvening) {
+      try {
+        dynamicMessage = await generateDynamicPromo(theme, lang)
+        if (dynamicMessage) { usedAI = true; log(`[AutoPromo] AI ${theme}/${lang} (${dynamicMessage.length} chars)`) }
+      } catch (err) { log(`[AutoPromo] AI fail: ${err.message}`) }
 
-    if (!dynamicMessage) {
-      log(`[AutoPromo] Static fallback for ${theme}/${lang}`)
-      alertAdmin(`OpenAI failed for ${theme}/${lang}. Using static fallback.`)
+      if (!dynamicMessage) {
+        log(`[AutoPromo] Static fallback for ${theme}/${lang}`)
+        alertAdmin(`OpenAI failed for ${theme}/${lang}. Using static fallback.`)
+      }
     }
 
-    log(`[AutoPromo] Broadcasting ${theme} (${usedAI ? 'AI' : 'static #' + (variationIndex + 1)}) to ${targetChatIds.length} ${lang} users (${skippedDead} permanently dead pre-filtered)`)
+    log(`[AutoPromo] Broadcasting ${theme} ${isEvening ? '🌙evening' : '🌅morning'} (${usedAI ? 'AI' : 'static #' + (variationIndex + 1)}) to ${targetChatIds.length} ${lang} users (${skippedDead} permanently dead pre-filtered)`)
 
     let couponLine = null
     if (dailyCouponSystem) {
@@ -1636,7 +2382,7 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
       const batch = targetChatIds.slice(i, i + BATCH_SIZE)
       const results = await Promise.allSettled(batch.map(async (chatId, index) => {
         await sleep(index * DELAY_BETWEEN_MESSAGES)
-        return sendPromoToUser(chatId, theme, variationIndex, lang, dynamicMessage, couponLine)
+        return sendPromoToUser(chatId, theme, variationIndex, lang, dynamicMessage, couponLine, isEvening)
       }))
       for (const result of results) {
         if (result.status === 'fulfilled') {
@@ -1648,18 +2394,32 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
       if (i + BATCH_SIZE < targetChatIds.length) await sleep(DELAY_BETWEEN_BATCHES)
     }
 
-    const stats = { theme, lang, variation: usedAI ? 'ai' : variationIndex + 1, usedAI, total: targetChatIds.length, success: successCount, errors: errorCount, skipped: skippedCount, timestamp: new Date().toISOString() }
+    const stats = { theme, lang, slot: isEvening ? 'evening' : 'morning', variation: usedAI ? 'ai' : variationIndex + 1, usedAI, total: targetChatIds.length, success: successCount, errors: errorCount, skipped: skippedCount, timestamp: new Date().toISOString() }
     log(`[AutoPromo] Done:`, JSON.stringify(stats))
     await db.collection('promoStats').insertOne(stats)
   }
 
-  // ─── Day-of-week → Theme mapping ─────────────────────────────────
+  // ─── Day-of-week → Theme mapping (Morning Hero + Evening Cross-sell) ──
+  // Cross-sell pairings:
+  //   Mon morning=CloudPhone → evening=Domains ("Brand your number with a domain")
+  //   Tue morning=AntiRed    → evening=Leads ("Site is live? Get leads")
+  //   Wed morning=Leads      → evening=CloudPhone ("Got leads? Call them")
+  //   Thu morning=Domains    → evening=AntiRed ("Got a domain? Host it bulletproof")
+  //   Fri morning=Digital    → evening=Cards/Bundles ("Need to pay? Virtual cards")
+  //   Sat morning=Cards      → evening=Digital ("Start reselling these products")
+  const DAY_SCHEDULE = {
+    0: [],                    // Sunday — rest
+    1: [0, 3],                // Mon: cloudphone(0), domains_shortener(3)
+    2: [1, 2],                // Tue: antired_hosting(1), leads_validation(2)
+    3: [2, 0],                // Wed: leads_validation(2), cloudphone(0)
+    4: [3, 1],                // Thu: domains_shortener(3), antired_hosting(1)
+    5: [4, 5],                // Fri: digital_products(4), cards_bundles(5)
+    6: [5, 4],                // Sat: cards_bundles(5), digital_products(4)
+  }
+
   function getTodayThemes() {
     const day = new Date().getDay()
-    // Sun=0: rest, Mon=1: cloudphone, Tue=2: antired, Wed=3: leads,
-    // Thu=4: domains, Fri=5: digital, Sat=6: cards/bundles
-    if (day === 0) return [] // Sunday — no promo
-    return [day - 1] // Mon→0, Tue→1, Wed→2, Thu→3, Fri→4, Sat→5
+    return DAY_SCHEDULE[day] || []
   }
 
   const supportedLangs = Object.keys(TIMEZONE_OFFSETS)
@@ -1670,22 +2430,24 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
     LOCAL_TIMES.forEach((localTime, slotIndex) => {
       const utcTime = localToUtc(localTime.hour, localTime.minute, offset)
       const cronExpr = `${utcTime.minute} ${utcTime.hour} * * *`
+      const slotType = slotIndex === 0 ? 'morning' : 'evening'
       schedule.scheduleJob(cronExpr, () => {
         const todayThemes = getTodayThemes()
         const themeIndex = todayThemes[slotIndex]
         if (themeIndex === undefined) {
-          log(`[AutoPromo] Skipping ${lang} slot ${slotIndex + 1} — no promo today (rest day)`)
+          log(`[AutoPromo] Skipping ${lang} ${slotType} — no promo today (rest day)`)
           return
         }
-        log(`[AutoPromo] Triggered ${THEMES[themeIndex]} for ${lang} (local ${localTime.hour}:${String(localTime.minute).padStart(2, '0')})`)
-        broadcastPromoForLang(themeIndex, lang).catch(err => log(`[AutoPromo] Broadcast error: ${err.message}`))
+        log(`[AutoPromo] Triggered ${THEMES[themeIndex]} ${slotType === 'evening' ? '🌙evening' : '🌅morning'} for ${lang} (local ${localTime.hour}:${String(localTime.minute).padStart(2, '0')})`)
+        broadcastPromoForLang(themeIndex, lang, slotType).catch(err => log(`[AutoPromo] Broadcast error: ${err.message}`))
       })
-      log(`[AutoPromo] Scheduled slot ${slotIndex + 1} for ${lang.toUpperCase()} at local ${localTime.hour}:${String(localTime.minute).padStart(2, '0')} (UTC ${utcTime.hour}:${String(utcTime.minute).padStart(2, '0')})`)
+      log(`[AutoPromo] Scheduled ${slotType} for ${lang.toUpperCase()} at local ${localTime.hour}:${String(localTime.minute).padStart(2, '0')} (UTC ${utcTime.hour}:${String(utcTime.minute).padStart(2, '0')})`)
       scheduledCount++
     })
   }
 
-  log(`[AutoPromo] Initialized — ${scheduledCount} jobs (${supportedLangs.length} langs × ${LOCAL_TIMES.length} slots), ${THEMES.length} themes: ${THEMES.join(', ')}`)
+  log(`[AutoPromo] Initialized — ${scheduledCount} jobs (${supportedLangs.length} langs × ${LOCAL_TIMES.length} slots/day), ${THEMES.length} themes: ${THEMES.join(', ')}`)
+  log(`[AutoPromo] Schedule: 🌅 Morning hero (10am) + 🌙 Evening cross-sell (7pm), Sunday=rest`)
 
   return {
     setOptOut,
@@ -1693,8 +2455,9 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
     broadcastPromoForLang,
     setDailyCouponSystem,
     getPromoMessages: () => promoMessages,
+    getCrossSellMessages: () => crossSellMessages,
     getThemes: () => THEMES,
   }
 }
 
-module.exports = { initAutoPromo, promoMessages }
+module.exports = { initAutoPromo, promoMessages, crossSellMessages }
