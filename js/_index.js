@@ -17792,7 +17792,19 @@ const bankApis = {
 
     // Buy Domain
     const error = await buyDomainFullProcess(chatId, lang, domain)
-    if (error) return res.send(html(error))
+    if (error) {
+      // Domain purchase failed after bank payment received — credit wallet as refund
+      try {
+        addFundsTo(walletOf, chatId, 'ngn', ngnPrice, lang)
+        sendMessage(chatId, `💰 <b>Auto-Refund:</b> Domain registration for <b>${domain}</b> failed. Your payment of ${ngnPrice} NGN has been credited to your wallet balance.`)
+        sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🔄 <b>Auto-Refund (Bank→Domain)</b>\nUser: ${chatId}\nDomain: ${domain}\nAmount: ${ngnPrice} NGN ($${price})\nReason: buyDomainFullProcess failed`, { parse_mode: 'HTML' })
+        log(`[Domain] Bank refund issued: ${chatId} | ${domain} | ${ngnPrice} NGN`)
+      } catch (refundErr) {
+        log(`[Domain] CRITICAL: Bank refund failed for ${chatId}: ${refundErr.message}`)
+        sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🚨 CRITICAL: Bank domain refund FAILED\nUser: ${chatId}\nDomain: ${domain}\nAmount: ${ngnPrice} NGN\nError: ${refundErr.message}`, { parse_mode: 'HTML' })
+      }
+      return res.send(html(error))
+    }
     notifyGroup(`🌐 <b>Domain Registered!</b>\nUser ${maskName(name)} just claimed <b>${domain}</b> — your dream domain could be next.\nGrab yours before it's taken — /start`)
     webhookTierCheck(chatId, preSpend, lang)
     set(state, chatId, 'action', 'none') // Reset action after bank payment completes
@@ -18518,7 +18530,19 @@ app.get('/crypto-pay-domain', auth, async (req, res) => {
 
   // Buy Domain
   const error = await buyDomainFullProcess(chatId, lang, domain)
-  if (error) return res.send(html(error))
+  if (error) {
+    // Domain purchase failed after crypto payment received — credit wallet as refund
+    try {
+      addFundsTo(walletOf, chatId, 'usd', price, lang)
+      sendMessage(chatId, `💰 <b>Auto-Refund:</b> Domain registration for <b>${domain}</b> failed. $${price} has been credited to your wallet balance.`)
+      sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🔄 <b>Auto-Refund (BlockBee Crypto→Domain)</b>\nUser: ${chatId}\nDomain: ${domain}\nAmount: $${price}\nReason: buyDomainFullProcess failed`, { parse_mode: 'HTML' })
+      log(`[Domain] BlockBee crypto refund issued: ${chatId} | ${domain} | $${price}`)
+    } catch (refundErr) {
+      log(`[Domain] CRITICAL: BlockBee crypto refund failed for ${chatId}: ${refundErr.message}`)
+      sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🚨 CRITICAL: BlockBee crypto domain refund FAILED\nUser: ${chatId}\nDomain: ${domain}\nAmount: $${price}\nError: ${refundErr.message}`, { parse_mode: 'HTML' })
+    }
+    return res.send(html(error))
+  }
   notifyGroup(`🌐 <b>Domain Registered!</b>\nUser ${maskName(name)} just claimed <b>${domain}</b> — your dream domain could be next.\nGrab yours before it's taken — /start`)
   webhookTierCheck(chatId, preSpend, lang)
   set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
@@ -19078,7 +19102,19 @@ app.post('/dynopay/crypto-pay-domain', authDyno, async (req, res) => {
 
   // Buy Domain
   const error = await buyDomainFullProcess(chatId, lang, domain)
-  if (error) return res.send(html(error))
+  if (error) {
+    // Domain purchase failed after DynoPay crypto payment received — credit wallet as refund
+    try {
+      addFundsTo(walletOf, chatId, 'usd', price, lang)
+      sendMessage(chatId, `💰 <b>Auto-Refund:</b> Domain registration for <b>${domain}</b> failed. $${price} has been credited to your wallet balance.`)
+      sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🔄 <b>Auto-Refund (DynoPay Crypto→Domain)</b>\nUser: ${chatId}\nDomain: ${domain}\nAmount: $${price}\nReason: buyDomainFullProcess failed`, { parse_mode: 'HTML' })
+      log(`[Domain] DynoPay crypto refund issued: ${chatId} | ${domain} | $${price}`)
+    } catch (refundErr) {
+      log(`[Domain] CRITICAL: DynoPay crypto refund failed for ${chatId}: ${refundErr.message}`)
+      sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🚨 CRITICAL: DynoPay crypto domain refund FAILED\nUser: ${chatId}\nDomain: ${domain}\nAmount: $${price}\nError: ${refundErr.message}`, { parse_mode: 'HTML' })
+    }
+    return res.send(html(error))
+  }
   notifyGroup(`🌐 <b>Domain Registered!</b>\nUser ${maskName(name)} just claimed <b>${domain}</b> — your dream domain could be next.\nGrab yours before it's taken — /start`)
   webhookTierCheck(chatId, preSpend, lang)
   set(state, chatId, 'action', 'none') // Reset action after crypto payment completes

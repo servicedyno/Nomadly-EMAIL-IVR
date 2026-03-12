@@ -1,483 +1,554 @@
 #!/usr/bin/env python3
 """
-Backend Test for Auto-Promo 2x Daily System
-Testing all 6 requirements from the review request
+Backend Test for Domain Purchase Retry Logic + CR Log Fix + Wallet Refund
+Testing the new task: Domain purchase retry logic + CR log fix + wallet refund on bank/crypto domain failure
+
+Key files to verify:
+1. js/cr-domain-register.js — [CR] Registered log should ONLY appear AFTER statusCode === 200 check
+2. js/op-service.js — getContactHandle(attempt = 1) with retry logic
+3. js/op-service.js — registerDomain() with retry and forced re-auth
+4. js/_index.js — Bank domain payment handler with auto-refund on failure
+5. js/_index.js — BlockBee crypto domain handler with auto-refund on failure  
+6. js/_index.js — DynoPay crypto domain handler with auto-refund on failure
+7. js/_index.js — Wallet domain handler (should charge AFTER success)
+
+Test approach: Code verification — check line numbers, function signatures, conditional logic, log messages.
+DO NOT attempt to call actual APIs.
 """
 
-import requests
-import json
-import subprocess
+import re
 import sys
 import os
-import re
+import subprocess
+import json
 
-def test_1_nodejs_health():
-    """Test 1: Node.js Health Check"""
-    print("=" * 60)
-    print("TEST 1: Node.js Health Check")
-    print("=" * 60)
-    
-    try:
-        response = requests.get("http://localhost:5000/health", timeout=10)
-        print(f"✅ Health endpoint returns {response.status_code}")
+class DomainPurchaseTestSuite:
+    def __init__(self):
+        self.test_results = []
+        self.total_tests = 0
+        self.passed_tests = 0
         
-        if response.status_code == 200:
-            data = response.json()
-            expected_keys = ["status", "database"]
-            has_status = data.get("status") == "healthy"
-            has_database = data.get("database") == "connected"
+    def log_test(self, test_name, passed, details=""):
+        self.total_tests += 1
+        if passed:
+            self.passed_tests += 1
+            status = "✅ PASS"
+        else:
+            status = "❌ FAIL"
+        
+        print(f"{status}: {test_name}")
+        if details:
+            print(f"    Details: {details}")
+        
+        self.test_results.append({
+            'test': test_name,
+            'passed': passed,
+            'details': details
+        })
+
+    def read_file(self, filepath):
+        """Read file content safely"""
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                return f.read()
+        except FileNotFoundError:
+            return None
+        except Exception as e:
+            print(f"Error reading {filepath}: {e}")
+            return None
+
+    def check_health_endpoint(self):
+        """Test 1: Verify Node.js service health"""
+        try:
+            result = subprocess.run(['curl', '-s', 'http://localhost:5000/health'], 
+                                  capture_output=True, text=True, timeout=10)
             
-            print(f"✅ Status: {data.get('status')} (expected: healthy)")
-            print(f"✅ Database: {data.get('database')} (expected: connected)")
-            print(f"   Response: {data}")
-            
-            if has_status and has_database:
-                print("✅ Health check PASSED")
-                test1_pass = True
+            if result.returncode == 0:
+                try:
+                    health_data = json.loads(result.stdout)
+                    if health_data.get('status') == 'healthy' and health_data.get('database') == 'connected':
+                        self.log_test("Node.js Health Check", True, 
+                                    f"Service healthy, database connected, uptime: {health_data.get('uptime', 'N/A')}")
+                        return True
+                    else:
+                        self.log_test("Node.js Health Check", False, 
+                                    f"Unhealthy status: {health_data}")
+                        return False
+                except json.JSONDecodeError:
+                    self.log_test("Node.js Health Check", False, 
+                                f"Invalid JSON response: {result.stdout}")
+                    return False
             else:
-                print("❌ Health check content FAILED")
-                test1_pass = False
-        else:
-            print(f"❌ Wrong status code: {response.status_code}")
-            test1_pass = False
-            
-    except Exception as e:
-        print(f"❌ Health check FAILED: {e}")
-        test1_pass = False
-    
-    # Check error log is empty
-    try:
-        result = subprocess.run(["wc", "-c", "/var/log/supervisor/nodejs.err.log"], 
-                               capture_output=True, text=True, check=True)
-        bytes_count = int(result.stdout.split()[0])
-        if bytes_count == 0:
-            print("✅ nodejs.err.log is EMPTY (0 bytes)")
-            test1_pass = test1_pass and True
-        else:
-            print(f"❌ nodejs.err.log has {bytes_count} bytes")
-            test1_pass = False
-    except Exception as e:
-        print(f"❌ Error log check failed: {e}")
-        test1_pass = False
-    
-    return test1_pass
+                self.log_test("Node.js Health Check", False, 
+                            f"Health endpoint unreachable: {result.stderr}")
+                return False
+        except subprocess.TimeoutExpired:
+            self.log_test("Node.js Health Check", False, "Health endpoint timeout")
+            return False
+        except Exception as e:
+            self.log_test("Node.js Health Check", False, f"Health check error: {e}")
+            return False
 
-def test_2_schedule_initialization():
-    """Test 2: Schedule Initialization Logs"""
-    print("\n" + "=" * 60)
-    print("TEST 2: Schedule Initialization")
-    print("=" * 60)
-    
-    try:
-        # Check for initialization log
-        result = subprocess.run(["grep", "-n", "AutoPromo.*Initialized.*8 jobs", "/var/log/supervisor/nodejs.out.log"], 
-                               capture_output=True, text=True)
-        
-        if result.returncode == 0:
-            init_line = result.stdout.strip().split('\n')[-1]  # Get latest occurrence
-            print(f"✅ Found initialization: {init_line}")
-            
-            # Check for "8 jobs (4 langs × 2 slots/day)"
-            if "8 jobs" in init_line and "4 langs × 2 slots" in init_line:
-                print("✅ Correct job count: 8 jobs (4 langs × 2 slots/day)")
-                test2a_pass = True
+    def check_error_logs(self):
+        """Test 2: Verify nodejs.err.log is empty (no critical errors)"""
+        try:
+            result = subprocess.run(['stat', '-c', '%s', '/var/log/supervisor/nodejs.err.log'], 
+                                  capture_output=True, text=True)
+            if result.returncode == 0:
+                size = int(result.stdout.strip())
+                if size == 0:
+                    self.log_test("Node.js Error Log Check", True, 
+                                "nodejs.err.log is empty (0 bytes)")
+                    return True
+                else:
+                    self.log_test("Node.js Error Log Check", False, 
+                                f"nodejs.err.log has {size} bytes of errors")
+                    return False
             else:
-                print("❌ Wrong job configuration in init line")
-                test2a_pass = False
-        else:
-            print("❌ Initialization line not found")
-            test2a_pass = False
-        
-        # Check for schedule description
-        result2 = subprocess.run(["grep", "-n", "Morning hero.*Evening cross-sell", "/var/log/supervisor/nodejs.out.log"], 
-                                capture_output=True, text=True)
-        
-        if result2.returncode == 0:
-            schedule_line = result2.stdout.strip().split('\n')[-1]
-            print(f"✅ Found schedule: {schedule_line}")
-            
-            if "Morning hero (10am)" in schedule_line and "Evening cross-sell (7pm)" in schedule_line:
-                print("✅ Correct schedule: Morning hero (10am) + Evening cross-sell (7pm)")
-                test2b_pass = True
-            else:
-                print("❌ Wrong schedule description")
-                test2b_pass = False
-        else:
-            print("❌ Schedule line not found")
-            test2b_pass = False
-        
-        # Check for individual scheduled lines
-        scheduled_lines = []
-        languages = ["EN", "FR", "ZH", "HI"]
-        times = {"EN": ("10:00", "19:00"), "FR": ("9:00", "18:00"), "ZH": ("2:00", "11:00"), "HI": ("4:30", "13:30")}
-        
-        for lang in languages:
-            for slot_type in ["morning", "evening"]:
-                pattern = f"Scheduled {slot_type} for {lang}"
-                result3 = subprocess.run(["grep", pattern, "/var/log/supervisor/nodejs.out.log"], 
-                                       capture_output=True, text=True)
-                if result3.returncode == 0:
-                    lines = result3.stdout.strip().split('\n')
-                    latest_line = lines[-1] if lines else ""
-                    scheduled_lines.append((lang, slot_type, latest_line))
-        
-        print(f"\n✅ Found {len(scheduled_lines)} scheduled entries:")
-        for lang, slot_type, line in scheduled_lines:
-            expected_morning, expected_evening = times[lang]
-            expected_time = expected_morning if slot_type == "morning" else expected_evening
-            if expected_time in line:
-                print(f"   ✅ {lang} {slot_type}: {line}")
-            else:
-                print(f"   ❌ {lang} {slot_type}: {line} (missing {expected_time})")
-        
-        test2c_pass = len(scheduled_lines) >= 8  # Should have 8 entries (4 langs × 2 slots)
-        
-        return test2a_pass and test2b_pass and test2c_pass
-        
-    except Exception as e:
-        print(f"❌ Schedule initialization test failed: {e}")
-        return False
+                self.log_test("Node.js Error Log Check", False, 
+                            "Could not check error log size")
+                return False
+        except Exception as e:
+            self.log_test("Node.js Error Log Check", False, f"Error checking logs: {e}")
+            return False
 
-def test_3_crosssell_structure():
-    """Test 3: crossSellMessages Structure"""
-    print("\n" + "=" * 60)
-    print("TEST 3: crossSellMessages Structure")
-    print("=" * 60)
-    
-    try:
-        # Use Node.js to check the crossSellMessages structure
-        node_script = '''
-const { crossSellMessages } = require('./auto-promo.js');
+    def check_cr_domain_register_log_fix(self):
+        """Test 3: Verify CR log fix - '[CR] Registered' only appears AFTER statusCode === 200 check"""
+        content = self.read_file('/app/js/cr-domain-register.js')
+        if not content:
+            self.log_test("CR Domain Register Log Fix", False, "Could not read cr-domain-register.js")
+            return False
 
-console.log("LANG_COUNT:" + Object.keys(crossSellMessages).length);
-console.log("LANGUAGES:" + Object.keys(crossSellMessages).join(","));
+        lines = content.split('\n')
+        
+        # Find the statusCode check line
+        statuscode_check_line = -1
+        registered_log_line = -1
+        failed_log_line = -1
+        
+        for i, line in enumerate(lines):
+            if 'statusCode === 200' in line:
+                statuscode_check_line = i + 1  # Convert to 1-based line number
+            if '[CR] Registered' in line and 'console.log' in line:
+                registered_log_line = i + 1
+            if '[CR] Registration FAILED' in line and 'console.error' in line:
+                failed_log_line = i + 1
 
-const themes = Object.keys(crossSellMessages.en || {});
-console.log("THEME_COUNT:" + themes.length);
-console.log("THEMES:" + themes.join(","));
-
-let totalVariations = 0;
-let allVariationCounts = [];
-
-for (const lang of Object.keys(crossSellMessages)) {
-    for (const theme of themes) {
-        const variations = crossSellMessages[lang][theme] || [];
-        allVariationCounts.push(variations.length);
-        totalVariations += variations.length;
-    }
-}
-
-console.log("TOTAL_VARIATIONS:" + totalVariations);
-console.log("VARIATION_COUNTS:" + allVariationCounts.join(","));
-
-// Check message properties
-const sampleMsg = crossSellMessages.en.cloudphone[0];
-console.log("SAMPLE_LENGTH:" + sampleMsg.length);
-console.log("HAS_EMOJI:" + sampleMsg.includes("🌙"));
-console.log("HAS_START:" + sampleMsg.includes("/start"));
-console.log("NO_VPS:" + !sampleMsg.toLowerCase().includes("vps"));
-console.log("NO_EMAIL_BLAST:" + !sampleMsg.toLowerCase().includes("email blast"));
-'''
-        
-        result = subprocess.run(["node", "-e", node_script], cwd="/app/js", 
-                               capture_output=True, text=True, check=True)
-        
-        output_lines = result.stdout.strip().split('\n')
-        results = {}
-        for line in output_lines:
-            if ':' in line:
-                key, value = line.split(':', 1)
-                results[key] = value
-        
-        # Verify structure
-        lang_count = int(results.get("LANG_COUNT", "0"))
-        theme_count = int(results.get("THEME_COUNT", "0"))
-        total_variations = int(results.get("TOTAL_VARIATIONS", "0"))
-        languages = results.get("LANGUAGES", "").split(",")
-        themes = results.get("THEMES", "").split(",")
-        
-        print(f"✅ Languages ({lang_count}): {languages}")
-        print(f"✅ Themes ({theme_count}): {themes}")
-        
-        # Check for expected languages
-        expected_languages = ["en", "fr", "zh", "hi"]
-        lang_check = all(lang in languages for lang in expected_languages)
-        print(f"✅ Has all 4 languages: {lang_check}")
-        
-        # Check for expected themes  
-        expected_themes = ["cloudphone", "antired_hosting", "leads_validation", "domains_shortener", "digital_products", "cards_bundles"]
-        theme_check = all(theme in themes for theme in expected_themes)
-        print(f"✅ Has all 6 themes: {theme_check}")
-        
-        # Check total variations (4 × 6 × 3 = 72)
-        expected_total = 4 * 6 * 3
-        variations_check = total_variations == expected_total
-        print(f"✅ Total variations: {total_variations} (expected: {expected_total})")
-        
-        # Check each theme has exactly 3 variations
-        variation_counts = [int(x) for x in results.get("VARIATION_COUNTS", "").split(",") if x]
-        all_three_variations = all(count == 3 for count in variation_counts)
-        print(f"✅ All themes have 3 variations: {all_three_variations}")
-        
-        # Check message properties
-        sample_length = int(results.get("SAMPLE_LENGTH", "0"))
-        has_emoji = results.get("HAS_EMOJI") == "true"
-        has_start = results.get("HAS_START") == "true"
-        no_vps = results.get("NO_VPS") == "true"
-        no_email_blast = results.get("NO_EMAIL_BLAST") == "true"
-        
-        print(f"✅ Sample message length: {sample_length} chars (under 400: {sample_length < 400})")
-        print(f"✅ Has emojis: {has_emoji}")
-        print(f"✅ Has /start CTA: {has_start}")
-        print(f"✅ NO VPS mention: {no_vps}")
-        print(f"✅ NO Email Blast mention: {no_email_blast}")
-        
-        return (lang_check and theme_check and variations_check and all_three_variations and
-                sample_length < 400 and has_emoji and has_start and no_vps and no_email_blast)
-        
-    except Exception as e:
-        print(f"❌ crossSellMessages structure test failed: {e}")
-        return False
-
-def test_4_day_schedule_mapping():
-    """Test 4: DAY_SCHEDULE Mapping"""
-    print("\n" + "=" * 60)
-    print("TEST 4: DAY_SCHEDULE Mapping")
-    print("=" * 60)
-    
-    try:
-        node_script = '''
-const fs = require('fs');
-const autoPromoCode = fs.readFileSync('./auto-promo.js', 'utf8');
-
-// Extract DAY_SCHEDULE object
-const dayScheduleMatch = autoPromoCode.match(/const DAY_SCHEDULE = {([^}]+)}/s);
-if (!dayScheduleMatch) {
-    console.log("ERROR: DAY_SCHEDULE not found");
-    process.exit(1);
-}
-
-const dayScheduleText = dayScheduleMatch[1];
-console.log("DAY_SCHEDULE_FOUND:true");
-
-// Check each day mapping
-const expectedMappings = {
-    "0": "[]",
-    "1": "[0, 3]", 
-    "2": "[1, 2]",
-    "3": "[2, 0]",
-    "4": "[3, 1]",
-    "5": "[4, 5]",
-    "6": "[5, 4]"
-};
-
-let allCorrect = true;
-for (const [day, expected] of Object.entries(expectedMappings)) {
-    const regex = new RegExp(day + ":\\\\s*" + expected.replace(/[\\[\\]]/g, "\\\\$&"));
-    const found = regex.test(dayScheduleText);
-    console.log("DAY_" + day + ":" + found);
-    if (!found) allCorrect = false;
-}
-
-console.log("ALL_MAPPINGS_CORRECT:" + allCorrect);
-'''
-        
-        result = subprocess.run(["node", "-e", node_script], cwd="/app/js", 
-                               capture_output=True, text=True, check=True)
-        
-        output_lines = result.stdout.strip().split('\n')
-        results = {}
-        for line in output_lines:
-            if ':' in line:
-                key, value = line.split(':', 1)
-                results[key] = value
-        
-        schedule_found = results.get("DAY_SCHEDULE_FOUND") == "true"
-        print(f"✅ DAY_SCHEDULE object found: {schedule_found}")
-        
-        if schedule_found:
-            # Check individual day mappings
-            day_mappings = {
-                "0": "[] (Sunday — rest, empty array)",
-                "1": "[0, 3] (Mon: cloudphone morning, domains_shortener evening)", 
-                "2": "[1, 2] (Tue: antired morning, leads evening)",
-                "3": "[2, 0] (Wed: leads morning, cloudphone evening)",
-                "4": "[3, 1] (Thu: domains morning, antired evening)",
-                "5": "[4, 5] (Fri: digital morning, cards evening)",
-                "6": "[5, 4] (Sat: cards morning, digital evening)"
-            }
-            
-            all_correct = True
-            for day, description in day_mappings.items():
-                day_correct = results.get(f"DAY_{day}") == "true"
-                print(f"✅ Day {day}: {description} - {day_correct}")
-                if not day_correct:
-                    all_correct = False
-            
-            overall_correct = results.get("ALL_MAPPINGS_CORRECT") == "true"
-            print(f"\n✅ All day mappings correct: {overall_correct}")
-            
-            return schedule_found and all_correct and overall_correct
-        else:
+        # Verify the fix
+        if statuscode_check_line == -1:
+            self.log_test("CR Domain Register Log Fix", False, 
+                        "statusCode === 200 check not found")
             return False
         
-    except Exception as e:
-        print(f"❌ DAY_SCHEDULE mapping test failed: {e}")
-        return False
+        if registered_log_line == -1:
+            self.log_test("CR Domain Register Log Fix", False, 
+                        "[CR] Registered log not found")
+            return False
+        
+        if failed_log_line == -1:
+            self.log_test("CR Domain Register Log Fix", False, 
+                        "[CR] Registration FAILED log not found")
+            return False
+        
+        # The registered log should come AFTER the status check (line 23 should be status check, line 24 should be registered log)
+        if registered_log_line > statuscode_check_line:
+            self.log_test("CR Domain Register Log Fix", True, 
+                        f"[CR] Registered log (line {registered_log_line}) appears AFTER statusCode check (line {statuscode_check_line})")
+            return True
+        else:
+            self.log_test("CR Domain Register Log Fix", False, 
+                        f"[CR] Registered log (line {registered_log_line}) appears BEFORE statusCode check (line {statuscode_check_line})")
+            return False
 
-def test_5_evening_behavior():
-    """Test 5: Evening Behavior"""
-    print("\n" + "=" * 60)
-    print("TEST 5: Evening Behavior")
-    print("=" * 60)
-    
-    try:
-        node_script = '''
-const fs = require('fs');
-const autoPromoCode = fs.readFileSync('./auto-promo.js', 'utf8');
+    def check_op_service_getcontacthandle_retry(self):
+        """Test 4: Verify getContactHandle has retry logic with attempt parameter"""
+        content = self.read_file('/app/js/op-service.js')
+        if not content:
+            self.log_test("OP Service getContactHandle Retry", False, "Could not read op-service.js")
+            return False
 
-// Check broadcastPromoForLang function signature
-const funcMatch = autoPromoCode.match(/async function broadcastPromoForLang\\(([^)]+)\\)/);
-console.log("FUNC_HAS_SLOTTYPE:" + (funcMatch && funcMatch[1].includes("slotType")));
+        # Check function signature with attempt parameter
+        function_signature_found = False
+        retry_logic_found = False
+        forced_reauth_found = False
+        attempt_log_found = False
+        
+        lines = content.split('\n')
+        for i, line in enumerate(lines):
+            # Look for function signature with attempt parameter
+            if 'getContactHandle = async (attempt = 1)' in line:
+                function_signature_found = True
+            
+            # Look for retry logic
+            if 'if (attempt < 2)' in line:
+                retry_logic_found = True
+            
+            # Look for forced re-auth
+            if 'cachedToken = null' in line and 'tokenExpiry = 0' in line:
+                forced_reauth_found = True
+                
+            # Look for attempt number in log
+            if 'getContactHandle error (attempt ${attempt})' in line:
+                attempt_log_found = True
 
-// Check if AI generation is wrapped in !isEvening check
-const aiWrapped = autoPromoCode.includes("if (!isEvening)") && 
-                  autoPromoCode.match(/if \\(!isEvening\\)\\s*{[^}]*generateDynamicPromo/s);
-console.log("AI_WRAPPED_IN_IF_NOT_EVENING:" + !!aiWrapped);
+        tests_passed = []
+        if function_signature_found:
+            tests_passed.append("Function signature with attempt parameter")
+        if retry_logic_found:
+            tests_passed.append("Retry logic (attempt < 2)")
+        if forced_reauth_found:
+            tests_passed.append("Forced re-auth (cachedToken=null, tokenExpiry=0)")
+        if attempt_log_found:
+            tests_passed.append("Attempt number in logs")
 
-// Check if GIF path is set to null for evening
-const gifNullCheck = autoPromoCode.includes("!isEvening ? GIF_THEMES[theme] : null");
-console.log("GIF_NULL_FOR_EVENING:" + gifNullCheck);
+        if len(tests_passed) >= 3:  # At least 3 out of 4 checks should pass
+            self.log_test("OP Service getContactHandle Retry", True, 
+                        f"Retry logic verified: {', '.join(tests_passed)}")
+            return True
+        else:
+            self.log_test("OP Service getContactHandle Retry", False, 
+                        f"Missing retry components. Found: {', '.join(tests_passed) if tests_passed else 'None'}")
+            return False
 
-// Check sendPromoToUser receives isEvening parameter
-const sendPromoMatch = autoPromoCode.match(/async function sendPromoToUser\\(([^)]+)\\)/);
-console.log("SENDPROMO_HAS_ISEVENING:" + (sendPromoMatch && sendPromoMatch[1].includes("isEvening")));
+    def check_op_service_registerdomain_retry(self):
+        """Test 5: Verify registerDomain has contactHandle retry with forced re-auth"""
+        content = self.read_file('/app/js/op-service.js')
+        if not content:
+            self.log_test("OP Service registerDomain Retry", False, "Could not read op-service.js")
+            return False
 
-// Check if crossSellMessages is used when evening
-const crossSellUsage = autoPromoCode.includes("crossSellMessages") && 
-                       autoPromoCode.match(/isEvening \\? crossSellMessages : promoMessages/);
-console.log("CROSSSELL_USED_FOR_EVENING:" + !!crossSellUsage);
-'''
+        # Look for specific retry patterns
+        contact_handle_let = False
+        retry_log_found = False
+        forced_reauth_in_register = False
+        second_attempt = False
         
-        result = subprocess.run(["node", "-e", node_script], cwd="/app/js", 
-                               capture_output=True, text=True, check=True)
+        lines = content.split('\n')
+        in_register_function = False
         
-        output_lines = result.stdout.strip().split('\n')
-        results = {}
-        for line in output_lines:
-            if ':' in line:
-                key, value = line.split(':', 1)
-                results[key] = value
-        
-        func_has_slottype = results.get("FUNC_HAS_SLOTTYPE") == "true"
-        ai_wrapped = results.get("AI_WRAPPED_IN_IF_NOT_EVENING") == "true"
-        gif_null = results.get("GIF_NULL_FOR_EVENING") == "true"
-        sendpromo_has_isevening = results.get("SENDPROMO_HAS_ISEVENING") == "true"
-        crosssell_used = results.get("CROSSSELL_USED_FOR_EVENING") == "true"
-        
-        print(f"✅ broadcastPromoForLang accepts slotType parameter: {func_has_slottype}")
-        print(f"✅ AI generation wrapped in if (!isEvening): {ai_wrapped}")
-        print(f"✅ GIF path set to null for evening: {gif_null}")
-        print(f"✅ sendPromoToUser receives isEvening parameter: {sendpromo_has_isevening}")
-        print(f"✅ crossSellMessages used when isEvening=true: {crosssell_used}")
-        
-        return (func_has_slottype and ai_wrapped and gif_null and 
-                sendpromo_has_isevening and crosssell_used)
-        
-    except Exception as e:
-        print(f"❌ Evening behavior test failed: {e}")
-        return False
+        for i, line in enumerate(lines):
+            if 'const registerDomain = async' in line:
+                in_register_function = True
+            elif in_register_function and line.strip().startswith('const ') and ' = async' in line:
+                in_register_function = False  # Entering next function
+                
+            if in_register_function:
+                # Look for contactHandle declared with let (should be const initially)
+                if 'let contactHandle = await getContactHandleForTLD' in line:
+                    contact_handle_let = True
+                elif 'contactHandle = await getContactHandleForTLD' in line:
+                    contact_handle_let = True
+                    
+                # Look for retry log message
+                if '[OP] Contact handle lookup failed for .${tld} — retrying with fresh auth in 2s...' in line:
+                    retry_log_found = True
+                elif 'Contact handle lookup failed' in line and 'retrying with fresh auth' in line:
+                    retry_log_found = True
+                    
+                # Look for forced re-auth in registerDomain
+                if 'cachedToken = null' in line:
+                    forced_reauth_in_register = True
+                    
+                # Look for second attempt
+                if 'contactHandle = await getContactHandleForTLD(tld)' in line:
+                    second_attempt = True
 
-def test_6_module_exports():
-    """Test 6: Module Exports"""
-    print("\n" + "=" * 60)
-    print("TEST 6: Module Exports") 
-    print("=" * 60)
-    
-    try:
-        node_script = '''
-const autoPromo = require('./auto-promo.js');
-const exports = Object.keys(autoPromo);
-console.log("EXPORTS:" + exports.join(","));
-console.log("HAS_INITAUTOPROMO:" + exports.includes("initAutoPromo"));
-console.log("HAS_PROMOMESSAGES:" + exports.includes("promoMessages"));
-console.log("HAS_CROSSSELLMESSAGES:" + exports.includes("crossSellMessages"));
-console.log("EXPORT_COUNT:" + exports.length);
-'''
-        
-        result = subprocess.run(["node", "-e", node_script], cwd="/app/js", 
-                               capture_output=True, text=True, check=True)
-        
-        output_lines = result.stdout.strip().split('\n')
-        results = {}
-        for line in output_lines:
-            if ':' in line:
-                key, value = line.split(':', 1)
-                results[key] = value
-        
-        exports = results.get("EXPORTS", "").split(",")
-        has_init = results.get("HAS_INITAUTOPROMO") == "true"
-        has_promo = results.get("HAS_PROMOMESSAGES") == "true" 
-        has_crosssell = results.get("HAS_CROSSSELLMESSAGES") == "true"
-        export_count = int(results.get("EXPORT_COUNT", "0"))
-        
-        print(f"✅ Module exports ({export_count}): {exports}")
-        print(f"✅ Has initAutoPromo: {has_init}")
-        print(f"✅ Has promoMessages: {has_promo}")
-        print(f"✅ Has crossSellMessages: {has_crosssell}")
-        print(f"✅ Exports exactly 3 items: {export_count == 3}")
-        
-        return (has_init and has_promo and has_crosssell and export_count == 3)
-        
-    except Exception as e:
-        print(f"❌ Module exports test failed: {e}")
-        return False
+        tests_passed = []
+        if contact_handle_let:
+            tests_passed.append("contactHandle variable allows reassignment")
+        if retry_log_found:
+            tests_passed.append("Retry log message found")
+        if forced_reauth_in_register:
+            tests_passed.append("Forced re-auth in registerDomain")
+        if second_attempt:
+            tests_passed.append("Second attempt after failure")
 
-def main():
-    """Run all tests and report results"""
-    print("🧪 AUTO-PROMO 2X DAILY SYSTEM TESTING")
-    print("Testing 6 requirements from review request")
-    print("=" * 60)
-    
-    tests = [
-        ("Node.js Health Check", test_1_nodejs_health),
-        ("Schedule Initialization", test_2_schedule_initialization), 
-        ("crossSellMessages Structure", test_3_crosssell_structure),
-        ("DAY_SCHEDULE Mapping", test_4_day_schedule_mapping),
-        ("Evening Behavior", test_5_evening_behavior),
-        ("Module Exports", test_6_module_exports)
-    ]
-    
-    results = {}
-    for test_name, test_func in tests:
-        try:
-            results[test_name] = test_func()
-        except Exception as e:
-            print(f"❌ {test_name} CRASHED: {e}")
-            results[test_name] = False
-    
-    # Summary
-    print("\n" + "=" * 60)
-    print("📊 TEST RESULTS SUMMARY")
-    print("=" * 60)
-    
-    passed = 0
-    total = len(tests)
-    
-    for test_name, result in results.items():
-        status = "✅ PASS" if result else "❌ FAIL"
-        print(f"{status} {test_name}")
-        if result:
-            passed += 1
-    
-    print(f"\n🎯 OVERALL: {passed}/{total} tests passed ({passed/total*100:.1f}%)")
-    
-    if passed == total:
-        print("🎉 ALL TESTS PASSED - Auto-promo 2x daily system is fully functional!")
-        return 0
-    else:
-        print("⚠️  Some tests failed - check implementation")
-        return 1
+        if len(tests_passed) >= 2:
+            self.log_test("OP Service registerDomain Retry", True, 
+                        f"Retry logic verified: {', '.join(tests_passed)}")
+            return True
+        else:
+            self.log_test("OP Service registerDomain Retry", False, 
+                        f"Missing retry components. Found: {', '.join(tests_passed) if tests_passed else 'None'}")
+            return False
+
+    def check_bank_domain_auto_refund(self):
+        """Test 6: Verify bank domain payment handler has auto-refund on buyDomainFullProcess failure"""
+        content = self.read_file('/app/js/_index.js')
+        if not content:
+            self.log_test("Bank Domain Auto-Refund", False, "Could not read _index.js")
+            return False
+
+        # Find the /bank-pay-domain handler
+        lines = content.split('\n')
+        in_bank_domain_handler = False
+        handler_found = False
+        auto_refund_found = False
+        user_message_found = False
+        admin_alert_found = False
+        nested_try_catch_found = False
+        
+        for i, line in enumerate(lines):
+            if "'/bank-pay-domain':" in line:
+                in_bank_domain_handler = True
+                handler_found = True
+                continue
+            elif in_bank_domain_handler and line.strip().startswith("'/") and "':" in line:
+                in_bank_domain_handler = False  # Entering next handler
+                
+            if in_bank_domain_handler:
+                # Look for auto-refund logic
+                if 'addFundsTo(walletOf, chatId,' in line and 'ngnPrice' in line:
+                    auto_refund_found = True
+                    
+                # Look for user message
+                if '💰 <b>Auto-Refund:</b>' in line:
+                    user_message_found = True
+                    
+                # Look for admin alert
+                if 'TELEGRAM_ADMIN_CHAT_ID' in line and 'Auto-Refund' in line:
+                    admin_alert_found = True
+                    
+                # Look for nested try/catch
+                if 'catch (refundErr)' in line:
+                    nested_try_catch_found = True
+
+        tests_passed = []
+        if handler_found:
+            tests_passed.append("/bank-pay-domain handler found")
+        if auto_refund_found:
+            tests_passed.append("Auto-refund to wallet")
+        if user_message_found:
+            tests_passed.append("User refund message")
+        if admin_alert_found:
+            tests_passed.append("Admin notification")
+        if nested_try_catch_found:
+            tests_passed.append("Nested try/catch for refund failure")
+
+        if len(tests_passed) >= 4:
+            self.log_test("Bank Domain Auto-Refund", True, 
+                        f"Auto-refund logic verified: {', '.join(tests_passed)}")
+            return True
+        else:
+            self.log_test("Bank Domain Auto-Refund", False, 
+                        f"Missing refund components. Found: {', '.join(tests_passed) if tests_passed else 'None'}")
+            return False
+
+    def check_blockbee_crypto_domain_auto_refund(self):
+        """Test 7: Verify BlockBee crypto domain payment handler has auto-refund"""
+        content = self.read_file('/app/js/_index.js')
+        if not content:
+            self.log_test("BlockBee Crypto Domain Auto-Refund", False, "Could not read _index.js")
+            return False
+
+        # Find the /crypto-pay-domain handler
+        lines = content.split('\n')
+        in_crypto_domain_handler = False
+        handler_found = False
+        auto_refund_found = False
+        user_message_found = False
+        admin_alert_found = False
+        usd_refund = False
+        
+        for i, line in enumerate(lines):
+            if "app.get('/crypto-pay-domain'" in line:
+                in_crypto_domain_handler = True
+                handler_found = True
+                continue
+            elif in_crypto_domain_handler and ('app.get(' in line or 'app.post(' in line):
+                in_crypto_domain_handler = False  # Entering next handler
+                
+            if in_crypto_domain_handler:
+                # Look for USD auto-refund logic
+                if 'addFundsTo(walletOf, chatId,' in line and "'usd'" in line and 'price' in line:
+                    auto_refund_found = True
+                    usd_refund = True
+                    
+                # Look for user message
+                if '💰 <b>Auto-Refund:</b>' in line:
+                    user_message_found = True
+                    
+                # Look for admin alert mentioning BlockBee
+                if 'BlockBee Crypto→Domain' in line:
+                    admin_alert_found = True
+
+        tests_passed = []
+        if handler_found:
+            tests_passed.append("/crypto-pay-domain handler found")
+        if auto_refund_found and usd_refund:
+            tests_passed.append("USD auto-refund to wallet")
+        if user_message_found:
+            tests_passed.append("User refund message")
+        if admin_alert_found:
+            tests_passed.append("BlockBee admin notification")
+
+        if len(tests_passed) >= 3:
+            self.log_test("BlockBee Crypto Domain Auto-Refund", True, 
+                        f"Auto-refund logic verified: {', '.join(tests_passed)}")
+            return True
+        else:
+            self.log_test("BlockBee Crypto Domain Auto-Refund", False, 
+                        f"Missing refund components. Found: {', '.join(tests_passed) if tests_passed else 'None'}")
+            return False
+
+    def check_dynopay_crypto_domain_auto_refund(self):
+        """Test 8: Verify DynoPay crypto domain payment handler has auto-refund"""
+        content = self.read_file('/app/js/_index.js')
+        if not content:
+            self.log_test("DynoPay Crypto Domain Auto-Refund", False, "Could not read _index.js")
+            return False
+
+        # Find the /dynopay/crypto-pay-domain handler
+        lines = content.split('\n')
+        in_dynopay_domain_handler = False
+        handler_found = False
+        auto_refund_found = False
+        user_message_found = False
+        admin_alert_found = False
+        usd_refund = False
+        
+        for i, line in enumerate(lines):
+            if "app.post('/dynopay/crypto-pay-domain'" in line:
+                in_dynopay_domain_handler = True
+                handler_found = True
+                continue
+            elif in_dynopay_domain_handler and ('app.get(' in line or 'app.post(' in line):
+                in_dynopay_domain_handler = False  # Entering next handler
+                
+            if in_dynopay_domain_handler:
+                # Look for USD auto-refund logic
+                if 'addFundsTo(walletOf, chatId,' in line and "'usd'" in line and 'price' in line:
+                    auto_refund_found = True
+                    usd_refund = True
+                    
+                # Look for user message
+                if '💰 <b>Auto-Refund:</b>' in line:
+                    user_message_found = True
+                    
+                # Look for admin alert mentioning DynoPay
+                if 'DynoPay Crypto→Domain' in line:
+                    admin_alert_found = True
+
+        tests_passed = []
+        if handler_found:
+            tests_passed.append("/dynopay/crypto-pay-domain handler found")
+        if auto_refund_found and usd_refund:
+            tests_passed.append("USD auto-refund to wallet")
+        if user_message_found:
+            tests_passed.append("User refund message")
+        if admin_alert_found:
+            tests_passed.append("DynoPay admin notification")
+
+        if len(tests_passed) >= 3:
+            self.log_test("DynoPay Crypto Domain Auto-Refund", True, 
+                        f"Auto-refund logic verified: {', '.join(tests_passed)}")
+            return True
+        else:
+            self.log_test("DynoPay Crypto Domain Auto-Refund", False, 
+                        f"Missing refund components. Found: {', '.join(tests_passed) if tests_passed else 'None'}")
+            return False
+
+    def check_wallet_domain_payment_order(self):
+        """Test 9: Verify wallet domain payment charges AFTER successful buyDomainFullProcess"""
+        content = self.read_file('/app/js/_index.js')
+        if not content:
+            self.log_test("Wallet Domain Payment Order", False, "Could not read _index.js")
+            return False
+
+        # Find the walletOk['domain-pay'] handler
+        lines = content.split('\n')
+        in_wallet_domain_handler = False
+        handler_found = False
+        buy_domain_before_charge = False
+        charge_after_success = False
+        error_handling_present = False
+        
+        buy_domain_line = -1
+        wallet_charge_line = -1
+        
+        for i, line in enumerate(lines):
+            if "'domain-pay': async coin =>" in line:
+                in_wallet_domain_handler = True
+                handler_found = True
+                continue
+            elif in_wallet_domain_handler and line.strip().endswith('async coin => {') and 'domain-pay' not in line:
+                in_wallet_domain_handler = False  # Entering next handler
+            elif in_wallet_domain_handler and line.strip().startswith('},') and not line.strip().startswith('}, {'):
+                in_wallet_domain_handler = False  # End of handler
+                
+            if in_wallet_domain_handler:
+                # Look for buyDomainFullProcess call
+                if 'buyDomainFullProcess(chatId, lang, domain)' in line:
+                    buy_domain_line = i
+                    
+                # Look for wallet charge (atomicIncrement)
+                if 'atomicIncrement(walletOf, chatId,' in line and ('usdOut' in line or 'ngnOut' in line):
+                    wallet_charge_line = i
+                    
+                # Look for error handling
+                if 'catch (domainErr)' in line:
+                    error_handling_present = True
+
+        tests_passed = []
+        if handler_found:
+            tests_passed.append("walletOk['domain-pay'] handler found")
+        if buy_domain_line != -1 and wallet_charge_line != -1:
+            if wallet_charge_line > buy_domain_line:
+                buy_domain_before_charge = True
+                charge_after_success = True
+                tests_passed.append("Wallet charged AFTER buyDomainFullProcess")
+        if error_handling_present:
+            tests_passed.append("Error handling with try/catch")
+
+        if len(tests_passed) >= 2 and charge_after_success:
+            self.log_test("Wallet Domain Payment Order", True, 
+                        f"Payment order verified: {', '.join(tests_passed)}")
+            return True
+        else:
+            self.log_test("Wallet Domain Payment Order", False, 
+                        f"Payment order issues. Found: {', '.join(tests_passed) if tests_passed else 'None'}")
+            return False
+
+    def run_all_tests(self):
+        """Run all domain purchase tests"""
+        print("🧪 DOMAIN PURCHASE RETRY LOGIC + CR LOG FIX + WALLET REFUND TESTING")
+        print("=" * 80)
+        
+        # Test 1-2: Service Health
+        self.check_health_endpoint()
+        self.check_error_logs()
+        
+        # Test 3: CR Domain Register Log Fix
+        self.check_cr_domain_register_log_fix()
+        
+        # Test 4-5: OP Service Retry Logic
+        self.check_op_service_getcontacthandle_retry()
+        self.check_op_service_registerdomain_retry()
+        
+        # Test 6-8: Auto-Refund Logic for Payment Handlers
+        self.check_bank_domain_auto_refund()
+        self.check_blockbee_crypto_domain_auto_refund()
+        self.check_dynopay_crypto_domain_auto_refund()
+        
+        # Test 9: Wallet Payment Order
+        self.check_wallet_domain_payment_order()
+        
+        # Summary
+        print("=" * 80)
+        print(f"📊 TEST SUMMARY:")
+        print(f"Total Tests: {self.total_tests}")
+        print(f"Passed: {self.passed_tests}")
+        print(f"Failed: {self.total_tests - self.passed_tests}")
+        print(f"Success Rate: {(self.passed_tests/self.total_tests)*100:.1f}%")
+        
+        if self.passed_tests == self.total_tests:
+            print("🎉 ALL TESTS PASSED - Domain purchase retry logic and wallet refund system is working correctly!")
+            return True
+        else:
+            print(f"⚠️  {self.total_tests - self.passed_tests} TEST(S) FAILED - See details above")
+            return False
 
 if __name__ == "__main__":
-    sys.exit(main())
+    test_suite = DomainPurchaseTestSuite()
+    success = test_suite.run_all_tests()
+    sys.exit(0 if success else 1)

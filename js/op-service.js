@@ -301,7 +301,7 @@ const getContactHandleForTLD = async (tld) => {
   }
 }
 
-const getContactHandle = async () => {
+const getContactHandle = async (attempt = 1) => {
   try {
     const headers = await authHeaders()
 
@@ -332,7 +332,15 @@ const getContactHandle = async () => {
     log('Failed to create OP contact handle:', createRes.data)
     return null
   } catch (err) {
-    log('OP getContactHandle error:', err.message)
+    log(`OP getContactHandle error (attempt ${attempt}): ${err.message}`)
+    // Retry once with forced re-auth (handles expired/stale token)
+    if (attempt < 2) {
+      log('[OP] getContactHandle retrying with fresh auth in 2s...')
+      cachedToken = null
+      tokenExpiry = 0
+      await new Promise(r => setTimeout(r, 2000))
+      return getContactHandle(attempt + 1)
+    }
     return null
   }
 }
@@ -346,7 +354,15 @@ const registerDomain = async (domainName, nameservers = []) => {
     const tld = extension.toLowerCase()
 
     // Use TLD-specific contact handle (IT for .fr/.it, CA for .ca, EU for .eu, default US for others)
-    const contactHandle = await getContactHandleForTLD(tld)
+    let contactHandle = await getContactHandleForTLD(tld)
+    if (!contactHandle) {
+      // Retry once with forced re-auth (handles transient auth/network failures)
+      log(`[OP] Contact handle lookup failed for .${tld} — retrying with fresh auth in 2s...`)
+      cachedToken = null
+      tokenExpiry = 0
+      await new Promise(r => setTimeout(r, 2000))
+      contactHandle = await getContactHandleForTLD(tld)
+    }
     if (!contactHandle) return { error: 'Failed to prepare domain registration. Please try again or contact support.' }
 
     // Resolve effective nameservers:
