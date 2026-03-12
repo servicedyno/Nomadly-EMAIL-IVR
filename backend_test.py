@@ -1,301 +1,308 @@
 #!/usr/bin/env python3
 """
-AI Support Admin Takeover Feature Testing
-Tests all required functionality for the admin takeover feature in Nomadly Telegram Bot
+Backend Testing for Nomadly Telegram Bot - viewHostingPlan TDZ Crash Fix
+==========================================================================
+This test verifies the fix for the TDZ (Temporal Dead Zone) issue in the viewHostingPlanDetails function
+where isWeekly was used before its declaration, causing ReferenceError crashes.
 """
 
 import requests
 import json
-import re
+import subprocess
 import os
+import sys
 from datetime import datetime
 
-class AITakeoverTester:
+class TDZFixTester:
     def __init__(self):
         self.base_url = "http://localhost:5000"
         self.test_results = []
         
-    def log_test(self, test_name, passed, details=""):
+    def log_test_result(self, test_name, success, details=""):
+        """Log test results for reporting"""
+        status = "✅ PASS" if success else "❌ FAIL"
         self.test_results.append({
             'test': test_name,
-            'passed': passed,
-            'details': details,
-            'timestamp': datetime.now().isoformat()
+            'success': success,
+            'status': status,
+            'details': details
         })
-        status = "✅ PASS" if passed else "❌ FAIL"
         print(f"{status}: {test_name}")
-        if details:
-            print(f"   Details: {details}")
-        print()
-    
+        if details and not success:
+            print(f"    Details: {details}")
+            
     def test_nodejs_health(self):
-        """Test 1: Node.js Health - GET /health should return 200 and err.log should be 0 bytes"""
+        """Test 1: Node.js Health Check"""
         try:
             response = requests.get(f"{self.base_url}/health", timeout=10)
             
-            # Check HTTP 200
-            http_ok = response.status_code == 200
-            
-            # Check response structure
-            data = response.json()
-            status_ok = data.get('status') == 'healthy'
-            db_ok = data.get('database') == 'connected'
-            
-            # Check error log is empty
-            err_log_size = os.path.getsize('/var/log/supervisor/nodejs.err.log')
-            err_log_ok = err_log_size == 0
-            
-            all_passed = http_ok and status_ok and db_ok and err_log_ok
-            details = f"HTTP: {response.status_code}, Status: {data.get('status')}, DB: {data.get('database')}, ErrorLog: {err_log_size} bytes"
-            
-            self.log_test("Node.js Health Check", all_passed, details)
-            return all_passed
-            
-        except Exception as e:
-            self.log_test("Node.js Health Check", False, f"Exception: {str(e)}")
-            return False
-    
-    def read_js_file(self):
-        """Read the js/_index.js file for code inspection"""
-        try:
-            with open('/app/js/_index.js', 'r', encoding='utf-8') as f:
-                return f.read()
-        except Exception as e:
-            print(f"Error reading js/_index.js: {str(e)}")
-            return None
-    
-    def test_admin_reply_sets_takeover(self, js_content):
-        """Test 2: Admin /reply sets adminTakeover to true"""
-        try:
-            # Search for the /reply handler - more flexible pattern
-            reply_pattern = r"message\.startsWith\(['\"]\/reply\s"
-            reply_match = re.search(reply_pattern, js_content)
-            
-            if not reply_match:
-                self.log_test("Admin /reply handler exists", False, "Handler not found")
-                return False
-            
-            # Find the takeover setting after reply handler
-            takeover_pattern = r"set\(state,\s*targetChatId,\s*['\"]adminTakeover['\"],\s*true\)"
-            takeover_match = re.search(takeover_pattern, js_content)
-            
-            # Check for log message mentioning admin takeover ON
-            log_pattern = r"admin takeover ON"
-            log_match = re.search(log_pattern, js_content)
-            
-            all_checks = takeover_match and log_match
-            details = f"Takeover set: {'✓' if takeover_match else '✗'}, Log message: {'✓' if log_match else '✗'}"
-            
-            self.log_test("Admin /reply sets adminTakeover", all_checks, details)
-            return all_checks
-            
-        except Exception as e:
-            self.log_test("Admin /reply sets adminTakeover", False, f"Exception: {str(e)}")
-            return False
-    
-    def test_admin_close_clears_takeover(self, js_content):
-        """Test 3: Admin /close clears adminTakeover to false"""
-        try:
-            # Search for the /close handler
-            close_pattern = r"message\.startsWith\(['\"]\/close\s"
-            close_match = re.search(close_pattern, js_content)
-            
-            if not close_match:
-                self.log_test("Admin /close handler exists", False, "Handler not found")
-                return False
-            
-            # Find the takeover clearing after close handler  
-            clear_pattern = r"set\(state,\s*targetChatId,\s*['\"]adminTakeover['\"],\s*false\)"
-            clear_match = re.search(clear_pattern, js_content)
-            
-            # Check for log message mentioning admin takeover OFF
-            log_pattern = r"admin takeover OFF"
-            log_match = re.search(log_pattern, js_content)
-            
-            all_checks = clear_match and log_match
-            details = f"Takeover cleared: {'✓' if clear_match else '✗'}, Log message: {'✓' if log_match else '✗'}"
-            
-            self.log_test("Admin /close clears adminTakeover", all_checks, details)
-            return all_checks
-            
-        except Exception as e:
-            self.log_test("Admin /close clears adminTakeover", False, f"Exception: {str(e)}")
-            return False
-    
-    def test_user_done_clears_takeover(self, js_content):
-        """Test 4: User /done clears adminTakeover to false"""
-        try:
-            # Search for the specific line we found
-            done_line = "if (message === '/done' && action === a.supportChat)"
-            if done_line not in js_content:
-                self.log_test("User /done handler exists", False, "Handler not found")
-                return False
-            
-            # Find the position and check surrounding code
-            pos = js_content.find(done_line)
-            done_section = js_content[pos:pos + 500]
-            
-            # Check for the specific patterns we know exist
-            clear_match = "await set(state, chatId, 'adminTakeover', false)" in done_section
-            log_match = "admin takeover OFF" in done_section
-            
-            all_checks = clear_match and log_match
-            details = f"Takeover cleared: {'✓' if clear_match else '✗'}, Log message: {'✓' if log_match else '✗'}"
-            
-            self.log_test("User /done clears adminTakeover", all_checks, details)
-            return all_checks
-            
-        except Exception as e:
-            self.log_test("User /done clears adminTakeover", False, f"Exception: {str(e)}")
-            return False
-    
-    def test_new_session_clears_takeover(self, js_content):
-        """Test 5: New session clears adminTakeover to false"""
-        try:
-            # Search for contactSupport or getSupport handler
-            support_pattern = r"user\.contactSupport|user\.getSupport"
-            support_matches = re.finditer(support_pattern, js_content)
-            
-            found_clear = False
-            found_log = False
-            
-            for match in support_matches:
-                # Look around the match for takeover clearing
-                start_pos = max(0, match.start() - 200)
-                end_pos = min(len(js_content), match.end() + 500)
-                section = js_content[start_pos:end_pos]
+            if response.status_code == 200:
+                data = response.json()
+                expected_keys = ["status", "database"]
                 
-                clear_pattern = r"set\(state,\s*chatId,\s*['\"]adminTakeover['\"],\s*false\)"
-                log_pattern = r"fresh session"
+                if data.get("status") == "healthy" and data.get("database") == "connected":
+                    self.log_test_result("Node.js Health Check", True, 
+                        f"Status: {data.get('status')}, Database: {data.get('database')}")
+                    return True
+                else:
+                    self.log_test_result("Node.js Health Check", False, 
+                        f"Invalid response data: {data}")
+                    return False
+            else:
+                self.log_test_result("Node.js Health Check", False, 
+                    f"HTTP {response.status_code}: {response.text}")
+                return False
                 
-                if re.search(clear_pattern, section):
-                    found_clear = True
-                if re.search(log_pattern, section):
-                    found_log = True
-            
-            all_checks = found_clear and found_log
-            details = f"Takeover cleared: {'✓' if found_clear else '✗'}, Fresh session log: {'✓' if found_log else '✗'}"
-            
-            self.log_test("New session clears adminTakeover", all_checks, details)
-            return all_checks
-            
-        except Exception as e:
-            self.log_test("New session clears adminTakeover", False, f"Exception: {str(e)}")
+        except requests.exceptions.RequestException as e:
+            self.log_test_result("Node.js Health Check", False, f"Request failed: {e}")
             return False
-    
-    def test_support_handler_checks_takeover(self, js_content):
-        """Test 6: Support handler checks adminTakeover flag"""
+            
+    def test_error_log_empty(self):
+        """Test 2: Verify nodejs.err.log is empty"""
         try:
-            # Find the specific line we found
-            support_line = "if (action === a.supportChat)"
-            if support_line not in js_content:
-                self.log_test("Support chat handler exists", False, "Handler not found")
+            error_log_path = "/var/log/supervisor/nodejs.err.log"
+            
+            if os.path.exists(error_log_path):
+                file_size = os.path.getsize(error_log_path)
+                if file_size == 0:
+                    self.log_test_result("Error Log Empty Check", True, 
+                        f"{error_log_path} is empty (0 bytes)")
+                    return True
+                else:
+                    # Read first 500 chars of error log to see what errors exist
+                    with open(error_log_path, 'r') as f:
+                        error_content = f.read(500)
+                    self.log_test_result("Error Log Empty Check", False, 
+                        f"{error_log_path} has {file_size} bytes. Content: {error_content}")
+                    return False
+            else:
+                self.log_test_result("Error Log Empty Check", False, 
+                    f"{error_log_path} does not exist")
+                return False
+                
+        except Exception as e:
+            self.log_test_result("Error Log Empty Check", False, f"Error checking log: {e}")
+            return False
+            
+    def test_isweekly_tdz_fix(self):
+        """Test 3: Verify isWeekly TDZ fix in viewHostingPlanDetails function"""
+        try:
+            index_js_path = "/app/js/_index.js"
+            
+            if not os.path.exists(index_js_path):
+                self.log_test_result("isWeekly TDZ Fix", False, f"{index_js_path} not found")
                 return False
             
-            # Find the position and get surrounding code
-            pos = js_content.find(support_line)
-            support_section = js_content[pos:pos + 1000]
+            # Read the file and find the viewHostingPlanDetails function
+            with open(index_js_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
             
-            # Check for the specific patterns we know exist
-            checks = {
-                'state_read': "const stateObj = await get(state, chatId)" in support_section,
-                'takeover_extract': "const isAdminTakeover = stateObj?.adminTakeover === true" in support_section,
-                'takeover_indicator': "Admin takeover active" in support_section,
-                'skip_ai': "if (isAdminTakeover)" in support_section,
-                'msg_received': "t.supportMsgReceived" in support_section
-            }
+            # Find the function start
+            function_start_line = None
+            for i, line in enumerate(lines):
+                if 'viewHostingPlanDetails: async (domain) => {' in line:
+                    function_start_line = i
+                    break
             
-            all_passed = all(checks.values())
-            details = f"State read: {'✓' if checks['state_read'] else '✗'}, " + \
-                     f"Takeover extract: {'✓' if checks['takeover_extract'] else '✗'}, " + \
-                     f"Indicator: {'✓' if checks['takeover_indicator'] else '✗'}, " + \
-                     f"Skip AI: {'✓' if checks['skip_ai'] else '✗'}, " + \
-                     f"Msg received: {'✓' if checks['msg_received'] else '✗'}"
-            
-            self.log_test("Support handler checks adminTakeover", all_passed, details)
-            return all_passed
-            
-        except Exception as e:
-            self.log_test("Support handler checks adminTakeover", False, f"Exception: {str(e)}")
-            return False
-    
-    def test_flow_integrity(self, js_content):
-        """Test 7: Flow integrity - verify proper return structure"""
-        try:
-            # Find the specific line we found
-            support_line = "if (action === a.supportChat)"
-            if support_line not in js_content:
-                self.log_test("Support handler flow integrity", False, "Handler not found")
+            if function_start_line is None:
+                self.log_test_result("isWeekly TDZ Fix", False, 
+                    "viewHostingPlanDetails function not found")
                 return False
             
-            # Find the position and get a larger section
-            pos = js_content.find(support_line)
-            support_section = js_content[pos:pos + 2000]
+            # Find the relevant lines within the function (next 50 lines should be enough)
+            function_lines = lines[function_start_line:function_start_line + 50]
             
-            # Check for the specific patterns we know exist
-            takeover_return = "if (isAdminTakeover)" in support_section and "return" in support_section[support_section.find("if (isAdminTakeover)"):support_section.find("if (isAdminTakeover)") + 200]
-            ai_block = "if (isAiEnabled())" in support_section
-            final_return = support_section.rstrip().endswith("return") or "return" in support_section[-100:]
+            isweekly_declaration_line = None
+            autorenew_usage_line = None
+            button_usage_line = None
             
-            all_passed = takeover_return and ai_block and final_return
-            details = f"Takeover return: {'✓' if takeover_return else '✗'}, " + \
-                     f"AI block: {'✓' if ai_block else '✗'}, " + \
-                     f"Final return: {'✓' if final_return else '✗'}"
+            for i, line in enumerate(function_lines):
+                line_content = line.strip()
+                
+                # Find isWeekly declaration
+                if 'const isWeekly = (plan.plan' in line_content and '.includes(\'week\')' in line_content:
+                    isweekly_declaration_line = function_start_line + i + 1  # 1-based line number
+                
+                # Find autoRenewStatus usage of isWeekly
+                if 'const autoRenewStatus = isWeekly ?' in line_content:
+                    autorenew_usage_line = function_start_line + i + 1
+                
+                # Find button usage of isWeekly
+                if 'if (!isWeekly) buttons.push' in line_content:
+                    button_usage_line = function_start_line + i + 1
             
-            self.log_test("Flow integrity verification", all_passed, details)
-            return all_passed
+            # Verify all parts were found
+            missing_parts = []
+            if isweekly_declaration_line is None:
+                missing_parts.append("isWeekly declaration")
+            if autorenew_usage_line is None:
+                missing_parts.append("autoRenewStatus usage")
+            if button_usage_line is None:
+                missing_parts.append("button conditional usage")
+            
+            if missing_parts:
+                self.log_test_result("isWeekly TDZ Fix", False, 
+                    f"Missing parts: {', '.join(missing_parts)}")
+                return False
+            
+            # Verify the fix: declaration must come BEFORE usage
+            declaration_before_autorenew = isweekly_declaration_line < autorenew_usage_line
+            declaration_before_button = isweekly_declaration_line < button_usage_line
+            
+            if declaration_before_autorenew and declaration_before_button:
+                self.log_test_result("isWeekly TDZ Fix", True, 
+                    f"Declaration (line {isweekly_declaration_line}) comes before usage "
+                    f"(autoRenew: line {autorenew_usage_line}, button: line {button_usage_line})")
+                return True
+            else:
+                self.log_test_result("isWeekly TDZ Fix", False, 
+                    f"TDZ issue still exists! Declaration: line {isweekly_declaration_line}, "
+                    f"autoRenew usage: line {autorenew_usage_line}, "
+                    f"button usage: line {button_usage_line}")
+                return False
+                
+        except Exception as e:
+            self.log_test_result("isWeekly TDZ Fix", False, f"Error analyzing code: {e}")
+            return False
+            
+    def test_isweekly_occurrences(self):
+        """Test 4: Verify exactly 3 isWeekly occurrences, all after declaration"""
+        try:
+            # Use grep to find all isWeekly occurrences
+            result = subprocess.run(
+                ['grep', '-n', 'isWeekly', '/app/js/_index.js'],
+                capture_output=True, text=True
+            )
+            
+            if result.returncode != 0:
+                self.log_test_result("isWeekly Occurrences Check", False, 
+                    "No isWeekly occurrences found or grep failed")
+                return False
+            
+            lines = result.stdout.strip().split('\n')
+            
+            if len(lines) != 3:
+                self.log_test_result("isWeekly Occurrences Check", False, 
+                    f"Expected 3 occurrences, found {len(lines)}: {lines}")
+                return False
+            
+            # Verify the pattern: declaration, then usages
+            expected_patterns = [
+                ('const isWeekly =', 'declaration'),
+                ('isWeekly ?', 'autoRenew usage'),
+                ('!isWeekly)', 'button conditional')
+            ]
+            
+            for i, (line, (pattern, description)) in enumerate(zip(lines, expected_patterns)):
+                if pattern not in line:
+                    self.log_test_result("isWeekly Occurrences Check", False, 
+                        f"Line {i+1} doesn't match expected pattern '{pattern}': {line}")
+                    return False
+            
+            self.log_test_result("isWeekly Occurrences Check", True, 
+                f"Found exactly 3 occurrences in correct order:\n" + 
+                "\n".join([f"  {i+1}. {line.strip()}" for i, line in enumerate(lines)]))
+            return True
             
         except Exception as e:
-            self.log_test("Flow integrity verification", False, f"Exception: {str(e)}")
+            self.log_test_result("isWeekly Occurrences Check", False, f"Error checking occurrences: {e}")
             return False
-    
+            
+    def test_no_other_tdz_issues(self):
+        """Test 5: Search for other potential TDZ issues in the codebase"""
+        try:
+            # Look for common TDZ error patterns in logs
+            log_paths = [
+                "/var/log/supervisor/nodejs.out.log",
+                "/var/log/supervisor/nodejs.err.log"
+            ]
+            
+            tdz_errors_found = []
+            
+            for log_path in log_paths:
+                if os.path.exists(log_path) and os.path.getsize(log_path) > 0:
+                    # Search for TDZ-related error patterns
+                    result = subprocess.run(
+                        ['grep', '-i', '-n', 'Cannot access.*before initialization', log_path],
+                        capture_output=True, text=True
+                    )
+                    
+                    if result.returncode == 0:  # Found matches
+                        tdz_errors_found.extend(result.stdout.strip().split('\n'))
+            
+            if tdz_errors_found:
+                self.log_test_result("No Other TDZ Issues", False, 
+                    f"Found TDZ errors in logs: {tdz_errors_found}")
+                return False
+            else:
+                self.log_test_result("No Other TDZ Issues", True, 
+                    "No TDZ errors found in current logs")
+                return True
+                
+        except Exception as e:
+            self.log_test_result("No Other TDZ Issues", False, f"Error checking for TDZ issues: {e}")
+            return False
+
     def run_all_tests(self):
-        """Run all AI takeover tests"""
-        print("=" * 80)
-        print("AI SUPPORT ADMIN TAKEOVER FEATURE TESTING")
-        print("=" * 80)
+        """Run all tests and generate summary report"""
+        print(f"{'='*70}")
+        print(f"NOMADLY TELEGRAM BOT - viewHostingPlan TDZ CRASH FIX TESTING")
+        print(f"{'='*70}")
+        print(f"Test execution started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print()
         
-        # Test 1: Node.js Health
-        health_passed = self.test_nodejs_health()
+        # Execute all tests
+        tests = [
+            self.test_nodejs_health,
+            self.test_error_log_empty, 
+            self.test_isweekly_tdz_fix,
+            self.test_isweekly_occurrences,
+            self.test_no_other_tdz_issues
+        ]
         
-        # Read JS file for code inspection tests
-        js_content = self.read_js_file()
-        if not js_content:
-            print("❌ CRITICAL: Could not read js/_index.js file")
-            return
+        passed = 0
+        total = len(tests)
         
-        # Tests 2-7: Code inspection tests
-        reply_passed = self.test_admin_reply_sets_takeover(js_content)
-        close_passed = self.test_admin_close_clears_takeover(js_content)
-        done_passed = self.test_user_done_clears_takeover(js_content)
-        session_passed = self.test_new_session_clears_takeover(js_content)
-        handler_passed = self.test_support_handler_checks_takeover(js_content)
-        flow_passed = self.test_flow_integrity(js_content)
+        for test_func in tests:
+            if test_func():
+                passed += 1
+            print()  # Add spacing between tests
         
-        # Summary
-        total_tests = 7
-        # Handle None values by converting them to 0
-        test_results = [health_passed, reply_passed, close_passed, done_passed,
-                       session_passed, handler_passed, flow_passed]
-        passed_tests = sum(1 for result in test_results if result is True)
+        # Generate summary
+        print(f"{'='*70}")
+        print(f"TEST SUMMARY")
+        print(f"{'='*70}")
         
-        print("=" * 80)
-        print("TEST SUMMARY")
-        print("=" * 80)
-        print(f"Total Tests: {total_tests}")
-        print(f"Passed: {passed_tests}")
-        print(f"Failed: {total_tests - passed_tests}")
-        print(f"Success Rate: {(passed_tests / total_tests) * 100:.1f}%")
+        success_rate = (passed / total) * 100
+        
+        print(f"Tests passed: {passed}/{total} ({success_rate:.1f}%)")
         print()
         
-        if passed_tests == total_tests:
-            print("🎉 ALL TESTS PASSED - AI Support Admin Takeover feature is fully functional!")
+        # Detailed results
+        for result in self.test_results:
+            print(f"{result['status']}: {result['test']}")
+            if result['details']:
+                # Indent details for readability
+                detail_lines = result['details'].split('\n')
+                for line in detail_lines:
+                    if line.strip():
+                        print(f"    {line}")
+        
+        print()
+        print(f"{'='*70}")
+        
+        if success_rate == 100:
+            print("🎉 ALL TESTS PASSED! viewHostingPlan TDZ crash fix is working correctly.")
+        elif success_rate >= 80:
+            print(f"⚠️  Most tests passed ({success_rate:.1f}%). Check failed tests above.")
         else:
-            print("⚠️ Some tests failed - see details above")
+            print(f"❌ CRITICAL ISSUES FOUND ({success_rate:.1f}% pass rate). Review failures above.")
         
-        return passed_tests == total_tests
+        print(f"{'='*70}")
+        
+        return success_rate == 100
 
 if __name__ == "__main__":
-    tester = AITakeoverTester()
-    tester.run_all_tests()
+    tester = TDZFixTester()
+    success = tester.run_all_tests()
+    sys.exit(0 if success else 1)

@@ -4070,8 +4070,8 @@ Enter new value:`), bc)
       const created = plan.createdAt ? new Date(plan.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
       const isExpired = plan.expiryDate && new Date(plan.expiryDate) < new Date()
       const status = plan.suspended ? '🚫 Suspended' : isExpired ? '❌ Expired' : '✅ Active'
-      const autoRenewStatus = isWeekly ? '❌ OFF (weekly plans never auto-renew)' : (plan.autoRenew !== false ? '✅ ON' : '❌ OFF')
       const isWeekly = (plan.plan || '').toLowerCase().includes('week')
+      const autoRenewStatus = isWeekly ? '❌ OFF (weekly plans never auto-renew)' : (plan.autoRenew !== false ? '✅ ON' : '❌ OFF')
 
       // Check domain origin - is it registered with us or external?
       const registeredDomain = await db.collection('registeredDomains').findOne({ _id: domain })
