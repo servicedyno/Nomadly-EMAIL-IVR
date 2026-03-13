@@ -396,10 +396,10 @@ ${CHAT_BOT_NAME}`,
   viewDnsRecords: (records, domain, nameserverType) => {
     let msg = `<b>${domain}</b> — DNS Records\n`
 
-    // NS section — special display with slot labels, no action index
+    // NS section — only show for cloudflare or custom NS (hide provider defaults)
     const nsRecs = records['NS']
-    if (nsRecs && nsRecs.length) {
-      const provider = nameserverType === 'cloudflare' ? 'Cloudflare' : 'Registrar'
+    if (nsRecs && nsRecs.length && (nameserverType === 'cloudflare' || nameserverType === 'custom')) {
+      const provider = nameserverType === 'cloudflare' ? 'Cloudflare' : 'Custom'
       msg += `\n<b>NAMESERVERS</b> <i>(${provider})</i>\n`
       for (let i = 0; i < nsRecs.length; i++) {
         msg += `  NS${i + 1}: <code>${nsRecs[i].recordContent || '—'}</code>\n`

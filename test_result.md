@@ -2223,3 +2223,27 @@ agent_communication:
         - working: true
           agent: "testing"
           comment: "✅ DOMAIN PURCHASE RETRY LOGIC + CR LOG FIX + WALLET REFUND COMPREHENSIVE VERIFICATION COMPLETE: All 9 critical requirements verified with 100% success rate (9/9 tests passed). (1) NODE.JS HEALTH: GET http://localhost:5000/health returns 200 with {'status': 'healthy', 'database': 'connected', 'uptime': '0.07 hours'}, /var/log/supervisor/nodejs.err.log is EMPTY (0 bytes), service running healthy on port 5000. (2) CR DOMAIN REGISTER LOG FIX VERIFIED: js/cr-domain-register.js '[CR] Registered' log (line 24) appears AFTER statusCode === 200 check (line 23), '[CR] Registration FAILED' log on failure path - logging fixed to prevent misleading success messages before actual success verification. (3) OP SERVICE GETCONTACTHANDLE RETRY VERIFIED: js/op-service.js getContactHandle function has signature 'async (attempt = 1)', retry logic 'if (attempt < 2)', forced re-auth with 'cachedToken = null, tokenExpiry = 0', attempt number logged in error messages - handles expired/stale token issues with automatic retry. (4) OP SERVICE REGISTERDOMAIN RETRY VERIFIED: js/op-service.js registerDomain function allows contactHandle reassignment, includes retry log message '[OP] Contact handle lookup failed for .TLD — retrying with fresh auth in 2s...', forced re-auth in registerDomain, second attempt after failure - comprehensive retry logic for transient auth failures. (5) BANK DOMAIN AUTO-REFUND VERIFIED: js/_index.js /bank-pay-domain handler includes auto-refund via addFundsTo(walletOf, chatId, 'ngn', ngnPrice), user message '💰 Auto-Refund', admin notification to TELEGRAM_ADMIN_CHAT_ID, nested try/catch for refund failure protection. (6) BLOCKBEE CRYPTO DOMAIN AUTO-REFUND VERIFIED: js/_index.js /crypto-pay-domain handler includes USD auto-refund via addFundsTo(walletOf, chatId, 'usd', price), user refund message, 'BlockBee Crypto→Domain' admin notification - prevents wallet loss on domain registration failure. (7) DYNOPAY CRYPTO DOMAIN AUTO-REFUND VERIFIED: js/_index.js /dynopay/crypto-pay-domain handler includes USD auto-refund via addFundsTo(walletOf, chatId, 'usd', price), user refund message, 'DynoPay Crypto→Domain' admin notification - complete refund coverage for all crypto payment flows. (8) WALLET DOMAIN PAYMENT ORDER VERIFIED: js/_index.js walletOk['domain-pay'] handler charges wallet AFTER successful buyDomainFullProcess call, proper error handling with try/catch - prevents wallet deduction without successful domain registration. (9) ALL PAYMENT FLOWS PROTECTED: Bank, BlockBee crypto, DynoPay crypto flows have auto-refund on failure, wallet flow charges only after success - comprehensive wallet safety across all domain payment methods. ALL DOMAIN PURCHASE RETRY LOGIC AND WALLET REFUND FIXES ARE PRODUCTION-READY AND FULLY FUNCTIONAL."
+
+
+  - task: "Hide provider default nameservers from DNS view in all 4 languages"
+    implemented: true
+    working: "NA"
+    file: "js/lang/en.js, js/lang/fr.js, js/lang/zh.js, js/lang/hi.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Modified viewDnsRecords function in all 4 language files (en, fr, zh, hi). NS section now only displays when nameserverType is 'cloudflare' or 'custom'. When nameserverType is 'provider' or 'provider_default', the NS records (e.g. ns1.openprovider.nl) are hidden from user view. Provider label updated from 'Registrar' to 'Custom' for non-cloudflare custom NS."
+
+test_plan:
+  current_focus:
+    - "Hide provider default nameservers from DNS view in all 4 languages"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    - agent: "main"
+      message: "Implemented NS hiding in viewDnsRecords across en/fr/zh/hi. The condition changed from 'if (nsRecs && nsRecs.length)' to 'if (nsRecs && nsRecs.length && (nameserverType === cloudflare || nameserverType === custom))'. Please verify: (1) Node.js health, (2) all 4 lang files have the updated condition, (3) provider/provider_default NS records are hidden, (4) cloudflare/custom NS records still display correctly."

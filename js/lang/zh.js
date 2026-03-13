@@ -365,9 +365,10 @@ ${CHAT_BOT_NAME}`,
   viewDnsRecords: (records, domain, nameserverType) => {
     let msg = `<b>${domain} 的 DNS 记录</b>\n`
 
+    // NS section — only show for cloudflare or custom NS (hide provider defaults)
     const nsRecs = records['NS']
-    if (nsRecs && nsRecs.length) {
-      const provider = nameserverType === 'cloudflare' ? 'Cloudflare' : '注册商'
+    if (nsRecs && nsRecs.length && (nameserverType === 'cloudflare' || nameserverType === 'custom')) {
+      const provider = nameserverType === 'cloudflare' ? 'Cloudflare' : '自定义'
       msg += `\n<b>域名服务器</b> <i>(${provider})</i>\n`
       for (let i = 0; i < nsRecs.length; i++) {
         msg += `  NS${i + 1}: <code>${nsRecs[i].recordContent || '—'}</code>\n`
