@@ -604,8 +604,8 @@ const listDNSRecords = async (domainName) => {
     }
     return { records: [] }
   } catch (err) {
-    // Zone may not exist yet; that's OK
-    if (err.response?.status === 404) return { records: [] }
+    // Zone may not exist yet (404) or domain has custom NS so no zone on OP (500) — that's OK
+    if (err.response?.status === 404 || err.response?.status === 500) return { records: [] }
     log('OP listDNSRecords error:', err.message)
     return { records: [] }
   }

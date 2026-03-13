@@ -182,12 +182,28 @@ const createDNSRecord = async (zoneId, recordType, name, content, ttl = 300, pro
     if (res.data?.success) return { success: true, record: res.data.result }
     return { success: false, errors: res.data?.errors || [] }
   } catch (err) {
-    // 81057 = "Record already exists" — not an error, just skip
     const cfErrors = err.response?.data?.errors || []
+    // 81057 = "Record already exists" — try to update it instead
     const alreadyExists = cfErrors.some(e => e.code === 81057)
-    if (alreadyExists) return { success: true, alreadyExists: true }
-    log('CF createDNSRecord error:', err.message)
-    return { success: false, errors: [{ message: err.message }] }
+    if (alreadyExists) {
+      try {
+        // Find the existing record and update it
+        const type = recordType.toUpperCase()
+        const listRes = await axios.get(`${CF_BASE_URL}/zones/${zoneId}/dns_records`, {
+          headers: cfHeaders(), timeout: 10000,
+          params: { type, name: name.endsWith(name) ? name : undefined },
+        })
+        const existing = (listRes.data?.result || []).find(r => r.type === type && r.name === name)
+        if (existing) {
+          const updated = await updateDNSRecord(zoneId, existing.id, type, name, content, ttl, proxied)
+          if (updated.success) return { success: true, record: updated.record, updated: true }
+        }
+      } catch {}
+      return { success: true, alreadyExists: true }
+    }
+    const errDetail = cfErrors.map(e => `${e.code}: ${e.message}`).join(', ') || err.message
+    log(`CF createDNSRecord error: ${errDetail} (zone=${zoneId}, type=${recordType}, name=${name})`)
+    return { success: false, errors: cfErrors.length ? cfErrors : [{ message: err.message }] }
   }
 }
 

@@ -35,6 +35,8 @@ const ENFORCE_INTERVAL_MS = parseInt(process.env.PROTECTION_ENFORCE_INTERVAL_HOU
 let db = null
 let enforceTimer = null
 let isRunning = false
+// Track cPanel accounts where AutoSSL is disabled to avoid repeated failed attempts
+const autosslDisabledAccounts = new Set()
 
 // ─── Initialize ──────────────────────────────────────────
 
@@ -342,6 +344,12 @@ async function triggerAutoSSLFix(domain, zoneId, entry) {
       return
     }
 
+    // Skip if AutoSSL is known to be disabled for this account
+    if (autosslDisabledAccounts.has(cpUser)) {
+      log(`[ProtectionEnforcer] AutoSSL fix: skipping ${cpUser} (${domain}) — AutoSSL disabled on this account`)
+      return
+    }
+
     // Step 1: Temporarily unproxy root and www
     log(`[ProtectionEnforcer] AutoSSL fix: temporarily unproxying ${domain}`)
     await cfService.setProxiedState(zoneId, domain, false)
@@ -349,10 +357,23 @@ async function triggerAutoSSLFix(domain, zoneId, entry) {
 
     // Step 2: Trigger AutoSSL
     const httpsAgent = new (require('https').Agent)({ rejectUnauthorized: false })
-    await axios.get(
+    const sslRes = await axios.get(
       `https://${WHM_HOST}:2087/json-api/start_autossl_check_for_one_user?api.version=1&username=${cpUser}`,
       { headers: { Authorization: `whm root:${WHM_TOKEN}` }, httpsAgent, timeout: 15000 }
     )
+
+    // Check if AutoSSL is disabled for this account
+    const meta = sslRes.data?.metadata || {}
+    const reason = meta.reason || ''
+    if (meta.result !== 1 && (reason.toLowerCase().includes('not enabled') || reason.toLowerCase().includes('disabled'))) {
+      log(`[ProtectionEnforcer] AutoSSL disabled for ${cpUser} — will skip in future runs`)
+      autosslDisabledAccounts.add(cpUser)
+      // Re-enable proxy before returning
+      await cfService.setProxiedState(zoneId, domain, true)
+      await cfService.setProxiedState(zoneId, `www.${domain}`, true)
+      return
+    }
+
     log(`[ProtectionEnforcer] AutoSSL triggered for ${cpUser} (${domain})`)
 
     // Step 3: Wait for AutoSSL to complete (poll every 15s, max 2 minutes)
@@ -392,6 +413,16 @@ async function triggerAutoSSLFix(domain, zoneId, entry) {
       log(`[ProtectionEnforcer] AutoSSL did not complete in time for ${domain} — will retry next cycle`)
     }
   } catch (err) {
+    // Check if error is about AutoSSL being disabled
+    const errMsg = err.message || ''
+    const responseReason = err.response?.data?.metadata?.reason || ''
+    if (errMsg.includes('not enabled') || errMsg.includes('disabled') || responseReason.includes('not enabled') || responseReason.includes('disabled')) {
+      const cpUser = entry.cpUser || entry.username
+      if (cpUser) {
+        autosslDisabledAccounts.add(cpUser)
+        log(`[ProtectionEnforcer] AutoSSL disabled for ${cpUser} — will skip in future runs`)
+      }
+    }
     // Ensure proxy is re-enabled even on error
     try {
       const cfService = require('./cf-service')
