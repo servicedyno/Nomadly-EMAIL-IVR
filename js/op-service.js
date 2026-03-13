@@ -543,8 +543,9 @@ const ensureDnsZone = async (domainName) => {
 
     // Zone doesn't exist — create via POST
     log(`[OP] DNS zone not found for ${domainName}, creating...`)
+    const { name, extension } = parseDomain(domainName)
     const createRes = await axios.post(`${OP_BASE_URL}/v1beta/dns/zones`, {
-      domain: { name: domainName },
+      domain: { name, extension },
       type: 'master',
       active: true,
     }, { headers, timeout: 15000 })

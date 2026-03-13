@@ -546,7 +546,10 @@ const updateAllNameservers = async (domainName, newNameservers, db) => {
   const isCRDefault = newNameservers.some(ns => ns.toLowerCase().includes('managedns.org'))
   const isOPDefault = newNameservers.some(ns => ns.toLowerCase().includes('openprovider'))
   let newNsType = 'custom'
-  if (isCloudflare) newNsType = 'cloudflare'
+  // Only mark as 'cloudflare' if we already manage the CF zone (cfZoneId exists).
+  // If user sets their own CF nameservers (no cfZoneId), treat as 'custom'
+  // to prevent auto-creating a conflicting zone under the bot's CF account.
+  if (isCloudflare && meta.cfZoneId) newNsType = 'cloudflare'
   else if ((registrar === 'ConnectReseller' && isCRDefault) || (registrar === 'OpenProvider' && isOPDefault)) newNsType = 'provider_default'
 
   // Update DB
