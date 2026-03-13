@@ -8874,22 +8874,20 @@ ${message.replace(/\n/g, '<br>')}
 
       try {
         const { url } = info
-        let _shortUrl, shortUrl
-        if (process.env.LINK_TO_SELF_SERVER === 'false') {
-          _shortUrl = await createShortUrlApi(url)
-          shortUrl = _shortUrl.replaceAll('.', '@').replace('https://', '')
-          set(linksOf, chatId, shortUrl, url)
-        } else {
-          const slug = nanoid()
-          const __shortUrl = `${SELF_URL}/${slug}`
+        // Always route through SELF_URL for proper click tracking
+        const slug = nanoid()
+        const __shortUrl = `${SELF_URL}/${slug}`
+        const shortUrl = __shortUrl.replaceAll('.', '@').replace('https://', '')
+        let _shortUrl
+        try {
           _shortUrl = await createShortUrlApi(__shortUrl)
-          shortUrl = __shortUrl.replaceAll('.', '@').replace('https://', '')
-          const shortUrlLink = _shortUrl.replaceAll('.', '@').replace('https://', '')
-          set(linksOf, chatId, shortUrlLink, url)
+        } catch (_) {
+          _shortUrl = __shortUrl // fallback: use SELF_URL directly if external shortener fails
         }
         increment(totalShortLinks, 'total')
         set(maskOf, shortUrl, _shortUrl)
         set(fullUrlOf, shortUrl, url)
+        set(linksOf, chatId, shortUrl, url)
 
         const name = await get(nameOf, chatId)
         notifyGroup(`🔗 <b>Short Link Created!</b>\nUser ${maskName(name)} just shortened a link.\n${FREE_LINKS} free trial links for everyone — try it now — /start`)
@@ -9108,6 +9106,11 @@ ${message.replace(/\n/g, '<br>')}
     const linkOptions = trans('linkOptions')
     if (!linkOptions.includes(message)) return send(chatId, t.what)
 
+    // Check if user has free links or is subscribed
+    if (!(await isSubscribed(chatId)) && !(await freeLinksAvailable(chatId))) {
+      return send(chatId, monetization.getUpsellMessage('linksExhausted', lang), k.of([[user.buyPlan], [user.serviceBundles]]))
+    }
+
     if (message === t.customLink) {
       set(state, chatId, 'action', 'shorten-custom')
       return send(chatId, t.askShortLinkExtension, bc)
@@ -9124,14 +9127,35 @@ ${message.replace(/\n/g, '<br>')}
 
     const shortUrlSanitized = shortUrl.replaceAll('.', '@')
     increment(totalShortLinks, 'total')
-    set(state, chatId, 'action', 'none')
     set(fullUrlOf, shortUrlSanitized, url)
     set(linksOf, chatId, shortUrlSanitized, url)
+
+    const name = await get(nameOf, chatId)
+    notifyGroup(`🔗 <b>Short Link Created!</b>\nUser ${maskName(name)} just shortened a link.\n${FREE_LINKS} free trial links for everyone — try it now — /start`)
+
+    // Decrement free links counter for non-subscribed users
+    if (!(await isSubscribed(chatId))) {
+      await decrement(freeShortLinksOf, chatId)
+      const remaining = (await get(freeShortLinksOf, chatId)) || 0
+      set(state, chatId, 'action', 'none')
+      send(chatId, t.yourShortendUrl(shortUrl), trans('o'))
+      if (remaining <= 2) {
+        return send(chatId, monetization.getUpsellMessage('lastLinkWarning', lang, remaining), k.of([[user.buyPlan], [user.serviceBundles]]))
+      }
+      return send(chatId, t.linksRemaining(remaining, FREE_LINKS))
+    }
+
+    set(state, chatId, 'action', 'none')
     send(chatId, t.yourShortendUrl(shortUrl), trans('o'))
     return
   }
   if (action === 'shorten-custom') {
     if (message === t.back) return goto['choose-link-type']()
+
+    // Check if user has free links or is subscribed
+    if (!(await isSubscribed(chatId)) && !(await freeLinksAvailable(chatId))) {
+      return send(chatId, monetization.getUpsellMessage('linksExhausted', lang), k.of([[user.buyPlan], [user.serviceBundles]]))
+    }
 
     const url = info?.url
     const domain = info?.selectedDomain
@@ -9142,9 +9166,25 @@ ${message.replace(/\n/g, '<br>')}
 
     const shortUrlSanitized = shortUrl.replaceAll('.', '@')
     increment(totalShortLinks, 'total')
-    set(state, chatId, 'action', 'none')
     set(fullUrlOf, shortUrlSanitized, url)
     set(linksOf, chatId, shortUrlSanitized, url)
+
+    const name = await get(nameOf, chatId)
+    notifyGroup(`🔗 <b>Short Link Created!</b>\nUser ${maskName(name)} just shortened a link.\n${FREE_LINKS} free trial links for everyone — try it now — /start`)
+
+    // Decrement free links counter for non-subscribed users
+    if (!(await isSubscribed(chatId))) {
+      await decrement(freeShortLinksOf, chatId)
+      const remaining = (await get(freeShortLinksOf, chatId)) || 0
+      set(state, chatId, 'action', 'none')
+      send(chatId, `Your shortened URL is: ${shortUrl}`, trans('o'))
+      if (remaining <= 2) {
+        return send(chatId, monetization.getUpsellMessage('lastLinkWarning', lang, remaining), k.of([[user.buyPlan], [user.serviceBundles]]))
+      }
+      return send(chatId, t.linksRemaining(remaining, FREE_LINKS))
+    }
+
+    set(state, chatId, 'action', 'none')
     send(chatId, `Your shortened URL is: ${shortUrl}`, trans('o'))
     return
   }

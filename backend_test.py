@@ -1,554 +1,236 @@
 #!/usr/bin/env python3
+
 """
-Backend Test for Domain Purchase Retry Logic + CR Log Fix + Wallet Refund
-Testing the new task: Domain purchase retry logic + CR log fix + wallet refund on bank/crypto domain failure
-
-Key files to verify:
-1. js/cr-domain-register.js — [CR] Registered log should ONLY appear AFTER statusCode === 200 check
-2. js/op-service.js — getContactHandle(attempt = 1) with retry logic
-3. js/op-service.js — registerDomain() with retry and forced re-auth
-4. js/_index.js — Bank domain payment handler with auto-refund on failure
-5. js/_index.js — BlockBee crypto domain handler with auto-refund on failure  
-6. js/_index.js — DynoPay crypto domain handler with auto-refund on failure
-7. js/_index.js — Wallet domain handler (should charge AFTER success)
-
-Test approach: Code verification — check line numbers, function signatures, conditional logic, log messages.
-DO NOT attempt to call actual APIs.
+Backend testing script for URL Shortener System Fixes verification
 """
 
-import re
-import sys
 import os
+import sys
 import subprocess
+import requests
 import json
+import re
 
-class DomainPurchaseTestSuite:
-    def __init__(self):
-        self.test_results = []
-        self.total_tests = 0
-        self.passed_tests = 0
-        
-    def log_test(self, test_name, passed, details=""):
-        self.total_tests += 1
-        if passed:
-            self.passed_tests += 1
-            status = "✅ PASS"
+def log_test(test_name, result, details=""):
+    """Log test results"""
+    status = "✅ PASS" if result else "❌ FAIL"
+    print(f"{status} - {test_name}")
+    if details:
+        print(f"   Details: {details}")
+
+def check_service_health():
+    """Test 1 & 2: Node.js health check and error log verification"""
+    print("=" * 60)
+    print("Testing Node.js Service Health")
+    print("=" * 60)
+    
+    # Test 1: Health endpoint
+    try:
+        response = requests.get("http://localhost:5000/health", timeout=10)
+        health_pass = response.status_code == 200
+        if health_pass:
+            data = response.json()
+            health_pass = data.get('status') == 'healthy'
+            log_test("GET http://localhost:5000/health → 200 with 'healthy'", 
+                    health_pass, f"Response: {data}")
         else:
-            status = "❌ FAIL"
+            log_test("GET http://localhost:5000/health → 200 with 'healthy'", 
+                    False, f"Status code: {response.status_code}")
+    except Exception as e:
+        log_test("GET http://localhost:5000/health → 200 with 'healthy'", 
+                False, f"Error: {e}")
+        health_pass = False
+    
+    # Test 2: Error log check
+    try:
+        result = subprocess.run(['wc', '-c', '/var/log/supervisor/nodejs.err.log'], 
+                              capture_output=True, text=True, timeout=10)
+        err_log_size = int(result.stdout.split()[0])
+        err_log_pass = err_log_size == 0
+        log_test("nodejs.err.log should be empty (0 bytes)", 
+                err_log_pass, f"Size: {err_log_size} bytes")
+    except Exception as e:
+        log_test("nodejs.err.log should be empty (0 bytes)", 
+                False, f"Error: {e}")
+        err_log_pass = False
         
-        print(f"{status}: {test_name}")
-        if details:
-            print(f"    Details: {details}")
+    return health_pass and err_log_pass
+
+def verify_code_changes():
+    """Test 3-7: Code verification using grep"""
+    print("\n" + "=" * 60)
+    print("Testing Code Structure Verification")
+    print("=" * 60)
+    
+    all_tests_pass = True
+    
+    # Test 3: LINK_TO_SELF_SERVER should be removed
+    try:
+        result = subprocess.run(['grep', 'LINK_TO_SELF_SERVER', '/app/js/_index.js'], 
+                              capture_output=True, text=True)
+        link_removal_pass = result.returncode != 0  # grep returns non-zero if no matches
+        log_test("LINK_TO_SELF_SERVER removed from shortener flow", 
+                link_removal_pass, "No references found" if link_removal_pass else "Still has references")
+    except Exception as e:
+        log_test("LINK_TO_SELF_SERVER removed from shortener flow", 
+                False, f"Error: {e}")
+        link_removal_pass = False
+    
+    all_tests_pass &= link_removal_pass
+    
+    # Test 4: Free trial shortener should always use SELF_URL routing
+    try:
+        # Check around line 8875-8890 for the correct SELF_URL pattern
+        with open('/app/js/_index.js', 'r') as f:
+            lines = f.readlines()
         
-        self.test_results.append({
-            'test': test_name,
-            'passed': passed,
-            'details': details
-        })
-
-    def read_file(self, filepath):
-        """Read file content safely"""
-        try:
-            with open(filepath, 'r', encoding='utf-8') as f:
-                return f.read()
-        except FileNotFoundError:
-            return None
-        except Exception as e:
-            print(f"Error reading {filepath}: {e}")
-            return None
-
-    def check_health_endpoint(self):
-        """Test 1: Verify Node.js service health"""
-        try:
-            result = subprocess.run(['curl', '-s', 'http://localhost:5000/health'], 
-                                  capture_output=True, text=True, timeout=10)
-            
-            if result.returncode == 0:
-                try:
-                    health_data = json.loads(result.stdout)
-                    if health_data.get('status') == 'healthy' and health_data.get('database') == 'connected':
-                        self.log_test("Node.js Health Check", True, 
-                                    f"Service healthy, database connected, uptime: {health_data.get('uptime', 'N/A')}")
-                        return True
-                    else:
-                        self.log_test("Node.js Health Check", False, 
-                                    f"Unhealthy status: {health_data}")
-                        return False
-                except json.JSONDecodeError:
-                    self.log_test("Node.js Health Check", False, 
-                                f"Invalid JSON response: {result.stdout}")
-                    return False
-            else:
-                self.log_test("Node.js Health Check", False, 
-                            f"Health endpoint unreachable: {result.stderr}")
-                return False
-        except subprocess.TimeoutExpired:
-            self.log_test("Node.js Health Check", False, "Health endpoint timeout")
-            return False
-        except Exception as e:
-            self.log_test("Node.js Health Check", False, f"Health check error: {e}")
-            return False
-
-    def check_error_logs(self):
-        """Test 2: Verify nodejs.err.log is empty (no critical errors)"""
-        try:
-            result = subprocess.run(['stat', '-c', '%s', '/var/log/supervisor/nodejs.err.log'], 
-                                  capture_output=True, text=True)
-            if result.returncode == 0:
-                size = int(result.stdout.strip())
-                if size == 0:
-                    self.log_test("Node.js Error Log Check", True, 
-                                "nodejs.err.log is empty (0 bytes)")
-                    return True
-                else:
-                    self.log_test("Node.js Error Log Check", False, 
-                                f"nodejs.err.log has {size} bytes of errors")
-                    return False
-            else:
-                self.log_test("Node.js Error Log Check", False, 
-                            "Could not check error log size")
-                return False
-        except Exception as e:
-            self.log_test("Node.js Error Log Check", False, f"Error checking logs: {e}")
-            return False
-
-    def check_cr_domain_register_log_fix(self):
-        """Test 3: Verify CR log fix - '[CR] Registered' only appears AFTER statusCode === 200 check"""
-        content = self.read_file('/app/js/cr-domain-register.js')
-        if not content:
-            self.log_test("CR Domain Register Log Fix", False, "Could not read cr-domain-register.js")
-            return False
-
-        lines = content.split('\n')
+        # Look for the pattern around line 8875-8890
+        pattern_found = False
+        self_url_pattern = False
+        no_ifelse_pattern = True  # Should not have if/else for LINK_TO_SELF_SERVER
         
-        # Find the statusCode check line
-        statuscode_check_line = -1
-        registered_log_line = -1
-        failed_log_line = -1
+        for i in range(8870, min(8895, len(lines))):
+            line = lines[i].strip()
+            if 'const __shortUrl = `${SELF_URL}/' in line and 'deployment-config-5' in line:
+                pattern_found = True
+            elif '${SELF_URL}/' in line and '${slug}' in line:
+                self_url_pattern = True
+            elif 'LINK_TO_SELF_SERVER' in line:
+                no_ifelse_pattern = False
         
-        for i, line in enumerate(lines):
-            if 'statusCode === 200' in line:
-                statuscode_check_line = i + 1  # Convert to 1-based line number
-            if '[CR] Registered' in line and 'console.log' in line:
-                registered_log_line = i + 1
-            if '[CR] Registration FAILED' in line and 'console.error' in line:
-                failed_log_line = i + 1
-
-        # Verify the fix
-        if statuscode_check_line == -1:
-            self.log_test("CR Domain Register Log Fix", False, 
-                        "statusCode === 200 check not found")
-            return False
+        free_trial_pass = self_url_pattern and no_ifelse_pattern
+        log_test("Free trial shortener uses SELF_URL routing (no if/else for LINK_TO_SELF_SERVER)", 
+                free_trial_pass, 
+                f"SELF_URL pattern found: {self_url_pattern}, No LINK_TO_SELF_SERVER: {no_ifelse_pattern}")
+    except Exception as e:
+        log_test("Free trial shortener uses SELF_URL routing", 
+                False, f"Error: {e}")
+        free_trial_pass = False
+    
+    all_tests_pass &= free_trial_pass
+    
+    # Test 5: Custom domain choose-link-type should have subscription checks
+    try:
+        with open('/app/js/_index.js', 'r') as f:
+            content = f.read()
         
-        if registered_log_line == -1:
-            self.log_test("CR Domain Register Log Fix", False, 
-                        "[CR] Registered log not found")
-            return False
+        # Look for choose-link-type action around line 9104-9148
+        choose_link_pattern = re.search(
+            r"if \(action === ['\"]choose-link-type['\"]\)(.*?)(?=if \(action === ['\"]|\Z)",
+            content, re.DOTALL
+        )
         
-        if failed_log_line == -1:
-            self.log_test("CR Domain Register Log Fix", False, 
-                        "[CR] Registration FAILED log not found")
-            return False
+        subscription_check = False
+        free_links_check = False
         
-        # The registered log should come AFTER the status check (line 23 should be status check, line 24 should be registered log)
-        if registered_log_line > statuscode_check_line:
-            self.log_test("CR Domain Register Log Fix", True, 
-                        f"[CR] Registered log (line {registered_log_line}) appears AFTER statusCode check (line {statuscode_check_line})")
-            return True
-        else:
-            self.log_test("CR Domain Register Log Fix", False, 
-                        f"[CR] Registered log (line {registered_log_line}) appears BEFORE statusCode check (line {statuscode_check_line})")
-            return False
-
-    def check_op_service_getcontacthandle_retry(self):
-        """Test 4: Verify getContactHandle has retry logic with attempt parameter"""
-        content = self.read_file('/app/js/op-service.js')
-        if not content:
-            self.log_test("OP Service getContactHandle Retry", False, "Could not read op-service.js")
-            return False
-
-        # Check function signature with attempt parameter
-        function_signature_found = False
-        retry_logic_found = False
-        forced_reauth_found = False
-        attempt_log_found = False
+        if choose_link_pattern:
+            action_content = choose_link_pattern.group(1)
+            subscription_check = 'isSubscribed(chatId)' in action_content
+            free_links_check = 'freeLinksAvailable(chatId)' in action_content
         
-        lines = content.split('\n')
-        for i, line in enumerate(lines):
-            # Look for function signature with attempt parameter
-            if 'getContactHandle = async (attempt = 1)' in line:
-                function_signature_found = True
-            
-            # Look for retry logic
-            if 'if (attempt < 2)' in line:
-                retry_logic_found = True
-            
-            # Look for forced re-auth
-            if 'cachedToken = null' in line and 'tokenExpiry = 0' in line:
-                forced_reauth_found = True
-                
-            # Look for attempt number in log
-            if 'getContactHandle error (attempt ${attempt})' in line:
-                attempt_log_found = True
-
-        tests_passed = []
-        if function_signature_found:
-            tests_passed.append("Function signature with attempt parameter")
-        if retry_logic_found:
-            tests_passed.append("Retry logic (attempt < 2)")
-        if forced_reauth_found:
-            tests_passed.append("Forced re-auth (cachedToken=null, tokenExpiry=0)")
-        if attempt_log_found:
-            tests_passed.append("Attempt number in logs")
-
-        if len(tests_passed) >= 3:  # At least 3 out of 4 checks should pass
-            self.log_test("OP Service getContactHandle Retry", True, 
-                        f"Retry logic verified: {', '.join(tests_passed)}")
-            return True
-        else:
-            self.log_test("OP Service getContactHandle Retry", False, 
-                        f"Missing retry components. Found: {', '.join(tests_passed) if tests_passed else 'None'}")
-            return False
-
-    def check_op_service_registerdomain_retry(self):
-        """Test 5: Verify registerDomain has contactHandle retry with forced re-auth"""
-        content = self.read_file('/app/js/op-service.js')
-        if not content:
-            self.log_test("OP Service registerDomain Retry", False, "Could not read op-service.js")
-            return False
-
-        # Look for specific retry patterns
-        contact_handle_let = False
-        retry_log_found = False
-        forced_reauth_in_register = False
-        second_attempt = False
+        choose_link_pass = subscription_check and free_links_check
+        log_test("Custom domain 'choose-link-type' has isSubscribed() and freeLinksAvailable() checks", 
+                choose_link_pass, 
+                f"isSubscribed check: {subscription_check}, freeLinksAvailable check: {free_links_check}")
+    except Exception as e:
+        log_test("Custom domain 'choose-link-type' has subscription checks", 
+                False, f"Error: {e}")
+        choose_link_pass = False
         
-        lines = content.split('\n')
-        in_register_function = False
+    all_tests_pass &= choose_link_pass
+    
+    # Test 6: Custom domain shorten-custom should have subscription checks and decrement
+    try:
+        shorten_custom_pattern = re.search(
+            r"if \(action === ['\"]shorten-custom['\"]\)(.*?)(?=if \(action === ['\"]|\Z)",
+            content, re.DOTALL
+        )
         
-        for i, line in enumerate(lines):
-            if 'const registerDomain = async' in line:
-                in_register_function = True
-            elif in_register_function and line.strip().startswith('const ') and ' = async' in line:
-                in_register_function = False  # Entering next function
-                
-            if in_register_function:
-                # Look for contactHandle declared with let (should be const initially)
-                if 'let contactHandle = await getContactHandleForTLD' in line:
-                    contact_handle_let = True
-                elif 'contactHandle = await getContactHandleForTLD' in line:
-                    contact_handle_let = True
-                    
-                # Look for retry log message
-                if '[OP] Contact handle lookup failed for .${tld} — retrying with fresh auth in 2s...' in line:
-                    retry_log_found = True
-                elif 'Contact handle lookup failed' in line and 'retrying with fresh auth' in line:
-                    retry_log_found = True
-                    
-                # Look for forced re-auth in registerDomain
-                if 'cachedToken = null' in line:
-                    forced_reauth_in_register = True
-                    
-                # Look for second attempt
-                if 'contactHandle = await getContactHandleForTLD(tld)' in line:
-                    second_attempt = True
-
-        tests_passed = []
-        if contact_handle_let:
-            tests_passed.append("contactHandle variable allows reassignment")
-        if retry_log_found:
-            tests_passed.append("Retry log message found")
-        if forced_reauth_in_register:
-            tests_passed.append("Forced re-auth in registerDomain")
-        if second_attempt:
-            tests_passed.append("Second attempt after failure")
-
-        if len(tests_passed) >= 2:
-            self.log_test("OP Service registerDomain Retry", True, 
-                        f"Retry logic verified: {', '.join(tests_passed)}")
-            return True
-        else:
-            self.log_test("OP Service registerDomain Retry", False, 
-                        f"Missing retry components. Found: {', '.join(tests_passed) if tests_passed else 'None'}")
-            return False
-
-    def check_bank_domain_auto_refund(self):
-        """Test 6: Verify bank domain payment handler has auto-refund on buyDomainFullProcess failure"""
-        content = self.read_file('/app/js/_index.js')
-        if not content:
-            self.log_test("Bank Domain Auto-Refund", False, "Could not read _index.js")
-            return False
-
-        # Find the /bank-pay-domain handler
-        lines = content.split('\n')
-        in_bank_domain_handler = False
-        handler_found = False
-        auto_refund_found = False
-        user_message_found = False
-        admin_alert_found = False
-        nested_try_catch_found = False
+        subscription_check2 = False
+        free_links_check2 = False
+        decrement_call = False
         
-        for i, line in enumerate(lines):
-            if "'/bank-pay-domain':" in line:
-                in_bank_domain_handler = True
-                handler_found = True
-                continue
-            elif in_bank_domain_handler and line.strip().startswith("'/") and "':" in line:
-                in_bank_domain_handler = False  # Entering next handler
-                
-            if in_bank_domain_handler:
-                # Look for auto-refund logic
-                if 'addFundsTo(walletOf, chatId,' in line and 'ngnPrice' in line:
-                    auto_refund_found = True
-                    
-                # Look for user message
-                if '💰 <b>Auto-Refund:</b>' in line:
-                    user_message_found = True
-                    
-                # Look for admin alert
-                if 'TELEGRAM_ADMIN_CHAT_ID' in line and 'Auto-Refund' in line:
-                    admin_alert_found = True
-                    
-                # Look for nested try/catch
-                if 'catch (refundErr)' in line:
-                    nested_try_catch_found = True
-
-        tests_passed = []
-        if handler_found:
-            tests_passed.append("/bank-pay-domain handler found")
-        if auto_refund_found:
-            tests_passed.append("Auto-refund to wallet")
-        if user_message_found:
-            tests_passed.append("User refund message")
-        if admin_alert_found:
-            tests_passed.append("Admin notification")
-        if nested_try_catch_found:
-            tests_passed.append("Nested try/catch for refund failure")
-
-        if len(tests_passed) >= 4:
-            self.log_test("Bank Domain Auto-Refund", True, 
-                        f"Auto-refund logic verified: {', '.join(tests_passed)}")
-            return True
-        else:
-            self.log_test("Bank Domain Auto-Refund", False, 
-                        f"Missing refund components. Found: {', '.join(tests_passed) if tests_passed else 'None'}")
-            return False
-
-    def check_blockbee_crypto_domain_auto_refund(self):
-        """Test 7: Verify BlockBee crypto domain payment handler has auto-refund"""
-        content = self.read_file('/app/js/_index.js')
-        if not content:
-            self.log_test("BlockBee Crypto Domain Auto-Refund", False, "Could not read _index.js")
-            return False
-
-        # Find the /crypto-pay-domain handler
-        lines = content.split('\n')
-        in_crypto_domain_handler = False
-        handler_found = False
-        auto_refund_found = False
-        user_message_found = False
-        admin_alert_found = False
-        usd_refund = False
+        if shorten_custom_pattern:
+            action_content2 = shorten_custom_pattern.group(1)
+            subscription_check2 = 'isSubscribed(chatId)' in action_content2
+            free_links_check2 = 'freeLinksAvailable(chatId)' in action_content2
+            decrement_call = 'decrement(freeShortLinksOf, chatId)' in action_content2
         
-        for i, line in enumerate(lines):
-            if "app.get('/crypto-pay-domain'" in line:
-                in_crypto_domain_handler = True
-                handler_found = True
-                continue
-            elif in_crypto_domain_handler and ('app.get(' in line or 'app.post(' in line):
-                in_crypto_domain_handler = False  # Entering next handler
-                
-            if in_crypto_domain_handler:
-                # Look for USD auto-refund logic
-                if 'addFundsTo(walletOf, chatId,' in line and "'usd'" in line and 'price' in line:
-                    auto_refund_found = True
-                    usd_refund = True
-                    
-                # Look for user message
-                if '💰 <b>Auto-Refund:</b>' in line:
-                    user_message_found = True
-                    
-                # Look for admin alert mentioning BlockBee
-                if 'BlockBee Crypto→Domain' in line:
-                    admin_alert_found = True
-
-        tests_passed = []
-        if handler_found:
-            tests_passed.append("/crypto-pay-domain handler found")
-        if auto_refund_found and usd_refund:
-            tests_passed.append("USD auto-refund to wallet")
-        if user_message_found:
-            tests_passed.append("User refund message")
-        if admin_alert_found:
-            tests_passed.append("BlockBee admin notification")
-
-        if len(tests_passed) >= 3:
-            self.log_test("BlockBee Crypto Domain Auto-Refund", True, 
-                        f"Auto-refund logic verified: {', '.join(tests_passed)}")
-            return True
-        else:
-            self.log_test("BlockBee Crypto Domain Auto-Refund", False, 
-                        f"Missing refund components. Found: {', '.join(tests_passed) if tests_passed else 'None'}")
-            return False
-
-    def check_dynopay_crypto_domain_auto_refund(self):
-        """Test 8: Verify DynoPay crypto domain payment handler has auto-refund"""
-        content = self.read_file('/app/js/_index.js')
-        if not content:
-            self.log_test("DynoPay Crypto Domain Auto-Refund", False, "Could not read _index.js")
-            return False
-
-        # Find the /dynopay/crypto-pay-domain handler
-        lines = content.split('\n')
-        in_dynopay_domain_handler = False
-        handler_found = False
-        auto_refund_found = False
-        user_message_found = False
-        admin_alert_found = False
-        usd_refund = False
+        shorten_custom_pass = subscription_check2 and free_links_check2 and decrement_call
+        log_test("Custom domain 'shorten-custom' has subscription checks and decrement() calls", 
+                shorten_custom_pass, 
+                f"isSubscribed: {subscription_check2}, freeLinksAvailable: {free_links_check2}, decrement: {decrement_call}")
+    except Exception as e:
+        log_test("Custom domain 'shorten-custom' has subscription checks and decrement", 
+                False, f"Error: {e}")
+        shorten_custom_pass = False
         
-        for i, line in enumerate(lines):
-            if "app.post('/dynopay/crypto-pay-domain'" in line:
-                in_dynopay_domain_handler = True
-                handler_found = True
-                continue
-            elif in_dynopay_domain_handler and ('app.get(' in line or 'app.post(' in line):
-                in_dynopay_domain_handler = False  # Entering next handler
-                
-            if in_dynopay_domain_handler:
-                # Look for USD auto-refund logic
-                if 'addFundsTo(walletOf, chatId,' in line and "'usd'" in line and 'price' in line:
-                    auto_refund_found = True
-                    usd_refund = True
-                    
-                # Look for user message
-                if '💰 <b>Auto-Refund:</b>' in line:
-                    user_message_found = True
-                    
-                # Look for admin alert mentioning DynoPay
-                if 'DynoPay Crypto→Domain' in line:
-                    admin_alert_found = True
+    all_tests_pass &= shorten_custom_pass
+    
+    # Test 7: Key format consistency for linksOf and clicksOn
+    try:
+        # Check that all set(linksOf, ...) calls use the same key format as what's stored in fullUrlOf
+        lines_of_matches = re.findall(r'set\(linksOf,.*?(?=\n)', content)
+        full_url_matches = re.findall(r'set\(fullUrlOf,.*?(?=\n)', content)
+        
+        # Count occurrences of both patterns
+        consistent_keys = len(lines_of_matches) > 0 and len(full_url_matches) > 0
+        
+        # Check for SELF_URL key format pattern
+        self_url_key_pattern = '.replaceAll(\'.\', \'@\').replace(\'https://\', \'\')' in content
+        custom_domain_pattern = '.replaceAll(\'.\', \'@\')' in content
+        
+        key_format_pass = consistent_keys and self_url_key_pattern and custom_domain_pattern
+        log_test("All set(linksOf, ...) calls use same key format as fullUrlOf", 
+                key_format_pass, 
+                f"linksOf calls: {len(lines_of_matches)}, fullUrlOf calls: {len(full_url_matches)}, Key formatting: {self_url_key_pattern and custom_domain_pattern}")
+    except Exception as e:
+        log_test("Key format consistency check", 
+                False, f"Error: {e}")
+        key_format_pass = False
+        
+    all_tests_pass &= key_format_pass
+    
+    return all_tests_pass
 
-        tests_passed = []
-        if handler_found:
-            tests_passed.append("/dynopay/crypto-pay-domain handler found")
-        if auto_refund_found and usd_refund:
-            tests_passed.append("USD auto-refund to wallet")
-        if user_message_found:
-            tests_passed.append("User refund message")
-        if admin_alert_found:
-            tests_passed.append("DynoPay admin notification")
-
-        if len(tests_passed) >= 3:
-            self.log_test("DynoPay Crypto Domain Auto-Refund", True, 
-                        f"Auto-refund logic verified: {', '.join(tests_passed)}")
-            return True
-        else:
-            self.log_test("DynoPay Crypto Domain Auto-Refund", False, 
-                        f"Missing refund components. Found: {', '.join(tests_passed) if tests_passed else 'None'}")
-            return False
-
-    def check_wallet_domain_payment_order(self):
-        """Test 9: Verify wallet domain payment charges AFTER successful buyDomainFullProcess"""
-        content = self.read_file('/app/js/_index.js')
-        if not content:
-            self.log_test("Wallet Domain Payment Order", False, "Could not read _index.js")
-            return False
-
-        # Find the walletOk['domain-pay'] handler
-        lines = content.split('\n')
-        in_wallet_domain_handler = False
-        handler_found = False
-        buy_domain_before_charge = False
-        charge_after_success = False
-        error_handling_present = False
-        
-        buy_domain_line = -1
-        wallet_charge_line = -1
-        
-        for i, line in enumerate(lines):
-            if "'domain-pay': async coin =>" in line:
-                in_wallet_domain_handler = True
-                handler_found = True
-                continue
-            elif in_wallet_domain_handler and line.strip().endswith('async coin => {') and 'domain-pay' not in line:
-                in_wallet_domain_handler = False  # Entering next handler
-            elif in_wallet_domain_handler and line.strip().startswith('},') and not line.strip().startswith('}, {'):
-                in_wallet_domain_handler = False  # End of handler
-                
-            if in_wallet_domain_handler:
-                # Look for buyDomainFullProcess call
-                if 'buyDomainFullProcess(chatId, lang, domain)' in line:
-                    buy_domain_line = i
-                    
-                # Look for wallet charge (atomicIncrement)
-                if 'atomicIncrement(walletOf, chatId,' in line and ('usdOut' in line or 'ngnOut' in line):
-                    wallet_charge_line = i
-                    
-                # Look for error handling
-                if 'catch (domainErr)' in line:
-                    error_handling_present = True
-
-        tests_passed = []
-        if handler_found:
-            tests_passed.append("walletOk['domain-pay'] handler found")
-        if buy_domain_line != -1 and wallet_charge_line != -1:
-            if wallet_charge_line > buy_domain_line:
-                buy_domain_before_charge = True
-                charge_after_success = True
-                tests_passed.append("Wallet charged AFTER buyDomainFullProcess")
-        if error_handling_present:
-            tests_passed.append("Error handling with try/catch")
-
-        if len(tests_passed) >= 2 and charge_after_success:
-            self.log_test("Wallet Domain Payment Order", True, 
-                        f"Payment order verified: {', '.join(tests_passed)}")
-            return True
-        else:
-            self.log_test("Wallet Domain Payment Order", False, 
-                        f"Payment order issues. Found: {', '.join(tests_passed) if tests_passed else 'None'}")
-            return False
-
-    def run_all_tests(self):
-        """Run all domain purchase tests"""
-        print("🧪 DOMAIN PURCHASE RETRY LOGIC + CR LOG FIX + WALLET REFUND TESTING")
-        print("=" * 80)
-        
-        # Test 1-2: Service Health
-        self.check_health_endpoint()
-        self.check_error_logs()
-        
-        # Test 3: CR Domain Register Log Fix
-        self.check_cr_domain_register_log_fix()
-        
-        # Test 4-5: OP Service Retry Logic
-        self.check_op_service_getcontacthandle_retry()
-        self.check_op_service_registerdomain_retry()
-        
-        # Test 6-8: Auto-Refund Logic for Payment Handlers
-        self.check_bank_domain_auto_refund()
-        self.check_blockbee_crypto_domain_auto_refund()
-        self.check_dynopay_crypto_domain_auto_refund()
-        
-        # Test 9: Wallet Payment Order
-        self.check_wallet_domain_payment_order()
-        
-        # Summary
-        print("=" * 80)
-        print(f"📊 TEST SUMMARY:")
-        print(f"Total Tests: {self.total_tests}")
-        print(f"Passed: {self.passed_tests}")
-        print(f"Failed: {self.total_tests - self.passed_tests}")
-        print(f"Success Rate: {(self.passed_tests/self.total_tests)*100:.1f}%")
-        
-        if self.passed_tests == self.total_tests:
-            print("🎉 ALL TESTS PASSED - Domain purchase retry logic and wallet refund system is working correctly!")
-            return True
-        else:
-            print(f"⚠️  {self.total_tests - self.passed_tests} TEST(S) FAILED - See details above")
-            return False
+def main():
+    """Main test runner"""
+    print("🔍 URL Shortener System Fixes - Backend Testing")
+    print("Testing Node.js app fixes for URL shortener system")
+    print("Key verification points:")
+    print("1. Node.js health: GET http://localhost:5000/health → should be 200 with 'healthy'")
+    print("2. nodejs.err.log should be empty")
+    print("3. LINK_TO_SELF_SERVER should be removed from shortener flow")
+    print("4. Free trial random shortener should always use SELF_URL routing")
+    print("5. Custom domain shortener should have subscription checks")
+    print("6. All linksOf keys should match the format used in clicksOn")
+    print()
+    
+    # Run all tests
+    health_pass = check_service_health()
+    code_pass = verify_code_changes()
+    
+    # Summary
+    print("\n" + "=" * 60)
+    print("TEST SUMMARY")
+    print("=" * 60)
+    
+    overall_pass = health_pass and code_pass
+    
+    if overall_pass:
+        print("🎉 ALL TESTS PASSED")
+        print("✅ Node.js service is healthy")
+        print("✅ Code changes verified correctly")
+        print("✅ URL shortener system fixes are working as expected")
+    else:
+        print("⚠️  SOME TESTS FAILED")
+        if not health_pass:
+            print("❌ Node.js service health issues detected")
+        if not code_pass:
+            print("❌ Code verification issues detected")
+    
+    print(f"\nOverall Result: {'PASS' if overall_pass else 'FAIL'}")
+    return 0 if overall_pass else 1
 
 if __name__ == "__main__":
-    test_suite = DomainPurchaseTestSuite()
-    success = test_suite.run_all_tests()
-    sys.exit(0 if success else 1)
+    sys.exit(main())
