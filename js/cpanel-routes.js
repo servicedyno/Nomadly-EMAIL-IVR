@@ -859,7 +859,7 @@ function createCpanelRoutes(getCpanelCol) {
               const isSelfSigned = domainCert?.issuer?.organization_name === 'cPanel, Inc.'
                 || domainCert?.issuer?.commonName?.includes(domain)
               if (domainCert && !isSelfSigned) {
-                await cfService.setSSLMode(zone.id, 'strict')
+                await cfService.setSSLMode(zone.id, 'full')
                 log(`[Panel] SSL upgraded to strict for ${domain} (AutoSSL cert active)`)
               }
             }

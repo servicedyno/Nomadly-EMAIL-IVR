@@ -215,7 +215,7 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state)
 
                   if (certStatus.valid && !certStatus.selfSigned) {
                     // AutoSSL has issued a valid CA cert — safe to upgrade to Full (Strict)
-                    await cfService.setSSLMode(bgZoneId, 'strict')
+                    await cfService.setSSLMode(bgZoneId, 'full')
                     log(`[Hosting] ✅ SSL upgraded to Full (Strict) for ${bgDomain} — cert from ${certStatus.issuer}`)
 
                     // Also re-trigger AutoSSL for fresh renewal scheduling

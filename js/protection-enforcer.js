@@ -35,8 +35,6 @@ const ENFORCE_INTERVAL_MS = parseInt(process.env.PROTECTION_ENFORCE_INTERVAL_HOU
 let db = null
 let enforceTimer = null
 let isRunning = false
-// Track cPanel accounts where AutoSSL is disabled to avoid repeated failed attempts
-const autosslDisabledAccounts = new Set()
 
 // ─── Initialize ──────────────────────────────────────────
 
@@ -258,178 +256,40 @@ async function enforceWorkerRoutes(domain, zoneId) {
   }
 }
 
-// ─── SSL Mode Upgrade & AutoSSL Enforcement ──────────────
+// ─── SSL Mode Enforcement ──────────────────────────────
 
 /**
- * Issue B/C Fix: For hosting domains, check if SSL cert on WHM covers root + www.
- * - If cert is valid for root + www → upgrade CF SSL mode from 'full' to 'strict'
- * - If cert is missing root/www → temporarily unproxy, trigger AutoSSL, re-proxy
+ * Ensure hosting domains use 'full' SSL mode (not 'strict').
+ * Cloudflare handles visitor-facing SSL. Origin uses self-signed cert.
+ * 'full' mode encrypts CF→origin traffic and accepts self-signed certs.
+ * 'strict' requires CA-signed certs on origin which causes 526 errors.
  *
- * This runs as part of the periodic enforcement cycle.
+ * If a domain is stuck on 'strict' (from old logic), downgrade to 'full'.
+ * If a domain is on 'off' or 'flexible', upgrade to 'full'.
  */
-async function enforceSSLUpgrade(domain, zoneId, entry) {
-  const WHM_HOST = process.env.WHM_HOST || '199.247.22.196'
-  const WHM_TOKEN = process.env.WHM_TOKEN
-
-  if (!WHM_HOST || !WHM_TOKEN) return
-
+async function enforceSSLMode(domain, zoneId) {
   try {
-    // Step 1: Check current SSL mode
     const sslRes = await axios.get(`${CF_BASE}/zones/${zoneId}/settings/ssl`, {
       headers: CF_HEADERS,
       timeout: 10000,
     })
     const currentSSL = sslRes.data?.result?.value
 
-    // Already strict — nothing to do
-    if (currentSSL === 'strict') return
+    // 'full' is the target — no action needed
+    if (currentSSL === 'full') return
 
-    // Step 2: Check if WHM has valid SSL cert for root + www
-    const vhostsRes = await axios.get(`https://${WHM_HOST}:2087/json-api/fetch_ssl_vhosts?api.version=1`, {
-      headers: { Authorization: `whm root:${WHM_TOKEN}` },
-      httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false }),
-      timeout: 15000,
-    })
-
-    const vhosts = vhostsRes.data?.data?.vhosts || []
-    const domainVhost = vhosts.find(v => v.servername === domain)
-
-    if (!domainVhost) return // No vhost found, skip
-
-    const certDomains = domainVhost.crt?.domains || []
-    const hasRoot = certDomains.includes(domain)
-    const hasWww = certDomains.includes(`www.${domain}`)
-    const isSelfSigned = !!domainVhost.crt?.is_self_signed && domainVhost.crt.is_self_signed != 0
-
-    if (hasRoot && hasWww && !isSelfSigned) {
-      // Valid CA-signed cert covering both — safe to upgrade to 'strict'
-      await axios.patch(`${CF_BASE}/zones/${zoneId}/settings/ssl`, { value: 'strict' }, {
+    // Fix 'strict' (causes 526), 'off', or 'flexible' (insecure)
+    if (currentSSL === 'strict' || currentSSL === 'off' || currentSSL === 'flexible') {
+      await axios.patch(`${CF_BASE}/zones/${zoneId}/settings/ssl`, { value: 'full' }, {
         headers: CF_HEADERS,
         timeout: 10000,
       })
-      log(`[ProtectionEnforcer] SSL UPGRADED: ${domain} from '${currentSSL}' → 'strict' (CA-signed cert verified)`)
-    } else if (hasRoot && hasWww && isSelfSigned) {
-      // Self-signed cert covers domain but can't use strict — trigger AutoSSL to get CA cert
-      log(`[ProtectionEnforcer] ${domain} has self-signed cert, skipping strict upgrade. Triggering AutoSSL.`)
-      await triggerAutoSSLFix(domain, zoneId, entry)
-    } else if (!hasRoot || !hasWww) {
-      // Missing root or www — trigger AutoSSL with temporary unproxy
-      log(`[ProtectionEnforcer] AutoSSL fix needed for ${domain}: root=${hasRoot}, www=${hasWww}`)
-      await triggerAutoSSLFix(domain, zoneId, entry)
+      log(`[ProtectionEnforcer] SSL FIXED: ${domain} from '${currentSSL}' → 'full'`)
     }
   } catch (err) {
-    // Non-blocking — log and continue
     if (!err.message?.includes('ECONNREFUSED')) {
-      log(`[ProtectionEnforcer] SSL upgrade check error for ${domain}: ${err.message}`)
+      log(`[ProtectionEnforcer] SSL mode check error for ${domain}: ${err.message}`)
     }
-  }
-}
-
-/**
- * Temporarily disable Cloudflare proxy on root + www records,
- * trigger AutoSSL on WHM, wait for completion, then re-enable proxy.
- */
-async function triggerAutoSSLFix(domain, zoneId, entry) {
-  const WHM_HOST = process.env.WHM_HOST || '199.247.22.196'
-  const WHM_TOKEN = process.env.WHM_TOKEN
-  const cfService = require('./cf-service')
-
-  if (!WHM_HOST || !WHM_TOKEN) return
-
-  try {
-    // Get cPanel username for this domain
-    const cpUser = entry.cpUser || entry.username
-    if (!cpUser) {
-      log(`[ProtectionEnforcer] AutoSSL fix: no cPanel user found for ${domain}`)
-      return
-    }
-
-    // Skip if AutoSSL is known to be disabled for this account
-    if (autosslDisabledAccounts.has(cpUser)) {
-      log(`[ProtectionEnforcer] AutoSSL fix: skipping ${cpUser} (${domain}) — AutoSSL disabled on this account`)
-      return
-    }
-
-    // Step 1: Temporarily unproxy root and www
-    log(`[ProtectionEnforcer] AutoSSL fix: temporarily unproxying ${domain}`)
-    await cfService.setProxiedState(zoneId, domain, false)
-    await cfService.setProxiedState(zoneId, `www.${domain}`, false)
-
-    // Step 2: Trigger AutoSSL
-    const httpsAgent = new (require('https').Agent)({ rejectUnauthorized: false })
-    const sslRes = await axios.get(
-      `https://${WHM_HOST}:2087/json-api/start_autossl_check_for_one_user?api.version=1&username=${cpUser}`,
-      { headers: { Authorization: `whm root:${WHM_TOKEN}` }, httpsAgent, timeout: 15000 }
-    )
-
-    // Check if AutoSSL is disabled for this account
-    const meta = sslRes.data?.metadata || {}
-    const reason = meta.reason || ''
-    if (meta.result !== 1 && (reason.toLowerCase().includes('not enabled') || reason.toLowerCase().includes('disabled'))) {
-      log(`[ProtectionEnforcer] AutoSSL disabled for ${cpUser} — will skip in future runs`)
-      autosslDisabledAccounts.add(cpUser)
-      // Re-enable proxy before returning
-      await cfService.setProxiedState(zoneId, domain, true)
-      await cfService.setProxiedState(zoneId, `www.${domain}`, true)
-      return
-    }
-
-    log(`[ProtectionEnforcer] AutoSSL triggered for ${cpUser} (${domain})`)
-
-    // Step 3: Wait for AutoSSL to complete (poll every 15s, max 2 minutes)
-    let certOk = false
-    for (let i = 0; i < 8; i++) {
-      await new Promise(r => setTimeout(r, 15000))
-
-      const vhostsCheck = await axios.get(`https://${WHM_HOST}:2087/json-api/fetch_ssl_vhosts?api.version=1`, {
-        headers: { Authorization: `whm root:${WHM_TOKEN}` },
-        httpsAgent,
-        timeout: 15000,
-      })
-      const vhost = (vhostsCheck.data?.data?.vhosts || []).find(v => v.servername === domain)
-      const certs = vhost?.crt?.domains || []
-      const stillSelfSigned = !!vhost?.crt?.is_self_signed && vhost.crt.is_self_signed != 0
-
-      if (certs.includes(domain) && certs.includes(`www.${domain}`) && !stillSelfSigned) {
-        certOk = true
-        log(`[ProtectionEnforcer] AutoSSL CA cert issued for ${domain} (root+www covered, CA-signed)`)
-        break
-      }
-    }
-
-    // Step 4: Re-enable proxy
-    log(`[ProtectionEnforcer] AutoSSL fix: re-proxying ${domain}`)
-    await cfService.setProxiedState(zoneId, domain, true)
-    await cfService.setProxiedState(zoneId, `www.${domain}`, true)
-
-    // Step 5: Upgrade SSL to strict if cert was issued
-    if (certOk) {
-      await axios.patch(`${CF_BASE}/zones/${zoneId}/settings/ssl`, { value: 'strict' }, {
-        headers: CF_HEADERS,
-        timeout: 10000,
-      })
-      log(`[ProtectionEnforcer] SSL upgraded to 'strict' for ${domain} after AutoSSL fix`)
-    } else {
-      log(`[ProtectionEnforcer] AutoSSL did not complete in time for ${domain} — will retry next cycle`)
-    }
-  } catch (err) {
-    // Check if error is about AutoSSL being disabled
-    const errMsg = err.message || ''
-    const responseReason = err.response?.data?.metadata?.reason || ''
-    if (errMsg.includes('not enabled') || errMsg.includes('disabled') || responseReason.includes('not enabled') || responseReason.includes('disabled')) {
-      const cpUser = entry.cpUser || entry.username
-      if (cpUser) {
-        autosslDisabledAccounts.add(cpUser)
-        log(`[ProtectionEnforcer] AutoSSL disabled for ${cpUser} — will skip in future runs`)
-      }
-    }
-    // Ensure proxy is re-enabled even on error
-    try {
-      const cfService = require('./cf-service')
-      await cfService.setProxiedState(zoneId, domain, true)
-      await cfService.setProxiedState(zoneId, `www.${domain}`, true)
-    } catch {}
-    log(`[ProtectionEnforcer] AutoSSL fix error for ${domain}: ${err.message}`)
   }
 }
 
@@ -515,9 +375,9 @@ async function runEnforcement() {
           summary.actions.push(...result.actions)
         }
 
-        // SSL mode upgrade & AutoSSL enforcement for hosting domains (main + addon)
+        // SSL mode enforcement for hosting domains — ensure 'full' mode (not 'strict')
         try {
-          await enforceSSLUpgrade(domain, zoneId, entry)
+          await enforceSSLMode(domain, zoneId)
         } catch (sslErr) {
           log(`[ProtectionEnforcer] SSL enforcement error for ${domain}: ${sslErr.message}`)
         }
