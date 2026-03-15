@@ -186,6 +186,29 @@ function createCpanelRoutes(getCpanelCol) {
   router.post('/domains/add', ...auth, async (req, res) => {
     const { domain, subDomain, dir } = req.body
     if (!domain) return res.status(400).json({ error: 'domain is required' })
+
+    // ── Addon domain limit enforcement ──
+    try {
+      const col = getCpanelCol()
+      if (col) {
+        const account = await col.findOne({ _id: req.cpUser.toLowerCase() })
+        if (account) {
+          const { getAddonLimit } = require('./whm-service')
+          const limit = getAddonLimit(account.plan)
+          const currentAddons = (account.addonDomains || []).length
+          if (limit !== -1 && currentAddons >= limit) {
+            const isWeekly = (account.plan || '').toLowerCase().includes('week')
+            const upgradeMsg = isWeekly
+              ? `Domain limit reached (${limit} addon${limit !== 1 ? 's' : ''}). Upgrade to a monthly plan for more domains — use the Upgrade Plan button in your hosting details on the bot.`
+              : `Domain limit reached (${limit} addon domains). Upgrade to Golden Anti-Red for unlimited domains.`
+            return res.status(403).json({ error: upgradeMsg, limitReached: true, currentAddons, limit })
+          }
+        }
+      }
+    } catch (limitErr) {
+      log(`[Panel] add: limit check error (non-blocking): ${limitErr.message}`)
+    }
+
     const result = await cpProxy.addAddonDomain(req.cpUser, req.cpPass, domain, subDomain, dir, req.whmHost)
 
     // Persist addon domain in cpanelAccounts.addonDomains[] for protection-enforcer discovery
@@ -501,6 +524,27 @@ function createCpanelRoutes(getCpanelCol) {
     if (!domain) return res.status(400).json({ error: 'domain is required' })
 
     try {
+      // ── Addon domain limit enforcement ──
+      try {
+        const limitCol = getCpanelCol()
+        if (limitCol) {
+          const account = await limitCol.findOne({ _id: req.cpUser.toLowerCase() })
+          if (account) {
+            const { getAddonLimit } = require('./whm-service')
+            const limit = getAddonLimit(account.plan)
+            const currentAddons = (account.addonDomains || []).length
+            if (limit !== -1 && currentAddons >= limit) {
+              const isWeekly = (account.plan || '').toLowerCase().includes('week')
+              const upgradeMsg = isWeekly
+                ? `Domain limit reached (${limit} addon${limit !== 1 ? 's' : ''}). Upgrade to a monthly plan for more domains — use the Upgrade Plan button in your hosting details on the bot.`
+                : `Domain limit reached (${limit} addon domains). Upgrade to Golden Anti-Red for unlimited domains.`
+              return res.status(403).json({ error: upgradeMsg, limitReached: true, currentAddons, limit })
+            }
+          }
+        }
+      } catch (limitErr) {
+        log(`[Panel] add-enhanced: limit check error (non-blocking): ${limitErr.message}`)
+      }
       // 1. Add addon domain in cPanel
       const cpResult = await cpProxy.addAddonDomain(req.cpUser, req.cpPass, domain, subDomain, dir, req.whmHost)
       if (cpResult.errors?.length) {

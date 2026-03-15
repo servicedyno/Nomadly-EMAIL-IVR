@@ -1,0 +1,65 @@
+{
+  "summary": {
+    "total_tests": 5,
+    "passed_tests": 5,
+    "success_rate": "100.0%",
+    "overall_status": "PASS"
+  },
+  "detailed_results": {
+    "health_check": {
+      "passed": true,
+      "details": {
+        "status_code": 200,
+        "response": {
+          "status": "healthy",
+          "database": "connected",
+          "uptime": "0.11 hours"
+        },
+        "error_log_bytes": 0,
+        "error_log_empty": true
+      }
+    },
+    "whm_service_config": {
+      "passed": true,
+      "details": {
+        "PLAN_ADDON_LIMITS_found": true,
+        "weekly_1_addon": true,
+        "premium_5_addons": true,
+        "golden_unlimited": true,
+        "createAccount_uses_limits": true,
+        "getAddonLimit_exported": true
+      }
+    },
+    "cpanel_routes_limits": {
+      "passed": true,
+      "details": {
+        "add_route_has_getAddonLimit": true,
+        "limit_check_logic": true,
+        "returns_403_status": true,
+        "upgrade_message_present": true,
+        "enhanced_route_also_enforces": true
+      }
+    },
+    "language_config": {
+      "passed": true,
+      "details": {
+        "premiumWeekly_1_addon": true,
+        "premiumCpanel_5_addons": true,
+        "goldenCpanel_unlimited": true,
+        "upgradeHostingPlan_button": true
+      }
+    },
+    "index_upgrade_flow": {
+      "passed": true,
+      "details": {
+        "viewHostingPlanDetails_exists": true,
+        "weekly_shows_upgrade_button": true,
+        "confirmUpgradeHosting_action": true,
+        "upgrade_wallet_charge": true,
+        "whm_changePackage_call": true,
+        "cpanelAccounts_update": true,
+        "auto_refund_on_failure": true
+      }
+    }
+  }
+}

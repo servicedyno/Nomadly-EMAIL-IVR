@@ -2487,6 +2487,7 @@ bot?.on('message', msg => {
     myHostingPlans: 'myHostingPlans',
     viewHostingPlan: 'viewHostingPlan',
     confirmRenewNow: 'confirmRenewNow',
+    confirmUpgradeHosting: 'confirmUpgradeHosting',
 
     askDomainToUseWithShortener: 'askDomainToUseWithShortener',
     domainNsSelect: 'domainNsSelect',
@@ -4091,6 +4092,7 @@ Enter new value:`), bc)
         + `Tap "Show Credentials" to reveal your HostPanel username and PIN.`
 
       const buttons = [[user.revealCredentials], [user.renewHostingPlan]]
+      if (isWeekly) buttons.push([user.upgradeHostingPlan])
       if (!isWeekly) buttons.push([user.toggleAutoRenew])
       buttons.push([user.backToMyHostingPlans])
 
@@ -6276,6 +6278,69 @@ All verified numbers generated during sourcing.`))
         : [[trans('u.deposit')], [user.cancelRenewNow]]
       return send(chatId, text, k.of(buttons))
     }
+    if (message === user.upgradeHostingPlan) {
+      const domain = info?.selectedHostingDomain
+      if (!domain) return goto.myHostingPlans()
+      const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+      if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+
+      const currentPlan = (plan.plan || '').toLowerCase()
+      const { getPlanPrice } = require('./hosting-scheduler')
+      const currentPrice = getPlanPrice(plan.plan)
+      const { usdBal } = await getBalance(walletOf, chatId)
+
+      // Determine upgrade options based on current plan
+      const upgradeOptions = []
+      if (currentPlan.includes('week')) {
+        upgradeOptions.push({
+          name: 'Premium Anti-Red HostPanel (30 Days)',
+          key: 'premiumCpanel',
+          price: Number(process.env.PREMIUM_ANTIRED_CPANEL_PRICE || 75),
+          domains: 'Up to 5 addon domains',
+          storage: '50 GB SSD',
+          bandwidth: '500 GB',
+        })
+        upgradeOptions.push({
+          name: 'Golden Anti-Red HostPanel (30 Days)',
+          key: 'goldenCpanel',
+          price: Number(process.env.GOLDEN_ANTIRED_CPANEL_PRICE || 100),
+          domains: 'Unlimited domains',
+          storage: '100 GB SSD',
+          bandwidth: 'Unlimited',
+        })
+      } else if (currentPlan.includes('premium') && !currentPlan.includes('week')) {
+        upgradeOptions.push({
+          name: 'Golden Anti-Red HostPanel (30 Days)',
+          key: 'goldenCpanel',
+          price: Number(process.env.GOLDEN_ANTIRED_CPANEL_PRICE || 100),
+          domains: 'Unlimited domains',
+          storage: '100 GB SSD',
+          bandwidth: 'Unlimited',
+        })
+      }
+
+      if (!upgradeOptions.length) {
+        return send(chatId, '✅ You are already on the highest plan (Golden Anti-Red). No upgrades available.', k.of([[user.backToMyHostingPlans]]))
+      }
+
+      let text = `<b>⬆️ Upgrade Plan</b>\n\n`
+        + `<b>Current:</b> ${plan.plan} — $${currentPrice}\n`
+        + `<b>Domain:</b> ${domain}\n`
+        + `<b>Wallet Balance:</b> $${usdBal.toFixed(2)}\n\n`
+        + `Choose your new plan:\n\n`
+
+      const buttons = []
+      for (const opt of upgradeOptions) {
+        text += `<b>${opt.name} — $${opt.price}</b>\n`
+          + `${opt.storage} · ${opt.bandwidth} · ${opt.domains}\n\n`
+        buttons.push([`⬆️ ${opt.name} ($${opt.price})`])
+      }
+      buttons.push([user.backToMyHostingPlans])
+
+      saveInfo('upgradeOptions', upgradeOptions)
+      set(state, chatId, 'action', a.confirmUpgradeHosting)
+      return send(chatId, text, k.of(buttons))
+    }
   }
 
   // Confirm Renew Now — wallet deduction
@@ -6365,6 +6430,106 @@ All verified numbers generated during sourcing.`))
         send(chatId, t.purchaseFailed || '❌ Renewal failed. Your wallet has been refunded. Please try again or contact support.', trans('o'))
         send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>Hosting renewal crash</b>\nUser: ${chatId}\nDomain: ${domain}\nAmount: $${price}\nError: ${renewErr.message}`, { parse_mode: 'HTML' })
       }
+    }
+  }
+
+  // Confirm Hosting Plan Upgrade — wallet deduction + WHM package change
+  if (action === a.confirmUpgradeHosting) {
+    if (message === user.backToMyHostingPlans) return goto.myHostingPlans()
+
+    const upgradeOptions = info?.upgradeOptions || []
+    const selected = upgradeOptions.find(opt => message === `⬆️ ${opt.name} ($${opt.price})`)
+    if (!selected) {
+      return send(chatId, 'Please select one of the upgrade options.', k.of([
+        ...upgradeOptions.map(opt => [`⬆️ ${opt.name} ($${opt.price})`]),
+        [user.backToMyHostingPlans]
+      ]))
+    }
+
+    const domain = info?.selectedHostingDomain
+    if (!domain) return goto.myHostingPlans()
+    const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
+    if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
+
+    const upgradePrice = selected.price
+    const { usdBal } = await getBalance(walletOf, chatId)
+
+    if (usdBal < upgradePrice) {
+      return send(chatId,
+        `⚠️ <b>Insufficient funds</b>\n\n`
+        + `<b>Upgrade to:</b> ${selected.name}\n`
+        + `<b>Price:</b> $${upgradePrice}\n`
+        + `<b>Your Balance:</b> $${usdBal.toFixed(2)}\n`
+        + `<b>Need:</b> $${(upgradePrice - usdBal).toFixed(2)} more\n\n`
+        + `Please deposit funds first.`,
+        k.of([[trans('u.deposit')], [user.backToMyHostingPlans]])
+      )
+    }
+
+    try {
+      // 1. Charge wallet
+      await atomicIncrement(walletOf, chatId, 'usdOut', upgradePrice)
+
+      // 2. Change WHM package
+      const whm = require('./whm-service')
+      const changeResult = await whm.changePackage(plan.cpUser, selected.name)
+      if (!changeResult.success) {
+        // Refund on WHM failure
+        await atomicIncrement(walletOf, chatId, 'usdIn', upgradePrice)
+        log(`[Hosting] Upgrade WHM changePackage failed for ${chatId}: ${changeResult.error} — refunded`)
+        return send(chatId, `❌ Upgrade failed: ${changeResult.error}\nYour wallet has been refunded.`, k.of([[user.backToMyHostingPlans]]))
+      }
+
+      // 3. Update cpanelAccounts with new plan + new 30-day expiry
+      const newExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+      await cpanelAccounts.updateOne(
+        { _id: plan._id },
+        { $set: {
+          plan: selected.name,
+          expiryDate: newExpiry,
+          autoRenew: true,
+          upgradedAt: new Date(),
+          upgradedFrom: plan.plan,
+        }}
+      )
+
+      const { usdBal: newBal } = await getBalance(walletOf, chatId)
+      const newExpiryStr = newExpiry.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+
+      log(`[Hosting] Plan upgraded for ${chatId}: ${plan.plan} → ${selected.name} ($${upgradePrice})`)
+
+      // Re-deploy anti-red with new plan (non-blocking)
+      try {
+        const antiRedSvc = require('./anti-red-service')
+        antiRedSvc.deployFullProtection(plan.cpUser, domain, selected.name).catch(() => {})
+      } catch (_) {}
+
+      // Notify admin
+      send(TELEGRAM_ADMIN_CHAT_ID, `⬆️ <b>Hosting Upgrade</b>\nUser: ${chatId}\nDomain: ${domain}\n${plan.plan} → ${selected.name}\nCharged: $${upgradePrice}`, { parse_mode: 'HTML' })
+
+      await send(chatId,
+        `✅ <b>Plan Upgraded Successfully!</b>\n\n`
+        + `<b>Old Plan:</b> ${plan.plan}\n`
+        + `<b>New Plan:</b> ${selected.name}\n`
+        + `<b>Domain:</b> ${domain}\n`
+        + `<b>Charged:</b> $${upgradePrice}\n`
+        + `<b>New Expiry:</b> ${newExpiryStr}\n`
+        + `<b>Remaining Balance:</b> $${newBal.toFixed(2)}\n\n`
+        + `${selected.domains} now available. Anti-Red protection refreshed.`
+      )
+      return goto.viewHostingPlanDetails(domain)
+    } catch (upgradeErr) {
+      // Auto-refund on failure
+      try {
+        await atomicIncrement(walletOf, chatId, 'usdIn', upgradePrice)
+        log(`[Hosting] Upgrade refunded $${upgradePrice} for ${chatId} — upgrade failed`)
+      } catch (refundErr) {
+        log(`[Hosting] CRITICAL: Upgrade refund failed for ${chatId}, $${upgradePrice}: ${refundErr.message}`)
+        send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>HOSTING UPGRADE REFUND FAILED</b>\nUser: ${chatId}\nAmount: $${upgradePrice}\nDomain: ${domain}\nError: ${refundErr.message}`, { parse_mode: 'HTML' })
+      }
+      log(`[Hosting] Upgrade crashed for ${chatId}: ${upgradeErr.message}`)
+      send(chatId, '❌ Upgrade failed. Your wallet has been refunded. Please try again or contact support.', trans('o'))
+      send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>Hosting upgrade crash</b>\nUser: ${chatId}\nDomain: ${domain}\nAmount: $${upgradePrice}\nError: ${upgradeErr.message}`, { parse_mode: 'HTML' })
     }
   }
 

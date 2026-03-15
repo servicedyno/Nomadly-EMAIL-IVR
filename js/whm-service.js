@@ -23,6 +23,26 @@ const PLAN_MAP = {
   'business': 'Golden-Anti-Red-HostPanel-1-Month',
 }
 
+// Addon domain limits per WHM package (-1 = unlimited)
+const PLAN_ADDON_LIMITS = {
+  'Premium-Anti-Red-1-Week': 1,              // Weekly: 1 addon (2 total with primary)
+  'Premium-Anti-Red-HostPanel-1-Month': 5,   // Premium Monthly: 5 addons (6 total)
+  'Golden-Anti-Red-HostPanel-1-Month': -1,   // Golden Monthly: unlimited
+}
+
+/**
+ * Get the addon domain limit for a given plan (by WHM package name or bot plan name)
+ * Returns -1 for unlimited, or a positive number for the max allowed addon domains
+ */
+function getAddonLimit(planName) {
+  // Try direct WHM package lookup first
+  if (PLAN_ADDON_LIMITS[planName] !== undefined) return PLAN_ADDON_LIMITS[planName]
+  // Try mapping from bot plan name
+  const pkg = PLAN_MAP[(planName || '').toLowerCase()]
+  if (pkg && PLAN_ADDON_LIMITS[pkg] !== undefined) return PLAN_ADDON_LIMITS[pkg]
+  return -1 // default to unlimited for unknown plans
+}
+
 const whmApi = axios.create({
   baseURL: WHM_BASE,
   headers: { Authorization: WHM_AUTH },
@@ -141,7 +161,7 @@ async function createAccount(domain, plan, email, customUsername, opts = {}) {
         contactemail: email,
         password,
         maxpark: 'unlimited',
-        maxaddon: 'unlimited',
+        maxaddon: PLAN_ADDON_LIMITS[pkg] === -1 ? 'unlimited' : PLAN_ADDON_LIMITS[pkg],
       }
 
       // Skip DNS check for Cloudflare-pointed domains (domain won't resolve to WHM yet)
@@ -539,4 +559,6 @@ module.exports = {
   startAutoSSL,
   checkSSLCert,
   PLAN_MAP,
+  PLAN_ADDON_LIMITS,
+  getAddonLimit,
 }
