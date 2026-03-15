@@ -3511,8 +3511,8 @@ Enter new value:`), bc)
       send(chatId, t.walletSelectCurrency(usdBal, ngnBal), trans('payOpts'))
     },
     walletSelectCurrencyConfirm: async () => {
-      const { price, couponApplied, newPrice, coin } = info
-      const p = couponApplied ? newPrice : price
+      const { price, totalPrice, couponApplied, newPrice, coin } = info
+      const p = couponApplied ? newPrice : (price || totalPrice || 0)
 
       let text = ''
       if (coin === u.ngn) text = t.confirmNgn(p, await usdToNgn(p))
@@ -6412,7 +6412,7 @@ All verified numbers generated during sourcing.`))
 
   // ━━━ Bundle Selection Handler ━━━
   if (action === a.bundleMenu) {
-    if (message === t.back || message === '↩️ Back') return goto.mainmenu()
+    if (message === t.back || message === '↩️ Back') return goto.displayMainMenuButtons()
     // Match selected bundle by name
     const cleanMsg = message.replace('⭐ ', '')
     const bundleIds = Object.keys(monetization.SERVICE_BUNDLES)
@@ -10979,9 +10979,11 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   if (action === a.depositNGN) {
     if (message === t.back) return goto[a.selectCurrencyToDeposit]()
 
-    const amount = message
-    if (isNaN(amount)) return send(chatId, t.askValidAmount)
-    await saveInfo('depositAmountNgn', Number(amount))
+    // Sanitize common currency formatting: strip #, ₦, commas, spaces, "NGN"
+    const sanitized = message.replace(/[#₦,\s]/g, '').replace(/^NGN\s*/i, '').replace(/NGN\s*Amount:?\s*/i, '')
+    const amount = parseFloat(sanitized)
+    if (isNaN(amount) || amount <= 0) return send(chatId, t.askValidAmount)
+    await saveInfo('depositAmountNgn', amount)
     return goto[a.askEmailForNGN]()
   }
   if (action === a.askEmailForNGN) {
@@ -10996,7 +10998,9 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   if (action === a.depositUSD) {
     if (message === t.back) return goto[a.selectCurrencyToDeposit]()
 
-    const amount = Number(message)
+    // Sanitize common currency formatting: strip $, commas, spaces, "USD"
+    const sanitized = message.replace(/[$,\s]/g, '').replace(/^USD\s*/i, '')
+    const amount = Number(sanitized)
     if (isNaN(amount) || amount < 10) return send(chatId, t.whatNum)
     await saveInfo('amount', amount)
 
@@ -16578,7 +16582,7 @@ Select a category:`), k.of(catBtns))
       // Go back to bundle confirm
       const bundleId = info?.selectedBundle
       const bundle = monetization.getBundleDetails(bundleId, lang)
-      if (!bundle) return goto.mainmenu()
+      if (!bundle) return goto.displayMainMenuButtons()
       await set(state, chatId, 'action', a.bundleConfirm)
       const card = monetization.formatBundleCard(bundle, lang)
       const confirmBtn = { en: '✅ Purchase Bundle', fr: '✅ Acheter le Pack', zh: '✅ 购买套餐', hi: '✅ बंडल खरीदें' }[lang] || '✅ Purchase Bundle'
@@ -16592,7 +16596,7 @@ Select a category:`), k.of(catBtns))
 
     const bundleId = info?.selectedBundle
     const bundle = monetization.getBundleDetails(bundleId, lang)
-    if (!bundle) return goto.mainmenu()
+    if (!bundle) return goto.displayMainMenuButtons()
 
     const basePrice = info?.bundlePrice || bundle.finalPrice
     const newPrice = Math.max(1, basePrice - (basePrice * couponResult.discount) / 100)
