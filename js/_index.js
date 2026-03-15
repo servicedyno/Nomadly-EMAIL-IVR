@@ -4081,7 +4081,13 @@ Enter new value:`), bc)
         ? (t.domainTypeRegistered || '🏷️ Registered with us')
         : (t.domainTypeExternal || '🌍 External')
 
-      const text = `🌐 <b>${plan.domain}</b>\n\n`
+      // Check addon domain count vs limit for upgrade nudge
+      const currentAddons = (plan.addonDomains || []).length
+      const { getAddonLimit } = require('./whm-service')
+      const addonLimit = getAddonLimit(plan.plan)
+      const atLimit = addonLimit !== -1 && currentAddons >= addonLimit
+
+      let text = `🌐 <b>${plan.domain}</b>\n\n`
         + `<b>Plan:</b> ${plan.plan}\n`
         + `<b>Status:</b> ${status}\n`
         + `<b>Domain Type:</b> ${domainType}\n`
@@ -4090,6 +4096,10 @@ Enter new value:`), bc)
         + `<b>Auto-Renew:</b> ${autoRenewStatus}\n`
         + `<b>Username:</b> <code>${plan.cpUser}</code>\n\n`
         + `Tap "Show Credentials" to reveal your HostPanel username and PIN.`
+
+      if (isWeekly && atLimit) {
+        text += `\n\n💡 <b>Want to host more sites?</b> Upgrade to a monthly plan for multi-site hosting, more storage, and advanced Anti-Red protection.`
+      }
 
       const buttons = [[user.revealCredentials], [user.renewHostingPlan]]
       if (isWeekly) buttons.push([user.upgradeHostingPlan])
