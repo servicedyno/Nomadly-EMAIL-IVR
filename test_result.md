@@ -116,22 +116,33 @@ backend:
     priority: "critical"
     needs_retesting: false
     status_history:
-        - working: "NA"
-          agent: "main"
-          comment: "Implemented tiered addon domain limits to create proper upgrade incentive. (1) whm-service.js: Added PLAN_ADDON_LIMITS (Weekly: 1 addon, Premium Monthly: 5, Golden: unlimited). createAccount now sets maxaddon per plan. Exported getAddonLimit() helper. (2) cpanel-routes.js: Both /domains/add and /domains/add-enhanced now check addon count vs plan limit before allowing new domain. Returns 403 with upgrade message for weekly users who hit limit, directing them to Upgrade Plan button. Existing weekly users with >1 addon can keep their domains but cannot add more. (3) All 4 lang files: Updated plan descriptions — Weekly '1 addon domain', Premium '5 addon domains', Golden 'Unlimited'. Added upgradeHostingPlan button in all 4 languages. (4) _index.js: viewHostingPlanDetails now shows 'Upgrade Plan' button for weekly plan users. New upgrade flow: select Premium ($75) or Golden ($100) → wallet check → charge → WHM changePackage → update cpanelAccounts (new plan, 30-day expiry, autoRenew on) → re-deploy anti-red → admin notification. Full auto-refund on any failure."
         - working: true
           agent: "testing"
-          comment: "VERIFIED: All 5 requirements successfully implemented and tested. (1) ✅ Health endpoint returns 200, nodejs.err.log is empty (0 bytes). (2) ✅ PLAN_ADDON_LIMITS in whm-service.js correctly configured: Premium-Anti-Red-1-Week: 1, Premium-Anti-Red-HostPanel-1-Month: 5, Golden-Anti-Red-HostPanel-1-Month: -1 (unlimited). createAccount uses PLAN_ADDON_LIMITS (not hardcoded). getAddonLimit() function exported. (3) ✅ Both /domains/add and /domains/add-enhanced routes properly enforce limits using getAddonLimit(), return 403 when limit reached with upgrade message directing to Upgrade Plan button. (4) ✅ Language config verified in en.js: premiumWeekly.domains = '1 addon domain', premiumCpanel.domains = 'Up to 5 addon domains', goldenCpanel.domains = 'Unlimited domains', upgradeHostingPlan button exists. (5) ✅ Upgrade flow in _index.js: viewHostingPlanDetails shows upgrade button for weekly plans (if isWeekly), confirmUpgradeHosting action handler exists with wallet charge + whm.changePackage + cpanelAccounts update + auto-refund on failure. All components working correctly - tiered limits create proper upgrade incentive as intended."
+          comment: "Previously verified working"
+
+  - task: "Fix trial IVR call consumed on busy/no-answer"
+    implemented: true
+    working: true
+    file: "js/voice-service.js, js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Fixed trial call being consumed even when callee rejects/is busy. (1) _index.js: Removed immediate trial marking at call placement (line ~11984-11988). (2) voice-service.js: Added _state collection dep, passed from _index.js initVoiceService. (3) voice-service.js handleOutboundIvrHangup: Added callWasAnswered flag (phase !== ringing/initiated). Trial only marked used if callWasAnswered. If not answered, user gets 'trial still available' message. (4) Also fixed user_busy hangup cause detection (was only checking 'busy', now also handles 'user_busy'). (5) Reset trial for @Mrdoitright11 (chatId 8737445617) in DB."
+        - working: true
+          agent: "testing"
+          comment: "✅ COMPREHENSIVE TESTING COMPLETE - All requirements verified: (1) Health check: Node.js running healthy on port 5000, nodejs.err.log 0 bytes. (2) _index.js: Old immediate trial marking block removed (line ~11985), replaced with comment 'Trial marking moved to voice-service.js handleOutboundIvrHangup'. initVoiceService call now includes 'state' in deps (line 965). (3) voice-service.js: New _state variable declared (line 21), initialized from deps.state in initVoiceService (line 49). handleOutboundIvrHangup: callWasAnswered flag implemented (session.phase !== 'ringing' && !== 'initiated'), user_busy hangup cause handling added alongside 'busy', trial logic only marks used if callWasAnswered via set(_state, trialKey, true), sends 'Your free trial call is still available' message if not answered. (4) DB: ivrTrialUsed_8737445617 successfully deleted from state collection. All code changes working as designed."
 
 test_plan:
-  current_focus:
-    - "Tiered hosting addon domain limits: Weekly 1, Premium Monthly 5, Golden Unlimited + upgrade flow"
+  current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
     - agent: "main"
-      message: "Implemented tiered addon domain limits for hosting plans + hosting plan upgrade flow. Please verify: (1) Node.js healthy at localhost:5000/health with 0 bytes in nodejs.err.log. (2) whm-service.js: PLAN_ADDON_LIMITS config — Premium-Anti-Red-1-Week: 1, Premium-Anti-Red-HostPanel-1-Month: 5, Golden-Anti-Red-HostPanel-1-Month: -1 (unlimited). getAddonLimit() function exported. createAccount maxaddon uses PLAN_ADDON_LIMITS[pkg] instead of 'unlimited'. (3) cpanel-routes.js: /domains/add and /domains/add-enhanced routes have addon limit enforcement — check account.plan via getAddonLimit(), compare currentAddons count, return 403 with upgrade message if exceeded. (4) All 4 language files (en/fr/zh/hi): premiumWeekly domains changed to '1 addon domain', premiumCpanel domains changed to 'Up to 5 addon domains', goldenCpanel remains 'Unlimited domains'. (5) en/fr/zh/hi user buttons: upgradeHostingPlan button added. (6) _index.js: viewHostingPlanDetails adds upgradeHostingPlan button for weekly plans. Action constant confirmUpgradeHosting added. Upgrade flow in viewHostingPlan action handler shows Premium/Golden options with pricing. confirmUpgradeHosting handler deducts wallet, calls whm.changePackage, updates cpanelAccounts with new plan+expiry, re-deploys anti-red, notifies admin, auto-refunds on failure."
-    - agent: "testing"
-      message: "✅ VERIFICATION COMPLETE: All 5 requirements successfully tested and working. (1) Health endpoint: GET localhost:5000/health returns 200 'healthy' status with database connected, nodejs.err.log is 0 bytes (empty). (2) WHM Service: PLAN_ADDON_LIMITS correctly configured with Weekly:1, Premium:5, Golden:unlimited (-1). createAccount properly uses PLAN_ADDON_LIMITS instead of hardcoded values. getAddonLimit() function exported and working. (3) cPanel Routes: Both /domains/add and /domains/add-enhanced enforce limits before calling addAddonDomain, return 403 with proper upgrade message when limit reached. (4) Language Config: en.js has correct domain descriptions and upgradeHostingPlan button. (5) Upgrade Flow: _index.js viewHostingPlanDetails shows upgrade button for weekly plans, confirmUpgradeHosting action handler implements full flow with wallet charge + whm.changePackage + cpanelAccounts update + auto-refund. Implementation creates proper tiered upgrade incentive - weekly users limited to 1 addon domain get clear upgrade path to monthly plans with more domains. Ready for production."
+      message: "Fixed trial IVR call being consumed on busy/no-answer. Please verify: (1) Node.js healthy at localhost:5000/health with 0 bytes in nodejs.err.log. (2) _index.js: The old trial marking block (set state ivrTrialUsed immediately after call placement) is REMOVED — replaced with comment about voice-service handling. (3) _index.js initVoiceService: now passes state collection in deps. (4) voice-service.js: new _state variable added, initialized from deps.state in initVoiceService. (5) voice-service.js handleOutboundIvrHangup: new callWasAnswered flag (session.phase !== ringing && !== initiated). Trial only marked used via set(_state, trialKey, true) if callWasAnswered. If NOT answered, sends 'trial still available' message. (6) Also handles user_busy hangup cause (previously only checked 'busy'). (7) DB: ivrTrialUsed_8737445617 deleted from state collection."
+    - agent: "testing"  
+      message: "✅ TESTING COMPLETE - Fix trial IVR call consumed on busy/no-answer verified working correctly. All requirements met: Node.js health check passed (port 5000, 0-byte error log), code structure verified (_index.js trial removal + state deps, voice-service.js _state implementation + callWasAnswered logic + user_busy handling), database verified (trial record deleted). Comprehensive test file created at /app/ivr_trial_fix_test.js for future verification. Ready for production."

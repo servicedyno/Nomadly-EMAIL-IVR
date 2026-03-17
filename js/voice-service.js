@@ -18,6 +18,7 @@ let _payments = null
 let _nanoid = null
 let _twilioSipDomain = null
 let _selfUrl = null
+let _state = null
 let _twilioService = null
 
 // In-memory store for active call sessions (callControlId → session data)
@@ -45,6 +46,7 @@ function initVoiceService(deps) {
   _twilioSipDomain = deps.twilioSipDomainName || null
   _selfUrl = deps.selfUrl || null
   _twilioService = deps.twilioService || null
+  _state = deps.state || null
   log('[VoiceService] Initialized with IVR + Recording + Analytics + Limits + Overage billing + SIP Bridge + Twilio IVR')
 }
 
@@ -2177,10 +2179,11 @@ async function handleOutboundIvrHangup(payload) {
   log(`[OutboundIVR] Hangup: ${session.targetNumber} (${duration}s [telnyx=${telnyxDuration}s, tracked=${trackedDuration}s], ${minutesBilled} min, cause: ${hangupCause})`)
 
   let notifType = 'hangup'
+  const callWasAnswered = session.phase !== 'ringing' && session.phase !== 'initiated'
   if (session.phase === 'ringing' || session.phase === 'initiated') {
     // Never answered
     notifType = hangupCause === 'timeout' || hangupCause === 'originator_cancel' ? 'no_answer'
-      : hangupCause === 'busy' ? 'busy'
+      : (hangupCause === 'busy' || hangupCause === 'user_busy') ? 'busy'
       : 'no_answer'
   } else if (session.phase === 'transferring') {
     // Check if the transfer leg actually connected
@@ -2284,11 +2287,25 @@ async function handleOutboundIvrHangup(payload) {
   })
   _bot?.sendMessage(session.chatId, baseNotif + planLine, { parse_mode: 'HTML' }).catch(() => {})
 
-  // If trial call, send trial-used message
+  // If trial call, only mark as used if the call was actually answered
   if (session.isTrial) {
-    setTimeout(() => {
-      _bot?.sendMessage(session.chatId, ivrOutbound.formatCallNotification('trial_used', {}), { parse_mode: 'HTML' }).catch(() => {})
-    }, 2000)
+    if (callWasAnswered) {
+      // Call connected — trial is consumed
+      if (_state) {
+        const trialKey = `ivrTrialUsed_${session.chatId}`
+        set(_state, trialKey, true).catch(e => log(`[OutboundIVR] Failed to mark trial used: ${e.message}`))
+        log(`[OutboundIVR] Trial marked as used for chatId ${session.chatId} (call was answered)`)
+      }
+      setTimeout(() => {
+        _bot?.sendMessage(session.chatId, ivrOutbound.formatCallNotification('trial_used', {}), { parse_mode: 'HTML' }).catch(() => {})
+      }, 2000)
+    } else {
+      // Call never connected (busy, no answer, etc.) — trial is preserved
+      log(`[OutboundIVR] Trial NOT consumed for chatId ${session.chatId} (call not answered, cause: ${hangupCause})`)
+      setTimeout(() => {
+        _bot?.sendMessage(session.chatId, `📞 <b>Call not connected</b> — the recipient was busy or didn't answer.\n\n🎁 Your free trial call is still available! Try again anytime.`, { parse_mode: 'HTML' }).catch(() => {})
+      }, 2000)
+    }
   }
 
   // Log the outbound IVR call

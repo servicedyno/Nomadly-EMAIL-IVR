@@ -962,6 +962,7 @@ const loadData = async () => {
       twilioSipDomainName: twilioResources?.sipDomainName || null,
       selfUrl: SELF_URL,
       twilioService: require('./twilio-service.js'),
+      state,
     })
     log('[CloudPhone] Voice Service initialized with IVR + Recording + Overage')
 
@@ -11981,11 +11982,8 @@ Choose an IVR template category:`), k.of(rows))
         return goto.submenu5()
       }
 
-      // Mark trial as used if applicable
-      if (ivrObData.isTrial) {
-        const trialKey = `ivrTrialUsed_${chatId}`
-        await set(state, trialKey, true)
-      }
+      // Trial marking moved to voice-service.js handleOutboundIvrHangup
+      // — only consumed when the call is actually answered (not on busy/no_answer)
 
       // Reset to hub
       return set(state, chatId, 'action', a.submenu5)
