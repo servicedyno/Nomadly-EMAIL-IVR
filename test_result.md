@@ -105,7 +105,7 @@
 #====================================================================================================
 
 
-user_problem_statement: "Tiered hosting addon domain limits + hosting plan upgrade flow + Railway log bug fixes"
+user_problem_statement: "SIP credential username mismatch - user sees Twilio username but Telnyx domain"
 
 backend:
   - task: "Tiered hosting addon domain limits + hosting plan upgrade flow"
@@ -128,21 +128,34 @@ backend:
     priority: "high"
     needs_retesting: false
     status_history:
-        - working: "NA"
-          agent: "main"
-          comment: "Fixed trial call being consumed even when callee rejects/is busy. (1) _index.js: Removed immediate trial marking at call placement (line ~11984-11988). (2) voice-service.js: Added _state collection dep, passed from _index.js initVoiceService. (3) voice-service.js handleOutboundIvrHangup: Added callWasAnswered flag (phase !== ringing/initiated). Trial only marked used if callWasAnswered. If not answered, user gets 'trial still available' message. (4) Also fixed user_busy hangup cause detection (was only checking 'busy', now also handles 'user_busy'). (5) Reset trial for @Mrdoitright11 (chatId 8737445617) in DB."
         - working: true
           agent: "testing"
-          comment: "✅ COMPREHENSIVE TESTING COMPLETE - All requirements verified: (1) Health check: Node.js running healthy on port 5000, nodejs.err.log 0 bytes. (2) _index.js: Old immediate trial marking block removed (line ~11985), replaced with comment 'Trial marking moved to voice-service.js handleOutboundIvrHangup'. initVoiceService call now includes 'state' in deps (line 965). (3) voice-service.js: New _state variable declared (line 21), initialized from deps.state in initVoiceService (line 49). handleOutboundIvrHangup: callWasAnswered flag implemented (session.phase !== 'ringing' && !== 'initiated'), user_busy hangup cause handling added alongside 'busy', trial logic only marks used if callWasAnswered via set(_state, trialKey, true), sends 'Your free trial call is still available' message if not answered. (4) DB: ivrTrialUsed_8737445617 successfully deleted from state collection. All code changes working as designed."
+          comment: "Previously verified working"
+
+  - task: "Fix SIP credential username mismatch (Twilio vs Telnyx)"
+    implemented: true
+    working: true
+    file: "js/_index.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Root cause: When phone number purchased, Telnyx returns gencredXXX username but code stored Twilio seed username (test_XXXX) as primary sipUsername. SIP Credentials display showed Twilio username with Telnyx domain (sip.speechcue.com) causing auth failure. Fix: (1) SIP Credentials display now uses telnyxSipUsername || sipUsername. (2) Reveal Password now uses telnyxSipPassword || sipPassword. (3) Initial Twilio purchase flow now sets sipUsername to Telnyx username when available. (4) Auto-renewal reset now sets sipUsername to Telnyx username. Verified: User 6604316166 has telnyxSipUsername=gencredXHoDYGC6zXt2SzBi1c7P7v9cMKNUkxQuZpaRgP7Dvw, sipUsername=test_944482e214bda018. Display fix ensures correct Telnyx username is shown."
+        - working: true
+          agent: "testing"
+          comment: "COMPREHENSIVE TESTING COMPLETED - ALL TESTS PASSED: ✅ Node.js health check (healthy, database connected). ✅ SIP Credentials Display Fix verified at line 14019: 'const displaySipUser = num.telnyxSipUsername || num.sipUsername'. ✅ Reveal Password Fix verified at line 15993: 'const displayPassword = num.telnyxSipPassword || num.sipPassword'. ✅ Initial Purchase Flow Fix verified: twilioSeedUsername variable, sipUsername assignment to Telnyx, Twilio uses separate credentials. ✅ Auto-Renewal Reset Fix verified: userData.numbers[numIdx].sipUsername = newTelnyxSipUsername || newSeedUser. ✅ Database verification: User 6604316166 exists with correct structure - sipUsername: test_944482e214bda018, telnyxSipUsername: gencredXHoDYGC6zXt2SzBi1c7P7v9cMKNUkxQuZpaRgP7Dvw, both passwords present. ✅ Error logs: 0 bytes (no errors). Fix correctly implemented - users will now see Telnyx username (gencredXXX) instead of Twilio username (test_XXX) when using SIP credentials with sip.speechcue.com domain."
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Fix SIP credential username mismatch (Twilio vs Telnyx)"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
     - agent: "main"
-      message: "Fixed trial IVR call being consumed on busy/no-answer. Please verify: (1) Node.js healthy at localhost:5000/health with 0 bytes in nodejs.err.log. (2) _index.js: The old trial marking block (set state ivrTrialUsed immediately after call placement) is REMOVED — replaced with comment about voice-service handling. (3) _index.js initVoiceService: now passes state collection in deps. (4) voice-service.js: new _state variable added, initialized from deps.state in initVoiceService. (5) voice-service.js handleOutboundIvrHangup: new callWasAnswered flag (session.phase !== ringing && !== initiated). Trial only marked used via set(_state, trialKey, true) if callWasAnswered. If NOT answered, sends 'trial still available' message. (6) Also handles user_busy hangup cause (previously only checked 'busy'). (7) DB: ivrTrialUsed_8737445617 deleted from state collection."
-    - agent: "testing"  
-      message: "✅ TESTING COMPLETE - Fix trial IVR call consumed on busy/no-answer verified working correctly. All requirements met: Node.js health check passed (port 5000, 0-byte error log), code structure verified (_index.js trial removal + state deps, voice-service.js _state implementation + callWasAnswered logic + user_busy handling), database verified (trial record deleted). Comprehensive test file created at /app/ivr_trial_fix_test.js for future verification. Ready for production."
+      message: "Fixed SIP credential username mismatch causing 'Connection error: Unknown' on speechcue.com. Please verify: (1) Node.js healthy at localhost:5000/health. (2) In _index.js SIP Credentials display (around line 14015), now uses 'const displaySipUser = num.telnyxSipUsername || num.sipUsername'. (3) Reveal Password (around line 15987) now uses 'const displayPassword = num.telnyxSipPassword || num.sipPassword'. (4) Initial Twilio purchase flow (around line 668-672) now sets sipUsername to Telnyx username when available. (5) Auto-renewal reset (around line 21250) now sets sipUsername to Telnyx username. (6) Verify DB: user 6604316166 has telnyxSipUsername=gencredXHoDYGC6zXt2SzBi1c7P7v9cMKNUkxQuZpaRgP7Dvw stored alongside sipUsername=test_944482e214bda018."
+    - agent: "testing"
+      message: "TESTING COMPLETE - SIP credential username mismatch fix VERIFIED and WORKING. All 7 verification points passed: (1) Node.js health check ✅ (2) SIP Credentials display fix at line 14019 ✅ (3) Reveal Password fix at line 15993 ✅ (4) Initial purchase flow fixes ✅ (5) Auto-renewal reset fixes ✅ (6) Database verification - user 6604316166 has correct credential structure ✅ (7) Error logs clean (0 bytes) ✅. The fix correctly ensures users see Telnyx username (gencredXXX format) instead of Twilio username (test_XXX format) when using SIP credentials with sip.speechcue.com domain. No issues found."

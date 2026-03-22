@@ -653,8 +653,8 @@ async function executeTwilioPurchase(chatId, selectedNumber, planKey, price, cou
   }
 
   // 4. SIP credentials (Twilio + Telnyx)
-  // Use seed credentials for Twilio SIP domain registration
-  // Telnyx credential (gencred...) is stored separately for SIP bridge routing via sip.speechcue.com
+  // Telnyx is the primary SIP provider (sip.speechcue.com), so the Telnyx username
+  // is used as the main sipUsername shown to users. Twilio seed is kept separately.
   const seedUser = phoneConfig.generateSipUsername()
   const seedPass = phoneConfig.generateSipPassword()
   let sipUsername = seedUser
@@ -662,17 +662,21 @@ async function executeTwilioPurchase(chatId, selectedNumber, planKey, price, cou
   let telnyxSipUsername = null
   let telnyxSipPassword = null
   let telnyxCredentialId = null
+  let twilioSeedUsername = seedUser  // Keep original seed for Twilio credential list
   if (telnyxResources?.sipConnectionId) {
     const telnyxCred = await telnyxApi.createSIPCredential(telnyxResources.sipConnectionId, seedUser, seedPass)
     if (telnyxCred?.sip_username) {
       telnyxSipUsername = telnyxCred.sip_username
       telnyxSipPassword = telnyxCred.sip_password || seedPass
       telnyxCredentialId = telnyxCred.id || null
+      // Use Telnyx username as the primary sipUsername since domain is sip.speechcue.com
+      sipUsername = telnyxSipUsername
+      sipPassword = telnyxSipPassword
       log(`[CloudPhone] Telnyx SIP credential created: ${telnyxSipUsername} (ID: ${telnyxCredentialId})`)
     }
   }
   if (twilioResources?.credentialListSid) {
-    await twilioService.addSipCredential(twilioResources.credentialListSid, sipUsername, sipPassword)
+    await twilioService.addSipCredential(twilioResources.credentialListSid, twilioSeedUsername, seedPass)
   }
 
   // 5. Save to DB
@@ -14011,7 +14015,9 @@ Choose an IVR template category:`), k.of(rows))
       }
       set(state, chatId, 'action', a.cpSipCredentials)
       const numSipDomain = phoneConfig.getSipDomainForNumber()
-      return send(chatId, cpTxt.sipCredentialsMsg(num.phoneNumber, num.sipUsername, numSipDomain), k.of([
+      // Prefer Telnyx username since domain is sip.speechcue.com (Telnyx)
+      const displaySipUser = num.telnyxSipUsername || num.sipUsername
+      return send(chatId, cpTxt.sipCredentialsMsg(num.phoneNumber, displaySipUser, numSipDomain), k.of([
         [pc.revealPassword], [pc.resetPassword], [pc.softphoneGuide]
       ]))
     }
@@ -15983,7 +15989,9 @@ Select a category:`), k.of(catBtns))
       return showManageScreen(chatId, num)
     }
     if (message === pc.revealPassword) {
-      const msg = await bot?.sendMessage(chatId, cpTxt.sipRevealed(num.sipPassword), { parse_mode: 'HTML' })
+      // Prefer Telnyx password since domain is sip.speechcue.com (Telnyx)
+      const displayPassword = num.telnyxSipPassword || num.sipPassword
+      const msg = await bot?.sendMessage(chatId, cpTxt.sipRevealed(displayPassword), { parse_mode: 'HTML' })
       // Auto-delete after 30 seconds
       if (msg?.message_id) {
         setTimeout(() => {
@@ -21238,9 +21246,9 @@ app.post('/phone/reset-credentials', async (req, res) => {
       await twilioService.addSipCredential(twilioResources.credentialListSid, newSeedUser, newSeedPass)
     }
 
-    // 6. Update DB
-    userData.numbers[numIdx].sipUsername = newSeedUser
-    userData.numbers[numIdx].sipPassword = newSeedPass
+    // 6. Update DB — Use Telnyx username as primary since domain is sip.speechcue.com
+    userData.numbers[numIdx].sipUsername = newTelnyxSipUsername || newSeedUser
+    userData.numbers[numIdx].sipPassword = newTelnyxSipPassword || newSeedPass
     userData.numbers[numIdx].telnyxSipUsername = newTelnyxSipUsername
     userData.numbers[numIdx].telnyxSipPassword = newTelnyxSipPassword
     userData.numbers[numIdx].telnyxCredentialId = newTelnyxCredentialId
