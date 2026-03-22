@@ -11417,8 +11417,8 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         if (trialUsed) {
           return send(chatId, `📢 <b>Quick IVR Call</b>\n\nYou've already used your free trial call.\n\nSubscribe to Cloud IVR to make unlimited IVR calls with your own Caller ID!\n\nTap <b>${buyLabel}</b> to get started.`, k.of([[buyLabel]]))
         }
-        // Trial path — auto-assign caller ID
-        await saveInfo('ivrObData', { callerId: ivrOb.TRIAL_CALLER_ID, isTrial: true })
+        // Trial path — auto-assign caller ID (Twilio number on main account)
+        await saveInfo('ivrObData', { callerId: ivrOb.TRIAL_CALLER_ID, isTrial: true, callerProvider: 'twilio' })
         set(state, chatId, 'action', a.ivrObEnterTarget)
         return send(chatId, `📢 <b>Quick IVR Call — Free Trial</b>\n\n🎁 You get <b>1 free trial call!</b>\n📱 Caller ID: <b>${ivrOb.TRIAL_CALLER_ID}</b> (shared)\n\nCall a single number with an automated IVR message.\n\nEnter the phone number to call (with country code):\n<i>Example: +12025551234</i>`, k.of([]))
       }
@@ -11957,8 +11957,8 @@ Choose an IVR template category:`), k.of(rows))
         } catch (e) { log(`[QuickIVR] Sub-account token resolve error: ${e.message}`) }
       }
 
-      // ━━━ SECURITY: Block Twilio calls without sub-account credentials ━━━
-      if (callerProvider === 'twilio' && (!subAccountSid || !subAccountToken)) {
+      // ━━━ SECURITY: Block Twilio calls without sub-account credentials (skip for trial) ━━━
+      if (callerProvider === 'twilio' && !ivrObData.isTrial && (!subAccountSid || !subAccountToken)) {
         log(`[QuickIVR] BLOCKED: Twilio call without sub-account credentials for chatId ${chatId}`)
         send(chatId, '🚫 <b>Call Blocked</b>\n\nYour phone number is missing sub-account credentials. Please contact support.', { parse_mode: 'HTML' })
         return goto.submenu5()

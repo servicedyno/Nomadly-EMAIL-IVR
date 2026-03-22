@@ -105,7 +105,7 @@
 #====================================================================================================
 
 
-user_problem_statement: "SIP credential username mismatch - user sees Twilio username but Telnyx domain"
+user_problem_statement: "Fix all SIP call anomalies from Railway logs"
 
 backend:
   - task: "Tiered hosting addon domain limits + hosting plan upgrade flow"
@@ -140,22 +140,66 @@ backend:
     priority: "critical"
     needs_retesting: false
     status_history:
-        - working: "NA"
-          agent: "main"
-          comment: "Root cause: When phone number purchased, Telnyx returns gencredXXX username but code stored Twilio seed username (test_XXXX) as primary sipUsername. SIP Credentials display showed Twilio username with Telnyx domain (sip.speechcue.com) causing auth failure. Fix: (1) SIP Credentials display now uses telnyxSipUsername || sipUsername. (2) Reveal Password now uses telnyxSipPassword || sipPassword. (3) Initial Twilio purchase flow now sets sipUsername to Telnyx username when available. (4) Auto-renewal reset now sets sipUsername to Telnyx username. Verified: User 6604316166 has telnyxSipUsername=gencredXHoDYGC6zXt2SzBi1c7P7v9cMKNUkxQuZpaRgP7Dvw, sipUsername=test_944482e214bda018. Display fix ensures correct Telnyx username is shown."
         - working: true
           agent: "testing"
-          comment: "COMPREHENSIVE TESTING COMPLETED - ALL TESTS PASSED: ✅ Node.js health check (healthy, database connected). ✅ SIP Credentials Display Fix verified at line 14019: 'const displaySipUser = num.telnyxSipUsername || num.sipUsername'. ✅ Reveal Password Fix verified at line 15993: 'const displayPassword = num.telnyxSipPassword || num.sipPassword'. ✅ Initial Purchase Flow Fix verified: twilioSeedUsername variable, sipUsername assignment to Telnyx, Twilio uses separate credentials. ✅ Auto-Renewal Reset Fix verified: userData.numbers[numIdx].sipUsername = newTelnyxSipUsername || newSeedUser. ✅ Database verification: User 6604316166 exists with correct structure - sipUsername: test_944482e214bda018, telnyxSipUsername: gencredXHoDYGC6zXt2SzBi1c7P7v9cMKNUkxQuZpaRgP7Dvw, both passwords present. ✅ Error logs: 0 bytes (no errors). Fix correctly implemented - users will now see Telnyx username (gencredXXX) instead of Twilio username (test_XXX) when using SIP credentials with sip.speechcue.com domain."
+          comment: "Previously verified working"
+
+  - task: "Fix Trial Quick IVR D51 Error - Route trial calls through Twilio main account"
+    implemented: true
+    working: true
+    file: "js/_index.js, js/voice-service.js, js/twilio-service.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Root cause: Trial IVR calls fail with D51 error because trial caller ID +18556820054 is a Twilio number but code routed through Telnyx API (callerProvider defaulted to telnyx). Fix: (1) _index.js line 11421: Added callerProvider:'twilio' to trial path. (2) _index.js line 11961: Skip sub-account security check for trial calls (isTrial check). (3) voice-service.js: Added dedicated trial Twilio call path using makeTrialOutboundCall (main account). (4) twilio-service.js: Added makeTrialOutboundCall function using main Twilio account for trial calls."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: All 4 components of trial IVR fix implemented correctly. (1) _index.js line 11421: callerProvider:'twilio' and isTrial:true set in trial path. (2) _index.js line 11961: Sub-account security check properly skips trial calls with !ivrObData.isTrial condition. (3) voice-service.js: makeTrialOutboundCall usage found for trial calls. (4) twilio-service.js: makeTrialOutboundCall function exists, uses getClient() (main account), and is properly exported. Trial calls will now route through Twilio main account instead of Telnyx API."
+
+  - task: "Orphaned number +18778570205 admin alerting"
+    implemented: true
+    working: true
+    file: "js/voice-service.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Root cause: Number +18778570205 exists on Telnyx Call Control App but has no owner in phoneNumbersOf DB. 5 inbound calls all rejected. Fix: Enhanced 'No owner found' handler to send Telegram admin alert to TELEGRAM_ADMIN_CHAT_ID with orphaned number details so admin can investigate and cleanup."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: Orphaned number admin alerting implemented correctly. Found in voice-service.js around line 746-749: (1) Proper logging with '⚠️ ORPHANED NUMBER:' prefix and detailed message. (2) Telegram admin alert via _bot.sendMessage to TELEGRAM_ADMIN_CHAT_ID. (3) Alert includes phone number, caller info, and guidance for admin action. Alert message properly formatted with HTML parse_mode. Admin will now be notified immediately when orphaned numbers receive calls."
+
+  - task: "SIP outbound call rate limiting"
+    implemented: true
+    working: true
+    file: "js/voice-service.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Root cause: SIP test user spam-dialed +19782163610 4 times in 60 seconds with no rate limiting. Fix: Added SIP rate limiter in voice-service.js handleOutboundSipCall — max 3 calls per destination per 60-second window. Rate limit map with auto-cleanup every 5 minutes."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: SIP outbound rate limiting implemented correctly. Found in voice-service.js: (1) Constants: sipRateLimit={}, SIP_RATE_LIMIT_MAX=3, SIP_RATE_LIMIT_WINDOW=60000. (2) checkSipRateLimit function properly tracks calls per sipUsername:destination key with time-based windows. (3) Cleanup interval every 300000ms (5 minutes) removes stale entries. (4) Rate limit enforcement in handleOutboundSipCall before SIP user lookup - calls exceeding 3/60s are rejected with hangup. Prevents SIP spam dialing."
 
 test_plan:
   current_focus:
-    - "Fix SIP credential username mismatch (Twilio vs Telnyx)"
+    - "Fix Trial Quick IVR D51 Error"
+    - "Orphaned number admin alerting"
+    - "SIP outbound call rate limiting"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
     - agent: "main"
-      message: "Fixed SIP credential username mismatch causing 'Connection error: Unknown' on speechcue.com. Please verify: (1) Node.js healthy at localhost:5000/health. (2) In _index.js SIP Credentials display (around line 14015), now uses 'const displaySipUser = num.telnyxSipUsername || num.sipUsername'. (3) Reveal Password (around line 15987) now uses 'const displayPassword = num.telnyxSipPassword || num.sipPassword'. (4) Initial Twilio purchase flow (around line 668-672) now sets sipUsername to Telnyx username when available. (5) Auto-renewal reset (around line 21250) now sets sipUsername to Telnyx username. (6) Verify DB: user 6604316166 has telnyxSipUsername=gencredXHoDYGC6zXt2SzBi1c7P7v9cMKNUkxQuZpaRgP7Dvw stored alongside sipUsername=test_944482e214bda018."
+      message: "Fixed 3 SIP call anomalies from Railway logs. Verify: (1) TRIAL IVR D51 FIX: In _index.js around line 11421, trial path now sets callerProvider:'twilio'. In _index.js around line 11961, sub-account security check skips trial calls (!ivrObData.isTrial). In voice-service.js initiateOutboundIvrCall, new trial Twilio path added before security block — uses makeTrialOutboundCall (main account). In twilio-service.js, new makeTrialOutboundCall function exported. (2) ORPHANED NUMBER ALERTING: In voice-service.js around line 716, 'No owner found' handler now sends admin Telegram alert with number details. (3) SIP RATE LIMITING: In voice-service.js, added checkSipRateLimit function (3 calls/60s per sipUser:destination), called before SIP user lookup in handleOutboundSipCall. Rate limit map with 5-min cleanup interval. (4) Node.js healthy, 0 bytes in error log."
     - agent: "testing"
-      message: "TESTING COMPLETE - SIP credential username mismatch fix VERIFIED and WORKING. All 7 verification points passed: (1) Node.js health check ✅ (2) SIP Credentials display fix at line 14019 ✅ (3) Reveal Password fix at line 15993 ✅ (4) Initial purchase flow fixes ✅ (5) Auto-renewal reset fixes ✅ (6) Database verification - user 6604316166 has correct credential structure ✅ (7) Error logs clean (0 bytes) ✅. The fix correctly ensures users see Telnyx username (gencredXXX format) instead of Twilio username (test_XXX format) when using SIP credentials with sip.speechcue.com domain. No issues found."
+      message: "✅ TESTING COMPLETE: All 3 SIP call fixes verified and working correctly. (1) TRIAL IVR D51 FIX: All 4 components implemented - trial path sets callerProvider:'twilio', security check skips trials, voice service uses makeTrialOutboundCall, and function exists in twilio-service. (2) ORPHANED NUMBER ALERTING: Proper logging and Telegram admin alerts implemented with detailed information. (3) SIP RATE LIMITING: Rate limiter with 3 calls/60s limit, cleanup interval, and enforcement before SIP lookup all working. Node.js health endpoint returns healthy status, error log is 0 bytes. All fixes address the root causes identified in Railway logs."

@@ -32,6 +32,36 @@ const pendingBridges = {}
 const outboundIvrCalls = {}
 const twilioIvrSessions = {} // sessionId → { chatId, callerId, targetNumber, ... } for Twilio IVR calls
 
+// SIP outbound rate limiter: key (sipUser:destination) → { count, firstCallTime }
+const sipRateLimit = {}
+const SIP_RATE_LIMIT_MAX = 3       // Max calls per window
+const SIP_RATE_LIMIT_WINDOW = 60000 // 60 seconds window
+
+function checkSipRateLimit(sipUsername, destination) {
+  const key = `${sipUsername}:${destination}`
+  const now = Date.now()
+  const entry = sipRateLimit[key]
+  if (!entry || (now - entry.firstCallTime) > SIP_RATE_LIMIT_WINDOW) {
+    sipRateLimit[key] = { count: 1, firstCallTime: now }
+    return true // allowed
+  }
+  entry.count++
+  if (entry.count > SIP_RATE_LIMIT_MAX) {
+    return false // blocked
+  }
+  return true // allowed
+}
+
+// Cleanup stale rate limit entries every 5 minutes
+setInterval(() => {
+  const now = Date.now()
+  for (const key of Object.keys(sipRateLimit)) {
+    if ((now - sipRateLimit[key].firstCallTime) > SIP_RATE_LIMIT_WINDOW * 2) {
+      delete sipRateLimit[key]
+    }
+  }
+}, 300000)
+
 function initVoiceService(deps) {
   _bot = deps.bot
   _phoneNumbersOf = deps.phoneNumbersOf
@@ -713,7 +743,11 @@ async function handleCallInitiated(payload) {
   // Lookup number owner — get FRESH data from DB
   const { chatId, num } = await findNumberOwner(to)
   if (!chatId || !num) {
-    log(`[Voice] No owner found for ${to}, rejecting`)
+    log(`[Voice] ⚠️ ORPHANED NUMBER: No owner found for ${to} — inbound call from ${from} rejected. Number may need cleanup.`)
+    // Alert admin about orphaned number
+    if (_bot && process.env.TELEGRAM_ADMIN_CHAT_ID) {
+      _bot.sendMessage(process.env.TELEGRAM_ADMIN_CHAT_ID, `⚠️ <b>Orphaned Number Alert</b>\n\n📞 <code>${to}</code> received inbound call from <code>${from}</code>\n\n❌ No owner found in DB — call rejected.\nThis number may need to be released or re-assigned.`, { parse_mode: 'HTML' }).catch(() => {})
+    }
     await _telnyxApi.hangupCall(callControlId).catch(() => {})
     return
   }
@@ -959,6 +993,15 @@ async function handleOutboundSipCall(payload) {
   }
 
   log(`[Voice] Outbound SIP: from=${sipUsername} (cleaned=${fromClean}) to=${destination} (${callControlId}, conn=${connectionId})`)
+
+  // ── SIP Rate Limiting — prevent spam dialing ──
+  if (!checkSipRateLimit(sipUsername, destination)) {
+    log(`[Voice] ⚠️ SIP RATE LIMIT: ${sipUsername} → ${destination} — exceeded ${SIP_RATE_LIMIT_MAX} calls/${SIP_RATE_LIMIT_WINDOW/1000}s, rejecting`)
+    try {
+      await _telnyxApi.hangupCall(callControlId)
+    } catch (e) { log(`[Voice] Reject error: ${e.message}`) }
+    return
+  }
 
   // Look up the SIP user → find their phone number and provider
   // Try by SIP username first, then by phone number from the 'from' field
@@ -1932,7 +1975,54 @@ async function initiateOutboundIvrCall(params) {
   // ── TWILIO PATH: Use Twilio REST API + TwiML endpoints ──
   const provider = params.provider || 'telnyx'
   if (provider === 'twilio' && _twilioService) {
-    // ━━━ SECURITY: Block Twilio calls without sub-account credentials ━━━
+    // ── TRIAL CALLS: Use main Twilio account (trial number lives on main account) ──
+    if (isTrial) {
+      log(`[OutboundIVR] Trial call via Twilio main account: ${callerId} → ${targetNumber}`)
+      const crypto = require('crypto')
+      const sessionId = crypto.randomUUID()
+      twilioIvrSessions[sessionId] = {
+        chatId,
+        callerId,
+        targetNumber,
+        ivrNumber,
+        audioUrl,
+        activeKeys: activeKeys || ['1'],
+        templateName: templateName || 'Custom',
+        placeholderValues: placeholderValues || {},
+        voiceName: voiceName || 'Rachel',
+        isTrial: true,
+        holdMusic: holdMusic || false,
+        bulkMode: null,
+        campaignId: null,
+        leadIndex: null,
+        phase: 'initiated',
+        digitPressed: null,
+        startTime: Date.now(),
+      }
+
+      const twimlUrl = `${_selfUrl}/twilio/single-ivr?sessionId=${encodeURIComponent(sessionId)}`
+      const statusUrl = `${_selfUrl}/twilio/single-ivr-status?sessionId=${encodeURIComponent(sessionId)}`
+
+      const result = await _twilioService.makeTrialOutboundCall(
+        callerId, targetNumber, twimlUrl,
+        {
+          statusCallback: statusUrl,
+          statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
+          timeout: 30,
+        }
+      )
+
+      if (result.error) {
+        delete twilioIvrSessions[sessionId]
+        return { error: result.error }
+      }
+
+      twilioIvrSessions[sessionId].callSid = result.callSid
+      log(`[OutboundIVR] Trial Twilio call initiated: ${result.callSid} ${callerId} → ${targetNumber} (sessionId: ${sessionId})`)
+      return { callSid: result.callSid, sessionId, provider: 'twilio' }
+    }
+
+    // ━━━ SECURITY: Block non-trial Twilio calls without sub-account credentials ━━━
     if (!params.twilioSubAccountSid || !params.twilioSubAccountToken) {
       log(`[OutboundIVR] SECURITY BLOCK: Twilio call rejected — missing sub-account credentials for chatId ${chatId}`)
       return { error: 'Twilio calls require sub-account credentials. Cannot use main account.' }

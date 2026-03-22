@@ -457,6 +457,45 @@ async function makeOutboundCall(from, to, twimlUrl, subSid, subToken, options = 
   }
 }
 
+// ── TRIAL OUTBOUND CALL — Uses main Twilio account for free trial IVR calls ──
+// Trial calls use the shared trial number (+18556820054) which lives on the main account.
+// This is the ONLY function that bypasses sub-account requirement.
+async function makeTrialOutboundCall(from, to, twimlUrl, options = {}) {
+  try {
+    const client = getClient()
+    if (!client) return { error: 'Twilio main client not initialized.' }
+    log(`[Twilio] Trial outbound call: ${from} → ${to} (main account)`)
+    const callOpts = {
+      from,
+      to,
+      url: twimlUrl,
+      method: 'POST',
+    }
+    if (options.statusCallback) {
+      callOpts.statusCallback = options.statusCallback
+      callOpts.statusCallbackMethod = 'POST'
+      callOpts.statusCallbackEvent = options.statusCallbackEvent || ['initiated', 'ringing', 'answered', 'completed']
+    }
+    if (options.timeout) {
+      callOpts.timeout = options.timeout
+    }
+    const call = await client.calls.create(callOpts)
+    log(`[Twilio] Trial call initiated: ${call.sid} from=${from} to=${to}`)
+    return {
+      callSid: call.sid,
+      status: call.status,
+      from: call.from,
+      to: call.to,
+    }
+  } catch (e) {
+    log(`[Twilio] makeTrialOutboundCall error: ${e.message}`)
+    const sanitized = e.message
+      .replace(/\bTwilio\b/gi, 'Speechcue')
+      .replace(/\bTelnyx\b/gi, 'Speechcue')
+    return { error: sanitized }
+  }
+}
+
 // Generate TwiML for dialing out (used for SIP-originated outbound calls)
 function generateDialTwiml(to, callerId) {
   const VoiceResponse = twilio.twiml.VoiceResponse
@@ -862,6 +901,7 @@ module.exports = {
   removeSipCredential,
   mapCredentialListToDomain,
   makeOutboundCall,
+  makeTrialOutboundCall,
   generateDialTwiml,
   generateForwardTwiml,
   generateRejectTwiml,
