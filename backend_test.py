@@ -12,7 +12,7 @@ import re
 from typing import Dict, Any, Optional
 
 # Backend URL from environment
-BACKEND_URL = "https://nomadly-api-preview-1.preview.emergentagent.com"
+BACKEND_URL = "https://env-integration.preview.emergentagent.com"
 
 class RailwayBugFixTester:
     def __init__(self):
