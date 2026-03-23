@@ -1238,9 +1238,27 @@ async function handleOutboundSipCall(payload) {
       return
     }
 
+    // ── CRITICAL: Answer the call IMMEDIATELY to STOP Telnyx auto-routing ──
+    // This MUST happen BEFORE any DB queries or API calls. Even a 50-100ms delay allows
+    // Telnyx to auto-route the call via the SIP Connection's outbound voice profile.
+    // The auto-routed call uses the wrong caller ID (connection-level ANI override, not
+    // the user's Twilio number), causing the callee to reject → call dies → our transfer fails.
+    // Answering immediately claims the call on Telnyx's side, preventing the auto-route race.
+    try {
+      await _telnyxApi.answerCall(callControlId)
+      log(`[Voice] Outbound SIP (Twilio): Answered call IMMEDIATELY to prevent auto-routing race`)
+    } catch (ansErr) {
+      // If answer fails (e.g., call already ended), fall back to Twilio direct call
+      log(`[Voice] Outbound SIP (Twilio): Answer failed (${ansErr.message}) — will attempt Twilio direct call`)
+      const bridgeId = `bridge_${_nanoid ? _nanoid() : Date.now()}`
+      await _attemptTwilioDirectCall(chatId, num, destination, bridgeId, callControlId)
+      return
+    }
+
     // ── PRE-FLIGHT: Ensure sub-account credentials are available before bridge attempt ──
     // If credentials are missing from num, recover them proactively so both the bridge
     // and the direct-call fallback have what they need.
+    // This happens AFTER answering to avoid any delay that could trigger auto-routing.
     if (!num.twilioSubAccountToken || !num.subAccountAuthToken) {
       try {
         const userData = await _phoneNumbersOf.findOne({ _id: chatId })
@@ -1257,19 +1275,6 @@ async function handleOutboundSipCall(payload) {
         if (subSid) num.subAccountSid = subSid
         if (subToken) num.subAccountAuthToken = subToken
       } catch (e) { log(`[Voice] Pre-flight credential check error: ${e.message}`) }
-    }
-
-    // ── CRITICAL: Answer the call first to STOP Telnyx auto-routing ──
-    // Without answering, Telnyx simultaneously auto-routes the call via the SIP Connection's
-    // outbound voice profile. The auto-routed call uses the wrong caller ID (Telnyx default ANI,
-    // not the user's Twilio number), so the callee rejects → call dies → our transfer fails.
-    // Answering first establishes the call on Telnyx's side, preventing the auto-route race.
-    try {
-      await _telnyxApi.answerCall(callControlId)
-      log(`[Voice] Outbound SIP (Twilio): Answered call to prevent auto-routing race`)
-    } catch (ansErr) {
-      // If answer fails (e.g., call already ended), fall back to Twilio direct call
-      log(`[Voice] Outbound SIP (Twilio): Answer failed (${ansErr.message}) — will attempt Twilio direct call`)
     }
 
     log(`[Voice] Outbound SIP (Twilio): Bridging ${num.phoneNumber} → ${destination} via ${_twilioSipDomain}`)

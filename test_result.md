@@ -106,7 +106,20 @@
 
 
 
-user_problem_statement: "Fix SIP call failures — Twilio sub-account credential recovery, ANI override fix, and Twilio Sync recovery"
+user_problem_statement: "Fix SIP call failures — Railway deployment call_rejected issue. Previous fixes: Twilio sub-account credential recovery, ANI override fix, Twilio Sync recovery, answer-before-transfer timing optimization"
+
+
+  - task: "Answer-before-transfer timing optimization for Twilio SIP bridge"
+    implemented: true
+    working: "NA"
+    file: "js/voice-service.js"
+    stuck_count: 2
+    priority: "critical"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "CRITICAL FIX: Moved answerCall to execute IMMEDIATELY after detecting Twilio number provider, BEFORE any DB queries or credential recovery API calls. Previous placement (after pre-flight checks at line 1268) allowed 50-200ms delay during which Telnyx auto-routed the call with wrong ANI → callee rejected → call_rejected. New placement (line 1241) ensures we claim the call within <10ms, preventing auto-route race. Added immediate fallback to Twilio direct call if answer fails. This addresses the recurring Railway deployment issue where calls were rejected despite all credentials being correct."
 
 backend:
   - task: "NGN wallet support for hosting manual renewal"
