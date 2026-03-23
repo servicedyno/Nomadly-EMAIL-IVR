@@ -62,6 +62,51 @@ setInterval(() => {
   }
 }, 300000)
 
+/**
+ * Twilio direct call fallback — used when Telnyx SIP transfer fails
+ * (e.g., auto-routing race condition killed the call before transfer).
+ * Creates a fresh outbound call via Twilio REST API.
+ */
+async function _attemptTwilioDirectCall(chatId, num, destination, bridgeId, callControlId) {
+  try {
+    // Sub-account creds may be on the number or the user's phoneNumbersOf doc
+    let subSid = num.subAccountSid || num.twilioSubAccountSid || null
+    let subToken = num.subAccountAuthToken || num.twilioSubAccountToken || null
+    if (!subSid || !subToken) {
+      try {
+        const userData = await _phoneNumbersOf.findOne({ _id: chatId })
+        subSid = subSid || userData?.val?.twilioSubAccountSid || null
+        subToken = subToken || userData?.val?.twilioSubAccountToken || null
+      } catch (e) { /* ignore */ }
+    }
+    if (!subSid || !subToken) {
+      log(`[Voice] Twilio direct fallback: No sub-account credentials for chatId=${chatId}`)
+      _bot?.sendMessage(chatId, `🚫 <b>Outbound Call Failed</b>\n📞 ${formatPhone(num.phoneNumber)} → ${formatPhone(destination)}\nReason: Call routing failed. Please try again.`, { parse_mode: 'HTML' }).catch(() => {})
+      delete pendingBridges[bridgeId]
+      if (activeCalls[callControlId]) delete activeCalls[callControlId]
+      return
+    }
+    const subClient = require('twilio')(subSid, subToken)
+    const call = await subClient.calls.create({
+      url: `${_selfUrl}/twilio/sip-voice?bridgeId=${bridgeId}`,
+      to: destination,
+      from: num.phoneNumber,
+      statusCallback: `${_selfUrl}/twilio/voice-dial-status?chatId=${chatId}&from=${encodeURIComponent(destination)}&to=${encodeURIComponent(num.phoneNumber)}&type=sip_outbound`,
+      statusCallbackEvent: ['completed'],
+    })
+    log(`[Voice] Twilio direct fallback call created: ${call.sid} (${num.phoneNumber} → ${destination})`)
+    if (activeCalls[callControlId]) {
+      activeCalls[callControlId].phase = 'outbound_twilio_direct'
+      activeCalls[callControlId].twilioCallSid = call.sid
+    }
+  } catch (twilioErr) {
+    log(`[Voice] Twilio direct fallback failed: ${twilioErr.message}`)
+    _bot?.sendMessage(chatId, `🚫 <b>Outbound Call Failed</b>\n📞 ${formatPhone(num.phoneNumber)} → ${formatPhone(destination)}\nReason: Call routing failed. Please try again.`, { parse_mode: 'HTML' }).catch(() => {})
+    delete pendingBridges[bridgeId]
+    if (activeCalls[callControlId]) delete activeCalls[callControlId]
+  }
+}
+
 function initVoiceService(deps) {
   _bot = deps.bot
   _phoneNumbersOf = deps.phoneNumbersOf
@@ -1195,63 +1240,35 @@ async function handleOutboundSipCall(payload) {
       bridgeId,
     }
 
-    // For outbound SIP calls, skip answerCall — SIP leg is already live
-    // Transfer directly to Twilio SIP domain for PSTN bridging
-    // NOTE: Do NOT pass num.phoneNumber as 'from' — it's a Twilio number, not verified on Telnyx.
-    // Telnyx rejects non-Telnyx numbers with "Unverified origination number D51".
-    // The Twilio SIP handler (/twilio/sip-voice) sets the correct caller ID for the PSTN leg.
-    // Transfer ASAP (no delay) to beat Telnyx auto-routing race condition.
+    // ── Strategy: Use a valid Telnyx number as 'from' for the SIP transfer ──
+    // The user's Twilio number can't be used as 'from' on Telnyx (D51 error).
+    // The connection ANI override may also be set to a non-Telnyx number.
+    // Solution: Use TELNYX_DEFAULT_ANI (a verified Telnyx number) as 'from'.
+    // The Twilio SIP handler (/twilio/sip-voice) will use the correct Twilio
+    // number as caller ID for the final PSTN leg.
+    const telnyxDefaultAni = process.env.TELNYX_DEFAULT_ANI || ''
+    const sipUri = `sip:${bridgeId}@${_twilioSipDomain}`
+
+    // First, try to set the connection ANI to the default Telnyx number
+    // to prevent auto-routing from failing with the wrong ANI
+    const sipConnectionId = process.env.TELNYX_SIP_CONNECTION_ID || ''
+    if (sipConnectionId && telnyxDefaultAni) {
+      _telnyxApi.updateAniOverride(sipConnectionId, telnyxDefaultAni).catch(() => {})
+    }
+
     try {
-      const sipUri = `sip:${bridgeId}@${_twilioSipDomain}`
-      log(`[Voice] Transferring SIP call to Twilio: ${sipUri}`)
-      const transferResult = await _telnyxApi.transferCall(callControlId, sipUri)
+      log(`[Voice] Transferring SIP call to Twilio: ${sipUri} (from=${telnyxDefaultAni || 'none'})`)
+      const transferResult = await _telnyxApi.transferCall(callControlId, sipUri, telnyxDefaultAni || undefined)
+
       if (!transferResult) {
-        // Transfer returned null (error logged inside transferCall) — call may already be dead
-        log(`[Voice] Transfer to Twilio SIP returned null — attempting Twilio direct call as fallback`)
-        // Fallback: initiate outbound call via Twilio directly
-        // Sub-account creds may be on the number or the user's phoneNumbersOf doc
-        const subSid = num.subAccountSid || num.twilioSubAccountSid
-        const subToken = num.subAccountAuthToken || num.twilioSubAccountToken
-        let finalSubSid = subSid, finalSubToken = subToken
-        if (!finalSubSid || !finalSubToken) {
-          // Check the user-level phoneNumbersOf document
-          try {
-            const userData = await _phoneNumbersOf.findOne({ _id: chatId })
-            finalSubSid = finalSubSid || userData?.val?.twilioSubAccountSid || null
-            finalSubToken = finalSubToken || userData?.val?.twilioSubAccountToken || null
-          } catch (e) { /* ignore */ }
-        }
-        if (_twilioClient && finalSubSid && finalSubToken) {
-          try {
-            const subClient = require('twilio')(finalSubSid, finalSubToken)
-            const call = await subClient.calls.create({
-              url: `${_selfUrl}/twilio/sip-voice?bridgeId=${bridgeId}`,
-              to: destination,
-              from: num.phoneNumber,
-              statusCallback: `${_selfUrl}/twilio/voice-dial-status?chatId=${chatId}&from=${encodeURIComponent(destination)}&to=${encodeURIComponent(num.phoneNumber)}&type=sip_outbound`,
-              statusCallbackEvent: ['completed'],
-            })
-            log(`[Voice] Twilio direct fallback call created: ${call.sid} (${num.phoneNumber} → ${destination})`)
-            activeCalls[callControlId].phase = 'outbound_twilio_direct'
-            activeCalls[callControlId].twilioCallSid = call.sid
-          } catch (twilioErr) {
-            log(`[Voice] Twilio direct fallback failed: ${twilioErr.message}`)
-            _bot?.sendMessage(chatId, `🚫 <b>Outbound Call Failed</b>\n📞 ${formatPhone(num.phoneNumber)} → ${formatPhone(destination)}\nReason: Call routing failed. Please try again.`, { parse_mode: 'HTML' }).catch(() => {})
-            delete pendingBridges[bridgeId]
-            delete activeCalls[callControlId]
-          }
-        } else {
-          log(`[Voice] No Twilio sub-account credentials for direct fallback (subSid=${!!finalSubSid}, subToken=${!!finalSubToken})`)
-          _bot?.sendMessage(chatId, `🚫 <b>Outbound Call Failed</b>\n📞 ${formatPhone(num.phoneNumber)} → ${formatPhone(destination)}\nReason: Call routing failed. Please try again.`, { parse_mode: 'HTML' }).catch(() => {})
-          delete pendingBridges[bridgeId]
-          delete activeCalls[callControlId]
-        }
+        // Transfer failed (call may already be dead from auto-routing race)
+        log(`[Voice] Telnyx transfer returned null — falling back to Twilio direct call`)
+        await _attemptTwilioDirectCall(chatId, num, destination, bridgeId, callControlId)
       }
     } catch (e) {
-      log(`[Voice] Transfer to Twilio SIP failed: ${e.message}`)
+      log(`[Voice] Telnyx→Twilio transfer failed: ${e.message} — falling back to Twilio direct call`)
       await _telnyxApi.hangupCall(callControlId).catch(() => {})
-      _bot?.sendMessage(chatId, `🚫 <b>Outbound Call Failed</b>\n📞 ${formatPhone(num.phoneNumber)} → ${formatPhone(destination)}\nReason: Call routing failed. Please try again.`, { parse_mode: 'HTML' }).catch(() => {})
-      delete pendingBridges[bridgeId]
+      await _attemptTwilioDirectCall(chatId, num, destination, bridgeId, callControlId)
     }
 
     // Notify user
