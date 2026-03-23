@@ -169,6 +169,33 @@ async function set(c, key, value, valueInside) {
   }
 }
 
+/**
+ * Atomically update specific fields within val without replacing the entire document.
+ * Use this to safely update val.numbers (or any sub-field) without clobbering
+ * sibling fields like val.twilioSubAccountSid / val.twilioSubAccountToken.
+ *
+ * @param {Collection} c   - MongoDB collection
+ * @param {*}          key - document _id
+ * @param {Object}     fields - object of dotted-path fields to set, e.g. { 'val.numbers': [...] }
+ */
+async function setFields(c, key, fields) {
+  try {
+    if (!c || !c.updateOne) throw new Error('Invalid collection object provided')
+    if (key === undefined || key === null) throw new Error('Key cannot be undefined or null')
+    const result = await withRetry(() =>
+      c.updateOne({ _id: key }, { $set: fields }, { upsert: true }),
+      `setFields(${c.collectionName}, ${key})`
+    )
+    if (!result.acknowledged) {
+      console.warn(`setFields not acknowledged for key: ${key} in ${c.collectionName}`)
+    }
+    return true
+  } catch (error) {
+    console.error(`Error setFields: ${key} in ${c.collectionName}:`, error?.message || error)
+    return false
+  }
+}
+
 async function insert(collection, chatId, key, value) {
   try {
     await withRetry(() =>
@@ -302,6 +329,7 @@ module.exports = {
   decrement,
   get,
   set,
+  setFields,
   del,
   getAll,
   assignPackageToUser,

@@ -1238,6 +1238,27 @@ async function handleOutboundSipCall(payload) {
       return
     }
 
+    // ── PRE-FLIGHT: Ensure sub-account credentials are available before bridge attempt ──
+    // If credentials are missing from num, recover them proactively so both the bridge
+    // and the direct-call fallback have what they need.
+    if (!num.twilioSubAccountToken || !num.subAccountAuthToken) {
+      try {
+        const userData = await _phoneNumbersOf.findOne({ _id: chatId })
+        const subSid = num.twilioSubAccountSid || userData?.val?.twilioSubAccountSid
+        let subToken = userData?.val?.twilioSubAccountToken
+        if (subSid && !subToken && _twilioService) {
+          const subAcct = await _twilioService.getSubAccount(subSid)
+          if (subAcct?.authToken && !subAcct.error) {
+            subToken = subAcct.authToken
+            await _phoneNumbersOf.updateOne({ _id: chatId }, { $set: { 'val.twilioSubAccountSid': subSid, 'val.twilioSubAccountToken': subToken } })
+            log(`[Voice] Pre-flight: Recovered & persisted sub-account token for chatId=${chatId}`)
+          }
+        }
+        if (subSid) num.subAccountSid = subSid
+        if (subToken) num.subAccountAuthToken = subToken
+      } catch (e) { log(`[Voice] Pre-flight credential check error: ${e.message}`) }
+    }
+
     // ── CRITICAL: Answer the call first to STOP Telnyx auto-routing ──
     // Without answering, Telnyx simultaneously auto-routes the call via the SIP Connection's
     // outbound voice profile. The auto-routed call uses the wrong caller ID (Telnyx default ANI,

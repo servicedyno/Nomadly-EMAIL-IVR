@@ -1,261 +1,313 @@
 #!/usr/bin/env python3
 """
-Backend Test Suite for External Number Detach Fix
-Tests the Node.js Express backend (NOT FastAPI)
+Backend Test Suite for Credential-Clobbering Fix Verification
+Tests the Nomadly Telegram bot application credential-clobbering fixes.
 """
 
 import requests
 import json
-import subprocess
-import re
-import time
 import sys
-from typing import Dict, List, Optional
+import re
+import subprocess
+import os
 
-# Configuration
-BACKEND_URL = "http://localhost:8001"
-API_BASE = f"{BACKEND_URL}/api"
+# Test configuration
+BASE_URL = "http://localhost:5000"
 
-class TestResults:
-    def __init__(self):
-        self.passed = 0
-        self.failed = 0
-        self.errors = []
-        
-    def test_pass(self, test_name: str):
-        print(f"✅ {test_name}")
-        self.passed += 1
-        
-    def test_fail(self, test_name: str, error: str):
-        print(f"❌ {test_name}: {error}")
-        self.failed += 1
-        self.errors.append(f"{test_name}: {error}")
-        
-    def summary(self):
-        total = self.passed + self.failed
-        print(f"\n{'='*60}")
-        print(f"TEST SUMMARY: {self.passed}/{total} passed")
-        if self.errors:
-            print(f"\nFAILED TESTS:")
-            for error in self.errors:
-                print(f"  - {error}")
-        print(f"{'='*60}")
-        return self.failed == 0
-
-def run_command(cmd: str) -> tuple[str, str, int]:
-    """Run shell command and return stdout, stderr, exit_code"""
+def run_test(test_name, test_func):
+    """Run a single test and report results"""
+    print(f"\n{'='*60}")
+    print(f"TEST: {test_name}")
+    print('='*60)
     try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
-        return result.stdout, result.stderr, result.returncode
-    except subprocess.TimeoutExpired:
-        return "", "Command timed out", 1
-    except Exception as e:
-        return "", str(e), 1
-
-def test_syntax_checks(results: TestResults):
-    """Test 1: Syntax validation for key files"""
-    print("\n🔍 Testing Syntax Validation...")
-    
-    files_to_check = [
-        "/app/js/telnyx-service.js",
-        "/app/js/_index.js", 
-        "/app/js/voice-service.js"
-    ]
-    
-    for file_path in files_to_check:
-        stdout, stderr, exit_code = run_command(f"node -c {file_path}")
-        if exit_code == 0:
-            results.test_pass(f"Syntax check: {file_path}")
+        result = test_func()
+        if result:
+            print(f"✅ PASSED: {test_name}")
+            return True
         else:
-            results.test_fail(f"Syntax check: {file_path}", f"Exit code {exit_code}: {stderr}")
+            print(f"❌ FAILED: {test_name}")
+            return False
+    except Exception as e:
+        print(f"❌ ERROR in {test_name}: {str(e)}")
+        return False
 
-def test_health_endpoint(results: TestResults):
-    """Test 2: Health endpoint verification"""
-    print("\n🏥 Testing Health Endpoint...")
-    
+def test_health_endpoint():
+    """Test 1: Verify health endpoint is working"""
     try:
-        response = requests.get(f"{API_BASE}/health", timeout=10)
+        response = requests.get(f"{BASE_URL}/health", timeout=10)
         if response.status_code == 200:
             data = response.json()
-            if data.get("status") == "healthy":
-                results.test_pass("Health endpoint returns healthy status")
-            else:
-                results.test_fail("Health endpoint status", f"Status: {data.get('status')}")
+            print(f"Health status: {data.get('status')}")
+            print(f"Database: {data.get('database')}")
+            print(f"Uptime: {data.get('uptime')}")
+            return data.get('status') == 'healthy'
         else:
-            results.test_fail("Health endpoint HTTP", f"Status code: {response.status_code}")
+            print(f"Health endpoint returned status code: {response.status_code}")
+            return False
     except Exception as e:
-        results.test_fail("Health endpoint connection", str(e))
+        print(f"Health endpoint error: {e}")
+        return False
 
-def test_migration_function_signature(results: TestResults):
-    """Test 3: Verify migrateNumbersToCallControlApp function signature"""
-    print("\n📝 Testing Migration Function Signature...")
-    
-    # Check function signature in telnyx-service.js
-    stdout, stderr, exit_code = run_command("grep -n 'async function migrateNumbersToCallControlApp' /app/js/telnyx-service.js")
-    
-    if exit_code == 0 and "callControlAppId, botNumbers = [], sipConnectionId = ''" in stdout:
-        results.test_pass("migrateNumbersToCallControlApp accepts 3 parameters")
-    else:
-        results.test_fail("migrateNumbersToCallControlApp signature", "Function signature doesn't match expected pattern")
-    
-    # Check for normalizedBotNumbers Set
-    stdout, stderr, exit_code = run_command("grep -n 'normalizedBotNumbers.*Set' /app/js/telnyx-service.js")
-    if exit_code == 0:
-        results.test_pass("normalizedBotNumbers Set exists for comparison")
-    else:
-        results.test_fail("normalizedBotNumbers Set", "Set not found in function")
+def test_setfields_function_exists():
+    """Test 2: Verify setFields function exists in db.js and is exported"""
+    try:
+        with open('/app/js/db.js', 'r') as f:
+            content = f.read()
+        
+        # Check if setFields function exists
+        setfields_pattern = r'async function setFields\s*\([^)]+\)\s*{'
+        if not re.search(setfields_pattern, content):
+            print("❌ setFields function not found in db.js")
+            return False
+        print("✅ setFields function found in db.js")
+        
+        # Check if it uses $set with dot notation
+        if '$set: fields' not in content:
+            print("❌ setFields function doesn't use $set with fields parameter")
+            return False
+        print("✅ setFields function uses $set with dot notation")
+        
+        # Check if it's exported
+        if 'setFields' not in content.split('module.exports')[1]:
+            print("❌ setFields function not exported from db.js")
+            return False
+        print("✅ setFields function is exported from db.js")
+        
+        return True
+    except Exception as e:
+        print(f"Error checking setFields function: {e}")
+        return False
 
-def test_detach_logic(results: TestResults):
-    """Test 4: Verify external number detach logic"""
-    print("\n🔌 Testing External Number Detach Logic...")
-    
-    # Check for detach logic patterns
-    patterns_to_check = [
-        ("DETACHED external number", "Detach log message pattern"),
-        ("connection_id.*restoreConnectionId", "SIP connection ID assignment"),
-        ("connection_id.*null", "Null assignment for no SIP connection"),
-        ("detached\\+\\+", "Detached counter increment")
-    ]
-    
-    for pattern, description in patterns_to_check:
-        stdout, stderr, exit_code = run_command(f"grep -n '{pattern}' /app/js/telnyx-service.js")
-        if exit_code == 0:
-            results.test_pass(f"Detach logic: {description}")
-        else:
-            results.test_fail(f"Detach logic: {description}", f"Pattern '{pattern}' not found")
+def test_update_phone_number_functions_use_setfields():
+    """Test 3: Verify updatePhoneNumberFeature and updatePhoneNumberField use setFields"""
+    try:
+        with open('/app/js/_index.js', 'r') as f:
+            content = f.read()
+        
+        # Find updatePhoneNumberFeature function
+        feature_func_match = re.search(r'async function updatePhoneNumberFeature\([^{]+\{.*?\n\}', content, re.DOTALL)
+        if not feature_func_match:
+            print("❌ updatePhoneNumberFeature function not found")
+            return False
+        
+        feature_func = feature_func_match.group(0)
+        if "await setFields(col, chatId, { 'val.numbers': nums })" not in feature_func:
+            print("❌ updatePhoneNumberFeature doesn't use setFields with val.numbers")
+            print("Function content:", feature_func[-300:])  # Show last 300 chars
+            return False
+        print("✅ updatePhoneNumberFeature uses setFields with val.numbers")
+        
+        # Find updatePhoneNumberField function
+        field_func_match = re.search(r'async function updatePhoneNumberField\([^{]+\{.*?\n\}', content, re.DOTALL)
+        if not field_func_match:
+            print("❌ updatePhoneNumberField function not found")
+            return False
+        
+        field_func = field_func_match.group(0)
+        if "await setFields(col, chatId, { 'val.numbers': nums })" not in field_func:
+            print("❌ updatePhoneNumberField doesn't use setFields with val.numbers")
+            print("Function content:", field_func[-300:])  # Show last 300 chars
+            return False
+        print("✅ updatePhoneNumberField uses setFields with val.numbers")
+        
+        return True
+    except Exception as e:
+        print(f"Error checking update functions: {e}")
+        return False
 
-def test_db_filtering_logic(results: TestResults):
-    """Test 5: Verify DB filtering and parameter passing"""
-    print("\n🗄️ Testing DB Filtering Logic...")
-    
-    # Check DB query pattern
-    stdout, stderr, exit_code = run_command("grep -n \"db.collection('phoneNumbersOf').find({}).toArray()\" /app/js/_index.js")
-    if exit_code == 0:
-        results.test_pass("DB query for phoneNumbersOf collection")
-    else:
-        results.test_fail("DB query", "phoneNumbersOf query not found")
-    
-    # Check filtering logic
-    stdout, stderr, exit_code = run_command("grep -n \"n.provider === 'telnyx' && n.status === 'active' && n.phoneNumber\" /app/js/_index.js")
-    if exit_code == 0:
-        results.test_pass("Telnyx active number filtering")
-    else:
-        results.test_fail("Telnyx filtering", "Active Telnyx number filter not found")
-    
-    # Check sipConnectionId parameter passing
-    stdout, stderr, exit_code = run_command("grep -n 'telnyxResources.sipConnectionId.*process.env.TELNYX_SIP_CONNECTION_ID' /app/js/_index.js")
-    if exit_code == 0:
-        results.test_pass("SIP connection ID parameter passing")
-    else:
-        results.test_fail("SIP connection ID", "Parameter passing logic not found")
+def test_purchase_paths_preserve_full_object():
+    """Test 4: Verify purchase paths preserve full existing object"""
+    try:
+        with open('/app/js/_index.js', 'r') as f:
+            content = f.read()
+        
+        # Find all instances of "await set(phoneNumbersOf, chatId, existing)"
+        purchase_patterns = re.findall(r'await set\(phoneNumbersOf, chatId, existing\)', content)
+        
+        if len(purchase_patterns) < 4:
+            print(f"❌ Expected 4 purchase paths using 'existing', found {len(purchase_patterns)}")
+            return False
+        print(f"✅ Found {len(purchase_patterns)} purchase paths using full 'existing' object")
+        
+        # Check that no remaining "{ numbers: existing.numbers }" patterns exist
+        bad_patterns = re.findall(r'\{\s*numbers:\s*existing\.numbers\s*\}', content)
+        if bad_patterns:
+            print(f"❌ Found {len(bad_patterns)} instances of credential-clobbering pattern '{{ numbers: existing.numbers }}'")
+            return False
+        print("✅ No credential-clobbering patterns '{ numbers: existing.numbers }' found")
+        
+        # Verify the specific lines mentioned in the review
+        lines_to_check = [5255, 18717, 19357, 19966]
+        for line_num in lines_to_check:
+            lines = content.split('\n')
+            if line_num < len(lines):
+                line = lines[line_num - 1]  # Convert to 0-based index
+                if 'await set(phoneNumbersOf, chatId, existing)' in line:
+                    print(f"✅ Line {line_num}: Uses full 'existing' object")
+                else:
+                    print(f"❌ Line {line_num}: Does not use full 'existing' object")
+                    print(f"   Content: {line.strip()}")
+                    return False
+        
+        return True
+    except Exception as e:
+        print(f"Error checking purchase paths: {e}")
+        return False
 
-def test_startup_logs(results: TestResults):
-    """Test 6: Verify startup log messages"""
-    print("\n📋 Testing Startup Log Verification...")
-    
-    # Get recent logs
-    stdout, stderr, exit_code = run_command("tail -n 200 /var/log/supervisor/nodejs.out.log")
-    
-    if exit_code == 0:
-        # Check for Telnyx migration complete log with expected format
-        if "[Telnyx] Migration complete:" in stdout:
-            results.test_pass("Telnyx migration complete log found")
-            
-            # Check for external count in the log
-            if "external" in stdout:
-                results.test_pass("External count in migration log")
-            else:
-                results.test_fail("External count", "External count not found in migration log")
-                
-            # Check for "already correct" pattern (bot numbers)
-            if "already correct" in stdout:
-                results.test_pass("Already correct count in migration log")
-            else:
-                results.test_fail("Already correct", "Already correct count not found in logs")
-        else:
-            results.test_fail("Migration log", "Telnyx migration complete log not found")
-    else:
-        results.test_fail("Startup logs", f"Could not read logs: {stderr}")
+def test_proactive_credential_recovery():
+    """Test 5: Verify proactive credential recovery in voice-service.js"""
+    try:
+        with open('/app/js/voice-service.js', 'r') as f:
+            content = f.read()
+        
+        # Check for pre-flight credential check block
+        if 'PRE-FLIGHT: Ensure sub-account credentials are available' not in content:
+            print("❌ Pre-flight credential check comment not found")
+            return False
+        print("✅ Pre-flight credential check comment found")
+        
+        # Check for the specific credential recovery logic
+        if '!num.twilioSubAccountToken' not in content:
+            print("❌ twilioSubAccountToken check not found")
+            return False
+        print("✅ twilioSubAccountToken check found")
+        
+        # Check for getSubAccount call
+        if '_twilioService.getSubAccount(subSid)' not in content:
+            print("❌ _twilioService.getSubAccount call not found")
+            return False
+        print("✅ _twilioService.getSubAccount call found")
+        
+        # Check for atomic persistence via $set
+        if '$set: { \'val.twilioSubAccountSid\': subSid, \'val.twilioSubAccountToken\': subToken }' not in content:
+            print("❌ Atomic credential persistence via $set not found")
+            return False
+        print("✅ Atomic credential persistence via $set found")
+        
+        # Check for injection into num object
+        if 'num.subAccountSid = subSid' not in content or 'num.subAccountAuthToken = subToken' not in content:
+            print("❌ Credential injection into num object not found")
+            return False
+        print("✅ Credential injection into num object found")
+        
+        return True
+    except Exception as e:
+        print(f"Error checking proactive credential recovery: {e}")
+        return False
 
-def test_function_exports(results: TestResults):
-    """Test 7: Verify function exports"""
-    print("\n📤 Testing Function Exports...")
-    
-    # Check if migrateNumbersToCallControlApp is exported
-    stdout, stderr, exit_code = run_command("grep -n 'migrateNumbersToCallControlApp,' /app/js/telnyx-service.js")
-    if exit_code == 0:
-        results.test_pass("migrateNumbersToCallControlApp is exported")
-    else:
-        results.test_fail("Function export", "migrateNumbersToCallControlApp not found in exports")
+def test_setfields_import():
+    """Test 6: Verify setFields is imported in _index.js"""
+    try:
+        with open('/app/js/_index.js', 'r') as f:
+            content = f.read()
+        
+        # Check if setFields is imported from db.js
+        import_pattern = r'const\s*\{[^}]*setFields[^}]*\}\s*=\s*require\([\'"]\.\/db\.js[\'"]\)'
+        if not re.search(import_pattern, content):
+            print("❌ setFields not imported from db.js in _index.js")
+            return False
+        print("✅ setFields imported from db.js in _index.js")
+        
+        return True
+    except Exception as e:
+        print(f"Error checking setFields import: {e}")
+        return False
 
-def test_regression_sip_fixes(results: TestResults):
-    """Test 8: Verify previous SIP fixes are intact"""
-    print("\n🔄 Testing Regression - Previous SIP Fixes...")
-    
-    # Check for token recovery in _attemptTwilioDirectCall
-    stdout, stderr, exit_code = run_command("grep -n 'recovering from Twilio API' /app/js/voice-service.js")
-    if exit_code == 0:
-        results.test_pass("Token recovery in _attemptTwilioDirectCall")
-    else:
-        results.test_fail("Token recovery", "Token recovery logic not found")
-    
-    # Check for ANI restore
-    stdout, stderr, exit_code = run_command("grep -n 'Restore connection ANI' /app/js/voice-service.js")
-    if exit_code == 0:
-        results.test_pass("ANI restore logic")
-    else:
-        results.test_fail("ANI restore", "ANI restore logic not found")
-    
-    # Check for Twilio Sync recovery
-    stdout, stderr, exit_code = run_command("grep -n 'RECOVERED credentials' /app/js/_index.js")
-    if exit_code == 0:
-        results.test_pass("Twilio Sync credential recovery")
-    else:
-        results.test_fail("Twilio Sync", "Sync credential recovery not found")
-    
-    # Check for smartWallet imports
-    stdout, stderr, exit_code = run_command("grep -n 'smartWalletDeduct.*smartWalletCheck' /app/js/voice-service.js")
-    if exit_code == 0:
-        results.test_pass("smartWallet functions imported")
-    else:
-        results.test_fail("smartWallet imports", "smartWallet functions not imported")
+def test_syntax_validation():
+    """Test 7: Verify JavaScript syntax is valid"""
+    try:
+        # Test db.js syntax
+        result = subprocess.run(['node', '-c', '/app/js/db.js'], 
+                              capture_output=True, text=True, timeout=10)
+        if result.returncode != 0:
+            print(f"❌ db.js syntax error: {result.stderr}")
+            return False
+        print("✅ db.js syntax is valid")
+        
+        # Test _index.js syntax
+        result = subprocess.run(['node', '-c', '/app/js/_index.js'], 
+                              capture_output=True, text=True, timeout=10)
+        if result.returncode != 0:
+            print(f"❌ _index.js syntax error: {result.stderr}")
+            return False
+        print("✅ _index.js syntax is valid")
+        
+        # Test voice-service.js syntax
+        result = subprocess.run(['node', '-c', '/app/js/voice-service.js'], 
+                              capture_output=True, text=True, timeout=10)
+        if result.returncode != 0:
+            print(f"❌ voice-service.js syntax error: {result.stderr}")
+            return False
+        print("✅ voice-service.js syntax is valid")
+        
+        return True
+    except Exception as e:
+        print(f"Error checking syntax: {e}")
+        return False
 
-def test_error_log_check(results: TestResults):
-    """Test 9: Verify error log is clean"""
-    print("\n🚨 Testing Error Log Status...")
-    
-    stdout, stderr, exit_code = run_command("wc -c /var/log/supervisor/nodejs.err.log")
-    if exit_code == 0:
-        size = stdout.strip().split()[0]
-        if size == "0":
-            results.test_pass("Error log is 0 bytes (clean)")
-        else:
-            results.test_fail("Error log", f"Error log has {size} bytes")
-    else:
-        results.test_fail("Error log check", f"Could not check error log: {stderr}")
+def test_no_remaining_credential_clobbering_patterns():
+    """Test 8: Comprehensive check for any remaining credential-clobbering patterns"""
+    try:
+        with open('/app/js/_index.js', 'r') as f:
+            content = f.read()
+        
+        # Check for any remaining dangerous patterns
+        dangerous_patterns = [
+            r'await set\([^,]+,\s*[^,]+,\s*\{\s*numbers:\s*[^}]+\.numbers\s*\}',  # { numbers: something.numbers }
+            r'updateOne\([^,]+,\s*\{\s*\$set:\s*\{\s*val:\s*\{\s*numbers:',  # Direct val replacement
+        ]
+        
+        found_issues = []
+        for pattern in dangerous_patterns:
+            matches = re.findall(pattern, content)
+            if matches:
+                found_issues.extend(matches)
+        
+        if found_issues:
+            print(f"❌ Found {len(found_issues)} potential credential-clobbering patterns:")
+            for issue in found_issues[:3]:  # Show first 3
+                print(f"   - {issue}")
+            return False
+        
+        print("✅ No credential-clobbering patterns found")
+        return True
+    except Exception as e:
+        print(f"Error checking for credential-clobbering patterns: {e}")
+        return False
 
 def main():
-    print("🧪 Backend Test Suite - External Number Detach Fix")
+    """Run all tests and report results"""
+    print("🧪 CREDENTIAL-CLOBBERING FIX VERIFICATION TEST SUITE")
     print("=" * 60)
     
-    results = TestResults()
+    tests = [
+        ("Health Endpoint", test_health_endpoint),
+        ("setFields Function Exists", test_setfields_function_exists),
+        ("setFields Import", test_setfields_import),
+        ("Update Functions Use setFields", test_update_phone_number_functions_use_setfields),
+        ("Purchase Paths Preserve Full Object", test_purchase_paths_preserve_full_object),
+        ("Proactive Credential Recovery", test_proactive_credential_recovery),
+        ("JavaScript Syntax Validation", test_syntax_validation),
+        ("No Remaining Credential-Clobbering Patterns", test_no_remaining_credential_clobbering_patterns),
+    ]
     
-    # Run all tests
-    test_syntax_checks(results)
-    test_health_endpoint(results)
-    test_migration_function_signature(results)
-    test_detach_logic(results)
-    test_db_filtering_logic(results)
-    test_startup_logs(results)
-    test_function_exports(results)
-    test_regression_sip_fixes(results)
-    test_error_log_check(results)
+    passed = 0
+    total = len(tests)
     
-    # Print summary
-    success = results.summary()
+    for test_name, test_func in tests:
+        if run_test(test_name, test_func):
+            passed += 1
     
-    # Exit with appropriate code
-    sys.exit(0 if success else 1)
+    print(f"\n{'='*60}")
+    print(f"TEST RESULTS: {passed}/{total} PASSED")
+    print('='*60)
+    
+    if passed == total:
+        print("🎉 ALL TESTS PASSED! Credential-clobbering fixes are working correctly.")
+        return 0
+    else:
+        print(f"⚠️  {total - passed} TESTS FAILED. Please review the issues above.")
+        return 1
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

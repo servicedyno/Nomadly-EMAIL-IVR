@@ -180,7 +180,7 @@ const dnsAutoCheck = async (send, chatId, t, domain, recordType, recordValue) =>
   }
 }
 const { saveDomainInServerRailway, saveDomainInServerRender } = require('./rl-save-domain-in-server.js')
-const { get, set, del, increment, atomicIncrement, getAll, decrement, insert } = require('./db.js')
+const { get, set, setFields, del, increment, atomicIncrement, getAll, decrement, insert } = require('./db.js')
 const { getRegisteredDomainNames } = require('./cr-domain-purchased-get.js')
 const { getCryptoDepositAddress, convert } = require('./pay-blockbee.js')
 const { validateBulkNumbers, isRealPersonName } = require('./validatePhoneBulk.js')
@@ -5252,7 +5252,7 @@ Enter new value:`), bc)
         }
 
         const existing = await get(phoneNumbersOf, chatId)
-        if (existing?.numbers) { existing.numbers.push(numberDoc); await set(phoneNumbersOf, chatId, { numbers: existing.numbers }) }
+        if (existing?.numbers) { existing.numbers.push(numberDoc); await set(phoneNumbersOf, chatId, existing) }
         else { await set(phoneNumbersOf, chatId, { numbers: [numberDoc] }) }
 
         await phoneTransactions.insertOne({ chatId, phoneNumber: selectedNumber, action: isSubNumber ? 'sub-number-purchase' : 'purchase', plan: planKey, amount: price, paymentMethod: coin === u.usd ? 'wallet_usd' : 'wallet_ngn', timestamp: new Date().toISOString() })
@@ -18174,7 +18174,8 @@ async function updatePhoneNumberFeature(col, chatId, phoneNumber, featureKey, va
   if (idx === -1) return
   nums[idx].features = nums[idx].features || {}
   nums[idx].features[featureKey] = value
-  await set(col, chatId, { numbers: nums })
+  // Atomic update: only touch val.numbers, never clobber sibling fields like twilioSubAccountSid/Token
+  await setFields(col, chatId, { 'val.numbers': nums })
 }
 
 async function updatePhoneNumberField(col, chatId, phoneNumber, fieldKey, value) {
@@ -18184,7 +18185,8 @@ async function updatePhoneNumberField(col, chatId, phoneNumber, fieldKey, value)
   const idx = nums.findIndex(n => n.phoneNumber === phoneNumber)
   if (idx === -1) return
   nums[idx][fieldKey] = value
-  await set(col, chatId, { numbers: nums })
+  // Atomic update: only touch val.numbers, never clobber sibling fields like twilioSubAccountSid/Token
+  await setFields(col, chatId, { 'val.numbers': nums })
 }
 
 const auth = async (req, res, next) => {
@@ -18712,7 +18714,7 @@ const bankApis = {
         smsForwarding: { toTelegram: true, toEmail: null, webhookUrl: null }, recording: false }
     }
     const existing = await get(phoneNumbersOf, chatId)
-    if (existing?.numbers) { existing.numbers.push(numberDoc); await set(phoneNumbersOf, chatId, { numbers: existing.numbers }) }
+    if (existing?.numbers) { existing.numbers.push(numberDoc); await set(phoneNumbersOf, chatId, existing) }
     else { await set(phoneNumbersOf, chatId, { numbers: [numberDoc] }) }
     await phoneTransactions.insertOne({ chatId, phoneNumber: selectedNumber, action: 'purchase', plan: planKey, amount: price, paymentMethod: 'bank_ngn', timestamp: new Date().toISOString() })
     sendMessage(chatId, cpTxt.activated(selectedNumber, plan.name, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())))
@@ -19352,7 +19354,7 @@ app.get('/crypto-pay-phone', auth, async (req, res) => {
       smsForwarding: { toTelegram: true, toEmail: null, webhookUrl: null }, recording: false }
   }
   const existing = await get(phoneNumbersOf, chatId)
-  if (existing?.numbers) { existing.numbers.push(numberDoc); await set(phoneNumbersOf, chatId, { numbers: existing.numbers }) }
+  if (existing?.numbers) { existing.numbers.push(numberDoc); await set(phoneNumbersOf, chatId, existing) }
   else { await set(phoneNumbersOf, chatId, { numbers: [numberDoc] }) }
   await phoneTransactions.insertOne({ chatId, phoneNumber: selectedNumber, action: 'purchase', plan: planKey, amount: price, paymentMethod: 'crypto_' + coin, timestamp: new Date().toISOString() })
   sendMessage(chatId, cpTxt.activated(selectedNumber, plan.name, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())))
@@ -19961,7 +19963,7 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
       smsForwarding: { toTelegram: true, toEmail: null, webhookUrl: null }, recording: false }
   }
   const existing = await get(phoneNumbersOf, chatId)
-  if (existing?.numbers) { existing.numbers.push(numberDoc); await set(phoneNumbersOf, chatId, { numbers: existing.numbers }) }
+  if (existing?.numbers) { existing.numbers.push(numberDoc); await set(phoneNumbersOf, chatId, existing) }
   else { await set(phoneNumbersOf, chatId, { numbers: [numberDoc] }) }
   await phoneTransactions.insertOne({ chatId, phoneNumber: selectedNumber, action: 'purchase', plan: planKey, amount: price, paymentMethod: 'crypto_dynopay_' + coin, timestamp: new Date().toISOString() })
   sendMessage(chatId, cpTxt.activated(selectedNumber, plan.name, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())))
