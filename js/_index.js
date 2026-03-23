@@ -894,12 +894,40 @@ const loadData = async () => {
         ;(async () => {
           try {
             const allUsers = await db.collection('phoneNumbersOf').find({}).toArray()
-            let updated = 0, failed = 0
+            let updated = 0, failed = 0, recovered = 0
             for (const user of allUsers) {
               const numbers = (user.val?.numbers || []).filter(n => n.provider === 'twilio' && n.status === 'active' && n.twilioNumberSid)
               if (!numbers.length) continue
-              const subSid = user.val?.twilioSubAccountSid
-              const subToken = user.val?.twilioSubAccountToken
+              let subSid = user.val?.twilioSubAccountSid
+              let subToken = user.val?.twilioSubAccountToken
+
+              // ── TOKEN RECOVERY: If user-level creds are missing, check number-level sub-account SIDs ──
+              // Some numbers have twilioSubAccountSid stored on the number doc but the auth token
+              // was never persisted to the user doc. Recover it from Twilio API and persist.
+              if (!subSid || !subToken) {
+                const numWithSid = numbers.find(n => n.twilioSubAccountSid)
+                if (numWithSid) {
+                  subSid = subSid || numWithSid.twilioSubAccountSid
+                  if (subSid && !subToken) {
+                    try {
+                      const subAcct = await twilioService.getSubAccount(subSid)
+                      if (subAcct && subAcct.authToken && !subAcct.error) {
+                        subToken = subAcct.authToken
+                        // Persist recovered credentials to user document
+                        await db.collection('phoneNumbersOf').updateOne(
+                          { _id: user._id },
+                          { $set: { 'val.twilioSubAccountSid': subSid, 'val.twilioSubAccountToken': subToken } }
+                        )
+                        recovered++
+                        log(`[Twilio Sync] RECOVERED credentials for chatId=${user._id} (subSid=${subSid})`)
+                      }
+                    } catch (recoveryErr) {
+                      log(`[Twilio Sync] Token recovery failed for chatId=${user._id}: ${recoveryErr.message}`)
+                    }
+                  }
+                }
+              }
+
               for (const num of numbers) {
                 try {
                   if (subSid && subToken) {
@@ -915,7 +943,7 @@ const loadData = async () => {
                 } catch (e) { failed++; log(`[Twilio Sync] Failed ${num.phoneNumber}: ${e.message}`) }
               }
             }
-            log(`[Twilio Sync] Webhook sync complete: ${updated} updated, ${failed} failed`)
+            log(`[Twilio Sync] Webhook sync complete: ${updated} updated, ${failed} failed, ${recovered} credentials recovered`)
           } catch (e) { log(`[Twilio Sync] Error: ${e.message}`) }
         })()
         } // end if !_skipWebhookSync

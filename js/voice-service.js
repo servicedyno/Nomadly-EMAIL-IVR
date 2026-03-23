@@ -79,8 +79,37 @@ async function _attemptTwilioDirectCall(chatId, num, destination, bridgeId, call
         subToken = subToken || userData?.val?.twilioSubAccountToken || null
       } catch (e) { /* ignore */ }
     }
+
+    // ── TOKEN RECOVERY: If we have a subSid but no subToken, fetch it from Twilio API ──
+    // This handles cases where the sub-account was created and number transferred,
+    // but the auth token was never persisted to the DB.
+    if (subSid && !subToken && _twilioService) {
+      try {
+        log(`[Voice] Twilio direct fallback: subSid found (${subSid}) but no token — recovering from Twilio API`)
+        const subAcct = await _twilioService.getSubAccount(subSid)
+        if (subAcct && subAcct.authToken && !subAcct.error) {
+          subToken = subAcct.authToken
+          log(`[Voice] Twilio direct fallback: Token recovered for subSid=${subSid}`)
+          // Persist recovered credentials back to the user document so this is a one-time recovery
+          try {
+            const userData = await _phoneNumbersOf.findOne({ _id: chatId })
+            if (userData?.val) {
+              userData.val.twilioSubAccountSid = subSid
+              userData.val.twilioSubAccountToken = subToken
+              await _phoneNumbersOf.updateOne({ _id: chatId }, { $set: { 'val.twilioSubAccountSid': subSid, 'val.twilioSubAccountToken': subToken } })
+              log(`[Voice] Twilio direct fallback: Persisted recovered credentials for chatId=${chatId}`)
+            }
+          } catch (persistErr) { log(`[Voice] Twilio direct fallback: Failed to persist recovered creds: ${persistErr.message}`) }
+        } else {
+          log(`[Voice] Twilio direct fallback: Could not recover token for subSid=${subSid}: ${subAcct?.error || 'no authToken'}`)
+        }
+      } catch (recoveryErr) {
+        log(`[Voice] Twilio direct fallback: Token recovery failed: ${recoveryErr.message}`)
+      }
+    }
+
     if (!subSid || !subToken) {
-      log(`[Voice] Twilio direct fallback: No sub-account credentials for chatId=${chatId}`)
+      log(`[Voice] Twilio direct fallback: No sub-account credentials for chatId=${chatId} (subSid=${!!subSid}, subToken=${!!subToken})`)
       _bot?.sendMessage(chatId, `🚫 <b>Outbound Call Failed</b>\n📞 ${formatPhone(num.phoneNumber)} → ${formatPhone(destination)}\nReason: Call routing failed. Please try again.`, { parse_mode: 'HTML' }).catch(() => {})
       delete pendingBridges[bridgeId]
       if (activeCalls[callControlId]) delete activeCalls[callControlId]
@@ -1249,12 +1278,13 @@ async function handleOutboundSipCall(payload) {
     const telnyxDefaultAni = process.env.TELNYX_DEFAULT_ANI || ''
     const sipUri = `sip:${bridgeId}@${_twilioSipDomain}`
 
-    // First, try to set the connection ANI to the default Telnyx number
-    // to prevent auto-routing from failing with the wrong ANI
+    // ── FIX: Restore ANI to user's actual number after transfer attempt ──
+    // Setting ANI to TELNYX_DEFAULT_ANI causes a problem: if the user retries their SIP call
+    // (e.g., after a failed transfer), the auto-routed call arrives with from=TELNYX_DEFAULT_ANI
+    // and findNumberBySipUser can't match it to any owner → "No owner found", call rejected.
+    // We still use TELNYX_DEFAULT_ANI for the transfer 'from' param, but we restore the
+    // connection-level ANI back to the user's number afterward so retries are identifiable.
     const sipConnectionId = process.env.TELNYX_SIP_CONNECTION_ID || ''
-    if (sipConnectionId && telnyxDefaultAni) {
-      _telnyxApi.updateAniOverride(sipConnectionId, telnyxDefaultAni).catch(() => {})
-    }
 
     try {
       log(`[Voice] Transferring SIP call to Twilio: ${sipUri} (from=${telnyxDefaultAni || 'none'})`)
@@ -1269,6 +1299,14 @@ async function handleOutboundSipCall(payload) {
       log(`[Voice] Telnyx→Twilio transfer failed: ${e.message} — falling back to Twilio direct call`)
       await _telnyxApi.hangupCall(callControlId).catch(() => {})
       await _attemptTwilioDirectCall(chatId, num, destination, bridgeId, callControlId)
+    }
+
+    // ── Restore connection ANI to user's phone number ──
+    // This ensures that if the user retries their SIP call, the auto-routed call
+    // will have from=user's number (identifiable by findNumberBySipUser) instead of
+    // from=TELNYX_DEFAULT_ANI (which would be rejected as "No owner found").
+    if (sipConnectionId && num.phoneNumber) {
+      _telnyxApi.updateAniOverride(sipConnectionId, num.phoneNumber).catch(() => {})
     }
 
     // Notify user
