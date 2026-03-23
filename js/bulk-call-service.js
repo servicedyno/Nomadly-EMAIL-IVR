@@ -345,33 +345,58 @@ async function startCampaign(campaignId) {
   // ━━━ PRE-CAMPAIGN CREDIT CHECK: Bulk calls charge $BULK_CALL_RATE/min from wallet (plan minutes NOT used) ━━━
   try {
     if (_walletOf) {
-      const walletCheck = await smartWalletCheck(_walletOf, campaign.chatId, BULK_CALL_MIN_WALLET)
+      const walletCheck = await smartWalletCheck(_walletOf, campaign.chatId, BULK_CALL_RATE)
       const { usdBal, ngnBal } = walletCheck
 
-      // ── Minimum wallet balance requirement ──
-      if (!walletCheck.sufficient) {
-        _bot?.sendMessage(campaign.chatId,
-          `🚫 <b>Campaign Blocked — Minimum Balance Not Met</b>\n\n` +
-          `Bulk IVR campaigns require a minimum wallet balance of <b>$${BULK_CALL_MIN_WALLET.toFixed(2)}</b>.\n` +
-          `Your wallet: <b>$${usdBal.toFixed(2)} / ₦${ngnBal.toFixed(2)}</b>\n\n` +
-          `Top up via 👛 Wallet, then retry.`,
-          { parse_mode: 'HTML' }
-        ).catch(() => {})
-        return { error: `Minimum wallet balance of $${BULK_CALL_MIN_WALLET.toFixed(2)} required. USD: $${usdBal.toFixed(2)}, NGN: ₦${ngnBal.toFixed(2)}.` }
+      // Determine if this is the user's first-ever campaign
+      const pastCampaignCount = await _collection.countDocuments({
+        chatId: campaign.chatId,
+        status: { $in: ['completed', 'running', 'paused'] },
+        _id: { $ne: campaign._id },
+      })
+      const isFirstCampaign = pastCampaignCount === 0
+
+      // Balance is effectively zero — not enough for even a single call
+      const isNearZero = !walletCheck.sufficient  // can't cover $BULK_CALL_RATE
+
+      // ── Minimum wallet balance: enforced for first-time users OR zero-balance users ──
+      if (isFirstCampaign || isNearZero) {
+        const fullCheck = await smartWalletCheck(_walletOf, campaign.chatId, BULK_CALL_MIN_WALLET)
+        if (!fullCheck.sufficient) {
+          const reason = isFirstCampaign
+            ? `First-time Bulk IVR campaigns require a minimum wallet balance of <b>$${BULK_CALL_MIN_WALLET.toFixed(2)}</b>.`
+            : `Your wallet balance is too low to start a campaign. Please top up at least <b>$${BULK_CALL_MIN_WALLET.toFixed(2)}</b>.`
+          _bot?.sendMessage(campaign.chatId,
+            `🚫 <b>Campaign Blocked — Minimum Balance Not Met</b>\n\n` +
+            `${reason}\n` +
+            `Your wallet: <b>$${usdBal.toFixed(2)} / ₦${ngnBal.toFixed(2)}</b>\n\n` +
+            `Top up via 👛 Wallet, then retry.`,
+            { parse_mode: 'HTML' }
+          ).catch(() => {})
+          return { error: `Minimum wallet balance of $${BULK_CALL_MIN_WALLET.toFixed(2)} required. USD: $${usdBal.toFixed(2)}, NGN: ₦${ngnBal.toFixed(2)}.` }
+        }
       }
 
-      // Check if wallet covers estimated campaign cost
+      // ── Pre-campaign estimate for all users ──
       const minRequired = BULK_CALL_RATE * campaign.leads.length
+      const estLeadsCovered = Math.floor(Math.max(usdBal, 0) / BULK_CALL_RATE)
       const costCheck = await smartWalletCheck(_walletOf, campaign.chatId, minRequired)
       if (!costCheck.sufficient) {
-        const combinedUsd = usdBal + (ngnBal > 0 ? (usdBal / Math.max(usdBal, 1)) * ngnBal : 0) // rough estimate
-        const estLeadsCovered = Math.floor(Math.max(usdBal, 0) / BULK_CALL_RATE)
         _bot?.sendMessage(campaign.chatId,
           `⚠️ <b>Low Balance Warning</b>\n\n` +
           `Wallet: <b>$${usdBal.toFixed(2)} / ₦${ngnBal.toFixed(2)}</b> (~${estLeadsCovered}+ calls at $${BULK_CALL_RATE.toFixed(2)}/min).\n` +
           `Campaign has <b>${campaign.leads.length}</b> leads — estimated cost: <b>$${minRequired.toFixed(2)}</b>.\n` +
-          `Campaign may pause mid-way if balance runs out.\n` +
+          `Campaign will pause automatically if balance runs out.\n` +
           `Consider topping up for uninterrupted dialing.`,
+          { parse_mode: 'HTML' }
+        ).catch(() => {})
+      } else {
+        // Sufficient balance — show campaign estimate
+        _bot?.sendMessage(campaign.chatId,
+          `📊 <b>Campaign Starting</b>\n\n` +
+          `📞 <b>${campaign.leads.length}</b> leads — estimated cost: <b>$${minRequired.toFixed(2)}</b>\n` +
+          `Wallet: <b>$${usdBal.toFixed(2)} / ₦${ngnBal.toFixed(2)}</b> (~${estLeadsCovered}+ calls covered)\n` +
+          `Rate: $${BULK_CALL_RATE.toFixed(2)}/min per call`,
           { parse_mode: 'HTML' }
         ).catch(() => {})
       }
