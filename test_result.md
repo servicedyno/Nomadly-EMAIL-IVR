@@ -282,17 +282,14 @@ test_plan:
 
 test_plan:
   current_focus:
-    - "External number detach from bot Call Control App"
-    - "Bot-only migration with DB filtering"
+    - "Answer-before-transfer fix for Twilio SIP outbound calls"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
     - agent: "main"
-      message: "Implemented 3 fixes for SIP call failures. (1) voice-service.js _attemptTwilioDirectCall: When subSid found but subToken missing, recovers token via _twilioService.getSubAccount(subSid) and persists to DB. (2) voice-service.js Twilio bridge path: Removed pre-transfer ANI override to TELNYX_DEFAULT_ANI, added post-transfer ANI restore to user's actual phone number so auto-routed retries are identifiable. (3) _index.js Twilio Sync: Checks number-level twilioSubAccountSid when user-level is missing, recovers token from Twilio API and persists. All files pass node -c syntax check. Node.js started cleanly. Files modified: js/voice-service.js, js/_index.js."
-    - agent: "testing"
-      message: "All 3 SIP call fixes verified and working correctly (100% success rate)."
+      message: "Fix 4: Added answerCall() before transferCall for Twilio number SIP outbound calls. This stops Telnyx auto-routing race condition that causes USER_BUSY. The auto-route uses wrong caller ID (Telnyx default ANI, not user's Twilio number) → callee rejects → call dies before our transfer can execute. By answering first, we establish the call on Telnyx side, preventing auto-routing. Then transfer to Twilio SIP bridge works correctly. File: js/voice-service.js."
     - agent: "main"
       message: "Fixed external number hijacking. Root cause: migrateNumbersToCallControlApp() was reassigning ALL 8 Telnyx account numbers to the bot's Call Control App at every startup, but only 2 are bot numbers. Fix: (1) telnyx-service.js: migrateNumbersToCallControlApp now accepts botNumbers list and sipConnectionId. Only migrates bot-owned numbers. External numbers on the bot's Call Control App are DETACHED and restored to the SIP connection. (2) _index.js: Queries phoneNumbersOf DB for Telnyx active numbers, passes to migration along with sipConnectionId. Verified: startup log shows '0 migrated, 2 already correct, 0 external skipped, 6 external detached, 8 total'. Both +18775877003 and +18778570205 successfully detached. Files: js/telnyx-service.js, js/_index.js."
     - agent: "testing"

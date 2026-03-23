@@ -1238,6 +1238,19 @@ async function handleOutboundSipCall(payload) {
       return
     }
 
+    // ── CRITICAL: Answer the call first to STOP Telnyx auto-routing ──
+    // Without answering, Telnyx simultaneously auto-routes the call via the SIP Connection's
+    // outbound voice profile. The auto-routed call uses the wrong caller ID (Telnyx default ANI,
+    // not the user's Twilio number), so the callee rejects → call dies → our transfer fails.
+    // Answering first establishes the call on Telnyx's side, preventing the auto-route race.
+    try {
+      await _telnyxApi.answerCall(callControlId)
+      log(`[Voice] Outbound SIP (Twilio): Answered call to prevent auto-routing race`)
+    } catch (ansErr) {
+      // If answer fails (e.g., call already ended), fall back to Twilio direct call
+      log(`[Voice] Outbound SIP (Twilio): Answer failed (${ansErr.message}) — will attempt Twilio direct call`)
+    }
+
     log(`[Voice] Outbound SIP (Twilio): Bridging ${num.phoneNumber} → ${destination} via ${_twilioSipDomain}`)
 
     // Generate unique bridge ID
