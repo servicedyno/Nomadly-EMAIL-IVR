@@ -878,7 +878,11 @@ const loadData = async () => {
             }
           }
         }
-        const migrated = await telnyxApi.migrateNumbersToCallControlApp(telnyxResources.callControlAppId, botTelnyxNumbers)
+        const migrated = await telnyxApi.migrateNumbersToCallControlApp(
+          telnyxResources.callControlAppId,
+          botTelnyxNumbers,
+          telnyxResources.sipConnectionId || process.env.TELNYX_SIP_CONNECTION_ID || ''
+        )
         if (migrated > 0) log(`[CloudPhone] Migrated ${migrated} numbers to Call Control App for proper inbound routing`)
       }
     } catch (e) {
