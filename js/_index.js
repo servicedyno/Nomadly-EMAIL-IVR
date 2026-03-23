@@ -11383,6 +11383,12 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const sanitized = message.replace(/[#₦,\s]/g, '').replace(/^NGN\s*/i, '').replace(/NGN\s*Amount:?\s*/i, '')
     const amount = parseFloat(sanitized)
     if (isNaN(amount) || amount <= 0) return send(chatId, t.askValidAmount)
+
+    // Minimum NGN deposit = $10 USD equivalent
+    const minNgn = await usdToNgn(10)
+    if (!minNgn) return send(chatId, '⚠️ NGN deposits temporarily unavailable (exchange rate service down). Please try USD.', trans('payOpts'))
+    if (amount < minNgn) return send(chatId, `⚠️ Minimum deposit is ₦${minNgn.toLocaleString()} (≈ $10 USD). Please enter a higher amount.`)
+
     await saveInfo('depositAmountNgn', amount)
     return goto[a.askEmailForNGN]()
   }
