@@ -8,7 +8,7 @@ const fs = require('fs')
 const path = require('path')
 const { log } = require('console')
 const { sanitizeProviderError, sanitizeHangupCause } = require('./sanitize-provider')
-const { getBalance } = require('./utils.js')
+const { getBalance, smartWalletDeduct, smartWalletCheck } = require('./utils.js')
 const { get } = require('./db.js')
 
 // ━━━ Bulk Call Pricing & Limits ━━━
@@ -125,16 +125,16 @@ async function recoverRunningCampaigns() {
     let canResume = true
     if (_walletOf) {
       try {
-        const { usdBal } = await getBalance(_walletOf, campaign.chatId)
-        if (usdBal < BULK_CALL_RATE) {
+        const walletCheck = await smartWalletCheck(_walletOf, campaign.chatId, BULK_CALL_RATE)
+        if (!walletCheck.sufficient) {
           // Reset in-flight leads before pausing (those calls are dead after restart)
           await resetInflightLeads(campaignId, leads)
           await _collection.updateOne({ id: campaignId }, { $set: { status: 'paused' } })
-          log(`[BulkCall] Recovery: Campaign ${campaignId} (user ${campaign.chatId}) — paused (wallet $${usdBal.toFixed(2)} < $${BULK_CALL_RATE}/min)`)
+          log(`[BulkCall] Recovery: Campaign ${campaignId} (user ${campaign.chatId}) — paused (insufficient funds)`)
           _bot?.sendMessage(campaign.chatId,
             `⏸️ <b>Campaign Paused After Restart</b>\n\n` +
             `Your Bulk IVR campaign has ${pendingLeads.length} leads remaining but your wallet is too low.\n` +
-            `Wallet: <b>$${usdBal.toFixed(2)}</b> (need $${BULK_CALL_RATE.toFixed(2)}/min)\n\n` +
+            `Wallet: <b>$${walletCheck.usdBal.toFixed(2)} / ₦${walletCheck.ngnBal.toFixed(2)}</b> (need $${BULK_CALL_RATE.toFixed(2)}/min)\n\n` +
             `Top up via 👛 Wallet to resume.`,
             { parse_mode: 'HTML' }
           ).catch(() => {})
@@ -345,26 +345,30 @@ async function startCampaign(campaignId) {
   // ━━━ PRE-CAMPAIGN CREDIT CHECK: Bulk calls charge $BULK_CALL_RATE/min from wallet (plan minutes NOT used) ━━━
   try {
     if (_walletOf) {
-      const { usdBal } = await getBalance(_walletOf, campaign.chatId)
+      const walletCheck = await smartWalletCheck(_walletOf, campaign.chatId, BULK_CALL_MIN_WALLET)
+      const { usdBal, ngnBal } = walletCheck
 
       // ── Minimum wallet balance requirement ──
-      if (usdBal < BULK_CALL_MIN_WALLET) {
+      if (!walletCheck.sufficient) {
         _bot?.sendMessage(campaign.chatId,
           `🚫 <b>Campaign Blocked — Minimum Balance Not Met</b>\n\n` +
           `Bulk IVR campaigns require a minimum wallet balance of <b>$${BULK_CALL_MIN_WALLET.toFixed(2)}</b>.\n` +
-          `Your wallet: <b>$${usdBal.toFixed(2)}</b>\n\n` +
+          `Your wallet: <b>$${usdBal.toFixed(2)} / ₦${ngnBal.toFixed(2)}</b>\n\n` +
           `Top up via 👛 Wallet, then retry.`,
           { parse_mode: 'HTML' }
         ).catch(() => {})
-        return { error: `Minimum wallet balance of $${BULK_CALL_MIN_WALLET.toFixed(2)} required to launch a campaign. Current balance: $${usdBal.toFixed(2)}.` }
+        return { error: `Minimum wallet balance of $${BULK_CALL_MIN_WALLET.toFixed(2)} required. USD: $${usdBal.toFixed(2)}, NGN: ₦${ngnBal.toFixed(2)}.` }
       }
 
-      const minRequired = BULK_CALL_RATE * campaign.leads.length  // 1 min minimum per lead
-      if (usdBal < minRequired) {
-        const estLeadsCovered = Math.floor(usdBal / BULK_CALL_RATE)
+      // Check if wallet covers estimated campaign cost
+      const minRequired = BULK_CALL_RATE * campaign.leads.length
+      const costCheck = await smartWalletCheck(_walletOf, campaign.chatId, minRequired)
+      if (!costCheck.sufficient) {
+        const combinedUsd = usdBal + (ngnBal > 0 ? (usdBal / Math.max(usdBal, 1)) * ngnBal : 0) // rough estimate
+        const estLeadsCovered = Math.floor(Math.max(usdBal, 0) / BULK_CALL_RATE)
         _bot?.sendMessage(campaign.chatId,
           `⚠️ <b>Low Balance Warning</b>\n\n` +
-          `Wallet: <b>$${usdBal.toFixed(2)}</b> (~${estLeadsCovered} calls at $${BULK_CALL_RATE.toFixed(2)}/min).\n` +
+          `Wallet: <b>$${usdBal.toFixed(2)} / ₦${ngnBal.toFixed(2)}</b> (~${estLeadsCovered}+ calls at $${BULK_CALL_RATE.toFixed(2)}/min).\n` +
           `Campaign has <b>${campaign.leads.length}</b> leads — estimated cost: <b>$${minRequired.toFixed(2)}</b>.\n` +
           `Campaign may pause mid-way if balance runs out.\n` +
           `Consider topping up for uninterrupted dialing.`,
@@ -445,16 +449,16 @@ async function fireNextBatch(campaignId) {
   // ━━━ PER-BATCH CREDIT CHECK: Pause campaign if wallet exhausted (bulk calls use wallet only) ━━━
   if (toFire.length > 0 && _walletOf) {
     try {
-      const { usdBal } = await getBalance(_walletOf, campaign.chatId)
-      if (usdBal < BULK_CALL_RATE) {
+      const walletCheck = await smartWalletCheck(_walletOf, campaign.chatId, BULK_CALL_RATE)
+      if (!walletCheck.sufficient) {
         // No credits — pause campaign
-        log(`[BulkCall] Pausing campaign ${campaignId}: wallet $${usdBal.toFixed(2)} < $${BULK_CALL_RATE}/min`)
+        log(`[BulkCall] Pausing campaign ${campaignId}: insufficient funds`)
         state.paused = true
         await _collection.updateOne({ id: campaignId }, { $set: { status: 'paused' } })
         _bot?.sendMessage(campaign.chatId,
           `⏸️ <b>Campaign Paused — Wallet Depleted</b>\n\n` +
           `📞 ${campaign.stats.completed}/${campaign.stats.total} calls completed so far.\n` +
-          `Wallet: <b>$${usdBal.toFixed(2)}</b> (need $${BULK_CALL_RATE.toFixed(2)}/min per call).\n\n` +
+          `Wallet: <b>$${walletCheck.usdBal.toFixed(2)} / ₦${walletCheck.ngnBal.toFixed(2)}</b> (need $${BULK_CALL_RATE.toFixed(2)}/min per call).\n\n` +
           `Top up via 👛 Wallet, then resume the campaign.`,
           { parse_mode: 'HTML' }
         ).catch(() => {})
@@ -609,42 +613,48 @@ async function onCallStatusUpdate(callSid, campaignId, leadIndex, status, durati
         const minutesBilled = Math.max(1, Math.ceil((duration || 0) / 60))  // minimum 1 minute always
         const charge = +(minutesBilled * BULK_CALL_RATE).toFixed(4)
 
-        // Direct wallet deduction (bulk calls do NOT use plan minutes)
-        const { atomicIncrement } = require('./db.js')
-        await atomicIncrement(_walletOf, freshCampaign.chatId, 'usdOut', charge)
-        // Log the payment
-        if (_db) {
-          const phoneLogs = _db.collection('phoneLogs')
-          await phoneLogs.insertOne({
-            chatId: freshCampaign.chatId,
-            type: 'BulkIVR',
-            direction: 'outbound',
-            from: freshCampaign.callerId,
-            to: freshLead?.number || 'unknown',
-            duration: duration || 0,
-            minutesBilled,
-            charge,
-            rate: BULK_CALL_RATE,
-            callStatus: finalStatus,
-            campaignId,
-            leadIndex,
-            createdAt: new Date(),
-          })
+        // Direct wallet deduction (bulk calls do NOT use plan minutes) — tries USD first, then NGN
+        const deductResult = await smartWalletDeduct(_walletOf, freshCampaign.chatId, charge)
+        if (deductResult.success) {
+          const chargedStr = deductResult.currency === 'ngn' ? `₦${deductResult.chargedNgn}` : `$${charge.toFixed(2)}`
+          // Log the payment
+          if (_db) {
+            const phoneLogs = _db.collection('phoneLogs')
+            await phoneLogs.insertOne({
+              chatId: freshCampaign.chatId,
+              type: 'BulkIVR',
+              direction: 'outbound',
+              from: freshCampaign.callerId,
+              to: freshLead?.number || 'unknown',
+              duration: duration || 0,
+              minutesBilled,
+              charge,
+              chargedCurrency: deductResult.currency,
+              chargedNgn: deductResult.chargedNgn || null,
+              rate: BULK_CALL_RATE,
+              callStatus: finalStatus,
+              campaignId,
+              leadIndex,
+              createdAt: new Date(),
+            })
+          }
+          log(`[BulkCall] Billed ${chargedStr} (${minutesBilled} min × $${BULK_CALL_RATE}/min) for campaign=${campaignId} lead=${leadIndex} status=${finalStatus}`)
+        } else {
+          log(`[BulkCall] Billing failed (insufficient funds) for campaign=${campaignId} lead=${leadIndex}`)
         }
-        log(`[BulkCall] Billed $${charge.toFixed(2)} (${minutesBilled} min × $${BULK_CALL_RATE}/min) for campaign=${campaignId} lead=${leadIndex} status=${finalStatus}`)
 
         // ━━━ POST-BILLING: Check if wallet is now exhausted → pause campaign ━━━
         try {
-          const { usdBal } = await getBalance(_walletOf, freshCampaign.chatId)
-          if (usdBal < BULK_CALL_RATE) {
+          const postCheck = await smartWalletCheck(_walletOf, freshCampaign.chatId, BULK_CALL_RATE)
+          if (!postCheck.sufficient) {
             const campState = activeCampaigns[campaignId]
             if (campState && !campState.paused) {
-              log(`[BulkCall] Wallet exhausted after billing ($${usdBal.toFixed(2)}) — pausing campaign ${campaignId}`)
+              log(`[BulkCall] Wallet exhausted after billing — pausing campaign ${campaignId}`)
               campState.paused = true
               await _collection.updateOne({ id: campaignId }, { $set: { status: 'paused' } })
               _bot?.sendMessage(freshCampaign.chatId,
                 `⏸️ <b>Campaign Auto-Paused — Wallet Depleted</b>\n\n` +
-                `Wallet: <b>$${usdBal.toFixed(2)}</b> (need $${BULK_CALL_RATE.toFixed(2)}/min per call).\n` +
+                `Wallet: <b>$${postCheck.usdBal.toFixed(2)} / ₦${postCheck.ngnBal.toFixed(2)}</b> (need $${BULK_CALL_RATE.toFixed(2)}/min per call).\n` +
                 `${freshCampaign.stats?.completed || 0}/${freshCampaign.stats?.total || 0} calls completed.\n\n` +
                 `Top up via 👛 Wallet to resume.`,
                 { parse_mode: 'HTML' }

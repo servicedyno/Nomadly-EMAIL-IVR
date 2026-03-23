@@ -71,27 +71,10 @@ function initScheduler(deps) {
     log('[HostingScheduler] Anti-Red service not available')
   }
 
+  const { smartWalletDeduct, usdToNgn, getBalance } = require('./utils')
+
   log('[HostingScheduler] Initialized — checking every hour')
   log('[HostingScheduler] Policy: weekly plans NEVER auto-renew, monthly plans auto-renew if enabled')
-
-  /**
-   * Get user's wallet balance (usdIn - usdOut)
-   */
-  async function getWalletBalance(chatId) {
-    const wallet = await walletOf.findOne({ chatId: String(chatId) })
-    if (!wallet) return 0
-    return parseFloat(wallet.usdIn || 0) - parseFloat(wallet.usdOut || 0)
-  }
-
-  /**
-   * Deduct from user's wallet (increment usdOut)
-   */
-  async function deductWallet(chatId, amount) {
-    await walletOf.updateOne(
-      { chatId: String(chatId) },
-      { $inc: { usdOut: amount } }
-    )
-  }
 
   /**
    * Send Telegram notification
@@ -218,11 +201,10 @@ function initScheduler(deps) {
 
           // Only attempt auto-renew for monthly plans with auto-renew enabled
           if (isAutoRenew && price > 0) {
-            const balance = await getWalletBalance(chatId)
+            const result = await smartWalletDeduct(walletOf, chatId, price)
 
-            if (balance >= price) {
-              // Auto-renew: charge wallet & extend
-              await deductWallet(chatId, price)
+            if (result.success) {
+              // Auto-renew: wallet charged — extend expiry
               const newExpiry = new Date(now.getTime() + duration * 24 * 60 * 60 * 1000)
 
               await cpanelAccounts.updateOne(
@@ -250,28 +232,34 @@ function initScheduler(deps) {
                 await unsuspendAccount(account.cpUser)
               }
 
+              const chargedStr = result.currency === 'ngn' ? `₦${result.chargedNgn.toLocaleString()} NGN` : `$${price}`
+              const { usdBal: remUsd, ngnBal: remNgn } = await getBalance(walletOf, chatId)
+              const balStr = result.currency === 'ngn' ? `₦${remNgn.toFixed(2)}` : `$${remUsd.toFixed(2)}`
+
               notify(chatId,
                 `✅ <b>Plan Auto-Renewed!</b>\n\n`
                 + `<b>${plan}</b> for <b>${domain}</b> has been renewed.\n`
-                + `<b>Charged:</b> $${price}\n`
+                + `<b>Charged:</b> ${chargedStr}\n`
                 + `<b>New Expiry:</b> ${newExpiry.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}\n`
-                + `<b>Remaining Balance:</b> $${(balance - price).toFixed(2)}`
+                + `<b>Remaining Balance:</b> ${balStr}`
               )
               renewed++
-              log(`[HostingScheduler] Auto-renewed ${domain} (${plan}) for ${chatId} — charged $${price}`)
+              log(`[HostingScheduler] Auto-renewed ${domain} (${plan}) for ${chatId} — charged ${chargedStr}`)
               continue
             } else {
-              // Insufficient funds — notify (only if not already suspended)
+              // Insufficient funds in both wallets — notify (only if not already suspended)
               if (!account.suspended) {
+                const { usdBal, ngnBal } = result
+                const priceNgn = await usdToNgn(price)
                 notify(chatId,
                   `⚠️ <b>Auto-Renew Failed — Insufficient Funds</b>\n\n`
                   + `<b>${plan}</b> for <b>${domain}</b> has expired.\n`
-                  + `<b>Renewal Price:</b> $${price}\n`
-                  + `<b>Your Balance:</b> $${balance.toFixed(2)}\n\n`
-                  + `Please deposit at least <b>$${(price - balance).toFixed(2)}</b> to renew.\n`
+                  + `<b>Renewal Price:</b> $${price}${priceNgn ? ` (≈ ₦${priceNgn.toLocaleString()})` : ''}\n`
+                  + `<b>Your Balance:</b> $${(usdBal || 0).toFixed(2)} / ₦${(ngnBal || 0).toFixed(2)}\n\n`
+                  + `Please deposit funds to renew.\n`
                   + `Your account will be <b>deleted</b> in ${GRACE_PERIOD_HOURS}h if not renewed.`
                 )
-                log(`[HostingScheduler] Auto-renew failed (low funds) for ${domain} — balance: $${balance.toFixed(2)}, needed: $${price}`)
+                log(`[HostingScheduler] Auto-renew failed (low funds) for ${domain} — USD: $${(usdBal || 0).toFixed(2)}, NGN: ₦${(ngnBal || 0).toFixed(2)}, needed: $${price}`)
               }
             }
           } else if (weekly && expiry <= now && !account.suspended) {

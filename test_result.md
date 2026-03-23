@@ -105,91 +105,11 @@
 #====================================================================================================
 
 
-user_problem_statement: "Fix all SIP call anomalies from Railway logs"
+
+user_problem_statement: "Fix NGN wallet balance support for all services — same as USD wallet"
 
 backend:
-  - task: "Tiered hosting addon domain limits + hosting plan upgrade flow"
-    implemented: true
-    working: true
-    file: "js/whm-service.js, js/cpanel-routes.js, js/_index.js, js/lang/en.js, js/lang/fr.js, js/lang/zh.js, js/lang/hi.js"
-    stuck_count: 0
-    priority: "critical"
-    needs_retesting: false
-    status_history:
-        - working: true
-          agent: "testing"
-          comment: "Previously verified working"
-
-  - task: "Fix trial IVR call consumed on busy/no-answer"
-    implemented: true
-    working: true
-    file: "js/voice-service.js, js/_index.js"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-        - working: true
-          agent: "testing"
-          comment: "Previously verified working"
-
-  - task: "Fix SIP credential username mismatch (Twilio vs Telnyx)"
-    implemented: true
-    working: true
-    file: "js/_index.js"
-    stuck_count: 0
-    priority: "critical"
-    needs_retesting: false
-    status_history:
-        - working: true
-          agent: "testing"
-          comment: "Previously verified working"
-
-  - task: "Fix Trial Quick IVR D51 Error - Route trial calls through Twilio main account"
-    implemented: true
-    working: true
-    file: "js/_index.js, js/voice-service.js, js/twilio-service.js"
-    stuck_count: 0
-    priority: "critical"
-    needs_retesting: false
-    status_history:
-        - working: "NA"
-          agent: "main"
-          comment: "Root cause: Trial IVR calls fail with D51 error because trial caller ID +18556820054 is a Twilio number but code routed through Telnyx API (callerProvider defaulted to telnyx). Fix: (1) _index.js line 11421: Added callerProvider:'twilio' to trial path. (2) _index.js line 11961: Skip sub-account security check for trial calls (isTrial check). (3) voice-service.js: Added dedicated trial Twilio call path using makeTrialOutboundCall (main account). (4) twilio-service.js: Added makeTrialOutboundCall function using main Twilio account for trial calls."
-        - working: true
-          agent: "testing"
-          comment: "✅ VERIFIED: All 4 components of trial IVR fix implemented correctly. (1) _index.js line 11421: callerProvider:'twilio' and isTrial:true set in trial path. (2) _index.js line 11961: Sub-account security check properly skips trial calls with !ivrObData.isTrial condition. (3) voice-service.js: makeTrialOutboundCall usage found for trial calls. (4) twilio-service.js: makeTrialOutboundCall function exists, uses getClient() (main account), and is properly exported. Trial calls will now route through Twilio main account instead of Telnyx API."
-
-  - task: "Orphaned number +18778570205 admin alerting"
-    implemented: true
-    working: true
-    file: "js/voice-service.js"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-        - working: "NA"
-          agent: "main"
-          comment: "Root cause: Number +18778570205 exists on Telnyx Call Control App but has no owner in phoneNumbersOf DB. 5 inbound calls all rejected. Fix: Enhanced 'No owner found' handler to send Telegram admin alert to TELEGRAM_ADMIN_CHAT_ID with orphaned number details so admin can investigate and cleanup."
-        - working: true
-          agent: "testing"
-          comment: "✅ VERIFIED: Orphaned number admin alerting implemented correctly. Found in voice-service.js around line 746-749: (1) Proper logging with '⚠️ ORPHANED NUMBER:' prefix and detailed message. (2) Telegram admin alert via _bot.sendMessage to TELEGRAM_ADMIN_CHAT_ID. (3) Alert includes phone number, caller info, and guidance for admin action. Alert message properly formatted with HTML parse_mode. Admin will now be notified immediately when orphaned numbers receive calls."
-
-  - task: "SIP outbound call rate limiting"
-    implemented: true
-    working: true
-    file: "js/voice-service.js"
-    stuck_count: 0
-    priority: "medium"
-    needs_retesting: false
-    status_history:
-        - working: "NA"
-          agent: "main"
-          comment: "Root cause: SIP test user spam-dialed +19782163610 4 times in 60 seconds with no rate limiting. Fix: Added SIP rate limiter in voice-service.js handleOutboundSipCall — max 3 calls per destination per 60-second window. Rate limit map with auto-cleanup every 5 minutes."
-        - working: true
-          agent: "testing"
-          comment: "✅ VERIFIED: SIP outbound rate limiting implemented correctly. Found in voice-service.js: (1) Constants: sipRateLimit={}, SIP_RATE_LIMIT_MAX=3, SIP_RATE_LIMIT_WINDOW=60000. (2) checkSipRateLimit function properly tracks calls per sipUsername:destination key with time-based windows. (3) Cleanup interval every 300000ms (5 minutes) removes stale entries. (4) Rate limit enforcement in handleOutboundSipCall before SIP user lookup - calls exceeding 3/60s are rejected with hangup. Prevents SIP spam dialing."
-
-  - task: "Fix DynoPay confirmed webhook losing refId — $42 deposit not credited"
+  - task: "NGN wallet support for hosting manual renewal"
     implemented: true
     working: true
     file: "js/_index.js"
@@ -199,25 +119,142 @@ backend:
     status_history:
         - working: "NA"
           agent: "main"
-          comment: "Root cause: DynoPay sends meta_data.refId only on payment.pending events (which are skipped). When payment.confirmed arrives later (sometimes 3+ hours), it has no refId, so authDyno can't find the payment session → wallet never credited. Fix: (1) authDyno now stores payment_id→refId mapping from pending events (Map with 24h TTL). (2) When confirmed event lacks refId, falls back to stored mapping. (3) Failed events now explicitly skipped (only confirmed events proceed). (4) Admin Telegram alert for missed confirmed payments. (5) Manually credited $42 to user 6604316166 (wallet: $83→$125, balance: $50)."
+          comment: "Added currency selection buttons to hosting renewal flow. Shows both balances and NGN converted price. Deducts from chosen currency. Auto-refund on failure respects currency."
         - working: true
           agent: "testing"
-          comment: "✅ CRITICAL FIX VERIFIED: All 6 DynoPay webhook fix components implemented correctly in js/_index.js around line 17870: (1) dynopayPaymentIdToRef Map declared above authDyno. (2) Pending events store payment_id→refId mapping before skipping with 24h TTL. (3) Failed events explicitly skipped with 'payment.failed' check. (4) RefId recovery fallback uses dynopayPaymentIdToRef.get(paymentId) with 'Recovered refId from pending mapping' log. (5) Admin alert sends Telegram message to TELEGRAM_ADMIN_CHAT_ID via bot for missed confirmed payments. (6) Dedup cleanup deletes from dynopayPaymentIdToRef. Manual wallet credit verified: User 6604316166 has usdIn=125 (was 83, +42), balance=$50. Node.js healthy, 0 bytes error log."
+          comment: "✅ VERIFIED: walletSelectCurrency checks NGN availability with usdToNgn() and hides NGN button when null. Null guards present in walletOk handlers. Currency selection flow working correctly."
+
+  - task: "NGN wallet support for hosting plan upgrade"
+    implemented: true
+    working: true
+    file: "js/_index.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Added 2-step upgrade flow: select plan then select currency. New action confirmUpgradeHostingPay. Shows both balances and NGN price."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: confirmUpgradeHostingPay action exists in actions enum. Hosting upgrade flow has currency selection step. All null guards implemented correctly."
+
+  - task: "NGN wallet support for email blast payment"
+    implemented: true
+    working: true
+    file: "js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Added NGN wallet button alongside USD. Shows both balances. Handles NGN deduction and campaign start with wallet ngn."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: Email blast payment shows both USD/NGN wallet buttons. Currency selection flow implemented with proper null guards."
+
+  - task: "NGN fallback in hosting auto-renewal scheduler"
+    implemented: true
+    working: true
+    file: "js/hosting-scheduler.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Replaced getWalletBalance/deductWallet with smartWalletDeduct. Tries USD first falls back to NGN."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: smartWalletDeduct imported and used correctly. Old USD-only functions removed. Auto-renewal tries USD first then NGN fallback."
+
+  - task: "NGN fallback in phone number auto-renewal"
+    implemented: true
+    working: true
+    file: "js/phone-scheduler.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Replaced direct usdBal check with smartWalletDeduct. Logs wallet_ngn payment method when NGN used."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: smartWalletDeduct imported and used in attemptAutoRenew. Phone auto-renewal tries USD first then NGN fallback."
+
+  - task: "NGN fallback in voice call overage billing"
+    implemented: true
+    working: true
+    file: "js/voice-service.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Replaced all usdBal checks with smartWalletDeduct/smartWalletCheck for inbound overage outbound SIP and mid-call billing."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: smartWalletDeduct and smartWalletCheck imported and used correctly. Inbound overage check, mid-call billing, outbound SIP wallet check, and billCallMinutesUnified all use smart helpers."
+
+  - task: "NGN fallback in SMS overage billing"
+    implemented: true
+    working: true
+    file: "js/sms-service.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Replaced usdBal check plus usdOut deduction with smartWalletDeduct."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: smartWalletDeduct imported and used for SMS overage billing. Tries USD first then NGN fallback."
+
+  - task: "NGN fallback in bulk call billing"
+    implemented: true
+    working: true
+    file: "js/bulk-call-service.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Replaced all 4 wallet checkpoints with smartWalletCheck/smartWalletDeduct."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: smartWalletDeduct and smartWalletCheck imported and used correctly. All 4 wallet checkpoints (pre-campaign, per-batch, billing, post-billing) use smart helpers."
+
+  - task: "Remove hardcoded exchange rate fallback and add null guards"
+    implemented: true
+    working: true
+    file: "js/utils.js, js/_index.js, js/lang/en.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "usdToNgn/ngnToUsd return null on API failure. Added 10-min cache. smartWalletDeduct/Check helpers. walletSelectCurrency hides NGN when API down. All walletOk handlers guard against null priceNgn. Bank payment flows guard against null. Added walletBalanceLowNgn and ngnUnavailable messages."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: usdToNgn returns null when API key invalid/unavailable. 10-minute cache mechanism implemented. smartWalletDeduct/Check functions exist and exported. All walletOk handlers have null guards. walletBalanceLowNgn and ngnUnavailable strings exist in lang/en.js."
 
 test_plan:
   current_focus:
-    - "Fix DynoPay confirmed webhook losing refId"
-    - "Fix Trial Quick IVR D51 Error"
-    - "Orphaned number admin alerting"
-    - "SIP outbound call rate limiting"
+    - "NGN wallet support for all services"
+    - "Exchange rate API null handling"
+    - "Smart wallet deduct/check helpers"
   stuck_tasks: []
-  test_all: false
+  test_all: true
   test_priority: "high_first"
 
 agent_communication:
     - agent: "main"
-      message: "Fixed 4 bugs from Railway log analysis. Key fix: DynoPay authDyno middleware now stores payment_id→refId mapping from pending events, so confirmed events that arrive hours later (without meta_data) can still find payment sessions. Verify: (1) authDyno in _index.js (around line 17870): new dynopayPaymentIdToRef Map, pending events now store mapping before skipping, failed events explicitly skipped, confirmed events fall back to stored mapping, admin alert on missed payments. (2) Trial IVR D51 fix: callerProvider='twilio' on trial path, trial Twilio call via main account. (3) Orphaned number admin alert in voice-service.js. (4) SIP rate limiting in voice-service.js. (5) Manual wallet credit: $42 added to user 6604316166 (usdIn: 83→125, balance: $50). (6) Node.js healthy, 0 bytes error log."
+      message: "Implemented full NGN wallet support across all 8 gaps. Files modified: utils.js (smart helpers, cached rate, null on failure), _index.js (renewal/upgrade/email blast NGN support, null guards on all walletOk handlers and bank flows), hosting-scheduler.js, phone-scheduler.js, voice-service.js, sms-service.js, bulk-call-service.js (all use smartWalletDeduct/Check), lang/en.js (new NGN messages). All files pass node -c syntax check. Node.js started cleanly with 0 errors."
     - agent: "testing"
-      message: "✅ TESTING COMPLETE: All 3 SIP call fixes verified and working correctly. (1) TRIAL IVR D51 FIX: All 4 components implemented - trial path sets callerProvider:'twilio', security check skips trials, voice service uses makeTrialOutboundCall, and function exists in twilio-service. (2) ORPHANED NUMBER ALERTING: Proper logging and Telegram admin alerts implemented with detailed information. (3) SIP RATE LIMITING: Rate limiter with 3 calls/60s limit, cleanup interval, and enforcement before SIP lookup all working. Node.js health endpoint returns healthy status, error log is 0 bytes. All fixes address the root causes identified in Railway logs."
-    - agent: "testing"
-      message: "🎉 CRITICAL DYNOPAY WEBHOOK FIX VERIFIED: All 6 components of the DynoPay webhook fix are correctly implemented in js/_index.js. The most critical fix - storing payment_id→refId mapping from pending events and using fallback recovery for confirmed events - is working perfectly. Manual wallet credit verification confirmed: User 6604316166 has usdIn=125 (was 83, +42 manual credit), balance=$50. All SIP fixes (Trial IVR D51, orphaned number alerting, SIP rate limiting) remain working. Node.js backend healthy with 0 bytes error log. All Railway log issues have been resolved."
+      message: "✅ COMPREHENSIVE TESTING COMPLETE: All 8 NGN wallet support tasks verified and working correctly. Key findings: (1) usdToNgn returns null when API unavailable with 10-min cache, (2) smartWalletDeduct/Check functions try USD first then NGN fallback, (3) All walletOk handlers have null guards for priceNgn, (4) All services (hosting, phone, voice, SMS, bulk calls) use smart wallet helpers, (5) Language strings walletBalanceLowNgn and ngnUnavailable exist, (6) All files pass syntax check, (7) Health endpoint returns healthy status. NGN wallet support implementation is production-ready."

@@ -773,6 +773,11 @@ ${bal(usd, ngn)}`,
 
   walletBalanceLow: `Your wallet balance is too low. Tap Deposit below to top up, then your purchase will resume automatically.`,
 
+  walletBalanceLowNgn: (needed, balance) =>
+    `Your NGN wallet balance (₦${balance.toFixed(2)}) is too low for this purchase.\n\nYou need <b>₦${(needed - balance).toFixed(2)} more</b>. Tap Deposit below to top up.`,
+
+  ngnUnavailable: `⚠️ NGN payment is temporarily unavailable (exchange rate service is down). Please pay with USD.`,
+
   walletBalanceLowAmount: (needed, balance) => 
     `Your wallet balance ($${balance.toFixed(2)}) is too low for this purchase.\n\nYou need <b>$${(needed - balance).toFixed(2)} more</b>. Tap Deposit below to top up.`,
 

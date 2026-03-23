@@ -5,7 +5,7 @@ const schedule = require('node-schedule')
 const axios = require('axios')
 const { log } = require('console')
 const { get, set, atomicIncrement } = require('./db.js')
-const { getBalance } = require('./utils.js')
+const { getBalance, smartWalletDeduct } = require('./utils.js')
 const { formatPhone, shortDate, plans, OVERAGE_RATE_SMS, OVERAGE_RATE_MIN } = require('./phone-config.js')
 const phoneConfig = require('./phone-config.js')
 const telnyxApi = require('./telnyx-service.js')
@@ -231,18 +231,18 @@ async function releaseFromProvider(num, userData) {
 async function attemptAutoRenew(chatId, num, index, numbers) {
   try {
     const price = num.planPrice
-    const { usdBal } = await getBalance(_walletOf, chatId)
+    const result = await smartWalletDeduct(_walletOf, chatId, price)
 
-    if (usdBal < price) {
-      log(`[PhoneScheduler] Auto-renew failed for ${num.phoneNumber}: balance $${usdBal} < $${price}`)
+    if (!result.success) {
+      log(`[PhoneScheduler] Auto-renew failed for ${num.phoneNumber}: insufficient funds (USD: $${(result.usdBal || 0).toFixed(2)}, NGN: ₦${(result.ngnBal || 0).toFixed(2)}, needed: $${price})`)
       return false
     }
 
-    // Deduct from wallet
+    // Wallet charged — extend expiry
     const name = await get(_nameOf, chatId)
     const ref = _nanoid?.() || `ar_${Date.now()}`
-    if (_payments) set(_payments, ref, `AutoRenew,CloudPhone,$${price},${chatId},${name},${new Date()}`)
-    await atomicIncrement(_walletOf, chatId, 'usdOut', price)
+    const chargedStr = result.currency === 'ngn' ? `₦${result.chargedNgn} NGN` : `$${price}`
+    if (_payments) set(_payments, ref, `AutoRenew,CloudPhone,$${price},${chatId},${name},${new Date()}${result.currency === 'ngn' ? `,${result.chargedNgn} NGN` : ''}`)
 
     // Extend expiry by 1 month
     const newExpiry = new Date(num.expiresAt)
@@ -262,18 +262,20 @@ async function attemptAutoRenew(chatId, num, index, numbers) {
       action: 'auto_renew',
       plan: num.plan,
       amount: price,
-      paymentMethod: 'wallet_usd',
+      paymentMethod: result.currency === 'ngn' ? 'wallet_ngn' : 'wallet_usd',
+      ...(result.currency === 'ngn' ? { amountNgn: result.chargedNgn } : {}),
       timestamp: new Date().toISOString(),
     })
 
     // Notify user
-    const { usdBal: newBal } = await getBalance(_walletOf, chatId)
-    sendToUser(chatId, buildAutoRenewSuccessMsg(num, newExpiry, usdBal, newBal))
+    const { usdBal: newUsd, ngnBal: newNgn } = await getBalance(_walletOf, chatId)
+    const balStr = result.currency === 'ngn' ? `₦${newNgn.toFixed(2)}` : `$${newUsd.toFixed(2)}`
+    sendToUser(chatId, buildAutoRenewSuccessMsg(num, newExpiry, price, 0).replace(/\$[\d.]+\s*remaining/, `${balStr} remaining`))
 
     // Notify admin
-    _notifyGroup?.(`✅ <b>Auto-Renewed:</b> ${_maskName?.(name)} → ${formatPhone(num.phoneNumber)} ($${price})`)
+    _notifyGroup?.(`✅ <b>Auto-Renewed:</b> ${_maskName?.(name)} → ${formatPhone(num.phoneNumber)} (${chargedStr})`)
 
-    log(`[PhoneScheduler] Auto-renewed: ${chatId} ${num.phoneNumber} until ${newExpiry.toISOString()}`)
+    log(`[PhoneScheduler] Auto-renewed: ${chatId} ${num.phoneNumber} until ${newExpiry.toISOString()} — charged ${chargedStr}`)
     return true
   } catch (e) {
     log(`[PhoneScheduler] Auto-renew error: ${e.message}`)

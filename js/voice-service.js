@@ -4,7 +4,7 @@
 const { log } = require('console')
 const { get, set, atomicIncrement } = require('./db.js')
 const { formatPhone, formatDuration, canAccessFeature, plans, OVERAGE_RATE_MIN, OVERAGE_RATE_SMS, CALL_FORWARDING_RATE_MIN } = require('./phone-config.js')
-const { getBalance } = require('./utils.js')
+const { getBalance, smartWalletDeduct, smartWalletCheck } = require('./utils.js')
 
 let _bot = null
 let _phoneNumbersOf = null
@@ -184,14 +184,19 @@ async function billCallMinutesUnified(chatId, phoneNumber, minutesBilled, destin
     const totalCharge = +(minutesBilled * rate).toFixed(4)
     try {
       if (_walletOf) {
-        await atomicIncrement(_walletOf, chatId, 'usdOut', totalCharge)
-        const ref = _nanoid?.() || `out_${callType}_${Date.now()}`
-        if (_payments) set(_payments, ref, `Outbound,${callType},$${totalCharge.toFixed(2)},${chatId},${phoneNumber},${destinationNumber},${new Date()}`)
-        log(`[Voice] Outbound billed: $${totalCharge.toFixed(2)} (${minutesBilled} min × $${rate} ${isUSCanada(destinationNumber) ? 'US/CA' : 'Intl'}) for ${callType}`)
-        _bot?.sendMessage(chatId,
-          `💰 <b>${callType}</b>: ${minutesBilled} min × $${rate} = <b>$${totalCharge.toFixed(2)}</b> (${isUSCanada(destinationNumber) ? 'US/CA' : 'International'})`,
-          { parse_mode: 'HTML' }
-        ).catch(() => {})
+        const deductResult = await smartWalletDeduct(_walletOf, chatId, totalCharge)
+        if (deductResult.success) {
+          const ref = _nanoid?.() || `out_${callType}_${Date.now()}`
+          const chargedStr = deductResult.currency === 'ngn' ? `₦${deductResult.chargedNgn}` : `$${totalCharge.toFixed(2)}`
+          if (_payments) set(_payments, ref, `Outbound,${callType},$${totalCharge.toFixed(2)},${chatId},${phoneNumber},${destinationNumber},${new Date()}${deductResult.currency === 'ngn' ? `,${deductResult.chargedNgn} NGN` : ''}`)
+          log(`[Voice] Outbound billed: ${chargedStr} (${minutesBilled} min × $${rate} ${isUSCanada(destinationNumber) ? 'US/CA' : 'Intl'}) for ${callType}`)
+          _bot?.sendMessage(chatId,
+            `💰 <b>${callType}</b>: ${minutesBilled} min × $${rate} = <b>${chargedStr}</b> (${isUSCanada(destinationNumber) ? 'US/CA' : 'International'})`,
+            { parse_mode: 'HTML' }
+          ).catch(() => {})
+        } else {
+          log(`[Voice] Outbound charge failed (insufficient funds): $${totalCharge.toFixed(2)} for ${callType}`)
+        }
       }
     } catch (e) { log(`[Voice] Outbound charge error: ${e.message}`) }
     return { planMinUsed: 0, overageMin: minutesBilled, overageCharge: totalCharge, rate, used: 0, limit: 0 }
@@ -213,14 +218,17 @@ async function billCallMinutesUnified(chatId, phoneNumber, minutesBilled, destin
     if (newOverageMin > 0) {
       overageCharge = newOverageMin * rate
       try {
-        await atomicIncrement(_walletOf, chatId, 'usdOut', overageCharge)
-        const ref = _nanoid?.() || `ov_${callType}_${Date.now()}`
-        if (_payments) set(_payments, ref, `Overage,${callType},$${overageCharge.toFixed(2)},${chatId},${phoneNumber},${destinationNumber},${new Date()}`)
-        log(`[Voice] Overage billed: $${overageCharge.toFixed(2)} (${newOverageMin} min × $${rate} ${isUSCanada(destinationNumber) ? 'US/CA' : 'Intl'}) for ${callType}`)
-        _bot?.sendMessage(chatId,
-          `💰 <b>Overage</b>: ${newOverageMin} min × $${rate} = <b>$${overageCharge.toFixed(2)}</b> (${isUSCanada(destinationNumber) ? 'US/CA' : 'International'})`,
-          { parse_mode: 'HTML' }
-        ).catch(() => {})
+        const deductResult = await smartWalletDeduct(_walletOf, chatId, overageCharge)
+        if (deductResult.success) {
+          const ref = _nanoid?.() || `ov_${callType}_${Date.now()}`
+          const chargedStr = deductResult.currency === 'ngn' ? `₦${deductResult.chargedNgn}` : `$${overageCharge.toFixed(2)}`
+          if (_payments) set(_payments, ref, `Overage,${callType},$${overageCharge.toFixed(2)},${chatId},${phoneNumber},${destinationNumber},${new Date()}${deductResult.currency === 'ngn' ? `,${deductResult.chargedNgn} NGN` : ''}`)
+          log(`[Voice] Overage billed: ${chargedStr} (${newOverageMin} min × $${rate} ${isUSCanada(destinationNumber) ? 'US/CA' : 'Intl'}) for ${callType}`)
+          _bot?.sendMessage(chatId,
+            `💰 <b>Overage</b>: ${newOverageMin} min × $${rate} = <b>${chargedStr}</b> (${isUSCanada(destinationNumber) ? 'US/CA' : 'International'})`,
+            { parse_mode: 'HTML' }
+          ).catch(() => {})
+        }
       } catch (e) { log(`[Voice] Overage charge error: ${e.message}`) }
     }
   }
@@ -773,10 +781,10 @@ async function handleCallInitiated(payload) {
     let overageAllowed = false
     if (_walletOf) {
       try {
-        const { usdBal } = await getBalance(_walletOf, chatId)
-        if (usdBal >= inboundRate) {
+        const check = await smartWalletCheck(_walletOf, chatId, inboundRate)
+        if (check.sufficient) {
           overageAllowed = true
-          log(`[Voice] Minutes limit reached for ${to}, but wallet has $${usdBal} — allowing overage at $${inboundRate}/min`)
+          log(`[Voice] Minutes limit reached for ${to}, but wallet has funds (${check.currency}) — allowing overage at $${inboundRate}/min`)
         }
       } catch (e) { log(`[Voice] Overage check error: ${e.message}`) }
     }
@@ -831,13 +839,13 @@ async function handleCallInitiated(payload) {
         let canContinue = false
         if (_walletOf) {
           try {
-            const { usdBal } = await getBalance(_walletOf, chatId)
-            if (usdBal >= rate) {
+            const deductResult = await smartWalletDeduct(_walletOf, chatId, rate)
+            if (deductResult.success) {
               canContinue = true
-              await atomicIncrement(_walletOf, chatId, 'usdOut', rate)
               if (!sess._overageNotified) {
                 sess._overageNotified = true
-                _bot?.sendMessage(chatId, `💰 <b>Overage Active</b> — Plan minutes exhausted. $${rate}/min (${isUSCanada(destination) ? 'US/CA' : 'Intl'}) from wallet.\n💳 $${(usdBal - rate).toFixed(2)}`, { parse_mode: 'HTML' }).catch(() => {})
+                const chargedStr = deductResult.currency === 'ngn' ? `₦${deductResult.chargedNgn}/min` : `$${rate}/min`
+                _bot?.sendMessage(chatId, `💰 <b>Overage Active</b> — Plan minutes exhausted. ${chargedStr} (${isUSCanada(destination) ? 'US/CA' : 'Intl'}) from ${deductResult.currency.toUpperCase()} wallet.`, { parse_mode: 'HTML' }).catch(() => {})
               }
             }
           } catch (e) { log(`[Voice] Mid-call overage error: ${e.message}`) }
@@ -1030,11 +1038,11 @@ async function handleOutboundSipCall(payload) {
   const sipRate = getCallRate(destination)
   if (_walletOf) {
     try {
-      const { usdBal } = await getBalance(_walletOf, chatId)
-      if (usdBal < sipRate) {
-        log(`[Voice] Outbound SIP: wallet too low ($${usdBal}) for ${num.phoneNumber} → ${destination}`)
+      const walletCheck = await smartWalletCheck(_walletOf, chatId, sipRate)
+      if (!walletCheck.sufficient) {
+        log(`[Voice] Outbound SIP: wallet too low for ${num.phoneNumber} → ${destination} (USD: $${walletCheck.usdBal.toFixed(2)}, NGN: ₦${walletCheck.ngnBal.toFixed(2)})`)
         await _telnyxApi.hangupCall(callControlId)
-        _bot?.sendMessage(chatId, `🚫 <b>SIP Call Blocked</b> — Wallet $${usdBal.toFixed(2)} (need $${sipRate}/min ${isUSCanada(destination) ? 'US/CA' : 'Intl'}).\nOutbound calls are billed from wallet.\nTop up via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+        _bot?.sendMessage(chatId, `🚫 <b>SIP Call Blocked</b> — Wallet balance insufficient (need $${sipRate}/min ${isUSCanada(destination) ? 'US/CA' : 'Intl'}).\nUSD: $${walletCheck.usdBal.toFixed(2)} / NGN: ₦${walletCheck.ngnBal.toFixed(2)}\nOutbound calls are billed from wallet. Top up via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
         return
       }
     } catch (e) { log(`[Voice] Wallet check error: ${e.message}`) }
@@ -1088,9 +1096,9 @@ async function handleOutboundSipCall(payload) {
         // Check wallet balance each minute
         if (_walletOf) {
           try {
-            const { usdBal } = await getBalance(_walletOf, chatId)
-            if (usdBal < rate) {
-              log(`[Voice] Mid-call wallet exhausted for outbound ${num.phoneNumber}: wallet $${usdBal.toFixed(2)} < $${rate}/min. Disconnecting.`)
+            const deductResult = await smartWalletDeduct(_walletOf, chatId, rate)
+            if (!deductResult.success) {
+              log(`[Voice] Mid-call wallet exhausted for outbound ${num.phoneNumber}: insufficient funds. Disconnecting.`)
               clearInterval(outboundSession._limitTimer)
               sess._limitDisconnect = true
               await _telnyxApi.hangupCall(callControlId).catch(() => {})

@@ -8,7 +8,7 @@ const axios = require('axios')
 const { log } = require('console')
 const { formatPhone, plans, OVERAGE_RATE_SMS } = require('./phone-config')
 const { atomicIncrement } = require('./db.js')
-const { getBalance } = require('./utils.js')
+const { getBalance, smartWalletDeduct } = require('./utils.js')
 
 const BREVO_API_KEY = process.env.BREVO_API_KEY
 const MAIL_SENDER = process.env.MAIL_SENDER || 'sms@nomadly.com'
@@ -154,15 +154,14 @@ async function handleInboundSms(webhookData, bot, phoneNumbersOf, phoneLogs) {
       let overageAllowed = false
       if (_walletOf) {
         try {
-          const { usdBal } = await getBalance(_walletOf, ownerChatId)
-          if (usdBal >= OVERAGE_RATE_SMS) {
-            // Charge overage from wallet
-            await atomicIncrement(_walletOf, ownerChatId, 'usdOut', OVERAGE_RATE_SMS)
+          const deductResult = await smartWalletDeduct(_walletOf, ownerChatId, OVERAGE_RATE_SMS)
+          if (deductResult.success) {
             overageAllowed = true
             const ref = _nanoid?.() || `ovsms_${Date.now()}`
             const { set } = require('./db.js')
-            if (_payments) set(_payments, ref, `Overage,CloudPhoneSMS,$${OVERAGE_RATE_SMS},${ownerChatId},${cleanTo},${new Date()}`)
-            log(`[SMS] Overage charged: $${OVERAGE_RATE_SMS} for inbound SMS on ${cleanTo}`)
+            const chargedStr = deductResult.currency === 'ngn' ? `₦${deductResult.chargedNgn}` : `$${OVERAGE_RATE_SMS}`
+            if (_payments) set(_payments, ref, `Overage,CloudPhoneSMS,$${OVERAGE_RATE_SMS},${ownerChatId},${cleanTo},${new Date()}${deductResult.currency === 'ngn' ? `,${deductResult.chargedNgn} NGN` : ''}`)
+            log(`[SMS] Overage charged: ${chargedStr} for inbound SMS on ${cleanTo}`)
           }
         } catch (e) { log(`[SMS] Overage check error: ${e.message}`) }
       }

@@ -17,6 +17,32 @@ const API_KEY_CURRENCY_EXCHANGE = process.env.API_KEY_CURRENCY_EXCHANGE
 const UPDATE_DNS_INTERVAL = Number(process.env.UPDATE_DNS_INTERVAL || 60)
 const PERCENT_INCREASE_USD_TO_NAIRA = Number(process.env.PERCENT_INCREASE_USD_TO_NAIRA)
 
+// ── Exchange rate cache (10-min TTL) — avoids hitting API on every payment ──
+let _cachedNgnRate = null
+let _cachedNgnRateAt = 0
+const NGN_RATE_CACHE_TTL = 10 * 60 * 1000 // 10 minutes
+
+async function _fetchNgnRate() {
+  const now = Date.now()
+  if (_cachedNgnRate && (now - _cachedNgnRateAt) < NGN_RATE_CACHE_TTL) return _cachedNgnRate
+  try {
+    const apiUrl = `https://openexchangerates.org/api/latest.json?app_id=${API_KEY_CURRENCY_EXCHANGE}`
+    const response = await axios.get(apiUrl, { timeout: 10000 })
+    if (!response?.data?.rates?.['NGN']) {
+      console.error('[ExchangeRate] Invalid API response — NGN rate missing')
+      return null
+    }
+    _cachedNgnRate = response.data.rates['NGN']
+    _cachedNgnRateAt = now
+    return _cachedNgnRate
+  } catch (error) {
+    console.error(`[ExchangeRate] API fetch failed: ${error.message}`)
+    // Return stale cache if available (better than nothing within 1 hour)
+    if (_cachedNgnRate && (now - _cachedNgnRateAt) < 60 * 60 * 1000) return _cachedNgnRate
+    return null
+  }
+}
+
 // Helper function to get chat IDs - defined early to avoid hoisting issues
 const getChatIds = async nameOf => {
   let ans = await getAll(nameOf)
@@ -49,48 +75,54 @@ function isAdmin(chatId) {
 }
 
 async function usdToNgn(amountInUSD) {
-  try {
-    const apiUrl = `https://openexchangerates.org/api/latest.json?app_id=${API_KEY_CURRENCY_EXCHANGE}`
-
-    const response = await axios.get(apiUrl, { timeout: 10000 })
-    if (!response?.data?.rates?.['NGN']) {
-      console.error('Error usdToNgn: Invalid API response structure')
-      // Return fallback rate (1 USD = 1650 NGN)
-      return Number(amountInUSD) * 1650
-    }
-    const usdToNgnRate = response.data.rates['NGN']
-    const nairaAmount = Number(amountInUSD) * usdToNgnRate * (1 + PERCENT_INCREASE_USD_TO_NAIRA)
-    return Number(nairaAmount.toFixed())
-  } catch (error) {
-    console.error(`Error usdToNgn: ${error.message}`)
-    // Return fallback rate (1 USD = 1650 NGN)
-    return Number(amountInUSD) * 1650
-  }
+  const rate = await _fetchNgnRate()
+  if (!rate) return null // NGN payment unavailable — caller must handle null
+  const nairaAmount = Number(amountInUSD) * rate * (1 + PERCENT_INCREASE_USD_TO_NAIRA)
+  return Number(nairaAmount.toFixed())
 }
-
-// usdToNgn(1).then(log);
 
 async function ngnToUsd(ngn) {
-  try {
-    const apiUrl = `https://openexchangerates.org/api/latest.json?app_id=${API_KEY_CURRENCY_EXCHANGE}`
-
-    const response = await axios.get(apiUrl, { timeout: 10000 })
-    if (!response?.data?.rates?.['NGN']) {
-      console.error('Error ngnToUsd: Invalid API response structure')
-      // Return fallback rate (1 USD = 1650 NGN)
-      return Number(ngn) / 1650
-    }
-    const usdToNgnRate = response.data.rates['NGN']
-    const usd = Number(ngn) / (usdToNgnRate * (1 + PERCENT_INCREASE_USD_TO_NAIRA))
-    return usd
-  } catch (error) {
-    console.error(`Error ngnToUsd: ${error.message}`)
-    // Return fallback rate (1 USD = 1650 NGN)
-    return Number(ngn) / 1650
-  }
+  const rate = await _fetchNgnRate()
+  if (!rate) return null // conversion unavailable — caller must handle null
+  return Number(ngn) / (rate * (1 + PERCENT_INCREASE_USD_TO_NAIRA))
 }
 
-// ngnToUsd(1000).then(log);
+/**
+ * Smart wallet deduct — tries USD first, falls back to NGN.
+ * Used by auto-renewal schedulers and overage billing where there's no user interaction.
+ * @returns {{ success: boolean, currency: 'usd'|'ngn'|null, charged: number, chargedNgn?: number }}
+ */
+async function smartWalletDeduct(walletOf, chatId, amountUsd) {
+  const { atomicIncrement } = require('./db')
+  const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
+
+  // Try USD first
+  if (usdBal >= amountUsd) {
+    await atomicIncrement(walletOf, chatId, 'usdOut', amountUsd)
+    return { success: true, currency: 'usd', charged: amountUsd }
+  }
+
+  // Fall back to NGN
+  const amountNgn = await usdToNgn(amountUsd)
+  if (amountNgn && ngnBal >= amountNgn) {
+    await atomicIncrement(walletOf, chatId, 'ngnOut', amountNgn)
+    return { success: true, currency: 'ngn', charged: amountUsd, chargedNgn: amountNgn }
+  }
+
+  return { success: false, currency: null, charged: 0, usdBal, ngnBal }
+}
+
+/**
+ * Smart wallet check — checks if either USD or NGN covers the amount.
+ * @returns {{ sufficient: boolean, currency: 'usd'|'ngn'|null, usdBal: number, ngnBal: number, amountNgn?: number }}
+ */
+async function smartWalletCheck(walletOf, chatId, amountUsd) {
+  const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
+  if (usdBal >= amountUsd) return { sufficient: true, currency: 'usd', usdBal, ngnBal }
+  const amountNgn = await usdToNgn(amountUsd)
+  if (amountNgn && ngnBal >= amountNgn) return { sufficient: true, currency: 'ngn', amountNgn, usdBal, ngnBal }
+  return { sufficient: false, currency: null, usdBal, ngnBal, amountNgn }
+}
 const addZero = number => (number < 10 ? '0' + number : number)
 const date = (date) => {
   try {
@@ -772,6 +804,8 @@ module.exports = {
   isAdmin,
   usdToNgn,
   ngnToUsd,
+  smartWalletDeduct,
+  smartWalletCheck,
   getRandom,
   isValidUrl,
   sendQrCode,
