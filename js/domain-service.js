@@ -42,15 +42,24 @@ const checkDomainPrice = async (domainName, db) => {
   const cr = crResult.status === 'fulfilled' ? crResult.value : { available: false, message: crResult.reason?.message }
   const op = opResult.status === 'fulfilled' ? opResult.value : { available: false, message: opResult.reason?.message }
 
-  // When both registrars have the domain, pick the cheapest for consistent pricing
+  // When both registrars have the domain:
+  // Show the HIGHER price to the user (worst-case), try the cheaper registrar first.
+  // If cheaper registrar succeeds → user saves the difference.
+  // If cheaper registrar fails → fallback to expensive one, user pays exactly what was shown.
   if (cr.available && op.available) {
-    const winner = cr.price <= op.price ? cr : op
-    const registrar = winner === cr ? 'ConnectReseller' : 'OpenProvider'
-    log(`[domain-service] ${domainName} available on both — CR: $${cr.price}, OP: $${op.price} → using ${registrar} @ $${winner.price}`)
+    const cheaper = cr.price <= op.price ? cr : op
+    const expensive = cr.price <= op.price ? op : cr
+    const cheaperRegistrar = cheaper === cr ? 'ConnectReseller' : 'OpenProvider'
+    const expensiveRegistrar = expensive === cr ? 'ConnectReseller' : 'OpenProvider'
+    log(`[domain-service] ${domainName} available on both — CR: $${cr.price}, OP: $${op.price} → showing $${expensive.price} (${expensiveRegistrar}), trying ${cheaperRegistrar} @ $${cheaper.price} first`)
     return {
-      available: true, price: winner.price,
-      originalPrice: winner.originalPrice, registrar,
-      message: winner.message || 'Domain is available',
+      available: true, price: expensive.price,
+      originalPrice: expensive.originalPrice,
+      registrar: cheaperRegistrar,
+      expensiveRegistrar,
+      cheaperPrice: cheaper.price,
+      cheaperRegistrar,
+      message: expensive.message || 'Domain is available',
     }
   }
 
@@ -59,6 +68,7 @@ const checkDomainPrice = async (domainName, db) => {
     return {
       available: true, price: cr.price,
       originalPrice: cr.originalPrice, registrar: 'ConnectReseller',
+      cheaperPrice: null, cheaperRegistrar: null, expensiveRegistrar: null,
       message: cr.message,
     }
   }
@@ -68,12 +78,14 @@ const checkDomainPrice = async (domainName, db) => {
     return {
       available: true, price: op.price,
       originalPrice: op.originalPrice, registrar: 'OpenProvider',
+      cheaperPrice: null, cheaperRegistrar: null, expensiveRegistrar: null,
       message: 'Domain is available',
     }
   }
 
   return {
     available: false, price: 0, originalPrice: 0, registrar: null,
+    cheaperPrice: null, cheaperRegistrar: null, expensiveRegistrar: null,
     message: 'Domain name not available, please try another domain name',
   }
 }

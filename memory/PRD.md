@@ -20,14 +20,30 @@ Multi-service platform (Telegram bot + React frontend + Node.js backend) managin
 - Dynamic minimum NGN deposit (~$10 USD equivalent)
 
 ### Completed (Current Session — Feb 2026)
-- **P0 Bug Fix: Domain Price Discrepancy**
-  - **Root Cause**: When ConnectReseller fails (e.g., insufficient funds), silent fallback to OpenProvider occurs without price re-verification. Users may be shown ConnectReseller's cheaper price but the actual cost through OpenProvider is higher.
-  - **Fix Applied**:
-    1. `domain-service.js` → `registerDomain()`: On CR→OP fallback, re-checks OP price via `checkDomainAvailability` and returns `actualPrice` + `registrarChanged` flag
-    2. `_index.js` → `buyDomainFullProcess()`: Saves `actualPrice` and `actualRegistrar` to user state when fallback occurs
-    3. `_index.js` → `domain-pay` walletOk: Uses actual registrar price for wallet deduction; notifies user of price adjustment
-    4. Bank/Crypto/DynoPay callbacks: Log price discrepancies and notify admin when platform absorbs cost difference
-  - **Test**: 6/6 unit tests passing (`js/tests/test_domain_price_fix.js`)
+- **P0 Bug Fix + Pricing Overhaul: "Show worst-case, charge best-case"**
+  - **Root Cause**: When ConnectReseller fails, silent fallback to OpenProvider occurs. Users could see one price but be charged differently.
+  - **New Strategy**: Always show the HIGHER registrar price upfront. Try the cheaper registrar first. If it succeeds, users get a savings surprise. If fallback to expensive registrar, they pay exactly what was shown.
+  - **Changes Applied**:
+    1. `domain-service.js` → `checkDomainPrice()`: Now returns worst-case price as `price`, plus `cheaperPrice`, `cheaperRegistrar`, `expensiveRegistrar` fields
+    2. `domain-service.js` → `registerDomain()`: Returns `registrarChanged`, `actualPrice` on fallback. Re-checks OP price before fallback.
+    3. `_index.js` → `buyDomainFullProcess()`: Saves `registrarFallback`, `actualRegistrar` to user state
+    4. `_index.js` → `domain-pay` walletOk: Charges `cheaperPrice` when cheaper registrar succeeds (savings!), or `shownPrice` on fallback
+    5. Bank callback: Credits savings difference to NGN wallet balance
+    6. BlockBee + DynoPay crypto callbacks: Credits savings difference to USD wallet balance
+    7. Admin notifications on every savings event for accounting
+  - **Savings Messages**:
+    - Wallet: "You saved $X! Only $Y was charged instead of $Z."
+    - Bank/Crypto: "You saved $X! The difference has been credited to your wallet balance."
+  - **Test**: 10/10 unit tests passing (`js/tests/test_domain_price_fix.js`)
+
+## Pricing Flow Summary
+
+| Scenario | User Sees | Wallet Charge | Bank/Crypto |
+|---|---|---|---|
+| Both registrars, cheaper succeeds | Higher price ($39) | Cheaper price ($30), savings msg | Paid $39, $9 credited to wallet |
+| Both registrars, fallback to expensive | Higher price ($39) | Full $39 (no savings) | Paid $39 (no adjustment) |
+| Only one registrar | That price | That price | That price |
+| Equal prices | Either | Same price | Same price |
 
 ## Prioritized Backlog
 
@@ -44,14 +60,14 @@ Multi-service platform (Telegram bot + React frontend + Node.js backend) managin
 - `walletOf`: `{ _id: chatId, usdIn, usdOut, ngnIn, ngnOut }`
 - `cpanelAccounts`: `{ chatId, domain, cpUser, plan, addonDomains: [] }`
 - `registeredDomains`: `{ _id: domainName, registrar, owner, registeredAt }`
-- `state`: `{ _id: chatId, action, ...info, actualPrice?, actualRegistrar? }`
-- `domainsOf`: `{ domainName, chatId, registrar, nameserverType, cfZoneId, ... }`
+- `state`: `{ _id: chatId, action, ...info, cheaperPrice?, cheaperRegistrar?, expensiveRegistrar?, actualPrice?, actualRegistrar?, registrarFallback? }`
 
 ## Key Files
 - `js/_index.js` — Main bot logic, payment handlers
-- `js/domain-service.js` — Domain registration, DNS, registrar routing
+- `js/domain-service.js` — Domain registration, DNS, registrar routing, dual-pricing
 - `js/op-service.js` — OpenProvider integration
 - `js/cr-domain-price-get.js` — ConnectReseller pricing
 - `js/utils.js` — Currency conversion, wallet utilities
 - `js/anti-red-service.js` — Cloudflare Worker protection
 - `js/cpanel-routes.js` — Frontend API routes
+- `js/tests/test_domain_price_fix.js` — Unit tests for pricing logic

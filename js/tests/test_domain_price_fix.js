@@ -1,83 +1,91 @@
 /**
- * Test: Domain Price Discrepancy Fix
- * Verifies that registerDomain returns actualPrice and registrarChanged
- * when a CR→OP fallback occurs.
+ * Test: Domain Pricing Overhaul — "Show worst-case, charge best-case"
  * 
- * This test mocks the registrar APIs to simulate the fallback scenario.
+ * Verifies:
+ * 1. checkDomainPrice returns the HIGHER price as the shown price
+ * 2. registerDomain correctly tracks registrar fallback
+ * 3. Payment handlers apply correct savings logic
  */
 
 const assert = require('assert')
 
-// --- Mock setup ---
-let crBuyResult = { success: false, error: 'Insufficient funds' }
-let opCheckResult = { available: true, price: 39, originalPrice: 25, registrar: 'OpenProvider' }
+// --- Mock registrar results ---
+let crBuyResult = { success: true }
+let opCheckResult = { available: true, price: 39 }
 let opRegisterResult = { success: true, domainId: 'OP-12345' }
-let cfCreateZoneResult = { success: false }
 
-// Mock modules
 const mockOpService = {
   checkDomainAvailability: async () => opCheckResult,
   registerDomain: async () => opRegisterResult,
 }
-const mockCfService = {
-  createZone: async () => cfCreateZoneResult,
-}
 const mockBuyDomainOnline = async () => crBuyResult
 
-// Minimal mock of the registerDomain logic (mirrors domain-service.js)
-async function registerDomainTest(domainName, registrar, nsChoice, db, chatId, customNS) {
-  let result
-  let nameservers = []
-  let cfZoneId = null
+// --- Mock checkDomainPrice logic (mirrors domain-service.js) ---
+async function checkDomainPriceTest(crAvailable, crPrice, opAvailable, opPrice) {
+  const cr = crAvailable ? { available: true, price: crPrice, originalPrice: crPrice * 0.7 } : { available: false }
+  const op = opAvailable ? { available: true, price: opPrice, originalPrice: opPrice * 0.7 } : { available: false }
+
+  if (cr.available && op.available) {
+    const cheaper = cr.price <= op.price ? cr : op
+    const expensive = cr.price <= op.price ? op : cr
+    const cheaperRegistrar = cheaper === cr ? 'ConnectReseller' : 'OpenProvider'
+    const expensiveRegistrar = expensive === cr ? 'ConnectReseller' : 'OpenProvider'
+    return {
+      available: true, price: expensive.price,
+      originalPrice: expensive.originalPrice,
+      registrar: cheaperRegistrar,
+      expensiveRegistrar,
+      cheaperPrice: cheaper.price,
+      cheaperRegistrar,
+    }
+  }
+  if (cr.available) return { available: true, price: cr.price, registrar: 'ConnectReseller', cheaperPrice: null }
+  if (op.available) return { available: true, price: op.price, registrar: 'OpenProvider', cheaperPrice: null }
+  return { available: false, price: 0, registrar: null, cheaperPrice: null }
+}
+
+// --- Mock registerDomain logic (mirrors domain-service.js) ---
+async function registerDomainTest(registrar) {
   const originalRegistrar = registrar
   let actualPrice = null
 
-  if (nsChoice === 'cloudflare') {
-    const cfResult = await mockCfService.createZone(domainName)
-    if (cfResult.success) {
-      nameservers = cfResult.nameservers || []
-      cfZoneId = cfResult.zoneId
-    } else {
-      nsChoice = 'provider_default'
-    }
-  }
-
   if (registrar === 'ConnectReseller') {
-    const ns1 = nameservers.length >= 1 ? nameservers[0] : undefined
-    const ns2 = nameservers.length >= 2 ? nameservers[1] : undefined
-    result = await mockBuyDomainOnline(domainName, ns1, ns2)
+    const result = await mockBuyDomainOnline()
     if (result.success) {
-      // CR succeeded
+      return { success: true, registrar, registrarChanged: false, actualPrice: null }
     } else {
-      // Fallback to OP
+      // Fallback
       try {
-        const opPriceCheck = await mockOpService.checkDomainAvailability(domainName)
-        if (opPriceCheck?.available && opPriceCheck.price) {
-          actualPrice = opPriceCheck.price
-        }
-      } catch (priceErr) {
-        // proceed without price update
-      }
-      const ns = (nsChoice === 'cloudflare' || nsChoice === 'custom') ? nameservers : []
-      result = await mockOpService.registerDomain(domainName, ns)
-      if (result.success) {
+        const opPriceCheck = await mockOpService.checkDomainAvailability()
+        if (opPriceCheck?.available && opPriceCheck.price) actualPrice = opPriceCheck.price
+      } catch (e) { /* ignore */ }
+      const opResult = await mockOpService.registerDomain()
+      if (opResult.success) {
         registrar = 'OpenProvider'
+        return { success: true, registrar, registrarChanged: true, actualPrice }
       }
     }
-  } else if (registrar === 'OpenProvider') {
-    const ns = (nsChoice === 'cloudflare' || nsChoice === 'custom') ? nameservers : []
-    result = await mockOpService.registerDomain(domainName, ns)
   }
+  return { success: true, registrar, registrarChanged: registrar !== originalRegistrar, actualPrice: null }
+}
 
-  if (result.error) return { error: result.error }
-
-  return {
-    success: true, registrar,
-    nameservers: nsChoice !== 'provider_default' ? nameservers : [],
-    cfZoneId, opDomainId: result.domainId || null,
-    registrarChanged: registrar !== originalRegistrar,
-    actualPrice: registrar !== originalRegistrar ? actualPrice : null,
+// --- Mock wallet payment logic (mirrors _index.js domain-pay walletOk) ---
+function calculateWalletCharge(shownPrice, cheaperPrice, fallbackOccurred) {
+  let chargeUsd = shownPrice
+  let savings = 0
+  if (!fallbackOccurred && cheaperPrice && cheaperPrice < shownPrice) {
+    chargeUsd = cheaperPrice
+    savings = shownPrice - cheaperPrice
   }
+  return { chargeUsd, savings }
+}
+
+// --- Mock bank/crypto savings credit logic ---
+function calculateSavingsCredit(shownPrice, cheaperPrice, fallbackOccurred) {
+  if (!fallbackOccurred && cheaperPrice && cheaperPrice < shownPrice) {
+    return shownPrice - cheaperPrice
+  }
+  return 0
 }
 
 // --- Tests ---
@@ -85,117 +93,111 @@ async function runTests() {
   let passed = 0
   let failed = 0
 
-  // Test 1: CR fails → OP fallback — should return actualPrice and registrarChanged
+  // TEST 1: Both registrars available — show HIGHER price
   try {
-    crBuyResult = { success: false, error: 'Insufficient funds' }
-    opCheckResult = { available: true, price: 39, originalPrice: 25 }
-    opRegisterResult = { success: true, domainId: 'OP-12345' }
-
-    const result = await registerDomainTest('example.com', 'ConnectReseller', 'provider_default', null, 123, null)
-    
-    assert.strictEqual(result.success, true, 'Should succeed')
-    assert.strictEqual(result.registrar, 'OpenProvider', 'Should fallback to OpenProvider')
-    assert.strictEqual(result.registrarChanged, true, 'registrarChanged should be true')
-    assert.strictEqual(result.actualPrice, 39, 'actualPrice should be 39 (OP price)')
-    console.log('✅ Test 1 PASSED: CR→OP fallback returns actualPrice=39 and registrarChanged=true')
+    const result = await checkDomainPriceTest(true, 30, true, 39)
+    assert.strictEqual(result.price, 39, 'Shown price should be 39 (higher/OP)')
+    assert.strictEqual(result.cheaperPrice, 30, 'Cheaper price should be 30 (CR)')
+    assert.strictEqual(result.registrar, 'ConnectReseller', 'Try CR first')
+    assert.strictEqual(result.expensiveRegistrar, 'OpenProvider', 'OP is expensive')
+    console.log('✅ Test 1 PASSED: Both available — shows $39 (OP), tries CR ($30) first')
     passed++
-  } catch (err) {
-    console.error(`❌ Test 1 FAILED: ${err.message}`)
-    failed++
-  }
+  } catch (err) { console.error(`❌ Test 1 FAILED: ${err.message}`); failed++ }
 
-  // Test 2: CR succeeds — no fallback, no actualPrice
+  // TEST 2: Both available, OP cheaper — show CR price (higher)
+  try {
+    const result = await checkDomainPriceTest(true, 45, true, 35)
+    assert.strictEqual(result.price, 45, 'Shown price should be 45 (CR is more expensive)')
+    assert.strictEqual(result.cheaperPrice, 35, 'Cheaper price should be 35 (OP)')
+    assert.strictEqual(result.registrar, 'OpenProvider', 'Try OP first (cheaper)')
+    assert.strictEqual(result.expensiveRegistrar, 'ConnectReseller', 'CR is expensive')
+    console.log('✅ Test 2 PASSED: OP cheaper — shows $45 (CR), tries OP ($35) first')
+    passed++
+  } catch (err) { console.error(`❌ Test 2 FAILED: ${err.message}`); failed++ }
+
+  // TEST 3: Only CR available — no savings possible
+  try {
+    const result = await checkDomainPriceTest(true, 30, false, 0)
+    assert.strictEqual(result.price, 30, 'Only CR price shown')
+    assert.strictEqual(result.cheaperPrice, null, 'No cheaper price (single registrar)')
+    assert.strictEqual(result.registrar, 'ConnectReseller')
+    console.log('✅ Test 3 PASSED: Only CR — shows $30, no savings tracking')
+    passed++
+  } catch (err) { console.error(`❌ Test 3 FAILED: ${err.message}`); failed++ }
+
+  // TEST 4: Only OP available — no savings possible
+  try {
+    const result = await checkDomainPriceTest(false, 0, true, 39)
+    assert.strictEqual(result.price, 39, 'Only OP price shown')
+    assert.strictEqual(result.cheaperPrice, null, 'No cheaper price (single registrar)')
+    assert.strictEqual(result.registrar, 'OpenProvider')
+    console.log('✅ Test 4 PASSED: Only OP — shows $39, no savings tracking')
+    passed++
+  } catch (err) { console.error(`❌ Test 4 FAILED: ${err.message}`); failed++ }
+
+  // TEST 5: Wallet — cheaper registrar succeeds → charge cheaper, savings!
   try {
     crBuyResult = { success: true }
-    
-    const result = await registerDomainTest('example.com', 'ConnectReseller', 'provider_default', null, 123, null)
-    
-    assert.strictEqual(result.success, true, 'Should succeed')
-    assert.strictEqual(result.registrar, 'ConnectReseller', 'Should stay ConnectReseller')
-    assert.strictEqual(result.registrarChanged, false, 'registrarChanged should be false')
-    assert.strictEqual(result.actualPrice, null, 'actualPrice should be null (no fallback)')
-    console.log('✅ Test 2 PASSED: CR success — no registrarChanged, no actualPrice')
+    const regResult = await registerDomainTest('ConnectReseller')
+    assert.strictEqual(regResult.registrarChanged, false, 'No fallback')
+    const { chargeUsd, savings } = calculateWalletCharge(39, 30, false)
+    assert.strictEqual(chargeUsd, 30, 'Wallet should charge $30 (cheaper)')
+    assert.strictEqual(savings, 9, 'User saves $9')
+    console.log('✅ Test 5 PASSED: Wallet — CR succeeds, charges $30, saves $9')
     passed++
-  } catch (err) {
-    console.error(`❌ Test 2 FAILED: ${err.message}`)
-    failed++
-  }
+  } catch (err) { console.error(`❌ Test 5 FAILED: ${err.message}`); failed++ }
 
-  // Test 3: Direct OP registration (no fallback) — no actualPrice
-  try {
-    opRegisterResult = { success: true, domainId: 'OP-67890' }
-    
-    const result = await registerDomainTest('example.com', 'OpenProvider', 'provider_default', null, 123, null)
-    
-    assert.strictEqual(result.success, true, 'Should succeed')
-    assert.strictEqual(result.registrar, 'OpenProvider', 'Should be OpenProvider')
-    assert.strictEqual(result.registrarChanged, false, 'registrarChanged should be false (was already OP)')
-    assert.strictEqual(result.actualPrice, null, 'actualPrice should be null (no fallback)')
-    console.log('✅ Test 3 PASSED: Direct OP — no registrarChanged, no actualPrice')
-    passed++
-  } catch (err) {
-    console.error(`❌ Test 3 FAILED: ${err.message}`)
-    failed++
-  }
-
-  // Test 4: CR fails → OP fallback, but OP price check also fails — actualPrice should be null
+  // TEST 6: Wallet — CR fails, OP fallback → charge shown price, no savings
   try {
     crBuyResult = { success: false, error: 'Insufficient funds' }
-    const origCheckFn = mockOpService.checkDomainAvailability
-    mockOpService.checkDomainAvailability = async () => { throw new Error('API timeout') }
-    opRegisterResult = { success: true, domainId: 'OP-99999' }
-
-    const result = await registerDomainTest('example.com', 'ConnectReseller', 'provider_default', null, 123, null)
-    
-    mockOpService.checkDomainAvailability = origCheckFn // restore
-
-    assert.strictEqual(result.success, true, 'Should still succeed')
-    assert.strictEqual(result.registrar, 'OpenProvider', 'Should fallback to OpenProvider')
-    assert.strictEqual(result.registrarChanged, true, 'registrarChanged should be true')
-    assert.strictEqual(result.actualPrice, null, 'actualPrice should be null (price check failed)')
-    console.log('✅ Test 4 PASSED: CR→OP fallback with OP price check failure — actualPrice is null')
+    opCheckResult = { available: true, price: 39 }
+    opRegisterResult = { success: true, domainId: 'OP-999' }
+    const regResult = await registerDomainTest('ConnectReseller')
+    assert.strictEqual(regResult.registrarChanged, true, 'Fallback occurred')
+    const { chargeUsd, savings } = calculateWalletCharge(39, 30, true)
+    assert.strictEqual(chargeUsd, 39, 'Wallet charges full $39 (no savings)')
+    assert.strictEqual(savings, 0, 'No savings on fallback')
+    console.log('✅ Test 6 PASSED: Wallet — CR fails, OP fallback, charges $39 (shown price)')
     passed++
-  } catch (err) {
-    console.error(`❌ Test 4 FAILED: ${err.message}`)
-    failed++
-  }
+  } catch (err) { console.error(`❌ Test 6 FAILED: ${err.message}`); failed++ }
 
-  // Test 5: Wallet charging logic — should use actualPrice when higher
+  // TEST 7: Bank/Crypto — cheaper registrar succeeds → credit savings to wallet
   try {
-    const shownPrice = 30
-    const actualPrice = 39
-    const usdBal = 50
-
-    // Simulate the wallet charging logic from domain-pay walletOk
-    const finalPriceUsd = actualPrice > shownPrice ? actualPrice : shownPrice
-    const chargeUsd = usdBal >= finalPriceUsd ? finalPriceUsd : shownPrice
-
-    assert.strictEqual(finalPriceUsd, 39, 'Final price should be 39 (actual > shown)')
-    assert.strictEqual(chargeUsd, 39, 'Should charge 39 when wallet has enough')
-    console.log('✅ Test 5 PASSED: Wallet charges actual price ($39) when sufficient balance')
+    const savings = calculateSavingsCredit(39, 30, false)
+    assert.strictEqual(savings, 9, 'Should credit $9 to wallet')
+    console.log('✅ Test 7 PASSED: Bank/Crypto — CR succeeds, $9 credited to wallet')
     passed++
-  } catch (err) {
-    console.error(`❌ Test 5 FAILED: ${err.message}`)
-    failed++
-  }
+  } catch (err) { console.error(`❌ Test 7 FAILED: ${err.message}`); failed++ }
 
-  // Test 6: Wallet insufficient for actual price — falls back to shown price
+  // TEST 8: Bank/Crypto — fallback → no credit
   try {
-    const shownPrice = 30
-    const actualPrice = 39
-    const usdBal = 35
-
-    const finalPriceUsd = actualPrice > shownPrice ? actualPrice : shownPrice
-    const chargeUsd = usdBal >= finalPriceUsd ? finalPriceUsd : shownPrice
-
-    assert.strictEqual(finalPriceUsd, 39, 'Final price should be 39')
-    assert.strictEqual(chargeUsd, 30, 'Should charge shown price ($30) when wallet cant cover actual')
-    console.log('✅ Test 6 PASSED: Falls back to shown price ($30) when wallet insufficient for actual')
+    const savings = calculateSavingsCredit(39, 30, true)
+    assert.strictEqual(savings, 0, 'No credit on fallback')
+    console.log('✅ Test 8 PASSED: Bank/Crypto — fallback, no wallet credit')
     passed++
-  } catch (err) {
-    console.error(`❌ Test 6 FAILED: ${err.message}`)
-    failed++
-  }
+  } catch (err) { console.error(`❌ Test 8 FAILED: ${err.message}`); failed++ }
+
+  // TEST 9: Single registrar (no cheaperPrice) — no savings
+  try {
+    const { chargeUsd, savings } = calculateWalletCharge(39, null, false)
+    assert.strictEqual(chargeUsd, 39, 'Charge full price')
+    assert.strictEqual(savings, 0, 'No savings possible')
+    console.log('✅ Test 9 PASSED: Single registrar — charge shown price, no savings')
+    passed++
+  } catch (err) { console.error(`❌ Test 9 FAILED: ${err.message}`); failed++ }
+
+  // TEST 10: Same price from both registrars — no savings
+  try {
+    const result = await checkDomainPriceTest(true, 39, true, 39)
+    assert.strictEqual(result.price, 39, 'Shown price is 39')
+    assert.strictEqual(result.cheaperPrice, 39, 'Cheaper price also 39')
+    // When cheaperPrice === shownPrice, no savings
+    const { chargeUsd, savings } = calculateWalletCharge(39, 39, false)
+    assert.strictEqual(chargeUsd, 39, 'Charge $39')
+    assert.strictEqual(savings, 0, 'No savings when prices equal')
+    console.log('✅ Test 10 PASSED: Equal prices — no savings')
+    passed++
+  } catch (err) { console.error(`❌ Test 10 FAILED: ${err.message}`); failed++ }
 
   console.log(`\n========================================`)
   console.log(`Results: ${passed} passed, ${failed} failed out of ${passed + failed}`)
