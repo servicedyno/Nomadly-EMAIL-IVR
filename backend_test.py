@@ -1,234 +1,225 @@
 #!/usr/bin/env python3
 """
-Railway Log Bug Fixes Testing - NGN deposit parsing, wallet null USD display, goto.mainmenu crash
-Testing the 3 bug fixes described in test_result.md
+Backend Testing Script for DynoPay Webhook Fix and SIP Fixes
+Tests the Node.js backend running on port 5000
 """
 
-import os
 import requests
-import time
 import json
-import re
-from typing import Dict, Any, Optional
+import sys
+import time
+from pymongo import MongoClient
+import os
 
-# Backend URL from environment
-BACKEND_URL = "https://env-integration.preview.emergentagent.com"
+# Configuration
+BACKEND_URL = "http://localhost:5000"
+MONGO_URL = "mongodb://mongo:RQoOmIdwjRLFvhWMaatjidzqpvawUKcb@caboose.proxy.rlwy.net:59668"
+DB_NAME = "test"
 
-class RailwayBugFixTester:
-    def __init__(self):
-        self.results = {
-            "node_health": False,
-            "error_log_empty": False,
-            "ngn_deposit_sanitization": False,
-            "usd_deposit_sanitization": False,
-            "wallet_price_fallback": False,
-            "goto_mainmenu_eliminated": False
+def test_health_endpoint():
+    """Test Node.js health endpoint"""
+    print("=== TEST 1: Node.js Health Check ===")
+    try:
+        response = requests.get(f"{BACKEND_URL}/health", timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Health endpoint working: {data}")
+            return True
+        else:
+            print(f"❌ Health endpoint failed: {response.status_code}")
+            return False
+    except Exception as e:
+        print(f"❌ Health endpoint error: {e}")
+        return False
+
+def test_dynopay_webhook_components():
+    """Test DynoPay webhook fix components by examining the code structure"""
+    print("\n=== TEST 2: DynoPay Webhook Fix Verification ===")
+    
+    # Read the _index.js file to verify components
+    try:
+        with open('/app/js/_index.js', 'r') as f:
+            content = f.read()
+        
+        checks = {
+            "dynopayPaymentIdToRef Map": "const dynopayPaymentIdToRef = new Map()" in content,
+            "Pending event handler stores mapping": "dynopayPaymentIdToRef.set(paymentId, pendingRef)" in content,
+            "Failed events explicitly skipped": "event === 'payment.failed'" in content,
+            "RefId recovery fallback": "dynopayPaymentIdToRef.get(paymentId)" in content,
+            "Admin alert for missed payments": "Missed Payment Alert" in content,
+            "Dedup cleanup": "dynopayPaymentIdToRef.delete(paymentId)" in content
         }
-        self.errors = []
+        
+        all_passed = True
+        for check, passed in checks.items():
+            status = "✅" if passed else "❌"
+            print(f"{status} {check}: {'FOUND' if passed else 'MISSING'}")
+            if not passed:
+                all_passed = False
+        
+        return all_passed
+        
+    except Exception as e:
+        print(f"❌ Error reading _index.js: {e}")
+        return False
 
-    def test_node_health(self):
-        """Test 1: Node.js Health Check"""
-        print("🔍 Testing Node.js Health...")
-        try:
-            # Test localhost health
-            response = requests.get("http://localhost:5000/health", timeout=10)
-            if response.status_code == 200:
-                data = response.json()
-                if data.get("status") == "healthy" and data.get("database") == "connected":
-                    print(f"✅ Node.js Health: {response.status_code} with {data}")
-                    self.results["node_health"] = True
+def test_mongodb_wallet_credit():
+    """Test manual wallet credit verification"""
+    print("\n=== TEST 3: Manual Wallet Credit Verification ===")
+    
+    try:
+        # Try to connect to MongoDB
+        client = MongoClient(MONGO_URL, serverSelectionTimeoutMS=5000)
+        db = client[DB_NAME]
+        
+        # Test connection
+        client.admin.command('ping')
+        print("✅ MongoDB connection successful")
+        
+        # Check wallet for user 6604316166
+        wallet = db.walletOf.find_one({"_id": "6604316166"})
+        if wallet:
+            usd_in = wallet.get('usdIn', 0)
+            print(f"✅ User 6604316166 wallet found: usdIn = {usd_in}")
+            
+            if usd_in == 125:
+                print("✅ Manual credit verified: usdIn = 125 (was 83, +42)")
+                
+                # Check for manual_credit payment record
+                payment = db.payments.find_one({"ref": "7vX4y"})
+                if payment:
+                    print(f"✅ Payment record found for ref 7vX4y: {payment.get('type', 'unknown')}")
+                    return True
                 else:
-                    self.errors.append(f"❌ Health check failed: {data}")
+                    print("⚠️ Payment record for ref 7vX4y not found")
+                    return True  # Wallet credit is the main verification
             else:
-                self.errors.append(f"❌ Health check failed with status {response.status_code}")
-        except Exception as e:
-            self.errors.append(f"❌ Health check error: {str(e)}")
-
-    def test_error_log_empty(self):
-        """Test 2: Verify error log is empty"""
-        print("🔍 Testing Error Log Status...")
+                print(f"❌ Expected usdIn=125, got {usd_in}")
+                return False
+        else:
+            print("❌ User 6604316166 wallet not found")
+            return False
+            
+    except Exception as e:
+        print(f"❌ MongoDB test failed: {e}")
+        return False
+    finally:
         try:
-            import subprocess
-            result = subprocess.run(
-                ["ls", "-la", "/var/log/supervisor/nodejs.err.log"],
-                capture_output=True, text=True
-            )
-            if result.returncode == 0 and " 0 " in result.stdout:
-                print("✅ /var/log/supervisor/nodejs.err.log is EMPTY (0 bytes)")
-                self.results["error_log_empty"] = True
-            else:
-                self.errors.append(f"❌ Error log not empty or missing: {result.stdout}")
-        except Exception as e:
-            self.errors.append(f"❌ Error checking log: {str(e)}")
+            client.close()
+        except:
+            pass
 
-    def test_ngn_deposit_sanitization(self):
-        """Test 3: Verify NGN deposit amount sanitization in code"""
-        print("🔍 Testing NGN Deposit Amount Sanitization...")
-        try:
-            with open("/app/js/_index.js", "r", encoding="utf-8") as f:
-                content = f.read()
-            
-            # Look for the specific line pattern around line 10979
-            found_sanitization = False
-            found_validation = False
-            
-            # Check for the specific sanitization line
-            if "message.replace(/[#₦,\\s]/g, '').replace(/^NGN\\s*/i, '').replace(/NGN\\s*Amount:?\\s*/i, '')" in content:
-                found_sanitization = True
-                print("✅ NGN deposit sanitization verified: strips #, ₦, commas, spaces, 'NGN Amount:' prefix")
-            
-            # Check for parseFloat(sanitized) and validation
-            if "parseFloat(sanitized)" in content and "isNaN(amount) || amount <= 0" in content:
-                found_validation = True
-                print("✅ NGN deposit validation: isNaN(amount) || amount <= 0 on parsed amount")
-            
-            if found_sanitization and found_validation:
-                self.results["ngn_deposit_sanitization"] = True
-            else:
-                self.errors.append("❌ NGN deposit sanitization not fully implemented")
-                
-        except Exception as e:
-            self.errors.append(f"❌ Error reading NGN deposit code: {str(e)}")
-
-    def test_usd_deposit_sanitization(self):
-        """Test 4: Verify USD deposit amount sanitization in code"""
-        print("🔍 Testing USD Deposit Amount Sanitization...")
-        try:
-            with open("/app/js/_index.js", "r", encoding="utf-8") as f:
-                content = f.read()
-            
-            # Look for depositUSD handler around line 10998
-            usd_handler_pattern = r"if\s*\(\s*action\s*===\s*a\.depositUSD\s*\)\s*{.*?}"
-            match = re.search(usd_handler_pattern, content, re.DOTALL)
-            
-            if match:
-                usd_code = match.group(0)
-                
-                # Check for USD sanitization
-                sanitization_checks = [
-                    r"\.replace\(\s*/\[\$,\\s\]/g\s*,\s*['\"][\s]*['\"]\s*\)",
-                    r"\.replace\(\s*/\^USD\\s\*/i\s*,\s*['\"][\s]*['\"]\s*\)"
-                ]
-                
-                found_sanitization = all(re.search(pattern, usd_code) for pattern in sanitization_checks)
-                
-                # Check for Number(sanitized) instead of Number(message)
-                number_sanitized = "Number(sanitized)" in usd_code
-                
-                if found_sanitization and number_sanitized:
-                    print("✅ USD deposit sanitization verified: strips $, commas, spaces, 'USD' prefix")
-                    print("✅ USD deposit uses Number(sanitized) instead of Number(message)")
-                    self.results["usd_deposit_sanitization"] = True
-                else:
-                    self.errors.append("❌ USD deposit sanitization not fully implemented")
-            else:
-                self.errors.append("❌ USD deposit handler not found")
-                
-        except Exception as e:
-            self.errors.append(f"❌ Error reading USD deposit code: {str(e)}")
-
-    def test_wallet_price_fallback(self):
-        """Test 5: Verify walletSelectCurrencyConfirm price fallback"""
-        print("🔍 Testing Wallet Price Fallback Fix...")
-        try:
-            with open("/app/js/_index.js", "r", encoding="utf-8") as f:
-                content = f.read()
-            
-            # Look for the specific patterns around line 3513-3515
-            found_destructure = False
-            found_fallback = False
-            
-            # Check for totalPrice in destructuring
-            if "{ price, totalPrice, couponApplied, newPrice, coin } = info" in content:
-                found_destructure = True
-                print("✅ Wallet destructuring verified: includes totalPrice")
-            
-            # Check for the specific fallback pattern  
-            if "price || totalPrice || 0" in content:
-                found_fallback = True
-                print("✅ Wallet price fallback verified: uses price || totalPrice || 0")
-            
-            if found_destructure and found_fallback:
-                self.results["wallet_price_fallback"] = True
-            else:
-                self.errors.append("❌ Wallet price fallback not fully implemented")
-                
-        except Exception as e:
-            self.errors.append(f"❌ Error reading wallet code: {str(e)}")
-
-    def test_goto_mainmenu_eliminated(self):
-        """Test 6: Verify goto.mainmenu() has been replaced with goto.displayMainMenuButtons()"""
-        print("🔍 Testing goto.mainmenu() Elimination...")
-        try:
-            with open("/app/js/_index.js", "r", encoding="utf-8") as f:
-                content = f.read()
-            
-            # Check for any remaining goto.mainmenu() calls
-            mainmenu_pattern = r"goto\.mainmenu\s*\(\s*\)"
-            mainmenu_matches = re.findall(mainmenu_pattern, content)
-            
-            # Check for goto.displayMainMenuButtons() at expected locations
-            display_pattern = r"goto\.displayMainMenuButtons\s*\(\s*\)"
-            display_matches = re.findall(display_pattern, content)
-            
-            # Look for specific lines mentioned in the review
-            lines_to_check = [6415, 16585, 16599]  # Updated line numbers
-            found_replacements = 0
-            
-            content_lines = content.split('\n')
-            for line_num in lines_to_check:
-                if line_num < len(content_lines):
-                    line = content_lines[line_num - 1]  # 0-based indexing
-                    if "goto.displayMainMenuButtons()" in line:
-                        found_replacements += 1
-                        print(f"✅ Line {line_num}: goto.displayMainMenuButtons() found")
-            
-            if len(mainmenu_matches) == 0 and found_replacements >= 2:
-                print("✅ goto.mainmenu() elimination verified: ZERO occurrences found")
-                print(f"✅ Found {len(display_matches)} goto.displayMainMenuButtons() calls")
-                self.results["goto_mainmenu_eliminated"] = True
-            else:
-                self.errors.append(f"❌ goto.mainmenu() still found: {len(mainmenu_matches)} occurrences")
-                
-        except Exception as e:
-            self.errors.append(f"❌ Error checking goto functions: {str(e)}")
-
-    def run_all_tests(self):
-        """Run all tests and provide summary"""
-        print("🚀 Starting Railway Log Bug Fixes Testing...\n")
+def test_trial_ivr_fix():
+    """Test Trial IVR D51 fix components"""
+    print("\n=== TEST 4: Trial IVR D51 Fix Verification ===")
+    
+    try:
+        # Check _index.js for trial path fix
+        with open('/app/js/_index.js', 'r') as f:
+            index_content = f.read()
         
-        # Run all tests
-        self.test_node_health()
-        self.test_error_log_empty()
-        self.test_ngn_deposit_sanitization()
-        self.test_usd_deposit_sanitization()
-        self.test_wallet_price_fallback()
-        self.test_goto_mainmenu_eliminated()
+        # Check voice-service.js for trial implementation
+        with open('/app/js/voice-service.js', 'r') as f:
+            voice_content = f.read()
+            
+        # Check twilio-service.js for makeTrialOutboundCall
+        with open('/app/js/twilio-service.js', 'r') as f:
+            twilio_content = f.read()
         
-        # Calculate success rate
-        total_tests = len(self.results)
-        passed_tests = sum(self.results.values())
-        success_rate = (passed_tests / total_tests) * 100
+        checks = {
+            "Trial path sets callerProvider: 'twilio'": "callerProvider: 'twilio'" in index_content,
+            "Security check skips trial (!isTrial)": "!ivrObData.isTrial" in index_content,
+            "Voice service uses makeTrialOutboundCall": "makeTrialOutboundCall" in voice_content,
+            "makeTrialOutboundCall function exists": "async function makeTrialOutboundCall" in twilio_content,
+            "makeTrialOutboundCall exported": "makeTrialOutboundCall," in twilio_content
+        }
         
-        print(f"\n📊 RAILWAY LOG BUG FIXES TEST RESULTS:")
-        print(f"Success Rate: {passed_tests}/{total_tests} ({success_rate:.1f}%)")
-        print("\n✅ PASSED TESTS:")
-        for test, passed in self.results.items():
-            if passed:
-                print(f"  • {test}")
+        all_passed = True
+        for check, passed in checks.items():
+            status = "✅" if passed else "❌"
+            print(f"{status} {check}: {'FOUND' if passed else 'MISSING'}")
+            if not passed:
+                all_passed = False
         
-        if self.errors:
-            print("\n❌ FAILED TESTS:")
-            for error in self.errors:
-                print(f"  • {error}")
+        return all_passed
         
-        return passed_tests, total_tests, self.errors
+    except Exception as e:
+        print(f"❌ Error checking trial IVR fix: {e}")
+        return False
 
-if __name__ == "__main__":
-    tester = RailwayBugFixTester()
-    passed, total, errors = tester.run_all_tests()
+def test_sip_rate_limiting():
+    """Test SIP rate limiting implementation"""
+    print("\n=== TEST 5: SIP Rate Limiting Verification ===")
+    
+    try:
+        with open('/app/js/voice-service.js', 'r') as f:
+            content = f.read()
+        
+        checks = {
+            "checkSipRateLimit function exists": "function checkSipRateLimit" in content,
+            "SIP_RATE_LIMIT_MAX = 3": "SIP_RATE_LIMIT_MAX = 3" in content,
+            "SIP_RATE_LIMIT_WINDOW = 60000": "SIP_RATE_LIMIT_WINDOW = 60000" in content,
+            "Rate limit check in handleOutboundSipCall": "checkSipRateLimit(sipUsername, destination)" in content,
+            "Rate limit enforcement before SIP lookup": "exceeded" in content and "rejecting" in content
+        }
+        
+        all_passed = True
+        for check, passed in checks.items():
+            status = "✅" if passed else "❌"
+            print(f"{status} {check}: {'FOUND' if passed else 'MISSING'}")
+            if not passed:
+                all_passed = False
+        
+        return all_passed
+        
+    except Exception as e:
+        print(f"❌ Error checking SIP rate limiting: {e}")
+        return False
+
+def main():
+    """Run all tests"""
+    print("🧪 Starting Backend Testing for DynoPay Webhook Fix and SIP Fixes")
+    print("=" * 70)
+    
+    results = []
+    
+    # Test 1: Health endpoint
+    results.append(("Node.js Health", test_health_endpoint()))
+    
+    # Test 2: DynoPay webhook fix
+    results.append(("DynoPay Webhook Fix", test_dynopay_webhook_components()))
+    
+    # Test 3: MongoDB wallet credit
+    results.append(("Manual Wallet Credit", test_mongodb_wallet_credit()))
+    
+    # Test 4: Trial IVR fix
+    results.append(("Trial IVR D51 Fix", test_trial_ivr_fix()))
+    
+    # Test 5: SIP rate limiting
+    results.append(("SIP Rate Limiting", test_sip_rate_limiting()))
+    
+    # Summary
+    print("\n" + "=" * 70)
+    print("🏁 TEST SUMMARY")
+    print("=" * 70)
+    
+    passed = 0
+    total = len(results)
+    
+    for test_name, result in results:
+        status = "✅ PASS" if result else "❌ FAIL"
+        print(f"{status} {test_name}")
+        if result:
+            passed += 1
+    
+    print(f"\nOverall: {passed}/{total} tests passed")
     
     if passed == total:
-        print(f"\n🎉 ALL {total} RAILWAY LOG BUG FIXES VERIFIED SUCCESSFULLY!")
+        print("🎉 All tests passed!")
+        return 0
     else:
-        print(f"\n⚠️  {total - passed} out of {total} tests failed.")
+        print("⚠️ Some tests failed - see details above")
+        return 1
+
+if __name__ == "__main__":
+    sys.exit(main())

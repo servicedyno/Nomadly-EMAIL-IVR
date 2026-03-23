@@ -17867,26 +17867,54 @@ const auth = async (req, res, next) => {
 // Track processed DynoPay payment IDs to prevent duplicate processing
 const processedDynopayPayments = new Set()
 
+// Map payment_id → refId from pending events, so confirmed/failed events (which lack meta_data) can find the session
+const dynopayPaymentIdToRef = new Map()
+
 const authDyno = async (req, res, next) => {
   log('=== DYNOPAY WEBHOOK RECEIVED ===')
   log('URL:', req.hostname + req.originalUrl)
   log('Full request body:', JSON.stringify(req.body, null, 2))
   
-  // Skip pending events — they don't carry meta_data yet
-  if (req.body?.event === 'payment.pending' || req.body?.status === 'pending') {
-    log('Skipping pending payment event (no meta_data yet)')
+  const paymentId = req.body?.payment_id
+  const event = req.body?.event || req.body?.status
+
+  // ── PENDING events: Extract and store payment_id → refId mapping, then skip ──
+  // DynoPay only sends meta_data.refId on pending events; confirmed/failed events lack it.
+  // We store the mapping here so later confirmed events can look up the correct session.
+  if (event === 'payment.pending' || req.body?.status === 'pending') {
+    const pendingRef = req.body?.meta_data?.refId
+    if (paymentId && pendingRef) {
+      dynopayPaymentIdToRef.set(paymentId, pendingRef)
+      log(`[DynoPay] Stored payment_id → refId mapping: ${paymentId} → ${pendingRef}`)
+      // Auto-cleanup after 24 hours (some confirmed events arrive very late)
+      setTimeout(() => dynopayPaymentIdToRef.delete(paymentId), 86400000)
+    }
+    log('Skipping pending payment event (stored mapping for future confirmed event)')
+    return res.send(html('OK'))
+  }
+
+  // ── Skip failed events — only process confirmed payments ──
+  if (event === 'payment.failed') {
+    log(`[DynoPay] Skipping failed payment event (payment_id: ${paymentId})`)
     return res.send(html('OK'))
   }
 
   // Deduplicate by payment_id — DynoPay sends multiple webhooks per payment
-  const paymentId = req.body?.payment_id
   if (paymentId && processedDynopayPayments.has(paymentId)) {
     log(`[DynoPay] Duplicate webhook ignored for payment_id: ${paymentId}`)
     return res.send(html('OK'))
   }
 
+  // ── Extract refId — try meta_data first, then fall back to stored mapping from pending event ──
   const { meta_data } = req.body
-  const ref = meta_data?.refId
+  let ref = meta_data?.refId
+  
+  if (!ref && paymentId) {
+    ref = dynopayPaymentIdToRef.get(paymentId)
+    if (ref) {
+      log(`[DynoPay] Recovered refId from pending mapping: payment_id ${paymentId} → refId ${ref}`)
+    }
+  }
   
   log('Extracted refId:', ref)
   
@@ -17894,7 +17922,15 @@ const authDyno = async (req, res, next) => {
   log('Payment data found for ref:', ref, '=', pay ? 'YES' : 'NO')
   
   if (!pay) {
-    log('Payment session not found for ref:', ref, '(likely duplicate or expired)')
+    log(`[DynoPay] ⚠️ Payment session not found for ref: ${ref}, payment_id: ${paymentId} (event: ${event})`)
+    // Alert admin about missed payment
+    if (event === 'payment.confirmed' && bot && process.env.TELEGRAM_ADMIN_CHAT_ID) {
+      const amount = req.body?.base_amount || req.body?.amount || '?'
+      bot.sendMessage(process.env.TELEGRAM_ADMIN_CHAT_ID, 
+        `⚠️ <b>Missed Payment Alert</b>\n\n💰 Confirmed payment of <b>$${amount}</b> could not be credited!\n🆔 payment_id: <code>${paymentId}</code>\n📝 refId: <code>${ref || 'missing'}</code>\n\nManual credit may be required.`, 
+        { parse_mode: 'HTML' }
+      ).catch(() => {})
+    }
     return res.send(html('OK'))
   }
 
@@ -17903,6 +17939,8 @@ const authDyno = async (req, res, next) => {
     processedDynopayPayments.add(paymentId)
     // Auto-cleanup after 1 hour to prevent memory leak
     setTimeout(() => processedDynopayPayments.delete(paymentId), 3600000)
+    // Clean up the pending mapping as well
+    dynopayPaymentIdToRef.delete(paymentId)
   }
   
   log('Payment session authenticated successfully:', pay)
