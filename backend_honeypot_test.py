@@ -12,7 +12,7 @@ import sys
 import time
 from pathlib import Path
 
-BACKEND_URL = "https://docs-config.preview.emergentagent.com"
+BACKEND_URL = "https://wallet-sync-check.preview.emergentagent.com"
 
 def run_test(test_name, test_func):
     """Run a test and return results"""

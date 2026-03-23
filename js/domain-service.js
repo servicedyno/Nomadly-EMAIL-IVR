@@ -105,6 +105,8 @@ const registerDomain = async (domainName, registrar, nsChoice, db, chatId, custo
   let result
   let nameservers = []
   let cfZoneId = null
+  const originalRegistrar = registrar
+  let actualPrice = null
 
   // Determine nameservers based on choice
   if (nsChoice === 'cloudflare') {
@@ -132,6 +134,18 @@ const registerDomain = async (domainName, registrar, nsChoice, db, chatId, custo
     } else {
       // Fallback to OpenProvider when ConnectReseller fails (insufficient balance, API error, etc.)
       log(`[domain-service] ConnectReseller failed for ${domainName}: ${result.error} — falling back to OpenProvider`)
+
+      // Re-check OP price before fallback registration to ensure accurate billing
+      try {
+        const opPriceCheck = await opService.checkDomainAvailability(domainName)
+        if (opPriceCheck?.available && opPriceCheck.price) {
+          actualPrice = opPriceCheck.price
+          log(`[domain-service] OP fallback price for ${domainName}: $${actualPrice}`)
+        }
+      } catch (priceErr) {
+        log(`[domain-service] OP price re-check failed for ${domainName}: ${priceErr.message} — proceeding without price update`)
+      }
+
       const ns = (nsChoice === 'cloudflare' || nsChoice === 'custom') ? nameservers : []
       log(`[domain-service] Fallback OP registration for ${domainName} with NS: ${ns.length > 0 ? ns.join(', ') : 'provider_default (OP built-in)'}`)
       result = await opService.registerDomain(domainName, ns)
@@ -181,6 +195,8 @@ const registerDomain = async (domainName, registrar, nsChoice, db, chatId, custo
     success: true, registrar,
     nameservers: nsChoice !== 'provider_default' ? nameservers : [],
     cfZoneId, opDomainId: result.domainId || null,
+    registrarChanged: registrar !== originalRegistrar,
+    actualPrice: registrar !== originalRegistrar ? actualPrice : null,
   }
 }
 

@@ -1,78 +1,57 @@
-# Speechcue Cloud Phone - PRD
+# PRD - Nomadly Platform
 
 ## Original Problem Statement
-Set up and configure a multi-service application (Telegram bot + Telnyx voice/SIP + FastAPI backend + React frontend). Build a public-facing SIP test page branded as "Speechcue" with Telegram OTP gating, referral system, and abuse prevention.
+Multi-service platform (Telegram bot + React frontend + Node.js backend) managing domains, hosting, URL shortening, and wallet/payment systems. Key services include cPanel/WHM hosting management, domain registration (ConnectReseller + OpenProvider dual registrar), dual-currency (USD/NGN) wallet, Cloudflare DNS management, and anti-red protection.
 
-## Architecture
-- **Frontend:** React (port 3000) with Tailwind CSS and @telnyx/webrtc
-- **Backend:** FastAPI (port 8001) acting as reverse proxy to Node.js Express (port 5000)
-- **Node.js:** Telegram bot + Telnyx voice service + SIP test credentials API
-- **Database:** External MongoDB (Railway) + local MongoDB
-- **Routing:** Kubernetes ingress routes `/api/*` to FastAPI, all other routes to React frontend
-
----
-
-## CRITICAL — Emergent Agent Deployment Setup
-
-**On every fresh deployment, the agent MUST run this setup script FIRST before any other work:**
-
-```bash
-bash /app/scripts/setup-nodejs.sh
-```
-
-### What the setup script does:
-1. **Detects current pod URL** from `REACT_APP_BACKEND_URL` in `frontend/.env`
-2. **Updates `SELF_URL` and `SELF_URL_PROD`** in `backend/.env` to `<pod_url>/api`
-3. **Creates `.env` symlink** — `/app/.env` -> `/app/backend/.env`
-4. **Installs Node.js dependencies** — `yarn install` in `/app`
-5. **Creates supervisor config** for Node.js
-6. **Starts Node.js Express server** on port 5000 via supervisor
-
----
+## Core Architecture
+- **Backend**: Node.js monolith (`js/_index.js`) — Telegram bot state machine (22k+ lines)
+- **Frontend**: React app via `cpanel-routes.js`
+- **Database**: MongoDB
+- **Secondary Backend**: FastAPI (proxy)
+- **Key Integrations**: Telegram, Cloudflare, cPanel/WHM, ConnectReseller, OpenProvider, OpenExchangeRates, Twilio, BlockBee/DynoPay
 
 ## What's Been Implemented
 
-### Completed
-- [x] Ship & Mail (BozzMail) — Renamed from "Shipping Label", opens as Telegram Mini App (Feb 2026)
-- [x] Environment setup with all API keys in `backend/.env`
-- [x] Telegram bot running via supervisor
-- [x] FastAPI reverse proxy to Node.js Express
-- [x] Domain Registration Flow Fixes (CF zone -> Domain Reg -> WHM -> DNS)
-- [x] URL Shortener Flow Fix (Cloudflare NS + CNAME on CF)
-- [x] Lead Generation Persistence (resume after deployment)
-- [x] URL Shortener Activation Persistence
-- [x] Hosting Confirmation Email (clean template, proper fields)
-- [x] SIP Credential, Billing, Inbound Call, CNAM fixes
-- [x] Speechcue SIP Test Page with OTP + Referral
-- [x] **Price Consistency Fix (Feb 2026)** — Fixed domain pricing inconsistency ($14 vs $9) in `domain-service.js`. Root cause: when both CR and OP registrars had a domain available, code always preferred CR regardless of price; if CR was flaky, OP price was used instead, causing fluctuations. Fix: now picks the cheapest price when both registrars are available.
+### Completed (Previous Sessions)
+- Full NGN Wallet Integration across all 8+ payment flows
+- Cached currency conversion (`usdToNgn`, `ngnToUsd`) with API failure handling
+- Anti-Red Cloudflare Worker hardening with Proof-of-Interaction challenge
+- Addon domain auto-protection with retry and Telegram notifications
+- Dynamic minimum NGN deposit (~$10 USD equivalent)
 
-### Key Files
-- `/app/js/domain-service.js` - Unified domain service (price consistency fix here)
-- `/app/js/_index.js` - Main bot logic (14k+ lines)
-- `/app/js/cr-domain-price-get.js` - ConnectReseller pricing
-- `/app/js/op-service.js` - OpenProvider pricing
-- `/app/js/hosting/plans.js` - Hosting plan definitions
-- `/app/js/lead-job-persistence.js` - Lead job crash recovery
-- `/app/js/shortener-activation-persistence.js` - Shortener persistence
-- `/app/js/mail-service.js` - Brevo email templates
-- `/app/backend/server.py` - FastAPI reverse proxy to Node.js
-
-### Key Pricing Logic
-- Domain prices: fetched from CR + OP in parallel, marked up by `PERCENT_INCREASE_DOMAIN` (3.25x), min `MIN_DOMAIN_PRICE` ($5)
-- Hosting plans: Weekly $5, Premium $75, Golden $100 (from .env)
-- Total = domain price + hosting price (or just hosting if existing domain)
+### Completed (Current Session — Feb 2026)
+- **P0 Bug Fix: Domain Price Discrepancy**
+  - **Root Cause**: When ConnectReseller fails (e.g., insufficient funds), silent fallback to OpenProvider occurs without price re-verification. Users may be shown ConnectReseller's cheaper price but the actual cost through OpenProvider is higher.
+  - **Fix Applied**:
+    1. `domain-service.js` → `registerDomain()`: On CR→OP fallback, re-checks OP price via `checkDomainAvailability` and returns `actualPrice` + `registrarChanged` flag
+    2. `_index.js` → `buyDomainFullProcess()`: Saves `actualPrice` and `actualRegistrar` to user state when fallback occurs
+    3. `_index.js` → `domain-pay` walletOk: Uses actual registrar price for wallet deduction; notifies user of price adjustment
+    4. Bank/Crypto/DynoPay callbacks: Log price discrepancies and notify admin when platform absorbs cost difference
+  - **Test**: 6/6 unit tests passing (`js/tests/test_domain_price_fix.js`)
 
 ## Prioritized Backlog
 
-### P1 - Next Up
-- Verify Multi-User Caller ID (ANI) handling
-- Full regression test of billing logic
+### P1
+- Add NGN currency support to Fincra deposit confirmation webhook flows
 
-### P2 - Refactoring
-- Break `_index.js` monolith into feature modules
-- Split `voice-service.js` webhook switch into focused event handlers
+### P2
+- Add monitoring for OpenExchangeRates API availability in production
 
-### P3 - Future
-- Production DNS setup for `speechcue.com`
-- Test call analytics dashboard
-- Multi-language support for web test page
+### Backlog / Refactoring
+- Break `_index.js` (22k+ lines) into feature-specific modules (hosting, domains, phone, marketplace, etc.)
+
+## Key DB Schema
+- `walletOf`: `{ _id: chatId, usdIn, usdOut, ngnIn, ngnOut }`
+- `cpanelAccounts`: `{ chatId, domain, cpUser, plan, addonDomains: [] }`
+- `registeredDomains`: `{ _id: domainName, registrar, owner, registeredAt }`
+- `state`: `{ _id: chatId, action, ...info, actualPrice?, actualRegistrar? }`
+- `domainsOf`: `{ domainName, chatId, registrar, nameserverType, cfZoneId, ... }`
+
+## Key Files
+- `js/_index.js` — Main bot logic, payment handlers
+- `js/domain-service.js` — Domain registration, DNS, registrar routing
+- `js/op-service.js` — OpenProvider integration
+- `js/cr-domain-price-get.js` — ConnectReseller pricing
+- `js/utils.js` — Currency conversion, wallet utilities
+- `js/anti-red-service.js` — Cloudflare Worker protection
+- `js/cpanel-routes.js` — Frontend API routes

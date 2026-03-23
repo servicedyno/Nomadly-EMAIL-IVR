@@ -4552,15 +4552,39 @@ Enter new value:`), bc)
         if (error) return
         const name = await get(nameOf, chatId)
 
+        // Re-read state to check for registrar fallback price update
+        const updatedInfo = await get(state, chatId)
+        const finalPriceUsd = updatedInfo?.actualPrice && updatedInfo.actualPrice > priceUsd
+          ? updatedInfo.actualPrice
+          : priceUsd
+        const priceChanged = finalPriceUsd !== priceUsd
+
         // wallet update — charged AFTER successful domain registration
         if (coin === u.usd) {
-          set(payments, nanoid(), `Wallet,Domain,${domain},$${priceUsd},${chatId},${name},${new Date()}`)
-          await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
+          // Verify wallet can cover the actual price (may be higher due to registrar fallback)
+          const { usdBal: currentUsd } = await getBalance(walletOf, chatId)
+          const chargeUsd = currentUsd >= finalPriceUsd ? finalPriceUsd : priceUsd
+          set(payments, nanoid(), `Wallet,Domain,${domain},$${chargeUsd},${chatId},${name},${new Date()}`)
+          await atomicIncrement(walletOf, chatId, 'usdOut', chargeUsd)
+          if (priceChanged && chargeUsd === finalPriceUsd) {
+            send(chatId, `ℹ️ <b>Price adjustment:</b> Due to registrar routing, the final cost for <b>${domain}</b> was $${finalPriceUsd} (originally shown as $${priceUsd}). Your wallet was charged $${finalPriceUsd}.`, { parse_mode: 'HTML' })
+          }
         }
         if (coin === u.ngn) {
-          set(payments, nanoid(), `Wallet,Domain,${domain},$${priceUsd},${chatId},${name},${new Date()},${priceNgn} NGN`)
-          await atomicIncrement(walletOf, chatId, 'ngnOut', priceNgn)
+          const finalNgn = priceChanged ? await usdToNgn(finalPriceUsd) : priceNgn
+          const { ngnBal: currentNgn } = await getBalance(walletOf, chatId)
+          const chargeNgn = (finalNgn && currentNgn >= finalNgn) ? finalNgn : priceNgn
+          set(payments, nanoid(), `Wallet,Domain,${domain},$${finalPriceUsd},${chatId},${name},${new Date()},${chargeNgn} NGN`)
+          await atomicIncrement(walletOf, chatId, 'ngnOut', chargeNgn)
+          if (priceChanged && chargeNgn === finalNgn) {
+            send(chatId, `ℹ️ <b>Price adjustment:</b> Due to registrar routing, the final cost for <b>${domain}</b> was ₦${chargeNgn.toLocaleString()} (originally shown as ₦${priceNgn.toLocaleString()}). Your wallet was charged ₦${chargeNgn.toLocaleString()}.`, { parse_mode: 'HTML' })
+          }
         }
+
+        // Clean up actual price state
+        await set(state, chatId, 'actualPrice', null)
+        await set(state, chatId, 'actualRegistrar', null)
+
         const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
         send(chatId, t.showWallet(usd, ngn), trans('o'))
         notifyGroup(`🌐 <b>Domain Registered!</b>\nUser ${maskName(name)} just claimed <b>${domain}</b> — your dream domain could be next.\nGrab yours before it's taken — /start`)
@@ -9995,6 +10019,9 @@ ${message.replace(/\n/g, '<br>')}
     const lang = info?.userLanguage ?? 'en'
     const error = await buyDomainFullProcess(chatId, lang, domain)
     if (!error) decrement(freeDomainNamesAvailableFor, chatId)
+    // Clean up actual price state (no charge for free domains, but keep state clean)
+    await set(state, chatId, 'actualPrice', null)
+    await set(state, chatId, 'actualRegistrar', null)
 
     return set(state, chatId, 'action', 'none')
   }
@@ -17799,6 +17826,15 @@ const buyDomainFullProcess = async (chatId, lang, domain) => {
     }
     // Track actual registrar — may differ from original if CR→OP fallback occurred
     registrar = buyResult.registrar || registrar
+
+    // If registrar changed (e.g., CR→OP fallback), save the actual price to state
+    // so the payment handler can charge the correct amount
+    if (buyResult.registrarChanged && buyResult.actualPrice) {
+      log(`[buyDomainFullProcess] Registrar fallback for ${domain}: price updated to $${buyResult.actualPrice} (from ${buyResult.registrar})`)
+      await set(state, chatId, 'actualPrice', buyResult.actualPrice)
+      await set(state, chatId, 'actualRegistrar', buyResult.registrar)
+    }
+
     send(chatId, translation('t.domainBoughtSuccess', lang, domain), translation('o', lang))
 
     // NS was set at registration time (passed to registrar API directly) — no post-reg update needed
@@ -18299,6 +18335,18 @@ const bankApis = {
       }
       return res.send(html(error))
     }
+
+    // Check for registrar fallback price discrepancy — notify admin
+    const updatedInfo = await state.findOne({ _id: parseFloat(chatId) })
+    if (updatedInfo?.actualPrice && updatedInfo.actualPrice > price) {
+      const priceDiff = updatedInfo.actualPrice - price
+      log(`[Domain] Bank payment price discrepancy: ${domain} | shown: $${price} | actual: $${updatedInfo.actualPrice} | diff: $${priceDiff}`)
+      sendMessage(TELEGRAM_ADMIN_CHAT_ID, `⚠️ <b>Price discrepancy (Bank→Domain)</b>\nUser: ${chatId}\nDomain: ${domain}\nShown price: $${price}\nActual registrar cost: $${updatedInfo.actualPrice}\nRegistrar: ${updatedInfo.actualRegistrar || 'unknown'}\nPlatform absorbed: $${priceDiff}`, { parse_mode: 'HTML' })
+    }
+    // Clean up actual price state
+    await set(state, chatId, 'actualPrice', null)
+    await set(state, chatId, 'actualRegistrar', null)
+
     notifyGroup(`🌐 <b>Domain Registered!</b>\nUser ${maskName(name)} just claimed <b>${domain}</b> — your dream domain could be next.\nGrab yours before it's taken — /start`)
     webhookTierCheck(chatId, preSpend, lang)
     set(state, chatId, 'action', 'none') // Reset action after bank payment completes
@@ -19039,6 +19087,18 @@ app.get('/crypto-pay-domain', auth, async (req, res) => {
     }
     return res.send(html(error))
   }
+
+  // Check for registrar fallback price discrepancy — notify admin
+  const updatedInfo = await state.findOne({ _id: parseFloat(chatId) })
+  if (updatedInfo?.actualPrice && updatedInfo.actualPrice > price) {
+    const priceDiff = updatedInfo.actualPrice - price
+    log(`[Domain] Crypto payment price discrepancy: ${domain} | shown: $${price} | actual: $${updatedInfo.actualPrice} | diff: $${priceDiff}`)
+    sendMessage(TELEGRAM_ADMIN_CHAT_ID, `⚠️ <b>Price discrepancy (Crypto→Domain)</b>\nUser: ${chatId}\nDomain: ${domain}\nShown price: $${price}\nActual registrar cost: $${updatedInfo.actualPrice}\nRegistrar: ${updatedInfo.actualRegistrar || 'unknown'}\nPlatform absorbed: $${priceDiff}`, { parse_mode: 'HTML' })
+  }
+  // Clean up actual price state
+  await set(state, chatId, 'actualPrice', null)
+  await set(state, chatId, 'actualRegistrar', null)
+
   notifyGroup(`🌐 <b>Domain Registered!</b>\nUser ${maskName(name)} just claimed <b>${domain}</b> — your dream domain could be next.\nGrab yours before it's taken — /start`)
   webhookTierCheck(chatId, preSpend, lang)
   set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
@@ -19613,6 +19673,18 @@ app.post('/dynopay/crypto-pay-domain', authDyno, async (req, res) => {
     }
     return res.send(html(error))
   }
+
+  // Check for registrar fallback price discrepancy — notify admin
+  const updatedInfo = await state.findOne({ _id: parseFloat(chatId) })
+  if (updatedInfo?.actualPrice && updatedInfo.actualPrice > price) {
+    const priceDiff = updatedInfo.actualPrice - price
+    log(`[Domain] DynoPay payment price discrepancy: ${domain} | shown: $${price} | actual: $${updatedInfo.actualPrice} | diff: $${priceDiff}`)
+    sendMessage(TELEGRAM_ADMIN_CHAT_ID, `⚠️ <b>Price discrepancy (DynoPay→Domain)</b>\nUser: ${chatId}\nDomain: ${domain}\nShown price: $${price}\nActual registrar cost: $${updatedInfo.actualPrice}\nRegistrar: ${updatedInfo.actualRegistrar || 'unknown'}\nPlatform absorbed: $${priceDiff}`, { parse_mode: 'HTML' })
+  }
+  // Clean up actual price state
+  await set(state, chatId, 'actualPrice', null)
+  await set(state, chatId, 'actualRegistrar', null)
+
   notifyGroup(`🌐 <b>Domain Registered!</b>\nUser ${maskName(name)} just claimed <b>${domain}</b> — your dream domain could be next.\nGrab yours before it's taken — /start`)
   webhookTierCheck(chatId, preSpend, lang)
   set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
