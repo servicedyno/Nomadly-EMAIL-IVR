@@ -705,9 +705,11 @@ async function assignNumberToCallControlApp(phoneNumber, callControlAppId) {
   }
 }
 
-// ── Migrate all account numbers from SIP Connection to Call Control App ──
-// Run on startup to fix numbers that were previously assigned to the SIP connection
-async function migrateNumbersToCallControlApp(callControlAppId) {
+// ── Migrate BOT-OWNED numbers from SIP Connection to Call Control App ──
+// Run on startup to fix numbers that were previously assigned to the SIP connection.
+// IMPORTANT: Only migrates numbers that are in the botNumbers list (from phoneNumbersOf DB).
+// External numbers (created by sub-account holders for other purposes) are LEFT UNTOUCHED.
+async function migrateNumbersToCallControlApp(callControlAppId, botNumbers = []) {
   if (!callControlAppId) {
     log('[Telnyx] migrateNumbersToCallControlApp: No callControlAppId — skipping')
     return 0
@@ -716,7 +718,21 @@ async function migrateNumbersToCallControlApp(callControlAppId) {
     const numbers = await listNumbers()
     let migrated = 0
     let alreadyCorrect = 0
+    let skippedExternal = 0
+
+    // Normalize bot numbers for comparison (strip non-digits except +)
+    const normalizedBotNumbers = new Set(
+      botNumbers.map(n => n.replace(/[^+\d]/g, ''))
+    )
+
     for (const num of numbers) {
+      // ── Only migrate numbers registered in the bot's DB ──
+      const normalizedNum = (num.phone_number || '').replace(/[^+\d]/g, '')
+      if (normalizedBotNumbers.size > 0 && !normalizedBotNumbers.has(normalizedNum)) {
+        skippedExternal++
+        continue
+      }
+
       if (num.connection_id === callControlAppId) {
         alreadyCorrect++
         continue
@@ -731,7 +747,7 @@ async function migrateNumbersToCallControlApp(callControlAppId) {
         log(`[Telnyx] Failed to migrate ${num.phone_number}: ${e.response?.data?.errors?.[0]?.detail || e.message}`)
       }
     }
-    log(`[Telnyx] Migration complete: ${migrated} migrated, ${alreadyCorrect} already correct, ${numbers.length} total`)
+    log(`[Telnyx] Migration complete: ${migrated} migrated, ${alreadyCorrect} already correct, ${skippedExternal} external skipped, ${numbers.length} total`)
     return migrated
   } catch (e) {
     log(`[Telnyx] migrateNumbersToCallControlApp error: ${e.message}`)

@@ -863,11 +863,22 @@ const loadData = async () => {
         ? await telnyxApi.getTelnyxResources()
         : await telnyxApi.initializeTelnyxResources(SELF_URL)
       log('[CloudPhone] Telnyx resources initialized')
-      // Migrate existing numbers from SIP Connection to Call Control App
+      // Migrate BOT-OWNED numbers from SIP Connection to Call Control App
       // This ensures inbound calls route through our webhook (IVR, forwarding, voicemail)
-      // instead of going directly to SIP devices (which causes 480 errors)
+      // instead of going directly to SIP devices (which causes 480 errors).
+      // IMPORTANT: Only migrates numbers registered in phoneNumbersOf — external numbers are untouched.
       if (telnyxResources.callControlAppId) {
-        const migrated = await telnyxApi.migrateNumbersToCallControlApp(telnyxResources.callControlAppId)
+        // Gather bot-owned Telnyx phone numbers from the DB
+        const allPhoneUsers = await db.collection('phoneNumbersOf').find({}).toArray()
+        const botTelnyxNumbers = []
+        for (const user of allPhoneUsers) {
+          for (const n of (user.val?.numbers || [])) {
+            if (n.provider === 'telnyx' && n.status === 'active' && n.phoneNumber) {
+              botTelnyxNumbers.push(n.phoneNumber)
+            }
+          }
+        }
+        const migrated = await telnyxApi.migrateNumbersToCallControlApp(telnyxResources.callControlAppId, botTelnyxNumbers)
         if (migrated > 0) log(`[CloudPhone] Migrated ${migrated} numbers to Call Control App for proper inbound routing`)
       }
     } catch (e) {
