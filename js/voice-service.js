@@ -606,7 +606,9 @@ async function handleVoiceWebhook(req, res) {
         }
         // Skip SIP device delivery legs — Telnyx auto-routes these to the registered device
         // These arrive on the SIP Connection with state=bridging when we ring a SIP URI
-        else if (payload.state === 'bridging' && payload.connection_id === (process.env.TELNYX_SIP_CONNECTION_ID || '')) {
+        // FIX: Only skip if `to` is a SIP URI (delivery leg). Outbound SIP calls to PSTN numbers
+        // (e.g., +17123393700) must NOT be skipped — they need handleOutboundSipCall() routing.
+        else if (payload.state === 'bridging' && payload.connection_id === (process.env.TELNYX_SIP_CONNECTION_ID || '') && (payload.to || '').startsWith('sip:')) {
           log(`[Voice] call.initiated for SIP device delivery leg ${callControlId} — skipping (Telnyx auto-routes)`)
         } else {
           await handleCallInitiated(payload)
