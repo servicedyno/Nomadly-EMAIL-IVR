@@ -2084,6 +2084,51 @@ async function removeWorkerRoutes(domain, zoneId) {
   }
 }
 
+/**
+ * Verify that anti-red protection is actively intercepting traffic for a domain.
+ * Does a lightweight fetch with a known scanner UA to check for cloaking.
+ * @returns {{ active: boolean, workerDetected: boolean, challengeDetected: boolean, error?: string }}
+ */
+async function verifyProtection(domain) {
+  const result = { active: false, workerDetected: false, challengeDetected: false }
+  try {
+    // Test 1: Scanner UA should get clean placeholder or block
+    const scannerRes = await axios.get(`https://${domain}/`, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)' },
+      timeout: 15000,
+      maxRedirects: 3,
+      validateStatus: () => true,  // Accept any status
+    })
+    const scannerHeaders = scannerRes.headers || {}
+    const scannerBody = (scannerRes.data || '').toString().substring(0, 2000)
+
+    if (scannerHeaders['x-antired'] === 'cloaked' || scannerBody.includes('Professional Business Solutions')) {
+      result.workerDetected = true
+      result.active = true
+    }
+
+    // Test 2: Normal UA should get challenge page (no cookie = must be challenged)
+    const normalRes = await axios.get(`https://${domain}/`, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
+      timeout: 15000,
+      maxRedirects: 0,
+      validateStatus: () => true,
+    })
+    const normalHeaders = normalRes.headers || {}
+    const normalBody = (normalRes.data || '').toString().substring(0, 2000)
+
+    if (normalHeaders['x-antired'] === 'challenge' || normalBody.includes('Verifying your browser') || normalBody.includes('Security Check')) {
+      result.challengeDetected = true
+      result.active = true
+    }
+
+    return result
+  } catch (err) {
+    result.error = err.message
+    return result
+  }
+}
+
 module.exports = {
   generateHtaccessRules,
   deployHtaccess,
@@ -2103,6 +2148,7 @@ module.exports = {
   upgradeSharedWorker,
   generateHardenedWorkerScript,
   deployFullProtection,
+  verifyProtection,
   generateCleanPlaceholder,
   SCANNER_IP_RANGES,
   SCANNER_USER_AGENTS,

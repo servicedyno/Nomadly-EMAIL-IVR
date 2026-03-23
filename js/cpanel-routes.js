@@ -226,32 +226,92 @@ function createCpanelRoutes(getCpanelCol) {
         log(`[Panel] add: failed to persist addon ${domain}: ${dbErr.message}`)
       }
 
-      // Deploy anti-red protection + DNS for addon domain (non-blocking)
+      // Deploy anti-red protection + DNS for addon domain (non-blocking, with retry)
       ;(async () => {
-        try {
-          const accountWhmHost = req.whmHost || process.env.WHM_HOST
-          let zone = await cfService.getZoneByName(domain)
-          if (!zone) {
-            const newZone = await cfService.createZone(domain)
-            if (newZone.success) zone = { id: newZone.zoneId }
-          }
-          if (zone) {
-            await cfService.cleanupConflictingDNS(zone.id, domain)
-            await cfService.createHostingDNSRecords(zone.id, domain, accountWhmHost)
-            await cfService.setSSLMode(zone.id, 'full')
-            await cfService.enforceHTTPS(zone.id)
-            const antiRedService = require('./anti-red-service')
-            const col2 = getCpanelCol()
-            const account = col2 ? await col2.findOne({ _id: req.cpUser.toLowerCase() }) : null
-            if (account) {
-              await antiRedService.deployFullProtection(req.cpUser, domain, account.plan || '')
-            } else {
-              await antiRedService.deploySharedWorkerRoute(domain, zone.id)
+        const MAX_RETRIES = 3
+        const RETRY_DELAYS = [5000, 15000, 45000] // 5s, 15s, 45s
+
+        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+          try {
+            const accountWhmHost = req.whmHost || process.env.WHM_HOST
+            let zone = await cfService.getZoneByName(domain)
+            if (!zone) {
+              const newZone = await cfService.createZone(domain)
+              if (newZone.success) zone = { id: newZone.zoneId }
             }
-            log(`[Panel] add: anti-red + DNS deployed for addon ${domain}`)
+            if (zone) {
+              await cfService.cleanupConflictingDNS(zone.id, domain)
+              await cfService.createHostingDNSRecords(zone.id, domain, accountWhmHost)
+              await cfService.setSSLMode(zone.id, 'full')
+              await cfService.enforceHTTPS(zone.id)
+              const antiRedService = require('./anti-red-service')
+              const col2 = getCpanelCol()
+              const account = col2 ? await col2.findOne({ _id: req.cpUser.toLowerCase() }) : null
+              if (account) {
+                await antiRedService.deployFullProtection(req.cpUser, domain, account.plan || '')
+              } else {
+                await antiRedService.deploySharedWorkerRoute(domain, zone.id)
+              }
+
+              // Verify protection is active (delay to allow propagation)
+              setTimeout(async () => {
+                try {
+                  const antiRedService = require('./anti-red-service')
+                  const verification = await antiRedService.verifyProtection(domain)
+                  if (verification.active) {
+                    log(`[Panel] add: ✅ protection VERIFIED for addon ${domain} (worker=${verification.workerDetected}, challenge=${verification.challengeDetected})`)
+                  } else {
+                    log(`[Panel] add: ⚠️ protection deployed but NOT verified for addon ${domain}: ${verification.error || 'no worker/challenge detected'}`)
+                    // Notify user via bot
+                    if (account?.chatId) {
+                      const bot = require('./_index')?._bot
+                      if (bot) {
+                        bot.sendMessage(account.chatId,
+                          `⚠️ <b>Anti-Red Protection Warning</b>\n\n` +
+                          `Protection was deployed for <b>${domain}</b> but could not be verified.\n` +
+                          `This may happen if DNS hasn't propagated yet.\n\n` +
+                          `<b>Action needed:</b> Ensure your domain's nameservers point to Cloudflare. Protection will be re-checked automatically.`,
+                          { parse_mode: 'HTML' }
+                        ).catch(() => {})
+                      }
+                    }
+                  }
+                } catch (verifyErr) {
+                  log(`[Panel] add: verification check failed for ${domain}: ${verifyErr.message}`)
+                }
+              }, 30000) // Wait 30s before verification
+
+              log(`[Panel] add: anti-red + DNS deployed for addon ${domain} (attempt ${attempt})`)
+              break // Success — exit retry loop
+            } else {
+              throw new Error('Cloudflare zone could not be created or found')
+            }
+          } catch (protErr) {
+            log(`[Panel] add: protection deploy attempt ${attempt}/${MAX_RETRIES} failed for ${domain}: ${protErr.message}`)
+            if (attempt < MAX_RETRIES) {
+              await new Promise(r => setTimeout(r, RETRY_DELAYS[attempt - 1]))
+            } else {
+              // Final attempt failed — notify user
+              log(`[Panel] add: ❌ all ${MAX_RETRIES} protection deploy attempts failed for addon ${domain}`)
+              try {
+                const col2 = getCpanelCol()
+                const account = col2 ? await col2.findOne({ _id: req.cpUser.toLowerCase() }) : null
+                if (account?.chatId) {
+                  const bot = require('./_index')?._bot
+                  if (bot) {
+                    bot.sendMessage(account.chatId,
+                      `🚨 <b>Anti-Red Protection Failed</b>\n\n` +
+                      `Protection could not be deployed for <b>${domain}</b> after ${MAX_RETRIES} attempts.\n` +
+                      `Error: ${protErr.message}\n\n` +
+                      `<b>Your domain may be unprotected.</b>\n` +
+                      `Please ensure your domain's nameservers point to Cloudflare, then try adding the domain again.`,
+                      { parse_mode: 'HTML' }
+                    ).catch(() => {})
+                  }
+                }
+              } catch (_) {}
+            }
           }
-        } catch (protErr) {
-          log(`[Panel] add: protection deploy warning for ${domain}: ${protErr.message}`)
         }
 
         // Schedule health check for addon domain (same 3-stage pipeline as primary)
@@ -596,13 +656,56 @@ function createCpanelRoutes(getCpanelCol) {
           const antiRedService = require('./anti-red-service')
           const col = getCpanelCol()
           const account = col ? await col.findOne({ _id: req.cpUser.toLowerCase() }) : null
-          if (account) {
-            antiRedService.deployFullProtection(req.cpUser, domain, account.plan || '').catch(e =>
-              log(`[Panel] add-enhanced: anti-red deploy warning for ${domain}: ${e.message}`)
-            )
-          } else {
-            const { deploySharedWorkerRoute } = require('./anti-red-service')
-            deploySharedWorkerRoute(domain, zone.id).catch(() => {})
+
+          // Retry up to 3 times with backoff
+          const MAX_RETRIES = 3
+          const RETRY_DELAYS = [5000, 15000, 45000]
+          let deployed = false
+          for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+            try {
+              if (account) {
+                await antiRedService.deployFullProtection(req.cpUser, domain, account.plan || '')
+              } else {
+                await antiRedService.deploySharedWorkerRoute(domain, zone.id)
+              }
+              deployed = true
+              log(`[Panel] add-enhanced: anti-red deployed for ${domain} (attempt ${attempt})`)
+              break
+            } catch (depErr) {
+              log(`[Panel] add-enhanced: anti-red deploy attempt ${attempt}/${MAX_RETRIES} failed for ${domain}: ${depErr.message}`)
+              if (attempt < MAX_RETRIES) {
+                await new Promise(r => setTimeout(r, RETRY_DELAYS[attempt - 1]))
+              }
+            }
+          }
+
+          // Verify protection + notify on failure
+          if (deployed) {
+            setTimeout(async () => {
+              try {
+                const verification = await antiRedService.verifyProtection(domain)
+                if (verification.active) {
+                  log(`[Panel] add-enhanced: ✅ protection VERIFIED for ${domain}`)
+                } else {
+                  log(`[Panel] add-enhanced: ⚠️ protection deployed but NOT verified for ${domain}`)
+                  if (account?.chatId) {
+                    const bot = require('./_index')?._bot
+                    if (bot) bot.sendMessage(account.chatId,
+                      `⚠️ <b>Anti-Red Warning</b>\nProtection deployed for <b>${domain}</b> but not yet verified. Ensure nameservers point to Cloudflare.`,
+                      { parse_mode: 'HTML' }
+                    ).catch(() => {})
+                  }
+                }
+              } catch (_) {}
+            }, 30000)
+          } else if (account?.chatId) {
+            try {
+              const bot = require('./_index')?._bot
+              if (bot) bot.sendMessage(account.chatId,
+                `🚨 <b>Anti-Red Failed</b>\nProtection could not be deployed for <b>${domain}</b> after ${MAX_RETRIES} attempts. Ensure nameservers point to Cloudflare.`,
+                { parse_mode: 'HTML' }
+              ).catch(() => {})
+            } catch (_) {}
           }
         } catch (_) {}
 
