@@ -175,14 +175,17 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state)
             log(`[Hosting] DNS cleanup warning (non-blocking): ${cleanupErr.message}`)
           }
 
-          // Create DNS records as DNS-only first so AutoSSL can validate against origin directly
-          const dnsResult = await cfService.createHostingDNSRecords(cfZoneId, domain, WHM_HOST, false)
+          // Create DNS records as proxied immediately — Cloudflare Universal SSL provides
+          // edge certificate instantly. With SSL mode "Full", origin's default self-signed
+          // cert is accepted for the CF→origin connection. AutoSSL upgrades it later.
+          const dnsResult = await cfService.createHostingDNSRecords(cfZoneId, domain, WHM_HOST, true)
           await cfService.setSSLMode(cfZoneId, 'full')
           await cfService.enforceHTTPS(cfZoneId)
-          log(`[Hosting] CF DNS records for ${domain}: ${dnsResult.success ? 'all created' : 'some failed'} (DNS-only for AutoSSL)`)
+          log(`[Hosting] CF DNS records for ${domain}: ${dnsResult.success ? 'all created' : 'some failed'} (proxied — SSL active immediately)`)
           dnsSetupSuccess = true // Mark DNS as successful
 
-          // Trigger AutoSSL while records are unproxied (Let's Encrypt needs direct access)
+          // Trigger AutoSSL to get a proper CA cert (upgrades from self-signed)
+          // This runs while records are already proxied — CF forwards to origin for validation
           try {
             const sslRes = await require('./whm-service').startAutoSSL(result.username)
             log(`[Hosting] AutoSSL triggered for ${result.username}: ${sslRes.success ? 'started' : sslRes.error}`)
@@ -190,22 +193,17 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state)
             log(`[Hosting] AutoSSL trigger warning (non-blocking): ${sslErr.message}`)
           }
 
-          // Background task: Wait for AutoSSL → proxy DNS records → upgrade SSL to Full (Strict)
-          // This runs in background — doesn't block the user response
+          // Background task: Progressive SSL upgrade — check cert and upgrade to Full (Strict) when ready
+          // Records are already proxied, so this only handles the SSL mode upgrade
           const bgZoneId = cfZoneId
           const bgDomain = domain
           const bgUsername = result.username
           ;(async () => {
             try {
-              // Phase 1: Wait 3 min for AutoSSL to issue cert, then proxy records
-              await new Promise(r => setTimeout(r, 180000)) // 3 min
-              await cfService.proxyHostingDNSRecords(bgZoneId, bgDomain)
-              log(`[Hosting] DNS records proxied for ${bgDomain} after 3 min AutoSSL window`)
-
-              // Phase 2: Progressive SSL upgrade — check cert and upgrade to Full (Strict) when ready
+              // Progressive SSL upgrade — check cert and upgrade to Full (Strict) when ready
               // This prevents 526 errors by only upgrading AFTER a valid CA cert is confirmed on origin
               const whmSvc = require('./whm-service')
-              const SSL_CHECK_INTERVALS = [2 * 60000, 5 * 60000, 10 * 60000] // 2, 5, 10 min after proxying
+              const SSL_CHECK_INTERVALS = [3 * 60000, 5 * 60000, 10 * 60000] // 3, 5, 10 min
 
               for (let i = 0; i < SSL_CHECK_INTERVALS.length; i++) {
                 await new Promise(r => setTimeout(r, SSL_CHECK_INTERVALS[i]))
