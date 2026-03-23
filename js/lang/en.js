@@ -114,6 +114,7 @@ const user = {
   marketplace: '🏪 Marketplace',
   shippingLabel: '📦 Ship & Mail',
   emailBlast: '📧 Email Blast',
+  emailValidation: '📧 Email Validation',
   serviceBundles: '🎁 Service Bundles',
 
   // Sub Menu 1: urlShortenerMain
@@ -1318,6 +1319,7 @@ const userKeyboard = {
       [user.cloudPhone],
       [user.marketplace, user.digitalProducts],
       EMAIL_BLAST_ON === 'true' ? [user.shippingLabel, user.emailBlast] : [user.shippingLabel],
+      [user.emailValidation],
       [user.domainNames, user.hostingDomainsRedirect],
       [user.urlShortenerMain, user.leadsValidation],
       ...(HIDE_SMS_APP === 'true' ? [] : [[user.freeTrialAvailable]]),

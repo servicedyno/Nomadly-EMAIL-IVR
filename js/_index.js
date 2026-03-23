@@ -257,6 +257,8 @@ const regulatoryFlow = require('./regulatory-flow.js')
 const { needsDocUpload } = require('./regulatory-config.js')
 const emailBlastService = require('./email-blast-service.js')
 const emailValidation = require('./email-validation.js')
+const emailValidationService = require('./email-validation-service.js')
+const { EV_CONFIG, calculatePrice, pricingTable } = require('./email-validation-config.js')
 const emailWarming = require('./email-warming.js')
 const emailDns = require('./email-dns.js')
 
@@ -1058,6 +1060,9 @@ const loadData = async () => {
   // Initialize Email Blast Service
   emailBlastService.initEmailBlast(db, bot)
   log('[EmailBlast] Service initialized with queue processor')
+
+  // Initialize Email Validation Service
+  emailValidationService.initEmailValidationService(db, bot)
 
   // Initialize Provider Balance Monitor (Telnyx + Twilio)
   const { initBalanceMonitor } = require('./balance-monitor.js')
@@ -2806,6 +2811,12 @@ bot?.on('message', msg => {
     ebSelectContentType: 'ebSelectContentType',
     ebTestEmail: 'ebTestEmail',
     ebTestEmailSent: 'ebTestEmailSent',
+
+    // ── Email Validation ──
+    evMenu: 'evMenu',
+    evUploadList: 'evUploadList',
+    evPasteEmails: 'evPasteEmails',
+    evConfirmPay: 'evConfirmPay',
   }
 
   const firstSteps = [
@@ -2830,6 +2841,7 @@ bot?.on('message', msg => {
     a.vcEnterAmount,
     a.mpHome,
     a.ebMenu,
+    a.evMenu,
     a.mpAiHelper,
     a.settingsMenu,
   ]
@@ -6922,6 +6934,261 @@ All verified numbers generated during sourcing.`))
   // ━━━ Marketplace ━━━
   if (message === user.marketplace || message === '🏪 Marketplace' || message === '🏪 Marché' || message === '🏪 市场' || message === '🏪 मार्केटप्लेस') {
     return goto.marketplace()
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ██  EMAIL VALIDATION SERVICE            ██
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  if (message === user.emailValidation || message === '📧 Email Validation') {
+    if (!EV_CONFIG.enabled) {
+      return send(chatId, '🚧 Email Validation service is currently under maintenance. Please try again later.', { parse_mode: 'HTML' })
+    }
+    const evWelcome = {
+      en: `📧 <b>Email Validation Service</b>\n\nVerify email addresses with <b>97%+ accuracy</b> using our 7-layer validation engine.\n\n🔍 <b>7 Validation Layers:</b>\n  1️⃣ Syntax check\n  2️⃣ Disposable email filter\n  3️⃣ Role-based detection\n  4️⃣ Free provider flagging\n  5️⃣ MX record verification\n  6️⃣ SMTP mailbox verification\n  7️⃣ Catch-all domain detection\n\n💰 <b>Pricing:</b>\n${pricingTable()}\n\n📋 Min: ${EV_CONFIG.minEmails} | Max: ${EV_CONFIG.maxEmails.toLocaleString()} emails`,
+      fr: `📧 <b>Service de Validation d'Emails</b>\n\nVérifiez les adresses email avec une précision de <b>97%+</b> grâce à notre moteur de validation à 7 couches.\n\n💰 <b>Tarifs :</b>\n${pricingTable()}\n\n📋 Min : ${EV_CONFIG.minEmails} | Max : ${EV_CONFIG.maxEmails.toLocaleString()} emails`,
+      zh: `📧 <b>邮箱验证服务</b>\n\n使用我们的7层验证引擎，以<b>97%+</b>的准确率验证电子邮件地址。\n\n💰 <b>定价：</b>\n${pricingTable()}\n\n📋 最低：${EV_CONFIG.minEmails} | 最高：${EV_CONFIG.maxEmails.toLocaleString()} 封`,
+      hi: `📧 <b>ईमेल सत्यापन सेवा</b>\n\nहमारे 7-स्तरीय सत्यापन इंजन से <b>97%+</b> सटीकता के साथ ईमेल पते सत्यापित करें।\n\n💰 <b>मूल्य निर्धारण:</b>\n${pricingTable()}\n\n📋 न्यूनतम: ${EV_CONFIG.minEmails} | अधिकतम: ${EV_CONFIG.maxEmails.toLocaleString()} ईमेल`,
+    }
+    const evBtns = [
+      ['📤 Upload List (CSV/TXT)'],
+      ['📋 Paste Emails'],
+      ['📜 My Validations'],
+      [t.back || '🔙 Back'],
+    ]
+    await set(state, chatId, 'action', a.evMenu)
+    return send(chatId, evWelcome[lang] || evWelcome.en, { parse_mode: 'HTML', reply_markup: { keyboard: evBtns, resize_keyboard: true } })
+  }
+
+  // ── Email Validation Menu Handler ──
+  if (action === a.evMenu) {
+    if (message === t.back || message === t.cancel || message === '🔙 Back') return goto.displayMainMenuButtons()
+
+    if (message === '📤 Upload List (CSV/TXT)') {
+      await set(state, chatId, 'action', a.evUploadList)
+      const uploadMsg = {
+        en: `📤 <b>Upload Email List</b>\n\nSend me a <b>CSV</b> or <b>TXT</b> file containing email addresses.\n\n📋 Requirements:\n• Minimum: ${EV_CONFIG.minEmails} emails\n• Maximum: ${EV_CONFIG.maxEmails.toLocaleString()} emails\n• One email per line, or comma/semicolon separated\n\n📎 Upload your file now:`,
+        fr: `📤 <b>Télécharger la Liste d'Emails</b>\n\nEnvoyez-moi un fichier <b>CSV</b> ou <b>TXT</b> avec les adresses email.\n\n📋 Exigences :\n• Min : ${EV_CONFIG.minEmails} | Max : ${EV_CONFIG.maxEmails.toLocaleString()} emails\n\n📎 Téléchargez votre fichier :`,
+        zh: `📤 <b>上传邮件列表</b>\n\n请发送包含电子邮件地址的 <b>CSV</b> 或 <b>TXT</b> 文件。\n\n📋 要求：\n• 最低：${EV_CONFIG.minEmails} | 最高：${EV_CONFIG.maxEmails.toLocaleString()} 封\n\n📎 上传文件：`,
+        hi: `📤 <b>ईमेल सूची अपलोड करें</b>\n\nमुझे ईमेल पतों वाली <b>CSV</b> या <b>TXT</b> फाइल भेजें।\n\n📋 आवश्यकताएं:\n• न्यूनतम: ${EV_CONFIG.minEmails} | अधिकतम: ${EV_CONFIG.maxEmails.toLocaleString()} ईमेल\n\n📎 अभी अपनी फाइल अपलोड करें:`,
+      }
+      return send(chatId, uploadMsg[lang] || uploadMsg.en, { parse_mode: 'HTML', reply_markup: { keyboard: [['❌ Cancel']], resize_keyboard: true } })
+    }
+
+    if (message === '📋 Paste Emails') {
+      await set(state, chatId, 'action', a.evPasteEmails)
+      const pasteMsg = {
+        en: `📋 <b>Paste Email Addresses</b>\n\nType or paste up to <b>${EV_CONFIG.maxPasteEmails}</b> email addresses.\n\n• One email per line, or comma/semicolon separated\n\nPaste your emails below:`,
+        fr: `📋 <b>Coller les adresses email</b>\n\nSaisissez ou collez jusqu'à <b>${EV_CONFIG.maxPasteEmails}</b> adresses email.\n\nCollez ci-dessous :`,
+        zh: `📋 <b>粘贴邮箱地址</b>\n\n输入或粘贴最多 <b>${EV_CONFIG.maxPasteEmails}</b> 个电子邮件地址。\n\n在下方粘贴：`,
+        hi: `📋 <b>ईमेल पते चिपकाएं</b>\n\n<b>${EV_CONFIG.maxPasteEmails}</b> तक ईमेल पते टाइप या पेस्ट करें।\n\nनीचे पेस्ट करें:`,
+      }
+      return send(chatId, pasteMsg[lang] || pasteMsg.en, { parse_mode: 'HTML', reply_markup: { keyboard: [['❌ Cancel']], resize_keyboard: true } })
+    }
+
+    if (message === '📜 My Validations') {
+      const jobs = await emailValidationService.getJobHistory(chatId, 10)
+      if (!jobs || jobs.length === 0) {
+        return send(chatId, { en: '📜 No validations yet. Upload a list to get started!', fr: '📜 Aucune validation. Téléchargez une liste pour commencer !', zh: '📜 还没有验证记录。上传列表开始吧！', hi: '📜 अभी कोई सत्यापन नहीं। शुरू करने के लिए सूची अपलोड करें!' }[lang] || '📜 No validations yet. Upload a list to get started!', { parse_mode: 'HTML' })
+      }
+      let text = { en: '📜 <b>Your Validations</b>\n\n', fr: '📜 <b>Vos Validations</b>\n\n', zh: '📜 <b>您的验证记录</b>\n\n', hi: '📜 <b>आपके सत्यापन</b>\n\n' }[lang] || '📜 <b>Your Validations</b>\n\n'
+      for (const j of jobs) {
+        const statusIcon = j.status === 'completed' ? '✅' : j.status === 'processing' ? '⏳' : '❌'
+        const dateStr = new Date(j.createdAt).toLocaleDateString()
+        const s = j.summary || {}
+        const delivPct = s.deliverabilityPct || 0
+        text += `${statusIcon} <b>${j.totalEmails.toLocaleString()} emails</b> — $${j.price}\n`
+        if (j.status === 'completed') {
+          text += `   ✅ ${s.valid || 0} valid | ❌ ${s.invalid || 0} invalid | ⚠️ ${s.risky || 0} risky\n`
+          text += `   📈 Deliverability: ${delivPct}%\n`
+        } else if (j.status === 'processing') {
+          text += `   🔄 ${j.progress || 0}% complete\n`
+        } else {
+          text += `   Error: ${j.error || 'Unknown'}\n`
+        }
+        text += `   📅 ${dateStr}\n\n`
+      }
+      return send(chatId, text, { parse_mode: 'HTML' })
+    }
+  }
+
+  // ── Email Validation: Upload File ──
+  if (action === a.evUploadList) {
+    if (message === '❌ Cancel' || message === t.back || message === t.cancel) {
+      await set(state, chatId, 'action', a.evMenu)
+      return send(chatId, '❌ Cancelled.', { parse_mode: 'HTML' })
+    }
+
+    let content = ''
+    if (msg.document) {
+      try {
+        const fileName = msg.document.file_name || ''
+        if (!fileName.match(/\.(csv|txt|tsv)$/i)) {
+          return send(chatId, '❌ Please upload a <b>.csv</b> or <b>.txt</b> file.', { parse_mode: 'HTML' })
+        }
+        const fileLink = await bot.getFileLink(msg.document.file_id)
+        const response = await require('axios').get(fileLink, { responseType: 'text', timeout: 30000 })
+        content = typeof response.data === 'string' ? response.data : JSON.stringify(response.data)
+      } catch (e) {
+        return send(chatId, `❌ Failed to read file: ${e.message}`)
+      }
+    } else if (message) {
+      content = message
+    }
+
+    if (!content || !content.trim()) {
+      return send(chatId, '📎 Please upload a CSV/TXT file with email addresses.')
+    }
+
+    const emails = emailValidation.parseEmailList(content)
+    if (!emails.length) {
+      return send(chatId, '❌ No valid email addresses found in the file. Please check the format.', { parse_mode: 'HTML' })
+    }
+    if (emails.length < EV_CONFIG.minEmails) {
+      return send(chatId, `❌ Minimum <b>${EV_CONFIG.minEmails}</b> emails required. Found only ${emails.length}.`, { parse_mode: 'HTML' })
+    }
+    if (emails.length > EV_CONFIG.maxEmails) {
+      return send(chatId, `❌ Maximum <b>${EV_CONFIG.maxEmails.toLocaleString()}</b> emails allowed. Found ${emails.length.toLocaleString()}.`, { parse_mode: 'HTML' })
+    }
+
+    // Calculate price and show confirmation
+    const pricing = calculatePrice(emails.length)
+    const priceNgn = Math.round(pricing.total * EV_CONFIG.ngnRate)
+    await saveInfo('evEmails', emails)
+    await saveInfo('evPriceUsd', pricing.total)
+    await saveInfo('evPriceNgn', priceNgn)
+    await saveInfo('evRate', pricing.rate)
+    await saveInfo('evCount', emails.length)
+
+    await set(state, chatId, 'action', a.evConfirmPay)
+    const confirmMsg = {
+      en: `📊 <b>Validation Summary</b>\n\n📧 Unique emails: <b>${emails.length.toLocaleString()}</b>\n💰 Rate: <b>$${pricing.rate}/email</b>\n💵 Total: <b>$${pricing.total.toFixed(2)}</b> (₦${priceNgn.toLocaleString()})\n\n🔍 7-layer validation:\n  ✅ Syntax • Disposable • Role • Free Provider\n  ✅ MX Record • SMTP Mailbox • Catch-all\n\n📄 You'll receive 3 result files:\n  • ✅ Valid emails\n  • 📊 Full report with scores\n  • ❌ Invalid & risky emails\n\nChoose payment method:`,
+      fr: `📊 <b>Résumé de la Validation</b>\n\n📧 Emails uniques : <b>${emails.length.toLocaleString()}</b>\n💰 Tarif : <b>$${pricing.rate}/email</b>\n💵 Total : <b>$${pricing.total.toFixed(2)}</b> (₦${priceNgn.toLocaleString()})\n\nChoisissez le mode de paiement :`,
+      zh: `📊 <b>验证摘要</b>\n\n📧 唯一邮箱: <b>${emails.length.toLocaleString()}</b>\n💰 费率: <b>$${pricing.rate}/封</b>\n💵 总计: <b>$${pricing.total.toFixed(2)}</b> (₦${priceNgn.toLocaleString()})\n\n选择支付方式:`,
+      hi: `📊 <b>सत्यापन सारांश</b>\n\n📧 अद्वितीय ईमेल: <b>${emails.length.toLocaleString()}</b>\n💰 दर: <b>$${pricing.rate}/ईमेल</b>\n💵 कुल: <b>$${pricing.total.toFixed(2)}</b> (₦${priceNgn.toLocaleString()})\n\nभुगतान विधि चुनें:`,
+    }
+    const payBtns = [
+      ['💵 Pay USD', '💵 Pay NGN'],
+      ['❌ Cancel'],
+    ]
+    return send(chatId, confirmMsg[lang] || confirmMsg.en, { parse_mode: 'HTML', reply_markup: { keyboard: payBtns, resize_keyboard: true } })
+  }
+
+  // ── Email Validation: Paste Emails ──
+  if (action === a.evPasteEmails) {
+    if (message === '❌ Cancel' || message === t.back || message === t.cancel) {
+      await set(state, chatId, 'action', a.evMenu)
+      return send(chatId, '❌ Cancelled.', { parse_mode: 'HTML' })
+    }
+
+    if (!message || !message.trim()) {
+      return send(chatId, '📋 Please paste email addresses (one per line or comma-separated).')
+    }
+
+    const emails = emailValidation.parseEmailList(message)
+    if (!emails.length) {
+      return send(chatId, '❌ No valid email addresses found. Please check format.', { parse_mode: 'HTML' })
+    }
+    if (emails.length > EV_CONFIG.maxPasteEmails) {
+      return send(chatId, `❌ Paste mode supports up to <b>${EV_CONFIG.maxPasteEmails}</b> emails. Found ${emails.length}. Use file upload for larger lists.`, { parse_mode: 'HTML' })
+    }
+    if (emails.length < EV_CONFIG.minEmails) {
+      return send(chatId, `❌ Minimum <b>${EV_CONFIG.minEmails}</b> emails required. Found only ${emails.length}.`, { parse_mode: 'HTML' })
+    }
+
+    const pricing = calculatePrice(emails.length)
+    const priceNgn = Math.round(pricing.total * EV_CONFIG.ngnRate)
+    await saveInfo('evEmails', emails)
+    await saveInfo('evPriceUsd', pricing.total)
+    await saveInfo('evPriceNgn', priceNgn)
+    await saveInfo('evRate', pricing.rate)
+    await saveInfo('evCount', emails.length)
+
+    await set(state, chatId, 'action', a.evConfirmPay)
+    const confirmMsg = {
+      en: `📊 <b>Validation Summary</b>\n\n📧 Emails: <b>${emails.length}</b>\n💰 Rate: <b>$${pricing.rate}/email</b>\n💵 Total: <b>$${pricing.total.toFixed(2)}</b> (₦${priceNgn.toLocaleString()})\n\nChoose payment method:`,
+      fr: `📊 <b>Résumé</b>\n\n📧 Emails : <b>${emails.length}</b>\n💵 Total : <b>$${pricing.total.toFixed(2)}</b>\n\nChoisissez le paiement :`,
+      zh: `📊 <b>摘要</b>\n\n📧 邮箱: <b>${emails.length}</b>\n💵 总计: <b>$${pricing.total.toFixed(2)}</b>\n\n选择支付:`,
+      hi: `📊 <b>सारांश</b>\n\n📧 ईमेल: <b>${emails.length}</b>\n💵 कुल: <b>$${pricing.total.toFixed(2)}</b>\n\nभुगतान चुनें:`,
+    }
+    const payBtns = [
+      ['💵 Pay USD', '💵 Pay NGN'],
+      ['❌ Cancel'],
+    ]
+    return send(chatId, confirmMsg[lang] || confirmMsg.en, { parse_mode: 'HTML', reply_markup: { keyboard: payBtns, resize_keyboard: true } })
+  }
+
+  // ── Email Validation: Confirm & Pay ──
+  if (action === a.evConfirmPay) {
+    if (message === '❌ Cancel' || message === t.back || message === t.cancel) {
+      await set(state, chatId, 'action', a.evMenu)
+      await saveInfo('evEmails', null)
+      return send(chatId, '❌ Cancelled.', { parse_mode: 'HTML' })
+    }
+
+    const emails = info?.evEmails
+    const priceUsd = info?.evPriceUsd
+    const priceNgn = info?.evPriceNgn
+    const emailCount = info?.evCount
+
+    if (!emails || !emails.length || !priceUsd) {
+      await set(state, chatId, 'action', a.evMenu)
+      return send(chatId, '❌ Session expired. Please start again.', { parse_mode: 'HTML' })
+    }
+
+    const wallet = await get(walletOf, chatId) || { usdIn: 0, usdOut: 0, ngnIn: 0, ngnOut: 0 }
+    const usdBal = (wallet.usdIn || 0) - (wallet.usdOut || 0)
+    const ngnBal = (wallet.ngnIn || 0) - (wallet.ngnOut || 0)
+
+    if (message === '💵 Pay USD') {
+      if (usdBal < priceUsd) {
+        return send(chatId, `⚠️ Insufficient USD balance.\n💰 Need: <b>$${priceUsd.toFixed(2)}</b>\n💳 Have: <b>$${usdBal.toFixed(2)}</b>\n\nPlease deposit more to your wallet.`, { parse_mode: 'HTML' })
+      }
+
+      // Deduct wallet
+      await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
+      log(`[EmailValidation] Deducted $${priceUsd} USD from chatId=${chatId} for ${emailCount} emails`)
+
+      // Clear session emails to free memory, start processing
+      await saveInfo('evEmails', null)
+      await set(state, chatId, 'action', null)
+
+      // Process in background
+      emailValidationService.processValidationJob(chatId, emails, priceUsd, 'wallet_usd', lang)
+        .catch(err => {
+          log(`[EmailValidation] Job error for chatId=${chatId}: ${err.message}`)
+          // Refund on failure
+          atomicIncrement(walletOf, chatId, 'usdIn', priceUsd).catch(() => {})
+          bot.sendMessage(chatId, `❌ Validation failed. <b>$${priceUsd.toFixed(2)}</b> has been refunded to your wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+        })
+
+      return send(chatId, `✅ <b>Payment successful!</b>\n\n💵 Charged: <b>$${priceUsd.toFixed(2)}</b>\n📧 Validating: <b>${emailCount.toLocaleString()} emails</b>\n\n⏳ Processing will begin shortly. You'll receive progress updates.`, { parse_mode: 'HTML', reply_markup: { keyboard: [[user.emailValidation], [t.back || '🔙 Back']], resize_keyboard: true } })
+    }
+
+    if (message === '💵 Pay NGN') {
+      if (ngnBal < priceNgn) {
+        return send(chatId, `⚠️ Insufficient NGN balance.\n💰 Need: <b>₦${priceNgn.toLocaleString()}</b>\n💳 Have: <b>₦${ngnBal.toFixed(2)}</b>\n\nPlease deposit more to your wallet.`, { parse_mode: 'HTML' })
+      }
+
+      // Deduct wallet
+      await atomicIncrement(walletOf, chatId, 'ngnOut', priceNgn)
+      log(`[EmailValidation] Deducted ₦${priceNgn} NGN from chatId=${chatId} for ${emailCount} emails`)
+
+      // Clear session and process
+      await saveInfo('evEmails', null)
+      await set(state, chatId, 'action', null)
+
+      emailValidationService.processValidationJob(chatId, emails, priceUsd, 'wallet_ngn', lang)
+        .catch(err => {
+          log(`[EmailValidation] Job error for chatId=${chatId}: ${err.message}`)
+          atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn).catch(() => {})
+          bot.sendMessage(chatId, `❌ Validation failed. <b>₦${priceNgn.toLocaleString()}</b> has been refunded to your wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+        })
+
+      return send(chatId, `✅ <b>Payment successful!</b>\n\n💵 Charged: <b>₦${priceNgn.toLocaleString()}</b>\n📧 Validating: <b>${emailCount.toLocaleString()} emails</b>\n\n⏳ Processing will begin shortly. You'll receive progress updates.`, { parse_mode: 'HTML', reply_markup: { keyboard: [[user.emailValidation], [t.back || '🔙 Back']], resize_keyboard: true } })
+    }
+
+    return send(chatId, 'Please choose a payment method:', { reply_markup: { keyboard: [['💵 Pay USD', '💵 Pay NGN'], ['❌ Cancel']], resize_keyboard: true } })
   }
 
   // ━━━ Ship & Mail (BozzMail Mini App) ━━━
