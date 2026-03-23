@@ -1,64 +1,54 @@
 # PRD - Nomadly Platform
 
 ## Original Problem Statement
-Multi-service platform (Telegram bot + React frontend + Node.js backend) managing domains, hosting, URL shortening, and wallet/payment systems. Key services include cPanel/WHM hosting management, domain registration (ConnectReseller + OpenProvider dual registrar), dual-currency (USD/NGN) wallet, Cloudflare DNS management, and anti-red protection.
+Multi-service platform (Telegram bot + React frontend + Node.js backend) managing domains, hosting, URL shortening, and wallet/payment systems. Key services include cPanel/WHM hosting management, domain registration (ConnectReseller + OpenProvider dual registrar), dual-currency (USD/NGN) wallet, Cloudflare DNS management, anti-red protection, and Cloud Phone (SIP/IVR/voice).
 
 ## Core Architecture
 - **Backend**: Node.js monolith (`js/_index.js`) — Telegram bot state machine (22k+ lines)
 - **Frontend**: React app via `cpanel-routes.js`
 - **Database**: MongoDB
 - **Secondary Backend**: FastAPI (proxy)
-- **Key Integrations**: Telegram, Cloudflare, cPanel/WHM, ConnectReseller, OpenProvider, OpenExchangeRates, Twilio, BlockBee/DynoPay
+- **Key Integrations**: Telegram, Cloudflare, cPanel/WHM, ConnectReseller, OpenProvider, OpenExchangeRates, Twilio, Telnyx, BlockBee/DynoPay
 
-## What's Been Implemented
+## What's Been Implemented (Current Session — Feb 2026)
 
-### Completed (Previous Sessions)
-- Full NGN Wallet Integration across all 8+ payment flows
-- Cached currency conversion (`usdToNgn`, `ngnToUsd`) with API failure handling
-- Anti-Red Cloudflare Worker hardening with Proof-of-Interaction challenge
-- Addon domain auto-protection with retry and Telegram notifications
-- Dynamic minimum NGN deposit (~$10 USD equivalent)
+### Domain Pricing Overhaul: "Show worst-case, charge best-case"
+- `checkDomainPrice()` shows HIGHER price, tries cheaper registrar first
+- Savings credited to wallet (wallet/bank/crypto paths)
+- Admin notifications on savings events
+- Tests: 10/10 passing
 
-### Completed (Current Session — Feb 2026)
+### BulkIVR Smart Wallet Requirement
+- $50 minimum only for first-time campaigns or zero balance
+- Returning users can launch with any balance
+- Pre-campaign estimate + low balance warnings
+- `BULK_CALL_MIN_WALLET` configurable via .env
 
-#### Domain Pricing Overhaul: "Show worst-case, charge best-case"
-- `checkDomainPrice()` now returns worst-case (higher) price to user, tracks both registrar prices
-- `registerDomain()` returns `registrarChanged`, `actualPrice` on fallback
-- All 5 payment paths (wallet USD/NGN, bank, BlockBee crypto, DynoPay crypto) updated with savings logic
-- Savings messages: wallet charges less; bank/crypto credits difference to wallet
-- Admin notifications on every savings event
-- Tests: 10/10 passing (`js/tests/test_domain_price_fix.js`)
-
-#### BulkIVR Smart Wallet Requirement
-- **Previously**: All campaigns required $50 minimum wallet balance (hard block)
-- **Now**: $50 minimum only for first-time campaigns OR when balance is near zero (can't cover even one call at $0.15/min)
-- Returning users with existing balance can launch campaigns freely
-- Pre-campaign estimate always shown (leads count, estimated cost, calls covered)
-- Low balance warning (soft) when balance < estimated campaign cost
-- Mid-campaign pause already existed (pauses when wallet depleted)
-- `BULK_CALL_MIN_WALLET` configurable via `.env` (default $50)
-- Tests: 10/10 passing (`js/tests/test_bulkivr_wallet.js`)
+### SIP Outbound Call Fix (Twilio numbers on Telnyx SIP)
+- **Root Cause**: User @lamanifestor has Twilio number (+18888645099) but SIP credential is on Telnyx connection. When code transferred call via Telnyx with `from=+18888645099`, Telnyx rejected: "Unverified origination number D51"
+- **Fix**:
+  1. Removed `from` parameter from Telnyx-to-Twilio SIP bridge transfer (Twilio SIP handler sets correct caller ID)
+  2. Removed 200ms delay — transfer fires immediately to beat Telnyx auto-routing race condition
+  3. Added Twilio direct call fallback when Telnyx transfer fails (fetches sub-account creds from user's phoneNumbersOf doc)
+- **Files**: `js/voice-service.js` (lines ~1198-1250)
 
 ## Prioritized Backlog
 
-### P1
-- Add NGN currency support to Fincra deposit confirmation webhook flows
-
 ### P2
-- Add monitoring for OpenExchangeRates API availability in production
+- Add monitoring for OpenExchangeRates API availability
 
 ### Backlog / Refactoring
 - Break `_index.js` (22k+ lines) into feature-specific modules
 
 ## Key DB Schema
 - `walletOf`: `{ _id: chatId, usdIn, usdOut, ngnIn, ngnOut }`
-- `bulkCallCampaigns`: `{ id, chatId, status, leads: [], stats, twilioSubAccountSid, ... }`
+- `phoneNumbersOf`: `{ _id: chatId, val: { numbers: [...], twilioSubAccountSid, twilioSubAccountToken } }`
 - `state`: `{ _id: chatId, action, ...info, cheaperPrice?, registrarFallback? }`
 
 ## Key Files
 - `js/_index.js` — Main bot logic, payment handlers
-- `js/bulk-call-service.js` — BulkIVR campaign management, smart wallet checks
+- `js/voice-service.js` — SIP outbound/inbound, IVR, call forwarding, recording
+- `js/telnyx-service.js` — Telnyx API wrapper (transferCall, hangupCall, etc.)
+- `js/bulk-call-service.js` — BulkIVR campaign management
 - `js/domain-service.js` — Domain registration, dual-registrar pricing
 - `js/utils.js` — Currency conversion, wallet utilities
-- `js/tests/test_domain_price_fix.js` — Domain pricing tests
-- `js/tests/test_bulkivr_wallet.js` — BulkIVR wallet requirement tests
