@@ -95,7 +95,7 @@ const user = {
   phoneNumberLeads: '🎯 购买线索 | 验证您的号码',
   buyLeads: '🎯 购买线索',
   validateLeads: '✅ 验证号码',
-  leadsValidation: '🎯 线索与验证',
+  leadsValidation: '📱 SMS Leads',
   hostingDomainsRedirect: '🛡️🔥 Anti-Red 托管',
   wallet: '👛 钱包',
   urlShortenerMain: '🔗 URL 缩短器',
@@ -1263,11 +1263,16 @@ const userKeyboard = {
       [user.marketplace, user.digitalProducts],
       [user.domainNames, user.hostingDomainsRedirect],
       [user.emailValidation, user.virtualCard],
-      [user.wallet],
-      [user.urlShortenerMain, user.leadsValidation],
-      EMAIL_BLAST_ON === 'true' ? [user.shippingLabel, user.emailBlast] : [user.shippingLabel],
-      ...(HIDE_SMS_APP === 'true' ? [] : [[user.freeTrialAvailable, user.serviceBundles]]),
-      ...(HIDE_SMS_APP === 'true' ? [[user.serviceBundles]] : []),
+      [user.wallet, user.leadsValidation],
+      [user.urlShortenerMain],
+      ...(EMAIL_BLAST_ON === 'true' && HIDE_SMS_APP !== 'true'
+        ? [[user.freeTrialAvailable, user.emailBlast]]
+        : EMAIL_BLAST_ON === 'true'
+          ? [[user.emailBlast]]
+          : HIDE_SMS_APP !== 'true'
+            ? [[user.freeTrialAvailable]]
+            : []),
+      [user.shippingLabel, user.serviceBundles],
       HIDE_BECOME_RESELLER === 'true'
         ? [user.changeSetting, user.getSupport]
         : [user.becomeReseller, user.changeSetting, user.getSupport],

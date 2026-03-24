@@ -11912,8 +11912,8 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   if (message === user.domainNames || message.startsWith('🌐 Register Bulletproof Domain') || message.startsWith('🌐 Register Domain')) {
     return goto.submenu2()
   }
-  // 🎯 Leads & Validation combined button → show leads submenu
-  if (message === user.leadsValidation || message === '🎯 Leads & Validation' || message === '🎯 线索与验证' || message === '🎯 लीड्स और सत्यापन') {
+  // 📱 SMS Leads button (formerly Leads & Validation) → show leads submenu
+  if (message === user.leadsValidation || message === '📱 SMS Leads' || message === '🎯 Leads & Validation' || message === '🎯 线索与验证' || message === '🎯 लीड्स और सत्यापन') {
     return goto.phoneNumberLeads()
   }
   if (message === user.phoneNumberLeads || message === user.buyLeads || message === '🎯 Buy Valid Leads | Verify Yours' || message === '🎯 Buy Phone Leads') {

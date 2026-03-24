@@ -345,7 +345,24 @@ test_plan:
   test_all: false
   test_priority: "high_first"
 
+  - task: "Main menu keyboard rearrangement and SMS Leads rename"
+    implemented: true
+    working: true
+    file: "js/lang/en.js, js/lang/fr.js, js/lang/zh.js, js/lang/hi.js, js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Rearranged main menu keyboard: (1) Moved leadsValidation to same row as wallet and renamed from 'Leads & Validation' to 'SMS Leads', (2) Moved shippingLabel to same row as serviceBundles, (3) urlShortenerMain now on its own row, (4) emailBlast and freeTrialAvailable combined conditionally, (5) Updated button matcher in _index.js for backward compatibility. All 4 language files updated. Syntax checks pass. Node.js restarts clean."
+        - working: true
+          agent: "main"
+          comment: "VERIFIED: All syntax checks pass (5/5), all 4 language keyboards show correct layout — Wallet+SMS Leads on Row 5, Ship&Mail+Service Bundles on Row 7. Button matcher has backward compat for old labels. Health endpoint healthy, 0-byte error log."
+
 agent_communication:
+    - agent: "main"
+      message: "MAIN MENU REARRANGEMENT: (1) Wallet + SMS Leads on same row (renamed from Leads & Validation), (2) Ship & Mail + Service Bundles on same row, (3) URL Shortener alone, (4) Email Blast + BulkSMS Trial combined conditionally. Updated all 4 lang files (en/fr/zh/hi) + _index.js button matcher. Syntax OK, node restart clean."
     - agent: "main"
       message: "US DOMAIN REGISTRATION FIX: OpenProvider error 1927 'Customer required additional data parameter is missing' for .us domain getustogether.us. Root cause: OP requires nexus_category and applicant_purpose on the CUSTOMER HANDLE via extension_additional_data, NOT in domain registration payload. Handle RA1083275-US had no extension data. Fix: (1) Updated JC961841-US handle via OP API with extension_additional_data [{name:'us',data:{nexus_category:'C21',applicant_purpose:'P1'}}]. (2) Added us:['US'] to TLD_CONTACT_COUNTRY in op-service.js. (3) Set PREFERRED_HANDLES.US='JC961841-US'. (4) Added pre-registration check that verifies/sets extension_additional_data before .us registration. User requested NOT to use RA1083275-US (Richard Adebayo). Syntax OK, nodejs restarts clean."
     - agent: "testing"

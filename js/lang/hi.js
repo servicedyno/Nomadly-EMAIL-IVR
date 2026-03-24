@@ -95,7 +95,7 @@ const user = {
   phoneNumberLeads: '🎯 लीड्स खरीदें | अपने सत्यापित करें',
   buyLeads: '🎯 लीड्स खरीदें',
   validateLeads: '✅ नंबर सत्यापित करें',
-  leadsValidation: '🎯 लीड्स और सत्यापन',
+  leadsValidation: '📱 SMS Leads',
   hostingDomainsRedirect: '🛡️🔥 Anti-Red होस्टिंग',
   wallet: '👛 वॉलेट',
   urlShortenerMain: '🔗 URL शॉर्टनर',
@@ -1270,11 +1270,16 @@ const userKeyboard = {
       [user.marketplace, user.digitalProducts],
       [user.domainNames, user.hostingDomainsRedirect],
       [user.emailValidation, user.virtualCard],
-      [user.wallet],
-      [user.urlShortenerMain, user.leadsValidation],
-      EMAIL_BLAST_ON === 'true' ? [user.shippingLabel, user.emailBlast] : [user.shippingLabel],
-      ...(HIDE_SMS_APP === 'true' ? [] : [[user.freeTrialAvailable, user.serviceBundles]]),
-      ...(HIDE_SMS_APP === 'true' ? [[user.serviceBundles]] : []),
+      [user.wallet, user.leadsValidation],
+      [user.urlShortenerMain],
+      ...(EMAIL_BLAST_ON === 'true' && HIDE_SMS_APP !== 'true'
+        ? [[user.freeTrialAvailable, user.emailBlast]]
+        : EMAIL_BLAST_ON === 'true'
+          ? [[user.emailBlast]]
+          : HIDE_SMS_APP !== 'true'
+            ? [[user.freeTrialAvailable]]
+            : []),
+      [user.shippingLabel, user.serviceBundles],
       HIDE_BECOME_RESELLER === 'true'
         ? [user.changeSetting, user.getSupport]
         : [user.becomeReseller, user.changeSetting, user.getSupport],
