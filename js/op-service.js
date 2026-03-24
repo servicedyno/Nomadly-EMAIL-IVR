@@ -145,6 +145,7 @@ const TLD_CONTACT_COUNTRY = {
   ca: ['CA'],
   eu: ['FR', 'IT', 'DE', 'NL'],
   sg: ['SG'],
+  us: ['US'],  // .us requires US-based contact with extension_additional_data (nexus)
 }
 
 // Known working contact handles (verified in OpenProvider account)
@@ -152,6 +153,7 @@ const TLD_CONTACT_COUNTRY = {
 const PREFERRED_HANDLES = {
   IT: 'MR971932-IT',
   CA: 'BK921363-CA',
+  US: 'JC961841-US',  // John CloakHost — has .us extension_additional_data (nexus_category: C21, applicant_purpose: P1)
 }
 
 // EU contact details for creating new handles when none exist
@@ -400,6 +402,30 @@ const registerDomain = async (domainName, nameservers = []) => {
 
     log(`[registerDomain] Registering ${domainName} | contact: ${contactHandle} | NS: ${effectiveNS.join(', ') || 'none'} | additional_data: ${JSON.stringify(tldData || {})}`)
 
+    // For .us domains: ensure the customer handle has extension_additional_data with nexus fields
+    // OpenProvider requires nexus_category and applicant_purpose on the CUSTOMER HANDLE, not domain additional_data
+    if (tld === 'us') {
+      try {
+        const custRes = await axios.get(`${OP_BASE_URL}/v1beta/customers/${contactHandle}`, {
+          headers, params: { with_additional_data: true }, timeout: 10000,
+        })
+        const extData = custRes.data?.data?.extension_additional_data || []
+        const hasUsData = extData.some(e => e.name === 'us' && e.data?.nexus_category && e.data?.applicant_purpose)
+        if (!hasUsData) {
+          log(`[OP] .us handle ${contactHandle} missing extension_additional_data — adding nexus fields`)
+          await axios.put(`${OP_BASE_URL}/v1beta/customers/${contactHandle}`, {
+            extension_additional_data: [
+              { name: 'us', data: { nexus_category: 'C21', applicant_purpose: 'P1' } }
+            ]
+          }, { headers, timeout: 10000 })
+          log(`[OP] Updated ${contactHandle} with .us extension_additional_data`)
+        } else {
+          log(`[OP] .us handle ${contactHandle} already has extension_additional_data`)
+        }
+      } catch (extErr) {
+        log(`[OP] Warning: failed to verify/set .us extension data on ${contactHandle}: ${extErr.message}`)
+      }
+    }
 
     const res = await axios.post(`${OP_BASE_URL}/v1beta/domains`, regData, {
       headers, timeout: 30000,
