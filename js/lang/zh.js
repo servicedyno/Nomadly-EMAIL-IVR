@@ -1261,12 +1261,13 @@ const userKeyboard = {
     keyboard: [
       [user.cloudPhone],
       [user.marketplace, user.digitalProducts],
-      EMAIL_BLAST_ON === 'true' ? [user.shippingLabel, user.emailBlast] : [user.shippingLabel],
       [user.domainNames, user.hostingDomainsRedirect],
+      [user.emailValidation, user.virtualCard],
+      [user.wallet],
       [user.urlShortenerMain, user.leadsValidation],
-      ...(HIDE_SMS_APP === 'true' ? [] : [[user.freeTrialAvailable]]),
-      [user.serviceBundles],
-      [user.virtualCard, user.wallet, user.viewPlan],
+      EMAIL_BLAST_ON === 'true' ? [user.shippingLabel, user.emailBlast] : [user.shippingLabel],
+      ...(HIDE_SMS_APP === 'true' ? [] : [[user.freeTrialAvailable, user.serviceBundles]]),
+      ...(HIDE_SMS_APP === 'true' ? [[user.serviceBundles]] : []),
       HIDE_BECOME_RESELLER === 'true'
         ? [user.changeSetting, user.getSupport]
         : [user.becomeReseller, user.changeSetting, user.getSupport],

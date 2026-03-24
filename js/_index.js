@@ -5999,6 +5999,7 @@ All verified numbers generated during sourcing.`))
   if (message === user.changeSetting || message === '🌍 Change Settings' || message === '🌍 Settings' || message === '🌍 Paramètres' || message === '🌍 设置' || message === '🌍 सेटिंग्स') {
     set(state, chatId, 'action', a.settingsMenu)
     return send(chatId, trans('l.settingsMenuText') || '⚙️ <b>Settings</b>\n\nManage your preferences below:', k.of([
+      [user.viewPlan || '📋 My Plans'],
       [user.changeLanguage || '🌍 Change Language'],
       [user.joinChannel || '📢 Join Channel'],
       [t.back],
