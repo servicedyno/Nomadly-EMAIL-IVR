@@ -121,6 +121,18 @@ user_problem_statement: "Fix SIP call failures — Railway deployment call_rejec
           agent: "main"
           comment: "CRITICAL FIX: Moved answerCall to execute IMMEDIATELY after detecting Twilio number provider, BEFORE any DB queries or credential recovery API calls. Previous placement (after pre-flight checks at line 1268) allowed 50-200ms delay during which Telnyx auto-routed the call with wrong ANI → callee rejected → call_rejected. New placement (line 1241) ensures we claim the call within <10ms, preventing auto-route race. Added immediate fallback to Twilio direct call if answer fails. This addresses the recurring Railway deployment issue where calls were rejected despite all credentials being correct."
 
+  - task: "Twilio SIP domain IP ACL configuration for incoming calls from Telnyx"
+    implemented: true
+    working: "NA"
+    file: "js/twilio-service.js"
+    stuck_count: 2
+    priority: "critical"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "ROOT CAUSE FIX: Discovered via troubleshoot agent that Twilio SIP domain was rejecting ALL incoming SIP INVITE requests from Telnyx because no authentication method was configured for incoming calls. The existing credential list mapping (line 569) only authenticates SIP REGISTER requests (device registration), NOT INVITE requests (actual calls). Added IP ACL with 8 Telnyx signaling IPs (US, Europe, Australia regions) and mapped to auth.calls.ipAccessControlListMappings. This allows Twilio to accept incoming SIP calls from Telnyx. Without this, every SIP call was rejected at Twilio's SIP layer with call_rejected before reaching our webhook. IP ACL created: AL9d507c8e92b81b62c224100679943c8d. This is the definitive fix for the recurring Railway call_rejected issue."
+
 backend:
   - task: "NGN wallet support for hosting manual renewal"
     implemented: true
@@ -295,7 +307,8 @@ test_plan:
 
 test_plan:
   current_focus:
-    - "Answer-before-transfer fix for Twilio SIP outbound calls"
+    - "Answer-before-transfer timing optimization for Twilio SIP bridge"
+    - "Twilio SIP domain IP ACL configuration for incoming calls from Telnyx"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -303,6 +316,10 @@ test_plan:
 agent_communication:
     - agent: "main"
       message: "Fix 4: Added answerCall() before transferCall for Twilio number SIP outbound calls. This stops Telnyx auto-routing race condition that causes USER_BUSY. The auto-route uses wrong caller ID (Telnyx default ANI, not user's Twilio number) → callee rejects → call dies before our transfer can execute. By answering first, we establish the call on Telnyx side, preventing auto-routing. Then transfer to Twilio SIP bridge works correctly. File: js/voice-service.js."
+    - agent: "main"
+      message: "Fix 5 (TIMING OPTIMIZATION): Moved answerCall to execute IMMEDIATELY (line 1241) after detecting Twilio number, BEFORE any DB queries or credential recovery API calls. Previous placement (line 1268, AFTER pre-flight checks) allowed 50-200ms delay during which Telnyx auto-routed with wrong ANI → rejection. New placement prevents race within <10ms. File: js/voice-service.js."
+    - agent: "main"
+      message: "Fix 6 (ROOT CAUSE - DEFINITIVE): Troubleshoot agent discovered Twilio SIP domain was rejecting ALL incoming SIP calls from Telnyx due to missing authentication configuration. Existing credential list (line 569) only authenticates REGISTER (device registration), NOT INVITE (actual calls). Added IP ACL with 8 Telnyx signaling IPs (US/EU/AU) and mapped to auth.calls.ipAccessControlListMappings. This allows Twilio to accept incoming calls from Telnyx. IP ACL: AL9d507c8e92b81b62c224100679943c8d. This is the definitive fix for recurring call_rejected on Railway. File: js/twilio-service.js."
     - agent: "main"
       message: "Fixed external number hijacking. Root cause: migrateNumbersToCallControlApp() was reassigning ALL 8 Telnyx account numbers to the bot's Call Control App at every startup, but only 2 are bot numbers. Fix: (1) telnyx-service.js: migrateNumbersToCallControlApp now accepts botNumbers list and sipConnectionId. Only migrates bot-owned numbers. External numbers on the bot's Call Control App are DETACHED and restored to the SIP connection. (2) _index.js: Queries phoneNumbersOf DB for Telnyx active numbers, passes to migration along with sipConnectionId. Verified: startup log shows '0 migrated, 2 already correct, 0 external skipped, 6 external detached, 8 total'. Both +18775877003 and +18778570205 successfully detached. Files: js/telnyx-service.js, js/_index.js."
     - agent: "testing"

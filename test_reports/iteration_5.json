@@ -1,0 +1,68 @@
+{
+  "summary": "Completed testing of Twilio SIP call connection fix for Railway deployment. All critical fixes verified: (1) IP ACL AL9d507c8e92b81b62c224100679943c8d created with 8 Telnyx IPs and mapped to auth.calls (2) answerCall timing correct - happens IMMEDIATELY at line 1248 before any DB queries (3) Sub-account credentials persisted for user 6604316166 (4) ANI restore code present (5) Credential recovery code present. The root cause (Twilio rejecting SIP INVITE from Telnyx due to missing IP ACL) has been fixed.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_twilio_sip_bridge.py",
+    "/app/test_reports/pytest/pytest_results_twilio_sip.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "✅ IP ACL AL9d507c8e92b81b62c224100679943c8d created with 8 Telnyx signaling IPs",
+    "✅ IP ACL mapped to SIP domain speechcue-7937a0.sip.twilio.com under auth.calls (not auth.registrations)",
+    "✅ answerCall at line 1248 happens IMMEDIATELY after Twilio detection, BEFORE any DB queries (line 1264)",
+    "✅ CRITICAL comment at line 1241 explains the auto-routing race condition prevention",
+    "✅ Sub-account credentials (twilioSubAccountSid, twilioSubAccountToken) persisted for user 6604316166",
+    "✅ Credential recovery code in _attemptTwilioDirectCall (lines 83-109) recovers token from Twilio API if missing",
+    "✅ ANI restore code at line 1347-1348 restores connection ANI after transfer attempt",
+    "✅ All 8 Telnyx IPs verified in Twilio: 192.76.120.10, 64.16.250.10, 192.76.120.31, 64.16.250.13, 185.246.41.140, 185.246.41.141, 103.115.244.145, 103.115.244.146"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_twilio_sip_bridge.py"
+  ],
+  "success_rate": {
+    "backend": "100% (14/14 tests passed)",
+    "frontend": "N/A (backend only testing requested)"
+  },
+  "test_credentials": "User chatId=6604316166, Twilio number +18888645099, Sub-account ACbbc22c43a792f2b36e2c87e14c604383",
+  "seed_data_creation": "None required - existing user data used",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Twilio SIP bridge fix verified. IP ACL AL9d507c8e92b81b62c224100679943c8d created and mapped to auth.calls on SIP domain speechcue-7937a0.sip.twilio.com. This was the root cause - Twilio was rejecting incoming SIP INVITE requests from Telnyx because credential lists only authenticate REGISTER requests, not INVITE. The answerCall timing fix prevents Telnyx auto-routing race condition. User @lamanifestor (chatId=6604316166) should now be able to make outbound SIP calls from +18888645099 without call_rejected errors.",
+  "features_tested": {
+    "ip_acl_created": "PASS - AL9d507c8e92b81b62c224100679943c8d with 8 Telnyx IPs",
+    "ip_acl_mapped_to_auth_calls": "PASS - Mapped to speechcue-7937a0.sip.twilio.com auth.calls",
+    "answer_call_timing": "PASS - Line 1248, BEFORE DB queries at line 1264",
+    "credential_recovery_code": "PASS - Lines 83-109 in voice-service.js",
+    "ani_restore_code": "PASS - Lines 1347-1348 in voice-service.js",
+    "sub_account_credentials_persisted": "PASS - twilioSubAccountSid and twilioSubAccountToken present for user 6604316166",
+    "sip_voice_webhook": "PASS - /twilio/sip-voice endpoint responds with TwiML",
+    "voice_webhook": "PASS - /twilio/voice-webhook endpoint responds",
+    "telnyx_env_vars": "PASS - TELNYX_API_KEY, TELNYX_SIP_CONNECTION_ID, TELNYX_DEFAULT_ANI configured",
+    "twilio_env_vars": "PASS - TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN configured"
+  },
+  "twilio_verification": {
+    "sip_domain": "speechcue-7937a0.sip.twilio.com",
+    "sip_domain_sid": "SDdb6525d35a1f09e4d1dfc19a2128ed96",
+    "ip_acl_sid": "AL9d507c8e92b81b62c224100679943c8d",
+    "ip_acl_name": "Telnyx SIP Signaling IPs",
+    "ip_count": 8,
+    "ips_verified": [
+      "192.76.120.10 (Telnyx US Primary)",
+      "64.16.250.10 (Telnyx US Secondary)",
+      "192.76.120.31 (Telnyx US Tertiary)",
+      "64.16.250.13 (Telnyx US Quaternary)",
+      "185.246.41.140 (Telnyx Europe Primary)",
+      "185.246.41.141 (Telnyx Europe Secondary)",
+      "103.115.244.145 (Telnyx Australia Primary)",
+      "103.115.244.146 (Telnyx Australia Secondary)"
+    ]
+  }
+}

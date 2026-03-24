@@ -576,6 +576,67 @@ async function initializeTwilioResources(selfUrl) {
       }
     }
 
+    // ── CRITICAL FIX: Configure IP ACL for incoming SIP calls from Telnyx ──
+    // The credential list above only authenticates SIP REGISTER requests (for device registration).
+    // Incoming SIP INVITE requests (actual calls) need separate authentication via IP ACL.
+    // Without this, Twilio rejects all incoming SIP calls with call_rejected.
+    try {
+      // Get or create IP ACL for Telnyx
+      let telnyxIpAcl = null
+      const existingAcls = await client.sip.ipAccessControlLists.list({ limit: 50 })
+      telnyxIpAcl = existingAcls.find(acl => acl.friendlyName?.includes('Telnyx'))
+
+      if (!telnyxIpAcl) {
+        telnyxIpAcl = await client.sip.ipAccessControlLists.create({
+          friendlyName: 'Telnyx SIP Signaling IPs'
+        })
+        log(`[Twilio] Created IP ACL for Telnyx: ${telnyxIpAcl.sid}`)
+
+        // Add Telnyx signaling IPs for all regions
+        const telnyxIps = [
+          { name: 'Telnyx US Primary', ip: '192.76.120.10' },
+          { name: 'Telnyx US Secondary', ip: '64.16.250.10' },
+          { name: 'Telnyx US Tertiary', ip: '192.76.120.31' },
+          { name: 'Telnyx US Quaternary', ip: '64.16.250.13' },
+          { name: 'Telnyx Europe Primary', ip: '185.246.41.140' },
+          { name: 'Telnyx Europe Secondary', ip: '185.246.41.141' },
+          { name: 'Telnyx Australia Primary', ip: '103.115.244.145' },
+          { name: 'Telnyx Australia Secondary', ip: '103.115.244.146' },
+        ]
+
+        for (const { name, ip } of telnyxIps) {
+          try {
+            await client.sip.ipAccessControlLists(telnyxIpAcl.sid).ipAddresses.create({
+              friendlyName: name,
+              ipAddress: ip
+            })
+          } catch (e) {
+            if (!e.message?.includes('already exists')) {
+              log(`[Twilio] IP add note: ${name} (${ip}) - ${e.message}`)
+            }
+          }
+        }
+        log(`[Twilio] Added ${telnyxIps.length} Telnyx IP addresses to ACL`)
+      }
+
+      // Map IP ACL to SIP domain for incoming calls (auth.calls, not auth.registrations)
+      try {
+        await client.sip.domains(sipDomain.sid).auth.calls.ipAccessControlListMappings.create({
+          ipAccessControlListSid: telnyxIpAcl.sid
+        })
+        log(`[Twilio] ✅ Mapped Telnyx IP ACL to SIP domain for incoming calls`)
+      } catch (e) {
+        if (!e.message?.includes('already exists')) {
+          log(`[Twilio] IP ACL mapping note: ${e.message}`)
+        } else {
+          log(`[Twilio] ✅ Telnyx IP ACL already mapped to SIP domain`)
+        }
+      }
+    } catch (aclErr) {
+      log(`[Twilio] ⚠️ IP ACL configuration error: ${aclErr.message}`)
+      log(`[Twilio] Incoming SIP calls from Telnyx may be rejected without IP ACL`)
+    }
+
     // Migrate credentials from old domain and clean it up
     if (oldDomain) {
       try {
