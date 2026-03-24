@@ -2430,6 +2430,64 @@ bot?.on('message', msg => {
     return
   }
 
+  // Admin: /mpban <@username|chatId> [reason] — ban user from marketplace
+  if (isAdmin(chatId) && message.startsWith('/mpban ')) {
+    const parts = message.substring(7).trim().split(/\s+/)
+    const userRef = (parts[0] || '').replace('@', '')
+    const reason = parts.slice(1).join(' ') || 'admin_ban'
+    if (!userRef) {
+      return send(chatId, '⚠️ Usage: /mpban <@username or chatId> [reason]\n\nExamples:\n<code>/mpban @john spamming</code>\n<code>/mpban 8317455811 policy violation</code>', { parse_mode: 'HTML' })
+    }
+    try {
+      let targetChatId = null
+      let targetName = null
+      if (/^\d+$/.test(userRef)) {
+        targetChatId = Number(userRef)
+        targetName = await get(nameOf, targetChatId)
+      } else {
+        const allNames = await nameOf.find({}).toArray()
+        const match = allNames.find(n => typeof n.val === 'string' && n.val.toLowerCase() === userRef.toLowerCase())
+        if (match) { targetChatId = match._id; targetName = match.val }
+      }
+      if (!targetChatId) return send(chatId, `⚠️ User <b>${userRef}</b> not found.`, { parse_mode: 'HTML' })
+      const result = await marketplaceService.banUser(targetChatId, reason, chatId)
+      return send(chatId, `🚫 <b>Marketplace Ban Applied</b>\n\n👤 User: <b>${targetName || targetChatId}</b> (${targetChatId})\n📦 Listings removed: <b>${result.listingsRemoved}</b>\n📝 Reason: <i>${reason}</i>\n\nUser can no longer access or post in marketplace.`, { parse_mode: 'HTML' })
+    } catch (e) {
+      log(`[Admin] /mpban error: ${e.message}`)
+      return send(chatId, `❌ Error: ${e.message}`)
+    }
+  }
+
+  // Admin: /mpunban <@username|chatId> — unban user from marketplace
+  if (isAdmin(chatId) && message.startsWith('/mpunban ')) {
+    const userRef = message.substring(9).trim().replace('@', '')
+    if (!userRef) {
+      return send(chatId, '⚠️ Usage: /mpunban <@username or chatId>\n\nExamples:\n<code>/mpunban @john</code>\n<code>/mpunban 8317455811</code>', { parse_mode: 'HTML' })
+    }
+    try {
+      let targetChatId = null
+      let targetName = null
+      if (/^\d+$/.test(userRef)) {
+        targetChatId = Number(userRef)
+        targetName = await get(nameOf, targetChatId)
+      } else {
+        const allNames = await nameOf.find({}).toArray()
+        const match = allNames.find(n => typeof n.val === 'string' && n.val.toLowerCase() === userRef.toLowerCase())
+        if (match) { targetChatId = match._id; targetName = match.val }
+      }
+      if (!targetChatId) return send(chatId, `⚠️ User <b>${userRef}</b> not found.`, { parse_mode: 'HTML' })
+      const result = await marketplaceService.unbanUser(targetChatId)
+      if (result.unbanned) {
+        return send(chatId, `✅ <b>Marketplace Ban Removed</b>\n\n👤 User: <b>${targetName || targetChatId}</b> (${targetChatId})\n\nUser can now access marketplace again.`, { parse_mode: 'HTML' })
+      } else {
+        return send(chatId, `ℹ️ User <b>${targetName || targetChatId}</b> was not banned from marketplace.`, { parse_mode: 'HTML' })
+      }
+    } catch (e) {
+      log(`[Admin] /mpunban error: ${e.message}`)
+      return send(chatId, `❌ Error: ${e.message}`)
+    }
+  }
+
   // Throttle Connect Reseller IP check to once per hour instead of every message
   const now_cr = Date.now()
   if (NOT_TRY_CR === undefined && now_cr - last_cr_check_time > 3600000) {
@@ -3149,6 +3207,11 @@ bot?.on('message', msg => {
     },
     // ━━━ Marketplace ━━━
     marketplace: async () => {
+      // Check if user is banned from marketplace
+      const mpBan = await marketplaceService.isUserBanned(chatId)
+      if (mpBan) {
+        return send(chatId, `🚫 <b>Marketplace Access Restricted</b>\n\nYour marketplace access has been suspended.\nReason: <i>${mpBan.reason || 'Policy violation'}</i>\n\nContact support if you believe this is an error.`, { parse_mode: 'HTML' })
+      }
       await set(state, chatId, 'action', a.mpHome)
       send(chatId, t.mpHome, k.of([
         [t.mpBrowse],
@@ -9115,6 +9178,11 @@ ${message.replace(/\n/g, '<br>')}
     }
 
     if (message === t.mpListProduct) {
+      // Check marketplace ban before allowing listing
+      const mpBanList = await marketplaceService.isUserBanned(chatId)
+      if (mpBanList) {
+        return send(chatId, `🚫 <b>Marketplace Access Restricted</b>\n\nYou cannot create listings. Your marketplace access has been suspended.\nReason: <i>${mpBanList.reason || 'Policy violation'}</i>`, { parse_mode: 'HTML' })
+      }
       const count = await marketplaceService.getActiveProductCount(chatId)
       if (count >= marketplaceService.MAX_LISTINGS) return send(chatId, t.mpMaxListings)
       set(state, chatId, 'action', a.mpNewImage)
@@ -9214,6 +9282,11 @@ ${message.replace(/\n/g, '<br>')}
   if (action === a.mpMyListings) {
     if (message === t.back || message === t.backButton) return goto.marketplace()
     if (message === t.mpListProduct) {
+      // Check marketplace ban before allowing listing
+      const mpBanList2 = await marketplaceService.isUserBanned(chatId)
+      if (mpBanList2) {
+        return send(chatId, `🚫 <b>Marketplace Access Restricted</b>\n\nYou cannot create listings. Your marketplace access has been suspended.\nReason: <i>${mpBanList2.reason || 'Policy violation'}</i>`, { parse_mode: 'HTML' })
+      }
       const count = await marketplaceService.getActiveProductCount(chatId)
       if (count >= marketplaceService.MAX_LISTINGS) return send(chatId, t.mpMaxListings)
       set(state, chatId, 'action', a.mpNewImage)

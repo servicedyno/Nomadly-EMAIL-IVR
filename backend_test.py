@@ -1,348 +1,315 @@
 #!/usr/bin/env python3
 """
-Backend Test for Email Validation Features
-Tests two new features:
-1. Prominent deliverable email file with campaign-ready caption
-2. Trial + Pay for extra emails when list exceeds free trial limit
+Marketplace Ban/Unban System Testing
+Tests the Node.js Telegram bot marketplace ban/unban functionality
 """
 
 import subprocess
-import requests
-import json
 import sys
 import os
+import json
 import re
-from pathlib import Path
+from typing import Dict, List, Tuple, Optional
 
-def run_command(cmd, description=""):
-    """Run a shell command and return result"""
-    try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
-        return {
-            'success': result.returncode == 0,
-            'stdout': result.stdout.strip(),
-            'stderr': result.stderr.strip(),
-            'description': description
-        }
-    except subprocess.TimeoutExpired:
-        return {
-            'success': False,
-            'stdout': '',
-            'stderr': 'Command timed out',
-            'description': description
-        }
-
-def check_file_content(file_path, patterns, description=""):
-    """Check if file contains specific patterns"""
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            content = f.read()
+class MarketplaceBanTestSuite:
+    def __init__(self):
+        self.test_results = []
+        self.failed_tests = []
         
-        results = {}
-        for pattern_name, pattern in patterns.items():
-            if isinstance(pattern, list):
-                # Check if all patterns in list exist
-                results[pattern_name] = all(p in content for p in pattern)
-            else:
-                results[pattern_name] = pattern in content
-        
-        return {
-            'success': all(results.values()),
-            'results': results,
-            'description': description,
-            'content': content  # Include content for line number searches
-        }
-    except Exception as e:
-        return {
-            'success': False,
-            'error': str(e),
-            'description': description
-        }
-
-def find_line_number(content, pattern):
-    """Find line number of a pattern in content"""
-    lines = content.split('\n')
-    for i, line in enumerate(lines, 1):
-        if pattern in line:
-            return i
-    return None
-
-def test_syntax_checks():
-    """Test 1-2: Syntax checks for both files"""
-    print("🔍 Test 1-2: Syntax Checks")
+    def log_test(self, test_name: str, passed: bool, details: str = ""):
+        """Log test result"""
+        status = "✅ PASS" if passed else "❌ FAIL"
+        result = f"{status}: {test_name}"
+        if details:
+            result += f" - {details}"
+        print(result)
+        self.test_results.append((test_name, passed, details))
+        if not passed:
+            self.failed_tests.append(test_name)
     
-    files_to_check = [
-        '/app/js/email-validation-service.js',
-        '/app/js/_index.js'
-    ]
-    
-    results = []
-    for file_path in files_to_check:
-        result = run_command(f'node -c {file_path}', f'Syntax check for {file_path}')
-        results.append(result)
-        status = "✅ PASS" if result['success'] else "❌ FAIL"
-        print(f"  {status} {file_path}")
-        if not result['success']:
-            print(f"    Error: {result['stderr']}")
-    
-    return all(r['success'] for r in results)
-
-def test_nodejs_health():
-    """Test 9: Node.js running clean"""
-    print("\n🔍 Test 9: Node.js Health Check")
-    
-    # Check supervisor status
-    supervisor_result = run_command('sudo supervisorctl status nodejs', 'Check nodejs supervisor status')
-    nodejs_running = 'RUNNING' in supervisor_result['stdout']
-    print(f"  {'✅ PASS' if nodejs_running else '❌ FAIL'} Node.js supervisor status: {supervisor_result['stdout']}")
-    
-    # Check health endpoint
-    try:
-        response = requests.get('http://localhost:5000/health', timeout=10)
-        health_ok = response.status_code == 200 and 'healthy' in response.text
-        print(f"  {'✅ PASS' if health_ok else '❌ FAIL'} Health endpoint: {response.status_code}")
-        if health_ok:
-            health_data = response.json()
-            print(f"    Status: {health_data.get('status')}")
-            print(f"    Database: {health_data.get('database')}")
-    except Exception as e:
-        health_ok = False
-        print(f"  ❌ FAIL Health endpoint error: {e}")
-    
-    # Check error log size
-    error_log_result = run_command('wc -c /var/log/supervisor/nodejs.err.log', 'Check error log size')
-    error_log_empty = error_log_result['stdout'].startswith('0 ')
-    print(f"  {'✅ PASS' if error_log_empty else '❌ FAIL'} Error log is 0 bytes: {error_log_result['stdout']}")
-    
-    return nodejs_running and health_ok and error_log_empty
-
-def test_deliverable_file_features():
-    """Test 3-7: Prominent deliverable email file features"""
-    print("\n🔍 Test 3-7: Deliverable Email File Features")
-    
-    # Test 3: generateValidCsv still filters results where r.category === 'valid'
-    patterns_3 = {
-        'valid_filter': "results.filter(r => r.category === 'valid')"
-    }
-    result_3 = check_file_content('/app/js/email-validation-service.js', patterns_3, 'generateValidCsv filters valid')
-    print(f"  {'✅ PASS' if result_3['success'] else '❌ FAIL'} Test 3: generateValidCsv filters r.category === 'valid'")
-    
-    # Test 4: Filename changed to 'deliverable_emails_*.csv'
-    patterns_4 = {
-        'deliverable_filename': "deliverable_emails_"
-    }
-    result_4 = check_file_content('/app/js/email-validation-service.js', patterns_4, 'Deliverable filename')
-    print(f"  {'✅ PASS' if result_4['success'] else '❌ FAIL'} Test 4: Filename contains 'deliverable_emails_'")
-    
-    # Test 5: Caption contains required text
-    patterns_5 = {
-        'campaign_ready': "Campaign-Ready",
-        'deliverable_emails': "deliverable emails",
-        'use_this_file': "Use this file for your email campaign"
-    }
-    result_5 = check_file_content('/app/js/email-validation-service.js', patterns_5, 'Caption text')
-    print(f"  {'✅ PASS' if result_5['success'] else '❌ FAIL'} Test 5: Caption contains 'Campaign-Ready', 'deliverable emails', 'Use this file for your email campaign'")
-    
-    # Test 6: File send order - valid file sent FIRST
-    content = result_5.get('content', '')
-    if content:
-        # Find line numbers for file sending
-        valid_send_line = find_line_number(content, 'sendDocument(chatId, Buffer.from(validCsv)')
-        invalid_send_line = find_line_number(content, 'sendDocument(chatId, Buffer.from(invalidCsv)')
-        full_send_line = find_line_number(content, 'sendDocument(chatId, Buffer.from(fullCsv)')
-        
-        order_correct = (valid_send_line and invalid_send_line and full_send_line and 
-                        valid_send_line < invalid_send_line < full_send_line)
-        print(f"  {'✅ PASS' if order_correct else '❌ FAIL'} Test 6: File send order - valid first (lines: valid={valid_send_line}, invalid={invalid_send_line}, full={full_send_line})")
-    else:
-        print(f"  ❌ FAIL Test 6: Could not read file content")
-        order_correct = False
-    
-    # Test 7: Summary message says "📬 Deliverable:" instead of "✅ Valid:"
-    patterns_7 = {
-        'deliverable_summary': "📬 Deliverable:",
-        'first_file_hint': "The first file is your campaign-ready list"
-    }
-    result_7 = check_file_content('/app/js/email-validation-service.js', patterns_7, 'Summary message')
-    print(f"  {'✅ PASS' if result_7['success'] else '❌ FAIL'} Test 7: Summary says '📬 Deliverable:' and includes hint about first file")
-    
-    return all([result_3['success'], result_4['success'], result_5['success'], order_correct, result_7['success']])
-
-def test_trial_plus_pay_upload_handler():
-    """Test 10-12: Upload handler logic changes"""
-    print("\n🔍 Test 10-12: Upload Handler Logic")
-    
-    # Test 10: Old isTrialEligible replaced with new functions
-    patterns_10 = {
-        'hasTrialAvailable': 'hasTrialAvailable',
-        'isFullyFree': 'isFullyFree',
-        'isTrialPlusPay': 'isTrialPlusPay'
-    }
-    result_10 = check_file_content('/app/js/_index.js', patterns_10, 'New trial functions')
-    print(f"  {'✅ PASS' if result_10['success'] else '❌ FAIL'} Test 10: Upload handler has hasTrialAvailable, isFullyFree, isTrialPlusPay")
-    
-    # Test 11: When isTrialPlusPay, saves state variables
-    patterns_11 = {
-        'evTrialPlusPay': 'evTrialPlusPay',
-        'evTrialFreeCount': 'evTrialFreeCount', 
-        'evTrialPaidCount': 'evTrialPaidCount',
-        'evTrialPlusUsd': 'evTrialPlusUsd',
-        'evTrialPlusNgn': 'evTrialPlusNgn'
-    }
-    result_11 = check_file_content('/app/js/_index.js', patterns_11, 'Trial plus pay state variables')
-    print(f"  {'✅ PASS' if result_11['success'] else '❌ FAIL'} Test 11: Saves evTrialPlusPay, evTrialFreeCount, evTrialPaidCount, evTrialPlusUsd, evTrialPlusNgn")
-    
-    # Test 12: Shows button text with trial + pay
-    patterns_12 = {
-        'trial_pay_button': '🎁 Use Trial + Pay $'
-    }
-    result_12 = check_file_content('/app/js/_index.js', patterns_12, 'Trial plus pay button')
-    print(f"  {'✅ PASS' if result_12['success'] else '❌ FAIL'} Test 12: Shows button text '🎁 Use Trial + Pay $' when isTrialPlusPay")
-    
-    return all([result_10['success'], result_11['success'], result_12['success']])
-
-def test_trial_plus_pay_paste_handler():
-    """Test 13: Paste handler logic"""
-    print("\n🔍 Test 13: Paste Handler Logic")
-    
-    patterns_13 = {
-        'hasTrialAvailable2': 'hasTrialAvailable2',
-        'isFullyFree2': 'isFullyFree2',
-        'isTrialPlusPay2': 'isTrialPlusPay2'
-    }
-    result_13 = check_file_content('/app/js/_index.js', patterns_13, 'Paste handler trial functions')
-    print(f"  {'✅ PASS' if result_13['success'] else '❌ FAIL'} Test 13: Paste handler has hasTrialAvailable2, isFullyFree2, isTrialPlusPay2")
-    
-    return result_13['success']
-
-def test_trial_plus_pay_confirm_handler():
-    """Test 14-20: evConfirmPay handler features"""
-    print("\n🔍 Test 14-20: evConfirmPay Handler Features")
-    
-    # Test 14: evConfirmPay handler with trial + pay message check
-    patterns_14 = {
-        'trial_pay_message_check': "message.startsWith('🎁 Use Trial + Pay')"
-    }
-    result_14 = check_file_content('/app/js/_index.js', patterns_14, 'Trial pay message check')
-    print(f"  {'✅ PASS' if result_14['success'] else '❌ FAIL'} Test 14: evConfirmPay handler checks message.startsWith('🎁 Use Trial + Pay')")
-    
-    # Test 15: Atomic findOneAndUpdate for trial claim
-    patterns_15 = {
-        'atomic_trial_claim': 'findOneAndUpdate'
-    }
-    result_15 = check_file_content('/app/js/_index.js', patterns_15, 'Atomic trial claim')
-    print(f"  {'✅ PASS' if result_15['success'] else '❌ FAIL'} Test 15: Uses atomic findOneAndUpdate for trial claim")
-    
-    # Test 16: USD wallet balance check
-    patterns_16 = {
-        'usd_balance_check': 'usdBal < trialPlusUsd'
-    }
-    result_16 = check_file_content('/app/js/_index.js', patterns_16, 'USD balance check')
-    print(f"  {'✅ PASS' if result_16['success'] else '❌ FAIL'} Test 16: USD wallet balance check (usdBal < trialPlusUsd)")
-    
-    # Test 17: Rollback trial claim on insufficient funds
-    patterns_17 = {
-        'rollback_trial': 'evFreeTrialUsed: false'
-    }
-    result_17 = check_file_content('/app/js/_index.js', patterns_17, 'Trial rollback')
-    print(f"  {'✅ PASS' if result_17['success'] else '❌ FAIL'} Test 17: Rollback trial claim on insufficient funds (evFreeTrialUsed: false)")
-    
-    # Test 18: atomicIncrement for USD charge
-    patterns_18 = {
-        'atomic_usd_charge': "atomicIncrement(walletOf, chatId, 'usdOut', trialPlusUsd)"
-    }
-    result_18 = check_file_content('/app/js/_index.js', patterns_18, 'Atomic USD charge')
-    print(f"  {'✅ PASS' if result_18['success'] else '❌ FAIL'} Test 18: atomicIncrement(walletOf, chatId, 'usdOut', trialPlusUsd) for charge")
-    
-    # Test 19: processValidationJob with payment_method 'trial_plus_usd'
-    patterns_19 = {
-        'trial_plus_payment_method': "'trial_plus_usd'"
-    }
-    result_19 = check_file_content('/app/js/_index.js', patterns_19, 'Trial plus payment method')
-    print(f"  {'✅ PASS' if result_19['success'] else '❌ FAIL'} Test 19: processValidationJob called with payment_method 'trial_plus_usd'")
-    
-    # Test 20: Refund on failure
-    patterns_20 = {
-        'refund_on_failure': "atomicIncrement(walletOf, chatId, 'usdIn', trialPlusUsd)"
-    }
-    result_20 = check_file_content('/app/js/_index.js', patterns_20, 'Refund on failure')
-    print(f"  {'✅ PASS' if result_20['success'] else '❌ FAIL'} Test 20: Refund on failure (atomicIncrement usdIn)")
-    
-    return all([result_14['success'], result_15['success'], result_16['success'], 
-               result_17['success'], result_18['success'], result_19['success'], result_20['success']])
-
-def test_regression_old_trial():
-    """Test 21: Regression test for old free trial handler"""
-    print("\n🔍 Test 21: Regression Test - Old Free Trial Handler")
-    
-    patterns_21 = {
-        'old_trial_handler': '🎁 Start Free Trial'
-    }
-    result_21 = check_file_content('/app/js/_index.js', patterns_21, 'Old trial handler')
-    print(f"  {'✅ PASS' if result_21['success'] else '❌ FAIL'} Test 21: Old '🎁 Start Free Trial' handler still works")
-    
-    return result_21['success']
-
-def main():
-    """Run all tests"""
-    print("🚀 Email Validation Features Test Suite")
-    print("Testing: Prominent Deliverable File + Trial+Pay for Extra Emails")
-    print("=" * 80)
-    
-    tests = [
-        ("Syntax Checks", test_syntax_checks),
-        ("Node.js Health", test_nodejs_health), 
-        ("Deliverable File Features", test_deliverable_file_features),
-        ("Upload Handler Logic", test_trial_plus_pay_upload_handler),
-        ("Paste Handler Logic", test_trial_plus_pay_paste_handler),
-        ("evConfirmPay Handler", test_trial_plus_pay_confirm_handler),
-        ("Regression Test", test_regression_old_trial)
-    ]
-    
-    results = []
-    for test_name, test_func in tests:
+    def run_command(self, cmd: str, cwd: str = "/app") -> Tuple[int, str, str]:
+        """Run shell command and return exit code, stdout, stderr"""
         try:
-            result = test_func()
-            results.append(result)
+            result = subprocess.run(
+                cmd, shell=True, cwd=cwd, 
+                capture_output=True, text=True, timeout=30
+            )
+            return result.returncode, result.stdout, result.stderr
+        except subprocess.TimeoutExpired:
+            return 1, "", "Command timed out"
         except Exception as e:
-            print(f"  ❌ FAIL {test_name} error: {e}")
-            results.append(False)
+            return 1, "", str(e)
     
-    print("\n" + "=" * 80)
-    print("📊 TEST SUMMARY")
-    print("=" * 80)
+    def test_marketplace_service_syntax(self):
+        """Test 1: Syntax check marketplace-service.js"""
+        exit_code, stdout, stderr = self.run_command("node -c /app/js/marketplace-service.js")
+        passed = exit_code == 0
+        details = stderr if stderr else "Syntax OK"
+        self.log_test("marketplace-service.js syntax check", passed, details)
+        return passed
     
-    passed = sum(results)
-    total = len(results)
+    def test_marketplace_service_bans_variable(self):
+        """Test 2: Check _bans variable declared"""
+        exit_code, stdout, stderr = self.run_command("grep -n 'let _bans = null' /app/js/marketplace-service.js")
+        passed = exit_code == 0 and "_bans = null" in stdout
+        details = f"Found at line: {stdout.split(':')[0] if stdout else 'Not found'}"
+        self.log_test("_bans variable declared", passed, details)
+        return passed
     
-    print(f"✅ Passed: {passed}/{total}")
-    print(f"❌ Failed: {total - passed}/{total}")
-    print(f"📈 Success Rate: {(passed/total)*100:.1f}%")
+    def test_marketplace_service_bans_initialization(self):
+        """Test 3: Check _bans collection initialization"""
+        exit_code, stdout, stderr = self.run_command("grep -n '_bans = db.collection' /app/js/marketplace-service.js")
+        passed = exit_code == 0 and "marketplaceBans" in stdout
+        details = f"Found at line: {stdout.split(':')[0] if stdout else 'Not found'}"
+        self.log_test("_bans collection initialization", passed, details)
+        return passed
     
-    if passed == total:
-        print("\n🎉 ALL TESTS PASSED! Email validation features are working correctly.")
-        print("\n📋 VERIFIED FEATURES:")
-        print("  ✅ Feature 1: Prominent deliverable email file")
-        print("    - generateValidCsv filters r.category === 'valid'")
-        print("    - Filename changed to 'deliverable_emails_*.csv'")
-        print("    - Caption contains 'Campaign-Ready' and required text")
-        print("    - Valid file sent FIRST, then invalid, then full report")
-        print("    - Summary says '📬 Deliverable:' with hint about first file")
-        print("  ✅ Feature 2: Trial + Pay for extra emails")
-        print("    - Upload handler uses hasTrialAvailable, isFullyFree, isTrialPlusPay")
-        print("    - Saves trial+pay state variables when isTrialPlusPay")
-        print("    - Shows '🎁 Use Trial + Pay $' button")
-        print("    - Paste handler has same logic with *2 variants")
-        print("    - evConfirmPay handler with atomic trial claim")
-        print("    - USD wallet balance check and rollback on insufficient funds")
-        print("    - atomicIncrement for charge and refund on failure")
-        print("    - processValidationJob with 'trial_plus_usd' payment method")
-        print("    - Old '🎁 Start Free Trial' handler still works (regression)")
-        return True
-    else:
-        print(f"\n⚠️  {total - passed} test(s) failed. Please review the issues above.")
-        return False
+    def test_marketplace_service_ban_index(self):
+        """Test 4: Check ban index creation"""
+        exit_code, stdout, stderr = self.run_command("grep -n 'createIndex.*oduserId\\|createIndex.*userId' /app/js/marketplace-service.js")
+        passed = exit_code == 0 and ("oduserId" in stdout or "userId" in stdout)
+        details = f"Found at line: {stdout.split(':')[0] if stdout else 'Not found'}"
+        self.log_test("Ban index creation", passed, details)
+        return passed
+    
+    def test_marketplace_service_ban_functions(self):
+        """Test 5-7: Check banUser, unbanUser, isUserBanned functions exist"""
+        functions = ["banUser", "unbanUser", "isUserBanned"]
+        all_passed = True
+        
+        for func in functions:
+            exit_code, stdout, stderr = self.run_command(f"grep -n 'async function {func}\\|function {func}' /app/js/marketplace-service.js")
+            passed = exit_code == 0
+            details = f"Found at line: {stdout.split(':')[0] if stdout else 'Not found'}"
+            self.log_test(f"{func} function exists", passed, details)
+            if not passed:
+                all_passed = False
+        
+        return all_passed
+    
+    def test_marketplace_service_exports(self):
+        """Test 8: Check all 3 functions in module.exports"""
+        exit_code, stdout, stderr = self.run_command("grep -A 50 'module.exports' /app/js/marketplace-service.js")
+        passed = all(func in stdout for func in ["banUser", "unbanUser", "isUserBanned"])
+        missing = [func for func in ["banUser", "unbanUser", "isUserBanned"] if func not in stdout]
+        details = f"Missing from exports: {missing}" if missing else "All functions exported"
+        self.log_test("Ban functions in module.exports", passed, details)
+        return passed
+    
+    def test_index_js_syntax(self):
+        """Test 9: Syntax check _index.js"""
+        exit_code, stdout, stderr = self.run_command("node -c /app/js/_index.js")
+        passed = exit_code == 0
+        details = stderr if stderr else "Syntax OK"
+        self.log_test("_index.js syntax check", passed, details)
+        return passed
+    
+    def test_nodejs_running_clean(self):
+        """Test 10: Node.js running clean"""
+        # Check supervisor status
+        exit_code, stdout, stderr = self.run_command("sudo supervisorctl status nodejs")
+        nodejs_running = "RUNNING" in stdout
+        
+        # Check health endpoint
+        exit_code2, stdout2, stderr2 = self.run_command("curl -s localhost:5000/health")
+        health_ok = "healthy" in stdout2 or "ok" in stdout2.lower()
+        
+        # Check error log size
+        exit_code3, stdout3, stderr3 = self.run_command("wc -c /var/log/supervisor/nodejs.err.log")
+        error_log_size = int(stdout3.split()[0]) if stdout3.split() else 999
+        
+        passed = nodejs_running and health_ok and error_log_size == 0
+        details = f"Running: {nodejs_running}, Health: {health_ok}, Error log: {error_log_size} bytes"
+        self.log_test("Node.js running clean", passed, details)
+        return passed
+    
+    def test_ban_check_goto_marketplace(self):
+        """Test 11: Ban check in goto.marketplace"""
+        exit_code, stdout, stderr = self.run_command("grep -n -A 5 -B 5 'marketplace: async' /app/js/_index.js")
+        # Look for isUserBanned check before set(state, chatId, 'action', a.mpHome)
+        exit_code2, stdout2, stderr2 = self.run_command("grep -n -A 10 'marketplace: async' /app/js/_index.js | grep -B 5 -A 5 'isUserBanned\\|marketplaceService.isUserBanned'")
+        passed = exit_code2 == 0 and "isUserBanned" in stdout2
+        details = f"Found ban check in goto.marketplace: {'Yes' if passed else 'No'}"
+        self.log_test("Ban check in goto.marketplace", passed, details)
+        return passed
+    
+    def test_ban_check_mp_home_list_product(self):
+        """Test 12: Ban check in mpHome's mpListProduct handler"""
+        # Search for mpListProduct handler in mpHome context (around line 9180)
+        exit_code, stdout, stderr = self.run_command("grep -n -A 10 -B 5 'if (message === t.mpListProduct)' /app/js/_index.js")
+        exit_code2, stdout2, stderr2 = self.run_command("sed -n '9175,9195p' /app/js/_index.js | grep -n 'isUserBanned\\|marketplaceService.isUserBanned'")
+        passed = exit_code2 == 0 or "isUserBanned" in stdout
+        details = f"Found ban check in mpHome mpListProduct: {'Yes' if passed else 'No'}"
+        self.log_test("Ban check in mpHome mpListProduct handler", passed, details)
+        return passed
+    
+    def test_ban_check_mp_my_listings_list_product(self):
+        """Test 13: Ban check in mpMyListings's mpListProduct handler"""
+        # Search for mpListProduct handler in mpMyListings context (around line 9284)
+        exit_code, stdout, stderr = self.run_command("sed -n '9280,9300p' /app/js/_index.js | grep -n 'isUserBanned\\|marketplaceService.isUserBanned'")
+        exit_code2, stdout2, stderr2 = self.run_command("grep -n -A 10 -B 5 'if (message === t.mpListProduct)' /app/js/_index.js")
+        passed = exit_code == 0 or "isUserBanned" in stdout2
+        details = f"Found ban check in mpMyListings mpListProduct: {'Yes' if passed else 'No'}"
+        self.log_test("Ban check in mpMyListings mpListProduct handler", passed, details)
+        return passed
+    
+    def test_marketplace_access_restricted_message(self):
+        """Test 14: All 3 ban check locations show 'Marketplace Access Restricted' message"""
+        exit_code, stdout, stderr = self.run_command("grep -n 'Marketplace Access Restricted\\|marketplace.*restricted\\|access.*restricted' /app/js/_index.js")
+        # Count occurrences
+        occurrences = len(stdout.split('\n')) if stdout.strip() else 0
+        passed = occurrences >= 3
+        details = f"Found {occurrences} 'Marketplace Access Restricted' messages"
+        self.log_test("Marketplace Access Restricted messages", passed, details)
+        return passed
+    
+    def test_admin_mpban_command(self):
+        """Test 15: Admin /mpban command exists"""
+        exit_code, stdout, stderr = self.run_command("grep -n 'isAdmin.*mpban\\|/mpban.*isAdmin' /app/js/_index.js")
+        passed = exit_code == 0 and "mpban" in stdout
+        details = f"Found /mpban command: {'Yes' if passed else 'No'}"
+        self.log_test("Admin /mpban command", passed, details)
+        return passed
+    
+    def test_admin_mpban_handler(self):
+        """Test 16: Admin /mpban handler with username lookup and banUser call"""
+        exit_code, stdout, stderr = self.run_command("grep -n -A 20 '/mpban ' /app/js/_index.js")
+        passed = exit_code == 0 and ("nameOf.find" in stdout and "marketplaceService.banUser" in stdout)
+        details = f"Found /mpban handler with username lookup and banUser: {'Yes' if passed else 'No'}"
+        self.log_test("Admin /mpban handler implementation", passed, details)
+        return passed
+    
+    def test_admin_mpunban_command(self):
+        """Test 17: Admin /mpunban command exists"""
+        exit_code, stdout, stderr = self.run_command("grep -n 'isAdmin.*mpunban\\|/mpunban.*isAdmin' /app/js/_index.js")
+        passed = exit_code == 0 and "mpunban" in stdout
+        details = f"Found /mpunban command: {'Yes' if passed else 'No'}"
+        self.log_test("Admin /mpunban command", passed, details)
+        return passed
+    
+    def test_admin_mpunban_handler(self):
+        """Test 18: Admin /mpunban handler with unbanUser call"""
+        exit_code, stdout, stderr = self.run_command("grep -n -A 20 '/mpunban ' /app/js/_index.js")
+        passed = exit_code == 0 and "marketplaceService.unbanUser" in stdout
+        details = f"Found /mpunban handler with unbanUser call: {'Yes' if passed else 'No'}"
+        self.log_test("Admin /mpunban handler implementation", passed, details)
+        return passed
+    
+    def test_database_ban_record_exists(self):
+        """Test 19: Check marketplaceBans collection has ban for userId '8317455811'"""
+        node_script = """
+const {MongoClient} = require('mongodb');
+const MONGO_URL = process.env.MONGO_URL || 'mongodb://localhost:27017/nomadly';
+(async () => {
+    try {
+        const client = await MongoClient.connect(MONGO_URL);
+        const db = client.db();
+        const ban = await db.collection('marketplaceBans').findOne({userId: '8317455811'});
+        console.log('Ban exists:', !!ban);
+        if (ban) {
+            console.log('Reason:', ban.reason || 'N/A');
+            console.log('BannedAt:', ban.bannedAt || 'N/A');
+        }
+        await client.close();
+    } catch (e) {
+        console.error('Error:', e.message);
+    }
+})();
+"""
+        # Write script to temp file and execute
+        with open('/tmp/check_ban.js', 'w') as f:
+            f.write(node_script)
+        
+        exit_code, stdout, stderr = self.run_command("cd /app && node /tmp/check_ban.js")
+        passed = exit_code == 0 and "Ban exists: true" in stdout
+        details = stdout.strip() if stdout else stderr
+        self.log_test("Ban record exists for userId 8317455811", passed, details)
+        return passed
+    
+    def test_database_no_active_products(self):
+        """Test 20: Check no remaining active products for 8317455811"""
+        node_script = """
+const {MongoClient} = require('mongodb');
+const MONGO_URL = process.env.MONGO_URL || 'mongodb://localhost:27017/nomadly';
+(async () => {
+    try {
+        const client = await MongoClient.connect(MONGO_URL);
+        const db = client.db();
+        const count = await db.collection('marketplaceProducts').countDocuments({
+            sellerId: {$in: [8317455811, '8317455811']}, 
+            status: 'active'
+        });
+        console.log('Active listings:', count);
+        await client.close();
+    } catch (e) {
+        console.error('Error:', e.message);
+    }
+})();
+"""
+        # Write script to temp file and execute
+        with open('/tmp/check_products.js', 'w') as f:
+            f.write(node_script)
+        
+        exit_code, stdout, stderr = self.run_command("cd /app && node /tmp/check_products.js")
+        passed = exit_code == 0 and "Active listings: 0" in stdout
+        details = stdout.strip() if stdout else stderr
+        self.log_test("No active products for banned user 8317455811", passed, details)
+        return passed
+    
+    def run_all_tests(self):
+        """Run all marketplace ban/unban tests"""
+        print("🧪 Starting Marketplace Ban/Unban System Tests")
+        print("=" * 60)
+        
+        # marketplace-service.js tests
+        print("\n📁 Testing marketplace-service.js:")
+        self.test_marketplace_service_syntax()
+        self.test_marketplace_service_bans_variable()
+        self.test_marketplace_service_bans_initialization()
+        self.test_marketplace_service_ban_index()
+        self.test_marketplace_service_ban_functions()
+        self.test_marketplace_service_exports()
+        
+        # _index.js tests
+        print("\n📁 Testing _index.js:")
+        self.test_index_js_syntax()
+        self.test_nodejs_running_clean()
+        self.test_ban_check_goto_marketplace()
+        self.test_ban_check_mp_home_list_product()
+        self.test_ban_check_mp_my_listings_list_product()
+        self.test_marketplace_access_restricted_message()
+        self.test_admin_mpban_command()
+        self.test_admin_mpban_handler()
+        self.test_admin_mpunban_command()
+        self.test_admin_mpunban_handler()
+        
+        # Database verification tests
+        print("\n🗄️ Testing Database:")
+        self.test_database_ban_record_exists()
+        self.test_database_no_active_products()
+        
+        # Summary
+        print("\n" + "=" * 60)
+        print("📊 TEST SUMMARY")
+        print("=" * 60)
+        
+        total_tests = len(self.test_results)
+        passed_tests = sum(1 for _, passed, _ in self.test_results if passed)
+        failed_tests = total_tests - passed_tests
+        
+        print(f"Total Tests: {total_tests}")
+        print(f"✅ Passed: {passed_tests}")
+        print(f"❌ Failed: {failed_tests}")
+        print(f"Success Rate: {(passed_tests/total_tests*100):.1f}%")
+        
+        if self.failed_tests:
+            print(f"\n❌ Failed Tests:")
+            for test in self.failed_tests:
+                print(f"  • {test}")
+        
+        return failed_tests == 0
 
 if __name__ == "__main__":
-    success = main()
+    test_suite = MarketplaceBanTestSuite()
+    success = test_suite.run_all_tests()
     sys.exit(0 if success else 1)

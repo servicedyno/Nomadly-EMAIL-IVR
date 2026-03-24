@@ -9,6 +9,7 @@ let _db = null
 let _products = null
 let _conversations = null
 let _messages = null
+let _bans = null
 
 const CATEGORIES = ['💻 Digital Goods', '🏦 Bnk Logs', '🏧 Bnk Opening', '🔧 Tools']
 const MIN_PRICE = 20
@@ -41,6 +42,7 @@ async function initMarketplace(db) {
   _products = db.collection('marketplaceProducts')
   _conversations = db.collection('marketplaceConversations')
   _messages = db.collection('marketplaceMessages')
+  _bans = db.collection('marketplaceBans')
 
   // Create indexes
   await _products.createIndex({ sellerId: 1, status: 1 })
@@ -51,6 +53,7 @@ async function initMarketplace(db) {
   await _conversations.createIndex({ productId: 1, buyerId: 1 })
   await _conversations.createIndex({ lastMessageAt: 1 })
   await _messages.createIndex({ conversationId: 1, timestamp: 1 })
+  await _bans.createIndex({ oduserId: 1 }, { unique: true })
 
   log('[Marketplace] Initialized')
 }
@@ -239,6 +242,44 @@ async function getSellerStats(sellerId) {
   }
 }
 
+// ── Marketplace Ban/Unban ──
+
+async function banUser(userId, reason, bannedBy) {
+  const uid = String(userId)
+  const numUid = Number(userId)
+  // Remove all active/sold listings (handle both string and number sellerId)
+  const result = await _products.updateMany(
+    { sellerId: { $in: [uid, numUid] }, status: { $in: ['active', 'sold'] } },
+    { $set: { status: 'admin_removed', removedAt: new Date().toISOString(), removedReason: reason || 'marketplace_ban' } }
+  )
+  // Close all active conversations where this user is seller or buyer
+  await _conversations.updateMany(
+    { $or: [{ sellerId: { $in: [uid, numUid] } }, { buyerId: { $in: [uid, numUid] } }], status: { $in: ['active', 'escrow_started'] } },
+    { $set: { status: 'closed', closedAt: new Date().toISOString() } }
+  )
+  // Insert/update ban record
+  await _bans.updateOne(
+    { userId: uid },
+    { $set: { userId: uid, reason: reason || 'admin_ban', bannedBy: String(bannedBy), bannedAt: new Date().toISOString() } },
+    { upsert: true }
+  )
+  log(`[Marketplace] BANNED user ${uid} — ${result.modifiedCount} listings removed, reason: ${reason || 'admin_ban'}`)
+  return { listingsRemoved: result.modifiedCount }
+}
+
+async function unbanUser(userId) {
+  const uid = String(userId)
+  const result = await _bans.deleteOne({ userId: uid })
+  log(`[Marketplace] UNBANNED user ${uid} — deleted: ${result.deletedCount}`)
+  return { unbanned: result.deletedCount > 0 }
+}
+
+async function isUserBanned(userId) {
+  if (!_bans) return false
+  const ban = await _bans.findOne({ userId: { $in: [String(userId), Number(userId)] } })
+  return ban ? ban : null
+}
+
 module.exports = {
   initMarketplace,
   // Products
@@ -267,6 +308,10 @@ module.exports = {
   // Maintenance
   closeStaleConversations,
   getSellerStats,
+  // Bans
+  banUser,
+  unbanUser,
+  isUserBanned,
   // Constants
   CATEGORIES,
   MIN_PRICE,
