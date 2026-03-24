@@ -7357,20 +7357,54 @@ All verified numbers generated during sourcing.`))
     // Check free trial eligibility
     const evTrialUsed = info?.evFreeTrialUsed || false
     const trialLimit = EV_CONFIG.freeTrialEmails
-    const isTrialEligible = trialLimit > 0 && !evTrialUsed && emails.length <= trialLimit
+    const hasTrialAvailable = trialLimit > 0 && !evTrialUsed
+    const isFullyFree = hasTrialAvailable && emails.length <= trialLimit
+    const isTrialPlusPay = hasTrialAvailable && emails.length > trialLimit
+
+    // Calculate trial+pay pricing for overage
+    let trialPlusPricing = null
+    if (isTrialPlusPay) {
+      const paidCount = emails.length - trialLimit
+      trialPlusPricing = calculatePrice(paidCount)
+      const trialPlusNgn = Math.round(trialPlusPricing.total * EV_CONFIG.ngnRate)
+      await saveInfo('evTrialPlusPay', true)
+      await saveInfo('evTrialFreeCount', trialLimit)
+      await saveInfo('evTrialPaidCount', paidCount)
+      await saveInfo('evTrialPlusUsd', trialPlusPricing.total)
+      await saveInfo('evTrialPlusNgn', trialPlusNgn)
+    } else {
+      await saveInfo('evTrialPlusPay', false)
+    }
 
     await set(state, chatId, 'action', a.evConfirmPay)
-    if (isTrialEligible) {
+    if (isFullyFree) {
       const trialMsg = {
-        en: `🎁 <b>Free Trial</b>\n\n📧 Emails: <b>${emails.length.toLocaleString()}</b>\n💵 Cost: <b>FREE</b> (up to ${trialLimit} emails)\n\nYou'll receive ✅ valid, ❌ invalid & 📊 full report.`,
+        en: `🎁 <b>Free Trial</b>\n\n📧 Emails: <b>${emails.length.toLocaleString()}</b>\n💵 Cost: <b>FREE</b> (up to ${trialLimit} emails)\n\nYou'll receive 📬 deliverable list, ❌ invalid & 📊 full report.`,
         fr: `🎁 <b>Essai Gratuit</b>\n\n📧 Emails : <b>${emails.length.toLocaleString()}</b>\n💵 Coût : <b>GRATUIT</b> (jusqu'à ${trialLimit} emails)`,
         zh: `🎁 <b>免费试用</b>\n\n📧 邮箱: <b>${emails.length.toLocaleString()}</b>\n💵 费用: <b>免费</b>（最多 ${trialLimit} 封）`,
         hi: `🎁 <b>मुफ्त ट्रायल</b>\n\n📧 ईमेल: <b>${emails.length.toLocaleString()}</b>\n💵 लागत: <b>मुफ्त</b> (${trialLimit} ईमेल तक)`,
       }
       return send(chatId, trialMsg[lang] || trialMsg.en, { parse_mode: 'HTML', reply_markup: { keyboard: [['🎁 Start Free Trial'], ['❌ Cancel']], resize_keyboard: true } })
     }
+    if (isTrialPlusPay) {
+      const paidCount = emails.length - trialLimit
+      const extraUsd = trialPlusPricing.total
+      const extraNgn = Math.round(extraUsd * EV_CONFIG.ngnRate)
+      const trialPlusMsg = {
+        en: `🎁 <b>Free Trial + Pay Extra</b>\n\n📧 Total Emails: <b>${emails.length.toLocaleString()}</b>\n━━━━━━━━━━━━━━━━━━━\n🎁 Free Trial: <b>${trialLimit} emails FREE</b>\n💰 Extra: <b>${paidCount.toLocaleString()} × $${trialPlusPricing.rate} = $${extraUsd.toFixed(2)}</b> (₦${extraNgn.toLocaleString()})\n━━━━━━━━━━━━━━━━━━━\n\nOr pay full price: <b>$${pricing.total.toFixed(2)}</b> (₦${priceNgn.toLocaleString()}) for all ${emails.length.toLocaleString()} emails.\n\nChoose an option:`,
+        fr: `🎁 <b>Essai Gratuit + Payer le Supplément</b>\n\n📧 Total : <b>${emails.length.toLocaleString()}</b>\n🎁 Gratuit : <b>${trialLimit} emails</b>\n💰 Extra : <b>${paidCount.toLocaleString()} × $${trialPlusPricing.rate} = $${extraUsd.toFixed(2)}</b> (₦${extraNgn.toLocaleString()})\n\nOu prix complet : <b>$${pricing.total.toFixed(2)}</b>`,
+        zh: `🎁 <b>免费试用 + 补差价</b>\n\n📧 总计: <b>${emails.length.toLocaleString()}</b>\n🎁 免费: <b>${trialLimit} 封</b>\n💰 额外: <b>${paidCount.toLocaleString()} × $${trialPlusPricing.rate} = $${extraUsd.toFixed(2)}</b> (₦${extraNgn.toLocaleString()})`,
+        hi: `🎁 <b>मुफ्त ट्रायल + अतिरिक्त भुगतान</b>\n\n📧 कुल: <b>${emails.length.toLocaleString()}</b>\n🎁 मुफ्त: <b>${trialLimit} ईमेल</b>\n💰 अतिरिक्त: <b>${paidCount.toLocaleString()} × $${trialPlusPricing.rate} = $${extraUsd.toFixed(2)}</b> (₦${extraNgn.toLocaleString()})`,
+      }
+      const trialPlusBtns = [
+        [`🎁 Use Trial + Pay $${extraUsd.toFixed(2)}`],
+        ['💵 Pay USD', '💵 Pay NGN'],
+        ['❌ Cancel'],
+      ]
+      return send(chatId, trialPlusMsg[lang] || trialPlusMsg.en, { parse_mode: 'HTML', reply_markup: { keyboard: trialPlusBtns, resize_keyboard: true } })
+    }
     const confirmMsg = {
-      en: `📊 <b>Validation Summary</b>\n\n📧 Emails: <b>${emails.length.toLocaleString()}</b>\n💰 Rate: <b>$${pricing.rate}/email</b>\n💵 Total: <b>$${pricing.total.toFixed(2)}</b> (₦${priceNgn.toLocaleString()})\n\nYou'll receive ✅ valid, ❌ invalid & 📊 full report.\n\nChoose payment method:`,
+      en: `📊 <b>Validation Summary</b>\n\n📧 Emails: <b>${emails.length.toLocaleString()}</b>\n💰 Rate: <b>$${pricing.rate}/email</b>\n💵 Total: <b>$${pricing.total.toFixed(2)}</b> (₦${priceNgn.toLocaleString()})\n\nYou'll receive 📬 deliverable list, ❌ invalid & 📊 full report.\n\nChoose payment method:`,
       fr: `📊 <b>Résumé de la Validation</b>\n\n📧 Emails uniques : <b>${emails.length.toLocaleString()}</b>\n💰 Tarif : <b>$${pricing.rate}/email</b>\n💵 Total : <b>$${pricing.total.toFixed(2)}</b> (₦${priceNgn.toLocaleString()})\n\nChoisissez le mode de paiement :`,
       zh: `📊 <b>验证摘要</b>\n\n📧 唯一邮箱: <b>${emails.length.toLocaleString()}</b>\n💰 费率: <b>$${pricing.rate}/封</b>\n💵 总计: <b>$${pricing.total.toFixed(2)}</b> (₦${priceNgn.toLocaleString()})\n\n选择支付方式:`,
       hi: `📊 <b>सत्यापन सारांश</b>\n\n📧 अद्वितीय ईमेल: <b>${emails.length.toLocaleString()}</b>\n💰 दर: <b>$${pricing.rate}/ईमेल</b>\n💵 कुल: <b>$${pricing.total.toFixed(2)}</b> (₦${priceNgn.toLocaleString()})\n\nभुगतान विधि चुनें:`,
@@ -7415,17 +7449,50 @@ All verified numbers generated during sourcing.`))
     // Check free trial eligibility
     const evTrialUsed2 = info?.evFreeTrialUsed || false
     const trialLimit2 = EV_CONFIG.freeTrialEmails
-    const isTrialEligible2 = trialLimit2 > 0 && !evTrialUsed2 && emails.length <= trialLimit2
+    const hasTrialAvailable2 = trialLimit2 > 0 && !evTrialUsed2
+    const isFullyFree2 = hasTrialAvailable2 && emails.length <= trialLimit2
+    const isTrialPlusPay2 = hasTrialAvailable2 && emails.length > trialLimit2
+
+    let trialPlusPricing2 = null
+    if (isTrialPlusPay2) {
+      const paidCount2 = emails.length - trialLimit2
+      trialPlusPricing2 = calculatePrice(paidCount2)
+      const trialPlusNgn2 = Math.round(trialPlusPricing2.total * EV_CONFIG.ngnRate)
+      await saveInfo('evTrialPlusPay', true)
+      await saveInfo('evTrialFreeCount', trialLimit2)
+      await saveInfo('evTrialPaidCount', paidCount2)
+      await saveInfo('evTrialPlusUsd', trialPlusPricing2.total)
+      await saveInfo('evTrialPlusNgn', trialPlusNgn2)
+    } else {
+      await saveInfo('evTrialPlusPay', false)
+    }
 
     await set(state, chatId, 'action', a.evConfirmPay)
-    if (isTrialEligible2) {
+    if (isFullyFree2) {
       const trialMsg2 = {
-        en: `🎁 <b>Free Trial</b>\n\n📧 Emails: <b>${emails.length}</b>\n💵 Cost: <b>FREE</b> (up to ${trialLimit2} emails)\n\nYou'll receive ✅ valid, ❌ invalid & 📊 full report.`,
+        en: `🎁 <b>Free Trial</b>\n\n📧 Emails: <b>${emails.length}</b>\n💵 Cost: <b>FREE</b> (up to ${trialLimit2} emails)\n\nYou'll receive 📬 deliverable list, ❌ invalid & 📊 full report.`,
         fr: `🎁 <b>Essai Gratuit</b>\n\n📧 Emails : <b>${emails.length}</b>\n💵 Coût : <b>GRATUIT</b> (jusqu'à ${trialLimit2} emails)`,
         zh: `🎁 <b>免费试用</b>\n\n📧 邮箱: <b>${emails.length}</b>\n💵 费用: <b>免费</b>（最多 ${trialLimit2} 封）`,
         hi: `🎁 <b>मुफ्त ट्रायल</b>\n\n📧 ईमेल: <b>${emails.length}</b>\n💵 लागत: <b>मुफ्त</b> (${trialLimit2} ईमेल तक)`,
       }
       return send(chatId, trialMsg2[lang] || trialMsg2.en, { parse_mode: 'HTML', reply_markup: { keyboard: [['🎁 Start Free Trial'], ['❌ Cancel']], resize_keyboard: true } })
+    }
+    if (isTrialPlusPay2) {
+      const paidCount2 = emails.length - trialLimit2
+      const extraUsd2 = trialPlusPricing2.total
+      const extraNgn2 = Math.round(extraUsd2 * EV_CONFIG.ngnRate)
+      const trialPlusMsg2 = {
+        en: `🎁 <b>Free Trial + Pay Extra</b>\n\n📧 Total Emails: <b>${emails.length.toLocaleString()}</b>\n━━━━━━━━━━━━━━━━━━━\n🎁 Free Trial: <b>${trialLimit2} emails FREE</b>\n💰 Extra: <b>${paidCount2.toLocaleString()} × $${trialPlusPricing2.rate} = $${extraUsd2.toFixed(2)}</b> (₦${extraNgn2.toLocaleString()})\n━━━━━━━━━━━━━━━━━━━\n\nOr pay full price: <b>$${pricing.total.toFixed(2)}</b> (₦${priceNgn.toLocaleString()})\n\nChoose an option:`,
+        fr: `🎁 <b>Essai Gratuit + Supplément</b>\n\n📧 Total : <b>${emails.length.toLocaleString()}</b>\n🎁 Gratuit : <b>${trialLimit2} emails</b>\n💰 Extra : <b>${paidCount2.toLocaleString()} × $${trialPlusPricing2.rate} = $${extraUsd2.toFixed(2)}</b> (₦${extraNgn2.toLocaleString()})`,
+        zh: `🎁 <b>免费试用 + 补差价</b>\n\n📧 总计: <b>${emails.length.toLocaleString()}</b>\n🎁 免费: <b>${trialLimit2} 封</b>\n💰 额外: <b>${paidCount2.toLocaleString()} × $${trialPlusPricing2.rate} = $${extraUsd2.toFixed(2)}</b>`,
+        hi: `🎁 <b>मुफ्त ट्रायल + अतिरिक्त</b>\n\n📧 कुल: <b>${emails.length.toLocaleString()}</b>\n🎁 मुफ्त: <b>${trialLimit2} ईमेल</b>\n💰 अतिरिक्त: <b>${paidCount2.toLocaleString()} × $${trialPlusPricing2.rate} = $${extraUsd2.toFixed(2)}</b>`,
+      }
+      const trialPlusBtns2 = [
+        [`🎁 Use Trial + Pay $${extraUsd2.toFixed(2)}`],
+        ['💵 Pay USD', '💵 Pay NGN'],
+        ['❌ Cancel'],
+      ]
+      return send(chatId, trialPlusMsg2[lang] || trialPlusMsg2.en, { parse_mode: 'HTML', reply_markup: { keyboard: trialPlusBtns2, resize_keyboard: true } })
     }
     const confirmMsg = {
       en: `📊 <b>Validation Summary</b>\n\n📧 Emails: <b>${emails.length}</b>\n💰 Rate: <b>$${pricing.rate}/email</b>\n💵 Total: <b>$${pricing.total.toFixed(2)}</b> (₦${priceNgn.toLocaleString()})\n\nChoose payment method:`,
@@ -7462,7 +7529,7 @@ All verified numbers generated during sourcing.`))
     if (message === '🎁 Start Free Trial') {
       const trialLimitPay = EV_CONFIG.freeTrialEmails
       if (trialLimitPay <= 0 || emails.length > trialLimitPay) {
-        return send(chatId, '❌ Free trial not available. Please choose a payment method.', { parse_mode: 'HTML', reply_markup: { keyboard: [['💵 Pay USD', '💵 Pay NGN'], ['❌ Cancel']], resize_keyboard: true } })
+        return send(chatId, '❌ Free trial not available for this list size. Please choose a payment method.', { parse_mode: 'HTML', reply_markup: { keyboard: [['💵 Pay USD', '💵 Pay NGN'], ['❌ Cancel']], resize_keyboard: true } })
       }
 
       // Atomic check-and-set to prevent double-trial race condition
@@ -7495,6 +7562,64 @@ All verified numbers generated during sourcing.`))
         hi: `🎁 <b>मुफ्त ट्रायल शुरू!</b>\n\n📧 सत्यापन: <b>${emailCount} ईमेल</b>\n💵 शुल्क: <b>$0.00 (मुफ्त)</b>`,
       }
       return send(chatId, trialSuccess[lang] || trialSuccess.en, { parse_mode: 'HTML', reply_markup: { keyboard: [[user.emailValidation], [t.back || '🔙 Back']], resize_keyboard: true } })
+    }
+
+    // ── Trial + Pay Extra handler ──
+    if (message.startsWith('🎁 Use Trial + Pay')) {
+      const trialLimitPay = EV_CONFIG.freeTrialEmails
+      const trialPlusUsd = info?.evTrialPlusUsd
+      const trialPlusNgn = info?.evTrialPlusNgn
+      const trialFreeCount = info?.evTrialFreeCount || trialLimitPay
+      const trialPaidCount = info?.evTrialPaidCount || (emails.length - trialLimitPay)
+
+      if (!trialPlusUsd || trialLimitPay <= 0) {
+        return send(chatId, '❌ Trial + Pay not available. Please choose a payment method.', { parse_mode: 'HTML', reply_markup: { keyboard: [['💵 Pay USD', '💵 Pay NGN'], ['❌ Cancel']], resize_keyboard: true } })
+      }
+
+      // Atomic check-and-set to prevent double-trial race condition
+      const trialClaim2 = await state.findOneAndUpdate(
+        { _id: parseFloat(chatId), $or: [{ evFreeTrialUsed: { $ne: true } }, { evFreeTrialUsed: { $exists: false } }] },
+        { $set: { evFreeTrialUsed: true } },
+        { returnDocument: 'after' }
+      )
+      if (!trialClaim2 || !trialClaim2.value) {
+        return send(chatId, '❌ Free trial already used. Please choose a payment method.', { parse_mode: 'HTML', reply_markup: { keyboard: [['💵 Pay USD', '💵 Pay NGN'], ['❌ Cancel']], resize_keyboard: true } })
+      }
+      info = await get(state, chatId) // refresh after atomic update
+
+      // Check USD wallet for the extra amount
+      const wallet = await get(walletOf, chatId) || { usdIn: 0, usdOut: 0, ngnIn: 0, ngnOut: 0 }
+      const usdBal = (wallet.usdIn || 0) - (wallet.usdOut || 0)
+
+      if (usdBal < trialPlusUsd) {
+        // Rollback trial claim — insufficient funds
+        await state.updateOne({ _id: parseFloat(chatId) }, { $set: { evFreeTrialUsed: false } })
+        return send(chatId, `⚠️ Insufficient USD balance for extra emails.\n💰 Need: <b>$${trialPlusUsd.toFixed(2)}</b>\n💳 Have: <b>$${usdBal.toFixed(2)}</b>\n\nPlease deposit more to your wallet, or pay full price with NGN.`, { parse_mode: 'HTML', reply_markup: { keyboard: [['💵 Pay USD', '💵 Pay NGN'], ['❌ Cancel']], resize_keyboard: true } })
+      }
+
+      // Deduct wallet for extra emails only
+      await atomicIncrement(walletOf, chatId, 'usdOut', trialPlusUsd)
+      log(`[EmailValidation] TRIAL+PAY: chatId=${chatId} — ${trialFreeCount} free + ${trialPaidCount} paid ($${trialPlusUsd}) for ${emailCount} total emails`)
+
+      // Clear session, start processing ALL emails
+      await saveInfo('evEmails', null)
+      await set(state, chatId, 'action', null)
+
+      emailValidationService.processValidationJob(chatId, emails, trialPlusUsd, 'trial_plus_usd', lang)
+        .catch(err => {
+          log(`[EmailValidation] Trial+Pay job error for chatId=${chatId}: ${err.message}`)
+          // Refund the paid portion on failure
+          atomicIncrement(walletOf, chatId, 'usdIn', trialPlusUsd).catch(() => {})
+          bot.sendMessage(chatId, `❌ Validation failed. <b>$${trialPlusUsd.toFixed(2)}</b> has been refunded to your wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+        })
+
+      const trialPlusSuccess = {
+        en: `🎁 <b>Trial + Pay started!</b>\n\n📧 Validating: <b>${emailCount.toLocaleString()} emails</b>\n🎁 Free: <b>${trialFreeCount} emails</b>\n💵 Charged: <b>$${trialPlusUsd.toFixed(2)}</b> for ${trialPaidCount.toLocaleString()} extra emails\n\n⏳ Processing will begin shortly. You'll receive progress updates.`,
+        fr: `🎁 <b>Essai + Paiement lancé !</b>\n\n📧 Validation : <b>${emailCount.toLocaleString()} emails</b>\n🎁 Gratuit : <b>${trialFreeCount}</b>\n💵 Facturé : <b>$${trialPlusUsd.toFixed(2)}</b> pour ${trialPaidCount.toLocaleString()} extras`,
+        zh: `🎁 <b>试用+付费已开始！</b>\n\n📧 验证: <b>${emailCount.toLocaleString()} 封</b>\n🎁 免费: <b>${trialFreeCount} 封</b>\n💵 收费: <b>$${trialPlusUsd.toFixed(2)}</b>（${trialPaidCount.toLocaleString()} 封额外）`,
+        hi: `🎁 <b>ट्रायल + भुगतान शुरू!</b>\n\n📧 सत्यापन: <b>${emailCount.toLocaleString()} ईमेल</b>\n🎁 मुफ्त: <b>${trialFreeCount}</b>\n💵 शुल्क: <b>$${trialPlusUsd.toFixed(2)}</b> (${trialPaidCount.toLocaleString()} अतिरिक्त)`,
+      }
+      return send(chatId, trialPlusSuccess[lang] || trialPlusSuccess.en, { parse_mode: 'HTML', reply_markup: { keyboard: [[user.emailValidation], [t.back || '🔙 Back']], resize_keyboard: true } })
     }
 
     const wallet = await get(walletOf, chatId) || { usdIn: 0, usdOut: 0, ngnIn: 0, ngnOut: 0 }

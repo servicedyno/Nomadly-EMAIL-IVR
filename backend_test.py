@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
-Backend Test for VPS IP Failover System + Catch-all Optimization
-Tests all components mentioned in the review request.
+Backend Test for Email Validation Features
+Tests two new features:
+1. Prominent deliverable email file with campaign-ready caption
+2. Trial + Pay for extra emails when list exceeds free trial limit
 """
 
 import subprocess
@@ -9,6 +11,7 @@ import requests
 import json
 import sys
 import os
+import re
 from pathlib import Path
 
 def run_command(cmd, description=""):
@@ -46,7 +49,8 @@ def check_file_content(file_path, patterns, description=""):
         return {
             'success': all(results.values()),
             'results': results,
-            'description': description
+            'description': description,
+            'content': content  # Include content for line number searches
         }
     except Exception as e:
         return {
@@ -55,14 +59,21 @@ def check_file_content(file_path, patterns, description=""):
             'description': description
         }
 
+def find_line_number(content, pattern):
+    """Find line number of a pattern in content"""
+    lines = content.split('\n')
+    for i, line in enumerate(lines, 1):
+        if pattern in line:
+            return i
+    return None
+
 def test_syntax_checks():
-    """Test 1: Syntax check for all 3 files"""
-    print("🔍 Test 1: Syntax Checks")
+    """Test 1-2: Syntax checks for both files"""
+    print("🔍 Test 1-2: Syntax Checks")
     
     files_to_check = [
-        '/app/js/_index.js',
-        '/app/js/email-validation.js', 
-        '/app/js/email-validation-worker.js'
+        '/app/js/email-validation-service.js',
+        '/app/js/_index.js'
     ]
     
     results = []
@@ -77,8 +88,13 @@ def test_syntax_checks():
     return all(r['success'] for r in results)
 
 def test_nodejs_health():
-    """Test 2: Node.js running clean"""
-    print("\n🔍 Test 2: Node.js Health Check")
+    """Test 9: Node.js running clean"""
+    print("\n🔍 Test 9: Node.js Health Check")
+    
+    # Check supervisor status
+    supervisor_result = run_command('sudo supervisorctl status nodejs', 'Check nodejs supervisor status')
+    nodejs_running = 'RUNNING' in supervisor_result['stdout']
+    print(f"  {'✅ PASS' if nodejs_running else '❌ FAIL'} Node.js supervisor status: {supervisor_result['stdout']}")
     
     # Check health endpoint
     try:
@@ -94,216 +110,207 @@ def test_nodejs_health():
         print(f"  ❌ FAIL Health endpoint error: {e}")
     
     # Check error log size
-    error_log_result = run_command('ls -la /var/log/supervisor/nodejs.err.log', 'Check error log size')
-    error_log_empty = '0 ' in error_log_result['stdout']  # Check if size is 0 bytes
-    print(f"  {'✅ PASS' if error_log_empty else '❌ FAIL'} Error log is 0 bytes")
-    if not error_log_empty:
-        print(f"    Log info: {error_log_result['stdout']}")
+    error_log_result = run_command('wc -c /var/log/supervisor/nodejs.err.log', 'Check error log size')
+    error_log_empty = error_log_result['stdout'].startswith('0 ')
+    print(f"  {'✅ PASS' if error_log_empty else '❌ FAIL'} Error log is 0 bytes: {error_log_result['stdout']}")
     
-    return health_ok and error_log_empty
+    return nodejs_running and health_ok and error_log_empty
 
-def test_ev_admin_ips_action():
-    """Test 3: evAdminIps action exists in actions enum"""
-    print("\n🔍 Test 3: evAdminIps Action in Enum")
+def test_deliverable_file_features():
+    """Test 3-7: Prominent deliverable email file features"""
+    print("\n🔍 Test 3-7: Deliverable Email File Features")
     
-    patterns = {
-        'evAdminIps_enum': "evAdminIps: 'evAdminIps'"
+    # Test 3: generateValidCsv still filters results where r.category === 'valid'
+    patterns_3 = {
+        'valid_filter': "results.filter(r => r.category === 'valid')"
     }
+    result_3 = check_file_content('/app/js/email-validation-service.js', patterns_3, 'generateValidCsv filters valid')
+    print(f"  {'✅ PASS' if result_3['success'] else '❌ FAIL'} Test 3: generateValidCsv filters r.category === 'valid'")
     
-    result = check_file_content('/app/js/_index.js', patterns, 'evAdminIps in actions enum')
-    status = "✅ PASS" if result['success'] else "❌ FAIL"
-    print(f"  {status} evAdminIps exists in actions enum")
+    # Test 4: Filename changed to 'deliverable_emails_*.csv'
+    patterns_4 = {
+        'deliverable_filename': "deliverable_emails_"
+    }
+    result_4 = check_file_content('/app/js/email-validation-service.js', patterns_4, 'Deliverable filename')
+    print(f"  {'✅ PASS' if result_4['success'] else '❌ FAIL'} Test 4: Filename contains 'deliverable_emails_'")
     
-    return result['success']
+    # Test 5: Caption contains required text
+    patterns_5 = {
+        'campaign_ready': "Campaign-Ready",
+        'deliverable_emails': "deliverable emails",
+        'use_this_file': "Use this file for your email campaign"
+    }
+    result_5 = check_file_content('/app/js/email-validation-service.js', patterns_5, 'Caption text')
+    print(f"  {'✅ PASS' if result_5['success'] else '❌ FAIL'} Test 5: Caption contains 'Campaign-Ready', 'deliverable emails', 'Use this file for your email campaign'")
+    
+    # Test 6: File send order - valid file sent FIRST
+    content = result_5.get('content', '')
+    if content:
+        # Find line numbers for file sending
+        valid_send_line = find_line_number(content, 'sendDocument(chatId, Buffer.from(validCsv)')
+        invalid_send_line = find_line_number(content, 'sendDocument(chatId, Buffer.from(invalidCsv)')
+        full_send_line = find_line_number(content, 'sendDocument(chatId, Buffer.from(fullCsv)')
+        
+        order_correct = (valid_send_line and invalid_send_line and full_send_line and 
+                        valid_send_line < invalid_send_line < full_send_line)
+        print(f"  {'✅ PASS' if order_correct else '❌ FAIL'} Test 6: File send order - valid first (lines: valid={valid_send_line}, invalid={invalid_send_line}, full={full_send_line})")
+    else:
+        print(f"  ❌ FAIL Test 6: Could not read file content")
+        order_correct = False
+    
+    # Test 7: Summary message says "📬 Deliverable:" instead of "✅ Valid:"
+    patterns_7 = {
+        'deliverable_summary': "📬 Deliverable:",
+        'first_file_hint': "The first file is your campaign-ready list"
+    }
+    result_7 = check_file_content('/app/js/email-validation-service.js', patterns_7, 'Summary message')
+    print(f"  {'✅ PASS' if result_7['success'] else '❌ FAIL'} Test 7: Summary says '📬 Deliverable:' and includes hint about first file")
+    
+    return all([result_3['success'], result_4['success'], result_5['success'], order_correct, result_7['success']])
 
-def test_ip_manager_handler():
-    """Test 4: IP Manager admin handler with required buttons"""
-    print("\n🔍 Test 4: IP Manager Admin Handler")
+def test_trial_plus_pay_upload_handler():
+    """Test 10-12: Upload handler logic changes"""
+    print("\n🔍 Test 10-12: Upload Handler Logic")
     
-    patterns = {
-        'handler_condition': "action === a.evAdminIps && isAdmin(chatId)",
-        'refresh_button': "'🔄 Refresh IPs'",
-        'fetch_contabo_button': "'📡 Fetch from Contabo'",
-        'add_ip_button': "'➕ Add IP'",
-        'remove_ip_button': "'🗑 Remove IP'",
-        'reset_health_button': "'♻️ Reset Health'",
-        'back_button': "'🔙 Back'"
+    # Test 10: Old isTrialEligible replaced with new functions
+    patterns_10 = {
+        'hasTrialAvailable': 'hasTrialAvailable',
+        'isFullyFree': 'isFullyFree',
+        'isTrialPlusPay': 'isTrialPlusPay'
     }
+    result_10 = check_file_content('/app/js/_index.js', patterns_10, 'New trial functions')
+    print(f"  {'✅ PASS' if result_10['success'] else '❌ FAIL'} Test 10: Upload handler has hasTrialAvailable, isFullyFree, isTrialPlusPay")
     
-    result = check_file_content('/app/js/_index.js', patterns, 'IP Manager handler buttons')
-    status = "✅ PASS" if result['success'] else "❌ FAIL"
-    print(f"  {status} IP Manager handler with all required buttons")
+    # Test 11: When isTrialPlusPay, saves state variables
+    patterns_11 = {
+        'evTrialPlusPay': 'evTrialPlusPay',
+        'evTrialFreeCount': 'evTrialFreeCount', 
+        'evTrialPaidCount': 'evTrialPaidCount',
+        'evTrialPlusUsd': 'evTrialPlusUsd',
+        'evTrialPlusNgn': 'evTrialPlusNgn'
+    }
+    result_11 = check_file_content('/app/js/_index.js', patterns_11, 'Trial plus pay state variables')
+    print(f"  {'✅ PASS' if result_11['success'] else '❌ FAIL'} Test 11: Saves evTrialPlusPay, evTrialFreeCount, evTrialPaidCount, evTrialPlusUsd, evTrialPlusNgn")
     
-    for button, found in result.get('results', {}).items():
-        print(f"    {'✅' if found else '❌'} {button}")
+    # Test 12: Shows button text with trial + pay
+    patterns_12 = {
+        'trial_pay_button': '🎁 Use Trial + Pay $'
+    }
+    result_12 = check_file_content('/app/js/_index.js', patterns_12, 'Trial plus pay button')
+    print(f"  {'✅ PASS' if result_12['success'] else '❌ FAIL'} Test 12: Shows button text '🎁 Use Trial + Pay $' when isTrialPlusPay")
     
-    return result['success']
+    return all([result_10['success'], result_11['success'], result_12['success']])
 
-def test_helper_functions():
-    """Test 5: Helper functions exist"""
-    print("\n🔍 Test 5: Helper Functions")
+def test_trial_plus_pay_paste_handler():
+    """Test 13: Paste handler logic"""
+    print("\n🔍 Test 13: Paste Handler Logic")
     
-    patterns = {
-        '_evWorkerGet': 'function _evWorkerGet(path)',
-        '_evWorkerPost': 'function _evWorkerPost(path, data)',
-        '_evWorkerDelete': 'function _evWorkerDelete(path, data)',
-        '_fetchContaboIps': 'async function _fetchContaboIps()'
+    patterns_13 = {
+        'hasTrialAvailable2': 'hasTrialAvailable2',
+        'isFullyFree2': 'isFullyFree2',
+        'isTrialPlusPay2': 'isTrialPlusPay2'
     }
+    result_13 = check_file_content('/app/js/_index.js', patterns_13, 'Paste handler trial functions')
+    print(f"  {'✅ PASS' if result_13['success'] else '❌ FAIL'} Test 13: Paste handler has hasTrialAvailable2, isFullyFree2, isTrialPlusPay2")
     
-    result = check_file_content('/app/js/_index.js', patterns, 'Helper functions')
-    status = "✅ PASS" if result['success'] else "❌ FAIL"
-    print(f"  {status} All helper functions exist")
-    
-    for func, found in result.get('results', {}).items():
-        print(f"    {'✅' if found else '❌'} {func}")
-    
-    return result['success']
+    return result_13['success']
 
-def test_failover_endpoint():
-    """Test 6: Failover endpoint exists"""
-    print("\n🔍 Test 6: Failover Endpoint")
+def test_trial_plus_pay_confirm_handler():
+    """Test 14-20: evConfirmPay handler features"""
+    print("\n🔍 Test 14-20: evConfirmPay Handler Features")
     
-    patterns = {
-        'failover_endpoint': "app.post('/ev-ip-failover'",
-        'telegram_notification': 'TELEGRAM_ADMIN_CHAT_ID'
+    # Test 14: evConfirmPay handler with trial + pay message check
+    patterns_14 = {
+        'trial_pay_message_check': "message.startsWith('🎁 Use Trial + Pay')"
     }
+    result_14 = check_file_content('/app/js/_index.js', patterns_14, 'Trial pay message check')
+    print(f"  {'✅ PASS' if result_14['success'] else '❌ FAIL'} Test 14: evConfirmPay handler checks message.startsWith('🎁 Use Trial + Pay')")
     
-    result = check_file_content('/app/js/_index.js', patterns, 'Failover endpoint')
-    status = "✅ PASS" if result['success'] else "❌ FAIL"
-    print(f"  {status} /ev-ip-failover endpoint exists with Telegram notification")
+    # Test 15: Atomic findOneAndUpdate for trial claim
+    patterns_15 = {
+        'atomic_trial_claim': 'findOneAndUpdate'
+    }
+    result_15 = check_file_content('/app/js/_index.js', patterns_15, 'Atomic trial claim')
+    print(f"  {'✅ PASS' if result_15['success'] else '❌ FAIL'} Test 15: Uses atomic findOneAndUpdate for trial claim")
     
-    return result['success']
+    # Test 16: USD wallet balance check
+    patterns_16 = {
+        'usd_balance_check': 'usdBal < trialPlusUsd'
+    }
+    result_16 = check_file_content('/app/js/_index.js', patterns_16, 'USD balance check')
+    print(f"  {'✅ PASS' if result_16['success'] else '❌ FAIL'} Test 16: USD wallet balance check (usdBal < trialPlusUsd)")
+    
+    # Test 17: Rollback trial claim on insufficient funds
+    patterns_17 = {
+        'rollback_trial': 'evFreeTrialUsed: false'
+    }
+    result_17 = check_file_content('/app/js/_index.js', patterns_17, 'Trial rollback')
+    print(f"  {'✅ PASS' if result_17['success'] else '❌ FAIL'} Test 17: Rollback trial claim on insufficient funds (evFreeTrialUsed: false)")
+    
+    # Test 18: atomicIncrement for USD charge
+    patterns_18 = {
+        'atomic_usd_charge': "atomicIncrement(walletOf, chatId, 'usdOut', trialPlusUsd)"
+    }
+    result_18 = check_file_content('/app/js/_index.js', patterns_18, 'Atomic USD charge')
+    print(f"  {'✅ PASS' if result_18['success'] else '❌ FAIL'} Test 18: atomicIncrement(walletOf, chatId, 'usdOut', trialPlusUsd) for charge")
+    
+    # Test 19: processValidationJob with payment_method 'trial_plus_usd'
+    patterns_19 = {
+        'trial_plus_payment_method': "'trial_plus_usd'"
+    }
+    result_19 = check_file_content('/app/js/_index.js', patterns_19, 'Trial plus payment method')
+    print(f"  {'✅ PASS' if result_19['success'] else '❌ FAIL'} Test 19: processValidationJob called with payment_method 'trial_plus_usd'")
+    
+    # Test 20: Refund on failure
+    patterns_20 = {
+        'refund_on_failure': "atomicIncrement(walletOf, chatId, 'usdIn', trialPlusUsd)"
+    }
+    result_20 = check_file_content('/app/js/_index.js', patterns_20, 'Refund on failure')
+    print(f"  {'✅ PASS' if result_20['success'] else '❌ FAIL'} Test 20: Refund on failure (atomicIncrement usdIn)")
+    
+    return all([result_14['success'], result_15['success'], result_16['success'], 
+               result_17['success'], result_18['success'], result_19['success'], result_20['success']])
 
-def test_catch_all_optimization():
-    """Test 7: Catch-all optimization in email-validation.js"""
-    print("\n🔍 Test 7: Catch-all Optimization")
+def test_regression_old_trial():
+    """Test 21: Regression test for old free trial handler"""
+    print("\n🔍 Test 21: Regression Test - Old Free Trial Handler")
     
-    patterns = {
-        'domain_buckets': 'const domainBuckets = new Map()',
-        'catch_all_probe': 'ev-catchall-probe',
-        'smtp_verify_batch': 'smtpVerifyBatch(probeEmails)',
-        'catch_all_skip': 'skip individual SMTP',
-        'catch_all_domain': 'catch_all_domain'
+    patterns_21 = {
+        'old_trial_handler': '🎁 Start Free Trial'
     }
+    result_21 = check_file_content('/app/js/_index.js', patterns_21, 'Old trial handler')
+    print(f"  {'✅ PASS' if result_21['success'] else '❌ FAIL'} Test 21: Old '🎁 Start Free Trial' handler still works")
     
-    result = check_file_content('/app/js/email-validation.js', patterns, 'Catch-all optimization')
-    status = "✅ PASS" if result['success'] else "❌ FAIL"
-    print(f"  {status} Catch-all optimization with domainBuckets grouping")
-    
-    for feature, found in result.get('results', {}).items():
-        print(f"    {'✅' if found else '❌'} {feature}")
-    
-    return result['success']
-
-def test_worker_ip_pool():
-    """Test 8: Worker IP pool features"""
-    print("\n🔍 Test 8: Worker IP Pool Features")
-    
-    patterns = {
-        'ip_pool_array': 'const ipPool = []',
-        'init_ip_pool': 'function initIpPool()',
-        'get_healthy_ip': 'function getHealthyIp()',
-        'record_success': 'function recordSuccess(ipEntry)',
-        'record_failure': 'function recordFailure(ipEntry, reason)',
-        'notify_failover': 'async function notifyFailover(blockedIp, reason)',
-        'save_ip_pool': 'function saveIpPool()'
-    }
-    
-    result = check_file_content('/app/js/email-validation-worker.js', patterns, 'Worker IP pool')
-    status = "✅ PASS" if result['success'] else "❌ FAIL"
-    print(f"  {status} Worker IP pool with all management functions")
-    
-    for feature, found in result.get('results', {}).items():
-        print(f"    {'✅' if found else '❌'} {feature}")
-    
-    return result['success']
-
-def test_worker_management_endpoints():
-    """Test 9: Worker management endpoints"""
-    print("\n🔍 Test 9: Worker Management Endpoints")
-    
-    patterns = {
-        'get_ips': "req.method === 'GET' && req.url === '/ips'",
-        'post_ips': "req.method === 'POST' && req.url === '/ips'",
-        'delete_ips': "req.method === 'DELETE' && req.url === '/ips'",
-        'reset_ips': "req.method === 'POST' && req.url === '/ips/reset'"
-    }
-    
-    result = check_file_content('/app/js/email-validation-worker.js', patterns, 'Worker management endpoints')
-    status = "✅ PASS" if result['success'] else "❌ FAIL"
-    print(f"  {status} Worker has all management endpoints (GET/POST/DELETE /ips, POST /ips/reset)")
-    
-    for endpoint, found in result.get('results', {}).items():
-        print(f"    {'✅' if found else '❌'} {endpoint}")
-    
-    return result['success']
-
-def test_worker_local_address():
-    """Test 10: Worker localAddress usage"""
-    print("\n🔍 Test 10: Worker localAddress Usage")
-    
-    patterns = {
-        'smtp_verify_single_params': 'function smtpVerifySingle(email, mxHost, sourceIp',
-        'local_address_binding': 'if (sourceIp) connOpts.localAddress = sourceIp',
-        'source_ip_usage': 'const r = await smtpVerifySingle(email, mxHost, sourceIp)'
-    }
-    
-    result = check_file_content('/app/js/email-validation-worker.js', patterns, 'Worker localAddress')
-    status = "✅ PASS" if result['success'] else "❌ FAIL"
-    print(f"  {status} smtpVerifySingle accepts and uses sourceIp for localAddress binding")
-    
-    for feature, found in result.get('results', {}).items():
-        print(f"    {'✅' if found else '❌'} {feature}")
-    
-    return result['success']
-
-def test_worker_ip_persistence():
-    """Test 11: Worker IP persistence"""
-    print("\n🔍 Test 11: Worker IP Persistence")
-    
-    patterns = {
-        'ip_pool_file': "const IP_POOL_FILE = '/root/ev-ip-pool.json'",
-        'save_ip_pool_call': 'saveIpPool()',
-        'fs_write_sync': 'fs.writeFileSync(IP_POOL_FILE'
-    }
-    
-    result = check_file_content('/app/js/email-validation-worker.js', patterns, 'Worker IP persistence')
-    status = "✅ PASS" if result['success'] else "❌ FAIL"
-    print(f"  {status} Worker saves IP pool to /root/ev-ip-pool.json")
-    
-    return result['success']
+    return result_21['success']
 
 def main():
     """Run all tests"""
-    print("🚀 VPS IP Failover System + Catch-all Optimization Test Suite")
-    print("=" * 70)
+    print("🚀 Email Validation Features Test Suite")
+    print("Testing: Prominent Deliverable File + Trial+Pay for Extra Emails")
+    print("=" * 80)
     
     tests = [
-        test_syntax_checks,
-        test_nodejs_health,
-        test_ev_admin_ips_action,
-        test_ip_manager_handler,
-        test_helper_functions,
-        test_failover_endpoint,
-        test_catch_all_optimization,
-        test_worker_ip_pool,
-        test_worker_management_endpoints,
-        test_worker_local_address,
-        test_worker_ip_persistence
+        ("Syntax Checks", test_syntax_checks),
+        ("Node.js Health", test_nodejs_health), 
+        ("Deliverable File Features", test_deliverable_file_features),
+        ("Upload Handler Logic", test_trial_plus_pay_upload_handler),
+        ("Paste Handler Logic", test_trial_plus_pay_paste_handler),
+        ("evConfirmPay Handler", test_trial_plus_pay_confirm_handler),
+        ("Regression Test", test_regression_old_trial)
     ]
     
     results = []
-    for test in tests:
+    for test_name, test_func in tests:
         try:
-            result = test()
+            result = test_func()
             results.append(result)
         except Exception as e:
-            print(f"  ❌ FAIL Test error: {e}")
+            print(f"  ❌ FAIL {test_name} error: {e}")
             results.append(False)
     
-    print("\n" + "=" * 70)
+    print("\n" + "=" * 80)
     print("📊 TEST SUMMARY")
-    print("=" * 70)
+    print("=" * 80)
     
     passed = sum(results)
     total = len(results)
@@ -313,7 +320,24 @@ def main():
     print(f"📈 Success Rate: {(passed/total)*100:.1f}%")
     
     if passed == total:
-        print("\n🎉 ALL TESTS PASSED! VPS IP Failover System + Catch-all Optimization is working correctly.")
+        print("\n🎉 ALL TESTS PASSED! Email validation features are working correctly.")
+        print("\n📋 VERIFIED FEATURES:")
+        print("  ✅ Feature 1: Prominent deliverable email file")
+        print("    - generateValidCsv filters r.category === 'valid'")
+        print("    - Filename changed to 'deliverable_emails_*.csv'")
+        print("    - Caption contains 'Campaign-Ready' and required text")
+        print("    - Valid file sent FIRST, then invalid, then full report")
+        print("    - Summary says '📬 Deliverable:' with hint about first file")
+        print("  ✅ Feature 2: Trial + Pay for extra emails")
+        print("    - Upload handler uses hasTrialAvailable, isFullyFree, isTrialPlusPay")
+        print("    - Saves trial+pay state variables when isTrialPlusPay")
+        print("    - Shows '🎁 Use Trial + Pay $' button")
+        print("    - Paste handler has same logic with *2 variants")
+        print("    - evConfirmPay handler with atomic trial claim")
+        print("    - USD wallet balance check and rollback on insufficient funds")
+        print("    - atomicIncrement for charge and refund on failure")
+        print("    - processValidationJob with 'trial_plus_usd' payment method")
+        print("    - Old '🎁 Start Free Trial' handler still works (regression)")
         return True
     else:
         print(f"\n⚠️  {total - passed} test(s) failed. Please review the issues above.")

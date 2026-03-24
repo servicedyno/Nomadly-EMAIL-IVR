@@ -219,7 +219,7 @@ async function processValidationJob(chatId, emails, price, paymentMethod, lang) 
       `🎉 <b>Email Validation Complete</b>\n\n` +
       `📊 <b>Results Summary</b>\n` +
       `━━━━━━━━━━━━━━━━━━━\n` +
-      `✅ Valid: <b>${summary.valid.toLocaleString()}</b>\n` +
+      `📬 Deliverable: <b>${summary.valid.toLocaleString()}</b>\n` +
       `❌ Invalid: <b>${summary.invalid.toLocaleString()}</b>\n` +
       `⚠️ Risky: <b>${summary.risky.toLocaleString()}</b> (catch-all / role)\n` +
       `🚫 Disposable: <b>${summary.disposable.toLocaleString()}</b>\n` +
@@ -227,30 +227,31 @@ async function processValidationJob(chatId, emails, price, paymentMethod, lang) 
       `━━━━━━━━━━━━━━━━━━━\n` +
       `${qualityEmoji} Deliverability: <b>${pctValid}%</b>\n` +
       `📈 Avg Score: <b>${summary.avgScore}/100</b>\n\n` +
-      `📄 Sending your result files...`,
+      `📄 Sending your result files...\n` +
+      `📬 <i>The first file is your campaign-ready list.</i>`,
       { parse_mode: 'HTML' }
     ).catch(() => {})
 
-    // Send files
+    // Send files — valid (campaign-ready) file FIRST and prominently
     await sleep(500)
 
     if (summary.valid > 0) {
-      _bot?.sendDocument(chatId, Buffer.from(validCsv), {
-        caption: `✅ Valid Emails (${summary.valid.toLocaleString()})`,
-      }, { filename: `valid_emails_${jobId.slice(0, 8)}.csv`, contentType: 'text/csv' }).catch(() => {})
+      await _bot?.sendDocument(chatId, Buffer.from(validCsv), {
+        caption: `📬 Campaign-Ready List — ${summary.valid.toLocaleString()} deliverable emails\n✅ Use this file for your email campaign`,
+      }, { filename: `deliverable_emails_${jobId.slice(0, 8)}.csv`, contentType: 'text/csv' }).catch(() => {})
       await sleep(300)
     }
 
-    _bot?.sendDocument(chatId, Buffer.from(fullCsv), {
-      caption: `📊 Full Report — All ${summary.total.toLocaleString()} emails with scores`,
-    }, { filename: `full_report_${jobId.slice(0, 8)}.csv`, contentType: 'text/csv' }).catch(() => {})
-    await sleep(300)
-
     if (summary.invalid > 0 || summary.risky > 0 || summary.disposable > 0 || summary.unknown > 0) {
-      _bot?.sendDocument(chatId, Buffer.from(invalidCsv), {
-        caption: `❌ Invalid & Risky Emails (${(summary.total - summary.valid).toLocaleString()})`,
+      await _bot?.sendDocument(chatId, Buffer.from(invalidCsv), {
+        caption: `❌ Invalid & Risky — ${(summary.total - summary.valid).toLocaleString()} emails removed`,
       }, { filename: `invalid_emails_${jobId.slice(0, 8)}.csv`, contentType: 'text/csv' }).catch(() => {})
+      await sleep(300)
     }
+
+    await _bot?.sendDocument(chatId, Buffer.from(fullCsv), {
+      caption: `📊 Full Report — All ${summary.total.toLocaleString()} emails with scores & details`,
+    }, { filename: `full_report_${jobId.slice(0, 8)}.csv`, contentType: 'text/csv' }).catch(() => {})
 
     return { jobId, summary }
 
