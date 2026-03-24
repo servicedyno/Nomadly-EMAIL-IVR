@@ -116,6 +116,11 @@ async function _attemptTwilioDirectCall(chatId, num, destination, bridgeId, call
       return
     }
     const subClient = require('twilio')(subSid, subToken)
+    // ── Direct Twilio call: Use inline TwiML instead of webhook URL ──
+    // When this fallback triggers, the Telnyx SIP leg is dead (answer failed or transfer failed).
+    // We can't bridge audio to the SIP client, but we CAN place a call with correct caller ID.
+    // The call connects the destination to our webhook for status tracking.
+    const bridge = pendingBridges[bridgeId]
     const call = await subClient.calls.create({
       url: `${_selfUrl}/twilio/sip-voice?bridgeId=${bridgeId}`,
       to: destination,

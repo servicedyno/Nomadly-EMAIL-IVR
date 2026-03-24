@@ -523,6 +523,50 @@ function generateRejectTwiml(reason) {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// READ-ONLY: Get existing Twilio resources without updating webhooks
+// Used when SKIP_WEBHOOK_SYNC=true to prevent preview pods from overwriting production URLs
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+async function getTwilioResourcesFromEnv() {
+  if (!ACCOUNT_SID || !AUTH_TOKEN) {
+    log('[Twilio] No credentials configured — skipping read-only init')
+    return null
+  }
+  log('━━━ Reading Twilio Resources (READ-ONLY — no webhook updates) ━━━')
+  try {
+    const client = getClient()
+
+    // Find existing SIP domain — DO NOT create or update
+    const domains = await client.sip.domains.list({ limit: 20 })
+    const sipDomain = domains.find(d => d.domainName?.startsWith('speechcue-'))
+      || domains.find(d => d.friendlyName?.includes('Nomadly') || d.domainName?.startsWith('nomadly-'))
+
+    if (!sipDomain) {
+      log('[Twilio] READ-ONLY: No SIP domain found — cannot proceed without full init')
+      return null
+    }
+
+    log(`[Twilio] READ-ONLY: Found SIP domain: ${sipDomain.domainName} (voiceUrl: ${sipDomain.voiceUrl})`)
+
+    // Find existing credential list — DO NOT create
+    const credLists = await client.sip.credentialLists.list({ limit: 20 })
+    const credList = credLists.find(cl => cl.friendlyName?.includes('Speechcue'))
+      || credLists.find(cl => cl.friendlyName?.includes('Nomadly'))
+
+    activeSipDomainName = sipDomain.domainName
+    return {
+      sipDomainSid: sipDomain.sid,
+      sipDomainName: sipDomain.domainName,
+      credentialListSid: credList?.sid || null,
+      accountSid: ACCOUNT_SID,
+    }
+  } catch (e) {
+    log(`[Twilio] READ-ONLY init error: ${e.message}`)
+    return null
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SETUP: Initialize Twilio Resources on Startup
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -941,6 +985,141 @@ async function getDocRejectionReasons(bundleSid) {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CALLER ID VERIFICATION: Verify sub-account numbers on main account
+// Required for SIP bridge: main account SIP domain must use sub-account numbers as caller ID
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// In-memory store for pending verification codes (code → phoneNumber)
+const pendingVerifications = {}
+
+/**
+ * Check if a phone number is verified as an outgoing caller ID on the main account
+ */
+async function isCallerIdVerified(phoneNumber) {
+  try {
+    const client = getClient()
+    if (!client) return false
+    const callerIds = await client.outgoingCallerIds.list({ phoneNumber })
+    return callerIds.length > 0
+  } catch (e) {
+    log(`[Twilio] isCallerIdVerified error: ${e.message}`)
+    return false
+  }
+}
+
+/**
+ * Verify a sub-account phone number as an outgoing caller ID on the main account.
+ * This is required for the SIP bridge flow: the main account's SIP domain needs to
+ * use <Dial callerId="+1xxx"> with sub-account numbers.
+ * 
+ * Flow:
+ * 1. Create a validation request on the main account
+ * 2. Twilio calls the phone number with a verification PIN
+ * 3. Our /twilio/verify-callerid endpoint answers and plays the PIN via DTMF
+ * 4. Number is verified on the main account
+ * 
+ * @param {string} phoneNumber - The sub-account phone number to verify
+ * @param {string} subSid - Sub-account SID  
+ * @param {string} subToken - Sub-account auth token
+ * @param {string} selfUrl - The server's webhook base URL
+ * @param {string} phoneSid - The phone number resource SID (PN...)
+ * @returns {boolean} Whether verification succeeded
+ */
+async function verifyCallerIdOnMainAccount(phoneNumber, subSid, subToken, selfUrl, phoneSid) {
+  try {
+    const mainClient = getClient()
+    if (!mainClient) throw new Error('Twilio main client not initialized')
+
+    // Check if already verified
+    const existing = await mainClient.outgoingCallerIds.list({ phoneNumber })
+    if (existing.length > 0) {
+      log(`[Twilio] Caller ID ${phoneNumber} already verified on main account`)
+      return true
+    }
+
+    const subClient = require('twilio')(subSid, subToken)
+
+    // Step 1: Save the original webhook URL
+    const numberResource = await subClient.incomingPhoneNumbers(phoneSid).fetch()
+    const originalVoiceUrl = numberResource.voiceUrl
+    const originalVoiceMethod = numberResource.voiceMethod
+
+    // Step 2: Create validation request (Twilio will call the number)
+    const validation = await mainClient.validationRequests.create({
+      phoneNumber,
+      friendlyName: `Nomadly-Bridge-${phoneNumber}`,
+      callDelay: 10, // 10s delay before calling
+    })
+    const code = validation.validationCode
+    log(`[Twilio] Caller ID verification started for ${phoneNumber} (code: ${code})`)
+
+    // Step 3: Store the code and redirect the number's webhook
+    pendingVerifications[phoneNumber] = code
+    await subClient.incomingPhoneNumbers(phoneSid).update({
+      voiceUrl: `${selfUrl}/twilio/verify-callerid?code=${code}`,
+      voiceMethod: 'POST',
+    })
+
+    // Step 4: Wait for verification to complete (up to 60 seconds)
+    let verified = false
+    for (let i = 0; i < 12; i++) {
+      await new Promise(r => setTimeout(r, 5000))
+      const callerIds = await mainClient.outgoingCallerIds.list({ phoneNumber })
+      if (callerIds.length > 0) {
+        verified = true
+        log(`[Twilio] ✅ Caller ID ${phoneNumber} verified on main account (SID: ${callerIds[0].sid})`)
+        break
+      }
+    }
+
+    // Step 5: Always restore the original webhook
+    await subClient.incomingPhoneNumbers(phoneSid).update({
+      voiceUrl: originalVoiceUrl || `${selfUrl}/twilio/voice-webhook`,
+      voiceMethod: originalVoiceMethod || 'POST',
+    })
+    delete pendingVerifications[phoneNumber]
+
+    if (!verified) {
+      log(`[Twilio] ⚠️ Caller ID verification for ${phoneNumber} timed out`)
+    }
+    return verified
+  } catch (e) {
+    log(`[Twilio] Caller ID verification error for ${phoneNumber}: ${e.message}`)
+    return false
+  }
+}
+
+/**
+ * Verify all active Twilio sub-account numbers as caller IDs on the main account.
+ * Called during startup or as a maintenance task.
+ */
+async function verifyAllTwilioCallerIds(db, selfUrl) {
+  try {
+    const phoneNumbers = await db.collection('phoneNumbersOf').find({}).toArray()
+    for (const doc of phoneNumbers) {
+      const numbers = doc.val?.numbers || []
+      for (const num of numbers) {
+        if (num.provider === 'twilio' && num.status === 'active' && num.phoneNumber) {
+          const alreadyVerified = await isCallerIdVerified(num.phoneNumber)
+          if (!alreadyVerified) {
+            log(`[Twilio] Need to verify caller ID: ${num.phoneNumber}`)
+            const subSid = num.twilioSubAccountSid || doc.val?.twilioSubAccountSid
+            const subToken = num.twilioSubAccountToken || doc.val?.twilioSubAccountToken
+            if (subSid && subToken && num.twilioPhoneSid) {
+              await verifyCallerIdOnMainAccount(num.phoneNumber, subSid, subToken, selfUrl, num.twilioPhoneSid)
+            } else {
+              log(`[Twilio] Missing sub-account credentials for ${num.phoneNumber} — skipping verification`)
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    log(`[Twilio] verifyAllTwilioCallerIds error: ${e.message}`)
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // EXPORTS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -967,6 +1146,7 @@ module.exports = {
   generateForwardTwiml,
   generateRejectTwiml,
   initializeTwilioResources,
+  getTwilioResourcesFromEnv,
   transferNumberToSubAccount,
   updateSubAccountNumberWebhooks,
   getTwilioSipDomainName,

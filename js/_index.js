@@ -1027,7 +1027,7 @@ const loadData = async () => {
     try {
       if (_skipWebhookSync) {
         // Read-only: just get existing resources without updating webhooks
-        twilioResources = twilioService.getTwilioResourcesFromEnv ? twilioService.getTwilioResourcesFromEnv() : await twilioService.initializeTwilioResources(SELF_URL)
+        twilioResources = await twilioService.getTwilioResourcesFromEnv()
       } else {
         twilioResources = await twilioService.initializeTwilioResources(SELF_URL)
       }
@@ -22644,6 +22644,75 @@ app.post('/twilio/recording-status', async (req, res) => {
 })
 
 // Twilio SIP Voice Webhook (Outbound SIP calls)
+
+// ── TEST ENDPOINT: Verify SIP bridge flow end-to-end ──
+// Creates a bridge context in memory, then uses Twilio API to call through the SIP domain.
+// This simulates exactly what happens when Telnyx transfers a call to the Twilio SIP domain.
+app.post('/test/sip-bridge', async (req, res) => {
+  try {
+    const { destination, chatId } = req.body || {}
+    if (!destination || !chatId) return res.status(400).json({ error: 'destination and chatId required' })
+
+    const userData = await db.collection('phoneNumbersOf').findOne({ _id: chatId })
+    const num = (userData?.val?.numbers || []).find(n => n.provider === 'twilio' && n.status === 'active')
+    if (!num) return res.status(404).json({ error: 'No active Twilio number found for chatId' })
+
+    const subSid = num.twilioSubAccountSid || userData?.val?.twilioSubAccountSid
+    const subToken = num.twilioSubAccountToken || userData?.val?.twilioSubAccountToken
+    if (!subSid || !subToken) return res.status(400).json({ error: 'No sub-account credentials' })
+
+    const bridgeId = 'bridge_test_' + nanoid()
+    pendingBridges[bridgeId] = {
+      twilioNumber: num.phoneNumber,
+      destination,
+      chatId,
+      num,
+      selfUrl: SELF_URL,
+      createdAt: Date.now(),
+    }
+    setTimeout(() => { delete pendingBridges[bridgeId] }, 60000)
+
+    log(`[Test] SIP bridge test: ${num.phoneNumber} → ${destination} (bridge=${bridgeId})`)
+
+    // Now call through the Twilio SIP domain — exactly like Telnyx transfer would
+    const twilioClient = require('twilio')(subSid, subToken)
+    const sipDomain = twilioResources?.sipDomainName
+    if (!sipDomain) return res.status(500).json({ error: 'No Twilio SIP domain available' })
+
+    const sipUri = `sip:${bridgeId}@${sipDomain}`
+    log(`[Test] Calling SIP URI: ${sipUri}`)
+
+    const call = await twilioClient.calls.create({
+      to: sipUri,
+      from: num.phoneNumber,
+      url: `${SELF_URL}/twilio/sip-voice`,
+      statusCallback: `${SELF_URL}/twilio/voice-dial-status?chatId=${chatId}&from=${encodeURIComponent(destination)}&to=${encodeURIComponent(num.phoneNumber)}&type=sip_bridge_test`,
+      statusCallbackEvent: ['completed'],
+    })
+
+    log(`[Test] SIP bridge call created: ${call.sid}`)
+    res.json({ success: true, callSid: call.sid, bridgeId, sipUri, from: num.phoneNumber, to: destination })
+  } catch (e) {
+    log(`[Test] SIP bridge error: ${e.message}`)
+    res.status(500).json({ error: e.message })
+  }
+})
+
+
+// ── Verification endpoint: Responds with DTMF digits for Twilio Caller ID verification ──
+app.post('/twilio/verify-callerid', async (req, res) => {
+  const VoiceResponse = require('twilio').twiml.VoiceResponse
+  const code = req.query.code || '000000'
+  log(`[Twilio] Caller ID verification: Playing code ${code}`)
+  const response = new VoiceResponse()
+  response.pause({ length: 3 })
+  response.play({ digits: code.split('').join('w') }) // Play each digit with small pauses
+  response.pause({ length: 5 })
+  response.play({ digits: code.split('').join('w') }) // Repeat for safety
+  res.type('text/xml').send(response.toString())
+})
+
+
 app.post('/twilio/sip-voice', async (req, res) => {
   const VoiceResponse = require('twilio').twiml.VoiceResponse
   try {
@@ -22657,6 +22726,15 @@ app.post('/twilio/sip-voice', async (req, res) => {
     let destinationOrBridgeId = To
     if (To?.startsWith('sip:')) {
       destinationOrBridgeId = To.replace('sip:', '').split('@')[0]
+    }
+
+    // ── FIX: Also check query param for bridgeId ──
+    // When _attemptTwilioDirectCall creates calls.create({to: destination, url: /sip-voice?bridgeId=xxx}),
+    // the To field is the destination phone number, not the bridge ID.
+    // The bridgeId is passed in the URL query param instead.
+    if (!destinationOrBridgeId?.startsWith('bridge_') && req.query?.bridgeId) {
+      destinationOrBridgeId = req.query.bridgeId
+      log(`[Twilio] SIP voice: Using bridgeId from query param: ${destinationOrBridgeId}`)
     }
 
     // ━━━ BRIDGE CALL: Routed from Telnyx SIP for Twilio number outbound ━━━
