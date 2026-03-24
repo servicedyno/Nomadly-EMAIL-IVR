@@ -1,0 +1,61 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EMAIL VALIDATION ENVIRONMENT VARIABLES FOR RAILWAY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Copy and paste these into Railway Dashboard manually:
+
+1. Go to: https://railway.app/project/dee2dbf2-4c92-4ff9-aa28-15b18ae3b4b1
+2. Click on "Nomadly-IVR-EMAIL" service
+3. Go to "Variables" tab
+4. Click "Add Variable" for each one below
+5. Or click "RAW Editor" and paste all at once
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+EMAIL_VALIDATION_ON=true
+EV_TIER_1_MAX=1000
+EV_TIER_1_PRICE=0.005
+EV_TIER_2_MAX=10000
+EV_TIER_2_PRICE=0.004
+EV_TIER_3_MAX=50000
+EV_TIER_3_PRICE=0.003
+EV_TIER_4_MAX=100000
+EV_TIER_4_PRICE=0.002
+EV_MIN_EMAILS=10
+EV_MAX_EMAILS=100000
+EV_MAX_PASTE=100
+EV_WORKER_URL=http://5.189.166.127:8787
+EV_WORKER_SECRET=ev-worker-secret-2026
+EV_WORKER_BATCH=100
+EV_WORKER_TIMEOUT=120000
+EV_USE_DIRECT_SMTP=false
+EV_DOMAIN_CONCURRENCY=10
+EV_PROGRESS_INTERVAL=20
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WHAT THESE VARIABLES DO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+EMAIL_VALIDATION_ON        Enable email validation feature (true/false)
+EV_TIER_*_MAX              Max emails per pricing tier
+EV_TIER_*_PRICE            Price per email for each tier ($0.005 → $0.002)
+EV_MIN_EMAILS              Minimum emails per validation job
+EV_MAX_EMAILS              Maximum emails per validation job
+EV_MAX_PASTE               Max emails when pasting directly in bot
+EV_WORKER_URL              Contabo VPS SMTP worker endpoint
+EV_WORKER_SECRET           Authentication secret for VPS worker
+EV_WORKER_BATCH            Emails per batch sent to worker
+EV_WORKER_TIMEOUT          Worker request timeout (milliseconds)
+EV_USE_DIRECT_SMTP         Use direct SMTP (false=use VPS worker)
+EV_DOMAIN_CONCURRENCY      Concurrent domain checks
+EV_PROGRESS_INTERVAL       Progress notification frequency
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+AFTER ADDING VARIABLES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Railway will automatically redeploy (2-3 minutes)
+✅ Check logs for: [EmailValidation] Service initialized
+✅ Verify VPS worker: curl http://5.189.166.127:8787/health
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
