@@ -1025,6 +1025,15 @@ async function handleOutboundSipCall(payload) {
   const rawFrom = payload.from || ''
   const connectionId = payload.connection_id || ''
 
+  // ── CRITICAL FIX: Check if this is an outbound IVR call FIRST ──
+  // Outbound IVR calls (initiated via bot) arrive with direction='outgoing' but are NOT SIP-originated.
+  // If we have a session for this call, it should NOT be processed here as a SIP call.
+  if (outboundIvrCalls[callControlId]) {
+    log(`[Voice] Outbound IVR call detected: ${callControlId} — routing to IVR handler`)
+    // Let the standard webhook handler (handleOutboundIvrInitiated) process this
+    return
+  }
+
   // Detect SIP-originated calls using multiple methods:
   // 1. sip: prefix or @ in from field (SIP URI format — user dialing via SIP client with URI)
   // 2. connection_id matches our SIP Connection ID (Telnyx credential connection outbound —

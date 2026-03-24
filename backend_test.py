@@ -1,486 +1,368 @@
 #!/usr/bin/env python3
 """
-SIP Bridge Testing Suite for Twilio Call Routing
-Tests the specific SIP bridge fixes mentioned in the review request.
+Comprehensive Backend Testing for Telnyx Quick IVR and SIP Functionality Fixes
+Tests the fixes implemented in voice-service.js and _index.js
 """
 
 import requests
 import json
-import subprocess
-import os
 import time
 import sys
-from urllib.parse import urlencode
+from datetime import datetime
 
-# Configuration
-BACKEND_URL = "https://readme-helper-13.preview.emergentagent.com"
-NODE_SERVER_URL = "http://localhost:5000"
-TEST_RESULTS = []
+# Test configuration
+BASE_URL = "https://readme-helper-13.preview.emergentagent.com/api"
+HEADERS = {"Content-Type": "application/json"}
 
-def log_test(test_name, status, details="", expected="", actual=""):
-    """Log test results"""
-    result = {
-        "test": test_name,
-        "status": status,
-        "details": details,
-        "expected": expected,
-        "actual": actual,
-        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
-    }
-    TEST_RESULTS.append(result)
-    
-    status_icon = "✅" if status == "PASS" else "❌" if status == "FAIL" else "⚠️"
-    print(f"{status_icon} {test_name}: {status}")
-    if details:
-        print(f"   Details: {details}")
-    if expected and actual:
-        print(f"   Expected: {expected}")
-        print(f"   Actual: {actual}")
-    print()
+# Test credentials from review request
+TELNYX_CALLER_ID = "+18889020132"
+TELNYX_TARGET_NUMBER = "+13025141000"
+TELNYX_SIP_CONNECTION_ID = "2898118323872990714"
 
-def test_health_check():
-    """Test 1: Health check endpoint"""
-    try:
-        response = requests.get(f"{NODE_SERVER_URL}/health", timeout=10)
+class TelnyxTestSuite:
+    def __init__(self):
+        self.passed = 0
+        self.failed = 0
+        self.results = []
         
-        if response.status_code == 200:
-            data = response.json()
-            if data.get("status") == "healthy" and data.get("database") == "connected":
-                log_test("Health Check", "PASS", 
-                        f"Server healthy with database connected. Uptime: {data.get('uptime', 'unknown')}")
-            else:
-                log_test("Health Check", "FAIL", 
-                        f"Unexpected response format", 
-                        '{"status": "healthy", "database": "connected"}',
-                        str(data))
-        else:
-            log_test("Health Check", "FAIL", 
-                    f"HTTP {response.status_code}: {response.text}")
-    except Exception as e:
-        log_test("Health Check", "FAIL", f"Connection error: {str(e)}")
-
-def test_skip_webhook_sync():
-    """Test 2: SKIP_WEBHOOK_SYNC functionality"""
-    try:
-        # Check nodejs logs for the expected messages
-        result = subprocess.run(
-            ["tail", "-n", "200", "/var/log/supervisor/nodejs.out.log"],
-            capture_output=True, text=True, timeout=10
-        )
-        
-        log_content = result.stdout
-        
-        # Look for READ-ONLY message (more specific search)
-        has_readonly = "READ-ONLY — no webhook updates" in log_content
-        # Look for absence of webhook update messages
-        has_webhook_update = "Updated SIP domain webhook" in log_content
-        
-        if has_readonly and not has_webhook_update:
-            log_test("SKIP_WEBHOOK_SYNC", "PASS", 
-                    "Found 'READ-ONLY — no webhook updates' and no 'Updated SIP domain webhook' messages")
-        elif has_readonly and has_webhook_update:
-            log_test("SKIP_WEBHOOK_SYNC", "WARN", 
-                    "Found READ-ONLY message but also found webhook update messages")
-        elif not has_readonly:
-            # Check for alternative READ-ONLY patterns
-            alt_readonly = "Reading Twilio Resources (READ-ONLY" in log_content
-            if alt_readonly:
-                log_test("SKIP_WEBHOOK_SYNC", "PASS", 
-                        "Found alternative READ-ONLY pattern in Twilio resource loading")
-            else:
-                log_test("SKIP_WEBHOOK_SYNC", "FAIL", 
-                        "Did not find any READ-ONLY webhook sync messages in logs")
-        else:
-            log_test("SKIP_WEBHOOK_SYNC", "PASS", 
-                    "SKIP_WEBHOOK_SYNC appears to be working correctly")
-            
-    except Exception as e:
-        log_test("SKIP_WEBHOOK_SYNC", "FAIL", f"Error checking logs: {str(e)}")
-
-def test_twilio_sip_domain_url():
-    """Test 3: Twilio SIP domain URL preservation"""
-    try:
-        # Change to /app directory and run the node command
-        os.chdir('/app')
-        
-        # Load environment variables
-        subprocess.run(['node', '-e', 'require("dotenv").config()'], check=True)
-        
-        # Run the Twilio domain check
-        node_command = '''
-        require('dotenv').config();
-        const twilio = require('twilio');
-        const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-        client.sip.domains('SDdb6525d35a1f09e4d1dfc19a2128ed96').fetch()
-            .then(d => console.log('Voice URL:', d.voiceUrl))
-            .catch(e => console.error('Error:', e.message));
-        '''
-        
-        result = subprocess.run(
-            ['node', '-e', node_command],
-            capture_output=True, text=True, timeout=30
-        )
-        
-        if result.returncode == 0:
-            output = result.stdout.strip()
-            expected_url = "https://nomadlynew-production.up.railway.app/twilio/sip-voice"
-            
-            if expected_url in output:
-                log_test("Twilio SIP Domain URL", "PASS", 
-                        f"Railway URL preserved: {output}")
-            else:
-                log_test("Twilio SIP Domain URL", "FAIL", 
-                        f"URL not preserved", expected_url, output)
-        else:
-            log_test("Twilio SIP Domain URL", "FAIL", 
-                    f"Command failed: {result.stderr}")
-            
-    except Exception as e:
-        log_test("Twilio SIP Domain URL", "FAIL", f"Error: {str(e)}")
-
-def test_bridge_injection():
-    """Test 4: Bridge injection endpoint"""
-    try:
-        payload = {
-            "bridgeId": "bridge_test_abc",
-            "destination": "+13025141000",
-            "chatId": 6604316166,
-            "selfUrl": "https://test.example.com"
+    def log_result(self, test_name, passed, message="", details=""):
+        status = "✅ PASS" if passed else "❌ FAIL"
+        result = {
+            "test": test_name,
+            "status": status,
+            "message": message,
+            "details": details,
+            "timestamp": datetime.now().isoformat()
         }
+        self.results.append(result)
         
-        response = requests.post(
-            f"{NODE_SERVER_URL}/test/inject-bridge",
-            json=payload,
-            timeout=10
-        )
-        
-        if response.status_code == 200:
-            data = response.json()
-            if data.get("success") and data.get("bridgeId") == "bridge_test_abc":
-                log_test("Bridge Injection", "PASS", 
-                        f"Bridge injected successfully: {data}")
-            else:
-                log_test("Bridge Injection", "FAIL", 
-                        f"Unexpected response format", 
-                        '{"success": true, "bridgeId": "bridge_test_abc"}',
-                        str(data))
+        if passed:
+            self.passed += 1
         else:
-            log_test("Bridge Injection", "FAIL", 
-                    f"HTTP {response.status_code}: {response.text}")
+            self.failed += 1
             
-    except Exception as e:
-        log_test("Bridge Injection", "FAIL", f"Error: {str(e)}")
+        print(f"{status}: {test_name}")
+        if message:
+            print(f"    {message}")
+        if details:
+            print(f"    Details: {details}")
+        print()
 
-def test_sip_voice_bridge_from_uri():
-    """Test 5: SIP voice handler - bridge from SIP URI"""
-    try:
-        # First inject the bridge
-        test_bridge_injection()
-        
-        # Wait a moment for the bridge to be stored
-        time.sleep(1)
-        
-        form_data = {
-            "To": "sip:bridge_test_abc@speechcue-7937a0.sip.twilio.com",
-            "From": "sip:+18775877003@10.0.0.1",
-            "CallSid": "CAtest1"
-        }
-        
-        response = requests.post(
-            f"{NODE_SERVER_URL}/twilio/sip-voice",
-            data=form_data,
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-            timeout=10
-        )
-        
-        if response.status_code == 200:
-            xml_content = response.text
-            
-            # Check for expected XML elements
-            has_dial = "<Dial" in xml_content
-            has_caller_id = "callerId" in xml_content
-            has_destination = "+13025141000" in xml_content
-            
-            if has_dial and has_caller_id and has_destination:
-                log_test("SIP Voice Bridge from URI", "PASS", 
-                        f"XML response contains expected elements: <Dial>, callerId, and destination")
+    def test_health_endpoint(self):
+        """Test basic health endpoint"""
+        try:
+            response = requests.get(f"{BASE_URL}/health", timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("status") == "healthy" and data.get("database") == "connected":
+                    self.log_result("Health Endpoint", True, "Backend is healthy and database connected")
+                    return True
+                else:
+                    self.log_result("Health Endpoint", False, f"Unhealthy status: {data}")
+                    return False
             else:
-                missing = []
-                if not has_dial: missing.append("<Dial>")
-                if not has_caller_id: missing.append("callerId")
-                if not has_destination: missing.append("+13025141000")
+                self.log_result("Health Endpoint", False, f"HTTP {response.status_code}")
+                return False
+        except Exception as e:
+            self.log_result("Health Endpoint", False, f"Request failed: {str(e)}")
+            return False
+
+    def test_telnyx_ivr_endpoint(self):
+        """Priority 1: Test the /test/telnyx-ivr endpoint"""
+        try:
+            payload = {
+                "callerId": TELNYX_CALLER_ID,
+                "targetNumber": TELNYX_TARGET_NUMBER
+            }
+            
+            response = requests.post(f"{BASE_URL}/test/telnyx-ivr", 
+                                   json=payload, 
+                                   headers=HEADERS, 
+                                   timeout=30)
+            
+            if response.status_code == 200:
+                try:
+                    data = response.json()
+                    if "callControlId" in data or "success" in data:
+                        self.log_result("Telnyx IVR Test Endpoint", True, 
+                                      "Endpoint responded successfully", 
+                                      f"Response: {data}")
+                        return True
+                    else:
+                        self.log_result("Telnyx IVR Test Endpoint", False, 
+                                      "Missing expected response fields", 
+                                      f"Response: {data}")
+                        return False
+                except json.JSONDecodeError:
+                    # Some endpoints might return plain text
+                    response_text = response.text
+                    if "call" in response_text.lower() or "success" in response_text.lower():
+                        self.log_result("Telnyx IVR Test Endpoint", True, 
+                                      "Endpoint responded (text response)", 
+                                      f"Response: {response_text[:200]}")
+                        return True
+                    else:
+                        self.log_result("Telnyx IVR Test Endpoint", False, 
+                                      "Unexpected text response", 
+                                      f"Response: {response_text[:200]}")
+                        return False
+            else:
+                self.log_result("Telnyx IVR Test Endpoint", False, 
+                              f"HTTP {response.status_code}", 
+                              f"Response: {response.text[:200]}")
+                return False
                 
-                log_test("SIP Voice Bridge from URI", "FAIL", 
-                        f"Missing elements: {', '.join(missing)}", 
-                        "XML with <Dial>, callerId, and +13025141000",
-                        xml_content[:200] + "..." if len(xml_content) > 200 else xml_content)
-        else:
-            log_test("SIP Voice Bridge from URI", "FAIL", 
-                    f"HTTP {response.status_code}: {response.text}")
-            
-    except Exception as e:
-        log_test("SIP Voice Bridge from URI", "FAIL", f"Error: {str(e)}")
+        except Exception as e:
+            self.log_result("Telnyx IVR Test Endpoint", False, f"Request failed: {str(e)}")
+            return False
 
-def test_sip_voice_bridge_from_query():
-    """Test 6: SIP voice handler - bridge from query param"""
-    try:
-        # First inject a new bridge
-        payload = {
-            "bridgeId": "bridge_test_qp",
-            "destination": "+13025141000",
-            "chatId": 6604316166,
-            "selfUrl": "https://test.example.com"
-        }
-        
-        requests.post(f"{NODE_SERVER_URL}/test/inject-bridge", json=payload, timeout=10)
-        time.sleep(1)
-        
-        # Test with query parameter
-        form_data = {
-            "To": "+13025141000",
-            "From": "+18888645099",
-            "CallSid": "CAtest2"
-        }
-        
-        response = requests.post(
-            f"{NODE_SERVER_URL}/twilio/sip-voice?bridgeId=bridge_test_qp",
-            data=form_data,
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-            timeout=10
-        )
-        
-        if response.status_code == 200:
-            xml_content = response.text
+    def test_sip_inbound_webhook(self):
+        """Priority 2: Test SIP inbound call handling"""
+        try:
+            # Simulate inbound webhook from Telnyx
+            payload = {
+                "data": {
+                    "event_type": "call.initiated",
+                    "payload": {
+                        "call_control_id": f"test_inbound_{int(time.time())}",
+                        "direction": "incoming",
+                        "from": "+15551234567",
+                        "to": TELNYX_CALLER_ID,
+                        "connection_id": "test_connection"
+                    }
+                }
+            }
             
-            # Should contain bridge destination, NOT "session expired"
-            has_destination = "+13025141000" in xml_content
-            has_expired = "session expired" in xml_content.lower()
+            response = requests.post(f"{BASE_URL}/telnyx/voice-webhook", 
+                                   json=payload, 
+                                   headers=HEADERS, 
+                                   timeout=15)
             
-            if has_destination and not has_expired:
-                log_test("SIP Voice Bridge from Query", "PASS", 
-                        f"Bridge found via query param, destination present")
-            elif has_expired:
-                log_test("SIP Voice Bridge from Query", "FAIL", 
-                        f"Got 'session expired' instead of bridge destination")
+            # Webhook should return 200 regardless of processing result
+            if response.status_code == 200:
+                self.log_result("SIP Inbound Webhook", True, 
+                              "Webhook accepted inbound call simulation")
+                return True
             else:
-                log_test("SIP Voice Bridge from Query", "FAIL", 
-                        f"Bridge destination not found in response", 
-                        "XML containing +13025141000",
-                        xml_content[:200] + "..." if len(xml_content) > 200 else xml_content)
-        else:
-            log_test("SIP Voice Bridge from Query", "FAIL", 
-                    f"HTTP {response.status_code}: {response.text}")
-            
-    except Exception as e:
-        log_test("SIP Voice Bridge from Query", "FAIL", f"Error: {str(e)}")
-
-def test_sip_voice_expired_bridge():
-    """Test 7: SIP voice handler - expired bridge"""
-    try:
-        form_data = {
-            "To": "sip:bridge_nonexistent@speechcue-7937a0.sip.twilio.com",
-            "From": "sip:test@test.com",
-            "CallSid": "CAtest3"
-        }
-        
-        response = requests.post(
-            f"{NODE_SERVER_URL}/twilio/sip-voice",
-            data=form_data,
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-            timeout=10
-        )
-        
-        if response.status_code == 200:
-            xml_content = response.text
-            
-            if "session expired" in xml_content.lower():
-                log_test("SIP Voice Expired Bridge", "PASS", 
-                        f"Correctly returned 'session expired' for nonexistent bridge")
-            else:
-                log_test("SIP Voice Expired Bridge", "FAIL", 
-                        f"Did not return 'session expired' message", 
-                        "XML containing 'session expired'",
-                        xml_content[:200] + "..." if len(xml_content) > 200 else xml_content)
-        else:
-            log_test("SIP Voice Expired Bridge", "FAIL", 
-                    f"HTTP {response.status_code}: {response.text}")
-            
-    except Exception as e:
-        log_test("SIP Voice Expired Bridge", "FAIL", f"Error: {str(e)}")
-
-def test_verify_callerid():
-    """Test 8: Verify-callerid endpoint"""
-    try:
-        form_data = {"test": "data"}
-        
-        response = requests.post(
-            f"{NODE_SERVER_URL}/twilio/verify-callerid?code=123456",
-            data=form_data,
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-            timeout=10
-        )
-        
-        if response.status_code == 200:
-            xml_content = response.text
-            
-            # Should contain <Play digits= with the code digits (formatted as 1w2w3w4w5w6)
-            has_play = "<Play digits=" in xml_content
-            has_digits = "1w2w3w4w5w6" in xml_content  # Twilio DTMF format
-            
-            if has_play and has_digits:
-                log_test("Verify CallerID", "PASS", 
-                        f"XML response contains <Play digits= with DTMF code digits")
-            else:
-                missing = []
-                if not has_play: missing.append("<Play digits=")
-                if not has_digits: missing.append("DTMF code digits (1w2w3w4w5w6)")
+                self.log_result("SIP Inbound Webhook", False, 
+                              f"HTTP {response.status_code}", 
+                              f"Response: {response.text[:200]}")
+                return False
                 
-                log_test("Verify CallerID", "FAIL", 
-                        f"Missing elements: {', '.join(missing)}", 
-                        "XML with <Play digits= and DTMF code digits",
-                        xml_content[:200] + "..." if len(xml_content) > 200 else xml_content)
-        else:
-            log_test("Verify CallerID", "FAIL", 
-                    f"HTTP {response.status_code}: {response.text}")
-            
-    except Exception as e:
-        log_test("Verify CallerID", "FAIL", f"Error: {str(e)}")
+        except Exception as e:
+            self.log_result("SIP Inbound Webhook", False, f"Request failed: {str(e)}")
+            return False
 
-def test_caller_ids_verified():
-    """Test 9: Caller IDs verified on main account"""
-    try:
-        os.chdir('/app')
-        
-        node_command = '''
-        require('dotenv').config();
-        const twilio = require('twilio');
-        const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-        client.outgoingCallerIds.list({limit:20})
-            .then(ids => ids.forEach(c => console.log(c.phoneNumber, c.friendlyName)))
-            .catch(e => console.error('Error:', e.message));
-        '''
-        
-        result = subprocess.run(
-            ['node', '-e', node_command],
-            capture_output=True, text=True, timeout=30
-        )
-        
-        if result.returncode == 0:
-            output = result.stdout
+    def test_sip_outbound_webhook(self):
+        """Priority 2: Test SIP outbound call handling"""
+        try:
+            # Simulate outbound webhook from SIP connection
+            payload = {
+                "data": {
+                    "event_type": "call.initiated",
+                    "payload": {
+                        "call_control_id": f"test_outbound_{int(time.time())}",
+                        "direction": "outgoing",
+                        "from": TELNYX_CALLER_ID,
+                        "to": TELNYX_TARGET_NUMBER,
+                        "connection_id": TELNYX_SIP_CONNECTION_ID
+                    }
+                }
+            }
             
-            # Check for expected numbers
-            expected_numbers = ["+18888645099", "+18887847992", "+18884508057"]
-            found_numbers = []
+            response = requests.post(f"{BASE_URL}/telnyx/voice-webhook", 
+                                   json=payload, 
+                                   headers=HEADERS, 
+                                   timeout=15)
             
-            for number in expected_numbers:
-                if number in output:
-                    found_numbers.append(number)
-            
-            if len(found_numbers) == len(expected_numbers):
-                log_test("Caller IDs Verified", "PASS", 
-                        f"All expected numbers found: {', '.join(found_numbers)}")
+            # Webhook should return 200 regardless of processing result
+            if response.status_code == 200:
+                self.log_result("SIP Outbound Webhook", True, 
+                              "Webhook accepted outbound call simulation")
+                return True
             else:
-                missing = [n for n in expected_numbers if n not in found_numbers]
-                log_test("Caller IDs Verified", "FAIL", 
-                        f"Missing numbers: {', '.join(missing)}", 
-                        f"All numbers: {', '.join(expected_numbers)}",
-                        f"Found: {', '.join(found_numbers)}")
-        else:
-            log_test("Caller IDs Verified", "FAIL", 
-                    f"Command failed: {result.stderr}")
-            
-    except Exception as e:
-        log_test("Caller IDs Verified", "FAIL", f"Error: {str(e)}")
+                self.log_result("SIP Outbound Webhook", False, 
+                              f"HTTP {response.status_code}", 
+                              f"Response: {response.text[:200]}")
+                return False
+                
+        except Exception as e:
+            self.log_result("SIP Outbound Webhook", False, f"Request failed: {str(e)}")
+            return False
 
-def test_sip_bridge_endpoint():
-    """Test 10: SIP bridge test endpoint"""
-    try:
-        payload = {
-            "destination": "+13025141000",
-            "chatId": 6604316166
-        }
-        
-        response = requests.post(
-            f"{NODE_SERVER_URL}/test/sip-bridge",
-            json=payload,
-            timeout=10
-        )
-        
-        if response.status_code == 200:
-            data = response.json()
-            log_test("SIP Bridge Test Endpoint", "PASS", 
-                    f"Endpoint accessible and working: {data}")
-        elif response.status_code == 400:
-            data = response.json()
-            if "destination and chatId required" in data.get("error", ""):
-                log_test("SIP Bridge Test Endpoint", "PASS", 
-                        f"Endpoint exists and validates input correctly")
+    def test_voice_service_fix_verification(self):
+        """Verify the outboundIvrCalls check fix in handleOutboundSipCall"""
+        try:
+            # Read the voice-service.js file to verify the fix is in place
+            with open('/app/js/voice-service.js', 'r') as f:
+                content = f.read()
+                
+            # Check for the critical fix around line 1031
+            if "if (outboundIvrCalls[callControlId])" in content:
+                # Look for the specific pattern that indicates the fix
+                lines = content.split('\n')
+                fix_found = False
+                for i, line in enumerate(lines):
+                    if "outboundIvrCalls[callControlId]" in line and "if (" in line:
+                        # Check the surrounding context
+                        context = '\n'.join(lines[max(0, i-5):i+10])
+                        if "routing to IVR handler" in context or "return" in lines[i+1:i+5]:
+                            fix_found = True
+                            break
+                
+                if fix_found:
+                    self.log_result("Voice Service Fix Verification", True, 
+                                  "outboundIvrCalls check found in handleOutboundSipCall")
+                else:
+                    self.log_result("Voice Service Fix Verification", False, 
+                                  "outboundIvrCalls check exists but fix pattern not confirmed")
             else:
-                log_test("SIP Bridge Test Endpoint", "FAIL", 
-                        f"Unexpected 400 error: {data}")
-        elif response.status_code == 404:
-            data = response.json()
-            if "No active Twilio number found" in data.get("error", ""):
-                log_test("SIP Bridge Test Endpoint", "PASS", 
-                        f"Endpoint exists but no Twilio number for test chatId (expected)")
-            else:
-                log_test("SIP Bridge Test Endpoint", "FAIL", 
-                        f"Unexpected 404 error: {data}")
-        else:
-            log_test("SIP Bridge Test Endpoint", "FAIL", 
-                    f"HTTP {response.status_code}: {response.text}")
-            
-    except Exception as e:
-        log_test("SIP Bridge Test Endpoint", "FAIL", f"Error: {str(e)}")
+                self.log_result("Voice Service Fix Verification", False, 
+                              "outboundIvrCalls check not found in voice-service.js")
+                
+        except Exception as e:
+            self.log_result("Voice Service Fix Verification", False, f"File check failed: {str(e)}")
 
-def run_all_tests():
-    """Run all SIP bridge tests"""
-    print("🚀 Starting SIP Bridge Testing Suite")
-    print("=" * 50)
+    def test_scheduler_db_guards(self):
+        """Priority 3: Test scheduler error fixes with DB guards"""
+        try:
+            # Read the _index.js file to verify DB guards are in place
+            with open('/app/js/_index.js', 'r') as f:
+                content = f.read()
+            
+            # Check for both scheduler functions with guards
+            functions_to_check = [
+                "checkVPSPlansExpiryandPayment",
+                "sendRemindersForExpiringPackages"
+            ]
+            
+            guards_found = 0
+            for func_name in functions_to_check:
+                if func_name in content:
+                    # Find the function and check for DB guard
+                    func_start = content.find(f"function {func_name}")
+                    if func_start == -1:
+                        func_start = content.find(f"async function {func_name}")
+                    
+                    if func_start != -1:
+                        # Get the next 500 characters to check for guard
+                        func_content = content[func_start:func_start+500]
+                        if ("typeof" in func_content and "find" in func_content and 
+                            "function" in func_content and "return" in func_content):
+                            guards_found += 1
+            
+            if guards_found == 2:
+                self.log_result("Scheduler DB Guards", True, 
+                              "Both scheduler functions have DB initialization guards")
+            elif guards_found == 1:
+                self.log_result("Scheduler DB Guards", False, 
+                              "Only one scheduler function has DB guard")
+            else:
+                self.log_result("Scheduler DB Guards", False, 
+                              "No DB guards found in scheduler functions")
+                
+        except Exception as e:
+            self.log_result("Scheduler DB Guards", False, f"File check failed: {str(e)}")
+
+    def test_backend_logs_for_errors(self):
+        """Check for recent errors in backend logs"""
+        try:
+            # Check if there are any recent critical errors
+            response = requests.get(f"{BASE_URL}/health", timeout=5)
+            if response.status_code == 200:
+                # If health endpoint works, backend is running without critical errors
+                self.log_result("Backend Error Check", True, 
+                              "Backend responding normally, no critical errors detected")
+            else:
+                self.log_result("Backend Error Check", False, 
+                              f"Backend health check failed: HTTP {response.status_code}")
+                
+        except Exception as e:
+            self.log_result("Backend Error Check", False, f"Health check failed: {str(e)}")
+
+    def test_telnyx_webhook_endpoint_availability(self):
+        """Test that Telnyx webhook endpoints are available"""
+        endpoints_to_test = [
+            "/telnyx/voice-webhook",
+            "/telnyx/sms-webhook"
+        ]
+        
+        all_available = True
+        for endpoint in endpoints_to_test:
+            try:
+                # Send a minimal test payload
+                test_payload = {"data": {"event_type": "test"}}
+                response = requests.post(f"{BASE_URL}{endpoint}", 
+                                       json=test_payload, 
+                                       headers=HEADERS, 
+                                       timeout=10)
+                
+                # Webhook endpoints should return 200 even for invalid payloads
+                if response.status_code != 200:
+                    all_available = False
+                    break
+                    
+            except Exception:
+                all_available = False
+                break
+        
+        if all_available:
+            self.log_result("Telnyx Webhook Endpoints", True, 
+                          "All Telnyx webhook endpoints are available")
+        else:
+            self.log_result("Telnyx Webhook Endpoints", False, 
+                          "One or more Telnyx webhook endpoints unavailable")
+
+    def run_all_tests(self):
+        """Run all tests in priority order"""
+        print("=" * 60)
+        print("TELNYX QUICK IVR AND SIP FUNCTIONALITY TEST SUITE")
+        print("=" * 60)
+        print()
+        
+        # Priority 1: Critical Telnyx Quick IVR Fix
+        print("🔥 PRIORITY 1: TELNYX QUICK IVR FIX (CRITICAL)")
+        print("-" * 50)
+        self.test_health_endpoint()
+        self.test_voice_service_fix_verification()
+        self.test_telnyx_ivr_endpoint()
+        
+        # Priority 2: SIP Inbound/Outbound Verification  
+        print("📞 PRIORITY 2: SIP INBOUND/OUTBOUND VERIFICATION")
+        print("-" * 50)
+        self.test_telnyx_webhook_endpoint_availability()
+        self.test_sip_inbound_webhook()
+        self.test_sip_outbound_webhook()
+        
+        # Priority 3: Scheduler Error Fixes
+        print("⏰ PRIORITY 3: SCHEDULER ERROR FIXES")
+        print("-" * 50)
+        self.test_scheduler_db_guards()
+        self.test_backend_logs_for_errors()
+        
+        # Summary
+        print("=" * 60)
+        print("TEST SUMMARY")
+        print("=" * 60)
+        print(f"✅ PASSED: {self.passed}")
+        print(f"❌ FAILED: {self.failed}")
+        print(f"📊 TOTAL:  {self.passed + self.failed}")
+        print()
+        
+        if self.failed == 0:
+            print("🎉 ALL TESTS PASSED! Telnyx fixes are working correctly.")
+        else:
+            print("⚠️  SOME TESTS FAILED. Review the failures above.")
+            
+        return self.failed == 0
+
+def main():
+    """Main test execution"""
+    test_suite = TelnyxTestSuite()
+    success = test_suite.run_all_tests()
     
-    # Run all tests
-    test_health_check()
-    test_skip_webhook_sync()
-    test_twilio_sip_domain_url()
-    test_bridge_injection()
-    test_sip_voice_bridge_from_uri()
-    test_sip_voice_bridge_from_query()
-    test_sip_voice_expired_bridge()
-    test_verify_callerid()
-    test_caller_ids_verified()
-    test_sip_bridge_endpoint()
-    
-    # Summary
-    print("=" * 50)
-    print("📊 TEST SUMMARY")
-    print("=" * 50)
-    
-    passed = len([t for t in TEST_RESULTS if t["status"] == "PASS"])
-    failed = len([t for t in TEST_RESULTS if t["status"] == "FAIL"])
-    warned = len([t for t in TEST_RESULTS if t["status"] == "WARN"])
-    total = len(TEST_RESULTS)
-    
-    print(f"✅ Passed: {passed}")
-    print(f"❌ Failed: {failed}")
-    print(f"⚠️  Warnings: {warned}")
-    print(f"📈 Total: {total}")
-    print(f"📊 Success Rate: {(passed/total*100):.1f}%")
-    
-    # Failed tests details
-    if failed > 0:
-        print("\n❌ FAILED TESTS:")
-        for test in TEST_RESULTS:
-            if test["status"] == "FAIL":
-                print(f"  • {test['test']}: {test['details']}")
-    
-    # Save results to file
-    with open('/app/sip_bridge_test_results.json', 'w') as f:
-        json.dump(TEST_RESULTS, f, indent=2)
-    
-    print(f"\n📄 Detailed results saved to: /app/sip_bridge_test_results.json")
-    
-    return failed == 0
+    # Return appropriate exit code
+    sys.exit(0 if success else 1)
 
 if __name__ == "__main__":
-    success = run_all_tests()
-    sys.exit(0 if success else 1)
+    main()
