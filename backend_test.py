@@ -1,302 +1,294 @@
 #!/usr/bin/env python3
 """
-Backend Testing for OpenProvider .us Domain Registration Fix
-Tests the code structure and implementation without making actual API calls.
+Email Validation Free Trial Fixes - Verification Test
+Tests the atomic trial claim fixes and updated messaging
 """
 
 import subprocess
-import os
+import requests
 import json
+import os
 import re
+from pathlib import Path
 
-def run_command(cmd, cwd=None):
-    """Run a shell command and return result"""
+def test_syntax_check():
+    """Test 1: Syntax check with node -c"""
+    print("🔍 Test 1: Syntax Check")
     try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, cwd=cwd, timeout=30)
-        return {
-            'success': result.returncode == 0,
-            'stdout': result.stdout.strip(),
-            'stderr': result.stderr.strip(),
-            'returncode': result.returncode
-        }
-    except subprocess.TimeoutExpired:
-        return {'success': False, 'stdout': '', 'stderr': 'Command timed out', 'returncode': -1}
-    except Exception as e:
-        return {'success': False, 'stdout': '', 'stderr': str(e), 'returncode': -1}
-
-def test_syntax_validation():
-    """Test 1: Verify JavaScript syntax is valid"""
-    print("🔍 Test 1: JavaScript Syntax Validation")
-    
-    result = run_command("node -c /app/js/op-service.js")
-    if result['success']:
-        print("✅ PASS: op-service.js syntax validation successful")
-        return True
-    else:
-        print(f"❌ FAIL: Syntax error in op-service.js: {result['stderr']}")
-        return False
-
-def test_nodejs_clean_startup():
-    """Test 2: Verify Node.js is running without errors"""
-    print("\n🔍 Test 2: Node.js Clean Startup")
-    
-    # Check error log size
-    result = run_command("wc -c /var/log/supervisor/nodejs.err.log")
-    if result['success']:
-        error_bytes = int(result['stdout'].split()[0])
-        if error_bytes == 0:
-            print("✅ PASS: Node.js error log is 0 bytes (clean startup)")
+        result = subprocess.run(['node', '-c', '/app/js/_index.js'], 
+                              capture_output=True, text=True, timeout=30)
+        if result.returncode == 0:
+            print("✅ PASS: node -c /app/js/_index.js - No syntax errors")
             return True
         else:
-            print(f"❌ FAIL: Node.js error log has {error_bytes} bytes")
-            # Show last few lines of error log
-            tail_result = run_command("tail -n 10 /var/log/supervisor/nodejs.err.log")
-            if tail_result['success']:
-                print(f"Error log content:\n{tail_result['stdout']}")
+            print(f"❌ FAIL: Syntax errors found: {result.stderr}")
             return False
-    else:
-        print(f"❌ FAIL: Could not check error log: {result['stderr']}")
+    except Exception as e:
+        print(f"❌ FAIL: Syntax check exception: {e}")
         return False
 
-def test_health_endpoint():
-    """Test 3: Verify health endpoint is working"""
-    print("\n🔍 Test 3: Health Endpoint Check")
+def test_nodejs_clean_running():
+    """Test 2: Node.js running clean - check error log and health endpoint"""
+    print("\n🔍 Test 2: Node.js Clean Running")
     
-    result = run_command("curl -s http://localhost:5000/health")
-    if result['success'] and 'healthy' in result['stdout'].lower():
-        print("✅ PASS: Health endpoint returns healthy status")
-        return True
-    else:
-        print(f"❌ FAIL: Health endpoint issue: {result['stdout']}")
-        return False
+    # Check error log is 0 bytes
+    try:
+        error_log_path = "/var/log/supervisor/nodejs.err.log"
+        if os.path.exists(error_log_path):
+            size = os.path.getsize(error_log_path)
+            if size == 0:
+                print("✅ PASS: nodejs.err.log is 0 bytes (clean)")
+                log_check = True
+            else:
+                print(f"❌ FAIL: nodejs.err.log is {size} bytes (has errors)")
+                log_check = False
+        else:
+            print("❌ FAIL: nodejs.err.log not found")
+            log_check = False
+    except Exception as e:
+        print(f"❌ FAIL: Error checking log file: {e}")
+        log_check = False
+    
+    # Check health endpoint
+    try:
+        response = requests.get('http://localhost:5000/health', timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('status') == 'healthy' and data.get('database') == 'connected':
+                print("✅ PASS: Health endpoint returns healthy with database connected")
+                health_check = True
+            else:
+                print(f"❌ FAIL: Health endpoint unhealthy: {data}")
+                health_check = False
+        else:
+            print(f"❌ FAIL: Health endpoint returned {response.status_code}")
+            health_check = False
+    except Exception as e:
+        print(f"❌ FAIL: Health endpoint error: {e}")
+        health_check = False
+    
+    return log_check and health_check
 
-def test_tld_contact_country_mapping():
-    """Test 4: Verify TLD_CONTACT_COUNTRY includes us: ['US']"""
-    print("\n🔍 Test 4: TLD_CONTACT_COUNTRY Mapping")
+def test_atomic_trial_claim():
+    """Test 3: Verify atomic trial claim pattern exists"""
+    print("\n🔍 Test 3: Atomic Trial Claim Pattern")
     
     try:
-        with open('/app/js/op-service.js', 'r') as f:
+        with open('/app/js/_index.js', 'r') as f:
             content = f.read()
         
-        # Look for TLD_CONTACT_COUNTRY object
-        tld_pattern = r'const TLD_CONTACT_COUNTRY\s*=\s*\{([^}]+)\}'
-        match = re.search(tld_pattern, content, re.DOTALL)
+        # Check for findOneAndUpdate pattern
+        findone_pattern = r'findOneAndUpdate\s*\(\s*{\s*_id:\s*parseFloat\(chatId\),\s*\$or:\s*\[\s*{\s*evFreeTrialUsed:\s*{\s*\$ne:\s*true\s*}\s*},\s*{\s*evFreeTrialUsed:\s*{\s*\$exists:\s*false\s*}\s*}\s*\]\s*},\s*{\s*\$set:\s*{\s*evFreeTrialUsed:\s*true\s*}\s*}'
         
-        if match:
-            tld_content = match.group(1)
-            # Check for us: ['US'] mapping
-            us_pattern = r'us:\s*\[\s*[\'"]US[\'"]\s*\]'
-            if re.search(us_pattern, tld_content):
-                print("✅ PASS: Found us: ['US'] in TLD_CONTACT_COUNTRY mapping")
-                return True
-            else:
-                print("❌ FAIL: us: ['US'] mapping not found in TLD_CONTACT_COUNTRY")
-                print(f"TLD_CONTACT_COUNTRY content:\n{tld_content}")
-                return False
+        if re.search(findone_pattern, content, re.MULTILINE | re.DOTALL):
+            print("✅ PASS: findOneAndUpdate atomic pattern found with correct filter")
+            atomic_pattern = True
         else:
-            print("❌ FAIL: TLD_CONTACT_COUNTRY object not found")
+            print("❌ FAIL: findOneAndUpdate atomic pattern not found or incorrect")
+            atomic_pattern = False
+        
+        # Check for trialClaim.value check (not just trialClaim)
+        value_check_pattern = r'if\s*\(\s*!\s*trialClaim\s*\|\|\s*!\s*trialClaim\.value\s*\)'
+        if re.search(value_check_pattern, content):
+            print("✅ PASS: trialClaim.value check found (correct findOneAndUpdate result handling)")
+            value_check = True
+        else:
+            print("❌ FAIL: trialClaim.value check not found")
+            value_check = False
+        
+        # Check for 🎁 Start Free Trial handler
+        trial_handler = '🎁 Start Free Trial' in content
+        if trial_handler:
+            print("✅ PASS: '🎁 Start Free Trial' handler found")
+        else:
+            print("❌ FAIL: '🎁 Start Free Trial' handler not found")
+        
+        return atomic_pattern and value_check and trial_handler
+        
+    except Exception as e:
+        print(f"❌ FAIL: Error reading _index.js: {e}")
+        return False
+
+def test_updated_ev_welcome():
+    """Test 4: Check updated EV welcome message mentions required providers"""
+    print("\n🔍 Test 4: Updated EV Welcome Message")
+    
+    try:
+        with open('/app/js/_index.js', 'r') as f:
+            content = f.read()
+        
+        # Find evWelcome object
+        evwelcome_match = re.search(r'const evWelcome = \{(.*?)\}', content, re.DOTALL)
+        if not evwelcome_match:
+            print("❌ FAIL: evWelcome object not found")
+            return False
+        
+        evwelcome_content = evwelcome_match.group(1)
+        
+        # Check for required email providers in English version
+        required_providers = ['Gmail', 'Yahoo', 'Hotmail', 'MSN', 'Outlook']
+        providers_found = []
+        providers_missing = []
+        
+        for provider in required_providers:
+            if provider in evwelcome_content:
+                providers_found.append(provider)
+            else:
+                providers_missing.append(provider)
+        
+        # Check for private domain mention
+        private_domain_check = 'private domain' in evwelcome_content.lower() or 'company' in evwelcome_content.lower()
+        
+        if len(providers_found) == len(required_providers):
+            print(f"✅ PASS: All required providers found: {', '.join(providers_found)}")
+            providers_check = True
+        else:
+            print(f"❌ FAIL: Missing providers: {', '.join(providers_missing)}")
+            print(f"Found providers: {', '.join(providers_found)}")
+            providers_check = False
+        
+        if private_domain_check:
+            print("✅ PASS: Private domain emails mentioned")
+            domain_check = True
+        else:
+            print("❌ FAIL: Private domain emails not mentioned")
+            domain_check = False
+        
+        return providers_check and domain_check
+        
+    except Exception as e:
+        print(f"❌ FAIL: Error checking evWelcome: {e}")
+        return False
+
+def test_old_vulnerable_pattern_removed():
+    """Test 5: Confirm old vulnerable pattern removed"""
+    print("\n🔍 Test 5: Old Vulnerable Pattern Removed")
+    
+    try:
+        with open('/app/js/_index.js', 'r') as f:
+            content = f.read()
+        
+        # Check for old saveInfo('evFreeTrialUsed', true) pattern
+        old_pattern = re.search(r'saveInfo\s*\(\s*[\'"]evFreeTrialUsed[\'"],\s*true\s*\)', content)
+        
+        if not old_pattern:
+            print("✅ PASS: Old vulnerable saveInfo('evFreeTrialUsed', true) pattern not found")
+            return True
+        else:
+            print("❌ FAIL: Old vulnerable saveInfo('evFreeTrialUsed', true) pattern still exists")
             return False
             
     except Exception as e:
-        print(f"❌ FAIL: Error reading op-service.js: {e}")
+        print(f"❌ FAIL: Error checking for old pattern: {e}")
         return False
 
-def test_preferred_handles_mapping():
-    """Test 5: Verify PREFERRED_HANDLES includes US: 'JC961841-US'"""
-    print("\n🔍 Test 5: PREFERRED_HANDLES Mapping")
+def test_ev_config_free_trial():
+    """Test 6: Check EV_CONFIG.freeTrialEmails defaults to 50"""
+    print("\n🔍 Test 6: EV_CONFIG.freeTrialEmails Configuration")
     
     try:
-        with open('/app/js/op-service.js', 'r') as f:
+        with open('/app/js/email-validation-config.js', 'r') as f:
             content = f.read()
         
-        # Look for PREFERRED_HANDLES object
-        handles_pattern = r'const PREFERRED_HANDLES\s*=\s*\{([^}]+)\}'
-        match = re.search(handles_pattern, content, re.DOTALL)
+        # Check for EV_FREE_TRIAL default of 50
+        pattern = re.search(r'freeTrialEmails:\s*parseInt\s*\(\s*process\.env\.EV_FREE_TRIAL\s*\|\|\s*[\'"]50[\'"],\s*10\s*\)', content)
         
-        if match:
-            handles_content = match.group(1)
-            # Check for US: 'JC961841-US' mapping
-            us_handle_pattern = r'US:\s*[\'"]JC961841-US[\'"]'
-            if re.search(us_handle_pattern, handles_content):
-                print("✅ PASS: Found US: 'JC961841-US' in PREFERRED_HANDLES mapping")
-                return True
-            else:
-                print("❌ FAIL: US: 'JC961841-US' mapping not found in PREFERRED_HANDLES")
-                print(f"PREFERRED_HANDLES content:\n{handles_content}")
-                return False
+        if pattern:
+            print("✅ PASS: EV_CONFIG.freeTrialEmails defaults to 50")
+            return True
         else:
-            print("❌ FAIL: PREFERRED_HANDLES object not found")
+            print("❌ FAIL: EV_CONFIG.freeTrialEmails default not found or incorrect")
             return False
             
     except Exception as e:
-        print(f"❌ FAIL: Error reading op-service.js: {e}")
+        print(f"❌ FAIL: Error checking EV_CONFIG: {e}")
         return False
 
-def test_us_pre_registration_check():
-    """Test 6: Verify .us pre-registration check in registerDomain function"""
-    print("\n🔍 Test 6: .us Pre-registration Check Implementation")
+def test_regression_email_validation_flow():
+    """Test 7: Regression test - email validation flow compilation"""
+    print("\n🔍 Test 7: Regression - Email Validation Flow Compilation")
     
     try:
-        with open('/app/js/op-service.js', 'r') as f:
+        with open('/app/js/_index.js', 'r') as f:
             content = f.read()
         
-        # Check for .us domain check - look in the entire file since the function is large
-        us_check_pattern = r'if\s*\(\s*tld\s*===\s*[\'"]us[\'"]\s*\)'
-        if re.search(us_check_pattern, content):
-            print("✅ PASS: Found 'if (tld === 'us')' check in registerDomain")
-            
-            # Check for customer handle fetch with with_additional_data
-            fetch_pattern = r'with_additional_data:\s*true'
-            if re.search(fetch_pattern, content):
-                print("✅ PASS: Found customer handle fetch with 'with_additional_data: true'")
-                
-                # Check for extension_additional_data check
-                ext_data_pattern = r'extension_additional_data'
-                if re.search(ext_data_pattern, content):
-                    print("✅ PASS: Found extension_additional_data handling")
-                    
-                    # Check for nexus_category and applicant_purpose
-                    nexus_pattern = r'nexus_category.*applicant_purpose|applicant_purpose.*nexus_category'
-                    if re.search(nexus_pattern, content, re.DOTALL):
-                        print("✅ PASS: Found nexus_category and applicant_purpose handling")
-                        
-                        # Check for handle update via PUT
-                        put_pattern = r'axios\.put.*customers.*contactHandle'
-                        if re.search(put_pattern, content, re.DOTALL):
-                            print("✅ PASS: Found customer handle update via PUT request")
-                            
-                            # Check that the .us check happens BEFORE the axios.post registration call
-                            us_section_pattern = r'if\s*\(\s*tld\s*===\s*[\'"]us[\'"]\s*\).*?axios\.post.*domains.*regData'
-                            if re.search(us_section_pattern, content, re.DOTALL):
-                                print("✅ PASS: .us pre-registration check happens BEFORE domain registration call")
-                                return True
-                            else:
-                                print("❌ FAIL: .us check not positioned before domain registration call")
-                                return False
-                        else:
-                            print("❌ FAIL: Customer handle update via PUT not found")
-                            return False
-                    else:
-                        print("❌ FAIL: nexus_category and applicant_purpose handling not found")
-                        return False
-                else:
-                    print("❌ FAIL: extension_additional_data handling not found")
-                    return False
+        # Check for required action patterns
+        required_patterns = ['evMenu', 'evUploadList', 'evConfirmPay', 'evPasteEmails']
+        pattern_counts = {}
+        
+        for pattern in required_patterns:
+            count = len(re.findall(pattern, content))
+            pattern_counts[pattern] = count
+        
+        # Verify minimum expected occurrences
+        expected_minimums = {
+            'evMenu': 3,      # enum, action check, set action
+            'evUploadList': 3, # enum, action check, set action  
+            'evConfirmPay': 3, # enum, action check, set action
+            'evPasteEmails': 3 # enum, action check, set action
+        }
+        
+        all_good = True
+        for pattern, expected_min in expected_minimums.items():
+            actual = pattern_counts[pattern]
+            if actual >= expected_min:
+                print(f"✅ PASS: {pattern} found {actual} times (>= {expected_min})")
             else:
-                print("❌ FAIL: Customer handle fetch with 'with_additional_data: true' not found")
-                return False
-        else:
-            print("❌ FAIL: 'if (tld === 'us')' check not found in registerDomain")
-            return False
-            
+                print(f"❌ FAIL: {pattern} found {actual} times (< {expected_min})")
+                all_good = False
+        
+        return all_good
+        
     except Exception as e:
-        print(f"❌ FAIL: Error reading op-service.js: {e}")
-        return False
-
-def test_get_contact_handle_for_tld():
-    """Test 7: Verify getContactHandleForTLD will be called for 'us' TLD"""
-    print("\n🔍 Test 7: getContactHandleForTLD Usage for .us TLD")
-    
-    try:
-        with open('/app/js/op-service.js', 'r') as f:
-            content = f.read()
-        
-        # Look for registerDomain function and check if it calls getContactHandleForTLD
-        register_pattern = r'const registerDomain\s*=\s*async\s*\([^)]*\)\s*=>\s*\{(.*?)\n\s*\}'
-        match = re.search(register_pattern, content, re.DOTALL)
-        
-        if match:
-            register_content = match.group(1)
-            
-            # Check for getContactHandleForTLD call
-            get_handle_pattern = r'getContactHandleForTLD\s*\(\s*tld\s*\)'
-            if re.search(get_handle_pattern, register_content):
-                print("✅ PASS: Found getContactHandleForTLD(tld) call in registerDomain")
-                
-                # Since us is now in TLD_CONTACT_COUNTRY, it will be processed by getContactHandleForTLD
-                print("✅ PASS: .us TLD will be processed by getContactHandleForTLD (us in TLD_CONTACT_COUNTRY)")
-                return True
-            else:
-                print("❌ FAIL: getContactHandleForTLD(tld) call not found in registerDomain")
-                return False
-        else:
-            print("❌ FAIL: registerDomain function not found")
-            return False
-            
-    except Exception as e:
-        print(f"❌ FAIL: Error reading op-service.js: {e}")
-        return False
-
-def test_get_country_tld_data():
-    """Test 8: Verify getCountryTLDData('us') returns additional_data"""
-    print("\n🔍 Test 8: getCountryTLDData('us') Implementation")
-    
-    try:
-        with open('/app/js/op-service.js', 'r') as f:
-            content = f.read()
-        
-        # Look for getCountryTLDData function
-        get_data_pattern = r'const getCountryTLDData\s*=\s*\([^)]*\)\s*=>\s*\{(.*?)\n\s*\}'
-        match = re.search(get_data_pattern, content, re.DOTALL)
-        
-        if match:
-            get_data_content = match.group(1)
-            
-            # Check for us mapping in the map object
-            us_data_pattern = r'us:\s*\{[^}]*application_purpose[^}]*nexus_category[^}]*\}|us:\s*\{[^}]*nexus_category[^}]*application_purpose[^}]*\}'
-            if re.search(us_data_pattern, get_data_content, re.DOTALL):
-                print("✅ PASS: Found us mapping with application_purpose and nexus_category in getCountryTLDData")
-                return True
-            else:
-                print("❌ FAIL: us mapping with required fields not found in getCountryTLDData")
-                # Show the us mapping if it exists
-                us_simple_pattern = r'us:\s*\{[^}]*\}'
-                us_match = re.search(us_simple_pattern, get_data_content)
-                if us_match:
-                    print(f"Found us mapping: {us_match.group(0)}")
-                return False
-        else:
-            print("❌ FAIL: getCountryTLDData function not found")
-            return False
-            
-    except Exception as e:
-        print(f"❌ FAIL: Error reading op-service.js: {e}")
+        print(f"❌ FAIL: Error checking email validation patterns: {e}")
         return False
 
 def main():
-    """Run all tests for OpenProvider .us domain registration fix"""
-    print("🚀 Starting OpenProvider .us Domain Registration Fix Testing")
-    print("=" * 70)
+    """Run all tests and provide summary"""
+    print("=" * 60)
+    print("EMAIL VALIDATION FREE TRIAL FIXES - VERIFICATION TEST")
+    print("=" * 60)
     
     tests = [
-        test_syntax_validation,
-        test_nodejs_clean_startup,
-        test_health_endpoint,
-        test_tld_contact_country_mapping,
-        test_preferred_handles_mapping,
-        test_us_pre_registration_check,
-        test_get_contact_handle_for_tld,
-        test_get_country_tld_data,
+        ("Syntax Check", test_syntax_check),
+        ("Node.js Clean Running", test_nodejs_clean_running), 
+        ("Atomic Trial Claim", test_atomic_trial_claim),
+        ("Updated EV Welcome Message", test_updated_ev_welcome),
+        ("Old Vulnerable Pattern Removed", test_old_vulnerable_pattern_removed),
+        ("EV_CONFIG.freeTrialEmails", test_ev_config_free_trial),
+        ("Regression - Email Validation Flow", test_regression_email_validation_flow),
     ]
     
-    passed = 0
-    total = len(tests)
-    
-    for test in tests:
+    results = []
+    for test_name, test_func in tests:
         try:
-            if test():
-                passed += 1
+            result = test_func()
+            results.append((test_name, result))
         except Exception as e:
-            print(f"❌ FAIL: Test {test.__name__} threw exception: {e}")
+            print(f"❌ FAIL: {test_name} - Exception: {e}")
+            results.append((test_name, False))
     
-    print("\n" + "=" * 70)
-    print(f"📊 TEST SUMMARY: {passed}/{total} tests passed")
+    # Summary
+    print("\n" + "=" * 60)
+    print("TEST SUMMARY")
+    print("=" * 60)
+    
+    passed = 0
+    total = len(results)
+    
+    for test_name, result in results:
+        status = "✅ PASS" if result else "❌ FAIL"
+        print(f"{status}: {test_name}")
+        if result:
+            passed += 1
+    
+    print(f"\nResults: {passed}/{total} tests passed ({passed/total*100:.0f}% success rate)")
     
     if passed == total:
-        print("🎉 ALL TESTS PASSED - OpenProvider .us domain registration fix is properly implemented!")
+        print("\n🎉 ALL TESTS PASSED - Email validation free trial fixes verified!")
         return True
     else:
-        print(f"⚠️  {total - passed} test(s) failed - Issues found in implementation")
+        print(f"\n⚠️  {total-passed} test(s) failed - Issues need attention")
         return False
 
 if __name__ == "__main__":

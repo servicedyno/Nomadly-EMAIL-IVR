@@ -6980,10 +6980,10 @@ All verified numbers generated during sourcing.`))
           hi: `\n\n🎁 <b>मुफ्त ट्रायल:</b> <b>${trialLimit}</b> ईमेल तक मुफ्त सत्यापन!` }
       : { en: '', fr: '', zh: '', hi: '' }
     const evWelcome = {
-      en: `📧 <b>Email Validation</b>\n\n97%+ accuracy · 7-layer check${trialLine.en}\n\n💰 <b>Pricing:</b>\n${pricingTable()}\n\n📋 Min: ${EV_CONFIG.minEmails} | Max: ${EV_CONFIG.maxEmails.toLocaleString()} emails`,
-      fr: `📧 <b>Validation d'Emails</b>\n\nPrécision 97%+ · Vérification 7 couches${trialLine.fr}\n\n💰 <b>Tarifs :</b>\n${pricingTable()}\n\n📋 Min : ${EV_CONFIG.minEmails} | Max : ${EV_CONFIG.maxEmails.toLocaleString()} emails`,
-      zh: `📧 <b>邮箱验证</b>\n\n97%+准确率 · 7层验证${trialLine.zh}\n\n💰 <b>定价：</b>\n${pricingTable()}\n\n📋 最低：${EV_CONFIG.minEmails} | 最高：${EV_CONFIG.maxEmails.toLocaleString()} 封`,
-      hi: `📧 <b>ईमेल सत्यापन</b>\n\n97%+ सटीकता · 7-स्तरीय जाँच${trialLine.hi}\n\n💰 <b>मूल्य:</b>\n${pricingTable()}\n\n📋 न्यूनतम: ${EV_CONFIG.minEmails} | अधिकतम: ${EV_CONFIG.maxEmails.toLocaleString()} ईमेल`,
+      en: `📧 <b>Email Validation</b>\n\n97%+ accuracy · 7-layer deep check\n✅ Gmail, Yahoo, Hotmail, MSN, Outlook & all major providers\n✅ Private domain emails (company/business)${trialLine.en}\n\n💰 <b>Pricing:</b>\n${pricingTable()}\n\n📋 Min: ${EV_CONFIG.minEmails} | Max: ${EV_CONFIG.maxEmails.toLocaleString()} emails`,
+      fr: `📧 <b>Validation d'Emails</b>\n\nPrécision 97%+ · Vérification 7 couches\n✅ Gmail, Yahoo, Hotmail, MSN, Outlook & tous les fournisseurs\n✅ Emails de domaines privés (entreprise)${trialLine.fr}\n\n💰 <b>Tarifs :</b>\n${pricingTable()}\n\n📋 Min : ${EV_CONFIG.minEmails} | Max : ${EV_CONFIG.maxEmails.toLocaleString()} emails`,
+      zh: `📧 <b>邮箱验证</b>\n\n97%+准确率 · 7层深度验证\n✅ Gmail、Yahoo、Hotmail、MSN、Outlook及所有主流邮箱\n✅ 私有域名邮箱（企业邮箱）${trialLine.zh}\n\n💰 <b>定价：</b>\n${pricingTable()}\n\n📋 最低：${EV_CONFIG.minEmails} | 最高：${EV_CONFIG.maxEmails.toLocaleString()} 封`,
+      hi: `📧 <b>ईमेल सत्यापन</b>\n\n97%+ सटीकता · 7-स्तरीय गहरी जाँच\n✅ Gmail, Yahoo, Hotmail, MSN, Outlook और सभी प्रमुख प्रदाता\n✅ प्राइवेट डोमेन ईमेल (कंपनी/व्यापार)${trialLine.hi}\n\n💰 <b>मूल्य:</b>\n${pricingTable()}\n\n📋 न्यूनतम: ${EV_CONFIG.minEmails} | अधिकतम: ${EV_CONFIG.maxEmails.toLocaleString()} ईमेल`,
     }
     const evBtns = [
       ['📤 Upload List (CSV/TXT)'],
@@ -7201,14 +7201,22 @@ All verified numbers generated during sourcing.`))
 
     // ── Free Trial handler ──
     if (message === '🎁 Start Free Trial') {
-      const evTrialUsedPay = info?.evFreeTrialUsed || false
       const trialLimitPay = EV_CONFIG.freeTrialEmails
-      if (evTrialUsedPay || trialLimitPay <= 0 || emails.length > trialLimitPay) {
+      if (trialLimitPay <= 0 || emails.length > trialLimitPay) {
         return send(chatId, '❌ Free trial not available. Please choose a payment method.', { parse_mode: 'HTML', reply_markup: { keyboard: [['💵 Pay USD', '💵 Pay NGN'], ['❌ Cancel']], resize_keyboard: true } })
       }
 
-      // Mark trial as used
-      await saveInfo('evFreeTrialUsed', true)
+      // Atomic check-and-set to prevent double-trial race condition
+      const trialClaim = await state.findOneAndUpdate(
+        { _id: parseFloat(chatId), $or: [{ evFreeTrialUsed: { $ne: true } }, { evFreeTrialUsed: { $exists: false } }] },
+        { $set: { evFreeTrialUsed: true } },
+        { returnDocument: 'after' }
+      )
+      if (!trialClaim || !trialClaim.value) {
+        // Another request already claimed the trial
+        return send(chatId, '❌ Free trial already used. Please choose a payment method.', { parse_mode: 'HTML', reply_markup: { keyboard: [['💵 Pay USD', '💵 Pay NGN'], ['❌ Cancel']], resize_keyboard: true } })
+      }
+      info = await get(state, chatId) // refresh info after atomic update
       log(`[EmailValidation] FREE TRIAL used by chatId=${chatId} for ${emailCount} emails`)
 
       // Clear session emails, start processing
