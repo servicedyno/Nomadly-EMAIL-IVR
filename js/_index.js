@@ -22748,45 +22748,6 @@ app.post('/test/sip-bridge', async (req, res) => {
   }
 })
 
-// ── Test endpoint: Telnyx Quick IVR call ──
-app.post('/test/telnyx-ivr', async (req, res) => {
-  try {
-    const { callerId, targetNumber } = req.body || {}
-    if (!callerId || !targetNumber) {
-      return res.status(400).json({ error: 'callerId and targetNumber required' })
-    }
-
-    log(`[Test] Initiating Telnyx Quick IVR test: ${callerId} → ${targetNumber}`)
-
-    const voiceService = require('./voice-service.js')
-    const result = await voiceService.initiateOutboundIvrCall({
-      chatId: '5590563715', // Admin chat ID for testing
-      callerId,
-      targetNumber,
-      ivrNumber: callerId,
-      audioUrl: 'https://example.com/test.mp3',
-      activeKeys: ['1'],
-      templateName: 'Test IVR',
-      placeholderValues: {},
-      voiceName: 'Rachel',
-      isTrial: true, // Use trial to avoid wallet charges
-      holdMusic: false,
-      provider: 'telnyx',
-    })
-
-    if (result.error) {
-      log(`[Test] Telnyx IVR test failed: ${result.error}`)
-      return res.status(400).json({ error: result.error })
-    }
-
-    log(`[Test] Telnyx IVR test initiated: ${result.callControlId}`)
-    res.json({ success: true, callControlId: result.callControlId, callerId, targetNumber })
-  } catch (e) {
-    log(`[Test] Telnyx IVR test error: ${e.message}`)
-    res.status(500).json({ error: e.message })
-  }
-})
-
 
 // ── Verification endpoint: Responds with DTMF digits for Twilio Caller ID verification ──
 app.post('/twilio/verify-callerid', async (req, res) => {
