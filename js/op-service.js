@@ -156,6 +156,11 @@ const PREFERRED_HANDLES = {
   US: 'JC961841-US',  // John CloakHost — has .us extension_additional_data (nexus_category: C21, applicant_purpose: P1)
 }
 
+// Handles that must NEVER be used for domain registration
+const EXCLUDED_HANDLES = new Set([
+  'RA1083275-US',  // Richard Adebayo — do not use per owner request
+])
+
 // EU contact details for creating new handles when none exist
 const EU_CONTACT_TEMPLATES = {
   FR: {
@@ -240,7 +245,7 @@ const getContactHandleForTLD = async (tld) => {
 
       for (const country of requiredCountries) {
         const suffix = `-${country}`
-        const match = contacts.find(c => c.handle && c.handle.endsWith(suffix))
+        const match = contacts.find(c => c.handle && c.handle.endsWith(suffix) && !EXCLUDED_HANDLES.has(c.handle))
         if (match) {
           log(`Found existing ${country} contact handle for .${tld}: ${match.handle}`)
           return match.handle
@@ -258,7 +263,7 @@ const getContactHandleForTLD = async (tld) => {
 
       for (const country of requiredCountries) {
         const suffix = `-${country}`
-        const match = contacts.find(c => c.handle && c.handle.endsWith(suffix))
+        const match = contacts.find(c => c.handle && c.handle.endsWith(suffix) && !EXCLUDED_HANDLES.has(c.handle))
         if (match) {
           log(`Found ${country} contact handle via broad search for .${tld}: ${match.handle}`)
           return match.handle
@@ -313,10 +318,11 @@ const getContactHandle = async (attempt = 1) => {
 
     if (res.data?.code === 0) {
       const contacts = res.data?.data?.results || []
-      // Prefer US-based contacts, skip known problematic ones
-      const usContacts = contacts.filter(c => c.handle && c.handle.endsWith('-US'))
+      // Prefer US-based contacts, skip excluded handles
+      const usContacts = contacts.filter(c => c.handle && c.handle.endsWith('-US') && !EXCLUDED_HANDLES.has(c.handle))
       if (usContacts.length > 0) return usContacts[0].handle
-      if (contacts.length > 0 && contacts[0].handle) return contacts[0].handle
+      const validContacts = contacts.filter(c => c.handle && !EXCLUDED_HANDLES.has(c.handle))
+      if (validContacts.length > 0) return validContacts[0].handle
     }
 
     const createRes = await axios.post(`${OP_BASE_URL}/v1beta/customers`, {
@@ -366,6 +372,12 @@ const registerDomain = async (domainName, nameservers = []) => {
       contactHandle = await getContactHandleForTLD(tld)
     }
     if (!contactHandle) return { error: 'Failed to prepare domain registration. Please try again or contact support.' }
+
+    // Final safety: reject excluded handles before proceeding
+    if (EXCLUDED_HANDLES.has(contactHandle)) {
+      log(`[OP] BLOCKED: excluded handle ${contactHandle} was selected for ${domainName} — aborting`)
+      return { error: 'Domain registration configuration error. Please contact support.' }
+    }
 
     // Resolve effective nameservers:
     // 1. Use provided NS (cloudflare or custom) if available
