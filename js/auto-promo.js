@@ -96,6 +96,32 @@ const SERVICE_CONTEXT = {
     ],
     cta: '/start to explore everything',
   },
+  email_validation: {
+    services: 'Email Validation — 7-layer deep verification',
+    details: [
+      '97%+ accuracy with 7-layer verification engine',
+      'Gmail, Yahoo, Hotmail, Outlook + private domain emails',
+      'Get a campaign-ready deliverable file instantly',
+      'Free 50-email trial — no payment needed to start',
+      'Bulk validation up to 100K emails',
+      'SMTP-level verification, catch-all detection, disposable filtering',
+      'Tiered pricing from $0.003/email for large lists',
+    ],
+    cta: '/start → 📧 Email Validation',
+  },
+  marketplace: {
+    services: 'P2P Marketplace — buy & sell securely',
+    details: [
+      'List digital goods, tools & services for sale',
+      'Built-in escrow — funds held until delivery confirmed',
+      'Chat directly with buyers and sellers inside Telegram',
+      'Browse by category — digital goods, tools & more',
+      'Up to 10 active listings per seller',
+      'Anti-scam protection — payment pattern detection',
+      'New listings broadcast to all bot users automatically',
+    ],
+    cta: '/start → 🏪 Marketplace',
+  },
 }
 
 // ─── Sanitize AI output for Telegram HTML ─────────────────────────────
@@ -175,7 +201,7 @@ Return ONLY the promotional message text.`
 // ─── Timezone & Schedule Config ───────────────────────────────────────
 const TIMEZONE_OFFSETS = { en: 0, fr: 1, zh: 8, hi: 5.5 }
 const LOCAL_TIMES = [{ hour: 10, minute: 0 }, { hour: 19, minute: 0 }] // Morning hero + Evening cross-sell
-const THEMES = ['cloudphone', 'antired_hosting', 'leads_validation', 'domains_shortener', 'digital_products', 'cards_bundles']
+const THEMES = ['cloudphone', 'antired_hosting', 'leads_validation', 'domains_shortener', 'digital_products', 'cards_bundles', 'email_validation', 'marketplace']
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -512,6 +538,107 @@ Join the Nomadly Reseller Program & build your income.
 
 Type <b>/start</b> → 💼 Reseller`,
     ],
+
+    email_validation: [
+      `📧🔥 <b>CLEAN YOUR EMAIL LIST — 97% ACCURACY GUARANTEED</b>
+
+Your campaign is only as good as your list.
+
+🔍 7-layer deep verification engine
+✅ Gmail, Yahoo, Hotmail, Outlook + private domains
+📬 Get a <b>campaign-ready deliverable file</b> instantly
+🚫 Remove invalid, disposable & risky emails
+⚡ Process up to <b>100K emails</b> per batch
+
+🎁 <b>FREE 50-email trial</b> — no payment needed
+
+Stop wasting money sending to dead inboxes 💀
+
+Type <b>/start</b> → 📧 Email Validation`,
+
+      `🎯 <b>VALIDATE BEFORE YOU BLAST — SAVE MONEY & REPUTATION</b>
+
+Sending to invalid emails = bounces, spam flags & wasted budget.
+
+Our 7-layer engine catches:
+❌ Invalid & non-existent addresses
+🚫 Disposable & temporary emails
+⚠️ Catch-all & risky domains
+🔒 Role-based addresses (info@, admin@)
+
+📬 You get a clean <b>deliverable file</b> ready for your campaign.
+
+💰 From just <b>$0.003/email</b> at scale
+🎁 Start with <b>50 FREE emails</b>
+
+Type <b>/start</b> → 📧 Email Validation`,
+
+      `⚡ <b>BULK EMAIL VALIDATION — FAST, ACCURATE, AFFORDABLE</b>
+
+Upload your list. Get results in minutes.
+
+📊 <b>What you get:</b>
+📬 Campaign-ready deliverable file (use this for blasts)
+❌ Invalid & risky emails filtered out
+📋 Full report with scores & details
+
+🏷️ <b>Pricing:</b>
+1-1K emails: $0.005/ea
+1K-10K: $0.004/ea
+10K-50K: $0.003/ea
+
+🎁 First <b>50 emails FREE</b> — try it right now!
+
+Type <b>/start</b> → 📧 Email Validation`,
+    ],
+
+    marketplace: [
+      `🏪🔥 <b>BUY & SELL SECURELY — RIGHT HERE IN TELEGRAM</b>
+
+No middlemen. No sketchy websites. Just direct P2P trades.
+
+🛒 Browse digital goods, tools & services
+💰 <b>Built-in escrow</b> — funds held until you confirm delivery
+💬 Chat with sellers & buyers directly
+🔒 Anti-scam protection built in
+
+📦 List up to <b>10 products</b> — start selling today!
+🔍 Browse by category — find exactly what you need
+
+Zero listing fees. Zero commission on first 5 sales.
+
+Type <b>/start</b> → 🏪 Marketplace`,
+
+      `💰 <b>GOT SOMETHING TO SELL? LIST IT IN 60 SECONDS.</b>
+
+Our P2P Marketplace lets you sell to thousands of bot users.
+
+🖼️ Upload photos of your product
+📝 Set title, description & price
+🌍 Buyers discover it through category browse
+💬 Chat relay — stay anonymous until you're ready
+🔐 Escrow guarantees you get paid
+
+Digital goods, tools, accounts, services — anything goes.
+
+Type <b>/start</b> → 🏪 Marketplace`,
+
+      `🛒 <b>MARKETPLACE — TRUSTED P2P TRADING ON TELEGRAM</b>
+
+Why risk trading in random groups?
+
+✅ <b>Escrow protection</b> — no scams, guaranteed
+💬 <b>In-bot chat</b> — communicate without sharing contacts
+📦 <b>Order tracking</b> — from payment to delivery
+⭐ <b>Seller ratings</b> — trade with confidence
+
+💰 List products for <b>FREE</b>
+🔥 Thousands of active buyers
+
+Build your reputation. Grow your business.
+
+Type <b>/start</b> → 🏪 Marketplace`,
+    ],
   },
 
   // ═══════════════════ FRENCH ═══════════════════
@@ -813,6 +940,96 @@ Rejoignez le Programme Revendeur Nomadly.
 
 Tapez <b>/start</b> → 💼 Revendeur`,
     ],
+
+    email_validation: [
+      `📧🔥 <b>NETTOYEZ VOTRE LISTE D'EMAILS — 97% DE PRÉCISION</b>
+
+Votre campagne dépend de la qualité de votre liste.
+
+🔍 Moteur de vérification en 7 couches
+✅ Gmail, Yahoo, Hotmail, Outlook + domaines privés
+📬 Fichier <b>prêt pour campagne</b> livré instantanément
+🚫 Suppression des emails invalides, jetables et risqués
+⚡ Jusqu'à <b>100K emails</b> par lot
+
+🎁 <b>50 emails GRATUITS</b> — sans paiement
+
+Arrêtez d'envoyer dans le vide 💀
+
+Tapez <b>/start</b> → 📧 Validation d'Emails`,
+
+      `🎯 <b>VALIDEZ AVANT D'ENVOYER — ÉCONOMISEZ & PROTÉGEZ VOTRE RÉPUTATION</b>
+
+Envoyer à des emails invalides = bounces, spam & budget gaspillé.
+
+Notre moteur détecte :
+❌ Adresses invalides & inexistantes
+🚫 Emails jetables & temporaires
+⚠️ Domaines catch-all & risqués
+
+📬 Recevez un fichier <b>livrable</b> prêt pour votre campagne.
+
+💰 À partir de <b>0,003$/email</b>
+🎁 <b>50 emails GRATUITS</b> pour commencer
+
+Tapez <b>/start</b> → 📧 Validation d'Emails`,
+
+      `⚡ <b>VALIDATION D'EMAILS EN MASSE — RAPIDE & ABORDABLE</b>
+
+Uploadez votre liste. Résultats en minutes.
+
+📊 <b>Vous recevez :</b>
+📬 Fichier livrable prêt pour vos campagnes
+❌ Emails invalides & risqués filtrés
+📋 Rapport complet avec scores
+
+🏷️ <b>Tarifs :</b>
+1-1K : 0,005$/ea | 1K-10K : 0,004$/ea | 10K+ : 0,003$/ea
+
+🎁 <b>50 emails GRATUITS</b> — essayez maintenant !
+
+Tapez <b>/start</b> → 📧 Validation d'Emails`,
+    ],
+
+    marketplace: [
+      `🏪🔥 <b>ACHETEZ & VENDEZ EN TOUTE SÉCURITÉ — ICI SUR TELEGRAM</b>
+
+Pas d'intermédiaire. Pas de sites douteux. Du P2P direct.
+
+🛒 Parcourez produits digitaux, outils & services
+💰 <b>Escrow intégré</b> — fonds bloqués jusqu'à confirmation
+💬 Chattez directement avec vendeurs & acheteurs
+🔒 Protection anti-arnaque intégrée
+
+📦 Listez jusqu'à <b>10 produits</b> — commencez à vendre !
+
+Tapez <b>/start</b> → 🏪 Marketplace`,
+
+      `💰 <b>UN PRODUIT À VENDRE ? LISTEZ-LE EN 60 SECONDES.</b>
+
+Notre Marketplace P2P vous connecte à des milliers d'utilisateurs.
+
+🖼️ Uploadez des photos
+📝 Titre, description & prix
+💬 Chat anonyme — restez protégé
+🔐 Escrow garanti — vous êtes toujours payé
+
+Produits digitaux, outils, comptes, services — tout est possible.
+
+Tapez <b>/start</b> → 🏪 Marketplace`,
+
+      `🛒 <b>MARKETPLACE — COMMERCE P2P SÉCURISÉ SUR TELEGRAM</b>
+
+Pourquoi risquer de trader dans des groupes aléatoires ?
+
+✅ <b>Protection escrow</b> — zéro arnaque
+💬 <b>Chat in-bot</b> — sans partager vos contacts
+📦 <b>Suivi de commande</b> — du paiement à la livraison
+
+💰 Listez vos produits <b>GRATUITEMENT</b>
+
+Tapez <b>/start</b> → 🏪 Marketplace`,
+    ],
   },
 
   // ═══════════════════ CHINESE ═══════════════════
@@ -1113,6 +1330,96 @@ Shortit — 免费、快速、可追踪。
 
 输入 <b>/start</b> → 💼 Reseller`,
     ],
+
+    email_validation: [
+      `📧🔥 <b>清洗邮件列表 — 97%准确率保证</b>
+
+你的营销效果取决于列表质量。
+
+🔍 7层深度验证引擎
+✅ Gmail、Yahoo、Hotmail、Outlook + 私有域名
+📬 即时获得<b>可投递邮件文件</b>
+🚫 移除无效、一次性和高风险邮件
+⚡ 单批最多处理 <b>10万封</b>
+
+🎁 <b>免费验证50封邮件</b> — 无需付款
+
+别再浪费钱发到无效邮箱了 💀
+
+输入 <b>/start</b> → 📧 邮件验证`,
+
+      `🎯 <b>发送前先验证 — 省钱又保护声誉</b>
+
+发送到无效邮箱 = 退信、垃圾邮件标记、预算浪费。
+
+我们的引擎检测：
+❌ 无效和不存在的地址
+🚫 一次性和临时邮箱
+⚠️ Catch-all和高风险域名
+
+📬 获得干净的<b>可投递文件</b>，直接用于营销。
+
+💰 低至 <b>$0.003/封</b>
+🎁 前 <b>50封免费</b>
+
+输入 <b>/start</b> → 📧 邮件验证`,
+
+      `⚡ <b>批量邮件验证 — 快速、准确、实惠</b>
+
+上传列表，几分钟出结果。
+
+📊 <b>你将收到：</b>
+📬 营销就绪的可投递文件
+❌ 无效和高风险邮件已过滤
+📋 带评分的完整报告
+
+🏷️ <b>价格：</b>
+1-1K: $0.005/封 | 1K-10K: $0.004/封 | 10K+: $0.003/封
+
+🎁 <b>50封免费</b> — 立即试用！
+
+输入 <b>/start</b> → 📧 邮件验证`,
+    ],
+
+    marketplace: [
+      `🏪🔥 <b>安全买卖 — 就在Telegram里</b>
+
+没有中间商。没有可疑网站。直接P2P交易。
+
+🛒 浏览数字商品、工具和服务
+💰 <b>内置托管</b> — 确认交付后才释放资金
+💬 与卖家和买家直接聊天
+🔒 内置防诈骗保护
+
+📦 上架最多 <b>10个商品</b> — 今天就开始卖！
+
+输入 <b>/start</b> → 🏪 市场`,
+
+      `💰 <b>有东西要卖？60秒上架。</b>
+
+我们的P2P市场连接数千名机器人用户。
+
+🖼️ 上传商品照片
+📝 设置标题、描述和价格
+💬 匿名聊天 — 保护你的隐私
+🔐 托管保证 — 一定会收到付款
+
+数字商品、工具、账户、服务 — 都可以卖。
+
+输入 <b>/start</b> → 🏪 市场`,
+
+      `🛒 <b>市场 — Telegram上的安全P2P交易</b>
+
+为什么要在随机群组里冒险交易？
+
+✅ <b>托管保护</b> — 零诈骗
+💬 <b>机器人内聊天</b> — 无需分享联系方式
+📦 <b>订单追踪</b> — 从付款到交付
+
+💰 <b>免费</b>上架商品
+
+输入 <b>/start</b> → 🏪 市场`,
+    ],
   },
 
   // ═══════════════════ HINDI ═══════════════════
@@ -1412,6 +1719,94 @@ Nomadly रिसेलर प्रोग्राम जॉइन करें
 
 <b>/start</b> टाइप करें → 💼 Reseller`,
     ],
+
+    email_validation: [
+      `📧🔥 <b>ईमेल लिस्ट साफ करें — 97% सटीकता गारंटी</b>
+
+आपका कैंपेन आपकी लिस्ट जितना ही अच्छा है।
+
+🔍 7-लेयर डीप वेरिफिकेशन इंजन
+✅ Gmail, Yahoo, Hotmail, Outlook + प्राइवेट डोमेन
+📬 तुरंत <b>कैंपेन-रेडी डिलीवरेबल फाइल</b> पाएं
+🚫 इनवैलिड, डिस्पोजेबल और रिस्की ईमेल हटाएं
+⚡ एक बैच में <b>100K ईमेल</b> तक
+
+🎁 <b>50 ईमेल मुफ्त</b> — बिना पेमेंट के शुरू करें
+
+डेड इनबॉक्स में पैसे बर्बाद करना बंद करें 💀
+
+<b>/start</b> टाइप करें → 📧 Email Validation`,
+
+      `🎯 <b>भेजने से पहले वैलिडेट करें — पैसे और रेपुटेशन बचाएं</b>
+
+इनवैलिड ईमेल पर भेजना = बाउंस, स्पैम फ्लैग और बर्बाद बजट।
+
+हमारा इंजन पकड़ता है:
+❌ इनवैलिड और गैर-मौजूद पते
+🚫 डिस्पोजेबल और टेम्पररी ईमेल
+⚠️ Catch-all और रिस्की डोमेन
+
+📬 क्लीन <b>डिलीवरेबल फाइल</b> मिलेगी — सीधे कैंपेन में इस्तेमाल करें।
+
+💰 सिर्फ <b>$0.003/ईमेल</b> से शुरू
+🎁 <b>50 ईमेल मुफ्त</b>
+
+<b>/start</b> टाइप करें → 📧 Email Validation`,
+
+      `⚡ <b>बल्क ईमेल वैलिडेशन — तेज, सटीक, किफायती</b>
+
+अपनी लिस्ट अपलोड करें। मिनटों में रिजल्ट पाएं।
+
+📊 <b>आपको मिलेगा:</b>
+📬 कैंपेन-रेडी डिलीवरेबल फाइल
+❌ इनवैलिड और रिस्की ईमेल फिल्टर किए गए
+📋 स्कोर के साथ पूरी रिपोर्ट
+
+🏷️ <b>प्राइसिंग:</b>
+1-1K: $0.005/ea | 1K-10K: $0.004/ea | 10K+: $0.003/ea
+
+🎁 पहले <b>50 ईमेल मुफ्त</b> — अभी ट्राई करें!
+
+<b>/start</b> टाइप करें → 📧 Email Validation`,
+    ],
+
+    marketplace: [
+      `🏪🔥 <b>सुरक्षित खरीदें और बेचें — यहीं Telegram पर</b>
+
+कोई बिचौलिया नहीं। कोई शंकास्पद वेबसाइट नहीं। सीधा P2P ट्रेड।
+
+🛒 डिजिटल गुड्स, टूल्स और सर्विसेज ब्राउज करें
+💰 <b>बिल्ट-इन एस्क्रो</b> — डिलीवरी कन्फर्म होने तक फंड होल्ड
+💬 सीधे सेलर्स और बायर्स से चैट करें
+🔒 एंटी-स्कैम प्रोटेक्शन बिल्ट-इन
+
+📦 <b>10 प्रोडक्ट</b> तक लिस्ट करें — आज ही बेचना शुरू करें!
+
+<b>/start</b> टाइप करें → 🏪 Marketplace`,
+
+      `💰 <b>कुछ बेचना है? 60 सेकंड में लिस्ट करें।</b>
+
+हमारा P2P Marketplace आपको हजारों बॉट यूजर्स से जोड़ता है।
+
+🖼️ प्रोडक्ट की फोटो अपलोड करें
+📝 टाइटल, डिस्क्रिप्शन और प्राइस सेट करें
+💬 एनॉनिमस चैट — प्राइवेसी सुरक्षित
+🔐 एस्क्रो गारंटी — पेमेंट पक्की
+
+<b>/start</b> टाइप करें → 🏪 Marketplace`,
+
+      `🛒 <b>MARKETPLACE — Telegram पर सुरक्षित P2P ट्रेडिंग</b>
+
+रैंडम ग्रुप्स में ट्रेड करके क्यों रिस्क लें?
+
+✅ <b>एस्क्रो प्रोटेक्शन</b> — कोई स्कैम नहीं
+💬 <b>इन-बॉट चैट</b> — कॉन्टैक्ट शेयर किए बिना
+📦 <b>ऑर्डर ट्रैकिंग</b> — पेमेंट से डिलीवरी तक
+
+💰 प्रोडक्ट <b>मुफ्त</b> में लिस्ट करें
+
+<b>/start</b> टाइप करें → 🏪 Marketplace`,
+    ],
   },
 }
 
@@ -1630,6 +2025,72 @@ Join the Reseller Program — earn on every sale.
 
 Type <b>/start</b> → 💼 Reseller`,
     ],
+
+    email_validation: [
+      `🌙📧 <b>GOT AN EMAIL LIST? VALIDATE IT FIRST.</b>
+
+Before you blast, make sure your list is clean.
+
+📬 Campaign-ready deliverable file
+🔍 7-layer deep verification
+🎁 <b>50 emails FREE</b> to start
+
+💰 From <b>$0.003/email</b> at scale
+
+Clean lists = better deliverability 🚀
+
+Type <b>/start</b> → 📧 Email Validation`,
+
+      `💡 <b>YOUR EMAIL LIST IS COSTING YOU MONEY</b>
+
+Dead emails = bounces = spam flags = wasted budget.
+
+✅ Remove invalids, disposables & catch-alls
+📬 Get a clean deliverable file
+🎁 <b>50 FREE emails</b> — try it now
+
+Type <b>/start</b> → 📧 Email Validation`,
+
+      `📧 <b>CLEAN LIST = BETTER CAMPAIGNS</b>
+
+97%+ accuracy. Results in minutes.
+
+📬 Deliverable file ready for your campaign
+❌ Invalid & risky emails removed
+💰 From <b>$0.003/email</b>
+
+Type <b>/start</b> → 📧 Email Validation`,
+    ],
+
+    marketplace: [
+      `🌙🏪 <b>CHECK OUT THE MARKETPLACE</b>
+
+Buy & sell digital goods, tools & services — directly in Telegram.
+
+🔐 Escrow protection on every trade
+💬 Chat with sellers without sharing contacts
+📦 Browse by category
+
+Type <b>/start</b> → 🏪 Marketplace`,
+
+      `💡 <b>GOT SOMETHING TO SELL? THE MARKETPLACE IS OPEN.</b>
+
+List your products in 60 seconds. Reach thousands of buyers.
+
+💰 Zero listing fees
+🔐 Built-in escrow
+📦 Up to 10 active listings
+
+Type <b>/start</b> → 🏪 Marketplace`,
+
+      `🛒 <b>MARKETPLACE — TRUSTED P2P TRADES</b>
+
+Stop trading in random groups. Use our secure marketplace.
+
+✅ Escrow | 💬 In-bot chat | 📦 Order tracking
+
+Type <b>/start</b> → 🏪 Marketplace`,
+    ],
   },
 
   // ═══════════════════ FRENCH CROSS-SELL ═══════════════════
@@ -1801,6 +2262,66 @@ Rejoignez le Programme Revendeur — gagnez sur chaque vente.
 ✅ Commission automatique | 🔥 Top revendeurs : <b>500$+/mois</b>
 
 Tapez <b>/start</b> → 💼 Revendeur`,
+    ],
+
+    email_validation: [
+      `🌙📧 <b>AVEZ-VOUS UNE LISTE D'EMAILS ? VALIDEZ-LA D'ABORD.</b>
+
+Avant de lancer votre campagne, nettoyez votre liste.
+
+📬 Fichier livrable prêt pour campagne
+🔍 Vérification en 7 couches
+🎁 <b>50 emails GRATUITS</b>
+
+💰 À partir de <b>0,003$/email</b>
+
+Tapez <b>/start</b> → 📧 Validation d'Emails`,
+
+      `💡 <b>VOTRE LISTE D'EMAILS VOUS COÛTE DE L'ARGENT</b>
+
+Emails morts = bounces = spam = budget gaspillé.
+
+✅ Supprimez invalides et jetables
+📬 Fichier livrable propre
+🎁 <b>50 emails GRATUITS</b>
+
+Tapez <b>/start</b> → 📧 Validation d'Emails`,
+
+      `📧 <b>LISTE PROPRE = MEILLEURES CAMPAGNES</b>
+
+97%+ de précision. Résultats en minutes.
+
+📬 Fichier livrable prêt
+💰 À partir de <b>0,003$/email</b>
+
+Tapez <b>/start</b> → 📧 Validation d'Emails`,
+    ],
+
+    marketplace: [
+      `🌙🏪 <b>DÉCOUVREZ LE MARKETPLACE</b>
+
+Achetez et vendez des produits digitaux — directement sur Telegram.
+
+🔐 Protection escrow sur chaque transaction
+💬 Chattez sans partager vos contacts
+
+Tapez <b>/start</b> → 🏪 Marketplace`,
+
+      `💡 <b>UN PRODUIT À VENDRE ? LE MARKETPLACE EST OUVERT.</b>
+
+Listez en 60 secondes. Touchez des milliers d'acheteurs.
+
+💰 Zéro frais | 🔐 Escrow intégré
+
+Tapez <b>/start</b> → 🏪 Marketplace`,
+
+      `🛒 <b>MARKETPLACE — COMMERCE P2P SÉCURISÉ</b>
+
+Arrêtez de trader dans des groupes aléatoires.
+
+✅ Escrow | 💬 Chat in-bot | 📦 Suivi
+
+Tapez <b>/start</b> → 🏪 Marketplace`,
     ],
   },
 
@@ -1975,6 +2496,66 @@ Twilio、AWS、Google Cloud — 全部预验证。
 
 输入 <b>/start</b> → 💼 Reseller`,
     ],
+
+    email_validation: [
+      `🌙📧 <b>有邮件列表？先验证一下。</b>
+
+发送前确保列表干净。
+
+📬 营销就绪的可投递文件
+🔍 7层深度验证
+🎁 <b>50封免费</b>
+
+💰 低至 <b>$0.003/封</b>
+
+输入 <b>/start</b> → 📧 邮件验证`,
+
+      `💡 <b>你的邮件列表在浪费钱</b>
+
+无效邮件 = 退信 = 垃圾标记 = 预算浪费。
+
+✅ 移除无效和一次性邮箱
+📬 干净的可投递文件
+🎁 <b>50封免费</b>
+
+输入 <b>/start</b> → 📧 邮件验证`,
+
+      `📧 <b>干净列表 = 更好的营销</b>
+
+97%+ 准确率。几分钟出结果。
+
+📬 可投递文件
+💰 低至 <b>$0.003/封</b>
+
+输入 <b>/start</b> → 📧 邮件验证`,
+    ],
+
+    marketplace: [
+      `🌙🏪 <b>看看市场吧</b>
+
+在Telegram里直接买卖数字商品和工具。
+
+🔐 每笔交易都有托管保护
+💬 无需分享联系方式
+
+输入 <b>/start</b> → 🏪 市场`,
+
+      `💡 <b>有东西要卖？市场已开放。</b>
+
+60秒上架。触达数千买家。
+
+💰 零上架费 | 🔐 内置托管
+
+输入 <b>/start</b> → 🏪 市场`,
+
+      `🛒 <b>市场 — 安全P2P交易</b>
+
+别在随机群组里冒险交易了。
+
+✅ 托管 | 💬 机器人内聊天 | 📦 订单追踪
+
+输入 <b>/start</b> → 🏪 市场`,
+    ],
   },
 
   // ═══════════════════ HINDI CROSS-SELL ═══════════════════
@@ -2147,6 +2728,66 @@ Twilio, AWS, Google Cloud — सब प्री-वेरिफाइड।
 ✅ ऑटो कमीशन | 🔥 टॉप रिसेलर: <b>$500+/महीना</b>
 
 <b>/start</b> → 💼 Reseller`,
+    ],
+
+    email_validation: [
+      `🌙📧 <b>ईमेल लिस्ट है? पहले वैलिडेट करें।</b>
+
+भेजने से पहले लिस्ट साफ करें।
+
+📬 कैंपेन-रेडी डिलीवरेबल फाइल
+🔍 7-लेयर डीप वेरिफिकेशन
+🎁 <b>50 ईमेल मुफ्त</b>
+
+💰 सिर्फ <b>$0.003/ईमेल</b> से
+
+<b>/start</b> → 📧 Email Validation`,
+
+      `💡 <b>आपकी ईमेल लिस्ट पैसे बर्बाद कर रही है</b>
+
+डेड ईमेल = बाउंस = स्पैम = बर्बाद बजट।
+
+✅ इनवैलिड और डिस्पोजेबल हटाएं
+📬 क्लीन डिलीवरेबल फाइल
+🎁 <b>50 ईमेल मुफ्त</b>
+
+<b>/start</b> → 📧 Email Validation`,
+
+      `📧 <b>क्लीन लिस्ट = बेहतर कैंपेन</b>
+
+97%+ सटीकता। मिनटों में रिजल्ट।
+
+📬 डिलीवरेबल फाइल
+💰 <b>$0.003/ईमेल</b> से
+
+<b>/start</b> → 📧 Email Validation`,
+    ],
+
+    marketplace: [
+      `🌙🏪 <b>MARKETPLACE देखें</b>
+
+Telegram पर सीधे डिजिटल गुड्स और टूल्स खरीदें-बेचें।
+
+🔐 हर ट्रेड पर एस्क्रो प्रोटेक्शन
+💬 कॉन्टैक्ट शेयर किए बिना चैट
+
+<b>/start</b> → 🏪 Marketplace`,
+
+      `💡 <b>कुछ बेचना है? MARKETPLACE खुला है।</b>
+
+60 सेकंड में लिस्ट करें। हजारों बायर्स तक पहुंचें।
+
+💰 ज़ीरो फीस | 🔐 बिल्ट-इन एस्क्रो
+
+<b>/start</b> → 🏪 Marketplace`,
+
+      `🛒 <b>MARKETPLACE — सुरक्षित P2P ट्रेड</b>
+
+रैंडम ग्रुप्स में ट्रेड करना बंद करें।
+
+✅ एस्क्रो | 💬 इन-बॉट चैट | 📦 ट्रैकिंग
+
+<b>/start</b> → 🏪 Marketplace`,
     ],
   },
 }
@@ -2409,12 +3050,12 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
   //   Sat morning=Cards      → evening=Digital ("Start reselling these products")
   const DAY_SCHEDULE = {
     0: [],                    // Sunday — rest
-    1: [0, 3],                // Mon: cloudphone(0), domains_shortener(3)
-    2: [1, 2],                // Tue: antired_hosting(1), leads_validation(2)
-    3: [2, 0],                // Wed: leads_validation(2), cloudphone(0)
+    1: [0, 7],                // Mon: cloudphone(0), marketplace(7)
+    2: [1, 6],                // Tue: antired_hosting(1), email_validation(6)
+    3: [6, 2],                // Wed: email_validation(6), leads_validation(2)
     4: [3, 1],                // Thu: domains_shortener(3), antired_hosting(1)
-    5: [4, 5],                // Fri: digital_products(4), cards_bundles(5)
-    6: [5, 4],                // Sat: cards_bundles(5), digital_products(4)
+    5: [7, 4],                // Fri: marketplace(7), digital_products(4)
+    6: [5, 0],                // Sat: cards_bundles(5), cloudphone(0)
   }
 
   function getTodayThemes() {

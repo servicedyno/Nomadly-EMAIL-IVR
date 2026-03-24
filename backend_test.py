@@ -1,315 +1,348 @@
 #!/usr/bin/env python3
 """
-Marketplace Ban/Unban System Testing
-Tests the Node.js Telegram bot marketplace ban/unban functionality
+Auto-Promo System Testing Script
+Tests email_validation and marketplace themes integration
 """
 
-import subprocess
-import sys
-import os
-import json
 import re
-from typing import Dict, List, Tuple, Optional
+import json
+import sys
+from pathlib import Path
 
-class MarketplaceBanTestSuite:
-    def __init__(self):
-        self.test_results = []
-        self.failed_tests = []
-        
-    def log_test(self, test_name: str, passed: bool, details: str = ""):
-        """Log test result"""
-        status = "✅ PASS" if passed else "❌ FAIL"
-        result = f"{status}: {test_name}"
-        if details:
-            result += f" - {details}"
-        print(result)
-        self.test_results.append((test_name, passed, details))
-        if not passed:
-            self.failed_tests.append(test_name)
+def read_file(filepath):
+    """Read file content safely"""
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            return f.read()
+    except Exception as e:
+        print(f"❌ Error reading {filepath}: {e}")
+        return None
+
+def test_themes_array():
+    """Test 1: THEMES array includes email_validation and marketplace (8 elements total)"""
+    print("🔍 Test 1: THEMES array structure")
     
-    def run_command(self, cmd: str, cwd: str = "/app") -> Tuple[int, str, str]:
-        """Run shell command and return exit code, stdout, stderr"""
+    content = read_file('/app/js/auto-promo.js')
+    if not content:
+        return False
+    
+    # Find THEMES array definition
+    themes_match = re.search(r'const THEMES = \[(.*?)\]', content, re.DOTALL)
+    if not themes_match:
+        print("❌ THEMES array not found")
+        return False
+    
+    themes_content = themes_match.group(1)
+    themes = [theme.strip().strip("'\"") for theme in themes_content.split(',') if theme.strip()]
+    
+    print(f"📊 Found THEMES array with {len(themes)} elements: {themes}")
+    
+    # Check for 8 elements total
+    if len(themes) != 8:
+        print(f"❌ Expected 8 themes, found {len(themes)}")
+        return False
+    
+    # Check for email_validation and marketplace
+    if 'email_validation' not in themes:
+        print("❌ email_validation not found in THEMES")
+        return False
+    
+    if 'marketplace' not in themes:
+        print("❌ marketplace not found in THEMES")
+        return False
+    
+    print("✅ THEMES array has 8 elements including email_validation and marketplace")
+    return True
+
+def test_service_context():
+    """Test 2: SERVICE_CONTEXT has email_validation and marketplace entries"""
+    print("\n🔍 Test 2: SERVICE_CONTEXT structure")
+    
+    content = read_file('/app/js/auto-promo.js')
+    if not content:
+        return False
+    
+    # Check email_validation entry
+    email_validation_match = re.search(r'email_validation:\s*{(.*?)},\s*marketplace:', content, re.DOTALL)
+    if not email_validation_match:
+        print("❌ email_validation entry not found in SERVICE_CONTEXT")
+        return False
+    
+    ev_content = email_validation_match.group(1)
+    if 'services:' not in ev_content or 'details:' not in ev_content or 'cta:' not in ev_content:
+        print("❌ email_validation missing required fields (services, details, cta)")
+        return False
+    
+    # Check marketplace entry
+    marketplace_match = re.search(r'marketplace:\s*{(.*?)}\s*}', content, re.DOTALL)
+    if not marketplace_match:
+        print("❌ marketplace entry not found in SERVICE_CONTEXT")
+        return False
+    
+    mp_content = marketplace_match.group(1)
+    if 'services:' not in mp_content or 'details:' not in mp_content or 'cta:' not in mp_content:
+        print("❌ marketplace missing required fields (services, details, cta)")
+        return False
+    
+    print("✅ SERVICE_CONTEXT has email_validation and marketplace with required fields")
+    return True
+
+def test_promo_messages():
+    """Test 3-13: Promo messages in all languages"""
+    print("\n🔍 Test 3-13: Promo messages structure")
+    
+    content = read_file('/app/js/auto-promo.js')
+    if not content:
+        return False
+    
+    languages = ['en', 'fr', 'zh', 'hi']
+    themes = ['email_validation', 'marketplace']
+    
+    results = []
+    
+    for lang in languages:
+        for theme in themes:
+            # Find the theme section in the language
+            pattern = rf'{lang}:\s*{{.*?{theme}:\s*\[(.*?)\]'
+            match = re.search(pattern, content, re.DOTALL)
+            
+            if not match:
+                print(f"❌ {lang} {theme} not found")
+                results.append(False)
+                continue
+            
+            # Count variations (should be 3)
+            variations_content = match.group(1)
+            # Count backtick-quoted strings
+            variations = re.findall(r'`([^`]*)`', variations_content)
+            
+            if len(variations) < 3:
+                print(f"❌ {lang} {theme} has only {len(variations)} variations, expected 3")
+                results.append(False)
+                continue
+            
+            print(f"✅ {lang} {theme}: {len(variations)} variations found")
+            results.append(True)
+    
+    # Test specific content for key languages
+    test_results = []
+    
+    # French email_validation - look for "Validation d'Emails" or "NETTOYEZ"
+    if "Validation d'Emails" in content or "NETTOYEZ" in content:
+        print("✅ French email_validation content found")
+        test_results.append(True)
+    else:
+        print("❌ French email_validation content not found")
+        test_results.append(False)
+    
+    # French marketplace - look for "ACHETEZ & VENDEZ"
+    if "ACHETEZ & VENDEZ" in content:
+        print("✅ French marketplace content found")
+        test_results.append(True)
+    else:
+        print("❌ French marketplace content not found")
+        test_results.append(False)
+    
+    # Chinese email_validation - look for "清洗邮件列表" or "邮件验证"
+    if "清洗邮件列表" in content or "邮件验证" in content:
+        print("✅ Chinese email_validation content found")
+        test_results.append(True)
+    else:
+        print("❌ Chinese email_validation content not found")
+        test_results.append(False)
+    
+    # Chinese marketplace - look for "安全买卖" or "市场"
+    if "安全买卖" in content or "市场" in content:
+        print("✅ Chinese marketplace content found")
+        test_results.append(True)
+    else:
+        print("❌ Chinese marketplace content not found")
+        test_results.append(False)
+    
+    # Hindi email_validation - look for "ईमेल लिस्ट साफ"
+    if "ईमेल लिस्ट साफ" in content:
+        print("✅ Hindi email_validation content found")
+        test_results.append(True)
+    else:
+        print("❌ Hindi email_validation content not found")
+        test_results.append(False)
+    
+    # Hindi marketplace - look for "सुरक्षित खरीदें"
+    if "सुरक्षित खरीदें" in content:
+        print("✅ Hindi marketplace content found")
+        test_results.append(True)
+    else:
+        print("❌ Hindi marketplace content not found")
+        test_results.append(False)
+    
+    return all(results + test_results)
+
+def test_cross_sell_messages():
+    """Test 14-18: Cross-sell messages in all languages"""
+    print("\n🔍 Test 14-18: Cross-sell messages structure")
+    
+    content = read_file('/app/js/auto-promo.js')
+    if not content:
+        return False
+    
+    languages = ['en', 'fr', 'zh', 'hi']
+    themes = ['email_validation', 'marketplace']
+    
+    # Find crossSellMessages section
+    cross_sell_match = re.search(r'const crossSellMessages = {(.*?)^}', content, re.DOTALL | re.MULTILINE)
+    if not cross_sell_match:
+        print("❌ crossSellMessages not found")
+        return False
+    
+    cross_sell_content = cross_sell_match.group(1)
+    
+    results = []
+    
+    for lang in languages:
+        for theme in themes:
+            # Check if theme exists in cross-sell for this language
+            pattern = rf'{lang}:\s*{{.*?{theme}:\s*\['
+            if re.search(pattern, cross_sell_content, re.DOTALL):
+                print(f"✅ {lang} crossSell {theme} found")
+                results.append(True)
+            else:
+                print(f"❌ {lang} crossSell {theme} not found")
+                results.append(False)
+    
+    return all(results)
+
+def test_day_schedule():
+    """Test 19-22: DAY_SCHEDULE includes email_validation(6) and marketplace(7)"""
+    print("\n🔍 Test 19-22: DAY_SCHEDULE structure")
+    
+    content = read_file('/app/js/auto-promo.js')
+    if not content:
+        return False
+    
+    # Find DAY_SCHEDULE
+    schedule_match = re.search(r'const DAY_SCHEDULE = {(.*?)^  }', content, re.DOTALL | re.MULTILINE)
+    if not schedule_match:
+        print("❌ DAY_SCHEDULE not found")
+        return False
+    
+    schedule_content = schedule_match.group(1)
+    print(f"📊 DAY_SCHEDULE content found")
+    
+    # Check for index 6 (email_validation)
+    if ', 6' in schedule_content or '[6,' in schedule_content or '[6]' in schedule_content:
+        print("✅ Index 6 (email_validation) found in DAY_SCHEDULE")
+        has_6 = True
+    else:
+        print("❌ Index 6 (email_validation) not found in DAY_SCHEDULE")
+        has_6 = False
+    
+    # Check for index 7 (marketplace)
+    if ', 7' in schedule_content or '[7,' in schedule_content or '[7]' in schedule_content:
+        print("✅ Index 7 (marketplace) found in DAY_SCHEDULE")
+        has_7 = True
+    else:
+        print("❌ Index 7 (marketplace) not found in DAY_SCHEDULE")
+        has_7 = False
+    
+    # Count occurrences to ensure they appear at least twice
+    count_6 = schedule_content.count('6')
+    count_7 = schedule_content.count('7')
+    
+    print(f"📊 Index 6 appears {count_6} times, Index 7 appears {count_7} times")
+    
+    appears_twice_6 = count_6 >= 2
+    appears_twice_7 = count_7 >= 2
+    
+    if appears_twice_6:
+        print("✅ email_validation (6) appears at least twice")
+    else:
+        print("❌ email_validation (6) should appear at least twice")
+    
+    if appears_twice_7:
+        print("✅ marketplace (7) appears at least twice")
+    else:
+        print("❌ marketplace (7) should appear at least twice")
+    
+    return has_6 and has_7 and appears_twice_6 and appears_twice_7
+
+def test_key_content():
+    """Test 23-25: Key content checks"""
+    print("\n🔍 Test 23-25: Key content verification")
+    
+    content = read_file('/app/js/auto-promo.js')
+    if not content:
+        return False
+    
+    results = []
+    
+    # Test 23: email_validation mentions "97%" accuracy and "50" free trial
+    if "97%" in content and "50" in content:
+        print("✅ email_validation mentions 97% accuracy and 50 free trial")
+        results.append(True)
+    else:
+        print("❌ email_validation missing 97% accuracy or 50 free trial")
+        results.append(False)
+    
+    # Test 24: marketplace mentions "escrow" and "P2P"
+    if "escrow" in content and "P2P" in content:
+        print("✅ marketplace mentions escrow and P2P")
+        results.append(True)
+    else:
+        print("❌ marketplace missing escrow or P2P mentions")
+        results.append(False)
+    
+    # Test 25: email_validation mentions "campaign-ready" or "deliverable"
+    if "campaign-ready" in content or "deliverable" in content:
+        print("✅ email_validation mentions campaign-ready or deliverable")
+        results.append(True)
+    else:
+        print("❌ email_validation missing campaign-ready or deliverable")
+        results.append(False)
+    
+    return all(results)
+
+def main():
+    """Run all tests"""
+    print("🚀 Starting Auto-Promo Email Validation & Marketplace Theme Tests")
+    print("=" * 70)
+    
+    tests = [
+        ("Structure: THEMES array", test_themes_array),
+        ("Structure: SERVICE_CONTEXT", test_service_context),
+        ("Content: Promo messages", test_promo_messages),
+        ("Content: Cross-sell messages", test_cross_sell_messages),
+        ("Schedule: DAY_SCHEDULE", test_day_schedule),
+        ("Content: Key phrases", test_key_content),
+    ]
+    
+    results = []
+    
+    for test_name, test_func in tests:
         try:
-            result = subprocess.run(
-                cmd, shell=True, cwd=cwd, 
-                capture_output=True, text=True, timeout=30
-            )
-            return result.returncode, result.stdout, result.stderr
-        except subprocess.TimeoutExpired:
-            return 1, "", "Command timed out"
+            result = test_func()
+            results.append(result)
+            status = "✅ PASS" if result else "❌ FAIL"
+            print(f"\n{status} {test_name}")
         except Exception as e:
-            return 1, "", str(e)
+            print(f"\n❌ ERROR {test_name}: {e}")
+            results.append(False)
     
-    def test_marketplace_service_syntax(self):
-        """Test 1: Syntax check marketplace-service.js"""
-        exit_code, stdout, stderr = self.run_command("node -c /app/js/marketplace-service.js")
-        passed = exit_code == 0
-        details = stderr if stderr else "Syntax OK"
-        self.log_test("marketplace-service.js syntax check", passed, details)
-        return passed
+    print("\n" + "=" * 70)
+    print("📊 FINAL RESULTS")
+    print("=" * 70)
     
-    def test_marketplace_service_bans_variable(self):
-        """Test 2: Check _bans variable declared"""
-        exit_code, stdout, stderr = self.run_command("grep -n 'let _bans = null' /app/js/marketplace-service.js")
-        passed = exit_code == 0 and "_bans = null" in stdout
-        details = f"Found at line: {stdout.split(':')[0] if stdout else 'Not found'}"
-        self.log_test("_bans variable declared", passed, details)
-        return passed
+    passed = sum(results)
+    total = len(results)
     
-    def test_marketplace_service_bans_initialization(self):
-        """Test 3: Check _bans collection initialization"""
-        exit_code, stdout, stderr = self.run_command("grep -n '_bans = db.collection' /app/js/marketplace-service.js")
-        passed = exit_code == 0 and "marketplaceBans" in stdout
-        details = f"Found at line: {stdout.split(':')[0] if stdout else 'Not found'}"
-        self.log_test("_bans collection initialization", passed, details)
-        return passed
+    print(f"Tests passed: {passed}/{total}")
+    print(f"Success rate: {passed/total*100:.1f}%")
     
-    def test_marketplace_service_ban_index(self):
-        """Test 4: Check ban index creation"""
-        exit_code, stdout, stderr = self.run_command("grep -n 'createIndex.*oduserId\\|createIndex.*userId' /app/js/marketplace-service.js")
-        passed = exit_code == 0 and ("oduserId" in stdout or "userId" in stdout)
-        details = f"Found at line: {stdout.split(':')[0] if stdout else 'Not found'}"
-        self.log_test("Ban index creation", passed, details)
-        return passed
-    
-    def test_marketplace_service_ban_functions(self):
-        """Test 5-7: Check banUser, unbanUser, isUserBanned functions exist"""
-        functions = ["banUser", "unbanUser", "isUserBanned"]
-        all_passed = True
-        
-        for func in functions:
-            exit_code, stdout, stderr = self.run_command(f"grep -n 'async function {func}\\|function {func}' /app/js/marketplace-service.js")
-            passed = exit_code == 0
-            details = f"Found at line: {stdout.split(':')[0] if stdout else 'Not found'}"
-            self.log_test(f"{func} function exists", passed, details)
-            if not passed:
-                all_passed = False
-        
-        return all_passed
-    
-    def test_marketplace_service_exports(self):
-        """Test 8: Check all 3 functions in module.exports"""
-        exit_code, stdout, stderr = self.run_command("grep -A 50 'module.exports' /app/js/marketplace-service.js")
-        passed = all(func in stdout for func in ["banUser", "unbanUser", "isUserBanned"])
-        missing = [func for func in ["banUser", "unbanUser", "isUserBanned"] if func not in stdout]
-        details = f"Missing from exports: {missing}" if missing else "All functions exported"
-        self.log_test("Ban functions in module.exports", passed, details)
-        return passed
-    
-    def test_index_js_syntax(self):
-        """Test 9: Syntax check _index.js"""
-        exit_code, stdout, stderr = self.run_command("node -c /app/js/_index.js")
-        passed = exit_code == 0
-        details = stderr if stderr else "Syntax OK"
-        self.log_test("_index.js syntax check", passed, details)
-        return passed
-    
-    def test_nodejs_running_clean(self):
-        """Test 10: Node.js running clean"""
-        # Check supervisor status
-        exit_code, stdout, stderr = self.run_command("sudo supervisorctl status nodejs")
-        nodejs_running = "RUNNING" in stdout
-        
-        # Check health endpoint
-        exit_code2, stdout2, stderr2 = self.run_command("curl -s localhost:5000/health")
-        health_ok = "healthy" in stdout2 or "ok" in stdout2.lower()
-        
-        # Check error log size
-        exit_code3, stdout3, stderr3 = self.run_command("wc -c /var/log/supervisor/nodejs.err.log")
-        error_log_size = int(stdout3.split()[0]) if stdout3.split() else 999
-        
-        passed = nodejs_running and health_ok and error_log_size == 0
-        details = f"Running: {nodejs_running}, Health: {health_ok}, Error log: {error_log_size} bytes"
-        self.log_test("Node.js running clean", passed, details)
-        return passed
-    
-    def test_ban_check_goto_marketplace(self):
-        """Test 11: Ban check in goto.marketplace"""
-        exit_code, stdout, stderr = self.run_command("grep -n -A 5 -B 5 'marketplace: async' /app/js/_index.js")
-        # Look for isUserBanned check before set(state, chatId, 'action', a.mpHome)
-        exit_code2, stdout2, stderr2 = self.run_command("grep -n -A 10 'marketplace: async' /app/js/_index.js | grep -B 5 -A 5 'isUserBanned\\|marketplaceService.isUserBanned'")
-        passed = exit_code2 == 0 and "isUserBanned" in stdout2
-        details = f"Found ban check in goto.marketplace: {'Yes' if passed else 'No'}"
-        self.log_test("Ban check in goto.marketplace", passed, details)
-        return passed
-    
-    def test_ban_check_mp_home_list_product(self):
-        """Test 12: Ban check in mpHome's mpListProduct handler"""
-        # Search for mpListProduct handler in mpHome context (around line 9180)
-        exit_code, stdout, stderr = self.run_command("grep -n -A 10 -B 5 'if (message === t.mpListProduct)' /app/js/_index.js")
-        exit_code2, stdout2, stderr2 = self.run_command("sed -n '9175,9195p' /app/js/_index.js | grep -n 'isUserBanned\\|marketplaceService.isUserBanned'")
-        passed = exit_code2 == 0 or "isUserBanned" in stdout
-        details = f"Found ban check in mpHome mpListProduct: {'Yes' if passed else 'No'}"
-        self.log_test("Ban check in mpHome mpListProduct handler", passed, details)
-        return passed
-    
-    def test_ban_check_mp_my_listings_list_product(self):
-        """Test 13: Ban check in mpMyListings's mpListProduct handler"""
-        # Search for mpListProduct handler in mpMyListings context (around line 9284)
-        exit_code, stdout, stderr = self.run_command("sed -n '9280,9300p' /app/js/_index.js | grep -n 'isUserBanned\\|marketplaceService.isUserBanned'")
-        exit_code2, stdout2, stderr2 = self.run_command("grep -n -A 10 -B 5 'if (message === t.mpListProduct)' /app/js/_index.js")
-        passed = exit_code == 0 or "isUserBanned" in stdout2
-        details = f"Found ban check in mpMyListings mpListProduct: {'Yes' if passed else 'No'}"
-        self.log_test("Ban check in mpMyListings mpListProduct handler", passed, details)
-        return passed
-    
-    def test_marketplace_access_restricted_message(self):
-        """Test 14: All 3 ban check locations show 'Marketplace Access Restricted' message"""
-        exit_code, stdout, stderr = self.run_command("grep -n 'Marketplace Access Restricted\\|marketplace.*restricted\\|access.*restricted' /app/js/_index.js")
-        # Count occurrences
-        occurrences = len(stdout.split('\n')) if stdout.strip() else 0
-        passed = occurrences >= 3
-        details = f"Found {occurrences} 'Marketplace Access Restricted' messages"
-        self.log_test("Marketplace Access Restricted messages", passed, details)
-        return passed
-    
-    def test_admin_mpban_command(self):
-        """Test 15: Admin /mpban command exists"""
-        exit_code, stdout, stderr = self.run_command("grep -n 'isAdmin.*mpban\\|/mpban.*isAdmin' /app/js/_index.js")
-        passed = exit_code == 0 and "mpban" in stdout
-        details = f"Found /mpban command: {'Yes' if passed else 'No'}"
-        self.log_test("Admin /mpban command", passed, details)
-        return passed
-    
-    def test_admin_mpban_handler(self):
-        """Test 16: Admin /mpban handler with username lookup and banUser call"""
-        exit_code, stdout, stderr = self.run_command("grep -n -A 20 '/mpban ' /app/js/_index.js")
-        passed = exit_code == 0 and ("nameOf.find" in stdout and "marketplaceService.banUser" in stdout)
-        details = f"Found /mpban handler with username lookup and banUser: {'Yes' if passed else 'No'}"
-        self.log_test("Admin /mpban handler implementation", passed, details)
-        return passed
-    
-    def test_admin_mpunban_command(self):
-        """Test 17: Admin /mpunban command exists"""
-        exit_code, stdout, stderr = self.run_command("grep -n 'isAdmin.*mpunban\\|/mpunban.*isAdmin' /app/js/_index.js")
-        passed = exit_code == 0 and "mpunban" in stdout
-        details = f"Found /mpunban command: {'Yes' if passed else 'No'}"
-        self.log_test("Admin /mpunban command", passed, details)
-        return passed
-    
-    def test_admin_mpunban_handler(self):
-        """Test 18: Admin /mpunban handler with unbanUser call"""
-        exit_code, stdout, stderr = self.run_command("grep -n -A 20 '/mpunban ' /app/js/_index.js")
-        passed = exit_code == 0 and "marketplaceService.unbanUser" in stdout
-        details = f"Found /mpunban handler with unbanUser call: {'Yes' if passed else 'No'}"
-        self.log_test("Admin /mpunban handler implementation", passed, details)
-        return passed
-    
-    def test_database_ban_record_exists(self):
-        """Test 19: Check marketplaceBans collection has ban for userId '8317455811'"""
-        node_script = """
-const {MongoClient} = require('mongodb');
-const MONGO_URL = process.env.MONGO_URL || 'mongodb://localhost:27017/nomadly';
-(async () => {
-    try {
-        const client = await MongoClient.connect(MONGO_URL);
-        const db = client.db();
-        const ban = await db.collection('marketplaceBans').findOne({userId: '8317455811'});
-        console.log('Ban exists:', !!ban);
-        if (ban) {
-            console.log('Reason:', ban.reason || 'N/A');
-            console.log('BannedAt:', ban.bannedAt || 'N/A');
-        }
-        await client.close();
-    } catch (e) {
-        console.error('Error:', e.message);
-    }
-})();
-"""
-        # Write script to temp file and execute
-        with open('/tmp/check_ban.js', 'w') as f:
-            f.write(node_script)
-        
-        exit_code, stdout, stderr = self.run_command("cd /app && node /tmp/check_ban.js")
-        passed = exit_code == 0 and "Ban exists: true" in stdout
-        details = stdout.strip() if stdout else stderr
-        self.log_test("Ban record exists for userId 8317455811", passed, details)
-        return passed
-    
-    def test_database_no_active_products(self):
-        """Test 20: Check no remaining active products for 8317455811"""
-        node_script = """
-const {MongoClient} = require('mongodb');
-const MONGO_URL = process.env.MONGO_URL || 'mongodb://localhost:27017/nomadly';
-(async () => {
-    try {
-        const client = await MongoClient.connect(MONGO_URL);
-        const db = client.db();
-        const count = await db.collection('marketplaceProducts').countDocuments({
-            sellerId: {$in: [8317455811, '8317455811']}, 
-            status: 'active'
-        });
-        console.log('Active listings:', count);
-        await client.close();
-    } catch (e) {
-        console.error('Error:', e.message);
-    }
-})();
-"""
-        # Write script to temp file and execute
-        with open('/tmp/check_products.js', 'w') as f:
-            f.write(node_script)
-        
-        exit_code, stdout, stderr = self.run_command("cd /app && node /tmp/check_products.js")
-        passed = exit_code == 0 and "Active listings: 0" in stdout
-        details = stdout.strip() if stdout else stderr
-        self.log_test("No active products for banned user 8317455811", passed, details)
-        return passed
-    
-    def run_all_tests(self):
-        """Run all marketplace ban/unban tests"""
-        print("🧪 Starting Marketplace Ban/Unban System Tests")
-        print("=" * 60)
-        
-        # marketplace-service.js tests
-        print("\n📁 Testing marketplace-service.js:")
-        self.test_marketplace_service_syntax()
-        self.test_marketplace_service_bans_variable()
-        self.test_marketplace_service_bans_initialization()
-        self.test_marketplace_service_ban_index()
-        self.test_marketplace_service_ban_functions()
-        self.test_marketplace_service_exports()
-        
-        # _index.js tests
-        print("\n📁 Testing _index.js:")
-        self.test_index_js_syntax()
-        self.test_nodejs_running_clean()
-        self.test_ban_check_goto_marketplace()
-        self.test_ban_check_mp_home_list_product()
-        self.test_ban_check_mp_my_listings_list_product()
-        self.test_marketplace_access_restricted_message()
-        self.test_admin_mpban_command()
-        self.test_admin_mpban_handler()
-        self.test_admin_mpunban_command()
-        self.test_admin_mpunban_handler()
-        
-        # Database verification tests
-        print("\n🗄️ Testing Database:")
-        self.test_database_ban_record_exists()
-        self.test_database_no_active_products()
-        
-        # Summary
-        print("\n" + "=" * 60)
-        print("📊 TEST SUMMARY")
-        print("=" * 60)
-        
-        total_tests = len(self.test_results)
-        passed_tests = sum(1 for _, passed, _ in self.test_results if passed)
-        failed_tests = total_tests - passed_tests
-        
-        print(f"Total Tests: {total_tests}")
-        print(f"✅ Passed: {passed_tests}")
-        print(f"❌ Failed: {failed_tests}")
-        print(f"Success Rate: {(passed_tests/total_tests*100):.1f}%")
-        
-        if self.failed_tests:
-            print(f"\n❌ Failed Tests:")
-            for test in self.failed_tests:
-                print(f"  • {test}")
-        
-        return failed_tests == 0
+    if all(results):
+        print("🎉 ALL TESTS PASSED - Email validation and marketplace themes properly integrated!")
+        return 0
+    else:
+        print("⚠️  SOME TESTS FAILED - Check the output above for details")
+        return 1
 
 if __name__ == "__main__":
-    test_suite = MarketplaceBanTestSuite()
-    success = test_suite.run_all_tests()
-    sys.exit(0 if success else 1)
+    sys.exit(main())
