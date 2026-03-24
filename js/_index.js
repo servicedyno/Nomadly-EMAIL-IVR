@@ -484,6 +484,17 @@ const maskName = name => {
   return name.length <= 2 ? name + '***' : name.slice(0, 2) + '***'
 }
 
+// Mask domain for group notifications — show first 3 chars of name + *** + full TLD
+const maskDomain = domain => {
+  if (!domain || typeof domain !== 'string') return '***.*'
+  const dotIdx = domain.indexOf('.')
+  if (dotIdx < 0) return domain.slice(0, 3) + '***'
+  const name = domain.slice(0, dotIdx)
+  const tld = domain.slice(dotIdx) // includes the dot
+  const visible = Math.min(3, name.length)
+  return name.slice(0, visible) + '***' + tld
+}
+
 // Send event notification to all registered groups + configured fallback targets
 const TELEGRAM_NOTIFY_GROUP_ID = process.env.TELEGRAM_NOTIFY_GROUP_ID
 const notifyGroup = async (message) => {
@@ -4667,7 +4678,7 @@ Enter new value:`), bc)
 
         const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
         send(chatId, t.showWallet(usd, ngn), trans('o'))
-        notifyGroup(`🌐 <b>Domain Registered!</b>\nUser ${maskName(name)} just claimed <b>${domain}</b> — your dream domain could be next.\nGrab yours before it's taken — /start`)
+        notifyGroup(`🌐 <b>Domain Registered!</b>\nUser ${maskName(name)} just claimed <b>${maskDomain(domain)}</b> — your dream domain could be next.\nGrab yours before it's taken — /start`)
         checkAndNotifyTierUpgrade(preSpend)
         // Post-purchase upsell
         setTimeout(() => {
@@ -18711,7 +18722,7 @@ const bankApis = {
     await set(state, chatId, 'actualRegistrar', null)
     await set(state, chatId, 'registrarFallback', null)
 
-    notifyGroup(`🌐 <b>Domain Registered!</b>\nUser ${maskName(name)} just claimed <b>${domain}</b> — your dream domain could be next.\nGrab yours before it's taken — /start`)
+    notifyGroup(`🌐 <b>Domain Registered!</b>\nUser ${maskName(name)} just claimed <b>${maskDomain(domain)}</b> — your dream domain could be next.\nGrab yours before it's taken — /start`)
     webhookTierCheck(chatId, preSpend, lang)
     set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
@@ -19468,7 +19479,7 @@ app.get('/crypto-pay-domain', auth, async (req, res) => {
   await set(state, chatId, 'actualRegistrar', null)
   await set(state, chatId, 'registrarFallback', null)
 
-  notifyGroup(`🌐 <b>Domain Registered!</b>\nUser ${maskName(name)} just claimed <b>${domain}</b> — your dream domain could be next.\nGrab yours before it's taken — /start`)
+  notifyGroup(`🌐 <b>Domain Registered!</b>\nUser ${maskName(name)} just claimed <b>${maskDomain(domain)}</b> — your dream domain could be next.\nGrab yours before it's taken — /start`)
   webhookTierCheck(chatId, preSpend, lang)
   set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
@@ -20059,7 +20070,7 @@ app.post('/dynopay/crypto-pay-domain', authDyno, async (req, res) => {
   await set(state, chatId, 'actualRegistrar', null)
   await set(state, chatId, 'registrarFallback', null)
 
-  notifyGroup(`🌐 <b>Domain Registered!</b>\nUser ${maskName(name)} just claimed <b>${domain}</b> — your dream domain could be next.\nGrab yours before it's taken — /start`)
+  notifyGroup(`🌐 <b>Domain Registered!</b>\nUser ${maskName(name)} just claimed <b>${maskDomain(domain)}</b> — your dream domain could be next.\nGrab yours before it's taken — /start`)
   webhookTierCheck(chatId, preSpend, lang)
   set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
