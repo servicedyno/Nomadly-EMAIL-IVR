@@ -130,6 +130,7 @@ function buildSummary(results) {
     role_based: 0,
     free_provider: 0,
     catch_all: 0,
+    unverifiable: 0,
     avgScore: 0,
   }
 
@@ -144,6 +145,7 @@ function buildSummary(results) {
     if (r.role_based) summary.role_based++
     if (r.free_provider) summary.free_provider++
     if (r.catch_all) summary.catch_all++
+    if (r.smtp_status === 'unverifiable') summary.unverifiable++
     scoreSum += r.score
   }
 

@@ -180,6 +180,7 @@ function calculateScore(result) {
 
   // Base score from SMTP result
   if (result.smtp_status === 'valid') score = 95
+  else if (result.smtp_status === 'unverifiable') score = result.mx_valid ? 50 : 0
   else if (result.smtp_status === 'catch_all') score = 55
   else if (result.smtp_status === 'unknown') score = 40
   else if (result.smtp_status === 'invalid') return 0
@@ -206,6 +207,7 @@ function categorize(result) {
   if (result.disposable) return 'disposable'
   if (!result.mx_valid) return 'invalid'
   if (result.smtp_status === 'invalid') return 'invalid'
+  if (result.smtp_status === 'unverifiable') return 'risky'
   if (result.smtp_status === 'catch_all' || result.catch_all) return 'risky'
   if (result.role_based) return 'risky'
   if (result.smtp_status === 'valid') return 'valid'
@@ -313,6 +315,18 @@ async function validateEmailBatch(emails, opts = {}) {
   onProgress(30, { phase: 'local_done', done: localDone, total, smtpNeeded: smtpQueue.length })
 
   // ── Layers 6-7: SMTP + Catch-all via VPS Worker (with catch-all optimization) ──
+  // Deferred-bounce providers: accept all at SMTP but bounce later — NOT truly catch-all
+  const DEFERRED_BOUNCE_DOMAINS = new Set([
+    'yahoo.com', 'yahoo.co.uk', 'yahoo.co.in', 'yahoo.ca', 'yahoo.com.au',
+    'yahoo.com.br', 'yahoo.co.jp', 'yahoo.fr', 'yahoo.de', 'yahoo.it',
+    'yahoo.es', 'yahoo.co.id', 'yahoo.com.mx', 'yahoo.com.ar', 'yahoo.com.sg',
+    'yahoo.com.ph', 'yahoo.com.co', 'yahoo.com.vn', 'yahoo.com.tw',
+    'aol.com', 'aol.co.uk', 'aim.com',
+    'att.net', 'sbcglobal.net', 'bellsouth.net',
+    'ymail.com', 'rocketmail.com',
+    'verizon.net', 'frontier.com', 'frontiernet.net',
+  ])
+
   if (smtpQueue.length > 0) {
     const batchSize = EV_CONFIG.workerBatchSize
     const smtpMap = new Map() // email → smtp result
@@ -331,6 +345,18 @@ async function validateEmailBatch(emails, opts = {}) {
 
     for (const [domain, domainResults] of domainBuckets) {
       const domainEmails = domainResults.map(r => r.email)
+
+      // Deferred-bounce providers: mark as unverifiable, skip SMTP entirely
+      if (DEFERRED_BOUNCE_DOMAINS.has(domain)) {
+        console.log(`[EmailValidation] ${domain} is deferred-bounce provider → ${domainEmails.length} emails marked unverifiable (SMTP unreliable)`)
+        for (const email of domainEmails) {
+          smtpMap.set(email, { email, status: 'unverifiable', reason: 'deferred_bounce_provider', code: null, catch_all: false })
+        }
+        smtpDone += domainEmails.length
+        const pct = 30 + Math.round((smtpDone / totalSmtp) * 65)
+        onProgress(pct, { phase: 'smtp', done: smtpDone, total: totalSmtp })
+        continue
+      }
 
       // Step 1: Probe catch-all with a small sample (fake email + first real email)
       const probeEmails = [
