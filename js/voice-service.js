@@ -1314,7 +1314,24 @@ async function handleOutboundSipCall(payload) {
     // Solution: Use TELNYX_DEFAULT_ANI (a verified Telnyx number) as 'from'.
     // The Twilio SIP handler (/twilio/sip-voice) will use the correct Twilio
     // number as caller ID for the final PSTN leg.
-    const telnyxDefaultAni = process.env.TELNYX_DEFAULT_ANI || ''
+    let telnyxDefaultAni = process.env.TELNYX_DEFAULT_ANI || ''
+
+    // ── DEFENSIVE: If TELNYX_DEFAULT_ANI is missing or invalid, find a valid Telnyx number ──
+    // Query the account's phone numbers on the SIP connection and use the first one.
+    if (!telnyxDefaultAni) {
+      try {
+        const sipNumbers = await _telnyxApi.listNumbers()
+        const sipConnId = process.env.TELNYX_SIP_CONNECTION_ID || ''
+        const validNum = (sipNumbers || []).find(n =>
+          n.status === 'active' && String(n.connection_id) === String(sipConnId)
+        )
+        if (validNum) {
+          telnyxDefaultAni = validNum.phone_number
+          log(`[Voice] No TELNYX_DEFAULT_ANI configured — using ${telnyxDefaultAni} from SIP connection`)
+        }
+      } catch (e) { log(`[Voice] Dynamic ANI lookup failed: ${e.message}`) }
+    }
+
     const sipUri = `sip:${bridgeId}@${_twilioSipDomain}`
 
     // ── FIX: Restore ANI to user's actual number after transfer attempt ──

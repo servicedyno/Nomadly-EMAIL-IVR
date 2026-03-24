@@ -21050,7 +21050,11 @@ app.post('/telnyx/sms-webhook', async (req, res) => {
 // Telnyx Voice Webhook — receives call events
 app.post('/telnyx/voice-webhook', async (req, res) => {
   try {
-    log('📞 Telnyx voice webhook received:', req.body?.data?.event_type || 'unknown')
+    const eventType = req.body?.data?.event_type || req.body?.event_type || 'unknown'
+    const connId = req.body?.data?.payload?.connection_id || ''
+    const from = req.body?.data?.payload?.from || ''
+    const to = req.body?.data?.payload?.to || ''
+    log(`📞 Telnyx voice webhook received: ${eventType} | conn=${connId} | from=${from} | to=${to}`)
     await handleVoiceWebhook(req, res)
   } catch (error) {
     log('Telnyx voice webhook error:', error.message)
