@@ -3552,7 +3552,19 @@ Enter new value:`), bc)
       }
 
       // Apply loyalty discount to the price
-      const basePrice = info?.couponApplied ? info.newPrice : (info?.totalPrice || info?.price || 0)
+      // FIX: For domain-only purchases (lastStep='domain-pay'), info.totalPrice may be stale
+      // from a previous hosting flow (hosting sets totalPrice = domain + hosting combined).
+      // Use lastStep to pick the correct price field and avoid inflating the domain charge.
+      const step = info?.lastStep
+      let basePrice
+      if (info?.couponApplied) {
+        basePrice = info.newPrice
+      } else if (step === 'domain-pay') {
+        // Domain purchases: only use info.price (the domain cost)
+        basePrice = info?.price || 0
+      } else {
+        basePrice = info?.totalPrice || info?.price || 0
+      }
       if (basePrice > 0) {
         const discountInfo = await loyalty.applyDiscount(walletOf, chatId, basePrice)
         if (discountInfo.discount > 0) {
@@ -3562,7 +3574,9 @@ Enter new value:`), bc)
           // Update the stored price to the discounted price
           if (info?.couponApplied) {
             await saveInfo('newPrice', discountedPrice)
-          } else if (info?.totalPrice) {
+          } else if (step !== 'domain-pay' && info?.totalPrice) {
+            // FIX: Don't overwrite totalPrice for domain-only purchases
+            // totalPrice is hosting-specific (domain + hosting combined)
             await saveInfo('totalPrice', discountedPrice)
           }
           await saveInfo('price', discountedPrice)
@@ -9965,6 +9979,13 @@ ${message.replace(/\n/g, '<br>')}
     await saveInfo('cheaperPrice', cheaperPrice || null)
     await saveInfo('cheaperRegistrar', cheaperRegistrar || null)
     await saveInfo('expensiveRegistrar', expensiveRegistrar || null)
+    // FIX: Clear stale state from previous flows (hosting, etc.) to prevent
+    // walletSelectCurrency from picking up wrong totalPrice and inflating domain cost
+    await saveInfo('totalPrice', null)
+    await saveInfo('couponApplied', false)
+    await saveInfo('newPrice', null)
+    await saveInfo('loyaltyDiscount', null)
+    await saveInfo('preLoyaltyPrice', null)
     return goto.askDomainToUseWithShortener()
   }
   if (action === a.askDomainToUseWithShortener) {
