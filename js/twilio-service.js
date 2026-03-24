@@ -1166,4 +1166,8 @@ module.exports = {
   getBundleStatus,
   getDocRejectionReasons,
   sanitizeRejectionReason,
+  // Caller ID verification for SIP bridge
+  isCallerIdVerified,
+  verifyCallerIdOnMainAccount,
+  verifyAllTwilioCallerIds,
 }

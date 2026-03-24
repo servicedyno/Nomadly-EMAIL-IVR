@@ -1,0 +1,90 @@
+[
+  {
+    "test": "Health Check",
+    "status": "PASS",
+    "details": "Server healthy with database connected. Uptime: 0.08 hours",
+    "expected": "",
+    "actual": "",
+    "timestamp": "2026-03-24 18:07:26"
+  },
+  {
+    "test": "SKIP_WEBHOOK_SYNC",
+    "status": "PASS",
+    "details": "Found 'READ-ONLY \u2014 no webhook updates' and no 'Updated SIP domain webhook' messages",
+    "expected": "",
+    "actual": "",
+    "timestamp": "2026-03-24 18:07:26"
+  },
+  {
+    "test": "Twilio SIP Domain URL",
+    "status": "PASS",
+    "details": "Railway URL preserved: Voice URL: https://nomadlynew-production.up.railway.app/twilio/sip-voice",
+    "expected": "",
+    "actual": "",
+    "timestamp": "2026-03-24 18:07:26"
+  },
+  {
+    "test": "Bridge Injection",
+    "status": "PASS",
+    "details": "Bridge injected successfully: {'success': True, 'bridgeId': 'bridge_test_abc'}",
+    "expected": "",
+    "actual": "",
+    "timestamp": "2026-03-24 18:07:26"
+  },
+  {
+    "test": "Bridge Injection",
+    "status": "PASS",
+    "details": "Bridge injected successfully: {'success': True, 'bridgeId': 'bridge_test_abc'}",
+    "expected": "",
+    "actual": "",
+    "timestamp": "2026-03-24 18:07:26"
+  },
+  {
+    "test": "SIP Voice Bridge from URI",
+    "status": "PASS",
+    "details": "XML response contains expected elements: <Dial>, callerId, and destination",
+    "expected": "",
+    "actual": "",
+    "timestamp": "2026-03-24 18:07:27"
+  },
+  {
+    "test": "SIP Voice Bridge from Query",
+    "status": "PASS",
+    "details": "Bridge found via query param, destination present",
+    "expected": "",
+    "actual": "",
+    "timestamp": "2026-03-24 18:07:28"
+  },
+  {
+    "test": "SIP Voice Expired Bridge",
+    "status": "PASS",
+    "details": "Correctly returned 'session expired' for nonexistent bridge",
+    "expected": "",
+    "actual": "",
+    "timestamp": "2026-03-24 18:07:28"
+  },
+  {
+    "test": "Verify CallerID",
+    "status": "PASS",
+    "details": "XML response contains <Play digits= with DTMF code digits",
+    "expected": "",
+    "actual": "",
+    "timestamp": "2026-03-24 18:07:28"
+  },
+  {
+    "test": "Caller IDs Verified",
+    "status": "PASS",
+    "details": "All expected numbers found: +18888645099, +18887847992, +18884508057",
+    "expected": "",
+    "actual": "",
+    "timestamp": "2026-03-24 18:07:29"
+  },
+  {
+    "test": "SIP Bridge Test Endpoint",
+    "status": "PASS",
+    "details": "Endpoint accessible and working: {'success': True, 'callSid': 'CAafdd4654564ee428e326f01267ba379c', 'bridgeId': 'bridge_test_yoC0e', 'sipUri': 'sip:bridge_test_yoC0e@speechcue-7937a0.sip.twilio.com', 'from': '+18888645099', 'to': '+13025141000'}",
+    "expected": "",
+    "actual": "",
+    "timestamp": "2026-03-24 18:07:29"
+  }
+]

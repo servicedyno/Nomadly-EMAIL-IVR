@@ -863,6 +863,22 @@ async function executeTwilioPurchase(chatId, selectedNumber, planKey, price, cou
   await set(phoneNumbersOf, chatId, userData)
 
   await phoneTransactions.insertOne({ chatId, phoneNumber: selectedNumber, action: subOpts?.isSubNumber ? 'sub-number-purchase' : 'purchase', plan: planKey, amount: price, paymentMethod, timestamp: new Date().toISOString() })
+
+  // 6. Verify caller ID on main account for SIP bridge support
+  // This allows the main account's SIP domain to use this sub-account number as callerId
+  try {
+    const subSid = numberDoc.twilioSubAccountSid || userData?.twilioSubAccountSid
+    const subToken = userData?.twilioSubAccountToken
+    if (subSid && subToken && buyResult?.sid) {
+      log(`[CloudPhone] Verifying caller ID ${selectedNumber} on main account for SIP bridge...`)
+      twilioService.verifyCallerIdOnMainAccount(selectedNumber, subSid, subToken, SELF_URL, buyResult.sid)
+        .then(verified => log(`[CloudPhone] Caller ID verification for ${selectedNumber}: ${verified ? '✅' : '⚠️ failed'}`))
+        .catch(e => log(`[CloudPhone] Caller ID verification error: ${e.message}`))
+    }
+  } catch (e) {
+    log(`[CloudPhone] Non-critical: Caller ID verification setup error: ${e.message}`)
+  }
+
   // Use phoneConfig.getTxt directly (module-scope safe) — cpTxt is only available inside loadData
   const _adminTxt = phoneConfig.getTxt('en')
   if (subOpts?.isSubNumber) {
@@ -22646,6 +22662,28 @@ app.post('/twilio/recording-status', async (req, res) => {
 // Twilio SIP Voice Webhook (Outbound SIP calls)
 
 // ── TEST ENDPOINT: Verify SIP bridge flow end-to-end ──
+// ── TEST: Inject a bridge into pendingBridges without making any calls ──
+app.post('/test/inject-bridge', async (req, res) => {
+  const { bridgeId, twilioNumber, destination, chatId, selfUrl } = req.body || {}
+  if (!bridgeId || !destination) return res.status(400).json({ error: 'bridgeId and destination required' })
+
+  const userData = await db.collection('phoneNumbersOf').findOne({ _id: chatId })
+  const num = (userData?.val?.numbers || []).find(n => n.provider === 'twilio' && n.status === 'active')
+
+  pendingBridges[bridgeId] = {
+    twilioNumber: twilioNumber || num?.phoneNumber || '+18888645099',
+    destination,
+    chatId,
+    num: num || {},
+    selfUrl: selfUrl || SELF_URL,
+    createdAt: Date.now(),
+  }
+  setTimeout(() => { delete pendingBridges[bridgeId] }, 120000)
+  log(`[Test] Bridge injected: ${bridgeId} → ${destination}`)
+  res.json({ success: true, bridgeId })
+})
+
+
 // Creates a bridge context in memory, then uses Twilio API to call through the SIP domain.
 // This simulates exactly what happens when Telnyx transfers a call to the Twilio SIP domain.
 app.post('/test/sip-bridge', async (req, res) => {
