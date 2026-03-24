@@ -1,296 +1,324 @@
 #!/usr/bin/env python3
 """
-Email Validation Free Trial Fixes - Verification Test
-Tests the atomic trial claim fixes and updated messaging
+Backend Test for VPS IP Failover System + Catch-all Optimization
+Tests all components mentioned in the review request.
 """
 
 import subprocess
 import requests
 import json
+import sys
 import os
-import re
 from pathlib import Path
 
-def test_syntax_check():
-    """Test 1: Syntax check with node -c"""
-    print("🔍 Test 1: Syntax Check")
+def run_command(cmd, description=""):
+    """Run a shell command and return result"""
     try:
-        result = subprocess.run(['node', '-c', '/app/js/_index.js'], 
-                              capture_output=True, text=True, timeout=30)
-        if result.returncode == 0:
-            print("✅ PASS: node -c /app/js/_index.js - No syntax errors")
-            return True
-        else:
-            print(f"❌ FAIL: Syntax errors found: {result.stderr}")
-            return False
-    except Exception as e:
-        print(f"❌ FAIL: Syntax check exception: {e}")
-        return False
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+        return {
+            'success': result.returncode == 0,
+            'stdout': result.stdout.strip(),
+            'stderr': result.stderr.strip(),
+            'description': description
+        }
+    except subprocess.TimeoutExpired:
+        return {
+            'success': False,
+            'stdout': '',
+            'stderr': 'Command timed out',
+            'description': description
+        }
 
-def test_nodejs_clean_running():
-    """Test 2: Node.js running clean - check error log and health endpoint"""
-    print("\n🔍 Test 2: Node.js Clean Running")
-    
-    # Check error log is 0 bytes
+def check_file_content(file_path, patterns, description=""):
+    """Check if file contains specific patterns"""
     try:
-        error_log_path = "/var/log/supervisor/nodejs.err.log"
-        if os.path.exists(error_log_path):
-            size = os.path.getsize(error_log_path)
-            if size == 0:
-                print("✅ PASS: nodejs.err.log is 0 bytes (clean)")
-                log_check = True
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        results = {}
+        for pattern_name, pattern in patterns.items():
+            if isinstance(pattern, list):
+                # Check if all patterns in list exist
+                results[pattern_name] = all(p in content for p in pattern)
             else:
-                print(f"❌ FAIL: nodejs.err.log is {size} bytes (has errors)")
-                log_check = False
-        else:
-            print("❌ FAIL: nodejs.err.log not found")
-            log_check = False
+                results[pattern_name] = pattern in content
+        
+        return {
+            'success': all(results.values()),
+            'results': results,
+            'description': description
+        }
     except Exception as e:
-        print(f"❌ FAIL: Error checking log file: {e}")
-        log_check = False
+        return {
+            'success': False,
+            'error': str(e),
+            'description': description
+        }
+
+def test_syntax_checks():
+    """Test 1: Syntax check for all 3 files"""
+    print("🔍 Test 1: Syntax Checks")
+    
+    files_to_check = [
+        '/app/js/_index.js',
+        '/app/js/email-validation.js', 
+        '/app/js/email-validation-worker.js'
+    ]
+    
+    results = []
+    for file_path in files_to_check:
+        result = run_command(f'node -c {file_path}', f'Syntax check for {file_path}')
+        results.append(result)
+        status = "✅ PASS" if result['success'] else "❌ FAIL"
+        print(f"  {status} {file_path}")
+        if not result['success']:
+            print(f"    Error: {result['stderr']}")
+    
+    return all(r['success'] for r in results)
+
+def test_nodejs_health():
+    """Test 2: Node.js running clean"""
+    print("\n🔍 Test 2: Node.js Health Check")
     
     # Check health endpoint
     try:
         response = requests.get('http://localhost:5000/health', timeout=10)
-        if response.status_code == 200:
-            data = response.json()
-            if data.get('status') == 'healthy' and data.get('database') == 'connected':
-                print("✅ PASS: Health endpoint returns healthy with database connected")
-                health_check = True
-            else:
-                print(f"❌ FAIL: Health endpoint unhealthy: {data}")
-                health_check = False
-        else:
-            print(f"❌ FAIL: Health endpoint returned {response.status_code}")
-            health_check = False
+        health_ok = response.status_code == 200 and 'healthy' in response.text
+        print(f"  {'✅ PASS' if health_ok else '❌ FAIL'} Health endpoint: {response.status_code}")
+        if health_ok:
+            health_data = response.json()
+            print(f"    Status: {health_data.get('status')}")
+            print(f"    Database: {health_data.get('database')}")
     except Exception as e:
-        print(f"❌ FAIL: Health endpoint error: {e}")
-        health_check = False
+        health_ok = False
+        print(f"  ❌ FAIL Health endpoint error: {e}")
     
-    return log_check and health_check
+    # Check error log size
+    error_log_result = run_command('ls -la /var/log/supervisor/nodejs.err.log', 'Check error log size')
+    error_log_empty = '0 ' in error_log_result['stdout']  # Check if size is 0 bytes
+    print(f"  {'✅ PASS' if error_log_empty else '❌ FAIL'} Error log is 0 bytes")
+    if not error_log_empty:
+        print(f"    Log info: {error_log_result['stdout']}")
+    
+    return health_ok and error_log_empty
 
-def test_atomic_trial_claim():
-    """Test 3: Verify atomic trial claim pattern exists"""
-    print("\n🔍 Test 3: Atomic Trial Claim Pattern")
+def test_ev_admin_ips_action():
+    """Test 3: evAdminIps action exists in actions enum"""
+    print("\n🔍 Test 3: evAdminIps Action in Enum")
     
-    try:
-        with open('/app/js/_index.js', 'r') as f:
-            content = f.read()
-        
-        # Check for findOneAndUpdate pattern
-        findone_pattern = r'findOneAndUpdate\s*\(\s*{\s*_id:\s*parseFloat\(chatId\),\s*\$or:\s*\[\s*{\s*evFreeTrialUsed:\s*{\s*\$ne:\s*true\s*}\s*},\s*{\s*evFreeTrialUsed:\s*{\s*\$exists:\s*false\s*}\s*}\s*\]\s*},\s*{\s*\$set:\s*{\s*evFreeTrialUsed:\s*true\s*}\s*}'
-        
-        if re.search(findone_pattern, content, re.MULTILINE | re.DOTALL):
-            print("✅ PASS: findOneAndUpdate atomic pattern found with correct filter")
-            atomic_pattern = True
-        else:
-            print("❌ FAIL: findOneAndUpdate atomic pattern not found or incorrect")
-            atomic_pattern = False
-        
-        # Check for trialClaim.value check (not just trialClaim)
-        value_check_pattern = r'if\s*\(\s*!\s*trialClaim\s*\|\|\s*!\s*trialClaim\.value\s*\)'
-        if re.search(value_check_pattern, content):
-            print("✅ PASS: trialClaim.value check found (correct findOneAndUpdate result handling)")
-            value_check = True
-        else:
-            print("❌ FAIL: trialClaim.value check not found")
-            value_check = False
-        
-        # Check for 🎁 Start Free Trial handler
-        trial_handler = '🎁 Start Free Trial' in content
-        if trial_handler:
-            print("✅ PASS: '🎁 Start Free Trial' handler found")
-        else:
-            print("❌ FAIL: '🎁 Start Free Trial' handler not found")
-        
-        return atomic_pattern and value_check and trial_handler
-        
-    except Exception as e:
-        print(f"❌ FAIL: Error reading _index.js: {e}")
-        return False
+    patterns = {
+        'evAdminIps_enum': "evAdminIps: 'evAdminIps'"
+    }
+    
+    result = check_file_content('/app/js/_index.js', patterns, 'evAdminIps in actions enum')
+    status = "✅ PASS" if result['success'] else "❌ FAIL"
+    print(f"  {status} evAdminIps exists in actions enum")
+    
+    return result['success']
 
-def test_updated_ev_welcome():
-    """Test 4: Check updated EV welcome message mentions required providers"""
-    print("\n🔍 Test 4: Updated EV Welcome Message")
+def test_ip_manager_handler():
+    """Test 4: IP Manager admin handler with required buttons"""
+    print("\n🔍 Test 4: IP Manager Admin Handler")
     
-    try:
-        with open('/app/js/_index.js', 'r') as f:
-            content = f.read()
-        
-        # Find evWelcome object
-        evwelcome_match = re.search(r'const evWelcome = \{(.*?)\}', content, re.DOTALL)
-        if not evwelcome_match:
-            print("❌ FAIL: evWelcome object not found")
-            return False
-        
-        evwelcome_content = evwelcome_match.group(1)
-        
-        # Check for required email providers in English version
-        required_providers = ['Gmail', 'Yahoo', 'Hotmail', 'MSN', 'Outlook']
-        providers_found = []
-        providers_missing = []
-        
-        for provider in required_providers:
-            if provider in evwelcome_content:
-                providers_found.append(provider)
-            else:
-                providers_missing.append(provider)
-        
-        # Check for private domain mention
-        private_domain_check = 'private domain' in evwelcome_content.lower() or 'company' in evwelcome_content.lower()
-        
-        if len(providers_found) == len(required_providers):
-            print(f"✅ PASS: All required providers found: {', '.join(providers_found)}")
-            providers_check = True
-        else:
-            print(f"❌ FAIL: Missing providers: {', '.join(providers_missing)}")
-            print(f"Found providers: {', '.join(providers_found)}")
-            providers_check = False
-        
-        if private_domain_check:
-            print("✅ PASS: Private domain emails mentioned")
-            domain_check = True
-        else:
-            print("❌ FAIL: Private domain emails not mentioned")
-            domain_check = False
-        
-        return providers_check and domain_check
-        
-    except Exception as e:
-        print(f"❌ FAIL: Error checking evWelcome: {e}")
-        return False
+    patterns = {
+        'handler_condition': "action === a.evAdminIps && isAdmin(chatId)",
+        'refresh_button': "'🔄 Refresh IPs'",
+        'fetch_contabo_button': "'📡 Fetch from Contabo'",
+        'add_ip_button': "'➕ Add IP'",
+        'remove_ip_button': "'🗑 Remove IP'",
+        'reset_health_button': "'♻️ Reset Health'",
+        'back_button': "'🔙 Back'"
+    }
+    
+    result = check_file_content('/app/js/_index.js', patterns, 'IP Manager handler buttons')
+    status = "✅ PASS" if result['success'] else "❌ FAIL"
+    print(f"  {status} IP Manager handler with all required buttons")
+    
+    for button, found in result.get('results', {}).items():
+        print(f"    {'✅' if found else '❌'} {button}")
+    
+    return result['success']
 
-def test_old_vulnerable_pattern_removed():
-    """Test 5: Confirm old vulnerable pattern removed"""
-    print("\n🔍 Test 5: Old Vulnerable Pattern Removed")
+def test_helper_functions():
+    """Test 5: Helper functions exist"""
+    print("\n🔍 Test 5: Helper Functions")
     
-    try:
-        with open('/app/js/_index.js', 'r') as f:
-            content = f.read()
-        
-        # Check for old saveInfo('evFreeTrialUsed', true) pattern
-        old_pattern = re.search(r'saveInfo\s*\(\s*[\'"]evFreeTrialUsed[\'"],\s*true\s*\)', content)
-        
-        if not old_pattern:
-            print("✅ PASS: Old vulnerable saveInfo('evFreeTrialUsed', true) pattern not found")
-            return True
-        else:
-            print("❌ FAIL: Old vulnerable saveInfo('evFreeTrialUsed', true) pattern still exists")
-            return False
-            
-    except Exception as e:
-        print(f"❌ FAIL: Error checking for old pattern: {e}")
-        return False
+    patterns = {
+        '_evWorkerGet': 'function _evWorkerGet(path)',
+        '_evWorkerPost': 'function _evWorkerPost(path, data)',
+        '_evWorkerDelete': 'function _evWorkerDelete(path, data)',
+        '_fetchContaboIps': 'async function _fetchContaboIps()'
+    }
+    
+    result = check_file_content('/app/js/_index.js', patterns, 'Helper functions')
+    status = "✅ PASS" if result['success'] else "❌ FAIL"
+    print(f"  {status} All helper functions exist")
+    
+    for func, found in result.get('results', {}).items():
+        print(f"    {'✅' if found else '❌'} {func}")
+    
+    return result['success']
 
-def test_ev_config_free_trial():
-    """Test 6: Check EV_CONFIG.freeTrialEmails defaults to 50"""
-    print("\n🔍 Test 6: EV_CONFIG.freeTrialEmails Configuration")
+def test_failover_endpoint():
+    """Test 6: Failover endpoint exists"""
+    print("\n🔍 Test 6: Failover Endpoint")
     
-    try:
-        with open('/app/js/email-validation-config.js', 'r') as f:
-            content = f.read()
-        
-        # Check for EV_FREE_TRIAL default of 50
-        pattern = re.search(r'freeTrialEmails:\s*parseInt\s*\(\s*process\.env\.EV_FREE_TRIAL\s*\|\|\s*[\'"]50[\'"],\s*10\s*\)', content)
-        
-        if pattern:
-            print("✅ PASS: EV_CONFIG.freeTrialEmails defaults to 50")
-            return True
-        else:
-            print("❌ FAIL: EV_CONFIG.freeTrialEmails default not found or incorrect")
-            return False
-            
-    except Exception as e:
-        print(f"❌ FAIL: Error checking EV_CONFIG: {e}")
-        return False
+    patterns = {
+        'failover_endpoint': "app.post('/ev-ip-failover'",
+        'telegram_notification': 'TELEGRAM_ADMIN_CHAT_ID'
+    }
+    
+    result = check_file_content('/app/js/_index.js', patterns, 'Failover endpoint')
+    status = "✅ PASS" if result['success'] else "❌ FAIL"
+    print(f"  {status} /ev-ip-failover endpoint exists with Telegram notification")
+    
+    return result['success']
 
-def test_regression_email_validation_flow():
-    """Test 7: Regression test - email validation flow compilation"""
-    print("\n🔍 Test 7: Regression - Email Validation Flow Compilation")
+def test_catch_all_optimization():
+    """Test 7: Catch-all optimization in email-validation.js"""
+    print("\n🔍 Test 7: Catch-all Optimization")
     
-    try:
-        with open('/app/js/_index.js', 'r') as f:
-            content = f.read()
-        
-        # Check for required action patterns
-        required_patterns = ['evMenu', 'evUploadList', 'evConfirmPay', 'evPasteEmails']
-        pattern_counts = {}
-        
-        for pattern in required_patterns:
-            count = len(re.findall(pattern, content))
-            pattern_counts[pattern] = count
-        
-        # Verify minimum expected occurrences
-        expected_minimums = {
-            'evMenu': 3,      # enum, action check, set action
-            'evUploadList': 3, # enum, action check, set action  
-            'evConfirmPay': 3, # enum, action check, set action
-            'evPasteEmails': 3 # enum, action check, set action
-        }
-        
-        all_good = True
-        for pattern, expected_min in expected_minimums.items():
-            actual = pattern_counts[pattern]
-            if actual >= expected_min:
-                print(f"✅ PASS: {pattern} found {actual} times (>= {expected_min})")
-            else:
-                print(f"❌ FAIL: {pattern} found {actual} times (< {expected_min})")
-                all_good = False
-        
-        return all_good
-        
-    except Exception as e:
-        print(f"❌ FAIL: Error checking email validation patterns: {e}")
-        return False
+    patterns = {
+        'domain_buckets': 'const domainBuckets = new Map()',
+        'catch_all_probe': 'ev-catchall-probe',
+        'smtp_verify_batch': 'smtpVerifyBatch(probeEmails)',
+        'catch_all_skip': 'skip individual SMTP',
+        'catch_all_domain': 'catch_all_domain'
+    }
+    
+    result = check_file_content('/app/js/email-validation.js', patterns, 'Catch-all optimization')
+    status = "✅ PASS" if result['success'] else "❌ FAIL"
+    print(f"  {status} Catch-all optimization with domainBuckets grouping")
+    
+    for feature, found in result.get('results', {}).items():
+        print(f"    {'✅' if found else '❌'} {feature}")
+    
+    return result['success']
+
+def test_worker_ip_pool():
+    """Test 8: Worker IP pool features"""
+    print("\n🔍 Test 8: Worker IP Pool Features")
+    
+    patterns = {
+        'ip_pool_array': 'const ipPool = []',
+        'init_ip_pool': 'function initIpPool()',
+        'get_healthy_ip': 'function getHealthyIp()',
+        'record_success': 'function recordSuccess(ipEntry)',
+        'record_failure': 'function recordFailure(ipEntry, reason)',
+        'notify_failover': 'async function notifyFailover(blockedIp, reason)',
+        'save_ip_pool': 'function saveIpPool()'
+    }
+    
+    result = check_file_content('/app/js/email-validation-worker.js', patterns, 'Worker IP pool')
+    status = "✅ PASS" if result['success'] else "❌ FAIL"
+    print(f"  {status} Worker IP pool with all management functions")
+    
+    for feature, found in result.get('results', {}).items():
+        print(f"    {'✅' if found else '❌'} {feature}")
+    
+    return result['success']
+
+def test_worker_management_endpoints():
+    """Test 9: Worker management endpoints"""
+    print("\n🔍 Test 9: Worker Management Endpoints")
+    
+    patterns = {
+        'get_ips': "req.method === 'GET' && req.url === '/ips'",
+        'post_ips': "req.method === 'POST' && req.url === '/ips'",
+        'delete_ips': "req.method === 'DELETE' && req.url === '/ips'",
+        'reset_ips': "req.method === 'POST' && req.url === '/ips/reset'"
+    }
+    
+    result = check_file_content('/app/js/email-validation-worker.js', patterns, 'Worker management endpoints')
+    status = "✅ PASS" if result['success'] else "❌ FAIL"
+    print(f"  {status} Worker has all management endpoints (GET/POST/DELETE /ips, POST /ips/reset)")
+    
+    for endpoint, found in result.get('results', {}).items():
+        print(f"    {'✅' if found else '❌'} {endpoint}")
+    
+    return result['success']
+
+def test_worker_local_address():
+    """Test 10: Worker localAddress usage"""
+    print("\n🔍 Test 10: Worker localAddress Usage")
+    
+    patterns = {
+        'smtp_verify_single_params': 'function smtpVerifySingle(email, mxHost, sourceIp',
+        'local_address_binding': 'if (sourceIp) connOpts.localAddress = sourceIp',
+        'source_ip_usage': 'const r = await smtpVerifySingle(email, mxHost, sourceIp)'
+    }
+    
+    result = check_file_content('/app/js/email-validation-worker.js', patterns, 'Worker localAddress')
+    status = "✅ PASS" if result['success'] else "❌ FAIL"
+    print(f"  {status} smtpVerifySingle accepts and uses sourceIp for localAddress binding")
+    
+    for feature, found in result.get('results', {}).items():
+        print(f"    {'✅' if found else '❌'} {feature}")
+    
+    return result['success']
+
+def test_worker_ip_persistence():
+    """Test 11: Worker IP persistence"""
+    print("\n🔍 Test 11: Worker IP Persistence")
+    
+    patterns = {
+        'ip_pool_file': "const IP_POOL_FILE = '/root/ev-ip-pool.json'",
+        'save_ip_pool_call': 'saveIpPool()',
+        'fs_write_sync': 'fs.writeFileSync(IP_POOL_FILE'
+    }
+    
+    result = check_file_content('/app/js/email-validation-worker.js', patterns, 'Worker IP persistence')
+    status = "✅ PASS" if result['success'] else "❌ FAIL"
+    print(f"  {status} Worker saves IP pool to /root/ev-ip-pool.json")
+    
+    return result['success']
 
 def main():
-    """Run all tests and provide summary"""
-    print("=" * 60)
-    print("EMAIL VALIDATION FREE TRIAL FIXES - VERIFICATION TEST")
-    print("=" * 60)
+    """Run all tests"""
+    print("🚀 VPS IP Failover System + Catch-all Optimization Test Suite")
+    print("=" * 70)
     
     tests = [
-        ("Syntax Check", test_syntax_check),
-        ("Node.js Clean Running", test_nodejs_clean_running), 
-        ("Atomic Trial Claim", test_atomic_trial_claim),
-        ("Updated EV Welcome Message", test_updated_ev_welcome),
-        ("Old Vulnerable Pattern Removed", test_old_vulnerable_pattern_removed),
-        ("EV_CONFIG.freeTrialEmails", test_ev_config_free_trial),
-        ("Regression - Email Validation Flow", test_regression_email_validation_flow),
+        test_syntax_checks,
+        test_nodejs_health,
+        test_ev_admin_ips_action,
+        test_ip_manager_handler,
+        test_helper_functions,
+        test_failover_endpoint,
+        test_catch_all_optimization,
+        test_worker_ip_pool,
+        test_worker_management_endpoints,
+        test_worker_local_address,
+        test_worker_ip_persistence
     ]
     
     results = []
-    for test_name, test_func in tests:
+    for test in tests:
         try:
-            result = test_func()
-            results.append((test_name, result))
+            result = test()
+            results.append(result)
         except Exception as e:
-            print(f"❌ FAIL: {test_name} - Exception: {e}")
-            results.append((test_name, False))
+            print(f"  ❌ FAIL Test error: {e}")
+            results.append(False)
     
-    # Summary
-    print("\n" + "=" * 60)
-    print("TEST SUMMARY")
-    print("=" * 60)
+    print("\n" + "=" * 70)
+    print("📊 TEST SUMMARY")
+    print("=" * 70)
     
-    passed = 0
+    passed = sum(results)
     total = len(results)
     
-    for test_name, result in results:
-        status = "✅ PASS" if result else "❌ FAIL"
-        print(f"{status}: {test_name}")
-        if result:
-            passed += 1
-    
-    print(f"\nResults: {passed}/{total} tests passed ({passed/total*100:.0f}% success rate)")
+    print(f"✅ Passed: {passed}/{total}")
+    print(f"❌ Failed: {total - passed}/{total}")
+    print(f"📈 Success Rate: {(passed/total)*100:.1f}%")
     
     if passed == total:
-        print("\n🎉 ALL TESTS PASSED - Email validation free trial fixes verified!")
+        print("\n🎉 ALL TESTS PASSED! VPS IP Failover System + Catch-all Optimization is working correctly.")
         return True
     else:
-        print(f"\n⚠️  {total-passed} test(s) failed - Issues need attention")
+        print(f"\n⚠️  {total - passed} test(s) failed. Please review the issues above.")
         return False
 
 if __name__ == "__main__":
     success = main()
-    exit(0 if success else 1)
+    sys.exit(0 if success else 1)

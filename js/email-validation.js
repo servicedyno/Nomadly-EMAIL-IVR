@@ -312,29 +312,73 @@ async function validateEmailBatch(emails, opts = {}) {
 
   onProgress(30, { phase: 'local_done', done: localDone, total, smtpNeeded: smtpQueue.length })
 
-  // ── Layers 6-7: SMTP + Catch-all via VPS Worker ──
+  // ── Layers 6-7: SMTP + Catch-all via VPS Worker (with catch-all optimization) ──
   if (smtpQueue.length > 0) {
     const batchSize = EV_CONFIG.workerBatchSize
-    const emailsToVerify = smtpQueue.map(r => r.email)
     const smtpMap = new Map() // email → smtp result
 
+    // Group by domain for catch-all optimization
+    const domainBuckets = new Map()
+    for (const r of smtpQueue) {
+      const domain = r.email.split('@')[1]?.toLowerCase()
+      if (!domainBuckets.has(domain)) domainBuckets.set(domain, [])
+      domainBuckets.get(domain).push(r)
+    }
+
+    const catchAllDomains = new Set()
     let smtpDone = 0
-    for (let i = 0; i < emailsToVerify.length; i += batchSize) {
-      const batch = emailsToVerify.slice(i, i + batchSize)
+    const totalSmtp = smtpQueue.length
+
+    for (const [domain, domainResults] of domainBuckets) {
+      const domainEmails = domainResults.map(r => r.email)
+
+      // Step 1: Probe catch-all with a small sample (fake email + first real email)
+      const probeEmails = [
+        `ev-catchall-probe-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@${domain}`,
+        domainEmails[0],
+      ]
+      let isCatchAll = false
       try {
-        const smtpResults = await smtpVerifyBatch(batch)
-        for (const sr of smtpResults) {
-          smtpMap.set(sr.email, sr)
+        const probeResults = await smtpVerifyBatch(probeEmails)
+        const fakeResult = probeResults.find(r => r.email.startsWith('ev-catchall-probe'))
+        isCatchAll = fakeResult?.status === 'valid' || fakeResult?.status === 'catch_all' || fakeResult?.catch_all === true
+        // Store real probe result
+        for (const sr of probeResults) {
+          if (!sr.email.startsWith('ev-catchall-probe')) smtpMap.set(sr.email, sr)
         }
       } catch (e) {
-        console.log(`[EmailValidation] Worker batch error: ${e.message} — marking ${batch.length} as unknown`)
-        for (const email of batch) {
-          smtpMap.set(email, { email, status: 'unknown', reason: 'worker_error', catch_all: false })
+        console.log(`[EmailValidation] Catch-all probe error for ${domain}: ${e.message}`)
+      }
+
+      if (isCatchAll) {
+        // Mark all emails from this domain as catch_all — skip individual SMTP
+        catchAllDomains.add(domain)
+        console.log(`[EmailValidation] ${domain} is catch-all → marking ${domainEmails.length} emails (skipping individual SMTP)`)
+        for (const email of domainEmails) {
+          if (!smtpMap.has(email)) {
+            smtpMap.set(email, { email, status: 'catch_all', reason: 'catch_all_domain', code: '250', catch_all: true })
+          }
+        }
+        smtpDone += domainEmails.length
+        const pct = 30 + Math.round((smtpDone / totalSmtp) * 65)
+        onProgress(pct, { phase: 'smtp', done: smtpDone, total: totalSmtp })
+      } else {
+        // Not catch-all — verify remaining emails in batches
+        const remaining = domainEmails.filter(e => !smtpMap.has(e))
+        for (let i = 0; i < remaining.length; i += batchSize) {
+          const batch = remaining.slice(i, i + batchSize)
+          try {
+            const smtpResults = await smtpVerifyBatch(batch)
+            for (const sr of smtpResults) smtpMap.set(sr.email, sr)
+          } catch (e) {
+            console.log(`[EmailValidation] Worker batch error: ${e.message} — marking ${batch.length} as unknown`)
+            for (const email of batch) smtpMap.set(email, { email, status: 'unknown', reason: 'worker_error', catch_all: false })
+          }
+          smtpDone += batch.length
+          const pct = 30 + Math.round((smtpDone / totalSmtp) * 65)
+          onProgress(pct, { phase: 'smtp', done: smtpDone, total: totalSmtp })
         }
       }
-      smtpDone += batch.length
-      const pct = 30 + Math.round((smtpDone / emailsToVerify.length) * 65)
-      onProgress(pct, { phase: 'smtp', done: smtpDone, total: emailsToVerify.length })
     }
 
     // Merge SMTP results back

@@ -262,6 +262,123 @@ const { EV_CONFIG, calculatePrice, pricingTable } = require('./email-validation-
 const emailWarming = require('./email-warming.js')
 const emailDns = require('./email-dns.js')
 
+// ── EV Worker + Contabo API Helpers ──
+const _evWorkerBaseUrl = EV_CONFIG.workerUrl.replace('/verify-smtp', '')
+const _evWorkerSecret = process.env.EV_WORKER_SECRET || 'ev-worker-secret-2026'
+
+function _evWorkerGet(path) {
+  return new Promise((resolve, reject) => {
+    const url = new URL(path, _evWorkerBaseUrl)
+    const lib = url.protocol === 'https:' ? require('https') : require('http')
+    const req = lib.get(url.href, { headers: { 'Authorization': `Bearer ${_evWorkerSecret}` }, timeout: 8000 }, (res) => {
+      let body = ''
+      res.on('data', c => body += c)
+      res.on('end', () => {
+        try { resolve(JSON.parse(body)) } catch { resolve(null) }
+      })
+    })
+    req.on('error', reject)
+    req.on('timeout', () => { req.destroy(); reject(new Error('timeout')) })
+  })
+}
+
+function _evWorkerPost(path, data) {
+  return new Promise((resolve, reject) => {
+    const url = new URL(path, _evWorkerBaseUrl)
+    const lib = url.protocol === 'https:' ? require('https') : require('http')
+    const payload = JSON.stringify(data)
+    const req = lib.request(url.href, { method: 'POST', headers: { 'Authorization': `Bearer ${_evWorkerSecret}`, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) }, timeout: 8000 }, (res) => {
+      let body = ''
+      res.on('data', c => body += c)
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(body)
+          if (res.statusCode >= 400) reject(new Error(parsed.error || `HTTP ${res.statusCode}`))
+          else resolve(parsed)
+        } catch { resolve(null) }
+      })
+    })
+    req.on('error', reject)
+    req.on('timeout', () => { req.destroy(); reject(new Error('timeout')) })
+    req.write(payload)
+    req.end()
+  })
+}
+
+function _evWorkerDelete(path, data) {
+  return new Promise((resolve, reject) => {
+    const url = new URL(path, _evWorkerBaseUrl)
+    const lib = url.protocol === 'https:' ? require('https') : require('http')
+    const payload = JSON.stringify(data)
+    const req = lib.request(url.href, { method: 'DELETE', headers: { 'Authorization': `Bearer ${_evWorkerSecret}`, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) }, timeout: 8000 }, (res) => {
+      let body = ''
+      res.on('data', c => body += c)
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(body)
+          if (res.statusCode >= 400) reject(new Error(parsed.error || `HTTP ${res.statusCode}`))
+          else resolve(parsed)
+        } catch { resolve(null) }
+      })
+    })
+    req.on('error', reject)
+    req.on('timeout', () => { req.destroy(); reject(new Error('timeout')) })
+    req.write(payload)
+    req.end()
+  })
+}
+
+async function _fetchContaboIps() {
+  const clientId = process.env.CONTABO_CLIENT_ID
+  const clientSecret = process.env.CONTABO_CLIENT_SECRET
+  const apiUser = process.env.CONTABO_API_USER
+  const apiPassword = process.env.CONTABO_API_PASSWORD
+  if (!clientId || !clientSecret || !apiUser || !apiPassword) return null
+
+  // Get OAuth2 token
+  const tokenBody = `client_id=${encodeURIComponent(clientId)}&client_secret=${encodeURIComponent(clientSecret)}&grant_type=password&username=${encodeURIComponent(apiUser)}&password=${encodeURIComponent(apiPassword)}`
+  const tokenRes = await new Promise((resolve, reject) => {
+    const req = require('https').request('https://auth.contabo.com/auth/realms/contabo/protocol/openid-connect/token', {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(tokenBody) }, timeout: 10000,
+    }, (res) => {
+      let body = ''
+      res.on('data', c => body += c)
+      res.on('end', () => { try { resolve(JSON.parse(body)) } catch { reject(new Error('parse error')) } })
+    })
+    req.on('error', reject)
+    req.write(tokenBody)
+    req.end()
+  })
+  if (!tokenRes.access_token) return null
+
+  // Fetch instances
+  const { randomUUID } = require('crypto')
+  const instances = await new Promise((resolve, reject) => {
+    const req = require('https').request('https://api.contabo.com/v1/compute/instances', {
+      method: 'GET', headers: { 'Authorization': `Bearer ${tokenRes.access_token}`, 'x-request-id': randomUUID() }, timeout: 10000,
+    }, (res) => {
+      let body = ''
+      res.on('data', c => body += c)
+      res.on('end', () => { try { resolve(JSON.parse(body)) } catch { reject(new Error('parse error')) } })
+    })
+    req.on('error', reject)
+    req.end()
+  })
+
+  // Collect all IPs (main + additional) from all instances
+  const allIps = []
+  for (const inst of (instances.data || [])) {
+    const v4 = inst.ipConfig?.v4
+    if (v4?.ip) allIps.push(v4.ip)
+    if (Array.isArray(v4?.additionalIps)) {
+      for (const extra of v4.additionalIps) {
+        if (extra.v4?.ip) allIps.push(extra.v4.ip)
+      }
+    }
+  }
+  return allIps
+}
+
 process.env['NTBA_FIX_350'] = 1
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -2828,6 +2945,7 @@ bot?.on('message', msg => {
     evUploadList: 'evUploadList',
     evPasteEmails: 'evPasteEmails',
     evConfirmPay: 'evConfirmPay',
+    evAdminIps: 'evAdminIps',
   }
 
   const firstSteps = [
@@ -6989,8 +7107,9 @@ All verified numbers generated during sourcing.`))
       ['📤 Upload List (CSV/TXT)'],
       ['📋 Paste Emails'],
       ['📜 My Validations'],
-      [t.back || '🔙 Back'],
     ]
+    if (isAdmin(chatId)) evBtns.push(['⚙️ EV IP Manager'])
+    evBtns.push([t.back || '🔙 Back'])
     await set(state, chatId, 'action', a.evMenu)
     return send(chatId, evWelcome[lang] || evWelcome.en, { parse_mode: 'HTML', reply_markup: { keyboard: evBtns, resize_keyboard: true } })
   }
@@ -7045,9 +7164,149 @@ All verified numbers generated during sourcing.`))
       }
       return send(chatId, text, { parse_mode: 'HTML' })
     }
+
+    // ── Admin: EV IP Manager ──
+    if (message === '⚙️ EV IP Manager' && isAdmin(chatId)) {
+      await set(state, chatId, 'action', a.evAdminIps)
+      // Fetch IP status from worker
+      let ipStatus = ''
+      try {
+        const workerData = await _evWorkerGet('/ips')
+        if (workerData && workerData.ips) {
+          for (const ip of workerData.ips) {
+            const icon = ip.healthy ? '🟢' : '🔴'
+            ipStatus += `${icon} <code>${ip.ip}</code>\n   Sent: ${ip.totalSent} | Fail: ${ip.totalFail} | Streak: ${ip.failures}\n`
+            if (ip.lastFail) ipStatus += `   Last fail: ${new Date(ip.lastFail).toLocaleString()}\n`
+          }
+          ipStatus += `\n🎯 Active: <code>${workerData.activeIp}</code>`
+        } else {
+          ipStatus = '⚠️ Could not reach worker'
+        }
+      } catch (e) {
+        ipStatus = `❌ Worker error: ${e.message}`
+      }
+      const ipMsg = `⚙️ <b>EV IP Manager</b>\n\n${ipStatus}\n\nChoose an action:`
+      const ipBtns = [
+        ['🔄 Refresh IPs', '📡 Fetch from Contabo'],
+        ['➕ Add IP', '🗑 Remove IP'],
+        ['♻️ Reset Health'],
+        ['🔙 Back'],
+      ]
+      return send(chatId, ipMsg, { parse_mode: 'HTML', reply_markup: { keyboard: ipBtns, resize_keyboard: true } })
+    }
   }
 
-  // ── Email Validation: Upload File ──
+  // ── Email Validation: Admin IP Manager ──
+  if (action === a.evAdminIps && isAdmin(chatId)) {
+    if (message === '🔙 Back') {
+      await set(state, chatId, 'action', a.evMenu)
+      // Re-show EV menu
+      return send(chatId, '📧 Returning to Email Validation menu...', { parse_mode: 'HTML', reply_markup: { keyboard: [['📤 Upload List (CSV/TXT)'], ['📋 Paste Emails'], ['📜 My Validations'], ['⚙️ EV IP Manager'], [t.back || '🔙 Back']], resize_keyboard: true } })
+    }
+
+    if (message === '🔄 Refresh IPs') {
+      try {
+        const workerData = await _evWorkerGet('/ips')
+        if (workerData && workerData.ips) {
+          let txt = '⚙️ <b>IP Pool Status</b>\n\n'
+          for (const ip of workerData.ips) {
+            const icon = ip.healthy ? '🟢' : '🔴'
+            txt += `${icon} <code>${ip.ip}</code>\n   Sent: ${ip.totalSent} | Fail: ${ip.totalFail} | Streak: ${ip.failures}\n`
+          }
+          txt += `\n🎯 Active: <code>${workerData.activeIp}</code>`
+          return send(chatId, txt, { parse_mode: 'HTML' })
+        }
+        return send(chatId, '⚠️ Could not reach worker')
+      } catch (e) {
+        return send(chatId, `❌ Error: ${e.message}`)
+      }
+    }
+
+    if (message === '📡 Fetch from Contabo') {
+      try {
+        const contaboIps = await _fetchContaboIps()
+        if (!contaboIps || contaboIps.length === 0) {
+          return send(chatId, '⚠️ No IPs found from Contabo API or credentials missing.')
+        }
+        let added = 0
+        for (const ip of contaboIps) {
+          try {
+            await _evWorkerPost('/ips', { ip })
+            added++
+          } catch (e) {
+            if (!e.message.includes('already')) throw e
+          }
+        }
+        const workerData = await _evWorkerGet('/ips')
+        let txt = `📡 <b>Contabo IPs Synced</b>\n\nFound: ${contaboIps.length} IPs | Added: ${added} new\n\nCurrent pool:\n`
+        if (workerData?.ips) {
+          for (const ip of workerData.ips) {
+            txt += `${ip.healthy ? '🟢' : '🔴'} <code>${ip.ip}</code>\n`
+          }
+        }
+        return send(chatId, txt, { parse_mode: 'HTML' })
+      } catch (e) {
+        return send(chatId, `❌ Contabo API error: ${e.message}`)
+      }
+    }
+
+    if (message === '➕ Add IP') {
+      await saveInfo('evAdminIpAction', 'add')
+      return send(chatId, '➕ <b>Add IP</b>\n\nSend me the IPv4 address to add (e.g. <code>1.2.3.4</code>):', { parse_mode: 'HTML', reply_markup: { keyboard: [['❌ Cancel']], resize_keyboard: true } })
+    }
+
+    if (message === '🗑 Remove IP') {
+      await saveInfo('evAdminIpAction', 'remove')
+      try {
+        const workerData = await _evWorkerGet('/ips')
+        let txt = '🗑 <b>Remove IP</b>\n\nSend me the IP to remove:\n\n'
+        if (workerData?.ips) {
+          for (const ip of workerData.ips) {
+            txt += `• <code>${ip.ip}</code>\n`
+          }
+        }
+        return send(chatId, txt, { parse_mode: 'HTML', reply_markup: { keyboard: [['❌ Cancel']], resize_keyboard: true } })
+      } catch (e) {
+        return send(chatId, `❌ Error: ${e.message}`)
+      }
+    }
+
+    if (message === '♻️ Reset Health') {
+      try {
+        await _evWorkerPost('/ips/reset', {})
+        return send(chatId, '♻️ All IP health stats reset to healthy.')
+      } catch (e) {
+        return send(chatId, `❌ Error: ${e.message}`)
+      }
+    }
+
+    // Handle IP input (add or remove)
+    const ipAction = info?.evAdminIpAction
+    if (ipAction && message !== '❌ Cancel') {
+      const ipInput = message.trim()
+      if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(ipInput)) {
+        return send(chatId, '❌ Invalid IPv4 format. Send like: <code>1.2.3.4</code>', { parse_mode: 'HTML' })
+      }
+      await saveInfo('evAdminIpAction', null)
+      try {
+        if (ipAction === 'add') {
+          await _evWorkerPost('/ips', { ip: ipInput })
+          return send(chatId, `✅ IP <code>${ipInput}</code> added to pool.`, { parse_mode: 'HTML' })
+        } else if (ipAction === 'remove') {
+          await _evWorkerDelete('/ips', { ip: ipInput })
+          return send(chatId, `✅ IP <code>${ipInput}</code> removed from pool.`, { parse_mode: 'HTML' })
+        }
+      } catch (e) {
+        return send(chatId, `❌ Error: ${e.message}`, { parse_mode: 'HTML' })
+      }
+    }
+    if (message === '❌ Cancel') {
+      await saveInfo('evAdminIpAction', null)
+      await set(state, chatId, 'action', a.evAdminIps)
+      return send(chatId, '❌ Cancelled.', { parse_mode: 'HTML', reply_markup: { keyboard: [['🔄 Refresh IPs', '📡 Fetch from Contabo'], ['➕ Add IP', '🗑 Remove IP'], ['♻️ Reset Health'], ['🔙 Back']], resize_keyboard: true } })
+    }
+  }
+
   if (action === a.evUploadList) {
     if (message === '❌ Cancel' || message === t.back || message === t.cancel) {
       await set(state, chatId, 'action', a.evMenu)
@@ -19344,6 +19603,31 @@ const bankApis = {
 //
 //
 app.post('/webhook', auth, (req, res) => {
+
+// ── EV IP Failover Notification Endpoint ──
+app.post('/ev-ip-failover', (req, res) => {
+  try {
+    const payload = req.body
+    if (!payload || payload.event !== 'ip_failover') return res.status(400).json({ error: 'Invalid payload' })
+
+    const ADMIN_ID = process.env.TELEGRAM_ADMIN_CHAT_ID
+    if (ADMIN_ID && bot) {
+      const healthy = payload.healthyIps || []
+      const msg = `⚠️ <b>EV IP Failover Alert</b>\n\n` +
+        `🔴 Blocked: <code>${payload.blockedIp}</code>\n` +
+        `📊 Failures: ${payload.failures}\n` +
+        `💬 Reason: ${payload.reason}\n\n` +
+        `🟢 Healthy IPs: ${healthy.length > 0 ? healthy.map(ip => `<code>${ip}</code>`).join(', ') : '⚠️ NONE — all IPs blocked!'}\n\n` +
+        `${healthy.length === 0 ? '🚨 <b>CRITICAL: No healthy IPs! Email validation will fail. Add a new IP immediately.</b>' : `✅ Auto-switched to next healthy IP.`}\n\n` +
+        `🕐 ${new Date(payload.timestamp).toLocaleString()}`
+      bot.sendMessage(ADMIN_ID, msg, { parse_mode: 'HTML' }).catch(() => {})
+    }
+
+    res.json({ ok: true })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
   const value = req?.body?.data?.amountReceived
   const coin = req?.body?.data?.currency
   const endpoint = req?.pay?.endpoint
