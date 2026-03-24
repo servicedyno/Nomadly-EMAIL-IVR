@@ -6969,11 +6969,20 @@ All verified numbers generated during sourcing.`))
     if (!EV_CONFIG.enabled) {
       return send(chatId, '🚧 Email Validation service is currently under maintenance. Please try again later.', { parse_mode: 'HTML' })
     }
+    // Check if user has used their free trial
+    const evTrialUsed = info?.evFreeTrialUsed || false
+    const trialLimit = EV_CONFIG.freeTrialEmails
+    const trialLine = trialLimit > 0 && !evTrialUsed
+      ? { en: `\n\n🎁 <b>Free trial:</b> Validate up to <b>${trialLimit}</b> emails free!`,
+          fr: `\n\n🎁 <b>Essai gratuit :</b> Validez jusqu'à <b>${trialLimit}</b> emails gratuitement !`,
+          zh: `\n\n🎁 <b>免费试用：</b>免费验证最多 <b>${trialLimit}</b> 封邮件！`,
+          hi: `\n\n🎁 <b>मुफ्त ट्रायल:</b> <b>${trialLimit}</b> ईमेल तक मुफ्त सत्यापन!` }
+      : { en: '', fr: '', zh: '', hi: '' }
     const evWelcome = {
-      en: `📧 <b>Email Validation Service</b>\n\nVerify email addresses with <b>97%+ accuracy</b> using our 7-layer validation engine.\n\n🔍 <b>7 Validation Layers:</b>\n  1️⃣ Syntax check\n  2️⃣ Disposable email filter\n  3️⃣ Role-based detection\n  4️⃣ Free provider flagging\n  5️⃣ MX record verification\n  6️⃣ SMTP mailbox verification\n  7️⃣ Catch-all domain detection\n\n💰 <b>Pricing:</b>\n${pricingTable()}\n\n📋 Min: ${EV_CONFIG.minEmails} | Max: ${EV_CONFIG.maxEmails.toLocaleString()} emails`,
-      fr: `📧 <b>Service de Validation d'Emails</b>\n\nVérifiez les adresses email avec une précision de <b>97%+</b> grâce à notre moteur de validation à 7 couches.\n\n💰 <b>Tarifs :</b>\n${pricingTable()}\n\n📋 Min : ${EV_CONFIG.minEmails} | Max : ${EV_CONFIG.maxEmails.toLocaleString()} emails`,
-      zh: `📧 <b>邮箱验证服务</b>\n\n使用我们的7层验证引擎，以<b>97%+</b>的准确率验证电子邮件地址。\n\n💰 <b>定价：</b>\n${pricingTable()}\n\n📋 最低：${EV_CONFIG.minEmails} | 最高：${EV_CONFIG.maxEmails.toLocaleString()} 封`,
-      hi: `📧 <b>ईमेल सत्यापन सेवा</b>\n\nहमारे 7-स्तरीय सत्यापन इंजन से <b>97%+</b> सटीकता के साथ ईमेल पते सत्यापित करें।\n\n💰 <b>मूल्य निर्धारण:</b>\n${pricingTable()}\n\n📋 न्यूनतम: ${EV_CONFIG.minEmails} | अधिकतम: ${EV_CONFIG.maxEmails.toLocaleString()} ईमेल`,
+      en: `📧 <b>Email Validation</b>\n\n97%+ accuracy · 7-layer check${trialLine.en}\n\n💰 <b>Pricing:</b>\n${pricingTable()}\n\n📋 Min: ${EV_CONFIG.minEmails} | Max: ${EV_CONFIG.maxEmails.toLocaleString()} emails`,
+      fr: `📧 <b>Validation d'Emails</b>\n\nPrécision 97%+ · Vérification 7 couches${trialLine.fr}\n\n💰 <b>Tarifs :</b>\n${pricingTable()}\n\n📋 Min : ${EV_CONFIG.minEmails} | Max : ${EV_CONFIG.maxEmails.toLocaleString()} emails`,
+      zh: `📧 <b>邮箱验证</b>\n\n97%+准确率 · 7层验证${trialLine.zh}\n\n💰 <b>定价：</b>\n${pricingTable()}\n\n📋 最低：${EV_CONFIG.minEmails} | 最高：${EV_CONFIG.maxEmails.toLocaleString()} 封`,
+      hi: `📧 <b>ईमेल सत्यापन</b>\n\n97%+ सटीकता · 7-स्तरीय जाँच${trialLine.hi}\n\n💰 <b>मूल्य:</b>\n${pricingTable()}\n\n📋 न्यूनतम: ${EV_CONFIG.minEmails} | अधिकतम: ${EV_CONFIG.maxEmails.toLocaleString()} ईमेल`,
     }
     const evBtns = [
       ['📤 Upload List (CSV/TXT)'],
@@ -7085,9 +7094,23 @@ All verified numbers generated during sourcing.`))
     await saveInfo('evRate', pricing.rate)
     await saveInfo('evCount', emails.length)
 
+    // Check free trial eligibility
+    const evTrialUsed = info?.evFreeTrialUsed || false
+    const trialLimit = EV_CONFIG.freeTrialEmails
+    const isTrialEligible = trialLimit > 0 && !evTrialUsed && emails.length <= trialLimit
+
     await set(state, chatId, 'action', a.evConfirmPay)
+    if (isTrialEligible) {
+      const trialMsg = {
+        en: `🎁 <b>Free Trial</b>\n\n📧 Emails: <b>${emails.length.toLocaleString()}</b>\n💵 Cost: <b>FREE</b> (up to ${trialLimit} emails)\n\nYou'll receive ✅ valid, ❌ invalid & 📊 full report.`,
+        fr: `🎁 <b>Essai Gratuit</b>\n\n📧 Emails : <b>${emails.length.toLocaleString()}</b>\n💵 Coût : <b>GRATUIT</b> (jusqu'à ${trialLimit} emails)`,
+        zh: `🎁 <b>免费试用</b>\n\n📧 邮箱: <b>${emails.length.toLocaleString()}</b>\n💵 费用: <b>免费</b>（最多 ${trialLimit} 封）`,
+        hi: `🎁 <b>मुफ्त ट्रायल</b>\n\n📧 ईमेल: <b>${emails.length.toLocaleString()}</b>\n💵 लागत: <b>मुफ्त</b> (${trialLimit} ईमेल तक)`,
+      }
+      return send(chatId, trialMsg[lang] || trialMsg.en, { parse_mode: 'HTML', reply_markup: { keyboard: [['🎁 Start Free Trial'], ['❌ Cancel']], resize_keyboard: true } })
+    }
     const confirmMsg = {
-      en: `📊 <b>Validation Summary</b>\n\n📧 Unique emails: <b>${emails.length.toLocaleString()}</b>\n💰 Rate: <b>$${pricing.rate}/email</b>\n💵 Total: <b>$${pricing.total.toFixed(2)}</b> (₦${priceNgn.toLocaleString()})\n\n🔍 7-layer validation:\n  ✅ Syntax • Disposable • Role • Free Provider\n  ✅ MX Record • SMTP Mailbox • Catch-all\n\n📄 You'll receive 3 result files:\n  • ✅ Valid emails\n  • 📊 Full report with scores\n  • ❌ Invalid & risky emails\n\nChoose payment method:`,
+      en: `📊 <b>Validation Summary</b>\n\n📧 Emails: <b>${emails.length.toLocaleString()}</b>\n💰 Rate: <b>$${pricing.rate}/email</b>\n💵 Total: <b>$${pricing.total.toFixed(2)}</b> (₦${priceNgn.toLocaleString()})\n\nYou'll receive ✅ valid, ❌ invalid & 📊 full report.\n\nChoose payment method:`,
       fr: `📊 <b>Résumé de la Validation</b>\n\n📧 Emails uniques : <b>${emails.length.toLocaleString()}</b>\n💰 Tarif : <b>$${pricing.rate}/email</b>\n💵 Total : <b>$${pricing.total.toFixed(2)}</b> (₦${priceNgn.toLocaleString()})\n\nChoisissez le mode de paiement :`,
       zh: `📊 <b>验证摘要</b>\n\n📧 唯一邮箱: <b>${emails.length.toLocaleString()}</b>\n💰 费率: <b>$${pricing.rate}/封</b>\n💵 总计: <b>$${pricing.total.toFixed(2)}</b> (₦${priceNgn.toLocaleString()})\n\n选择支付方式:`,
       hi: `📊 <b>सत्यापन सारांश</b>\n\n📧 अद्वितीय ईमेल: <b>${emails.length.toLocaleString()}</b>\n💰 दर: <b>$${pricing.rate}/ईमेल</b>\n💵 कुल: <b>$${pricing.total.toFixed(2)}</b> (₦${priceNgn.toLocaleString()})\n\nभुगतान विधि चुनें:`,
@@ -7129,7 +7152,21 @@ All verified numbers generated during sourcing.`))
     await saveInfo('evRate', pricing.rate)
     await saveInfo('evCount', emails.length)
 
+    // Check free trial eligibility
+    const evTrialUsed2 = info?.evFreeTrialUsed || false
+    const trialLimit2 = EV_CONFIG.freeTrialEmails
+    const isTrialEligible2 = trialLimit2 > 0 && !evTrialUsed2 && emails.length <= trialLimit2
+
     await set(state, chatId, 'action', a.evConfirmPay)
+    if (isTrialEligible2) {
+      const trialMsg2 = {
+        en: `🎁 <b>Free Trial</b>\n\n📧 Emails: <b>${emails.length}</b>\n💵 Cost: <b>FREE</b> (up to ${trialLimit2} emails)\n\nYou'll receive ✅ valid, ❌ invalid & 📊 full report.`,
+        fr: `🎁 <b>Essai Gratuit</b>\n\n📧 Emails : <b>${emails.length}</b>\n💵 Coût : <b>GRATUIT</b> (jusqu'à ${trialLimit2} emails)`,
+        zh: `🎁 <b>免费试用</b>\n\n📧 邮箱: <b>${emails.length}</b>\n💵 费用: <b>免费</b>（最多 ${trialLimit2} 封）`,
+        hi: `🎁 <b>मुफ्त ट्रायल</b>\n\n📧 ईमेल: <b>${emails.length}</b>\n💵 लागत: <b>मुफ्त</b> (${trialLimit2} ईमेल तक)`,
+      }
+      return send(chatId, trialMsg2[lang] || trialMsg2.en, { parse_mode: 'HTML', reply_markup: { keyboard: [['🎁 Start Free Trial'], ['❌ Cancel']], resize_keyboard: true } })
+    }
     const confirmMsg = {
       en: `📊 <b>Validation Summary</b>\n\n📧 Emails: <b>${emails.length}</b>\n💰 Rate: <b>$${pricing.rate}/email</b>\n💵 Total: <b>$${pricing.total.toFixed(2)}</b> (₦${priceNgn.toLocaleString()})\n\nChoose payment method:`,
       fr: `📊 <b>Résumé</b>\n\n📧 Emails : <b>${emails.length}</b>\n💵 Total : <b>$${pricing.total.toFixed(2)}</b>\n\nChoisissez le paiement :`,
@@ -7156,9 +7193,40 @@ All verified numbers generated during sourcing.`))
     const priceNgn = info?.evPriceNgn
     const emailCount = info?.evCount
 
-    if (!emails || !emails.length || !priceUsd) {
+    if (!emails || !emails.length) {
       await set(state, chatId, 'action', a.evMenu)
       return send(chatId, '❌ Session expired. Please start again.', { parse_mode: 'HTML' })
+    }
+
+    // ── Free Trial handler ──
+    if (message === '🎁 Start Free Trial') {
+      const evTrialUsedPay = info?.evFreeTrialUsed || false
+      const trialLimitPay = EV_CONFIG.freeTrialEmails
+      if (evTrialUsedPay || trialLimitPay <= 0 || emails.length > trialLimitPay) {
+        return send(chatId, '❌ Free trial not available. Please choose a payment method.', { parse_mode: 'HTML', reply_markup: { keyboard: [['💵 Pay USD', '💵 Pay NGN'], ['❌ Cancel']], resize_keyboard: true } })
+      }
+
+      // Mark trial as used
+      await saveInfo('evFreeTrialUsed', true)
+      log(`[EmailValidation] FREE TRIAL used by chatId=${chatId} for ${emailCount} emails`)
+
+      // Clear session emails, start processing
+      await saveInfo('evEmails', null)
+      await set(state, chatId, 'action', null)
+
+      emailValidationService.processValidationJob(chatId, emails, 0, 'free_trial', lang)
+        .catch(err => {
+          log(`[EmailValidation] Trial job error for chatId=${chatId}: ${err.message}`)
+          bot.sendMessage(chatId, '❌ Validation failed. Please try again.', { parse_mode: 'HTML' }).catch(() => {})
+        })
+
+      const trialSuccess = {
+        en: `🎁 <b>Free trial started!</b>\n\n📧 Validating: <b>${emailCount} emails</b>\n💵 Charged: <b>$0.00 (FREE)</b>\n\n⏳ Processing will begin shortly. You'll receive progress updates.`,
+        fr: `🎁 <b>Essai gratuit lancé !</b>\n\n📧 Validation : <b>${emailCount} emails</b>\n💵 Coût : <b>0,00 $ (GRATUIT)</b>`,
+        zh: `🎁 <b>免费试用已开始！</b>\n\n📧 验证中: <b>${emailCount} 封邮件</b>\n💵 费用: <b>$0.00（免费）</b>`,
+        hi: `🎁 <b>मुफ्त ट्रायल शुरू!</b>\n\n📧 सत्यापन: <b>${emailCount} ईमेल</b>\n💵 शुल्क: <b>$0.00 (मुफ्त)</b>`,
+      }
+      return send(chatId, trialSuccess[lang] || trialSuccess.en, { parse_mode: 'HTML', reply_markup: { keyboard: [[user.emailValidation], [t.back || '🔙 Back']], resize_keyboard: true } })
     }
 
     const wallet = await get(walletOf, chatId) || { usdIn: 0, usdOut: 0, ngnIn: 0, ngnOut: 0 }

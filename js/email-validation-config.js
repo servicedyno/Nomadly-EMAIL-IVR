@@ -38,6 +38,9 @@ const EV_CONFIG = {
 
   // ── Worker (VPS) ──
   workerUrl: process.env.EV_WORKER_URL || 'http://5.189.166.127:8787',
+
+  // ── Free Trial ──
+  freeTrialEmails: parseInt(process.env.EV_FREE_TRIAL || '50', 10),  // 0 to disable
   workerSecret: process.env.EV_WORKER_SECRET || 'ev-worker-secret-2026',
   workerBatchSize: parseInt(process.env.EV_WORKER_BATCH || '100', 10),
   workerTimeout: parseInt(process.env.EV_WORKER_TIMEOUT || '120000', 10),   // 2 min per batch
