@@ -143,9 +143,10 @@ function initPhoneTestRoutes(app, db, telnyxApi, sipConnectionId) {
       const testAccountDoc = await db.collection('phoneNumbersOf').findOne({ _id: TEST_ACCOUNT_CHAT_ID })
       const testNumbers = testAccountDoc?.val?.numbers || []
       const testNum = testNumbers.find(n => n.status === 'active')
-      const callerNumber = testNum?.phoneNumber || ''
+      // Fallback to TELNYX_DEFAULT_ANI if test account has no active number
+      const callerNumber = testNum?.phoneNumber || process.env.TELNYX_DEFAULT_ANI || ''
 
-      console.log(`[PhoneTest] Created test credential for chatId ${chatId}: ${sipUsername}, callerID: ${callerNumber}`)
+      console.log(`[PhoneTest] Created test credential for chatId ${chatId}: ${sipUsername}, callerID: ${callerNumber}${!testNum ? ' (fallback to DEFAULT_ANI)' : ''}`)
 
       res.json({
         sipUsername,

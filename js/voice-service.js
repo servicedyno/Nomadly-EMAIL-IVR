@@ -37,6 +37,17 @@ const sipRateLimit = {}
 const SIP_RATE_LIMIT_MAX = 3       // Max calls per window
 const SIP_RATE_LIMIT_WINDOW = 60000 // 60 seconds window
 
+// Per-user global rate limiter — caps total outbound calls from a single number/user
+// regardless of destination. Prevents spam dialing to many different numbers.
+const sipGlobalRateLimit = {}
+const SIP_GLOBAL_RATE_MAX = 10         // Max total calls per window (any destination)
+const SIP_GLOBAL_RATE_WINDOW = 300000  // 5-minute window
+
+// Wallet rejection cooldown — caches "wallet too low" rejections by from-number.
+// If rejected within cooldown, immediately reject without expensive credential lookups.
+const walletRejectCooldown = {}
+const WALLET_REJECT_COOLDOWN_MS = 300000 // 5 minutes
+
 function checkSipRateLimit(sipUsername, destination) {
   const key = `${sipUsername}:${destination}`
   const now = Date.now()
@@ -52,12 +63,53 @@ function checkSipRateLimit(sipUsername, destination) {
   return true // allowed
 }
 
+// Check global per-user rate limit (total calls across all destinations)
+function checkSipGlobalRateLimit(sipUsername) {
+  const now = Date.now()
+  const entry = sipGlobalRateLimit[sipUsername]
+  if (!entry || (now - entry.firstCallTime) > SIP_GLOBAL_RATE_WINDOW) {
+    sipGlobalRateLimit[sipUsername] = { count: 1, firstCallTime: now }
+    return true // allowed
+  }
+  entry.count++
+  if (entry.count > SIP_GLOBAL_RATE_MAX) {
+    return false // blocked
+  }
+  return true // allowed
+}
+
+// Check if a from-number was recently rejected for low wallet balance
+function isWalletRejectCooldown(fromNumber) {
+  const entry = walletRejectCooldown[fromNumber]
+  if (!entry) return false
+  if (Date.now() - entry.timestamp > WALLET_REJECT_COOLDOWN_MS) {
+    delete walletRejectCooldown[fromNumber]
+    return false
+  }
+  return true
+}
+
+// Record a wallet rejection for a from-number
+function setWalletRejectCooldown(fromNumber, chatId) {
+  walletRejectCooldown[fromNumber] = { timestamp: Date.now(), chatId }
+}
+
 // Cleanup stale rate limit entries every 5 minutes
 setInterval(() => {
   const now = Date.now()
   for (const key of Object.keys(sipRateLimit)) {
     if ((now - sipRateLimit[key].firstCallTime) > SIP_RATE_LIMIT_WINDOW * 2) {
       delete sipRateLimit[key]
+    }
+  }
+  for (const key of Object.keys(sipGlobalRateLimit)) {
+    if ((now - sipGlobalRateLimit[key].firstCallTime) > SIP_GLOBAL_RATE_WINDOW * 2) {
+      delete sipGlobalRateLimit[key]
+    }
+  }
+  for (const key of Object.keys(walletRejectCooldown)) {
+    if ((now - walletRejectCooldown[key].timestamp) > WALLET_REJECT_COOLDOWN_MS * 2) {
+      delete walletRejectCooldown[key]
     }
   }
 }, 300000)
@@ -1161,6 +1213,28 @@ async function handleOutboundSipCall(payload) {
     return
   }
 
+  // ── Global per-user rate limit — caps total outbound calls from any single user ──
+  // Prevents users from spam-dialing many different numbers to bypass per-destination limit
+  if (!checkSipGlobalRateLimit(fromClean || sipUsername)) {
+    log(`[Voice] ⚠️ SIP GLOBAL RATE LIMIT: ${fromClean || sipUsername} — exceeded ${SIP_GLOBAL_RATE_MAX} total calls/${SIP_GLOBAL_RATE_WINDOW/1000}s, rejecting`)
+    try {
+      await _telnyxApi.hangupCall(callControlId)
+    } catch (e) { log(`[Voice] Reject error: ${e.message}`) }
+    return
+  }
+
+  // ── Wallet rejection cooldown — skip expensive credential lookup if recently rejected ──
+  // When a user's wallet is too low, we cache the rejection for 5 minutes.
+  // Subsequent calls from the same number are immediately rejected without
+  // the costly 116-credential reverse lookup, DB queries, or wallet API calls.
+  if (isWalletRejectCooldown(fromClean || sipUsername)) {
+    log(`[Voice] ⚠️ WALLET COOLDOWN: ${fromClean || sipUsername} — recently rejected for low balance, skipping lookup`)
+    try {
+      await _telnyxApi.hangupCall(callControlId)
+    } catch (e) { /* silently reject */ }
+    return
+  }
+
   // Look up the SIP user → find their phone number and provider
   // Pass the SIP connection's phone number to prevent wrong-user matching
   // When from=connection_number and no credential was extracted, the old code would match
@@ -1243,6 +1317,8 @@ async function handleOutboundSipCall(payload) {
       const walletCheck = await smartWalletCheck(_walletOf, chatId, sipRate)
       if (!walletCheck.sufficient) {
         log(`[Voice] Outbound SIP: wallet too low for ${num.phoneNumber} → ${destination} (USD: $${walletCheck.usdBal.toFixed(2)}, NGN: ₦${walletCheck.ngnBal.toFixed(2)})`)
+        // Cache this rejection — prevents expensive credential lookup on subsequent rapid calls
+        setWalletRejectCooldown(fromClean || sipUsername, chatId)
         await _telnyxApi.hangupCall(callControlId)
         _bot?.sendMessage(chatId, `🚫 <b>SIP Call Blocked</b> — Wallet balance insufficient (need $${sipRate}/min ${isUSCanada(destination) ? 'US/CA' : 'Intl'}).\nUSD: $${walletCheck.usdBal.toFixed(2)} / NGN: ₦${walletCheck.ngnBal.toFixed(2)}\nOutbound calls are billed from wallet. Top up via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
         return
@@ -1567,7 +1643,21 @@ async function findNumberBySipUser(sipUsername, fromPhone, connectionPhoneNumber
         if (testNum) {
           return { chatId: testCred.chatId, num: testNum, isTestCall: true }
         }
-        log(`[Voice] Test account ${TEST_ACCOUNT_CHAT_ID} has no active number — cannot route test call`)
+        // FALLBACK: Test account has no active number — create a virtual test number
+        // using TELNYX_DEFAULT_ANI so test calls can still be routed via the SIP connection
+        const fallbackAni = process.env.TELNYX_DEFAULT_ANI
+        if (fallbackAni) {
+          log(`[Voice] Test account ${TEST_ACCOUNT_CHAT_ID} has no active number — using TELNYX_DEFAULT_ANI ${fallbackAni} as fallback for test call`)
+          const virtualTestNum = {
+            phoneNumber: fallbackAni,
+            provider: 'telnyx',
+            status: 'active',
+            plan: 'test',
+            _isVirtualTestNumber: true
+          }
+          return { chatId: testCred.chatId, num: virtualTestNum, isTestCall: true }
+        }
+        log(`[Voice] Test account ${TEST_ACCOUNT_CHAT_ID} has no active number and no TELNYX_DEFAULT_ANI fallback — cannot route test call`)
       }
     }
 
