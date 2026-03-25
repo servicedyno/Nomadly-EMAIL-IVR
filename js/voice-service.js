@@ -745,9 +745,12 @@ async function handleVoiceWebhook(req, res) {
         }
         // Skip SIP device delivery legs — Telnyx auto-routes these to the registered device
         // These arrive on the SIP Connection with state=bridging when we ring a SIP URI
-        // FIX: Only skip if `to` is a SIP URI (delivery leg). Outbound SIP calls to PSTN numbers
+        // FIX: Only skip if `to` is a SIP URI or gencred (delivery leg). Outbound SIP calls to PSTN numbers
         // (e.g., +17123393700) must NOT be skipped — they need handleOutboundSipCall() routing.
-        else if (payload.state === 'bridging' && payload.connection_id === (process.env.TELNYX_SIP_CONNECTION_ID || '') && (payload.to || '').startsWith('sip:')) {
+        // NOTE: Telnyx sometimes strips the "sip:" prefix from delivery legs, sending
+        // to=gencredXXX instead of to=sip:gencredXXX@sip.telnyx.com. Without this check,
+        // the gencred string gets digit-stripped (e.g., "762442") and triggers false orphaned alerts.
+        else if (payload.state === 'bridging' && payload.connection_id === (process.env.TELNYX_SIP_CONNECTION_ID || '') && ((payload.to || '').startsWith('sip:') || (payload.to || '').startsWith('gencred'))) {
           log(`[Voice] call.initiated for SIP device delivery leg ${callControlId} — skipping (Telnyx auto-routes)`)
         } else {
           await handleCallInitiated(payload)
