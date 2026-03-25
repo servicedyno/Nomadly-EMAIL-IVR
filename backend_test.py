@@ -11,7 +11,7 @@ import sys
 from datetime import datetime
 
 # Test configuration
-BASE_URL = "https://readme-helper-13.preview.emergentagent.com/api"
+BASE_URL = "https://readme-setup-5.preview.emergentagent.com/api"
 HEADERS = {"Content-Type": "application/json"}
 
 # Test credentials from review request
