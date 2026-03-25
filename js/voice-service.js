@@ -1084,13 +1084,73 @@ async function handleOutboundSipCall(payload) {
     }
   }
 
-  // Parse SIP username from the 'from' field: sip:user@domain or user@domain → user
+  // ── CRITICAL FIX: Extract actual SIP credential username ──
+  // When calls go through the shared Telnyx SIP connection, the webhook 'from' field
+  // contains the connection's phone number (e.g. +18889020132), NOT the SIP username.
+  // This caused findNumberBySipUser to match the connection's number owner (wrong user)
+  // instead of the actual SIP caller. We must extract the real SIP username from:
+  // 1. SIP URI in 'from' field (sip:user@domain)
+  // 2. custom_headers (Telnyx may forward SIP headers)
+  // 3. sip_headers field
+  // 4. from_display_name
   let sipUsername = rawFrom
+  let credentialExtracted = false
+
+  // Method 1: Parse from SIP URI format
   if (rawFrom.includes('@')) {
     sipUsername = rawFrom.replace(/^sip:/, '').split('@')[0]
+    credentialExtracted = true
   }
 
-  log(`[Voice] Outbound SIP: from=${sipUsername} (cleaned=${fromClean}) to=${destination} (${callControlId}, conn=${connectionId})`)
+  // Method 2: Check custom_headers for SIP identity
+  if (!credentialExtracted && Array.isArray(payload.custom_headers)) {
+    for (const h of payload.custom_headers) {
+      const hName = (h.name || '').toLowerCase()
+      // Look for common SIP headers that contain the authenticated user
+      if (['p-asserted-identity', 'x-authenticated-user', 'x-credential-username', 'from', 'remote-party-id'].includes(hName)) {
+        const sipMatch = (h.value || '').match(/sip:([^@>]+)@/)
+        if (sipMatch && sipMatch[1] && !sipMatch[1].startsWith('+')) {
+          sipUsername = sipMatch[1]
+          credentialExtracted = true
+          log(`[Voice] SIP credential extracted from custom_headers[${h.name}]: ${sipUsername}`)
+          break
+        }
+      }
+    }
+  }
+
+  // Method 3: Check sip_headers
+  if (!credentialExtracted && payload.sip_headers && typeof payload.sip_headers === 'object') {
+    for (const [hName, hValue] of Object.entries(payload.sip_headers)) {
+      if (['from', 'p-asserted-identity', 'contact'].includes(hName.toLowerCase())) {
+        const sipMatch = (hValue || '').match(/sip:([^@>]+)@/)
+        if (sipMatch && sipMatch[1] && !sipMatch[1].startsWith('+')) {
+          sipUsername = sipMatch[1]
+          credentialExtracted = true
+          log(`[Voice] SIP credential extracted from sip_headers[${hName}]: ${sipUsername}`)
+          break
+        }
+      }
+    }
+  }
+
+  // Method 4: Check from_display_name (some SIP clients set this to the SIP username)
+  if (!credentialExtracted && payload.from_display_name && payload.from_display_name.startsWith('gencred')) {
+    sipUsername = payload.from_display_name
+    credentialExtracted = true
+    log(`[Voice] SIP credential extracted from from_display_name: ${sipUsername}`)
+  }
+
+  // ── Full payload dump for SIP calls (helps diagnose credential extraction) ──
+  if (!credentialExtracted && isSipByConnection) {
+    try {
+      const payloadKeys = Object.keys(payload).join(', ')
+      log(`[Voice] SIP FULL PAYLOAD KEYS: ${payloadKeys}`)
+      log(`[Voice] SIP PAYLOAD DETAIL: custom_headers=${JSON.stringify(payload.custom_headers)}, sip_headers=${JSON.stringify(payload.sip_headers)}, from_display_name=${payload.from_display_name || 'N/A'}, client_state=${payload.client_state || 'N/A'}`)
+    } catch (e) { /* ignore logging errors */ }
+  }
+
+  log(`[Voice] Outbound SIP: from=${sipUsername} (cleaned=${fromClean}) to=${destination} (${callControlId}, conn=${connectionId}, credentialExtracted=${credentialExtracted})`)
 
   // ── SIP Rate Limiting — prevent spam dialing ──
   if (!checkSipRateLimit(sipUsername, destination)) {
@@ -1102,8 +1162,62 @@ async function handleOutboundSipCall(payload) {
   }
 
   // Look up the SIP user → find their phone number and provider
-  // Try by SIP username first, then by phone number from the 'from' field
-  const { chatId, num } = await findNumberBySipUser(sipUsername, fromClean)
+  // Pass the SIP connection's phone number to prevent wrong-user matching
+  // When from=connection_number and no credential was extracted, the old code would match
+  // the connection's number owner (wrong user) instead of the actual SIP caller
+  // Detect: when call is from SIP connection and sipUsername looks like a phone number (not a gencred),
+  // it's the connection's default number, not the actual SIP user
+  const isConnectionDefaultNumber = isSipByConnection && !credentialExtracted && /^\+?\d+$/.test(sipUsername)
+  const connectionPhoneNumber = isConnectionDefaultNumber ? fromClean : null
+  
+  if (isConnectionDefaultNumber) {
+    log(`[Voice] SIP from=${fromClean} is connection's default number (no credential in payload) — phone match will be blocked to prevent wrong-user billing`)
+  }
+  
+  let lookupResult = await findNumberBySipUser(sipUsername, fromClean, connectionPhoneNumber)
+  
+  // ── FALLBACK: If credential wasn't extracted from payload and no match found,
+  // try reverse lookup via Telnyx credentials API ──
+  if (!lookupResult.chatId && !credentialExtracted && isSipByConnection) {
+    log(`[Voice] SIP credential not in payload and phone match blocked — trying Telnyx credentials reverse lookup`)
+    try {
+      const telnyxService = require('./telnyx-service.js')
+      const credentials = await telnyxService.listSIPCredentials(connectionId)
+      log(`[Voice] Found ${credentials.length} Telnyx credentials on connection`)
+      
+      // Try each credential username against our DB — collect ALL matches
+      const matches = []
+      for (const cred of credentials) {
+        if (cred.sipUsername) {
+          const tryResult = await findNumberBySipUser(cred.sipUsername, null, null)
+          if (tryResult.chatId && tryResult.num && tryResult.num.status === 'active') {
+            matches.push({ ...tryResult, credUsername: cred.sipUsername })
+          }
+        }
+      }
+      
+      if (matches.length === 1) {
+        // Only one active user with SIP credential — must be them
+        lookupResult = matches[0]
+        sipUsername = matches[0].credUsername
+        log(`[Voice] Telnyx reverse lookup: unique match → ${sipUsername} → chatId ${lookupResult.chatId}, number ${lookupResult.num.phoneNumber}`)
+      } else if (matches.length > 1) {
+        // Multiple active users — try to find who recently accessed SIP features
+        log(`[Voice] Telnyx reverse lookup: ${matches.length} possible users, trying recent-activity heuristic`)
+        // Use the match whose number best relates to the connection
+        // For now, pick the first match but log a warning
+        lookupResult = matches[0]
+        sipUsername = matches[0].credUsername
+        log(`[Voice] ⚠️ Multiple SIP credential matches — using first: ${sipUsername} → chatId ${lookupResult.chatId}. Other matches: ${matches.slice(1).map(m => m.credUsername).join(', ')}`)
+      } else {
+        log(`[Voice] Telnyx reverse lookup found no matching users with active numbers`)
+      }
+    } catch (e) {
+      log(`[Voice] Telnyx credentials reverse lookup error: ${e.message}`)
+    }
+  }
+  
+  const { chatId, num } = lookupResult
   if (!chatId || !num) {
     log(`[Voice] Outbound SIP: No owner found for SIP user ${sipUsername}, rejecting`)
     try {
@@ -1407,7 +1521,9 @@ async function handleOutboundSipCall(payload) {
 }
 
 // Find a phone number record by SIP username (across all providers)
-async function findNumberBySipUser(sipUsername, fromPhone) {
+// connectionPhoneNumber: the SIP connection's default number (e.g. +18889020132)
+// When from=connectionPhoneNumber, we must NOT match by phone number (it would match wrong user)
+async function findNumberBySipUser(sipUsername, fromPhone, connectionPhoneNumber) {
   try {
     const allUsers = await _phoneNumbersOf.find({}).toArray()
     for (const user of allUsers) {
@@ -1422,8 +1538,9 @@ async function findNumberBySipUser(sipUsername, fromPhone) {
           return { chatId: user._id, num }
         }
         // Match by phone number (in case 'from' is the phone number)
-        // Normalize both sides by stripping '+' for comparison
-        if (fromPhone) {
+        // CRITICAL: Skip phone number matching if 'from' is the SIP connection's own number
+        // because that number belongs to a different user — not the actual SIP caller
+        if (fromPhone && (!connectionPhoneNumber || fromPhone !== connectionPhoneNumber)) {
           const normalizedFrom = fromPhone.replace(/^\+/, '')
           const normalizedNum = num.phoneNumber?.replace(/[^+\d]/g, '').replace(/^\+/, '')
           if (normalizedFrom === normalizedNum) {

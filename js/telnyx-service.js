@@ -215,6 +215,27 @@ async function createSIPCredential(connectionId, username, password) {
   }
 }
 
+// ── List SIP Credentials on a connection (for reverse user lookup) ──
+// Returns all credentials, useful for identifying which SIP user made a call
+async function listSIPCredentials(connectionId) {
+  try {
+    const res = await axios.get(`${BASE}/telephony_credentials`, {
+      headers: headers(),
+      params: { 'filter[connection_id]': connectionId, 'page[size]': 250 }
+    })
+    return (res.data?.data || []).map(c => ({
+      id: c.id,
+      sipUsername: c.sip_username || c.user_name,
+      connectionId: c.connection_id,
+      createdAt: c.created_at,
+      updatedAt: c.updated_at,
+    }))
+  } catch (e) {
+    log(`[Telnyx] listSIPCredentials error: ${e.response?.data?.errors?.[0]?.detail || e.message}`)
+    return []
+  }
+}
+
 // ── Delete SIP Credential ──
 async function deleteSIPCredential(credentialId) {
   try {
@@ -811,6 +832,7 @@ module.exports = {
   createSIPConnection,
   getSIPConnection,
   createSIPCredential,
+  listSIPCredentials,
   deleteSIPCredential,
   createMessagingProfile,
   updateMessagingProfile,

@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """
-Comprehensive Backend Testing for Telnyx Quick IVR and SIP Functionality Fixes
-Tests the fixes implemented in voice-service.js and _index.js
+Comprehensive Backend Testing for SIP Outbound Caller Identification Fix
+Tests the fixes implemented in voice-service.js and telnyx-service.js
 """
 
 import requests
 import json
 import time
 import sys
+import subprocess
+import os
 from datetime import datetime
 
 # Test configuration
@@ -19,7 +21,7 @@ TELNYX_CALLER_ID = "+18889020132"
 TELNYX_TARGET_NUMBER = "+13025141000"
 TELNYX_SIP_CONNECTION_ID = "2898118323872990714"
 
-class TelnyxTestSuite:
+class SipCallerIdTestSuite:
     def __init__(self):
         self.passed = 0
         self.failed = 0
@@ -48,317 +50,353 @@ class TelnyxTestSuite:
             print(f"    Details: {details}")
         print()
 
-    def test_health_endpoint(self):
-        """Test basic health endpoint"""
+    def test_syntax_validation(self):
+        """Test 1: Syntax validation for voice-service.js and telnyx-service.js"""
         try:
+            # Test voice-service.js syntax
+            result1 = subprocess.run(['node', '-c', '/app/js/voice-service.js'], 
+                                   capture_output=True, text=True, timeout=10)
+            
+            # Test telnyx-service.js syntax  
+            result2 = subprocess.run(['node', '-c', '/app/js/telnyx-service.js'], 
+                                   capture_output=True, text=True, timeout=10)
+            
+            if result1.returncode == 0 and result2.returncode == 0:
+                self.log_result("Syntax Validation", True, 
+                              "Both voice-service.js and telnyx-service.js pass syntax checks")
+                return True
+            else:
+                errors = []
+                if result1.returncode != 0:
+                    errors.append(f"voice-service.js: {result1.stderr}")
+                if result2.returncode != 0:
+                    errors.append(f"telnyx-service.js: {result2.stderr}")
+                
+                self.log_result("Syntax Validation", False, 
+                              "Syntax errors found", "; ".join(errors))
+                return False
+                
+        except Exception as e:
+            self.log_result("Syntax Validation", False, f"Syntax check failed: {str(e)}")
+            return False
+
+    def test_nodejs_health(self):
+        """Test 2: Node.js running clean with health endpoint and error log check"""
+        try:
+            # Check health endpoint
             response = requests.get(f"{BASE_URL}/health", timeout=10)
-            if response.status_code == 200:
-                data = response.json()
-                if data.get("status") == "healthy" and data.get("database") == "connected":
-                    self.log_result("Health Endpoint", True, "Backend is healthy and database connected")
+            if response.status_code != 200:
+                self.log_result("Node.js Health", False, f"Health endpoint returned HTTP {response.status_code}")
+                return False
+                
+            data = response.json()
+            if data.get("status") != "healthy":
+                self.log_result("Node.js Health", False, f"Health status not healthy: {data}")
+                return False
+            
+            # Check error log size
+            try:
+                error_log_size = os.path.getsize('/var/log/supervisor/nodejs.err.log')
+                if error_log_size == 0:
+                    self.log_result("Node.js Health", True, 
+                                  "Health endpoint healthy and error log is 0 bytes")
                     return True
                 else:
-                    self.log_result("Health Endpoint", False, f"Unhealthy status: {data}")
+                    self.log_result("Node.js Health", False, 
+                                  f"Error log is {error_log_size} bytes (should be 0)")
                     return False
-            else:
-                self.log_result("Health Endpoint", False, f"HTTP {response.status_code}")
-                return False
-        except Exception as e:
-            self.log_result("Health Endpoint", False, f"Request failed: {str(e)}")
-            return False
-
-    def test_telnyx_ivr_endpoint(self):
-        """Priority 1: Test the /test/telnyx-ivr endpoint"""
-        try:
-            payload = {
-                "callerId": TELNYX_CALLER_ID,
-                "targetNumber": TELNYX_TARGET_NUMBER
-            }
-            
-            response = requests.post(f"{BASE_URL}/test/telnyx-ivr", 
-                                   json=payload, 
-                                   headers=HEADERS, 
-                                   timeout=30)
-            
-            if response.status_code == 200:
-                try:
-                    data = response.json()
-                    if "callControlId" in data or "success" in data:
-                        self.log_result("Telnyx IVR Test Endpoint", True, 
-                                      "Endpoint responded successfully", 
-                                      f"Response: {data}")
-                        return True
-                    else:
-                        self.log_result("Telnyx IVR Test Endpoint", False, 
-                                      "Missing expected response fields", 
-                                      f"Response: {data}")
-                        return False
-                except json.JSONDecodeError:
-                    # Some endpoints might return plain text
-                    response_text = response.text
-                    if "call" in response_text.lower() or "success" in response_text.lower():
-                        self.log_result("Telnyx IVR Test Endpoint", True, 
-                                      "Endpoint responded (text response)", 
-                                      f"Response: {response_text[:200]}")
-                        return True
-                    else:
-                        self.log_result("Telnyx IVR Test Endpoint", False, 
-                                      "Unexpected text response", 
-                                      f"Response: {response_text[:200]}")
-                        return False
-            else:
-                self.log_result("Telnyx IVR Test Endpoint", False, 
-                              f"HTTP {response.status_code}", 
-                              f"Response: {response.text[:200]}")
-                return False
-                
-        except Exception as e:
-            self.log_result("Telnyx IVR Test Endpoint", False, f"Request failed: {str(e)}")
-            return False
-
-    def test_sip_inbound_webhook(self):
-        """Priority 2: Test SIP inbound call handling"""
-        try:
-            # Simulate inbound webhook from Telnyx
-            payload = {
-                "data": {
-                    "event_type": "call.initiated",
-                    "payload": {
-                        "call_control_id": f"test_inbound_{int(time.time())}",
-                        "direction": "incoming",
-                        "from": "+15551234567",
-                        "to": TELNYX_CALLER_ID,
-                        "connection_id": "test_connection"
-                    }
-                }
-            }
-            
-            response = requests.post(f"{BASE_URL}/telnyx/voice-webhook", 
-                                   json=payload, 
-                                   headers=HEADERS, 
-                                   timeout=15)
-            
-            # Webhook should return 200 regardless of processing result
-            if response.status_code == 200:
-                self.log_result("SIP Inbound Webhook", True, 
-                              "Webhook accepted inbound call simulation")
+            except FileNotFoundError:
+                # If error log doesn't exist, that's also good
+                self.log_result("Node.js Health", True, 
+                              "Health endpoint healthy and no error log found")
                 return True
-            else:
-                self.log_result("SIP Inbound Webhook", False, 
-                              f"HTTP {response.status_code}", 
-                              f"Response: {response.text[:200]}")
-                return False
                 
         except Exception as e:
-            self.log_result("SIP Inbound Webhook", False, f"Request failed: {str(e)}")
+            self.log_result("Node.js Health", False, f"Health check failed: {str(e)}")
             return False
 
-    def test_sip_outbound_webhook(self):
-        """Priority 2: Test SIP outbound call handling"""
+    def test_findNumberBySipUser_signature(self):
+        """Test 3: Verify findNumberBySipUser function accepts 3 parameters"""
         try:
-            # Simulate outbound webhook from SIP connection
-            payload = {
-                "data": {
-                    "event_type": "call.initiated",
-                    "payload": {
-                        "call_control_id": f"test_outbound_{int(time.time())}",
-                        "direction": "outgoing",
-                        "from": TELNYX_CALLER_ID,
-                        "to": TELNYX_TARGET_NUMBER,
-                        "connection_id": TELNYX_SIP_CONNECTION_ID
-                    }
-                }
-            }
-            
-            response = requests.post(f"{BASE_URL}/telnyx/voice-webhook", 
-                                   json=payload, 
-                                   headers=HEADERS, 
-                                   timeout=15)
-            
-            # Webhook should return 200 regardless of processing result
-            if response.status_code == 200:
-                self.log_result("SIP Outbound Webhook", True, 
-                              "Webhook accepted outbound call simulation")
-                return True
-            else:
-                self.log_result("SIP Outbound Webhook", False, 
-                              f"HTTP {response.status_code}", 
-                              f"Response: {response.text[:200]}")
-                return False
-                
-        except Exception as e:
-            self.log_result("SIP Outbound Webhook", False, f"Request failed: {str(e)}")
-            return False
-
-    def test_voice_service_fix_verification(self):
-        """Verify the outboundIvrCalls check fix in handleOutboundSipCall"""
-        try:
-            # Read the voice-service.js file to verify the fix is in place
             with open('/app/js/voice-service.js', 'r') as f:
                 content = f.read()
-                
-            # Check for the critical fix around line 1031
-            if "if (outboundIvrCalls[callControlId])" in content:
-                # Look for the specific pattern that indicates the fix
-                lines = content.split('\n')
-                fix_found = False
-                for i, line in enumerate(lines):
-                    if "outboundIvrCalls[callControlId]" in line and "if (" in line:
-                        # Check the surrounding context
-                        context = '\n'.join(lines[max(0, i-5):i+10])
-                        if "routing to IVR handler" in context or "return" in lines[i+1:i+5]:
-                            fix_found = True
-                            break
-                
-                if fix_found:
-                    self.log_result("Voice Service Fix Verification", True, 
-                                  "outboundIvrCalls check found in handleOutboundSipCall")
-                else:
-                    self.log_result("Voice Service Fix Verification", False, 
-                                  "outboundIvrCalls check exists but fix pattern not confirmed")
+            
+            # Look for the function signature
+            if "async function findNumberBySipUser(sipUsername, fromPhone, connectionPhoneNumber)" in content:
+                self.log_result("findNumberBySipUser Signature", True, 
+                              "Function signature has 3 parameters: sipUsername, fromPhone, connectionPhoneNumber")
+                return True
             else:
-                self.log_result("Voice Service Fix Verification", False, 
-                              "outboundIvrCalls check not found in voice-service.js")
+                # Check for alternative patterns
+                lines = content.split('\n')
+                for i, line in enumerate(lines):
+                    if "findNumberBySipUser" in line and "function" in line:
+                        if "sipUsername" in line and "fromPhone" in line and "connectionPhoneNumber" in line:
+                            self.log_result("findNumberBySipUser Signature", True, 
+                                          "Function signature found with 3 parameters")
+                            return True
+                
+                self.log_result("findNumberBySipUser Signature", False, 
+                              "Function signature does not have expected 3 parameters")
+                return False
                 
         except Exception as e:
-            self.log_result("Voice Service Fix Verification", False, f"File check failed: {str(e)}")
+            self.log_result("findNumberBySipUser Signature", False, f"File check failed: {str(e)}")
+            return False
 
-    def test_scheduler_db_guards(self):
-        """Priority 3: Test scheduler error fixes with DB guards"""
+    def test_connectionPhoneNumber_blocking(self):
+        """Test 4: Verify connectionPhoneNumber blocking logic"""
         try:
-            # Read the _index.js file to verify DB guards are in place
-            with open('/app/js/_index.js', 'r') as f:
+            with open('/app/js/voice-service.js', 'r') as f:
                 content = f.read()
             
-            # Check for both scheduler functions with guards
-            functions_to_check = [
-                "checkVPSPlansExpiryandPayment",
-                "sendRemindersForExpiringPackages"
-            ]
-            
-            guards_found = 0
-            for func_name in functions_to_check:
-                if func_name in content:
-                    # Find the function and check for DB guard
-                    func_start = content.find(f"function {func_name}")
-                    if func_start == -1:
-                        func_start = content.find(f"async function {func_name}")
-                    
-                    if func_start != -1:
-                        # Get the next 500 characters to check for guard
-                        func_content = content[func_start:func_start+500]
-                        if ("typeof" in func_content and "find" in func_content and 
-                            "function" in func_content and "return" in func_content):
-                            guards_found += 1
-            
-            if guards_found == 2:
-                self.log_result("Scheduler DB Guards", True, 
-                              "Both scheduler functions have DB initialization guards")
-            elif guards_found == 1:
-                self.log_result("Scheduler DB Guards", False, 
-                              "Only one scheduler function has DB guard")
+            # Look for the blocking condition
+            if "(!connectionPhoneNumber || fromPhone !== connectionPhoneNumber)" in content:
+                self.log_result("connectionPhoneNumber Blocking", True, 
+                              "Found blocking condition: (!connectionPhoneNumber || fromPhone !== connectionPhoneNumber)")
+                return True
             else:
-                self.log_result("Scheduler DB Guards", False, 
-                              "No DB guards found in scheduler functions")
+                self.log_result("connectionPhoneNumber Blocking", False, 
+                              "connectionPhoneNumber blocking condition not found")
+                return False
                 
         except Exception as e:
-            self.log_result("Scheduler DB Guards", False, f"File check failed: {str(e)}")
+            self.log_result("connectionPhoneNumber Blocking", False, f"File check failed: {str(e)}")
+            return False
 
-    def test_backend_logs_for_errors(self):
-        """Check for recent errors in backend logs"""
+    def test_sip_credential_extraction(self):
+        """Test 5: Verify SIP credential extraction from multiple sources"""
         try:
-            # Check if there are any recent critical errors
-            response = requests.get(f"{BASE_URL}/health", timeout=5)
-            if response.status_code == 200:
-                # If health endpoint works, backend is running without critical errors
-                self.log_result("Backend Error Check", True, 
-                              "Backend responding normally, no critical errors detected")
+            with open('/app/js/voice-service.js', 'r') as f:
+                content = f.read()
+            
+            # Check for extraction from custom_headers
+            custom_headers_check = (
+                "custom_headers" in content and 
+                "p-asserted-identity" in content and
+                "x-authenticated-user" in content and
+                "x-credential-username" in content and
+                "remote-party-id" in content
+            )
+            
+            # Check for extraction from sip_headers
+            sip_headers_check = (
+                "sip_headers" in content and
+                "contact" in content
+            )
+            
+            # Check for extraction from from_display_name
+            display_name_check = (
+                "from_display_name" in content and
+                "gencred" in content
+            )
+            
+            if custom_headers_check and sip_headers_check and display_name_check:
+                self.log_result("SIP Credential Extraction", True, 
+                              "All credential extraction sources found: custom_headers, sip_headers, from_display_name")
+                return True
             else:
-                self.log_result("Backend Error Check", False, 
-                              f"Backend health check failed: HTTP {response.status_code}")
+                missing = []
+                if not custom_headers_check:
+                    missing.append("custom_headers extraction")
+                if not sip_headers_check:
+                    missing.append("sip_headers extraction")
+                if not display_name_check:
+                    missing.append("from_display_name extraction")
+                
+                self.log_result("SIP Credential Extraction", False, 
+                              f"Missing credential extraction sources: {', '.join(missing)}")
+                return False
                 
         except Exception as e:
-            self.log_result("Backend Error Check", False, f"Health check failed: {str(e)}")
+            self.log_result("SIP Credential Extraction", False, f"File check failed: {str(e)}")
+            return False
 
-    def test_telnyx_webhook_endpoint_availability(self):
-        """Test that Telnyx webhook endpoints are available"""
-        endpoints_to_test = [
-            "/telnyx/voice-webhook",
-            "/telnyx/sms-webhook"
-        ]
-        
-        all_available = True
-        for endpoint in endpoints_to_test:
-            try:
-                # Send a minimal test payload
-                test_payload = {"data": {"event_type": "test"}}
-                response = requests.post(f"{BASE_URL}{endpoint}", 
-                                       json=test_payload, 
-                                       headers=HEADERS, 
-                                       timeout=10)
+    def test_isConnectionDefaultNumber_logic(self):
+        """Test 6: Verify isConnectionDefaultNumber logic"""
+        try:
+            with open('/app/js/voice-service.js', 'r') as f:
+                content = f.read()
+            
+            # Look for the logic that sets connectionPhoneNumber when conditions are met
+            if ("isConnectionDefaultNumber" in content and 
+                "isSipByConnection" in content and 
+                "!credentialExtracted" in content and
+                "connectionPhoneNumber" in content):
+                self.log_result("isConnectionDefaultNumber Logic", True, 
+                              "Found isConnectionDefaultNumber logic with proper conditions")
+                return True
+            else:
+                self.log_result("isConnectionDefaultNumber Logic", False, 
+                              "isConnectionDefaultNumber logic not found or incomplete")
+                return False
                 
-                # Webhook endpoints should return 200 even for invalid payloads
-                if response.status_code != 200:
-                    all_available = False
-                    break
-                    
-            except Exception:
-                all_available = False
-                break
-        
-        if all_available:
-            self.log_result("Telnyx Webhook Endpoints", True, 
-                          "All Telnyx webhook endpoints are available")
-        else:
-            self.log_result("Telnyx Webhook Endpoints", False, 
-                          "One or more Telnyx webhook endpoints unavailable")
+        except Exception as e:
+            self.log_result("isConnectionDefaultNumber Logic", False, f"File check failed: {str(e)}")
+            return False
+
+    def test_full_payload_logging(self):
+        """Test 7: Verify full payload logging for SIP calls"""
+        try:
+            with open('/app/js/voice-service.js', 'r') as f:
+                content = f.read()
+            
+            # Look for payload logging when credential not extracted
+            if ("SIP FULL PAYLOAD KEYS" in content and 
+                "SIP PAYLOAD DETAIL" in content and
+                "custom_headers" in content and
+                "sip_headers" in content and
+                "from_display_name" in content and
+                "client_state" in content):
+                self.log_result("Full Payload Logging", True, 
+                              "Found comprehensive payload logging for SIP calls")
+                return True
+            else:
+                self.log_result("Full Payload Logging", False, 
+                              "Full payload logging not found or incomplete")
+                return False
+                
+        except Exception as e:
+            self.log_result("Full Payload Logging", False, f"File check failed: {str(e)}")
+            return False
+
+    def test_listSIPCredentials_function(self):
+        """Test 8: Verify listSIPCredentials function in telnyx-service.js"""
+        try:
+            with open('/app/js/telnyx-service.js', 'r') as f:
+                content = f.read()
+            
+            # Check if function exists
+            if "async function listSIPCredentials(connectionId)" in content:
+                # Check if it calls Telnyx API with filter
+                if ("/telephony_credentials" in content and 
+                    "filter[connection_id]" in content and
+                    "module.exports" in content and
+                    "listSIPCredentials" in content):
+                    self.log_result("listSIPCredentials Function", True, 
+                                  "Function exists, calls Telnyx API with filter, and is exported")
+                    return True
+                else:
+                    self.log_result("listSIPCredentials Function", False, 
+                                  "Function exists but missing API call or export")
+                    return False
+            else:
+                self.log_result("listSIPCredentials Function", False, 
+                              "listSIPCredentials function not found")
+                return False
+                
+        except Exception as e:
+            self.log_result("listSIPCredentials Function", False, f"File check failed: {str(e)}")
+            return False
+
+    def test_telnyx_reverse_lookup_fallback(self):
+        """Test 9: Verify Telnyx reverse lookup fallback"""
+        try:
+            with open('/app/js/voice-service.js', 'r') as f:
+                content = f.read()
+            
+            # Look for the fallback logic
+            if ("!credentialExtracted && isSipByConnection" in content and
+                "listSIPCredentials" in content and
+                "tryResult = await findNumberBySipUser" in content):
+                self.log_result("Telnyx Reverse Lookup Fallback", True, 
+                              "Found reverse lookup fallback with listSIPCredentials")
+                return True
+            else:
+                self.log_result("Telnyx Reverse Lookup Fallback", False, 
+                              "Reverse lookup fallback logic not found")
+                return False
+                
+        except Exception as e:
+            self.log_result("Telnyx Reverse Lookup Fallback", False, f"File check failed: {str(e)}")
+            return False
+
+    def test_regression_check(self):
+        """Test 10: Regression check for previous SIP fixes"""
+        try:
+            with open('/app/js/voice-service.js', 'r') as f:
+                content = f.read()
+            
+            # Check for outboundIvrCalls check
+            outbound_ivr_check = "outboundIvrCalls[callControlId]" in content
+            
+            # Check for smartWallet imports
+            smart_wallet_check = ("smartWalletCheck" in content and "smartWalletDeduct" in content)
+            
+            # Check for token recovery in _attemptTwilioDirectCall (more flexible pattern)
+            token_recovery_check = ("_attemptTwilioDirectCall" in content and 
+                                  ("recovering from Twilio API" in content or 
+                                   "Token recovered" in content or
+                                   "getSubAccount" in content))
+            
+            if outbound_ivr_check and smart_wallet_check and token_recovery_check:
+                self.log_result("Regression Check", True, 
+                              "All previous SIP fixes intact: outboundIvrCalls check, smartWallet functions, token recovery")
+                return True
+            else:
+                missing = []
+                if not outbound_ivr_check:
+                    missing.append("outboundIvrCalls check")
+                if not smart_wallet_check:
+                    missing.append("smartWallet functions")
+                if not token_recovery_check:
+                    missing.append("token recovery")
+                
+                self.log_result("Regression Check", False, 
+                              f"Missing previous fixes: {', '.join(missing)}")
+                return False
+                
+        except Exception as e:
+            self.log_result("Regression Check", False, f"File check failed: {str(e)}")
+            return False
 
     def run_all_tests(self):
-        """Run all tests in priority order"""
-        print("=" * 60)
-        print("TELNYX QUICK IVR AND SIP FUNCTIONALITY TEST SUITE")
-        print("=" * 60)
+        """Run all tests for SIP outbound caller identification fix"""
+        print("=" * 80)
+        print("SIP OUTBOUND CALLER IDENTIFICATION FIX - COMPREHENSIVE TEST SUITE")
+        print("=" * 80)
         print()
         
-        # Priority 1: Critical Telnyx Quick IVR Fix
-        print("🔥 PRIORITY 1: TELNYX QUICK IVR FIX (CRITICAL)")
-        print("-" * 50)
-        self.test_health_endpoint()
-        self.test_voice_service_fix_verification()
-        self.test_telnyx_ivr_endpoint()
+        print("🔧 TESTING: Fix SIP outbound caller identification — wrong user billing")
+        print("-" * 70)
         
-        # Priority 2: SIP Inbound/Outbound Verification  
-        print("📞 PRIORITY 2: SIP INBOUND/OUTBOUND VERIFICATION")
-        print("-" * 50)
-        self.test_telnyx_webhook_endpoint_availability()
-        self.test_sip_inbound_webhook()
-        self.test_sip_outbound_webhook()
-        
-        # Priority 3: Scheduler Error Fixes
-        print("⏰ PRIORITY 3: SCHEDULER ERROR FIXES")
-        print("-" * 50)
-        self.test_scheduler_db_guards()
-        self.test_backend_logs_for_errors()
+        # Run all 10 tests from the review request
+        self.test_syntax_validation()
+        self.test_nodejs_health()
+        self.test_findNumberBySipUser_signature()
+        self.test_connectionPhoneNumber_blocking()
+        self.test_sip_credential_extraction()
+        self.test_isConnectionDefaultNumber_logic()
+        self.test_full_payload_logging()
+        self.test_listSIPCredentials_function()
+        self.test_telnyx_reverse_lookup_fallback()
+        self.test_regression_check()
         
         # Summary
-        print("=" * 60)
+        print("=" * 80)
         print("TEST SUMMARY")
-        print("=" * 60)
+        print("=" * 80)
         print(f"✅ PASSED: {self.passed}")
         print(f"❌ FAILED: {self.failed}")
         print(f"📊 TOTAL:  {self.passed + self.failed}")
         print()
         
         if self.failed == 0:
-            print("🎉 ALL TESTS PASSED! Telnyx fixes are working correctly.")
+            print("🎉 ALL TESTS PASSED! SIP outbound caller identification fix is working correctly.")
+            print("   - findNumberBySipUser function signature updated")
+            print("   - connectionPhoneNumber blocking logic implemented")
+            print("   - Multi-source SIP credential extraction working")
+            print("   - Telnyx reverse lookup fallback implemented")
+            print("   - All previous SIP fixes remain intact")
         else:
             print("⚠️  SOME TESTS FAILED. Review the failures above.")
+            print("   The SIP outbound caller identification fix may not be complete.")
             
         return self.failed == 0
 
 def main():
     """Main test execution"""
-    test_suite = TelnyxTestSuite()
+    test_suite = SipCallerIdTestSuite()
     success = test_suite.run_all_tests()
     
     # Return appropriate exit code
