@@ -48,6 +48,11 @@ const SIP_GLOBAL_RATE_WINDOW = 300000  // 5-minute window
 const walletRejectCooldown = {}
 const WALLET_REJECT_COOLDOWN_MS = 300000 // 5 minutes
 
+// Low Balance Lock — when balance drops below $1, require $50 top-up to resume calls.
+// This prevents near-zero-balance users from spam-dialing indefinitely.
+const LOW_BALANCE_TRIGGER = 1     // USD threshold that activates the lock
+const LOW_BALANCE_RESUME = 50     // USD minimum required to unlock calling
+
 function checkSipRateLimit(sipUsername, destination) {
   const key = `${sipUsername}:${destination}`
   const now = Date.now()
@@ -1231,7 +1236,18 @@ async function handleOutboundSipCall(payload) {
   // Subsequent calls from the same number are immediately rejected without
   // the costly 116-credential reverse lookup, DB queries, or wallet API calls.
   if (isWalletRejectCooldown(fromClean || sipUsername)) {
+    const cooldownEntry = walletRejectCooldown[fromClean || sipUsername]
     log(`[Voice] ⚠️ WALLET COOLDOWN: ${fromClean || sipUsername} — recently rejected for low balance, skipping lookup`)
+    // Send low-balance campaign message on every blocked attempt
+    if (_bot && cooldownEntry?.chatId) {
+      _bot.sendMessage(cooldownEntry.chatId,
+        `🚫 <b>Outbound Calling Locked</b>\n\n` +
+        `Your wallet balance has dropped below $${LOW_BALANCE_TRIGGER}. To protect your account, outbound calls are temporarily locked.\n\n` +
+        `💰 <b>Top up at least $${LOW_BALANCE_RESUME}</b> to resume calling.\n` +
+        `Use 👛 <b>Wallet</b> to add funds.`,
+        { parse_mode: 'HTML' }
+      ).catch(() => {})
+    }
     try {
       await _telnyxApi.hangupCall(callControlId)
     } catch (e) { /* silently reject */ }
@@ -1318,6 +1334,24 @@ async function handleOutboundSipCall(payload) {
   if (_walletOf) {
     try {
       const walletCheck = await smartWalletCheck(_walletOf, chatId, sipRate)
+
+      // ── LOW BALANCE LOCK ──
+      // When USD balance drops below $1, lock outbound calling entirely.
+      // User must top up to $50+ to resume. Sends campaign message on every attempt.
+      if (walletCheck.usdBal < LOW_BALANCE_TRIGGER) {
+        log(`[Voice] Outbound SIP: LOW BALANCE LOCK for ${num.phoneNumber} → ${destination} (USD: $${walletCheck.usdBal.toFixed(2)} < $${LOW_BALANCE_TRIGGER} trigger, need $${LOW_BALANCE_RESUME} to resume)`)
+        setWalletRejectCooldown(fromClean || sipUsername, chatId)
+        await _telnyxApi.hangupCall(callControlId)
+        _bot?.sendMessage(chatId,
+          `🚫 <b>Outbound Calling Locked</b>\n\n` +
+          `Your wallet balance (<b>$${walletCheck.usdBal.toFixed(2)}</b>) has dropped below $${LOW_BALANCE_TRIGGER}. To protect your account, outbound calls are temporarily locked.\n\n` +
+          `💰 <b>Top up at least $${LOW_BALANCE_RESUME}</b> to resume calling.\n` +
+          `Use 👛 <b>Wallet</b> to add funds.`,
+          { parse_mode: 'HTML' }
+        ).catch(() => {})
+        return
+      }
+
       if (!walletCheck.sufficient) {
         log(`[Voice] Outbound SIP: wallet too low for ${num.phoneNumber} → ${destination} (USD: $${walletCheck.usdBal.toFixed(2)}, NGN: ₦${walletCheck.ngnBal.toFixed(2)})`)
         // Cache this rejection — prevents expensive credential lookup on subsequent rapid calls

@@ -37,6 +37,131 @@ async function testHealthEndpoint() {
   }
 }
 
+function testLowBalanceLockConstants() {
+  const fs = require('fs');
+  const voiceServiceContent = fs.readFileSync('/app/js/voice-service.js', 'utf8');
+  
+  // Test 1: Check LOW_BALANCE_TRIGGER = 1 exists at module level
+  const hasLowBalanceTrigger = voiceServiceContent.includes('LOW_BALANCE_TRIGGER = 1');
+  logTest('LOW_BALANCE_TRIGGER = 1 constant exists', hasLowBalanceTrigger);
+  
+  // Test 2: Check LOW_BALANCE_RESUME = 50 exists at module level  
+  const hasLowBalanceResume = voiceServiceContent.includes('LOW_BALANCE_RESUME = 50');
+  logTest('LOW_BALANCE_RESUME = 50 constant exists', hasLowBalanceResume);
+  
+  // Test 3: Verify constants are around lines 53-54 (module level)
+  const lines = voiceServiceContent.split('\n');
+  const triggerLineIndex = lines.findIndex(line => line.includes('LOW_BALANCE_TRIGGER = 1'));
+  const resumeLineIndex = lines.findIndex(line => line.includes('LOW_BALANCE_RESUME = 50'));
+  
+  const constantsAtModuleLevel = triggerLineIndex >= 50 && triggerLineIndex <= 60 && 
+                                resumeLineIndex >= 50 && resumeLineIndex <= 60;
+  logTest('Constants at module level (lines 50-60)', constantsAtModuleLevel, 
+    `Trigger at line ${triggerLineIndex + 1}, Resume at line ${resumeLineIndex + 1}`);
+}
+
+function testWalletCooldownCampaignMessage() {
+  const fs = require('fs');
+  const voiceServiceContent = fs.readFileSync('/app/js/voice-service.js', 'utf8');
+  
+  // Test 4: Check wallet cooldown sends campaign message
+  const hasIsWalletRejectCooldownCheck = voiceServiceContent.includes('if (isWalletRejectCooldown(fromClean || sipUsername))');
+  logTest('isWalletRejectCooldown check exists', hasIsWalletRejectCooldownCheck);
+  
+  // Test 5: Check cooldownEntry.chatId is read from cache
+  const readsChatIdFromCooldown = voiceServiceContent.includes('cooldownEntry?.chatId');
+  logTest('Reads chatId from walletRejectCooldown cache', readsChatIdFromCooldown);
+  
+  // Test 6: Check campaign message contains required text
+  const cooldownMessageContainsLocked = voiceServiceContent.includes('Outbound Calling Locked') && 
+                                       voiceServiceContent.includes('$${LOW_BALANCE_RESUME}') &&
+                                       voiceServiceContent.includes('Wallet');
+  logTest('Cooldown campaign message contains "Outbound Calling Locked", "$50", "Wallet"', cooldownMessageContainsLocked);
+  
+  // Test 7: Check message is sent BEFORE hanging up the call
+  const cooldownSection = voiceServiceContent.substring(
+    voiceServiceContent.indexOf('if (isWalletRejectCooldown(fromClean || sipUsername))'),
+    voiceServiceContent.indexOf('return', voiceServiceContent.indexOf('if (isWalletRejectCooldown(fromClean || sipUsername))'))
+  );
+  const messageBeforeHangup = cooldownSection.indexOf('_bot.sendMessage') < cooldownSection.indexOf('hangupCall');
+  logTest('Campaign message sent BEFORE hanging up call', messageBeforeHangup);
+}
+
+function testLowBalanceLockCheck() {
+  const fs = require('fs');
+  const voiceServiceContent = fs.readFileSync('/app/js/voice-service.js', 'utf8');
+  
+  // Test 8: Check LOW BALANCE LOCK check exists
+  const hasLowBalanceCheck = voiceServiceContent.includes('if (walletCheck.usdBal < LOW_BALANCE_TRIGGER)');
+  logTest('walletCheck.usdBal < LOW_BALANCE_TRIGGER check exists', hasLowBalanceCheck);
+  
+  // Test 9: Check LOW BALANCE LOCK happens BEFORE insufficient funds check
+  const lowBalanceIndex = voiceServiceContent.indexOf('if (walletCheck.usdBal < LOW_BALANCE_TRIGGER)');
+  const insufficientIndex = voiceServiceContent.indexOf('if (!walletCheck.sufficient)');
+  const lowBalanceBeforeInsufficient = lowBalanceIndex > 0 && insufficientIndex > 0 && lowBalanceIndex < insufficientIndex;
+  logTest('LOW BALANCE LOCK check happens BEFORE !walletCheck.sufficient check', lowBalanceBeforeInsufficient,
+    `Low balance at pos ${lowBalanceIndex}, insufficient at pos ${insufficientIndex}`);
+  
+  // Test 10: Check when triggered: logs "LOW BALANCE LOCK"
+  const logsLowBalanceLock = voiceServiceContent.includes('LOW BALANCE LOCK');
+  logTest('Logs "LOW BALANCE LOCK" when triggered', logsLowBalanceLock);
+  
+  // Test 11: Check calls setWalletRejectCooldown
+  const callsSetWalletRejectCooldown = voiceServiceContent.includes('setWalletRejectCooldown(fromClean || sipUsername, chatId)');
+  logTest('Calls setWalletRejectCooldown when triggered', callsSetWalletRejectCooldown);
+  
+  // Test 12: Check hangs up call
+  const hangsUpCall = voiceServiceContent.includes('await _telnyxApi.hangupCall(callControlId)');
+  logTest('Hangs up call when triggered', hangsUpCall);
+  
+  // Test 13: Check sends campaign message with current balance, $1 trigger, $50 resume
+  const lockCampaignMessage = voiceServiceContent.includes('$${walletCheck.usdBal.toFixed(2)}') &&
+                             voiceServiceContent.includes('$${LOW_BALANCE_TRIGGER}') &&
+                             voiceServiceContent.includes('$${LOW_BALANCE_RESUME}');
+  logTest('Campaign message includes current balance, $1 trigger, $50 resume', lockCampaignMessage);
+}
+
+function testCampaignMessageConsistency() {
+  const fs = require('fs');
+  const voiceServiceContent = fs.readFileSync('/app/js/voice-service.js', 'utf8');
+  
+  // Test 14: Both campaign messages contain "Outbound Calling Locked"
+  const outboundCallingLockedCount = (voiceServiceContent.match(/Outbound Calling Locked/g) || []).length;
+  logTest('Both campaign messages contain "Outbound Calling Locked"', outboundCallingLockedCount >= 2,
+    `Found ${outboundCallingLockedCount} occurrences`);
+  
+  // Test 15: Both campaign messages contain "$50" or LOW_BALANCE_RESUME
+  const fiftyDollarCount = (voiceServiceContent.match(/\$50|\$\$\{LOW_BALANCE_RESUME\}/g) || []).length;
+  logTest('Both campaign messages contain "$50" or LOW_BALANCE_RESUME', fiftyDollarCount >= 2,
+    `Found ${fiftyDollarCount} occurrences`);
+  
+  // Test 16: Both campaign messages contain "Wallet"
+  const walletInMessagesCount = (voiceServiceContent.match(/Use.*Wallet.*to add funds|👛.*Wallet/g) || []).length;
+  logTest('Both campaign messages contain "Wallet" instruction', walletInMessagesCount >= 2,
+    `Found ${walletInMessagesCount} occurrences`);
+}
+
+function testExistingFunctionalityPreserved() {
+  const fs = require('fs');
+  const voiceServiceContent = fs.readFileSync('/app/js/voice-service.js', 'utf8');
+  
+  // Test 17: The !walletCheck.sufficient check still exists as fallback
+  const hasInsufficientCheck = voiceServiceContent.includes('if (!walletCheck.sufficient)');
+  logTest('!walletCheck.sufficient check still exists as fallback', hasInsufficientCheck);
+  
+  // Test 18: smartWalletCheck still called
+  const callsSmartWalletCheck = voiceServiceContent.includes('await smartWalletCheck(');
+  logTest('smartWalletCheck still called', callsSmartWalletCheck);
+  
+  // Test 19: sipRate/getCallRate still used
+  const usesSipRate = voiceServiceContent.includes('sipRate') || voiceServiceContent.includes('getCallRate');
+  logTest('sipRate/getCallRate still used', usesSipRate);
+  
+  // Test 20: hangupCall and sendMessage patterns intact
+  const hasHangupPattern = voiceServiceContent.includes('hangupCall') && voiceServiceContent.includes('sendMessage');
+  logTest('hangupCall and sendMessage patterns intact', hasHangupPattern);
+}
+
 function testSipSpamProtectionConstants() {
   const fs = require('fs');
   const voiceServiceContent = fs.readFileSync('/app/js/voice-service.js', 'utf8');
@@ -222,7 +347,7 @@ function testRegressionChecks() {
 
 async function runAllTests() {
   console.log('🧪 Starting Backend Test Suite for Nomadly Application\n');
-  console.log('Testing SIP Call Spam Protection and TELNYX_DEFAULT_ANI Fallback fixes...\n');
+  console.log('Testing SIP Call Spam Protection, TELNYX_DEFAULT_ANI Fallback, and Low Balance Lock features...\n');
   
   // Test 1: Health endpoint
   await testHealthEndpoint();
@@ -253,6 +378,22 @@ async function runAllTests() {
   
   // Test 10: Regression Checks
   testRegressionChecks();
+  
+  // Test 11: Low Balance Lock - Constants
+  console.log('\n🔒 Testing Low Balance Lock Feature...');
+  testLowBalanceLockConstants();
+  
+  // Test 12: Low Balance Lock - Wallet Cooldown Campaign Message
+  testWalletCooldownCampaignMessage();
+  
+  // Test 13: Low Balance Lock - Main Check Implementation
+  testLowBalanceLockCheck();
+  
+  // Test 14: Low Balance Lock - Campaign Message Consistency
+  testCampaignMessageConsistency();
+  
+  // Test 15: Low Balance Lock - Existing Functionality Preserved
+  testExistingFunctionalityPreserved();
   
   // Summary
   console.log('\n📊 Test Results Summary:');
