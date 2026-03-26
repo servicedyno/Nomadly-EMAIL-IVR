@@ -2832,16 +2832,21 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
   }
 
   const OPTOUT_TTL_DAYS = 7
-  const PERMANENT_OPTOUT_REASONS = ['chat_not_found', 'user_deactivated']
+  // Only user_deactivated is truly permanent — chat_not_found can be temporary (rate limits, Telegram glitches)
+  const PERMANENT_OPTOUT_REASONS = ['user_deactivated']
+  // Require this many consecutive broadcast failures before marking a user as dead
+  const DEAD_THRESHOLD = 3
 
   async function isOptedOut(chatId) {
     const record = await promoOptOut.findOne({ _id: chatId })
     if (!record?.optedOut) return false
     if (PERMANENT_OPTOUT_REASONS.includes(record.reason)) return true
+    // chat_not_found users get a 14-day TTL before auto re-testing
+    const ttlDays = record.reason === 'chat_not_found' ? 14 : OPTOUT_TTL_DAYS
     if (record.updatedAt) {
       const daysSinceOptOut = (Date.now() - new Date(record.updatedAt).getTime()) / (1000 * 60 * 60 * 24)
-      if (daysSinceOptOut >= OPTOUT_TTL_DAYS) {
-        await promoOptOut.updateOne({ _id: chatId }, { $set: { optedOut: false, updatedAt: new Date(), reOptInReason: 'ttl_expired' } })
+      if (daysSinceOptOut >= ttlDays) {
+        await promoOptOut.updateOne({ _id: chatId }, { $set: { optedOut: false, updatedAt: new Date(), reOptInReason: 'ttl_expired', failCount: 0 } })
         log(`[AutoPromo] Re-opted-in ${chatId} after ${Math.floor(daysSinceOptOut)}d TTL (was: ${record.reason || 'unknown'})`)
         return false
       }
@@ -2851,6 +2856,20 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
 
   async function setOptOut(chatId, optedOut, reason = 'unknown') {
     await promoOptOut.updateOne({ _id: chatId }, { $set: { optedOut, reason, updatedAt: new Date() } }, { upsert: true })
+  }
+
+  // Increment fail count and only mark as dead after DEAD_THRESHOLD consecutive failures
+  async function recordSendFailure(chatId, reason) {
+    await promoOptOut.updateOne(
+      { _id: chatId },
+      { $set: { reason, updatedAt: new Date() }, $inc: { failCount: 1 } },
+      { upsert: true }
+    )
+    const record = await promoOptOut.findOne({ _id: chatId })
+    if (record?.failCount >= DEAD_THRESHOLD) {
+      await promoOptOut.updateOne({ _id: chatId }, { $set: { optedOut: true } })
+      log(`[AutoPromo] User ${chatId} marked dead after ${record.failCount} consecutive failures (${reason})`)
+    }
   }
 
   async function getAllChatIds() {
@@ -2897,6 +2916,9 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
     cards_bundles: SHOWCASE_GIF,
   }
 
+  const PROMO_SEND_RETRIES = 2
+  const PROMO_RETRY_DELAY = 2000
+
   async function sendPromoToUser(chatId, theme, variationIndex, lang, dynamicMessage, couponLine, isEvening = false) {
     try {
       if (await isOptedOut(chatId)) return { success: true, skipped: true }
@@ -2931,26 +2953,58 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
         await bot.sendMessage(chatId, caption, { ...opts, disable_web_page_preview: true })
       }
 
-      try { await trySend(true) }
-      catch (parseErr) {
-        if (isUnreachableError(parseErr)) throw parseErr
-        if (parseErr.message?.includes('parse') || parseErr.response?.statusCode === 400) {
-          log(`[AutoPromo] HTML parse error for ${chatId}, retrying plain`)
-          await trySend(false)
-        } else throw parseErr
+      // Retry loop — don't kill users on first failure
+      for (let attempt = 1; attempt <= PROMO_SEND_RETRIES; attempt++) {
+        try {
+          try { await trySend(true) }
+          catch (parseErr) {
+            if (isUnreachableError(parseErr)) throw parseErr
+            if (parseErr.message?.includes('parse') || parseErr.response?.statusCode === 400) {
+              log(`[AutoPromo] HTML parse error for ${chatId}, retrying plain`)
+              await trySend(false)
+            } else throw parseErr
+          }
+          // Success! Reset fail count so user stays healthy
+          await promoOptOut.updateOne({ _id: chatId }, { $set: { failCount: 0 } }).catch(() => {})
+          return { success: true }
+        } catch (error) {
+          const code = error.response?.statusCode
+          const errMsg = (error.message || '').toLowerCase()
+          const isTrulyPermanent = errMsg.includes('user is deactivated')
+
+          // user_deactivated is truly permanent — mark immediately
+          if (isTrulyPermanent) {
+            await setOptOut(chatId, true, 'user_deactivated')
+            log(`[AutoPromo] User ${chatId} deactivated — permanently opted out`)
+            return { success: false, error: error.message }
+          }
+
+          // 429 = rate limited — do NOT penalize the user, just skip
+          if (code === 429) {
+            log(`[AutoPromo] Rate limited on ${chatId}, skipping (not penalizing)`)
+            return { success: false, error: 'rate_limited', rateLimited: true }
+          }
+
+          // For chat_not_found, bot_blocked etc — retry first
+          if (attempt < PROMO_SEND_RETRIES) {
+            await sleep(PROMO_RETRY_DELAY * attempt)
+            continue
+          }
+
+          // Final attempt failed — record failure but DON'T immediately mark as dead
+          // recordSendFailure uses failCount threshold (DEAD_THRESHOLD=3)
+          if (code === 403 || isUnreachableError(error)) {
+            const reason = classifyOptOutReason(error)
+            await recordSendFailure(chatId, reason)
+          } else {
+            log(`[AutoPromo] Failed ${chatId}: [${code || 'unknown'}] ${error.message}`)
+          }
+          return { success: false, error: error.message }
+        }
       }
-      return { success: true }
+      return { success: false, error: 'exhausted retries' }
     } catch (error) {
-      const code = error.response?.statusCode
-      if (code === 403 || isUnreachableError(error)) {
-        const reason = classifyOptOutReason(error)
-        await setOptOut(chatId, true, reason)
-        log(`[AutoPromo] User ${chatId} unreachable (${reason}), auto opted-out`)
-      } else if (code === 429) {
-        log(`[AutoPromo] Rate limited: ${chatId}`)
-      } else {
-        log(`[AutoPromo] Failed ${chatId}: [${code || 'unknown'}] ${error.message}`)
-      }
+      log(`[AutoPromo] Unexpected error for ${chatId}: ${error.message}`)
       return { success: false, error: error.message }
     }
   }
@@ -3041,15 +3095,12 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
   }
 
   // ─── Day-of-week → Theme mapping (Morning Hero + Evening Cross-sell) ──
-  // Cross-sell pairings:
-  //   Mon morning=CloudPhone → evening=Domains ("Brand your number with a domain")
-  //   Tue morning=AntiRed    → evening=Leads ("Site is live? Get leads")
-  //   Wed morning=Leads      → evening=CloudPhone ("Got leads? Call them")
-  //   Thu morning=Domains    → evening=AntiRed ("Got a domain? Host it bulletproof")
-  //   Fri morning=Digital    → evening=Cards/Bundles ("Need to pay? Virtual cards")
-  //   Sat morning=Cards      → evening=Digital ("Start reselling these products")
+  // Optimized based on log analysis:
+  //   - Marketplace is hottest (most clicks) → 3 slots/week
+  //   - Sunday now has a light promo (was rest day — missed weekend shoppers)
+  //   - Cross-sell pairings based on actual user journeys
   const DAY_SCHEDULE = {
-    0: [],                    // Sunday — rest
+    0: [7, 3],                // Sun: marketplace(7) morning, domains_shortener(3) evening — light weekend promo
     1: [0, 7],                // Mon: cloudphone(0), marketplace(7)
     2: [1, 6],                // Tue: antired_hosting(1), email_validation(6)
     3: [6, 2],                // Wed: email_validation(6), leads_validation(2)
@@ -3090,11 +3141,101 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
   log(`[AutoPromo] Initialized — ${scheduledCount} jobs (${supportedLangs.length} langs × ${LOCAL_TIMES.length} slots/day), ${THEMES.length} themes: ${THEMES.join(', ')}`)
   log(`[AutoPromo] Schedule: 🌅 Morning hero (10am) + 🌙 Evening cross-sell (7pm), Sunday=rest`)
 
+  // ─── Resurrection Scan ─────────────────────────────────────────────────
+  // Periodically re-test "dead" users via Telegram getChat() to see if they're reachable
+  // Runs every 6 hours, tests 200 users per batch to stay within API limits
+  const RESURRECT_BATCH_SIZE = 200
+  const RESURRECT_INTERVAL_MS = 6 * 60 * 60 * 1000 // 6 hours
+
+  async function runResurrectionScan() {
+    try {
+      // Find users marked as chat_not_found (not user_deactivated — those are truly gone)
+      // Prioritize those who were recently active or have low failCount
+      const candidates = await promoOptOut.find({
+        optedOut: true,
+        reason: { $in: ['chat_not_found', 'bot_blocked'] }
+      }).sort({ failCount: 1, updatedAt: 1 }).limit(RESURRECT_BATCH_SIZE).toArray()
+
+      if (!candidates.length) {
+        log(`[ResurrectionScan] No candidates to test`)
+        return { tested: 0, resurrected: 0 }
+      }
+
+      log(`[ResurrectionScan] Testing ${candidates.length} dead users...`)
+      let resurrected = 0
+      let stillDead = 0
+
+      for (const user of candidates) {
+        try {
+          await bot.getChat(user._id)
+          // getChat succeeded — user is reachable!
+          await promoOptOut.updateOne({ _id: user._id }, {
+            $set: { optedOut: false, updatedAt: new Date(), reOptInReason: 'resurrection_scan', failCount: 0 }
+          })
+          resurrected++
+        } catch (err) {
+          stillDead++
+          // Update failCount to push truly dead users to the back of the queue
+          await promoOptOut.updateOne({ _id: user._id }, {
+            $inc: { failCount: 1 },
+            $set: { updatedAt: new Date() }
+          }).catch(() => {})
+        }
+        // Small delay to avoid rate limiting
+        await sleep(100)
+      }
+
+      const stats = { tested: candidates.length, resurrected, stillDead, timestamp: new Date().toISOString() }
+      log(`[ResurrectionScan] Done: ${JSON.stringify(stats)}`)
+      await db.collection('resurrectionStats').insertOne(stats)
+      return stats
+    } catch (error) {
+      log(`[ResurrectionScan] Error: ${error.message}`)
+      return { error: error.message }
+    }
+  }
+
+  // Schedule resurrection scan every 6 hours
+  setInterval(() => {
+    runResurrectionScan().catch(err => log(`[ResurrectionScan] Unhandled: ${err.message}`))
+  }, RESURRECT_INTERVAL_MS)
+
+  // Run first scan 5 minutes after startup
+  setTimeout(() => {
+    runResurrectionScan().catch(err => log(`[ResurrectionScan] Initial scan error: ${err.message}`))
+  }, 5 * 60 * 1000)
+  log(`[AutoPromo] Resurrection scan enabled — every 6h, ${RESURRECT_BATCH_SIZE} users/batch`)
+
+  // ─── Promo Response Tracking ───────────────────────────────────────────
+  // Track when users interact with the bot within 60 min after receiving a promo
+  const PROMO_RESPONSE_WINDOW_MS = 60 * 60 * 1000 // 60 minutes
+
+  async function trackPromoResponse(chatId) {
+    try {
+      // Check if this user received a promo recently
+      const recentPromo = await db.collection('promoStats').findOne({
+        timestamp: { $gte: new Date(Date.now() - PROMO_RESPONSE_WINDOW_MS).toISOString() }
+      })
+      if (!recentPromo) return
+
+      await db.collection('promoResponses').updateOne(
+        { chatId, date: new Date().toISOString().slice(0, 10) },
+        { $set: { chatId, respondedAt: new Date(), theme: recentPromo.theme }, $inc: { responseCount: 1 } },
+        { upsert: true }
+      )
+    } catch (err) {
+      // Silent — tracking shouldn't break the main flow
+    }
+  }
+
   return {
     setOptOut,
     isOptedOut,
+    recordSendFailure,
     broadcastPromoForLang,
     setDailyCouponSystem,
+    runResurrectionScan,
+    trackPromoResponse,
     getPromoMessages: () => promoMessages,
     getCrossSellMessages: () => crossSellMessages,
     getThemes: () => THEMES,

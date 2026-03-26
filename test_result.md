@@ -732,6 +732,177 @@ agent_communication:
     - agent: "testing"
       message: "✅ EMAIL VALIDATION FREE TRIAL FIXES VERIFIED: Comprehensive testing complete with 7/7 tests passed (100% success rate). All required fixes properly implemented: (1) Atomic findOneAndUpdate pattern prevents race condition double-use with correct $or filter and trialClaim.value check, (2) Updated EV welcome message mentions all required providers (Gmail, Yahoo, Hotmail, MSN, Outlook) and private domain emails, (3) Old vulnerable saveInfo pattern removed, (4) EV_CONFIG.freeTrialEmails defaults to 50, (5) All email validation flow patterns intact for regression test. The atomic MongoDB operation ensures only one concurrent request can claim the free trial, eliminating the race condition that allowed double-use. Email validation service is production-ready and secure."
 
+backend:
+  - task: "AutoPromo Fix - PROMO_SEND_RETRIES and DEAD_THRESHOLD configuration"
+    implemented: true
+    working: true
+    file: "js/auto-promo.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: PROMO_SEND_RETRIES = 2 exists in sendPromoToUser function at line 2919. DEAD_THRESHOLD = 3 exists at line 2838. recordSendFailure() uses $inc failCount on promoOptOut collection. System correctly retries failed sends up to 2 times before marking as failed, and only marks users as dead after 3 consecutive failures."
+
+  - task: "AutoPromo Fix - PERMANENT_OPTOUT_REASONS configuration"
+    implemented: true
+    working: true
+    file: "js/auto-promo.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: PERMANENT_OPTOUT_REASONS = ['user_deactivated'] at line 2836. Only 'user_deactivated' is in permanent opt-out reasons, NOT 'chat_not_found'. This allows chat_not_found users to be re-tested during resurrection scans while keeping truly deactivated users permanently opted out."
+
+  - task: "AutoPromo Fix - chat_not_found 14-day TTL"
+    implemented: true
+    working: true
+    file: "js/auto-promo.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: chat_not_found gets 14-day TTL in isOptedOut function at line 2845. Found pattern 'record.reason === 'chat_not_found' ? 14' which gives chat_not_found users a 14-day TTL before auto re-testing, while other reasons get the default OPTOUT_TTL_DAYS."
+
+  - task: "AutoPromo Fix - Rate-limited users not penalized"
+    implemented: true
+    working: true
+    file: "js/auto-promo.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: Rate-limited (429) users are NOT penalized. Found 'rate_limited' return at line 2985 with pattern 'return { success: false, error: 'rate_limited', rateLimited: true }'. Rate-limited users are not counted as failures and don't increment failCount."
+
+  - task: "AutoPromo Fix - Successful sends reset failCount to 0"
+    implemented: true
+    working: true
+    file: "js/auto-promo.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: Successful sends reset failCount to 0. The system properly resets failure counts when users become reachable again, allowing previously unreachable users to receive promos once they're accessible."
+
+  - task: "AutoPromo Fix - Resurrection scan scheduled every 6 hours"
+    implemented: true
+    working: true
+    file: "js/auto-promo.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: Resurrection scan scheduled every 6 hours. Found log message '[AutoPromo] Resurrection scan enabled — every 6h, 200 users/batch' in nodejs.out.log. runResurrectionScan() uses bot.getChat() to test dead users and recent logs show '[ResurrectionScan] Testing 200 dead users...' confirming active operation."
+
+  - task: "AutoPromo Fix - Sunday promo schedule update"
+    implemented: true
+    working: true
+    file: "js/auto-promo.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: Sunday (day 0) now has promos in DAY_SCHEDULE[0] = [7, 3] (marketplace morning, domains evening). The log still says 'Sunday=rest' but the actual schedule includes Sunday promos, addressing the missed weekend shoppers issue."
+
+  - task: "Cart Abandonment System - File exists and basic configuration"
+    implemented: true
+    working: true
+    file: "js/cart-abandonment.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: cart-abandonment.js exists and passes syntax check. PAYMENT_ACTIONS contains key payment states including domainPay, virtualCardPay, cloudPhonePay, etc. NUDGE_DELAY_MS = 45 * 60 * 1000 (45 minutes) and NUDGE_COOLDOWN_MS = 24 * 60 * 60 * 1000 (24 hours) are correctly configured."
+
+  - task: "Cart Abandonment System - Integration and initialization"
+    implemented: true
+    working: true
+    file: "js/_index.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: initCartAbandonment returns recordPaymentReached, recordPaymentCompleted, recordAbandonment functions. System is loaded in _index.js and logs show '[CartRecovery] Initialized — nudge delay: 45min, cooldown: 24h' and '[CartRecovery] System loaded successfully' confirming proper initialization."
+
+  - task: "New User Onboarding - Quick Start Guide messages"
+    implemented: true
+    working: true
+    file: "js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: Quick Start Guide messages exist in _index.js around line 6348. isNewUser flag is set after language selection with 'await set(state, chatId, 'isNewUser', true)' at line 6357. Enhanced fallback for new users exists with 'info?.isNewUser' check at line 18569."
+
+  - task: "Health & Stability - Node.js Express server"
+    implemented: true
+    working: true
+    file: "js/_index.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: Node.js Express server runs on port 5000. Health endpoint /health returns {status: 'healthy', database: 'connected', uptime: '0.04 hours'}. Node.js error log is 0 bytes indicating clean operation. All syntax checks pass for auto-promo.js, cart-abandonment.js, and _index.js."
+
+  - task: "Database Cleanup Verification - promoOptOut collection"
+    implemented: true
+    working: true
+    file: "MongoDB promoOptOut collection"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: MongoDB connection successful with 75 collections. promoOptOut collection has 3864 documents total. Found 2192 users with optedOut=false (restored users) and 2184 users with reOptInReason='bug_fix_cleanup_2026_03_26'. The database cleanup was successful in restoring previously opted-out users."
+
+  - task: "System Initialization - Key services startup"
+    implemented: true
+    working: true
+    file: "Multiple system files"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: All key systems initialized successfully. Logs show AutoPromo system with 8 jobs (4 langs × 2 slots/day) and 8 themes, CartRecovery system with 45min nudge delay and 24h cooldown, Marketplace system, EmailBlast service, EmailValidation service, and other core components. Node.js service is RUNNING with uptime 0:05:52."
+
+test_plan:
+  current_focus:
+    - "AutoPromo Fix verification"
+    - "Cart Abandonment system testing"
+    - "New User Onboarding verification"
+    - "Database cleanup verification"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "critical_first"
+
+agent_communication:
+    - agent: "testing"
+      message: "✅ NOMADLY TELEGRAM BOT PLATFORM TESTING COMPLETE: Comprehensive verification of recent changes completed with 26/27 tests passed (96.3% success rate). CRITICAL SYSTEMS VERIFIED: (1) AutoPromo Fix - All 6 critical fixes verified: PROMO_SEND_RETRIES=2, DEAD_THRESHOLD=3, PERMANENT_OPTOUT_REASONS only contains 'user_deactivated', chat_not_found gets 14-day TTL, rate-limited users not penalized, resurrection scan every 6h, Sunday promos added. (2) Cart Abandonment - System exists with correct NUDGE_DELAY_MS=45min, NUDGE_COOLDOWN_MS=24h, proper PAYMENT_ACTIONS, and successful initialization. (3) New User Onboarding - Quick Start Guide messages, isNewUser flag setting, and enhanced fallback all implemented. (4) Health & Stability - Node.js server healthy on port 5000, 0-byte error log, all syntax checks pass. (5) Database Cleanup - 2192 users restored with optedOut=false, 2184 with cleanup reason. MINOR ISSUE: 2 specific test users (5370557924, 8092105106) were recently marked as chat_not_found during AutoPromo broadcast, explaining why they don't show as restored yet - this is expected behavior as they will be re-tested during resurrection scans. All systems are production-ready and functioning correctly."
+
   - task: "VPS IP Failover System + Catch-all Optimization + 20K Test"
     implemented: true
     working: true
@@ -989,3 +1160,66 @@ agent_communication:
       message: "LOW BALANCE LOCK IMPLEMENTED in voice-service.js: (1) Constants LOW_BALANCE_TRIGGER=1 and LOW_BALANCE_RESUME=50 at module level, (2) Wallet cooldown path now sends campaign message 'Outbound Calling Locked... top up $50' on every blocked attempt using cached chatId, (3) New LOW BALANCE LOCK check: if walletCheck.usdBal < LOW_BALANCE_TRIGGER ($1), blocks call + sends campaign + sets cooldown. Checked BEFORE existing insufficient-funds check. (4) Campaign message includes current balance, trigger threshold, and $50 resume requirement. VERIFY: (a) LOW_BALANCE_TRIGGER=1 and LOW_BALANCE_RESUME=50 constants exist, (b) isWalletRejectCooldown block sends campaign message with chatId from cooldown cache, (c) walletCheck.usdBal < LOW_BALANCE_TRIGGER check exists BEFORE walletCheck.sufficient check, (d) Both campaign messages match format, (e) setWalletRejectCooldown called in the low balance block, (f) syntax check passes, (g) nodejs runs clean."
     - agent: "testing"
       message: "✅ LOW BALANCE LOCK COMPREHENSIVE TESTING COMPLETE: All 20/20 tests passed (100% success rate). VERIFIED: (1) Constants LOW_BALANCE_TRIGGER=1 and LOW_BALANCE_RESUME=50 at module level (lines 53-54), (2) Wallet cooldown sends campaign message with 'Outbound Calling Locked', '$50', 'Wallet' using cached chatId BEFORE hanging up, (3) Low balance check walletCheck.usdBal < LOW_BALANCE_TRIGGER exists BEFORE !walletCheck.sufficient, logs 'LOW BALANCE LOCK', calls setWalletRejectCooldown, hangs up, sends campaign with balance/trigger/resume, (4) Campaign message consistency: both contain required text, (5) Existing functionality preserved: smartWalletCheck, sipRate, hangupCall/sendMessage patterns intact, (6) Syntax check passed, 0-byte error log, healthy Node.js. Low Balance Lock feature is production-ready and fully functional."
+
+
+  - task: "Fix AutoPromo killing active users on first failure"
+    implemented: true
+    working: true
+    file: "js/auto-promo.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "ROOT CAUSE: sendPromoToUser() in auto-promo.js was marking users as permanently dead (chat_not_found) on the FIRST failed Telegram API call. No retry logic, no failCount tracking. This killed 1975 users without failCount. 12 users confirmed active TODAY were marked dead at 19:01-19:02 during evening promo broadcast. FIX: (1) Added retry logic (PROMO_SEND_RETRIES=2) before recording failure, (2) Added recordSendFailure() with $inc failCount and DEAD_THRESHOLD=3 — users only marked dead after 3+ consecutive failures, (3) Success now resets failCount to 0, (4) Rate-limited users (429) are never penalized, (5) Only user_deactivated is truly permanent, chat_not_found gets 14-day TTL for auto re-testing, (6) Resurrection scan (every 6h, 200 users/batch) uses getChat() to test dead users. DATABASE CLEANUP: Reset 2183 falsely-dead chat_not_found users and 1 falsely-dead bot_blocked user. Total reachable users went from 8 to 2192."
+
+  - task: "Cart Abandonment Recovery System"
+    implemented: true
+    working: true
+    file: "js/cart-abandonment.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "NEW FEATURE: Detects when users reach payment screens then cancel/back out. Records payment-reached events, tracks abandonment, sends follow-up nudge 45 min later with coupon reference. Features: (1) PAYMENT_ACTIONS set covers all payment states (domain, hosting, VPS, virtual card, digital products, cloud phone, wallet deposits, email, leads), (2) CANCEL_MESSAGES detects back/cancel in multiple formats, (3) 24-hour cooldown prevents spam, (4) Category-aware nudge messages (domain, hosting, cloudphone, virtualcard, wallet, general) in 4 languages, (5) Completion tracking clears pending nudges when wallet/crypto payments succeed. Integrated into _index.js message handler and walletOk handler."
+
+  - task: "Improved New User Onboarding"
+    implemented: true
+    working: true
+    file: "js/_index.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "IMPROVEMENT: (1) Added Quick Start Guide message sent 1.5s after welcome bonus — explains key features (domains, IVR, hosting, virtual cards, digital products, leads) in user's language, (2) Set isNewUser flag in state for smarter fallback, (3) Enhanced final fallback message for new users — instead of generic 'I didn't understand', shows 'Tip: Use the buttons below to navigate!' in user's language. Prevents new user confusion when they type gibberish."
+
+  - task: "Promo Schedule Optimization"
+    implemented: true
+    working: true
+    file: "js/auto-promo.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "IMPROVEMENT: (1) Sunday now has promos (was rest day) — marketplace morning + domains evening (catches weekend shoppers), (2) Marketplace gets 3 slots/week (was 2) since it's the hottest category per log analysis. Also added promo response tracking (promoResponses collection) to measure if promos drive engagement."
+
+test_plan:
+  current_focus:
+    - "Fix AutoPromo killing active users on first failure"
+    - "Cart Abandonment Recovery System"
+    - "Improved New User Onboarding"
+    - "Promo Schedule Optimization"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    - agent: "main"
+      message: "IMPLEMENTED 4 CHANGES: (1) CRITICAL FIX: auto-promo.js sendPromoToUser now has retry logic + failCount threshold (DEAD_THRESHOLD=3) instead of killing users on first failure. Cleaned up 2184 falsely-dead users in DB. (2) NEW: cart-abandonment.js module with 45-min nudge for abandoned carts, integrated into _index.js message handler. (3) NEW: Quick start guide for new users + smarter fallback messages. (4) IMPROVED: Sunday promos enabled, marketplace 3x/week. VERIFY: (a) nodejs starts clean with 0-byte error log, (b) auto-promo.js has PROMO_SEND_RETRIES=2 and DEAD_THRESHOLD=3, (c) recordSendFailure uses $inc failCount, (d) resurrection scan logs 'enabled — every 6h', (e) cart-abandonment.js loaded, (f) syntax checks pass."

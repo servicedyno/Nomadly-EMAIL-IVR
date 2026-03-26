@@ -163,6 +163,7 @@ const { checkDomainPriceOnline } = require('./cr-domain-price-get.js')
 const domainService = require('./domain-service.js')
 const dnsChecker = require('./dns-checker.js')
 const { sanitizeProviderError, sanitizeHangupCause } = require('./sanitize-provider.js')
+const { initCartAbandonment } = require('./cart-abandonment.js')
 
 // Auto-check DNS after record add/update (non-blocking)
 const dnsAutoCheck = async (send, chatId, t, domain, recordType, recordValue) => {
@@ -727,6 +728,7 @@ let adminDomains = [],
   last_cr_check_time = 0
 
 let autoPromo = null
+let cartRecovery = null
 
 // Telnyx resources (set during init)
 let telnyxResources = { sipConnectionId: null, messagingProfileId: null, callControlAppId: null }
@@ -996,6 +998,9 @@ const loadData = async () => {
     log('[DailyCoupon] System loaded successfully')
     // Link coupon system to promo for coupon-in-promo messages
     autoPromo.setDailyCouponSystem(dailyCouponSystem)
+    // Initialize cart abandonment recovery
+    cartRecovery = initCartAbandonment(bot, db, state)
+    log('[CartRecovery] System loaded successfully')
   } else {
     log('[AutoPromo] Skipped — Telegram bot is disabled')
   }
@@ -2592,6 +2597,22 @@ bot?.on('message', msg => {
 
   const action = info?.action
   const cpTxt = phoneConfig.getTxt(info?.userLanguage || 'en')
+
+  // ── Cart Abandonment Tracking ──
+  // If user was at a payment screen and now sends Back/Cancel, record abandonment
+  if (cartRecovery && action) {
+    const msgLower = (message || '').toLowerCase().trim()
+    if (cartRecovery.PAYMENT_ACTIONS.has(action) && cartRecovery.isPaymentCancelMessage(message)) {
+      cartRecovery.recordAbandonment(chatId, info?.userLanguage || 'en')
+    } else if (cartRecovery.PAYMENT_ACTIONS.has(action)) {
+      // User is at a payment screen — record they reached it
+      cartRecovery.recordPaymentReached(chatId, action, { price: info?.price, product: info?.planName || info?.domain || info?.bundleName })
+    }
+  }
+  // Track promo response (user interacted with bot after receiving a promo)
+  if (autoPromo?.trackPromoResponse) {
+    autoPromo.trackPromoResponse(chatId).catch(() => {})
+  }
 
   const trans = (key, ...args) => {
     const lang = info?.userLanguage || 'en';
@@ -6320,6 +6341,21 @@ All verified numbers generated during sourcing.`))
         send(chatId, bonus.message, { parse_mode: 'HTML' })
         log(`[WelcomeBonus] Awarded $${bonus.amount} to new user chatId=${chatId}`)
       }
+    } catch (e) { /* non-critical */ }
+
+    // ── Quick Start Guide for new users ──
+    const guideMessages = {
+      en: `🚀 <b>Quick Start Guide</b>\n\nHere's what you can do:\n\n🌐 <b>Register Domains</b> — bulletproof domains with DNS management\n📞 <b>Cloud IVR</b> — get a phone number with custom voice menus\n🛡️ <b>Hosting</b> — anti-takedown bulletproof hosting\n💳 <b>Virtual Cards</b> — anonymous cards for online payments\n📦 <b>Digital Products</b> — buy & sell digital goods\n📊 <b>Phone Leads</b> — targeted leads with validation\n\n👇 <b>Just tap the buttons below to get started!</b>\nYour wallet balance is ready to use.`,
+      fr: `🚀 <b>Guide de démarrage rapide</b>\n\nVoici ce que vous pouvez faire :\n\n🌐 <b>Enregistrer des domaines</b>\n📞 <b>Cloud IVR</b> — numéro de téléphone avec menus vocaux\n🛡️ <b>Hébergement</b> — hébergement anti-blocage\n💳 <b>Cartes virtuelles</b>\n📦 <b>Produits numériques</b>\n\n👇 <b>Appuyez sur les boutons ci-dessous pour commencer !</b>`,
+      zh: `🚀 <b>快速入门指南</b>\n\n你可以：\n\n🌐 注册域名\n📞 云IVR电话\n🛡️ 防封主机\n💳 虚拟卡\n📦 数字产品\n\n👇 <b>点击下方按钮开始！</b>`,
+      hi: `🚀 <b>त्वरित प्रारंभ गाइड</b>\n\nआप क्या कर सकते हैं:\n\n🌐 डोमेन रजिस्टर करें\n📞 क्लाउड IVR फ़ोन\n🛡️ बुलेटप्रूफ होस्टिंग\n💳 वर्चुअल कार्ड\n📦 डिजिटल उत्पाद\n\n👇 <b>शुरू करने के लिए नीचे बटन दबाएं!</b>`,
+    }
+    try {
+      const guide = guideMessages[validLanguage] || guideMessages.en
+      setTimeout(() => send(chatId, guide, { parse_mode: 'HTML' }), 1500)
+      // Mark as new user for smarter fallback messages
+      await set(state, chatId, 'isNewUser', true)
+      await set(state, chatId, 'joinedAt', new Date())
     } catch (e) { /* non-critical */ }
 
     // Go straight to main menu with balance & tier
@@ -12384,6 +12420,8 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         log(`[Wallet] walletOk handler not found for lastStep: ${info?.lastStep}`)
         return send(chatId, t.someIssue || 'Something went wrong. Please try again.')
       }
+      // Track payment completion for cart recovery
+      if (cartRecovery) cartRecovery.recordPaymentCompleted(chatId)
       return handler(info?.coin)
     } catch (error) {
       log(`[Wallet] walletOk error for lastStep=${info?.lastStep}: ${error?.message}`)
@@ -18527,6 +18565,17 @@ Select a category:`), k.of(catBtns))
   }
   set(state, chatId, 'action', 'none')
   log(`[reset] Unrecognized message from ${chatId}: "${message}" (was action: ${action || 'none'}). Resetting to main menu.`)
+  // Enhanced fallback for new users — guide them to use buttons instead of typing
+  if (info?.isNewUser) {
+    const lang = info?.userLanguage || 'en'
+    const newUserHint = {
+      en: '💡 <b>Tip:</b> Use the buttons below to navigate! Just tap on any option to get started.',
+      fr: '💡 <b>Astuce :</b> Utilisez les boutons ci-dessous pour naviguer !',
+      zh: '💡 <b>提示：</b>请使用下方按钮导航！',
+      hi: '💡 <b>सुझाव:</b> नेविगेट करने के लिए नीचे बटन का उपयोग करें!',
+    }
+    return send(chatId, (newUserHint[lang] || newUserHint.en) + '\n' + t.welcome, isAdmin(chatId) ? aO : trans('o'))
+  }
   return send(chatId, t.what + '\n' + t.welcome, isAdmin(chatId) ? aO : trans('o'))
   }) // end _enqueue async callback
 }) // end bot.on('message')
@@ -20005,6 +20054,7 @@ app.get('/crypto-pay-plan', auth, async (req, res) => {
   subscribePlan(planEndingTime, freeDomainNamesAvailableFor, planOf, chatId, plan, bot, lang, freeValidationsAvailableFor)
   notifyGroup(`💎 <b>New Subscription!</b>\nUser ${maskName(name)} just upgraded to the <b>${plan} Plan</b> — unlocking ${freeDomainsOf[plan]} free domains + ${(freeValidationsOf[plan] || 0).toLocaleString()} phone validations.\nDon't miss out — /start`)
   webhookTierCheck(chatId, preSpend, lang)
+  if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
   set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
