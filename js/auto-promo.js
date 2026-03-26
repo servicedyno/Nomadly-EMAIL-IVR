@@ -3139,7 +3139,7 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
   }
 
   log(`[AutoPromo] Initialized — ${scheduledCount} jobs (${supportedLangs.length} langs × ${LOCAL_TIMES.length} slots/day), ${THEMES.length} themes: ${THEMES.join(', ')}`)
-  log(`[AutoPromo] Schedule: 🌅 Morning hero (10am) + 🌙 Evening cross-sell (7pm), Sunday=rest`)
+  log(`[AutoPromo] Schedule: 🌅 Morning hero (10am) + 🌙 Evening cross-sell (7pm), 7 days/week`)
 
   // ─── Resurrection Scan ─────────────────────────────────────────────────
   // Periodically re-test "dead" users via Telegram getChat() to see if they're reachable
