@@ -13,7 +13,7 @@ import os
 from datetime import datetime
 
 # Test configuration
-BASE_URL = "https://readme-setup-6.preview.emergentagent.com/api"
+BASE_URL = "https://setup-guide-59.preview.emergentagent.com/api"
 HEADERS = {"Content-Type": "application/json"}
 
 # Test credentials from review request
