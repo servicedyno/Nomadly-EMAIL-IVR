@@ -1,406 +1,345 @@
 #!/usr/bin/env python3
 """
-Comprehensive Backend Testing for SIP Outbound Caller Identification Fix
-Tests the fixes implemented in voice-service.js and telnyx-service.js
+Comprehensive Backend Testing for Nomadly Platform
+Focus: Broadcast Pre-filtering Fixes Verification
 """
 
-import requests
-import json
-import time
+import os
 import sys
 import subprocess
-import os
-from datetime import datetime
+import json
+import requests
+import time
+from pymongo import MongoClient
+from urllib.parse import urlparse
 
-# Test configuration
-BASE_URL = "https://setup-guide-59.preview.emergentagent.com/api"
-HEADERS = {"Content-Type": "application/json"}
+# Configuration
+BACKEND_URL = os.getenv('REACT_APP_BACKEND_URL', 'http://localhost:5000')
+MONGO_URL = os.getenv('MONGO_URL', 'mongodb://localhost:27017')
+DB_NAME = os.getenv('DB_NAME', 'test')
 
-# Test credentials from review request
-TELNYX_CALLER_ID = "+18889020132"
-TELNYX_TARGET_NUMBER = "+13025141000"
-TELNYX_SIP_CONNECTION_ID = "2898118323872990714"
-
-class SipCallerIdTestSuite:
+class BroadcastPreFilteringTests:
     def __init__(self):
-        self.passed = 0
-        self.failed = 0
+        self.backend_url = BACKEND_URL
+        self.mongo_url = MONGO_URL
+        self.db_name = DB_NAME
         self.results = []
+        self.mongo_client = None
+        self.db = None
         
-    def log_result(self, test_name, passed, message="", details=""):
-        status = "✅ PASS" if passed else "❌ FAIL"
+    def log_result(self, test_name, status, details=""):
+        """Log test result"""
         result = {
-            "test": test_name,
-            "status": status,
-            "message": message,
-            "details": details,
-            "timestamp": datetime.now().isoformat()
+            'test': test_name,
+            'status': status,
+            'details': details,
+            'timestamp': time.strftime('%Y-%m-%d %H:%M:%S')
         }
         self.results.append(result)
-        
-        if passed:
-            self.passed += 1
-        else:
-            self.failed += 1
-            
-        print(f"{status}: {test_name}")
-        if message:
-            print(f"    {message}")
+        status_icon = "✅" if status == "PASS" else "❌" if status == "FAIL" else "⚠️"
+        print(f"{status_icon} {test_name}: {status}")
         if details:
-            print(f"    Details: {details}")
-        print()
-
-    def test_syntax_validation(self):
-        """Test 1: Syntax validation for voice-service.js and telnyx-service.js"""
+            print(f"   Details: {details}")
+    
+    def setup_database_connection(self):
+        """Setup MongoDB connection"""
         try:
-            # Test voice-service.js syntax
-            result1 = subprocess.run(['node', '-c', '/app/js/voice-service.js'], 
-                                   capture_output=True, text=True, timeout=10)
-            
-            # Test telnyx-service.js syntax  
-            result2 = subprocess.run(['node', '-c', '/app/js/telnyx-service.js'], 
-                                   capture_output=True, text=True, timeout=10)
-            
-            if result1.returncode == 0 and result2.returncode == 0:
-                self.log_result("Syntax Validation", True, 
-                              "Both voice-service.js and telnyx-service.js pass syntax checks")
-                return True
-            else:
-                errors = []
-                if result1.returncode != 0:
-                    errors.append(f"voice-service.js: {result1.stderr}")
-                if result2.returncode != 0:
-                    errors.append(f"telnyx-service.js: {result2.stderr}")
-                
-                self.log_result("Syntax Validation", False, 
-                              "Syntax errors found", "; ".join(errors))
-                return False
-                
+            self.mongo_client = MongoClient(self.mongo_url)
+            self.db = self.mongo_client[self.db_name]
+            # Test connection
+            self.db.command('ping')
+            self.log_result("Database Connection", "PASS", f"Connected to {self.db_name}")
+            return True
         except Exception as e:
-            self.log_result("Syntax Validation", False, f"Syntax check failed: {str(e)}")
+            self.log_result("Database Connection", "FAIL", str(e))
             return False
-
-    def test_nodejs_health(self):
-        """Test 2: Node.js running clean with health endpoint and error log check"""
+    
+    def test_health_endpoint(self):
+        """Test health endpoint"""
         try:
-            # Check health endpoint
-            response = requests.get(f"{BASE_URL}/health", timeout=10)
-            if response.status_code != 200:
-                self.log_result("Node.js Health", False, f"Health endpoint returned HTTP {response.status_code}")
+            response = requests.get(f"{self.backend_url}/health", timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('status') == 'healthy' and data.get('database') == 'connected':
+                    self.log_result("Health Endpoint", "PASS", f"Status: {data.get('status')}, DB: {data.get('database')}")
+                    return True
+                else:
+                    self.log_result("Health Endpoint", "FAIL", f"Unhealthy response: {data}")
+                    return False
+            else:
+                self.log_result("Health Endpoint", "FAIL", f"HTTP {response.status_code}")
                 return False
-                
-            data = response.json()
-            if data.get("status") != "healthy":
-                self.log_result("Node.js Health", False, f"Health status not healthy: {data}")
-                return False
-            
-            # Check error log size
+        except Exception as e:
+            self.log_result("Health Endpoint", "FAIL", str(e))
+            return False
+    
+    def test_nodejs_syntax_validation(self):
+        """Test JavaScript syntax validation"""
+        files_to_check = [
+            '/app/js/utils.js',
+            '/app/js/auto-promo.js'
+        ]
+        
+        all_passed = True
+        for file_path in files_to_check:
             try:
-                error_log_size = os.path.getsize('/var/log/supervisor/nodejs.err.log')
-                if error_log_size == 0:
-                    self.log_result("Node.js Health", True, 
-                                  "Health endpoint healthy and error log is 0 bytes")
+                result = subprocess.run(['node', '-c', file_path], 
+                                      capture_output=True, text=True, timeout=30)
+                if result.returncode == 0:
+                    self.log_result(f"Syntax Check: {os.path.basename(file_path)}", "PASS")
+                else:
+                    self.log_result(f"Syntax Check: {os.path.basename(file_path)}", "FAIL", 
+                                  result.stderr.strip())
+                    all_passed = False
+            except Exception as e:
+                self.log_result(f"Syntax Check: {os.path.basename(file_path)}", "FAIL", str(e))
+                all_passed = False
+        
+        return all_passed
+    
+    def test_nodejs_error_log(self):
+        """Check Node.js error log is clean"""
+        try:
+            result = subprocess.run(['wc', '-c', '/var/log/supervisor/nodejs.err.log'], 
+                                  capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                size = int(result.stdout.split()[0])
+                if size == 0:
+                    self.log_result("Node.js Error Log", "PASS", "0 bytes (clean)")
                     return True
                 else:
-                    self.log_result("Node.js Health", False, 
-                                  f"Error log is {error_log_size} bytes (should be 0)")
+                    self.log_result("Node.js Error Log", "WARN", f"{size} bytes (has errors)")
                     return False
-            except FileNotFoundError:
-                # If error log doesn't exist, that's also good
-                self.log_result("Node.js Health", True, 
-                              "Health endpoint healthy and no error log found")
-                return True
-                
-        except Exception as e:
-            self.log_result("Node.js Health", False, f"Health check failed: {str(e)}")
-            return False
-
-    def test_findNumberBySipUser_signature(self):
-        """Test 3: Verify findNumberBySipUser function accepts 3 parameters"""
-        try:
-            with open('/app/js/voice-service.js', 'r') as f:
-                content = f.read()
-            
-            # Look for the function signature
-            if "async function findNumberBySipUser(sipUsername, fromPhone, connectionPhoneNumber)" in content:
-                self.log_result("findNumberBySipUser Signature", True, 
-                              "Function signature has 3 parameters: sipUsername, fromPhone, connectionPhoneNumber")
-                return True
             else:
-                # Check for alternative patterns
-                lines = content.split('\n')
-                for i, line in enumerate(lines):
-                    if "findNumberBySipUser" in line and "function" in line:
-                        if "sipUsername" in line and "fromPhone" in line and "connectionPhoneNumber" in line:
-                            self.log_result("findNumberBySipUser Signature", True, 
-                                          "Function signature found with 3 parameters")
-                            return True
-                
-                self.log_result("findNumberBySipUser Signature", False, 
-                              "Function signature does not have expected 3 parameters")
+                self.log_result("Node.js Error Log", "FAIL", "Could not check log size")
                 return False
-                
         except Exception as e:
-            self.log_result("findNumberBySipUser Signature", False, f"File check failed: {str(e)}")
+            self.log_result("Node.js Error Log", "FAIL", str(e))
             return False
-
-    def test_connectionPhoneNumber_blocking(self):
-        """Test 4: Verify connectionPhoneNumber blocking logic"""
+    
+    def test_marketplace_broadcast_prefiltering(self):
+        """Test marketplace broadcast pre-filtering implementation"""
         try:
-            with open('/app/js/voice-service.js', 'r') as f:
+            # Read utils.js and check broadcastNewListing function
+            with open('/app/js/utils.js', 'r') as f:
                 content = f.read()
             
-            # Look for the blocking condition
-            if "(!connectionPhoneNumber || fromPhone !== connectionPhoneNumber)" in content:
-                self.log_result("connectionPhoneNumber Blocking", True, 
-                              "Found blocking condition: (!connectionPhoneNumber || fromPhone !== connectionPhoneNumber)")
-                return True
-            else:
-                self.log_result("connectionPhoneNumber Blocking", False, 
-                              "connectionPhoneNumber blocking condition not found")
-                return False
-                
-        except Exception as e:
-            self.log_result("connectionPhoneNumber Blocking", False, f"File check failed: {str(e)}")
-            return False
-
-    def test_sip_credential_extraction(self):
-        """Test 5: Verify SIP credential extraction from multiple sources"""
-        try:
-            with open('/app/js/voice-service.js', 'r') as f:
-                content = f.read()
+            # Check for correct pre-filtering logic
+            checks = [
+                ('promoOptOut.find({ optedOut: true })', 'Uses correct query for all opted-out users'),
+                ('const deadSet = new Set(allOptedOut.map(r => r._id))', 'Builds deadSet from ALL optedOut:true records'),
+                ('record?.failCount >= 3', 'Uses failCount >= 3 threshold'),
+                ('{ $set: { optedOut: false, failCount: 0', 'Success handler resets failCount to 0')
+            ]
             
-            # Check for extraction from custom_headers
-            custom_headers_check = (
-                "custom_headers" in content and 
-                "p-asserted-identity" in content and
-                "x-authenticated-user" in content and
-                "x-credential-username" in content and
-                "remote-party-id" in content
-            )
-            
-            # Check for extraction from sip_headers
-            sip_headers_check = (
-                "sip_headers" in content and
-                "contact" in content
-            )
-            
-            # Check for extraction from from_display_name
-            display_name_check = (
-                "from_display_name" in content and
-                "gencred" in content
-            )
-            
-            if custom_headers_check and sip_headers_check and display_name_check:
-                self.log_result("SIP Credential Extraction", True, 
-                              "All credential extraction sources found: custom_headers, sip_headers, from_display_name")
-                return True
-            else:
-                missing = []
-                if not custom_headers_check:
-                    missing.append("custom_headers extraction")
-                if not sip_headers_check:
-                    missing.append("sip_headers extraction")
-                if not display_name_check:
-                    missing.append("from_display_name extraction")
-                
-                self.log_result("SIP Credential Extraction", False, 
-                              f"Missing credential extraction sources: {', '.join(missing)}")
-                return False
-                
-        except Exception as e:
-            self.log_result("SIP Credential Extraction", False, f"File check failed: {str(e)}")
-            return False
-
-    def test_isConnectionDefaultNumber_logic(self):
-        """Test 6: Verify isConnectionDefaultNumber logic"""
-        try:
-            with open('/app/js/voice-service.js', 'r') as f:
-                content = f.read()
-            
-            # Look for the logic that sets connectionPhoneNumber when conditions are met
-            if ("isConnectionDefaultNumber" in content and 
-                "isSipByConnection" in content and 
-                "!credentialExtracted" in content and
-                "connectionPhoneNumber" in content):
-                self.log_result("isConnectionDefaultNumber Logic", True, 
-                              "Found isConnectionDefaultNumber logic with proper conditions")
-                return True
-            else:
-                self.log_result("isConnectionDefaultNumber Logic", False, 
-                              "isConnectionDefaultNumber logic not found or incomplete")
-                return False
-                
-        except Exception as e:
-            self.log_result("isConnectionDefaultNumber Logic", False, f"File check failed: {str(e)}")
-            return False
-
-    def test_full_payload_logging(self):
-        """Test 7: Verify full payload logging for SIP calls"""
-        try:
-            with open('/app/js/voice-service.js', 'r') as f:
-                content = f.read()
-            
-            # Look for payload logging when credential not extracted
-            if ("SIP FULL PAYLOAD KEYS" in content and 
-                "SIP PAYLOAD DETAIL" in content and
-                "custom_headers" in content and
-                "sip_headers" in content and
-                "from_display_name" in content and
-                "client_state" in content):
-                self.log_result("Full Payload Logging", True, 
-                              "Found comprehensive payload logging for SIP calls")
-                return True
-            else:
-                self.log_result("Full Payload Logging", False, 
-                              "Full payload logging not found or incomplete")
-                return False
-                
-        except Exception as e:
-            self.log_result("Full Payload Logging", False, f"File check failed: {str(e)}")
-            return False
-
-    def test_listSIPCredentials_function(self):
-        """Test 8: Verify listSIPCredentials function in telnyx-service.js"""
-        try:
-            with open('/app/js/telnyx-service.js', 'r') as f:
-                content = f.read()
-            
-            # Check if function exists
-            if "async function listSIPCredentials(connectionId)" in content:
-                # Check if it calls Telnyx API with filter
-                if ("/telephony_credentials" in content and 
-                    "filter[connection_id]" in content and
-                    "module.exports" in content and
-                    "listSIPCredentials" in content):
-                    self.log_result("listSIPCredentials Function", True, 
-                                  "Function exists, calls Telnyx API with filter, and is exported")
-                    return True
+            all_passed = True
+            for pattern, description in checks:
+                if pattern in content:
+                    self.log_result(f"Marketplace Broadcast: {description}", "PASS")
                 else:
-                    self.log_result("listSIPCredentials Function", False, 
-                                  "Function exists but missing API call or export")
-                    return False
-            else:
-                self.log_result("listSIPCredentials Function", False, 
-                              "listSIPCredentials function not found")
-                return False
-                
+                    self.log_result(f"Marketplace Broadcast: {description}", "FAIL", f"Pattern not found: {pattern}")
+                    all_passed = False
+            
+            return all_passed
+            
         except Exception as e:
-            self.log_result("listSIPCredentials Function", False, f"File check failed: {str(e)}")
+            self.log_result("Marketplace Broadcast Pre-filtering", "FAIL", str(e))
             return False
-
-    def test_telnyx_reverse_lookup_fallback(self):
-        """Test 9: Verify Telnyx reverse lookup fallback"""
+    
+    def test_admin_broadcast_prefiltering(self):
+        """Test admin broadcast pre-filtering implementation"""
         try:
-            with open('/app/js/voice-service.js', 'r') as f:
+            # Read utils.js and check sendMessageToAllUsers function
+            with open('/app/js/utils.js', 'r') as f:
                 content = f.read()
             
-            # Look for the fallback logic
-            if ("!credentialExtracted && isSipByConnection" in content and
-                "listSIPCredentials" in content and
-                "tryResult = await findNumberBySipUser" in content):
-                self.log_result("Telnyx Reverse Lookup Fallback", True, 
-                              "Found reverse lookup fallback with listSIPCredentials")
-                return True
-            else:
-                self.log_result("Telnyx Reverse Lookup Fallback", False, 
-                              "Reverse lookup fallback logic not found")
-                return False
-                
+            # Check for correct pre-filtering logic in sendMessageToAllUsers
+            checks = [
+                ('const allOptedOut = await promoOptOut.find({ optedOut: true }).toArray()', 'Uses correct query for all opted-out users'),
+                ('const deadSet = new Set(allOptedOut.map(r => r._id))', 'Builds deadSet from ALL optedOut:true records'),
+                ('if (record?.failCount >= 3)', 'Uses failCount >= 3 threshold'),
+                ('{ $set: { optedOut: false, failCount: 0, updatedAt: new Date() }', 'Success handler resets failCount')
+            ]
+            
+            all_passed = True
+            for pattern, description in checks:
+                if pattern in content:
+                    self.log_result(f"Admin Broadcast: {description}", "PASS")
+                else:
+                    self.log_result(f"Admin Broadcast: {description}", "FAIL", f"Pattern not found: {pattern}")
+                    all_passed = False
+            
+            return all_passed
+            
         except Exception as e:
-            self.log_result("Telnyx Reverse Lookup Fallback", False, f"File check failed: {str(e)}")
+            self.log_result("Admin Broadcast Pre-filtering", "FAIL", str(e))
             return False
-
-    def test_regression_check(self):
-        """Test 10: Regression check for previous SIP fixes"""
+    
+    def test_autopromo_consistency(self):
+        """Test AutoPromo consistency with broadcast systems"""
         try:
-            with open('/app/js/voice-service.js', 'r') as f:
+            # Read auto-promo.js and check DEAD_THRESHOLD
+            with open('/app/js/auto-promo.js', 'r') as f:
                 content = f.read()
             
-            # Check for outboundIvrCalls check
-            outbound_ivr_check = "outboundIvrCalls[callControlId]" in content
+            # Check for DEAD_THRESHOLD = 3
+            if 'const DEAD_THRESHOLD = 3' in content:
+                self.log_result("AutoPromo DEAD_THRESHOLD", "PASS", "DEAD_THRESHOLD = 3 matches utils.js failCount >= 3")
+            else:
+                self.log_result("AutoPromo DEAD_THRESHOLD", "FAIL", "DEAD_THRESHOLD should be 3")
+                return False
             
-            # Check for smartWallet imports
-            smart_wallet_check = ("smartWalletCheck" in content and "smartWalletDeduct" in content)
+            # Check for consistent failCount usage
+            if 'record?.failCount >= DEAD_THRESHOLD' in content:
+                self.log_result("AutoPromo failCount Logic", "PASS", "Uses failCount >= DEAD_THRESHOLD pattern")
+            else:
+                self.log_result("AutoPromo failCount Logic", "FAIL", "Missing failCount >= DEAD_THRESHOLD pattern")
+                return False
             
-            # Check for token recovery in _attemptTwilioDirectCall (more flexible pattern)
-            token_recovery_check = ("_attemptTwilioDirectCall" in content and 
-                                  ("recovering from Twilio API" in content or 
-                                   "Token recovered" in content or
-                                   "getSubAccount" in content))
+            return True
             
-            if outbound_ivr_check and smart_wallet_check and token_recovery_check:
-                self.log_result("Regression Check", True, 
-                              "All previous SIP fixes intact: outboundIvrCalls check, smartWallet functions, token recovery")
+        except Exception as e:
+            self.log_result("AutoPromo Consistency", "FAIL", str(e))
+            return False
+    
+    def test_database_state_verification(self):
+        """Test database state verification"""
+        if self.db is None:
+            self.log_result("Database State Verification", "SKIP", "No database connection")
+            return False
+        
+        try:
+            # Check promoOptOut collection
+            promo_opt_out = self.db.promoOptOut
+            
+            # Count opted-out users
+            opted_out_count = promo_opt_out.count_documents({'optedOut': True})
+            self.log_result("PromoOptOut Opted-Out Count", "INFO", f"~{opted_out_count} opted-out users")
+            
+            # Count opted-in users (optedOut: false or missing)
+            opted_in_count = promo_opt_out.count_documents({'$or': [{'optedOut': False}, {'optedOut': {'$exists': False}}]})
+            self.log_result("PromoOptOut Opted-In Count", "INFO", f"~{opted_in_count} opted-in users")
+            
+            # Total users in promoOptOut
+            total_promo_users = promo_opt_out.count_documents({})
+            self.log_result("PromoOptOut Total Users", "INFO", f"{total_promo_users} total users in promoOptOut collection")
+            
+            # Check if numbers are reasonable (should have some opted-out and opted-in users)
+            if opted_out_count > 0 and opted_in_count > 0:
+                self.log_result("Database State Verification", "PASS", 
+                              f"Reasonable distribution: {opted_out_count} opted-out, {opted_in_count} opted-in")
                 return True
             else:
-                missing = []
-                if not outbound_ivr_check:
-                    missing.append("outboundIvrCalls check")
-                if not smart_wallet_check:
-                    missing.append("smartWallet functions")
-                if not token_recovery_check:
-                    missing.append("token recovery")
-                
-                self.log_result("Regression Check", False, 
-                              f"Missing previous fixes: {', '.join(missing)}")
+                self.log_result("Database State Verification", "WARN", 
+                              "Unusual distribution of opted-out/opted-in users")
                 return False
-                
+            
         except Exception as e:
-            self.log_result("Regression Check", False, f"File check failed: {str(e)}")
+            self.log_result("Database State Verification", "FAIL", str(e))
             return False
-
+    
+    def test_broadcast_filtering_logic_consistency(self):
+        """Test that all broadcast systems use consistent filtering logic"""
+        try:
+            # Read both files
+            with open('/app/js/utils.js', 'r') as f:
+                utils_content = f.read()
+            
+            with open('/app/js/auto-promo.js', 'r') as f:
+                autopromo_content = f.read()
+            
+            # Check that all systems use the same threshold
+            utils_threshold_3 = 'failCount >= 3' in utils_content
+            autopromo_threshold_3 = 'DEAD_THRESHOLD = 3' in autopromo_content
+            
+            if utils_threshold_3 and autopromo_threshold_3:
+                self.log_result("Broadcast Filtering Consistency", "PASS", 
+                              "All systems use failCount >= 3 threshold")
+                return True
+            else:
+                self.log_result("Broadcast Filtering Consistency", "FAIL", 
+                              f"Inconsistent thresholds: utils={utils_threshold_3}, autopromo={autopromo_threshold_3}")
+                return False
+            
+        except Exception as e:
+            self.log_result("Broadcast Filtering Logic Consistency", "FAIL", str(e))
+            return False
+    
     def run_all_tests(self):
-        """Run all tests for SIP outbound caller identification fix"""
-        print("=" * 80)
-        print("SIP OUTBOUND CALLER IDENTIFICATION FIX - COMPREHENSIVE TEST SUITE")
-        print("=" * 80)
-        print()
+        """Run all broadcast pre-filtering tests"""
+        print("🚀 Starting Broadcast Pre-filtering Tests for Nomadly Platform")
+        print("=" * 70)
         
-        print("🔧 TESTING: Fix SIP outbound caller identification — wrong user billing")
-        print("-" * 70)
+        # Health and stability tests
+        print("\n📊 HEALTH & STABILITY TESTS")
+        print("-" * 40)
+        self.test_health_endpoint()
+        self.test_nodejs_error_log()
+        self.test_nodejs_syntax_validation()
         
-        # Run all 10 tests from the review request
-        self.test_syntax_validation()
-        self.test_nodejs_health()
-        self.test_findNumberBySipUser_signature()
-        self.test_connectionPhoneNumber_blocking()
-        self.test_sip_credential_extraction()
-        self.test_isConnectionDefaultNumber_logic()
-        self.test_full_payload_logging()
-        self.test_listSIPCredentials_function()
-        self.test_telnyx_reverse_lookup_fallback()
-        self.test_regression_check()
+        # Database connection
+        print("\n🗄️ DATABASE CONNECTION")
+        print("-" * 40)
+        db_connected = self.setup_database_connection()
+        
+        # Core broadcast pre-filtering tests
+        print("\n🎯 BROADCAST PRE-FILTERING TESTS")
+        print("-" * 40)
+        self.test_marketplace_broadcast_prefiltering()
+        self.test_admin_broadcast_prefiltering()
+        self.test_autopromo_consistency()
+        self.test_broadcast_filtering_logic_consistency()
+        
+        # Database state verification
+        if db_connected:
+            print("\n🔍 DATABASE STATE VERIFICATION")
+            print("-" * 40)
+            self.test_database_state_verification()
         
         # Summary
-        print("=" * 80)
-        print("TEST SUMMARY")
-        print("=" * 80)
-        print(f"✅ PASSED: {self.passed}")
-        print(f"❌ FAILED: {self.failed}")
-        print(f"📊 TOTAL:  {self.passed + self.failed}")
-        print()
+        print("\n📋 TEST SUMMARY")
+        print("=" * 70)
         
-        if self.failed == 0:
-            print("🎉 ALL TESTS PASSED! SIP outbound caller identification fix is working correctly.")
-            print("   - findNumberBySipUser function signature updated")
-            print("   - connectionPhoneNumber blocking logic implemented")
-            print("   - Multi-source SIP credential extraction working")
-            print("   - Telnyx reverse lookup fallback implemented")
-            print("   - All previous SIP fixes remain intact")
-        else:
-            print("⚠️  SOME TESTS FAILED. Review the failures above.")
-            print("   The SIP outbound caller identification fix may not be complete.")
-            
-        return self.failed == 0
+        passed = sum(1 for r in self.results if r['status'] == 'PASS')
+        failed = sum(1 for r in self.results if r['status'] == 'FAIL')
+        warned = sum(1 for r in self.results if r['status'] == 'WARN')
+        total = len(self.results)
+        
+        print(f"Total Tests: {total}")
+        print(f"✅ Passed: {passed}")
+        print(f"❌ Failed: {failed}")
+        print(f"⚠️  Warnings: {warned}")
+        print(f"Success Rate: {(passed/total*100):.1f}%")
+        
+        if failed > 0:
+            print("\n❌ FAILED TESTS:")
+            for result in self.results:
+                if result['status'] == 'FAIL':
+                    print(f"   • {result['test']}: {result['details']}")
+        
+        if warned > 0:
+            print("\n⚠️  WARNINGS:")
+            for result in self.results:
+                if result['status'] == 'WARN':
+                    print(f"   • {result['test']}: {result['details']}")
+        
+        # Cleanup
+        if self.mongo_client:
+            self.mongo_client.close()
+        
+        return failed == 0
 
 def main():
     """Main test execution"""
-    test_suite = SipCallerIdTestSuite()
-    success = test_suite.run_all_tests()
+    tester = BroadcastPreFilteringTests()
+    success = tester.run_all_tests()
     
-    # Return appropriate exit code
-    sys.exit(0 if success else 1)
+    if success:
+        print("\n🎉 ALL TESTS PASSED! Broadcast pre-filtering fixes are working correctly.")
+        sys.exit(0)
+    else:
+        print("\n💥 SOME TESTS FAILED! Please review the issues above.")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

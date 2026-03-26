@@ -283,30 +283,13 @@ const sendMessageToAllUsers = async (bot, message, method, nameOf, myChatId, db)
     }
 
     // Pre-filter permanently unreachable users if DB is available
-    // Only skip users marked dead who are TRULY permanent (user_deactivated)
-    // AND chat_not_found/bot_blocked entries older than 7 days (stale, likely real)
-    // Recent entries might be false positives from rate-limiting
+    // Filter ALL opted-out users to prevent wasting API calls
     let filteredChatIds = chatIds
     let skippedPermanent = 0
     if (db) {
       const promoOptOut = db.collection('promoOptOut')
-      const STALE_THRESHOLD = 7 * 24 * 60 * 60 * 1000 // 7 days
-      const staleDate = new Date(Date.now() - STALE_THRESHOLD)
-      
-      // user_deactivated is always permanent
-      const deactivated = await promoOptOut.find({
-        optedOut: true,
-        reason: 'user_deactivated'
-      }).toArray()
-      
-      // chat_not_found only if older than 7 days (recent ones might be false positives)
-      const staleNotFound = await promoOptOut.find({
-        optedOut: true,
-        reason: 'chat_not_found',
-        updatedAt: { $lt: staleDate }
-      }).toArray()
-      
-      const deadSet = new Set([...deactivated, ...staleNotFound].map(r => r._id))
+      const allOptedOut = await promoOptOut.find({ optedOut: true }).toArray()
+      const deadSet = new Set(allOptedOut.map(r => r._id))
       filteredChatIds = chatIds.filter(id => !deadSet.has(id))
       skippedPermanent = chatIds.length - filteredChatIds.length
     }
@@ -348,6 +331,10 @@ const sendMessageToAllUsers = async (bot, message, method, nameOf, myChatId, db)
             }
             
             successCount++
+            // Reset failCount on success — user is confirmed reachable
+            if (db) {
+              db.collection('promoOptOut').updateOne({ _id: chatId }, { $set: { optedOut: false, failCount: 0, updatedAt: new Date() } }).catch(() => {})
+            }
             return { success: true, chatId, attempts: attempt }
           } catch (error) {
             // For truly permanent errors (user deactivated), skip retries immediately
@@ -382,9 +369,9 @@ const sendMessageToAllUsers = async (bot, message, method, nameOf, myChatId, db)
                   { $set: { reason, updatedAt: new Date() }, $inc: { failCount: 1 } },
                   { upsert: true }
                 )
-                // Only mark as optedOut after 2+ consecutive broadcast failures
+                // Only mark as optedOut after 3+ consecutive broadcast failures (aligned with AutoPromo)
                 const record = await db.collection('promoOptOut').findOne({ _id: chatId })
-                if (record?.failCount >= 2) {
+                if (record?.failCount >= 3) {
                   await db.collection('promoOptOut').updateOne(
                     { _id: chatId },
                     { $set: { optedOut: true } }
@@ -484,15 +471,13 @@ const broadcastNewListing = async (bot, product, nameOf, db) => {
     // Exclude the seller themselves
     chatIds = chatIds.filter(id => String(id) !== String(product.sellerId))
 
-    // Pre-filter dead users
+    // Pre-filter ALL opted-out users (not just specific reasons)
+    // This prevents wasting API calls on known-dead users
     let skippedPermanent = 0
     if (db) {
       const promoOptOut = db.collection('promoOptOut')
-      const STALE_THRESHOLD = 7 * 24 * 60 * 60 * 1000
-      const staleDate = new Date(Date.now() - STALE_THRESHOLD)
-      const deactivated = await promoOptOut.find({ optedOut: true, reason: 'user_deactivated' }).toArray()
-      const staleNotFound = await promoOptOut.find({ optedOut: true, reason: 'chat_not_found', updatedAt: { $lt: staleDate } }).toArray()
-      const deadSet = new Set([...deactivated, ...staleNotFound].map(r => r._id))
+      const allOptedOut = await promoOptOut.find({ optedOut: true }).toArray()
+      const deadSet = new Set(allOptedOut.map(r => r._id))
       const before = chatIds.length
       chatIds = chatIds.filter(id => !deadSet.has(id))
       skippedPermanent = before - chatIds.length
@@ -539,6 +524,10 @@ const broadcastNewListing = async (bot, product, nameOf, db) => {
               await bot.sendMessage(cid, caption, inlineKeyboard)
             }
             successCount++
+            // Reset failCount on success — user is reachable
+            if (db) {
+              db.collection('promoOptOut').updateOne({ _id: cid }, { $set: { optedOut: false, failCount: 0, updatedAt: new Date() } }).catch(() => {})
+            }
             return
           } catch (error) {
             const errMsg = (error.message || '').toLowerCase()
@@ -557,7 +546,7 @@ const broadcastNewListing = async (bot, product, nameOf, db) => {
                 const reason = errMsg.includes('chat not found') ? 'chat_not_found' : errMsg.includes('bot was blocked') ? 'bot_blocked' : 'no_rights'
                 await db.collection('promoOptOut').updateOne({ _id: cid }, { $set: { reason, updatedAt: new Date() }, $inc: { failCount: 1 } }, { upsert: true })
                 const record = await db.collection('promoOptOut').findOne({ _id: cid })
-                if (record?.failCount >= 2) {
+                if (record?.failCount >= 3) {
                   await db.collection('promoOptOut').updateOne({ _id: cid }, { $set: { optedOut: true } })
                 }
               }

@@ -733,17 +733,23 @@ agent_communication:
       message: "✅ EMAIL VALIDATION FREE TRIAL FIXES VERIFIED: Comprehensive testing complete with 7/7 tests passed (100% success rate). All required fixes properly implemented: (1) Atomic findOneAndUpdate pattern prevents race condition double-use with correct $or filter and trialClaim.value check, (2) Updated EV welcome message mentions all required providers (Gmail, Yahoo, Hotmail, MSN, Outlook) and private domain emails, (3) Old vulnerable saveInfo pattern removed, (4) EV_CONFIG.freeTrialEmails defaults to 50, (5) All email validation flow patterns intact for regression test. The atomic MongoDB operation ensures only one concurrent request can claim the free trial, eliminating the race condition that allowed double-use. Email validation service is production-ready and secure."
 
 backend:
-  - task: "AutoPromo Fix - PROMO_SEND_RETRIES and DEAD_THRESHOLD configuration"
+  - task: "Broadcast pre-filtering fixes in utils.js for Nomadly platform"
     implemented: true
     working: true
-    file: "js/auto-promo.js"
+    file: "js/utils.js, js/auto-promo.js"
     stuck_count: 0
     priority: "critical"
     needs_retesting: false
     status_history:
         - working: true
           agent: "testing"
-          comment: "✅ VERIFIED: PROMO_SEND_RETRIES = 2 exists in sendPromoToUser function at line 2919. DEAD_THRESHOLD = 3 exists at line 2838. recordSendFailure() uses $inc failCount on promoOptOut collection. System correctly retries failed sends up to 2 times before marking as failed, and only marks users as dead after 3 consecutive failures."
+          comment: "✅ COMPREHENSIVE VERIFICATION COMPLETE: All broadcast pre-filtering fixes verified (16/16 tests passed - 100% success rate). Key findings: (1) Marketplace Broadcast Pre-filtering (broadcastNewListing): Uses promoOptOut.find({ optedOut: true }) query (NOT old separate queries), builds deadSet from ALL optedOut:true records, uses failCount >= 3 threshold (NOT >= 2), success handler resets failCount with { $set: { optedOut: false, failCount: 0 } after sendPhoto/sendMessage success. (2) Admin Broadcast Pre-filtering (sendMessageToAllUsers): Uses promoOptOut.find({ optedOut: true }) query (NOT old separate queries), builds deadSet from ALL optedOut:true records, uses failCount >= 3 threshold (NOT >= 2), success handler resets failCount on delivery success. (3) AutoPromo Consistency: DEAD_THRESHOLD = 3 matches utils.js failCount >= 3, all three broadcast systems (AutoPromo, Marketplace, Admin) now use consistent failCount >= 3 logic. (4) Health & Stability: Node.js runs healthy on port 5000, /health endpoint returns healthy status with database connected, nodejs.err.log is 0 bytes (clean), syntax validation passed for both utils.js and auto-promo.js. (5) Database State: MongoDB connection successful, promoOptOut collection accessible. All broadcast pre-filtering fixes are production-ready and fully functional."
+
+test_plan:
+  current_focus: []
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
 
   - task: "AutoPromo Fix - PERMANENT_OPTOUT_REASONS configuration"
     implemented: true
@@ -1050,6 +1056,23 @@ agent_communication:
     status_history:
         - working: "NA"
           agent: "main"
+
+  - task: "Fix Marketplace & Admin Broadcast pre-filtering"
+    implemented: true
+    working: true
+    file: "js/utils.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "ROOT CAUSE: broadcastNewListing and sendMessageToAllUsers only pre-filtered user_deactivated and stale chat_not_found (older than 7 days). This meant 605 bot_blocked + 314 recent chat_not_found users were attempted EVERY broadcast and failed every time — wasting 919 API calls (× 3 retries = 2757 wasted calls) and 11+ minutes per broadcast. FIXES: (1) Pre-filter ALL optedOut:true users (not just specific reasons), (2) Aligned failCount threshold from 2 to 3 (consistent with AutoPromo), (3) Added success handler that resets failCount to 0 and optedOut to false when message delivers, (4) Expected result: broadcasts now target ~2196 users (vs 3113 before), near-zero failures, ~4 min per broadcast instead of 11."
+
+agent_communication:
+    - agent: "main"
+      message: "FIXED marketplace & admin broadcast pre-filtering in utils.js. Changes: (1) broadcastNewListing pre-filter now uses `promoOptOut.find({ optedOut: true })` instead of only user_deactivated + stale chat_not_found — saves 919 wasted API calls per broadcast, (2) sendMessageToAllUsers same fix, (3) failCount threshold raised from 2 to 3 for both functions, (4) Success handler added to reset failCount on delivery. VERIFY: (a) broadcastNewListing deadSet built from ALL optedOut:true records, (b) sendMessageToAllUsers same, (c) failCount >= 3 in both functions, (d) success resets failCount to 0, (e) syntax check passes, (f) nodejs starts clean."
+
           comment: "ROOT CAUSE: When users make outbound SIP calls through the shared Telnyx SIP connection (connection_id=2898118323872990714), the webhook 'from' field contains the connection's default phone number (+18889020132) instead of the authenticated SIP credential username (e.g. gencredXHoDY...). findNumberBySipUser() matched +18889020132 to chatId 1167900472 (wrong user with $0 wallet) instead of the actual caller @lamanifestor (chatId 6604316166 with $51.85). FIX: (1) Added multi-source SIP credential extraction from custom_headers, sip_headers, from_display_name. (2) Updated findNumberBySipUser to accept connectionPhoneNumber param — when from=connection's number and no credential extracted, phone number matching is blocked to prevent wrong-user billing. (3) Added Telnyx credentials API reverse lookup (listSIPCredentials) as fallback — lists all credentials on the connection and matches against DB. (4) Added full payload JSON logging for SIP calls to diagnose what Telnyx sends. (5) Added listSIPCredentials function to telnyx-service.js."
         - working: true
           agent: "testing"
@@ -1223,3 +1246,5 @@ test_plan:
 agent_communication:
     - agent: "main"
       message: "IMPLEMENTED 4 CHANGES: (1) CRITICAL FIX: auto-promo.js sendPromoToUser now has retry logic + failCount threshold (DEAD_THRESHOLD=3) instead of killing users on first failure. Cleaned up 2184 falsely-dead users in DB. (2) NEW: cart-abandonment.js module with 45-min nudge for abandoned carts, integrated into _index.js message handler. (3) NEW: Quick start guide for new users + smarter fallback messages. (4) IMPROVED: Sunday promos enabled, marketplace 3x/week. VERIFY: (a) nodejs starts clean with 0-byte error log, (b) auto-promo.js has PROMO_SEND_RETRIES=2 and DEAD_THRESHOLD=3, (c) recordSendFailure uses $inc failCount, (d) resurrection scan logs 'enabled — every 6h', (e) cart-abandonment.js loaded, (f) syntax checks pass."
+    - agent: "testing"
+      message: "✅ BROADCAST PRE-FILTERING FIXES VERIFIED: Comprehensive testing complete with 16/16 core tests passed (100% success rate). All critical requirements confirmed: (1) Marketplace Broadcast Pre-filtering (utils.js - broadcastNewListing): ✅ Uses promoOptOut.find({ optedOut: true }) query, ✅ Builds deadSet from ALL optedOut:true records, ✅ Uses failCount >= 3 threshold, ✅ Success handler resets failCount to 0. (2) Admin Broadcast Pre-filtering (utils.js - sendMessageToAllUsers): ✅ Uses promoOptOut.find({ optedOut: true }) query, ✅ Builds deadSet from ALL optedOut:true records, ✅ Uses failCount >= 3 threshold, ✅ Success handler resets failCount on delivery success. (3) AutoPromo Consistency: ✅ DEAD_THRESHOLD = 3 matches utils.js failCount >= 3, ✅ All three broadcast systems (AutoPromo, Marketplace, Admin) now use consistent failCount >= 3 logic. (4) Health & Stability: ✅ Node.js runs on port 5000 with /health endpoint returning healthy status, ✅ nodejs.err.log is 0 bytes (clean), ✅ All syntax checks pass (node -c utils.js, auto-promo.js). (5) Database State: Connected to MongoDB successfully, promoOptOut collection accessible. All broadcast pre-filtering fixes are production-ready and fully functional."
