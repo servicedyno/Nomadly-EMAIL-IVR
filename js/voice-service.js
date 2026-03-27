@@ -117,6 +117,95 @@ setInterval(() => {
       delete walletRejectCooldown[key]
     }
   }
+
+  // ── Memory Leak Prevention: Cleanup orphaned call session stores ──
+  // These stores rely on webhook events for cleanup. If webhooks are missed
+  // (network glitch, server restart during active call), entries stay forever.
+  // Clean up entries older than their max expected lifetime.
+  const ACTIVE_CALL_MAX_AGE = 2 * 60 * 60 * 1000    // 2 hours — no call lasts this long
+  const IVR_SESSION_MAX_AGE = 30 * 60 * 1000          // 30 minutes for IVR sessions
+  const BRIDGE_TRANSFER_MAX_AGE = 60 * 60 * 1000      // 1 hour for bridge transfers
+  const HOLD_TRANSFER_MAX_AGE = 10 * 60 * 1000        // 10 minutes for pending hold transfers
+  const NATIVE_TRANSFER_MAX_AGE = 10 * 60 * 1000      // 10 minutes for native transfers
+
+  let cleaned = 0
+
+  // activeCalls: each entry has startedAt timestamp
+  for (const key of Object.keys(activeCalls)) {
+    const entry = activeCalls[key]
+    if (entry?.startedAt && (now - new Date(entry.startedAt).getTime()) > ACTIVE_CALL_MAX_AGE) {
+      if (entry._limitTimer) clearInterval(entry._limitTimer)
+      delete activeCalls[key]
+      cleaned++
+    }
+  }
+
+  // outboundIvrCalls: each entry has startTime (Date.now()) or startedAt or createdAt
+  for (const key of Object.keys(outboundIvrCalls)) {
+    const entry = outboundIvrCalls[key]
+    const ts = entry?.startedAt || entry?.createdAt || entry?.startTime
+    if (ts && (now - (ts instanceof Date ? ts.getTime() : ts)) > IVR_SESSION_MAX_AGE) {
+      if (entry._limitTimer) clearInterval(entry._limitTimer)
+      delete outboundIvrCalls[key]
+      cleaned++
+    }
+  }
+
+  // twilioIvrSessions: check for startTime, createdAt or startedAt
+  for (const key of Object.keys(twilioIvrSessions)) {
+    const entry = twilioIvrSessions[key]
+    const ts = entry?.createdAt || entry?.startedAt || entry?.startTime
+    if (ts && (now - (ts instanceof Date ? ts.getTime() : ts)) > IVR_SESSION_MAX_AGE) {
+      delete twilioIvrSessions[key]
+      cleaned++
+    }
+  }
+
+  // pendingHoldTransfers: short-lived, clean aggressively
+  for (const key of Object.keys(pendingHoldTransfers)) {
+    const entry = pendingHoldTransfers[key]
+    const ts = entry?.createdAt
+    if (ts && (now - new Date(ts).getTime()) > HOLD_TRANSFER_MAX_AGE) {
+      delete pendingHoldTransfers[key]
+      cleaned++
+    }
+  }
+
+  // activeBridgeTransfers: check startedAt or createdAt
+  for (const key of Object.keys(activeBridgeTransfers)) {
+    const entry = activeBridgeTransfers[key]
+    const ts = entry?.startedAt || entry?.createdAt
+    if (ts && (now - new Date(ts).getTime()) > BRIDGE_TRANSFER_MAX_AGE) {
+      delete activeBridgeTransfers[key]
+      cleaned++
+    }
+  }
+
+  // pendingNativeTransfers: short-lived
+  for (const key of Object.keys(pendingNativeTransfers)) {
+    const entry = pendingNativeTransfers[key]
+    const ts = entry?.createdAt || entry?.initiatedAt
+    if (ts && (now - (ts instanceof Date ? ts.getTime() : ts)) > NATIVE_TRANSFER_MAX_AGE) {
+      if (entry._timeout) clearTimeout(entry._timeout)
+      delete pendingNativeTransfers[key]
+      cleaned++
+    }
+  }
+
+  // ivrTransferLegs: check for timeout or age
+  for (const key of Object.keys(ivrTransferLegs)) {
+    const entry = ivrTransferLegs[key]
+    const ts = entry?.createdAt || entry?.startedAt || entry?.startTime
+    if (ts && (now - (ts instanceof Date ? ts.getTime() : ts)) > IVR_SESSION_MAX_AGE) {
+      if (entry._transferTimeout) clearTimeout(entry._transferTimeout)
+      delete ivrTransferLegs[key]
+      cleaned++
+    }
+  }
+
+  if (cleaned > 0) {
+    log(`[Voice] Memory cleanup: removed ${cleaned} orphaned session(s). Current: activeCalls=${Object.keys(activeCalls).length}, outboundIvr=${Object.keys(outboundIvrCalls).length}, twilioIvr=${Object.keys(twilioIvrSessions).length}, bridges=${Object.keys(activeBridgeTransfers).length}`)
+  }
 }, 300000)
 
 /**
@@ -437,7 +526,7 @@ async function playHoldMusicAndTransfer(callControlId, forwardTo, fromNumber, co
     // Phase 1: Speak TTS announcement
     // Phase 2 (on speak.ended): Start hold music + create outbound call to destination
     // Phase 3 (on destination answered): Bridge the two calls (stops music automatically)
-    pendingHoldTransfers[callControlId] = { forwardTo, fromNumber }
+    pendingHoldTransfers[callControlId] = { forwardTo, fromNumber, createdAt: new Date() }
     // Safety: clean up if speak.ended never fires (10s timeout — TTS is ~3-4s)
     setTimeout(() => {
       if (pendingHoldTransfers[callControlId]) {
@@ -1039,6 +1128,7 @@ async function handleCallInitiated(payload) {
           num,
           phase: 'ringing',
           unanswered: true, // Original inbound NOT yet answered
+          createdAt: new Date(),
         }
         sessionRef.sipRingCallControlId = newCall.callControlId // Track for hangup cleanup
 

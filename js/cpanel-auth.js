@@ -12,7 +12,11 @@ const jwt = require('jsonwebtoken')
 const bcrypt = require('bcryptjs')
 
 const JWT_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex')
-const ENCRYPTION_KEY = crypto.createHash('sha256').update(process.env.SESSION_SECRET || 'fallback-key').digest()
+// Security: Use SESSION_SECRET for encryption key, warn loudly if missing
+if (!process.env.SESSION_SECRET) {
+  console.error('⚠️ CRITICAL: SESSION_SECRET not set! cPanel password encryption using random key — passwords will be lost on restart!')
+}
+const ENCRYPTION_KEY = crypto.createHash('sha256').update(process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex')).digest()
 const JWT_EXPIRY = '24h'
 const PIN_LENGTH = 6
 const MAX_LOGIN_ATTEMPTS = 5

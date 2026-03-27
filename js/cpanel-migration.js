@@ -20,7 +20,10 @@ const { log } = require('console')
 const httpsAgent = new https.Agent({ rejectUnauthorized: false })
 
 function getEncryptionKey() {
-  return crypto.createHash('sha256').update(process.env.SESSION_SECRET || 'fallback-key').digest()
+  if (!process.env.SESSION_SECRET) {
+    console.error('⚠️ CRITICAL: SESSION_SECRET not set — cPanel migration decryption will fail!')
+  }
+  return crypto.createHash('sha256').update(process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex')).digest()
 }
 
 function decrypt(data) {

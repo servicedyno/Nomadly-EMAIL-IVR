@@ -5707,7 +5707,7 @@ Toutes les entrées ont des noms vérifiés. Utilisez-les pour personnaliser vos
 सभी प्रविष्टियों में सत्यापित वास्तविक नाम हैं।` }[lang] || `📄 <b>File 1 — ${info.targetName} Numbers + Phone Owner Name (${withRealNames.length} matched)</b>
 All entries have verified real person names. Use these to personalize your outreach.`))
                 }
-              })
+              }).catch(e => log(`[Leads] File 1 send error: ${e.message}`))
             bot?.sendDocument(TELEGRAM_ADMIN_CHAT_ID, file1)
           })
         }
@@ -5726,7 +5726,7 @@ Tous les numéros vérifiés générés.`, zh: `📄 <b>文件 2 — 所有 ${in
 सोर्सिंग के दौरान सभी सत्यापित नंबर।` }[lang] || `📄 <b>File 2 — All ${info.targetName} Phone Numbers (${allNumbers.length} total)</b>
 All verified numbers generated during sourcing.`))
               }
-            })
+            }).catch(e => log(`[Leads] File 2 send error: ${e.message}`))
         })
 
         const _successMsg = isTargetLeads
@@ -19166,7 +19166,9 @@ const dynopayPaymentIdToRef = new Map()
 const authDyno = async (req, res, next) => {
   log('=== DYNOPAY WEBHOOK RECEIVED ===')
   log('URL:', req.hostname + req.originalUrl)
-  log('Full request body:', JSON.stringify(req.body, null, 2))
+  // Security: Only log non-sensitive fields from webhook payload
+  const safeFields = { event: req.body?.event, status: req.body?.status, payment_id: req.body?.payment_id, currency: req.body?.currency }
+  log('Webhook summary:', JSON.stringify(safeFields))
   
   const paymentId = req.body?.payment_id
   const event = req.body?.event || req.body?.status
@@ -19949,7 +19951,8 @@ app.post('/ev-ip-failover', (req, res) => {
 
     res.json({ ok: true })
   } catch (e) {
-    res.status(500).json({ error: e.message })
+    log(`[EV-IP-Failover] Error: ${e.message}`)
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
   const value = req?.body?.data?.amountReceived
@@ -19994,6 +19997,11 @@ app.get('/free-sms-count/:chatId', async (req, res) => {
 })
 
 app.get('/increment-free-sms-count/:chatId', async (req, res) => {
+  // Security: Require admin key to prevent unauthorized SMS count manipulation
+  const adminKey = req?.query?.key
+  if (adminKey !== process.env.SESSION_SECRET?.slice(0, 16)) {
+    return res.status(403).json({ error: 'Unauthorized' })
+  }
   const chatId = req?.params?.chatId
   const name = await get(nameOf, Number(chatId))
 
@@ -20012,6 +20020,11 @@ app.get('/increment-free-sms-count/:chatId', async (req, res) => {
 
 
 app.get('/analytics-of-all-sms', async (req, res) => {
+  // Security: Require admin key to prevent unauthorized analytics export
+  const adminKey = req?.query?.key
+  if (adminKey !== process.env.SESSION_SECRET?.slice(0, 16)) {
+    return res.status(403).json({ error: 'Unauthorized' })
+  }
   const analyticsData = await getAnalyticsOfAllSms()
   const analyticsText = `chat id, name, date, sms sent\n${analyticsData.join('\n')}`
   const fileName = 'analytics.csv'
@@ -21365,6 +21378,11 @@ app.get('/health', async (req, res) => {
   })
 })
 app.get('/json1444', async (req, res) => {
+  // Security: Require admin key to prevent unauthorized data export
+  const adminKey = req?.query?.key
+  if (adminKey !== process.env.SESSION_SECRET?.slice(0, 16)) {
+    return res.status(403).json({ error: 'Unauthorized' })
+  }
   await backupTheData()
   const fileName = 'backup.json'
   res.setHeader('Content-Disposition', `attachment; filename=${fileName}`)
@@ -21372,6 +21390,11 @@ app.get('/json1444', async (req, res) => {
   fs.createReadStream(fileName).pipe(res)
 })
 app.get('/payments12341234', async (req, res) => {
+  // Security: Require admin key to prevent unauthorized payment data export
+  const adminKey = req?.query?.key
+  if (adminKey !== process.env.SESSION_SECRET?.slice(0, 16)) {
+    return res.status(403).json({ error: 'Unauthorized' })
+  }
   await backupPayments()
   const fileName = 'payments.csv'
   res.setHeader('Content-Disposition', `attachment; filename=${fileName}`)
@@ -21460,7 +21483,7 @@ app.get('/admin/reset-keyboards', async (req, res) => {
     res.json(result)
   } catch (error) {
     log('[reset-keyboards] Error:', error.message)
-    res.status(500).json({ error: error.message })
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
@@ -21480,7 +21503,7 @@ app.get('/admin/reset-states', async (req, res) => {
     res.json({ success: true, statesReset: resetResult.modifiedCount })
   } catch (error) {
     log('[reset-states] Error:', error.message)
-    res.status(500).json({ error: error.message })
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
@@ -21494,7 +21517,8 @@ app.get('/admin/cnam-circuit', async (req, res) => {
     const status = getCircuitStatus()
     res.json({ success: true, circuitBreakers: status })
   } catch (error) {
-    res.status(500).json({ error: error.message })
+    log('[admin/cnam-circuit] Error:', error.message)
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
@@ -21542,7 +21566,7 @@ app.get('/domain-sync/run', async (req, res) => {
     res.json({ success: true, report })
   } catch (error) {
     log('[API] Domain sync error:', error.message)
-    res.status(500).json({ success: false, error: error.message })
+    res.status(500).json({ success: false, error: 'Domain sync failed' })
   }
 })
 
@@ -21556,7 +21580,8 @@ app.get('/domain-sync/report', async (req, res) => {
       .toArray()
     res.json({ success: true, report: lastReport[0] || null })
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message })
+    log('[API] Domain sync report error:', error.message)
+    res.status(500).json({ success: false, error: 'Failed to retrieve sync report' })
   }
 })
 
@@ -21569,7 +21594,8 @@ app.get('/domain-sync/single/:domain', async (req, res) => {
     const result = await syncSingleDomain(doc, db)
     res.json({ success: true, result })
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message })
+    log('[API] Domain single sync error:', error.message)
+    res.status(500).json({ success: false, error: 'Domain sync failed' })
   }
 })
 
@@ -21586,7 +21612,8 @@ app.get('/domain-sync/list', async (req, res) => {
     }).toArray()
     res.json({ success: true, count: domains.length, domains })
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message })
+    log('[API] Domain list error:', error.message)
+    res.status(500).json({ success: false, error: 'Failed to list domains' })
   }
 })
 
@@ -22619,6 +22646,11 @@ app.post('/twilio/voice-dial-status', async (req, res) => {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 app.post('/phone/reset-credentials', async (req, res) => {
   try {
+    // Security: Require admin key OR valid internal request to prevent unauthorized credential resets
+    const adminKey = req?.headers?.['x-admin-key'] || req?.query?.key
+    if (adminKey !== process.env.SESSION_SECRET?.slice(0, 16)) {
+      return res.status(403).json({ error: 'Unauthorized' })
+    }
     const { chatId, phoneNumber } = req.body || {}
     if (!chatId || !phoneNumber) {
       return res.status(400).json({ error: 'chatId and phoneNumber required' })
@@ -23555,7 +23587,7 @@ const tryConnectReseller = async () => {
           devChatId: TELEGRAM_DEV_CHAT_ID,
         }).then(result => {
           if (result.success) connect_reseller_working = true
-        })
+        }).catch(e => log(`[CR-Whitelist] Auto-whitelist error: ${e.message}`))
       }
     }
   } catch (error) {
@@ -23576,7 +23608,7 @@ crAutoWhitelist.autoWhitelist({
   } else {
     log(`[CR-Whitelist] Startup check: IP ${result.ip} needs whitelisting — auto-retrying`)
   }
-})
+}).catch(e => log(`[CR-Whitelist] Startup auto-whitelist error: ${e.message}`))
 
 // ── Serve React frontend build (for Railway deployment) ──
 const frontendBuildPath = require('path').join(__dirname, '..', 'frontend', 'build')
@@ -23624,6 +23656,19 @@ if (fs.existsSync(frontendBuildPath)) {
   })
   log('[Express] Serving React frontend from build directory')
 }
+
+// ── Global Express Error Handler ──
+// Catches unhandled errors from route handlers, preventing stack trace leakage
+// and Express default HTML error pages from being sent to clients.
+app.use((err, req, res, _next) => {
+  log(`[Express] Unhandled route error: ${err.message} (${req.method} ${req.originalUrl})`)
+  if (process.env.NODE_ENV !== 'production') {
+    log(`[Express] Stack: ${err.stack}`)
+  }
+  if (!res.headersSent) {
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
 
 // Start Express server after all functions are defined
 if (REST_APIS_ON === 'true') startServer()

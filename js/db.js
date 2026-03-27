@@ -44,13 +44,26 @@ const withRetry = async (fn, label) => {
 const increment = async (c, key, val = 1, valueInside) => {
   try {
     if (valueInside) {
-      const count = (await get(c, key))?.[val] || 0
-      await set(c, key, val, Number(count) + Number(valueInside))
-      return
+      // Atomic increment for nested fields using MongoDB $inc
+      return await withRetry(() =>
+        c.updateOne(
+          { _id: key },
+          { $inc: { [val]: Number(valueInside) } },
+          { upsert: true }
+        ),
+        `increment(${c.collectionName}, ${key}, ${val})`
+      )
     }
 
-    const count = (await get(c, key)) || 0
-    await set(c, key, count + val)
+    // Atomic increment for simple val field using MongoDB $inc
+    return await withRetry(() =>
+      c.updateOne(
+        { _id: key },
+        { $inc: { val: val } },
+        { upsert: true }
+      ),
+      `increment(${c.collectionName}, ${key})`
+    )
   } catch (error) {
     console.error(`Error increment: ${key} from ${c.collectionName}:`, error)
     return null
@@ -76,8 +89,15 @@ const atomicIncrement = async (c, key, field, amount) => {
 
 const decrement = async (c, key) => {
   try {
-    const count = (await get(c, key)) || 0
-    await set(c, key, count - 1)
+    // Atomic decrement using MongoDB $inc with negative value
+    return await withRetry(() =>
+      c.updateOne(
+        { _id: key },
+        { $inc: { val: -1 } },
+        { upsert: true }
+      ),
+      `decrement(${c.collectionName}, ${key})`
+    )
   } catch (error) {
     console.error(`Error db decrement ${key} from ${c.collectionName}:`, error)
     return null

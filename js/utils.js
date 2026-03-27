@@ -89,26 +89,53 @@ async function ngnToUsd(ngn) {
 
 /**
  * Smart wallet deduct — tries USD first, falls back to NGN.
+ * Uses atomic findOneAndUpdate with balance condition to prevent TOCTOU race conditions.
  * Used by auto-renewal schedulers and overage billing where there's no user interaction.
  * @returns {{ success: boolean, currency: 'usd'|'ngn'|null, charged: number, chargedNgn?: number }}
  */
 async function smartWalletDeduct(walletOf, chatId, amountUsd) {
   const { atomicIncrement } = require('./db')
-  const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
 
-  // Try USD first
-  if (usdBal >= amountUsd) {
-    await atomicIncrement(walletOf, chatId, 'usdOut', amountUsd)
-    return { success: true, currency: 'usd', charged: amountUsd }
+  // Atomic USD deduction: only deducts if current balance >= amountUsd
+  // Uses MongoDB expression to check (usdIn - usdOut) >= amountUsd atomically
+  try {
+    const usdResult = await walletOf.findOneAndUpdate(
+      {
+        _id: chatId,
+        $expr: { $gte: [{ $subtract: [{ $ifNull: ['$usdIn', 0] }, { $ifNull: ['$usdOut', 0] }] }, amountUsd] }
+      },
+      { $inc: { usdOut: amountUsd } },
+      { returnDocument: 'after' }
+    )
+    if (usdResult) {
+      return { success: true, currency: 'usd', charged: amountUsd }
+    }
+  } catch (e) {
+    log(`[smartWalletDeduct] USD atomic deduct error: ${e.message}`)
   }
 
-  // Fall back to NGN
+  // Fall back to NGN — same atomic approach
   const amountNgn = await usdToNgn(amountUsd)
-  if (amountNgn && ngnBal >= amountNgn) {
-    await atomicIncrement(walletOf, chatId, 'ngnOut', amountNgn)
-    return { success: true, currency: 'ngn', charged: amountUsd, chargedNgn: amountNgn }
+  if (amountNgn) {
+    try {
+      const ngnResult = await walletOf.findOneAndUpdate(
+        {
+          _id: chatId,
+          $expr: { $gte: [{ $subtract: [{ $ifNull: ['$ngnIn', 0] }, { $ifNull: ['$ngnOut', 0] }] }, amountNgn] }
+        },
+        { $inc: { ngnOut: amountNgn } },
+        { returnDocument: 'after' }
+      )
+      if (ngnResult) {
+        return { success: true, currency: 'ngn', charged: amountUsd, chargedNgn: amountNgn }
+      }
+    } catch (e) {
+      log(`[smartWalletDeduct] NGN atomic deduct error: ${e.message}`)
+    }
   }
 
+  // Both failed — get balances for reporting
+  const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
   return { success: false, currency: null, charged: 0, usdBal, ngnBal }
 }
 
