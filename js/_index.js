@@ -5288,13 +5288,21 @@ Enter new value:`), bc)
 
       const name = await get(nameOf, chatId)
       
-      // wallet deduct
+      // wallet deduct — atomic balance-checked deduction
       if (coin === u.usd) {
+        const deducted = await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
+        if (!deducted) {
+          log(`[CloudPhone] ⛔ Wallet USD deduction failed for ${chatId}: $${priceUsd} — insufficient balance`)
+          return send(chatId, t.walletBalanceLowAmount?.(priceUsd, usdBal) || '⚠️ Insufficient wallet balance. Please top up.', k.of([u.deposit]))
+        }
         set(payments, nanoid(), `Wallet,CloudPhone,$${priceUsd},${chatId},${name},${new Date()}`)
-        await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
       } else {
+        const deducted = await atomicIncrement(walletOf, chatId, 'ngnOut', priceNgn)
+        if (!deducted) {
+          log(`[CloudPhone] ⛔ Wallet NGN deduction failed for ${chatId}: ₦${priceNgn} — insufficient balance`)
+          return send(chatId, t.walletBalanceLowNgn?.(priceNgn, ngnBal) || '⚠️ Insufficient wallet balance. Please top up.', k.of([u.deposit]))
+        }
         set(payments, nanoid(), `Wallet,CloudPhone,$${priceUsd},${chatId},${name},${new Date()},${priceNgn} NGN`)
-        await atomicIncrement(walletOf, chatId, 'ngnOut', priceNgn)
       }
 
       // Buy number via Telnyx or Twilio depending on provider
@@ -20252,10 +20260,10 @@ app.get('/crypto-pay-phone', auth, async (req, res) => {
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
     return res.send(html(translation('t.lowPrice')))
   }
-  if (usdIn > price) {
-    addFundsTo(walletOf, chatId, 'usd', usdIn - price, lang)
-    sendMessage(chatId, translation('t.sentMoreMoney', lang, `$${price}`, `$${usdIn}`))
-  }
+  // ━━━ FIX: Defer excess credit until AFTER purchase result is known ━━━
+  // Previously excess was credited before buyNumber, creating a race condition
+  // where concurrent wallet purchases could use the pre-credited excess.
+  const excessUsd = usdIn > price ? (usdIn - price) : 0
 
   let selectedNumber = cpData.selectedNumber
   const planKey = cpData.planKey
@@ -20328,11 +20336,13 @@ app.get('/crypto-pay-phone', auth, async (req, res) => {
     }
   }
 
-  // ── TELNYX ──
+  // ── TELNYX (BlockBee crypto path) ──
   sendMessage(chatId, phoneConfig.getMsg(lang).purchasingNumber)
   const orderResult = await telnyxApi.buyNumber(selectedNumber, telnyxResources.sipConnectionId, telnyxResources.messagingProfileId, { countryCode, numberType: info?.cpNumberType || 'local', areaCode: info?.cpAreaCode || null })
   if (orderResult?._retriedNumber) selectedNumber = orderResult._retriedNumber
-  if (!orderResult) { addFundsTo(walletOf, chatId, 'usd', Number(price), lang); return res.send(html(phoneConfig.getMsg(lang).purchaseFailed)) }
+  if (!orderResult) { addFundsTo(walletOf, chatId, 'usd', Number(price) + excessUsd, lang); return res.send(html(phoneConfig.getMsg(lang).purchaseFailed)) }
+  // Credit excess to wallet only after successful purchase
+  if (excessUsd > 0) { addFundsTo(walletOf, chatId, 'usd', excessUsd, lang); sendMessage(chatId, translation('t.sentMoreMoney', lang, `$${price}`, `$${usdIn}`)) }
   // Assign to Call Control App for inbound webhook routing
   if (telnyxResources.callControlAppId) await telnyxApi.assignNumberToCallControlApp(selectedNumber, telnyxResources.callControlAppId)
   let sipUsername = phoneConfig.generateSipUsername()
@@ -20861,10 +20871,8 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
     return res.send(html(translation('t.lowPrice')))
   }
-  if (usdIn > price) {
-    addFundsTo(walletOf, chatId, 'usd', usdIn - price, lang)
-    sendMessage(chatId, translation('t.sentMoreMoney', lang, `$${price}`, `$${usdIn}`))
-  }
+  // ━━━ FIX: Defer excess credit until AFTER purchase result is known (DynoPay) ━━━
+  const excessUsd = usdIn > price ? (usdIn - price) : 0
 
   let selectedNumber = cpData.selectedNumber
   const planKey = cpData.planKey
@@ -20941,7 +20949,9 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
   sendMessage(chatId, phoneConfig.getMsg(lang).purchasingNumber)
   const orderResult = await telnyxApi.buyNumber(selectedNumber, telnyxResources.sipConnectionId, telnyxResources.messagingProfileId, { countryCode, numberType: info?.cpNumberType || 'local', areaCode: info?.cpAreaCode || null })
   if (orderResult?._retriedNumber) selectedNumber = orderResult._retriedNumber
-  if (!orderResult) { addFundsTo(walletOf, chatId, 'usd', Number(price), lang); return res.send(html(phoneConfig.getMsg(lang).purchaseFailed)) }
+  if (!orderResult) { addFundsTo(walletOf, chatId, 'usd', Number(price) + excessUsd, lang); return res.send(html(phoneConfig.getMsg(lang).purchaseFailed)) }
+  // Credit excess to wallet only after successful purchase (DynoPay)
+  if (excessUsd > 0) { addFundsTo(walletOf, chatId, 'usd', excessUsd, lang); sendMessage(chatId, translation('t.sentMoreMoney', lang, `$${price}`, `$${usdIn}`)) }
   // Assign to Call Control App for inbound webhook routing
   if (telnyxResources.callControlAppId) await telnyxApi.assignNumberToCallControlApp(selectedNumber, telnyxResources.callControlAppId)
   let sipUsername = phoneConfig.generateSipUsername()

@@ -73,6 +73,31 @@ const increment = async (c, key, val = 1, valueInside) => {
 // Atomic increment using MongoDB $inc — safe for concurrent wallet operations
 const atomicIncrement = async (c, key, field, amount) => {
   try {
+    // ━━━ WALLET-SAFE DEDUCTIONS ━━━
+    // When deducting from wallet (usdOut/ngnOut), use atomic balance check
+    // to prevent overdrafts and negative balances.
+    // This fixes 42+ non-atomic deduction points across the codebase.
+    if (c.collectionName === 'walletOf' && (field === 'usdOut' || field === 'ngnOut')) {
+      const inField = field === 'usdOut' ? 'usdIn' : 'ngnIn'
+      const result = await c.findOneAndUpdate(
+        {
+          _id: key,
+          $expr: { $gte: [{ $subtract: [{ $ifNull: [`$${inField}`, 0] }, { $ifNull: [`$${field}`, 0] }] }, amount] }
+        },
+        { $inc: { [field]: amount } },
+        { returnDocument: 'after', includeResultMetadata: false }
+      )
+      if (!result) {
+        // Balance insufficient — block the deduction (result is null when $expr filter doesn't match)
+        const wallet = await c.findOne({ _id: key })
+        const bal = ((wallet?.[inField] || 0) - (wallet?.[field] || 0)).toFixed(2)
+        console.log(`[atomicIncrement] ⛔ Wallet deduction BLOCKED: chatId=${key} ${field} += ${amount} — balance $${bal} insufficient`)
+        return false
+      }
+      return true
+    }
+
+    // ━━━ NORMAL INCREMENT (non-wallet) ━━━
     return await withRetry(() =>
       c.updateOne(
         { _id: key },
