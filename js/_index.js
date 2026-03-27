@@ -164,6 +164,7 @@ const domainService = require('./domain-service.js')
 const dnsChecker = require('./dns-checker.js')
 const { sanitizeProviderError, sanitizeHangupCause } = require('./sanitize-provider.js')
 const { initCartAbandonment } = require('./cart-abandonment.js')
+const { initNewUserConversion } = require('./new-user-conversion.js')
 
 // Auto-check DNS after record add/update (non-blocking)
 const dnsAutoCheck = async (send, chatId, t, domain, recordType, recordValue) => {
@@ -579,6 +580,14 @@ async function resolveCoupon(code, chatId) {
   if (moCode?.error) return { error: moCode.error }
   if (moCode?.discount) return { discount: moCode.discount, type: moCode.type || 'winback', code }
 
+  // 4. Check welcome offer coupons (Feature 3)
+  if (userConversion) {
+    const welcomeResult = await userConversion.validateWelcomeCoupon(code, chatId)
+    if (welcomeResult?.discount) {
+      return { discount: welcomeResult.discount, type: 'welcome_offer', code: welcomeResult.code }
+    }
+  }
+
   return null
 }
 
@@ -750,6 +759,7 @@ let adminDomains = [],
 
 let autoPromo = null
 let cartRecovery = null
+let userConversion = null
 
 // Telnyx resources (set during init)
 let telnyxResources = { sipConnectionId: null, messagingProfileId: null, callControlAppId: null }
@@ -1038,6 +1048,8 @@ const loadData = async () => {
     // Initialize cart abandonment recovery
     cartRecovery = initCartAbandonment(bot, db, state)
     log('[CartRecovery] System loaded successfully')
+    userConversion = initNewUserConversion(bot, db, state, walletOf, payments)
+    log('[Conversion] System loaded successfully')
   } else {
     log('[AutoPromo] Skipped — Telegram bot is disabled')
   }
@@ -2646,6 +2658,21 @@ bot?.on('message', msg => {
       cartRecovery.recordPaymentReached(chatId, action, { price: info?.price, product: info?.planName || info?.domain || info?.bundleName })
     }
   }
+
+  // ── Guided Onboarding Response Handler (Feature 1) ──
+  if (userConversion) {
+    const onboardResult = await userConversion.handleOnboardingResponse(chatId, message)
+    if (onboardResult) {
+      // User clicked an onboarding button — navigate to the chosen section
+      if (onboardResult === 'goto_cloudphone') return goto.submenu5()
+      if (onboardResult === 'goto_hosting') return goto.submenu3()
+      if (onboardResult === 'goto_domains') return goto.submenu2()
+      if (onboardResult === 'goto_menu') {
+        const greeting = await getMainMenuGreeting()
+        return send(chatId, greeting, trans('o'))
+      }
+    }
+  }
   // Track promo response (user interacted with bot after receiving a promo)
   if (autoPromo?.trackPromoResponse) {
     autoPromo.trackPromoResponse(chatId).catch(() => {})
@@ -3192,6 +3219,8 @@ bot?.on('message', msg => {
     // ━━━ Cloud IVR goto functions ━━━
     submenu5: async () => {
       await set(state, chatId, 'action', a.submenu5)
+      // ── Browse Tracking (Feature 4) ──
+      if (userConversion) userConversion.trackBrowse(chatId, 'cloudphone', info?.userLanguage || 'en')
       // ── Check for incomplete document verification sessions ──
       const incompleteDoc = await regulatoryFlow.getIncompleteSession(chatId)
       if (incompleteDoc) {
@@ -3211,7 +3240,13 @@ bot?.on('message', msg => {
         return send(chatId, resumeMsg[lang] || resumeMsg.en, { parse_mode: 'HTML', reply_markup: { keyboard: [[resumeBtn], [restartBtn], [cancelBtn]], resize_keyboard: true, one_time_keyboard: true } })
       }
       const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
-      send(chatId, cpTxt.hubWelcome, k.of([
+      // ── Social Proof (Feature 5) ──
+      let cpWelcome = cpTxt.hubWelcome
+      if (userConversion) {
+        const proof = userConversion.getSocialProof('cloudphone', info?.userLanguage || 'en')
+        if (proof) cpWelcome += `\n\n${proof}`
+      }
+      send(chatId, cpWelcome, k.of([
         [pc.ivrOutboundCall],
         [pc.bulkCallCampaign],
         [pc.audioLibrary],
@@ -3236,7 +3271,14 @@ bot?.on('message', msg => {
     // ━━━ Digital Products goto functions ━━━
     submenu6: async () => {
       await set(state, chatId, 'action', a.submenu6)
-      send(chatId, t.digitalProductsSelect, k.of([
+      // ── Browse Tracking (Feature 4) + Social Proof (Feature 5) ──
+      let dpMsg = t.digitalProductsSelect
+      if (userConversion) {
+        userConversion.trackBrowse(chatId, 'digitalproducts', info?.userLanguage || 'en')
+        const proof = userConversion.getSocialProof('digitalproducts', info?.userLanguage || 'en')
+        if (proof) dpMsg += `\n\n${proof}`
+      }
+      send(chatId, dpMsg, k.of([
         [t.dpTwilioMain, t.dpTwilioSub],
         [t.dpTelnyxMain, t.dpTelnyxSub],
         [t.dpAwsMain, t.dpAwsSub],
@@ -4134,6 +4176,13 @@ Enter new value:`), bc)
     },
     submenu2: async () => {
       await set(state, chatId, 'action', a.submenu2)
+      // ── Browse Tracking (Feature 4) + Social Proof (Feature 5) ──
+      if (userConversion) {
+        userConversion.trackBrowse(chatId, 'domains', info?.userLanguage || 'en')
+        const proof = userConversion.getSocialProof('domains', info?.userLanguage || 'en')
+        const msg = t.select + (proof ? `\n\n${proof}` : '')
+        return send(chatId, msg, trans('k.of', [user.buyDomainName, user.viewDomainNames, user.dnsManagement]))
+      }
       send(chatId, t.select, trans('k.of', [user.buyDomainName, user.viewDomainNames, user.dnsManagement]))
     },
 
@@ -4141,7 +4190,14 @@ Enter new value:`), bc)
     submenu3: async () => {
       saveInfo('username', username)
       await set(state, chatId, 'action', a.submenu3)
-      send( chatId, t.selectPlan, k.of(
+      // ── Browse Tracking (Feature 4) + Social Proof (Feature 5) ──
+      let planMsg = t.selectPlan
+      if (userConversion) {
+        userConversion.trackBrowse(chatId, 'hosting', info?.userLanguage || 'en')
+        const proof = userConversion.getSocialProof('hosting', info?.userLanguage || 'en')
+        if (proof) planMsg += `\n\n${proof}`
+      }
+      send( chatId, planMsg, k.of(
         HOSTING_TRIAL_PLAN_ON && HOSTING_TRIAL_PLAN_ON === 'true'
           ? [[user.freeTrial, user.premiumWeekly], [user.premiumCpanel, user.goldenCpanel], [user.myHostingPlans], user.contactSupport]
           : [[user.premiumWeekly], [user.premiumCpanel, user.goldenCpanel], [user.myHostingPlans], user.contactSupport]
@@ -4497,6 +4553,8 @@ Enter new value:`), bc)
     },
     submenu4: async () => {
       set(state, chatId, 'action', a.submenu4)
+      // ── Browse Tracking (Feature 4) ──
+      if (userConversion) userConversion.trackBrowse(chatId, 'vps', info?.userLanguage || 'en')
       if (!info.isRegisteredTelegramForVps) {
         const result = await registerVpsTelegram(chatId, info?.userEmail)
         if (result) {
@@ -4515,7 +4573,13 @@ Enter new value:`), bc)
           saveInfo('isEmailRegisteredForNameword', true)
         }
       }
-      send(chatId, t.select, trans('k.of', [user.manageVpsPlan, user.buyVpsPlan]))
+      // ── Social Proof (Feature 5) ──
+      let vpsMsg = t.select
+      if (userConversion) {
+        const proof = userConversion.getSocialProof('vps', info?.userLanguage || 'en')
+        if (proof) vpsMsg += `\n\n${proof}`
+      }
+      send(chatId, vpsMsg, trans('k.of', [user.manageVpsPlan, user.buyVpsPlan]))
     },
 
     // ask vps plan
@@ -6388,22 +6452,25 @@ All verified numbers generated during sourcing.`))
       }
     } catch (e) { /* non-critical */ }
 
-    // ── Quick Start Guide for new users ──
-    const guideMessages = {
-      en: `🚀 <b>Quick Start Guide</b>\n\nHere's what you can do:\n\n🌐 <b>Register Domains</b> — bulletproof domains with DNS management\n📞 <b>Cloud IVR</b> — get a phone number with custom voice menus\n🛡️ <b>Hosting</b> — anti-takedown bulletproof hosting\n💳 <b>Virtual Cards</b> — anonymous cards for online payments\n📦 <b>Digital Products</b> — buy & sell digital goods\n📊 <b>Phone Leads</b> — targeted leads with validation\n\n👇 <b>Just tap the buttons below to get started!</b>\nYour wallet balance is ready to use.`,
-      fr: `🚀 <b>Guide de démarrage rapide</b>\n\nVoici ce que vous pouvez faire :\n\n🌐 <b>Enregistrer des domaines</b>\n📞 <b>Cloud IVR</b> — numéro de téléphone avec menus vocaux\n🛡️ <b>Hébergement</b> — hébergement anti-blocage\n💳 <b>Cartes virtuelles</b>\n📦 <b>Produits numériques</b>\n\n👇 <b>Appuyez sur les boutons ci-dessous pour commencer !</b>`,
-      zh: `🚀 <b>快速入门指南</b>\n\n你可以：\n\n🌐 注册域名\n📞 云IVR电话\n🛡️ 防封主机\n💳 虚拟卡\n📦 数字产品\n\n👇 <b>点击下方按钮开始！</b>`,
-      hi: `🚀 <b>त्वरित प्रारंभ गाइड</b>\n\nआप क्या कर सकते हैं:\n\n🌐 डोमेन रजिस्टर करें\n📞 क्लाउड IVR फ़ोन\n🛡️ बुलेटप्रूफ होस्टिंग\n💳 वर्चुअल कार्ड\n📦 डिजिटल उत्पाद\n\n👇 <b>शुरू करने के लिए नीचे बटन दबाएं!</b>`,
-    }
+    // ── Guided Onboarding for new users (Feature 1) ──
     try {
-      const guide = guideMessages[validLanguage] || guideMessages.en
-      setTimeout(() => send(chatId, guide, { parse_mode: 'HTML' }), 1500)
-      // Mark as new user for smarter fallback messages
       await set(state, chatId, 'isNewUser', true)
       await set(state, chatId, 'joinedAt', new Date())
-    } catch (e) { /* non-critical */ }
 
-    // Go straight to main menu with balance & tier
+      if (userConversion) {
+        const displayName = msg?.from?.first_name || username
+        const welcomeAmount = parseFloat(process.env.WELCOME_BONUS_USD || '3')
+        await userConversion.sendGuidedOnboarding(chatId, displayName, validLanguage, welcomeAmount)
+
+        // Schedule time-limited welcome offer (Feature 3) — 2 hours from now
+        userConversion.scheduleWelcomeOffer(chatId, validLanguage)
+
+        // Don't show full menu yet — onboarding buttons are showing
+        return
+      }
+    } catch (e) { /* non-critical — fall through to normal menu */ }
+
+    // Fallback: Go straight to main menu if conversion engine not available
     const greeting = await getMainMenuGreeting()
     return send(chatId, greeting, trans('o'))
   }
@@ -12479,6 +12546,8 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       }
       // Track payment completion for cart recovery
       if (cartRecovery) cartRecovery.recordPaymentCompleted(chatId)
+      // Mark user as purchased (cancels welcome offer + browse follow-up timers)
+      if (userConversion) userConversion.markPurchased(chatId)
       return handler(info?.coin)
     } catch (error) {
       log(`[Wallet] walletOk error for lastStep=${info?.lastStep}: ${error?.message}`)
@@ -19329,6 +19398,7 @@ const bankApis = {
     notifyGroup(`💎 <b>New Subscription!</b>\nUser ${maskName(name)} just upgraded to the <b>${plan} Plan</b> — unlocking ${freeDomainsOf[plan]} free domains + ${(freeValidationsOf[plan] || 0).toLocaleString()} phone validations.\nDon't miss out — /start`)
     webhookTierCheck(chatId, preSpend, lang)
     if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+    if (userConversion) userConversion.markPurchased(chatId)
     set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
   },
@@ -19396,6 +19466,7 @@ const bankApis = {
     notifyGroup(`🌐 <b>Domain Registered!</b>\nUser ${maskName(name)} just claimed <b>${maskDomain(domain)}</b> — your dream domain could be next.\nGrab yours before it's taken — /start`)
     webhookTierCheck(chatId, preSpend, lang)
     if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+    if (userConversion) userConversion.markPurchased(chatId)
     set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
   },
@@ -19443,6 +19514,7 @@ const bankApis = {
     }
     webhookTierCheck(chatId, preSpend, lang)
     if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+    if (userConversion) userConversion.markPurchased(chatId)
     set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     set(state, chatId, 'processingPayment', false) // Clear hosting payment lock
     res.send(html())
@@ -19490,6 +19562,7 @@ const bankApis = {
     if (!isSuccess) return res.send(html(error))
     webhookTierCheck(chatId, preSpend, lang)
     if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+    if (userConversion) userConversion.markPurchased(chatId)
     set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
   },
@@ -19533,6 +19606,7 @@ const bankApis = {
     if (!isSuccess) return res.send(html(error))
     webhookTierCheck(chatId, preSpend, lang)
     if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+    if (userConversion) userConversion.markPurchased(chatId)
     set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
   },
@@ -19696,6 +19770,7 @@ const bankApis = {
     if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminPurchasePrivate(maskName(name), selectedNumber, plan.name, price, 'Bank NGN'), { parse_mode: 'HTML' })
     webhookTierCheck(chatId, preSpend, lang)
     if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+    if (userConversion) userConversion.markPurchased(chatId)
     set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
   },
@@ -19801,6 +19876,7 @@ const bankApis = {
       addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
     }
     if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+    if (userConversion) userConversion.markPurchased(chatId)
     set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
   },
@@ -19833,6 +19909,7 @@ const bankApis = {
     if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🛒 <b>Digital Product Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b> (Bank)\n\n📩 Deliver with:\n<code>/deliver ${orderId} [details]</code>`, { parse_mode: 'HTML' })
     webhookTierCheck(chatId, preSpend, lang)
     if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+    if (userConversion) userConversion.markPurchased(chatId)
     set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
   },
@@ -19867,6 +19944,7 @@ const bankApis = {
     if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `💳 <b>Virtual Card Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b> (Bank)\n📬 Address:\n<pre>${vcAddress}</pre>\n\n📩 Deliver with:\n<code>/deliver ${orderId} [card details]</code>`, { parse_mode: 'HTML' })
     webhookTierCheck(chatId, preSpend, lang)
     if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+    if (userConversion) userConversion.markPurchased(chatId)
     set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
   },
@@ -19888,7 +19966,19 @@ const bankApis = {
     const name = await get(nameOf, chatId)
     set(payments, ref, `Bank,Wallet,wallet,$${usdIn},${chatId},${name},${new Date()},${ngnIn} NGN`)
     notifyGroup(`💰 <b>Wallet Top-Up!</b>\nUser ${maskName(name)} just loaded their wallet and is ready to buy domains, leads & more.\nFund yours in seconds — /start`)
+    // ── First-Purchase Deposit Bonus (Feature 2) ──
+    if (userConversion) {
+      try {
+        const bonus = await userConversion.checkFirstDepositBonus(chatId, usdIn)
+        if (bonus?.awarded) {
+          await atomicIncrement(walletOf, chatId, 'usdIn', bonus.amount)
+          sendMessage(chatId, userConversion.getFirstDepositBonusMessage(lang))
+          log(`[Conversion] First deposit bonus $${bonus.amount} awarded to ${chatId}`)
+        }
+      } catch (e) { /* non-critical */ }
+    }
     if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+    if (userConversion) userConversion.markPurchased(chatId)
     set(state, chatId, 'action', 'none') // Reset action after wallet deposit completes
   },
   '/bank-pay-email-blast': async (req, res, ngnIn) => {
@@ -19941,6 +20031,7 @@ const bankApis = {
 
     webhookTierCheck(chatId, preSpend, lang)
     if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+    if (userConversion) userConversion.markPurchased(chatId)
     set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
   },
@@ -20136,6 +20227,7 @@ app.get('/crypto-pay-plan', auth, async (req, res) => {
   notifyGroup(`💎 <b>New Subscription!</b>\nUser ${maskName(name)} just upgraded to the <b>${plan} Plan</b> — unlocking ${freeDomainsOf[plan]} free domains + ${(freeValidationsOf[plan] || 0).toLocaleString()} phone validations.\nDon't miss out — /start`)
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (userConversion) userConversion.markPurchased(chatId)
   set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
@@ -20200,6 +20292,7 @@ app.get('/crypto-pay-domain', auth, async (req, res) => {
   notifyGroup(`🌐 <b>Domain Registered!</b>\nUser ${maskName(name)} just claimed <b>${maskDomain(domain)}</b> — your dream domain could be next.\nGrab yours before it's taken — /start`)
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (userConversion) userConversion.markPurchased(chatId)
   set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
@@ -20249,6 +20342,7 @@ app.get('/crypto-pay-hosting', auth, async (req, res) => {
   }
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (userConversion) userConversion.markPurchased(chatId)
   set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   set(state, chatId, 'processingPayment', false) // Clear hosting payment lock
   res.send(html())
@@ -20383,6 +20477,7 @@ app.get('/crypto-pay-phone', auth, async (req, res) => {
   if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminPurchasePrivate(maskName(name), selectedNumber, plan.name, price, 'Crypto ' + coin), { parse_mode: 'HTML' })
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (userConversion) userConversion.markPurchased(chatId)
   set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
@@ -20492,6 +20587,7 @@ app.get('/crypto-pay-leads', auth, async (req, res) => {
     addFundsTo(walletOf, chatId, 'usd', Number(price), lang)
   }
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (userConversion) userConversion.markPurchased(chatId)
   set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
@@ -20538,6 +20634,7 @@ app.get('/crypto-pay-vps', auth, async (req, res) => {
   if (!isSuccess) return res.send(html(error))
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (userConversion) userConversion.markPurchased(chatId)
   set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
@@ -20585,6 +20682,7 @@ app.get('/crypto-pay-upgrade-vps', auth, async (req, res) => {
   if (!isSuccess) return res.send(html(error))
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (userConversion) userConversion.markPurchased(chatId)
   set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
@@ -20618,6 +20716,7 @@ app.get('/crypto-pay-digital-product', auth, async (req, res) => {
   if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🛒 <b>Digital Product Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b> (Crypto)\n\n📩 Deliver with:\n<code>/deliver ${orderId} [details]</code>`, { parse_mode: 'HTML' })
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (userConversion) userConversion.markPurchased(chatId)
   set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
@@ -20652,6 +20751,7 @@ app.get('/crypto-pay-virtual-card', auth, async (req, res) => {
   if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `💳 <b>Virtual Card Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b> (Crypto)\n📬 Address:\n<pre>${vcAddress}</pre>\n\n📩 Deliver with:\n<code>/deliver ${orderId} [card details]</code>`, { parse_mode: 'HTML' })
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (userConversion) userConversion.markPurchased(chatId)
   set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
@@ -20676,7 +20776,19 @@ app.get('/crypto-wallet', auth, async (req, res) => {
   const name = await get(nameOf, chatId)
   set(payments, ref, `Crypto,Wallet,wallet,$${usdIn},${chatId},${name},${new Date()},${value} ${coin}`)
   notifyGroup(`💰 <b>Wallet Top-Up!</b>\nUser ${maskName(name)} just loaded their wallet and is ready to buy domains, leads & more.\nFund yours in seconds — /start`)
+  // ── First-Purchase Deposit Bonus (Feature 2) ──
+  if (userConversion) {
+    try {
+      const bonus = await userConversion.checkFirstDepositBonus(chatId, usdIn)
+      if (bonus?.awarded) {
+        await atomicIncrement(walletOf, chatId, 'usdIn', bonus.amount)
+        sendMessage(chatId, userConversion.getFirstDepositBonusMessage(lang))
+        log(`[Conversion] First deposit bonus $${bonus.amount} awarded to ${chatId}`)
+      }
+    } catch (e) { /* non-critical */ }
+  }
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (userConversion) userConversion.markPurchased(chatId)
   set(state, chatId, 'action', 'none') // Reset action after crypto wallet deposit
 })
 
@@ -20725,6 +20837,7 @@ app.post('/dynopay/crypto-pay-plan', authDyno, async (req, res) => {
   notifyGroup(`💎 <b>New Subscription!</b>\nUser ${maskName(name)} just upgraded to the <b>${plan} Plan</b> — unlocking ${freeDomainsOf[plan]} free domains + ${(freeValidationsOf[plan] || 0).toLocaleString()} phone validations.\nDon't miss out — /start`)
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (userConversion) userConversion.markPurchased(chatId)
   set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
@@ -20803,6 +20916,7 @@ app.post('/dynopay/crypto-pay-domain', authDyno, async (req, res) => {
   notifyGroup(`🌐 <b>Domain Registered!</b>\nUser ${maskName(name)} just claimed <b>${maskDomain(domain)}</b> — your dream domain could be next.\nGrab yours before it's taken — /start`)
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (userConversion) userConversion.markPurchased(chatId)
   set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
@@ -20862,6 +20976,7 @@ app.post('/dynopay/crypto-pay-hosting', authDyno, async (req, res) => {
   }
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (userConversion) userConversion.markPurchased(chatId)
   set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   set(state, chatId, 'processingPayment', false) // Clear hosting payment lock
   res.send(html())
@@ -21002,6 +21117,7 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
   if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminPurchasePrivate(maskName(name), selectedNumber, plan.name, price, 'Crypto DynoPay'), { parse_mode: 'HTML' })
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (userConversion) userConversion.markPurchased(chatId)
   set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
@@ -21107,6 +21223,7 @@ app.post('/dynopay/crypto-pay-leads', authDyno, async (req, res) => {
     addFundsTo(walletOf, chatId, 'usd', Number(price), lang)
   }
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (userConversion) userConversion.markPurchased(chatId)
   set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
@@ -21165,6 +21282,7 @@ app.post('/dynopay/crypto-pay-vps', authDyno, async (req, res) => {
   if (!isSuccess) return res.send(html(error))
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (userConversion) userConversion.markPurchased(chatId)
   set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
@@ -21222,6 +21340,7 @@ app.post('/dynopay/crypto-pay-upgrade-vps', authDyno, async (req, res) => {
   if (!isSuccess) return res.send(html(error))
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (userConversion) userConversion.markPurchased(chatId)
   set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
@@ -21263,6 +21382,7 @@ app.post('/dynopay/crypto-pay-digital-product', authDyno, async (req, res) => {
   if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🛒 <b>Digital Product Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b> (Crypto)\n\n📩 Deliver with:\n<code>/deliver ${orderId} [details]</code>`, { parse_mode: 'HTML' })
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (userConversion) userConversion.markPurchased(chatId)
   set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
@@ -21304,6 +21424,7 @@ app.post('/dynopay/crypto-pay-virtual-card', authDyno, async (req, res) => {
   if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `💳 <b>Virtual Card Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b> (Crypto)\n📬 Address:\n<pre>${vcAddress}</pre>\n\n📩 Deliver with:\n<code>/deliver ${orderId} [card details]</code>`, { parse_mode: 'HTML' })
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (userConversion) userConversion.markPurchased(chatId)
   set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
@@ -21367,7 +21488,19 @@ app.post('/dynopay/crypto-wallet', authDyno, async (req, res) => {
   const name = await get(nameOf, chatId)
   set(payments, ref, `Crypto,Wallet,wallet,$${usdIn},${chatId},${name},${new Date()},${value} ${coin},transaction,${id}`)
   notifyGroup(`💰 <b>Wallet Top-Up!</b>\nUser ${maskName(name)} just loaded their wallet and is ready to buy domains, leads & more.\nFund yours in seconds — /start`)
+  // ── First-Purchase Deposit Bonus (Feature 2) ──
+  if (userConversion) {
+    try {
+      const bonus = await userConversion.checkFirstDepositBonus(chatId, usdIn)
+      if (bonus?.awarded) {
+        await atomicIncrement(walletOf, chatId, 'usdIn', bonus.amount)
+        sendMessage(chatId, userConversion.getFirstDepositBonusMessage(lang))
+        log(`[Conversion] First deposit bonus $${bonus.amount} awarded to ${chatId}`)
+      }
+    } catch (e) { /* non-critical */ }
+  }
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (userConversion) userConversion.markPurchased(chatId)
   set(state, chatId, 'action', 'none') // Reset action after crypto wallet deposit
   
   log('=== DYNOPAY WALLET WEBHOOK PROCESSING COMPLETE ===')
