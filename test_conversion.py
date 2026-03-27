@@ -71,7 +71,7 @@ def get_last_replies(n=10):
 
 def get_last_logs(n=20, pattern=None):
     result = subprocess.run(
-        ["tail", "-n", "100", "/var/log/supervisor/nodejs.out.log"],
+        ["tail", "-n", "500", "/var/log/supervisor/nodejs.out.log"],
         capture_output=True, text=True
     )
     lines = result.stdout.strip().split('\n')
@@ -155,7 +155,7 @@ def test_feature1_guided_onboarding():
 
     # Step 2: Select English
     print("\n  Selecting English...")
-    send_message("🇺🇸 English", 4)
+    send_message("🇬🇧 English", 4)
     replies = get_last_replies(10)
 
     # Check for guided onboarding message (not the old Quick Start Guide)
@@ -205,7 +205,7 @@ def test_feature1_skip():
     # Reset and start again
     reset_user()
     send_message("/start", 3)
-    send_message("🇺🇸 English", 4)
+    send_message("🇬🇧 English", 4)
 
     # Click Skip
     print("\n  Clicking '⏭️ Skip — Show Full Menu'...")
@@ -301,7 +301,7 @@ def test_feature5_social_proof():
     # Navigate to Cloud Phone menu
     print("\n  Checking Cloud Phone menu for social proof...")
     send_message("/start", 2)
-    send_message("📞 Cloud Phone + SIP", 3)
+    send_message("📞 Cloud IVR + SIP", 3)
     replies = get_last_replies(10)
 
     has_proof_phone = any(

@@ -2659,20 +2659,6 @@ bot?.on('message', msg => {
     }
   }
 
-  // ── Guided Onboarding Response Handler (Feature 1) ──
-  if (userConversion) {
-    const onboardResult = await userConversion.handleOnboardingResponse(chatId, message)
-    if (onboardResult) {
-      // User clicked an onboarding button — navigate to the chosen section
-      if (onboardResult === 'goto_cloudphone') return goto.submenu5()
-      if (onboardResult === 'goto_hosting') return goto.submenu3()
-      if (onboardResult === 'goto_domains') return goto.submenu2()
-      if (onboardResult === 'goto_menu') {
-        const greeting = await getMainMenuGreeting()
-        return send(chatId, greeting, trans('o'))
-      }
-    }
-  }
   // Track promo response (user interacted with bot after receiving a promo)
   if (autoPromo?.trackPromoResponse) {
     autoPromo.trackPromoResponse(chatId).catch(() => {})
@@ -6116,6 +6102,21 @@ All verified numbers generated during sourcing.`))
     saveInfo('history', info?.history.slice(0, -1)) // rem last elem
 
     goto[lastStep]()
+  }
+
+  // ── Guided Onboarding Response Handler (Feature 1) ──
+  if (userConversion) {
+    const onboardResult = await userConversion.handleOnboardingResponse(chatId, message)
+    if (onboardResult) {
+      // User clicked an onboarding button — navigate to the chosen section
+      if (onboardResult === 'goto_cloudphone') return goto.submenu5()
+      if (onboardResult === 'goto_hosting') return goto.submenu3()
+      if (onboardResult === 'goto_domains') return goto.submenu2()
+      if (onboardResult === 'goto_menu') {
+        const greeting = await getMainMenuGreeting()
+        return send(chatId, greeting, trans('o'))
+      }
+    }
   }
 
   // Handle /start with referral deep link: /start ref_XXXX

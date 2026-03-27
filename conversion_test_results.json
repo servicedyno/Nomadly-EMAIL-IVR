@@ -1,73 +1,78 @@
 [
   {
     "test": "Language selection shown on /start",
-    "passed": false,
-    "detail": "reply: Hey, <b>Hostbay</b>"
+    "passed": true,
+    "detail": "You can always change your language later in the settings. \ud83c\uddec\ud83c\udde7 English,\ud83c\uddeb\ud83c\uddf7 French,\ud83c\udde8\ud83c\uddf3 Chinese,\ud83c\uddee\ud83c\uddf3 Hindi\t"
   },
   {
     "test": "Guided onboarding shown (not old Quick Start)",
-    "passed": false,
-    "detail": "Missing onboarding buttons"
+    "passed": true,
+    "detail": "Found onboarding"
   },
   {
     "test": "Welcome bonus message present",
-    "passed": false,
+    "passed": true,
     "detail": ""
   },
   {
     "test": "Conversion engine logged onboarding start",
-    "passed": false,
-    "detail": "no conversion log"
+    "passed": true,
+    "detail": "22:41:21 [Conversion] Welcome offer scheduled for 5168006768 in 120 min"
   },
   {
     "test": "Hosting plans shown after onboarding button",
-    "passed": false,
-    "detail": "reply: That option isn't available right now. Please pick from the buttons below."
+    "passed": true,
+    "detail": "\ud83d\udd25 498 users bought hosting this week \u26a1 Premium Anti-Red (1-Week),\ud83d\udd37 Premium Anti-Red HostPanel (30 Da"
   },
   {
     "test": "Full menu shown after skip",
-    "passed": false,
-    "detail": "reply: That option isn't available right now. Please pick from the buttons below"
+    "passed": true,
+    "detail": "Select an option below \ud83d\udcde Cloud IVR + SIP,\ud83c\udfea Marketplace,\ud83d\uded2 Digital Products,\ud83c\udf10 Bull"
   },
   {
     "test": "Browse tracking saved to MongoDB",
-    "passed": false,
-    "detail": "no tracking doc"
+    "passed": true,
+    "detail": "browseCount: {'domains': 1}"
   },
   {
     "test": "Hosting browse tracked",
-    "passed": false,
-    "detail": "no tracking"
+    "passed": true,
+    "detail": "browseCount: {'domains': 1, 'hosting': 1}"
   },
   {
     "test": "Social proof in Hosting menu",
-    "passed": false,
-    "detail": "[]"
+    "passed": true,
+    "detail": "['\ud83d\udd25 498 users bought hosting this week \u26a1 Premium Anti-Red (1-Week),\ud83d\udd37 Premium Anti-Red HostPanel (30 Days),\ud83d\udc51 Golden Anti-Red HostPanel (30 Days),\ud83d\udccb My Hosting Plans,\ud83d\udcde Contact Support,Back,Cancel\\tto: 5168006768']"
   },
   {
     "test": "Social proof in Domains menu",
-    "passed": false,
-    "detail": "[]"
+    "passed": true,
+    "detail": "['\ud83c\udf10 8928 domains registered this week \ud83d\uded2\ud83c\udf10 Buy Domain Names,\ud83d\udcc2 My Domain Names,\ud83d\udd27 DNS Management,Back,Cancel\\tto: 5168006768']"
   },
   {
     "test": "Social proof in Cloud Phone menu",
-    "passed": false,
-    "detail": "[]"
+    "passed": true,
+    "detail": "['\ud83d\udd25 498 users bought hosting this week \u26a1 Premium Anti-Red (1-Week),\ud83d\udd37 Premium Anti-Red HostPanel (30 Days),\ud83d\udc51 Golden Anti-Red HostPanel (30 Days),\ud83d\udccb My Hosting Plans,\ud83d\udcde Contact Support,Back,Cancel\\tto: 5168006768']"
   },
   {
     "test": "Social proof in Digital Products menu",
-    "passed": false,
-    "detail": "[]"
+    "passed": true,
+    "detail": "['\ud83c\udf10 8928 domains registered this week \ud83d\uded2\ud83c\udf10 Buy Domain Names,\ud83d\udcc2 My Domain Names,\ud83d\udd27 DNS Management,Back,Cancel\\tto: 5168006768']"
   },
   {
     "test": "Welcome offer scheduled (2h timer)",
-    "passed": false,
-    "detail": "[]"
+    "passed": true,
+    "detail": "['22:41:02 [Conversion] First deposit bonus: $5 (min $20), Welcome offer: 25% (2h delay), Social proof: \u00d73']"
   },
   {
     "test": "Conversion record created for user",
-    "passed": false,
-    "detail": "no record"
+    "passed": true,
+    "detail": "onboardingStarted=True, firstDepositBonusAwarded=False"
+  },
+  {
+    "test": "First deposit bonus NOT yet awarded (correct \u2014 no deposit yet)",
+    "passed": true,
+    "detail": ""
   },
   {
     "test": "Zero errors in nodejs.err.log",

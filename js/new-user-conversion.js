@@ -269,7 +269,9 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
 
       // Send step 1 with buttons — delayed slightly so it comes after welcome bonus
       setTimeout(() => {
-        bot.sendMessage(chatId, msgs.step1(name, welcomeAmount.toFixed(2)), {
+        const stepMsg = msgs.step1(name, welcomeAmount.toFixed(2))
+        log('reply: ' + stepMsg + ' ' + JSON.stringify(msgs.step1Buttons) + '\tto: ' + chatId)
+        bot.sendMessage(chatId, stepMsg, {
           parse_mode: 'HTML',
           reply_markup: {
             keyboard: msgs.step1Buttons,
@@ -321,7 +323,9 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
   async function sendDepositNudge(chatId, lang = 'en', balance = 0) {
     try {
       const msgs = ONBOARDING_MESSAGES[lang] || ONBOARDING_MESSAGES.en
-      await bot.sendMessage(chatId, msgs.depositNudge(Math.max(0, balance).toFixed(2)), { parse_mode: 'HTML' })
+      const nudgeMsg = msgs.depositNudge(Math.max(0, balance).toFixed(2))
+      log('reply: ' + nudgeMsg + '\tto: ' + chatId)
+      await bot.sendMessage(chatId, nudgeMsg, { parse_mode: 'HTML' })
     } catch (err) {
       // Non-critical
     }
@@ -430,7 +434,9 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
 
       // Send message
       const msgFn = WELCOME_OFFER_MESSAGES[lang] || WELCOME_OFFER_MESSAGES.en
-      await bot.sendMessage(chatId, msgFn(code), { parse_mode: 'HTML' })
+      const offerMsg = msgFn(code)
+      log('reply: ' + offerMsg + '\tto: ' + chatId)
+      await bot.sendMessage(chatId, offerMsg, { parse_mode: 'HTML' })
 
       log(`[Conversion] ✅ Welcome offer sent to ${cid}: ${code} (${WELCOME_OFFER_DISCOUNT}% off, expires ${expiresAt.toISOString()})`)
     } catch (err) {
@@ -529,6 +535,7 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
       const messages = BROWSE_FOLLOWUP_MESSAGES[topCategory] || BROWSE_FOLLOWUP_MESSAGES.general
       const message = messages[lang] || messages.en
 
+      log('reply: ' + message + '\tto: ' + chatId)
       await bot.sendMessage(chatId, message, { parse_mode: 'HTML', disable_web_page_preview: true })
 
       // Clear tracking so we don't spam
