@@ -1,6 +1,7 @@
 // Cart Abandonment Recovery System
 // Detects when users reach a payment screen then cancel/back out
 // Sends a follow-up nudge 30-60 minutes later with a coupon incentive
+// Supports all 4 languages: English, French, Chinese, Hindi
 
 const log = (...args) => console.log(new Date().toISOString().slice(11, 19), ...args)
 
@@ -21,35 +22,107 @@ const PAYMENT_ACTIONS = new Set([
   'leadsPayment', 'leadsSelectPayment'
 ])
 
-// Cancel/Back messages that indicate abandonment
-const CANCEL_MESSAGES = new Set([
-  'cancel', 'back', '🔙 back', '↩️ back', '⬅️ back', '❌ cancel', '❌ cancel order'
+// ── Multi-language cancel/back keywords ──
+// Exact-match words (after lowercasing + trimming)
+const CANCEL_WORDS = new Set([
+  // English
+  'cancel', 'back',
+  // French
+  'annuler', 'retour',
+  // Chinese
+  '取消', '返回',
+  // Hindi
+  'रद्द करें', 'वापस',
 ])
 
-// Nudge messages per product category
+// Prefix patterns — messages starting with these indicate back/cancel
+const CANCEL_PREFIXES = [
+  // Emoji prefixes used by back/cancel buttons
+  '⬅️', '🔙', '↩️', '❌',
+]
+
+// Substring patterns — if the message contains these, it's a cancel/back
+const CANCEL_SUBSTRINGS = [
+  // English
+  'back to', 'cancel order', 'cancel & refund',
+  // French
+  'retour à', 'retour aux', 'retourner',
+  // Chinese
+  '返回到', '返回免费', '返回主机', '返回购买',
+  // Hindi
+  'वापस जाएं', 'वापस लें',
+]
+
+// Check if a message is a cancel/back from payment (multi-language smart matching)
+function isPaymentCancelMessage(message) {
+  if (!message) return false
+  const msg = message.toLowerCase().trim()
+
+  // 1. Exact match
+  if (CANCEL_WORDS.has(msg)) return true
+
+  // 2. Starts with cancel/back emoji prefix
+  for (const prefix of CANCEL_PREFIXES) {
+    if (msg.startsWith(prefix.toLowerCase())) return true
+  }
+
+  // 3. Contains cancel/back substring
+  for (const sub of CANCEL_SUBSTRINGS) {
+    if (msg.includes(sub.toLowerCase())) return true
+  }
+
+  return false
+}
+
+// Nudge messages per product category — all 4 languages
 const NUDGE_MESSAGES = {
   domain: {
     en: '🌐 Hey! You were checking out a domain earlier. It might not be available for long.\n\n💡 Use your daily coupon for a discount — just type /menu and look for 🎟️ Daily Coupon!',
-    fr: '🌐 Hé ! Vous regardiez un domaine plus tôt. Il pourrait ne plus être disponible longtemps.\n\n💡 Utilisez votre coupon quotidien pour une réduction !',
+    fr: '🌐 Hé ! Vous regardiez un domaine plus tôt. Il pourrait ne plus être disponible longtemps.\n\n💡 Utilisez votre coupon quotidien pour une réduction — tapez /menu et cherchez 🎟️ Coupon !',
+    zh: '🌐 嘿！你刚才在看一个域名，它可能很快就被注册了。\n\n💡 使用你的每日优惠券获得折扣 — 输入 /menu 查找 🎟️ 每日优惠券！',
+    hi: '🌐 अरे! आप पहले एक डोमेन देख रहे थे। यह ज्यादा देर उपलब्ध नहीं रह सकता।\n\n💡 छूट के लिए अपना दैनिक कूपन उपयोग करें — /menu टाइप करें और 🎟️ दैनिक कूपन खोजें!',
   },
   hosting: {
     en: '🛡️ Still thinking about hosting? Our bulletproof hosting keeps your sites running no matter what.\n\n💡 Check your daily coupon for a discount — /menu → 🎟️ Daily Coupon',
-    fr: '🛡️ Vous hésitez encore pour l\'hébergement ? Notre hébergement anti-blocage garde vos sites en ligne.\n\n💡 Vérifiez votre coupon quotidien !',
+    fr: '🛡️ Vous hésitez encore pour l\'hébergement ? Notre hébergement anti-blocage garde vos sites en ligne.\n\n💡 Vérifiez votre coupon quotidien pour une réduction — /menu → 🎟️ Coupon !',
+    zh: '🛡️ 还在考虑主机？我们的防封主机让您的网站始终在线。\n\n💡 查看您的每日优惠券获得折扣 — /menu → 🎟️ 每日优惠券',
+    hi: '🛡️ अभी भी होस्टिंग के बारे में सोच रहे हैं? हमारी बुलेटप्रूफ होस्टिंग आपकी साइट्स को हर हाल में चालू रखती है।\n\n💡 छूट के लिए दैनिक कूपन देखें — /menu → 🎟️ दैनिक कूपन',
   },
   cloudphone: {
     en: '📞 Your Cloud IVR plan is still waiting! Make unlimited calls with custom voice menus.\n\n💡 Grab your daily coupon for savings — /menu → 🎟️ Daily Coupon',
+    fr: '📞 Votre plan Cloud IVR attend toujours ! Passez des appels illimités avec des menus vocaux personnalisés.\n\n💡 Profitez de votre coupon quotidien — /menu → 🎟️ Coupon !',
+    zh: '📞 您的云IVR方案还在等您！自定义语音菜单，无限通话。\n\n💡 领取每日优惠券节省费用 — /menu → 🎟️ 每日优惠券',
+    hi: '📞 आपका Cloud IVR प्लान अभी भी इंतज़ार कर रहा है! कस्टम वॉइस मेनू के साथ अनलिमिटेड कॉल करें।\n\n💡 बचत के लिए दैनिक कूपन लें — /menu → 🎟️ दैनिक कूपन',
   },
   virtualcard: {
     en: '💳 Need that virtual card? Perfect for online payments with full privacy.\n\n💡 Daily coupon available — /menu → 🎟️ Daily Coupon',
+    fr: '💳 Besoin de cette carte virtuelle ? Parfaite pour les paiements en ligne en toute confidentialité.\n\n💡 Coupon quotidien disponible — /menu → 🎟️ Coupon !',
+    zh: '💳 需要虚拟卡？完全隐私的在线支付利器。\n\n💡 每日优惠券可用 — /menu → 🎟️ 每日优惠券',
+    hi: '💳 वर्चुअल कार्ड चाहिए? पूरी प्राइवेसी के साथ ऑनलाइन भुगतान के लिए एकदम सही।\n\n💡 दैनिक कूपन उपलब्ध — /menu → 🎟️ दैनिक कूपन',
   },
   wallet: {
     en: '👛 Your wallet deposit didn\'t go through. Top up now and unlock all services instantly.\n\n💡 Check your daily coupon — /menu → 🎟️ Daily Coupon',
+    fr: '👛 Votre dépôt n\'a pas abouti. Rechargez maintenant et débloquez tous les services.\n\n💡 Vérifiez votre coupon quotidien — /menu → 🎟️ Coupon !',
+    zh: '👛 您的钱包充值未完成。立即充值，解锁所有服务。\n\n💡 查看每日优惠券 — /menu → 🎟️ 每日优惠券',
+    hi: '👛 आपकी वॉलेट जमा राशि पूरी नहीं हुई। अभी टॉप अप करें और सभी सेवाएं तुरंत अनलॉक करें।\n\n💡 दैनिक कूपन देखें — /menu → 🎟️ दैनिक कूपन',
+  },
+  digitalproduct: {
+    en: '🛒 Still interested in that digital product? Verified sellers, instant delivery.\n\n💡 Your daily coupon is waiting — /menu → 🎟️ Daily Coupon',
+    fr: '🛒 Toujours intéressé par ce produit numérique ? Vendeurs vérifiés, livraison instantanée.\n\n💡 Votre coupon quotidien vous attend — /menu → 🎟️ Coupon !',
+    zh: '🛒 还对那个数字产品感兴趣吗？认证卖家，即时交付。\n\n💡 您的每日优惠券在等你 — /menu → 🎟️ 每日优惠券',
+    hi: '🛒 उस डिजिटल प्रोडक्ट में अभी भी रुचि है? सत्यापित विक्रेता, तुरंत डिलीवरी।\n\n💡 आपका दैनिक कूपन इंतज़ार कर रहा है — /menu → 🎟️ दैनिक कूपन',
+  },
+  bundle: {
+    en: '🎁 You were looking at a service bundle — combine services and save big!\n\n💡 Daily coupon available — /menu → 🎟️ Daily Coupon',
+    fr: '🎁 Vous regardiez un pack de services — combinez les services et économisez !\n\n💡 Coupon quotidien disponible — /menu → 🎟️ Coupon !',
+    zh: '🎁 您之前在看服务套餐 — 组合服务，大幅节省！\n\n💡 每日优惠券可用 — /menu → 🎟️ 每日优惠券',
+    hi: '🎁 आप सर्विस बंडल देख रहे थे — सेवाएं मिलाकर बड़ी बचत करें!\n\n💡 दैनिक कूपन उपलब्ध — /menu → 🎟️ दैनिक कूपन',
   },
   general: {
     en: '👋 Looks like you were about to make a purchase! Come back and finish your order.\n\n💡 Your daily coupon is waiting — /menu → 🎟️ Daily Coupon',
-    fr: '👋 On dirait que vous alliez faire un achat ! Revenez terminer votre commande.\n\n💡 Votre coupon quotidien vous attend !',
-    zh: '👋 看起来你要购买了！回来完成你的订单吧。\n\n💡 你的每日优惠券正在等你！',
-    hi: '👋 लगता है आप खरीदारी करने वाले थे! वापस आकर अपना ऑर्डर पूरा करें।\n\n💡 आपका दैनिक कूपन इंतज़ार कर रहा है!',
+    fr: '👋 On dirait que vous alliez faire un achat ! Revenez terminer votre commande.\n\n💡 Votre coupon quotidien vous attend — /menu → 🎟️ Coupon !',
+    zh: '👋 看起来你快要下单了！回来完成你的订单吧。\n\n💡 你的每日优惠券正在等你 — /menu → 🎟️ 每日优惠券',
+    hi: '👋 लगता है आप खरीदारी करने वाले थे! वापस आकर अपना ऑर्डर पूरा करें।\n\n💡 आपका दैनिक कूपन इंतज़ार कर रहा है — /menu → 🎟️ दैनिक कूपन',
   }
 }
 
@@ -62,6 +135,8 @@ function actionToCategory(action) {
   if (a.includes('cloud') || a.includes('phone') || a.includes('ivr') || a.includes('sip')) return 'cloudphone'
   if (a.includes('virtual') || a.includes('vcard') || a.includes('vc')) return 'virtualcard'
   if (a.includes('wallet') || a.includes('deposit')) return 'wallet'
+  if (a.includes('digital') || a.includes('dp')) return 'digitalproduct'
+  if (a.includes('bundle')) return 'bundle'
   return 'general'
 }
 
@@ -109,10 +184,17 @@ function initCartAbandonment(bot, db, stateCol) {
         clearTimeout(pendingNudges.get(chatId))
         pendingNudges.delete(chatId)
       }
+      // Also check string version of chatId
+      const chatIdStr = String(chatId)
+      if (pendingNudges.has(chatIdStr)) {
+        clearTimeout(pendingNudges.get(chatIdStr))
+        pendingNudges.delete(chatIdStr)
+      }
       await abandonedCarts.updateOne(
-        { chatId, status: 'in_progress' },
+        { chatId: { $in: [chatId, parseFloat(chatId), String(chatId)] }, status: { $in: ['in_progress', 'abandoned'] } },
         { $set: { status: 'completed', completed: true, completedAt: new Date() } }
       )
+      log(`[CartRecovery] Payment completed for ${chatId} — cart cleared`)
     } catch (err) {
       // Non-critical
     }
@@ -143,18 +225,23 @@ function initCartAbandonment(bot, db, stateCol) {
       log(`[CartRecovery] User ${chatId} abandoned ${cart.category} (action: ${cart.action}). Scheduling nudge in ${NUDGE_DELAY_MS / 60000} min`)
 
       // Schedule nudge after delay
-      if (pendingNudges.has(chatId)) {
-        clearTimeout(pendingNudges.get(chatId))
-      }
-      const timer = setTimeout(async () => {
-        pendingNudges.delete(chatId)
-        await sendNudge(chatId, cart.category, lang, cart._id)
-      }, NUDGE_DELAY_MS)
-      pendingNudges.set(chatId, timer)
+      scheduleNudge(chatId, cart.category, lang, cart._id)
 
     } catch (err) {
       log(`[CartRecovery] Error recording abandonment: ${err.message}`)
     }
+  }
+
+  // Schedule a nudge timer
+  function scheduleNudge(chatId, category, lang, cartId, delayMs = NUDGE_DELAY_MS) {
+    if (pendingNudges.has(chatId)) {
+      clearTimeout(pendingNudges.get(chatId))
+    }
+    const timer = setTimeout(async () => {
+      pendingNudges.delete(chatId)
+      await sendNudge(chatId, category, lang, cartId)
+    }, delayMs)
+    pendingNudges.set(chatId, timer)
   }
 
   // Send follow-up nudge
@@ -162,14 +249,17 @@ function initCartAbandonment(bot, db, stateCol) {
     try {
       // Double-check the user didn't complete a purchase since
       const cart = await abandonedCarts.findOne({ _id: cartId })
-      if (!cart || cart.status === 'completed') return
+      if (!cart || cart.status === 'completed') {
+        log(`[CartRecovery] Skipping nudge for ${chatId} — cart already completed`)
+        return
+      }
 
       const messages = NUDGE_MESSAGES[category] || NUDGE_MESSAGES.general
       const message = messages[lang] || messages.en || NUDGE_MESSAGES.general.en
 
       await bot.sendMessage(chatId, message, { parse_mode: 'HTML', disable_web_page_preview: true })
       await abandonedCarts.updateOne({ _id: cartId }, { $set: { status: 'nudged', nudgedAt: new Date() } })
-      log(`[CartRecovery] ✅ Nudged ${chatId} for ${category} abandonment`)
+      log(`[CartRecovery] ✅ Nudged ${chatId} for ${category} abandonment (lang: ${lang})`)
 
       // Track stats
       await db.collection('cartRecoveryStats').updateOne(
@@ -178,16 +268,54 @@ function initCartAbandonment(bot, db, stateCol) {
         { upsert: true }
       )
     } catch (err) {
+      // Mark as nudge_failed so we don't retry forever
+      if (cartId) {
+        await abandonedCarts.updateOne({ _id: cartId }, { $set: { status: 'nudge_failed', nudgeError: err.message } }).catch(() => {})
+      }
       log(`[CartRecovery] Nudge failed for ${chatId}: ${err.message}`)
     }
   }
 
-  // Check if a message is a cancel/back from payment
-  function isPaymentCancelMessage(message) {
-    return CANCEL_MESSAGES.has((message || '').toLowerCase().trim())
+  // ── Startup Recovery ──
+  // Re-schedule nudges for carts abandoned before server restart
+  async function recoverPendingNudges() {
+    try {
+      const pendingCarts = await abandonedCarts.find({
+        status: 'abandoned',
+        abandonedAt: { $gte: new Date(Date.now() - NUDGE_DELAY_MS - 5 * 60 * 1000) } // within nudge window + 5min buffer
+      }).toArray()
+
+      if (!pendingCarts.length) {
+        log(`[CartRecovery] No pending nudges to recover`)
+        return
+      }
+
+      let recovered = 0
+      for (const cart of pendingCarts) {
+        const elapsed = Date.now() - new Date(cart.abandonedAt).getTime()
+        const remaining = NUDGE_DELAY_MS - elapsed
+
+        if (remaining > 0) {
+          // Still within the delay window — schedule with remaining time
+          scheduleNudge(cart.chatId, cart.category, cart.lang || 'en', cart._id, remaining)
+          recovered++
+        } else {
+          // Delay already passed — send nudge immediately (within 1 min)
+          scheduleNudge(cart.chatId, cart.category, cart.lang || 'en', cart._id, 60 * 1000)
+          recovered++
+        }
+      }
+
+      log(`[CartRecovery] Recovered ${recovered} pending nudges from before restart`)
+    } catch (err) {
+      log(`[CartRecovery] Recovery scan error: ${err.message}`)
+    }
   }
 
-  log(`[CartRecovery] Initialized — nudge delay: ${NUDGE_DELAY_MS / 60000}min, cooldown: ${NUDGE_COOLDOWN_MS / 3600000}h`)
+  // Run recovery on startup (after a short delay to let bot fully initialize)
+  setTimeout(() => recoverPendingNudges(), 30 * 1000)
+
+  log(`[CartRecovery] Initialized — nudge delay: ${NUDGE_DELAY_MS / 60000}min, cooldown: ${NUDGE_COOLDOWN_MS / 3600000}h, languages: en/fr/zh/hi`)
 
   return {
     recordPaymentReached,
