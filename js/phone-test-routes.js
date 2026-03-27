@@ -75,6 +75,29 @@ function initPhoneTestRoutes(app, db, telnyxApi, sipConnectionId) {
 
       const otpDoc = await db.collection('testOtps').findOne({ otp, used: false })
       if (!otpDoc) {
+        // OTP not found or already used — try reconnect flow
+        // 1. Check if OTP doc exists but was already used
+        const usedOtp = await db.collection('testOtps').findOne({ otp, used: true })
+        // 2. If OTP doc is gone (TTL expired), look for credential that used this OTP
+        const credByOtp = !usedOtp ? await db.collection('testCredentials').findOne({ lastOtp: otp, expired: { $ne: true } }) : null
+        const reconnectChatId = usedOtp?.chatId || credByOtp?.chatId
+
+        if (reconnectChatId) {
+          const active = credByOtp || await db.collection('testCredentials').findOne({ chatId: reconnectChatId, expired: { $ne: true } })
+          if (active) {
+            const maxAllowed = await getMaxCallsForUser(reconnectChatId)
+            const allCreds = await db.collection('testCredentials').find({ chatId: reconnectChatId }).toArray()
+            const totalCalls = allCreds.reduce((sum, c) => sum + (c.callsMade || 0), 0)
+            console.log(`[PhoneTest] Reconnect: returning existing credential for chatId ${reconnectChatId}`)
+            return res.json({
+              sipUsername: active.sipUsername,
+              sipPassword: active.sipPassword,
+              sipDomain: SIP_DOMAIN,
+              callsRemaining: maxAllowed - totalCalls,
+              maxDuration: MAX_CALL_DURATION_SEC
+            })
+          }
+        }
         return res.status(401).json({ error: 'Invalid OTP', message: 'Code is invalid or expired. Send /testsip in the bot to get a new one.' })
       }
 
@@ -132,6 +155,7 @@ function initPhoneTestRoutes(app, db, telnyxApi, sipConnectionId) {
         sipUsername,
         sipPassword,
         credentialId: credential.id || sipUsername,
+        lastOtp: otp,
         callsMade: 0,
         maxCalls: maxAllowed,
         expired: false,
