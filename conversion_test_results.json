@@ -17,7 +17,7 @@
   {
     "test": "Conversion engine logged onboarding start",
     "passed": true,
-    "detail": "22:41:21 [Conversion] Welcome offer scheduled for 5168006768 in 120 min"
+    "detail": "22:49:51 [Conversion] Welcome offer scheduled for 5168006768 in 120 min"
   },
   {
     "test": "Hosting plans shown after onboarding button",
@@ -62,7 +62,7 @@
   {
     "test": "Welcome offer scheduled (2h timer)",
     "passed": true,
-    "detail": "['22:41:02 [Conversion] First deposit bonus: $5 (min $20), Welcome offer: 25% (2h delay), Social proof: \u00d73']"
+    "detail": "['22:49:33 [Conversion] First deposit bonus: $5 (min $20), Welcome offer: 25% (2h delay), Social proof: \u00d73']"
   },
   {
     "test": "Conversion record created for user",
