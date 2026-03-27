@@ -1235,16 +1235,14 @@ agent_communication:
 
 test_plan:
   current_focus:
-    - "Fix AutoPromo killing active users on first failure"
-    - "Cart Abandonment Recovery System"
-    - "Improved New User Onboarding"
-    - "Promo Schedule Optimization"
+    - "Admin alerts with usernames"
+    - "Marketplace broadcast pre-filtering"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
     - agent: "main"
-      message: "IMPLEMENTED 4 CHANGES: (1) CRITICAL FIX: auto-promo.js sendPromoToUser now has retry logic + failCount threshold (DEAD_THRESHOLD=3) instead of killing users on first failure. Cleaned up 2184 falsely-dead users in DB. (2) NEW: cart-abandonment.js module with 45-min nudge for abandoned carts, integrated into _index.js message handler. (3) NEW: Quick start guide for new users + smarter fallback messages. (4) IMPROVED: Sunday promos enabled, marketplace 3x/week. VERIFY: (a) nodejs starts clean with 0-byte error log, (b) auto-promo.js has PROMO_SEND_RETRIES=2 and DEAD_THRESHOLD=3, (c) recordSendFailure uses $inc failCount, (d) resurrection scan logs 'enabled — every 6h', (e) cart-abandonment.js loaded, (f) syntax checks pass."
+      message: "IMPLEMENTED admin alerts with usernames in all admin notifications: (1) notifyAdmin() enhanced with auto-resolution — regex-matches 'chatId: NNNN' patterns and looks up nameOf for display names, sending '@username (chatId)' instead of bare chatId. (2) AI Moderation alert now shows Buyer/Seller usernames with roles. (3) Payment pattern alert now shows Buyer/Seller usernames with roles. (4) Marketplace Report alert shows Buyer/Seller/Reporter usernames. (5) Escrow started alerts show Buyer/Seller usernames. (6) Direct escrow alert shows Buyer/Seller usernames. (7) resolveUserTag(chatId) helper created for async username resolution. (8) BundleChecker alerts auto-enriched by notifyAdmin's regex pattern matching. VERIFY: (a) resolveUserTag function defined after DB connected block, (b) AI Moderation alert uses senderTag/otherTag with roles, (c) Escrow alerts use resolveUserTag, (d) notifyAdmin regex matches chatId patterns, (e) syntax check passes, (f) nodejs starts clean."
     - agent: "testing"
       message: "✅ BROADCAST PRE-FILTERING FIXES VERIFIED: Comprehensive testing complete with 16/16 core tests passed (100% success rate). All critical requirements confirmed: (1) Marketplace Broadcast Pre-filtering (utils.js - broadcastNewListing): ✅ Uses promoOptOut.find({ optedOut: true }) query, ✅ Builds deadSet from ALL optedOut:true records, ✅ Uses failCount >= 3 threshold, ✅ Success handler resets failCount to 0. (2) Admin Broadcast Pre-filtering (utils.js - sendMessageToAllUsers): ✅ Uses promoOptOut.find({ optedOut: true }) query, ✅ Builds deadSet from ALL optedOut:true records, ✅ Uses failCount >= 3 threshold, ✅ Success handler resets failCount on delivery success. (3) AutoPromo Consistency: ✅ DEAD_THRESHOLD = 3 matches utils.js failCount >= 3, ✅ All three broadcast systems (AutoPromo, Marketplace, Admin) now use consistent failCount >= 3 logic. (4) Health & Stability: ✅ Node.js runs on port 5000 with /health endpoint returning healthy status, ✅ nodejs.err.log is 0 bytes (clean), ✅ All syntax checks pass (node -c utils.js, auto-promo.js). (5) Database State: Connected to MongoDB successfully, promoOptOut collection accessible. All broadcast pre-filtering fixes are production-ready and fully functional."

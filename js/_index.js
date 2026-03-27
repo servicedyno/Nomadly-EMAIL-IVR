@@ -661,8 +661,29 @@ const notifyGroup = async (message) => {
 const notifyAdmin = (message) => {
   try {
     if (TELEGRAM_ADMIN_CHAT_ID) {
-      bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID, message + `\n— <b>${CHAT_BOT_NAME}</b>`, { parse_mode: 'HTML' })?.catch(e => {
-        log('notifyAdmin error: ' + e.message)
+      // Auto-resolve chatId references to include usernames
+      const resolveAndSend = async () => {
+        let enrichedMsg = message
+        // Find all chatId patterns and resolve usernames
+        const chatIdMatches = message.match(/chatId:\s*(\d{6,12})/g)
+        if (chatIdMatches && nameOf?.findOne) {
+          for (const match of chatIdMatches) {
+            const cid = match.replace(/chatId:\s*/, '').trim()
+            try {
+              const user = await nameOf.findOne({ _id: parseInt(cid) })
+              if (user?.val) {
+                enrichedMsg = enrichedMsg.replace(match, `chatId: @${user.val} (${cid})`)
+              }
+            } catch {}
+          }
+        }
+        bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID, enrichedMsg + `\n— <b>${CHAT_BOT_NAME}</b>`, { parse_mode: 'HTML' })?.catch(e => {
+          log('notifyAdmin error: ' + e.message)
+        })
+      }
+      resolveAndSend().catch(() => {
+        // Fallback: send without enrichment
+        bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID, message + `\n— <b>${CHAT_BOT_NAME}</b>`, { parse_mode: 'HTML' })?.catch(() => {})
       })
     }
   } catch (e) {
@@ -959,6 +980,22 @@ const loadData = async () => {
   chatIdOf = db.collection('chatIdOf')
 
   log(`DB Connected lala. May peace be with you and Lord's mercy and blessings.`)
+
+  // ── Utility: Resolve username for admin alerts ──
+  // Returns "@username (chatId)" or just "chatId" if no name found
+  async function resolveUserTag(chatId) {
+    try {
+      const name = await get(nameOf, chatId)
+      if (name && typeof name === 'string') return `@${name} (${chatId})`
+      if (name?.val) return `@${name.val} (${chatId})`
+      return String(chatId)
+    } catch { return String(chatId) }
+  }
+  // Synchronous version using cached nameOf — for hot paths where async would slow things down
+  function resolveUserTagSync(chatId, cachedName) {
+    if (cachedName) return `@${cachedName} (${chatId})`
+    return String(chatId)
+  }
 
   // executeTwilioPurchase, getCachedTwilioAddress, cacheTwilioAddress — moved to module scope (before loadData)
 
@@ -1955,7 +1992,7 @@ bot?.on('callback_query', async (query) => {
       const escrowOpts = { reply_markup: { inline_keyboard: [[{ text: '🔒 Open @Lockbaybot', url: 'https://t.me/Lockbaybot' }]] } }
       sendMsg(conv.buyerId, escrowMsg, escrowOpts)
       sendMsg(conv.sellerId, escrowMsg, escrowOpts)
-      if (TELEGRAM_ADMIN_CHAT_ID) sendMsg(TELEGRAM_ADMIN_CHAT_ID, `🔒 [Marketplace] Escrow started\nProduct: ${conv.productTitle}\nPrice: $${price}\nBuyer: ${conv.buyerId}\nSeller: ${conv.sellerId}`)
+      if (TELEGRAM_ADMIN_CHAT_ID) sendMsg(TELEGRAM_ADMIN_CHAT_ID, `🔒 [Marketplace] Escrow started\nProduct: ${conv.productTitle}\nPrice: $${price}\nBuyer: ${await resolveUserTag(conv.buyerId)}\nSeller: ${await resolveUserTag(conv.sellerId)}`)
       return
     }
 
@@ -1987,7 +2024,7 @@ bot?.on('callback_query', async (query) => {
       const escrowOpts = { reply_markup: { inline_keyboard: [[{ text: '🔒 Open @Lockbaybot', url: 'https://t.me/Lockbaybot' }]] } }
       sendMsg(conv.buyerId, escrowMsg, escrowOpts)
       sendMsg(conv.sellerId, escrowMsg, escrowOpts)
-      if (TELEGRAM_ADMIN_CHAT_ID) sendMsg(TELEGRAM_ADMIN_CHAT_ID, `🔒 [Marketplace] Direct escrow started\nProduct: ${conv.productTitle}\nPrice: $${price}\nBuyer: ${conv.buyerId}\nSeller: ${conv.sellerId}`)
+      if (TELEGRAM_ADMIN_CHAT_ID) sendMsg(TELEGRAM_ADMIN_CHAT_ID, `🔒 [Marketplace] Direct escrow started\nProduct: ${conv.productTitle}\nPrice: $${price}\nBuyer: ${await resolveUserTag(conv.buyerId)}\nSeller: ${await resolveUserTag(conv.sellerId)}`)
       return
     }
 
@@ -9137,7 +9174,7 @@ ${message.replace(/\n/g, '<br>')}
       const escrowOpts = { parse_mode: 'HTML', reply_markup: { inline_keyboard: [[{ text: '🔒 Open @Lockbaybot', url: 'https://t.me/Lockbaybot' }]] } }
       send(conv.buyerId, escrowMsg, escrowOpts)
       send(conv.sellerId, escrowMsg, escrowOpts)
-      if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🔒 [Marketplace] Escrow started\nProduct: ${conv.productTitle}\nBuyer: ${conv.buyerId}\nSeller: ${conv.sellerId}\nPrice: $${price}`, { parse_mode: 'HTML' })
+      if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🔒 [Marketplace] Escrow started\nProduct: ${conv.productTitle}\nBuyer: ${await resolveUserTag(conv.buyerId)}\nSeller: ${await resolveUserTag(conv.sellerId)}\nPrice: $${price}`, { parse_mode: 'HTML' })
       return
     }
 
@@ -9164,7 +9201,7 @@ ${message.replace(/\n/g, '<br>')}
     if (message === '/report') {
       const conv = await marketplaceService.getConversation(convId)
       if (conv && TELEGRAM_ADMIN_CHAT_ID) {
-        send(TELEGRAM_ADMIN_CHAT_ID, `🚨 [Marketplace] Report\nConv: ${convId}\nProduct: ${conv.productTitle}\nBuyer: ${conv.buyerId}\nSeller: ${conv.sellerId}\nReporter: ${chatId}`, { parse_mode: 'HTML' })
+        send(TELEGRAM_ADMIN_CHAT_ID, `🚨 [Marketplace] Report\nConv: ${convId}\nProduct: ${conv.productTitle}\nBuyer: ${await resolveUserTag(conv.buyerId)}\nSeller: ${await resolveUserTag(conv.sellerId)}\nReporter: ${await resolveUserTag(chatId)}`, { parse_mode: 'HTML' })
       }
       return send(chatId, t.mpReported)
     }
@@ -9183,15 +9220,27 @@ ${message.replace(/\n/g, '<br>')}
       send(chatId, t.mpPaymentWarning, { parse_mode: 'HTML' })
       const otherParty = conv.buyerId === chatId ? conv.sellerId : conv.buyerId
       send(otherParty, t.mpPaymentWarning, { parse_mode: 'HTML' })
-      if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🚨 [Marketplace] Payment pattern detected\nConv: ${convId}\nFrom: ${chatId}\nMsg: ${message}`)
+      if (TELEGRAM_ADMIN_CHAT_ID) {
+        const senderTag = await resolveUserTag(chatId)
+        const otherTag = await resolveUserTag(otherParty)
+        const senderRole = conv.buyerId === chatId ? 'Buyer' : 'Seller'
+        const otherRole = conv.buyerId === chatId ? 'Seller' : 'Buyer'
+        send(TELEGRAM_ADMIN_CHAT_ID, `🚨 [Marketplace] Payment pattern detected\nConv: ${convId}\nProduct: ${conv.productTitle || 'N/A'}\n${senderRole}: ${senderTag}\n${otherRole}: ${otherTag}\nMsg: ${message}`)
+      }
     } else if (isAiEnabled() && message.length > 15) {
       // AI-powered scam moderation for longer messages that bypass regex
-      moderateMarketplaceChat(message).then(result => {
+      moderateMarketplaceChat(message).then(async (result) => {
         if (result.flagged && (result.severity === 'medium' || result.severity === 'high')) {
           const otherPartyId = conv.buyerId === chatId ? conv.sellerId : conv.buyerId
           send(chatId, t.mpAiScamWarning, { parse_mode: 'HTML' })
           send(otherPartyId, t.mpAiScamWarning, { parse_mode: 'HTML' })
-          if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🤖🚨 [AI Moderation] Flagged (${result.severity})\nConv: ${convId}\nFrom: ${chatId}\nReason: ${result.reason}\nMsg: ${message}`)
+          if (TELEGRAM_ADMIN_CHAT_ID) {
+            const senderTag = await resolveUserTag(chatId)
+            const otherTag = await resolveUserTag(otherPartyId)
+            const senderRole = conv.buyerId === chatId ? 'Buyer' : 'Seller'
+            const otherRole = conv.buyerId === chatId ? 'Seller' : 'Buyer'
+            send(TELEGRAM_ADMIN_CHAT_ID, `🤖🚨 [AI Moderation] Flagged (${result.severity})\nConv: ${convId}\nProduct: ${conv.productTitle || 'N/A'}\n${senderRole}: ${senderTag}\n${otherRole}: ${otherTag}\nReason: ${result.reason}\nMsg: ${message}`)
+          }
           log(`[AI Moderation] Flagged (${result.severity}): ${result.reason}`)
         }
       }).catch(e => log(`[AI Moderation] Error: ${e.message}`))
