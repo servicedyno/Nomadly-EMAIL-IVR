@@ -1,0 +1,77 @@
+[
+  {
+    "test": "Language selection shown on /start",
+    "passed": false,
+    "detail": "reply: Hey, <b>Hostbay</b>"
+  },
+  {
+    "test": "Guided onboarding shown (not old Quick Start)",
+    "passed": false,
+    "detail": "Missing onboarding buttons"
+  },
+  {
+    "test": "Welcome bonus message present",
+    "passed": false,
+    "detail": ""
+  },
+  {
+    "test": "Conversion engine logged onboarding start",
+    "passed": false,
+    "detail": "no conversion log"
+  },
+  {
+    "test": "Hosting plans shown after onboarding button",
+    "passed": false,
+    "detail": "reply: That option isn't available right now. Please pick from the buttons below."
+  },
+  {
+    "test": "Full menu shown after skip",
+    "passed": false,
+    "detail": "reply: That option isn't available right now. Please pick from the buttons below"
+  },
+  {
+    "test": "Browse tracking saved to MongoDB",
+    "passed": false,
+    "detail": "no tracking doc"
+  },
+  {
+    "test": "Hosting browse tracked",
+    "passed": false,
+    "detail": "no tracking"
+  },
+  {
+    "test": "Social proof in Hosting menu",
+    "passed": false,
+    "detail": "[]"
+  },
+  {
+    "test": "Social proof in Domains menu",
+    "passed": false,
+    "detail": "[]"
+  },
+  {
+    "test": "Social proof in Cloud Phone menu",
+    "passed": false,
+    "detail": "[]"
+  },
+  {
+    "test": "Social proof in Digital Products menu",
+    "passed": false,
+    "detail": "[]"
+  },
+  {
+    "test": "Welcome offer scheduled (2h timer)",
+    "passed": false,
+    "detail": "[]"
+  },
+  {
+    "test": "Conversion record created for user",
+    "passed": false,
+    "detail": "no record"
+  },
+  {
+    "test": "Zero errors in nodejs.err.log",
+    "passed": true,
+    "detail": "Clean"
+  }
+]
