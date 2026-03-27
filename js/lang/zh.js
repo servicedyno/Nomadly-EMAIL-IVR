@@ -124,6 +124,7 @@ const user = {
   marketplace: '🏪 市场',
   shippingLabel: '📦 Ship & Mail',
   emailBlast: '📧 群发邮件',
+  emailValidation: '📧 邮箱验证',
   serviceBundles: '🎁 服务套餐',
   virtualCard: '💳 虚拟卡',
 

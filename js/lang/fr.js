@@ -125,6 +125,7 @@ const user = {
   marketplace: '🏪 Marché',
   shippingLabel: '📦 Ship & Mail',
   emailBlast: '📧 Email en Masse',
+  emailValidation: '📧 Validation d\'Email',
   serviceBundles: '🎁 Packs de Services',
   virtualCard: '💳 Carte Virtuelle',
 

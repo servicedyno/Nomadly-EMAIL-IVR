@@ -124,6 +124,7 @@ const user = {
   marketplace: '🏪 मार्केटप्लेस',
   shippingLabel: '📦 Ship & Mail',
   emailBlast: '📧 ईमेल ब्लास्ट',
+  emailValidation: '📧 ईमेल सत्यापन',
   serviceBundles: '🎁 सर्विस बंडल',
   virtualCard: '💳 वर्चुअल कार्ड',
 
