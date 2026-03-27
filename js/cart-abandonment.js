@@ -1,28 +1,91 @@
 // Cart Abandonment Recovery System
 // Detects when users reach a payment screen then cancel/back out
-// Sends a follow-up nudge 30-60 minutes later with a coupon incentive
+// Sends a follow-up nudge 45 minutes later with a coupon incentive
 // Supports all 4 languages: English, French, Chinese, Hindi
 
 const log = (...args) => console.log(new Date().toISOString().slice(11, 19), ...args)
 
-// Payment-related action states (when user is at a payment screen)
+// ─────────────────────────────────────────────────────────────────────
+// PAYMENT_ACTIONS — the EXACT action values stored in MongoDB state
+// These come from: set(state, chatId, 'action', '<value>') in _index.js
+// ─────────────────────────────────────────────────────────────────────
 const PAYMENT_ACTIONS = new Set([
-  'domainSelectPayment', 'domainPay', 'domainPayConfirm',
-  'hostingSelectPayment', 'hostingPay',
-  'vpsPay', 'vpsPayConfirm', 'proceedWithVpsPayment', 'askVpsUpgradePayment',
-  'virtualCardPay', 'vcSelectCrypto', 'vcPayConfirm',
-  'digitalProductPay', 'dpSelectCrypto', 'dpPayConfirm',
-  'selectPaymentMethod', 'proceedWithPaymentProcess',
-  'cloudPhonePay', 'cpSelectPayment',
-  'bundlePay', 'bundleSelectPayment',
-  'walletSelectCurrency', 'walletSelectCurrencyConfirm',
-  'depositUSD', 'depositNGN', 'selectCryptoToDeposit',
+  // Direct payment selection screens (user picks Crypto / Bank / Wallet)
+  'domain-pay',
+  'hosting-pay',
+  'plan-pay',
+  'phone-pay',
+  'leads-pay',
+  'vps-plan-pay',
+  'vps-upgrade-plan-pay',
+  'digital-product-pay',     // a.digitalProductPay value
+  'virtual-card-pay',        // a.virtualCardPay value
+
+  // Bank payment awaiting states (user selected Bank, waiting for completion)
+  'bank-pay-domain',
+  'bank-pay-hosting',
+  'bank-pay-plan',
+  'bank-pay-phone',
+  'bank-pay-leads',
+  'bank-pay-vps',
+  'bank-pay-vps-upgrade',
+  'bank-pay-digital-product',
+  'bank-pay-virtual-card',
+  'bank-pay-email-blast',
+
+  // Crypto payment awaiting states (user selected Crypto, waiting for completion)
+  'crypto-pay-domain',
+  'crypto-pay-hosting',
+  'crypto-pay-plan',
+  'crypto-pay-phone',
+  'crypto-pay-leads',
+  'crypto-pay-vps',
+  'crypto-pay-vps-upgrade',
+  'crypto-pay-digital-product',
+  'crypto-pay-virtual-card',
+
+  // Wallet payment flow
+  'walletSelectCurrency',
+  'walletSelectCurrencyConfirm',
+  'walletPayUsd',
+  'walletPayNgn',
+
+  // Deposit / Top-up flow
+  'depositUSD',
+  'depositNGN',
+  'selectCryptoToDeposit',
+
+  // Hosting / Plan payment flow
+  'proceedWithPaymentProcess',
   'confirmUpgradeHostingPay',
-  'emailValidationPay', 'emailBulkPay',
-  'leadsPayment', 'leadsSelectPayment'
+  'hosting-apply-coupon',
+  'confirmRenewNow',
+
+  // VPS payment flow
+  'proceedWithVpsPayment',
+  'askVpsUpgradePayment',
+  'confirmVPSRenewDetails',
+
+  // Bundle payment
+  'bundleConfirm',
+
+  // Cloud Phone order
+  'cpOrderSummary',
+  'cpSubAddConfirm',
+  'cpRenewPlan',
+
+  // Email Validation / Blast
+  'evConfirmPay',
+  'ebPayment',
+
+  // Domain selection (pre-payment, high intent)
+  'choose-domain-to-buy',
+
+  // Leads payment
+  'targetLeadsConfirm',
 ])
 
-// ── Multi-language cancel/back keywords ──
+// ── Multi-language cancel/back keywords ──────────────────────────────
 // Exact-match words (after lowercasing + trimming)
 const CANCEL_WORDS = new Set([
   // English
@@ -36,10 +99,7 @@ const CANCEL_WORDS = new Set([
 ])
 
 // Prefix patterns — messages starting with these indicate back/cancel
-const CANCEL_PREFIXES = [
-  // Emoji prefixes used by back/cancel buttons
-  '⬅️', '🔙', '↩️', '❌',
-]
+const CANCEL_PREFIXES = ['⬅️', '🔙', '↩️', '❌']
 
 // Substring patterns — if the message contains these, it's a cancel/back
 const CANCEL_SUBSTRINGS = [
@@ -74,7 +134,58 @@ function isPaymentCancelMessage(message) {
   return false
 }
 
-// Nudge messages per product category — all 4 languages
+// ── Map action values to product categories ──────────────────────────
+function actionToCategory(action) {
+  if (!action) return 'general'
+  const a = action.toLowerCase()
+
+  // Domain
+  if (a.includes('domain') && !a.includes('dns') && !a.includes('shorten') && !a.includes('manage'))
+    return 'domain'
+
+  // Hosting / Plan / VPS
+  if (a.includes('hosting') || a === 'plan-pay' || a === 'bank-pay-plan' || a === 'crypto-pay-plan'
+    || a === 'proceedwithpaymentprocess' || a === 'confirmupgradehostingpay'
+    || a === 'hosting-apply-coupon' || a === 'confirmrenewnow')
+    return 'hosting'
+
+  // VPS
+  if (a.includes('vps'))
+    return 'hosting' // group VPS with hosting
+
+  // Cloud Phone / IVR
+  if (a.includes('phone') || a.includes('cpordersummary') || a.includes('cpsubadd')
+    || a.includes('cprenew') || a.includes('ivr'))
+    return 'cloudphone'
+
+  // Virtual Card
+  if (a.includes('virtual') || a.includes('card'))
+    return 'virtualcard'
+
+  // Wallet / Deposit
+  if (a.includes('wallet') || a.includes('deposit') || a.includes('selectcryptotodeposit'))
+    return 'wallet'
+
+  // Digital Product
+  if (a.includes('digital'))
+    return 'digitalproduct'
+
+  // Bundle
+  if (a.includes('bundle'))
+    return 'bundle'
+
+  // Email services
+  if (a.includes('email') || a.includes('ev') || a.includes('eb'))
+    return 'digitalproduct' // group email services with digital products
+
+  // Leads
+  if (a.includes('lead') || a.includes('target'))
+    return 'digitalproduct' // group leads with digital products
+
+  return 'general'
+}
+
+// ── Nudge messages per category — all 4 languages ────────────────────
 const NUDGE_MESSAGES = {
   domain: {
     en: '🌐 Hey! You were checking out a domain earlier. It might not be available for long.\n\n💡 Use your daily coupon for a discount — just type /menu and look for 🎟️ Daily Coupon!',
@@ -126,19 +237,10 @@ const NUDGE_MESSAGES = {
   }
 }
 
-// Map action names to product categories
-function actionToCategory(action) {
-  if (!action) return 'general'
-  const a = action.toLowerCase()
-  if (a.includes('domain')) return 'domain'
-  if (a.includes('hosting') || a.includes('vps') || a.includes('antired')) return 'hosting'
-  if (a.includes('cloud') || a.includes('phone') || a.includes('ivr') || a.includes('sip')) return 'cloudphone'
-  if (a.includes('virtual') || a.includes('vcard') || a.includes('vc')) return 'virtualcard'
-  if (a.includes('wallet') || a.includes('deposit')) return 'wallet'
-  if (a.includes('digital') || a.includes('dp')) return 'digitalproduct'
-  if (a.includes('bundle')) return 'bundle'
-  return 'general'
-}
+// ── Silent Abandonment Detection ─────────────────────────────────────
+// If a user reaches a payment screen and doesn't interact for SILENT_TIMEOUT,
+// treat it as abandonment (they closed the app without pressing Back/Cancel)
+const SILENT_TIMEOUT_MS = 20 * 60 * 1000 // 20 minutes of silence = abandoned
 
 function initCartAbandonment(bot, db, stateCol) {
   const abandonedCarts = db.collection('abandonedCarts')
@@ -150,6 +252,8 @@ function initCartAbandonment(bot, db, stateCol) {
 
   // Active nudge timers (chatId → timeout)
   const pendingNudges = new Map()
+  // Silent abandonment timers (chatId → timeout)
+  const silentTimers = new Map()
 
   // Record that a user reached a payment screen
   async function recordPaymentReached(chatId, action, productInfo = {}) {
@@ -157,10 +261,10 @@ function initCartAbandonment(bot, db, stateCol) {
       if (!PAYMENT_ACTIONS.has(action)) return
 
       await abandonedCarts.updateOne(
-        { chatId },
+        { chatId: parseFloat(chatId) },
         {
           $set: {
-            chatId,
+            chatId: parseFloat(chatId),
             action,
             category: actionToCategory(action),
             productInfo,
@@ -171,30 +275,61 @@ function initCartAbandonment(bot, db, stateCol) {
         },
         { upsert: true }
       )
+
+      // Start/reset silent abandonment timer
+      startSilentTimer(chatId, action)
+
     } catch (err) {
       // Non-critical
     }
   }
 
-  // Record that a user completed payment
+  // Start a silent abandonment timer — if user goes quiet for 20 min at payment screen
+  function startSilentTimer(chatId, action) {
+    const cid = parseFloat(chatId)
+    if (silentTimers.has(cid)) {
+      clearTimeout(silentTimers.get(cid))
+    }
+    const timer = setTimeout(async () => {
+      silentTimers.delete(cid)
+      // Check if user is STILL at a payment action (didn't navigate away)
+      try {
+        const userState = await stateCol.findOne({ _id: cid })
+        const currentAction = userState?.action
+        if (PAYMENT_ACTIONS.has(currentAction)) {
+          log(`[CartRecovery] Silent abandonment detected for ${cid} at action: ${currentAction}`)
+          // Read language from state
+          const lang = userState?.userLanguage || 'en'
+          await recordAbandonment(cid, lang)
+        }
+      } catch (err) {
+        // Non-critical
+      }
+    }, SILENT_TIMEOUT_MS)
+    silentTimers.set(cid, timer)
+  }
+
+  // Record that a user completed payment — cancel all pending timers
   async function recordPaymentCompleted(chatId) {
     try {
+      const cid = parseFloat(chatId)
+
       // Cancel any pending nudge
-      if (pendingNudges.has(chatId)) {
-        clearTimeout(pendingNudges.get(chatId))
-        pendingNudges.delete(chatId)
+      if (pendingNudges.has(cid)) {
+        clearTimeout(pendingNudges.get(cid))
+        pendingNudges.delete(cid)
       }
-      // Also check string version of chatId
-      const chatIdStr = String(chatId)
-      if (pendingNudges.has(chatIdStr)) {
-        clearTimeout(pendingNudges.get(chatIdStr))
-        pendingNudges.delete(chatIdStr)
+      // Cancel silent timer
+      if (silentTimers.has(cid)) {
+        clearTimeout(silentTimers.get(cid))
+        silentTimers.delete(cid)
       }
+
       await abandonedCarts.updateOne(
-        { chatId: { $in: [chatId, parseFloat(chatId), String(chatId)] }, status: { $in: ['in_progress', 'abandoned'] } },
+        { chatId: cid, status: { $in: ['in_progress', 'abandoned'] } },
         { $set: { status: 'completed', completed: true, completedAt: new Date() } }
       )
-      log(`[CartRecovery] Payment completed for ${chatId} — cart cleared`)
+      log(`[CartRecovery] Payment completed for ${cid} — cart cleared`)
     } catch (err) {
       // Non-critical
     }
@@ -203,16 +338,24 @@ function initCartAbandonment(bot, db, stateCol) {
   // Record that a user abandoned at payment
   async function recordAbandonment(chatId, lang = 'en') {
     try {
-      const cart = await abandonedCarts.findOne({ chatId, status: 'in_progress' })
+      const cid = parseFloat(chatId)
+
+      // Cancel silent timer since we're now recording the abandonment
+      if (silentTimers.has(cid)) {
+        clearTimeout(silentTimers.get(cid))
+        silentTimers.delete(cid)
+      }
+
+      const cart = await abandonedCarts.findOne({ chatId: cid, status: 'in_progress' })
       if (!cart) return
 
       // Check cooldown — don't spam users
       const recentNudge = await abandonedCarts.findOne({
-        chatId,
+        chatId: cid,
         nudgedAt: { $gte: new Date(Date.now() - NUDGE_COOLDOWN_MS) }
       })
       if (recentNudge) {
-        log(`[CartRecovery] Skipping ${chatId} — nudged recently`)
+        log(`[CartRecovery] Skipping ${cid} — nudged recently`)
         await abandonedCarts.updateOne({ _id: cart._id }, { $set: { status: 'abandoned_cooldown' } })
         return
       }
@@ -222,10 +365,10 @@ function initCartAbandonment(bot, db, stateCol) {
         { $set: { status: 'abandoned', abandonedAt: new Date(), lang } }
       )
 
-      log(`[CartRecovery] User ${chatId} abandoned ${cart.category} (action: ${cart.action}). Scheduling nudge in ${NUDGE_DELAY_MS / 60000} min`)
+      log(`[CartRecovery] User ${cid} abandoned ${cart.category} (action: ${cart.action}). Scheduling nudge in ${NUDGE_DELAY_MS / 60000} min`)
 
       // Schedule nudge after delay
-      scheduleNudge(chatId, cart.category, lang, cart._id)
+      scheduleNudge(cid, cart.category, lang, cart._id)
 
     } catch (err) {
       log(`[CartRecovery] Error recording abandonment: ${err.message}`)
@@ -234,14 +377,15 @@ function initCartAbandonment(bot, db, stateCol) {
 
   // Schedule a nudge timer
   function scheduleNudge(chatId, category, lang, cartId, delayMs = NUDGE_DELAY_MS) {
-    if (pendingNudges.has(chatId)) {
-      clearTimeout(pendingNudges.get(chatId))
+    const cid = parseFloat(chatId)
+    if (pendingNudges.has(cid)) {
+      clearTimeout(pendingNudges.get(cid))
     }
     const timer = setTimeout(async () => {
-      pendingNudges.delete(chatId)
-      await sendNudge(chatId, category, lang, cartId)
+      pendingNudges.delete(cid)
+      await sendNudge(cid, category, lang, cartId)
     }, delayMs)
-    pendingNudges.set(chatId, timer)
+    pendingNudges.set(cid, timer)
   }
 
   // Send follow-up nudge
@@ -276,13 +420,13 @@ function initCartAbandonment(bot, db, stateCol) {
     }
   }
 
-  // ── Startup Recovery ──
+  // ── Startup Recovery ──────────────────────────────────────────────
   // Re-schedule nudges for carts abandoned before server restart
   async function recoverPendingNudges() {
     try {
       const pendingCarts = await abandonedCarts.find({
         status: 'abandoned',
-        abandonedAt: { $gte: new Date(Date.now() - NUDGE_DELAY_MS - 5 * 60 * 1000) } // within nudge window + 5min buffer
+        abandonedAt: { $gte: new Date(Date.now() - NUDGE_DELAY_MS - 5 * 60 * 1000) }
       }).toArray()
 
       if (!pendingCarts.length) {
@@ -296,11 +440,10 @@ function initCartAbandonment(bot, db, stateCol) {
         const remaining = NUDGE_DELAY_MS - elapsed
 
         if (remaining > 0) {
-          // Still within the delay window — schedule with remaining time
           scheduleNudge(cart.chatId, cart.category, cart.lang || 'en', cart._id, remaining)
           recovered++
         } else {
-          // Delay already passed — send nudge immediately (within 1 min)
+          // Delay already passed — send nudge soon (1 minute)
           scheduleNudge(cart.chatId, cart.category, cart.lang || 'en', cart._id, 60 * 1000)
           recovered++
         }
@@ -315,7 +458,8 @@ function initCartAbandonment(bot, db, stateCol) {
   // Run recovery on startup (after a short delay to let bot fully initialize)
   setTimeout(() => recoverPendingNudges(), 30 * 1000)
 
-  log(`[CartRecovery] Initialized — nudge delay: ${NUDGE_DELAY_MS / 60000}min, cooldown: ${NUDGE_COOLDOWN_MS / 3600000}h, languages: en/fr/zh/hi`)
+  log(`[CartRecovery] Initialized — nudge delay: ${NUDGE_DELAY_MS / 60000}min, cooldown: ${NUDGE_COOLDOWN_MS / 3600000}h, silent timeout: ${SILENT_TIMEOUT_MS / 60000}min, languages: en/fr/zh/hi`)
+  log(`[CartRecovery] Tracking ${PAYMENT_ACTIONS.size} payment action states`)
 
   return {
     recordPaymentReached,

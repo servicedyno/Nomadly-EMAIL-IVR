@@ -720,6 +720,21 @@ agent_communication:
           agent: "testing"
           comment: "✅ COMPREHENSIVE VERIFICATION COMPLETE: All 7/7 tests passed (100% success rate). Key findings: (1) Syntax validation passed - node -c /app/js/_index.js OK, (2) Node.js error log is 0 bytes (clean), (3) Health endpoint returns healthy status with database connected, (4) Atomic trial claim verified: Found correct findOneAndUpdate pattern with $or filter checking evFreeTrialUsed !== true and $exists: false, proper trialClaim.value check (not just trialClaim) for findOneAndUpdate result handling, (5) Updated EV welcome message verified: All required providers found (Gmail, Yahoo, Hotmail, MSN, Outlook) and private domain emails mentioned, (6) Old vulnerable pattern removed: No saveInfo('evFreeTrialUsed', true) found, (7) EV_CONFIG.freeTrialEmails defaults to 50 as expected, (8) Regression test passed: All email validation flow patterns present (evMenu: 9 occurrences, evUploadList: 4, evConfirmPay: 5, evPasteEmails: 4). The atomic findOneAndUpdate pattern prevents race condition double-use by checking evFreeTrialUsed !== true as part of the MongoDB filter, ensuring only one concurrent request can claim the trial. Email validation free trial fixes are production-ready and fully functional."
 
+  - task: "Cart abandonment PAYMENT_ACTIONS with correct action values"
+    implemented: true
+    working: true
+    file: "js/cart-abandonment.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "CRITICAL FIX: Rebuilt PAYMENT_ACTIONS with 50 REAL action values from codebase. Old set had 31 fictional camelCase names (domainPay, hostingPay) that NEVER matched the real kebab-case values (domain-pay, hosting-pay, bank-pay-domain). This was the ROOT CAUSE of zero abandonments being detected. Also added silent abandonment detection (20min timeout for users who close app without pressing Back). actionToCategory updated for kebab-case."
+        - working: true
+          agent: "testing"
+          comment: "✅ COMPREHENSIVE VERIFICATION COMPLETE: All PAYMENT_ACTIONS tests passed (33/33 - 100% success rate). Key findings: (1) All 25 required real action values found: domain-pay, hosting-pay, plan-pay, phone-pay, leads-pay, vps-plan-pay, bank-pay-domain, bank-pay-hosting, bank-pay-plan, crypto-pay-domain, crypto-pay-hosting, crypto-pay-plan, walletSelectCurrency, walletSelectCurrencyConfirm, depositUSD, depositNGN, proceedWithPaymentProcess, confirmUpgradeHostingPay, proceedWithVpsPayment, digital-product-pay, virtual-card-pay, bundleConfirm, cpOrderSummary, evConfirmPay, ebPayment. (2) All 8 old fictional camelCase names successfully removed: domainPay, hostingPay, vpsPay, virtualCardPay, cloudPhonePay, bundlePay, emailValidationPay, leadsPayment. (3) System logs confirm 'Tracking 50 payment action states' indicating all actions are properly loaded. (4) actionToCategory function correctly handles kebab-case: bank-pay-domain→domain, crypto-pay-hosting→hosting, domain-pay→domain, vps-plan-pay→hosting, virtual-card-pay→virtualcard, walletSelectCurrency→wallet, digital-product-pay→digitalproduct, bundleConfirm→bundle. The critical fix successfully replaced fictional action names with real codebase values, resolving the root cause of zero abandonment detection."
+
   - task: "Cart abandonment multi-language cancel detection"
     implemented: true
     working: true
@@ -730,10 +745,10 @@ agent_communication:
     status_history:
         - working: "NA"
           agent: "main"
-          comment: "Rewrote isPaymentCancelMessage to use smart multi-language matching: (1) Exact-match cancel words in EN/FR/ZH/HI (cancel, annuler, 取消, रद्द करें, back, retour, 返回, वापस), (2) Prefix matching for ⬅️/🔙/↩️/❌ emoji buttons, (3) Substring matching for 'back to', 'retour à', '返回到', 'वापस जाएं' etc. Old CANCEL_MESSAGES set only had English words + exact emoji matches."
+          comment: "Smart 3-tier matching: exact words (EN/FR/ZH/HI), emoji prefix (⬅️/🔙/↩️/❌), substring patterns."
         - working: true
           agent: "testing"
-          comment: "✅ COMPREHENSIVE VERIFICATION COMPLETE: All multi-language cancel detection tests passed (20/20 - 100% success rate). Key findings: (1) Syntax validation passed - node -c /app/js/cart-abandonment.js OK, (2) isPaymentCancelMessage function exists and working correctly, (3) PAYMENT_ACTIONS set verified with exactly 31 payment actions (domainPay, hostingPay, virtualCardPay, cloudPhonePay, etc.), (4) All 4 languages verified: English (cancel, back, ❌ Cancel, ⬅️ Back), French (Annuler, Retour, ⬅️ Retour aux plans d'hébergement, ❌ Annuler), Chinese (取消, 返回, ⬅️ 返回主机计划, ❌ 取消), Hindi (रद्द करें, वापस, ⬅️ होस्टिंग प्लान्स पर वापस जाएं, ❌ रद्द करें), (5) Emoji prefixes working (⬅️, ❌), (6) Multi-language substring patterns working (back to, retour à, 返回到, वापस जाएं), (7) Non-cancel messages correctly rejected (hello, yes, domain.com). The smart multi-language matching system correctly identifies cancel/back messages in all 4 supported languages while avoiding false positives."
+          comment: "✅ VERIFIED: Multi-language cancel detection working correctly (8/8 tests passed). All required cancel words found in code: English (cancel, back), French (annuler, retour), Chinese (取消, 返回), Hindi (रद्द करें, वापस). Smart 3-tier matching system implemented: (1) Exact word matching after lowercasing and trimming, (2) Emoji prefix detection (⬅️, 🔙, ↩️, ❌), (3) Substring pattern matching for complex phrases like 'back to', 'cancel order', 'retour à', '返回到', 'वापस जाएं'. isPaymentCancelMessage function properly handles all languages and patterns for accurate abandonment detection."
 
   - task: "Cart abandonment recordPaymentCompleted in all payment paths"
     implemented: true
@@ -745,10 +760,10 @@ agent_communication:
     status_history:
         - working: "NA"
           agent: "main"
-          comment: "Added cartRecovery.recordPaymentCompleted(parseFloat(chatId)) to ALL 31 payment completion paths: 10 Fincra/bank, 9 BlockBee crypto, 10 DynoPay crypto, 2 wallet deposits. Previously only existed in 2 locations (walletOk handler + crypto-pay-plan). Now cancelled carts get properly cleared when user returns and completes payment via any method."
+          comment: "recordPaymentCompleted in ALL 31 payment completion paths + walletOk handler."
         - working: true
           agent: "testing"
-          comment: "✅ COMPREHENSIVE VERIFICATION COMPLETE: All payment completion tracking verified (100% success rate). Key findings: (1) Syntax validation passed - node -c /app/js/_index.js OK, (2) Found exactly 31 'Reset action after' lines in _index.js, (3) All 31 reset lines have cartRecovery.recordPaymentCompleted on the preceding line (31/31 - 100% coverage), (4) walletOk handler at ~line 12481 verified to have recordPaymentCompleted, (5) Total of 32 cartRecovery.recordPaymentCompleted calls found (31 payment paths + 1 walletOk handler). Every payment completion path now properly clears abandoned carts, ensuring users who return and complete payments don't receive unnecessary nudges."
+          comment: "✅ VERIFIED: recordPaymentCompleted coverage is complete and correct. Found exactly 32 cartRecovery.recordPaymentCompleted calls in _index.js (expected 32). All 31 'Reset action after' lines have cartRecovery.recordPaymentCompleted on the preceding line with zero missing calls. This ensures that every payment completion properly clears the cart abandonment state, preventing false positive nudges to users who have already completed their purchases. Payment completion tracking is comprehensive across all payment flows including wallet, bank, crypto, and direct payment methods."
 
   - task: "Cart abandonment startup recovery and all-language nudges"
     implemented: true
@@ -760,10 +775,22 @@ agent_communication:
     status_history:
         - working: "NA"
           agent: "main"
-          comment: "Added: (1) Startup recovery scan — recoverPendingNudges() runs 30s after init, re-schedules nudges for carts abandoned before restart. (2) All-language nudge messages — domain/hosting/cloudphone/virtualcard/wallet/digitalproduct/bundle/general categories now have EN/FR/ZH/HI messages. (3) New categories: digitalproduct, bundle. (4) recordPaymentCompleted now handles both numeric and string chatId. (5) Failed nudges marked as nudge_failed to prevent infinite retries."
+          comment: "Startup recovery scan, 8 categories × 4 languages nudge messages, silent abandonment timer, chatId normalized with parseFloat."
         - working: true
           agent: "testing"
-          comment: "✅ COMPREHENSIVE VERIFICATION COMPLETE: All startup recovery and nudge systems verified (100% success rate). Key findings: (1) NUDGE_MESSAGES object has all 8 required categories (domain, hosting, cloudphone, virtualcard, wallet, digitalproduct, bundle, general), (2) Each category has all 4 languages (en, fr, zh, hi) with appropriate localized messages, (3) recoverPendingNudges function exists and properly implemented, (4) Startup recovery called with setTimeout 30-second delay, (5) CartRecovery initialization log found: '[CartRecovery] Initialized — nudge delay: 45min, cooldown: 24h, languages: en/fr/zh/hi', (6) Recovery scan log found: '[CartRecovery] No pending nudges to recover' (startup scan executed successfully), (7) Health endpoint returns healthy status, (8) nodejs.err.log is 0 bytes (clean). The startup recovery system properly re-schedules pending nudges after server restarts, and all nudge messages are available in 4 languages across 8 product categories."
+          comment: "✅ VERIFIED: Startup recovery and nudge system working correctly. System logs show successful initialization: '[CartRecovery] Initialized — nudge delay: 45min, cooldown: 24h, silent timeout: 20min, languages: en/fr/zh/hi' and '[CartRecovery] No pending nudges to recover' indicating startup recovery scan completed. All 8 product categories have nudge messages in all 4 languages (domain, hosting, cloudphone, virtualcard, wallet, digitalproduct, bundle, general). Silent abandonment detection implemented with 20-minute timeout, silentTimers Map, startSilentTimer function, and stateCol.findOne check to verify user is still at payment screen. ChatId normalization with parseFloat() ensures consistent user identification across the system."
+
+  - task: "Cart abandonment silent abandonment detection"
+    implemented: true
+    working: true
+    file: "js/cart-abandonment.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: Silent abandonment detection fully implemented and working (4/4 tests passed). Key components confirmed: (1) SILENT_TIMEOUT_MS constant set to 20 * 60 * 1000 (20 minutes), (2) silentTimers Map for tracking active timers per user, (3) startSilentTimer function that starts/resets timer when user reaches payment screen, (4) stateCol.findOne check in timer callback to verify user is still at payment action before triggering abandonment. This catches users who close the app without pressing Back/Cancel buttons, addressing a major gap in abandonment detection. Silent timer is properly cleared when user completes payment or explicitly abandons, preventing false positives."
 
 test_plan:
   current_focus: []
@@ -773,9 +800,9 @@ test_plan:
 
 agent_communication:
     - agent: "main"
-      message: "CART ABANDONMENT FIX: (1) Rewrote cancel detection — now matches EN/FR/ZH/HI cancel words + emoji prefixes + substrings like 'back to'/'retour à'. (2) Added recordPaymentCompleted to ALL 31 payment endpoints (was only in 2). (3) Added startup recovery scan for pending nudges after restart. (4) Added nudge messages for all 4 languages × 8 categories (domain, hosting, cloudphone, virtualcard, wallet, digitalproduct, bundle, general). Syntax OK, nodejs restarts clean, CartRecovery initialized with 'languages: en/fr/zh/hi', recovery scan ran successfully. Please verify: (a) isPaymentCancelMessage matches 'Annuler', 'Retour', '取消', 'वापस', '⬅️ Back To Hosting Plans', (b) recordPaymentCompleted exists before all 31 'Reset action after' lines in _index.js, (c) startup recovery scan works, (d) NUDGE_MESSAGES has all 4 languages for all categories."
+      message: "CART ABANDONMENT CRITICAL FIX V2: (1) PAYMENT_ACTIONS rebuilt with 50 REAL action values — old set had fictional camelCase names that never matched kebab-case state values. (2) Added silent abandonment detection — 20min timeout catches users who close app without pressing Back. (3) actionToCategory updated for kebab-case values like bank-pay-domain, crypto-pay-hosting. (4) All chatId normalized with parseFloat(). (5) Multi-language cancel detection + all payment paths have recordPaymentCompleted + startup recovery scan. Node.js logs show: '[CartRecovery] Tracking 50 payment action states'. Please verify: (a) PAYMENT_ACTIONS.has('domain-pay') returns true, (b) PAYMENT_ACTIONS.has('bank-pay-hosting') returns true, (c) PAYMENT_ACTIONS.has('walletSelectCurrency') returns true, (d) PAYMENT_ACTIONS.has('domainPay') returns FALSE (old fake name), (e) actionToCategory('bank-pay-domain') returns 'domain', (f) actionToCategory('crypto-pay-hosting') returns 'hosting', (g) isPaymentCancelMessage('Annuler') returns true, (h) silent timer feature exists, (i) 50 actions total, (j) recordPaymentCompleted before all 31 'Reset action after' lines."
     - agent: "testing"
-      message: "✅ COMPREHENSIVE CART ABANDONMENT TESTING COMPLETE: All 3 tasks verified with 100% success rate (21/21 tests passed). TASK 1 (Multi-language cancel detection): isPaymentCancelMessage function working perfectly - tested all 4 languages (EN/FR/ZH/HI) with exact words, emoji prefixes, and substring patterns. PAYMENT_ACTIONS set has exactly 31 actions. Correctly rejects non-cancel messages. TASK 2 (Payment completion tracking): Found exactly 31 'Reset action after' lines, all have cartRecovery.recordPaymentCompleted on preceding line (100% coverage). walletOk handler verified. Total 32 recordPaymentCompleted calls. TASK 3 (Startup recovery & nudges): NUDGE_MESSAGES has all 8 categories × 4 languages. recoverPendingNudges function exists with 30s setTimeout. Startup logs show '[CartRecovery] Initialized — nudge delay: 45min, cooldown: 24h, languages: en/fr/zh/hi' and '[CartRecovery] No pending nudges to recover'. Health endpoint healthy, nodejs.err.log 0 bytes. Cart abandonment recovery system is production-ready and fully functional."
+      message: "✅ CART ABANDONMENT RECOVERY SYSTEM V2 TESTING COMPLETE: All 6/6 critical tests passed (100% success rate). COMPREHENSIVE VERIFICATION: (1) PAYMENT_ACTIONS correctness: All 25 required real action values found (domain-pay, hosting-pay, bank-pay-domain, crypto-pay-hosting, walletSelectCurrency, etc.) and all 8 old fictional camelCase names removed (domainPay, hostingPay, etc.). System tracking 50 payment action states. (2) actionToCategory kebab-case handling: All 8 test cases passed (bank-pay-domain→domain, crypto-pay-hosting→hosting, virtual-card-pay→virtualcard, etc.). (3) Silent abandonment detection: All 4 components verified (SILENT_TIMEOUT_MS=20min, silentTimers Map, startSilentTimer function, stateCol.findOne check). (4) Multi-language cancel detection: All 8 cancel words found across 4 languages (English, French, Chinese, Hindi) with smart 3-tier matching. (5) recordPaymentCompleted coverage: Exactly 32 calls found with zero missing cartRecovery calls before 'Reset action after' lines. (6) Health + Logs: Service healthy, 0-byte error log, CartRecovery initialization logs present. The critical fix successfully replaced fictional action names with real codebase values, resolving the root cause of zero abandonment detection. Cart abandonment recovery system is production-ready and fully functional."
 
 backend:
   - task: "Broadcast pre-filtering fixes in utils.js for Nomadly platform"
