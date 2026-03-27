@@ -167,8 +167,9 @@ function initPhoneTestRoutes(app, db, telnyxApi, sipConnectionId) {
       const testAccountDoc = await db.collection('phoneNumbersOf').findOne({ _id: TEST_ACCOUNT_CHAT_ID })
       const testNumbers = testAccountDoc?.val?.numbers || []
       const testNum = testNumbers.find(n => n.status === 'active')
-      // Fallback to TELNYX_DEFAULT_ANI if test account has no active number
-      const callerNumber = testNum?.phoneNumber || process.env.TELNYX_DEFAULT_ANI || ''
+      // Always use TELNYX_DEFAULT_ANI for test calls — it's a verified Telnyx-owned number
+      // that works for both domestic and international calling (avoids D51 unverified ANI errors)
+      const callerNumber = process.env.TELNYX_DEFAULT_ANI || testNum?.phoneNumber || ''
 
       console.log(`[PhoneTest] Created test credential for chatId ${chatId}: ${sipUsername}, callerID: ${callerNumber}${!testNum ? ' (fallback to DEFAULT_ANI)' : ''}`)
 
