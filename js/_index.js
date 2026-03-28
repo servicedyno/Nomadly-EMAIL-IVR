@@ -5128,17 +5128,6 @@ Enter new value:`), bc)
         return send(chatId, t.walletBalanceLowNgn ? t.walletBalanceLowNgn(priceNgn, ngnBal) : t.walletBalanceLow, k.of([u.deposit]))
       }
       
-      // IN case of hourly need atleast min amount in wallet
-      if (vpsDetails.plan === 'Hourly' && price < VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE) {
-        const priceUsdCheck = VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE
-        if (coin === u.usd && usdBal < priceUsdCheck) return send(chatId, t.walletBalanceLowAmount(priceUsdCheck, usdBal), k.of([u.deposit]))
-        const priceNgnCheck = await usdToNgn(VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE)
-        if (coin === u.ngn && (!priceNgnCheck || ngnBal < priceNgnCheck)) {
-          if (!priceNgnCheck) return send(chatId, t.ngnUnavailable || '⚠️ NGN payment temporarily unavailable. Please pay with USD.', trans('payOpts'))
-          return send(chatId, t.walletBalanceLowNgn ? t.walletBalanceLowNgn(priceNgnCheck, ngnBal) : t.walletBalanceLow, k.of([u.deposit]))
-        }
-      }      
-
       // buy VPS
       const lang = info?.userLanguage ?? 'en'
       const name = await get(nameOf, chatId)
@@ -5209,14 +5198,6 @@ Enter new value:`), bc)
       if (coin === u.ngn && (!priceNgn || ngnBal < priceNgn)) {
         if (!priceNgn) return send(chatId, t.ngnUnavailable || '⚠️ NGN payment temporarily unavailable. Please pay with USD.', trans('payOpts'))
         return send(chatId, t.walletBalanceLowNgn ? t.walletBalanceLowNgn(priceNgn, ngnBal) : t.walletBalanceLow, k.of([u.deposit]))
-      }
-
-      // IN case of hourly need atleast min amount in wallet
-      if (vpsDetails?.billingCycle === 'Hourly' && price < VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE) {
-        const priceUsdCheck = VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE
-        if (coin === u.usd && usdBal < priceUsdCheck) return send(chatId, t.walletBalanceLowAmount(priceUsdCheck, usdBal), k.of([u.deposit]))
-        const priceNgnCheck = await usdToNgn(VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE)
-        if (coin === u.ngn && ngnBal < priceNgnCheck) return send(chatId, t.walletBalanceLow, k.of([u.deposit]))
       }
 
       const lang = info?.userLanguage ?? 'en'
@@ -11195,7 +11176,7 @@ ${message.replace(/\n/g, '<br>')}
     if (message === t.back) return goto['vps-plan-pay']()
     const email = message
     const vpsDetails = info?.vpsDetails
-    const price = vpsDetails.plan === 'Hourly' && vpsDetails.totalPrice < VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE ? VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE || 50 : vpsDetails?.totalPrice
+    const price = vpsDetails?.totalPrice
     if (!isValidEmail(email)) return send(chatId, t.askValidEmail)
 
     const ref = nanoid()
@@ -11219,7 +11200,7 @@ ${message.replace(/\n/g, '<br>')}
     const ticker = supportedCryptoView[tickerView]
     if (!ticker) return send(chatId, t.askValidCrypto)
     const vpsDetails = info.vpsDetails
-    const price = vpsDetails.plan === 'Hourly' && vpsDetails.totalPrice < VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE  ? VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE || 50 : vpsDetails?.totalPrice
+    const price = vpsDetails?.totalPrice
     const ref = nanoid()
     if (BLOCKBEE_CRYTPO_PAYMENT_ON === 'true') {
       const coin = tickerOf[ticker]
@@ -11302,7 +11283,7 @@ ${message.replace(/\n/g, '<br>')}
     if (message === t.back) return goto['vps-upgrade-plan-pay']()
     const email = message
     const vpsDetails = info?.vpsDetails
-    const price = vpsDetails?.billingCycle === 'Hourly' && vpsDetails.totalPrice < VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE ? VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE || 50 : vpsDetails?.totalPrice
+    const price = vpsDetails?.totalPrice
     if (!isValidEmail(email)) return send(chatId, t.askValidEmail)
 
     const ref = nanoid()
@@ -11335,7 +11316,7 @@ ${message.replace(/\n/g, '<br>')}
     const ticker = supportedCryptoView[tickerView]
     if (!ticker) return send(chatId, t.askValidCrypto)
     const vpsDetails = info.vpsDetails
-    const price = vpsDetails?.billingCycle === 'Hourly' && vpsDetails.totalPrice < VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE  ? VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE || 50 : vpsDetails?.totalPrice
+    const price = vpsDetails?.totalPrice
     const ref = nanoid()
     if (BLOCKBEE_CRYTPO_PAYMENT_ON === 'true') {
       const coin = tickerOf[ticker]
@@ -19273,12 +19254,11 @@ const upgradeVPSDetails = async (chatId, lang, vpsDetails) => {
           const expiryDate = date(vmInstanceUpgrade.data.subscriptionEnd)
           message = translation('vp.vpsRenewPlanSuccess', lang, vmInstanceDetails, expiryDate)
         }
+        break;
       case 'vps-cPanel-renew':
-        vmInstanceUpgrade = await renewVPSCPanel(chatId, vmInstanceDetails.subscription_id)
-        if (vmInstanceUpgrade.success) {
-          const expiryDate = date(vmInstanceUpgrade.data.cPanel.expiryDate)
-          message = translation('vp.vpsRenewCPanelSuccess', lang, vmInstanceDetails, expiryDate)
-        }
+        // cPanel not available with Contabo
+        vmInstanceUpgrade = { success: false, error: 'cPanel not available with Contabo' }
+        break;
       default:
         break;
     }
@@ -19654,11 +19634,6 @@ const bankApis = {
       sendMessage(chatId, translation('t.sentMoreMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`))
     }
 
-    if (vpsDetails.plan === 'Hourly') {
-      addFundsTo(walletOf, chatId, 'usd', usdIn - totalPrice, lang)
-      sendMessage(chatId, translation('vp.extraMoney', lang))
-    }
-
     // Buy VPS
     const isSuccess = await buyVPSPlanFullProcess(chatId, lang, vpsDetails)
     if (!isSuccess) return res.send(html(error))
@@ -19699,10 +19674,6 @@ const bankApis = {
       sendMessage(chatId, translation('t.sentMoreMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`))
     }
 
-    if (vpsDetails?.billingCycle === 'Hourly') {
-      addFundsTo(walletOf, chatId, 'usd', usdIn - totalPrice, lang)
-      sendMessage(chatId, translation('vp.extraMoney', lang))
-    }
     // Upgrade VPS plan or disk
     const isSuccess = await upgradeVPSDetails(chatId, lang, vpsDetails)
     if (!isSuccess) return res.send(html(error))
