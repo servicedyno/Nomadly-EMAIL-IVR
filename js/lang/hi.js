@@ -1896,23 +1896,28 @@ ${CHAT_BOT_NAME}`,
 
 कृपया अपनी वॉलेट को टॉप-अप करें ताकि आप अपनी VPS योजना का उपयोग जारी रख सकें।`,
 
-  vpsBoughtSuccess: (vpsDetails, response) =>
-    `<strong>🎉 VPS [${response.label}] सक्रिय हो गया!</strong>
+  vpsBoughtSuccess: (vpsDetails, response, credentials) => {
+    const isRDP = response.isRDP || vpsDetails.isRDP || response.osType === 'Windows'
+    const connectInfo = isRDP
+      ? `  <strong>• कनेक्ट:</strong> 🖥 रिमोट डेस्कटॉप → <code>${response.host}:3389</code>\n  <strong>• कैसे:</strong> रिमोट डेस्कटॉप कनेक्शन (mstsc) खोलें और ऊपर दिया गया पता दर्ज करें।`
+      : `  <strong>• कनेक्ट:</strong> 💻 <code>ssh ${credentials.username}@${response.host}</code>`
+    return `<strong>🎉 ${isRDP ? 'RDP' : 'VPS'} [${response.label}] सक्रिय हो गया!</strong>
 
 <strong>🔑 लॉगिन विवरण:</strong>
   <strong>• IP:</strong> ${response.host}
-  <strong>• OS:</strong> ${vpsDetails.os ? vpsDetails.os.name : 'चयनित नहीं'}
+  <strong>• OS:</strong> ${vpsDetails.os ? vpsDetails.os.name : (isRDP ? 'Windows Server' : 'Linux')}
   <strong>• उपयोगकर्ता नाम:</strong> ${credentials.username}
-  <strong>• पासवर्ड:</strong> ${credentials.password} (तुरंत बदलें).
-    
-📧 यह विवरण आपके पंजीकृत ईमेल पर भी भेजे गए हैं। कृपया इन्हें सुरक्षित रखें।
+  <strong>• पासवर्ड:</strong> <tg-spoiler>${credentials.password}</tg-spoiler> (तुरंत बदलें)
 
-⚙️ नियंत्रण पैनल इंस्टॉलेशन (WHM/Plesk)
-यदि आपने WHM या Plesk ऑर्डर किया है, तो इंस्टॉलेशन प्रगति पर है। आपका नियंत्रण पैनल लॉगिन विवरण सेटअप पूरा होने के बाद अलग से भेजा जाएगा।
+<strong>🔗 कनेक्शन:</strong>
+${connectInfo}
+
+📧 यह विवरण आपके पंजीकृत ईमेल पर भी भेजे गए हैं। कृपया इन्हें सुरक्षित रखें।
 
 हमारी सेवा चुनने के लिए धन्यवाद
 ${CHAT_BOT_NAME}
-`,
+`
+  },
   vpsHourlyPlanRenewed: (vpsName, price) => `
 आपकी VPS योजना उदाहरण ${vpsName} को सफलतापूर्वक नवीनीकरण किया गया है।
 ${price}$ आपके वॉलेट से काटे गए हैं।`,

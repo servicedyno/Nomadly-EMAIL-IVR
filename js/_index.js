@@ -19196,6 +19196,18 @@ const buyVPSPlanFullProcess = async (chatId, lang, vpsDetails) => {
       send(TELEGRAM_DEV_CHAT_ID, 'Error sending email', translation('o'))
     }
 
+    // ── Phase 6: Notify admin group about VPS purchase ──
+    try {
+      const name = await get(nameOf, chatId)
+      const isRDP = vpsData.isRDP || vpsDetails.isRDP || false
+      const planType = isRDP ? 'RDP' : 'VPS'
+      const regionStr = vpsDetails.region ? ` in <b>${vpsDetails.region}</b>` : ''
+      notifyGroup(`🖥 <b>New ${planType} Deployed!</b>\nUser ${maskName(name)} just deployed a <b>${vpsDetails.plan || 'Cloud VPS'}</b> server${regionStr}.\nGet yours — /start`)
+      if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🖥 <b>VPS Purchase</b>\n👤 ${name} (${chatId})\n📦 ${vpsDetails.plan || 'Cloud VPS'}${regionStr}\n💰 $${vpsDetails.totalPrice}\n🖥 IP: ${vpsData.host || 'pending'}`, { parse_mode: 'HTML' })
+    } catch (e) {
+      log('[VPS] notifyGroup error: ' + e.message)
+    }
+
     return true
   } catch (error) {
     const errorMessage = `err buyVPSPlanFullProcess ${error?.message} ${safeStringify(error?.response?.data)}`
@@ -19272,6 +19284,17 @@ const upgradeVPSDetails = async (chatId, lang, vpsDetails) => {
 
     set(state, chatId, 'action', 'none')
     send(chatId, message, translation('o', lang))
+
+    // ── Phase 6: Notify admin group about VPS upgrade/renewal ──
+    try {
+      const name = await get(nameOf, chatId)
+      const upgradeLabel = vpsDetails.upgradeType === 'plan' ? 'Plan Upgrade' : vpsDetails.upgradeType === 'disk' ? 'Disk Upgrade' : vpsDetails.upgradeType === 'vps-renew' ? 'Renewal' : 'Update'
+      notifyGroup(`⬆️ <b>VPS ${upgradeLabel}!</b>\nUser ${maskName(name)} just ${vpsDetails.upgradeType === 'vps-renew' ? 'renewed' : 'upgraded'} their VPS.\nManage yours — /start`)
+      if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `⬆️ <b>VPS ${upgradeLabel}</b>\n👤 ${name} (${chatId})\n📦 ${vpsDetails.name || 'VPS'}\n💰 $${vpsDetails.totalPrice}`, { parse_mode: 'HTML' })
+    } catch (e) {
+      log('[VPS] upgrade notifyGroup error: ' + e.message)
+    }
+
     return true
   } catch (error) {
     const errorMessage = `err buyUPgradingVPSProcess ${error?.message} ${safeStringify(error?.response?.data)}`

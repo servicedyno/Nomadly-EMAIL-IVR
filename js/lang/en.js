@@ -1939,23 +1939,28 @@ Your VPS Plan for instance ${vpsName} has been stopped due to low balance.
 Please top up your wallet to continue using your VPS Plan.
 `,
 
-  vpsBoughtSuccess: (vpsDetails, response, credentials) =>
-    `<strong>🎉 VPS [${response.label}] is active!</strong>
+  vpsBoughtSuccess: (vpsDetails, response, credentials) => {
+    const isRDP = response.isRDP || vpsDetails.isRDP || response.osType === 'Windows'
+    const connectInfo = isRDP
+      ? `  <strong>• Connect:</strong> 🖥 Remote Desktop → <code>${response.host}:3389</code>\n  <strong>• How:</strong> Open Remote Desktop Connection (mstsc) and enter the address above.`
+      : `  <strong>• Connect:</strong> 💻 <code>ssh ${credentials.username}@${response.host}</code>`
+    return `<strong>🎉 ${isRDP ? 'RDP' : 'VPS'} [${response.label}] is active!</strong>
 
 <strong>🔑 Login Credentials:</strong>
   <strong>• IP:</strong> ${response.host}
-  <strong>• OS:</strong> ${vpsDetails.os ? vpsDetails.os.name : 'Not Selected'}
+  <strong>• OS:</strong> ${vpsDetails.os ? vpsDetails.os.name : (isRDP ? 'Windows Server' : 'Linux')}
   <strong>• Username:</strong> ${credentials.username}
-  <strong>• Password:</strong> ${credentials.password} (change immediately).
+  <strong>• Password:</strong> <tg-spoiler>${credentials.password}</tg-spoiler> (change immediately)
+
+<strong>🔗 Connection:</strong>
+${connectInfo}
 
 📧 These details have also been sent to your registered email. Please keep them secure.
 
-⚙️ Control Panel Installation (WHM/Plesk)
-If you ordered WHM or Plesk, installation is in progress. Your control panel login details will be sent separately once setup is complete.
-
 Thank you for choosing our service
 ${CHAT_BOT_NAME}
-`,
+`
+  },
   vpsHourlyPlanRenewed: (vpsName, price) => `
 Your VPS Plan for instance ${vpsName} has been renewed successfully.
 ${price}$ has been deducted from your wallet.`,

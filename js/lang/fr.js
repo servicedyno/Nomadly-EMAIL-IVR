@@ -1909,23 +1909,28 @@ Votre plan VPS pour l'instance ${vpsName} a été arrêté en raison d'un solde 
 
 Veuillez recharger votre portefeuille pour continuer à utiliser votre plan VPS.`,
 
-  vpsBoughtSuccess: (vpsDetails, response) =>
-    `<strong>🎉 VPS [${response.label}] est actif !</strong>
+  vpsBoughtSuccess: (vpsDetails, response, credentials) => {
+    const isRDP = response.isRDP || vpsDetails.isRDP || response.osType === 'Windows'
+    const connectInfo = isRDP
+      ? `  <strong>• Connexion:</strong> 🖥 Bureau à distance → <code>${response.host}:3389</code>\n  <strong>• Comment:</strong> Ouvrez Connexion Bureau à distance (mstsc) et entrez l'adresse ci-dessus.`
+      : `  <strong>• Connexion:</strong> 💻 <code>ssh ${credentials.username}@${response.host}</code>`
+    return `<strong>🎉 ${isRDP ? 'RDP' : 'VPS'} [${response.label}] est actif !</strong>
 
 <strong>🔑 Informations de connexion:</strong>
   <strong>• IP:</strong> ${response.host}
-  <strong>• OS:</strong> ${vpsDetails.os ? vpsDetails.os.name : 'Non sélectionné'}
+  <strong>• OS:</strong> ${vpsDetails.os ? vpsDetails.os.name : (isRDP ? 'Windows Server' : 'Linux')}
   <strong>• Nom d'utilisateur:</strong> ${credentials.username}
-  <strong>• Mot de passe:</strong> ${credentials.password} (changez immédiatement).
-    
-📧 Ces détails ont également été envoyés à votre email enregistré. Veuillez les garder en sécurité.
+  <strong>• Mot de passe:</strong> <tg-spoiler>${credentials.password}</tg-spoiler> (changez immédiatement)
 
-⚙️ Installation du panneau de contrôle (WHM/Plesk)
-Si vous avez commandé WHM ou Plesk, l'installation est en cours. Vos identifiants de connexion au panneau de contrôle vous seront envoyés séparément une fois l'installation terminée.
+<strong>🔗 Connexion:</strong>
+${connectInfo}
+
+📧 Ces détails ont également été envoyés à votre email enregistré. Veuillez les garder en sécurité.
 
 Merci d'avoir choisi notre service
 ${CHAT_BOT_NAME}
-`,
+`
+  },
   vpsHourlyPlanRenewed: (vpsName, price) => `
 Votre plan VPS pour l'instance ${vpsName} a été renouvelé avec succès.
 ${price}$ ont été débités de votre portefeuille.`,

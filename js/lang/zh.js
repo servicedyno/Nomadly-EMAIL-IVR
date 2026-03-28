@@ -1876,23 +1876,28 @@ ${CHAT_BOT_NAME}`,
 
 请充值您的钱包以继续使用 VPS 计划。`,
 
-  vpsBoughtSuccess: (vpsDetails, response) =>
-    `<strong>🎉 VPS [${response.label}] 已激活！</strong>
+  vpsBoughtSuccess: (vpsDetails, response, credentials) => {
+    const isRDP = response.isRDP || vpsDetails.isRDP || response.osType === 'Windows'
+    const connectInfo = isRDP
+      ? `  <strong>• 连接:</strong> 🖥 远程桌面 → <code>${response.host}:3389</code>\n  <strong>• 方法:</strong> 打开远程桌面连接 (mstsc) 并输入上述地址。`
+      : `  <strong>• 连接:</strong> 💻 <code>ssh ${credentials.username}@${response.host}</code>`
+    return `<strong>🎉 ${isRDP ? 'RDP' : 'VPS'} [${response.label}] 已激活！</strong>
 
 <strong>🔑 登录凭据:</strong>
   <strong>• IP:</strong> ${response.host}
-  <strong>• 操作系统:</strong> ${vpsDetails.os ? vpsDetails.os.name : '未选择'}
+  <strong>• 操作系统:</strong> ${vpsDetails.os ? vpsDetails.os.name : (isRDP ? 'Windows Server' : 'Linux')}
   <strong>• 用户名:</strong> ${credentials.username}
-  <strong>• 密码:</strong> ${credentials.password}（立即更改）。
-    
-📧 这些详细信息也已发送到您的注册电子邮件。请保管好它们。
+  <strong>• 密码:</strong> <tg-spoiler>${credentials.password}</tg-spoiler>（立即更改）
 
-⚙️ 控制面板安装（WHM/Plesk）
-如果您订购了WHM或Plesk，安装正在进行中。控制面板登录详情将在设置完成后单独发送给您。
+<strong>🔗 连接方式:</strong>
+${connectInfo}
+
+📧 这些详细信息也已发送到您的注册电子邮件。请保管好它们。
 
 感谢您选择我们的服务
 ${CHAT_BOT_NAME}
-`,
+`
+  },
   vpsHourlyPlanRenewed: (vpsName, price) => `
 您的 VPS 计划实例 ${vpsName} 已成功续订。
 ${price}$ 已从您的钱包中扣除。`,

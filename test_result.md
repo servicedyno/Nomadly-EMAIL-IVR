@@ -106,7 +106,56 @@
 
 
 
-user_problem_statement: "Fix Telnyx Quick IVR calls that were failing due to webhook handler incorrectly ignoring outbound IVR calls. Also verify Telnyx SIP functionality (inbound/outbound). Previous issue: Quick IVR calls initiated from Telnyx numbers were ignored by webhook handler with 'not on SIP connection, ignoring' message."
+user_problem_statement: "Fix Contabo VPS Phase 6 gaps: (1) Add notifyGroup() purchase notifications to admin group after VPS purchase and VPS upgrade/renewal, (2) Make vpsBoughtSuccess Telegram message RDP-aware with SSH vs RDP connection info, (3) Fix credentials parameter bug in FR/ZH/HI language files, (4) Remove stale WHM/Plesk references since Contabo doesn't support them."
+
+backend:
+  - task: "notifyGroup() after VPS purchase in buyVPSPlanFullProcess"
+    implemented: true
+    working: true
+    file: "js/_index.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Added notifyGroup() call after successful VPS provisioning in buyVPSPlanFullProcess(). Shows masked user name, plan, region. Also sends private admin message with full details (chatId, price, IP). Uses isRDP detection to show 'RDP' vs 'VPS' in notification."
+
+  - task: "notifyGroup() after VPS upgrade/renewal in upgradeVPSDetails"
+    implemented: true
+    working: true
+    file: "js/_index.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Added notifyGroup() call after successful VPS upgrade/renewal in upgradeVPSDetails(). Detects upgrade type (Plan Upgrade/Disk Upgrade/Renewal) and shows appropriate label. Also sends private admin message with full details."
+
+  - task: "RDP-aware vpsBoughtSuccess Telegram credential delivery"
+    implemented: true
+    working: true
+    file: "js/lang/en.js, js/lang/fr.js, js/lang/zh.js, js/lang/hi.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Rewrote vpsBoughtSuccess in all 4 languages to: (1) detect isRDP from response/vpsDetails, (2) show RDP connection (IP:3389 + mstsc instructions) for Windows or SSH command for Linux, (3) removed stale WHM/Plesk references (not available with Contabo), (4) added tg-spoiler tag to password for security, (5) changed title to show 'RDP' vs 'VPS'. Now a function body (not arrow expression) to support the isRDP logic."
+
+  - task: "Fix credentials parameter bug in FR/ZH/HI vpsBoughtSuccess"
+    implemented: true
+    working: true
+    file: "js/lang/fr.js, js/lang/zh.js, js/lang/hi.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "CRITICAL BUG FIX: FR/ZH/HI vpsBoughtSuccess had only (vpsDetails, response) params but referenced credentials.username/password — would cause ReferenceError crash for non-English users. Fixed all 3 to (vpsDetails, response, credentials) matching the English version."
 
 
   - task: "Fix Telnyx Quick IVR webhook handling"
@@ -793,12 +842,18 @@ agent_communication:
           comment: "✅ VERIFIED: Silent abandonment detection fully implemented and working (4/4 tests passed). Key components confirmed: (1) SILENT_TIMEOUT_MS constant set to 20 * 60 * 1000 (20 minutes), (2) silentTimers Map for tracking active timers per user, (3) startSilentTimer function that starts/resets timer when user reaches payment screen, (4) stateCol.findOne check in timer callback to verify user is still at payment action before triggering abandonment. This catches users who close the app without pressing Back/Cancel buttons, addressing a major gap in abandonment detection. Silent timer is properly cleared when user completes payment or explicitly abandons, preventing false positives."
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "notifyGroup() after VPS purchase in buyVPSPlanFullProcess"
+    - "notifyGroup() after VPS upgrade/renewal in upgradeVPSDetails"
+    - "RDP-aware vpsBoughtSuccess Telegram credential delivery"
+    - "Fix credentials parameter bug in FR/ZH/HI vpsBoughtSuccess"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
+    - agent: "main"
+      message: "CONTABO PHASE 6 FIXES: 4 gaps fixed: (1) Added notifyGroup() in buyVPSPlanFullProcess — sends masked notification to admin group + private detailed message to TELEGRAM_ADMIN_CHAT_ID. (2) Added notifyGroup() in upgradeVPSDetails — detects upgrade type (plan/disk/renew). (3) Rewrote vpsBoughtSuccess in all 4 languages to differentiate RDP (IP:3389 + mstsc) vs SSH (ssh user@IP), removed WHM/Plesk references, added tg-spoiler for password. (4) Fixed critical bug: FR/ZH/HI vpsBoughtSuccess was missing credentials parameter causing ReferenceError for non-English users. All files syntax-checked OK, nodejs restarts clean with 0-byte error log. Please verify: (a) notifyGroup call exists in buyVPSPlanFullProcess after sendVPSCredentialsEmail, (b) notifyGroup call exists in upgradeVPSDetails after send(chatId, message), (c) vpsBoughtSuccess in all 4 langs accepts 3 params (vpsDetails, response, credentials), (d) vpsBoughtSuccess has isRDP detection logic, (e) RDP shows IP:3389 + mstsc, SSH shows ssh command, (f) no WHM/Plesk references remain, (g) tg-spoiler wraps password."
     - agent: "main"
       message: "CART ABANDONMENT CRITICAL FIX V2: (1) PAYMENT_ACTIONS rebuilt with 50 REAL action values — old set had fictional camelCase names that never matched kebab-case state values. (2) Added silent abandonment detection — 20min timeout catches users who close app without pressing Back. (3) actionToCategory updated for kebab-case values like bank-pay-domain, crypto-pay-hosting. (4) All chatId normalized with parseFloat(). (5) Multi-language cancel detection + all payment paths have recordPaymentCompleted + startup recovery scan. Node.js logs show: '[CartRecovery] Tracking 50 payment action states'. Please verify: (a) PAYMENT_ACTIONS.has('domain-pay') returns true, (b) PAYMENT_ACTIONS.has('bank-pay-hosting') returns true, (c) PAYMENT_ACTIONS.has('walletSelectCurrency') returns true, (d) PAYMENT_ACTIONS.has('domainPay') returns FALSE (old fake name), (e) actionToCategory('bank-pay-domain') returns 'domain', (f) actionToCategory('crypto-pay-hosting') returns 'hosting', (g) isPaymentCancelMessage('Annuler') returns true, (h) silent timer feature exists, (i) 50 actions total, (j) recordPaymentCompleted before all 31 'Reset action after' lines."
     - agent: "testing"
