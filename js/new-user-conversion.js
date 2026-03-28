@@ -470,17 +470,22 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
   // Validate a welcome coupon — called from existing coupon validator
   async function validateWelcomeCoupon(code, chatId) {
     try {
-      const coupon = await welcomeCouponsCol.findOne({
-        code: code.toUpperCase(),
-        used: false,
-        expiresAt: { $gte: new Date() }
-      })
-      if (!coupon) return null
+      const upperCode = code.toUpperCase()
 
-      // Must be used by the same user it was issued to (or any user if chatId not set)
-      if (coupon.chatId && coupon.chatId !== parseFloat(chatId)) return null
+      // First check if coupon exists at all (regardless of used/expired status)
+      const anyCoupon = await welcomeCouponsCol.findOne({ code: upperCode })
+      if (!anyCoupon) return null  // Not a welcome coupon — let other validators handle it
 
-      return { discount: coupon.discount, code: coupon.code, type: 'welcome_offer' }
+      // Check if already used
+      if (anyCoupon.used) return { error: 'already_used' }
+
+      // Check if expired
+      if (anyCoupon.expiresAt && anyCoupon.expiresAt < new Date()) return { error: 'expired' }
+
+      // Must be used by the same user it was issued to
+      if (anyCoupon.chatId && anyCoupon.chatId !== parseFloat(chatId)) return { error: 'wrong_user' }
+
+      return { discount: anyCoupon.discount, code: anyCoupon.code, type: 'welcome_offer' }
     } catch (err) {
       return null
     }

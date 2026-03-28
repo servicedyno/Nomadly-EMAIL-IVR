@@ -17,7 +17,7 @@
   {
     "test": "Conversion engine logged onboarding start",
     "passed": true,
-    "detail": "06:47:53 [Conversion] Welcome offer scheduled for 5168006768 in 120 min"
+    "detail": "06:55:36 [Conversion] Welcome offer scheduled for 5168006768 in 120 min"
   },
   {
     "test": "Hosting plans shown after onboarding button",
@@ -62,12 +62,12 @@
   {
     "test": "Welcome offer scheduled (2h timer)",
     "passed": true,
-    "detail": "['06:47:34 [Conversion] First deposit bonus: $5 (min $20), Welcome offer: 25% (2h delay), Social proof: \u00d73']"
+    "detail": "['06:55:17 [Conversion] First deposit bonus: $5 (min $20), Welcome offer: 25% (2h delay), Social proof: \u00d73']"
   },
   {
     "test": "Welcome offer persisted in MongoDB (restart-safe)",
     "passed": true,
-    "detail": "fireAt=2026-03-28 08:48:05.138000"
+    "detail": "fireAt=2026-03-28 08:55:47.731000"
   },
   {
     "test": "Welcome coupon valid for owner",

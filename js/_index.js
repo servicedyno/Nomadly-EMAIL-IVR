@@ -583,6 +583,9 @@ async function resolveCoupon(code, chatId) {
   // 4. Check welcome offer coupons (Feature 3)
   if (userConversion) {
     const welcomeResult = await userConversion.validateWelcomeCoupon(code, chatId)
+    if (welcomeResult?.error === 'already_used') return { error: 'already_used' }
+    if (welcomeResult?.error === 'expired') return null  // Let it show as "invalid" — expired codes shouldn't hint existence
+    if (welcomeResult?.error === 'wrong_user') return null  // Don't reveal coupon belongs to another user
     if (welcomeResult?.discount) {
       return { discount: welcomeResult.discount, type: 'welcome_offer', code: welcomeResult.code }
     }
@@ -9807,7 +9810,7 @@ ${message.replace(/\n/g, '<br>')}
     if (couponResult.error === 'already_used') return send(chatId, t.couponUsedToday || '⚠️ You have already used this coupon today.')
     const discount = couponResult.discount
     const couponDiscount = (vpsDetails.plantotalPrice * discount) / 100;
-    const newPrice = vpsDetails.plantotalPrice - couponDiscount;
+    const newPrice = Math.max(1, vpsDetails.plantotalPrice - couponDiscount);
     vpsDetails.couponApplied = true
     vpsDetails.couponDiscount = couponDiscount
     vpsDetails.planNewPrice = newPrice
@@ -10464,7 +10467,7 @@ ${message.replace(/\n/g, '<br>')}
     if (!couponResult) return send(chatId, t.couponInvalid)
     if (couponResult.error === 'already_used') return send(chatId, t.couponUsedToday || '⚠️ You have already used this coupon today.')
 
-    const newPrice = price - (price * couponResult.discount) / 100
+    const newPrice = Math.max(1, price - (price * couponResult.discount) / 100)
     send(chatId, t.redNewPrice(price, newPrice), k.pay)
     await saveInfo('newPrice', newPrice)
     await saveInfo('couponApplied', true)
@@ -10796,7 +10799,7 @@ ${message.replace(/\n/g, '<br>')}
     if (!couponResult) return send(chatId, t.couponInvalid)
     if (couponResult.error === 'already_used') return send(chatId, t.couponUsedToday || '⚠️ You have already used this coupon today.')
 
-    const newPrice = price - (price * couponResult.discount) / 100
+    const newPrice = Math.max(1, price - (price * couponResult.discount) / 100)
     await saveInfo('newPrice', newPrice)
     await saveInfo('couponApplied', true)
     if (couponResult.type === 'daily') await dailyCouponSystem.markCouponUsed(couponResult.code, chatId)
@@ -10818,7 +10821,7 @@ ${message.replace(/\n/g, '<br>')}
     if (couponResult.error === 'already_used') return send(chatId, t.couponUsedToday || '⚠️ You have already used this coupon today.')
 
     const couponDiscount = (totalPrice * couponResult.discount) / 100;
-    const newPrice = totalPrice - couponDiscount;
+    const newPrice = Math.max(1, totalPrice - couponDiscount);
 
     await saveInfo('couponApplied', true)
     await saveInfo('couponDiscount', couponDiscount)
@@ -10986,7 +10989,7 @@ ${message.replace(/\n/g, '<br>')}
     const couponDiscount = (info.totalPrice * discount) / 100
     saveInfo('couponApplied', true)
     saveInfo('couponDiscount', couponDiscount)
-    saveInfo('newPrice', info.totalPrice - couponDiscount)
+    saveInfo('newPrice', Math.max(1, info.totalPrice - couponDiscount))
     if (couponResult.type === 'daily') await dailyCouponSystem.markCouponUsed(couponResult.code, chatId)
     if (couponResult.type === 'welcome_offer') await userConversion?.markWelcomeCouponUsed(couponResult.code, chatId)
     return goto['hosting-pay']()
@@ -11356,7 +11359,7 @@ ${message.replace(/\n/g, '<br>')}
     if (!couponResult) return send(chatId, t.couponInvalid)
     if (couponResult.error === 'already_used') return send(chatId, t.couponUsedToday || '⚠️ You have already used this coupon today.')
 
-    const newPrice = price - (price * couponResult.discount) / 100
+    const newPrice = Math.max(1, price - (price * couponResult.discount) / 100)
     await saveInfo('newPrice', newPrice)
     await saveInfo('couponApplied', true)
     if (couponResult.type === 'daily') await dailyCouponSystem.markCouponUsed(couponResult.code, chatId)
@@ -17935,7 +17938,7 @@ Select a category:`), k.of(catBtns))
     if (!couponResult) return send(chatId, t.couponInvalid)
     if (couponResult.error === 'already_used') return send(chatId, t.couponUsedToday || '⚠️ You have already used this coupon today.')
 
-    const newPrice = price - (price * couponResult.discount) / 100
+    const newPrice = Math.max(1, price - (price * couponResult.discount) / 100)
     await saveInfo('newPrice', newPrice)
     await saveInfo('couponApplied', true)
 
@@ -18087,7 +18090,7 @@ Select a category:`), k.of(catBtns))
     if (!couponResult) return send(chatId, t.couponInvalid)
     if (couponResult.error === 'already_used') return send(chatId, t.couponUsedToday || '⚠️ You have already used this coupon today.')
 
-    const newPrice = price - (price * couponResult.discount) / 100
+    const newPrice = Math.max(1, price - (price * couponResult.discount) / 100)
     await saveInfo('newPrice', newPrice)
     await saveInfo('couponApplied', true)
 
@@ -18134,6 +18137,8 @@ Select a category:`), k.of(catBtns))
     await saveInfo('couponCode', coupon)
     await saveInfo('couponType', couponResult.type || 'unknown')
     await saveInfo('bundlePrice', newPrice)
+    if (couponResult.type === 'daily') await dailyCouponSystem.markCouponUsed(couponResult.code || coupon, chatId)
+    if (couponResult.type === 'welcome_offer') await userConversion?.markWelcomeCouponUsed(couponResult.code || coupon, chatId)
     await set(state, chatId, 'action', a.bundleConfirm)
 
     const confirmBtn = { en: '✅ Purchase Bundle', fr: '✅ Acheter le Pack', zh: '✅ 购买套餐', hi: '✅ बंडल खरीदें' }[lang] || '✅ Purchase Bundle'
