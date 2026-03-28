@@ -149,10 +149,11 @@ async function runTests() {
 
   // 7. SSH Keys
   console.log('\n📋 SSH Keys (live API):')
-  await test('fetchUserSSHkeyList returns array', async () => {
-    const keys = await vmSetup.fetchUserSSHkeyList('test123')
-    if (!Array.isArray(keys)) throw new Error(`Expected array, got ${typeof keys}`)
-    console.log(`     → ${keys.length} key(s) for test user`)
+  await test('fetchUserSSHkeyList returns { keys: [] } format', async () => {
+    const result = await vmSetup.fetchUserSSHkeyList('test123')
+    if (!result || !result.keys) throw new Error(`Expected { keys: [...] }, got ${typeof result}`)
+    if (!Array.isArray(result.keys)) throw new Error(`Expected keys to be array, got ${typeof result.keys}`)
+    console.log(`     → ${result.keys.length} key(s) for test user`)
   })
 
   // 8. Instances

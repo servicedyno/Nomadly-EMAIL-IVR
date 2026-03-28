@@ -141,8 +141,8 @@ async function fetchAvailableZones(region) {
 async function fetchAvailableDiskTpes(zone) {
   try {
     return [
-      { id: 'nvme', name: 'NVMe', label: '⚡ NVMe (Fast)', type: 'nvme' },
-      { id: 'ssd',  name: 'SSD',  label: '💾 SSD (More Storage)', type: 'ssd' }
+      { id: 'nvme', _id: 'nvme', name: 'NVMe', value: 'nvme', label: '⚡ NVMe (Fast)', type: 'nvme' },
+      { id: 'ssd',  _id: 'ssd',  name: 'SSD',  value: 'ssd',  label: '💾 SSD (More Storage)', type: 'ssd' }
     ]
   } catch (err) {
     console.log('Error in fetchAvailableDiskTpes (contabo):', err.message || err)
@@ -304,7 +304,7 @@ async function fetchUserSSHkeyList(telegramId, vpsId) {
       localKeys = await _sshKeysOf.find({ telegramId: String(telegramId) }).toArray()
     }
 
-    return userKeys.map(s => {
+    const keys = userKeys.map(s => {
       const localMatch = localKeys.find(lk => lk.contaboSecretId === s.secretId)
       return {
         _id: s.secretId,
@@ -313,10 +313,11 @@ async function fetchUserSSHkeyList(telegramId, vpsId) {
         name: s.name.replace(`ssh-${telegramId}-`, ''),
         telegramId: telegramId,
         createdAt: s.createdAt,
-        // Include private key path if we stored it
         privateKeyStored: localMatch ? true : false
       }
     })
+    // Return in old format { keys: [...] } for backward compat with _index.js
+    return { keys }
   } catch (err) {
     console.log('Error in fetchUserSSHkeyList (contabo):', err.message || err)
     return false
@@ -358,7 +359,14 @@ async function generateNewSSHkey(telegramId, sshName) {
       })
     }
 
+    // Return in old format for backward compat with _index.js
+    // _index.js references newSShKey.sshKeyName directly
     return {
+      sshKeyName: keyName,
+      secretId: secret.secretId,
+      publicKey: sshPubKey,
+      privateKey: privateKey,
+      contaboName: contaboName,
       data: {
         sshKeyName: keyName,
         secretId: secret.secretId,
@@ -413,7 +421,11 @@ async function uploadSSHPublicKey(telegramId, key, sshName) {
       })
     }
 
+    // Return in old format for backward compat with _index.js
     return {
+      sshKeyName: keyName,
+      secretId: secret.secretId,
+      contaboName: contaboName,
       data: {
         sshKeyName: keyName,
         secretId: secret.secretId,

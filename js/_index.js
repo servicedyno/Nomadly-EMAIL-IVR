@@ -4747,8 +4747,8 @@ Enter new value:`), bc)
       send(chatId, vp.vpsWaitingTime)
       const vpsList = await fetchUserVPSList(chatId)
       if (!vpsList) return send(chatId, vp.failedFetchingData, trans('o'))
-      const vpsDetails = vpsList.map(({name, _id, vps_name}) => ({ name, _id, vps_name }));
-      list = vpsList.map((vps) => vps.name)
+      const vpsDetails = vpsList.map(({name, _id, vps_name, label}) => ({ name: name || vps_name, _id, vps_name: vps_name || name, label }));
+      list = vpsList.map((vps) => vps.name || vps.vps_name)
       saveInfo('userVPSDetails', vpsDetails)
       return list.length ? 
         send(chatId, vp.vpsList(vpsList), vp.of([...list, user.buyVpsPlan]))
@@ -4811,15 +4811,17 @@ Enter new value:`), bc)
     vpsSubscription: async () => {
       await set(state, chatId, 'action', a.vpsSubscription)
       const vpsDetails = info.userVPSDetails
-      const availableOptions = vpsDetails.cPanelPlanDetails?.id ? [vp.manageVpsSubBtn, vp.manageVpsPanelBtn] : [vp.manageVpsSubBtn]
-      const cPanelRenewDate = vpsDetails.cPanelPlanDetails?.id ? date(vpsDetails.cPanelPlanDetails.expiryDate) : ''
-      return send(chatId, vp.vpsSubscriptionData(vpsDetails, date(vpsDetails.subscriptionEnd), cPanelRenewDate), vp.of(availableOptions))
+      // Contabo: no cPanel, only VPS subscription management
+      const availableOptions = [vp.manageVpsSubBtn]
+      const subscriptionEnd = vpsDetails.subscription?.subscriptionEnd || vpsDetails.end_time || new Date()
+      return send(chatId, vp.vpsSubscriptionData(vpsDetails, date(subscriptionEnd), ''), vp.of(availableOptions))
     },
 
     manageVpsSub: async () => {
       await set(state, chatId, 'action', a.manageVpsSub)
       const btn = info.userVPSDetails.autoRenewable ? vp.vpsDisableRenewalBtn : vp.vpsEnableRenewalBtn
-      const expiryDate = date(info.userVPSDetails.subscriptionEnd)
+      const subscriptionEnd = info.userVPSDetails.subscription?.subscriptionEnd || info.userVPSDetails.end_time || new Date()
+      const expiryDate = date(subscriptionEnd)
       return send(chatId, vp.vpsSubDetails(info.userVPSDetails, expiryDate), vp.of([btn, vp.vpsPlanRenewBtn]))
     },
 
@@ -9825,7 +9827,7 @@ ${message.replace(/\n/g, '<br>')}
     vpsDetails.planNewPrice = 0
     info.vpsDetails = vpsDetails
     saveInfo('vpsDetails', vpsDetails)
-    return vpsDetails.plan != 'Hourly' ? goto.askCouponForVPSPlan() : goto.askVpsCpanel()
+    return vpsDetails.plan != 'Hourly' ? goto.askCouponForVPSPlan() : goto.askVpsOS()
   }
 
   if (action === a.askCouponForVPSPlan) {
@@ -9855,13 +9857,13 @@ ${message.replace(/\n/g, '<br>')}
     if (couponResult.type === 'daily') await dailyCouponSystem.markCouponUsed(couponResult.code, chatId)
     if (couponResult.type === 'welcome_offer') await userConversion?.markWelcomeCouponUsed(couponResult.code, chatId)
     send(chatId, vp.couponValid(couponDiscount))
-    return vpsDetails.plan != 'Hourly' ? goto.askVPSPlanAutoRenewal() : goto.askVpsCpanel()
+    return vpsDetails.plan != 'Hourly' ? goto.askVPSPlanAutoRenewal() : goto.askVpsOS()
   }
 
   if (action === a.skipCouponVps) {
     let vpsDetails = info?.vpsDetails
     if (message === t.goBackToCoupon || message === vp.back) return goto.askCouponForVPSPlan()
-    return vpsDetails.plan != 'Hourly' ? goto.askVPSPlanAutoRenewal() : goto.askVpsCpanel()
+    return vpsDetails.plan != 'Hourly' ? goto.askVPSPlanAutoRenewal() : goto.askVpsOS()
   }
 
   if (action === a.askVPSPlanAutoRenewal) {
@@ -9875,7 +9877,7 @@ ${message.replace(/\n/g, '<br>')}
     if (message === vp.skip) {
       send(chatId, vp.skipAutoRenewalWarming(expiresAt))
     }
-    return goto.askVpsCpanel()
+    return goto.askVpsOS() // Contabo: skip cPanel, go directly to OS
   }
 
   if (action === a.askVpsCpanel) {
@@ -9919,23 +9921,40 @@ ${message.replace(/\n/g, '<br>')}
 
   if (action === a.askVpsOS) {
     let vpsDetails = info?.vpsDetails
-    if (message === vp.back) return goto.askVpsCpanel()
+    // Back goes to auto-renewal or plan selection (cPanel skipped for Contabo)
+    if (message === vp.back) return vpsDetails.plan != 'Hourly' ? goto.askVPSPlanAutoRenewal() : goto.askUserVpsPlan()
     const osData = info?.vpsOSList
     const osList = osData.map((item) => item.name)     
     if (!osList.includes(message) && message != vp.skipOSBtn) return send(chatId, vp.chooseValidOS, vp.of([...osList, vp.skipOSBtn]))
     const osDetails = osData.find((ar) => ar.name ===  (message === vp.skipOSBtn ? 'Ubuntu' : message))
+    
+    // Check if RDP was selected
+    const isRDP = osDetails.isRDP || false
+    
     vpsDetails.os = {
       name: osDetails.name,
-      value: osDetails.value,
-      pricePerMonth: osDetails.price,
-      id: osDetails._id
+      value: osDetails.value || osDetails.id,
+      pricePerMonth: osDetails.price || 0,
+      id: osDetails.id || osDetails._id,
+      isRDP: isRDP
     }
-    vpsDetails.selectedOSPrice = osDetails.price
+    vpsDetails.isRDP = isRDP
+    vpsDetails.selectedOSPrice = osDetails.price || 0
+    vpsDetails.selectedCpanelPrice = 0  // No cPanel for Contabo
     const planPrice = vpsDetails.couponApplied ? vpsDetails.planNewPrice : vpsDetails.plantotalPrice
     const OSprice = vpsDetails.selectedOSPrice
-    const selectedCpanelPrice = vpsDetails.selectedCpanelPrice
+    const selectedCpanelPrice = 0
     const totalPrice = Number(selectedCpanelPrice) + Number(planPrice) + Number(OSprice)
     vpsDetails.totalPrice = totalPrice.toFixed(2)
+    
+    // If RDP selected and configs were loaded without Windows pricing, reload
+    if (isRDP && !vpsDetails._rdpPricingApplied) {
+      vpsDetails._rdpPricingApplied = true
+      // Recalculate: the plan price from fetchAvailableVPSConfigs already includes Windows if isRDP was set
+      // But since user selects OS AFTER plan, we need to add Windows license now
+      // The Windows license fee is already in osDetails.price from fetchAvailableOS
+    }
+    
     info.vpsDetails = vpsDetails
     saveInfo('vpsDetails', vpsDetails)
     return goto.vpsAskSSHKey()
@@ -10152,7 +10171,7 @@ ${message.replace(/\n/g, '<br>')}
     if (!upgradeBtns.includes(message)) return send(chatId, vp.selectCorrectOption, vp.of([ ...upgradeBtns, vp.cancel]))
     const selectedUpgrade = upgradeOptions.find(item => vp.upgradeOptionVPSBtn(item.to) === message)
     vpsDetails.upgradeOption = selectedUpgrade
-    vpsDetails.billingCycle = info.userVPSDetails.billingCycleDetails.type
+    vpsDetails.billingCycle = info.userVPSDetails.billingCycleDetails?.type || info.userVPSDetails.plan || 'Monthly'
     if (vpsDetails.upgradeType === 'plan') {
       vpsDetails.totalPrice = getVpsUpgradePrice(vpsDetails)
     } else if ( vpsDetails.upgradeType === 'disk') {
@@ -10205,8 +10224,8 @@ ${message.replace(/\n/g, '<br>')}
     if (message === vp.vpsPlanRenewBtn) {
       let vpsDetails = info.vpsDetails
       vpsDetails.upgradeType = 'vps-renew'
-      vpsDetails.totalPrice = info.userVPSDetails.price
-      vpsDetails.billingCycle = info.userVPSDetails.billingCycleDetails.type
+      vpsDetails.totalPrice = info.userVPSDetails.planPrice || info.userVPSDetails.price
+      vpsDetails.billingCycle = info.userVPSDetails.plan || 'Monthly'
       info.vpsDetails = vpsDetails
       saveInfo('vpsDetails', vpsDetails)
       return goto.confirmVPSRenewDetails()
@@ -19128,40 +19147,23 @@ const buyVPSPlanFullProcess = async (chatId, lang, vpsDetails) => {
       return false
     }
     const { data: vpsData } = vmInstance
-    const now = new Date()
     let info = await get(state, chatId)
 
-    await vpsPlansOf.insertOne({
-      chatId: chatId,
-      name: vpsData.vps_name,
-      label: vpsData.label,
-      vpsId: vpsData._id,
-      start_time: now, 
-      end_time: new Date(vpsData.subscription.subscriptionEnd), 
-      plan: vpsDetails.plan,
-      planPrice: vpsDetails.plantotalPrice, 
-      status: vpsData.status,
-      timestamp: new Date()
-    });
-    await sleep(10000)
+    // NOTE: vm-instance-setup.js already inserts into vpsPlansOf during createVPSInstance.
+    // No duplicate insert needed here.
 
-    if (vpsDetails.sshKeyName) {
-      const data = {
-        zone: vpsDetails.zone,
-        vpsId: vpsData._id,
-        sshKeys: [ vpsDetails.sshKeyName],
-        telegramId: chatId,
-      }
-      await attachSSHKeysToVM(data)
-    }
+    // For Contabo, SSH keys are attached at creation time (no separate step needed).
+    // Just wait for the instance to provision and get an IP.
+    send(chatId, translation('vp.vpsProvisioningWait', lang) || '⏳ Your server is being provisioned. Please wait...')
+    await sleep(15000)
 
-    await sleep(30000)
-    const credentials = await setVpsSshCredentials(vpsData.host)
+    // Credentials are returned directly from createVPSInstance for Contabo
+    const credentials = vpsData.credentials || { username: vpsData.isRDP ? 'Administrator' : 'root', password: 'Check email' }
 
     set(state, info._id, 'action', 'none')
-    send(chatId, translation('vp.vpsBoughtSuccess', lang, vpsDetails, vpsData, credentials?.data), translation('o', lang))
+    send(chatId, translation('vp.vpsBoughtSuccess', lang, vpsDetails, vpsData, credentials), translation('o', lang))
     try {
-      await sendVPSCredentialsEmail(info, vpsData, vpsDetails, credentials?.data)
+      await sendVPSCredentialsEmail(info, vpsData, vpsDetails, credentials)
     } catch (error) {
       log('Error sending email:', error)
       send(TELEGRAM_DEV_CHAT_ID, 'Error sending email', translation('o'))
