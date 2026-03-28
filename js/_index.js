@@ -636,7 +636,9 @@ const notifyGroup = async (message) => {
     if (TELEGRAM_NOTIFY_GROUP_ID) {
       const gid = Number(TELEGRAM_NOTIFY_GROUP_ID)
       sentTo.add(gid)
-      bot?.sendMessage(gid, taggedMessage, { parse_mode: 'HTML' })?.catch(e => {
+      bot?.sendMessage(gid, taggedMessage, { parse_mode: 'HTML' })?.then(() => {
+        log('[NotifyGroup] ✅ Sent to configured group ' + gid)
+      })?.catch(e => {
         log('Configured notify group error (' + gid + '): ' + e.message)
       })
     }
@@ -644,7 +646,9 @@ const notifyGroup = async (message) => {
     // 2. Always send to admin chat as fallback
     if (TELEGRAM_ADMIN_CHAT_ID && !sentTo.has(Number(TELEGRAM_ADMIN_CHAT_ID))) {
       sentTo.add(Number(TELEGRAM_ADMIN_CHAT_ID))
-      bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID, taggedMessage, { parse_mode: 'HTML' })?.catch(e => {
+      bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID, taggedMessage, { parse_mode: 'HTML' })?.then(() => {
+        log('[NotifyGroup] ✅ Sent to admin ' + TELEGRAM_ADMIN_CHAT_ID)
+      })?.catch(e => {
         log('Admin notify error: ' + e.message)
       })
     }
@@ -652,10 +656,13 @@ const notifyGroup = async (message) => {
     // 3. Send to all auto-registered groups from notifyGroups collection
     if (notifyGroupsCol?.find) {
       const groups = await notifyGroupsCol.find({}).toArray()
+      log('[NotifyGroup] Auto-registered groups found: ' + groups.length + (groups.length ? ' → ' + groups.map(g => g.title || g._id).join(', ') : ''))
       for (const group of groups) {
         if (sentTo.has(group._id)) continue // skip duplicates
         sentTo.add(group._id)
-        bot?.sendMessage(group._id, taggedMessage, { parse_mode: 'HTML' })?.catch(e => {
+        bot?.sendMessage(group._id, taggedMessage, { parse_mode: 'HTML' })?.then(() => {
+          log('[NotifyGroup] ✅ Sent to group ' + (group.title || group._id))
+        })?.catch(e => {
           log('Group notify error for ' + group._id + ': ' + e.message)
           if (e.message?.includes('bot was kicked') || e.message?.includes('chat not found') || e.message?.includes('bot is not a member')) {
             notifyGroupsCol.deleteOne({ _id: group._id })
@@ -663,7 +670,11 @@ const notifyGroup = async (message) => {
           }
         })
       }
+    } else {
+      log('[NotifyGroup] ⚠️ notifyGroupsCol not ready — skipped group query')
     }
+
+    log('[NotifyGroup] Dispatched to ' + sentTo.size + ' target(s)')
   } catch (e) {
     log('notifyGroup error: ' + e.message)
   }
