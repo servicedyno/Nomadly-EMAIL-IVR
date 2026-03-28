@@ -1757,40 +1757,40 @@ async function sendRemindersForExpiringPackages() {
       console.error('Error in bot plan reminders:', e.message)
     }
 
-    // ── VPS Plans: 3-day expiry reminder ──
+    // ── VPS Plans: 3-day expiry reminder (handled by checkVPSPlansExpiryandPayment now) ──
+    // Keeping this for backward compat with legacy nested records
     try {
-      const allVps = await vpsPlansOf.find({}).toArray()
+      const allVps = await vpsPlansOf.find({
+        'status': { $in: ['RUNNING', 'running'] },
+        'end_time': { $exists: true }
+      }).toArray()
       for (const entry of allVps) {
-        const chatId = entry._id
-        const plans = entry.val?.plans || entry.plans || []
-        for (const vps of plans) {
-          if (vps.status !== 'active') continue
-          const expiresAt = vps.expiresAt || vps.subscriptionEnd
-          if (!expiresAt) continue
+        const chatId = entry.chatId
+        if (!chatId) continue
+        const expiresAt = entry.end_time
+        if (!expiresAt) continue
 
-          const msLeft = new Date(expiresAt).getTime() - now.getTime()
-          const daysLeft = msLeft / (1000 * 60 * 60 * 24)
+        const msLeft = new Date(expiresAt).getTime() - now.getTime()
+        const daysLeft = msLeft / (1000 * 60 * 60 * 24)
 
-          if (daysLeft > 2.9 && daysLeft <= 3.1 && !vps._reminder3DaySent) {
-            const userState = await state.findOne({ _id: String(chatId) })
-            const lang = userState?.userLanguage ?? 'en'
-            const name = vps.name || vps.hostname || 'VPS'
-            const expiryDate = new Date(expiresAt).toLocaleDateString()
+        if (daysLeft > 2.9 && daysLeft <= 3.1 && !entry._reminder3DaySent) {
+          const userState = await state.findOne({ _id: String(chatId) })
+          const lang = userState?.userLanguage ?? 'en'
+          const name = entry.name || entry.label || 'VPS'
+          const expiryDate = new Date(expiresAt).toLocaleDateString()
 
-            const msgs = {
-              en: `🖥️ <b>VPS Expiring Soon</b>\n\n${name} expires in <b>3 days</b> (${expiryDate}).\nRenew to avoid service interruption.`,
-              fr: `🖥️ <b>VPS bientôt expiré</b>\n\n${name} expire dans <b>3 jours</b> (${expiryDate}).\nRenouvelez pour éviter l'interruption.`,
-              hi: `🖥️ <b>VPS जल्द समाप्त</b>\n\n${name} <b>3 दिनों</b> में समाप्त (${expiryDate}).\nनवीनीकरण करें।`,
-              zh: `🖥️ <b>VPS即将到期</b>\n\n${name} 将在 <b>3天</b> 后到期 (${expiryDate})。\n请续订。`,
-            }
-            send(chatId, msgs[lang] || msgs.en, { parse_mode: 'HTML' })
-            vps._reminder3DaySent = true
-            await vpsPlansOf.updateOne(
-              { _id: chatId },
-              { $set: { [`val.plans`]: plans } }
-            )
-            log(`[Reminders] 3-day VPS reminder sent to ${chatId} for ${name}`)
+          const msgs = {
+            en: `🖥️ <b>VPS Expiring Soon</b>\n\n${name} expires in <b>3 days</b> (${expiryDate}).\nRenew to avoid service interruption.`,
+            fr: `🖥️ <b>VPS bientôt expiré</b>\n\n${name} expire dans <b>3 jours</b> (${expiryDate}).\nRenouvelez pour éviter l'interruption.`,
+            hi: `🖥️ <b>VPS जल्द समाप्त</b>\n\n${name} <b>3 दिनों</b> में समाप्त (${expiryDate}).\nनवीनीकरण करें।`,
+            zh: `🖥️ <b>VPS即将到期</b>\n\n${name} 将在 <b>3天</b> 后到期 (${expiryDate})。\n请续订。`,
           }
+          send(chatId, msgs[lang] || msgs.en, { parse_mode: 'HTML' })
+          await vpsPlansOf.updateOne(
+            { _id: entry._id },
+            { $set: { _reminder3DaySent: true } }
+          )
+          log(`[Reminders] 3-day VPS reminder sent to ${chatId} for ${name}`)
         }
       }
     } catch (e) {
@@ -3236,9 +3236,8 @@ bot?.on('message', msg => {
     'vps-upgrade-plan-pay' : async () => {
       await set(state, chatId, 'action', 'vps-upgrade-plan-pay')
       const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
-      const lowBalance = info.vpsDetails?.billingCycle === 'Hourly' && usdBal < info.vpsDetails.totalPrice
       send(chatId, t.showWallet(usdBal, ngnBal))
-      send(chatId, vp.askPaymentMethod, info.vpsDetails?.billingCycle === 'Hourly' && !lowBalance ? k.of([payIn.wallet]) : k.pay)
+      send(chatId, vp.askPaymentMethod, k.pay) // Monthly billing — all payment methods available
     },
     // ━━━ Cloud IVR goto functions ━━━
     submenu5: async () => {
@@ -4804,7 +4803,7 @@ Enter new value:`), bc)
     askVpsUpgradePayment : async () => {
       set(state, chatId, 'action', a.askVpsUpgradePayment)
       const { usdBal } = await getBalance(walletOf, chatId)
-      const lowBalance = info.vpsDetails.billingCycle === 'Hourly' && usdBal < info.vpsDetails.totalPrice
+      const lowBalance = false // Monthly billing only
       return send(chatId, info.vpsDetails.upgradeType === 'plan' ? vp.upgradePlanSummary(info.vpsDetails, info.userVPSDetails, lowBalance) : vp.upgradeDiskSummary(info.vpsDetails, info.userVPSDetails, lowBalance), vp.of([vp.yes, vp.no]))
     },
 
@@ -9809,29 +9808,33 @@ ${message.replace(/\n/g, '<br>')}
     vpsDetails.config = selectedConfigType
     info.vpsDetails = vpsDetails
     saveInfo('vpsDetails', vpsDetails)
-    return goto.askUserVpsPlan()
-  }
-
-  // save vps plan
-  if (action === a.askUserVpsPlan) {
-    if (message === vp.back) return goto.askVpsConfig()
-    let vpsDetails = info?.vpsDetails
-    const plans = vpsDetails.config.billingCycles.map((item) => item.type)
-    if (!plans.includes(message)) return send(chatId, t.chooseValidPlan, vp.of(plans))
-    const plan = vpsDetails.config.billingCycles.find(item => item.type === message)
-    vpsDetails.plan = message
-    vpsDetails.billingCycleId = plan._id
-    vpsDetails.plantotalPrice = plan.originalPrice
+    // Contabo: Monthly only — skip billing cycle selection
+    vpsDetails.plan = 'Monthly'
+    vpsDetails.plantotalPrice = vpsDetails.config.billingCycles[0]?.price || vpsDetails.config.monthlyPrice
     vpsDetails.couponApplied = false
     vpsDetails.couponDiscount = 0
     vpsDetails.planNewPrice = 0
     info.vpsDetails = vpsDetails
     saveInfo('vpsDetails', vpsDetails)
-    return vpsDetails.plan != 'Hourly' ? goto.askCouponForVPSPlan() : goto.askVpsOS()
+    return goto.askCouponForVPSPlan()
+  }
+
+  // save vps plan (legacy — Contabo is Monthly only, kept for backward compat)
+  if (action === a.askUserVpsPlan) {
+    if (message === vp.back) return goto.askVpsConfig()
+    let vpsDetails = info?.vpsDetails
+    vpsDetails.plan = 'Monthly'
+    vpsDetails.plantotalPrice = vpsDetails.config.billingCycles?.[0]?.price || vpsDetails.config.monthlyPrice
+    vpsDetails.couponApplied = false
+    vpsDetails.couponDiscount = 0
+    vpsDetails.planNewPrice = 0
+    info.vpsDetails = vpsDetails
+    saveInfo('vpsDetails', vpsDetails)
+    return goto.askCouponForVPSPlan()
   }
 
   if (action === a.askCouponForVPSPlan) {
-    if (message === vp.back) return goto.askUserVpsPlan()
+    if (message === vp.back) return goto.askVpsConfig()
     let vpsDetails = info.vpsDetails
     const coupon = message.toUpperCase()
     if (message === vp.skip) {
@@ -9857,13 +9860,13 @@ ${message.replace(/\n/g, '<br>')}
     if (couponResult.type === 'daily') await dailyCouponSystem.markCouponUsed(couponResult.code, chatId)
     if (couponResult.type === 'welcome_offer') await userConversion?.markWelcomeCouponUsed(couponResult.code, chatId)
     send(chatId, vp.couponValid(couponDiscount))
-    return vpsDetails.plan != 'Hourly' ? goto.askVPSPlanAutoRenewal() : goto.askVpsOS()
+    return goto.askVPSPlanAutoRenewal()
   }
 
   if (action === a.skipCouponVps) {
     let vpsDetails = info?.vpsDetails
     if (message === t.goBackToCoupon || message === vp.back) return goto.askCouponForVPSPlan()
-    return vpsDetails.plan != 'Hourly' ? goto.askVPSPlanAutoRenewal() : goto.askVpsOS()
+    return goto.askVPSPlanAutoRenewal()
   }
 
   if (action === a.askVPSPlanAutoRenewal) {
@@ -9882,7 +9885,7 @@ ${message.replace(/\n/g, '<br>')}
 
   if (action === a.askVpsCpanel) {
     let vpsDetails = info?.vpsDetails
-    if (message === vp.back) return vpsDetails.plan != 'Hourly' ? goto.askVPSPlanAutoRenewal() : goto.askUserVpsPlan()
+    if (message === vp.back) return goto.askVPSPlanAutoRenewal()
     const cpanels = trans('vpsCpanelOptional')
     if (!cpanels.includes(message)) return send (chatId, vp.validCpanel, vp.cpanelMenu)
     vpsDetails.panel = message === vp.noControlPanel ? null : {
@@ -9921,8 +9924,8 @@ ${message.replace(/\n/g, '<br>')}
 
   if (action === a.askVpsOS) {
     let vpsDetails = info?.vpsDetails
-    // Back goes to auto-renewal or plan selection (cPanel skipped for Contabo)
-    if (message === vp.back) return vpsDetails.plan != 'Hourly' ? goto.askVPSPlanAutoRenewal() : goto.askUserVpsPlan()
+    // Back goes to auto-renewal (cPanel skipped for Contabo)
+    if (message === vp.back) return goto.askVPSPlanAutoRenewal()
     const osData = info?.vpsOSList
     const osList = osData.map((item) => item.name)     
     if (!osList.includes(message) && message != vp.skipOSBtn) return send(chatId, vp.chooseValidOS, vp.of([...osList, vp.skipOSBtn]))
@@ -10171,15 +10174,11 @@ ${message.replace(/\n/g, '<br>')}
     if (!upgradeBtns.includes(message)) return send(chatId, vp.selectCorrectOption, vp.of([ ...upgradeBtns, vp.cancel]))
     const selectedUpgrade = upgradeOptions.find(item => vp.upgradeOptionVPSBtn(item.to) === message)
     vpsDetails.upgradeOption = selectedUpgrade
-    vpsDetails.billingCycle = info.userVPSDetails.billingCycleDetails?.type || info.userVPSDetails.plan || 'Monthly'
+    vpsDetails.billingCycle = 'Monthly' // Contabo: Monthly only
     if (vpsDetails.upgradeType === 'plan') {
       vpsDetails.totalPrice = getVpsUpgradePrice(vpsDetails)
     } else if ( vpsDetails.upgradeType === 'disk') {
-      if (vpsDetails.billingCycle === 'Hourly') {
-        vpsDetails.totalPrice = (Number(info.userVPSDetails.price) + Number(selectedUpgrade.price)).toFixed(2)
-      } else {
-        vpsDetails.totalPrice = selectedUpgrade.price
-      }
+      vpsDetails.totalPrice = selectedUpgrade.monthlyPrice || selectedUpgrade.price
     }
     info.vpsDetails = vpsDetails
     saveInfo('vpsDetails', vpsDetails)
@@ -19090,49 +19089,96 @@ async function checkVPSPlansExpiryandPayment() {
   }
 
   const now = new Date()
-  const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000)
 
   try {
-    const expiredHourlyVpsPlans = await vpsPlansOf.find({
-      'plan': 'Hourly',
+    // ─── Monthly plans: check for expiry and auto-renew ───
+    const expiredMonthlyPlans = await vpsPlansOf.find({
       'end_time': { $lte: now },
-      'status' : 'RUNNING'
+      'status': { $in: ['RUNNING', 'running'] }
     }).toArray()
 
-    for ( const vpsPlan of expiredHourlyVpsPlans) {
-      const { chatId, _id, planPrice, plan, vpsId, label } = vpsPlan
+    for (const vpsPlan of expiredMonthlyPlans) {
+      const { chatId, _id, planPrice, plan, vpsId, label, autoRenewable, contaboInstanceId } = vpsPlan
       const info = await state.findOne({ _id: parseFloat(chatId) })
-      const { usdBal } = await getBalance(walletOf, chatId)
-      if (usdBal < planPrice) {
-        try {
-          let payload = {
-            _id: vpsId
-          }
-          const stopVPS = await changeVpsInstanceStatus(payload, 'stop')
-          if (stopVPS.success) {
-            await vpsPlansOf.updateOne(
-              { _id: _id },
-              { $set: { 'status': 'TERMINATED' } },
-            )
-            return send(chatId, translation('vp.lowWalletBalance', info?.userLanguage, label))
-          }
-        } catch (error) {
-          console.log(error)
+      const lang = info?.userLanguage || 'en'
+      const displayName = label || vpsPlan.name || 'VPS'
+
+      if (autoRenewable) {
+        // Auto-renew: check wallet balance
+        const { usdBal } = await getBalance(walletOf, chatId)
+        if (usdBal >= planPrice) {
+          // Deduct and renew
+          const newEnd = new Date(now)
+          newEnd.setMonth(newEnd.getMonth() + 1)
+
+          await vpsPlansOf.updateOne(
+            { _id: _id },
+            { $set: { end_time: newEnd, status: 'RUNNING' } }
+          )
+          set(payments, nanoid(), `Wallet,VPSPlan,Monthly,$${planPrice},${chatId},${new Date()}`)
+          await atomicIncrement(walletOf, chatId, 'usdOut', Number(planPrice))
+          const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
+
+          send(chatId, translation('vp.vpsMonthlyPlanRenewed', lang, displayName, planPrice) ||
+            `✅ Your VPS <b>${displayName}</b> has been auto-renewed for 1 month.\n💰 $${planPrice} deducted from wallet.`)
+          send(chatId, translation('t.showWallet', lang, usd, ngn))
+          log(`[VPS Scheduler] Auto-renewed ${displayName} for ${chatId}, deducted $${planPrice}`)
+        } else {
+          // Insufficient balance — warn and mark as expired
+          await vpsPlansOf.updateOne(
+            { _id: _id },
+            { $set: { status: 'EXPIRED' } }
+          )
+          send(chatId, translation('vp.lowWalletBalance', lang, displayName) ||
+            `⚠️ Your VPS <b>${displayName}</b> has expired. Insufficient wallet balance ($${usdBal.toFixed(2)} < $${planPrice}).\nPlease top up and renew manually.`)
+          log(`[VPS Scheduler] ${displayName} expired for ${chatId} — low balance ($${usdBal} < $${planPrice})`)
         }
       } else {
+        // No auto-renew — mark as expired and notify
         await vpsPlansOf.updateOne(
           { _id: _id },
-          { $set: { 'end_time': oneHourFromNow } },
+          { $set: { status: 'EXPIRED' } }
         )
-        set(payments, nanoid(), `Wallet,VPSPlan,${plan},$${planPrice},${chatId},${new Date()}`)
-        send(chatId, translation('vp.vpsHourlyPlanRenewed', info?.userLanguage, label, planPrice))
-        await atomicIncrement(walletOf, chatId, 'usdOut', Number(planPrice))
-        const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
-        send(chatId, translation('t.showWallet', info?.userLanguage, usd, ngn))
+        send(chatId, translation('vp.vpsExpiredNoAutoRenew', lang, displayName) ||
+          `⚠️ Your VPS <b>${displayName}</b> has expired. Auto-renewal is disabled.\nPlease renew manually to continue service.`)
+        log(`[VPS Scheduler] ${displayName} expired for ${chatId} — auto-renew disabled`)
+      }
+    }
+
+    // ─── Pre-expiry reminders (3 days and 1 day before) ───
+    const threeDaysFromNow = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
+    const oneDayFromNow = new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000)
+
+    const soonExpiring = await vpsPlansOf.find({
+      'end_time': { $lte: threeDaysFromNow, $gt: now },
+      'status': { $in: ['RUNNING', 'running'] }
+    }).toArray()
+
+    for (const vpsPlan of soonExpiring) {
+      const { chatId, _id, label, end_time } = vpsPlan
+      const displayName = label || vpsPlan.name || 'VPS'
+      const msLeft = new Date(end_time).getTime() - now.getTime()
+      const daysLeft = msLeft / (1000 * 60 * 60 * 24)
+      const info = await state.findOne({ _id: parseFloat(chatId) })
+      const lang = info?.userLanguage || 'en'
+      const expiryDate = new Date(end_time).toLocaleDateString()
+
+      // 3-day reminder
+      if (daysLeft > 2.5 && daysLeft <= 3.1 && !vpsPlan._reminder3DaySent) {
+        send(chatId, `🖥️ <b>VPS Expiring Soon</b>\n\n${displayName} expires in <b>3 days</b> (${expiryDate}).\nRenew to avoid service interruption.`)
+        await vpsPlansOf.updateOne({ _id: _id }, { $set: { _reminder3DaySent: true } })
+        log(`[VPS Scheduler] 3-day reminder sent to ${chatId} for ${displayName}`)
+      }
+
+      // 1-day reminder
+      if (daysLeft > 0.5 && daysLeft <= 1.1 && !vpsPlan._reminder1DaySent) {
+        send(chatId, `🖥️ <b>VPS Expiring Tomorrow</b>\n\n${displayName} expires <b>tomorrow</b> (${expiryDate}).\n⚠️ Renew now to keep your server running!`)
+        await vpsPlansOf.updateOne({ _id: _id }, { $set: { _reminder1DaySent: true } })
+        log(`[VPS Scheduler] 1-day reminder sent to ${chatId} for ${displayName}`)
       }
     }
   } catch (error) {
-    console.error('Error sending reminders:', error)
+    console.error('[VPS Scheduler] Error:', error.message || error)
   }
 }
 
