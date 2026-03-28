@@ -199,6 +199,7 @@ const {
 const { translation } = require('./translation.js')
 const { safeStringify } = require('./utils.js')
 const { 
+  initVpsDb,
   fetchAvailableCountries,
   fetchAvailableRegionsOfCountry,
   fetchAvailableZones,
@@ -974,6 +975,7 @@ const loadData = async () => {
   chatIdOfDynopayPayment = db.collection('chatIdOfDynopayPayment')
   paymentIntents = db.collection('paymentIntents') // P0: Payment intent persistence
   vpsPlansOf = db.collection('vpsPlansOf')
+  initVpsDb(db) // Initialize VPS DB for Contabo service
   totalShortLinks = db.collection('totalShortLinks')
   freeShortLinksOf = db.collection('freeShortLinksOf')
   freeSmsCountOf = db.collection('freeSmsCountOf')
