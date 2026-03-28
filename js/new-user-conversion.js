@@ -226,16 +226,17 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
   const conversionCol = db.collection('userConversion')
   const welcomeCouponsCol = db.collection('welcomeCoupons')
   const browseTrackingCol = db.collection('browseTracking')
+  const scheduledEventsCol = db.collection('scheduledEvents')
 
   // Indexes
   conversionCol.createIndex({ chatId: 1 }, { unique: true }).catch(() => {})
   welcomeCouponsCol.createIndex({ code: 1 }).catch(() => {})
   welcomeCouponsCol.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }).catch(() => {})
   browseTrackingCol.createIndex({ chatId: 1 }).catch(() => {})
+  scheduledEventsCol.createIndex({ chatId: 1, type: 1 }).catch(() => {})
+  scheduledEventsCol.createIndex({ status: 1, fireAt: 1 }).catch(() => {})
 
-  // In-memory caches
-  const welcomeOfferTimers = new Map()  // chatId → setTimeout handle
-  const browseTimers = new Map()        // chatId → setTimeout handle
+  // In-memory caches (social proof only — timers are now MongoDB-persisted)
   let socialProofCache = {}             // category → count (multiplied)
   let socialProofLastRefresh = 0
 
@@ -381,18 +382,25 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
   async function scheduleWelcomeOffer(chatId, lang = 'en') {
     try {
       const cid = parseFloat(chatId)
+      const fireAt = new Date(Date.now() + WELCOME_OFFER_DELAY_MS)
 
-      // Cancel existing timer
-      if (welcomeOfferTimers.has(cid)) {
-        clearTimeout(welcomeOfferTimers.get(cid))
-      }
+      // Persist to MongoDB — upsert so re-scheduling replaces any existing timer
+      await scheduledEventsCol.updateOne(
+        { chatId: cid, type: 'welcome_offer' },
+        {
+          $set: {
+            chatId: cid,
+            type: 'welcome_offer',
+            lang,
+            fireAt,
+            status: 'pending',
+            updatedAt: new Date(),
+          },
+          $setOnInsert: { createdAt: new Date() },
+        },
+        { upsert: true }
+      )
 
-      const timer = setTimeout(async () => {
-        welcomeOfferTimers.delete(cid)
-        await sendWelcomeOffer(cid, lang)
-      }, WELCOME_OFFER_DELAY_MS)
-
-      welcomeOfferTimers.set(cid, timer)
       log(`[Conversion] Welcome offer scheduled for ${cid} in ${WELCOME_OFFER_DELAY_MS / 60000} min`)
     } catch (err) {
       log(`[Conversion] Schedule welcome offer error: ${err.message}`)
@@ -494,17 +502,22 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
         { upsert: true }
       )
 
-      // Reset/start follow-up timer
-      if (browseTimers.has(cid)) {
-        clearTimeout(browseTimers.get(cid))
-      }
-
-      const timer = setTimeout(async () => {
-        browseTimers.delete(cid)
-        await sendBrowseFollowUp(cid, lang)
-      }, BROWSE_FOLLOWUP_DELAY_MS)
-
-      browseTimers.set(cid, timer)
+      // Reset/start follow-up timer — persisted in MongoDB
+      await scheduledEventsCol.updateOne(
+        { chatId: cid, type: 'browse_followup' },
+        {
+          $set: {
+            chatId: cid,
+            type: 'browse_followup',
+            lang,
+            fireAt: new Date(Date.now() + BROWSE_FOLLOWUP_DELAY_MS),
+            status: 'pending',
+            updatedAt: new Date(),
+          },
+          $setOnInsert: { createdAt: new Date() },
+        },
+        { upsert: true }
+      )
     } catch (err) {
       // Non-critical
     }
@@ -633,20 +646,76 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
         { upsert: true }
       )
 
-      // Cancel welcome offer timer if pending
-      if (welcomeOfferTimers.has(cid)) {
-        clearTimeout(welcomeOfferTimers.get(cid))
-        welcomeOfferTimers.delete(cid)
-      }
-      // Cancel browse follow-up timer
-      if (browseTimers.has(cid)) {
-        clearTimeout(browseTimers.get(cid))
-        browseTimers.delete(cid)
-      }
+      // Cancel all pending scheduled events for this user
+      await scheduledEventsCol.updateMany(
+        { chatId: cid, status: 'pending' },
+        { $set: { status: 'cancelled', cancelledAt: new Date() } }
+      )
     } catch (err) {
       // Non-critical
     }
   }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // PERSISTENT TIMER PROCESSOR — polls MongoDB every 60s for due events
+  // Survives server restarts; recovers any pending timers automatically
+  // ═══════════════════════════════════════════════════════════════════
+
+  const POLL_INTERVAL_MS = 60 * 1000 // Check every 60 seconds
+
+  async function processScheduledEvents() {
+    try {
+      const now = new Date()
+
+      // Find all pending events whose fireAt has passed
+      const dueEvents = await scheduledEventsCol.find({
+        status: 'pending',
+        fireAt: { $lte: now },
+      }).toArray()
+
+      for (const event of dueEvents) {
+        try {
+          // Mark as processing to prevent duplicate firings
+          const lockResult = await scheduledEventsCol.updateOne(
+            { _id: event._id, status: 'pending' },
+            { $set: { status: 'processing', processingAt: now } }
+          )
+          // If another instance already locked it, skip
+          if (lockResult.modifiedCount === 0) continue
+
+          if (event.type === 'welcome_offer') {
+            await sendWelcomeOffer(event.chatId, event.lang || 'en')
+          } else if (event.type === 'browse_followup') {
+            await sendBrowseFollowUp(event.chatId, event.lang || 'en')
+          }
+
+          // Mark as fired
+          await scheduledEventsCol.updateOne(
+            { _id: event._id },
+            { $set: { status: 'fired', firedAt: new Date() } }
+          )
+        } catch (eventErr) {
+          log(`[Conversion] Error processing event ${event._id}: ${eventErr.message}`)
+          // Mark as failed so it doesn't block future polls
+          await scheduledEventsCol.updateOne(
+            { _id: event._id },
+            { $set: { status: 'failed', error: eventErr.message, failedAt: new Date() } }
+          ).catch(() => {})
+        }
+      }
+
+      if (dueEvents.length > 0) {
+        log(`[Conversion] Processed ${dueEvents.length} scheduled event(s)`)
+      }
+    } catch (err) {
+      log(`[Conversion] Scheduled event processor error: ${err.message}`)
+    }
+  }
+
+  // Start the polling loop — also recovers any timers from before a restart
+  setInterval(() => processScheduledEvents(), POLL_INTERVAL_MS)
+  // Run once on startup to catch any events that were due during downtime
+  setTimeout(() => processScheduledEvents(), 5000)
 
   // Initial social proof load
   setTimeout(() => refreshSocialProof(), 10000)

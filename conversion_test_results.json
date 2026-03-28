@@ -2,7 +2,7 @@
   {
     "test": "Language selection shown on /start",
     "passed": true,
-    "detail": "You can always change your language later in the settings. \ud83c\uddec\ud83c\udde7 English,\ud83c\uddeb\ud83c\uddf7 French,\ud83c\udde8\ud83c\uddf3 Chinese,\ud83c\uddee\ud83c\uddf3 Hindi\t"
+    "detail": "06:10:38 [Conversion] Social proof refreshed: {\"hosting\":498,\"domains\":8928,\"cloudphone\":84,\"digital"
   },
   {
     "test": "Guided onboarding shown (not old Quick Start)",
@@ -17,7 +17,7 @@
   {
     "test": "Conversion engine logged onboarding start",
     "passed": true,
-    "detail": "22:49:51 [Conversion] Welcome offer scheduled for 5168006768 in 120 min"
+    "detail": "06:10:41 [Conversion] Welcome offer scheduled for 5168006768 in 120 min"
   },
   {
     "test": "Hosting plans shown after onboarding button",
@@ -27,7 +27,7 @@
   {
     "test": "Full menu shown after skip",
     "passed": true,
-    "detail": "Select an option below \ud83d\udcde Cloud IVR + SIP,\ud83c\udfea Marketplace,\ud83d\uded2 Digital Products,\ud83c\udf10 Bull"
+    "detail": "06:10:57 [CartRecovery] No pending nudges to recover"
   },
   {
     "test": "Browse tracking saved to MongoDB",
@@ -62,7 +62,12 @@
   {
     "test": "Welcome offer scheduled (2h timer)",
     "passed": true,
-    "detail": "['22:49:33 [Conversion] First deposit bonus: $5 (min $20), Welcome offer: 25% (2h delay), Social proof: \u00d73']"
+    "detail": "['06:10:27 [Conversion] First deposit bonus: $5 (min $20), Welcome offer: 25% (2h delay), Social proof: \u00d73']"
+  },
+  {
+    "test": "Welcome offer persisted in MongoDB (restart-safe)",
+    "passed": true,
+    "detail": "fireAt=2026-03-28 08:10:53.227000"
   },
   {
     "test": "Conversion record created for user",

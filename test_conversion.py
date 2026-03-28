@@ -121,6 +121,10 @@ def reset_user():
         r5 = db['welcomeCoupons'].delete_many({'chatId': {'$in': [CHAT_ID, float(CHAT_ID)]}})
         print(f"  welcomeCoupons: deleted {r5.deleted_count}")
 
+        # Remove scheduled events (persistent timers)
+        r6 = db['scheduledEvents'].delete_many({'chatId': {'$in': [CHAT_ID, float(CHAT_ID)]}})
+        print(f"  scheduledEvents: deleted {r6.deleted_count}")
+
         # Remove from nameOf
         db['nameOf'].delete_one({'_id': CHAT_ID})
         db['nameOf'].delete_one({'_id': float(CHAT_ID)})
@@ -327,15 +331,32 @@ def test_feature5_social_proof():
     return True
 
 def test_feature3_welcome_offer_scheduled():
-    """Feature 3: Check that welcome offer was scheduled"""
+    """Feature 3: Check that welcome offer was scheduled — both in logs and MongoDB"""
     print("\n" + "="*60)
-    print("TEST: Feature 3 — Welcome Offer Scheduled")
+    print("TEST: Feature 3 — Welcome Offer Scheduled (Persistent Timer)")
     print("="*60)
 
     conv_logs = get_last_logs(30, '[Conversion]')
     has_scheduled = any('welcome offer scheduled' in l.lower() for l in conv_logs)
     record("Welcome offer scheduled (2h timer)", has_scheduled,
            str([l for l in conv_logs if 'welcome' in l.lower()][:1]))
+
+    # Verify persistent timer in MongoDB
+    try:
+        client = MongoClient(MONGO_URL)
+        db = client[DB_NAME]
+        event = db['scheduledEvents'].find_one({
+            'chatId': float(CHAT_ID),
+            'type': 'welcome_offer',
+            'status': 'pending',
+        })
+        client.close()
+
+        has_persistent = event is not None
+        record("Welcome offer persisted in MongoDB (restart-safe)", has_persistent,
+               f"fireAt={event.get('fireAt')}" if event else "no event found")
+    except Exception as e:
+        record("Welcome offer persisted in MongoDB (restart-safe)", False, str(e))
 
     return True
 
