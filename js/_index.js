@@ -9811,6 +9811,7 @@ ${message.replace(/\n/g, '<br>')}
     info.vpsDetails = vpsDetails
     await saveInfo('vpsDetails', vpsDetails)
     if (couponResult.type === 'daily') await dailyCouponSystem.markCouponUsed(couponResult.code, chatId)
+    if (couponResult.type === 'welcome_offer') await userConversion?.markWelcomeCouponUsed(couponResult.code, chatId)
     send(chatId, vp.couponValid(couponDiscount))
     return vpsDetails.plan != 'Hourly' ? goto.askVPSPlanAutoRenewal() : goto.askVpsCpanel()
   }
@@ -10465,6 +10466,7 @@ ${message.replace(/\n/g, '<br>')}
     await saveInfo('couponApplied', true)
     await saveInfo('lastStep', a.redSelectProvider)
     if (couponResult.type === 'daily') await dailyCouponSystem.markCouponUsed(couponResult.code, chatId)
+    if (couponResult.type === 'welcome_offer') await userConversion?.markWelcomeCouponUsed(couponResult.code, chatId)
 
     return goto.walletSelectCurrency()
   }
@@ -10794,6 +10796,7 @@ ${message.replace(/\n/g, '<br>')}
     await saveInfo('newPrice', newPrice)
     await saveInfo('couponApplied', true)
     if (couponResult.type === 'daily') await dailyCouponSystem.markCouponUsed(couponResult.code, chatId)
+    if (couponResult.type === 'welcome_offer') await userConversion?.markWelcomeCouponUsed(couponResult.code, chatId)
 
     return goto['domain-pay']()
   }
@@ -10817,6 +10820,7 @@ ${message.replace(/\n/g, '<br>')}
     await saveInfo('couponDiscount', couponDiscount)
     await saveInfo('newPrice', newPrice)
     if (couponResult.type === 'daily') await dailyCouponSystem.markCouponUsed(couponResult.code, chatId)
+    if (couponResult.type === 'welcome_offer') await userConversion?.markWelcomeCouponUsed(couponResult.code, chatId)
 
     return goto['hosting-pay']()
   }
@@ -10979,6 +10983,7 @@ ${message.replace(/\n/g, '<br>')}
     saveInfo('couponDiscount', discount)
     saveInfo('newPrice', info.totalPrice - discount)
     if (couponResult.type === 'daily') await dailyCouponSystem.markCouponUsed(couponResult.code, chatId)
+    if (couponResult.type === 'welcome_offer') await userConversion?.markWelcomeCouponUsed(couponResult.code, chatId)
     return goto['hosting-pay']()
   }
   if (action === 'bank-pay-hosting') {
@@ -11350,6 +11355,7 @@ ${message.replace(/\n/g, '<br>')}
     await saveInfo('newPrice', newPrice)
     await saveInfo('couponApplied', true)
     if (couponResult.type === 'daily') await dailyCouponSystem.markCouponUsed(couponResult.code, chatId)
+    if (couponResult.type === 'welcome_offer') await userConversion?.markWelcomeCouponUsed(couponResult.code, chatId)
 
     return goto['plan-pay']()
   }
@@ -17930,6 +17936,7 @@ Select a category:`), k.of(catBtns))
 
     await saveInfo('lastStep', a.buyLeadsSelectFormat)
     if (couponResult.type === 'daily') await dailyCouponSystem.markCouponUsed(couponResult.code, chatId)
+    if (couponResult.type === 'welcome_offer') await userConversion?.markWelcomeCouponUsed(couponResult.code, chatId)
 
     if (info?.targetName) return goto.targetLeadsConfirm()
     return goto['leads-pay']()
@@ -18081,6 +18088,7 @@ Select a category:`), k.of(catBtns))
 
     await saveInfo('lastStep', a.validatorSelectFormat)
     if (couponResult.type === 'daily') await dailyCouponSystem.markCouponUsed(couponResult.code, chatId)
+    if (couponResult.type === 'welcome_offer') await userConversion?.markWelcomeCouponUsed(couponResult.code, chatId)
 
     const freeCheck2 = await _checkFreeValidation()
     if (freeCheck2 === 'full') {

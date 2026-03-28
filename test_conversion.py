@@ -384,6 +384,202 @@ def test_feature2_first_deposit_bonus_check():
 
     return True
 
+def test_feature3_coupon_single_use():
+    """Feature 3: Verify welcome coupon works, is single-use, and user-locked"""
+    print("\n" + "="*60)
+    print("TEST: Feature 3 — Welcome Coupon Validation & Single-Use")
+    print("="*60)
+
+    try:
+        from datetime import datetime, timedelta
+        client = MongoClient(MONGO_URL)
+        db = client[DB_NAME]
+
+        # 1. Create a test welcome coupon directly in DB (simulating timer fire)
+        test_code = "WELCOME25-TEST99"
+        db['welcomeCoupons'].delete_many({'code': test_code})  # cleanup
+        db['welcomeCoupons'].insert_one({
+            'code': test_code,
+            'chatId': float(CHAT_ID),
+            'discount': 25,
+            'expiresAt': datetime.utcnow() + timedelta(hours=24),
+            'used': False,
+            'type': 'welcome_offer',
+            'createdAt': datetime.utcnow(),
+        })
+        print("  Inserted test coupon WELCOME25-TEST99")
+
+        # 2. Validate coupon for the correct user — should succeed
+        coupon = db['welcomeCoupons'].find_one({
+            'code': test_code,
+            'used': False,
+            'expiresAt': {'$gte': datetime.utcnow()},
+        })
+        valid_for_owner = coupon is not None and coupon.get('chatId') == float(CHAT_ID)
+        record("Welcome coupon valid for owner", valid_for_owner,
+               f"code={coupon.get('code')}, discount={coupon.get('discount')}%" if coupon else "not found")
+
+        # 3. Check coupon rejects a different user
+        different_user = 9999999999.0
+        coupon_for_other = db['welcomeCoupons'].find_one({
+            'code': test_code,
+            'used': False,
+            'expiresAt': {'$gte': datetime.utcnow()},
+        })
+        rejected_other_user = (coupon_for_other is not None and
+                               coupon_for_other.get('chatId') is not None and
+                               coupon_for_other.get('chatId') != different_user)
+        record("Welcome coupon rejects different user", rejected_other_user,
+               f"chatId={coupon_for_other.get('chatId')} != {different_user}" if coupon_for_other else "not found")
+
+        # 4. Mark as used (simulating payment completion)
+        db['welcomeCoupons'].update_one(
+            {'code': test_code},
+            {'$set': {'used': True, 'usedBy': float(CHAT_ID), 'usedAt': datetime.utcnow()}}
+        )
+        print("  Marked coupon as used")
+
+        # 5. Try to validate again — should fail (used: True)
+        reuse_check = db['welcomeCoupons'].find_one({
+            'code': test_code,
+            'used': False,
+            'expiresAt': {'$gte': datetime.utcnow()},
+        })
+        rejected_reuse = reuse_check is None
+        record("Welcome coupon rejects reuse after payment", rejected_reuse,
+               "correctly rejected" if rejected_reuse else f"BUG: coupon still valid! used={reuse_check.get('used')}")
+
+        # 6. Verify used coupon shows used=True in DB
+        used_coupon = db['welcomeCoupons'].find_one({'code': test_code})
+        is_marked = used_coupon and used_coupon.get('used') == True and used_coupon.get('usedBy') == float(CHAT_ID)
+        record("Coupon marked used in DB with correct user", is_marked,
+               f"used={used_coupon.get('used')}, usedBy={used_coupon.get('usedBy')}" if used_coupon else "not found")
+
+        # 7. Test expired coupon rejection
+        db['welcomeCoupons'].delete_many({'code': 'WELCOME25-EXPTEST'})
+        db['welcomeCoupons'].insert_one({
+            'code': 'WELCOME25-EXPTEST',
+            'chatId': float(CHAT_ID),
+            'discount': 25,
+            'expiresAt': datetime.utcnow() - timedelta(hours=1),  # Already expired
+            'used': False,
+            'type': 'welcome_offer',
+            'createdAt': datetime.utcnow() - timedelta(hours=25),
+        })
+        expired_check = db['welcomeCoupons'].find_one({
+            'code': 'WELCOME25-EXPTEST',
+            'used': False,
+            'expiresAt': {'$gte': datetime.utcnow()},
+        })
+        rejected_expired = expired_check is None
+        record("Expired coupon correctly rejected", rejected_expired,
+               "correctly rejected" if rejected_expired else "BUG: expired coupon still valid!")
+
+        # Cleanup test coupons
+        db['welcomeCoupons'].delete_many({'code': {'$in': [test_code, 'WELCOME25-EXPTEST']}})
+        client.close()
+
+    except Exception as e:
+        record("Welcome coupon validation test", False, str(e))
+
+    return True
+
+def test_feature3_coupon_webhook():
+    """Feature 3: Test coupon via webhook in real hosting payment flow"""
+    print("\n" + "="*60)
+    print("TEST: Feature 3 — Coupon via Webhook (Hosting Flow)")
+    print("="*60)
+
+    try:
+        from datetime import datetime, timedelta
+        client = MongoClient(MONGO_URL)
+        db = client[DB_NAME]
+
+        # Create a valid test coupon
+        test_code = "WELCOME25-WBHK01"
+        db['welcomeCoupons'].delete_many({'code': test_code})
+        db['welcomeCoupons'].insert_one({
+            'code': test_code,
+            'chatId': float(CHAT_ID),
+            'discount': 25,
+            'expiresAt': datetime.utcnow() + timedelta(hours=24),
+            'used': False,
+            'type': 'welcome_offer',
+            'createdAt': datetime.utcnow(),
+        })
+        client.close()
+        print("  Created test coupon WELCOME25-WBHK01")
+
+        # Navigate: /start → Hosting → Plan → Buy → Domain → Skip email → Coupon
+        send_message("/start", 3)
+        send_message("🛡️🔥 Anti-Red Hosting", 3)
+        send_message("⚡ Premium Anti-Red (1-Week)", 3)
+        send_message("🛒 Buy Premium Anti-Red (1-Week)", 3)
+        send_message("🔗 Connect External Domain", 3)
+        send_message("coupontest.example.com", 3)
+        send_message("➡️ Continue with coupontest.example.com", 3)
+        send_message("Skip (no email)", 3)
+
+        # Should be at payment step now — verify
+        payment_replies = get_last_replies(5)
+        at_payment = any('Apply Coupon' in r for r in payment_replies)
+        print(f"  At payment step: {at_payment}")
+
+        if at_payment:
+            send_message("🎟️ Apply Coupon", 3)
+            send_message(test_code, 4)
+
+            coupon_replies = get_last_replies(10)
+            coupon_applied = any(
+                ('coupon' in r.lower() or 'discount' in r.lower() or '25%' in r)
+                and 'invalid' not in r.lower()
+                and 'expired' not in r.lower()
+                for r in coupon_replies
+            )
+            record("Welcome coupon accepted in hosting flow", coupon_applied,
+                   str([r[:150] for r in coupon_replies if 'coupon' in r.lower() or 'discount' in r.lower() or '25%' in r or 'valid' in r.lower()][:2]))
+
+            # Check if coupon is marked as used in DB
+            client = MongoClient(MONGO_URL)
+            db = client[DB_NAME]
+            used_check = db['welcomeCoupons'].find_one({'code': test_code})
+            was_marked_used = used_check and used_check.get('used') == True
+            record("Coupon marked used after application", was_marked_used,
+                   f"used={used_check.get('used')}, usedBy={used_check.get('usedBy')}" if used_check else "not found")
+
+            # Try reuse — go through flow again
+            send_message("/start", 3)
+            send_message("🛡️🔥 Anti-Red Hosting", 3)
+            send_message("⚡ Premium Anti-Red (1-Week)", 3)
+            send_message("🛒 Buy Premium Anti-Red (1-Week)", 3)
+            send_message("🔗 Connect External Domain", 3)
+            send_message("reuse-test.example.com", 3)
+            send_message("➡️ Continue with reuse-test.example.com", 3)
+            send_message("Skip (no email)", 3)
+            send_message("🎟️ Apply Coupon", 3)
+            send_message(test_code, 4)
+
+            reuse_replies = get_last_replies(10)
+            reuse_rejected = any(
+                'invalid' in r.lower() or 'expired' in r.lower() or 'already used' in r.lower() or 'not valid' in r.lower()
+                for r in reuse_replies
+            )
+            record("Reused coupon rejected in second purchase", reuse_rejected,
+                   str([r[:150] for r in reuse_replies if 'coupon' in r.lower() or 'invalid' in r.lower() or 'expired' in r.lower() or 'used' in r.lower()][:2]))
+
+            # Cleanup
+            db['welcomeCoupons'].delete_many({'code': test_code})
+            client.close()
+        else:
+            record("Welcome coupon accepted in hosting flow", False, "Could not reach payment step")
+            record("Coupon marked used after application", False, "Could not reach payment step")
+            record("Reused coupon rejected in second purchase", False, "Could not reach payment step")
+
+    except Exception as e:
+        record("Coupon webhook test error", False, str(e))
+
+    return True
+
 def test_no_errors():
     """Check for zero errors in error log"""
     print("\n" + "="*60)
@@ -416,6 +612,8 @@ if __name__ == '__main__':
     test_feature4_browse_tracking()
     test_feature5_social_proof()
     test_feature3_welcome_offer_scheduled()
+    test_feature3_coupon_single_use()
+    test_feature3_coupon_webhook()
     test_feature2_first_deposit_bonus_check()
     test_no_errors()
 

@@ -2,7 +2,7 @@
   {
     "test": "Language selection shown on /start",
     "passed": true,
-    "detail": "06:10:38 [Conversion] Social proof refreshed: {\"hosting\":498,\"domains\":8928,\"cloudphone\":84,\"digital"
+    "detail": "06:21:39 [Conversion] Social proof refreshed: {\"hosting\":498,\"domains\":8928,\"cloudphone\":84,\"digital"
   },
   {
     "test": "Guided onboarding shown (not old Quick Start)",
@@ -17,7 +17,7 @@
   {
     "test": "Conversion engine logged onboarding start",
     "passed": true,
-    "detail": "06:10:41 [Conversion] Welcome offer scheduled for 5168006768 in 120 min"
+    "detail": "06:21:42 [Conversion] Welcome offer scheduled for 5168006768 in 120 min"
   },
   {
     "test": "Hosting plans shown after onboarding button",
@@ -27,7 +27,7 @@
   {
     "test": "Full menu shown after skip",
     "passed": true,
-    "detail": "06:10:57 [CartRecovery] No pending nudges to recover"
+    "detail": "06:21:58 [CartRecovery] No pending nudges to recover"
   },
   {
     "test": "Browse tracking saved to MongoDB",
@@ -62,12 +62,52 @@
   {
     "test": "Welcome offer scheduled (2h timer)",
     "passed": true,
-    "detail": "['06:10:27 [Conversion] First deposit bonus: $5 (min $20), Welcome offer: 25% (2h delay), Social proof: \u00d73']"
+    "detail": "['06:21:28 [Conversion] First deposit bonus: $5 (min $20), Welcome offer: 25% (2h delay), Social proof: \u00d73']"
   },
   {
     "test": "Welcome offer persisted in MongoDB (restart-safe)",
     "passed": true,
-    "detail": "fireAt=2026-03-28 08:10:53.227000"
+    "detail": "fireAt=2026-03-28 08:21:54.223000"
+  },
+  {
+    "test": "Welcome coupon valid for owner",
+    "passed": true,
+    "detail": "code=WELCOME25-TEST99, discount=25%"
+  },
+  {
+    "test": "Welcome coupon rejects different user",
+    "passed": true,
+    "detail": "chatId=5168006768.0 != 9999999999.0"
+  },
+  {
+    "test": "Welcome coupon rejects reuse after payment",
+    "passed": true,
+    "detail": "correctly rejected"
+  },
+  {
+    "test": "Coupon marked used in DB with correct user",
+    "passed": true,
+    "detail": "used=True, usedBy=5168006768.0"
+  },
+  {
+    "test": "Expired coupon correctly rejected",
+    "passed": true,
+    "detail": "correctly rejected"
+  },
+  {
+    "test": "Welcome coupon accepted in hosting flow",
+    "passed": true,
+    "detail": "['reply: Domain: <b>coupontest.example.com</b>', 'Nameservers will be pointed to Cloudflare. DNS records auto-configured. \u27a1\ufe0f Continue with coupontest.example.com,\ud83d\udd0d Search Another Domain,Back,Cancel\\tto']"
+  },
+  {
+    "test": "Coupon marked used after application",
+    "passed": true,
+    "detail": "used=True, usedBy=5168006768.0"
+  },
+  {
+    "test": "Reused coupon rejected in second purchase",
+    "passed": true,
+    "detail": "['Pay within 1 hr to activate. Your hosting will be provisioned automatically. Crypto,Bank \u20a6aira + Card\ud83c\udfe6\ud83d\udcb3,\ud83d\udc5b Wallet,\ud83c\udf9f\ufe0f Apply Coupon,\u2b05\ufe0f Back\\tto: 516800676', 'reply: Enter coupon code: Skip,Back,Cancel\\tto: 5168006768']"
   },
   {
     "test": "Conversion record created for user",
