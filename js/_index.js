@@ -505,6 +505,7 @@ const GOLDEN_ANTIRED_CPANEL_PRICE = parseFloat(process.env.GOLDEN_ANTIRED_CPANEL
 const PREMIUM_ANTIRED_CPANEL_PRICE = parseFloat(process.env.PREMIUM_ANTIRED_CPANEL_PRICE)
 const VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE = parseFloat(process.env.VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE)
 const HOSTING_TRIAL_PLAN_ON = process.env.HOSTING_TRIAL_PLAN_ON
+const VPS_ENABLED = process.env.VPS_ENABLED || 'true' // default: enabled
 
 if (!DB_NAME || !RATE_LEAD_VALIDATOR || !HOSTED_ON || !TELEGRAM_BOT_ON || !REST_APIS_ON || !CHAT_BOT_NAME) {
   return log('Service is paused because some ENV variable is missing')
@@ -7235,6 +7236,9 @@ All verified numbers generated during sourcing.`))
 
   //VPS plans
   if (message === user.vpsPlans) {
+    if (VPS_ENABLED !== 'true') {
+      return send(chatId, '🚧 VPS service is coming soon! Stay tuned.', trans('o'))
+    }
     return goto.submenu4()
   }
 
@@ -9707,6 +9711,7 @@ ${message.replace(/\n/g, '<br>')}
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   if (message === user.buyVpsPlan) {
+    if (VPS_ENABLED !== 'true') return send(chatId, '🚧 VPS service is coming soon! Stay tuned.', trans('o'))
     return goto.createNewVpsFlow()
   }
 
@@ -10040,6 +10045,7 @@ ${message.replace(/\n/g, '<br>')}
   }
 
   if (message === user.manageVpsPlan) {
+    if (VPS_ENABLED !== 'true') return send(chatId, '🚧 VPS service is coming soon! Stay tuned.', trans('o'))
     return goto.getUserAllVmIntances()
   }
 

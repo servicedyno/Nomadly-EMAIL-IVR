@@ -28,6 +28,7 @@ const DP_PRICE_IONOS_SMTP = Number(process.env.DP_PRICE_IONOS_SMTP) || 150
 const HIDE_SMS_APP = process.env.HIDE_SMS_APP
 const HIDE_BECOME_RESELLER = process.env.HIDE_BECOME_RESELLER
 const EMAIL_BLAST_ON = process.env.EMAIL_BLAST_ON
+const VPS_ENABLED = process.env.VPS_ENABLED
 const TG_HANDLE = process.env.TG_HANDLE
 const TG_CHANNEL = process.env.TG_CHANNEL
 const SMS_APP_NAME = process.env.SMS_APP_NAME
@@ -1934,6 +1935,12 @@ ${CHAT_BOT_NAME}
   vpsHourlyPlanRenewed: (vpsName, price) => `
 Votre plan VPS pour l'instance ${vpsName} a été renouvelé avec succès.
 ${price}$ ont été débités de votre portefeuille.`,
+
+  vpsMonthlyPlanRenewed: (vpsName, planPrice) =>
+    `✅ Votre VPS <b>${vpsName}</b> a été renouvelé automatiquement pour 1 mois.\n💰 $${planPrice} débités de votre portefeuille.`,
+
+  vpsExpiredNoAutoRenew: (vpsName) =>
+    `⚠️ Votre VPS <b>${vpsName}</b> a expiré. Le renouvellement automatique est désactivé.\nVeuillez renouveler manuellement pour continuer le service.`,
 
   bankPayVPS: (
     priceNGN,

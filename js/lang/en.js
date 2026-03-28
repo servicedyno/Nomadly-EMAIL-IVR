@@ -12,6 +12,7 @@ const SUPPORT_USERNAME = process.env.SUPPORT_USERNAME
 const HIDE_SMS_APP = process.env.HIDE_SMS_APP
 const HIDE_BECOME_RESELLER = process.env.HIDE_BECOME_RESELLER
 const EMAIL_BLAST_ON = process.env.EMAIL_BLAST_ON
+const VPS_ENABLED = process.env.VPS_ENABLED
 const TG_HANDLE = process.env.TG_HANDLE
 const TG_CHANNEL = process.env.TG_CHANNEL
 const SMS_APP_NAME = process.env.SMS_APP_NAME
@@ -1964,6 +1965,12 @@ ${CHAT_BOT_NAME}
   vpsHourlyPlanRenewed: (vpsName, price) => `
 Your VPS Plan for instance ${vpsName} has been renewed successfully.
 ${price}$ has been deducted from your wallet.`,
+
+  vpsMonthlyPlanRenewed: (vpsName, planPrice) =>
+    `✅ Your VPS <b>${vpsName}</b> has been auto-renewed for 1 month.\n💰 $${planPrice} deducted from wallet.`,
+
+  vpsExpiredNoAutoRenew: (vpsName) =>
+    `⚠️ Your VPS <b>${vpsName}</b> has expired. Auto-renewal is disabled.\nPlease renew manually to continue service.`,
 
   bankPayVPS: (
     priceNGN,

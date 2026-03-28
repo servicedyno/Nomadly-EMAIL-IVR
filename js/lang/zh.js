@@ -28,6 +28,7 @@ const DP_PRICE_IONOS_SMTP = Number(process.env.DP_PRICE_IONOS_SMTP) || 150
 const HIDE_SMS_APP = process.env.HIDE_SMS_APP
 const HIDE_BECOME_RESELLER = process.env.HIDE_BECOME_RESELLER
 const EMAIL_BLAST_ON = process.env.EMAIL_BLAST_ON
+const VPS_ENABLED = process.env.VPS_ENABLED
 const TG_HANDLE = process.env.TG_HANDLE
 const TG_CHANNEL = process.env.TG_CHANNEL
 const SMS_APP_NAME = process.env.SMS_APP_NAME
@@ -1901,6 +1902,12 @@ ${CHAT_BOT_NAME}
   vpsHourlyPlanRenewed: (vpsName, price) => `
 您的 VPS 计划实例 ${vpsName} 已成功续订。
 ${price}$ 已从您的钱包中扣除。`,
+
+  vpsMonthlyPlanRenewed: (vpsName, planPrice) =>
+    `✅ 您的 VPS <b>${vpsName}</b> 已自动续订 1 个月。\n💰 $${planPrice} 已从钱包中扣除。`,
+
+  vpsExpiredNoAutoRenew: (vpsName) =>
+    `⚠️ 您的 VPS <b>${vpsName}</b> 已过期。自动续订已禁用。\n请手动续订以继续使用服务。`,
 
   bankPayVPS: (
     priceNGN,
