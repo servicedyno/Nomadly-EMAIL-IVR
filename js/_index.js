@@ -1813,7 +1813,23 @@ const { deploySharedWorkerRoute } = require('./anti-red-service')
 schedule.scheduleJob('0 */6 * * *', async function() {
   try {
     log('[AntiRed-Cron] Starting periodic Worker route check...')
+
+    // Build a set of domains that have an active hosting plan (cpanelAccounts)
+    const hostingDomains = new Set()
+    const cpAccounts = await db.collection('cpanelAccounts').find({}, { projection: { domain: 1, addonDomains: 1 } }).toArray()
+    for (const acc of cpAccounts) {
+      if (acc.domain) hostingDomains.add(acc.domain.toLowerCase())
+      if (Array.isArray(acc.addonDomains)) {
+        for (const addon of acc.addonDomains) {
+          const d = (typeof addon === 'string' ? addon : addon.domain || '').toLowerCase()
+          if (d) hostingDomains.add(d)
+        }
+      }
+    }
+    log(`[AntiRed-Cron] ${hostingDomains.size} domains with active hosting plans`)
+
     const domains = []
+    let skippedNoHosting = 0
     const cursor = db.collection('registeredDomains').find()
     while (await cursor.hasNext()) {
       const doc = await cursor.next()
@@ -1821,10 +1837,16 @@ schedule.scheduleJob('0 */6 * * *', async function() {
       if (val.cfZoneId && val.nameserverType === 'cloudflare') {
         // Skip domains where user explicitly turned off Anti-Red
         if (val.antiRedOff === true) continue
-        domains.push({ domain: String(doc._id), zoneId: val.cfZoneId })
+        const domainName = String(doc._id).toLowerCase()
+        // ONLY protect domains that have an active hosting plan
+        if (!hostingDomains.has(domainName)) {
+          skippedNoHosting++
+          continue
+        }
+        domains.push({ domain: domainName, zoneId: val.cfZoneId })
       }
     }
-    log(`[AntiRed-Cron] Found ${domains.length} CF-proxied domains (excluding opted-out)`)
+    log(`[AntiRed-Cron] Found ${domains.length} hosting domains to protect (skipped ${skippedNoHosting} domain-only)`)
 
     let deployed = 0, already = 0, failed = 0
     for (const { domain, zoneId } of domains) {
