@@ -6317,6 +6317,10 @@ All verified numbers generated during sourcing.`))
   if (message === '/stop_promos') {
     if (autoPromo) {
       await autoPromo.setOptOut(chatId, true)
+      // Cancel any pending conversion timers (welcome offer, browse follow-up)
+      if (userConversion) {
+        await userConversion.cancelScheduledEvents(chatId)
+      }
       return send(chatId, t.promoOptOut || 'You have been unsubscribed from promotional messages. Type /start_promos to re-subscribe anytime.', bc)
     }
     return
@@ -10979,9 +10983,10 @@ ${message.replace(/\n/g, '<br>')}
     if (!couponResult) return send(chatId, t.invalidCoupon || 'Invalid coupon. Try again or tap Skip.', k.of([t.skip]))
     if (couponResult.error === 'already_used') return send(chatId, t.couponAlreadyUsed || 'Coupon already used. Try another or tap Skip.', k.of([t.skip]))
     const discount = couponResult.discount
+    const couponDiscount = (info.totalPrice * discount) / 100
     saveInfo('couponApplied', true)
-    saveInfo('couponDiscount', discount)
-    saveInfo('newPrice', info.totalPrice - discount)
+    saveInfo('couponDiscount', couponDiscount)
+    saveInfo('newPrice', info.totalPrice - couponDiscount)
     if (couponResult.type === 'daily') await dailyCouponSystem.markCouponUsed(couponResult.code, chatId)
     if (couponResult.type === 'welcome_offer') await userConversion?.markWelcomeCouponUsed(couponResult.code, chatId)
     return goto['hosting-pay']()
@@ -19981,7 +19986,7 @@ const bankApis = {
         const bonus = await userConversion.checkFirstDepositBonus(chatId, usdIn)
         if (bonus?.awarded) {
           await atomicIncrement(walletOf, chatId, 'usdIn', bonus.amount)
-          sendMessage(chatId, userConversion.getFirstDepositBonusMessage(lang))
+          sendMessage(chatId, userConversion.getFirstDepositBonusMessage(lang), { parse_mode: 'HTML' })
           log(`[Conversion] First deposit bonus $${bonus.amount} awarded to ${chatId}`)
         }
       } catch (e) { /* non-critical */ }
@@ -20791,7 +20796,7 @@ app.get('/crypto-wallet', auth, async (req, res) => {
       const bonus = await userConversion.checkFirstDepositBonus(chatId, usdIn)
       if (bonus?.awarded) {
         await atomicIncrement(walletOf, chatId, 'usdIn', bonus.amount)
-        sendMessage(chatId, userConversion.getFirstDepositBonusMessage(lang))
+        sendMessage(chatId, userConversion.getFirstDepositBonusMessage(lang), { parse_mode: 'HTML' })
         log(`[Conversion] First deposit bonus $${bonus.amount} awarded to ${chatId}`)
       }
     } catch (e) { /* non-critical */ }
@@ -21503,7 +21508,7 @@ app.post('/dynopay/crypto-wallet', authDyno, async (req, res) => {
       const bonus = await userConversion.checkFirstDepositBonus(chatId, usdIn)
       if (bonus?.awarded) {
         await atomicIncrement(walletOf, chatId, 'usdIn', bonus.amount)
-        sendMessage(chatId, userConversion.getFirstDepositBonusMessage(lang))
+        sendMessage(chatId, userConversion.getFirstDepositBonusMessage(lang), { parse_mode: 'HTML' })
         log(`[Conversion] First deposit bonus $${bonus.amount} awarded to ${chatId}`)
       }
     } catch (e) { /* non-critical */ }

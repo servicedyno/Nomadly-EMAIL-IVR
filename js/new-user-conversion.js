@@ -227,6 +227,15 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
   const welcomeCouponsCol = db.collection('welcomeCoupons')
   const browseTrackingCol = db.collection('browseTracking')
   const scheduledEventsCol = db.collection('scheduledEvents')
+  const promoOptOutCol = db.collection('promoOptOut')
+
+  // Helper: check if user opted out of promos
+  async function isOptedOut(chatId) {
+    try {
+      const record = await promoOptOutCol.findOne({ _id: parseFloat(chatId) })
+      return record?.optedOut === true
+    } catch { return false }
+  }
 
   // Indexes
   conversionCol.createIndex({ chatId: 1 }, { unique: true }).catch(() => {})
@@ -418,6 +427,12 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
         return
       }
 
+      // Check promo opt-out
+      if (await isOptedOut(cid)) {
+        log(`[Conversion] Skipping welcome offer for ${cid} — user opted out of promos`)
+        return
+      }
+
       // Generate unique coupon code
       const code = `WELCOME${WELCOME_OFFER_DISCOUNT}-${generateCode()}`
       const expiresAt = new Date(Date.now() + WELCOME_OFFER_EXPIRY_HOURS * 60 * 60 * 1000)
@@ -527,9 +542,21 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
     try {
       const cid = parseFloat(chatId)
 
-      // Check if user has made a purchase since browsing
+      // Only send to users who went through the conversion onboarding
       const record = await conversionCol.findOne({ chatId: cid })
+      if (!record?.onboardingStarted) {
+        log(`[Conversion] Skipping browse follow-up for ${cid} — not a conversion-onboarded user`)
+        return
+      }
+
+      // Check if user has made a purchase since browsing
       if (record?.hasPurchased) return
+
+      // Check promo opt-out
+      if (await isOptedOut(cid)) {
+        log(`[Conversion] Skipping browse follow-up for ${cid} — user opted out of promos`)
+        return
+      }
 
       // Check browse tracking
       const tracking = await browseTrackingCol.findOne({ chatId: cid })
@@ -656,6 +683,22 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
     }
   }
 
+  // Cancel all pending events — called on /stop_promos
+  async function cancelScheduledEvents(chatId) {
+    try {
+      const cid = parseFloat(chatId)
+      const result = await scheduledEventsCol.updateMany(
+        { chatId: cid, status: 'pending' },
+        { $set: { status: 'cancelled', cancelledAt: new Date(), cancelReason: 'promo_opt_out' } }
+      )
+      if (result.modifiedCount > 0) {
+        log(`[Conversion] Cancelled ${result.modifiedCount} scheduled event(s) for ${cid} (promo opt-out)`)
+      }
+    } catch (err) {
+      // Non-critical
+    }
+  }
+
   // ═══════════════════════════════════════════════════════════════════
   // PERSISTENT TIMER PROCESSOR — polls MongoDB every 60s for due events
   // Survives server restarts; recovers any pending timers automatically
@@ -750,6 +793,7 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
 
     // Shared
     markPurchased,
+    cancelScheduledEvents,
   }
 }
 
