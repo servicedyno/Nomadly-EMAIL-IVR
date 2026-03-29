@@ -4,8 +4,8 @@
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const { log } = require('console')
 
-// ── Trial Caller ID (hostbay_support Telnyx number) ──
-const TRIAL_CALLER_ID = '+18556820054'
+// ── Trial Caller ID (must be a Telnyx number on the Call Control App) ──
+const TRIAL_CALLER_ID = process.env.TELNYX_TRIAL_CALLER_ID || '+18889020132'
 
 // ── Outbound IVR Template Categories ──
 const OUTBOUND_CATEGORIES = [

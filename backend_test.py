@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """
-Backend Test Suite for Quick IVR Trial Call Routing Fix
-Tests the fix where TRIAL_CALLER_ID (+18556820054) was changed from 'twilio' to 'telnyx' provider.
+Backend Test Suite for Quick IVR Trial Call Fix
+Tests the two main changes:
+1. TRIAL_CALLER_ID in ivr-outbound.js changed to use env var with default '+18889020132'
+2. callerProvider changed from 'twilio' to 'telnyx' in _index.js for trial IVR calls
 """
 
 import subprocess
 import json
-import sys
 import re
+import sys
+import os
 
-def run_command(cmd):
+def run_command(cmd, description=""):
     """Run a shell command and return result"""
     try:
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
@@ -17,217 +20,229 @@ def run_command(cmd):
             'success': result.returncode == 0,
             'stdout': result.stdout.strip(),
             'stderr': result.stderr.strip(),
-            'returncode': result.returncode
+            'description': description
         }
     except subprocess.TimeoutExpired:
-        return {'success': False, 'error': 'Command timeout'}
+        return {
+            'success': False,
+            'stdout': '',
+            'stderr': 'Command timed out',
+            'description': description
+        }
+
+def test_trial_caller_id_change():
+    """Test 1: Verify TRIAL_CALLER_ID in ivr-outbound.js uses env var with correct default"""
+    print("🔍 Test 1: TRIAL_CALLER_ID Configuration")
+    
+    # Read the ivr-outbound.js file
+    try:
+        with open('/app/js/ivr-outbound.js', 'r') as f:
+            content = f.read()
+        
+        # Check for the new pattern: process.env.TELNYX_TRIAL_CALLER_ID || '+18889020132'
+        pattern = r"TRIAL_CALLER_ID\s*=\s*process\.env\.TELNYX_TRIAL_CALLER_ID\s*\|\|\s*['\"](\+\d+)['\"]"
+        match = re.search(pattern, content)
+        
+        if match:
+            default_number = match.group(1)
+            if default_number == '+18889020132':
+                print("✅ TRIAL_CALLER_ID correctly uses env var with default '+18889020132'")
+                return True
+            else:
+                print(f"❌ TRIAL_CALLER_ID has wrong default: {default_number} (expected: +18889020132)")
+                return False
+        else:
+            # Check if it's still hardcoded to the old number
+            if '+18556820054' in content:
+                print("❌ TRIAL_CALLER_ID still hardcoded to old number '+18556820054'")
+                return False
+            else:
+                print("❌ TRIAL_CALLER_ID pattern not found in expected format")
+                return False
+                
     except Exception as e:
-        return {'success': False, 'error': str(e)}
+        print(f"❌ Error reading ivr-outbound.js: {e}")
+        return False
 
-def test_syntax_validation():
-    """Test 1: Verify JavaScript syntax is valid"""
-    print("🔍 Test 1: JavaScript Syntax Validation")
-    
-    result = run_command("node -c /app/js/_index.js")
-    if result['success']:
-        print("✅ /app/js/_index.js syntax OK")
-    else:
-        print(f"❌ /app/js/_index.js syntax error: {result['stderr']}")
-        return False
-    
-    result = run_command("node -c /app/js/ivr-outbound.js")
-    if result['success']:
-        print("✅ /app/js/ivr-outbound.js syntax OK")
-    else:
-        print(f"❌ /app/js/ivr-outbound.js syntax error: {result['stderr']}")
-        return False
-    
-    result = run_command("node -c /app/js/voice-service.js")
-    if result['success']:
-        print("✅ /app/js/voice-service.js syntax OK")
-    else:
-        print(f"❌ /app/js/voice-service.js syntax error: {result['stderr']}")
-        return False
-    
-    return True
-
-def test_health_endpoint():
-    """Test 2: Verify health endpoint responds correctly"""
-    print("\n🔍 Test 2: Health Endpoint Check")
-    
-    result = run_command("curl -s http://localhost:5000/health")
-    if not result['success']:
-        print(f"❌ Health endpoint failed: {result['stderr']}")
-        return False
+def test_caller_provider_change():
+    """Test 2: Verify callerProvider is 'telnyx' in _index.js for trial IVR calls"""
+    print("\n🔍 Test 2: callerProvider Configuration")
     
     try:
-        health_data = json.loads(result['stdout'])
-        if health_data.get('status') == 'healthy' and health_data.get('database') == 'connected':
-            print("✅ Health endpoint returns healthy status with database connected")
-            return True
+        with open('/app/js/_index.js', 'r') as f:
+            content = f.read()
+        
+        # Search for the line with TRIAL_CALLER_ID and callerProvider
+        pattern = r"saveInfo\(['\"]ivrObData['\"],\s*\{\s*callerId:\s*ivrOb\.TRIAL_CALLER_ID,\s*isTrial:\s*true,\s*callerProvider:\s*['\"]([^'\"]+)['\"]"
+        match = re.search(pattern, content)
+        
+        if match:
+            provider = match.group(1)
+            if provider == 'telnyx':
+                print("✅ callerProvider correctly set to 'telnyx' for trial IVR calls")
+                return True
+            else:
+                print(f"❌ callerProvider is '{provider}' (expected: 'telnyx')")
+                return False
         else:
-            print(f"❌ Health endpoint status: {health_data}")
+            print("❌ callerProvider pattern not found in expected format")
             return False
-    except json.JSONDecodeError:
-        print(f"❌ Health endpoint returned invalid JSON: {result['stdout']}")
+            
+    except Exception as e:
+        print(f"❌ Error reading _index.js: {e}")
+        return False
+
+def test_telnyx_call_control_app_id():
+    """Test 3: Verify TELNYX_CALL_CONTROL_APP_ID matches the connection for +18889020132"""
+    print("\n🔍 Test 3: TELNYX_CALL_CONTROL_APP_ID Configuration")
+    
+    try:
+        with open('/app/backend/.env', 'r') as f:
+            content = f.read()
+        
+        # Find TELNYX_CALL_CONTROL_APP_ID
+        pattern = r"TELNYX_CALL_CONTROL_APP_ID=['\"]?([^'\"\n]+)['\"]?"
+        match = re.search(pattern, content)
+        
+        if match:
+            app_id = match.group(1).strip('"\'')
+            if app_id == '2898117434361775526':
+                print("✅ TELNYX_CALL_CONTROL_APP_ID correctly set to '2898117434361775526'")
+                return True
+            else:
+                print(f"❌ TELNYX_CALL_CONTROL_APP_ID is '{app_id}' (expected: '2898117434361775526')")
+                return False
+        else:
+            print("❌ TELNYX_CALL_CONTROL_APP_ID not found in .env")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Error reading backend/.env: {e}")
+        return False
+
+def test_voice_service_telnyx_path():
+    """Test 4: Verify voice-service.js uses TELNYX_CALL_CONTROL_APP_ID in createOutboundCall"""
+    print("\n🔍 Test 4: Voice Service Telnyx Path")
+    
+    try:
+        with open('/app/js/voice-service.js', 'r') as f:
+            content = f.read()
+        
+        # Check for the initiateOutboundIvrCall function and Telnyx path
+        if 'initiateOutboundIvrCall' in content and 'createOutboundCall' in content:
+            print("✅ initiateOutboundIvrCall function found with createOutboundCall usage")
+            
+            # Check telnyx-service.js for the connection_id default
+            with open('/app/js/telnyx-service.js', 'r') as f:
+                telnyx_content = f.read()
+            
+            # Look for the createOutboundCall function that defaults to TELNYX_CALL_CONTROL_APP_ID
+            pattern = r"connection_id:\s*connectionId\s*\|\|\s*process\.env\.TELNYX_CALL_CONTROL_APP_ID"
+            if re.search(pattern, telnyx_content):
+                print("✅ createOutboundCall defaults connection_id to TELNYX_CALL_CONTROL_APP_ID")
+                return True
+            else:
+                print("❌ createOutboundCall connection_id default pattern not found")
+                return False
+        else:
+            print("❌ Required functions not found in voice-service.js")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Error reading voice service files: {e}")
+        return False
+
+def test_syntax_validation():
+    """Test 5: Verify JavaScript syntax is valid"""
+    print("\n🔍 Test 5: JavaScript Syntax Validation")
+    
+    files_to_check = [
+        '/app/js/ivr-outbound.js',
+        '/app/js/_index.js'
+    ]
+    
+    all_valid = True
+    for file_path in files_to_check:
+        result = run_command(f'node -c {file_path}', f'Syntax check for {file_path}')
+        if result['success']:
+            print(f"✅ {file_path} syntax is valid")
+        else:
+            print(f"❌ {file_path} syntax error: {result['stderr']}")
+            all_valid = False
+    
+    return all_valid
+
+def test_health_endpoint():
+    """Test 6: Verify health endpoint is working"""
+    print("\n🔍 Test 6: Health Endpoint")
+    
+    result = run_command('curl -s http://localhost:5000/health', 'Health endpoint check')
+    if result['success']:
+        try:
+            health_data = json.loads(result['stdout'])
+            if health_data.get('status') == 'healthy' and health_data.get('database') == 'connected':
+                print("✅ Health endpoint returns healthy status with database connected")
+                return True
+            else:
+                print(f"❌ Health endpoint status: {health_data}")
+                return False
+        except json.JSONDecodeError:
+            print(f"❌ Health endpoint returned invalid JSON: {result['stdout']}")
+            return False
+    else:
+        print(f"❌ Health endpoint failed: {result['stderr']}")
         return False
 
 def test_error_log_clean():
-    """Test 3: Verify Node.js error log is clean"""
-    print("\n🔍 Test 3: Node.js Error Log Check")
+    """Test 7: Verify error log is clean (0 bytes)"""
+    print("\n🔍 Test 7: Error Log Status")
     
-    result = run_command("wc -c /var/log/supervisor/nodejs.err.log")
-    if result['success'] and result['stdout'].startswith('0 '):
-        print("✅ Node.js error log is 0 bytes (clean)")
-        return True
-    else:
-        print(f"❌ Node.js error log has content: {result['stdout']}")
-        # Show last few lines if there are errors
-        log_result = run_command("tail -n 10 /var/log/supervisor/nodejs.err.log")
-        if log_result['success'] and log_result['stdout']:
-            print(f"Recent errors: {log_result['stdout']}")
-        return False
-
-def test_trial_caller_id_constant():
-    """Test 4: Verify TRIAL_CALLER_ID constant in ivr-outbound.js"""
-    print("\n🔍 Test 4: TRIAL_CALLER_ID Constant Verification")
-    
-    result = run_command("grep -n 'TRIAL_CALLER_ID.*+18556820054' /app/js/ivr-outbound.js")
-    if result['success'] and '+18556820054' in result['stdout']:
-        print("✅ TRIAL_CALLER_ID = '+18556820054' found in ivr-outbound.js")
-        return True
-    else:
-        print("❌ TRIAL_CALLER_ID = '+18556820054' not found in ivr-outbound.js")
-        return False
-
-def test_trial_provider_fix():
-    """Test 5: Verify callerProvider is set to 'telnyx' for trial users"""
-    print("\n🔍 Test 5: Trial Provider Fix Verification")
-    
-    # Search for the specific line where ivrObData is saved for trial users
-    result = run_command("grep -n \"callerProvider: 'telnyx'\" /app/js/_index.js")
+    result = run_command('ls -la /var/log/supervisor/nodejs.err.log', 'Check error log size')
     if result['success']:
-        print("✅ Found callerProvider: 'telnyx' in _index.js")
-        
-        # Verify it's in the trial context
-        result2 = run_command("grep -A 2 -B 2 \"callerProvider: 'telnyx'\" /app/js/_index.js")
-        if result2['success'] and 'isTrial: true' in result2['stdout']:
-            print("✅ callerProvider: 'telnyx' is correctly set in trial context")
+        if ' 0 ' in result['stdout']:  # File size is 0
+            print("✅ nodejs.err.log is 0 bytes (clean)")
             return True
         else:
-            print("⚠️ callerProvider: 'telnyx' found but not in trial context")
-            print(f"Context: {result2['stdout']}")
+            print(f"❌ nodejs.err.log is not empty: {result['stdout']}")
             return False
     else:
-        print("❌ callerProvider: 'telnyx' not found in _index.js")
-        return False
-
-def test_telnyx_path_in_voice_service():
-    """Test 6: Verify Telnyx path in initiateOutboundIvrCall works for isTrial=true"""
-    print("\n🔍 Test 6: Telnyx Path Verification in voice-service.js")
-    
-    # Check that the default path (line ~2589) is Telnyx when provider is 'telnyx'
-    result = run_command("grep -n -A 10 'TELNYX PATH.*default' /app/js/voice-service.js")
-    if result['success']:
-        print("✅ Found TELNYX PATH (default) section in voice-service.js")
-        
-        # Verify it handles the default case when provider is 'telnyx' or not specified
-        result2 = run_command("grep -n -A 5 -B 5 'provider.*telnyx' /app/js/voice-service.js")
-        if result2['success']:
-            print("✅ Telnyx provider handling found in voice-service.js")
-            return True
-        else:
-            print("⚠️ Telnyx provider handling verification incomplete")
-            return True  # The default path should work for Telnyx
-    else:
-        print("❌ TELNYX PATH section not found in voice-service.js")
-        return False
-
-def test_no_twilio_provider_in_trial():
-    """Test 7: Verify no 'twilio' provider references in trial context"""
-    print("\n🔍 Test 7: Verify No Twilio Provider in Trial Context")
-    
-    # Search for any remaining 'twilio' references in trial context
-    result = run_command("grep -n -A 3 -B 3 \"callerProvider.*twilio\" /app/js/_index.js")
-    if result['success']:
-        # Check if it's in trial context
-        if 'isTrial: true' in result['stdout'] or 'TRIAL_CALLER_ID' in result['stdout']:
-            print("❌ Found callerProvider: 'twilio' in trial context - fix not complete")
-            print(f"Context: {result['stdout']}")
-            return False
-        else:
-            print("✅ callerProvider: 'twilio' found but not in trial context (OK)")
-            return True
-    else:
-        print("✅ No callerProvider: 'twilio' found in _index.js (good)")
-        return True
-
-def test_trial_caller_id_usage():
-    """Test 8: Verify TRIAL_CALLER_ID usage in _index.js"""
-    print("\n🔍 Test 8: TRIAL_CALLER_ID Usage Verification")
-    
-    result = run_command("grep -n 'TRIAL_CALLER_ID' /app/js/_index.js")
-    if result['success']:
-        print("✅ TRIAL_CALLER_ID usage found in _index.js")
-        
-        # Check the specific line where it's used with telnyx provider
-        result2 = run_command("grep -A 1 -B 1 'ivrOb.TRIAL_CALLER_ID' /app/js/_index.js")
-        if result2['success'] and 'callerProvider: \'telnyx\'' in result2['stdout']:
-            print("✅ TRIAL_CALLER_ID correctly used with telnyx provider")
-            return True
-        else:
-            print("⚠️ TRIAL_CALLER_ID usage context verification incomplete")
-            print(f"Context: {result2['stdout']}")
-            return False
-    else:
-        print("❌ TRIAL_CALLER_ID usage not found in _index.js")
+        print(f"❌ Could not check error log: {result['stderr']}")
         return False
 
 def main():
     """Run all tests and report results"""
-    print("🧪 Quick IVR Trial Call Routing Fix - Backend Test Suite")
+    print("🚀 Quick IVR Trial Call Fix - Backend Test Suite")
     print("=" * 60)
     
     tests = [
+        test_trial_caller_id_change,
+        test_caller_provider_change,
+        test_telnyx_call_control_app_id,
+        test_voice_service_telnyx_path,
         test_syntax_validation,
         test_health_endpoint,
-        test_error_log_clean,
-        test_trial_caller_id_constant,
-        test_trial_provider_fix,
-        test_telnyx_path_in_voice_service,
-        test_no_twilio_provider_in_trial,
-        test_trial_caller_id_usage,
+        test_error_log_clean
     ]
     
     passed = 0
     total = len(tests)
     
-    for test in tests:
+    for test_func in tests:
         try:
-            if test():
+            if test_func():
                 passed += 1
-            else:
-                print("❌ Test failed")
         except Exception as e:
-            print(f"❌ Test error: {e}")
+            print(f"❌ Test {test_func.__name__} failed with exception: {e}")
     
     print("\n" + "=" * 60)
     print(f"📊 Test Results: {passed}/{total} tests passed")
     
     if passed == total:
-        print("🎉 ALL TESTS PASSED - Quick IVR trial call routing fix is working correctly!")
-        print("\n✅ Key Findings:")
-        print("   • TRIAL_CALLER_ID (+18556820054) confirmed in ivr-outbound.js")
-        print("   • callerProvider changed from 'twilio' to 'telnyx' for trial users")
-        print("   • Telnyx path in initiateOutboundIvrCall works for isTrial=true")
-        print("   • JavaScript syntax validation passed")
-        print("   • Health endpoint healthy, error log clean")
-        print("   • No remaining 'twilio' provider references in trial context")
-        return True
+        print("🎉 All tests passed! Quick IVR trial call fix is working correctly.")
+        return 0
     else:
-        print(f"❌ {total - passed} test(s) failed - fix may not be complete")
-        return False
+        print("⚠️  Some tests failed. Please review the issues above.")
+        return 1
 
 if __name__ == "__main__":
-    success = main()
-    sys.exit(0 if success else 1)
+    sys.exit(main())
