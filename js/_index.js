@@ -12817,7 +12817,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
           return send(chatId, `📢 <b>Quick IVR Call</b>\n\nYou've already used your free trial call.\n\nSubscribe to Cloud IVR to make unlimited IVR calls with your own Caller ID!\n\nTap <b>${buyLabel}</b> to get started.`, k.of([[buyLabel]]))
         }
         // Trial path — auto-assign caller ID (Twilio number on main account)
-        await saveInfo('ivrObData', { callerId: ivrOb.TRIAL_CALLER_ID, isTrial: true, callerProvider: 'twilio' })
+        await saveInfo('ivrObData', { callerId: ivrOb.TRIAL_CALLER_ID, isTrial: true, callerProvider: 'telnyx' })
         set(state, chatId, 'action', a.ivrObEnterTarget)
         return send(chatId, `📢 <b>Quick IVR Call — Free Trial</b>\n\n🎁 You get <b>1 free trial call!</b>\n📱 Caller ID: <b>${ivrOb.TRIAL_CALLER_ID}</b> (shared)\n\nCall a single number with an automated IVR message.\n\nEnter the phone number to call (with country code):\n<i>Example: +12025551234</i>`, k.of([]))
       }
