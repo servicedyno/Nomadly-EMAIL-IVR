@@ -552,8 +552,35 @@ const updateNameservers = async (domainName, nameservers) => {
     if (res.data?.code === 0) return { success: true }
     return { error: res.data?.desc || 'Failed to update nameservers' }
   } catch (err) {
-    log('OP updateNameservers error:', err.message)
-    return { error: err.message }
+    // Extract the actual error from OP API response (e.g. DENIC rejection for .de domains)
+    const opData = err.response?.data
+    const opDesc = opData?.desc || opData?.data?.desc || ''
+    const opWarnings = opData?.warnings || opData?.data?.warnings || []
+    const opCode = opData?.code ?? err.response?.status ?? ''
+
+    // Build detailed log for debugging
+    log(`OP updateNameservers error for ${domainName}:`, err.message,
+      opDesc ? `| desc: ${opDesc}` : '',
+      opWarnings.length ? `| warnings: ${JSON.stringify(opWarnings)}` : '',
+      opData ? `| full: ${JSON.stringify(opData).substring(0, 500)}` : '')
+
+    // Build user-friendly error
+    let userMsg = ''
+    if (opDesc) {
+      userMsg = opDesc
+    } else if (opWarnings.length) {
+      userMsg = opWarnings.map(w => w.message || w).join('; ')
+    } else if (err.response?.status === 500) {
+      // OP 500 on .de domains usually means DENIC rejected the NS (unresolvable or invalid)
+      const isDe = domainName.endsWith('.de')
+      userMsg = isDe
+        ? 'Registry rejected the nameservers — .de domains require nameservers that are resolvable. Please verify the nameservers are correct and active.'
+        : 'Registrar rejected the request (500). Please verify the nameservers are valid and resolvable.'
+    } else {
+      userMsg = err.message
+    }
+
+    return { error: userMsg }
   }
 }
 

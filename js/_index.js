@@ -12101,6 +12101,20 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     // Normalize: lowercase, remove trailing dot
     const newNS = lines.map(ns => ns.toLowerCase().replace(/\.$/, ''))
 
+    // Pre-validate: warn about common typos (e.g. "cloudfare" instead of "cloudflare")
+    const typoMap = { 'cloudfare': 'cloudflare', 'clouflare': 'cloudflare', 'clodflare': 'cloudflare', 'clouddflare': 'cloudflare' }
+    for (const ns of newNS) {
+      for (const [typo, correct] of Object.entries(typoMap)) {
+        if (ns.includes(typo)) {
+          return send(chatId, ({ en: `⚠️ Possible typo detected: <code>${ns}</code>\n\nDid you mean <b>${correct}</b> instead of <b>${typo}</b>?\n\nPlease re-enter the correct nameservers.`,
+            fr: `⚠️ Faute de frappe détectée : <code>${ns}</code>\n\nVouliez-vous dire <b>${correct}</b> au lieu de <b>${typo}</b> ?\n\nVeuillez entrer les bons serveurs de noms.`,
+            zh: `⚠️ 检测到可能的拼写错误：<code>${ns}</code>\n\n您是不是想输入 <b>${correct}</b> 而不是 <b>${typo}</b>？\n\n请重新输入正确的域名服务器。`,
+            hi: `⚠️ संभावित टाइपो: <code>${ns}</code>\n\nक्या आपका मतलब <b>${typo}</b> की जगह <b>${correct}</b> था?\n\nकृपया सही नेमसर्वर दोबारा दर्ज करें।`
+          }[lang] || `⚠️ Possible typo detected: <code>${ns}</code>\n\nDid you mean <b>${correct}</b> instead of <b>${typo}</b>?\n\nPlease re-enter the correct nameservers.`), { parse_mode: 'HTML' })
+        }
+      }
+    }
+
     send(chatId, ({ en: `⏳ Updating nameservers for <b>${domain}</b>...`, fr: `⏳ Mise à jour des serveurs de noms pour <b>${domain}</b>...`, zh: `⏳ 正在更新 <b>${domain}</b> 的域名服务器...`, hi: `⏳ <b>${domain}</b> के नेमसर्वर अपडेट कर रहे हैं...` }[lang] || `⏳ Updating nameservers for <b>${domain}</b>...`), { parse_mode: 'HTML' })
 
     const result = await domainService.updateAllNameservers(domain, newNS, db)
