@@ -3893,32 +3893,36 @@ Enter new value:`), bc)
       // FIX: For domain-only purchases (lastStep='domain-pay'), info.totalPrice may be stale
       // from a previous hosting flow (hosting sets totalPrice = domain + hosting combined).
       // Use lastStep to pick the correct price field and avoid inflating the domain charge.
+      // FIX: Virtual card purchases are excluded from loyalty discounts — they have fixed fees.
       const step = info?.lastStep
-      let basePrice
-      if (info?.couponApplied) {
-        basePrice = info.newPrice
-      } else if (step === 'domain-pay') {
-        // Domain purchases: only use info.price (the domain cost)
-        basePrice = info?.price || 0
-      } else {
-        basePrice = info?.totalPrice || info?.price || 0
-      }
-      if (basePrice > 0) {
-        const discountInfo = await loyalty.applyDiscount(walletOf, chatId, basePrice)
-        if (discountInfo.discount > 0) {
-          await saveInfo('loyaltyDiscount', discountInfo.discount)
-          await saveInfo('preLoyaltyPrice', basePrice)
-          const discountedPrice = discountInfo.finalPrice
-          // Update the stored price to the discounted price
-          if (info?.couponApplied) {
-            await saveInfo('newPrice', discountedPrice)
-          } else if (step !== 'domain-pay' && info?.totalPrice) {
-            // FIX: Don't overwrite totalPrice for domain-only purchases
-            // totalPrice is hosting-specific (domain + hosting combined)
-            await saveInfo('totalPrice', discountedPrice)
+      const NO_LOYALTY_DISCOUNT_STEPS = ['virtual-card-pay']
+      if (!NO_LOYALTY_DISCOUNT_STEPS.includes(step)) {
+        let basePrice
+        if (info?.couponApplied) {
+          basePrice = info.newPrice
+        } else if (step === 'domain-pay') {
+          // Domain purchases: only use info.price (the domain cost)
+          basePrice = info?.price || 0
+        } else {
+          basePrice = info?.totalPrice || info?.price || 0
+        }
+        if (basePrice > 0) {
+          const discountInfo = await loyalty.applyDiscount(walletOf, chatId, basePrice)
+          if (discountInfo.discount > 0) {
+            await saveInfo('loyaltyDiscount', discountInfo.discount)
+            await saveInfo('preLoyaltyPrice', basePrice)
+            const discountedPrice = discountInfo.finalPrice
+            // Update the stored price to the discounted price
+            if (info?.couponApplied) {
+              await saveInfo('newPrice', discountedPrice)
+            } else if (step !== 'domain-pay' && info?.totalPrice) {
+              // FIX: Don't overwrite totalPrice for domain-only purchases
+              // totalPrice is hosting-specific (domain + hosting combined)
+              await saveInfo('totalPrice', discountedPrice)
+            }
+            await saveInfo('price', discountedPrice)
+            send(chatId, loyalty.formatCheckoutDiscount(discountInfo, discountedPrice, info?.userLanguage || 'en'), { parse_mode: 'HTML' })
           }
-          await saveInfo('price', discountedPrice)
-          send(chatId, loyalty.formatCheckoutDiscount(discountInfo, discountedPrice, info?.userLanguage || 'en'), { parse_mode: 'HTML' })
         }
       }
 
