@@ -184,55 +184,46 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state)
           log(`[Hosting] CF DNS records for ${domain}: ${dnsResult.success ? 'all created' : 'some failed'} (proxied — SSL active immediately)`)
           dnsSetupSuccess = true // Mark DNS as successful
 
-          // Trigger AutoSSL to get a proper CA cert (upgrades from self-signed)
-          // This runs while records are already proxied — CF forwards to origin for validation
+          // ── Origin Hardening: Replace AutoSSL (Let's Encrypt) with CF Origin CA ──
+          // AutoSSL issues Let's Encrypt certs which get logged in Certificate Transparency (CT),
+          // exposing the origin server IP to scanners like Netcraft.
+          // CF Origin CA certs are NOT logged in CT and are trusted by CF for Full (Strict) SSL.
           try {
-            const sslRes = await require('./whm-service').startAutoSSL(result.username)
-            log(`[Hosting] AutoSSL triggered for ${result.username}: ${sslRes.success ? 'started' : sslRes.error}`)
+            const whmSvc = require('./whm-service')
+            const certResult = await cfService.generateOriginCACert([domain, `*.${domain}`])
+            if (certResult.success) {
+              const installResult = await whmSvc.installDomainSSL(result.username, domain, certResult.certificate, certResult.privateKey)
+              if (installResult.success) {
+                log(`[Hosting] Origin CA cert installed for ${domain} (CT-safe)`)
+                // Exclude from AutoSSL to prevent LE from overwriting our Origin CA cert
+                await whmSvc.excludeDomainsFromAutoSSL(result.username, [domain, `www.${domain}`])
+                log(`[Hosting] AutoSSL excluded for ${domain}`)
+              } else {
+                log(`[Hosting] Origin CA install failed for ${domain}: ${installResult.error} — falling back to AutoSSL`)
+                const sslRes = await whmSvc.startAutoSSL(result.username)
+                log(`[Hosting] AutoSSL fallback triggered for ${result.username}: ${sslRes.success ? 'started' : sslRes.error}`)
+              }
+            } else {
+              log(`[Hosting] Origin CA generation failed for ${domain}: ${certResult.error} — falling back to AutoSSL`)
+              const sslRes = await require('./whm-service').startAutoSSL(result.username)
+              log(`[Hosting] AutoSSL fallback triggered for ${result.username}: ${sslRes.success ? 'started' : sslRes.error}`)
+            }
           } catch (sslErr) {
-            log(`[Hosting] AutoSSL trigger warning (non-blocking): ${sslErr.message}`)
+            log(`[Hosting] Origin CA/SSL setup warning (non-blocking): ${sslErr.message}`)
+            // Fallback to AutoSSL
+            try {
+              const sslRes = await require('./whm-service').startAutoSSL(result.username)
+              log(`[Hosting] AutoSSL fallback triggered for ${result.username}: ${sslRes.success ? 'started' : sslRes.error}`)
+            } catch (_) {}
           }
 
-          // Background task: Progressive SSL upgrade — check cert and upgrade to Full (Strict) when ready
-          // Records are already proxied, so this only handles the SSL mode upgrade
-          const bgZoneId = cfZoneId
-          const bgDomain = domain
-          const bgUsername = result.username
-          ;(async () => {
-            try {
-              // Progressive SSL upgrade — check cert and upgrade to Full (Strict) when ready
-              // This prevents 526 errors by only upgrading AFTER a valid CA cert is confirmed on origin
-              const whmSvc = require('./whm-service')
-              const SSL_CHECK_INTERVALS = [3 * 60000, 5 * 60000, 10 * 60000] // 3, 5, 10 min
-
-              for (let i = 0; i < SSL_CHECK_INTERVALS.length; i++) {
-                await new Promise(r => setTimeout(r, SSL_CHECK_INTERVALS[i]))
-                try {
-                  const certStatus = await whmSvc.checkSSLCert(bgDomain)
-                  log(`[Hosting] SSL cert check #${i + 1} for ${bgDomain}: valid=${certStatus.valid} selfSigned=${certStatus.selfSigned} issuer=${certStatus.issuer || 'n/a'}`)
-
-                  if (certStatus.valid && !certStatus.selfSigned) {
-                    // AutoSSL has issued a valid CA cert — safe to upgrade to Full (Strict)
-                    await cfService.setSSLMode(bgZoneId, 'full')
-                    log(`[Hosting] ✅ SSL upgraded to Full (Strict) for ${bgDomain} — cert from ${certStatus.issuer}`)
-
-                    // Also re-trigger AutoSSL for fresh renewal scheduling
-                    try { await whmSvc.startAutoSSL(bgUsername) } catch (_) {}
-                    break // Done — no more checks needed
-                  }
-
-                  if (i === SSL_CHECK_INTERVALS.length - 1) {
-                    // All checks exhausted — stay on "Full" mode (safe with self-signed cert)
-                    log(`[Hosting] AutoSSL not ready after ${SSL_CHECK_INTERVALS.length} checks for ${bgDomain} — staying on Full SSL mode`)
-                  }
-                } catch (checkErr) {
-                  log(`[Hosting] SSL cert check #${i + 1} error for ${bgDomain} (non-critical): ${checkErr.message}`)
-                }
-              }
-            } catch (bgErr) {
-              log(`[Hosting] Background SSL/proxy error (non-critical): ${bgErr.message}`)
-            }
-          })()
+          // Enable Authenticated Origin Pulls — blocks direct-IP and SNI-based scanning
+          try {
+            await cfService.enableAuthenticatedOriginPulls(cfZoneId)
+            log(`[Hosting] Authenticated Origin Pulls enabled for ${domain}`)
+          } catch (aopErr) {
+            log(`[Hosting] AOP enable warning (non-blocking): ${aopErr.message}`)
+          }
 
           // For existing/external domains: update NS at registrar
           if (!isNewDomain && cfNameservers.length >= 2) {

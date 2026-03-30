@@ -293,6 +293,88 @@ async function enforceSSLMode(domain, zoneId) {
   }
 }
 
+// ─── Origin Hardening (CT + Direct IP protection) ───────
+
+/**
+ * Ensure a hosting domain has Authenticated Origin Pulls enabled
+ * and a Cloudflare Origin CA certificate installed (no CT log exposure).
+ *
+ * @param {string} domain
+ * @param {string} zoneId
+ * @param {string|null} cpUser - cPanel username (for SSL installation)
+ */
+async function enforceOriginHardening(domain, zoneId, cpUser) {
+  const actions = []
+  const cfService = require('./cf-service')
+
+  // 1. Enable Authenticated Origin Pulls (blocks direct-IP and SNI scanning)
+  try {
+    const aopStatus = await cfService.getAuthenticatedOriginPullsStatus(zoneId)
+    if (!aopStatus.enabled) {
+      const result = await cfService.enableAuthenticatedOriginPulls(zoneId)
+      if (result.success) {
+        actions.push(`AOP enabled for ${domain}`)
+      } else {
+        actions.push(`AOP FAILED for ${domain}: ${result.error}`)
+      }
+    }
+  } catch (err) {
+    actions.push(`AOP check error for ${domain}: ${err.message}`)
+  }
+
+  // 2. Check if Origin CA cert exists; if not, generate + install + exclude from AutoSSL
+  if (cpUser) {
+    try {
+      const whmService = require('./whm-service')
+      const sslCheck = await whmService.checkSSLCert(domain)
+
+      // Only act if current cert is self-signed or issued by Let's Encrypt (CT-exposed)
+      const needsOriginCA = sslCheck.selfSigned ||
+        (sslCheck.issuer && (
+          sslCheck.issuer.includes("Let's Encrypt") ||
+          sslCheck.issuer.includes('R3') ||
+          sslCheck.issuer.includes('R10') ||
+          sslCheck.issuer.includes('R11') ||
+          sslCheck.issuer.includes('E5') ||
+          sslCheck.issuer.includes('E6')
+        ))
+
+      if (needsOriginCA) {
+        // Generate Origin CA cert (covers domain + *.domain)
+        const certResult = await cfService.generateOriginCACert([domain, `*.${domain}`])
+        if (certResult.success) {
+          // Install on WHM
+          const installResult = await whmService.installDomainSSL(
+            cpUser, domain,
+            certResult.certificate,
+            certResult.privateKey,
+            '' // No CA bundle needed for Origin CA with Full mode
+          )
+          if (installResult.success) {
+            actions.push(`Origin CA installed for ${domain}`)
+
+            // Exclude from AutoSSL to prevent LE from overwriting
+            const excludeResult = await whmService.excludeDomainsFromAutoSSL(cpUser, [domain, `www.${domain}`])
+            if (excludeResult.success) {
+              actions.push(`AutoSSL excluded for ${domain}`)
+            } else {
+              actions.push(`AutoSSL exclude FAILED for ${domain}: ${excludeResult.error}`)
+            }
+          } else {
+            actions.push(`Origin CA install FAILED for ${domain}: ${installResult.error}`)
+          }
+        } else {
+          actions.push(`Origin CA gen FAILED for ${domain}: ${certResult.error}`)
+        }
+      }
+    } catch (err) {
+      actions.push(`Origin hardening SSL error for ${domain}: ${err.message}`)
+    }
+  }
+
+  return actions
+}
+
 // ─── Full Enforcement Run ────────────────────────────────
 
 /**
@@ -380,6 +462,19 @@ async function runEnforcement() {
           await enforceSSLMode(domain, zoneId)
         } catch (sslErr) {
           log(`[ProtectionEnforcer] SSL enforcement error for ${domain}: ${sslErr.message}`)
+        }
+
+        // Origin hardening: Authenticated Origin Pulls + Origin CA cert + AutoSSL exclusion
+        // This prevents: (a) direct-IP access, (b) SNI scanning, (c) CT log IP exposure
+        try {
+          const cpUser = entry.cpUser || null
+          const hardenActions = await enforceOriginHardening(domain, zoneId, cpUser)
+          if (hardenActions.length > 0) {
+            summary.actions.push(...hardenActions)
+            log(`[ProtectionEnforcer] HARDENED: ${domain} — ${hardenActions.join(', ')}`)
+          }
+        } catch (hardenErr) {
+          log(`[ProtectionEnforcer] Origin hardening error for ${domain}: ${hardenErr.message}`)
         }
       } else {
         // Non-hosting domain pointing to our server — just count as OK, no Workers

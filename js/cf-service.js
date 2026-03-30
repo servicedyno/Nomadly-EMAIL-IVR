@@ -919,6 +919,154 @@ const setProxiedState = async (zoneId, domainName, proxied, recordType) => {
   }
 }
 
+// ─── Origin Hardening ────────────────────────────────────
+
+/**
+ * Enable Authenticated Origin Pulls on a Cloudflare zone.
+ * When enabled, Cloudflare presents a client certificate when connecting to the origin.
+ * The origin can be configured to reject any request without this certificate,
+ * effectively blocking direct-IP access and SNI-based scanning.
+ *
+ * CF API: PUT /zones/{zone_id}/origin_tls_client_auth/settings
+ */
+const enableAuthenticatedOriginPulls = async (zoneId) => {
+  try {
+    const res = await axios.put(
+      `${CF_BASE_URL}/zones/${zoneId}/origin_tls_client_auth/settings`,
+      { enabled: true },
+      { headers: cfHeaders(), timeout: 10000 }
+    )
+    if (res.data?.result?.enabled) {
+      log(`[CF] Authenticated Origin Pulls ENABLED for zone ${zoneId}`)
+      return { success: true, enabled: true }
+    }
+    log(`[CF] Authenticated Origin Pulls response for ${zoneId}: ${JSON.stringify(res.data)}`)
+    return { success: true, enabled: res.data?.result?.enabled ?? false }
+  } catch (err) {
+    log(`[CF] enableAuthenticatedOriginPulls error for ${zoneId}: ${err.response?.data?.errors?.[0]?.message || err.message}`)
+    return { success: false, error: err.message }
+  }
+}
+
+/**
+ * Check if Authenticated Origin Pulls is enabled on a zone.
+ */
+const getAuthenticatedOriginPullsStatus = async (zoneId) => {
+  try {
+    const res = await axios.get(
+      `${CF_BASE_URL}/zones/${zoneId}/origin_tls_client_auth/settings`,
+      { headers: cfHeaders(), timeout: 10000 }
+    )
+    return { success: true, enabled: res.data?.result?.enabled ?? false }
+  } catch (err) {
+    return { success: false, enabled: false, error: err.message }
+  }
+}
+
+/**
+ * Generate a Cloudflare Origin CA certificate.
+ * These certificates are ONLY valid between Cloudflare edge and the origin server.
+ * They are NOT logged in Certificate Transparency (CT) logs, preventing
+ * scanners from discovering the origin IP through CT monitoring.
+ *
+ * CF API: POST /certificates
+ * Auth: Uses the same API key (Global API Key has Origin CA permissions)
+ *
+ * @param {string[]} hostnames — e.g. ['example.com', '*.example.com']
+ * @param {number} validityDays — 7, 30, 90, 365, 730, 1095, or 5475 (15 years)
+ * @returns {{ success, certificate, privateKey, expiresOn, id }}
+ */
+const generateOriginCACert = async (hostnames, validityDays = 5475) => {
+  try {
+    // 1. Generate RSA private key and CSR using Node's crypto/forge
+    const { execSync } = require('child_process')
+    const os = require('os')
+    const fs = require('fs')
+    const path = require('path')
+    const tmpDir = os.tmpdir()
+    const keyFile = path.join(tmpDir, `origin-ca-${Date.now()}.key`)
+    const csrFile = path.join(tmpDir, `origin-ca-${Date.now()}.csr`)
+
+    // Generate RSA 2048 key + CSR with openssl (available on all Linux systems)
+    const primaryHostname = hostnames[0]
+    const sanEntries = hostnames.map(h => `DNS:${h}`).join(',')
+
+    // Create a temporary openssl config for SAN support
+    const opensslConf = path.join(tmpDir, `origin-ca-${Date.now()}.cnf`)
+    const confContent = [
+      '[req]',
+      'distinguished_name = req_distinguished_name',
+      'req_extensions = v3_req',
+      'prompt = no',
+      '[req_distinguished_name]',
+      `CN = ${primaryHostname}`,
+      '[v3_req]',
+      `subjectAltName = ${sanEntries}`,
+    ].join('\n')
+    fs.writeFileSync(opensslConf, confContent)
+
+    execSync(`openssl genrsa -out "${keyFile}" 2048 2>/dev/null`)
+    execSync(`openssl req -new -key "${keyFile}" -out "${csrFile}" -config "${opensslConf}" 2>/dev/null`)
+
+    const privateKey = fs.readFileSync(keyFile, 'utf8')
+    const csr = fs.readFileSync(csrFile, 'utf8')
+
+    // Cleanup temp files
+    try { fs.unlinkSync(keyFile) } catch (_) {}
+    try { fs.unlinkSync(csrFile) } catch (_) {}
+    try { fs.unlinkSync(opensslConf) } catch (_) {}
+
+    // 2. Submit CSR to Cloudflare Origin CA API
+    const res = await axios.post(`${CF_BASE_URL}/certificates`, {
+      csr,
+      hostnames,
+      requested_validity: validityDays,
+      request_type: 'origin-rsa',
+    }, { headers: cfHeaders(), timeout: 30000 })
+
+    if (res.data?.success && res.data.result) {
+      const cert = res.data.result
+      log(`[CF] Origin CA cert generated for ${hostnames.join(', ')} (expires: ${cert.expires_on})`)
+      return {
+        success: true,
+        certificate: cert.certificate,
+        privateKey, // Return the private key we generated (CF doesn't return it when CSR is provided)
+        expiresOn: cert.expires_on,
+        id: cert.id,
+        hostnames: cert.hostnames,
+      }
+    }
+
+    const errMsg = res.data?.errors?.[0]?.message || 'Unknown error'
+    log(`[CF] Origin CA cert generation failed for ${hostnames.join(', ')}: ${errMsg}`)
+    return { success: false, error: errMsg }
+  } catch (err) {
+    const errMsg = err.response?.data?.errors?.[0]?.message || err.message
+    log(`[CF] generateOriginCACert error: ${errMsg}`)
+    return { success: false, error: errMsg }
+  }
+}
+
+/**
+ * List existing Origin CA certificates for given hostnames.
+ * Used to check if a cert already exists before generating a new one.
+ */
+const listOriginCACerts = async (zoneId) => {
+  try {
+    const res = await axios.get(`${CF_BASE_URL}/certificates`, {
+      params: { zone_id: zoneId },
+      headers: cfHeaders(),
+      timeout: 10000,
+    })
+    if (res.data?.success) {
+      return { success: true, certificates: res.data.result || [] }
+    }
+    return { success: false, certificates: [] }
+  } catch (err) {
+    return { success: false, certificates: [], error: err.message }
+  }
+}
+
 module.exports = {
   testConnection,
   getAccountNameservers,
@@ -947,4 +1095,9 @@ module.exports = {
   setZoneSetting,
   setAntiBotProfile,
   createAntiBotRules,
+  // Origin Hardening
+  enableAuthenticatedOriginPulls,
+  getAuthenticatedOriginPullsStatus,
+  generateOriginCACert,
+  listOriginCACerts,
 }

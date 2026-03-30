@@ -845,6 +845,29 @@ function createCpanelRoutes(getCpanelCol) {
         log(`[Panel] add-enhanced: health check scheduled for addon ${domain}`)
       } catch (_) {}
 
+      // ── Origin Hardening: Auth Origin Pulls + Origin CA cert ──
+      // Runs async after response to avoid slowing down the addon domain flow
+      const zoneIdForHarden = nsInfo?.zoneId || (await cfService.getZoneByName(domain))?.id
+      if (zoneIdForHarden) {
+        ;(async () => {
+          try {
+            // 1. Enable Authenticated Origin Pulls (blocks direct-IP/SNI access)
+            await cfService.enableAuthenticatedOriginPulls(zoneIdForHarden)
+
+            // 2. Generate + install Cloudflare Origin CA cert (prevents CT log IP exposure)
+            const whmService = require('./whm-service')
+            const certResult = await cfService.generateOriginCACert([domain, `*.${domain}`])
+            if (certResult.success) {
+              await whmService.installDomainSSL(req.cpUser, domain, certResult.certificate, certResult.privateKey)
+              await whmService.excludeDomainsFromAutoSSL(req.cpUser, [domain, `www.${domain}`])
+              log(`[Panel] add-enhanced: origin hardened for ${domain} (AOP + Origin CA + AutoSSL excluded)`)
+            }
+          } catch (hardenErr) {
+            log(`[Panel] add-enhanced: origin hardening warning for ${domain}: ${hardenErr.message}`)
+          }
+        })()
+      }
+
       res.json({
         ...cpResult,
         nsInfo,

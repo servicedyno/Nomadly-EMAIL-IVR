@@ -543,6 +543,93 @@ async function checkSSLCert(domain) {
   })
 }
 
+// ─── Origin Hardening: SSL & AutoSSL ──────────────────────
+
+/**
+ * Install an SSL certificate on a specific domain via WHM API.
+ * Uses the WHM `installssl` endpoint which can install SSL on any domain on the server.
+ *
+ * @param {string} cpUser - cPanel username that owns the domain
+ * @param {string} domain - Domain to install cert on
+ * @param {string} cert - PEM-encoded certificate
+ * @param {string} key - PEM-encoded private key
+ * @param {string} [cabundle] - PEM-encoded CA bundle (optional for Origin CA)
+ * @returns {{ success, message?, error? }}
+ */
+async function installDomainSSL(cpUser, domain, cert, key, cabundle = '') {
+  try {
+    const res = await whmApi.get('/installssl', {
+      params: {
+        'api.version': 1,
+        domain,
+        crt: cert,
+        key,
+        cab: cabundle,
+        // ip: is auto-detected by WHM
+      },
+      timeout: 60000,
+    })
+    const meta = res.data?.metadata || {}
+    if (meta.result === 1) {
+      log(`[WHM-SSL] Installed Origin CA cert on ${domain} (user: ${cpUser})`)
+      return { success: true, message: `SSL installed on ${domain}` }
+    } else {
+      const reason = meta.reason || res.data?.data?.message || 'Unknown error'
+      log(`[WHM-SSL] installssl failed for ${domain}: ${reason}`)
+      return { success: false, error: reason }
+    }
+  } catch (err) {
+    log(`[WHM-SSL] installDomainSSL error for ${domain}: ${err.message}`)
+    return { success: false, error: err.message }
+  }
+}
+
+/**
+ * Ensure AutoSSL does NOT overwrite externally-installed certificates (like CF Origin CA).
+ * When clobber_externally_signed=0 (default), AutoSSL skips domains with non-AutoSSL certs.
+ * This prevents Let's Encrypt from issuing certs that expose the origin IP via CT logs.
+ *
+ * @param {string} cpUser - cPanel username
+ * @param {string[]} domains - Domains to protect (for logging only — protection is user-wide)
+ */
+async function excludeDomainsFromAutoSSL(cpUser, domains) {
+  try {
+    // Check current setting
+    const getRes = await whmApi.get('/get_autossl_metadata', {
+      params: { 'api.version': 1, username: cpUser },
+      timeout: 15000,
+    })
+    const payload = getRes.data?.data?.payload || {}
+
+    if (payload.clobber_externally_signed === 0) {
+      log(`[WHM-AutoSSL] clobber_externally_signed=0 already set for ${cpUser} — Origin CA certs safe from overwrite`)
+      return { success: true, message: 'Already protected' }
+    }
+
+    // Force clobber_externally_signed to 0
+    const setRes = await whmApi.get('/set_autossl_metadata', {
+      params: {
+        'api.version': 1,
+        username: cpUser,
+        metadata_json: JSON.stringify({ clobber_externally_signed: 0 }),
+      },
+      timeout: 15000,
+    })
+    const meta = setRes.data?.metadata || {}
+    if (meta.result === 1) {
+      log(`[WHM-AutoSSL] Set clobber_externally_signed=0 for ${cpUser} — AutoSSL will not overwrite Origin CA certs for: ${domains.join(', ')}`)
+      return { success: true, message: 'clobber_externally_signed set to 0' }
+    } else {
+      const reason = meta.reason || 'Unknown error'
+      log(`[WHM-AutoSSL] Failed to set clobber_externally_signed for ${cpUser}: ${reason}`)
+      return { success: false, error: reason }
+    }
+  } catch (err) {
+    log(`[WHM-AutoSSL] excludeDomainsFromAutoSSL error for ${cpUser}: ${err.message}`)
+    return { success: false, error: err.message }
+  }
+}
+
 module.exports = {
   createAccount,
   domainExists,
@@ -561,4 +648,7 @@ module.exports = {
   PLAN_MAP,
   PLAN_ADDON_LIMITS,
   getAddonLimit,
+  // Origin Hardening
+  installDomainSSL,
+  excludeDomainsFromAutoSSL,
 }
