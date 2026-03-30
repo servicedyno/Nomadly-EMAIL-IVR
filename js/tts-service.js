@@ -98,12 +98,126 @@ function getProviderByButton(buttonText) {
   return null
 }
 
+// ── Retry & Fallback Configuration ──
+const TTS_TIMEOUT_MS = 90000        // 90s — EdenAI can be slow, successful calls observed at 60-120s
+const TTS_DOWNLOAD_TIMEOUT_MS = 30000 // 30s for downloading audio file after generation
+const TTS_MAX_RETRIES = 1           // 1 automatic retry on transient errors
+const TTS_RETRY_DELAY_MS = 3000     // 3s backoff between retries
+
+// Fallback voice mapping: if requested provider fails, try the other provider with a similar voice
+const PROVIDER_FALLBACK = {
+  openai: { provider: 'elevenlabs', voiceKey: 'rachel', label: 'ElevenLabs Rachel' },
+  elevenlabs: { provider: 'openai', voiceKey: 'alloy', label: 'OpenAI Alloy' },
+}
+
 /**
- * Generate TTS audio via EdenAI (supports ElevenLabs + OpenAI providers)
+ * Check if an error is transient (network/timeout) and worth retrying
+ */
+function isTransientError(err) {
+  const msg = (err.message || '').toLowerCase()
+  return (
+    msg.includes('stream has been aborted') ||
+    msg.includes('socket hang up') ||
+    msg.includes('econnreset') ||
+    msg.includes('econnrefused') ||
+    msg.includes('etimedout') ||
+    msg.includes('timeout') ||
+    msg.includes('network error') ||
+    msg.includes('aborted') ||
+    err.code === 'ECONNABORTED' ||
+    err.code === 'ECONNRESET' ||
+    err.code === 'ETIMEDOUT'
+  )
+}
+
+/**
+ * Call EdenAI TTS API for a specific provider/voice (single attempt)
+ */
+async function _callEdenAI(text, provider, voiceId, gender, language) {
+  const requestBody = {
+    providers: provider,
+    text: text.trim(),
+    language: language,
+    option: gender === 'M' ? 'MALE' : 'FEMALE',
+  }
+  if (provider === 'openai') {
+    requestBody.provider_params = { openai: { voice: voiceId } }
+  } else {
+    requestBody.provider_params = { elevenlabs: { voice_id: voiceId } }
+  }
+
+  const res = await axios.post('https://api.edenai.run/v2/audio/text_to_speech', requestBody, {
+    headers: {
+      Authorization: `Bearer ${EDENAI_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    timeout: TTS_TIMEOUT_MS,
+  })
+
+  const result = res.data?.[provider]
+  if (!result || result.status === 'fail') {
+    throw new Error(result?.error?.message || `EdenAI TTS failed (${provider})`)
+  }
+  return result
+}
+
+/**
+ * Call EdenAI TTS with automatic retry on transient errors
+ */
+async function _callEdenAIWithRetry(text, provider, voiceId, gender, language) {
+  let lastErr
+  for (let attempt = 0; attempt <= TTS_MAX_RETRIES; attempt++) {
+    try {
+      if (attempt > 0) {
+        log(`[TTS] Retry ${attempt}/${TTS_MAX_RETRIES} for ${provider}...`)
+        await new Promise(r => setTimeout(r, TTS_RETRY_DELAY_MS))
+      }
+      return await _callEdenAI(text, provider, voiceId, gender, language)
+    } catch (err) {
+      lastErr = err
+      if (!isTransientError(err)) {
+        // Non-transient error (API key invalid, bad request) — don't retry
+        log(`[TTS] Non-transient error from ${provider}: ${err.message}`)
+        throw err
+      }
+      log(`[TTS] Transient error from ${provider} (attempt ${attempt + 1}): ${err.message}`)
+    }
+  }
+  throw lastErr
+}
+
+/**
+ * Save EdenAI TTS result to local file + user-audio for self-hosted URL
+ */
+function _saveAudioResult(result, voiceKey) {
+  const filename = `tts_${Date.now()}_${voiceKey}.mp3`
+  const audioPath = path.join(AUDIO_DIR, filename)
+
+  if (result.audio_resource_url) {
+    // Download audio from EdenAI CDN — use sync download via blocking
+    // (handled in caller with async download)
+    return { audioPath, filename, needsDownload: true, downloadUrl: result.audio_resource_url }
+  } else if (result.audio) {
+    const buffer = Buffer.from(result.audio, 'base64')
+    fs.writeFileSync(audioPath, buffer)
+    return { audioPath, filename, needsDownload: false }
+  } else {
+    throw new Error('No audio data in EdenAI response')
+  }
+}
+
+/**
+ * Generate TTS audio via EdenAI with retry + provider fallback
+ *
+ * Flow:
+ *   1. Try requested provider with 1 automatic retry on transient errors
+ *   2. If all retries fail → auto-fallback to the other provider
+ *   3. Return result with fallbackUsed flag so callers can inform the user
+ *
  * @param {string} text - Text to convert
  * @param {string} voiceKey - Voice key from ALL_VOICES
  * @param {string} langCode - Language code (default 'en')
- * @returns {{ audioPath: string, audioUrl: string|null, voice: string }}
+ * @returns {{ audioPath: string, audioUrl: string|null, voice: string, fallbackUsed: boolean, fallbackProvider: string|null }}
  */
 async function generateTTS(text, voiceKey = DEFAULT_VOICE, langCode = null) {
   if (!EDENAI_API_KEY) throw new Error('EDENAI_API_KEY not configured')
@@ -113,49 +227,55 @@ async function generateTTS(text, voiceKey = DEFAULT_VOICE, langCode = null) {
   const language = langCode || 'en'
   const provider = voice.provider || 'elevenlabs'
 
-  let requestBody
-  if (provider === 'openai') {
-    requestBody = {
-      providers: 'openai',
-      text: text.trim(),
-      language: language,
-      option: voice.gender === 'M' ? 'MALE' : 'FEMALE',
-      provider_params: {
-        openai: { voice: voice.voiceId },
-      },
-    }
-  } else {
-    // ElevenLabs — option must be MALE/FEMALE, voice_id in provider_params
-    requestBody = {
-      providers: 'elevenlabs',
-      text: text.trim(),
-      language: language,
-      option: voice.gender === 'M' ? 'MALE' : 'FEMALE',
-      provider_params: {
-        elevenlabs: { voice_id: voice.voiceId },
-      },
+  let result = null
+  let usedProvider = provider
+  let usedVoiceName = voice.name
+  let usedVoiceKey = voiceKey
+  let fallbackUsed = false
+
+  // ── Step 1: Try the requested provider with retry ──
+  try {
+    result = await _callEdenAIWithRetry(text, provider, voice.voiceId, voice.gender, language)
+  } catch (primaryErr) {
+    log(`[TTS] Primary provider ${provider} failed after retries: ${primaryErr.message}`)
+
+    // ── Step 2: Fallback to other provider ──
+    const fb = PROVIDER_FALLBACK[provider]
+    if (fb) {
+      const fbVoice = ALL_VOICES[fb.voiceKey]
+      if (fbVoice) {
+        log(`[TTS] Falling back to ${fb.label}...`)
+        try {
+          result = await _callEdenAI(text, fb.provider, fbVoice.voiceId, fbVoice.gender, language)
+          usedProvider = fb.provider
+          usedVoiceName = fbVoice.name
+          usedVoiceKey = fb.voiceKey
+          fallbackUsed = true
+          log(`[TTS] Fallback to ${fb.label} succeeded`)
+        } catch (fbErr) {
+          log(`[TTS] Fallback ${fb.label} also failed: ${fbErr.message}`)
+          // Throw a combined error with guidance
+          throw new Error(
+            `Both ${provider} and ${fb.provider} failed. ` +
+            `${provider}: ${primaryErr.message}. ` +
+            `${fb.provider}: ${fbErr.message}. ` +
+            `Please try again in a moment.`
+          )
+        }
+      } else {
+        throw primaryErr
+      }
+    } else {
+      throw primaryErr
     }
   }
 
-  const res = await axios.post('https://api.edenai.run/v2/audio/text_to_speech', requestBody, {
-    headers: {
-      Authorization: `Bearer ${EDENAI_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    timeout: 30000,
-  })
-
-  const result = res.data?.[provider]
-  if (!result || result.status === 'fail') {
-    throw new Error(result?.error?.message || `EdenAI TTS failed (${provider})`)
-  }
-
-  // Save audio to local file for Telegram playback
-  const filename = `tts_${Date.now()}_${voiceKey}.mp3`
+  // ── Step 3: Save audio file ──
+  const filename = `tts_${Date.now()}_${usedVoiceKey}.mp3`
   const audioPath = path.join(AUDIO_DIR, filename)
 
   if (result.audio_resource_url) {
-    const audioRes = await axios.get(result.audio_resource_url, { responseType: 'arraybuffer', timeout: 15000 })
+    const audioRes = await axios.get(result.audio_resource_url, { responseType: 'arraybuffer', timeout: TTS_DOWNLOAD_TIMEOUT_MS })
     fs.writeFileSync(audioPath, Buffer.from(audioRes.data))
   } else if (result.audio) {
     const buffer = Buffer.from(result.audio, 'base64')
@@ -164,21 +284,25 @@ async function generateTTS(text, voiceKey = DEFAULT_VOICE, langCode = null) {
     throw new Error('No audio data in EdenAI response')
   }
 
-  // Also save a copy in user-audio/ for reliable self-hosted URL (avoids CloudFront expiration)
+  // Also save in user-audio/ for self-hosted URL (avoids CloudFront expiration)
   const userAudioDir = path.join(__dirname, 'assets', 'user-audio')
   if (!fs.existsSync(userAudioDir)) fs.mkdirSync(userAudioDir, { recursive: true })
-  const userAudioFilename = `tts_${Date.now()}_${voiceKey}.mp3`
+  const userAudioFilename = `tts_${Date.now()}_${usedVoiceKey}.mp3`
   const userAudioPath = path.join(userAudioDir, userAudioFilename)
   fs.copyFileSync(audioPath, userAudioPath)
 
   const baseUrl = process.env.SELF_URL_PROD || process.env.SELF_URL || ''
   const selfHostedUrl = `${baseUrl}/assets/user-audio/${userAudioFilename}`
 
-  log(`[TTS] Generated: ${filename} (provider: ${provider}, voice: ${voice.name}, ${text.length} chars)`)
+  const fallbackNote = fallbackUsed ? ` [FALLBACK from ${provider} → ${usedProvider}]` : ''
+  log(`[TTS] Generated: ${filename} (provider: ${usedProvider}, voice: ${usedVoiceName}, ${text.length} chars)${fallbackNote}`)
+
   return {
     audioPath,
     audioUrl: selfHostedUrl,
-    voice: voice.name,
+    voice: usedVoiceName,
+    fallbackUsed,
+    fallbackProvider: fallbackUsed ? usedProvider : null,
   }
 }
 

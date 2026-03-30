@@ -13268,17 +13268,22 @@ Choose an IVR template category:`), k.of(rows))
       ivrObData.filledText = filledText
       await saveInfo('ivrObData', ivrObData)
 
+      // Notify user if a fallback provider was used
+      const fallbackNote = result.fallbackUsed
+        ? `\n\n⚠️ <i>Original voice was unavailable — generated with ${result.voice} (${result.fallbackProvider}) instead.</i>`
+        : ''
+
       // Send audio preview with action keyboard attached (avoids slow separate keyboard message)
       const previewKeyboard = k.of([['✅ Confirm'], ['🎤 Change Voice'], [ivrObData.holdMusic ? '🎵 Hold Music: ON' : '🔇 Hold Music: OFF']])
       await bot.sendAudio(chatId, result.audioPath, {
-        caption: `🔊 <b>Audio Preview</b>\n\nListen to the IVR message that will play to the call receiver.\n\nHappy with it? Tap <b>✅ Confirm</b> to proceed.\nWant a different voice? Tap <b>🎤 Change Voice</b>.`,
+        caption: `🔊 <b>Audio Preview</b>\n\nListen to the IVR message that will play to the call receiver.\n\nHappy with it? Tap <b>✅ Confirm</b> to proceed.\nWant a different voice? Tap <b>🎤 Change Voice</b>.${fallbackNote}`,
         parse_mode: 'HTML',
         reply_markup: previewKeyboard.reply_markup,
       })
       return
     } catch (err) {
       log(`[IVR-OB] TTS error: ${err.message}`)
-      return send(chatId, `❌ Audio generation failed: ${err.message}\n\nPlease try again or choose a different voice.`, k.of([['🎤 Change Voice']]))
+      return send(chatId, `❌ Audio generation failed.\n\n💡 <b>Tip:</b> Try selecting <b>ElevenLabs</b> as the voice provider — it tends to be more reliable.\n\n<i>Error: ${err.message}</i>`, k.of([['🎤 Change Voice']]))
     }
   }
 
@@ -13892,16 +13897,20 @@ Choose an IVR template category:`), k.of(rows))
       bulkTTS.filledText = filledText
       await saveInfo('bulkTTS', bulkTTS)
 
+      const fallbackNote = result.fallbackUsed
+        ? `\n\n⚠️ <i>Original voice unavailable — used ${result.voice} (${result.fallbackProvider}) instead.</i>`
+        : ''
+
       const previewKB = k.of([['✅ Use This Audio'], ['🎤 Change Voice'], ['↩️ Back']])
       await bot.sendAudio(chatId, result.audioPath, {
-        caption: `🔊 <b>Audio Preview</b>\n\nListen to the generated IVR audio.\n\nTap <b>✅ Use This Audio</b> to use in campaign, or <b>🎤 Change Voice</b>.`,
+        caption: `🔊 <b>Audio Preview</b>\n\nListen to the generated IVR audio.\n\nTap <b>✅ Use This Audio</b> to use in campaign, or <b>🎤 Change Voice</b>.${fallbackNote}`,
         parse_mode: 'HTML',
         reply_markup: previewKB.reply_markup,
       })
       return
     } catch (err) {
       log(`[BulkTTS] TTS error: ${err.message}`)
-      return send(chatId, `❌ Audio generation failed: ${err.message}\n\nTry a different voice.`, k.of([['🎤 Change Voice'], ['↩️ Back']]))
+      return send(chatId, `❌ Audio generation failed.\n\n💡 <b>Tip:</b> Try selecting <b>ElevenLabs</b> as the voice provider — it tends to be more reliable.\n\n<i>Error: ${err.message}</i>`, k.of([['🎤 Change Voice'], ['↩️ Back']]))
     }
   }
 
