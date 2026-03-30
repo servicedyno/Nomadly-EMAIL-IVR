@@ -2979,10 +2979,20 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
             return { success: false, error: error.message }
           }
 
-          // 429 = rate limited — do NOT penalize the user, just skip
+          // 429 = rate limited — do NOT penalize the user, pause & retry
           if (code === 429) {
-            log(`[AutoPromo] Rate limited on ${chatId}, skipping (not penalizing)`)
-            return { success: false, error: 'rate_limited', rateLimited: true }
+            const retryAfter = error.response?.body?.parameters?.retry_after || parseInt((error.message.match(/retry after (\d+)/i) || [])[1]) || 30
+            log(`[AutoPromo] Rate limited on ${chatId}, waiting ${retryAfter}s before continuing`)
+            await sleep(retryAfter * 1000)
+            // Retry this user once after waiting
+            try {
+              await trySend(true)
+              await promoOptOut.updateOne({ _id: chatId }, { $set: { failCount: 0 } }).catch(() => {})
+              return { success: true, retryAfterWait: true }
+            } catch (retryErr) {
+              log(`[AutoPromo] Still rate limited on ${chatId} after wait, skipping`)
+              return { success: false, error: 'rate_limited', rateLimited: true }
+            }
           }
 
           // For chat_not_found, bot_blocked etc — retry first
@@ -3073,20 +3083,32 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
     const { BATCH_SIZE, DELAY_BETWEEN_BATCHES, DELAY_BETWEEN_MESSAGES } = BROADCAST_CONFIG
     let successCount = 0, errorCount = 0, skippedCount = 0
 
-    for (let i = 0; i < targetChatIds.length; i += BATCH_SIZE) {
-      const batch = targetChatIds.slice(i, i + BATCH_SIZE)
+    // GIF themes need slower pacing to avoid Telegram 429 rate limits on media
+    const hasGif = !isEvening && GIF_THEMES[theme]
+    const batchSize = hasGif ? Math.min(BATCH_SIZE, 10) : BATCH_SIZE
+    const msgDelay = hasGif ? Math.max(DELAY_BETWEEN_MESSAGES, 200) : DELAY_BETWEEN_MESSAGES
+    const batchDelay = hasGif ? Math.max(DELAY_BETWEEN_BATCHES, 3000) : DELAY_BETWEEN_BATCHES
+
+    for (let i = 0; i < targetChatIds.length; i += batchSize) {
+      const batch = targetChatIds.slice(i, i + batchSize)
       const results = await Promise.allSettled(batch.map(async (chatId, index) => {
-        await sleep(index * DELAY_BETWEEN_MESSAGES)
+        await sleep(index * msgDelay)
         return sendPromoToUser(chatId, theme, variationIndex, lang, dynamicMessage, couponLine, isEvening)
       }))
+      let batchRateLimited = false
       for (const result of results) {
         if (result.status === 'fulfilled') {
           if (result.value?.skipped) skippedCount++
           else if (result.value?.success) successCount++
-          else errorCount++
+          else {
+            errorCount++
+            if (result.value?.rateLimited) batchRateLimited = true
+          }
         } else errorCount++
       }
-      if (i + BATCH_SIZE < targetChatIds.length) await sleep(DELAY_BETWEEN_BATCHES)
+      // If any send in this batch was rate-limited, add extra cooldown before next batch
+      const nextDelay = batchRateLimited ? Math.max(batchDelay, 5000) : batchDelay
+      if (i + batchSize < targetChatIds.length) await sleep(nextDelay)
     }
 
     const stats = { theme, lang, slot: isEvening ? 'evening' : 'morning', variation: usedAI ? 'ai' : variationIndex + 1, usedAI, total: targetChatIds.length, success: successCount, errors: errorCount, skipped: skippedCount, timestamp: new Date().toISOString() }
