@@ -187,6 +187,21 @@ function createCpanelRoutes(getCpanelCol) {
     const { domain, subDomain, dir } = req.body
     if (!domain) return res.status(400).json({ error: 'domain is required' })
 
+    // ── Blocked domain check (phishing/abuse) ──
+    try {
+      const blockedCol = db.collection('blockedDomains')
+      const blocked = await blockedCol.findOne({ domain: domain.toLowerCase() })
+      if (blocked) {
+        log(`[Panel] add: BLOCKED domain rejected: ${domain} (reason: ${blocked.reason})`)
+        return res.status(403).json({
+          error: `This domain (${domain}) has been permanently blocked due to abuse policy violations and cannot be added.`,
+          blocked: true,
+        })
+      }
+    } catch (blockErr) {
+      log(`[Panel] add: blocklist check error (non-blocking): ${blockErr.message}`)
+    }
+
     // ── Addon domain limit enforcement ──
     try {
       const col = getCpanelCol()
@@ -584,6 +599,21 @@ function createCpanelRoutes(getCpanelCol) {
     if (!domain) return res.status(400).json({ error: 'domain is required' })
 
     try {
+      // ── Blocked domain check (phishing/abuse) ──
+      try {
+        const blockedCol = db.collection('blockedDomains')
+        const blocked = await blockedCol.findOne({ domain: domain.toLowerCase() })
+        if (blocked) {
+          log(`[Panel] add-enhanced: BLOCKED domain rejected: ${domain} (reason: ${blocked.reason})`)
+          return res.status(403).json({
+            error: `This domain (${domain}) has been permanently blocked due to abuse policy violations and cannot be added.`,
+            blocked: true,
+          })
+        }
+      } catch (blockErr) {
+        log(`[Panel] add-enhanced: blocklist check error (non-blocking): ${blockErr.message}`)
+      }
+
       // ── Addon domain limit enforcement ──
       try {
         const limitCol = getCpanelCol()

@@ -10732,6 +10732,16 @@ ${message.replace(/\n/g, '<br>')}
     const domainRegex = /^(?:(?!-)[A-Za-z0-9-]{1,63}(?<!-)\.)+[A-Za-z]{2,6}$/
     if (!domainRegex.test(domain))
       return send(chatId, t.domainInvalid)
+
+    // ── Blocked domain check (phishing/abuse) ──
+    try {
+      const blockedEntry = await db.collection('blockedDomains').findOne({ domain: domain.toLowerCase() })
+      if (blockedEntry) {
+        log(`[Domain] BLOCKED domain rejected: ${domain} by chatId ${chatId}`)
+        return send(chatId, `❌ <b>${domain}</b> is blocked and cannot be registered or used due to abuse policy violations.`, { parse_mode: 'HTML' })
+      }
+    } catch (_) {}
+
     send(chatId, `🔍 Searching availability for ${domain} ...`)
     const { available, price, originalPrice, registrar, cheaperPrice, cheaperRegistrar, expensiveRegistrar, message: msg } = await domainService.checkDomainPrice(domain, db)
     if (!available) {
