@@ -3894,19 +3894,21 @@ Enter new value:`), bc)
       // from a previous hosting flow (hosting sets totalPrice = domain + hosting combined).
       // Use lastStep to pick the correct price field and avoid inflating the domain charge.
       // FIX: Virtual card purchases are excluded from loyalty discounts — they have fixed fees.
-      // FIX: Phone-pay and domain-pay use info.price directly (not info.totalPrice which is hosting-specific).
+      // FIX: info.totalPrice is ONLY used for hosting-pay (it combines domain + hosting cost).
+      //       All other steps use info.price to avoid stale totalPrice from a previous hosting flow.
       const step = info?.lastStep
       const NO_LOYALTY_DISCOUNT_STEPS = ['virtual-card-pay']
       if (!NO_LOYALTY_DISCOUNT_STEPS.includes(step)) {
         let basePrice
         if (info?.couponApplied) {
           basePrice = info.newPrice
-        } else if (step === 'domain-pay' || step === 'phone-pay') {
-          // Domain and phone purchases: use info.price directly
-          // info.totalPrice may be stale from a previous hosting flow
-          basePrice = info?.price || 0
-        } else {
+        } else if (step === 'hosting-pay') {
+          // Hosting: use totalPrice (domain + hosting combined cost)
           basePrice = info?.totalPrice || info?.price || 0
+        } else {
+          // All other steps: use info.price directly — prevents stale totalPrice from
+          // a previous hosting flow affecting plans, phones, domains, digital products, etc.
+          basePrice = info?.price || 0
         }
         if (basePrice > 0) {
           const discountInfo = await loyalty.applyDiscount(walletOf, chatId, basePrice)
