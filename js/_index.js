@@ -3894,14 +3894,16 @@ Enter new value:`), bc)
       // from a previous hosting flow (hosting sets totalPrice = domain + hosting combined).
       // Use lastStep to pick the correct price field and avoid inflating the domain charge.
       // FIX: Virtual card purchases are excluded from loyalty discounts — they have fixed fees.
+      // FIX: Phone-pay and domain-pay use info.price directly (not info.totalPrice which is hosting-specific).
       const step = info?.lastStep
       const NO_LOYALTY_DISCOUNT_STEPS = ['virtual-card-pay']
       if (!NO_LOYALTY_DISCOUNT_STEPS.includes(step)) {
         let basePrice
         if (info?.couponApplied) {
           basePrice = info.newPrice
-        } else if (step === 'domain-pay') {
-          // Domain purchases: only use info.price (the domain cost)
+        } else if (step === 'domain-pay' || step === 'phone-pay') {
+          // Domain and phone purchases: use info.price directly
+          // info.totalPrice may be stale from a previous hosting flow
           basePrice = info?.price || 0
         } else {
           basePrice = info?.totalPrice || info?.price || 0
@@ -14363,6 +14365,7 @@ Choose an IVR template category:`), k.of(rows))
 
     await saveInfo('cpPrice', totalPrice)
     await saveInfo('price', totalPrice)
+    await saveInfo('totalPrice', null) // Clear stale hosting totalPrice to prevent walletSelectCurrency from using wrong base
     await saveInfo('cpNumberSurcharge', surcharge)
 
     set(state, chatId, 'action', a.cpOrderSummary)
