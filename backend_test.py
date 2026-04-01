@@ -1,188 +1,242 @@
 #!/usr/bin/env python3
 """
-Backend Test Suite for Wallet Cooldown Fix Verification
-Tests the wallet cooldown fix in /app/js/voice-service.js
+Backend Test Suite for SIP Connection ANI Override at Startup
+Testing the implementation in /app/js/_index.js around lines 1104-1120
 """
 
 import subprocess
 import requests
-import re
 import os
+import re
+import sys
 
 def test_syntax_validation():
-    """Test that voice-service.js passes syntax validation"""
+    """Test that _index.js has valid JavaScript syntax"""
+    print("🔍 Testing JavaScript syntax validation...")
     try:
-        result = subprocess.run(['node', '-c', '/app/js/voice-service.js'], 
+        result = subprocess.run(['node', '-c', '/app/js/_index.js'], 
                               capture_output=True, text=True, timeout=30)
-        return result.returncode == 0, f"Syntax check: {result.stderr if result.stderr else 'OK'}"
+        if result.returncode == 0:
+            print("✅ JavaScript syntax validation passed")
+            return True
+        else:
+            print(f"❌ JavaScript syntax validation failed: {result.stderr}")
+            return False
     except Exception as e:
-        return False, f"Syntax check failed: {str(e)}"
+        print(f"❌ Syntax validation error: {e}")
+        return False
 
 def test_health_endpoint():
-    """Test that health endpoint returns healthy status"""
+    """Test that the health endpoint returns healthy status"""
+    print("🔍 Testing health endpoint...")
     try:
         response = requests.get('http://localhost:5000/health', timeout=10)
         if response.status_code == 200:
             data = response.json()
-            is_healthy = data.get('status') == 'healthy' and data.get('database') == 'connected'
-            return is_healthy, f"Health: {data}"
+            if data.get('status') == 'healthy':
+                print("✅ Health endpoint returns healthy status")
+                return True
+            else:
+                print(f"❌ Health endpoint status not healthy: {data}")
+                return False
         else:
-            return False, f"Health endpoint returned {response.status_code}"
+            print(f"❌ Health endpoint returned status code: {response.status_code}")
+            return False
     except Exception as e:
-        return False, f"Health check failed: {str(e)}"
+        print(f"❌ Health endpoint error: {e}")
+        return False
 
-def test_error_log_clean():
+def test_error_logs():
     """Test that nodejs error log is empty (0 bytes)"""
+    print("🔍 Testing Node.js error logs...")
     try:
-        log_path = '/var/log/supervisor/nodejs.err.log'
-        if os.path.exists(log_path):
-            size = os.path.getsize(log_path)
-            return size == 0, f"Error log size: {size} bytes"
+        error_log_path = '/var/log/supervisor/nodejs.err.log'
+        if os.path.exists(error_log_path):
+            size = os.path.getsize(error_log_path)
+            if size == 0:
+                print("✅ Node.js error log is 0 bytes (clean)")
+                return True
+            else:
+                print(f"❌ Node.js error log has {size} bytes")
+                # Show last few lines if there are errors
+                with open(error_log_path, 'r') as f:
+                    content = f.read()
+                    print(f"Error log content: {content[-500:]}")  # Last 500 chars
+                return False
         else:
-            return False, "Error log file not found"
+            print("❌ Node.js error log file not found")
+            return False
     except Exception as e:
-        return False, f"Error log check failed: {str(e)}"
+        print(f"❌ Error log check failed: {e}")
+        return False
 
-def test_early_cooldown_fix():
-    """Test that early cooldown check only fires when credentialExtracted=true"""
+def test_ani_override_implementation():
+    """Test that the ANI override code is properly implemented in _index.js"""
+    print("🔍 Testing ANI override implementation in _index.js...")
     try:
-        with open('/app/js/voice-service.js', 'r') as f:
+        with open('/app/js/_index.js', 'r') as f:
             content = f.read()
         
-        # Look for the fixed pattern around line 1334
-        pattern = r'const cooldownKey = credentialExtracted \? sipUsername : null'
-        if re.search(pattern, content):
-            return True, "Early cooldown fix verified: cooldownKey = credentialExtracted ? sipUsername : null"
-        else:
-            return False, "Early cooldown fix not found"
-    except Exception as e:
-        return False, f"Early cooldown check failed: {str(e)}"
-
-def test_post_identification_cooldown():
-    """Test that new post-identification cooldown check exists with chatId format"""
-    try:
-        with open('/app/js/voice-service.js', 'r') as f:
-            content = f.read()
-        
-        # Look for the new post-identification cooldown check
-        patterns = [
-            r'const userCooldownKey = `chatId:\$\{chatId\}`',
-            r'if \(isWalletRejectCooldown\(userCooldownKey\)\)',
-            r'POST-IDENTIFICATION WALLET COOLDOWN CHECK'
+        # Check for the key implementation elements
+        checks = [
+            ('telnyxApi.updateAniOverride call', r'telnyxApi\.updateAniOverride\(sipConnId,\s*defaultAni\)'),
+            ('defaultAni logic with TELNYX_DEFAULT_ANI', r'process\.env\.TELNYX_DEFAULT_ANI\s*\|\|\s*botTelnyxNumbers\?\.\[0\]'),
+            ('sipConnId fallback logic', r'telnyxResources\.sipConnectionId\s*\|\|\s*process\.env\.TELNYX_SIP_CONNECTION_ID'),
+            ('CloudPhone log message', r'\[CloudPhone\] SIP connection ANI override set to verified number'),
+            ('ANI override comment section', r'Set SIP connection ANI override to a verified Telnyx number at startup')
         ]
         
-        found_patterns = []
-        for pattern in patterns:
+        all_passed = True
+        for check_name, pattern in checks:
             if re.search(pattern, content):
-                found_patterns.append(pattern)
-        
-        if len(found_patterns) >= 2:  # At least the key patterns
-            return True, f"Post-identification cooldown verified: {len(found_patterns)}/3 patterns found"
-        else:
-            return False, f"Post-identification cooldown incomplete: {len(found_patterns)}/3 patterns found"
-    except Exception as e:
-        return False, f"Post-identification cooldown check failed: {str(e)}"
-
-def test_no_fromclean_references():
-    """Test that no setWalletRejectCooldown calls use fromClean"""
-    try:
-        result = subprocess.run(['grep', '-n', 'setWalletRejectCooldown.*fromClean', '/app/js/voice-service.js'], 
-                              capture_output=True, text=True)
-        
-        # grep returns exit code 1 when no matches found (which is what we want)
-        if result.returncode == 1:
-            return True, "No fromClean references in setWalletRejectCooldown calls"
-        else:
-            return False, f"Found fromClean references: {result.stdout}"
-    except Exception as e:
-        return False, f"fromClean reference check failed: {str(e)}"
-
-def test_new_chatid_pattern():
-    """Test that setWalletRejectCooldown calls use new chatId pattern"""
-    try:
-        result = subprocess.run(['grep', '-n', 'setWalletRejectCooldown.*chatId:', '/app/js/voice-service.js'], 
-                              capture_output=True, text=True)
-        
-        if result.returncode == 0:
-            lines = result.stdout.strip().split('\n')
-            if len(lines) >= 2:  # Should have at least 2 occurrences
-                return True, f"New chatId pattern found: {len(lines)} occurrences at lines {[line.split(':')[0] for line in lines]}"
+                print(f"✅ Found {check_name}")
             else:
-                return False, f"Insufficient chatId pattern occurrences: {len(lines)}"
-        else:
-            return False, "No chatId pattern found in setWalletRejectCooldown calls"
-    except Exception as e:
-        return False, f"chatId pattern check failed: {str(e)}"
-
-def test_specific_line_numbers():
-    """Test that setWalletRejectCooldown calls are at expected line numbers"""
-    try:
-        result = subprocess.run(['grep', '-n', 'setWalletRejectCooldown.*chatId:', '/app/js/voice-service.js'], 
-                              capture_output=True, text=True)
+                print(f"❌ Missing {check_name}")
+                all_passed = False
         
-        if result.returncode == 0:
-            lines = result.stdout.strip().split('\n')
-            line_numbers = [int(line.split(':')[0]) for line in lines]
-            
-            # Check if lines are around expected ranges (1461-1464 and 1478-1481)
-            expected_ranges = [(1460, 1470), (1475, 1485)]
-            found_in_ranges = []
-            
-            for line_num in line_numbers:
-                for range_start, range_end in expected_ranges:
-                    if range_start <= line_num <= range_end:
-                        found_in_ranges.append(line_num)
-            
-            if len(found_in_ranges) >= 2:
-                return True, f"setWalletRejectCooldown calls found at expected line ranges: {found_in_ranges}"
-            else:
-                return False, f"setWalletRejectCooldown calls not at expected ranges: found at {line_numbers}"
-        else:
-            return False, "No setWalletRejectCooldown calls found"
+        return all_passed
     except Exception as e:
-        return False, f"Line number check failed: {str(e)}"
+        print(f"❌ ANI override implementation check failed: {e}")
+        return False
+
+def test_telnyx_service_function():
+    """Test that updateAniOverride function exists and is exported in telnyx-service.js"""
+    print("🔍 Testing updateAniOverride function in telnyx-service.js...")
+    try:
+        with open('/app/js/telnyx-service.js', 'r') as f:
+            content = f.read()
+        
+        # Check for function definition and export
+        checks = [
+            ('updateAniOverride function definition', r'async function updateAniOverride\(sipConnectionId,\s*phoneNumber\)'),
+            ('ANI override API call', r'axios\.patch.*credential_connections.*\{[\s\S]*?ani_override:'),
+            ('updateAniOverride export', r'updateAniOverride,?\s*}?\s*$'),
+            ('Telnyx log message', r'\[Telnyx\] ANI override updated to')
+        ]
+        
+        all_passed = True
+        for check_name, pattern in checks:
+            if re.search(pattern, content, re.MULTILINE):
+                print(f"✅ Found {check_name}")
+            else:
+                print(f"❌ Missing {check_name}")
+                all_passed = False
+        
+        return all_passed
+    except Exception as e:
+        print(f"❌ Telnyx service function check failed: {e}")
+        return False
+
+def test_startup_logs():
+    """Test that startup logs contain the expected ANI override messages"""
+    print("🔍 Testing startup logs for ANI override messages...")
+    try:
+        log_path = '/var/log/supervisor/nodejs.out.log'
+        if not os.path.exists(log_path):
+            print("❌ Node.js output log file not found")
+            return False
+        
+        with open(log_path, 'r') as f:
+            log_content = f.read()
+        
+        # Check for both expected log messages
+        expected_messages = [
+            ('[Telnyx] ANI override updated to +18775877003', r'\[Telnyx\] ANI override updated to \+18775877003'),
+            ('[CloudPhone] SIP connection ANI override set to verified number: +18775877003', 
+             r'\[CloudPhone\] SIP connection ANI override set to verified number: \+18775877003')
+        ]
+        
+        all_found = True
+        for msg_name, pattern in expected_messages:
+            if re.search(pattern, log_content):
+                print(f"✅ Found startup log message: {msg_name}")
+            else:
+                print(f"❌ Missing startup log message: {msg_name}")
+                all_found = False
+        
+        return all_found
+    except Exception as e:
+        print(f"❌ Startup log check failed: {e}")
+        return False
+
+def test_environment_variables():
+    """Test that required environment variables are set"""
+    print("🔍 Testing environment variables...")
+    try:
+        env_file_path = '/app/backend/.env'
+        if not os.path.exists(env_file_path):
+            print("❌ Backend .env file not found")
+            return False
+        
+        with open(env_file_path, 'r') as f:
+            env_content = f.read()
+        
+        # Check for required environment variables
+        required_vars = [
+            ('TELNYX_DEFAULT_ANI', r'TELNYX_DEFAULT_ANI="\+18775877003"'),
+            ('TELNYX_SIP_CONNECTION_ID', r'TELNYX_SIP_CONNECTION_ID="2898118323872990714"')
+        ]
+        
+        all_found = True
+        for var_name, pattern in required_vars:
+            if re.search(pattern, env_content):
+                print(f"✅ Found environment variable: {var_name}")
+            else:
+                print(f"❌ Missing or incorrect environment variable: {var_name}")
+                all_found = False
+        
+        return all_found
+    except Exception as e:
+        print(f"❌ Environment variable check failed: {e}")
+        return False
 
 def run_all_tests():
-    """Run all tests and return results"""
+    """Run all tests and return overall result"""
+    print("🚀 Starting SIP Connection ANI Override Testing Suite")
+    print("=" * 60)
+    
     tests = [
         ("Syntax Validation", test_syntax_validation),
         ("Health Endpoint", test_health_endpoint),
-        ("Error Log Clean", test_error_log_clean),
-        ("Early Cooldown Fix", test_early_cooldown_fix),
-        ("Post-Identification Cooldown", test_post_identification_cooldown),
-        ("No fromClean References", test_no_fromclean_references),
-        ("New chatId Pattern", test_new_chatid_pattern),
-        ("Specific Line Numbers", test_specific_line_numbers)
+        ("Error Logs", test_error_logs),
+        ("ANI Override Implementation", test_ani_override_implementation),
+        ("Telnyx Service Function", test_telnyx_service_function),
+        ("Startup Logs", test_startup_logs),
+        ("Environment Variables", test_environment_variables)
     ]
     
     results = []
-    passed = 0
-    total = len(tests)
-    
-    print("=" * 80)
-    print("WALLET COOLDOWN FIX VERIFICATION TESTS")
-    print("=" * 80)
-    
     for test_name, test_func in tests:
+        print(f"\n📋 Running {test_name} test...")
         try:
-            success, message = test_func()
-            status = "✅ PASS" if success else "❌ FAIL"
-            print(f"{status} {test_name}: {message}")
-            results.append((test_name, success, message))
-            if success:
-                passed += 1
+            result = test_func()
+            results.append((test_name, result))
         except Exception as e:
-            print(f"❌ FAIL {test_name}: Exception - {str(e)}")
-            results.append((test_name, False, f"Exception - {str(e)}"))
+            print(f"❌ {test_name} test failed with exception: {e}")
+            results.append((test_name, False))
     
-    print("=" * 80)
-    print(f"SUMMARY: {passed}/{total} tests passed ({(passed/total)*100:.1f}% success rate)")
-    print("=" * 80)
+    print("\n" + "=" * 60)
+    print("📊 TEST RESULTS SUMMARY")
+    print("=" * 60)
     
-    return results, passed, total
+    passed = 0
+    total = len(results)
+    
+    for test_name, result in results:
+        status = "✅ PASSED" if result else "❌ FAILED"
+        print(f"{test_name}: {status}")
+        if result:
+            passed += 1
+    
+    print(f"\nOverall: {passed}/{total} tests passed ({passed/total*100:.1f}%)")
+    
+    if passed == total:
+        print("🎉 ALL TESTS PASSED! SIP Connection ANI Override is working correctly.")
+        return True
+    else:
+        print("⚠️  Some tests failed. Please review the implementation.")
+        return False
 
 if __name__ == "__main__":
-    results, passed, total = run_all_tests()
-    
-    # Exit with appropriate code
-    exit(0 if passed == total else 1)
+    success = run_all_tests()
+    sys.exit(0 if success else 1)

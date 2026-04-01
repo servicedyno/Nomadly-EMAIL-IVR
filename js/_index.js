@@ -1102,6 +1102,25 @@ const loadData = async () => {
         )
         if (migrated > 0) log(`[CloudPhone] Migrated ${migrated} numbers to Call Control App for proper inbound routing`)
       }
+
+      // ── Set SIP connection ANI override to a verified Telnyx number at startup ──
+      // Auto-routed SIP calls use the connection-level ANI override as caller ID.
+      // If this is set to an unverified number (e.g. +18556820054), PSTN carriers reject
+      // the call with "Unverified originating identity" (STIR/SHAKEN failure).
+      // Setting it to a verified bot-owned number ensures auto-routed calls don't fail.
+      const sipConnId = telnyxResources.sipConnectionId || process.env.TELNYX_SIP_CONNECTION_ID || ''
+      if (sipConnId) {
+        // Prefer TELNYX_DEFAULT_ANI, fallback to first bot-owned Telnyx number
+        const defaultAni = process.env.TELNYX_DEFAULT_ANI || botTelnyxNumbers?.[0]
+        if (defaultAni) {
+          const aniResult = await telnyxApi.updateAniOverride(sipConnId, defaultAni)
+          if (aniResult) {
+            log(`[CloudPhone] SIP connection ANI override set to verified number: ${defaultAni}`)
+          } else {
+            log(`[CloudPhone] ⚠️ Failed to set ANI override to ${defaultAni}`)
+          }
+        }
+      }
     } catch (e) {
       log('[CloudPhone] Telnyx init error:', e.message)
     }
