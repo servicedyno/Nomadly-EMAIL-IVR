@@ -141,8 +141,8 @@ async function fetchAvailableZones(region) {
 async function fetchAvailableDiskTpes(zone) {
   try {
     return [
-      { id: 'nvme', _id: 'nvme', name: 'NVMe', value: 'nvme', label: '⚡ NVMe (Fast)', type: 'nvme' },
-      { id: 'ssd',  _id: 'ssd',  name: 'SSD',  value: 'ssd',  label: '💾 SSD (More Storage)', type: 'ssd' }
+      { id: 'nvme', _id: 'nvme', name: 'NVMe', value: 'nvme', label: '⚡ NVMe (Fast)', type: 'nvme', description: '⚡ <b>NVMe</b> — Fastest storage, ideal for databases & apps' },
+      { id: 'ssd',  _id: 'ssd',  name: 'SSD',  value: 'ssd',  label: '💾 SSD (More Storage)', type: 'ssd', description: '💾 <b>SSD</b> — 2× more disk space at the same price' }
     ]
   } catch (err) {
     console.log('Error in fetchAvailableDiskTpes (contabo):', err.message || err)

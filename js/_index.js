@@ -4668,7 +4668,8 @@ Enter new value:`), bc)
     askVpsConfig: async () => {
       set(state, chatId, 'action', a.askVpsConfig)
       const configTypes = info?.vpsConfigTypes
-      const configList = configTypes.map((item) => item.name)
+      // Keyboard buttons show name + price for clarity
+      const configList = configTypes.map((item) => `${item.name} — $${item.monthlyPrice}/mo`)
       return send(chatId, vp.askVpsConfig(configTypes), vp.of(configList))  
     },
 
@@ -9818,10 +9819,13 @@ ${message.replace(/\n/g, '<br>')}
   if (action === a.askVpsConfig) {
     if (message === vp.back) return goto.askVpsDiskType()
     const vpsConfigurations = info?.vpsConfigTypes
-    const configTypes = vpsConfigurations.map((item) => item.name)
-    if (!configTypes.includes(message)) return send(chatId, vp.validVpsConfig, vp.of(configTypes))
+    // Match by button text "Cloud VPS 1 — $8.18/mo" OR by plain name "Cloud VPS 1"
+    const configButtonLabels = vpsConfigurations.map((item) => `${item.name} — $${item.monthlyPrice}/mo`)
+    const selectedConfigType = vpsConfigurations.find((item) =>
+      message === `${item.name} — $${item.monthlyPrice}/mo` || message === item.name
+    )
+    if (!selectedConfigType) return send(chatId, vp.validVpsConfig, vp.of(configButtonLabels))
     let vpsDetails = info?.vpsDetails
-    const selectedConfigType = vpsConfigurations.find((item) => item.name === message)
     vpsDetails.config = selectedConfigType
     // Contabo: Monthly only — skip billing cycle selection
     vpsDetails.plan = 'Monthly'
