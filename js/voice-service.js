@@ -1603,11 +1603,11 @@ async function handleOutboundSipCall(payload) {
     // which is a single global value — wrong for multi-user. transferCall's `from` param
     // overrides this per-call, ensuring each user's correct phone number displays as caller ID.
     //
-    // Also update the connection-level ANI override in the background (best-effort)
-    // so the next auto-routed call uses the right number even before our transfer fires.
-    if (sipConnectionId) {
-      _telnyxApi.updateAniOverride(sipConnectionId, num.phoneNumber).catch(() => {})
-    }
+    // NOTE: Do NOT update connection-level ANI override to user's number here.
+    // The ANI override was set to a verified LOCAL number at startup (+15648889711)
+    // for proper STIR/SHAKEN A-level attestation on auto-routed calls.
+    // Overwriting it with the user's toll-free number causes "Unverified originating identity" rejections.
+    // Per-call caller ID is handled by transferCall's 'from' parameter instead.
 
     try {
       await _telnyxApi.transferCall(callControlId, destination, num.phoneNumber)
@@ -1770,13 +1770,9 @@ async function handleOutboundSipCall(payload) {
       await _attemptTwilioDirectCall(chatId, num, destination, bridgeId, callControlId)
     }
 
-    // ── Restore connection ANI to user's phone number ──
-    // This ensures that if the user retries their SIP call, the auto-routed call
-    // will have from=user's number (identifiable by findNumberBySipUser) instead of
-    // from=TELNYX_DEFAULT_ANI (which would be rejected as "No owner found").
-    if (sipConnectionId && num.phoneNumber) {
-      _telnyxApi.updateAniOverride(sipConnectionId, num.phoneNumber).catch(() => {})
-    }
+    // NOTE: Do NOT restore connection-level ANI to user's number.
+    // The ANI was set to a verified LOCAL number at startup for STIR/SHAKEN attestation.
+    // Overwriting with toll-free/Twilio numbers causes auto-routed call rejections.
 
     // Notify user
     if (_walletOf) {
