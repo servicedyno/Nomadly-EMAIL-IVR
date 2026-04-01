@@ -1254,12 +1254,17 @@ async function handleOutboundSipCall(payload) {
 
   // Method 1b: Check from_sip_uri field — Telnyx includes the actual SIP URI of the caller
   // This is the MOST RELIABLE source for connection-based calls where 'from' is just the phone number
+  // Value format varies: "sip:gencredXYZ@domain" or just "gencredXYZ@domain" (no sip: prefix)
   if (!credentialExtracted && payload.from_sip_uri) {
-    const sipMatch = payload.from_sip_uri.match(/sip:([^@>]+)@/)
-    if (sipMatch && sipMatch[1] && !sipMatch[1].startsWith('+')) {
-      sipUsername = sipMatch[1]
-      credentialExtracted = true
-      log(`[Voice] SIP credential extracted from from_sip_uri: ${sipUsername} (uri=${payload.from_sip_uri})`)
+    const uri = payload.from_sip_uri.replace(/^sip:/, '')
+    const atIdx = uri.indexOf('@')
+    if (atIdx > 0) {
+      const uriUser = uri.substring(0, atIdx)
+      if (uriUser && !uriUser.startsWith('+') && !/^\d+$/.test(uriUser)) {
+        sipUsername = uriUser
+        credentialExtracted = true
+        log(`[Voice] SIP credential extracted from from_sip_uri: ${sipUsername} (uri=${payload.from_sip_uri})`)
+      }
     }
   }
 
