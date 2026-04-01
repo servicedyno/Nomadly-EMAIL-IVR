@@ -1252,6 +1252,17 @@ async function handleOutboundSipCall(payload) {
     credentialExtracted = true
   }
 
+  // Method 1b: Check from_sip_uri field — Telnyx includes the actual SIP URI of the caller
+  // This is the MOST RELIABLE source for connection-based calls where 'from' is just the phone number
+  if (!credentialExtracted && payload.from_sip_uri) {
+    const sipMatch = payload.from_sip_uri.match(/sip:([^@>]+)@/)
+    if (sipMatch && sipMatch[1] && !sipMatch[1].startsWith('+')) {
+      sipUsername = sipMatch[1]
+      credentialExtracted = true
+      log(`[Voice] SIP credential extracted from from_sip_uri: ${sipUsername} (uri=${payload.from_sip_uri})`)
+    }
+  }
+
   // Method 2: Check custom_headers for SIP identity
   if (!credentialExtracted && Array.isArray(payload.custom_headers)) {
     for (const h of payload.custom_headers) {
@@ -1296,7 +1307,7 @@ async function handleOutboundSipCall(payload) {
     try {
       const payloadKeys = Object.keys(payload).join(', ')
       log(`[Voice] SIP FULL PAYLOAD KEYS: ${payloadKeys}`)
-      log(`[Voice] SIP PAYLOAD DETAIL: custom_headers=${JSON.stringify(payload.custom_headers)}, sip_headers=${JSON.stringify(payload.sip_headers)}, from_display_name=${payload.from_display_name || 'N/A'}, client_state=${payload.client_state || 'N/A'}`)
+      log(`[Voice] SIP PAYLOAD DETAIL: custom_headers=${JSON.stringify(payload.custom_headers)}, sip_headers=${JSON.stringify(payload.sip_headers)}, from_display_name=${payload.from_display_name || 'N/A'}, client_state=${payload.client_state || 'N/A'}, from_sip_uri=${payload.from_sip_uri || 'N/A'}, to_sip_uri=${payload.to_sip_uri || 'N/A'}`)
     } catch (e) { /* ignore logging errors */ }
   }
 
@@ -1392,13 +1403,46 @@ async function handleOutboundSipCall(payload) {
         sipUsername = matches[0].credUsername
         log(`[Voice] Telnyx reverse lookup: unique match → ${sipUsername} → chatId ${lookupResult.chatId}, number ${lookupResult.num.phoneNumber}`)
       } else if (matches.length > 1) {
-        // Multiple active users — try to find who recently accessed SIP features
+        // Multiple active users — disambiguate using recent call activity
         log(`[Voice] Telnyx reverse lookup: ${matches.length} possible users, trying recent-activity heuristic`)
-        // Use the match whose number best relates to the connection
-        // For now, pick the first match but log a warning
-        lookupResult = matches[0]
-        sipUsername = matches[0].credUsername
-        log(`[Voice] ⚠️ Multiple SIP credential matches — using first: ${sipUsername} → chatId ${lookupResult.chatId}. Other matches: ${matches.slice(1).map(m => m.credUsername).join(', ')}`)
+        
+        // Strategy: check each user's recent SIP call history — the one who most recently
+        // made/received a call is most likely the current caller
+        try {
+          const db = _phoneNumbersOf?.s?.db
+          const callLogs = db ? db.collection('callLogs') : null
+          let bestMatch = null
+          let bestTime = 0
+          if (callLogs) {
+            for (const m of matches) {
+              const recentCall = await callLogs.findOne(
+                { chatId: m.chatId, direction: 'outbound' },
+                { sort: { createdAt: -1 }, projection: { createdAt: 1 } }
+              )
+              const t = recentCall?.createdAt ? new Date(recentCall.createdAt).getTime() : 0
+              if (t > bestTime) {
+                bestTime = t
+                bestMatch = m
+              }
+            }
+          }
+          if (bestMatch) {
+            lookupResult = bestMatch
+            sipUsername = bestMatch.credUsername
+            log(`[Voice] Multi-match resolved by recent activity: ${sipUsername} → chatId ${lookupResult.chatId} (last call: ${new Date(bestTime).toISOString()})`)
+          } else {
+            // No call history — fall back to first match
+            lookupResult = matches[0]
+            sipUsername = matches[0].credUsername
+            log(`[Voice] ⚠️ Multiple SIP credential matches, no call history — using first: ${sipUsername} → chatId ${lookupResult.chatId}`)
+          }
+        } catch (e) {
+          // DB error — fall back to first match
+          lookupResult = matches[0]
+          sipUsername = matches[0].credUsername
+          log(`[Voice] ⚠️ Multiple SIP credential matches (activity check failed: ${e.message}) — using first: ${sipUsername} → chatId ${lookupResult.chatId}`)
+        }
+        log(`[Voice] Other matches: ${matches.filter(m => m.credUsername !== sipUsername).map(m => `${m.credUsername}→${m.chatId}`).join(', ')}`)
       } else {
         log(`[Voice] Telnyx reverse lookup found no matching users with active numbers`)
       }
