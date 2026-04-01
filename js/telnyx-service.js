@@ -821,6 +821,16 @@ async function updateAniOverride(sipConnectionId, phoneNumber) {
   }
 }
 
+async function listPhoneNumbers() {
+  try {
+    const res = await axios.get(`${BASE}/phone_numbers?page[size]=100`, { headers: headers() })
+    return { data: res.data?.data || [] }
+  } catch (e) {
+    log(`[Telnyx] listPhoneNumbers error: ${e.response?.data?.errors?.[0]?.detail || e.message}`)
+    return { data: [] }
+  }
+}
+
 module.exports = {
   searchNumbers,
   getNumberCapabilities,
@@ -856,4 +866,5 @@ module.exports = {
   assignNumberToCallControlApp,
   migrateNumbersToCallControlApp,
   updateAniOverride,
+  listPhoneNumbers,
 }

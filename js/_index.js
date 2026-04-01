@@ -1103,22 +1103,34 @@ const loadData = async () => {
         if (migrated > 0) log(`[CloudPhone] Migrated ${migrated} numbers to Call Control App for proper inbound routing`)
       }
 
-      // ── Set SIP connection ANI override to a verified Telnyx number at startup ──
+      // ── Set SIP connection ANI override to a verified LOCAL Telnyx number at startup ──
       // Auto-routed SIP calls use the connection-level ANI override as caller ID.
-      // If this is set to an unverified number (e.g. +18556820054), PSTN carriers reject
-      // the call with "Unverified originating identity" (STIR/SHAKEN failure).
-      // Setting it to a verified bot-owned number ensures auto-routed calls don't fail.
+      // CRITICAL: Toll-free numbers (800/855/877/888) get poor STIR/SHAKEN attestation,
+      // causing PSTN carriers to reject calls with "Unverified originating identity".
+      // LOCAL numbers get full A-level attestation and are always accepted.
       const sipConnId = telnyxResources.sipConnectionId || process.env.TELNYX_SIP_CONNECTION_ID || ''
       if (sipConnId) {
-        // Prefer TELNYX_DEFAULT_ANI, fallback to first bot-owned Telnyx number
-        const defaultAni = process.env.TELNYX_DEFAULT_ANI || botTelnyxNumbers?.[0]
-        if (defaultAni) {
-          const aniResult = await telnyxApi.updateAniOverride(sipConnId, defaultAni)
-          if (aniResult) {
-            log(`[CloudPhone] SIP connection ANI override set to verified number: ${defaultAni}`)
-          } else {
-            log(`[CloudPhone] ⚠️ Failed to set ANI override to ${defaultAni}`)
+        try {
+          // Query Telnyx for LOCAL numbers on the SIP connection — these get A-level STIR/SHAKEN
+          const numbersRes = await telnyxApi.listPhoneNumbers?.() || { data: [] }
+          const connectionNumbers = (numbersRes.data || []).filter(n =>
+            n.connection_id === sipConnId && n.status === 'active'
+          )
+          const localNumber = connectionNumbers.find(n => n.phone_number_type === 'local')
+          const bestAni = localNumber?.phone_number
+            || process.env.TELNYX_DEFAULT_ANI
+            || connectionNumbers[0]?.phone_number
+            || botTelnyxNumbers?.[0]
+          if (bestAni) {
+            const aniResult = await telnyxApi.updateAniOverride(sipConnId, bestAni)
+            if (aniResult) {
+              log(`[CloudPhone] SIP connection ANI override set to ${localNumber ? 'LOCAL' : 'TOLL-FREE'} number: ${bestAni}`)
+            } else {
+              log(`[CloudPhone] ⚠️ Failed to set ANI override to ${bestAni}`)
+            }
           }
+        } catch (aniErr) {
+          log(`[CloudPhone] ANI override setup error: ${aniErr.message}`)
         }
       }
     } catch (e) {
