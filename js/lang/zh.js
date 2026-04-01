@@ -1727,9 +1727,15 @@ const vp = {
   skip: '❌ 跳过',
   cancel: '❌ 取消',
 
-  askCountryForUser: `🌍 选择最佳区域，以获得最佳性能和最低延迟。
+  // VPS/RDP choice (Step 1)
+  vpsLinuxBtn: '🐧 Linux VPS (SSH)',
+  vpsRdpBtn: '🪟 Windows RDP',
+  askVpsOrRdp: `🖥️ 您需要什么类型的服务器？
 
-💡 低延迟 = 更快的响应时间。请选择最接近用户的区域，以获得最佳性能。`,
+<strong>🐧 Linux VPS</strong> — SSH访问 · 网站托管 · 开发 · 自动化
+<strong>🪟 Windows RDP</strong> — 远程桌面 · Windows 应用和工具`,
+
+  askCountryForUser: `🌍 选择最接近用户的区域：`,
   chooseValidCountry: '请从列表中选择一个国家：',
   askRegionForUser: country => `📍 选择 ${country} 内的数据中心（价格可能因位置而异）。`,
   chooseValidRegion: '请从列表中选择有效的地区：',
@@ -1757,18 +1763,18 @@ ${plans
   )
   .join('\n')}`,
   planTypeMenu: vpsOptionsOf(vpsPlanMenu),
-  hourlyBillingMessage: `⚠️ 按小时计费需要支付 $${VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE} USD 可退款押金。此押金确保服务不中断，未使用部分可退款。
+  hourlyBillingMessage: `⚠️ 按小时计费需要支付 $${VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE} USD 可退款押金。
 
 ✅ 账单每小时从您的钱包余额中扣除。
-🔹 月度许可证（Windows/WHM/Plesk）需提前支付。`,
+🔹 月度许可证（如 Windows）需提前支付。`,
 
   // 配置
-  askVpsConfig: list => `⚙️ 根据您的需求选择 VPS 计划（提供按小时或按月计费）：
+  askVpsConfig: list => `⚙️ 选择方案：
   
 ${list
   .map(
     config =>
-      `<strong>• ${config.name} -</strong>  ${config.specs.vCPU} vCPU, ${config.specs.RAM}GB 内存, ${config.specs.disk}GB 硬盘`,
+      `<strong>• ${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB ${config.specs.diskType} — <b>$${config.monthlyPrice}/mo</b>`,
   )
   .join('\n')}`,
 
@@ -1783,13 +1789,12 @@ ${list
   confirmSkip: '✅ 确认跳过',
   goBackToCoupon: '❌ 返回并应用优惠券',
 
-  askVpsOS: price => `💡 默认操作系统：Ubuntu（Linux）（如果未进行选择）。
-💻 选择操作系统（Windows Server 额外收费 $${price}/月）。  
+  askVpsOS: () => `💻 选择 Linux 发行版（默认：Ubuntu）：
 
-<strong>💡 推荐: </strong>  
-<strong>• Ubuntu –</strong> 适用于常规使用和开发  
-<strong>• CentOS –</strong> 适用于企业级应用，稳定可靠  
-<strong>• Windows Server –</strong> 适用于基于 Windows 的应用（+$${price}/月）`,
+<strong>💡 推荐：</strong>
+<strong>• Ubuntu</strong> — 通用 & 开发
+<strong>• AlmaLinux / Rocky</strong> — 企业级稳定
+<strong>• Debian</strong> — 轻量 & 可靠`,
   chooseValidOS: `请选择可用列表中的有效操作系统：`,
   skipOSBtn: '❌ 跳过操作系统选择',
   skipOSwarning: '⚠️ 您的VPS将没有操作系统启动。您需要通过SSH或恢复模式手动安装一个。',
@@ -1824,35 +1829,31 @@ ${list.map(item => `${name == 'whm' ? `<strong>• ${item.name} - </strong>` : '
 请点击 💬 获取支持。
 了解更多 ${TG_HANDLE}。`,
 
-  generateBillSummary: vpsDetails => `<strong>📋 最终费用明细：</strong>
+  generateBillSummary: vpsDetails => {
+    const planPrice = vpsDetails.couponApplied ? vpsDetails.planNewPrice : vpsDetails.plantotalPrice
+    const osPrice = vpsDetails.selectedOSPrice || 0
+    const total = vpsDetails.totalPrice || (Number(planPrice) + Number(osPrice)).toFixed(2)
+    const isRDP = vpsDetails.isRDP
+    const osLabel = isRDP ? '🪟 Windows Server (RDP)' : (vpsDetails.os?.name || 'Ubuntu')
+    
+    let summary = `<strong>📋 订单摘要：</strong>
 
-<strong>•📅 硬盘类型 –</strong> ${vpsDetails.diskType}
-<strong>•🖥️ VPS 方案：</strong> ${vpsDetails.config.name}
-<strong>•📅 计费周期 (${vpsDetails.plan} 方案) –</strong> $${vpsDetails.plantotalPrice} USD
-<strong>•💻 操作系统许可证 (${vpsDetails.os ? vpsDetails.os.name : '未选择'}) –</strong> $${
-    vpsDetails.selectedOSPrice
-  } USD
-<strong>•🛠️ 控制面板 (${
-    vpsDetails.panel ? `${vpsDetails.panel.name == 'whm' ? 'WHM' : 'Plesk'} ${vpsDetails.panel.licenseName}` : '未选择'
-  }) –</strong> $${vpsDetails.selectedCpanelPrice} USD
-<strong>•🎟️ 优惠券折扣 –</strong> -$${vpsDetails.couponDiscount} USD
-<strong>•🔄 自动续费 –</strong>  ${
-    vpsDetails.plan === 'Hourly' ? '⏳ 按小时' : vpsDetails.autoRenewalPlan ? '✅ 启用' : '❌ 禁用'
-  }
+<strong>🖥️ ${vpsDetails.config.name}</strong> — ${vpsDetails.config.specs.vCPU} vCPU · ${vpsDetails.config.specs.RAM}GB RAM · ${vpsDetails.config.specs.disk}GB ${vpsDetails.config.specs.diskType}
+<strong>📍 区域：</strong> ${vpsDetails.regionName || vpsDetails.country}
+<strong>💻 OS：</strong> ${osLabel}
+<strong>📅 月付：</strong> $${vpsDetails.plantotalPrice} USD`
 
-${
-  vpsDetails.plan === 'Hourly'
-    ? `注意：您的总费用中包含 $${VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE} USD 作为预存款。在第一小时费率扣除后，剩余金额将返还至您的钱包。`
-    : ''
-}
-
-<strong>💰 总计：</strong> $${
-    vpsDetails.plan === 'Hourly' && vpsDetails.totalPrice < VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE
-      ? VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE
-      : vpsDetails.totalPrice
-  } USD
-
-<strong>✅ 是否继续下单？</strong>`,
+    if (isRDP && osPrice > 0) {
+      summary += `\n<strong>🪟 Windows 许可证：</strong> +$${osPrice}/mo`
+    }
+    if (vpsDetails.couponApplied && vpsDetails.couponDiscount > 0) {
+      summary += `\n<strong>🎟️ 优惠券：</strong> -$${vpsDetails.couponDiscount} USD`
+    }
+    summary += `\n<strong>🔄 自动续费：</strong> ✅ 启用`
+    summary += `\n\n<strong>💰 总计：$${total} USD/月</strong>`
+    summary += `\n\n<strong>✅ 是否继续下单？</strong>`
+    return summary
+  },
   no: '❌ 取消订单',
   yes: '✅ 确认订单',
   askPaymentMethod: '选择支付方式：',

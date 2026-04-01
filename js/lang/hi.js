@@ -1740,9 +1740,15 @@ const vp = {
   skip: '❌ छोड़ें',
   cancel: '❌ रद्द करें',
 
-  askCountryForUser: `🌍 इष्टतम प्रदर्शन और कम विलंबता के लिए सर्वश्रेष्ठ क्षेत्र चुनें।
+  // VPS/RDP choice (Step 1)
+  vpsLinuxBtn: '🐧 Linux VPS (SSH)',
+  vpsRdpBtn: '🪟 Windows RDP',
+  askVpsOrRdp: `🖥️ आपको किस प्रकार का सर्वर चाहिए?
 
-  💡 कम विलंबता = तेज़ प्रतिक्रिया समय। बेहतर प्रदर्शन के लिए अपने उपयोगकर्ताओं के सबसे नज़दीकी क्षेत्र का चयन करें।`,
+<strong>🐧 Linux VPS</strong> — SSH एक्सेस · वेब होस्टिंग · डेवलपमेंट · ऑटोमेशन
+<strong>🪟 Windows RDP</strong> — रिमोट डेस्कटॉप · विंडोज ऐप्स & टूल्स`,
+
+  askCountryForUser: `🌍 अपने उपयोगकर्ताओं के सबसे नज़दीकी क्षेत्र चुनें:`,
   chooseValidCountry: 'कृपया सूची से एक देश चुनें:',
   askRegionForUser: country => `📍 ${country} में एक डेटा सेंटर चुनें (स्थान के अनुसार मूल्य अलग-अलग हो सकता है।)`,
   chooseValidRegion: 'कृपया सूची से एक मान्य क्षेत्र चुनें:',
@@ -1771,17 +1777,17 @@ ${plans
   .join('\n')}`,
 
   planTypeMenu: vpsOptionsOf(vpsPlanMenu),
-  hourlyBillingMessage: `⚠️ प्रति घंटा बिलिंग के लिए $${VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE} USD की वापसी योग्य जमा राशि आवश्यक है। यह निर्बाध सेवा सुनिश्चित करता है और यदि अप्रयुक्त रहता है तो वापस कर दिया जाता है।
+  hourlyBillingMessage: `⚠️ प्रति घंटा बिलिंग के लिए $${VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE} USD की वापसी योग्य जमा राशि आवश्यक है।
 
 ✅ बिलिंग आपके वॉलेट बैलेंस से प्रति घंटे काटी जाती है।
-🔹 मासिक लाइसेंस (Windows/WHM/Plesk) पहले से ही बिल किए जाते हैं।`,
+🔹 मासिक लाइसेंस (जैसे Windows) पहले से ही बिल किए जाते हैं।`,
 
-  askVpsConfig: list => `⚙️ अपनी आवश्यकताओं के अनुसार एक VPS योजना चुनें (घंटे या मासिक बिलिंग उपलब्ध है):
+  askVpsConfig: list => `⚙️ एक योजना चुनें:
   
 ${list
   .map(
     config =>
-      `<strong>• ${config.name} -</strong>  ${config.specs.vCPU} vCPU, ${config.specs.RAM}GB RAM, ${config.specs.disk}GB डिस्क`,
+      `<strong>• ${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB ${config.specs.diskType} — <b>$${config.monthlyPrice}/mo</b>`,
   )
   .join('\n')}`,
 
@@ -1797,13 +1803,12 @@ ${list
   confirmSkip: '✅ छोड़ने की पुष्टि करें',
   goBackToCoupon: '❌ वापस जाएं और कूपन लागू करें',
 
-  askVpsOS: price => `💡 डिफ़ॉल्ट ऑपरेटिंग सिस्टम: उबंटू (लिनक्स) (यदि कोई चयन नहीं किया जाता है)।
-💻 एक ऑपरेटिंग सिस्टम चुनें (Windows Server के लिए $${price}/महीना अतिरिक्त शुल्क)।  
+  askVpsOS: () => `💻 एक Linux डिस्ट्रो चुनें (डिफ़ॉल्ट: Ubuntu):
 
-<strong>💡 अनुशंसित: </strong>  
-<strong>• Ubuntu –</strong> सामान्य उपयोग और विकास के लिए सर्वश्रेष्ठ  
-<strong>• CentOS –</strong> एंटरप्राइज़ अनुप्रयोगों के लिए स्थिर  
-<strong>• Windows Server –</strong> Windows-आधारित अनुप्रयोगों के लिए (+$${price}/महीना)`,
+<strong>💡 अनुशंसित:</strong>
+<strong>• Ubuntu</strong> — सामान्य उपयोग & विकास
+<strong>• AlmaLinux / Rocky</strong> — एंटरप्राइज़ स्थिरता
+<strong>• Debian</strong> — हल्का & विश्वसनीय`,
   chooseValidOS: `कृपया उपलब्ध सूची से एक वैध OS चुनें:`,
   skipOSBtn: '❌ OS चयन छोड़ें',
   skipOSwarning:
@@ -1841,37 +1846,31 @@ ${list.map(item => `${name == 'whm' ? `<strong>• ${item.name} - </strong>` : '
 कृपया सहायता के लिए 💬 सहायता प्राप्त करें बटन दबाएं।
 अधिक जानने के लिए ${TG_HANDLE} पर जाएं।`,
 
-  generateBillSummary: vpsDetails => `<strong>📋 अंतिम लागत विवरण :</strong>
+  generateBillSummary: vpsDetails => {
+    const planPrice = vpsDetails.couponApplied ? vpsDetails.planNewPrice : vpsDetails.plantotalPrice
+    const osPrice = vpsDetails.selectedOSPrice || 0
+    const total = vpsDetails.totalPrice || (Number(planPrice) + Number(osPrice)).toFixed(2)
+    const isRDP = vpsDetails.isRDP
+    const osLabel = isRDP ? '🪟 Windows Server (RDP)' : (vpsDetails.os?.name || 'Ubuntu')
+    
+    let summary = `<strong>📋 ऑर्डर सारांश:</strong>
 
-<strong>•📅 डिस्क प्रकार –</strong> ${vpsDetails.diskType}
-<strong>•🖥️ VPS योजना :</strong> ${vpsDetails.config.name}
-<strong>•📅 बिलिंग चक्र (${vpsDetails.plan} योजना) –</strong> $${vpsDetails.plantotalPrice} USD
-<strong>•💻 OS लाइसेंस (${vpsDetails.os ? vpsDetails.os.name : 'चयन नहीं किया गया'}) –</strong> $${
-    vpsDetails.selectedOSPrice
-  } USD
-<strong>•🛠️ नियंत्रण पैनल (${
-    vpsDetails.panel
-      ? `${vpsDetails.panel.name == 'whm' ? 'WHM' : 'Plesk'} ${vpsDetails.panel.licenseName}`
-      : 'चयन नहीं किया गया'
-  }) –</strong> $${vpsDetails.selectedCpanelPrice} USD
-<strong>•🎟️ कूपन छूट –</strong> -$${vpsDetails.couponDiscount} USD
-<strong>•🔄 स्वचालित नवीनीकरण –</strong>  ${
-    vpsDetails.plan === 'Hourly' ? '⏳ प्रति घंटा' : vpsDetails.autoRenewalPlan ? '✅ सक्षम' : '❌ अक्षम'
-  }
+<strong>🖥️ ${vpsDetails.config.name}</strong> — ${vpsDetails.config.specs.vCPU} vCPU · ${vpsDetails.config.specs.RAM}GB RAM · ${vpsDetails.config.specs.disk}GB ${vpsDetails.config.specs.diskType}
+<strong>📍 क्षेत्र:</strong> ${vpsDetails.regionName || vpsDetails.country}
+<strong>💻 OS:</strong> ${osLabel}
+<strong>📅 मासिक:</strong> $${vpsDetails.plantotalPrice} USD`
 
-${
-  vpsDetails.plan === 'Hourly'
-    ? `नोट: आपकी कुल राशि में $${VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE} USD जमा शामिल है। पहली घंटे की कटौती के बाद, शेष जमा राशि आपके वॉलेट में जमा कर दी जाएगी।`
-    : ''
-}
-
-<strong>💰 कुल :</strong> $${
-    vpsDetails.plan === 'Hourly' && vpsDetails.totalPrice < VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE
-      ? VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE
-      : vpsDetails.totalPrice
-  } USD
-
-<strong>✅ क्या आप ऑर्डर जारी रखना चाहते हैं?</strong>`,
+    if (isRDP && osPrice > 0) {
+      summary += `\n<strong>🪟 Windows लाइसेंस:</strong> +$${osPrice}/mo`
+    }
+    if (vpsDetails.couponApplied && vpsDetails.couponDiscount > 0) {
+      summary += `\n<strong>🎟️ कूपन:</strong> -$${vpsDetails.couponDiscount} USD`
+    }
+    summary += `\n<strong>🔄 ऑटो-रिन्यूअल:</strong> ✅ सक्षम`
+    summary += `\n\n<strong>💰 कुल: $${total} USD/माह</strong>`
+    summary += `\n\n<strong>✅ क्या आप ऑर्डर जारी रखना चाहते हैं?</strong>`
+    return summary
+  },
   no: '❌ आदेश रद्द करें',
   yes: '✅ आदेश की पुष्टि करें',
 

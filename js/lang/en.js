@@ -1781,10 +1781,16 @@ const vp = {
   skip: '❌ Skip',
   cancel: '❌ Cancel',
 
-  //region selection
-  askCountryForUser: `🌍 Choose the best region for optimal performance and low latency.
+  // VPS/RDP choice (Step 1)
+  vpsLinuxBtn: '🐧 Linux VPS (SSH)',
+  vpsRdpBtn: '🪟 Windows RDP',
+  askVpsOrRdp: `🖥️ What type of server do you need?
 
-💡 Lower latency = Faster response times. Choose a region closest to your users for the best performance.`,
+<strong>🐧 Linux VPS</strong> — SSH access · web hosting · dev · automation
+<strong>🪟 Windows RDP</strong> — Remote Desktop · Windows apps & tools`,
+
+  //region selection
+  askCountryForUser: `🌍 Select a region closest to your users:`,
   chooseValidCountry: 'Please choose country from the list:',
   askRegionForUser: country => `📍 Select a data center within ${country} (Pricing may vary by location.)`,
   chooseValidRegion: 'Please choose valid region from the list:',
@@ -1814,18 +1820,18 @@ ${plans
   .join('\n')}`,
 
   planTypeMenu: vpsOptionsOf(vpsPlanMenu),
-  hourlyBillingMessage: `⚠️ A $${VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE} USD refundable deposit is required for hourly billing. This ensures uninterrupted service and is refunded if unused.
+  hourlyBillingMessage: `⚠️ A $${VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE} USD refundable deposit is required for hourly billing.
   
 ✅ Billing is deducted from your wallet balance every hour.
-🔹 Monthly licenses (Windows/WHM/Plesk) are billed upfront.`,
+🔹 Monthly licenses (e.g. Windows) are billed upfront.`,
 
   // configs
-  askVpsConfig: list => `⚙️ Pick a VPS plan based on your needs (Hourly or Monthly billing available):
+  askVpsConfig: list => `⚙️ Pick a plan:
   
 ${list
   .map(
     config =>
-      `<strong>• ${config.name} -</strong> ${config.specs.vCPU} vCPU, ${config.specs.RAM}GB RAM, ${config.specs.disk}GB Disk`,
+      `<strong>• ${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB ${config.specs.diskType} — <b>$${config.monthlyPrice}/mo</b>`,
   )
   .join('\n')}`,
   validVpsConfig: 'Please select a valid vps configuration:',
@@ -1840,13 +1846,12 @@ ${list
   goBackToCoupon: '❌ Go Back & Apply Coupon',
 
   // os
-  askVpsOS: price => `💡 Default OS: Ubuntu (Linux) (if no selection is made).
-💻 Select an OS (Windows Server adds $${price}/month).
+  askVpsOS: () => `💻 Select a Linux distro (default: Ubuntu):
 
-<strong>💡 Recommended: </strong>
-<strong>• Ubuntu –</strong> Best for general use and development
-<strong>• CentOS –</strong> Stable for enterprise applications
-<strong>• Windows Server –</strong> For Windows-based applications (+$${price}/month)`,
+<strong>💡 Recommended:</strong>
+<strong>• Ubuntu</strong> — General use & development
+<strong>• AlmaLinux / Rocky</strong> — Enterprise stability
+<strong>• Debian</strong> — Lightweight & reliable`,
   chooseValidOS: `Please select a valid OS from available list:`,
   skipOSBtn: '❌ Skip OS Selection',
   skipOSwarning: '⚠️ Your VPS will launch without an OS. You’ll need to install one manually via SSH or recovery mode.',
@@ -1882,37 +1887,31 @@ ${list.map(item => `${name == 'whm' ? `<strong>• ${item.name} - </strong>` : '
   Please tap 💬 Get Support for assistance.
   Discover more ${TG_HANDLE}.`,
 
-  generateBillSummary: vpsDetails => `<strong>📋 Final Cost Breakdown:</strong>
+  generateBillSummary: vpsDetails => {
+    const planPrice = vpsDetails.couponApplied ? vpsDetails.planNewPrice : vpsDetails.plantotalPrice
+    const osPrice = vpsDetails.selectedOSPrice || 0
+    const total = vpsDetails.totalPrice || (Number(planPrice) + Number(osPrice)).toFixed(2)
+    const isRDP = vpsDetails.isRDP
+    const osLabel = isRDP ? '🪟 Windows Server (RDP)' : (vpsDetails.os?.name || 'Ubuntu')
+    
+    let summary = `<strong>📋 Order Summary:</strong>
 
-<strong>•📅 Disk Type –</strong> ${vpsDetails.diskType}
-<strong>•🖥️ VPS Plan:</strong> ${vpsDetails.config.name}
-<strong>•📅 Billing Cycle (${vpsDetails.plan} Plan) –</strong> $${vpsDetails.plantotalPrice} USD
-<strong>•💻 OS License (${vpsDetails.os ? vpsDetails.os.name : 'Not Selected'}) –</strong> $${
-    vpsDetails.selectedOSPrice
-  } USD
-<strong>•🛠️ Control Panel (${
-    vpsDetails.panel
-      ? `${vpsDetails.panel.name == 'whm' ? 'WHM' : 'Plesk'} ${vpsDetails.panel.licenseName}`
-      : 'Not Selected'
-  }) –</strong> $${vpsDetails.selectedCpanelPrice} USD
-<strong>•🎟️ Coupon Discount –</strong> -$${vpsDetails.couponDiscount} USD
-<strong>•🔄 Auto-Renewal –</strong>  ${
-    vpsDetails.plan === 'Hourly' ? '⏳ Hourly' : vpsDetails.autoRenewalPlan ? '✅ Enabled' : '❌ Disabled'
-  }
+<strong>🖥️ ${vpsDetails.config.name}</strong> — ${vpsDetails.config.specs.vCPU} vCPU · ${vpsDetails.config.specs.RAM}GB RAM · ${vpsDetails.config.specs.disk}GB ${vpsDetails.config.specs.diskType}
+<strong>📍 Region:</strong> ${vpsDetails.regionName || vpsDetails.country}
+<strong>💻 OS:</strong> ${osLabel}
+<strong>📅 Monthly:</strong> $${vpsDetails.plantotalPrice} USD`
 
-${
-  vpsDetails.plan === 'Hourly'
-    ? `Note: A $${VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE} USD deposit is included in your total. After the first hourly rate is deducted, the remaining deposit will be credited to your wallet.`
-    : ''
-}
-
-<strong>💰 Total:</strong> $${
-    vpsDetails.plan === 'Hourly' && vpsDetails.totalPrice < VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE
-      ? VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE
-      : vpsDetails.totalPrice
-  } USD
-
-<strong>✅ Proceed with the order?</strong>`,
+    if (isRDP && osPrice > 0) {
+      summary += `\n<strong>🪟 Windows License:</strong> +$${osPrice}/mo`
+    }
+    if (vpsDetails.couponApplied && vpsDetails.couponDiscount > 0) {
+      summary += `\n<strong>🎟️ Coupon:</strong> -$${vpsDetails.couponDiscount} USD`
+    }
+    summary += `\n<strong>🔄 Auto-Renewal:</strong> ✅ Enabled`
+    summary += `\n\n<strong>💰 Total: $${total} USD/mo</strong>`
+    summary += `\n\n<strong>✅ Proceed with the order?</strong>`
+    return summary
+  },
 
   no: '❌ Cancel Order',
   yes: '✅ Confirm Order',

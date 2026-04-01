@@ -2932,6 +2932,7 @@ bot?.on('message', msg => {
     //vps plans
     submenu4: 'submenu4',
     askCountryForVPS: 'askCountryForVPS',
+    vpsChooseType: 'vpsChooseType',
     askRegionAreaForVPS: 'askRegionAreaForVPS',
     askZoneForVPS: 'askZoneForVPS',
     confirmZoneForVPS: 'confirmZoneForVPS',
@@ -4614,8 +4615,14 @@ Enter new value:`), bc)
       send(chatId, vpsMsg, trans('k.of', [user.manageVpsPlan, user.buyVpsPlan]))
     },
 
-    // ask vps plan
+    // ask vps plan — Step 1: VPS or RDP?
     createNewVpsFlow: async () => {
+      set(state, chatId, 'action', a.vpsChooseType)
+      return send(chatId, vp.askVpsOrRdp, vp.of([vp.vpsLinuxBtn, vp.vpsRdpBtn]))
+    },
+
+    // Step 2: Region selection (after VPS/RDP choice)
+    askRegionForVps: async () => {
       set(state, chatId, 'action', a.askCountryForVPS)
       const availableCountry = await fetchAvailableCountries()
       if (!availableCountry) return send(chatId, vp.failedFetchingData, trans('o'))
@@ -4704,12 +4711,13 @@ Enter new value:`), bc)
 
     askVpsOS: async () => {
       set(state, chatId, 'action', a.askVpsOS)
-      const osData = await fetchAvailableOS(info.vpsDetails.panel)
+      const osData = await fetchAvailableOS(null)  // No cPanel for Contabo
       if (!osData) return send(chatId, vp.failedFetchingData, trans('o'))
-      const osList = osData.map((item) => item.name)
-      const winosDetails = osData.find((ar) => ar.value === 'win')
+      // Filter out RDP — Linux VPS users only see Linux distros
+      const linuxOnly = osData.filter(o => !o.isRDP)
+      const osList = linuxOnly.map((item) => item.name)
       saveInfo('vpsOSList', osData)
-      return send(chatId, vp.askVpsOS(winosDetails?.price), vp.of([...osList, vp.skipOSBtn]))
+      return send(chatId, vp.askVpsOS(), vp.of([...osList, vp.skipOSBtn]))
     },
 
     vpsAskSSHKey: async () => {
@@ -9723,55 +9731,61 @@ ${message.replace(/\n/g, '<br>')}
     return goto.createNewVpsFlow()
   }
 
-  if (action === a.askCountryForVPS) {
+  // ━━ VPS Step 1: VPS or RDP? ━━
+  if (action === a.vpsChooseType) {
     if (message === vp.back) return goto.submenu4()
-    const areaList = info?.vpsAreaList
-    if (!areaList.includes(message)) return send(chatId, vp.chooseValidCountry, vp.of(areaList))
-    const vpsDetails = {
-      country: message
+    let vpsDetails = info?.vpsDetails || {}
+    if (message === vp.vpsRdpBtn) {
+      vpsDetails.isRDP = true
+      vpsDetails.os = { name: '🖥 RDP', value: 'win', osType: 'Windows', isRDP: true, pricePerMonth: 0 }
+    } else if (message === vp.vpsLinuxBtn) {
+      vpsDetails.isRDP = false
+    } else {
+      return send(chatId, t.selectValidOption, vp.of([vp.vpsLinuxBtn, vp.vpsRdpBtn]))
     }
     info.vpsDetails = vpsDetails
     saveInfo('vpsDetails', vpsDetails)
-    return goto.askRegionAreaForVps()
+    return goto.askRegionForVps()
   }
 
-  if (action === a.askRegionAreaForVPS) {
+  // ━━ VPS Step 2: Region (auto-skip DC/zone) ━━
+  if (action === a.askCountryForVPS) {
     if (message === vp.back) return goto.createNewVpsFlow()
     const areaList = info?.vpsAreaList
-    const regionsList = areaList.map((item) => item.label)
-    if (!regionsList.includes(message)) return send(chatId, vp.chooseValidRegion, vp.of(regionsList))
-    let vpsDetails = info?.vpsDetails
-    const regionDetails = areaList.find((ar) => ar.label === message)
-    vpsDetails.region = regionDetails.value
-    vpsDetails.regionName = regionDetails.label
-    info.vpsDetails = vpsDetails
-    saveInfo('vpsDetails', vpsDetails)
-    return goto.askZoneForVps()
-  }
-
-  if (action === a.askZoneForVPS) {
-    if (message === vp.back) return goto.askRegionAreaForVps()
-    const areaList = info?.vpsAreaList
-    const zoneList = areaList.map((item) => item.label)
-    if (!zoneList.includes(message)) return send(chatId, vp.chooseValidZone, vp.of(zoneList))
-    let vpsDetails = info?.vpsDetails
-    const zoneDetails = areaList.find((ar) => ar.label === message)
-    vpsDetails.zone = zoneDetails.name
-    vpsDetails.zoneName = zoneDetails.label
+    if (!areaList.includes(message)) return send(chatId, vp.chooseValidCountry, vp.of(areaList))
+    let vpsDetails = info?.vpsDetails || {}
+    vpsDetails.country = message
+    // Auto-resolve region slug and zone (Contabo: 1 DC + 1 zone per region)
+    const regions = await fetchAvailableRegionsOfCountry(message)
+    if (!regions || !regions.length) return send(chatId, vp.failedFetchingData, trans('o'))
+    const region = regions[0]
+    vpsDetails.region = region.value
+    vpsDetails.regionName = region.label
+    vpsDetails.zone = region.value
+    vpsDetails.zoneName = region.label
     info.vpsDetails = vpsDetails
     saveInfo('vpsDetails', vpsDetails)
     saveInfo('vpsAreaList', null)
-    return goto.confirmZoneForVPS()
+    return goto.askVpsDiskType()
   }
 
+  // Legacy: askRegionAreaForVPS (kept for backward compat, redirects)
+  if (action === a.askRegionAreaForVPS) {
+    return goto.createNewVpsFlow()
+  }
+
+  // Legacy: askZoneForVPS (kept for backward compat, redirects)
+  if (action === a.askZoneForVPS) {
+    return goto.createNewVpsFlow()
+  }
+
+  // Legacy: confirmZoneForVPS (kept for backward compat, redirects)
   if (action === a.confirmZoneForVPS) {
-    if (message === vp.back) return goto.askZoneForVps()
-    if (message === vp.confirmBtn) return goto.askVpsDiskType()
-    return goto.confirmZoneForVPS()
+    return goto.createNewVpsFlow()
   }
 
   if (action === a.askVpsDiskType) {
-    if (message === vp.back) return goto.askZoneForVps()
+    if (message === vp.back) return goto.askRegionForVps()
     const options = info?.vpsDiskTypes
     const diskList = options?.map((item) => item?.label) || [];
     if (!diskList || !diskList.length) return send(chatId, vp.failedFetchingData, trans('o'))
@@ -9800,8 +9814,6 @@ ${message.replace(/\n/g, '<br>')}
     let vpsDetails = info?.vpsDetails
     const selectedConfigType = vpsConfigurations.find((item) => item.name === message)
     vpsDetails.config = selectedConfigType
-    info.vpsDetails = vpsDetails
-    saveInfo('vpsDetails', vpsDetails)
     // Contabo: Monthly only — skip billing cycle selection
     vpsDetails.plan = 'Monthly'
     vpsDetails.plantotalPrice = vpsDetails.config.billingCycles[0]?.price || vpsDetails.config.monthlyPrice
@@ -9835,9 +9847,27 @@ ${message.replace(/\n/g, '<br>')}
       vpsDetails.couponApplied = false
       vpsDetails.couponDiscount = 0
       vpsDetails.planNewPrice = 0
+      vpsDetails.autoRenewalPlan = true  // default ON
       info.vpsDetails = vpsDetails
       await saveInfo('vpsDetails', vpsDetails)
-      return goto.skipCouponVps()
+      // Skip double-confirm — go directly to OS (Linux) or summary (RDP)
+      if (vpsDetails.isRDP) {
+        // RDP: set OS pricing and go to payment
+        const osData = await fetchAvailableOS(null)
+        const rdpOs = osData?.find(o => o.isRDP)
+        if (rdpOs) {
+          vpsDetails.os = { name: rdpOs.name, value: rdpOs.value || rdpOs.id, pricePerMonth: rdpOs.price || 0, id: rdpOs.id, isRDP: true }
+          vpsDetails.selectedOSPrice = rdpOs.price || 0
+        }
+        vpsDetails.selectedCpanelPrice = 0
+        const planPrice = vpsDetails.plantotalPrice
+        const totalPrice = Number(planPrice) + Number(vpsDetails.selectedOSPrice || 0)
+        vpsDetails.totalPrice = totalPrice.toFixed(2)
+        info.vpsDetails = vpsDetails
+        saveInfo('vpsDetails', vpsDetails)
+        return goto.vpsAskPaymentConfirmation()
+      }
+      return goto.askVpsOS()
     }
     const couponResult = await resolveCoupon(coupon, chatId)
     if (!couponResult) return send(chatId, vp.couponInvalid)
@@ -9848,32 +9878,51 @@ ${message.replace(/\n/g, '<br>')}
     vpsDetails.couponApplied = true
     vpsDetails.couponDiscount = couponDiscount
     vpsDetails.planNewPrice = newPrice
+    vpsDetails.autoRenewalPlan = true  // default ON
 
     info.vpsDetails = vpsDetails
     await saveInfo('vpsDetails', vpsDetails)
     if (couponResult.type === 'daily') await dailyCouponSystem.markCouponUsed(couponResult.code, chatId)
     if (couponResult.type === 'welcome_offer') await userConversion?.markWelcomeCouponUsed(couponResult.code, chatId)
     send(chatId, vp.couponValid(couponDiscount))
-    return goto.askVPSPlanAutoRenewal()
+    // After coupon applied: go to OS (Linux) or summary (RDP)
+    if (vpsDetails.isRDP) {
+      const osData = await fetchAvailableOS(null)
+      const rdpOs = osData?.find(o => o.isRDP)
+      if (rdpOs) {
+        vpsDetails.os = { name: rdpOs.name, value: rdpOs.value || rdpOs.id, pricePerMonth: rdpOs.price || 0, id: rdpOs.id, isRDP: true }
+        vpsDetails.selectedOSPrice = rdpOs.price || 0
+      }
+      vpsDetails.selectedCpanelPrice = 0
+      const planPrice = vpsDetails.couponApplied ? vpsDetails.planNewPrice : vpsDetails.plantotalPrice
+      const totalPrice = Number(planPrice) + Number(vpsDetails.selectedOSPrice || 0)
+      vpsDetails.totalPrice = totalPrice.toFixed(2)
+      info.vpsDetails = vpsDetails
+      saveInfo('vpsDetails', vpsDetails)
+      return goto.vpsAskPaymentConfirmation()
+    }
+    return goto.askVpsOS()
   }
 
+  // Legacy: skipCouponVps (redirect to flow)
   if (action === a.skipCouponVps) {
-    let vpsDetails = info?.vpsDetails
     if (message === t.goBackToCoupon || message === vp.back) return goto.askCouponForVPSPlan()
-    return goto.askVPSPlanAutoRenewal()
+    const vpsDetails = info?.vpsDetails
+    vpsDetails.autoRenewalPlan = true
+    info.vpsDetails = vpsDetails
+    saveInfo('vpsDetails', vpsDetails)
+    if (vpsDetails?.isRDP) return goto.vpsAskPaymentConfirmation()
+    return goto.askVpsOS()
   }
 
+  // Legacy: askVPSPlanAutoRenewal (redirect — auto-renewal now defaults to ON)
   if (action === a.askVPSPlanAutoRenewal) {
     if (message === vp.back) return goto.askCouponForVPSPlan()
-    if (message !== vp.skip && message !== vp.enable) return send(chatId, t.selectValidOption, vp.of([vp.enable, t.skip])) 
     let vpsDetails = info.vpsDetails
-    vpsDetails.autoRenewalPlan = message === vp.enable ? true : false
+    vpsDetails.autoRenewalPlan = true
     info.vpsDetails = vpsDetails
     await saveInfo('vpsDetails', vpsDetails)
-    const expiresAt = getExpiryDateVps(vpsDetails.plan)
-    if (message === vp.skip) {
-      send(chatId, vp.skipAutoRenewalWarming(expiresAt))
-    }
+    if (vpsDetails?.isRDP) return goto.vpsAskPaymentConfirmation()
     return goto.askVpsOS() // Contabo: skip cPanel, go directly to OS
   }
 
@@ -9918,39 +9967,28 @@ ${message.replace(/\n/g, '<br>')}
 
   if (action === a.askVpsOS) {
     let vpsDetails = info?.vpsDetails
-    // Back goes to auto-renewal (cPanel skipped for Contabo)
-    if (message === vp.back) return goto.askVPSPlanAutoRenewal()
+    if (message === vp.back) return goto.askCouponForVPSPlan()
     const osData = info?.vpsOSList
-    const osList = osData.map((item) => item.name)     
+    // Filter out RDP from OS list — RDP users never reach this step
+    const linuxOnly = osData.filter(o => !o.isRDP)
+    const osList = linuxOnly.map((item) => item.name)     
     if (!osList.includes(message) && message != vp.skipOSBtn) return send(chatId, vp.chooseValidOS, vp.of([...osList, vp.skipOSBtn]))
-    const osDetails = osData.find((ar) => ar.name ===  (message === vp.skipOSBtn ? 'Ubuntu' : message))
-    
-    // Check if RDP was selected
-    const isRDP = osDetails.isRDP || false
+    const defaultOs = linuxOnly.find(o => o.name.toLowerCase().includes('ubuntu')) || linuxOnly[0]
+    const osDetails = linuxOnly.find((ar) => ar.name === message) || defaultOs
     
     vpsDetails.os = {
       name: osDetails.name,
       value: osDetails.value || osDetails.id,
       pricePerMonth: osDetails.price || 0,
       id: osDetails.id || osDetails._id,
-      isRDP: isRDP
+      isRDP: false
     }
-    vpsDetails.isRDP = isRDP
+    vpsDetails.isRDP = false
     vpsDetails.selectedOSPrice = osDetails.price || 0
     vpsDetails.selectedCpanelPrice = 0  // No cPanel for Contabo
     const planPrice = vpsDetails.couponApplied ? vpsDetails.planNewPrice : vpsDetails.plantotalPrice
-    const OSprice = vpsDetails.selectedOSPrice
-    const selectedCpanelPrice = 0
-    const totalPrice = Number(selectedCpanelPrice) + Number(planPrice) + Number(OSprice)
+    const totalPrice = Number(planPrice) + Number(vpsDetails.selectedOSPrice || 0)
     vpsDetails.totalPrice = totalPrice.toFixed(2)
-    
-    // If RDP selected and configs were loaded without Windows pricing, reload
-    if (isRDP && !vpsDetails._rdpPricingApplied) {
-      vpsDetails._rdpPricingApplied = true
-      // Recalculate: the plan price from fetchAvailableVPSConfigs already includes Windows if isRDP was set
-      // But since user selects OS AFTER plan, we need to add Windows license now
-      // The Windows license fee is already in osDetails.price from fetchAvailableOS
-    }
     
     info.vpsDetails = vpsDetails
     saveInfo('vpsDetails', vpsDetails)

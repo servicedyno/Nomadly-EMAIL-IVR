@@ -191,8 +191,9 @@ async function fetchAvailableVPSConfigs(telegramId, vpsDetails) {
           period: 1
         }
       ],
-      // Spec display string
-      specs: contabo.formatSpecs(p),
+      // Spec display (object for templates, string for fallback)
+      specs: { vCPU: p.cpuCores, RAM: p.ramGb, disk: p.diskGb, diskType: p.diskType?.toUpperCase() || 'NVMe' },
+      specsStr: contabo.formatSpecs(p),
       // Flag for display
       isRDP: isRDP
     }))
@@ -230,6 +231,7 @@ async function fetchAvailableOS(cpanel) {
     const windowsImageId = await contabo.getDefaultWindowsImageId()
     osOptions.unshift({
       id: windowsImageId || 'rdp',
+      value: 'win',
       name: '🖥 RDP',
       os_name: 'Windows Server 2025',
       osType: 'Windows',

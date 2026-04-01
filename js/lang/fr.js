@@ -1751,9 +1751,15 @@ const vp = {
   skip: '❌ Passer',
   cancel: '❌ Annuler',
 
-  askCountryForUser: `🌍 Choisissez la meilleure région pour des performances optimales et une faible latence.
+  // VPS/RDP choice (Step 1)
+  vpsLinuxBtn: '🐧 Linux VPS (SSH)',
+  vpsRdpBtn: '🪟 Windows RDP',
+  askVpsOrRdp: `🖥️ De quel type de serveur avez-vous besoin ?
 
-💡 Moins de latence = Temps de réponse plus rapides. Choisissez une région proche de vos utilisateurs pour de meilleures performances.`,
+<strong>🐧 Linux VPS</strong> — Accès SSH · hébergement web · dev · automatisation
+<strong>🪟 Windows RDP</strong> — Bureau à distance · apps & outils Windows`,
+
+  askCountryForUser: `🌍 Sélectionnez une région proche de vos utilisateurs :`,
   chooseValidCountry: 'Veuillez choisir un pays dans la liste :',
   askRegionForUser: country =>
     `📍 Sélectionnez un centre de données dans ${country} (Les prix peuvent varier selon l’emplacement.)`,
@@ -1782,18 +1788,18 @@ ${plans
   )
   .join('\n')}`,
   planTypeMenu: vpsOptionsOf(vpsPlanMenu),
-  hourlyBillingMessage: `⚠️ Un dépôt remboursable de $${VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE} USD est requis pour la facturation horaire. Cela garantit un service ininterrompu et est remboursé s'il n'est pas utilisé.
+  hourlyBillingMessage: `⚠️ Un dépôt remboursable de $${VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE} USD est requis pour la facturation horaire.
   
 ✅ La facturation est déduite du solde de votre portefeuille chaque heure.
-🔹 Les licences mensuelles (Windows/WHM/Plesk) sont facturées à l'avance.`,
+🔹 Les licences mensuelles (ex: Windows) sont facturées à l'avance.`,
 
   askVpsConfig:
-    list => `⚙️ Choisissez un plan VPS en fonction de vos besoins (Facturation à l'heure ou au mois disponible) :
+    list => `⚙️ Choisissez un plan :
   
 ${list
   .map(
     config =>
-      `<strong>• ${config.name} -</strong>  ${config.specs.vCPU} vCPU, ${config.specs.RAM}GB RAM, ${config.specs.disk}GB Disque`,
+      `<strong>• ${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB ${config.specs.diskType} — <b>$${config.monthlyPrice}/mo</b>`,
   )
   .join('\n')}`,
 
@@ -1809,13 +1815,12 @@ ${list
   confirmSkip: "✅ Confirmer l'ignorance",
   goBackToCoupon: '❌ Retourner et appliquer le coupon',
 
-  askVpsOS: price => `💡 Système d'exploitation par défaut : Ubuntu (Linux) (si aucune sélection n'est effectuée).
-💻 Sélectionnez un système d'exploitation (Windows Server ajoute ${price} $/mois).
+  askVpsOS: () => `💻 Sélectionnez une distribution Linux (par défaut : Ubuntu) :
 
-<strong>💡 Recommandé : </strong>
-<strong>• Ubuntu –</strong> Idéal pour un usage général et le développement
-<strong>• CentOS –</strong> Stable pour les applications d'entreprise
-<strong>• Windows Server –</strong> Pour les applications basées sur Windows (+${price} $/mois)`,
+<strong>💡 Recommandé :</strong>
+<strong>• Ubuntu</strong> — Usage général & développement
+<strong>• AlmaLinux / Rocky</strong> — Stabilité entreprise
+<strong>• Debian</strong> — Léger & fiable`,
   chooseValidOS: `Veuillez sélectionner un OS valide dans la liste disponible :`,
   skipOSBtn: "❌ Passer la sélection de l'OS",
   skipOSwarning:
@@ -1853,37 +1858,31 @@ ${list.map(item => `${name == 'whm' ? `<strong>• ${item.name} - </strong>` : '
 Veuillez appuyer sur 💬 Obtenir de l'aide.
 Découvrez-en plus sur ${TG_HANDLE}.`,
 
-  generateBillSummary: vpsDetails => `<strong>📋 Détail final des coûts :</strong>
+  generateBillSummary: vpsDetails => {
+    const planPrice = vpsDetails.couponApplied ? vpsDetails.planNewPrice : vpsDetails.plantotalPrice
+    const osPrice = vpsDetails.selectedOSPrice || 0
+    const total = vpsDetails.totalPrice || (Number(planPrice) + Number(osPrice)).toFixed(2)
+    const isRDP = vpsDetails.isRDP
+    const osLabel = isRDP ? '🪟 Windows Server (RDP)' : (vpsDetails.os?.name || 'Ubuntu')
+    
+    let summary = `<strong>📋 Résumé de commande :</strong>
 
-<strong>•📅 Type de disque –</strong> ${vpsDetails.diskType}
-<strong>•🖥️ Plan VPS :</strong> ${vpsDetails.config.name}
-<strong>•📅 Cycle de facturation (${vpsDetails.plan} Plan) –</strong> $${vpsDetails.plantotalPrice} USD
-<strong>•💻 Licence OS (${vpsDetails.os ? vpsDetails.os.name : 'Non sélectionné'}) –</strong> $${
-    vpsDetails.selectedOSPrice
-  } USD
-<strong>•🛠️ Panneau de contrôle (${
-    vpsDetails.panel
-      ? `${vpsDetails.panel.name == 'whm' ? 'WHM' : 'Plesk'} ${vpsDetails.panel.licenseName}`
-      : 'Non sélectionné'
-  }) –</strong> $${vpsDetails.selectedCpanelPrice} USD
-<strong>•🎟️ Remise coupon –</strong> -$${vpsDetails.couponDiscount} USD
-<strong>•🔄 Renouvellement automatique –</strong>  ${
-    vpsDetails.plan === 'Hourly' ? '⏳ Horaire' : vpsDetails.autoRenewalPlan ? '✅ Activé' : '❌ Désactivé'
-  }
+<strong>🖥️ ${vpsDetails.config.name}</strong> — ${vpsDetails.config.specs.vCPU} vCPU · ${vpsDetails.config.specs.RAM}GB RAM · ${vpsDetails.config.specs.disk}GB ${vpsDetails.config.specs.diskType}
+<strong>📍 Région :</strong> ${vpsDetails.regionName || vpsDetails.country}
+<strong>💻 OS :</strong> ${osLabel}
+<strong>📅 Mensuel :</strong> $${vpsDetails.plantotalPrice} USD`
 
-${
-  vpsDetails.plan === 'Hourly'
-    ? `Remarque : Un dépôt de $${VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE} USD est inclus dans votre total. Après la première déduction horaire, le reste du dépôt sera crédité sur votre portefeuille.`
-    : ''
-}
-
-<strong>💰 Total :</strong> $${
-    vpsDetails.plan === 'Hourly' && vpsDetails.totalPrice < VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE
-      ? VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE
-      : vpsDetails.totalPrice
-  } USD
-
-<strong>✅ Procéder à la commande ?</strong>`,
+    if (isRDP && osPrice > 0) {
+      summary += `\n<strong>🪟 Licence Windows :</strong> +$${osPrice}/mo`
+    }
+    if (vpsDetails.couponApplied && vpsDetails.couponDiscount > 0) {
+      summary += `\n<strong>🎟️ Coupon :</strong> -$${vpsDetails.couponDiscount} USD`
+    }
+    summary += `\n<strong>🔄 Renouvellement auto :</strong> ✅ Activé`
+    summary += `\n\n<strong>💰 Total : $${total} USD/mo</strong>`
+    summary += `\n\n<strong>✅ Procéder à la commande ?</strong>`
+    return summary
+  },
 
   no: '❌ Annuler la commande',
   yes: '✅ Confirmer la commande',
