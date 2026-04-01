@@ -1777,10 +1777,8 @@ ${plans
   .join('\n')}`,
 
   planTypeMenu: vpsOptionsOf(vpsPlanMenu),
-  hourlyBillingMessage: `⚠️ प्रति घंटा बिलिंग के लिए $${VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE} USD की वापसी योग्य जमा राशि आवश्यक है।
-
-✅ बिलिंग आपके वॉलेट बैलेंस से प्रति घंटे काटी जाती है।
-🔹 मासिक लाइसेंस (जैसे Windows) पहले से ही बिल किए जाते हैं।`,
+  // Billing (Monthly only)
+  hourlyBillingMessage: '',
 
   askVpsConfig: list => `⚙️ एक योजना चुनें:
   

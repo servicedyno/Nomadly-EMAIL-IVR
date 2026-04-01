@@ -1788,10 +1788,8 @@ ${plans
   )
   .join('\n')}`,
   planTypeMenu: vpsOptionsOf(vpsPlanMenu),
-  hourlyBillingMessage: `⚠️ Un dépôt remboursable de $${VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE} USD est requis pour la facturation horaire.
-  
-✅ La facturation est déduite du solde de votre portefeuille chaque heure.
-🔹 Les licences mensuelles (ex: Windows) sont facturées à l'avance.`,
+  // Billing (Monthly only)
+  hourlyBillingMessage: '',
 
   askVpsConfig:
     list => `⚙️ Choisissez un plan :

@@ -1820,10 +1820,8 @@ ${plans
   .join('\n')}`,
 
   planTypeMenu: vpsOptionsOf(vpsPlanMenu),
-  hourlyBillingMessage: `⚠️ A $${VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE} USD refundable deposit is required for hourly billing.
-  
-✅ Billing is deducted from your wallet balance every hour.
-🔹 Monthly licenses (e.g. Windows) are billed upfront.`,
+  // Billing (Monthly only)
+  hourlyBillingMessage: '',
 
   // configs
   askVpsConfig: list => `⚙️ Pick a plan:

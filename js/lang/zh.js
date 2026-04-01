@@ -1763,10 +1763,8 @@ ${plans
   )
   .join('\n')}`,
   planTypeMenu: vpsOptionsOf(vpsPlanMenu),
-  hourlyBillingMessage: `⚠️ 按小时计费需要支付 $${VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE} USD 可退款押金。
-
-✅ 账单每小时从您的钱包余额中扣除。
-🔹 月度许可证（如 Windows）需提前支付。`,
+  // Billing (Monthly only)
+  hourlyBillingMessage: '',
 
   // 配置
   askVpsConfig: list => `⚙️ 选择方案：

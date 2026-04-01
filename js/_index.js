@@ -4673,11 +4673,13 @@ Enter new value:`), bc)
     },
 
     askUserVpsPlan: async () => {
+      // Monthly only — redirect to coupon step
       await set(state, chatId, 'action', a.askUserVpsPlan)
-      const vpsDetails = info.vpsDetails
-      const plans = vpsDetails.config.billingCycles.map((item) => item.type)
-      send(chatId, vp.askPlanType(vpsDetails.config.billingCycles), vp.of(plans)) 
-      return send(chatId, vp.hourlyBillingMessage)
+      let vpsDetails = info.vpsDetails
+      vpsDetails.plan = 'Monthly'
+      vpsDetails.plantotalPrice = vpsDetails.config.billingCycles?.[0]?.price || vpsDetails.config.monthlyPrice
+      saveInfo('vpsDetails', vpsDetails)
+      return goto.askCouponForVPSPlan()
     },
 
     askCouponForVPSPlan: async () => {
@@ -4686,13 +4688,20 @@ Enter new value:`), bc)
     },
 
     skipCouponVps: async () => {
-      await set(state, chatId, 'action', a.skipCouponVps)
-      return send(chatId, vp.skipCouponwarning, vp.of([vp.confirmSkip, t.goBackToCoupon]))  
+      // No more double-confirm — redirect to OS or summary
+      const vpsDetails = info?.vpsDetails
+      if (vpsDetails?.isRDP) return goto.vpsAskPaymentConfirmation()
+      return goto.askVpsOS()
     },
 
     askVPSPlanAutoRenewal: async () => {
-      await set(state, chatId, 'action', a.askVPSPlanAutoRenewal)
-      return send(chatId, vp.askAutoRenewal, vp.of([vp.enable, vp.skip]))  
+      // Auto-renewal defaults ON — redirect to OS or summary
+      const vpsDetails = info?.vpsDetails
+      if (!vpsDetails) vpsDetails = {}
+      vpsDetails.autoRenewalPlan = true
+      saveInfo('vpsDetails', vpsDetails)
+      if (vpsDetails?.isRDP) return goto.vpsAskPaymentConfirmation()
+      return goto.askVpsOS()
     },
 
     askVpsCpanel: async () => {
