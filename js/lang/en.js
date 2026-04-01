@@ -100,7 +100,7 @@ const user = {
   hostingDomainsRedirect: '🛡️🔥 Anti-Red Hosting',
   wallet: '👛 Wallet',
   urlShortenerMain: '🔗 URL Shortener',
-  vpsPlans: '🖥️ VPS/RDP — Bulletproof Servers',
+  vpsPlans: '🖥️ VPS/RDP — Port 25 Open🛡️',
   buyPlan: '⚡ Upgrade Plan',
   domainNames: '🌐 Bulletproof Domains',
   viewPlan: '📋 My Plans',
@@ -1786,6 +1786,8 @@ const vp = {
   vpsRdpBtn: '🪟 Windows RDP',
   askVpsOrRdp: `🖥️ What type of server do you need?
 
+📬 <b>Port 25 Open</b> — Send emails directly from your server
+
 <strong>🐧 Linux VPS</strong> — SSH access · web hosting · dev · automation
 <strong>🪟 Windows RDP</strong> — Remote Desktop · Windows apps & tools`,
 
@@ -1829,7 +1831,7 @@ ${plans
 ${list
   .map(
     config =>
-      `<strong>• ${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB ${config.specs.diskType} — <b>$${config.monthlyPrice}/mo</b>`,
+      `<strong>• ${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB ${config.specs.diskType}`,
   )
   .join('\n')}`,
   validVpsConfig: 'Please select a valid vps configuration:',

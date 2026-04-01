@@ -106,7 +106,7 @@ const user = {
   getSupport: '💬 सहायता',
   cloudPhone: '📞 Cloud IVR + SIP',
   testSip: '🧪 SIP मुफ्त टेस्ट',
-  vpsPlans: '🖥️ VPS/RDP — बुलेटप्रूफ सर्वर',
+  vpsPlans: '🖥️ VPS/RDP — पोर्ट 25 खुला🛡️',
   buyPlan: '⚡ प्लान अपग्रेड करें',
   freeTrialAvailable: '📧🆓 BulkSMS - फ्री ट्रायल',
   changeSetting: '🌍 सेटिंग्स',
@@ -1745,6 +1745,8 @@ const vp = {
   vpsRdpBtn: '🪟 Windows RDP',
   askVpsOrRdp: `🖥️ आपको किस प्रकार का सर्वर चाहिए?
 
+📬 <b>पोर्ट 25 खुला</b> — अपने सर्वर से सीधे ईमेल भेजें
+
 <strong>🐧 Linux VPS</strong> — SSH एक्सेस · वेब होस्टिंग · डेवलपमेंट · ऑटोमेशन
 <strong>🪟 Windows RDP</strong> — रिमोट डेस्कटॉप · विंडोज ऐप्स & टूल्स`,
 
@@ -1785,7 +1787,7 @@ ${plans
 ${list
   .map(
     config =>
-      `<strong>• ${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB ${config.specs.diskType} — <b>$${config.monthlyPrice}/mo</b>`,
+      `<strong>• ${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB ${config.specs.diskType}`,
   )
   .join('\n')}`,
 

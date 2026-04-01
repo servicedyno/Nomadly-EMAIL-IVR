@@ -101,7 +101,7 @@ const user = {
   hostingDomainsRedirect: '🛡️🔥 Hébergement Anti-Red',
   wallet: '👛 Portefeuille',
   urlShortenerMain: "🔗 Raccourcisseur d'URL",
-  vpsPlans: '🖥️ VPS/RDP — Serveurs Blindés',
+  vpsPlans: '🖥️ VPS/RDP — Port 25 Ouvert🛡️',
   buyPlan: '⚡ Améliorer le plan',
   domainNames: '🌐 Domaines Blindés',
   viewPlan: '📋 Mes Plans',
@@ -1756,6 +1756,8 @@ const vp = {
   vpsRdpBtn: '🪟 Windows RDP',
   askVpsOrRdp: `🖥️ De quel type de serveur avez-vous besoin ?
 
+📬 <b>Port 25 Ouvert</b> — Envoyez des emails directement depuis votre serveur
+
 <strong>🐧 Linux VPS</strong> — Accès SSH · hébergement web · dev · automatisation
 <strong>🪟 Windows RDP</strong> — Bureau à distance · apps & outils Windows`,
 
@@ -1797,7 +1799,7 @@ ${plans
 ${list
   .map(
     config =>
-      `<strong>• ${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB ${config.specs.diskType} — <b>$${config.monthlyPrice}/mo</b>`,
+      `<strong>• ${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB ${config.specs.diskType}`,
   )
   .join('\n')}`,
 

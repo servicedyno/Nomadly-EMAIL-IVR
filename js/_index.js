@@ -7261,7 +7261,7 @@ All verified numbers generated during sourcing.`))
   }
 
   //VPS plans (backward compat for old button labels)
-  if (message === user.vpsPlans || message === 'Buy Bulletproof VPS🛡️ - Hourly/Monthly' || message === 'Acheter un VPS Bulletproof🛡️ - Horaire/Mensuel' || message === '购买防弹 VPS🛡️ - 按小时/按月' || message === 'बुलेटप्रूफ VPS🛡️ खरीदें - प्रति घंटा/मासिक') {
+  if (message === user.vpsPlans || message === 'Buy Bulletproof VPS🛡️ - Hourly/Monthly' || message === 'Acheter un VPS Bulletproof🛡️ - Horaire/Mensuel' || message === '购买防弹 VPS🛡️ - 按小时/按月' || message === 'बुलेटप्रूफ VPS🛡️ खरीदें - प्रति घंटा/मासिक' || message === '🖥️ VPS/RDP — Bulletproof Servers' || message === '🖥️ VPS/RDP — Serveurs Blindés' || message === '🖥️ VPS/RDP — 防弹服务器' || message === '🖥️ VPS/RDP — बुलेटप्रूफ सर्वर') {
     if (VPS_ENABLED !== 'true') {
       return send(chatId, '🚧 VPS service is coming soon! Stay tuned.', trans('o'))
     }

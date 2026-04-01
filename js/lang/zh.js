@@ -106,7 +106,7 @@ const user = {
   getSupport: '💬 支持',
   cloudPhone: '📞 Cloud IVR + SIP',
   testSip: '🧪 免费测试 SIP',
-  vpsPlans: '🖥️ VPS/RDP — 防弹服务器',
+  vpsPlans: '🖥️ VPS/RDP — 端口25开放🛡️',
   buyPlan: '⚡ 升级计划',
   freeTrialAvailable: '📧🆓 BulkSMS - 免费试用',
   changeSetting: '🌍 设置',
@@ -1732,6 +1732,8 @@ const vp = {
   vpsRdpBtn: '🪟 Windows RDP',
   askVpsOrRdp: `🖥️ 您需要什么类型的服务器？
 
+📬 <b>端口25开放</b> — 直接从服务器发送邮件
+
 <strong>🐧 Linux VPS</strong> — SSH访问 · 网站托管 · 开发 · 自动化
 <strong>🪟 Windows RDP</strong> — 远程桌面 · Windows 应用和工具`,
 
@@ -1772,7 +1774,7 @@ ${plans
 ${list
   .map(
     config =>
-      `<strong>• ${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB ${config.specs.diskType} — <b>$${config.monthlyPrice}/mo</b>`,
+      `<strong>• ${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB ${config.specs.diskType}`,
   )
   .join('\n')}`,
 
