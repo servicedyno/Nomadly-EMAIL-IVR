@@ -92,7 +92,7 @@ async function apiRequest(method, path, data = null, params = null) {
 }
 
 // ─── Product Catalog (hardcoded — Contabo has no products API) ────────────
-// Prices are Contabo's base monthly prices in USD (as of March 2026).
+// Prices converted from EUR to USD at 1.15 rate (July 2025).
 // productType 'nvme' → half the disk of 'ssd' but faster.
 const PRODUCT_CATALOG = [
   {
@@ -100,23 +100,23 @@ const PRODUCT_CATALOG = [
     name:        'Cloud VPS 1',
     cpuCores:    4,
     ramMb:       8192,
-    diskMb:      51200,    // 50 GB NVMe
+    diskMb:      76800,    // 75 GB NVMe
     diskType:    'nvme',
     bandwidthTb: 32,
     portSpeedMbps: 200,
-    basePriceUsd: 4.50,
+    basePriceUsd: 5.18,
     tier: 1
   },
   {
     productId:   'V47',
     name:        'Cloud VPS 2',
     cpuCores:    6,
-    ramMb:       16384,
+    ramMb:       12288,
     diskMb:      102400,   // 100 GB NVMe
     diskType:    'nvme',
     bandwidthTb: 32,
     portSpeedMbps: 300,
-    basePriceUsd: 7.50,
+    basePriceUsd: 8.05,
     tier: 2
   },
   {
@@ -128,7 +128,7 @@ const PRODUCT_CATALOG = [
     diskType:    'nvme',
     bandwidthTb: 32,
     portSpeedMbps: 600,
-    basePriceUsd: 14.00,
+    basePriceUsd: 16.10,
     tier: 3
   },
   {
@@ -140,7 +140,7 @@ const PRODUCT_CATALOG = [
     diskType:    'nvme',
     bandwidthTb: 32,
     portSpeedMbps: 800,
-    basePriceUsd: 25.00,
+    basePriceUsd: 28.75,
     tier: 4
   },
   {
@@ -152,7 +152,7 @@ const PRODUCT_CATALOG = [
     diskType:    'nvme',
     bandwidthTb: 32,
     portSpeedMbps: 1000,
-    basePriceUsd: 37.00,
+    basePriceUsd: 42.55,
     tier: 5
   },
   {
@@ -164,32 +164,35 @@ const PRODUCT_CATALOG = [
     diskType:    'nvme',
     bandwidthTb: 32,
     portSpeedMbps: 1000,
-    basePriceUsd: 49.00,
+    basePriceUsd: 56.35,
     tier: 6
   }
 ]
 
 // SSD variants (2x disk, same price)
 const PRODUCT_CATALOG_SSD = [
-  { productId: 'V92',  name: 'Cloud VPS 1 SSD', cpuCores: 4,  ramMb: 8192,  diskMb: 153600, diskType: 'ssd', bandwidthTb: 32, portSpeedMbps: 200,  basePriceUsd: 4.50,  tier: 1 },
-  { productId: 'V93',  name: 'Cloud VPS 2 SSD', cpuCores: 6,  ramMb: 16384, diskMb: 204800, diskType: 'ssd', bandwidthTb: 32, portSpeedMbps: 300,  basePriceUsd: 7.50,  tier: 2 },
-  { productId: 'V94',  name: 'Cloud VPS 3 SSD', cpuCores: 8,  ramMb: 24576, diskMb: 409600, diskType: 'ssd', bandwidthTb: 32, portSpeedMbps: 600,  basePriceUsd: 14.00, tier: 3 },
-  { productId: 'V95',  name: 'Cloud VPS 4 SSD', cpuCores: 12, ramMb: 49152, diskMb: 512000, diskType: 'ssd', bandwidthTb: 32, portSpeedMbps: 800,  basePriceUsd: 25.00, tier: 4 },
-  { productId: 'V96',  name: 'Cloud VPS 5 SSD', cpuCores: 16, ramMb: 65536, diskMb: 614400, diskType: 'ssd', bandwidthTb: 32, portSpeedMbps: 1000, basePriceUsd: 37.00, tier: 5 },
-  { productId: 'V97',  name: 'Cloud VPS 6 SSD', cpuCores: 18, ramMb: 98304, diskMb: 716800, diskType: 'ssd', bandwidthTb: 32, portSpeedMbps: 1000, basePriceUsd: 49.00, tier: 6 }
+  { productId: 'V92',  name: 'Cloud VPS 1 SSD', cpuCores: 4,  ramMb: 8192,  diskMb: 153600, diskType: 'ssd', bandwidthTb: 32, portSpeedMbps: 200,  basePriceUsd: 5.18,  tier: 1 },
+  { productId: 'V93',  name: 'Cloud VPS 2 SSD', cpuCores: 6,  ramMb: 12288, diskMb: 204800, diskType: 'ssd', bandwidthTb: 32, portSpeedMbps: 300,  basePriceUsd: 8.05,  tier: 2 },
+  { productId: 'V94',  name: 'Cloud VPS 3 SSD', cpuCores: 8,  ramMb: 24576, diskMb: 409600, diskType: 'ssd', bandwidthTb: 32, portSpeedMbps: 600,  basePriceUsd: 16.10, tier: 3 },
+  { productId: 'V95',  name: 'Cloud VPS 4 SSD', cpuCores: 12, ramMb: 49152, diskMb: 512000, diskType: 'ssd', bandwidthTb: 32, portSpeedMbps: 800,  basePriceUsd: 28.75, tier: 4 },
+  { productId: 'V96',  name: 'Cloud VPS 5 SSD', cpuCores: 16, ramMb: 65536, diskMb: 614400, diskType: 'ssd', bandwidthTb: 32, portSpeedMbps: 1000, basePriceUsd: 42.55, tier: 5 },
+  { productId: 'V97',  name: 'Cloud VPS 6 SSD', cpuCores: 18, ramMb: 98304, diskMb: 716800, diskType: 'ssd', bandwidthTb: 32, portSpeedMbps: 1000, basePriceUsd: 56.35, tier: 6 }
 ]
 
-// Region surcharges (monthly, USD) — applied on top of base price
+// Region surcharges (monthly, USD converted from EUR × 1.15)
+// Per-tier surcharges — Contabo charges different surcharges for different plan sizes
+// null = region not available for that tier
 const REGION_SURCHARGE = {
-  'EU':         0.00,
-  'US-central': 0.95,
-  'US-east':    0.95,
-  'US-west':    0.95,
-  'UK':         0.95,
-  'SIN':        3.95,
-  'JPN':        3.95,
-  'AUS':        1.95,
-  'IND':        1.95
+  //                    tier1   tier2   tier3   tier4   tier5   tier6
+  'EU':         [      0,      0,      0,      0,      0,      0     ],
+  'US-central': [   1.09,   1.67,   3.39,   6.04,   8.97,  11.85   ],
+  'US-east':    [   1.61,   2.53,   5.06,   9.03,  13.34,  17.65   ],
+  'US-west':    [   1.32,   2.13,   4.20,   7.53,  11.10,  14.72   ],
+  'UK':         [   1.09,   1.67,   3.39,   6.04,   8.97,  11.85   ],
+  'SIN':        [   null,   null,   null,   null,  21.62,  28.64   ],
+  'JPN':        [   2.70,   4.20,   8.40,  14.95,   null,   null   ],
+  'AUS':        [   2.24,   3.45,   6.96,  12.42,  18.34,  24.32   ],
+  'IND':        [   2.47,   3.85,   7.71,  13.69,  20.30,   null   ]
 }
 
 const REGION_DISPLAY = {
@@ -219,7 +222,10 @@ function applyMarkup(basePrice) {
  */
 function calculatePrice(product, regionSlug, isWindows = false) {
   const base          = product.basePriceUsd
-  const surcharge     = REGION_SURCHARGE[regionSlug] || 0
+  const tier          = product.tier || 1
+  const surchargeArr  = REGION_SURCHARGE[regionSlug]
+  const surcharge     = surchargeArr ? (surchargeArr[tier - 1] ?? null) : 0
+  if (surcharge === null) return null  // Region not available for this tier
   const windowsFee    = isWindows ? WINDOWS_LICENSE_MONTHLY : 0
   const totalBefore   = base + surcharge + windowsFee
   const totalMarkedUp = applyMarkup(totalBefore)
@@ -244,12 +250,18 @@ function calculatePrice(product, regionSlug, isWindows = false) {
  */
 function listProducts(regionSlug = 'EU', isWindows = false, diskPreference = 'nvme') {
   const catalog = diskPreference === 'ssd' ? PRODUCT_CATALOG_SSD : PRODUCT_CATALOG
-  return catalog.map(p => ({
-    ...p,
-    ramGb:     Math.round(p.ramMb / 1024),
-    diskGb:    Math.round(p.diskMb / 1024),
-    pricing:   calculatePrice(p, regionSlug, isWindows)
-  }))
+  return catalog
+    .map(p => {
+      const pricing = calculatePrice(p, regionSlug, isWindows)
+      if (!pricing) return null  // Region not available for this tier
+      return {
+        ...p,
+        ramGb:     Math.round(p.ramMb / 1024),
+        diskGb:    Math.round(p.diskMb / 1024),
+        pricing
+      }
+    })
+    .filter(Boolean)
 }
 
 /**
@@ -281,7 +293,7 @@ async function listRegions() {
           regionSlug:  slug,
           regionName:  dc.regionName,
           dataCenters: [],
-          surchargeUsd: REGION_SURCHARGE[slug] || 0,
+          surchargeUsd: REGION_SURCHARGE[slug] || [0,0,0,0,0,0],
           display: REGION_DISPLAY[slug] || { emoji: '🌍', label: dc.regionName }
         }
       }
