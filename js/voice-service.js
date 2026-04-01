@@ -1325,9 +1325,16 @@ async function handleOutboundSipCall(payload) {
   // When a user's wallet is too low, we cache the rejection for 5 minutes.
   // Subsequent calls from the same number are immediately rejected without
   // the costly 116-credential reverse lookup, DB queries, or wallet API calls.
-  if (isWalletRejectCooldown(fromClean || sipUsername)) {
-    const cooldownEntry = walletRejectCooldown[fromClean || sipUsername]
-    log(`[Voice] ⚠️ WALLET COOLDOWN: ${fromClean || sipUsername} — recently rejected for low balance, skipping lookup`)
+  //
+  // CRITICAL FIX: Only use early cooldown for calls where we extracted the actual SIP credential
+  // (credentialExtracted=true). For connection-based calls (from=shared connection ANI like +18556820054),
+  // ALL users share the same 'from' number, so keying cooldown on fromClean would block ALL users
+  // when just ONE user has low balance. For these shared-connection calls, the cooldown check
+  // is deferred to AFTER user identification (see post-identification cooldown check below).
+  const cooldownKey = credentialExtracted ? sipUsername : null
+  if (cooldownKey && isWalletRejectCooldown(cooldownKey)) {
+    const cooldownEntry = walletRejectCooldown[cooldownKey]
+    log(`[Voice] ⚠️ WALLET COOLDOWN: ${cooldownKey} — recently rejected for low balance, skipping lookup`)
     // Send low-balance campaign message on every blocked attempt
     if (_bot && cooldownEntry?.chatId) {
       _bot.sendMessage(cooldownEntry.chatId,
@@ -1409,6 +1416,28 @@ async function handleOutboundSipCall(payload) {
     return
   }
 
+  // ── POST-IDENTIFICATION WALLET COOLDOWN CHECK ──
+  // For shared-connection calls (where early cooldown was skipped because fromClean is shared),
+  // we now check using the USER-SPECIFIC chatId. This ensures only the specific low-balance user
+  // is blocked, not all users on the SIP connection.
+  const userCooldownKey = `chatId:${chatId}`
+  if (isWalletRejectCooldown(userCooldownKey)) {
+    log(`[Voice] ⚠️ WALLET COOLDOWN (post-ID): chatId ${chatId} (${num.phoneNumber}) — recently rejected for low balance`)
+    if (_bot) {
+      _bot.sendMessage(chatId,
+        `🚫 <b>Outbound Calling Locked</b>\n\n` +
+        `Your wallet balance has dropped below $${LOW_BALANCE_TRIGGER}. To protect your account, outbound calls are temporarily locked.\n\n` +
+        `💰 <b>Top up at least $${LOW_BALANCE_RESUME}</b> to resume calling.\n` +
+        `Use 👛 <b>Wallet</b> to add funds.`,
+        { parse_mode: 'HTML' }
+      ).catch(() => {})
+    }
+    try {
+      await _telnyxApi.hangupCall(callControlId)
+    } catch (e) { /* silently reject */ }
+    return
+  }
+
   // Number suspended check
   if (num.status !== 'active') {
     log(`[Voice] Outbound SIP: Number ${num.phoneNumber} is ${num.status}, rejecting`)
@@ -1430,7 +1459,9 @@ async function handleOutboundSipCall(payload) {
       // User must top up to $50+ to resume. Sends campaign message on every attempt.
       if (walletCheck.usdBal < LOW_BALANCE_TRIGGER) {
         log(`[Voice] Outbound SIP: LOW BALANCE LOCK for ${num.phoneNumber} → ${destination} (USD: $${walletCheck.usdBal.toFixed(2)} < $${LOW_BALANCE_TRIGGER} trigger, need $${LOW_BALANCE_RESUME} to resume)`)
-        setWalletRejectCooldown(fromClean || sipUsername, chatId)
+        // Use chatId-based key so only THIS user is cooldown-blocked, not all users on the shared SIP connection
+        setWalletRejectCooldown(`chatId:${chatId}`, chatId)
+        if (credentialExtracted) setWalletRejectCooldown(sipUsername, chatId) // Also cache by SIP username for early check
         await _telnyxApi.hangupCall(callControlId)
         _bot?.sendMessage(chatId,
           `🚫 <b>Outbound Calling Locked</b>\n\n` +
@@ -1444,8 +1475,10 @@ async function handleOutboundSipCall(payload) {
 
       if (!walletCheck.sufficient) {
         log(`[Voice] Outbound SIP: wallet too low for ${num.phoneNumber} → ${destination} (USD: $${walletCheck.usdBal.toFixed(2)}, NGN: ₦${walletCheck.ngnBal.toFixed(2)})`)
-        // Cache this rejection — prevents expensive credential lookup on subsequent rapid calls
-        setWalletRejectCooldown(fromClean || sipUsername, chatId)
+        // Cache this rejection using chatId-based key — prevents expensive credential lookup on subsequent rapid calls
+        // Only this specific user is blocked, not all users on the shared SIP connection
+        setWalletRejectCooldown(`chatId:${chatId}`, chatId)
+        if (credentialExtracted) setWalletRejectCooldown(sipUsername, chatId) // Also cache by SIP username for early check
         await _telnyxApi.hangupCall(callControlId)
         _bot?.sendMessage(chatId, `🚫 <b>SIP Call Blocked</b> — Wallet balance insufficient (need $${sipRate}/min ${isUSCanada(destination) ? 'US/CA' : 'Intl'}).\nUSD: $${walletCheck.usdBal.toFixed(2)} / NGN: ₦${walletCheck.ngnBal.toFixed(2)}\nOutbound calls are billed from wallet. Top up via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
         return
