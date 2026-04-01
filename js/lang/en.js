@@ -1889,8 +1889,7 @@ ${list.map(item => `${name == 'whm' ? `<strong>• ${item.name} - </strong>` : '
 
   generateBillSummary: vpsDetails => {
     const planPrice = vpsDetails.couponApplied ? vpsDetails.planNewPrice : vpsDetails.plantotalPrice
-    const osPrice = vpsDetails.selectedOSPrice || 0
-    const total = vpsDetails.totalPrice || (Number(planPrice) + Number(osPrice)).toFixed(2)
+    const total = vpsDetails.totalPrice || Number(planPrice).toFixed(2)
     const isRDP = vpsDetails.isRDP
     const osLabel = isRDP ? '🪟 Windows Server (RDP)' : (vpsDetails.os?.name || 'Ubuntu')
     
@@ -1898,14 +1897,13 @@ ${list.map(item => `${name == 'whm' ? `<strong>• ${item.name} - </strong>` : '
 
 <strong>🖥️ ${vpsDetails.config.name}</strong> — ${vpsDetails.config.specs.vCPU} vCPU · ${vpsDetails.config.specs.RAM}GB RAM · ${vpsDetails.config.specs.disk}GB ${vpsDetails.config.specs.diskType}
 <strong>📍 Region:</strong> ${vpsDetails.regionName || vpsDetails.country}
-<strong>💻 OS:</strong> ${osLabel}
-<strong>📅 Monthly:</strong> $${vpsDetails.plantotalPrice} USD`
+<strong>💻 OS:</strong> ${osLabel}`
 
-    if (isRDP && osPrice > 0) {
-      summary += `\n<strong>🪟 Windows License:</strong> +$${osPrice}/mo`
+    if (isRDP) {
+      summary += `\n<strong>🪟 Windows License:</strong> Included`
     }
     if (vpsDetails.couponApplied && vpsDetails.couponDiscount > 0) {
-      summary += `\n<strong>🎟️ Coupon:</strong> -$${vpsDetails.couponDiscount} USD`
+      summary += `\n<strong>🎟️ Coupon:</strong> -$${Number(vpsDetails.couponDiscount).toFixed(2)} USD`
     }
     summary += `\n<strong>🔄 Auto-Renewal:</strong> ✅ Enabled`
     summary += `\n\n<strong>💰 Total: $${total} USD/mo</strong>`

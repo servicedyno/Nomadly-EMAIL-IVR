@@ -9865,17 +9865,12 @@ ${message.replace(/\n/g, '<br>')}
       await saveInfo('vpsDetails', vpsDetails)
       // Skip double-confirm — go directly to OS (Linux) or summary (RDP)
       if (vpsDetails.isRDP) {
-        // RDP: set OS pricing and go to payment
-        const osData = await fetchAvailableOS(null)
-        const rdpOs = osData?.find(o => o.isRDP)
-        if (rdpOs) {
-          vpsDetails.os = { name: rdpOs.name, value: rdpOs.value || rdpOs.id, pricePerMonth: rdpOs.price || 0, id: rdpOs.id, isRDP: true }
-          vpsDetails.selectedOSPrice = rdpOs.price || 0
-        }
+        // RDP: Windows license already included in monthlyPrice via calculatePrice()
+        vpsDetails.os = { name: '🖥 RDP', value: 'win', pricePerMonth: 0, isRDP: true }
+        vpsDetails.selectedOSPrice = 0  // Already in plantotalPrice
         vpsDetails.selectedCpanelPrice = 0
         const planPrice = vpsDetails.plantotalPrice
-        const totalPrice = Number(planPrice) + Number(vpsDetails.selectedOSPrice || 0)
-        vpsDetails.totalPrice = totalPrice.toFixed(2)
+        vpsDetails.totalPrice = Number(planPrice).toFixed(2)
         info.vpsDetails = vpsDetails
         saveInfo('vpsDetails', vpsDetails)
         return goto.vpsAskPaymentConfirmation()
@@ -9900,16 +9895,12 @@ ${message.replace(/\n/g, '<br>')}
     send(chatId, vp.couponValid(couponDiscount))
     // After coupon applied: go to OS (Linux) or summary (RDP)
     if (vpsDetails.isRDP) {
-      const osData = await fetchAvailableOS(null)
-      const rdpOs = osData?.find(o => o.isRDP)
-      if (rdpOs) {
-        vpsDetails.os = { name: rdpOs.name, value: rdpOs.value || rdpOs.id, pricePerMonth: rdpOs.price || 0, id: rdpOs.id, isRDP: true }
-        vpsDetails.selectedOSPrice = rdpOs.price || 0
-      }
+      // RDP: Windows license already included in monthlyPrice via calculatePrice()
+      vpsDetails.os = { name: '🖥 RDP', value: 'win', pricePerMonth: 0, isRDP: true }
+      vpsDetails.selectedOSPrice = 0  // Already in plantotalPrice
       vpsDetails.selectedCpanelPrice = 0
       const planPrice = vpsDetails.couponApplied ? vpsDetails.planNewPrice : vpsDetails.plantotalPrice
-      const totalPrice = Number(planPrice) + Number(vpsDetails.selectedOSPrice || 0)
-      vpsDetails.totalPrice = totalPrice.toFixed(2)
+      vpsDetails.totalPrice = Number(planPrice).toFixed(2)
       info.vpsDetails = vpsDetails
       saveInfo('vpsDetails', vpsDetails)
       return goto.vpsAskPaymentConfirmation()
