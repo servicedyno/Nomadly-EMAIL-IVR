@@ -122,6 +122,20 @@ const SERVICE_CONTEXT = {
     ],
     cta: '/start → 🏪 Marketplace',
   },
+  vps_rdp: {
+    services: 'VPS & RDP Servers — Port 25 Open, DMCA-Ignored',
+    details: [
+      'Linux VPS or Windows RDP — choose your OS',
+      'Port 25 open by default — send emails without restrictions',
+      'DMCA-ignored offshore hosting on Contabo infrastructure',
+      'Full root/admin access — install anything you need',
+      'Plans from $20/month with SSD storage',
+      'Instant provisioning — server ready in minutes',
+      'Multiple regions: US, EU, Asia',
+      'Upgrade RAM, CPU, disk anytime without data loss',
+    ],
+    cta: '/start → 🖥️ VPS/RDP',
+  },
 }
 
 // ─── Sanitize AI output for Telegram HTML ─────────────────────────────
@@ -201,7 +215,7 @@ Return ONLY the promotional message text.`
 // ─── Timezone & Schedule Config ───────────────────────────────────────
 const TIMEZONE_OFFSETS = { en: 0, fr: 1, zh: 8, hi: 5.5 }
 const LOCAL_TIMES = [{ hour: 10, minute: 0 }, { hour: 19, minute: 0 }] // Morning hero + Evening cross-sell
-const THEMES = ['cloudphone', 'antired_hosting', 'leads_validation', 'domains_shortener', 'digital_products', 'cards_bundles', 'email_validation', 'marketplace']
+const THEMES = ['cloudphone', 'antired_hosting', 'leads_validation', 'domains_shortener', 'digital_products', 'cards_bundles', 'email_validation', 'marketplace', 'vps_rdp']
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -639,6 +653,58 @@ Build your reputation. Grow your business.
 
 Type <b>/start</b> → 🏪 Marketplace`,
     ],
+
+    vps_rdp: [
+      `🖥️🔥 <b>VPS & RDP SERVERS — PORT 25 OPEN, READY TO SEND</b>
+
+Need a server that doesn't block your emails? We got you.
+
+🐧 <b>Linux VPS</b> — full root access, run anything
+🪟 <b>Windows RDP</b> — remote desktop, GUI included
+📬 <b>Port 25 OPEN</b> by default — no restrictions
+🛡️ DMCA-ignored offshore infrastructure
+⚡ Instant provisioning — server ready in minutes
+
+💰 Plans from <b>$20/month</b> with SSD storage
+
+Stop fighting with providers that block your ports 🚫
+
+Type <b>/start</b> → 🖥️ VPS/RDP — Port 25 Open🛡️`,
+
+      `🚀 <b>DEPLOY YOUR OWN SERVER IN MINUTES — NOT DAYS</b>
+
+No tickets. No waiting. No port restrictions.
+
+🖥️ Choose your OS: Ubuntu, Debian, CentOS, Windows Server
+💪 Full root/admin access — install what YOU need
+📬 Port 25 open — send emails directly from your server
+🌍 Multiple regions: US, Europe, Asia
+📈 Upgrade RAM, CPU, disk anytime — zero downtime
+
+💰 Starting at just <b>$20/month</b>
+
+Perfect for email servers, bots, scraping, VPNs & more 🔧
+
+Type <b>/start</b> → 🖥️ VPS/RDP — Port 25 Open🛡️`,
+
+      `💼 <b>YOUR OWN PRIVATE SERVER — NO RULES, NO LIMITS</b>
+
+Tired of shared hosting restrictions?
+
+✅ Full root/admin access
+✅ Port 25 open for email sending
+✅ DMCA-ignored — your content stays up
+✅ SSD storage for fast performance
+✅ Linux VPS or Windows RDP — your choice
+
+🏷️ <b>Pricing:</b>
+🐧 Linux VPS from $20/mo
+🪟 Windows RDP from $30/mo
+
+Deploy now. No questions asked.
+
+Type <b>/start</b> → 🖥️ VPS/RDP — Port 25 Open🛡️`,
+    ],
   },
 
   // ═══════════════════ FRENCH ═══════════════════
@@ -1030,6 +1096,58 @@ Pourquoi risquer de trader dans des groupes aléatoires ?
 
 Tapez <b>/start</b> → 🏪 Marketplace`,
     ],
+
+    vps_rdp: [
+      `🖥️🔥 <b>SERVEURS VPS & RDP — PORT 25 OUVERT, PRÊT À ENVOYER</b>
+
+Besoin d'un serveur qui ne bloque pas vos emails ? On a ce qu'il faut.
+
+🐧 <b>VPS Linux</b> — accès root complet
+🪟 <b>RDP Windows</b> — bureau à distance inclus
+📬 <b>Port 25 OUVERT</b> par défaut — aucune restriction
+🛡️ Infrastructure offshore ignorant le DMCA
+⚡ Provisionnement instantané — serveur prêt en minutes
+
+💰 À partir de <b>20$/mois</b> avec stockage SSD
+
+Arrêtez de vous battre avec les hébergeurs qui bloquent vos ports 🚫
+
+Tapez <b>/start</b> → 🖥️ VPS/RDP — Port 25 Open🛡️`,
+
+      `🚀 <b>DÉPLOYEZ VOTRE SERVEUR EN MINUTES — PAS EN JOURS</b>
+
+Pas de tickets. Pas d'attente. Aucune restriction de port.
+
+🖥️ Choisissez votre OS : Ubuntu, Debian, CentOS, Windows Server
+💪 Accès root/admin complet — installez ce que VOUS voulez
+📬 Port 25 ouvert — envoyez des emails directement
+🌍 Plusieurs régions : US, Europe, Asie
+📈 Upgrader RAM, CPU, disque à tout moment
+
+💰 À partir de seulement <b>20$/mois</b>
+
+Parfait pour serveurs email, bots, scraping, VPN & plus 🔧
+
+Tapez <b>/start</b> → 🖥️ VPS/RDP — Port 25 Open🛡️`,
+
+      `💼 <b>VOTRE PROPRE SERVEUR PRIVÉ — SANS RÈGLES, SANS LIMITES</b>
+
+Marre des restrictions d'hébergement partagé ?
+
+✅ Accès root/admin complet
+✅ Port 25 ouvert pour l'envoi d'emails
+✅ DMCA-ignoré — votre contenu reste en ligne
+✅ Stockage SSD performant
+✅ VPS Linux ou RDP Windows — à vous de choisir
+
+🏷️ <b>Tarifs :</b>
+🐧 VPS Linux à partir de 20$/mois
+🪟 RDP Windows à partir de 30$/mois
+
+Déployez maintenant. Sans questions.
+
+Tapez <b>/start</b> → 🖥️ VPS/RDP — Port 25 Open🛡️`,
+    ],
   },
 
   // ═══════════════════ CHINESE ═══════════════════
@@ -1420,6 +1538,58 @@ Shortit — 免费、快速、可追踪。
 
 输入 <b>/start</b> → 🏪 市场`,
     ],
+
+    vps_rdp: [
+      `🖥️🔥 <b>VPS和RDP服务器 — 25端口开放，随时发送</b>
+
+需要不封锁邮件的服务器？我们帮你搞定。
+
+🐧 <b>Linux VPS</b> — 完整root权限，运行任何程序
+🪟 <b>Windows RDP</b> — 远程桌面，图形界面
+📬 <b>25端口默认开放</b> — 无任何限制
+🛡️ 忽略DMCA的离岸基础设施
+⚡ 即时部署 — 服务器几分钟就绪
+
+💰 套餐仅需 <b>$20/月</b> 含SSD存储
+
+别再跟封端口的供应商较劲了 🚫
+
+输入 <b>/start</b> → 🖥️ VPS/RDP — Port 25 Open🛡️`,
+
+      `🚀 <b>几分钟部署你的服务器 — 不是几天</b>
+
+无需工单。无需等待。无端口限制。
+
+🖥️ 选择系统：Ubuntu、Debian、CentOS、Windows Server
+💪 完整root/admin权限 — 安装你需要的一切
+📬 25端口开放 — 直接从服务器发送邮件
+🌍 多个地区：美国、欧洲、亚洲
+📈 随时升级内存、CPU、磁盘 — 零停机
+
+💰 仅需 <b>$20/月</b> 起
+
+适合邮件服务器、机器人、爬虫、VPN等 🔧
+
+输入 <b>/start</b> → 🖥️ VPS/RDP — Port 25 Open🛡️`,
+
+      `💼 <b>你自己的私人服务器 — 无规则，无限制</b>
+
+厌倦了共享主机的限制？
+
+✅ 完整root/admin权限
+✅ 25端口开放发送邮件
+✅ 忽略DMCA — 内容永不下架
+✅ SSD高速存储
+✅ Linux VPS 或 Windows RDP — 你来选
+
+🏷️ <b>价格：</b>
+🐧 Linux VPS $20/月起
+🪟 Windows RDP $30/月起
+
+立即部署。无需问答。
+
+输入 <b>/start</b> → 🖥️ VPS/RDP — Port 25 Open🛡️`,
+    ],
   },
 
   // ═══════════════════ HINDI ═══════════════════
@@ -1807,6 +1977,58 @@ Nomadly रिसेलर प्रोग्राम जॉइन करें
 
 <b>/start</b> टाइप करें → 🏪 Marketplace`,
     ],
+
+    vps_rdp: [
+      `🖥️🔥 <b>VPS और RDP सर्वर — पोर्ट 25 ओपन, भेजने के लिए तैयार</b>
+
+ऐसा सर्वर चाहिए जो आपकी ईमेल ब्लॉक न करे? हम आपके लिए लाए हैं।
+
+🐧 <b>Linux VPS</b> — पूरा root एक्सेस, कुछ भी चलाएं
+🪟 <b>Windows RDP</b> — रिमोट डेस्कटॉप, GUI शामिल
+📬 <b>पोर्ट 25 डिफ़ॉल्ट ओपन</b> — कोई पाबंदी नहीं
+🛡️ DMCA-इग्नोर ऑफशोर इंफ्रास्ट्रक्चर
+⚡ तुरंत प्रोविज़निंग — मिनटों में सर्वर तैयार
+
+💰 प्लान सिर्फ <b>$20/महीने</b> से SSD स्टोरेज के साथ
+
+पोर्ट ब्लॉक करने वाले प्रोवाइडर्स से लड़ना बंद करें 🚫
+
+<b>/start</b> टाइप करें → 🖥️ VPS/RDP — Port 25 Open🛡️`,
+
+      `🚀 <b>अपना सर्वर मिनटों में डिप्लॉय करें — दिनों में नहीं</b>
+
+कोई टिकट नहीं। कोई इंतज़ार नहीं। कोई पोर्ट प्रतिबंध नहीं।
+
+🖥️ अपना OS चुनें: Ubuntu, Debian, CentOS, Windows Server
+💪 पूरा root/admin एक्सेस — जो चाहें इंस्टॉल करें
+📬 पोर्ट 25 ओपन — सीधे सर्वर से ईमेल भेजें
+🌍 कई क्षेत्र: US, यूरोप, एशिया
+📈 कभी भी RAM, CPU, डिस्क अपग्रेड करें
+
+💰 सिर्फ <b>$20/महीने</b> से शुरू
+
+ईमेल सर्वर, बॉट्स, स्क्रैपिंग, VPN और बहुत कुछ के लिए 🔧
+
+<b>/start</b> टाइप करें → 🖥️ VPS/RDP — Port 25 Open🛡️`,
+
+      `💼 <b>अपना खुद का प्राइवेट सर्वर — कोई नियम नहीं, कोई सीमा नहीं</b>
+
+शेयर्ड होस्टिंग की पाबंदियों से थक गए?
+
+✅ पूरा root/admin एक्सेस
+✅ ईमेल भेजने के लिए पोर्ट 25 ओपन
+✅ DMCA-इग्नोर — आपका कंटेंट ऑनलाइन रहेगा
+✅ फास्ट SSD स्टोरेज
+✅ Linux VPS या Windows RDP — आपकी पसंद
+
+🏷️ <b>कीमत:</b>
+🐧 Linux VPS $20/महीने से
+🪟 Windows RDP $30/महीने से
+
+अभी डिप्लॉय करें। कोई सवाल नहीं।
+
+<b>/start</b> टाइप करें → 🖥️ VPS/RDP — Port 25 Open🛡️`,
+    ],
   },
 }
 
@@ -2091,6 +2313,35 @@ Stop trading in random groups. Use our secure marketplace.
 
 Type <b>/start</b> → 🏪 Marketplace`,
     ],
+
+    vps_rdp: [
+      `🌙🖥️ <b>NEED A SERVER? DEPLOY IN MINUTES.</b>
+
+Linux VPS or Windows RDP — Port 25 open, DMCA-ignored.
+
+🐧 VPS from $20/mo | 🪟 RDP from $30/mo | 📬 Port 25 open
+⚡ Instant setup — no waiting
+
+Type <b>/start</b> → 🖥️ VPS/RDP — Port 25 Open🛡️`,
+
+      `💡 <b>SENDING EMAILS? YOU NEED YOUR OWN SERVER.</b>
+
+Shared hosting blocks Port 25. Our VPS doesn't.
+
+✅ Full root access | ✅ Port 25 open | ✅ DMCA-ignored
+💰 From <b>$20/mo</b>
+
+Type <b>/start</b> → 🖥️ VPS/RDP — Port 25 Open🛡️`,
+
+      `🔥 <b>VPS & RDP — YOUR PRIVATE SERVER, YOUR RULES</b>
+
+No restrictions. No port blocks. No questions asked.
+
+🖥️ Linux or Windows | 📬 Port 25 open | 🛡️ Offshore
+💰 Starting <b>$20/mo</b>
+
+Type <b>/start</b> → 🖥️ VPS/RDP — Port 25 Open🛡️`,
+    ],
   },
 
   // ═══════════════════ FRENCH CROSS-SELL ═══════════════════
@@ -2322,6 +2573,35 @@ Arrêtez de trader dans des groupes aléatoires.
 ✅ Escrow | 💬 Chat in-bot | 📦 Suivi
 
 Tapez <b>/start</b> → 🏪 Marketplace`,
+    ],
+
+    vps_rdp: [
+      `🌙🖥️ <b>BESOIN D'UN SERVEUR ? DÉPLOYEZ EN MINUTES.</b>
+
+VPS Linux ou RDP Windows — Port 25 ouvert, DMCA-ignoré.
+
+🐧 VPS dès 20$/mois | 🪟 RDP dès 30$/mois | 📬 Port 25 ouvert
+⚡ Installation instantanée
+
+Tapez <b>/start</b> → 🖥️ VPS/RDP — Port 25 Open🛡️`,
+
+      `💡 <b>VOUS ENVOYEZ DES EMAILS ? IL VOUS FAUT VOTRE PROPRE SERVEUR.</b>
+
+L'hébergement partagé bloque le Port 25. Pas notre VPS.
+
+✅ Accès root | ✅ Port 25 ouvert | ✅ DMCA-ignoré
+💰 À partir de <b>20$/mois</b>
+
+Tapez <b>/start</b> → 🖥️ VPS/RDP — Port 25 Open🛡️`,
+
+      `🔥 <b>VPS & RDP — VOTRE SERVEUR PRIVÉ, VOS RÈGLES</b>
+
+Aucune restriction. Aucun blocage de port.
+
+🖥️ Linux ou Windows | 📬 Port 25 ouvert | 🛡️ Offshore
+💰 À partir de <b>20$/mois</b>
+
+Tapez <b>/start</b> → 🖥️ VPS/RDP — Port 25 Open🛡️`,
     ],
   },
 
@@ -2556,6 +2836,35 @@ Twilio、AWS、Google Cloud — 全部预验证。
 
 输入 <b>/start</b> → 🏪 市场`,
     ],
+
+    vps_rdp: [
+      `🌙🖥️ <b>需要服务器？几分钟部署。</b>
+
+Linux VPS 或 Windows RDP — 25端口开放，忽略DMCA。
+
+🐧 VPS $20/月起 | 🪟 RDP $30/月起 | 📬 25端口开放
+⚡ 即时安装 — 无需等待
+
+输入 <b>/start</b> → 🖥️ VPS/RDP — Port 25 Open🛡️`,
+
+      `💡 <b>发邮件？你需要自己的服务器。</b>
+
+共享主机封锁25端口。我们的VPS不会。
+
+✅ 完整root权限 | ✅ 25端口开放 | ✅ 忽略DMCA
+💰 仅需 <b>$20/月</b>
+
+输入 <b>/start</b> → 🖥️ VPS/RDP — Port 25 Open🛡️`,
+
+      `🔥 <b>VPS & RDP — 你的私人服务器，你的规则</b>
+
+无限制。不封端口。不问问题。
+
+🖥️ Linux或Windows | 📬 25端口开放 | 🛡️ 离岸
+💰 <b>$20/月</b> 起
+
+输入 <b>/start</b> → 🖥️ VPS/RDP — Port 25 Open🛡️`,
+    ],
   },
 
   // ═══════════════════ HINDI CROSS-SELL ═══════════════════
@@ -2788,6 +3097,35 @@ Telegram पर सीधे डिजिटल गुड्स और टूल
 ✅ एस्क्रो | 💬 इन-बॉट चैट | 📦 ट्रैकिंग
 
 <b>/start</b> → 🏪 Marketplace`,
+    ],
+
+    vps_rdp: [
+      `🌙🖥️ <b>सर्वर चाहिए? मिनटों में डिप्लॉय करें।</b>
+
+Linux VPS या Windows RDP — पोर्ट 25 ओपन, DMCA-इग्नोर।
+
+🐧 VPS $20/महीने से | 🪟 RDP $30/महीने से | 📬 पोर्ट 25 ओपन
+⚡ तुरंत सेटअप
+
+<b>/start</b> → 🖥️ VPS/RDP — Port 25 Open🛡️`,
+
+      `💡 <b>ईमेल भेज रहे हैं? अपना खुद का सर्वर चाहिए।</b>
+
+शेयर्ड होस्टिंग पोर्ट 25 ब्लॉक करती है। हमारा VPS नहीं।
+
+✅ पूरा root एक्सेस | ✅ पोर्ट 25 ओपन | ✅ DMCA-इग्नोर
+💰 सिर्फ <b>$20/महीने</b>
+
+<b>/start</b> → 🖥️ VPS/RDP — Port 25 Open🛡️`,
+
+      `🔥 <b>VPS & RDP — आपका प्राइवेट सर्वर, आपके नियम</b>
+
+कोई पाबंदी नहीं। कोई पोर्ट ब्लॉक नहीं।
+
+🖥️ Linux या Windows | 📬 पोर्ट 25 ओपन | 🛡️ ऑफशोर
+💰 <b>$20/महीने</b> से
+
+<b>/start</b> → 🖥️ VPS/RDP — Port 25 Open🛡️`,
     ],
   },
 }
@@ -3123,12 +3461,12 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
   //   - Cross-sell pairings based on actual user journeys
   const DAY_SCHEDULE = {
     0: [7, 3],                // Sun: marketplace(7) morning, domains_shortener(3) evening — light weekend promo
-    1: [0, 7],                // Mon: cloudphone(0), marketplace(7)
+    1: [0, 8],                // Mon: cloudphone(0), vps_rdp(8)
     2: [1, 6],                // Tue: antired_hosting(1), email_validation(6)
-    3: [6, 2],                // Wed: email_validation(6), leads_validation(2)
+    3: [8, 2],                // Wed: vps_rdp(8), leads_validation(2)
     4: [3, 1],                // Thu: domains_shortener(3), antired_hosting(1)
     5: [7, 4],                // Fri: marketplace(7), digital_products(4)
-    6: [5, 0],                // Sat: cards_bundles(5), cloudphone(0)
+    6: [5, 8],                // Sat: cards_bundles(5), vps_rdp(8)
   }
 
   function getTodayThemes() {
