@@ -19165,92 +19165,164 @@ async function checkVPSPlansExpiryandPayment() {
   }
 
   const now = new Date()
+  const oneDayFromNow = new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000)
+  const threeDaysFromNow = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
 
   try {
-    // ─── Monthly plans: check for expiry and auto-renew ───
-    const expiredMonthlyPlans = await vpsPlansOf.find({
-      'end_time': { $lte: now },
-      'status': { $in: ['RUNNING', 'running'] }
+    // ═══════════════════════════════════════════════════════════════
+    // Phase 1: AUTO-RENEW — 1 day before expiry (end_time within next 24h)
+    // Uses smartWalletDeduct (USD → NGN fallback, atomic)
+    // ═══════════════════════════════════════════════════════════════
+    const dueForRenewal = await vpsPlansOf.find({
+      'end_time': { $lte: oneDayFromNow, $gt: now },
+      'status': { $in: ['RUNNING', 'running'] },
+      '_autoRenewAttempted': { $ne: true }
     }).toArray()
 
-    for (const vpsPlan of expiredMonthlyPlans) {
-      const { chatId, _id, planPrice, plan, vpsId, label, autoRenewable, contaboInstanceId } = vpsPlan
+    for (const vpsPlan of dueForRenewal) {
+      const { chatId, _id, planPrice, vpsId, label, autoRenewable, contaboInstanceId } = vpsPlan
       const info = await state.findOne({ _id: parseFloat(chatId) })
       const lang = info?.userLanguage || 'en'
       const displayName = label || vpsPlan.name || 'VPS'
+      const expiryDate = new Date(vpsPlan.end_time).toLocaleDateString()
 
-      if (autoRenewable) {
-        // Auto-renew: check wallet balance
-        const { usdBal } = await getBalance(walletOf, chatId)
-        if (usdBal >= planPrice) {
-          // Deduct and renew
-          const newEnd = new Date(now)
-          newEnd.setMonth(newEnd.getMonth() + 1)
+      if (!autoRenewable) {
+        // Auto-renew disabled — mark as pending cancellation, warn user
+        await vpsPlansOf.updateOne({ _id }, { $set: { status: 'PENDING_CANCELLATION', _autoRenewAttempted: true } })
+        send(chatId, `⚠️ <b>VPS Expiring — No Auto-Renewal</b>\n\n🖥️ <b>${displayName}</b> expires on <b>${expiryDate}</b>.\nAuto-renewal is <b>OFF</b>.\n\n⏰ <b>Renew manually before the deadline</b> or your server will be permanently deleted.\n\nGo to: VPS/RDP → Manage → Renew Now`)
+        log(`[VPS Scheduler] ${displayName} marked PENDING_CANCELLATION for ${chatId} — auto-renew disabled`)
+        continue
+      }
 
-          await vpsPlansOf.updateOne(
-            { _id: _id },
-            { $set: { end_time: newEnd, status: 'RUNNING' } }
-          )
-          set(payments, nanoid(), `Wallet,VPSPlan,Monthly,$${planPrice},${chatId},${new Date()}`)
-          await atomicIncrement(walletOf, chatId, 'usdOut', Number(planPrice))
-          const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
+      // Try to charge wallet: USD first, then NGN
+      const deductResult = await smartWalletDeduct(walletOf, chatId, Number(planPrice))
 
-          send(chatId, translation('vp.vpsMonthlyPlanRenewed', lang, displayName, planPrice) ||
-            `✅ Your VPS <b>${displayName}</b> has been auto-renewed for 1 month.\n💰 $${planPrice} deducted from wallet.`)
-          send(chatId, translation('t.showWallet', lang, usd, ngn))
-          log(`[VPS Scheduler] Auto-renewed ${displayName} for ${chatId}, deducted $${planPrice}`)
-        } else {
-          // Insufficient balance — warn and mark as expired
-          await vpsPlansOf.updateOne(
-            { _id: _id },
-            { $set: { status: 'EXPIRED' } }
-          )
-          send(chatId, translation('vp.lowWalletBalance', lang, displayName) ||
-            `⚠️ Your VPS <b>${displayName}</b> has expired. Insufficient wallet balance ($${usdBal.toFixed(2)} < $${planPrice}).\nPlease top up and renew manually.`)
-          log(`[VPS Scheduler] ${displayName} expired for ${chatId} — low balance ($${usdBal} < $${planPrice})`)
-        }
+      if (deductResult.success) {
+        // Renew: extend by 1 month
+        const newEnd = new Date(vpsPlan.end_time)
+        newEnd.setMonth(newEnd.getMonth() + 1)
+
+        await vpsPlansOf.updateOne({ _id }, {
+          $set: { end_time: newEnd, status: 'RUNNING', _autoRenewAttempted: true, _reminder3DaySent: false, _reminder1DaySent: false }
+        })
+        const currSymbol = deductResult.currency === 'ngn' ? '₦' : '$'
+        const chargedDisplay = deductResult.currency === 'ngn'
+          ? `₦${Number(deductResult.chargedNgn).toFixed(2)} (≈ $${planPrice})`
+          : `$${planPrice}`
+        set(payments, nanoid(), `Wallet,VPSAutoRenew,Monthly,$${planPrice},${chatId},${new Date()},${deductResult.currency}`)
+
+        const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
+        send(chatId, `✅ <b>VPS Auto-Renewed</b>\n\n🖥️ <b>${displayName}</b> renewed for 1 month.\n💰 ${chargedDisplay} deducted from ${deductResult.currency.toUpperCase()} wallet.\n📅 New expiry: <b>${newEnd.toLocaleDateString()}</b>\n\n💳 Balance: $${usd.toFixed(2)} / ₦${ngn.toFixed(2)}`)
+        log(`[VPS Scheduler] Auto-renewed ${displayName} for ${chatId}, charged ${deductResult.currency} $${planPrice}`)
       } else {
-        // No auto-renew — mark as expired and notify
-        await vpsPlansOf.updateOne(
-          { _id: _id },
-          { $set: { status: 'EXPIRED' } }
-        )
-        send(chatId, translation('vp.vpsExpiredNoAutoRenew', lang, displayName) ||
-          `⚠️ Your VPS <b>${displayName}</b> has expired. Auto-renewal is disabled.\nPlease renew manually to continue service.`)
-        log(`[VPS Scheduler] ${displayName} expired for ${chatId} — auto-renew disabled`)
+        // Both USD and NGN failed — mark pending cancellation
+        await vpsPlansOf.updateOne({ _id }, { $set: { status: 'PENDING_CANCELLATION', _autoRenewAttempted: true } })
+        const { usdBal, ngnBal } = deductResult
+        send(chatId, `🚨 <b>URGENT — VPS Renewal Failed</b>\n\n🖥️ <b>${displayName}</b> could not be auto-renewed.\n💰 Balance: $${(usdBal || 0).toFixed(2)} / ₦${(ngnBal || 0).toFixed(2)}\n💵 Required: <b>$${planPrice}/mo</b>\n\n⚠️ <b>Your server will be permanently deleted on ${expiryDate}</b> unless you renew manually.\n\nGo to: VPS/RDP → Manage → 📅 Renew Now`)
+        send(TELEGRAM_ADMIN_CHAT_ID, `⚠️ <b>VPS Renewal Failed</b>\nUser: ${chatId}\nVPS: ${displayName}\nPrice: $${planPrice}\nBalance: $${(usdBal || 0).toFixed(2)} / ₦${(ngnBal || 0).toFixed(2)}`, { parse_mode: 'HTML' })
+        log(`[VPS Scheduler] ${displayName} PENDING_CANCELLATION for ${chatId} — balance insufficient ($${usdBal || 0} / ₦${ngnBal || 0} < $${planPrice})`)
       }
     }
 
-    // ─── Pre-expiry reminders (3 days and 1 day before) ───
-    const threeDaysFromNow = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
-    const oneDayFromNow = new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000)
+    // ═══════════════════════════════════════════════════════════════
+    // Phase 2: DELETE on Contabo — VPS past deadline with failed renewal
+    // PENDING_CANCELLATION + end_time <= now → cancel on Contabo + mark CANCELLED
+    // ═══════════════════════════════════════════════════════════════
+    const pastDeadline = await vpsPlansOf.find({
+      'end_time': { $lte: now },
+      'status': 'PENDING_CANCELLATION'
+    }).toArray()
 
+    for (const vpsPlan of pastDeadline) {
+      const { chatId, _id, vpsId, label, contaboInstanceId, planPrice } = vpsPlan
+      const displayName = label || vpsPlan.name || 'VPS'
+      const info = await state.findOne({ _id: parseFloat(chatId) })
+      const lang = info?.userLanguage || 'en'
+
+      try {
+        // Delete from Contabo to prevent their billing
+        const deleteResult = await deleteVPSinstance(chatId, vpsId)
+        if (deleteResult.success) {
+          await vpsPlansOf.updateOne({ _id }, { $set: { status: 'CANCELLED', cancelledAt: new Date(), cancelReason: 'auto_renewal_failed' } })
+          send(chatId, `❌ <b>VPS Deleted</b>\n\n🖥️ <b>${displayName}</b> has been permanently deleted.\n\n💡 Reason: Auto-renewal failed and no manual renewal was received before the deadline.\n\nYou can purchase a new VPS anytime from the main menu.`)
+          send(TELEGRAM_ADMIN_CHAT_ID, `🗑️ <b>VPS Auto-Deleted</b>\nUser: ${chatId}\nVPS: ${displayName}\nReason: Renewal failed, deadline passed\nPrice was: $${planPrice}/mo`, { parse_mode: 'HTML' })
+          log(`[VPS Scheduler] DELETED ${displayName} on Contabo for ${chatId} — deadline passed`)
+        } else {
+          // Delete failed — retry next cycle, alert admin
+          log(`[VPS Scheduler] ERROR: Failed to delete ${displayName} on Contabo: ${deleteResult.error}`)
+          send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>VPS DELETE FAILED</b>\nUser: ${chatId}\nVPS: ${displayName} (vpsId: ${vpsId})\nContabo ID: ${contaboInstanceId}\nError: ${deleteResult.error}\n\n⚠️ Manual deletion required to prevent Contabo billing!`, { parse_mode: 'HTML' })
+        }
+      } catch (err) {
+        log(`[VPS Scheduler] CRASH deleting ${displayName}: ${err.message}`)
+        send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>VPS Delete Crash</b>\nUser: ${chatId}\nVPS: ${displayName}\nError: ${err.message}`, { parse_mode: 'HTML' })
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Phase 3: Also handle any VPS that are RUNNING but past expiry
+    // (edge case: old records before this update, or missed scheduler runs)
+    // ═══════════════════════════════════════════════════════════════
+    const staleExpired = await vpsPlansOf.find({
+      'end_time': { $lte: now },
+      'status': { $in: ['RUNNING', 'running'] },
+      '_autoRenewAttempted': { $ne: true }
+    }).toArray()
+
+    for (const vpsPlan of staleExpired) {
+      const { chatId, _id, planPrice, vpsId, label, autoRenewable } = vpsPlan
+      const displayName = label || vpsPlan.name || 'VPS'
+      const info = await state.findOne({ _id: parseFloat(chatId) })
+      const lang = info?.userLanguage || 'en'
+
+      // Try one last renewal attempt
+      if (autoRenewable) {
+        const deductResult = await smartWalletDeduct(walletOf, chatId, Number(planPrice))
+        if (deductResult.success) {
+          const newEnd = new Date(now)
+          newEnd.setMonth(newEnd.getMonth() + 1)
+          await vpsPlansOf.updateOne({ _id }, {
+            $set: { end_time: newEnd, status: 'RUNNING', _autoRenewAttempted: true, _reminder3DaySent: false, _reminder1DaySent: false }
+          })
+          const chargedDisplay = deductResult.currency === 'ngn'
+            ? `₦${Number(deductResult.chargedNgn).toFixed(2)} (≈ $${planPrice})`
+            : `$${planPrice}`
+          set(payments, nanoid(), `Wallet,VPSAutoRenew,Monthly,$${planPrice},${chatId},${new Date()},${deductResult.currency}`)
+          const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
+          send(chatId, `✅ <b>VPS Auto-Renewed</b>\n\n🖥️ <b>${displayName}</b> renewed for 1 month.\n💰 ${chargedDisplay} deducted.\n📅 New expiry: <b>${newEnd.toLocaleDateString()}</b>\n\n💳 Balance: $${usd.toFixed(2)} / ₦${ngn.toFixed(2)}`)
+          log(`[VPS Scheduler] Late auto-renewed ${displayName} for ${chatId}`)
+          continue
+        }
+      }
+      // Failed or auto-renew off — mark pending cancellation (will be deleted next cycle)
+      await vpsPlansOf.updateOne({ _id }, { $set: { status: 'PENDING_CANCELLATION', _autoRenewAttempted: true } })
+      const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
+      send(chatId, `🚨 <b>URGENT — VPS Expired</b>\n\n🖥️ <b>${displayName}</b> has expired.\n💰 Balance: $${(usdBal).toFixed(2)} / ₦${(ngnBal).toFixed(2)}\n\n⚠️ <b>Server will be deleted shortly.</b>\nRenew NOW: VPS/RDP → Manage → 📅 Renew Now`)
+      log(`[VPS Scheduler] ${displayName} marked PENDING_CANCELLATION (stale) for ${chatId}`)
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Phase 4: Pre-expiry reminders with wallet balance info
+    // ═══════════════════════════════════════════════════════════════
     const soonExpiring = await vpsPlansOf.find({
-      'end_time': { $lte: threeDaysFromNow, $gt: now },
+      'end_time': { $lte: threeDaysFromNow, $gt: oneDayFromNow },
       'status': { $in: ['RUNNING', 'running'] }
     }).toArray()
 
     for (const vpsPlan of soonExpiring) {
-      const { chatId, _id, label, end_time } = vpsPlan
+      const { chatId, _id, label, end_time, planPrice } = vpsPlan
       const displayName = label || vpsPlan.name || 'VPS'
       const msLeft = new Date(end_time).getTime() - now.getTime()
       const daysLeft = msLeft / (1000 * 60 * 60 * 24)
-      const info = await state.findOne({ _id: parseFloat(chatId) })
-      const lang = info?.userLanguage || 'en'
       const expiryDate = new Date(end_time).toLocaleDateString()
 
       // 3-day reminder
       if (daysLeft > 2.5 && daysLeft <= 3.1 && !vpsPlan._reminder3DaySent) {
-        send(chatId, `🖥️ <b>VPS Expiring Soon</b>\n\n${displayName} expires in <b>3 days</b> (${expiryDate}).\nRenew to avoid service interruption.`)
-        await vpsPlansOf.updateOne({ _id: _id }, { $set: { _reminder3DaySent: true } })
+        const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
+        const sufficient = usdBal >= planPrice
+        const statusIcon = sufficient ? '✅' : '⚠️'
+        send(chatId, `🖥️ <b>VPS Expiring in 3 Days</b>\n\n<b>${displayName}</b> expires on <b>${expiryDate}</b>.\n💵 Required: <b>$${planPrice}/mo</b>\n💳 Balance: $${usdBal.toFixed(2)} / ₦${ngnBal.toFixed(2)}\n${statusIcon} ${sufficient ? 'Auto-renewal will be attempted 1 day before expiry.' : 'Insufficient balance — top up or renew manually to keep your server!'}`)
+        await vpsPlansOf.updateOne({ _id }, { $set: { _reminder3DaySent: true } })
         log(`[VPS Scheduler] 3-day reminder sent to ${chatId} for ${displayName}`)
-      }
-
-      // 1-day reminder
-      if (daysLeft > 0.5 && daysLeft <= 1.1 && !vpsPlan._reminder1DaySent) {
-        send(chatId, `🖥️ <b>VPS Expiring Tomorrow</b>\n\n${displayName} expires <b>tomorrow</b> (${expiryDate}).\n⚠️ Renew now to keep your server running!`)
-        await vpsPlansOf.updateOne({ _id: _id }, { $set: { _reminder1DaySent: true } })
-        log(`[VPS Scheduler] 1-day reminder sent to ${chatId} for ${displayName}`)
       }
     }
   } catch (error) {

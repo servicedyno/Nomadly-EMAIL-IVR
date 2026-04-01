@@ -1,418 +1,478 @@
 #!/usr/bin/env python3
 """
-Backend Test Suite for TTS Reliability Fix
-Tests the Node.js TTS service implementation for timeout, retry, and fallback improvements.
+VPS Auto-Renewal System Testing Suite
+Tests the critical scheduler that handles billing and Contabo instance lifecycle.
 """
 
 import subprocess
+import requests
 import json
-import re
-import sys
 import os
+import time
 from pathlib import Path
 
-class TTSReliabilityTest:
+class VPSAutoRenewalTester:
     def __init__(self):
+        self.base_url = self.get_backend_url()
         self.test_results = []
-        self.js_dir = Path("/app/js")
-        self.tts_service_file = self.js_dir / "tts-service.js"
-        self.index_file = self.js_dir / "_index.js"
+        self.critical_issues = []
+        self.minor_issues = []
         
-    def log_test(self, test_name, passed, details=""):
+    def get_backend_url(self):
+        """Get backend URL from frontend .env file"""
+        try:
+            env_path = Path("/app/frontend/.env")
+            if env_path.exists():
+                with open(env_path, 'r') as f:
+                    for line in f:
+                        if line.startswith('REACT_APP_BACKEND_URL='):
+                            return line.split('=', 1)[1].strip()
+            return "http://localhost:5000"
+        except Exception as e:
+            print(f"Warning: Could not read frontend .env: {e}")
+            return "http://localhost:5000"
+    
+    def log_result(self, test_name, passed, details, is_critical=True):
         """Log test result"""
         status = "✅ PASS" if passed else "❌ FAIL"
-        self.test_results.append({
-            "test": test_name,
-            "passed": passed,
-            "details": details
-        })
-        print(f"{status}: {test_name}")
+        result = {
+            'test': test_name,
+            'passed': passed,
+            'details': details,
+            'critical': is_critical
+        }
+        self.test_results.append(result)
+        
+        if not passed:
+            if is_critical:
+                self.critical_issues.append(f"{test_name}: {details}")
+            else:
+                self.minor_issues.append(f"{test_name}: {details}")
+        
+        print(f"{status} {test_name}")
         if details:
             print(f"    {details}")
     
-    def run_syntax_check(self, file_path):
-        """Run Node.js syntax check on a file"""
-        try:
-            result = subprocess.run(
-                ["node", "-c", str(file_path)],
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-            return result.returncode == 0, result.stderr
-        except Exception as e:
-            return False, str(e)
-    
-    def read_file_content(self, file_path):
-        """Read file content safely"""
-        try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                return f.read()
-        except Exception as e:
-            return None
-    
     def test_syntax_validation(self):
-        """Test 1 & 2: Syntax validation for both files"""
-        # Test tts-service.js syntax
-        passed, error = self.run_syntax_check(self.tts_service_file)
-        self.log_test(
-            "Syntax validation: tts-service.js",
-            passed,
-            f"Error: {error}" if not passed else "File syntax is valid"
-        )
+        """Test 1: Syntax validation using node -c"""
+        print("\n=== Test 1: Syntax Validation ===")
         
-        # Test _index.js syntax
-        passed, error = self.run_syntax_check(self.index_file)
-        self.log_test(
-            "Syntax validation: _index.js", 
-            passed,
-            f"Error: {error}" if not passed else "File syntax is valid"
-        )
-    
-    def test_timeout_configuration(self):
-        """Test 3: TTS_TIMEOUT_MS = 90000 (was 30000)"""
-        content = self.read_file_content(self.tts_service_file)
-        if content is None:
-            self.log_test("TTS_TIMEOUT_MS configuration", False, "Could not read tts-service.js")
-            return
-        
-        # Look for TTS_TIMEOUT_MS = 90000
-        timeout_match = re.search(r'const\s+TTS_TIMEOUT_MS\s*=\s*(\d+)', content)
-        if timeout_match:
-            timeout_value = int(timeout_match.group(1))
-            passed = timeout_value == 90000
-            self.log_test(
-                "TTS_TIMEOUT_MS = 90000",
-                passed,
-                f"Found TTS_TIMEOUT_MS = {timeout_value}, expected 90000"
-            )
-        else:
-            self.log_test("TTS_TIMEOUT_MS = 90000", False, "TTS_TIMEOUT_MS constant not found")
-    
-    def test_max_retries_configuration(self):
-        """Test 4: TTS_MAX_RETRIES = 1"""
-        content = self.read_file_content(self.tts_service_file)
-        if content is None:
-            self.log_test("TTS_MAX_RETRIES configuration", False, "Could not read tts-service.js")
-            return
-        
-        # Look for TTS_MAX_RETRIES = 1
-        retries_match = re.search(r'const\s+TTS_MAX_RETRIES\s*=\s*(\d+)', content)
-        if retries_match:
-            retries_value = int(retries_match.group(1))
-            passed = retries_value == 1
-            self.log_test(
-                "TTS_MAX_RETRIES = 1",
-                passed,
-                f"Found TTS_MAX_RETRIES = {retries_value}, expected 1"
-            )
-        else:
-            self.log_test("TTS_MAX_RETRIES = 1", False, "TTS_MAX_RETRIES constant not found")
-    
-    def test_call_eden_ai_function(self):
-        """Test 5: _callEdenAI() function exists and uses TTS_TIMEOUT_MS"""
-        content = self.read_file_content(self.tts_service_file)
-        if content is None:
-            self.log_test("_callEdenAI function", False, "Could not read tts-service.js")
-            return
-        
-        # Check if _callEdenAI function exists
-        function_match = re.search(r'async\s+function\s+_callEdenAI\s*\(', content)
-        if not function_match:
-            self.log_test("_callEdenAI function exists", False, "_callEdenAI function not found")
-            return
-        
-        # Check if it uses TTS_TIMEOUT_MS
-        timeout_usage = re.search(r'timeout:\s*TTS_TIMEOUT_MS', content)
-        passed = timeout_usage is not None
-        self.log_test(
-            "_callEdenAI uses TTS_TIMEOUT_MS",
-            passed,
-            "Function uses TTS_TIMEOUT_MS for axios timeout" if passed else "TTS_TIMEOUT_MS not used in timeout"
-        )
-    
-    def test_call_eden_ai_with_retry_function(self):
-        """Test 6: _callEdenAIWithRetry() function exists with retry loop and 3s delay"""
-        content = self.read_file_content(self.tts_service_file)
-        if content is None:
-            self.log_test("_callEdenAIWithRetry function", False, "Could not read tts-service.js")
-            return
-        
-        # Check if _callEdenAIWithRetry function exists
-        function_match = re.search(r'async\s+function\s+_callEdenAIWithRetry\s*\(', content)
-        if not function_match:
-            self.log_test("_callEdenAIWithRetry function exists", False, "_callEdenAIWithRetry function not found")
-            return
-        
-        # Check for retry loop
-        retry_loop = re.search(r'for\s*\(\s*let\s+attempt\s*=\s*0;\s*attempt\s*<=\s*TTS_MAX_RETRIES', content)
-        retry_loop_passed = retry_loop is not None
-        
-        # Check for 3s delay (TTS_RETRY_DELAY_MS = 3000)
-        delay_match = re.search(r'TTS_RETRY_DELAY_MS\s*=\s*3000', content)
-        delay_usage = re.search(r'setTimeout\(r,\s*TTS_RETRY_DELAY_MS\)', content)
-        delay_passed = delay_match is not None and delay_usage is not None
-        
-        self.log_test(
-            "_callEdenAIWithRetry has retry loop",
-            retry_loop_passed,
-            "Found retry loop with TTS_MAX_RETRIES" if retry_loop_passed else "Retry loop not found"
-        )
-        
-        self.log_test(
-            "_callEdenAIWithRetry has 3s delay",
-            delay_passed,
-            "Found TTS_RETRY_DELAY_MS = 3000 and setTimeout usage" if delay_passed else "3s delay mechanism not found"
-        )
-    
-    def test_transient_error_detection(self):
-        """Test 7: isTransientError() detects specific error patterns"""
-        content = self.read_file_content(self.tts_service_file)
-        if content is None:
-            self.log_test("isTransientError function", False, "Could not read tts-service.js")
-            return
-        
-        # Check if isTransientError function exists
-        function_match = re.search(r'function\s+isTransientError\s*\(', content)
-        if not function_match:
-            self.log_test("isTransientError function exists", False, "isTransientError function not found")
-            return
-        
-        # Check for specific error patterns
-        required_patterns = [
-            'stream has been aborted',
-            'socket hang up',
-            'econnreset',
-            'etimedout'
+        files_to_check = [
+            "/app/js/_index.js",
+            "/app/js/vm-instance-setup.js"
         ]
         
-        found_patterns = []
-        for pattern in required_patterns:
-            if pattern in content:
-                found_patterns.append(pattern)
-        
-        passed = len(found_patterns) == len(required_patterns)
-        self.log_test(
-            "isTransientError detects required patterns",
-            passed,
-            f"Found {len(found_patterns)}/{len(required_patterns)} patterns: {found_patterns}"
-        )
-    
-    def test_provider_fallback_mapping(self):
-        """Test 8: PROVIDER_FALLBACK map has openai→elevenlabs and elevenlabs→openai entries"""
-        content = self.read_file_content(self.tts_service_file)
-        if content is None:
-            self.log_test("PROVIDER_FALLBACK mapping", False, "Could not read tts-service.js")
-            return
-        
-        # Look for the exact PROVIDER_FALLBACK structure
-        openai_mapping = "openai: { provider: 'elevenlabs', voiceKey: 'rachel'" in content
-        elevenlabs_mapping = "elevenlabs: { provider: 'openai', voiceKey: 'alloy'" in content
-        
-        self.log_test(
-            "PROVIDER_FALLBACK openai→elevenlabs",
-            openai_mapping,
-            "Found openai → elevenlabs Rachel mapping" if openai_mapping else "openai fallback mapping not found"
-        )
-        
-        self.log_test(
-            "PROVIDER_FALLBACK elevenlabs→openai",
-            elevenlabs_mapping,
-            "Found elevenlabs → openai Alloy mapping" if elevenlabs_mapping else "elevenlabs fallback mapping not found"
-        )
-    
-    def test_generate_tts_return_fields(self):
-        """Test 9: generateTTS() returns fallbackUsed and fallbackProvider fields"""
-        content = self.read_file_content(self.tts_service_file)
-        if content is None:
-            self.log_test("generateTTS return fields", False, "Could not read tts-service.js")
-            return
-        
-        # Look for generateTTS function
-        function_match = re.search(r'async\s+function\s+generateTTS\s*\(', content)
-        if not function_match:
-            self.log_test("generateTTS function exists", False, "generateTTS function not found")
-            return
-        
-        # Check for return statement with fallbackUsed and fallbackProvider
-        return_match = re.search(r'return\s*{[^}]*fallbackUsed[^}]*fallbackProvider[^}]*}', content, re.DOTALL)
-        if not return_match:
-            # Try alternative pattern
-            return_match = re.search(r'return\s*{[^}]*fallbackProvider[^}]*fallbackUsed[^}]*}', content, re.DOTALL)
-        
-        passed = return_match is not None
-        self.log_test(
-            "generateTTS returns fallbackUsed and fallbackProvider",
-            passed,
-            "Found return statement with both fields" if passed else "Return fields not found in generateTTS"
-        )
-    
-    def test_index_error_handlers(self):
-        """Test 10 & 11: Error handlers in _index.js contain 'Try selecting ElevenLabs' tip"""
-        content = self.read_file_content(self.index_file)
-        if content is None:
-            self.log_test("_index.js error handlers", False, "Could not read _index.js")
-            return
-        
-        # Look for IVR-OB error handler (around line 13279)
-        ivr_ob_pattern = re.search(r'Try selecting.*ElevenLabs.*voice provider.*more reliable', content, re.DOTALL | re.IGNORECASE)
-        ivr_ob_passed = ivr_ob_pattern is not None
-        
-        # Count occurrences to verify both IVR-OB and BulkTTS have the tip
-        elevenlabs_tips = len(re.findall(r'Try selecting.*ElevenLabs', content, re.IGNORECASE))
-        both_handlers_passed = elevenlabs_tips >= 2
-        
-        self.log_test(
-            "IVR-OB error handler has ElevenLabs tip",
-            ivr_ob_passed,
-            "Found 'Try selecting ElevenLabs' tip in error handler" if ivr_ob_passed else "ElevenLabs tip not found"
-        )
-        
-        self.log_test(
-            "Both error handlers have ElevenLabs tips",
-            both_handlers_passed,
-            f"Found {elevenlabs_tips} ElevenLabs tips (expected ≥2)" if both_handlers_passed else f"Only found {elevenlabs_tips} ElevenLabs tips"
-        )
-    
-    def test_success_path_fallback_notices(self):
-        """Test 12 & 13: Success paths check result.fallbackUsed and show notice"""
-        content = self.read_file_content(self.index_file)
-        if content is None:
-            self.log_test("Success path fallback notices", False, "Could not read _index.js")
-            return
-        
-        # Look for fallbackUsed checks in success paths
-        fallback_checks = re.findall(r'result\.fallbackUsed', content)
-        
-        # Look for fallbackNote patterns (more flexible)
-        fallback_note_patterns = re.findall(r'const\s+fallbackNote\s*=\s*result\.fallbackUsed', content)
-        
-        # Should find at least 2 instances (IVR-OB and BulkTTS)
-        checks_passed = len(fallback_checks) >= 2
-        notices_passed = len(fallback_note_patterns) >= 2
-        
-        self.log_test(
-            "Success paths check result.fallbackUsed",
-            checks_passed,
-            f"Found {len(fallback_checks)} fallbackUsed checks (expected ≥2)"
-        )
-        
-        self.log_test(
-            "Success paths show fallback notices",
-            notices_passed,
-            f"Found {len(fallback_note_patterns)} fallback notice patterns (expected ≥2)"
-        )
-    
-    def test_health_endpoint(self):
-        """Test 14: Health endpoint still working (Note: Node.js server runs on Railway production)"""
-        # Since the Node.js server is not running locally (as stated in review request),
-        # we'll just verify the health endpoint structure exists in the code
-        content = self.read_file_content(self.index_file)
-        if content is None:
-            self.log_test("Health endpoint code exists", False, "Could not read _index.js")
-            return
-        
-        # Look for health endpoint definition
-        health_endpoint = re.search(r'\.get\s*\(\s*[\'\"]/health[\'\"]\s*,', content)
-        passed = health_endpoint is not None
-        
-        self.log_test(
-            "Health endpoint code exists",
-            passed,
-            "Found /health endpoint definition in code" if passed else "Health endpoint not found in code"
-        )
-        
-        # Note about production deployment
-        self.log_test(
-            "Production deployment note",
-            True,
-            "Node.js server runs on Railway production (not locally in container)"
-        )
-    
-    def test_nodejs_error_log(self):
-        """Test 15: Node.js error log is clean (Note: Errors shown are from FastAPI backend trying to connect to Node.js)"""
-        try:
-            # Check if nodejs.err.log exists and get its size
-            error_log_paths = [
-                "/var/log/supervisor/backend.err.log",
-                "/app/nodejs.err.log",
-                "/tmp/nodejs.err.log"
-            ]
-            
-            log_found = False
-            for log_path in error_log_paths:
-                if os.path.exists(log_path):
-                    log_found = True
-                    stat = os.stat(log_path)
-                    size = stat.st_size
-                    
-                    # Since Node.js server is not running locally, we expect connection errors
-                    # from FastAPI backend. This is normal for this environment.
-                    passed = True  # Accept any log size since Node.js isn't running locally
-                    self.log_test(
-                        f"Node.js error log check ({log_path})",
-                        passed,
-                        f"Log size: {size} bytes (FastAPI connection errors expected - Node.js runs on Railway)"
-                    )
-                    break
-            
-            if not log_found:
-                # If no error log found, that's actually good
-                self.log_test(
-                    "Node.js error log clean",
-                    True,
-                    "No error log file found (clean startup)"
+        for file_path in files_to_check:
+            try:
+                result = subprocess.run(
+                    ["node", "-c", file_path],
+                    capture_output=True,
+                    text=True,
+                    timeout=30
                 )
                 
+                if result.returncode == 0:
+                    self.log_result(f"Syntax check {os.path.basename(file_path)}", True, "No syntax errors")
+                else:
+                    self.log_result(f"Syntax check {os.path.basename(file_path)}", False, 
+                                  f"Syntax errors: {result.stderr}", is_critical=True)
+                    
+            except subprocess.TimeoutExpired:
+                self.log_result(f"Syntax check {os.path.basename(file_path)}", False, 
+                              "Timeout during syntax check", is_critical=True)
+            except Exception as e:
+                self.log_result(f"Syntax check {os.path.basename(file_path)}", False, 
+                              f"Error: {str(e)}", is_critical=True)
+    
+    def test_health_check(self):
+        """Test 2: Health check and error log verification"""
+        print("\n=== Test 2: Health Check ===")
+        
+        # Health endpoint check
+        try:
+            response = requests.get(f"{self.base_url}/health", timeout=10)
+            if response.status_code == 200:
+                health_data = response.json()
+                if health_data.get('status') == 'healthy':
+                    self.log_result("Health endpoint", True, f"Status: {health_data.get('status')}")
+                else:
+                    self.log_result("Health endpoint", False, 
+                                  f"Unhealthy status: {health_data}", is_critical=True)
+            else:
+                self.log_result("Health endpoint", False, 
+                              f"HTTP {response.status_code}: {response.text}", is_critical=True)
         except Exception as e:
-            self.log_test("Node.js error log check", False, f"Error checking log: {str(e)}")
+            self.log_result("Health endpoint", False, f"Connection error: {str(e)}", is_critical=True)
+        
+        # Error log check
+        try:
+            error_log_path = "/var/log/supervisor/nodejs.err.log"
+            if os.path.exists(error_log_path):
+                file_size = os.path.getsize(error_log_path)
+                if file_size == 0:
+                    self.log_result("Error log check", True, "0-byte error log (clean)")
+                else:
+                    # Read last few lines to see what errors exist
+                    with open(error_log_path, 'r') as f:
+                        lines = f.readlines()
+                        recent_errors = ''.join(lines[-5:]) if lines else "No content"
+                    self.log_result("Error log check", False, 
+                                  f"Error log has {file_size} bytes. Recent: {recent_errors[:200]}...", 
+                                  is_critical=False)
+            else:
+                self.log_result("Error log check", False, "Error log file not found", is_critical=False)
+        except Exception as e:
+            self.log_result("Error log check", False, f"Error reading log: {str(e)}", is_critical=False)
+    
+    def test_scheduler_structure(self):
+        """Test 3: Verify scheduler structure in checkVPSPlansExpiryandPayment"""
+        print("\n=== Test 3: Scheduler Structure ===")
+        
+        try:
+            with open("/app/js/_index.js", 'r') as f:
+                content = f.read()
+            
+            # Check for the main function
+            if "async function checkVPSPlansExpiryandPayment()" in content:
+                self.log_result("checkVPSPlansExpiryandPayment function exists", True, "Function found")
+            else:
+                self.log_result("checkVPSPlansExpiryandPayment function exists", False, 
+                              "Main scheduler function not found", is_critical=True)
+                return
+            
+            # Phase 1: dueForRenewal
+            phase1_query = "'end_time': { $lte: oneDayFromNow, $gt: now }"
+            phase1_status = "'status': { $in: ['RUNNING', 'running'] }"
+            phase1_attempted = "'_autoRenewAttempted': { $ne: true }"
+            
+            if all(pattern in content for pattern in [phase1_query, phase1_status, phase1_attempted]):
+                self.log_result("Phase 1 (dueForRenewal) query", True, 
+                              "Correct query: end_time <= oneDayFromNow AND > now AND status RUNNING AND _autoRenewAttempted != true")
+            else:
+                self.log_result("Phase 1 (dueForRenewal) query", False, 
+                              "Phase 1 query structure incorrect", is_critical=True)
+            
+            # Phase 2: pastDeadline
+            phase2_query = "'end_time': { $lte: now }"
+            phase2_status = "'status': 'PENDING_CANCELLATION'"
+            
+            if phase2_query in content and phase2_status in content:
+                self.log_result("Phase 2 (pastDeadline) query", True, 
+                              "Correct query: end_time <= now AND status = PENDING_CANCELLATION")
+            else:
+                self.log_result("Phase 2 (pastDeadline) query", False, 
+                              "Phase 2 query structure incorrect", is_critical=True)
+            
+            # Phase 3: staleExpired
+            phase3_query = "'end_time': { $lte: now }"
+            phase3_status = "'status': { $in: ['RUNNING', 'running'] }"
+            phase3_attempted = "'_autoRenewAttempted': { $ne: true }"
+            
+            if all(pattern in content for pattern in [phase3_query, phase3_status, phase3_attempted]):
+                self.log_result("Phase 3 (staleExpired) query", True, 
+                              "Correct query: end_time <= now AND status RUNNING AND _autoRenewAttempted != true")
+            else:
+                self.log_result("Phase 3 (staleExpired) query", False, 
+                              "Phase 3 query structure incorrect", is_critical=True)
+            
+            # Phase 4: soonExpiring
+            phase4_query = "'end_time': { $lte: threeDaysFromNow, $gt: oneDayFromNow }"
+            phase4_status = "'status': { $in: ['RUNNING', 'running'] }"
+            
+            if phase4_query in content and phase4_status in content:
+                self.log_result("Phase 4 (soonExpiring) query", True, 
+                              "Correct query: end_time <= threeDaysFromNow AND > oneDayFromNow AND status RUNNING")
+            else:
+                self.log_result("Phase 4 (soonExpiring) query", False, 
+                              "Phase 4 query structure incorrect", is_critical=True)
+                
+        except Exception as e:
+            self.log_result("Scheduler structure analysis", False, f"Error reading file: {str(e)}", is_critical=True)
+    
+    def test_smart_wallet_deduct_usage(self):
+        """Test 4: Verify smartWalletDeduct usage in Phase 1 and Phase 3"""
+        print("\n=== Test 4: smartWalletDeduct Usage ===")
+        
+        try:
+            with open("/app/js/_index.js", 'r') as f:
+                content = f.read()
+            
+            # Check import
+            if "smartWalletDeduct" in content and "smartWalletDeduct," in content:
+                self.log_result("smartWalletDeduct import", True, "Function imported correctly")
+            else:
+                self.log_result("smartWalletDeduct import", False, 
+                              "smartWalletDeduct not imported", is_critical=True)
+            
+            # Count usage in Phase 1 and Phase 3
+            smart_wallet_calls = content.count("await smartWalletDeduct(walletOf, chatId, Number(planPrice))")
+            
+            if smart_wallet_calls >= 2:
+                self.log_result("smartWalletDeduct usage", True, 
+                              f"Found {smart_wallet_calls} calls to smartWalletDeduct with correct parameters")
+            else:
+                self.log_result("smartWalletDeduct usage", False, 
+                              f"Only found {smart_wallet_calls} calls, expected at least 2 (Phase 1 and Phase 3)", 
+                              is_critical=True)
+            
+            # Check that old pattern is NOT used
+            old_pattern_count = content.count("getBalance") + content.count("atomicIncrement")
+            if old_pattern_count == 0:
+                self.log_result("Old wallet pattern removed", True, "No old getBalance + atomicIncrement pattern found")
+            else:
+                # This might be acceptable if used elsewhere, so mark as minor
+                self.log_result("Old wallet pattern check", False, 
+                              f"Found {old_pattern_count} instances of old pattern (may be used elsewhere)", 
+                              is_critical=False)
+                
+        except Exception as e:
+            self.log_result("smartWalletDeduct analysis", False, f"Error: {str(e)}", is_critical=True)
+    
+    def test_contabo_deletion(self):
+        """Test 5: Verify Contabo deletion in Phase 2"""
+        print("\n=== Test 5: Contabo Deletion ===")
+        
+        try:
+            with open("/app/js/_index.js", 'r') as f:
+                content = f.read()
+            
+            # Check deleteVPSinstance call
+            if "await deleteVPSinstance(chatId, vpsId)" in content:
+                self.log_result("deleteVPSinstance call", True, "Function called correctly in Phase 2")
+            else:
+                self.log_result("deleteVPSinstance call", False, 
+                              "deleteVPSinstance not called in Phase 2", is_critical=True)
+            
+            # Check status update to CANCELLED
+            if "status: 'CANCELLED'" in content and "cancelledAt: new Date()" in content:
+                self.log_result("CANCELLED status update", True, 
+                              "Status updated to CANCELLED with timestamp on successful deletion")
+            else:
+                self.log_result("CANCELLED status update", False, 
+                              "Status not properly updated to CANCELLED", is_critical=True)
+            
+            # Check admin notification for successful deletion
+            if "VPS Auto-Deleted" in content and "TELEGRAM_ADMIN_CHAT_ID" in content:
+                self.log_result("Admin deletion notification", True, 
+                              "Admin notified of successful VPS deletion")
+            else:
+                self.log_result("Admin deletion notification", False, 
+                              "Admin not notified of VPS deletion", is_critical=True)
+                
+        except Exception as e:
+            self.log_result("Contabo deletion analysis", False, f"Error: {str(e)}", is_critical=True)
+    
+    def test_pending_cancellation_status(self):
+        """Test 6: Verify PENDING_CANCELLATION status usage"""
+        print("\n=== Test 6: PENDING_CANCELLATION Status ===")
+        
+        try:
+            with open("/app/js/_index.js", 'r') as f:
+                content = f.read()
+            
+            # Count PENDING_CANCELLATION usage
+            pending_count = content.count("'PENDING_CANCELLATION'")
+            
+            if pending_count >= 3:
+                self.log_result("PENDING_CANCELLATION usage", True, 
+                              f"Found {pending_count} uses of PENDING_CANCELLATION status")
+            else:
+                self.log_result("PENDING_CANCELLATION usage", False, 
+                              f"Only found {pending_count} uses, expected at least 3", is_critical=True)
+            
+            # Check specific scenarios
+            scenarios = [
+                ("Phase 1 failure", "Both USD and NGN failed"),
+                ("Phase 1 auto-renew disabled", "Auto-renew disabled"),
+                ("Phase 3 failure", "Failed or auto-renew off")
+            ]
+            
+            for scenario_name, search_text in scenarios:
+                if search_text in content:
+                    self.log_result(f"PENDING_CANCELLATION - {scenario_name}", True, 
+                                  f"Scenario handled: {scenario_name}")
+                else:
+                    self.log_result(f"PENDING_CANCELLATION - {scenario_name}", False, 
+                                  f"Scenario not found: {scenario_name}", is_critical=False)
+                    
+        except Exception as e:
+            self.log_result("PENDING_CANCELLATION analysis", False, f"Error: {str(e)}", is_critical=True)
+    
+    def test_renew_vps_plan_function(self):
+        """Test 7: Verify renewVPSPlan function resets flags"""
+        print("\n=== Test 7: renewVPSPlan Function ===")
+        
+        try:
+            with open("/app/js/vm-instance-setup.js", 'r') as f:
+                content = f.read()
+            
+            # Check function exists
+            if "async function renewVPSPlan(" in content:
+                self.log_result("renewVPSPlan function exists", True, "Function found in vm-instance-setup.js")
+            else:
+                self.log_result("renewVPSPlan function exists", False, 
+                              "renewVPSPlan function not found", is_critical=True)
+                return
+            
+            # Check flag resets
+            required_resets = [
+                "_autoRenewAttempted: false",
+                "_reminder3DaySent: false", 
+                "_reminder1DaySent: false",
+                "status: 'RUNNING'"
+            ]
+            
+            all_resets_found = True
+            for reset in required_resets:
+                if reset in content:
+                    self.log_result(f"Flag reset: {reset}", True, "Reset found")
+                else:
+                    self.log_result(f"Flag reset: {reset}", False, f"Reset not found: {reset}", is_critical=True)
+                    all_resets_found = False
+            
+            if all_resets_found:
+                self.log_result("All flag resets", True, "All required flags are reset in renewVPSPlan")
+            else:
+                self.log_result("All flag resets", False, "Some flag resets missing", is_critical=True)
+                
+        except Exception as e:
+            self.log_result("renewVPSPlan analysis", False, f"Error: {str(e)}", is_critical=True)
+    
+    def test_three_day_reminder(self):
+        """Test 8: Verify 3-day reminder includes planPrice and wallet balance"""
+        print("\n=== Test 8: 3-Day Reminder ===")
+        
+        try:
+            with open("/app/js/_index.js", 'r') as f:
+                content = f.read()
+            
+            # Check 3-day reminder logic
+            if "daysLeft > 2.5 && daysLeft <= 3.1" in content:
+                self.log_result("3-day reminder timing", True, "Correct timing logic for 3-day reminder")
+            else:
+                self.log_result("3-day reminder timing", False, 
+                              "3-day reminder timing logic not found", is_critical=True)
+            
+            # Check wallet balance retrieval
+            if "const { usdBal, ngnBal } = await getBalance(walletOf, chatId)" in content:
+                self.log_result("Wallet balance in reminder", True, "Wallet balance retrieved for reminder")
+            else:
+                self.log_result("Wallet balance in reminder", False, 
+                              "Wallet balance not retrieved in reminder", is_critical=True)
+            
+            # Check planPrice in message
+            if "Required: <b>$${planPrice}/mo</b>" in content:
+                self.log_result("planPrice in reminder", True, "planPrice included in reminder message")
+            else:
+                self.log_result("planPrice in reminder", False, 
+                              "planPrice not included in reminder message", is_critical=True)
+            
+            # Check balance display
+            if "Balance: $${usdBal.toFixed(2)} / ₦${ngnBal.toFixed(2)}" in content:
+                self.log_result("Balance display in reminder", True, "Both USD and NGN balance shown")
+            else:
+                self.log_result("Balance display in reminder", False, 
+                              "Balance not properly displayed in reminder", is_critical=True)
+                
+        except Exception as e:
+            self.log_result("3-day reminder analysis", False, f"Error: {str(e)}", is_critical=True)
+    
+    def test_admin_notifications(self):
+        """Test 9: Verify admin notifications for various scenarios"""
+        print("\n=== Test 9: Admin Notifications ===")
+        
+        try:
+            with open("/app/js/_index.js", 'r') as f:
+                content = f.read()
+            
+            # Check TELEGRAM_ADMIN_CHAT_ID usage
+            admin_notifications = content.count("send(TELEGRAM_ADMIN_CHAT_ID")
+            
+            if admin_notifications >= 3:
+                self.log_result("Admin notification count", True, 
+                              f"Found {admin_notifications} admin notifications")
+            else:
+                self.log_result("Admin notification count", False, 
+                              f"Only found {admin_notifications} admin notifications, expected at least 3", 
+                              is_critical=True)
+            
+            # Check specific notification scenarios
+            notification_scenarios = [
+                ("Phase 1 renewal failure", "VPS Renewal Failed"),
+                ("Phase 2 successful deletion", "VPS Auto-Deleted"),
+                ("Phase 2 deletion failure", "VPS DELETE FAILED")
+            ]
+            
+            for scenario_name, search_text in notification_scenarios:
+                if search_text in content:
+                    self.log_result(f"Admin notification - {scenario_name}", True, 
+                                  f"Notification found: {search_text}")
+                else:
+                    self.log_result(f"Admin notification - {scenario_name}", False, 
+                                  f"Notification not found: {search_text}", is_critical=True)
+            
+            # Check manual deletion warning
+            if "Manual deletion required" in content:
+                self.log_result("Manual deletion warning", True, 
+                              "Warning about manual deletion included")
+            else:
+                self.log_result("Manual deletion warning", False, 
+                              "Manual deletion warning not found", is_critical=False)
+                
+        except Exception as e:
+            self.log_result("Admin notifications analysis", False, f"Error: {str(e)}", is_critical=True)
     
     def run_all_tests(self):
-        """Run all TTS reliability tests"""
-        print("🧪 Starting TTS Reliability Fix Tests...")
-        print("=" * 60)
+        """Run all tests"""
+        print("🔍 VPS Auto-Renewal System Testing Suite")
+        print("=" * 50)
         
-        # Run all test methods
         self.test_syntax_validation()
-        self.test_timeout_configuration()
-        self.test_max_retries_configuration()
-        self.test_call_eden_ai_function()
-        self.test_call_eden_ai_with_retry_function()
-        self.test_transient_error_detection()
-        self.test_provider_fallback_mapping()
-        self.test_generate_tts_return_fields()
-        self.test_index_error_handlers()
-        self.test_success_path_fallback_notices()
-        self.test_health_endpoint()
-        self.test_nodejs_error_log()
+        self.test_health_check()
+        self.test_scheduler_structure()
+        self.test_smart_wallet_deduct_usage()
+        self.test_contabo_deletion()
+        self.test_pending_cancellation_status()
+        self.test_renew_vps_plan_function()
+        self.test_three_day_reminder()
+        self.test_admin_notifications()
         
         # Summary
-        print("\n" + "=" * 60)
+        print("\n" + "=" * 50)
         print("📊 TEST SUMMARY")
-        print("=" * 60)
+        print("=" * 50)
         
-        passed_tests = sum(1 for result in self.test_results if result['passed'])
         total_tests = len(self.test_results)
+        passed_tests = sum(1 for r in self.test_results if r['passed'])
+        failed_tests = total_tests - passed_tests
         
         print(f"Total Tests: {total_tests}")
         print(f"Passed: {passed_tests}")
-        print(f"Failed: {total_tests - passed_tests}")
+        print(f"Failed: {failed_tests}")
         print(f"Success Rate: {(passed_tests/total_tests)*100:.1f}%")
         
-        # List failed tests
-        failed_tests = [result for result in self.test_results if not result['passed']]
-        if failed_tests:
-            print(f"\n❌ FAILED TESTS ({len(failed_tests)}):")
-            for test in failed_tests:
-                print(f"  • {test['test']}")
-                if test['details']:
-                    print(f"    {test['details']}")
-        else:
-            print(f"\n🎉 ALL TESTS PASSED!")
+        if self.critical_issues:
+            print(f"\n❌ CRITICAL ISSUES ({len(self.critical_issues)}):")
+            for issue in self.critical_issues:
+                print(f"  • {issue}")
         
-        return passed_tests == total_tests
+        if self.minor_issues:
+            print(f"\n⚠️ MINOR ISSUES ({len(self.minor_issues)}):")
+            for issue in self.minor_issues:
+                print(f"  • {issue}")
+        
+        if not self.critical_issues and not self.minor_issues:
+            print("\n✅ ALL TESTS PASSED - VPS Auto-Renewal System is working correctly!")
+        
+        return {
+            'total': total_tests,
+            'passed': passed_tests,
+            'failed': failed_tests,
+            'critical_issues': self.critical_issues,
+            'minor_issues': self.minor_issues,
+            'success_rate': (passed_tests/total_tests)*100
+        }
 
 if __name__ == "__main__":
-    tester = TTSReliabilityTest()
-    success = tester.run_all_tests()
-    sys.exit(0 if success else 1)
+    tester = VPSAutoRenewalTester()
+    results = tester.run_all_tests()

@@ -1089,7 +1089,7 @@ async function renewVPSPlan(telegramId, subscriptionId) {
 
     await _vpsPlansOf.updateOne(
       { vpsId: String(subscriptionId) },
-      { $set: { end_time: newEnd, status: 'RUNNING' } }
+      { $set: { end_time: newEnd, status: 'RUNNING', _autoRenewAttempted: false, _reminder3DaySent: false, _reminder1DaySent: false } }
     )
 
     return {
