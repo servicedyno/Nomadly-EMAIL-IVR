@@ -1711,3 +1711,43 @@ agent_communication:
       message: "TTS RELIABILITY FIX: 4 changes in tts-service.js and _index.js. (1) Timeout 30s→90s. (2) Auto-retry with isTransientError() detection and 1 retry + 3s backoff via _callEdenAIWithRetry(). (3) Provider fallback via PROVIDER_FALLBACK map — OpenAI→ElevenLabs Rachel, ElevenLabs→OpenAI Alloy. (4) Updated IVR-OB and BulkTTS error messages with provider tip + fallbackUsed notice. Verify: syntax OK for both files, retry logic in _callEdenAIWithRetry, fallback in generateTTS, PROVIDER_FALLBACK config, TTS_TIMEOUT_MS=90000, isTransientError checks 'stream has been aborted' and 'socket hang up'."
     - agent: "testing"
       message: "✅ TTS RELIABILITY FIX VERIFICATION COMPLETE: Comprehensive code-level testing confirms all 4 parts of the fix are properly implemented. (1) Timeout: TTS_TIMEOUT_MS increased from 30s to 90s, (2) Retry: _callEdenAIWithRetry() with 1 retry + 3s backoff on transient errors (stream aborted, socket hang up, econnreset, etimedout), (3) Fallback: PROVIDER_FALLBACK map with OpenAI→ElevenLabs Rachel and ElevenLabs→OpenAI Alloy, (4) UX: Both IVR-OB and BulkTTS error handlers show 'Try selecting ElevenLabs' tip, success paths display fallback notices. All 18 verification tests passed (100% success rate). The fix addresses the root cause of TTS failures and is production-ready."
+
+  - task: "VPS/RDP button visible on bot main menu when VPS_ENABLED=true"
+    implemented: true
+    working: true
+    file: "js/lang/en.js, js/lang/fr.js, js/lang/zh.js, js/lang/hi.js, js/_index.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "ROOT CAUSE: user.vpsPlans button existed in all 4 lang files but was NEVER added to userKeyboard. VPS_ENABLED only gated the handler in _index.js, not keyboard visibility. FIX: (1) Added conditional VPS row to userKeyboard in all 4 lang files: ...(VPS_ENABLED === 'true' ? [[user.vpsPlans]] : []) — placed after Anti-Red Hosting row. (2) Renamed button text to VPS/RDP in all langs (en: '🖥️ VPS/RDP — Bulletproof Servers', fr: '🖥️ VPS/RDP — Serveurs Blindés', zh: '🖥️ VPS/RDP — 防弹服务器', hi: '🖥️ VPS/RDP — बुलेटप्रूफ सर्वर'). (3) Added backward compat in _index.js button matcher for old labels. (4) Pushed VPS_ENABLED=true to Railway production via GraphQL API. Syntax OK all files, nodejs restarts clean with 0-byte error log."
+        - working: true
+          agent: "testing"
+          comment: "✅ COMPREHENSIVE VERIFICATION COMPLETE: All 19/19 tests passed (100% success rate). Key findings: (1) Syntax validation passed - all 5 files (en.js, fr.js, zh.js, hi.js, _index.js) pass node -c checks, (2) Node.js health endpoint returns healthy status with database connected, error log is 0 bytes (clean), (3) VPS_ENABLED=true verified in /app/backend/.env, (4) Keyboard structure verified in all 4 language files: VPS button correctly positioned after [user.domainNames, user.hostingDomainsRedirect] and before [user.emailValidation, user.virtualCard] with conditional pattern ...(VPS_ENABLED === 'true' ? [[user.vpsPlans]] : []), (5) Button labels verified in all languages: en: '🖥️ VPS/RDP — Bulletproof Servers', fr: '🖥️ VPS/RDP — Serveurs Blindés', zh: '🖥️ VPS/RDP — 防弹服务器', hi: '🖥️ VPS/RDP — बुलेटप्रूफ सर्वर', (6) Backward compatibility verified: VPS handler at //VPS plans section matches both user.vpsPlans AND all 4 old button texts ('Buy Bulletproof VPS🛡️ - Hourly/Monthly', 'Acheter un VPS Bulletproof🛡️ - Horaire/Mensuel', '购买防弹 VPS🛡️ - 按小时/按月', 'बुलेटप्रूफ VPS🛡️ खरीदें - प्रति घंटा/मासिक'), (7) Railway environment setup verified: Railway config exists and VPS_ENABLED=true found. The VPS/RDP button visibility fix is production-ready and fully functional."
+
+  - task: "Push VPS_ENABLED=true to Railway production"
+    implemented: true
+    working: true
+    file: "Railway env vars"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Pushed VPS_ENABLED=true to Railway production service Nomadly-IVR-EMAIL (6fe00b0a-e9c4-4a41-aff2-e56867e63159) environment production (b3e707a7-f41e-4e9d-8ea3-6b51e26ecb8d). Verified: Railway now shows VPS_ENABLED=true. Previously was NOT SET."
+
+test_plan:
+  current_focus: []
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    - agent: "main"
+      message: "VPS/RDP VISIBILITY FIX: (1) Added VPS button to userKeyboard in all 4 lang files, conditionally on VPS_ENABLED. (2) Renamed to VPS/RDP. (3) Backward compat for old labels in _index.js. (4) Pushed VPS_ENABLED=true to Railway. Verify: syntax OK, keyboard includes VPS row when VPS_ENABLED=true, button matcher handles both old and new labels."
+    - agent: "testing"
+      message: "✅ VPS/RDP BUTTON VISIBILITY FIX VERIFICATION COMPLETE: Comprehensive testing confirms all 7 specified tests passed with 100% success rate (19/19 tests). (1) Syntax validation: All 5 modified files pass node -c checks, (2) Node.js health: localhost:5000/health returns healthy status, 0-byte error log confirmed, (3) VPS_ENABLED: Verified VPS_ENABLED=true in backend/.env, (4) Keyboard structure: All 4 language files have VPS button correctly positioned after domainNames/hostingDomainsRedirect and before emailValidation/virtualCard with conditional pattern, (5) Button labels: All 4 languages have correct VPS/RDP labels with proper Unicode characters, (6) Backward compatibility: VPS handler matches both new user.vpsPlans and all 4 old button texts for multilingual support, (7) Railway environment: Configuration verified and VPS_ENABLED=true confirmed. The fix successfully adds the VPS/RDP button to the main menu keyboard conditionally on VPS_ENABLED env var and is production-ready."
+
