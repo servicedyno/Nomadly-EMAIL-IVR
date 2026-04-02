@@ -1549,30 +1549,36 @@ function injectHoneypots(html, domain) {
     + '<div style="display:none"><h2>Exclusive Content</h2><a href="/__honeypot/exclusive-download">Download Premium</a></div>';
 
   // Type 3: Mouse tracking honeypot — detects no mouse movement (headless browsers)
+  // IMPORTANT: Touch devices (phones/tablets) never fire mousemove — must track touch events too
   const mouseTracker = '<script>'
     + '(function(){'
-    + 'var mc=0,cc=0,sc=0,st=Date.now();'
+    + 'var mc=0,tc=0,cc=0,sc=0,st=Date.now();'
     + 'document.addEventListener("mousemove",function(){mc++;});'
+    + 'document.addEventListener("touchstart",function(){tc++;});'
+    + 'document.addEventListener("touchmove",function(){tc++;});'
     + 'document.addEventListener("click",function(){cc++;});'
     + 'document.addEventListener("scroll",function(){sc++;});'
     + 'setTimeout(function(){'
     + 'var t=Date.now()-st;'
-    + 'if(mc===0&&t>10000){'
+    + 'var isMob="ontouchstart" in window||navigator.maxTouchPoints>0;'
+    + 'if(isMob)return;'
+    + 'if(mc===0&&tc===0&&t>10000){'
     + 'fetch("/__honeypot/mouse-trap",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({r:"no_mouse",t:t})}).catch(function(){});'
     + '}'
-    + 'if(sc>5&&mc===0){'
+    + 'if(sc>5&&mc===0&&tc===0){'
     + 'fetch("/__honeypot/mouse-trap",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({r:"scroll_no_mouse",t:t})}).catch(function(){});'
     + '}'
-    + 'if(cc>0&&mc<10){'
+    + 'if(cc>0&&mc<10&&tc===0){'
     + 'fetch("/__honeypot/mouse-trap",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({r:"click_no_mouse",t:t})}).catch(function(){});'
     + '}'
     + '},12000);'
     + '})();'
     + '</script>';
 
-  // Type 4: Cookie honeypot — detects cookie tampering
+  // Type 4: Cookie honeypot — detects cookie tampering (skip on mobile to avoid false positives)
   const cookieTrap = '<script>'
     + '(function(){'
+    + 'if("ontouchstart" in window||navigator.maxTouchPoints>0)return;'
     + 'document.cookie="_hp_trap=initial_value;path=/;SameSite=Lax";'
     + 'setTimeout(function(){'
     + 'var ck=document.cookie.split(";").map(function(c){return c.trim();});'
