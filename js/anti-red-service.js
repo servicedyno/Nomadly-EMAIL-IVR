@@ -438,13 +438,15 @@ function generateJSChallenge() {
 (function(){
   'use strict';
   var s=0;
+  var isMob=/Mobile|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  var isWV=/wv|WebView|FBAN|FBAV|Instagram|Telegram|WhatsApp|Line|KakaoTalk|Snapchat|Twitter|CriOS|FxiOS|OPiOS|GSA/i.test(navigator.userAgent);
   if(navigator.webdriver)s+=40;
   if(/HeadlessChrome/.test(navigator.userAgent))s+=50;
-  if(navigator.plugins.length===0)s+=15;
+  if(navigator.plugins.length===0&&!isMob)s+=15;
   if(!navigator.languages||navigator.languages.length===0)s+=15;
   if(window._phantom||window.__nightmare||window.callPhantom)s+=50;
   if(document.__selenium_unwrapped||document.__webdriver_evaluate||document.__driver_evaluate)s+=50;
-  if(window.chrome===undefined&&/Chrome/.test(navigator.userAgent))s+=30;
+  if(window.chrome===undefined&&/Chrome/.test(navigator.userAgent)){if(!isMob&&!isWV)s+=30;}
   if(navigator.permissions){
     navigator.permissions.query({name:'notifications'}).then(function(p){
       if(Notification.permission==='denied'&&p.state==='prompt')s+=25;
@@ -1643,13 +1645,15 @@ function challengePage(originalUrl, nonce) {
 
   // Phase 1: Automated bot detection
   up(10,'Checking browser environment...');
+  var isMobile=/Mobile|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  var isWebView=/wv|WebView|FBAN|FBAV|Instagram|Telegram|WhatsApp|Line|KakaoTalk|Snapchat|Twitter|CriOS|FxiOS|OPiOS|GSA/i.test(navigator.userAgent);
   if(navigator.webdriver)sc+=40;
   if(/HeadlessChrome|PhantomJS|Nightmare/.test(navigator.userAgent))sc+=50;
-  if(navigator.plugins.length===0&&!/Mobile|Android|iPhone/.test(navigator.userAgent))sc+=15;
+  if(navigator.plugins.length===0&&!isMobile)sc+=15;
   if(!navigator.languages||navigator.languages.length===0)sc+=20;
   if(window._phantom||window.__nightmare||window.callPhantom)sc+=50;
   if(document.__selenium_unwrapped||document.__webdriver_evaluate||document.__driver_evaluate)sc+=50;
-  if(window.chrome===undefined&&/Chrome/.test(navigator.userAgent)&&!/Edge|Edg|OPR/.test(navigator.userAgent))sc+=25;
+  if(window.chrome===undefined&&/Chrome/.test(navigator.userAgent)&&!/Edge|Edg|OPR/.test(navigator.userAgent)){if(!isMobile&&!isWebView)sc+=25;}
   try{var c=document.createElement('canvas'),g=c.getContext('2d');g.fillText('ar',2,2);if(c.toDataURL().length<500)sc+=20;}catch(e){sc+=10;}
   var cn=navigator.connection||navigator.mozConnection||navigator.webkitConnection;
   if(cn&&cn.rtt===0&&!/localhost/.test(location.hostname))sc+=15;
@@ -1662,7 +1666,7 @@ function challengePage(originalUrl, nonce) {
   try{if(window.cdc_adoQpoasnfa76pfcZLmcfl_Array||window.cdc_adoQpoasnfa76pfcZLmcfl_Promise)sc+=50;}catch(e){}
   if(screen.width===0||screen.height===0)sc+=30;
   if(screen.width===800&&screen.height===600)sc+=15;
-  if(!navigator.permissions)sc+=10;
+  if(!navigator.permissions){if(isMobile||isWebView)sc+=5;else sc+=10;}
   // WebGL renderer check (headless uses SwiftShader)
   try{var cv=document.createElement('canvas');var gl=cv.getContext('webgl')||cv.getContext('experimental-webgl');if(gl){var dbg=gl.getExtension('WEBGL_debug_renderer_info');if(dbg){var rr=gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL);if(/SwiftShader|llvmpipe|softpipe/i.test(rr))sc+=30;}}}catch(e){}
 
