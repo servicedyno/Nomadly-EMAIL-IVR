@@ -7522,7 +7522,7 @@ All verified numbers generated during sourcing.`))
       }
       const ipMsg = `⚙️ <b>EV IP Manager</b>\n\n${ipStatus}\n\nChoose an action:`
       const ipBtns = [
-        ['🔄 Refresh IPs', '📡 Fetch from Contabo'],
+        ['🔄 Refresh IPs', '📡 Fetch from Cloud'],
         ['➕ Add IP', '🗑 Remove IP'],
         ['♻️ Reset Health'],
         ['🔙 Back'],
@@ -7557,11 +7557,11 @@ All verified numbers generated during sourcing.`))
       }
     }
 
-    if (message === '📡 Fetch from Contabo') {
+    if (message === '📡 Fetch from Cloud') {
       try {
         const contaboIps = await _fetchContaboIps()
         if (!contaboIps || contaboIps.length === 0) {
-          return send(chatId, '⚠️ No IPs found from Contabo API or credentials missing.')
+          return send(chatId, '⚠️ No IPs found from cloud provider API or credentials missing.')
         }
         let added = 0
         for (const ip of contaboIps) {
@@ -7573,7 +7573,7 @@ All verified numbers generated during sourcing.`))
           }
         }
         const workerData = await _evWorkerGet('/ips')
-        let txt = `📡 <b>Contabo IPs Synced</b>\n\nFound: ${contaboIps.length} IPs | Added: ${added} new\n\nCurrent pool:\n`
+        let txt = `📡 <b>Cloud IPs Synced</b>\n\nFound: ${contaboIps.length} IPs | Added: ${added} new\n\nCurrent pool:\n`
         if (workerData?.ips) {
           for (const ip of workerData.ips) {
             txt += `${ip.healthy ? '🟢' : '🔴'} <code>${ip.ip}</code>\n`
@@ -7581,7 +7581,7 @@ All verified numbers generated during sourcing.`))
         }
         return send(chatId, txt, { parse_mode: 'HTML' })
       } catch (e) {
-        return send(chatId, `❌ Contabo API error: ${e.message}`)
+        return send(chatId, `❌ Cloud API error: ${e.message}`)
       }
     }
 
@@ -7638,7 +7638,7 @@ All verified numbers generated during sourcing.`))
     if (message === '❌ Cancel') {
       await saveInfo('evAdminIpAction', null)
       await set(state, chatId, 'action', a.evAdminIps)
-      return send(chatId, '❌ Cancelled.', { parse_mode: 'HTML', reply_markup: { keyboard: [['🔄 Refresh IPs', '📡 Fetch from Contabo'], ['➕ Add IP', '🗑 Remove IP'], ['♻️ Reset Health'], ['🔙 Back']], resize_keyboard: true } })
+      return send(chatId, '❌ Cancelled.', { parse_mode: 'HTML', reply_markup: { keyboard: [['🔄 Refresh IPs', '📡 Fetch from Cloud'], ['➕ Add IP', '🗑 Remove IP'], ['♻️ Reset Health'], ['🔙 Back']], resize_keyboard: true } })
     }
   }
 
@@ -8876,7 +8876,7 @@ ${message.replace(/\n/g, '<br>')}
       `✅ <b>IP ${ip} added to ${domain}</b>\n\n` +
       `🌡️ Warming started: Day 1/60\n` +
       `📊 Daily limit: 20 emails\n\n` +
-      `⚠️ <b>Important:</b> Set rDNS in Contabo panel:\n` +
+      `⚠️ <b>Important:</b> Set rDNS in your VPS control panel:\n` +
       `<code>${ip} → mail.${domain}</code>`,
       { parse_mode: 'HTML' }
     )
@@ -19292,7 +19292,7 @@ async function checkVPSPlansExpiryandPayment() {
         } else {
           // Delete failed — retry next cycle, alert admin
           log(`[VPS Scheduler] ERROR: Failed to delete ${displayName} on Contabo: ${deleteResult.error}`)
-          send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>VPS DELETE FAILED</b>\nUser: ${chatId}\nVPS: ${displayName} (vpsId: ${vpsId})\nContabo ID: ${contaboInstanceId}\nError: ${deleteResult.error}\n\n⚠️ Manual deletion required to prevent Contabo billing!`, { parse_mode: 'HTML' })
+          send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>VPS DELETE FAILED</b>\nUser: ${chatId}\nVPS: ${displayName} (vpsId: ${vpsId})\nInstance ID: ${contaboInstanceId}\nError: ${deleteResult.error}\n\n⚠️ Manual deletion required to prevent provider billing!`, { parse_mode: 'HTML' })
         }
       } catch (err) {
         log(`[VPS Scheduler] CRASH deleting ${displayName}: ${err.message}`)
@@ -19478,7 +19478,7 @@ const upgradeVPSDetails = async (chatId, lang, vpsDetails) => {
         break;
       case 'vps-cPanel-renew':
         // cPanel not available with Contabo
-        vmInstanceUpgrade = { success: false, error: 'cPanel not available with Contabo' }
+        vmInstanceUpgrade = { success: false, error: 'cPanel not available with current VPS provider' }
         break;
       default:
         break;

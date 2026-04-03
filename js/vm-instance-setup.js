@@ -637,7 +637,7 @@ async function createVPSInstance(telegramId, vpsDetails) {
 
     return { success: true, data: vpsData }
   } catch (err) {
-    const errorMessage = `Error creating Contabo instance: ${err.message || JSON.stringify(err)}`
+    const errorMessage = `Error creating VPS instance: ${err.message || JSON.stringify(err)}`
     console.error(errorMessage)
     return { error: errorMessage }
   }
@@ -1155,7 +1155,7 @@ async function renewVPSPlan(telegramId, subscriptionId) {
  * NEW: Not available in Contabo. Returns error.
  */
 async function renewVPSCPanel(telegramId, subscriptionId) {
-  return { error: 'cPanel renewal not available with Contabo' }
+  return { error: 'cPanel renewal not available with current VPS provider' }
 }
 
 // ─── Email ────────────────────────────────────────────────────────────────

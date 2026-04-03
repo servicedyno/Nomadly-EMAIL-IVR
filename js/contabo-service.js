@@ -58,7 +58,7 @@ async function getAccessToken() {
     return _tokenCache.token
   } catch (err) {
     console.error('[Contabo] Token fetch failed:', err?.response?.data || err.message)
-    throw new Error('Contabo authentication failed')
+    throw new Error('VPS provider authentication failed')
   }
 }
 
@@ -684,12 +684,12 @@ async function healthCheck() {
     const instances = await listInstances()
     return {
       ok: true,
-      message: 'Contabo API connected',
+      message: 'VPS API connected',
       instanceCount: instances.length,
       tokenValid: true
     }
   } catch (err) {
-    return { ok: false, message: err.message || 'Contabo API connection failed', tokenValid: false }
+    return { ok: false, message: err.message || 'VPS API connection failed', tokenValid: false }
   }
 }
 

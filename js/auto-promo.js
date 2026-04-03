@@ -127,7 +127,7 @@ const SERVICE_CONTEXT = {
     details: [
       'Linux VPS or Windows RDP — choose your OS',
       'Port 25 open by default — send emails without restrictions',
-      'DMCA-ignored offshore hosting on Contabo infrastructure',
+      'DMCA-ignored offshore hosting on premium cloud infrastructure',
       'Full root/admin access — install anything you need',
       'Plans from $20/month with SSD storage',
       'Instant provisioning — server ready in minutes',
