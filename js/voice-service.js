@@ -2402,8 +2402,12 @@ async function handleCallHangup(payload) {
   }
 
   // ── UNIFIED BILLING: plan minutes → overage at destination-based rate ──
-  const minutesBilled = duration > 0 ? Math.ceil(duration / 60) : 0
+  // Fix A: Outbound calls charged minimum 1 minute whether answered or not.
+  // This is standard SIP billing practice — initiating the call costs resources.
   const isForwarded = session.phase === 'forwarding' || session.phase === 'ivr_forward'
+  const minutesBilled = duration > 0
+    ? Math.ceil(duration / 60)
+    : (isOutbound ? 1 : 0) // Outbound: 1-min minimum even if unanswered. Inbound: no charge if missed.
 
   // Skip billing for Twilio bridge legs — Twilio handles billing via /twilio/voice-status
   const isTwilioBridge = session.phase === 'outbound_twilio_bridge'

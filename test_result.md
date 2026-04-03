@@ -1991,3 +1991,44 @@ agent_communication:
       message: "TWO FIXES: (1) Wallet cooldown key changed from shared fromClean to user-specific chatId. Verified by testing agent 8/8. (2) NEW: ANI override set to verified TELNYX_DEFAULT_ANI (+18775877003) at startup in _index.js. This prevents 'Unverified originating identity' on auto-routed SIP calls. Startup log shows successful ANI update. Test: (1) node -c /app/js/_index.js syntax. (2) Health endpoint. (3) Verify startup log contains 'ANI override' and '+18775877003'. (4) Verify the code sets ANI after migration using telnyxApi.updateAniOverride. (5) Verify TELNYX_DEFAULT_ANI fallback to botTelnyxNumbers[0]."
     - agent: "testing"
       message: "✅ SIP CONNECTION ANI OVERRIDE TESTING COMPLETE: All 7/7 tests passed (100% success rate). CRITICAL VERIFICATION CONFIRMED: (1) Code implementation verified - telnyxApi.updateAniOverride(sipConnId, defaultAni) call positioned correctly after migrateNumbersToCallControlApp at lines 1106-1123, (2) Fallback logic verified - defaultAni prefers TELNYX_DEFAULT_ANI then falls back to botTelnyxNumbers[0], sipConnId uses telnyxResources.sipConnectionId || process.env.TELNYX_SIP_CONNECTION_ID, (3) Telnyx service function verified - updateAniOverride exists with proper axios.patch to credential_connections endpoint and ani_override payload, (4) Startup logs verified - both required messages found: '[Telnyx] ANI override updated to +18775877003' and '[CloudPhone] SIP connection ANI override set to verified number: +18775877003', (5) Environment variables verified - TELNYX_DEFAULT_ANI='+18775877003' and TELNYX_SIP_CONNECTION_ID='2898118323872990714', (6) System health verified - syntax validation passed, health endpoint healthy, 0-byte error log. The SIP connection ANI override is working correctly and prevents STIR/SHAKEN failures on auto-routed calls. Production-ready implementation."
+
+backend:
+  - task: "Fix A: Outbound 1-Minute Minimum Charge (voice-service.js)"
+    implemented: true
+    working: true
+    file: "js/voice-service.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: Fix A implemented correctly in voice-service.js around lines 2405-2410. Found correct minutesBilled calculation: 'const minutesBilled = duration > 0 ? Math.ceil(duration / 60) : (isOutbound ? 1 : 0)'. This ensures outbound calls with 0 duration (unanswered) are billed 1 minute minimum, while inbound calls with 0 duration are NOT billed (correct for missed calls). Fix A comment present explaining the 1-minute minimum charge for outbound calls. Standard SIP billing practice implemented correctly."
+
+  - task: "Fix B: Twilio Bridge Direction Detection (_index.js)"
+    implemented: true
+    working: true
+    file: "js/_index.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: Fix B implemented correctly in _index.js /twilio/voice-status handler around line 23520. Found correct direction detection logic: 'const isOutboundCall = match.phoneNumber === From' for completed calls. Proper call type assignment: 'const callType = isOutboundCall ? Twilio_SIP_Outbound : Twilio_Inbound'. Outbound calls use 'Twilio_SIP_Outbound' (charges wallet directly), inbound calls use 'Twilio_Inbound' (uses plan minutes). Confirmed 'Twilio_SIP_Outbound' is present in OUTBOUND_CALL_TYPES array in voice-service.js line 454. Previously was ALWAYS 'Twilio_Inbound' even for outbound SIP calls - this bug is now fixed."
+
+  - task: "Fix C: Unanswered Outbound Billing (_index.js)"
+    implemented: true
+    working: true
+    file: "js/_index.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: Fix C implemented correctly in _index.js /twilio/voice-status handler for no-answer/busy/failed/canceled calls. Found proper direction detection: 'const isOutboundCall = match.phoneNumber === From'. For outbound unanswered calls: calls 'billCallMinutesUnified(chatId, match.phoneNumber, 1, destination, Twilio_SIP_Outbound)' with 1-minute minimum. User notification shows '💰 Charged: $X.XX (1 min minimum)'. Log message includes '[OUTBOUND — 1-min billed]' for outbound non-completed calls. Inbound missed calls are NOT charged (just notification). Fix C comment present explaining unanswered outbound billing. All scenarios properly handled."
+
+agent_communication:
+    - agent: "testing"
+      message: "✅ NOMADLY BILLING FIXES TESTING COMPLETE: All 5/5 tests passed (100% success rate). COMPREHENSIVE VERIFICATION: (1) Fix A - Outbound 1-Minute Minimum Charge: Verified minutesBilled calculation '(isOutbound ? 1 : 0)' in voice-service.js line 2410. Outbound calls with 0 duration billed 1 minute, inbound calls with 0 duration NOT billed (correct). (2) Fix B - Twilio Bridge Direction Detection: Verified direction detection 'match.phoneNumber === From' and call type assignment 'Twilio_SIP_Outbound' vs 'Twilio_Inbound' in _index.js line 23540. Twilio_SIP_Outbound confirmed in OUTBOUND_CALL_TYPES array. (3) Fix C - Unanswered Outbound Billing: Verified 1-minute minimum billing for unanswered outbound calls with proper user notifications and log messages. Inbound missed calls not charged. (4) System Health: Health endpoint healthy, database connected, error logs clean (0 bytes). (5) All fixes are production-ready and address the billing gaps correctly. Node.js on port 5000 proxied via FastAPI on port 8001 running smoothly."

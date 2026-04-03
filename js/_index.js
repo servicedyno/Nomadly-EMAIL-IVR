@@ -23536,8 +23536,11 @@ app.post('/twilio/voice-status', async (req, res) => {
         if (match) {
           const chatId = user._id
           const destination = match.phoneNumber === To ? From : To
+          // Fix B: Detect direction — if our number is From, it's outbound (SIP bridge)
+          const isOutboundCall = match.phoneNumber === From
+          const callType = isOutboundCall ? 'Twilio_SIP_Outbound' : 'Twilio_Inbound'
           try {
-            const billingInfo = await voiceService.billCallMinutesUnified(chatId, match.phoneNumber, minutes, destination, 'Twilio_Inbound')
+            const billingInfo = await voiceService.billCallMinutesUnified(chatId, match.phoneNumber, minutes, destination, callType)
             const remaining = billingInfo.limit > 0 ? Math.max(0, billingInfo.limit - billingInfo.used) : null
             const planLine = remaining !== null
               ? `📊 ${minutes} min · <b>${remaining}/${billingInfo.limit}</b> min remaining`
@@ -23545,7 +23548,10 @@ app.post('/twilio/voice-status', async (req, res) => {
             const overageLine = billingInfo.overageCharge > 0
               ? `\n💰 Overage: $${billingInfo.overageCharge.toFixed(2)} from wallet`
               : ''
-            bot?.sendMessage(chatId, `📞 <b>Call Ended</b>\n${planLine}${overageLine}`, { parse_mode: 'HTML' }).catch(() => {})
+            const outboundLine = billingInfo.rate > 0 && isOutboundCall
+              ? `\n💰 Charged: $${(minutes * billingInfo.rate).toFixed(2)} (${minutes} min × $${billingInfo.rate})`
+              : ''
+            bot?.sendMessage(chatId, `📞 <b>Call Ended</b>\n${planLine}${overageLine}${outboundLine}`, { parse_mode: 'HTML' }).catch(() => {})
           } catch (e) {
             log(`[Twilio] Unified billing error: ${e.message}`)
           }
@@ -23553,23 +23559,38 @@ app.post('/twilio/voice-status', async (req, res) => {
         }
       }
     } else if (CallStatus === 'no-answer' || CallStatus === 'busy' || CallStatus === 'failed' || CallStatus === 'canceled') {
-      // Safety net: notify user when call didn't connect
-      // (Primary no-answer handling is in /twilio/voice-dial-status, this catches edge cases)
-      const reason = CallStatus === 'no-answer' ? 'No answer'
-        : CallStatus === 'busy' ? 'Line busy'
-        : CallStatus === 'failed' ? 'Call failed'
-        : 'Cancelled'
-      log(`[Twilio] Call not completed: ${CallSid} — ${reason} (${From} → ${To})`)
-
-      // Try to find the owner and notify
+      // Fix C: Outbound calls (SIP bridge) charged 1-min minimum even if unanswered.
+      // Find owner, detect direction, and charge if outbound.
       const allUsers = await db.collection('phoneNumbersOf').find({}).toArray()
       for (const user of allUsers) {
         const numbers = user.val?.numbers || []
         const match = numbers.find(n => (n.phoneNumber === To || n.phoneNumber === From) && n.provider === 'twilio')
         if (match) {
           const chatId = user._id
+          const isOutboundCall = match.phoneNumber === From
           const destination = match.phoneNumber === To ? From : To
-          bot?.sendMessage(chatId, `❌ <b>Call Not Connected</b>\n📞 ${destination} — ${reason}`, { parse_mode: 'HTML' }).catch(() => {})
+          const reason = CallStatus === 'no-answer' ? 'No answer'
+            : CallStatus === 'busy' ? 'Line busy'
+            : CallStatus === 'failed' ? 'Call failed'
+            : 'Cancelled'
+
+          if (isOutboundCall) {
+            // Charge 1-minute minimum for outbound unanswered calls
+            try {
+              const billingInfo = await voiceService.billCallMinutesUnified(chatId, match.phoneNumber, 1, destination, 'Twilio_SIP_Outbound')
+              const chargeLine = billingInfo.rate > 0
+                ? `\n💰 Charged: $${billingInfo.rate.toFixed(2)} (1 min minimum)`
+                : ''
+              bot?.sendMessage(chatId, `❌ <b>Call Not Connected</b>\n📞 ${destination} — ${reason}${chargeLine}`, { parse_mode: 'HTML' }).catch(() => {})
+            } catch (e) {
+              log(`[Twilio] Outbound no-answer billing error: ${e.message}`)
+              bot?.sendMessage(chatId, `❌ <b>Call Not Connected</b>\n📞 ${destination} — ${reason}`, { parse_mode: 'HTML' }).catch(() => {})
+            }
+          } else {
+            // Inbound missed call — no charge, just notify
+            bot?.sendMessage(chatId, `❌ <b>Call Not Connected</b>\n📞 ${destination} — ${reason}`, { parse_mode: 'HTML' }).catch(() => {})
+          }
+          log(`[Twilio] Call not completed: ${CallSid} — ${reason} (${From} → ${To})${isOutboundCall ? ' [OUTBOUND — 1-min billed]' : ''}`)
           break
         }
       }

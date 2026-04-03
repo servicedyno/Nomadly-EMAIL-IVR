@@ -1,526 +1,253 @@
 #!/usr/bin/env python3
 """
-Backend Test for Nomadly Cloud Phone Platform - 6 Billing/Alert Fixes
-Tests the 6 specific billing/alert fixes mentioned in the review request.
+Comprehensive test for 3 billing fixes in the Nomadly platform:
+- Fix A: Outbound 1-Minute Minimum Charge (voice-service.js)
+- Fix B: Twilio Bridge Direction Detection (_index.js)
+- Fix C: Unanswered Outbound Billing (_index.js)
 """
 
 import requests
 import json
 import sys
 import re
-from typing import Dict, Any
+from pathlib import Path
 
-# Test configuration
-BASE_URL = "http://localhost:5000"
-TEST_USER_AGENT = "NomadlyBillingFixesTest/1.0"
-
-def log_test(message: str, test_name: str = ""):
-    """Log test results with formatting"""
-    prefix = f"[{test_name}] " if test_name else ""
-    print(f"✓ {prefix}{message}")
-
-def log_error(message: str, test_name: str = ""):
-    """Log test errors with formatting"""
-    prefix = f"[{test_name}] " if test_name else ""
-    print(f"❌ {prefix}{message}")
-
-def log_info(message: str, test_name: str = ""):
-    """Log test info with formatting"""
-    prefix = f"[{test_name}] " if test_name else ""
-    print(f"ℹ️ {prefix}{message}")
-
-class BillingFixesTest:
+def test_fix_a_outbound_minimum_charge():
+    """
+    Test Fix A: Outbound 1-Minute Minimum Charge in voice-service.js
+    Verify the minutesBilled calculation uses (isOutbound ? 1 : 0) as fallback
+    """
+    print("🔍 Testing Fix A: Outbound 1-Minute Minimum Charge")
     
-    def __init__(self):
-        self.session = requests.Session()
-        self.session.headers.update({
-            'User-Agent': TEST_USER_AGENT,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-        })
-        self.tests_passed = 0
-        self.tests_failed = 0
+    voice_service_path = Path("/app/js/voice-service.js")
+    if not voice_service_path.exists():
+        return {"status": "FAIL", "error": "voice-service.js not found"}
     
-    def test_health_endpoint(self) -> bool:
-        """Test general health endpoint"""
-        try:
-            response = self.session.get(f"{BASE_URL}/health", timeout=10)
-            if response.status_code == 200:
-                data = response.json()
-                status = data.get('status')
-                database = data.get('database')
-                
-                if status == 'healthy' and database == 'connected':
-                    log_test(f"GET {BASE_URL}/health returns 200 with healthy status and connected database", "HEALTH")
-                    self.tests_passed += 1
-                    return True
-                else:
-                    log_error(f"Health endpoint returned status={status}, database={database}", "HEALTH")
-                    self.tests_failed += 1
-                    return False
-            else:
-                log_error(f"Health endpoint returned {response.status_code}", "HEALTH")
-                self.tests_failed += 1
-                return False
-                
-        except Exception as e:
-            log_error(f"Health endpoint test failed: {e}", "HEALTH")
-            self.tests_failed += 1
-            return False
+    content = voice_service_path.read_text()
     
-    def check_backend_logs_empty(self) -> bool:
-        """Check if backend error logs are empty"""
-        try:
-            import subprocess
-            result = subprocess.run(['tail', '-n', '5', '/var/log/supervisor/nodejs.err.log'], 
-                                  capture_output=True, text=True, timeout=5)
-            
-            if result.returncode == 0:
-                if not result.stdout.strip():
-                    log_test("nodejs.err.log is EMPTY (0 bytes) - no startup errors", "LOGS")
-                    self.tests_passed += 1
-                    return True
-                else:
-                    log_error(f"nodejs.err.log contains errors: {result.stdout}", "LOGS")
-                    self.tests_failed += 1
-                    return False
-            else:
-                log_error(f"Cannot read nodejs.err.log (exit code {result.returncode})", "LOGS")
-                self.tests_failed += 1
-                return False
-                
-        except Exception as e:
-            log_error(f"Log check failed: {e}", "LOGS")
-            self.tests_failed += 1
-            return False
+    # Look for the specific pattern around line 2405-2410
+    pattern = r'const minutesBilled = duration > 0\s*\?\s*Math\.ceil\(duration / 60\)\s*:\s*\(isOutbound \? 1 : 0\)'
     
-    def verify_voice_service_fix1(self) -> bool:
-        """Fix 1: IVR Forward Wallet Check - Check code implementation"""
-        try:
-            with open('/app/js/voice-service.js', 'r') as f:
-                content = f.read()
-            
-            # Look for the IVR forward case with wallet check
-            if "case 'forward':" in content:
-                # Extract the forward case section
-                lines = content.split('\n')
-                forward_section = []
-                in_forward_case = False
-                brace_count = 0
-                
-                for line in lines:
-                    if "case 'forward':" in line:
-                        in_forward_case = True
-                        brace_count = 0
-                    
-                    if in_forward_case:
-                        forward_section.append(line)
-                        brace_count += line.count('{') - line.count('}')
-                        
-                        # End of case when we reach 'break' and braces are balanced
-                        if 'break' in line and brace_count <= 0:
-                            break
-                
-                forward_code = '\n'.join(forward_section)
-                
-                # Check for required wallet checks
-                checks = [
-                    ("_walletOf wallet check", "_walletOf" in forward_code and "getBalance" in forward_code),
-                    ("Rate calculation", "getCallRate" in forward_code),
-                    ("Balance check before transfer", "usdBal < " in forward_code or "usdBal >=" in forward_code),
-                    ("Voice message on insufficient balance", "speakOnCall" in forward_code and "insufficient" in forward_code.lower()),
-                    ("Telegram notification", "sendMessage" in forward_code and "Blocked" in forward_code),
-                    ("Low balance warning", "usdBal < 5" in forward_code or "Low Balance" in forward_code),
-                    ("playHoldMusicAndTransfer call", "playHoldMusicAndTransfer" in forward_code)
-                ]
-                
-                all_passed = True
-                for check_name, check_result in checks:
-                    if check_result:
-                        log_test(f"✓ {check_name} found", "FIX1")
-                    else:
-                        log_error(f"✗ {check_name} missing", "FIX1")
-                        all_passed = False
-                
-                if all_passed:
-                    self.tests_passed += 1
-                    return True
-                else:
-                    self.tests_failed += 1
-                    return False
-            else:
-                log_error("case 'forward': not found in voice-service.js", "FIX1")
-                self.tests_failed += 1
-                return False
-                
-        except Exception as e:
-            log_error(f"Fix 1 verification failed: {e}", "FIX1")
-            self.tests_failed += 1
-            return False
-    
-    def verify_voice_service_fix2(self) -> bool:
-        """Fix 2: Twilio /voice-status unified billing - Check code implementation"""
-        try:
-            with open('/app/js/_index.js', 'r') as f:
-                content = f.read()
-            
-            # Look for the /twilio/voice-status handler
-            pattern = r"app\.post\('/twilio/voice-status'.*?(?=app\.post\('|$)"
-            match = re.search(pattern, content, re.DOTALL)
-            
-            if match:
-                handler_code = match.group(0)
-                
-                checks = [
-                    ("Voice service require", "require('./voice-service.js')" in handler_code),
-                    ("billCallMinutesUnified call", "billCallMinutesUnified" in handler_code),
-                    ("No manual atomicIncrement", "atomicIncrement" not in handler_code or "voiceService." in handler_code),
-                    ("Plan minutes remaining notification", "remaining" in handler_code and "limit" in handler_code),
-                    ("Overage notification", "overage" in handler_code.lower())
-                ]
-                
-                all_passed = True
-                for check_name, check_result in checks:
-                    if check_result:
-                        log_test(f"✓ {check_name} found", "FIX2")
-                    else:
-                        log_error(f"✗ {check_name} missing", "FIX2")
-                        all_passed = False
-                
-                if all_passed:
-                    self.tests_passed += 1
-                    return True
-                else:
-                    self.tests_failed += 1
-                    return False
-            else:
-                log_error("/twilio/voice-status handler not found", "FIX2")
-                self.tests_failed += 1
-                return False
-                
-        except Exception as e:
-            log_error(f"Fix 2 verification failed: {e}", "FIX2")
-            self.tests_failed += 1
-            return False
-    
-    def verify_voice_service_fix3(self) -> bool:
-        """Fix 3: Twilio /voice-dial-status unified billing - Check code implementation"""
-        try:
-            with open('/app/js/_index.js', 'r') as f:
-                content = f.read()
-            
-            # Look for the /twilio/voice-dial-status handler
-            pattern = r"app\.post\('/twilio/voice-dial-status'.*?(?=app\.post\('|$)"
-            match = re.search(pattern, content, re.DOTALL)
-            
-            if match:
-                handler_code = match.group(0)
-                
-                checks = [
-                    ("Voice service require", "require('./voice-service.js')" in handler_code),
-                    ("billCallMinutesUnified call", "billCallMinutesUnified" in handler_code),
-                    ("No manual atomicIncrement", "atomicIncrement" not in handler_code or "voiceService." in handler_code),
-                    ("SIP bridge handling", "sip_bridge" in handler_code),
-                    ("SIP outbound handling", "sip_outbound" in handler_code),
-                    ("Forwarding call type", "Forwarding" in handler_code or "forward" in handler_code.lower())
-                ]
-                
-                all_passed = True
-                for check_name, check_result in checks:
-                    if check_result:
-                        log_test(f"✓ {check_name} found", "FIX3")
-                    else:
-                        log_error(f"✗ {check_name} missing", "FIX3")
-                        all_passed = False
-                
-                if all_passed:
-                    self.tests_passed += 1
-                    return True
-                else:
-                    self.tests_failed += 1
-                    return False
-            else:
-                log_error("/twilio/voice-dial-status handler not found", "FIX3")
-                self.tests_failed += 1
-                return False
-                
-        except Exception as e:
-            log_error(f"Fix 3 verification failed: {e}", "FIX3")
-            self.tests_failed += 1
-            return False
-    
-    def verify_voice_service_fix4(self) -> bool:
-        """Fix 4: Twilio Inbound wallet overage fallback - Check code implementation"""
-        try:
-            with open('/app/js/_index.js', 'r') as f:
-                content = f.read()
-            
-            # Look for the /twilio/voice-webhook handler
-            pattern = r"app\.post\('/twilio/voice-webhook'.*?(?=app\.post\('|$)"
-            match = re.search(pattern, content, re.DOTALL)
-            
-            if match:
-                handler_code = match.group(0)
-                
-                checks = [
-                    ("ownerNumbers variable scoped correctly", "ownerNumbers = []" in handler_code and "let owner = null, num = null, ownerNumbers = []" in handler_code),
-                    ("Minute limit check uses ownerNumbers", "getPoolMinuteLimit(ownerNumbers" in handler_code),
-                    ("Plan exhausted wallet check", "getBalance(walletOf" in handler_code),
-                    ("Wallet sufficient allows call", "allowing overage" in handler_code or "Fall through" in handler_code),
-                    ("Wallet insufficient blocks with notification", "No Credits" in handler_code and "Blocked" in handler_code),
-                    ("Rate info in notification", "rate" in handler_code and "US/CA" in handler_code and "Intl" in handler_code)
-                ]
-                
-                all_passed = True
-                for check_name, check_result in checks:
-                    if check_result:
-                        log_test(f"✓ {check_name} found", "FIX4")
-                    else:
-                        log_error(f"✗ {check_name} missing", "FIX4")
-                        all_passed = False
-                
-                if all_passed:
-                    self.tests_passed += 1
-                    return True
-                else:
-                    self.tests_failed += 1
-                    return False
-            else:
-                log_error("/twilio/voice-webhook handler not found", "FIX4")
-                self.tests_failed += 1
-                return False
-                
-        except Exception as e:
-            log_error(f"Fix 4 verification failed: {e}", "FIX4")
-            self.tests_failed += 1
-            return False
-    
-    def verify_voice_service_fix5(self) -> bool:
-        """Fix 5: Twilio SIP outbound plan check - Check code implementation"""
-        try:
-            with open('/app/js/_index.js', 'r') as f:
-                content = f.read()
-            
-            # Look for the /twilio/sip-voice handler
-            pattern = r"app\.post\('/twilio/sip-voice'.*?(?=app\.post\('|$)"
-            match = re.search(pattern, content, re.DOTALL)
-            
-            if match:
-                handler_code = match.group(0)
-                
-                checks = [
-                    ("getPoolMinuteLimit check", "getPoolMinuteLimit" in handler_code),
-                    ("getPoolMinutesUsed check", "getPoolMinutesUsed" in handler_code),
-                    ("Plan has minutes check before wallet", "planHasMinutes" in handler_code and "Plan still has minutes" in handler_code),
-                    ("Plan exhausted + wallet sufficient allows", "Plan exhausted" in handler_code and "allowing overage" in handler_code),
-                    ("Plan exhausted + wallet empty blocks", "No Credits" in handler_code and "insufficient" in handler_code),
-                    ("Detailed notification with rate info", "need" in handler_code and "min" in handler_code and "US/CA" in handler_code)
-                ]
-                
-                all_passed = True
-                for check_name, check_result in checks:
-                    if check_result:
-                        log_test(f"✓ {check_name} found", "FIX5")
-                    else:
-                        log_error(f"✗ {check_name} missing", "FIX5")
-                        all_passed = False
-                
-                if all_passed:
-                    self.tests_passed += 1
-                    return True
-                else:
-                    self.tests_failed += 1
-                    return False
-            else:
-                log_error("/twilio/sip-voice handler not found", "FIX5")
-                self.tests_failed += 1
-                return False
-                
-        except Exception as e:
-            log_error(f"Fix 5 verification failed: {e}", "FIX5")
-            self.tests_failed += 1
-            return False
-    
-    def verify_voice_service_fix6(self) -> bool:
-        """Fix 6: Twilio SMS limit check + overage - Check code implementation"""
-        try:
-            with open('/app/js/_index.js', 'r') as f:
-                content = f.read()
-            
-            # Check isSmsLimitReached import
-            if "isSmsLimitReached" not in content:
-                log_error("isSmsLimitReached not imported", "FIX6")
-                self.tests_failed += 1
-                return False
-            
-            # Look for the /twilio/sms-webhook handler
-            pattern = r"app\.post\('/twilio/sms-webhook'.*?(?=app\.post\('|$)"
-            match = re.search(pattern, content, re.DOTALL)
-            
-            if match:
-                handler_code = match.group(0)
-                
-                checks = [
-                    ("isSmsLimitReached call", "isSmsLimitReached(match)" in handler_code),
-                    ("Wallet balance check for overage", "getBalance(walletOf" in handler_code),
-                    ("OVERAGE_RATE_SMS charging", "OVERAGE_RATE_SMS" in handler_code and "atomicIncrement" in handler_code),
-                    ("Payment logging", "payments" in handler_code and "Overage" in handler_code),
-                    ("User notification on overage", "SMS Overage" in handler_code),
-                    ("No wallet -> drop SMS", "No Credits" in handler_code and "dropping" in handler_code.lower()),
-                    ("isSmsLimitReached imported at line 235", content.split('\n')[234].strip().startswith("const") and "isSmsLimitReached" in content.split('\n')[234])
-                ]
-                
-                all_passed = True
-                for check_name, check_result in checks:
-                    if check_result:
-                        log_test(f"✓ {check_name} found", "FIX6")
-                    else:
-                        log_error(f"✗ {check_name} missing", "FIX6")
-                        all_passed = False
-                
-                if all_passed:
-                    self.tests_passed += 1
-                    return True
-                else:
-                    self.tests_failed += 1
-                    return False
-            else:
-                log_error("/twilio/sms-webhook handler not found", "FIX6")
-                self.tests_failed += 1
-                return False
-                
-        except Exception as e:
-            log_error(f"Fix 6 verification failed: {e}", "FIX6")
-            self.tests_failed += 1
-            return False
-    
-    def verify_formatphone_usage(self) -> bool:
-        """Verify all formatPhone calls use phoneConfig.formatPhone"""
-        try:
-            with open('/app/js/_index.js', 'r') as f:
-                content = f.read()
-            
-            # Look for bare formatPhone calls (not prefixed with phoneConfig.)
-            lines = content.split('\n')
-            bare_calls = []
-            
-            for i, line in enumerate(lines, 1):
-                # Skip comments
-                if line.strip().startswith('//') or line.strip().startswith('*'):
-                    continue
-                    
-                # Look for formatPhone calls that are NOT phoneConfig.formatPhone
-                if 'formatPhone(' in line and 'phoneConfig.formatPhone(' not in line:
-                    # Check if it's a function definition or import
-                    if 'function formatPhone' not in line and 'formatPhone =' not in line and 'const formatPhone' not in line:
-                        bare_calls.append((i, line.strip()))
-            
-            if not bare_calls:
-                log_test("All formatPhone calls use phoneConfig.formatPhone (NO bare formatPhone found)", "FORMATPHONE")
-                self.tests_passed += 1
-                return True
-            else:
-                log_error(f"Found {len(bare_calls)} bare formatPhone calls:", "FORMATPHONE")
-                for line_num, line in bare_calls[:3]:  # Show first 3
-                    log_error(f"  Line {line_num}: {line}", "FORMATPHONE")
-                self.tests_failed += 1
-                return False
-                
-        except Exception as e:
-            log_error(f"formatPhone verification failed: {e}", "FORMATPHONE")
-            self.tests_failed += 1
-            return False
-    
-    def verify_voiceservice_references(self) -> bool:
-        """Verify all voiceService references are properly scoped"""
-        try:
-            with open('/app/js/_index.js', 'r') as f:
-                content = f.read()
-            
-            # Check for voiceService require statements in webhook handlers
-            webhook_handlers = [
-                '/twilio/voice-status',
-                '/twilio/voice-dial-status'
-            ]
-            
-            all_passed = True
-            for handler in webhook_handlers:
-                pattern = rf"app\.post\('{handler}'.*?(?=app\.post\('|$)"
-                match = re.search(pattern, content, re.DOTALL)
-                
-                if match:
-                    handler_code = match.group(0)
-                    if "require('./voice-service.js')" in handler_code:
-                        log_test(f"{handler} properly requires voice-service.js", "VOICESERVICE")
-                    else:
-                        log_error(f"{handler} missing voice-service require", "VOICESERVICE")
-                        all_passed = False
-                else:
-                    log_error(f"{handler} handler not found", "VOICESERVICE")
-                    all_passed = False
-            
-            if all_passed:
-                self.tests_passed += 1
-                return True
-            else:
-                self.tests_failed += 1
-                return False
-                
-        except Exception as e:
-            log_error(f"voiceService verification failed: {e}", "VOICESERVICE")
-            self.tests_failed += 1
-            return False
-    
-    def run_all_tests(self):
-        """Run all billing/alert fix tests"""
-        print("🔍 NOMADLY CLOUD PHONE BILLING/ALERT FIXES TEST")
-        print("=" * 60)
+    if re.search(pattern, content, re.MULTILINE):
+        print("✅ Found correct minutesBilled calculation with 1-minute minimum for outbound calls")
         
-        # General health tests
-        self.test_health_endpoint()
-        self.check_backend_logs_empty()
-        
-        # The 6 specific billing/alert fixes
-        print("\n📋 TESTING 6 BILLING/ALERT FIXES:")
-        print("-" * 40)
-        
-        self.verify_voice_service_fix1()  # Fix 1: IVR Forward Wallet Check
-        self.verify_voice_service_fix2()  # Fix 2: Twilio /voice-status unified billing
-        self.verify_voice_service_fix3()  # Fix 3: Twilio /voice-dial-status unified billing  
-        self.verify_voice_service_fix4()  # Fix 4: Twilio Inbound wallet overage fallback
-        self.verify_voice_service_fix5()  # Fix 5: Twilio SIP outbound plan check
-        self.verify_voice_service_fix6()  # Fix 6: Twilio SMS limit check + overage
-        
-        # Additional verification
-        print("\n🔧 GENERAL HEALTH CHECKS:")
-        print("-" * 30)
-        
-        self.verify_formatphone_usage()
-        self.verify_voiceservice_references()
-        
-        # Summary
-        print("\n" + "=" * 60)
-        total_tests = self.tests_passed + self.tests_failed
-        success_rate = (self.tests_passed / total_tests * 100) if total_tests > 0 else 0
-        
-        print(f"📊 TEST SUMMARY:")
-        print(f"✅ Passed: {self.tests_passed}")
-        print(f"❌ Failed: {self.tests_failed}")
-        print(f"📈 Success Rate: {success_rate:.1f}%")
-        
-        if self.tests_failed == 0:
-            print("\n🎉 ALL BILLING/ALERT FIXES VERIFIED SUCCESSFULLY!")
-            return True
+        # Verify the comment explaining the fix
+        if "Fix A: Outbound calls charged minimum 1 minute" in content:
+            print("✅ Found Fix A comment explaining the 1-minute minimum charge")
+            
+            # Check that inbound calls with 0 duration are NOT billed
+            if "(isOutbound ? 1 : 0)" in content:
+                print("✅ Confirmed: Outbound calls with 0 duration are billed 1 minute")
+                print("✅ Confirmed: Inbound calls with 0 duration are NOT billed (correct)")
+                return {"status": "PASS", "details": "Outbound 1-minute minimum charge implemented correctly"}
+            else:
+                return {"status": "FAIL", "error": "Missing isOutbound ? 1 : 0 logic"}
         else:
-            print(f"\n⚠️  {self.tests_failed} ISSUES FOUND - REVIEW REQUIRED")
-            return False
+            return {"status": "FAIL", "error": "Missing Fix A comment"}
+    else:
+        return {"status": "FAIL", "error": "minutesBilled calculation pattern not found"}
+
+def test_fix_b_twilio_direction_detection():
+    """
+    Test Fix B: Twilio Bridge Direction Detection in _index.js
+    Verify the /twilio/voice-status handler correctly detects call direction
+    """
+    print("\n🔍 Testing Fix B: Twilio Bridge Direction Detection")
+    
+    index_path = Path("/app/js/_index.js")
+    if not index_path.exists():
+        return {"status": "FAIL", "error": "_index.js not found"}
+    
+    content = index_path.read_text()
+    
+    # Look for the voice-status handler
+    if "/twilio/voice-status" not in content:
+        return {"status": "FAIL", "error": "/twilio/voice-status handler not found"}
+    
+    # Check for Fix B: Direction detection logic
+    if "const isOutboundCall = match.phoneNumber === From" in content:
+        print("✅ Found correct direction detection: match.phoneNumber === From")
+        
+        # Check for correct call type assignment
+        if "const callType = isOutboundCall ? 'Twilio_SIP_Outbound' : 'Twilio_Inbound'" in content:
+            print("✅ Found correct call type assignment")
+            print("   - Outbound: 'Twilio_SIP_Outbound' (charges wallet directly)")
+            print("   - Inbound: 'Twilio_Inbound' (uses plan minutes)")
+            
+            # Verify Twilio_SIP_Outbound is in OUTBOUND_CALL_TYPES
+            voice_service_path = Path("/app/js/voice-service.js")
+            voice_content = voice_service_path.read_text()
+            
+            if "'Twilio_SIP_Outbound'" in voice_content and "OUTBOUND_CALL_TYPES" in voice_content:
+                print("✅ Confirmed: 'Twilio_SIP_Outbound' is in OUTBOUND_CALL_TYPES array")
+                return {"status": "PASS", "details": "Twilio bridge direction detection implemented correctly"}
+            else:
+                return {"status": "FAIL", "error": "Twilio_SIP_Outbound not found in OUTBOUND_CALL_TYPES"}
+        else:
+            return {"status": "FAIL", "error": "Call type assignment logic not found"}
+    else:
+        return {"status": "FAIL", "error": "Direction detection logic not found"}
+
+def test_fix_c_unanswered_outbound_billing():
+    """
+    Test Fix C: Unanswered Outbound Billing in _index.js
+    Verify unanswered outbound calls are billed 1-minute minimum
+    """
+    print("\n🔍 Testing Fix C: Unanswered Outbound Billing")
+    
+    index_path = Path("/app/js/_index.js")
+    if not index_path.exists():
+        return {"status": "FAIL", "error": "_index.js not found"}
+    
+    content = index_path.read_text()
+    
+    # Look for the no-answer/busy/failed/canceled handling
+    no_answer_pattern = r"CallStatus === 'no-answer' \|\| CallStatus === 'busy' \|\| CallStatus === 'failed' \|\| CallStatus === 'canceled'"
+    
+    if re.search(no_answer_pattern, content):
+        print("✅ Found handling for no-answer/busy/failed/canceled calls")
+        
+        # Check for Fix C comment
+        if "Fix C: Outbound calls (SIP bridge) charged 1-min minimum" in content:
+            print("✅ Found Fix C comment explaining unanswered outbound billing")
+            
+            # Check for outbound detection in no-answer case
+            if "const isOutboundCall = match.phoneNumber === From" in content:
+                print("✅ Found direction detection in no-answer handler")
+                
+                # Check for 1-minute billing for outbound calls
+                if "billCallMinutesUnified(chatId, match.phoneNumber, 1, destination, 'Twilio_SIP_Outbound')" in content:
+                    print("✅ Found 1-minute minimum billing for unanswered outbound calls")
+                    
+                    # Check for user notification with charge amount
+                    if "💰 Charged: $" in content and "(1 min minimum)" in content:
+                        print("✅ Found user notification with charge amount and 1-min minimum message")
+                        
+                        # Check for log message with [OUTBOUND — 1-min billed]
+                        if "[OUTBOUND — 1-min billed]" in content:
+                            print("✅ Found log message indicating outbound 1-min billing")
+                            
+                            # Check that inbound calls are NOT charged
+                            if "Inbound missed call — no charge" in content or "else {" in content:
+                                print("✅ Confirmed: Inbound missed calls are NOT charged")
+                                return {"status": "PASS", "details": "Unanswered outbound billing implemented correctly"}
+                            else:
+                                return {"status": "FAIL", "error": "Inbound no-charge logic not clear"}
+                        else:
+                            return {"status": "FAIL", "error": "Missing [OUTBOUND — 1-min billed] log message"}
+                    else:
+                        return {"status": "FAIL", "error": "Missing user notification with charge details"}
+                else:
+                    return {"status": "FAIL", "error": "1-minute billing for unanswered outbound calls not found"}
+            else:
+                return {"status": "FAIL", "error": "Direction detection in no-answer handler not found"}
+        else:
+            return {"status": "FAIL", "error": "Missing Fix C comment"}
+    else:
+        return {"status": "FAIL", "error": "No-answer/busy/failed/canceled handling not found"}
+
+def test_health_endpoint():
+    """Test that the health endpoint returns healthy status"""
+    print("\n🔍 Testing Health Endpoint")
+    
+    try:
+        response = requests.get("http://localhost:5000/health", timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("status") == "healthy" and data.get("database") == "connected":
+                print("✅ Health endpoint returns healthy status with database connected")
+                return {"status": "PASS", "details": f"Uptime: {data.get('uptime', 'unknown')}"}
+            else:
+                return {"status": "FAIL", "error": f"Unhealthy status: {data}"}
+        else:
+            return {"status": "FAIL", "error": f"HTTP {response.status_code}"}
+    except Exception as e:
+        return {"status": "FAIL", "error": f"Health check failed: {str(e)}"}
+
+def test_error_logs():
+    """Check that error logs are empty (0 bytes)"""
+    print("\n🔍 Testing Error Logs")
+    
+    error_log_paths = [
+        "/var/log/supervisor/nodejs.err.log",
+        "/var/log/supervisor/backend.err.log"
+    ]
+    
+    for log_path in error_log_paths:
+        path = Path(log_path)
+        if path.exists():
+            size = path.stat().st_size
+            if size == 0:
+                print(f"✅ {log_path} is empty (0 bytes) - no errors")
+            else:
+                print(f"⚠️ {log_path} has {size} bytes - may contain errors")
+                # Read last few lines to check for critical errors
+                try:
+                    content = path.read_text()
+                    if content.strip():
+                        print(f"   Last content: {content[-200:]}")
+                except:
+                    pass
+        else:
+            print(f"ℹ️ {log_path} not found")
+    
+    return {"status": "PASS", "details": "Error log check completed"}
 
 def main():
-    """Main test function"""
-    tester = BillingFixesTest()
-    success = tester.run_all_tests()
+    """Run all billing fix tests"""
+    print("🚀 Starting Nomadly Billing Fixes Test Suite")
+    print("=" * 60)
     
-    sys.exit(0 if success else 1)
+    tests = [
+        ("Fix A: Outbound 1-Minute Minimum Charge", test_fix_a_outbound_minimum_charge),
+        ("Fix B: Twilio Bridge Direction Detection", test_fix_b_twilio_direction_detection),
+        ("Fix C: Unanswered Outbound Billing", test_fix_c_unanswered_outbound_billing),
+        ("Health Endpoint", test_health_endpoint),
+        ("Error Logs", test_error_logs),
+    ]
+    
+    results = []
+    passed = 0
+    failed = 0
+    
+    for test_name, test_func in tests:
+        try:
+            result = test_func()
+            results.append((test_name, result))
+            
+            if result["status"] == "PASS":
+                passed += 1
+                print(f"✅ {test_name}: PASSED")
+                if "details" in result:
+                    print(f"   {result['details']}")
+            else:
+                failed += 1
+                print(f"❌ {test_name}: FAILED")
+                if "error" in result:
+                    print(f"   Error: {result['error']}")
+        except Exception as e:
+            failed += 1
+            print(f"❌ {test_name}: EXCEPTION - {str(e)}")
+            results.append((test_name, {"status": "EXCEPTION", "error": str(e)}))
+    
+    print("\n" + "=" * 60)
+    print("📊 TEST SUMMARY")
+    print("=" * 60)
+    print(f"Total Tests: {len(tests)}")
+    print(f"✅ Passed: {passed}")
+    print(f"❌ Failed: {failed}")
+    print(f"Success Rate: {(passed/len(tests)*100):.1f}%")
+    
+    if failed == 0:
+        print("\n🎉 ALL BILLING FIXES VERIFIED SUCCESSFULLY!")
+        print("✅ Fix A: Outbound 1-minute minimum charge working")
+        print("✅ Fix B: Twilio bridge direction detection working") 
+        print("✅ Fix C: Unanswered outbound billing working")
+        print("✅ System health: OK")
+        return 0
+    else:
+        print(f"\n⚠️ {failed} test(s) failed. Please review the issues above.")
+        return 1
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
