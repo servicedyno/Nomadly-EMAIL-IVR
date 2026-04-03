@@ -1240,9 +1240,7 @@ const loadData = async () => {
 
   // Initialize Protection Enforcer — ensure all domains have anti-red worker protection
   const protectionEnforcer = require('./protection-enforcer')
-  protectionEnforcer.init(db, {
-    sendAdminAlert: (msg) => sendMessage(TELEGRAM_ADMIN_CHAT_ID, msg, { parse_mode: 'HTML' })
-  })
+  protectionEnforcer.init(db)
   protectionEnforcer.startScheduler()
   log('[ProtectionEnforcer] Initialized and scheduled')
 

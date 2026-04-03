@@ -35,13 +35,11 @@ const ENFORCE_INTERVAL_MS = parseInt(process.env.PROTECTION_ENFORCE_INTERVAL_HOU
 let db = null
 let enforceTimer = null
 let isRunning = false
-let _sendAdminAlert = null // Callback to send Telegram admin alerts (Fix #5)
 
 // ─── Initialize ──────────────────────────────────────────
 
-function init(mongoDb, opts = {}) {
+function init(mongoDb) {
   db = mongoDb
-  if (opts.sendAdminAlert) _sendAdminAlert = opts.sendAdminAlert
   log('[ProtectionEnforcer] Initialized')
 }
 
@@ -298,18 +296,20 @@ async function enforceSSLMode(domain, zoneId) {
 // ─── Origin Hardening (CT + Direct IP protection) ───────
 
 /**
- * Ensure a hosting domain has Authenticated Origin Pulls enabled
- * and a Cloudflare Origin CA certificate installed (no CT log exposure).
+ * Ensure a hosting domain has Authenticated Origin Pulls enabled.
+ * 
+ * Origin CA cert install on WHM has been REMOVED — Cloudflare handles all SSL
+ * (mode=full), so WHM's AutoSSL/self-signed certs are sufficient for CF→origin.
  *
  * @param {string} domain
  * @param {string} zoneId
- * @param {string|null} cpUser - cPanel username (for SSL installation)
+ * @param {string|null} cpUser - cPanel username (unused now, kept for API compat)
  */
 async function enforceOriginHardening(domain, zoneId, cpUser) {
   const actions = []
   const cfService = require('./cf-service')
 
-  // 1. Enable Authenticated Origin Pulls (blocks direct-IP and SNI scanning)
+  // Enable Authenticated Origin Pulls (blocks direct-IP and SNI scanning)
   try {
     const aopStatus = await cfService.getAuthenticatedOriginPullsStatus(zoneId)
     if (!aopStatus.enabled) {
@@ -322,79 +322,6 @@ async function enforceOriginHardening(domain, zoneId, cpUser) {
     }
   } catch (err) {
     actions.push(`AOP check error for ${domain}: ${err.message}`)
-  }
-
-  // 2. Check if Origin CA cert exists; if not, generate + install + exclude from AutoSSL
-  if (cpUser) {
-    try {
-      const whmService = require('./whm-service')
-      const sslCheck = await whmService.checkSSLCert(domain)
-
-      // Only act if current cert is self-signed or issued by Let's Encrypt (CT-exposed)
-      const needsOriginCA = sslCheck.selfSigned ||
-        (sslCheck.issuer && (
-          sslCheck.issuer.includes("Let's Encrypt") ||
-          sslCheck.issuer.includes('R3') ||
-          sslCheck.issuer.includes('R10') ||
-          sslCheck.issuer.includes('R11') ||
-          sslCheck.issuer.includes('E5') ||
-          sslCheck.issuer.includes('E6')
-        ))
-
-      if (needsOriginCA) {
-        // Generate Origin CA cert (covers domain + *.domain)
-        const certResult = await cfService.generateOriginCACert([domain, `*.${domain}`])
-        if (certResult.success) {
-          // Install on WHM
-          let installResult = await whmService.installDomainSSL(
-            cpUser, domain,
-            certResult.certificate,
-            certResult.privateKey,
-            '' // No CA bundle needed for Origin CA with Full mode
-          )
-
-          // Fix #5: WHM server clock may be out of sync — retry once after 30s for CERT_NOT_YET_VALID
-          if (!installResult.success && installResult.error && installResult.error.includes('CERT_NOT_YET_VALID')) {
-            actions.push(`⏰ WHM clock skew detected for ${domain} — scheduling retry in 60s`)
-            // Send admin alert about WHM clock skew (only once per enforcement run)
-            if (!this._clockSkewAlerted) {
-              try {
-                if (_sendAdminAlert) {
-                  _sendAdminAlert(`⚠️ <b>WHM Server Clock Skew</b>\n\nOrigin CA cert install failed for <b>${domain}</b> with CERT_NOT_YET_VALID.\n\nThe WHM server clock appears out of sync. Run on WHM server:\n<code>rdate -s rdate.cpanel.net</code>\nor\n<code>ntpclient -s -h pool.ntp.org</code>`)
-                }
-                this._clockSkewAlerted = true
-              } catch (_) {}
-            }
-            // Retry after delay
-            await new Promise(r => setTimeout(r, 60000))
-            installResult = await whmService.installDomainSSL(
-              cpUser, domain,
-              certResult.certificate,
-              certResult.privateKey,
-              ''
-            )
-          }
-
-          if (installResult.success) {
-            actions.push(`Origin CA installed for ${domain}`)
-
-            // Exclude from AutoSSL to prevent LE from overwriting
-            const excludeResult = await whmService.excludeDomainsFromAutoSSL(cpUser, [domain, `www.${domain}`])
-            if (excludeResult.success) {
-              actions.push(`AutoSSL excluded for ${domain}`)
-            } else {
-              actions.push(`AutoSSL exclude FAILED for ${domain}: ${excludeResult.error}`)
-            }
-          } else {
-            actions.push(`Origin CA install FAILED for ${domain}: ${installResult.error}`)
-          }
-        } else {
-          actions.push(`Origin CA gen FAILED for ${domain}: ${certResult.error}`)
-        }
-      }
-    } catch (err) {
-      actions.push(`Origin hardening SSL error for ${domain}: ${err.message}`)
-    }
   }
 
   return actions
@@ -489,8 +416,7 @@ async function runEnforcement() {
           log(`[ProtectionEnforcer] SSL enforcement error for ${domain}: ${sslErr.message}`)
         }
 
-        // Origin hardening: Authenticated Origin Pulls + Origin CA cert + AutoSSL exclusion
-        // This prevents: (a) direct-IP access, (b) SNI scanning, (c) CT log IP exposure
+        // Origin hardening: Authenticated Origin Pulls (blocks direct-IP and SNI scanning)
         try {
           const cpUser = entry.cpUser || null
           const hardenActions = await enforceOriginHardening(domain, zoneId, cpUser)

@@ -184,38 +184,13 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state)
           log(`[Hosting] CF DNS records for ${domain}: ${dnsResult.success ? 'all created' : 'some failed'} (proxied — SSL active immediately)`)
           dnsSetupSuccess = true // Mark DNS as successful
 
-          // ── Origin Hardening: Replace AutoSSL (Let's Encrypt) with CF Origin CA ──
-          // AutoSSL issues Let's Encrypt certs which get logged in Certificate Transparency (CT),
-          // exposing the origin server IP to scanners like Netcraft.
-          // CF Origin CA certs are NOT logged in CT and are trusted by CF for Full (Strict) SSL.
+          // ── SSL: Cloudflare handles all SSL (mode=full). AutoSSL on WHM is sufficient. ──
+          // No need to install Origin CA on WHM — Cloudflare terminates visitor SSL,
+          // and 'full' mode accepts self-signed/AutoSSL certs for CF→origin encryption.
           try {
-            const whmSvc = require('./whm-service')
-            const certResult = await cfService.generateOriginCACert([domain, `*.${domain}`])
-            if (certResult.success) {
-              const installResult = await whmSvc.installDomainSSL(result.username, domain, certResult.certificate, certResult.privateKey)
-              if (installResult.success) {
-                log(`[Hosting] Origin CA cert installed for ${domain} (CT-safe)`)
-                // Exclude from AutoSSL to prevent LE from overwriting our Origin CA cert
-                await whmSvc.excludeDomainsFromAutoSSL(result.username, [domain, `www.${domain}`])
-                log(`[Hosting] AutoSSL excluded for ${domain}`)
-              } else {
-                log(`[Hosting] Origin CA install failed for ${domain}: ${installResult.error} — falling back to AutoSSL`)
-                const sslRes = await whmSvc.startAutoSSL(result.username)
-                log(`[Hosting] AutoSSL fallback triggered for ${result.username}: ${sslRes.success ? 'started' : sslRes.error}`)
-              }
-            } else {
-              log(`[Hosting] Origin CA generation failed for ${domain}: ${certResult.error} — falling back to AutoSSL`)
-              const sslRes = await require('./whm-service').startAutoSSL(result.username)
-              log(`[Hosting] AutoSSL fallback triggered for ${result.username}: ${sslRes.success ? 'started' : sslRes.error}`)
-            }
-          } catch (sslErr) {
-            log(`[Hosting] Origin CA/SSL setup warning (non-blocking): ${sslErr.message}`)
-            // Fallback to AutoSSL
-            try {
-              const sslRes = await require('./whm-service').startAutoSSL(result.username)
-              log(`[Hosting] AutoSSL fallback triggered for ${result.username}: ${sslRes.success ? 'started' : sslRes.error}`)
-            } catch (_) {}
-          }
+            const sslRes = await require('./whm-service').startAutoSSL(result.username)
+            log(`[Hosting] AutoSSL triggered for ${result.username}: ${sslRes.success ? 'started' : sslRes.error}`)
+          } catch (_) {}
 
           // Enable Authenticated Origin Pulls — blocks direct-IP and SNI-based scanning
           try {
