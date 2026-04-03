@@ -170,6 +170,7 @@ const u = {
   // other key boards
   deposit: '➕💵 Deposit',
   withdraw: '➖💵 Withdraw',
+  txHistory: '📜 Transactions',
 
   // wallet
   usd: 'USD',

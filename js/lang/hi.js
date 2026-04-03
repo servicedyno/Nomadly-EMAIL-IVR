@@ -191,6 +191,7 @@ const u = {
   deposit: '➕💵 जमा',
   withdraw: '➖💵 वापस लें',
   myTier: '🏆 मेरा स्तर',
+  txHistory: '📜 लेनदेन',
 
   // wallet
   usd: 'USD',

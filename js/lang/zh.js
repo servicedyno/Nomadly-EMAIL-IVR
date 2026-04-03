@@ -191,6 +191,7 @@ const u = {
   deposit: '➕💵 存款',
   withdraw: '➖💵 撤回',
   myTier: '🏆 我的等级',
+  txHistory: '📜 交易记录',
 
   // wallet
   usd: '美元',

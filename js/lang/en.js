@@ -189,6 +189,7 @@ const u = {
   deposit: '➕💵 Deposit',
   withdraw: '➖💵 Withdraw',
   myTier: '🏆 My Tier',
+  txHistory: '📜 Transactions',
 
   // wallet
   usd: 'USD',

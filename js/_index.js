@@ -3811,7 +3811,158 @@ Enter new value:`), bc)
       // Show tier badge alongside wallet
       const tierInfo = await loyalty.getUserTier(walletOf, chatId)
       const tierLine = loyalty.formatWalletTierLine(tierInfo, info?.userLanguage || 'en')
-      send(chatId, t.wallet(usdBal, ngnBal) + tierLine, k.of([[u.deposit], [u.myTier], [t.back]]))
+      send(chatId, t.wallet(usdBal, ngnBal) + tierLine, k.of([[u.deposit], [u.txHistory], [u.myTier], [t.back]]))
+    },
+    // ── Transaction History ──
+    txHistory: async () => {
+      try {
+        send(chatId, '⏳ Loading transactions...')
+        const chatIdStr = String(chatId)
+        const allTx = await payments.find({ val: { $regex: chatIdStr } }).toArray()
+
+        // Parse and sort transactions
+        const parsed = []
+        for (const doc of allTx) {
+          const raw = doc.val || ''
+          const parts = raw.split(',')
+          if (parts.length < 4) continue
+          // Only include this user's records (chatId must match)
+          if (!raw.includes(chatIdStr)) continue
+
+          const method = (parts[0] || '').trim()    // Wallet, Bank, Crypto, Outbound, Overage, ConnectionFee, Free
+          const category = (parts[1] || '').trim()   // Plan, Domain, SIPOutbound, Wallet (deposit), etc.
+
+          // Extract $ amount
+          let amount = 0
+          let amountStr = ''
+          for (const p of parts) {
+            const m = p.trim().match(/^\$(\d+\.?\d*)/)
+            if (m) { amount = parseFloat(m[1]); amountStr = p.trim(); break }
+          }
+
+          // Extract date — find the part that looks like a date string
+          let dateObj = null
+          for (const p of parts) {
+            const trimmed = p.trim()
+            // Match ISO date, or JS Date string patterns
+            if (/^\d{4}-\d{2}/.test(trimmed) || /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s/.test(trimmed)) {
+              const d = new Date(trimmed)
+              if (!isNaN(d.getTime())) { dateObj = d; break }
+            }
+          }
+          if (!dateObj) {
+            // Try last resort — scan all parts for parseable dates
+            for (let i = parts.length - 1; i >= 3; i--) {
+              // Combine adjacent parts that might form a date (JS Date().toString() has commas in it)
+              const combined = parts.slice(i, Math.min(i + 3, parts.length)).join(',').trim()
+              const d = new Date(combined)
+              if (!isNaN(d.getTime()) && d.getFullYear() > 2020) { dateObj = d; break }
+            }
+          }
+
+          // Determine if credit or debit
+          let isCredit = false
+          if ((method === 'Bank' || method === 'Crypto') && category === 'Wallet') isCredit = true
+          if (method === 'Free') continue // skip free entries
+
+          // Build description
+          let desc = ''
+          let icon = '🔴'
+          if (isCredit) {
+            icon = '🟢'
+            desc = method === 'Bank' ? 'Deposit (Bank)' : 'Deposit (Crypto)'
+          } else {
+            // Map category to user-friendly label + icon
+            const catMap = {
+              'Plan': ['📱', 'Phone Plan'],
+              'Domain': ['🌐', 'Domain'],
+              'Hosting': ['🖥️', 'Hosting'],
+              'HostingRenew': ['🖥️', 'Hosting Renewal'],
+              'HostingUpgrade': ['🖥️', 'Hosting Upgrade'],
+              'VPSPlan': ['🖥️', 'VPS Plan'],
+              'VPSUpgrade': ['🖥️', 'VPS Upgrade'],
+              'VPSAutoRenew': ['🖥️', 'VPS Auto-Renew'],
+              'CloudPhone': ['☎️', 'Cloud Phone'],
+              'SIPOutbound': ['📞', method === 'ConnectionFee' ? 'Call Connect Fee' : 'Outbound Call'],
+              'Inbound': ['📞', 'Inbound Call'],
+              'Forwarding': ['📞', 'Call Forwarding'],
+              'Bridge_Transfer': ['📞', 'Call Bridge'],
+              'Twilio_Inbound': ['📞', 'Inbound Call'],
+              'CloudPhoneSMS': ['💬', 'SMS'],
+              'EmailBlast': ['📧', 'Email Blast'],
+              'Phone Leads': ['📱', 'Phone Leads'],
+              'Validate Leads': ['✅', 'Lead Validation'],
+              'DigitalProduct': ['🛒', 'Digital Product'],
+              'VirtualCard': ['💳', 'Virtual Card'],
+              'Bit.ly Link': ['🔗', 'URL Shortener'],
+            }
+            // Handle Bundle:xxx format
+            const catKey = category.startsWith('Bundle:') ? 'Bundle' : category
+            if (catKey === 'Bundle') {
+              icon = '🎁'
+              desc = 'Service Bundle'
+            } else if (catMap[catKey]) {
+              icon = catMap[catKey][0]
+              desc = catMap[catKey][1]
+            } else {
+              icon = '💸'
+              desc = category || method
+            }
+            // Add destination number for calls
+            if (['SIPOutbound', 'Inbound', 'Forwarding', 'Bridge_Transfer', 'Twilio_Inbound', 'CloudPhoneSMS'].includes(category)) {
+              for (const p of parts) {
+                const phonePart = p.trim()
+                if (/^\+\d{10,}$/.test(phonePart)) {
+                  desc += ` → ${phonePart.slice(0, 5)}...${phonePart.slice(-4)}`
+                  break
+                }
+              }
+            }
+            // Add domain for hosting/domain
+            if (['Domain', 'Hosting', 'HostingRenew', 'HostingUpgrade'].includes(category)) {
+              for (const p of parts) {
+                if (p.trim().includes('.') && !p.trim().startsWith('$') && !p.trim().match(/^\d/)) {
+                  desc += ` (${p.trim()})`
+                  break
+                }
+              }
+            }
+          }
+
+          parsed.push({ icon, isCredit, amount, amountStr, desc, dateObj, raw })
+        }
+
+        // Sort by date descending (newest first)
+        parsed.sort((a, b) => {
+          if (a.dateObj && b.dateObj) return b.dateObj - a.dateObj
+          return 0
+        })
+
+        // Take last 15
+        const recent = parsed.slice(0, 15)
+
+        if (recent.length === 0) {
+          return send(chatId, '📜 <b>Transaction History</b>\n\nNo transactions found yet. Make a deposit or purchase to see activity here.', { parse_mode: 'HTML' })
+        }
+
+        // Format output
+        const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
+        let msg = `📜 <b>Transaction History</b>\n\n💰 Current Balance: <b>$${usdBal.toFixed(2)}</b>${process.env.HIDE_BANK_PAYMENT !== 'true' ? ` / ₦${ngnBal.toFixed(2)}` : ''}\n${'─'.repeat(25)}\n\n`
+
+        for (const tx of recent) {
+          const sign = tx.isCredit ? '+' : '-'
+          const dateStr = tx.dateObj ? `${tx.dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''
+          const amountDisplay = tx.amount > 0 ? `$${tx.amount.toFixed(2)}` : tx.amountStr || '$0.00'
+          msg += `${tx.icon} ${sign}${amountDisplay} | ${tx.desc}${dateStr ? ` | ${dateStr}` : ''}\n`
+        }
+
+        msg += `\n${'─'.repeat(25)}\nShowing last ${recent.length} transaction${recent.length > 1 ? 's' : ''}`
+
+        send(chatId, msg, { parse_mode: 'HTML', ...k.of([[u.deposit], [t.back]]) })
+      } catch (e) {
+        log(`[TxHistory] Error for ${chatId}: ${e.message}`)
+        send(chatId, '⚠️ Unable to load transaction history. Please try again later.', k.of([[t.back]]))
+      }
     },
     //
     [a.selectCurrencyToDeposit]: () => {
@@ -12637,6 +12788,9 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     if (message === u.myTier || message === '🏆 My Tier') {
       const tierInfo = await loyalty.getUserTier(walletOf, chatId)
       return send(chatId, loyalty.formatTierStatus(tierInfo, info?.userLanguage || 'en'), k.of([[u.deposit], [t.back]]))
+    }
+    if (message === u.txHistory || message === '📜 Transactions' || message === '📜 交易记录' || message === '📜 लेनदेन') {
+      return goto.txHistory()
     }
     return send(chatId, t.what)
   }
