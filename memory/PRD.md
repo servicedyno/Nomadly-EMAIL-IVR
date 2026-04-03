@@ -1,5 +1,19 @@
 # PRD - Nomadly Platform
 
+## Architecture
+- React Frontend (port 3000)
+- FastAPI Backend (port 8001) - reverse proxy to Node.js
+- Node.js Express (port 5000) - core business logic
+- MongoDB (port 27017)
+
+## Recent Fixes (Railway Log Anomalies)
+1. **Fix 1**: Added notifyGroup() to all 4 hosting payment paths (Wallet, Bank NGN, BlockBee, DynoPay)
+2. **Fix 2**: Added displayMainMenuButtons to goto object (was called but never defined)
+3. **Fix 3**: Fixed SSH key PEM-to-OpenSSH conversion (proper SSH wire format)
+4. **Fix 4**: Added Contabo NVMe↔SSD product fallback for unavailable products
+5. **Fix 5**: Added WHM CERT_NOT_YET_VALID retry + admin alert for clock skew
+6. **Fix 6**: Added Contabo createSecret password validation guard
+
 ## Original Problem Statement
 Multi-service platform (Telegram bot + React frontend + Node.js backend) managing domains, hosting, URL shortening, wallet/payments, and Cloud Phone (SIP/IVR/voice).
 
