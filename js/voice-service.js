@@ -3,7 +3,7 @@
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const { log } = require('console')
 const { get, set, atomicIncrement } = require('./db.js')
-const { formatPhone, formatDuration, canAccessFeature, plans, OVERAGE_RATE_MIN, OVERAGE_RATE_SMS, CALL_FORWARDING_RATE_MIN } = require('./phone-config.js')
+const { formatPhone, formatDuration, canAccessFeature, plans, OVERAGE_RATE_MIN, OVERAGE_RATE_SMS, CALL_FORWARDING_RATE_MIN, CALL_CONNECTION_FEE } = require('./phone-config.js')
 const { getBalance, smartWalletDeduct, smartWalletCheck } = require('./utils.js')
 
 let _bot = null
@@ -376,7 +376,7 @@ function isUSCanada(phoneNumber) {
 
 /**
  * Get per-minute overage rate based on destination country
- * US/Canada (+1): OVERAGE_RATE_MIN ($0.04)
+ * US/Canada (+1): OVERAGE_RATE_MIN ($0.15)
  * International: CALL_FORWARDING_RATE_MIN ($0.50)
  */
 function getCallRate(destinationNumber) {
@@ -1574,9 +1574,10 @@ async function handleOutboundSipCall(payload) {
 
   // Wallet balance check — outbound calls charge directly from wallet (plan minutes are for inbound only)
   const sipRate = getCallRate(destination)
+  const minRequired = sipRate + CALL_CONNECTION_FEE  // Per-minute rate + connection fee
   if (_walletOf) {
     try {
-      const walletCheck = await smartWalletCheck(_walletOf, chatId, sipRate)
+      const walletCheck = await smartWalletCheck(_walletOf, chatId, minRequired)
 
       // ── LOW BALANCE LOCK ──
       // When USD balance drops below $1, lock outbound calling entirely.
@@ -1604,10 +1605,25 @@ async function handleOutboundSipCall(payload) {
         setWalletRejectCooldown(`chatId:${chatId}`, chatId)
         if (credentialExtracted) setWalletRejectCooldown(sipUsername, chatId) // Also cache by SIP username for early check
         await _telnyxApi.hangupCall(callControlId)
-        _bot?.sendMessage(chatId, `🚫 <b>SIP Call Blocked</b> — Wallet balance insufficient (need $${sipRate}/min ${isUSCanada(destination) ? 'US/CA' : 'Intl'}).\nUSD: $${walletCheck.usdBal.toFixed(2)} / NGN: ₦${walletCheck.ngnBal.toFixed(2)}\nOutbound calls are billed from wallet. Top up via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+        _bot?.sendMessage(chatId, `🚫 <b>SIP Call Blocked</b> — Wallet balance insufficient (need $${sipRate}/min + $${CALL_CONNECTION_FEE} connect fee ${isUSCanada(destination) ? 'US/CA' : 'Intl'}).\nUSD: $${walletCheck.usdBal.toFixed(2)} / NGN: ₦${walletCheck.ngnBal.toFixed(2)}\nOutbound calls are billed from wallet. Top up via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
         return
       }
     } catch (e) { log(`[Voice] Wallet check error: ${e.message}`) }
+  }
+
+  // ── CONNECTION FEE: Charge $CALL_CONNECTION_FEE per call attempt ──
+  if (CALL_CONNECTION_FEE > 0 && _walletOf) {
+    try {
+      const feeResult = await smartWalletDeduct(_walletOf, chatId, CALL_CONNECTION_FEE)
+      if (feeResult.success) {
+        const feeRef = _nanoid?.() || `connfee_${Date.now()}`
+        const feeStr = feeResult.currency === 'ngn' ? `₦${feeResult.chargedNgn}` : `$${CALL_CONNECTION_FEE.toFixed(2)}`
+        if (_payments) set(_payments, feeRef, `ConnectionFee,SIPOutbound,$${CALL_CONNECTION_FEE.toFixed(2)},${chatId},${num.phoneNumber},${destination},${new Date()}${feeResult.currency === 'ngn' ? `,${feeResult.chargedNgn} NGN` : ''}`)
+        log(`[Voice] Connection fee charged: ${feeStr} for ${num.phoneNumber} → ${destination}`)
+      } else {
+        log(`[Voice] Connection fee deduction failed (insufficient funds) — proceeding anyway`)
+      }
+    } catch (e) { log(`[Voice] Connection fee charge error: ${e.message}`) }
   }
 
   // ── TELNYX NUMBER: Route SIP call to PSTN via transfer command ──
@@ -1710,7 +1726,8 @@ async function handleOutboundSipCall(payload) {
         try {
           const { usdBal } = await getBalance(_walletOf, chatId)
           const estMinutes = Math.floor(usdBal / sipRate)
-          walletLine = `💳 Wallet: <b>$${usdBal.toFixed(2)}</b> (~${estMinutes} min at $${sipRate}/min ${isUSCanada(destination) ? 'US/CA' : 'Intl'})`
+          const connFeeNote = CALL_CONNECTION_FEE > 0 ? ` + $${CALL_CONNECTION_FEE} connect fee` : ''
+          walletLine = `💳 Wallet: <b>$${usdBal.toFixed(2)}</b> (~${estMinutes} min at $${sipRate}/min${connFeeNote} ${isUSCanada(destination) ? 'US/CA' : 'Intl'})`
         } catch (e) { /* ignore */ }
       }
       _bot?.sendMessage(chatId, `📞 <b>SIP Outbound Call</b>\nFrom: ${formatPhone(num.phoneNumber)}\nTo: ${formatPhone(destination)}\n${walletLine}`, { parse_mode: 'HTML' }).catch(() => {})
@@ -1853,8 +1870,9 @@ async function handleOutboundSipCall(payload) {
     if (_walletOf) {
       try {
         const { usdBal } = await getBalance(_walletOf, chatId)
-        const estMinutes = Math.floor(usdBal / RATE)
-        _bot?.sendMessage(chatId, `📞 <b>SIP Outbound Call</b>\nFrom: ${formatPhone(num.phoneNumber)}\nTo: ${formatPhone(destination)}\nRate: $${RATE}/min (~${estMinutes} min available)`, { parse_mode: 'HTML' }).catch(() => {})
+        const estMinutes = Math.floor(usdBal / sipRate)
+        const connFeeNote = CALL_CONNECTION_FEE > 0 ? ` + $${CALL_CONNECTION_FEE} connect fee` : ''
+        _bot?.sendMessage(chatId, `📞 <b>SIP Outbound Call</b>\nFrom: ${formatPhone(num.phoneNumber)}\nTo: ${formatPhone(destination)}\nRate: $${sipRate}/min${connFeeNote} (~${estMinutes} min available)`, { parse_mode: 'HTML' }).catch(() => {})
       } catch (e) { /* ignore */ }
     }
     return

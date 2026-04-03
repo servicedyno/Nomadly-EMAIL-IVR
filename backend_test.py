@@ -1,23 +1,35 @@
 #!/usr/bin/env python3
 """
-Backend Testing for Nomadly Platform - 4 New Fixes Verification
-Tests the 4 specific fixes mentioned in the review request:
-1. Fix 2: SIP Rate Limit Escalating Hard-Block (voice-service.js)
-2. Fix 3: Telnyx 90018 Error Suppression (telnyx-service.js)
-3. Fix 4: Weekly Plan Expiry Notification (hosting-scheduler.js)
-4. Fix 5: Aggressive Memory Cleanup (voice-service.js)
+Backend Test Suite for Option E Call Rate Pricing Changes
+Tests the Nomadly Telegram bot backend running on Node.js (port 5000) proxied through FastAPI (port 8001).
+
+WHAT TO VERIFY:
+1. Syntax validation: node -c on phone-config.js and voice-service.js
+2. Health endpoint: curl http://localhost:5000/health
+3. Error logs: /var/log/supervisor/nodejs.err.log should be 0 bytes
+4. OVERAGE_RATE_MIN is now 0.15 (not 0.04 or 0.03) in phone-config.js default fallback
+5. CALL_CONNECTION_FEE constant exists in phone-config.js at ~line 92 with default 0.03
+6. CALL_CONNECTION_FEE is exported from phone-config.js
+7. voice-service.js imports CALL_CONNECTION_FEE from phone-config.js (line 6)
+8. In handleOutboundSipCall: wallet check uses minRequired = sipRate + CALL_CONNECTION_FEE
+9. Connection fee charge block exists after wallet check with smartWalletDeduct, payment logging, and ConnectionFee label
+10. User notification messages include connection fee note ($0.03 connect fee)
+11. SIP Call Blocked message mentions connect fee
+12. Railway production env vars: both OVERAGE_RATE_MIN=0.15 and CALL_CONNECTION_FEE=0.03 confirmed
 """
 
+import subprocess
 import requests
-import json
-import time
-import re
 import os
-from typing import Dict, List, Any
+import re
+import json
+import sys
+from pathlib import Path
 
-# Backend URL from environment
-BACKEND_URL = os.getenv('REACT_APP_BACKEND_URL', 'http://localhost:5000')
-API_BASE = f"{BACKEND_URL}/api"
+# Configuration
+BACKEND_URL = "http://localhost:5000"  # Node.js backend
+HEALTH_ENDPOINT = f"{BACKEND_URL}/health"
+NODEJS_ERROR_LOG = "/var/log/supervisor/nodejs.err.log"
 
 class TestResults:
     def __init__(self):
@@ -25,11 +37,11 @@ class TestResults:
         self.failed = 0
         self.results = []
     
-    def add_result(self, test_name: str, passed: bool, details: str = ""):
+    def add_result(self, test_name, passed, details=""):
         self.results.append({
-            'test': test_name,
-            'passed': passed,
-            'details': details
+            "test": test_name,
+            "passed": passed,
+            "details": details
         })
         if passed:
             self.passed += 1
@@ -43,289 +55,352 @@ class TestResults:
         print(f"\n📊 Test Summary: {self.passed}/{total} passed ({self.failed} failed)")
         return self.failed == 0
 
-def read_file_content(file_path: str) -> str:
+def run_command(cmd, cwd=None):
+    """Run shell command and return result"""
+    try:
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, cwd=cwd, timeout=30)
+        return result.returncode == 0, result.stdout, result.stderr
+    except subprocess.TimeoutExpired:
+        return False, "", "Command timed out"
+    except Exception as e:
+        return False, "", str(e)
+
+def read_file(filepath):
     """Read file content safely"""
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(filepath, 'r', encoding='utf-8') as f:
             return f.read()
     except Exception as e:
-        return f"Error reading file: {e}"
+        return None
 
-def test_health_endpoint():
-    """Test basic health endpoint"""
-    results = TestResults()
+def test_syntax_validation(results):
+    """Test 1: Syntax validation on phone-config.js and voice-service.js"""
     
-    try:
-        response = requests.get(f"{BACKEND_URL}/health", timeout=10)
-        if response.status_code == 200:
-            data = response.json()
-            if data.get('status') == 'healthy':
-                results.add_result("Health endpoint responds correctly", True)
-            else:
-                results.add_result("Health endpoint responds correctly", False, f"Status: {data.get('status')}")
-        else:
-            results.add_result("Health endpoint responds correctly", False, f"HTTP {response.status_code}")
-    except Exception as e:
-        results.add_result("Health endpoint responds correctly", False, str(e))
-    
-    return results
-
-def test_fix2_sip_hard_block():
-    """Test Fix 2: SIP Rate Limit Escalating Hard-Block"""
-    results = TestResults()
-    
-    # Read voice-service.js file
-    voice_service_content = read_file_content('/app/js/voice-service.js')
-    
-    # Test 1: Check constants
-    hard_block_threshold_found = 'HARD_BLOCK_THRESHOLD = 5' in voice_service_content
-    hard_block_duration_found = 'HARD_BLOCK_DURATION = 600000' in voice_service_content
-    results.add_result("Hard-block constants defined correctly", 
-                      hard_block_threshold_found and hard_block_duration_found,
-                      f"Threshold: {hard_block_threshold_found}, Duration: {hard_block_duration_found}")
-    
-    # Test 2: Check sipHardBlock object exists
-    sip_hard_block_found = 'const sipHardBlock = {}' in voice_service_content
-    results.add_result("sipHardBlock object exists at module level", sip_hard_block_found)
-    
-    # Test 3: Check isSipHardBlocked function
-    is_hard_blocked_func = 'function isSipHardBlocked(key)' in voice_service_content
-    results.add_result("isSipHardBlocked function exists", is_hard_blocked_func)
-    
-    # Test 4: Check recordRateLimitHit function
-    record_hit_func = 'function recordRateLimitHit(key)' in voice_service_content
-    results.add_result("recordRateLimitHit function exists", record_hit_func)
-    
-    # Test 5: Check hard-block check in handleOutboundSipCall
-    # Look for the specific pattern where isSipHardBlocked is called before rate limit checks
-    hard_block_before_rate_limit = re.search(r'if \(isSipHardBlocked\(.*?\)\).*?return.*?if \(!checkSipRateLimit', voice_service_content, re.DOTALL)
-    results.add_result("Hard-block check happens before rate limits in handleOutboundSipCall", 
-                      hard_block_before_rate_limit is not None)
-    
-    # Test 6: Check cleanup in setInterval
-    cleanup_hard_block = 'sipHardBlock[key].blockedAt' in voice_service_content and 'HARD_BLOCK_DURATION' in voice_service_content
-    results.add_result("Hard-block entries cleaned up in periodic cleanup", cleanup_hard_block)
-    
-    # Test 7: Check recordRateLimitHit is called in global rate limit rejection
-    record_hit_called = 'recordRateLimitHit(' in voice_service_content
-    results.add_result("recordRateLimitHit called to escalate rate limits", record_hit_called)
-    
-    return results
-
-def test_fix3_telnyx_90018_suppression():
-    """Test Fix 3: Telnyx 90018 Error Suppression"""
-    results = TestResults()
-    
-    # Read telnyx-service.js file
-    telnyx_service_content = read_file_content('/app/js/telnyx-service.js')
-    
-    # Test 1: Check answerCall function for 90018 suppression
-    answer_call_match = re.search(r'async function answerCall\(.*?\{(.*?)^}', telnyx_service_content, re.DOTALL | re.MULTILINE)
-    if answer_call_match:
-        answer_func_content = answer_call_match.group(1)
-        has_90018_check = "'90018'" in answer_func_content or '"90018"' in answer_func_content
-        has_already_ended_check = 'already ended' in answer_func_content
-        has_not_found_check = 'not found' in answer_func_content
-        has_null_return = 'return null' in answer_func_content
-        
-        results.add_result("answerCall checks for 90018/already ended/not found errors", 
-                          has_90018_check and has_already_ended_check and has_not_found_check)
-        results.add_result("answerCall returns null for suppressed errors", has_null_return)
-    else:
-        results.add_result("answerCall checks for 90018/already ended/not found errors", False, "Function not found")
-        results.add_result("answerCall returns null for suppressed errors", False, "Function not found")
-    
-    # Test 2: Check hangupCall function for 90018 suppression
-    hangup_call_match = re.search(r'async function hangupCall\(.*?\{(.*?)^}', telnyx_service_content, re.DOTALL | re.MULTILINE)
-    if hangup_call_match:
-        hangup_func_content = hangup_call_match.group(1)
-        has_90018_check = "'90018'" in hangup_func_content or '"90018"' in hangup_func_content
-        has_already_ended_check = 'already ended' in hangup_func_content
-        has_not_found_check = 'not found' in hangup_func_content
-        has_null_return = 'return null' in hangup_func_content
-        
-        results.add_result("hangupCall checks for 90018/already ended/not found errors", 
-                          has_90018_check and has_already_ended_check and has_not_found_check)
-        results.add_result("hangupCall returns null for suppressed errors", has_null_return)
-    else:
-        results.add_result("hangupCall checks for 90018/already ended/not found errors", False, "Function not found")
-        results.add_result("hangupCall returns null for suppressed errors", False, "Function not found")
-    
-    # Test 3: Check voice-service.js handles null return from answerCall
-    voice_service_content = read_file_content('/app/js/voice-service.js')
-    null_handling = 'ansResult === null' in voice_service_content or 'answerCall' in voice_service_content
-    results.add_result("voice-service.js handles null return from answerCall", null_handling)
-    
-    return results
-
-def test_fix4_weekly_plan_expiry_notification():
-    """Test Fix 4: Weekly Plan Expiry Notification"""
-    results = TestResults()
-    
-    # Read hosting-scheduler.js file
-    hosting_scheduler_content = read_file_content('/app/js/hosting-scheduler.js')
-    
-    # Test 1: Check for weekly plan expiry case
-    weekly_expiry_case = 'weekly && expiry <= now' in hosting_scheduler_content
-    results.add_result("Weekly plan expiry case exists", weekly_expiry_case)
-    
-    # Test 2: Check for expiryUserNotified flag check
-    expiry_user_notified_check = '!account.expiryUserNotified' in hosting_scheduler_content
-    results.add_result("expiryUserNotified flag check exists", expiry_user_notified_check)
-    
-    # Test 3: Check for notify() call with "Weekly Plan Expired" message
-    weekly_plan_expired_msg = 'Weekly Plan Expired' in hosting_scheduler_content
-    results.add_result("Weekly Plan Expired notification message exists", weekly_plan_expired_msg)
-    
-    # Test 4: Check for database update with expiryUserNotified: true
-    db_update_expiry_notified = 'expiryUserNotified: true' in hosting_scheduler_content
-    results.add_result("Database update sets expiryUserNotified: true", db_update_expiry_notified)
-    
-    # Test 5: Check message tells user plan expired and doesn't auto-renew
-    no_auto_renew_msg = 'do not auto-renew' in hosting_scheduler_content or 'does not auto-renew' in hosting_scheduler_content
-    results.add_result("Message explains weekly plans don't auto-renew", no_auto_renew_msg)
-    
-    # Test 6: Check message tells user to manually renew
-    manual_renew_msg = 'manually' in hosting_scheduler_content and 'renew' in hosting_scheduler_content
-    results.add_result("Message instructs user to manually renew", manual_renew_msg)
-    
-    return results
-
-def test_fix5_aggressive_memory_cleanup():
-    """Test Fix 5: Aggressive Memory Cleanup"""
-    results = TestResults()
-    
-    # Read voice-service.js file
-    voice_service_content = read_file_content('/app/js/voice-service.js')
-    
-    # Test 1: Check ACTIVE_CALL_MAX_AGE = 30 minutes
-    active_call_max_age = 'ACTIVE_CALL_MAX_AGE = 30 * 60 * 1000' in voice_service_content
-    results.add_result("ACTIVE_CALL_MAX_AGE set to 30 minutes", active_call_max_age)
-    
-    # Test 2: Check IVR_SESSION_MAX_AGE = 15 minutes
-    ivr_session_max_age = 'IVR_SESSION_MAX_AGE = 15 * 60 * 1000' in voice_service_content
-    results.add_result("IVR_SESSION_MAX_AGE set to 15 minutes", ivr_session_max_age)
-    
-    # Test 3: Check BRIDGE_TRANSFER_MAX_AGE = 30 minutes
-    bridge_transfer_max_age = 'BRIDGE_TRANSFER_MAX_AGE = 30 * 60 * 1000' in voice_service_content
-    results.add_result("BRIDGE_TRANSFER_MAX_AGE set to 30 minutes", bridge_transfer_max_age)
-    
-    # Test 4: Check HOLD_TRANSFER_MAX_AGE = 5 minutes
-    hold_transfer_max_age = 'HOLD_TRANSFER_MAX_AGE = 5 * 60 * 1000' in voice_service_content
-    results.add_result("HOLD_TRANSFER_MAX_AGE set to 5 minutes", hold_transfer_max_age)
-    
-    # Test 5: Check NATIVE_TRANSFER_MAX_AGE = 5 minutes
-    native_transfer_max_age = 'NATIVE_TRANSFER_MAX_AGE = 5 * 60 * 1000' in voice_service_content
-    results.add_result("NATIVE_TRANSFER_MAX_AGE set to 5 minutes", native_transfer_max_age)
-    
-    # Test 6: Check cleanup interval = 60000 ms (1 minute)
-    cleanup_interval = '60000' in voice_service_content and 'setInterval' in voice_service_content
-    # Look for the specific pattern
-    cleanup_interval_pattern = re.search(r'}, (\d+)\)\s*//.*cleanup.*every.*60s', voice_service_content)
-    if cleanup_interval_pattern:
-        interval_value = cleanup_interval_pattern.group(1)
-        cleanup_interval_correct = interval_value == '60000'
-    else:
-        cleanup_interval_correct = False
-    
-    results.add_result("Cleanup interval set to 60000ms (1 minute)", cleanup_interval_correct)
-    
-    # Test 7: Check comment mentions reduction from previous values
-    reduction_comment = 'was 2 hours' in voice_service_content or 'was 30' in voice_service_content or 'was 1h' in voice_service_content
-    results.add_result("Comments indicate reduction from previous values", reduction_comment)
-    
-    return results
-
-def test_backend_syntax_validation():
-    """Test that all JavaScript files have valid syntax"""
-    results = TestResults()
+    # Test phone-config.js syntax
+    success, stdout, stderr = run_command("node -c /app/js/phone-config.js")
+    results.add_result(
+        "Syntax validation: phone-config.js", 
+        success, 
+        stderr if not success else "OK"
+    )
     
     # Test voice-service.js syntax
+    success, stdout, stderr = run_command("node -c /app/js/voice-service.js")
+    results.add_result(
+        "Syntax validation: voice-service.js", 
+        success, 
+        stderr if not success else "OK"
+    )
+
+def test_health_endpoint(results):
+    """Test 2: Health endpoint check"""
     try:
-        exit_code = os.system('node -c /app/js/voice-service.js 2>/dev/null')
-        results.add_result("voice-service.js syntax validation", exit_code == 0)
+        response = requests.get(HEALTH_ENDPOINT, timeout=10)
+        success = response.status_code == 200
+        details = f"Status: {response.status_code}"
+        if success:
+            try:
+                data = response.json()
+                details += f", Response: {json.dumps(data, indent=2)}"
+            except:
+                details += f", Text: {response.text[:200]}"
+        results.add_result("Health endpoint check", success, details)
     except Exception as e:
-        results.add_result("voice-service.js syntax validation", False, str(e))
+        results.add_result("Health endpoint check", False, str(e))
+
+def test_error_logs(results):
+    """Test 3: Check error logs are empty"""
+    if os.path.exists(NODEJS_ERROR_LOG):
+        try:
+            size = os.path.getsize(NODEJS_ERROR_LOG)
+            success = size == 0
+            details = f"Log size: {size} bytes"
+            if not success and size < 1000:
+                # Show recent errors if log is small
+                content = read_file(NODEJS_ERROR_LOG)
+                if content:
+                    details += f", Recent errors: {content[-500:]}"
+        except Exception as e:
+            success = False
+            details = f"Error reading log: {e}"
+    else:
+        success = True
+        details = "Log file does not exist (good)"
     
-    # Test telnyx-service.js syntax
-    try:
-        exit_code = os.system('node -c /app/js/telnyx-service.js 2>/dev/null')
-        results.add_result("telnyx-service.js syntax validation", exit_code == 0)
-    except Exception as e:
-        results.add_result("telnyx-service.js syntax validation", False, str(e))
+    results.add_result("Error logs check (0 bytes)", success, details)
+
+def test_overage_rate_min(results):
+    """Test 4: OVERAGE_RATE_MIN is 0.15 in phone-config.js"""
+    content = read_file("/app/js/phone-config.js")
+    if content is None:
+        results.add_result("OVERAGE_RATE_MIN value check", False, "Could not read phone-config.js")
+        return
     
-    # Test hosting-scheduler.js syntax
-    try:
-        exit_code = os.system('node -c /app/js/hosting-scheduler.js 2>/dev/null')
-        results.add_result("hosting-scheduler.js syntax validation", exit_code == 0)
-    except Exception as e:
-        results.add_result("hosting-scheduler.js syntax validation", False, str(e))
+    # Look for OVERAGE_RATE_MIN definition with default fallback
+    pattern = r'const\s+OVERAGE_RATE_MIN\s*=\s*parseFloat\s*\(\s*process\.env\.OVERAGE_RATE_MIN\s*\|\|\s*[\'"]([0-9.]+)[\'"]\s*\)'
+    match = re.search(pattern, content)
     
-    return results
+    if match:
+        default_value = match.group(1)
+        success = default_value == "0.15"
+        details = f"Default fallback value: {default_value} (expected: 0.15)"
+    else:
+        success = False
+        details = "OVERAGE_RATE_MIN definition not found or incorrect format"
+    
+    results.add_result("OVERAGE_RATE_MIN default fallback is 0.15", success, details)
+
+def test_call_connection_fee_constant(results):
+    """Test 5: CALL_CONNECTION_FEE constant exists with default 0.03"""
+    content = read_file("/app/js/phone-config.js")
+    if content is None:
+        results.add_result("CALL_CONNECTION_FEE constant check", False, "Could not read phone-config.js")
+        return
+    
+    # Look for CALL_CONNECTION_FEE definition around line 92
+    pattern = r'const\s+CALL_CONNECTION_FEE\s*=\s*parseFloat\s*\(\s*process\.env\.CALL_CONNECTION_FEE\s*\|\|\s*[\'"]([0-9.]+)[\'"]\s*\)'
+    match = re.search(pattern, content)
+    
+    if match:
+        default_value = match.group(1)
+        success = default_value == "0.03"
+        details = f"Default value: {default_value} (expected: 0.03)"
+        
+        # Check if it's around line 92
+        lines = content.split('\n')
+        for i, line in enumerate(lines, 1):
+            if 'CALL_CONNECTION_FEE' in line and 'parseFloat' in line:
+                details += f", Found at line: {i}"
+                break
+    else:
+        success = False
+        details = "CALL_CONNECTION_FEE definition not found"
+    
+    results.add_result("CALL_CONNECTION_FEE constant exists (~line 92, default 0.03)", success, details)
+
+def test_call_connection_fee_export(results):
+    """Test 6: CALL_CONNECTION_FEE is exported from phone-config.js"""
+    content = read_file("/app/js/phone-config.js")
+    if content is None:
+        results.add_result("CALL_CONNECTION_FEE export check", False, "Could not read phone-config.js")
+        return
+    
+    # Look for export of CALL_CONNECTION_FEE
+    # Could be in module.exports or individual export
+    export_patterns = [
+        r'module\.exports\s*=\s*\{[^}]*CALL_CONNECTION_FEE[^}]*\}',
+        r'exports\.CALL_CONNECTION_FEE',
+        r'CALL_CONNECTION_FEE[^}]*\}[^}]*module\.exports',
+    ]
+    
+    found_export = False
+    for pattern in export_patterns:
+        if re.search(pattern, content, re.DOTALL):
+            found_export = True
+            break
+    
+    # Also check if it's in a general export block
+    if not found_export:
+        # Look for the end of file exports
+        lines = content.split('\n')
+        in_exports = False
+        for line in lines:
+            if 'module.exports' in line and '{' in line:
+                in_exports = True
+            if in_exports and 'CALL_CONNECTION_FEE' in line:
+                found_export = True
+                break
+            if in_exports and '}' in line:
+                in_exports = False
+    
+    results.add_result("CALL_CONNECTION_FEE is exported", found_export, 
+                      "Found in exports" if found_export else "Not found in exports")
+
+def test_voice_service_import(results):
+    """Test 7: voice-service.js imports CALL_CONNECTION_FEE from phone-config.js"""
+    content = read_file("/app/js/voice-service.js")
+    if content is None:
+        results.add_result("CALL_CONNECTION_FEE import check", False, "Could not read voice-service.js")
+        return
+    
+    # Look for import of CALL_CONNECTION_FEE from phone-config.js around line 6
+    lines = content.split('\n')
+    found_import = False
+    import_line = 0
+    
+    for i, line in enumerate(lines[:20], 1):  # Check first 20 lines
+        if 'require' in line and 'phone-config' in line and 'CALL_CONNECTION_FEE' in line:
+            found_import = True
+            import_line = i
+            break
+    
+    details = f"Found at line {import_line}" if found_import else "Import not found in first 20 lines"
+    results.add_result("voice-service.js imports CALL_CONNECTION_FEE (line ~6)", found_import, details)
+
+def test_wallet_check_logic(results):
+    """Test 8: handleOutboundSipCall uses minRequired = sipRate + CALL_CONNECTION_FEE"""
+    content = read_file("/app/js/voice-service.js")
+    if content is None:
+        results.add_result("Wallet check logic", False, "Could not read voice-service.js")
+        return
+    
+    # Look for wallet check logic in handleOutboundSipCall
+    # Search for minRequired calculation
+    patterns = [
+        r'minRequired\s*=\s*sipRate\s*\+\s*CALL_CONNECTION_FEE',
+        r'sipRate\s*\+\s*CALL_CONNECTION_FEE',
+        r'CALL_CONNECTION_FEE\s*\+\s*sipRate',
+    ]
+    
+    found_logic = False
+    for pattern in patterns:
+        if re.search(pattern, content):
+            found_logic = True
+            break
+    
+    # Also look for smartWalletCheck with the combined amount
+    if found_logic or re.search(r'smartWalletCheck.*\(\s*[^,]+,\s*[^,]+,\s*[^)]*\+[^)]*\)', content):
+        found_logic = True
+    
+    results.add_result("Wallet check uses sipRate + CALL_CONNECTION_FEE", found_logic,
+                      "Found wallet check logic" if found_logic else "Wallet check logic not found")
+
+def test_connection_fee_charge_block(results):
+    """Test 9: Connection fee charge block exists after wallet check"""
+    content = read_file("/app/js/voice-service.js")
+    if content is None:
+        results.add_result("Connection fee charge block", False, "Could not read voice-service.js")
+        return
+    
+    # Look for connection fee charging logic
+    patterns = [
+        r'smartWalletDeduct.*CALL_CONNECTION_FEE',
+        r'ConnectionFee.*smartWalletDeduct',
+        r'connection.*fee.*charge',
+        r'CALL_CONNECTION_FEE.*deduct',
+    ]
+    
+    found_charge = False
+    found_logging = False
+    
+    for pattern in patterns:
+        if re.search(pattern, content, re.IGNORECASE):
+            found_charge = True
+            break
+    
+    # Look for payment logging with ConnectionFee label
+    if re.search(r'ConnectionFee', content) or re.search(r'connection.*fee', content, re.IGNORECASE):
+        found_logging = True
+    
+    success = found_charge and found_logging
+    details = f"Charge logic: {'✓' if found_charge else '✗'}, Logging: {'✓' if found_logging else '✗'}"
+    
+    results.add_result("Connection fee charge block with logging", success, details)
+
+def test_user_notification_messages(results):
+    """Test 10: User notification messages include connection fee note"""
+    content = read_file("/app/js/voice-service.js")
+    if content is None:
+        results.add_result("User notification messages", False, "Could not read voice-service.js")
+        return
+    
+    # Look for user messages mentioning connection fee
+    patterns = [
+        r'\$0\.03.*connect.*fee',
+        r'connect.*fee.*\$0\.03',
+        r'connection.*fee.*0\.03',
+        r'CALL_CONNECTION_FEE.*message',
+    ]
+    
+    found_messages = False
+    for pattern in patterns:
+        if re.search(pattern, content, re.IGNORECASE):
+            found_messages = True
+            break
+    
+    # Also check for general connection fee mentions in user messages
+    if not found_messages:
+        if re.search(r'sendMessage.*connection.*fee', content, re.IGNORECASE | re.DOTALL):
+            found_messages = True
+    
+    results.add_result("User messages include connection fee ($0.03)", found_messages,
+                      "Found connection fee in messages" if found_messages else "Connection fee not found in messages")
+
+def test_sip_call_blocked_message(results):
+    """Test 11: SIP Call Blocked message mentions connect fee"""
+    content = read_file("/app/js/voice-service.js")
+    if content is None:
+        results.add_result("SIP Call Blocked message", False, "Could not read voice-service.js")
+        return
+    
+    # Look for SIP call blocked messages that mention connection fee
+    patterns = [
+        r'SIP.*[Bb]locked.*connect.*fee',
+        r'[Bb]locked.*SIP.*connect.*fee',
+        r'insufficient.*balance.*connect.*fee',
+        r'wallet.*low.*connect.*fee',
+    ]
+    
+    found_blocked_msg = False
+    for pattern in patterns:
+        if re.search(pattern, content, re.IGNORECASE | re.DOTALL):
+            found_blocked_msg = True
+            break
+    
+    results.add_result("SIP Call Blocked message mentions connect fee", found_blocked_msg,
+                      "Found in blocked message" if found_blocked_msg else "Not found in blocked messages")
+
+def test_env_vars(results):
+    """Test 12: Environment variables are correctly set"""
+    content = read_file("/app/backend/.env")
+    if content is None:
+        results.add_result("Environment variables check", False, "Could not read .env file")
+        return
+    
+    # Check OVERAGE_RATE_MIN
+    overage_match = re.search(r'OVERAGE_RATE_MIN\s*=\s*[\'"]?([0-9.]+)[\'"]?', content)
+    overage_correct = overage_match and overage_match.group(1) == "0.15"
+    
+    # Check CALL_CONNECTION_FEE
+    connection_match = re.search(r'CALL_CONNECTION_FEE\s*=\s*[\'"]?([0-9.]+)[\'"]?', content)
+    connection_correct = connection_match and connection_match.group(1) == "0.03"
+    
+    success = overage_correct and connection_correct
+    details = f"OVERAGE_RATE_MIN: {overage_match.group(1) if overage_match else 'NOT FOUND'}, "
+    details += f"CALL_CONNECTION_FEE: {connection_match.group(1) if connection_match else 'NOT FOUND'}"
+    
+    results.add_result("Environment variables (OVERAGE_RATE_MIN=0.15, CALL_CONNECTION_FEE=0.03)", 
+                      success, details)
 
 def main():
-    """Run all tests"""
-    print("🧪 Starting Backend Testing for 4 New Fixes")
+    print("🧪 Testing Option E Call Rate Pricing Changes")
     print("=" * 60)
     
-    all_results = TestResults()
+    results = TestResults()
     
-    # Test 1: Health check
-    print("\n📡 Testing Health Endpoint...")
-    health_results = test_health_endpoint()
-    all_results.results.extend(health_results.results)
-    all_results.passed += health_results.passed
-    all_results.failed += health_results.failed
+    # Run all tests
+    test_syntax_validation(results)
+    test_health_endpoint(results)
+    test_error_logs(results)
+    test_overage_rate_min(results)
+    test_call_connection_fee_constant(results)
+    test_call_connection_fee_export(results)
+    test_voice_service_import(results)
+    test_wallet_check_logic(results)
+    test_connection_fee_charge_block(results)
+    test_user_notification_messages(results)
+    test_sip_call_blocked_message(results)
+    test_env_vars(results)
     
-    # Test 2: Fix 2 - SIP Hard Block
-    print("\n🚫 Testing Fix 2: SIP Rate Limit Escalating Hard-Block...")
-    fix2_results = test_fix2_sip_hard_block()
-    all_results.results.extend(fix2_results.results)
-    all_results.passed += fix2_results.passed
-    all_results.failed += fix2_results.failed
-    
-    # Test 3: Fix 3 - Telnyx 90018 Suppression
-    print("\n📞 Testing Fix 3: Telnyx 90018 Error Suppression...")
-    fix3_results = test_fix3_telnyx_90018_suppression()
-    all_results.results.extend(fix3_results.results)
-    all_results.passed += fix3_results.passed
-    all_results.failed += fix3_results.failed
-    
-    # Test 4: Fix 4 - Weekly Plan Expiry Notification
-    print("\n📅 Testing Fix 4: Weekly Plan Expiry Notification...")
-    fix4_results = test_fix4_weekly_plan_expiry_notification()
-    all_results.results.extend(fix4_results.results)
-    all_results.passed += fix4_results.passed
-    all_results.failed += fix4_results.failed
-    
-    # Test 5: Fix 5 - Aggressive Memory Cleanup
-    print("\n🧹 Testing Fix 5: Aggressive Memory Cleanup...")
-    fix5_results = test_fix5_aggressive_memory_cleanup()
-    all_results.results.extend(fix5_results.results)
-    all_results.passed += fix5_results.passed
-    all_results.failed += fix5_results.failed
-    
-    # Test 6: Syntax validation
-    print("\n✅ Testing JavaScript Syntax Validation...")
-    syntax_results = test_backend_syntax_validation()
-    all_results.results.extend(syntax_results.results)
-    all_results.passed += syntax_results.passed
-    all_results.failed += syntax_results.failed
-    
-    # Final summary
-    print("\n" + "=" * 60)
-    success = all_results.summary()
+    # Print summary
+    success = results.summary()
     
     if success:
-        print("🎉 All tests passed! The 4 fixes are properly implemented.")
+        print("\n🎉 All tests passed! Option E pricing changes are correctly implemented.")
     else:
-        print("⚠️  Some tests failed. Please review the implementation.")
-        print("\nFailed tests:")
-        for result in all_results.results:
-            if not result['passed']:
-                print(f"  - {result['test']}: {result['details']}")
+        print(f"\n⚠️  {results.failed} test(s) failed. Please review the implementation.")
     
-    return success
+    return 0 if success else 1
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

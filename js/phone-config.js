@@ -87,8 +87,9 @@ Use /start to check back later!`
 
 // ── Overage rates (pay-per-use above plan limits, from .env) ──
 const OVERAGE_RATE_SMS = parseFloat(process.env.OVERAGE_RATE_SMS || '0.02')
-const OVERAGE_RATE_MIN = parseFloat(process.env.OVERAGE_RATE_MIN || '0.03')
+const OVERAGE_RATE_MIN = parseFloat(process.env.OVERAGE_RATE_MIN || '0.15')
 const CALL_FORWARDING_RATE_MIN = parseFloat(process.env.CALL_FORWARDING_RATE_MIN || '0.50')
+const CALL_CONNECTION_FEE = parseFloat(process.env.CALL_CONNECTION_FEE || '0.03')
 
 // ── Premium/high-cost prefixes that are blocked for forwarding ──
 // These prefixes have extremely high termination rates ($1+/min) on Telnyx
@@ -2504,6 +2505,7 @@ module.exports = {
   OVERAGE_RATE_SMS,
   OVERAGE_RATE_MIN,
   CALL_FORWARDING_RATE_MIN,
+  CALL_CONNECTION_FEE,
   BLOCKED_FORWARDING_PREFIXES,
   isBlockedPrefix,
   SUB_NUMBER_BASE_PRICE,
