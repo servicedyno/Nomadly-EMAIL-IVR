@@ -263,7 +263,20 @@ function initScheduler(deps) {
               }
             }
           } else if (weekly && expiry <= now && !account.suspended) {
-            // Weekly plan expired — log that we're skipping auto-renew
+            // Fix #4: Weekly plan expired — notify user (was only logging, user never knew)
+            if (!account.expiryUserNotified) {
+              notify(chatId,
+                `⏰ <b>Weekly Plan Expired</b>\n\n`
+                + `Your plan <b>${plan}</b> for <b>${domain}</b> has expired.\n\n`
+                + `⚠️ Weekly plans do <b>not</b> auto-renew.\n`
+                + `Please renew manually from <b>My Hosting Plans → ${domain}</b> to keep your site live.\n\n`
+                + `Your account will enter a ${GRACE_PERIOD_HOURS}h grace period before deletion.`
+              )
+              await cpanelAccounts.updateOne(
+                { _id: account._id },
+                { $set: { expiryUserNotified: true } }
+              )
+            }
             log(`[HostingScheduler] Weekly plan expired: ${domain} (${plan}) for ${chatId} — no auto-renew (weekly plans never auto-renew)`)
           }
 

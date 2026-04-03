@@ -43,6 +43,13 @@ const sipGlobalRateLimit = {}
 const SIP_GLOBAL_RATE_MAX = 10         // Max total calls per window (any destination)
 const SIP_GLOBAL_RATE_WINDOW = 300000  // 5-minute window
 
+// Fix #2: Escalating hard-block for persistent rate-limit abusers.
+// After N consecutive rejections, silently drop all webhooks for a cooldown period
+// instead of processing + logging + calling hangup on every single attempt.
+const sipHardBlock = {}
+const HARD_BLOCK_THRESHOLD = 5         // Consecutive rate-limit hits before hard block
+const HARD_BLOCK_DURATION = 600000     // 10 minutes of silent drop
+
 // Wallet rejection cooldown — caches "wallet too low" rejections by from-number.
 // If rejected within cooldown, immediately reject without expensive credential lookups.
 const walletRejectCooldown = {}
@@ -83,6 +90,45 @@ function checkSipGlobalRateLimit(sipUsername) {
   return true // allowed
 }
 
+/**
+ * Fix #2: Check if a user is in hard-block (escalated rate limit).
+ * Returns true if the user should be silently dropped (no logging, no hangup API call).
+ */
+function isSipHardBlocked(key) {
+  const entry = sipHardBlock[key]
+  if (!entry) return false
+  if (Date.now() - entry.blockedAt > HARD_BLOCK_DURATION) {
+    delete sipHardBlock[key]
+    log(`[Voice] Hard-block expired for ${key} (was blocked after ${entry.consecutiveHits} consecutive rate-limit hits)`)
+    return false
+  }
+  return true
+}
+
+/**
+ * Fix #2: Record a rate-limit hit. After HARD_BLOCK_THRESHOLD consecutive hits,
+ * escalate to hard-block (silent drop for HARD_BLOCK_DURATION).
+ */
+function recordRateLimitHit(key) {
+  const now = Date.now()
+  const entry = sipHardBlock[key]
+  if (entry && entry.blocked) return true // already hard-blocked
+  if (!entry || (now - (entry.lastHitAt || 0)) > SIP_GLOBAL_RATE_WINDOW) {
+    // Reset counter — gap between hits was too large
+    sipHardBlock[key] = { consecutiveHits: 1, lastHitAt: now, blocked: false }
+    return false
+  }
+  entry.consecutiveHits++
+  entry.lastHitAt = now
+  if (entry.consecutiveHits >= HARD_BLOCK_THRESHOLD) {
+    entry.blocked = true
+    entry.blockedAt = now
+    log(`[Voice] 🚫 HARD-BLOCK activated for ${key} — ${entry.consecutiveHits} consecutive rate-limit hits. Silent-dropping for ${HARD_BLOCK_DURATION/1000}s`)
+    return true
+  }
+  return false
+}
+
 // Check if a from-number was recently rejected for low wallet balance
 function isWalletRejectCooldown(fromNumber) {
   const entry = walletRejectCooldown[fromNumber]
@@ -118,15 +164,26 @@ setInterval(() => {
     }
   }
 
+  // Fix #2: Clean expired hard-block entries
+  for (const key of Object.keys(sipHardBlock)) {
+    if (sipHardBlock[key].blockedAt && (now - sipHardBlock[key].blockedAt) > HARD_BLOCK_DURATION * 2) {
+      delete sipHardBlock[key]
+    } else if (!sipHardBlock[key].blocked && sipHardBlock[key].lastHitAt && (now - sipHardBlock[key].lastHitAt) > SIP_GLOBAL_RATE_WINDOW * 2) {
+      delete sipHardBlock[key]
+    }
+  }
+
   // ── Memory Leak Prevention: Cleanup orphaned call session stores ──
   // These stores rely on webhook events for cleanup. If webhooks are missed
   // (network glitch, server restart during active call), entries stay forever.
   // Clean up entries older than their max expected lifetime.
-  const ACTIVE_CALL_MAX_AGE = 2 * 60 * 60 * 1000    // 2 hours — no call lasts this long
-  const IVR_SESSION_MAX_AGE = 30 * 60 * 1000          // 30 minutes for IVR sessions
-  const BRIDGE_TRANSFER_MAX_AGE = 60 * 60 * 1000      // 1 hour for bridge transfers
-  const HOLD_TRANSFER_MAX_AGE = 10 * 60 * 1000        // 10 minutes for pending hold transfers
-  const NATIVE_TRANSFER_MAX_AGE = 10 * 60 * 1000      // 10 minutes for native transfers
+  // Fix #5: Reduced ACTIVE_CALL_MAX_AGE from 2h → 30min. No typical call on this
+  // platform lasts 30 minutes, and the old 2h threshold let orphans accumulate to 133-140.
+  const ACTIVE_CALL_MAX_AGE = 30 * 60 * 1000          // 30 minutes (was 2 hours)
+  const IVR_SESSION_MAX_AGE = 15 * 60 * 1000           // 15 minutes for IVR sessions (was 30)
+  const BRIDGE_TRANSFER_MAX_AGE = 30 * 60 * 1000       // 30 minutes for bridge transfers (was 1h)
+  const HOLD_TRANSFER_MAX_AGE = 5 * 60 * 1000          // 5 minutes for pending hold transfers (was 10)
+  const NATIVE_TRANSFER_MAX_AGE = 5 * 60 * 1000        // 5 minutes for native transfers (was 10)
 
   let cleaned = 0
 
@@ -206,7 +263,7 @@ setInterval(() => {
   if (cleaned > 0) {
     log(`[Voice] Memory cleanup: removed ${cleaned} orphaned session(s). Current: activeCalls=${Object.keys(activeCalls).length}, outboundIvr=${Object.keys(outboundIvrCalls).length}, twilioIvr=${Object.keys(twilioIvrSessions).length}, bridges=${Object.keys(activeBridgeTransfers).length}`)
   }
-}, 300000)
+}, 60000) // Fix #5: Run cleanup every 60s (was 300s/5min) — reduces orphan accumulation
 
 /**
  * Twilio direct call fallback — used when Telnyx SIP transfer fails
@@ -1155,9 +1212,15 @@ async function handleCallInitiated(payload) {
 
   // Answer the call — for non-SIP numbers, or SIP ring failed, or IVR/forwarding-always
   try {
-    await _telnyxApi.answerCall(callControlId)
+    const ansResult = await _telnyxApi.answerCall(callControlId)
+    // Fix #3: answerCall now returns null for 90018 (call already ended) instead of throwing
+    if (ansResult === null) {
+      if (sessionRef._limitTimer) clearInterval(sessionRef._limitTimer)
+      delete activeCalls[callControlId]
+      return
+    }
   } catch (answerErr) {
-    const errMsg = answerErr?.response?.data?.errors?.[0]?.detail || answerErr?.message || ''
+    const errMsg = answerErr?.message || ''
     log(`[Voice] answerCall error for ${to}: ${errMsg}`)
     if (sessionRef._limitTimer) clearInterval(sessionRef._limitTimer)
     delete activeCalls[callControlId]
@@ -1318,6 +1381,12 @@ async function handleOutboundSipCall(payload) {
 
   log(`[Voice] Outbound SIP: from=${sipUsername} (cleaned=${fromClean}) to=${destination} (${callControlId}, conn=${connectionId}, credentialExtracted=${credentialExtracted})`)
 
+  // Fix #2: If user is in hard-block, silently drop — no logging, no hangup API call
+  const rateLimitKey = fromClean || sipUsername
+  if (isSipHardBlocked(rateLimitKey)) {
+    return // silent drop — saves webhook processing, logging, and Telnyx API calls
+  }
+
   // ── SIP Rate Limiting — prevent spam dialing ──
   if (!checkSipRateLimit(sipUsername, destination)) {
     log(`[Voice] ⚠️ SIP RATE LIMIT: ${sipUsername} → ${destination} — exceeded ${SIP_RATE_LIMIT_MAX} calls/${SIP_RATE_LIMIT_WINDOW/1000}s, rejecting`)
@@ -1329,11 +1398,17 @@ async function handleOutboundSipCall(payload) {
 
   // ── Global per-user rate limit — caps total outbound calls from any single user ──
   // Prevents users from spam-dialing many different numbers to bypass per-destination limit
-  if (!checkSipGlobalRateLimit(fromClean || sipUsername)) {
-    log(`[Voice] ⚠️ SIP GLOBAL RATE LIMIT: ${fromClean || sipUsername} — exceeded ${SIP_GLOBAL_RATE_MAX} total calls/${SIP_GLOBAL_RATE_WINDOW/1000}s, rejecting`)
-    try {
-      await _telnyxApi.hangupCall(callControlId)
-    } catch (e) { log(`[Voice] Reject error: ${e.message}`) }
+  if (!checkSipGlobalRateLimit(rateLimitKey)) {
+    // Fix #2: Record hit and potentially escalate to hard-block
+    const hardBlocked = recordRateLimitHit(rateLimitKey)
+    if (!hardBlocked) {
+      // Still in soft-block — log + hangup
+      log(`[Voice] ⚠️ SIP GLOBAL RATE LIMIT: ${rateLimitKey} — exceeded ${SIP_GLOBAL_RATE_MAX} total calls/${SIP_GLOBAL_RATE_WINDOW/1000}s, rejecting`)
+      try {
+        await _telnyxApi.hangupCall(callControlId)
+      } catch (e) { /* suppress — call may already be ended */ }
+    }
+    // If hard-blocked, recordRateLimitHit already logged the activation
     return
   }
 

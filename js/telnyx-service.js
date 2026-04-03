@@ -357,10 +357,15 @@ async function answerCall(callControlId) {
     return res.data?.data || true
   } catch (e) {
     const errDetail = e.response?.data?.errors?.[0]?.detail || e.message || ''
+    const errCode = e.response?.data?.errors?.[0]?.code
+    // Fix #3: Suppress noisy 90018 "Call has already ended" — expected race condition
+    if (errCode === '90018' || errDetail.includes('already ended') || errDetail.includes('not found')) {
+      // Silently return — call ended before we could answer, not an actionable error
+      return null
+    }
     log('Telnyx answerCall error:', e.response?.data || e.message)
-    // Rethrow so callers can handle specific errors (e.g. outbound call mismatch)
     const err = new Error(errDetail)
-    err.telnyxCode = e.response?.data?.errors?.[0]?.code
+    err.telnyxCode = errCode
     throw err
   }
 }
@@ -456,6 +461,12 @@ async function hangupCall(callControlId) {
     const res = await axios.post(`${BASE}/calls/${callControlId}/actions/hangup`, {}, { headers: headers() })
     return res.data?.data || null
   } catch (e) {
+    const errCode = e.response?.data?.errors?.[0]?.code
+    const errDetail = e.response?.data?.errors?.[0]?.detail || e.message || ''
+    // Fix #3: Suppress 90018 "Call has already ended" — hangup intent was achieved
+    if (errCode === '90018' || errDetail.includes('already ended') || errDetail.includes('not found')) {
+      return null // Call already ended = hangup goal accomplished
+    }
     log('Telnyx hangupCall error:', e.response?.data || e.message)
     return null
   }
