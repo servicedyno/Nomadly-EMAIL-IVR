@@ -272,6 +272,18 @@ function getProduct(productId) {
          PRODUCT_CATALOG_SSD.find(p => p.productId === productId) || null
 }
 
+/**
+ * Fix #4: NVMe ↔ SSD product fallback mapping.
+ * If Contabo returns "Product Vxx is not available", try the equivalent tier product.
+ * NVMe (V45-V55) ↔ SSD (V92-V97) share the same tier numbers.
+ */
+const NVME_TO_SSD_FALLBACK = { V45: 'V92', V47: 'V93', V49: 'V94', V51: 'V95', V53: 'V96', V55: 'V97' }
+const SSD_TO_NVME_FALLBACK = { V92: 'V45', V93: 'V47', V94: 'V49', V95: 'V51', V96: 'V53', V97: 'V55' }
+
+function getProductFallback(productId) {
+  return NVME_TO_SSD_FALLBACK[productId] || SSD_TO_NVME_FALLBACK[productId] || null
+}
+
 // ─── Regions ──────────────────────────────────────────────────────────────
 
 /**
@@ -372,6 +384,10 @@ async function getDefaultWindowsImageId() {
  * @param {string} type - 'ssh' or 'password'
  */
 async function createSecret(name, value, type = 'ssh') {
+  // Fix #6: Guard against empty/short values that Contabo rejects
+  if (!value || (type === 'password' && value.length < 8)) {
+    throw new Error(`Secret value too short (${value?.length || 0} chars, min 8 for passwords)`)
+  }
   const res = await apiRequest('POST', '/secrets', { name, value, type })
   return res.data?.[0] || res.data
 }
@@ -430,10 +446,27 @@ async function createInstance(opts) {
   if (opts.userData)     body.userData     = opts.userData
 
   console.log(`[Contabo] Creating instance: productId=${opts.productId}, region=${opts.region}, image=${opts.imageId}`)
-  const res = await apiRequest('POST', '/compute/instances', body)
-  const instance = res.data?.[0] || res.data
-  console.log(`[Contabo] Instance created: id=${instance?.instanceId}, name=${instance?.name}`)
-  return instance
+  try {
+    const res = await apiRequest('POST', '/compute/instances', body)
+    const instance = res.data?.[0] || res.data
+    console.log(`[Contabo] Instance created: id=${instance?.instanceId}, name=${instance?.name}`)
+    return instance
+  } catch (err) {
+    // Fix #4: If product is unavailable, try the fallback (NVMe ↔ SSD)
+    const errMsg = err.message || ''
+    if (errMsg.includes('is not available') || errMsg.includes('Product')) {
+      const fallbackId = getProductFallback(opts.productId)
+      if (fallbackId) {
+        console.log(`[Contabo] Product ${opts.productId} unavailable — trying fallback ${fallbackId}`)
+        body.productId = fallbackId
+        const res = await apiRequest('POST', '/compute/instances', body)
+        const instance = res.data?.[0] || res.data
+        console.log(`[Contabo] Instance created via fallback: id=${instance?.instanceId}, product=${fallbackId}`)
+        return instance
+      }
+    }
+    throw err // Re-throw if no fallback available or fallback also failed
+  }
 }
 
 /**
@@ -668,6 +701,7 @@ module.exports = {
   // Products & Pricing
   listProducts,
   getProduct,
+  getProductFallback,
   calculatePrice,
   applyMarkup,
   PRODUCT_CATALOG,

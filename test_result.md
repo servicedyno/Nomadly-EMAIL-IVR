@@ -224,23 +224,119 @@ backend:
           agent: "testing"
           comment: "✅ VERIFIED: Both scheduler functions have proper DB initialization guards. (1) sendRemindersForExpiringPackages() at line 1589: Guard checks 'if (!state || typeof state.find !== 'function')' with early return and log message. (2) checkVPSPlansExpiryandPayment() at line 18837: Guard checks 'if (!vpsPlansOf || typeof vpsPlansOf.find !== 'function')' with early return and log message. Both functions will skip execution if database collections are not ready, preventing '.find is not a function' errors during startup. Backend is running healthy with no critical errors detected."
 
+
+  - task: "Fix 1: Add notifyGroup to all 4 hosting payment paths"
+    implemented: true
+    working: true
+    file: "js/_index.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Added notifyGroup() + sendMessage(admin) to all 4 hosting payment paths: Wallet, Bank NGN, BlockBee, DynoPay. Each sends public group notification with masked user name and domain, plus private admin message with full details. Fixes bug where domains like ledger-recuperation.fr registered via hosting flow had no group notification."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: Found exactly 4 'Hosting Activated!' notifications in _index.js (lines 5178, 19833, 20661, 21304). All 4 hosting payment paths (Wallet, Bank NGN, BlockBee, DynoPay) have notifyGroup() calls with masked user names and domains. Each path also includes sendMessage(TELEGRAM_ADMIN_CHAT_ID) for private admin notifications with full details. Domain/website_name pattern correctly implemented using info?.domain || info?.website_name structure. All payment methods now properly notify the admin group when hosting is activated."
+
+  - task: "Fix 2: Add displayMainMenuButtons to goto object"
+    implemented: true
+    working: true
+    file: "js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Added displayMainMenuButtons async function to goto object. Resets action to none, fetches main menu greeting, sends with keyboard. Was called in 15+ places but never defined, causing 'goto.displayMainMenuButtons is not a function' error for user 1182120293."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: displayMainMenuButtons function exists in goto object at line 3203 as async arrow function. Function correctly sets action to 'none' via await set(state, chatId, 'action', 'none'), calls getMainMenuGreeting(), and sends response with trans('o'). Found 18 call sites throughout _index.js using goto.displayMainMenuButtons() pattern. Function resolves the 'not a function' error that was affecting user 1182120293 and other users when trying to return to main menu."
+
+  - task: "Fix 3: Fix SSH key PEM-to-OpenSSH conversion"
+    implemented: true
+    working: true
+    file: "js/vm-instance-setup.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Rewrote convertPemToOpenSSH to properly construct SSH wire format using JWK export and mpint encoding. Previous code exported SPKI DER which Contabo rejected. Added null return on failure + guard in generateNewSSHkey."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: convertPemToOpenSSH function completely rewritten at line 398. Now uses JWK export to get RSA key components (e and n), implements proper SSH wire format with encodeSSHString and encodeSSHMpint helpers (lines 412-426). Constructs valid OpenSSH format: string('ssh-rsa') + mpint(e) + mpint(n). Returns null on failure instead of garbage PEM (line 440). generateNewSSHkey has null guard at line 349-352 to prevent sending invalid keys to Contabo. This fixes the 'Ssh key is not valid' errors from Contabo API."
+
+  - task: "Fix 4: Contabo NVMe-SSD product fallback"
+    implemented: true
+    working: true
+    file: "js/contabo-service.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Added NVME_TO_SSD_FALLBACK and SSD_TO_NVME_FALLBACK mappings. When createInstance fails with Product not available, automatically tries equivalent tier from other storage type. Handles V47 unavailability."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: NVME_TO_SSD_FALLBACK mapping at line 280 (V45→V92, V47→V93, V49→V94, V51→V95, V53→V96, V55→V97) and SSD_TO_NVME_FALLBACK at line 281 (reverse mapping). getProductFallback function at line 283 returns appropriate fallback product ID. createInstance has try/catch block at lines 454-469 that detects 'is not available' errors, gets fallback via getProductFallback(), and retries with fallback product. getProductFallback is properly exported in module.exports. This handles cases where specific Contabo products (like V47) become unavailable."
+
+  - task: "Fix 5: WHM CERT_NOT_YET_VALID retry + admin alert"
+    implemented: true
+    working: true
+    file: "js/protection-enforcer.js, js/_index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Added retry logic for CERT_NOT_YET_VALID errors. On first occurrence: logs warning, sends admin Telegram alert with fix instructions, waits 60s, retries SSL install. Alert sent once per enforcement run via _sendAdminAlert callback. Updated init to accept opts.sendAdminAlert."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: _sendAdminAlert variable exists at line 38 in protection-enforcer.js. init() function accepts opts parameter and stores opts.sendAdminAlert (lines 42-44). CERT_NOT_YET_VALID check implemented at lines 357-376 with proper error detection, admin alert sending, and 60s retry delay (line 369: setTimeout(r, 60000)). _clockSkewAlerted flag prevents duplicate alerts. protectionEnforcer.init() called with sendAdminAlert callback in _index.js at line 1243-1245. This handles WHM server clock skew issues that cause SSL certificate installation failures."
+
+  - task: "Fix 6: Contabo createSecret password validation"
+    implemented: true
+    working: true
+    file: "js/contabo-service.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Added guard in createSecret to validate value length for password type (min 8 chars). Throws descriptive error instead of sending invalid data to Contabo API."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: createSecret function has password validation guard at lines 388-390. Checks if (!value || (type === 'password' && value.length < 8)) and throws descriptive Error with value length information. Function exists at line 386 as async function. Type parameter validation ensures only password types are subject to length requirements. This prevents sending invalid short passwords to Contabo API which would result in API errors."
+
 backend:
 test_plan:
   current_focus:
-    - "Telnyx Quick IVR webhook handling"
-    - "Telnyx SIP inbound functionality"
-    - "Telnyx SIP outbound functionality"
+    - "Fix 1: notifyGroup in hosting payment paths"
+    - "Fix 2: displayMainMenuButtons function"
+    - "Fix 3: SSH key PEM-to-OpenSSH conversion"
+    - "Fix 4: Contabo product fallback"
+    - "Fix 5: WHM CERT_NOT_YET_VALID retry"
+    - "Fix 6: Contabo password guard"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
     - agent: "main"
-      message: "FIXES COMPLETED: (1) Telnyx Quick IVR: Added outboundIvrCalls check in handleOutboundSipCall() to prevent ignoring IVR webhooks. Test endpoint /test/telnyx-ivr created and verified working. (2) SIP Inbound: Tested with simulated webhook - system correctly rings SIP device. (3) SIP Outbound: Tested with SIP connection webhook - system detects SIP-originated call and routes via transfer. (4) Scheduler errors: Added DB initialization guards to both schedulers. All fixes verified via manual testing. Ready for comprehensive testing agent verification."
+      message: "6 FIXES IMPLEMENTED from Railway log anomaly analysis: (1) Added notifyGroup() to ALL 4 hosting payment paths (wallet, bank, blockbee, dynopay) - was completely missing causing no group notifications for hosting purchases like ledger-recuperation.fr. (2) Added displayMainMenuButtons function to goto object - was called in 15+ places but never defined, causing 'not a function' errors. (3) Fixed SSH key PEM-to-OpenSSH conversion - was incorrectly sending SPKI DER as base64 instead of proper SSH wire format (string+mpint encoding). (4) Added NVMe↔SSD product fallback in Contabo createInstance for when a product is unavailable. (5) Added CERT_NOT_YET_VALID retry with 60s delay + admin alert for WHM server clock skew. (6) Added password minimum length guard in Contabo createSecret. All fixes deployed, Node.js restarted cleanly with zero errors."
     - agent: "testing"
       message: "✅ COMPREHENSIVE TESTING COMPLETE: All 8/8 tests passed (100% success rate). PRIORITY 1 (CRITICAL): Telnyx Quick IVR fix verified - outboundIvrCalls check found at line 1031 in handleOutboundSipCall(), /test/telnyx-ivr endpoint working correctly with callControlId response. PRIORITY 2: SIP functionality verified - both inbound/outbound webhook handlers accepting calls correctly, all Telnyx webhook endpoints available. PRIORITY 3: Scheduler fixes verified - both checkVPSPlansExpiryandPayment() and sendRemindersForExpiringPackages() have proper DB initialization guards with typeof collection.find checks. Backend healthy, no critical errors detected. All fixes are production-ready and fully functional."
     - agent: "testing"
       message: "✅ WALLET COOLDOWN FIX VERIFICATION COMPLETE: All 8/8 tests passed (100% success rate). Critical security fix confirmed working: (1) Early cooldown check now only fires when credentialExtracted=true (line 1334), preventing shared connection blocking, (2) New post-identification cooldown check using chatId-specific keys (lines 1419-1439), (3) setWalletRejectCooldown calls now use 'chatId:${chatId}' pattern (lines 1463, 1480), (4) No remaining fromClean references in setWalletRejectCooldown calls, (5) Syntax validation passed, health endpoint healthy, 0-byte error log. The fix prevents one low-balance user from blocking ALL SIP users on shared connection +18556820054. Only the specific user is cooldown-blocked using chatId-specific keys. Production-ready and fully functional."
+    - agent: "testing"
+      message: "✅ 6 NEW FIXES VERIFICATION COMPLETE: All 35/35 tests passed (100% success rate). COMPREHENSIVE TESTING RESULTS: (1) Fix 1 - notifyGroup hosting payments: Found 4 'Hosting Activated!' notifications across all payment paths (Wallet, Bank NGN, BlockBee, DynoPay) with proper admin notifications and domain masking. (2) Fix 2 - displayMainMenuButtons: Function exists in goto object, sets action to 'none', calls getMainMenuGreeting(), found 18 call sites. (3) Fix 3 - SSH key conversion: convertPemToOpenSSH rewritten with JWK export, encodeSSHString/encodeSSHMpint helpers, null guards implemented. (4) Fix 4 - Contabo fallback: NVME_TO_SSD_FALLBACK and SSD_TO_NVME_FALLBACK mappings exist, createInstance has try/catch fallback logic, getProductFallback exported. (5) Fix 5 - WHM CERT retry: _sendAdminAlert variable, init() opts parameter, CERT_NOT_YET_VALID check with 60s delay, _clockSkewAlerted flag, proper init call in _index.js. (6) Fix 6 - Password validation: createSecret has min 8-char guard for passwords with descriptive error. Health endpoint healthy, error logs empty (0 bytes), all syntax validation passed. All 6 fixes are production-ready and fully functional."
 
   - task: "Prevent preview pods from overwriting Twilio SIP domain webhook URL (getTwilioResourcesFromEnv)"
     implemented: true

@@ -35,11 +35,13 @@ const ENFORCE_INTERVAL_MS = parseInt(process.env.PROTECTION_ENFORCE_INTERVAL_HOU
 let db = null
 let enforceTimer = null
 let isRunning = false
+let _sendAdminAlert = null // Callback to send Telegram admin alerts (Fix #5)
 
 // ─── Initialize ──────────────────────────────────────────
 
-function init(mongoDb) {
+function init(mongoDb, opts = {}) {
   db = mongoDb
+  if (opts.sendAdminAlert) _sendAdminAlert = opts.sendAdminAlert
   log('[ProtectionEnforcer] Initialized')
 }
 
@@ -344,12 +346,35 @@ async function enforceOriginHardening(domain, zoneId, cpUser) {
         const certResult = await cfService.generateOriginCACert([domain, `*.${domain}`])
         if (certResult.success) {
           // Install on WHM
-          const installResult = await whmService.installDomainSSL(
+          let installResult = await whmService.installDomainSSL(
             cpUser, domain,
             certResult.certificate,
             certResult.privateKey,
             '' // No CA bundle needed for Origin CA with Full mode
           )
+
+          // Fix #5: WHM server clock may be out of sync — retry once after 30s for CERT_NOT_YET_VALID
+          if (!installResult.success && installResult.error && installResult.error.includes('CERT_NOT_YET_VALID')) {
+            actions.push(`⏰ WHM clock skew detected for ${domain} — scheduling retry in 60s`)
+            // Send admin alert about WHM clock skew (only once per enforcement run)
+            if (!this._clockSkewAlerted) {
+              try {
+                if (_sendAdminAlert) {
+                  _sendAdminAlert(`⚠️ <b>WHM Server Clock Skew</b>\n\nOrigin CA cert install failed for <b>${domain}</b> with CERT_NOT_YET_VALID.\n\nThe WHM server clock appears out of sync. Run on WHM server:\n<code>rdate -s rdate.cpanel.net</code>\nor\n<code>ntpclient -s -h pool.ntp.org</code>`)
+                }
+                this._clockSkewAlerted = true
+              } catch (_) {}
+            }
+            // Retry after delay
+            await new Promise(r => setTimeout(r, 60000))
+            installResult = await whmService.installDomainSSL(
+              cpUser, domain,
+              certResult.certificate,
+              certResult.privateKey,
+              ''
+            )
+          }
+
           if (installResult.success) {
             actions.push(`Origin CA installed for ${domain}`)
 

@@ -1240,7 +1240,9 @@ const loadData = async () => {
 
   // Initialize Protection Enforcer — ensure all domains have anti-red worker protection
   const protectionEnforcer = require('./protection-enforcer')
-  protectionEnforcer.init(db)
+  protectionEnforcer.init(db, {
+    sendAdminAlert: (msg) => sendMessage(TELEGRAM_ADMIN_CHAT_ID, msg, { parse_mode: 'HTML' })
+  })
   protectionEnforcer.startScheduler()
   log('[ProtectionEnforcer] Initialized and scheduled')
 
@@ -3197,6 +3199,12 @@ bot?.on('message', msg => {
     a.settingsMenu,
   ]
   const goto = {
+    // ── Fix #2: displayMainMenuButtons was called in 15+ places but never defined ──
+    displayMainMenuButtons: async () => {
+      await set(state, chatId, 'action', 'none')
+      const greeting = await getMainMenuGreeting()
+      return send(chatId, greeting, trans('o'))
+    },
     askCoupon: async (action) => {
       send(chatId, t.askCoupon(info?.price), k.of([t.skip]))
       await set(state, chatId, 'action', a.askCoupon + action)
@@ -5162,6 +5170,14 @@ Enter new value:`), bc)
       const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
       send(chatId, t.showWallet(usd, ngn), trans('o'))
       checkAndNotifyTierUpgrade(preSpend)
+
+      // ── Hosting purchase group notification (was missing — Fix #1) ──
+      try {
+        const name = await get(nameOf, chatId)
+        const domain = info?.domain || info?.website_name
+        notifyGroup(`🏠 <b>Hosting Activated!</b>\nUser ${maskName(name)} just set up hosting for <b>${maskDomain(domain)}</b> — ready for launch.\nBuild yours — /start`)
+        sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🏠 <b>Hosting Purchase (Wallet)</b>\n🆔 User: ${chatId}\n🌐 Domain: ${domain}\n📋 Plan: ${info?.plan || 'N/A'}\n💵 Price: $${priceUsd}\n💳 Payment: ${coin === u.usd ? 'Wallet USD' : 'Wallet NGN'}`, { parse_mode: 'HTML' })
+      } catch (e) { log('[Hosting] notifyGroup error: ' + e.message) }
     },
     'vps-plan-pay': async coin => {
       set(state, chatId, 'action', 'none')
@@ -19810,6 +19826,14 @@ const bankApis = {
       }
       return res.send(html(hostingResult?.error || 'Hosting creation failed'))
     }
+    // ── Hosting purchase group notification (was missing — Fix #1) ──
+    try {
+      const name = await get(nameOf, chatId)
+      const domain = info?.domain || info?.website_name
+      notifyGroup(`🏠 <b>Hosting Activated!</b>\nUser ${maskName(name)} just set up hosting for <b>${maskDomain(domain)}</b> — ready for launch.\nBuild yours — /start`)
+      sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🏠 <b>Hosting Purchase (Bank NGN)</b>\n🆔 User: ${chatId}\n🌐 Domain: ${domain}\n📋 Plan: ${info?.plan || 'N/A'}\n💵 Price: $${price}\n💳 Payment: Bank NGN`, { parse_mode: 'HTML' })
+    } catch (e) { log('[Hosting] notifyGroup error: ' + e.message) }
+
     webhookTierCheck(chatId, preSpend, lang)
     if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
     if (userConversion) userConversion.markPurchased(chatId)
@@ -20629,6 +20653,15 @@ app.get('/crypto-pay-hosting', auth, async (req, res) => {
     }
     return res.send(html(hostingResult?.error || 'Hosting creation failed'))
   }
+
+  // ── Hosting purchase group notification (was missing — Fix #1) ──
+  try {
+    const name = await get(nameOf, chatId)
+    const domain = info?.domain || info?.website_name
+    notifyGroup(`🏠 <b>Hosting Activated!</b>\nUser ${maskName(name)} just set up hosting for <b>${maskDomain(domain)}</b> — ready for launch.\nBuild yours — /start`)
+    sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🏠 <b>Hosting Purchase (Crypto BlockBee)</b>\n🆔 User: ${chatId}\n🌐 Domain: ${domain}\n📋 Plan: ${info?.plan || 'N/A'}\n💵 Price: $${price}\n💳 Payment: Crypto BlockBee`, { parse_mode: 'HTML' })
+  } catch (e) { log('[Hosting] notifyGroup error: ' + e.message) }
+
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
@@ -21263,6 +21296,15 @@ app.post('/dynopay/crypto-pay-hosting', authDyno, async (req, res) => {
     }
     return res.send(html(hostingResult?.error || 'Hosting creation failed'))
   }
+
+  // ── Hosting purchase group notification (was missing — Fix #1) ──
+  try {
+    const name = await get(nameOf, chatId)
+    const domain = info?.domain || info?.website_name
+    notifyGroup(`🏠 <b>Hosting Activated!</b>\nUser ${maskName(name)} just set up hosting for <b>${maskDomain(domain)}</b> — ready for launch.\nBuild yours — /start`)
+    sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🏠 <b>Hosting Purchase (Crypto DynoPay)</b>\n🆔 User: ${chatId}\n🌐 Domain: ${domain}\n📋 Plan: ${info?.plan || 'N/A'}\n💵 Price: $${price}\n💳 Payment: Crypto DynoPay`, { parse_mode: 'HTML' })
+  } catch (e) { log('[Hosting] notifyGroup error: ' + e.message) }
+
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
   if (userConversion) userConversion.markPurchased(chatId)

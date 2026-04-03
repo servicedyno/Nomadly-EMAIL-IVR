@@ -345,6 +345,12 @@ async function generateNewSSHkey(telegramId, sshName) {
     // Convert PEM to OpenSSH format for Contabo
     const sshPubKey = convertPemToOpenSSH(publicKey, `${telegramId}@nomadly`)
 
+    // Guard: if conversion failed, don't send invalid key to Contabo
+    if (!sshPubKey) {
+      console.log('[SSH] Failed to convert PEM to OpenSSH format for', telegramId)
+      return false
+    }
+
     // Store on Contabo
     const secret = await contabo.createSecret(contaboName, sshPubKey, 'ssh')
 
@@ -385,17 +391,53 @@ async function generateNewSSHkey(telegramId, sshName) {
 
 /**
  * Convert PEM public key to OpenSSH format.
+ * Fix #3: Previous implementation exported SPKI DER as base64, which is NOT valid OpenSSH format.
+ * Contabo rejected these keys with "Ssh key is not valid. Valid formats [ dsa | ecdsa | ed25519 | rsa ]".
+ * Now properly constructs SSH wire format: string("ssh-rsa") + mpint(e) + mpint(n).
  */
 function convertPemToOpenSSH(pemKey, comment = '') {
   try {
     const keyObj = crypto.createPublicKey(pemKey)
-    const sshBuf = keyObj.export({ type: 'spki', format: 'der' })
+    // Export as JWK to get raw key components (e = exponent, n = modulus)
+    const jwk = keyObj.export({ format: 'jwk' })
+
+    if (jwk.kty !== 'RSA' || !jwk.e || !jwk.n) {
+      throw new Error('Not an RSA key or missing e/n components')
+    }
+
+    const e = Buffer.from(jwk.e, 'base64url')
+    const n = Buffer.from(jwk.n, 'base64url')
+
+    // SSH wire format helper: 4-byte big-endian length prefix + data
+    const encodeSSHString = (buf) => {
+      const len = Buffer.alloc(4)
+      len.writeUInt32BE(buf.length)
+      return Buffer.concat([len, buf])
+    }
+
+    // SSH mpint: if high bit set, prepend 0x00 to indicate positive number
+    const encodeSSHMpint = (buf) => {
+      if (buf[0] & 0x80) {
+        buf = Buffer.concat([Buffer.from([0x00]), buf])
+      }
+      const len = Buffer.alloc(4)
+      len.writeUInt32BE(buf.length)
+      return Buffer.concat([len, buf])
+    }
+
+    // Construct: string("ssh-rsa") + mpint(e) + mpint(n)
+    const typeStr = Buffer.from('ssh-rsa')
+    const sshBuf = Buffer.concat([
+      encodeSSHString(typeStr),
+      encodeSSHMpint(e),
+      encodeSSHMpint(n),
+    ])
+
     return `ssh-rsa ${sshBuf.toString('base64')} ${comment}`.trim()
   } catch (err) {
-    // Fallback: just return PEM stripped
-    return pemKey.replace(/-----BEGIN PUBLIC KEY-----/g, '')
-                 .replace(/-----END PUBLIC KEY-----/g, '')
-                 .replace(/\n/g, '')
+    console.log('[SSH] PEM-to-OpenSSH conversion error:', err.message)
+    // Return null so caller knows conversion failed (don't send garbage to Contabo)
+    return null
   }
 }
 
@@ -513,7 +555,8 @@ async function createVPSInstance(telegramId, vpsDetails) {
     const region = vpsDetails.zone || vpsDetails.region || 'EU'
     
     // Generate a root password for the instance
-    const rootPassword = generateRandomPassword(20)
+    // Fix #6: Ensure minimum 20 chars (Contabo requires at least 8)
+    const rootPassword = generateRandomPassword(Math.max(20, 20))
     const passwordSecret = await contabo.createSecret(
       `pwd-${telegramId}-${Date.now()}`,
       rootPassword,
