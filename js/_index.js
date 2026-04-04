@@ -12914,6 +12914,8 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   // ── Skip global wallet redirect when inside a payment flow ──
   const _payActions = ['phone-pay', 'domain-pay', 'hosting-pay', 'vps-plan-pay', 'vps-upgrade-plan-pay', 'digital-product-pay', 'virtual-card-pay', 'leads-pay', 'ebPayment', 'bundleConfirm']
   if (message === user.wallet && !_payActions.includes(action)) {
+    // Clear any stale support session — user is navigating the bot normally
+    await set(supportSessions, chatId, 0)
     return goto[user.wallet]()
   }
   if (action === user.wallet) {
@@ -19152,8 +19154,11 @@ Select a category:`), k.of(catBtns))
   }
 
   // Fallback: unrecognized message — check for recent support session before resetting
+  // BUT only if user is NOT in an active bot flow (action is 'none' or empty)
   const recentSession = await get(supportSessions, chatId)
-  if (recentSession && recentSession > 0 && (Date.now() - recentSession) < 3600000) {
+  const _currentAction = (await get(state, chatId))?.action
+  const isInActiveFlow = _currentAction && _currentAction !== 'none' && _currentAction !== 'supportChat'
+  if (!isInActiveFlow && recentSession && recentSession > 0 && (Date.now() - recentSession) < 3600000) {
     // User had a support session within the last hour — forward to admin as safety net
     const _fallbackName = await get(nameOf, chatId)
     const displayName = _fallbackName || msg?.from?.username || chatId
