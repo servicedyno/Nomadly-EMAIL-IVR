@@ -3888,9 +3888,9 @@ Enter new value:`), bc)
               'Forwarding': ['📞', 'Call Forwarding'],
               'Bridge_Transfer': ['📞', 'Call Bridge'],
               'Twilio_Inbound': ['📞', 'Inbound Call'],
-              'Telnyx_SIP_Leg': ['📡', 'SIP Leg (Telnyx)'],
-              'Twilio_SIP_Bridge': ['📞', 'PSTN Leg (Twilio)'],
-              'Twilio_SIP_Outbound': ['📞', 'Outbound Call (Twilio)'],
+              'Telnyx_SIP_Leg': ['📡', 'SIP Relay'],
+              'Twilio_SIP_Bridge': ['📞', 'Outbound Call'],
+              'Twilio_SIP_Outbound': ['📞', 'Outbound Call'],
               'CloudPhoneSMS': ['💬', 'SMS'],
               'EmailBlast': ['📧', 'Email Blast'],
               'Phone Leads': ['📱', 'Phone Leads'],
@@ -3898,10 +3898,14 @@ Enter new value:`), bc)
               'DigitalProduct': ['🛒', 'Digital Product'],
               'VirtualCard': ['💳', 'Virtual Card'],
               'Bit.ly Link': ['🔗', 'URL Shortener'],
+              'Twilio_Forwarding': ['📞', 'Call Forwarding'],
             }
-            // Handle Bundle:xxx format
+            // Handle Bundle:xxx and Retroactive format
             const catKey = category.startsWith('Bundle:') ? 'Bundle' : category
-            if (catKey === 'Bundle') {
+            if (method === 'Retroactive') {
+              icon = '🔧'
+              desc = 'Billing Adjustment'
+            } else if (catKey === 'Bundle') {
               icon = '🎁'
               desc = 'Service Bundle'
             } else if (catMap[catKey]) {
@@ -3912,7 +3916,7 @@ Enter new value:`), bc)
               desc = category || method
             }
             // Add destination number for calls
-            if (['SIPOutbound', 'Inbound', 'Forwarding', 'Bridge_Transfer', 'Twilio_Inbound', 'CloudPhoneSMS'].includes(category)) {
+            if (['SIPOutbound', 'Inbound', 'Forwarding', 'Bridge_Transfer', 'Twilio_Inbound', 'Telnyx_SIP_Leg', 'Twilio_SIP_Bridge', 'Twilio_SIP_Outbound', 'CloudPhoneSMS'].includes(category)) {
               for (const p of parts) {
                 const phonePart = p.trim()
                 if (/^\+\d{10,}$/.test(phonePart)) {
