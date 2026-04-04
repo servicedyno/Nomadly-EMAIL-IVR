@@ -1492,10 +1492,11 @@ function reportToBackend(ip, type, path, domain, ua, details) {
   } catch (e) { /* non-critical */ }
 }
 
-// Handle honeypot trigger — ban IP + return fake content + report
+// Handle honeypot trigger — smart banning: only ban bots, not verified humans
 async function handleHoneypotTrigger(request, path) {
   const ip = request.headers.get('CF-Connecting-IP') || '';
   const ua = request.headers.get('User-Agent') || '';
+  const cookies = request.headers.get('Cookie') || '';
   const domain = new URL(request.url).hostname;
 
   // Determine trap type from path
@@ -1506,17 +1507,53 @@ async function handleHoneypotTrigger(request, path) {
   else if (path.includes('js-trap')) type = 'js';
   else if (path.includes('robots-trap')) type = 'robots';
 
-  // Ban the IP immediately (24h)
-  await banIP(ip, 'honeypot_' + type, path);
-
-  // Report to backend (async, non-blocking)
-  reportToBackend(ip, type, path, domain, ua, '');
-
-  // Return fake content to waste bot time
-  if (path.includes('admin') || path.includes('wp-admin')) {
-    return new Response('<html><head><title>Admin Login</title></head><body><h1>Admin Panel</h1><form method="POST"><input name="user" placeholder="Username"><input name="pass" type="password" placeholder="Password"><button>Login</button></form></body></html>', {
-      status: 200, headers: { 'Content-Type': 'text/html' }
+  // ── SMART CHECK: If visitor has valid challenge cookie, they're a verified human ──
+  // Don't ban them — they probably found the URL in source code or typed it manually.
+  // Just return a generic 404 to avoid confusion.
+  const isVerifiedHuman = await verifyCookie(cookies);
+  if (isVerifiedHuman) {
+    // Still report for analytics (soft signal), but NO ban
+    reportToBackend(ip, type + '_human_skip', path, domain, ua, 'verified_cookie_present');
+    return new Response('<!DOCTYPE html><html><head><title>404 Not Found</title></head><body><h1>404 Not Found</h1><p>The requested resource was not found on this server.</p></body></html>', {
+      status: 404, headers: { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' }
     });
+  }
+
+  // ── Calculate bot score to decide severity ──
+  const botScore = calculateBotScore(ua, ip);
+
+  if (botScore >= 50) {
+    // HIGH confidence bot — ban IP (24h) + serve decoy to waste time
+    await banIP(ip, 'honeypot_' + type, path);
+    reportToBackend(ip, type, path, domain, ua, 'bot_score_' + botScore);
+    return serveHoneypotDecoy(path);
+  }
+
+  // LOW score, no cookie — could be a curious human or a stealthy bot.
+  // Don't ban (avoids false-positives on site owners), but report + serve 404.
+  reportToBackend(ip, type + '_low_score', path, domain, ua, 'bot_score_' + botScore + '_no_cookie');
+  return new Response('<!DOCTYPE html><html><head><title>404 Not Found</title></head><body><h1>404 Not Found</h1><p>The requested resource was not found on this server.</p></body></html>', {
+    status: 404, headers: { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' }
+  });
+}
+
+// ─── Decoy content for confirmed bots (wastes their time) ────
+function serveHoneypotDecoy(path) {
+  if (path.includes('admin') || path.includes('wp-admin')) {
+    // Fake server maintenance page — looks like a real server response, not an admin panel
+    return new Response(
+      '<!DOCTYPE html><html><head><title>503 Service Unavailable</title>'
+      + '<meta http-equiv="refresh" content="30">'
+      + '<style>body{font-family:sans-serif;text-align:center;padding:60px 20px;background:#f5f5f5;color:#333}'
+      + 'h1{font-size:48px;color:#999}p{max-width:500px;margin:20px auto;line-height:1.6}'
+      + '.spinner{border:4px solid #ddd;border-top:4px solid #999;border-radius:50%;width:30px;height:30px;'
+      + 'animation:spin 1.5s linear infinite;margin:20px auto}@keyframes spin{to{transform:rotate(360deg)}}</style></head>'
+      + '<body><h1>503</h1><div class="spinner"></div><p><b>Service Temporarily Unavailable</b></p>'
+      + '<p>The server is currently undergoing scheduled maintenance. Please try again in a few minutes.</p>'
+      + '<p style="font-size:12px;color:#aaa">Reference: ' + Date.now().toString(36) + '-' + Math.random().toString(36).substring(2,8) + '</p>'
+      + '</body></html>',
+      { status: 503, headers: { 'Content-Type': 'text/html', 'Retry-After': '300', 'Cache-Control': 'no-store' } }
+    );
   }
   if (path.includes('api-keys') || path.includes('config') || path.includes('private')) {
     return new Response('API_KEY=fake_12345678abcdefgh\\nSECRET=fake_xxxxxxxxxxxxxxxx\\nDATABASE_URL=postgres://fake:fake@localhost/fake\\n', {
@@ -1528,7 +1565,7 @@ async function handleHoneypotTrigger(request, path) {
       status: 200, headers: { 'Content-Type': 'text/plain' }
     });
   }
-  // Generic: signal received, return 404-like
+  // Generic: 404
   return new Response('Not Found', { status: 404 });
 }
 
