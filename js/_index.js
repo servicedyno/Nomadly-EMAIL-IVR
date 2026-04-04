@@ -7537,16 +7537,14 @@ All verified numbers generated during sourcing.`))
         pendingLines += `\n  ${name}: $${ref.cumulativeSpend.toFixed(2)}/$30 [${bar}] ${progress}%`
       }
 
-      const msg = `🔗 <b>Refer & Earn $5</b>\n\n` +
-        `Share your link and earn <b>$5</b> when your referral spends $30+\n\n` +
-        `📎 Your referral link:\n<code>${referralLink}</code>\n\n` +
-        `📊 <b>Stats:</b>\n` +
-        `👥 Total referrals: ${totalReferred}\n` +
-        `✅ Qualified ($30+ spent): ${qualified}\n` +
-        `⏳ Pending: ${pending}\n` +
-        `💰 Total earned: <b>$${totalEarned.toFixed(2)}</b>\n` +
-        (pendingLines ? `\n📈 <b>Progress:</b>${pendingLines}` : '') +
-        `\n\n<i>You earn $5 when your referred user's cumulative spending reaches $30.</i>`
+      const msg = `🤝 <b>Refer a Friend, Earn $5</b>\n\n` +
+        `Invite friends to Nomadly. When they spend $30, you get <b>$5</b> — simple.\n\n` +
+        `🔗 <a href="${referralLink}">Tap to copy your invite link</a>\n\n` +
+        `${'─'.repeat(22)}\n` +
+        `👥  <b>${totalReferred}</b> referred   ✅  <b>${qualified}</b> qualified   💰  <b>$${totalEarned.toFixed(2)}</b> earned` +
+        (pendingLines ? `\n${'─'.repeat(22)}\n📈 <b>In Progress</b>${pendingLines}` : '') +
+        `\n${'─'.repeat(22)}\n` +
+        `<i>Reward unlocks when your referral's total spending hits $30.</i>`
 
       return send(chatId, msg, { parse_mode: 'HTML', ...k.of([[t.back]]) })
     } catch (e) {
