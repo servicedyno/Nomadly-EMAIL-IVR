@@ -3904,7 +3904,11 @@ Enter new value:`), bc)
             const catKey = category.startsWith('Bundle:') ? 'Bundle' : category
             if (method === 'Retroactive') {
               icon = '🔧'
-              desc = 'Billing Adjustment'
+              // Use the category map for specific description, append "Adjustment"
+              const retroLabel = catMap[catKey] ? catMap[catKey][1] : category
+              const retroIcon = catMap[catKey] ? catMap[catKey][0] : '🔧'
+              icon = retroIcon
+              desc = `${retroLabel} (Adjustment)`
             } else if (catKey === 'Bundle') {
               icon = '🎁'
               desc = 'Service Bundle'
