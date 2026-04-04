@@ -11,6 +11,7 @@ const SUPPORT_USERNAME = process.env.SUPPORT_USERNAME
 
 const HIDE_SMS_APP = process.env.HIDE_SMS_APP
 const HIDE_BECOME_RESELLER = process.env.HIDE_BECOME_RESELLER
+const HIDE_BUNDLES = process.env.HIDE_BUNDLES
 const EMAIL_BLAST_ON = process.env.EMAIL_BLAST_ON
 const VPS_ENABLED = process.env.VPS_ENABLED
 const TG_HANDLE = process.env.TG_HANDLE
@@ -1333,7 +1334,9 @@ const userKeyboard = {
           : HIDE_SMS_APP !== 'true'
             ? [[user.freeTrialAvailable]]
             : []),
-      [user.shippingLabel, user.serviceBundles],
+      ...(HIDE_BUNDLES !== 'true'
+        ? [[user.shippingLabel, user.serviceBundles]]
+        : [[user.shippingLabel]]),
       [user.referEarn],
       HIDE_BECOME_RESELLER === 'true'
         ? [user.changeSetting, user.getSupport]
