@@ -108,6 +108,7 @@ async function smartWalletDeduct(walletOf, chatId, amountUsd) {
       { returnDocument: 'after' }
     )
     if (usdResult) {
+      checkReferralReward(walletOf, chatId, amountUsd).catch(() => {})  // async, non-blocking
       return { success: true, currency: 'usd', charged: amountUsd }
     }
   } catch (e) {
@@ -127,6 +128,7 @@ async function smartWalletDeduct(walletOf, chatId, amountUsd) {
         { returnDocument: 'after' }
       )
       if (ngnResult) {
+        checkReferralReward(walletOf, chatId, amountUsd).catch(() => {})  // async, non-blocking
         return { success: true, currency: 'ngn', charged: amountUsd, chargedNgn: amountNgn }
       }
     } catch (e) {
@@ -137,6 +139,70 @@ async function smartWalletDeduct(walletOf, chatId, amountUsd) {
   // Both failed — get balances for reporting
   const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
   return { success: false, currency: null, charged: 0, usdBal, ngnBal }
+}
+
+/**
+ * Check and process referral reward after a wallet deduction
+ * If the user was referred and their cumulative spend >= $30, credit referrer $5
+ */
+async function checkReferralReward(walletOf, chatId, amountUsd) {
+  try {
+    const { MongoClient } = require('mongodb')
+    const db = walletOf.s?.db || walletOf.dbName  // get db reference from collection
+    // Access referrals collection from the same db
+    const referralsCol = walletOf.s?.db?.collection('referrals') || null
+    if (!referralsCol) return
+
+    const ref = await referralsCol.findOne({ _id: chatId })
+    if (!ref || ref.rewardPaid) return  // No referrer or already paid
+
+    // Update cumulative spend
+    const newSpend = (ref.cumulativeSpend || 0) + amountUsd
+    await referralsCol.updateOne({ _id: chatId }, { $set: { cumulativeSpend: newSpend } })
+
+    // Check if threshold reached
+    if (newSpend >= 30 && !ref.rewardPaid) {
+      const REFERRAL_REWARD = 5
+      // Credit referrer's wallet
+      const { atomicIncrement } = require('./db')
+      await atomicIncrement(walletOf, ref.referrerChatId, 'usdIn', REFERRAL_REWARD)
+      // Mark reward as paid
+      await referralsCol.updateOne({ _id: chatId }, { $set: { rewardPaid: true, rewardPaidAt: new Date() } })
+
+      // Log payment record
+      const paymentsCol = walletOf.s?.db?.collection('payments')
+      if (paymentsCol) {
+        const { nanoid } = require('nanoid')
+        const payRef = nanoid()
+        await paymentsCol.updateOne({ _id: payRef }, { $set: {
+          val: `Referral,Reward,$${REFERRAL_REWARD},${ref.referrerChatId},${chatId},Referral reward — referred user spent $${newSpend.toFixed(2)},${new Date().toISOString()}`
+        } }, { upsert: true })
+      }
+
+      log(`[Referral] 🎉 Reward paid! $${REFERRAL_REWARD} credited to ${ref.referrerChatId} (referred ${chatId} spent $${newSpend.toFixed(2)})`)
+
+      // Try to notify the referrer via Telegram
+      try {
+        const TelegramBot = require('node-telegram-bot-api')
+        const token = process.env.TELEGRAM_BOT_TOKEN_PROD || process.env.TELEGRAM_BOT_TOKEN_DEV
+        if (token) {
+          const notifyBot = new TelegramBot(token)
+          const nameCol = walletOf.s?.db?.collection('nameOf')
+          const refName = nameCol ? await nameCol.findOne({ _id: chatId }) : null
+          const userName = refName?.val || `User ${chatId}`
+          await notifyBot.sendMessage(ref.referrerChatId,
+            `🎉 <b>Referral Reward!</b>\n\n` +
+            `Your referral <b>${userName}</b> has spent $${newSpend.toFixed(2)}.\n` +
+            `💰 <b>$${REFERRAL_REWARD}.00</b> has been added to your wallet!\n\n` +
+            `Keep sharing to earn more!`,
+            { parse_mode: 'HTML' }
+          ).catch(() => {})
+        }
+      } catch (e) { /* notification is best-effort */ }
+    }
+  } catch (e) {
+    log(`[Referral] checkReferralReward error: ${e.message}`)
+  }
 }
 
 /**
@@ -821,6 +887,7 @@ module.exports = {
   usdToNgn,
   ngnToUsd,
   smartWalletDeduct,
+  checkReferralReward,
   smartWalletCheck,
   getRandom,
   isValidUrl,

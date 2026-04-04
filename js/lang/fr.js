@@ -128,6 +128,7 @@ const user = {
   emailBlast: '📧 Email en Masse',
   emailValidation: '📧 Validation d\'Email',
   serviceBundles: '🎁 Packs de Services',
+  referEarn: '🔗 Parrainez & Gagnez',
   virtualCard: '💳 Carte Virtuelle',
 
   // Sub Menu 2: domainNames
@@ -1292,6 +1293,7 @@ const userKeyboard = {
             ? [[user.freeTrialAvailable]]
             : []),
       [user.shippingLabel, user.serviceBundles],
+      [user.referEarn],
       HIDE_BECOME_RESELLER === 'true'
         ? [user.changeSetting, user.getSupport]
         : [user.becomeReseller, user.changeSetting, user.getSupport],

@@ -117,6 +117,7 @@ const user = {
   emailBlast: '📧 Email Blast',
   emailValidation: '📧 Email Validation',
   serviceBundles: '🎁 Service Bundles',
+  referEarn: '🔗 Refer & Earn',
 
   // Sub Menu 1: urlShortenerMain
   shortenLink: '✂️ Shorten a Link',
@@ -1333,6 +1334,7 @@ const userKeyboard = {
             ? [[user.freeTrialAvailable]]
             : []),
       [user.shippingLabel, user.serviceBundles],
+      [user.referEarn],
       HIDE_BECOME_RESELLER === 'true'
         ? [user.changeSetting, user.getSupport]
         : [user.becomeReseller, user.changeSetting, user.getSupport],

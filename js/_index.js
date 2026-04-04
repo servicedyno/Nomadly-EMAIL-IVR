@@ -762,7 +762,8 @@ let nameOf = {},
 let supportSessions = {},
   leadRequests = {},
   cpanelAccounts = {},
-  pendingBundles = {}
+  pendingBundles = {},
+  referrals = {}
 
 // Daily coupon system reference
 let dailyCouponSystem = null
@@ -997,6 +998,7 @@ const loadData = async () => {
   leadRequests = db.collection('leadRequests')
   cpanelAccounts = db.collection('cpanelAccounts')
   pendingBundles = db.collection('pendingBundles')
+  referrals = db.collection('referrals')
 
   // variables to view system information
   nameOf = db.collection('nameOf')
@@ -3863,6 +3865,7 @@ Enter new value:`), bc)
           // Determine if credit or debit
           let isCredit = false
           if ((method === 'Bank' || method === 'Crypto') && category === 'Wallet') isCredit = true
+          if (method === 'Referral' && category === 'Reward') isCredit = true
           if (method === 'Free') continue // skip free entries
 
           // Build description
@@ -3899,6 +3902,7 @@ Enter new value:`), bc)
               'VirtualCard': ['💳', 'Virtual Card'],
               'Bit.ly Link': ['🔗', 'URL Shortener'],
               'Twilio_Forwarding': ['📞', 'Call Forwarding'],
+              'Reward': ['🎁', 'Referral Reward'],
             }
             // Handle Bundle:xxx and Retroactive format
             const catKey = category.startsWith('Bundle:') ? 'Bundle' : category
@@ -6381,6 +6385,34 @@ All verified numbers generated during sourcing.`))
       if (tracked && tracked.credited) {
         log(`[Referral] ${chatId} joined via referral ${refCode}, referrer credited`)
       }
+      // Save wallet referral relationship (for $5 reward when cumulative spend >= $30)
+      try {
+        const existing = await referrals.findOne({ _id: chatId })
+        if (!existing) {
+          // refCode can be a chatId or username — resolve to chatId
+          let referrerChatId = parseInt(refCode)
+          let referrerUsername = refCode
+          if (isNaN(referrerChatId)) {
+            // Lookup by username
+            const allNames = await nameOf.find({ val: refCode }).toArray()
+            if (allNames.length > 0) referrerChatId = allNames[0]._id
+          } else {
+            const nameDoc = await nameOf.findOne({ _id: referrerChatId })
+            if (nameDoc) referrerUsername = nameDoc.val
+          }
+          if (referrerChatId && referrerChatId !== chatId) {
+            await referrals.updateOne({ _id: chatId }, { $set: {
+              _id: chatId,
+              referrerChatId,
+              referrerUsername,
+              joinedAt: new Date(),
+              cumulativeSpend: 0,
+              rewardPaid: false
+            } }, { upsert: true })
+            log(`[Referral] Wallet referral saved: ${chatId} referred by ${referrerChatId} (${referrerUsername})`)
+          }
+        }
+      } catch (e) { log(`[Referral] Error saving wallet referral: ${e.message}`) }
     }
     // Continue with normal /start flow below
   }
@@ -7481,6 +7513,48 @@ All verified numbers generated during sourcing.`))
   }
 
   // ━━━ Service Bundles ━━━
+  // ── Refer & Earn ──
+  if (message === user.referEarn || message === '🔗 Refer & Earn' || message === '🔗 Parrainez & Gagnez' || message === '🔗 推荐赚钱' || message === '🔗 रेफर करें और कमाएं') {
+    try {
+      const botUsername = process.env.BOT_USERNAME || 'Nomadlytestbot'
+      const referralLink = `https://t.me/${botUsername}?start=ref_${chatId}`
+
+      // Get referral stats
+      const myReferrals = await referrals.find({ referrerChatId: chatId }).toArray()
+      const totalReferred = myReferrals.length
+      const qualified = myReferrals.filter(r => r.rewardPaid).length
+      const pending = myReferrals.filter(r => !r.rewardPaid).length
+      const totalEarned = qualified * 5
+
+      // Get pending referrals' progress
+      let pendingLines = ''
+      const pendingRefs = myReferrals.filter(r => !r.rewardPaid).slice(0, 5)
+      for (const ref of pendingRefs) {
+        const refName = await nameOf.findOne({ _id: ref._id })
+        const name = refName?.val || `User ${ref._id}`
+        const progress = Math.min(100, Math.round((ref.cumulativeSpend / 30) * 100))
+        const bar = '█'.repeat(Math.floor(progress / 10)) + '░'.repeat(10 - Math.floor(progress / 10))
+        pendingLines += `\n  ${name}: $${ref.cumulativeSpend.toFixed(2)}/$30 [${bar}] ${progress}%`
+      }
+
+      const msg = `🔗 <b>Refer & Earn $5</b>\n\n` +
+        `Share your link and earn <b>$5</b> when your referral spends $30+\n\n` +
+        `📎 Your referral link:\n<code>${referralLink}</code>\n\n` +
+        `📊 <b>Stats:</b>\n` +
+        `👥 Total referrals: ${totalReferred}\n` +
+        `✅ Qualified ($30+ spent): ${qualified}\n` +
+        `⏳ Pending: ${pending}\n` +
+        `💰 Total earned: <b>$${totalEarned.toFixed(2)}</b>\n` +
+        (pendingLines ? `\n📈 <b>Progress:</b>${pendingLines}` : '') +
+        `\n\n<i>You earn $5 when your referred user's cumulative spending reaches $30.</i>`
+
+      return send(chatId, msg, { parse_mode: 'HTML', ...k.of([[t.back]]) })
+    } catch (e) {
+      log(`[Referral] Error showing refer page: ${e.message}`)
+      return send(chatId, '⚠️ Unable to load referral page. Try again later.', k.of([[t.back]]))
+    }
+  }
+
   if (message === user.serviceBundles || message === '🎁 Service Bundles' || message === '🎁 Packs de Services' || message === '🎁 服务套餐' || message === '🎁 सर्विस बंडल') {
     await set(state, chatId, 'action', a.bundleMenu)
     const bundleMenuMsg = monetization.formatBundleMenu(lang)

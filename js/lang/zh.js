@@ -127,6 +127,7 @@ const user = {
   emailBlast: '📧 群发邮件',
   emailValidation: '📧 邮箱验证',
   serviceBundles: '🎁 服务套餐',
+  referEarn: '🔗 推荐赚钱',
   virtualCard: '💳 虚拟卡',
 
   // Sub Menu 2: domainNames
@@ -1277,6 +1278,7 @@ const userKeyboard = {
             ? [[user.freeTrialAvailable]]
             : []),
       [user.shippingLabel, user.serviceBundles],
+      [user.referEarn],
       HIDE_BECOME_RESELLER === 'true'
         ? [user.changeSetting, user.getSupport]
         : [user.becomeReseller, user.changeSetting, user.getSupport],
