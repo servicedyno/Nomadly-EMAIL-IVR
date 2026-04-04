@@ -22906,7 +22906,8 @@ app.post('/twilio/voice-webhook', async (req, res) => {
 app.post('/twilio/sip-ring-result', async (req, res) => {
   const VoiceResponse = require('twilio').twiml.VoiceResponse
   try {
-    const { chatId, from, to } = req.query
+    const { chatId: rawChatId, from, to } = req.query
+    const chatId = rawChatId ? parseInt(rawChatId) : null
     const { DialCallStatus, DialCallDuration } = req.body || {}
     const response = new VoiceResponse()
     const decodedFrom = decodeURIComponent(from || 'unknown')
@@ -23186,7 +23187,8 @@ app.post('/twilio/voice-dial-status', async (req, res) => {
   const voiceService = require('./voice-service.js')
   try {
     const { DialCallStatus, DialCallDuration } = req.body || {}
-    const { chatId, from, to, type } = req.query || {}
+    const { chatId: rawChatId, from, to, type } = req.query || {}
+    const chatId = rawChatId ? parseInt(rawChatId) : null
     const response = new VoiceResponse()
 
     log(`[Twilio] Dial status: ${DialCallStatus} (${DialCallDuration || 0}s) chatId=${chatId} type=${type || 'forward'}`)
@@ -23389,7 +23391,8 @@ app.post('/twilio/voicemail-complete', async (req, res) => {
   const VoiceResponse = require('twilio').twiml.VoiceResponse
   try {
     const { RecordingUrl, RecordingDuration, RecordingSid } = req.body || {}
-    const { chatId, from, to } = req.query || {}
+    const { chatId: rawChatId, from, to } = req.query || {}
+    const chatId = rawChatId ? parseInt(rawChatId) : null
     log(`[Twilio] Voicemail recorded: ${RecordingSid} (${RecordingDuration}s) for chatId=${chatId}`)
 
     if (chatId && RecordingUrl) {
