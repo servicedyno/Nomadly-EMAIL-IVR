@@ -23233,7 +23233,7 @@ app.post('/twilio/voice-dial-status', async (req, res) => {
     const decodedFrom = decodeURIComponent(from || 'unknown')
     const decodedTo = decodeURIComponent(to || '')
 
-    // For SIP bridge/outbound calls: notify user about the failure
+    // For SIP bridge/outbound calls: bill 1-min minimum + notify user about the failure
     if (type === 'sip_bridge' || type === 'sip_outbound') {
       const label = type === 'sip_bridge' ? 'SIP Bridge Call' : 'SIP Outbound Call'
       const reason = DialCallStatus === 'no-answer' ? 'No answer'
@@ -23241,7 +23241,31 @@ app.post('/twilio/voice-dial-status', async (req, res) => {
         : DialCallStatus === 'failed' ? 'Call failed'
         : DialCallStatus === 'canceled' ? 'Cancelled'
         : DialCallStatus || 'Unknown'
-      bot?.sendMessage(chatId, `❌ <b>${label} Failed</b>\n📲 ${decodedFrom} — ${reason}`, { parse_mode: 'HTML' }).catch(() => {})
+
+      // Bill 1-minute minimum for unanswered/failed outbound calls
+      let chargeLine = ''
+      if (chatId && to) {
+        try {
+          const decodedToNum = decodeURIComponent(to)
+          const destination = decodeURIComponent(from || '')
+          const userData = await get(phoneNumbersOf, chatId)
+          const numbers = userData?.numbers || []
+          const num = numbers.find(n => n.phoneNumber === decodedToNum && n.provider === 'twilio')
+          if (num) {
+            const fwdDest = destination || (num.features?.callForwarding?.forwardTo || '')
+            const callType = type === 'sip_bridge' ? 'Twilio_SIP_Bridge' : 'Twilio_SIP_Outbound'
+            const billingInfo = await voiceService.billCallMinutesUnified(chatId, num.phoneNumber, 1, fwdDest, callType)
+            if (billingInfo.overageCharge > 0) {
+              chargeLine = `\n💰 Charged: $${billingInfo.rate.toFixed(2)} (1 min minimum)`
+            }
+            log(`[Twilio] ${label} unanswered billed: 1 min minimum @ $${billingInfo.rate} — ${reason}`)
+          } else {
+            log(`[Twilio] ${label} unanswered billing skipped — number not found for ${decodedToNum}`)
+          }
+        } catch (e) { log(`[Twilio] ${label} unanswered billing error: ${e.message}`) }
+      }
+
+      bot?.sendMessage(chatId, `❌ <b>${label} Failed</b>\n📲 ${decodedFrom} — ${reason}${chargeLine}`, { parse_mode: 'HTML' }).catch(() => {})
       response.say(`The call could not be completed. ${reason}.`)
       response.hangup()
       return res.type('text/xml').send(response.toString())
