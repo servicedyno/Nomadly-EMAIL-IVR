@@ -3789,9 +3789,9 @@ Enter new value:`), bc)
 
     //
     //
-    [admin.messageUsers]: () => {
+    [admin.messageUsers]: async () => {
       send(chatId, t.enterBroadcastMessage, bc)
-      set(state, chatId, 'action', admin.messageUsers)
+      await set(state, chatId, 'action', admin.messageUsers)
     },
     adminConfirmMessage: async () => {
       send(chatId, 'Confirm?',  trans('yes_no'))
@@ -3808,7 +3808,7 @@ Enter new value:`), bc)
     //
 
     [user.wallet]: async () => {
-      set(state, chatId, 'action', user.wallet)
+      await set(state, chatId, 'action', user.wallet)
       const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
       // Show tier badge alongside wallet
       const tierInfo = await loyalty.getUserTier(walletOf, chatId)
@@ -3980,18 +3980,18 @@ Enter new value:`), bc)
       }
     },
     //
-    [a.selectCurrencyToDeposit]: () => {
-      set(state, chatId, 'action', a.selectCurrencyToDeposit)
+    [a.selectCurrencyToDeposit]: async () => {
+      await set(state, chatId, 'action', a.selectCurrencyToDeposit)
       send(chatId, t.selectCurrencyToDeposit, trans('payOpts'))
     },
     //
-    [a.depositNGN]: () => {
+    [a.depositNGN]: async () => {
       send(chatId, t.depositNGN, bc)
-      set(state, chatId, 'action', a.depositNGN)
+      await set(state, chatId, 'action', a.depositNGN)
     },
-    [a.askEmailForNGN]: () => {
+    [a.askEmailForNGN]: async () => {
       send(chatId, t.askEmailForNGN, bc)
-      set(state, chatId, 'action', a.askEmailForNGN)
+      await set(state, chatId, 'action', a.askEmailForNGN)
     },
     showDepositNgnInfo: async () => {
       const ref = nanoid()
@@ -4001,19 +4001,19 @@ Enter new value:`), bc)
       set(chatIdOfPayment, ref, { chatId, ngnIn: ngn, endpoint: `/bank-wallet` })
       const { url, error } = await createCheckout(ngn, `/ok?a=b&ref=${ref}&`, email, username, ref)
 
-      set(state, chatId, 'action', 'none')
+      await set(state, chatId, 'action', 'none')
       if (error) return send(chatId, error, trans('o'))
       console.log('showDepositNgnInfo', url)
       send(chatId, t.showDepositNgnInfo(ngn), trans('payBank', url))
       return send(chatId, `Bank ₦aira + Card 🌐︎`, trans('o'))
     },
     //
-    [a.depositUSD]: () => {
+    [a.depositUSD]: async () => {
       send(chatId, t.depositUSD, bc)
-      set(state, chatId, 'action', a.depositUSD)
+      await set(state, chatId, 'action', a.depositUSD)
     },
-    [a.selectCryptoToDeposit]: () => {
-      set(state, chatId, 'action', a.selectCryptoToDeposit)
+    [a.selectCryptoToDeposit]: async () => {
+      await set(state, chatId, 'action', a.selectCryptoToDeposit)
       send(chatId, t.selectCryptoToDeposit, trans('k.of', trans('supportedCryptoViewOf')))
     },
     showDepositCryptoInfo: async () => {
@@ -4026,7 +4026,7 @@ Enter new value:`), bc)
           log({ ref })
           sendQrCode(bot, chatId, bbResult.bb, userLanguage ?? 'en')
           set(chatIdOfPayment, ref, { chatId })
-          set(state, chatId, 'action', 'none')
+          await set(state, chatId, 'action', 'none')
           const usdIn = await convert(amount, 'usd', ticker)
           send(chatId, t.showDepositCryptoInfo(amount, usdIn, tickerView, bbResult.address), trans('o'))
         } else {
@@ -4036,7 +4036,7 @@ Enter new value:`), bc)
           if (!dynoResult?.address) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
           await generateQr(bot, chatId, dynoResult.qr_code, userLanguage ?? 'en')
           set(chatIdOfDynopayPayment, ref, { chatId, action: dynopayActions.walletFund, address: dynoResult.address })
-          set(state, chatId, 'action', 'none')
+          await set(state, chatId, 'action', 'none')
           const usdIn = await convert(amount, 'usd', ticker)
           send(chatId, t.showDepositCryptoInfo(amount, usdIn, tickerView, dynoResult.address), trans('o'))
         }
@@ -4051,7 +4051,7 @@ Enter new value:`), bc)
         if (dynoResult?.address) {
           await generateQr(bot, chatId, dynoResult.qr_code, userLanguage ?? 'en')
           set(chatIdOfDynopayPayment, ref, { chatId, action: dynopayActions.walletFund, address: dynoResult.address })
-          set(state, chatId, 'action', 'none')
+          await set(state, chatId, 'action', 'none')
           const usdIn = await convert(amount, 'usd', ticker)
           send(chatId, t.showDepositCryptoInfo(amount, usdIn, tickerView, dynoResult.address), trans('o'))
         } else {
@@ -4060,7 +4060,7 @@ Enter new value:`), bc)
           if (!bbAddr) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
           sendQrCode(bot, chatId, bb, userLanguage ?? 'en')
           set(chatIdOfPayment, ref, { chatId })
-          set(state, chatId, 'action', 'none')
+          await set(state, chatId, 'action', 'none')
           const usdIn = await convert(amount, 'usd', ticker)
           send(chatId, t.showDepositCryptoInfo(amount, usdIn, tickerView, bbAddr), trans('o'))
         }
@@ -4134,7 +4134,7 @@ Enter new value:`), bc)
         }
       }
 
-      set(state, chatId, 'action', a.walletSelectCurrency)
+      await set(state, chatId, 'action', a.walletSelectCurrency)
       const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
       // Check if NGN conversion is available — hide NGN option if API is down
       const ngnTestRate = await usdToNgn(1)
@@ -4156,7 +4156,7 @@ Enter new value:`), bc)
       }
 
       send(chatId, text + t.walletSelectCurrencyConfirm,  trans('yes_no'))
-      set(state, chatId, 'action', a.walletSelectCurrencyConfirm)
+      await set(state, chatId, 'action', a.walletSelectCurrencyConfirm)
     },
     //
     phoneNumberLeads: async () => {
@@ -4255,7 +4255,7 @@ Enter new value:`), bc)
       const { usdBal } = await getBalance(walletOf, chatId)
       const summary = `📋 <b>Order Summary</b>\n\n🏦 Institution: <b>${targetName}</b>\n📍 Area: <b>${targetCity}</b>\n📞 Carrier: <b>${carrier}</b>\n📊 Leads: <b>${amount}</b>\n📄 Format: <b>International</b>\n📇 Includes: <b>Phone owner's name</b>${couponApplied ? `\n💰 Price: <s>$${price}</s> <b>$${view(finalPrice)}</b>` : `\n💰 Price: <b>$${finalPrice}</b>`}\n\n💳 Wallet: <b>$${view(usdBal)}</b>`
       send(chatId, summary, k.of([({ en: `✅ Pay ${view(finalPrice)} USD`, fr: `✅ Payer ${view(finalPrice)} USD`, zh: `✅ 支付 ${view(finalPrice)} USD`, hi: `✅ ${view(finalPrice)} USD भुगतान करें` }[lang] || `✅ Pay ${view(finalPrice)} USD`), btn.applyCoupon]))
-      set(state, chatId, 'action', a.targetLeadsConfirm)
+      await set(state, chatId, 'action', a.targetLeadsConfirm)
     },
 
     // Custom lead request
@@ -4313,7 +4313,7 @@ Enter new value:`), bc)
     },
 
     useFreeValidation: async () => {
-      set(state, chatId, 'action', 'none')
+      await set(state, chatId, 'action', 'none')
 
       let cc = countryCodeOf[info?.country]
       let country = info?.country
@@ -4379,7 +4379,7 @@ Enter new value:`), bc)
 
     // short link
     redSelectUrl: async () => {
-      set(state, chatId, 'action', a.redSelectUrl)
+      await set(state, chatId, 'action', a.redSelectUrl)
       send(chatId, t.redSelectUrl, bc)
     },
 
@@ -4399,7 +4399,7 @@ Enter new value:`), bc)
     },
 
     submenu1: async () => {
-      set(state, chatId, 'action', a.submenu1)
+      await set(state, chatId, 'action', a.submenu1)
       const domains = await getPurchasedDomains(chatId)
       const rows = [[user.redBitly, user.redShortit], [user.urlShortener]]
       if (domains && domains.length > 0) {
@@ -4565,7 +4565,7 @@ Enter new value:`), bc)
         send(chatId, 'You have no registered domains. Please register a new domain or connect an external domain.', k.of([user.registerANewDomain, user.connectExternalDomain, [t.backButton]]))
         return
       }
-      set(state, chatId, 'action', a.useMyDomain)
+      await set(state, chatId, 'action', a.useMyDomain)
       saveInfo('existingDomain', true)
       saveInfo('connectExternalDomain', false)
       const domainButtons = domains.map(d => [d])
@@ -4692,7 +4692,7 @@ Enter new value:`), bc)
 
     // My Hosting Plans
     myHostingPlans: async () => {
-      set(state, chatId, 'action', a.myHostingPlans)
+      await set(state, chatId, 'action', a.myHostingPlans)
       const plans = await cpanelAccounts.find({ chatId: String(chatId) }).toArray()
       if (!plans || plans.length === 0) {
         return send(chatId, '📋 <b>My Hosting Plans</b>\n\nYou have no active hosting plans. Purchase a plan to get started!', k.of([[user.hostingDomainsRedirect], [t.backButton]]))
@@ -4714,7 +4714,7 @@ Enter new value:`), bc)
 
     // View single hosting plan details
     viewHostingPlanDetails: async (domain) => {
-      set(state, chatId, 'action', a.viewHostingPlan)
+      await set(state, chatId, 'action', a.viewHostingPlan)
       saveInfo('selectedHostingDomain', domain)
       const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain: domain })
       if (!plan) return send(chatId, t.planNotFound || 'Plan not found.', k.of([[user.backToMyHostingPlans]]))
@@ -4788,7 +4788,7 @@ Enter new value:`), bc)
       return send(chatId, trans('l.askPreferredLanguage') , trans('languageMenu'))
     },
     submenu4: async () => {
-      set(state, chatId, 'action', a.submenu4)
+      await set(state, chatId, 'action', a.submenu4)
       // ── Browse Tracking (Feature 4) ──
       if (userConversion) userConversion.trackBrowse(chatId, 'vps', info?.userLanguage || 'en')
       if (!info.isRegisteredTelegramForVps) {
@@ -4820,13 +4820,13 @@ Enter new value:`), bc)
 
     // ask vps plan — Step 1: VPS or RDP?
     createNewVpsFlow: async () => {
-      set(state, chatId, 'action', a.vpsChooseType)
+      await set(state, chatId, 'action', a.vpsChooseType)
       return send(chatId, vp.askVpsOrRdp, vp.of([vp.vpsLinuxBtn, vp.vpsRdpBtn]))
     },
 
     // Step 2: Region selection (after VPS/RDP choice)
     askRegionForVps: async () => {
-      set(state, chatId, 'action', a.askCountryForVPS)
+      await set(state, chatId, 'action', a.askCountryForVPS)
       const availableCountry = await fetchAvailableCountries()
       if (!availableCountry) return send(chatId, vp.failedFetchingData, trans('o'))
       saveInfo('vpsAreaList', availableCountry)
@@ -4834,7 +4834,7 @@ Enter new value:`), bc)
     },
 
     askRegionAreaForVps: async () => {
-      set(state, chatId, 'action', a.askRegionAreaForVPS)
+      await set(state, chatId, 'action', a.askRegionAreaForVPS)
       const availableRegions = await fetchAvailableRegionsOfCountry(info?.vpsDetails?.country)
       if (!availableRegions) return send(chatId, vp.failedFetchingData, trans('o'))
       const regionsList = availableRegions.map((item) => item.label)
@@ -4843,7 +4843,7 @@ Enter new value:`), bc)
     },
 
     askZoneForVps: async () => {
-      set(state, chatId, 'action', a.askZoneForVPS)
+      await set(state, chatId, 'action', a.askZoneForVPS)
       const availableZones = await fetchAvailableZones(info?.vpsDetails?.region)
       if (!availableZones) return send(chatId, vp.failedFetchingData, trans('o'))
       const zoneList = availableZones.map((item) => item.label)
@@ -4852,13 +4852,13 @@ Enter new value:`), bc)
     },
 
     confirmZoneForVPS: async () => {
-      set(state, chatId, 'action', a.confirmZoneForVPS)
+      await set(state, chatId, 'action', a.confirmZoneForVPS)
       const vpsDetails = info?.vpsDetails
       return send(chatId, vp.confirmZone(vpsDetails.regionName, vpsDetails.zone), vp.of([vp.confirmBtn]))  
     },
 
     askVpsDiskType: async () => {
-      set(state, chatId, 'action', a.askVpsDiskType)
+      await set(state, chatId, 'action', a.askVpsDiskType)
       send(chatId, vp.vpsWaitingTime)
       const diskTypes = await fetchAvailableDiskTpes(info?.vpsDetails?.zone)
       log(diskTypes)
@@ -4869,7 +4869,7 @@ Enter new value:`), bc)
     },
    
     askVpsConfig: async () => {
-      set(state, chatId, 'action', a.askVpsConfig)
+      await set(state, chatId, 'action', a.askVpsConfig)
       const configTypes = info?.vpsConfigTypes
       // Keyboard buttons show name + price for clarity
       const configList = configTypes.map((item) => `${item.name} — $${item.monthlyPrice}/mo`)
@@ -4914,7 +4914,7 @@ Enter new value:`), bc)
     },
 
     askVpsCpanelLicense: async () => {
-      set(state, chatId, 'action', a.askVpsCpanelLicense)
+      await set(state, chatId, 'action', a.askVpsCpanelLicense)
       const licenseData = await fetchSelectedCpanelOptions(info.vpsDetails.panel)
       if (!licenseData) return send(chatId, vp.failedFetchingData, trans('o'))
       saveInfo('vpsSelectedPanelOptions', licenseData)
@@ -4923,7 +4923,7 @@ Enter new value:`), bc)
     },
 
     askVpsOS: async () => {
-      set(state, chatId, 'action', a.askVpsOS)
+      await set(state, chatId, 'action', a.askVpsOS)
       const osData = await fetchAvailableOS(null)  // No cPanel for Contabo
       if (!osData) return send(chatId, vp.failedFetchingData, trans('o'))
       // Filter out RDP — Linux VPS users only see Linux distros
@@ -4934,7 +4934,7 @@ Enter new value:`), bc)
     },
 
     vpsAskSSHKey: async () => {
-      set(state, chatId, 'action', a.vpsAskSSHKey)
+      await set(state, chatId, 'action', a.vpsAskSSHKey)
       let list = []
       let vpsDetails = info.vpsDetails
       const sshKeyList = await fetchUserSSHkeyList(chatId)
@@ -4971,7 +4971,7 @@ Enter new value:`), bc)
 
     // VPS Management
     getUserAllVmIntances: async () => {
-      set(state, chatId, 'action', a.getUserAllVmIntances)
+      await set(state, chatId, 'action', a.getUserAllVmIntances)
       let list = []
       send(chatId, vp.vpsWaitingTime)
       const vpsList = await fetchUserVPSList(chatId)
@@ -4985,7 +4985,7 @@ Enter new value:`), bc)
     },
 
     getVPSDetails: async () => {
-      set(state, chatId, 'action', a.getVPSDetails)
+      await set(state, chatId, 'action', a.getVPSDetails)
       send(chatId, vp.vpsWaitingTime)
       const vpsData = await fetchVPSDetails(chatId, info.vpsDetails._id)
       if (!vpsData) return send(chatId, vp.failedFetchingData, trans('o'))
@@ -5017,21 +5017,21 @@ Enter new value:`), bc)
       if (vpsDetails.upgradeType === 'plan') {
         if (!upgradeOptions.length) return send(chatId, vp.alreadyEnterprisePlan)
         const upgradeBtns = upgradeOptions.map((item) => vp.upgradeOptionVPSBtn(item.to))
-        set(state, chatId, 'action', a.upgradeVpsPlan)
+        await set(state, chatId, 'action', a.upgradeVpsPlan)
         saveInfo('VPSUpgradeOptions', upgradeOptions)
         return send(chatId, vp.upgradeVpsPlanMsg(upgradeOptions), vp.of([ ...upgradeBtns, vp.cancel]))
       } else if (vpsDetails.upgradeType === 'disk') {
         const updatedOptions = upgradeOptions.filter(item => item?.id)
         if (!updatedOptions.length) return send(chatId, vp.alreadyHighestDisk(info?.userVPSDetails))
         const upgradeBtns = updatedOptions.map((item) => vp.upgradeOptionVPSBtn(item.to))
-        set(state, chatId, 'action', a.upgradeVpsPlan)
+        await set(state, chatId, 'action', a.upgradeVpsPlan)
         saveInfo('VPSUpgradeOptions', updatedOptions)
         return send(chatId, vp.upgradeVpsDiskMsg(updatedOptions), vp.of([ ...upgradeBtns, vp.cancel]))
       }
     },
 
     askVpsUpgradePayment : async () => {
-      set(state, chatId, 'action', a.askVpsUpgradePayment)
+      await set(state, chatId, 'action', a.askVpsUpgradePayment)
       const { usdBal } = await getBalance(walletOf, chatId)
       const lowBalance = false // Monthly billing only
       return send(chatId, info.vpsDetails.upgradeType === 'plan' ? vp.upgradePlanSummary(info.vpsDetails, info.userVPSDetails, lowBalance) : vp.upgradeDiskSummary(info.vpsDetails, info.userVPSDetails, lowBalance), vp.of([vp.yes, vp.no]))
@@ -5062,7 +5062,7 @@ Enter new value:`), bc)
     },
 
     vpsLinkedSSHkeys : async () => {
-      set(state, chatId, 'action', a.vpsLinkedSSHkeys)
+      await set(state, chatId, 'action', a.vpsLinkedSSHkeys)
       const sshKeyList = await fetchUserSSHkeyList(chatId, info.userVPSDetails._id)
       if (!sshKeyList) return send(chatId, vp.failedFetchingData, trans('o'))
       let list = []
@@ -5089,7 +5089,7 @@ Enter new value:`), bc)
     },
 
     vpslinkNewSSHKey : async () => {
-      set(state, chatId, 'action', a.vpslinkNewSSHKey)
+      await set(state, chatId, 'action', a.vpslinkNewSSHKey)
       let list = []
       const sshKeyList = await fetchUserSSHkeyList(chatId)
       if (!sshKeyList) return send(chatId, vp.failedFetchingData, trans('o'))
@@ -5117,7 +5117,7 @@ Enter new value:`), bc)
     },
 
     confirmVPSRenewDetails: async () => {
-      set(state, chatId, 'action', a.confirmVPSRenewDetails)
+      await set(state, chatId, 'action', a.confirmVPSRenewDetails)
       let vpsDetails = info.vpsDetails
       const vpsData = info.userVPSDetails
       const expiryDate = vpsData?.cPanelPlanDetails?.id ? date(vpsData.cPanelPlanDetails?.expiryDate ) : date(vpsData.subscriptionEnd)
@@ -5143,7 +5143,7 @@ Enter new value:`), bc)
 
   const walletOk = {
     'plan-pay': async coin => {
-      set(state, chatId, 'action', 'none')
+      await set(state, chatId, 'action', 'none')
 
       const plan = info?.plan
       const lang = info?.userLanguage || 'en'
@@ -5182,7 +5182,7 @@ Enter new value:`), bc)
     },
 
     'domain-pay': async coin => {
-      set(state, chatId, 'action', 'none')
+      await set(state, chatId, 'action', 'none')
       const shownPrice = info?.couponApplied ? info?.newPrice : info?.price
       const domain = info?.domain
       const cheaperPrice = info?.cheaperPrice  // null if only one registrar available
@@ -5271,7 +5271,7 @@ Enter new value:`), bc)
       }
     },
     'hosting-pay': async coin => {
-      set(state, chatId, 'action', 'none')
+      await set(state, chatId, 'action', 'none')
       saveInfo('processingPayment', false) // Clear processing flag
       const price = info?.couponApplied ? info?.newPrice : info?.totalPrice
       // Guard: prevent wallet deduction with undefined website/price
@@ -5344,7 +5344,7 @@ Enter new value:`), bc)
       } catch (e) { log('[Hosting] notifyGroup error: ' + e.message) }
     },
     'vps-plan-pay': async coin => {
-      set(state, chatId, 'action', 'none')
+      await set(state, chatId, 'action', 'none')
       const vpsDetails = info?.vpsDetails
       // Guard: prevent TypeError crash and wallet deduction with undefined VPS details
       if (!vpsDetails || !vpsDetails.totalPrice) {
@@ -5421,7 +5421,7 @@ Enter new value:`), bc)
       }
     },
     'vps-upgrade-plan-pay': async coin => {
-      set(state, chatId, 'action', 'none')
+      await set(state, chatId, 'action', 'none')
       const vpsDetails = info?.vpsDetails
       const price = Number(vpsDetails.totalPrice)
       const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
@@ -5460,7 +5460,7 @@ Enter new value:`), bc)
       checkAndNotifyTierUpgrade(preSpend)
     },
     'digital-product-pay': async coin => {
-      set(state, chatId, 'action', 'none')
+      await set(state, chatId, 'action', 'none')
       const price = info?.dpPrice
       const product = info?.dpProductName
       const productKey = info?.dpProductKey
@@ -5522,7 +5522,7 @@ Enter new value:`), bc)
     },
     // ━━━ Virtual Card wallet payment ━━━
     'virtual-card-pay': async coin => {
-      set(state, chatId, 'action', 'none')
+      await set(state, chatId, 'action', 'none')
       const vcAmount = info?.vcAmount
       const address = info?.vcAddress
       // Guard: prevent NaN calculations and wallet deduction with undefined amount/address
@@ -5574,7 +5574,7 @@ Enter new value:`), bc)
       if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `💳 <b>New Virtual Card Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n💵 Card: <b>$${vcAmount}</b> | Total: <b>$${priceUsd}</b>\n📬 Address:\n<pre>${address}</pre>\n💳 Payment: ${coin === u.usd ? 'Wallet USD' : 'Wallet NGN'}\n\n📩 Deliver with:\n<code>/deliver ${orderId} [card number, expiry, CVV]</code>`, { parse_mode: 'HTML' })
     },
     'phone-pay': async coin => {
-      set(state, chatId, 'action', 'none')
+      await set(state, chatId, 'action', 'none')
       const price = info?.cpPrice
       // Guard: prevent wallet deduction with undefined number/price
       if (!price || price <= 0 || !info?.cpSelectedNumber) {
@@ -5709,7 +5709,7 @@ Enter new value:`), bc)
                 await saveInfo('cpPendingCoin', null)
                 await saveInfo('cpPendingPriceUsd', null)
                 await saveInfo('cpPendingPriceNgn', null)
-                set(state, chatId, 'action', 'none')
+                await set(state, chatId, 'action', 'none')
                 send(chatId, ({ en: `📋 <b>Regulatory Approval Required</b>\n\n${countryName} requires regulatory approval (1-3 business days).\nYour <b>$${Number(price).toFixed(2)}</b> is held securely. You'll be notified when approved or refunded.`, fr: `📋 <b>Approbation réglementaire requise</b>\n\n${countryName} nécessite une approbation (1-3 jours ouvrables).\nVotre <b>$${Number(price).toFixed(2)}</b> est sécurisé. Vous serez notifié.`, zh: `📋 <b>需要监管审批</b>\n\n${countryName} 需要审批（1-3个工作日）。\n您的 <b>$${Number(price).toFixed(2)}</b> 已安全持有，审批后通知您。`, hi: `📋 <b>नियामक अनुमोदन आवश्यक</b>\n\n${countryName} में अनुमोदन आवश्यक (1-3 कार्य दिवस)।\nआपका <b>$${Number(price).toFixed(2)}</b> सुरक्षित है। अनुमोदन पर सूचित किया जाएगा।` }[lang] || `📋 <b>Regulatory Approval Required</b>\n\n${countryName} requires regulatory approval (1-3 business days).\nYour <b>$${Number(price).toFixed(2)}</b> is held securely. You'll be notified when approved or refunded.`), { parse_mode: 'HTML' })
                 notifyAdmin(`📋 [Bundle] Regulatory bundle submitted (cached address)\nchatId: ${chatId}\nnumber: ${selectedNumber}\ncountry: ${countryCode}\nbundle: ${bundleResult.sid}\nstatus: ${bundleStatus}`)
                 log(`[CloudPhone] Bundle ${bundleResult.sid} submitted for ${chatId} (cached addr), status=${bundleStatus}`)
@@ -5727,7 +5727,7 @@ Enter new value:`), bc)
                   notifyAdmin(`🚨 CRITICAL [Bundle] Refund failed\nchatId: ${chatId}\nprice: $${priceUsd}\nerror: ${refundErr.message}`)
                 }
                 const { usdBal: refUsd, ngnBal: refNgn } = await getBalance(walletOf, chatId)
-                set(state, chatId, 'action', 'none')
+                await set(state, chatId, 'action', 'none')
                 send(chatId, `❌ Regulatory setup failed.\n\n💰 Your wallet has been refunded.\n${t.showWallet(refUsd, refNgn)}`, { parse_mode: 'HTML' })
                 return notifyAdmin(`⚠️ [Bundle] Exception (cached addr)\nchatId: ${chatId}\nerror: ${bundleErr.message}`)
               }
@@ -5736,7 +5736,7 @@ Enter new value:`), bc)
           // Non-bundle country with cached address: fall through to purchase below
         } else {
           // Need to collect address
-          set(state, chatId, 'action', a.cpEnterAddress)
+          await set(state, chatId, 'action', a.cpEnterAddress)
           const addrLoc = getAddressLocationText(countryCode)
           const isBundleCountry = twilioService.needsBundle(countryCode)
           if (isBundleCountry) {
@@ -5898,7 +5898,7 @@ Enter new value:`), bc)
       checkAndNotifyTierUpgrade(preSpend)
     },
     [a.buyLeadsSelectFormat]: async coin => {
-      set(state, chatId, 'action', 'none')
+      await set(state, chatId, 'action', 'none')
       const price = info?.couponApplied ? info?.newPrice : info?.price
       const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
@@ -6094,7 +6094,7 @@ All verified numbers generated during sourcing.`))
     },
 
     [a.validatorSelectFormat]: async coin => {
-      set(state, chatId, 'action', 'none')
+      await set(state, chatId, 'action', 'none')
       const price = info?.couponApplied ? info?.newPrice : info?.price
       const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
@@ -6198,7 +6198,7 @@ All verified numbers generated during sourcing.`))
       checkAndNotifyTierUpgrade(preSpend)
     },
     [a.redSelectProvider]: async coin => {
-      set(state, chatId, 'action', 'none')
+      await set(state, chatId, 'action', 'none')
       const price = info?.couponApplied ? info?.newPrice : info?.price
       const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
@@ -6226,10 +6226,10 @@ All verified numbers generated during sourcing.`))
         set(fullUrlOf, shortUrl, url)
         set(linksOf, chatId, shortUrl, url)
         send(chatId, _shortUrl, trans('o'))
-        set(state, chatId, 'action', 'none')
+        await set(state, chatId, 'action', 'none')
       } catch (error) {
         send(TELEGRAM_DEV_CHAT_ID, error.message)
-        set(state, chatId, 'action', 'none')
+        await set(state, chatId, 'action', 'none')
         return send(chatId, t.redIssueUrlBitly, trans('o'))
       }
 
@@ -6286,7 +6286,7 @@ All verified numbers generated during sourcing.`))
 
     // ━━━ Service Bundle wallet payment ━━━
     'bundleConfirm': async coin => {
-      set(state, chatId, 'action', 'none')
+      await set(state, chatId, 'action', 'none')
       const bundleId = info?.selectedBundle
       const bundle = monetization.getBundleDetails(bundleId, lang)
       if (!bundle) return send(chatId, t.someIssue || 'Something went wrong.')
@@ -6568,7 +6568,7 @@ All verified numbers generated during sourcing.`))
   // /done — exit support chat (only if in support chat mode)
   if (message === '/done' && action === a.supportChat) {
     await set(supportSessions, chatId, 0)
-    set(state, chatId, 'action', 'none')
+    await set(state, chatId, 'action', 'none')
     // Clear admin takeover flag on session close
     await set(state, chatId, 'adminTakeover', false)
     const name = await get(nameOf, chatId)
@@ -6640,7 +6640,7 @@ All verified numbers generated during sourcing.`))
 
   // /refresh command — force refresh keyboard for users seeing old buttons
   if (message === '/refresh') {
-    set(state, chatId, 'action', 'none')
+    await set(state, chatId, 'action', 'none')
     if (isAdmin(chatId)) return send(chatId, t.keyboardRefreshed || 'Keyboard refreshed! Please select an option:', aO)
     return send(chatId, t.keyboardRefreshed || 'Keyboard refreshed! Please select an option:', trans('o'))
   }
@@ -6672,7 +6672,7 @@ All verified numbers generated during sourcing.`))
   }
 
   if (message === user.changeSetting || message === '🌍 Change Settings' || message === '🌍 Settings' || message === '🌍 Paramètres' || message === '🌍 设置' || message === '🌍 सेटिंग्स') {
-    set(state, chatId, 'action', a.settingsMenu)
+    await set(state, chatId, 'action', a.settingsMenu)
     return send(chatId, trans('l.settingsMenuText') || '⚙️ <b>Settings</b>\n\nManage your preferences below:', k.of([
       [user.viewPlan || '📋 My Plans'],
       [user.changeLanguage || '🌍 Change Language'],
@@ -6682,7 +6682,7 @@ All verified numbers generated during sourcing.`))
   }
   //
   if (message === t.cancel || (firstSteps.includes(action) && message === t.back)) {
-    set(state, chatId, 'action', 'none')
+    await set(state, chatId, 'action', 'none')
     if (isAdmin(chatId)) return send(chatId, t.userPressedBtn(message), aO)
     const greeting = await getMainMenuGreeting()
     return send(chatId, greeting, trans('o'))
@@ -6690,7 +6690,7 @@ All verified numbers generated during sourcing.`))
   //
   if (message === admin.blockUser) {
     if (!isAdmin(chatId)) return send(chatId, 'not authorized')
-    set(state, chatId, 'action', 'block-user')
+    await set(state, chatId, 'action', 'block-user')
     return send(chatId, t.blockUser, bc)
   }
   if (action === 'block-user') {
@@ -6698,14 +6698,14 @@ All verified numbers generated during sourcing.`))
     const chatIdToBlock = await get(chatIdOf, userToBlock)
     if (!chatIdToBlock) return send(chatId, t.userToBlock(userToBlock))
 
-    set(state, chatId, 'action', 'none')
+    await set(state, chatId, 'action', 'none')
     set(chatIdBlocked, chatIdToBlock, true)
     return send(chatId, t.userBlocked(userToBlock), aO)
   }
   //
   if (message === admin.unblockUser) {
     if (!isAdmin(chatId)) return send(chatId, 'not authorized')
-    set(state, chatId, 'action', 'unblock-user')
+    await set(state, chatId, 'action', 'unblock-user')
     return send(chatId, t.unblockUser, bc)
   }
   if (action === 'unblock-user') {
@@ -6713,7 +6713,7 @@ All verified numbers generated during sourcing.`))
     const chatIdToUnblock = await get(chatIdOf, userToUnblock)
     if (!chatIdToUnblock) return send(chatId, `User ${userToUnblock} not found`, bc)
 
-    set(state, chatId, 'action', 'none')
+    await set(state, chatId, 'action', 'none')
     set(chatIdBlocked, chatIdToUnblock, false)
     return send(chatId, `User ${userToUnblock} has been unblocked.`, aO)
   }
@@ -6749,7 +6749,7 @@ All verified numbers generated during sourcing.`))
     if (message === t.back || message === t.no) return goto[admin.messageUsers]()
     if (message !== t.yes) return send(chatId, t.what)
 
-    set(state, chatId, 'action', 'none')
+    await set(state, chatId, 'action', 'none')
     
     // Start broadcast with progress tracking
     send(chatId, '🚀 Starting broadcast... This may take a while for large user bases.')
@@ -6821,7 +6821,7 @@ All verified numbers generated during sourcing.`))
   if (action === a.settingsMenu) {
     // Change Language
     if (message === user.changeLanguage || message === '🌍 Change Language' || message === '🌍 Changer de langue' || message === '🌍 更改语言' || message === '🌍 भाषा बदलें') {
-      set(state, chatId, 'action', a.updateUserLanguage)
+      await set(state, chatId, 'action', a.updateUserLanguage)
       return send(chatId, trans('l.askPreferredLanguage'), trans('languageMenu'))
     }
     // Join Channel
@@ -7170,7 +7170,7 @@ All verified numbers generated during sourcing.`))
 
       saveInfo('renewPrice', price)
       saveInfo('renewPriceNgn', priceNgn)
-      set(state, chatId, 'action', a.confirmRenewNow)
+      await set(state, chatId, 'action', a.confirmRenewNow)
       const buttons = []
       if (canPayUsd) buttons.push([`💵 Pay $${price} USD`])
       if (canPayNgn) buttons.push([`💶 Pay ₦${priceNgn.toLocaleString()} NGN`])
@@ -7240,7 +7240,7 @@ All verified numbers generated during sourcing.`))
       buttons.push([user.backToMyHostingPlans])
 
       saveInfo('upgradeOptions', upgradeOptions)
-      set(state, chatId, 'action', a.confirmUpgradeHosting)
+      await set(state, chatId, 'action', a.confirmUpgradeHosting)
       return send(chatId, text, k.of(buttons))
     }
   }
@@ -7397,7 +7397,7 @@ All verified numbers generated during sourcing.`))
 
       saveInfo('selectedUpgrade', selected)
       saveInfo('upgradePriceNgn', priceNgn)
-      set(state, chatId, 'action', a.confirmUpgradeHostingPay)
+      await set(state, chatId, 'action', a.confirmUpgradeHostingPay)
       const buttons = []
       if (canPayUsd) buttons.push([`💵 Pay $${upgradePrice} USD`])
       if (canPayNgn) buttons.push([`💶 Pay ₦${priceNgn.toLocaleString()} NGN`])
@@ -9253,12 +9253,12 @@ ${message.replace(/\n/g, '<br>')}
     const payOption = message
 
     if (payOption === payIn.crypto) {
-      set(state, chatId, 'action', 'crypto-pay-digital-product')
+      await set(state, chatId, 'action', 'crypto-pay-digital-product')
       return send(chatId, t.selectCryptoToDeposit, trans('k.of', trans('supportedCryptoViewOf')))
     }
 
     if (payOption === payIn.bank) {
-      set(state, chatId, 'action', 'bank-pay-digital-product')
+      await set(state, chatId, 'action', 'bank-pay-digital-product')
       return send(chatId, t.askEmail, bc)
     }
 
@@ -9280,7 +9280,7 @@ ${message.replace(/\n/g, '<br>')}
 
     const ref = nanoid()
     log({ ref })
-    set(state, chatId, 'action', 'none')
+    await set(state, chatId, 'action', 'none')
     const _rawNgn = await usdToNgn(price)
     const priceNGN = Number(_rawNgn)
     if (!_rawNgn || isNaN(priceNGN) || priceNGN <= 0) return send(chatId, '⚠️ Payment processing temporarily unavailable (exchange rate service down). Please try again later or use crypto.', trans('o'))
@@ -9344,7 +9344,7 @@ ${message.replace(/\n/g, '<br>')}
     })
 
     await saveInfo('dpOrderId', orderId)
-    set(state, chatId, 'action', 'none')
+    await set(state, chatId, 'action', 'none')
 
     if (BLOCKBEE_CRYTPO_PAYMENT_ON === 'true') {
       const bbResult = await getCryptoDepositAddress(ticker, chatId, SELF_URL, `/crypto-pay-digital-product?a=b&ref=${ref}&`)
@@ -9431,12 +9431,12 @@ ${message.replace(/\n/g, '<br>')}
     const payOption = message
 
     if (payOption === payIn.crypto) {
-      set(state, chatId, 'action', 'crypto-pay-virtual-card')
+      await set(state, chatId, 'action', 'crypto-pay-virtual-card')
       return send(chatId, t.selectCryptoToDeposit, trans('k.of', trans('supportedCryptoViewOf')))
     }
 
     if (payOption === payIn.bank) {
-      set(state, chatId, 'action', 'bank-pay-virtual-card')
+      await set(state, chatId, 'action', 'bank-pay-virtual-card')
       return send(chatId, t.askEmail, bc)
     }
 
@@ -9459,7 +9459,7 @@ ${message.replace(/\n/g, '<br>')}
     const price = Math.round((vcAmount + fee) * 100) / 100
     const address = info?.vcAddress
     const ref = nanoid()
-    set(state, chatId, 'action', 'none')
+    await set(state, chatId, 'action', 'none')
     const _rawNgn = await usdToNgn(price)
     const priceNGN = Number(_rawNgn)
     if (!_rawNgn || isNaN(priceNGN) || priceNGN <= 0) return send(chatId, '⚠️ Payment processing temporarily unavailable (exchange rate service down). Please try again later or use crypto.', trans('o'))
@@ -9509,7 +9509,7 @@ ${message.replace(/\n/g, '<br>')}
     })
 
     await saveInfo('dpOrderId', orderId)
-    set(state, chatId, 'action', 'none')
+    await set(state, chatId, 'action', 'none')
 
     if (BLOCKBEE_CRYTPO_PAYMENT_ON === 'true') {
       const bbResult = await getCryptoDepositAddress(ticker, chatId, SELF_URL, `/crypto-pay-virtual-card?a=b&ref=${ref}&`)
@@ -9739,7 +9739,7 @@ ${message.replace(/\n/g, '<br>')}
     if (message === t.back || message === t.backButton) return goto.displayMainMenuButtons()
 
     if (message === t.mpBrowse) {
-      set(state, chatId, 'action', a.mpBrowseCategory)
+      await set(state, chatId, 'action', a.mpBrowseCategory)
       const cats = _mpTranslateCategories().map(c => [c])
       return send(chatId, t.mpSelectCategory, k.of([[t.mpAllCategories], ...cats]))
     }
@@ -9752,7 +9752,7 @@ ${message.replace(/\n/g, '<br>')}
       }
       const count = await marketplaceService.getActiveProductCount(chatId)
       if (count >= marketplaceService.MAX_LISTINGS) return send(chatId, t.mpMaxListings)
-      set(state, chatId, 'action', a.mpNewImage)
+      await set(state, chatId, 'action', a.mpNewImage)
       await saveInfo('mpImages', [])
       return send(chatId, t.mpUploadImages, k.of([[t.mpDoneUpload]]))
     }
@@ -9768,7 +9768,7 @@ ${message.replace(/\n/g, '<br>')}
         text += `💬 <b>${c.productTitle}</b> (${role}) — ${ago}\n`
         btns.push([`💬 ${c.productTitle.slice(0, 30)} — ${role}`])
       }
-      set(state, chatId, 'action', a.mpConversations)
+      await set(state, chatId, 'action', a.mpConversations)
       await saveInfo('mpConvList', convs.map(c => ({ id: c._id, title: c.productTitle, buyerId: c.buyerId, sellerId: c.sellerId })))
       return send(chatId, text, k.of(btns))
     }
@@ -9786,14 +9786,14 @@ ${message.replace(/\n/g, '<br>')}
         btns.push([`${statusIcon} ${l.title.slice(0, 35)}`])
       }
       btns.push([t.mpListProduct])
-      set(state, chatId, 'action', a.mpMyListings)
+      await set(state, chatId, 'action', a.mpMyListings)
       await saveInfo('mpListingsList', listings.map(l => ({ id: l._id, title: l.title, status: l.status })))
       return send(chatId, text, k.of(btns))
     }
 
     // 🤖 Ask AI — Marketplace AI helper
     if (message === t.mpAiHelper) {
-      set(state, chatId, 'action', a.mpAiHelper)
+      await set(state, chatId, 'action', a.mpAiHelper)
       return send(chatId, t.mpAiHelperPrompt, bc)
     }
 
@@ -9856,7 +9856,7 @@ ${message.replace(/\n/g, '<br>')}
       }
       const count = await marketplaceService.getActiveProductCount(chatId)
       if (count >= marketplaceService.MAX_LISTINGS) return send(chatId, t.mpMaxListings)
-      set(state, chatId, 'action', a.mpNewImage)
+      await set(state, chatId, 'action', a.mpNewImage)
       await saveInfo('mpImages', [])
       return send(chatId, t.mpUploadImages, k.of([[t.mpDoneUpload]]))
     }
@@ -9869,7 +9869,7 @@ ${message.replace(/\n/g, '<br>')}
     const product = await marketplaceService.getProduct(match.id)
     if (!product) return goto.marketplace()
     await saveInfo('mpActiveProduct', product._id)
-    set(state, chatId, 'action', a.mpManageListing)
+    await set(state, chatId, 'action', a.mpManageListing)
     const sellerLine = await _mpSellerLine(product.sellerId)
     const detail = t.mpProductDetail(product.title, product.description, product.price, _mpTranslateCategory(product.category), sellerLine, _mpTimeAgo(product.createdAt))
     const manageBtns = product.status === 'active'
@@ -9881,7 +9881,7 @@ ${message.replace(/\n/g, '<br>')}
   // ── Manage Listing ──
   if (action === a.mpManageListing) {
     if (message === t.back || message === t.backButton) {
-      set(state, chatId, 'action', a.mpHome)
+      await set(state, chatId, 'action', a.mpHome)
       return send(chatId, t.mpHome, k.of([[t.mpBrowse], [t.mpListProduct], [t.mpMyConversations], [t.mpMyListings], [t.mpAiHelper]]))
     }
     const pid = info?.mpActiveProduct
@@ -9898,19 +9898,19 @@ ${message.replace(/\n/g, '<br>')}
       return goto.marketplace()
     }
     if (message === t.mpEditProduct) {
-      set(state, chatId, 'action', a.mpManageListing)
+      await set(state, chatId, 'action', a.mpManageListing)
       return send(chatId, t.mpEditWhat, k.of([[t.mpEditTitle], [t.mpEditDesc], [t.mpEditPrice]]))
     }
     if (message === t.mpEditTitle) {
-      set(state, chatId, 'action', a.mpEditTitle)
+      await set(state, chatId, 'action', a.mpEditTitle)
       return send(chatId, t.mpEnterTitle, bc)
     }
     if (message === t.mpEditDesc) {
-      set(state, chatId, 'action', a.mpEditDesc)
+      await set(state, chatId, 'action', a.mpEditDesc)
       return send(chatId, t.mpEnterDesc, bc)
     }
     if (message === t.mpEditPrice) {
-      set(state, chatId, 'action', a.mpEditPrice)
+      await set(state, chatId, 'action', a.mpEditPrice)
       return send(chatId, t.mpEnterPrice, bc)
     }
     return
@@ -9918,36 +9918,36 @@ ${message.replace(/\n/g, '<br>')}
 
   // ── Edit Title ──
   if (action === a.mpEditTitle) {
-    if (message === t.back || message === t.backButton) { set(state, chatId, 'action', a.mpManageListing); return send(chatId, t.mpEditWhat, k.of([[t.mpEditTitle], [t.mpEditDesc], [t.mpEditPrice]])) }
+    if (message === t.back || message === t.backButton) { await set(state, chatId, 'action', a.mpManageListing); return send(chatId, t.mpEditWhat, k.of([[t.mpEditTitle], [t.mpEditDesc], [t.mpEditPrice]])) }
     const pid = info?.mpActiveProduct
     if (!pid) return goto.marketplace()
     await marketplaceService.updateProduct(pid, { title: message.slice(0, marketplaceService.MAX_TITLE) })
     send(chatId, t.mpTitleUpdated)
-    set(state, chatId, 'action', a.mpManageListing)
+    await set(state, chatId, 'action', a.mpManageListing)
     return send(chatId, t.mpEditWhat, k.of([[t.mpEditTitle], [t.mpEditDesc], [t.mpEditPrice]]))
   }
 
   // ── Edit Description ──
   if (action === a.mpEditDesc) {
-    if (message === t.back || message === t.backButton) { set(state, chatId, 'action', a.mpManageListing); return send(chatId, t.mpEditWhat, k.of([[t.mpEditTitle], [t.mpEditDesc], [t.mpEditPrice]])) }
+    if (message === t.back || message === t.backButton) { await set(state, chatId, 'action', a.mpManageListing); return send(chatId, t.mpEditWhat, k.of([[t.mpEditTitle], [t.mpEditDesc], [t.mpEditPrice]])) }
     const pid = info?.mpActiveProduct
     if (!pid) return goto.marketplace()
     await marketplaceService.updateProduct(pid, { description: message.slice(0, marketplaceService.MAX_DESC) })
     send(chatId, t.mpDescUpdated)
-    set(state, chatId, 'action', a.mpManageListing)
+    await set(state, chatId, 'action', a.mpManageListing)
     return send(chatId, t.mpEditWhat, k.of([[t.mpEditTitle], [t.mpEditDesc], [t.mpEditPrice]]))
   }
 
   // ── Edit Price ──
   if (action === a.mpEditPrice) {
-    if (message === t.back || message === t.backButton) { set(state, chatId, 'action', a.mpManageListing); return send(chatId, t.mpEditWhat, k.of([[t.mpEditTitle], [t.mpEditDesc], [t.mpEditPrice]])) }
+    if (message === t.back || message === t.backButton) { await set(state, chatId, 'action', a.mpManageListing); return send(chatId, t.mpEditWhat, k.of([[t.mpEditTitle], [t.mpEditDesc], [t.mpEditPrice]])) }
     const pid = info?.mpActiveProduct
     if (!pid) return goto.marketplace()
     const price = parseFloat(message.replace(/[^0-9.]/g, ''))
     if (isNaN(price) || price < marketplaceService.MIN_PRICE || price > marketplaceService.MAX_PRICE) return send(chatId, t.mpPriceError)
     await marketplaceService.updateProduct(pid, { price })
     send(chatId, t.mpPriceUpdated)
-    set(state, chatId, 'action', a.mpManageListing)
+    await set(state, chatId, 'action', a.mpManageListing)
     return send(chatId, t.mpEditWhat, k.of([[t.mpEditTitle], [t.mpEditDesc], [t.mpEditPrice]]))
   }
 
@@ -9957,7 +9957,7 @@ ${message.replace(/\n/g, '<br>')}
     if (message === t.mpDoneUpload) {
       const images = info?.mpImages || []
       if (images.length === 0) return send(chatId, t.mpNoImage)
-      set(state, chatId, 'action', a.mpNewTitle)
+      await set(state, chatId, 'action', a.mpNewTitle)
       return send(chatId, t.mpEnterTitle, bc)
     }
     // Photo handling is done in the photo handler section above
@@ -9967,35 +9967,35 @@ ${message.replace(/\n/g, '<br>')}
   // ── New Product: Title ──
   if (action === a.mpNewTitle) {
     if (message === t.back || message === t.backButton) {
-      set(state, chatId, 'action', a.mpNewImage)
+      await set(state, chatId, 'action', a.mpNewImage)
       return send(chatId, t.mpUploadImages, k.of([[t.mpDoneUpload]]))
     }
     await saveInfo('mpTitle', message.slice(0, marketplaceService.MAX_TITLE))
-    set(state, chatId, 'action', a.mpNewDesc)
+    await set(state, chatId, 'action', a.mpNewDesc)
     return send(chatId, t.mpEnterDesc, bc)
   }
 
   // ── New Product: Description ──
   if (action === a.mpNewDesc) {
     if (message === t.back || message === t.backButton) {
-      set(state, chatId, 'action', a.mpNewTitle)
+      await set(state, chatId, 'action', a.mpNewTitle)
       return send(chatId, t.mpEnterTitle, bc)
     }
     await saveInfo('mpDesc', message.slice(0, marketplaceService.MAX_DESC))
-    set(state, chatId, 'action', a.mpNewPrice)
+    await set(state, chatId, 'action', a.mpNewPrice)
     return send(chatId, t.mpEnterPrice, bc)
   }
 
   // ── New Product: Price ──
   if (action === a.mpNewPrice) {
     if (message === t.back || message === t.backButton) {
-      set(state, chatId, 'action', a.mpNewDesc)
+      await set(state, chatId, 'action', a.mpNewDesc)
       return send(chatId, t.mpEnterDesc, bc)
     }
     const price = parseFloat(message.replace(/[^0-9.]/g, ''))
     if (isNaN(price) || price < marketplaceService.MIN_PRICE || price > marketplaceService.MAX_PRICE) return send(chatId, t.mpPriceError)
     await saveInfo('mpPrice', price)
-    set(state, chatId, 'action', a.mpNewCategory)
+    await set(state, chatId, 'action', a.mpNewCategory)
     const cats = _mpTranslateCategories().map(c => [c])
     return send(chatId, t.mpSelectCategory, k.of(cats))
   }
@@ -10003,7 +10003,7 @@ ${message.replace(/\n/g, '<br>')}
   // ── New Product: Category ──
   if (action === a.mpNewCategory) {
     if (message === t.back || message === t.backButton) {
-      set(state, chatId, 'action', a.mpNewPrice)
+      await set(state, chatId, 'action', a.mpNewPrice)
       return send(chatId, t.mpEnterPrice, bc)
     }
     const engCategory = _mpCategoryFromTranslated(message)
@@ -10012,7 +10012,7 @@ ${message.replace(/\n/g, '<br>')}
       return send(chatId, t.mpSelectCategory, k.of(cats))
     }
     await saveInfo('mpCategory', engCategory)
-    set(state, chatId, 'action', a.mpNewConfirm)
+    await set(state, chatId, 'action', a.mpNewConfirm)
     const preview = t.mpPreview(info?.mpTitle, info?.mpDesc, info?.mpPrice, message, (info?.mpImages || []).length)
     return send(chatId, preview, k.of([[t.mpPublish], [t.mpCancel]]))
   }
@@ -10057,7 +10057,7 @@ ${message.replace(/\n/g, '<br>')}
       return goto.marketplace()
     }
     await saveInfo('mpActiveConversation', conv._id)
-    set(state, chatId, 'action', a.mpChat)
+    await set(state, chatId, 'action', a.mpChat)
     const role = conv.buyerId === chatId ? ({ en: 'Buyer', fr: 'Acheteur', zh: '买家', hi: 'खरीदार' }[lang] || 'Buyer') : ({ en: 'Seller', fr: 'Vendeur', zh: '卖家', hi: 'विक्रेता' }[lang] || 'Seller')
     return send(chatId, t.mpResumedChat(conv.productTitle, conv.agreedPrice || conv.originalPrice, role), { parse_mode: 'HTML' })
   }
@@ -10417,7 +10417,7 @@ ${message.replace(/\n/g, '<br>')}
     if (message === vp.back) return goto.vpsAskSSHKey()
     if (message === vp.no) {
       saveInfo('vpsDetails', null)
-      set(state, chatId, 'action', 'none')
+      await set(state, chatId, 'action', 'none')
       return send(chatId, t.welcome, trans('o'))
     }
     if (message === vp.yes) return goto['vps-plan-pay']()
@@ -10555,7 +10555,7 @@ ${message.replace(/\n/g, '<br>')}
   if (action === a.askVpsUpgradePayment) {
     if (message === vp.back) return goto.upgradeVpsInstance()
     if (message === vp.no) {
-      set(state, chatId, 'action', 'none')
+      await set(state, chatId, 'action', 'none')
       return goto.getVPSDetails()
     }
     if (message === vp.yes) return goto['vps-upgrade-plan-pay']()
@@ -10802,7 +10802,7 @@ ${message.replace(/\n/g, '<br>')}
           await decrement(freeShortLinksOf, chatId)
           const remaining = (await get(freeShortLinksOf, chatId)) || 0
           freeLinks = remaining
-          set(state, chatId, 'action', 'none')
+          await set(state, chatId, 'action', 'none')
           send(chatId, _shortUrl, trans('o'))
           if (remaining <= 2) {
             return send(chatId, monetization.getUpsellMessage('lastLinkWarning', lang, remaining), k.of([[user.buyPlan], [user.serviceBundles]]))
@@ -10810,11 +10810,11 @@ ${message.replace(/\n/g, '<br>')}
           return send(chatId, t.linksRemaining(remaining, FREE_LINKS))
         }
 
-        set(state, chatId, 'action', 'none')
+        await set(state, chatId, 'action', 'none')
         return send(chatId, _shortUrl, trans('o'))
       } catch (error) {
         send(TELEGRAM_ADMIN_CHAT_ID, error?.response?.data)
-        set(state, chatId, 'action', 'none')
+        await set(state, chatId, 'action', 'none')
         return send(chatId, t.redIssueUrlCuttly, trans('o'))
       }
     }
@@ -10850,7 +10850,7 @@ ${message.replace(/\n/g, '<br>')}
         await decrement(freeShortLinksOf, chatId)
         const remaining = (await get(freeShortLinksOf, chatId)) || 0
         freeLinks = remaining
-        set(state, chatId, 'action', 'none')
+        await set(state, chatId, 'action', 'none')
         send(chatId, _shortUrl, trans('o'))
         if (remaining <= 2) {
           return send(chatId, monetization.getUpsellMessage('lastLinkWarning', lang, remaining), k.of([[user.buyPlan], [user.serviceBundles]]))
@@ -10858,7 +10858,7 @@ ${message.replace(/\n/g, '<br>')}
         return send(chatId, t.linksRemaining(remaining, FREE_LINKS))
       }
 
-      set(state, chatId, 'action', 'none')
+      await set(state, chatId, 'action', 'none')
       return send(chatId, _shortUrl, trans('o'))
     } catch (error) {
       if (error?.response?.data?.url?.status === 3) {
@@ -10869,7 +10869,7 @@ ${message.replace(/\n/g, '<br>')}
         TELEGRAM_ADMIN_CHAT_ID,
         'cuttly issue: status:' + error?.response?.data?.url?.status + ' ' + error?.response?.data,
       )
-      set(state, chatId, 'action', 'none')
+      await set(state, chatId, 'action', 'none')
       return send(chatId, t.redIssueUrlCuttly, trans('o'))
     }
   }
@@ -11018,7 +11018,7 @@ ${message.replace(/\n/g, '<br>')}
     }
 
     if (message === t.customLink) {
-      set(state, chatId, 'action', 'shorten-custom')
+      await set(state, chatId, 'action', 'shorten-custom')
       return send(chatId, t.askShortLinkExtension, bc)
     }
 
@@ -11043,7 +11043,7 @@ ${message.replace(/\n/g, '<br>')}
     if (!(await isSubscribed(chatId))) {
       await decrement(freeShortLinksOf, chatId)
       const remaining = (await get(freeShortLinksOf, chatId)) || 0
-      set(state, chatId, 'action', 'none')
+      await set(state, chatId, 'action', 'none')
       send(chatId, t.yourShortendUrl(shortUrl), trans('o'))
       if (remaining <= 2) {
         return send(chatId, monetization.getUpsellMessage('lastLinkWarning', lang, remaining), k.of([[user.buyPlan], [user.serviceBundles]]))
@@ -11051,7 +11051,7 @@ ${message.replace(/\n/g, '<br>')}
       return send(chatId, t.linksRemaining(remaining, FREE_LINKS))
     }
 
-    set(state, chatId, 'action', 'none')
+    await set(state, chatId, 'action', 'none')
     send(chatId, t.yourShortendUrl(shortUrl), trans('o'))
     return
   }
@@ -11082,7 +11082,7 @@ ${message.replace(/\n/g, '<br>')}
     if (!(await isSubscribed(chatId))) {
       await decrement(freeShortLinksOf, chatId)
       const remaining = (await get(freeShortLinksOf, chatId)) || 0
-      set(state, chatId, 'action', 'none')
+      await set(state, chatId, 'action', 'none')
       send(chatId, `Your shortened URL is: ${shortUrl}`, trans('o'))
       if (remaining <= 2) {
         return send(chatId, monetization.getUpsellMessage('lastLinkWarning', lang, remaining), k.of([[user.buyPlan], [user.serviceBundles]]))
@@ -11090,7 +11090,7 @@ ${message.replace(/\n/g, '<br>')}
       return send(chatId, t.linksRemaining(remaining, FREE_LINKS))
     }
 
-    set(state, chatId, 'action', 'none')
+    await set(state, chatId, 'action', 'none')
     send(chatId, `Your shortened URL is: ${shortUrl}`, trans('o'))
     return
   }
@@ -11276,12 +11276,12 @@ ${message.replace(/\n/g, '<br>')}
     const payOption = message
 
     if (payOption === payIn.crypto) {
-      set(state, chatId, 'action', 'crypto-pay-domain')
+      await set(state, chatId, 'action', 'crypto-pay-domain')
       return send(chatId, t.selectCryptoToDeposit, trans('k.of', trans('supportedCryptoViewOf')))
     }
 
     if (payOption === payIn.bank) {
-      set(state, chatId, 'action', 'bank-pay-domain')
+      await set(state, chatId, 'action', 'bank-pay-domain')
       return send(chatId, t.askEmail, bc)
     }
 
@@ -11302,7 +11302,7 @@ ${message.replace(/\n/g, '<br>')}
     const ref = nanoid()
 
     log({ ref })
-    set(state, chatId, 'action', 'none')
+    await set(state, chatId, 'action', 'none')
     const _rawNgn = await usdToNgn(price)
     const priceNGN = Number(_rawNgn)
     if (!_rawNgn || isNaN(priceNGN) || priceNGN <= 0) return send(chatId, '⚠️ Payment processing temporarily unavailable (exchange rate service down). Please try again later or use crypto.', trans('o'))
@@ -11330,7 +11330,7 @@ ${message.replace(/\n/g, '<br>')}
           saveInfo('ref', ref)
           log({ ref })
           await sendQrCode(bot, chatId, bbResult.bb, info?.userLanguage ?? 'en')
-          set(state, chatId, 'action', 'none')
+          await set(state, chatId, 'action', 'none')
           const priceCrypto = await convert(price, 'usd', coin)
           return send(chatId, t.showDepositCryptoInfoDomain(price, priceCrypto, ticker, bbResult.address, domain), trans('o'))
         } else {
@@ -11342,7 +11342,7 @@ ${message.replace(/\n/g, '<br>')}
           saveInfo('ref', ref)
           log({ ref })
           await generateQr(bot, chatId, dynoResult.qr_code, info?.userLanguage ?? 'en')
-          set(state, chatId, 'action', 'none')
+          await set(state, chatId, 'action', 'none')
           const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
           return send(chatId, t.showDepositCryptoInfoDomain(price, priceCrypto, ticker, dynoResult.address, domain), trans('o'))
         }
@@ -11359,7 +11359,7 @@ ${message.replace(/\n/g, '<br>')}
           saveInfo('ref', ref)
           log({ ref })
           await generateQr(bot, chatId, dynoResult.qr_code, info?.userLanguage ?? 'en')
-          set(state, chatId, 'action', 'none')
+          await set(state, chatId, 'action', 'none')
           const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
           return send(chatId, t.showDepositCryptoInfoDomain(price, priceCrypto, ticker, dynoResult.address, domain), trans('o'))
         } else {
@@ -11371,7 +11371,7 @@ ${message.replace(/\n/g, '<br>')}
           saveInfo('ref', ref)
           log({ ref })
           await sendQrCode(bot, chatId, bb, info?.userLanguage ?? 'en')
-          set(state, chatId, 'action', 'none')
+          await set(state, chatId, 'action', 'none')
           const priceCrypto = await convert(price, 'usd', bbCoin)
           return send(chatId, t.showDepositCryptoInfoDomain(price, priceCrypto, ticker, bbAddr, domain), trans('o'))
         }
@@ -11387,19 +11387,19 @@ ${message.replace(/\n/g, '<br>')}
     
     // Handle Apply Coupon button
     if (message === btn.applyCoupon) {
-      set(state, chatId, 'action', 'hosting-apply-coupon')
+      await set(state, chatId, 'action', 'hosting-apply-coupon')
       return send(chatId, t.enterCouponCode || 'Enter coupon code:', k.of([t.skip]))
     }
     
     const payOption = message
 
     if (payOption === payIn.crypto) {
-      set(state, chatId, 'action', 'crypto-pay-hosting')
+      await set(state, chatId, 'action', 'crypto-pay-hosting')
       return send(chatId, t.selectCryptoToDeposit, trans('k.of', trans('supportedCryptoViewOf')))
     }
 
     if (payOption === payIn.bank) {
-      set(state, chatId, 'action', 'bank-pay-hosting')
+      await set(state, chatId, 'action', 'bank-pay-hosting')
       return send(chatId, t.askEmail, bc)
     }
 
@@ -11434,7 +11434,7 @@ ${message.replace(/\n/g, '<br>')}
     const ref = nanoid()
 
     log({ ref })
-    set(state, chatId, 'action', a.proceedWithPaymentProcess)
+    await set(state, chatId, 'action', a.proceedWithPaymentProcess)
     const _rawNgn = await usdToNgn(price)
     const priceNGN = Number(_rawNgn)
     if (!_rawNgn || isNaN(priceNGN) || priceNGN <= 0) return send(chatId, '⚠️ Payment processing temporarily unavailable (exchange rate service down). Please try again later or use crypto.', trans('o'))
@@ -11480,7 +11480,7 @@ ${message.replace(/\n/g, '<br>')}
         set(chatIdOfPayment, ref, { chatId, price, domain })
         log({ ref })
         await sendQrCode(bot, chatId, bbResult.bb, info?.userLanguage ?? 'en')
-        set(state, chatId, 'action', a.proceedWithPaymentProcess)
+        await set(state, chatId, 'action', a.proceedWithPaymentProcess)
         const priceCrypto = await convert(price, 'usd', coin)
         return send(chatId, hP.showCryptoPaymentInfo(price, priceCrypto, ticker, bbResult.address, plan))
       } else {
@@ -11493,7 +11493,7 @@ ${message.replace(/\n/g, '<br>')}
         set(chatIdOfDynopayPayment, ref, { chatId, price, domain, action: dynopayActions.payHosting, address: dynoResult.address })
         log({ ref })
         await generateQr(bot, chatId, dynoResult.qr_code, info?.userLanguage ?? 'en')
-        set(state, chatId, 'action', a.proceedWithPaymentProcess)
+        await set(state, chatId, 'action', a.proceedWithPaymentProcess)
         const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
         return send(chatId, hP.showCryptoPaymentInfo(price, priceCrypto, ticker, dynoResult.address, plan))
       }
@@ -11510,7 +11510,7 @@ ${message.replace(/\n/g, '<br>')}
         set(chatIdOfDynopayPayment, ref, { chatId, price, domain, action: dynopayActions.payHosting, address: dynoResult.address })
         log({ ref })
         await generateQr(bot, chatId, dynoResult.qr_code, info?.userLanguage ?? 'en')
-        set(state, chatId, 'action', a.proceedWithPaymentProcess)
+        await set(state, chatId, 'action', a.proceedWithPaymentProcess)
         const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
         return send(chatId, hP.showCryptoPaymentInfo(price, priceCrypto, ticker, dynoResult.address, plan))
       } else {
@@ -11522,7 +11522,7 @@ ${message.replace(/\n/g, '<br>')}
         set(chatIdOfPayment, ref, { chatId, price, domain })
         log({ ref })
         await sendQrCode(bot, chatId, bb, info?.userLanguage ?? 'en')
-        set(state, chatId, 'action', a.proceedWithPaymentProcess)
+        await set(state, chatId, 'action', a.proceedWithPaymentProcess)
         const priceCrypto = await convert(price, 'usd', bbCoin)
         return send(chatId, hP.showCryptoPaymentInfo(price, priceCrypto, ticker, bbAddr, plan))
       }
@@ -11540,7 +11540,7 @@ ${message.replace(/\n/g, '<br>')}
     await set(state, chatId, 'actualPrice', null)
     await set(state, chatId, 'actualRegistrar', null)
 
-    return set(state, chatId, 'action', 'none')
+    return await set(state, chatId, 'action', 'none')
   }
   //
   //
@@ -11551,12 +11551,12 @@ ${message.replace(/\n/g, '<br>')}
     const payOption = message
 
     if (payOption === payIn.crypto) {
-      set(state, chatId, 'action', 'crypto-pay-vps')
+      await set(state, chatId, 'action', 'crypto-pay-vps')
       return send(chatId, t.selectCryptoToDeposit, trans('k.of', trans('supportedCryptoViewOf')))
     }
 
     if (payOption === payIn.bank) {
-      set(state, chatId, 'action', 'bank-pay-vps')
+      await set(state, chatId, 'action', 'bank-pay-vps')
       return send(chatId, t.askEmail, bc)
     }
 
@@ -11578,7 +11578,7 @@ ${message.replace(/\n/g, '<br>')}
     const ref = nanoid()
 
     log({ ref })
-    set(state, chatId, 'action', 'none')
+    await set(state, chatId, 'action', 'none')
     const _rawNgn = await usdToNgn(price)
     const priceNGN = Number(_rawNgn)
     if (!_rawNgn || isNaN(priceNGN) || priceNGN <= 0) return send(chatId, '⚠️ Payment processing temporarily unavailable (exchange rate service down). Please try again later or use crypto.', trans('o'))
@@ -11605,7 +11605,7 @@ ${message.replace(/\n/g, '<br>')}
         set(chatIdOfPayment, ref, { chatId, price, vpsDetails })
         log({ ref })
         await sendQrCode(bot, chatId, bbResult.bb, info?.userLanguage ?? 'en')
-        set(state, chatId, 'action', 'none')
+        await set(state, chatId, 'action', 'none')
         const priceCrypto = await convert(price, 'usd', coin)
         return send(chatId, vp.showDepositCryptoInfoVps(price, priceCrypto, ticker, bbResult.address, vpsDetails), trans('o'))
       } else {
@@ -11616,7 +11616,7 @@ ${message.replace(/\n/g, '<br>')}
         set(chatIdOfDynopayPayment, ref, { chatId, price, vpsDetails, action: dynopayActions.payVps, address: dynoResult.address })
         log({ ref })
         await generateQr(bot, chatId, dynoResult.qr_code, info?.userLanguage ?? 'en')
-        set(state, chatId, 'action', 'none')
+        await set(state, chatId, 'action', 'none')
         const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
         return send(chatId, vp.showDepositCryptoInfoVps(price, priceCrypto, ticker, dynoResult.address, vpsDetails), trans('o'))
       }
@@ -11632,7 +11632,7 @@ ${message.replace(/\n/g, '<br>')}
         set(chatIdOfDynopayPayment, ref, { chatId, price, vpsDetails, action: dynopayActions.payVps, address: dynoResult.address })
         log({ ref })
         await generateQr(bot, chatId, dynoResult.qr_code, info?.userLanguage ?? 'en')
-        set(state, chatId, 'action', 'none')
+        await set(state, chatId, 'action', 'none')
         const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
         return send(chatId, vp.showDepositCryptoInfoVps(price, priceCrypto, ticker, dynoResult.address, vpsDetails), trans('o'))
       } else {
@@ -11643,7 +11643,7 @@ ${message.replace(/\n/g, '<br>')}
         set(chatIdOfPayment, ref, { chatId, price, vpsDetails })
         log({ ref })
         await sendQrCode(bot, chatId, bb, info?.userLanguage ?? 'en')
-        set(state, chatId, 'action', 'none')
+        await set(state, chatId, 'action', 'none')
         const priceCrypto = await convert(price, 'usd', bbCoin)
         return send(chatId, vp.showDepositCryptoInfoVps(price, priceCrypto, ticker, bbAddr, vpsDetails), trans('o'))
       }
@@ -11658,12 +11658,12 @@ ${message.replace(/\n/g, '<br>')}
     const payOption = message
 
     if (payOption === payIn.crypto) {
-      set(state, chatId, 'action', 'crypto-pay-vps-upgrade')
+      await set(state, chatId, 'action', 'crypto-pay-vps-upgrade')
       return send(chatId, t.selectCryptoToDeposit, trans('k.of', trans('supportedCryptoViewOf')))
     }
 
     if (payOption === payIn.bank) {
-      set(state, chatId, 'action', 'bank-pay-vps-upgrade')
+      await set(state, chatId, 'action', 'bank-pay-vps-upgrade')
       return send(chatId, t.askEmail, bc)
     }
 
@@ -11685,7 +11685,7 @@ ${message.replace(/\n/g, '<br>')}
     const ref = nanoid()
 
     log({ ref })
-    set(state, chatId, 'action', 'none')
+    await set(state, chatId, 'action', 'none')
     const _rawNgn = await usdToNgn(price)
     const priceNGN = Number(_rawNgn)
     if (!_rawNgn || isNaN(priceNGN) || priceNGN <= 0) return send(chatId, '⚠️ Payment processing temporarily unavailable (exchange rate service down). Please try again later or use crypto.', trans('o'))
@@ -11721,7 +11721,7 @@ ${message.replace(/\n/g, '<br>')}
         set(chatIdOfPayment, ref, { chatId, price, vpsDetails })
         log({ ref })
         await sendQrCode(bot, chatId, bbResult.bb, info?.userLanguage ?? 'en')
-        set(state, chatId, 'action', 'none')
+        await set(state, chatId, 'action', 'none')
         const priceCrypto = await convert(price, 'usd', coin)
         return send(chatId, vp.showDepositCryptoInfoVpsUpgrade(price, priceCrypto, ticker, bbResult.address), trans('o'))
       } else {
@@ -11732,7 +11732,7 @@ ${message.replace(/\n/g, '<br>')}
         set(chatIdOfDynopayPayment, ref, { chatId, price, vpsDetails, action: dynopayActions.payVps, address: dynoResult.address })
         log({ ref })
         await generateQr(bot, chatId, dynoResult.qr_code, info?.userLanguage ?? 'en')
-        set(state, chatId, 'action', 'none')
+        await set(state, chatId, 'action', 'none')
         const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
         return send(chatId, vp.showDepositCryptoInfoVpsUpgrade(price, priceCrypto, ticker, dynoResult.address), trans('o'))
       }
@@ -11748,7 +11748,7 @@ ${message.replace(/\n/g, '<br>')}
         set(chatIdOfDynopayPayment, ref, { chatId, price, vpsDetails, action: dynopayActions.payVps, address: dynoResult.address })
         log({ ref })
         await generateQr(bot, chatId, dynoResult.qr_code, info?.userLanguage ?? 'en')
-        set(state, chatId, 'action', 'none')
+        await set(state, chatId, 'action', 'none')
         const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
         return send(chatId, vp.showDepositCryptoInfoVpsUpgrade(price, priceCrypto, ticker, dynoResult.address), trans('o'))
       } else {
@@ -11759,7 +11759,7 @@ ${message.replace(/\n/g, '<br>')}
         set(chatIdOfPayment, ref, { chatId, price, vpsDetails })
         log({ ref })
         await sendQrCode(bot, chatId, bb, info?.userLanguage ?? 'en')
-        set(state, chatId, 'action', 'none')
+        await set(state, chatId, 'action', 'none')
         const priceCrypto = await convert(price, 'usd', bbCoin)
         return send(chatId, vp.showDepositCryptoInfoVpsUpgrade(price, priceCrypto, ticker, bbAddr), trans('o'))
       }
@@ -11801,11 +11801,11 @@ ${message.replace(/\n/g, '<br>')}
     if (message === t.back) return goto.askCoupon('choose-subscription')
     const payOption = message
     if (payOption === payIn.crypto) {
-      set(state, chatId, 'action', 'crypto-pay-plan')
+      await set(state, chatId, 'action', 'crypto-pay-plan')
       return send(chatId, t.selectCryptoToDeposit, trans('k.of', trans('supportedCryptoViewOf')))
     }
     if (payOption === payIn.bank) {
-      set(state, chatId, 'action', 'bank-pay-plan')
+      await set(state, chatId, 'action', 'bank-pay-plan')
       return send(chatId, t.askEmail, bc)
     }
     if (payOption === payIn.wallet) {
@@ -11827,7 +11827,7 @@ ${message.replace(/\n/g, '<br>')}
     if (!_rawNgn || isNaN(priceNGN) || priceNGN <= 0) return send(chatId, '⚠️ Payment processing temporarily unavailable (exchange rate service down). Please try again later or use crypto.', trans('o'))
 
     const ref = nanoid()
-    set(state, chatId, 'action', 'none')
+    await set(state, chatId, 'action', 'none')
     set(chatIdOfPayment, ref, { chatId, price, plan, endpoint: `/bank-pay-plan` })
     const { url, error } = await createCheckout(priceNGN, `/ok?a=b&ref=${ref}&`, email, username, ref)
 
@@ -11855,7 +11855,7 @@ ${message.replace(/\n/g, '<br>')}
         log({ ref })
         log({ ref })
         await sendQrCode(bot, chatId, bbResult.bb, info?.userLanguage ?? 'en')
-        set(state, chatId, 'action', 'none')
+        await set(state, chatId, 'action', 'none')
         const priceCrypto = await convert(price, 'usd', coin)
         return send(chatId, t.showDepositCryptoInfoPlan(price, priceCrypto, ticker, bbResult.address, plan), trans('o'))
       } else {
@@ -11867,7 +11867,7 @@ ${message.replace(/\n/g, '<br>')}
         set(chatIdOfDynopayPayment, ref, { chatId, price, plan, action: dynopayActions.payPlan, address: dynoResult.address })
         log({ ref })
         await generateQr(bot, chatId, dynoResult.qr_code, info?.userLanguage ?? 'en')
-        set(state, chatId, 'action', 'none')
+        await set(state, chatId, 'action', 'none')
         const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
         return send(chatId, t.showDepositCryptoInfoPlan(price, priceCrypto, ticker, dynoResult.address, plan), trans('o'))
       }
@@ -11894,7 +11894,7 @@ ${message.replace(/\n/g, '<br>')}
         set(chatIdOfPayment, ref, { chatId, price, plan })
         log({ ref })
         await sendQrCode(bot, chatId, bb, info?.userLanguage ?? 'en')
-        set(state, chatId, 'action', 'none')
+        await set(state, chatId, 'action', 'none')
         const priceCrypto = await convert(price, 'usd', bbCoin)
         return send(chatId, t.showDepositCryptoInfoPlan(price, priceCrypto, ticker, bbAddr, plan), trans('o'))
       }
@@ -11942,7 +11942,7 @@ ${message.replace(/\n/g, '<br>')}
         return send(chatId, t.switchToCfAlreadyCf || 'Already using Cloudflare.')
       }
       send(chatId, t.switchToCfConfirm(domain), trans('yes_no'))
-      set(state, chatId, 'action', 'confirm-switch-to-cloudflare')
+      await set(state, chatId, 'action', 'confirm-switch-to-cloudflare')
       return
     }
 
@@ -11965,7 +11965,7 @@ ${message.replace(/\n/g, '<br>')}
       if (hasShortener) {
         await set(state, chatId, 'switchToProviderDeactivateShortener', true)
       }
-      set(state, chatId, 'action', 'confirm-switch-to-provider-default')
+      await set(state, chatId, 'action', 'confirm-switch-to-provider-default')
       return
     }
 
@@ -12730,7 +12730,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         // Store pending record info for confirmation
         await set(state, chatId, 'dnsAddValue', value)
         await set(state, chatId, 'dnsConflictRecords', conflict.conflictingRecords)
-        set(state, chatId, 'action', 'dns-confirm-conflict-replace')
+        await set(state, chatId, 'action', 'dns-confirm-conflict-replace')
         return send(chatId, conflict.message, { parse_mode: 'HTML', reply_markup: { keyboard: [[t.yes || 'Yes'], [t.no || 'No']], resize_keyboard: true } })
       }
     }
@@ -13122,7 +13122,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       saveInfo('cpCountryName', null)
       saveInfo('cpProvider', null)
       saveInfo('cpPlanKey', null)
-      set(state, chatId, 'action', a.cpSelectPlan)
+      await set(state, chatId, 'action', a.cpSelectPlan)
       const availablePlanBtns = []
       if (phoneConfig.isPlanAvailable('starter')) availablePlanBtns.push([pc.starterPlan])
       if (phoneConfig.isPlanAvailable('pro')) availablePlanBtns.push([pc.proPlan])
@@ -13149,7 +13149,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         return send(chatId, cpTxt.noNumbers, k.of([[buyLabel]]))
       }
 
-      set(state, chatId, 'action', a.cpMyNumbers)
+      await set(state, chatId, 'action', a.cpMyNumbers)
       await saveInfo('cpNumbers', numbers)
       await saveInfo('cpPendingBundlesList', userPendingBundles.map(pb => ({
         _id: pb._id?.toString(),
@@ -13211,7 +13211,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         }
         // Trial path — auto-assign caller ID (Twilio number on main account)
         await saveInfo('ivrObData', { callerId: ivrOb.TRIAL_CALLER_ID, isTrial: true, callerProvider: 'telnyx' })
-        set(state, chatId, 'action', a.ivrObEnterTarget)
+        await set(state, chatId, 'action', a.ivrObEnterTarget)
         return send(chatId, `📢 <b>Quick IVR Call — Free Trial</b>\n\n🎁 You get <b>1 free trial call!</b>\n📱 Caller ID: <b>${ivrOb.TRIAL_CALLER_ID}</b> (shared)\n\nCall a single number with an automated IVR message.\n\nEnter the phone number to call (with country code):\n<i>Example: +12025551234</i>`, k.of([]))
       }
 
@@ -13223,7 +13223,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
       // Subscriber with eligible plan — select caller ID (only show numbers with Pro+ plan)
       const eligibleNumbers = numbers.filter(n => phoneConfig.canAccessFeature(n.plan, 'ivrOutbound'))
-      set(state, chatId, 'action', a.ivrObSelectCallerId)
+      await set(state, chatId, 'action', a.ivrObSelectCallerId)
       await saveInfo('ivrObData', { isTrial: false })
       const rows = eligibleNumbers.map(n => [n.phoneNumber])
       return send(chatId, `📢 <b>Quick IVR Call</b>\n\nCall a single number with an automated IVR message.\n\nSelect the number to call FROM (Caller ID):`, k.of(rows))
@@ -13237,7 +13237,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       const numbers = (userData?.numbers || []).filter(n => n.status === 'active')
       if (!numbers.length) return send(chatId, phoneConfig.getMsg(info?.userLanguage).noActiveNumbers, k.of([[buyLabel]]))
       // Show list to pick a number
-      set(state, chatId, 'action', a.cpMyNumbers)
+      await set(state, chatId, 'action', a.cpMyNumbers)
       await saveInfo('cpNumbers', numbers)
       const numBtns = numbers.map((_, i) => String(i + 1))
       return send(chatId, cpTxt.myNumbersList(numbers), k.of([numBtns]))
@@ -13308,14 +13308,14 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       }
       await saveInfo('bulkData', {})
       await saveInfo('bulkCallerIds', allCallerIds)
-      set(state, chatId, 'action', a.bulkSelectCaller)
+      await set(state, chatId, 'action', a.bulkSelectCaller)
       const numBtns = allCallerIds.map(c => [c.label])
       return send(chatId, `📞 <b>Bulk IVR Campaign</b>\n\nCall multiple numbers with an automated IVR message.\nUpload a CSV of leads and launch a campaign.\n\n☎️ = Bulk IVR capable numbers\n\n📱 Select the Caller ID:`, k.of([...numBtns, ['↩️ Back']]))
     }
 
     // ── Audio Library ──
     if (message === pc.audioLibrary) {
-      set(state, chatId, 'action', a.audioLibMenu)
+      await set(state, chatId, 'action', a.audioLibMenu)
       const audios = await audioLibraryService.listAudios(chatId)
       if (audios.length === 0) {
         return send(chatId, `🎵 <b>Audio Library</b>\n\nYou have no saved audio files.\n\nUpload an audio file (MP3, WAV, OGG) to use in IVR campaigns.`, k.of([['📎 Upload Audio'], ['↩️ Back']]))
@@ -13341,7 +13341,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     ivrObData.callerId = found.phoneNumber
     ivrObData.callerProvider = found.provider || 'telnyx'
     await saveInfo('ivrObData', ivrObData)
-    set(state, chatId, 'action', a.ivrObEnterTarget)
+    await set(state, chatId, 'action', a.ivrObEnterTarget)
     return send(chatId, `📱 Caller ID: <b>${found.phoneNumber}</b>\n\nEnter the phone number to call (with country code):\n<i>Example: +12025551234</i>`, k.of([]))
   }
 
@@ -13351,7 +13351,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       const ivrObData = info?.ivrObData || {}
       if (ivrObData.isTrial) return goto.submenu5()
       // Back → caller ID selection
-      set(state, chatId, 'action', a.ivrObSelectCallerId)
+      await set(state, chatId, 'action', a.ivrObSelectCallerId)
       const userData = await get(phoneNumbersOf, chatId)
       const numbers = (userData?.numbers || []).filter(n => n.status === 'active')
       const numBtns = numbers.map(n => n.phoneNumber)
@@ -13386,7 +13386,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     }
 
     await saveInfo('ivrObData', ivrObData)
-    set(state, chatId, 'action', a.ivrObSelectCategory)
+    await set(state, chatId, 'action', a.ivrObSelectCategory)
     const ivrOb = require('./ivr-outbound.js')
     const catBtns = ivrOb.getCategoryButtons()
     const rows = catBtns.map(b => [b])
@@ -13407,7 +13407,7 @@ Choose an IVR template category:`), k.of(rows))
     if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
     if (message === t.back) {
       // Back → enter target number
-      set(state, chatId, 'action', a.ivrObEnterTarget)
+      await set(state, chatId, 'action', a.ivrObEnterTarget)
       return send(chatId, `Enter the phone number to call (with country code):\n<i>Example: +12025551234</i>`, k.of([]))
     }
     const ivrOb = require('./ivr-outbound.js')
@@ -13419,13 +13419,13 @@ Choose an IVR template category:`), k.of(rows))
       // Custom script — ask user to type their script
       ivrObData.category = 'custom'
       await saveInfo('ivrObData', ivrObData)
-      set(state, chatId, 'action', a.ivrObCustomScript)
+      await set(state, chatId, 'action', a.ivrObCustomScript)
       return send(chatId, `✍️ <b>Custom Script</b>\n\nType your IVR message. Use <b>[Brackets]</b> for variables:\n\n<i>Example: Hello [Name]. This is [Company]. A payment of $[Amount] was charged. Press 1 to dispute.</i>\n\nType your script:`, k.of([]))
     }
 
     ivrObData.category = cat
     await saveInfo('ivrObData', ivrObData)
-    set(state, chatId, 'action', a.ivrObSelectTemplate)
+    await set(state, chatId, 'action', a.ivrObSelectTemplate)
     const tmplBtns = ivrOb.getTemplateButtons(cat)
     const rows = tmplBtns.map(b => [b])
     rows.push(['↩️ Back'])
@@ -13436,7 +13436,7 @@ Choose an IVR template category:`), k.of(rows))
     if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
     if (message === t.back) {
       // Back → category selection
-      set(state, chatId, 'action', a.ivrObSelectCategory)
+      await set(state, chatId, 'action', a.ivrObSelectCategory)
       const ivrOb = require('./ivr-outbound.js')
       const catBtns = ivrOb.getCategoryButtons()
       const rows = catBtns.map(b => [b])
@@ -13457,7 +13457,7 @@ Choose an IVR template category:`), k.of(rows))
     await saveInfo('ivrObData', ivrObData)
 
     // Show key confirmation before proceeding
-    set(state, chatId, 'action', a.ivrObConfirmKeys)
+    await set(state, chatId, 'action', a.ivrObConfirmKeys)
     const detectedLabel = ivrObData.activeKeys.join(', ')
     const keyNote = activeKeys.length > 0
       ? `🔘 <b>Detected active keys:</b> ${detectedLabel}\n\n(Auto-detected from "press X" in your script)`
@@ -13469,7 +13469,7 @@ Choose an IVR template category:`), k.of(rows))
   if (action === a.ivrObConfirmKeys) {
     if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
     if (message === '↩️ Back' || message === t.back) {
-      set(state, chatId, 'action', a.ivrObCustomScript)
+      await set(state, chatId, 'action', a.ivrObCustomScript)
       return send(chatId, `Type your custom IVR script:`, k.of([['↩️ Back']]))
     }
     const ivrObData = info?.ivrObData || {}
@@ -13489,7 +13489,7 @@ Choose an IVR template category:`), k.of(rows))
       ivrObData.placeholderValues = {}
       ivrObData.placeholderIndex = 0
       await saveInfo('ivrObData', ivrObData)
-      set(state, chatId, 'action', a.ivrObFillPlaceholder)
+      await set(state, chatId, 'action', a.ivrObFillPlaceholder)
       const firstPh = placeholders[0]
       const rows = []
       if (firstPh === 'Name' && ivrObData.suggestedName) {
@@ -13500,13 +13500,13 @@ Choose an IVR template category:`), k.of(rows))
     }
 
     // No placeholders — skip to IVR number
-    set(state, chatId, 'action', a.ivrObEnterIvrNumber)
+    await set(state, chatId, 'action', a.ivrObEnterIvrNumber)
     return send(chatId, `Enter the number to transfer the caller to when they press a key:\n<i>Example: +17174794833</i>`, k.of([]))
   }
 
   if (action === a.ivrObSelectTemplate) {
     if (message === '↩️ Back' || message === t.back) {
-      set(state, chatId, 'action', a.ivrObSelectCategory)
+      await set(state, chatId, 'action', a.ivrObSelectCategory)
       const ivrOb = require('./ivr-outbound.js')
       const catBtns = ivrOb.getCategoryButtons()
       const rows = catBtns.map(b => [b])
@@ -13531,7 +13531,7 @@ Choose an IVR template category:`), k.of(rows))
     send(chatId, `📋 <b>${template.icon} ${template.name}</b>\n\n<i>"${template.text}"</i>\n\n🔘 Active keys: <b>${template.activeKeys.join(', ')}</b>`)
 
     if (ivrObData.placeholders.length > 0) {
-      set(state, chatId, 'action', a.ivrObFillPlaceholder)
+      await set(state, chatId, 'action', a.ivrObFillPlaceholder)
       const firstPh = ivrObData.placeholders[0]
       const rows = []
       if (firstPh === 'Name' && ivrObData.suggestedName) {
@@ -13542,7 +13542,7 @@ Choose an IVR template category:`), k.of(rows))
     }
 
     // No placeholders — skip to IVR number
-    set(state, chatId, 'action', a.ivrObEnterIvrNumber)
+    await set(state, chatId, 'action', a.ivrObEnterIvrNumber)
     return send(chatId, `Enter the number to transfer the caller to when they press a key:\n<i>Example: +17174794833</i>`, k.of([]))
   }
 
@@ -13550,7 +13550,7 @@ Choose an IVR template category:`), k.of(rows))
     if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
     if (message === t.back) {
       // Back → category selection (restarting template flow)
-      set(state, chatId, 'action', a.ivrObSelectCategory)
+      await set(state, chatId, 'action', a.ivrObSelectCategory)
       const ivrOb = require('./ivr-outbound.js')
       const catBtns = ivrOb.getCategoryButtons()
       const rows = catBtns.map(b => [b])
@@ -13579,7 +13579,7 @@ Choose an IVR template category:`), k.of(rows))
     }
 
     // All placeholders filled — go to IVR number
-    set(state, chatId, 'action', a.ivrObEnterIvrNumber)
+    await set(state, chatId, 'action', a.ivrObEnterIvrNumber)
     return send(chatId, `✅ All values set!\n\nEnter the number to transfer the caller to when they press a key:\n<i>Example: +17174794833</i>`, k.of([]))
   }
 
@@ -13587,7 +13587,7 @@ Choose an IVR template category:`), k.of(rows))
     if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
     if (message === t.back) {
       // Back → category selection
-      set(state, chatId, 'action', a.ivrObSelectCategory)
+      await set(state, chatId, 'action', a.ivrObSelectCategory)
       const ivrOb = require('./ivr-outbound.js')
       const catBtns = ivrOb.getCategoryButtons()
       const rows = catBtns.map(b => [b])
@@ -13600,7 +13600,7 @@ Choose an IVR template category:`), k.of(rows))
     const ivrObData = info?.ivrObData || {}
     ivrObData.ivrNumber = clean
     await saveInfo('ivrObData', ivrObData)
-    set(state, chatId, 'action', a.ivrObSelectProvider)
+    await set(state, chatId, 'action', a.ivrObSelectProvider)
     const ttsService = require('./tts-service.js')
     const providerBtns = ttsService.getProviderButtons().map(b => [b])
     return send(chatId, `🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine:`, k.of(providerBtns))
@@ -13610,7 +13610,7 @@ Choose an IVR template category:`), k.of(rows))
     if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
     if (message === t.back) {
       // Back → enter IVR number
-      set(state, chatId, 'action', a.ivrObEnterIvrNumber)
+      await set(state, chatId, 'action', a.ivrObEnterIvrNumber)
       return send(chatId, `Enter the number to transfer the caller to when they press a key:\n<i>Example: +17174794833</i>`, k.of([]))
     }
     const ttsService = require('./tts-service.js')
@@ -13622,7 +13622,7 @@ Choose an IVR template category:`), k.of(rows))
     const ivrObData = info?.ivrObData || {}
     ivrObData.ttsProvider = providerKey
     await saveInfo('ivrObData', ivrObData)
-    set(state, chatId, 'action', a.ivrObSelectVoice)
+    await set(state, chatId, 'action', a.ivrObSelectVoice)
     const voiceBtns = ttsService.getVoiceButtons('en', providerKey)
     const rows = []
     for (let i = 0; i < voiceBtns.length; i += 2) {
@@ -13635,7 +13635,7 @@ Choose an IVR template category:`), k.of(rows))
     if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
     if (message === t.back) {
       // Back → provider selection
-      set(state, chatId, 'action', a.ivrObSelectProvider)
+      await set(state, chatId, 'action', a.ivrObSelectProvider)
       const ttsService = require('./tts-service.js')
       const providerBtns = ttsService.getProviderButtons().map(b => [b])
       return send(chatId, `🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine:`, k.of(providerBtns))
@@ -13649,7 +13649,7 @@ Choose an IVR template category:`), k.of(rows))
     await saveInfo('ivrObData', ivrObData)
 
     // Generate audio preview
-    set(state, chatId, 'action', a.ivrObAudioPreview)
+    await set(state, chatId, 'action', a.ivrObAudioPreview)
     send(chatId, `🎤 Voice: <b>${voice.name}</b>\n\n⏳ Generating audio preview...`)
 
     try {
@@ -13684,13 +13684,13 @@ Choose an IVR template category:`), k.of(rows))
     if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
     if (message === t.back) {
       // Back → voice selection
-      set(state, chatId, 'action', a.ivrObSelectProvider)
+      await set(state, chatId, 'action', a.ivrObSelectProvider)
       const ttsService = require('./tts-service.js')
       const providerBtns = ttsService.getProviderButtons().map(b => [b])
       return send(chatId, `🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine:`, k.of(providerBtns))
     }
     if (message === '🎤 Change Voice') {
-      set(state, chatId, 'action', a.ivrObSelectProvider)
+      await set(state, chatId, 'action', a.ivrObSelectProvider)
       const ttsService = require('./tts-service.js')
       const providerBtns = ttsService.getProviderButtons().map(b => [b])
       return send(chatId, `🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine:`, k.of(providerBtns))
@@ -13707,7 +13707,7 @@ Choose an IVR template category:`), k.of(rows))
       // Show call preview
       const ivrOb = require('./ivr-outbound.js')
       const ivrObData = info?.ivrObData || {}
-      set(state, chatId, 'action', a.ivrObCallPreview)
+      await set(state, chatId, 'action', a.ivrObCallPreview)
       const preview = ivrOb.formatCallPreview(ivrObData)
       return send(chatId, preview, k.of([['/yes']]))
     }
@@ -13718,7 +13718,7 @@ Choose an IVR template category:`), k.of(rows))
     if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
     if (message === t.back) {
       // Back → audio preview / hold music toggle
-      set(state, chatId, 'action', a.ivrObAudioPreview)
+      await set(state, chatId, 'action', a.ivrObAudioPreview)
       const ivrObData = info?.ivrObData || {}
       return send(chatId, `What would you like to do?`, k.of([['✅ Confirm'], ['🎤 Change Voice'], [ivrObData.holdMusic ? '🎵 Hold Music: ON' : '🔇 Hold Music: OFF']]))
     }
@@ -13787,7 +13787,7 @@ Choose an IVR template category:`), k.of(rows))
       // — only consumed when the call is actually answered (not on busy/no_answer)
 
       // Reset to hub
-      return set(state, chatId, 'action', a.submenu5)
+      return await set(state, chatId, 'action', a.submenu5)
     }
     if (message === '/cancel') return goto.submenu5()
     return send(chatId, `Press <b>/yes</b> to place the call or <b>/cancel</b> to abort.`)
@@ -13799,7 +13799,7 @@ Choose an IVR template category:`), k.of(rows))
   if (action === a.audioLibMenu) {
     if (message === '↩️ Back' || message === t.back) return goto.submenu5()
     if (message === '📎 Upload Audio') {
-      set(state, chatId, 'action', a.audioLibUpload)
+      await set(state, chatId, 'action', a.audioLibUpload)
       return send(chatId, ({ en: `🎵 <b>Upload Audio</b>\n\nSend me an audio file (MP3, WAV, OGG) or a voice message.\n\nThis will be saved to your library for use in IVR campaigns.`, fr: `🎵 <b>Télécharger Audio</b>\n\nEnvoyez-moi un fichier audio (MP3, WAV, OGG) ou un message vocal.\n\nIl sera sauvegardé dans votre bibliothèque pour les campagnes IVR.`, zh: `🎵 <b>上传音频</b>\n\n请发送音频文件（MP3、WAV、OGG）或语音消息。\n\n将保存到您的音频库用于 IVR 活动。`, hi: `🎵 <b>ऑडियो अपलोड</b>\n\nमुझे एक ऑडियो फाइल (MP3, WAV, OGG) या वॉइस मैसेज भेजें।\n\nयह IVR अभियानों के लिए आपकी लाइब्रेरी में सहेजा जाएगा।` }[lang] || `🎵 <b>Upload Audio</b>\n\nSend me an audio file (MP3, WAV, OGG) or a voice message.\n\nThis will be saved to your library for use in IVR campaigns.`), k.of([['↩️ Back']]))
     }
     if (message.startsWith('🗑 Delete: ')) {
@@ -13811,7 +13811,7 @@ Choose an IVR template category:`), k.of(rows))
         send(chatId, (t.audioDeleted ? t.audioDeleted(found.name) : `✅ Deleted: <b>${found.name}</b>`), { parse_mode: 'HTML' })
       }
       // Refresh list
-      set(state, chatId, 'action', a.audioLibMenu)
+      await set(state, chatId, 'action', a.audioLibMenu)
       const remaining = await audioLibraryService.listAudios(chatId)
       if (remaining.length === 0) {
         return send(chatId, `🎵 <b>Audio Library</b>\n\nNo audio files. Upload one to get started.`, k.of([['📎 Upload Audio'], ['↩️ Back']]))
@@ -13825,7 +13825,7 @@ Choose an IVR template category:`), k.of(rows))
 
   if (action === a.audioLibUpload) {
     if (message === '↩️ Back' || message === t.back) {
-      set(state, chatId, 'action', a.audioLibMenu)
+      await set(state, chatId, 'action', a.audioLibMenu)
       const audios = await audioLibraryService.listAudios(chatId)
       const btns = [['📎 Upload Audio'], ...audios.map(a => [`🗑 Delete: ${a.name.substring(0, 25)}`]), ['↩️ Back']]
       const audioList = audios.length > 0 ? audios.map((a, i) => `${i + 1}. 🎵 <b>${a.name}</b>`).join('\n') : 'No files yet.'
@@ -13843,7 +13843,7 @@ Choose an IVR template category:`), k.of(rows))
         send(chatId, `⏳ Downloading and saving audio...`)
         const saved = await audioLibraryService.downloadAndSave(fileLink, chatId, originalName, mimeType)
         await saveInfo('audioLibPending', { ...saved, duration, mimeType, originalName })
-        set(state, chatId, 'action', a.audioLibName)
+        await set(state, chatId, 'action', a.audioLibName)
         return send(chatId, (t.audioReceived ? t.audioReceived((saved.size / 1024).toFixed(0)) : `✅ Audio received! (${(saved.size / 1024).toFixed(0)} KB)\n\nGive it a name for your library:`), k.of([[originalName !== 'voice_message' ? originalName.replace(/\.[^.]+$/, '') : 'My IVR Audio']]))
       } catch (e) {
         log(`[AudioLibrary] Upload error: ${e.message}`)
@@ -13855,7 +13855,7 @@ Choose an IVR template category:`), k.of(rows))
 
   if (action === a.audioLibName) {
     if (message === '↩️ Back' || message === t.back) {
-      set(state, chatId, 'action', a.audioLibUpload)
+      await set(state, chatId, 'action', a.audioLibUpload)
       return send(chatId, `Send me an audio file or voice message:`, k.of([['↩️ Back']]))
     }
     const pending = info?.audioLibPending
@@ -13892,13 +13892,13 @@ Choose an IVR template category:`), k.of(rows))
     bulkData.twilioSubAccountSid = found.subAccountSid || null
     bulkData.twilioSubAccountToken = found.subAccountToken || null
     await saveInfo('bulkData', bulkData)
-    set(state, chatId, 'action', a.bulkUploadLeads)
+    await set(state, chatId, 'action', a.bulkUploadLeads)
     return send(chatId, `📱 Caller ID: <b>${found.phoneNumber}</b>\n\n📋 <b>Upload Leads File</b>\n\nSend a text file (.txt or .csv) with one phone number per line.\nOptional: <code>number,name</code> per line.\n\nOr paste the numbers directly (one per line):`, k.of([['↩️ Back']]))
   }
 
   if (action === a.bulkUploadLeads) {
     if (message === '↩️ Back' || message === t.back) {
-      set(state, chatId, 'action', a.bulkSelectCaller)
+      await set(state, chatId, 'action', a.bulkSelectCaller)
       const allCallerIds = info?.bulkCallerIds || []
       const numBtns = allCallerIds.map(c => [c.label])
       return send(chatId, `Select the Caller ID:`, k.of([...numBtns, ['↩️ Back']]))
@@ -13941,7 +13941,7 @@ Choose an IVR template category:`), k.of(rows))
     const more = leads.length > 5 ? `\n  ... and ${leads.length - 5} more` : ''
     const errNote = errors.length > 0 ? `\n⚠️ ${errors.length} invalid lines skipped` : ''
 
-    set(state, chatId, 'action', a.bulkSelectAudio)
+    await set(state, chatId, 'action', a.bulkSelectAudio)
     const audios = await audioLibraryService.listAudios(chatId)
     const audioBtns = audios.map(a => [`🎵 ${a.name.substring(0, 30)}`])
     const btns = [...audioBtns, ['📎 Upload New Audio'], ['📝 Use IVR Template'], ['↩️ Back']]
@@ -13950,18 +13950,18 @@ Choose an IVR template category:`), k.of(rows))
 
   if (action === a.bulkSelectAudio) {
     if (message === '↩️ Back' || message === t.back) {
-      set(state, chatId, 'action', a.bulkUploadLeads)
+      await set(state, chatId, 'action', a.bulkUploadLeads)
       return send(chatId, `📋 Send a leads file or paste numbers:`, k.of([['↩️ Back']]))
     }
     if (message === '📎 Upload New Audio') {
-      set(state, chatId, 'action', a.bulkUploadAudio)
+      await set(state, chatId, 'action', a.bulkUploadAudio)
       return send(chatId, `🎵 Send an audio file (MP3, WAV, OGG) or voice message:`, k.of([['↩️ Back']]))
     }
     if (message === '📝 Use IVR Template' || message === '🎤 Generate with TTS') {
       // Inline TTS: show template categories
       const ivrOb = require('./ivr-outbound.js')
       const catBtns = ivrOb.getCategoryButtons().map(b => [b])
-      set(state, chatId, 'action', a.bulkTTSCategory)
+      await set(state, chatId, 'action', a.bulkTTSCategory)
       return send(chatId, `📝 <b>Generate Audio from Template</b>\n\nChoose a template category, or write your own custom script:`, k.of([...catBtns, ['✍️ Custom Script'], ['↩️ Back']]))
     }
     // Select from library
@@ -13975,7 +13975,7 @@ Choose an IVR template category:`), k.of(rows))
       bulkData.audioUrl = found.audioUrl
       bulkData.audioName = found.name
       await saveInfo('bulkData', bulkData)
-      set(state, chatId, 'action', a.bulkSelectMode)
+      await set(state, chatId, 'action', a.bulkSelectMode)
       return send(chatId, `🎵 Audio: <b>${found.name}</b>\n\n📋 <b>Select Campaign Mode</b>\n\n🔗 <b>Transfer + Report</b> — When lead presses a key, bridge to your phone + always report\n📊 <b>Report Only</b> — Just track who pressed a key, no transfer + always report\n\nBoth modes report full results (who pressed, who hung up, etc.)`, k.of([['🔗 Transfer + Report'], ['📊 Report Only'], ['↩️ Back']]))
     }
     return send(chatId, `Select an audio file:`)
@@ -13983,7 +13983,7 @@ Choose an IVR template category:`), k.of(rows))
 
   if (action === a.bulkUploadAudio) {
     if (message === '↩️ Back' || message === t.back) {
-      set(state, chatId, 'action', a.bulkSelectAudio)
+      await set(state, chatId, 'action', a.bulkSelectAudio)
       const audios = await audioLibraryService.listAudios(chatId)
       const audioBtns = audios.map(a => [`🎵 ${a.name.substring(0, 30)}`])
       const btns = [...audioBtns, ['📎 Upload New Audio'], ['📝 Use IVR Template'], ['↩️ Back']]
@@ -13999,7 +13999,7 @@ Choose an IVR template category:`), k.of(rows))
         send(chatId, `⏳ Saving audio...`)
         const saved = await audioLibraryService.downloadAndSave(fileLink, chatId, originalName, mimeType)
         await saveInfo('bulkAudioPending', { ...saved, duration, mimeType, originalName })
-        set(state, chatId, 'action', a.bulkNameAudio)
+        await set(state, chatId, 'action', a.bulkNameAudio)
         return send(chatId, (t.audioReceivedShort || `✅ Audio received!\n\nGive it a name:`), k.of([[originalName !== 'voice_message' ? originalName.replace(/\.[^.]+$/, '') : 'Campaign Audio']]))
       } catch (e) {
         return send(chatId, `❌ Upload failed: ${e.message}`, k.of([['↩️ Back']]))
@@ -14022,13 +14022,13 @@ Choose an IVR template category:`), k.of(rows))
     bulkData.audioUrl = savedAudio.audioUrl
     bulkData.audioName = name
     await saveInfo('bulkData', bulkData)
-    set(state, chatId, 'action', a.bulkSelectMode)
+    await set(state, chatId, 'action', a.bulkSelectMode)
     return send(chatId, `✅ Saved as: <b>${name}</b>\n\n📋 <b>Select Campaign Mode</b>\n\n🔗 <b>Transfer + Report</b> — Pressing 1 bridges to your phone\n📊 <b>Report Only</b> — Just track responses\n\nBoth modes always report full results.`, k.of([['🔗 Transfer + Report'], ['📊 Report Only'], ['↩️ Back']]))
   }
 
   if (action === a.bulkSelectMode) {
     if (message === '↩️ Back' || message === t.back) {
-      set(state, chatId, 'action', a.bulkSelectAudio)
+      await set(state, chatId, 'action', a.bulkSelectAudio)
       const audios = await audioLibraryService.listAudios(chatId)
       const audioBtns = audios.map(a => [`🎵 ${a.name.substring(0, 30)}`])
       return send(chatId, `Select IVR Audio:`, k.of([...audioBtns, ['📎 Upload New Audio'], ['↩️ Back']]))
@@ -14037,14 +14037,14 @@ Choose an IVR template category:`), k.of(rows))
     if (message === '🔗 Transfer + Report') {
       bulkData.mode = 'transfer'
       await saveInfo('bulkData', bulkData)
-      set(state, chatId, 'action', a.bulkEnterTransfer)
+      await set(state, chatId, 'action', a.bulkEnterTransfer)
       return send(chatId, `🔗 <b>Transfer Mode</b>\n\nEnter the number to transfer calls when lead presses the active key:\n<i>(Your SIP number or any phone number)</i>\n<i>Example: +41791234567</i>`, k.of([['↩️ Back']]))
     }
     if (message === '📊 Report Only') {
       bulkData.mode = 'report_only'
       bulkData.transferNumber = null
       await saveInfo('bulkData', bulkData)
-      set(state, chatId, 'action', a.bulkSelectKeys)
+      await set(state, chatId, 'action', a.bulkSelectKeys)
       return send(chatId, `📊 <b>Report Only</b> — no transfers, just tracking.\n\n🔘 <b>Select Active Keys</b>\n\nWhich keys should count as a positive response?\n\nPick a preset or enter custom digits:`, k.of([['1 only'], ['1 and 2'], ['1, 2, and 3'], ['0-9 (any key)'], ['✍️ Custom keys'], ['↩️ Back']]))
     }
     return send(chatId, `Select a mode:`, k.of([['🔗 Transfer + Report'], ['📊 Report Only'], ['↩️ Back']]))
@@ -14052,7 +14052,7 @@ Choose an IVR template category:`), k.of(rows))
 
   if (action === a.bulkEnterTransfer) {
     if (message === '↩️ Back' || message === t.back) {
-      set(state, chatId, 'action', a.bulkSelectMode)
+      await set(state, chatId, 'action', a.bulkSelectMode)
       return send(chatId, `Select Campaign Mode:`, k.of([['🔗 Transfer + Report'], ['📊 Report Only'], ['↩️ Back']]))
     }
     const clean = message.replace(/[^+\d]/g, '')
@@ -14062,7 +14062,7 @@ Choose an IVR template category:`), k.of(rows))
     const bulkData = info?.bulkData || {}
     bulkData.transferNumber = clean
     await saveInfo('bulkData', bulkData)
-    set(state, chatId, 'action', a.bulkSelectKeys)
+    await set(state, chatId, 'action', a.bulkSelectKeys)
     return send(chatId, `🔗 Transfer to: <b>${clean}</b>\n\n🔘 <b>Select Active Keys</b>\n\nWhich keys trigger the transfer?\n\nPick a preset or enter custom digits:`, k.of([['1 only'], ['1 and 2'], ['1, 2, and 3'], ['0-9 (any key)'], ['✍️ Custom keys'], ['↩️ Back']]))
   }
 
@@ -14071,10 +14071,10 @@ Choose an IVR template category:`), k.of(rows))
     if (message === '↩️ Back' || message === t.back) {
       const bulkData = info?.bulkData || {}
       if (bulkData.mode === 'transfer') {
-        set(state, chatId, 'action', a.bulkEnterTransfer)
+        await set(state, chatId, 'action', a.bulkEnterTransfer)
         return send(chatId, `Enter the transfer number:`, k.of([['↩️ Back']]))
       }
-      set(state, chatId, 'action', a.bulkSelectMode)
+      await set(state, chatId, 'action', a.bulkSelectMode)
       return send(chatId, `Select Campaign Mode:`, k.of([['🔗 Transfer + Report'], ['📊 Report Only'], ['↩️ Back']]))
     }
     const bulkData = info?.bulkData || {}
@@ -14084,7 +14084,7 @@ Choose an IVR template category:`), k.of(rows))
     else if (message === '1, 2, and 3') selectedKeys = ['1', '2', '3']
     else if (message === '0-9 (any key)') selectedKeys = ['0','1','2','3','4','5','6','7','8','9']
     else if (message === '✍️ Custom keys') {
-      set(state, chatId, 'action', a.bulkEnterCustomKeys)
+      await set(state, chatId, 'action', a.bulkEnterCustomKeys)
       return send(chatId, `Enter the digits that count as active keys:\n<i>Example: 1,3,5 or 1 2 3</i>`, k.of([['↩️ Back']]))
     }
     if (!selectedKeys) {
@@ -14097,13 +14097,13 @@ Choose an IVR template category:`), k.of(rows))
     }
     bulkData.activeKeys = selectedKeys
     await saveInfo('bulkData', bulkData)
-    set(state, chatId, 'action', a.bulkSetConcurrency)
+    await set(state, chatId, 'action', a.bulkSetConcurrency)
     return send(chatId, `🔘 Active keys: <b>${selectedKeys.join(', ')}</b>\n\n⚡ <b>Set Concurrency</b>\n\nHow many simultaneous calls? (1-20)\nDefault: <b>10</b>`, k.of([['5'], ['10'], ['15'], ['20'], ['↩️ Back']]))
   }
 
   if (action === a.bulkEnterCustomKeys) {
     if (message === '↩️ Back' || message === t.back) {
-      set(state, chatId, 'action', a.bulkSelectKeys)
+      await set(state, chatId, 'action', a.bulkSelectKeys)
       return send(chatId, `🔘 <b>Select Active Keys</b>`, k.of([['1 only'], ['1 and 2'], ['1, 2, and 3'], ['0-9 (any key)'], ['✍️ Custom keys'], ['↩️ Back']]))
     }
     const parsed = [...new Set((message || '').match(/\d/g) || [])]
@@ -14113,20 +14113,20 @@ Choose an IVR template category:`), k.of(rows))
     const bulkData = info?.bulkData || {}
     bulkData.activeKeys = parsed.sort()
     await saveInfo('bulkData', bulkData)
-    set(state, chatId, 'action', a.bulkSetConcurrency)
+    await set(state, chatId, 'action', a.bulkSetConcurrency)
     return send(chatId, `🔘 Active keys: <b>${parsed.sort().join(', ')}</b>\n\n⚡ <b>Set Concurrency</b>\n\nHow many simultaneous calls? (1-20)\nDefault: <b>10</b>`, k.of([['5'], ['10'], ['15'], ['20'], ['↩️ Back']]))
   }
 
   // ── Bulk IVR: Inline TTS Template Flow ──
   if (action === a.bulkTTSCategory) {
     if (message === '↩️ Back' || message === t.back) {
-      set(state, chatId, 'action', a.bulkSelectAudio)
+      await set(state, chatId, 'action', a.bulkSelectAudio)
       const audios = await audioLibraryService.listAudios(chatId)
       const audioBtns = audios.map(a => [`🎵 ${a.name.substring(0, 30)}`])
       return send(chatId, `Select IVR Audio:`, k.of([...audioBtns, ['📎 Upload New Audio'], ['📝 Use IVR Template'], ['↩️ Back']]))
     }
     if (message === '✍️ Custom Script') {
-      set(state, chatId, 'action', a.bulkTTSCustomScript)
+      await set(state, chatId, 'action', a.bulkTTSCustomScript)
       return send(chatId, `✍️ <b>Custom Script</b>\n\nType the message to be spoken.\nUse "press 1", "press 2" etc. in your text to define active keys.\n\n<i>Example: Hello, this is a reminder about your appointment. Press 1 to confirm or press 2 to reschedule.</i>`, k.of([['↩️ Back']]))
     }
     const ivrOb = require('./ivr-outbound.js')
@@ -14138,7 +14138,7 @@ Choose an IVR template category:`), k.of(rows))
     const bulkTTS = info?.bulkTTS || {}
     bulkTTS.category = category
     await saveInfo('bulkTTS', bulkTTS)
-    set(state, chatId, 'action', a.bulkTTSTemplate)
+    await set(state, chatId, 'action', a.bulkTTSTemplate)
     const templates = ivrOb.getTemplateButtons(category)
     const templateBtns = templates.map(b => [b])
     return send(chatId, `Select a template:`, k.of([...templateBtns, ['↩️ Back']]))
@@ -14148,7 +14148,7 @@ Choose an IVR template category:`), k.of(rows))
     if (message === '↩️ Back' || message === t.back) {
       const ivrOb = require('./ivr-outbound.js')
       const catBtns = ivrOb.getCategoryButtons().map(b => [b])
-      set(state, chatId, 'action', a.bulkTTSCategory)
+      await set(state, chatId, 'action', a.bulkTTSCategory)
       return send(chatId, `Choose a template category:`, k.of([...catBtns, ['✍️ Custom Script'], ['↩️ Back']]))
     }
     const ivrOb = require('./ivr-outbound.js')
@@ -14165,11 +14165,11 @@ Choose an IVR template category:`), k.of(rows))
     await saveInfo('bulkTTS', bulkTTS)
 
     if (placeholders.length > 0) {
-      set(state, chatId, 'action', a.bulkTTSPlaceholder)
+      await set(state, chatId, 'action', a.bulkTTSPlaceholder)
       return send(chatId, `Enter value for <b>[${placeholders[0]}]</b>:`, k.of([]))
     }
     // No placeholders — go to provider selection
-    set(state, chatId, 'action', a.bulkTTSProvider)
+    await set(state, chatId, 'action', a.bulkTTSProvider)
     const ttsService = require('./tts-service.js')
     const providerBtns = ttsService.getProviderButtons().map(b => [b])
     return send(chatId, `🔘 Active keys: <b>${bulkTTS.activeKeys.join(', ')}</b>\n\n🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine:`, k.of([...providerBtns, ['↩️ Back']]))
@@ -14179,7 +14179,7 @@ Choose an IVR template category:`), k.of(rows))
     if (message === '↩️ Back' || message === t.back) {
       const ivrOb = require('./ivr-outbound.js')
       const catBtns = ivrOb.getCategoryButtons().map(b => [b])
-      set(state, chatId, 'action', a.bulkTTSCategory)
+      await set(state, chatId, 'action', a.bulkTTSCategory)
       return send(chatId, `Choose a template category:`, k.of([...catBtns, ['✍️ Custom Script'], ['↩️ Back']]))
     }
     const ivrOb = require('./ivr-outbound.js')
@@ -14199,11 +14199,11 @@ Choose an IVR template category:`), k.of(rows))
     send(chatId, `📋 <b>${template.icon} ${template.name}</b>\n\n<i>"${template.text}"</i>\n\n🔘 Active keys: <b>${bulkTTS.activeKeys.join(', ')}</b>`)
 
     if (bulkTTS.placeholders.length > 0) {
-      set(state, chatId, 'action', a.bulkTTSPlaceholder)
+      await set(state, chatId, 'action', a.bulkTTSPlaceholder)
       return send(chatId, `Enter value for <b>[${bulkTTS.placeholders[0]}]</b>:`, k.of([]))
     }
     // No placeholders — go to voice selection
-    set(state, chatId, 'action', a.bulkTTSVoice)
+    await set(state, chatId, 'action', a.bulkTTSVoice)
     const ttsService = require('./tts-service.js')
     const voiceBtns = ttsService.getVoiceButtons('en').map(b => [b])
     return send(chatId, `🎙 <b>Select Voice</b>:`, k.of([...voiceBtns, ['↩️ Back']]))
@@ -14213,7 +14213,7 @@ Choose an IVR template category:`), k.of(rows))
     if (message === '↩️ Back' || message === t.back) {
       const ivrOb = require('./ivr-outbound.js')
       const catBtns = ivrOb.getCategoryButtons().map(b => [b])
-      set(state, chatId, 'action', a.bulkTTSCategory)
+      await set(state, chatId, 'action', a.bulkTTSCategory)
       return send(chatId, `Choose a template category:`, k.of([...catBtns, ['✍️ Custom Script'], ['↩️ Back']]))
     }
     const bulkTTS = info?.bulkTTS || {}
@@ -14227,7 +14227,7 @@ Choose an IVR template category:`), k.of(rows))
       return send(chatId, `Enter value for <b>[${placeholders[bulkTTS.placeholderIndex]}]</b>:`, k.of([]))
     }
     // All placeholders filled — go to provider selection
-    set(state, chatId, 'action', a.bulkTTSProvider)
+    await set(state, chatId, 'action', a.bulkTTSProvider)
     const ttsService = require('./tts-service.js')
     const providerBtns = ttsService.getProviderButtons().map(b => [b])
     return send(chatId, `✅ All values filled!\n\n🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine:`, k.of([...providerBtns, ['↩️ Back']]))
@@ -14238,7 +14238,7 @@ Choose an IVR template category:`), k.of(rows))
     if (message === '↩️ Back' || message === t.back) {
       const ivrOb = require('./ivr-outbound.js')
       const catBtns = ivrOb.getCategoryButtons().map(b => [b])
-      set(state, chatId, 'action', a.bulkTTSCategory)
+      await set(state, chatId, 'action', a.bulkTTSCategory)
       return send(chatId, `Choose a template category:`, k.of([...catBtns, ['✍️ Custom Script'], ['↩️ Back']]))
     }
     const ttsService = require('./tts-service.js')
@@ -14251,7 +14251,7 @@ Choose an IVR template category:`), k.of(rows))
     bulkTTS.ttsProvider = providerKey
     await saveInfo('bulkTTS', bulkTTS)
 
-    set(state, chatId, 'action', a.bulkTTSVoice)
+    await set(state, chatId, 'action', a.bulkTTSVoice)
     const voiceBtns = ttsService.getVoiceButtons('en', providerKey).map(b => [b])
     return send(chatId, `🎙 <b>Select Voice</b>:`, k.of([...voiceBtns, ['↩️ Back']]))
   }
@@ -14260,7 +14260,7 @@ Choose an IVR template category:`), k.of(rows))
   if (action === a.bulkTTSVoice) {
     if (message === '↩️ Back' || message === t.back) {
       // Go back to provider selection
-      set(state, chatId, 'action', a.bulkTTSProvider)
+      await set(state, chatId, 'action', a.bulkTTSProvider)
       const ttsService = require('./tts-service.js')
       const providerBtns = ttsService.getProviderButtons().map(b => [b])
       return send(chatId, `🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine:`, k.of([...providerBtns, ['↩️ Back']]))
@@ -14278,7 +14278,7 @@ Choose an IVR template category:`), k.of(rows))
     bulkTTS.voiceName = voice.name
     await saveInfo('bulkTTS', bulkTTS)
 
-    set(state, chatId, 'action', a.bulkTTSPreview)
+    await set(state, chatId, 'action', a.bulkTTSPreview)
     send(chatId, `🎤 Voice: <b>${voice.name}</b>\n\n⏳ Generating audio...`)
 
     try {
@@ -14311,11 +14311,11 @@ Choose an IVR template category:`), k.of(rows))
     if (message === '↩️ Back' || message === t.back) {
       const ivrOb = require('./ivr-outbound.js')
       const catBtns = ivrOb.getCategoryButtons().map(b => [b])
-      set(state, chatId, 'action', a.bulkTTSCategory)
+      await set(state, chatId, 'action', a.bulkTTSCategory)
       return send(chatId, `Choose a template category:`, k.of([...catBtns, ['✍️ Custom Script'], ['↩️ Back']]))
     }
     if (message === '🎤 Change Voice') {
-      set(state, chatId, 'action', a.bulkTTSProvider)
+      await set(state, chatId, 'action', a.bulkTTSProvider)
       const ttsService = require('./tts-service.js')
       const providerBtns = ttsService.getProviderButtons().map(b => [b])
       return send(chatId, `🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine:`, k.of([...providerBtns, ['↩️ Back']]))
@@ -14340,7 +14340,7 @@ Choose an IVR template category:`), k.of(rows))
       bulkData.activeKeys = bulkTTS.activeKeys || ['1']
       await saveInfo('bulkData', bulkData)
 
-      set(state, chatId, 'action', a.bulkSelectMode)
+      await set(state, chatId, 'action', a.bulkSelectMode)
       return send(chatId, `✅ Audio saved: <b>${audioName}</b>\n🔘 Active keys (from template): <b>${(bulkTTS.activeKeys || ['1']).join(', ')}</b>\n\n📋 <b>Select Campaign Mode</b>\n\n🔗 <b>Transfer + Report</b> — When lead presses a key, bridge to your phone + always report\n📊 <b>Report Only</b> — Just track who pressed a key, no transfer + always report`, k.of([['🔗 Transfer + Report'], ['📊 Report Only'], ['↩️ Back']]))
     }
     return send(chatId, `Tap <b>✅ Use This Audio</b> or <b>🎤 Change Voice</b>.`, k.of([['✅ Use This Audio'], ['🎤 Change Voice'], ['↩️ Back']]))
@@ -14348,7 +14348,7 @@ Choose an IVR template category:`), k.of(rows))
 
   if (action === a.bulkSetConcurrency) {
     if (message === '↩️ Back' || message === t.back) {
-      set(state, chatId, 'action', a.bulkSelectKeys)
+      await set(state, chatId, 'action', a.bulkSelectKeys)
       return send(chatId, `🔘 <b>Select Active Keys</b>`, k.of([['1 only'], ['1 and 2'], ['1, 2, and 3'], ['0-9 (any key)'], ['✍️ Custom keys'], ['↩️ Back']]))
     }
     const num = parseInt(message, 10)
@@ -14360,7 +14360,7 @@ Choose an IVR template category:`), k.of(rows))
     await saveInfo('bulkData', bulkData)
 
     // Show campaign preview
-    set(state, chatId, 'action', a.bulkConfirm)
+    await set(state, chatId, 'action', a.bulkConfirm)
     const leadCount = (bulkData.leads || []).length
     const bulkRate = bulkCallService.BULK_CALL_RATE || 0.15
     const estCost = (leadCount * bulkRate).toFixed(2)
@@ -14385,7 +14385,7 @@ Choose an IVR template category:`), k.of(rows))
 
   if (action === a.bulkConfirm) {
     if (message === '↩️ Back' || message === t.back) {
-      set(state, chatId, 'action', a.bulkSetConcurrency)
+      await set(state, chatId, 'action', a.bulkSetConcurrency)
       return send(chatId, `Set concurrency (1-20):`, k.of([['5'], ['10'], ['15'], ['20'], ['↩️ Back']]))
     }
     if (message === '🚀 Launch Campaign') {
@@ -14410,7 +14410,7 @@ Choose an IVR template category:`), k.of(rows))
           twilioSubAccountToken: bulkData.twilioSubAccountToken || null,
         })
         await saveInfo('activeCampaignId', campaign.id)
-        set(state, chatId, 'action', a.bulkRunning)
+        await set(state, chatId, 'action', a.bulkRunning)
         const startResult = await bulkCallService.startCampaign(campaign.id)
         if (startResult.error) {
           return send(chatId, `❌ Failed to start: ${sanitizeProviderError(startResult.error, 'voice')}`, k.of([['↩️ Back']]))
@@ -14460,7 +14460,7 @@ Choose an IVR template category:`), k.of(rows))
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     if (message === t.back || message === pc.back) {
       // Go back to plan selection
-      set(state, chatId, 'action', a.cpSelectPlan)
+      await set(state, chatId, 'action', a.cpSelectPlan)
       const availablePlanBtns = []
       if (phoneConfig.isPlanAvailable('starter')) availablePlanBtns.push([pc.starterPlan])
       if (phoneConfig.isPlanAvailable('pro')) availablePlanBtns.push([pc.proPlan])
@@ -14485,7 +14485,7 @@ Choose an IVR template category:`), k.of(rows))
     // Check if this country supports dual-provider search (Telnyx countries can also search Twilio)
     const canSearchBoth = (nativeProvider === 'telnyx') // Telnyx countries (US, CA) — search both
     await saveInfo('cpCanSearchBoth', canSearchBoth)
-    set(state, chatId, 'action', a.cpSelectType)
+    await set(state, chatId, 'action', a.cpSelectType)
     // Show available types for this country
     const types = countryEntry?.types || ['local', 'toll_free']
     const typeBtns = []
@@ -14500,7 +14500,7 @@ Choose an IVR template category:`), k.of(rows))
   if (action === a.cpSelectType) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     if (message === t.back || message === pc.back) {
-      set(state, chatId, 'action', a.cpSelectCountry)
+      await set(state, chatId, 'action', a.cpSelectCountry)
       const countryBtns = phoneConfig.allCountries.map(c => c.name)
       const rows = []
       for (let i = 0; i < countryBtns.length; i += 2) rows.push(countryBtns.slice(i, i + 2))
@@ -14520,7 +14520,7 @@ Choose an IVR template category:`), k.of(rows))
 
     // If US + local, show area codes (both Telnyx and Twilio support area code search)
     if (cc === 'US' && numberType === 'local') {
-      set(state, chatId, 'action', a.cpSelectArea)
+      await set(state, chatId, 'action', a.cpSelectArea)
       const areaBtns = phoneConfig.usAreaCodes.map(a => `${a.city} (${a.code})`)
       const rows = []
       for (let i = 0; i < areaBtns.length; i += 2) rows.push(areaBtns.slice(i, i + 2))
@@ -14528,7 +14528,7 @@ Choose an IVR template category:`), k.of(rows))
       return send(chatId, cpTxt.selectArea, k.of(rows))
     }
     // Non-US or toll-free: search directly with the appropriate provider
-    set(state, chatId, 'action', a.cpSelectNumber)
+    await set(state, chatId, 'action', a.cpSelectNumber)
     send(chatId, cpTxt.searching)
 
     // Search numbers — for dual-provider countries, search both and merge
@@ -14571,11 +14571,11 @@ Choose an IVR template category:`), k.of(rows))
   if (action === a.cpSelectArea) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     if (message === t.back || message === pc.back) {
-      set(state, chatId, 'action', a.cpSelectType)
+      await set(state, chatId, 'action', a.cpSelectType)
       return send(chatId, cpTxt.selectType(info?.cpCountryName || ''), k.of([[pc.localNumber], [pc.tollFreeNumber]]))
     }
     if (message === pc.searchByArea) {
-      set(state, chatId, 'action', a.cpEnterAreaCode)
+      await set(state, chatId, 'action', a.cpEnterAreaCode)
       return send(chatId, cpTxt.enterAreaCode)
     }
     const areaCode = phoneConfig.areaByLabel[message]
@@ -14583,7 +14583,7 @@ Choose an IVR template category:`), k.of(rows))
     await saveInfo('cpAreaCode', areaCode)
     await saveInfo('cpAreaName', message)
 
-    set(state, chatId, 'action', a.cpSelectNumber)
+    await set(state, chatId, 'action', a.cpSelectNumber)
     send(chatId, cpTxt.searching)
     const provider = info?.cpProvider || 'telnyx'
     const canSearchBoth = info?.cpCanSearchBoth || false
@@ -14620,7 +14620,7 @@ Choose an IVR template category:`), k.of(rows))
   if (action === a.cpEnterAreaCode) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     if (message === t.back || message === pc.back) {
-      set(state, chatId, 'action', a.cpSelectArea)
+      await set(state, chatId, 'action', a.cpSelectArea)
       const areaBtns = phoneConfig.usAreaCodes.map(a => `${a.city} (${a.code})`)
       const rows = []
       for (let i = 0; i < areaBtns.length; i += 2) rows.push(areaBtns.slice(i, i + 2))
@@ -14632,7 +14632,7 @@ Choose an IVR template category:`), k.of(rows))
     await saveInfo('cpAreaCode', areaCode)
     await saveInfo('cpAreaName', `Area ${areaCode}`)
 
-    set(state, chatId, 'action', a.cpSelectNumber)
+    await set(state, chatId, 'action', a.cpSelectNumber)
     send(chatId, cpTxt.searching)
     const provider = info?.cpProvider || 'telnyx'
     const canSearchBoth = info?.cpCanSearchBoth || false
@@ -14671,14 +14671,14 @@ Choose an IVR template category:`), k.of(rows))
     if (message === t.back || message === pc.back) {
       const cc = info?.cpCountryCode || 'US'
       if (cc === 'US' && info?.cpNumberType === 'local') {
-        set(state, chatId, 'action', a.cpSelectArea)
+        await set(state, chatId, 'action', a.cpSelectArea)
         const areaBtns = phoneConfig.usAreaCodes.map(a => `${a.city} (${a.code})`)
         const rows = []
         for (let i = 0; i < areaBtns.length; i += 2) rows.push(areaBtns.slice(i, i + 2))
         rows.push([pc.searchByArea])
         return send(chatId, cpTxt.selectArea, k.of(rows))
       }
-      set(state, chatId, 'action', a.cpSelectType)
+      await set(state, chatId, 'action', a.cpSelectType)
       return send(chatId, cpTxt.selectType(info?.cpCountryName || ''), k.of([[pc.localNumber], [pc.tollFreeNumber]]))
     }
     if (message === pc.showMore) {
@@ -14745,7 +14745,7 @@ Choose an IVR template category:`), k.of(rows))
     await saveInfo('totalPrice', null) // Clear stale hosting totalPrice to prevent walletSelectCurrency from using wrong base
     await saveInfo('cpNumberSurcharge', surcharge)
 
-    set(state, chatId, 'action', a.cpOrderSummary)
+    await set(state, chatId, 'action', a.cpOrderSummary)
     const capLabels = []
     if (caps.voice) capLabels.push('Voice')
     if (caps.sms) capLabels.push('SMS')
@@ -14780,7 +14780,7 @@ Choose an IVR template category:`), k.of(rows))
     await saveInfo('cpPlanBasePrice', phoneConfig.plans[planKey].price)
 
     // Now go to country selection
-    set(state, chatId, 'action', a.cpSelectCountry)
+    await set(state, chatId, 'action', a.cpSelectCountry)
     const countryBtns = phoneConfig.allCountries.map(c => c.name)
     const rows = []
     for (let i = 0; i < countryBtns.length; i += 2) rows.push(countryBtns.slice(i, i + 2))
@@ -14793,7 +14793,7 @@ Choose an IVR template category:`), k.of(rows))
   if (action === a.cpOrderSummary) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     if (message === t.back || message === pc.back) {
-      set(state, chatId, 'action', a.cpSelectPlan)
+      await set(state, chatId, 'action', a.cpSelectPlan)
       const availBtns2 = []
       if (phoneConfig.isPlanAvailable('starter')) availBtns2.push([pc.starterPlan])
       if (phoneConfig.isPlanAvailable('pro')) availBtns2.push([pc.proPlan])
@@ -14812,7 +14812,7 @@ Choose an IVR template category:`), k.of(rows))
   // ── PHONE PAY ──
   if (action === 'phone-pay') {
     if (message === t.back) {
-      set(state, chatId, 'action', a.cpOrderSummary)
+      await set(state, chatId, 'action', a.cpOrderSummary)
       const plan = phoneConfig.plans[info?.cpPlanKey]
       const totalPrice = info?.cpPrice || plan?.price
       const surcharge = info?.cpNumberSurcharge || 0
@@ -14826,11 +14826,11 @@ Choose an IVR template category:`), k.of(rows))
     }
     const payOption = message
     if (payOption === payIn.crypto) {
-      set(state, chatId, 'action', 'crypto-pay-phone')
+      await set(state, chatId, 'action', 'crypto-pay-phone')
       return send(chatId, t.selectCryptoToDeposit, trans('k.of', trans('supportedCryptoViewOf')))
     }
     if (payOption === payIn.bank) {
-      set(state, chatId, 'action', 'bank-pay-phone')
+      await set(state, chatId, 'action', 'bank-pay-phone')
       return send(chatId, t.askEmail, bc)
     }
     if (payOption === payIn.wallet) {
@@ -14845,7 +14845,7 @@ Choose an IVR template category:`), k.of(rows))
     const price = info?.cpPrice
     if (!isValidEmail(email)) return send(chatId, t.askValidEmail)
     const ref = nanoid()
-    set(state, chatId, 'action', 'none')
+    await set(state, chatId, 'action', 'none')
     const _rawNgn = await usdToNgn(price)
     const priceNGN = Number(_rawNgn)
     if (!_rawNgn || isNaN(priceNGN) || priceNGN <= 0) return send(chatId, '⚠️ Payment processing temporarily unavailable (exchange rate service down). Please try again later or use crypto.', trans('o'))
@@ -14868,7 +14868,7 @@ Choose an IVR template category:`), k.of(rows))
       if (bbResult?.address) {
         set(chatIdOfPayment, ref, { chatId, price, cpData: { selectedNumber: info?.cpSelectedNumber, planKey: info?.cpPlanKey, provider: info?.cpProvider || 'telnyx', countryCode: info?.cpCountryCode || 'US', countryName: info?.cpCountryName || 'US' } })
         await sendQrCode(bot, chatId, bbResult.bb, info?.userLanguage ?? 'en')
-        set(state, chatId, 'action', 'none')
+        await set(state, chatId, 'action', 'none')
         const priceCrypto = await convert(price, 'usd', coin)
         return send(chatId, t.showDepositCryptoInfoPhone(price, priceCrypto, ticker, bbResult.address, info?.cpSelectedNumber || 'Cloud IVR'), trans('o'))
       } else {
@@ -14880,7 +14880,7 @@ Choose an IVR template category:`), k.of(rows))
         saveInfo('ref', ref)
         log({ ref })
         await generateQr(bot, chatId, dynoResult.qr_code, info?.userLanguage ?? 'en')
-        set(state, chatId, 'action', 'none')
+        await set(state, chatId, 'action', 'none')
         const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
         return send(chatId, t.showDepositCryptoInfoPhone(price, priceCrypto, ticker, dynoResult.address, info?.cpSelectedNumber || 'Cloud IVR'), trans('o'))
       }
@@ -14897,7 +14897,7 @@ Choose an IVR template category:`), k.of(rows))
         saveInfo('ref', ref)
         log({ ref })
         await generateQr(bot, chatId, dynoResult.qr_code, info?.userLanguage ?? 'en')
-        set(state, chatId, 'action', 'none')
+        await set(state, chatId, 'action', 'none')
         const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
         return send(chatId, t.showDepositCryptoInfoPhone(price, priceCrypto, ticker, dynoResult.address, info?.cpSelectedNumber || 'Cloud IVR'), trans('o'))
       } else {
@@ -14908,7 +14908,7 @@ Choose an IVR template category:`), k.of(rows))
         set(chatIdOfPayment, ref, { chatId, price, cpData: { selectedNumber: info?.cpSelectedNumber, planKey: info?.cpPlanKey, provider: info?.cpProvider || 'telnyx', countryCode: info?.cpCountryCode || 'US', countryName: info?.cpCountryName || 'US' } })
         log({ ref })
         await sendQrCode(bot, chatId, bb, info?.userLanguage ?? 'en')
-        set(state, chatId, 'action', 'none')
+        await set(state, chatId, 'action', 'none')
         const priceCrypto = await convert(price, 'usd', bbCoin)
         return send(chatId, t.showDepositCryptoInfoPhone(price, priceCrypto, ticker, bbAddr, info?.cpSelectedNumber || 'Cloud IVR'), trans('o'))
       }
@@ -14940,7 +14940,7 @@ Choose an IVR template category:`), k.of(rows))
       // Find the rejected bundle
       const rejectedBundle = await pendingBundles.findOne({ chatId, status: 'twilio-rejected' })
       if (!rejectedBundle) {
-        set(state, chatId, 'action', 'none')
+        await set(state, chatId, 'action', 'none')
         return send(chatId, '⚠️ No rejected verification found. Please start a new number purchase.', { parse_mode: 'HTML' })
       }
 
@@ -14967,7 +14967,7 @@ Choose an IVR template category:`), k.of(rows))
       // Find the rejected bundle and refund
       const rejectedBundle = await pendingBundles.findOne({ chatId, status: 'twilio-rejected' })
       if (!rejectedBundle) {
-        set(state, chatId, 'action', 'none')
+        await set(state, chatId, 'action', 'none')
         return send(chatId, '⚠️ No rejected verification found.', { parse_mode: 'HTML' })
       }
 
@@ -14984,7 +14984,7 @@ Choose an IVR template category:`), k.of(rows))
         notifyAdmin(`🚨 [BundleRejected] Refund failed\nchatId: ${chatId}\nbundle: ${rejectedBundle.bundleSid}\nerror: ${refundErr.message}`)
       }
       await pendingBundles.updateOne({ _id: rejectedBundle._id }, { $set: { status: 'cancelled-refunded', refundedAt: new Date(), updatedAt: new Date() } })
-      set(state, chatId, 'action', 'none')
+      await set(state, chatId, 'action', 'none')
 
       const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
       const t = translation('l', lang)
@@ -15094,10 +15094,10 @@ Choose an IVR template category:`), k.of(rows))
         await saveInfo('cpPendingPriceNgn', null)
         const { usdBal: refUsd, ngnBal: refNgn } = await getBalance(walletOf, chatId)
         log(`[CloudPhone] Address failed for ${chatId}, refunded $${priceUsd} to wallet. Balance: $${refUsd}`)
-        set(state, chatId, 'action', 'none')
+        await set(state, chatId, 'action', 'none')
         return send(chatId, ({ en: `❌ Address creation failed.\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> has been refunded to your wallet.\n${t.showWallet(refUsd, refNgn)}`, fr: `❌ Échec de la création de l'adresse.\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> a été remboursé sur votre portefeuille.\n${t.showWallet(refUsd, refNgn)}`, zh: `❌ 地址创建失败。\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> 已退还到您的钱包。\n${t.showWallet(refUsd, refNgn)}`, hi: `❌ पता बनाना विफल।\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> आपके वॉलेट में वापस किया गया।\n${t.showWallet(refUsd, refNgn)}` }[lang] || `❌ Address creation failed.\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> has been refunded to your wallet.\n${t.showWallet(refUsd, refNgn)}`), { parse_mode: 'HTML' })
       }
-      set(state, chatId, 'action', 'none')
+      await set(state, chatId, 'action', 'none')
       return send(chatId, ({ en: `❌ Address creation failed: ${sanitizeProviderError(addrResult.error, 'voice')}\nYour wallet has been refunded.`, fr: `❌ Échec de la création de l'adresse : ${sanitizeProviderError(addrResult.error, 'voice')}\nVotre portefeuille a été remboursé.`, zh: `❌ 地址创建失败：${sanitizeProviderError(addrResult.error, 'voice')}\n您的钱包已退款。`, hi: `❌ पता बनाना विफल: ${sanitizeProviderError(addrResult.error, 'voice')}\nआपके वॉलेट में रिफंड किया गया।` }[lang] || `❌ Address creation failed: ${sanitizeProviderError(addrResult.error, 'voice')}\nYour wallet has been refunded.`), { parse_mode: 'HTML' })
     }
 
@@ -15132,7 +15132,7 @@ Choose an IVR template category:`), k.of(rows))
             await saveInfo('cpPendingCoin', null); await saveInfo('cpPendingPriceUsd', null); await saveInfo('cpPendingPriceNgn', null)
           }
           const { usdBal: refUsd, ngnBal: refNgn } = await getBalance(walletOf, chatId)
-          set(state, chatId, 'action', 'none')
+          await set(state, chatId, 'action', 'none')
           send(chatId, `❌ Regulatory setup failed for ${countryName}.\n\n💰 <b>$${Number(priceUsd || price).toFixed(2)}</b> refunded.\n${t.showWallet(refUsd, refNgn)}`, { parse_mode: 'HTML' })
           return notifyAdmin(`⚠️ [Bundle] getRegulationSid failed\nchatId: ${chatId}\ncountry: ${countryCode}\nerror: ${regResult.error}`)
         }
@@ -15153,7 +15153,7 @@ Choose an IVR template category:`), k.of(rows))
             await saveInfo('cpPendingCoin', null); await saveInfo('cpPendingPriceUsd', null); await saveInfo('cpPendingPriceNgn', null)
           }
           const { usdBal: refUsd, ngnBal: refNgn } = await getBalance(walletOf, chatId)
-          set(state, chatId, 'action', 'none')
+          await set(state, chatId, 'action', 'none')
           send(chatId, `❌ Regulatory setup failed.\n\n💰 <b>$${Number(priceUsd || price).toFixed(2)}</b> refunded.\n${t.showWallet(refUsd, refNgn)}`, { parse_mode: 'HTML' })
           return notifyAdmin(`⚠️ [Bundle] createEndUser failed\nchatId: ${chatId}\nerror: ${endUserResult.error}`)
         }
@@ -15176,7 +15176,7 @@ Choose an IVR template category:`), k.of(rows))
             await saveInfo('cpPendingCoin', null); await saveInfo('cpPendingPriceUsd', null); await saveInfo('cpPendingPriceNgn', null)
           }
           const { usdBal: refUsd, ngnBal: refNgn } = await getBalance(walletOf, chatId)
-          set(state, chatId, 'action', 'none')
+          await set(state, chatId, 'action', 'none')
           send(chatId, `❌ Regulatory setup failed.\n\n💰 <b>$${Number(priceUsd || price).toFixed(2)}</b> refunded.\n${t.showWallet(refUsd, refNgn)}`, { parse_mode: 'HTML' })
           return notifyAdmin(`⚠️ [Bundle] createBundle failed\nchatId: ${chatId}\nerror: ${bundleResult.error}`)
         }
@@ -15229,7 +15229,7 @@ Choose an IVR template category:`), k.of(rows))
         await saveInfo('cpPendingCoin', null)
         await saveInfo('cpPendingPriceUsd', null)
         await saveInfo('cpPendingPriceNgn', null)
-        set(state, chatId, 'action', 'none')
+        await set(state, chatId, 'action', 'none')
 
         // 8. Notify user
         const bundleMsg = {
@@ -15259,7 +15259,7 @@ Choose an IVR template category:`), k.of(rows))
           notifyAdmin(`🚨 CRITICAL [Bundle] Refund failed\nchatId: ${chatId}\nprice: $${priceUsd || price}\nerror: ${refundErr.message}`)
         }
         const { usdBal: refUsd, ngnBal: refNgn } = await getBalance(walletOf, chatId)
-        set(state, chatId, 'action', 'none')
+        await set(state, chatId, 'action', 'none')
         send(chatId, `❌ Regulatory setup failed.\n\n💰 Your wallet has been refunded.\n${t.showWallet(refUsd, refNgn)}`, { parse_mode: 'HTML' })
         return notifyAdmin(`⚠️ [Bundle] Exception\nchatId: ${chatId}\nerror: ${bundleErr.message}`)
       }
@@ -15282,16 +15282,16 @@ Choose an IVR template category:`), k.of(rows))
         await saveInfo('cpPendingPriceNgn', null)
         const { usdBal: refUsd, ngnBal: refNgn } = await getBalance(walletOf, chatId)
         log(`[CloudPhone] Twilio purchase failed for ${chatId}, refunded $${priceUsd} to wallet. Balance: $${refUsd}`)
-        set(state, chatId, 'action', 'none')
+        await set(state, chatId, 'action', 'none')
         send(chatId, phoneConfig.getMsg(lang).purchaseFailed + `\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> has been refunded to your wallet.\n${t.showWallet(refUsd, refNgn)}`, trans('o'))
       } else {
-        set(state, chatId, 'action', 'none')
+        await set(state, chatId, 'action', 'none')
         send(chatId, phoneConfig.getMsg(lang).purchaseFailed + `\n${sanitizeProviderError(result.error, 'voice')}`, trans('o'))
       }
       return
     }
 
-    set(state, chatId, 'action', 'none')
+    await set(state, chatId, 'action', 'none')
     const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
     send(chatId, cpTxt.purchaseSuccess(selectedNumber, result.plan, result.sipUsername, result.sipPassword, phoneConfig.SIP_DOMAIN, result.expiresAt), { parse_mode: 'HTML' })
     send(chatId, t.showWallet(usd, ngn))
@@ -15313,7 +15313,7 @@ Choose an IVR template category:`), k.of(rows))
           log(`[CloudPhone] ✅ Auto-refunded $${priceUsd} to ${chatId} after address purchase error`)
         }
       } catch (refundErr) { log(`[CloudPhone] ❌ CRITICAL: Refund also failed for ${chatId}: ${refundErr?.message}`) }
-      set(state, chatId, 'action', 'none')
+      await set(state, chatId, 'action', 'none')
       send(chatId, phoneConfig.getMsg(lang).purchaseFailed + '\n' + sanitizeProviderError(purchaseErr?.message || 'Unexpected error', 'voice'), trans('o'))
     }
     return
@@ -15329,11 +15329,11 @@ Choose an IVR template category:`), k.of(rows))
     }
     const payOption = message
     if (payOption === payIn.crypto) {
-      set(state, chatId, 'action', 'crypto-pay-leads')
+      await set(state, chatId, 'action', 'crypto-pay-leads')
       return send(chatId, t.selectCryptoToDeposit, trans('k.of', trans('supportedCryptoViewOf')))
     }
     if (payOption === payIn.bank) {
-      set(state, chatId, 'action', 'bank-pay-leads')
+      await set(state, chatId, 'action', 'bank-pay-leads')
       return send(chatId, t.askEmail, bc)
     }
     if (payOption === payIn.wallet) {
@@ -15347,7 +15347,7 @@ Choose an IVR template category:`), k.of(rows))
     const price = info?.couponApplied ? info?.newPrice : info?.price
     if (!isValidEmail(email)) return send(chatId, t.askValidEmail)
     const ref = nanoid()
-    set(state, chatId, 'action', 'none')
+    await set(state, chatId, 'action', 'none')
     const _rawNgn = await usdToNgn(price)
     const priceNGN = Number(_rawNgn)
     if (!_rawNgn || isNaN(priceNGN) || priceNGN <= 0) return send(chatId, '⚠️ Payment processing temporarily unavailable (exchange rate service down). Please try again later or use crypto.', trans('o'))
@@ -15375,7 +15375,7 @@ Choose an IVR template category:`), k.of(rows))
       if (bbResult?.address) {
         set(chatIdOfPayment, ref, { chatId, price, lastStep, leadsData })
         await sendQrCode(bot, chatId, bbResult.bb, info?.userLanguage ?? 'en')
-        set(state, chatId, 'action', 'none')
+        await set(state, chatId, 'action', 'none')
         const priceCrypto = await convert(price, 'usd', coin)
         return send(chatId, t.showDepositCryptoInfoLeads(price, priceCrypto, ticker, bbResult.address, label), trans('o'))
       } else {
@@ -15387,7 +15387,7 @@ Choose an IVR template category:`), k.of(rows))
         saveInfo('ref', ref)
         log({ ref })
         await generateQr(bot, chatId, dynoResult.qr_code, info?.userLanguage ?? 'en')
-        set(state, chatId, 'action', 'none')
+        await set(state, chatId, 'action', 'none')
         const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
         return send(chatId, t.showDepositCryptoInfoLeads(price, priceCrypto, ticker, dynoResult.address, label), trans('o'))
       }
@@ -15401,7 +15401,7 @@ Choose an IVR template category:`), k.of(rows))
         saveInfo('ref', ref)
         log({ ref })
         await generateQr(bot, chatId, dynoResult.qr_code, info?.userLanguage ?? 'en')
-        set(state, chatId, 'action', 'none')
+        await set(state, chatId, 'action', 'none')
         const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
         return send(chatId, t.showDepositCryptoInfoLeads(price, priceCrypto, ticker, dynoResult.address, label), trans('o'))
       } else {
@@ -15412,7 +15412,7 @@ Choose an IVR template category:`), k.of(rows))
         set(chatIdOfPayment, ref, { chatId, price, lastStep, leadsData })
         log({ ref })
         await sendQrCode(bot, chatId, bb, info?.userLanguage ?? 'en')
-        set(state, chatId, 'action', 'none')
+        await set(state, chatId, 'action', 'none')
         const priceCrypto = await convert(price, 'usd', bbCoin)
         return send(chatId, t.showDepositCryptoInfoLeads(price, priceCrypto, ticker, bbAddr, label), trans('o'))
       }
@@ -15530,7 +15530,7 @@ Choose an IVR template category:`), k.of(rows))
         await saveInfo('cpSubParentPlanPrice', parentNum.planPrice)
         await saveInfo('cpSubParentExpiresAt', parentNum.expiresAt)
         await saveInfo('cpIsSubNumber', true)
-        set(state, chatId, 'action', a.cpSubAddCountry)
+        await set(state, chatId, 'action', a.cpSubAddCountry)
         const countryBtns = phoneConfig.allCountries.map(c => c.name)
         const rows = []
         for (let i = 0; i < countryBtns.length; i += 2) rows.push(countryBtns.slice(i, i + 2))
@@ -15540,7 +15540,7 @@ Choose an IVR template category:`), k.of(rows))
         // Multiple plans → ask which plan to add under
         const numLines = primaryNumbers.map((n, i) => `${i + 1}️⃣  ${phoneConfig.formatPhone(n.phoneNumber)}  ${n.plan.charAt(0).toUpperCase() + n.plan.slice(1)} Plan`).join('\n')
         await saveInfo('cpBuyAnotherPrimaries', primaryNumbers.map(n => ({ phoneNumber: n.phoneNumber, plan: n.plan, planPrice: n.planPrice, expiresAt: n.expiresAt })))
-        set(state, chatId, 'action', a.cpSelectParentForBuyAnother)
+        await set(state, chatId, 'action', a.cpSelectParentForBuyAnother)
         const numBtns = primaryNumbers.map((_, i) => String(i + 1))
         return send(chatId, `📱 <b>Select which plan to add a number to:</b>\n\n${numLines}`, k.of([numBtns, [pc.back, pc.cancel]]))
       }
@@ -15552,7 +15552,7 @@ Choose an IVR template category:`), k.of(rows))
       saveInfo('cpSubParentExpiresAt', null)
       saveInfo('cpSelectedNumber', null)
       saveInfo('cpPrice', null)
-      set(state, chatId, 'action', a.cpSelectCountry)
+      await set(state, chatId, 'action', a.cpSelectCountry)
       const countryBtns = phoneConfig.countries.map(c => c.name)
       const rows = []
       for (let i = 0; i < countryBtns.length; i += 2) rows.push(countryBtns.slice(i, i + 2))
@@ -15606,7 +15606,7 @@ Choose an IVR template category:`), k.of(rows))
         ? '❌ <i>Unfortunately your request was not approved. A refund has been issued.</i>'
         : '⏳ <i>Telecom verification typically takes 1-3 business days. We\'ll notify you automatically when it\'s ready.</i>'}`
 
-      set(state, chatId, 'action', a.cpPendingDetail)
+      await set(state, chatId, 'action', a.cpPendingDetail)
       const cancelBtn = (liveStatus !== 'twilio-approved' && liveStatus !== 'provisionally-approved' && liveStatus !== 'twilio-rejected' && liveStatus !== 'completed')
         ? [['🔄 Refresh Status'], ['❌ Cancel & Refund'], [pc.back]]
         : [['🔄 Refresh Status'], [pc.back]]
@@ -15616,7 +15616,7 @@ Choose an IVR template category:`), k.of(rows))
     if (isNaN(idx) || idx < 0 || idx >= numbers.length) return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectByIndex)
     const num = numbers[idx]
     await saveInfo('cpActiveNumber', num)
-    set(state, chatId, 'action', a.cpManageNumber)
+    await set(state, chatId, 'action', a.cpManageNumber)
     return showManageScreen(chatId, num)
   }
 
@@ -15639,7 +15639,7 @@ Choose an IVR template category:`), k.of(rows))
           }).toArray()
         }
       } catch (e) {}
-      set(state, chatId, 'action', a.cpMyNumbers)
+      await set(state, chatId, 'action', a.cpMyNumbers)
       await saveInfo('cpNumbers', numbers)
       await saveInfo('cpPendingBundlesList', userPendingBundles.map(p => ({
         _id: p._id?.toString(), bundleSid: p.bundleSid, selectedNumber: p.selectedNumber,
@@ -15751,14 +15751,14 @@ Choose an IVR template category:`), k.of(rows))
       const userData = await get(phoneNumbersOf, chatId)
       const numbers = (userData?.numbers || []).filter(n => n.status === 'active' || n.status === 'suspended')
       await saveInfo('cpNumbers', numbers)
-      set(state, chatId, 'action', a.cpMyNumbers)
+      await set(state, chatId, 'action', a.cpMyNumbers)
       const numBtns = numbers.map((_, i) => String(i + 1))
       return send(chatId, cpTxt.myNumbersList(numbers), k.of([numBtns, [pc.buyAnother]]))
     }
 
     // Call Forwarding
     if (message === pc.callForwarding) {
-      set(state, chatId, 'action', a.cpCallForwarding)
+      await set(state, chatId, 'action', a.cpCallForwarding)
       const fwd = num.features?.callForwarding || {}
       let walletBal = 0
       try { const { usdBal } = await getBalance(walletOf, chatId); walletBal = usdBal } catch (e) {}
@@ -15771,7 +15771,7 @@ Choose an IVR template category:`), k.of(rows))
 
     // SMS Settings
     if (message === pc.smsSettings) {
-      set(state, chatId, 'action', a.cpSmsSettings)
+      await set(state, chatId, 'action', a.cpSmsSettings)
       const smsConf = num.features?.smsForwarding || {}
       const tgLabel = `📲 SMS to Telegram ${smsConf.toTelegram !== false ? '✅ ON' : '❌ OFF'}`
       const smsBtns = [[tgLabel]]
@@ -15792,7 +15792,7 @@ Choose an IVR template category:`), k.of(rows))
 
     // SMS Inbox
     if (message === pc.smsInbox) {
-      set(state, chatId, 'action', a.cpSmsInbox)
+      await set(state, chatId, 'action', a.cpSmsInbox)
       await saveInfo('cpInboxPage', 1)
       return showSmsInbox(chatId, num, 1)
     }
@@ -15802,7 +15802,7 @@ Choose an IVR template category:`), k.of(rows))
       if (!phoneConfig.canAccessFeature(num.plan, 'voicemail')) {
         return send(chatId, phoneConfig.upgradeMessage('voicemail', num.plan, info?.userLanguage), k.of(buildManageMenu(num)))
       }
-      set(state, chatId, 'action', a.cpVoicemail)
+      await set(state, chatId, 'action', a.cpVoicemail)
       const vm = num.features?.voicemail || {}
       const btns = vm.enabled
         ? [['🔊 Greeting'],
@@ -15819,7 +15819,7 @@ Choose an IVR template category:`), k.of(rows))
       if (num.sipDisabled || !phoneConfig.canAccessFeature(num.plan, 'sipCredentials')) {
         return send(chatId, phoneConfig.upgradeMessage('sipCredentials', num.plan, info?.userLanguage), k.of(buildManageMenu(num)))
       }
-      set(state, chatId, 'action', a.cpSipCredentials)
+      await set(state, chatId, 'action', a.cpSipCredentials)
       const numSipDomain = phoneConfig.getSipDomainForNumber()
       // Prefer Telnyx username since domain is sip.speechcue.com (Telnyx)
       const displaySipUser = num.telnyxSipUsername || num.sipUsername
@@ -15833,7 +15833,7 @@ Choose an IVR template category:`), k.of(rows))
       if (!phoneConfig.canAccessFeature(num.plan, 'callRecording')) {
         return send(chatId, phoneConfig.upgradeMessage('callRecording', num.plan, info?.userLanguage), k.of(buildManageMenu(num)))
       }
-      set(state, chatId, 'action', a.cpCallRecording)
+      await set(state, chatId, 'action', a.cpCallRecording)
       const isEnabled = num.features?.recording === true
       return send(chatId, cpTxt.recordingMenu(num.phoneNumber, num.features), k.of(
         isEnabled ? [[pc.disableRecording]] : [[pc.enableRecording]]
@@ -15845,7 +15845,7 @@ Choose an IVR template category:`), k.of(rows))
       if (!phoneConfig.canAccessFeature(num.plan, 'ivr')) {
         return send(chatId, phoneConfig.upgradeMessage('ivr', num.plan, info?.userLanguage), k.of(buildManageMenu(num)))
       }
-      set(state, chatId, 'action', a.cpIvr)
+      await set(state, chatId, 'action', a.cpIvr)
       const ivrConf = num.features?.ivr || {}
       const btns = ivrConf.enabled
         ? [[pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]]
@@ -15855,7 +15855,7 @@ Choose an IVR template category:`), k.of(rows))
 
     // Fax Settings
     if (message === '📠 Fax Settings') {
-      set(state, chatId, 'action', a.cpFaxSettings)
+      await set(state, chatId, 'action', a.cpFaxSettings)
       const faxConf = num.features?.faxForwarding || { toTelegram: true }
       const provider = num.provider || 'telnyx'
       if (provider === 'twilio') {
@@ -15899,7 +15899,7 @@ Choose an IVR template category:`), k.of(rows))
 
     // Renew / Change Plan
     if (message === pc.renewChangePlan) {
-      set(state, chatId, 'action', a.cpRenewPlan)
+      await set(state, chatId, 'action', a.cpRenewPlan)
       const plan = phoneConfig.plans[num.plan] || { name: num.plan, price: num.planPrice }
       return send(chatId, cpTxt.renewMenu(num.phoneNumber, plan.name, num.planPrice, num.expiresAt, num.autoRenew), k.of([
         ['🔄 Renew Now ($' + num.planPrice + ')'],
@@ -15910,7 +15910,7 @@ Choose an IVR template category:`), k.of(rows))
 
     // Release Number
     if (message === pc.releaseNumber) {
-      set(state, chatId, 'action', a.cpReleaseConfirm)
+      await set(state, chatId, 'action', a.cpReleaseConfirm)
       return send(chatId, cpTxt.releaseConfirm(num.phoneNumber), k.of([
         [pc.yesRelease, pc.noKeep]
       ]))
@@ -15930,7 +15930,7 @@ Choose an IVR template category:`), k.of(rows))
       await saveInfo('cpSubParentPlan', num.plan)
       await saveInfo('cpSubParentPlanPrice', num.planPrice)
       await saveInfo('cpSubParentExpiresAt', num.expiresAt)
-      set(state, chatId, 'action', a.cpSubAddCountry)
+      await set(state, chatId, 'action', a.cpSubAddCountry)
       const countryBtns = phoneConfig.allCountries.map(c => c.name)
       const rows = []
       for (let i = 0; i < countryBtns.length; i += 2) rows.push(countryBtns.slice(i, i + 2))
@@ -15963,7 +15963,7 @@ Choose an IVR template category:`), k.of(rows))
     await saveInfo('cpSubParentPlanPrice', parentNum.planPrice)
     await saveInfo('cpSubParentExpiresAt', parentNum.expiresAt)
     await saveInfo('cpIsSubNumber', true)
-    set(state, chatId, 'action', a.cpSubAddCountry)
+    await set(state, chatId, 'action', a.cpSubAddCountry)
     const countryBtns = phoneConfig.allCountries.map(c => c.name)
     const rows = []
     for (let i = 0; i < countryBtns.length; i += 2) rows.push(countryBtns.slice(i, i + 2))
@@ -15976,7 +15976,7 @@ Choose an IVR template category:`), k.of(rows))
   if (action === a.cpSubAddCountry) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     if (message === t.back || message === pc.back) {
-      set(state, chatId, 'action', a.cpManageNumber)
+      await set(state, chatId, 'action', a.cpManageNumber)
       const num = info?.cpActiveNumber
       if (!num) return goto.submenu5()
       return showManageScreen(chatId, num)
@@ -15996,7 +15996,7 @@ Choose an IVR template category:`), k.of(rows))
     await saveInfo('cpProvider', nativeProvider)
     const canSearchBoth = (nativeProvider === 'telnyx')
     await saveInfo('cpCanSearchBoth', canSearchBoth)
-    set(state, chatId, 'action', a.cpSubAddType)
+    await set(state, chatId, 'action', a.cpSubAddType)
     const types = countryEntry?.types || ['local', 'toll_free']
     const typeBtns = []
     if (types.includes('local')) typeBtns.push([pc.localNumber])
@@ -16010,7 +16010,7 @@ Choose an IVR template category:`), k.of(rows))
   if (action === a.cpSubAddType) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     if (message === t.back || message === pc.back) {
-      set(state, chatId, 'action', a.cpSubAddCountry)
+      await set(state, chatId, 'action', a.cpSubAddCountry)
       const countryBtns = phoneConfig.allCountries.map(c => c.name)
       const rows = []
       for (let i = 0; i < countryBtns.length; i += 2) rows.push(countryBtns.slice(i, i + 2))
@@ -16027,14 +16027,14 @@ Choose an IVR template category:`), k.of(rows))
     const cc = info?.cpCountryCode || 'US'
     const provider = info?.cpProvider || 'telnyx'
     if (cc === 'US' && numberType === 'local') {
-      set(state, chatId, 'action', a.cpSubAddArea)
+      await set(state, chatId, 'action', a.cpSubAddArea)
       const areaBtns = phoneConfig.usAreaCodes.map(ab => `${ab.city} (${ab.code})`)
       const rows = []
       for (let i = 0; i < areaBtns.length; i += 2) rows.push(areaBtns.slice(i, i + 2))
       rows.push([pc.searchByArea])
       return send(chatId, cpTxt.selectArea, k.of(rows))
     }
-    set(state, chatId, 'action', a.cpSubAddNumber)
+    await set(state, chatId, 'action', a.cpSubAddNumber)
     send(chatId, cpTxt.searching)
     const canSearchBoth = info?.cpCanSearchBoth || false
     let results = []
@@ -16066,18 +16066,18 @@ Choose an IVR template category:`), k.of(rows))
   if (action === a.cpSubAddArea) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     if (message === t.back || message === pc.back) {
-      set(state, chatId, 'action', a.cpSubAddType)
+      await set(state, chatId, 'action', a.cpSubAddType)
       return send(chatId, cpTxt.selectType(info?.cpCountryName || ''), k.of([[pc.localNumber], [pc.tollFreeNumber]]))
     }
     if (message === pc.searchByArea) {
-      set(state, chatId, 'action', a.cpSubAddEnterArea)
+      await set(state, chatId, 'action', a.cpSubAddEnterArea)
       return send(chatId, cpTxt.enterAreaCode)
     }
     const areaCode = phoneConfig.areaByLabel[message]
     if (!areaCode) return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectValidArea)
     await saveInfo('cpAreaCode', areaCode)
     await saveInfo('cpAreaName', message)
-    set(state, chatId, 'action', a.cpSubAddNumber)
+    await set(state, chatId, 'action', a.cpSubAddNumber)
     send(chatId, cpTxt.searching)
     const canSearchBoth = info?.cpCanSearchBoth || false
     let results = []
@@ -16112,7 +16112,7 @@ Choose an IVR template category:`), k.of(rows))
   if (action === a.cpSubAddEnterArea) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     if (message === t.back || message === pc.back) {
-      set(state, chatId, 'action', a.cpSubAddArea)
+      await set(state, chatId, 'action', a.cpSubAddArea)
       const areaBtns = phoneConfig.usAreaCodes.map(ab => `${ab.city} (${ab.code})`)
       const rows = []
       for (let i = 0; i < areaBtns.length; i += 2) rows.push(areaBtns.slice(i, i + 2))
@@ -16123,7 +16123,7 @@ Choose an IVR template category:`), k.of(rows))
     if (!areaCode || areaCode.length < 2) return send(chatId, phoneConfig.getMsg(info?.userLanguage).enterValidAreaCode)
     await saveInfo('cpAreaCode', areaCode)
     await saveInfo('cpAreaName', `Area ${areaCode}`)
-    set(state, chatId, 'action', a.cpSubAddNumber)
+    await set(state, chatId, 'action', a.cpSubAddNumber)
     send(chatId, cpTxt.searching)
     const canSearchBoth = info?.cpCanSearchBoth || false
     let results = []
@@ -16158,7 +16158,7 @@ Choose an IVR template category:`), k.of(rows))
   if (action === a.cpSubAddNumber) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     if (message === t.back || message === pc.back) {
-      set(state, chatId, 'action', a.cpSubAddCountry)
+      await set(state, chatId, 'action', a.cpSubAddCountry)
       const countryBtns = phoneConfig.allCountries.map(c => c.name)
       const rows = []
       for (let i = 0; i < countryBtns.length; i += 2) rows.push(countryBtns.slice(i, i + 2))
@@ -16215,7 +16215,7 @@ Choose an IVR template category:`), k.of(rows))
     const subPrice = getSubNumberPrice(countryCode, numberType, selectedProvider)
     await saveInfo('cpPrice', subPrice)
     await saveInfo('price', subPrice)
-    set(state, chatId, 'action', a.cpSubAddConfirm)
+    await set(state, chatId, 'action', a.cpSubAddConfirm)
     const parentNumber = info?.cpSubParentNumber
     const parentPlan = info?.cpSubParentPlan || 'starter'
     const planLabel = parentPlan.charAt(0).toUpperCase() + parentPlan.slice(1)
@@ -16233,7 +16233,7 @@ Choose an IVR template category:`), k.of(rows))
   if (action === a.cpSubAddConfirm) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     if (message === t.back || message === pc.back || message === pc.cancel) {
-      set(state, chatId, 'action', a.cpManageNumber)
+      await set(state, chatId, 'action', a.cpManageNumber)
       const num = info?.cpActiveNumber
       if (!num) return goto.submenu5()
       return showManageScreen(chatId, num)
@@ -16252,7 +16252,7 @@ Choose an IVR template category:`), k.of(rows))
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
-      set(state, chatId, 'action', a.cpManageNumber)
+      await set(state, chatId, 'action', a.cpManageNumber)
       return showManageScreen(chatId, num)
     }
     if (message === pc.disableForwarding) {
@@ -16260,7 +16260,7 @@ Choose an IVR template category:`), k.of(rows))
       num.features.callForwarding = { enabled: false, mode: 'disabled', forwardTo: null }
       await saveInfo('cpActiveNumber', num)
       send(chatId, cpTxt.forwardingDisabled(num.phoneNumber))
-      set(state, chatId, 'action', a.cpManageNumber)
+      await set(state, chatId, 'action', a.cpManageNumber)
       return showManageScreen(chatId, num)
     }
     // ── Toggle Hold Music ──
@@ -16293,10 +16293,10 @@ Choose an IVR template category:`), k.of(rows))
       } catch (e) {}
       if (walletBal < phoneConfig.CALL_FORWARDING_RATE_MIN) {
         send(chatId, t.fwdInsufficientBalance(walletBal, phoneConfig.CALL_FORWARDING_RATE_MIN), { parse_mode: 'HTML' })
-        set(state, chatId, 'action', a.cpManageNumber)
+        await set(state, chatId, 'action', a.cpManageNumber)
         return showManageScreen(chatId, num)
       }
-      set(state, chatId, 'action', a.cpEnterForwardNumber)
+      await set(state, chatId, 'action', a.cpEnterForwardNumber)
       return send(chatId, t.fwdEnterNumber(phoneConfig.CALL_FORWARDING_RATE_MIN, walletBal), { parse_mode: 'HTML' })
     }
     return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectForwardMode)
@@ -16306,7 +16306,7 @@ Choose an IVR template category:`), k.of(rows))
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
-      set(state, chatId, 'action', a.cpCallForwarding)
+      await set(state, chatId, 'action', a.cpCallForwarding)
       const fwd = num.features?.callForwarding || {}
       let walletBal = 0
       try { const { usdBal } = await getBalance(walletOf, chatId); walletBal = usdBal } catch (e) {}
@@ -16329,7 +16329,7 @@ Choose an IVR template category:`), k.of(rows))
     try { const { usdBal } = await getBalance(walletOf, chatId); walletBal = usdBal } catch (e) {}
     if (walletBal < phoneConfig.CALL_FORWARDING_RATE_MIN) {
       send(chatId, t.fwdInsufficientBalance(walletBal, phoneConfig.CALL_FORWARDING_RATE_MIN), { parse_mode: 'HTML' })
-      set(state, chatId, 'action', a.cpManageNumber)
+      await set(state, chatId, 'action', a.cpManageNumber)
       return showManageScreen(chatId, num)
     }
 
@@ -16347,7 +16347,7 @@ Choose an IVR template category:`), k.of(rows))
     await saveInfo('cpActiveNumber', num)
     const modeLabel = mode === 'always' ? 'Always Forward' : mode === 'busy' ? 'Forward When Busy' : 'Forward If No Answer'
     send(chatId, cpTxt.forwardingUpdated(num.phoneNumber, forwardTo, modeLabel, walletBal), { parse_mode: 'HTML' })
-    set(state, chatId, 'action', a.cpManageNumber)
+    await set(state, chatId, 'action', a.cpManageNumber)
     return showManageScreen(chatId, num)
   }
 
@@ -16357,7 +16357,7 @@ Choose an IVR template category:`), k.of(rows))
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
-      set(state, chatId, 'action', a.cpManageNumber)
+      await set(state, chatId, 'action', a.cpManageNumber)
       return showManageScreen(chatId, num)
     }
     const smsConf = num.features?.smsForwarding || {}
@@ -16394,7 +16394,7 @@ Choose an IVR template category:`), k.of(rows))
       if (!phoneConfig.canAccessFeature(num.plan, 'smsToEmail')) {
         return send(chatId, phoneConfig.upgradeMessage('smsToEmail', num.plan, info?.userLanguage))
       }
-      set(state, chatId, 'action', a.cpEnterEmail)
+      await set(state, chatId, 'action', a.cpEnterEmail)
       return send(chatId, cpTxt.enterEmail)
     }
     // Webhook (gated)
@@ -16402,7 +16402,7 @@ Choose an IVR template category:`), k.of(rows))
       if (!phoneConfig.canAccessFeature(num.plan, 'smsWebhook')) {
         return send(chatId, phoneConfig.upgradeMessage('smsWebhook', num.plan, info?.userLanguage))
       }
-      set(state, chatId, 'action', a.cpEnterWebhook)
+      await set(state, chatId, 'action', a.cpEnterWebhook)
       return send(chatId, cpTxt.enterWebhook)
     }
     return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectOption)
@@ -16412,7 +16412,7 @@ Choose an IVR template category:`), k.of(rows))
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
-      set(state, chatId, 'action', a.cpSmsSettings)
+      await set(state, chatId, 'action', a.cpSmsSettings)
       const smsConf = num.features?.smsForwarding || {}
       const tgLabel = `📲 SMS to Telegram ${smsConf.toTelegram !== false ? '✅ ON' : '❌ OFF'}`
       const emLabel = `📧 SMS to Email ${smsConf.toEmail ? '✅ ' + smsConf.toEmail : '❌ OFF'}`
@@ -16425,7 +16425,7 @@ Choose an IVR template category:`), k.of(rows))
     num.features.smsForwarding = { ...smsConf, toEmail: message }
     await saveInfo('cpActiveNumber', num)
     send(chatId, cpTxt.emailSet(message))
-    set(state, chatId, 'action', a.cpManageNumber)
+    await set(state, chatId, 'action', a.cpManageNumber)
     return showManageScreen(chatId, num)
   }
   if (action === a.cpEnterWebhook) {
@@ -16433,7 +16433,7 @@ Choose an IVR template category:`), k.of(rows))
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
-      set(state, chatId, 'action', a.cpSmsSettings)
+      await set(state, chatId, 'action', a.cpSmsSettings)
       const smsConf = num.features?.smsForwarding || {}
       const tgLabel = `📲 SMS to Telegram ${smsConf.toTelegram !== false ? '✅ ON' : '❌ OFF'}`
       const emLabel = `📧 SMS to Email ${smsConf.toEmail ? '✅ ' + smsConf.toEmail : '❌ OFF'}`
@@ -16446,7 +16446,7 @@ Choose an IVR template category:`), k.of(rows))
     num.features.smsForwarding = { ...smsConf, webhookUrl: message }
     await saveInfo('cpActiveNumber', num)
     send(chatId, cpTxt.webhookSet(message))
-    set(state, chatId, 'action', a.cpManageNumber)
+    await set(state, chatId, 'action', a.cpManageNumber)
     return showManageScreen(chatId, num)
   }
 
@@ -16456,7 +16456,7 @@ Choose an IVR template category:`), k.of(rows))
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
-      set(state, chatId, 'action', a.cpManageNumber)
+      await set(state, chatId, 'action', a.cpManageNumber)
       return showManageScreen(chatId, num)
     }
     if (message === pc.inboxRefresh) {
@@ -16482,7 +16482,7 @@ Choose an IVR template category:`), k.of(rows))
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
-      set(state, chatId, 'action', a.cpManageNumber)
+      await set(state, chatId, 'action', a.cpManageNumber)
       return showManageScreen(chatId, num)
     }
     const faxConf = num.features?.faxForwarding || { toTelegram: true }
@@ -16506,7 +16506,7 @@ Choose an IVR template category:`), k.of(rows))
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
-      set(state, chatId, 'action', a.cpManageNumber)
+      await set(state, chatId, 'action', a.cpManageNumber)
       return showManageScreen(chatId, num)
     }
     if (message === pc.enableVoicemail) {
@@ -16514,7 +16514,7 @@ Choose an IVR template category:`), k.of(rows))
       num.features.voicemail = { enabled: true, greetingType: 'default', forwardToTelegram: true, forwardToEmail: null, ringTimeout: 25 }
       await saveInfo('cpActiveNumber', num)
       send(chatId, cpTxt.voicemailEnabled(num.phoneNumber))
-      set(state, chatId, 'action', a.cpManageNumber)
+      await set(state, chatId, 'action', a.cpManageNumber)
       return showManageScreen(chatId, num)
     }
     if (message === pc.disableVoicemail) {
@@ -16522,12 +16522,12 @@ Choose an IVR template category:`), k.of(rows))
       num.features.voicemail = { enabled: false }
       await saveInfo('cpActiveNumber', num)
       send(chatId, cpTxt.voicemailDisabled(num.phoneNumber))
-      set(state, chatId, 'action', a.cpManageNumber)
+      await set(state, chatId, 'action', a.cpManageNumber)
       return showManageScreen(chatId, num)
     }
     // Greeting management
     if (message === pc.vmGreeting || message === '🔊 Greeting') {
-      set(state, chatId, 'action', a.cpVmGreeting)
+      await set(state, chatId, 'action', a.cpVmGreeting)
       const vm = num.features?.voicemail || {}
       return send(chatId, cpTxt.vmGreetingMenu(num.phoneNumber, vm), k.of([
         [pc.vmCustomGreeting],
@@ -16556,7 +16556,7 @@ Choose an IVR template category:`), k.of(rows))
       num.features.voicemail = { ...vm, ringTimeout: seconds }
       await saveInfo('cpActiveNumber', num)
       send(chatId, phoneConfig.getMsg(info?.userLanguage).ringTimeUpdated(seconds))
-      set(state, chatId, 'action', a.cpManageNumber)
+      await set(state, chatId, 'action', a.cpManageNumber)
       return showManageScreen(chatId, num)
     }
     return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectOption)
@@ -16568,7 +16568,7 @@ Choose an IVR template category:`), k.of(rows))
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
-      set(state, chatId, 'action', a.cpVoicemail)
+      await set(state, chatId, 'action', a.cpVoicemail)
       const vm = num.features?.voicemail || {}
       const btns = vm.enabled
         ? [['🔊 Greeting'],
@@ -16580,7 +16580,7 @@ Choose an IVR template category:`), k.of(rows))
       return send(chatId, cpTxt.voicemailMenu(num.phoneNumber, vm), k.of(btns))
     }
     if (message === pc.vmCustomGreeting) {
-      set(state, chatId, 'action', a.cpVmAudioUpload)
+      await set(state, chatId, 'action', a.cpVmAudioUpload)
       await saveInfo('cpTtsDraft', { type: 'vmGreeting' })
       return send(chatId, ({ en: `🎤 <b>Custom Greeting</b>\n\nChoose how to create your greeting:`, fr: `🎤 <b>Message personnalisé</b>\n\nChoisissez comment créer votre message :`, zh: `🎤 <b>自定义问候语</b>\n\n选择创建方式：`, hi: `🎤 <b>कस्टम ग्रीटिंग</b>\n\nग्रीटिंग बनाने का तरीका चुनें:` }[lang] || `🎤 <b>Custom Greeting</b>\n\nChoose how to create your greeting:`), k.of([[btn.useTemplate], [btn.typeText], [btn.uploadAudio]]))
     }
@@ -16593,7 +16593,7 @@ Choose an IVR template category:`), k.of(rows))
       num.features.voicemail = vm
       await saveInfo('cpActiveNumber', num)
       send(chatId, ({ en: '✅ Default greeting restored.', fr: '✅ Message par défaut restauré.', zh: '✅ 默认问候语已恢复。', hi: '✅ डिफ़ॉल्ट ग्रीटिंग बहाल।' }[lang] || '✅ Default greeting restored.'))
-      set(state, chatId, 'action', a.cpVoicemail)
+      await set(state, chatId, 'action', a.cpVoicemail)
       const btns = [['🔊 Greeting'],
            [({ en: '📲 VM to Telegram ', fr: '📲 VM sur Telegram ', zh: '📲 语音信箱到 Telegram ', hi: '📲 VM Telegram ' }[lang] || '📲 VM to Telegram ') + (vm.forwardToTelegram !== false ? '✅ ON' : '❌ OFF')],
            [({ en: '📧 VM to Email ', fr: '📧 VM par Email ', zh: '📧 语音信箱到邮箱 ', hi: '📧 VM ईमेल ' }[lang] || '📧 VM to Email ') + (vm.forwardToEmail ? '✅ ' + vm.forwardToEmail : '❌ OFF')],
@@ -16612,7 +16612,7 @@ Choose an IVR template category:`), k.of(rows))
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
-      set(state, chatId, 'action', a.cpVmGreeting)
+      await set(state, chatId, 'action', a.cpVmGreeting)
       return send(chatId, cpTxt.vmGreetingMenu(num.phoneNumber, num.features?.voicemail || {}), k.of([
         [pc.vmCustomGreeting], [pc.vmDefaultGreeting],
       ]))
@@ -16621,17 +16621,17 @@ Choose an IVR template category:`), k.of(rows))
     if (message === btn.typeText) {
       draft.method = 'tts'
       await saveInfo('cpTtsDraft', draft)
-      set(state, chatId, 'action', a.cpVmGreetingVoice)
+      await set(state, chatId, 'action', a.cpVmGreetingVoice)
       return send(chatId, `📝 Type the greeting callers will hear:`, k.of([]))
     }
     if (message === btn.uploadAudio) {
       draft.method = 'upload'
       await saveInfo('cpTtsDraft', draft)
-      set(state, chatId, 'action', a.cpVmGreetingPreview)
+      await set(state, chatId, 'action', a.cpVmGreetingPreview)
       return send(chatId, `🎙️ Send a voice message or audio file.`, k.of([]))
     }
     if (message === btn.useTemplate) {
-      set(state, chatId, 'action', a.cpVmTemplate)
+      await set(state, chatId, 'action', a.cpVmTemplate)
       draft.method = 'template'
       await saveInfo('cpTtsDraft', draft)
       const catBtns = ttsService.getTemplateCategoryButtons().map(b => [b])
@@ -16655,7 +16655,7 @@ Professional templates for voicemail, customer support, financial institutions, 
         draft.method = 'uploaded'
         await saveInfo('cpTtsDraft', draft)
         await bot.sendVoice(chatId, localPath)
-        set(state, chatId, 'action', a.cpVmGreetingPreview)
+        await set(state, chatId, 'action', a.cpVmGreetingPreview)
         return send(chatId, `✅ Audio received. Save as greeting?`, k.of([[btn.saveGreeting], [btn.reupload]]))
       } catch (e) {
         return send(chatId, ({ en: "❌ Failed. Try again.", fr: "❌ Échec. Réessayez.", zh: "❌ 失败。请重试。", hi: "❌ विफल। पुनः प्रयास करें।" }[lang] || "❌ Failed. Try again."), k.of([]))
@@ -16670,7 +16670,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
-      set(state, chatId, 'action', a.cpVmAudioUpload)
+      await set(state, chatId, 'action', a.cpVmAudioUpload)
       return send(chatId, `🎤 <b>Custom Greeting</b>\n\nChoose how to create your greeting:`, k.of([[btn.useTemplate], [btn.typeText], [btn.uploadAudio]]))
     }
     const draft = info?.cpTtsDraft || {}
@@ -16695,7 +16695,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     draft.templateKey = tpl.key
     draft.text = tpl.text
     await saveInfo('cpTtsDraft', draft)
-    set(state, chatId, 'action', a.cpVmTemplateEdit)
+    await set(state, chatId, 'action', a.cpVmTemplateEdit)
     return send(chatId, `📋 <b>${tpl.icon} ${tpl.name}</b>\n\n<code>${tpl.text}</code>\n\n✏️ You can edit this text — just type your modified version below.\nOr tap <b>✅ Use As-Is</b> to proceed with this greeting.`, k.of([[btn.useAsIs]]))
   }
 
@@ -16710,7 +16710,7 @@ Professional templates for voicemail, customer support, financial institutions, 
       draft.templateKey = null
       draft.text = null
       await saveInfo('cpTtsDraft', draft)
-      set(state, chatId, 'action', a.cpVmTemplate)
+      await set(state, chatId, 'action', a.cpVmTemplate)
       const catBtns = ttsService.getTemplateCategoryButtons().map(b => [b])
       return send(chatId, `📋 <b>Greeting Templates</b>\n\nSelect a category:`, k.of(catBtns))
     }
@@ -16720,7 +16720,7 @@ Professional templates for voicemail, customer support, financial institutions, 
       draft.lang = null
       draft.voice = null
       await saveInfo('cpTtsDraft', draft)
-      set(state, chatId, 'action', a.cpVmGreetingVoice)
+      await set(state, chatId, 'action', a.cpVmGreetingVoice)
       const langBtns = ttsService.getLanguageButtons()
       const langRows = []
       for (let i = 0; i < langBtns.length; i += 2) langRows.push(langBtns.slice(i, i + 2))
@@ -16731,7 +16731,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     draft.lang = null
     draft.voice = null
     await saveInfo('cpTtsDraft', draft)
-    set(state, chatId, 'action', a.cpVmGreetingVoice)
+    await set(state, chatId, 'action', a.cpVmGreetingVoice)
     const langBtns = ttsService.getLanguageButtons()
     const langRows = []
     for (let i = 0; i < langBtns.length; i += 2) langRows.push(langBtns.slice(i, i + 2))
@@ -16744,7 +16744,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
-      set(state, chatId, 'action', a.cpVmAudioUpload)
+      await set(state, chatId, 'action', a.cpVmAudioUpload)
       return send(chatId, `🎤 <b>Custom Greeting</b>\n\nChoose:`, k.of([[btn.useTemplate], [btn.typeText], [btn.uploadAudio]]))
     }
     const draft = info?.cpTtsDraft || {}
@@ -16760,7 +16760,7 @@ Professional templates for voicemail, customer support, financial institutions, 
         draft.audioUrl = result.audioUrl
         await saveInfo('cpTtsDraft', draft)
         await bot.sendVoice(chatId, result.audioPath)
-        set(state, chatId, 'action', a.cpVmGreetingPreview)
+        await set(state, chatId, 'action', a.cpVmGreetingPreview)
         return send(chatId, `✅ Preview (${result.voice})\n\nSave this greeting?`, k.of([
           [btn.saveGreeting], [btn.tryDiffVoice], [btn.changeLang], [btn.retypeText],
         ]))
@@ -16826,7 +16826,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
-      set(state, chatId, 'action', a.cpVmGreeting)
+      await set(state, chatId, 'action', a.cpVmGreeting)
       return send(chatId, cpTxt.vmGreetingMenu(num.phoneNumber, num.features?.voicemail || {}), k.of([
         [pc.vmCustomGreeting], [pc.vmDefaultGreeting],
       ]))
@@ -16835,14 +16835,14 @@ Professional templates for voicemail, customer support, financial institutions, 
     if (message === btn.tryDiffVoice) {
       draft.voice = null; draft.audioPath = null; draft.ttsProvider = null
       await saveInfo('cpTtsDraft', draft)
-      set(state, chatId, 'action', a.cpVmGreetingVoice)
+      await set(state, chatId, 'action', a.cpVmGreetingVoice)
       const providerBtns = ttsService.getProviderButtons().map(b => [b])
       return send(chatId, `🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine:`, k.of(providerBtns))
     }
     if (message === btn.changeLang) {
       draft.lang = null; draft.voice = null; draft.audioPath = null; draft.ttsProvider = null
       await saveInfo('cpTtsDraft', draft)
-      set(state, chatId, 'action', a.cpVmGreetingVoice)
+      await set(state, chatId, 'action', a.cpVmGreetingVoice)
       const langBtns = ttsService.getLanguageButtons()
       const langRows = []
       for (let i = 0; i < langBtns.length; i += 2) langRows.push(langBtns.slice(i, i + 2))
@@ -16851,7 +16851,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     if (message === btn.retypeText) {
       draft.text = null; draft.voice = null; draft.audioPath = null
       await saveInfo('cpTtsDraft', draft)
-      set(state, chatId, 'action', a.cpVmGreetingVoice)
+      await set(state, chatId, 'action', a.cpVmGreetingVoice)
       return send(chatId, `📝 Type the greeting text:`, k.of([]))
     }
     if (message === btn.reupload) {
@@ -16887,7 +16887,7 @@ Professional templates for voicemail, customer support, financial institutions, 
       await saveInfo('cpActiveNumber', num)
       await saveInfo('cpTtsDraft', null)
       send(chatId, `✅ Voicemail greeting saved!`)
-      set(state, chatId, 'action', a.cpVoicemail)
+      await set(state, chatId, 'action', a.cpVoicemail)
       const btns = [['🔊 Greeting'],
            [({ en: '📲 VM to Telegram ', fr: '📲 VM sur Telegram ', zh: '📲 语音信箱到 Telegram ', hi: '📲 VM Telegram ' }[lang] || '📲 VM to Telegram ') + (vm.forwardToTelegram !== false ? '✅ ON' : '❌ OFF')],
            [({ en: '📧 VM to Email ', fr: '📧 VM par Email ', zh: '📧 语音信箱到邮箱 ', hi: '📧 VM ईमेल ' }[lang] || '📧 VM to Email ') + (vm.forwardToEmail ? '✅ ' + vm.forwardToEmail : '❌ OFF')],
@@ -16904,7 +16904,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
-      set(state, chatId, 'action', a.cpManageNumber)
+      await set(state, chatId, 'action', a.cpManageNumber)
       return showManageScreen(chatId, num)
     }
     if (message === pc.enableRecording) {
@@ -16913,7 +16913,7 @@ Professional templates for voicemail, customer support, financial institutions, 
       num.features.recording = true
       await saveInfo('cpActiveNumber', num)
       send(chatId, cpTxt.recordingEnabled(num.phoneNumber))
-      set(state, chatId, 'action', a.cpManageNumber)
+      await set(state, chatId, 'action', a.cpManageNumber)
       return showManageScreen(chatId, num)
     }
     if (message === pc.disableRecording) {
@@ -16922,7 +16922,7 @@ Professional templates for voicemail, customer support, financial institutions, 
       num.features.recording = false
       await saveInfo('cpActiveNumber', num)
       send(chatId, cpTxt.recordingDisabled(num.phoneNumber))
-      set(state, chatId, 'action', a.cpManageNumber)
+      await set(state, chatId, 'action', a.cpManageNumber)
       return showManageScreen(chatId, num)
     }
     return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectOption)
@@ -16934,7 +16934,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
-      set(state, chatId, 'action', a.cpManageNumber)
+      await set(state, chatId, 'action', a.cpManageNumber)
       return showManageScreen(chatId, num)
     }
     if (message === pc.enableIvr) {
@@ -16954,22 +16954,22 @@ Professional templates for voicemail, customer support, financial institutions, 
       num.features.ivr = { enabled: false }
       await saveInfo('cpActiveNumber', num)
       send(chatId, cpTxt.ivrDisabled(num.phoneNumber))
-      set(state, chatId, 'action', a.cpManageNumber)
+      await set(state, chatId, 'action', a.cpManageNumber)
       return showManageScreen(chatId, num)
     }
     if (message === pc.ivrGreeting) {
-      set(state, chatId, 'action', a.cpIvrGreeting)
+      await set(state, chatId, 'action', a.cpIvrGreeting)
       return send(chatId, `🎤 <b>Set IVR Greeting</b>\n\nChoose how to create your greeting:`, k.of([[btn.useTemplate], [btn.typeText], [btn.uploadAudio]]))
     }
     if (message === pc.ivrAddOption) {
-      set(state, chatId, 'action', a.cpIvrOptionKey)
+      await set(state, chatId, 'action', a.cpIvrOptionKey)
       await saveInfo('cpIvrDraft', {})
       const ivrConf = num.features?.ivr || {}
       const usedKeys = Object.keys(ivrConf.options || {}).join(', ') || 'none'
       return send(chatId, `➕ <b>Add Menu Option</b>\n\nUsed keys: ${usedKeys}\n\nEnter the key number (0-9) for this option:`, k.of([['0','1','2','3','4','5','6','7','8','9']]))
     }
     if (message === pc.ivrRemoveOption) {
-      set(state, chatId, 'action', a.cpIvrRemoveOption)
+      await set(state, chatId, 'action', a.cpIvrRemoveOption)
       const ivrConf = num.features?.ivr || {}
       const keys = Object.keys(ivrConf.options || {})
       if (!keys.length) return send(chatId, phoneConfig.getMsg(info?.userLanguage).noIvrOptions, k.of([
@@ -16998,24 +16998,24 @@ Professional templates for voicemail, customer support, financial institutions, 
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
-      set(state, chatId, 'action', a.cpIvr)
+      await set(state, chatId, 'action', a.cpIvr)
       const ivrConf = num.features?.ivr || {}
       return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
         [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
       ]))
     }
     if (message === btn.typeText) {
-      set(state, chatId, 'action', a.cpIvrGreetingVoice)
+      await set(state, chatId, 'action', a.cpIvrGreetingVoice)
       await saveInfo('cpTtsDraft', { type: 'ivrGreeting' })
       return send(chatId, `📝 Type the greeting callers will hear.\n\n<i>Example: "Thank you for calling Nomadly. Press 1 for sales, press 2 for support."</i>`, k.of([]))
     }
     if (message === btn.uploadAudio) {
-      set(state, chatId, 'action', a.cpIvrGreetingPreview)
+      await set(state, chatId, 'action', a.cpIvrGreetingPreview)
       await saveInfo('cpTtsDraft', { type: 'ivrGreeting', method: 'upload' })
       return send(chatId, `🎙️ Send a voice message or audio file for your IVR greeting.`, k.of([]))
     }
     if (message === btn.useTemplate) {
-      set(state, chatId, 'action', a.cpIvrTemplate)
+      await set(state, chatId, 'action', a.cpIvrTemplate)
       await saveInfo('cpTtsDraft', { type: 'ivrGreeting', method: 'template' })
       const catBtns = ttsService.getTemplateCategoryButtons().map(b => [b])
       return send(chatId, `📋 <b>Greeting Templates</b>\n\nProfessional templates for financial institutions — fraud hotlines, customer support, after-hours, and more. Select a category:`, k.of(catBtns))
@@ -17029,7 +17029,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
-      set(state, chatId, 'action', a.cpIvrGreeting)
+      await set(state, chatId, 'action', a.cpIvrGreeting)
       return send(chatId, `🎤 <b>Set IVR Greeting</b>\n\nChoose how to create your greeting:`, k.of([[btn.useTemplate], [btn.typeText], [btn.uploadAudio]]))
     }
     const draft = info?.cpTtsDraft || {}
@@ -17054,7 +17054,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     draft.templateKey = tpl.key
     draft.text = tpl.text
     await saveInfo('cpTtsDraft', draft)
-    set(state, chatId, 'action', a.cpIvrTemplateEdit)
+    await set(state, chatId, 'action', a.cpIvrTemplateEdit)
     return send(chatId, `📋 <b>${tpl.icon} ${tpl.name}</b>\n\n<code>${tpl.text}</code>\n\n✏️ You can edit this text — just type your modified version below.\nOr tap <b>✅ Use As-Is</b> to proceed with this greeting.`, k.of([[btn.useAsIs]]))
   }
 
@@ -17069,7 +17069,7 @@ Professional templates for voicemail, customer support, financial institutions, 
       draft.templateKey = null
       draft.text = null
       await saveInfo('cpTtsDraft', draft)
-      set(state, chatId, 'action', a.cpIvrTemplate)
+      await set(state, chatId, 'action', a.cpIvrTemplate)
       const catBtns = ttsService.getTemplateCategoryButtons().map(b => [b])
       return send(chatId, `📋 <b>Greeting Templates</b>\n\nSelect a category:`, k.of(catBtns))
     }
@@ -17079,7 +17079,7 @@ Professional templates for voicemail, customer support, financial institutions, 
       draft.lang = null
       draft.voice = null
       await saveInfo('cpTtsDraft', draft)
-      set(state, chatId, 'action', a.cpIvrGreetingVoice)
+      await set(state, chatId, 'action', a.cpIvrGreetingVoice)
       const langBtns = ttsService.getLanguageButtons()
       const langRows = []
       for (let i = 0; i < langBtns.length; i += 2) langRows.push(langBtns.slice(i, i + 2))
@@ -17090,7 +17090,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     draft.lang = null
     draft.voice = null
     await saveInfo('cpTtsDraft', draft)
-    set(state, chatId, 'action', a.cpIvrGreetingVoice)
+    await set(state, chatId, 'action', a.cpIvrGreetingVoice)
     const langBtns = ttsService.getLanguageButtons()
     const langRows = []
     for (let i = 0; i < langBtns.length; i += 2) langRows.push(langBtns.slice(i, i + 2))
@@ -17103,7 +17103,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
-      set(state, chatId, 'action', a.cpIvrGreeting)
+      await set(state, chatId, 'action', a.cpIvrGreeting)
       return send(chatId, `🎤 <b>Set IVR Greeting</b>\n\nChoose how to create your greeting:`, k.of([[btn.useTemplate], [btn.typeText], [btn.uploadAudio]]))
     }
     const draft = info?.cpTtsDraft || {}
@@ -17119,7 +17119,7 @@ Professional templates for voicemail, customer support, financial institutions, 
         draft.audioUrl = result.audioUrl
         await saveInfo('cpTtsDraft', draft)
         await bot.sendVoice(chatId, result.audioPath)
-        set(state, chatId, 'action', a.cpIvrGreetingPreview)
+        await set(state, chatId, 'action', a.cpIvrGreetingPreview)
         return send(chatId, `✅ Preview generated (${result.voice})\n\n✅ Save this greeting?\n🔄 Try a different voice?\n📝 Re-type the text?`, k.of([
           [btn.saveGreeting],
           [btn.tryDiffVoice],
@@ -17191,7 +17191,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
-      set(state, chatId, 'action', a.cpIvr)
+      await set(state, chatId, 'action', a.cpIvr)
       const ivrConf = num.features?.ivr || {}
       return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
         [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
@@ -17225,7 +17225,7 @@ Professional templates for voicemail, customer support, financial institutions, 
       draft.audioPath = null
       draft.ttsProvider = null
       await saveInfo('cpTtsDraft', draft)
-      set(state, chatId, 'action', a.cpIvrGreetingVoice)
+      await set(state, chatId, 'action', a.cpIvrGreetingVoice)
       const providerBtns = ttsService.getProviderButtons().map(b => [b])
       return send(chatId, `🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine:`, k.of(providerBtns))
     }
@@ -17235,7 +17235,7 @@ Professional templates for voicemail, customer support, financial institutions, 
       draft.audioPath = null
       draft.ttsProvider = null
       await saveInfo('cpTtsDraft', draft)
-      set(state, chatId, 'action', a.cpIvrGreetingVoice)
+      await set(state, chatId, 'action', a.cpIvrGreetingVoice)
       const langBtns = ttsService.getLanguageButtons()
       const langRows = []
       for (let i = 0; i < langBtns.length; i += 2) langRows.push(langBtns.slice(i, i + 2))
@@ -17246,7 +17246,7 @@ Professional templates for voicemail, customer support, financial institutions, 
       draft.voice = null
       draft.audioPath = null
       await saveInfo('cpTtsDraft', draft)
-      set(state, chatId, 'action', a.cpIvrGreetingVoice)
+      await set(state, chatId, 'action', a.cpIvrGreetingVoice)
       return send(chatId, `📝 Type the greeting callers will hear:`, k.of([]))
     }
     if (message === btn.reupload) {
@@ -17271,7 +17271,7 @@ Professional templates for voicemail, customer support, financial institutions, 
       await saveInfo('cpActiveNumber', num)
       await saveInfo('cpTtsDraft', null)
       send(chatId, `✅ IVR greeting saved!`)
-      set(state, chatId, 'action', a.cpIvr)
+      await set(state, chatId, 'action', a.cpIvr)
       return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
         [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
       ]))
@@ -17304,7 +17304,7 @@ Professional templates for voicemail, customer support, financial institutions, 
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
-      set(state, chatId, 'action', a.cpIvr)
+      await set(state, chatId, 'action', a.cpIvr)
       const ivrConf = num.features?.ivr || {}
       return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
         [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
@@ -17351,7 +17351,7 @@ Touches utilisées : ${Object.keys(ivrConf.options).join(', ')}`, zh: `⚠️ �
 Used keys: ${Object.keys(ivrConf.options).join(', ')}`), k.of([['0','1','2','3','4','5','6','7','8','9']]))
     }
     await saveInfo('cpIvrDraft', { key })
-    set(state, chatId, 'action', a.cpIvrOptionAction)
+    await set(state, chatId, 'action', a.cpIvrOptionAction)
     return send(chatId, ({ en: `🔢 Key <b>${key}</b> selected.
 
 What should happen when a caller presses <b>${key}</b>?`, fr: `🔢 Touche <b>${key}</b> sélectionnée.
@@ -17371,7 +17371,7 @@ What should happen when a caller presses <b>${key}</b>?`), k.of([[btn.forwardCal
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
-      set(state, chatId, 'action', a.cpIvrOptionKey)
+      await set(state, chatId, 'action', a.cpIvrOptionKey)
       const ivrConf = num.features?.ivr || {}
       const usedKeys = Object.keys(ivrConf.options || {}).join(', ') || 'none'
       return send(chatId, ({ en: `➕ <b>Add Menu Option</b>
@@ -17400,7 +17400,7 @@ Enter the key number (0-9):`), k.of([['0','1','2','3','4','5','6','7','8','9']])
     if (message === btn.forwardCall) {
       draft.action = 'forward'
       await saveInfo('cpIvrDraft', draft)
-      set(state, chatId, 'action', a.cpIvrOptionMsg)
+      await set(state, chatId, 'action', a.cpIvrOptionMsg)
       return send(chatId, ({ en: `📞 <b>Forward Call</b>
 
 Enter the phone number to forward calls to:
@@ -17426,7 +17426,7 @@ Enter the phone number to forward calls to:
     if (message === btn.playMessage) {
       draft.action = 'message'
       await saveInfo('cpIvrDraft', draft)
-      set(state, chatId, 'action', a.cpIvrOptionMsg)
+      await set(state, chatId, 'action', a.cpIvrOptionMsg)
       return send(chatId, ({ en: `💬 <b>Play Message</b>
 
 How do you want to create the message?`, fr: `💬 <b>Lire un Message</b>
@@ -17451,7 +17451,7 @@ How do you want to create the message?`), k.of([[btn.useTemplate], [btn.typeText
       await saveInfo('cpActiveNumber', num)
       await saveInfo('cpIvrDraft', null)
       send(chatId, ({ en: `✅ Key <b>${draft.key}</b> → Send to Voicemail — saved!`, fr: `✅ Touche <b>${draft.key}</b> → Messagerie vocale — enregistré !`, zh: `✅ 按键 <b>${draft.key}</b> → 语音信箱 — 已保存！`, hi: `✅ कुंजी <b>${draft.key}</b> → वॉइसमेल — सेव!` }[lang] || `✅ Key <b>${draft.key}</b> → Send to Voicemail — saved!`))
-      set(state, chatId, 'action', a.cpIvr)
+      await set(state, chatId, 'action', a.cpIvr)
       return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
         [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
       ]))
@@ -17465,7 +17465,7 @@ How do you want to create the message?`), k.of([[btn.useTemplate], [btn.typeText
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
-      set(state, chatId, 'action', a.cpIvrOptionAction)
+      await set(state, chatId, 'action', a.cpIvrOptionAction)
       return send(chatId, `What should happen when a caller presses <b>${(info?.cpIvrDraft || {}).key}</b>?`, k.of([[btn.forwardCall], [btn.playMessage], [btn.sendToVoicemail]]))
     }
     const draft = info?.cpIvrDraft || {}
@@ -17487,7 +17487,7 @@ How do you want to create the message?`), k.of([[btn.useTemplate], [btn.typeText
       await saveInfo('cpActiveNumber', num)
       await saveInfo('cpIvrDraft', null)
       send(chatId, ({ en: `✅ Key <b>${draft.key}</b> → Forward to <b>${phone}</b> — saved!`, fr: `✅ Touche <b>${draft.key}</b> → Transférer vers <b>${phone}</b> — enregistré !`, zh: `✅ 按键 <b>${draft.key}</b> → 转接到 <b>${phone}</b> — 已保存！`, hi: `✅ कुंजी <b>${draft.key}</b> → <b>${phone}</b> पर फ़ॉरवर्ड — सेव!` }[lang] || `✅ Key <b>${draft.key}</b> → Forward to <b>${phone}</b> — saved!`))
-      set(state, chatId, 'action', a.cpIvr)
+      await set(state, chatId, 'action', a.cpIvr)
       return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
         [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
       ]))
@@ -17545,7 +17545,7 @@ Select a category:`), k.of(catBtns))
         draft.lang = null
         draft.voice = null
         await saveInfo('cpIvrDraft', draft)
-        set(state, chatId, 'action', a.cpIvrOptionVoice)
+        await set(state, chatId, 'action', a.cpIvrOptionVoice)
         const langBtns = ttsService.getLanguageButtons()
         const langRows = []
         for (let i = 0; i < langBtns.length; i += 2) langRows.push(langBtns.slice(i, i + 2))
@@ -17572,7 +17572,7 @@ Select a category:`), k.of(catBtns))
           draft.method = 'uploaded'
           await saveInfo('cpIvrDraft', draft)
           await bot.sendVoice(chatId, localPath)
-          set(state, chatId, 'action', a.cpIvrOptionPreview)
+          await set(state, chatId, 'action', a.cpIvrOptionPreview)
           return send(chatId, ({ en: `✅ Audio received for key <b>${draft.key}</b>. Save this?`, fr: `✅ Audio reçu pour la touche <b>${draft.key}</b>. Enregistrer ?`, zh: `✅ 已收到按键 <b>${draft.key}</b> 的音频。保存吗？`, hi: `✅ कुंजी <b>${draft.key}</b> के लिए ऑडियो प्राप्त। सेव करें?` }[lang] || `✅ Audio received for key <b>${draft.key}</b>. Save this?`), k.of([[btn.saveOption], [btn.reupload]]))
         } catch (e) {
           return send(chatId, ({ en: "❌ Failed. Try again.", fr: "❌ Échec. Réessayez.", zh: "❌ 失败。请重试。", hi: "❌ विफल। पुनः प्रयास करें।" }[lang] || "❌ Failed. Try again."), k.of([]))
@@ -17584,7 +17584,7 @@ Select a category:`), k.of(catBtns))
         draft.lang = null
         draft.voice = null
         await saveInfo('cpIvrDraft', draft)
-        set(state, chatId, 'action', a.cpIvrOptionVoice)
+        await set(state, chatId, 'action', a.cpIvrOptionVoice)
         const langBtns = ttsService.getLanguageButtons()
         const langRows = []
         for (let i = 0; i < langBtns.length; i += 2) langRows.push(langBtns.slice(i, i + 2))
@@ -17604,7 +17604,7 @@ Select a category:`), k.of(catBtns))
       const draft = info?.cpIvrDraft || {}
       draft.lang = null; draft.voice = null; draft.audioPath = null; draft.ttsProvider = null
       await saveInfo('cpIvrDraft', draft)
-      set(state, chatId, 'action', a.cpIvrOptionMsg)
+      await set(state, chatId, 'action', a.cpIvrOptionMsg)
       if (draft.method === 'template') {
         return send(chatId, `📋 <b>Message</b>\n\n<code>${draft.text}</code>\n\n({ en: "✏️ Type your modified version, or tap <b>✅ Use As-Is</b>", fr: "✏️ Tapez votre version modifiée, ou appuyez sur <b>✅ Utiliser tel quel</b>", zh: "✏️ 输入修改版本，或点击 <b>✅ 直接使用</b>", hi: "✏️ अपना संशोधित संस्करण टाइप करें, या <b>✅ जैसा है</b> दबाएं" }[lang] || "✏️ Type your modified version, or tap <b>✅ Use As-Is</b>"):`, k.of([[btn.useAsIs]]))
       }
@@ -17623,7 +17623,7 @@ Select a category:`), k.of(catBtns))
         draft.audioUrl = result.audioUrl
         await saveInfo('cpIvrDraft', draft)
         await bot.sendVoice(chatId, result.audioPath)
-        set(state, chatId, 'action', a.cpIvrOptionPreview)
+        await set(state, chatId, 'action', a.cpIvrOptionPreview)
         return send(chatId, `✅ Preview for key <b>${draft.key}</b> (${result.voice})\n\nSave this option?`, k.of([
           [btn.saveOption], [btn.tryDiffVoice], [btn.changeLang], [btn.retypeText],
         ]))
@@ -17680,7 +17680,7 @@ Select a category:`), k.of(catBtns))
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
-      set(state, chatId, 'action', a.cpIvr)
+      await set(state, chatId, 'action', a.cpIvr)
       const ivrConf = num.features?.ivr || {}
       return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
         [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
@@ -17690,7 +17690,7 @@ Select a category:`), k.of(catBtns))
     if (message === btn.tryDiffVoice) {
       draft.voice = null; draft.audioPath = null; draft.ttsProvider = null
       await saveInfo('cpIvrDraft', draft)
-      set(state, chatId, 'action', a.cpIvrOptionVoice)
+      await set(state, chatId, 'action', a.cpIvrOptionVoice)
       const providerBtns = ttsService.getProviderButtons().map(b => [b])
       return send(chatId, `🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine:`, k.of(providerBtns))
     }
@@ -17698,7 +17698,7 @@ Select a category:`), k.of(catBtns))
       draft.lang = null; draft.voice = null; draft.audioPath = null; draft.ttsProvider = null
       if (draft.originalText) draft.text = draft.originalText
       await saveInfo('cpIvrDraft', draft)
-      set(state, chatId, 'action', a.cpIvrOptionVoice)
+      await set(state, chatId, 'action', a.cpIvrOptionVoice)
       const langBtns = ttsService.getLanguageButtons()
       const langRows = []
       for (let i = 0; i < langBtns.length; i += 2) langRows.push(langBtns.slice(i, i + 2))
@@ -17707,13 +17707,13 @@ Select a category:`), k.of(catBtns))
     if (message === btn.retypeText) {
       draft.text = null; draft.voice = null; draft.audioPath = null; draft.originalText = null; draft.translatedText = null
       await saveInfo('cpIvrDraft', draft)
-      set(state, chatId, 'action', a.cpIvrOptionMsg)
+      await set(state, chatId, 'action', a.cpIvrOptionMsg)
       return send(chatId, `📝 Type the message:`, k.of([]))
     }
     if (message === btn.reupload) {
       draft.audioPath = null; draft.method = 'upload'
       await saveInfo('cpIvrDraft', draft)
-      set(state, chatId, 'action', a.cpIvrOptionMsg)
+      await set(state, chatId, 'action', a.cpIvrOptionMsg)
       return send(chatId, `🎙️ Send a voice message or audio file:`, k.of([]))
     }
     // Handle audio in preview state
@@ -17747,7 +17747,7 @@ Select a category:`), k.of(catBtns))
       await saveInfo('cpIvrDraft', null)
       const actionLabel = draft.action === 'message' ? 'Play Message' : draft.action === 'forward' ? 'Forward Call' : 'Voicemail'
       send(chatId, ({ en: `✅ Key <b>${draft.key}</b> → ${actionLabel} — saved!`, fr: `✅ Touche <b>${draft.key}</b> → ${actionLabel} — enregistré !`, zh: `✅ 按键 <b>${draft.key}</b> → ${actionLabel} — 已保存！`, hi: `✅ कुंजी <b>${draft.key}</b> → ${actionLabel} — सेव!` }[lang] || `✅ Key <b>${draft.key}</b> → ${actionLabel} — saved!`))
-      set(state, chatId, 'action', a.cpIvr)
+      await set(state, chatId, 'action', a.cpIvr)
       return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
         [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
       ]))
@@ -17761,7 +17761,7 @@ Select a category:`), k.of(catBtns))
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
-      set(state, chatId, 'action', a.cpIvr)
+      await set(state, chatId, 'action', a.cpIvr)
       const ivrConf = num.features?.ivr || {}
       return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
         [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
@@ -17779,7 +17779,7 @@ Select a category:`), k.of(catBtns))
     } else {
       send(chatId, phoneConfig.getMsg(info?.userLanguage).noOptionForKey(key))
     }
-    set(state, chatId, 'action', a.cpIvr)
+    await set(state, chatId, 'action', a.cpIvr)
     return send(chatId, cpTxt.ivrMenu(num.phoneNumber, ivrConf), k.of([
       [pc.ivrGreeting], [pc.ivrAddOption], [pc.ivrRemoveOption], [pc.ivrViewOptions], [pc.ivrAnalytics], [pc.disableIvr]
     ]))
@@ -17791,7 +17791,7 @@ Select a category:`), k.of(catBtns))
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
-      set(state, chatId, 'action', a.cpManageNumber)
+      await set(state, chatId, 'action', a.cpManageNumber)
       return showManageScreen(chatId, num)
     }
     if (message === pc.revealPassword) {
@@ -17849,7 +17849,7 @@ Select a category:`), k.of(catBtns))
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
-      set(state, chatId, 'action', a.cpManageNumber)
+      await set(state, chatId, 'action', a.cpManageNumber)
       return showManageScreen(chatId, num)
     }
     // Toggle Auto-Renew
@@ -17876,7 +17876,7 @@ Select a category:`), k.of(catBtns))
     }
     // Change Plan
     if (message === pc.changePlan) {
-      set(state, chatId, 'action', a.cpChangePlan)
+      await set(state, chatId, 'action', a.cpChangePlan)
       const currentPlan = num.plan
       const btns = []
       if (currentPlan !== 'starter' && phoneConfig.isPlanAvailable('starter')) btns.push([`💡 Downgrade to Starter — $${phoneConfig.PHONE_STARTER_PRICE}/mo`])
@@ -17894,7 +17894,7 @@ Select a category:`), k.of(catBtns))
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
-      set(state, chatId, 'action', a.cpRenewPlan)
+      await set(state, chatId, 'action', a.cpRenewPlan)
       const plan = phoneConfig.plans[num.plan] || { name: num.plan, price: num.planPrice }
       return send(chatId, cpTxt.renewMenu(num.phoneNumber, plan.name, num.planPrice, num.expiresAt, num.autoRenew), k.of([
         ['🔄 Renew Now ($' + num.planPrice + ')'],
@@ -17944,7 +17944,7 @@ Select a category:`), k.of(catBtns))
           if (walletBal < chargeAmount) {
             await saveInfo('cpPendingPlan', null)
             send(chatId, phoneConfig.getMsg(info?.userLanguage).insufficientBalUpgrade(chargeAmount, walletBal))
-            set(state, chatId, 'action', a.cpManageNumber)
+            await set(state, chatId, 'action', a.cpManageNumber)
             return showManageScreen(chatId, num)
           }
           // Deduct the pro-rated amount
@@ -18006,7 +18006,7 @@ Select a category:`), k.of(catBtns))
         confirmMsg += `\n\n⚠️ <b>${m.featuresDisabled}</b>\n` + downgradeNotices.join('\n')
       }
       send(chatId, confirmMsg)
-      set(state, chatId, 'action', a.cpManageNumber)
+      await set(state, chatId, 'action', a.cpManageNumber)
       return showManageScreen(chatId, num)
     }
 
@@ -18121,12 +18121,12 @@ Select a category:`), k.of(catBtns))
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === pc.noKeep || message === t.back) {
-      set(state, chatId, 'action', a.cpManageNumber)
+      await set(state, chatId, 'action', a.cpManageNumber)
       return showManageScreen(chatId, num)
     }
     if (message === pc.yesRelease) {
       const last4 = num.phoneNumber.replace(/\D/g, '').slice(-4)
-      set(state, chatId, 'action', a.cpReleaseDigits)
+      await set(state, chatId, 'action', a.cpReleaseDigits)
       return send(chatId, cpTxt.releaseConfirmDigits(last4))
     }
     return send(chatId, phoneConfig.getMsg(info?.userLanguage).confirmOrCancel)
@@ -18136,7 +18136,7 @@ Select a category:`), k.of(catBtns))
     const num = info?.cpActiveNumber
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
-      set(state, chatId, 'action', a.cpReleaseConfirm)
+      await set(state, chatId, 'action', a.cpReleaseConfirm)
       return send(chatId, cpTxt.releaseConfirm(num.phoneNumber), k.of([[pc.yesRelease, pc.noKeep]]))
     }
     const last4 = num.phoneNumber.replace(/\D/g, '').slice(-4)
@@ -18282,7 +18282,7 @@ Select a category:`), k.of(catBtns))
     send(TELEGRAM_ADMIN_CHAT_ID, `📝 <b>New Lead Request</b>\n\nFrom: <b>${name || 'unknown'}</b> (${chatId})\n@${msg?.from?.username || 'no_username'}\n\n🎯 Target: <b>${target}</b>\n🏙️ Area: <b>${city}</b>\n📋 Details: ${details || '<i>none</i>'}\n\nID: <code>${requestId}</code>`, { parse_mode: 'HTML' })
 
     // Confirm to user
-    set(state, chatId, 'action', 'none')
+    await set(state, chatId, 'action', 'none')
     send(chatId, `✅ <b>Request Submitted!</b>\n\n🎯 Target: <b>${target}</b>\n🏙️ Area: <b>${city}</b>${details ? `\n📋 Details: ${details}` : ''}\n\nOur team will review your request and notify you once these leads are available. Thank you!`, { parse_mode: 'HTML', ...trans('o') })
     log(`[LeadRequest] ${chatId} requested: ${target} — ${city} (${details || 'no details'})`)
     return
@@ -18718,14 +18718,14 @@ Select a category:`), k.of(catBtns))
     }
 
     const domainsText = purchasedDomains.join('\n')
-    set(state, chatId, 'action', 'view-domain-select')
+    await set(state, chatId, 'action', 'view-domain-select')
     send(chatId, t.registeredDomainList(domainsText), k.of([...purchasedDomains.map(d => [d]), [user.buyDomainName], [t.back]]))
     return
   }
   if (action === 'view-domain-select') {
     if (message === t.back) return goto.submenu2()
     if (message === user.buyDomainName) {
-      set(state, chatId, 'action', 'none')
+      await set(state, chatId, 'action', 'none')
       // Fall through to existing buyDomainName handler below
     } else {
       const domain = message.toLowerCase()
@@ -18745,7 +18745,7 @@ Select a category:`), k.of(catBtns))
       )
 
       const shortenerBtn = shortenerActive ? t.domainActionDeactivateShortener : t.domainActionShortener
-      set(state, chatId, 'action', 'view-domain-actions')
+      await set(state, chatId, 'action', 'view-domain-actions')
       // Only show Anti-Red toggle for domains with a hosting plan (cpanelAccount)
       const hasHosting = await db.collection('cpanelAccounts').findOne({ domain: { $regex: new RegExp('^' + domain.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') } })
       const actionBtns = [[t.domainActionDns], [shortenerBtn]]
@@ -18760,7 +18760,7 @@ Select a category:`), k.of(catBtns))
       // Go back to domain list
       const purchasedDomains = await getPurchasedDomains(chatId)
       const domainsText = purchasedDomains.join('\n')
-      set(state, chatId, 'action', 'view-domain-select')
+      await set(state, chatId, 'action', 'view-domain-select')
       return send(chatId, t.registeredDomainList(domainsText), k.of([...purchasedDomains.map(d => [d]), [user.buyDomainName], [t.back]]))
     }
     if (message === t.domainActionDns) {
@@ -18772,7 +18772,7 @@ Select a category:`), k.of(catBtns))
       
       if (hostingPlan) {
         // Domain has hosting — show warning with confirmation
-        set(state, chatId, 'action', 'confirm-dns-management-for-hosting')
+        await set(state, chatId, 'action', 'confirm-dns-management-for-hosting')
         const warningText = t.dnsWarningHostedDomain 
           ? t.dnsWarningHostedDomain(domain, hostingPlan.plan || 'N/A')
           : `⚠️ <b>WARNING: This domain has an active hosting plan</b>\n\nDomain: <b>${domain}</b>\nPlan: ${hostingPlan.plan || 'N/A'}\n\n<b>⚠️ Modifying DNS records can break your hosting and anti-red protection!</b>\n\nDNS changes should only be made if you fully understand the impact. Incorrect changes may cause your website to become inaccessible or lose security protections.\n\n<b>Are you sure you want to proceed?</b>`
@@ -18794,7 +18794,7 @@ Select a category:`), k.of(catBtns))
     }
     if (message === t.domainActionShortener) {
       // Activate shortener directly — domain is already selected
-      set(state, chatId, 'action', 'choose-dns-action')
+      await set(state, chatId, 'action', 'choose-dns-action')
       const domain = info?.domainToManage
       if (!domain) return send(chatId, t.noDomainSelected || 'No domain selected.')
       send(chatId, ({ en: `🔗 Activating shortener for <b>${domain}</b>…`, fr: `🔗 Activation du raccourcisseur pour <b>${domain}</b>…`, zh: `🔗 正在为 <b>${domain}</b> 激活短链接…`, hi: `🔗 <b>${domain}</b> के लिए शॉर्टनर सक्रिय कर रहे हैं…` }[lang] || `🔗 Activating shortener for <b>${domain}</b>…`), { parse_mode: 'HTML' })
@@ -18847,7 +18847,7 @@ Select a category:`), k.of(catBtns))
     }
     if (message === t.domainActionDeactivateShortener) {
       // Deactivate shortener directly — domain is already selected
-      set(state, chatId, 'action', 'choose-dns-action')
+      await set(state, chatId, 'action', 'choose-dns-action')
       const domain = info?.domainToManage
       if (!domain) return send(chatId, t.noDomainSelected || 'No domain selected.')
       send(chatId, ({ en: `🔗 Deactivating shortener for <b>${domain}</b>...`, fr: `🔗 Désactivation du raccourcisseur pour <b>${domain}</b>...`, zh: `🔗 正在为 <b>${domain}</b> 停用短链接...`, hi: `🔗 <b>${domain}</b> के लिए शॉर्टनर निष्क्रिय कर रहे हैं...` }[lang] || `🔗 Deactivating shortener for <b>${domain}</b>...`), { parse_mode: 'HTML' })
@@ -18885,7 +18885,7 @@ Select a category:`), k.of(catBtns))
         return send(chatId, t.antiRedNoCF(domain), { parse_mode: 'HTML' })
       }
       const isOff = val.antiRedOff === true
-      set(state, chatId, 'action', 'anti-red-toggle')
+      await set(state, chatId, 'action', 'anti-red-toggle')
       if (isOff) {
         send(chatId, t.antiRedStatusOff(domain), k.of([[t.antiRedTurnOn], [t.back]]), { parse_mode: 'HTML' })
       } else {
@@ -18906,7 +18906,7 @@ Select a category:`), k.of(catBtns))
         r.recordType === 'CNAME' && r.recordContent && r.recordContent.includes('.up.railway.app')
       )
       const shortenerBtn = shortenerActive ? t.domainActionDeactivateShortener : t.domainActionShortener
-      set(state, chatId, 'action', 'view-domain-actions')
+      await set(state, chatId, 'action', 'view-domain-actions')
       // Only show Anti-Red toggle for domains with a hosting plan
       const hasHosting = await db.collection('cpanelAccounts').findOne({ domain: { $regex: new RegExp('^' + domain.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') } })
       const actionBtns = [[t.domainActionDns], [shortenerBtn]]
@@ -18928,7 +18928,7 @@ Select a category:`), k.of(catBtns))
             { _id: domain },
             { $unset: { 'val.antiRedOff': '' } }
           )
-          set(state, chatId, 'action', 'view-domain-actions')
+          await set(state, chatId, 'action', 'view-domain-actions')
           return send(chatId, t.antiRedEnabled(domain), k.of([[t.domainActionAntiRed], [t.back]]), { parse_mode: 'HTML' })
         }
         return send(chatId, t.antiRedError)
@@ -18952,7 +18952,7 @@ Select a category:`), k.of(catBtns))
             { _id: domain },
             { $set: { 'val.antiRedOff': true } }
           )
-          set(state, chatId, 'action', 'view-domain-actions')
+          await set(state, chatId, 'action', 'view-domain-actions')
           return send(chatId, t.antiRedDisabled(domain), k.of([[t.domainActionAntiRed], [t.back]]), { parse_mode: 'HTML' })
         }
         return send(chatId, t.antiRedError)
@@ -18976,7 +18976,7 @@ Select a category:`), k.of(catBtns))
     if (message === cancelBtn) {
       // User canceled — return to domain actions menu
       const domain = info?.domainToManage
-      set(state, chatId, 'action', 'view-domain-actions')
+      await set(state, chatId, 'action', 'view-domain-actions')
       
       // Check if domain has hosting for correct menu display
       const hostingPlan = await cpanelAccounts.findOne({ domain: domain })
@@ -19146,7 +19146,7 @@ Select a category:`), k.of(catBtns))
   }
   // Generic "Back" or "Cancel" with no active action → return to main menu
   if (message === 'Back' || message === 'Cancel' || message === '⬅️ Back' || msgLower === 'back' || msgLower === 'cancel') {
-    set(state, chatId, 'action', 'none')
+    await set(state, chatId, 'action', 'none')
     const greeting = await getMainMenuGreeting()
     return send(chatId, greeting, isAdmin(chatId) ? aO : trans('o'))
   }
@@ -19165,7 +19165,7 @@ Select a category:`), k.of(catBtns))
     log(`[Support] Fallback: forwarded unrecognized message from ${chatId} to admin (recent session detected)`)
     return
   }
-  set(state, chatId, 'action', 'none')
+  await set(state, chatId, 'action', 'none')
   log(`[reset] Unrecognized message from ${chatId}: "${message}" (was action: ${action || 'none'}). Resetting to main menu.`)
   // Enhanced fallback for new users — guide them to use buttons instead of typing
   if (info?.isNewUser) {
@@ -19777,7 +19777,7 @@ const upgradeVPSDetails = async (chatId, lang, vpsDetails) => {
       return false
     }
 
-    set(state, chatId, 'action', 'none')
+    await set(state, chatId, 'action', 'none')
     send(chatId, message, translation('o', lang))
 
     // ── Phase 6: Notify admin group about VPS upgrade/renewal ──
@@ -19999,7 +19999,7 @@ const bankApis = {
     webhookTierCheck(chatId, preSpend, lang)
     if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
     if (userConversion) userConversion.markPurchased(chatId)
-    set(state, chatId, 'action', 'none') // Reset action after bank payment completes
+    await set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
   },
   '/bank-pay-domain': async (req, res, ngnIn) => {
@@ -20067,7 +20067,7 @@ const bankApis = {
     webhookTierCheck(chatId, preSpend, lang)
     if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
     if (userConversion) userConversion.markPurchased(chatId)
-    set(state, chatId, 'action', 'none') // Reset action after bank payment completes
+    await set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
   },
   '/bank-pay-hosting': async (req, res, ngnIn) => {
@@ -20123,7 +20123,7 @@ const bankApis = {
     webhookTierCheck(chatId, preSpend, lang)
     if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
     if (userConversion) userConversion.markPurchased(chatId)
-    set(state, chatId, 'action', 'none') // Reset action after bank payment completes
+    await set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     set(state, chatId, 'processingPayment', false) // Clear hosting payment lock
     res.send(html())
   },
@@ -20166,7 +20166,7 @@ const bankApis = {
     webhookTierCheck(chatId, preSpend, lang)
     if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
     if (userConversion) userConversion.markPurchased(chatId)
-    set(state, chatId, 'action', 'none') // Reset action after bank payment completes
+    await set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
   },
   '/bank-pay-upgrade-vps': async (req, res, ngnIn) => {
@@ -20206,7 +20206,7 @@ const bankApis = {
     webhookTierCheck(chatId, preSpend, lang)
     if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
     if (userConversion) userConversion.markPurchased(chatId)
-    set(state, chatId, 'action', 'none') // Reset action after bank payment completes
+    await set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
   },
   '/bank-pay-phone': async (req, res, ngnIn) => {
@@ -20370,7 +20370,7 @@ const bankApis = {
     webhookTierCheck(chatId, preSpend, lang)
     if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
     if (userConversion) userConversion.markPurchased(chatId)
-    set(state, chatId, 'action', 'none') // Reset action after bank payment completes
+    await set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
   },
   '/bank-pay-leads': async (req, res, ngnIn) => {
@@ -20476,7 +20476,7 @@ const bankApis = {
     }
     if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
     if (userConversion) userConversion.markPurchased(chatId)
-    set(state, chatId, 'action', 'none') // Reset action after bank payment completes
+    await set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
   },
   '/bank-pay-digital-product': async (req, res, ngnIn) => {
@@ -20509,7 +20509,7 @@ const bankApis = {
     webhookTierCheck(chatId, preSpend, lang)
     if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
     if (userConversion) userConversion.markPurchased(chatId)
-    set(state, chatId, 'action', 'none') // Reset action after bank payment completes
+    await set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
   },
   '/bank-pay-virtual-card': async (req, res, ngnIn) => {
@@ -20544,7 +20544,7 @@ const bankApis = {
     webhookTierCheck(chatId, preSpend, lang)
     if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
     if (userConversion) userConversion.markPurchased(chatId)
-    set(state, chatId, 'action', 'none') // Reset action after bank payment completes
+    await set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
   },
   '/bank-wallet': async (req, res, ngnIn) => {
@@ -20578,7 +20578,7 @@ const bankApis = {
     }
     if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
     if (userConversion) userConversion.markPurchased(chatId)
-    set(state, chatId, 'action', 'none') // Reset action after wallet deposit completes
+    await set(state, chatId, 'action', 'none') // Reset action after wallet deposit completes
   },
   '/bank-pay-email-blast': async (req, res, ngnIn) => {
     const { ref, chatId, price, campaignId } = req.pay || {}
@@ -20631,7 +20631,7 @@ const bankApis = {
     webhookTierCheck(chatId, preSpend, lang)
     if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
     if (userConversion) userConversion.markPurchased(chatId)
-    set(state, chatId, 'action', 'none') // Reset action after bank payment completes
+    await set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
   },
 }
@@ -20827,7 +20827,7 @@ app.get('/crypto-pay-plan', auth, async (req, res) => {
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
-  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
+  await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
 app.get('/crypto-pay-domain', auth, async (req, res) => {
@@ -20892,7 +20892,7 @@ app.get('/crypto-pay-domain', auth, async (req, res) => {
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
-  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
+  await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
 
@@ -20951,7 +20951,7 @@ app.get('/crypto-pay-hosting', auth, async (req, res) => {
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
-  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
+  await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   set(state, chatId, 'processingPayment', false) // Clear hosting payment lock
   res.send(html())
 })
@@ -21086,7 +21086,7 @@ app.get('/crypto-pay-phone', auth, async (req, res) => {
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
-  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
+  await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
 
@@ -21196,7 +21196,7 @@ app.get('/crypto-pay-leads', auth, async (req, res) => {
   }
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
-  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
+  await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
 
@@ -21243,7 +21243,7 @@ app.get('/crypto-pay-vps', auth, async (req, res) => {
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
-  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
+  await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
 
@@ -21291,7 +21291,7 @@ app.get('/crypto-pay-upgrade-vps', auth, async (req, res) => {
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
-  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
+  await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
 
@@ -21325,7 +21325,7 @@ app.get('/crypto-pay-digital-product', auth, async (req, res) => {
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
-  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
+  await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
 
@@ -21360,7 +21360,7 @@ app.get('/crypto-pay-virtual-card', auth, async (req, res) => {
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
-  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
+  await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
 
@@ -21397,7 +21397,7 @@ app.get('/crypto-wallet', auth, async (req, res) => {
   }
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
-  set(state, chatId, 'action', 'none') // Reset action after crypto wallet deposit
+  await set(state, chatId, 'action', 'none') // Reset action after crypto wallet deposit
 })
 
 // Dynopay Pay plan
@@ -21446,7 +21446,7 @@ app.post('/dynopay/crypto-pay-plan', authDyno, async (req, res) => {
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
-  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
+  await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
 
@@ -21525,7 +21525,7 @@ app.post('/dynopay/crypto-pay-domain', authDyno, async (req, res) => {
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
-  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
+  await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
 
@@ -21594,7 +21594,7 @@ app.post('/dynopay/crypto-pay-hosting', authDyno, async (req, res) => {
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
-  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
+  await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   set(state, chatId, 'processingPayment', false) // Clear hosting payment lock
   res.send(html())
 })
@@ -21735,7 +21735,7 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
-  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
+  await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
 
@@ -21841,7 +21841,7 @@ app.post('/dynopay/crypto-pay-leads', authDyno, async (req, res) => {
   }
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
-  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
+  await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
 
@@ -21900,7 +21900,7 @@ app.post('/dynopay/crypto-pay-vps', authDyno, async (req, res) => {
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
-  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
+  await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
 
@@ -21958,7 +21958,7 @@ app.post('/dynopay/crypto-pay-upgrade-vps', authDyno, async (req, res) => {
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
-  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
+  await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
 
@@ -22000,7 +22000,7 @@ app.post('/dynopay/crypto-pay-digital-product', authDyno, async (req, res) => {
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
-  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
+  await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
 
@@ -22042,7 +22042,7 @@ app.post('/dynopay/crypto-pay-virtual-card', authDyno, async (req, res) => {
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
-  set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
+  await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
 
@@ -22118,7 +22118,7 @@ app.post('/dynopay/crypto-wallet', authDyno, async (req, res) => {
   }
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
-  set(state, chatId, 'action', 'none') // Reset action after crypto wallet deposit
+  await set(state, chatId, 'action', 'none') // Reset action after crypto wallet deposit
   
   log('=== DYNOPAY WALLET WEBHOOK PROCESSING COMPLETE ===')
 })
