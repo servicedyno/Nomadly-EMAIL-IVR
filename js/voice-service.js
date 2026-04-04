@@ -452,6 +452,7 @@ const OUTBOUND_CALL_TYPES = [
   'SIPOutbound', 'Forwarding', 'Bridge_Transfer',
   'IVR_Outbound', 'IVR_Transfer',
   'IVR_Outbound_Twilio', 'Twilio_SIP_Bridge', 'Twilio_SIP_Outbound', 'Twilio_Forwarding',
+  'Telnyx_SIP_Leg',
 ]
 
 async function billCallMinutesUnified(chatId, phoneNumber, minutesBilled, destinationNumber, callType) {
@@ -2427,7 +2428,7 @@ async function handleCallHangup(payload) {
     ? Math.ceil(duration / 60)
     : (isOutbound ? 1 : 0) // Outbound: 1-min minimum even if unanswered. Inbound: no charge if missed.
 
-  // Skip billing for Twilio bridge legs — Twilio handles billing via /twilio/voice-status
+  // Determine if this is a Twilio bridge (call goes through both Telnyx SIP + Twilio PSTN)
   const isTwilioBridge = session.phase === 'outbound_twilio_bridge'
 
   // Determine destination for rate calculation
@@ -2436,11 +2437,17 @@ async function handleCallHangup(payload) {
     : isOutbound ? to : from
 
   let billingInfo = { planMinUsed: 0, overageMin: 0, overageCharge: 0, rate: 0, used: 0, limit: 0 }
-  if (minutesBilled > 0 && !isTwilioBridge && !session.isTestCall) {
-    const callType = isForwarded ? 'Forwarding' : isOutbound ? 'SIPOutbound' : 'Inbound'
-    billingInfo = await billCallMinutesUnified(chatId, num.phoneNumber, minutesBilled, destination, callType)
-  } else if (isTwilioBridge) {
-    log(`[Voice] Skipping Telnyx-side billing for Twilio bridge leg (${duration}s) — Twilio /voice-status handles billing`)
+  if (minutesBilled > 0 && !session.isTestCall) {
+    if (isTwilioBridge) {
+      // ── DUAL-LEG BILLING: Telnyx SIP leg charge (Twilio PSTN leg billed separately via /twilio/voice-dial-status) ──
+      const callType = 'Telnyx_SIP_Leg'
+      billingInfo = await billCallMinutesUnified(chatId, num.phoneNumber, minutesBilled, destination, callType)
+      log(`[Voice] Telnyx SIP leg billed: ${minutesBilled} min @ $${billingInfo.rate} for bridge call ${num.phoneNumber} → ${destination}`)
+    } else {
+      // Standard single-carrier billing
+      const callType = isForwarded ? 'Forwarding' : isOutbound ? 'SIPOutbound' : 'Inbound'
+      billingInfo = await billCallMinutesUnified(chatId, num.phoneNumber, minutesBilled, destination, callType)
+    }
   } else if (session.isTestCall) {
     log(`[Voice] Skipping billing for test call (${duration}s) — free test call`)
   }
