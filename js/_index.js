@@ -6418,6 +6418,57 @@ All verified numbers generated during sourcing.`))
   }
 
   if (message === '/start' || message.startsWith('/start ref_')) {
+    // Check for recent referral clicks for existing users (fallback when deep link doesn't work)
+    // This handles the case where Telegram doesn't send the parameter for existing users
+    if (message === '/start' && !message.includes('ref_')) {
+      try {
+        const existing = await referrals.findOne({ _id: chatId })
+        if (!existing && isDbHealthy() && typeof db !== 'undefined' && db && db.collection) {
+          // User has no referral yet, check if they clicked a referral link recently
+          const referralClicks = db.collection('referralClicks')
+          // Look for clicks in the last 5 minutes (reasonable time for user to click and start bot)
+          const recentClick = await referralClicks.findOne({
+            converted: false,
+            clickedAt: { $gte: new Date(Date.now() - 5 * 60 * 1000) }
+          }, { sort: { clickedAt: -1 } })
+          
+          if (recentClick && recentClick.referrerChatId !== chatId) {
+            // Found a recent unconverted click, attribute it to this user
+            const referrerChatId = recentClick.referrerChatId
+            const nameDoc = await nameOf.findOne({ _id: referrerChatId })
+            const referrerUsername = nameDoc?.val || String(referrerChatId)
+            
+            await referrals.updateOne({ _id: chatId }, { $set: {
+              _id: chatId,
+              referrerChatId,
+              referrerUsername,
+              joinedAt: new Date(),
+              cumulativeSpend: 0,
+              rewardPaid: false,
+              source: 'web_redirect_fallback'
+            } }, { upsert: true })
+            
+            // Mark click as converted
+            await referralClicks.updateOne(
+              { _id: recentClick._id },
+              { $set: { converted: true, convertedTo: chatId, convertedAt: new Date() } }
+            )
+            
+            log(`[Referral] Web redirect fallback: ${chatId} attributed to referrer ${referrerChatId}`)
+            
+            // Notify the referrer
+            const refereeName = await get(nameOf, chatId) || 'Someone'
+            bot?.sendMessage(referrerChatId, 
+              `🎉 <b>New Referral!</b>\n\n${refereeName} just joined using your link.\n\nYou'll earn <b>$5</b> when they spend $30.`,
+              { parse_mode: 'HTML' }
+            ).catch(() => {})
+          }
+        }
+      } catch (e) {
+        log(`[Referral] Fallback check error: ${e.message}`)
+      }
+    }
+    
     // Auto-exit support mode if active
     if (action === a.supportChat) {
       await set(supportSessions, chatId, 0)
@@ -7516,8 +7567,8 @@ All verified numbers generated during sourcing.`))
   // ── Refer & Earn ──
   if (message === user.referEarn || message === '🤝 Refer & Earn' || message === '🤝 Parrainez & Gagnez' || message === '🤝 推荐赚钱' || message === '🤝 रेफर करें और कमाएं') {
     try {
-      const botUsername = process.env.BOT_USERNAME || 'Nomadlytestbot'
-      const referralLink = `https://t.me/${botUsername}?start=ref_${chatId}`
+      // Use web redirect for reliable referral tracking (works for both new and existing users)
+      const referralLink = `${SELF_URL}/r/${chatId}`
 
       // Get referral stats
       const myReferrals = await referrals.find({ referrerChatId: chatId }).toArray()
@@ -23923,6 +23974,54 @@ app.post('/twilio/sms-webhook', async (req, res) => {
   } catch (error) {
     log('[Twilio] SMS webhook error:', error.message)
     res.sendStatus(200)
+  }
+})
+
+// ── Referral Tracking Redirect Route ──
+// Handles /r/:referrerCode and tracks the referral in MongoDB before redirecting to Telegram
+app.get('/r/:referrerCode', async (req, res) => {
+  try {
+    const { referrerCode } = req.params
+    const botUsername = process.env.BOT_USERNAME || 'Nomadlytestbot'
+    
+    // Store the referral click in a temporary tracking collection
+    // We can't create the referral relationship yet because we don't know the referee's chatId
+    // But we can track that someone clicked this link
+    const clickId = `click_${Date.now()}_${Math.random().toString(36).substring(7)}`
+    const referrerChatId = parseInt(referrerCode)
+    
+    if (isNaN(referrerChatId)) {
+      log(`[Referral] Invalid referrer code: ${referrerCode}`)
+      return res.redirect(`https://t.me/${botUsername}`)
+    }
+    
+    // Store the click with a 24-hour expiry (only if DB is ready)
+    if (isDbHealthy() && typeof db !== 'undefined' && db && db.collection) {
+      try {
+        const referralClicks = db.collection('referralClicks')
+        await referralClicks.insertOne({
+          _id: clickId,
+          referrerChatId,
+          referrerCode,
+          clickedAt: new Date(),
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+          converted: false
+        })
+        log(`[Referral] Tracked click: ${clickId} for referrer ${referrerChatId}`)
+      } catch (e) {
+        log(`[Referral] Error tracking click: ${e.message}`)
+      }
+    } else {
+      log(`[Referral] DB not ready, skipping click tracking for ${referrerChatId}`)
+    }
+    
+    // Redirect to Telegram bot with the deep link parameter
+    // This will work for NEW users, and existing users will just open the bot
+    res.redirect(`https://t.me/${botUsername}?start=ref_${referrerCode}`)
+  } catch (error) {
+    log(`[Referral] Redirect error: ${error.message}`)
+    const botUsername = process.env.BOT_USERNAME || 'Nomadlytestbot'
+    res.redirect(`https://t.me/${botUsername}`)
   }
 })
 
