@@ -138,10 +138,13 @@ async function get(c, key) {
     if (!result) return undefined
 
     // If document has meaningful top-level fields beyond _id and val,
-    // return the full document (handles state collection with action, userLanguage, etc.)
+    // ALWAYS return the full document (handles state collection with action, userLanguage, etc.)
+    // BUG FIX: Previously only returned full doc when val was null/undefined.
+    // If val was truthy (e.g. stale { minutesUsed } or string "action"), get() returned val
+    // instead of the full document, losing action/userLanguage → all multi-step flows broke.
     const keys = Object.keys(result)
     const hasExtraFields = keys.some(k => k !== '_id' && k !== 'val')
-    if (hasExtraFields && (result.val === null || result.val === undefined)) {
+    if (hasExtraFields) {
       return result
     }
 

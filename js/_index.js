@@ -2184,7 +2184,7 @@ bot?.on('message', msg => {
           await set(state, chatId + '_info', { ...infoData, cpActiveNumber: num })
           const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
           send(chatId, cpTxt.vmAudioSaved)
-          await set(state, chatId, { ...userInfo, action: 'cpVoicemail' })
+          await set(state, chatId, 'action', 'cpVoicemail')
           const btns = vm.enabled
             ? [[({ en: '🔊 Greeting', fr: '🔊 Message', zh: '🔊 问候语', hi: '🔊 ग्रीटिंग' }[lang] || '🔊 Greeting')],
                [({ en: '📲 VM to Telegram ', fr: '📲 VM sur Telegram ', zh: '📲 语音信箱到 Telegram ', hi: '📲 VM Telegram ' }[lang] || '📲 VM to Telegram ') + (vm.forwardToTelegram !== false ? '✅ ON' : '❌ OFF')],
