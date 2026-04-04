@@ -7514,7 +7514,7 @@ All verified numbers generated during sourcing.`))
 
   // ━━━ Service Bundles ━━━
   // ── Refer & Earn ──
-  if (message === user.referEarn || message === '🔗 Refer & Earn' || message === '🔗 Parrainez & Gagnez' || message === '🔗 推荐赚钱' || message === '🔗 रेफर करें और कमाएं') {
+  if (message === user.referEarn || message === '🤝 Refer & Earn' || message === '🤝 Parrainez & Gagnez' || message === '🤝 推荐赚钱' || message === '🤝 रेफर करें और कमाएं') {
     try {
       const botUsername = process.env.BOT_USERNAME || 'Nomadlytestbot'
       const referralLink = `https://t.me/${botUsername}?start=ref_${chatId}`

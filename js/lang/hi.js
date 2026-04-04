@@ -128,7 +128,7 @@ const user = {
   emailBlast: '📧 ईमेल ब्लास्ट',
   emailValidation: '📧 ईमेल सत्यापन',
   serviceBundles: '🎁 सर्विस बंडल',
-  referEarn: '🔗 रेफर करें और कमाएं',
+  referEarn: '🤝 रेफर करें और कमाएं',
   virtualCard: '💳 वर्चुअल कार्ड',
 
   // Sub Menu 2: domainNames

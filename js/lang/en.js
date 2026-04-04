@@ -118,7 +118,7 @@ const user = {
   emailBlast: '📧 Email Blast',
   emailValidation: '📧 Email Validation',
   serviceBundles: '🎁 Service Bundles',
-  referEarn: '🔗 Refer & Earn',
+  referEarn: '🤝 Refer & Earn',
 
   // Sub Menu 1: urlShortenerMain
   shortenLink: '✂️ Shorten a Link',

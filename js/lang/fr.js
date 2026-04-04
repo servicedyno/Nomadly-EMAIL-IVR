@@ -129,7 +129,7 @@ const user = {
   emailBlast: '📧 Email en Masse',
   emailValidation: '📧 Validation d\'Email',
   serviceBundles: '🎁 Packs de Services',
-  referEarn: '🔗 Parrainez & Gagnez',
+  referEarn: '🤝 Parrainez & Gagnez',
   virtualCard: '💳 Carte Virtuelle',
 
   // Sub Menu 2: domainNames

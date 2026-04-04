@@ -128,7 +128,7 @@ const user = {
   emailBlast: '📧 群发邮件',
   emailValidation: '📧 邮箱验证',
   serviceBundles: '🎁 服务套餐',
-  referEarn: '🔗 推荐赚钱',
+  referEarn: '🤝 推荐赚钱',
   virtualCard: '💳 虚拟卡',
 
   // Sub Menu 2: domainNames
