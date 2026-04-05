@@ -54,6 +54,10 @@ const DP_PRICE_AWS_SUB = Number(process.env.DP_PRICE_AWS_SUB) || 150
 const DP_PRICE_GCLOUD_MAIN = Number(process.env.DP_PRICE_GCLOUD_MAIN) || 300
 const DP_PRICE_GCLOUD_SUB = Number(process.env.DP_PRICE_GCLOUD_SUB) || 300
 const DP_PRICE_IONOS_SMTP = Number(process.env.DP_PRICE_IONOS_SMTP) || 150
+const DP_PRICE_AIRVOICE_1M = Number(process.env.DP_PRICE_AIRVOICE_1M) || 70
+const DP_PRICE_AIRVOICE_3M = Number(process.env.DP_PRICE_AIRVOICE_3M) || 120
+const DP_PRICE_AIRVOICE_6M = Number(process.env.DP_PRICE_AIRVOICE_6M) || 150
+const DP_PRICE_AIRVOICE_1Y = Number(process.env.DP_PRICE_AIRVOICE_1Y) || 180
 
 const npl = {
   // New Zealand
@@ -464,6 +468,12 @@ ${CHAT_BOT_NAME}`,
   dpGworkspaceNew: `📧 Google Workspace Admin (New Domain) — $${DP_PRICE_GWORKSPACE_NEW}`,
   dpGworkspaceAged: `📧 Google Workspace Admin (Aged Domain) — $${DP_PRICE_GWORKSPACE_AGED}`,
   dpEsim: `📱 eSIM T-Mobile — $${DP_PRICE_ESIM}`,
+  dpEsimAirvoice: `📱 eSIM Airvoice (AT&T)`,
+  dpAirvoiceSelect: `📱 <b>eSIM Airvoice (AT&T)</b>\n\n📶 Unlimited talk, text & data on AT&T network.\nActivate instantly on any eSIM-compatible device.\n\nSelect plan duration:`,
+  dpAirvoice1m: `1 Month — $${DP_PRICE_AIRVOICE_1M}`,
+  dpAirvoice3m: `3 Months — $${DP_PRICE_AIRVOICE_3M}`,
+  dpAirvoice6m: `6 Months — $${DP_PRICE_AIRVOICE_6M}`,
+  dpAirvoice1y: `1 Year — $${DP_PRICE_AIRVOICE_1Y}`,
   dpZohoNew: `📧 Zoho Mail (New Domain) — $${DP_PRICE_ZOHO_NEW}`,
   dpZohoAged: `📧 Zoho Mail (Aged Domain) — $${DP_PRICE_ZOHO_AGED}`,
   dpAwsMain: `☁️ AWS Main Account — $${DP_PRICE_AWS_MAIN}`,
@@ -486,6 +496,10 @@ ${CHAT_BOT_NAME}`,
       'Zoho Mail (New Domain)': 'Zoho Mail professional email on a new domain. Custom @yourdomain email with calendar, contacts, and file storage.\n\nYou receive: admin login + domain setup.',
       'Zoho Mail (Aged Domain)': 'Zoho Mail on an aged domain for improved sender reputation. Professional email with full Zoho suite.\n\nYou receive: admin login + domain credentials.',
       'eSIM T-Mobile': '📶 <b>1 month — Unlimited talk, text & data</b>\nActivate instantly on any eSIM-compatible device.\n\nYou receive: QR code or activation details.',
+      'eSIM Airvoice (AT&T) — 1 Month': '📶 <b>1 month — Unlimited talk, text & data (AT&T)</b>\nActivate instantly on any eSIM-compatible device.\n\nYou receive: QR code or activation details.',
+      'eSIM Airvoice (AT&T) — 3 Months': '📶 <b>3 months — Unlimited talk, text & data (AT&T)</b>\nActivate instantly on any eSIM-compatible device.\n\nYou receive: QR code or activation details.',
+      'eSIM Airvoice (AT&T) — 6 Months': '📶 <b>6 months — Unlimited talk, text & data (AT&T)</b>\nActivate instantly on any eSIM-compatible device.\n\nYou receive: QR code or activation details.',
+      'eSIM Airvoice (AT&T) — 1 Year': '📶 <b>1 year — Unlimited talk, text & data (AT&T)</b>\nActivate instantly on any eSIM-compatible device.\n\nYou receive: QR code or activation details.',
     }
     const desc = descriptions[product] || ''
     return `💰 <b>Order: ${product}</b>\n\n💵 Price: <b>$${price}</b>${desc ? '\n\n' + desc : ''}\n\nSelect payment method:`

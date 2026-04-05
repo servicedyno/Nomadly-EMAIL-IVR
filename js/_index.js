@@ -109,6 +109,10 @@ const {
   DP_PRICE_GCLOUD_MAIN,
   DP_PRICE_GCLOUD_SUB,
   DP_PRICE_IONOS_SMTP,
+  DP_PRICE_AIRVOICE_1M,
+  DP_PRICE_AIRVOICE_3M,
+  DP_PRICE_AIRVOICE_6M,
+  DP_PRICE_AIRVOICE_1Y,
 } = require('./config.js')
 const { user: configUser } = require('./config.js')
 const createShortBitly = require('./bitly.js')
@@ -3006,6 +3010,7 @@ bot?.on('message', msg => {
     // Digital Products
     submenu6: 'submenu6',
     digitalProductPay: 'digital-product-pay',
+    airvoiceDuration: 'airvoice-duration',
 
     // Cloud IVR
     submenu5: 'submenu5',
@@ -3191,6 +3196,7 @@ bot?.on('message', msg => {
     a.submenu4,
     a.submenu5,
     a.submenu6,
+    a.airvoiceDuration,
     a.vcEnterAmount,
     a.mpHome,
     a.ebMenu,
@@ -3350,6 +3356,7 @@ bot?.on('message', msg => {
         [t.dpGworkspaceNew, t.dpGworkspaceAged],
         [t.dpZohoNew, t.dpZohoAged],
         [t.dpEsim],
+        [t.dpEsimAirvoice],
         [t.dpIonosSmtp],
       ]))
     },
@@ -3363,6 +3370,16 @@ bot?.on('message', msg => {
       const product = info?.dpProductName
       const price = info?.dpPrice
       send(chatId, t.dpPaymentPrompt(product, price), k.pay)
+    },
+    'airvoice-duration': async () => {
+      await set(state, chatId, 'action', a.airvoiceDuration)
+      send(chatId, t.dpAirvoiceSelect, k.of([
+        [t.dpAirvoice1m],
+        [t.dpAirvoice3m],
+        [t.dpAirvoice6m],
+        [t.dpAirvoice1y],
+        [t.back],
+      ]))
     },
     // ━━━ Virtual Card ━━━
     'virtual-card-start': async () => {
@@ -9218,6 +9235,9 @@ ${message.replace(/\n/g, '<br>')}
   if (action === a.submenu6) {
     if (message === t.back || message === t.cancel) return goto.displayMainMenuButtons()
 
+    // Airvoice has a duration picker sub-menu
+    if (message === t.dpEsimAirvoice) return goto['airvoice-duration']()
+
     const dpProducts = {
       [t.dpTwilioMain]:     { name: 'Twilio Main Account',            key: 'twilio_main',      price: DP_PRICE_TWILIO_MAIN },
       [t.dpTwilioSub]:      { name: 'Twilio Sub-Account',             key: 'twilio_sub',       price: DP_PRICE_TWILIO_SUB },
@@ -9236,6 +9256,28 @@ ${message.replace(/\n/g, '<br>')}
     }
 
     const selected = dpProducts[message]
+    if (!selected) return send(chatId, t.selectValidOption)
+
+    await saveInfo('dpProductName', selected.name)
+    await saveInfo('dpProductKey', selected.key)
+    await saveInfo('dpPrice', selected.price)
+    await saveInfo('lastStep', a.digitalProductPay)
+
+    return goto['digital-product-pay']()
+  }
+
+  // Airvoice eSIM: duration selection
+  if (action === a.airvoiceDuration) {
+    if (message === t.back) return goto.submenu6()
+
+    const airvoicePlans = {
+      [t.dpAirvoice1m]: { name: 'eSIM Airvoice (AT&T) — 1 Month',   key: 'airvoice_1m', price: DP_PRICE_AIRVOICE_1M },
+      [t.dpAirvoice3m]: { name: 'eSIM Airvoice (AT&T) — 3 Months',  key: 'airvoice_3m', price: DP_PRICE_AIRVOICE_3M },
+      [t.dpAirvoice6m]: { name: 'eSIM Airvoice (AT&T) — 6 Months',  key: 'airvoice_6m', price: DP_PRICE_AIRVOICE_6M },
+      [t.dpAirvoice1y]: { name: 'eSIM Airvoice (AT&T) — 1 Year',    key: 'airvoice_1y', price: DP_PRICE_AIRVOICE_1Y },
+    }
+
+    const selected = airvoicePlans[message]
     if (!selected) return send(chatId, t.selectValidOption)
 
     await saveInfo('dpProductName', selected.name)

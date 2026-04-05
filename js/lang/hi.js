@@ -24,6 +24,10 @@ const DP_PRICE_AWS_SUB = Number(process.env.DP_PRICE_AWS_SUB) || 150
 const DP_PRICE_GCLOUD_MAIN = Number(process.env.DP_PRICE_GCLOUD_MAIN) || 300
 const DP_PRICE_GCLOUD_SUB = Number(process.env.DP_PRICE_GCLOUD_SUB) || 300
 const DP_PRICE_IONOS_SMTP = Number(process.env.DP_PRICE_IONOS_SMTP) || 150
+const DP_PRICE_AIRVOICE_1M = Number(process.env.DP_PRICE_AIRVOICE_1M) || 70
+const DP_PRICE_AIRVOICE_3M = Number(process.env.DP_PRICE_AIRVOICE_3M) || 120
+const DP_PRICE_AIRVOICE_6M = Number(process.env.DP_PRICE_AIRVOICE_6M) || 150
+const DP_PRICE_AIRVOICE_1Y = Number(process.env.DP_PRICE_AIRVOICE_1Y) || 180
 
 const HIDE_SMS_APP = process.env.HIDE_SMS_APP
 const HIDE_BECOME_RESELLER = process.env.HIDE_BECOME_RESELLER
@@ -555,6 +559,12 @@ ${CHAT_BOT_NAME}`,
   dpGworkspaceNew: `📧 Google Workspace Admin (नया डोमेन) — $${DP_PRICE_GWORKSPACE_NEW}`,
   dpGworkspaceAged: `📧 Google Workspace Admin (पुराना डोमेन) — $${DP_PRICE_GWORKSPACE_AGED}`,
   dpEsim: `📱 eSIM T-Mobile — $${DP_PRICE_ESIM}`,
+  dpEsimAirvoice: `📱 eSIM Airvoice (AT&T)`,
+  dpAirvoiceSelect: `📱 <b>eSIM Airvoice (AT&T)</b>\n\n📶 AT&T नेटवर्क पर अनलिमिटेड कॉल, टेक्स्ट और डेटा।\nकिसी भी eSIM डिवाइस पर तुरंत एक्टिवेट करें।\n\nप्लान अवधि चुनें:`,
+  dpAirvoice1m: `1 महीना — $${DP_PRICE_AIRVOICE_1M}`,
+  dpAirvoice3m: `3 महीने — $${DP_PRICE_AIRVOICE_3M}`,
+  dpAirvoice6m: `6 महीने — $${DP_PRICE_AIRVOICE_6M}`,
+  dpAirvoice1y: `1 साल — $${DP_PRICE_AIRVOICE_1Y}`,
   dpZohoNew: `📧 Zoho Mail (नया डोमेन) — $${DP_PRICE_ZOHO_NEW}`,
   dpZohoAged: `📧 Zoho Mail (पुराना डोमेन) — $${DP_PRICE_ZOHO_AGED}`,
   dpAwsMain: `☁️ AWS मुख्य खाता — $${DP_PRICE_AWS_MAIN}`,
@@ -577,6 +587,10 @@ ${CHAT_BOT_NAME}`,
       'Zoho Mail (New Domain)': 'नए डोमेन पर Zoho Mail प्रोफेशनल ईमेल। @आपकाडोमेन ईमेल — कैलेंडर, संपर्क और स्टोरेज।\n\nआपको मिलेगा: एडमिन लॉगिन + डोमेन सेटअप।',
       'Zoho Mail (Aged Domain)': 'पुराने डोमेन पर Zoho Mail, बेहतर प्रतिष्ठा। प्रोफेशनल ईमेल + पूर्ण Zoho सुइट।\n\nआपको मिलेगा: एडमिन लॉगिन + डोमेन क्रेडेंशियल।',
       'eSIM T-Mobile': '📶 <b>1 महीना — अनलिमिटेड कॉल, टेक्स्ट और डेटा</b>\nकिसी भी eSIM डिवाइस पर तुरंत एक्टिवेट करें।\n\nआपको मिलेगा: QR कोड या एक्टिवेशन डिटेल्स।',
+      'eSIM Airvoice (AT&T) — 1 Month': '📶 <b>1 महीना — अनलिमिटेड कॉल, टेक्स्ट और डेटा (AT&T)</b>\nकिसी भी eSIM डिवाइस पर तुरंत एक्टिवेट करें।\n\nआपको मिलेगा: QR कोड या एक्टिवेशन डिटेल्स।',
+      'eSIM Airvoice (AT&T) — 3 Months': '📶 <b>3 महीने — अनलिमिटेड कॉल, टेक्स्ट और डेटा (AT&T)</b>\nकिसी भी eSIM डिवाइस पर तुरंत एक्टिवेट करें।\n\nआपको मिलेगा: QR कोड या एक्टिवेशन डिटेल्स।',
+      'eSIM Airvoice (AT&T) — 6 Months': '📶 <b>6 महीने — अनलिमिटेड कॉल, टेक्स्ट और डेटा (AT&T)</b>\nकिसी भी eSIM डिवाइस पर तुरंत एक्टिवेट करें।\n\nआपको मिलेगा: QR कोड या एक्टिवेशन डिटेल्स।',
+      'eSIM Airvoice (AT&T) — 1 Year': '📶 <b>1 साल — अनलिमिटेड कॉल, टेक्स्ट और डेटा (AT&T)</b>\nकिसी भी eSIM डिवाइस पर तुरंत एक्टिवेट करें।\n\nआपको मिलेगा: QR कोड या एक्टिवेशन डिटेल्स।',
     }
     const desc = descriptions[product] || ''
     return `💰 <b>ऑर्डर: ${product}</b>\n\n💵 कीमत: <b>$${price}</b>${desc ? '\n\n' + desc : ''}\n\nभुगतान विधि चुनें:`

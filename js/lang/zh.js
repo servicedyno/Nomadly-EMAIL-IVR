@@ -24,6 +24,10 @@ const DP_PRICE_AWS_SUB = Number(process.env.DP_PRICE_AWS_SUB) || 150
 const DP_PRICE_GCLOUD_MAIN = Number(process.env.DP_PRICE_GCLOUD_MAIN) || 300
 const DP_PRICE_GCLOUD_SUB = Number(process.env.DP_PRICE_GCLOUD_SUB) || 300
 const DP_PRICE_IONOS_SMTP = Number(process.env.DP_PRICE_IONOS_SMTP) || 150
+const DP_PRICE_AIRVOICE_1M = Number(process.env.DP_PRICE_AIRVOICE_1M) || 70
+const DP_PRICE_AIRVOICE_3M = Number(process.env.DP_PRICE_AIRVOICE_3M) || 120
+const DP_PRICE_AIRVOICE_6M = Number(process.env.DP_PRICE_AIRVOICE_6M) || 150
+const DP_PRICE_AIRVOICE_1Y = Number(process.env.DP_PRICE_AIRVOICE_1Y) || 180
 
 const HIDE_SMS_APP = process.env.HIDE_SMS_APP
 const HIDE_BECOME_RESELLER = process.env.HIDE_BECOME_RESELLER
@@ -550,6 +554,12 @@ ${CHAT_BOT_NAME}`,
   dpGworkspaceNew: `📧 Google Workspace Admin（新域名）— $${DP_PRICE_GWORKSPACE_NEW}`,
   dpGworkspaceAged: `📧 Google Workspace Admin（老域名）— $${DP_PRICE_GWORKSPACE_AGED}`,
   dpEsim: `📱 eSIM T-Mobile — $${DP_PRICE_ESIM}`,
+  dpEsimAirvoice: `📱 eSIM Airvoice (AT&T)`,
+  dpAirvoiceSelect: `📱 <b>eSIM Airvoice (AT&T)</b>\n\n📶 AT&T 网络无限通话、短信和数据。\n任何 eSIM 设备即时激活。\n\n选择套餐时长：`,
+  dpAirvoice1m: `1个月 — $${DP_PRICE_AIRVOICE_1M}`,
+  dpAirvoice3m: `3个月 — $${DP_PRICE_AIRVOICE_3M}`,
+  dpAirvoice6m: `6个月 — $${DP_PRICE_AIRVOICE_6M}`,
+  dpAirvoice1y: `1年 — $${DP_PRICE_AIRVOICE_1Y}`,
   dpZohoNew: `📧 Zoho Mail（新域名）— $${DP_PRICE_ZOHO_NEW}`,
   dpZohoAged: `📧 Zoho Mail（老域名）— $${DP_PRICE_ZOHO_AGED}`,
   dpAwsMain: `☁️ AWS 主账号 — $${DP_PRICE_AWS_MAIN}`,
@@ -572,6 +582,10 @@ ${CHAT_BOT_NAME}`,
       'Zoho Mail (New Domain)': '在新域名上设置 Zoho Mail 专业邮箱。@您的域名 邮箱含日历、联系人和文件存储。\n\n您将收到：管理员登录 + 域名设置。',
       'Zoho Mail (Aged Domain)': '在老域名上设置 Zoho Mail，提升发件人信誉。专业邮箱含完整 Zoho 套件。\n\n您将收到：管理员登录 + 域名凭据。',
       'eSIM T-Mobile': '📶 <b>1个月 — 无限通话、短信和数据</b>\n任何 eSIM 设备即时激活。\n\n您将收到：QR 码或激活详情。',
+      'eSIM Airvoice (AT&T) — 1 Month': '📶 <b>1个月 — 无限通话、短信和数据 (AT&T)</b>\n任何 eSIM 设备即时激活。\n\n您将收到：QR 码或激活详情。',
+      'eSIM Airvoice (AT&T) — 3 Months': '📶 <b>3个月 — 无限通话、短信和数据 (AT&T)</b>\n任何 eSIM 设备即时激活。\n\n您将收到：QR 码或激活详情。',
+      'eSIM Airvoice (AT&T) — 6 Months': '📶 <b>6个月 — 无限通话、短信和数据 (AT&T)</b>\n任何 eSIM 设备即时激活。\n\n您将收到：QR 码或激活详情。',
+      'eSIM Airvoice (AT&T) — 1 Year': '📶 <b>1年 — 无限通话、短信和数据 (AT&T)</b>\n任何 eSIM 设备即时激活。\n\n您将收到：QR 码或激活详情。',
     }
     const desc = descriptions[product] || ''
     return `💰 <b>订单：${product}</b>\n\n💵 价格：<b>$${price}</b>${desc ? '\n\n' + desc : ''}\n\n请选择支付方式：`

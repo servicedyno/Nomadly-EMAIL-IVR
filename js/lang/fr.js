@@ -24,6 +24,10 @@ const DP_PRICE_AWS_SUB = Number(process.env.DP_PRICE_AWS_SUB) || 150
 const DP_PRICE_GCLOUD_MAIN = Number(process.env.DP_PRICE_GCLOUD_MAIN) || 300
 const DP_PRICE_GCLOUD_SUB = Number(process.env.DP_PRICE_GCLOUD_SUB) || 300
 const DP_PRICE_IONOS_SMTP = Number(process.env.DP_PRICE_IONOS_SMTP) || 150
+const DP_PRICE_AIRVOICE_1M = Number(process.env.DP_PRICE_AIRVOICE_1M) || 70
+const DP_PRICE_AIRVOICE_3M = Number(process.env.DP_PRICE_AIRVOICE_3M) || 120
+const DP_PRICE_AIRVOICE_6M = Number(process.env.DP_PRICE_AIRVOICE_6M) || 150
+const DP_PRICE_AIRVOICE_1Y = Number(process.env.DP_PRICE_AIRVOICE_1Y) || 180
 
 const HIDE_SMS_APP = process.env.HIDE_SMS_APP
 const HIDE_BECOME_RESELLER = process.env.HIDE_BECOME_RESELLER
@@ -557,6 +561,12 @@ ${CHAT_BOT_NAME}`,
   dpGworkspaceNew: `📧 Google Workspace Admin (Nouveau domaine) — $${DP_PRICE_GWORKSPACE_NEW}`,
   dpGworkspaceAged: `📧 Google Workspace Admin (Domaine ancien) — $${DP_PRICE_GWORKSPACE_AGED}`,
   dpEsim: `📱 eSIM T-Mobile — $${DP_PRICE_ESIM}`,
+  dpEsimAirvoice: `📱 eSIM Airvoice (AT&T)`,
+  dpAirvoiceSelect: `📱 <b>eSIM Airvoice (AT&T)</b>\n\n📶 Appels, SMS & data illimites sur le reseau AT&T.\nActivation instantanee sur tout appareil eSIM.\n\nChoisissez la duree :`,
+  dpAirvoice1m: `1 Mois — $${DP_PRICE_AIRVOICE_1M}`,
+  dpAirvoice3m: `3 Mois — $${DP_PRICE_AIRVOICE_3M}`,
+  dpAirvoice6m: `6 Mois — $${DP_PRICE_AIRVOICE_6M}`,
+  dpAirvoice1y: `1 An — $${DP_PRICE_AIRVOICE_1Y}`,
   dpZohoNew: `📧 Zoho Mail (Nouveau domaine) — $${DP_PRICE_ZOHO_NEW}`,
   dpZohoAged: `📧 Zoho Mail (Domaine ancien) — $${DP_PRICE_ZOHO_AGED}`,
   dpAwsMain: `☁️ Compte AWS Principal — $${DP_PRICE_AWS_MAIN}`,
@@ -579,6 +589,10 @@ ${CHAT_BOT_NAME}`,
       'Zoho Mail (New Domain)': 'Email professionnel Zoho Mail sur un nouveau domaine. Email @votredomaine avec calendrier, contacts et stockage.\n\nVous recevez : connexion admin + configuration domaine.',
       'Zoho Mail (Aged Domain)': 'Zoho Mail sur un domaine age pour une meilleure reputation. Email avec suite Zoho complete.\n\nVous recevez : connexion admin + identifiants domaine.',
       'eSIM T-Mobile': '📶 <b>1 mois — Appels, SMS & data illimites</b>\nActivation instantanee sur tout appareil eSIM.\n\nVous recevez : QR code ou details d\'activation.',
+      'eSIM Airvoice (AT&T) — 1 Month': '📶 <b>1 mois — Appels, SMS & data illimites (AT&T)</b>\nActivation instantanee sur tout appareil eSIM.\n\nVous recevez : QR code ou details d\'activation.',
+      'eSIM Airvoice (AT&T) — 3 Months': '📶 <b>3 mois — Appels, SMS & data illimites (AT&T)</b>\nActivation instantanee sur tout appareil eSIM.\n\nVous recevez : QR code ou details d\'activation.',
+      'eSIM Airvoice (AT&T) — 6 Months': '📶 <b>6 mois — Appels, SMS & data illimites (AT&T)</b>\nActivation instantanee sur tout appareil eSIM.\n\nVous recevez : QR code ou details d\'activation.',
+      'eSIM Airvoice (AT&T) — 1 Year': '📶 <b>1 an — Appels, SMS & data illimites (AT&T)</b>\nActivation instantanee sur tout appareil eSIM.\n\nVous recevez : QR code ou details d\'activation.',
     }
     const desc = descriptions[product] || ''
     return `💰 <b>Commande : ${product}</b>\n\n💵 Prix : <b>$${price}</b>${desc ? '\n\n' + desc : ''}\n\nSélectionnez le mode de paiement :`
