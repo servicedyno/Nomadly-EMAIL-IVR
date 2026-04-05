@@ -1320,6 +1320,10 @@ const loadData = async () => {
   const { initBalanceMonitor } = require('./balance-monitor.js')
   initBalanceMonitor(bot)
 
+  // Initialize Phone Number Health Monitor (suspension detection + user notification)
+  const { initPhoneMonitor } = require('./phone-monitor.js')
+  initPhoneMonitor(bot, db)
+
   // Initialize Monetization Engine (Upsell + Welcome Bonus + Win-Back + Bundles)
   monetization.initWelcomeBonus(db, bot, walletOf)
   monetization.initWinBack(db, bot, state, nameOf)
