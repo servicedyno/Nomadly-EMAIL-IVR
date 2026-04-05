@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 from contextlib import asynccontextmanager
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from subaccount_monitor import run_subaccount_health_check
+from subaccount_monitor import run_health_check
 
 
 ROOT_DIR = Path(__file__).parent
@@ -56,8 +56,8 @@ async def lifespan(app: FastAPI):
     # Schedule the subaccount health check every 30 minutes
     async def scheduled_health_check():
         try:
-            logger.info("[Scheduler] Running Twilio subaccount health check...")
-            result = await run_subaccount_health_check(db, monitor_http_client)
+            logger.info("[Scheduler] Running phone number health check...")
+            result = await run_health_check(db, monitor_http_client)
             logger.info(f"[Scheduler] Health check result: {result}")
         except Exception as e:
             logger.error(f"[Scheduler] Health check failed: {e}")
@@ -66,7 +66,7 @@ async def lifespan(app: FastAPI):
         scheduled_health_check,
         "interval",
         minutes=30,
-        id="twilio_subaccount_check",
+        id="phone_number_health_check",
         replace_existing=True,
     )
     # Also run once at startup after a short delay
@@ -74,10 +74,10 @@ async def lifespan(app: FastAPI):
         scheduled_health_check,
         "date",
         run_date=datetime.now(timezone.utc),
-        id="twilio_subaccount_check_startup",
+        id="phone_number_health_check_startup",
     )
     scheduler.start()
-    logger.info("[Scheduler] Twilio subaccount monitor started (every 30 min)")
+    logger.info("[Scheduler] Phone number health monitor started (every 30 min)")
 
     yield
 
@@ -103,9 +103,9 @@ app = FastAPI(lifespan=lifespan)
 # ============================================================
 @app.post("/api/admin/subaccount-check")
 async def manual_subaccount_check():
-    """Manually trigger a Twilio subaccount health check."""
+    """Manually trigger a phone number health check."""
     try:
-        result = await run_subaccount_health_check(db, monitor_http_client)
+        result = await run_health_check(db, monitor_http_client)
         return JSONResponse(content={"status": "ok", "result": result})
     except Exception as e:
         logger.error(f"Manual health check failed: {e}")
