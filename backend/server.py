@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request
-from fastapi.responses import Response
+from fastapi.responses import Response, JSONResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -8,9 +8,13 @@ import logging
 from pathlib import Path
 import httpx
 import uuid
+import asyncio
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 from typing import Optional
+from contextlib import asynccontextmanager
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from subaccount_monitor import run_subaccount_health_check
 
 
 ROOT_DIR = Path(__file__).parent
@@ -20,9 +24,6 @@ load_dotenv(ROOT_DIR / '.env')
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ.get('DB_NAME', 'test')]
-
-# Create the main app
-app = FastAPI()
 
 # Node.js Express server URL (runs on port 5000)
 NODEJS_URL = "http://127.0.0.1:5000"
@@ -34,8 +35,60 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# APScheduler for background tasks
+scheduler = AsyncIOScheduler()
+
+# Shared HTTP client for the monitor (created at startup)
+monitor_http_client: httpx.AsyncClient = None
+
 # Async HTTP client for proxying to Node.js (60s timeout for long WHM API calls like AutoSSL)
 http_client = httpx.AsyncClient(timeout=60.0)
+
+
+# ============================================================
+# LIFESPAN: Startup/Shutdown with APScheduler
+# ============================================================
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global monitor_http_client
+    monitor_http_client = httpx.AsyncClient(timeout=30.0)
+
+    # Schedule the subaccount health check every 30 minutes
+    async def scheduled_health_check():
+        try:
+            logger.info("[Scheduler] Running Twilio subaccount health check...")
+            result = await run_subaccount_health_check(db, monitor_http_client)
+            logger.info(f"[Scheduler] Health check result: {result}")
+        except Exception as e:
+            logger.error(f"[Scheduler] Health check failed: {e}")
+
+    scheduler.add_job(
+        scheduled_health_check,
+        "interval",
+        minutes=30,
+        id="twilio_subaccount_check",
+        replace_existing=True,
+    )
+    # Also run once at startup after a short delay
+    scheduler.add_job(
+        scheduled_health_check,
+        "date",
+        run_date=datetime.now(timezone.utc),
+        id="twilio_subaccount_check_startup",
+    )
+    scheduler.start()
+    logger.info("[Scheduler] Twilio subaccount monitor started (every 30 min)")
+
+    yield
+
+    # Shutdown
+    scheduler.shutdown(wait=False)
+    await monitor_http_client.aclose()
+    logger.info("[Scheduler] Subaccount monitor stopped")
+
+
+# Create the main app with lifespan
+app = FastAPI(lifespan=lifespan)
 
 
 # ============================================================
@@ -43,6 +96,59 @@ http_client = httpx.AsyncClient(timeout=60.0)
 # (removed FastAPI direct handlers to avoid collection name mismatch:
 #  FastAPI was using 'phone_reviews', Node.js uses 'phoneReviews')
 # ============================================================
+
+
+# ============================================================
+# SUBACCOUNT MONITOR ENDPOINTS (must be BEFORE the proxy catch-all)
+# ============================================================
+@app.post("/api/admin/subaccount-check")
+async def manual_subaccount_check():
+    """Manually trigger a Twilio subaccount health check."""
+    try:
+        result = await run_subaccount_health_check(db, monitor_http_client)
+        return JSONResponse(content={"status": "ok", "result": result})
+    except Exception as e:
+        logger.error(f"Manual health check failed: {e}")
+        return JSONResponse(content={"status": "error", "error": str(e)}, status_code=500)
+
+
+@app.get("/api/admin/suspension-events")
+async def get_suspension_events():
+    """Get all suspension events (active and resolved)."""
+    try:
+        events = []
+        async for doc in db["suspensionEvents"].find({}).sort("detectedAt", -1):
+            doc["_id"] = str(doc["_id"])
+            if "detectedAt" in doc and doc["detectedAt"]:
+                doc["detectedAt"] = doc["detectedAt"].isoformat()
+            if "resolvedAt" in doc and doc["resolvedAt"]:
+                doc["resolvedAt"] = doc["resolvedAt"].isoformat()
+            events.append(doc)
+        return JSONResponse(content={"status": "ok", "events": events})
+    except Exception as e:
+        return JSONResponse(content={"status": "error", "error": str(e)}, status_code=500)
+
+
+@app.get("/api/admin/subaccount-status")
+async def get_subaccount_statuses():
+    """Get current status of all monitored Twilio subaccounts."""
+    try:
+        subaccounts = []
+        async for doc in db["phoneNumbersOf"].find({}):
+            owner_chat_id = doc.get("_id")
+            numbers = doc.get("val", {}).get("numbers", [])
+            for num in numbers:
+                if num.get("provider") == "twilio" and num.get("twilioSubAccountSid"):
+                    subaccounts.append({
+                        "chatId": str(owner_chat_id),
+                        "phoneNumber": num.get("phoneNumber"),
+                        "subAccountSid": num.get("twilioSubAccountSid"),
+                        "plan": num.get("plan"),
+                        "status": num.get("status"),
+                    })
+        return JSONResponse(content={"status": "ok", "subaccounts": subaccounts})
+    except Exception as e:
+        return JSONResponse(content={"status": "error", "error": str(e)}, status_code=500)
 
 
 # ============================================================
@@ -105,3 +211,5 @@ app.add_middleware(
 async def shutdown_db_client():
     client.close()
     await http_client.aclose()
+    if monitor_http_client:
+        await monitor_http_client.aclose()
