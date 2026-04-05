@@ -571,7 +571,7 @@ ${CHAT_BOT_NAME}`,
       'Google Workspace (Aged Domain)': '在老域名上设置 Google Workspace，提升邮件送达率。企业邮箱含完整 Google 套件。\n\n您将收到：管理员登录 + 域名凭据。',
       'Zoho Mail (New Domain)': '在新域名上设置 Zoho Mail 专业邮箱。@您的域名 邮箱含日历、联系人和文件存储。\n\n您将收到：管理员登录 + 域名设置。',
       'Zoho Mail (Aged Domain)': '在老域名上设置 Zoho Mail，提升发件人信誉。专业邮箱含完整 Zoho 套件。\n\n您将收到：管理员登录 + 域名凭据。',
-      'eSIM T-Mobile': 'T-Mobile eSIM，含活跃数据套餐。无需实体 SIM — 在任何兼容设备上即时激活。\n\n您将收到：QR 码或激活详情。',
+      'eSIM T-Mobile': 'T-Mobile eSIM — <b>1个月</b><b>无限通话、短信和数据</b>。无需实体 SIM — 在任何兼容 eSIM 的设备上即时激活。\n\n您将收到：QR 码或激活详情。',
     }
     const desc = descriptions[product] || ''
     return `💰 <b>订单：${product}</b>\n\n💵 价格：<b>$${price}</b>${desc ? '\n\n' + desc : ''}\n\n请选择支付方式：`

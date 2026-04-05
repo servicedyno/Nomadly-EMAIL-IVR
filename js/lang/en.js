@@ -485,7 +485,7 @@ ${CHAT_BOT_NAME}`,
       'Google Workspace (Aged Domain)': 'Google Workspace on an aged/established domain for better deliverability. Business email with full Google suite.\n\nYou receive: admin login + domain credentials.',
       'Zoho Mail (New Domain)': 'Zoho Mail professional email on a new domain. Custom @yourdomain email with calendar, contacts, and file storage.\n\nYou receive: admin login + domain setup.',
       'Zoho Mail (Aged Domain)': 'Zoho Mail on an aged domain for improved sender reputation. Professional email with full Zoho suite.\n\nYou receive: admin login + domain credentials.',
-      'eSIM T-Mobile': 'T-Mobile eSIM with active data plan. No physical SIM needed — activate instantly on any eSIM-compatible device.\n\nYou receive: QR code or activation details.',
+      'eSIM T-Mobile': 'T-Mobile eSIM — <b>1 month</b> of <b>unlimited talk, text & data</b>. No physical SIM needed — activate instantly on any eSIM-compatible device.\n\nYou receive: QR code or activation details.',
     }
     const desc = descriptions[product] || ''
     return `💰 <b>Order: ${product}</b>\n\n💵 Price: <b>$${price}</b>${desc ? '\n\n' + desc : ''}\n\nSelect payment method:`
