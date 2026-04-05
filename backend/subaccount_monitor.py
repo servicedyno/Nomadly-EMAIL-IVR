@@ -98,8 +98,8 @@ async def run_subaccount_health_check(db, http_client: httpx.AsyncClient):
     suspension_events_coll = db["suspensionEvents"]
     phone_numbers_coll = db["phoneNumbersOf"]
 
-    # 1. Gather all active Twilio numbers with subaccount SIDs
-    active_subaccounts = []
+    # 1. Gather all Twilio numbers with subaccount SIDs (include suspended for retry)
+    all_twilio_numbers = []
     async for doc in phone_numbers_coll.find({}):
         owner_chat_id = doc.get("_id")
         numbers = doc.get("val", {}).get("numbers", [])
@@ -107,27 +107,39 @@ async def run_subaccount_health_check(db, http_client: httpx.AsyncClient):
             if (
                 num.get("provider") == "twilio"
                 and num.get("twilioSubAccountSid")
-                and num.get("status") != "suspended"
             ):
-                active_subaccounts.append({
+                all_twilio_numbers.append({
                     "chatId": owner_chat_id,
                     "phoneNumber": num.get("phoneNumber"),
                     "subAccountSid": num.get("twilioSubAccountSid"),
                     "plan": num.get("plan"),
+                    "dbStatus": num.get("status"),
                 })
 
-    logger.info(f"Found {len(active_subaccounts)} active Twilio subaccounts to check")
+    logger.info(f"Found {len(all_twilio_numbers)} Twilio subaccounts to check")
 
-    if not active_subaccounts:
-        logger.info("No active subaccounts to check. Done.")
+    if not all_twilio_numbers:
+        logger.info("No subaccounts to check. Done.")
         return {"checked": 0, "suspended": 0}
 
     suspended_count = 0
 
-    for entry in active_subaccounts:
+    for entry in all_twilio_numbers:
         sid = entry["subAccountSid"]
         chat_id = entry["chatId"]
         phone_number = entry["phoneNumber"]
+
+        # Check if there's an existing unresolved suspension event
+        existing = await suspension_events_coll.find_one({
+            "subAccountSid": sid,
+            "status": "suspended",
+            "resolved": False,
+        })
+
+        # If already fully notified (user + admin), skip Twilio API call entirely
+        if existing and existing.get("notifiedUser") and existing.get("notifiedAdmin"):
+            logger.info(f"Already fully notified for {sid}, skipping")
+            continue
 
         # 2. Check status via Twilio API
         status_info = await check_twilio_subaccount_status(http_client, sid)
@@ -135,16 +147,46 @@ async def run_subaccount_health_check(db, http_client: httpx.AsyncClient):
         if status_info.get("status") == "suspended":
             logger.warning(f"SUSPENDED: {sid} | {phone_number} | chatId={chat_id}")
 
-            # 3a. Check if we already notified for this suspension
-            existing = await suspension_events_coll.find_one({
-                "subAccountSid": sid,
-                "status": "suspended",
-                "resolved": False,
-            })
-
             if existing:
-                logger.info(f"Already notified for {sid}, skipping duplicate")
+                # Retry failed notifications only
+                chat_id_str = str(int(chat_id)) if isinstance(chat_id, float) else str(chat_id)
+                updates = {}
+
+                if not existing.get("notifiedUser"):
+                    user_message = (
+                        f"\u26a0\ufe0f <b>Caller ID Flagged</b>\n\n"
+                        f"Your caller ID <b>{phone_number}</b> has been flagged and suspended by the carrier.\n\n"
+                        f"This number can no longer be used for outbound calls or campaigns.\n\n"
+                        f"\U0001f449 Please purchase a new number from the <b>Cloud IVR + SIP</b> menu to continue making calls.\n\n"
+                        f"If you have any questions, contact support."
+                    )
+                    user_notified = await send_telegram_message(http_client, chat_id_str, user_message)
+                    if user_notified:
+                        updates["notifiedUser"] = True
+                        logger.info(f"Retry: user notification succeeded for {sid}")
+
+                if not existing.get("notifiedAdmin"):
+                    user_notif_status = "\u2705" if updates.get("notifiedUser", existing.get("notifiedUser")) else "\u274c (retry pending)"
+                    admin_message = (
+                        f"\U0001f534 <b>Subaccount Suspended</b>\n\n"
+                        f"SID: <code>{sid}</code>\n"
+                        f"User: {chat_id} ({existing.get('friendlyName', 'N/A')})\n"
+                        f"Number: {phone_number}\n"
+                        f"Detected: {existing.get('detectedAt', 'N/A')}\n"
+                        f"User notified: {user_notif_status}"
+                    )
+                    admin_notified = await notify_admin(http_client, admin_message)
+                    if admin_notified:
+                        updates["notifiedAdmin"] = True
+
+                if updates:
+                    await suspension_events_coll.update_one(
+                        {"_id": existing["_id"]},
+                        {"$set": updates},
+                    )
                 continue
+
+            # NEW suspension — first detection
 
             # 3b. Mark the phone number as suspended in MongoDB
             await phone_numbers_coll.update_one(
@@ -168,12 +210,12 @@ async def run_subaccount_health_check(db, http_client: httpx.AsyncClient):
             }
             await suspension_events_coll.insert_one(event)
 
-            # 3d. Notify the user via Telegram
+            # 3d. Notify the user via Telegram (one-time, retried if failed)
             user_message = (
-                f"⚠️ <b>Caller ID Flagged</b>\n\n"
+                f"\u26a0\ufe0f <b>Caller ID Flagged</b>\n\n"
                 f"Your caller ID <b>{phone_number}</b> has been flagged and suspended by the carrier.\n\n"
                 f"This number can no longer be used for outbound calls or campaigns.\n\n"
-                f"👉 Please purchase a new number from the <b>Cloud IVR + SIP</b> menu to continue making calls.\n\n"
+                f"\U0001f449 Please purchase a new number from the <b>Cloud IVR + SIP</b> menu to continue making calls.\n\n"
                 f"If you have any questions, contact support."
             )
 
@@ -181,13 +223,14 @@ async def run_subaccount_health_check(db, http_client: httpx.AsyncClient):
             user_notified = await send_telegram_message(http_client, chat_id_str, user_message)
 
             # 3e. Notify admin
+            user_notif_icon = "\u2705" if user_notified else "\u274c (will retry)"
             admin_message = (
-                f"🔴 <b>Subaccount Suspended</b>\n\n"
+                f"\U0001f534 <b>Subaccount Suspended</b>\n\n"
                 f"SID: <code>{sid}</code>\n"
                 f"User: {chat_id} ({status_info.get('friendly_name', 'N/A')})\n"
                 f"Number: {phone_number}\n"
                 f"Detected: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}\n"
-                f"User notified: {'✅' if user_notified else '❌'}"
+                f"User notified: {user_notif_icon}"
             )
             admin_notified = await notify_admin(http_client, admin_message)
 
@@ -227,5 +270,5 @@ async def run_subaccount_health_check(db, http_client: httpx.AsyncClient):
         elif status_info.get("status") == "error":
             logger.error(f"Could not check {sid}: {status_info.get('error')}")
 
-    logger.info(f"=== Health check complete: {len(active_subaccounts)} checked, {suspended_count} newly suspended ===")
-    return {"checked": len(active_subaccounts), "suspended": suspended_count}
+    logger.info(f"=== Health check complete: {len(all_twilio_numbers)} checked, {suspended_count} newly suspended ===")
+    return {"checked": len(all_twilio_numbers), "suspended": suspended_count}
