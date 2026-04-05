@@ -578,7 +578,7 @@ ${CHAT_BOT_NAME}`,
       'Google Workspace (Aged Domain)': 'Google Workspace sur un domaine age pour une meilleure delivrabilite. Email avec suite Google complete.\n\nVous recevez : connexion admin + identifiants domaine.',
       'Zoho Mail (New Domain)': 'Email professionnel Zoho Mail sur un nouveau domaine. Email @votredomaine avec calendrier, contacts et stockage.\n\nVous recevez : connexion admin + configuration domaine.',
       'Zoho Mail (Aged Domain)': 'Zoho Mail sur un domaine age pour une meilleure reputation. Email avec suite Zoho complete.\n\nVous recevez : connexion admin + identifiants domaine.',
-      'eSIM T-Mobile': 'eSIM T-Mobile — <b>1 mois</b> d\'<b>appels, SMS & data illimites</b>. Pas de SIM physique — activation instantanee sur tout appareil compatible eSIM.\n\nVous recevez : QR code ou details d\'activation.',
+      'eSIM T-Mobile': '📶 <b>1 mois — Appels, SMS & data illimites</b>\nActivation instantanee sur tout appareil eSIM.\n\nVous recevez : QR code ou details d\'activation.',
     }
     const desc = descriptions[product] || ''
     return `💰 <b>Commande : ${product}</b>\n\n💵 Prix : <b>$${price}</b>${desc ? '\n\n' + desc : ''}\n\nSélectionnez le mode de paiement :`
