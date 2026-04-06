@@ -12,7 +12,7 @@ import re
 from typing import Dict, List, Tuple, Optional
 
 # Backend URL from environment
-BACKEND_URL = os.getenv('REACT_APP_BACKEND_URL', 'https://getting-started-193.preview.emergentagent.com')
+BACKEND_URL = os.getenv('REACT_APP_BACKEND_URL', 'https://quick-start-154.preview.emergentagent.com')
 API_BASE = f"{BACKEND_URL}/api" if not BACKEND_URL.endswith('/api') else BACKEND_URL
 
 class IdempotencyGuardTester:
