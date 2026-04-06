@@ -1,304 +1,338 @@
 #!/usr/bin/env python3
 """
-Backend Test Suite for db.js get() function fix
-Tests the fix for get() function returning stale val field instead of full document
+Backend Test Suite for BulkSMS Footer Implementation in Auto-Promo System
+Tests the implementation as specified in the review request.
 """
 
 import subprocess
-import requests
+import re
 import json
 import sys
 import os
-from pymongo import MongoClient
-from urllib.parse import urlparse
 
-def run_command(cmd, description):
-    """Run a shell command and return result"""
-    print(f"\n🔍 {description}")
-    print(f"Command: {cmd}")
+def run_command(cmd, cwd=None):
+    """Run a shell command and return the result"""
     try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
-        print(f"Exit code: {result.returncode}")
-        if result.stdout:
-            print(f"STDOUT:\n{result.stdout}")
-        if result.stderr:
-            print(f"STDERR:\n{result.stderr}")
-        return result.returncode == 0, result.stdout, result.stderr
-    except subprocess.TimeoutExpired:
-        print("❌ Command timed out")
-        return False, "", "Timeout"
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, cwd=cwd)
+        return result.returncode, result.stdout, result.stderr
     except Exception as e:
-        print(f"❌ Command failed: {e}")
-        return False, "", str(e)
+        return 1, "", str(e)
 
-def test_syntax_validation():
-    """Test 1: Syntax validation for both files"""
-    print("\n" + "="*60)
-    print("TEST 1: SYNTAX VALIDATION")
-    print("="*60)
-    
-    # Test db.js syntax
-    success1, stdout1, stderr1 = run_command("node -c /app/js/db.js", "Validating db.js syntax")
-    
-    # Test _index.js syntax  
-    success2, stdout2, stderr2 = run_command("node -c /app/js/_index.js", "Validating _index.js syntax")
-    
-    return success1 and success2
-
-def test_health_endpoint():
-    """Test 2: Health endpoint check"""
-    print("\n" + "="*60)
-    print("TEST 2: HEALTH ENDPOINT CHECK")
-    print("="*60)
+def test_bulksms_footer_constant():
+    """Test 1: Verify BULKSMS_FOOTER constant exists with correct structure"""
+    print("🔍 Test 1: Checking BULKSMS_FOOTER constant...")
     
     try:
-        print("🔍 Testing health endpoint")
-        response = requests.get("http://localhost:5000/health", timeout=10)
-        print(f"Status Code: {response.status_code}")
-        print(f"Response: {response.text}")
+        with open('/app/js/auto-promo.js', 'r') as f:
+            content = f.read()
         
-        if response.status_code == 200:
-            data = response.json()
-            print(f"✅ Health endpoint working - Status: {data.get('status')}, Database: {data.get('database')}")
-            return True
-        else:
-            print(f"❌ Health endpoint returned {response.status_code}")
-            return False
-    except Exception as e:
-        print(f"❌ Health endpoint test failed: {e}")
-        return False
-
-def test_error_logs():
-    """Test 3: Check error logs"""
-    print("\n" + "="*60)
-    print("TEST 3: ERROR LOG CHECK")
-    print("="*60)
-    
-    success, stdout, stderr = run_command("tail -20 /var/log/supervisor/nodejs.err.log", "Checking Node.js error logs")
-    
-    if success:
-        if stdout.strip():
-            print(f"📋 Recent error log entries:\n{stdout}")
-            # Check for critical errors
-            critical_errors = ["Error get:", "ReferenceError", "TypeError", "SyntaxError"]
-            has_critical = any(error in stdout for error in critical_errors)
-            if has_critical:
-                print("⚠️ Found critical errors in logs")
-                return False
-            else:
-                print("✅ No critical errors found in recent logs")
-                return True
-        else:
-            print("✅ Error log is empty (good)")
-            return True
-    else:
-        print("⚠️ Could not read error logs")
-        return True  # Don't fail test if we can't read logs
-
-def test_get_function_logic():
-    """Test 4: Verify get() function logic in db.js"""
-    print("\n" + "="*60)
-    print("TEST 4: GET() FUNCTION LOGIC VERIFICATION")
-    print("="*60)
-    
-    # Check the get() function implementation
-    success, stdout, stderr = run_command("grep -A 20 'async function get(c, key)' /app/js/db.js", "Examining get() function")
-    
-    if success and stdout:
-        print("📋 get() function implementation:")
-        print(stdout)
+        # Check if BULKSMS_FOOTER constant exists around line 223
+        lines = content.split('\n')
+        bulksms_footer_line = None
+        for i, line in enumerate(lines):
+            if 'const BULKSMS_FOOTER' in line:
+                bulksms_footer_line = i + 1
+                break
         
-        # Check for the key fix: hasExtraFields logic
-        if "hasExtraFields" in stdout and "return result" in stdout:
-            print("✅ Found hasExtraFields logic - fix appears to be implemented")
+        if not bulksms_footer_line:
+            return False, "BULKSMS_FOOTER constant not found"
+        
+        if abs(bulksms_footer_line - 223) > 5:
+            return False, f"BULKSMS_FOOTER found at line {bulksms_footer_line}, expected around line 223"
+        
+        # Extract the BULKSMS_FOOTER object
+        footer_start = content.find('const BULKSMS_FOOTER = {')
+        if footer_start == -1:
+            return False, "BULKSMS_FOOTER object structure not found"
+        
+        # Find the end of the object
+        brace_count = 0
+        footer_end = footer_start
+        for i, char in enumerate(content[footer_start:]):
+            if char == '{':
+                brace_count += 1
+            elif char == '}':
+                brace_count -= 1
+                if brace_count == 0:
+                    footer_end = footer_start + i + 1
+                    break
+        
+        footer_content = content[footer_start:footer_end]
+        
+        # Check for 4 languages
+        languages = ['en:', 'fr:', 'zh:', 'hi:']
+        for lang in languages:
+            if lang not in footer_content:
+                return False, f"Language {lang.rstrip(':')} not found in BULKSMS_FOOTER"
+        
+        # Count variations for each language (should be 3 each)
+        for lang in ['en', 'fr', 'zh', 'hi']:
+            lang_section_start = footer_content.find(f'{lang}: [')
+            if lang_section_start == -1:
+                return False, f"Language section for {lang} not found"
             
-            # Check for the specific comment about the bug fix
-            comment_check, comment_out, _ = run_command("grep -A 5 'BUG FIX:' /app/js/db.js", "Checking for bug fix comment")
-            if comment_check and "BUG FIX:" in comment_out:
-                print("✅ Found bug fix comment explaining the issue")
-                return True
-            else:
-                print("⚠️ Bug fix comment not found, but logic appears correct")
-                return True
-        else:
-            print("❌ hasExtraFields logic not found - fix may not be implemented")
-            return False
-    else:
-        print("❌ Could not examine get() function")
-        return False
-
-def test_no_3arg_set_calls():
-    """Test 5: Verify no 3-arg set() calls remain in _index.js"""
-    print("\n" + "="*60)
-    print("TEST 5: VERIFY NO 3-ARG SET() CALLS")
-    print("="*60)
-    
-    # Look for problematic 3-arg set patterns
-    success, stdout, stderr = run_command("grep -n 'set(state, chatId, {' /app/js/_index.js", "Searching for 3-arg set() calls with object spread")
-    
-    if success and stdout.strip():
-        print("⚠️ Found potential 3-arg set() calls:")
-        print(stdout)
-        print("❌ These could create stale val fields")
-        return False
-    else:
-        print("✅ No 3-arg set() calls with object spread found")
-        return True
-
-def test_voicemail_handler_fix():
-    """Test 6: Verify voicemail handler uses 4-arg set()"""
-    print("\n" + "="*60)
-    print("TEST 6: VOICEMAIL HANDLER FIX VERIFICATION")
-    print("="*60)
-    
-    # Check line 2187 specifically
-    success, stdout, stderr = run_command("sed -n '2185,2190p' /app/js/_index.js", "Examining lines around 2187")
-    
-    if success and stdout:
-        print("📋 Lines around 2187:")
-        print(stdout)
+            # Count the number of string literals in this language section
+            lang_section = footer_content[lang_section_start:]
+            next_lang_start = len(lang_section)
+            for other_lang in ['en', 'fr', 'zh', 'hi']:
+                if other_lang != lang:
+                    other_start = lang_section.find(f'{other_lang}: [')
+                    if other_start != -1 and other_start < next_lang_start:
+                        next_lang_start = other_start
+            
+            lang_section = lang_section[:next_lang_start]
+            
+            # Count backtick pairs (each variation is in backticks)
+            variation_count = lang_section.count('`') // 2
+            if variation_count != 3:
+                return False, f"Language {lang} has {variation_count} variations, expected 3"
         
-        if "set(state, chatId, 'action', 'cpVoicemail')" in stdout:
-            print("✅ Line 2187 uses correct 4-arg set() form")
-            return True
-        else:
-            print("❌ Line 2187 does not use correct 4-arg set() form")
-            return False
-    else:
-        print("❌ Could not examine line 2187")
-        return False
+        return True, f"✅ BULKSMS_FOOTER constant found at line {bulksms_footer_line} with 4 languages × 3 variations each (12 total)"
+        
+    except Exception as e:
+        return False, f"Error reading auto-promo.js: {str(e)}"
 
-def test_mongodb_connection():
-    """Test 7: Test MongoDB connection and check for stale val fields"""
-    print("\n" + "="*60)
-    print("TEST 7: MONGODB CONNECTION AND VAL FIELD CHECK")
-    print("="*60)
+def test_get_bulksms_footer_function():
+    """Test 2: Verify getBulkSmsFooter function exists and works correctly"""
+    print("🔍 Test 2: Checking getBulkSmsFooter function...")
     
     try:
-        # Get MongoDB URL from environment
-        mongo_url = os.environ.get('MONGO_URL')
-        if not mongo_url:
-            print("⚠️ MONGO_URL not found in environment")
-            return True  # Don't fail if we can't connect
+        with open('/app/js/auto-promo.js', 'r') as f:
+            content = f.read()
         
-        print(f"🔍 Connecting to MongoDB...")
-        client = MongoClient(mongo_url, serverSelectionTimeoutMS=5000)
+        # Check if function exists around line 246
+        lines = content.split('\n')
+        function_line = None
+        for i, line in enumerate(lines):
+            if 'function getBulkSmsFooter' in line:
+                function_line = i + 1
+                break
         
-        # Test connection
-        client.admin.command('ping')
-        print("✅ MongoDB connection successful")
+        if not function_line:
+            return False, "getBulkSmsFooter function not found"
         
-        # Get database name from URL or use default
-        db_name = os.environ.get('DB_NAME', 'nomadly')
-        db = client[db_name]
+        if abs(function_line - 246) > 5:
+            return False, f"getBulkSmsFooter found at line {function_line}, expected around line 246"
         
-        # Check state collection for documents with both val and action fields
-        state_collection = db.state
-        problematic_docs = list(state_collection.find({
-            "val": {"$exists": True, "$ne": None},
-            "action": {"$exists": True}
-        }).limit(10))
+        # Check function implementation
+        func_start = content.find('function getBulkSmsFooter(lang) {')
+        if func_start == -1:
+            return False, "getBulkSmsFooter function signature not found"
         
-        if problematic_docs:
-            print(f"⚠️ Found {len(problematic_docs)} documents with both val and action fields:")
-            for doc in problematic_docs:
-                print(f"  - _id: {doc.get('_id')}, action: {doc.get('action')}, val: {type(doc.get('val'))}")
-            print("❌ These documents could cause the get() function bug")
-            return False
-        else:
-            print("✅ No documents found with both val and action fields")
-            return True
-            
+        # Extract function body
+        func_content = content[func_start:func_start + 200]  # Get reasonable chunk
+        
+        # Check for fallback to 'en'
+        if 'BULKSMS_FOOTER[lang] || BULKSMS_FOOTER.en' not in func_content:
+            return False, "Function doesn't have fallback to 'en' language"
+        
+        # Check for random selection
+        if 'Math.floor(Math.random()' not in func_content:
+            return False, "Function doesn't implement random selection"
+        
+        return True, f"✅ getBulkSmsFooter function found at line {function_line} with correct fallback and random selection"
+        
     except Exception as e:
-        print(f"⚠️ MongoDB test failed: {e}")
-        return True  # Don't fail test if we can't connect to MongoDB
+        return False, f"Error checking getBulkSmsFooter function: {str(e)}"
 
-def test_specific_user_state():
-    """Test 8: Check specific user 6604316166 mentioned in the issue"""
-    print("\n" + "="*60)
-    print("TEST 8: SPECIFIC USER STATE CHECK")
-    print("="*60)
+def test_sendpromo_footer_integration():
+    """Test 3: Verify footer is appended in sendPromoToUser function"""
+    print("🔍 Test 3: Checking footer integration in sendPromoToUser...")
     
     try:
-        mongo_url = os.environ.get('MONGO_URL')
-        if not mongo_url:
-            print("⚠️ MONGO_URL not found - skipping user-specific test")
-            return True
+        with open('/app/js/auto-promo.js', 'r') as f:
+            content = f.read()
         
-        client = MongoClient(mongo_url, serverSelectionTimeoutMS=5000)
-        db_name = os.environ.get('DB_NAME', 'nomadly')
-        db = client[db_name]
+        # Find the sendPromoToUser function
+        sendpromo_start = content.find('async function sendPromoToUser(')
+        if sendpromo_start == -1:
+            return False, "sendPromoToUser function not found"
         
-        # Check the specific user mentioned in the issue
-        user_doc = db.state.find_one({"_id": 6604316166})
+        # Find the specific line that appends the footer
+        footer_append_pattern = r"caption \+= '\\n\\n' \+ getBulkSmsFooter\(lang\)"
+        if not re.search(footer_append_pattern, content):
+            return False, "Footer append line not found in sendPromoToUser"
         
-        if user_doc:
-            print(f"📋 User 6604316166 state document:")
-            print(f"  - Has action: {'action' in user_doc}")
-            print(f"  - Has val: {'val' in user_doc}")
-            print(f"  - Action value: {user_doc.get('action', 'N/A')}")
-            print(f"  - Val value: {user_doc.get('val', 'N/A')}")
-            
-            if 'val' in user_doc and 'action' in user_doc:
-                print("❌ User still has both val and action fields")
-                return False
-            else:
-                print("✅ User document structure looks correct")
-                return True
-        else:
-            print("ℹ️ User 6604316166 not found in state collection")
-            return True
-            
+        # Check that it comes after coupon line
+        coupon_line_pattern = r"if \(couponLine\) caption \+= '\\n\\n' \+ couponLine"
+        footer_line_pattern = r"caption \+= '\\n\\n' \+ getBulkSmsFooter\(lang\)"
+        
+        coupon_match = re.search(coupon_line_pattern, content)
+        footer_match = re.search(footer_line_pattern, content)
+        
+        if not coupon_match or not footer_match:
+            return False, "Could not find both coupon and footer append lines"
+        
+        if footer_match.start() <= coupon_match.start():
+            return False, "Footer append line should come AFTER coupon line"
+        
+        # Find line numbers
+        lines_before_footer = content[:footer_match.start()].count('\n')
+        footer_line_num = lines_before_footer + 1
+        
+        if abs(footer_line_num - 3310) > 10:
+            return False, f"Footer append found at line {footer_line_num}, expected around line 3310"
+        
+        return True, f"✅ Footer append line found at line {footer_line_num}, correctly positioned after coupon line"
+        
     except Exception as e:
-        print(f"⚠️ User-specific test failed: {e}")
-        return True
+        return False, f"Error checking sendPromoToUser integration: {str(e)}"
+
+def test_module_loading():
+    """Test 4: Verify module loads without errors"""
+    print("🔍 Test 4: Testing module loading...")
+    
+    exit_code, stdout, stderr = run_command('node -e "require(\'./js/auto-promo.js\')"', cwd='/app')
+    
+    if exit_code != 0:
+        return False, f"Module failed to load. Exit code: {exit_code}, Error: {stderr}"
+    
+    return True, "✅ Module loads without errors"
+
+def test_nodejs_service_and_autopromo():
+    """Test 5: Verify Node.js service is running and AutoPromo is initialized"""
+    print("🔍 Test 5: Checking Node.js service and AutoPromo initialization...")
+    
+    # Check if Node.js service is running
+    exit_code, stdout, stderr = run_command('sudo supervisorctl status nodejs')
+    
+    if exit_code != 0 or 'RUNNING' not in stdout:
+        return False, f"Node.js service not running. Status: {stdout}"
+    
+    # Check AutoPromo logs
+    exit_code, stdout, stderr = run_command('grep AutoPromo /var/log/supervisor/nodejs.out.log')
+    
+    if exit_code != 0:
+        return False, "No AutoPromo logs found"
+    
+    # Count scheduled jobs
+    scheduled_lines = [line for line in stdout.split('\n') if 'Scheduled' in line and ('morning' in line or 'evening' in line)]
+    
+    # Should have 8 jobs (4 languages × 2 times per day)
+    if len(scheduled_lines) < 8:
+        return False, f"Expected 8 scheduled jobs, found {len(scheduled_lines)}"
+    
+    # Check for initialization message
+    if 'Initialized — 8 jobs' not in stdout:
+        return False, "AutoPromo initialization message not found"
+    
+    return True, f"✅ Node.js service running, AutoPromo initialized with 8 scheduled jobs"
+
+def test_footer_content_requirements():
+    """Test 6: Verify each footer variation contains required elements"""
+    print("🔍 Test 6: Checking footer content requirements...")
+    
+    try:
+        with open('/app/js/auto-promo.js', 'r') as f:
+            content = f.read()
+        
+        # Extract BULKSMS_FOOTER content
+        footer_start = content.find('const BULKSMS_FOOTER = {')
+        footer_end = content.find('}', footer_start)
+        
+        # Find the actual end of the object
+        brace_count = 0
+        for i, char in enumerate(content[footer_start:]):
+            if char == '{':
+                brace_count += 1
+            elif char == '}':
+                brace_count -= 1
+                if brace_count == 0:
+                    footer_end = footer_start + i + 1
+                    break
+        
+        footer_content = content[footer_start:footer_end]
+        
+        # Required elements to check
+        required_elements = [
+            '━━━',  # separator line
+            '<b>',  # HTML bold tags
+            '📩',   # emoji
+            '@onarrival1',  # mention
+            '@Hostbay_support',  # mention
+            '98%'   # percentage
+        ]
+        
+        missing_elements = []
+        for element in required_elements:
+            if element not in footer_content:
+                missing_elements.append(element)
+        
+        if missing_elements:
+            return False, f"Missing required elements: {missing_elements}"
+        
+        # Check that each language has all required elements
+        for lang in ['en', 'fr', 'zh', 'hi']:
+            lang_start = footer_content.find(f'{lang}: [')
+            if lang_start == -1:
+                continue
+            
+            # Find the end of this language section
+            next_lang_pos = len(footer_content)
+            for other_lang in ['en', 'fr', 'zh', 'hi']:
+                if other_lang != lang:
+                    other_pos = footer_content.find(f'{other_lang}: [', lang_start + 1)
+                    if other_pos != -1 and other_pos < next_lang_pos:
+                        next_lang_pos = other_pos
+            
+            lang_section = footer_content[lang_start:next_lang_pos]
+            
+            # Check required elements in this language
+            lang_missing = []
+            for element in required_elements:
+                if element not in lang_section:
+                    lang_missing.append(element)
+            
+            # Special check for "2000" number (different formats in different languages)
+            has_2000 = ('2,000' in lang_section or '2 000' in lang_section or '2000' in lang_section)
+            if not has_2000:
+                lang_missing.append('2000 (in any format)')
+            
+            if lang_missing:
+                return False, f"Language {lang} missing elements: {lang_missing}"
+        
+        return True, "✅ All footer variations contain required elements: separator (━━━), HTML bold tags, 📩 emoji, @onarrival1, @Hostbay_support, '2000' (various formats), '98%'"
+        
+    except Exception as e:
+        return False, f"Error checking footer content: {str(e)}"
 
 def main():
     """Run all tests"""
-    print("🚀 Starting Backend Test Suite for db.js get() function fix")
-    print("="*80)
+    print("🚀 Starting BulkSMS Footer Implementation Tests\n")
     
     tests = [
-        ("Syntax Validation", test_syntax_validation),
-        ("Health Endpoint", test_health_endpoint),
-        ("Error Logs", test_error_logs),
-        ("get() Function Logic", test_get_function_logic),
-        ("No 3-arg set() calls", test_no_3arg_set_calls),
-        ("Voicemail Handler Fix", test_voicemail_handler_fix),
-        ("MongoDB Connection", test_mongodb_connection),
-        ("Specific User State", test_specific_user_state),
+        test_bulksms_footer_constant,
+        test_get_bulksms_footer_function,
+        test_sendpromo_footer_integration,
+        test_module_loading,
+        test_nodejs_service_and_autopromo,
+        test_footer_content_requirements
     ]
     
-    results = []
+    passed = 0
+    failed = 0
     
-    for test_name, test_func in tests:
+    for i, test in enumerate(tests, 1):
         try:
-            result = test_func()
-            results.append((test_name, result))
-            print(f"\n{'✅' if result else '❌'} {test_name}: {'PASSED' if result else 'FAILED'}")
+            success, message = test()
+            if success:
+                print(f"✅ Test {i}: {message}")
+                passed += 1
+            else:
+                print(f"❌ Test {i}: {message}")
+                failed += 1
         except Exception as e:
-            print(f"\n❌ {test_name}: FAILED with exception: {e}")
-            results.append((test_name, False))
+            print(f"❌ Test {i}: Exception occurred - {str(e)}")
+            failed += 1
+        print()
     
-    # Summary
-    print("\n" + "="*80)
-    print("TEST SUMMARY")
-    print("="*80)
+    print(f"📊 Test Results: {passed} passed, {failed} failed")
     
-    passed = sum(1 for _, result in results if result)
-    total = len(results)
-    
-    for test_name, result in results:
-        status = "✅ PASSED" if result else "❌ FAILED"
-        print(f"{status:<12} {test_name}")
-    
-    print(f"\nOverall: {passed}/{total} tests passed ({passed/total*100:.1f}%)")
-    
-    if passed == total:
-        print("🎉 All tests passed! The get() function fix appears to be working correctly.")
+    if failed == 0:
+        print("🎉 All tests passed! BulkSMS footer implementation is working correctly.")
         return 0
     else:
-        print("⚠️ Some tests failed. Please review the issues above.")
+        print("⚠️  Some tests failed. Please check the implementation.")
         return 1
 
 if __name__ == "__main__":

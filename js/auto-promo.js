@@ -219,6 +219,35 @@ const LOCAL_TIMES = [{ hour: 10, minute: 0 }, { hour: 19, minute: 0 }] // Mornin
 const THEMES = ['cloudphone', 'antired_hosting', 'leads_validation', 'domains_shortener', 'digital_products', 'cards_bundles', 'email_validation', 'marketplace', 'vps_rdp']
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
+// ─── BulkSMS Footer Variations (appended to every promo) ─────────────
+const BULKSMS_FOOTER = {
+  en: [
+    `━━━━━━━━━━━━━━━\n<b>📩 Daily BulkSMS Sendout</b>\nReach thousands instantly — minimum 2,000 messages with <b>98% delivery rate</b>.\nContact Admin: @onarrival1 or @Hostbay_support`,
+    `━━━━━━━━━━━━━━━\n<b>📩 BulkSMS That Actually Delivers</b>\n2,000+ messages daily with a <b>98% delivery rate</b> — no wasted sends.\nDM @onarrival1 or @Hostbay_support to start`,
+    `━━━━━━━━━━━━━━━\n<b>📩 Need Mass SMS?</b>\nDaily BulkSMS sendout — min. 2,000 messages, <b>98% delivered</b>. Fast & reliable.\nReach out: @onarrival1 or @Hostbay_support`,
+  ],
+  fr: [
+    `━━━━━━━━━━━━━━━\n<b>📩 Envoi BulkSMS Quotidien</b>\nTouchez des milliers de personnes — minimum 2 000 messages avec un <b>taux de livraison de 98%</b>.\nContactez : @onarrival1 ou @Hostbay_support`,
+    `━━━━━━━━━━━━━━━\n<b>📩 BulkSMS Fiable & Efficace</b>\n2 000+ messages par jour avec <b>98% de taux de livraison</b> — aucun envoi perdu.\nÉcrivez à @onarrival1 ou @Hostbay_support`,
+    `━━━━━━━━━━━━━━━\n<b>📩 Besoin d'envois SMS en masse ?</b>\nEnvoi quotidien — min. 2 000 SMS, <b>98% livrés</b>. Rapide & fiable.\nContact : @onarrival1 ou @Hostbay_support`,
+  ],
+  zh: [
+    `━━━━━━━━━━━━━━━\n<b>📩 每日群发短信服务</b>\n即时触达数千人 — 最低2,000条，<b>98%送达率</b>。\n联系管理员：@onarrival1 或 @Hostbay_support`,
+    `━━━━━━━━━━━━━━━\n<b>📩 高效群发短信</b>\n每日2,000+条短信，<b>98%送达率</b> — 零浪费发送。\n私信 @onarrival1 或 @Hostbay_support 开始`,
+    `━━━━━━━━━━━━━━━\n<b>📩 需要大量发送短信？</b>\n每日群发 — 最低2,000条，<b>98%成功送达</b>。快速可靠。\n联系：@onarrival1 或 @Hostbay_support`,
+  ],
+  hi: [
+    `━━━━━━━━━━━━━━━\n<b>📩 दैनिक BulkSMS सेवा</b>\nहज़ारों लोगों तक तुरंत पहुँचें — न्यूनतम 2,000 संदेश, <b>98% डिलीवरी दर</b>।\nसंपर्क करें: @onarrival1 या @Hostbay_support`,
+    `━━━━━━━━━━━━━━━\n<b>📩 BulkSMS जो सच में डिलीवर होता है</b>\nरोज़ाना 2,000+ मैसेज, <b>98% डिलीवरी रेट</b> — कोई बर्बादी नहीं।\nDM करें @onarrival1 या @Hostbay_support`,
+    `━━━━━━━━━━━━━━━\n<b>📩 बल्क SMS चाहिए?</b>\nदैनिक भेजें — न्यूनतम 2,000 SMS, <b>98% डिलीवर</b>। तेज़ और भरोसेमंद।\nसंपर्क: @onarrival1 या @Hostbay_support`,
+  ],
+}
+
+function getBulkSmsFooter(lang) {
+  const footers = BULKSMS_FOOTER[lang] || BULKSMS_FOOTER.en
+  return footers[Math.floor(Math.random() * footers.length)]
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 //  PROMO MESSAGES — 6 themes × 3 variations × 4 languages = 72 ads
 // ═══════════════════════════════════════════════════════════════════════
@@ -3277,6 +3306,8 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
       }
       let caption = dynamicMessage || variations[variationIndex % variations.length]
       if (couponLine) caption += '\n\n' + couponLine
+      // Append BulkSMS footer to every promo message
+      caption += '\n\n' + getBulkSmsFooter(lang)
 
       const trySend = async (useHtml) => {
         const opts = useHtml ? { parse_mode: 'HTML' } : {}
