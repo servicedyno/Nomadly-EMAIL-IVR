@@ -201,14 +201,25 @@ function initScheduler(deps) {
 
           // Only attempt auto-renew for monthly plans with auto-renew enabled
           if (isAutoRenew && price > 0) {
+            // ━━━ LAYER 1: Fresh-read idempotency guard (prevents duplicate renewal across pods) ━━━
+            const freshAccount = await cpanelAccounts.findOne({ _id: account._id })
+            if (freshAccount && new Date(freshAccount.expiryDate) > now) {
+              log(`[HostingScheduler] Skipped ${domain} — already renewed by another process (expires ${freshAccount.expiryDate})`)
+              continue
+            }
+
             const result = await smartWalletDeduct(walletOf, chatId, price)
 
             if (result.success) {
               // Auto-renew: wallet charged — extend expiry
               const newExpiry = new Date(now.getTime() + duration * 24 * 60 * 60 * 1000)
 
-              await cpanelAccounts.updateOne(
-                { _id: account._id },
+              // ━━━ LAYER 2: Atomic claim — only extend if still expired ━━━
+              const claimResult = await cpanelAccounts.findOneAndUpdate(
+                {
+                  _id: account._id,
+                  expiryDate: { $lte: now }  // must still be expired
+                },
                 {
                   $set: {
                     expiryDate: newExpiry,
@@ -217,8 +228,20 @@ function initScheduler(deps) {
                     suspended: false,
                     renewalCount: (account.renewalCount || 0) + 1,
                   },
-                }
+                },
+                { returnDocument: 'after' }
               )
+
+              if (!claimResult) {
+                // Another pod already renewed — REFUND
+                log(`[HostingScheduler] ⚠️ DUPLICATE RENEWAL PREVENTED: ${domain} already renewed — refunding ${result.currency === 'ngn' ? '₦' + result.chargedNgn : '$' + price} to chatId ${chatId}`)
+                if (result.currency === 'ngn') {
+                  await walletOf.updateOne({ _id: chatId }, { $inc: { ngnOut: -result.chargedNgn } })
+                } else {
+                  await walletOf.updateOne({ _id: chatId }, { $inc: { usdOut: -price } })
+                }
+                continue
+              }
 
               // Re-deploy anti-red protection on renewal
               if (antiRedService) {

@@ -1,339 +1,278 @@
 #!/usr/bin/env python3
 """
-Backend Test Suite for BulkSMS Footer Implementation in Auto-Promo System
-Tests the implementation as specified in the review request.
+Backend Testing Suite for Idempotency Guard Implementation
+Tests phone-scheduler.js and hosting-scheduler.js for duplicate auto-renewal prevention
 """
 
+import requests
 import subprocess
-import re
 import json
-import sys
 import os
+import re
+from typing import Dict, List, Tuple, Optional
 
-def run_command(cmd, cwd=None):
-    """Run a shell command and return the result"""
-    try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, cwd=cwd)
-        return result.returncode, result.stdout, result.stderr
-    except Exception as e:
-        return 1, "", str(e)
+# Backend URL from environment
+BACKEND_URL = os.getenv('REACT_APP_BACKEND_URL', 'https://getting-started-193.preview.emergentagent.com')
+API_BASE = f"{BACKEND_URL}/api" if not BACKEND_URL.endswith('/api') else BACKEND_URL
 
-def test_bulksms_footer_constant():
-    """Test 1: Verify BULKSMS_FOOTER constant exists with correct structure"""
-    print("🔍 Test 1: Checking BULKSMS_FOOTER constant...")
-    
-    try:
-        with open('/app/js/auto-promo.js', 'r') as f:
-            content = f.read()
+class IdempotencyGuardTester:
+    def __init__(self):
+        self.test_results = []
+        self.failed_tests = []
         
-        # Check if BULKSMS_FOOTER constant exists around line 223
-        lines = content.split('\n')
-        bulksms_footer_line = None
-        for i, line in enumerate(lines):
-            if 'const BULKSMS_FOOTER' in line:
-                bulksms_footer_line = i + 1
-                break
+    def log_test(self, test_name: str, passed: bool, details: str = ""):
+        """Log test result"""
+        status = "✅ PASS" if passed else "❌ FAIL"
+        result = f"{status}: {test_name}"
+        if details:
+            result += f" - {details}"
         
-        if not bulksms_footer_line:
-            return False, "BULKSMS_FOOTER constant not found"
+        self.test_results.append(result)
+        if not passed:
+            self.failed_tests.append(f"{test_name}: {details}")
+        print(result)
         
-        if abs(bulksms_footer_line - 223) > 5:
-            return False, f"BULKSMS_FOOTER found at line {bulksms_footer_line}, expected around line 223"
-        
-        # Extract the BULKSMS_FOOTER object
-        footer_start = content.find('const BULKSMS_FOOTER = {')
-        if footer_start == -1:
-            return False, "BULKSMS_FOOTER object structure not found"
-        
-        # Find the end of the object
-        brace_count = 0
-        footer_end = footer_start
-        for i, char in enumerate(content[footer_start:]):
-            if char == '{':
-                brace_count += 1
-            elif char == '}':
-                brace_count -= 1
-                if brace_count == 0:
-                    footer_end = footer_start + i + 1
-                    break
-        
-        footer_content = content[footer_start:footer_end]
-        
-        # Check for 4 languages
-        languages = ['en:', 'fr:', 'zh:', 'hi:']
-        for lang in languages:
-            if lang not in footer_content:
-                return False, f"Language {lang.rstrip(':')} not found in BULKSMS_FOOTER"
-        
-        # Count variations for each language (should be 3 each)
-        for lang in ['en', 'fr', 'zh', 'hi']:
-            lang_section_start = footer_content.find(f'{lang}: [')
-            if lang_section_start == -1:
-                return False, f"Language section for {lang} not found"
+    def run_syntax_check(self, file_path: str) -> Tuple[bool, str]:
+        """Check JavaScript syntax using node -c"""
+        try:
+            result = subprocess.run(['node', '-c', file_path], 
+                                  capture_output=True, text=True, timeout=10)
+            return result.returncode == 0, result.stderr
+        except Exception as e:
+            return False, str(e)
             
-            # Count the number of string literals in this language section
-            lang_section = footer_content[lang_section_start:]
-            next_lang_start = len(lang_section)
-            for other_lang in ['en', 'fr', 'zh', 'hi']:
-                if other_lang != lang:
-                    other_start = lang_section.find(f'{other_lang}: [')
-                    if other_start != -1 and other_start < next_lang_start:
-                        next_lang_start = other_start
+    def check_file_content(self, file_path: str, patterns: List[str]) -> Tuple[bool, List[str]]:
+        """Check if file contains required patterns"""
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
             
-            lang_section = lang_section[:next_lang_start]
+            found_patterns = []
+            missing_patterns = []
             
-            # Count backtick pairs (each variation is in backticks)
-            variation_count = lang_section.count('`') // 2
-            if variation_count != 3:
-                return False, f"Language {lang} has {variation_count} variations, expected 3"
-        
-        return True, f"✅ BULKSMS_FOOTER constant found at line {bulksms_footer_line} with 4 languages × 3 variations each (12 total)"
-        
-    except Exception as e:
-        return False, f"Error reading auto-promo.js: {str(e)}"
+            for pattern in patterns:
+                if re.search(pattern, content, re.MULTILINE | re.DOTALL):
+                    found_patterns.append(pattern)
+                else:
+                    missing_patterns.append(pattern)
+                    
+            return len(missing_patterns) == 0, missing_patterns
+        except Exception as e:
+            return False, [f"Error reading file: {str(e)}"]
+            
+    def check_health_endpoint(self) -> Tuple[bool, str]:
+        """Check if backend health endpoint is working"""
+        try:
+            response = requests.get(f"{API_BASE}/health", timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                return True, f"Status: {data.get('status', 'unknown')}, DB: {data.get('database', 'unknown')}"
+            else:
+                return False, f"HTTP {response.status_code}: {response.text[:200]}"
+        except Exception as e:
+            return False, str(e)
+            
+    def check_service_logs(self) -> Tuple[bool, str]:
+        """Check backend service logs for errors"""
+        try:
+            # Check supervisor backend logs
+            result = subprocess.run(['tail', '-n', '50', '/var/log/supervisor/backend.err.log'], 
+                                  capture_output=True, text=True, timeout=5)
+            
+            if result.returncode == 0:
+                error_log = result.stdout.strip()
+                if not error_log:
+                    return True, "No errors in backend log"
+                else:
+                    # Check for critical errors
+                    critical_errors = ['Error:', 'TypeError:', 'ReferenceError:', 'SyntaxError:']
+                    has_critical = any(err in error_log for err in critical_errors)
+                    return not has_critical, f"Log size: {len(error_log)} chars"
+            else:
+                return False, "Could not read backend logs"
+        except Exception as e:
+            return False, str(e)
 
-def test_get_bulksms_footer_function():
-    """Test 2: Verify getBulkSmsFooter function exists and works correctly"""
-    print("🔍 Test 2: Checking getBulkSmsFooter function...")
-    
-    try:
-        with open('/app/js/auto-promo.js', 'r') as f:
-            content = f.read()
+    def test_phone_scheduler_idempotency(self):
+        """Test phone-scheduler.js idempotency guard implementation"""
+        print("\n=== Testing Phone Scheduler Idempotency Guard ===")
         
-        # Check if function exists around line 246
-        lines = content.split('\n')
-        function_line = None
-        for i, line in enumerate(lines):
-            if 'function getBulkSmsFooter' in line:
-                function_line = i + 1
-                break
+        file_path = "/app/js/phone-scheduler.js"
         
-        if not function_line:
-            return False, "getBulkSmsFooter function not found"
+        # Test 1: Syntax validation
+        syntax_ok, syntax_error = self.run_syntax_check(file_path)
+        self.log_test("Phone scheduler syntax validation", syntax_ok, syntax_error if not syntax_ok else "")
         
-        if abs(function_line - 246) > 5:
-            return False, f"getBulkSmsFooter found at line {function_line}, expected around line 246"
-        
-        # Check function implementation
-        func_start = content.find('function getBulkSmsFooter(lang) {')
-        if func_start == -1:
-            return False, "getBulkSmsFooter function signature not found"
-        
-        # Extract function body
-        func_content = content[func_start:func_start + 200]  # Get reasonable chunk
-        
-        # Check for fallback to 'en'
-        if 'BULKSMS_FOOTER[lang] || BULKSMS_FOOTER.en' not in func_content:
-            return False, "Function doesn't have fallback to 'en' language"
-        
-        # Check for random selection
-        if 'Math.floor(Math.random()' not in func_content:
-            return False, "Function doesn't implement random selection"
-        
-        return True, f"✅ getBulkSmsFooter function found at line {function_line} with correct fallback and random selection"
-        
-    except Exception as e:
-        return False, f"Error checking getBulkSmsFooter function: {str(e)}"
-
-def test_sendpromo_footer_integration():
-    """Test 3: Verify footer is appended in sendPromoToUser function"""
-    print("🔍 Test 3: Checking footer integration in sendPromoToUser...")
-    
-    try:
-        with open('/app/js/auto-promo.js', 'r') as f:
-            content = f.read()
-        
-        # Find the sendPromoToUser function
-        sendpromo_start = content.find('async function sendPromoToUser(')
-        if sendpromo_start == -1:
-            return False, "sendPromoToUser function not found"
-        
-        # Find the specific line that appends the footer
-        footer_append_pattern = r"caption \+= '\\n\\n' \+ getBulkSmsFooter\(lang\)"
-        if not re.search(footer_append_pattern, content):
-            return False, "Footer append line not found in sendPromoToUser"
-        
-        # Check that it comes after coupon line
-        coupon_line_pattern = r"if \(couponLine\) caption \+= '\\n\\n' \+ couponLine"
-        footer_line_pattern = r"caption \+= '\\n\\n' \+ getBulkSmsFooter\(lang\)"
-        
-        coupon_match = re.search(coupon_line_pattern, content)
-        footer_match = re.search(footer_line_pattern, content)
-        
-        if not coupon_match or not footer_match:
-            return False, "Could not find both coupon and footer append lines"
-        
-        if footer_match.start() <= coupon_match.start():
-            return False, "Footer append line should come AFTER coupon line"
-        
-        # Find line numbers
-        lines_before_footer = content[:footer_match.start()].count('\n')
-        footer_line_num = lines_before_footer + 1
-        
-        if abs(footer_line_num - 3310) > 10:
-            return False, f"Footer append found at line {footer_line_num}, expected around line 3310"
-        
-        return True, f"✅ Footer append line found at line {footer_line_num}, correctly positioned after coupon line"
-        
-    except Exception as e:
-        return False, f"Error checking sendPromoToUser integration: {str(e)}"
-
-def test_module_loading():
-    """Test 4: Verify module loads without errors"""
-    print("🔍 Test 4: Testing module loading...")
-    
-    exit_code, stdout, stderr = run_command('node -e "require(\'./js/auto-promo.js\')"', cwd='/app')
-    
-    if exit_code != 0:
-        return False, f"Module failed to load. Exit code: {exit_code}, Error: {stderr}"
-    
-    return True, "✅ Module loads without errors"
-
-def test_nodejs_service_and_autopromo():
-    """Test 5: Verify Node.js service is running and AutoPromo is initialized"""
-    print("🔍 Test 5: Checking Node.js service and AutoPromo initialization...")
-    
-    # Check if Node.js service is running
-    exit_code, stdout, stderr = run_command('sudo supervisorctl status nodejs')
-    
-    if exit_code != 0 or 'RUNNING' not in stdout:
-        return False, f"Node.js service not running. Status: {stdout}"
-    
-    # Check AutoPromo logs
-    exit_code, stdout, stderr = run_command('grep AutoPromo /var/log/supervisor/nodejs.out.log')
-    
-    if exit_code != 0:
-        return False, "No AutoPromo logs found"
-    
-    # Count scheduled jobs
-    scheduled_lines = [line for line in stdout.split('\n') if 'Scheduled' in line and ('morning' in line or 'evening' in line)]
-    
-    # Should have 8 jobs (4 languages × 2 times per day)
-    if len(scheduled_lines) < 8:
-        return False, f"Expected 8 scheduled jobs, found {len(scheduled_lines)}"
-    
-    # Check for initialization message
-    if 'Initialized — 8 jobs' not in stdout:
-        return False, "AutoPromo initialization message not found"
-    
-    return True, f"✅ Node.js service running, AutoPromo initialized with 8 scheduled jobs"
-
-def test_footer_content_requirements():
-    """Test 6: Verify each footer variation contains required elements"""
-    print("🔍 Test 6: Checking footer content requirements...")
-    
-    try:
-        with open('/app/js/auto-promo.js', 'r') as f:
-            content = f.read()
-        
-        # Extract BULKSMS_FOOTER content
-        footer_start = content.find('const BULKSMS_FOOTER = {')
-        footer_end = content.find('}', footer_start)
-        
-        # Find the actual end of the object
-        brace_count = 0
-        for i, char in enumerate(content[footer_start:]):
-            if char == '{':
-                brace_count += 1
-            elif char == '}':
-                brace_count -= 1
-                if brace_count == 0:
-                    footer_end = footer_start + i + 1
-                    break
-        
-        footer_content = content[footer_start:footer_end]
-        
-        # Required elements to check
-        required_elements = [
-            '━━━',  # separator line
-            '<b>',  # HTML bold tags
-            '📩',   # emoji
-            '@onarrival1',  # mention
-            '@Hostbay_support',  # mention
-            '98%'   # percentage
+        # Test 2: Layer 1 - Fresh-read guard patterns
+        layer1_patterns = [
+            r"const freshDoc = await _phoneNumbersOf\.findOne\(\{ _id: chatId \}\)",
+            r"const freshNum = freshDoc\?\.val\?\.numbers\?\.find\(n => n\.phoneNumber === num\.phoneNumber\)",
+            r"if \(new Date\(freshNum\.expiresAt\) > new Date\(\)\)",
+            r"already renewed by another process"
         ]
         
-        missing_elements = []
-        for element in required_elements:
-            if element not in footer_content:
-                missing_elements.append(element)
+        layer1_ok, missing = self.check_file_content(file_path, layer1_patterns)
+        self.log_test("Phone scheduler Layer 1 fresh-read guard", layer1_ok, 
+                     f"Missing patterns: {missing}" if not layer1_ok else "Fresh-read guard implemented correctly")
         
-        if missing_elements:
-            return False, f"Missing required elements: {missing_elements}"
+        # Test 3: Layer 2 - Atomic claim with $elemMatch
+        layer2_patterns = [
+            r"const claimResult = await _phoneNumbersOf\.findOneAndUpdate\(",
+            r"'val\.numbers': \{\s*\$elemMatch: \{",
+            r"phoneNumber: num\.phoneNumber,",
+            r"expiresAt: num\.expiresAt\s*// must still be the old \(expired\) value",
+            r"\$set: \{",
+            r"'val\.numbers\.\$\.expiresAt': newExpiry\.toISOString\(\)"
+        ]
         
-        # Check that each language has all required elements
-        for lang in ['en', 'fr', 'zh', 'hi']:
-            lang_start = footer_content.find(f'{lang}: [')
-            if lang_start == -1:
-                continue
-            
-            # Find the end of this language section
-            next_lang_pos = len(footer_content)
-            for other_lang in ['en', 'fr', 'zh', 'hi']:
-                if other_lang != lang:
-                    other_pos = footer_content.find(f'{other_lang}: [', lang_start + 1)
-                    if other_pos != -1 and other_pos < next_lang_pos:
-                        next_lang_pos = other_pos
-            
-            lang_section = footer_content[lang_start:next_lang_pos]
-            
-            # Check required elements in this language
-            lang_missing = []
-            for element in required_elements:
-                if element not in lang_section:
-                    lang_missing.append(element)
-            
-            # Special check for "2000" number (different formats in different languages)
-            has_2000 = ('2,000' in lang_section or '2 000' in lang_section or '2000' in lang_section)
-            if not has_2000:
-                lang_missing.append('2000 (in any format)')
-            
-            if lang_missing:
-                return False, f"Language {lang} missing elements: {lang_missing}"
+        layer2_ok, missing = self.check_file_content(file_path, layer2_patterns)
+        self.log_test("Phone scheduler Layer 2 atomic claim", layer2_ok,
+                     f"Missing patterns: {missing}" if not layer2_ok else "Atomic claim with $elemMatch implemented correctly")
         
-        return True, "✅ All footer variations contain required elements: separator (━━━), HTML bold tags, 📩 emoji, @onarrival1, @Hostbay_support, '2000' (various formats), '98%'"
+        # Test 4: Refund logic for duplicate prevention
+        refund_patterns = [
+            r"if \(!claimResult\) \{",
+            r"DUPLICATE RENEWAL PREVENTED",
+            r"if \(result\.currency === 'ngn'\) \{",
+            r"await _walletOf\.updateOne\(\{ _id: chatId \}, \{ \$inc: \{ ngnOut: -result\.chargedNgn \} \}\)",
+            r"await _walletOf\.updateOne\(\{ _id: chatId \}, \{ \$inc: \{ usdOut: -price \} \}\)"
+        ]
         
-    except Exception as e:
-        return False, f"Error checking footer content: {str(e)}"
+        refund_ok, missing = self.check_file_content(file_path, refund_patterns)
+        self.log_test("Phone scheduler refund logic", refund_ok,
+                     f"Missing patterns: {missing}" if not refund_ok else "Auto-refund logic implemented correctly")
+        
+        # Test 5: In-memory updates after atomic claim
+        memory_patterns = [
+            r"// ━━━ Claim succeeded — update in-memory array",
+            r"numbers\[index\]\.expiresAt = newExpiry\.toISOString\(\)",
+            r"numbers\[index\]\.status = 'active'",
+            r"numbers\[index\]\.smsUsed = 0",
+            r"numbers\[index\]\.minutesUsed = 0"
+        ]
+        
+        memory_ok, missing = self.check_file_content(file_path, memory_patterns)
+        self.log_test("Phone scheduler in-memory updates", memory_ok,
+                     f"Missing patterns: {missing}" if not memory_ok else "In-memory updates happen after atomic claim")
+        
+        # Test 6: Transaction and notification after atomic claim
+        transaction_patterns = [
+            r"await _phoneTransactions\?\.insertOne\(\{",
+            r"action: 'auto_renew'",
+            r"paymentMethod: result\.currency === 'ngn' \? 'wallet_ngn' : 'wallet_usd'",
+            r"sendToUser\(chatId, buildAutoRenewSuccessMsg",
+            r"_notifyGroup\?\(\`✅ <b>Auto-Renewed:</b>"
+        ]
+        
+        transaction_ok, missing = self.check_file_content(file_path, transaction_patterns)
+        self.log_test("Phone scheduler transaction/notification", transaction_ok,
+                     f"Missing patterns: {missing}" if not transaction_ok else "Transactions and notifications happen after atomic claim")
 
-def main():
-    """Run all tests"""
-    print("🚀 Starting BulkSMS Footer Implementation Tests\n")
-    
-    tests = [
-        test_bulksms_footer_constant,
-        test_get_bulksms_footer_function,
-        test_sendpromo_footer_integration,
-        test_module_loading,
-        test_nodejs_service_and_autopromo,
-        test_footer_content_requirements
-    ]
-    
-    passed = 0
-    failed = 0
-    
-    for i, test in enumerate(tests, 1):
+    def test_hosting_scheduler_idempotency(self):
+        """Test hosting-scheduler.js idempotency guard implementation"""
+        print("\n=== Testing Hosting Scheduler Idempotency Guard ===")
+        
+        file_path = "/app/js/hosting-scheduler.js"
+        
+        # Test 1: Syntax validation
+        syntax_ok, syntax_error = self.run_syntax_check(file_path)
+        self.log_test("Hosting scheduler syntax validation", syntax_ok, syntax_error if not syntax_ok else "")
+        
+        # Test 2: Layer 1 - Fresh-read guard for hosting
+        layer1_patterns = [
+            r"const freshAccount = await cpanelAccounts\.findOne\(\{ _id: account\._id \}\)",
+            r"if \(freshAccount && new Date\(freshAccount\.expiryDate\) > now\)",
+            r"already renewed by another process"
+        ]
+        
+        layer1_ok, missing = self.check_file_content(file_path, layer1_patterns)
+        self.log_test("Hosting scheduler Layer 1 fresh-read guard", layer1_ok,
+                     f"Missing patterns: {missing}" if not layer1_ok else "Fresh-read guard implemented correctly")
+        
+        # Test 3: Layer 2 - Atomic claim for hosting
+        layer2_patterns = [
+            r"const claimResult = await cpanelAccounts\.findOneAndUpdate\(",
+            r"_id: account\._id,",
+            r"expiryDate: \{ \$lte: now \}\s*// must still be expired",
+            r"\$set: \{",
+            r"expiryDate: newExpiry,",
+            r"expiryNotified: false"
+        ]
+        
+        layer2_ok, missing = self.check_file_content(file_path, layer2_patterns)
+        self.log_test("Hosting scheduler Layer 2 atomic claim", layer2_ok,
+                     f"Missing patterns: {missing}" if not layer2_ok else "Atomic claim with expiry condition implemented correctly")
+        
+        # Test 4: Refund logic for hosting duplicate prevention
+        refund_patterns = [
+            r"if \(!claimResult\) \{",
+            r"DUPLICATE RENEWAL PREVENTED",
+            r"already renewed — refunding",
+            r"if \(result\.currency === 'ngn'\) \{",
+            r"await walletOf\.updateOne\(\{ _id: chatId \}, \{ \$inc: \{ ngnOut: -result\.chargedNgn \} \}\)",
+            r"await walletOf\.updateOne\(\{ _id: chatId \}, \{ \$inc: \{ usdOut: -price \} \}\)"
+        ]
+        
+        refund_ok, missing = self.check_file_content(file_path, refund_patterns)
+        self.log_test("Hosting scheduler refund logic", refund_ok,
+                     f"Missing patterns: {missing}" if not refund_ok else "Auto-refund logic implemented correctly")
+
+    def test_service_health(self):
+        """Test overall service health"""
+        print("\n=== Testing Service Health ===")
+        
+        # Test 1: Health endpoint
+        health_ok, health_details = self.check_health_endpoint()
+        self.log_test("Backend health endpoint", health_ok, health_details)
+        
+        # Test 2: Service logs
+        logs_ok, log_details = self.check_service_logs()
+        self.log_test("Backend service logs", logs_ok, log_details)
+        
+        # Test 3: Node.js service running
         try:
-            success, message = test()
-            if success:
-                print(f"✅ Test {i}: {message}")
-                passed += 1
-            else:
-                print(f"❌ Test {i}: {message}")
-                failed += 1
+            result = subprocess.run(['pgrep', '-f', 'node.*js/_index.js'], 
+                                  capture_output=True, text=True, timeout=5)
+            node_running = result.returncode == 0 and result.stdout.strip()
+            self.log_test("Node.js service running", node_running, 
+                         f"PID: {result.stdout.strip()}" if node_running else "Node.js process not found")
         except Exception as e:
-            print(f"❌ Test {i}: Exception occurred - {str(e)}")
-            failed += 1
-        print()
-    
-    print(f"📊 Test Results: {passed} passed, {failed} failed")
-    
-    if failed == 0:
-        print("🎉 All tests passed! BulkSMS footer implementation is working correctly.")
-        return 0
-    else:
-        print("⚠️  Some tests failed. Please check the implementation.")
-        return 1
+            self.log_test("Node.js service running", False, str(e))
+
+    def run_all_tests(self):
+        """Run all idempotency guard tests"""
+        print("🧪 Starting Idempotency Guard Testing Suite")
+        print(f"Backend URL: {BACKEND_URL}")
+        print(f"API Base: {API_BASE}")
+        
+        # Run all test suites
+        self.test_phone_scheduler_idempotency()
+        self.test_hosting_scheduler_idempotency()
+        self.test_service_health()
+        
+        # Summary
+        print(f"\n{'='*60}")
+        print("📊 TEST SUMMARY")
+        print(f"{'='*60}")
+        
+        total_tests = len(self.test_results)
+        passed_tests = total_tests - len(self.failed_tests)
+        
+        print(f"Total Tests: {total_tests}")
+        print(f"Passed: {passed_tests}")
+        print(f"Failed: {len(self.failed_tests)}")
+        print(f"Success Rate: {(passed_tests/total_tests)*100:.1f}%")
+        
+        if self.failed_tests:
+            print(f"\n❌ FAILED TESTS:")
+            for failure in self.failed_tests:
+                print(f"  • {failure}")
+        else:
+            print(f"\n✅ ALL TESTS PASSED!")
+            
+        return len(self.failed_tests) == 0
 
 if __name__ == "__main__":
-    sys.exit(main())
+    tester = IdempotencyGuardTester()
+    success = tester.run_all_tests()
+    exit(0 if success else 1)

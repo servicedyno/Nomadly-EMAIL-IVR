@@ -231,6 +231,20 @@ async function releaseFromProvider(num, userData) {
 async function attemptAutoRenew(chatId, num, index, numbers) {
   try {
     const price = num.planPrice
+
+    // ━━━ LAYER 1: Fresh-read idempotency guard ━━━
+    // Re-read from DB to catch renewals completed by another pod (Railway vs preview)
+    const freshDoc = await _phoneNumbersOf.findOne({ _id: chatId })
+    const freshNum = freshDoc?.val?.numbers?.find(n => n.phoneNumber === num.phoneNumber)
+    if (!freshNum) {
+      log(`[PhoneScheduler] Skipped ${num.phoneNumber} — number no longer exists in DB`)
+      return false
+    }
+    if (new Date(freshNum.expiresAt) > new Date()) {
+      log(`[PhoneScheduler] Skipped ${num.phoneNumber} — already renewed by another process (expires ${freshNum.expiresAt})`)
+      return false
+    }
+
     const result = await smartWalletDeduct(_walletOf, chatId, price)
 
     if (!result.success) {
@@ -239,21 +253,57 @@ async function attemptAutoRenew(chatId, num, index, numbers) {
     }
 
     // Wallet charged — extend expiry
-    const name = await get(_nameOf, chatId)
-    const ref = _nanoid?.() || `ar_${Date.now()}`
-    const chargedStr = result.currency === 'ngn' ? `₦${result.chargedNgn} NGN` : `$${price}`
-    if (_payments) set(_payments, ref, `AutoRenew,CloudPhone,$${price},${chatId},${name},${new Date()}${result.currency === 'ngn' ? `,${result.chargedNgn} NGN` : ''}`)
-
-    // Extend expiry by 1 month
     const newExpiry = new Date(num.expiresAt)
     newExpiry.setMonth(newExpiry.getMonth() + 1)
 
+    // ━━━ LAYER 2: Atomic claim — only extend if expiresAt is still the old value ━━━
+    // Prevents double-charge when two pods both pass Layer 1 within milliseconds
+    const claimResult = await _phoneNumbersOf.findOneAndUpdate(
+      {
+        _id: chatId,
+        'val.numbers': {
+          $elemMatch: {
+            phoneNumber: num.phoneNumber,
+            expiresAt: num.expiresAt  // must still be the old (expired) value
+          }
+        }
+      },
+      {
+        $set: {
+          'val.numbers.$.expiresAt': newExpiry.toISOString(),
+          'val.numbers.$.status': 'active',
+          'val.numbers.$.smsUsed': 0,
+          'val.numbers.$.minutesUsed': 0,
+          'val.numbers.$._reminder3Sent': false,
+          'val.numbers.$._reminder1Sent': false,
+        }
+      },
+      { returnDocument: 'after' }
+    )
+
+    if (!claimResult) {
+      // Another process already extended the expiry — REFUND the wallet charge
+      log(`[PhoneScheduler] ⚠️ DUPLICATE RENEWAL PREVENTED: ${num.phoneNumber} already renewed by another pod — refunding ${result.currency === 'ngn' ? '₦' + result.chargedNgn : '$' + price} to chatId ${chatId}`)
+      if (result.currency === 'ngn') {
+        await _walletOf.updateOne({ _id: chatId }, { $inc: { ngnOut: -result.chargedNgn } })
+      } else {
+        await _walletOf.updateOne({ _id: chatId }, { $inc: { usdOut: -price } })
+      }
+      return false
+    }
+
+    // ━━━ Claim succeeded — update in-memory array for consistency with caller's set() ━━━
     numbers[index].expiresAt = newExpiry.toISOString()
     numbers[index].status = 'active'
     numbers[index].smsUsed = 0
     numbers[index].minutesUsed = 0
     numbers[index]._reminder3Sent = false
     numbers[index]._reminder1Sent = false
+
+    const name = await get(_nameOf, chatId)
+    const ref = _nanoid?.() || `ar_${Date.now()}`
+    const chargedStr = result.currency === 'ngn' ? `₦${result.chargedNgn} NGN` : `$${price}`
+    if (_payments) set(_payments, ref, `AutoRenew,CloudPhone,$${price},${chatId},${name},${new Date()}${result.currency === 'ngn' ? `,${result.chargedNgn} NGN` : ''}`)
 
     // Log transaction
     await _phoneTransactions?.insertOne({

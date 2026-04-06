@@ -2247,3 +2247,53 @@ frontend_test_plan:
 agent_communication:
     - agent: "testing"
       message: "✅ FRONTEND COMPREHENSIVE TESTING COMPLETE: All 10/10 tests passed (100% success rate). CRITICAL FINDINGS: (1) Homepage loads successfully with 'Telegram Bot Admin' dashboard, (2) All 4 status cards show healthy state: Bot Status='Running', Database='Connected', REST APIs='Active', Services='5+', (3) Navigation working perfectly - all 3 nav buttons (Dashboard, URL & Domains, Cloud Phone) functional with proper view switching, (4) Dark theme implemented correctly with --bg-primary: #0a0a0a and proper styling, (5) Responsive design works on mobile (390x844 viewport), (6) API health endpoint integration working: /api/health returns HTTP 200 with {'status': 'healthy', 'database': 'connected'}, (7) Features grid displays all 6 cards correctly, (8) Backend pricing changes (OVERAGE_RATE_MIN and CALL_CONNECTION_FEE) have NOT affected frontend functionality. NO ERRORS DETECTED. Frontend is production-ready and fully functional. Recent backend changes are transparent to frontend users."
+
+
+backend:
+  - task: "Phone scheduler idempotency guard against duplicate auto-renewal"
+    implemented: true
+    working: true
+    file: "js/phone-scheduler.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Added 2-layer idempotency guard to attemptAutoRenew(): (1) Fresh-read guard re-fetches number from DB before wallet deduction — if expiresAt already in future, skip. (2) Atomic claim uses findOneAndUpdate with expiresAt=oldValue condition — only one pod wins the race. Loser auto-refunds wallet via $inc usdOut/-price or ngnOut/-chargedNgn. Fixes race condition where Railway + preview pod both ran scheduler at 16:00 UTC causing duplicate transaction records."
+
+  - task: "Hosting scheduler idempotency guard against duplicate auto-renewal"
+    implemented: true
+    working: true
+    file: "js/hosting-scheduler.js"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Same 2-layer guard added to hosting auto-renewal: (1) Fresh-read checks cpanelAccounts.expiryDate > now. (2) Atomic findOneAndUpdate with expiresDate <= now condition. Loser refunds wallet. Prevents same double-charge race as phone scheduler."
+
+  - task: "Delete phantom duplicate auto-renewal records for wizardchop"
+    implemented: true
+    working: true
+    file: "N/A (DB cleanup)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Deleted phantom records: phoneTransactions ObjectId(69d3d880cf6dde9a0087489a) and payments Jubpx. Verified: only 1 auto_renew transaction and 1 AutoRenew payment remain for chatId 1167900472."
+
+test_plan:
+  current_focus:
+    - "Phone scheduler idempotency guard against duplicate auto-renewal"
+    - "Hosting scheduler idempotency guard against duplicate auto-renewal"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    - agent: "main"
+      message: "IDEMPOTENCY GUARD FIX: Added 2-layer protection to both phone-scheduler.js and hosting-scheduler.js attemptAutoRenew functions. Layer 1: fresh DB read before wallet deduction. Layer 2: atomic findOneAndUpdate claim with old expiresAt condition + auto-refund on conflict. Also deleted phantom duplicate records (phoneTransactions + payments) for wizardchop chatId 1167900472. Both files pass syntax check, nodejs restarts clean with 0-byte error log."
