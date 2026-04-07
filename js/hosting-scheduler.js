@@ -351,6 +351,95 @@ function initScheduler(deps) {
     }
   }
 
+  /**
+   * Startup enforcement — catch-up sweep for any accounts that expired while bot was offline.
+   * Suspends all expired-but-unsuspended accounts, deletes all past-grace-period accounts.
+   */
+  async function startupEnforcement() {
+    try {
+      const now = new Date()
+      const gracePeriodAgo = new Date(now.getTime() - GRACE_PERIOD_HOURS * 60 * 60 * 1000)
+
+      const expiredNotDeleted = await cpanelAccounts.find({
+        expiryDate: { $lte: now },
+        deleted: { $ne: true },
+      }).toArray()
+
+      if (expiredNotDeleted.length === 0) {
+        log(`[HostingScheduler] Startup enforcement: no expired accounts need action`)
+        return
+      }
+
+      let enforcedSuspend = 0, enforcedDelete = 0
+
+      for (const account of expiredNotDeleted) {
+        const expiry = new Date(account.expiryDate)
+        const domain = account.domain || account.cpUser
+        const plan = account.plan
+        const chatId = account.chatId
+        const hoursExpired = ((now - expiry) / 3600000).toFixed(1)
+
+        // ── Step 1: Suspend if not already suspended ──
+        if (!account.suspended) {
+          const result = await suspendAccount(account.cpUser, 'Plan expired — startup enforcement')
+
+          await cpanelAccounts.updateOne(
+            { _id: account._id },
+            { $set: { suspended: true, suspendedAt: now } }
+          )
+
+          notify(chatId,
+            `🚫 <b>Hosting Suspended</b>\n\n`
+            + `<b>${domain}</b> has been suspended — your plan <b>${plan}</b> expired ${hoursExpired}h ago.\n\n`
+            + `⚠️ Your site is now <b>offline</b>.\n`
+            + `Renew from <b>My Hosting Plans → ${domain}</b> to reactivate.\n`
+            + `Account will be <b>permanently deleted</b> ${GRACE_PERIOD_HOURS}h after expiry if not renewed.`
+          )
+
+          enforcedSuspend++
+          log(`[HostingScheduler] STARTUP ENFORCE: Suspended ${domain} (${plan}) for ${chatId} — expired ${hoursExpired}h ago, was NOT suspended`)
+        }
+
+        // ── Step 2: Delete if past grace period and suspended ──
+        if (expiry <= gracePeriodAgo && !account.deleted) {
+          // Ensure it's suspended before deleting (should be by now)
+          if (!account.suspended) {
+            await suspendAccount(account.cpUser, 'Plan expired — pre-delete suspension')
+            await cpanelAccounts.updateOne(
+              { _id: account._id },
+              { $set: { suspended: true, suspendedAt: now } }
+            )
+          }
+
+          const terminated = await terminateAccount(account.cpUser)
+          await cleanupAntiRed(domain)
+
+          await cpanelAccounts.updateOne(
+            { _id: account._id },
+            { $set: { deleted: true, deletedAt: now } }
+          )
+
+          notify(chatId,
+            `🗑️ <b>Hosting Deleted</b>\n\n`
+            + `<b>${domain}</b> cPanel account has been permanently deleted.\n`
+            + `Plan: ${plan} — expired ${hoursExpired}h ago (${GRACE_PERIOD_HOURS}h grace period exceeded).\n\n`
+            + `All files, databases, and emails have been removed.\n`
+            + `To start fresh, purchase a new hosting plan.`
+          )
+
+          enforcedDelete++
+          log(`[HostingScheduler] STARTUP ENFORCE: Deleted ${domain} (${plan}) for ${chatId} — expired ${hoursExpired}h ago, past ${GRACE_PERIOD_HOURS}h grace`)
+        }
+      }
+
+      log(`[HostingScheduler] Startup enforcement complete: ${enforcedSuspend} suspended, ${enforcedDelete} deleted (of ${expiredNotDeleted.length} expired accounts)`)
+    } catch (err) {
+      log(`[HostingScheduler] Startup enforcement error: ${err.message}`)
+    }
+  }
+
+  // Run startup enforcement first (10s), then regular hourly checks (30s+)
+  setTimeout(startupEnforcement, 10000)
   // Run immediately on startup, then every hour
   setTimeout(runCheck, 30000) // 30s after startup
   const interval = setInterval(runCheck, CHECK_INTERVAL_MS)
