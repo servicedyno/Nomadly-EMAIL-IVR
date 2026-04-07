@@ -1195,6 +1195,11 @@ async function handleRequest(request) {
     if (err.response?.data?.errors?.some(e => e.message?.includes('duplicate'))) {
       return { success: true, message: 'Worker route already exists', existing: true }
     }
+    const status = err.response?.status
+    if (status === 403 || status === 404) {
+      log(`[AntiRed] CF Worker deploy error for ${domain}: ${err.message} (HTTP ${status} — likely stale CF zone)`)
+      return { success: false, error: err.message, staleZone: true, httpStatus: status }
+    }
     log(`[AntiRed] CF Worker deploy error for ${domain}: ${err.message}`)
     return { success: false, error: err.message }
   }
@@ -1308,6 +1313,11 @@ async function deploySharedWorkerRoute(domain, zoneId) {
 
     return { success: true, status: results.length > 0 ? 'deployed' : 'no_changes', routes: results }
   } catch (err) {
+    const status = err.response?.status
+    if (status === 403 || status === 404) {
+      log(`[AntiRed] Worker auto-deploy error for ${domain}: ${err.message} (HTTP ${status} — likely stale CF zone)`)
+      return { success: false, error: err.message, staleZone: true, httpStatus: status }
+    }
     log(`[AntiRed] Worker auto-deploy error for ${domain}: ${err.message}`)
     return { success: false, error: err.message }
   }

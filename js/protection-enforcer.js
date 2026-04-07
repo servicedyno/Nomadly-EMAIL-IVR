@@ -252,6 +252,10 @@ async function enforceWorkerRoutes(domain, zoneId) {
     const status = hasMain && hasWww ? 'already_protected' : actions.length > 0 ? 'fixed' : 'already_protected'
     return { domain, zoneId, status, actions }
   } catch (err) {
+    const status = err.response?.status
+    if (status === 403 || status === 404) {
+      return { domain, zoneId, status: 'stale_zone', actions: [`route check failed (HTTP ${status} — stale CF zone): ${err.message}`] }
+    }
     return { domain, zoneId, status: 'error', actions: [`route check failed: ${err.message}`] }
   }
 }
@@ -398,7 +402,51 @@ async function runEnforcement() {
         // Enforce worker routes for hosting domains (main + addon)
         const result = await enforceWorkerRoutes(domain, zoneId)
 
-        if (result.status === 'already_protected') {
+        // ── Stale-zone self-heal: re-lookup CF zone and retry ──
+        if (result.status === 'stale_zone') {
+          log(`[ProtectionEnforcer] Stale zone detected for ${domain} (zoneId=${zoneId}), refreshing...`)
+          try {
+            const cfService = require('./cf-service')
+            const freshZone = await cfService.getZoneByName(domain)
+            if (freshZone && freshZone.id && freshZone.id !== zoneId) {
+              await db.collection('registeredDomains').updateOne(
+                { _id: domain },
+                { $set: { 'val.cfZoneId': freshZone.id } }
+              )
+              log(`[ProtectionEnforcer] Zone refreshed for ${domain}: ${zoneId} → ${freshZone.id}`)
+              zoneId = freshZone.id  // update local variable for downstream SSL/hardening
+              const retryResult = await enforceWorkerRoutes(domain, freshZone.id)
+              if (retryResult.status === 'already_protected') {
+                summary.protected++
+              } else if (retryResult.status === 'fixed') {
+                summary.fixed++
+                summary.actions.push(...retryResult.actions)
+                log(`[ProtectionEnforcer] FIXED (after zone refresh): ${domain} — ${retryResult.actions.join(', ')}`)
+              } else {
+                summary.errors++
+                summary.actions.push(...retryResult.actions)
+              }
+            } else if (!freshZone) {
+              log(`[ProtectionEnforcer] Zone not found on CF for ${domain} — clearing stale cfZoneId`)
+              await db.collection('registeredDomains').updateOne(
+                { _id: domain },
+                { $unset: { 'val.cfZoneId': '' } }
+              )
+              summary.errors++
+              summary.actions.push(`${domain}: cleared stale zone (domain not on CF)`)
+              continue  // skip SSL/hardening since zone is gone
+            } else {
+              log(`[ProtectionEnforcer] Zone ID unchanged for ${domain} — CF still rejecting`)
+              summary.errors++
+              summary.actions.push(...result.actions)
+              continue
+            }
+          } catch (refreshErr) {
+            log(`[ProtectionEnforcer] Zone refresh error for ${domain}: ${refreshErr.message}`)
+            summary.errors++
+            continue
+          }
+        } else if (result.status === 'already_protected') {
           summary.protected++
         } else if (result.status === 'fixed') {
           summary.fixed++

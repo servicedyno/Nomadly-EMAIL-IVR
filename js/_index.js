@@ -1890,9 +1890,40 @@ schedule.scheduleJob('0 */6 * * *', async function() {
     }
     log(`[AntiRed-Cron] Found ${domains.length} hosting domains to protect (skipped ${skippedNoHosting} domain-only)`)
 
-    let deployed = 0, already = 0, failed = 0
+    const cfService = require('./cf-service')
+    let deployed = 0, already = 0, failed = 0, zoneRefreshed = 0
     for (const { domain, zoneId } of domains) {
-      const result = await deploySharedWorkerRoute(domain, zoneId)
+      let result = await deploySharedWorkerRoute(domain, zoneId)
+
+      // ── Stale-zone self-heal: re-lookup CF zone and retry ──
+      if (!result.success && result.staleZone) {
+        log(`[AntiRed-Cron] Stale zone detected for ${domain} (old zoneId=${zoneId}), refreshing...`)
+        try {
+          const freshZone = await cfService.getZoneByName(domain)
+          if (freshZone && freshZone.id && freshZone.id !== zoneId) {
+            // Update DB with the new zone ID
+            await db.collection('registeredDomains').updateOne(
+              { _id: domain },
+              { $set: { 'val.cfZoneId': freshZone.id } }
+            )
+            log(`[AntiRed-Cron] Zone refreshed for ${domain}: ${zoneId} → ${freshZone.id}`)
+            result = await deploySharedWorkerRoute(domain, freshZone.id)
+            if (result.success) zoneRefreshed++
+          } else if (!freshZone) {
+            log(`[AntiRed-Cron] Zone not found on CF for ${domain} — domain may have been removed from Cloudflare`)
+            // Clear stale cfZoneId so cron doesn't keep retrying
+            await db.collection('registeredDomains').updateOne(
+              { _id: domain },
+              { $unset: { 'val.cfZoneId': '' } }
+            )
+          } else {
+            log(`[AntiRed-Cron] Zone ID unchanged for ${domain} (${zoneId}) — CF API still rejecting, skipping`)
+          }
+        } catch (refreshErr) {
+          log(`[AntiRed-Cron] Zone refresh error for ${domain}: ${refreshErr.message}`)
+        }
+      }
+
       if (result.success) {
         if (result.status === 'already_deployed') already++
         else deployed++
@@ -1903,7 +1934,7 @@ schedule.scheduleJob('0 */6 * * *', async function() {
       // Rate limit: 100ms between API calls
       await new Promise(r => setTimeout(r, 100))
     }
-    log(`[AntiRed-Cron] Done. Deployed: ${deployed}, Already: ${already}, Failed: ${failed}`)
+    log(`[AntiRed-Cron] Done. Deployed: ${deployed}, Already: ${already}, Failed: ${failed}, ZoneRefreshed: ${zoneRefreshed}`)
   } catch (err) {
     log(`[AntiRed-Cron] Error: ${err.message}`)
   }
