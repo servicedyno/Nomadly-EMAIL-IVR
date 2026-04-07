@@ -5,8 +5,8 @@
  * Runs hourly checks on all cPanel hosting accounts:
  * 1. 24h advance notification — warns user their plan is about to expire
  * 2. Auto-renew — charges wallet and extends plan (MONTHLY plans only, if enabled & funds available)
- * 3. Grace period — 48h grace after expiry before cPanel is DELETED
- * 4. Delete — terminates cPanel account after 48h grace period
+ * 3. Immediate suspension — cPanel account suspended the moment plan expires (website goes offline)
+ * 4. Delete — terminates cPanel account after 48h grace period if not renewed
  *
  * IMPORTANT: Weekly plans NEVER auto-renew. Only monthly plans auto-renew.
  *
@@ -171,11 +171,11 @@ function initScheduler(deps) {
 
           let renewText
           if (weekly) {
-            renewText = `This is a <b>weekly plan</b> — it does not auto-renew.\nYour account will be deleted after a ${GRACE_PERIOD_HOURS}h grace period if not manually renewed.`
+            renewText = `This is a <b>weekly plan</b> — it does not auto-renew.\nYour hosting will be <b>suspended immediately</b> on expiry and deleted after ${GRACE_PERIOD_HOURS}h if not manually renewed.`
           } else if (isAutoRenew) {
             renewText = `Your wallet will be auto-charged <b>$${price}</b> on expiry.`
           } else {
-            renewText = `Auto-renew is <b>OFF</b>. Your account will be deleted after ${GRACE_PERIOD_HOURS}h grace period if not manually renewed.`
+            renewText = `Auto-renew is <b>OFF</b>. Your hosting will be <b>suspended immediately</b> on expiry and deleted after ${GRACE_PERIOD_HOURS}h if not manually renewed.`
           }
 
           notify(chatId,
@@ -280,20 +280,22 @@ function initScheduler(deps) {
                   + `<b>Renewal Price:</b> $${price}${priceNgn ? ` (≈ ₦${priceNgn.toLocaleString()})` : ''}\n`
                   + `<b>Your Balance:</b> $${(usdBal || 0).toFixed(2)} / ₦${(ngnBal || 0).toFixed(2)}\n\n`
                   + `Please deposit funds to renew.\n`
-                  + `Your account will be <b>deleted</b> in ${GRACE_PERIOD_HOURS}h if not renewed.`
+                  + `Your hosting has been <b>suspended</b>. Deposit funds to reactivate.\n`
+                + `Your account will be <b>deleted</b> in ${GRACE_PERIOD_HOURS}h if not renewed.`
                 )
                 log(`[HostingScheduler] Auto-renew failed (low funds) for ${domain} — USD: $${(usdBal || 0).toFixed(2)}, NGN: ₦${(ngnBal || 0).toFixed(2)}, needed: $${price}`)
               }
             }
-          } else if (weekly && expiry <= now && !account.suspended) {
-            // Fix #4: Weekly plan expired — notify user (was only logging, user never knew)
+          } else if (weekly && expiry <= now) {
+            // Weekly plan expired — notify user (weekly plans never auto-renew)
             if (!account.expiryUserNotified) {
               notify(chatId,
                 `⏰ <b>Weekly Plan Expired</b>\n\n`
                 + `Your plan <b>${plan}</b> for <b>${domain}</b> has expired.\n\n`
                 + `⚠️ Weekly plans do <b>not</b> auto-renew.\n`
-                + `Please renew manually from <b>My Hosting Plans → ${domain}</b> to keep your site live.\n\n`
-                + `Your account will enter a ${GRACE_PERIOD_HOURS}h grace period before deletion.`
+                + `Your hosting has been <b>suspended</b> — website is now offline.\n`
+                + `Please renew manually from <b>My Hosting Plans → ${domain}</b> to reactivate.\n\n`
+                + `Your account will be <b>permanently deleted</b> in ${GRACE_PERIOD_HOURS}h if not renewed.`
               )
               await cpanelAccounts.updateOne(
                 { _id: account._id },
@@ -303,47 +305,40 @@ function initScheduler(deps) {
             log(`[HostingScheduler] Weekly plan expired: ${domain} (${plan}) for ${chatId} — no auto-renew (weekly plans never auto-renew)`)
           }
 
-          // ── Grace period check — suspend first, then delete ──
-          if (expiry <= gracePeriodAgo) {
-            if (!account.suspended) {
-              // First: suspend the account
-              await suspendAccount(account.cpUser, 'Plan expired — grace period reached')
+          // ── Immediate suspension on expiry — website goes offline right away ──
+          if (!account.suspended) {
+            await suspendAccount(account.cpUser, 'Plan expired — hosting suspended')
 
-              await cpanelAccounts.updateOne(
-                { _id: account._id },
-                { $set: { suspended: true, suspendedAt: now } }
-              )
+            await cpanelAccounts.updateOne(
+              { _id: account._id },
+              { $set: { suspended: true, suspendedAt: now } }
+            )
 
-              notify(chatId,
-                `🚫 <b>Hosting Suspended</b>\n\n`
-                + `<b>${domain}</b> has been suspended due to expired plan (${plan}).\n\n`
-                + `⚠️ Your cPanel account will be <b>permanently deleted</b> shortly.\n`
-                + `To reactivate: deposit funds and renew your plan immediately, or contact support.`
-              )
-              suspended++
-              log(`[HostingScheduler] Suspended ${domain} (${plan}) for ${chatId} — grace period expired`)
-            } else if (account.suspended && !account.deleted) {
-              // Already suspended — now terminate/delete the cPanel account
-              const terminated = await terminateAccount(account.cpUser)
+            suspended++
+            log(`[HostingScheduler] SUSPENDED ${domain} (${plan}) for ${chatId} — plan expired, immediate suspension`)
+          }
 
-              // Cleanup anti-red routes
-              await cleanupAntiRed(domain)
+          // ── Grace period check — delete after 48h if still not renewed ──
+          if (expiry <= gracePeriodAgo && account.suspended && !account.deleted) {
+            const terminated = await terminateAccount(account.cpUser)
 
-              await cpanelAccounts.updateOne(
-                { _id: account._id },
-                { $set: { deleted: true, deletedAt: now } }
-              )
+            // Cleanup anti-red routes
+            await cleanupAntiRed(domain)
 
-              notify(chatId,
-                `🗑️ <b>Hosting Deleted</b>\n\n`
-                + `<b>${domain}</b> cPanel account has been permanently deleted.\n`
-                + `Plan: ${plan}\n\n`
-                + `All files, databases, and emails have been removed.\n`
-                + `To start fresh, purchase a new hosting plan.`
-              )
-              deleted++
-              log(`[HostingScheduler] DELETED cPanel for ${domain} (${plan}), user ${chatId} — WHM terminate: ${terminated}`)
-            }
+            await cpanelAccounts.updateOne(
+              { _id: account._id },
+              { $set: { deleted: true, deletedAt: now } }
+            )
+
+            notify(chatId,
+              `🗑️ <b>Hosting Deleted</b>\n\n`
+              + `<b>${domain}</b> cPanel account has been permanently deleted.\n`
+              + `Plan: ${plan}\n\n`
+              + `All files, databases, and emails have been removed.\n`
+              + `To start fresh, purchase a new hosting plan.`
+            )
+            deleted++
+            log(`[HostingScheduler] DELETED cPanel for ${domain} (${plan}), user ${chatId} — WHM terminate: ${terminated}`)
           }
         }
       }
