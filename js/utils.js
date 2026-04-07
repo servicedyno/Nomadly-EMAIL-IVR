@@ -376,7 +376,6 @@ const sendMessageToAllUsers = async (bot, message, method, nameOf, myChatId, db)
     }
 
     // Pre-filter permanently unreachable users if DB is available
-    // Filter ALL opted-out users to prevent wasting API calls
     let filteredChatIds = chatIds
     let skippedPermanent = 0
     if (db) {
@@ -388,147 +387,226 @@ const sendMessageToAllUsers = async (bot, message, method, nameOf, myChatId, db)
     }
 
     const total = filteredChatIds.length
-
-    // Use configuration constants
     const { BATCH_SIZE, DELAY_BETWEEN_BATCHES, DELAY_BETWEEN_MESSAGES, MAX_RETRIES, RETRY_DELAY } = BROADCAST_CONFIG
-    
-    const startTime = Date.now()
-    bot.sendMessage(myChatId, `Starting broadcast to ${total} users (${skippedPermanent} permanently unreachable skipped)...\nBatch size: ${BATCH_SIZE}\nEstimated time: ${Math.ceil(total / BATCH_SIZE)} seconds`)
-    
-    let successCount = 0
-    let errorCount = 0
-    let newlyDeadCount = 0
-    let currentBatch = 0
-    const totalBatches = Math.ceil(total / BATCH_SIZE)
-    
-    // Process users in batches
-    for (let i = 0; i < total; i += BATCH_SIZE) {
-      currentBatch++
-      const batch = filteredChatIds.slice(i, i + BATCH_SIZE)
-      
-      // Send progress update
-      bot.sendMessage(myChatId, `Processing batch ${currentBatch}/${totalBatches} (${i + 1}-${Math.min(i + BATCH_SIZE, total)} of ${total})`)
-      
-      // Process current batch with retry logic
-      const batchPromises = batch.map(async (chatId, index) => {
-        // Add small delay between messages in the same batch
-        await sleep(index * DELAY_BETWEEN_MESSAGES)
-        
-        // Retry logic for failed messages
-        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-          try {
-            if (method === 'sendPhoto') {
-              await bot.sendPhoto(chatId, message)
-            } else {
-              await bot.sendMessage(chatId, message)
-            }
-            
-            successCount++
-            // Reset failCount on success — user is confirmed reachable
-            if (db) {
-              db.collection('promoOptOut').updateOne({ _id: chatId }, { $set: { optedOut: false, failCount: 0, updatedAt: new Date() } }).catch(() => {})
-            }
-            return { success: true, chatId, attempts: attempt }
-          } catch (error) {
-            // For truly permanent errors (user deactivated), skip retries immediately
-            // For potentially recoverable errors (bot_blocked, chat_not_found), only mark after all retries fail
-            const errMsg = (error.message || '').toLowerCase()
-            const isTrulyPermanent = errMsg.includes('user is deactivated')
-            const isLikelyPermanent = errMsg.includes('chat not found') || errMsg.includes('bot was blocked') || errMsg.includes('have no rights to send a message')
-            
-            if (isTrulyPermanent) {
-              errorCount++
-              newlyDeadCount++
-              if (db) {
-                await db.collection('promoOptOut').updateOne(
-                  { _id: chatId },
-                  { $set: { optedOut: true, reason: 'user_deactivated', updatedAt: new Date() } },
-                  { upsert: true }
-                )
-              }
-              return { success: false, chatId, error: error.message, permanent: true }
-            }
-            
-            if (isLikelyPermanent && attempt === MAX_RETRIES) {
-              // Only mark after ALL retries exhausted (reduces false positives from rate limiting)
-              errorCount++
-              newlyDeadCount++
-              if (db) {
-                const reason = errMsg.includes('chat not found') ? 'chat_not_found' : 
-                               errMsg.includes('bot was blocked') ? 'bot_blocked' : 'no_rights'
-                // Use $inc on failCount to track consecutive failures instead of immediately marking dead
-                await db.collection('promoOptOut').updateOne(
-                  { _id: chatId },
-                  { $set: { reason, updatedAt: new Date() }, $inc: { failCount: 1 } },
-                  { upsert: true }
-                )
-                // Only mark as optedOut after 3+ consecutive broadcast failures (aligned with AutoPromo)
-                const record = await db.collection('promoOptOut').findOne({ _id: chatId })
-                if (record?.failCount >= 3) {
-                  await db.collection('promoOptOut').updateOne(
-                    { _id: chatId },
-                    { $set: { optedOut: true } }
-                  )
-                }
-              }
-              return { success: false, chatId, error: error.message, permanent: true }
-            }
-            
-            if (!isLikelyPermanent && isPermanentTelegramError(error)) {
-              errorCount++
-              return { success: false, chatId, error: error.message, permanent: true }
-            }
 
-            if (attempt === MAX_RETRIES) {
-              errorCount++
-              log(`Failed to send message to ${chatId} after ${MAX_RETRIES} attempts: ${error.message}`)
-              return { success: false, chatId, error: error.message, attempts: attempt }
-            } else {
-              log(`Attempt ${attempt} failed for ${chatId}, retrying in ${RETRY_DELAY/1000}s...`)
-              await sleep(RETRY_DELAY)
-            }
-          }
-        }
+    // ── Persist broadcast job to MongoDB for crash/redeploy recovery ──
+    const broadcastId = `bcast_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+    if (db) {
+      await db.collection('broadcastJobs').insertOne({
+        _id: broadcastId,
+        status: 'running',
+        adminChatId: myChatId,
+        message,
+        method,
+        chatIds: filteredChatIds,
+        totalUsers: chatIds.length,
+        skippedPermanent,
+        lastProcessedIndex: 0,
+        successCount: 0,
+        errorCount: 0,
+        newlyDeadCount: 0,
+        startedAt: new Date(),
+        updatedAt: new Date(),
       })
-      
-      // Wait for current batch to complete
-      await Promise.allSettled(batchPromises)
-      
-      // Send batch completion status
-      bot.sendMessage(myChatId, `Batch ${currentBatch}/${totalBatches} completed\nSuccess: ${successCount}, Errors: ${errorCount}`)
-      
-      // Add delay between batches (except for the last batch)
-      if (i + BATCH_SIZE < total) {
-        await sleep(DELAY_BETWEEN_BATCHES)
-      }
+      log(`[Broadcast] Job ${broadcastId} created — ${total} users to send`)
     }
-    
-    // Final summary
-    const finalMessage = `Broadcast completed!\n\nFinal Results:\nSuccessfully sent: ${successCount}\nFailed: ${errorCount}\nPermanently unreachable (newly found): ${newlyDeadCount}\nPre-filtered (known dead): ${skippedPermanent}\nSuccess rate: ${((successCount / total) * 100).toFixed(1)}%`
-    
-    bot.sendMessage(myChatId, finalMessage)
-    
-    // Log detailed results
-    log(`Broadcast completed - Total: ${total}, Success: ${successCount}, Errors: ${errorCount}, NewlyDead: ${newlyDeadCount}, PreFiltered: ${skippedPermanent}`)
-    
-    // Store broadcast statistics for admin reference
-    const broadcastStats = {
-      timestamp: new Date().toISOString(),
-      totalUsers: chatIds.length,
-      filteredUsers: total,
-      skippedPermanent,
-      successCount,
-      errorCount,
-      newlyDeadCount,
-      successRate: ((successCount / total) * 100).toFixed(1),
-      duration: Date.now() - startTime
-    }
-    
-    log(`Broadcast stats:`, broadcastStats)
-    
+
+    await _executeBroadcast(bot, db, broadcastId, filteredChatIds, message, method, myChatId, 0, 0, 0, 0, skippedPermanent, chatIds.length)
   } catch (error) {
     log(`Broadcast error: ${error.message}`)
     bot.sendMessage(myChatId, `Broadcast failed: ${error.message}`)
+  }
+}
+
+/**
+ * Core broadcast execution — shared by fresh starts and resumptions.
+ * @param {number} startIndex - index into chatIds to resume from
+ */
+async function _executeBroadcast(bot, db, broadcastId, filteredChatIds, message, method, myChatId, startIndex, successCount, errorCount, newlyDeadCount, skippedPermanent, totalUsersRaw) {
+  const total = filteredChatIds.length
+  const { BATCH_SIZE, DELAY_BETWEEN_BATCHES, DELAY_BETWEEN_MESSAGES, MAX_RETRIES, RETRY_DELAY } = BROADCAST_CONFIG
+  const totalBatches = Math.ceil(total / BATCH_SIZE)
+  const startBatch = Math.floor(startIndex / BATCH_SIZE)
+  const startTime = Date.now()
+
+  const isResume = startIndex > 0
+  if (!isResume) {
+    bot.sendMessage(myChatId, `Starting broadcast to ${total} users (${skippedPermanent} permanently unreachable skipped)...\nBatch size: ${BATCH_SIZE}\nEstimated time: ${Math.ceil(total / BATCH_SIZE)} seconds`)
+  }
+
+  for (let i = startIndex; i < total; i += BATCH_SIZE) {
+    const currentBatch = Math.floor(i / BATCH_SIZE) + 1
+    const batch = filteredChatIds.slice(i, i + BATCH_SIZE)
+
+    bot.sendMessage(myChatId, `Processing batch ${currentBatch}/${totalBatches} (${i + 1}-${Math.min(i + BATCH_SIZE, total)} of ${total})`)
+
+    const batchPromises = batch.map(async (chatId, index) => {
+      await sleep(index * DELAY_BETWEEN_MESSAGES)
+
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          if (method === 'sendPhoto') {
+            await bot.sendPhoto(chatId, message)
+          } else {
+            await bot.sendMessage(chatId, message)
+          }
+          successCount++
+          if (db) {
+            db.collection('promoOptOut').updateOne({ _id: chatId }, { $set: { optedOut: false, failCount: 0, updatedAt: new Date() } }).catch(() => {})
+          }
+          return { success: true, chatId, attempts: attempt }
+        } catch (error) {
+          const errMsg = (error.message || '').toLowerCase()
+          const isTrulyPermanent = errMsg.includes('user is deactivated')
+          const isLikelyPermanent = errMsg.includes('chat not found') || errMsg.includes('bot was blocked') || errMsg.includes('have no rights to send a message')
+
+          if (isTrulyPermanent) {
+            errorCount++
+            newlyDeadCount++
+            if (db) {
+              await db.collection('promoOptOut').updateOne(
+                { _id: chatId },
+                { $set: { optedOut: true, reason: 'user_deactivated', updatedAt: new Date() } },
+                { upsert: true }
+              )
+            }
+            return { success: false, chatId, error: error.message, permanent: true }
+          }
+
+          if (isLikelyPermanent && attempt === MAX_RETRIES) {
+            errorCount++
+            newlyDeadCount++
+            if (db) {
+              const reason = errMsg.includes('chat not found') ? 'chat_not_found' :
+                             errMsg.includes('bot was blocked') ? 'bot_blocked' : 'no_rights'
+              await db.collection('promoOptOut').updateOne(
+                { _id: chatId },
+                { $set: { reason, updatedAt: new Date() }, $inc: { failCount: 1 } },
+                { upsert: true }
+              )
+              const record = await db.collection('promoOptOut').findOne({ _id: chatId })
+              if (record?.failCount >= 3) {
+                await db.collection('promoOptOut').updateOne({ _id: chatId }, { $set: { optedOut: true } })
+              }
+            }
+            return { success: false, chatId, error: error.message, permanent: true }
+          }
+
+          if (!isLikelyPermanent && isPermanentTelegramError(error)) {
+            errorCount++
+            return { success: false, chatId, error: error.message, permanent: true }
+          }
+
+          if (attempt === MAX_RETRIES) {
+            errorCount++
+            log(`Failed to send message to ${chatId} after ${MAX_RETRIES} attempts: ${error.message}`)
+            return { success: false, chatId, error: error.message, attempts: attempt }
+          } else {
+            log(`Attempt ${attempt} failed for ${chatId}, retrying in ${RETRY_DELAY / 1000}s...`)
+            await sleep(RETRY_DELAY)
+          }
+        }
+      }
+    })
+
+    await Promise.allSettled(batchPromises)
+
+    // ── Checkpoint: persist progress after each batch ──
+    const processedUpTo = Math.min(i + BATCH_SIZE, total)
+    if (db && broadcastId) {
+      db.collection('broadcastJobs').updateOne(
+        { _id: broadcastId },
+        { $set: { lastProcessedIndex: processedUpTo, successCount, errorCount, newlyDeadCount, updatedAt: new Date() } }
+      ).catch(e => log(`[Broadcast] Checkpoint save error: ${e.message}`))
+    }
+
+    bot.sendMessage(myChatId, `Batch ${currentBatch}/${totalBatches} completed\nSuccess: ${successCount}, Errors: ${errorCount}`)
+
+    if (i + BATCH_SIZE < total) {
+      await sleep(DELAY_BETWEEN_BATCHES)
+    }
+  }
+
+  // ── Mark broadcast as completed ──
+  if (db && broadcastId) {
+    await db.collection('broadcastJobs').updateOne(
+      { _id: broadcastId },
+      { $set: { status: 'completed', lastProcessedIndex: total, successCount, errorCount, newlyDeadCount, completedAt: new Date(), updatedAt: new Date() } }
+    ).catch(() => {})
+  }
+
+  const finalMessage = `${isResume ? '🔄 Resumed b' : 'B'}roadcast completed!\n\nFinal Results:\nSuccessfully sent: ${successCount}\nFailed: ${errorCount}\nPermanently unreachable (newly found): ${newlyDeadCount}\nPre-filtered (known dead): ${skippedPermanent}\nSuccess rate: ${((successCount / total) * 100).toFixed(1)}%`
+  bot.sendMessage(myChatId, finalMessage)
+  log(`Broadcast ${broadcastId} completed - Total: ${total}, Success: ${successCount}, Errors: ${errorCount}, NewlyDead: ${newlyDeadCount}, PreFiltered: ${skippedPermanent}`)
+}
+
+/**
+ * Recover and resume any broadcasts that were interrupted by a server restart/redeploy.
+ * Call this during startup after DB is connected.
+ */
+async function recoverBroadcast(bot, db) {
+  if (!db) return
+  try {
+    const running = await db.collection('broadcastJobs').find({ status: 'running' }).toArray()
+    if (running.length === 0) {
+      log('[Broadcast] Recovery: No interrupted broadcasts to resume')
+      return
+    }
+
+    for (const job of running) {
+      const broadcastId = job._id
+      const chatIds = job.chatIds || []
+      const startIndex = job.lastProcessedIndex || 0
+      const total = chatIds.length
+      const remaining = total - startIndex
+
+      // Stale check: if broadcast was started >6 hours ago with no progress in last 2 hours, cancel it
+      const hoursSinceStart = (Date.now() - new Date(job.startedAt).getTime()) / (1000 * 60 * 60)
+      const hoursSinceUpdate = (Date.now() - new Date(job.updatedAt).getTime()) / (1000 * 60 * 60)
+      if (hoursSinceStart > 6 && hoursSinceUpdate > 2) {
+        await db.collection('broadcastJobs').updateOne(
+          { _id: broadcastId },
+          { $set: { status: 'cancelled', cancelledReason: `Stale: ${Math.round(hoursSinceStart)}h since start, ${Math.round(hoursSinceUpdate)}h since last update`, updatedAt: new Date() } }
+        )
+        log(`[Broadcast] Recovery: Cancelled stale broadcast ${broadcastId} (${Math.round(hoursSinceStart)}h old)`)
+        bot.sendMessage(job.adminChatId,
+          `⚠️ <b>Broadcast Auto-Cancelled</b>\n\nYour broadcast was cancelled after a server restart because it had been idle for over 2 hours.\n✅ Sent: ${job.successCount || 0}\n❌ Remaining: ${remaining}\n\nStart a new broadcast if needed.`,
+          { parse_mode: 'HTML' }
+        ).catch(() => {})
+        continue
+      }
+
+      // Already fully sent — just mark completed
+      if (remaining <= 0) {
+        await db.collection('broadcastJobs').updateOne(
+          { _id: broadcastId },
+          { $set: { status: 'completed', completedAt: new Date(), updatedAt: new Date() } }
+        )
+        log(`[Broadcast] Recovery: Broadcast ${broadcastId} was already complete — marked finished`)
+        continue
+      }
+
+      log(`[Broadcast] Recovery: Resuming broadcast ${broadcastId} — ${remaining}/${total} remaining (was at index ${startIndex})`)
+      bot.sendMessage(job.adminChatId,
+        `🔄 <b>Broadcast Resuming</b>\n\nYour admin broadcast is being resumed after a server restart.\n📤 Remaining: <b>${remaining}</b> users\n✅ Already sent: <b>${startIndex}</b>\n✅ Success: ${job.successCount || 0} | ❌ Errors: ${job.errorCount || 0}\n\nContinuing now...`,
+        { parse_mode: 'HTML' }
+      ).catch(() => {})
+
+      // Resume in background
+      _executeBroadcast(
+        bot, db, broadcastId, chatIds, job.message, job.method,
+        job.adminChatId, startIndex, job.successCount || 0, job.errorCount || 0,
+        job.newlyDeadCount || 0, job.skippedPermanent || 0, job.totalUsers || total
+      ).catch(e => {
+        log(`[Broadcast] Recovery: Resume failed for ${broadcastId}: ${e.message}`)
+        bot.sendMessage(job.adminChatId, `❌ Broadcast resume failed: ${e.message}`).catch(() => {})
+      })
+
+      // Stagger if multiple broadcasts (unlikely but safe)
+      await sleep(2000)
+    }
+  } catch (err) {
+    log(`[Broadcast] Recovery error: ${err.message}`)
   }
 }
 
@@ -905,6 +983,7 @@ module.exports = {
   checkFreeTrialTaken,
   extractPhoneNumbers,
   sendMessageToAllUsers,
+  recoverBroadcast,
   broadcastNewListing,
   getBroadcastStats,
   getChatIds,

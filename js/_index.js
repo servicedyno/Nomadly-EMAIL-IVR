@@ -136,6 +136,7 @@ const {
   subscribePlan,
   regularCheckDns,
   sendMessageToAllUsers,
+  recoverBroadcast,
   broadcastNewListing,
   getBroadcastStats,
   parse,
@@ -1073,6 +1074,11 @@ const loadData = async () => {
     log('[CartRecovery] System loaded successfully')
     userConversion = initNewUserConversion(bot, db, state, walletOf, payments)
     log('[Conversion] System loaded successfully')
+
+    // ── Recover any admin broadcasts interrupted by redeployment ──
+    setTimeout(() => {
+      recoverBroadcast(bot, db).catch(e => log(`[Broadcast] Recovery error: ${e.message}`))
+    }, 10000) // Delay 10s to let services settle
   } else {
     log('[AutoPromo] Skipped — Telegram bot is disabled')
   }
