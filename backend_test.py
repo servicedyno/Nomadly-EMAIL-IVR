@@ -295,7 +295,7 @@ def test_health_endpoint():
             pass
         
         if not backend_url:
-            backend_url = "https://readme-setup-12.preview.emergentagent.com"
+            backend_url = "https://setup-guide-72.preview.emergentagent.com"
         
         health_url = f"{backend_url}/api/health"
         print(f"   Testing health endpoint: {health_url}")
