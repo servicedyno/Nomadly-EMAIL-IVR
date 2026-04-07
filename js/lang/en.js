@@ -640,6 +640,37 @@ ${CHAT_BOT_NAME}`,
   dnsHealthSummary: (resolving, total) => `\n${resolving}/${total} record types resolving.`,
   dnsCheckError: 'DNS lookup failed. Please try again later.',
 
+  // Manage Nameservers (consolidated NS menu)
+  manageNameservers: '🔄 Manage Nameservers',
+  manageNsMenu: (domain, nsRecords, nameserverType) => {
+    const provider = nameserverType === 'cloudflare' ? 'Cloudflare' : nameserverType === 'custom' ? 'Custom' : 'Provider Default'
+    let msg = `<b>🔄 Nameservers — ${domain}</b>\n\n`
+    msg += `<b>Provider:</b> ${provider}\n\n`
+    if (nsRecords && nsRecords.length) {
+      msg += `<b>Current Nameservers:</b>\n`
+      nsRecords.forEach((ns, i) => {
+        msg += `  NS${i + 1}: <code>${ns.recordContent || '—'}</code>\n`
+      })
+    } else {
+      msg += `<i>No nameserver records found.</i>\n`
+    }
+    msg += `\nSelect an action below:`
+    return msg
+  },
+  setCustomNs: '✏️ Set Custom Nameservers',
+  setCustomNsPrompt: (domain, nsRecords) => {
+    let msg = `<b>✏️ Set Custom Nameservers for ${domain}</b>\n\n`
+    if (nsRecords && nsRecords.length) {
+      msg += `<b>Current:</b>\n`
+      nsRecords.forEach((ns, i) => {
+        msg += `  NS${i + 1}: <code>${ns.recordContent || '—'}</code>\n`
+      })
+      msg += '\n'
+    }
+    msg += `Enter new nameservers (one per line, min 2, max 4):\n\n<i>Example:\nns1.example.com\nns2.example.com</i>`
+    return msg
+  },
+
   // Switch to Cloudflare
   switchToCf: '☁️ Switch to Cloudflare',
   switchToCfConfirm: (domain) => `<b>Switch ${domain} to Cloudflare DNS?</b>\n\nThis will:\n1. Create a Cloudflare zone for your domain\n2. Migrate existing DNS records to Cloudflare\n3. Update your nameservers at the registrar\n\nDNS propagation may take up to 24-48h.\n\nProceed?`,

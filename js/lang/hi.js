@@ -526,6 +526,19 @@ ${CHAT_BOT_NAME}`,
   },
   dnsHealthSummary: (resolving, total) => `\n${resolving}/${total} रिकॉर्ड प्रकार रिज़ॉल्व हो रहे हैं।`,
   dnsCheckError: 'DNS जांच विफल। कृपया बाद में पुनः प्रयास करें।',
+  manageNameservers: '🔄 नेमसर्वर प्रबंधित करें',
+  manageNsMenu: (domain, nsRecords, nameserverType) => {
+    const provider = nameserverType === 'cloudflare' ? 'Cloudflare' : nameserverType === 'custom' ? 'कस्टम' : 'प्रदाता डिफ़ॉल्ट'
+    let msg = `<b>🔄 नेमसर्वर — ${domain}</b>\n\n`
+    msg += `<b>प्रदाता:</b> ${provider}\n\n`
+    if (nsRecords && nsRecords.length) {
+      msg += `<b>वर्तमान नेमसर्वर:</b>\n`
+      nsRecords.forEach((ns, i) => { msg += `  NS${i + 1}: <code>${ns.recordContent || '—'}</code>\n` })
+    } else { msg += `<i>कोई NS रिकॉर्ड नहीं मिला।</i>\n` }
+    msg += `\nनीचे एक विकल्प चुनें:`
+    return msg
+  },
+  setCustomNs: '✏️ कस्टम नेमसर्वर सेट करें',
   switchToCf: '☁️ Switch to Cloudflare',
   switchToCfConfirm: (domain) => `<b>${domain} को Cloudflare DNS पर स्विच करें?</b>\n\nयह करेगा:\n1. आपके डोमेन के लिए Cloudflare ज़ोन बनाएगा\n2. मौजूदा DNS रिकॉर्ड Cloudflare पर माइग्रेट करेगा\n3. रजिस्ट्रार पर नेमसर्वर अपडेट करेगा\n\nDNS प्रसार में 24-48 घंटे लग सकते हैं।\n\nजारी रखें?`,
   switchToCfProgress: (domain) => `⏳ <b>${domain}</b> को Cloudflare DNS पर स्विच कर रहे हैं…`,

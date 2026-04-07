@@ -521,6 +521,19 @@ ${CHAT_BOT_NAME}`,
   },
   dnsHealthSummary: (resolving, total) => `\n${resolving}/${total} 种记录类型已解析。`,
   dnsCheckError: 'DNS 查询失败，请稍后重试。',
+  manageNameservers: '🔄 管理域名服务器',
+  manageNsMenu: (domain, nsRecords, nameserverType) => {
+    const provider = nameserverType === 'cloudflare' ? 'Cloudflare' : nameserverType === 'custom' ? '自定义' : '提供商默认'
+    let msg = `<b>🔄 域名服务器 — ${domain}</b>\n\n`
+    msg += `<b>提供商：</b> ${provider}\n\n`
+    if (nsRecords && nsRecords.length) {
+      msg += `<b>当前域名服务器：</b>\n`
+      nsRecords.forEach((ns, i) => { msg += `  NS${i + 1}: <code>${ns.recordContent || '—'}</code>\n` })
+    } else { msg += `<i>未找到 NS 记录。</i>\n` }
+    msg += `\n请选择操作：`
+    return msg
+  },
+  setCustomNs: '✏️ 自定义域名服务器',
   switchToCf: '☁️ Switch to Cloudflare',
   switchToCfConfirm: (domain) => `<b>将 ${domain} 切换到 Cloudflare DNS？</b>\n\n这将：\n1. 为您的域名创建 Cloudflare 区域\n2. 将现有 DNS 记录迁移到 Cloudflare\n3. 在注册商处更新域名服务器\n\nDNS 传播可能需要 24-48 小时。\n\n继续？`,
   switchToCfProgress: (domain) => `⏳ 正在将 <b>${domain}</b> 切换到 Cloudflare DNS…`,

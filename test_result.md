@@ -2370,3 +2370,28 @@ agent_communication:
       message: "TWO FIXES for DNS management issues affecting @Richie_bigbag: (1) _index.js: Added CNAME input validation (rejects URLs with :// or /, rejects self-referencing CNAME) with multilingual error messages showing correct format. Added _extractDnsError() helper to extract actual error from CF result.errors[] array instead of generic 'Update failed'. Applied to both CF and OP update paths. (2) op-service.js: Increased updateNameservers timeout from 15s→30s with auto-retry at 45s on timeout. Both files pass syntax check, nodejs restarts clean. Please verify: (1) CNAME validation blocks URLs and self-references in type-dns-record-data-to-update handler, (2) _extractDnsError extracts from result.errors array, (3) OP timeout increased to 30s with retry logic."
     - agent: "testing"
       message: "✅ DNS MANAGEMENT FIXES TESTING COMPLETE: All 9/9 tests passed (100% success rate). COMPREHENSIVE VERIFICATION: (1) Syntax validation passed for both _index.js and op-service.js, (2) Health endpoint healthy: Node.js on port 5000 responding with status 'healthy' and database 'connected', (3) Error log is 0 bytes (clean), (4) CNAME URL rejection verified: Found validation in type-dns-record-data-to-update handler that checks for '://' and '/' in recordContent, (5) CNAME self-reference rejection verified: Found baseDomain comparison preventing domain pointing to itself, (6) _extractDnsError helper verified: Exists at line 12457 and checks result.errors array for CF format, (7) _extractDnsError usage verified: Used in BOTH CF path (line 12473) and OP path (line 12499), (8) OP timeout & retry verified: 30000ms timeout (increased from 15000ms), retry with 45000ms on ECONNABORTED/ETIMEDOUT errors, (9) Multilingual CNAME errors verified: All 4 languages (en/fr/zh/hi) have both URL and self-reference error messages. Both DNS management fixes are production-ready and fully functional. User @Richie_bigbag's issues with zaza-of-iid.com DNS management (generic error messages and 15s timeouts) are now resolved."
+
+
+backend:
+  - task: "UX improvement: Add dedicated 'Manage Nameservers' submenu to DNS Dashboard"
+    implemented: true
+    working: "NA"
+    file: "js/_index.js, js/lang/en.js, js/lang/fr.js, js/lang/zh.js, js/lang/hi.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "UX IMPROVEMENT: Added dedicated '🔄 Manage Nameservers' button as the top button on DNS Dashboard keyboard. Creates new submenu that shows: current NS list with provider name, then buttons for Switch to Cloudflare / Switch to Provider DNS / Set Custom Nameservers / Back. This consolidates all NS operations (previously scattered across Update DNS Record + Switch to CF/Provider buttons) into one clear 1-tap-away menu. Changes: (1) New goto handler 'manage-nameservers-menu' shows NS status + action buttons, (2) New action handler for manage-nameservers-menu routes to CF switch, Provider switch, or Custom NS entry, (3) DNS Dashboard keyboard simplified — removed Switch to CF/Provider buttons (moved to NS submenu), added Manage Nameservers at top, (4) Added multilingual translations (en/fr/zh/hi) for manageNameservers, manageNsMenu, setCustomNs, setCustomNsPrompt, (5) confirm-switch-to-cloudflare and confirm-switch-to-provider-default back buttons now return to manage-nameservers-menu instead of choose-dns-action."
+
+test_plan:
+  current_focus:
+    - "UX improvement: Manage Nameservers submenu"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    - agent: "main"
+      message: "UX IMPROVEMENT — Dedicated Manage Nameservers submenu. Changes span 5 files. Please verify: (1) _index.js goto 'manage-nameservers-menu' exists and shows NS status + buttons, (2) _index.js action 'manage-nameservers-menu' handles switchToCf, switchToProviderDefault, setCustomNs, back, (3) DNS Dashboard keyboard has [manageNameservers] as first row, no longer has switchToCf/switchToProviderDefault, (4) confirm-switch-to-cloudflare back goes to manage-nameservers-menu, (5) confirm-switch-to-provider-default back goes to manage-nameservers-menu, (6) Custom NS routes to dns-update-all-ns action, (7) All 4 lang files have manageNameservers + manageNsMenu + setCustomNs translations, (8) Syntax check passes for all 5 files, (9) nodejs restarts clean."

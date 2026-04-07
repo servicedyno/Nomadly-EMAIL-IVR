@@ -3592,24 +3592,17 @@ bot?.on('message', msg => {
       set(state, chatId, 'nameserverType', nameserverType)
       await set(state, chatId, 'action', 'choose-dns-action')
 
-      // Dynamic keyboard — custom NS domains only get Switch to CF + Update NS
+      // Dynamic keyboard — custom NS domains only get Manage NS
       const shortenerBtn = shortenerActive ? t.deactivateShortener : t.activateShortener
       const _bc = [t.backButton || '⬅️ Back']
       let kbRows
       if (nameserverType === 'custom') {
-        // Custom nameservers: DNS is managed externally, allow NS changes to either CF or provider
-        kbRows = [[t.updateDns]]
-        kbRows.push([t.switchToCf])
-        kbRows.push([t.switchToProviderDefault])
+        // Custom nameservers: DNS is managed externally — surface NS management prominently
+        kbRows = [[t.manageNameservers]]
         kbRows.push(_bc)
       } else {
-        // Cloudflare or provider_default: full DNS management
-        kbRows = [[t.quickActions], [t.checkDns], [t.addDns], [t.updateDns], [t.deleteDns]]
-        if (nameserverType === 'cloudflare') {
-          kbRows.push([t.switchToProviderDefault])
-        } else {
-          kbRows.push([t.switchToCf])
-        }
+        // Cloudflare or provider_default: full DNS management with NS management at top
+        kbRows = [[t.manageNameservers], [t.quickActions, t.checkDns], [t.addDns, t.updateDns, t.deleteDns]]
         kbRows.push([shortenerBtn], _bc)
       }
       const dnsKeyboard = {
@@ -3618,6 +3611,33 @@ bot?.on('message', msg => {
         disable_web_page_preview: true,
       }
       send(chatId, t.viewDnsRecords(categorizedRecords, domain, nameserverType), dnsKeyboard)
+    },
+
+    // ── Manage Nameservers submenu ──
+    'manage-nameservers-menu': async () => {
+      const domain = info?.domainToManage
+      const records = info?.dnsRecords || []
+      const nsRecords = records.filter(r => r.recordType === 'NS')
+      const nameserverType = info?.nameserverType || 'provider'
+      await set(state, chatId, 'action', 'manage-nameservers-menu')
+
+      // Build keyboard based on current NS provider
+      const kbRows = []
+      if (nameserverType !== 'cloudflare') {
+        kbRows.push([t.switchToCf])
+      }
+      if (nameserverType === 'cloudflare') {
+        kbRows.push([t.switchToProviderDefault])
+      }
+      kbRows.push([t.setCustomNs])
+      kbRows.push([t.back])
+
+      const keyboard = {
+        parse_mode: 'HTML',
+        reply_markup: { keyboard: kbRows },
+        disable_web_page_preview: true,
+      }
+      send(chatId, t.manageNsMenu(domain, nsRecords, nameserverType), keyboard)
     },
 
     'type-dns-record-data-to-add': async (recordType) => {
@@ -11977,47 +11997,16 @@ ${message.replace(/\n/g, '<br>')}
   if (action === 'choose-dns-action') {
     if (message === t.back || message === t.backButton || message === '⬅️ Back') return goto['choose-domain-to-manage']()
 
-    if (![t.addDns, t.updateDns, t.deleteDns, t.activateShortener, t.deactivateShortener, t.quickActions, t.checkDns, t.switchToCf, t.switchToProviderDefault].includes(message)) return send(chatId, t.selectValidOption)
+    if (![t.addDns, t.updateDns, t.deleteDns, t.activateShortener, t.deactivateShortener, t.quickActions, t.checkDns, t.switchToCf, t.switchToProviderDefault, t.manageNameservers].includes(message)) return send(chatId, t.selectValidOption)
 
-    // Custom NS domains: only allow Switch to CF + Update NS (for nameserver changes)
+    // Custom NS domains: only allow Manage Nameservers
     const nsType = info?.nameserverType
-    if (nsType === 'custom' && ![t.updateDns, t.switchToCf, t.switchToProviderDefault].includes(message)) {
-      return send(chatId, 'DNS records are managed by your custom nameserver provider. You can only update nameservers or switch DNS provider.')
+    if (nsType === 'custom' && ![t.manageNameservers].includes(message)) {
+      return send(chatId, 'DNS records are managed by your custom nameserver provider. Use "🔄 Manage Nameservers" to change providers.')
     }
 
-    if (message === t.switchToCf) {
-      const domain = info?.domainToManage
-      const nsType = info?.nameserverType
-      if (nsType === 'cloudflare') {
-        return send(chatId, t.switchToCfAlreadyCf || 'Already using Cloudflare.')
-      }
-      send(chatId, t.switchToCfConfirm(domain), trans('yes_no'))
-      await set(state, chatId, 'action', 'confirm-switch-to-cloudflare')
-      return
-    }
-
-    if (message === t.switchToProviderDefault) {
-      const domain = info?.domainToManage
-      const nsType = info?.nameserverType
-      if (nsType !== 'cloudflare') {
-        return send(chatId, t.switchToProviderAlreadyProvider || 'Already using provider default DNS.')
-      }
-      // Check if shortener is active — root CNAME won't work without CF CNAME flattening
-      const dnsData = await domainService.viewDNSRecords(domain, db)
-      const hasShortener = (dnsData?.records || []).some(r =>
-        r.recordType === 'CNAME' && r.recordContent && r.recordContent.includes('.up.railway.app')
-      )
-      let confirmMsg = t.switchToProviderConfirm(domain)
-      if (hasShortener) {
-        confirmMsg += `\n\n⚠️ <b>Warning:</b> Your URL shortener is active on this domain. Provider DNS does not support root CNAME flattening like Cloudflare. <b>The shortener will be deactivated</b> and the domain removed from Railway.`
-      }
-      send(chatId, confirmMsg, trans('yes_no'))
-      if (hasShortener) {
-        await set(state, chatId, 'switchToProviderDeactivateShortener', true)
-      }
-      await set(state, chatId, 'action', 'confirm-switch-to-provider-default')
-      return
-    }
+    // Route to Manage Nameservers submenu
+    if (message === t.manageNameservers) return goto['manage-nameservers-menu']()
 
     if (message === t.quickActions) return goto['dns-quick-action-menu']()
 
@@ -12159,7 +12148,7 @@ ${message.replace(/\n/g, '<br>')}
   }
   // Switch to Cloudflare confirmation handler
   if (action === 'confirm-switch-to-cloudflare') {
-    if (message === t.back || message === t.no || message === 'No') return goto['choose-dns-action']()
+    if (message === t.back || message === t.no || message === 'No') return goto['manage-nameservers-menu']()
     if (message !== t.yes && message !== 'Yes') return send(chatId, t.what)
 
     const domain = info?.domainToManage
@@ -12198,7 +12187,7 @@ ${message.replace(/\n/g, '<br>')}
 
   // Switch to Provider Default confirmation handler
   if (action === 'confirm-switch-to-provider-default') {
-    if (message === t.back || message === t.no || message === 'No') return goto['choose-dns-action']()
+    if (message === t.back || message === t.no || message === 'No') return goto['manage-nameservers-menu']()
     if (message !== t.yes && message !== 'Yes') return send(chatId, t.what)
 
     const domain = info?.domainToManage
@@ -12259,6 +12248,57 @@ ${message.replace(/\n/g, '<br>')}
       send(chatId, t.switchToProviderError ? t.switchToProviderError(sanitizeProviderError(e.message, 'domain')) : `❌ Error: ${sanitizeProviderError(e.message, 'domain')}`, { parse_mode: 'HTML' })
     }
     return goto['choose-dns-action']()
+  }
+  // ── Manage Nameservers submenu action handler ──
+  if (action === 'manage-nameservers-menu') {
+    if (message === t.back) return goto['choose-dns-action']()
+
+    if (message === t.switchToCf) {
+      const domain = info?.domainToManage
+      const nsType = info?.nameserverType
+      if (nsType === 'cloudflare') {
+        return send(chatId, t.switchToCfAlreadyCf || 'Already using Cloudflare.')
+      }
+      send(chatId, t.switchToCfConfirm(domain), trans('yes_no'))
+      await set(state, chatId, 'action', 'confirm-switch-to-cloudflare')
+      return
+    }
+
+    if (message === t.switchToProviderDefault) {
+      const domain = info?.domainToManage
+      const nsType = info?.nameserverType
+      if (nsType !== 'cloudflare') {
+        return send(chatId, t.switchToProviderAlreadyProvider || 'Already using provider default DNS.')
+      }
+      const dnsData = await domainService.viewDNSRecords(domain, db)
+      const hasShortener = (dnsData?.records || []).some(r =>
+        r.recordType === 'CNAME' && r.recordContent && r.recordContent.includes('.up.railway.app')
+      )
+      let confirmMsg = t.switchToProviderConfirm(domain)
+      if (hasShortener) {
+        confirmMsg += `\n\n⚠️ <b>Warning:</b> Your URL shortener is active on this domain. Provider DNS does not support root CNAME flattening like Cloudflare. <b>The shortener will be deactivated</b> and the domain removed from Railway.`
+      }
+      send(chatId, confirmMsg, trans('yes_no'))
+      if (hasShortener) {
+        await set(state, chatId, 'switchToProviderDeactivateShortener', true)
+      }
+      await set(state, chatId, 'action', 'confirm-switch-to-provider-default')
+      return
+    }
+
+    if (message === t.setCustomNs) {
+      const domain = info?.domainToManage || ''
+      const records = info?.dnsRecords || []
+      const nsRecords = records.filter(r => r.recordType === 'NS')
+      await set(state, chatId, 'action', 'dns-update-all-ns')
+      const msg = t.setCustomNsPrompt
+        ? t.setCustomNsPrompt(domain, nsRecords)
+        : `<b>✏️ Set Custom Nameservers for ${domain}</b>\n\nEnter new nameservers (one per line, min 2, max 4):\n\n<i>Example:\nns1.example.com\nns2.example.com</i>`
+      send(chatId, msg, { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back, t.cancel]] } })
+      return
+    }
+
+    return send(chatId, t.selectValidOption)
   }
   //
   if (action === 'select-dns-record-id-to-delete') {

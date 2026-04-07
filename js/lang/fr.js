@@ -530,6 +530,19 @@ ${CHAT_BOT_NAME}`,
   },
   dnsHealthSummary: (resolving, total) => `\n${resolving}/${total} types résolus.`,
   dnsCheckError: 'La vérification DNS a échoué. Réessayez plus tard.',
+  manageNameservers: '🔄 Gérer les serveurs de noms',
+  manageNsMenu: (domain, nsRecords, nameserverType) => {
+    const provider = nameserverType === 'cloudflare' ? 'Cloudflare' : nameserverType === 'custom' ? 'Personnalisé' : 'Fournisseur par défaut'
+    let msg = `<b>🔄 Serveurs de noms — ${domain}</b>\n\n`
+    msg += `<b>Fournisseur :</b> ${provider}\n\n`
+    if (nsRecords && nsRecords.length) {
+      msg += `<b>Serveurs de noms actuels :</b>\n`
+      nsRecords.forEach((ns, i) => { msg += `  NS${i + 1}: <code>${ns.recordContent || '—'}</code>\n` })
+    } else { msg += `<i>Aucun enregistrement NS trouvé.</i>\n` }
+    msg += `\nSélectionnez une action :`
+    return msg
+  },
+  setCustomNs: '✏️ Serveurs de noms personnalisés',
   switchToCf: '☁️ Switch to Cloudflare',
   switchToCfConfirm: (domain) => `<b>Basculer ${domain} vers Cloudflare DNS ?</b>\n\nCela va :\n1. Créer une zone Cloudflare pour votre domaine\n2. Migrer les enregistrements DNS existants vers Cloudflare\n3. Mettre à jour vos serveurs de noms chez le registraire\n\nLa propagation DNS peut prendre 24-48h.\n\nContinuer ?`,
   switchToCfProgress: (domain) => `⏳ Basculement de <b>${domain}</b> vers Cloudflare DNS…`,
