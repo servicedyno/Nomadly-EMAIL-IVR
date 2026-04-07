@@ -248,6 +248,35 @@ function getBulkSmsFooter(lang) {
   return footers[Math.floor(Math.random() * footers.length)]
 }
 
+// ─── DynoPay Crypto Footer (appended to every promo before BulkSMS) ──
+const DYNOPAY_FOOTER = {
+  en: [
+    `💎 <b>Pay with Crypto</b> — API or direct link → <a href="https://dynopay.com">dynopay.com</a>`,
+    `💎 <b>Crypto Accepted</b> — pay via API or link at <a href="https://dynopay.com">dynopay.com</a>`,
+    `💎 <b>Accept Crypto?</b> Pay seamlessly via <a href="https://dynopay.com">dynopay.com</a> — API & link supported`,
+  ],
+  fr: [
+    `💎 <b>Paiement Crypto</b> — API ou lien direct → <a href="https://dynopay.com">dynopay.com</a>`,
+    `💎 <b>Crypto Acceptée</b> — payez via API ou lien sur <a href="https://dynopay.com">dynopay.com</a>`,
+    `💎 <b>Payer en Crypto ?</b> Via API ou lien → <a href="https://dynopay.com">dynopay.com</a>`,
+  ],
+  zh: [
+    `💎 <b>支持加密货币支付</b> — 通过 API 或链接 → <a href="https://dynopay.com">dynopay.com</a>`,
+    `💎 <b>接受加密货币</b> — API 或直接链接支付 → <a href="https://dynopay.com">dynopay.com</a>`,
+    `💎 <b>加密支付</b> — 通过 <a href="https://dynopay.com">dynopay.com</a> 的 API 或链接付款`,
+  ],
+  hi: [
+    `💎 <b>क्रिप्टो से भुगतान करें</b> — API या लिंक → <a href="https://dynopay.com">dynopay.com</a>`,
+    `💎 <b>क्रिप्टो स्वीकार्य</b> — API या लिंक से भुगतान करें → <a href="https://dynopay.com">dynopay.com</a>`,
+    `💎 <b>क्रिप्टो पेमेंट?</b> <a href="https://dynopay.com">dynopay.com</a> पर API या लिंक से भुगतान करें`,
+  ],
+}
+
+function getDynoPayFooter(lang) {
+  const footers = DYNOPAY_FOOTER[lang] || DYNOPAY_FOOTER.en
+  return footers[Math.floor(Math.random() * footers.length)]
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 //  PROMO MESSAGES — 6 themes × 3 variations × 4 languages = 72 ads
 // ═══════════════════════════════════════════════════════════════════════
@@ -3306,6 +3335,8 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
       }
       let caption = dynamicMessage || variations[variationIndex % variations.length]
       if (couponLine) caption += '\n\n' + couponLine
+      // Append DynoPay crypto footer
+      caption += '\n\n' + getDynoPayFooter(lang)
       // Append BulkSMS footer to every promo message
       caption += '\n\n' + getBulkSmsFooter(lang)
 
@@ -3384,6 +3415,7 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
           if (code === 403 || isUnreachableError(error)) {
             const reason = classifyOptOutReason(error)
             await recordSendFailure(chatId, reason)
+            log(`[AutoPromo] Unreachable ${chatId}: ${reason} (${error.message?.substring(0, 80)})`)
           } else {
             log(`[AutoPromo] Failed ${chatId}: [${code || 'unknown'}] ${error.message}`)
           }
