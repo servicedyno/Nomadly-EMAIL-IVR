@@ -545,9 +545,23 @@ const updateNameservers = async (domainName, nameservers) => {
     const headers = await authHeaders()
     const nsPayload = nameservers.map((ns, i) => ({ name: ns, seq_nr: i + 1 }))
 
-    const res = await axios.put(`${OP_BASE_URL}/v1beta/domains/${info.domainId}`, {
-      name_servers: nsPayload,
-    }, { headers, timeout: 15000 })
+    // First attempt with 30s timeout (increased from 15s — OP can be slow for some TLDs)
+    let res
+    try {
+      res = await axios.put(`${OP_BASE_URL}/v1beta/domains/${info.domainId}`, {
+        name_servers: nsPayload,
+      }, { headers, timeout: 30000 })
+    } catch (firstErr) {
+      // Retry once with 45s timeout on timeout/network errors
+      if (firstErr.code === 'ECONNABORTED' || firstErr.message?.includes('timeout') || firstErr.code === 'ETIMEDOUT') {
+        log(`OP updateNameservers timeout for ${domainName}, retrying with 45s…`)
+        res = await axios.put(`${OP_BASE_URL}/v1beta/domains/${info.domainId}`, {
+          name_servers: nsPayload,
+        }, { headers, timeout: 45000 })
+      } else {
+        throw firstErr
+      }
+    }
 
     if (res.data?.code === 0) return { success: true }
     return { error: res.data?.desc || 'Failed to update nameservers' }

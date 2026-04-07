@@ -12432,6 +12432,35 @@ ${message.replace(/\n/g, '<br>')}
         return send(chatId, t.dnsInvalidIpv6)
       }
     }
+    // ── CNAME-specific validation ──
+    if (recordType === 'CNAME') {
+      // Reject URLs (must be a hostname, not a URL)
+      if (recordContent.includes('://') || recordContent.includes('/')) {
+        return send(chatId, ({ en: `⚠️ CNAME value must be a <b>hostname</b>, not a URL.\n\nExample: <code>myapp.railway.app</code>\n\nRemove <code>https://</code> and any path (e.g. <code>/page</code>).`,
+          fr: `⚠️ La valeur CNAME doit être un <b>nom d'hôte</b>, pas une URL.\n\nExemple : <code>myapp.railway.app</code>\n\nSupprimez <code>https://</code> et tout chemin.`,
+          zh: `⚠️ CNAME 值必须是<b>主机名</b>，不是 URL。\n\n示例：<code>myapp.railway.app</code>\n\n请去掉 <code>https://</code> 和路径。`,
+          hi: `⚠️ CNAME मान एक <b>होस्टनाम</b> होना चाहिए, URL नहीं।\n\nउदाहरण: <code>myapp.railway.app</code>\n\n<code>https://</code> और पथ हटाएं।`
+        }[lang] || `⚠️ CNAME value must be a <b>hostname</b>, not a URL.\n\nExample: <code>myapp.railway.app</code>\n\nRemove <code>https://</code> and any path.`), { parse_mode: 'HTML' })
+      }
+      // Reject self-referencing CNAME (domain pointing to itself)
+      const baseDomain = (recordName || domain).replace(/\.$/, '')
+      if (recordContent.replace(/\.$/, '').toLowerCase() === baseDomain.toLowerCase()) {
+        return send(chatId, ({ en: `⚠️ CNAME cannot point to itself (<code>${domain}</code>).\n\nPlease enter a <b>different</b> hostname, e.g. <code>myapp.railway.app</code>`,
+          fr: `⚠️ Le CNAME ne peut pas pointer vers lui-même (<code>${domain}</code>).\n\nEntrez un nom d'hôte <b>différent</b>.`,
+          zh: `⚠️ CNAME 不能指向自身（<code>${domain}</code>）。\n\n请输入<b>不同的</b>主机名。`,
+          hi: `⚠️ CNAME स्वयं को इंगित नहीं कर सकता (<code>${domain}</code>).\n\nकृपया <b>अलग</b> होस्टनाम दर्ज करें।`
+        }[lang] || `⚠️ CNAME cannot point to itself (<code>${domain}</code>).\n\nPlease enter a <b>different</b> hostname.`), { parse_mode: 'HTML' })
+      }
+    }
+
+    // Helper: extract error message from API result (CF returns errors[], others return error string)
+    const _extractDnsError = (result) => {
+      if (result.error) return result.error
+      if (result.errors && result.errors.length > 0) {
+        return result.errors.map(e => e.message || e.code || String(e)).join(', ')
+      }
+      return 'Update failed'
+    }
 
     if (dnsSource === 'cloudflare' && cfRecordId) {
       const result = await domainService.updateDNSRecord(domain, {
@@ -12441,7 +12470,7 @@ ${message.replace(/\n/g, '<br>')}
         recordValue: recordContent,
       }, db)
       if (result.error || !result.success) {
-        return send(chatId, t.errorSavingDns(sanitizeProviderError(result.error || 'Update failed', 'domain')))
+        return send(chatId, t.errorSavingDns(sanitizeProviderError(_extractDnsError(result), 'domain')))
       }
     } else if (recordType === 'NS') {
       // NS records: always update at the registrar level
@@ -12467,7 +12496,7 @@ ${message.replace(/\n/g, '<br>')}
         ttl: 300,
       }, db)
       if (result.error || !result.success) {
-        return send(chatId, t.errorSavingDns(sanitizeProviderError(result.error || 'Update failed', 'domain')))
+        return send(chatId, t.errorSavingDns(sanitizeProviderError(_extractDnsError(result), 'domain')))
       }
     } else {
       // ConnectReseller non-NS records
