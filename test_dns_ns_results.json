@@ -1,0 +1,188 @@
+{
+  "results": [
+    {
+      "step": "1.1 /start — reset state",
+      "passed": false,
+      "details": [
+        "MISSING in reply: 'select'"
+      ],
+      "reply_snippet": ""
+    },
+    {
+      "step": "1.2 Tap Bulletproof Domains",
+      "passed": false,
+      "details": [
+        "MISSING in reply: 'select'"
+      ],
+      "reply_snippet": ""
+    },
+    {
+      "step": "1.3 Tap DNS Management",
+      "passed": false,
+      "details": [
+        "MISSING in reply: 'au-rev.info'"
+      ],
+      "reply_snippet": "reply: Please select a domain if you wish to manage its DNS settings. 🛒🌐 Buy Domain Names,lockedinrate.sbs,starboyplay1.sbs,1roadhoppie.sbs,Back,Cancel\tto: 5168006768"
+    },
+    {
+      "step": "2.1 Select starboyplay1.sbs",
+      "passed": false,
+      "details": [
+        "MISSING in reply: 'Manage Nameservers'"
+      ],
+      "reply_snippet": "reply: Please select a domain if you wish to manage its DNS settings. 🛒🌐 Buy Domain Names,lockedinrate.sbs,starboyplay1.sbs,1roadhoppie.sbs,Back,Cancel\tto: 5168006768"
+    },
+    {
+      "step": "2.2 Verify DNS Dashboard layout",
+      "passed": false,
+      "details": [
+        "Dashboard layout: ManageNS=False, QuickActions=False, NoSwitchCF=True"
+      ]
+    },
+    {
+      "step": "3.1 Tap 🔄 Manage Nameservers",
+      "passed": false,
+      "details": [
+        "MISSING in reply: 'Cloudflare'",
+        "MISSING in reply: 'NS1:'",
+        "MISSING in reply: 'NS2:'"
+      ],
+      "reply_snippet": "reply: Please select a domain if you wish to manage its DNS settings. 🛒🌐 Buy Domain Names,lockedinrate.sbs,starboyplay1.sbs,1roadhoppie.sbs,Back,Cancel\tto: 5168006768"
+    },
+    {
+      "step": "3.2 Verify NS submenu buttons",
+      "passed": false,
+      "details": [
+        "NS Submenu: SwitchProvider=False, CustomNS=False, NoSwitchCF(correct)=True"
+      ]
+    },
+    {
+      "step": "3.3 Verify current NS displayed",
+      "passed": false,
+      "details": [
+        "anderson=False, leanna=False"
+      ]
+    },
+    {
+      "step": "4.1 Tap ✏️ Set Custom Nameservers",
+      "passed": false,
+      "details": [
+        "MISSING in reply: 'nameserver'",
+        "MISSING in reply: 'example'"
+      ],
+      "reply_snippet": "reply: Please select a domain if you wish to manage its DNS settings. 🛒🌐 Buy Domain Names,lockedinrate.sbs,starboyplay1.sbs,1roadhoppie.sbs,Back,Cancel\tto: 5168006768"
+    },
+    {
+      "step": "4.2 Tap Back from custom NS prompt",
+      "passed": true,
+      "details": [],
+      "reply_snippet": "reply: Please select a domain if you wish to manage its DNS settings. 🛒🌐 Buy Domain Names,lockedinrate.sbs,starboyplay1.sbs,1roadhoppie.sbs,Back,Cancel\tto: 5168006768"
+    },
+    {
+      "step": "5.1 Tap 🔄 Manage Nameservers again",
+      "passed": false,
+      "details": [
+        "MISSING in reply: 'NS1:'",
+        "MISSING in reply: 'NS2:'"
+      ],
+      "reply_snippet": "reply: Please select a domain if you wish to manage its DNS settings. 🛒🌐 Buy Domain Names,lockedinrate.sbs,starboyplay1.sbs,1roadhoppie.sbs,Back,Cancel\tto: 5168006768"
+    },
+    {
+      "step": "5.2 Tap Back from NS submenu → DNS Dashboard",
+      "passed": false,
+      "details": [
+        "MISSING in reply: 'Manage Nameservers'"
+      ],
+      "reply_snippet": "reply: Please select a domain if you wish to manage its DNS settings. 🛒🌐 Buy Domain Names,lockedinrate.sbs,starboyplay1.sbs,1roadhoppie.sbs,Back,Cancel\tto: 5168006768"
+    },
+    {
+      "step": "5.3 Tap Back from DNS Dashboard → Domain list",
+      "passed": false,
+      "details": [
+        "MISSING in reply: 'au-rev.info'"
+      ],
+      "reply_snippet": "reply: Please select a domain if you wish to manage its DNS settings. 🛒🌐 Buy Domain Names,lockedinrate.sbs,starboyplay1.sbs,1roadhoppie.sbs,Back,Cancel\tto: 5168006768"
+    },
+    {
+      "step": "6.1 Select au-rev.info",
+      "passed": false,
+      "details": [
+        "MISSING in reply: 'au-rev.info'",
+        "MISSING in reply: 'Manage Nameservers'"
+      ],
+      "reply_snippet": "reply: Please select a domain if you wish to manage its DNS settings. 🛒🌐 Buy Domain Names,lockedinrate.sbs,starboyplay1.sbs,1roadhoppie.sbs,Back,Cancel\tto: 5168006768"
+    },
+    {
+      "step": "6.2 Tap 🔄 Manage Nameservers for au-rev.info",
+      "passed": false,
+      "details": [
+        "MISSING in reply: 'au-rev.info'"
+      ],
+      "reply_snippet": "reply: Please select a domain if you wish to manage its DNS settings. 🛒🌐 Buy Domain Names,lockedinrate.sbs,starboyplay1.sbs,1roadhoppie.sbs,Back,Cancel\tto: 5168006768"
+    },
+    {
+      "step": "6.3 Verify non-CF NS submenu",
+      "passed": true,
+      "details": [
+        "Non-CF domain shows SwitchToCF=False"
+      ]
+    },
+    {
+      "step": "6.4 Back from NS submenu",
+      "passed": true,
+      "details": [],
+      "reply_snippet": "reply: Please select a domain if you wish to manage its DNS settings. 🛒🌐 Buy Domain Names,lockedinrate.sbs,starboyplay1.sbs,1roadhoppie.sbs,Back,Cancel\tto: 5168006768"
+    },
+    {
+      "step": "7.1 No errors in error log",
+      "passed": true,
+      "details": [
+        "Clean"
+      ]
+    },
+    {
+      "step": "8.1 Switch to French",
+      "passed": false,
+      "details": [
+        "MISSING in reply: 'français'"
+      ],
+      "reply_snippet": "reply: That option isn't available right now. Please pick from the buttons below. \tto: 5168006768"
+    },
+    {
+      "step": "8.2 Navigate to Domains (FR)",
+      "passed": true,
+      "details": [],
+      "reply_snippet": "reply: That option isn't available right now. Please pick from the buttons below. \tto: 5168006768"
+    },
+    {
+      "step": "8.3 Tap DNS Management (FR)",
+      "passed": false,
+      "details": [
+        "MISSING in reply: 'au-rev.info'"
+      ],
+      "reply_snippet": "reply: That option isn't available right now. Please pick from the buttons below. \tto: 5168006768"
+    },
+    {
+      "step": "8.4 Select starboyplay1.sbs (FR)",
+      "passed": false,
+      "details": [
+        "MISSING in reply: 'Gérer les serveurs de noms'"
+      ],
+      "reply_snippet": "reply: That option isn't available right now. Please pick from the buttons below. \tto: 5168006768"
+    },
+    {
+      "step": "8.5 Tap Manage NS (FR)",
+      "passed": false,
+      "details": [
+        "MISSING in reply: 'Serveurs de noms'",
+        "MISSING in reply: 'Cloudflare'"
+      ],
+      "reply_snippet": "reply: That option isn't available right now. Please pick from the buttons below. \tto: 5168006768"
+    }
+  ],
+  "summary": {
+    "total": 23,
+    "passed": 5,
+    "failed": 18
+  }
+}

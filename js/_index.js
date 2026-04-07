@@ -12290,6 +12290,7 @@ ${message.replace(/\n/g, '<br>')}
       const domain = info?.domainToManage || ''
       const records = info?.dnsRecords || []
       const nsRecords = records.filter(r => r.recordType === 'NS')
+      await set(state, chatId, 'nsUpdateOrigin', 'manage-nameservers-menu')
       await set(state, chatId, 'action', 'dns-update-all-ns')
       const msg = t.setCustomNsPrompt
         ? t.setCustomNsPrompt(domain, nsRecords)
@@ -12568,7 +12569,14 @@ ${message.replace(/\n/g, '<br>')}
   //
   // ── Bulk NS update handler ────────────────────────────
   if (action === 'dns-update-all-ns') {
-    if (message === t.back || message === t.cancel) return goto['select-dns-record-id-to-update']()
+    if (message === t.back || message === t.cancel) {
+      const origin = info?.nsUpdateOrigin
+      if (origin === 'manage-nameservers-menu') {
+        await set(state, chatId, 'nsUpdateOrigin', null)
+        return goto['manage-nameservers-menu']()
+      }
+      return goto['select-dns-record-id-to-update']()
+    }
 
     const domain = info?.domainToManage
     if (!domain) return send(chatId, t.noDomainSelected)

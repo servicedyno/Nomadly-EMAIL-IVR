@@ -414,7 +414,7 @@ ${CHAT_BOT_NAME}`,
       for (let i = 0; i < nsRecs.length; i++) {
         msg += `  NS${i + 1}: <code>${nsRecs[i].recordContent || '—'}</code>\n`
       }
-      msg += `<i>Use "Update DNS Record" to change.</i>\n`
+      msg += `<i>Use "🔄 Manage Nameservers" to change.</i>\n`
     }
 
     // Other record types
