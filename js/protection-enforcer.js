@@ -36,6 +36,15 @@ let db = null
 let enforceTimer = null
 let isRunning = false
 
+// ─── Persistent Failure & DNS Cache Tracking ────────────
+// Tracks CF zones that repeatedly fail SSL/AOP checks (auth errors, 404s).
+// After 3+ consecutive failures, skip for 7 days to avoid log noise.
+// Also caches "not pointing to us" DNS results to skip redundant CF API lookups.
+const ZONE_FAILURE_THRESHOLD = 3         // Skip after N consecutive failures
+const ZONE_FAILURE_SKIP_DAYS = 7         // How long to skip failing zones
+const DNS_CACHE_SKIP_DAYS = 7            // Re-check stale domains after N days
+const DNS_CACHE_MISS_THRESHOLD = 3       // Consecutive misses before caching as stale
+
 // ─── Initialize ──────────────────────────────────────────
 
 function init(mongoDb) {
@@ -331,7 +340,93 @@ async function enforceOriginHardening(domain, zoneId, cpUser) {
   return actions
 }
 
-// ─── Full Enforcement Run ────────────────────────────────
+// ─── Zone Failure Tracking Helpers ──────────────────────
+
+/**
+ * Check if a CF zone should be skipped due to persistent auth/SSL failures.
+ * Returns true if zone has failed >= ZONE_FAILURE_THRESHOLD times and skip hasn't expired.
+ */
+async function isZoneSkipped(zoneId) {
+  if (!db) return false
+  try {
+    const record = await db.collection('protectionZoneFailures').findOne({ _id: zoneId })
+    if (!record || record.consecutiveFailures < ZONE_FAILURE_THRESHOLD) return false
+    const skipUntil = new Date(record.lastFailedAt).getTime() + ZONE_FAILURE_SKIP_DAYS * 24 * 60 * 60 * 1000
+    if (Date.now() < skipUntil) return true
+    // Skip period expired — reset and allow retry
+    await db.collection('protectionZoneFailures').deleteOne({ _id: zoneId })
+    return false
+  } catch { return false }
+}
+
+/**
+ * Record a CF zone auth/SSL failure. Increments consecutive failure counter.
+ */
+async function recordZoneFailure(zoneId, domain, errorMsg) {
+  if (!db) return
+  try {
+    await db.collection('protectionZoneFailures').updateOne(
+      { _id: zoneId },
+      {
+        $inc: { consecutiveFailures: 1 },
+        $set: { lastFailedAt: new Date(), lastDomain: domain, lastError: errorMsg },
+        $setOnInsert: { firstFailedAt: new Date() }
+      },
+      { upsert: true }
+    )
+  } catch (e) { log(`[ProtectionEnforcer] Zone failure tracking error: ${e.message}`) }
+}
+
+/**
+ * Reset zone failure counter (called when a zone succeeds).
+ */
+async function resetZoneFailure(zoneId) {
+  if (!db) return
+  try {
+    await db.collection('protectionZoneFailures').deleteOne({ _id: zoneId })
+  } catch { /* ignore */ }
+}
+
+// ─── DNS Result Cache Helpers ───────────────────────────
+
+/**
+ * Check if a domain's DNS "not pointing to us" result is cached and still valid.
+ * Returns true if domain should be skipped (known stale).
+ */
+async function isDnsCacheStale(domain) {
+  if (!db) return false
+  try {
+    const record = await db.collection('domainDnsCache').findOne({ _id: domain })
+    if (!record || record.pointsToUs !== false) return false
+    if (record.consecutiveMisses < DNS_CACHE_MISS_THRESHOLD) return false
+    const skipUntil = new Date(record.checkedAt).getTime() + DNS_CACHE_SKIP_DAYS * 24 * 60 * 60 * 1000
+    if (Date.now() < skipUntil) return true
+    // Cache expired — allow fresh check
+    return false
+  } catch { return false }
+}
+
+/**
+ * Update DNS cache after a live check.
+ */
+async function updateDnsCache(domain, pointsToUs) {
+  if (!db) return
+  try {
+    if (pointsToUs) {
+      await db.collection('domainDnsCache').deleteOne({ _id: domain })
+    } else {
+      await db.collection('domainDnsCache').updateOne(
+        { _id: domain },
+        {
+          $inc: { consecutiveMisses: 1 },
+          $set: { pointsToUs: false, checkedAt: new Date() },
+          $setOnInsert: { firstMissAt: new Date() }
+        },
+        { upsert: true }
+      )
+    }
+  } catch (e) { log(`[ProtectionEnforcer] DNS cache write error for ${domain}: ${e.message}`) }
+}
 
 /**
  * Run a full enforcement pass across all domains.
@@ -353,6 +448,8 @@ async function runEnforcement() {
     fixed: 0,
     noZone: 0,
     errors: 0,
+    dnsSkipped: 0,
+    zoneSkipped: 0,
     actions: [],
   }
 
@@ -386,9 +483,20 @@ async function runEnforcement() {
         continue
       }
 
+      // ── DNS CACHE: Skip domains known to not point to us ──
+      // Domains that consistently have A records pointing elsewhere are cached.
+      // Re-checked every DNS_CACHE_SKIP_DAYS to detect if they return.
+      const cachedStale = await isDnsCacheStale(domain)
+      if (cachedStale) {
+        summary.dnsSkipped++
+        summary.protected++ // count as OK, just not ours
+        continue
+      }
+
       // Skip domains that don't point to our server (e.g., domain-only purchases
       // where the user set their own A record to their own server)
       const pointsToUs = await domainPointsToOurServer(domain, zoneId)
+      await updateDnsCache(domain, pointsToUs) // persist result
       if (!pointsToUs) {
         log(`[ProtectionEnforcer] SKIP: ${domain} — A record does not point to our server`)
         summary.protected++ // count as OK, just not ours to protect
@@ -458,22 +566,49 @@ async function runEnforcement() {
         }
 
         // SSL mode enforcement for hosting domains — ensure 'full' mode (not 'strict')
-        try {
-          await enforceSSLMode(domain, zoneId)
-        } catch (sslErr) {
-          log(`[ProtectionEnforcer] SSL enforcement error for ${domain}: ${sslErr.message}`)
-        }
-
-        // Origin hardening: Authenticated Origin Pulls (blocks direct-IP and SNI scanning)
-        try {
-          const cpUser = entry.cpUser || null
-          const hardenActions = await enforceOriginHardening(domain, zoneId, cpUser)
-          if (hardenActions.length > 0) {
-            summary.actions.push(...hardenActions)
-            log(`[ProtectionEnforcer] HARDENED: ${domain} — ${hardenActions.join(', ')}`)
+        // ── Zone Failure Tracking: skip zones with persistent auth/SSL errors ──
+        const zoneIsSkipped = await isZoneSkipped(zoneId)
+        if (zoneIsSkipped) {
+          if (!summary._zoneSkipLogged) summary._zoneSkipLogged = new Set()
+          if (!summary._zoneSkipLogged.has(zoneId)) {
+            log(`[ProtectionEnforcer] SKIP SSL/AOP: ${domain} (zone ${zoneId}) — persistent auth failures (retries in ${ZONE_FAILURE_SKIP_DAYS}d)`)
+            summary._zoneSkipLogged.add(zoneId)
           }
-        } catch (hardenErr) {
-          log(`[ProtectionEnforcer] Origin hardening error for ${domain}: ${hardenErr.message}`)
+          summary.zoneSkipped++
+        } else {
+          let sslFailed = false
+          try {
+            await enforceSSLMode(domain, zoneId)
+            // SSL succeeded — no failure to record (AOP check below may still fail)
+          } catch (sslErr) {
+            sslFailed = true
+            log(`[ProtectionEnforcer] SSL enforcement error for ${domain}: ${sslErr.message}`)
+            await recordZoneFailure(zoneId, domain, `SSL: ${sslErr.message}`)
+          }
+
+          // Origin hardening: Authenticated Origin Pulls (blocks direct-IP and SNI scanning)
+          try {
+            const cpUser = entry.cpUser || null
+            const hardenActions = await enforceOriginHardening(domain, zoneId, cpUser)
+            if (hardenActions.length > 0) {
+              // Check if AOP failed
+              const aopFailed = hardenActions.some(a => a.includes('FAILED') || a.includes('error'))
+              if (aopFailed) {
+                await recordZoneFailure(zoneId, domain, `AOP: ${hardenActions.join(', ')}`)
+              } else {
+                // AOP succeeded — reset any failure count
+                if (!sslFailed) await resetZoneFailure(zoneId)
+              }
+              summary.actions.push(...hardenActions)
+              log(`[ProtectionEnforcer] HARDENED: ${domain} — ${hardenActions.join(', ')}`)
+            } else {
+              // No actions needed (already hardened) — reset failures if SSL also passed
+              if (!sslFailed) await resetZoneFailure(zoneId)
+            }
+          } catch (hardenErr) {
+            log(`[ProtectionEnforcer] Origin hardening error for ${domain}: ${hardenErr.message}`)
+            await recordZoneFailure(zoneId, domain, `Harden: ${hardenErr.message}`)
+          }
         }
       } else {
         // Non-hosting domain pointing to our server — just count as OK, no Workers
@@ -490,7 +625,7 @@ async function runEnforcement() {
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
   log(`[ProtectionEnforcer] ═══ Enforcement complete in ${elapsed}s ═══`)
-  log(`[ProtectionEnforcer] Total: ${summary.total} | Protected: ${summary.protected} | Fixed: ${summary.fixed} | No Zone: ${summary.noZone} | Errors: ${summary.errors}`)
+  log(`[ProtectionEnforcer] Total: ${summary.total} | Protected: ${summary.protected} | Fixed: ${summary.fixed} | No Zone: ${summary.noZone} | Errors: ${summary.errors} | DNS Cached: ${summary.dnsSkipped} | Zone Skipped: ${summary.zoneSkipped}`)
   if (summary.actions.length > 0) {
     log(`[ProtectionEnforcer] Actions: ${summary.actions.join('; ')}`)
   }

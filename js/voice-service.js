@@ -50,6 +50,11 @@ const sipHardBlock = {}
 const HARD_BLOCK_THRESHOLD = 5         // Consecutive rate-limit hits before hard block
 const HARD_BLOCK_DURATION = 600000     // 10 minutes of silent drop
 
+// Expired test credential block set — prevents auto-route retry storm from expired test SIP users.
+// Key: sipUsername, Value: timestamp when blocked. Entries auto-expire after 10 minutes.
+const _expiredTestBlockSet = new Map()
+const EXPIRED_TEST_BLOCK_DURATION = 600000  // 10 minutes
+
 // Wallet rejection cooldown — caches "wallet too low" rejections by from-number.
 // If rejected within cooldown, immediately reject without expensive credential lookups.
 const walletRejectCooldown = {}
@@ -170,6 +175,13 @@ setInterval(() => {
       delete sipHardBlock[key]
     } else if (!sipHardBlock[key].blocked && sipHardBlock[key].lastHitAt && (now - sipHardBlock[key].lastHitAt) > SIP_GLOBAL_RATE_WINDOW * 2) {
       delete sipHardBlock[key]
+    }
+  }
+
+  // Clean expired test credential block entries
+  for (const [key, blockedAt] of _expiredTestBlockSet) {
+    if (now - blockedAt > EXPIRED_TEST_BLOCK_DURATION * 2) {
+      _expiredTestBlockSet.delete(key)
     }
   }
 
@@ -1399,6 +1411,17 @@ async function handleOutboundSipCall(payload) {
     return // silent drop — saves webhook processing, logging, and Telnyx API calls
   }
 
+  // ── EXPIRED TEST CREDENTIAL EARLY BLOCK ──
+  // If this SIP user was recently identified as an expired test credential,
+  // silently drop without any DB lookups or API calls (saves resources)
+  if (credentialExtracted && sipUsername && _expiredTestBlockSet.has(sipUsername)) {
+    const blockedAt = _expiredTestBlockSet.get(sipUsername)
+    if (Date.now() - blockedAt < EXPIRED_TEST_BLOCK_DURATION) {
+      return // silent drop — expired test user keeps retrying
+    }
+    _expiredTestBlockSet.delete(sipUsername) // expired block, allow re-check
+  }
+
   // ── SIP Rate Limiting — prevent spam dialing ──
   if (!checkSipRateLimit(sipUsername, destination)) {
     log(`[Voice] ⚠️ SIP RATE LIMIT: ${sipUsername} → ${destination} — exceeded ${SIP_RATE_LIMIT_MAX} calls/${SIP_RATE_LIMIT_WINDOW/1000}s, rejecting`)
@@ -1543,7 +1566,30 @@ async function handleOutboundSipCall(payload) {
     }
   }
   
-  const { chatId, num } = lookupResult
+  const { chatId, num, expiredTest, expiredSipUser } = lookupResult
+
+  // ── EXPIRED TEST CREDENTIAL: silent drop to prevent auto-route retry storm ──
+  // When a test SIP user exhausts their free calls, the credential is marked expired.
+  // But the SIP client stays registered and keeps re-dialing → Telnyx auto-routes →
+  // webhook → "No owner found" → hangup → auto-route again → infinite loop.
+  // Fix: detect expired test credentials, add to temporary block set, and hard-block.
+  if (expiredTest) {
+    const blockKey = expiredSipUser || sipUsername
+    if (!_expiredTestBlockSet.has(blockKey)) {
+      log(`[Voice] Expired test credential ${blockKey} — adding to 10-min block set (auto-route prevention)`)
+      _expiredTestBlockSet.set(blockKey, Date.now())
+      // Notify the user once that their test expired
+      if (lookupResult.expiredChatId && _bot) {
+        _bot.sendMessage(lookupResult.expiredChatId,
+          `⏰ <b>Test Calls Expired</b>\n\nYour free SIP test has ended. Please disconnect your SIP client to stop retrying.\n\n💡 To make more calls, purchase a Cloud Phone plan from the main menu.`,
+          { parse_mode: 'HTML' }
+        ).catch(() => {})
+      }
+    }
+    try { await _telnyxApi.hangupCall(callControlId) } catch (e) { /* silent */ }
+    return
+  }
+
   if (!chatId || !num) {
     log(`[Voice] Outbound SIP: No owner found for SIP user ${sipUsername}, rejecting`)
     try {
@@ -1968,6 +2014,15 @@ async function findNumberBySipUser(sipUsername, fromPhone, connectionPhoneNumber
           return { chatId: testCred.chatId, num: virtualTestNum, isTestCall: true }
         }
         log(`[Voice] Test account ${TEST_ACCOUNT_CHAT_ID} has no active number and no TELNYX_DEFAULT_ANI fallback — cannot route test call`)
+      }
+
+      // ── EXPIRED TEST CREDENTIAL DETECTION ──
+      // If the SIP user has an expired test credential, return a special marker
+      // so handleOutboundSipCall() can silently reject instead of logging "No owner found"
+      // and triggering Telnyx auto-route retry storms.
+      const expiredCred = await db.collection('testCredentials').findOne({ sipUsername, expired: true })
+      if (expiredCred) {
+        return { chatId: null, num: null, expiredTest: true, expiredSipUser: sipUsername, expiredChatId: expiredCred.chatId }
       }
     }
 
