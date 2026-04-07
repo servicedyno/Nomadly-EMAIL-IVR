@@ -251,24 +251,24 @@ function getBulkSmsFooter(lang) {
 // ─── DynoPay Crypto Footer (appended to every promo before BulkSMS) ──
 const DYNOPAY_FOOTER = {
   en: [
-    `💎 <b>Pay with Crypto</b> — API or direct link → <a href="https://dynopay.com">dynopay.com</a>`,
-    `💎 <b>Crypto Accepted</b> — pay via API or link at <a href="https://dynopay.com">dynopay.com</a>`,
-    `💎 <b>Accept Crypto?</b> Pay seamlessly via <a href="https://dynopay.com">dynopay.com</a> — API & link supported`,
+    `💎 <b>Accept Crypto & Stable Currency Payments</b> — via API or link → <a href="https://dynopay.com">dynopay.com</a>`,
+    `💎 <b>Accept Crypto & Stable Currency Payments</b> — integrate via API or pay direct → <a href="https://dynopay.com">dynopay.com</a>`,
+    `💎 <b>Accept Crypto & Stable Currency Payments</b> — API or link at <a href="https://dynopay.com">dynopay.com</a>`,
   ],
   fr: [
-    `💎 <b>Paiement Crypto</b> — API ou lien direct → <a href="https://dynopay.com">dynopay.com</a>`,
-    `💎 <b>Crypto Acceptée</b> — payez via API ou lien sur <a href="https://dynopay.com">dynopay.com</a>`,
-    `💎 <b>Payer en Crypto ?</b> Via API ou lien → <a href="https://dynopay.com">dynopay.com</a>`,
+    `💎 <b>Acceptez les paiements Crypto & Stablecoins</b> — via API ou lien → <a href="https://dynopay.com">dynopay.com</a>`,
+    `💎 <b>Acceptez les paiements Crypto & Stablecoins</b> — intégrez via API ou payez directement → <a href="https://dynopay.com">dynopay.com</a>`,
+    `💎 <b>Acceptez les paiements Crypto & Stablecoins</b> — API ou lien sur <a href="https://dynopay.com">dynopay.com</a>`,
   ],
   zh: [
-    `💎 <b>支持加密货币支付</b> — 通过 API 或链接 → <a href="https://dynopay.com">dynopay.com</a>`,
-    `💎 <b>接受加密货币</b> — API 或直接链接支付 → <a href="https://dynopay.com">dynopay.com</a>`,
-    `💎 <b>加密支付</b> — 通过 <a href="https://dynopay.com">dynopay.com</a> 的 API 或链接付款`,
+    `💎 <b>接受加密货币和稳定币支付</b> — 通过 API 或链接 → <a href="https://dynopay.com">dynopay.com</a>`,
+    `💎 <b>接受加密货币和稳定币支付</b> — API 集成或直接链接 → <a href="https://dynopay.com">dynopay.com</a>`,
+    `💎 <b>接受加密货币和稳定币支付</b> — API 或链接 → <a href="https://dynopay.com">dynopay.com</a>`,
   ],
   hi: [
-    `💎 <b>क्रिप्टो से भुगतान करें</b> — API या लिंक → <a href="https://dynopay.com">dynopay.com</a>`,
-    `💎 <b>क्रिप्टो स्वीकार्य</b> — API या लिंक से भुगतान करें → <a href="https://dynopay.com">dynopay.com</a>`,
-    `💎 <b>क्रिप्टो पेमेंट?</b> <a href="https://dynopay.com">dynopay.com</a> पर API या लिंक से भुगतान करें`,
+    `💎 <b>क्रिप्टो और स्टेबल करेंसी भुगतान स्वीकारें</b> — API या लिंक → <a href="https://dynopay.com">dynopay.com</a>`,
+    `💎 <b>क्रिप्टो और स्टेबल करेंसी भुगतान स्वीकारें</b> — API से जोड़ें या सीधे भुगतान करें → <a href="https://dynopay.com">dynopay.com</a>`,
+    `💎 <b>क्रिप्टो और स्टेबल करेंसी भुगतान स्वीकारें</b> — API या लिंक पर <a href="https://dynopay.com">dynopay.com</a>`,
   ],
 }
 
