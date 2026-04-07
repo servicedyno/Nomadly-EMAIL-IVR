@@ -248,6 +248,35 @@ function getBulkSmsFooter(lang) {
   return footers[Math.floor(Math.random() * footers.length)]
 }
 
+// ─── Private SMTP Footer (appended to every promo before DynoPay) ──
+const SMTP_FOOTER = {
+  en: [
+    `📧 <b>Private SMTP Server</b> — dedicated rotating IP + warming for email inboxing.\nDM @onarrival1 or @Hostbay_support`,
+    `📧 <b>Set up your own SMTP server</b> — rotating IP & warming included for max inboxing.\nDM @onarrival1 or @Hostbay_support`,
+    `📧 <b>Dedicated SMTP with rotating IP</b> — warming built-in for reliable email delivery.\nDM @onarrival1 or @Hostbay_support`,
+  ],
+  fr: [
+    `📧 <b>Serveur SMTP privé</b> — IP rotative dédiée + préchauffage pour la boîte de réception.\nDM @onarrival1 ou @Hostbay_support`,
+    `📧 <b>Configurez votre serveur SMTP</b> — IP rotative & préchauffage inclus pour un inboxing optimal.\nDM @onarrival1 ou @Hostbay_support`,
+    `📧 <b>SMTP dédié avec IP rotative</b> — préchauffage intégré pour une livraison fiable.\nDM @onarrival1 ou @Hostbay_support`,
+  ],
+  zh: [
+    `📧 <b>私有SMTP服务器</b> — 专属轮换IP + 预热，确保邮件进入收件箱。\n私信 @onarrival1 或 @Hostbay_support`,
+    `📧 <b>搭建您的SMTP服务器</b> — 轮换IP和预热功能，最大化收件率。\n私信 @onarrival1 或 @Hostbay_support`,
+    `📧 <b>专属SMTP + 轮换IP</b> — 内置预热，确保邮件可靠投递。\n私信 @onarrival1 或 @Hostbay_support`,
+  ],
+  hi: [
+    `📧 <b>प्राइवेट SMTP सर्वर</b> — डेडिकेटेड रोटेटिंग IP + वार्मिंग, ईमेल इनबॉक्सिंग के लिए।\nDM करें @onarrival1 या @Hostbay_support`,
+    `📧 <b>अपना SMTP सर्वर सेटअप करें</b> — रोटेटिंग IP और वार्मिंग शामिल, बेहतर इनबॉक्सिंग।\nDM करें @onarrival1 या @Hostbay_support`,
+    `📧 <b>डेडिकेटेड SMTP + रोटेटिंग IP</b> — बिल्ट-इन वार्मिंग, भरोसेमंद ईमेल डिलीवरी।\nDM करें @onarrival1 या @Hostbay_support`,
+  ],
+}
+
+function getSmtpFooter(lang) {
+  const footers = SMTP_FOOTER[lang] || SMTP_FOOTER.en
+  return footers[Math.floor(Math.random() * footers.length)]
+}
+
 // ─── DynoPay Crypto Footer (appended to every promo before BulkSMS) ──
 const DYNOPAY_FOOTER = {
   en: [
@@ -3335,6 +3364,8 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
       }
       let caption = dynamicMessage || variations[variationIndex % variations.length]
       if (couponLine) caption += '\n\n' + couponLine
+      // Append private SMTP footer
+      caption += '\n\n' + getSmtpFooter(lang)
       // Append DynoPay crypto footer
       caption += '\n\n' + getDynoPayFooter(lang)
       // Append BulkSMS footer to every promo message

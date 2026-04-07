@@ -106,7 +106,22 @@
 
 
 
-user_problem_statement: "Add BulkSMS promo footer to all auto-promo messages (sent twice daily). Footer must appear in all 4 languages (EN/FR/ZH/HI) with 3 rotating variations per language, appended to every promo broadcast."
+user_problem_statement: "Add private SMTP server promo footer to all auto-promo messages. Footer in all 4 languages (EN/FR/ZH/HI) with 3 rotating variations, positioned before DynoPay footer."
+
+  - task: "Private SMTP promo footer appended to every auto-promo broadcast"
+    implemented: true
+    working: true
+    file: "js/auto-promo.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Added SMTP_FOOTER constant (line 252) with 3 variations for each of 4 languages (EN/FR/ZH/HI). Added getSmtpFooter(lang) helper (line 275). Modified sendPromoToUser() (line 3367) to append SMTP footer BEFORE DynoPay footer. Order: Promo → Coupon → SMTP → DynoPay → BulkSMS. Module loads clean (exit 0), Node.js restarted with 0 errors."
+        - working: true
+          agent: "testing"
+          comment: "✅ COMPREHENSIVE VERIFICATION COMPLETE: All 8/8 tests passed (100% success rate). Key findings: (1) SMTP_FOOTER constant verified at line 252 with 4 languages (en/fr/zh/hi) × 3 variations each = 12 total variations, (2) getSmtpFooter(lang) function verified at line 275 with correct fallback to 'en' and random selection using Math.floor(Math.random()), (3) Footer integration verified in sendPromoToUser() at line 3368 - correctly positioned BEFORE DynoPay footer with pattern 'caption += \\n\\n + getSmtpFooter(lang)', (4) Module loads without errors: node -e \"require('./js/auto-promo.js')\" returns exit code 0, (5) Node.js service running with AutoPromo initialized with 8 scheduled jobs (4 languages × 2 slots/day), (6) All footer variations contain required elements: @onarrival1 AND @Hostbay_support mentions, SMTP/rotating IP/warming/inboxing keywords, no clickable URLs (only DM contacts), (7) Health endpoint returns healthy: {'status': 'healthy', 'database': 'connected'}, (8) Error log is 0 bytes (clean). Backend URL confirmed as https://readme-setup-12.preview.emergentagent.com with Node.js on port 5000 behind FastAPI proxy at port 8001. Private SMTP footer implementation is production-ready and fully functional."
 
   - task: "BulkSMS promo footer appended to every auto-promo broadcast"
     implemented: true
@@ -2395,3 +2410,7 @@ test_plan:
 agent_communication:
     - agent: "main"
       message: "UX IMPROVEMENT — Dedicated Manage Nameservers submenu. Changes span 5 files. Please verify: (1) _index.js goto 'manage-nameservers-menu' exists and shows NS status + buttons, (2) _index.js action 'manage-nameservers-menu' handles switchToCf, switchToProviderDefault, setCustomNs, back, (3) DNS Dashboard keyboard has [manageNameservers] as first row, no longer has switchToCf/switchToProviderDefault, (4) confirm-switch-to-cloudflare back goes to manage-nameservers-menu, (5) confirm-switch-to-provider-default back goes to manage-nameservers-menu, (6) Custom NS routes to dns-update-all-ns action, (7) All 4 lang files have manageNameservers + manageNsMenu + setCustomNs translations, (8) Syntax check passes for all 5 files, (9) nodejs restarts clean."
+    - agent: "main"
+      message: "SMTP FOOTER ADDED: Added SMTP_FOOTER constant (line 252) with 3 variations × 4 languages (EN/FR/ZH/HI) + getSmtpFooter(lang) helper (line 275). Appended in sendPromoToUser() at line 3367 BEFORE DynoPay footer. Order: Promo → Coupon → SMTP → DynoPay → BulkSMS. Module loads clean, nodejs restarted with 0 errors. Please verify: (1) SMTP_FOOTER has 4 langs × 3 variations (12 total), (2) getSmtpFooter(lang) exists with fallback to 'en', (3) SMTP footer appended BEFORE DynoPay in sendPromoToUser(), (4) All variations mention @onarrival1 and @Hostbay_support, (5) Content about private SMTP/rotating IP/warming/inboxing present, (6) Module loads without errors, (7) No clickable URL (just DM contacts)."
+    - agent: "testing"
+      message: "✅ PRIVATE SMTP FOOTER TESTING COMPLETE: All 8/8 tests passed (100% success rate). COMPREHENSIVE VERIFICATION: (1) SMTP_FOOTER constant verified at line 252 with 4 languages (en/fr/zh/hi) × 3 variations each = 12 total variations, (2) getSmtpFooter(lang) function verified at line 275 with correct fallback to 'en' and random selection, (3) Footer integration verified in sendPromoToUser() at line 3368 - correctly positioned BEFORE DynoPay footer with pattern 'caption += \\n\\n + getSmtpFooter(lang)', (4) Module loads without errors: node -e \"require('./js/auto-promo.js')\" successful, (5) Node.js service running with AutoPromo initialized with 8 scheduled jobs (4 languages × 2 slots/day), (6) All footer variations contain required elements: @onarrival1 AND @Hostbay_support mentions, SMTP/rotating IP/warming/inboxing keywords, no clickable URLs (only DM contacts), (7) Health endpoint returns healthy: {'status': 'healthy', 'database': 'connected'}, (8) Error log is 0 bytes (clean). Backend URL: https://readme-setup-12.preview.emergentagent.com, Node.js on port 5000 behind FastAPI proxy at port 8001. Private SMTP footer implementation is production-ready and fully functional."
