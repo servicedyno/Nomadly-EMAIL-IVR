@@ -56,7 +56,7 @@ This script handles everything:
 ### Webhook Configuration
 - `SELF_URL` and `SELF_URL_PROD` in `backend/.env` **MUST** use the current pod URL with `/api` suffix
 - The setup script auto-detects this from `REACT_APP_BACKEND_URL`
-- Example: `https://setup-guide-72.preview.emergentagent.com/api`
+- Example: `https://readme-onboard.preview.emergentagent.com/api`
 
 ### Key API Credentials (in backend/.env)
 | Variable | Service |
@@ -156,7 +156,7 @@ bash /app/scripts/setup-nodejs.sh
 
 ### Webhooks not working
 1. Check SELF_URL matches current pod: `grep SELF_URL /app/backend/.env`
-2. Must end with `/api` — e.g., `https://setup-guide-72.preview.emergentagent.com/api`
+2. Must end with `/api` — e.g., `https://readme-onboard.preview.emergentagent.com/api`
 3. Re-run setup script to auto-fix: `bash /app/scripts/setup-nodejs.sh`
 
 ### 502 errors on /api/* routes
