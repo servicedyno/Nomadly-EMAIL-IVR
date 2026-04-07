@@ -10959,9 +10959,14 @@ ${message.replace(/\n/g, '<br>')}
       return send(chatId, t.selectValidOption || 'Please choose a valid domain from the list.')
     }
 
+    // ── BUG FIX: Declare lang before any usage to avoid TDZ ──
+    // Previously declared inside try block after usage, causing "Cannot access 'lang' before initialization"
+    const lang = info?.userLanguage || 'en'
+
     send(chatId, ({ en: `🔗 Activating shortener for <b>${domain}</b>…`, fr: `🔗 Activation du raccourcisseur pour <b>${domain}</b>…`, zh: `🔗 正在为 <b>${domain}</b> 激活短链接…`, hi: `🔗 <b>${domain}</b> के लिए शॉर्टनर सक्रिय कर रहे हैं…` }[lang] || `🔗 Activating shortener for <b>${domain}</b>…`), { parse_mode: 'HTML' })
 
     try {
+
       // ── Check for hosting plan conflict ──
       const existingHosting = await cpanelAccounts.findOne({ domain })
       if (existingHosting) {
@@ -10969,7 +10974,7 @@ ${message.replace(/\n/g, '<br>')}
       }
 
       // ── Persist intent before starting ──
-      await createActivationTask(chatId, domain, info?.userLanguage || 'en')
+      await createActivationTask(chatId, domain, lang)
 
       // ── Ensure domain is on Cloudflare (create zone + update NS if needed) ──
       const cfEnsure = await domainService.ensureCloudflare(domain, db)
@@ -11018,7 +11023,6 @@ ${message.replace(/\n/g, '<br>')}
       // ── Persist DNS complete ──
       await markDnsAdded(domain)
 
-      const lang = info?.userLanguage || 'en'
       send(chatId, ({ en: `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`, fr: `✅ <b>${domain}</b> lié au raccourcisseur d'URL. La propagation DNS peut prendre jusqu'à 24h.`, zh: `✅ <b>${domain}</b> 已链接到短链接服务。DNS 传播可能需要 24 小时。`, hi: `✅ <b>${domain}</b> URL शॉर्टनर से जोड़ दिया गया। DNS प्रसार में 24 घंटे तक लग सकते हैं।` }[lang] || `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`), { parse_mode: 'HTML' })
       regularCheckDns(bot, chatId, domain, lang)
 
