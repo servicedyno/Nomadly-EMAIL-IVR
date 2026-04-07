@@ -43,7 +43,7 @@ def test_health_endpoint():
     print("🔍 Testing health endpoint...")
     
     try:
-        response = requests.get("https://quick-start-154.preview.emergentagent.com/api/health", timeout=10)
+        response = requests.get("https://readme-setup-12.preview.emergentagent.com/api/health", timeout=10)
         if response.status_code == 200:
             data = response.json()
             if data.get('status') == 'healthy':
