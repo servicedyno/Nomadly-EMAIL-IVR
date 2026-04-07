@@ -843,7 +843,7 @@ function bufferHangup(callControlId, payload) {
       const entry = _eventBuffer.get(callControlId)
       if (entry) {
         _eventBuffer.delete(callControlId)
-        log(`[Voice] Buffer timeout — processing orphan hangup for ${callControlId}`)
+        log(`[Voice] Buffer timeout — processing late hangup for ${callControlId} (no matching call.initiated — likely post-deploy orphan)`)
         processHangup(entry.hangupPayload)
       }
     }, EVENT_BUFFER_TIMEOUT_MS)
@@ -926,9 +926,20 @@ async function handleVoiceWebhook(req, res) {
         break
       case 'call.hangup': {
         // If we haven't seen call.initiated for this call yet, buffer the hangup
-        if (callControlId && !_initiatedCalls.has(callControlId)) {
-          bufferHangup(callControlId, payload)
-          break
+        // UNLESS it's a known bridge transfer leg — those can be processed directly
+        if (callControlId && !_initiatedCalls.has(callControlId) && !activeBridgeTransfers[callControlId]) {
+          // Recognize known benign hangup patterns that don't need buffering:
+          // 1. SIP bridge delivery legs (to=sip:bridge_*@speechcue-*)
+          // 2. SIP device delivery legs (to=sip:* or to=gencred*)
+          // These commonly arrive after deployment restarts when _initiatedCalls is empty
+          const toField = (payload?.to || '')
+          const isBenignLeg = toField.includes('bridge_') || toField.startsWith('sip:bridge_') || toField.startsWith('gencred')
+          if (isBenignLeg) {
+            log(`[Voice] Hangup for known bridge/delivery leg ${callControlId} — processing directly (no buffer)`)
+          } else {
+            bufferHangup(callControlId, payload)
+            break
+          }
         }
         if (await handleBridgeTransferHangup(payload)) break
         if (handleOutboundIvrHangup(payload)) break
