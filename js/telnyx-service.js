@@ -382,7 +382,12 @@ async function transferCall(callControlId, toNumber, fromNumber, options = {}) {
     log(`[Telnyx] Transfer initiated successfully`)
     return res.data?.data || null
   } catch (e) {
-    const errDetail = e.response?.data?.errors?.[0]?.detail || e.response?.data || e.message
+    const errDetail = String(e.response?.data?.errors?.[0]?.detail || e.response?.data || e.message || '')
+    const errCode = e.response?.data?.errors?.[0]?.code
+    // Fix #3b: Suppress "call no longer active" — same race condition as answerCall/hangupCall
+    if (errCode === '90018' || errDetail.includes('already ended') || errDetail.includes('not found') || errDetail.includes('no longer active')) {
+      return null
+    }
     log(`[Telnyx] transferCall error (to=${toNumber}): ${JSON.stringify(errDetail)}`)
     return null
   }
