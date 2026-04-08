@@ -4329,9 +4329,11 @@ Enter new value:`), bc)
     },
     targetLeadsConfirm: async () => {
       const { targetName, targetCity, carrier, amount, price, couponApplied, newPrice } = info || {}
-      const finalPrice = couponApplied ? newPrice : price
+      // Safeguard: coupon newPrice must be less than price and > 0 to be valid
+      const couponValid = couponApplied && newPrice > 0 && newPrice < price
+      const finalPrice = couponValid ? newPrice : price
       const { usdBal } = await getBalance(walletOf, chatId)
-      const summary = `📋 <b>Order Summary</b>\n\n🏦 Institution: <b>${targetName}</b>\n📍 Area: <b>${targetCity}</b>\n📞 Carrier: <b>${carrier}</b>\n📊 Leads: <b>${amount}</b>\n📄 Format: <b>International</b>\n📇 Includes: <b>Phone owner's name</b>${couponApplied ? `\n💰 Price: <s>$${price}</s> <b>$${view(finalPrice)}</b>` : `\n💰 Price: <b>$${finalPrice}</b>`}\n\n💳 Wallet: <b>$${view(usdBal)}</b>`
+      const summary = `📋 <b>Order Summary</b>\n\n🏦 Institution: <b>${targetName}</b>\n📍 Area: <b>${targetCity}</b>\n📞 Carrier: <b>${carrier}</b>\n📊 Leads: <b>${amount}</b>\n📄 Format: <b>International</b>\n📇 Includes: <b>Phone owner's name</b>${couponValid ? `\n💰 Price: <s>$${price}</s> <b>$${view(finalPrice)}</b>` : `\n💰 Price: <b>$${finalPrice}</b>`}\n\n💳 Wallet: <b>$${view(usdBal)}</b>`
       send(chatId, summary, k.of([({ en: `✅ Pay ${view(finalPrice)} USD`, fr: `✅ Payer ${view(finalPrice)} USD`, zh: `✅ 支付 ${view(finalPrice)} USD`, hi: `✅ ${view(finalPrice)} USD भुगतान करें` }[lang] || `✅ Pay ${view(finalPrice)} USD`), btn.applyCoupon]))
       await set(state, chatId, 'action', a.targetLeadsConfirm)
     },
@@ -18526,6 +18528,10 @@ Select a category:`), k.of(catBtns))
     saveInfo('amount', amount)
     const price = amount * RATE_LEAD
     await saveInfo('price', price)
+    // FIX: Reset stale coupon state from previous orders (domain, hosting, etc.)
+    // Without this, couponApplied+newPrice from a prior product leak into the leads confirm screen
+    await saveInfo('couponApplied', false)
+    await saveInfo('newPrice', null)
     if (info?.targetName) {
       await saveInfo('format', 'International Format')
       await saveInfo('lastStep', a.buyLeadsSelectFormat)
