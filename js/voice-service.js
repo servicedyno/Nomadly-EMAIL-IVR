@@ -1989,6 +1989,30 @@ async function handleOutboundSipCall(payload) {
       alive: true,  // Track if call is still active for race condition detection
     }
 
+    // ── Mid-call wallet monitor for Twilio bridge calls ──
+    // Outbound calls charge directly from wallet (plan minutes are for inbound only).
+    // Without this, a Twilio bridge call could run indefinitely with exhausted wallet.
+    const bridgeSession = activeCalls[callControlId]
+    bridgeSession._limitTimer = setInterval(async () => {
+      const sess = activeCalls[callControlId]
+      if (!sess) { clearInterval(bridgeSession._limitTimer); return }
+      const rate = getCallRate(destination)
+      if (_walletOf) {
+        try {
+          const deductResult = await smartWalletDeduct(_walletOf, chatId, rate)
+          if (!deductResult.success) {
+            log(`[Voice] Mid-call wallet exhausted for Twilio bridge ${num.phoneNumber} → ${destination}. Disconnecting.`)
+            clearInterval(bridgeSession._limitTimer)
+            sess._limitDisconnect = true
+            // Hang up the Telnyx SIP leg — Twilio PSTN leg will end automatically
+            await _telnyxApi.hangupCall(callControlId).catch(() => {})
+            _bot?.sendMessage(chatId, `🚫 <b>Call Disconnected</b> — Wallet exhausted.\nTop up via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+            return
+          }
+        } catch (e) { log(`[Voice] Mid-call wallet check error (Twilio bridge): ${e.message}`) }
+      }
+    }, 60000)
+
     // ── Strategy: Use a valid Telnyx number as 'from' for the SIP transfer ──
     // The user's Twilio number can't be used as 'from' on Telnyx (D51 error).
     // The connection ANI override may also be set to a non-Telnyx number.
