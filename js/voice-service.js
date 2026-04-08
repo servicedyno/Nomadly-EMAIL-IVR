@@ -173,8 +173,17 @@ const LOW_BALANCE_RESUME = 50     // USD minimum required to unlock calling
 const USER_BALANCE_WARN = parseFloat(process.env.USER_BALANCE_WARN || '5')    // $5 — "getting low"
 const USER_BALANCE_CRIT = parseFloat(process.env.USER_BALANCE_CRIT || '2')    // $2 — "critical"
 const USER_BALANCE_EMPTY = parseFloat(process.env.USER_BALANCE_EMPTY || '0')  // $0 — "empty"
-const BALANCE_NOTIFY_COOLDOWN_MS = 4 * 60 * 60 * 1000  // Don't spam same warning within 4 hours
-const _balanceNotifyHistory = {}  // { chatId: { level, ts } }
+
+// ── Anti-spam design ──
+// 1. Base cooldown: 24 hours per user — max 1 notification per day
+// 2. Escalation bypass: If level WORSENS (warning→critical→empty), send immediately BUT max 2 escalations per 24h window
+// 3. Same-level repeat: NEVER re-send same level within 24h (even if user tops up and drops again)
+// 4. Post-call + periodic share same history — can't stack
+// Result: Max 3 notifications per 24h absolute worst case (warning + critical + empty escalation)
+const BALANCE_NOTIFY_COOLDOWN_MS = 24 * 60 * 60 * 1000
+const _balanceNotifyHistory = {}  // { chatId: { level, ts, escalationCount, windowStart } }
+const LEVEL_SEVERITY = { warning: 1, critical: 2, empty: 3 }
+const MAX_ESCALATIONS_PER_DAY = 2  // After 2 escalations in 24h, stop completely
 
 /**
  * Post-call low balance notification — sends Telegram warning if wallet is low after billing.
@@ -207,10 +216,35 @@ async function notifyLowBalance(chatId, phoneNumber) {
 
     if (!level) return // Balance is fine
 
-    // Dedup — don't send same level warning within cooldown
+    // ── Anti-spam gate ──
+    const now = Date.now()
     const prev = _balanceNotifyHistory[chatId]
-    if (prev && prev.level === level && (Date.now() - prev.ts) < BALANCE_NOTIFY_COOLDOWN_MS) return
-    _balanceNotifyHistory[chatId] = { level, ts: Date.now() }
+    if (prev) {
+      const elapsed = now - prev.ts
+      const windowElapsed = now - (prev.windowStart || prev.ts)
+      // Reset 24h window if expired
+      if (windowElapsed >= BALANCE_NOTIFY_COOLDOWN_MS) {
+        // Fresh 24h window — allow this notification
+      } else {
+        const newSeverity = LEVEL_SEVERITY[level] || 0
+        const prevSeverity = LEVEL_SEVERITY[prev.level] || 0
+        if (newSeverity <= prevSeverity) {
+          // Same or better level — skip (don't re-nag within 24h)
+          return
+        }
+        // Escalation (worse level) — check escalation cap
+        if ((prev.escalationCount || 0) >= MAX_ESCALATIONS_PER_DAY) {
+          return // Hit daily escalation limit — stop completely
+        }
+      }
+    }
+
+    // Update history
+    const windowStart = (prev && (now - (prev.windowStart || prev.ts)) < BALANCE_NOTIFY_COOLDOWN_MS)
+      ? (prev.windowStart || prev.ts) : now
+    const escalationCount = (prev && (now - (prev.windowStart || prev.ts)) < BALANCE_NOTIFY_COOLDOWN_MS)
+      ? (prev.escalationCount || 0) + (prev.level !== level ? 1 : 0) : 0
+    _balanceNotifyHistory[chatId] = { level, ts: now, escalationCount, windowStart }
 
     const balStr = usdBal > 0 ? `$${usdBal.toFixed(2)}` : (ngnBal > 0 ? `₦${ngnBal.toFixed(0)}` : '$0.00')
 
@@ -279,11 +313,24 @@ async function runUserWalletMonitor() {
 
         if (!level) continue
 
-        // Check cooldown
+        // ── Anti-spam gate (same logic as post-call) ──
+        const now = Date.now()
         const prev = _balanceNotifyHistory[chatId]
-        if (prev && prev.level === level && (Date.now() - prev.ts) < BALANCE_NOTIFY_COOLDOWN_MS) continue
+        if (prev) {
+          const windowElapsed = now - (prev.windowStart || prev.ts)
+          if (windowElapsed < BALANCE_NOTIFY_COOLDOWN_MS) {
+            const newSeverity = LEVEL_SEVERITY[level] || 0
+            const prevSeverity = LEVEL_SEVERITY[prev.level] || 0
+            if (newSeverity <= prevSeverity) continue // Same or better — skip
+            if ((prev.escalationCount || 0) >= MAX_ESCALATIONS_PER_DAY) continue // Hit daily cap
+          }
+        }
 
-        _balanceNotifyHistory[chatId] = { level, ts: Date.now() }
+        const windowStart = (prev && (now - (prev.windowStart || prev.ts)) < BALANCE_NOTIFY_COOLDOWN_MS)
+          ? (prev.windowStart || prev.ts) : now
+        const escalationCount = (prev && (now - (prev.windowStart || prev.ts)) < BALANCE_NOTIFY_COOLDOWN_MS)
+          ? (prev.escalationCount || 0) + (prev.level !== level ? 1 : 0) : 0
+        _balanceNotifyHistory[chatId] = { level, ts: now, escalationCount, windowStart }
         const balStr = usdBal > 0 ? `$${usdBal.toFixed(2)}` : (ngnBal > 0 ? `₦${ngnBal.toFixed(0)}` : '$0.00')
         const icon = level === 'empty' ? '🚨' : level === 'critical' ? '⚠️' : '💡'
         const urgency = level === 'empty'
