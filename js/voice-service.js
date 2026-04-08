@@ -20,6 +20,7 @@ let _twilioSipDomain = null
 let _selfUrl = null
 let _state = null
 let _twilioService = null
+let _loyalty = null
 
 // In-memory store for active call sessions (callControlId → session data)
 const activeCalls = {}
@@ -178,6 +179,7 @@ const _balanceNotifyHistory = {}  // { chatId: { level, ts } }
 /**
  * Post-call low balance notification — sends Telegram warning if wallet is low after billing.
  * Called after every billCallMinutesUnified charge. Deduplicates within 4h per level.
+ * Includes loyalty tier info and top-up incentive.
  */
 async function notifyLowBalance(chatId, phoneNumber) {
   try {
@@ -211,14 +213,29 @@ async function notifyLowBalance(chatId, phoneNumber) {
     _balanceNotifyHistory[chatId] = { level, ts: Date.now() }
 
     const balStr = usdBal > 0 ? `$${usdBal.toFixed(2)}` : (ngnBal > 0 ? `₦${ngnBal.toFixed(0)}` : '$0.00')
+
+    // Include loyalty tier incentive
+    let tierLine = ''
+    if (_loyalty && _walletOf) {
+      try {
+        const tier = await _loyalty.getUserTier(_walletOf, chatId)
+        if (tier.discount > 0) {
+          tierLine = `\n${tier.badge} Your <b>${tier.name}</b> tier gives you <b>${tier.discountPercent}% off</b> all calls & purchases!`
+        } else if (tier.nextTier) {
+          tierLine = `\n${tier.badge} Spend $${tier.spendToNext.toFixed(0)} more to unlock <b>${tier.nextTier.badge} ${tier.nextTier.name}</b> tier — <b>${Math.round(tier.nextTier.discount * 100)}% off</b> all calls & purchases!`
+        }
+      } catch (e) { /* ignore tier lookup errors */ }
+    }
+
     const msg = [
       `${icon} <b>Low Wallet Balance</b>`,
       ``,
       `💰 Balance: <b>${balStr}</b>`,
       urgency,
+      tierLine,
       ``,
       `💳 Top up via <b>👛 Wallet</b> in the bot menu.`,
-    ].join('\n')
+    ].filter(Boolean).join('\n')
 
     _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
     log(`[WalletNotify] ${level.toUpperCase()} alert sent to ${chatId} — balance: ${balStr}`)
@@ -228,30 +245,32 @@ async function notifyLowBalance(chatId, phoneNumber) {
 }
 
 /**
- * Periodic user wallet monitor — scans ALL users with active phone numbers
+ * Periodic user wallet monitor — scans ALL users with wallets (not just phone users)
  * and sends proactive low-balance warnings via Telegram.
+ * Includes loyalty tier info and top-up incentives.
  * Runs every 6 hours. Does NOT charge anything — just warns.
  */
 async function runUserWalletMonitor() {
-  if (!_walletOf || !_bot || !_phoneNumbersOf) return
+  if (!_walletOf || !_bot) return
   const { getBalance } = require('./utils')
-  log('[UserWalletMonitor] Running periodic wallet scan...')
+  log('[UserWalletMonitor] Running periodic wallet scan (all users)...')
 
   try {
-    // Get all users with active phone numbers
-    const allPhoneUsers = await _phoneNumbersOf.find({}).toArray()
+    // Scan ALL wallets — not just phone users
+    const allWallets = await _walletOf.find({}).toArray()
     let warned = 0, scanned = 0
 
-    for (const user of allPhoneUsers) {
-      const chatId = user._id
-      const numbers = user.val?.numbers || []
-      // Only check users who have at least one active number
-      if (!numbers.length || numbers.every(n => n.status === 'suspended' || n.status === 'released')) continue
-
+    for (const wallet of allWallets) {
+      const chatId = wallet._id
       scanned++
+
       try {
-        const { usdBal, ngnBal } = await getBalance(_walletOf, chatId)
+        const usdBal = (wallet.usdIn || 0) - (wallet.usdOut || 0)
+        const ngnBal = (wallet.ngnIn || 0) - (wallet.ngnOut || 0)
         const totalBal = usdBal + (ngnBal > 0 ? ngnBal / 1500 : 0)
+
+        // Skip users who never had meaningful balance (never topped up)
+        if ((wallet.usdIn || 0) + (wallet.ngnIn || 0) < 1) continue
 
         let level = null
         if (totalBal <= USER_BALANCE_EMPTY) level = 'empty'
@@ -273,24 +292,49 @@ async function runUserWalletMonitor() {
             ? `Your balance is <b>critically low</b>. Active calls may be disconnected if balance runs out.`
             : `Your balance is getting low. Top up soon to avoid service interruptions.`
 
-        const activeNums = numbers.filter(n => n.status !== 'suspended' && n.status !== 'released').map(n => n.phoneNumber)
+        // Loyalty tier incentive
+        let tierLine = ''
+        if (_loyalty && _walletOf) {
+          try {
+            const tier = await _loyalty.getUserTier(_walletOf, chatId)
+            if (tier.discount > 0) {
+              tierLine = `\n${tier.badge} Your <b>${tier.name}</b> tier saves you <b>${tier.discountPercent}%</b> on all calls & purchases!`
+            } else if (tier.nextTier) {
+              tierLine = `\n${tier.badge} Spend $${tier.spendToNext.toFixed(0)} more to unlock <b>${tier.nextTier.badge} ${tier.nextTier.name}</b> — <b>${Math.round(tier.nextTier.discount * 100)}% off</b> all calls & purchases!`
+            }
+          } catch (e) { /* ignore */ }
+        }
+
+        // Check if user has active phone numbers for context
+        let phoneLine = ''
+        if (_phoneNumbersOf) {
+          try {
+            const phoneData = await _phoneNumbersOf.findOne({ _id: chatId })
+            const activeNums = (phoneData?.val?.numbers || []).filter(n => n.status !== 'suspended' && n.status !== 'released').map(n => n.phoneNumber)
+            if (activeNums.length > 0) {
+              phoneLine = `\n📞 Active numbers: ${activeNums.join(', ')}`
+            }
+          } catch (e) { /* ignore */ }
+        }
+
         const msg = [
           `${icon} <b>Wallet Balance Reminder</b>`,
           ``,
           `💰 Balance: <b>${balStr}</b>`,
-          `📞 Active numbers: ${activeNums.join(', ')}`,
+          phoneLine,
           ``,
           urgency,
+          tierLine,
           ``,
           `💳 Top up anytime via <b>👛 Wallet</b> in the bot menu.`,
-        ].join('\n')
+        ].filter(Boolean).join('\n')
 
         await _bot.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
         warned++
       } catch (e) { /* skip individual user errors */ }
     }
 
-    log(`[UserWalletMonitor] Scan complete: ${scanned} active users checked, ${warned} low-balance warnings sent`)
+    log(`[UserWalletMonitor] Scan complete: ${scanned} wallets checked, ${warned} low-balance warnings sent`)
   } catch (e) {
     log(`[UserWalletMonitor] Error: ${e.message}`)
   }
@@ -617,7 +661,8 @@ function initVoiceService(deps) {
   _selfUrl = deps.selfUrl || null
   _twilioService = deps.twilioService || null
   _state = deps.state || null
-  log('[VoiceService] Initialized with IVR + Recording + Analytics + Limits + Overage billing + SIP Bridge + Twilio IVR')
+  _loyalty = deps.loyalty || null
+  log('[VoiceService] Initialized with IVR + Recording + Analytics + Limits + Overage billing + SIP Bridge + Twilio IVR + Loyalty Discounts')
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -717,8 +762,26 @@ async function billCallMinutesUnified(chatId, phoneNumber, minutesBilled, destin
   if (minutesBilled <= 0) return { planMinUsed: 0, overageMin: 0, overageCharge: 0, rate: 0, used: 0, limit: 0 }
 
   // IVR outbound calls use flat IVR rate; other calls use destination-based rate
-  const rate = IVR_CALL_TYPES.includes(callType) ? IVR_CALL_RATE : getCallRate(destinationNumber)
+  let baseRate = IVR_CALL_TYPES.includes(callType) ? IVR_CALL_RATE : getCallRate(destinationNumber)
   const isOutbound = OUTBOUND_CALL_TYPES.includes(callType)
+
+  // ━━━ LOYALTY TIER DISCOUNT — applies to all call billing ━━━
+  let loyaltyDiscount = 0
+  let tierInfo = null
+  let rate = baseRate
+  if (_loyalty && _walletOf) {
+    try {
+      tierInfo = await _loyalty.getUserTier(_walletOf, chatId)
+      if (tierInfo && tierInfo.discount > 0) {
+        loyaltyDiscount = tierInfo.discount
+        rate = +(baseRate * (1 - loyaltyDiscount)).toFixed(4)
+        log(`[Voice] Loyalty discount: ${tierInfo.badge} ${tierInfo.name} (${tierInfo.discountPercent}% off) — rate $${baseRate} → $${rate} for ${callType}`)
+      }
+    } catch (e) { log(`[Voice] Loyalty tier lookup error: ${e.message}`) }
+  }
+  const discountLine = tierInfo && loyaltyDiscount > 0
+    ? `\n${tierInfo.badge} <b>${tierInfo.name} ${tierInfo.discountPercent}% off</b> applied`
+    : ''
 
   // ━━━ OUTBOUND: Charge wallet directly — plan minutes are for inbound only ━━━
   if (isOutbound) {
@@ -729,10 +792,10 @@ async function billCallMinutesUnified(chatId, phoneNumber, minutesBilled, destin
         if (deductResult.success) {
           const ref = _nanoid?.() || `out_${callType}_${Date.now()}`
           const chargedStr = deductResult.currency === 'ngn' ? `₦${deductResult.chargedNgn}` : `$${totalCharge.toFixed(2)}`
-          if (_payments) set(_payments, ref, `Outbound,${callType},$${totalCharge.toFixed(2)},${chatId},${phoneNumber},${destinationNumber},${new Date()}${deductResult.currency === 'ngn' ? `,${deductResult.chargedNgn} NGN` : ''}`)
+          if (_payments) set(_payments, ref, `Outbound,${callType},$${totalCharge.toFixed(2)},${chatId},${phoneNumber},${destinationNumber},${new Date()}${deductResult.currency === 'ngn' ? `,${deductResult.chargedNgn} NGN` : ''},loyaltyDiscount=${loyaltyDiscount}`)
           log(`[Voice] Outbound billed: ${chargedStr} (${minutesBilled} min × $${rate} ${isUSCanada(destinationNumber) ? 'US/CA' : 'Intl'}) for ${callType}`)
           _bot?.sendMessage(chatId,
-            `💰 <b>${callType}</b>: ${minutesBilled} min × $${rate} = <b>${chargedStr}</b> (${isUSCanada(destinationNumber) ? 'US/CA' : 'International'})`,
+            `💰 <b>${callType}</b>: ${minutesBilled} min × $${rate} = <b>${chargedStr}</b> (${isUSCanada(destinationNumber) ? 'US/CA' : 'International'})${discountLine}`,
             { parse_mode: 'HTML' }
           ).catch(() => {})
         } else {
@@ -747,12 +810,9 @@ async function billCallMinutesUnified(chatId, phoneNumber, minutesBilled, destin
   // Step 1: Increment plan minutes
   const { used, limit, overageMinutes } = await incrementMinutesUsed(chatId, phoneNumber, minutesBilled)
 
-  // Step 2: If there are overage minutes, charge wallet at destination-based rate
+  // Step 2: If there are overage minutes, charge wallet at discounted rate
   let overageCharge = 0
   if (overageMinutes > 0 && _walletOf) {
-    // Only charge the NEW overage (not previously charged)
-    // overageMinutes is the TOTAL overage after this increment
-    // We need to figure how many of THIS call's minutes were overage
     const previousUsed = used - minutesBilled
     const previousOverage = limit !== Infinity ? Math.max(0, previousUsed - limit) : 0
     const newOverageMin = overageMinutes - previousOverage
@@ -763,10 +823,10 @@ async function billCallMinutesUnified(chatId, phoneNumber, minutesBilled, destin
         if (deductResult.success) {
           const ref = _nanoid?.() || `ov_${callType}_${Date.now()}`
           const chargedStr = deductResult.currency === 'ngn' ? `₦${deductResult.chargedNgn}` : `$${overageCharge.toFixed(2)}`
-          if (_payments) set(_payments, ref, `Overage,${callType},$${overageCharge.toFixed(2)},${chatId},${phoneNumber},${destinationNumber},${new Date()}${deductResult.currency === 'ngn' ? `,${deductResult.chargedNgn} NGN` : ''}`)
+          if (_payments) set(_payments, ref, `Overage,${callType},$${overageCharge.toFixed(2)},${chatId},${phoneNumber},${destinationNumber},${new Date()}${deductResult.currency === 'ngn' ? `,${deductResult.chargedNgn} NGN` : ''},loyaltyDiscount=${loyaltyDiscount}`)
           log(`[Voice] Overage billed: ${chargedStr} (${newOverageMin} min × $${rate} ${isUSCanada(destinationNumber) ? 'US/CA' : 'Intl'}) for ${callType}`)
           _bot?.sendMessage(chatId,
-            `💰 <b>Overage</b>: ${newOverageMin} min × $${rate} = <b>${chargedStr}</b> (${isUSCanada(destinationNumber) ? 'US/CA' : 'International'})`,
+            `💰 <b>Overage</b>: ${newOverageMin} min × $${rate} = <b>${chargedStr}</b> (${isUSCanada(destinationNumber) ? 'US/CA' : 'International'})${discountLine}`,
             { parse_mode: 'HTML' }
           ).catch(() => {})
         }

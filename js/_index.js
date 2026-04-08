@@ -1272,6 +1272,7 @@ const loadData = async () => {
       selfUrl: SELF_URL,
       twilioService: require('./twilio-service.js'),
       state,
+      loyalty,
     })
     log('[CloudPhone] Voice Service initialized with IVR + Recording + Overage')
 
