@@ -1869,6 +1869,7 @@ async function handleOutboundSipCall(payload) {
       phase: 'outbound_twilio_bridge',
       direction: 'outgoing',
       bridgeId,
+      alive: true,  // Track if call is still active for race condition detection
     }
 
     // ── Strategy: Use a valid Telnyx number as 'from' for the SIP transfer ──
@@ -1904,6 +1905,20 @@ async function handleOutboundSipCall(payload) {
     // We still use TELNYX_DEFAULT_ANI for the transfer 'from' param, but we restore the
     // connection-level ANI back to the user's number afterward so retries are identifiable.
     const sipConnectionId = process.env.TELNYX_SIP_CONNECTION_ID || ''
+
+    // ── CRITICAL FIX: Add small delay to allow call to stabilize before transfer ──
+    // Some calls receive immediate 603 (user_busy) rejection. If we try to transfer before
+    // the hangup webhook arrives, we get "call is no longer active" error + double billing.
+    // Wait 200ms for potential immediate rejections to be caught.
+    await new Promise(resolve => setTimeout(resolve, 200))
+
+    // ── CHECK: Is the call still alive? ──
+    const callSession = activeCalls[callControlId]
+    if (!callSession || callSession.alive === false) {
+      log(`[Voice] Call ${callControlId} already hung up — skipping transfer, using Twilio direct call`)
+      await _attemptTwilioDirectCall(chatId, num, destination, bridgeId, callControlId)
+      return
+    }
 
     try {
       log(`[Voice] Transferring SIP call to Twilio: ${sipUri} (from=${telnyxDefaultAni || 'none'})`)
@@ -2453,6 +2468,15 @@ async function handleCallHangup(payload) {
     // Log hangup details even for untracked calls (helps debug SIP failures)
     log(`[Voice] Hangup for untracked call ${callControlId}: cause=${hangupCauseRaw}, source=${hangupSourceRaw}, from=${payload.from}, to=${payload.to}, duration=${payload.duration_secs || 0}s`)
     return
+  }
+
+  // ── FIX: Mark call as dead for race condition prevention ──
+  // If this call is in 'outbound_twilio_bridge' phase and hangup arrives BEFORE transfer completes,
+  // mark it as dead so the transfer logic can detect and skip the transfer attempt.
+  // This prevents "call is no longer active" errors and double billing.
+  if (session.phase === 'outbound_twilio_bridge' && session.alive === true) {
+    log(`[Voice] Call ${callControlId} hung up during transfer setup window — marking as dead to prevent transfer attempt`)
+    session.alive = false
   }
 
   // ── CLEANUP SIP RING LEG ──
