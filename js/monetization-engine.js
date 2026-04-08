@@ -553,8 +553,8 @@ async function runWinBackCampaign(bot) {
 
   log(`[WinBack] Found ${inactiveUsers.length} inactive users (${WINBACK_INACTIVE_DAYS}+ days)`)
 
-  let sent = 0, errors = 0
-  const BATCH_DELAY = 100 // ms between messages
+  let sent = 0, errors = 0, markedDead = 0, rateLimited = 0
+  let BATCH_DELAY = 200 // ms between messages — start conservative
 
   for (const user of inactiveUsers) {
     try {
@@ -578,41 +578,72 @@ async function runWinBackCampaign(bot) {
       sent++
       log(`[WinBack] Sent to ${user.chatId} (inactive ${user.daysSinceActive}d) — code: ${codeData.code}`)
 
-      // Rate limiting
+      // Reset delay on success
+      BATCH_DELAY = 200
       await new Promise(r => setTimeout(r, BATCH_DELAY))
     } catch (e) {
       errors++
-      const msg = e.message || ''
-      // Mark unreachable users
-      if (msg.includes('chat not found') || msg.includes('user is deactivated') || msg.includes('bot was blocked')) {
+      const msg = e?.response?.body?.description || e.message || ''
+      const statusCode = e?.response?.statusCode || 0
+
+      // Handle Telegram rate limiting (429) with exponential backoff
+      if (statusCode === 429 || msg.includes('Too Many Requests')) {
+        rateLimited++
+        const retryAfter = e?.response?.body?.parameters?.retry_after || 30
+        log(`[WinBack] Rate limited (429) at user ${user.chatId} — backing off ${retryAfter}s`)
+        BATCH_DELAY = Math.min(BATCH_DELAY * 2, 5000)
+        await new Promise(r => setTimeout(r, retryAfter * 1000))
+        continue
+      }
+
+      // Mark permanently unreachable users as dead
+      if (msg.includes('chat not found') || msg.includes('user is deactivated') || msg.includes('bot was blocked') ||
+          msg.includes('have no rights') || msg.includes('PEER_ID_INVALID') || msg.includes('bot was kicked')) {
+        markedDead++
+        const reason = msg.includes('chat not found') ? 'chat_not_found'
+          : msg.includes('deactivated') ? 'user_deactivated'
+          : msg.includes('bot was blocked') ? 'bot_blocked'
+          : msg.includes('bot was kicked') ? 'bot_kicked'
+          : 'unreachable'
         if (_promoOptOutCol) {
           await _promoOptOutCol.updateOne(
             { _id: user.chatId },
-            { $set: { optedOut: true, reason: msg.includes('chat not found') ? 'chat_not_found' : msg.includes('deactivated') ? 'user_deactivated' : 'bot_blocked', updatedAt: new Date() } },
+            { $set: { optedOut: true, reason, updatedAt: new Date() } },
             { upsert: true }
           ).catch(() => {})
         }
+        // Log only every 50th dead user to avoid log spam
+        if (markedDead % 50 === 1) {
+          log(`[WinBack] Marking dead: ${user.chatId} — ${reason} (${markedDead} total so far)`)
+        }
+      } else {
+        // Log unexpected errors
+        log(`[WinBack] Unexpected error for ${user.chatId}: ${msg.slice(0, 150)}`)
       }
+
+      await new Promise(r => setTimeout(r, BATCH_DELAY))
     }
   }
 
-  log(`[WinBack] Campaign complete: ${sent} sent, ${errors} errors`)
+  log(`[WinBack] Campaign complete: ${sent} sent, ${errors} errors (${markedDead} newly marked dead, ${rateLimited} rate-limited)`)
 
   // Admin notification
   const adminChatId = process.env.TELEGRAM_ADMIN_CHAT_ID
-  if (adminChatId && bot && sent > 0) {
+  if (adminChatId && bot && (sent > 0 || errors > 0)) {
     bot.sendMessage(adminChatId,
       `📊 <b>Win-Back Campaign Report</b>\n\n` +
       `👥 Inactive users found: ${inactiveUsers.length}\n` +
       `✉️ Messages sent: ${sent}\n` +
       `❌ Errors: ${errors}\n` +
+      `💀 Newly marked dead: ${markedDead}\n` +
+      `⏱ Rate limited: ${rateLimited}\n` +
       `🎟️ Discount: ${WINBACK_DISCOUNT_PERCENT}%\n` +
       `⏰ Code expiry: ${WINBACK_CODE_EXPIRY_HOURS}h`,
       { parse_mode: 'HTML' }
     ).catch(() => {})
   }
 
-  return { sent, errors }
+  return { sent, errors, markedDead, rateLimited }
 }
 
 

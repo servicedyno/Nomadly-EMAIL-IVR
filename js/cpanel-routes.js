@@ -120,9 +120,32 @@ function createCpanelRoutes(getCpanelCol) {
     res.json(result)
   })
 
-  router.post('/files/upload', ...auth, upload.single('file'), async (req, res) => {
+  router.post('/files/upload', ...auth, (req, res, next) => {
+    // Gracefully handle client disconnection during upload
+    let aborted = false
+    req.on('aborted', () => { aborted = true })
+    req.on('close', () => { if (!res.writableEnded) aborted = true })
+
+    upload.single('file')(req, res, (err) => {
+      if (aborted) {
+        log(`[Panel] Upload aborted by client before multer finished (user: ${req.cpUser || 'unknown'}, dir: ${req.body?.dir || 'unknown'})`)
+        if (!res.headersSent) return res.status(499).json({ error: 'Upload cancelled by client' })
+        return
+      }
+      if (err) {
+        const msg = err.code === 'LIMIT_FILE_SIZE'
+          ? `File too large (max 100 MB)`
+          : `Upload error: ${err.message}`
+        log(`[Panel] Upload error: ${err.message} (user: ${req.cpUser || 'unknown'})`)
+        if (!res.headersSent) return res.status(400).json({ error: msg })
+        return
+      }
+      next()
+    })
+  }, async (req, res) => {
     const dir = req.body.dir || `/home/${req.cpUser}/public_html`
     if (!req.file) return res.status(400).json({ error: 'No file provided' })
+    log(`[Panel] Upload: ${req.file.originalname} (${(req.file.size / 1024).toFixed(1)} KB) → ${dir} (user: ${req.cpUser})`)
     // Prevent overwriting protected anti-red files via upload
     if (isProtectedAntiRedFile(dir, req.file.originalname)) {
       return res.status(403).json({ error: `Cannot upload ${req.file.originalname} — this file is managed by the anti-red protection system.` })
