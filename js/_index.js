@@ -245,7 +245,7 @@ const { initDailyCoupons } = require('./daily-coupons.js')
 const telnyxApi = require('./telnyx-service.js')
 const twilioService = require('./twilio-service.js')
 const { handleInboundSms, initSmsLimits } = require('./sms-service.js')
-const { handleVoiceWebhook, initVoiceService, getIvrAnalytics, incrementSmsUsed, isSmsLimitReached, pendingBridges } = require('./voice-service.js')
+const { handleVoiceWebhook, initVoiceService, getIvrAnalytics, incrementSmsUsed, isSmsLimitReached, pendingBridges, initUserWalletMonitor } = require('./voice-service.js')
 const { initCnamService, lookupCnam, batchLookupCnam, getCircuitStatus } = require('./cnam-service.js')
 const phoneConfig = require('./phone-config.js')
 const ttsService = require('./tts-service.js')
@@ -1325,6 +1325,9 @@ const loadData = async () => {
   // Initialize Provider Balance Monitor (Telnyx + Twilio)
   const { initBalanceMonitor } = require('./balance-monitor.js')
   initBalanceMonitor(bot)
+
+  // User wallet balance monitor — proactive low-balance warnings to bot users
+  initUserWalletMonitor()
 
   // Initialize Phone Number Health Monitor (suspension detection + user notification)
   const { initPhoneMonitor } = require('./phone-monitor.js')

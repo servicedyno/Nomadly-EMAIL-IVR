@@ -167,6 +167,150 @@ const WALLET_REJECT_COOLDOWN_MS = 300000 // 5 minutes
 const LOW_BALANCE_TRIGGER = 1     // USD threshold that activates the lock
 const LOW_BALANCE_RESUME = 50     // USD minimum required to unlock calling
 
+// ── User Wallet Low Balance Notification System ──
+// Thresholds for proactive warnings sent via Telegram bot
+const USER_BALANCE_WARN = parseFloat(process.env.USER_BALANCE_WARN || '5')    // $5 — "getting low"
+const USER_BALANCE_CRIT = parseFloat(process.env.USER_BALANCE_CRIT || '2')    // $2 — "critical"
+const USER_BALANCE_EMPTY = parseFloat(process.env.USER_BALANCE_EMPTY || '0')  // $0 — "empty"
+const BALANCE_NOTIFY_COOLDOWN_MS = 4 * 60 * 60 * 1000  // Don't spam same warning within 4 hours
+const _balanceNotifyHistory = {}  // { chatId: { level, ts } }
+
+/**
+ * Post-call low balance notification — sends Telegram warning if wallet is low after billing.
+ * Called after every billCallMinutesUnified charge. Deduplicates within 4h per level.
+ */
+async function notifyLowBalance(chatId, phoneNumber) {
+  try {
+    const { getBalance } = require('./utils')
+    const { usdBal, ngnBal } = await getBalance(_walletOf, chatId)
+    const totalBal = usdBal + (ngnBal > 0 ? ngnBal / 1500 : 0) // Approximate NGN→USD
+
+    let level = null
+    let icon = ''
+    let urgency = ''
+
+    if (totalBal <= USER_BALANCE_EMPTY) {
+      level = 'empty'
+      icon = '🚨'
+      urgency = `Your wallet is <b>empty</b>. All outbound calls and overage billing are now <b>paused</b>.`
+    } else if (totalBal <= USER_BALANCE_CRIT) {
+      level = 'critical'
+      icon = '⚠️'
+      urgency = `Your wallet is <b>critically low</b>. Calls may be disconnected mid-conversation.`
+    } else if (totalBal <= USER_BALANCE_WARN) {
+      level = 'warning'
+      icon = '💡'
+      urgency = `Your wallet balance is getting low. Top up soon to avoid call interruptions.`
+    }
+
+    if (!level) return // Balance is fine
+
+    // Dedup — don't send same level warning within cooldown
+    const prev = _balanceNotifyHistory[chatId]
+    if (prev && prev.level === level && (Date.now() - prev.ts) < BALANCE_NOTIFY_COOLDOWN_MS) return
+    _balanceNotifyHistory[chatId] = { level, ts: Date.now() }
+
+    const balStr = usdBal > 0 ? `$${usdBal.toFixed(2)}` : (ngnBal > 0 ? `₦${ngnBal.toFixed(0)}` : '$0.00')
+    const msg = [
+      `${icon} <b>Low Wallet Balance</b>`,
+      ``,
+      `💰 Balance: <b>${balStr}</b>`,
+      urgency,
+      ``,
+      `💳 Top up via <b>👛 Wallet</b> in the bot menu.`,
+    ].join('\n')
+
+    _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
+    log(`[WalletNotify] ${level.toUpperCase()} alert sent to ${chatId} — balance: ${balStr}`)
+  } catch (e) {
+    log(`[WalletNotify] Error checking balance for ${chatId}: ${e.message}`)
+  }
+}
+
+/**
+ * Periodic user wallet monitor — scans ALL users with active phone numbers
+ * and sends proactive low-balance warnings via Telegram.
+ * Runs every 6 hours. Does NOT charge anything — just warns.
+ */
+async function runUserWalletMonitor() {
+  if (!_walletOf || !_bot || !_phoneNumbersOf) return
+  const { getBalance } = require('./utils')
+  log('[UserWalletMonitor] Running periodic wallet scan...')
+
+  try {
+    // Get all users with active phone numbers
+    const allPhoneUsers = await _phoneNumbersOf.find({}).toArray()
+    let warned = 0, scanned = 0
+
+    for (const user of allPhoneUsers) {
+      const chatId = user._id
+      const numbers = user.val?.numbers || []
+      // Only check users who have at least one active number
+      if (!numbers.length || numbers.every(n => n.status === 'suspended' || n.status === 'released')) continue
+
+      scanned++
+      try {
+        const { usdBal, ngnBal } = await getBalance(_walletOf, chatId)
+        const totalBal = usdBal + (ngnBal > 0 ? ngnBal / 1500 : 0)
+
+        let level = null
+        if (totalBal <= USER_BALANCE_EMPTY) level = 'empty'
+        else if (totalBal <= USER_BALANCE_CRIT) level = 'critical'
+        else if (totalBal <= USER_BALANCE_WARN) level = 'warning'
+
+        if (!level) continue
+
+        // Check cooldown
+        const prev = _balanceNotifyHistory[chatId]
+        if (prev && prev.level === level && (Date.now() - prev.ts) < BALANCE_NOTIFY_COOLDOWN_MS) continue
+
+        _balanceNotifyHistory[chatId] = { level, ts: Date.now() }
+        const balStr = usdBal > 0 ? `$${usdBal.toFixed(2)}` : (ngnBal > 0 ? `₦${ngnBal.toFixed(0)}` : '$0.00')
+        const icon = level === 'empty' ? '🚨' : level === 'critical' ? '⚠️' : '💡'
+        const urgency = level === 'empty'
+          ? `Your wallet is <b>empty</b>. Outbound calls and overage billing are paused until you top up.`
+          : level === 'critical'
+            ? `Your balance is <b>critically low</b>. Active calls may be disconnected if balance runs out.`
+            : `Your balance is getting low. Top up soon to avoid service interruptions.`
+
+        const activeNums = numbers.filter(n => n.status !== 'suspended' && n.status !== 'released').map(n => n.phoneNumber)
+        const msg = [
+          `${icon} <b>Wallet Balance Reminder</b>`,
+          ``,
+          `💰 Balance: <b>${balStr}</b>`,
+          `📞 Active numbers: ${activeNums.join(', ')}`,
+          ``,
+          urgency,
+          ``,
+          `💳 Top up anytime via <b>👛 Wallet</b> in the bot menu.`,
+        ].join('\n')
+
+        await _bot.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
+        warned++
+      } catch (e) { /* skip individual user errors */ }
+    }
+
+    log(`[UserWalletMonitor] Scan complete: ${scanned} active users checked, ${warned} low-balance warnings sent`)
+  } catch (e) {
+    log(`[UserWalletMonitor] Error: ${e.message}`)
+  }
+}
+
+// Schedule periodic wallet monitor — every 6 hours
+const USER_WALLET_MONITOR_INTERVAL = 6 * 60 * 60 * 1000
+let _walletMonitorTimer = null
+function initUserWalletMonitor() {
+  // First run 2 minutes after startup
+  setTimeout(() => {
+    runUserWalletMonitor().catch(e => log(`[UserWalletMonitor] Startup scan error: ${e.message}`))
+  }, 2 * 60 * 1000)
+  // Then every 6 hours
+  _walletMonitorTimer = setInterval(() => {
+    runUserWalletMonitor().catch(e => log(`[UserWalletMonitor] Scheduled scan error: ${e.message}`))
+  }, USER_WALLET_MONITOR_INTERVAL)
+  log(`[UserWalletMonitor] Initialized — scanning every 6h (warn=$${USER_BALANCE_WARN}, crit=$${USER_BALANCE_CRIT}, empty=$${USER_BALANCE_EMPTY})`)
+}
+
 function checkSipRateLimit(sipUsername, destination) {
   const key = `${sipUsername}:${destination}`
   const now = Date.now()
@@ -632,6 +776,13 @@ async function billCallMinutesUnified(chatId, phoneNumber, minutesBilled, destin
 
   const planMinUsed = minutesBilled - (overageMinutes > 0 ? Math.min(minutesBilled, overageMinutes) : 0)
   log(`[Voice] Billed ${callType}: ${minutesBilled} min (${planMinUsed} plan + ${minutesBilled - planMinUsed} overage @ $${rate}) for ${phoneNumber}`)
+
+  // ── Post-call low balance warning ──
+  // After every billable call, check remaining wallet and warn user if getting low
+  if (_walletOf && _bot) {
+    notifyLowBalance(chatId, phoneNumber).catch(() => {})
+  }
+
   return { planMinUsed, overageMin: minutesBilled - planMinUsed, overageCharge, rate, used, limit }
 }
 
@@ -3557,4 +3708,6 @@ module.exports = {
   findNumberOwner,
   incrementMinutesUsed,
   IVR_CALL_RATE,
+  initUserWalletMonitor,
+  notifyLowBalance,
 }
