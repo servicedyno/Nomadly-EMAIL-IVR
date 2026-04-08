@@ -55,6 +55,13 @@ const HARD_BLOCK_DURATION = 600000     // 10 minutes of silent drop
 const _expiredTestBlockSet = new Map()
 const EXPIRED_TEST_BLOCK_DURATION = 600000  // 10 minutes
 
+// Fix #4: Auto-routed call pending billing — when rate-limit/hard-block rejects a call
+// but Telnyx has already auto-routed it to PSTN, we store minimal info here so that
+// the call.hangup handler can retroactively charge connection fee + per-minute billing.
+// Without this, auto-routed calls that bypass our handler complete for free (revenue leak).
+const autoRoutedPendingBilling = {}
+const AUTO_ROUTE_BILLING_TTL = 600000 // 10 min — auto-expire stale entries
+
 // Wallet rejection cooldown — caches "wallet too low" rejections by from-number.
 // If rejected within cooldown, immediately reject without expensive credential lookups.
 const walletRejectCooldown = {}
@@ -464,7 +471,7 @@ const OUTBOUND_CALL_TYPES = [
   'SIPOutbound', 'Forwarding', 'Bridge_Transfer',
   'IVR_Outbound', 'IVR_Transfer',
   'IVR_Outbound_Twilio', 'Twilio_SIP_Bridge', 'Twilio_SIP_Outbound', 'Twilio_Forwarding',
-  'Telnyx_SIP_Leg',
+  'Telnyx_SIP_Leg', 'AutoRoute_SIPOutbound',
 ]
 
 async function billCallMinutesUnified(chatId, phoneNumber, minutesBilled, destinationNumber, callType) {
@@ -1408,6 +1415,12 @@ async function handleOutboundSipCall(payload) {
   // Fix #2: If user is in hard-block, silently drop — no logging, no hangup API call
   const rateLimitKey = fromClean || sipUsername
   if (isSipHardBlocked(rateLimitKey)) {
+    // Fix #4: If auto-routed, Telnyx already connected the call — track for deferred billing on hangup
+    if (isAutoRouted) {
+      autoRoutedPendingBilling[callControlId] = { sipUsername, fromClean, destination, startedAt: new Date(), reason: 'hard_block' }
+      setTimeout(() => { delete autoRoutedPendingBilling[callControlId] }, AUTO_ROUTE_BILLING_TTL)
+      log(`[Voice] Fix #4: Hard-blocked auto-routed call ${callControlId} tracked for deferred billing`)
+    }
     return // silent drop — saves webhook processing, logging, and Telnyx API calls
   }
 
@@ -1425,6 +1438,12 @@ async function handleOutboundSipCall(payload) {
   // ── SIP Rate Limiting — prevent spam dialing ──
   if (!checkSipRateLimit(sipUsername, destination)) {
     log(`[Voice] ⚠️ SIP RATE LIMIT: ${sipUsername} → ${destination} — exceeded ${SIP_RATE_LIMIT_MAX} calls/${SIP_RATE_LIMIT_WINDOW/1000}s, rejecting`)
+    // Fix #4: Track auto-routed calls for deferred billing
+    if (isAutoRouted) {
+      autoRoutedPendingBilling[callControlId] = { sipUsername, fromClean, destination, startedAt: new Date(), reason: 'rate_limit' }
+      setTimeout(() => { delete autoRoutedPendingBilling[callControlId] }, AUTO_ROUTE_BILLING_TTL)
+      log(`[Voice] Fix #4: Rate-limited auto-routed call ${callControlId} tracked for deferred billing`)
+    }
     try {
       await _telnyxApi.hangupCall(callControlId)
     } catch (e) { log(`[Voice] Reject error: ${e.message}`) }
@@ -1442,6 +1461,12 @@ async function handleOutboundSipCall(payload) {
       try {
         await _telnyxApi.hangupCall(callControlId)
       } catch (e) { /* suppress — call may already be ended */ }
+    }
+    // Fix #4: Track auto-routed calls for deferred billing (both soft + hard block)
+    if (isAutoRouted) {
+      autoRoutedPendingBilling[callControlId] = { sipUsername, fromClean, destination, startedAt: new Date(), reason: hardBlocked ? 'hard_block_escalation' : 'global_rate_limit' }
+      setTimeout(() => { delete autoRoutedPendingBilling[callControlId] }, AUTO_ROUTE_BILLING_TTL)
+      log(`[Voice] Fix #4: Global-rate-limited auto-routed call ${callControlId} tracked for deferred billing`)
     }
     // If hard-blocked, recordRateLimitHit already logged the activation
     return
@@ -2465,6 +2490,47 @@ async function handleCallHangup(payload) {
   
   const session = activeCalls[callControlId]
   if (!session) {
+    // ── Fix #4: Deferred billing for auto-routed calls that bypassed normal billing ──
+    // When rate-limit/hard-block rejected a call but Telnyx auto-routed it anyway,
+    // the call completed without a session in activeCalls. Bill retroactively on hangup.
+    const pendingBill = autoRoutedPendingBilling[callControlId]
+    if (pendingBill) {
+      delete autoRoutedPendingBilling[callControlId]
+      const duration = payload.duration_secs || Math.floor((Date.now() - pendingBill.startedAt.getTime()) / 1000)
+      const minutesBilled = duration > 0 ? Math.ceil(duration / 60) : 1 // 1-min minimum for outbound
+      log(`[Voice] Fix #4: Deferred billing for auto-routed call ${callControlId}: ${pendingBill.fromClean} → ${pendingBill.destination}, ${duration}s (${minutesBilled} min), reason=${pendingBill.reason}`)
+      try {
+        // Look up user from SIP credential
+        const lookupResult = await findNumberBySipUser(pendingBill.sipUsername, pendingBill.fromClean, null)
+        if (lookupResult.chatId && lookupResult.num) {
+          const { chatId, num } = lookupResult
+          // Charge connection fee
+          if (CALL_CONNECTION_FEE > 0 && _walletOf) {
+            const feeResult = await smartWalletDeduct(_walletOf, chatId, CALL_CONNECTION_FEE)
+            if (feeResult.success) {
+              const feeRef = _nanoid?.() || `connfee_autoroute_${Date.now()}`
+              const feeStr = feeResult.currency === 'ngn' ? `₦${feeResult.chargedNgn}` : `$${CALL_CONNECTION_FEE.toFixed(2)}`
+              if (_payments) set(_payments, feeRef, `ConnectionFee,AutoRoute_SIPOutbound,$${CALL_CONNECTION_FEE.toFixed(2)},${chatId},${num.phoneNumber},${pendingBill.destination},${new Date()}${feeResult.currency === 'ngn' ? `,${feeResult.chargedNgn} NGN` : ''}`)
+              log(`[Voice] Fix #4: Connection fee charged (deferred): ${feeStr} for ${num.phoneNumber} → ${pendingBill.destination}`)
+            }
+          }
+          // Charge per-minute billing
+          const billingInfo = await billCallMinutesUnified(chatId, num.phoneNumber, minutesBilled, pendingBill.destination, 'AutoRoute_SIPOutbound')
+          log(`[Voice] Fix #4: Auto-routed call billed: ${num.phoneNumber} → ${pendingBill.destination}, ${minutesBilled} min @ $${billingInfo.rate}, reason=${pendingBill.reason}`)
+          // Notify user
+          const rate = billingInfo.rate || getCallRate(pendingBill.destination)
+          _bot?.sendMessage(chatId,
+            `📞 <b>SIP Call Ended</b> (auto-routed)\n\nFrom: ${formatPhone(num.phoneNumber)}\nTo: ${formatPhone(pendingBill.destination)}\n⏱️ ${formatDuration(duration)}\n💰 ${minutesBilled} min × $${rate} billed`,
+            { parse_mode: 'HTML' }
+          ).catch(() => {})
+        } else {
+          log(`[Voice] Fix #4: Could not identify owner for auto-routed call — unbilled: ${pendingBill.sipUsername} → ${pendingBill.destination}`)
+        }
+      } catch (e) {
+        log(`[Voice] Fix #4: Deferred billing error: ${e.message}`)
+      }
+      return
+    }
     // Log hangup details even for untracked calls (helps debug SIP failures)
     log(`[Voice] Hangup for untracked call ${callControlId}: cause=${hangupCauseRaw}, source=${hangupSourceRaw}, from=${payload.from}, to=${payload.to}, duration=${payload.duration_secs || 0}s`)
     return

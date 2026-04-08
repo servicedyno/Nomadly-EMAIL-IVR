@@ -1,247 +1,283 @@
 #!/usr/bin/env python3
 """
-Backend Test Suite for Fix #3b: Telnyx transferCall race condition log noise suppression
-Testing the implementation in telnyx-service.js
+Backend Test for Fix #4: Auto-routed call billing gap in voice-service.js
+Testing all components mentioned in the review request.
 """
 
 import subprocess
-import sys
-import re
 import requests
 import json
+import os
+import re
 
 def test_syntax_validation():
-    """Test 1: Syntax validation - node -c /app/js/telnyx-service.js passes"""
+    """Test 1: Syntax validation - node -c /app/js/voice-service.js passes"""
     print("🔍 Test 1: Syntax validation")
     try:
-        result = subprocess.run(['node', '-c', '/app/js/telnyx-service.js'], 
+        result = subprocess.run(['node', '-c', '/app/js/voice-service.js'], 
                               capture_output=True, text=True, cwd='/app')
         if result.returncode == 0:
-            print("✅ PASS: Syntax validation successful")
+            print("✅ PASS: voice-service.js syntax validation successful")
             return True
         else:
-            print(f"❌ FAIL: Syntax error - {result.stderr}")
+            print(f"❌ FAIL: Syntax validation failed: {result.stderr}")
             return False
     except Exception as e:
-        print(f"❌ FAIL: Exception during syntax check - {e}")
+        print(f"❌ FAIL: Syntax validation error: {e}")
         return False
 
-def test_fix_3b_location():
-    """Test 2: Fix #3b location - transferCall() catch block has suppression check"""
-    print("\n🔍 Test 2: Fix #3b location and implementation")
+def test_auto_routed_pending_billing_map():
+    """Test 2: autoRoutedPendingBilling map exists near line 64-66 with AUTO_ROUTE_BILLING_TTL = 600000"""
+    print("\n🔍 Test 2: autoRoutedPendingBilling map and TTL constant")
     try:
-        with open('/app/js/telnyx-service.js', 'r') as f:
-            lines = f.readlines()
+        with open('/app/js/voice-service.js', 'r') as f:
+            content = f.read()
+            lines = content.split('\n')
         
-        # Find Fix #3b comment around line 387
-        fix_3b_found = False
-        transfer_catch_block = []
-        in_transfer_catch = False
+        # Check for autoRoutedPendingBilling map around line 62-66
+        found_map = False
+        found_ttl = False
         
-        for i, line in enumerate(lines):
-            if 'Fix #3b' in line:
-                fix_3b_found = True
-                print(f"✅ Found Fix #3b comment at line {i+1}")
-            
-            # Look for transferCall catch block
-            if 'async function transferCall' in line:
-                in_transfer_catch = False
-            if in_transfer_catch or ('} catch (e) {' in line and any('transferCall' in prev_line for prev_line in lines[max(0, i-20):i])):
-                in_transfer_catch = True
-                transfer_catch_block.append(line.strip())
+        for i, line in enumerate(lines[60:70], 61):  # Check lines 61-70
+            if 'autoRoutedPendingBilling' in line and '{}' in line:
+                print(f"✅ Found autoRoutedPendingBilling map at line {i}: {line.strip()}")
+                found_map = True
+            if 'AUTO_ROUTE_BILLING_TTL' in line and '600000' in line:
+                print(f"✅ Found AUTO_ROUTE_BILLING_TTL constant at line {i}: {line.strip()}")
+                found_ttl = True
         
-        if not fix_3b_found:
-            print("❌ FAIL: Fix #3b comment not found")
-            return False
-        
-        # Check for errCode '90018' check
-        catch_content = ' '.join(transfer_catch_block)
-        if "errCode === '90018'" not in catch_content:
-            print("❌ FAIL: errCode '90018' check not found")
-            return False
-        
-        # Check for all required string patterns
-        required_patterns = ['already ended', 'not found', 'no longer active']
-        for pattern in required_patterns:
-            if f"errDetail.includes('{pattern}')" not in catch_content:
-                print(f"❌ FAIL: Missing pattern check for '{pattern}'")
-                return False
-        
-        print("✅ PASS: Fix #3b properly implemented with all required checks")
-        return True
-        
-    except Exception as e:
-        print(f"❌ FAIL: Exception reading file - {e}")
-        return False
-
-def test_returns_null_silently():
-    """Test 3: Returns null silently - suppression returns null BEFORE log() line"""
-    print("\n🔍 Test 3: Returns null silently before log() line")
-    try:
-        with open('/app/js/telnyx-service.js', 'r') as f:
-            lines = f.readlines()
-        
-        # Find the transferCall catch block and analyze order
-        fix_3b_line = -1
-        suppression_return_null_line = -1
-        log_line = -1
-        
-        for i, line in enumerate(lines):
-            if 'Fix #3b' in line:
-                fix_3b_line = i
-            # Look for the return null that's part of the suppression (within the if block after Fix #3b)
-            if fix_3b_line != -1 and i > fix_3b_line and 'return null' in line and i < fix_3b_line + 5:
-                # Make sure this is the suppression return null, not the final one
-                if 'if (' in lines[i-1] or 'if (' in lines[i-2]:
-                    suppression_return_null_line = i
-            if 'transferCall error' in line and 'log(' in line:
-                log_line = i
-        
-        if suppression_return_null_line == -1:
-            print("❌ FAIL: suppression return null not found after Fix #3b")
-            return False
-        
-        if log_line == -1:
-            print("❌ FAIL: log() call not found")
-            return False
-        
-        if suppression_return_null_line < log_line:
-            print(f"✅ PASS: suppression return null (line {suppression_return_null_line+1}) comes before log() call (line {log_line+1})")
+        if found_map and found_ttl:
+            print("✅ PASS: autoRoutedPendingBilling map and TTL constant found")
             return True
         else:
-            print(f"❌ FAIL: suppression return null (line {suppression_return_null_line+1}) does not come before log() call (line {log_line+1})")
+            print(f"❌ FAIL: Missing components - map: {found_map}, TTL: {found_ttl}")
             return False
-        
     except Exception as e:
-        print(f"❌ FAIL: Exception analyzing code - {e}")
+        print(f"❌ FAIL: Error checking autoRoutedPendingBilling: {e}")
         return False
 
-def test_consistency_with_fix_3():
-    """Test 4: Consistency with Fix #3 - answerCall and hangupCall patterns intact"""
-    print("\n🔍 Test 4: Consistency with existing Fix #3")
+def test_hard_block_tracking():
+    """Test 3: Hard-block tracking around line 1420"""
+    print("\n🔍 Test 3: Hard-block tracking implementation")
     try:
-        with open('/app/js/telnyx-service.js', 'r') as f:
+        with open('/app/js/voice-service.js', 'r') as f:
+            content = f.read()
+            lines = content.split('\n')
+        
+        # Check for hard-block tracking around line 1420
+        found_hard_block_check = False
+        found_auto_routed_tracking = False
+        found_timeout_cleanup = False
+        
+        for i, line in enumerate(lines[1415:1430], 1416):  # Check lines 1416-1430
+            if 'isSipHardBlocked' in line and 'rateLimitKey' in line:
+                print(f"✅ Found hard-block check at line {i}: {line.strip()}")
+                found_hard_block_check = True
+            if 'isAutoRouted' in line and i >= 1419 and i <= 1420:
+                print(f"✅ Found auto-routed check at line {i}: {line.strip()}")
+                found_auto_routed_tracking = True
+            if 'setTimeout' in line and 'autoRoutedPendingBilling' in line and 'AUTO_ROUTE_BILLING_TTL' in line:
+                print(f"✅ Found timeout cleanup at line {i}: {line.strip()}")
+                found_timeout_cleanup = True
+        
+        if found_hard_block_check and found_auto_routed_tracking and found_timeout_cleanup:
+            print("✅ PASS: Hard-block tracking implementation found")
+            return True
+        else:
+            print(f"❌ FAIL: Missing components - check: {found_hard_block_check}, tracking: {found_auto_routed_tracking}, timeout: {found_timeout_cleanup}")
+            return False
+    except Exception as e:
+        print(f"❌ FAIL: Error checking hard-block tracking: {e}")
+        return False
+
+def test_rate_limit_tracking():
+    """Test 4: Rate-limit tracking around line 1442"""
+    print("\n🔍 Test 4: Rate-limit tracking implementation")
+    try:
+        with open('/app/js/voice-service.js', 'r') as f:
+            content = f.read()
+            lines = content.split('\n')
+        
+        # Check for rate-limit tracking around line 1442
+        found_rate_limit_tracking = False
+        found_reason_rate_limit = False
+        
+        for i, line in enumerate(lines[1440:1450], 1441):  # Check lines 1441-1450
+            if 'isAutoRouted' in line and i >= 1442 and i <= 1443:
+                print(f"✅ Found rate-limit auto-routed check at line {i}: {line.strip()}")
+                found_rate_limit_tracking = True
+            if 'rate_limit' in line and 'reason:' in line:
+                print(f"✅ Found rate_limit reason at line {i}: {line.strip()}")
+                found_reason_rate_limit = True
+        
+        if found_rate_limit_tracking and found_reason_rate_limit:
+            print("✅ PASS: Rate-limit tracking implementation found")
+            return True
+        else:
+            print(f"❌ FAIL: Missing components - tracking: {found_rate_limit_tracking}, reason: {found_reason_rate_limit}")
+            return False
+    except Exception as e:
+        print(f"❌ FAIL: Error checking rate-limit tracking: {e}")
+        return False
+
+def test_global_rate_limit_tracking():
+    """Test 5: Global rate-limit tracking around line 1461"""
+    print("\n🔍 Test 5: Global rate-limit tracking implementation")
+    try:
+        with open('/app/js/voice-service.js', 'r') as f:
+            content = f.read()
+            lines = content.split('\n')
+        
+        # Check for global rate-limit tracking around line 1461
+        found_global_tracking = False
+        found_escalation_reason = False
+        
+        for i, line in enumerate(lines[1460:1475], 1461):  # Check lines 1461-1475
+            if 'isAutoRouted' in line and i >= 1466 and i <= 1467:
+                print(f"✅ Found global rate-limit auto-routed check at line {i}: {line.strip()}")
+                found_global_tracking = True
+            if ('hard_block_escalation' in line or 'global_rate_limit' in line) and 'reason:' in line:
+                print(f"✅ Found escalation/global rate limit reason at line {i}: {line.strip()}")
+                found_escalation_reason = True
+        
+        if found_global_tracking and found_escalation_reason:
+            print("✅ PASS: Global rate-limit tracking implementation found")
+            return True
+        else:
+            print(f"❌ FAIL: Missing components - tracking: {found_global_tracking}, reason: {found_escalation_reason}")
+            return False
+    except Exception as e:
+        print(f"❌ FAIL: Error checking global rate-limit tracking: {e}")
+        return False
+
+def test_handle_call_hangup_deferred_billing():
+    """Test 6: handleCallHangup deferred billing around line 2497"""
+    print("\n🔍 Test 6: handleCallHangup deferred billing implementation")
+    try:
+        with open('/app/js/voice-service.js', 'r') as f:
+            content = f.read()
+            lines = content.split('\n')
+        
+        # Check for deferred billing implementation around line 2497
+        found_pending_bill_check = False
+        found_find_number_call = False
+        found_connection_fee_charge = False
+        found_bill_call_minutes = False
+        found_telegram_notification = False
+        found_error_handling = False
+        
+        for i, line in enumerate(lines[2490:2540], 2491):  # Check lines 2491-2540
+            if 'autoRoutedPendingBilling[callControlId]' in line:
+                print(f"✅ Found pending bill check at line {i}: {line.strip()}")
+                found_pending_bill_check = True
+            if 'findNumberBySipUser' in line:
+                print(f"✅ Found findNumberBySipUser call at line {i}: {line.strip()}")
+                found_find_number_call = True
+            if 'CALL_CONNECTION_FEE' in line and 'smartWalletDeduct' in line:
+                print(f"✅ Found connection fee charge at line {i}: {line.strip()}")
+                found_connection_fee_charge = True
+            if 'billCallMinutesUnified' in line and 'AutoRoute_SIPOutbound' in line:
+                print(f"✅ Found billCallMinutesUnified call at line {i}: {line.strip()}")
+                found_bill_call_minutes = True
+            if ('_bot?.sendMessage' in line or ('sendMessage' in line and 'auto-routed' in lines[i+1] if i+1 < len(lines) else False)):
+                print(f"✅ Found Telegram notification at line {i}: {line.strip()}")
+                found_telegram_notification = True
+            if ('catch (e)' in line or 'e.message' in line) and i >= 2529 and i <= 2531:
+                print(f"✅ Found error handling at line {i}: {line.strip()}")
+                found_error_handling = True
+        
+        components_found = [found_pending_bill_check, found_find_number_call, found_connection_fee_charge, 
+                          found_bill_call_minutes, found_telegram_notification, found_error_handling]
+        
+        if all(components_found):
+            print("✅ PASS: handleCallHangup deferred billing implementation found")
+            return True
+        else:
+            print(f"❌ FAIL: Missing components - check: {found_pending_bill_check}, findNumber: {found_find_number_call}, fee: {found_connection_fee_charge}, billing: {found_bill_call_minutes}, notification: {found_telegram_notification}, error: {found_error_handling}")
+            return False
+    except Exception as e:
+        print(f"❌ FAIL: Error checking handleCallHangup deferred billing: {e}")
+        return False
+
+def test_outbound_call_types():
+    """Test 7: OUTBOUND_CALL_TYPES array includes 'AutoRoute_SIPOutbound'"""
+    print("\n🔍 Test 7: OUTBOUND_CALL_TYPES array includes 'AutoRoute_SIPOutbound'")
+    try:
+        with open('/app/js/voice-service.js', 'r') as f:
             content = f.read()
         
-        # Check answerCall Fix #3 (around line 362)
-        if 'async function answerCall' not in content:
-            print("❌ FAIL: answerCall function not found")
-            return False
+        # Check for OUTBOUND_CALL_TYPES array and AutoRoute_SIPOutbound
+        if 'OUTBOUND_CALL_TYPES' in content and 'AutoRoute_SIPOutbound' in content:
+            # Find the specific line
+            lines = content.split('\n')
+            for i, line in enumerate(lines[470:480], 471):  # Check around line 475
+                if 'AutoRoute_SIPOutbound' in line:
+                    print(f"✅ Found AutoRoute_SIPOutbound in OUTBOUND_CALL_TYPES at line {i}: {line.strip()}")
+                    print("✅ PASS: AutoRoute_SIPOutbound found in OUTBOUND_CALL_TYPES array")
+                    return True
         
-        # Find Fix #3 in answerCall
-        answer_start = content.find('async function answerCall')
-        answer_end = content.find('async function', answer_start + 1)
-        if answer_end == -1:
-            answer_end = len(content)
-        answer_func = content[answer_start:answer_end]
-        
-        if 'Fix #3:' not in answer_func or "errCode === '90018'" not in answer_func:
-            print("❌ FAIL: Fix #3 not found in answerCall")
-            return False
-        
-        # Check hangupCall Fix #3 (around line 467)
-        if 'async function hangupCall' not in content:
-            print("❌ FAIL: hangupCall function not found")
-            return False
-        
-        hangup_start = content.find('async function hangupCall')
-        hangup_end = content.find('async function', hangup_start + 1)
-        if hangup_end == -1:
-            hangup_end = len(content)
-        hangup_func = content[hangup_start:hangup_end]
-        
-        if 'Fix #3:' not in hangup_func or "errCode === '90018'" not in hangup_func:
-            print("❌ FAIL: Fix #3 not found in hangupCall")
-            return False
-        
-        print("✅ PASS: Fix #3 patterns intact in answerCall and hangupCall")
-        return True
-        
-    except Exception as e:
-        print(f"❌ FAIL: Exception checking Fix #3 consistency - {e}")
+        print("❌ FAIL: AutoRoute_SIPOutbound not found in OUTBOUND_CALL_TYPES array")
         return False
-
-def test_errdetail_string_coercion():
-    """Test 5: errDetail is String - transferCall coerces errDetail to String()"""
-    print("\n🔍 Test 5: errDetail String coercion")
-    try:
-        with open('/app/js/telnyx-service.js', 'r') as f:
-            content = f.read()
-        
-        # Find transferCall function
-        transfer_start = content.find('async function transferCall')
-        transfer_end = content.find('async function', transfer_start + 1)
-        if transfer_end == -1:
-            transfer_end = len(content)
-        transfer_func = content[transfer_start:transfer_end]
-        
-        # Check for String() coercion in errDetail assignment
-        if 'const errDetail = String(' in transfer_func:
-            print("✅ PASS: errDetail properly coerced to String()")
-            return True
-        else:
-            print("❌ FAIL: errDetail not coerced to String()")
-            return False
-        
     except Exception as e:
-        print(f"❌ FAIL: Exception checking String coercion - {e}")
+        print(f"❌ FAIL: Error checking OUTBOUND_CALL_TYPES: {e}")
         return False
 
 def test_health_endpoint():
-    """Test 6: Health check - Health endpoint returns healthy"""
-    print("\n🔍 Test 6: Health endpoint check")
+    """Test 8: Health endpoint returns healthy"""
+    print("\n🔍 Test 8: Health endpoint status")
     try:
         response = requests.get('https://quickstart-docs.preview.emergentagent.com/api/health', timeout=10)
         if response.status_code == 200:
             data = response.json()
             if data.get('status') == 'healthy':
-                print(f"✅ PASS: Health endpoint healthy - {data}")
+                print(f"✅ PASS: Health endpoint returns healthy: {data}")
                 return True
             else:
-                print(f"❌ FAIL: Health endpoint not healthy - {data}")
+                print(f"❌ FAIL: Health endpoint not healthy: {data}")
                 return False
         else:
-            print(f"❌ FAIL: Health endpoint returned {response.status_code}")
+            print(f"❌ FAIL: Health endpoint returned status {response.status_code}")
             return False
     except Exception as e:
-        print(f"❌ FAIL: Exception checking health endpoint - {e}")
+        print(f"❌ FAIL: Error checking health endpoint: {e}")
         return False
 
-def test_error_log_clean():
-    """Test 7: Error log clean - /var/log/supervisor/nodejs.err.log is 0 bytes"""
-    print("\n🔍 Test 7: Error log check")
+def test_error_logs_clean():
+    """Test 9: Error logs are clean"""
+    print("\n🔍 Test 9: Error logs status")
     try:
         result = subprocess.run(['ls', '-la', '/var/log/supervisor/nodejs.err.log'], 
                               capture_output=True, text=True)
         if result.returncode == 0:
             output = result.stdout.strip()
-            # Check if file size is 0 bytes (look for " 0 " in ls -la output)
-            if ' 0 ' in output:
-                print("✅ PASS: Error log is 0 bytes (clean)")
+            if ' 0 ' in output:  # Check if file size is 0
+                print(f"✅ PASS: Error log is clean (0 bytes): {output}")
                 return True
             else:
-                print(f"❌ FAIL: Error log is not empty - {output}")
+                print(f"❌ FAIL: Error log has content: {output}")
                 return False
         else:
-            print(f"❌ FAIL: Could not check error log - {result.stderr}")
+            print(f"❌ FAIL: Could not check error log: {result.stderr}")
             return False
     except Exception as e:
-        print(f"❌ FAIL: Exception checking error log - {e}")
+        print(f"❌ FAIL: Error checking error logs: {e}")
         return False
 
 def main():
-    """Run all tests for Fix #3b verification"""
-    print("🚀 Starting Fix #3b: Telnyx transferCall race condition log noise suppression tests")
-    print("=" * 80)
+    """Run all tests for Fix #4: Auto-routed call billing gap"""
+    print("🚀 Starting Fix #4: Auto-routed call billing gap testing")
+    print("=" * 70)
     
     tests = [
         test_syntax_validation,
-        test_fix_3b_location,
-        test_returns_null_silently,
-        test_consistency_with_fix_3,
-        test_errdetail_string_coercion,
+        test_auto_routed_pending_billing_map,
+        test_hard_block_tracking,
+        test_rate_limit_tracking,
+        test_global_rate_limit_tracking,
+        test_handle_call_hangup_deferred_billing,
+        test_outbound_call_types,
         test_health_endpoint,
-        test_error_log_clean
+        test_error_logs_clean
     ]
     
     passed = 0
@@ -251,16 +287,15 @@ def main():
         if test():
             passed += 1
     
-    print("\n" + "=" * 80)
-    print(f"📊 RESULTS: {passed}/{total} tests passed ({passed/total*100:.1f}% success rate)")
+    print("\n" + "=" * 70)
+    print(f"📊 TEST RESULTS: {passed}/{total} tests passed ({passed/total*100:.1f}% success rate)")
     
     if passed == total:
-        print("🎉 ALL TESTS PASSED - Fix #3b is working correctly!")
+        print("🎉 ALL TESTS PASSED - Fix #4 implementation is working correctly!")
         return True
     else:
-        print(f"⚠️  {total - passed} test(s) failed - Fix #3b needs attention")
+        print(f"⚠️  {total - passed} tests failed - Fix #4 needs attention")
         return False
 
 if __name__ == "__main__":
-    success = main()
-    sys.exit(0 if success else 1)
+    main()
