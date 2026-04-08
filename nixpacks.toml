@@ -1,5 +1,5 @@
 [phases.install]
-cmds = ["npm install --production", "cd frontend && npm install --legacy-peer-deps"]
+cmds = ["npm install --omit=dev", "cd frontend && npm install --legacy-peer-deps"]
 
 [phases.build]
 cmds = ["cd frontend && CI=false npm run build"]
@@ -8,4 +8,4 @@ cmds = ["cd frontend && CI=false npm run build"]
 cmd = "npm start"
 
 [variables]
-NODE_VERSION = "22.13"
+NODE_VERSION = "22"
