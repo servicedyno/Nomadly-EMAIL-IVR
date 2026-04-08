@@ -1,11 +1,11 @@
 [phases.install]
-cmds = ["npm install --production", "cd frontend && npm install --legacy-peer-deps"]
+cmds = ["npm install --production", "cd frontend && yarn install --ignore-engines"]
 
 [phases.build]
-cmds = ["cd frontend && CI=false npm run build"]
+cmds = ["cd frontend && CI=false yarn build"]
 
 [start]
 cmd = "npm start"
 
 [variables]
-NODE_VERSION = "22"
+NODE_VERSION = "22.13"

@@ -3115,12 +3115,14 @@ async function handleOutboundIvrHangup(payload) {
   const trackedDuration = session.answerTime ? Math.round((Date.now() - session.answerTime) / 1000) : 0
   const duration = telnyxDuration > 0 ? telnyxDuration : trackedDuration
   const hangupCause = payload.hangup_cause || 'unknown'
-  // Quick IVR: minimum 1 minute charge regardless of outcome (busy, no answer, etc.)
-  const minutesBilled = Math.max(1, duration > 0 ? Math.ceil(duration / 60) : 1)
-  log(`[OutboundIVR] Hangup: ${session.targetNumber} (${duration}s [telnyx=${telnyxDuration}s, tracked=${trackedDuration}s], ${minutesBilled} min, cause: ${hangupCause})`)
+  const callWasAnswered = session.phase !== 'ringing' && session.phase !== 'initiated'
+  // Quick IVR: minimum 1 minute charge for answered/placed calls
+  // BILLING FIX: Do NOT charge for failed calls (network error, call never placed)
+  const isFailedCall = !callWasAnswered && (hangupCause === 'call_rejected' || hangupCause === 'network_failure' || hangupCause === 'unallocated_number' || hangupCause === 'normal_temporary_failure' || hangupCause === 'service_unavailable')
+  const minutesBilled = isFailedCall ? 0 : Math.max(1, duration > 0 ? Math.ceil(duration / 60) : 1)
+  log(`[OutboundIVR] Hangup: ${session.targetNumber} (${duration}s [telnyx=${telnyxDuration}s, tracked=${trackedDuration}s], ${minutesBilled} min, cause: ${hangupCause}${isFailedCall ? ' — NOT BILLED, call failed' : ''})`)
 
   let notifType = 'hangup'
-  const callWasAnswered = session.phase !== 'ringing' && session.phase !== 'initiated'
   if (session.phase === 'ringing' || session.phase === 'initiated') {
     // Never answered
     notifType = hangupCause === 'timeout' || hangupCause === 'originator_cancel' ? 'no_answer'
@@ -3152,10 +3154,9 @@ async function handleOutboundIvrHangup(payload) {
     }
   }
 
-  // ── Bill IVR leg via unified billing (skip trial calls) ──
-  // Quick IVR: always charge min 1 minute regardless of outcome (like bulk IVR)
+  // ── Bill IVR leg via unified billing (skip trial calls and failed calls) ──
   let billingInfo = { planMinUsed: 0, overageMin: 0, overageCharge: 0, rate: 0, used: 0, limit: 0 }
-  if (!session.isTrial) {
+  if (!session.isTrial && minutesBilled > 0) {
     try {
       const { chatId: ownerId, num } = await findNumberOwner(session.callerId)
       if (ownerId && num) {
