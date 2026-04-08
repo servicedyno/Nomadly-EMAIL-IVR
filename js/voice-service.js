@@ -55,12 +55,107 @@ const HARD_BLOCK_DURATION = 600000     // 10 minutes of silent drop
 const _expiredTestBlockSet = new Map()
 const EXPIRED_TEST_BLOCK_DURATION = 600000  // 10 minutes
 
-// Fix #4: Auto-routed call pending billing — when rate-limit/hard-block rejects a call
-// but Telnyx has already auto-routed it to PSTN, we store minimal info here so that
-// the call.hangup handler can retroactively charge connection fee + per-minute billing.
-// Without this, auto-routed calls that bypass our handler complete for free (revenue leak).
-const autoRoutedPendingBilling = {}
+// Fix #4 → Fix #5: Auto-routed call REAL-TIME billing.
+// When rate-limit/hard-block rejects a call but Telnyx auto-routed it to PSTN,
+// we now bill in real-time (connection fee + per-minute timer) instead of deferring to hangup.
+// If wallet is too low, the call is hung up immediately — prevents unbilled call duration.
+const autoRoutedPendingBilling = {} // Legacy — kept for hangup fallback
 const AUTO_ROUTE_BILLING_TTL = 600000 // 10 min — auto-expire stale entries
+
+// Fix #5: Real-time billing for auto-routed calls that bypass normal flow
+// Called from rate-limit/hard-block handlers when isAutoRouted=true.
+// Does: user lookup → wallet check → connection fee → session + per-minute timer → hangup if broke
+async function handleAutoRoutedRealTimeBilling(callControlId, sipUsername, fromClean, destination, reason) {
+  try {
+    const lookupResult = await findNumberBySipUser(sipUsername, fromClean, null)
+    if (!lookupResult?.chatId || !lookupResult?.num) {
+      // Can't identify user — store for deferred billing as fallback
+      autoRoutedPendingBilling[callControlId] = { sipUsername, fromClean, destination, startedAt: new Date(), reason }
+      setTimeout(() => { delete autoRoutedPendingBilling[callControlId] }, AUTO_ROUTE_BILLING_TTL)
+      log(`[Voice] Fix #5: Auto-routed call ${callControlId} — user not found, deferred billing fallback`)
+      return
+    }
+
+    const { chatId, num } = lookupResult
+    const rate = getCallRate(destination)
+
+    // ── Wallet check — hang up immediately if wallet too low ──
+    if (_walletOf) {
+      try {
+        const walletCheck = await smartWalletCheck(_walletOf, chatId, rate + CALL_CONNECTION_FEE)
+        if (walletCheck.usdBal < LOW_BALANCE_TRIGGER) {
+          log(`[Voice] Fix #5: Auto-routed LOW BALANCE LOCK — $${walletCheck.usdBal.toFixed(2)} < $${LOW_BALANCE_TRIGGER}, hanging up ${callControlId}`)
+          await _telnyxApi.hangupCall(callControlId).catch(() => {})
+          _bot?.sendMessage(chatId,
+            `🚫 <b>Call Disconnected</b> (auto-routed)\n\nWallet: <b>$${walletCheck.usdBal.toFixed(2)}</b> — below $${LOW_BALANCE_TRIGGER} threshold.\n💰 Top up at least $${LOW_BALANCE_RESUME} to resume calling.`,
+            { parse_mode: 'HTML' }
+          ).catch(() => {})
+          return
+        }
+        if (!walletCheck.sufficient) {
+          log(`[Voice] Fix #5: Auto-routed insufficient wallet — hanging up ${callControlId}`)
+          await _telnyxApi.hangupCall(callControlId).catch(() => {})
+          _bot?.sendMessage(chatId, `🚫 <b>Call Disconnected</b> — Wallet insufficient (need $${rate}/min + $${CALL_CONNECTION_FEE} connect fee).\nTop up via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+          return
+        }
+      } catch (e) { log(`[Voice] Fix #5: Wallet check error: ${e.message}`) }
+    }
+
+    // ── Charge connection fee immediately ──
+    if (CALL_CONNECTION_FEE > 0 && _walletOf) {
+      try {
+        const feeResult = await smartWalletDeduct(_walletOf, chatId, CALL_CONNECTION_FEE)
+        if (feeResult.success) {
+          const feeRef = _nanoid?.() || `connfee_autoroute_${Date.now()}`
+          const feeStr = feeResult.currency === 'ngn' ? `₦${feeResult.chargedNgn}` : `$${CALL_CONNECTION_FEE.toFixed(2)}`
+          if (_payments) set(_payments, feeRef, `ConnectionFee,AutoRoute_SIPOutbound,$${CALL_CONNECTION_FEE.toFixed(2)},${chatId},${num.phoneNumber},${destination},${new Date()}${feeResult.currency === 'ngn' ? `,${feeResult.chargedNgn} NGN` : ''}`)
+          log(`[Voice] Fix #5: Connection fee charged: ${feeStr} for ${num.phoneNumber} → ${destination}`)
+        }
+      } catch (e) { log(`[Voice] Fix #5: Connection fee error: ${e.message}`) }
+    }
+
+    // ── Create active session — same as normal calls ──
+    activeCalls[callControlId] = {
+      chatId,
+      num,
+      from: num.phoneNumber,
+      to: destination,
+      startedAt: new Date(),
+      phase: 'outbound_telnyx',
+      direction: 'outgoing',
+      recordingEnabled: false,
+      isAutoRouted: true,
+      autoRouteReason: reason,
+    }
+
+    // ── Start per-minute billing timer — charges every 60s, hangs up if wallet exhausted ──
+    const session = activeCalls[callControlId]
+    session._limitTimer = setInterval(async () => {
+      const sess = activeCalls[callControlId]
+      if (!sess) { clearInterval(session._limitTimer); return }
+      if (_walletOf) {
+        try {
+          const deductResult = await smartWalletDeduct(_walletOf, chatId, rate)
+          if (!deductResult.success) {
+            log(`[Voice] Fix #5: Mid-call wallet exhausted for auto-routed ${num.phoneNumber} → ${destination}. Disconnecting.`)
+            clearInterval(session._limitTimer)
+            sess._limitDisconnect = true
+            await _telnyxApi.hangupCall(callControlId).catch(() => {})
+            _bot?.sendMessage(chatId, `🚫 <b>Call Disconnected</b> — Wallet exhausted.\nTop up via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+            return
+          }
+        } catch (e) { log(`[Voice] Fix #5: Mid-call billing error: ${e.message}`) }
+      }
+    }, 60000)
+
+    log(`[Voice] Fix #5: Auto-routed call ${callControlId} now has REAL-TIME billing — session created, per-min timer active (${num.phoneNumber} → ${destination}, $${rate}/min, reason=${reason})`)
+  } catch (e) {
+    // Fatal error — fall back to deferred billing
+    autoRoutedPendingBilling[callControlId] = { sipUsername, fromClean, destination, startedAt: new Date(), reason }
+    setTimeout(() => { delete autoRoutedPendingBilling[callControlId] }, AUTO_ROUTE_BILLING_TTL)
+    log(`[Voice] Fix #5: Real-time billing failed (${e.message}), falling back to deferred billing for ${callControlId}`)
+  }
+}
 
 // Wallet rejection cooldown — caches "wallet too low" rejections by from-number.
 // If rejected within cooldown, immediately reject without expensive credential lookups.
@@ -1415,11 +1510,10 @@ async function handleOutboundSipCall(payload) {
   // Fix #2: If user is in hard-block, silently drop — no logging, no hangup API call
   const rateLimitKey = fromClean || sipUsername
   if (isSipHardBlocked(rateLimitKey)) {
-    // Fix #4: If auto-routed, Telnyx already connected the call — track for deferred billing on hangup
+    // Fix #5: If auto-routed, bill in real-time — wallet check + connection fee + per-min timer
     if (isAutoRouted) {
-      autoRoutedPendingBilling[callControlId] = { sipUsername, fromClean, destination, startedAt: new Date(), reason: 'hard_block' }
-      setTimeout(() => { delete autoRoutedPendingBilling[callControlId] }, AUTO_ROUTE_BILLING_TTL)
-      log(`[Voice] Fix #4: Hard-blocked auto-routed call ${callControlId} tracked for deferred billing`)
+      handleAutoRoutedRealTimeBilling(callControlId, sipUsername, fromClean, destination, 'hard_block')
+      log(`[Voice] Fix #5: Hard-blocked auto-routed call ${callControlId} — real-time billing initiated`)
     }
     return // silent drop — saves webhook processing, logging, and Telnyx API calls
   }
@@ -1438,11 +1532,10 @@ async function handleOutboundSipCall(payload) {
   // ── SIP Rate Limiting — prevent spam dialing ──
   if (!checkSipRateLimit(sipUsername, destination)) {
     log(`[Voice] ⚠️ SIP RATE LIMIT: ${sipUsername} → ${destination} — exceeded ${SIP_RATE_LIMIT_MAX} calls/${SIP_RATE_LIMIT_WINDOW/1000}s, rejecting`)
-    // Fix #4: Track auto-routed calls for deferred billing
+    // Fix #5: Bill auto-routed calls in real-time
     if (isAutoRouted) {
-      autoRoutedPendingBilling[callControlId] = { sipUsername, fromClean, destination, startedAt: new Date(), reason: 'rate_limit' }
-      setTimeout(() => { delete autoRoutedPendingBilling[callControlId] }, AUTO_ROUTE_BILLING_TTL)
-      log(`[Voice] Fix #4: Rate-limited auto-routed call ${callControlId} tracked for deferred billing`)
+      handleAutoRoutedRealTimeBilling(callControlId, sipUsername, fromClean, destination, 'rate_limit')
+      log(`[Voice] Fix #5: Rate-limited auto-routed call ${callControlId} — real-time billing initiated`)
     }
     try {
       await _telnyxApi.hangupCall(callControlId)
@@ -1462,11 +1555,10 @@ async function handleOutboundSipCall(payload) {
         await _telnyxApi.hangupCall(callControlId)
       } catch (e) { /* suppress — call may already be ended */ }
     }
-    // Fix #4: Track auto-routed calls for deferred billing (both soft + hard block)
+    // Fix #5: Bill auto-routed calls in real-time (both soft + hard block)
     if (isAutoRouted) {
-      autoRoutedPendingBilling[callControlId] = { sipUsername, fromClean, destination, startedAt: new Date(), reason: hardBlocked ? 'hard_block_escalation' : 'global_rate_limit' }
-      setTimeout(() => { delete autoRoutedPendingBilling[callControlId] }, AUTO_ROUTE_BILLING_TTL)
-      log(`[Voice] Fix #4: Global-rate-limited auto-routed call ${callControlId} tracked for deferred billing`)
+      handleAutoRoutedRealTimeBilling(callControlId, sipUsername, fromClean, destination, hardBlocked ? 'hard_block_escalation' : 'global_rate_limit')
+      log(`[Voice] Fix #5: Global-rate-limited auto-routed call ${callControlId} — real-time billing initiated`)
     }
     // If hard-blocked, recordRateLimitHit already logged the activation
     return
@@ -2490,9 +2582,9 @@ async function handleCallHangup(payload) {
   
   const session = activeCalls[callControlId]
   if (!session) {
-    // ── Fix #4: Deferred billing for auto-routed calls that bypassed normal billing ──
-    // When rate-limit/hard-block rejected a call but Telnyx auto-routed it anyway,
-    // the call completed without a session in activeCalls. Bill retroactively on hangup.
+    // ── Fix #5 FALLBACK: Deferred billing for auto-routed calls that bypassed real-time billing ──
+    // This only fires if handleAutoRoutedRealTimeBilling failed to create a session (e.g., user lookup failed).
+    // Normal auto-routed calls now have activeCalls sessions and are handled by the regular hangup flow above.
     const pendingBill = autoRoutedPendingBilling[callControlId]
     if (pendingBill) {
       delete autoRoutedPendingBilling[callControlId]
