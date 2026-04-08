@@ -1,8 +1,8 @@
 [phases.install]
-cmds = ["npm install --production", "cd frontend && yarn install --ignore-engines"]
+cmds = ["npm install --production", "cd frontend && npm install --legacy-peer-deps"]
 
 [phases.build]
-cmds = ["cd frontend && CI=false yarn build"]
+cmds = ["cd frontend && CI=false npm run build"]
 
 [start]
 cmd = "npm start"
