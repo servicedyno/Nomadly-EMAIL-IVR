@@ -226,7 +226,7 @@ def test_health_endpoint():
     """Test 8: Health endpoint returns healthy"""
     print("\n🔍 Test 8: Health endpoint status")
     try:
-        response = requests.get('https://quickstart-docs.preview.emergentagent.com/api/health', timeout=10)
+        response = requests.get('https://get-started-60.preview.emergentagent.com/api/health', timeout=10)
         if response.status_code == 200:
             data = response.json()
             if data.get('status') == 'healthy':
