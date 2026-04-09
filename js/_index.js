@@ -19948,19 +19948,6 @@ Select a category:`), k.of(catBtns))
     log(`[Support] Fallback: forwarded unrecognized message from ${chatId} to admin (recent session detected)`)
     return
   }
-  await set(state, chatId, 'action', 'none')
-  log(`[reset] Unrecognized message from ${chatId}: "${message}" (was action: ${action || 'none'}). Resetting to main menu.`)
-  // Enhanced fallback for new users — guide them to use buttons instead of typing
-  if (info?.isNewUser) {
-    const lang = info?.userLanguage || 'en'
-    const newUserHint = {
-      en: '💡 <b>Tip:</b> Use the buttons below to navigate! Just tap on any option to get started.',
-      fr: '💡 <b>Astuce :</b> Utilisez les boutons ci-dessous pour naviguer !',
-      zh: '💡 <b>提示：</b>请使用下方按钮导航！',
-      hi: '💡 <b>सुझाव:</b> नेविगेट करने के लिए नीचे बटन का उपयोग करें!',
-    }
-    return send(chatId, (newUserHint[lang] || newUserHint.en) + '\n' + t.welcome, isAdmin(chatId) ? aO : trans('o'))
-  }
   
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // SMART URL AUTO-DETECTION
@@ -19986,6 +19973,20 @@ Select a category:`), k.of(catBtns))
     return send(chatId, 
       `🔗 <b>URL Detected!</b>\n\n<code>${message.substring(0, 60)}${message.length > 60 ? '...' : ''}</code>\n\n${statusLine}\n\nWould you like to shorten this link?`,
       { parse_mode: 'HTML', reply_markup: { keyboard: [['✂️ Shorten Now', '✂️ Custom Alias'], ['❌ Cancel']], resize_keyboard: true } })
+  }
+  
+  await set(state, chatId, 'action', 'none')
+  log(`[reset] Unrecognized message from ${chatId}: "${message}" (was action: ${action || 'none'}). Resetting to main menu.`)
+  // Enhanced fallback for new users — guide them to use buttons instead of typing
+  if (info?.isNewUser) {
+    const lang = info?.userLanguage || 'en'
+    const newUserHint = {
+      en: '💡 <b>Tip:</b> Use the buttons below to navigate! Just tap on any option to get started.',
+      fr: '💡 <b>Astuce :</b> Utilisez les boutons ci-dessous pour naviguer !',
+      zh: '💡 <b>提示：</b>请使用下方按钮导航！',
+      hi: '💡 <b>सुझाव:</b> नेविगेट करने के लिए नीचे बटन का उपयोग करें!',
+    }
+    return send(chatId, (newUserHint[lang] || newUserHint.en) + '\n' + t.welcome, isAdmin(chatId) ? aO : trans('o'))
   }
   
   return send(chatId, t.what + '\n' + t.welcome, isAdmin(chatId) ? aO : trans('o'))
