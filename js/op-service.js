@@ -440,7 +440,7 @@ const registerDomain = async (domainName, nameservers = []) => {
     }
 
     const res = await axios.post(`${OP_BASE_URL}/v1beta/domains`, regData, {
-      headers, timeout: 30000,
+      headers, timeout: 45000,
     })
 
     if (res.data?.code === 0) {
@@ -464,17 +464,20 @@ const registerDomain = async (domainName, nameservers = []) => {
     const statusCode = err?.response?.status || ''
     log(`[OP] registerDomain error: ${err.message} | HTTP ${statusCode} | OP code: ${opCode} | desc: ${opDesc}`)
 
-    // For 5xx server errors, the registrar may have processed the request despite the error.
-    // Wait briefly and verify if the domain was actually registered (false-negative protection).
-    if (statusCode >= 500) {
-      log(`[OP] Server error ${statusCode} for ${domainName} — waiting 5s then verifying registration...`)
-      await new Promise(r => setTimeout(r, 5000))
+    // For 5xx server errors OR timeouts, the registrar may have processed the request
+    // despite the client-side error. Wait briefly and verify if the domain was actually
+    // registered (false-negative protection).
+    const isTimeout = !statusCode && (err.code === 'ECONNABORTED' || err.message?.includes('timeout'))
+    if (statusCode >= 500 || isTimeout) {
+      const reason = isTimeout ? `timeout (${err.message})` : `HTTP ${statusCode}`
+      log(`[OP] ${reason} for ${domainName} — waiting 8s then verifying registration...`)
+      await new Promise(r => setTimeout(r, 8000))
       const verifyResult = await _verifyRegistration(domainName)
       if (verifyResult) {
-        log(`[OP] FALSE NEGATIVE CONFIRMED: ${domainName} registered despite HTTP ${statusCode}. ID: ${verifyResult.domainId}`)
+        log(`[OP] FALSE NEGATIVE CONFIRMED: ${domainName} registered despite ${reason}. ID: ${verifyResult.domainId}`)
         return { success: true, domainId: verifyResult.domainId, registrar: 'OpenProvider' }
       }
-      log(`[OP] Verification negative — ${domainName} NOT registered after HTTP ${statusCode}`)
+      log(`[OP] Verification negative — ${domainName} NOT registered after ${reason}`)
     }
 
     return { error: opDesc || 'Domain registration failed due to a server error. Please try again.' }
