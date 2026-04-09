@@ -36,16 +36,260 @@ earlyApp.get('/', (req, res) => {
       return res.redirect('/panel')
     }
   }
-  res.status(200).send(`
-    <html>
-      <body style="background-color: white;">
-        <p style="font-family: 'system-ui';">Nomadly — shorten URLs, register domains, buy phone leads, and grow your business. All from Telegram.
-
-Get started with 5 trial Shortit links — /start
-Support: @nomadly_support</p>
-      </body>
-    </html>
-  `)
+  
+  // Get the domain name for branding
+  const domainName = (req.hostname || req.headers.host || 'Short Links').toLowerCase().split(':')[0]
+  
+  // Modern URL Shortener Landing Page (Option C - Mockup Style)
+  res.status(200).send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${domainName} — URL Shortener</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      color: #fff;
+    }
+    .container {
+      max-width: 600px;
+      width: 100%;
+      text-align: center;
+    }
+    .logo {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .tagline {
+      color: rgba(255,255,255,0.6);
+      font-size: 0.95rem;
+      margin-bottom: 40px;
+    }
+    .shortener-box {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 16px;
+      padding: 32px 24px;
+      backdrop-filter: blur(10px);
+    }
+    .input-wrapper {
+      position: relative;
+      margin-bottom: 16px;
+    }
+    .url-input {
+      width: 100%;
+      padding: 16px 20px;
+      padding-right: 130px;
+      font-size: 1rem;
+      border: 2px solid rgba(255,255,255,0.15);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.08);
+      color: rgba(255,255,255,0.4);
+      outline: none;
+      cursor: not-allowed;
+      font-family: inherit;
+    }
+    .url-input::placeholder {
+      color: rgba(255,255,255,0.35);
+    }
+    .shorten-btn {
+      position: absolute;
+      right: 6px;
+      top: 50%;
+      transform: translateY(-50%);
+      padding: 12px 24px;
+      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: not-allowed;
+      opacity: 0.5;
+      font-family: inherit;
+    }
+    .notice {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: rgba(255,255,255,0.7);
+      font-size: 0.9rem;
+      margin-top: 4px;
+    }
+    .notice svg {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+    }
+    .stats {
+      display: flex;
+      justify-content: center;
+      gap: 48px;
+      margin-top: 32px;
+      padding-top: 24px;
+      border-top: 1px solid rgba(255,255,255,0.1);
+    }
+    .stat {
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: #fff;
+    }
+    .stat-label {
+      font-size: 0.8rem;
+      color: rgba(255,255,255,0.5);
+      margin-top: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .cta-section {
+      margin-top: 32px;
+    }
+    .telegram-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 28px;
+      background: #0088cc;
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-weight: 600;
+      font-size: 1rem;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      font-family: inherit;
+    }
+    .telegram-btn:hover {
+      background: #006daa;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(0,136,204,0.3);
+    }
+    .telegram-btn svg {
+      width: 22px;
+      height: 22px;
+    }
+    .features {
+      display: flex;
+      justify-content: center;
+      gap: 32px;
+      margin-top: 40px;
+      flex-wrap: wrap;
+    }
+    .feature {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: rgba(255,255,255,0.6);
+      font-size: 0.85rem;
+    }
+    .feature svg {
+      width: 16px;
+      height: 16px;
+      color: #667eea;
+    }
+    .footer {
+      margin-top: 48px;
+      color: rgba(255,255,255,0.35);
+      font-size: 0.8rem;
+    }
+    .footer a {
+      color: rgba(255,255,255,0.5);
+      text-decoration: none;
+    }
+    .footer a:hover {
+      color: #667eea;
+    }
+    @media (max-width: 480px) {
+      .logo { font-size: 1.5rem; }
+      .stats { gap: 24px; }
+      .stat-value { font-size: 1.4rem; }
+      .features { gap: 16px; }
+      .url-input { padding-right: 20px; font-size: 0.9rem; }
+      .shorten-btn { position: static; transform: none; width: 100%; margin-top: 12px; }
+      .input-wrapper { display: flex; flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">${domainName}</div>
+    <div class="tagline">Fast, reliable URL shortening service</div>
+    
+    <div class="shortener-box">
+      <div class="input-wrapper">
+        <input type="text" class="url-input" placeholder="Paste your long URL here..." disabled>
+        <button class="shorten-btn" disabled>Shorten</button>
+      </div>
+      <div class="notice">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <span>URL shortening available via Telegram bot</span>
+      </div>
+      
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-value">∞</div>
+          <div class="stat-label">Links Created</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value">24/7</div>
+          <div class="stat-label">Uptime</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value">&lt;50ms</div>
+          <div class="stat-label">Redirect Speed</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="cta-section">
+      <a href="https://t.me/nomadly_bot" class="telegram-btn" target="_blank">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/></svg>
+        Create Short Links
+      </a>
+    </div>
+    
+    <div class="features">
+      <div class="feature">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+        <span>Lightning Fast</span>
+      </div>
+      <div class="feature">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+        <span>Click Analytics</span>
+      </div>
+      <div class="feature">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+        <span>Secure & Private</span>
+      </div>
+    </div>
+    
+    <div class="footer">
+      Powered by <a href="https://t.me/nomadly_bot" target="_blank">Nomadly</a>
+    </div>
+  </div>
+</body>
+</html>`)
 })
 
 earlyApp.get('/health', (req, res) => {
