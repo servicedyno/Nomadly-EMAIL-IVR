@@ -1798,6 +1798,36 @@ const loadData = async () => {
             if (bankApis[endpoint]) {
               await bankApis[endpoint](fakeReq, fakeRes, Number(paymentData.amountReceived))
               log(`[FincraReconcile] Processed ${endpoint} for ref=${ref}`)
+
+              // ── Send recovery notification to user ──
+              // The bankApis handler sends its own notifications, but we add an explicit
+              // recovery message so the user knows their delayed payment was received.
+              try {
+                const ngnAmount = paymentData.amountReceived
+                const serviceMap = {
+                  '/bank-pay-domain': '🌐 Domain',
+                  '/bank-pay-hosting': '🛡️ Hosting',
+                  '/bank-pay-wallet': '👛 Wallet Top-Up',
+                  '/bank-pay-phone': '📞 Phone Number',
+                  '/bank-pay-leads': '📱 SMS Leads',
+                  '/bank-pay-email-blast': '📧 Email Blast',
+                  '/bank-pay-digital-product': '🛒 Digital Product',
+                  '/bank-pay-virtual-card': '💳 Virtual Card',
+                  '/bank-pay-plan': '📦 Service Plan',
+                  '/bank-pay-vps': '🖥️ VPS',
+                  '/bank-pay-upgrade-vps': '🖥️ VPS Upgrade',
+                }
+                const serviceName = serviceMap[endpoint] || endpoint
+                sendMessage(chatId,
+                  `🔄 <b>Payment Received!</b>\n\n` +
+                  `Your bank transfer of <b>₦${Number(ngnAmount).toLocaleString()}</b> has been confirmed and your <b>${serviceName}</b> order has been processed.\n\n` +
+                  `We apologize for the brief delay — everything is now set up and ready to use. ✅\n\n` +
+                  `If you have any questions, tap /support.`,
+                  { parse_mode: 'HTML' }
+                )
+              } catch (notifyErr) {
+                log(`[FincraReconcile] Recovery notification failed for ${chatId}: ${notifyErr.message}`)
+              }
             } else {
               log(`[FincraReconcile] ⚠️ Unknown endpoint: ${endpoint} for ref=${ref}`)
             }
