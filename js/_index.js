@@ -24106,20 +24106,52 @@ app.post('/twilio/voice-webhook', async (req, res) => {
 // Twilio SIP Ring Result — fallback when SIP device doesn't answer
 // Priority: Forward-no-answer > Voicemail > Missed notification
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ── Dedup set: track Twilio CallSids already billed in action handlers (sip-ring-result / voice-dial-status)
+// voice-status callback fires AFTER these and must skip billing if already handled
+const _twilioBilledCallSids = new Set()
+// Auto-cleanup: remove stale entries every 30 min (calls older than 2h can't re-trigger)
+setInterval(() => _twilioBilledCallSids.clear(), 30 * 60 * 1000)
+
 app.post('/twilio/sip-ring-result', async (req, res) => {
   const VoiceResponse = require('twilio').twiml.VoiceResponse
   try {
     const { chatId: rawChatId, from, to } = req.query
     const chatId = rawChatId ? parseInt(rawChatId) : null
-    const { DialCallStatus, DialCallDuration } = req.body || {}
+    const { DialCallStatus, DialCallDuration, CallSid } = req.body || {}
     const response = new VoiceResponse()
     const decodedFrom = decodeURIComponent(from || 'unknown')
     const decodedTo = decodeURIComponent(to || '')
 
-    log(`[Twilio] SIP ring result: ${decodedFrom} → ${decodedTo} status=${DialCallStatus} duration=${DialCallDuration || 0}s`)
+    log(`[Twilio] SIP ring result: ${decodedFrom} → ${decodedTo} status=${DialCallStatus} duration=${DialCallDuration || 0}s sid=${CallSid || '?'}`)
 
-    // Call connected and completed via SIP — done
+    // Call connected and completed via SIP — bill inbound minutes
     if (DialCallStatus === 'completed') {
+      const duration = parseInt(DialCallDuration || '0')
+      const minutes = duration > 0 ? Math.ceil(duration / 60) : 0
+      if (minutes > 0 && chatId && decodedTo) {
+        try {
+          const voiceService = require('./voice-service.js')
+          const userData = await get(phoneNumbersOf, chatId)
+          const numbers = userData?.numbers || []
+          const num = numbers.find(n => n.phoneNumber === decodedTo && n.provider === 'twilio')
+          if (num) {
+            const billingInfo = await voiceService.billCallMinutesUnified(chatId, num.phoneNumber, minutes, decodedFrom, 'Twilio_Inbound')
+            const remaining = billingInfo.limit > 0 ? Math.max(0, billingInfo.limit - billingInfo.used) : null
+            const planLine = remaining !== null
+              ? `${minutes} min · <b>${remaining}/${billingInfo.limit}</b> remaining`
+              : `${minutes} min`
+            const overageLine = billingInfo.overageCharge > 0
+              ? `\n💰 Overage: $${billingInfo.overageCharge.toFixed(2)} from wallet`
+              : ''
+            log(`[Twilio] SIP inbound billed: ${minutes} min (${billingInfo.planMinUsed} plan + ${billingInfo.overageMin} overage)`)
+            // Mark this CallSid as already billed — voice-status must skip it
+            if (CallSid) _twilioBilledCallSids.add(CallSid)
+            bot?.sendMessage(chatId, `📞 <b>SIP Call Ended</b>\n📲 ${phoneConfig.formatPhone(decodedFrom)}\n⏱️ ${planLine}${overageLine}`, { parse_mode: 'HTML' }).catch(() => {})
+          } else {
+            log(`[Twilio] SIP ring billing skipped — number ${decodedTo} not found for chatId=${chatId}`)
+          }
+        } catch (e) { log(`[Twilio] SIP ring billing error: ${e.message}`) }
+      }
       response.hangup()
       return res.type('text/xml').send(response.toString())
     }
@@ -24402,12 +24434,12 @@ app.post('/twilio/voice-dial-status', async (req, res) => {
   const VoiceResponse = require('twilio').twiml.VoiceResponse
   const voiceService = require('./voice-service.js')
   try {
-    const { DialCallStatus, DialCallDuration } = req.body || {}
+    const { DialCallStatus, DialCallDuration, CallSid } = req.body || {}
     const { chatId: rawChatId, from, to, type } = req.query || {}
     const chatId = rawChatId ? parseInt(rawChatId) : null
     const response = new VoiceResponse()
 
-    log(`[Twilio] Dial status: ${DialCallStatus} (${DialCallDuration || 0}s) chatId=${chatId} type=${type || 'forward'}`)
+    log(`[Twilio] Dial status: ${DialCallStatus} (${DialCallDuration || 0}s) chatId=${chatId} type=${type || 'forward'} sid=${CallSid || '?'}`)
 
     if (DialCallStatus === 'completed') {
       // Call was answered and completed — bill using unified billing (plan minutes first, then wallet overage)
@@ -24437,6 +24469,8 @@ app.post('/twilio/voice-dial-status', async (req, res) => {
               : ''
             const label = type === 'sip_bridge' ? 'SIP Bridge Call' : type === 'sip_outbound' ? 'SIP Outbound Call' : 'Forwarded Call'
             log(`[Twilio] ${label} billed via unified: ${minutes} min (${billingInfo.planMinUsed} plan + ${billingInfo.overageMin} overage)`)
+            // Mark this CallSid as already billed — voice-status must skip it
+            if (CallSid) _twilioBilledCallSids.add(CallSid)
             bot?.sendMessage(chatId, `📞 <b>${label} Ended</b>\n📲 ${fwdDest ? phoneConfig.formatPhone(fwdDest) : ''}\n⏱️ ${planLine}${overageLine}`, { parse_mode: 'HTML' }).catch(() => {})
           }
         } catch (e) { log(`[Twilio] Call billing error: ${e.message}`) }
@@ -24928,6 +24962,13 @@ app.post('/twilio/voice-status', async (req, res) => {
     log(`[Twilio] Voice status: ${CallSid} — ${CallStatus} (${duration}s)`)
 
     if (CallStatus === 'completed' && duration > 0) {
+      // ── Dedup: Skip if this call was already billed in sip-ring-result or voice-dial-status ──
+      if (CallSid && _twilioBilledCallSids.has(CallSid)) {
+        log(`[Twilio] Voice status: ${CallSid} already billed in action handler — skipping`)
+        _twilioBilledCallSids.delete(CallSid)
+        return res.sendStatus(200)
+      }
+
       const minutes = Math.ceil(duration / 60)
 
       // Find owner and bill using unified billing (plan minutes first, then wallet overage)
