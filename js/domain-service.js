@@ -1156,6 +1156,25 @@ const addShortenerCNAME = async (domainName, cnameTarget, db) => {
         }
       }
 
+      // 1b. Also check for existing CNAME records at root that point elsewhere
+      // This handles domains that were previously linked to a different shortener/service
+      const cfRecords = await cfService.listDNSRecords(meta.cfZoneId)
+      const existingCNAME = cfRecords.filter(r => r.name === domainName && r.type === 'CNAME')
+      for (const rec of existingCNAME) {
+        if (rec.content !== cnameTarget) {
+          log(`[addShortenerCNAME] ${domainName}: removing existing CNAME → ${rec.content} before adding shortener CNAME`)
+          const delResult = await cfService.deleteDNSRecord(meta.cfZoneId, rec.id)
+          if (delResult.success) {
+            log(`[addShortenerCNAME] Deleted existing CNAME ${rec.name} → ${rec.content}`)
+          } else {
+            log(`[addShortenerCNAME] Warning: failed to delete existing CNAME ${rec.name} → ${rec.content}`)
+          }
+        } else {
+          log(`[addShortenerCNAME] ${domainName}: CNAME already points to ${cnameTarget}, no change needed`)
+          return { success: true, alreadyExists: true }
+        }
+      }
+
       // 2. Add the CNAME (proxied for CF CNAME flattening at root)
       const result = await cfService.createDNSRecord(meta.cfZoneId, 'CNAME', domainName, cnameTarget, 300, true)
       if (result.success || result.alreadyExists) {
