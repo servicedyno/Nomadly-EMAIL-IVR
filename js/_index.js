@@ -725,6 +725,38 @@ function getPoolSmsLimit(numbers, num) {
   return phoneConfig.plans[num.plan]?.sms || Infinity
 }
 
+/**
+ * Compute the max time limit (in seconds) a call should be allowed to run,
+ * based on the user's remaining plan minutes + wallet overage balance.
+ * Used to set Twilio `timeLimit` on <Dial> for real-time billing enforcement.
+ *
+ * @param {'inbound'|'outbound'|'forwarding'} mode
+ *   - inbound: plan minutes first, then wallet overage
+ *   - outbound/forwarding: wallet only (at the given rate)
+ * @param {object} opts
+ *   - planMinutesRemaining {number} (only for inbound)
+ *   - walletBalance {number} USD
+ *   - ratePerMinute {number} USD (overage rate or forwarding rate)
+ * @returns {number} seconds (capped between 60 and 14400)
+ */
+function computeDialTimeLimit(mode, { planMinutesRemaining = 0, walletBalance = 0, ratePerMinute = 0.04 }) {
+  let totalSeconds = 0
+  if (mode === 'inbound') {
+    // Plan minutes first, then wallet overage
+    totalSeconds = planMinutesRemaining * 60
+    if (ratePerMinute > 0 && walletBalance > 0) {
+      totalSeconds += Math.floor(walletBalance / ratePerMinute) * 60
+    }
+  } else {
+    // Outbound / forwarding — wallet only
+    if (ratePerMinute > 0 && walletBalance > 0) {
+      totalSeconds = Math.floor(walletBalance / ratePerMinute) * 60
+    }
+  }
+  // Clamp: min 60s (1 min), max 14400s (4 hours — Twilio max)
+  return Math.max(60, Math.min(14400, totalSeconds))
+}
+
 // Load environment variables from .env file first
 require('dotenv').config()
 const DB_NAME = process.env.DB_NAME
@@ -24005,9 +24037,13 @@ app.post('/twilio/voice-webhook', async (req, res) => {
         }
       } else {
         const ringTimeout = fwdConfig.ringTimeout || 25
+        // ── Real-time billing: compute timeLimit for forwarding (wallet-only) ──
+        const fwdTimeLimit = computeDialTimeLimit('forwarding', { walletBalance: usdBal, ratePerMinute: RATE })
+        log(`[Twilio] Forward-always dial timeLimit: ${fwdTimeLimit}s (wallet=$${usdBal.toFixed(2)}, rate=$${RATE}/min)`)
         const dialOpts = {
           callerId: To,
           timeout: ringTimeout,
+          timeLimit: fwdTimeLimit,
           action: `${SELF_URL}/twilio/voice-dial-status?chatId=${chatId}&from=${encodeURIComponent(From)}&to=${encodeURIComponent(To)}`
         }
         if (recordingEnabled) dialOpts.record = 'record-from-answer-dual'
@@ -24025,9 +24061,19 @@ app.post('/twilio/voice-webhook', async (req, res) => {
       // Use Telnyx credential (gencred...) for SIP routing since sip.speechcue.com → sip.telnyx.com
       const sipUser = num.telnyxSipUsername || num.sipUsername
       const sipUri = `sip:${sipUser}@${SIP_DOMAIN}`
+
+      // ── Real-time billing: compute timeLimit based on plan minutes + wallet overage ──
+      const isUSCA_sip = (From || '').replace(/[^+\d]/g, '').startsWith('+1')
+      const overageRate_sip = isUSCA_sip ? parseFloat(process.env.OVERAGE_RATE_MIN || '0.04') : parseFloat(process.env.CALL_FORWARDING_RATE_MIN || '0.50')
+      const { usdBal: sipWalletBal } = await getBalance(walletOf, chatId)
+      const planRemaining_sip = minuteLimit === Infinity ? 240 : Math.max(0, minuteLimit - poolMinutesUsed)
+      const sipTimeLimit = computeDialTimeLimit('inbound', { planMinutesRemaining: planRemaining_sip, walletBalance: sipWalletBal, ratePerMinute: overageRate_sip })
+      log(`[Twilio] SIP dial timeLimit: ${sipTimeLimit}s (planRemaining=${planRemaining_sip}min, wallet=$${sipWalletBal.toFixed(2)}, rate=$${overageRate_sip}/min)`)
+
       const dialOpts = {
         callerId: From,
         timeout: ringTimeout,
+        timeLimit: sipTimeLimit,
         action: `${SELF_URL}/twilio/sip-ring-result?chatId=${chatId}&from=${encodeURIComponent(From)}&to=${encodeURIComponent(To)}`
       }
       if (recordingEnabled) {
@@ -24046,9 +24092,13 @@ app.post('/twilio/voice-webhook', async (req, res) => {
       const { usdBal } = await getBalance(walletOf, chatId)
       if (usdBal >= RATE) {
         const ringTimeout = fwdConfig.ringTimeout || 25
+        // ── Real-time billing: compute timeLimit for forwarding (wallet-only) ──
+        const fwdNaTimeLimit = computeDialTimeLimit('forwarding', { walletBalance: usdBal, ratePerMinute: RATE })
+        log(`[Twilio] Forward-no-answer dial timeLimit: ${fwdNaTimeLimit}s (wallet=$${usdBal.toFixed(2)}, rate=$${RATE}/min)`)
         const dialOpts = {
           callerId: To,
           timeout: ringTimeout,
+          timeLimit: fwdNaTimeLimit,
           action: `${SELF_URL}/twilio/voice-dial-status?chatId=${chatId}&from=${encodeURIComponent(From)}&to=${encodeURIComponent(To)}`
         }
         if (recordingEnabled) dialOpts.record = 'record-from-answer-dual'
@@ -24874,10 +24924,21 @@ app.post('/twilio/sip-voice', async (req, res) => {
       delete pendingBridges[bridgeId]
 
       // Place the outbound PSTN call through Twilio with proper caller ID
+      // ── Real-time billing: compute timeLimit for bridge (wallet-only) ──
+      const isUSCA_bridge = (bridge.destination || '').replace(/[^+\d]/g, '').startsWith('+1')
+      const bridgeRate = isUSCA_bridge ? parseFloat(process.env.OVERAGE_RATE_MIN || '0.04') : parseFloat(process.env.CALL_FORWARDING_RATE_MIN || '0.50')
+      let bridgeTimeLimit = 14400
+      try {
+        const { usdBal: bridgeWallet } = await getBalance(walletOf, bridge.chatId)
+        bridgeTimeLimit = computeDialTimeLimit('outbound', { walletBalance: bridgeWallet, ratePerMinute: bridgeRate })
+        log(`[Twilio] Bridge dial timeLimit: ${bridgeTimeLimit}s (wallet=$${bridgeWallet.toFixed(2)}, rate=$${bridgeRate}/min)`)
+      } catch (e) { log(`[Twilio] Bridge timeLimit calc error: ${e.message}`) }
+
       const recordingEnabled = bridge.num?.features?.recording === true
       const dialOpts = {
         callerId: bridge.twilioNumber,
         timeout: 30,
+        timeLimit: bridgeTimeLimit,
         action: `${bridge.selfUrl}/twilio/voice-dial-status?chatId=${bridge.chatId}&from=${encodeURIComponent(bridge.destination)}&to=${encodeURIComponent(bridge.twilioNumber)}&type=sip_bridge`,
       }
       if (recordingEnabled) {
@@ -24930,8 +24991,11 @@ app.post('/twilio/sip-voice', async (req, res) => {
     log(`[Twilio] SIP outbound: wallet $${usdBal.toFixed(2)} — allowing at $${RATE}/min`)
 
     // Place outbound call
+    // ── Real-time billing: compute timeLimit for SIP outbound (wallet-only) ──
+    const outboundTimeLimit = computeDialTimeLimit('outbound', { walletBalance: usdBal, ratePerMinute: RATE })
+    log(`[Twilio] SIP outbound timeLimit: ${outboundTimeLimit}s (wallet=$${usdBal.toFixed(2)}, rate=$${RATE}/min)`)
     const recordingEnabled = num.features?.recording === true
-    const dialOpts = { callerId: num.phoneNumber, timeout: 30, action: `${SELF_URL}/twilio/voice-dial-status?chatId=${chatId}&from=${encodeURIComponent(destinationNumber)}&to=${encodeURIComponent(num.phoneNumber)}&type=sip_outbound` }
+    const dialOpts = { callerId: num.phoneNumber, timeout: 30, timeLimit: outboundTimeLimit, action: `${SELF_URL}/twilio/voice-dial-status?chatId=${chatId}&from=${encodeURIComponent(destinationNumber)}&to=${encodeURIComponent(num.phoneNumber)}&type=sip_outbound` }
     if (recordingEnabled) {
       dialOpts.record = 'record-from-answer-dual'
       dialOpts.recordingStatusCallback = `${SELF_URL}/twilio/recording-status`
