@@ -16,6 +16,13 @@ function sanitizeProviderError(msg, context = 'generic') {
 
   let sanitized = msg
 
+  // ── FIX: HTML entity escaping ──
+  // Cloudflare error messages contain URLs like <https://...> which break Telegram HTML parse mode.
+  // Escape < > & to prevent "Unsupported start tag" errors from Telegram.
+  sanitized = sanitized.replace(/&/g, '&amp;')
+  sanitized = sanitized.replace(/</g, '&lt;')
+  sanitized = sanitized.replace(/>/g, '&gt;')
+
   // ── Voice/Call provider names ──
   sanitized = sanitized.replace(/\bTwilio\b/gi, 'Speechcue')
   sanitized = sanitized.replace(/\bTelnyx\b/gi, 'Speechcue')

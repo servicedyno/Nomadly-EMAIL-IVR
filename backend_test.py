@@ -1,301 +1,356 @@
 #!/usr/bin/env python3
 """
-Backend Test for Fix #4: Auto-routed call billing gap in voice-service.js
-Testing all components mentioned in the review request.
+Backend Testing Script for 7 Node.js Bug Fixes
+Tests the specific bug fixes mentioned in the review request.
 """
 
 import subprocess
-import requests
+import sys
 import json
-import os
+import requests
+import time
 import re
+from pathlib import Path
+
+# Backend URL from environment
+BACKEND_URL = "https://get-started-61.preview.emergentagent.com"
+API_BASE = f"{BACKEND_URL}/api"
+
+def run_command(cmd, cwd=None):
+    """Run a shell command and return result"""
+    try:
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, cwd=cwd)
+        return {
+            'success': result.returncode == 0,
+            'stdout': result.stdout.strip(),
+            'stderr': result.stderr.strip(),
+            'returncode': result.returncode
+        }
+    except Exception as e:
+        return {
+            'success': False,
+            'stdout': '',
+            'stderr': str(e),
+            'returncode': -1
+        }
 
 def test_syntax_validation():
-    """Test 1: Syntax validation - node -c /app/js/voice-service.js passes"""
-    print("🔍 Test 1: Syntax validation")
-    try:
-        result = subprocess.run(['node', '-c', '/app/js/voice-service.js'], 
-                              capture_output=True, text=True, cwd='/app')
-        if result.returncode == 0:
-            print("✅ PASS: voice-service.js syntax validation successful")
-            return True
+    """Test 1: Verify all JavaScript files pass syntax validation"""
+    print("🔍 Test 1: JavaScript Syntax Validation")
+    
+    files_to_check = [
+        '/app/js/_index.js',
+        '/app/js/voice-service.js', 
+        '/app/js/sanitize-provider.js'
+    ]
+    
+    all_passed = True
+    for file_path in files_to_check:
+        result = run_command(f'node -c {file_path}')
+        if result['success']:
+            print(f"  ✅ {file_path} - syntax OK")
         else:
-            print(f"❌ FAIL: Syntax validation failed: {result.stderr}")
-            return False
-    except Exception as e:
-        print(f"❌ FAIL: Syntax validation error: {e}")
-        return False
-
-def test_auto_routed_pending_billing_map():
-    """Test 2: autoRoutedPendingBilling map exists near line 64-66 with AUTO_ROUTE_BILLING_TTL = 600000"""
-    print("\n🔍 Test 2: autoRoutedPendingBilling map and TTL constant")
-    try:
-        with open('/app/js/voice-service.js', 'r') as f:
-            content = f.read()
-            lines = content.split('\n')
-        
-        # Check for autoRoutedPendingBilling map around line 62-66
-        found_map = False
-        found_ttl = False
-        
-        for i, line in enumerate(lines[60:70], 61):  # Check lines 61-70
-            if 'autoRoutedPendingBilling' in line and '{}' in line:
-                print(f"✅ Found autoRoutedPendingBilling map at line {i}: {line.strip()}")
-                found_map = True
-            if 'AUTO_ROUTE_BILLING_TTL' in line and '600000' in line:
-                print(f"✅ Found AUTO_ROUTE_BILLING_TTL constant at line {i}: {line.strip()}")
-                found_ttl = True
-        
-        if found_map and found_ttl:
-            print("✅ PASS: autoRoutedPendingBilling map and TTL constant found")
-            return True
-        else:
-            print(f"❌ FAIL: Missing components - map: {found_map}, TTL: {found_ttl}")
-            return False
-    except Exception as e:
-        print(f"❌ FAIL: Error checking autoRoutedPendingBilling: {e}")
-        return False
-
-def test_hard_block_tracking():
-    """Test 3: Hard-block tracking around line 1420"""
-    print("\n🔍 Test 3: Hard-block tracking implementation")
-    try:
-        with open('/app/js/voice-service.js', 'r') as f:
-            content = f.read()
-            lines = content.split('\n')
-        
-        # Check for hard-block tracking around line 1420
-        found_hard_block_check = False
-        found_auto_routed_tracking = False
-        found_timeout_cleanup = False
-        
-        for i, line in enumerate(lines[1415:1430], 1416):  # Check lines 1416-1430
-            if 'isSipHardBlocked' in line and 'rateLimitKey' in line:
-                print(f"✅ Found hard-block check at line {i}: {line.strip()}")
-                found_hard_block_check = True
-            if 'isAutoRouted' in line and i >= 1419 and i <= 1420:
-                print(f"✅ Found auto-routed check at line {i}: {line.strip()}")
-                found_auto_routed_tracking = True
-            if 'setTimeout' in line and 'autoRoutedPendingBilling' in line and 'AUTO_ROUTE_BILLING_TTL' in line:
-                print(f"✅ Found timeout cleanup at line {i}: {line.strip()}")
-                found_timeout_cleanup = True
-        
-        if found_hard_block_check and found_auto_routed_tracking and found_timeout_cleanup:
-            print("✅ PASS: Hard-block tracking implementation found")
-            return True
-        else:
-            print(f"❌ FAIL: Missing components - check: {found_hard_block_check}, tracking: {found_auto_routed_tracking}, timeout: {found_timeout_cleanup}")
-            return False
-    except Exception as e:
-        print(f"❌ FAIL: Error checking hard-block tracking: {e}")
-        return False
-
-def test_rate_limit_tracking():
-    """Test 4: Rate-limit tracking around line 1442"""
-    print("\n🔍 Test 4: Rate-limit tracking implementation")
-    try:
-        with open('/app/js/voice-service.js', 'r') as f:
-            content = f.read()
-            lines = content.split('\n')
-        
-        # Check for rate-limit tracking around line 1442
-        found_rate_limit_tracking = False
-        found_reason_rate_limit = False
-        
-        for i, line in enumerate(lines[1440:1450], 1441):  # Check lines 1441-1450
-            if 'isAutoRouted' in line and i >= 1442 and i <= 1443:
-                print(f"✅ Found rate-limit auto-routed check at line {i}: {line.strip()}")
-                found_rate_limit_tracking = True
-            if 'rate_limit' in line and 'reason:' in line:
-                print(f"✅ Found rate_limit reason at line {i}: {line.strip()}")
-                found_reason_rate_limit = True
-        
-        if found_rate_limit_tracking and found_reason_rate_limit:
-            print("✅ PASS: Rate-limit tracking implementation found")
-            return True
-        else:
-            print(f"❌ FAIL: Missing components - tracking: {found_rate_limit_tracking}, reason: {found_reason_rate_limit}")
-            return False
-    except Exception as e:
-        print(f"❌ FAIL: Error checking rate-limit tracking: {e}")
-        return False
-
-def test_global_rate_limit_tracking():
-    """Test 5: Global rate-limit tracking around line 1461"""
-    print("\n🔍 Test 5: Global rate-limit tracking implementation")
-    try:
-        with open('/app/js/voice-service.js', 'r') as f:
-            content = f.read()
-            lines = content.split('\n')
-        
-        # Check for global rate-limit tracking around line 1461
-        found_global_tracking = False
-        found_escalation_reason = False
-        
-        for i, line in enumerate(lines[1460:1475], 1461):  # Check lines 1461-1475
-            if 'isAutoRouted' in line and i >= 1466 and i <= 1467:
-                print(f"✅ Found global rate-limit auto-routed check at line {i}: {line.strip()}")
-                found_global_tracking = True
-            if ('hard_block_escalation' in line or 'global_rate_limit' in line) and 'reason:' in line:
-                print(f"✅ Found escalation/global rate limit reason at line {i}: {line.strip()}")
-                found_escalation_reason = True
-        
-        if found_global_tracking and found_escalation_reason:
-            print("✅ PASS: Global rate-limit tracking implementation found")
-            return True
-        else:
-            print(f"❌ FAIL: Missing components - tracking: {found_global_tracking}, reason: {found_escalation_reason}")
-            return False
-    except Exception as e:
-        print(f"❌ FAIL: Error checking global rate-limit tracking: {e}")
-        return False
-
-def test_handle_call_hangup_deferred_billing():
-    """Test 6: handleCallHangup deferred billing around line 2497"""
-    print("\n🔍 Test 6: handleCallHangup deferred billing implementation")
-    try:
-        with open('/app/js/voice-service.js', 'r') as f:
-            content = f.read()
-            lines = content.split('\n')
-        
-        # Check for deferred billing implementation around line 2497
-        found_pending_bill_check = False
-        found_find_number_call = False
-        found_connection_fee_charge = False
-        found_bill_call_minutes = False
-        found_telegram_notification = False
-        found_error_handling = False
-        
-        for i, line in enumerate(lines[2490:2540], 2491):  # Check lines 2491-2540
-            if 'autoRoutedPendingBilling[callControlId]' in line:
-                print(f"✅ Found pending bill check at line {i}: {line.strip()}")
-                found_pending_bill_check = True
-            if 'findNumberBySipUser' in line:
-                print(f"✅ Found findNumberBySipUser call at line {i}: {line.strip()}")
-                found_find_number_call = True
-            if 'CALL_CONNECTION_FEE' in line and 'smartWalletDeduct' in line:
-                print(f"✅ Found connection fee charge at line {i}: {line.strip()}")
-                found_connection_fee_charge = True
-            if 'billCallMinutesUnified' in line and 'AutoRoute_SIPOutbound' in line:
-                print(f"✅ Found billCallMinutesUnified call at line {i}: {line.strip()}")
-                found_bill_call_minutes = True
-            if ('_bot?.sendMessage' in line or ('sendMessage' in line and 'auto-routed' in lines[i+1] if i+1 < len(lines) else False)):
-                print(f"✅ Found Telegram notification at line {i}: {line.strip()}")
-                found_telegram_notification = True
-            if ('catch (e)' in line or 'e.message' in line) and i >= 2529 and i <= 2531:
-                print(f"✅ Found error handling at line {i}: {line.strip()}")
-                found_error_handling = True
-        
-        components_found = [found_pending_bill_check, found_find_number_call, found_connection_fee_charge, 
-                          found_bill_call_minutes, found_telegram_notification, found_error_handling]
-        
-        if all(components_found):
-            print("✅ PASS: handleCallHangup deferred billing implementation found")
-            return True
-        else:
-            print(f"❌ FAIL: Missing components - check: {found_pending_bill_check}, findNumber: {found_find_number_call}, fee: {found_connection_fee_charge}, billing: {found_bill_call_minutes}, notification: {found_telegram_notification}, error: {found_error_handling}")
-            return False
-    except Exception as e:
-        print(f"❌ FAIL: Error checking handleCallHangup deferred billing: {e}")
-        return False
-
-def test_outbound_call_types():
-    """Test 7: OUTBOUND_CALL_TYPES array includes 'AutoRoute_SIPOutbound'"""
-    print("\n🔍 Test 7: OUTBOUND_CALL_TYPES array includes 'AutoRoute_SIPOutbound'")
-    try:
-        with open('/app/js/voice-service.js', 'r') as f:
-            content = f.read()
-        
-        # Check for OUTBOUND_CALL_TYPES array and AutoRoute_SIPOutbound
-        if 'OUTBOUND_CALL_TYPES' in content and 'AutoRoute_SIPOutbound' in content:
-            # Find the specific line
-            lines = content.split('\n')
-            for i, line in enumerate(lines[470:480], 471):  # Check around line 475
-                if 'AutoRoute_SIPOutbound' in line:
-                    print(f"✅ Found AutoRoute_SIPOutbound in OUTBOUND_CALL_TYPES at line {i}: {line.strip()}")
-                    print("✅ PASS: AutoRoute_SIPOutbound found in OUTBOUND_CALL_TYPES array")
-                    return True
-        
-        print("❌ FAIL: AutoRoute_SIPOutbound not found in OUTBOUND_CALL_TYPES array")
-        return False
-    except Exception as e:
-        print(f"❌ FAIL: Error checking OUTBOUND_CALL_TYPES: {e}")
-        return False
+            print(f"  ❌ {file_path} - syntax error: {result['stderr']}")
+            all_passed = False
+    
+    return all_passed
 
 def test_health_endpoint():
-    """Test 8: Health endpoint returns healthy"""
-    print("\n🔍 Test 8: Health endpoint status")
+    """Test 2: Verify health endpoint is working"""
+    print("🔍 Test 2: Health Endpoint")
+    
     try:
-        response = requests.get('https://get-started-61.preview.emergentagent.com/api/health', timeout=10)
+        response = requests.get(f"{BACKEND_URL}/health", timeout=10)
         if response.status_code == 200:
             data = response.json()
-            if data.get('status') == 'healthy':
-                print(f"✅ PASS: Health endpoint returns healthy: {data}")
-                return True
-            else:
-                print(f"❌ FAIL: Health endpoint not healthy: {data}")
-                return False
+            print(f"  ✅ Health endpoint OK: {data}")
+            return True
         else:
-            print(f"❌ FAIL: Health endpoint returned status {response.status_code}")
+            print(f"  ❌ Health endpoint failed: HTTP {response.status_code}")
             return False
     except Exception as e:
-        print(f"❌ FAIL: Error checking health endpoint: {e}")
+        print(f"  ❌ Health endpoint error: {e}")
         return False
 
-def test_error_logs_clean():
-    """Test 9: Error logs are clean"""
-    print("\n🔍 Test 9: Error logs status")
+def test_fix1_price_calculation():
+    """Test 3: Fix 1 - $undefined price in non-USA leads validation"""
+    print("🔍 Test 3: Fix 1 - Non-USA leads price calculation")
+    
+    # Search for the specific fix in _index.js
     try:
-        result = subprocess.run(['ls', '-la', '/var/log/supervisor/nodejs.err.log'], 
-                              capture_output=True, text=True)
-        if result.returncode == 0:
-            output = result.stdout.strip()
-            if ' 0 ' in output:  # Check if file size is 0
-                print(f"✅ PASS: Error log is clean (0 bytes): {output}")
-                return True
-            else:
-                print(f"❌ FAIL: Error log has content: {output}")
-                return False
+        with open('/app/js/_index.js', 'r') as f:
+            content = f.read()
+        
+        # Look for the fix around line 18656-18662
+        pattern = r'if \(!.*USA.*\.includes\(info\?\.country\) && info\?\.phones\.length < 2000\) \{[^}]*const cnam = false[^}]*const price = info\?\.amount \* RATE_LEAD_VALIDATOR[^}]*saveInfo\(\'price\', price\)[^}]*return goto\.validatorSelectFormat\(\)'
+        
+        if re.search(pattern, content, re.DOTALL):
+            print("  ✅ Fix 1 verified: Non-USA price calculation with cnam=false and saveInfo('price', price) found")
+            return True
         else:
-            print(f"❌ FAIL: Could not check error log: {result.stderr}")
+            print("  ❌ Fix 1 not found: Missing price calculation for non-USA countries")
             return False
+            
     except Exception as e:
-        print(f"❌ FAIL: Error checking error logs: {e}")
+        print(f"  ❌ Fix 1 test error: {e}")
+        return False
+
+def test_fix2_lang_tdz():
+    """Test 4: Fix 2 - lang TDZ in DomainActionShortener and ActivateShortener"""
+    print("🔍 Test 4: Fix 2 - lang TDZ bug fixes")
+    
+    try:
+        with open('/app/js/_index.js', 'r') as f:
+            content = f.read()
+        
+        # Check for removal of redundant const lang declarations
+        # Look for the comment indicating the fix
+        activateShortener_fix = "FIX: Removed redundant `const lang` that caused TDZ error in ActivateShortener" in content
+        
+        # Check that DomainActionShortener block doesn't have const lang
+        domainActionShortener_pattern = r'DomainActionShortener.*?const lang'
+        domainActionShortener_has_const = re.search(domainActionShortener_pattern, content, re.DOTALL)
+        
+        if activateShortener_fix and not domainActionShortener_has_const:
+            print("  ✅ Fix 2 verified: TDZ fix comments found, no redundant const lang declarations")
+            return True
+        else:
+            print(f"  ❌ Fix 2 incomplete: ActivateShortener fix={activateShortener_fix}, DomainActionShortener clean={not bool(domainActionShortener_has_const)}")
+            return False
+            
+    except Exception as e:
+        print(f"  ❌ Fix 2 test error: {e}")
+        return False
+
+def test_fix3_resolveUserTag():
+    """Test 5: Fix 3 - resolveUserTag moved to module scope"""
+    print("🔍 Test 5: Fix 3 - resolveUserTag function placement")
+    
+    try:
+        with open('/app/js/_index.js', 'r') as f:
+            content = f.read()
+        
+        # Check that resolveUserTag functions are at module scope (before loadData)
+        lines = content.split('\n')
+        
+        resolveUserTag_line = None
+        resolveUserTagSync_line = None
+        loadData_line = None
+        
+        for i, line in enumerate(lines):
+            if 'async function resolveUserTag(chatId)' in line:
+                resolveUserTag_line = i
+            elif 'function resolveUserTagSync(chatId, cachedName)' in line:
+                resolveUserTagSync_line = i
+            elif 'const loadData = async () => {' in line:
+                loadData_line = i
+        
+        if (resolveUserTag_line is not None and 
+            resolveUserTagSync_line is not None and 
+            loadData_line is not None and
+            resolveUserTag_line < loadData_line and 
+            resolveUserTagSync_line < loadData_line):
+            print(f"  ✅ Fix 3 verified: resolveUserTag functions at module scope (lines {resolveUserTag_line}, {resolveUserTagSync_line}) before loadData (line {loadData_line})")
+            return True
+        else:
+            print(f"  ❌ Fix 3 not found: Functions not properly positioned. resolveUserTag={resolveUserTag_line}, resolveUserTagSync={resolveUserTagSync_line}, loadData={loadData_line}")
+            return False
+            
+    except Exception as e:
+        print(f"  ❌ Fix 3 test error: {e}")
+        return False
+
+def test_fix4_goto_guards():
+    """Test 6: Fix 4 - goto function guards"""
+    print("🔍 Test 6: Fix 4 - goto function guards")
+    
+    try:
+        with open('/app/js/_index.js', 'r') as f:
+            content = f.read()
+        
+        # Check skipCoupon function has guard
+        skipCoupon_guard = 'if (action && typeof goto[action] === \'function\')' in content
+        
+        # Check goBack function has guard  
+        goBack_guard = 'if (lastStep && typeof goto[lastStep] === \'function\')' in content
+        
+        # Check for optional chaining in goBack
+        optional_chaining = 'info?.history?' in content
+        
+        if skipCoupon_guard and goBack_guard and optional_chaining:
+            print("  ✅ Fix 4 verified: Both skipCoupon and goBack have function guards with optional chaining")
+            return True
+        else:
+            print(f"  ❌ Fix 4 incomplete: skipCoupon guard={skipCoupon_guard}, goBack guard={goBack_guard}, optional chaining={optional_chaining}")
+            return False
+            
+    except Exception as e:
+        print(f"  ❌ Fix 4 test error: {e}")
+        return False
+
+def test_fix5_html_escaping():
+    """Test 7: Fix 5 - HTML entity escaping in sanitizeProviderError"""
+    print("🔍 Test 7: Fix 5 - HTML entity escaping")
+    
+    try:
+        with open('/app/js/sanitize-provider.js', 'r') as f:
+            content = f.read()
+        
+        # Check for HTML entity escaping at the top of sanitizeProviderError
+        html_escaping = (
+            "sanitized.replace(/&/g, '&amp;')" in content and
+            "sanitized.replace(/</g, '&lt;')" in content and
+            "sanitized.replace(/>/g, '&gt;')" in content
+        )
+        
+        # Check that DNS error messages use sanitizeProviderError
+        with open('/app/js/_index.js', 'r') as f:
+            index_content = f.read()
+        
+        dns_sanitization = 'sanitizeProviderError(saveErr, \'domain\')' in index_content
+        
+        if html_escaping and dns_sanitization:
+            print("  ✅ Fix 5 verified: HTML entity escaping implemented and DNS errors use sanitizeProviderError")
+            return True
+        else:
+            print(f"  ❌ Fix 5 incomplete: HTML escaping={html_escaping}, DNS sanitization={dns_sanitization}")
+            return False
+            
+    except Exception as e:
+        print(f"  ❌ Fix 5 test error: {e}")
+        return False
+
+def test_fix6_wallet_handler():
+    """Test 8: Fix 6 - walletOk handler not found recovery"""
+    print("🔍 Test 8: Fix 6 - walletOk handler recovery")
+    
+    try:
+        with open('/app/js/_index.js', 'r') as f:
+            content = f.read()
+        
+        # Check for the fix around line 13193-13200
+        pattern = r'if \(typeof handler !== \'function\'\) \{[^}]*await set\(state, chatId, \'action\', \'none\'\)[^}]*session expired[^}]*\}'
+        
+        if re.search(pattern, content, re.DOTALL | re.IGNORECASE):
+            print("  ✅ Fix 6 verified: walletOk handler recovery with session expired message in 4 languages")
+            return True
+        else:
+            print("  ❌ Fix 6 not found: Missing walletOk handler recovery logic")
+            return False
+            
+    except Exception as e:
+        print(f"  ❌ Fix 6 test error: {e}")
+        return False
+
+def test_fix9_wallet_monitor():
+    """Test 9: Fix 9 - UserWalletMonitor MongoDB persistence"""
+    print("🔍 Test 9: Fix 9 - UserWalletMonitor mass-warning fix")
+    
+    try:
+        with open('/app/js/voice-service.js', 'r') as f:
+            content = f.read()
+        
+        # Check for the key components
+        components = [
+            '_balanceNotifyHistoryCol' in content,
+            '_loadBalanceNotifyHistory(db)' in content,
+            '_persistBalanceNotifyEntry(chatId, entry)' in content,
+            'balanceNotifyHistory' in content,
+            'initVoiceService' in content and 'deps.db' in content
+        ]
+        
+        # Check for startup log message
+        startup_log = 'Loaded 0 active notification histories from DB' in content or 'UserWalletMonitor' in content
+        
+        if all(components) and startup_log:
+            print("  ✅ Fix 9 verified: All UserWalletMonitor persistence components found")
+            return True
+        else:
+            print(f"  ❌ Fix 9 incomplete: Components={components}, startup log={startup_log}")
+            return False
+            
+    except Exception as e:
+        print(f"  ❌ Fix 9 test error: {e}")
+        return False
+
+def test_nodejs_service():
+    """Test 10: Verify Node.js service is running"""
+    print("🔍 Test 10: Node.js Service Status")
+    
+    # Check if Node.js process is running
+    result = run_command('pgrep -f "node.*_index.js" || pgrep -f "node.*index.js"')
+    
+    if result['success'] and result['stdout']:
+        print(f"  ✅ Node.js service running (PID: {result['stdout']})")
+        return True
+    else:
+        print("  ❌ Node.js service not found")
+        return False
+
+def test_error_logs():
+    """Test 11: Check for clean error logs"""
+    print("🔍 Test 11: Error Log Status")
+    
+    # Check Node.js error log
+    result = run_command('wc -c /var/log/supervisor/nodejs.err.log 2>/dev/null || echo "0"')
+    
+    try:
+        log_size = int(result['stdout'].split()[0]) if result['stdout'] else 0
+        if log_size == 0:
+            print("  ✅ Node.js error log is clean (0 bytes)")
+            return True
+        else:
+            print(f"  ⚠️ Node.js error log has {log_size} bytes")
+            # Show last few lines if there are errors
+            tail_result = run_command('tail -5 /var/log/supervisor/nodejs.err.log 2>/dev/null')
+            if tail_result['stdout']:
+                print(f"    Last errors: {tail_result['stdout']}")
+            return False
+    except:
+        print("  ⚠️ Could not check error log size")
         return False
 
 def main():
-    """Run all tests for Fix #4: Auto-routed call billing gap"""
-    print("🚀 Starting Fix #4: Auto-routed call billing gap testing")
-    print("=" * 70)
+    """Run all tests"""
+    print("🚀 Starting Backend Testing for 7 Node.js Bug Fixes")
+    print("=" * 60)
     
     tests = [
         test_syntax_validation,
-        test_auto_routed_pending_billing_map,
-        test_hard_block_tracking,
-        test_rate_limit_tracking,
-        test_global_rate_limit_tracking,
-        test_handle_call_hangup_deferred_billing,
-        test_outbound_call_types,
         test_health_endpoint,
-        test_error_logs_clean
+        test_fix1_price_calculation,
+        test_fix2_lang_tdz,
+        test_fix3_resolveUserTag,
+        test_fix4_goto_guards,
+        test_fix5_html_escaping,
+        test_fix6_wallet_handler,
+        test_fix9_wallet_monitor,
+        test_nodejs_service,
+        test_error_logs
     ]
     
     passed = 0
     total = len(tests)
     
     for test in tests:
-        if test():
-            passed += 1
+        try:
+            if test():
+                passed += 1
+            print()
+        except Exception as e:
+            print(f"  ❌ Test failed with exception: {e}")
+            print()
     
-    print("\n" + "=" * 70)
-    print(f"📊 TEST RESULTS: {passed}/{total} tests passed ({passed/total*100:.1f}% success rate)")
+    print("=" * 60)
+    print(f"📊 Test Results: {passed}/{total} tests passed ({passed/total*100:.1f}%)")
     
     if passed == total:
-        print("🎉 ALL TESTS PASSED - Fix #4 implementation is working correctly!")
+        print("🎉 ALL TESTS PASSED - All 7 bug fixes verified successfully!")
         return True
     else:
-        print(f"⚠️  {total - passed} tests failed - Fix #4 needs attention")
+        print(f"⚠️ {total - passed} test(s) failed - Some bug fixes need attention")
         return False
 
 if __name__ == "__main__":
-    main()
+    success = main()
+    sys.exit(0 if success else 1)

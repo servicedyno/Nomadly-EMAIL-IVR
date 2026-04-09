@@ -185,6 +185,51 @@ const _balanceNotifyHistory = {}  // { chatId: { level, ts, escalationCount, win
 const LEVEL_SEVERITY = { warning: 1, critical: 2, empty: 3 }
 const MAX_ESCALATIONS_PER_DAY = 2  // After 2 escalations in 24h, stop completely
 
+// ── FIX #9: MongoDB persistence for balance notify history ──
+// Prevents mass-warning flood after redeployments by persisting anti-spam state.
+let _balanceNotifyHistoryCol = null
+
+/**
+ * Load notification history from MongoDB into memory on startup.
+ * Called during initVoiceService.
+ */
+async function _loadBalanceNotifyHistory(db) {
+  try {
+    _balanceNotifyHistoryCol = db.collection('balanceNotifyHistory')
+    const docs = await _balanceNotifyHistoryCol.find({}).toArray()
+    const now = Date.now()
+    let loaded = 0
+    for (const doc of docs) {
+      // Only load entries still within cooldown window (skip stale ones)
+      if (doc.ts && (now - doc.ts) < BALANCE_NOTIFY_COOLDOWN_MS) {
+        _balanceNotifyHistory[doc._id] = {
+          level: doc.level,
+          ts: doc.ts,
+          escalationCount: doc.escalationCount || 0,
+          windowStart: doc.windowStart || doc.ts,
+        }
+        loaded++
+      }
+    }
+    log(`[UserWalletMonitor] Loaded ${loaded} active notification histories from DB (${docs.length} total, ${docs.length - loaded} expired/skipped)`)
+  } catch (e) {
+    log(`[UserWalletMonitor] Warning: Failed to load notification history from DB: ${e.message}`)
+  }
+}
+
+/**
+ * Persist a single notification history entry to MongoDB.
+ * Called after updating _balanceNotifyHistory[chatId].
+ */
+function _persistBalanceNotifyEntry(chatId, entry) {
+  if (!_balanceNotifyHistoryCol) return
+  _balanceNotifyHistoryCol.updateOne(
+    { _id: chatId },
+    { $set: { level: entry.level, ts: entry.ts, escalationCount: entry.escalationCount, windowStart: entry.windowStart } },
+    { upsert: true }
+  ).catch(e => log(`[UserWalletMonitor] DB persist error for ${chatId}: ${e.message}`))
+}
+
 /**
  * Post-call low balance notification — sends Telegram warning if wallet is low after billing.
  * Called after every billCallMinutesUnified charge. Deduplicates within 4h per level.
@@ -245,6 +290,8 @@ async function notifyLowBalance(chatId, phoneNumber) {
     const escalationCount = (prev && (now - (prev.windowStart || prev.ts)) < BALANCE_NOTIFY_COOLDOWN_MS)
       ? (prev.escalationCount || 0) + (prev.level !== level ? 1 : 0) : 0
     _balanceNotifyHistory[chatId] = { level, ts: now, escalationCount, windowStart }
+    // FIX #9: Also persist post-call notification history
+    _persistBalanceNotifyEntry(chatId, _balanceNotifyHistory[chatId])
 
     const balStr = usdBal > 0 ? `$${usdBal.toFixed(2)}` : (ngnBal > 0 ? `₦${ngnBal.toFixed(0)}` : '$0.00')
 
@@ -331,6 +378,8 @@ async function runUserWalletMonitor() {
         const escalationCount = (prev && (now - (prev.windowStart || prev.ts)) < BALANCE_NOTIFY_COOLDOWN_MS)
           ? (prev.escalationCount || 0) + (prev.level !== level ? 1 : 0) : 0
         _balanceNotifyHistory[chatId] = { level, ts: now, escalationCount, windowStart }
+        // FIX #9: Persist to MongoDB so anti-spam state survives redeployments
+        _persistBalanceNotifyEntry(chatId, _balanceNotifyHistory[chatId])
         const balStr = usdBal > 0 ? `$${usdBal.toFixed(2)}` : (ngnBal > 0 ? `₦${ngnBal.toFixed(0)}` : '$0.00')
         const icon = level === 'empty' ? '🚨' : level === 'critical' ? '⚠️' : '💡'
         const urgency = level === 'empty'
@@ -709,6 +758,12 @@ function initVoiceService(deps) {
   _twilioService = deps.twilioService || null
   _state = deps.state || null
   _loyalty = deps.loyalty || null
+
+  // FIX #9: Load persisted notification history from MongoDB to prevent mass-warning on deploy
+  if (deps.db) {
+    _loadBalanceNotifyHistory(deps.db).catch(e => log(`[VoiceService] Failed to load balance history: ${e.message}`))
+  }
+
   log('[VoiceService] Initialized with IVR + Recording + Analytics + Limits + Overage billing + SIP Bridge + Twilio IVR + Loyalty Discounts')
 }
 

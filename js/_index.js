@@ -779,6 +779,22 @@ let adminDomains = [],
   ip_whitelist_message_sent = false,
   last_cr_check_time = 0
 
+// ── Module-level resolveUserTag — accessible from callback_query handler ──
+// FIX: Moved from inside loadData() to module scope so marketplace callback_query can use it
+// Previously caused "resolveUserTag is not defined" error
+async function resolveUserTag(chatId) {
+  try {
+    const name = await get(nameOf, chatId)
+    if (name && typeof name === 'string') return `@${name} (${chatId})`
+    if (name?.val) return `@${name.val} (${chatId})`
+    return String(chatId)
+  } catch { return String(chatId) }
+}
+function resolveUserTagSync(chatId, cachedName) {
+  if (cachedName) return `@${cachedName} (${chatId})`
+  return String(chatId)
+}
+
 let autoPromo = null
 let cartRecovery = null
 let userConversion = null
@@ -1015,21 +1031,8 @@ const loadData = async () => {
 
   log(`DB Connected lala. May peace be with you and Lord's mercy and blessings.`)
 
-  // ── Utility: Resolve username for admin alerts ──
-  // Returns "@username (chatId)" or just "chatId" if no name found
-  async function resolveUserTag(chatId) {
-    try {
-      const name = await get(nameOf, chatId)
-      if (name && typeof name === 'string') return `@${name} (${chatId})`
-      if (name?.val) return `@${name.val} (${chatId})`
-      return String(chatId)
-    } catch { return String(chatId) }
-  }
-  // Synchronous version using cached nameOf — for hot paths where async would slow things down
-  function resolveUserTagSync(chatId, cachedName) {
-    if (cachedName) return `@${cachedName} (${chatId})`
-    return String(chatId)
-  }
+  // resolveUserTag and resolveUserTagSync moved to module scope (before loadData)
+  // to fix "resolveUserTag is not defined" in marketplace callback_query handler
 
   // executeTwilioPurchase, getCachedTwilioAddress, cacheTwilioAddress — moved to module scope (before loadData)
 
@@ -1273,6 +1276,7 @@ const loadData = async () => {
       twilioService: require('./twilio-service.js'),
       state,
       loyalty,
+      db, // FIX #9: Pass db for persisting balance notification history
     })
     log('[CloudPhone] Voice Service initialized with IVR + Recording + Overage')
 
@@ -4766,7 +4770,13 @@ Enter new value:`), bc)
       // await set(state, chatId, 'action', a.skipCoupon)
       saveInfo('couponApplied', false)
       saveInfo('couponDiscount', 0)
-      goto[action]()
+      // FIX: Guard against undefined action to prevent "goto[(intermediate value)] is not a function"
+      if (action && typeof goto[action] === 'function') {
+        goto[action]()
+      } else {
+        log(`[skipCoupon] Invalid goto action: ${action} for chatId ${chatId}`)
+        send(chatId, t.someIssue || 'Something went wrong. Please try again.', trans('o'))
+      }
     },
 
     // Step 6: Proceed with Payment
@@ -6439,11 +6449,18 @@ All verified numbers generated during sourcing.`))
   }
 
   const goBack = () => {
-    const lastStep = info?.history[info?.history?.length - 1]
+    const lastStep = info?.history?.[info?.history?.length - 1]
 
-    saveInfo('history', info?.history.slice(0, -1)) // rem last elem
+    saveInfo('history', info?.history?.slice(0, -1) || []) // rem last elem
 
-    goto[lastStep]()
+    // FIX: Guard against undefined/invalid lastStep to prevent "goto[(intermediate value)] is not a function"
+    if (lastStep && typeof goto[lastStep] === 'function') {
+      goto[lastStep]()
+    } else {
+      log(`[goBack] Invalid goto lastStep: ${lastStep} for chatId ${chatId}, returning to main menu`)
+      const greeting = `Please choose an option:`
+      send(chatId, greeting, trans('o'))
+    }
   }
 
   // ── Guided Onboarding Response Handler (Feature 1) ──
@@ -12133,7 +12150,8 @@ ${message.replace(/\n/g, '<br>')}
         // ── Persist DNS complete ──
         await markDnsAdded(domain)
 
-        const lang = info?.userLanguage || 'en'
+        // FIX: Removed redundant `const lang` that caused TDZ error in ActivateShortener
+        // ("Cannot access 'lang' before initialization") — outer-scope `lang` is already correct
         send(chatId, ({ en: `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`, fr: `✅ <b>${domain}</b> lié au raccourcisseur d'URL. La propagation DNS peut prendre jusqu'à 24h.`, zh: `✅ <b>${domain}</b> 已链接到短链接服务。DNS 传播可能需要 24 小时。`, hi: `✅ <b>${domain}</b> URL शॉर्टनर से जोड़ दिया गया। DNS प्रसार में 24 घंटे तक लग सकते हैं।` }[lang] || `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`), { parse_mode: 'HTML' })
         regularCheckDns(bot, chatId, domain, lang)
 
@@ -13176,7 +13194,10 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       const handler = walletOk[info?.lastStep]
       if (typeof handler !== 'function') {
         log(`[Wallet] walletOk handler not found for lastStep: ${info?.lastStep}`)
-        return send(chatId, t.someIssue || 'Something went wrong. Please try again.')
+        // FIX: Better recovery — send user back to main menu instead of cryptic error
+        // This occurs when the user's flow state (lastStep) was lost or never set
+        await set(state, chatId, 'action', 'none')
+        return send(chatId, ({ en: '⚠️ Your session expired. Please start your purchase again from the main menu.', fr: '⚠️ Votre session a expiré. Veuillez recommencer votre achat depuis le menu principal.', zh: '⚠️ 您的会话已过期。请从主菜单重新开始购买。', hi: '⚠️ आपका सत्र समाप्त हो गया। कृपया मुख्य मेनू से अपनी खरीदारी फिर से शुरू करें।' }[lang] || '⚠️ Your session expired. Please start your purchase again from the main menu.'), trans('o'))
       }
       // Track payment completion for cart recovery
       if (cartRecovery) cartRecovery.recordPaymentCompleted(chatId)
@@ -18633,6 +18654,11 @@ Select a category:`), k.of(catBtns))
     saveInfo('carrier', message)
     saveInfo('history', [...(info?.history || []), a.validatorSelectCarrier])
     if (!['USA'].includes(info?.country) && info?.phones.length < 2000) {
+      // FIX: Calculate and save price for non-USA countries before format selection
+      // Previously skipped, causing $undefined in askCoupon
+      const cnam = false // CNAM only for USA
+      const price = info?.amount * RATE_LEAD_VALIDATOR + (cnam ? info?.amount * RATE_CNAM_VALIDATOR : 0)
+      saveInfo('price', price)
       return goto.validatorSelectFormat()
     }
     if (!['USA'].includes(info?.country)) return goto.validatorSelectAmount()
@@ -19006,13 +19032,17 @@ Select a category:`), k.of(catBtns))
           if (!meta || (!meta.registrar && !meta.nameserverType)) {
             await sleep(60000)
             const { error: saveErr } = await saveServerInDomain(domain, server, recordType)
-            if (saveErr) return send(chatId, `❌ DNS error: ${saveErr}`, { parse_mode: 'HTML' })
+            if (saveErr) return send(chatId, `❌ DNS error: ${sanitizeProviderError(saveErr, 'domain')}`, { parse_mode: 'HTML' })
           } else {
-            return send(chatId, `❌ DNS error: ${addResult.error || 'Unknown error'}`, { parse_mode: 'HTML' })
+            return send(chatId, `❌ DNS error: ${sanitizeProviderError(addResult.error || 'Unknown error', 'domain')}`, { parse_mode: 'HTML' })
           }
         }
 
-        const lang = info?.userLanguage || 'en'
+        // ── Persist DNS complete ──
+        await markDnsAdded(domain)
+
+        // FIX: Removed redundant `const lang` that caused TDZ error
+        // ("Cannot access 'lang' before initialization") — outer-scope `lang` is already correct
         send(chatId, ({ en: `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`, fr: `✅ <b>${domain}</b> lié au raccourcisseur d'URL. La propagation DNS peut prendre jusqu'à 24h.`, zh: `✅ <b>${domain}</b> 已链接到短链接服务。DNS 传播可能需要 24 小时。`, hi: `✅ <b>${domain}</b> URL शॉर्टनर से जोड़ दिया गया। DNS प्रसार में 24 घंटे तक लग सकते हैं。` }[lang] || `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`), { parse_mode: 'HTML' })
         regularCheckDns(bot, chatId, domain, lang)
       } catch (e) {
