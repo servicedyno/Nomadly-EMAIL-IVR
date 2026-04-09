@@ -863,9 +863,9 @@ const priceOf = {
 }
 
 const freeDomainsOf = {
-  Daily: DAILY_PLAN_FREE_DOMAINS,
-  Weekly: WEEKLY_PLAN_FREE_DOMAINS,
-  Monthly: MONTHLY_PLAN_FREE_DOMAINS,
+  Daily: 0,
+  Weekly: 0,
+  Monthly: 0,
 }
 
 const freeValidationsOf = {

@@ -796,7 +796,8 @@ const subscribePlan = async (planEndingTime, freeDomainNamesAvailableFor, planOf
   const endTime = Date.now() + duration
   set(planOf, chatId, plan)
   set(planEndingTime, chatId, endTime)
-  set(freeDomainNamesAvailableFor, chatId, freeDomainsOf[plan])
+  // Free domains removed - no longer granted with subscription
+  // set(freeDomainNamesAvailableFor, chatId, freeDomainsOf[plan])
   if (freeValidationsAvailableFor) {
     set(freeValidationsAvailableFor, chatId, freeValidationsOf[plan])
   }
