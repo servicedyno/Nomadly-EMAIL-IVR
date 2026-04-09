@@ -2636,15 +2636,18 @@ agent_communication:
 backend:
   - task: "Improve hostingTransactions payment record storage — structured records with business context and outcome tracking"
     implemented: true
-    working: "NA"
+    working: true
     file: "js/_index.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         - working: "NA"
           agent: "main"
           comment: "IMPROVEMENT: Replaced bare insert(hostingTransactions, chatId, 'method', rawResponse) with structured recordHostingTransaction() helper. Changes: (1) Added recordHostingTransaction() function after DB init (line ~1281) that writes complete records with fields: chatId, domain, plan, priceUsd, paymentMethod, currency, outcome, hostingUsername, refundAmount, refundCurrency, gatewayData, couponApplied, couponDiscount, existingDomain, hostingType, timestamp. (2) WALLET PATH (line ~5774): Was completely MISSING from hostingTransactions — now records all 3 outcomes (success/domain_only/failed). (3) BANK NGN PATH (line ~20955): Replaced bare insert(hostingTransactions, chatId, 'bank', response) with structured records at all 4 outcomes (success/domain_only/full_refund/failed). (4) BLOCKBEE PATH (line ~21800): Same replacement — structured records at all 4 outcomes. (5) DYNOPAY PATH (line ~22446): Same replacement — structured records at all 4 outcomes. Business context (domain, plan, price, etc) is captured BEFORE registerDomainAndCreateCpanel since it wipes state fields on success. Records written AFTER outcome is known, not before. Old bare insert() calls removed. Module-scope fallback prevents crash if DB not yet ready. Syntax check passes (node -c), nodejs restarts with 0 errors, health endpoint healthy."
+        - working: true
+          agent: "testing"
+          comment: "✅ ALL 21/21 TESTS PASSED (100% success rate). recordHostingTransaction function verified at line 1281 with all structured fields + insertOne + try/catch. Module-scope fallback at line 990 confirmed. All 4 payment paths verified: Wallet (3 outcomes: domain_only/failed/success, paymentMethod wallet_usd/wallet_ngn), Bank NGN (4 outcomes, paymentMethod bank_ngn, gatewayData=response), BlockBee (4 outcomes, paymentMethod blockbee, gatewayData=response), DynoPay (4 outcomes, paymentMethod dynopay, gatewayData=req.body). No remaining old insert(hostingTransactions patterns. Node.js running with 0 errors, health endpoint healthy."
 
 test_plan:
   current_focus:
