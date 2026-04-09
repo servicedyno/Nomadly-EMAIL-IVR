@@ -20921,6 +20921,21 @@ const authDyno = async (req, res, next) => {
     return res.send(html('OK'))
   }
 
+  // ── UNDERPAID events: Store mapping + skip — wait for confirmed/settled with full amount ──
+  // Processing underpaid events causes handlers to receive partial amounts, which often
+  // leads to "sent less money" → wallet credit → no product delivered. Then the confirmed
+  // event (with the full amount) is rejected as duplicate.
+  if (event === 'payment.underpaid' || req.body?.status === 'underpaid') {
+    const underpaidRef = req.body?.meta_data?.refId
+    if (paymentId && underpaidRef && !dynopayPaymentIdToRef.has(paymentId)) {
+      dynopayPaymentIdToRef.set(paymentId, underpaidRef)
+      log(`[DynoPay] Stored underpaid mapping: ${paymentId} → ${underpaidRef}`)
+      setTimeout(() => dynopayPaymentIdToRef.delete(paymentId), 86400000)
+    }
+    log(`[DynoPay] Skipping underpaid event — waiting for confirmed/settled (payment_id: ${paymentId})`)
+    return res.send(html('OK'))
+  }
+
   // Deduplicate by payment_id — DynoPay sends multiple webhooks per payment
   if (paymentId && processedDynopayPayments.has(paymentId)) {
     log(`[DynoPay] Duplicate webhook ignored for payment_id: ${paymentId}`)
