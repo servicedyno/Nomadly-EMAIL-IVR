@@ -70,12 +70,25 @@ async function checkTelnyxNumber(phoneNumber) {
 
 /**
  * Build user notification (provider-neutral — no mention of Twilio/Telnyx)
+ * Supports single number or array of numbers
  */
-function buildUserMessage(phoneNumber) {
+function buildUserMessage(phoneNumbers) {
+  const numbers = Array.isArray(phoneNumbers) ? phoneNumbers : [phoneNumbers]
+  if (numbers.length === 1) {
+    return (
+      `⚠️ <b>Caller ID Flagged</b>\n\n` +
+      `Your caller ID <b>${numbers[0]}</b> has been flagged and suspended by the carrier.\n\n` +
+      `This number can no longer be used for outbound calls or campaigns.\n\n` +
+      `👉 Please purchase a new number from the <b>Cloud IVR + SIP</b> menu to continue making calls.\n\n` +
+      `If you have any questions, contact support.`
+    );
+  }
+  const numberList = numbers.map(n => `  • <b>${n}</b>`).join('\n')
   return (
-    `⚠️ <b>Caller ID Flagged</b>\n\n` +
-    `Your caller ID <b>${phoneNumber}</b> has been flagged and suspended by the carrier.\n\n` +
-    `This number can no longer be used for outbound calls or campaigns.\n\n` +
+    `⚠️ <b>Account Suspended — ${numbers.length} Numbers Affected</b>\n\n` +
+    `The following caller IDs have been flagged and suspended by the carrier:\n\n` +
+    `${numberList}\n\n` +
+    `These numbers can no longer be used for outbound calls or campaigns.\n\n` +
     `👉 Please purchase a new number from the <b>Cloud IVR + SIP</b> menu to continue making calls.\n\n` +
     `If you have any questions, contact support.`
   );
@@ -113,54 +126,63 @@ async function runHealthCheck(bot, db) {
   const allDocs = await phoneNumbersOf.find({}).toArray();
 
   // ----------------------------------------------------------
-  // TWILIO: Check subaccount statuses
+  // TWILIO: Check subaccount statuses (grouped by subaccount)
   // ----------------------------------------------------------
-  const twilioNumbers = [];
+  // Group numbers by subaccount SID — when a subaccount is suspended, ALL its numbers are affected
+  const twilioBySubAccount = {};
   for (const doc of allDocs) {
     const numbers = doc.val?.numbers || [];
     for (const num of numbers) {
-      if (num.provider === 'twilio' && num.twilioSubAccountSid) {
-        twilioNumbers.push({
-          chatId: doc._id,
+      if (num.provider === 'twilio' && num.twilioSubAccountSid &&
+          !['released', 'expired', 'cancelled'].includes(num.status)) {
+        const sid = num.twilioSubAccountSid;
+        if (!twilioBySubAccount[sid]) {
+          twilioBySubAccount[sid] = { chatId: doc._id, subAccountSid: sid, numbers: [] };
+        }
+        twilioBySubAccount[sid].numbers.push({
           phoneNumber: num.phoneNumber,
-          subAccountSid: num.twilioSubAccountSid,
           plan: num.plan,
         });
       }
     }
   }
 
-  console.log(`[PhoneMonitor] Checking ${twilioNumbers.length} Twilio subaccounts`);
+  const twilioSubAccounts = Object.values(twilioBySubAccount);
+  console.log(`[PhoneMonitor] Checking ${twilioSubAccounts.length} Twilio subaccounts`);
 
-  for (const entry of twilioNumbers) {
-    const { subAccountSid: sid, chatId, phoneNumber } = entry;
+  for (const entry of twilioSubAccounts) {
+    const { subAccountSid: sid, chatId, numbers: affectedNumbers } = entry;
 
-    // Skip if already fully notified
-    const fullyNotified = await suspensionEvents.findOne({
-      phoneNumber, provider: 'twilio', status: 'suspended',
-      resolved: false, notifiedUser: true, notifiedAdmin: true,
-    });
-    if (fullyNotified) { totalChecked++; continue; }
+    // Skip if ALL numbers on this subaccount are already fully notified
+    const allFullyNotified = (await Promise.all(
+      affectedNumbers.map(n => suspensionEvents.findOne({
+        phoneNumber: n.phoneNumber, provider: 'twilio', status: 'suspended',
+        resolved: false, notifiedUser: true, notifiedAdmin: true,
+      }))
+    )).every(Boolean);
+    if (allFullyNotified) { totalChecked += affectedNumbers.length; continue; }
 
     const statusInfo = await checkTwilioSubaccount(sid);
-    totalChecked++;
+    totalChecked += affectedNumbers.length;
 
     if (statusInfo.status === 'suspended') {
-      console.log(`[PhoneMonitor] SUSPENDED: ${phoneNumber} | chatId=${chatId}`);
-      const isNew = await handleSuspension(
+      const allPhoneNumbers = affectedNumbers.map(n => n.phoneNumber);
+      console.log(`[PhoneMonitor] SUSPENDED: subaccount ${sid} | chatId=${chatId} | ${allPhoneNumbers.length} numbers: ${allPhoneNumbers.join(', ')}`);
+      const isNew = await handleSubAccountSuspension(
         bot, db, suspensionEvents, phoneNumbersOf,
-        chatId, phoneNumber, 'twilio', sid,
+        chatId, allPhoneNumbers, 'twilio', sid,
         statusInfo.friendlyName || '',
-        { _id: chatId, 'val.numbers.twilioSubAccountSid': sid },
-        'val.numbers.$.status',
       );
-      if (isNew) totalSuspended++;
+      if (isNew) totalSuspended += allPhoneNumbers.length;
     } else if (statusInfo.status === 'active') {
-      await handleReactivation(
-        suspensionEvents, phoneNumbersOf, phoneNumber, 'twilio', chatId,
-        { _id: chatId, 'val.numbers.twilioSubAccountSid': sid },
-        'val.numbers.$.status',
-      );
+      // Reactivate all numbers on this subaccount
+      for (const num of affectedNumbers) {
+        await handleReactivation(
+          suspensionEvents, phoneNumbersOf, num.phoneNumber, 'twilio', chatId,
+          { _id: chatId, 'val.numbers.twilioSubAccountSid': sid, 'val.numbers.phoneNumber': num.phoneNumber },
+          'val.numbers.$.status',
+        );
+      }
     }
   }
 
@@ -221,99 +243,148 @@ async function runHealthCheck(bot, db) {
 }
 
 /**
- * Handle a detected suspension — shared logic for both providers
+ * Handle a detected suspension — shared logic for both providers (single number)
  */
 async function handleSuspension(
   bot, db, suspensionEvents, phoneNumbersOf,
   chatId, phoneNumber, provider, detailId, friendlyName,
   dbQueryFilter, dbStatusPath,
 ) {
+  return _handleSuspensionInternal(
+    bot, db, suspensionEvents, phoneNumbersOf,
+    chatId, [phoneNumber], provider, detailId, friendlyName,
+    [{ filter: dbQueryFilter, path: dbStatusPath }],
+  );
+}
+
+/**
+ * Handle subaccount suspension — ALL numbers on the subaccount in one notification
+ */
+async function handleSubAccountSuspension(
+  bot, db, suspensionEvents, phoneNumbersOf,
+  chatId, phoneNumbers, provider, detailId, friendlyName,
+) {
+  const dbUpdates = phoneNumbers.map(pn => ({
+    filter: { _id: chatId, 'val.numbers.phoneNumber': pn },
+    path: 'val.numbers.$.status',
+  }));
+  return _handleSuspensionInternal(
+    bot, db, suspensionEvents, phoneNumbersOf,
+    chatId, phoneNumbers, provider, detailId, friendlyName, dbUpdates,
+  );
+}
+
+/**
+ * Internal suspension handler — supports one or many numbers in a single notification
+ */
+async function _handleSuspensionInternal(
+  bot, db, suspensionEvents, phoneNumbersOf,
+  chatId, phoneNumbers, provider, detailId, friendlyName, dbUpdates,
+) {
   const chatIdStr = String(typeof chatId === 'number' ? Math.floor(chatId) : chatId);
 
-  // Check for existing unresolved event
-  const existing = await suspensionEvents.findOne({
-    phoneNumber, provider, status: 'suspended', resolved: false,
-  });
-
-  if (existing) {
-    // Retry failed notifications only
-    if (existing.notifiedUser && existing.notifiedAdmin) return false;
-
-    const updates = {};
-
-    if (!existing.notifiedUser) {
-      try {
-        await bot.telegram.sendMessage(chatIdStr, buildUserMessage(phoneNumber), { parse_mode: 'HTML' });
-        updates.notifiedUser = true;
-        console.log(`[PhoneMonitor] Retry: user notification succeeded for ${phoneNumber}`);
-      } catch (err) {
-        console.error(`[PhoneMonitor] Retry: user notification failed for ${phoneNumber}:`, err.message);
+  // Check which numbers already have unresolved suspension events
+  const newNumbers = [];
+  for (const pn of phoneNumbers) {
+    const existing = await suspensionEvents.findOne({
+      phoneNumber: pn, provider, status: 'suspended', resolved: false,
+    });
+    if (existing) {
+      // Retry failed notifications for existing events
+      if (!existing.notifiedUser || !existing.notifiedAdmin) {
+        const updates = {};
+        if (!existing.notifiedUser) {
+          try {
+            await bot.telegram.sendMessage(chatIdStr, buildUserMessage(pn), { parse_mode: 'HTML' });
+            updates.notifiedUser = true;
+            console.log(`[PhoneMonitor] Retry: user notification succeeded for ${pn}`);
+          } catch (err) {
+            console.error(`[PhoneMonitor] Retry: user notification failed for ${pn}:`, err.message);
+          }
+        }
+        if (!existing.notifiedAdmin && ADMIN_CHAT_ID) {
+          try {
+            const adminMsg = buildAdminMessage(chatId, pn, provider, detailId, friendlyName, updates.notifiedUser || existing.notifiedUser);
+            await bot.telegram.sendMessage(ADMIN_CHAT_ID, adminMsg, { parse_mode: 'HTML' });
+            updates.notifiedAdmin = true;
+          } catch (err) {
+            console.error(`[PhoneMonitor] Admin notification failed:`, err.message);
+          }
+        }
+        if (Object.keys(updates).length > 0) {
+          await suspensionEvents.updateOne({ _id: existing._id }, { $set: updates });
+        }
       }
+    } else {
+      newNumbers.push(pn);
     }
-
-    if (!existing.notifiedAdmin && ADMIN_CHAT_ID) {
-      try {
-        const adminMsg = buildAdminMessage(chatId, phoneNumber, provider, detailId, friendlyName, updates.notifiedUser || existing.notifiedUser);
-        await bot.telegram.sendMessage(ADMIN_CHAT_ID, adminMsg, { parse_mode: 'HTML' });
-        updates.notifiedAdmin = true;
-      } catch (err) {
-        console.error(`[PhoneMonitor] Admin notification failed:`, err.message);
-      }
-    }
-
-    if (Object.keys(updates).length > 0) {
-      await suspensionEvents.updateOne({ _id: existing._id }, { $set: updates });
-    }
-    return false;
   }
 
-  // NEW suspension — first detection
+  if (newNumbers.length === 0) return false;
 
-  // Mark number as suspended in DB
-  await phoneNumbersOf.updateOne(dbQueryFilter, { $set: { [dbStatusPath]: 'suspended' } });
-  console.log(`[PhoneMonitor] Marked ${phoneNumber} as suspended in DB`);
+  // Mark ALL new numbers as suspended in DB
+  for (const upd of dbUpdates) {
+    const pn = phoneNumbers[dbUpdates.indexOf(upd)];
+    if (newNumbers.includes(pn)) {
+      await phoneNumbersOf.updateOne(upd.filter, { $set: { [upd.path]: 'suspended' } });
+    }
+  }
+  console.log(`[PhoneMonitor] Marked ${newNumbers.length} number(s) as suspended in DB: ${newNumbers.join(', ')}`);
 
-  // Record suspension event
-  const event = {
-    provider,
-    detailId,
-    chatId,
-    phoneNumber,
-    status: 'suspended',
-    friendlyName,
-    detectedAt: new Date(),
-    notifiedUser: false,
-    notifiedAdmin: false,
-    resolved: false,
-  };
-  await suspensionEvents.insertOne(event);
+  // Record suspension events for ALL new numbers
+  for (const pn of newNumbers) {
+    await suspensionEvents.insertOne({
+      provider,
+      detailId,
+      chatId,
+      phoneNumber: pn,
+      status: 'suspended',
+      friendlyName,
+      detectedAt: new Date(),
+      notifiedUser: false,
+      notifiedAdmin: false,
+      resolved: false,
+    });
+  }
 
-  // Notify user (provider-neutral message)
+  // Send ONE consolidated notification to user listing ALL affected numbers
   let userNotified = false;
   try {
-    await bot.telegram.sendMessage(chatIdStr, buildUserMessage(phoneNumber), { parse_mode: 'HTML' });
+    await bot.telegram.sendMessage(chatIdStr, buildUserMessage(newNumbers), { parse_mode: 'HTML' });
     userNotified = true;
-    console.log(`[PhoneMonitor] User ${chatIdStr} notified about ${phoneNumber}`);
+    console.log(`[PhoneMonitor] User ${chatIdStr} notified about ${newNumbers.length} suspended number(s): ${newNumbers.join(', ')}`);
   } catch (err) {
     console.error(`[PhoneMonitor] User notification failed for ${chatIdStr}:`, err.message);
   }
 
-  // Notify admin (with internal provider details)
+  // Send ONE admin notification listing all affected numbers
   let adminNotified = false;
   if (ADMIN_CHAT_ID) {
     try {
-      await bot.telegram.sendMessage(ADMIN_CHAT_ID, buildAdminMessage(chatId, phoneNumber, provider, detailId, friendlyName, userNotified), { parse_mode: 'HTML' });
+      const adminNumbers = newNumbers.join(', ');
+      const adminMsg = (
+        `🔴 <b>SubAccount Suspended — ${newNumbers.length} Number(s)</b>\n\n` +
+        `Provider: ${provider}\n` +
+        `SubAccount: <code>${detailId}</code>\n` +
+        `User: ${chatId} (${friendlyName})\n` +
+        `Numbers: ${adminNumbers}\n` +
+        `Detected: ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC\n` +
+        `User notified: ${userNotified ? '✅' : '❌ (will retry)'}`
+      );
+      await bot.telegram.sendMessage(ADMIN_CHAT_ID, adminMsg, { parse_mode: 'HTML' });
       adminNotified = true;
     } catch (err) {
       console.error(`[PhoneMonitor] Admin notification failed:`, err.message);
     }
   }
 
-  // Update notification flags
-  await suspensionEvents.updateOne(
-    { phoneNumber, provider, resolved: false },
-    { $set: { notifiedUser: userNotified, notifiedAdmin: adminNotified } },
-  );
+  // Update notification flags on ALL new suspension events
+  for (const pn of newNumbers) {
+    await suspensionEvents.updateOne(
+      { phoneNumber: pn, provider, resolved: false },
+      { $set: { notifiedUser: userNotified, notifiedAdmin: adminNotified } },
+    );
+  }
 
   return true;
 }
