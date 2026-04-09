@@ -987,6 +987,7 @@ let state = {},
   freeDomainNamesAvailableFor = {},
   freeValidationsAvailableFor = {},
   hostingTransactions = {},
+  recordHostingTransaction = async () => { log('[HostingTx] DB not yet initialized') },
   vpsTransactions = {},
   notifyGroupsCol = {},
   phoneNumbersOf = {},
@@ -1274,6 +1275,48 @@ const loadData = async () => {
   chatIdOf = db.collection('chatIdOf')
 
   log(`DB Connected lala. May peace be with you and Lord's mercy and blessings.`)
+
+  // ── Structured hostingTransactions helper ──
+  // Records a complete, queryable hosting payment record with business context + outcome
+  recordHostingTransaction = async function (chatId, {
+    domain,
+    plan,
+    priceUsd,
+    paymentMethod,   // wallet_usd | wallet_ngn | bank_ngn | blockbee | dynopay
+    currency,        // USD | NGN | BTC | ETH etc.
+    outcome,         // success | domain_only | full_refund | failed
+    hostingUsername,  // cPanel user (if success)
+    refundAmount,    // number (if partial/full refund)
+    refundCurrency,  // USD | NGN
+    gatewayData,     // raw payment gateway response (preserved for audit)
+    couponApplied,   // boolean
+    couponDiscount,  // number
+    existingDomain,  // boolean — user brought their own domain
+    hostingType,     // plan tier label
+  } = {}) {
+    try {
+      await hostingTransactions.insertOne({
+        chatId: String(chatId),
+        domain: domain || null,
+        plan: plan || null,
+        priceUsd: priceUsd != null ? Number(priceUsd) : null,
+        paymentMethod: paymentMethod || null,
+        currency: currency || 'USD',
+        outcome: outcome || 'unknown',
+        hostingUsername: hostingUsername || null,
+        refundAmount: refundAmount != null ? Number(refundAmount) : null,
+        refundCurrency: refundCurrency || null,
+        gatewayData: gatewayData || null,
+        couponApplied: !!couponApplied,
+        couponDiscount: couponDiscount != null ? Number(couponDiscount) : null,
+        existingDomain: !!existingDomain,
+        hostingType: hostingType || null,
+        timestamp: new Date(),
+      })
+    } catch (err) {
+      log(`[HostingTx] Failed to record transaction for ${chatId}: ${err.message}`)
+    }
+  }
 
   // resolveUserTag and resolveUserTagSync moved to module scope (before loadData)
   // to fix "resolveUserTag is not defined" in marketplace callback_query handler
@@ -5728,6 +5771,16 @@ Enter new value:`), bc)
         return send(chatId, t.walletBalanceLowNgn ? t.walletBalanceLowNgn(priceNgn, ngnBal) : t.walletBalanceLow, k.of([u.deposit]))
       }
 
+      // Capture business context before registerDomainAndCreateCpanel cleans up state
+      const txDomain = info?.domain || info?.website_name
+      const txPlan = info?.plan || null
+      const txHostingType = info?.hostingType || null
+      const txCouponApplied = !!info?.couponApplied
+      const txCouponDiscount = info?.couponDiscount || null
+      const txExistingDomain = !!info?.existingDomain || !!info?.connectExternalDomain
+      const txPayMethod = coin === u.usd ? 'wallet_usd' : 'wallet_ngn'
+      const txCurrency = coin === u.usd ? 'USD' : 'NGN'
+
       const hostingResult = await registerDomainAndCreateCpanel(send, info, trans('o'), state)
       if (!hostingResult?.success) {
         // If new domain was registered, charge domain cost only — hosting portion NOT charged
@@ -5752,8 +5805,12 @@ Enter new value:`), bc)
           }
           const { usdBal: usd2, ngnBal: ngn2 } = await getBalance(walletOf, chatId)
           send(chatId, t.showWallet(usd2, ngn2), trans('o'))
+          // Record domain-only outcome
+          recordHostingTransaction(chatId, { domain: txDomain, plan: txPlan, priceUsd, paymentMethod: txPayMethod, currency: txCurrency, outcome: 'domain_only', hostingType: txHostingType, couponApplied: txCouponApplied, couponDiscount: txCouponDiscount, existingDomain: txExistingDomain })
           return send(chatId, `Your domain <b>${info.domain}</b> has been registered successfully, but hosting setup failed. Domain cost ($${domainCost}) has been charged. Please contact support to complete your hosting setup: ${process.env.APP_SUPPORT_LINK}`, trans('o'))
         }
+        // Record full failure outcome
+        recordHostingTransaction(chatId, { domain: txDomain, plan: txPlan, priceUsd, paymentMethod: txPayMethod, currency: txCurrency, outcome: 'failed', hostingType: txHostingType, couponApplied: txCouponApplied, couponDiscount: txCouponDiscount, existingDomain: txExistingDomain })
         return send(chatId, hostingResult?.error || 'Hosting creation failed. Your wallet was not charged. Please try again or contact support.', trans('o'))
       }
 
@@ -5769,6 +5826,9 @@ Enter new value:`), bc)
       const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
       send(chatId, t.showWallet(usd, ngn), trans('o'))
       checkAndNotifyTierUpgrade(preSpend)
+
+      // Record successful hosting transaction
+      recordHostingTransaction(chatId, { domain: txDomain, plan: txPlan, priceUsd, paymentMethod: txPayMethod, currency: txCurrency, outcome: 'success', hostingType: txHostingType, couponApplied: txCouponApplied, couponDiscount: txCouponDiscount, existingDomain: txExistingDomain })
 
       // ── Hosting purchase group notification (was missing — Fix #1) ──
       try {
@@ -20893,13 +20953,22 @@ const bankApis = {
     // Logs
     del(chatIdOfPayment, ref)
     const usdIn = await ngnToUsd(ngnIn)
-    await insert(hostingTransactions, chatId, "bank", response)
+
+    // Capture business context before hosting creation
+    const txDomain = info?.domain || info?.website_name
+    const txPlan = info?.plan || null
+    const txHostingType = info?.hostingType || null
+    const txCouponApplied = !!info?.couponApplied
+    const txCouponDiscount = info?.couponDiscount || null
+    const txExistingDomain = !!info?.existingDomain || !!info?.connectExternalDomain
+    const txBase = { domain: txDomain, plan: txPlan, priceUsd: price, paymentMethod: 'bank_ngn', currency: 'NGN', hostingType: txHostingType, couponApplied: txCouponApplied, couponDiscount: txCouponDiscount, existingDomain: txExistingDomain, gatewayData: response }
 
     // Update Wallet
     const ngnPrice = await usdToNgn(price)
     if (usdIn * 1.06 < price) {
       sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`))
       addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
+      recordHostingTransaction(chatId, { ...txBase, outcome: 'failed' })
       return res.send(html(translation('t.lowPrice')))
     }
     if (ngnIn > ngnPrice) {
@@ -20917,12 +20986,18 @@ const bankApis = {
         const hostingRefundNgn = await usdToNgn(info?.hostingPrice || (price - domainPrice))
         if (hostingRefundNgn > 0) addFundsTo(walletOf, chatId, 'ngn', hostingRefundNgn, lang)
         sendMessage(chatId, `Your domain <b>${info?.website_name}</b> has been registered successfully, but hosting setup failed. Domain cost has been charged — hosting portion (₦${Math.round(hostingRefundNgn)}) refunded to your wallet. Please contact support to complete hosting setup: ${process.env.APP_SUPPORT_LINK}`)
+        recordHostingTransaction(chatId, { ...txBase, outcome: 'domain_only', refundAmount: hostingRefundNgn, refundCurrency: 'NGN' })
       } else {
         addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
         sendMessage(chatId, hostingResult?.error || 'Hosting creation failed. Full payment refunded to your NGN wallet.')
+        recordHostingTransaction(chatId, { ...txBase, outcome: 'full_refund', refundAmount: ngnIn, refundCurrency: 'NGN' })
       }
       return res.send(html(hostingResult?.error || 'Hosting creation failed'))
     }
+
+    // Record successful hosting transaction
+    recordHostingTransaction(chatId, { ...txBase, outcome: 'success' })
+
     // ── Hosting purchase group notification (was missing — Fix #1) ──
     try {
       const name = await get(nameOf, chatId)
@@ -21722,12 +21797,22 @@ app.get('/crypto-pay-hosting', auth, async (req, res) => {
 
     // Logs
   del(chatIdOfPayment, ref)
-  await insert(hostingTransactions, chatId, "blockbee", response)
+
+  // Capture business context before hosting creation
+  const txDomain = info?.domain || info?.website_name
+  const txPlan = info?.plan || null
+  const txHostingType = info?.hostingType || null
+  const txCouponApplied = !!info?.couponApplied
+  const txCouponDiscount = info?.couponDiscount || null
+  const txExistingDomain = !!info?.existingDomain || !!info?.connectExternalDomain
+  const txBase = { domain: txDomain, plan: txPlan, priceUsd: price, paymentMethod: 'blockbee', currency: coin || 'crypto', hostingType: txHostingType, couponApplied: txCouponApplied, couponDiscount: txCouponDiscount, existingDomain: txExistingDomain, gatewayData: response }
+
   // Update Wallet
   const usdIn = await convert(value, coin, 'usd')
   if (usdIn * 1.06 < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
+    recordHostingTransaction(chatId, { ...txBase, outcome: 'failed' })
     return res.send(html(translation('t.lowPrice')))
   }
   if (usdIn > price) {
@@ -21744,12 +21829,17 @@ app.get('/crypto-pay-hosting', auth, async (req, res) => {
       const hostingRefund = info?.hostingPrice || (price - domainPrice)
       if (hostingRefund > 0) addFundsTo(walletOf, chatId, 'usd', hostingRefund, lang)
       sendMessage(chatId, `Your domain <b>${info?.website_name}</b> has been registered successfully, but hosting setup failed. Domain cost ($${domainPrice}) charged — hosting portion ($${hostingRefund.toFixed(2)}) refunded to your wallet. Please contact support to complete hosting setup: ${process.env.APP_SUPPORT_LINK}`)
+      recordHostingTransaction(chatId, { ...txBase, outcome: 'domain_only', refundAmount: hostingRefund, refundCurrency: 'USD' })
     } else {
       addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
       sendMessage(chatId, hostingResult?.error || 'Hosting creation failed. Full payment refunded to your USD wallet.')
+      recordHostingTransaction(chatId, { ...txBase, outcome: 'full_refund', refundAmount: usdIn, refundCurrency: 'USD' })
     }
     return res.send(html(hostingResult?.error || 'Hosting creation failed'))
   }
+
+  // Record successful hosting transaction
+  recordHostingTransaction(chatId, { ...txBase, outcome: 'success' })
 
   // ── Hosting purchase group notification (was missing — Fix #1) ──
   try {
@@ -22354,7 +22444,16 @@ app.post('/dynopay/crypto-pay-hosting', authDyno, async (req, res) => {
   const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
     // Logs
   del(chatIdOfDynopayPayment, ref)
-  await insert(hostingTransactions, chatId, "dynopay", req.body)
+
+  // Capture business context before hosting creation
+  const txDomain = info?.domain || info?.website_name
+  const txPlan = info?.plan || null
+  const txHostingType = info?.hostingType || null
+  const txCouponApplied = !!info?.couponApplied
+  const txCouponDiscount = info?.couponDiscount || null
+  const txExistingDomain = !!info?.existingDomain || !!info?.connectExternalDomain
+  const txBase = { domain: txDomain, plan: txPlan, priceUsd: price, paymentMethod: 'dynopay', currency: coin || 'crypto', hostingType: txHostingType, couponApplied: txCouponApplied, couponDiscount: txCouponDiscount, existingDomain: txExistingDomain, gatewayData: req.body }
+
   // Update Wallet
   const ticker = tickerViewOfDyno[coin]
   // Use base_amount (confirmed USD) from DynoPay when fee_payer is company
@@ -22371,6 +22470,7 @@ app.post('/dynopay/crypto-pay-hosting', authDyno, async (req, res) => {
   if (usdIn * 1.06 < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
+    recordHostingTransaction(chatId, { ...txBase, outcome: 'failed' })
     return res.send(html(translation('t.lowPrice')))
   }
   if (usdIn > price) {
@@ -22387,12 +22487,17 @@ app.post('/dynopay/crypto-pay-hosting', authDyno, async (req, res) => {
       const hostingRefund = info?.hostingPrice || (price - domainPrice)
       if (hostingRefund > 0) addFundsTo(walletOf, chatId, 'usd', hostingRefund, lang)
       sendMessage(chatId, `Your domain <b>${info?.website_name}</b> has been registered successfully, but hosting setup failed. Domain cost ($${domainPrice}) charged — hosting portion ($${hostingRefund.toFixed(2)}) refunded to your wallet. Please contact support to complete hosting setup: ${process.env.APP_SUPPORT_LINK}`)
+      recordHostingTransaction(chatId, { ...txBase, outcome: 'domain_only', refundAmount: hostingRefund, refundCurrency: 'USD' })
     } else {
       addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
       sendMessage(chatId, hostingResult?.error || 'Hosting creation failed. Full payment refunded to your USD wallet.')
+      recordHostingTransaction(chatId, { ...txBase, outcome: 'full_refund', refundAmount: usdIn, refundCurrency: 'USD' })
     }
     return res.send(html(hostingResult?.error || 'Hosting creation failed'))
   }
+
+  // Record successful hosting transaction
+  recordHostingTransaction(chatId, { ...txBase, outcome: 'success' })
 
   // ── Hosting purchase group notification (was missing — Fix #1) ──
   try {

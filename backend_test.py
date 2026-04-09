@@ -1,356 +1,333 @@
 #!/usr/bin/env python3
 """
-Backend Testing Script for 7 Node.js Bug Fixes
-Tests the specific bug fixes mentioned in the review request.
+Comprehensive backend testing for Nomadly Telegram bot hostingTransactions improvements.
+Tests the recordHostingTransaction() function and its integration across all 4 hosting payment paths.
 """
 
-import subprocess
-import sys
-import json
 import requests
+import subprocess
+import json
+import os
 import time
-import re
-from pathlib import Path
+from typing import Dict, Any
 
 # Backend URL from environment
 BACKEND_URL = "https://get-started-62.preview.emergentagent.com"
-API_BASE = f"{BACKEND_URL}/api"
+HEALTH_ENDPOINT = f"{BACKEND_URL}/api/health"
 
-def run_command(cmd, cwd=None):
-    """Run a shell command and return result"""
-    try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, cwd=cwd)
-        return {
-            'success': result.returncode == 0,
-            'stdout': result.stdout.strip(),
-            'stderr': result.stderr.strip(),
-            'returncode': result.returncode
-        }
-    except Exception as e:
-        return {
-            'success': False,
-            'stdout': '',
-            'stderr': str(e),
-            'returncode': -1
-        }
-
-def test_syntax_validation():
-    """Test 1: Verify all JavaScript files pass syntax validation"""
-    print("🔍 Test 1: JavaScript Syntax Validation")
+class HostingTransactionsTest:
+    def __init__(self):
+        self.test_results = []
+        self.passed = 0
+        self.failed = 0
     
-    files_to_check = [
-        '/app/js/_index.js',
-        '/app/js/voice-service.js', 
-        '/app/js/sanitize-provider.js'
-    ]
-    
-    all_passed = True
-    for file_path in files_to_check:
-        result = run_command(f'node -c {file_path}')
-        if result['success']:
-            print(f"  ✅ {file_path} - syntax OK")
-        else:
-            print(f"  ❌ {file_path} - syntax error: {result['stderr']}")
-            all_passed = False
-    
-    return all_passed
-
-def test_health_endpoint():
-    """Test 2: Verify health endpoint is working"""
-    print("🔍 Test 2: Health Endpoint")
-    
-    try:
-        response = requests.get(f"{BACKEND_URL}/health", timeout=10)
-        if response.status_code == 200:
-            data = response.json()
-            print(f"  ✅ Health endpoint OK: {data}")
-            return True
-        else:
-            print(f"  ❌ Health endpoint failed: HTTP {response.status_code}")
-            return False
-    except Exception as e:
-        print(f"  ❌ Health endpoint error: {e}")
-        return False
-
-def test_fix1_price_calculation():
-    """Test 3: Fix 1 - $undefined price in non-USA leads validation"""
-    print("🔍 Test 3: Fix 1 - Non-USA leads price calculation")
-    
-    # Search for the specific fix in _index.js
-    try:
-        with open('/app/js/_index.js', 'r') as f:
-            content = f.read()
+    def log_test(self, test_name: str, passed: bool, details: str = ""):
+        """Log test result"""
+        status = "✅ PASS" if passed else "❌ FAIL"
+        self.test_results.append(f"{status}: {test_name}")
+        if details:
+            self.test_results.append(f"    Details: {details}")
         
-        # Look for the fix around line 18656-18662
-        pattern = r'if \(!.*USA.*\.includes\(info\?\.country\) && info\?\.phones\.length < 2000\) \{[^}]*const cnam = false[^}]*const price = info\?\.amount \* RATE_LEAD_VALIDATOR[^}]*saveInfo\(\'price\', price\)[^}]*return goto\.validatorSelectFormat\(\)'
-        
-        if re.search(pattern, content, re.DOTALL):
-            print("  ✅ Fix 1 verified: Non-USA price calculation with cnam=false and saveInfo('price', price) found")
-            return True
+        if passed:
+            self.passed += 1
         else:
-            print("  ❌ Fix 1 not found: Missing price calculation for non-USA countries")
+            self.failed += 1
+    
+    def test_syntax_validation(self):
+        """Test 1: Syntax validation - node -c /app/js/_index.js should pass"""
+        try:
+            result = subprocess.run(['node', '-c', '/app/js/_index.js'], 
+                                  capture_output=True, text=True, timeout=30)
+            passed = result.returncode == 0
+            details = f"Exit code: {result.returncode}"
+            if result.stderr:
+                details += f", stderr: {result.stderr.strip()}"
+            self.log_test("Syntax validation (node -c _index.js)", passed, details)
+            return passed
+        except Exception as e:
+            self.log_test("Syntax validation (node -c _index.js)", False, f"Exception: {str(e)}")
             return False
+    
+    def test_service_health(self):
+        """Test 2: Service health checks"""
+        # Health endpoint check
+        try:
+            response = requests.get(HEALTH_ENDPOINT, timeout=10)
+            health_passed = response.status_code == 200
+            health_data = response.json() if response.status_code == 200 else {}
+            self.log_test("Health endpoint responds", health_passed, 
+                         f"Status: {response.status_code}, Data: {health_data}")
+        except Exception as e:
+            self.log_test("Health endpoint responds", False, f"Exception: {str(e)}")
+            health_passed = False
+        
+        # Check Node.js health on port 5000
+        try:
+            nodejs_response = requests.get("http://localhost:5000/health", timeout=10)
+            nodejs_passed = nodejs_response.status_code == 200
+            nodejs_data = nodejs_response.json() if nodejs_response.status_code == 200 else {}
+            self.log_test("Node.js service health (port 5000)", nodejs_passed,
+                         f"Status: {nodejs_response.status_code}, Data: {nodejs_data}")
+        except Exception as e:
+            self.log_test("Node.js service health (port 5000)", False, f"Exception: {str(e)}")
+            nodejs_passed = False
+        
+        # Check error log size
+        try:
+            result = subprocess.run(['wc', '-c', '/var/log/supervisor/nodejs.err.log'], 
+                                  capture_output=True, text=True)
+            error_log_size = int(result.stdout.split()[0]) if result.returncode == 0 else -1
+            log_passed = error_log_size == 0
+            self.log_test("Error log is empty", log_passed, f"Size: {error_log_size} bytes")
+        except Exception as e:
+            self.log_test("Error log is empty", False, f"Exception: {str(e)}")
+            log_passed = False
+        
+        return health_passed and nodejs_passed and log_passed
+    
+    def test_record_hosting_transaction_function(self):
+        """Test 3: recordHostingTransaction function implementation"""
+        try:
+            # Read the _index.js file to verify function implementation
+            with open('/app/js/_index.js', 'r') as f:
+                content = f.read()
             
-    except Exception as e:
-        print(f"  ❌ Fix 1 test error: {e}")
-        return False
-
-def test_fix2_lang_tdz():
-    """Test 4: Fix 2 - lang TDZ in DomainActionShortener and ActivateShortener"""
-    print("🔍 Test 4: Fix 2 - lang TDZ bug fixes")
-    
-    try:
-        with open('/app/js/_index.js', 'r') as f:
-            content = f.read()
-        
-        # Check for removal of redundant const lang declarations
-        # Look for the comment indicating the fix
-        activateShortener_fix = "FIX: Removed redundant `const lang` that caused TDZ error in ActivateShortener" in content
-        
-        # Check that DomainActionShortener block doesn't have const lang
-        domainActionShortener_pattern = r'DomainActionShortener.*?const lang'
-        domainActionShortener_has_const = re.search(domainActionShortener_pattern, content, re.DOTALL)
-        
-        if activateShortener_fix and not domainActionShortener_has_const:
-            print("  ✅ Fix 2 verified: TDZ fix comments found, no redundant const lang declarations")
-            return True
-        else:
-            print(f"  ❌ Fix 2 incomplete: ActivateShortener fix={activateShortener_fix}, DomainActionShortener clean={not bool(domainActionShortener_has_const)}")
-            return False
+            # Check if function exists around line 1281
+            function_found = 'recordHostingTransaction = async function (chatId, {' in content
+            self.log_test("recordHostingTransaction function exists", function_found)
             
-    except Exception as e:
-        print(f"  ❌ Fix 2 test error: {e}")
-        return False
-
-def test_fix3_resolveUserTag():
-    """Test 5: Fix 3 - resolveUserTag moved to module scope"""
-    print("🔍 Test 5: Fix 3 - resolveUserTag function placement")
-    
-    try:
-        with open('/app/js/_index.js', 'r') as f:
-            content = f.read()
-        
-        # Check that resolveUserTag functions are at module scope (before loadData)
-        lines = content.split('\n')
-        
-        resolveUserTag_line = None
-        resolveUserTagSync_line = None
-        loadData_line = None
-        
-        for i, line in enumerate(lines):
-            if 'async function resolveUserTag(chatId)' in line:
-                resolveUserTag_line = i
-            elif 'function resolveUserTagSync(chatId, cachedName)' in line:
-                resolveUserTagSync_line = i
-            elif 'const loadData = async () => {' in line:
-                loadData_line = i
-        
-        if (resolveUserTag_line is not None and 
-            resolveUserTagSync_line is not None and 
-            loadData_line is not None and
-            resolveUserTag_line < loadData_line and 
-            resolveUserTagSync_line < loadData_line):
-            print(f"  ✅ Fix 3 verified: resolveUserTag functions at module scope (lines {resolveUserTag_line}, {resolveUserTagSync_line}) before loadData (line {loadData_line})")
-            return True
-        else:
-            print(f"  ❌ Fix 3 not found: Functions not properly positioned. resolveUserTag={resolveUserTag_line}, resolveUserTagSync={resolveUserTagSync_line}, loadData={loadData_line}")
-            return False
+            # Check function parameters
+            expected_params = [
+                'domain,', 'plan,', 'priceUsd,', 'paymentMethod,', 'currency,', 
+                'outcome,', 'hostingUsername,', 'refundAmount,', 'refundCurrency,',
+                'gatewayData,', 'couponApplied,', 'couponDiscount,', 'existingDomain,', 'hostingType,'
+            ]
+            params_found = all(param in content for param in expected_params)
+            self.log_test("Function has all required parameters", params_found)
             
-    except Exception as e:
-        print(f"  ❌ Fix 3 test error: {e}")
-        return False
-
-def test_fix4_goto_guards():
-    """Test 6: Fix 4 - goto function guards"""
-    print("🔍 Test 6: Fix 4 - goto function guards")
-    
-    try:
-        with open('/app/js/_index.js', 'r') as f:
-            content = f.read()
-        
-        # Check skipCoupon function has guard
-        skipCoupon_guard = 'if (action && typeof goto[action] === \'function\')' in content
-        
-        # Check goBack function has guard  
-        goBack_guard = 'if (lastStep && typeof goto[lastStep] === \'function\')' in content
-        
-        # Check for optional chaining in goBack
-        optional_chaining = 'info?.history?' in content
-        
-        if skipCoupon_guard and goBack_guard and optional_chaining:
-            print("  ✅ Fix 4 verified: Both skipCoupon and goBack have function guards with optional chaining")
-            return True
-        else:
-            print(f"  ❌ Fix 4 incomplete: skipCoupon guard={skipCoupon_guard}, goBack guard={goBack_guard}, optional chaining={optional_chaining}")
-            return False
+            # Check hostingTransactions.insertOne call
+            insert_call_found = 'await hostingTransactions.insertOne({' in content
+            self.log_test("Function calls hostingTransactions.insertOne()", insert_call_found)
             
-    except Exception as e:
-        print(f"  ❌ Fix 4 test error: {e}")
-        return False
-
-def test_fix5_html_escaping():
-    """Test 7: Fix 5 - HTML entity escaping in sanitizeProviderError"""
-    print("🔍 Test 7: Fix 5 - HTML entity escaping")
-    
-    try:
-        with open('/app/js/sanitize-provider.js', 'r') as f:
-            content = f.read()
-        
-        # Check for HTML entity escaping at the top of sanitizeProviderError
-        html_escaping = (
-            "sanitized.replace(/&/g, '&amp;')" in content and
-            "sanitized.replace(/</g, '&lt;')" in content and
-            "sanitized.replace(/>/g, '&gt;')" in content
-        )
-        
-        # Check that DNS error messages use sanitizeProviderError
-        with open('/app/js/_index.js', 'r') as f:
-            index_content = f.read()
-        
-        dns_sanitization = 'sanitizeProviderError(saveErr, \'domain\')' in index_content
-        
-        if html_escaping and dns_sanitization:
-            print("  ✅ Fix 5 verified: HTML entity escaping implemented and DNS errors use sanitizeProviderError")
-            return True
-        else:
-            print(f"  ❌ Fix 5 incomplete: HTML escaping={html_escaping}, DNS sanitization={dns_sanitization}")
-            return False
+            # Check try/catch with logging
+            try_catch_found = 'try {' in content and 'catch (err) {' in content and '[HostingTx] Failed to record transaction' in content
+            self.log_test("Function has try/catch with error logging", try_catch_found)
             
-    except Exception as e:
-        print(f"  ❌ Fix 5 test error: {e}")
-        return False
-
-def test_fix6_wallet_handler():
-    """Test 8: Fix 6 - walletOk handler not found recovery"""
-    print("🔍 Test 8: Fix 6 - walletOk handler recovery")
-    
-    try:
-        with open('/app/js/_index.js', 'r') as f:
-            content = f.read()
-        
-        # Check for the fix around line 13193-13200
-        pattern = r'if \(typeof handler !== \'function\'\) \{[^}]*await set\(state, chatId, \'action\', \'none\'\)[^}]*session expired[^}]*\}'
-        
-        if re.search(pattern, content, re.DOTALL | re.IGNORECASE):
-            print("  ✅ Fix 6 verified: walletOk handler recovery with session expired message in 4 languages")
-            return True
-        else:
-            print("  ❌ Fix 6 not found: Missing walletOk handler recovery logic")
-            return False
+            # Check timestamp field
+            timestamp_found = 'timestamp: new Date(),' in content
+            self.log_test("Function adds timestamp field", timestamp_found)
             
-    except Exception as e:
-        print(f"  ❌ Fix 6 test error: {e}")
-        return False
-
-def test_fix9_wallet_monitor():
-    """Test 9: Fix 9 - UserWalletMonitor MongoDB persistence"""
-    print("🔍 Test 9: Fix 9 - UserWalletMonitor mass-warning fix")
+            return function_found and params_found and insert_call_found and try_catch_found and timestamp_found
+            
+        except Exception as e:
+            self.log_test("recordHostingTransaction function verification", False, f"Exception: {str(e)}")
+            return False
     
-    try:
-        with open('/app/js/voice-service.js', 'r') as f:
-            content = f.read()
+    def test_module_scope_fallback(self):
+        """Test 4: Module-scope fallback around line 990"""
+        try:
+            with open('/app/js/_index.js', 'r') as f:
+                lines = f.readlines()
+            
+            # Check around line 990 for the fallback
+            fallback_found = False
+            for i, line in enumerate(lines[985:995], 986):  # Check lines 986-995
+                if 'recordHostingTransaction = async () => { log(' in line and 'DB not yet initialized' in line:
+                    fallback_found = True
+                    self.log_test("Module-scope fallback exists", True, f"Found at line {i}")
+                    break
+            
+            if not fallback_found:
+                self.log_test("Module-scope fallback exists", False, "Fallback not found around line 990")
+            
+            return fallback_found
+            
+        except Exception as e:
+            self.log_test("Module-scope fallback verification", False, f"Exception: {str(e)}")
+            return False
+    
+    def test_wallet_path_integration(self):
+        """Test 5: Wallet path integration (around line 5774)"""
+        try:
+            with open('/app/js/_index.js', 'r') as f:
+                content = f.read()
+            
+            # Check for business context capture before registerDomainAndCreateCpanel
+            context_capture = all(var in content for var in [
+                'const txDomain = info?.domain || info?.website_name',
+                'const txPlan = info?.plan || null',
+                'const txHostingType = info?.hostingType || null',
+                'const txPayMethod = coin === u.usd ? \'wallet_usd\' : \'wallet_ngn\'',
+                'const txCurrency = coin === u.usd ? \'USD\' : \'NGN\''
+            ])
+            self.log_test("Wallet path captures business context", context_capture)
+            
+            # Check for 3 recordHostingTransaction calls with different outcomes
+            outcomes_found = all(outcome in content for outcome in [
+                'recordHostingTransaction(chatId, { domain: txDomain, plan: txPlan, priceUsd, paymentMethod: txPayMethod, currency: txCurrency, outcome: \'domain_only\'',
+                'recordHostingTransaction(chatId, { domain: txDomain, plan: txPlan, priceUsd, paymentMethod: txPayMethod, currency: txCurrency, outcome: \'failed\'',
+                'recordHostingTransaction(chatId, { domain: txDomain, plan: txPlan, priceUsd, paymentMethod: txPayMethod, currency: txCurrency, outcome: \'success\''
+            ])
+            self.log_test("Wallet path has 3 outcome recordings", outcomes_found)
+            
+            return context_capture and outcomes_found
+            
+        except Exception as e:
+            self.log_test("Wallet path integration verification", False, f"Exception: {str(e)}")
+            return False
+    
+    def test_bank_ngn_path_integration(self):
+        """Test 6: Bank NGN path integration (around line 20955)"""
+        try:
+            with open('/app/js/_index.js', 'r') as f:
+                content = f.read()
+            
+            # Check for txBase structure with bank_ngn payment method
+            txbase_found = 'const txBase = { domain: txDomain, plan: txPlan, priceUsd: price, paymentMethod: \'bank_ngn\', currency: \'NGN\'' in content
+            self.log_test("Bank NGN path has txBase with bank_ngn payment method", txbase_found)
+            
+            # Check for 4 outcome recordings
+            bank_outcomes = all(outcome in content for outcome in [
+                'recordHostingTransaction(chatId, { ...txBase, outcome: \'failed\' })',
+                'recordHostingTransaction(chatId, { ...txBase, outcome: \'domain_only\'',
+                'recordHostingTransaction(chatId, { ...txBase, outcome: \'full_refund\'',
+                'recordHostingTransaction(chatId, { ...txBase, outcome: \'success\' })'
+            ])
+            self.log_test("Bank NGN path has 4 outcome recordings", bank_outcomes)
+            
+            return txbase_found and bank_outcomes
+            
+        except Exception as e:
+            self.log_test("Bank NGN path integration verification", False, f"Exception: {str(e)}")
+            return False
+    
+    def test_blockbee_path_integration(self):
+        """Test 7: BlockBee path integration (around line 21800)"""
+        try:
+            with open('/app/js/_index.js', 'r') as f:
+                content = f.read()
+            
+            # Check for txBase structure with blockbee payment method
+            txbase_found = 'const txBase = { domain: txDomain, plan: txPlan, priceUsd: price, paymentMethod: \'blockbee\', currency: coin || \'crypto\'' in content
+            self.log_test("BlockBee path has txBase with blockbee payment method", txbase_found)
+            
+            # Check for 4 outcome recordings
+            blockbee_outcomes = all(outcome in content for outcome in [
+                'recordHostingTransaction(chatId, { ...txBase, outcome: \'failed\' })',
+                'recordHostingTransaction(chatId, { ...txBase, outcome: \'domain_only\'',
+                'recordHostingTransaction(chatId, { ...txBase, outcome: \'full_refund\'',
+                'recordHostingTransaction(chatId, { ...txBase, outcome: \'success\' })'
+            ])
+            self.log_test("BlockBee path has 4 outcome recordings", blockbee_outcomes)
+            
+            return txbase_found and blockbee_outcomes
+            
+        except Exception as e:
+            self.log_test("BlockBee path integration verification", False, f"Exception: {str(e)}")
+            return False
+    
+    def test_dynopay_path_integration(self):
+        """Test 8: DynoPay path integration (around line 22446)"""
+        try:
+            with open('/app/js/_index.js', 'r') as f:
+                content = f.read()
+            
+            # Check for txBase structure with dynopay payment method
+            txbase_found = 'const txBase = { domain: txDomain, plan: txPlan, priceUsd: price, paymentMethod: \'dynopay\', currency: coin || \'crypto\'' in content
+            self.log_test("DynoPay path has txBase with dynopay payment method", txbase_found)
+            
+            # Check for 4 outcome recordings
+            dynopay_outcomes = all(outcome in content for outcome in [
+                'recordHostingTransaction(chatId, { ...txBase, outcome: \'failed\' })',
+                'recordHostingTransaction(chatId, { ...txBase, outcome: \'domain_only\'',
+                'recordHostingTransaction(chatId, { ...txBase, outcome: \'full_refund\'',
+                'recordHostingTransaction(chatId, { ...txBase, outcome: \'success\' })'
+            ])
+            self.log_test("DynoPay path has 4 outcome recordings", dynopay_outcomes)
+            
+            return txbase_found and dynopay_outcomes
+            
+        except Exception as e:
+            self.log_test("DynoPay path integration verification", False, f"Exception: {str(e)}")
+            return False
+    
+    def test_no_old_insert_patterns(self):
+        """Test 9: No remaining old insert patterns"""
+        try:
+            result = subprocess.run(['grep', 'insert(hostingTransactions', '/app/js/_index.js'], 
+                                  capture_output=True, text=True)
+            no_old_patterns = result.returncode != 0  # grep returns non-zero when no matches found
+            self.log_test("No old insert(hostingTransactions patterns remain", no_old_patterns,
+                         f"grep exit code: {result.returncode}")
+            return no_old_patterns
+            
+        except Exception as e:
+            self.log_test("Old insert patterns check", False, f"Exception: {str(e)}")
+            return False
+    
+    def test_regression_check(self):
+        """Test 10: Regression check - Node.js running with AutoPromo initialized"""
+        try:
+            # Check if Node.js is running (check for start-bot.js process)
+            result = subprocess.run(['pgrep', '-f', 'node.*start-bot.js'], 
+                                  capture_output=True, text=True)
+            nodejs_running = result.returncode == 0
+            self.log_test("Node.js process is running", nodejs_running, 
+                         f"Process found: {result.stdout.strip() if nodejs_running else 'None'}")
+            
+            # Check supervisor logs for AutoPromo initialization
+            try:
+                with open('/var/log/supervisor/nodejs.out.log', 'r') as f:
+                    log_content = f.read()
+                autopromo_init = 'AutoPromo] Initialized' in log_content
+                self.log_test("AutoPromo initialized in logs", autopromo_init)
+            except:
+                autopromo_init = False
+                self.log_test("AutoPromo initialized in logs", False, "Could not read log file")
+            
+            return nodejs_running and autopromo_init
+            
+        except Exception as e:
+            self.log_test("Regression check", False, f"Exception: {str(e)}")
+            return False
+    
+    def run_all_tests(self):
+        """Run all tests and return summary"""
+        print("🧪 Starting Nomadly hostingTransactions Backend Testing...")
+        print("=" * 80)
         
-        # Check for the key components
-        components = [
-            '_balanceNotifyHistoryCol' in content,
-            '_loadBalanceNotifyHistory(db)' in content,
-            '_persistBalanceNotifyEntry(chatId, entry)' in content,
-            'balanceNotifyHistory' in content,
-            'initVoiceService' in content and 'deps.db' in content
+        # Run all tests
+        tests = [
+            self.test_syntax_validation,
+            self.test_service_health,
+            self.test_record_hosting_transaction_function,
+            self.test_module_scope_fallback,
+            self.test_wallet_path_integration,
+            self.test_bank_ngn_path_integration,
+            self.test_blockbee_path_integration,
+            self.test_dynopay_path_integration,
+            self.test_no_old_insert_patterns,
+            self.test_regression_check
         ]
         
-        # Check for startup log message
-        startup_log = 'Loaded 0 active notification histories from DB' in content or 'UserWalletMonitor' in content
+        for test in tests:
+            try:
+                test()
+            except Exception as e:
+                self.log_test(f"Test {test.__name__}", False, f"Unexpected error: {str(e)}")
         
-        if all(components) and startup_log:
-            print("  ✅ Fix 9 verified: All UserWalletMonitor persistence components found")
-            return True
-        else:
-            print(f"  ❌ Fix 9 incomplete: Components={components}, startup log={startup_log}")
-            return False
-            
-    except Exception as e:
-        print(f"  ❌ Fix 9 test error: {e}")
-        return False
-
-def test_nodejs_service():
-    """Test 10: Verify Node.js service is running"""
-    print("🔍 Test 10: Node.js Service Status")
-    
-    # Check if Node.js process is running
-    result = run_command('pgrep -f "node.*_index.js" || pgrep -f "node.*index.js"')
-    
-    if result['success'] and result['stdout']:
-        print(f"  ✅ Node.js service running (PID: {result['stdout']})")
-        return True
-    else:
-        print("  ❌ Node.js service not found")
-        return False
-
-def test_error_logs():
-    """Test 11: Check for clean error logs"""
-    print("🔍 Test 11: Error Log Status")
-    
-    # Check Node.js error log
-    result = run_command('wc -c /var/log/supervisor/nodejs.err.log 2>/dev/null || echo "0"')
-    
-    try:
-        log_size = int(result['stdout'].split()[0]) if result['stdout'] else 0
-        if log_size == 0:
-            print("  ✅ Node.js error log is clean (0 bytes)")
-            return True
-        else:
-            print(f"  ⚠️ Node.js error log has {log_size} bytes")
-            # Show last few lines if there are errors
-            tail_result = run_command('tail -5 /var/log/supervisor/nodejs.err.log 2>/dev/null')
-            if tail_result['stdout']:
-                print(f"    Last errors: {tail_result['stdout']}")
-            return False
-    except:
-        print("  ⚠️ Could not check error log size")
-        return False
-
-def main():
-    """Run all tests"""
-    print("🚀 Starting Backend Testing for 7 Node.js Bug Fixes")
-    print("=" * 60)
-    
-    tests = [
-        test_syntax_validation,
-        test_health_endpoint,
-        test_fix1_price_calculation,
-        test_fix2_lang_tdz,
-        test_fix3_resolveUserTag,
-        test_fix4_goto_guards,
-        test_fix5_html_escaping,
-        test_fix6_wallet_handler,
-        test_fix9_wallet_monitor,
-        test_nodejs_service,
-        test_error_logs
-    ]
-    
-    passed = 0
-    total = len(tests)
-    
-    for test in tests:
-        try:
-            if test():
-                passed += 1
-            print()
-        except Exception as e:
-            print(f"  ❌ Test failed with exception: {e}")
-            print()
-    
-    print("=" * 60)
-    print(f"📊 Test Results: {passed}/{total} tests passed ({passed/total*100:.1f}%)")
-    
-    if passed == total:
-        print("🎉 ALL TESTS PASSED - All 7 bug fixes verified successfully!")
-        return True
-    else:
-        print(f"⚠️ {total - passed} test(s) failed - Some bug fixes need attention")
-        return False
+        # Print results
+        print("\n📊 TEST RESULTS:")
+        print("=" * 80)
+        for result in self.test_results:
+            print(result)
+        
+        print(f"\n📈 SUMMARY: {self.passed} passed, {self.failed} failed")
+        print(f"Success rate: {(self.passed / (self.passed + self.failed) * 100):.1f}%")
+        
+        return self.failed == 0
 
 if __name__ == "__main__":
-    success = main()
-    sys.exit(0 if success else 1)
+    tester = HostingTransactionsTest()
+    success = tester.run_all_tests()
+    exit(0 if success else 1)
