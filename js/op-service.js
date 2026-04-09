@@ -538,9 +538,73 @@ const getDomainInfo = async (domainName) => {
   }
 }
 
+// ─── DNSSEC management ──────────────────────────────────
+
+/**
+ * Disable DNSSEC for a domain at OpenProvider.
+ * Required before changing nameservers on DNSSEC-strict TLDs (.de, .nl, .se, etc.)
+ * where the registry validates DNSKEY records at the new nameservers.
+ */
+const disableDnssec = async (domainName) => {
+  try {
+    const info = await getDomainInfo(domainName)
+    if (!info || !info.domainId) return { error: 'Domain not found at registrar' }
+
+    // Check if DNSSEC is actually enabled via domainData
+    const isDnssecEnabled = info.domainData?.is_dnssec_enabled
+    const hasDnssecKeys = (info.domainData?.dnssec_keys || []).length > 0
+    if (!isDnssecEnabled && !hasDnssecKeys) {
+      log(`[DNSSEC] ${domainName}: DNSSEC already disabled (is_dnssec_enabled=${isDnssecEnabled}, keys=${hasDnssecKeys ? 'yes' : 'none'})`)
+      return { success: true, alreadyDisabled: true }
+    }
+
+    log(`[DNSSEC] Disabling DNSSEC for ${domainName} (is_dnssec_enabled=${isDnssecEnabled}, keys=${hasDnssecKeys ? 'yes' : 'none'})`)
+    const headers = await authHeaders()
+    const res = await axios.put(`${OP_BASE_URL}/v1beta/domains/${info.domainId}`, {
+      is_dnssec_enabled: false,
+      dnssec_keys: [],
+    }, { headers, timeout: 30000 })
+
+    if (res.data?.code === 0) {
+      log(`[DNSSEC] ✅ DNSSEC disabled for ${domainName}`)
+      return { success: true }
+    }
+    log(`[DNSSEC] ⚠️ Unexpected response disabling DNSSEC for ${domainName}:`, res.data?.desc || res.data)
+    return { error: res.data?.desc || 'Failed to disable DNSSEC' }
+  } catch (err) {
+    const opDesc = err.response?.data?.desc || ''
+    log(`[DNSSEC] ❌ Error disabling DNSSEC for ${domainName}:`, err.message, opDesc ? `| ${opDesc}` : '')
+    return { error: opDesc || err.message }
+  }
+}
+
 // ─── Nameserver management ──────────────────────────────
 
-const updateNameservers = async (domainName, nameservers) => {
+/**
+ * Internal helper: send NS update to OpenProvider API.
+ * Handles timeout + retry logic.
+ */
+const _sendNsUpdate = async (domainId, domainName, nsPayload, headers) => {
+  let res
+  try {
+    res = await axios.put(`${OP_BASE_URL}/v1beta/domains/${domainId}`, {
+      name_servers: nsPayload,
+    }, { headers, timeout: 30000 })
+  } catch (firstErr) {
+    // Retry once with 45s timeout on timeout/network errors
+    if (firstErr.code === 'ECONNABORTED' || firstErr.message?.includes('timeout') || firstErr.code === 'ETIMEDOUT') {
+      log(`OP updateNameservers timeout for ${domainName}, retrying with 45s…`)
+      res = await axios.put(`${OP_BASE_URL}/v1beta/domains/${domainId}`, {
+        name_servers: nsPayload,
+      }, { headers, timeout: 45000 })
+    } else {
+      throw firstErr
+    }
+  }
+  return res
+}
+
+const updateNameservers = async (domainName, nameservers, _dnssecRetried = false) => {
   try {
     const info = await getDomainInfo(domainName)
     if (!info || !info.domainId) return { error: 'Domain not found at registrar' }
@@ -548,23 +612,7 @@ const updateNameservers = async (domainName, nameservers) => {
     const headers = await authHeaders()
     const nsPayload = nameservers.map((ns, i) => ({ name: ns, seq_nr: i + 1 }))
 
-    // First attempt with 30s timeout (increased from 15s — OP can be slow for some TLDs)
-    let res
-    try {
-      res = await axios.put(`${OP_BASE_URL}/v1beta/domains/${info.domainId}`, {
-        name_servers: nsPayload,
-      }, { headers, timeout: 30000 })
-    } catch (firstErr) {
-      // Retry once with 45s timeout on timeout/network errors
-      if (firstErr.code === 'ECONNABORTED' || firstErr.message?.includes('timeout') || firstErr.code === 'ETIMEDOUT') {
-        log(`OP updateNameservers timeout for ${domainName}, retrying with 45s…`)
-        res = await axios.put(`${OP_BASE_URL}/v1beta/domains/${info.domainId}`, {
-          name_servers: nsPayload,
-        }, { headers, timeout: 45000 })
-      } else {
-        throw firstErr
-      }
-    }
+    const res = await _sendNsUpdate(info.domainId, domainName, nsPayload, headers)
 
     if (res.data?.code === 0) return { success: true }
     return { error: res.data?.desc || 'Failed to update nameservers' }
@@ -574,12 +622,40 @@ const updateNameservers = async (domainName, nameservers) => {
     const opDesc = opData?.desc || opData?.data?.desc || ''
     const opWarnings = opData?.warnings || opData?.data?.warnings || []
     const opCode = opData?.code ?? err.response?.status ?? ''
+    const opFullData = opData?.data || ''
 
     // Build detailed log for debugging
     log(`OP updateNameservers error for ${domainName}:`, err.message,
       opDesc ? `| desc: ${opDesc}` : '',
       opWarnings.length ? `| warnings: ${JSON.stringify(opWarnings)}` : '',
       opData ? `| full: ${JSON.stringify(opData).substring(0, 500)}` : '')
+
+    // ── DNSSEC auto-fix: detect DNSKEY / DNSSEC errors and retry after disabling ──
+    // Common patterns:
+    //   code 524 + "DNSKEY" in data (DENIC .de)
+    //   code 524 + "DNSSEC" in data
+    //   "Unable to retrieve DNSKEY RR" (ERROR 219)
+    const fullStr = JSON.stringify(opData || '').toLowerCase()
+    const isDnssecError = !_dnssecRetried && (
+      (opCode === 524 && (fullStr.includes('dnskey') || fullStr.includes('dnssec'))) ||
+      fullStr.includes('unable to retrieve dnskey') ||
+      fullStr.includes('dnssec validation') ||
+      fullStr.includes('dnskey rr')
+    )
+
+    if (isDnssecError) {
+      log(`[DNSSEC-AutoFix] Detected DNSSEC/DNSKEY error for ${domainName} — disabling DNSSEC and retrying NS update…`)
+      const dnssecResult = await disableDnssec(domainName)
+      if (dnssecResult.success) {
+        // Brief pause to let registry process the DNSSEC disable
+        await new Promise(r => setTimeout(r, 3000))
+        log(`[DNSSEC-AutoFix] Retrying NS update for ${domainName} after DNSSEC disable…`)
+        return updateNameservers(domainName, nameservers, true) // recursive call with retry flag
+      } else {
+        log(`[DNSSEC-AutoFix] Failed to disable DNSSEC for ${domainName}: ${dnssecResult.error}`)
+        // Fall through to normal error handling
+      }
+    }
 
     // Build user-friendly error
     let userMsg = ''
@@ -836,6 +912,7 @@ module.exports = {
   registerDomain,
   getDomainInfo,
   updateNameservers,
+  disableDnssec,
   getContactHandle,
   getContactHandleForTLD,
   parseDomain,

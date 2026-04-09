@@ -1,185 +1,343 @@
 #!/usr/bin/env python3
 """
-Backend Test for Fincra Recovery Notification Addition
-Testing the reconcileFincraPayments function in Nomadly Telegram bot backend
+Backend Testing Suite for DNSSEC Auto-fix in op-service.js
+Tests the specific DNSSEC functionality as requested in the review.
 """
 
-import subprocess
 import requests
+import subprocess
 import json
-import sys
 import time
+import sys
+import os
 
-def run_command(cmd, description):
-    """Run a shell command and return result"""
-    print(f"\n🔍 {description}")
-    try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
-        if result.returncode == 0:
-            print(f"✅ {description} - SUCCESS")
-            if result.stdout.strip():
-                print(f"Output: {result.stdout.strip()}")
-            return True, result.stdout
-        else:
-            print(f"❌ {description} - FAILED")
-            print(f"Error: {result.stderr.strip()}")
-            return False, result.stderr
-    except subprocess.TimeoutExpired:
-        print(f"⏰ {description} - TIMEOUT")
-        return False, "Command timed out"
-    except Exception as e:
-        print(f"💥 {description} - EXCEPTION: {str(e)}")
-        return False, str(e)
+# Backend URL from frontend .env
+BACKEND_URL = "https://getting-started-199.preview.emergentagent.com"
+API_BASE = f"{BACKEND_URL}/api"
 
-def check_file_content(file_path, search_patterns, description):
-    """Check if file contains specific patterns"""
-    print(f"\n🔍 {description}")
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            content = f.read()
+class DNSSECAutoFixTester:
+    def __init__(self):
+        self.test_results = []
+        self.passed = 0
+        self.failed = 0
         
-        results = {}
-        for pattern_name, pattern in search_patterns.items():
-            if pattern in content:
-                print(f"✅ Found: {pattern_name}")
-                results[pattern_name] = True
-            else:
-                print(f"❌ Missing: {pattern_name}")
-                results[pattern_name] = False
+    def log_test(self, test_name, passed, details=""):
+        """Log test result"""
+        status = "✅ PASS" if passed else "❌ FAIL"
+        print(f"{status}: {test_name}")
+        if details:
+            print(f"   Details: {details}")
         
-        return results
-    except Exception as e:
-        print(f"💥 Error reading file: {str(e)}")
-        return {pattern: False for pattern in search_patterns.keys()}
-
-def test_service_health():
-    """Test if the Node.js service is healthy on port 5000"""
-    print(f"\n🔍 Testing Node.js service health on port 5000")
-    try:
-        response = requests.get('http://localhost:5000/health', timeout=10)
-        if response.status_code == 200:
-            data = response.json()
-            print(f"✅ Service healthy: {data}")
-            return True
+        self.test_results.append({
+            "test": test_name,
+            "passed": passed,
+            "details": details
+        })
+        
+        if passed:
+            self.passed += 1
         else:
-            print(f"❌ Service unhealthy - Status: {response.status_code}")
+            self.failed += 1
+    
+    def test_syntax_validation(self):
+        """Test 1: Syntax validation of op-service.js"""
+        try:
+            result = subprocess.run(
+                ["node", "-c", "/app/js/op-service.js"],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            passed = result.returncode == 0
+            details = f"Exit code: {result.returncode}"
+            if result.stderr:
+                details += f", stderr: {result.stderr.strip()}"
+                
+            self.log_test("Syntax validation (node -c op-service.js)", passed, details)
+            return passed
+        except Exception as e:
+            self.log_test("Syntax validation (node -c op-service.js)", False, str(e))
             return False
-    except Exception as e:
-        print(f"❌ Service health check failed: {str(e)}")
-        return False
-
-def main():
-    """Main test function"""
-    print("=" * 80)
-    print("🧪 FINCRA RECOVERY NOTIFICATION TESTING")
-    print("=" * 80)
     
-    test_results = {}
+    def test_health_endpoint(self):
+        """Test 2: Health endpoint returns healthy"""
+        try:
+            response = requests.get(f"{API_BASE}/health", timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                is_healthy = data.get('status') == 'healthy'
+                details = f"Status: {response.status_code}, Data: {data}"
+                self.log_test("Health endpoint returns healthy", is_healthy, details)
+                return is_healthy
+            else:
+                self.log_test("Health endpoint returns healthy", False, f"HTTP {response.status_code}")
+                return False
+                
+        except Exception as e:
+            self.log_test("Health endpoint returns healthy", False, str(e))
+            return False
     
-    # Test 1: Syntax check
-    success, output = run_command("node -c /app/js/_index.js", "Node.js syntax validation")
-    test_results['syntax_check'] = success
+    def test_error_log_clean(self):
+        """Test 3: Error log should be 0 bytes or near-empty"""
+        try:
+            # Check nodejs error log
+            result = subprocess.run(
+                ["wc", "-c", "/var/log/supervisor/nodejs.err.log"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            if result.returncode == 0:
+                size_str = result.stdout.strip().split()[0]
+                size = int(size_str)
+                is_clean = size <= 100  # Allow up to 100 bytes for minor warnings
+                details = f"Error log size: {size} bytes"
+                self.log_test("Error log is clean (≤100 bytes)", is_clean, details)
+                return is_clean
+            else:
+                self.log_test("Error log is clean", False, f"Failed to check log: {result.stderr}")
+                return False
+                
+        except Exception as e:
+            self.log_test("Error log is clean", False, str(e))
+            return False
     
-    # Test 2: Service health check
-    test_results['service_health'] = test_service_health()
+    def test_disable_dnssec_function_exists(self):
+        """Test 4: disableDnssec function exists with proper signature"""
+        try:
+            # Read the op-service.js file and check for disableDnssec function
+            with open("/app/js/op-service.js", "r") as f:
+                content = f.read()
+            
+            # Check function declaration
+            has_function = "const disableDnssec = async (domainName) => {" in content
+            
+            # Check it calls getDomainInfo
+            calls_get_domain_info = "await getDomainInfo(domainName)" in content
+            
+            # Check it checks is_dnssec_enabled and dnssec_keys
+            checks_dnssec_enabled = "info.domainData?.is_dnssec_enabled" in content
+            checks_dnssec_keys = "info.domainData?.dnssec_keys" in content
+            
+            # Check early return for already disabled
+            has_early_return = "alreadyDisabled: true" in content
+            
+            # Check PUT request with proper payload
+            has_put_request = 'is_dnssec_enabled: false' in content and 'dnssec_keys: []' in content
+            
+            # Check try/catch
+            has_try_catch = content.count("try {") >= 1 and content.count("} catch") >= 1
+            
+            all_checks = [
+                ("Function declaration", has_function),
+                ("Calls getDomainInfo", calls_get_domain_info),
+                ("Checks is_dnssec_enabled", checks_dnssec_enabled),
+                ("Checks dnssec_keys", checks_dnssec_keys),
+                ("Has early return for already disabled", has_early_return),
+                ("Makes PUT request with correct payload", has_put_request),
+                ("Has try/catch error handling", has_try_catch)
+            ]
+            
+            passed_checks = sum(1 for _, check in all_checks if check)
+            total_checks = len(all_checks)
+            
+            details = f"{passed_checks}/{total_checks} checks passed: " + ", ".join([
+                f"{name}={'✓' if check else '✗'}" for name, check in all_checks
+            ])
+            
+            passed = passed_checks == total_checks
+            self.log_test("disableDnssec function implementation", passed, details)
+            return passed
+            
+        except Exception as e:
+            self.log_test("disableDnssec function implementation", False, str(e))
+            return False
     
-    # Test 3: Check for reconciler active in logs
-    success, output = run_command("grep -i 'Payment recovery scheduled' /var/log/supervisor/nodejs.out.log | tail -1", "Check reconciler scheduling log")
-    test_results['reconciler_scheduled'] = success and 'Payment recovery scheduled' in output
+    def test_send_ns_update_helper(self):
+        """Test 5: _sendNsUpdate helper function exists with timeout retry"""
+        try:
+            with open("/app/js/op-service.js", "r") as f:
+                content = f.read()
+            
+            # Check helper function exists
+            has_helper = "const _sendNsUpdate = async (domainId, domainName, nsPayload, headers) => {" in content
+            
+            # Check 30s initial timeout
+            has_30s_timeout = "timeout: 30000" in content
+            
+            # Check 45s retry timeout
+            has_45s_retry = "timeout: 45000" in content
+            
+            # Check retry on ECONNABORTED/timeout
+            has_retry_logic = "ECONNABORTED" in content and "timeout" in content and "retrying" in content
+            
+            checks = [
+                ("Helper function exists", has_helper),
+                ("30s initial timeout", has_30s_timeout),
+                ("45s retry timeout", has_45s_retry),
+                ("Retry logic for timeouts", has_retry_logic)
+            ]
+            
+            passed_checks = sum(1 for _, check in checks if check)
+            total_checks = len(checks)
+            
+            details = f"{passed_checks}/{total_checks} checks passed: " + ", ".join([
+                f"{name}={'✓' if check else '✗'}" for name, check in checks
+            ])
+            
+            passed = passed_checks == total_checks
+            self.log_test("_sendNsUpdate helper function", passed, details)
+            return passed
+            
+        except Exception as e:
+            self.log_test("_sendNsUpdate helper function", False, str(e))
+            return False
     
-    # Test 4: Verify recovery notification implementation
-    recovery_patterns = {
-        'recovery_comment': '// ── Send recovery notification to user ──',
-        'service_map_start': 'const serviceMap = {',
-        'domain_mapping': "'/bank-pay-domain': '🌐 Domain'",
-        'hosting_mapping': "'/bank-pay-hosting': '🛡️ Hosting'", 
-        'wallet_mapping': "'/bank-pay-wallet': '👛 Wallet Top-Up'",
-        'phone_mapping': "'/bank-pay-phone': '📞 Phone Number'",
-        'leads_mapping': "'/bank-pay-leads': '📱 SMS Leads'",
-        'email_blast_mapping': "'/bank-pay-email-blast': '📧 Email Blast'",
-        'digital_product_mapping': "'/bank-pay-digital-product': '🛒 Digital Product'",
-        'virtual_card_mapping': "'/bank-pay-virtual-card': '💳 Virtual Card'",
-        'plan_mapping': "'/bank-pay-plan': '📦 Service Plan'",
-        'vps_mapping': "'/bank-pay-vps': '🖥️ VPS'",
-        'upgrade_vps_mapping': "'/bank-pay-upgrade-vps': '🖥️ VPS Upgrade'",
-        'payment_received_message': '🔄 <b>Payment Received!</b>',
-        'amount_formatting': 'Number(ngnAmount).toLocaleString()',
-        'apology_message': 'We apologize for the brief delay',
-        'html_parse_mode': "{ parse_mode: 'HTML' }",
-        'try_catch_wrapper': 'try {',
-        'catch_error_logging': '[FincraReconcile] Recovery notification failed for ${chatId}:'
-    }
+    def test_update_nameservers_dnssec_autofix(self):
+        """Test 6: updateNameservers DNSSEC auto-fix implementation"""
+        try:
+            with open("/app/js/op-service.js", "r") as f:
+                content = f.read()
+            
+            # Check _dnssecRetried parameter with default false
+            has_retry_param = "_dnssecRetried = false" in content
+            
+            # Check isDnssecError detection with code 524 + dnskey/dnssec
+            has_error_detection = "opCode === 524" in content and "dnskey" in content and "dnssec" in content
+            
+            # Check calls disableDnssec when error detected
+            calls_disable_dnssec = "await disableDnssec(domainName)" in content
+            
+            # Check 3s wait after disabling DNSSEC
+            has_3s_wait = "setTimeout(r, 3000)" in content
+            
+            # Check recursive retry with _dnssecRetried=true
+            has_recursive_retry = "updateNameservers(domainName, nameservers, true)" in content
+            
+            # Check _dnssecRetried prevents infinite recursion
+            prevents_infinite_recursion = "!_dnssecRetried" in content
+            
+            checks = [
+                ("_dnssecRetried parameter with default false", has_retry_param),
+                ("isDnssecError detection (code 524 + dnskey/dnssec)", has_error_detection),
+                ("Calls disableDnssec on error", calls_disable_dnssec),
+                ("3s wait after DNSSEC disable", has_3s_wait),
+                ("Recursive retry with _dnssecRetried=true", has_recursive_retry),
+                ("Prevents infinite recursion", prevents_infinite_recursion)
+            ]
+            
+            passed_checks = sum(1 for _, check in checks if check)
+            total_checks = len(checks)
+            
+            details = f"{passed_checks}/{total_checks} checks passed: " + ", ".join([
+                f"{name}={'✓' if check else '✗'}" for name, check in checks
+            ])
+            
+            passed = passed_checks == total_checks
+            self.log_test("updateNameservers DNSSEC auto-fix", passed, details)
+            return passed
+            
+        except Exception as e:
+            self.log_test("updateNameservers DNSSEC auto-fix", False, str(e))
+            return False
     
-    recovery_results = check_file_content('/app/js/_index.js', recovery_patterns, 
-                                        "Verify recovery notification implementation")
-    test_results.update(recovery_results)
+    def test_module_exports(self):
+        """Test 7: disableDnssec is exported in module.exports"""
+        try:
+            with open("/app/js/op-service.js", "r") as f:
+                content = f.read()
+            
+            # Check disableDnssec is in module.exports
+            has_export = "disableDnssec," in content and "module.exports = {" in content
+            
+            # Count exports to verify it's properly included
+            exports_section = content[content.find("module.exports = {"):]
+            export_count = exports_section.count("disableDnssec")
+            
+            details = f"disableDnssec found in exports: {has_export}, count: {export_count}"
+            passed = has_export and export_count >= 1
+            
+            self.log_test("disableDnssec exported in module.exports", passed, details)
+            return passed
+            
+        except Exception as e:
+            self.log_test("disableDnssec exported in module.exports", False, str(e))
+            return False
     
-    # Test 5: Check that notification is positioned after bankApis[endpoint] call
-    positioning_patterns = {
-        'bankapis_call': 'await bankApis[endpoint](fakeReq, fakeRes, Number(paymentData.amountReceived))',
-        'notification_after_bankapis': 'log(`[FincraReconcile] Processed ${endpoint} for ref=${ref}`)\n\n              // ── Send recovery notification to user ──'
-    }
+    def test_dnssec_error_patterns(self):
+        """Test 8: Comprehensive DNSSEC error pattern detection"""
+        try:
+            with open("/app/js/op-service.js", "r") as f:
+                content = f.read()
+            
+            # Check for various DNSSEC error patterns
+            patterns = [
+                ("Code 524 + dnskey", "opCode === 524" in content and "dnskey" in content),
+                ("Code 524 + dnssec", "opCode === 524" in content and "dnssec" in content),
+                ("Unable to retrieve DNSKEY", "unable to retrieve dnskey" in content),
+                ("DNSSEC validation", "dnssec validation" in content),
+                ("DNSKEY RR", "dnskey rr" in content),
+                ("Case insensitive matching", ".toLowerCase()" in content)
+            ]
+            
+            passed_patterns = sum(1 for _, check in patterns if check)
+            total_patterns = len(patterns)
+            
+            details = f"{passed_patterns}/{total_patterns} patterns found: " + ", ".join([
+                f"{name}={'✓' if check else '✗'}" for name, check in patterns
+            ])
+            
+            passed = passed_patterns >= 4  # At least 4 patterns should be present
+            self.log_test("DNSSEC error pattern detection", passed, details)
+            return passed
+            
+        except Exception as e:
+            self.log_test("DNSSEC error pattern detection", False, str(e))
+            return False
     
-    positioning_results = check_file_content('/app/js/_index.js', positioning_patterns,
-                                           "Verify notification positioning after bankApis call")
-    test_results.update(positioning_results)
-    
-    # Test 6: Count service mappings to ensure all 11 are present
-    print(f"\n🔍 Counting service mappings in serviceMap")
-    try:
-        with open('/app/js/_index.js', 'r', encoding='utf-8') as f:
-            content = f.read()
+    def run_all_tests(self):
+        """Run all tests and return summary"""
+        print("🧪 Starting DNSSEC Auto-fix Testing Suite")
+        print("=" * 60)
         
-        # Count bank-pay mappings
-        bank_pay_count = content.count("'/bank-pay-")
-        if bank_pay_count >= 11:
-            print(f"✅ Found {bank_pay_count} bank-pay service mappings (expected 11+)")
-            test_results['service_mapping_count'] = True
+        # Run all tests
+        tests = [
+            self.test_syntax_validation,
+            self.test_health_endpoint,
+            self.test_error_log_clean,
+            self.test_disable_dnssec_function_exists,
+            self.test_send_ns_update_helper,
+            self.test_update_nameservers_dnssec_autofix,
+            self.test_module_exports,
+            self.test_dnssec_error_patterns
+        ]
+        
+        for test in tests:
+            try:
+                test()
+            except Exception as e:
+                self.log_test(f"Exception in {test.__name__}", False, str(e))
+            print()  # Add spacing between tests
+        
+        # Print summary
+        print("=" * 60)
+        print(f"📊 TEST SUMMARY: {self.passed}/{self.passed + self.failed} tests passed")
+        
+        if self.failed > 0:
+            print(f"❌ {self.failed} tests failed")
+            print("\nFailed tests:")
+            for result in self.test_results:
+                if not result["passed"]:
+                    print(f"  - {result['test']}: {result['details']}")
         else:
-            print(f"❌ Found only {bank_pay_count} bank-pay service mappings (expected 11)")
-            test_results['service_mapping_count'] = False
-    except Exception as e:
-        print(f"❌ Error counting service mappings: {str(e)}")
-        test_results['service_mapping_count'] = False
-    
-    # Test 7: Check backend logs for any recent errors
-    success, output = run_command("tail -20 /var/log/supervisor/nodejs.err.log", "Check recent backend errors")
-    if success and not output.strip():
-        print("✅ No recent errors in backend logs")
-        test_results['no_recent_errors'] = True
-    else:
-        print(f"⚠️ Backend error log content: {output}")
-        test_results['no_recent_errors'] = False
-    
-    # Summary
-    print("\n" + "=" * 80)
-    print("📊 TEST SUMMARY")
-    print("=" * 80)
-    
-    passed_tests = sum(1 for result in test_results.values() if result)
-    total_tests = len(test_results)
-    
-    print(f"Tests passed: {passed_tests}/{total_tests}")
-    print(f"Success rate: {(passed_tests/total_tests)*100:.1f}%")
-    
-    print("\nDetailed Results:")
-    for test_name, result in test_results.items():
-        status = "✅ PASS" if result else "❌ FAIL"
-        print(f"  {test_name}: {status}")
-    
-    # Critical test failures
-    critical_tests = ['syntax_check', 'service_health', 'recovery_comment', 'service_map_start', 
-                     'payment_received_message', 'html_parse_mode', 'try_catch_wrapper']
-    
-    critical_failures = [test for test in critical_tests if not test_results.get(test, False)]
-    
-    if critical_failures:
-        print(f"\n❌ CRITICAL FAILURES: {critical_failures}")
-        return False
-    else:
-        print(f"\n✅ ALL CRITICAL TESTS PASSED")
-        return True
+            print("✅ All tests passed!")
+        
+        return self.failed == 0
 
 if __name__ == "__main__":
-    success = main()
+    tester = DNSSECAutoFixTester()
+    success = tester.run_all_tests()
     sys.exit(0 if success else 1)
