@@ -3845,6 +3845,14 @@ bot?.on('message', msg => {
       send(chatId, `Choose link type:`, trans('linkType'))
       await set(state, chatId, 'action', 'choose-link-type')
     },
+    
+    // ━━━ Quick Shorten from URL Auto-Detection ━━━
+    'quick-shorten-confirm': async () => {
+      // This goto is called when user wants a custom alias
+      await set(state, chatId, 'action', 'quick-shorten-custom-alias')
+      send(chatId, `✏️ Enter your custom alias (letters, numbers, hyphens only):`, bc)
+    },
+    
     'quick-activate-domain-shortener': async () => {
       const domains = await getPurchasedDomains(chatId)
       if (!domains || domains.length === 0) {
@@ -4801,7 +4809,35 @@ Enter new value:`), bc)
         rows.push([`${user.activateDomainShortener} (Buy domain first)`])
       }
       rows.push([user.viewShortLinks])
-      send(chatId, t.urlShortenerSelect || t.select, trans('k.of', rows))
+      
+      // ━━━ Early subscription status display ━━━
+      let statusMsg = t.urlShortenerSelect || t.select
+      const subscribed = await isSubscribed(chatId)
+      if (subscribed) {
+        const endTime = await get(planEndingTime, chatId)
+        const plan = await get(planOf, chatId)
+        const daysLeft = endTime ? Math.ceil((endTime - Date.now()) / (1000 * 60 * 60 * 24)) : 0
+        statusMsg = `✅ <b>${plan} Plan Active</b> — ${daysLeft} days remaining\n\n${statusMsg}`
+      } else {
+        const freeLinks = (await get(freeShortLinksOf, chatId)) || 0
+        if (freeLinks > 0) {
+          statusMsg = `🔗 <b>${freeLinks}/${FREE_LINKS} trial links remaining</b>\n\n${statusMsg}`
+        } else {
+          statusMsg = `⚠️ <b>No links remaining</b> — Upgrade to continue shortening!\n\n${statusMsg}`
+          rows.push([user.buyPlan])
+        }
+      }
+      
+      // Show preferred domain if set
+      const preferredDomain = await get(state, chatId, 'preferredShortenerDomain')
+      if (preferredDomain) {
+        statusMsg += `\n\n🌐 Default domain: <b>${preferredDomain}</b>`
+      }
+      
+      // Tip for quick shorten
+      statusMsg += `\n\n💡 <i>Tip: Use /shorten URL for quick links!</i>`
+      
+      send(chatId, statusMsg, { ...trans('k.of', rows), parse_mode: 'HTML' })
     },
     submenu2: async () => {
       await set(state, chatId, 'action', a.submenu2)
@@ -7053,7 +7089,81 @@ All verified numbers generated during sourcing.`))
 
   // /help command
   if (message === '/help') {
-    return send(chatId, `${CHAT_BOT_NAME} Help:\n• URL Shortener\n• Domain Names\n• Phone Leads\n• Wallet & Payments\n• Web Hosting\n\nUse the menu below to get started!`, trans('o'))
+    return send(chatId, `<b>${CHAT_BOT_NAME} Help</b>\n\n<b>Quick Commands:</b>\n• <code>/shorten URL</code> — Instant short link\n• <code>/shorten URL alias</code> — Custom alias\n• Just paste any URL — Auto-detect & shorten\n\n<b>Features:</b>\n• URL Shortener\n• Domain Names\n• Phone Leads\n• Wallet & Payments\n• Web Hosting\n\nUse the menu below to get started!`, { ...trans('o'), parse_mode: 'HTML' })
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // QUICK SHORTEN COMMAND: /shorten <url> [alias]
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  if (message.startsWith('/shorten ') || message === '/shorten') {
+    const parts = message.replace('/shorten', '').trim().split(/\s+/)
+    const url = parts[0]
+    const customAlias = parts[1]
+
+    if (!url) {
+      return send(chatId, `✂️ <b>Quick Shorten Command</b>\n\n<b>Usage:</b>\n<code>/shorten https://example.com</code> — Random short link\n<code>/shorten https://example.com myalias</code> — Custom alias\n\nOr just paste any URL and I'll offer to shorten it!`, { parse_mode: 'HTML' })
+    }
+
+    if (!isValidUrl(url)) {
+      return send(chatId, `❌ Invalid URL. Please provide a valid URL starting with http:// or https://`, { parse_mode: 'HTML' })
+    }
+
+    // Check subscription/free links
+    if (!(await isSubscribed(chatId)) && !(await freeLinksAvailable(chatId))) {
+      return send(chatId, monetization.getUpsellMessage('linksExhausted', lang), k.of([[user.buyPlan], [user.serviceBundles]]))
+    }
+
+    try {
+      // Get user's preferred domain or use SELF_URL
+      const preferredDomain = await get(state, chatId, 'preferredShortenerDomain')
+      const domains = await getPurchasedDomains(chatId)
+      const activeDomains = domains.filter(d => d) // Filter out empty
+      
+      let shortUrl, displayUrl
+      
+      if (preferredDomain && activeDomains.includes(preferredDomain)) {
+        // Use preferred custom domain
+        const slug = customAlias || nanoid()
+        shortUrl = `${preferredDomain}/${slug}`
+        displayUrl = shortUrl
+        
+        if (customAlias && await get(fullUrlOf, shortUrl.replaceAll('.', '@'))) {
+          return send(chatId, `❌ Alias <code>${customAlias}</code> is already taken on ${preferredDomain}. Try a different alias.`, { parse_mode: 'HTML' })
+        }
+      } else {
+        // Use SELF_URL
+        const slug = customAlias || nanoid()
+        shortUrl = `${SELF_URL}/${slug}`.replace('https://', '')
+        displayUrl = `${SELF_URL}/${slug}`
+        
+        if (customAlias && await get(fullUrlOf, shortUrl.replaceAll('.', '@'))) {
+          return send(chatId, `❌ Alias <code>${customAlias}</code> is already taken. Try a different alias.`, { parse_mode: 'HTML' })
+        }
+      }
+
+      const shortUrlSanitized = shortUrl.replaceAll('.', '@')
+      increment(totalShortLinks, 'total')
+      set(fullUrlOf, shortUrlSanitized, url)
+      set(linksOf, chatId, shortUrlSanitized, url)
+
+      // Decrement free links for non-subscribers
+      if (!(await isSubscribed(chatId))) {
+        await decrement(freeShortLinksOf, chatId)
+        const remaining = (await get(freeShortLinksOf, chatId)) || 0
+        
+        send(chatId, `✅ <b>Link shortened!</b>\n\n🔗 <code>${displayUrl.startsWith('http') ? displayUrl : 'https://' + displayUrl}</code>\n\n📋 Tap to copy`, { parse_mode: 'HTML' })
+        
+        if (remaining <= 2) {
+          return send(chatId, monetization.getUpsellMessage('lastLinkWarning', lang, remaining), k.of([[user.buyPlan], [user.serviceBundles]]))
+        }
+        return send(chatId, t.linksRemaining(remaining, FREE_LINKS))
+      }
+
+      return send(chatId, `✅ <b>Link shortened!</b>\n\n🔗 <code>${displayUrl.startsWith('http') ? displayUrl : 'https://' + displayUrl}</code>\n\n📋 Tap to copy`, { parse_mode: 'HTML' })
+    } catch (e) {
+      log(`[/shorten] Error: ${e.message}`)
+      return send(chatId, `❌ Error creating short link. Please try again.`, { parse_mode: 'HTML' })
+    }
   }
 
   // Auto-promo opt-out/opt-in commands
@@ -11163,6 +11273,159 @@ ${message.replace(/\n/g, '<br>')}
     return goto.vpsLinkedSSHkeys()
   }
 
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // QUICK SHORTEN FROM URL AUTO-DETECTION
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  if (action === 'quick-shorten-confirm') {
+    if (message === '❌ Cancel') {
+      await set(state, chatId, 'action', 'none')
+      return send(chatId, t.cancelled || 'Cancelled.', trans('o'))
+    }
+    
+    const url = info?.quickShortenUrl
+    if (!url) {
+      await set(state, chatId, 'action', 'none')
+      return send(chatId, 'Session expired. Please paste your URL again.', trans('o'))
+    }
+    
+    // Check subscription/free links
+    if (!(await isSubscribed(chatId)) && !(await freeLinksAvailable(chatId))) {
+      await set(state, chatId, 'action', 'none')
+      return send(chatId, monetization.getUpsellMessage('linksExhausted', lang), k.of([[user.buyPlan], [user.serviceBundles]]))
+    }
+    
+    if (message === '✂️ Custom Alias') {
+      return goto['quick-shorten-confirm']() // Goes to custom alias input
+    }
+    
+    if (message === '✂️ Shorten Now') {
+      try {
+        // Get user's preferred domain or use SELF_URL
+        const preferredDomain = await get(state, chatId, 'preferredShortenerDomain')
+        const domains = await getPurchasedDomains(chatId)
+        const activeDomains = domains.filter(d => d)
+        
+        let shortUrl, displayUrl
+        const slug = nanoid()
+        
+        if (preferredDomain && activeDomains.includes(preferredDomain)) {
+          shortUrl = `${preferredDomain}/${slug}`
+          displayUrl = `https://${shortUrl}`
+        } else {
+          shortUrl = `${SELF_URL}/${slug}`.replace('https://', '')
+          displayUrl = `${SELF_URL}/${slug}`
+        }
+
+        const shortUrlSanitized = shortUrl.replaceAll('.', '@')
+        increment(totalShortLinks, 'total')
+        set(fullUrlOf, shortUrlSanitized, url)
+        set(linksOf, chatId, shortUrlSanitized, url)
+        await set(state, chatId, 'action', 'none')
+
+        // Decrement free links for non-subscribers
+        if (!(await isSubscribed(chatId))) {
+          await decrement(freeShortLinksOf, chatId)
+          const remaining = (await get(freeShortLinksOf, chatId)) || 0
+          
+          send(chatId, `✅ <b>Link shortened!</b>\n\n🔗 <code>${displayUrl}</code>\n\n📋 Tap to copy`, { parse_mode: 'HTML' })
+          
+          if (remaining <= 2 && remaining > 0) {
+            return send(chatId, monetization.getUpsellMessage('lastLinkWarning', lang, remaining), trans('o'))
+          } else if (remaining <= 0) {
+            return send(chatId, monetization.getUpsellMessage('linksExhausted', lang), k.of([[user.buyPlan]]))
+          }
+          return send(chatId, t.linksRemaining(remaining, FREE_LINKS), trans('o'))
+        }
+
+        return send(chatId, `✅ <b>Link shortened!</b>\n\n🔗 <code>${displayUrl}</code>\n\n📋 Tap to copy`, { ...trans('o'), parse_mode: 'HTML' })
+      } catch (e) {
+        log(`[QuickShorten] Error: ${e.message}`)
+        await set(state, chatId, 'action', 'none')
+        return send(chatId, `❌ Error creating short link. Please try again.`, trans('o'))
+      }
+    }
+    
+    return send(chatId, `Please choose an option:`, { reply_markup: { keyboard: [['✂️ Shorten Now', '✂️ Custom Alias'], ['❌ Cancel']], resize_keyboard: true } })
+  }
+  
+  if (action === 'quick-shorten-custom-alias') {
+    if (message === t.back || message === '❌ Cancel') {
+      await set(state, chatId, 'action', 'none')
+      return send(chatId, t.cancelled || 'Cancelled.', trans('o'))
+    }
+    
+    const url = info?.quickShortenUrl
+    if (!url) {
+      await set(state, chatId, 'action', 'none')
+      return send(chatId, 'Session expired. Please paste your URL again.', trans('o'))
+    }
+    
+    // Validate alias
+    const customAlias = message.trim().toLowerCase()
+    if (!/^[a-z0-9-]+$/.test(customAlias)) {
+      return send(chatId, `❌ Invalid alias. Use only letters, numbers, and hyphens.`, bc)
+    }
+    if (customAlias.length < 2 || customAlias.length > 30) {
+      return send(chatId, `❌ Alias must be 2-30 characters long.`, bc)
+    }
+    
+    // Check subscription/free links
+    if (!(await isSubscribed(chatId)) && !(await freeLinksAvailable(chatId))) {
+      await set(state, chatId, 'action', 'none')
+      return send(chatId, monetization.getUpsellMessage('linksExhausted', lang), k.of([[user.buyPlan], [user.serviceBundles]]))
+    }
+    
+    try {
+      // Get user's preferred domain or use SELF_URL
+      const preferredDomain = await get(state, chatId, 'preferredShortenerDomain')
+      const domains = await getPurchasedDomains(chatId)
+      const activeDomains = domains.filter(d => d)
+      
+      let shortUrl, displayUrl
+      
+      if (preferredDomain && activeDomains.includes(preferredDomain)) {
+        shortUrl = `${preferredDomain}/${customAlias}`
+        displayUrl = `https://${shortUrl}`
+      } else {
+        shortUrl = `${SELF_URL}/${customAlias}`.replace('https://', '')
+        displayUrl = `${SELF_URL}/${customAlias}`
+      }
+
+      const shortUrlSanitized = shortUrl.replaceAll('.', '@')
+      
+      // Check if alias is taken
+      if (await get(fullUrlOf, shortUrlSanitized)) {
+        return send(chatId, `❌ Alias <code>${customAlias}</code> is already taken. Try a different one.`, { parse_mode: 'HTML' })
+      }
+      
+      increment(totalShortLinks, 'total')
+      set(fullUrlOf, shortUrlSanitized, url)
+      set(linksOf, chatId, shortUrlSanitized, url)
+      await set(state, chatId, 'action', 'none')
+
+      // Decrement free links for non-subscribers
+      if (!(await isSubscribed(chatId))) {
+        await decrement(freeShortLinksOf, chatId)
+        const remaining = (await get(freeShortLinksOf, chatId)) || 0
+        
+        send(chatId, `✅ <b>Link shortened!</b>\n\n🔗 <code>${displayUrl}</code>\n\n📋 Tap to copy`, { parse_mode: 'HTML' })
+        
+        if (remaining <= 2 && remaining > 0) {
+          return send(chatId, monetization.getUpsellMessage('lastLinkWarning', lang, remaining), trans('o'))
+        } else if (remaining <= 0) {
+          return send(chatId, monetization.getUpsellMessage('linksExhausted', lang), k.of([[user.buyPlan]]))
+        }
+        return send(chatId, t.linksRemaining(remaining, FREE_LINKS), trans('o'))
+      }
+
+      return send(chatId, `✅ <b>Link shortened!</b>\n\n🔗 <code>${displayUrl}</code>\n\n📋 Tap to copy`, { ...trans('o'), parse_mode: 'HTML' })
+    } catch (e) {
+      log(`[QuickShorten] Error: ${e.message}`)
+      await set(state, chatId, 'action', 'none')
+      return send(chatId, `❌ Error creating short link. Please try again.`, trans('o'))
+    }
+  }
+
   if (action === a.redSelectUrl) {
     if (message === t.back) return goto.submenu1()
     if (!isValidUrl(message)) return send(chatId, t.redValidUrl, bc)
@@ -11440,6 +11703,12 @@ ${message.replace(/\n/g, '<br>')}
       return send(chatId, 'Please choose a valid domain')
     }
     set(state, chatId, 'selectedDomain', message)
+    
+    // ━━━ Remember Last Domain: Save as preferred domain ━━━
+    if (domains.includes(domain)) {
+      await set(state, chatId, 'preferredShortenerDomain', domain)
+    }
+    
     return goto['choose-link-type']()
   }
   if (action === 'choose-link-type') {
@@ -19692,6 +19961,33 @@ Select a category:`), k.of(catBtns))
     }
     return send(chatId, (newUserHint[lang] || newUserHint.en) + '\n' + t.welcome, isAdmin(chatId) ? aO : trans('o'))
   }
+  
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // SMART URL AUTO-DETECTION
+  // If user just pastes a URL, offer to shorten it
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  if (isValidUrl(message) && (message.startsWith('http://') || message.startsWith('https://'))) {
+    // Save the URL for the quick shorten flow
+    await saveInfo('quickShortenUrl', message)
+    await set(state, chatId, 'action', 'quick-shorten-confirm')
+    
+    const subscribed = await isSubscribed(chatId)
+    const freeLinks = subscribed ? '∞' : ((await get(freeShortLinksOf, chatId)) || 0)
+    
+    let statusLine = subscribed 
+      ? '✅ Subscription active — unlimited links' 
+      : `🔗 ${freeLinks} trial link${freeLinks === 1 ? '' : 's'} remaining`
+    
+    if (!subscribed && freeLinks <= 0) {
+      return send(chatId, `🔗 <b>URL Detected!</b>\n\n<code>${message.substring(0, 60)}${message.length > 60 ? '...' : ''}</code>\n\n⚠️ You have no links remaining.\n\n👉 Upgrade to shorten URLs!`, 
+        { parse_mode: 'HTML', reply_markup: { keyboard: [[user.buyPlan], ['❌ Cancel']], resize_keyboard: true } })
+    }
+    
+    return send(chatId, 
+      `🔗 <b>URL Detected!</b>\n\n<code>${message.substring(0, 60)}${message.length > 60 ? '...' : ''}</code>\n\n${statusLine}\n\nWould you like to shorten this link?`,
+      { parse_mode: 'HTML', reply_markup: { keyboard: [['✂️ Shorten Now', '✂️ Custom Alias'], ['❌ Cancel']], resize_keyboard: true } })
+  }
+  
   return send(chatId, t.what + '\n' + t.welcome, isAdmin(chatId) ? aO : trans('o'))
   }) // end _enqueue async callback
 }) // end bot.on('message')
