@@ -22763,6 +22763,8 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
             const result = await executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, info?.cpNumberType || 'local', 'crypto_dynopay_' + coin, cachedAddr, null, approvedBundle.bundleSid)
             if (result.error) { addFundsTo(walletOf, chatId, 'usd', Number(price), lang); return res.send(html(phoneConfig.getMsg(lang).purchaseFailed)) }
             sendMessage(chatId, cpTxt.activated(selectedNumber, result.plan?.name || planKey, price, result.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(result.expiresAt.toISOString())))
+            notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, result.plan?.name || planKey, price, 'Crypto DynoPay'))
+            if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminPurchasePrivate(maskName(name), selectedNumber, result.plan?.name || planKey, price, 'Crypto DynoPay'), { parse_mode: 'HTML' })
             return res.send(html())
           } else {
             // No approved bundle — redirect to address/bundle flow
@@ -22778,6 +22780,8 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
         const result = await executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, info?.cpNumberType || 'local', 'crypto_dynopay_' + coin, cachedAddr)
         if (result.error) { addFundsTo(walletOf, chatId, 'usd', Number(price), lang); return res.send(html(phoneConfig.getMsg(lang).purchaseFailed)) }
         sendMessage(chatId, cpTxt.activated(selectedNumber, result.plan?.name || planKey, price, result.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(result.expiresAt.toISOString())))
+        notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, result.plan?.name || planKey, price, 'Crypto DynoPay'))
+        if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminPurchasePrivate(maskName(name), selectedNumber, result.plan?.name || planKey, price, 'Crypto DynoPay'), { parse_mode: 'HTML' })
         return res.send(html())
       } else {
         await state.updateOne({ _id: parseFloat(chatId) }, { $set: {
@@ -22792,6 +22796,8 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
     const result = await executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, info?.cpNumberType || 'local', 'crypto_dynopay_' + coin, null)
     if (result.error) { addFundsTo(walletOf, chatId, 'usd', Number(price), lang); return res.send(html(phoneConfig.getMsg(lang).purchaseFailed)) }
     sendMessage(chatId, cpTxt.activated(selectedNumber, result.plan?.name || planKey, price, result.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(result.expiresAt.toISOString())))
+    notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, result.plan?.name || planKey, price, 'Crypto DynoPay'))
+    if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminPurchasePrivate(maskName(name), selectedNumber, result.plan?.name || planKey, price, 'Crypto DynoPay'), { parse_mode: 'HTML' })
     return res.send(html())
     } catch (purchaseErr) {
       log(`[CloudPhone] ❌ DynoPay/Twilio purchase crashed for ${chatId}: ${purchaseErr?.message || purchaseErr}`)
@@ -22998,6 +23004,8 @@ app.post('/dynopay/crypto-pay-vps', authDyno, async (req, res) => {
 
   const isSuccess = await buyVPSPlanFullProcess(chatId, lang, vpsDetails)
   if (!isSuccess) return res.send(html(error))
+  notifyGroup(`🖥️ <b>VPS Deployed!</b>\nUser ${maskName(name)} just deployed a new VPS server via crypto.\nDeploy yours in seconds — /start`)
+  if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🖥️ <b>New VPS (Crypto)</b>\n👤 ${chatId} (${maskName(name)})\n💰 $${Number(price).toFixed(2)} ${coin}\n📦 ${vpsDetails?.plan || 'VPS'}`, { parse_mode: 'HTML' })
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
@@ -23056,6 +23064,9 @@ app.post('/dynopay/crypto-pay-upgrade-vps', authDyno, async (req, res) => {
 
   const isSuccess = await upgradeVPSDetails(chatId, lang, vpsDetails)
   if (!isSuccess) return res.send(html(error))
+  const upgradeLabel = vpsDetails.upgradeType === 'plan' ? 'Plan Upgrade' : 'Disk Upgrade'
+  notifyGroup(`🖥️ <b>VPS ${upgradeLabel}!</b>\nUser ${maskName(name)} just upgraded their VPS via crypto.\nUpgrade yours — /start`)
+  if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🖥️ <b>VPS ${upgradeLabel} (Crypto)</b>\n👤 ${chatId} (${maskName(name)})\n💰 $${Number(price).toFixed(2)} ${coin}\n📦 ${vpsDetails?.plan || 'VPS'}`, { parse_mode: 'HTML' })
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
