@@ -1723,6 +1723,100 @@ const loadData = async () => {
   setTimeout(() => checkPendingBundles(), 60000) // first check 1 min after startup
   setInterval(checkPendingBundles, BUNDLE_CHECK_INTERVAL_MS)
   log(`[BundleChecker] Scheduled every ${BUNDLE_CHECK_INTERVAL_MS / 60000}min`)
+
+  // ── Fincra Payment Reconciliation (recover missed webhooks) ──
+  const FINCRA_RECONCILE_INTERVAL = 5 * 60 * 1000 // every 5 minutes
+  const FINCRA_PAYMENT_MAX_AGE = 60 * 60 * 1000    // 1 hour max
+  const FINCRA_MIN_AGE = 3 * 60 * 1000             // wait 3 min before checking (give webhook time)
+  const reconcileFincraPayments = async () => {
+    try {
+      const allPending = await chatIdOfPayment.find({}).toArray()
+      const bankPending = allPending.filter(p => p.val?.endpoint?.startsWith('/bank-pay'))
+      if (bankPending.length === 0) return
+
+      log(`[FincraReconcile] Checking ${bankPending.length} pending bank payment(s)...`)
+
+      for (const session of bankPending) {
+        const ref = session._id
+        const { chatId, price, endpoint } = session.val || {}
+        if (!ref || !chatId || !endpoint) continue
+
+        // Check if session has a creation timestamp (use _id creation time or fallback)
+        // Skip very recent sessions (< 3 min) to give webhook time to arrive
+        const sessionAge = session.val?._createdAt ? (Date.now() - new Date(session.val._createdAt).getTime()) : FINCRA_MIN_AGE + 1
+        if (sessionAge < FINCRA_MIN_AGE) continue
+
+        // Clean up expired sessions (> 1 hour)
+        if (sessionAge > FINCRA_PAYMENT_MAX_AGE) {
+          log(`[FincraReconcile] Cleaning up expired session: ref=${ref} chatId=${chatId} endpoint=${endpoint}`)
+          await del(chatIdOfPayment, ref)
+          continue
+        }
+
+        try {
+          // Query Fincra API for payment status
+          const fincraRes = await axios.get(
+            `https://${process.env.FINCRA_ENDPOINT}/checkout/payments/merchant-reference/${ref}`,
+            {
+              headers: {
+                accept: 'application/json',
+                'api-key': process.env.FINCRA_PRIVATE_KEY,
+                'x-business-id': process.env.BUSINESS_ID,
+              },
+              timeout: 10000,
+            }
+          )
+          const paymentData = fincraRes.data?.data
+          if (!paymentData) continue
+
+          if (paymentData.status === 'success' && paymentData.amountReceived > 0) {
+            log(`[FincraReconcile] ✅ RECOVERED missed payment! ref=${ref} chatId=${chatId} ₦${paymentData.amountReceived} -> ${endpoint}`)
+
+            // Notify admin about recovered payment
+            if (bot && process.env.TELEGRAM_ADMIN_CHAT_ID) {
+              bot.sendMessage(process.env.TELEGRAM_ADMIN_CHAT_ID,
+                `🔄 <b>Fincra Payment Recovered</b>\n\n💰 ₦${paymentData.amountReceived}\n🆔 User: ${chatId}\n📝 Ref: <code>${ref}</code>\n🔗 Endpoint: ${endpoint}\n\n⚠️ Webhook was missed — recovered via reconciliation.`,
+                { parse_mode: 'HTML' }
+              ).catch(() => {})
+            }
+
+            // Build a fake request/response to feed into bankApis
+            const fakeReq = {
+              pay: { ...session.val, ref },
+              body: { data: { amountReceived: paymentData.amountReceived, currency: 'NGN', merchantReference: ref } },
+              query: { ref },
+              hostname: 'fincra-reconcile',
+              originalUrl: `/reconcile${endpoint}?ref=${ref}`,
+            }
+            const fakeRes = {
+              _sent: false,
+              send: (body) => { fakeRes._sent = true; log(`[FincraReconcile] Response for ${ref}: ${typeof body === 'string' ? body.slice(0, 100) : 'ok'}`) },
+              json: (body) => { fakeRes._sent = true },
+              status: () => fakeRes,
+            }
+
+            if (bankApis[endpoint]) {
+              await bankApis[endpoint](fakeReq, fakeRes, Number(paymentData.amountReceived))
+              log(`[FincraReconcile] Processed ${endpoint} for ref=${ref}`)
+            } else {
+              log(`[FincraReconcile] ⚠️ Unknown endpoint: ${endpoint} for ref=${ref}`)
+            }
+          }
+        } catch (apiErr) {
+          // Fincra API error — skip this session (will retry next cycle)
+          if (apiErr.response?.status !== 404) {
+            log(`[FincraReconcile] API error for ref=${ref}: ${apiErr.message}`)
+          }
+        }
+      }
+    } catch (e) {
+      log(`[FincraReconcile] Error: ${e.message}`)
+    }
+  }
+  setTimeout(() => reconcileFincraPayments(), 60000) // first check 1 min after startup
+  setInterval(reconcileFincraPayments, FINCRA_RECONCILE_INTERVAL)
+  log(`[FincraReconcile] Payment recovery scheduled every ${FINCRA_RECONCILE_INTERVAL / 60000}min`)
+
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -4440,7 +4534,7 @@ Enter new value:`), bc)
       const { depositAmountNgn: ngn, email } = info
 
       log({ ref })
-      set(chatIdOfPayment, ref, { chatId, ngnIn: ngn, endpoint: `/bank-wallet` })
+      set(chatIdOfPayment, ref, { chatId, ngnIn: ngn, endpoint: `/bank-wallet`, _createdAt: new Date().toISOString() })
       const { url, error } = await createCheckout(ngn, `/ok?a=b&ref=${ref}&`, email, username, ref)
 
       await set(state, chatId, 'action', 'none')
@@ -9307,7 +9401,7 @@ ${message.replace(/\n/g, '<br>')}
     const _rawNgn = await usdToNgn(price)
     const priceNGN = Number(_rawNgn)
     if (!_rawNgn || isNaN(priceNGN) || priceNGN <= 0) return send(chatId, '⚠️ Payment processing temporarily unavailable (exchange rate service down). Please try again later or use crypto.', trans('o'))
-    set(chatIdOfPayment, ref, { chatId, price, campaignId, endpoint: '/bank-pay-email-blast' })
+    set(chatIdOfPayment, ref, { chatId, price, campaignId, endpoint: '/bank-pay-email-blast', _createdAt: new Date().toISOString() })
     const { url, error } = await createCheckout(priceNGN, `/ok?a=b&ref=${ref}&`, email, username, ref)
     if (error) return send(chatId, error, trans('o'))
     send(chatId, `Bank ₦aira + Card 🌐︎`, trans('o'))
@@ -9905,7 +9999,7 @@ ${message.replace(/\n/g, '<br>')}
       deliveredAt: null,
     })
 
-    set(chatIdOfPayment, ref, { chatId, price, product, orderId, endpoint: '/bank-pay-digital-product' })
+    set(chatIdOfPayment, ref, { chatId, price, product, orderId, endpoint: '/bank-pay-digital-product', _createdAt: new Date().toISOString() })
     notifyGroup(`🛒 <b>New Digital Product Order!</b>\n\n👤 User: ${maskName(name)}\n📦 Product: <b>${product}</b>\n💵 Price: <b>$${price}</b>\n💳 Payment: Bank\n⏳ Awaiting payment`)
     if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🛒 <b>New Digital Product Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n📦 Product: <b>${product}</b>\n💵 Price: <b>$${price}</b>\n💳 Payment: Bank\n⏳ Awaiting payment\n\n📩 After payment confirms:\n<code>/deliver ${orderId} [details]</code>`, { parse_mode: 'HTML' })
     const { url, error } = await createCheckout(priceNGN, `/ok?a=b&ref=${ref}&`, email, username, ref)
@@ -10075,7 +10169,7 @@ ${message.replace(/\n/g, '<br>')}
       status: 'pending_payment', createdAt: new Date(), deliveredAt: null,
     })
 
-    set(chatIdOfPayment, ref, { chatId, price, product: `Virtual Card ($${vcAmount})`, orderId, endpoint: '/bank-pay-virtual-card' })
+    set(chatIdOfPayment, ref, { chatId, price, product: `Virtual Card ($${vcAmount})`, orderId, endpoint: '/bank-pay-virtual-card', _createdAt: new Date().toISOString() })
     notifyGroup(`💳 <b>New Virtual Card Order!</b>\n\n👤 User: ${maskName(name)}\n💵 Card: <b>$${vcAmount}</b> | Total: <b>$${price}</b>\n💳 Payment: Bank\n⏳ Awaiting payment`)
     if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `💳 <b>New Virtual Card Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n💵 Card: <b>$${vcAmount}</b> | Total: <b>$${price}</b>\n📬 Address:\n<pre>${address}</pre>\n💳 Payment: Bank\n⏳ Awaiting payment\n\n📩 After payment confirms:\n<code>/deliver ${orderId} [card details]</code>`, { parse_mode: 'HTML' })
     const { url, error } = await createCheckout(priceNGN, `/ok?a=b&ref=${ref}&`, email, username, ref)
@@ -12070,7 +12164,7 @@ ${message.replace(/\n/g, '<br>')}
     const _rawNgn = await usdToNgn(price)
     const priceNGN = Number(_rawNgn)
     if (!_rawNgn || isNaN(priceNGN) || priceNGN <= 0) return send(chatId, '⚠️ Payment processing temporarily unavailable (exchange rate service down). Please try again later or use crypto.', trans('o'))
-    set(chatIdOfPayment, ref, { chatId, price, domain, endpoint: `/bank-pay-domain` })
+    set(chatIdOfPayment, ref, { chatId, price, domain, endpoint: `/bank-pay-domain`, _createdAt: new Date().toISOString() })
     const { url, error } = await createCheckout(priceNGN, `/ok?a=b&ref=${ref}&`, email, username, ref)
     if (error) return send(chatId, error, trans('o'))
     send(chatId, `Bank ₦aira + Card 🌐︎`, trans('o'))
@@ -12202,7 +12296,7 @@ ${message.replace(/\n/g, '<br>')}
     const _rawNgn = await usdToNgn(price)
     const priceNGN = Number(_rawNgn)
     if (!_rawNgn || isNaN(priceNGN) || priceNGN <= 0) return send(chatId, '⚠️ Payment processing temporarily unavailable (exchange rate service down). Please try again later or use crypto.', trans('o'))
-    set(chatIdOfPayment, ref, { chatId, price, domain, endpoint: `/bank-pay-hosting` })
+    set(chatIdOfPayment, ref, { chatId, price, domain, endpoint: `/bank-pay-hosting`, _createdAt: new Date().toISOString() })
     const { url, error } = await createCheckout(priceNGN, `/ok?a=b&ref=${ref}&`, email, username, ref)
     if (error) return send(chatId, error, trans('o'))
     send(chatId, `Bank ₦aira + Card 🌐︎`, trans('o'))
@@ -12346,7 +12440,7 @@ ${message.replace(/\n/g, '<br>')}
     const _rawNgn = await usdToNgn(price)
     const priceNGN = Number(_rawNgn)
     if (!_rawNgn || isNaN(priceNGN) || priceNGN <= 0) return send(chatId, '⚠️ Payment processing temporarily unavailable (exchange rate service down). Please try again later or use crypto.', trans('o'))
-    set(chatIdOfPayment, ref, { chatId, price, vpsDetails, endpoint: `/bank-pay-vps` })
+    set(chatIdOfPayment, ref, { chatId, price, vpsDetails, endpoint: `/bank-pay-vps`, _createdAt: new Date().toISOString() })
     const { url, error } = await createCheckout(priceNGN, `/ok?a=b&ref=${ref}&`, email, username, ref)
     if (error) return send(chatId, error, trans('o'))
     send(chatId, `Bank ₦aira + Card 🌐︎`, trans('o'))
@@ -12453,7 +12547,7 @@ ${message.replace(/\n/g, '<br>')}
     const _rawNgn = await usdToNgn(price)
     const priceNGN = Number(_rawNgn)
     if (!_rawNgn || isNaN(priceNGN) || priceNGN <= 0) return send(chatId, '⚠️ Payment processing temporarily unavailable (exchange rate service down). Please try again later or use crypto.', trans('o'))
-    set(chatIdOfPayment, ref, { chatId, price, vpsDetails, endpoint: `/bank-pay-upgrade-vps` })
+    set(chatIdOfPayment, ref, { chatId, price, vpsDetails, endpoint: `/bank-pay-upgrade-vps`, _createdAt: new Date().toISOString() })
     const { url, error } = await createCheckout(priceNGN, `/ok?a=b&ref=${ref}&`, email, username, ref)
     if (error) return send(chatId, error, trans('o'))
     send(chatId, `Bank ₦aira + Card 🌐︎`, trans('o'))
@@ -12592,7 +12686,7 @@ ${message.replace(/\n/g, '<br>')}
 
     const ref = nanoid()
     await set(state, chatId, 'action', 'none')
-    set(chatIdOfPayment, ref, { chatId, price, plan, endpoint: `/bank-pay-plan` })
+    set(chatIdOfPayment, ref, { chatId, price, plan, endpoint: `/bank-pay-plan`, _createdAt: new Date().toISOString() })
     const { url, error } = await createCheckout(priceNGN, `/ok?a=b&ref=${ref}&`, email, username, ref)
 
     log({ ref })
@@ -15676,7 +15770,7 @@ Choose an IVR template category:`), k.of(rows))
     const _rawNgn = await usdToNgn(price)
     const priceNGN = Number(_rawNgn)
     if (!_rawNgn || isNaN(priceNGN) || priceNGN <= 0) return send(chatId, '⚠️ Payment processing temporarily unavailable (exchange rate service down). Please try again later or use crypto.', trans('o'))
-    set(chatIdOfPayment, ref, { chatId, price, cpData: { selectedNumber: info?.cpSelectedNumber, planKey: info?.cpPlanKey, provider: info?.cpProvider || 'telnyx', countryCode: info?.cpCountryCode || 'US', countryName: info?.cpCountryName || 'US' }, endpoint: '/bank-pay-phone' })
+    set(chatIdOfPayment, ref, { chatId, price, cpData: { selectedNumber: info?.cpSelectedNumber, planKey: info?.cpPlanKey, provider: info?.cpProvider || 'telnyx', countryCode: info?.cpCountryCode || 'US', countryName: info?.cpCountryName || 'US' }, endpoint: '/bank-pay-phone', _createdAt: new Date().toISOString() })
     const { url, error } = await createCheckout(priceNGN, `/ok?a=b&ref=${ref}&`, email, username, ref)
     if (error) return send(chatId, error, trans('o'))
     return send(chatId, `Cloud IVR ₦${priceNGN.toLocaleString()}`, trans('payBank', url))
@@ -16179,7 +16273,7 @@ Choose an IVR template category:`), k.of(rows))
     const priceNGN = Number(_rawNgn)
     if (!_rawNgn || isNaN(priceNGN) || priceNGN <= 0) return send(chatId, '⚠️ Payment processing temporarily unavailable (exchange rate service down). Please try again later or use crypto.', trans('o'))
     const lastStep = info?.lastStep
-    set(chatIdOfPayment, ref, { chatId, price, lastStep, leadsData: { amount: info?.amount, country: info?.country, state: info?.stateName, area: info?.areaCode, carrier: info?.carrier, targetName: info?.targetName, couponApplied: info?.couponApplied, format: info?.format, cnamMode: info?.targetName ? true : info?.cnam }, endpoint: '/bank-pay-leads' })
+    set(chatIdOfPayment, ref, { chatId, price, lastStep, leadsData: { amount: info?.amount, country: info?.country, state: info?.stateName, area: info?.areaCode, carrier: info?.carrier, targetName: info?.targetName, couponApplied: info?.couponApplied, format: info?.format, cnamMode: info?.targetName ? true : info?.cnam }, endpoint: '/bank-pay-leads', _createdAt: new Date().toISOString() })
     const { url, error } = await createCheckout(priceNGN, `/ok?a=b&ref=${ref}&`, email, username, ref)
     if (error) return send(chatId, error, trans('o'))
     const label = lastStep === a.validatorSelectFormat ? 'Phone Validation' : 'Phone Leads'
@@ -20698,9 +20792,15 @@ async function updatePhoneNumberField(col, chatId, phoneNumber, fieldKey, value)
 
 const auth = async (req, res, next) => {
   log(req.hostname + req.originalUrl)
-  const ref = req?.query?.ref || req?.body?.data?.reference // first for crypto and second for webhook fincra
+  // Fincra webhooks: merchantReference = our nanoid ref; reference = Fincra's own fcr-p-xxx
+  // Crypto callbacks: ref is in query string
+  const ref = req?.query?.ref || req?.body?.data?.merchantReference || req?.body?.data?.reference
+  log('[auth] Resolved ref:', ref, '| merchantRef:', req?.body?.data?.merchantReference, '| fincraRef:', req?.body?.data?.reference, '| queryRef:', req?.query?.ref)
   const pay = await get(chatIdOfPayment, ref)
-  if (!pay) return log(translation('t.payError', 'en')) || res.send(html(translation('t.payError', 'en')))
+  if (!pay) {
+    log(`[auth] ⚠️ Payment session NOT FOUND for ref: ${ref}`)
+    return res.send(html(translation('t.payError', 'en')))
+  }
   req.pay = { ...pay, ref }
   next()
 }
@@ -21523,7 +21623,6 @@ const bankApis = {
 }
 //
 //
-app.post('/webhook', auth, (req, res) => {
 
 // ── EV IP Failover Notification Endpoint ──
 app.post('/ev-ip-failover', (req, res) => {
@@ -21550,11 +21649,18 @@ app.post('/ev-ip-failover', (req, res) => {
     res.status(500).json({ error: 'Internal server error' })
   }
 })
+
+app.post('/webhook', auth, (req, res) => {
+  log('[Fincra Webhook] Received — endpoint:', req?.pay?.endpoint, 'ref:', req?.pay?.ref)
   const value = req?.body?.data?.amountReceived
   const coin = req?.body?.data?.currency
   const endpoint = req?.pay?.endpoint
-  if (coin !== 'NGN' || isNaN(value) || !bankApis[endpoint]) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
+  if (coin !== 'NGN' || isNaN(value) || !bankApis[endpoint]) {
+    log(`[Fincra Webhook] ⚠️ Rejected — coin: ${coin}, value: ${value}, endpoint: ${endpoint}`)
+    return res.send(html(translation('t.argsErr')))
+  }
 
+  log(`[Fincra Webhook] ✅ Processing: ${endpoint} for ₦${value}`)
   bankApis[endpoint](req, res, Number(value))
 })
 
