@@ -1057,10 +1057,26 @@ async function executeTwilioPurchase(chatId, selectedNumber, planKey, price, cou
   const name = await get(nameOf, chatId)
   const surcharge = getNumberSurcharge(countryCode, numType)
 
-  // 1. Get or create sub-account
+  // 1. Get or create sub-account (auto-replace if suspended)
   let userData = await get(phoneNumbersOf, chatId)
   let subSid = userData?.twilioSubAccountSid
   let subToken = userData?.twilioSubAccountToken
+
+  // Check if existing sub-account is suspended/closed — if so, create a new one
+  if (subSid) {
+    try {
+      const subAcctInfo = await twilioService.getSubAccount(subSid)
+      if (subAcctInfo && !subAcctInfo.error && subAcctInfo.status && subAcctInfo.status !== 'active') {
+        log(`[CloudPhone] Sub-account ${subSid} is "${subAcctInfo.status}" for chatId=${chatId} — creating new sub-account`)
+        subSid = null
+        subToken = null
+      }
+    } catch (checkErr) {
+      log(`[CloudPhone] Sub-account check failed for ${subSid}: ${checkErr.message} — creating new sub-account`)
+      subSid = null
+      subToken = null
+    }
+  }
 
   if (!subSid) {
     const subAccount = await twilioService.createSubAccount(`Nomadly-${chatId}-${name || 'user'}`)
@@ -1074,6 +1090,7 @@ async function executeTwilioPurchase(chatId, selectedNumber, planKey, price, cou
     } else {
       await set(phoneNumbersOf, chatId, { numbers: [], twilioSubAccountSid: subSid, twilioSubAccountToken: subToken })
     }
+    log(`[CloudPhone] New sub-account created for chatId=${chatId}: ${subSid}`)
   }
 
   // 2. Buy number on main account with optional address + bundle
