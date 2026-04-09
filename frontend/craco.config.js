@@ -78,6 +78,13 @@ if (config.enableVisualEdits && babelMetadataPlugin) {
 }
 
 webpackConfig.devServer = (devServerConfig) => {
+  // Remove deprecated webpack-dev-server v3/v4 properties that
+  // react-scripts 5.0.1 injects but webpack-dev-server v5 rejects
+  delete devServerConfig.onAfterSetupMiddleware;
+  delete devServerConfig.onBeforeSetupMiddleware;
+  delete devServerConfig.https;
+  delete devServerConfig.overlay;
+
   // Apply visual edits dev server setup only if enabled
   if (config.enableVisualEdits && setupDevServer) {
     devServerConfig = setupDevServer(devServerConfig);
