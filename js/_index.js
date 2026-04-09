@@ -2045,12 +2045,73 @@ async function sendRemindersForExpiringPackages() {
           log(`[Reminders] 3-day bot plan reminder sent to ${chatId}`)
         }
 
-        // Reset the flag when user renews (days > 3.5)
+        // Send 1-day reminder (check within 0.9 - 1.1 day window) - FINAL WARNING
+        if (daysLeft > 0.9 && daysLeft <= 1.1) {
+          const userState = await state.findOne({ _id: String(chatId) })
+          if (userState?.reminders?.botPlan1DayReminderSent) continue
+
+          const plan = await get(planOf, chatId)
+          if (!plan) continue
+          const lang = userState?.userLanguage ?? 'en'
+          const expiryDate = new Date(rawTime).toLocaleDateString()
+          const expiryTime = new Date(rawTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+
+          const msgs = {
+            en: `⚠️ <b>FINAL REMINDER: Subscription Expiring Tomorrow!</b>\n\n📦 Your <b>${plan}</b> expires in <b>24 hours</b> (${expiryDate} at ${expiryTime}).\n\n🔗 You will lose access to URL shortening and other premium features.\n\n👉 Tap <b>⚡ Upgrade Plan</b> to renew now!`,
+            fr: `⚠️ <b>RAPPEL FINAL: Abonnement expire demain!</b>\n\n📦 Votre <b>${plan}</b> expire dans <b>24 heures</b> (${expiryDate} à ${expiryTime}).\n\n🔗 Vous perdrez l'accès aux liens courts et autres fonctionnalités premium.\n\n👉 Appuyez sur <b>⚡ Upgrade Plan</b> pour renouveler!`,
+            hi: `⚠️ <b>अंतिम अनुस्मारक: सदस्यता कल समाप्त!</b>\n\n📦 आपका <b>${plan}</b> <b>24 घंटों</b> में समाप्त (${expiryDate} ${expiryTime} पर)।\n\n🔗 आप URL शॉर्टनिंग और अन्य प्रीमियम सुविधाओं तक पहुंच खो देंगे।\n\n👉 अभी नवीनीकरण के लिए <b>⚡ Upgrade Plan</b> टैप करें!`,
+            zh: `⚠️ <b>最后提醒：订阅明天到期！</b>\n\n📦 您的 <b>${plan}</b> 将在 <b>24小时</b> 后到期 (${expiryDate} ${expiryTime})。\n\n🔗 您将失去短链接和其他高级功能的访问权限。\n\n👉 点击 <b>⚡ Upgrade Plan</b> 立即续订！`,
+          }
+          send(chatId, msgs[lang] || msgs.en, { parse_mode: 'HTML' })
+          await state.updateOne(
+            { _id: String(chatId) },
+            { $set: { 'reminders.botPlan1DayReminderSent': true } },
+            { upsert: true }
+          )
+          log(`[Reminders] 1-day bot plan reminder sent to ${chatId}`)
+        }
+
+        // Reset the flags when user renews (days > 3.5)
         if (daysLeft > 3.5) {
           await state.updateOne(
             { _id: String(chatId) },
-            { $set: { 'reminders.botPlan3DayReminderSent': false } },
+            { $set: { 'reminders.botPlan3DayReminderSent': false, 'reminders.botPlan1DayReminderSent': false, 'reminders.botPlanExpiredSent': false } },
           )
+        }
+      }
+
+      // Check for recently expired plans (expired within last 30 minutes)
+      const expiredPlanUsers = await planEndingTime.find({}).toArray()
+      for (const entry of expiredPlanUsers) {
+        const chatId = entry._id
+        const rawTime = entry.val
+        if (!rawTime) continue
+
+        const msExpired = now.getTime() - rawTime
+        const minutesExpired = msExpired / (1000 * 60)
+
+        // Plan just expired (within last 30 minutes) - send expiry notice
+        if (minutesExpired > 0 && minutesExpired <= 30) {
+          const userState = await state.findOne({ _id: String(chatId) })
+          if (userState?.reminders?.botPlanExpiredSent) continue
+
+          const plan = await get(planOf, chatId)
+          if (!plan) continue
+          const lang = userState?.userLanguage ?? 'en'
+
+          const msgs = {
+            en: `🔴 <b>Subscription Expired</b>\n\n📦 Your <b>${plan}</b> has expired.\n\n❌ URL shortening is now disabled\n❌ Premium features are no longer available\n\n👉 Tap <b>⚡ Upgrade Plan</b> to reactivate your subscription and continue using all features!`,
+            fr: `🔴 <b>Abonnement Expiré</b>\n\n📦 Votre <b>${plan}</b> a expiré.\n\n❌ Les liens courts sont désactivés\n❌ Les fonctionnalités premium ne sont plus disponibles\n\n👉 Appuyez sur <b>⚡ Upgrade Plan</b> pour réactiver!`,
+            hi: `🔴 <b>सदस्यता समाप्त</b>\n\n📦 आपका <b>${plan}</b> समाप्त हो गया है।\n\n❌ URL शॉर्टनिंग अक्षम है\n❌ प्रीमियम सुविधाएं उपलब्ध नहीं हैं\n\n👉 पुनः सक्रिय करने के लिए <b>⚡ Upgrade Plan</b> टैप करें!`,
+            zh: `🔴 <b>订阅已过期</b>\n\n📦 您的 <b>${plan}</b> 已过期。\n\n❌ 短链接功能已禁用\n❌ 高级功能不再可用\n\n👉 点击 <b>⚡ Upgrade Plan</b> 重新激活订阅！`,
+          }
+          send(chatId, msgs[lang] || msgs.en, { parse_mode: 'HTML' })
+          await state.updateOne(
+            { _id: String(chatId) },
+            { $set: { 'reminders.botPlanExpiredSent': true } },
+            { upsert: true }
+          )
+          log(`[Reminders] Expiry notice sent to ${chatId} for ${plan}`)
         }
       }
     } catch (e) {
