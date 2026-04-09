@@ -1129,15 +1129,23 @@ const switchToProviderDefault = async (domainName, db) => {
 }
 
 /**
- * addShortenerCNAME — Add a root CNAME for URL shortener, auto-resolving A/AAAA conflicts.
+ * addShortenerCNAME — Add a root CNAME for URL shortener + TXT verification record for Railway.
  * 
- * The shortener always needs a root CNAME pointing to Railway/Render.
+ * The shortener always needs:
+ * 1. Root CNAME pointing to Railway/Render
+ * 2. TXT record for Railway domain ownership verification
+ * 
  * If the domain has existing A/AAAA records at root (e.g. from hosting),
  * they must be deleted first since CNAME cannot coexist with A/AAAA.
  * 
+ * @param {string} domainName - Domain name
+ * @param {string} cnameTarget - Railway CNAME target (e.g., 8qn9dw52.up.railway.app)
+ * @param {object} db - MongoDB database instance
+ * @param {string} [txtHost] - TXT verification hostname (e.g., _railway-verify)
+ * @param {string} [txtValue] - TXT verification value (e.g., railway-verify=...)
  * Returns { success: true } or { error: 'message' }
  */
-const addShortenerCNAME = async (domainName, cnameTarget, db) => {
+const addShortenerCNAME = async (domainName, cnameTarget, db, txtHost, txtValue) => {
   try {
     const meta = await getDomainMeta(domainName, db)
 
@@ -1160,6 +1168,7 @@ const addShortenerCNAME = async (domainName, cnameTarget, db) => {
       // This handles domains that were previously linked to a different shortener/service
       const cfRecords = await cfService.listDNSRecords(meta.cfZoneId)
       const existingCNAME = cfRecords.filter(r => r.name === domainName && r.type === 'CNAME')
+      let cnameAlreadyCorrect = false
       for (const rec of existingCNAME) {
         if (rec.content !== cnameTarget) {
           log(`[addShortenerCNAME] ${domainName}: removing existing CNAME → ${rec.content} before adding shortener CNAME`)
@@ -1170,18 +1179,45 @@ const addShortenerCNAME = async (domainName, cnameTarget, db) => {
             log(`[addShortenerCNAME] Warning: failed to delete existing CNAME ${rec.name} → ${rec.content}`)
           }
         } else {
-          log(`[addShortenerCNAME] ${domainName}: CNAME already points to ${cnameTarget}, no change needed`)
-          return { success: true, alreadyExists: true }
+          log(`[addShortenerCNAME] ${domainName}: CNAME already points to ${cnameTarget}`)
+          cnameAlreadyCorrect = true
         }
       }
 
       // 2. Add the CNAME (proxied for CF CNAME flattening at root)
-      const result = await cfService.createDNSRecord(meta.cfZoneId, 'CNAME', domainName, cnameTarget, 300, true)
-      if (result.success || result.alreadyExists) {
-        return { success: true }
+      if (!cnameAlreadyCorrect) {
+        const result = await cfService.createDNSRecord(meta.cfZoneId, 'CNAME', domainName, cnameTarget, 300, true)
+        if (!result.success && !result.alreadyExists) {
+          const errMsg = result.errors?.map(e => e.message || e.code).join(', ') || 'Cloudflare DNS add failed'
+          return { error: errMsg }
+        }
+        log(`[addShortenerCNAME] ${domainName}: CNAME → ${cnameTarget} added (proxied)`)
       }
-      const errMsg = result.errors?.map(e => e.message || e.code).join(', ') || 'Cloudflare DNS add failed'
-      return { error: errMsg }
+
+      // 3. Add TXT verification record for Railway domain ownership
+      if (txtHost && txtValue) {
+        const txtFullHost = txtHost.includes('.') ? txtHost : `${txtHost}.${domainName}`
+        // Check if TXT record already exists
+        const existingTXT = cfRecords.find(r => r.name === txtFullHost && r.type === 'TXT')
+        if (existingTXT && existingTXT.content === txtValue) {
+          log(`[addShortenerCNAME] ${domainName}: TXT verification record already exists`)
+        } else {
+          // Delete any existing TXT record at this host
+          if (existingTXT) {
+            await cfService.deleteDNSRecord(meta.cfZoneId, existingTXT.id)
+          }
+          // Add the TXT record (not proxied)
+          const txtResult = await cfService.createDNSRecord(meta.cfZoneId, 'TXT', txtFullHost, txtValue, 3600, false)
+          if (txtResult.success || txtResult.alreadyExists) {
+            log(`[addShortenerCNAME] ${domainName}: TXT ${txtHost} → ${txtValue.substring(0, 30)}... added`)
+          } else {
+            log(`[addShortenerCNAME] ${domainName}: Warning - TXT record failed: ${txtResult.errors?.map(e => e.message).join(', ')}`)
+            // Don't fail the whole operation for TXT - domain may still work
+          }
+        }
+      }
+
+      return { success: true }
     }
 
     // Non-CF domains: use generic addDNSRecord (OP/CR don't have CNAME flattening at root)

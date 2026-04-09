@@ -13,10 +13,10 @@ const SERVICE_ID = process.env.RAILWAY_SERVICE_ID
 const GRAPHQL_ENDPOINT = 'https://backboard.railway.app/graphql/v2'
 
 /**
- * Query Railway for an existing custom domain's CNAME target.
- * Returns { server, recordType } if found, or null.
+ * Query Railway for an existing custom domain's CNAME target and TXT verification record.
+ * Returns { server, recordType, txtHost, txtValue } if found, or null.
  */
-async function getExistingRailwayCNAME(domain) {
+async function getExistingRailwayDNS(domain) {
   try {
     const query = `query {
       domains(projectId: "${PROJECT_ID}", serviceId: "${SERVICE_ID}", environmentId: "${ENVIRONMENT_ID}") {
@@ -27,6 +27,8 @@ async function getExistingRailwayCNAME(domain) {
               requiredValue
               recordType
             }
+            verificationDnsHost
+            verificationToken
           }
         }
       }
@@ -39,14 +41,19 @@ async function getExistingRailwayCNAME(domain) {
     const match = customDomains.find(d => d.domain === domain)
     if (match) {
       const cname = match.status?.dnsRecords?.[0]?.requiredValue
-      if (cname) return { server: cname, recordType: 'CNAME' }
+      const txtHost = match.status?.verificationDnsHost
+      const txtValue = match.status?.verificationToken
+      if (cname) return { server: cname, recordType: 'CNAME', txtHost, txtValue }
     }
     return null
   } catch (err) {
-    log(`[Railway] getExistingRailwayCNAME error for ${domain}: ${err.message}`)
+    log(`[Railway] getExistingRailwayDNS error for ${domain}: ${err.message}`)
     return null
   }
 }
+
+// Keep old function name for backward compatibility
+const getExistingRailwayCNAME = getExistingRailwayDNS
 
 const saveDomainInServerRender = async domain => {
   const url = `https://api.render.com/v1/services/${DOMAINS_CONNECT_TO_RENDER_SERVICE_ID}/custom-domains`
@@ -77,6 +84,8 @@ async function saveDomainInServerRailway(domain) {
             dnsRecords {
               requiredValue
             }
+            verificationDnsHost
+            verificationToken
           }
       }
   }`
@@ -99,15 +108,15 @@ async function saveDomainInServerRailway(domain) {
       error.toLowerCase().includes('duplicate') ||
       error.toLowerCase().includes('failed to create custom domain')
     if (isAlreadyExists) {
-      log(`[Railway] Domain ${domain} already exists — querying existing CNAME target`)
+      log(`[Railway] Domain ${domain} already exists — querying existing CNAME target + TXT verification`)
       // ── Try to get the existing CNAME target first (domain is already on Railway = success) ──
-      const existing = await getExistingRailwayCNAME(domain)
+      const existing = await getExistingRailwayDNS(domain)
       if (existing) {
         log(`[Railway] Domain ${domain} already on Railway → ${existing.server} (reusing)`)
         return existing
       }
       // ── Couldn't fetch CNAME — try remove + re-create as fallback ──
-      log(`[Railway] Could not fetch CNAME for ${domain} — attempting remove + re-create`)
+      log(`[Railway] Could not fetch DNS for ${domain} — attempting remove + re-create`)
       const removeResult = await removeDomainFromRailway(domain)
       if (removeResult.error) {
         log(`[Railway] Remove failed for ${domain}: ${removeResult.error}`)
@@ -131,18 +140,24 @@ async function saveDomainInServerRailway(domain) {
         log(`[Railway] Re-create failed for ${domain}: ${retryError}`)
         return { error: retryError }
       }
-      const server = retryResponse?.data?.data?.customDomainCreate?.status?.dnsRecords[0]?.requiredValue
+      const result = retryResponse?.data?.data?.customDomainCreate
+      const server = result?.status?.dnsRecords[0]?.requiredValue
+      const txtHost = result?.status?.verificationDnsHost
+      const txtValue = result?.status?.verificationToken
       log(`[Railway] Re-created ${domain} → ${server}`)
-      return { server, recordType: 'CNAME' }
+      return { server, recordType: 'CNAME', txtHost, txtValue }
     }
     log('Error saveDomainInServerRailway', error)
     log('domain', domain, 'GraphQL Response:', JSON.stringify(response.data, null, 2))
     return { error }
   }
 
-  const server = response?.data?.data?.customDomainCreate?.status?.dnsRecords[0]?.requiredValue
+  const result = response?.data?.data?.customDomainCreate
+  const server = result?.status?.dnsRecords[0]?.requiredValue
+  const txtHost = result?.status?.verificationDnsHost
+  const txtValue = result?.status?.verificationToken
 
-  return { server, recordType: 'CNAME' }
+  return { server, recordType: 'CNAME', txtHost, txtValue }
 }
 async function isRailwayAPIWorking() {
   const GRAPHQL_QUERY = `
@@ -216,4 +231,4 @@ async function removeDomainFromRailway(domain) {
   }
 }
 
-module.exports = { saveDomainInServerRailway, isRailwayAPIWorking, saveDomainInServerRender, removeDomainFromRailway }
+module.exports = { saveDomainInServerRailway, isRailwayAPIWorking, saveDomainInServerRender, removeDomainFromRailway, getExistingRailwayDNS }

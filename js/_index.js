@@ -186,7 +186,7 @@ const dnsAutoCheck = async (send, chatId, t, domain, recordType, recordValue) =>
     // Silent fail — don't block the user flow
   }
 }
-const { saveDomainInServerRailway, saveDomainInServerRender } = require('./rl-save-domain-in-server.js')
+const { saveDomainInServerRailway, saveDomainInServerRender, getExistingRailwayDNS } = require('./rl-save-domain-in-server.js')
 const { get, set, setFields, del, increment, atomicIncrement, getAll, decrement, insert } = require('./db.js')
 const { getRegisteredDomainNames } = require('./cr-domain-purchased-get.js')
 const { getCryptoDepositAddress, convert } = require('./pay-blockbee.js')
@@ -11065,7 +11065,7 @@ ${message.replace(/\n/g, '<br>')}
         log(`[QuickActivateShortener] Switched ${domain} to Cloudflare (zone: ${cfEnsure.cfZoneId})`)
       }
 
-      const { server, error, recordType } =
+      const { server, error, recordType, txtHost, txtValue } =
         process.env.HOSTED_ON === 'render'
           ? await saveDomainInServerRender(domain)
           : await saveDomainInServerRailway(domain)
@@ -11080,9 +11080,9 @@ ${message.replace(/\n/g, '<br>')}
 
       send(chatId, ({ en: `⏳ Configuring DNS for <b>${domain}</b>…`, fr: `⏳ Configuration DNS pour <b>${domain}</b>…`, zh: `⏳ 正在配置 <b>${domain}</b> 的 DNS…`, hi: `⏳ <b>${domain}</b> के लिए DNS कॉन्फ़िगर कर रहे हैं…` }[lang] || `⏳ Configuring DNS for <b>${domain}</b>…`), { parse_mode: 'HTML' })
 
-      // Unified DNS routing — auto-resolves A/CNAME conflicts before adding shortener CNAME
+      // Unified DNS routing — auto-resolves A/CNAME conflicts before adding shortener CNAME + TXT verification
       await sleep(5000)
-      const addResult = await domainService.addShortenerCNAME(domain, server, db)
+      const addResult = await domainService.addShortenerCNAME(domain, server, db, txtHost, txtValue)
       if (addResult.error || !addResult.success) {
         log(`[QuickActivateShortener] DNS via domainService failed for ${domain}: ${addResult.error || 'unknown'}`)
         // Fallback: try direct CR DNS add for ConnectReseller-only domains with no metadata
@@ -12112,7 +12112,7 @@ ${message.replace(/\n/g, '<br>')}
           log(`[ActivateShortener] Switched ${domain} to Cloudflare (zone: ${cfEnsure.cfZoneId})`)
         }
 
-        const { server, error, recordType } =
+        const { server, error, recordType, txtHost, txtValue } =
           process.env.HOSTED_ON === 'render'
             ? await saveDomainInServerRender(domain)
             : await saveDomainInServerRailway(domain)
@@ -12127,9 +12127,9 @@ ${message.replace(/\n/g, '<br>')}
 
         send(chatId, ({ en: `⏳ Configuring DNS for <b>${domain}</b>…`, fr: `⏳ Configuration DNS pour <b>${domain}</b>…`, zh: `⏳ 正在配置 <b>${domain}</b> 的 DNS…`, hi: `⏳ <b>${domain}</b> के लिए DNS कॉन्फ़िगर कर रहे हैं…` }[lang] || `⏳ Configuring DNS for <b>${domain}</b>…`), { parse_mode: 'HTML' })
 
-        // Unified DNS routing — auto-resolves A/CNAME conflicts before adding shortener CNAME
+        // Unified DNS routing — auto-resolves A/CNAME conflicts before adding shortener CNAME + TXT verification
         await sleep(5000)
-        const addResult = await domainService.addShortenerCNAME(domain, server, db)
+        const addResult = await domainService.addShortenerCNAME(domain, server, db, txtHost, txtValue)
         if (addResult.error || !addResult.success) {
           log(`[ActivateShortener] DNS via domainService failed for ${domain}: ${addResult.error || 'unknown'}`)
           // Fallback: try direct CR DNS add for ConnectReseller-only domains
@@ -19015,16 +19015,16 @@ Select a category:`), k.of(catBtns))
           log(`[DomainActionShortener] Switched ${domain} to Cloudflare (zone: ${cfEnsure.cfZoneId})`)
         }
 
-        const { server, error, recordType } =
+        const { server, error, recordType, txtHost, txtValue } =
           process.env.HOSTED_ON === 'render'
             ? await saveDomainInServerRender(domain)
             : await saveDomainInServerRailway(domain)
         if (error) return send(chatId, `❌ Could not link <b>${domain}</b>: ${error}`, { parse_mode: 'HTML' })
         send(chatId, ({ en: `⏳ Configuring DNS for <b>${domain}</b>…`, fr: `⏳ Configuration DNS pour <b>${domain}</b>…`, zh: `⏳ 正在配置 <b>${domain}</b> 的 DNS…`, hi: `⏳ <b>${domain}</b> के लिए DNS कॉन्फ़िगर कर रहे हैं…` }[lang] || `⏳ Configuring DNS for <b>${domain}</b>…`), { parse_mode: 'HTML' })
 
-        // Unified DNS routing — auto-resolves A/CNAME conflicts before adding shortener CNAME
+        // Unified DNS routing — auto-resolves A/CNAME conflicts before adding shortener CNAME + TXT verification
         await sleep(5000)
-        const addResult = await domainService.addShortenerCNAME(domain, server, db)
+        const addResult = await domainService.addShortenerCNAME(domain, server, db, txtHost, txtValue)
         if (addResult.error || !addResult.success) {
           log(`[DomainActionShortener] DNS failed for ${domain}: ${addResult.error || 'unknown'}`)
           // Fallback for legacy CR domains
@@ -19630,7 +19630,7 @@ const buyDomainFullProcess = async (chatId, lang, domain) => {
     await createActivationTask(chatId, domain, lang)
 
     // Link domain to Railway/Render for URL shortener
-    const { server, error, recordType } =
+    const { server, error, recordType, txtHost, txtValue } =
       process.env.HOSTED_ON === 'render'
         ? await saveDomainInServerRender(domain)
         : await saveDomainInServerRailway(domain)
@@ -19650,7 +19650,7 @@ const buyDomainFullProcess = async (chatId, lang, domain) => {
     // Add shortener DNS via unified service — auto-resolves A/CNAME conflicts,
     // routes to Cloudflare when domain metadata has nameserverType='cloudflare' + cfZoneId.
     await sleep(5000) // Brief delay for DB metadata propagation
-    const addResult = await domainService.addShortenerCNAME(domain, server, db)
+    const addResult = await domainService.addShortenerCNAME(domain, server, db, txtHost, txtValue)
     if (addResult.error || !addResult.success) {
       log(`[buyDomainFullProcess] DNS record add failed via domainService for ${domain}: ${addResult.error || 'unknown'}`)
       // Fallback: try direct CR DNS add for ConnectReseller domains
@@ -24593,7 +24593,7 @@ async function resumeShortenerActivations() {
         if (status === 'pending') {
           await safeSend(chatId, `🔄 Resuming shortener activation for <b>${domain}</b> after server update…`)
 
-          const { server: srv, error, recordType: rt } =
+          const { server: srv, error, recordType: rt, txtHost, txtValue } =
             process.env.HOSTED_ON === 'render'
               ? await saveDomainInServerRender(domain)
               : await saveDomainInServerRailway(domain)
@@ -24606,12 +24606,12 @@ async function resumeShortenerActivations() {
           }
 
           await markRailwayLinked(domain, srv, rt)
-          await addDnsForShortener(chatId, domain, srv, rt, taskLang)
+          await addDnsForShortener(chatId, domain, srv, rt, taskLang, txtHost, txtValue)
 
         } else if (status === 'railway_linked') {
           if (!server || !recordType) {
             log(`[ShortenerResume] ${domain} is railway_linked but missing server/recordType — retrying full`)
-            const { server: srv, error, recordType: rt } =
+            const { server: srv, error, recordType: rt, txtHost, txtValue } =
               process.env.HOSTED_ON === 'render'
                 ? await saveDomainInServerRender(domain)
                 : await saveDomainInServerRailway(domain)
@@ -24621,10 +24621,12 @@ async function resumeShortenerActivations() {
               continue
             }
             await markRailwayLinked(domain, srv, rt)
-            await addDnsForShortener(chatId, domain, srv, rt, taskLang)
+            await addDnsForShortener(chatId, domain, srv, rt, taskLang, txtHost, txtValue)
           } else {
             await safeSend(chatId, `🔄 Resuming DNS setup for <b>${domain}</b> after server update…`)
-            await addDnsForShortener(chatId, domain, server, recordType, taskLang)
+            // Need to query Railway for TXT verification info
+            const existingDns = await getExistingRailwayDNS(domain)
+            await addDnsForShortener(chatId, domain, server, recordType, taskLang, existingDns?.txtHost, existingDns?.txtValue)
           }
 
         } else if (status === 'dns_added') {
@@ -24644,16 +24646,16 @@ async function resumeShortenerActivations() {
 }
 
 /**
- * Shared DNS add logic for shortener resume — adds CNAME to correct provider
+ * Shared DNS add logic for shortener resume — adds CNAME + TXT verification to correct provider
  */
-async function addDnsForShortener(chatId, domain, server, recordType, lang) {
+async function addDnsForShortener(chatId, domain, server, recordType, lang, txtHost, txtValue) {
   const safeSend = async (cId, text) => {
     try { bot && await bot.sendMessage(cId, text, { parse_mode: 'HTML' }) }
     catch (e) { log(`[ShortenerResume] Telegram notify failed for ${cId}: ${e.message}`) }
   }
 
   await sleep(5000)
-  const addResult = await domainService.addShortenerCNAME(domain, server, db)
+  const addResult = await domainService.addShortenerCNAME(domain, server, db, txtHost, txtValue)
 
   if (addResult.error || !addResult.success) {
     log(`[ShortenerResume] DNS via domainService failed for ${domain}: ${addResult.error || 'unknown'}`)
