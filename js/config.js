@@ -841,7 +841,7 @@ const userKeyboard = {
   reply_markup: {
     keyboard: [
       [user.domainNames],
-      [user.urlShortenerMain],
+      [user.urlShortenerMain, user.buyPlan],
       [user.cloudPhone],
       [user.phoneNumberLeads],
       [user.digitalProducts],
