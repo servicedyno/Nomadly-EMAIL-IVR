@@ -19504,6 +19504,15 @@ Select a category:`), k.of(catBtns))
       amount = info?.phones.length
     }
     if (isNaN(amount)) return send(chatId, t.ammountIncorrect)
+    
+    // Enforce minimum validation amount (1000 leads minimum, matching buy leads minimum)
+    const minAmount = Number(validatorSelectAmount[1]) // First numeric value after 'ALL'
+    const maxAmount = Number(validatorSelectAmount[validatorSelectAmount.length - 1])
+    
+    if (Number(amount) < minAmount || Number(amount) > maxAmount) {
+      return send(chatId, `Please enter a valid amount between ${minAmount} and ${maxAmount} leads.`)
+    }
+    
     saveInfo('amount', Number(amount))
     saveInfo('history', [...(info?.history || []), a.validatorSelectAmount])
     let cnam = info?.country === 'USA' ? info?.cnam : false
