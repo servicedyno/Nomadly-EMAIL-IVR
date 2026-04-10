@@ -51,7 +51,9 @@ function generateRandomPassword(length = 16) {
   const upperCase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
   const lowerCase = 'abcdefghijklmnopqrstuvwxyz'
   const numbers = '0123456789'
-  const symbols = '!@#$%^&*()'
+  // RDP-safe symbols only — avoid % ^ $ & * ( ) which break Windows auth,
+  // shell escaping, and Contabo secret provisioning
+  const symbols = '!@#-_+=.'
   const allCharacters = upperCase + lowerCase + numbers + symbols
   const getRandomIndex = (max) => {
     const randomBuffer = crypto.randomBytes(4)
