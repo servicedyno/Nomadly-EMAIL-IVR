@@ -12,7 +12,7 @@ import sys
 import os
 
 # Backend URL from frontend .env
-BACKEND_URL = "https://getting-started-200.preview.emergentagent.com"
+BACKEND_URL = "https://get-started-63.preview.emergentagent.com"
 API_BASE = f"{BACKEND_URL}/api"
 
 class DNSSECAutoFixTester:
