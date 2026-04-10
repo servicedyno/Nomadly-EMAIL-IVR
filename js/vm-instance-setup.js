@@ -609,7 +609,7 @@ async function createVPSInstance(telegramId, vpsDetails) {
         subscriptionEnd: expiresAt.toISOString()
       },
       credentials: {
-        username: isRDP ? 'Administrator' : 'root',
+        username: isRDP ? 'admin' : 'root',
         password: rootPassword
       }
     }
@@ -792,7 +792,7 @@ async function fetchVPSDetails(telegramId, vpsId) {
         subscriptionEnd: localRecord?.end_time || new Date(),
         osId: { os_name: isRDP ? 'Windows Server' : (live.imageId || 'Ubuntu') }
       },
-      defaultUser: isRDP ? 'Administrator' : 'root',
+      defaultUser: isRDP ? 'admin' : 'root',
 
       // ── Compat fields required by lang/en.js selectedVpsData template ──
       planDetails: {
@@ -1241,7 +1241,7 @@ async function sendVPSCredentialsEmail(info, response, vpsDetails, credentials) 
               </tr>
               <tr>
                   <td style="font-size: 16px; padding: 15px; background-color: #eee; border: 1px solid #ddd; border-radius: 5px;">
-                      <strong>Username:</strong> ${credentials?.username || (isRDP ? 'Administrator' : 'root')}
+                      <strong>Username:</strong> ${credentials?.username || (isRDP ? 'admin' : 'root')}
                   </td>
               </tr>
               <tr>
