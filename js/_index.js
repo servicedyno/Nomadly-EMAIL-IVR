@@ -13410,6 +13410,13 @@ ${message.replace(/\n/g, '<br>')}
       }
   
       send(chatId, t.dnsRecordDeleted)
+
+      // Remove deleted record from local cache so it doesn't appear in re-listing
+      // (DNS provider API may still return it briefly due to propagation delay)
+      if (Array.isArray(dnsRecords) && delId >= 0 && delId < dnsRecords.length) {
+        dnsRecords.splice(delId, 1)
+        await set(state, chatId, 'dnsRecords', dnsRecords)
+      }
     } else {
       send(chatId, t.errorDeletingDns("NO DNS Record ID Found"))
     }
@@ -16093,6 +16100,7 @@ Choose an IVR template category:`), k.of(rows))
 
   // ── PHONE PAY ──
   if (action === 'phone-pay') {
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     if (message === t.back) {
       await set(state, chatId, 'action', a.cpOrderSummary)
       const plan = phoneConfig.plans[info?.cpPlanKey]
