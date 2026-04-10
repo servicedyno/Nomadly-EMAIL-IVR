@@ -3247,7 +3247,7 @@ const ivrOutbound = require('./ivr-outbound.js')
  * @returns {{ callControlId, error }}
  */
 async function initiateOutboundIvrCall(params) {
-  const { chatId, callerId, targetNumber, ivrNumber, audioUrl, activeKeys, templateName, placeholderValues, voiceName, isTrial, holdMusic, campaignId, leadIndex, bulkMode } = params
+  const { chatId, callerId, targetNumber, ivrNumber, audioUrl, activeKeys, templateName, placeholderValues, voiceName, isTrial, holdMusic, campaignId, leadIndex, bulkMode, ivrMode, otpLength, otpMaxAttempts } = params
 
   // ── Wallet balance check (skip for trial calls) ──
   // Outbound IVR always charges wallet at flat IVR rate (plan minutes are for inbound only)
@@ -3292,6 +3292,14 @@ async function initiateOutboundIvrCall(params) {
         phase: 'initiated',
         digitPressed: null,
         startTime: Date.now(),
+        // OTP Collection fields
+        ivrMode: ivrMode || 'transfer',
+        otpLength: otpLength || 6,
+        otpMaxAttempts: otpMaxAttempts || 3,
+        otpAttempt: 0,
+        otpDigits: null,
+        otpStatus: null,
+        otpHoldStartedAt: null,
       }
 
       const twimlUrl = `${_selfUrl}/twilio/single-ivr?sessionId=${encodeURIComponent(sessionId)}`
@@ -3341,6 +3349,14 @@ async function initiateOutboundIvrCall(params) {
       phase: 'initiated',
       digitPressed: null,
       startTime: Date.now(),
+      // OTP Collection fields
+      ivrMode: ivrMode || 'transfer',
+      otpLength: otpLength || 6,
+      otpMaxAttempts: otpMaxAttempts || 3,
+      otpAttempt: 0,
+      otpDigits: null,
+      otpStatus: null,
+      otpHoldStartedAt: null,
     }
 
     const twimlUrl = `${_selfUrl}/twilio/single-ivr?sessionId=${encodeURIComponent(sessionId)}`

