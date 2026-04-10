@@ -1946,6 +1946,11 @@ Veuillez recharger votre portefeuille pour continuer à utiliser votre plan VPS.
     const connectInfo = isRDP
       ? `  <strong>• Connexion:</strong> 🖥 Bureau à distance → <code>${response.host}:3389</code>\n  <strong>• Comment:</strong> Ouvrez Connexion Bureau à distance (mstsc) et entrez l'adresse ci-dessus.`
       : `  <strong>• Connexion:</strong> 💻 <code>ssh ${credentials.username}@${response.host}</code>`
+    
+    const passwordWarning = isRDP
+      ? `\n⚠️ <strong>IMPORTANT - Enregistrez votre mot de passe maintenant !</strong>\n• Nous NE POUVONS PAS le récupérer plus tard pour des raisons de sécurité\n• Si perdu, utilisez "Réinitialiser le mot de passe" depuis la gestion VPS (données préservées)\n• Cliquez sur le mot de passe ci-dessus pour le révéler et le copier\n`
+      : `\n⚠️ <strong>Enregistrez vos identifiants en toute sécurité !</strong>\n`
+    
     return `<strong>🎉 ${isRDP ? 'RDP' : 'VPS'} [${response.label}] est actif !</strong>
 
 <strong>🔑 Informations de connexion:</strong>
@@ -1956,7 +1961,7 @@ Veuillez recharger votre portefeuille pour continuer à utiliser votre plan VPS.
 
 <strong>🔗 Connexion:</strong>
 ${connectInfo}
-
+${passwordWarning}
 📧 Ces détails ont également été envoyés à votre email enregistré. Veuillez les garder en sécurité.
 
 Merci d'avoir choisi notre service
@@ -2045,6 +2050,8 @@ ${list
   deleteVpsBtn: '🗑️ Supprimer',
   subscriptionBtn: '🔄 Abonnements',
   VpsLinkedKeysBtn: '🔑 Clés SSH',
+  resetPasswordBtn: '🔑 Réinitialiser le mot de passe',
+  reinstallWindowsBtn: '🔄 Réinstaller Windows',
   confirmChangeBtn: '✅ Confirmer',
 
   confirmStopVpstext: name => `⚠️ Êtes-vous sûr de vouloir arrêter le VPS <strong>${name}</strong> ?`,
@@ -2069,6 +2076,84 @@ Veuillez réessayer après un certain temps.`,
     • Le renouvellement automatique sera annulé et aucun frais supplémentaire ne s'appliquera.
     
   Voulez-vous continuer ?`,
+  
+  confirmResetPasswordText: name => `🔑 <strong>Réinitialiser le mot de passe RDP</strong>
+
+⚠️ <strong>Important :</strong>
+• Votre mot de passe actuel ne fonctionnera plus
+• Un nouveau mot de passe sera généré
+• Toutes vos données et fichiers seront préservés
+• Vous aurez besoin du nouveau mot de passe pour accéder au RDP
+
+Voulez-vous réinitialiser le mot de passe pour <strong>${name}</strong> ?`,
+
+  confirmReinstallWindowsText: name => `🔄 <strong>Réinstaller Windows</strong>
+
+⚠️ <strong>AVERTISSEMENT CRITIQUE :</strong>
+• Cela EFFACERA TOUTES LES DONNÉES sur votre RDP
+• Tous les fichiers, programmes et paramètres seront supprimés
+• Une installation Windows fraîche sera créée
+• De nouvelles informations d'identification seront générées
+• Votre ancien mot de passe ne fonctionnera PLUS
+
+💾 <strong>Recommandation :</strong> Créez une sauvegarde/instantané avant de continuer.
+
+Voulez-vous réinstaller Windows sur <strong>${name}</strong> ?`,
+
+  passwordResetInProgress: name => `🔄 Réinitialisation du mot de passe pour <strong>${name}</strong>...
+
+⏱️ Cela peut prendre 30 à 60 secondes. Veuillez patienter.`,
+
+  passwordResetSuccess: (name, ip, username, password) => `✅ <strong>Mot de passe réinitialisé avec succès !</strong>
+
+🖥️ <strong>RDP :</strong> ${name}
+🌐 <strong>IP :</strong> ${ip}
+👤 <strong>Nom d'utilisateur :</strong> ${username}
+🔑 <strong>Nouveau mot de passe :</strong> <code>${password}</code>
+
+⚠️ <strong>IMPORTANT - Enregistrez ce mot de passe maintenant !</strong>
+• Nous ne pouvons pas le récupérer plus tard pour des raisons de sécurité
+• Si perdu, vous devez réinitialiser votre mot de passe à nouveau (les données seront préservées)
+• Votre ancien mot de passe ne fonctionne plus
+
+💡 Cliquez sur le mot de passe pour le copier.`,
+
+  windowsReinstallInProgress: name => `🔄 Réinstallation de Windows sur <strong>${name}</strong>...
+
+⏱️ Ce processus prend 5 à 10 minutes.
+📧 Vous recevrez de nouvelles informations d'identification une fois terminé.`,
+
+  windowsReinstallSuccess: (name, ip, username, password) => `🎉 <strong>Windows réinstallé avec succès !</strong>
+
+🖥️ <strong>RDP :</strong> ${name}
+🌐 <strong>IP :</strong> ${ip}
+👤 <strong>Nom d'utilisateur :</strong> ${username}
+🔑 <strong>Mot de passe :</strong> <code>${password}</code>
+
+⚠️ <strong>CRITIQUE - Enregistrez ce mot de passe maintenant !</strong>
+• Nous NE POUVONS PAS le récupérer plus tard pour des raisons de sécurité
+• Toutes les données précédentes ont été effacées
+• Ceci est une installation Windows fraîche
+• Si vous perdez ce mot de passe, vous devez le réinitialiser (utilisez le bouton "Réinitialiser le mot de passe")
+
+💡 Cliquez sur le mot de passe pour le copier.
+🚀 Votre RDP est prêt à être utilisé avec ces nouvelles informations d'identification !`,
+
+  passwordResetFailed: name => `❌ <strong>Échec de la réinitialisation du mot de passe</strong>
+
+Échec de la réinitialisation du mot de passe pour <strong>${name}</strong>.
+
+Veuillez réessayer dans quelques minutes ou contacter le support si le problème persiste.`,
+
+  windowsReinstallFailed: name => `❌ <strong>Échec de la réinstallation de Windows</strong>
+
+Échec de la réinstallation de Windows sur <strong>${name}</strong>.
+
+Veuillez réessayer dans quelques minutes ou contacter le support si le problème persiste.`,
+
+  rdpNotSupported: `⚠️ Cette fonctionnalité n'est disponible que pour les instances Windows RDP.
+
+Votre VPS exécute Linux. Utilisez plutôt les clés SSH pour la gestion des accès.`,
   vpsBeingDeleted: name => `⚙️ Veuillez patienter pendant que votre VPS (${name}) est en cours de suppression`,
   vpsDeleted: name => `✅ Le VPS (${name}) a été supprimé de manière permanente.`,
   failedDeletingVPS: name => `❌ Échec de la suppression du VPS (${name}).

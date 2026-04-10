@@ -1933,6 +1933,11 @@ ${CHAT_BOT_NAME}`,
     const connectInfo = isRDP
       ? `  <strong>• कनेक्ट:</strong> 🖥 रिमोट डेस्कटॉप → <code>${response.host}:3389</code>\n  <strong>• कैसे:</strong> रिमोट डेस्कटॉप कनेक्शन (mstsc) खोलें और ऊपर दिया गया पता दर्ज करें।`
       : `  <strong>• कनेक्ट:</strong> 💻 <code>ssh ${credentials.username}@${response.host}</code>`
+    
+    const passwordWarning = isRDP
+      ? `\n⚠️ <strong>महत्वपूर्ण - अभी अपना पासवर्ड सहेजें!</strong>\n• सुरक्षा कारणों से हम इसे बाद में पुनः प्राप्त नहीं कर सकते\n• यदि खो जाता है, तो VPS प्रबंधन से "पासवर्ड रीसेट करें" का उपयोग करें (डेटा संरक्षित रहेगा)\n• पासवर्ड को प्रकट करने और कॉपी करने के लिए ऊपर क्लिक करें\n`
+      : `\n⚠️ <strong>अपने क्रेडेंशियल सुरक्षित रूप से सहेजें!</strong>\n`
+    
     return `<strong>🎉 ${isRDP ? 'RDP' : 'VPS'} [${response.label}] सक्रिय हो गया!</strong>
 
 <strong>🔑 लॉगिन विवरण:</strong>
@@ -1943,7 +1948,7 @@ ${CHAT_BOT_NAME}`,
 
 <strong>🔗 कनेक्शन:</strong>
 ${connectInfo}
-
+${passwordWarning}
 📧 यह विवरण आपके पंजीकृत ईमेल पर भी भेजे गए हैं। कृपया इन्हें सुरक्षित रखें।
 
 हमारी सेवा चुनने के लिए धन्यवाद
@@ -2031,6 +2036,8 @@ ${list
   deleteVpsBtn: '🗑️ हटाएं',
   subscriptionBtn: '🔄 सदस्यता',
   VpsLinkedKeysBtn: '🔑 SSH कुंजी',
+  resetPasswordBtn: '🔑 पासवर्ड रीसेट करें',
+  reinstallWindowsBtn: '🔄 Windows पुनः स्थापित करें',
   confirmChangeBtn: '✅ पुष्टि करें',
 
   confirmStopVpstext: name => `⚠️ क्या आप वास्तव में VPS <strong>${name}</strong> को रोकना चाहते हैं?`,
@@ -2055,6 +2062,84 @@ ${list
   • स्वत: नवीनीकरण रद्द कर दिया जाएगा, और कोई अतिरिक्त शुल्क लागू नहीं होगा।
   
 क्या आप आगे बढ़ना चाहते हैं?`,
+
+  confirmResetPasswordText: name => `🔑 <strong>RDP पासवर्ड रीसेट करें</strong>
+
+⚠️ <strong>महत्वपूर्ण:</strong>
+• आपका वर्तमान पासवर्ड काम करना बंद कर देगा
+• एक नया पासवर्ड उत्पन्न किया जाएगा
+• आपके सभी डेटा और फाइलें संरक्षित रहेंगी
+• RDP तक पहुंचने के लिए आपको नए पासवर्ड की आवश्यकता होगी
+
+क्या आप <strong>${name}</strong> के लिए पासवर्ड रीसेट करना चाहते हैं?`,
+
+  confirmReinstallWindowsText: name => `🔄 <strong>Windows पुनः स्थापित करें</strong>
+
+⚠️ <strong>गंभीर चेतावनी:</strong>
+• यह आपके RDP पर सभी डेटा मिटा देगा
+• सभी फाइलें, प्रोग्राम और सेटिंग्स हटा दी जाएंगी
+• एक नया Windows इंस्टॉलेशन बनाया जाएगा
+• नए क्रेडेंशियल उत्पन्न किए जाएंगे
+• आपका पुराना पासवर्ड अब काम नहीं करेगा
+
+💾 <strong>सिफारिश:</strong> आगे बढ़ने से पहले बैकअप/स्नैपशॉट बनाएं।
+
+क्या आप <strong>${name}</strong> पर Windows पुनः स्थापित करना चाहते हैं?`,
+
+  passwordResetInProgress: name => `🔄 <strong>${name}</strong> के लिए पासवर्ड रीसेट किया जा रहा है...
+
+⏱️ इसमें 30-60 सेकंड लग सकते हैं। कृपया प्रतीक्षा करें।`,
+
+  passwordResetSuccess: (name, ip, username, password) => `✅ <strong>पासवर्ड सफलतापूर्वक रीसेट हो गया!</strong>
+
+🖥️ <strong>RDP:</strong> ${name}
+🌐 <strong>IP:</strong> ${ip}
+👤 <strong>उपयोगकर्ता नाम:</strong> ${username}
+🔑 <strong>नया पासवर्ड:</strong> <code>${password}</code>
+
+⚠️ <strong>महत्वपूर्ण - अभी यह पासवर्ड सहेजें!</strong>
+• सुरक्षा कारणों से हम इसे बाद में पुनः प्राप्त नहीं कर सकते
+• यदि खो जाता है, तो आपको अपना पासवर्ड फिर से रीसेट करना होगा (डेटा संरक्षित रहेगा)
+• आपका पुराना पासवर्ड अब काम नहीं करता
+
+💡 पासवर्ड को कॉपी करने के लिए क्लिक करें।`,
+
+  windowsReinstallInProgress: name => `🔄 <strong>${name}</strong> पर Windows पुनः स्थापित किया जा रहा है...
+
+⏱️ इस प्रक्रिया में 5-10 मिनट लगते हैं।
+📧 पूर्ण होने पर आपको नए क्रेडेंशियल प्राप्त होंगे।`,
+
+  windowsReinstallSuccess: (name, ip, username, password) => `🎉 <strong>Windows सफलतापूर्वक पुनः स्थापित हो गया!</strong>
+
+🖥️ <strong>RDP:</strong> ${name}
+🌐 <strong>IP:</strong> ${ip}
+👤 <strong>उपयोगकर्ता नाम:</strong> ${username}
+🔑 <strong>पासवर्ड:</strong> <code>${password}</code>
+
+⚠️ <strong>गंभीर - अभी यह पासवर्ड सहेजें!</strong>
+• सुरक्षा कारणों से हम इसे बाद में पुनः प्राप्त नहीं कर सकते
+• सभी पिछले डेटा मिटा दिए गए हैं
+• यह एक नया Windows इंस्टॉलेशन है
+• यदि आप यह पासवर्ड खो देते हैं, तो आपको इसे रीसेट करना होगा ("पासवर्ड रीसेट करें" बटन का उपयोग करें)
+
+💡 पासवर्ड को कॉपी करने के लिए क्लिक करें।
+🚀 आपका RDP इन नए क्रेडेंशियल के साथ उपयोग के लिए तैयार है!`,
+
+  passwordResetFailed: name => `❌ <strong>पासवर्ड रीसेट विफल</strong>
+
+<strong>${name}</strong> के लिए पासवर्ड रीसेट करने में विफल।
+
+कृपया कुछ मिनटों में पुनः प्रयास करें या यदि समस्या बनी रहती है तो सहायता से संपर्क करें।`,
+
+  windowsReinstallFailed: name => `❌ <strong>Windows पुनः स्थापना विफल</strong>
+
+<strong>${name}</strong> पर Windows पुनः स्थापित करने में विफल।
+
+कृपया कुछ मिनटों में पुनः प्रयास करें या यदि समस्या बनी रहती है तो सहायता से संपर्क करें।`,
+
+  rdpNotSupported: `⚠️ यह सुविधा केवल Windows RDP इंस्टेंसेज के लिए उपलब्ध है।
+
+आपका VPS Linux चला रहा है। एक्सेस प्रबंधन के लिए इसके बजाय SSH कुंजी का उपयोग करें।`,
   vpsBeingDeleted: name => `⚙️ कृपया प्रतीक्षा करें, आपका VPS (${name}) हटाया जा रहा है`,
   vpsDeleted: name => `✅ VPS (${name}) स्थायी रूप से हटा दिया गया है।`,
   failedDeletingVPS: name => `❌ VPS (${name}) को हटाने में विफल।

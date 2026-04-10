@@ -1915,6 +1915,11 @@ ${CHAT_BOT_NAME}`,
     const connectInfo = isRDP
       ? `  <strong>• 连接:</strong> 🖥 远程桌面 → <code>${response.host}:3389</code>\n  <strong>• 方法:</strong> 打开远程桌面连接 (mstsc) 并输入上述地址。`
       : `  <strong>• 连接:</strong> 💻 <code>ssh ${credentials.username}@${response.host}</code>`
+    
+    const passwordWarning = isRDP
+      ? `\n⚠️ <strong>重要 - 立即保存您的密码！</strong>\n• 出于安全原因，我们以后无法检索它\n• 如果丢失，请从 VPS 管理使用"重置密码"（数据将被保留）\n• 点击上方密码以显示并复制\n`
+      : `\n⚠️ <strong>请安全保存您的凭据！</strong>\n`
+    
     return `<strong>🎉 ${isRDP ? 'RDP' : 'VPS'} [${response.label}] 已激活！</strong>
 
 <strong>🔑 登录凭据:</strong>
@@ -1925,7 +1930,7 @@ ${CHAT_BOT_NAME}`,
 
 <strong>🔗 连接方式:</strong>
 ${connectInfo}
-
+${passwordWarning}
 📧 这些详细信息也已发送到您的注册电子邮件。请保管好它们。
 
 感谢您选择我们的服务
@@ -2012,6 +2017,8 @@ ${list
   deleteVpsBtn: '🗑️ 删除',
   subscriptionBtn: '🔄 订阅',
   VpsLinkedKeysBtn: '🔑 SSH 密钥',
+  resetPasswordBtn: '🔑 重置密码',
+  reinstallWindowsBtn: '🔄 重装 Windows',
   confirmChangeBtn: '✅ 确认',
 
   confirmStopVpstext: name => `⚠️ 您确定要停止 VPS <strong>${name}</strong> 吗？`,
@@ -2035,6 +2042,84 @@ ${list
   • 自动续订将被取消，不会产生额外费用。
   
 您确定要继续吗？`,
+
+  confirmResetPasswordText: name => `🔑 <strong>重置 RDP 密码</strong>
+
+⚠️ <strong>重要提示：</strong>
+• 您当前的密码将停止工作
+• 将生成新密码
+• 所有数据和文件将被保留
+• 您需要新密码才能访问 RDP
+
+您确定要重置 <strong>${name}</strong> 的密码吗？`,
+
+  confirmReinstallWindowsText: name => `🔄 <strong>重装 Windows</strong>
+
+⚠️ <strong>严重警告：</strong>
+• 这将删除您 RDP 上的所有数据
+• 所有文件、程序和设置将被删除
+• 将创建全新的 Windows 安装
+• 将生成新凭据
+• 您的旧密码将不再有效
+
+💾 <strong>建议：</strong> 继续之前请创建备份/快照。
+
+您确定要在 <strong>${name}</strong> 上重装 Windows 吗？`,
+
+  passwordResetInProgress: name => `🔄 正在重置 <strong>${name}</strong> 的密码...
+
+⏱️ 这可能需要 30-60 秒。请稍候。`,
+
+  passwordResetSuccess: (name, ip, username, password) => `✅ <strong>密码重置成功！</strong>
+
+🖥️ <strong>RDP：</strong> ${name}
+🌐 <strong>IP：</strong> ${ip}
+👤 <strong>用户名：</strong> ${username}
+🔑 <strong>新密码：</strong> <code>${password}</code>
+
+⚠️ <strong>重要 - 立即保存此密码！</strong>
+• 出于安全原因，我们以后无法检索它
+• 如果丢失，您必须再次重置密码（数据将被保留）
+• 您的旧密码不再有效
+
+💡 点击密码即可复制。`,
+
+  windowsReinstallInProgress: name => `🔄 正在 <strong>${name}</strong> 上重装 Windows...
+
+⏱️ 此过程需要 5-10 分钟。
+📧 完成后您将收到新凭据。`,
+
+  windowsReinstallSuccess: (name, ip, username, password) => `🎉 <strong>Windows 重装成功！</strong>
+
+🖥️ <strong>RDP：</strong> ${name}
+🌐 <strong>IP：</strong> ${ip}
+👤 <strong>用户名：</strong> ${username}
+🔑 <strong>密码：</strong> <code>${password}</code>
+
+⚠️ <strong>严重警告 - 立即保存此密码！</strong>
+• 出于安全原因，我们以后无法检索它
+• 所有以前的数据已被删除
+• 这是全新的 Windows 安装
+• 如果丢失此密码，您必须重置它（使用"重置密码"按钮）
+
+💡 点击密码即可复制。
+🚀 您的 RDP 已准备好使用这些新凭据！`,
+
+  passwordResetFailed: name => `❌ <strong>密码重置失败</strong>
+
+重置 <strong>${name}</strong> 的密码失败。
+
+请几分钟后重试，如果问题仍然存在，请联系支持。`,
+
+  windowsReinstallFailed: name => `❌ <strong>Windows 重装失败</strong>
+
+在 <strong>${name}</strong> 上重装 Windows 失败。
+
+请几分钟后重试，如果问题仍然存在，请联系支持。`,
+
+  rdpNotSupported: `⚠️ 此功能仅适用于 Windows RDP 实例。
+
+您的 VPS 运行 Linux。请改用 SSH 密钥进行访问管理。`,
   vpsBeingDeleted: name => `⚙️ 请稍等，您的 VPS (${name}) 正在删除中`,
   vpsDeleted: name => `✅ VPS (${name}) 已永久删除。`,
   failedDeletingVPS: name => `❌ 删除 VPS (${name}) 失败。
