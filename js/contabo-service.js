@@ -328,16 +328,27 @@ async function listRegions() {
 
 // ─── Images ───────────────────────────────────────────────────────────────
 
-// Preferred Windows image for RDP (latest standard edition, no Plesk)
-const DEFAULT_WINDOWS_IMAGE = 'windows-server-2025-se'
+// ── Windows image edition rules ──
+// NVMe products (V45-V55): use SE (Standard Edition) images
+// SSD products (V92-V97):  use DE (DataCenter Edition) images
+const NVME_PRODUCT_IDS = new Set(['V45', 'V47', 'V49', 'V51', 'V53', 'V55'])
+const SSD_PRODUCT_IDS  = new Set(['V92', 'V93', 'V94', 'V95', 'V96', 'V97'])
+
+function isNVMeProduct(productId) { return NVME_PRODUCT_IDS.has(productId) }
+function isSSDProduct(productId)  { return SSD_PRODUCT_IDS.has(productId) }
+
+// Preferred Windows images per product type (no Plesk)
+const DEFAULT_WINDOWS_IMAGE_NVME = 'windows-server-2025-se'  // SE for NVMe
+const DEFAULT_WINDOWS_IMAGE_SSD  = 'windows-server-2025-de'  // DE for SSD
+const DEFAULT_WINDOWS_IMAGE = DEFAULT_WINDOWS_IMAGE_SSD       // default to SSD-safe
 
 /**
  * List available OS images from Contabo API.
  * @param {string} filter - 'all', 'linux', 'windows', 'rdp'
  */
 async function listImages(filter = 'all') {
-  const res = await apiRequest('GET', '/compute/images', null, { size: 100, standardImage: true })
-  let images = (res.data || []).filter(img => img.standardImage)
+  const res = await apiRequest('GET', '/compute/images', null, { size: 100 })
+  let images = (res.data || [])
 
   // Filter out Plesk/cPanel variants for cleaner display (unless showing all)
   if (filter !== 'all') {
@@ -361,18 +372,64 @@ async function listImages(filter = 'all') {
 
 /**
  * Get the default Windows image ID for RDP deployments.
+ * @param {string} [productId] - Product ID to determine SE vs DE edition
+ *   NVMe products → SE (Standard Edition)
+ *   SSD products  → DE (DataCenter Edition)
+ *   If omitted, defaults to DE (safe for both when NVMe is unavailable)
  */
-async function getDefaultWindowsImageId() {
+async function getDefaultWindowsImageId(productId) {
   const images = await listImages('windows')
-  // Prefer windows-server-2025-se (Standard Edition, no Plesk)
-  const preferred = images.find(img => img.name === DEFAULT_WINDOWS_IMAGE)
+  const useSSD = !productId || isSSDProduct(productId) || !isNVMeProduct(productId)
+  const edition = useSSD ? 'de' : 'se'
+  const preferredName = useSSD ? DEFAULT_WINDOWS_IMAGE_SSD : DEFAULT_WINDOWS_IMAGE_NVME
+
+  console.log(`[Contabo] Selecting Windows image: product=${productId || 'unknown'}, edition=${edition}, preferred=${preferredName}`)
+
+  // Prefer the exact preferred image
+  const preferred = images.find(img => img.name === preferredName)
   if (preferred) return preferred.imageId
 
-  // Fallback: any Windows 2025, then 2022, then any
-  const fallback = images.find(img => img.name.includes('2025') && !img.name.includes('plesk')) ||
+  // Fallback: same edition in different year, then any non-plesk
+  const fallback = images.find(img => img.name.includes('2025') && img.name.endsWith(`-${edition}`)) ||
+                   images.find(img => img.name.includes('2022') && img.name.endsWith(`-${edition}`)) ||
+                   images.find(img => img.name.includes('2025') && !img.name.includes('plesk')) ||
                    images.find(img => img.name.includes('2022') && !img.name.includes('plesk')) ||
                    images[0]
   return fallback ? fallback.imageId : null
+}
+
+/**
+ * Swap a Windows image from SE↔DE when falling back between NVMe↔SSD products.
+ * @param {string} imageId - Current image ID
+ * @param {string} targetProductId - The fallback product we're switching to
+ * @returns {Promise<string>} - Compatible image ID for the target product
+ */
+async function getCompatibleWindowsImage(imageId, targetProductId) {
+  // If switching to SSD, we need DE edition; if switching to NVMe, we need SE edition
+  const images = await listImages('windows')
+  const currentImage = images.find(img => img.imageId === imageId)
+  if (!currentImage) return imageId // can't find it, return as-is
+
+  const currentName = currentImage.name
+  const isSwitchingToSSD = isSSDProduct(targetProductId)
+  const targetEdition = isSwitchingToSSD ? 'de' : 'se'
+  const currentEdition = currentName.endsWith('-se') ? 'se' : currentName.endsWith('-de') ? 'de' : null
+
+  // Already correct edition
+  if (currentEdition === targetEdition) return imageId
+
+  // Swap edition: windows-server-2025-se → windows-server-2025-de
+  if (currentEdition) {
+    const swappedName = currentName.replace(`-${currentEdition}`, `-${targetEdition}`)
+    const swapped = images.find(img => img.name === swappedName)
+    if (swapped) {
+      console.log(`[Contabo] Swapped Windows image: ${currentName} → ${swappedName} for product ${targetProductId}`)
+      return swapped.imageId
+    }
+  }
+
+  // Fallback: get default for the target product type
+  return await getDefaultWindowsImageId(targetProductId)
 }
 
 // ─── Secrets (SSH Keys & Passwords) ───────────────────────────────────────
@@ -459,10 +516,39 @@ async function createInstance(opts) {
       if (fallbackId) {
         console.log(`[Contabo] Product ${opts.productId} unavailable — trying fallback ${fallbackId}`)
         body.productId = fallbackId
+        // Fix #7: When switching NVMe↔SSD, also swap Windows image edition (SE↔DE)
+        if (opts.imageId) {
+          try {
+            const compatImage = await getCompatibleWindowsImage(opts.imageId, fallbackId)
+            if (compatImage && compatImage !== opts.imageId) {
+              console.log(`[Contabo] Also swapping image for fallback: ${opts.imageId} → ${compatImage}`)
+              body.imageId = compatImage
+            }
+          } catch (imgErr) {
+            console.log(`[Contabo] Image swap failed, keeping original: ${imgErr.message}`)
+          }
+        }
         const res = await apiRequest('POST', '/compute/instances', body)
         const instance = res.data?.[0] || res.data
         console.log(`[Contabo] Instance created via fallback: id=${instance?.instanceId}, product=${fallbackId}`)
         return instance
+      }
+    }
+    // Fix #7b: If image is incompatible with product, try compatible image
+    if (errMsg.includes('cannot use this image') || errMsg.includes('image')) {
+      console.log(`[Contabo] Image incompatible — trying compatible image for product ${body.productId}`)
+      try {
+        const compatImage = await getCompatibleWindowsImage(opts.imageId, body.productId)
+        if (compatImage && compatImage !== body.imageId) {
+          console.log(`[Contabo] Retrying with compatible image: ${body.imageId} → ${compatImage}`)
+          body.imageId = compatImage
+          const res = await apiRequest('POST', '/compute/instances', body)
+          const instance = res.data?.[0] || res.data
+          console.log(`[Contabo] Instance created with compatible image: id=${instance?.instanceId}`)
+          return instance
+        }
+      } catch (imgErr) {
+        console.log(`[Contabo] Compatible image retry also failed: ${imgErr.message}`)
       }
     }
     throw err // Re-throw if no fallback available or fallback also failed
@@ -717,6 +803,7 @@ module.exports = {
   // Images
   listImages,
   getDefaultWindowsImageId,
+  getCompatibleWindowsImage,
   DEFAULT_WINDOWS_IMAGE,
 
   // Secrets

@@ -542,16 +542,18 @@ async function createVPSInstance(telegramId, vpsDetails) {
     let imageId = vpsDetails.os?.id
     let isRDP = vpsDetails.os?.isRDP || vpsDetails.isRDP || false
 
+    // Build create request (determine product first so we can pick the right image)
+    const productId = vpsDetails.config?._id || vpsDetails.productId
+    
     if (isRDP && (!imageId || imageId === 'rdp')) {
-      imageId = await contabo.getDefaultWindowsImageId()
+      // Pass productId so the correct Windows edition (SE for NVMe, DE for SSD) is selected
+      imageId = await contabo.getDefaultWindowsImageId(productId)
     }
 
     if (!imageId) {
       return { error: 'No OS image selected' }
     }
 
-    // Build create request
-    const productId = vpsDetails.config?._id || vpsDetails.productId
     const region = vpsDetails.zone || vpsDetails.region || 'EU'
     
     // Generate a root password for the instance
