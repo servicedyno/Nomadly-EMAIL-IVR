@@ -237,6 +237,13 @@ function _persistBalanceNotifyEntry(chatId, entry) {
  */
 async function notifyLowBalance(chatId, phoneNumber) {
   try {
+    // ⚠️ FIX: Skip group chats (negative chatIds)
+    // Balance reminders should only go to individual users, not groups
+    if (chatId < 0) {
+      console.log(`[notifyLowBalance] Skipped group chat: ${chatId}`)
+      return
+    }
+
     const { getBalance } = require('./utils')
     const { usdBal, ngnBal } = await getBalance(_walletOf, chatId)
     const totalBal = usdBal + (ngnBal > 0 ? ngnBal / 1500 : 0) // Approximate NGN→USD
@@ -346,6 +353,13 @@ async function runUserWalletMonitor() {
       scanned++
 
       try {
+        // ⚠️ FIX: Skip group chats (negative chatIds)
+        // Balance reminders should only go to individual users, not groups
+        if (chatId < 0) {
+          console.log(`[UserWalletMonitor] Skipped group chat: ${chatId}`)
+          continue
+        }
+
         const usdBal = (wallet.usdIn || 0) - (wallet.usdOut || 0)
         const ngnBal = (wallet.ngnIn || 0) - (wallet.ngnOut || 0)
         const totalBal = usdBal + (ngnBal > 0 ? ngnBal / 1500 : 0)
