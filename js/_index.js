@@ -4918,7 +4918,7 @@ Enter new value:`), bc)
     validatorSelectAmount: async () => {
       send(
         chatId,
-        t.validatorSelectAmount(validatorSelectAmount[0], validatorSelectAmount[validatorSelectAmount.length - 1]),
+        t.validatorSelectAmount(validatorSelectAmount[1], validatorSelectAmount[validatorSelectAmount.length - 1]),
         k.validatorSelectAmount,
       )
       await set(state, chatId, 'action', a.validatorSelectAmount)
@@ -6785,6 +6785,9 @@ All verified numbers generated during sourcing.`))
       const format = info?.format
       const l = format === validatorSelectFormat[0]
 
+      // Enhanced logging - Validation START
+      console.log(`[LeadValidation] START - ChatId: ${chatId}, Amount: ${leadsAmount}, Country: ${country}, Carrier: ${info?.carrier}, CNAM: ${cnam}, Price: $${priceUsd}, Payment: ${coin === u.usd ? 'USD' : 'NGN'}`)
+
       // buy leads
       send(chatId, t.validatorBulkNumbersStart, trans('o')) // main keyboard view
       const phones = info?.phones?.slice(0, info?.amount)
@@ -6800,6 +6803,9 @@ All verified numbers generated during sourcing.`))
 
       const res = await validatePhoneBulkFile(info?.carrier, phones, cc, cnam, bot, chatId)
       if (!res) {
+        // Enhanced logging - Validation FAILED
+        console.log(`[LeadValidation] FAILED - ChatId: ${chatId}, Amount: ${leadsAmount}, Country: ${country}, Carrier: ${info?.carrier}, Refunding: $${priceUsd}`)
+        
         // ── Refund wallet on total failure ──
         if (coin === u.usd) {
           await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
@@ -6845,6 +6851,9 @@ All verified numbers generated during sourcing.`))
         )
       }
       const name = await get(nameOf, chatId)
+
+      // Enhanced logging for successful validation
+      console.log(`[LeadValidation] SUCCESS - ChatId: ${chatId}, Amount: ${leadsAmount}, Valid: ${res.length}, Country: ${country}, Carrier: ${info?.carrier}, CNAM: ${cnam}, Price: $${priceUsd}, Payment: ${coin === u.usd ? 'USD' : 'NGN'}`)
 
       // If partial free validation, deduct free portion and log both
       if (info?.partialFree) {
@@ -19510,14 +19519,22 @@ Select a category:`), k.of(catBtns))
     const maxAmount = Number(validatorSelectAmount[validatorSelectAmount.length - 1])
     
     if (Number(amount) < minAmount || Number(amount) > maxAmount) {
+      // Enhanced logging for rejected validation attempts
+      console.log(`[LeadValidation] REJECTED - ChatId: ${chatId}, Attempted: ${amount} leads, Min: ${minAmount}, Max: ${maxAmount}, Country: ${info?.country || 'N/A'}`)
       return send(chatId, `Please enter a valid amount between ${minAmount} and ${maxAmount} leads.`)
     }
+    
+    // Enhanced logging for accepted validation amounts
+    console.log(`[LeadValidation] ACCEPTED - ChatId: ${chatId}, Amount: ${amount} leads, Country: ${info?.country || 'N/A'}, Carrier: ${info?.carrier || 'N/A'}`)
     
     saveInfo('amount', Number(amount))
     saveInfo('history', [...(info?.history || []), a.validatorSelectAmount])
     let cnam = info?.country === 'USA' ? info?.cnam : false
     const price = amount * RATE_LEAD_VALIDATOR + (cnam ? amount * RATE_CNAM_VALIDATOR : 0)
     saveInfo('price', price)
+    
+    console.log(`[LeadValidation] Price calculated - Amount: ${amount}, Rate: $${RATE_LEAD_VALIDATOR}/lead, CNAM: ${cnam}, Total: $${price}`)
+    
     return goto.validatorSelectFormat()
   }
   if (action === a.validatorSelectFormat) {
