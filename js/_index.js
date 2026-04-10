@@ -14996,6 +14996,16 @@ Choose an IVR template category:`), k.of(rows))
       const voiceService = require('./voice-service.js')
       const ivrOb = require('./ivr-outbound.js')
 
+      // ━━━ Wallet balance check — minimum $50 required (skip for free trial) ━━━
+      if (!ivrObData.isTrial) {
+        const IVR_MIN_WALLET = parseFloat(process.env.BULK_CALL_MIN_WALLET || '50')
+        const walletCheck = await smartWalletCheck(walletOf, chatId, IVR_MIN_WALLET)
+        if (!walletCheck.sufficient) {
+          const depositLabel = ({ en: '➕💵 Deposit', fr: '➕💵 Déposer', zh: '➕💵 充值', hi: '➕💵 जमा' }[lang] || '➕💵 Deposit')
+          return send(chatId, `⚠️ <b>Insufficient Wallet Balance</b>\n\nQuick IVR calls require a minimum balance of <b>$${IVR_MIN_WALLET.toFixed(2)}</b>.\n\nYour balance: <b>$${walletCheck.usdBal.toFixed(2)}</b>${walletCheck.ngnBal > 0 ? ` / ₦${walletCheck.ngnBal.toFixed(2)}` : ''}\n\nPlease top up your wallet and try again.`, k.of([[depositLabel], ['Cancel']]))
+        }
+      }
+
       // Notify: calling
       send(chatId, ivrOb.formatCallNotification('calling', ivrObData))
 
