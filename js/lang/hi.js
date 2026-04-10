@@ -2457,4 +2457,20 @@ const hi = {
 
 module.exports = {
   hi,
+  setCustomNsPrompt: (domain, nsRecords) => {
+    let msg = `<b>✏️ ${domain} के लिए कस्टम नेमसर्वर सेट करें</b>\n\n`
+    if (nsRecords && nsRecords.length) {
+      msg += `<b>वर्तमान:</b>\n`
+      nsRecords.forEach((ns, i) => {
+        msg += `  NS${i + 1}: <code>${ns.recordContent || '—'}</code>\n`
+      })
+      msg += '\n'
+    }
+    msg += `नए नेमसर्वर दर्ज करें (प्रति पंक्ति एक, न्यूनतम 2, अधिकतम 4):\n\n<i>उदाहरण:\nns1.example.com\nns2.example.com</i>`
+    return msg
+  },
+  walletBalanceLowNgn: (needed, balance) =>
+    `आपकी NGN वॉलेट बैलेंस (₦${balance.toFixed(2)}) इस खरीद के लिए बहुत कम है।\n\nआपको <b>₦${(needed - balance).toFixed(2)} और</b> चाहिए। रिचार्ज करने के लिए नीचे जमा पर टैप करें।`,
+  ngnUnavailable: `⚠️ NGN भुगतान अस्थायी रूप से अनुपलब्ध है (विनिमय दर सेवा डाउन है)। कृपया USD से भुगतान करें।`,
+  Hosting: 'होस्टिंग',
 }

@@ -2425,4 +2425,20 @@ const zh = {
 
 module.exports = {
   zh,
+  setCustomNsPrompt: (domain, nsRecords) => {
+    let msg = `<b>✏️ 为 ${domain} 设置自定义名称服务器</b>\n\n`
+    if (nsRecords && nsRecords.length) {
+      msg += `<b>当前:</b>\n`
+      nsRecords.forEach((ns, i) => {
+        msg += `  NS${i + 1}: <code>${ns.recordContent || '—'}</code>\n`
+      })
+      msg += '\n'
+    }
+    msg += `输入新的名称服务器（每行一个，最少2个，最多4个）:\n\n<i>示例:\nns1.example.com\nns2.example.com</i>`
+    return msg
+  },
+  walletBalanceLowNgn: (needed, balance) =>
+    `您的 NGN 钱包余额 (₦${balance.toFixed(2)}) 太低，无法进行此次购买。\n\n您还需要 <b>₦${(needed - balance).toFixed(2)}</b>。点击下方存款充值。`,
+  ngnUnavailable: `⚠️ NGN 支付暂时不可用（汇率服务故障）。请使用 USD 支付。`,
+  Hosting: '托管',
 }

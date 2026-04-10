@@ -2469,4 +2469,20 @@ const fr = {
 
 module.exports = {
   fr,
+  setCustomNsPrompt: (domain, nsRecords) => {
+    let msg = `<b>✏️ Définir des serveurs de noms personnalisés pour ${domain}</b>\n\n`
+    if (nsRecords && nsRecords.length) {
+      msg += `<b>Actuel:</b>\n`
+      nsRecords.forEach((ns, i) => {
+        msg += `  NS${i + 1}: <code>${ns.recordContent || '—'}</code>\n`
+      })
+      msg += '\n'
+    }
+    msg += `Entrez les nouveaux serveurs de noms (un par ligne, min 2, max 4):\n\n<i>Exemple:\nns1.example.com\nns2.example.com</i>`
+    return msg
+  },
+  walletBalanceLowNgn: (needed, balance) =>
+    `Votre solde de portefeuille NGN (₦${balance.toFixed(2)}) est trop bas pour cet achat.\n\nVous avez besoin de <b>₦${(needed - balance).toFixed(2)} de plus</b>. Appuyez sur Dépôt ci-dessous pour recharger.`,
+  ngnUnavailable: `⚠️ Le paiement NGN est temporairement indisponible (service de taux de change en panne). Veuillez payer en USD.`,
+  Hosting: 'Hébergement',
 }
