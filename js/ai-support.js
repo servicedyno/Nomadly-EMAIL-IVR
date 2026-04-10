@@ -99,8 +99,44 @@ ${process.env.PHONE_SERVICE_ON === 'true' ? `- <b>Starter — $${process.env.PHO
 | SIP Credentials | ❌ | ✅ | ✅ |
 | Quick IVR Call | ❌ | ✅ | ✅ |
 | Bulk IVR Campaign | ❌ | ✅ | ✅ |
+| OTP Collection (IVR) | ❌ | ✅ | ✅ |
 | Call Recording | ❌ | ❌ | ✅ |
 | IVR Auto-attendant | ❌ | ❌ | ✅ |
+
+#### Quick IVR Call — How to set up:
+📞 Cloud IVR + SIP → 📢 Quick IVR Call → Select Caller ID → Enter target number → Select template → Fill placeholders → Select Call Mode → Choose voice → Preview → Confirm
+
+Quick IVR has <b>two call modes</b>:
+1. <b>🔗 Transfer Mode</b> — When the target presses the active key, they are bridged (transferred) to your phone number.
+2. <b>🔑 OTP Collection Mode</b> (Pro/Business only) — When the target presses the active key, they are prompted to enter a verification code. You receive the code on Telegram with Confirm/Reject buttons.
+
+#### OTP Collection Mode — How it works:
+This feature allows you to place an automated IVR call and collect a verification code from the recipient, with real-time approval via Telegram.
+
+<b>Flow:</b>
+1. The automated call plays your alert message to the target
+2. Target presses the active key (e.g., 1) to respond
+3. Target hears: "Please enter the verification code sent to your number"
+4. Target enters the OTP code on their phone keypad
+5. Target is placed on hold music while you review
+6. You receive a Telegram message with the entered code and ✅ Confirm / ❌ Reject buttons
+7. If you tap ✅ Confirm → target hears "Your code has been verified. Thank you. Goodbye."
+8. If you tap ❌ Reject → target hears "Invalid code. Please try again." and is prompted to re-enter (up to 3 attempts)
+9. After 3 failed attempts → call ends with "Maximum attempts reached. Goodbye."
+10. If you don't respond within 90 seconds → call auto-disconnects with timeout message
+
+<b>Setup:</b>
+📞 Cloud IVR + SIP → 📢 Quick IVR Call → Select Caller ID → Enter target number → Select template → Fill placeholders → Choose <b>🔑 OTP Collection</b> mode → Select OTP length (4-8 digits) → Choose voice → Preview → Confirm
+
+<b>Requirements:</b>
+- <b>Pro</b> or <b>Business</b> plan (not available on Starter or free trial)
+- Wallet balance for call charges ($${process.env.BULK_CALL_RATE_PER_MIN || '0.15'}/min)
+
+<b>Use cases:</b>
+- Fraud alert verification (caller enters OTP to deny a transaction)
+- Account verification calls
+- Delivery confirmation codes
+- Two-factor authentication via phone call
 
 #### How to manage a phone number:
 📞 Cloud IVR + SIP → 📋 My Plans → Tap a number → You see the management menu:
@@ -334,6 +370,21 @@ From main menu → tap <b>💼 Become A Reseller</b>
 
 ### "How do I change my plan / upgrade?"
 → <b>📞 Cloud IVR + SIP</b> → <b>📋 My Plans</b> → select your number → <b>🔄 Renew / Change Plan</b>. You can renew your current plan or switch to a higher/lower plan.
+
+### "How do I use OTP Collection?"
+→ Go to <b>📞 Cloud IVR + SIP</b> → <b>📢 Quick IVR Call</b> → Select your Caller ID → Enter the target number → Select a template → Fill in any placeholders → Choose <b>🔑 OTP Collection</b> mode → Select OTP digit length → Choose voice → Preview → Confirm the call. When the target presses the active key and enters a code, you'll receive it here on Telegram with <b>✅ Confirm</b> and <b>❌ Reject</b> buttons. Requires <b>Pro</b> or <b>Business</b> plan.
+
+### "What is OTP Collection mode?"
+→ OTP Collection is a Quick IVR call mode where the recipient enters a verification code during the call. You review the code in real-time via Telegram and tap <b>✅ Confirm</b> or <b>❌ Reject</b>. If rejected, the caller can retry up to 3 times. Great for fraud alerts, account verification, and 2FA calls. Available on <b>Pro</b> and <b>Business</b> plans only.
+
+### "Can I collect a verification code during an IVR call?"
+→ Yes! Use <b>OTP Collection mode</b> in Quick IVR. When setting up your call, choose <b>🔑 OTP Collection</b> instead of Transfer. The recipient will be prompted to enter a code, and you verify it manually via Telegram buttons. Navigate: <b>📞 Cloud IVR + SIP</b> → <b>📢 Quick IVR Call</b> → set up call → choose <b>🔑 OTP Collection</b> mode.
+
+### "OTP Collection is locked / I can't use OTP Collection"
+→ OTP Collection requires a <b>Pro</b> or <b>Business</b> plan. It's not available on Starter or free trial. To upgrade: <b>📞 Cloud IVR + SIP</b> → <b>📋 My Plans</b> → select your number → <b>🔄 Renew / Change Plan</b> → Choose Pro or Business.
+
+### "What happens if I don't confirm/reject the OTP in time?"
+→ The caller is held on hold music for up to 90 seconds while waiting for your decision. If you don't respond within 90 seconds, the call automatically disconnects with a timeout message. Make sure to check Telegram promptly when you have an OTP call running.
 
 ### "How do I read my SMS messages?"
 → <b>📞 Cloud IVR + SIP</b> → <b>📋 My Plans</b> → select your number → <b>📨 SMS Inbox</b>. SMS are also automatically forwarded to this Telegram chat.

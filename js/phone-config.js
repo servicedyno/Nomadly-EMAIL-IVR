@@ -333,6 +333,7 @@ const planFeatureAccess = {
     ivr: false,
     ivrOutbound: false,
     bulkCall: false,
+    otpCollection: false,
   },
   pro: {
     callForwarding: true,
@@ -345,6 +346,7 @@ const planFeatureAccess = {
     ivr: false,
     ivrOutbound: true,
     bulkCall: true,
+    otpCollection: true,
   },
   business: {
     callForwarding: true,
@@ -357,6 +359,7 @@ const planFeatureAccess = {
     ivr: true,
     ivrOutbound: true,
     bulkCall: true,
+    otpCollection: true,
   },
 }
 
@@ -366,13 +369,13 @@ const canAccessFeature = (planKey, feature) => {
 
 const upgradeMessage = (feature, currentPlan, lang) => {
   const needed = (feature === 'callRecording' || feature === 'ivr') ? 'Business'
-    : (feature === 'ivrOutbound' || feature === 'bulkCall') ? 'Pro'
+    : (feature === 'ivrOutbound' || feature === 'bulkCall' || feature === 'otpCollection') ? 'Pro'
     : 'Pro'
   const featureNamesI18n = {
-    en: { voicemail: 'Voicemail', sipCredentials: 'SIP Credentials', smsToEmail: 'SMS to Email', smsWebhook: 'SMS Webhook', callRecording: 'Call Recording', ivr: 'IVR / Auto-attendant', ivrOutbound: 'Quick IVR Call', bulkCall: 'Bulk IVR Campaign' },
-    fr: { voicemail: 'Messagerie Vocale', sipCredentials: 'Identifiants SIP', smsToEmail: 'SMS par Email', smsWebhook: 'Webhook SMS', callRecording: 'Enregistrement d\'Appels', ivr: 'SVI / Standard Auto', ivrOutbound: 'Appel IVR Rapide', bulkCall: 'Campagne IVR en Masse' },
-    zh: { voicemail: '语音信箱', sipCredentials: 'SIP 凭据', smsToEmail: '短信转邮箱', smsWebhook: '短信 Webhook', callRecording: '通话录音', ivr: 'IVR / 自动应答', ivrOutbound: '快速IVR呼叫', bulkCall: '批量IVR活动' },
-    hi: { voicemail: 'वॉइसमेल', sipCredentials: 'SIP क्रेडेंशियल्स', smsToEmail: 'SMS ईमेल पर', smsWebhook: 'SMS Webhook', callRecording: 'कॉल रिकॉर्डिंग', ivr: 'IVR / ऑटो-अटेंडेंट', ivrOutbound: 'त्वरित IVR कॉल', bulkCall: 'बल्क IVR अभियान' },
+    en: { voicemail: 'Voicemail', sipCredentials: 'SIP Credentials', smsToEmail: 'SMS to Email', smsWebhook: 'SMS Webhook', callRecording: 'Call Recording', ivr: 'IVR / Auto-attendant', ivrOutbound: 'Quick IVR Call', bulkCall: 'Bulk IVR Campaign', otpCollection: 'OTP Collection (IVR)' },
+    fr: { voicemail: 'Messagerie Vocale', sipCredentials: 'Identifiants SIP', smsToEmail: 'SMS par Email', smsWebhook: 'Webhook SMS', callRecording: 'Enregistrement d\'Appels', ivr: 'SVI / Standard Auto', ivrOutbound: 'Appel IVR Rapide', bulkCall: 'Campagne IVR en Masse', otpCollection: 'Collecte OTP (IVR)' },
+    zh: { voicemail: '语音信箱', sipCredentials: 'SIP 凭据', smsToEmail: '短信转邮箱', smsWebhook: '短信 Webhook', callRecording: '通话录音', ivr: 'IVR / 自动应答', ivrOutbound: '快速IVR呼叫', bulkCall: '批量IVR活动', otpCollection: 'OTP 收集 (IVR)' },
+    hi: { voicemail: 'वॉइसमेल', sipCredentials: 'SIP क्रेडेंशियल्स', smsToEmail: 'SMS ईमेल पर', smsWebhook: 'SMS Webhook', callRecording: 'कॉल रिकॉर्डिंग', ivr: 'IVR / ऑटो-अटेंडेंट', ivrOutbound: 'त्वरित IVR कॉल', bulkCall: 'बल्क IVR अभियान', otpCollection: 'OTP संग्रह (IVR)' },
   }
   const templates = {
     en: (fn, nd, cp) => `🔒 <b>${fn}</b> requires the <b>${nd}</b> plan or higher.\n\nYour current plan: <b>${cp || 'Starter'}</b>\n\nUpgrade via 🔄 Renew / Change Plan.`,

@@ -14542,6 +14542,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const ivrObData = info?.ivrObData || {}
     ivrObData.callerId = found.phoneNumber
     ivrObData.callerProvider = found.provider || 'telnyx'
+    ivrObData.callerPlan = found.plan || 'starter'
     await saveInfo('ivrObData', ivrObData)
     await set(state, chatId, 'action', a.ivrObEnterTarget)
     return send(chatId, `📱 Caller ID: <b>${found.phoneNumber}</b>\n\nEnter the phone number to call (with country code):\n<i>Example: +12025551234</i>`, k.of([]))
@@ -14806,6 +14807,15 @@ Choose an IVR template category:`), k.of(rows))
     }
 
     if (message === '🔑 OTP Collection') {
+      // Plan check — OTP Collection requires Pro or Business
+      if (ivrObData.isTrial) {
+        return send(chatId, `🔒 <b>OTP Collection</b> is not available on the free trial.\n\nSubscribe to a <b>Pro</b> or <b>Business</b> plan to use OTP Collection.\n\nYou can still use <b>🔗 Transfer</b> mode for your trial call.`, k.of([['🔗 Transfer'], ['↩️ Back']]))
+      }
+      const currentPlan = ivrObData.callerPlan || 'starter'
+      if (!phoneConfig.canAccessFeature(currentPlan, 'otpCollection')) {
+        return send(chatId, phoneConfig.upgradeMessage('otpCollection', currentPlan, info?.userLanguage), k.of([['🔗 Transfer'], ['↩️ Back']]))
+      }
+
       ivrObData.ivrMode = 'otp_collect'
       ivrObData.ivrNumber = null // no transfer number for OTP mode
       ivrObData.otpLength = 6
