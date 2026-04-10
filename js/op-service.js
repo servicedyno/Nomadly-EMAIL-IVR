@@ -852,19 +852,30 @@ const updateDNSRecord = async (domainName, originalRecord, newValue, newType) =>
     const newType_ = (newType || originalRecord.recordType).toUpperCase()
     const origType_ = originalRecord.recordType.toUpperCase()
 
+    const updateEntry = {
+      type: newType_,
+      name: opOrigName,
+      value: newValue,
+      ttl: originalRecord.ttl || 600,
+    }
+    const removeEntry = {
+      type: origType_,
+      name: opOrigName,
+      value: originalRecord.recordContent,
+    }
+    // MX and SRV records require prio for OP to match the record correctly
+    if (originalRecord.priority !== undefined && originalRecord.priority !== null) {
+      removeEntry.prio = Number(originalRecord.priority)
+      // Preserve priority for the updated record if type stays MX/SRV
+      if (['MX', 'SRV'].includes(newType_)) {
+        updateEntry.prio = Number(originalRecord.priority)
+      }
+    }
+
     const res = await axios.put(`${OP_BASE_URL}/v1beta/dns/zones/${domainName}`, {
       records: {
-        update: [{
-          type: newType_,
-          name: opOrigName,
-          value: newValue,
-          ttl: originalRecord.ttl || 600,
-        }],
-        remove: [{
-          type: origType_,
-          name: opOrigName,
-          value: originalRecord.recordContent,
-        }],
+        update: [updateEntry],
+        remove: [removeEntry],
       },
     }, { headers, timeout: 15000 })
 
@@ -888,15 +899,25 @@ const deleteDNSRecord = async (domainName, record) => {
     const origName = record.recordName || domainName
     const opName = origName === domainName ? '' : (origName.endsWith('.' + domainName) ? origName.slice(0, -(domainName.length + 1)) : origName)
 
+    const removeEntry = {
+      type: record.recordType.toUpperCase(),
+      name: opName,
+      value: record.recordContent,
+    }
+    // MX and SRV records require prio for OP to match the record correctly
+    if (record.priority !== undefined && record.priority !== null) {
+      removeEntry.prio = Number(record.priority)
+    }
+
+    log(`[OP] deleteDNSRecord: domain=${domainName}, remove=`, JSON.stringify(removeEntry))
+
     const res = await axios.put(`${OP_BASE_URL}/v1beta/dns/zones/${domainName}`, {
       records: {
-        remove: [{
-          type: record.recordType.toUpperCase(),
-          name: opName,
-          value: record.recordContent,
-        }],
+        remove: [removeEntry],
       },
     }, { headers, timeout: 15000 })
+
+    log(`[OP] deleteDNSRecord response: code=${res.data?.code}, desc=${res.data?.desc || ''}`)
 
     if (res.data?.code === 0) return { success: true }
     return { error: res.data?.desc || 'Failed to delete DNS record' }

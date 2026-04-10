@@ -281,6 +281,7 @@ const viewDNSRecords = async (domainName, db) => {
       cfRecordId: r.id,
       ttl: r.ttl,
       proxied: r.proxied,
+      priority: r.priority ?? null,
     }))
     // Prepend nameservers as NS records (zone-level, not deletable via record API)
     const nameservers = meta.nameservers || []
@@ -352,6 +353,7 @@ const viewDNSRecords = async (domainName, db) => {
           recordContent: r.recordContent,
           recordName: r.recordName,
           ttl: r.ttl,
+          priority: r.priority,
         })),
         source: 'openprovider',
         opDomainId: meta.opDomainId,

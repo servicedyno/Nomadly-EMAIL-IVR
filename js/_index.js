@@ -4154,7 +4154,10 @@ bot?.on('message', msg => {
       const recordBtns = deletableRecords.map((r) => {
         const label = r.recordContent || '—'
         const short = label.length > 30 ? label.substring(0, 28) + '..' : label
-        return [`${r.originalIndex + 1}. ${r.recordType} → ${short}`]
+        // Show record name (hostname) to help distinguish records with same content
+        const domainToManage = info?.domainToManage || ''
+        const nameLabel = r.recordName === domainToManage ? '@' : (r.recordName || '@').replace('.' + domainToManage, '')
+        return [`${r.originalIndex + 1}. ${r.recordType} ${nameLabel} → ${short}`]
       })
       const keyboard = { parse_mode: 'HTML', reply_markup: { keyboard: [...recordBtns, [t.back, t.cancel]] } }
       send(chatId, t.deleteDnsTxt, keyboard)
@@ -4193,6 +4196,7 @@ bot?.on('message', msg => {
         recordContent: r.recordContent,
         recordName: r.recordName || null,
         isNameserver: r.isNameserver || false,
+        priority: r.priority ?? null,
       }))
 
       const categorizeRecords = (records) => {
@@ -7381,13 +7385,23 @@ All verified numbers generated during sourcing.`))
         const { response: aiResponse, escalate, error } = await getAiResponse(chatId, message, lang)
 
         if (aiResponse) {
+          // Convert markdown formatting from AI to Telegram-safe HTML
+          // GPT often returns **bold**, *italic*, `code` which Telegram HTML parser can't handle
+          const safeHtml = aiResponse
+            .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')     // **bold** → <b>bold</b>
+            .replace(/\*(.+?)\*/g, '<i>$1</i>')          // *italic* → <i>italic</i>
+            .replace(/__(.+?)__/g, '<u>$1</u>')          // __underline__ → <u>underline</u>
+            .replace(/`([^`]+)`/g, '<code>$1</code>')    // `code` → <code>code</code>
+            .replace(/&(?!amp;|lt;|gt;|quot;|#\d+;)/g, '&amp;')  // escape unescaped &
+            .replace(/<(?!\/?(?:b|i|u|s|code|pre|a)\b)/g, '&lt;')  // escape < that aren't valid TG HTML tags
+
           // Send AI response to user
-          send(chatId, `${aiResponse}`, { parse_mode: 'HTML', reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
+          send(chatId, `${safeHtml}`, { parse_mode: 'HTML', reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
 
           // Show AI response to admin with escalation flag
           const escalateTag = escalate ? '\n\n🚨 <b>NEEDS HUMAN ATTENTION</b>' : ''
           send(TELEGRAM_ADMIN_CHAT_ID,
-            `🤖 <b>AI replied to ${displayName}</b> (${chatId}):\n<i>${aiResponse.substring(0, 500)}${aiResponse.length > 500 ? '...' : ''}</i>${escalateTag}`,
+            `🤖 <b>AI replied to ${displayName}</b> (${chatId}):\n<i>${safeHtml.substring(0, 500)}${safeHtml.length > 500 ? '...' : ''}</i>${escalateTag}`,
             { parse_mode: 'HTML' })
           log(`[Support] AI -> ${chatId}: ${aiResponse.substring(0, 100)}... (escalate: ${escalate})`)
         } else {
@@ -13611,6 +13625,7 @@ ${message.replace(/\n/g, '<br>')}
         recordName: recordName || domain,
         recordValue: recordContent,
         recordContent: dnsRecords[id]?.recordContent,
+        priority: dnsRecords[id]?.priority,
         ttl: 300,
       }, db)
       if (result.error || !result.success) {
