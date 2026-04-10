@@ -1318,6 +1318,8 @@ const loadData = async () => {
   // variables to view system information
   nameOf = db.collection('nameOf')
   planOf = db.collection('planOf')
+  chatIdOf = db.collection('chatIdOf')
+  payments = db.collection('payments') // All payment records
   payments = db.collection('payments')
   clicksOf = db.collection('clicksOf')
   clicksOn = db.collection('clicksOn')
