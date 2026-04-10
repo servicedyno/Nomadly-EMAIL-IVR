@@ -22958,8 +22958,7 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
             const result = await executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, info?.cpNumberType || 'local', 'crypto_dynopay_' + coin, cachedAddr, null, approvedBundle.bundleSid)
             if (result.error) { addFundsTo(walletOf, chatId, 'usd', Number(price), lang); return res.send(html(phoneConfig.getMsg(lang).purchaseFailed)) }
             sendMessage(chatId, cpTxt.activated(selectedNumber, result.plan?.name || planKey, price, result.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(result.expiresAt.toISOString())))
-            notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, result.plan?.name || planKey, price, 'Crypto DynoPay'))
-            if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminPurchasePrivate(maskName(name), selectedNumber, result.plan?.name || planKey, price, 'Crypto DynoPay'), { parse_mode: 'HTML' })
+            // notifyGroup + admin already sent inside executeTwilioPurchase()
             return res.send(html())
           } else {
             // No approved bundle — redirect to address/bundle flow
@@ -22975,8 +22974,7 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
         const result = await executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, info?.cpNumberType || 'local', 'crypto_dynopay_' + coin, cachedAddr)
         if (result.error) { addFundsTo(walletOf, chatId, 'usd', Number(price), lang); return res.send(html(phoneConfig.getMsg(lang).purchaseFailed)) }
         sendMessage(chatId, cpTxt.activated(selectedNumber, result.plan?.name || planKey, price, result.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(result.expiresAt.toISOString())))
-        notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, result.plan?.name || planKey, price, 'Crypto DynoPay'))
-        if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminPurchasePrivate(maskName(name), selectedNumber, result.plan?.name || planKey, price, 'Crypto DynoPay'), { parse_mode: 'HTML' })
+        // notifyGroup + admin already sent inside executeTwilioPurchase()
         return res.send(html())
       } else {
         await state.updateOne({ _id: parseFloat(chatId) }, { $set: {
@@ -22991,8 +22989,7 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
     const result = await executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, info?.cpNumberType || 'local', 'crypto_dynopay_' + coin, null)
     if (result.error) { addFundsTo(walletOf, chatId, 'usd', Number(price), lang); return res.send(html(phoneConfig.getMsg(lang).purchaseFailed)) }
     sendMessage(chatId, cpTxt.activated(selectedNumber, result.plan?.name || planKey, price, result.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(result.expiresAt.toISOString())))
-    notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, result.plan?.name || planKey, price, 'Crypto DynoPay'))
-    if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminPurchasePrivate(maskName(name), selectedNumber, result.plan?.name || planKey, price, 'Crypto DynoPay'), { parse_mode: 'HTML' })
+    // notifyGroup + admin already sent inside executeTwilioPurchase()
     return res.send(html())
     } catch (purchaseErr) {
       log(`[CloudPhone] ❌ DynoPay/Twilio purchase crashed for ${chatId}: ${purchaseErr?.message || purchaseErr}`)

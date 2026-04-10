@@ -1,343 +1,287 @@
 #!/usr/bin/env python3
 """
-Backend Testing Suite for DNSSEC Auto-fix in op-service.js
-Tests the specific DNSSEC functionality as requested in the review.
+Backend test for duplicate notifyGroup + admin notifications fix in DynoPay Twilio purchase paths
 """
 
-import requests
 import subprocess
-import json
-import time
 import sys
+import requests
 import os
+import re
 
-# Backend URL from frontend .env
-BACKEND_URL = "https://get-started-63.preview.emergentagent.com"
-API_BASE = f"{BACKEND_URL}/api"
+def run_command(cmd, description):
+    """Run a command and return success status and output"""
+    print(f"\n🔍 {description}")
+    try:
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+        if result.returncode == 0:
+            print(f"✅ PASS: {description}")
+            return True, result.stdout
+        else:
+            print(f"❌ FAIL: {description}")
+            print(f"Error: {result.stderr}")
+            return False, result.stderr
+    except subprocess.TimeoutExpired:
+        print(f"❌ TIMEOUT: {description}")
+        return False, "Command timed out"
+    except Exception as e:
+        print(f"❌ ERROR: {description} - {str(e)}")
+        return False, str(e)
 
-class DNSSECAutoFixTester:
-    def __init__(self):
-        self.test_results = []
-        self.passed = 0
-        self.failed = 0
-        
-    def log_test(self, test_name, passed, details=""):
-        """Log test result"""
-        status = "✅ PASS" if passed else "❌ FAIL"
-        print(f"{status}: {test_name}")
-        if details:
-            print(f"   Details: {details}")
-        
-        self.test_results.append({
-            "test": test_name,
-            "passed": passed,
-            "details": details
-        })
-        
-        if passed:
-            self.passed += 1
-        else:
-            self.failed += 1
-    
-    def test_syntax_validation(self):
-        """Test 1: Syntax validation of op-service.js"""
-        try:
-            result = subprocess.run(
-                ["node", "-c", "/app/js/op-service.js"],
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
+def check_file_content(file_path, pattern, description, should_exist=True):
+    """Check if a pattern exists in a file"""
+    print(f"\n🔍 {description}")
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
             
-            passed = result.returncode == 0
-            details = f"Exit code: {result.returncode}"
-            if result.stderr:
-                details += f", stderr: {result.stderr.strip()}"
-                
-            self.log_test("Syntax validation (node -c op-service.js)", passed, details)
-            return passed
-        except Exception as e:
-            self.log_test("Syntax validation (node -c op-service.js)", False, str(e))
-            return False
-    
-    def test_health_endpoint(self):
-        """Test 2: Health endpoint returns healthy"""
-        try:
-            response = requests.get(f"{API_BASE}/health", timeout=10)
-            
-            if response.status_code == 200:
-                data = response.json()
-                is_healthy = data.get('status') == 'healthy'
-                details = f"Status: {response.status_code}, Data: {data}"
-                self.log_test("Health endpoint returns healthy", is_healthy, details)
-                return is_healthy
+        matches = re.findall(pattern, content, re.MULTILINE | re.IGNORECASE)
+        
+        if should_exist:
+            if matches:
+                print(f"✅ PASS: {description} - Found {len(matches)} matches")
+                return True, matches
             else:
-                self.log_test("Health endpoint returns healthy", False, f"HTTP {response.status_code}")
-                return False
-                
-        except Exception as e:
-            self.log_test("Health endpoint returns healthy", False, str(e))
-            return False
-    
-    def test_error_log_clean(self):
-        """Test 3: Error log should be 0 bytes or near-empty"""
-        try:
-            # Check nodejs error log
-            result = subprocess.run(
-                ["wc", "-c", "/var/log/supervisor/nodejs.err.log"],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            
-            if result.returncode == 0:
-                size_str = result.stdout.strip().split()[0]
-                size = int(size_str)
-                is_clean = size <= 100  # Allow up to 100 bytes for minor warnings
-                details = f"Error log size: {size} bytes"
-                self.log_test("Error log is clean (≤100 bytes)", is_clean, details)
-                return is_clean
-            else:
-                self.log_test("Error log is clean", False, f"Failed to check log: {result.stderr}")
-                return False
-                
-        except Exception as e:
-            self.log_test("Error log is clean", False, str(e))
-            return False
-    
-    def test_disable_dnssec_function_exists(self):
-        """Test 4: disableDnssec function exists with proper signature"""
-        try:
-            # Read the op-service.js file and check for disableDnssec function
-            with open("/app/js/op-service.js", "r") as f:
-                content = f.read()
-            
-            # Check function declaration
-            has_function = "const disableDnssec = async (domainName) => {" in content
-            
-            # Check it calls getDomainInfo
-            calls_get_domain_info = "await getDomainInfo(domainName)" in content
-            
-            # Check it checks is_dnssec_enabled and dnssec_keys
-            checks_dnssec_enabled = "info.domainData?.is_dnssec_enabled" in content
-            checks_dnssec_keys = "info.domainData?.dnssec_keys" in content
-            
-            # Check early return for already disabled
-            has_early_return = "alreadyDisabled: true" in content
-            
-            # Check PUT request with proper payload
-            has_put_request = 'is_dnssec_enabled: false' in content and 'dnssec_keys: []' in content
-            
-            # Check try/catch
-            has_try_catch = content.count("try {") >= 1 and content.count("} catch") >= 1
-            
-            all_checks = [
-                ("Function declaration", has_function),
-                ("Calls getDomainInfo", calls_get_domain_info),
-                ("Checks is_dnssec_enabled", checks_dnssec_enabled),
-                ("Checks dnssec_keys", checks_dnssec_keys),
-                ("Has early return for already disabled", has_early_return),
-                ("Makes PUT request with correct payload", has_put_request),
-                ("Has try/catch error handling", has_try_catch)
-            ]
-            
-            passed_checks = sum(1 for _, check in all_checks if check)
-            total_checks = len(all_checks)
-            
-            details = f"{passed_checks}/{total_checks} checks passed: " + ", ".join([
-                f"{name}={'✓' if check else '✗'}" for name, check in all_checks
-            ])
-            
-            passed = passed_checks == total_checks
-            self.log_test("disableDnssec function implementation", passed, details)
-            return passed
-            
-        except Exception as e:
-            self.log_test("disableDnssec function implementation", False, str(e))
-            return False
-    
-    def test_send_ns_update_helper(self):
-        """Test 5: _sendNsUpdate helper function exists with timeout retry"""
-        try:
-            with open("/app/js/op-service.js", "r") as f:
-                content = f.read()
-            
-            # Check helper function exists
-            has_helper = "const _sendNsUpdate = async (domainId, domainName, nsPayload, headers) => {" in content
-            
-            # Check 30s initial timeout
-            has_30s_timeout = "timeout: 30000" in content
-            
-            # Check 45s retry timeout
-            has_45s_retry = "timeout: 45000" in content
-            
-            # Check retry on ECONNABORTED/timeout
-            has_retry_logic = "ECONNABORTED" in content and "timeout" in content and "retrying" in content
-            
-            checks = [
-                ("Helper function exists", has_helper),
-                ("30s initial timeout", has_30s_timeout),
-                ("45s retry timeout", has_45s_retry),
-                ("Retry logic for timeouts", has_retry_logic)
-            ]
-            
-            passed_checks = sum(1 for _, check in checks if check)
-            total_checks = len(checks)
-            
-            details = f"{passed_checks}/{total_checks} checks passed: " + ", ".join([
-                f"{name}={'✓' if check else '✗'}" for name, check in checks
-            ])
-            
-            passed = passed_checks == total_checks
-            self.log_test("_sendNsUpdate helper function", passed, details)
-            return passed
-            
-        except Exception as e:
-            self.log_test("_sendNsUpdate helper function", False, str(e))
-            return False
-    
-    def test_update_nameservers_dnssec_autofix(self):
-        """Test 6: updateNameservers DNSSEC auto-fix implementation"""
-        try:
-            with open("/app/js/op-service.js", "r") as f:
-                content = f.read()
-            
-            # Check _dnssecRetried parameter with default false
-            has_retry_param = "_dnssecRetried = false" in content
-            
-            # Check isDnssecError detection with code 524 + dnskey/dnssec
-            has_error_detection = "opCode === 524" in content and "dnskey" in content and "dnssec" in content
-            
-            # Check calls disableDnssec when error detected
-            calls_disable_dnssec = "await disableDnssec(domainName)" in content
-            
-            # Check 3s wait after disabling DNSSEC
-            has_3s_wait = "setTimeout(r, 3000)" in content
-            
-            # Check recursive retry with _dnssecRetried=true
-            has_recursive_retry = "updateNameservers(domainName, nameservers, true)" in content
-            
-            # Check _dnssecRetried prevents infinite recursion
-            prevents_infinite_recursion = "!_dnssecRetried" in content
-            
-            checks = [
-                ("_dnssecRetried parameter with default false", has_retry_param),
-                ("isDnssecError detection (code 524 + dnskey/dnssec)", has_error_detection),
-                ("Calls disableDnssec on error", calls_disable_dnssec),
-                ("3s wait after DNSSEC disable", has_3s_wait),
-                ("Recursive retry with _dnssecRetried=true", has_recursive_retry),
-                ("Prevents infinite recursion", prevents_infinite_recursion)
-            ]
-            
-            passed_checks = sum(1 for _, check in checks if check)
-            total_checks = len(checks)
-            
-            details = f"{passed_checks}/{total_checks} checks passed: " + ", ".join([
-                f"{name}={'✓' if check else '✗'}" for name, check in checks
-            ])
-            
-            passed = passed_checks == total_checks
-            self.log_test("updateNameservers DNSSEC auto-fix", passed, details)
-            return passed
-            
-        except Exception as e:
-            self.log_test("updateNameservers DNSSEC auto-fix", False, str(e))
-            return False
-    
-    def test_module_exports(self):
-        """Test 7: disableDnssec is exported in module.exports"""
-        try:
-            with open("/app/js/op-service.js", "r") as f:
-                content = f.read()
-            
-            # Check disableDnssec is in module.exports
-            has_export = "disableDnssec," in content and "module.exports = {" in content
-            
-            # Count exports to verify it's properly included
-            exports_section = content[content.find("module.exports = {"):]
-            export_count = exports_section.count("disableDnssec")
-            
-            details = f"disableDnssec found in exports: {has_export}, count: {export_count}"
-            passed = has_export and export_count >= 1
-            
-            self.log_test("disableDnssec exported in module.exports", passed, details)
-            return passed
-            
-        except Exception as e:
-            self.log_test("disableDnssec exported in module.exports", False, str(e))
-            return False
-    
-    def test_dnssec_error_patterns(self):
-        """Test 8: Comprehensive DNSSEC error pattern detection"""
-        try:
-            with open("/app/js/op-service.js", "r") as f:
-                content = f.read()
-            
-            # Check for various DNSSEC error patterns
-            patterns = [
-                ("Code 524 + dnskey", "opCode === 524" in content and "dnskey" in content),
-                ("Code 524 + dnssec", "opCode === 524" in content and "dnssec" in content),
-                ("Unable to retrieve DNSKEY", "unable to retrieve dnskey" in content),
-                ("DNSSEC validation", "dnssec validation" in content),
-                ("DNSKEY RR", "dnskey rr" in content),
-                ("Case insensitive matching", ".toLowerCase()" in content)
-            ]
-            
-            passed_patterns = sum(1 for _, check in patterns if check)
-            total_patterns = len(patterns)
-            
-            details = f"{passed_patterns}/{total_patterns} patterns found: " + ", ".join([
-                f"{name}={'✓' if check else '✗'}" for name, check in patterns
-            ])
-            
-            passed = passed_patterns >= 4  # At least 4 patterns should be present
-            self.log_test("DNSSEC error pattern detection", passed, details)
-            return passed
-            
-        except Exception as e:
-            self.log_test("DNSSEC error pattern detection", False, str(e))
-            return False
-    
-    def run_all_tests(self):
-        """Run all tests and return summary"""
-        print("🧪 Starting DNSSEC Auto-fix Testing Suite")
-        print("=" * 60)
-        
-        # Run all tests
-        tests = [
-            self.test_syntax_validation,
-            self.test_health_endpoint,
-            self.test_error_log_clean,
-            self.test_disable_dnssec_function_exists,
-            self.test_send_ns_update_helper,
-            self.test_update_nameservers_dnssec_autofix,
-            self.test_module_exports,
-            self.test_dnssec_error_patterns
-        ]
-        
-        for test in tests:
-            try:
-                test()
-            except Exception as e:
-                self.log_test(f"Exception in {test.__name__}", False, str(e))
-            print()  # Add spacing between tests
-        
-        # Print summary
-        print("=" * 60)
-        print(f"📊 TEST SUMMARY: {self.passed}/{self.passed + self.failed} tests passed")
-        
-        if self.failed > 0:
-            print(f"❌ {self.failed} tests failed")
-            print("\nFailed tests:")
-            for result in self.test_results:
-                if not result["passed"]:
-                    print(f"  - {result['test']}: {result['details']}")
+                print(f"❌ FAIL: {description} - Pattern not found")
+                return False, []
         else:
-            print("✅ All tests passed!")
+            if not matches:
+                print(f"✅ PASS: {description} - Pattern correctly not found")
+                return True, []
+            else:
+                print(f"❌ FAIL: {description} - Found {len(matches)} unexpected matches")
+                for i, match in enumerate(matches[:5]):  # Show first 5 matches
+                    print(f"  Match {i+1}: {match}")
+                return False, matches
+                
+    except Exception as e:
+        print(f"❌ ERROR: {description} - {str(e)}")
+        return False, str(e)
+
+def check_health_endpoint():
+    """Check the health endpoint"""
+    print(f"\n🔍 Checking health endpoint")
+    try:
+        response = requests.get("http://localhost:5000/health", timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('status') == 'healthy':
+                print(f"✅ PASS: Health endpoint returns healthy")
+                return True, data
+            else:
+                print(f"❌ FAIL: Health endpoint status not healthy: {data}")
+                return False, data
+        else:
+            print(f"❌ FAIL: Health endpoint returned status {response.status_code}")
+            return False, response.text
+    except Exception as e:
+        print(f"❌ ERROR: Health endpoint check failed - {str(e)}")
+        return False, str(e)
+
+def check_error_log():
+    """Check if error log is clean"""
+    print(f"\n🔍 Checking error log")
+    try:
+        log_path = "/var/log/supervisor/nodejs.err.log"
+        if os.path.exists(log_path):
+            size = os.path.getsize(log_path)
+            if size == 0:
+                print(f"✅ PASS: Error log is clean (0 bytes)")
+                return True, "Clean"
+            else:
+                print(f"❌ FAIL: Error log has {size} bytes")
+                # Show last few lines
+                with open(log_path, 'r') as f:
+                    lines = f.readlines()
+                    if lines:
+                        print("Last few lines:")
+                        for line in lines[-5:]:
+                            print(f"  {line.strip()}")
+                return False, f"{size} bytes"
+        else:
+            print(f"✅ PASS: Error log file doesn't exist (clean)")
+            return True, "No file"
+    except Exception as e:
+        print(f"❌ ERROR: Error log check failed - {str(e)}")
+        return False, str(e)
+
+def main():
+    """Main test function"""
+    print("=" * 80)
+    print("🧪 TESTING: Fix for duplicate notifyGroup + admin notifications")
+    print("   Context: DynoPay Twilio purchase paths in js/_index.js")
+    print("=" * 80)
+    
+    tests_passed = 0
+    total_tests = 0
+    
+    # Test 1: Syntax check
+    total_tests += 1
+    success, output = run_command("node -c /app/js/_index.js", "Syntax check for _index.js")
+    if success:
+        tests_passed += 1
+    
+    # Test 2: Health check
+    total_tests += 1
+    success, data = check_health_endpoint()
+    if success:
+        tests_passed += 1
+    
+    # Test 3: Error log check
+    total_tests += 1
+    success, data = check_error_log()
+    if success:
+        tests_passed += 1
+    
+    # Test 4: Verify 3 comments exist in DynoPay section
+    total_tests += 1
+    success, matches = check_file_content(
+        "/app/js/_index.js",
+        r"//\s*notifyGroup\s*\+\s*admin\s*already\s*sent\s*inside\s*executeTwilioPurchase\(\)",
+        "Check for 3 comments about notifyGroup + admin already sent inside executeTwilioPurchase()",
+        should_exist=True
+    )
+    if success and len(matches) >= 3:
+        tests_passed += 1
+        print(f"   Found {len(matches)} comment(s) as expected")
+    elif success:
+        print(f"❌ Expected 3 comments, found {len(matches)}")
+    
+    # Test 5: Verify ZERO notifyGroup calls in DynoPay Twilio paths (lines 22935-22995)
+    total_tests += 1
+    try:
+        with open("/app/js/_index.js", 'r') as f:
+            lines = f.readlines()
         
-        return self.failed == 0
+        # Extract lines 22935-22995
+        dynopay_section = lines[22934:22995]  # 0-indexed
+        dynopay_content = ''.join(dynopay_section)
+        
+        # Look for notifyGroup calls (excluding comments)
+        notify_pattern = r'^[^/]*notifyGroup\s*\('
+        notify_matches = re.findall(notify_pattern, dynopay_content, re.MULTILINE)
+        
+        if not notify_matches:
+            print(f"✅ PASS: No notifyGroup calls found in DynoPay Twilio paths (lines 22935-22995)")
+            tests_passed += 1
+        else:
+            print(f"❌ FAIL: Found {len(notify_matches)} notifyGroup calls in DynoPay section")
+            for match in notify_matches:
+                print(f"  Found: {match.strip()}")
+    except Exception as e:
+        print(f"❌ ERROR: Failed to check DynoPay section - {str(e)}")
+    
+    # Test 6: Verify executeTwilioPurchase() still has internal notifyGroup at lines ~1250-1254
+    total_tests += 1
+    try:
+        with open("/app/js/_index.js", 'r') as f:
+            lines = f.readlines()
+        
+        # Extract lines around 1248-1255
+        exec_section = lines[1247:1256]  # 0-indexed
+        exec_content = ''.join(exec_section)
+        
+        # Look for notifyGroup calls
+        notify_pattern = r'notifyGroup\s*\('
+        notify_matches = re.findall(notify_pattern, exec_content)
+        
+        if notify_matches:
+            print(f"✅ PASS: executeTwilioPurchase() has {len(notify_matches)} notifyGroup call(s) as expected")
+            tests_passed += 1
+        else:
+            print(f"❌ FAIL: executeTwilioPurchase() missing notifyGroup calls")
+    except Exception as e:
+        print(f"❌ ERROR: Failed to check executeTwilioPurchase section - {str(e)}")
+    
+    # Test 7: Verify other callers of executeTwilioPurchase do NOT have their own notifyGroup
+    total_tests += 1
+    success, matches = check_file_content(
+        "/app/js/_index.js",
+        r"executeTwilioPurchase\([^)]+\)",
+        "Find all executeTwilioPurchase calls",
+        should_exist=True
+    )
+    
+    if success:
+        # Check areas around each call for notifyGroup
+        problem_calls = 0
+        try:
+            with open("/app/js/_index.js", 'r') as f:
+                content = f.read()
+            
+            # Find all executeTwilioPurchase calls and check surrounding context
+            for match in re.finditer(r'executeTwilioPurchase\([^)]+\)', content):
+                start_pos = max(0, match.start() - 500)  # 500 chars before
+                end_pos = min(len(content), match.end() + 500)  # 500 chars after
+                context = content[start_pos:end_pos]
+                
+                # Skip the function definition itself
+                if 'async function executeTwilioPurchase' in context:
+                    continue
+                
+                # Look for notifyGroup calls in the context (excluding comments)
+                context_lines = context.split('\n')
+                for line in context_lines:
+                    if 'notifyGroup(' in line and not line.strip().startswith('//') and not line.strip().startswith('*'):
+                        # Check if this is inside the executeTwilioPurchase function itself
+                        if 'function executeTwilioPurchase' not in context[:context.find(line)]:
+                            problem_calls += 1
+                            print(f"   Found notifyGroup near executeTwilioPurchase call: {line.strip()}")
+            
+            if problem_calls == 0:
+                print(f"✅ PASS: No notifyGroup calls found near other executeTwilioPurchase callers")
+                tests_passed += 1
+            else:
+                print(f"❌ FAIL: Found {problem_calls} notifyGroup calls near executeTwilioPurchase callers")
+        except Exception as e:
+            print(f"❌ ERROR: Failed to analyze executeTwilioPurchase callers - {str(e)}")
+    
+    # Test 8: Verify Telnyx paths still have their own notifyGroup calls
+    total_tests += 1
+    success, matches = check_file_content(
+        "/app/js/_index.js",
+        r"provider\s*===\s*['\"]telnyx['\"]",
+        "Find Telnyx provider sections",
+        should_exist=True
+    )
+    
+    if success:
+        # Look for notifyGroup in Telnyx sections
+        try:
+            with open("/app/js/_index.js", 'r') as f:
+                content = f.read()
+            
+            telnyx_notify_found = False
+            for match in re.finditer(r"provider\s*===\s*['\"]telnyx['\"]", content):
+                # Look in the next 1000 characters for notifyGroup
+                start_pos = match.start()
+                end_pos = min(len(content), start_pos + 1000)
+                telnyx_section = content[start_pos:end_pos]
+                
+                if 'notifyGroup(' in telnyx_section:
+                    telnyx_notify_found = True
+                    break
+            
+            if telnyx_notify_found:
+                print(f"✅ PASS: Telnyx paths still have notifyGroup calls as expected")
+                tests_passed += 1
+            else:
+                print(f"❌ FAIL: Telnyx paths missing notifyGroup calls")
+        except Exception as e:
+            print(f"❌ ERROR: Failed to check Telnyx sections - {str(e)}")
+    
+    # Summary
+    print("\n" + "=" * 80)
+    print(f"📊 TEST SUMMARY: {tests_passed}/{total_tests} tests passed")
+    print("=" * 80)
+    
+    if tests_passed == total_tests:
+        print("🎉 ALL TESTS PASSED! Duplicate notification fix is working correctly.")
+        return True
+    else:
+        print(f"⚠️  {total_tests - tests_passed} test(s) failed. Please review the issues above.")
+        return False
 
 if __name__ == "__main__":
-    tester = DNSSECAutoFixTester()
-    success = tester.run_all_tests()
+    success = main()
     sys.exit(0 if success else 1)
