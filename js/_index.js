@@ -22340,7 +22340,18 @@ app.get('/crypto-pay-vps', auth, async (req, res) => {
   }
 
   const isSuccess = await buyVPSPlanFullProcess(chatId, lang, vpsDetails)
-  if (!isSuccess) return res.send(html(error))
+  if (!isSuccess) {
+    // ── Refund to wallet on VPS provisioning failure (BlockBee crypto path) ──
+    const refundAmt = Number(price) || Number(usdIn)
+    if (refundAmt > 0) {
+      addFundsTo(walletOf, chatId, 'usd', refundAmt, lang)
+      const { usdIn: wIn = 0, usdOut: wOut = 0 } = (await get(walletOf, chatId)) || {}
+      const usdBal = (wIn - wOut).toFixed(2)
+      sendMessage(chatId, `❌ VPS provisioning failed.\n\n💰 <b>$${refundAmt.toFixed(2)}</b> has been refunded to your wallet.\nWallet Balance: <b>$${usdBal}</b>\n\nPlease try again or contact support.`, { parse_mode: 'HTML' })
+      log(`[crypto-pay-vps] Refunded $${refundAmt.toFixed(2)} to wallet for chatId=${chatId} after VPS provisioning failure (BlockBee)`)
+    }
+    return res.send(html(error))
+  }
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
@@ -23018,7 +23029,18 @@ app.post('/dynopay/crypto-pay-vps', authDyno, async (req, res) => {
   }
 
   const isSuccess = await buyVPSPlanFullProcess(chatId, lang, vpsDetails)
-  if (!isSuccess) return res.send(html(error))
+  if (!isSuccess) {
+    // ── Refund to wallet on VPS provisioning failure (crypto path) ──
+    const refundAmt = Number(price) || Number(usdIn)
+    if (refundAmt > 0) {
+      addFundsTo(walletOf, chatId, 'usd', refundAmt, lang)
+      const { usdIn: wIn = 0, usdOut: wOut = 0 } = (await get(walletOf, chatId)) || {}
+      const usdBal = (wIn - wOut).toFixed(2)
+      sendMessage(chatId, `❌ VPS provisioning failed.\n\n💰 <b>$${refundAmt.toFixed(2)}</b> has been refunded to your wallet.\nWallet Balance: <b>$${usdBal}</b>\n\nPlease try again or contact support.`, { parse_mode: 'HTML' })
+      log(`[crypto-pay-vps] Refunded $${refundAmt.toFixed(2)} to wallet for chatId=${chatId} after VPS provisioning failure`)
+    }
+    return res.send(html(error))
+  }
   notifyGroup(`🖥️ <b>VPS Deployed!</b>\nUser ${maskName(name)} just deployed a new VPS server via crypto.\nDeploy yours in seconds — /start`)
   if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🖥️ <b>New VPS (Crypto)</b>\n👤 ${chatId} (${maskName(name)})\n💰 $${Number(price).toFixed(2)} ${coin}\n📦 ${vpsDetails?.plan || 'VPS'}`, { parse_mode: 'HTML' })
   webhookTierCheck(chatId, preSpend, lang)
@@ -23439,6 +23461,86 @@ app.get('/admin/cnam-circuit', async (req, res) => {
   }
 })
 
+// ── Admin: Manually provision a VPS from an existing payment session ──
+app.post('/admin/provision-vps', async (req, res) => {
+  const adminKey = req?.query?.key
+  if (adminKey !== process.env.SESSION_SECRET?.slice(0, 16)) {
+    return res.status(403).json({ error: 'Unauthorized' })
+  }
+
+  try {
+    const { ref, chatId: overrideChatId } = req.body
+    if (!ref) return res.status(400).json({ error: 'Missing ref (payment reference)' })
+
+    // Step 1: Look up the payment session
+    const paySession = await get(chatIdOfDynopayPayment, ref)
+    if (!paySession) {
+      return res.status(404).json({ error: `Payment session not found for ref: ${ref}` })
+    }
+
+    const chatId = overrideChatId || paySession.chatId
+    const vpsDetails = paySession.vpsDetails
+    const price = paySession.price
+    const lang = (await get(state, chatId))?.userLanguage || 'en'
+
+    log(`[admin/provision-vps] Triggering VPS provisioning for ref=${ref}, chatId=${chatId}, price=$${price}`)
+    log(`[admin/provision-vps] VPS Details: ${JSON.stringify(vpsDetails)}`)
+
+    if (!vpsDetails) {
+      return res.status(400).json({ error: 'Payment session has no vpsDetails' })
+    }
+
+    // Step 2: Provision the VPS
+    const isSuccess = await buyVPSPlanFullProcess(chatId, lang, vpsDetails)
+
+    if (isSuccess) {
+      // Step 3: Clean up the payment session
+      await del(chatIdOfDynopayPayment, ref)
+      log(`[admin/provision-vps] ✅ VPS provisioned successfully for ref=${ref}, chatId=${chatId}`)
+      return res.json({
+        success: true,
+        message: `VPS provisioned successfully for user ${chatId}`,
+        ref,
+        plan: vpsDetails.plan,
+        price
+      })
+    } else {
+      log(`[admin/provision-vps] ❌ VPS provisioning failed for ref=${ref}, chatId=${chatId}`)
+      return res.status(500).json({
+        success: false,
+        error: 'buyVPSPlanFullProcess returned false — check Contabo API / dev logs',
+        ref,
+        chatId
+      })
+    }
+  } catch (error) {
+    log(`[admin/provision-vps] Error: ${error.message}`)
+    console.error('[admin/provision-vps]', error)
+    return res.status(500).json({ error: error.message })
+  }
+})
+
+// ── Admin: Check payment session details ──
+app.get('/admin/payment-session', async (req, res) => {
+  const adminKey = req?.query?.key
+  if (adminKey !== process.env.SESSION_SECRET?.slice(0, 16)) {
+    return res.status(403).json({ error: 'Unauthorized' })
+  }
+
+  try {
+    const ref = req.query.ref
+    if (!ref) return res.status(400).json({ error: 'Missing ref parameter' })
+
+    const paySession = await get(chatIdOfDynopayPayment, ref)
+    if (!paySession) {
+      return res.status(404).json({ error: `Payment session not found for ref: ${ref}` })
+    }
+
+    return res.json({ success: true, ref, session: paySession })
+  } catch (error) {
+    return res.status(500).json({ error: error.message })
+  }
+})
 
 app.get('/planInfo', async (req, res) => {
   if (process.env.OLD_APP_ACTIVE === 'false') return res.send('old app off now')
