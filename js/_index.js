@@ -3563,6 +3563,8 @@ bot?.on('message', msg => {
     getVPSDetails: 'getVPSDetails',
     confirmStopVps: 'confirmStopVps',
     confirmDeleteVps: 'confirmDeleteVps',
+    confirmResetPassword: 'confirmResetPassword',
+    confirmReinstallWindows: 'confirmReinstallWindows',
     upgradeVpsInstance: 'upgradeVpsInstance',
     upgradeVpsPlan: 'upgradeVpsPlan',
     askVpsUpgradePayment: 'askVpsUpgradePayment',
@@ -5642,7 +5644,12 @@ Enter new value:`), bc)
       if (!vpsData) return send(chatId, vp.failedFetchingData, trans('o'))
       saveInfo('userVPSDetails', vpsData)
       let action = vpsData.status === 'RUNNING' ? [vp.stopVpsBtn, vp.restartVpsBtn] : [vp.startVpsBtn]
-      return send(chatId, vp.selectedVpsData(vpsData), vp.of([ ...action, vp.subscriptionBtn, vp.VpsLinkedKeysBtn, vp.upgradeVpsBtn,  vp.deleteVpsBtn]))
+      
+      // Add RDP-specific buttons for Windows instances
+      const isRDP = vpsData.isRDP || vpsData.osType === 'Windows'
+      const rdpButtons = isRDP ? [vp.resetPasswordBtn, vp.reinstallWindowsBtn] : []
+      
+      return send(chatId, vp.selectedVpsData(vpsData), vp.of([ ...action, ...rdpButtons, vp.subscriptionBtn, vp.VpsLinkedKeysBtn, vp.upgradeVpsBtn,  vp.deleteVpsBtn]))
     },
 
     confirmStopVps : async () => {
@@ -5653,6 +5660,32 @@ Enter new value:`), bc)
     confirmDeleteVps: async () => {
       await set(state, chatId, 'action', a.confirmDeleteVps)
       return send(chatId, vp.confirmDeleteVpstext(info.vpsDetails.name), vp.of([ vp.confirmChangeBtn, vp.cancel])) 
+    },
+
+    confirmResetPassword: async () => {
+      await set(state, chatId, 'action', a.confirmResetPassword)
+      const vpsDetails = info.userVPSDetails
+      
+      // Check if this is a Windows RDP instance
+      const isRDP = vpsDetails.isRDP || vpsDetails.osType === 'Windows'
+      if (!isRDP) {
+        return send(chatId, vp.rdpNotSupported, trans('o'))
+      }
+      
+      return send(chatId, vp.confirmResetPasswordText(vpsDetails.name), vp.of([vp.confirmChangeBtn, vp.cancel]))
+    },
+
+    confirmReinstallWindows: async () => {
+      await set(state, chatId, 'action', a.confirmReinstallWindows)
+      const vpsDetails = info.userVPSDetails
+      
+      // Check if this is a Windows RDP instance
+      const isRDP = vpsDetails.isRDP || vpsDetails.osType === 'Windows'
+      if (!isRDP) {
+        return send(chatId, vp.rdpNotSupported, trans('o'))
+      }
+      
+      return send(chatId, vp.confirmReinstallWindowsText(vpsDetails.name), vp.of([vp.confirmChangeBtn, vp.cancel]))
     },
 
     upgradeVpsInstance: async () => {
@@ -11231,6 +11264,8 @@ ${message.replace(/\n/g, '<br>')}
     if (message === vp.upgradeVpsBtn) return goto.upgradeVpsInstance()
     if (message === vp.subscriptionBtn) return goto.vpsSubscription()
     if (message === vp.VpsLinkedKeysBtn) return goto.vpsLinkedSSHkeys()
+    if (message === vp.resetPasswordBtn) return goto.confirmResetPassword()
+    if (message === vp.reinstallWindowsBtn) return goto.confirmReinstallWindows()
     if (message === vp.startVpsBtn) {
       send(chatId, vp.vpsBeingStarted(userVPSDetails.name))
       const changeVpsStatus = await changeVpsInstanceStatus(userVPSDetails, 'start')
@@ -11297,6 +11332,112 @@ ${message.replace(/\n/g, '<br>')}
       return goto.getUserAllVmIntances()
     }
     return send(chatId, vp.selectCorrectOption, vp.of([ vp.confirmChangeBtn, vp.cancel]))
+  }
+
+  // ━━━ Reset RDP Password ━━━
+  if (action === a.confirmResetPassword) {
+    if (message === vp.back || message === vp.cancel) return goto.getVPSDetails()
+    if (message === vp.confirmChangeBtn) {
+      const userVPSDetails = info.userVPSDetails
+      const instanceId = userVPSDetails.contaboInstanceId || userVPSDetails._id
+      
+      send(chatId, vp.passwordResetInProgress(userVPSDetails.name))
+      
+      try {
+        // Call the resetPassword function from contabo-service
+        const contabo = require('./contabo-service')
+        const { password, secretId } = await contabo.resetPassword(instanceId)
+        
+        // Update MongoDB with new password secret ID
+        await vpsPlansOf.updateOne(
+          { vpsId: userVPSDetails._id },
+          { $set: { rootPasswordSecretId: secretId, lastPasswordReset: new Date() } }
+        )
+        
+        // Enhanced logging
+        console.log(`[RDP] Password reset successful - ChatId: ${chatId}, Instance: ${instanceId}, Name: ${userVPSDetails.name}`)
+        
+        // Send new credentials to user with WARNING
+        const username = userVPSDetails.isRDP || userVPSDetails.osType === 'Windows' ? 'Administrator' : 'root'
+        send(chatId, vp.passwordResetSuccess(
+          userVPSDetails.name,
+          userVPSDetails.host,
+          username,
+          password
+        ))
+        
+        return goto.getVPSDetails()
+      } catch (err) {
+        console.error(`[RDP] Password reset failed - ChatId: ${chatId}, Instance: ${instanceId}, Error:`, err.message || err)
+        send(chatId, vp.passwordResetFailed(userVPSDetails.name))
+        return goto.getVPSDetails()
+      }
+    }
+    return send(chatId, vp.selectCorrectOption, vp.of([vp.confirmChangeBtn, vp.cancel]))
+  }
+
+  // ━━━ Reinstall Windows ━━━
+  if (action === a.confirmReinstallWindows) {
+    if (message === vp.back || message === vp.cancel) return goto.getVPSDetails()
+    if (message === vp.confirmChangeBtn) {
+      const userVPSDetails = info.userVPSDetails
+      const instanceId = userVPSDetails.contaboInstanceId || userVPSDetails._id
+      const productId = userVPSDetails.productId
+      
+      send(chatId, vp.windowsReinstallInProgress(userVPSDetails.name))
+      
+      try {
+        const contabo = require('./contabo-service')
+        const { generateRandomPassword } = require('./vm-instance-setup')
+        
+        // Get the correct Windows image for this product
+        const windowsImageId = await contabo.getDefaultWindowsImageId(productId)
+        
+        // Generate new password
+        const newPassword = generateRandomPassword(20)
+        const newSecret = await contabo.createSecret(
+          `pwd-reinstall-${instanceId}-${Date.now()}`,
+          newPassword,
+          'password'
+        )
+        
+        // Reinstall Windows
+        await contabo.reinstallInstance(instanceId, {
+          imageId: windowsImageId,
+          rootPassword: newSecret.secretId
+        })
+        
+        // Update MongoDB
+        await vpsPlansOf.updateOne(
+          { vpsId: userVPSDetails._id },
+          { 
+            $set: { 
+              rootPasswordSecretId: newSecret.secretId,
+              lastReinstall: new Date(),
+              status: 'provisioning'
+            } 
+          }
+        )
+        
+        // Enhanced logging
+        console.log(`[RDP] Windows reinstalled - ChatId: ${chatId}, Instance: ${instanceId}, Name: ${userVPSDetails.name}`)
+        
+        // Send new credentials with CRITICAL WARNING
+        send(chatId, vp.windowsReinstallSuccess(
+          userVPSDetails.name,
+          userVPSDetails.host,
+          'Administrator',
+          newPassword
+        ))
+        
+        return goto.getVPSDetails()
+      } catch (err) {
+        console.error(`[RDP] Windows reinstall failed - ChatId: ${chatId}, Instance: ${instanceId}, Error:`, err.message || err)
+        send(chatId, vp.windowsReinstallFailed(userVPSDetails.name))
+        return goto.getVPSDetails()
+      }
+    }
+    return send(chatId, vp.selectCorrectOption, vp.of([vp.confirmChangeBtn, vp.cancel]))
   }
 
   if (action === a.upgradeVpsInstance) {

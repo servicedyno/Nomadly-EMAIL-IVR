@@ -1994,6 +1994,11 @@ Please top up your wallet to continue using your VPS Plan.
     const connectInfo = isRDP
       ? `  <strong>• Connect:</strong> 🖥 Remote Desktop → <code>${response.host}:3389</code>\n  <strong>• How:</strong> Open Remote Desktop Connection (mstsc) and enter the address above.`
       : `  <strong>• Connect:</strong> 💻 <code>ssh ${credentials.username}@${response.host}</code>`
+    
+    const passwordWarning = isRDP
+      ? `\n⚠️ <strong>IMPORTANT - Save Your Password Now!</strong>\n• We CANNOT retrieve it later for security reasons\n• If lost, use "Reset Password" from VPS management (data preserved)\n• Click the password above to reveal and copy it\n`
+      : `\n⚠️ <strong>Save your credentials securely!</strong>\n`
+    
     return `<strong>🎉 ${isRDP ? 'RDP' : 'VPS'} [${response.label}] is active!</strong>
 
 <strong>🔑 Login Credentials:</strong>
@@ -2004,7 +2009,7 @@ Please top up your wallet to continue using your VPS Plan.
 
 <strong>🔗 Connection:</strong>
 ${connectInfo}
-
+${passwordWarning}
 📧 These details have also been sent to your registered email. Please keep them secure.
 
 Thank you for choosing our service
@@ -2093,6 +2098,8 @@ ${list
   deleteVpsBtn: '🗑️ Delete',
   subscriptionBtn: '🔄 Subscriptions',
   VpsLinkedKeysBtn: '🔑 SSH Keys',
+  resetPasswordBtn: '🔑 Reset Password',
+  reinstallWindowsBtn: '🔄 Reinstall Windows',
   confirmChangeBtn: '✅ Confirm',
 
   confirmStopVpstext: name => `⚠️ Are you sure you want to stop VPS <strong>${name}</strong>?`,
@@ -2117,6 +2124,84 @@ Please Try again after sometime.`,
         •       Auto-renewal will be canceled, and no further charges will apply.
 
 Do you want to proceed?`,
+  
+  confirmResetPasswordText: name => `🔑 <strong>Reset RDP Password</strong>
+
+⚠️ <strong>Important:</strong>
+• Your current password will stop working
+• A new password will be generated
+• All your data and files will be preserved
+• You'll need the new password to access RDP
+
+Do you want to reset the password for <strong>${name}</strong>?`,
+
+  confirmReinstallWindowsText: name => `🔄 <strong>Reinstall Windows</strong>
+
+⚠️ <strong>CRITICAL WARNING:</strong>
+• This will ERASE ALL DATA on your RDP
+• All files, programs, and settings will be deleted
+• A fresh Windows installation will be created
+• New credentials will be generated
+• Your old password will NO LONGER work
+
+💾 <strong>Recommendation:</strong> Create a backup/snapshot before proceeding.
+
+Do you want to reinstall Windows on <strong>${name}</strong>?`,
+
+  passwordResetInProgress: name => `🔄 Resetting password for <strong>${name}</strong>...
+
+⏱️ This may take 30-60 seconds. Please wait.`,
+
+  passwordResetSuccess: (name, ip, username, password) => `✅ <strong>Password Reset Successful!</strong>
+
+🖥️ <strong>RDP:</strong> ${name}
+🌐 <strong>IP:</strong> ${ip}
+👤 <strong>Username:</strong> ${username}
+🔑 <strong>New Password:</strong> <code>${password}</code>
+
+⚠️ <strong>IMPORTANT - Save This Password Now!</strong>
+• We cannot retrieve it later for security reasons
+• If lost, you must reset your password again (data will be preserved)
+• Your old password no longer works
+
+💡 Click the password to copy it.`,
+
+  windowsReinstallInProgress: name => `🔄 Reinstalling Windows on <strong>${name}</strong>...
+
+⏱️ This process takes 5-10 minutes. 
+📧 You'll receive new credentials when complete.`,
+
+  windowsReinstallSuccess: (name, ip, username, password) => `🎉 <strong>Windows Reinstalled Successfully!</strong>
+
+🖥️ <strong>RDP:</strong> ${name}
+🌐 <strong>IP:</strong> ${ip}
+👤 <strong>Username:</strong> ${username}
+🔑 <strong>Password:</strong> <code>${password}</code>
+
+⚠️ <strong>CRITICAL - Save This Password Now!</strong>
+• We CANNOT retrieve it later for security reasons
+• All previous data has been erased
+• This is a fresh Windows installation
+• If you lose this password, you must reset it (use "Reset Password" button)
+
+💡 Click the password to copy it.
+🚀 Your RDP is ready to use with these new credentials!`,
+
+  passwordResetFailed: name => `❌ <strong>Password Reset Failed</strong>
+
+Failed to reset password for <strong>${name}</strong>.
+
+Please try again in a few minutes or contact support if the issue persists.`,
+
+  windowsReinstallFailed: name => `❌ <strong>Windows Reinstall Failed</strong>
+
+Failed to reinstall Windows on <strong>${name}</strong>.
+
+Please try again in a few minutes or contact support if the issue persists.`,
+
+  rdpNotSupported: `⚠️ This feature is only available for Windows RDP instances.
+
+Your VPS is running Linux. Use SSH keys for access management instead.`,
   vpsBeingDeleted: name => `⚙️ Please wait while your VPS (${name}) is being deleted`,
   vpsDeleted: name => `✅ VPS (${name}) has been permanently deleted.`,
   failedDeletingVPS: name => `❌ Failed to delete VPS (${name}). 
