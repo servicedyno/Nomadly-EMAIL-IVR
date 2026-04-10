@@ -291,6 +291,8 @@ function formatCallPreview(data) {
   }
 
   lines.push(`🎤 Voice: <b>${data.voiceName || 'Rachel'}</b>`)
+  const speedLabel = data.ttsSpeed && data.ttsSpeed !== 1.0 ? `${data.ttsSpeed}x` : 'Normal'
+  lines.push(`🎚 Speed: <b>${speedLabel}</b>`)
   lines.push(`🔘 ${isOtp ? 'Trigger' : 'Transfer'} key: <b>${data.activeKeys?.join(', ') || '1'}</b>`)
   if (!isOtp) {
     lines.push(`🎵 Hold Music: <b>${data.holdMusic ? 'ON' : 'OFF'}</b>`)

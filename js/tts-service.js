@@ -133,17 +133,24 @@ function isTransientError(err) {
 /**
  * Call EdenAI TTS API for a specific provider/voice (single attempt)
  */
-async function _callEdenAI(text, provider, voiceId, gender, language) {
+async function _callEdenAI(text, provider, voiceId, gender, language, speed = 1.0) {
   const requestBody = {
     providers: provider,
     text: text.trim(),
     language: language,
     option: gender === 'M' ? 'MALE' : 'FEMALE',
   }
+  // Apply speaking rate via provider-specific params and EdenAI settings
+  const safeSpeed = Math.max(0.25, Math.min(4.0, speed || 1.0))
   if (provider === 'openai') {
-    requestBody.provider_params = { openai: { voice: voiceId } }
+    requestBody.provider_params = { openai: { voice: voiceId, speed: safeSpeed } }
   } else {
     requestBody.provider_params = { elevenlabs: { voice_id: voiceId } }
+  }
+  // EdenAI settings.rate works as a percentage offset: -100 to 100 (0 = normal)
+  // Convert multiplier to percentage offset: 1.0 → 0, 0.7 → -30, 1.3 → +30
+  if (safeSpeed !== 1.0) {
+    requestBody.settings = { rate: Math.round((safeSpeed - 1.0) * 100) }
   }
 
   const res = await axios.post('https://api.edenai.run/v2/audio/text_to_speech', requestBody, {
@@ -164,7 +171,7 @@ async function _callEdenAI(text, provider, voiceId, gender, language) {
 /**
  * Call EdenAI TTS with automatic retry on transient errors
  */
-async function _callEdenAIWithRetry(text, provider, voiceId, gender, language) {
+async function _callEdenAIWithRetry(text, provider, voiceId, gender, language, speed = 1.0) {
   let lastErr
   for (let attempt = 0; attempt <= TTS_MAX_RETRIES; attempt++) {
     try {
@@ -172,7 +179,7 @@ async function _callEdenAIWithRetry(text, provider, voiceId, gender, language) {
         log(`[TTS] Retry ${attempt}/${TTS_MAX_RETRIES} for ${provider}...`)
         await new Promise(r => setTimeout(r, TTS_RETRY_DELAY_MS))
       }
-      return await _callEdenAI(text, provider, voiceId, gender, language)
+      return await _callEdenAI(text, provider, voiceId, gender, language, speed)
     } catch (err) {
       lastErr = err
       if (!isTransientError(err)) {
@@ -217,9 +224,10 @@ function _saveAudioResult(result, voiceKey) {
  * @param {string} text - Text to convert
  * @param {string} voiceKey - Voice key from ALL_VOICES
  * @param {string} langCode - Language code (default 'en')
+ * @param {number} speed - Speaking rate multiplier (0.25-4.0, default 1.0)
  * @returns {{ audioPath: string, audioUrl: string|null, voice: string, fallbackUsed: boolean, fallbackProvider: string|null }}
  */
-async function generateTTS(text, voiceKey = DEFAULT_VOICE, langCode = null) {
+async function generateTTS(text, voiceKey = DEFAULT_VOICE, langCode = null, speed = 1.0) {
   if (!EDENAI_API_KEY) throw new Error('EDENAI_API_KEY not configured')
   if (!text || text.trim().length === 0) throw new Error('Text cannot be empty')
 
@@ -235,7 +243,7 @@ async function generateTTS(text, voiceKey = DEFAULT_VOICE, langCode = null) {
 
   // ── Step 1: Try the requested provider with retry ──
   try {
-    result = await _callEdenAIWithRetry(text, provider, voice.voiceId, voice.gender, language)
+    result = await _callEdenAIWithRetry(text, provider, voice.voiceId, voice.gender, language, speed)
   } catch (primaryErr) {
     log(`[TTS] Primary provider ${provider} failed after retries: ${primaryErr.message}`)
 
@@ -246,7 +254,7 @@ async function generateTTS(text, voiceKey = DEFAULT_VOICE, langCode = null) {
       if (fbVoice) {
         log(`[TTS] Falling back to ${fb.label}...`)
         try {
-          result = await _callEdenAI(text, fb.provider, fbVoice.voiceId, fbVoice.gender, language)
+          result = await _callEdenAI(text, fb.provider, fbVoice.voiceId, fbVoice.gender, language, speed)
           usedProvider = fb.provider
           usedVoiceName = fbVoice.name
           usedVoiceKey = fb.voiceKey
@@ -294,8 +302,9 @@ async function generateTTS(text, voiceKey = DEFAULT_VOICE, langCode = null) {
   const baseUrl = process.env.SELF_URL_PROD || process.env.SELF_URL || ''
   const selfHostedUrl = `${baseUrl}/assets/user-audio/${userAudioFilename}`
 
+  const speedNote = speed !== 1.0 ? `, speed: ${speed}x` : ''
   const fallbackNote = fallbackUsed ? ` [FALLBACK from ${provider} → ${usedProvider}]` : ''
-  log(`[TTS] Generated: ${filename} (provider: ${usedProvider}, voice: ${usedVoiceName}, ${text.length} chars)${fallbackNote}`)
+  log(`[TTS] Generated: ${filename} (provider: ${usedProvider}, voice: ${usedVoiceName}, ${text.length} chars${speedNote})${fallbackNote}`)
 
   return {
     audioPath,
@@ -562,6 +571,29 @@ async function translateText(text, targetLangCode) {
   }
 }
 
+// ── TTS Speed Presets ──
+const TTS_SPEED_PRESETS = [
+  { key: 'x-slow', name: 'Very Slow',  icon: '🐌', rate: 0.7,  desc: '0.7x' },
+  { key: 'slow',   name: 'Slow',       icon: '🐢', rate: 0.85, desc: '0.85x' },
+  { key: 'normal', name: 'Normal',     icon: '🚶', rate: 1.0,  desc: '1.0x' },
+  { key: 'fast',   name: 'Fast',       icon: '🏃', rate: 1.15, desc: '1.15x' },
+  { key: 'x-fast', name: 'Very Fast',  icon: '⚡', rate: 1.35, desc: '1.35x' },
+]
+
+const DEFAULT_SPEED = 1.0
+
+function getSpeedButtons() {
+  return TTS_SPEED_PRESETS.map(s => `${s.icon} ${s.name} (${s.desc})`)
+}
+
+function getSpeedByButton(buttonText) {
+  return TTS_SPEED_PRESETS.find(s => buttonText === `${s.icon} ${s.name} (${s.desc})`) || null
+}
+
+function getSpeedPresets() {
+  return TTS_SPEED_PRESETS
+}
+
 module.exports = {
   generateTTS,
   downloadTelegramAudio,
@@ -575,12 +607,17 @@ module.exports = {
   getTemplateByButton,
   getProviderButtons,
   getProviderByButton,
+  getSpeedButtons,
+  getSpeedByButton,
+  getSpeedPresets,
   translateText,
   VOICES,
   ALL_VOICES,
   ELEVENLABS_VOICES,
   OPENAI_VOICES,
   TTS_PROVIDERS,
+  TTS_SPEED_PRESETS,
+  DEFAULT_SPEED,
   GENERIC_VOICES,
   TTS_LANGUAGES,
   GREETING_TEMPLATES,

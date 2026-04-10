@@ -3717,6 +3717,7 @@ bot?.on('message', msg => {
     ivrObEnterIvrNumber: 'ivrObEnterIvrNumber',
     ivrObSelectProvider: 'ivrObSelectProvider',
     ivrObSelectVoice: 'ivrObSelectVoice',
+    ivrObSelectSpeed: 'ivrObSelectSpeed',
     ivrObAudioPreview: 'ivrObAudioPreview',
     ivrObCallPreview: 'ivrObCallPreview',
     ivrObCustomScript: 'ivrObCustomScript',
@@ -3741,6 +3742,7 @@ bot?.on('message', msg => {
     bulkTTSPlaceholder: 'bulkTTSPlaceholder',
     bulkTTSProvider: 'bulkTTSProvider',
     bulkTTSVoice: 'bulkTTSVoice',
+    bulkTTSSpeed: 'bulkTTSSpeed',
     bulkTTSPreview: 'bulkTTSPreview',
     bulkTTSCustomScript: 'bulkTTSCustomScript',
 
@@ -15055,14 +15057,72 @@ Choose an IVR template category:`), k.of(rows))
     ivrObData.voiceName = voice.name
     await saveInfo('ivrObData', ivrObData)
 
+    // Go to speed selection
+    await set(state, chatId, 'action', a.ivrObSelectSpeed)
+    const speedBtns = ttsService.getSpeedButtons().map(b => [b])
+    speedBtns.push(['✍️ Custom Speed'])
+    return send(chatId, `🎤 Voice: <b>${voice.name}</b>\n\n🎚 <b>Select Speaking Speed</b>\n\nChoose how fast the voice speaks:`, k.of(speedBtns))
+  }
+
+  if (action === a.ivrObSelectSpeed) {
+    if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
+    if (message === t.back || message === '🎤 Change Voice') {
+      await set(state, chatId, 'action', a.ivrObSelectProvider)
+      const ttsService = require('./tts-service.js')
+      const providerBtns = ttsService.getProviderButtons().map(b => [b])
+      return send(chatId, `🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine:`, k.of(providerBtns))
+    }
+
+    const ttsService = require('./tts-service.js')
+    const ivrObData = info?.ivrObData || {}
+
+    // Handle custom speed input
+    if (message === '✍️ Custom Speed') {
+      ivrObData._awaitingCustomSpeed = true
+      await saveInfo('ivrObData', ivrObData)
+      return send(chatId, `✍️ Enter a custom speed multiplier:\n<i>Examples: 0.6 (very slow), 0.9 (slightly slow), 1.2 (faster), 1.5 (very fast)\nRange: 0.25 to 4.0</i>`, k.of([['↩️ Back']]))
+    }
+
+    let speed = 1.0
+    if (ivrObData._awaitingCustomSpeed) {
+      // Parse custom speed value
+      if (message === '↩️ Back') {
+        delete ivrObData._awaitingCustomSpeed
+        await saveInfo('ivrObData', ivrObData)
+        const speedBtns = ttsService.getSpeedButtons().map(b => [b])
+        speedBtns.push(['✍️ Custom Speed'])
+        return send(chatId, `🎚 <b>Select Speaking Speed</b>:`, k.of(speedBtns))
+      }
+      const parsed = parseFloat(message)
+      if (isNaN(parsed) || parsed < 0.25 || parsed > 4.0) {
+        return send(chatId, `❌ Invalid speed. Enter a number between <b>0.25</b> and <b>4.0</b>:\n<i>Example: 0.8 or 1.3</i>`, k.of([['↩️ Back']]))
+      }
+      speed = parsed
+      delete ivrObData._awaitingCustomSpeed
+    } else {
+      // Parse from preset button
+      const preset = ttsService.getSpeedByButton(message)
+      if (!preset) {
+        const speedBtns = ttsService.getSpeedButtons().map(b => [b])
+        speedBtns.push(['✍️ Custom Speed'])
+        return send(chatId, `Please select a speed from the buttons:`, k.of(speedBtns))
+      }
+      speed = preset.rate
+    }
+
+    ivrObData.ttsSpeed = speed
+    await saveInfo('ivrObData', ivrObData)
+
     // Generate audio preview
     await set(state, chatId, 'action', a.ivrObAudioPreview)
-    send(chatId, `🎤 Voice: <b>${voice.name}</b>\n\n⏳ Generating audio preview...`)
+    const speedLabel = speed === 1.0 ? 'Normal' : `${speed}x`
+    send(chatId, `🎤 Voice: <b>${ivrObData.voiceName}</b> | 🎚 Speed: <b>${speedLabel}</b>\n\n⏳ Generating audio preview...`)
 
     try {
       const ivrOb = require('./ivr-outbound.js')
       const filledText = ivrOb.fillTemplate(ivrObData.templateText, ivrObData.placeholderValues || {})
-      const result = await ttsService.generateTTS(filledText, voiceKey)
+      const voiceKey = ivrObData.voiceKey || ttsService.DEFAULT_VOICE
+      const result = await ttsService.generateTTS(filledText, voiceKey, null, speed)
       ivrObData.audioPath = result.audioPath
       ivrObData.audioUrl = result.audioUrl
       ivrObData.filledText = filledText
@@ -15074,9 +15134,10 @@ Choose an IVR template category:`), k.of(rows))
         : ''
 
       // Send audio preview with action keyboard attached (avoids slow separate keyboard message)
-      const previewKeyboard = k.of([['✅ Confirm'], ['🎤 Change Voice'], [ivrObData.holdMusic ? '🎵 Hold Music: ON' : '🔇 Hold Music: OFF']])
+      const speedLabel = speed === 1.0 ? 'Normal' : `${speed}x`
+      const previewKeyboard = k.of([['✅ Confirm'], ['🎤 Change Voice', '🎚 Change Speed'], [ivrObData.holdMusic ? '🎵 Hold Music: ON' : '🔇 Hold Music: OFF']])
       await bot.sendAudio(chatId, result.audioPath, {
-        caption: `🔊 <b>Audio Preview</b>\n\nListen to the IVR message that will play to the call receiver.\n\nHappy with it? Tap <b>✅ Confirm</b> to proceed.\nWant a different voice? Tap <b>🎤 Change Voice</b>.${fallbackNote}`,
+        caption: `🔊 <b>Audio Preview</b> | 🎚 Speed: <b>${speedLabel}</b>\n\nListen to the IVR message that will play to the call receiver.\n\nHappy with it? Tap <b>✅ Confirm</b> to proceed.\nWant a different voice? Tap <b>🎤 Change Voice</b>.\nAdjust speed? Tap <b>🎚 Change Speed</b>.${fallbackNote}`,
         parse_mode: 'HTML',
         reply_markup: previewKeyboard.reply_markup,
       })
@@ -15102,13 +15163,20 @@ Choose an IVR template category:`), k.of(rows))
       const providerBtns = ttsService.getProviderButtons().map(b => [b])
       return send(chatId, `🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine:`, k.of(providerBtns))
     }
+    if (message === '🎚 Change Speed') {
+      await set(state, chatId, 'action', a.ivrObSelectSpeed)
+      const ttsService = require('./tts-service.js')
+      const speedBtns = ttsService.getSpeedButtons().map(b => [b])
+      speedBtns.push(['✍️ Custom Speed'])
+      return send(chatId, `🎚 <b>Select Speaking Speed</b>\n\nChoose how fast the voice speaks:`, k.of(speedBtns))
+    }
     // Toggle hold music
     if (message === '🎵 Hold Music: ON' || message === '🔇 Hold Music: OFF') {
       const ivrObData = info?.ivrObData || {}
       ivrObData.holdMusic = !ivrObData.holdMusic
       await saveInfo('ivrObData', ivrObData)
       send(chatId, `🎵 Hold Music: <b>${ivrObData.holdMusic ? 'ON' : 'OFF'}</b>\n${ivrObData.holdMusic ? 'Target will hear "Please hold" + music before transfer.' : 'Target hears standard ringback during transfer.'}`, { parse_mode: 'HTML' })
-      return send(chatId, `What would you like to do?`, k.of([['✅ Confirm'], ['🎤 Change Voice'], [ivrObData.holdMusic ? '🎵 Hold Music: ON' : '🔇 Hold Music: OFF']]))
+      return send(chatId, `What would you like to do?`, k.of([['✅ Confirm'], ['🎤 Change Voice', '🎚 Change Speed'], [ivrObData.holdMusic ? '🎵 Hold Music: ON' : '🔇 Hold Music: OFF']]))
     }
     if (message === '✅ Confirm') {
       // Show call preview
@@ -15802,13 +15870,68 @@ Choose an IVR template category:`), k.of(rows))
     bulkTTS.voiceName = voice.name
     await saveInfo('bulkTTS', bulkTTS)
 
+    // Go to speed selection
+    await set(state, chatId, 'action', a.bulkTTSSpeed)
+    const speedBtns = ttsService.getSpeedButtons().map(b => [b])
+    speedBtns.push(['✍️ Custom Speed'])
+    speedBtns.push(['↩️ Back'])
+    return send(chatId, `🎤 Voice: <b>${voice.name}</b>\n\n🎚 <b>Select Speaking Speed</b>\n\nChoose how fast the voice speaks:`, k.of(speedBtns))
+  }
+
+  if (action === a.bulkTTSSpeed) {
+    if (message === '↩️ Back' || message === t.back) {
+      await set(state, chatId, 'action', a.bulkTTSProvider)
+      const ttsService = require('./tts-service.js')
+      const providerBtns = ttsService.getProviderButtons().map(b => [b])
+      return send(chatId, `🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine:`, k.of([...providerBtns, ['↩️ Back']]))
+    }
+    const ttsService = require('./tts-service.js')
+    const bulkTTS = info?.bulkTTS || {}
+
+    if (message === '✍️ Custom Speed') {
+      bulkTTS._awaitingCustomSpeed = true
+      await saveInfo('bulkTTS', bulkTTS)
+      return send(chatId, `✍️ Enter a custom speed multiplier:\n<i>Examples: 0.6 (very slow), 0.9 (slightly slow), 1.2 (faster), 1.5 (very fast)\nRange: 0.25 to 4.0</i>`, k.of([['↩️ Back']]))
+    }
+
+    let speed = 1.0
+    if (bulkTTS._awaitingCustomSpeed) {
+      if (message === '↩️ Back') {
+        delete bulkTTS._awaitingCustomSpeed
+        await saveInfo('bulkTTS', bulkTTS)
+        const speedBtns = ttsService.getSpeedButtons().map(b => [b])
+        speedBtns.push(['✍️ Custom Speed'])
+        speedBtns.push(['↩️ Back'])
+        return send(chatId, `🎚 <b>Select Speaking Speed</b>:`, k.of(speedBtns))
+      }
+      const parsed = parseFloat(message)
+      if (isNaN(parsed) || parsed < 0.25 || parsed > 4.0) {
+        return send(chatId, `❌ Invalid speed. Enter a number between <b>0.25</b> and <b>4.0</b>:\n<i>Example: 0.8 or 1.3</i>`, k.of([['↩️ Back']]))
+      }
+      speed = parsed
+      delete bulkTTS._awaitingCustomSpeed
+    } else {
+      const preset = ttsService.getSpeedByButton(message)
+      if (!preset) {
+        const speedBtns = ttsService.getSpeedButtons().map(b => [b])
+        speedBtns.push(['✍️ Custom Speed'])
+        speedBtns.push(['↩️ Back'])
+        return send(chatId, `Please select a speed from the buttons:`, k.of(speedBtns))
+      }
+      speed = preset.rate
+    }
+
+    bulkTTS.ttsSpeed = speed
+    await saveInfo('bulkTTS', bulkTTS)
+
     await set(state, chatId, 'action', a.bulkTTSPreview)
-    send(chatId, `🎤 Voice: <b>${voice.name}</b>\n\n⏳ Generating audio...`)
+    const speedLabel = speed === 1.0 ? 'Normal' : `${speed}x`
+    send(chatId, `🎤 Voice: <b>${bulkTTS.voiceName}</b> | 🎚 Speed: <b>${speedLabel}</b>\n\n⏳ Generating audio...`)
 
     try {
       const ivrOb = require('./ivr-outbound.js')
       const filledText = ivrOb.fillTemplate(bulkTTS.templateText, bulkTTS.placeholderValues || {})
-      const result = await ttsService.generateTTS(filledText, voiceKey)
+      const result = await ttsService.generateTTS(filledText, bulkTTS.voiceKey, null, speed)
       bulkTTS.audioPath = result.audioPath
       bulkTTS.audioUrl = result.audioUrl
       bulkTTS.filledText = filledText
@@ -15818,9 +15941,9 @@ Choose an IVR template category:`), k.of(rows))
         ? `\n\n⚠️ <i>Original voice unavailable — used ${result.voice} (${result.fallbackProvider}) instead.</i>`
         : ''
 
-      const previewKB = k.of([['✅ Use This Audio'], ['🎤 Change Voice'], ['↩️ Back']])
+      const previewKB = k.of([['✅ Use This Audio'], ['🎤 Change Voice', '🎚 Change Speed'], ['↩️ Back']])
       await bot.sendAudio(chatId, result.audioPath, {
-        caption: `🔊 <b>Audio Preview</b>\n\nListen to the generated IVR audio.\n\nTap <b>✅ Use This Audio</b> to use in campaign, or <b>🎤 Change Voice</b>.${fallbackNote}`,
+        caption: `🔊 <b>Audio Preview</b> | 🎚 Speed: <b>${speedLabel}</b>\n\nListen to the generated IVR audio.\n\nTap <b>✅ Use This Audio</b> to use in campaign, <b>🎤 Change Voice</b>, or <b>🎚 Change Speed</b>.${fallbackNote}`,
         parse_mode: 'HTML',
         reply_markup: previewKB.reply_markup,
       })
@@ -15843,6 +15966,14 @@ Choose an IVR template category:`), k.of(rows))
       const ttsService = require('./tts-service.js')
       const providerBtns = ttsService.getProviderButtons().map(b => [b])
       return send(chatId, `🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine:`, k.of([...providerBtns, ['↩️ Back']]))
+    }
+    if (message === '🎚 Change Speed') {
+      await set(state, chatId, 'action', a.bulkTTSSpeed)
+      const ttsService = require('./tts-service.js')
+      const speedBtns = ttsService.getSpeedButtons().map(b => [b])
+      speedBtns.push(['✍️ Custom Speed'])
+      speedBtns.push(['↩️ Back'])
+      return send(chatId, `🎚 <b>Select Speaking Speed</b>\n\nChoose how fast the voice speaks:`, k.of(speedBtns))
     }
     if (message === '✅ Use This Audio') {
       const bulkTTS = info?.bulkTTS || {}
