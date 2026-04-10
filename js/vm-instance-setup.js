@@ -758,13 +758,15 @@ async function fetchVPSDetails(telegramId, vpsId) {
 
     if (!live) return false
 
-    const ip = live.ipConfig?.v4?.ip || 'provisioning...'
+    const ip = live.ipConfig?.v4?.ip || localRecord?.host || 'provisioning...'
     const product = contabo.getProduct(live.productId)
+    const isRDP = live.osType === 'Windows'
+    const diskType = (product?.diskType || localRecord?.productId || '').includes('nvme') ? 'nvme' : 'ssd'
 
     return {
       _id: String(vpsId),
       contaboInstanceId: live.instanceId,
-      name: live.name || live.displayName,
+      name: live.name || live.displayName || localRecord?.label,
       label: localRecord?.label || live.displayName,
       host: ip,
       ipv6: live.ipConfig?.v6?.ip || '',
@@ -776,7 +778,7 @@ async function fetchVPSDetails(telegramId, vpsId) {
       ramMb: live.ramMb,
       diskMb: live.diskMb,
       osType: live.osType,
-      isRDP: live.osType === 'Windows',
+      isRDP: isRDP,
       plan: localRecord?.plan || 'Monthly',
       planPrice: localRecord?.planPrice,
       start_time: localRecord?.start_time,
@@ -786,9 +788,26 @@ async function fetchVPSDetails(telegramId, vpsId) {
       zone: live.region, // compatibility
       subscription: {
         subscriptionEnd: localRecord?.end_time || new Date(),
-        osId: { os_name: live.osType === 'Windows' ? 'Windows Server' : (live.imageId || 'Ubuntu') }
+        osId: { os_name: isRDP ? 'Windows Server' : (live.imageId || 'Ubuntu') }
       },
-      defaultUser: live.osType === 'Windows' ? 'Administrator' : 'root'
+      defaultUser: isRDP ? 'Administrator' : 'root',
+
+      // ── Compat fields required by lang/en.js selectedVpsData template ──
+      planDetails: {
+        name: product?.name || live.productId || 'Cloud VPS',
+        specs: {
+          vCPU: live.cpuCores || product?.cpuCores || '?',
+          RAM:  Math.round((live.ramMb || product?.ramMb || 0) / 1024) || '?',
+          disk: Math.round((live.diskMb || product?.diskMb || 0) / 1024) || '?',
+        }
+      },
+      diskTypeDetails: {
+        type: diskType.toUpperCase()
+      },
+      osDetails: {
+        name: isRDP ? '🖥 Windows Server (RDP)' : (live.osType || 'Linux')
+      },
+      cPanelPlanDetails: null
     }
   } catch (err) {
     console.log('Error in fetchVPSDetails (contabo):', err.message || err)
