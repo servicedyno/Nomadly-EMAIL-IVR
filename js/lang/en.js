@@ -95,8 +95,8 @@ const admin = {
 }
 const user = {
   // main keyboards
-  cPanelWebHostingPlans: 'Russia HostPanel Hosting Plans 🔒',
-  pleskWebHostingPlans: 'Russia Plesk Hosting Plans 🔒',
+  cPanelWebHostingPlans: '🇷🇺 HostPanel Plans 🔒',
+  pleskWebHostingPlans: '🇷🇺 Plesk Plans 🔒',
   joinChannel: '📢 Join Channel',
   buyLeads: '🎯 Buy Phone Leads',
   validateLeads: '✅ Validate Numbers',
@@ -237,7 +237,7 @@ Resell our full suite — ${services.join(', ')} — under your brand.
 
 <b>65/35%</b> profit share on every sale. Tap 💬 <b>Get Support</b> to get started.`
   })(),
-  resetLoginAdmit: `${CHAT_BOT_BRAND} SMS: You have been successfully logged out of your previous device.Please login now`,
+  resetLoginAdmit: `✅ Logged out of previous device. Please log in now.`,
   resetLoginDeny: 'Ok sure. No further action required.',
   resetLogin: `${CHAT_BOT_BRAND}SMS: Are you trying to log out of your previous device?`,
   select: `Please select an option:`,
@@ -251,8 +251,8 @@ Resell our full suite — ${services.join(', ')} — under your brand.
   proceedWithPayment: 'Proceed with Payment',
   iHaveSentThePayment: `✅ Check Payment Status`,
   // Free Plan
-  trialAlreadyUsed: `You have already utilized your free trial. If you need more access, please consider subscribing to one of our paid plans.`,
-  oneHourLeftToExpireTrialPlan: `Your Freedom Plan will expire in 1 hour. If you’d like to continue using our services, consider upgrading to a paid plan!`,
+  trialAlreadyUsed: `Free trial already used. Subscribe to continue with premium features.`,
+  oneHourLeftToExpireTrialPlan: `⏰ Your Freedom Plan expires in 1 hour. Upgrade to continue!`,
   freePlanExpired: `🚫 Your Freedom Plan has expired. We hope you enjoyed your trial,
 To continue using our services, please buy one of our premium plans.`,
   freeTrialPlanSelected: hostingType => `
@@ -273,7 +273,7 @@ Enter a .sbs domain to get started.`,
   confirmEmailBeforeProceedingSBS: email =>
     `Are you sure you want to proceed with this ${email} email for the Freedom Plan subscription?`,
   trialPlanInValidEmail: 'Please provide a valid email',
-  trialPlanActivationConfirmation: `Thank you! Your free trial plan will be activated shortly. Please note, this plan will be active for 12 hours only.`,
+  trialPlanActivationConfirmation: `✅ Free trial activating now. Valid for 12 hours.`,
   trialPlanActivationInProgress: `Your free trial plan is being activated. This may take a few moments…`,
 
   what: `That option isn't available right now. Please pick from the buttons below.`,
@@ -346,12 +346,28 @@ ${MONTHLY_PLAN_FREE_DOMAINS} domains · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocale
 
   planSubscribed:
     HIDE_SMS_APP === 'true'
-      ? `You have successfully subscribed to our {{plan}} plan! Enjoy free ".sbs/.xyz" domains, unlimited Shortit links, and free USA phone number validations with phone owner names included. Need E-sim card? Tap 💬 Get Support`
-      : `You have successfully subscribed to our {{plan}} plan! Enjoy free ".sbs/.xyz" domains, unlimited Shortit links, free USA phone validations with phone owner names included, and ${SMS_APP_NAME}. Please download the app here: ${SMS_APP_LINK}. Need E-sim card? Tap 💬 Get Support`,
+      ? `✅ Subscribed to {{plan}} Plan!
+
+Included:
+• Free .sbs/.xyz domains
+• Unlimited Shortit links
+• USA phone validation
+
+Need E-sim? Tap 💬 Support`
+      : `✅ Subscribed to {{plan}} Plan!
+
+Included:
+• Free .sbs/.xyz domains
+• Unlimited Shortit links
+• USA phone validation
+• ${SMS_APP_NAME} app
+
+📲 Download: ${SMS_APP_LINK}
+💬 Get E-sim: Tap Support`,
 
   alreadySubscribedPlan: days => `Your subscription is active and expires in ${days}`,
 
-  payError: `Payment session not found, please try again or tap 💬 Get Support. Discover more ${TG_HANDLE}.`,
+  payError: `❌ Payment session expired. Please try again or tap 💬 Support.`,
 
   chooseFreeDomainText: `<b>Great News!</b> This domain is available for free with your subscription. Would you like to claim it?`,
 
@@ -362,10 +378,10 @@ ${MONTHLY_PLAN_FREE_DOMAINS} domains · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocale
   unblockUser: `Please share the username of the user that needs to be unblocked.`,
   blockedUser: `You are currently blocked from using the bot. Please tap 💬 Get Support. Discover more ${TG_HANDLE}.`,
 
-  greet: `${CHAT_BOT_BRAND} — shorten URLs, register domains, buy phone leads, and grow your business. All from Telegram.
+  greet: `${CHAT_BOT_BRAND} — URL shortener, domains, phone leads & more.
 
-Get started with ${FREE_LINKS} trial Shortit links — /start
-Support: Tap 💬 Get Support`,
+🎁 ${FREE_LINKS} free trial links — /start
+💬 Support: Tap Get Support`,
 
   linkExpired: `This short link has expired and is no longer active. Please contact us for any queries.
 Best,
@@ -375,7 +391,16 @@ Discover more: ${TG_CHANNEL}`,
   successPayment: `Payment Processed Successfully! You can now close this window.`,
 
   welcome: `Thank you for choosing ${CHAT_BOT_NAME}! Please choose an option below:`,
-  welcomeFreeTrial: `Welcome to ${CHAT_BOT_BRAND}! You have ${FREE_LINKS} trial Shortit links to shorten URLs. Subscribe for unlimited Shortit links, free ".sbs/.xyz" domains and free USA phone validations with phone owner names. Experience the ${CHAT_BOT_BRAND} difference!`,
+  welcomeFreeTrial: `Welcome! 🎉
+
+You have ${FREE_LINKS} free Shortit links.
+
+Subscribe for:
+• Unlimited URL shortening
+• Free .sbs/.xyz domains
+• USA phone validation
+
+Tap below to get started! ⬇️`,
 
   unknownCommand: `Command not found. Press /start or tap 💬 Get Support. Discover more ${TG_HANDLE}.`,
 
@@ -706,8 +731,8 @@ ${CHAT_BOT_NAME}`,
 
   selectCurrencyToDeposit: `💵 Deposit Amount (min. $10):`,
 
-  depositNGN: `Please enter NGN Amount (minimum ≈ $10 USD).\nYour Naira will be converted to USD at the current exchange rate:`,
-  askEmailForNGN: `Please provide an email for payment confirmation`,
+  depositNGN: `💵 Enter NGN amount (min. ≈ $10 USD)
+Auto-converts to USD at current rate.`,
 
   depositUSD: `Please enter USD Amount, note that minimum value is $10:`,
   selectCryptoToDeposit: `Please choose a crypto currency:`,
@@ -819,15 +844,30 @@ Select wallet option:`,
 
   walletSelectCurrency: (usd) => `Your Wallet Balance: $${view(usd)}`,
 
-  walletBalanceLow: `Your wallet balance is too low. Tap Deposit below to top up, then your purchase will resume automatically.`,
+  walletBalanceLow: `💰 Wallet balance too low. Tap Deposit to top up.`,
 
-  walletBalanceLowAmount: (needed, balance) => 
-    `Your wallet balance ($${balance.toFixed(2)}) is too low for this purchase.\n\nYou need <b>$${(needed - balance).toFixed(2)} more</b>. Tap Deposit below to top up.`,
+  walletBalanceLowAmount: (needed, balance) =>
+    `💰 Balance: $${balance.toFixed(2)}
+Need: <b>$${(needed - balance).toFixed(2)} more</b>
+
+Tap Deposit ⬇️`,
 
   sentLessMoney: (expected, got) =>
-    `You sent less money than expected so we credited amount received into your wallet. We expected ${expected} but received ${got}`,
+    `⚠️ Underpayment detected
+
+Expected: <b>${expected}</b>
+Received: <b>${got}</b>
+
+Amount credited to wallet.
+Service not delivered.`,
   sentMoreMoney: (expected, got) =>
-    `You sent more money than expected so we credited the extra amount into your wallet. We expected ${expected} but received ${got}`,
+    `💰 Overpayment detected
+
+Expected: <b>${expected}</b>
+Received: <b>${got}</b>
+
+Excess refunded to wallet.
+Service delivered.`,
 
   buyLeadsError: 'Unfortunately the selected area code is unavailable and your wallet has not been charged',
   buyLeadsProgress: (i, total) => `${((i * 100) / total).toFixed()}% leads downloaded. Please wait.`,
@@ -1972,7 +2012,10 @@ Best regards,
 ${CHAT_BOT_NAME}`,
 
   extraMoney: 'The remaining amount for your hourly plan has been deposited to wallet.',
-  paymentRecieved: `✅ Payment successful! Your VPS is being set up. Details will be available shortly and sent to your email for your convenience.`,
+  paymentReceived: `✅ Payment successful!
+
+Your VPS is being set up.
+Details will be sent to your email shortly.`,
   paymentFailed: `❌ Payment failed. Please check your payment method or try again.`,
 
   lowWalletBalance: vpsName => `
@@ -2491,5 +2534,8 @@ const en = {
 }
 
 module.exports = {
+  en,
+}
+s = {
   en,
 }
