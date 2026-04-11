@@ -975,7 +975,7 @@ Service delivered.`,
   shortenedLinkText: linksText => `Here are your shortened links:\n${linksText}`,
 
   qrCodeText: 'Here is your QR code!',
-  scanQrOrUseChat: chatId => `Scan QR with sms marketing app to login. You can also use this code to login: ${chatId}`,
+  scanQrOrUseChat: chatId => `Use this activation code to login to the Nomadly SMS App: <code>${chatId}</code>\n\nDownload the app: ${process.env.SMS_APP_LINK || 'Contact support'}`,
   domainPurchasedFailed: (domain) =>
     `❌ Domain registration for <b>${domain}</b> could not be completed. Please try again or contact support if the issue persists.`,
 

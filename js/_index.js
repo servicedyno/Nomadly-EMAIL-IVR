@@ -1663,6 +1663,25 @@ const loadData = async () => {
   smsAppService.initSmsAppService(db, nameOf, planEndingTime, freeSmsCountOf, loginCountOf, planOf)
   smsAppService.registerRoutes(app, get, set, increment, clicksOfSms, today, week, month, year)
 
+  // SMS App APK download route
+  const apkPath = require('path').join(__dirname, '..', 'static', 'nomadly-sms.apk')
+  app.get('/sms-app/download', (req, res) => {
+    const fs = require('fs')
+    if (fs.existsSync(apkPath)) {
+      res.setHeader('Content-Disposition', 'attachment; filename=NomadlySMS.apk')
+      res.setHeader('Content-Type', 'application/vnd.android.package-archive')
+      res.sendFile(apkPath)
+    } else {
+      res.status(404).json({ error: 'APK not available' })
+    }
+  })
+  app.get('/sms-app/download/info', (req, res) => {
+    const fs = require('fs')
+    const exists = fs.existsSync(apkPath)
+    const size = exists ? fs.statSync(apkPath).size : 0
+    res.json({ version: '2.0.0', name: 'Nomadly SMS', size, available: exists })
+  })
+
   // Initialize Email Blast Service
   emailBlastService.initEmailBlast(db, bot)
   log('[EmailBlast] Service initialized with queue processor')
