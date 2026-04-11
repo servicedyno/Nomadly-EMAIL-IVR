@@ -4758,7 +4758,9 @@ Enter new value:`), bc)
       const usdAmount = info?.depositAmountUsd || 0
       const ngn = await usdToNgn(usdAmount)
       if (!ngn) return send(chatId, '⚠️ NGN payments temporarily unavailable (exchange rate service down). Please try crypto.', trans('o'))
-      const email = info?.email
+      
+      // Use deposit email from environment variable (no user input required)
+      const email = process.env.DEPOSIT_EMAIL || process.env.SINGAPORE_ADMIN_EMAIL || 'deposits@nomadly.app'
 
       log({ ref })
       set(chatIdOfPayment, ref, { chatId, ngnIn: ngn, endpoint: `/bank-wallet`, _createdAt: new Date().toISOString() })
@@ -13843,8 +13845,8 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     if (message === t.back) return goto[a.selectCurrencyToDeposit]()
     const bankLabel = info?.bankLabel
     if (bankLabel && message === bankLabel) {
-      // Bank (Naira) selected → ask for email then Fincra checkout
-      return goto[a.askEmailForNGN]()
+      // Bank (Naira) selected → proceed directly to checkout (no email prompt)
+      return goto.showDepositNgnInfo()
     }
     if (message === info?.cryptoLabel || message === '₿ Crypto') {
       // Crypto selected → show crypto options
@@ -13856,7 +13858,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   if (action === a.depositNGN) {
     if (message === t.back) return goto[a.selectCurrencyToDeposit]()
 
-    // Legacy handler — should not be reached in new flow
+    // Legacy handler — redirects to new flow (no email prompt)
     const sanitized = message.replace(/[#₦,\s]/g, '').replace(/^NGN\s*/i, '').replace(/NGN\s*Amount:?\s*/i, '')
     const amount = parseFloat(sanitized)
     if (isNaN(amount) || amount <= 0) return send(chatId, t.askValidAmount)
@@ -13869,16 +13871,10 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     // Convert to USD for the new flow
     const usdEquiv = await ngnToUsd(amount)
     if (usdEquiv) await saveInfo('depositAmountUsd', usdEquiv)
-    return goto[a.askEmailForNGN]()
+    return goto.showDepositNgnInfo()  // Skip email prompt
   }
-  if (action === a.askEmailForNGN) {
-    if (message === t.back) return goto[a.depositMethodSelect]()
-
-    const email = message
-    if (!isValidEmail(email)) return send(chatId, t.askValidEmail)
-    await saveInfo('email', email)
-    return goto.showDepositNgnInfo()
-  }
+  
+  // Email prompt handler removed - now uses DEPOSIT_EMAIL from .env
 
   if (action === a.depositUSD) {
     if (message === t.back) return goto[a.depositMethodSelect]()
