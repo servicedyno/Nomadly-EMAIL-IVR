@@ -88,16 +88,15 @@ async function ngnToUsd(ngn) {
 }
 
 /**
- * Smart wallet deduct — tries USD first, falls back to NGN.
+ * Smart wallet deduct — USD only.
  * Uses atomic findOneAndUpdate with balance condition to prevent TOCTOU race conditions.
  * Used by auto-renewal schedulers and overage billing where there's no user interaction.
- * @returns {{ success: boolean, currency: 'usd'|'ngn'|null, charged: number, chargedNgn?: number }}
+ * @returns {{ success: boolean, currency: 'usd'|null, charged: number }}
  */
 async function smartWalletDeduct(walletOf, chatId, amountUsd) {
   const { atomicIncrement } = require('./db')
 
   // Atomic USD deduction: only deducts if current balance >= amountUsd
-  // Uses MongoDB expression to check (usdIn - usdOut) >= amountUsd atomically
   try {
     const usdResult = await walletOf.findOneAndUpdate(
       {
@@ -115,30 +114,9 @@ async function smartWalletDeduct(walletOf, chatId, amountUsd) {
     log(`[smartWalletDeduct] USD atomic deduct error: ${e.message}`)
   }
 
-  // Fall back to NGN — same atomic approach
-  const amountNgn = await usdToNgn(amountUsd)
-  if (amountNgn) {
-    try {
-      const ngnResult = await walletOf.findOneAndUpdate(
-        {
-          _id: chatId,
-          $expr: { $gte: [{ $subtract: [{ $ifNull: ['$ngnIn', 0] }, { $ifNull: ['$ngnOut', 0] }] }, amountNgn] }
-        },
-        { $inc: { ngnOut: amountNgn } },
-        { returnDocument: 'after' }
-      )
-      if (ngnResult) {
-        checkReferralReward(walletOf, chatId, amountUsd).catch(() => {})  // async, non-blocking
-        return { success: true, currency: 'ngn', charged: amountUsd, chargedNgn: amountNgn }
-      }
-    } catch (e) {
-      log(`[smartWalletDeduct] NGN atomic deduct error: ${e.message}`)
-    }
-  }
-
-  // Both failed — get balances for reporting
-  const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
-  return { success: false, currency: null, charged: 0, usdBal, ngnBal }
+  // Insufficient USD balance
+  const { usdBal } = await getBalance(walletOf, chatId)
+  return { success: false, currency: null, charged: 0, usdBal }
 }
 
 /**
@@ -206,15 +184,13 @@ async function checkReferralReward(walletOf, chatId, amountUsd) {
 }
 
 /**
- * Smart wallet check — checks if either USD or NGN covers the amount.
- * @returns {{ sufficient: boolean, currency: 'usd'|'ngn'|null, usdBal: number, ngnBal: number, amountNgn?: number }}
+ * Smart wallet check — checks if USD balance covers the amount.
+ * @returns {{ sufficient: boolean, currency: 'usd'|null, usdBal: number }}
  */
 async function smartWalletCheck(walletOf, chatId, amountUsd) {
-  const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
-  if (usdBal >= amountUsd) return { sufficient: true, currency: 'usd', usdBal, ngnBal }
-  const amountNgn = await usdToNgn(amountUsd)
-  if (amountNgn && ngnBal >= amountNgn) return { sufficient: true, currency: 'ngn', amountNgn, usdBal, ngnBal }
-  return { sufficient: false, currency: null, usdBal, ngnBal, amountNgn }
+  const { usdBal } = await getBalance(walletOf, chatId)
+  if (usdBal >= amountUsd) return { sufficient: true, currency: 'usd', usdBal }
+  return { sufficient: false, currency: null, usdBal }
 }
 const addZero = number => (number < 10 ? '0' + number : number)
 const date = (date) => {
@@ -774,10 +750,7 @@ const getBalance = async (walletOf, chatId) => {
 
   const usdBal = (wallet?.usdIn || 0) - (wallet?.usdOut || 0)
 
-  const ngnIn = isNaN(wallet?.ngnIn) ? 0 : Number(wallet?.ngnIn)
-  const ngnOut = isNaN(wallet?.ngnOut) ? 0 : Number(wallet?.ngnOut)
-
-  return { usdBal, ngnBal: ngnIn - ngnOut }
+  return { usdBal }
 }
 
 const MAX_PLAN_DURATION_MS = {

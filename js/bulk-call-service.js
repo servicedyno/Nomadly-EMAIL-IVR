@@ -134,7 +134,7 @@ async function recoverRunningCampaigns() {
           _bot?.sendMessage(campaign.chatId,
             `⏸️ <b>Campaign Paused After Restart</b>\n\n` +
             `Your Bulk IVR campaign has ${pendingLeads.length} leads remaining but your wallet is too low.\n` +
-            `Wallet: <b>$${walletCheck.usdBal.toFixed(2)} / ₦${walletCheck.ngnBal.toFixed(2)}</b> (need $${BULK_CALL_RATE.toFixed(2)}/min)\n\n` +
+            `Wallet: <b>$${walletCheck.usdBal.toFixed(2)}</b> (need $${BULK_CALL_RATE.toFixed(2)}/min)\n\n` +
             `Top up via 👛 Wallet to resume.`,
             { parse_mode: 'HTML' }
           ).catch(() => {})
@@ -346,7 +346,7 @@ async function startCampaign(campaignId) {
   try {
     if (_walletOf) {
       const walletCheck = await smartWalletCheck(_walletOf, campaign.chatId, BULK_CALL_RATE)
-      const { usdBal, ngnBal } = walletCheck
+      const { usdBal } = walletCheck
 
       // Determine if this is the user's first-ever campaign
       const pastCampaignCount = await _collection.countDocuments({
@@ -369,11 +369,11 @@ async function startCampaign(campaignId) {
           _bot?.sendMessage(campaign.chatId,
             `🚫 <b>Campaign Blocked — Minimum Balance Not Met</b>\n\n` +
             `${reason}\n` +
-            `Your wallet: <b>$${usdBal.toFixed(2)} / ₦${ngnBal.toFixed(2)}</b>\n\n` +
+            `Your wallet: <b>$${usdBal.toFixed(2)}</b>\n\n` +
             `Top up via 👛 Wallet, then retry.`,
             { parse_mode: 'HTML' }
           ).catch(() => {})
-          return { error: `Minimum wallet balance of $${BULK_CALL_MIN_WALLET.toFixed(2)} required. USD: $${usdBal.toFixed(2)}, NGN: ₦${ngnBal.toFixed(2)}.` }
+          return { error: `Minimum wallet balance of $${BULK_CALL_MIN_WALLET.toFixed(2)} required. USD: $${usdBal.toFixed(2)}, NGN: ₦${0}.` }
         }
       }
 
@@ -384,7 +384,7 @@ async function startCampaign(campaignId) {
       if (!costCheck.sufficient) {
         _bot?.sendMessage(campaign.chatId,
           `⚠️ <b>Low Balance Warning</b>\n\n` +
-          `Wallet: <b>$${usdBal.toFixed(2)} / ₦${ngnBal.toFixed(2)}</b> (~${estLeadsCovered}+ calls at $${BULK_CALL_RATE.toFixed(2)}/min).\n` +
+          `Wallet: <b>$${usdBal.toFixed(2)}</b> (~${estLeadsCovered}+ calls at $${BULK_CALL_RATE.toFixed(2)}/min).\n` +
           `Campaign has <b>${campaign.leads.length}</b> leads — estimated cost: <b>$${minRequired.toFixed(2)}</b>.\n` +
           `Campaign will pause automatically if balance runs out.\n` +
           `Consider topping up for uninterrupted dialing.`,
@@ -395,7 +395,7 @@ async function startCampaign(campaignId) {
         _bot?.sendMessage(campaign.chatId,
           `📊 <b>Campaign Starting</b>\n\n` +
           `📞 <b>${campaign.leads.length}</b> leads — estimated cost: <b>$${minRequired.toFixed(2)}</b>\n` +
-          `Wallet: <b>$${usdBal.toFixed(2)} / ₦${ngnBal.toFixed(2)}</b> (~${estLeadsCovered}+ calls covered)\n` +
+          `Wallet: <b>$${usdBal.toFixed(2)}</b> (~${estLeadsCovered}+ calls covered)\n` +
           `Rate: $${BULK_CALL_RATE.toFixed(2)}/min per call`,
           { parse_mode: 'HTML' }
         ).catch(() => {})
@@ -483,7 +483,7 @@ async function fireNextBatch(campaignId) {
         _bot?.sendMessage(campaign.chatId,
           `⏸️ <b>Campaign Paused — Wallet Depleted</b>\n\n` +
           `📞 ${campaign.stats.completed}/${campaign.stats.total} calls completed so far.\n` +
-          `Wallet: <b>$${walletCheck.usdBal.toFixed(2)} / ₦${walletCheck.ngnBal.toFixed(2)}</b> (need $${BULK_CALL_RATE.toFixed(2)}/min per call).\n\n` +
+          `Wallet: <b>$${walletCheck.usdBal.toFixed(2)}</b> (need $${BULK_CALL_RATE.toFixed(2)}/min per call).\n\n` +
           `Top up via 👛 Wallet, then resume the campaign.`,
           { parse_mode: 'HTML' }
         ).catch(() => {})
@@ -679,7 +679,7 @@ async function onCallStatusUpdate(callSid, campaignId, leadIndex, status, durati
               await _collection.updateOne({ id: campaignId }, { $set: { status: 'paused' } })
               _bot?.sendMessage(freshCampaign.chatId,
                 `⏸️ <b>Campaign Auto-Paused — Wallet Depleted</b>\n\n` +
-                `Wallet: <b>$${postCheck.usdBal.toFixed(2)} / ₦${postCheck.ngnBal.toFixed(2)}</b> (need $${BULK_CALL_RATE.toFixed(2)}/min per call).\n` +
+                `Wallet: <b>$${postCheck.usdBal.toFixed(2)}</b> (need $${BULK_CALL_RATE.toFixed(2)}/min per call).\n` +
                 `${freshCampaign.stats?.completed || 0}/${freshCampaign.stats?.total || 0} calls completed.\n\n` +
                 `Top up via 👛 Wallet to resume.`,
                 { parse_mode: 'HTML' }

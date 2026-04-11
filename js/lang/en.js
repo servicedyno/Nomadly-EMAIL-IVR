@@ -200,15 +200,15 @@ const u = {
   // wallet
   usd: 'USD',
   ngn: 'NGN',
+
+  // deposit methods
+  depositBank: '🏦 Bank (Naira)',
+  depositCrypto: '₿ Crypto',
 }
 const view = num => Number(num).toFixed(2)
 const yesNo = ['Yes', 'No']
 
-const bal = (usd, ngn) =>
-  HIDE_BANK_PAYMENT !== 'true'
-    ? `$${view(usd)}
-₦${view(ngn)}`
-    : `$${view(usd)}`
+const bal = (usd) => `$${view(usd)}`
 
 const dnsEntryFormat = '' // deprecated — A/CNAME now use multi-step wizard
 
@@ -704,9 +704,9 @@ ${CHAT_BOT_NAME}`,
   promoOptOut: `You have been unsubscribed from promotional messages. Type /start_promos to re-subscribe anytime.`,
   promoOptIn: `You have been re-subscribed to promotional messages. You will receive our latest offers and deals!`,
 
-  selectCurrencyToDeposit: `Please select currency to deposit`,
+  selectCurrencyToDeposit: `How would you like to deposit?`,
 
-  depositNGN: `Please enter NGN Amount (minimum ≈ $10 USD):`,
+  depositNGN: `Please enter NGN Amount (minimum ≈ $10 USD).\nYour Naira will be converted to USD at the current exchange rate:`,
   askEmailForNGN: `Please provide an email for payment confirmation`,
 
   depositUSD: `Please enter USD Amount, note that minimum value is $10:`,
@@ -807,26 +807,19 @@ ${CHAT_BOT_NAME}`,
 Best,
 ${CHAT_BOT_NAME}`,
 
-  showWallet: (usd, ngn) => `Wallet Balance:
+  showWallet: (usd) => `Wallet Balance:
 
-${bal(usd, ngn)}`,
+$${view(usd)}`,
 
-  wallet: (usd, ngn) => `Wallet Balance:
+  wallet: (usd) => `Wallet Balance:
 
-${bal(usd, ngn)}
+$${view(usd)}
 
 Select wallet option:`,
 
-  walletSelectCurrency: (usd, ngn) => `Please select currency to pay from your Wallet Balance:
-
-${bal(usd, ngn)}`,
+  walletSelectCurrency: (usd) => `Your Wallet Balance: $${view(usd)}`,
 
   walletBalanceLow: `Your wallet balance is too low. Tap Deposit below to top up, then your purchase will resume automatically.`,
-
-  walletBalanceLowNgn: (needed, balance) =>
-    `Your NGN wallet balance (₦${balance.toFixed(2)}) is too low for this purchase.\n\nYou need <b>₦${(needed - balance).toFixed(2)} more</b>. Tap Deposit below to top up.`,
-
-  ngnUnavailable: `⚠️ NGN payment is temporarily unavailable (exchange rate service is down). Please pay with USD.`,
 
   walletBalanceLowAmount: (needed, balance) => 
     `Your wallet balance ($${balance.toFixed(2)}) is too low for this purchase.\n\nYou need <b>$${(needed - balance).toFixed(2)} more</b>. Tap Deposit below to top up.`,
@@ -855,7 +848,6 @@ ${bal(usd, ngn)}`,
   buyLeadsNewPrice: (leads, price, newPrice) => `💰 <b>${leads} leads</b> — now just <b>$${view(newPrice)}</b> <s>($${price})</s>\nIncludes phone owner names. Don't miss this deal.`,
   buyLeadsPrice: (leads, price) => `💰 <b>${leads} leads</b> — <b>$${price}</b>\nIncludes phone owner names. Ready when you are.`,
 
-  confirmNgn: (usd, ngn) => `${usd} USD ≈ ${ngn} NGN `,
   walletSelectCurrencyConfirm: `Confirm?`,
 
   // Phone Number validator
@@ -1354,7 +1346,7 @@ const k = {
 
   redSelectProvider: kOf(redSelectProvider),
 }
-const payOpts = HIDE_BANK_PAYMENT !== 'true' ? k.of([u.usd, u.ngn]) : k.of([u.usd])
+const payOpts = k.of([u.usd])
 
 const adminKeyboard = {
   reply_markup: {

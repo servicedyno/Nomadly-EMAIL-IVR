@@ -202,15 +202,15 @@ const u = {
   // wallet
   usd: '美元',
   ngn: 'NGN',
+
+  // deposit methods
+  depositBank: '🏦 Bank (Naira)',
+  depositCrypto: '₿ Crypto',
 }
 const view = num => Number(num).toFixed(2)
 const yesNo = ['是', '否']
 
-const bal = (usd, ngn) =>
-  HIDE_BANK_PAYMENT !== 'true'
-    ? `$${view(usd)}
-₦${view(ngn)}`
-    : `$${view(usd)}`
+const bal = (usd) => `$${view(usd)}`
 
 const dnsEntryFormat = '' // deprecated — A/CNAME now use multi-step wizard
 
@@ -655,8 +655,8 @@ ${CHAT_BOT_NAME}`,
   comingSoonWithdraw: `提现功能暂未开放。需要帮助？请点击 💬 获取支持。`,
   promoOptOut: `您已取消订阅促销消息。输入 /start_promos 随时重新订阅。`,
   promoOptIn: `您已重新订阅促销消息。您将收到我们最新的优惠和活动！`,
-  selectCurrencyToDeposit: `请选择要存入的货币`,
-  depositNGN: `请输入 NGN 金额：`,
+  selectCurrencyToDeposit: `请选择充值方式`,
+  depositNGN: `请输入 NGN 金额（最低 ≈ 10 美元）。\n您的奈拉将按当前汇率转换为美元：`,
   askEmailForNGN: `请输入支付确认邮件`,
   depositUSD: `请输入 USD 金额，注意最小值为 $10：`,
   selectCryptoToDeposit: `请选择加密货币：`,
@@ -735,11 +735,11 @@ ${CHAT_BOT_NAME}`,
   confirmationDepositMoney: (amount, usd) =>
     `您的 ${amount}（$${usd}）支付已处理。感谢您选择我们。\n问候,\n${CHAT_BOT_NAME}`,
 
-  showWallet: (usd, ngn) => `钱包余额 :\n\n${bal(usd, ngn)}`,
+  showWallet: (usd) => `钱包余额 :\n\n$${view(usd)}`,
 
-  wallet: (usd, ngn) => `钱包余额 :\n\n${bal(usd, ngn)}\n\n请选择钱包选项:`,
+  wallet: (usd) => `钱包余额 :\n\n$${view(usd)}\n\n请选择钱包选项:`,
 
-  walletSelectCurrency: (usd, ngn) => `请选择从钱包余额中支付的货币:\n\n${bal(usd, ngn)}`,
+  walletSelectCurrency: (usd) => `钱包余额: $${view(usd)}`,
 
   walletBalanceLow: `您的钱包余额不足。点击"👛 我的钱包" → "➕💵 充值"进行充值。`,
 
@@ -768,8 +768,6 @@ ${CHAT_BOT_NAME}`,
 
   buyLeadsNewPrice: (leads, price, newPrice) => `💰 <b>${leads} 条线索</b> — 仅需 <b>$${view(newPrice)}</b> <s>($${price})</s>\n包含机主姓名。不要错过。`,
   buyLeadsPrice: (leads, price) => `💰 <b>${leads} 条线索</b> — <b>$${price}</b>\n包含机主姓名。随时为您准备。`,
-
-  confirmNgn: (usd, ngn) => `${usd} USD ≈ ${ngn} NGN `,
 
   walletSelectCurrencyConfirm: `确认？`,
 
@@ -1280,7 +1278,7 @@ const k = {
 
   redSelectProvider: kOf(redSelectProvider),
 }
-const payOpts = HIDE_BANK_PAYMENT !== 'true' ? k.of([u.usd, u.ngn]) : k.of([u.usd])
+const payOpts = k.of([u.usd])
 
 const adminKeyboard = {
   reply_markup: {
@@ -2437,8 +2435,5 @@ module.exports = {
     msg += `输入新的名称服务器（每行一个，最少2个，最多4个）:\n\n<i>示例:\nns1.example.com\nns2.example.com</i>`
     return msg
   },
-  walletBalanceLowNgn: (needed, balance) =>
-    `您的 NGN 钱包余额 (₦${balance.toFixed(2)}) 太低，无法进行此次购买。\n\n您还需要 <b>₦${(needed - balance).toFixed(2)}</b>。点击下方存款充值。`,
-  ngnUnavailable: `⚠️ NGN 支付暂时不可用（汇率服务故障）。请使用 USD 支付。`,
   Hosting: '托管',
 }

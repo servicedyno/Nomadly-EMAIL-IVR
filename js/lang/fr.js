@@ -203,15 +203,15 @@ const u = {
   // wallet
   usd: 'USD',
   ngn: 'NGN',
+
+  // deposit methods
+  depositBank: '🏦 Bank (Naira)',
+  depositCrypto: '₿ Crypto',
 }
 const view = num => Number(num).toFixed(2)
 const yesNo = ['Oui', 'Non']
 
-const bal = (usd, ngn) =>
-  HIDE_BANK_PAYMENT !== 'true'
-    ? `$${view(usd)}
-₦${view(ngn)}`
-    : `$${view(usd)}`
+const bal = (usd) => `$${view(usd)}`
 
 const dnsEntryFormat = '' // deprecated — A/CNAME now use multi-step wizard
 
@@ -662,8 +662,8 @@ ${CHAT_BOT_NAME}`,
   comingSoonWithdraw: `Les retraits ne sont pas encore disponibles. Besoin d'aide ? Appuyez sur 💬 Obtenir de l'aide.`,
   promoOptOut: `Vous avez été désabonné des messages promotionnels. Tapez /start_promos pour vous réabonner à tout moment.`,
   promoOptIn: `Vous êtes de nouveau abonné aux messages promotionnels. Vous recevrez nos dernières offres et promotions !`,
-  selectCurrencyToDeposit: `Veuillez sélectionner la devise à déposer`,
-  depositNGN: `Veuillez entrer le montant NGN :`,
+  selectCurrencyToDeposit: `Comment souhaitez-vous déposer ?`,
+  depositNGN: `Veuillez entrer le montant NGN (minimum ≈ 10 USD).\nVotre Naira sera converti en USD au taux de change actuel :`,
   askEmailForNGN: `Veuillez fournir un email pour la confirmation du paiement`,
   depositUSD: `Veuillez entrer le montant USD, notez que la valeur minimum est de 10 USD :`,
   selectCryptoToDeposit: `Veuillez choisir une cryptomonnaie :`,
@@ -742,12 +742,12 @@ ${CHAT_BOT_NAME}`,
   confirmationDepositMoney: (amount, usd) =>
     `Votre paiement de ${amount} ($${usd}) a été traité. Merci de nous avoir choisi.\nCordialement,\n${CHAT_BOT_NAME}`,
 
-  showWallet: (usd, ngn) => `Solde du portefeuille :\n\n${bal(usd, ngn)}`,
+  showWallet: (usd) => `Solde du portefeuille :\n\n$${view(usd)}`,
 
-  wallet: (usd, ngn) => `Solde du portefeuille :\n\n${bal(usd, ngn)}\n\nSélectionnez l'option du portefeuille :`,
+  wallet: (usd) => `Solde du portefeuille :\n\n$${view(usd)}\n\nSélectionnez l'option du portefeuille :`,
 
-  walletSelectCurrency: (usd, ngn) =>
-    `Veuillez sélectionner la devise pour payer à partir de votre solde de portefeuille :\n\n${bal(usd, ngn)}`,
+  walletSelectCurrency: (usd) =>
+    `Solde du portefeuille : $${view(usd)}`,
 
   walletBalanceLow: `Votre solde est insuffisant. Appuyez sur "👛 Mon portefeuille" → "➕💵 Déposer" pour recharger.`,
 
@@ -778,8 +778,6 @@ ${CHAT_BOT_NAME}`,
   buyLeadsNewPrice: (leads, price, newPrice) =>
     `💰 <b>${leads} leads</b> — maintenant seulement <b>$${view(newPrice)}</b> <s>($${price})</s>\nInclut les noms des propriétaires. Ne ratez pas cette offre.`,
   buyLeadsPrice: (leads, price) => `💰 <b>${leads} leads</b> — <b>$${price}</b>\nInclut les noms des propriétaires. Prêt quand vous l'êtes.`,
-
-  confirmNgn: (usd, ngn) => `${usd} USD ≈ ${ngn} NGN `,
 
   walletSelectCurrencyConfirm: `Confirmer ?`,
 
@@ -1295,7 +1293,7 @@ const k = {
 
   redSelectProvider: kOf(redSelectProvider),
 }
-const payOpts = HIDE_BANK_PAYMENT !== 'true' ? k.of([u.usd, u.ngn]) : k.of([u.usd])
+const payOpts = k.of([u.usd])
 
 const adminKeyboard = {
   reply_markup: {
@@ -2481,8 +2479,5 @@ module.exports = {
     msg += `Entrez les nouveaux serveurs de noms (un par ligne, min 2, max 4):\n\n<i>Exemple:\nns1.example.com\nns2.example.com</i>`
     return msg
   },
-  walletBalanceLowNgn: (needed, balance) =>
-    `Votre solde de portefeuille NGN (₦${balance.toFixed(2)}) est trop bas pour cet achat.\n\nVous avez besoin de <b>₦${(needed - balance).toFixed(2)} de plus</b>. Appuyez sur Dépôt ci-dessous pour recharger.`,
-  ngnUnavailable: `⚠️ Le paiement NGN est temporairement indisponible (service de taux de change en panne). Veuillez payer en USD.`,
   Hosting: 'Hébergement',
 }

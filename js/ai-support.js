@@ -545,8 +545,7 @@ async function getUserContext(chatId) {
     const wallet = await _db.collection('walletOf').findOne({ _id: chatId })
     if (wallet) {
       const usdBal = (wallet.usdIn || 0) - (wallet.usdOut || 0)
-      const ngnBal = (wallet.ngnIn || 0) - (wallet.ngnOut || 0)
-      context.push(`Wallet: $${usdBal.toFixed(2)} USD, ₦${ngnBal.toFixed(2)} NGN`)
+      context.push(`Wallet: $${usdBal.toFixed(2)} USD`)
     } else {
       context.push('Wallet: No deposits yet')
     }

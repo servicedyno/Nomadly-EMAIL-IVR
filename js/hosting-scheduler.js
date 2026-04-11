@@ -233,57 +233,46 @@ function initScheduler(deps) {
               )
 
               if (!claimResult) {
-                // Another pod already renewed — REFUND
-                log(`[HostingScheduler] ⚠️ DUPLICATE RENEWAL PREVENTED: ${domain} already renewed — refunding ${result.currency === 'ngn' ? '₦' + result.chargedNgn : '$' + price} to chatId ${chatId}`)
-                if (result.currency === 'ngn') {
-                  await walletOf.updateOne({ _id: chatId }, { $inc: { ngnOut: -result.chargedNgn } })
-                } else {
-                  await walletOf.updateOne({ _id: chatId }, { $inc: { usdOut: -price } })
-                }
+                log(`[HostingScheduler] ⚠️ DUPLICATE RENEWAL PREVENTED: ${domain} already renewed — refunding $${price} to chatId ${chatId}`)
+                await walletOf.updateOne({ _id: chatId }, { $inc: { usdOut: -price } })
                 continue
               }
 
-              // Re-deploy anti-red protection on renewal
               if (antiRedService) {
                 try {
                   await antiRedService.deployFullProtection(account.cpUser, domain, plan)
                 } catch (_) {}
               }
 
-              // Unsuspend if was previously suspended
               if (account.suspended) {
                 await unsuspendAccount(account.cpUser)
               }
 
-              const chargedStr = result.currency === 'ngn' ? `₦${result.chargedNgn.toLocaleString()} NGN` : `$${price}`
-              const { usdBal: remUsd, ngnBal: remNgn } = await getBalance(walletOf, chatId)
-              const balStr = result.currency === 'ngn' ? `₦${remNgn.toFixed(2)}` : `$${remUsd.toFixed(2)}`
+              const { usdBal: remUsd } = await getBalance(walletOf, chatId)
 
               notify(chatId,
                 `✅ <b>Plan Auto-Renewed!</b>\n\n`
                 + `<b>${plan}</b> for <b>${domain}</b> has been renewed.\n`
-                + `<b>Charged:</b> ${chargedStr}\n`
+                + `<b>Charged:</b> $${price}\n`
                 + `<b>New Expiry:</b> ${newExpiry.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}\n`
-                + `<b>Remaining Balance:</b> ${balStr}`
+                + `<b>Remaining Balance:</b> $${remUsd.toFixed(2)}`
               )
               renewed++
-              log(`[HostingScheduler] Auto-renewed ${domain} (${plan}) for ${chatId} — charged ${chargedStr}`)
+              log(`[HostingScheduler] Auto-renewed ${domain} (${plan}) for ${chatId} — charged $${price}`)
               continue
             } else {
-              // Insufficient funds in both wallets — notify (only if not already suspended)
               if (!account.suspended) {
-                const { usdBal, ngnBal } = result
-                const priceNgn = await usdToNgn(price)
+                const { usdBal } = result
                 notify(chatId,
                   `⚠️ <b>Auto-Renew Failed — Insufficient Funds</b>\n\n`
                   + `<b>${plan}</b> for <b>${domain}</b> has expired.\n`
-                  + `<b>Renewal Price:</b> $${price}${priceNgn ? ` (≈ ₦${priceNgn.toLocaleString()})` : ''}\n`
-                  + `<b>Your Balance:</b> $${(usdBal || 0).toFixed(2)} / ₦${(ngnBal || 0).toFixed(2)}\n\n`
+                  + `<b>Renewal Price:</b> $${price}\n`
+                  + `<b>Your Balance:</b> $${(usdBal || 0).toFixed(2)}\n\n`
                   + `Please deposit funds to renew.\n`
                   + `Your hosting has been <b>suspended</b>. Deposit funds to reactivate.\n`
                 + `Your account will be <b>deleted</b> in ${GRACE_PERIOD_HOURS}h if not renewed.`
                 )
-                log(`[HostingScheduler] Auto-renew failed (low funds) for ${domain} — USD: $${(usdBal || 0).toFixed(2)}, NGN: ₦${(ngnBal || 0).toFixed(2)}, needed: $${price}`)
+                log(`[HostingScheduler] Auto-renew failed (low funds) for ${domain} — USD: $${(usdBal || 0).toFixed(2)}, needed: $${price}`)
               }
             }
           } else if (weekly && expiry <= now) {

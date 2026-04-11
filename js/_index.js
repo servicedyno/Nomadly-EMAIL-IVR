@@ -1970,24 +1970,20 @@ async function checkPendingBundles() {
             if (purchaseResult.error) {
               log(`[BundleChecker] Purchase FAILED after bundle approval: ${purchaseResult.error}`)
               // Refund wallet
-              const refundCoin = pb.paymentCoin || 'usd'
-              if (isUsdRefundCoin(refundCoin, { usd: 'USD', ngn: 'NGN' })) {
-                await atomicIncrement(walletOf, pb.chatId, 'usdIn', pb.priceUsd || pb.price)
-              } else {
-                await atomicIncrement(walletOf, pb.chatId, 'ngnIn', pb.priceNgn || 0)
-              }
-              const { usdBal, ngnBal } = await getBalance(walletOf, pb.chatId)
+              // Always refund to USD wallet
+              await atomicIncrement(walletOf, pb.chatId, 'usdIn', pb.priceUsd || pb.price)
+              const { usdBal } = await getBalance(walletOf, pb.chatId)
               await pendingBundles.updateOne({ _id: pb._id }, { $set: { status: 'purchase_failed', error: purchaseResult.error, updatedAt: new Date() } })
               const t = translation('l', lang)
-              send(pb.chatId, `❌ ${t.purchaseFailed || 'Number purchase failed after regulatory approval.'}\n\n💰 <b>$${Number(pb.priceUsd || pb.price).toFixed(2)}</b> has been refunded to your wallet.\n${t.showWallet ? t.showWallet(usdBal, ngnBal) : `Balance: $${usdBal}`}`, { parse_mode: 'HTML' })
+              send(pb.chatId, `❌ ${t.purchaseFailed || 'Number purchase failed after regulatory approval.'}\n\n💰 <b>$${Number(pb.priceUsd || pb.price).toFixed(2)}</b> has been refunded to your wallet.\n${t.showWallet ? t.showWallet(usdBal) : `Balance: $${usdBal}`}`, { parse_mode: 'HTML' })
               notifyAdmin(`⚠️ [BundleChecker] Purchase failed after bundle approval\nchatId: ${pb.chatId}\nnumber: ${pb.selectedNumber}\nerror: ${purchaseResult.error}`)
             } else {
               // SUCCESS!
               await pendingBundles.updateOne({ _id: pb._id }, { $set: { status: 'completed', completedAt: new Date(), updatedAt: new Date() } })
               const cpTxt = phoneConfig.getMsg(lang)
-              const { usdBal, ngnBal } = await getBalance(walletOf, pb.chatId)
+              const { usdBal } = await getBalance(walletOf, pb.chatId)
               const t = translation('l', lang)
-              send(pb.chatId, t.showWallet ? t.showWallet(usdBal, ngnBal) : `Balance: $${usdBal}`)
+              send(pb.chatId, t.showWallet ? t.showWallet(usdBal) : `Balance: $${usdBal}`)
               // If a replacement number was used, let the user know
               const replacementNote = (purchaseNumber !== pb.selectedNumber)
                 ? `\n\n<i>ℹ️ Your original number ${pb.selectedNumber} was no longer available. We activated ${purchaseNumber} instead.</i>`
@@ -2002,12 +1998,7 @@ async function checkPendingBundles() {
             log(`[BundleChecker] Purchase exception: ${purchaseErr.message}`)
             // Refund on exception
             try {
-              const refundCoin = pb.paymentCoin || 'usd'
-              if (isUsdRefundCoin(refundCoin, { usd: 'USD', ngn: 'NGN' })) {
-                await atomicIncrement(walletOf, pb.chatId, 'usdIn', pb.priceUsd || pb.price)
-              } else {
-                await atomicIncrement(walletOf, pb.chatId, 'ngnIn', pb.priceNgn || 0)
-              }
+              await atomicIncrement(walletOf, pb.chatId, 'usdIn', pb.priceUsd || pb.price)
             } catch (refundErr) {
               log(`[BundleChecker] CRITICAL: Refund failed: ${refundErr.message}`)
               notifyAdmin(`🚨 CRITICAL [BundleChecker] Refund failed\nchatId: ${pb.chatId}\nprice: $${pb.price}\nerror: ${refundErr.message}`)
@@ -3184,13 +3175,13 @@ bot?.on('message', msg => {
 
       // Credit the wallet
       await addFundsTo(walletOf, targetChatId, 'usd', amount, 'en')
-      const { usdBal, ngnBal } = await getBalance(walletOf, targetChatId)
+      const { usdBal } = await getBalance(walletOf, targetChatId)
 
       // Notify user
       sendMessage(targetChatId, `💰 <b>Wallet Credited!</b>\n\nYou received <b>$${amount.toFixed(2)} USD</b> from admin.\n\n💳 New Balance: <b>$${usdBal.toFixed(2)} USD</b>`, { parse_mode: 'HTML' })
 
       // Confirm to admin
-      send(chatId, `✅ Credited <b>$${amount.toFixed(2)} USD</b> to <b>${targetName || 'Unknown'}</b> (${targetChatId})\n\n💳 Their balance: $${usdBal.toFixed(2)} USD / ₦${ngnBal.toFixed(2)} NGN`, { parse_mode: 'HTML' })
+      send(chatId, `✅ Credited <b>$${amount.toFixed(2)} USD</b> to <b>${targetName || 'Unknown'}</b> (${targetChatId})\n\n💳 Their balance: $${usdBal.toFixed(2)} USD`, { parse_mode: 'HTML' })
       log(`[Admin] Credited $${amount} to ${targetName || targetChatId} (${targetChatId})`)
     } catch (e) {
       send(chatId, `❌ Error crediting wallet: ${e.message}`)
@@ -3246,7 +3237,7 @@ bot?.on('message', msg => {
       }
 
       // Get wallet balance
-      const { usdBal, ngnBal } = await getBalance(walletOf, targetChatId)
+      const { usdBal } = await getBalance(walletOf, targetChatId)
       const wallet = await get(walletOf, targetChatId)
 
       // Get recent lead jobs
@@ -3264,10 +3255,10 @@ bot?.on('message', msg => {
         jobsSummary = '\n\n📋 No lead jobs found.'
       }
 
-      const msg = `💳 <b>Wallet Balance</b>\n\n👤 <b>${targetName || 'Unknown'}</b> (${targetChatId})\n\n💵 USD Balance: <b>$${usdBal.toFixed(2)}</b>\n   ├ In: $${(wallet?.usdIn || 0).toFixed(2)}\n   └ Out: $${(wallet?.usdOut || 0).toFixed(2)}\n\n💶 NGN Balance: <b>₦${ngnBal.toFixed(2)}</b>\n   ├ In: ₦${(wallet?.ngnIn || 0).toFixed(2)}\n   └ Out: ₦${(wallet?.ngnOut || 0).toFixed(2)}${jobsSummary}`
+      const msg = `💳 <b>Wallet Balance</b>\n\n👤 <b>${targetName || 'Unknown'}</b> (${targetChatId})\n\n💵 USD Balance: <b>$${usdBal.toFixed(2)}</b>\n   ├ In: $${(wallet?.usdIn || 0).toFixed(2)}\n   └ Out: $${(wallet?.usdOut || 0).toFixed(2)}${jobsSummary}`
 
       send(chatId, msg, { parse_mode: 'HTML' })
-      log(`[Admin] Checked balance for ${targetName || targetChatId} (${targetChatId}): $${usdBal.toFixed(2)} USD / ₦${ngnBal.toFixed(2)} NGN`)
+      log(`[Admin] Checked balance for ${targetName || targetChatId} (${targetChatId}): $${usdBal.toFixed(2)} USD`)
     } catch (e) {
       send(chatId, `❌ Error checking balance: ${e.message}`)
       log(`[Admin] Balance check error: ${e.message}`)
@@ -3497,7 +3488,7 @@ bot?.on('message', msg => {
   const getMainMenuGreeting = async () => {
     const lang = info?.userLanguage || 'en'
     try {
-      const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
+      const { usdBal } = await getBalance(walletOf, chatId)
       const tierInfo = await loyalty.getUserTier(walletOf, chatId)
       const greetings = {
         en: { welcome: 'Welcome', hi: 'Hey', balance: 'Balance', tier: 'Tier', discount: 'off all purchases', noDiscount: 'Start spending to unlock discounts', selectOption: 'Select an option below' },
@@ -3980,14 +3971,14 @@ bot?.on('message', msg => {
         return goto.displayMainMenuButtons()
       }
       await set(state, chatId, 'action', 'vps-plan-pay')
-      const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
-      send(chatId, t.showWallet(usdBal, ngnBal))
+      const { usdBal } = await getBalance(walletOf, chatId)
+      send(chatId, t.showWallet(usdBal))
       send(chatId, vp.askPaymentMethod, k.pay)
     },
     'vps-upgrade-plan-pay' : async () => {
       await set(state, chatId, 'action', 'vps-upgrade-plan-pay')
-      const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
-      send(chatId, t.showWallet(usdBal, ngnBal))
+      const { usdBal } = await getBalance(walletOf, chatId)
+      send(chatId, t.showWallet(usdBal))
       send(chatId, vp.askPaymentMethod, k.pay) // Monthly billing — all payment methods available
     },
     // ━━━ Cloud IVR goto functions ━━━
@@ -4038,8 +4029,8 @@ bot?.on('message', msg => {
         return goto.submenu5()
       }
       await set(state, chatId, 'action', 'phone-pay')
-      const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
-      send(chatId, t.showWallet(usdBal, ngnBal))
+      const { usdBal } = await getBalance(walletOf, chatId)
+      send(chatId, t.showWallet(usdBal))
       send(chatId, cpTxt.paymentPrompt(info.cpPrice), k.pay)
     },
     // ━━━ Digital Products goto functions ━━━
@@ -4131,8 +4122,8 @@ bot?.on('message', msg => {
     'leads-pay': async () => {
       await set(state, chatId, 'action', 'leads-pay')
       const price = info?.couponApplied ? info?.newPrice : info?.price
-      const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
-      send(chatId, t.showWallet(usdBal, ngnBal))
+      const { usdBal } = await getBalance(walletOf, chatId)
+      send(chatId, t.showWallet(usdBal))
       const amount = info?.amount || 0
       send(chatId, ({ en: `💰 <b>Payment for ${info?.lastStep === a.validatorSelectFormat ? 'Phone Validation' : 'Phone Leads'}</b>\n\n📦 Quantity: <b>${amount.toLocaleString()}</b>\n💵 Total: <b>$${Number(price).toFixed(2)}</b>\n\nSelect payment method:`, fr: `💰 <b>Paiement pour ${info?.lastStep === a.validatorSelectFormat ? 'Validation Téléphonique' : 'Leads Téléphoniques'}</b>\n\n📦 Quantité : <b>${amount.toLocaleString()}</b>\n💵 Total : <b>$${Number(price).toFixed(2)}</b>\n\nSélectionnez le mode de paiement :`, zh: `💰 <b>${info?.lastStep === a.validatorSelectFormat ? '号码验证' : '电话线索'}付款</b>\n\n📦 数量：<b>${amount.toLocaleString()}</b>\n💵 总计：<b>$${Number(price).toFixed(2)}</b>\n\n选择支付方式：`, hi: `💰 <b>${info?.lastStep === a.validatorSelectFormat ? 'फ़ोन सत्यापन' : 'फ़ोन लीड्स'} का भुगतान</b>\n\n📦 मात्रा: <b>${amount.toLocaleString()}</b>\n💵 कुल: <b>$${Number(price).toFixed(2)}</b>\n\nभुगतान विधि चुनें:` }[lang] || `💰 <b>Payment for ${info?.lastStep === a.validatorSelectFormat ? 'Phone Validation' : 'Phone Leads'}</b>\n\n📦 Quantity: <b>${amount.toLocaleString()}</b>\n💵 Total: <b>$${Number(price).toFixed(2)}</b>\n\nSelect payment method:`), k.pay)
     },
@@ -4562,11 +4553,11 @@ Enter new value:`), bc)
 
     [user.wallet]: async () => {
       await set(state, chatId, 'action', user.wallet)
-      const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
+      const { usdBal } = await getBalance(walletOf, chatId)
       // Show tier badge alongside wallet
       const tierInfo = await loyalty.getUserTier(walletOf, chatId)
       const tierLine = loyalty.formatWalletTierLine(tierInfo, info?.userLanguage || 'en')
-      send(chatId, t.wallet(usdBal, ngnBal) + tierLine, k.of([[u.deposit], [u.txHistory], [u.myTier], [t.back]]))
+      send(chatId, t.wallet(usdBal) + tierLine, k.of([[u.deposit], [u.txHistory], [u.myTier], [t.back]]))
     },
     // ── Transaction History ──
     txHistory: async () => {
@@ -4714,8 +4705,8 @@ Enter new value:`), bc)
         }
 
         // Format output
-        const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
-        let msg = `📜 <b>Transaction History</b>\n\n💰 Current Balance: <b>$${usdBal.toFixed(2)}</b>${process.env.HIDE_BANK_PAYMENT !== 'true' ? ` / ₦${ngnBal.toFixed(2)}` : ''}\n${'─'.repeat(25)}\n\n`
+        const { usdBal } = await getBalance(walletOf, chatId)
+        let msg = `📜 <b>Transaction History</b>\n\n💰 Current Balance: <b>$${usdBal.toFixed(2)}</b>\n${'─'.repeat(25)}\n\n`
 
         for (const tx of recent) {
           const sign = tx.isCredit ? '+' : '-'
@@ -4735,7 +4726,10 @@ Enter new value:`), bc)
     //
     [a.selectCurrencyToDeposit]: async () => {
       await set(state, chatId, 'action', a.selectCurrencyToDeposit)
-      send(chatId, t.selectCurrencyToDeposit, trans('payOpts'))
+      const depositMethodKeyboard = HIDE_BANK_PAYMENT !== 'true'
+        ? k.of([u.depositBank, u.depositCrypto])
+        : k.of([u.depositCrypto])
+      send(chatId, t.selectCurrencyToDeposit, depositMethodKeyboard)
     },
     //
     [a.depositNGN]: async () => {
@@ -4847,12 +4841,6 @@ Enter new value:`), bc)
       }
 
       // Apply loyalty discount to the price
-      // FIX: For domain-only purchases (lastStep='domain-pay'), info.totalPrice may be stale
-      // from a previous hosting flow (hosting sets totalPrice = domain + hosting combined).
-      // Use lastStep to pick the correct price field and avoid inflating the domain charge.
-      // FIX: Virtual card purchases are excluded from loyalty discounts — they have fixed fees.
-      // FIX: info.totalPrice is ONLY used for hosting-pay (it combines domain + hosting cost).
-      //       All other steps use info.price to avoid stale totalPrice from a previous hosting flow.
       const step = info?.lastStep
       const NO_LOYALTY_DISCOUNT_STEPS = ['virtual-card-pay']
       if (!NO_LOYALTY_DISCOUNT_STEPS.includes(step)) {
@@ -4860,11 +4848,8 @@ Enter new value:`), bc)
         if (info?.couponApplied) {
           basePrice = info.newPrice
         } else if (step === 'hosting-pay') {
-          // Hosting: use totalPrice (domain + hosting combined cost)
           basePrice = info?.totalPrice || info?.price || 0
         } else {
-          // All other steps: use info.price directly — prevents stale totalPrice from
-          // a previous hosting flow affecting plans, phones, domains, digital products, etc.
           basePrice = info?.price || 0
         }
         if (basePrice > 0) {
@@ -4873,12 +4858,9 @@ Enter new value:`), bc)
             await saveInfo('loyaltyDiscount', discountInfo.discount)
             await saveInfo('preLoyaltyPrice', basePrice)
             const discountedPrice = discountInfo.finalPrice
-            // Update the stored price to the discounted price
             if (info?.couponApplied) {
               await saveInfo('newPrice', discountedPrice)
             } else if (step !== 'domain-pay' && info?.totalPrice) {
-              // FIX: Don't overwrite totalPrice for domain-only purchases
-              // totalPrice is hosting-specific (domain + hosting combined)
               await saveInfo('totalPrice', discountedPrice)
             }
             await saveInfo('price', discountedPrice)
@@ -4887,28 +4869,19 @@ Enter new value:`), bc)
         }
       }
 
-      await set(state, chatId, 'action', a.walletSelectCurrency)
-      const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
-      // Check if NGN conversion is available — hide NGN option if API is down
-      const ngnTestRate = await usdToNgn(1)
-      if (ngnTestRate) {
-        send(chatId, t.walletSelectCurrency(usdBal, ngnBal), trans('payOpts'))
-      } else {
-        send(chatId, t.walletSelectCurrency(usdBal, ngnBal) + '\n\n⚠️ NGN payments temporarily unavailable.', k.of([u.usd]))
-      }
+      // USD-only wallet — auto-set coin and go straight to confirm
+      await saveInfo('coin', u.usd)
+      const { usdBal } = await getBalance(walletOf, chatId)
+      const finalPrice = info?.couponApplied ? info?.newPrice : (info?.price || info?.totalPrice || 0)
+      send(chatId, t.walletSelectCurrency(usdBal) + `\n\n💵 Amount: <b>$${Number(finalPrice).toFixed(2)}</b>\n\n` + t.walletSelectCurrencyConfirm, trans('yes_no'))
+      await set(state, chatId, 'action', a.walletSelectCurrencyConfirm)
     },
     walletSelectCurrencyConfirm: async () => {
-      const { price, totalPrice, couponApplied, newPrice, coin } = info
+      // kept for backward compat — walletSelectCurrency now goes directly here
+      const { price, totalPrice, couponApplied, newPrice } = info
       const p = couponApplied ? newPrice : (price || totalPrice || 0)
 
-      let text = ''
-      if (coin === u.ngn) {
-        const ngnAmount = await usdToNgn(p)
-        if (!ngnAmount) return send(chatId, '⚠️ NGN payments temporarily unavailable. Please use USD.', trans('payOpts'))
-        text = t.confirmNgn(p, ngnAmount)
-      }
-
-      send(chatId, text + t.walletSelectCurrencyConfirm,  trans('yes_no'))
+      send(chatId, `💵 $${Number(p).toFixed(2)} — ` + t.walletSelectCurrencyConfirm, trans('yes_no'))
       await set(state, chatId, 'action', a.walletSelectCurrencyConfirm)
     },
     //
@@ -5974,29 +5947,17 @@ Enter new value:`), bc)
         log(`[Plan] walletOk called without valid plan/price for ${chatId}`)
         return send(chatId, t.someIssue || 'Something went wrong. Please try again.')
       }
-      const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
+      const { usdBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
-      if (![u.usd, u.ngn].includes(coin)) return send(chatId, t.someIssue || 'Some Issue')
-
-      if (coin === u.usd) {
-        const priceUsd = price
-        if (usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
-        set(payments, nanoid(), `Wallet,Plan,${plan},$${priceUsd},${chatId},${name},${new Date()}`)
-        await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
-      } else {
-        const priceNgn = await usdToNgn(price)
-        if (!priceNgn || ngnBal < priceNgn) {
-          if (!priceNgn) return send(chatId, t.ngnUnavailable || '⚠️ NGN payment temporarily unavailable. Please pay with USD.', trans('payOpts'))
-          return send(chatId, t.walletBalanceLowNgn ? t.walletBalanceLowNgn(priceNgn, ngnBal) : t.walletBalanceLow, k.of([u.deposit]))
-        }
-        set(payments, nanoid(), `Wallet,Plan,${plan},$${price},${chatId},${name},${new Date()},${priceNgn} NGN`)
-        await atomicIncrement(walletOf, chatId, 'ngnOut', priceNgn)
-      }
+      const priceUsd = price
+      if (usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
+      set(payments, nanoid(), `Wallet,Plan,${plan},$${priceUsd},${chatId},${name},${new Date()}`)
+      await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
       checkAndNotifyTierUpgrade(preSpend)
 
-      const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
-      send(chatId, t.showWallet(usd, ngn), trans('o'))
+      const { usdBal: usd } = await getBalance(walletOf, chatId)
+      send(chatId, t.showWallet(usd), trans('o'))
       subscribePlan(planEndingTime, freeDomainNamesAvailableFor, planOf, chatId, plan, bot, lang, freeValidationsAvailableFor)
       notifyGroup(`💎 <b>New Subscription!</b>\nUser ${maskName(name)} just upgraded to the <b>${plan} Plan</b> — unlocking unlimited URL shortening + ${(freeValidationsOf[plan] || 0).toLocaleString()} phone validations with owner names.\nDon't miss out — /start`)
     },
@@ -6005,26 +5966,16 @@ Enter new value:`), bc)
       await set(state, chatId, 'action', 'none')
       const shownPrice = info?.couponApplied ? info?.newPrice : info?.price
       const domain = info?.domain
-      const cheaperPrice = info?.cheaperPrice  // null if only one registrar available
-      // Guard: prevent wallet deduction with undefined domain/price
+      const cheaperPrice = info?.cheaperPrice
       if (!domain || !shownPrice || shownPrice <= 0) {
         log(`[Domain] walletOk called without valid domain/price for ${chatId}`)
         return send(chatId, t.someIssue || 'Something went wrong. Please try again.')
       }
-      const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
+      const { usdBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
-      if (![u.usd, u.ngn].includes(coin)) return send(chatId, t.someIssue || 'Some Issue')
+      if (usdBal < shownPrice) return send(chatId, t.walletBalanceLowAmount(shownPrice, usdBal), k.of([u.deposit]))
 
-      // price validate — against shown price (worst-case)
-      if (coin === u.usd && usdBal < shownPrice) return send(chatId, t.walletBalanceLowAmount(shownPrice, usdBal), k.of([u.deposit]))
-      const shownPriceNgn = await usdToNgn(shownPrice)
-      if (coin === u.ngn && (!shownPriceNgn || ngnBal < shownPriceNgn)) {
-        if (!shownPriceNgn) return send(chatId, t.ngnUnavailable || '⚠️ NGN payment temporarily unavailable. Please pay with USD.', trans('payOpts'))
-        return send(chatId, t.walletBalanceLowNgn ? t.walletBalanceLowNgn(shownPriceNgn, ngnBal) : t.walletBalanceLow, k.of([u.deposit]))
-      }
-
-      // buy domain
       const lang = info?.userLanguage ?? 'en'
 
       try {
@@ -6032,14 +5983,9 @@ Enter new value:`), bc)
         if (error) return
         const name = await get(nameOf, chatId)
 
-        // Re-read state to determine actual pricing
         const updatedInfo = await get(state, chatId)
         const fallbackOccurred = updatedInfo?.registrarFallback === true
 
-        // Determine charge amount:
-        // - Cheaper registrar succeeded → charge cheaperPrice (savings!)
-        // - Fallback to expensive registrar → charge shownPrice (no savings)
-        // - Only one registrar available (cheaperPrice null) → charge shownPrice
         let chargeUsd = shownPrice
         let savings = 0
         if (!fallbackOccurred && cheaperPrice && cheaperPrice < shownPrice) {
@@ -6047,40 +5993,24 @@ Enter new value:`), bc)
           savings = shownPrice - cheaperPrice
         }
 
-        // wallet update — charged AFTER successful domain registration
-        if (coin === u.usd) {
-          set(payments, nanoid(), `Wallet,Domain,${domain},$${chargeUsd},${chatId},${name},${new Date()}`)
-          await atomicIncrement(walletOf, chatId, 'usdOut', chargeUsd)
-          if (savings > 0) {
-            send(chatId, `🎉 <b>You saved $${savings}!</b> Domain <b>${domain}</b> was registered for <b>$${chargeUsd}</b> instead of $${shownPrice}. Only $${chargeUsd} was debited from your wallet.`, { parse_mode: 'HTML' })
-          }
-        }
-        if (coin === u.ngn) {
-          const chargeNgn = savings > 0 ? await usdToNgn(chargeUsd) : shownPriceNgn
-          const actualChargeNgn = chargeNgn || shownPriceNgn
-          const savingsNgn = savings > 0 ? (shownPriceNgn - actualChargeNgn) : 0
-          set(payments, nanoid(), `Wallet,Domain,${domain},$${chargeUsd},${chatId},${name},${new Date()},${actualChargeNgn} NGN`)
-          await atomicIncrement(walletOf, chatId, 'ngnOut', actualChargeNgn)
-          if (savingsNgn > 0) {
-            send(chatId, `🎉 <b>You saved ₦${savingsNgn.toLocaleString()}!</b> Domain <b>${domain}</b> was registered for <b>₦${actualChargeNgn.toLocaleString()}</b> instead of ₦${shownPriceNgn.toLocaleString()}. Only ₦${actualChargeNgn.toLocaleString()} was debited from your wallet.`, { parse_mode: 'HTML' })
-          }
+        set(payments, nanoid(), `Wallet,Domain,${domain},$${chargeUsd},${chatId},${name},${new Date()}`)
+        await atomicIncrement(walletOf, chatId, 'usdOut', chargeUsd)
+        if (savings > 0) {
+          send(chatId, `🎉 <b>You saved $${savings}!</b> Domain <b>${domain}</b> was registered for <b>$${chargeUsd}</b> instead of $${shownPrice}. Only $${chargeUsd} was debited from your wallet.`, { parse_mode: 'HTML' })
         }
 
-        // Notify admin of savings event for accounting
         if (savings > 0) {
           sendMessage(TELEGRAM_ADMIN_CHAT_ID, `💰 <b>Domain savings</b>\nUser: ${chatId}\nDomain: ${domain}\nShown: $${shownPrice} | Charged: $${chargeUsd} | Saved: $${savings}\nRegistrar: ${updatedInfo?.actualRegistrar || 'unknown'}`, { parse_mode: 'HTML' })
         }
 
-        // Clean up pricing state
         await set(state, chatId, 'actualPrice', null)
         await set(state, chatId, 'actualRegistrar', null)
         await set(state, chatId, 'registrarFallback', null)
 
-        const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
-        send(chatId, t.showWallet(usd, ngn), trans('o'))
+        const { usdBal: usd } = await getBalance(walletOf, chatId)
+        send(chatId, t.showWallet(usd), trans('o'))
         notifyGroup(`🌐 <b>Domain Registered!</b>\nUser ${maskName(name)} just claimed <b>${maskDomain(domain)}</b> — your dream domain could be next.\nGrab yours before it's taken — /start`)
         checkAndNotifyTierUpgrade(preSpend)
-        // Post-purchase upsell
         setTimeout(() => {
           send(chatId, `💡 <b>What's next with ${domain}?</b>\n\n🔗 <b>Activate for URL Shortener</b> — use ${domain} as your branded short link\n🌐 <b>Manage DNS</b> — point it to your server\n📞 <b>Get a Cloud IVR</b> — pair with a virtual number\n\nTap one of the options below to continue.`, k.of([['🔗 Activate Domain for Shortener'], ['📞 Cloud IVR + SIP'], [t.back]]))
         }, 2000)
@@ -6092,168 +6022,100 @@ Enter new value:`), bc)
     },
     'hosting-pay': async coin => {
       await set(state, chatId, 'action', 'none')
-      saveInfo('processingPayment', false) // Clear processing flag
+      saveInfo('processingPayment', false)
       const price = info?.couponApplied ? info?.newPrice : info?.totalPrice
-      // Guard: prevent wallet deduction with undefined website/price
       if (!info?.website_name || !price || price <= 0) {
         log(`[Hosting] walletOk called without valid website_name/price for ${chatId}`)
         return send(chatId, t.someIssue || 'Something went wrong. Please try again.')
       }
-      const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
+      const { usdBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
-      if (![u.usd, u.ngn].includes(coin)) return send(chatId, t.someIssue || 'Some Issue')
-
-      // price validate
       const priceUsd = price
-      if (coin === u.usd && usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
-      const priceNgn = await usdToNgn(price)
-      if (coin === u.ngn && (!priceNgn || ngnBal < priceNgn)) {
-        if (!priceNgn) return send(chatId, t.ngnUnavailable || '⚠️ NGN payment temporarily unavailable. Please pay with USD.', trans('payOpts'))
-        return send(chatId, t.walletBalanceLowNgn ? t.walletBalanceLowNgn(priceNgn, ngnBal) : t.walletBalanceLow, k.of([u.deposit]))
-      }
+      if (usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
 
-      // Capture business context before registerDomainAndCreateCpanel cleans up state
       const txDomain = info?.domain || info?.website_name
       const txPlan = info?.plan || null
       const txHostingType = info?.hostingType || null
       const txCouponApplied = !!info?.couponApplied
       const txCouponDiscount = info?.couponDiscount || null
       const txExistingDomain = !!info?.existingDomain || !!info?.connectExternalDomain
-      const txPayMethod = coin === u.usd ? 'wallet_usd' : 'wallet_ngn'
-      const txCurrency = coin === u.usd ? 'USD' : 'NGN'
+      const txPayMethod = 'wallet_usd'
+      const txCurrency = 'USD'
 
       const hostingResult = await registerDomainAndCreateCpanel(send, info, trans('o'), state)
       if (!hostingResult?.success) {
-        // If new domain was registered, charge domain cost only — hosting portion NOT charged
-        // FIX: domainPrice was never saved to state — fall back to info.price (the domain price field)
         const domainPrice = info?.domainPrice || info?.price || 0
         if (!info?.existingDomain && !info?.connectExternalDomain && domainPrice > 0) {
           const domainCost = domainPrice
-          if (coin === u.usd) {
-            set(payments, nanoid(), `Wallet,Domain,${info.domain},$${domainCost},${chatId},${new Date()}`)
-            await atomicIncrement(walletOf, chatId, 'usdOut', domainCost)
-          }
-          if (coin === u.ngn) {
-            const domainCostNgn = await usdToNgn(domainCost)
-            if (domainCostNgn) {
-              set(payments, nanoid(), `Wallet,Domain,${info.domain},$${domainCost},${chatId},${new Date()},${domainCostNgn} NGN`)
-              await atomicIncrement(walletOf, chatId, 'ngnOut', domainCostNgn)
-            } else {
-              // NGN conversion unavailable — charge in USD as fallback for already-registered domain
-              set(payments, nanoid(), `Wallet,Domain,${info.domain},$${domainCost},${chatId},${new Date()}`)
-              await atomicIncrement(walletOf, chatId, 'usdOut', domainCost)
-            }
-          }
-          const { usdBal: usd2, ngnBal: ngn2 } = await getBalance(walletOf, chatId)
-          send(chatId, t.showWallet(usd2, ngn2), trans('o'))
-          // Record domain-only outcome
+          set(payments, nanoid(), `Wallet,Domain,${info.domain},$${domainCost},${chatId},${new Date()}`)
+          await atomicIncrement(walletOf, chatId, 'usdOut', domainCost)
+          const { usdBal: usd2 } = await getBalance(walletOf, chatId)
+          send(chatId, t.showWallet(usd2), trans('o'))
           recordHostingTransaction(chatId, { domain: txDomain, plan: txPlan, priceUsd, paymentMethod: txPayMethod, currency: txCurrency, outcome: 'domain_only', hostingType: txHostingType, couponApplied: txCouponApplied, couponDiscount: txCouponDiscount, existingDomain: txExistingDomain })
           return send(chatId, `Your domain <b>${info.domain}</b> has been registered successfully, but hosting setup failed. Domain cost ($${domainCost}) has been charged. Please contact support to complete your hosting setup: ${process.env.APP_SUPPORT_LINK}`, trans('o'))
         }
-        // Record full failure outcome
         recordHostingTransaction(chatId, { domain: txDomain, plan: txPlan, priceUsd, paymentMethod: txPayMethod, currency: txCurrency, outcome: 'failed', hostingType: txHostingType, couponApplied: txCouponApplied, couponDiscount: txCouponDiscount, existingDomain: txExistingDomain })
         return send(chatId, hostingResult?.error || 'Hosting creation failed. Your wallet was not charged. Please try again or contact support.', trans('o'))
       }
 
-      // wallet update
-      if (coin === u.usd) {
-        set(payments, nanoid(), `Wallet,Hosting,${info.domain},$${priceUsd},${chatId},${new Date()}`)
-        await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
-      }
-      if (coin === u.ngn) {
-        set(payments, nanoid(), `Wallet,Hosting,${info.domain},$${priceUsd},${chatId},${new Date()},${priceNgn} NGN`)
-        await atomicIncrement(walletOf, chatId, 'ngnOut', priceNgn)
-      }
-      const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
-      send(chatId, t.showWallet(usd, ngn), trans('o'))
+      set(payments, nanoid(), `Wallet,Hosting,${info.domain},$${priceUsd},${chatId},${new Date()}`)
+      await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
+      const { usdBal: usd } = await getBalance(walletOf, chatId)
+      send(chatId, t.showWallet(usd), trans('o'))
       checkAndNotifyTierUpgrade(preSpend)
 
-      // Record successful hosting transaction
       recordHostingTransaction(chatId, { domain: txDomain, plan: txPlan, priceUsd, paymentMethod: txPayMethod, currency: txCurrency, outcome: 'success', hostingType: txHostingType, couponApplied: txCouponApplied, couponDiscount: txCouponDiscount, existingDomain: txExistingDomain })
 
-      // ── Hosting purchase group notification (was missing — Fix #1) ──
       try {
         const name = await get(nameOf, chatId)
         const domain = info?.domain || info?.website_name
         notifyGroup(`🏠 <b>Hosting Activated!</b>\nUser ${maskName(name)} just set up hosting for <b>${maskDomain(domain)}</b> — ready for launch.\nBuild yours — /start`)
-        sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🏠 <b>Hosting Purchase (Wallet)</b>\n🆔 User: ${chatId}\n🌐 Domain: ${domain}\n📋 Plan: ${info?.plan || 'N/A'}\n💵 Price: $${priceUsd}\n💳 Payment: ${coin === u.usd ? 'Wallet USD' : 'Wallet NGN'}`, { parse_mode: 'HTML' })
+        sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🏠 <b>Hosting Purchase (Wallet)</b>\n🆔 User: ${chatId}\n🌐 Domain: ${domain}\n📋 Plan: ${info?.plan || 'N/A'}\n💵 Price: $${priceUsd}\n💳 Payment: Wallet USD`, { parse_mode: 'HTML' })
       } catch (e) { log('[Hosting] notifyGroup error: ' + e.message) }
     },
     'vps-plan-pay': async coin => {
       await set(state, chatId, 'action', 'none')
       const vpsDetails = info?.vpsDetails
-      // Guard: prevent TypeError crash and wallet deduction with undefined VPS details
       if (!vpsDetails || !vpsDetails.totalPrice) {
         log(`[VPS] walletOk called without valid vpsDetails for ${chatId}`)
         return send(chatId, t.someIssue || 'Something went wrong. Please try again.')
       }
       const price = Number(vpsDetails.totalPrice)
-      const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
+      const { usdBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
-      if (![u.usd, u.ngn].includes(coin)) return send(chatId, t.someIssue || 'Some Issue')
-
-      // price validate
       const priceUsd = price
-      if (coin === u.usd && usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
-      const priceNgn = await usdToNgn(price)
-      if (coin === u.ngn && (!priceNgn || ngnBal < priceNgn)) {
-        if (!priceNgn) return send(chatId, t.ngnUnavailable || '⚠️ NGN payment temporarily unavailable. Please pay with USD.', trans('payOpts'))
-        return send(chatId, t.walletBalanceLowNgn ? t.walletBalanceLowNgn(priceNgn, ngnBal) : t.walletBalanceLow, k.of([u.deposit]))
-      }
+      if (usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
       
-      // buy VPS
       const lang = info?.userLanguage ?? 'en'
       const name = await get(nameOf, chatId)
 
       let walletDeducted = false
-      let deductedAmount = 0
-      let deductedCurrency = null
 
       try {
-        // Step 1: Deduct from wallet
-        if (coin === u.usd) {
-          set(payments, nanoid(), `Wallet,VPSPlan,${vpsDetails?.plan},$${priceUsd},${chatId},${name},${new Date()}`)
-          await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
-          walletDeducted = true
-          deductedAmount = priceUsd
-          deductedCurrency = 'usd'
-        }
-        if (coin === u.ngn) {
-          set(payments, nanoid(), `Wallet,VPSPlan,${vpsDetails?.plan},$${priceUsd},${chatId},${name},${new Date()},${priceNgn} NGN`)
-          await atomicIncrement(walletOf, chatId, 'ngnOut', priceNgn)
-          walletDeducted = true
-          deductedAmount = priceNgn
-          deductedCurrency = 'ngn'
-        }
+        set(payments, nanoid(), `Wallet,VPSPlan,${vpsDetails?.plan},$${priceUsd},${chatId},${name},${new Date()}`)
+        await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
+        walletDeducted = true
         
         sendMessage(chatId, translation('vp.paymentRecieved', lang), rem)
         
-        // Step 2: Provision VPS (this might fail)
         const isSuccess = await buyVPSPlanFullProcess(chatId, lang, vpsDetails)
         if (!isSuccess) {
           throw new Error('VPS provisioning failed')
         }
         
-        // Success
-        const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
-        send(chatId, t.showWallet(usd, ngn), trans('o'))
+        const { usdBal: usd } = await getBalance(walletOf, chatId)
+        send(chatId, t.showWallet(usd), trans('o'))
         checkAndNotifyTierUpgrade(preSpend)
         
       } catch (error) {
         log(`[VPS] Provisioning failed for ${chatId}: ${error.message}`)
         
-        // ROLLBACK: Refund wallet if deducted
         if (walletDeducted) {
-          if (deductedCurrency === 'usd') {
-            await atomicIncrement(walletOf, chatId, 'usdIn', deductedAmount)
-            log(`[VPS] Refunded ${deductedAmount} USD to ${chatId}`)
-          } else {
-            await atomicIncrement(walletOf, chatId, 'ngnIn', deductedAmount)
-            log(`[VPS] Refunded ${deductedAmount} NGN to ${chatId}`)
-          }
-          send(chatId, ({ en: `❌ <b>VPS provisioning failed</b>\n\n✅ Refund of ${deductedCurrency === 'usd' ? '$' : '₦'}${deductedAmount} issued to your wallet.\n\nError: ${sanitizeProviderError(error.message)}\n\nPlease contact support if the issue persists.`, fr: `❌ <b>Échec du provisionnement VPS</b>\n\n✅ Remboursement de ${deductedCurrency === 'usd' ? '$' : '₦'}${deductedAmount} sur votre portefeuille.\n\nErreur : ${sanitizeProviderError(error.message)}\n\nContactez le support si le problème persiste.`, zh: `❌ <b>VPS 配置失败</b>\n\n✅ 已退还 ${deductedCurrency === 'usd' ? '$' : '₦'}${deductedAmount} 到您的钱包。\n\n错误：${sanitizeProviderError(error.message)}\n\n如问题持续，请联系客服。`, hi: `❌ <b>VPS प्रोविज़निंग विफल</b>\n\n✅ ${deductedCurrency === 'usd' ? '$' : '₦'}${deductedAmount} आपके वॉलेट में वापस किया गया।\n\nत्रुटि: ${sanitizeProviderError(error.message)}\n\nसमस्या बनी रहे तो सहायता से संपर्क करें।` }[lang] || `❌ <b>VPS provisioning failed</b>\n\n✅ Refund of ${deductedCurrency === 'usd' ? '$' : '₦'}${deductedAmount} issued to your wallet.\n\nError: ${sanitizeProviderError(error.message)}\n\nPlease contact support if the issue persists.`), { parse_mode: 'HTML' })
+          await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
+          log(`[VPS] Refunded ${priceUsd} USD to ${chatId}`)
+          send(chatId, ({ en: `❌ <b>VPS provisioning failed</b>\n\n✅ Refund of $${priceUsd} issued to your wallet.\n\nError: ${sanitizeProviderError(error.message)}\n\nPlease contact support if the issue persists.`, fr: `❌ <b>Échec du provisionnement VPS</b>\n\n✅ Remboursement de $${priceUsd} sur votre portefeuille.\n\nErreur : ${sanitizeProviderError(error.message)}\n\nContactez le support si le problème persiste.`, zh: `❌ <b>VPS 配置失败</b>\n\n✅ 已退还 $${priceUsd} 到您的钱包。\n\n错误：${sanitizeProviderError(error.message)}\n\n如问题持续，请联系客服。`, hi: `❌ <b>VPS प्रोविज़निंग विफल</b>\n\n✅ $${priceUsd} आपके वॉलेट में वापस किया गया।\n\nत्रुटि: ${sanitizeProviderError(error.message)}\n\nसमस्या बनी रहे तो सहायता से संपर्क करें।` }[lang] || `❌ <b>VPS provisioning failed</b>\n\n✅ Refund of $${priceUsd} issued to your wallet.\n\nError: ${sanitizeProviderError(error.message)}\n\nPlease contact support if the issue persists.`), { parse_mode: 'HTML' })
         }
       }
     },
@@ -6261,39 +6123,24 @@ Enter new value:`), bc)
       await set(state, chatId, 'action', 'none')
       const vpsDetails = info?.vpsDetails
       const price = Number(vpsDetails.totalPrice)
-      const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
+      const { usdBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
-      if (![u.usd, u.ngn].includes(coin)) return send(chatId, t.someIssue || 'Some Issue')
-
-      // price validate
       const priceUsd = price
-      if (coin === u.usd && usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
-      const priceNgn = await usdToNgn(price)
-      if (coin === u.ngn && (!priceNgn || ngnBal < priceNgn)) {
-        if (!priceNgn) return send(chatId, t.ngnUnavailable || '⚠️ NGN payment temporarily unavailable. Please pay with USD.', trans('payOpts'))
-        return send(chatId, t.walletBalanceLowNgn ? t.walletBalanceLowNgn(priceNgn, ngnBal) : t.walletBalanceLow, k.of([u.deposit]))
-      }
+      if (usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
 
       const lang = info?.userLanguage ?? 'en'
       const name = await get(nameOf, chatId)
 
-      // wallet update
-      if (coin === u.usd) {
-        set(payments, nanoid(), `Wallet,VPSUpgrade,${vpsDetails?.upgradeType},$${priceUsd},${chatId},${name},${new Date()}`)
-        await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
-      }
-      if (coin === u.ngn) {
-        set(payments, nanoid(), `Wallet,VPSUpgrade,${vpsDetails?.upgradeType},$${priceUsd},${chatId},${name},${new Date()},${priceNgn} NGN`)
-        await atomicIncrement(walletOf, chatId, 'ngnOut', priceNgn)
-      }
+      set(payments, nanoid(), `Wallet,VPSUpgrade,${vpsDetails?.upgradeType},$${priceUsd},${chatId},${name},${new Date()}`)
+      await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
       sendMessage(chatId, translation('vp.vpsChangePaymentRecieved', lang), rem)
 
       const isSuccess = await upgradeVPSDetails(chatId, lang, vpsDetails)
       if (!isSuccess) return
 
-      const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
-      send(chatId, t.showWallet(usd, ngn), trans('o'))
+      const { usdBal: usd } = await getBalance(walletOf, chatId)
+      send(chatId, t.showWallet(usd), trans('o'))
       checkAndNotifyTierUpgrade(preSpend)
     },
     'digital-product-pay': async coin => {
@@ -6301,37 +6148,22 @@ Enter new value:`), bc)
       const price = info?.dpPrice
       const product = info?.dpProductName
       const productKey = info?.dpProductKey
-      // Guard: prevent wallet deduction with undefined product/price
       if (!price || price <= 0 || !product || !productKey) {
         log(`[DigitalProducts] walletOk called without valid product/price for ${chatId}`)
         return send(chatId, t.someIssue || 'Something went wrong. Please try again.')
       }
-      const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
+      const { usdBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
-      if (![u.usd, u.ngn].includes(coin)) return send(chatId, t.someIssue || 'Some Issue')
-
       const priceUsd = price
-      if (coin === u.usd && usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
-      const priceNgn = await usdToNgn(price)
-      if (coin === u.ngn && (!priceNgn || ngnBal < priceNgn)) {
-        if (!priceNgn) return send(chatId, t.ngnUnavailable || '⚠️ NGN payment temporarily unavailable. Please pay with USD.', trans('payOpts'))
-        return send(chatId, t.walletBalanceLowNgn ? t.walletBalanceLowNgn(priceNgn, ngnBal) : t.walletBalanceLow, k.of([u.deposit]))
-      }
+      if (usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
 
       const name = await get(nameOf, chatId)
       const orderId = nanoid(8).toUpperCase()
 
-      // Wallet deduct
-      if (coin === u.usd) {
-        set(payments, nanoid(), `Wallet,DigitalProduct,${product},$${priceUsd},${chatId},${name},${new Date()}`)
-        await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
-      } else {
-        set(payments, nanoid(), `Wallet,DigitalProduct,${product},$${priceUsd},${chatId},${name},${new Date()},${priceNgn} NGN`)
-        await atomicIncrement(walletOf, chatId, 'ngnOut', priceNgn)
-      }
+      set(payments, nanoid(), `Wallet,DigitalProduct,${product},$${priceUsd},${chatId},${name},${new Date()}`)
+      await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
 
-      // Save order
       await digitalOrdersCol.insertOne({
         orderId,
         chatId,
@@ -6340,115 +6172,83 @@ Enter new value:`), bc)
         product,
         productKey,
         price: priceUsd,
-        currency: coin === u.usd ? 'USD' : 'NGN',
-        paymentMethod: coin === u.usd ? 'wallet_usd' : 'wallet_ngn',
+        currency: 'USD',
+        paymentMethod: 'wallet_usd',
         status: 'pending',
         createdAt: new Date(),
         deliveredAt: null,
       })
 
-      const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
-      send(chatId, t.showWallet(usd, ngn))
+      const { usdBal: usd } = await getBalance(walletOf, chatId)
+      send(chatId, t.showWallet(usd))
       send(chatId, t.dpOrderConfirmed(product, priceUsd, orderId), trans('o'))
       checkAndNotifyTierUpgrade(preSpend)
 
-      // Group notification (sanitized)
       notifyGroup(`🛒 <b>New Digital Product Order!</b>\n\n👤 User: ${maskName(name)}\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${priceUsd}</b>\n\n✅ Order placed successfully.`)
-      // Admin notification (full details)
-      if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🛒 <b>New Digital Product Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${priceUsd}</b> (${coin === u.usd ? 'Wallet USD' : 'Wallet NGN'})\n\n📩 Deliver with:\n<code>/deliver ${orderId} [product details/credentials]</code>`, { parse_mode: 'HTML' })
+      if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🛒 <b>New Digital Product Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${priceUsd}</b> (Wallet USD)\n\n📩 Deliver with:\n<code>/deliver ${orderId} [product details/credentials]</code>`, { parse_mode: 'HTML' })
     },
     // ━━━ Virtual Card wallet payment ━━━
     'virtual-card-pay': async coin => {
       await set(state, chatId, 'action', 'none')
       const vcAmount = info?.vcAmount
       const address = info?.vcAddress
-      // Guard: prevent NaN calculations and wallet deduction with undefined amount/address
       if (!vcAmount || vcAmount <= 0 || !address) {
         log(`[VirtualCard] walletOk called without valid vcAmount/vcAddress for ${chatId}`)
         return send(chatId, t.someIssue || 'Something went wrong. Please try again.')
       }
       const fee = vcAmount < 200 ? 20 : Math.round(vcAmount * 0.1 * 100) / 100
       const price = Math.round((vcAmount + fee) * 100) / 100
-      const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
+      const { usdBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
-      if (![u.usd, u.ngn].includes(coin)) return send(chatId, t.someIssue || 'Some Issue')
-
       const priceUsd = price
-      if (coin === u.usd && usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
-      const priceNgn = await usdToNgn(price)
-      if (coin === u.ngn && (!priceNgn || ngnBal < priceNgn)) {
-        if (!priceNgn) return send(chatId, t.ngnUnavailable || '⚠️ NGN payment temporarily unavailable. Please pay with USD.', trans('payOpts'))
-        return send(chatId, t.walletBalanceLowNgn ? t.walletBalanceLowNgn(priceNgn, ngnBal) : t.walletBalanceLow, k.of([u.deposit]))
-      }
+      if (usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
 
       const name = await get(nameOf, chatId)
       const orderId = nanoid(8).toUpperCase()
 
-      if (coin === u.usd) {
-        set(payments, nanoid(), `Wallet,VirtualCard,$${vcAmount}+fee,$${priceUsd},${chatId},${name},${new Date()}`)
-        await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
-      } else {
-        set(payments, nanoid(), `Wallet,VirtualCard,$${vcAmount}+fee,$${priceUsd},${chatId},${name},${new Date()},${priceNgn} NGN`)
-        await atomicIncrement(walletOf, chatId, 'ngnOut', priceNgn)
-      }
+      set(payments, nanoid(), `Wallet,VirtualCard,$${vcAmount}+fee,$${priceUsd},${chatId},${name},${new Date()}`)
+      await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
 
       await digitalOrdersCol.insertOne({
         orderId, chatId, username: username || '', name: name || '',
         product: `Virtual Card ($${vcAmount})`, productKey: 'virtual_card',
         price: priceUsd, vcAmount, vcAddress: address,
-        currency: coin === u.usd ? 'USD' : 'NGN',
-        paymentMethod: coin === u.usd ? 'wallet_usd' : 'wallet_ngn',
+        currency: 'USD',
+        paymentMethod: 'wallet_usd',
         status: 'pending', createdAt: new Date(), deliveredAt: null,
       })
 
-      const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
-      send(chatId, t.showWallet(usd, ngn))
+      const { usdBal: usd } = await getBalance(walletOf, chatId)
+      send(chatId, t.showWallet(usd))
       send(chatId, t.vcOrderConfirmed(vcAmount, priceUsd, orderId), trans('o'))
       checkAndNotifyTierUpgrade(preSpend)
 
-      notifyGroup(`💳 <b>New Virtual Card Order!</b>\n\n👤 User: ${maskName(name)}\n💵 Card: <b>$${vcAmount}</b> | Total: <b>$${priceUsd}</b>\n💳 Payment: ${coin === u.usd ? 'Wallet USD' : 'Wallet NGN'}\n\n✅ Order placed successfully.`)
-      if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `💳 <b>New Virtual Card Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n💵 Card: <b>$${vcAmount}</b> | Total: <b>$${priceUsd}</b>\n📬 Address:\n<pre>${address}</pre>\n💳 Payment: ${coin === u.usd ? 'Wallet USD' : 'Wallet NGN'}\n\n📩 Deliver with:\n<code>/deliver ${orderId} [card number, expiry, CVV]</code>`, { parse_mode: 'HTML' })
+      notifyGroup(`💳 <b>New Virtual Card Order!</b>\n\n👤 User: ${maskName(name)}\n💵 Card: <b>$${vcAmount}</b> | Total: <b>$${priceUsd}</b>\n💳 Payment: Wallet USD\n\n✅ Order placed successfully.`)
+      if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `💳 <b>New Virtual Card Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n💵 Card: <b>$${vcAmount}</b> | Total: <b>$${priceUsd}</b>\n📬 Address:\n<pre>${address}</pre>\n💳 Payment: Wallet USD\n\n📩 Deliver with:\n<code>/deliver ${orderId} [card number, expiry, CVV]</code>`, { parse_mode: 'HTML' })
     },
     'phone-pay': async coin => {
       await set(state, chatId, 'action', 'none')
       const price = info?.cpPrice
-      // Guard: prevent wallet deduction with undefined number/price
       if (!price || price <= 0 || !info?.cpSelectedNumber) {
         log(`[CloudPhone] walletOk called without valid cpPrice/cpSelectedNumber for ${chatId}`)
         return send(chatId, t.someIssue || 'Something went wrong. Please try again.')
       }
-      const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
+      const { usdBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
-      if (![u.usd, u.ngn].includes(coin)) return send(chatId, t.someIssue || 'Some Issue')
-
       const priceUsd = price
-      if (coin === u.usd && usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
-      const priceNgn = await usdToNgn(price)
-      if (coin === u.ngn && (!priceNgn || ngnBal < priceNgn)) {
-        if (!priceNgn) return send(chatId, t.ngnUnavailable || '⚠️ NGN payment temporarily unavailable. Please pay with USD.', trans('payOpts'))
-        return send(chatId, t.walletBalanceLowNgn ? t.walletBalanceLowNgn(priceNgn, ngnBal) : t.walletBalanceLow, k.of([u.deposit]))
-      }
+      if (usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
 
       const name = await get(nameOf, chatId)
       
       // wallet deduct — atomic balance-checked deduction
-      if (coin === u.usd) {
-        const deducted = await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
-        if (!deducted) {
-          log(`[CloudPhone] ⛔ Wallet USD deduction failed for ${chatId}: $${priceUsd} — insufficient balance`)
-          return send(chatId, t.walletBalanceLowAmount?.(priceUsd, usdBal) || '⚠️ Insufficient wallet balance. Please top up.', k.of([u.deposit]))
-        }
-        set(payments, nanoid(), `Wallet,CloudPhone,$${priceUsd},${chatId},${name},${new Date()}`)
-      } else {
-        const deducted = await atomicIncrement(walletOf, chatId, 'ngnOut', priceNgn)
-        if (!deducted) {
-          log(`[CloudPhone] ⛔ Wallet NGN deduction failed for ${chatId}: ₦${priceNgn} — insufficient balance`)
-          return send(chatId, t.walletBalanceLowNgn?.(priceNgn, ngnBal) || '⚠️ Insufficient wallet balance. Please top up.', k.of([u.deposit]))
-        }
-        set(payments, nanoid(), `Wallet,CloudPhone,$${priceUsd},${chatId},${name},${new Date()},${priceNgn} NGN`)
+      const deducted = await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
+      if (!deducted) {
+        log(`[CloudPhone] ⛔ Wallet USD deduction failed for ${chatId}: $${priceUsd} — insufficient balance`)
+        return send(chatId, t.walletBalanceLowAmount?.(priceUsd, usdBal) || '⚠️ Insufficient wallet balance. Please top up.', k.of([u.deposit]))
       }
+      set(payments, nanoid(), `Wallet,CloudPhone,$${priceUsd},${chatId},${name},${new Date()}`)
 
       // Buy number via Telnyx or Twilio depending on provider
       let selectedNumber = info?.cpSelectedNumber
@@ -6461,10 +6261,10 @@ Enter new value:`), bc)
       // Check if this country requires an address (addrReq=any)
       if (needsTwilioAddress(countryCode, provider)) {
         // Save payment state first (awaited to prevent race conditions)
-        await saveInfo('cpPendingCoin', coin)
+        await saveInfo('cpPendingCoin', u.usd)
         await saveInfo('cpPendingPriceUsd', priceUsd)
-        await saveInfo('cpPendingPriceNgn', coin === u.ngn ? priceNgn : 0)
-        await saveInfo('cpPaymentMethod', 'wallet_' + coin)
+        await saveInfo('cpPendingPriceNgn', 0)
+        await saveInfo('cpPaymentMethod', 'wallet_usd')
 
         // ── NEW: Tier 2+ countries need document uploads for regulatory bundle ──
         const numType = info?.cpNumberType || 'local'
@@ -6481,8 +6281,8 @@ Enter new value:`), bc)
             send(chatId, ({ en: `✅ Payment of <b>$${Number(priceUsd).toFixed(2)}</b> received!`, fr: `✅ Paiement de <b>$${Number(priceUsd).toFixed(2)}</b> reçu !`, zh: `✅ 已收到 <b>$${Number(priceUsd).toFixed(2)}</b> 付款！`, hi: `✅ <b>$${Number(priceUsd).toFixed(2)}</b> का भुगतान प्राप्त!` }[lang] || `✅ Payment of <b>$${Number(priceUsd).toFixed(2)}</b> received!`), { parse_mode: 'HTML' })
             const started = await regulatoryFlow.startDocCollection(chatId, {
               countryCode, numType, countryName, selectedNumber, planKey, price: priceUsd,
-              priceUsd, priceNgn: coin === u.ngn ? priceNgn : 0,
-              paymentMethod: 'wallet_' + coin,
+              priceUsd, priceNgn: 0,
+              paymentMethod: 'wallet_usd',
             }, lang)
             if (started) return // Flow started, don't fall through
           }
@@ -6539,7 +6339,7 @@ Enter new value:`), bc)
                   chatId, bundleSid: bundleResult.sid, endUserSid: endUserResult.sid,
                   addressSid: cachedAddr, supportingDocSid: addrDoc.sid, regulationSid: regResult.sid,
                   countryCode, countryName, numType, selectedNumber, planKey, price,
-                  priceUsd, priceNgn: coin === u.ngn ? priceNgn : 0,
+                  priceUsd, priceNgn: 0,
                   paymentCoin: coin, paymentMethod: 'wallet_' + coin, lang,
                   status: bundleStatus, createdAt: new Date(), updatedAt: new Date(),
                 })
@@ -6554,8 +6354,7 @@ Enter new value:`), bc)
               } catch (bundleErr) {
                 log(`[CloudPhone] Bundle creation error (cached addr): ${bundleErr.message}`)
                 try {
-                  if (coin === u.usd) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
-                  else if (coin === u.ngn) await atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn)
+                  await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
                   await saveInfo('cpPendingCoin', null)
                   await saveInfo('cpPendingPriceUsd', null)
                   await saveInfo('cpPendingPriceNgn', null)
@@ -6563,9 +6362,9 @@ Enter new value:`), bc)
                   log(`[CloudPhone] CRITICAL: Refund failed after bundle error: ${refundErr.message}`)
                   notifyAdmin(`🚨 CRITICAL [Bundle] Refund failed\nchatId: ${chatId}\nprice: $${priceUsd}\nerror: ${refundErr.message}`)
                 }
-                const { usdBal: refUsd, ngnBal: refNgn } = await getBalance(walletOf, chatId)
+                const { usdBal: refUsd } = await getBalance(walletOf, chatId)
                 await set(state, chatId, 'action', 'none')
-                send(chatId, `❌ Regulatory setup failed.\n\n💰 Your wallet has been refunded.\n${t.showWallet(refUsd, refNgn)}`, { parse_mode: 'HTML' })
+                send(chatId, `❌ Regulatory setup failed.\n\n💰 Your wallet has been refunded.\n${t.showWallet(refUsd)}`, { parse_mode: 'HTML' })
                 return notifyAdmin(`⚠️ [Bundle] Exception (cached addr)\nchatId: ${chatId}\nerror: ${bundleErr.message}`)
               }
             }
@@ -6595,16 +6394,15 @@ Enter new value:`), bc)
         const bundleSid = info?.cpBundleSid || null
         const isSubNumber = info?.cpIsSubNumber || false
         const subOpts = isSubNumber ? { isSubNumber: true, parentNumber: info?.cpSubParentNumber } : null
-        const result = await executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, info?.cpNumberType || 'local', coin === u.usd ? 'wallet_usd' : 'wallet_ngn', addressSid, subOpts, bundleSid)
+        const result = await executeTwilioPurchase(chatId, selectedNumber, planKey, price, countryCode, countryName, info?.cpNumberType || 'local', 'wallet_usd', addressSid, subOpts, bundleSid)
         if (result.error) {
-          if (coin === u.usd) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
-          else await atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn)
+          await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
           return send(chatId, phoneConfig.getMsg(info?.userLanguage).purchaseFailed + `\n${sanitizeProviderError(result.error, 'voice')}`, trans('o'))
         }
         sipUsername = result.sipUsername
         sipPassword = result.sipPassword
-        const { usdBal: usd2, ngnBal: ngn2 } = await getBalance(walletOf, chatId)
-        send(chatId, t.showWallet(usd2, ngn2))
+        const { usdBal: usd2 } = await getBalance(walletOf, chatId)
+        send(chatId, t.showWallet(usd2))
         if (isSubNumber) {
           send(chatId, cpTxt.subActivated(
             selectedNumber, info?.cpSubParentNumber, price, sipUsername,
@@ -6634,8 +6432,7 @@ Enter new value:`), bc)
         }
 
         if (!orderResult) {
-          if (coin === u.usd) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
-          else await atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn)
+          await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
           return send(chatId, phoneConfig.getMsg(info?.userLanguage).purchaseFailed, trans('o'))
         }
 
@@ -6706,26 +6503,25 @@ Enter new value:`), bc)
         if (existing?.numbers) { existing.numbers.push(numberDoc); await set(phoneNumbersOf, chatId, existing) }
         else { await set(phoneNumbersOf, chatId, { numbers: [numberDoc] }) }
 
-        await phoneTransactions.insertOne({ chatId, phoneNumber: selectedNumber, action: isSubNumber ? 'sub-number-purchase' : 'purchase', plan: planKey, amount: price, paymentMethod: coin === u.usd ? 'wallet_usd' : 'wallet_ngn', timestamp: new Date().toISOString() })
+        await phoneTransactions.insertOne({ chatId, phoneNumber: selectedNumber, action: isSubNumber ? 'sub-number-purchase' : 'purchase', plan: planKey, amount: price, paymentMethod: 'wallet_usd', timestamp: new Date().toISOString() })
 
-        const { usdBal: usd2, ngnBal: ngn2 } = await getBalance(walletOf, chatId)
-        send(chatId, t.showWallet(usd2, ngn2))
+        const { usdBal: usd2 } = await getBalance(walletOf, chatId)
+        send(chatId, t.showWallet(usd2))
         if (isSubNumber) {
           send(chatId, cpTxt.subActivated(selectedNumber, info?.cpSubParentNumber, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())), trans('o'))
-          notifyGroup(cpTxt.adminSubPurchase(maskName(name), selectedNumber, info?.cpSubParentNumber, price, coin === u.usd ? 'Wallet USD' : 'Wallet NGN'))
-          if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminSubPurchasePrivate(maskName(name), selectedNumber, info?.cpSubParentNumber, price, coin === u.usd ? 'Wallet USD' : 'Wallet NGN'), { parse_mode: 'HTML' })
+          notifyGroup(cpTxt.adminSubPurchase(maskName(name), selectedNumber, info?.cpSubParentNumber, price, coin === u.usd ? 'Wallet USD' : 'Wallet USD'))
+          if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminSubPurchasePrivate(maskName(name), selectedNumber, info?.cpSubParentNumber, price, coin === u.usd ? 'Wallet USD' : 'Wallet USD'), { parse_mode: 'HTML' })
         } else {
           send(chatId, cpTxt.activated(selectedNumber, plan.name, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())), trans('o'))
-          notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, plan.name, price, coin === u.usd ? 'Wallet USD' : 'Wallet NGN'))
-          if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminPurchasePrivate(maskName(name), selectedNumber, plan.name, price, coin === u.usd ? 'Wallet USD' : 'Wallet NGN'), { parse_mode: 'HTML' })
+          notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, plan.name, price, coin === u.usd ? 'Wallet USD' : 'Wallet USD'))
+          if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminPurchasePrivate(maskName(name), selectedNumber, plan.name, price, coin === u.usd ? 'Wallet USD' : 'Wallet USD'), { parse_mode: 'HTML' })
         }
       }
       } catch (purchaseErr) {
         // ── SAFETY NET: refund wallet on ANY unexpected error ──
         log(`[CloudPhone] ❌ Purchase crashed for ${chatId}: ${purchaseErr?.message || purchaseErr}`)
         try {
-          if (coin === u.usd) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
-          else await atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn)
+          await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
           log(`[CloudPhone] ✅ Auto-refunded $${priceUsd} to ${chatId} after purchase error`)
         } catch (refundErr) {
           log(`[CloudPhone] ❌ CRITICAL: Refund also failed for ${chatId}: ${refundErr?.message}`)
@@ -6737,19 +6533,11 @@ Enter new value:`), bc)
     [a.buyLeadsSelectFormat]: async coin => {
       await set(state, chatId, 'action', 'none')
       const price = info?.couponApplied ? info?.newPrice : info?.price
-      const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
+      const { usdBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
-      if (![u.usd, u.ngn].includes(coin)) return send(chatId, t.someIssue || 'Some Issue')
-
-      // price validate
       const priceUsd = price
-      if (coin === u.usd && usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
-      const priceNgn = await usdToNgn(price)
-      if (coin === u.ngn && (!priceNgn || ngnBal < priceNgn)) {
-        if (!priceNgn) return send(chatId, t.ngnUnavailable || '⚠️ NGN payment temporarily unavailable. Please pay with USD.', trans('payOpts'))
-        return send(chatId, t.walletBalanceLowNgn ? t.walletBalanceLowNgn(priceNgn, ngnBal) : t.walletBalanceLow, k.of([u.deposit]))
-      }
+      if (usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
 
       let cc = countryCodeOf[info?.country]
       let country = info?.country
@@ -6784,22 +6572,13 @@ Enter new value:`), bc)
       const requireRealName = isTargetLeads && cnam
 
       // ── Deduct wallet BEFORE starting lead generation ──
-      // This ensures the charge persists even if the process crashes mid-generation
-      if (coin === u.usd) {
-        await atomicIncrement(walletOf, chatId, 'usdOut', Number(priceUsd))
-      } else if (coin === u.ngn) {
-        await atomicIncrement(walletOf, chatId, 'ngnOut', priceNgn)
-      }
+      await atomicIncrement(walletOf, chatId, 'usdOut', Number(priceUsd))
       log(`[Leads] Wallet pre-charged $${priceUsd} for ${chatId} before generation`)
 
       const res = await validateBulkNumbers(info?.carrier, info?.amount, cc, areaCodes, cnam, bot, chatId, lang, requireRealName, { target: info?.targetName, price: info?.price, walletDeducted: true, paymentCoin: coin })
       if (!res || res.length === 0) {
         // ── Refund wallet on total failure ──
-        if (coin === u.usd) {
-          await atomicIncrement(walletOf, chatId, 'usdIn', Number(priceUsd))
-        } else if (coin === u.ngn) {
-          await atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn)
-        }
+        await atomicIncrement(walletOf, chatId, 'usdIn', Number(priceUsd))
         log(`[Leads] Wallet refunded $${priceUsd} for ${chatId} — generation failed`)
         return send(chatId, t.buyLeadsError)
       }
@@ -6813,22 +6592,12 @@ Enter new value:`), bc)
           const refundAmount = Math.round(undeliveredRatio * price * 100) / 100
           if (refundAmount > 0) {
             // Refund proportional amount to wallet
-            if (coin === u.usd) {
-              await atomicIncrement(walletOf, chatId, 'usdIn', refundAmount)
-            } else {
-              const refundNgn = await usdToNgn(refundAmount)
-              if (refundNgn) {
-                await atomicIncrement(walletOf, chatId, 'ngnIn', refundNgn)
-              } else {
-                // NGN conversion unavailable — refund in USD
-                await atomicIncrement(walletOf, chatId, 'usdIn', refundAmount)
-              }
-            }
-            const { usdBal: rb1, ngnBal: rb2 } = await getBalance(walletOf, chatId)
+            await atomicIncrement(walletOf, chatId, 'usdIn', refundAmount)
+            const { usdBal: rb1 } = await getBalance(walletOf, chatId)
             const reasonText = res._partialReason === 'cnam_exhausted' ? 'Name lookup services temporarily unavailable'
               : res._partialReason === 'timeout' ? 'Generation timed out'
               : 'Not enough valid numbers in this area'
-            send(chatId, `💰 <b>Partial Refund</b>\n\n📊 Ordered: ${requested} leads\n✅ Delivered: ${delivered} leads\n❌ Undelivered: ${requested - delivered} leads\n\n💵 Refund: <b>$${refundAmount.toFixed(2)}</b> returned to your wallet\n📝 Reason: ${reasonText}\n\n💰 Wallet: $${rb1.toFixed(2)} USD · ₦${rb2.toFixed(2)} NGN`)
+            send(chatId, `💰 <b>Partial Refund</b>\n\n📊 Ordered: ${requested} leads\n✅ Delivered: ${delivered} leads\n❌ Undelivered: ${requested - delivered} leads\n\n💵 Refund: <b>$${refundAmount.toFixed(2)}</b> returned to your wallet\n📝 Reason: ${reasonText}\n\n💰 Wallet: $${rb1.toFixed(2)} USD`)
             // Admin notification
             const name = await get(nameOf, chatId)
             notifyGroup(`💰 Partial refund: $${refundAmount.toFixed(2)} → ${maskName(name)} (${delivered}/${requested} leads, ${res._partialReason})`)
@@ -6915,13 +6684,9 @@ All verified numbers generated during sourcing.`))
       const name = await get(nameOf, chatId)
 
       // wallet already deducted before generation — just log payment record
-      if (coin === u.usd) {
-        set(payments, nanoid(), `Wallet,Phone Leads,${leadsAmount} leads,$${priceUsd},${chatId},${name},${new Date()}`)
-      } else if (coin === u.ngn) {
-        set(payments, nanoid(), `Wallet,Phone Leads,${leadsAmount} leads,$${priceUsd},${chatId},${name},${new Date()},${priceNgn} NGN`)
-      }
-      const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
-      send(chatId, t.showWallet(usd, ngn), trans('o'))
+      set(payments, nanoid(), `Wallet,Phone Leads,${leadsAmount} leads,$${priceUsd},${chatId},${name},${new Date()}`)
+      const { usdBal: usd } = await getBalance(walletOf, chatId)
+      send(chatId, t.showWallet(usd), trans('o'))
       notifyGroup(`🏦 <b>${info?.targetName || 'Leads'} Acquired!</b>\nUser ${maskName(name)} just grabbed ${leadsAmount.toLocaleString()} verified ${info?.targetName ? info.targetName + ' ' : ''}leads with phone owner names.\nGet yours — /start`)
       checkAndNotifyTierUpgrade(preSpend)
       // Post-purchase upsell
@@ -6933,19 +6698,11 @@ All verified numbers generated during sourcing.`))
     [a.validatorSelectFormat]: async coin => {
       await set(state, chatId, 'action', 'none')
       const price = info?.couponApplied ? info?.newPrice : info?.price
-      const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
+      const { usdBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
-      if (![u.usd, u.ngn].includes(coin)) return send(chatId, t.someIssue || 'Some Issue')
-
-      // price validate
       const priceUsd = price
-      if (coin === u.usd && usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
-      const priceNgn = await usdToNgn(price)
-      if (coin === u.ngn && (!priceNgn || ngnBal < priceNgn)) {
-        if (!priceNgn) return send(chatId, t.ngnUnavailable || '⚠️ NGN payment temporarily unavailable. Please pay with USD.', trans('payOpts'))
-        return send(chatId, t.walletBalanceLowNgn ? t.walletBalanceLowNgn(priceNgn, ngnBal) : t.walletBalanceLow, k.of([u.deposit]))
-      }
+      if (usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
 
       let cc = countryCodeOf[info?.country]
       let country = info?.country
@@ -6955,7 +6712,7 @@ All verified numbers generated during sourcing.`))
       const l = format === validatorSelectFormat[0]
 
       // Enhanced logging - Validation START
-      console.log(`[LeadValidation] START - ChatId: ${chatId}, Amount: ${leadsAmount}, Country: ${country}, Carrier: ${info?.carrier}, CNAM: ${cnam}, Price: $${priceUsd}, Payment: ${coin === u.usd ? 'USD' : 'NGN'}`)
+      console.log(`[LeadValidation] START - ChatId: ${chatId}, Amount: ${leadsAmount}, Country: ${country}, Carrier: ${info?.carrier}, CNAM: ${cnam}, Price: $${priceUsd}, Payment: ${'USD'}`)
 
       // buy leads
       send(chatId, t.validatorBulkNumbersStart, trans('o')) // main keyboard view
@@ -6963,24 +6720,14 @@ All verified numbers generated during sourcing.`))
       const leadsAmount = info?.amount
 
       // ── Deduct wallet BEFORE validation to prevent lost charges on crash ──
-      if (coin === u.usd) {
-        await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
-      } else if (coin === u.ngn) {
-        await atomicIncrement(walletOf, chatId, 'ngnOut', priceNgn)
-      }
+      await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
       log(`[Validator] Wallet pre-charged $${priceUsd} for ${chatId} before validation`)
 
       const res = await validatePhoneBulkFile(info?.carrier, phones, cc, cnam, bot, chatId)
       if (!res) {
-        // Enhanced logging - Validation FAILED
         console.log(`[LeadValidation] FAILED - ChatId: ${chatId}, Amount: ${leadsAmount}, Country: ${country}, Carrier: ${info?.carrier}, Refunding: $${priceUsd}`)
         
-        // ── Refund wallet on total failure ──
-        if (coin === u.usd) {
-          await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
-        } else if (coin === u.ngn) {
-          await atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn)
-        }
+        await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
         log(`[Validator] Wallet refunded $${priceUsd} for ${chatId} — validation failed`)
         return send(chatId, t.validatorError)
       }
@@ -7022,7 +6769,7 @@ All verified numbers generated during sourcing.`))
       const name = await get(nameOf, chatId)
 
       // Enhanced logging for successful validation
-      console.log(`[LeadValidation] SUCCESS - ChatId: ${chatId}, Amount: ${leadsAmount}, Valid: ${res.length}, Country: ${country}, Carrier: ${info?.carrier}, CNAM: ${cnam}, Price: $${priceUsd}, Payment: ${coin === u.usd ? 'USD' : 'NGN'}`)
+      console.log(`[LeadValidation] SUCCESS - ChatId: ${chatId}, Amount: ${leadsAmount}, Valid: ${res.length}, Country: ${country}, Carrier: ${info?.carrier}, CNAM: ${cnam}, Price: $${priceUsd}, Payment: ${'USD'}`)
 
       // If partial free validation, deduct free portion and log both
       if (info?.partialFree) {
@@ -7033,33 +6780,21 @@ All verified numbers generated during sourcing.`))
       }
 
       // wallet already deducted before validation — just log payment record
-      if (coin === u.usd) {
-        set(payments, nanoid(), `Wallet,Validate Leads,${info?.partialFree ? info?.paidPortionAmount : leadsAmount} leads,$${priceUsd},${chatId},${name},${new Date()}`)
-      } else if (coin === u.ngn) {
-        set(payments, nanoid(), `Wallet,Validate Leads,${info?.partialFree ? info?.paidPortionAmount : leadsAmount} leads,$${priceUsd},${chatId},${name},${new Date()},${priceNgn} NGN`)
-      }
-      const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
-      send(chatId, t.showWallet(usd, ngn), trans('o'))
+      set(payments, nanoid(), `Wallet,Validate Leads,${info?.partialFree ? info?.paidPortionAmount : leadsAmount} leads,$${priceUsd},${chatId},${name},${new Date()}`)
+      const { usdBal: usd } = await getBalance(walletOf, chatId)
+      send(chatId, t.showWallet(usd), trans('o'))
       notifyGroup(`🏦 <b>${info?.targetName || 'Leads'} Acquired!</b>\nUser ${maskName(name)} just grabbed ${leadsAmount.toLocaleString()} verified ${info?.targetName ? info.targetName + ' ' : ''}leads with phone owner names.\nGet yours — /start`)
       checkAndNotifyTierUpgrade(preSpend)
     },
     [a.redSelectProvider]: async coin => {
       await set(state, chatId, 'action', 'none')
       const price = info?.couponApplied ? info?.newPrice : info?.price
-      const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
+      const { usdBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
-      if (![u.usd, u.ngn].includes(coin)) return send(chatId, t.someIssue || 'Some Issue')
-
-      // price validate
       const priceUsd = price
       const name = await get(nameOf, chatId)
-      if (coin === u.usd && usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
-      const priceNgn = await usdToNgn(price)
-      if (coin === u.ngn && (!priceNgn || ngnBal < priceNgn)) {
-        if (!priceNgn) return send(chatId, t.ngnUnavailable || '⚠️ NGN payment temporarily unavailable. Please pay with USD.', trans('payOpts'))
-        return send(chatId, t.walletBalanceLowNgn ? t.walletBalanceLowNgn(priceNgn, ngnBal) : t.walletBalanceLow, k.of([u.deposit]))
-      }
+      if (usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
       let _shortUrl
       try {
         const { url } = info
@@ -7080,17 +6815,10 @@ All verified numbers generated during sourcing.`))
       }
 
       // wallet update
-      if (coin === u.usd) {
-        set(payments, nanoid(), `Wallet,Bit.ly Link,${_shortUrl},$${priceUsd},${chatId},${name},${new Date()}`)
-        await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
-      } else if (coin === u.ngn) {
-        set(payments, nanoid(), `Wallet,Bit.ly Link,${_shortUrl},$${priceUsd},${chatId},${name},${new Date()},${priceNgn} NGN`)
-        await atomicIncrement(walletOf, chatId, 'ngnOut', priceNgn)
-      } else {
-        return send(chatId, t.someIssue || 'Some Issue')
-      }
-      const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
-      send(chatId, t.showWallet(usd, ngn), trans('o'))
+      set(payments, nanoid(), `Wallet,Bit.ly Link,${_shortUrl},$${priceUsd},${chatId},${name},${new Date()}`)
+      await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
+      const { usdBal: usd } = await getBalance(walletOf, chatId)
+      send(chatId, t.showWallet(usd), trans('o'))
       notifyGroup(`🔗 <b>Short Link Created!</b>\nUser ${maskName(name)} just shortened a link.\n${FREE_LINKS} free trial links for everyone — try it now — /start`)
       checkAndNotifyTierUpgrade(preSpend)
     },
@@ -7113,8 +6841,8 @@ All verified numbers generated during sourcing.`))
 
         await emailBlastService.startCampaign(campaignId, 'crypto', coin || 'usd')
 
-        const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
-        send(chatId, t.showWallet(usd, ngn), trans('o'))
+        const { usdBal: usd } = await getBalance(walletOf, chatId)
+        send(chatId, t.showWallet(usd), trans('o'))
         checkAndNotifyTierUpgrade(preSpend)
 
         return send(chatId,
@@ -7138,41 +6866,25 @@ All verified numbers generated during sourcing.`))
       if (!bundle) return send(chatId, t.someIssue || 'Something went wrong.')
 
       let price = info?.bundlePrice || bundle.finalPrice
-      // Apply coupon if exists
       if (info?.couponApplied && info?.newPrice) price = info.newPrice
-      const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
+      const { usdBal } = await getBalance(walletOf, chatId)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
-      if (![u.usd, u.ngn].includes(coin)) return send(chatId, t.someIssue || 'Some Issue')
-
-      if (coin === u.usd && usdBal < price) return send(chatId, t.walletBalanceLowAmount(price, usdBal), k.of([u.deposit]))
-      const priceNgn = await usdToNgn(price)
-      if (coin === u.ngn && (!priceNgn || ngnBal < priceNgn)) {
-        if (!priceNgn) return send(chatId, t.ngnUnavailable || '⚠️ NGN payment temporarily unavailable. Please pay with USD.', trans('payOpts'))
-        return send(chatId, t.walletBalanceLowNgn ? t.walletBalanceLowNgn(priceNgn, ngnBal) : t.walletBalanceLow, k.of([u.deposit]))
-      }
+      if (usdBal < price) return send(chatId, t.walletBalanceLowAmount(price, usdBal), k.of([u.deposit]))
 
       const name = await get(nameOf, chatId)
 
-      // Deduct from wallet
-      if (coin === u.usd) {
-        set(payments, nanoid(), `Wallet,Bundle:${bundleId},$${price},${chatId},${name},${new Date()}`)
-        await atomicIncrement(walletOf, chatId, 'usdOut', price)
-      } else {
-        set(payments, nanoid(), `Wallet,Bundle:${bundleId},$${price},${chatId},${name},${new Date()},${priceNgn} NGN`)
-        await atomicIncrement(walletOf, chatId, 'ngnOut', priceNgn)
-      }
+      set(payments, nanoid(), `Wallet,Bundle:${bundleId},$${price},${chatId},${name},${new Date()}`)
+      await atomicIncrement(walletOf, chatId, 'usdOut', price)
 
-      // Mark win-back code as used if applicable
       if (info?.couponApplied && info?.couponType === 'winback') {
         await monetization.markMonetizationCodeUsed(info?.couponCode, 'winback')
       }
 
-      const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
-      send(chatId, t.showWallet(usd, ngn), trans('o'))
+      const { usdBal: usd } = await getBalance(walletOf, chatId)
+      send(chatId, t.showWallet(usd), trans('o'))
       checkAndNotifyTierUpgrade(preSpend)
 
-      // Success message with bundle items
       const itemList = bundle.items.map(i => `  ✓ ${i.label}`).join('\n')
       send(chatId,
         `🎉 <b>Bundle Purchased!</b>\n\n` +
@@ -7182,20 +6894,18 @@ All verified numbers generated during sourcing.`))
         `📩 Our team will activate your services shortly.\nYou will receive a notification for each service.`,
         { parse_mode: 'HTML' })
 
-      // Notify admin
       const adminChatId = process.env.TELEGRAM_ADMIN_CHAT_ID
       if (adminChatId) {
         bot.sendMessage(adminChatId,
           `🛒 <b>New Bundle Sale!</b>\n\n` +
           `👤 ${maskName(name)} (${chatId})\n` +
           `📦 ${bundle.name}\n` +
-          `💵 $${price.toFixed(2)} (${coin.toUpperCase()})\n` +
+          `💵 $${price.toFixed(2)} (USD)\n` +
           `🏷️ Saved: $${bundle.discountAmount} (${bundle.discountPercent}% off)\n` +
           `📋 Items:\n${itemList}`,
           { parse_mode: 'HTML' }).catch(() => {})
       }
 
-      // Broadcast social proof
       notifyGroup(`🛒 <b>${bundle.name} Sold!</b>\nUser ${maskName(name)} just purchased a full bundle.\nSave up to 20% on services — /start`)
     },
   }
@@ -7350,9 +7060,7 @@ All verified numbers generated during sourcing.`))
         for (const rb of allRejected) {
           try {
             const refundAmt = Number(rb.priceUsd || rb.price) || 0
-            const refundNgn = Number(rb.priceNgn) || 0
             if (refundAmt > 0) await atomicIncrement(walletOf, chatId, 'usdIn', refundAmt)
-            if (refundNgn > 0) await atomicIncrement(walletOf, chatId, 'ngnIn', refundNgn)
             log(`[AutoCleanup] Refunded $${refundAmt} for rejected bundle ${rb.bundleSid} chatId=${chatId}`)
           } catch (refErr) {
             log(`[AutoCleanup] Refund error for bundle ${rb.bundleSid}: ${refErr.message}`)
@@ -8084,34 +7792,30 @@ All verified numbers generated during sourcing.`))
       const { getPlanPrice, getPlanDuration } = require('./hosting-scheduler')
       const price = getPlanPrice(plan.plan)
       const duration = getPlanDuration(plan.plan)
-      const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
-      const priceNgn = await usdToNgn(price)
+      const { usdBal } = await getBalance(walletOf, chatId)
       const expiry = plan.expiryDate ? new Date(plan.expiryDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
       const isExpired = plan.expiryDate && new Date(plan.expiryDate) < new Date()
 
-      const canPayUsd = usdBal >= price
-      const canPayNgn = priceNgn && ngnBal >= priceNgn
+      const canPay = usdBal >= price
 
       let text = `<b>Renew Plan — ${plan.plan}</b>\n\n`
         + `<b>Domain:</b> ${domain}\n`
         + `<b>Current Expiry:</b> ${expiry}${isExpired ? ' (EXPIRED)' : ''}\n`
         + `<b>Duration:</b> ${duration} days\n`
-        + `<b>Price:</b> $${price}${priceNgn ? ` (≈ ₦${priceNgn.toLocaleString()})` : ''}\n\n`
-        + `<b>Wallet Balance:</b> $${usdBal.toFixed(2)}${priceNgn ? ` / ₦${ngnBal.toFixed(2)}` : ''}\n`
+        + `<b>Price:</b> $${price}\n\n`
+        + `<b>Wallet Balance:</b> $${usdBal.toFixed(2)}\n`
 
-      if (canPayUsd || canPayNgn) {
-        text += `\n✅ Select payment currency below:`
+      if (canPay) {
+        text += `\n✅ Confirm payment below:`
       } else {
         text += `\n⚠️ Insufficient funds. Please deposit first.`
       }
 
       saveInfo('renewPrice', price)
-      saveInfo('renewPriceNgn', priceNgn)
       await set(state, chatId, 'action', a.confirmRenewNow)
       const buttons = []
-      if (canPayUsd) buttons.push([`💵 Pay $${price} USD`])
-      if (canPayNgn) buttons.push([`💶 Pay ₦${priceNgn.toLocaleString()} NGN`])
-      if (!canPayUsd && !canPayNgn) buttons.push([trans('u.deposit')])
+      if (canPay) buttons.push([`💵 Pay $${price} USD`])
+      if (!canPay) buttons.push([trans('u.deposit')])
       buttons.push([user.cancelRenewNow])
       return send(chatId, text, k.of(buttons))
     }
@@ -8124,7 +7828,7 @@ All verified numbers generated during sourcing.`))
       const currentPlan = (plan.plan || '').toLowerCase()
       const { getPlanPrice } = require('./hosting-scheduler')
       const currentPrice = getPlanPrice(plan.plan)
-      const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
+      const { usdBal } = await getBalance(walletOf, chatId)
       const ngnTestRate = await usdToNgn(1)
 
       // Determine upgrade options based on current plan
@@ -8164,13 +7868,12 @@ All verified numbers generated during sourcing.`))
       let text = `<b>⬆️ Upgrade Plan</b>\n\n`
         + `<b>Current:</b> ${plan.plan} — $${currentPrice}\n`
         + `<b>Domain:</b> ${domain}\n`
-        + `<b>Wallet Balance:</b> $${usdBal.toFixed(2)}${ngnTestRate ? ` / ₦${ngnBal.toFixed(2)}` : ''}\n\n`
+        + `<b>Wallet Balance:</b> $${usdBal.toFixed(2)}\n\n`
         + `Choose your new plan:\n\n`
 
       const buttons = []
       for (const opt of upgradeOptions) {
-        const optNgn = ngnTestRate ? await usdToNgn(opt.price) : null
-        text += `<b>${opt.name} — $${opt.price}${optNgn ? ` (≈ ₦${optNgn.toLocaleString()})` : ''}</b>\n`
+        text += `<b>${opt.name} — $${opt.price}</b>\n`
           + `${opt.storage} · ${opt.bandwidth} · ${opt.domains}\n\n`
         buttons.push([`⬆️ ${opt.name} ($${opt.price})`])
       }
@@ -8182,17 +7885,14 @@ All verified numbers generated during sourcing.`))
     }
   }
 
-  // Confirm Renew Now — wallet deduction (USD or NGN)
+  // Confirm Renew Now — wallet deduction (USD only)
   if (action === a.confirmRenewNow) {
     if (message === user.cancelRenewNow) return goto.viewHostingPlanDetails(info?.selectedHostingDomain)
 
-    // Detect currency from button text
     const isPayUsd = message.startsWith('💵 Pay')
-    const isPayNgn = message.startsWith('💶 Pay')
-    // Backward compat: old "Confirm & Pay" button treated as USD
     const isLegacyConfirm = message === user.confirmRenewNow
 
-    if (isPayUsd || isPayNgn || isLegacyConfirm) {
+    if (isPayUsd || isLegacyConfirm) {
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
       const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
@@ -8201,31 +7901,13 @@ All verified numbers generated during sourcing.`))
       const { getPlanPrice, getPlanDuration } = require('./hosting-scheduler')
       const price = getPlanPrice(plan.plan)
       const duration = getPlanDuration(plan.plan)
-      const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
+      const { usdBal } = await getBalance(walletOf, chatId)
 
-      const payWithNgn = isPayNgn
-      let chargedAmount = price
-      let chargedCurrency = 'usd'
+      if (usdBal < price) return send(chatId, `⚠️ Insufficient balance. You have $${usdBal.toFixed(2)} but need $${price}.`, k.of([[trans('u.deposit')], [user.cancelRenewNow]]))
 
-      if (payWithNgn) {
-        const priceNgn = await usdToNgn(price)
-        if (!priceNgn) return send(chatId, '⚠️ NGN payment temporarily unavailable. Please pay with USD.', k.of([[user.cancelRenewNow]]))
-        if (ngnBal < priceNgn) return send(chatId, `⚠️ Insufficient NGN balance. You have ₦${ngnBal.toFixed(2)} but need ₦${priceNgn.toLocaleString()}.`, k.of([[trans('u.deposit')], [user.cancelRenewNow]]))
-        chargedAmount = priceNgn
-        chargedCurrency = 'ngn'
-      } else {
-        if (usdBal < price) return send(chatId, `⚠️ Insufficient USD balance. You have $${usdBal.toFixed(2)} but need $${price}.`, k.of([[trans('u.deposit')], [user.cancelRenewNow]]))
-      }
-
-      // Deduct from wallet and extend expiry — protected with auto-refund
       try {
-        if (chargedCurrency === 'ngn') {
-          await atomicIncrement(walletOf, chatId, 'ngnOut', chargedAmount)
-        } else {
-          await atomicIncrement(walletOf, chatId, 'usdOut', price)
-        }
+        await atomicIncrement(walletOf, chatId, 'usdOut', price)
 
-        // Extend expiry
         const now = new Date()
         const currentExpiry = plan.expiryDate ? new Date(plan.expiryDate) : now
         const baseDate = currentExpiry > now ? currentExpiry : now
@@ -8265,40 +7947,31 @@ All verified numbers generated during sourcing.`))
         } catch (_) {}
 
         const newExpiryStr = newExpiry.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-        const { usdBal: newUsdBal, ngnBal: newNgnBal } = await getBalance(walletOf, chatId)
+        const { usdBal: newUsdBal } = await getBalance(walletOf, chatId)
 
-        const chargedStr = chargedCurrency === 'ngn' ? `₦${chargedAmount.toLocaleString()} NGN` : `$${price}`
-        const balStr = chargedCurrency === 'ngn' ? `₦${newNgnBal.toFixed(2)}` : `$${newUsdBal.toFixed(2)}`
-
-        set(payments, nanoid(), `Wallet,HostingRenew,${domain},$${price},${chatId},${new Date()}${chargedCurrency === 'ngn' ? `,${chargedAmount} NGN` : ''}`)
+        set(payments, nanoid(), `Wallet,HostingRenew,${domain},$${price},${chatId},${new Date()}`)
 
         await send(chatId,
           `✅ <b>Plan Renewed Successfully!</b>\n\n`
           + `<b>Plan:</b> ${plan.plan}\n`
           + `<b>Domain:</b> ${domain}\n`
-          + `<b>Charged:</b> ${chargedStr}\n`
+          + `<b>Charged:</b> $${price}\n`
           + `<b>New Expiry:</b> ${newExpiryStr}\n`
-          + `<b>Remaining Balance:</b> ${balStr}\n\n`
+          + `<b>Remaining Balance:</b> $${newUsdBal.toFixed(2)}\n\n`
           + `Anti-Red protection has been refreshed.`
         )
         return goto.viewHostingPlanDetails(domain)
       } catch (renewErr) {
-        // Auto-refund on failure
         try {
-          if (chargedCurrency === 'ngn') {
-            await atomicIncrement(walletOf, chatId, 'ngnIn', chargedAmount)
-            log(`[Hosting] Renewal refunded ₦${chargedAmount} for ${chatId} — renewal failed`)
-          } else {
-            await atomicIncrement(walletOf, chatId, 'usdIn', price)
-            log(`[Hosting] Renewal refunded $${price} for ${chatId} — renewal failed`)
-          }
+          await atomicIncrement(walletOf, chatId, 'usdIn', price)
+          log(`[Hosting] Renewal refunded $${price} for ${chatId} — renewal failed`)
         } catch (refundErr) {
-          log(`[Hosting] CRITICAL: Refund failed for ${chatId}, ${chargedCurrency === 'ngn' ? '₦' + chargedAmount : '$' + price}: ${refundErr.message}`)
-          send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>HOSTING RENEWAL REFUND FAILED</b>\nUser: ${chatId}\nAmount: ${chargedCurrency === 'ngn' ? '₦' + chargedAmount : '$' + price}\nDomain: ${domain}\nError: ${refundErr.message}`, { parse_mode: 'HTML' })
+          log(`[Hosting] CRITICAL: Refund failed for ${chatId}, $${price}: ${refundErr.message}`)
+          send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>HOSTING RENEWAL REFUND FAILED</b>\nUser: ${chatId}\nAmount: $${price}\nDomain: ${domain}\nError: ${refundErr.message}`, { parse_mode: 'HTML' })
         }
         log(`[Hosting] Renewal crashed for ${chatId}: ${renewErr.message}`)
         send(chatId, t.purchaseFailed || '❌ Renewal failed. Your wallet has been refunded. Please try again or contact support.', trans('o'))
-        send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>Hosting renewal crash</b>\nUser: ${chatId}\nDomain: ${domain}\nAmount: ${chargedCurrency === 'ngn' ? '₦' + chargedAmount : '$' + price}\nError: ${renewErr.message}`, { parse_mode: 'HTML' })
+        send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>Hosting renewal crash</b>\nUser: ${chatId}\nDomain: ${domain}\nAmount: $${price}\nError: ${renewErr.message}`, { parse_mode: 'HTML' })
       }
     }
   }
@@ -8310,35 +7983,30 @@ All verified numbers generated during sourcing.`))
     const upgradeOptions = info?.upgradeOptions || []
     const selected = upgradeOptions.find(opt => message === `⬆️ ${opt.name} ($${opt.price})`)
     if (selected) {
-      // User selected an upgrade plan — now show currency options
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
 
       const upgradePrice = selected.price
-      const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
-      const priceNgn = await usdToNgn(upgradePrice)
+      const { usdBal } = await getBalance(walletOf, chatId)
 
-      const canPayUsd = usdBal >= upgradePrice
-      const canPayNgn = priceNgn && ngnBal >= priceNgn
+      const canPay = usdBal >= upgradePrice
 
       let text = `<b>⬆️ Confirm Upgrade</b>\n\n`
         + `<b>Upgrade to:</b> ${selected.name}\n`
-        + `<b>Price:</b> $${upgradePrice}${priceNgn ? ` (≈ ₦${priceNgn.toLocaleString()})` : ''}\n`
-        + `<b>Wallet Balance:</b> $${usdBal.toFixed(2)}${priceNgn ? ` / ₦${ngnBal.toFixed(2)}` : ''}\n\n`
+        + `<b>Price:</b> $${upgradePrice}\n`
+        + `<b>Wallet Balance:</b> $${usdBal.toFixed(2)}\n\n`
 
-      if (canPayUsd || canPayNgn) {
-        text += `Select payment currency:`
+      if (canPay) {
+        text += `Confirm payment below:`
       } else {
         text += `⚠️ Insufficient funds. Please deposit first.`
       }
 
       saveInfo('selectedUpgrade', selected)
-      saveInfo('upgradePriceNgn', priceNgn)
       await set(state, chatId, 'action', a.confirmUpgradeHostingPay)
       const buttons = []
-      if (canPayUsd) buttons.push([`💵 Pay $${upgradePrice} USD`])
-      if (canPayNgn) buttons.push([`💶 Pay ₦${priceNgn.toLocaleString()} NGN`])
-      if (!canPayUsd && !canPayNgn) buttons.push([trans('u.deposit')])
+      if (canPay) buttons.push([`💵 Pay $${upgradePrice} USD`])
+      if (!canPay) buttons.push([trans('u.deposit')])
       buttons.push([user.backToMyHostingPlans])
       return send(chatId, text, k.of(buttons))
     }
@@ -8349,14 +8017,13 @@ All verified numbers generated during sourcing.`))
     ]))
   }
 
-  // Confirm Hosting Upgrade — pay with selected currency
+  // Confirm Hosting Upgrade — pay with USD
   if (action === a.confirmUpgradeHostingPay) {
     if (message === user.backToMyHostingPlans) return goto.myHostingPlans()
 
     const isPayUsd = message.startsWith('💵 Pay')
-    const isPayNgn = message.startsWith('💶 Pay')
 
-    if (isPayUsd || isPayNgn) {
+    if (isPayUsd) {
       const domain = info?.selectedHostingDomain
       if (!domain) return goto.myHostingPlans()
       const plan = await cpanelAccounts.findOne({ chatId: String(chatId), domain })
@@ -8366,40 +8033,17 @@ All verified numbers generated during sourcing.`))
       if (!selected) return goto.myHostingPlans()
 
       const upgradePrice = selected.price
-      const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
+      const { usdBal } = await getBalance(walletOf, chatId)
 
-      const payWithNgn = isPayNgn
-      let chargedAmount = upgradePrice
-      let chargedCurrency = 'usd'
-
-      if (payWithNgn) {
-        const priceNgn = await usdToNgn(upgradePrice)
-        if (!priceNgn) return send(chatId, '⚠️ NGN payment temporarily unavailable. Please pay with USD.', k.of([[user.backToMyHostingPlans]]))
-        if (ngnBal < priceNgn) return send(chatId, `⚠️ Insufficient NGN balance. You have ₦${ngnBal.toFixed(2)} but need ₦${priceNgn.toLocaleString()}.`, k.of([[trans('u.deposit')], [user.backToMyHostingPlans]]))
-        chargedAmount = priceNgn
-        chargedCurrency = 'ngn'
-      } else {
-        if (usdBal < upgradePrice) return send(chatId, `⚠️ Insufficient USD balance. You have $${usdBal.toFixed(2)} but need $${upgradePrice}.`, k.of([[trans('u.deposit')], [user.backToMyHostingPlans]]))
-      }
+      if (usdBal < upgradePrice) return send(chatId, `⚠️ Insufficient balance. You have $${usdBal.toFixed(2)} but need $${upgradePrice}.`, k.of([[trans('u.deposit')], [user.backToMyHostingPlans]]))
 
       try {
-        // 1. Charge wallet
-        if (chargedCurrency === 'ngn') {
-          await atomicIncrement(walletOf, chatId, 'ngnOut', chargedAmount)
-        } else {
-          await atomicIncrement(walletOf, chatId, 'usdOut', upgradePrice)
-        }
+        await atomicIncrement(walletOf, chatId, 'usdOut', upgradePrice)
 
-        // 2. Change WHM package
         const whm = require('./whm-service')
         const changeResult = await whm.changePackage(plan.cpUser, selected.name)
         if (!changeResult.success) {
-          // Refund on WHM failure
-          if (chargedCurrency === 'ngn') {
-            await atomicIncrement(walletOf, chatId, 'ngnIn', chargedAmount)
-          } else {
-            await atomicIncrement(walletOf, chatId, 'usdIn', upgradePrice)
-          }
+          await atomicIncrement(walletOf, chatId, 'usdIn', upgradePrice)
           log(`[Hosting] Upgrade WHM changePackage failed for ${chatId}: ${changeResult.error} — refunded`)
           return send(chatId, `❌ Upgrade failed: ${changeResult.error}\nYour wallet has been refunded.`, k.of([[user.backToMyHostingPlans]]))
         }
@@ -8417,53 +8061,42 @@ All verified numbers generated during sourcing.`))
           }}
         )
 
-        const { usdBal: newUsdBal, ngnBal: newNgnBal } = await getBalance(walletOf, chatId)
+        const { usdBal: newUsdBal } = await getBalance(walletOf, chatId)
         const newExpiryStr = newExpiry.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-        const chargedStr = chargedCurrency === 'ngn' ? `₦${chargedAmount.toLocaleString()} NGN` : `$${upgradePrice}`
-        const balStr = chargedCurrency === 'ngn' ? `₦${newNgnBal.toFixed(2)}` : `$${newUsdBal.toFixed(2)}`
 
-        log(`[Hosting] Plan upgraded for ${chatId}: ${plan.plan} → ${selected.name} (${chargedStr})`)
+        log(`[Hosting] Plan upgraded for ${chatId}: ${plan.plan} → ${selected.name} ($${upgradePrice})`)
 
-        // Re-deploy anti-red with new plan (non-blocking)
         try {
           const antiRedSvc = require('./anti-red-service')
           antiRedSvc.deployFullProtection(plan.cpUser, domain, selected.name).catch(() => {})
         } catch (_) {}
 
-        // Notify admin
-        send(TELEGRAM_ADMIN_CHAT_ID, `⬆️ <b>Hosting Upgrade</b>\nUser: ${chatId}\nDomain: ${domain}\n${plan.plan} → ${selected.name}\nCharged: ${chargedStr}`, { parse_mode: 'HTML' })
+        send(TELEGRAM_ADMIN_CHAT_ID, `⬆️ <b>Hosting Upgrade</b>\nUser: ${chatId}\nDomain: ${domain}\n${plan.plan} → ${selected.name}\nCharged: $${upgradePrice}`, { parse_mode: 'HTML' })
 
-        set(payments, nanoid(), `Wallet,HostingUpgrade,${domain},$${upgradePrice},${chatId},${new Date()}${chargedCurrency === 'ngn' ? `,${chargedAmount} NGN` : ''}`)
+        set(payments, nanoid(), `Wallet,HostingUpgrade,${domain},$${upgradePrice},${chatId},${new Date()}`)
 
         await send(chatId,
           `✅ <b>Plan Upgraded Successfully!</b>\n\n`
           + `<b>Old Plan:</b> ${plan.plan}\n`
           + `<b>New Plan:</b> ${selected.name}\n`
           + `<b>Domain:</b> ${domain}\n`
-          + `<b>Charged:</b> ${chargedStr}\n`
+          + `<b>Charged:</b> $${upgradePrice}\n`
           + `<b>New Expiry:</b> ${newExpiryStr}\n`
-          + `<b>Remaining Balance:</b> ${balStr}\n\n`
+          + `<b>Remaining Balance:</b> $${newUsdBal.toFixed(2)}\n\n`
           + `${selected.domains} now available. Anti-Red protection refreshed.`
         )
         return goto.viewHostingPlanDetails(domain)
       } catch (upgradeErr) {
-        // Auto-refund on failure
         try {
-          if (chargedCurrency === 'ngn') {
-            await atomicIncrement(walletOf, chatId, 'ngnIn', chargedAmount)
-            log(`[Hosting] Upgrade refunded ₦${chargedAmount} for ${chatId} — upgrade failed`)
-          } else {
-            await atomicIncrement(walletOf, chatId, 'usdIn', upgradePrice)
-            log(`[Hosting] Upgrade refunded $${upgradePrice} for ${chatId} — upgrade failed`)
-          }
+          await atomicIncrement(walletOf, chatId, 'usdIn', upgradePrice)
+          log(`[Hosting] Upgrade refunded $${upgradePrice} for ${chatId} — upgrade failed`)
         } catch (refundErr) {
-          const amtStr = chargedCurrency === 'ngn' ? '₦' + chargedAmount : '$' + upgradePrice
-          log(`[Hosting] CRITICAL: Upgrade refund failed for ${chatId}, ${amtStr}: ${refundErr.message}`)
-          send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>HOSTING UPGRADE REFUND FAILED</b>\nUser: ${chatId}\nAmount: ${amtStr}\nDomain: ${domain}\nError: ${refundErr.message}`, { parse_mode: 'HTML' })
+          log(`[Hosting] CRITICAL: Upgrade refund failed for ${chatId}, $${upgradePrice}: ${refundErr.message}`)
+          send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>HOSTING UPGRADE REFUND FAILED</b>\nUser: ${chatId}\nAmount: $${upgradePrice}\nDomain: ${domain}\nError: ${refundErr.message}`, { parse_mode: 'HTML' })
         }
         log(`[Hosting] Upgrade crashed for ${chatId}: ${upgradeErr.message}`)
         send(chatId, '❌ Upgrade failed. Your wallet has been refunded. Please try again or contact support.', trans('o'))
-        send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>Hosting upgrade crash</b>\nUser: ${chatId}\nDomain: ${domain}\nAmount: ${chargedCurrency === 'ngn' ? '₦' + chargedAmount : '$' + upgradePrice}\nError: ${upgradeErr.message}`, { parse_mode: 'HTML' })
+        send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>Hosting upgrade crash</b>\nUser: ${chatId}\nDomain: ${domain}\nAmount: $${upgradePrice}\nError: ${upgradeErr.message}`, { parse_mode: 'HTML' })
       }
     }
   }
@@ -9177,28 +8810,23 @@ All verified numbers generated during sourcing.`))
       return send(chatId, trialPlusSuccess[lang] || trialPlusSuccess.en, { parse_mode: 'HTML', reply_markup: { keyboard: [[user.emailValidation], [t.back || '🔙 Back']], resize_keyboard: true } })
     }
 
-    const wallet = await get(walletOf, chatId) || { usdIn: 0, usdOut: 0, ngnIn: 0, ngnOut: 0 }
+    const wallet = await get(walletOf, chatId) || { usdIn: 0, usdOut: 0 }
     const usdBal = (wallet.usdIn || 0) - (wallet.usdOut || 0)
-    const ngnBal = (wallet.ngnIn || 0) - (wallet.ngnOut || 0)
 
     if (message === '💵 Pay USD') {
       if (usdBal < priceUsd) {
         return send(chatId, `⚠️ Insufficient USD balance.\n💰 Need: <b>$${priceUsd.toFixed(2)}</b>\n💳 Have: <b>$${usdBal.toFixed(2)}</b>\n\nPlease deposit more to your wallet.`, { parse_mode: 'HTML' })
       }
 
-      // Deduct wallet
       await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
       log(`[EmailValidation] Deducted $${priceUsd} USD from chatId=${chatId} for ${emailCount} emails`)
 
-      // Clear session emails to free memory, start processing
       await saveInfo('evEmails', null)
       await set(state, chatId, 'action', null)
 
-      // Process in background
       emailValidationService.processValidationJob(chatId, emails, priceUsd, 'wallet_usd', lang)
         .catch(err => {
           log(`[EmailValidation] Job error for chatId=${chatId}: ${err.message}`)
-          // Refund on failure
           atomicIncrement(walletOf, chatId, 'usdIn', priceUsd).catch(() => {})
           bot.sendMessage(chatId, `❌ Validation failed. <b>$${priceUsd.toFixed(2)}</b> has been refunded to your wallet.`, { parse_mode: 'HTML' }).catch(() => {})
         })
@@ -9206,30 +8834,7 @@ All verified numbers generated during sourcing.`))
       return send(chatId, `✅ <b>Payment successful!</b>\n\n💵 Charged: <b>$${priceUsd.toFixed(2)}</b>\n📧 Validating: <b>${emailCount.toLocaleString()} emails</b>\n\n⏳ Processing will begin shortly. You'll receive progress updates.`, { parse_mode: 'HTML', reply_markup: { keyboard: [[user.emailValidation], [t.back || '🔙 Back']], resize_keyboard: true } })
     }
 
-    if (message === '💵 Pay NGN') {
-      if (ngnBal < priceNgn) {
-        return send(chatId, `⚠️ Insufficient NGN balance.\n💰 Need: <b>₦${priceNgn.toLocaleString()}</b>\n💳 Have: <b>₦${ngnBal.toFixed(2)}</b>\n\nPlease deposit more to your wallet.`, { parse_mode: 'HTML' })
-      }
-
-      // Deduct wallet
-      await atomicIncrement(walletOf, chatId, 'ngnOut', priceNgn)
-      log(`[EmailValidation] Deducted ₦${priceNgn} NGN from chatId=${chatId} for ${emailCount} emails`)
-
-      // Clear session and process
-      await saveInfo('evEmails', null)
-      await set(state, chatId, 'action', null)
-
-      emailValidationService.processValidationJob(chatId, emails, priceUsd, 'wallet_ngn', lang)
-        .catch(err => {
-          log(`[EmailValidation] Job error for chatId=${chatId}: ${err.message}`)
-          atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn).catch(() => {})
-          bot.sendMessage(chatId, `❌ Validation failed. <b>₦${priceNgn.toLocaleString()}</b> has been refunded to your wallet.`, { parse_mode: 'HTML' }).catch(() => {})
-        })
-
-      return send(chatId, `✅ <b>Payment successful!</b>\n\n💵 Charged: <b>₦${priceNgn.toLocaleString()}</b>\n📧 Validating: <b>${emailCount.toLocaleString()} emails</b>\n\n⏳ Processing will begin shortly. You'll receive progress updates.`, { parse_mode: 'HTML', reply_markup: { keyboard: [[user.emailValidation], [t.back || '🔙 Back']], resize_keyboard: true } })
-    }
-
-    return send(chatId, 'Please choose a payment method:', { reply_markup: { keyboard: [['💵 Pay USD', '💵 Pay NGN'], ['❌ Cancel']], resize_keyboard: true } })
+    return send(chatId, 'Please choose a payment method:', { reply_markup: { keyboard: [['💵 Pay USD'], ['❌ Cancel']], resize_keyboard: true } })
   }
 
   // ━━━ Ship & Mail (BozzMail Mini App) ━━━
@@ -9532,7 +9137,7 @@ ${message.replace(/\n/g, '<br>')}
       await set(state, chatId, 'action', a.ebPayment)
 
       // Check wallet balance — both USD and NGN
-      const { usdBal: walletBal, ngnBal: walletNgn } = await getBalance(walletOf, chatId)
+      const { usdBal: walletBal } = await getBalance(walletOf, chatId)
       const priceNgn = await usdToNgn(totalPrice)
       const hasUsd = walletBal >= totalPrice
       const hasNgn = priceNgn && walletNgn >= priceNgn
@@ -9567,55 +9172,29 @@ ${message.replace(/\n/g, '<br>')}
     const campaign = await emailBlastService.getCampaign(campaignId)
     if (!campaign) return send(chatId, t.ebCampaignNotFound || '❌ Campaign not found.')
 
-    if (message && (message.startsWith('💵 Pay') || message.startsWith('💶 Pay') || message.startsWith('👛 Pay from Wallet'))) {
-      const isNgnPay = message.startsWith('💶 Pay')
-
-      if (isNgnPay) {
-        const { ngnBal } = await getBalance(walletOf, chatId)
-        const priceNgn = await usdToNgn(campaign.totalPrice)
-        if (!priceNgn) return send(chatId, '⚠️ NGN payment temporarily unavailable. Please pay with USD.')
-        if (ngnBal < priceNgn) return send(chatId, `❌ Insufficient NGN balance. You need ₦${priceNgn.toLocaleString()} but have ₦${ngnBal.toFixed(2)}.`)
-
-        const name = await get(nameOf, chatId)
-        set(payments, nanoid(), `Wallet,EmailBlast,$${campaign.totalPrice},${chatId},${name},${new Date()},${priceNgn} NGN`)
-        await atomicIncrement(walletOf, chatId, 'ngnOut', priceNgn)
-
-        await emailBlastService.startCampaign(campaignId, 'wallet', 'ngn')
-
-        const { usdBal: newUsd, ngnBal: newNgn } = await getBalance(walletOf, chatId)
-        await set(state, chatId, 'action', '')
-        return send(chatId,
-          `✅ <b>Payment Successful!</b>\n\n` +
-          `💶 ₦${priceNgn.toLocaleString()} deducted from NGN wallet\n` +
-          `📧 Campaign queued: ${campaign.totalEmails} emails\n\n` +
-          `📤 Sending will begin shortly. You'll receive progress updates and a completion notification.\n\n` +
-          `New wallet balance: <b>₦${newNgn.toFixed(2)}</b>`,
-          { parse_mode: 'HTML' }
-        )
-      } else {
-        // USD payment (original flow)
-        const { usdBal } = await getBalance(walletOf, chatId)
-        if (usdBal < campaign.totalPrice) {
-          return send(chatId, `❌ Insufficient balance. You need $${campaign.totalPrice} but have $${usdBal.toFixed(2)}. Please deposit first.`)
-        }
-
-        const name = await get(nameOf, chatId)
-        set(payments, nanoid(), `Wallet,EmailBlast,$${campaign.totalPrice},${chatId},${name},${new Date()}`)
-        await atomicIncrement(walletOf, chatId, 'usdOut', campaign.totalPrice)
-
-        await emailBlastService.startCampaign(campaignId, 'wallet', 'usd')
-
-        const { usdBal: newUsd, ngnBal: newNgn } = await getBalance(walletOf, chatId)
-        await set(state, chatId, 'action', '')
-        return send(chatId,
-          `✅ <b>Payment Successful!</b>\n\n` +
-          `💵 $${campaign.totalPrice} deducted from wallet\n` +
-          `📧 Campaign queued: ${campaign.totalEmails} emails\n\n` +
-          `📤 Sending will begin shortly. You'll receive progress updates and a completion notification.\n\n` +
-          `New wallet balance: <b>$${newUsd.toFixed(2)}</b>`,
-          { parse_mode: 'HTML' }
-        )
+    if (message && (message.startsWith('💵 Pay') || message.startsWith('👛 Pay from Wallet'))) {
+      // USD payment only
+      const { usdBal } = await getBalance(walletOf, chatId)
+      if (usdBal < campaign.totalPrice) {
+        return send(chatId, `❌ Insufficient balance. You need $${campaign.totalPrice} but have $${usdBal.toFixed(2)}. Please deposit first.`)
       }
+
+      const name = await get(nameOf, chatId)
+      set(payments, nanoid(), `Wallet,EmailBlast,$${campaign.totalPrice},${chatId},${name},${new Date()}`)
+      await atomicIncrement(walletOf, chatId, 'usdOut', campaign.totalPrice)
+
+      await emailBlastService.startCampaign(campaignId, 'wallet', 'usd')
+
+      const { usdBal: newUsd } = await getBalance(walletOf, chatId)
+      await set(state, chatId, 'action', '')
+      return send(chatId,
+        `✅ <b>Payment Successful!</b>\n\n` +
+        `💵 $${campaign.totalPrice} deducted from wallet\n` +
+        `📧 Campaign queued: ${campaign.totalEmails} emails\n\n` +
+        `📤 Sending will begin shortly. You'll receive progress updates and a completion notification.\n\n` +
+        `New wallet balance: <b>$${newUsd.toFixed(2)}</b>`,
+        { parse_mode: 'HTML' }
+      )
     }
 
     if (message === '💳 Pay with Crypto') {
@@ -14234,9 +13813,9 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
   if (action === a.selectCurrencyToDeposit) {
     if (message === t.back) return goto[user.wallet]()
-    if (message === u.usd) return goto[a.depositUSD]()
-    if (message === u.ngn) return goto[a.depositNGN]()
-    return send(chatId, t.what, trans('payOpts'))
+    if (message === u.depositBank || message === u.ngn) return goto[a.depositNGN]()
+    if (message === u.depositCrypto || message === u.usd) return goto[a.depositUSD]()
+    return send(chatId, t.what)
   }
 
   if (action === a.depositNGN) {
@@ -14289,11 +13868,8 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   //
   if (action === a.walletSelectCurrency) {
     if (message === t.back) return goto[info?.lastStep]()
-
-    const coin = message
-    if (![u.usd, u.ngn].includes(coin)) return send(chatId, t.what)
-    await saveInfo('coin', coin)
-
+    // USD-only wallet — auto-set coin and route to confirm
+    await saveInfo('coin', u.usd)
     return goto.walletSelectCurrencyConfirm()
   }
   if (action === a.walletSelectCurrencyConfirm) {
@@ -15623,7 +15199,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         const walletCheck = await smartWalletCheck(walletOf, chatId, IVR_MIN_WALLET)
         if (!walletCheck.sufficient) {
           const depositLabel = ({ en: '➕💵 Deposit', fr: '➕💵 Déposer', zh: '➕💵 充值', hi: '➕💵 जमा' }[lang] || '➕💵 Deposit')
-          return send(chatId, `⚠️ <b>Insufficient Wallet Balance</b>\n\nQuick IVR calls require a minimum balance of <b>$${IVR_MIN_WALLET.toFixed(2)}</b>.\n\nYour balance: <b>$${walletCheck.usdBal.toFixed(2)}</b>${walletCheck.ngnBal > 0 ? ` / ₦${walletCheck.ngnBal.toFixed(2)}` : ''}\n\nPlease top up your wallet and try again.`, k.of([[depositLabel], ['Cancel']]))
+          return send(chatId, `⚠️ <b>Insufficient Wallet Balance</b>\n\nQuick IVR calls require a minimum balance of <b>$${IVR_MIN_WALLET.toFixed(2)}</b>.\n\nYour balance: <b>$${walletCheck.usdBal.toFixed(2)}</b>\n\nPlease top up your wallet and try again.`, k.of([[depositLabel], ['Cancel']]))
         }
       }
 
@@ -17122,11 +16698,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       log(`[BundleRejected] User ${chatId} chose to cancel and refund for bundle ${rejectedBundle.bundleSid}`)
       const refundCoin = rejectedBundle.paymentCoin || 'usd'
       try {
-        if (isUsdRefundCoin(refundCoin, { usd: 'USD', ngn: 'NGN' })) {
           await atomicIncrement(walletOf, chatId, 'usdIn', rejectedBundle.priceUsd || rejectedBundle.price)
-        } else {
-          await atomicIncrement(walletOf, chatId, 'ngnIn', rejectedBundle.priceNgn || 0)
-        }
       } catch (refundErr) {
         log(`[BundleRejected] Refund error: ${refundErr.message}`)
         notifyAdmin(`🚨 [BundleRejected] Refund failed\nchatId: ${chatId}\nbundle: ${rejectedBundle.bundleSid}\nerror: ${refundErr.message}`)
@@ -17134,12 +16706,12 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       await pendingBundles.updateOne({ _id: rejectedBundle._id }, { $set: { status: 'cancelled-refunded', refundedAt: new Date(), updatedAt: new Date() } })
       await set(state, chatId, 'action', 'none')
 
-      const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
+      const { usdBal } = await getBalance(walletOf, chatId)
       const t = translation('l', lang)
       const refundAmt = (rejectedBundle.paymentCoin === 'ngn' || rejectedBundle.priceNgn > 0)
         ? `₦${Number(rejectedBundle.priceNgn || 0).toFixed(2)}`
         : `$${Number(rejectedBundle.priceUsd || rejectedBundle.price).toFixed(2)}`
-      send(chatId, `💰 <b>${refundAmt}</b> has been refunded to your wallet.\n${t.showWallet ? t.showWallet(usdBal, ngnBal) : `Balance: $${usdBal}`}`, { parse_mode: 'HTML' })
+      send(chatId, `💰 <b>${refundAmt}</b> has been refunded to your wallet.\n${t.showWallet ? t.showWallet(usdBal) : `Balance: $${usdBal}`}`, { parse_mode: 'HTML' })
       return
     }
 
@@ -17162,7 +16734,6 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
             const refundAmt = Number(rb.priceUsd || rb.price) || 0
             const refundNgn = Number(rb.priceNgn) || 0
             if (refundAmt > 0) { await atomicIncrement(walletOf, chatId, 'usdIn', refundAmt); totalRefunded += refundAmt }
-            if (refundNgn > 0) await atomicIncrement(walletOf, chatId, 'ngnIn', refundNgn)
           } catch (refErr) {
             log(`[StartFresh] Refund error for bundle ${rb.bundleSid}: ${refErr.message}`)
             notifyAdmin(`🚨 [StartFresh] Refund failed\nchatId: ${chatId}\nbundle: ${rb.bundleSid}\nerror: ${refErr.message}`)
@@ -17183,9 +16754,9 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       await set(state, chatId, 'action', 'none')
       await set(state, chatId, 'processingPayment', false)
 
-      const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
+      const { usdBal } = await getBalance(walletOf, chatId)
       const t = translation('l', lang)
-      const balMsg = t.showWallet ? t.showWallet(usdBal, ngnBal) : `Balance: $${usdBal}`
+      const balMsg = t.showWallet ? t.showWallet(usdBal) : `Balance: $${usdBal}`
       send(chatId, `🔄 <b>Fresh Start!</b>\n\n${totalCleaned > 0 ? `✅ Cleared ${totalCleaned} rejected verification(s)\n💰 $${totalRefunded.toFixed(2)} refunded to your wallet\n` : ''}${balMsg}\n\nYou can now start a new phone number purchase from scratch.`, {
         parse_mode: 'HTML',
         reply_markup: { keyboard: trans('o').reply_markup.keyboard, resize_keyboard: true }
@@ -17235,12 +16806,11 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       const priceNgn = info?.cpPendingPriceNgn
       if (coin && priceUsd) {
         if (isUsdRefundCoin(coin, u)) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
-        else if (coin === u.ngn && priceNgn) await atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn)
         // Clear pending to prevent duplicate refund
         await saveInfo('cpPendingCoin', null)
         await saveInfo('cpPendingPriceUsd', null)
         await saveInfo('cpPendingPriceNgn', null)
-        const { usdBal: refUsd, ngnBal: refNgn } = await getBalance(walletOf, chatId)
+        const { usdBal: refUsd } = await getBalance(walletOf, chatId)
         log(`[CloudPhone] Address failed for ${chatId}, refunded $${priceUsd} to wallet. Balance: $${refUsd}`)
         await set(state, chatId, 'action', 'none')
         return send(chatId, ({ en: `❌ Address creation failed.\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> has been refunded to your wallet.\n${t.showWallet(refUsd, refNgn)}`, fr: `❌ Échec de la création de l'adresse.\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> a été remboursé sur votre portefeuille.\n${t.showWallet(refUsd, refNgn)}`, zh: `❌ 地址创建失败。\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> 已退还到您的钱包。\n${t.showWallet(refUsd, refNgn)}`, hi: `❌ पता बनाना विफल।\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> आपके वॉलेट में वापस किया गया।\n${t.showWallet(refUsd, refNgn)}` }[lang] || `❌ Address creation failed.\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> has been refunded to your wallet.\n${t.showWallet(refUsd, refNgn)}`), { parse_mode: 'HTML' })
@@ -17276,10 +16846,9 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
           const priceNgn = info?.cpPendingPriceNgn
           if (coin && priceUsd) {
             if (isUsdRefundCoin(coin, u)) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
-            else if (coin === u.ngn && priceNgn) await atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn)
             await saveInfo('cpPendingCoin', null); await saveInfo('cpPendingPriceUsd', null); await saveInfo('cpPendingPriceNgn', null)
           }
-          const { usdBal: refUsd, ngnBal: refNgn } = await getBalance(walletOf, chatId)
+          const { usdBal: refUsd } = await getBalance(walletOf, chatId)
           await set(state, chatId, 'action', 'none')
           send(chatId, `❌ Regulatory setup failed for ${countryName}.\n\n💰 <b>$${Number(priceUsd || price).toFixed(2)}</b> refunded.\n${t.showWallet(refUsd, refNgn)}`, { parse_mode: 'HTML' })
           return notifyAdmin(`⚠️ [Bundle] getRegulationSid failed\nchatId: ${chatId}\ncountry: ${countryCode}\nerror: ${regResult.error}`)
@@ -17297,10 +16866,9 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
           const priceNgn = info?.cpPendingPriceNgn
           if (coin && priceUsd) {
             if (isUsdRefundCoin(coin, u)) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
-            else if (coin === u.ngn && priceNgn) await atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn)
             await saveInfo('cpPendingCoin', null); await saveInfo('cpPendingPriceUsd', null); await saveInfo('cpPendingPriceNgn', null)
           }
-          const { usdBal: refUsd, ngnBal: refNgn } = await getBalance(walletOf, chatId)
+          const { usdBal: refUsd } = await getBalance(walletOf, chatId)
           await set(state, chatId, 'action', 'none')
           send(chatId, `❌ Regulatory setup failed.\n\n💰 <b>$${Number(priceUsd || price).toFixed(2)}</b> refunded.\n${t.showWallet(refUsd, refNgn)}`, { parse_mode: 'HTML' })
           return notifyAdmin(`⚠️ [Bundle] createEndUser failed\nchatId: ${chatId}\nerror: ${endUserResult.error}`)
@@ -17320,10 +16888,9 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
           const priceNgn = info?.cpPendingPriceNgn
           if (coin && priceUsd) {
             if (isUsdRefundCoin(coin, u)) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
-            else if (coin === u.ngn && priceNgn) await atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn)
             await saveInfo('cpPendingCoin', null); await saveInfo('cpPendingPriceUsd', null); await saveInfo('cpPendingPriceNgn', null)
           }
-          const { usdBal: refUsd, ngnBal: refNgn } = await getBalance(walletOf, chatId)
+          const { usdBal: refUsd } = await getBalance(walletOf, chatId)
           await set(state, chatId, 'action', 'none')
           send(chatId, `❌ Regulatory setup failed.\n\n💰 <b>$${Number(priceUsd || price).toFixed(2)}</b> refunded.\n${t.showWallet(refUsd, refNgn)}`, { parse_mode: 'HTML' })
           return notifyAdmin(`⚠️ [Bundle] createBundle failed\nchatId: ${chatId}\nerror: ${bundleResult.error}`)
@@ -17399,14 +16966,13 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         try {
           if (coin && priceUsd) {
             if (isUsdRefundCoin(coin, u)) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
-            else if (coin === u.ngn && priceNgn) await atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn)
             await saveInfo('cpPendingCoin', null); await saveInfo('cpPendingPriceUsd', null); await saveInfo('cpPendingPriceNgn', null)
           }
         } catch (refundErr) {
           log(`[CloudPhone] CRITICAL: Refund failed after bundle error: ${refundErr.message}`)
           notifyAdmin(`🚨 CRITICAL [Bundle] Refund failed\nchatId: ${chatId}\nprice: $${priceUsd || price}\nerror: ${refundErr.message}`)
         }
-        const { usdBal: refUsd, ngnBal: refNgn } = await getBalance(walletOf, chatId)
+        const { usdBal: refUsd } = await getBalance(walletOf, chatId)
         await set(state, chatId, 'action', 'none')
         send(chatId, `❌ Regulatory setup failed.\n\n💰 Your wallet has been refunded.\n${t.showWallet(refUsd, refNgn)}`, { parse_mode: 'HTML' })
         return notifyAdmin(`⚠️ [Bundle] Exception\nchatId: ${chatId}\nerror: ${bundleErr.message}`)
@@ -17423,12 +16989,11 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       const priceNgn = info?.cpPendingPriceNgn
       if (coin && priceUsd) {
         if (isUsdRefundCoin(coin, u)) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
-        else if (coin === u.ngn && priceNgn) await atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn)
         // Clear pending to prevent duplicate refund
         await saveInfo('cpPendingCoin', null)
         await saveInfo('cpPendingPriceUsd', null)
         await saveInfo('cpPendingPriceNgn', null)
-        const { usdBal: refUsd, ngnBal: refNgn } = await getBalance(walletOf, chatId)
+        const { usdBal: refUsd } = await getBalance(walletOf, chatId)
         log(`[CloudPhone] Twilio purchase failed for ${chatId}, refunded $${priceUsd} to wallet. Balance: $${refUsd}`)
         await set(state, chatId, 'action', 'none')
         send(chatId, phoneConfig.getMsg(lang).purchaseFailed + `\n\n💰 <b>$${Number(priceUsd).toFixed(2)}</b> has been refunded to your wallet.\n${t.showWallet(refUsd, refNgn)}`, trans('o'))
@@ -17440,9 +17005,9 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     }
 
     await set(state, chatId, 'action', 'none')
-    const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
+    const { usdBal: usd } = await getBalance(walletOf, chatId)
     send(chatId, cpTxt.purchaseSuccess(selectedNumber, result.plan, result.sipUsername, result.sipPassword, phoneConfig.SIP_DOMAIN, result.expiresAt), { parse_mode: 'HTML' })
-    send(chatId, t.showWallet(usd, ngn))
+    send(chatId, t.showWallet(usd))
     checkAndNotifyTierUpgrade(preSpend || 0)
     // Post-purchase upsell: guide user to set up their number
     setTimeout(() => {
@@ -17457,7 +17022,6 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       try {
         if (coin && priceUsd) {
           if (isUsdRefundCoin(coin, u)) await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
-          else if (coin === u.ngn && priceNgn) await atomicIncrement(walletOf, chatId, 'ngnIn', priceNgn)
           log(`[CloudPhone] ✅ Auto-refunded $${priceUsd} to ${chatId} after address purchase error`)
         }
       } catch (refundErr) { log(`[CloudPhone] ❌ CRITICAL: Refund also failed for ${chatId}: ${refundErr?.message}`) }
@@ -17865,20 +17429,16 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
         // Refund wallet
         const refundCoin = dbBundle.paymentCoin || 'usd'
-        if (isUsdRefundCoin(refundCoin, { usd: 'USD', ngn: 'NGN' })) {
-          await atomicIncrement(walletOf, chatId, 'usdIn', dbBundle.priceUsd || dbBundle.price)
-        } else {
-          await atomicIncrement(walletOf, chatId, 'ngnIn', dbBundle.priceNgn || 0)
-        }
+        await atomicIncrement(walletOf, chatId, 'usdIn', dbBundle.priceUsd || dbBundle.price)
 
         // Update DB status
         await pendingBundles.updateOne({ _id: dbBundle._id }, { $set: { status: 'cancelled', cancelledAt: new Date(), updatedAt: new Date() } })
 
-        const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
+        const { usdBal } = await getBalance(walletOf, chatId)
         log(`[PendingDetail] Order cancelled by user ${chatId}, bundle ${pb.bundleSid}, refunded $${dbBundle.priceUsd || dbBundle.price}`)
         notifyAdmin(`❌ [Bundle] User cancelled pending order\nchatId: ${chatId}\nnumber: ${pb.selectedNumber}\nbundle: ${pb.bundleSid}\nrefunded: $${dbBundle.priceUsd || dbBundle.price}`)
 
-        send(chatId, `✅ <b>Order Cancelled</b>\n\nYour pending order for <code>${pb.selectedNumber}</code> has been cancelled.\n\n💰 <b>$${Number(dbBundle.priceUsd || dbBundle.price).toFixed(2)}</b> has been refunded to your wallet.\n${t.showWallet(usdBal, ngnBal)}`, { parse_mode: 'HTML' })
+        send(chatId, `✅ <b>Order Cancelled</b>\n\nYour pending order for <code>${pb.selectedNumber}</code> has been cancelled.\n\n💰 <b>$${Number(dbBundle.priceUsd || dbBundle.price).toFixed(2)}</b> has been refunded to your wallet.\n${t.showWallet(usdBal)}`, { parse_mode: 'HTML' })
         return goto.submenu5()
       } catch (e) {
         log(`[PendingDetail] Cancel error: ${e.message}`)
@@ -21748,16 +21308,16 @@ async function checkVPSPlansExpiryandPayment() {
           : `$${planPrice}`
         set(payments, nanoid(), `Wallet,VPSAutoRenew,Monthly,$${planPrice},${chatId},${new Date()},${deductResult.currency}`)
 
-        const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
+        const { usdBal: usd } = await getBalance(walletOf, chatId)
         send(chatId, `✅ <b>VPS Auto-Renewed</b>\n\n🖥️ <b>${displayName}</b> renewed for 1 month.\n💰 ${chargedDisplay} deducted from ${deductResult.currency.toUpperCase()} wallet.\n📅 New expiry: <b>${newEnd.toLocaleDateString()}</b>\n\n💳 Balance: $${usd.toFixed(2)} / ₦${ngn.toFixed(2)}`)
         log(`[VPS Scheduler] Auto-renewed ${displayName} for ${chatId}, charged ${deductResult.currency} $${planPrice}`)
       } else {
         // Both USD and NGN failed — mark pending cancellation
         await vpsPlansOf.updateOne({ _id }, { $set: { status: 'PENDING_CANCELLATION', _autoRenewAttempted: true } })
-        const { usdBal, ngnBal } = deductResult
-        send(chatId, `🚨 <b>URGENT — VPS Renewal Failed</b>\n\n🖥️ <b>${displayName}</b> could not be auto-renewed.\n💰 Balance: $${(usdBal || 0).toFixed(2)} / ₦${(ngnBal || 0).toFixed(2)}\n💵 Required: <b>$${planPrice}/mo</b>\n\n⚠️ <b>Your server will be permanently deleted on ${expiryDate}</b> unless you renew manually.\n\nGo to: VPS/RDP → Manage → 📅 Renew Now`)
-        send(TELEGRAM_ADMIN_CHAT_ID, `⚠️ <b>VPS Renewal Failed</b>\nUser: ${chatId}\nVPS: ${displayName}\nPrice: $${planPrice}\nBalance: $${(usdBal || 0).toFixed(2)} / ₦${(ngnBal || 0).toFixed(2)}`, { parse_mode: 'HTML' })
-        log(`[VPS Scheduler] ${displayName} PENDING_CANCELLATION for ${chatId} — balance insufficient ($${usdBal || 0} / ₦${ngnBal || 0} < $${planPrice})`)
+        const { usdBal } = deductResult
+        send(chatId, `🚨 <b>URGENT — VPS Renewal Failed</b>\n\n🖥️ <b>${displayName}</b> could not be auto-renewed.\n💰 Balance: $${(usdBal || 0).toFixed(2)}\n💵 Required: <b>$${planPrice}/mo</b>\n\n⚠️ <b>Your server will be permanently deleted on ${expiryDate}</b> unless you renew manually.\n\nGo to: VPS/RDP → Manage → 📅 Renew Now`)
+        send(TELEGRAM_ADMIN_CHAT_ID, `⚠️ <b>VPS Renewal Failed</b>\nUser: ${chatId}\nVPS: ${displayName}\nPrice: $${planPrice}\nBalance: $${(usdBal || 0).toFixed(2)}`, { parse_mode: 'HTML' })
+        log(`[VPS Scheduler] ${displayName} PENDING_CANCELLATION for ${chatId} — balance insufficient ($${usdBal || 0} < $${planPrice})`)
       }
     }
 
@@ -21824,7 +21384,7 @@ async function checkVPSPlansExpiryandPayment() {
             ? `₦${Number(deductResult.chargedNgn).toFixed(2)} (≈ $${planPrice})`
             : `$${planPrice}`
           set(payments, nanoid(), `Wallet,VPSAutoRenew,Monthly,$${planPrice},${chatId},${new Date()},${deductResult.currency}`)
-          const { usdBal: usd, ngnBal: ngn } = await getBalance(walletOf, chatId)
+          const { usdBal: usd } = await getBalance(walletOf, chatId)
           send(chatId, `✅ <b>VPS Auto-Renewed</b>\n\n🖥️ <b>${displayName}</b> renewed for 1 month.\n💰 ${chargedDisplay} deducted.\n📅 New expiry: <b>${newEnd.toLocaleDateString()}</b>\n\n💳 Balance: $${usd.toFixed(2)} / ₦${ngn.toFixed(2)}`)
           log(`[VPS Scheduler] Late auto-renewed ${displayName} for ${chatId}`)
           continue
@@ -21832,8 +21392,8 @@ async function checkVPSPlansExpiryandPayment() {
       }
       // Failed or auto-renew off — mark pending cancellation (will be deleted next cycle)
       await vpsPlansOf.updateOne({ _id }, { $set: { status: 'PENDING_CANCELLATION', _autoRenewAttempted: true } })
-      const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
-      send(chatId, `🚨 <b>URGENT — VPS Expired</b>\n\n🖥️ <b>${displayName}</b> has expired.\n💰 Balance: $${(usdBal).toFixed(2)} / ₦${(ngnBal).toFixed(2)}\n\n⚠️ <b>Server will be deleted shortly.</b>\nRenew NOW: VPS/RDP → Manage → 📅 Renew Now`)
+      const { usdBal } = await getBalance(walletOf, chatId)
+      send(chatId, `🚨 <b>URGENT — VPS Expired</b>\n\n🖥️ <b>${displayName}</b> has expired.\n💰 Balance: $${(usdBal).toFixed(2)}\n\n⚠️ <b>Server will be deleted shortly.</b>\nRenew NOW: VPS/RDP → Manage → 📅 Renew Now`)
       log(`[VPS Scheduler] ${displayName} marked PENDING_CANCELLATION (stale) for ${chatId}`)
     }
 
@@ -21854,10 +21414,10 @@ async function checkVPSPlansExpiryandPayment() {
 
       // 3-day reminder
       if (daysLeft > 2.5 && daysLeft <= 3.1 && !vpsPlan._reminder3DaySent) {
-        const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
+        const { usdBal } = await getBalance(walletOf, chatId)
         const sufficient = usdBal >= planPrice
         const statusIcon = sufficient ? '✅' : '⚠️'
-        send(chatId, `🖥️ <b>VPS Expiring in 3 Days</b>\n\n<b>${displayName}</b> expires on <b>${expiryDate}</b>.\n💵 Required: <b>$${planPrice}/mo</b>\n💳 Balance: $${usdBal.toFixed(2)} / ₦${ngnBal.toFixed(2)}\n${statusIcon} ${sufficient ? 'Auto-renewal will be attempted 1 day before expiry.' : 'Insufficient balance — top up or renew manually to keep your server!'}`)
+        send(chatId, `🖥️ <b>VPS Expiring in 3 Days</b>\n\n<b>${displayName}</b> expires on <b>${expiryDate}</b>.\n💵 Required: <b>$${planPrice}/mo</b>\n💳 Balance: $${usdBal.toFixed(2)}\n${statusIcon} ${sufficient ? 'Auto-renewal will be attempted 1 day before expiry.' : 'Insufficient balance — top up or renew manually to keep your server!'}`)
         await vpsPlansOf.updateOne({ _id }, { $set: { _reminder3DaySent: true } })
         log(`[VPS Scheduler] 3-day reminder sent to ${chatId} for ${displayName}`)
       }
@@ -22177,12 +21737,20 @@ setTimeout(() => {
 honeypotService.createHoneypotRoutes(app)
 
 const addFundsTo = async (walletOf, chatId, coin, valueIn, lang) => {
-  if (!['usd', 'ngn'].includes(coin)) throw Error('Dev Please Debug')
-
-  const key = `${coin}In`
-  await atomicIncrement(walletOf, chatId, key, valueIn)
-  const { usdBal, ngnBal } = await getBalance(walletOf, chatId)
-  sendMessage(chatId, translation('t.showWallet', lang, usdBal, ngnBal))
+  // All deposits now credit USD wallet
+  if (coin === 'ngn') {
+    // Convert NGN to USD before crediting
+    const usdAmount = await ngnToUsd(valueIn)
+    if (!usdAmount || usdAmount <= 0) {
+      log(`[addFundsTo] NGN→USD conversion failed for chatId=${chatId}, ngnIn=${valueIn}`)
+      return
+    }
+    await atomicIncrement(walletOf, chatId, 'usdIn', usdAmount)
+  } else {
+    await atomicIncrement(walletOf, chatId, 'usdIn', valueIn)
+  }
+  const { usdBal } = await getBalance(walletOf, chatId)
+  sendMessage(chatId, translation('t.showWallet', lang, usdBal))
 }
 //
 // ━━━ Loyalty Tier: Webhook helper ━━━
@@ -22677,10 +22245,9 @@ const bankApis = {
             const undeliveredRatio = (requested - delivered) / requested
             const refundAmount = Math.round(undeliveredRatio * price * 100) / 100
             if (refundAmount > 0) {
-              const refundNgn = await usdToNgn(refundAmount)
-              await atomicIncrement(walletOf, chatId, 'ngnIn', refundNgn)
-              sendMessage(chatId, `💰 <b>Partial Refund</b>\n📊 ${delivered}/${requested} leads delivered\n💵 Refund: <b>₦${refundNgn.toFixed(2)}</b> ($${refundAmount.toFixed(2)}) → wallet`)
-              if (TELEGRAM_ADMIN_CHAT_ID) bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID, `💰 <b>Partial Lead Refund (Bank)</b>\n👤 ${name} (${chatId})\n📊 ${delivered}/${requested}\n💵 ₦${refundNgn.toFixed(2)} → wallet`, { parse_mode: 'HTML' }).catch(() => {})
+              await atomicIncrement(walletOf, chatId, 'usdIn', refundAmount)
+              sendMessage(chatId, `💰 <b>Partial Refund</b>\n📊 ${delivered}/${requested} leads delivered\n💵 Refund: <b>$${refundAmount.toFixed(2)}</b> → wallet`)
+              if (TELEGRAM_ADMIN_CHAT_ID) bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID, `💰 <b>Partial Lead Refund (Bank)</b>\n👤 ${name} (${chatId})\n📊 ${delivered}/${requested}\n💵 $${refundAmount.toFixed(2)} → wallet`, { parse_mode: 'HTML' }).catch(() => {})
             }
           }
         }
@@ -27111,14 +26678,8 @@ async function resumeInterruptedLeadJobs() {
           // ── Wallet deduction for resumed jobs that weren't charged before crash ──
           if (!job.walletDeducted && job.price > 0) {
             try {
-              const deductCoin = job.paymentCoin
-              if (deductCoin === 'NGN') {
-                const ngnPrice = await usdToNgn(job.price)
-                await atomicIncrement(walletOf, chatId, 'ngnOut', ngnPrice)
-              } else {
-                // Default to USD
-                await atomicIncrement(walletOf, chatId, 'usdOut', Number(job.price))
-              }
+              // Always deduct in USD
+              await atomicIncrement(walletOf, chatId, 'usdOut', Number(job.price))
               await db.collection('leadJobs').updateOne({ jobId }, { $set: { walletDeducted: true } })
               log(`[LeadJobs] Wallet charged $${job.price} for resumed job ${jobId} (user ${chatId}) — was not charged before crash`)
               if (TELEGRAM_ADMIN_CHAT_ID) {
@@ -27141,11 +26702,11 @@ async function resumeInterruptedLeadJobs() {
               const refundAmount = Math.round(undeliveredRatio * job.price * 100) / 100
               if (refundAmount > 0) {
                 await atomicIncrement(walletOf, chatId, 'usdIn', refundAmount)
-                const { usdBal: rb1, ngnBal: rb2 } = await getBalance(walletOf, chatId)
+                const { usdBal: rb1 } = await getBalance(walletOf, chatId)
                 const reasonText = fullResults._partialReason === 'cnam_exhausted' ? 'Name lookup services temporarily unavailable'
                   : fullResults._partialReason === 'timeout' ? 'Generation timed out'
                   : 'Not enough valid numbers in this area'
-                await safeSend(chatId, `💰 <b>Partial Refund</b>\n\n📊 Ordered: ${requested} leads\n✅ Delivered: ${delivered} leads\n❌ Undelivered: ${requested - delivered} leads\n\n💵 Refund: <b>$${refundAmount.toFixed(2)}</b> returned to your wallet\n📝 Reason: ${reasonText}\n\n💰 Wallet: $${rb1.toFixed(2)} USD · ₦${rb2.toFixed(2)} NGN`)
+                await safeSend(chatId, `💰 <b>Partial Refund</b>\n\n📊 Ordered: ${requested} leads\n✅ Delivered: ${delivered} leads\n❌ Undelivered: ${requested - delivered} leads\n\n💵 Refund: <b>$${refundAmount.toFixed(2)}</b> returned to your wallet\n📝 Reason: ${reasonText}\n\n💰 Wallet: $${rb1.toFixed(2)} USD`)
                 if (TELEGRAM_ADMIN_CHAT_ID) bot && bot.sendMessage(TELEGRAM_ADMIN_CHAT_ID, `💰 <b>Partial Lead Refund (Resumed)</b>\n👤 ${chatId}\n📊 ${delivered}/${requested} leads\n💵 Refund: $${refundAmount.toFixed(2)}\n📝 Reason: ${fullResults._partialReason}`, { parse_mode: 'HTML' })
                 log(`[LeadJobs] Partial refund: $${refundAmount} to ${chatId} (${delivered}/${requested}, ${fullResults._partialReason})`)
               }

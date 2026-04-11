@@ -248,7 +248,7 @@ async function attemptAutoRenew(chatId, num, index, numbers) {
     const result = await smartWalletDeduct(_walletOf, chatId, price)
 
     if (!result.success) {
-      log(`[PhoneScheduler] Auto-renew failed for ${num.phoneNumber}: insufficient funds (USD: $${(result.usdBal || 0).toFixed(2)}, NGN: ₦${(result.ngnBal || 0).toFixed(2)}, needed: $${price})`)
+      log(`[PhoneScheduler] Auto-renew failed for ${num.phoneNumber}: insufficient funds (USD: $${(result.usdBal || 0).toFixed(2)}, needed: $${price})`)
       return false
     }
 
@@ -282,17 +282,11 @@ async function attemptAutoRenew(chatId, num, index, numbers) {
     )
 
     if (!claimResult) {
-      // Another process already extended the expiry — REFUND the wallet charge
-      log(`[PhoneScheduler] ⚠️ DUPLICATE RENEWAL PREVENTED: ${num.phoneNumber} already renewed by another pod — refunding ${result.currency === 'ngn' ? '₦' + result.chargedNgn : '$' + price} to chatId ${chatId}`)
-      if (result.currency === 'ngn') {
-        await _walletOf.updateOne({ _id: chatId }, { $inc: { ngnOut: -result.chargedNgn } })
-      } else {
-        await _walletOf.updateOne({ _id: chatId }, { $inc: { usdOut: -price } })
-      }
+      log(`[PhoneScheduler] ⚠️ DUPLICATE RENEWAL PREVENTED: ${num.phoneNumber} already renewed by another pod — refunding $${price} to chatId ${chatId}`)
+      await _walletOf.updateOne({ _id: chatId }, { $inc: { usdOut: -price } })
       return false
     }
 
-    // ━━━ Claim succeeded — update in-memory array for consistency with caller's set() ━━━
     numbers[index].expiresAt = newExpiry.toISOString()
     numbers[index].status = 'active'
     numbers[index].smsUsed = 0
@@ -302,30 +296,24 @@ async function attemptAutoRenew(chatId, num, index, numbers) {
 
     const name = await get(_nameOf, chatId)
     const ref = _nanoid?.() || `ar_${Date.now()}`
-    const chargedStr = result.currency === 'ngn' ? `₦${result.chargedNgn} NGN` : `$${price}`
-    if (_payments) set(_payments, ref, `AutoRenew,CloudPhone,$${price},${chatId},${name},${new Date()}${result.currency === 'ngn' ? `,${result.chargedNgn} NGN` : ''}`)
+    if (_payments) set(_payments, ref, `AutoRenew,CloudPhone,$${price},${chatId},${name},${new Date()}`)
 
-    // Log transaction
     await _phoneTransactions?.insertOne({
       chatId,
       phoneNumber: num.phoneNumber,
       action: 'auto_renew',
       plan: num.plan,
       amount: price,
-      paymentMethod: result.currency === 'ngn' ? 'wallet_ngn' : 'wallet_usd',
-      ...(result.currency === 'ngn' ? { amountNgn: result.chargedNgn } : {}),
+      paymentMethod: 'wallet_usd',
       timestamp: new Date().toISOString(),
     })
 
-    // Notify user
-    const { usdBal: newUsd, ngnBal: newNgn } = await getBalance(_walletOf, chatId)
-    const balStr = result.currency === 'ngn' ? `₦${newNgn.toFixed(2)}` : `$${newUsd.toFixed(2)}`
-    sendToUser(chatId, buildAutoRenewSuccessMsg(num, newExpiry, price, 0).replace(/\$[\d.]+\s*remaining/, `${balStr} remaining`))
+    const { usdBal: newUsd } = await getBalance(_walletOf, chatId)
+    sendToUser(chatId, buildAutoRenewSuccessMsg(num, newExpiry, price, 0).replace(/\$[\d.]+\s*remaining/, `$${newUsd.toFixed(2)} remaining`))
 
-    // Notify admin
-    _notifyGroup?.(`✅ <b>Auto-Renewed:</b> ${_maskName?.(name)} → ${formatPhone(num.phoneNumber)} (${chargedStr})`)
+    _notifyGroup?.(`✅ <b>Auto-Renewed:</b> ${_maskName?.(name)} → ${formatPhone(num.phoneNumber)} ($${price})`)
 
-    log(`[PhoneScheduler] Auto-renewed: ${chatId} ${num.phoneNumber} until ${newExpiry.toISOString()} — charged ${chargedStr}`)
+    log(`[PhoneScheduler] Auto-renewed: ${chatId} ${num.phoneNumber} until ${newExpiry.toISOString()} — charged $${price}`)
     return true
   } catch (e) {
     log(`[PhoneScheduler] Auto-renew error: ${e.message}`)

@@ -266,8 +266,8 @@ async function notifyLowBalance(chatId, phoneNumber) {
     }
 
     const { getBalance } = require('./utils')
-    const { usdBal, ngnBal } = await getBalance(_walletOf, chatId)
-    const totalBal = usdBal + (ngnBal > 0 ? ngnBal / 1500 : 0) // Approximate NGN→USD
+    const { usdBal } = await getBalance(_walletOf, chatId)
+    const totalBal = usdBal
 
     let level = null
     let icon = ''
@@ -321,7 +321,7 @@ async function notifyLowBalance(chatId, phoneNumber) {
     // FIX #9: Also persist post-call notification history
     _persistBalanceNotifyEntry(chatId, _balanceNotifyHistory[chatId])
 
-    const balStr = usdBal > 0 ? `$${usdBal.toFixed(2)}` : (ngnBal > 0 ? `₦${ngnBal.toFixed(0)}` : '$0.00')
+    const balStr = `$${usdBal.toFixed(2)}`
 
     // Include loyalty tier incentive
     let tierLine = ''
@@ -382,11 +382,10 @@ async function runUserWalletMonitor() {
         }
 
         const usdBal = (wallet.usdIn || 0) - (wallet.usdOut || 0)
-        const ngnBal = (wallet.ngnIn || 0) - (wallet.ngnOut || 0)
-        const totalBal = usdBal + (ngnBal > 0 ? ngnBal / 1500 : 0)
+        const totalBal = usdBal
 
         // Skip users who never had meaningful balance (never topped up)
-        if ((wallet.usdIn || 0) + (wallet.ngnIn || 0) < 1) continue
+        if ((wallet.usdIn || 0) < 1) continue
 
         let level = null
         if (totalBal <= USER_BALANCE_EMPTY) level = 'empty'
@@ -415,7 +414,7 @@ async function runUserWalletMonitor() {
         _balanceNotifyHistory[chatId] = { level, ts: now, escalationCount, windowStart }
         // FIX #9: Persist to MongoDB so anti-spam state survives redeployments
         _persistBalanceNotifyEntry(chatId, _balanceNotifyHistory[chatId])
-        const balStr = usdBal > 0 ? `$${usdBal.toFixed(2)}` : (ngnBal > 0 ? `₦${ngnBal.toFixed(0)}` : '$0.00')
+        const balStr = `$${usdBal.toFixed(2)}`
         const icon = level === 'empty' ? '🚨' : level === 'critical' ? '⚠️' : '💡'
         const urgency = level === 'empty'
           ? `Your wallet is <b>empty</b>. Outbound calls and overage billing are paused until you top up.`
@@ -2106,7 +2105,7 @@ async function handleOutboundSipCall(payload) {
       // When USD balance drops below $1, lock outbound calling entirely.
       // User must top up to $50+ to resume. Sends campaign message on every attempt.
       if (walletCheck.usdBal < LOW_BALANCE_TRIGGER) {
-        log(`[Voice] Outbound SIP: LOW BALANCE LOCK for ${num.phoneNumber} → ${destination} (USD: $${walletCheck.usdBal.toFixed(2)} < $${LOW_BALANCE_TRIGGER} trigger, need $${LOW_BALANCE_RESUME} to resume)`)
+        log(`[Voice] Outbound SIP: LOW BALANCE LOCK for ${num.phoneNumber} → ${destination} (Balance: $${walletCheck.usdBal.toFixed(2)} < $${LOW_BALANCE_TRIGGER} trigger, need $${LOW_BALANCE_RESUME} to resume)`)
         // Use chatId-based key so only THIS user is cooldown-blocked, not all users on the shared SIP connection
         setWalletRejectCooldown(`chatId:${chatId}`, chatId)
         if (credentialExtracted) setWalletRejectCooldown(sipUsername, chatId) // Also cache by SIP username for early check
@@ -2122,13 +2121,13 @@ async function handleOutboundSipCall(payload) {
       }
 
       if (!walletCheck.sufficient) {
-        log(`[Voice] Outbound SIP: wallet too low for ${num.phoneNumber} → ${destination} (USD: $${walletCheck.usdBal.toFixed(2)}, NGN: ₦${walletCheck.ngnBal.toFixed(2)})`)
+        log(`[Voice] Outbound SIP: wallet too low for ${num.phoneNumber} → ${destination} (Balance: $${walletCheck.usdBal.toFixed(2)}, NGN: ₦${0})`)
         // Cache this rejection using chatId-based key — prevents expensive credential lookup on subsequent rapid calls
         // Only this specific user is blocked, not all users on the shared SIP connection
         setWalletRejectCooldown(`chatId:${chatId}`, chatId)
         if (credentialExtracted) setWalletRejectCooldown(sipUsername, chatId) // Also cache by SIP username for early check
         await _telnyxApi.hangupCall(callControlId)
-        _bot?.sendMessage(chatId, `🚫 <b>SIP Call Blocked</b> — Wallet balance insufficient (need $${sipRate}/min + $${CALL_CONNECTION_FEE} connect fee ${isUSCanada(destination) ? 'US/CA' : 'Intl'}).\nUSD: $${walletCheck.usdBal.toFixed(2)} / NGN: ₦${walletCheck.ngnBal.toFixed(2)}\nOutbound calls are billed from wallet. Top up via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+        _bot?.sendMessage(chatId, `🚫 <b>SIP Call Blocked</b> — Wallet balance insufficient (need $${sipRate}/min + $${CALL_CONNECTION_FEE} connect fee ${isUSCanada(destination) ? 'US/CA' : 'Intl'}).\nBalance: $${walletCheck.usdBal.toFixed(2)} / NGN: ₦${0}\nOutbound calls are billed from wallet. Top up via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
         return
       }
     } catch (e) { log(`[Voice] Wallet check error: ${e.message}`) }

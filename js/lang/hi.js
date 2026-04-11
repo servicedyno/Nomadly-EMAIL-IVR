@@ -202,15 +202,15 @@ const u = {
   // wallet
   usd: 'USD',
   ngn: 'NGN',
+
+  // deposit methods
+  depositBank: '🏦 Bank (Naira)',
+  depositCrypto: '₿ Crypto',
 }
 const view = num => Number(num).toFixed(2)
 const yesNo = ['हाँ', 'नहीं']
 
-const bal = (usd, ngn) =>
-  HIDE_BANK_PAYMENT !== 'true'
-    ? `$${view(usd)}
-₦${view(ngn)}`
-    : `$${view(usd)}`
+const bal = (usd) => `$${view(usd)}`
 
 const dnsEntryFormat = '' // deprecated — A/CNAME now use multi-step wizard
 
@@ -660,8 +660,8 @@ ${CHAT_BOT_NAME}`,
   comingSoonWithdraw: `निकासी अभी उपलब्ध नहीं है। मदद चाहिए? 💬 सहायता प्राप्त करें बटन दबाएं।`,
   promoOptOut: `आपने प्रचार संदेशों से अनसब्सक्राइब कर दिया है। कभी भी /start_promos टाइप करके फिर से सब्सक्राइब करें।`,
   promoOptIn: `आपने प्रचार संदेशों की फिर से सदस्यता ले ली है। आपको हमारे नवीनतम ऑफर और डील प्राप्त होंगे!`,
-  selectCurrencyToDeposit: `कृपया जमा करने के लिए मुद्रा चुनें`,
-  depositNGN: `कृपया एनजीएन राशि दर्ज करें:`,
+  selectCurrencyToDeposit: `आप कैसे जमा करना चाहेंगे?`,
+  depositNGN: `कृपया एनजीएन राशि दर्ज करें (न्यूनतम ≈ $10 USD)।\nआपका नाइरा मौजूदा विनिमय दर पर USD में बदला जाएगा:`,
   askEmailForNGN: `कृपया भुगतान की पुष्टि के लिए ईमेल प्रदान करें`,
   depositUSD: `कृपया USD राशि दर्ज करें, ध्यान दें कि न्यूनतम मूल्य $10 है:`,
   selectCryptoToDeposit: `कृपया एक क्रिप्टो मुद्रा चुनें:`,
@@ -733,12 +733,12 @@ ${CHAT_BOT_NAME}`,
   confirmationDepositMoney: (amount, usd) =>
     `आपकी ${amount} ($${usd}) की राशि संसाधित हो गई है। हमें चुनने के लिए धन्यवाद।\nसादर,\n${CHAT_BOT_NAME}`,
 
-  showWallet: (usd, ngn) => `वॉलेट शेष राशि :\n\n${bal(usd, ngn)}`,
+  showWallet: (usd) => `वॉलेट शेष राशि :\n\n$${view(usd)}`,
 
-  wallet: (usd, ngn) => `वॉलेट शेष राशि :\n\n${bal(usd, ngn)}\n\nवॉलेट विकल्प का चयन करें :`,
+  wallet: (usd) => `वॉलेट शेष राशि :\n\n$${view(usd)}\n\nवॉलेट विकल्प का चयन करें :`,
 
-  walletSelectCurrency: (usd, ngn) =>
-    `कृपया अपने वॉलेट बैलेंस से भुगतान के लिए मुद्रा का चयन करें :\n\n${bal(usd, ngn)}`,
+  walletSelectCurrency: (usd) =>
+    `वॉलेट शेष राशि: $${view(usd)}`,
 
   walletBalanceLow: `आपका वॉलेट बैलेंस कम है। "👛 मेरा वॉलेट" → "➕💵 जमा" पर टैप करके रिचार्ज करें।`,
 
@@ -769,8 +769,6 @@ ${CHAT_BOT_NAME}`,
 
   buyLeadsNewPrice: (leads, price, newPrice) => `💰 <b>${leads} लीड्स</b> — अब सिर्फ <b>$${view(newPrice)}</b> <s>($${price})</s>\nफोन मालिक के नाम शामिल हैं। यह मौका न चूकें।`,
   buyLeadsPrice: (leads, price) => `💰 <b>${leads} लीड्स</b> — <b>$${price}</b>\nफोन मालिक के नाम शामिल हैं। जब आप तैयार हों।`,
-
-  confirmNgn: (usd, ngn) => `${usd} USD ≈ ${ngn} NGN `,
 
   walletSelectCurrencyConfirm: `पुष्ट करें?`,
 
@@ -1287,7 +1285,7 @@ const k = {
 
   redSelectProvider: kOf(redSelectProvider),
 }
-const payOpts = HIDE_BANK_PAYMENT !== 'true' ? k.of([u.usd, u.ngn]) : k.of([u.usd])
+const payOpts = k.of([u.usd])
 
 const adminKeyboard = {
   reply_markup: {
@@ -2469,8 +2467,5 @@ module.exports = {
     msg += `नए नेमसर्वर दर्ज करें (प्रति पंक्ति एक, न्यूनतम 2, अधिकतम 4):\n\n<i>उदाहरण:\nns1.example.com\nns2.example.com</i>`
     return msg
   },
-  walletBalanceLowNgn: (needed, balance) =>
-    `आपकी NGN वॉलेट बैलेंस (₦${balance.toFixed(2)}) इस खरीद के लिए बहुत कम है।\n\nआपको <b>₦${(needed - balance).toFixed(2)} और</b> चाहिए। रिचार्ज करने के लिए नीचे जमा पर टैप करें।`,
-  ngnUnavailable: `⚠️ NGN भुगतान अस्थायी रूप से अनुपलब्ध है (विनिमय दर सेवा डाउन है)। कृपया USD से भुगतान करें।`,
   Hosting: 'होस्टिंग',
 }
