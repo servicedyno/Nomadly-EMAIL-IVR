@@ -1304,7 +1304,7 @@ const adminKeyboard = {
 const userKeyboard = {
   reply_markup: {
     keyboard: [
-      [user.cloudPhone],
+      [user.cloudPhone, user.referEarn],
       [user.marketplace, user.digitalProducts],
       [user.domainNames, user.hostingDomainsRedirect],
       ...(VPS_ENABLED === 'true'
@@ -1317,7 +1317,6 @@ const userKeyboard = {
       ...(HIDE_BUNDLES !== 'true'
         ? [[user.shippingLabel, user.serviceBundles]]
         : [[user.shippingLabel]]),
-      [user.referEarn],
       HIDE_BECOME_RESELLER === 'true'
         ? [user.changeSetting, user.getSupport]
         : [user.becomeReseller, user.changeSetting, user.getSupport],
