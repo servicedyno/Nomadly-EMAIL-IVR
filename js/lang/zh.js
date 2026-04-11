@@ -308,13 +308,13 @@ ${MONTHLY_PLAN_FREE_DOMAINS} 个域名 · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLoca
       : `<b>选择您的计划</b>
 
 <b>每日</b> — $${PRICE_DAILY}
-${DAILY_PLAN_FREE_DOMAINS} 个域名 · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} 次验证含机主姓名 · 无限链接 + BulkSMS
+${DAILY_PLAN_FREE_DOMAINS} 个域名 · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} 次验证 · 无限链接 + BulkSMS（1台设备）
 
 <b>每周</b> — $${PRICE_WEEKLY}
-${WEEKLY_PLAN_FREE_DOMAINS} 个域名 · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} 次验证含机主姓名 · 无限链接 + BulkSMS
+${WEEKLY_PLAN_FREE_DOMAINS} 个域名 · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} 次验证 · 无限链接 + BulkSMS（2台设备）
 
 <b>每月</b> — $${PRICE_MONTHLY}
-${MONTHLY_PLAN_FREE_DOMAINS} 个域名 · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} 次验证含机主姓名 · 无限链接 + BulkSMS
+${MONTHLY_PLAN_FREE_DOMAINS} 个域名 · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} 次验证 · 无限链接 + BulkSMS（无限设备）
 
 <i>所有计划包含免费 .sbs/.xyz 域名 + 无限URL缩短 + 所有USA验证包含机主姓名。</i>`,
 
@@ -329,12 +329,27 @@ ${MONTHLY_PLAN_FREE_DOMAINS} 个域名 · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLoca
     `${domain} 域名的价格现在是 $${view(newPrice)} <s>($${price})</s>。请选择支付方式。`,
   couponInvalid: `优惠券代码无效，请重新输入：`,
   lowPrice: `提供的价格低于所需金额。`,
-  freeTrialAvailable: (chatId) => `📱 <b>BulkSMS 免费试用已激活！</b>\n\n您的激活码：\n<code>${chatId}</code>\n\n📲 <b>下载应用：</b> ${SMS_APP_LINK}\n\n打开应用 → 输入激活码 → 开始发送！\n\n需要 eSIM 卡？点击 💬 获取支持`,
+  freeTrialAvailable: (chatId) => `📱 <b>BulkSMS 免费试用 — 100条免费短信</b>\n\n您的激活码：\n<code>${chatId}</code>\n\n📲 <b>下载应用：</b> ${SMS_APP_LINK}\n\n打开应用 → 输入激活码 → 开始发送！\n\n⚡ 试用：仅限1台设备。升级可多设备使用。\n\n需要 eSIM 卡？点击 💬 获取支持`,
   freeTrialNotAvailable: `您已使用过免费试用。`,
   planSubscribed:
     HIDE_SMS_APP === 'true'
       ? `您已成功订阅 {{plan}} 计划！享受免费 ".sbs/.xyz" 域名、无限Shortit链接和免费USA电话号码验证（含机主姓名）。需要 E-sim 卡？请点击 💬 获取支持。`
-      : `您已成功订阅 {{plan}} 计划！享受免费 ".sbs/.xyz" 域名、无限Shortit链接、免费USA验证（含机主姓名）和 ${SMS_APP_NAME}。请在此下载应用: ${SMS_APP_LINK}。需要 E-sim 卡？请点击 💬 获取支持。`,
+      : `✅ 已订阅 {{plan}} 计划！
+
+包含：
+• 免费 .sbs/.xyz 域名
+• 无限 Shortit 链接
+• USA 电话验证
+• ${SMS_APP_NAME}
+
+📱 设备访问：
+  每日 — 1台设备
+  每周 — 2台设备
+  每月 — 无限设备
+
+📲 下载：${SMS_APP_LINK}
+💬 E-sim：点击支持
+🔓 切换设备：/resetlogin`,
   alreadySubscribedPlan: days => `您的订阅已激活，并将在 ${days} 天后到期。`,
   payError: `未找到支付会话，请重试或点击 💬 获取支持。了解更多信息，请访问 ${TG_HANDLE}。`,
   chooseFreeDomainText: `<b>好消息！</b> 此域名可随您的订阅免费提供。您想领取吗？`,

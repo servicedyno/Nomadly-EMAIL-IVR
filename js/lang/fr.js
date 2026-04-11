@@ -311,13 +311,13 @@ ${MONTHLY_PLAN_FREE_DOMAINS} domaines · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocal
       : `<b>Choisissez votre plan</b>
 
 <b>Quotidien</b> — $${PRICE_DAILY}
-${DAILY_PLAN_FREE_DOMAINS} domaine · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations avec noms des propriétaires · Liens + SMS illimités
+${DAILY_PLAN_FREE_DOMAINS} domaine · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · Liens + BulkSMS (1 appareil)
 
 <b>Hebdomadaire</b> — $${PRICE_WEEKLY}
-${WEEKLY_PLAN_FREE_DOMAINS} domaines · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations avec noms des propriétaires · Liens + SMS illimités
+${WEEKLY_PLAN_FREE_DOMAINS} domaines · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · Liens + BulkSMS (2 appareils)
 
 <b>Mensuel</b> — $${PRICE_MONTHLY}
-${MONTHLY_PLAN_FREE_DOMAINS} domaines · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations avec noms des propriétaires · Liens + SMS illimités
+${MONTHLY_PLAN_FREE_DOMAINS} domaines · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · Liens + BulkSMS (appareils illimités)
 
 <i>Tous les plans incluent des domaines .sbs/.xyz gratuits + raccourcissement d'URL illimité + noms des propriétaires sur toutes les validations USA.</i>`,
 
@@ -339,12 +339,27 @@ ${MONTHLY_PLAN_FREE_DOMAINS} domaines · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocal
     )} <s>($${price})</s>. Veuillez choisir une méthode de paiement.`,
   couponInvalid: `Code promo invalide. Veuillez entrer un autre code promo :`,
   lowPrice: `Prix inférieur au minimum requis.`,
-  freeTrialAvailable: (chatId) => `📱 <b>Essai gratuit BulkSMS activé !</b>\n\nVotre code d'activation :\n<code>${chatId}</code>\n\n📲 <b>Téléchargez l'appli :</b> ${SMS_APP_LINK}\n\nOuvrez l'appli → Entrez votre code → Commencez à envoyer !\n\nBesoin de cartes eSIM ? Appuyez sur 💬 Obtenir de l'aide`,
+  freeTrialAvailable: (chatId) => `📱 <b>Essai gratuit BulkSMS — 100 SMS gratuits</b>\n\nVotre code d'activation :\n<code>${chatId}</code>\n\n📲 <b>Téléchargez l'appli :</b> ${SMS_APP_LINK}\n\nOuvrez l'appli → Entrez votre code → Commencez à envoyer !\n\n⚡ Essai : 1 appareil uniquement. Abonnez-vous pour accès multi-appareils.\n\nBesoin de cartes eSIM ? Appuyez sur 💬 Obtenir de l'aide`,
   freeTrialNotAvailable: `Vous avez déjà utilisé l'essai gratuit.`,
   planSubscribed:
     HIDE_SMS_APP === 'true'
       ? `Vous vous êtes abonné avec succès au plan {{plan}} ! Profitez de domaines ".sbs/.xyz" gratuits, de liens Shortit illimités et de validations de numéros USA gratuites avec noms des propriétaires inclus. Besoin d'une carte E-sim ? Appuyez sur 💬 Obtenir de l'aide.`
-      : `Vous vous êtes abonné avec succès au plan {{plan}} ! Profitez de domaines ".sbs/.xyz" gratuits, de liens Shortit illimités, de validations USA gratuites avec noms des propriétaires inclus et de ${SMS_APP_NAME}. Téléchargez l'application ici : ${SMS_APP_LINK}. Besoin d'une carte E-sim ? Appuyez sur 💬 Obtenir de l'aide.`,
+      : `✅ Abonné au plan {{plan}} !
+
+Inclus :
+• Domaines .sbs/.xyz gratuits
+• Liens Shortit illimités
+• Validation USA avec noms
+• \${SMS_APP_NAME}
+
+📱 Accès appareils :
+  Quotidien — 1 appareil
+  Hebdomadaire — 2 appareils
+  Mensuel — Appareils illimités
+
+📲 Télécharger : \${SMS_APP_LINK}
+💬 E-sim : Appuyez sur Support
+🔓 Changer d'appareil : /resetlogin`,
   alreadySubscribedPlan: days => `Votre abonnement est actif et expire dans ${days} jours.`,
   payError: `Session de paiement introuvable. Veuillez réessayer ou appuyer sur 💬 Obtenir de l'aide. Découvrez plus sur ${TG_HANDLE}.`,
   chooseFreeDomainText: `<b>Bonne nouvelle !</b> Ce domaine est disponible gratuitement avec votre abonnement. Souhaitez-vous le réclamer ?`,

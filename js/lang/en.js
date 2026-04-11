@@ -314,13 +314,13 @@ ${MONTHLY_PLAN_FREE_DOMAINS} domains · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocale
       : `<b>Choose Your Plan</b>
 
 <b>Daily</b> — $${PRICE_DAILY}
-${DAILY_PLAN_FREE_DOMAINS} domain · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations with phone owner names · Unlimited links + BulkSMS
+${DAILY_PLAN_FREE_DOMAINS} domain · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · Unlimited links + BulkSMS (1 device)
 
 <b>Weekly</b> — $${PRICE_WEEKLY}
-${WEEKLY_PLAN_FREE_DOMAINS} domains · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations with phone owner names · Unlimited links + BulkSMS
+${WEEKLY_PLAN_FREE_DOMAINS} domains · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · Unlimited links + BulkSMS (2 devices)
 
 <b>Monthly</b> — $${PRICE_MONTHLY}
-${MONTHLY_PLAN_FREE_DOMAINS} domains · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations with phone owner names · Unlimited links + BulkSMS
+${MONTHLY_PLAN_FREE_DOMAINS} domains · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · Unlimited links + BulkSMS (unlimited devices)
 
 <i>All plans include free .sbs/.xyz domains + unlimited URL shortening + phone owner names on all USA validations.</i>`,
 
@@ -340,7 +340,7 @@ ${MONTHLY_PLAN_FREE_DOMAINS} domains · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocale
 
   lowPrice: `Sent price less than needed`,
 
-  freeTrialAvailable: (chatId) => `📱 <b>BulkSMS Free Trial Activated!</b>\n\nYour activation code:\n<code>${chatId}</code>\n\n📲 <b>Download the app:</b> ${SMS_APP_LINK}\n\nOpen the app → Enter your code → Start sending!\n\nNeed eSIM cards? Tap 💬 Get Support`,
+  freeTrialAvailable: (chatId) => `📱 <b>BulkSMS Free Trial — 100 Free SMS</b>\n\nYour activation code:\n<code>${chatId}</code>\n\n📲 <b>Download the app:</b> ${SMS_APP_LINK}\n\nOpen the app → Enter your code → Start sending!\n\n⚡ Trial: 1 device only. Upgrade for multi-device access.\n\nNeed eSIM cards? Tap 💬 Get Support`,
 
   freeTrialNotAvailable: 'You have already used the free trial',
 
@@ -362,8 +362,14 @@ Included:
 • USA phone validation
 • ${SMS_APP_NAME} app
 
+📱 Device access:
+  Daily — 1 device
+  Weekly — 2 devices
+  Monthly — Unlimited devices
+
 📲 Download: ${SMS_APP_LINK}
-💬 Get E-sim: Tap Support`,
+💬 Get E-sim: Tap Support
+🔓 Switch device: /resetlogin`,
 
   alreadySubscribedPlan: days => `Your subscription is active and expires in ${days}`,
 

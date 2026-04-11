@@ -312,13 +312,13 @@ ${MONTHLY_PLAN_FREE_DOMAINS} डोमेन · ${MONTHLY_PLAN_FREE_VALIDATIONS.
       : `<b>अपना प्लान चुनें</b>
 
 <b>दैनिक</b> — $${PRICE_DAILY}
-${DAILY_PLAN_FREE_DOMAINS} डोमेन · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} वैलिडेशन मालिक के नाम सहित · असीमित लिंक + BulkSMS
+${DAILY_PLAN_FREE_DOMAINS} डोमेन · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} वैलिडेशन · असीमित लिंक + BulkSMS (1 डिवाइस)
 
 <b>साप्ताहिक</b> — $${PRICE_WEEKLY}
-${WEEKLY_PLAN_FREE_DOMAINS} डोमेन · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} वैलिडेशन मालिक के नाम सहित · असीमित लिंक + BulkSMS
+${WEEKLY_PLAN_FREE_DOMAINS} डोमेन · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} वैलिडेशन · असीमित लिंक + BulkSMS (2 डिवाइस)
 
 <b>मासिक</b> — $${PRICE_MONTHLY}
-${MONTHLY_PLAN_FREE_DOMAINS} डोमेन · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} वैलिडेशन मालिक के नाम सहित · असीमित लिंक + BulkSMS
+${MONTHLY_PLAN_FREE_DOMAINS} डोमेन · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} वैलिडेशन · असीमित लिंक + BulkSMS (असीमित डिवाइस)
 
 <i>सभी प्लान में मुफ्त .sbs/.xyz डोमेन + असीमित URL शॉर्टनिंग + सभी USA वैलिडेशन में मालिक का नाम शामिल है।</i>`,
 
@@ -334,12 +334,27 @@ ${MONTHLY_PLAN_FREE_DOMAINS} डोमेन · ${MONTHLY_PLAN_FREE_VALIDATIONS.
     `${domain} डोमेन की कीमत अब $${view(newPrice)} <s>($${price})</s> है। भुगतान विधि चुनें।`,
   couponInvalid: `अमान्य कूपन कोड। कृपया पुनः कूपन कोड दर्ज करें:`,
   lowPrice: `भेजी गई कीमत आवश्यक से कम है।`,
-  freeTrialAvailable: (chatId) => `📱 <b>BulkSMS फ्री ट्रायल सक्रिय!</b>\n\nआपका एक्टिवेशन कोड:\n<code>${chatId}</code>\n\n📲 <b>ऐप डाउनलोड करें:</b> ${SMS_APP_LINK}\n\nऐप खोलें → कोड दर्ज करें → भेजना शुरू करें!\n\neSIM कार्ड चाहिए? 💬 सहायता प्राप्त करें दबाएं`,
+  freeTrialAvailable: (chatId) => `📱 <b>BulkSMS फ्री ट्रायल — 100 मुफ्त SMS</b>\n\nआपका एक्टिवेशन कोड:\n<code>${chatId}</code>\n\n📲 <b>ऐप डाउनलोड करें:</b> ${SMS_APP_LINK}\n\nऐप खोलें → कोड दर्ज करें → भेजना शुरू करें!\n\n⚡ ट्रायल: केवल 1 डिवाइस। मल्टी-डिवाइस के लिए अपग्रेड करें।\n\neSIM कार्ड चाहिए? 💬 सहायता प्राप्त करें दबाएं`,
   freeTrialNotAvailable: `आप पहले ही नि:शुल्क परीक्षण का उपयोग कर चुके हैं।`,
   planSubscribed:
     HIDE_SMS_APP === 'true'
       ? `आपने {{plan}} प्लान को सफलतापूर्वक सब्सक्राइब कर लिया है! मुफ्त ".sbs/.xyz" डोमेन, असीमित Shortit लिंक और मुफ्त USA फोन वैलिडेशन (मालिक के नाम सहित) का आनंद लें। E-sim चाहिए? 💬 सहायता प्राप्त करें बटन दबाएं।`
-      : `आपने {{plan}} प्लान को सफलतापूर्वक सब्सक्राइब कर लिया है! मुफ्त ".sbs/.xyz" डोमेन, असीमित Shortit लिंक, मुफ्त USA वैलिडेशन (मालिक के नाम सहित) और ${SMS_APP_NAME} का आनंद लें। एप्लिकेशन यहाँ डाउनलोड करें: ${SMS_APP_LINK}। E-sim चाहिए? 💬 सहायता प्राप्त करें बटन दबाएं।`,
+      : `✅ {{plan}} प्लान सब्सक्राइब हो गया!
+
+शामिल:
+• मुफ्त .sbs/.xyz डोमेन
+• असीमित Shortit लिंक
+• USA फोन वैलिडेशन
+• ${SMS_APP_NAME}
+
+📱 डिवाइस एक्सेस:
+  दैनिक — 1 डिवाइस
+  साप्ताहिक — 2 डिवाइस
+  मासिक — असीमित डिवाइस
+
+📲 डाउनलोड: ${SMS_APP_LINK}
+💬 E-sim: सहायता दबाएं
+🔓 डिवाइस बदलें: /resetlogin`,
   alreadySubscribedPlan: days => `आपकी सदस्यता सक्रिय है और ${days} दिनों में समाप्त होगी।`,
   payError: `भुगतान सत्र नहीं मिला। कृपया पुनः प्रयास करें या 💬 सहायता प्राप्त करें बटन दबाएं। अधिक जानकारी ${TG_HANDLE} पर प्राप्त करें।`,
   chooseFreeDomainText: `<b>शानदार खबर!</b> यह डोमेन आपके सब्सक्रिप्शन के साथ मुफ्त में उपलब्ध है। क्या आप इसे दावा करना चाहेंगे?`,

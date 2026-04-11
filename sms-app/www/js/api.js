@@ -39,11 +39,13 @@ const API = {
 
   // Auth
   async authenticate(code) {
-    return this.request('GET', `sms-app/auth/${code}`)
+    const deviceId = Storage.getDeviceId()
+    return this.request('GET', `sms-app/auth/${code}?deviceId=${encodeURIComponent(deviceId)}`)
   },
 
   async logout(code) {
-    return this.request('POST', `sms-app/logout/${code}`)
+    const deviceId = Storage.getDeviceId()
+    return this.request('POST', `sms-app/logout/${code}?deviceId=${encodeURIComponent(deviceId)}`)
   },
 
   async getPlan(code) {

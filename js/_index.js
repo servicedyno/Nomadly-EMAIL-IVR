@@ -20969,12 +20969,13 @@ Select a category:`), k.of(catBtns))
   // ── SMS App: Reset Login (force-logout from all devices) ──
   if (message === '/resetlogin' || message === '🔓 Reset App Login') {
     const doc = await loginCountOf.findOne({ _id: Number(chatId) })
-    const loginData = doc?.val || doc || { loginCount: 0, canLogin: true, lastLoginAt: 0 }
-    if (loginData.canLogin !== false) {
+    const loginData = doc?.val || doc || {}
+    const devices = Array.isArray(loginData?.devices) ? loginData.devices : []
+    if (devices.length === 0 && loginData?.canLogin !== false) {
       return send(chatId, '✅ No active app sessions found — you can login freely.', { parse_mode: 'HTML' })
     }
-    await set(loginCountOf, Number(chatId), { loginCount: 0, canLogin: true, lastLoginAt: loginData.lastLoginAt || 0 })
-    return send(chatId, '✅ <b>App session reset!</b>\n\nAll devices have been logged out. You can now login on a new device.', { parse_mode: 'HTML' })
+    await set(loginCountOf, Number(chatId), { devices: [], loginCount: 0, canLogin: true, lastLoginAt: Date.now() })
+    return send(chatId, '✅ <b>All devices logged out!</b>\n\nYou can now login on a new device.', { parse_mode: 'HTML' })
   }
 
   // ── SMS App: Create Campaign from Bot ──
@@ -21095,8 +21096,7 @@ Select a category:`), k.of(catBtns))
 
   if (action === 'listen_reset_login') {
     if (message === t.yes) {
-      const loginData = (await get(loginCountOf, Number(chatId))) || { loginCount: 0, canLogin: true, lastLoginAt: 0 }
-      await set(loginCountOf, Number(chatId), { loginCount: 0, canLogin: true, lastLoginAt: loginData.lastLoginAt || 0 })
+      await set(loginCountOf, Number(chatId), { devices: [], loginCount: 0, canLogin: true, lastLoginAt: Date.now() })
       send(chatId, t.resetLoginAdmit, trans('o'))
     } else {
       send(chatId, t.resetLoginDeny, trans('o'))
@@ -22952,9 +22952,14 @@ app.get('/login-count/:chatId', async (req, res) => {
 
 app.get('/increment-login-count/:chatId', async (req, res) => {
   const chatId = req?.params?.chatId
+  const numChatId = Number(chatId)
 
-  const loginData = (await get(loginCountOf, Number(chatId))) || { loginCount: 0, canLogin: true, lastLoginAt: 0 }
-  await set(loginCountOf, Number(chatId), { loginCount: loginData.loginCount + 1, canLogin: false, lastLoginAt: Date.now() })
+  const doc = await loginCountOf.findOne({ _id: numChatId })
+  const loginData = doc?.val || doc || {}
+  let devices = Array.isArray(loginData?.devices) ? loginData.devices : []
+  // Add a legacy device entry for backward compat
+  devices.push({ deviceId: 'legacy-' + Date.now(), loginAt: Date.now(), lastActive: Date.now() })
+  await set(loginCountOf, numChatId, { devices, loginCount: devices.length, canLogin: false, lastLoginAt: Date.now() })
 
   res.send('ok')
 })

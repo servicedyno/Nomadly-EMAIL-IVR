@@ -3,6 +3,7 @@
  * 
  * Provides APIs for:
  * - User authentication via activation code (Telegram chatId)
+ * - Plan-based multi-device management (Monthly=unlimited, Weekly=2, Daily=1, Trial=1)
  * - Subscription-gated campaign CRUD
  * - Campaign sync between Telegram bot and mobile app
  * - SMS delivery reporting and analytics
@@ -17,6 +18,21 @@ let planEndingTime
 let freeSmsCountOf
 let loginCountOf
 let planOf
+
+// ─── Device limits per subscription plan ───
+const DEVICE_LIMITS = {
+  Monthly: Infinity,   // unlimited
+  Weekly: 2,
+  Daily: 1,
+  trial: 1,
+  none: 1,
+}
+
+function getDeviceLimit(plan, isSubscribed, isFreeTrial) {
+  if (!isSubscribed && isFreeTrial) return DEVICE_LIMITS.trial
+  if (!isSubscribed) return DEVICE_LIMITS.none
+  return DEVICE_LIMITS[plan] || 1
+}
 
 function initSmsAppService(_db, _nameOf, _planEndingTime, _freeSmsCountOf, _loginCountOf, _planOf) {
   db = _db
@@ -43,6 +59,22 @@ async function getVal(collection, key) {
   return doc.val || undefined
 }
 
+// ─── Device session helpers ───
+function getDevices(loginData) {
+  // Support new format (devices array) and migrate from old format
+  if (Array.isArray(loginData?.devices)) return loginData.devices
+  // Old format: { loginCount, canLogin, lastLoginAt } → convert
+  if (loginData?.canLogin === false && loginData?.lastLoginAt) {
+    return [{ deviceId: 'legacy', loginAt: loginData.lastLoginAt, lastActive: loginData.lastLoginAt }]
+  }
+  return []
+}
+
+function cleanStaleDevices(devices, maxAgeHours = 24) {
+  const cutoff = Date.now() - (maxAgeHours * 60 * 60 * 1000)
+  return devices.filter(d => (d.lastActive || d.loginAt || 0) > cutoff)
+}
+
 // ─── Auth: Validate activation code and return user info ───
 async function authenticateUser(chatId) {
   const numChatId = Number(chatId)
@@ -55,13 +87,15 @@ async function authenticateUser(chatId) {
   const planExpiry = await getVal(planEndingTime, numChatId) || 0
   const freeSmsCount = await getVal(freeSmsCountOf, numChatId) || 0
   const plan = await getVal(planOf, numChatId) || 'none'
-  const loginData = (await loginCountOf.findOne({ _id: numChatId }))
-  const loginInfo = loginData?.val || loginData || { loginCount: 0, canLogin: true }
+  const doc = await loginCountOf.findOne({ _id: numChatId })
+  const loginData = doc?.val || doc || {}
+  const devices = getDevices(loginData)
 
   const freeSmsLimit = Number(process.env.APP_FREE_SMS) || 100
   const isSubscribed = planExpiry > Date.now()
   const isFreeTrial = !isSubscribed && freeSmsCount < freeSmsLimit
   const canUseSms = isSubscribed || isFreeTrial
+  const deviceLimit = getDeviceLimit(plan, isSubscribed, isFreeTrial)
 
   return {
     valid: true,
@@ -76,8 +110,10 @@ async function authenticateUser(chatId) {
       freeSmsUsed: freeSmsCount,
       freeSmsLimit,
       freeSmsRemaining: Math.max(0, freeSmsLimit - freeSmsCount),
-      loginCount: loginInfo.loginCount || 0,
-      canLogin: loginInfo.canLogin !== false,
+      deviceLimit: isFinite(deviceLimit) ? deviceLimit : 'unlimited',
+      activeDevices: devices.length,
+      loginCount: devices.length,
+      canLogin: true,  // backward compat — real check is in auth route
     }
   }
 }
@@ -178,39 +214,59 @@ async function updateCampaignProgress(campaignId, chatId, progress) {
 
 function registerRoutes(app, get, set, increment, clicksOfSms, today, week, month, year) {
 
-  // Auth endpoint
+  // Auth endpoint — plan-based multi-device enforcement
   app.get('/sms-app/auth/:code', async (req, res) => {
     try {
+      const deviceId = req.query.deviceId || 'unknown'
       const result = await authenticateUser(req.params.code)
       if (!result.valid) return res.status(401).json(result)
 
       const numChatId = Number(req.params.code)
-      // Direct findOne to avoid get() returning full doc when extra fields exist
+      const { plan, isSubscribed, isFreeTrial } = result.user
+      const deviceLimit = getDeviceLimit(plan, isSubscribed, isFreeTrial)
+
+      // Get current device sessions
       const doc = await loginCountOf.findOne({ _id: numChatId })
-      const loginData = doc?.val || doc || { loginCount: 0, canLogin: true, lastLoginAt: 0 }
+      const loginData = doc?.val || doc || {}
+      let devices = getDevices(loginData)
 
-      // Enforce single-device: block if already logged in elsewhere
-      if (loginData.canLogin === false) {
-        const lastLoginAt = loginData.lastLoginAt || 0
-        const hoursSinceLogin = (Date.now() - lastLoginAt) / (1000 * 60 * 60)
+      // Clean up stale sessions (>24h inactive)
+      devices = cleanStaleDevices(devices, 24)
 
-        if (hoursSinceLogin < 24) {
+      // Check if this device is already registered
+      const existingIdx = devices.findIndex(d => d.deviceId === deviceId)
+
+      if (existingIdx >= 0) {
+        // Returning device — update lastActive and allow
+        devices[existingIdx].lastActive = Date.now()
+      } else {
+        // New device — check limit (Infinity means unlimited)
+        if (isFinite(deviceLimit) && devices.length >= deviceLimit) {
+          const limitLabel = deviceLimit === 1 ? '1 device' : `${deviceLimit} devices`
+          const planLabel = isFreeTrial ? 'Free Trial' : (plan || 'your plan')
           return res.status(403).json({
             valid: false,
-            error: 'device_conflict',
-            message: 'Already logged in on another device. Logout from that device first, or type /resetlogin in @NomadlyBot.'
+            error: 'device_limit',
+            message: `${planLabel} allows ${limitLabel}. You have ${devices.length} active. Logout from another device first, or type /resetlogin in @NomadlyBot.`,
+            deviceLimit,
+            activeDevices: devices.length,
           })
         }
-        // Auto-unlock after 24h — fall through to allow login
-        console.log(`[SmsApp] Auto-unlock: ${numChatId} last login was ${hoursSinceLogin.toFixed(1)}h ago`)
+        // Add new device
+        devices.push({ deviceId, loginAt: Date.now(), lastActive: Date.now() })
       }
 
-      // Record login with timestamp
+      // Save updated device sessions
       await set(loginCountOf, numChatId, {
-        loginCount: (loginData.loginCount || 0) + 1,
-        canLogin: false,
+        devices,
+        loginCount: devices.length,
+        canLogin: false, // backward compat for old bot code
         lastLoginAt: Date.now()
       })
+
+      // Add device info to response
+      result.user.activeDevices = devices.length
+      result.user.deviceLimit = isFinite(deviceLimit) ? deviceLimit : 'unlimited'
 
       res.json(result)
     } catch (error) {
@@ -219,19 +275,32 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
     }
   })
 
-  // Logout
+  // Logout — remove specific device
   app.post('/sms-app/logout/:code', async (req, res) => {
     try {
       const numChatId = Number(req.params.code)
+      const deviceId = req.body?.deviceId || req.query?.deviceId || null
+
       const doc = await loginCountOf.findOne({ _id: numChatId })
-      const loginData = doc?.val || doc || { loginCount: 0, canLogin: true, lastLoginAt: 0 }
-      if (loginData.canLogin !== false) return res.json({ ok: false })
+      const loginData = doc?.val || doc || {}
+      let devices = getDevices(loginData)
+
+      if (deviceId) {
+        // Remove specific device
+        devices = devices.filter(d => d.deviceId !== deviceId)
+      } else {
+        // No deviceId — remove all (backward compat / full reset)
+        devices = []
+      }
+
       await set(loginCountOf, numChatId, {
-        loginCount: Math.max(0, (loginData.loginCount || 1) - 1),
-        canLogin: true,
-        lastLoginAt: loginData.lastLoginAt || 0
+        devices,
+        loginCount: devices.length,
+        canLogin: devices.length === 0, // backward compat
+        lastLoginAt: loginData.lastLoginAt || Date.now()
       })
-      res.json({ ok: true })
+
+      res.json({ ok: true, activeDevices: devices.length })
     } catch (error) {
       res.status(500).json({ ok: false, error: error.message })
     }
@@ -399,4 +468,6 @@ module.exports = {
   updateCampaign,
   deleteCampaign,
   checkSubscription,
+  DEVICE_LIMITS,
+  getDeviceLimit,
 }

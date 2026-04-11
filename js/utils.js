@@ -779,14 +779,6 @@ const subscribePlan = async (planEndingTime, freeDomainNamesAvailableFor, planOf
   log(`[subscribePlan] chatId=${chatId} plan=${plan} expires=${new Date(endTime).toISOString()}`)
   sendMessage(chatId, t.planSubscribed.replace('{{plan}}', plan))
   log('reply:\t' + t.planSubscribed.replace('{{plan}}', plan) + '\tto: ' + chatId)
-
-  HIDE_SMS_APP !== 'true' &&
-    sendQr(
-      bot,
-      chatId,
-      `${chatId}`,
-      translation('t.scanQrOrUseChat', lang, chatId),
-    )
 }
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 

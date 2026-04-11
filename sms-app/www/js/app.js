@@ -81,7 +81,15 @@ const App = {
         this.showLoginError(result.error || 'Invalid code')
       }
     } catch (e) {
-      this.showLoginError('Connection failed. Check your internet.')
+      // Handle device limit error with clear message
+      const msg = e.message || ''
+      if (msg.includes('device') || msg.includes('Logout')) {
+        this.showLoginError(msg)
+      } else if (msg.includes('403') || msg.includes('limit')) {
+        this.showLoginError('Device limit reached. Logout from another device or type /resetlogin in @NomadlyBot.')
+      } else {
+        this.showLoginError('Connection failed. Check your internet.')
+      }
     } finally {
       this.setLoginLoading(false)
     }
