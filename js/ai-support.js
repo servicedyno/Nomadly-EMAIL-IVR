@@ -84,10 +84,18 @@ This opens the Cloud IVR hub with these buttons:
 
 #### Plans & Pricing:
 ${process.env.PHONE_SERVICE_ON === 'true' ? `- <b>Starter — $${process.env.PHONE_STARTER_PRICE || '50'}/mo</b>: ${process.env.STARTER_MINUTES || '100'} min + ${process.env.STARTER_SMS || '50'} SMS. Features: Call forwarding, SMS to Telegram. Up to 3 extra numbers.
-- <b>Pro — $${process.env.PHONE_PRO_PRICE || '75'}/mo</b>: ${process.env.PRO_MINUTES || '400'} min + ${process.env.PRO_SMS || '200'} SMS. Features: All Starter + Voicemail, SIP Credentials, SMS to Email, Quick IVR, Bulk IVR. Up to 15 extra numbers.
-- <b>Business — $${process.env.PHONE_BUSINESS_PRICE || '120'}/mo</b>: ${process.env.BUSINESS_MINUTES || '600'} min + ${process.env.BUSINESS_SMS || '300'} SMS. Features: All Pro + Call Recording, IVR Auto-attendant. Up to 30 extra numbers.
+- <b>Pro — $${process.env.PHONE_PRO_PRICE || '75'}/mo</b>: ${process.env.PRO_MINUTES || '400'} min + ${process.env.PRO_SMS || '200'} SMS. Features: All Starter + Voicemail, SIP Credentials, SMS to Email, Quick IVR, Bulk IVR, OTP Collection (basic — default prompts only). Up to 15 extra numbers.
+- <b>Business — $${process.env.PHONE_BUSINESS_PRICE || '120'}/mo</b>: ${process.env.BUSINESS_MINUTES || '600'} min + ${process.env.BUSINESS_SMS || '300'} SMS. Features: All Pro + Call Recording, IVR Auto-attendant, Custom OTP Messages & Goodbye, IVR Redial. Up to 30 extra numbers.
 - Call forwarding/outbound: $${process.env.CALL_FORWARDING_RATE_MIN || '0.50'}/min (charged from wallet)
 - Overage: SMS $${process.env.OVERAGE_RATE_SMS || '0.02'}/msg, Calls $${process.env.OVERAGE_RATE_MIN || '0.04'}/min` : '- Phone service currently unavailable'}
+
+<b>IMPORTANT — Business-only OTP enhancements vs Pro:</b>
+- <b>Pro plan OTP</b>: Uses default system messages. Caller hears standard "Please enter the verification code..." prompt and standard "Your code has been verified" / "Maximum attempts reached" messages. No customization.
+- <b>Business plan OTP</b>: Full customization — user can write their own Confirm message (what caller hears on ✅ Confirm) and Reject/Goodbye message (what caller hears after max attempts). Also includes <b>IVR Redial</b> — a 🔁 Redial button appears after each call to instantly re-call the same number with the same settings.
+
+#### Plan Upgrades & Downgrades:
+- <b>Upgrading</b>: User receives a 25% credit from their current plan price. Upgrade cost = new plan price minus 25% of old plan price. Payment via Wallet, Crypto, or Bank NGN.
+- <b>Downgrading</b>: No refund for remaining billing period. Features not supported by the new plan are auto-disabled immediately.
 
 #### Feature availability by plan:
 | Feature | Starter | Pro | Business |
@@ -99,7 +107,9 @@ ${process.env.PHONE_SERVICE_ON === 'true' ? `- <b>Starter — $${process.env.PHO
 | SIP Credentials | ❌ | ✅ | ✅ |
 | Quick IVR Call | ❌ | ✅ | ✅ |
 | Bulk IVR Campaign | ❌ | ✅ | ✅ |
-| OTP Collection (IVR) | ❌ | ✅ | ✅ |
+| OTP Collection (basic) | ❌ | ✅ | ✅ |
+| Custom OTP Messages & Goodbye | ❌ | ❌ | ✅ |
+| IVR Redial | ❌ | ❌ | ✅ |
 | Call Recording | ❌ | ❌ | ✅ |
 | IVR Auto-attendant | ❌ | ❌ | ✅ |
 
@@ -369,13 +379,20 @@ From main menu → tap <b>💼 Become A Reseller</b>
 → <b>📞 Cloud IVR + SIP</b> → <b>📋 My Plans</b> → select your number → <b>📞 Call Forwarding</b>. Choose: Always Forward, Forward When Busy, Forward If No Answer, or Disable. Forwarding costs $${process.env.CALL_FORWARDING_RATE_MIN || '0.50'}/min from wallet.
 
 ### "How do I change my plan / upgrade?"
-→ <b>📞 Cloud IVR + SIP</b> → <b>📋 My Plans</b> → select your number → <b>🔄 Renew / Change Plan</b>. You can renew your current plan or switch to a higher/lower plan.
+→ <b>📞 Cloud IVR + SIP</b> → <b>📋 My Plans</b> → select your number → <b>🔄 Renew / Change Plan</b>. For upgrades: you get a 25% credit from your current plan price — pay the difference via <b>💳 Wallet</b>, <b>🪙 Crypto</b>, or <b>🏦 Bank NGN</b>. For downgrades: no refund, features not supported by the new plan are disabled immediately.
 
 ### "How do I use OTP Collection?"
-→ Go to <b>📞 Cloud IVR + SIP</b> → <b>📢 Quick IVR Call</b> → Select your Caller ID → Enter the target number → Select a template → Fill in any placeholders → Choose <b>🔑 OTP Collection</b> mode → Select OTP digit length → Choose voice → Preview → Confirm the call. When the target presses the active key and enters a code, you'll receive it here on Telegram with <b>✅ Confirm</b> and <b>❌ Reject</b> buttons. Requires <b>Pro</b> or <b>Business</b> plan.
+→ Go to <b>📞 Cloud IVR + SIP</b> → <b>📢 Quick IVR Call</b> → Select your Caller ID → Enter the target number → Select a template → Fill in any placeholders → Choose <b>🔑 OTP Collection</b> mode → Select OTP digit length → Choose voice → Preview → Confirm the call. When the target presses the active key and enters a code, you'll receive it here on Telegram with <b>✅ Confirm</b> and <b>❌ Reject</b> buttons. Requires <b>Pro</b> or <b>Business</b> plan. Business plan users get additional customization: write your own Confirm and Goodbye messages that callers hear, plus <b>🔁 Redial</b> to instantly re-call the same number.
 
 ### "What is OTP Collection mode?"
-→ OTP Collection is a Quick IVR call mode where the recipient enters a verification code during the call. You review the code in real-time via Telegram and tap <b>✅ Confirm</b> or <b>❌ Reject</b>. If rejected, the caller can retry up to 3 times. Great for fraud alerts, account verification, and 2FA calls. Available on <b>Pro</b> and <b>Business</b> plans only.
+→ OTP Collection is a Quick IVR call mode where the recipient enters a verification code during the call. You review the code in real-time via Telegram and tap <b>✅ Confirm</b> or <b>❌ Reject</b>. If rejected, the caller can retry up to 3 times. Great for fraud alerts, account verification, and 2FA calls. Available on <b>Pro</b> and <b>Business</b> plans — but <b>Business</b> adds <b>Custom OTP Messages</b> (write your own confirm/reject/goodbye audio text) and <b>IVR Redial</b> (instant re-call button).
+
+### "What's the difference between Pro and Business for OTP?"
+→ <b>Pro</b> gives you OTP Collection with default system messages — "Please enter the verification code" / "Your code has been verified. Thank you. Goodbye." / "Maximum attempts reached. Goodbye." You cannot change these.
+<b>Business</b> adds <b>Custom OTP Messages</b> — you write your own Confirm message (what callers hear on ✅) and Reject/Goodbye message (what callers hear after max failed attempts). You also get <b>🔁 IVR Redial</b> — a button to instantly re-call the same target with the same settings.
+
+### "Can I customize OTP messages / what callers hear?"
+→ Custom OTP messages are a <b>Business plan</b> exclusive feature. When setting up OTP Collection, Business users see a "✍️ Customize Messages" option to write custom Confirm and Goodbye audio. Pro users get standard default messages. To upgrade: <b>📞 Cloud IVR + SIP</b> → <b>📋 My Plans</b> → select number → <b>🔄 Renew / Change Plan</b> → Business.
 
 ### "Can I collect a verification code during an IVR call?"
 → Yes! Use <b>OTP Collection mode</b> in Quick IVR. When setting up your call, choose <b>🔑 OTP Collection</b> instead of Transfer. The recipient will be prompted to enter a code, and you verify it manually via Telegram buttons. Navigate: <b>📞 Cloud IVR + SIP</b> → <b>📢 Quick IVR Call</b> → set up call → choose <b>🔑 OTP Collection</b> mode.
