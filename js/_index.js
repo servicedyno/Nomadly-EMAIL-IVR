@@ -19699,7 +19699,7 @@ Select a category:`), k.of(catBtns))
             return showManageScreen(chatId, num)
           }
           // Deduct the pro-rated amount
-          await atomicIncrement(walletOf, chatId, 'usdBal', -chargeAmount)
+          await atomicIncrement(walletOf, chatId, 'usdOut', chargeAmount)
         }
       }
       // For downgrades: no refund, change takes effect immediately
