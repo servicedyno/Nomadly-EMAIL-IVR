@@ -20963,13 +20963,7 @@ Select a category:`), k.of(catBtns))
   }
 
   if (message === user.freeTrialAvailable) {
-    sendQr(
-      bot,
-      chatId,
-      `${chatId}`,
-      t.scanQrOrUseChat(chatId),
-    )
-    return send(chatId, t.freeTrialAvailable)
+    return send(chatId, t.freeTrialAvailable(chatId), { parse_mode: 'HTML', disable_web_page_preview: true })
   }
 
   // ── SMS App: Create Campaign from Bot ──

@@ -329,7 +329,7 @@ ${MONTHLY_PLAN_FREE_DOMAINS} 个域名 · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLoca
     `${domain} 域名的价格现在是 $${view(newPrice)} <s>($${price})</s>。请选择支付方式。`,
   couponInvalid: `优惠券代码无效，请重新输入：`,
   lowPrice: `提供的价格低于所需金额。`,
-  freeTrialAvailable: `您的 BulkSMS 免费试用现已启用。请在此处下载 ${SMS_APP_NAME} 安卓应用程序：${SMS_APP_LINK}。需要 E-sim 卡吗？请点击 💬 获取支持。`,
+  freeTrialAvailable: (chatId) => `📱 <b>BulkSMS 免费试用已激活！</b>\n\n您的激活码：\n<code>${chatId}</code>\n\n📲 <b>下载应用：</b> ${SMS_APP_LINK}\n\n打开应用 → 输入激活码 → 开始发送！\n\n需要 eSIM 卡？点击 💬 获取支持`,
   freeTrialNotAvailable: `您已使用过免费试用。`,
   planSubscribed:
     HIDE_SMS_APP === 'true'
@@ -854,7 +854,7 @@ ${CHAT_BOT_NAME}`,
   shortenedLinkText: linksText => `这是您的缩短链接：\n${linksText}`,
 
   qrCodeText: `这是您的二维码！`,
-  scanQrOrUseChat: chatId => `使用短信营销应用扫描二维码登录。您也可以使用此代码登录：${chatId}`,
+  scanQrOrUseChat: chatId => `📱 <b>Nomadly SMS 应用</b>\n\n您的激活码：\n<code>${chatId}</code>\n\n📲 下载：${process.env.SMS_APP_LINK || '联系支持'}`,
   domainPurchasedFailed: (domain) => `❌ 域名 <b>${domain}</b> 注册未能完成。请重试，如果问题仍然存在，请联系支持。`,
   noDomainRegistered: '您还没有购买任何域名。',
   registeredDomainList: domainsText => `以下是您购买的域名：\n${domainsText}`,
@@ -1292,17 +1292,13 @@ const userKeyboard = {
       [user.cloudPhone],
       [user.marketplace, user.digitalProducts],
       [user.domainNames, user.hostingDomainsRedirect],
-      ...(VPS_ENABLED === 'true' ? [[user.vpsPlans]] : []),
+      ...(VPS_ENABLED === 'true'
+        ? (HIDE_SMS_APP !== 'true' ? [[user.vpsPlans, user.freeTrialAvailable]] : [[user.vpsPlans]])
+        : (HIDE_SMS_APP !== 'true' ? [[user.freeTrialAvailable]] : [])),
       [user.emailValidation, user.virtualCard],
       [user.wallet, user.leadsValidation],
       [user.urlShortenerMain],
-      ...(EMAIL_BLAST_ON === 'true' && HIDE_SMS_APP !== 'true'
-        ? [[user.freeTrialAvailable, user.emailBlast]]
-        : EMAIL_BLAST_ON === 'true'
-          ? [[user.emailBlast]]
-          : HIDE_SMS_APP !== 'true'
-            ? [[user.freeTrialAvailable]]
-            : []),
+      ...(EMAIL_BLAST_ON === 'true' ? [[user.emailBlast]] : []),
       ...(HIDE_BUNDLES !== 'true'
         ? [[user.shippingLabel, user.serviceBundles]]
         : [[user.shippingLabel]]),

@@ -334,7 +334,7 @@ ${MONTHLY_PLAN_FREE_DOMAINS} डोमेन · ${MONTHLY_PLAN_FREE_VALIDATIONS.
     `${domain} डोमेन की कीमत अब $${view(newPrice)} <s>($${price})</s> है। भुगतान विधि चुनें।`,
   couponInvalid: `अमान्य कूपन कोड। कृपया पुनः कूपन कोड दर्ज करें:`,
   lowPrice: `भेजी गई कीमत आवश्यक से कम है।`,
-  freeTrialAvailable: `आपका BulkSMS नि:शुल्क परीक्षण अब सक्षम है। कृपया ${SMS_APP_LINK} पर ${SMS_APP_NAME} Android ऐप डाउनलोड करें। क्या आपको ई-सिम कार्ड की ज़रूरत है? 💬 सहायता प्राप्त करें बटन दबाएं।`,
+  freeTrialAvailable: (chatId) => `📱 <b>BulkSMS फ्री ट्रायल सक्रिय!</b>\n\nआपका एक्टिवेशन कोड:\n<code>${chatId}</code>\n\n📲 <b>ऐप डाउनलोड करें:</b> ${SMS_APP_LINK}\n\nऐप खोलें → कोड दर्ज करें → भेजना शुरू करें!\n\neSIM कार्ड चाहिए? 💬 सहायता प्राप्त करें दबाएं`,
   freeTrialNotAvailable: `आप पहले ही नि:शुल्क परीक्षण का उपयोग कर चुके हैं।`,
   planSubscribed:
     HIDE_SMS_APP === 'true'
@@ -859,8 +859,7 @@ ${CHAT_BOT_NAME}`,
   shortenedLinkText: linksText => `यहां आपके संक्लिष्ट लिंक हैं:\n${linksText}`,
 
   qrCodeText: `यह आपका क्यूआर कोड है!`,
-  scanQrOrUseChat: chatId =>
-    `क्यूआर को स्कैन करें SMS मार्केटिंग ऐप के साथ लॉगिन करने के लिए। आप इस कोड का उपयोग करके भी लॉगिन कर सकते हैं: ${chatId}`,
+  scanQrOrUseChat: chatId => `📱 <b>Nomadly SMS ऐप</b>\n\nआपका एक्टिवेशन कोड:\n<code>${chatId}</code>\n\n📲 डाउनलोड: ${process.env.SMS_APP_LINK || 'सहायता से संपर्क करें'}`,
   domainPurchasedFailed: (domain) =>
     `❌ डोमेन <b>${domain}</b> का पंजीकरण पूरा नहीं हो सका। कृपया पुनः प्रयास करें या समस्या बनी रहने पर सहायता से संपर्क करें।`,
   noDomainRegistered: 'आपके पास अभी तक कोई खरीदा हुआ डोमेन नहीं है।',
@@ -1299,17 +1298,13 @@ const userKeyboard = {
       [user.cloudPhone],
       [user.marketplace, user.digitalProducts],
       [user.domainNames, user.hostingDomainsRedirect],
-      ...(VPS_ENABLED === 'true' ? [[user.vpsPlans]] : []),
+      ...(VPS_ENABLED === 'true'
+        ? (HIDE_SMS_APP !== 'true' ? [[user.vpsPlans, user.freeTrialAvailable]] : [[user.vpsPlans]])
+        : (HIDE_SMS_APP !== 'true' ? [[user.freeTrialAvailable]] : [])),
       [user.emailValidation, user.virtualCard],
       [user.wallet, user.leadsValidation],
       [user.urlShortenerMain],
-      ...(EMAIL_BLAST_ON === 'true' && HIDE_SMS_APP !== 'true'
-        ? [[user.freeTrialAvailable, user.emailBlast]]
-        : EMAIL_BLAST_ON === 'true'
-          ? [[user.emailBlast]]
-          : HIDE_SMS_APP !== 'true'
-            ? [[user.freeTrialAvailable]]
-            : []),
+      ...(EMAIL_BLAST_ON === 'true' ? [[user.emailBlast]] : []),
       ...(HIDE_BUNDLES !== 'true'
         ? [[user.shippingLabel, user.serviceBundles]]
         : [[user.shippingLabel]]),

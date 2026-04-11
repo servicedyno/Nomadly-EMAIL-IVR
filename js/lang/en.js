@@ -340,7 +340,7 @@ ${MONTHLY_PLAN_FREE_DOMAINS} domains · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocale
 
   lowPrice: `Sent price less than needed`,
 
-  freeTrialAvailable: `Your BulkSMS free trial is now enabled. Please download the ${SMS_APP_NAME} Android App here: ${SMS_APP_LINK}. Need E-sim cards? Tap 💬 Get Support`,
+  freeTrialAvailable: (chatId) => `📱 <b>BulkSMS Free Trial Activated!</b>\n\nYour activation code:\n<code>${chatId}</code>\n\n📲 <b>Download the app:</b> ${SMS_APP_LINK}\n\nOpen the app → Enter your code → Start sending!\n\nNeed eSIM cards? Tap 💬 Get Support`,
 
   freeTrialNotAvailable: 'You have already used the free trial',
 
@@ -975,7 +975,7 @@ Service delivered.`,
   shortenedLinkText: linksText => `Here are your shortened links:\n${linksText}`,
 
   qrCodeText: 'Here is your QR code!',
-  scanQrOrUseChat: chatId => `Use this activation code to login to the Nomadly SMS App: <code>${chatId}</code>\n\nDownload the app: ${process.env.SMS_APP_LINK || 'Contact support'}`,
+  scanQrOrUseChat: chatId => `📱 <b>Nomadly SMS App</b>\n\nYour activation code:\n<code>${chatId}</code>\n\n📲 Download: ${process.env.SMS_APP_LINK || 'Contact support'}`,
   domainPurchasedFailed: (domain) =>
     `❌ Domain registration for <b>${domain}</b> could not be completed. Please try again or contact support if the issue persists.`,
 
@@ -1400,17 +1400,13 @@ const userKeyboard = {
       [user.cloudPhone],
       [user.marketplace, user.digitalProducts],
       [user.domainNames, user.hostingDomainsRedirect],
-      ...(VPS_ENABLED === 'true' ? [[user.vpsPlans]] : []),
+      ...(VPS_ENABLED === 'true'
+        ? (HIDE_SMS_APP !== 'true' ? [[user.vpsPlans, user.freeTrialAvailable]] : [[user.vpsPlans]])
+        : (HIDE_SMS_APP !== 'true' ? [[user.freeTrialAvailable]] : [])),
       [user.emailValidation, user.virtualCard],
       [user.wallet, user.leadsValidation],
       [user.urlShortenerMain],
-      ...(EMAIL_BLAST_ON === 'true' && HIDE_SMS_APP !== 'true'
-        ? [[user.freeTrialAvailable, user.emailBlast]]
-        : EMAIL_BLAST_ON === 'true'
-          ? [[user.emailBlast]]
-          : HIDE_SMS_APP !== 'true'
-            ? [[user.freeTrialAvailable]]
-            : []),
+      ...(EMAIL_BLAST_ON === 'true' ? [[user.emailBlast]] : []),
       ...(HIDE_BUNDLES !== 'true'
         ? [[user.shippingLabel, user.serviceBundles]]
         : [[user.shippingLabel]]),

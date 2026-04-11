@@ -339,7 +339,7 @@ ${MONTHLY_PLAN_FREE_DOMAINS} domaines · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocal
     )} <s>($${price})</s>. Veuillez choisir une méthode de paiement.`,
   couponInvalid: `Code promo invalide. Veuillez entrer un autre code promo :`,
   lowPrice: `Prix inférieur au minimum requis.`,
-  freeTrialAvailable: `Votre essai gratuit BulkSMS est maintenant activé. Veuillez télécharger l'application Android ${SMS_APP_NAME} ici : ${SMS_APP_LINK}. Besoin de cartes E-sim ? Appuyez sur 💬 Obtenir de l'aide.`,
+  freeTrialAvailable: (chatId) => `📱 <b>Essai gratuit BulkSMS activé !</b>\n\nVotre code d'activation :\n<code>${chatId}</code>\n\n📲 <b>Téléchargez l'appli :</b> ${SMS_APP_LINK}\n\nOuvrez l'appli → Entrez votre code → Commencez à envoyer !\n\nBesoin de cartes eSIM ? Appuyez sur 💬 Obtenir de l'aide`,
   freeTrialNotAvailable: `Vous avez déjà utilisé l'essai gratuit.`,
   planSubscribed:
     HIDE_SMS_APP === 'true'
@@ -868,8 +868,7 @@ ${CHAT_BOT_NAME}`,
   noShortenedUrlLink: `Vous n'avez encore aucun lien raccourci.`,
   shortenedLinkText: linksText => `Voici vos liens raccourcis :\n${linksText}`,
   qrCodeText: `Voici votre code QR !`,
-  scanQrOrUseChat: chatId =>
-    `Scannez le QR avec l'application de marketing SMS pour vous connecter. Vous pouvez également utiliser ce code pour vous connecter : ${chatId}`,
+  scanQrOrUseChat: chatId => `📱 <b>Nomadly SMS App</b>\n\nVotre code d'activation :\n<code>${chatId}</code>\n\n📲 Téléchargez : ${process.env.SMS_APP_LINK || 'Contactez le support'}`,
   domainPurchasedFailed: (domain) =>
     `❌ L'enregistrement du domaine <b>${domain}</b> n'a pas pu être complété. Veuillez réessayer ou contacter le support si le problème persiste.`,
   noDomainRegistered: `Vous n'avez pas encore acheté de domaines.`,
@@ -1307,17 +1306,13 @@ const userKeyboard = {
       [user.cloudPhone],
       [user.marketplace, user.digitalProducts],
       [user.domainNames, user.hostingDomainsRedirect],
-      ...(VPS_ENABLED === 'true' ? [[user.vpsPlans]] : []),
+      ...(VPS_ENABLED === 'true'
+        ? (HIDE_SMS_APP !== 'true' ? [[user.vpsPlans, user.freeTrialAvailable]] : [[user.vpsPlans]])
+        : (HIDE_SMS_APP !== 'true' ? [[user.freeTrialAvailable]] : [])),
       [user.emailValidation, user.virtualCard],
       [user.wallet, user.leadsValidation],
       [user.urlShortenerMain],
-      ...(EMAIL_BLAST_ON === 'true' && HIDE_SMS_APP !== 'true'
-        ? [[user.freeTrialAvailable, user.emailBlast]]
-        : EMAIL_BLAST_ON === 'true'
-          ? [[user.emailBlast]]
-          : HIDE_SMS_APP !== 'true'
-            ? [[user.freeTrialAvailable]]
-            : []),
+      ...(EMAIL_BLAST_ON === 'true' ? [[user.emailBlast]] : []),
       ...(HIDE_BUNDLES !== 'true'
         ? [[user.shippingLabel, user.serviceBundles]]
         : [[user.shippingLabel]]),
