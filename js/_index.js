@@ -1871,6 +1871,7 @@ const loadData = async () => {
                   '/bank-pay-phone': '📞 Phone Number',
                   '/bank-pay-leads': '📱 SMS Leads',
                   '/bank-pay-email-blast': '📧 Email Blast',
+                  '/bank-pay-phone-upgrade': '⬆️ Phone Plan Upgrade',
                   '/bank-pay-digital-product': '🛒 Digital Product',
                   '/bank-pay-virtual-card': '💳 Virtual Card',
                   '/bank-pay-plan': '📦 Service Plan',
@@ -16682,6 +16683,89 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     }
   }
 
+  // ── BANK NGN PAYMENT FOR PLAN UPGRADE ──
+  if (action === 'bank-pay-phone-upgrade') {
+    if (message === t.back) {
+      await set(state, chatId, 'action', a.cpManageNumber)
+      return showManageScreen(chatId, num)
+    }
+    const email = message
+    const upgradeData = info?.cpUpgradeData
+    if (!upgradeData) return send(chatId, '⚠️ Upgrade session expired. Please start again.', trans('o'))
+    if (!isValidEmail(email)) return send(chatId, t.askValidEmail)
+
+    const price = upgradeData.chargeAmount
+    const ref = nanoid()
+    await set(state, chatId, 'action', 'none')
+    const _rawNgn = await usdToNgn(price)
+    const priceNGN = Number(_rawNgn)
+    if (!_rawNgn || isNaN(priceNGN) || priceNGN <= 0) return send(chatId, '⚠️ Payment processing temporarily unavailable (exchange rate service down). Please try again later or use crypto.', trans('o'))
+    set(chatIdOfPayment, ref, { chatId, price, upgradeData, endpoint: '/bank-pay-phone-upgrade', _createdAt: new Date().toISOString() })
+    const { url, error } = await createCheckout(priceNGN, `/ok?a=b&ref=${ref}&`, email, username, ref)
+    if (error) return send(chatId, error, trans('o'))
+    return send(chatId, `Plan Upgrade ₦${priceNGN.toLocaleString()}`, trans('payBank', url))
+  }
+
+  // ── CRYPTO PAYMENT FOR PLAN UPGRADE ──
+  if (action === 'crypto-pay-phone-upgrade') {
+    if (message === t.back) {
+      await set(state, chatId, 'action', a.cpManageNumber)
+      return showManageScreen(chatId, num)
+    }
+    const upgradeData = info?.cpUpgradeData
+    if (!upgradeData) return send(chatId, '⚠️ Upgrade session expired. Please start again.', trans('o'))
+
+    const tickerView = message
+    const supportedCryptoView = trans('supportedCryptoView')
+    const ticker = supportedCryptoView[tickerView]
+    if (!ticker) return send(chatId, t.askValidCrypto)
+    const price = upgradeData.chargeAmount
+    const ref = nanoid()
+    if (BLOCKBEE_CRYTPO_PAYMENT_ON === 'true') {
+      const coin = tickerOf[ticker]
+      const bbResult = await getCryptoDepositAddress(coin, chatId, SELF_URL, `/crypto-pay-phone-upgrade?a=b&ref=${ref}&`)
+      if (bbResult?.address) {
+        set(chatIdOfPayment, ref, { chatId, price, upgradeData })
+        await sendQrCode(bot, chatId, bbResult.bb, info?.userLanguage ?? 'en')
+        await set(state, chatId, 'action', 'none')
+        const priceCrypto = await convert(price, 'usd', coin)
+        return send(chatId, t.showDepositCryptoInfoPhone(price, priceCrypto, ticker, bbResult.address, `Plan Upgrade → ${upgradeData.newPlan}`), trans('o'))
+      } else {
+        log('[CryptoFallback] BlockBee unavailable for phone upgrade, falling back to DynoPay')
+        const dynoCoin = tickerOfDyno[ticker]
+        const dynoResult = await getDynopayCryptoAddress(price, dynoCoin, `${SELF_URL}/dynopay/crypto-pay-phone-upgrade`, { "product_name": dynopayActions.payPhone, "refId": ref })
+        if (!dynoResult?.address) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
+        set(chatIdOfDynopayPayment, ref, { chatId, price, upgradeData, action: dynopayActions.payPhone, address: dynoResult.address })
+        saveInfo('ref', ref)
+        await generateQr(bot, chatId, dynoResult.qr_code, info?.userLanguage ?? 'en')
+        await set(state, chatId, 'action', 'none')
+        const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
+        return send(chatId, t.showDepositCryptoInfoPhone(price, priceCrypto, ticker, dynoResult.address, `Plan Upgrade → ${upgradeData.newPlan}`), trans('o'))
+      }
+    } else {
+      const coin = tickerOfDyno[ticker]
+      const dynoResult = await getDynopayCryptoAddress(price, coin, `${SELF_URL}/dynopay/crypto-pay-phone-upgrade`, { "product_name": dynopayActions.payPhone, "refId": ref })
+      if (dynoResult?.address) {
+        set(chatIdOfDynopayPayment, ref, { chatId, price, upgradeData, action: dynopayActions.payPhone, address: dynoResult.address })
+        saveInfo('ref', ref)
+        await generateQr(bot, chatId, dynoResult.qr_code, info?.userLanguage ?? 'en')
+        await set(state, chatId, 'action', 'none')
+        const priceCrypto = await convert(price, 'usd', tickerOf[ticker])
+        return send(chatId, t.showDepositCryptoInfoPhone(price, priceCrypto, ticker, dynoResult.address, `Plan Upgrade → ${upgradeData.newPlan}`), trans('o'))
+      } else {
+        log('[CryptoFallback] DynoPay unavailable for phone upgrade, falling back to BlockBee')
+        const bbCoin = tickerOf[ticker]
+        const { address: bbAddr, bb } = await getCryptoDepositAddress(bbCoin, chatId, SELF_URL, `/crypto-pay-phone-upgrade?a=b&ref=${ref}&`)
+        if (!bbAddr) return send(chatId, t.errorFetchingCryptoAddress, trans('o'))
+        set(chatIdOfPayment, ref, { chatId, price, upgradeData })
+        await sendQrCode(bot, chatId, bb, info?.userLanguage ?? 'en')
+        await set(state, chatId, 'action', 'none')
+        const priceCrypto = await convert(price, 'usd', bbCoin)
+        return send(chatId, t.showDepositCryptoInfoPhone(price, priceCrypto, ticker, bbAddr, `Plan Upgrade → ${upgradeData.newPlan}`), trans('o'))
+      }
+    }
+  }
+
   // ── REGULATORY DOCUMENT COLLECTION (text inputs for Tier 2+ countries) ──
   if (action === 'cpDocCollect') {
     const lang = info?.userLanguage ?? 'en'
@@ -19665,35 +19749,50 @@ Select a category:`), k.of(catBtns))
     }
 
 
-    // Check if this is a confirmation of a pending plan change
-    if (message === '✅ Confirm Change' && info?.cpPendingPlan) {
-      const newPlan = info.cpPendingPlan
-      const oldPlan = num.plan
-      const newPrice = phoneConfig.plans[newPlan].price
-      const oldPrice = phoneConfig.plans[oldPlan]?.price || num.planPrice
+    // ── Payment method selection for plan UPGRADE ──
+    if (info?.cpUpgradeData && info?.cpPendingPlan) {
+      const upgradeData = info.cpUpgradeData
+      const payOption = message
 
-      // Determine if upgrade or downgrade
-      const planOrder = { starter: 1, pro: 2, business: 3 }
-      const isUpgrade = (planOrder[newPlan] || 0) > (planOrder[oldPlan] || 0)
-
-      // For upgrades: 25% credit from old plan, user pays new plan minus credit
-      if (isUpgrade) {
-        const credit = parseFloat((oldPrice * 0.25).toFixed(2))
-        const chargeAmount = Math.max(0, parseFloat((newPrice - credit).toFixed(2)))
+      // Wallet payment for upgrade
+      if (payOption === payIn.wallet) {
+        const { chargeAmount, newPlan: upgNewPlan, phoneNumber: upgPhone } = upgradeData
+        const newPrice = phoneConfig.plans[upgNewPlan].price
 
         if (chargeAmount > 0) {
           let walletBal = 0
           try { const { usdBal } = await getBalance(walletOf, chatId); walletBal = usdBal } catch (e) {}
           if (walletBal < chargeAmount) {
-            await saveInfo('cpPendingPlan', null)
-            send(chatId, phoneConfig.getMsg(info?.userLanguage).insufficientBalUpgrade(chargeAmount, walletBal))
-            await set(state, chatId, 'action', a.cpManageNumber)
-            return showManageScreen(chatId, num)
+            send(chatId, `⚠️ <b>Insufficient balance</b>\n\n💰 Need: <b>$${chargeAmount.toFixed(2)}</b>\n👛 Have: <b>$${walletBal.toFixed(2)}</b>\n\nPlease top up or choose another payment method.`)
+            return
           }
-          // Deduct upgrade charge
           await atomicIncrement(walletOf, chatId, 'usdOut', chargeAmount)
         }
+
+        // Apply the plan change
+        await applyPhonePlanUpgrade(chatId, num, upgNewPlan, newPrice, info?.userLanguage, 'wallet')
+        return
       }
+
+      // Crypto payment for upgrade
+      if (payOption === payIn.crypto) {
+        await set(state, chatId, 'action', 'crypto-pay-phone-upgrade')
+        return send(chatId, t.selectCryptoToDeposit, trans('k.of', trans('supportedCryptoViewOf')))
+      }
+
+      // Bank NGN payment for upgrade
+      if (payOption === payIn.bank) {
+        await set(state, chatId, 'action', 'bank-pay-phone-upgrade')
+        return send(chatId, t.askEmail, bc)
+      }
+    }
+
+    // Check if this is a confirmation of a pending plan change (DOWNGRADE only)
+    if (message === '✅ Confirm Change' && info?.cpPendingPlan) {
+      const newPlan = info.cpPendingPlan
+      const oldPlan = num.plan
+      const newPrice = phoneConfig.plans[newPlan].price
+
       // For downgrades: no refund, change takes effect immediately
 
       await updatePhoneNumberField(phoneNumbersOf, chatId, num.phoneNumber, 'plan', newPlan)
@@ -19841,16 +19940,18 @@ Select a category:`), k.of(catBtns))
       upgradeMsg += `💰 <b>Upgrade cost: $${chargeAmount.toFixed(2)}</b>\n`
       upgradeMsg += `   ├ New plan: $${newPrice}/mo\n`
       upgradeMsg += `   └ Credit (25% of ${oldPlan}): -$${credit.toFixed(2)}\n`
-      upgradeMsg += `👛 Wallet: $${walletBal.toFixed(2)}`
-      if (walletBal < chargeAmount) {
-        upgradeMsg += ` ⚠️ <b>Insufficient — top up $${(chargeAmount - walletBal).toFixed(2)} first</b>`
-      }
-      upgradeMsg += `\n\n`
+      upgradeMsg += `👛 Wallet: $${walletBal.toFixed(2)}\n\n`
     }
-    upgradeMsg += `Confirm upgrade?`
+    upgradeMsg += `Select payment method:`
 
+    // Store upgrade data for all payment methods
     await saveInfo('cpPendingPlan', newPlan)
-    return send(chatId, upgradeMsg, k.of([['✅ Confirm Change', pc.back]]))
+    await saveInfo('cpUpgradeData', { chargeAmount, newPlan, oldPlan, newPrice, phoneNumber: num.phoneNumber, credit })
+    const payBtns = [[payIn.wallet]]
+    payBtns.push([payIn.crypto])
+    if (payIn.bank) payBtns.push([payIn.bank])
+    payBtns.push([pc.back])
+    return send(chatId, upgradeMsg, k.of(payBtns))
   }
 
   // ━━━ RELEASE NUMBER ━━━
@@ -21601,6 +21702,35 @@ const upgradeVPSDetails = async (chatId, lang, vpsDetails) => {
 }
 
 // ── Cloud IVR DB helpers ──
+
+// Shared function to apply a phone plan upgrade — used by wallet, crypto, and bank payment paths
+async function applyPhonePlanUpgrade(chatId, num, newPlan, newPrice, lang, paymentMethod) {
+  await updatePhoneNumberField(phoneNumbersOf, chatId, num.phoneNumber, 'plan', newPlan)
+  await updatePhoneNumberField(phoneNumbersOf, chatId, num.phoneNumber, 'planPrice', newPrice)
+  num.plan = newPlan
+  num.planPrice = newPrice
+
+  // Re-enable SIP if upgrading to a plan that supports it
+  if (phoneConfig.canAccessFeature(newPlan, 'sipCredentials') && num.sipDisabled) {
+    await updatePhoneNumberField(phoneNumbersOf, chatId, num.phoneNumber, 'sipDisabled', false)
+    num.sipDisabled = false
+  }
+
+  const info = await state.findOne({ _id: parseFloat(chatId) })
+  await set(state, chatId, 'cpActiveNumber', num)
+  await set(state, chatId, 'cpPendingPlan', null)
+  await set(state, chatId, 'cpUpgradeData', null)
+
+  const m = phoneConfig.getMsg(lang)
+  const confirmMsg = `✅ <b>Plan Upgraded!</b>\n\n📦 New plan: <b>${newPlan.charAt(0).toUpperCase() + newPlan.slice(1)}</b> ($${newPrice}/mo)\n💳 Paid via: ${paymentMethod}\n\nYour new features are now active!`
+  sendMessage(chatId, confirmMsg, { parse_mode: 'HTML' })
+  const name = await get(nameOf, chatId)
+  notifyGroup(`⬆️ <b>Plan Upgrade!</b>\nUser ${maskName(name)} upgraded to <b>${newPlan.charAt(0).toUpperCase() + newPlan.slice(1)}</b> — /start`)
+
+  await set(state, chatId, 'action', 'none')
+  log(`[CloudPhone] Plan upgraded for ${chatId}: ${num.phoneNumber} → ${newPlan} ($${newPrice}) via ${paymentMethod}`)
+}
+
 async function updatePhoneNumberFeature(col, chatId, phoneNumber, featureKey, value) {
   const userData = await get(col, chatId)
   if (!userData?.numbers) return
@@ -22486,6 +22616,46 @@ const bankApis = {
     await set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
   },
+  '/bank-pay-phone-upgrade': async (req, res, ngnIn) => {
+    const { ref, chatId, price, upgradeData } = req.pay || {}
+    if (!ref || !chatId || !price || !upgradeData) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
+    const info = await state.findOne({ _id: parseFloat(chatId) })
+    const lang = info?.userLanguage ?? 'en'
+
+    const usdIn = await ngnToUsd(ngnIn)
+    if (usdIn < price) {
+      sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
+      addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
+      del(chatIdOfPayment, ref)
+      return res.send(html(translation('t.lowPrice')))
+    }
+
+    // Credit excess to wallet if overpaid
+    const excessUsd = usdIn > price ? (usdIn - price) : 0
+    if (excessUsd > 0) {
+      await atomicIncrement(walletOf, chatId, 'usdIn', excessUsd)
+      sendMessage(chatId, `💰 Excess ₦ credited to wallet: <b>$${excessUsd.toFixed(2)}</b>`, { parse_mode: 'HTML' })
+    }
+
+    // Find the phone number to upgrade
+    const userData = await get(phoneNumbersOf, chatId)
+    const num = userData?.numbers?.find(n => n.phoneNumber === upgradeData.phoneNumber)
+    if (!num) {
+      addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
+      del(chatIdOfPayment, ref)
+      return res.send(html('Phone number not found'))
+    }
+
+    const name = await get(nameOf, chatId)
+    set(payments, ref, `Bank,PhoneUpgrade,${upgradeData.phoneNumber},$${price},${chatId},${name},${new Date()},${ngnIn} NGN`)
+    del(chatIdOfPayment, ref)
+
+    // Apply the plan upgrade
+    await applyPhonePlanUpgrade(chatId, num, upgradeData.newPlan, upgradeData.newPrice, lang, '🏦 Bank Transfer')
+    if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+    if (userConversion) userConversion.markPurchased(chatId)
+    res.send(html())
+  },
 }
 //
 //
@@ -22985,6 +23155,42 @@ app.get('/crypto-pay-phone', auth, async (req, res) => {
 })
 
 // ── DynoPay Crypto Payment for Phone ──
+
+// ── BlockBee Crypto Callback for Phone Plan Upgrade ──
+app.get('/crypto-pay-phone-upgrade', auth, async (req, res) => {
+  const { ref, chatId, price, upgradeData } = req.pay
+  const coin = req?.query?.coin
+  const value = req?.query?.value_coin
+  if (!ref || !chatId || !price || !coin || !value || !upgradeData) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
+  const info = await state.findOne({ _id: parseFloat(chatId) })
+  const lang = info?.userLanguage ?? 'en'
+  del(chatIdOfPayment, ref)
+  const name = await get(nameOf, chatId)
+  set(payments, ref, `Crypto,PhoneUpgrade,${upgradeData.phoneNumber},$${price},${chatId},${name},${new Date()},${value} ${coin}`)
+  const usdIn = await convert(value, coin, 'usd')
+  if (usdIn < price) {
+    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
+    addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
+    return res.send(html(translation('t.lowPrice')))
+  }
+  const excessUsd = usdIn > price ? (usdIn - price) : 0
+  if (excessUsd > 0) {
+    await atomicIncrement(walletOf, chatId, 'usdIn', excessUsd)
+    sendMessage(chatId, `💰 Excess crypto credited to wallet: <b>$${excessUsd.toFixed(2)}</b>`, { parse_mode: 'HTML' })
+  }
+
+  const userData = await get(phoneNumbersOf, chatId)
+  const num = userData?.numbers?.find(n => n.phoneNumber === upgradeData.phoneNumber)
+  if (!num) {
+    addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
+    return res.send(html('Phone number not found'))
+  }
+
+  await applyPhonePlanUpgrade(chatId, num, upgradeData.newPlan, upgradeData.newPrice, lang, `🪙 Crypto (${coin})`)
+  if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (userConversion) userConversion.markPurchased(chatId)
+  res.send(html())
+})
 
 // Buy Leads / Validate Leads — BlockBee callback
 app.get('/crypto-pay-leads', auth, async (req, res) => {
@@ -23659,6 +23865,50 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
   await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
+  res.send(html())
+})
+
+// ── DynoPay Crypto Callback for Phone Plan Upgrade ──
+app.post('/dynopay/crypto-pay-phone-upgrade', authDyno, async (req, res) => {
+  const { ref, chatId, price, upgradeData } = req.pay
+  const { amount:value, currency:coin, payment_id:id } = req.body
+  log({ method: 'dynopay/crypto-pay-phone-upgrade', ref, chatId, price, coin, value })
+  if (!ref || !chatId || !price || !coin || !value || !upgradeData) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
+  const info = await state.findOne({ _id: parseFloat(chatId) })
+  const lang = info?.userLanguage ?? 'en'
+  del(chatIdOfDynopayPayment, ref)
+  const name = await get(nameOf, chatId)
+  set(payments, ref, `Crypto,PhoneUpgrade,${upgradeData.phoneNumber},$${price},${chatId},${name},${new Date()},${value} ${coin},transaction,${id}`)
+  const ticker = tickerViewOfDyno[coin]
+  const baseAmount = req.body.base_amount
+  const feePayer = req.body.fee_payer
+  let usdIn
+  if (baseAmount && feePayer === 'company') {
+    usdIn = parseFloat(baseAmount)
+  } else {
+    usdIn = await convert(value, ticker, 'usd')
+  }
+  if (usdIn < price) {
+    sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
+    addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
+    return res.send(html(translation('t.lowPrice')))
+  }
+  const excessUsd = usdIn > price ? (usdIn - price) : 0
+  if (excessUsd > 0) {
+    await atomicIncrement(walletOf, chatId, 'usdIn', excessUsd)
+    sendMessage(chatId, `💰 Excess crypto credited to wallet: <b>$${excessUsd.toFixed(2)}</b>`, { parse_mode: 'HTML' })
+  }
+
+  const userData = await get(phoneNumbersOf, chatId)
+  const num = userData?.numbers?.find(n => n.phoneNumber === upgradeData.phoneNumber)
+  if (!num) {
+    addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
+    return res.send(html('Phone number not found'))
+  }
+
+  await applyPhonePlanUpgrade(chatId, num, upgradeData.newPlan, upgradeData.newPrice, lang, `🪙 Crypto (${coin})`)
+  if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (userConversion) userConversion.markPurchased(chatId)
   res.send(html())
 })
 
