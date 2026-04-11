@@ -2579,12 +2579,22 @@ async function handleCallAnswered(payload) {
     const greeting = ivrConfig.greeting || 'Thank you for calling. Please listen to the following options.'
     log(`[Voice] Starting IVR for ${num.phoneNumber}`)
 
-    await _telnyxApi.gatherDTMF(callControlId, greeting, {
-      minDigits: 1,
-      maxDigits: 1,
-      timeout: 15000,
-      validDigits: Object.keys(ivrConfig.options).join(''),
-    })
+    // (#9) Play audio greeting if available, otherwise use TTS
+    if (ivrConfig.greetingAudioUrl) {
+      await _telnyxApi.gatherDTMFWithAudio(callControlId, ivrConfig.greetingAudioUrl, {
+        minDigits: 1,
+        maxDigits: 1,
+        timeout: 15000,
+        validDigits: Object.keys(ivrConfig.options).join(''),
+      })
+    } else {
+      await _telnyxApi.gatherDTMF(callControlId, greeting, {
+        minDigits: 1,
+        maxDigits: 1,
+        timeout: 15000,
+        validDigits: Object.keys(ivrConfig.options).join(''),
+      })
+    }
     return
   }
 

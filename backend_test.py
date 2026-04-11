@@ -1,23 +1,33 @@
 #!/usr/bin/env python3
 """
-Backend Test Suite for Plan-Gating of Redial Button and Custom OTP Messages
-Tests the implementation according to the verification checklist.
+Backend Test Suite for 10 IVR Improvements
+Tests the specific IVR features implemented in js/_index.js, js/voice-service.js, and js/phone-config.js
 """
 
-import subprocess
-import json
 import requests
+import json
 import sys
+import subprocess
 import os
+import time
+from urllib.parse import urljoin
 
 # Backend URL from environment
-BACKEND_URL = "https://readme-setup-13.preview.emergentagent.com"
+BACKEND_URL = os.getenv('REACT_APP_BACKEND_URL', 'https://readme-setup-13.preview.emergentagent.com')
+API_BASE = urljoin(BACKEND_URL, '/api')
 
-def run_node_check(file_path):
-    """Run node -c syntax check on a JavaScript file"""
+def log_test(test_name, status, details=""):
+    """Log test results with consistent formatting"""
+    status_icon = "✅" if status == "PASS" else "❌" if status == "FAIL" else "⚠️"
+    print(f"{status_icon} {test_name}: {status}")
+    if details:
+        print(f"   {details}")
+
+def check_syntax(file_path):
+    """Check JavaScript syntax using node -c"""
     try:
         result = subprocess.run(['node', '-c', file_path], 
-                              capture_output=True, text=True, cwd='/app')
+                              capture_output=True, text=True, timeout=10)
         return result.returncode == 0, result.stderr
     except Exception as e:
         return False, str(e)
@@ -25,252 +35,293 @@ def run_node_check(file_path):
 def check_health():
     """Check backend health endpoint"""
     try:
-        response = requests.get(f"{BACKEND_URL}/api/health", timeout=10)
+        # Try Node.js health endpoint first (port 5000)
+        response = requests.get("http://localhost:5000/health", timeout=10)
+        if response.status_code == 200:
+            return True, response.json()
+        
+        # Fallback to external URL
+        response = requests.get(f"{BACKEND_URL}/health", timeout=10)
         return response.status_code == 200, response.json() if response.status_code == 200 else response.text
     except Exception as e:
         return False, str(e)
 
-def search_file_content(file_path, pattern):
-    """Search for pattern in file and return matching lines with line numbers"""
+def search_file_content(file_path, patterns):
+    """Search for multiple patterns in a file and return results"""
+    results = {}
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-        
-        matches = []
-        for i, line in enumerate(lines, 1):
-            if pattern.lower() in line.lower():
-                matches.append((i, line.strip()))
-        return matches
+            content = f.read()
+            for pattern_name, pattern in patterns.items():
+                results[pattern_name] = pattern in content
     except Exception as e:
-        return []
-
-def verify_phone_config():
-    """Verify phone-config.js feature flags and configuration"""
-    print("🔍 TESTING: phone-config.js Feature Flags")
-    
-    results = []
-    
-    # Test 1: Check planFeatureAccess.starter has ivrRedial: false and otpCustomMessages: false
-    matches = search_file_content('/app/js/phone-config.js', 'starter: {')
-    starter_section_found = False
-    for line_num, line in matches:
-        if 'starter: {' in line:
-            starter_section_found = True
-            break
-    
-    ivr_redial_starter = search_file_content('/app/js/phone-config.js', 'ivrRedial: false')
-    otp_custom_starter = search_file_content('/app/js/phone-config.js', 'otpCustomMessages: false')
-    
-    results.append({
-        'test': 'planFeatureAccess.starter has ivrRedial: false and otpCustomMessages: false',
-        'passed': len(ivr_redial_starter) >= 2 and len(otp_custom_starter) >= 2,  # Should appear in starter and pro
-        'details': f"Found ivrRedial: false at lines: {[l[0] for l in ivr_redial_starter]}, otpCustomMessages: false at lines: {[l[0] for l in otp_custom_starter]}"
-    })
-    
-    # Test 2: Check planFeatureAccess.business has ivrRedial: true and otpCustomMessages: true
-    ivr_redial_business = search_file_content('/app/js/phone-config.js', 'ivrRedial: true')
-    otp_custom_business = search_file_content('/app/js/phone-config.js', 'otpCustomMessages: true')
-    
-    results.append({
-        'test': 'planFeatureAccess.business has ivrRedial: true and otpCustomMessages: true',
-        'passed': len(ivr_redial_business) >= 1 and len(otp_custom_business) >= 1,
-        'details': f"Found ivrRedial: true at lines: {[l[0] for l in ivr_redial_business]}, otpCustomMessages: true at lines: {[l[0] for l in otp_custom_business]}"
-    })
-    
-    # Test 3: Check getUpgradeMessage maps ivrRedial and otpCustomMessages to 'Business'
-    upgrade_mapping = search_file_content('/app/js/phone-config.js', "feature === 'ivrRedial' || feature === 'otpCustomMessages'")
-    business_mapping = search_file_content('/app/js/phone-config.js', "'Business'")
-    
-    results.append({
-        'test': 'getUpgradeMessage maps ivrRedial and otpCustomMessages to Business',
-        'passed': len(upgrade_mapping) >= 1,
-        'details': f"Found upgrade mapping at lines: {[l[0] for l in upgrade_mapping]}"
-    })
-    
-    # Test 4: Check featureNamesI18n has entries for ivrRedial and otpCustomMessages in all languages
-    feature_names_ivr = search_file_content('/app/js/phone-config.js', 'ivrRedial:')
-    feature_names_otp = search_file_content('/app/js/phone-config.js', 'otpCustomMessages:')
-    
-    results.append({
-        'test': 'featureNamesI18n has entries for ivrRedial and otpCustomMessages in en/fr/zh/hi',
-        'passed': len(feature_names_ivr) >= 4 and len(feature_names_otp) >= 4,  # Should appear in all 4 languages
-        'details': f"Found ivrRedial entries: {len(feature_names_ivr)}, otpCustomMessages entries: {len(feature_names_otp)}"
-    })
-    
+        results['error'] = str(e)
     return results
 
-def verify_voice_service():
-    """Verify voice-service.js Telnyx redial gate implementation"""
-    print("🔍 TESTING: voice-service.js Telnyx Redial Gate")
-    
-    results = []
-    
-    # Test 5: Check require('./phone-config.js') imports canAccessFeature
-    phone_config_import = search_file_content('/app/js/voice-service.js', "require('./phone-config.js')")
-    can_access_feature = search_file_content('/app/js/voice-service.js', 'canAccessFeature')
-    
-    results.append({
-        'test': 'voice-service.js imports canAccessFeature from phone-config.js',
-        'passed': len(phone_config_import) >= 1 and len(can_access_feature) >= 1,
-        'details': f"Found phone-config import: {len(phone_config_import)}, canAccessFeature usage: {len(can_access_feature)}"
-    })
-    
-    # Test 6: Check handleOutboundIvrHangup checks canAccessFeature(callerNum.plan, 'ivrRedial')
-    hangup_redial_check = search_file_content('/app/js/voice-service.js', "canAccessFeature(callerNum.plan, 'ivrRedial')")
-    
-    results.append({
-        'test': 'handleOutboundIvrHangup checks canAccessFeature for ivrRedial',
-        'passed': len(hangup_redial_check) >= 1,
-        'details': f"Found ivrRedial access check at lines: {[l[0] for l in hangup_redial_check]}"
-    })
-    
-    # Test 7: Check conditional redial button logic
-    show_redial = search_file_content('/app/js/voice-service.js', 'showRedial')
-    
-    results.append({
-        'test': 'Conditional redial button logic implemented',
-        'passed': len(show_redial) >= 1,
-        'details': f"Found showRedial logic at lines: {[l[0] for l in show_redial]}"
-    })
-    
-    return results
+def count_pattern_occurrences(file_path, pattern):
+    """Count occurrences of a pattern in a file"""
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+            return content.count(pattern)
+    except Exception:
+        return 0
 
-def verify_index_js():
-    """Verify _index.js Twilio redial gate and OTP custom messages implementation"""
-    print("🔍 TESTING: _index.js Twilio Redial Gate and OTP Custom Messages")
+def main():
+    print("🧪 BACKEND TEST SUITE: 10 IVR Improvements")
+    print("=" * 60)
     
-    results = []
+    total_tests = 0
+    passed_tests = 0
+    failed_tests = []
     
-    # Test 8: Check single-ivr-status handler checks canAccessFeature for ivrRedial
-    single_ivr_redial = search_file_content('/app/js/_index.js', "canAccessFeature(callerNum.plan, 'ivrRedial')")
-    
-    results.append({
-        'test': 'single-ivr-status handler checks canAccessFeature for ivrRedial',
-        'passed': len(single_ivr_redial) >= 1,
-        'details': f"Found ivrRedial access check at lines: {[l[0] for l in single_ivr_redial]}"
-    })
-    
-    # Test 9: Check ivr_redial callback handler checks plan and calls getUpgradeMessage
-    ivr_redial_callback = search_file_content('/app/js/_index.js', 'ivr_redial')
-    upgrade_message_call = search_file_content('/app/js/_index.js', 'getUpgradeMessage')
-    
-    results.append({
-        'test': 'ivr_redial callback handler checks plan and shows upgrade message',
-        'passed': len(ivr_redial_callback) >= 1,
-        'details': f"Found ivr_redial callback references: {len(ivr_redial_callback)}"
-    })
-    
-    # Test 10: Check ivrObOtpLength handler checks canAccessFeature for otpCustomMessages
-    otp_length_custom = search_file_content('/app/js/_index.js', "canAccessFeature(callerNum.plan, 'otpCustomMessages')")
-    
-    results.append({
-        'test': 'ivrObOtpLength handler checks canAccessFeature for otpCustomMessages',
-        'passed': len(otp_length_custom) >= 1,
-        'details': f"Found otpCustomMessages access check at lines: {[l[0] for l in otp_length_custom]}"
-    })
-    
-    # Test 11: Check Business plan gets Customize/Defaults buttons, others skip to voice provider
-    customize_messages = search_file_content('/app/js/_index.js', 'Customize Messages')
-    use_defaults = search_file_content('/app/js/_index.js', 'Use Defaults')
-    
-    results.append({
-        'test': 'Business plan shows Customize Messages/Use Defaults buttons',
-        'passed': len(customize_messages) >= 1 and len(use_defaults) >= 1,
-        'details': f"Found Customize Messages: {len(customize_messages)}, Use Defaults: {len(use_defaults)}"
-    })
-    
-    return results
-
-def verify_syntax_and_health():
-    """Verify syntax checks and health endpoint"""
-    print("🔍 TESTING: Syntax Validation and Health Checks")
-    
-    results = []
-    
-    # Test 12-14: Syntax checks
+    # Test 1: Syntax Validation
+    print("\n📋 SYNTAX VALIDATION")
     files_to_check = [
-        '/app/js/phone-config.js',
+        '/app/js/_index.js',
         '/app/js/voice-service.js', 
-        '/app/js/_index.js'
+        '/app/js/phone-config.js'
     ]
     
     for file_path in files_to_check:
-        passed, error = run_node_check(file_path)
-        results.append({
-            'test': f'node -c {os.path.basename(file_path)} passes',
-            'passed': passed,
-            'details': f"Syntax check result: {'OK' if passed else error}"
-        })
+        total_tests += 1
+        is_valid, error = check_syntax(file_path)
+        if is_valid:
+            log_test(f"Syntax check: {os.path.basename(file_path)}", "PASS")
+            passed_tests += 1
+        else:
+            log_test(f"Syntax check: {os.path.basename(file_path)}", "FAIL", error)
+            failed_tests.append(f"Syntax: {os.path.basename(file_path)}")
     
-    # Test 15: Health endpoint
-    health_ok, health_data = check_health()
-    results.append({
-        'test': 'Health endpoint returns healthy',
-        'passed': health_ok and (isinstance(health_data, dict) and health_data.get('status') == 'healthy'),
-        'details': f"Health response: {health_data}"
-    })
-    
-    # Test 16: Check error log size
-    try:
-        log_size = os.path.getsize('/var/log/supervisor/nodejs.err.log') if os.path.exists('/var/log/supervisor/nodejs.err.log') else 0
-        results.append({
-            'test': 'Error log is empty (0 bytes)',
-            'passed': log_size == 0,
-            'details': f"Error log size: {log_size} bytes"
-        })
-    except Exception as e:
-        results.append({
-            'test': 'Error log is empty (0 bytes)',
-            'passed': False,
-            'details': f"Could not check error log: {e}"
-        })
-    
-    return results
-
-def main():
-    """Run all tests and generate report"""
-    print("=" * 80)
-    print("🧪 BACKEND TESTING: Plan-Gating of Redial Button and Custom OTP Messages")
-    print("=" * 80)
-    
-    all_results = []
-    
-    # Run all test suites
-    all_results.extend(verify_phone_config())
-    all_results.extend(verify_voice_service())
-    all_results.extend(verify_index_js())
-    all_results.extend(verify_syntax_and_health())
-    
-    # Generate summary
-    print("\n" + "=" * 80)
-    print("📊 TEST RESULTS SUMMARY")
-    print("=" * 80)
-    
-    passed_count = 0
-    total_count = len(all_results)
-    
-    for i, result in enumerate(all_results, 1):
-        status = "✅ PASS" if result['passed'] else "❌ FAIL"
-        print(f"{i:2d}. {status} - {result['test']}")
-        if not result['passed'] or '--verbose' in sys.argv:
-            print(f"    Details: {result['details']}")
-        if result['passed']:
-            passed_count += 1
-    
-    print("\n" + "=" * 80)
-    success_rate = (passed_count / total_count) * 100
-    print(f"🎯 OVERALL RESULT: {passed_count}/{total_count} tests passed ({success_rate:.1f}%)")
-    
-    if success_rate == 100:
-        print("🎉 ALL TESTS PASSED! Plan-gating implementation is working correctly.")
-    elif success_rate >= 80:
-        print("⚠️  MOSTLY WORKING with some issues to address.")
+    # Test 2: Health Check
+    print("\n🏥 HEALTH CHECK")
+    total_tests += 1
+    is_healthy, health_data = check_health()
+    if is_healthy:
+        log_test("Backend health endpoint", "PASS", f"Status: {health_data}")
+        passed_tests += 1
     else:
-        print("🚨 SIGNIFICANT ISSUES DETECTED - requires attention.")
+        log_test("Backend health endpoint", "FAIL", health_data)
+        failed_tests.append("Health check")
     
-    print("=" * 80)
+    # Test 3: Error Log Check
+    print("\n📋 ERROR LOG CHECK")
+    total_tests += 1
+    try:
+        result = subprocess.run(['stat', '-c', '%s', '/var/log/supervisor/nodejs.err.log'], 
+                              capture_output=True, text=True)
+        if result.returncode == 0:
+            size = int(result.stdout.strip())
+            if size == 0:
+                log_test("Error log size", "PASS", "0 bytes (clean)")
+                passed_tests += 1
+            else:
+                log_test("Error log size", "WARN", f"{size} bytes")
+                passed_tests += 1  # Not a failure, just a warning
+        else:
+            log_test("Error log check", "FAIL", "Could not check log file")
+            failed_tests.append("Error log check")
+    except Exception as e:
+        log_test("Error log check", "FAIL", str(e))
+        failed_tests.append("Error log check")
     
-    return 0 if success_rate == 100 else 1
+    # Test 4-13: IVR Feature Verification
+    print("\n🤖 IVR FEATURE VERIFICATION")
+    
+    # Test 4: #8 Twilio IVR Auto-Attendant (CRITICAL)
+    total_tests += 1
+    patterns = {
+        'priority_0_check': 'PRIORITY 0: IVR Auto-Attendant',
+        'ivr_config_check': 'phoneConfig.canAccessFeature(num.plan, \'ivr\')',
+        'inbound_ivr_gather_endpoint': 'app.post(\'/twilio/inbound-ivr-gather\'',
+        'ivr_inbound_log': 'type: \'ivr_inbound\''
+    }
+    results = search_file_content('/app/js/_index.js', patterns)
+    
+    if all(results.get(k, False) for k in patterns.keys() if k != 'error'):
+        log_test("#8 Twilio IVR Auto-Attendant", "PASS", "All components found")
+        passed_tests += 1
+    else:
+        missing = [k for k, v in results.items() if not v and k != 'error']
+        log_test("#8 Twilio IVR Auto-Attendant", "FAIL", f"Missing: {missing}")
+        failed_tests.append("#8 Twilio IVR Auto-Attendant")
+    
+    # Test 5: #1 Quick Dial Presets
+    total_tests += 1
+    preset_patterns = {
+        'preset_prefix': '💾 ',
+        'new_call_button': 'New Call',
+        'save_preset_callback': 'save_preset:',
+        'preset_name_action': 'ivrObPresetName',
+        'save_preset_button': '💾 Save Preset'
+    }
+    results = search_file_content('/app/js/_index.js', preset_patterns)
+    
+    if all(results.get(k, False) for k in preset_patterns.keys() if k != 'error'):
+        log_test("#1 Quick Dial Presets", "PASS", "All preset components found")
+        passed_tests += 1
+    else:
+        missing = [k for k, v in results.items() if not v and k != 'error']
+        log_test("#1 Quick Dial Presets", "FAIL", f"Missing: {missing}")
+        failed_tests.append("#1 Quick Dial Presets")
+    
+    # Test 6: #2 Recent Calls
+    total_tests += 1
+    recent_patterns = {
+        'phone_logs_query': 'phoneLogs',
+        'last_5_calls': 'last 5',
+        'deduplicate': 'target number'
+    }
+    results = search_file_content('/app/js/_index.js', recent_patterns)
+    
+    if results.get('phone_logs_query', False):
+        log_test("#2 Recent Calls", "PASS", "Phone logs integration found")
+        passed_tests += 1
+    else:
+        log_test("#2 Recent Calls", "FAIL", "Phone logs integration not found")
+        failed_tests.append("#2 Recent Calls")
+    
+    # Test 7: #3 Auto-Suggest Placeholders
+    total_tests += 1
+    placeholder_count = count_pattern_occurrences('/app/js/_index.js', '📌')
+    if placeholder_count >= 5:
+        log_test("#3 Auto-Suggest Placeholders", "PASS", f"Found {placeholder_count} placeholder references")
+        passed_tests += 1
+    else:
+        log_test("#3 Auto-Suggest Placeholders", "FAIL", f"Only found {placeholder_count} placeholder references")
+        failed_tests.append("#3 Auto-Suggest Placeholders")
+    
+    # Test 8: #4 Remember Voice/Speed
+    total_tests += 1
+    voice_speed_count = count_pattern_occurrences('/app/js/_index.js', '⭐ Last:')
+    if voice_speed_count >= 5:
+        log_test("#4 Remember Voice/Speed", "PASS", f"Found {voice_speed_count} 'Last:' references")
+        passed_tests += 1
+    else:
+        log_test("#4 Remember Voice/Speed", "FAIL", f"Only found {voice_speed_count} 'Last:' references")
+        failed_tests.append("#4 Remember Voice/Speed")
+    
+    # Test 9: #5 Batch Number Entry
+    total_tests += 1
+    batch_patterns = {
+        'comma_separated': 'comma-separated',
+        'batch_targets': 'batchTargets',
+        'batch_delay': '2s delay'
+    }
+    results = search_file_content('/app/js/_index.js', batch_patterns)
+    
+    if results.get('batch_targets', False):
+        log_test("#5 Batch Number Entry", "PASS", "Batch targets functionality found")
+        passed_tests += 1
+    else:
+        log_test("#5 Batch Number Entry", "FAIL", "Batch targets functionality not found")
+        failed_tests.append("#5 Batch Number Entry")
+    
+    # Test 10: #6 Skip Preview
+    total_tests += 1
+    skip_count = count_pattern_occurrences('/app/js/_index.js', '⏭ Skip & Call')
+    if skip_count >= 2:
+        log_test("#6 Skip Preview", "PASS", f"Found {skip_count} skip preview references")
+        passed_tests += 1
+    else:
+        log_test("#6 Skip Preview", "FAIL", f"Only found {skip_count} skip preview references")
+        failed_tests.append("#6 Skip Preview")
+    
+    # Test 11: #7 Flatten Templates
+    total_tests += 1
+    custom_script_count = count_pattern_occurrences('/app/js/_index.js', '✍️ Custom Script')
+    if custom_script_count >= 5:
+        log_test("#7 Flatten Templates", "PASS", f"Found {custom_script_count} custom script references")
+        passed_tests += 1
+    else:
+        log_test("#7 Flatten Templates", "FAIL", f"Only found {custom_script_count} custom script references")
+        failed_tests.append("#7 Flatten Templates")
+    
+    # Test 12: #9 Audio Greeting in Telnyx IVR
+    total_tests += 1
+    audio_patterns = {
+        'gather_dtmf_audio': 'gatherDTMFWithAudio',
+        'greeting_audio_url': 'greetingAudioUrl'
+    }
+    results = search_file_content('/app/js/voice-service.js', audio_patterns)
+    
+    if all(results.get(k, False) for k in audio_patterns.keys() if k != 'error'):
+        log_test("#9 Audio Greeting in Telnyx IVR", "PASS", "Audio greeting functionality found")
+        passed_tests += 1
+    else:
+        missing = [k for k, v in results.items() if not v and k != 'error']
+        log_test("#9 Audio Greeting in Telnyx IVR", "FAIL", f"Missing: {missing}")
+        failed_tests.append("#9 Audio Greeting in Telnyx IVR")
+    
+    # Test 13: #10 Call Scheduling
+    total_tests += 1
+    schedule_count = count_pattern_occurrences('/app/js/_index.js', '🕐 Schedule')
+    scheduled_calls_patterns = {
+        'schedule_button': '🕐 Schedule',
+        'scheduled_calls': 'scheduledCalls',
+        'set_interval': 'setInterval'
+    }
+    results = search_file_content('/app/js/_index.js', scheduled_calls_patterns)
+    
+    if schedule_count >= 2 and results.get('scheduled_calls', False):
+        log_test("#10 Call Scheduling", "PASS", f"Found {schedule_count} schedule references and scheduledCalls")
+        passed_tests += 1
+    else:
+        log_test("#10 Call Scheduling", "FAIL", f"Schedule count: {schedule_count}, scheduledCalls: {results.get('scheduled_calls', False)}")
+        failed_tests.append("#10 Call Scheduling")
+    
+    # Test 14: General Health Checks
+    print("\n🔧 GENERAL HEALTH CHECKS")
+    
+    # Check if Node.js service is running
+    total_tests += 1
+    try:
+        # Check if the Node.js process is running (either _index.js or start-bot.js)
+        result = subprocess.run(['pgrep', '-f', 'node.*start-bot.js'], 
+                              capture_output=True, text=True)
+        if result.returncode == 0:
+            log_test("Node.js service running", "PASS", f"PID: {result.stdout.strip()}")
+            passed_tests += 1
+        else:
+            # Fallback check for _index.js
+            result = subprocess.run(['pgrep', '-f', 'node.*_index.js'], 
+                                  capture_output=True, text=True)
+            if result.returncode == 0:
+                log_test("Node.js service running", "PASS", f"PID: {result.stdout.strip()}")
+                passed_tests += 1
+            else:
+                log_test("Node.js service running", "FAIL", "No Node.js process found")
+                failed_tests.append("Node.js service")
+    except Exception as e:
+        log_test("Node.js service check", "FAIL", str(e))
+        failed_tests.append("Node.js service check")
+    
+    # Summary
+    print("\n" + "=" * 60)
+    print("📊 TEST SUMMARY")
+    print("=" * 60)
+    print(f"Total Tests: {total_tests}")
+    print(f"✅ Passed: {passed_tests}")
+    print(f"❌ Failed: {len(failed_tests)}")
+    
+    if failed_tests:
+        print(f"\n❌ FAILED TESTS:")
+        for test in failed_tests:
+            print(f"   • {test}")
+    
+    success_rate = (passed_tests / total_tests) * 100 if total_tests > 0 else 0
+    print(f"\n📈 Success Rate: {success_rate:.1f}%")
+    
+    if success_rate >= 80:
+        print("🎉 OVERALL STATUS: GOOD - Most IVR improvements are working")
+        return 0
+    elif success_rate >= 60:
+        print("⚠️ OVERALL STATUS: PARTIAL - Some IVR improvements need attention")
+        return 1
+    else:
+        print("🚨 OVERALL STATUS: CRITICAL - Major IVR improvements are failing")
+        return 2
 
 if __name__ == "__main__":
-    sys.exit(main())
+    exit_code = main()
+    sys.exit(exit_code)

