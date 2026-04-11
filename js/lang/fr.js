@@ -558,6 +558,16 @@ ${CHAT_BOT_NAME}`,
     return msg
   },
   setCustomNs: '✏️ Serveurs de noms personnalisés',
+  setCustomNsPrompt: (domain, nsRecords) => {
+    let msg = `<b>✏️ Serveurs de noms personnalisés pour ${domain}</b>\n\n`
+    if (nsRecords && nsRecords.length) {
+      msg += `<b>Actuels :</b>\n`
+      nsRecords.forEach((ns, i) => { msg += `  NS${i + 1}: <code>${ns.recordContent || '—'}</code>\n` })
+      msg += '\n'
+    }
+    msg += `Entrez les nouveaux serveurs de noms (un par ligne, min 2, max 4) :\n\n<i>Exemple :\nns1.example.com\nns2.example.com</i>`
+    return msg
+  },
   switchToCf: '☁️ Switch to Cloudflare',
   switchToCfConfirm: (domain) => `<b>Basculer ${domain} vers Cloudflare DNS ?</b>\n\nCela va :\n1. Créer une zone Cloudflare pour votre domaine\n2. Migrer les enregistrements DNS existants vers Cloudflare\n3. Mettre à jour vos serveurs de noms chez le registraire\n\nLa propagation DNS peut prendre 24-48h.\n\nContinuer ?`,
   switchToCfProgress: (domain) => `⏳ Basculement de <b>${domain}</b> vers Cloudflare DNS…`,
@@ -871,6 +881,9 @@ ${CHAT_BOT_NAME}`,
   errorDeletingDns: error =>
     `Erreur lors de la suppression de l'enregistrement DNS, ${error}, Veuillez fournir à nouveau la valeur`,
   selectValidOption: `sélectionnez une option valide`,
+  cancelled: 'Annulé.',
+  domainActionsMenu: (domain) => `<b>Actions pour ${domain}</b>\n\nSélectionnez une option :`,
+  purchaseFailed: '❌ Achat échoué. Votre portefeuille a été remboursé. Veuillez réessayer ou contacter le support.',
   maxDnsRecord: `Un maximum de 4 enregistrements NS peut être ajouté, vous pouvez mettre à jour ou supprimer les enregistrements NS précédents`,
   errorSavingDns: error =>
     `Erreur lors de la sauvegarde de l'enregistrement DNS, ${error}, Veuillez fournir à nouveau la valeur`,

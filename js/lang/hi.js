@@ -554,6 +554,16 @@ ${CHAT_BOT_NAME}`,
     return msg
   },
   setCustomNs: '✏️ कस्टम नेमसर्वर सेट करें',
+  setCustomNsPrompt: (domain, nsRecords) => {
+    let msg = `<b>✏️ ${domain} के लिए कस्टम नेमसर्वर सेट करें</b>\n\n`
+    if (nsRecords && nsRecords.length) {
+      msg += `<b>वर्तमान:</b>\n`
+      nsRecords.forEach((ns, i) => { msg += `  NS${i + 1}: <code>${ns.recordContent || '—'}</code>\n` })
+      msg += '\n'
+    }
+    msg += `नए नेमसर्वर दर्ज करें (प्रति पंक्ति एक, न्यूनतम 2, अधिकतम 4):\n\n<i>उदाहरण:\nns1.example.com\nns2.example.com</i>`
+    return msg
+  },
   switchToCf: '☁️ Switch to Cloudflare',
   switchToCfConfirm: (domain) => `<b>${domain} को Cloudflare DNS पर स्विच करें?</b>\n\nयह करेगा:\n1. आपके डोमेन के लिए Cloudflare ज़ोन बनाएगा\n2. मौजूदा DNS रिकॉर्ड Cloudflare पर माइग्रेट करेगा\n3. रजिस्ट्रार पर नेमसर्वर अपडेट करेगा\n\nDNS प्रसार में 24-48 घंटे लग सकते हैं।\n\nजारी रखें?`,
   switchToCfProgress: (domain) => `⏳ <b>${domain}</b> को Cloudflare DNS पर स्विच कर रहे हैं…`,
@@ -862,6 +872,9 @@ ${CHAT_BOT_NAME}`,
   validCityName: '⚠️ कृपया एक मान्य शहर का नाम दर्ज करें।',
   errorDeletingDns: error => `डीएनएस रिकॉर्ड को हटाने में त्रुटि, ${error}, कृपया फिर से मूल्य प्रदान करें`,
   selectValidOption: `सही विकल्प चुनें`,
+  cancelled: 'रद्द किया गया।',
+  domainActionsMenu: (domain) => `<b>${domain} के लिए कार्रवाई</b>\n\nएक विकल्प चुनें:`,
+  purchaseFailed: '❌ खरीदारी विफल। आपके वॉलेट में राशि वापस कर दी गई। कृपया पुनः प्रयास करें या सहायता से संपर्क करें।',
   maxDnsRecord: `अधिकतम 4 NS रिकॉर्ड जोड़े जा सकते हैं, आप पहले के NS रिकॉर्ड को अपडेट या हटा सकते हैं`,
   errorSavingDns: error => `डीएनएस रिकॉर्ड को बचाने में त्रुटि, ${error}, कृपया फिर से मूल्य प्रदान करें`,
   fileError: `फाइल प्रोसेसिंग के दौरान त्रुटि हुई।`,

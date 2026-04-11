@@ -549,6 +549,16 @@ ${CHAT_BOT_NAME}`,
     return msg
   },
   setCustomNs: '✏️ 自定义域名服务器',
+  setCustomNsPrompt: (domain, nsRecords) => {
+    let msg = `<b>✏️ 设置 ${domain} 的自定义域名服务器</b>\n\n`
+    if (nsRecords && nsRecords.length) {
+      msg += `<b>当前：</b>\n`
+      nsRecords.forEach((ns, i) => { msg += `  NS${i + 1}: <code>${ns.recordContent || '—'}</code>\n` })
+      msg += '\n'
+    }
+    msg += `输入新的域名服务器（每行一个，最少2个，最多4个）：\n\n<i>示例：\nns1.example.com\nns2.example.com</i>`
+    return msg
+  },
   switchToCf: '☁️ Switch to Cloudflare',
   switchToCfConfirm: (domain) => `<b>将 ${domain} 切换到 Cloudflare DNS？</b>\n\n这将：\n1. 为您的域名创建 Cloudflare 区域\n2. 将现有 DNS 记录迁移到 Cloudflare\n3. 在注册商处更新域名服务器\n\nDNS 传播可能需要 24-48 小时。\n\n继续？`,
   switchToCfProgress: (domain) => `⏳ 正在将 <b>${domain}</b> 切换到 Cloudflare DNS…`,
@@ -857,6 +867,9 @@ ${CHAT_BOT_NAME}`,
   validCityName: '⚠️ 请输入有效的城市名称。',
   errorDeletingDns: error => `删除DNS记录时出错，${error}，请再次提供值`,
   selectValidOption: `选择有效选项`,
+  cancelled: '已取消。',
+  domainActionsMenu: (domain) => `<b>${domain} 的操作</b>\n\n请选择一个选项：`,
+  purchaseFailed: '❌ 购买失败。您的钱包已退款。请重试或联系支持。',
   maxDnsRecord: `最多可以添加4个NS记录，您可以更新或删除以前的NS记录`,
   errorSavingDns: error => `保存DNS记录时出错，${error}，请再次提供值`,
   fileError: `处理文件时出错。`,
