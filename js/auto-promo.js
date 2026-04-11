@@ -316,54 +316,56 @@ const promoMessages = {
 
   en: {
     cloudphone: [
-      `📞🔥 <b>GET A PHONE NUMBER IN ANY COUNTRY — IN 60 SECONDS</b>
+      `📞 <b>VIRTUAL PHONE NUMBERS — 30+ COUNTRIES</b>
 
-No SIM card. No contract. No ID hassle.
+Pick your plan. Get your number in 60 seconds.
 
-🌍 30+ countries available
-📱 Receive calls, SMS & voicemail instantly
-🎙️ Custom IVR greeting — sound like a real business
-🔗 SIP integration for advanced setups
-💬 Forward calls anywhere in the world
+💡 <b>Starter</b> — $50/mo (100 min + 50 SMS)
+   Call forwarding + SMS to Telegram
 
-💰 Starting at just <b>$50/month</b>
+⭐ <b>Pro</b> — $75/mo (500 min + 200 SMS)
+   + Voicemail + SIP + Webhooks + IVR Campaigns
 
-Perfect for privacy, remote business, or going global.
-Already trusted by hundreds of users worldwide 🌎
+👑 <b>Business</b> — $120/mo (Unlimited + 1000 SMS)
+   + Auto-Attendant + Call Recording + Scheduling
 
-Type <b>/start</b> → 📞 Cloud IVR + SIP`,
+No contracts. Cancel anytime 🌎
 
-      `🚀 <b>NEED A PRIVATE PHONE NUMBER? GET ONE NOW.</b>
+Type <b>/start</b> → 📞 Cloud IVR`,
 
-No paperwork. No waiting. Just pick a country & go.
+      `🎙️ <b>SOUND LIKE A REAL BUSINESS WITH CLOUD IVR</b>
+
+"Press 1 for Sales, 2 for Support" — fully automated.
 
 📞 Virtual numbers in 30+ countries
-🎙️ Professional IVR — callers hear YOUR greeting
-💬 SMS forwarding to Telegram
-📲 SIP-ready for softphones & PBX
-🔐 100% private — no personal info required
+🔐 100% private — no ID required
+⚡ Active in 60 seconds
 
-💰 From <b>$50/mo</b> with minutes & SMS included
+<b>3 Plans Available:</b>
+💡 Basic ($50) — Forwarding + SMS
+⭐ Pro ($75) — + Voicemail + SIP + IVR
+👑 Business ($120) — + Auto-Attendant + Recording
 
-🔥 Over 500 numbers activated this month alone!
+🔥 500+ numbers activated this month
 
-Type <b>/start</b> → 📞 Cloud IVR + SIP`,
+Type <b>/start</b> → 📞 Cloud IVR`,
 
-      `🌍 <b>YOUR BUSINESS DESERVES A LOCAL PRESENCE</b>
+      `🌍 <b>GET A LOCAL NUMBER IN ANY COUNTRY</b>
 
-Get a phone number in ANY country — customers call a local number, you answer from anywhere.
+Customers call local. You answer from anywhere.
 
-✅ 30+ countries — US, UK, Canada, Germany & more
-✅ IVR system — press 1 for sales, 2 for support
-✅ SMS + voicemail + call recording
-✅ SIP integration included
-✅ No contracts — cancel anytime
+✅ US, UK, CA, DE, AU, NZ + 25 more
+✅ Call forwarding anywhere globally
+✅ SMS forwarding to Telegram
 
-💰 Plans from <b>$50/month</b>
+<b>Scale with Your Needs:</b>
+→ Starter: Basic calling ($50/mo)
+→ Pro: Add SIP + IVR campaigns ($75/mo)
+→ Business: Full automation + recording ($120/mo)
 
-Stop missing international opportunities 📈
+Already trusted by 500+ businesses worldwide 📈
 
-Type <b>/start</b> → 📞 Cloud IVR + SIP`,
+Type <b>/start</b> → 📞 Cloud IVR`,
     ],
 
     antired_hosting: [
@@ -801,52 +803,56 @@ Type <b>/start</b> → 🖥️ VPS/RDP — Port 25 Open🛡️`,
 
   fr: {
     cloudphone: [
-      `📞🔥 <b>OBTENEZ UN NUMÉRO DE TÉLÉPHONE DANS N'IMPORTE QUEL PAYS — EN 60 SECONDES</b>
+      `📞 <b>NUMÉROS VIRTUELS — 30+ PAYS</b>
 
-Pas de carte SIM. Pas de contrat. Aucune prise de tête.
+Choisissez votre plan. Numéro actif en 60 secondes.
 
-🌍 30+ pays disponibles
-📱 Recevez appels, SMS et messagerie vocale instantanément
-🎙️ Message d'accueil IVR personnalisé
-🔗 Intégration SIP pour configurations avancées
-💬 Transfert d'appels partout dans le monde
+💡 <b>Starter</b> — 50$/mois (100 min + 50 SMS)
+   Transfert d'appels + SMS vers Telegram
 
-💰 À partir de seulement <b>50$/mois</b>
+⭐ <b>Pro</b> — 75$/mois (500 min + 200 SMS)
+   + Messagerie vocale + SIP + Webhooks + IVR
 
-Parfait pour la confidentialité et les affaires internationales 🌎
+👑 <b>Business</b> — 120$/mois (Illimité + 1000 SMS)
+   + Standard auto + Enregistrement + Planification
 
-Tapez <b>/start</b> → 📞 Cloud IVR + SIP`,
+Sans contrat. Annulation à tout moment 🌎
 
-      `🚀 <b>BESOIN D'UN NUMÉRO PRIVÉ ? OBTENEZ-LE MAINTENANT.</b>
+Tapez <b>/start</b> → 📞 Cloud IVR`,
 
-Aucune paperasse. Aucune attente. Choisissez un pays et c'est parti.
+      `🎙️ <b>SONNEZ PROFESSIONNEL AVEC CLOUD IVR</b>
+
+"Appuyez 1 pour ventes, 2 pour support" — entièrement automatisé.
 
 📞 Numéros virtuels dans 30+ pays
-🎙️ IVR professionnel — les appelants entendent VOTRE message
-💬 Transfert SMS vers Telegram
-📲 Compatible SIP pour softphones
-🔐 100% privé — aucune info personnelle requise
+🔐 100% privé — aucune pièce d'identité
+⚡ Actif en 60 secondes
 
-💰 À partir de <b>50$/mois</b> avec minutes et SMS inclus
+<b>3 Plans Disponibles:</b>
+💡 Basic (50$) — Transfert + SMS
+⭐ Pro (75$) — + Messagerie + SIP + IVR
+👑 Business (120$) — + Standard auto + Enregistrement
 
-🔥 Plus de 500 numéros activés ce mois-ci !
+🔥 500+ numéros activés ce mois
 
-Tapez <b>/start</b> → 📞 Cloud IVR + SIP`,
+Tapez <b>/start</b> → 📞 Cloud IVR`,
 
-      `🌍 <b>VOTRE ENTREPRISE MÉRITE UNE PRÉSENCE LOCALE</b>
+      `🌍 <b>NUMÉRO LOCAL DANS N'IMPORTE QUEL PAYS</b>
 
-Obtenez un numéro dans N'IMPORTE QUEL pays — vos clients appellent un numéro local.
+Clients appellent en local. Vous répondez de partout.
 
-✅ 30+ pays — US, UK, Canada, Allemagne et plus
-✅ Système IVR — appuyez 1 pour ventes, 2 pour support
-✅ SMS + messagerie vocale + enregistrement d'appels
-✅ Intégration SIP incluse
+✅ US, UK, CA, DE, AU, NZ + 25 autres
+✅ Transfert d'appels mondial
+✅ Transfert SMS vers Telegram
 
-💰 Plans à partir de <b>50$/mois</b>
+<b>Évoluez selon vos besoins:</b>
+→ Starter: Appels de base (50$/mois)
+→ Pro: + SIP + Campagnes IVR (75$/mois)
+→ Business: Automatisation complète (120$/mois)
 
-Ne ratez plus les opportunités internationales 📈
+Déjà 500+ entreprises nous font confiance 📈
 
-Tapez <b>/start</b> → 📞 Cloud IVR + SIP`,
+Tapez <b>/start</b> → 📞 Cloud IVR`,
     ],
 
     antired_hosting: [
@@ -1246,51 +1252,56 @@ Tapez <b>/start</b> → 🖥️ VPS/RDP — Port 25 Open🛡️`,
 
   zh: {
     cloudphone: [
-      `📞🔥 <b>60秒内获取任意国家的电话号码</b>
+      `📞 <b>虚拟电话号码 — 30+国家</b>
 
-无需SIM卡。无需合同。无需身份验证。
+选择套餐，60秒内激活号码。
 
-🌍 30+国家可选
-📱 即时接收来电、短信和语音信箱
-🎙️ 自定义IVR问候语 — 展现专业形象
-🔗 SIP集成，适用于高级配置
-💬 全球呼叫转移
+💡 <b>入门版</b> — $50/月 (100分钟 + 50短信)
+   呼叫转移 + 短信转发至Telegram
 
-💰 仅需 <b>$50/月</b> 起
+⭐ <b>专业版</b> — $75/月 (500分钟 + 200短信)
+   + 语音信箱 + SIP + Webhooks + IVR活动
 
-适用于隐私保护、远程商务或全球扩张 🌎
+👑 <b>商务版</b> — $120/月 (无限通话 + 1000短信)
+   + 自动应答 + 通话录音 + 调度
 
-输入 <b>/start</b> → 📞 Cloud IVR + SIP`,
+无合同，随时取消 🌎
 
-      `🚀 <b>需要一个私密电话号码？立即获取。</b>
+输入 <b>/start</b> → 📞 Cloud IVR`,
 
-无需证件。无需等待。选择国家即刻开通。
+      `🎙️ <b>Cloud IVR 打造专业形象</b>
+
+"按1转销售，按2转客服" — 全自动化。
 
 📞 30+国家虚拟号码
-🎙️ 专业IVR — 来电者听到您的问候语
-💬 短信转发至Telegram
-🔐 100%隐私 — 无需个人信息
+🔐 100%隐私 — 无需身份验证
+⚡ 60秒内激活
 
-💰 <b>$50/月</b> 起，含通话分钟和短信
+<b>3种套餐可选:</b>
+💡 基础版 ($50) — 转移 + 短信
+⭐ 专业版 ($75) — + 语音信箱 + SIP + IVR
+👑 商务版 ($120) — + 自动应答 + 录音
 
-🔥 本月已激活500+号码！
+🔥 本月已激活500+号码
 
-输入 <b>/start</b> → 📞 Cloud IVR + SIP`,
+输入 <b>/start</b> → 📞 Cloud IVR`,
 
-      `🌍 <b>让您的业务拥有本地号码</b>
+      `🌍 <b>获取任意国家的本地号码</b>
 
-在任何国家获取电话号码 — 客户拨打本地号码，您在任何地方接听。
+客户拨打本地号码，您在任何地方接听。
 
-✅ 30+国家 — 美国、英国、加拿大、德国等
-✅ IVR系统 — 按1转销售，按2转客服
-✅ 短信 + 语音信箱 + 通话录音
-✅ 包含SIP集成
+✅ 美国、英国、加拿大、德国、澳洲 + 25国
+✅ 全球呼叫转移
+✅ 短信转发至Telegram
 
-💰 <b>$50/月</b> 起
+<b>根据需求升级:</b>
+→ 入门版: 基础通话 ($50/月)
+→ 专业版: + SIP + IVR活动 ($75/月)
+→ 商务版: 完全自动化 + 录音 ($120/月)
 
-不再错过国际商机 📈
+已有500+企业信赖 📈
 
-输入 <b>/start</b> → 📞 Cloud IVR + SIP`,
+输入 <b>/start</b> → 📞 Cloud IVR`,
     ],
 
     antired_hosting: [
@@ -1690,51 +1701,56 @@ Shortit — 免费、快速、可追踪。
 
   hi: {
     cloudphone: [
-      `📞🔥 <b>किसी भी देश में फोन नंबर पाएं — 60 सेकंड में</b>
+      `📞 <b>वर्चुअल फोन नंबर — 30+ देश</b>
 
-कोई SIM कार्ड नहीं। कोई कॉन्ट्रैक्ट नहीं। कोई ID की झंझट नहीं।
+प्लान चुनें। 60 सेकंड में नंबर एक्टिव।
 
-🌍 30+ देश उपलब्ध
-📱 तुरंत कॉल, SMS और वॉइसमेल प्राप्त करें
-🎙️ कस्टम IVR ग्रीटिंग — पेशेवर दिखें
-🔗 SIP इंटीग्रेशन एडवांस सेटअप के लिए
-💬 दुनिया में कहीं भी कॉल फॉरवर्ड करें
+💡 <b>Starter</b> — $50/माह (100 मिनट + 50 SMS)
+   कॉल फॉरवर्डिंग + SMS से Telegram
 
-💰 सिर्फ <b>$50/महीना</b> से शुरू
+⭐ <b>Pro</b> — $75/माह (500 मिनट + 200 SMS)
+   + वॉइसमेल + SIP + Webhooks + IVR
 
-प्राइवेसी, रिमोट बिज़नेस या ग्लोबल विस्तार के लिए परफेक्ट 🌎
+👑 <b>Business</b> — $120/माह (असीमित + 1000 SMS)
+   + ऑटो-अटेंडेंट + रिकॉर्डिंग + शेड्यूलिंग
 
-<b>/start</b> टाइप करें → 📞 Cloud IVR + SIP`,
+कोई कॉन्ट्रैक्ट नहीं। कभी भी रद्द करें 🌎
 
-      `🚀 <b>प्राइवेट फोन नंबर चाहिए? अभी पाएं।</b>
+<b>/start</b> टाइप करें → 📞 Cloud IVR`,
 
-कोई कागजी कार्रवाई नहीं। कोई इंतजार नहीं। देश चुनें और शुरू करें।
+      `🎙️ <b>Cloud IVR से प्रोफेशनल दिखें</b>
+
+"1 दबाएं सेल्स, 2 सपोर्ट" — पूरी तरह स्वचालित।
 
 📞 30+ देशों में वर्चुअल नंबर
-🎙️ प्रोफेशनल IVR — कॉलर आपका ग्रीटिंग सुनते हैं
-💬 SMS Telegram पर फॉरवर्ड
-🔐 100% प्राइवेट — कोई पर्सनल जानकारी नहीं
+🔐 100% प्राइवेट — ID नहीं चाहिए
+⚡ 60 सेकंड में एक्टिव
 
-💰 <b>$50/महीना</b> से, मिनट्स और SMS शामिल
+<b>3 प्लान उपलब्ध:</b>
+💡 Basic ($50) — फॉरवर्डिंग + SMS
+⭐ Pro ($75) — + वॉइसमेल + SIP + IVR
+👑 Business ($120) — + ऑटो-अटेंडेंट + रिकॉर्डिंग
 
-🔥 इस महीने 500+ नंबर एक्टिवेट हुए!
+🔥 इस माह 500+ नंबर एक्टिव
 
-<b>/start</b> टाइप करें → 📞 Cloud IVR + SIP`,
+<b>/start</b> टाइप करें → 📞 Cloud IVR`,
 
-      `🌍 <b>आपके बिज़नेस को लोकल प्रेज़ेंस की जरूरत है</b>
+      `🌍 <b>किसी भी देश में लोकल नंबर पाएं</b>
 
-किसी भी देश में फोन नंबर पाएं — ग्राहक लोकल नंबर पर कॉल करें, आप कहीं से भी उठाएं।
+ग्राहक लोकल कॉल करें। आप कहीं से भी उत्तर दें।
 
-✅ 30+ देश — US, UK, कनाडा, जर्मनी और बहुत कुछ
-✅ IVR सिस्टम — 1 दबाएं सेल्स के लिए, 2 सपोर्ट के लिए
-✅ SMS + वॉइसमेल + कॉल रिकॉर्डिंग
-✅ SIP इंटीग्रेशन शामिल
+✅ US, UK, CA, DE, AU, NZ + 25 और
+✅ वैश्विक कॉल फॉरवर्डिंग
+✅ SMS Telegram पर
 
-💰 <b>$50/महीना</b> से प्लान
+<b>जरूरत के अनुसार बढ़ाएं:</b>
+→ Starter: बेसिक कॉलिंग ($50/माह)
+→ Pro: + SIP + IVR कैंपेन ($75/माह)
+→ Business: पूर्ण ऑटोमेशन ($120/माह)
 
-अंतरराष्ट्रीय अवसर न चूकें 📈
+पहले से 500+ कंपनियों का भरोसा 📈
 
-<b>/start</b> टाइप करें → 📞 Cloud IVR + SIP`,
+<b>/start</b> टाइप करें → 📞 Cloud IVR`,
     ],
 
     antired_hosting: [
