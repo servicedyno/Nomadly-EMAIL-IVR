@@ -20974,6 +20974,11 @@ Select a category:`), k.of(catBtns))
 
   // ── SMS App: Create Campaign from Bot ──
   if (message === '📱 Create SMS Campaign' || message === '/smscampaign') {
+    // Check subscription before allowing campaign creation
+    const sub = await smsAppService.checkSubscription(chatId)
+    if (!sub.canUseSms) {
+      return send(chatId, '❌ <b>Subscription Required</b>\n\nYou need an active subscription or free trial to create SMS campaigns.\n\nPlease subscribe to a plan first.', { parse_mode: 'HTML' })
+    }
     await set(state, chatId, 'action', 'smsapp_campaign_name')
     return send(chatId, '📱 <b>Create SMS Campaign</b>\n\nPlease enter a name for your campaign:', { parse_mode: 'HTML' })
   }

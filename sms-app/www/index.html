@@ -6,176 +6,260 @@
   <meta name="theme-color" content="#0f0f23">
   <title>Nomadly SMS</title>
   <script>
-    // Fix base URL for browser testing (when served via /api/sms-app-web/)
     if (window.location.pathname.includes('/api/sms-app-web')) {
       document.write('<base href="/api/sms-app-web/">');
     }
   </script>
-  <link rel="stylesheet" href="css/style.css"></head>
+  <link rel="stylesheet" href="css/style.css">
+</head>
 <body>
 
-  <!-- Login Screen -->
+  <!-- ═══════ LOGIN SCREEN ═══════ -->
   <div id="loginScreen" class="screen login-screen active">
-    <div class="login-logo">N</div>
-    <h1 class="login-title">Nomadly SMS</h1>
-    <p class="login-subtitle">Bulk SMS campaigns from your phone</p>
+    <div class="login-hero">
+      <div class="login-logo">N</div>
+      <h1 class="login-title">Nomadly SMS</h1>
+      <p class="login-subtitle">Send bulk SMS campaigns directly from your phone</p>
+    </div>
     <div class="login-card">
       <div class="input-group">
-        <label>Activation Code</label>
-        <input type="number" id="loginCode" placeholder="Enter code from Telegram bot" inputmode="numeric">
+        <label>Your Activation Code</label>
+        <input type="number" id="loginCode" placeholder="e.g., 6687923716" inputmode="numeric" autocomplete="off">
+        <p class="input-hint">This is the number you received from @NomadlyBot on Telegram</p>
       </div>
       <button class="btn btn-primary" id="loginBtn" onclick="App.login()">
-        <span id="loginBtnText">Connect</span>
+        <span id="loginBtnText">Connect to Account</span>
         <div class="spinner" id="loginSpinner" style="display:none"></div>
       </button>
       <p class="login-error" id="loginError"></p>
-      <p style="text-align:center;margin-top:16px;font-size:13px;color:var(--text-muted)">
-        Get your code from <b>@NomadlyBot</b> on Telegram
-      </p>
+      <div class="login-help">
+        <p>Don't have a code?</p>
+        <a href="https://t.me/NomadlyBot" class="btn btn-ghost" target="_blank">Open @NomadlyBot</a>
+      </div>
     </div>
   </div>
 
-  <!-- Main Dashboard Screen -->
+  <!-- ═══════ DASHBOARD SCREEN ═══════ -->
   <div id="dashboardScreen" class="screen">
     <div class="app-header">
       <div class="header-left">
         <h1 class="header-title">Nomadly SMS</h1>
       </div>
       <div class="header-actions">
-        <button class="header-btn" onclick="App.syncData()">&#x21bb; Sync</button>
-        <button class="header-btn" onclick="App.showLogoutModal()">&#x23FB;</button>
+        <button class="header-btn" onclick="App.syncData()" title="Refresh data">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6M3 12a9 9 0 0115-6.7L21 8M3 22v-6h6M21 12a9 9 0 01-15 6.7L3 16"/></svg>
+        </button>
+        <button class="header-btn" onclick="App.showSettings()" title="Settings">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        </button>
       </div>
     </div>
     <div class="dashboard">
-      <!-- Plan Banner -->
-      <div class="plan-banner" id="planBanner">
-        <div class="plan-info">
-          <h3>SUBSCRIPTION</h3>
-          <p id="planStatus">Loading...</p>
-        </div>
-        <div class="plan-badge" id="planBadge">-</div>
-      </div>
 
-      <!-- Stats -->
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-label">Campaigns</div>
-          <div class="stat-value primary" id="statCampaigns">0</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">SMS Sent</div>
-          <div class="stat-value success" id="statSent">0</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Contacts</div>
-          <div class="stat-value warning" id="statContacts">0</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Failed</div>
-          <div class="stat-value danger" id="statFailed">0</div>
+      <!-- Plan Status - Active -->
+      <div class="plan-card plan-active" id="planCardActive" style="display:none">
+        <div class="plan-icon">&#x2705;</div>
+        <div class="plan-text">
+          <p class="plan-label">Subscription Active</p>
+          <p class="plan-detail" id="planActiveDetail">-</p>
         </div>
       </div>
 
-      <!-- Campaigns List -->
+      <!-- Plan Status - Free Trial -->
+      <div class="plan-card plan-trial" id="planCardTrial" style="display:none">
+        <div class="plan-icon">&#x1F3AF;</div>
+        <div class="plan-text">
+          <p class="plan-label">Free Trial</p>
+          <p class="plan-detail" id="planTrialDetail">-</p>
+        </div>
+        <div class="plan-meter" id="planTrialMeter">
+          <div class="plan-meter-fill" id="planTrialFill"></div>
+        </div>
+      </div>
+
+      <!-- Plan Status - Expired -->
+      <div class="plan-card plan-expired" id="planCardExpired" style="display:none">
+        <div class="plan-icon">&#x26A0;&#xFE0F;</div>
+        <div class="plan-text">
+          <p class="plan-label">No Active Plan</p>
+          <p class="plan-detail">Subscribe to create and send campaigns</p>
+        </div>
+        <a href="https://t.me/NomadlyBot" class="btn btn-subscribe" target="_blank">Subscribe on Telegram</a>
+      </div>
+
+      <!-- Quick Stats -->
+      <div class="quick-stats" id="quickStats">
+        <span id="qsSent">0 sent</span>
+        <span class="qs-dot"></span>
+        <span id="qsCampaigns">0 campaigns</span>
+        <span class="qs-dot"></span>
+        <span id="qsContacts">0 contacts</span>
+      </div>
+
+      <!-- Campaigns -->
       <div class="section-header">
-        <h2 class="section-title">Campaigns</h2>
-        <button class="btn btn-primary btn-sm" onclick="App.showCreateCampaign()">+ New</button>
+        <h2 class="section-title">Your Campaigns</h2>
+        <button class="btn btn-primary btn-sm" id="newCampaignBtn" onclick="App.startNewCampaign()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          New
+        </button>
       </div>
-      <div class="campaign-list" id="campaignList">
+
+      <div id="campaignList">
         <div class="empty-state" id="emptyState">
-          <div class="empty-state-icon">&#x1F4E8;</div>
+          <div class="empty-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+          </div>
           <h3>No campaigns yet</h3>
-          <p>Create one here or from the Telegram bot</p>
+          <p>Create your first campaign to start sending SMS</p>
+          <button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="App.startNewCampaign()">Create Campaign</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Campaign Detail Screen -->
+  <!-- ═══════ WIZARD: STEP-BY-STEP CAMPAIGN CREATION ═══════ -->
+  <div id="wizardScreen" class="screen">
+    <div class="app-header">
+      <div class="header-left">
+        <button class="header-back" onclick="App.wizardBack()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        </button>
+        <h1 class="header-title" id="wizardTitle">New Campaign</h1>
+      </div>
+      <div class="wizard-steps" id="wizardSteps">
+        <div class="wz-step active" data-step="1">1</div>
+        <div class="wz-line"></div>
+        <div class="wz-step" data-step="2">2</div>
+        <div class="wz-line"></div>
+        <div class="wz-step" data-step="3">3</div>
+        <div class="wz-line"></div>
+        <div class="wz-step" data-step="4">4</div>
+      </div>
+    </div>
+
+    <!-- Step 1: Name -->
+    <div class="wizard-page" id="wzStep1">
+      <div class="wz-content">
+        <h2>Name your campaign</h2>
+        <p class="wz-hint">Give it a short name so you can find it later</p>
+        <div class="input-group">
+          <input type="text" id="wzName" placeholder="e.g., Summer Sale, Follow Up" maxlength="60">
+        </div>
+      </div>
+      <div class="wz-footer">
+        <button class="btn btn-primary" onclick="App.wizardNext()">Next: Write Message</button>
+      </div>
+    </div>
+
+    <!-- Step 2: Message -->
+    <div class="wizard-page" id="wzStep2" style="display:none">
+      <div class="wz-content">
+        <h2>Write your message</h2>
+        <p class="wz-hint">Use <b>[name]</b> to insert the contact's name automatically</p>
+        <div class="input-group">
+          <textarea id="wzContent" placeholder="Hi [name], we have an exciting offer for you! Check it out at example.com" maxlength="1600"></textarea>
+          <div class="char-count">
+            <span id="charCount">0</span> / 160 chars
+            <span id="charSegments" class="char-segments">1 SMS</span>
+          </div>
+        </div>
+        <div class="wz-tip">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+          Standard SMS is 160 characters. Longer messages are sent as multiple parts.
+        </div>
+      </div>
+      <div class="wz-footer">
+        <button class="btn btn-primary" onclick="App.wizardNext()">Next: Add Contacts</button>
+      </div>
+    </div>
+
+    <!-- Step 3: Contacts -->
+    <div class="wizard-page" id="wzStep3" style="display:none">
+      <div class="wz-content">
+        <h2>Add your contacts</h2>
+        <p class="wz-hint">Enter phone numbers, one per line. Add a name after a comma for personalization.</p>
+        <div class="input-group">
+          <textarea id="wzContacts" placeholder="+1 818 927 9992, John&#10;+1 415 555 1234, Jane&#10;+1 212 555 9876"></textarea>
+        </div>
+        <div class="wz-actions-row">
+          <button class="btn btn-ghost btn-sm" onclick="App.importFile()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            Import .csv / .txt
+          </button>
+          <input type="file" id="fileInput" accept=".txt,.csv" style="display:none" onchange="App.handleFileImport(event)">
+          <span class="contact-counter" id="contactCounter">0 contacts</span>
+        </div>
+      </div>
+      <div class="wz-footer">
+        <button class="btn btn-primary" onclick="App.wizardNext()">Next: Review</button>
+      </div>
+    </div>
+
+    <!-- Step 4: Review -->
+    <div class="wizard-page" id="wzStep4" style="display:none">
+      <div class="wz-content">
+        <h2>Review &amp; Send</h2>
+        <p class="wz-hint">Double-check everything before sending</p>
+
+        <div class="review-card">
+          <div class="review-label">Campaign</div>
+          <div class="review-value" id="rvName">-</div>
+        </div>
+        <div class="review-card">
+          <div class="review-label">Message Preview</div>
+          <div class="review-sms" id="rvPreview">-</div>
+          <div class="review-meta" id="rvMsgMeta">-</div>
+        </div>
+        <div class="review-card">
+          <div class="review-label">Recipients</div>
+          <div class="review-value review-big" id="rvContacts">0</div>
+          <div class="review-meta" id="rvContactsList">-</div>
+        </div>
+
+        <details class="advanced-settings">
+          <summary>Advanced Settings</summary>
+          <div class="settings-inner">
+            <div class="settings-row">
+              <span>Delay between messages</span>
+              <div class="settings-value">
+                <input type="number" class="gap-input" id="wzGapTime" value="5" min="1" max="300"> <span class="gap-unit">sec</span>
+              </div>
+            </div>
+            <div class="settings-row">
+              <span>Schedule for later</span>
+              <input type="datetime-local" id="wzSchedule" class="schedule-input">
+            </div>
+          </div>
+        </details>
+
+        <div class="est-time" id="estTime">-</div>
+      </div>
+      <div class="wz-footer wz-footer-split">
+        <button class="btn btn-secondary" onclick="App.saveDraft()">Save as Draft</button>
+        <button class="btn btn-send" id="sendBtn" onclick="App.sendCampaign()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          Send Now
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ CAMPAIGN DETAIL SCREEN ═══════ -->
   <div id="detailScreen" class="screen">
     <div class="app-header">
       <div class="header-left">
-        <button class="header-back" style="display:block" onclick="App.showDashboard()">&#x2190;</button>
+        <button class="header-back" onclick="App.showDashboard()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        </button>
         <h1 class="header-title" id="detailTitle">Campaign</h1>
       </div>
-      <div class="header-actions">
-        <button class="header-btn" id="deleteCampaignBtn" onclick="App.showDeleteModal()" style="color:var(--danger)">&#x1F5D1; Delete</button>
-      </div>
     </div>
-    <div class="campaign-detail" id="detailContent">
-      <!-- Dynamic content -->
-    </div>
-    <div class="action-bar" id="detailActions">
-      <!-- Dynamic actions -->
-    </div>
+    <div class="campaign-detail" id="detailContent"></div>
+    <div class="action-bar" id="detailActions"></div>
   </div>
 
-  <!-- Create/Edit Campaign Screen -->
-  <div id="editScreen" class="screen">
-    <div class="app-header">
-      <div class="header-left">
-        <button class="header-back" style="display:block" onclick="App.cancelEdit()">&#x2190;</button>
-        <h1 class="header-title" id="editTitle">New Campaign</h1>
-      </div>
-    </div>
-    <div class="campaign-detail">
-      <div class="detail-section">
-        <h3>Campaign Name</h3>
-        <div class="input-group">
-          <input type="text" id="editName" placeholder="e.g., Summer Promo">
-        </div>
-      </div>
-
-      <div class="detail-section">
-        <h3>Message Content</h3>
-        <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px">
-          Use <b>[name]</b> to personalize. Separate multiple messages with "---" for rotation.
-        </p>
-        <div class="input-group">
-          <textarea id="editContent" placeholder="Hi [name], check out our latest offer!&#10;---&#10;Hello [name]! We have a special deal for you."></textarea>
-        </div>
-      </div>
-
-      <div class="detail-section">
-        <h3>Contacts</h3>
-        <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px">
-          One per line: <b>+1234567890, Name</b> or just the number
-        </p>
-        <div class="input-group">
-          <textarea id="editContacts" placeholder="+18189279992, John Doe&#10;+14155551234, Jane Smith&#10;+12125559876"></textarea>
-        </div>
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-secondary btn-sm" onclick="App.importFile()">&#x1F4C1; Import File</button>
-          <input type="file" id="fileInput" accept=".txt,.csv" style="display:none" onchange="App.handleFileImport(event)">
-        </div>
-      </div>
-
-      <div class="detail-section">
-        <h3>Settings</h3>
-        <div class="settings-row">
-          <span class="settings-label">SMS Gap Time (seconds)</span>
-          <div class="settings-value">
-            <input type="number" class="gap-input" id="editGapTime" value="5" min="1" max="300">
-          </div>
-        </div>
-        <div class="settings-row">
-          <span class="settings-label">Schedule</span>
-          <div class="settings-value">
-            <input type="datetime-local" id="editSchedule" style="background:var(--bg-surface);border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--text-primary)">
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="action-bar">
-      <button class="btn btn-secondary" onclick="App.cancelEdit()">Cancel</button>
-      <button class="btn btn-primary" id="saveBtn" onclick="App.saveCampaign()">
-        <span id="saveBtnText">Save Campaign</span>
-        <div class="spinner" id="saveSpinner" style="display:none"></div>
-      </button>
-    </div>
-  </div>
-
-  <!-- Sending Screen -->
+  <!-- ═══════ SENDING SCREEN ═══════ -->
   <div id="sendingScreen" class="screen">
     <div class="app-header">
       <div class="header-left">
@@ -184,11 +268,11 @@
     </div>
     <div class="sending-screen">
       <div class="sending-progress-ring">
-        <svg width="160" height="160" viewBox="0 0 160 160">
-          <circle cx="80" cy="80" r="70" fill="none" stroke="var(--bg-surface)" stroke-width="8"/>
-          <circle cx="80" cy="80" r="70" fill="none" stroke="url(#progressGrad)" stroke-width="8"
-                  stroke-linecap="round" stroke-dasharray="440" stroke-dashoffset="440"
-                  id="progressCircle" transform="rotate(-90 80 80)"/>
+        <svg width="180" height="180" viewBox="0 0 180 180">
+          <circle cx="90" cy="90" r="78" fill="none" stroke="var(--bg-surface)" stroke-width="8"/>
+          <circle cx="90" cy="90" r="78" fill="none" stroke="url(#progressGrad)" stroke-width="8"
+                  stroke-linecap="round" stroke-dasharray="490" stroke-dashoffset="490"
+                  id="progressCircle" transform="rotate(-90 90 90)"/>
           <defs>
             <linearGradient id="progressGrad" x1="0%" y1="0%" x2="100%" y2="0%">
               <stop offset="0%" style="stop-color:var(--primary)"/>
@@ -196,7 +280,10 @@
             </linearGradient>
           </defs>
         </svg>
-        <div class="sending-count" id="sendingPercent">0%</div>
+        <div class="sending-center">
+          <div class="sending-percent" id="sendingPercent">0%</div>
+          <div class="sending-eta" id="sendingEta">Calculating...</div>
+        </div>
       </div>
 
       <div class="sending-stats">
@@ -210,44 +297,64 @@
         </div>
         <div class="sending-stat">
           <div class="value primary" id="sendingRemaining">0</div>
-          <div class="label">Remaining</div>
+          <div class="label">Left</div>
         </div>
       </div>
 
-      <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px" id="sendingStatus">
-        Preparing to send...
-      </p>
+      <p class="sending-status" id="sendingStatus">Preparing to send...</p>
 
       <div class="sending-actions">
-        <button class="btn btn-danger" id="pauseSendBtn" onclick="App.pauseSending()">&#x23F8; Pause</button>
-        <button class="btn btn-success" id="resumeSendBtn" onclick="App.resumeSending()" style="display:none">&#x25B6; Resume</button>
-        <button class="btn btn-secondary" id="stopSendBtn" onclick="App.stopSending()">&#x23F9; Stop</button>
+        <button class="btn btn-outline-danger" id="pauseSendBtn" onclick="App.pauseSending()">Pause</button>
+        <button class="btn btn-primary" id="resumeSendBtn" onclick="App.resumeSending()" style="display:none">Resume</button>
+        <button class="btn btn-secondary" id="stopSendBtn" onclick="App.stopSending()">Stop &amp; Save</button>
       </div>
     </div>
   </div>
 
-  <!-- Logout Modal -->
-  <div class="modal-overlay" id="logoutModal">
-    <div class="modal">
-      <h2>Log Out</h2>
-      <p style="color:var(--text-secondary)">Are you sure you want to log out?</p>
-      <div class="modal-actions">
-        <button class="btn btn-secondary" onclick="App.hideModal('logoutModal')">Cancel</button>
-        <button class="btn btn-danger" onclick="App.logout()">Log Out</button>
+  <!-- ═══════ SETTINGS SCREEN ═══════ -->
+  <div id="settingsScreen" class="screen">
+    <div class="app-header">
+      <div class="header-left">
+        <button class="header-back" onclick="App.showDashboard()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        </button>
+        <h1 class="header-title">Settings</h1>
       </div>
+    </div>
+    <div class="settings-page">
+      <div class="settings-section">
+        <h3>Account</h3>
+        <div class="settings-item">
+          <span>Name</span>
+          <span class="settings-val" id="setName">-</span>
+        </div>
+        <div class="settings-item">
+          <span>Activation Code</span>
+          <span class="settings-val" id="setCode">-</span>
+        </div>
+        <div class="settings-item">
+          <span>Plan</span>
+          <span class="settings-val" id="setPlan">-</span>
+        </div>
+      </div>
+      <div class="settings-section">
+        <h3>About</h3>
+        <div class="settings-item">
+          <span>Version</span>
+          <span class="settings-val">2.0.0</span>
+        </div>
+        <div class="settings-item">
+          <span>Support</span>
+          <a href="https://t.me/NomadlyBot" class="settings-val link" target="_blank">@NomadlyBot</a>
+        </div>
+      </div>
+      <button class="btn btn-outline-danger" style="margin-top:24px" onclick="App.showLogoutConfirm()">Log Out</button>
     </div>
   </div>
 
-  <!-- Delete Modal -->
-  <div class="modal-overlay" id="deleteModal">
-    <div class="modal">
-      <h2>Delete Campaign</h2>
-      <p style="color:var(--text-secondary)">This action cannot be undone.</p>
-      <div class="modal-actions">
-        <button class="btn btn-secondary" onclick="App.hideModal('deleteModal')">Cancel</button>
-        <button class="btn btn-danger" onclick="App.confirmDelete()">Delete</button>
-      </div>
-    </div>
+  <!-- ═══════ MODALS ═══════ -->
+  <div class="modal-overlay" id="modalOverlay" onclick="App.closeModal(event)">
+    <div class="modal" id="modalContent"></div>
   </div>
 
   <!-- Toast -->

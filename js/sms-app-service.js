@@ -3,7 +3,7 @@
  * 
  * Provides APIs for:
  * - User authentication via activation code (Telegram chatId)
- * - Campaign CRUD (create, read, update, delete)
+ * - Subscription-gated campaign CRUD
  * - Campaign sync between Telegram bot and mobile app
  * - SMS delivery reporting and analytics
  */
@@ -27,7 +27,6 @@ function initSmsAppService(_db, _nameOf, _planEndingTime, _freeSmsCountOf, _logi
   loginCountOf = _loginCountOf
   planOf = _planOf
 
-  // Create indexes
   smsCampaigns.createIndex({ chatId: 1 })
   smsCampaigns.createIndex({ chatId: 1, status: 1 })
   smsCampaigns.createIndex({ createdAt: -1 })
@@ -51,7 +50,7 @@ async function authenticateUser(chatId) {
 
   const nameDoc = await nameOf.findOne({ _id: numChatId })
   const name = nameDoc?.val || nameDoc?.name
-  if (!name) return { valid: false, error: 'Invalid activation code' }
+  if (!name) return { valid: false, error: 'Invalid activation code. Open @NomadlyBot on Telegram to get your code.' }
 
   const planExpiry = await getVal(planEndingTime, numChatId) || 0
   const freeSmsCount = await getVal(freeSmsCountOf, numChatId) || 0
@@ -62,6 +61,7 @@ async function authenticateUser(chatId) {
   const freeSmsLimit = Number(process.env.APP_FREE_SMS) || 100
   const isSubscribed = planExpiry > Date.now()
   const isFreeTrial = !isSubscribed && freeSmsCount < freeSmsLimit
+  const canUseSms = isSubscribed || isFreeTrial
 
   return {
     valid: true,
@@ -72,12 +72,30 @@ async function authenticateUser(chatId) {
       planExpiry,
       isSubscribed,
       isFreeTrial,
+      canUseSms,
       freeSmsUsed: freeSmsCount,
       freeSmsLimit,
       freeSmsRemaining: Math.max(0, freeSmsLimit - freeSmsCount),
       loginCount: loginInfo.loginCount || 0,
       canLogin: loginInfo.canLogin !== false,
     }
+  }
+}
+
+// ─── Subscription Check (reusable) ───
+async function checkSubscription(chatId) {
+  const numChatId = Number(chatId)
+  const planExpiry = await getVal(planEndingTime, numChatId) || 0
+  const freeSmsCount = await getVal(freeSmsCountOf, numChatId) || 0
+  const freeSmsLimit = Number(process.env.APP_FREE_SMS) || 100
+  const isSubscribed = planExpiry > Date.now()
+  const isFreeTrial = !isSubscribed && freeSmsCount < freeSmsLimit
+
+  return {
+    canUseSms: isSubscribed || isFreeTrial,
+    isSubscribed,
+    isFreeTrial,
+    freeSmsRemaining: Math.max(0, freeSmsLimit - freeSmsCount),
   }
 }
 
@@ -88,17 +106,17 @@ async function createCampaign(chatId, data) {
     _id: uuidv4(),
     chatId: Number(chatId),
     name: data.name || `Campaign ${new Date().toLocaleDateString()}`,
-    content: data.content || [''],  // Array of message templates
-    contacts: data.contacts || [],   // [{phoneNumber, name}]
+    content: data.content || [''],
+    contacts: data.contacts || [],
     status: 'draft',
-    smsGapTime: data.smsGapTime || 5,  // seconds between SMS
+    smsGapTime: data.smsGapTime || 5,
     scheduledAt: data.scheduledAt || null,
     createdAt: new Date(),
     updatedAt: new Date(),
     sentCount: 0,
     failedCount: 0,
     totalCount: (data.contacts || []).length,
-    source: data.source || 'app',  // 'bot' or 'app'
+    source: data.source || 'app',
     lastSentIndex: 0,
   }
 
@@ -166,7 +184,6 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
       const result = await authenticateUser(req.params.code)
       if (!result.valid) return res.status(401).json(result)
 
-      // Increment login count
       const numChatId = Number(req.params.code)
       const loginData = (await get(loginCountOf, numChatId)) || { loginCount: 0, canLogin: true }
       await set(loginCountOf, numChatId, { loginCount: loginData.loginCount + 1, canLogin: false })
@@ -212,11 +229,20 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
     }
   })
 
-  // Create campaign
+  // Create campaign — SUBSCRIPTION GATED
   app.post('/sms-app/campaigns', async (req, res) => {
     try {
       const { chatId, name, content, contacts, smsGapTime, scheduledAt, source } = req.body
       if (!chatId) return res.status(400).json({ error: 'chatId required' })
+
+      // Enforce subscription
+      const sub = await checkSubscription(chatId)
+      if (!sub.canUseSms) {
+        return res.status(403).json({
+          error: 'subscription_required',
+          message: 'Active subscription or free trial required to create campaigns. Subscribe via @NomadlyBot on Telegram.'
+        })
+      }
 
       const campaign = await createCampaign(chatId, {
         name, content, contacts, smsGapTime, scheduledAt, source
@@ -227,11 +253,20 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
     }
   })
 
-  // Update campaign
+  // Update campaign — SUBSCRIPTION GATED
   app.put('/sms-app/campaigns/:campaignId', async (req, res) => {
     try {
       const { chatId, ...updates } = req.body
       if (!chatId) return res.status(400).json({ error: 'chatId required' })
+
+      const sub = await checkSubscription(chatId)
+      if (!sub.canUseSms) {
+        return res.status(403).json({
+          error: 'subscription_required',
+          message: 'Active subscription required to edit campaigns.'
+        })
+      }
+
       const success = await updateCampaign(req.params.campaignId, chatId, updates)
       res.json({ success })
     } catch (error) {
@@ -251,25 +286,23 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
     }
   })
 
-  // Update campaign progress (from app during sending)
+  // Update campaign progress — SUBSCRIPTION GATED
   app.put('/sms-app/campaigns/:campaignId/progress', async (req, res) => {
     try {
       const { chatId, sentCount, failedCount, status, lastSentIndex } = req.body
       if (!chatId) return res.status(400).json({ error: 'chatId required' })
 
+      const sub = await checkSubscription(chatId)
+      if (!sub.canUseSms) {
+        return res.status(403).json({
+          error: 'subscription_required',
+          message: 'Subscription expired. Sending paused.'
+        })
+      }
+
       await updateCampaignProgress(req.params.campaignId, chatId, {
         sentCount, failedCount, status, lastSentIndex
       })
-
-      // Track SMS analytics
-      if (sentCount) {
-        const name = await get(nameOf, Number(chatId))
-        const todayStr = today()
-        const weekStr = week()
-        const monthStr = month()
-        const yearStr = year()
-        // We don't increment per-message here since the app tracks bulk progress
-      }
 
       res.json({ ok: true })
     } catch (error) {
@@ -277,10 +310,19 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
     }
   })
 
-  // Increment SMS count (called by app for each sent SMS)
+  // Increment SMS count — SUBSCRIPTION GATED
   app.post('/sms-app/sms-sent/:chatId', async (req, res) => {
     try {
       const numChatId = Number(req.params.chatId)
+
+      const sub = await checkSubscription(numChatId)
+      if (!sub.canUseSms) {
+        return res.status(403).json({
+          error: 'subscription_required',
+          message: 'SMS limit reached or subscription expired.'
+        })
+      }
+
       increment(freeSmsCountOf, numChatId)
 
       const name = await get(nameOf, numChatId)
@@ -293,7 +335,7 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
       increment(clicksOfSms, 'total, total, ' + month())
       increment(clicksOfSms, 'total, total, ' + year())
 
-      res.json({ ok: true })
+      res.json({ ok: true, remaining: sub.freeSmsRemaining - 1 })
     } catch (error) {
       res.status(500).json({ error: error.message })
     }
@@ -327,4 +369,5 @@ module.exports = {
   getCampaign,
   updateCampaign,
   deleteCampaign,
+  checkSubscription,
 }

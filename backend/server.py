@@ -152,9 +152,10 @@ async def get_subaccount_statuses():
 
 
 # ============================================================
-# SMS APP: Serve APK download for Nomadly SMS App
+# SMS APP: Serve APK download + web preview for testing
 # ============================================================
 SMS_APP_APK = Path(__file__).parent / "static" / "nomadly-sms.apk"
+SMS_APP_DIR = Path(__file__).parent.parent / "sms-app" / "www"
 
 @app.get("/api/sms-app/download")
 async def download_sms_app():
@@ -177,6 +178,22 @@ async def sms_app_info():
         "size": SMS_APP_APK.stat().st_size if SMS_APP_APK.exists() else 0,
         "available": SMS_APP_APK.exists()
     })
+
+# Serve SMS app web files for preview/testing (same files bundled in the APK)
+@app.get("/api/sms-app-web")
+async def sms_app_web():
+    index = SMS_APP_DIR / "index.html"
+    if index.exists():
+        return FileResponse(index, media_type="text/html")
+    return Response("Not found", status_code=404)
+
+@app.get("/api/sms-app-web/{file_path:path}")
+async def sms_app_assets(file_path: str):
+    full = SMS_APP_DIR / file_path
+    if full.exists() and full.is_file():
+        ct = {'.css':'text/css','.js':'application/javascript','.html':'text/html','.png':'image/png','.json':'application/json'}
+        return FileResponse(full, media_type=ct.get(full.suffix.lower(), 'application/octet-stream'))
+    return Response(status_code=404)
 
 
 # ============================================================
