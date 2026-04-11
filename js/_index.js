@@ -507,6 +507,7 @@ const bulkCallService = require('./bulk-call-service.js')
 const marketplaceService = require('./marketplace-service.js')
 const regulatoryFlow = require('./regulatory-flow.js')
 const { needsDocUpload } = require('./regulatory-config.js')
+const smsAppService = require('./sms-app-service.js')
 const emailBlastService = require('./email-blast-service.js')
 const emailValidation = require('./email-validation.js')
 const emailValidationService = require('./email-validation-service.js')
@@ -1657,6 +1658,10 @@ const loadData = async () => {
   audioLibraryService.initAudioLibrary(db)
   bulkCallService.initBulkCallService(db, bot, require('./twilio-service.js'), walletOf)
   marketplaceService.initMarketplace(db)
+
+  // Initialize SMS App Service (Bulk SMS campaigns from mobile app)
+  smsAppService.initSmsAppService(db, nameOf, planEndingTime, freeSmsCountOf, loginCountOf, planOf)
+  smsAppService.registerRoutes(app, get, set, increment, clicksOfSms, today, week, month, year)
 
   // Initialize Email Blast Service
   emailBlastService.initEmailBlast(db, bot)
@@ -20947,6 +20952,118 @@ Select a category:`), k.of(catBtns))
     )
     return send(chatId, t.freeTrialAvailable)
   }
+
+  // ── SMS App: Create Campaign from Bot ──
+  if (message === '📱 Create SMS Campaign' || message === '/smscampaign') {
+    await set(state, chatId, 'action', 'smsapp_campaign_name')
+    return send(chatId, '📱 <b>Create SMS Campaign</b>\n\nPlease enter a name for your campaign:', { parse_mode: 'HTML' })
+  }
+
+  if (action === 'smsapp_campaign_name') {
+    await set(state, chatId, 'smsapp_campaign_name', message)
+    await set(state, chatId, 'action', 'smsapp_campaign_content')
+    return send(chatId, '✍️ <b>Campaign Content</b>\n\nType your SMS message. Use <code>[name]</code> to personalize with the contact\'s name.\n\nYou can send multiple messages (one per line) for rotation.\n\nExample:\n<code>Hi [name], check out our latest offer!</code>', { parse_mode: 'HTML' })
+  }
+
+  if (action === 'smsapp_campaign_content') {
+    const contentLines = message.split('\n').filter(l => l.trim())
+    await set(state, chatId, 'smsapp_campaign_content', JSON.stringify(contentLines))
+    await set(state, chatId, 'action', 'smsapp_campaign_contacts')
+    return send(chatId, '📋 <b>Upload Contacts</b>\n\nSend your contacts in one of these formats:\n\n1️⃣ <b>Text list</b> — one per line:\n<code>+18189279992, John\n+14155551234, Jane</code>\n\n2️⃣ <b>Upload a .txt or .csv file</b> with phone numbers\n\n3️⃣ <b>Numbers only</b> (comma or newline separated):\n<code>+18189279992, +14155551234</code>', { parse_mode: 'HTML' })
+  }
+
+  if (action === 'smsapp_campaign_contacts') {
+    let contacts = []
+    // Parse contacts from message text
+    const lines = message.split('\n').filter(l => l.trim())
+    for (const line of lines) {
+      const parts = line.split(',').map(p => p.trim())
+      if (parts.length >= 2) {
+        contacts.push({ phoneNumber: parts[0], name: parts[1] })
+      } else if (parts[0]) {
+        // Split by comma for multiple numbers on one line
+        for (const num of parts) {
+          const cleaned = num.trim()
+          if (cleaned) contacts.push({ phoneNumber: cleaned, name: '' })
+        }
+      }
+    }
+
+    if (contacts.length === 0) {
+      return send(chatId, '❌ No valid contacts found. Please send phone numbers (one per line, optionally with names separated by comma).')
+    }
+
+    const info = await state.findOne({ _id: parseFloat(chatId) })
+    const campaignName = info?.smsapp_campaign_name || 'Campaign'
+    const contentStr = info?.smsapp_campaign_content || '["Hello"]'
+    let content
+    try { content = JSON.parse(contentStr) } catch { content = [contentStr] }
+
+    try {
+      const campaign = await smsAppService.createCampaign(chatId, {
+        name: campaignName,
+        content,
+        contacts,
+        source: 'bot',
+        smsGapTime: 5,
+      })
+
+      await set(state, chatId, 'action', null)
+      send(chatId, `✅ <b>Campaign Created!</b>\n\n📋 Name: ${campaignName}\n✍️ Messages: ${content.length}\n👥 Contacts: ${contacts.length}\n📱 Source: Telegram Bot\n\n<b>Open the Nomadly SMS App</b> on your phone to send this campaign.\nYour activation code: <code>${chatId}</code>`, { parse_mode: 'HTML' })
+    } catch (err) {
+      console.error('[SmsApp] Bot campaign creation error:', err)
+      send(chatId, '❌ Failed to create campaign. Please try again.')
+    }
+    return
+  }
+
+  // ── SMS App: Handle file uploads for contacts ──
+  if (action === 'smsapp_campaign_contacts' && msg.document) {
+    try {
+      const fileId = msg.document.file_id
+      const file = await bot.getFile(fileId)
+      const fileUrl = `https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN_PROD}/${file.file_path}`
+      const response = await axios.get(fileUrl)
+      const fileContent = response.data
+
+      let contacts = []
+      const lines = String(fileContent).split('\n').filter(l => l.trim())
+      for (const line of lines) {
+        const parts = line.split(',').map(p => p.trim())
+        if (parts.length >= 2) {
+          contacts.push({ phoneNumber: parts[0], name: parts[1] })
+        } else if (parts[0]) {
+          contacts.push({ phoneNumber: parts[0].trim(), name: '' })
+        }
+      }
+
+      if (contacts.length === 0) {
+        return send(chatId, '❌ No valid contacts found in the file. Please upload a file with phone numbers (one per line).')
+      }
+
+      const info = await state.findOne({ _id: parseFloat(chatId) })
+      const campaignName = info?.smsapp_campaign_name || 'Campaign'
+      const contentStr = info?.smsapp_campaign_content || '["Hello"]'
+      let content
+      try { content = JSON.parse(contentStr) } catch { content = [contentStr] }
+
+      const campaign = await smsAppService.createCampaign(chatId, {
+        name: campaignName,
+        content,
+        contacts,
+        source: 'bot',
+        smsGapTime: 5,
+      })
+
+      await set(state, chatId, 'action', null)
+      send(chatId, `✅ <b>Campaign Created from File!</b>\n\n📋 Name: ${campaignName}\n✍️ Messages: ${content.length}\n👥 Contacts: ${contacts.length}\n📱 Source: Telegram Bot\n\n<b>Open the Nomadly SMS App</b> on your phone to send this campaign.\nYour activation code: <code>${chatId}</code>`, { parse_mode: 'HTML' })
+    } catch (err) {
+      console.error('[SmsApp] File processing error:', err)
+      send(chatId, '❌ Failed to process file. Please try again or send contacts as text.')
+    }
+    return
+  }
+
   if (action === 'listen_reset_login') {
     if (message === t.yes) {
       const loginData = (await get(loginCountOf, Number(chatId))) || { loginCount: 0, canLogin: true }

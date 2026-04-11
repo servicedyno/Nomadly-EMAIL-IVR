@@ -1,0 +1,19 @@
+{
+  "appId": "com.nomadly.sms",
+  "appName": "Nomadly SMS",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": true,
+      "backgroundColor": "#1a1a2e",
+      "androidSplashResourceName": "splash",
+      "showSpinner": false
+    }
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}

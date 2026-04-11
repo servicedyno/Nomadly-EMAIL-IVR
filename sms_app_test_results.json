@@ -1,0 +1,82 @@
+{
+  "timestamp": 1775944443.1276975,
+  "backend_url": "https://readme-guide-5.preview.emergentagent.com",
+  "test_chat_id": "6687923716",
+  "total_tests": 12,
+  "passed_tests": 12,
+  "success_rate": 100.0,
+  "results": [
+    {
+      "test": "Valid Authentication",
+      "success": true,
+      "details": "User: sport_chocolate, Plan: none, Free SMS: 0",
+      "response": null
+    },
+    {
+      "test": "Plan Information",
+      "success": true,
+      "details": "Plan: none, SMS Used: 992/100",
+      "response": null
+    },
+    {
+      "test": "Create Campaign",
+      "success": true,
+      "details": "Campaign ID: 4be03bc8-8cb4-40e5-9a0e-c1564ba4a683, Name: API Test Campaign",
+      "response": null
+    },
+    {
+      "test": "Get Campaigns",
+      "success": true,
+      "details": "Found 3 campaigns",
+      "response": null
+    },
+    {
+      "test": "Update Campaign",
+      "success": true,
+      "details": "Campaign updated successfully",
+      "response": null
+    },
+    {
+      "test": "Update Campaign Progress",
+      "success": true,
+      "details": "Progress updated successfully",
+      "response": null
+    },
+    {
+      "test": "Report SMS Sent",
+      "success": true,
+      "details": "SMS count incremented",
+      "response": null
+    },
+    {
+      "test": "Full Sync",
+      "success": true,
+      "details": "Synced 3 campaigns, Server time: 1775944439952",
+      "response": null
+    },
+    {
+      "test": "Delete Campaign",
+      "success": true,
+      "details": "Campaign deleted successfully",
+      "response": null
+    },
+    {
+      "test": "Logout",
+      "success": true,
+      "details": "Logout successful",
+      "response": null
+    },
+    {
+      "test": "Invalid Authentication",
+      "success": true,
+      "details": "Correctly rejected invalid chatId: Invalid activation code",
+      "response": null
+    },
+    {
+      "test": "SMS App Web Interface",
+      "success": true,
+      "details": "HTML content returned (11101 chars)",
+      "response": null
+    }
+  ]
+}

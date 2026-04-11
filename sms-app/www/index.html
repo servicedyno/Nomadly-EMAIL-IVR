@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0f0f23">
+  <title>Nomadly SMS</title>
+  <script>
+    // Fix base URL for browser testing (when served via /api/sms-app-web/)
+    if (window.location.pathname.includes('/api/sms-app-web')) {
+      document.write('<base href="/api/sms-app-web/">');
+    }
+  </script>
+  <link rel="stylesheet" href="css/style.css"></head>
+<body>
+
+  <!-- Login Screen -->
+  <div id="loginScreen" class="screen login-screen active">
+    <div class="login-logo">N</div>
+    <h1 class="login-title">Nomadly SMS</h1>
+    <p class="login-subtitle">Bulk SMS campaigns from your phone</p>
+    <div class="login-card">
+      <div class="input-group">
+        <label>Activation Code</label>
+        <input type="number" id="loginCode" placeholder="Enter code from Telegram bot" inputmode="numeric">
+      </div>
+      <button class="btn btn-primary" id="loginBtn" onclick="App.login()">
+        <span id="loginBtnText">Connect</span>
+        <div class="spinner" id="loginSpinner" style="display:none"></div>
+      </button>
+      <p class="login-error" id="loginError"></p>
+      <p style="text-align:center;margin-top:16px;font-size:13px;color:var(--text-muted)">
+        Get your code from <b>@NomadlyBot</b> on Telegram
+      </p>
+    </div>
+  </div>
+
+  <!-- Main Dashboard Screen -->
+  <div id="dashboardScreen" class="screen">
+    <div class="app-header">
+      <div class="header-left">
+        <h1 class="header-title">Nomadly SMS</h1>
+      </div>
+      <div class="header-actions">
+        <button class="header-btn" onclick="App.syncData()">&#x21bb; Sync</button>
+        <button class="header-btn" onclick="App.showLogoutModal()">&#x23FB;</button>
+      </div>
+    </div>
+    <div class="dashboard">
+      <!-- Plan Banner -->
+      <div class="plan-banner" id="planBanner">
+        <div class="plan-info">
+          <h3>SUBSCRIPTION</h3>
+          <p id="planStatus">Loading...</p>
+        </div>
+        <div class="plan-badge" id="planBadge">-</div>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Campaigns</div>
+          <div class="stat-value primary" id="statCampaigns">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">SMS Sent</div>
+          <div class="stat-value success" id="statSent">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Contacts</div>
+          <div class="stat-value warning" id="statContacts">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Failed</div>
+          <div class="stat-value danger" id="statFailed">0</div>
+        </div>
+      </div>
+
+      <!-- Campaigns List -->
+      <div class="section-header">
+        <h2 class="section-title">Campaigns</h2>
+        <button class="btn btn-primary btn-sm" onclick="App.showCreateCampaign()">+ New</button>
+      </div>
+      <div class="campaign-list" id="campaignList">
+        <div class="empty-state" id="emptyState">
+          <div class="empty-state-icon">&#x1F4E8;</div>
+          <h3>No campaigns yet</h3>
+          <p>Create one here or from the Telegram bot</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Campaign Detail Screen -->
+  <div id="detailScreen" class="screen">
+    <div class="app-header">
+      <div class="header-left">
+        <button class="header-back" style="display:block" onclick="App.showDashboard()">&#x2190;</button>
+        <h1 class="header-title" id="detailTitle">Campaign</h1>
+      </div>
+      <div class="header-actions">
+        <button class="header-btn" id="deleteCampaignBtn" onclick="App.showDeleteModal()" style="color:var(--danger)">&#x1F5D1; Delete</button>
+      </div>
+    </div>
+    <div class="campaign-detail" id="detailContent">
+      <!-- Dynamic content -->
+    </div>
+    <div class="action-bar" id="detailActions">
+      <!-- Dynamic actions -->
+    </div>
+  </div>
+
+  <!-- Create/Edit Campaign Screen -->
+  <div id="editScreen" class="screen">
+    <div class="app-header">
+      <div class="header-left">
+        <button class="header-back" style="display:block" onclick="App.cancelEdit()">&#x2190;</button>
+        <h1 class="header-title" id="editTitle">New Campaign</h1>
+      </div>
+    </div>
+    <div class="campaign-detail">
+      <div class="detail-section">
+        <h3>Campaign Name</h3>
+        <div class="input-group">
+          <input type="text" id="editName" placeholder="e.g., Summer Promo">
+        </div>
+      </div>
+
+      <div class="detail-section">
+        <h3>Message Content</h3>
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px">
+          Use <b>[name]</b> to personalize. Separate multiple messages with "---" for rotation.
+        </p>
+        <div class="input-group">
+          <textarea id="editContent" placeholder="Hi [name], check out our latest offer!&#10;---&#10;Hello [name]! We have a special deal for you."></textarea>
+        </div>
+      </div>
+
+      <div class="detail-section">
+        <h3>Contacts</h3>
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px">
+          One per line: <b>+1234567890, Name</b> or just the number
+        </p>
+        <div class="input-group">
+          <textarea id="editContacts" placeholder="+18189279992, John Doe&#10;+14155551234, Jane Smith&#10;+12125559876"></textarea>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-secondary btn-sm" onclick="App.importFile()">&#x1F4C1; Import File</button>
+          <input type="file" id="fileInput" accept=".txt,.csv" style="display:none" onchange="App.handleFileImport(event)">
+        </div>
+      </div>
+
+      <div class="detail-section">
+        <h3>Settings</h3>
+        <div class="settings-row">
+          <span class="settings-label">SMS Gap Time (seconds)</span>
+          <div class="settings-value">
+            <input type="number" class="gap-input" id="editGapTime" value="5" min="1" max="300">
+          </div>
+        </div>
+        <div class="settings-row">
+          <span class="settings-label">Schedule</span>
+          <div class="settings-value">
+            <input type="datetime-local" id="editSchedule" style="background:var(--bg-surface);border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--text-primary)">
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="action-bar">
+      <button class="btn btn-secondary" onclick="App.cancelEdit()">Cancel</button>
+      <button class="btn btn-primary" id="saveBtn" onclick="App.saveCampaign()">
+        <span id="saveBtnText">Save Campaign</span>
+        <div class="spinner" id="saveSpinner" style="display:none"></div>
+      </button>
+    </div>
+  </div>
+
+  <!-- Sending Screen -->
+  <div id="sendingScreen" class="screen">
+    <div class="app-header">
+      <div class="header-left">
+        <h1 class="header-title" id="sendingTitle">Sending...</h1>
+      </div>
+    </div>
+    <div class="sending-screen">
+      <div class="sending-progress-ring">
+        <svg width="160" height="160" viewBox="0 0 160 160">
+          <circle cx="80" cy="80" r="70" fill="none" stroke="var(--bg-surface)" stroke-width="8"/>
+          <circle cx="80" cy="80" r="70" fill="none" stroke="url(#progressGrad)" stroke-width="8"
+                  stroke-linecap="round" stroke-dasharray="440" stroke-dashoffset="440"
+                  id="progressCircle" transform="rotate(-90 80 80)"/>
+          <defs>
+            <linearGradient id="progressGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" style="stop-color:var(--primary)"/>
+              <stop offset="100%" style="stop-color:var(--success)"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        <div class="sending-count" id="sendingPercent">0%</div>
+      </div>
+
+      <div class="sending-stats">
+        <div class="sending-stat">
+          <div class="value success" id="sendingSent">0</div>
+          <div class="label">Sent</div>
+        </div>
+        <div class="sending-stat">
+          <div class="value danger" id="sendingFailed">0</div>
+          <div class="label">Failed</div>
+        </div>
+        <div class="sending-stat">
+          <div class="value primary" id="sendingRemaining">0</div>
+          <div class="label">Remaining</div>
+        </div>
+      </div>
+
+      <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px" id="sendingStatus">
+        Preparing to send...
+      </p>
+
+      <div class="sending-actions">
+        <button class="btn btn-danger" id="pauseSendBtn" onclick="App.pauseSending()">&#x23F8; Pause</button>
+        <button class="btn btn-success" id="resumeSendBtn" onclick="App.resumeSending()" style="display:none">&#x25B6; Resume</button>
+        <button class="btn btn-secondary" id="stopSendBtn" onclick="App.stopSending()">&#x23F9; Stop</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Logout Modal -->
+  <div class="modal-overlay" id="logoutModal">
+    <div class="modal">
+      <h2>Log Out</h2>
+      <p style="color:var(--text-secondary)">Are you sure you want to log out?</p>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="App.hideModal('logoutModal')">Cancel</button>
+        <button class="btn btn-danger" onclick="App.logout()">Log Out</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Modal -->
+  <div class="modal-overlay" id="deleteModal">
+    <div class="modal">
+      <h2>Delete Campaign</h2>
+      <p style="color:var(--text-secondary)">This action cannot be undone.</p>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="App.hideModal('deleteModal')">Cancel</button>
+        <button class="btn btn-danger" onclick="App.confirmDelete()">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script src="js/storage.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

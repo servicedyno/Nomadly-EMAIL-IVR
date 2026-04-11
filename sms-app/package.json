@@ -1,0 +1,21 @@
+{
+  "name": "nomadly-sms",
+  "version": "2.0.0",
+  "description": "Nomadly Bulk SMS App",
+  "main": "www/index.html",
+  "scripts": {
+    "build": "echo 'Static build - no compilation needed'",
+    "cap:init": "npx cap init 'Nomadly SMS' com.nomadly.sms --web-dir www",
+    "cap:add:android": "npx cap add android",
+    "cap:sync": "npx cap sync android",
+    "cap:build": "cd android && ./gradlew assembleDebug",
+    "cap:open": "npx cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/cli": "^6.0.0",
+    "@capacitor/app": "^6.0.0",
+    "@capacitor/preferences": "^6.0.0"
+  }
+}

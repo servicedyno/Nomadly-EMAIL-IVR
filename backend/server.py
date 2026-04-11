@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request
-from fastapi.responses import Response, JSONResponse
+from fastapi.responses import Response, JSONResponse, FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -149,6 +150,39 @@ async def get_subaccount_statuses():
         return JSONResponse(content={"status": "ok", "subaccounts": subaccounts})
     except Exception as e:
         return JSONResponse(content={"status": "error", "error": str(e)}, status_code=500)
+
+
+# ============================================================
+# SMS APP: Serve static files for the Nomadly SMS web app (browser testing & Capacitor)
+# ============================================================
+SMS_APP_DIR = Path(__file__).parent.parent / "sms-app" / "www"
+
+@app.get("/api/sms-app-web")
+async def sms_app_web_index():
+    """Serve the SMS app web interface."""
+    index_path = SMS_APP_DIR / "index.html"
+    if index_path.exists():
+        return FileResponse(index_path, media_type="text/html")
+    return HTMLResponse("<h1>SMS App not found</h1>", status_code=404)
+
+@app.get("/api/sms-app-web/{file_path:path}")
+async def sms_app_web_static(file_path: str):
+    """Serve SMS app static assets."""
+    full_path = SMS_APP_DIR / file_path
+    if full_path.exists() and full_path.is_file():
+        content_types = {
+            '.css': 'text/css',
+            '.js': 'application/javascript',
+            '.html': 'text/html',
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.svg': 'image/svg+xml',
+            '.json': 'application/json',
+        }
+        suffix = full_path.suffix.lower()
+        media_type = content_types.get(suffix, 'application/octet-stream')
+        return FileResponse(full_path, media_type=media_type)
+    return Response(status_code=404)
 
 
 # ============================================================
