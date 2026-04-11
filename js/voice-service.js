@@ -3107,6 +3107,13 @@ async function handleCallHangup(payload) {
     const msg = `📞 <b>Missed Call</b>\n\n📞 To: ${formatPhone(to)}\n👤 From: ${formatPhone(from)}\n🕐 ${time}`
     _bot.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
     logEvent(to, from, 'missed', 0)
+  } else if (session.phase === 'voicemail_recording' || session.phase === 'voicemail_greeting') {
+    // Voicemail call — billing already happened above; send notification with plan usage
+    const overageLine = billingInfo.overageCharge > 0
+      ? `\n💰 Overage: $${billingInfo.overageCharge.toFixed(2)}`
+      : ''
+    const msg = `🎤 <b>Voicemail Call Ended</b>\n\n📞 To: ${formatPhone(to)}\n👤 From: ${formatPhone(from)}\n⏱️ ${formatDuration(duration)}\n${planLine}${overageLine}\n🕐 ${time}`
+    _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
   }
 
   // Cleanup any bridge transfer legs tied to this call (e.g., caller hung up during hold music)

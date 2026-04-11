@@ -1,39 +1,48 @@
 #!/usr/bin/env python3
+
 """
-Backend Test Script for Twilio Custom Voicemail Greeting Fix
-Testing the fix for field name mismatch: customGreetingUrl -> customAudioGreetingUrl
+Backend Test for Voicemail Billing Implementation
+Tests the voicemail billing implementation in js/_index.js and js/voice-service.js
 """
 
 import subprocess
 import sys
-import json
 import re
 import requests
-from typing import Dict, List, Tuple
+import json
 
-def run_command(cmd: str) -> Tuple[int, str, str]:
-    """Run a shell command and return exit code, stdout, stderr"""
+def run_command(cmd):
+    """Run a shell command and return the result"""
     try:
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
         return result.returncode, result.stdout, result.stderr
     except subprocess.TimeoutExpired:
         return 1, "", "Command timed out"
 
-def test_syntax_validation() -> bool:
-    """Test 1: Syntax validation"""
-    print("🔍 Test 1: Syntax validation")
-    exit_code, stdout, stderr = run_command("node -c /app/js/_index.js")
+def test_syntax_validation():
+    """Test 1 & 2: Syntax validation for both files"""
+    print("🔍 Testing syntax validation...")
     
-    if exit_code == 0:
-        print("✅ Syntax validation passed")
-        return True
-    else:
-        print(f"❌ Syntax validation failed: {stderr}")
+    # Test _index.js syntax
+    code, stdout, stderr = run_command("node -c /app/js/_index.js")
+    if code != 0:
+        print(f"❌ _index.js syntax check failed: {stderr}")
         return False
+    print("✅ _index.js syntax validation passed")
+    
+    # Test voice-service.js syntax
+    code, stdout, stderr = run_command("node -c /app/js/voice-service.js")
+    if code != 0:
+        print(f"❌ voice-service.js syntax check failed: {stderr}")
+        return False
+    print("✅ voice-service.js syntax validation passed")
+    
+    return True
 
-def test_health_endpoint() -> bool:
-    """Test 2: Health endpoint check"""
-    print("\n🔍 Test 2: Health endpoint check")
+def test_health_endpoint():
+    """Test 3: Health endpoint returns healthy"""
+    print("🔍 Testing health endpoint...")
+    
     try:
         response = requests.get("http://localhost:5000/health", timeout=10)
         if response.status_code == 200:
@@ -42,201 +51,284 @@ def test_health_endpoint() -> bool:
                 print(f"✅ Health endpoint healthy: {data}")
                 return True
             else:
-                print(f"❌ Health endpoint unhealthy: {data}")
+                print(f"❌ Health endpoint not healthy: {data}")
                 return False
         else:
-            print(f"❌ Health endpoint returned {response.status_code}")
+            print(f"❌ Health endpoint returned status {response.status_code}")
             return False
     except Exception as e:
         print(f"❌ Health endpoint error: {e}")
         return False
 
-def test_error_logs() -> bool:
-    """Test 3: Check error logs are clean"""
-    print("\n🔍 Test 3: Error log check")
-    exit_code, stdout, stderr = run_command("wc -c /var/log/supervisor/nodejs.err.log")
+def test_error_logs():
+    """Test 4: Error logs are clean"""
+    print("🔍 Testing error logs...")
     
-    if "0 " in stdout:
-        print("✅ Error log is clean (0 bytes)")
-        return True
+    code, stdout, stderr = run_command("wc -c /var/log/supervisor/nodejs.err.log")
+    if code == 0:
+        size = int(stdout.strip().split()[0])
+        if size == 0:
+            print("✅ Error log is empty (0 bytes)")
+            return True
+        else:
+            print(f"❌ Error log has {size} bytes")
+            # Show last few lines if not empty
+            code2, content, _ = run_command("tail -10 /var/log/supervisor/nodejs.err.log")
+            if content.strip():
+                print(f"Recent errors:\n{content}")
+            return False
     else:
-        print(f"❌ Error log has content: {stdout}")
-        # Show last few lines of error log
-        run_command("tail -10 /var/log/supervisor/nodejs.err.log")
+        print(f"❌ Could not check error log: {stderr}")
         return False
 
-def test_twilio_webhook_handlers() -> bool:
-    """Test 4-6: Verify customAudioGreetingUrl usage in 3 Twilio webhook handlers"""
-    print("\n🔍 Test 4-6: Twilio webhook handlers verification")
+def test_voicemail_complete_implementation():
+    """Test 5: Verify /twilio/voicemail-complete implementation"""
+    print("🔍 Testing /twilio/voicemail-complete implementation...")
     
     # Read the _index.js file
     try:
         with open("/app/js/_index.js", "r") as f:
             content = f.read()
     except Exception as e:
-        print(f"❌ Failed to read _index.js: {e}")
+        print(f"❌ Could not read _index.js: {e}")
         return False
     
-    # Check for the 3 webhook handlers with correct field usage
-    handlers_found = 0
-    
-    # Pattern to find vmConfig.customAudioGreetingUrl usage
-    pattern = r'vmConfig\.customAudioGreetingUrl'
-    matches = re.findall(pattern, content)
-    
-    if len(matches) >= 3:
-        print(f"✅ Found {len(matches)} references to vmConfig.customAudioGreetingUrl")
-        handlers_found = len(matches)
-    else:
-        print(f"❌ Expected at least 3 references to vmConfig.customAudioGreetingUrl, found {len(matches)}")
+    # Find the voicemail-complete handler (around line 25754)
+    voicemail_handler_match = re.search(r"app\.post\('/twilio/voicemail-complete'.*?(?=app\.post|$)", content, re.DOTALL)
+    if not voicemail_handler_match:
+        print("❌ /twilio/voicemail-complete handler not found")
         return False
     
-    # Check for 3-tier fallback pattern
-    fallback_pattern = r'vmConfig\.greetingType === [\'"]custom[\'"] && vmConfig\.customAudioGreetingUrl.*?response\.play.*?vmConfig\.greetingType === [\'"]custom[\'"] && vmConfig\.customGreetingText.*?response\.say.*?response\.say\([\'"].*?unavailable.*?[\'"]'
+    handler_code = voicemail_handler_match.group(0)
     
-    # Count occurrences of the complete fallback pattern
-    lines = content.split('\n')
-    fallback_blocks = 0
-    
-    for i, line in enumerate(lines):
-        if 'vmConfig.customAudioGreetingUrl' in line and 'response.play' in lines[i+1] if i+1 < len(lines) else False:
-            # Check if this block has the 3-tier fallback
-            block_lines = lines[i:i+10] if i+10 < len(lines) else lines[i:]
-            block_text = '\n'.join(block_lines)
-            
-            if ('customAudioGreetingUrl' in block_text and 
-                'customGreetingText' in block_text and 
-                'unavailable' in block_text):
-                fallback_blocks += 1
-    
-    if fallback_blocks >= 3:
-        print(f"✅ Found {fallback_blocks} complete 3-tier fallback implementations")
+    # Test 5a: voiceService import
+    if "voiceService = require('./voice-service.js')" in handler_code:
+        print("✅ voiceService import found")
     else:
-        print(f"❌ Expected 3 complete fallback implementations, found {fallback_blocks}")
+        print("❌ voiceService import not found")
+        return False
+    
+    # Test 5b: CallSid extraction
+    if "CallSid" in handler_code and "req.body" in handler_code:
+        print("✅ CallSid extraction from req.body found")
+    else:
+        print("❌ CallSid extraction not found")
+        return False
+    
+    # Test 5c: 1-minute minimum billing
+    if "Math.max(1, Math.ceil(duration / 60))" in handler_code:
+        print("✅ 1-minute minimum billing logic found")
+    else:
+        print("❌ 1-minute minimum billing logic not found")
+        return False
+    
+    # Test 5d: billCallMinutesUnified call with 'Twilio_Voicemail'
+    if "billCallMinutesUnified(chatId, num.phoneNumber, minutesBilled, decodedFrom, 'Twilio_Voicemail')" in handler_code:
+        print("✅ billCallMinutesUnified call with 'Twilio_Voicemail' found")
+    else:
+        print("❌ billCallMinutesUnified call with 'Twilio_Voicemail' not found")
+        return False
+    
+    # Test 5e: _twilioBilledCallSids.add(CallSid) for deduplication
+    if "_twilioBilledCallSids.add(CallSid)" in handler_code:
+        print("✅ _twilioBilledCallSids.add(CallSid) deduplication found")
+    else:
+        print("❌ _twilioBilledCallSids.add(CallSid) deduplication not found")
+        return False
+    
+    # Test 5f: billingLine with plan usage
+    if "billingLine" in handler_code and "remaining" in handler_code and "billingInfo.limit" in handler_code:
+        print("✅ billingLine with plan usage found")
+    else:
+        print("❌ billingLine with plan usage not found")
+        return False
+    
+    # Test 5g: minutesBilled stored in phoneLogs
+    if "minutesBilled" in handler_code and "phoneLogs" in handler_code:
+        print("✅ minutesBilled stored in phoneLogs found")
+    else:
+        print("❌ minutesBilled stored in phoneLogs not found")
         return False
     
     return True
 
-def test_old_field_references() -> bool:
-    """Test 7: Verify no remaining customGreetingUrl references in active code"""
-    print("\n🔍 Test 7: Check for old customGreetingUrl references")
+def test_voice_service_handlecallhangup():
+    """Test 6: Verify voice-service.js handleCallHangup voicemail notification"""
+    print("🔍 Testing voice-service.js handleCallHangup voicemail notification...")
     
-    exit_code, stdout, stderr = run_command("grep -n 'customGreetingUrl' /app/js/_index.js")
-    
-    if exit_code != 0:
-        print("✅ No customGreetingUrl references found")
-        return True
-    
-    # Check if found references are only in default schema objects
-    lines = stdout.strip().split('\n')
-    schema_lines = [1213, 6614, 22113, 22850, 23528]  # Expected schema object lines
-    
-    all_schema = True
-    for line in lines:
-        if ':' in line:
-            line_num = int(line.split(':')[0])
-            if line_num not in schema_lines:
-                print(f"❌ Found customGreetingUrl reference outside schema objects at line {line_num}")
-                all_schema = False
-    
-    if all_schema:
-        print(f"✅ All {len(lines)} customGreetingUrl references are in default schema objects (lines: {[int(l.split(':')[0]) for l in lines]})")
-        return True
-    else:
-        return False
-
-def test_telnyx_handlers() -> bool:
-    """Test 8: Verify Telnyx handlers still use customAudioGreetingUrl"""
-    print("\n🔍 Test 8: Telnyx handler verification")
-    
+    # Read the voice-service.js file
     try:
         with open("/app/js/voice-service.js", "r") as f:
             content = f.read()
     except Exception as e:
-        print(f"❌ Failed to read voice-service.js: {e}")
+        print(f"❌ Could not read voice-service.js: {e}")
         return False
     
-    # Check for customAudioGreetingUrl in Telnyx handlers
-    pattern = r'vm\.customAudioGreetingUrl|vmConfig\.customAudioGreetingUrl'
-    matches = re.findall(pattern, content)
-    
-    if len(matches) >= 2:  # Expected at lines 1213 and 2682
-        print(f"✅ Found {len(matches)} references to customAudioGreetingUrl in Telnyx handlers")
-        return True
+    # Test 6a: voicemail_recording/voicemail_greeting phase check
+    voicemail_phase_pattern = r"session\.phase === 'voicemail_recording' \|\| session\.phase === 'voicemail_greeting'"
+    if re.search(voicemail_phase_pattern, content):
+        print("✅ voicemail_recording/voicemail_greeting phase check found")
     else:
-        print(f"❌ Expected at least 2 references in Telnyx handlers, found {len(matches)}")
+        print("❌ voicemail_recording/voicemail_greeting phase check not found")
         return False
-
-def test_backend_url() -> bool:
-    """Test 9: Verify backend URL configuration"""
-    print("\n🔍 Test 9: Backend URL verification")
     
+    # Test 6b: Notification includes billingInfo.overageCharge
+    # Find the voicemail notification section
+    voicemail_section_match = re.search(r"session\.phase === 'voicemail_recording' \|\| session\.phase === 'voicemail_greeting'.*?(?=} else|$)", content, re.DOTALL)
+    if not voicemail_section_match:
+        print("❌ Voicemail notification section not found")
+        return False
+    
+    voicemail_section = voicemail_section_match.group(0)
+    
+    if "billingInfo.overageCharge" in voicemail_section:
+        print("✅ billingInfo.overageCharge in notification found")
+    else:
+        print("❌ billingInfo.overageCharge in notification not found")
+        return False
+    
+    # Test 6c: planLine and formatDuration(duration)
+    if "planLine" in voicemail_section and "formatDuration(duration)" in voicemail_section:
+        print("✅ planLine and formatDuration(duration) found")
+    else:
+        print("❌ planLine and formatDuration(duration) not found")
+        return False
+    
+    # Test 6d: Message header is 'Voicemail Call Ended'
+    if "Voicemail Call Ended" in voicemail_section:
+        print("✅ 'Voicemail Call Ended' header found")
+    else:
+        print("❌ 'Voicemail Call Ended' header not found")
+        return False
+    
+    return True
+
+def test_billcallminutesunified_function():
+    """Test 7: Verify billCallMinutesUnified function exists and is exported"""
+    print("🔍 Testing billCallMinutesUnified function...")
+    
+    # Read the voice-service.js file
     try:
-        # Check if we can reach the backend through the expected URL
-        response = requests.get("https://readme-setup-13.preview.emergentagent.com/api/health", timeout=10)
-        if response.status_code == 200:
-            data = response.json()
-            print(f"✅ Backend accessible via production URL: {data}")
-            return True
-        else:
-            print(f"❌ Backend URL returned {response.status_code}")
-            return False
+        with open("/app/js/voice-service.js", "r") as f:
+            content = f.read()
     except Exception as e:
-        print(f"⚠️  Backend URL test failed (expected in test environment): {e}")
-        # This is expected to fail in test environment, so we'll mark it as passed
-        print("✅ Backend URL test skipped (test environment)")
-        return True
+        print(f"❌ Could not read voice-service.js: {e}")
+        return False
+    
+    # Check if function exists around line 877
+    if "async function billCallMinutesUnified(" in content:
+        print("✅ billCallMinutesUnified function found")
+    else:
+        print("❌ billCallMinutesUnified function not found")
+        return False
+    
+    # Check if it's exported (around line 3906)
+    if "billCallMinutesUnified," in content:
+        print("✅ billCallMinutesUnified is exported")
+    else:
+        print("❌ billCallMinutesUnified is not exported")
+        return False
+    
+    return True
+
+def test_twilio_billed_call_sids():
+    """Test 8: Verify _twilioBilledCallSids variable exists"""
+    print("🔍 Testing _twilioBilledCallSids variable...")
+    
+    # Read the _index.js file
+    try:
+        with open("/app/js/_index.js", "r") as f:
+            content = f.read()
+    except Exception as e:
+        print(f"❌ Could not read _index.js: {e}")
+        return False
+    
+    # Check if _twilioBilledCallSids is declared
+    if "_twilioBilledCallSids = new Set()" in content:
+        print("✅ _twilioBilledCallSids variable declaration found")
+    else:
+        print("❌ _twilioBilledCallSids variable declaration not found")
+        return False
+    
+    # Check if it's used for deduplication
+    if "_twilioBilledCallSids.add(CallSid)" in content:
+        print("✅ _twilioBilledCallSids.add(CallSid) usage found")
+    else:
+        print("❌ _twilioBilledCallSids.add(CallSid) usage not found")
+        return False
+    
+    return True
+
+def test_regular_twilio_billing_paths():
+    """Test 9: Verify regular Twilio inbound billing paths still work"""
+    print("🔍 Testing regular Twilio inbound billing paths...")
+    
+    # Read the _index.js file
+    try:
+        with open("/app/js/_index.js", "r") as f:
+            content = f.read()
+    except Exception as e:
+        print(f"❌ Could not read _index.js: {e}")
+        return False
+    
+    # Check sip-ring-result handler
+    sip_ring_match = re.search(r"app\.post\('/twilio/sip-ring-result'.*?(?=app\.post|$)", content, re.DOTALL)
+    if sip_ring_match and "_twilioBilledCallSids.add(CallSid)" in sip_ring_match.group(0):
+        print("✅ sip-ring-result handler adds to _twilioBilledCallSids")
+    else:
+        print("❌ sip-ring-result handler does not add to _twilioBilledCallSids")
+        return False
+    
+    # Check voice-dial-status handler
+    voice_dial_match = re.search(r"app\.post\('/twilio/voice-dial-status'.*?(?=app\.post|$)", content, re.DOTALL)
+    if voice_dial_match and "_twilioBilledCallSids.add(CallSid)" in voice_dial_match.group(0):
+        print("✅ voice-dial-status handler adds to _twilioBilledCallSids")
+    else:
+        print("❌ voice-dial-status handler does not add to _twilioBilledCallSids")
+        return False
+    
+    return True
 
 def main():
-    """Run all tests and provide summary"""
-    print("=" * 60)
-    print("🧪 TWILIO CUSTOM VOICEMAIL GREETING FIX TESTING")
+    """Run all tests"""
+    print("🚀 Starting Voicemail Billing Implementation Tests")
     print("=" * 60)
     
     tests = [
         ("Syntax Validation", test_syntax_validation),
         ("Health Endpoint", test_health_endpoint),
-        ("Error Logs Clean", test_error_logs),
-        ("Twilio Webhook Handlers", test_twilio_webhook_handlers),
-        ("No Old Field References", test_old_field_references),
-        ("Telnyx Handlers Intact", test_telnyx_handlers),
-        ("Backend URL", test_backend_url),
+        ("Error Logs", test_error_logs),
+        ("Voicemail Complete Implementation", test_voicemail_complete_implementation),
+        ("Voice Service HandleCallHangup", test_voice_service_handlecallhangup),
+        ("billCallMinutesUnified Function", test_billcallminutesunified_function),
+        ("_twilioBilledCallSids Variable", test_twilio_billed_call_sids),
+        ("Regular Twilio Billing Paths", test_regular_twilio_billing_paths),
     ]
     
     passed = 0
     total = len(tests)
     
     for test_name, test_func in tests:
+        print(f"\n📋 {test_name}")
+        print("-" * 40)
         try:
             if test_func():
                 passed += 1
+                print(f"✅ {test_name} PASSED")
             else:
                 print(f"❌ {test_name} FAILED")
         except Exception as e:
             print(f"❌ {test_name} ERROR: {e}")
     
     print("\n" + "=" * 60)
-    print(f"📊 TEST SUMMARY: {passed}/{total} tests passed")
-    print("=" * 60)
+    print(f"📊 TEST SUMMARY: {passed}/{total} tests passed ({passed/total*100:.1f}%)")
     
     if passed == total:
-        print("🎉 ALL TESTS PASSED - Twilio custom voicemail greeting fix is working correctly!")
-        print("\n✅ VERIFICATION CHECKLIST CONFIRMED:")
-        print("   1. ✅ Syntax validation passes")
-        print("   2. ✅ Health endpoint returns healthy")
-        print("   3. ✅ Error log is clean")
-        print("   4. ✅ /twilio/voice-webhook uses vmConfig.customAudioGreetingUrl")
-        print("   5. ✅ /twilio/sip-ring-result uses vmConfig.customAudioGreetingUrl")
-        print("   6. ✅ /twilio/voice-dial-status uses vmConfig.customAudioGreetingUrl")
-        print("   7. ✅ All 3 handlers have 3-tier fallback (audio URL → text → default)")
-        print("   8. ✅ No remaining customGreetingUrl references in active code")
-        print("   9. ✅ Telnyx handlers still use customAudioGreetingUrl")
-        print("   10. ✅ Backend URL configuration verified")
-        return True
+        print("🎉 ALL TESTS PASSED - Voicemail billing implementation is working correctly!")
+        return 0
     else:
-        print(f"❌ {total - passed} tests failed - Fix needs attention")
-        return False
+        print(f"⚠️  {total - passed} test(s) failed - Please review the implementation")
+        return 1
 
 if __name__ == "__main__":
-    success = main()
-    sys.exit(0 if success else 1)
+    sys.exit(main())

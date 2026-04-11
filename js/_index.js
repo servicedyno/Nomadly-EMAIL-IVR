@@ -25753,19 +25753,45 @@ app.post('/phone/reset-credentials', async (req, res) => {
 
 app.post('/twilio/voicemail-complete', async (req, res) => {
   const VoiceResponse = require('twilio').twiml.VoiceResponse
+  const voiceService = require('./voice-service.js')
   try {
-    const { RecordingUrl, RecordingDuration, RecordingSid } = req.body || {}
+    const { RecordingUrl, RecordingDuration, RecordingSid, CallSid } = req.body || {}
     const { chatId: rawChatId, from, to } = req.query || {}
     const chatId = rawChatId ? parseInt(rawChatId) : null
+    const decodedFrom = decodeURIComponent(from || 'unknown')
+    const decodedTo = decodeURIComponent(to || '')
     log(`[Twilio] Voicemail recorded: ${RecordingSid} (${RecordingDuration}s) for chatId=${chatId}`)
 
     if (chatId && RecordingUrl) {
       const duration = parseInt(RecordingDuration || '0')
       const audioUrl = `${RecordingUrl}.mp3`
 
-      // Send voicemail to Telegram
-      bot?.sendMessage(chatId, `🎤 <b>New Voicemail</b>\nFrom: ${decodeURIComponent(from || 'unknown')}\nTo: ${decodeURIComponent(to || '')}\nDuration: ${duration}s`, { parse_mode: 'HTML' }).catch(() => {})
-      bot?.sendAudio(chatId, audioUrl, { caption: `Voicemail from ${decodeURIComponent(from || 'unknown')} (${duration}s)` }).catch((e) => {
+      // ━━━ BILL VOICEMAIL: Same inbound rates as regular calls ━━━
+      // Minimum 1 minute (covers greeting playback + recording time)
+      const minutesBilled = Math.max(1, Math.ceil(duration / 60))
+      let billingLine = ''
+      try {
+        const userData = await get(phoneNumbersOf, chatId)
+        const numbers = userData?.numbers || []
+        const num = numbers.find(n => n.phoneNumber === decodedTo && n.provider === 'twilio')
+        if (num) {
+          const billingInfo = await voiceService.billCallMinutesUnified(chatId, num.phoneNumber, minutesBilled, decodedFrom, 'Twilio_Voicemail')
+          const remaining = billingInfo.limit > 0 ? Math.max(0, billingInfo.limit - billingInfo.used) : null
+          billingLine = remaining !== null
+            ? `\n📊 ${minutesBilled} min · <b>${remaining}/${billingInfo.limit}</b> remaining`
+            : `\n📊 ${minutesBilled} min used`
+          if (billingInfo.overageCharge > 0) {
+            billingLine += `\n💰 Overage: $${billingInfo.overageCharge.toFixed(2)} from wallet`
+          }
+          log(`[Twilio] Voicemail billed: ${minutesBilled} min (${billingInfo.planMinUsed} plan + ${billingInfo.overageMin} overage) for ${decodedTo}`)
+          // Mark CallSid as billed — prevent double-billing from /twilio/voice-status
+          if (CallSid) _twilioBilledCallSids.add(CallSid)
+        }
+      } catch (e) { log(`[Twilio] Voicemail billing error: ${e.message}`) }
+
+      // Send voicemail + billing notification to Telegram
+      bot?.sendMessage(chatId, `🎤 <b>New Voicemail</b>\nFrom: ${decodedFrom}\nTo: ${decodedTo}\nDuration: ${duration}s${billingLine}`, { parse_mode: 'HTML' }).catch(() => {})
+      bot?.sendAudio(chatId, audioUrl, { caption: `Voicemail from ${decodedFrom} (${duration}s)` }).catch((e) => {
         // If audio send fails, send URL as message
         bot?.sendMessage(chatId, `🎤 Voicemail audio: ${audioUrl}`, { parse_mode: 'HTML' }).catch(() => {})
       })
@@ -25775,11 +25801,12 @@ app.post('/twilio/voicemail-complete', async (req, res) => {
         chatId: parseFloat(chatId),
         type: 'voicemail',
         provider: 'twilio',
-        from: decodeURIComponent(from || ''),
-        to: decodeURIComponent(to || ''),
+        from: decodedFrom,
+        to: decodedTo,
         recordingUrl: audioUrl,
         recordingSid: RecordingSid,
         duration,
+        minutesBilled,
         timestamp: new Date().toISOString()
       })
     }
