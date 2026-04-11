@@ -21819,7 +21819,7 @@ const bankApis = {
 
     // Update Wallet
     const ngnPrice = await usdToNgn(price)
-    if (usdIn < price) {
+    if (usdIn * 1.06 < price) {
       sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`))
       addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
       return res.send(html(translation('t.lowPrice')))
@@ -21855,7 +21855,7 @@ const bankApis = {
 
     // Update Wallet
     const ngnPrice = await usdToNgn(price)
-    if (usdIn < price) {
+    if (usdIn * 1.06 < price) {
       sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`))
       addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
       return res.send(html(translation('t.lowPrice')))
@@ -21930,7 +21930,7 @@ const bankApis = {
 
     // Update Wallet
     const ngnPrice = await usdToNgn(price)
-    if (usdIn < price) {
+    if (usdIn * 1.06 < price) {
       sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`))
       addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
       recordHostingTransaction(chatId, { ...txBase, outcome: 'failed' })
@@ -22001,7 +22001,7 @@ const bankApis = {
     sendMessage(chatId, translation('vp.paymentRecieved', lang))
     // Update Wallet
     const ngnPrice = await usdToNgn(price)
-    if (usdIn < price) {
+    if (usdIn * 1.06 < price) {
       sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`))
       addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
       return res.send(html(translation('t.lowPrice')))
@@ -22041,7 +22041,7 @@ const bankApis = {
     sendMessage(chatId, translation('vp.vpsChangePaymentRecieved', lang))
     // Update Wallet
     const ngnPrice = await usdToNgn(price)
-    if (usdIn < price) {
+    if (usdIn * 1.06 < price) {
       sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`))
       addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
       return res.send(html(translation('t.lowPrice')))
@@ -22072,7 +22072,7 @@ const bankApis = {
     const name = await get(nameOf, chatId)
     set(payments, ref, `Bank,CloudPhone,${cpData.selectedNumber},$${usdIn},${chatId},${name},${new Date()},₦${ngnIn}`)
     const ngnPrice = await usdToNgn(price)
-    if (usdIn < price) {
+    if (usdIn * 1.06 < price) {
       sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`))
       addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
       return res.send(html(translation('t.lowPrice')))
@@ -22238,7 +22238,7 @@ const bankApis = {
     const label = isValidator ? 'Validation' : 'Leads'
     set(payments, ref, `Bank,${label},$${usdIn},${chatId},${name},${new Date()},₦${ngnIn}`)
     const ngnPrice = await usdToNgn(price)
-    if (usdIn < price) {
+    if (usdIn * 1.06 < price) {
       sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`))
       addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
       return res.send(html(translation('t.lowPrice')))
@@ -22342,7 +22342,7 @@ const bankApis = {
     set(payments, ref, `Bank,DigitalProduct,${product},$${usdIn},${chatId},${name},${new Date()},${ngnIn} NGN`)
 
     const ngnPrice = await usdToNgn(price)
-    if (usdIn < price) {
+    if (usdIn * 1.06 < price) {
       sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`))
       addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
       return res.send(html(translation('t.lowPrice')))
@@ -22375,7 +22375,7 @@ const bankApis = {
     set(payments, ref, `Bank,VirtualCard,${product},$${usdIn},${chatId},${name},${new Date()},${ngnIn} NGN`)
 
     const ngnPrice = await usdToNgn(price)
-    if (usdIn < price) {
+    if (usdIn * 1.06 < price) {
       sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`))
       addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
       return res.send(html(translation('t.lowPrice')))
@@ -22445,7 +22445,7 @@ const bankApis = {
 
     // Validate payment amount (allow 6% tolerance)
     const ngnPrice = await usdToNgn(price)
-    if (usdIn < price) {
+    if (usdIn * 1.06 < price) {
       sendMessage(chatId, translation('t.sentLessMoney', lang, `${ngnPrice} NGN`, `${ngnIn} NGN`))
       addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
       return res.send(html(translation('t.lowPrice')))
@@ -22664,7 +22664,7 @@ app.get('/crypto-pay-plan', auth, async (req, res) => {
 
   // Update Wallet
   const usdIn = await convert(value, coin, 'usd')
-  const usdNeed = usdIn
+  const usdNeed = usdIn * 1.06
   console.log(`usdIn ${usdIn}, usdNeed ${usdNeed}, Crypto, Plan, ${chatId}, ${name}`)
   if (usdNeed < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
@@ -22702,7 +22702,7 @@ app.get('/crypto-pay-domain', auth, async (req, res) => {
 
   // Update Wallet
   const usdIn = await convert(value, coin, 'usd')
-  if (usdIn < price) {
+  if (usdIn * 1.06 < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
     return res.send(html(translation('t.lowPrice')))
@@ -22779,7 +22779,7 @@ app.get('/crypto-pay-hosting', auth, async (req, res) => {
 
   // Update Wallet
   const usdIn = await convert(value, coin, 'usd')
-  if (usdIn < price) {
+  if (usdIn * 1.06 < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
     recordHostingTransaction(chatId, { ...txBase, outcome: 'failed' })
@@ -22841,7 +22841,7 @@ app.get('/crypto-pay-phone', auth, async (req, res) => {
   const name = await get(nameOf, chatId)
   set(payments, ref, `Crypto,CloudPhone,${cpData.selectedNumber},$${price},${chatId},${name},${new Date()},${value} ${coin}`)
   const usdIn = await convert(value, coin, 'usd')
-  if (usdIn < price) {
+  if (usdIn * 1.06 < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
     return res.send(html(translation('t.lowPrice')))
@@ -22978,7 +22978,7 @@ app.get('/crypto-pay-leads', auth, async (req, res) => {
   const label = isValidator ? 'Validation' : 'Leads'
   set(payments, ref, `Crypto,${label},$${price},${chatId},${name},${new Date()},${value} ${coin}`)
   const usdIn = await convert(value, coin, 'usd')
-  if (usdIn < price) {
+  if (usdIn * 1.06 < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
     return res.send(html(translation('t.lowPrice')))
@@ -23094,7 +23094,7 @@ app.get('/crypto-pay-vps', auth, async (req, res) => {
 
   // Update Wallet
   const usdIn = await convert(value, coin, 'usd')
-  if (usdIn < price) {
+  if (usdIn * 1.06 < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
     addFundsTo(walletOf, chatId, 'usd', Number(usdIn), lang)
     return res.send(html(translation('t.lowPrice')))
@@ -23152,7 +23152,7 @@ app.get('/crypto-pay-upgrade-vps', auth, async (req, res) => {
 
   // Update Wallet
   const usdIn = await convert(value, coin, 'usd')
-  if (usdIn < price) {
+  if (usdIn * 1.06 < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
     addFundsTo(walletOf, chatId, 'usd', Number(usdIn), lang)
     return res.send(html(translation('t.lowPrice')))
@@ -23191,7 +23191,7 @@ app.get('/crypto-pay-digital-product', auth, async (req, res) => {
   const name = await get(nameOf, chatId)
   set(payments, ref, `Crypto,DigitalProduct,${product},$${price},${chatId},${name},${new Date()},${value} ${coin}`)
   const usdIn = await convert(value, coin, 'usd')
-  if (usdIn < price) {
+  if (usdIn * 1.06 < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
     return res.send(html(translation('t.lowPrice')))
@@ -23224,7 +23224,7 @@ app.get('/crypto-pay-virtual-card', auth, async (req, res) => {
   const name = await get(nameOf, chatId)
   set(payments, ref, `Crypto,VirtualCard,${product},$${price},${chatId},${name},${new Date()},${value} ${coin}`)
   const usdIn = await convert(value, coin, 'usd')
-  if (usdIn < price) {
+  if (usdIn * 1.06 < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
     return res.send(html(translation('t.lowPrice')))
@@ -23309,7 +23309,7 @@ app.post('/dynopay/crypto-pay-plan', authDyno, async (req, res) => {
   } else {
     usdIn = await convert(value, ticker , 'usd')
   }
-  const usdNeed = usdIn
+  const usdNeed = usdIn * 1.06
   console.log(`usdIn ${usdIn}, usdNeed ${usdNeed}, Crypto, Plan, ${chatId}, ${name}`)
   if (usdNeed < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
@@ -23361,7 +23361,7 @@ app.post('/dynopay/crypto-pay-domain', authDyno, async (req, res) => {
   } else {
     usdIn = await convert(value, ticker , 'usd')
   }
-  if (usdIn < price) {
+  if (usdIn * 1.06 < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
     return res.send(html(translation('t.lowPrice')))
@@ -23448,7 +23448,7 @@ app.post('/dynopay/crypto-pay-hosting', authDyno, async (req, res) => {
     usdIn = await convert(value, ticker , 'usd')
     log('[crypto-pay-hosting] Converted', value, ticker, '= $' + usdIn)
   }
-  if (usdIn < price) {
+  if (usdIn * 1.06 < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
     recordHostingTransaction(chatId, { ...txBase, outcome: 'failed' })
@@ -23518,7 +23518,7 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
   } else {
     usdIn = await convert(value, ticker, 'usd')
   }
-  if (usdIn < price) {
+  if (usdIn * 1.06 < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
     return res.send(html(translation('t.lowPrice')))
@@ -23662,7 +23662,7 @@ app.post('/dynopay/crypto-pay-leads', authDyno, async (req, res) => {
   } else {
     usdIn = await convert(value, ticker, 'usd')
   }
-  if (usdIn < price) {
+  if (usdIn * 1.06 < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
     return res.send(html(translation('t.lowPrice')))
@@ -23780,7 +23780,7 @@ app.post('/dynopay/crypto-pay-vps', authDyno, async (req, res) => {
   } else {
     usdIn = await convert(value, ticker , 'usd')
   }
-  if (usdIn < price) {
+  if (usdIn * 1.06 < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
     addFundsTo(walletOf, chatId, 'usd', Number(usdIn), lang)
     return res.send(html(translation('t.lowPrice')))
@@ -23851,7 +23851,7 @@ app.post('/dynopay/crypto-pay-upgrade-vps', authDyno, async (req, res) => {
   } else {
     usdIn = await convert(value, ticker , 'usd')
   }
-  if (usdIn < price) {
+  if (usdIn * 1.06 < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
     addFundsTo(walletOf, chatId, 'usd', Number(usdIn), lang)
     return res.send(html(translation('t.lowPrice')))
@@ -23900,7 +23900,7 @@ app.post('/dynopay/crypto-pay-digital-product', authDyno, async (req, res) => {
   } else {
     usdIn = await convert(value, ticker, 'usd')
   }
-  if (usdIn < price) {
+  if (usdIn * 1.06 < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
     return res.send(html(translation('t.lowPrice')))
@@ -23940,7 +23940,7 @@ app.post('/dynopay/crypto-pay-virtual-card', authDyno, async (req, res) => {
   } else {
     usdIn = await convert(value, ticker, 'usd')
   }
-  if (usdIn < price) {
+  if (usdIn * 1.06 < price) {
     sendMessage(chatId, translation('t.sentLessMoney', lang, `$${price}`, `$${usdIn}`))
     addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
     return res.send(html(translation('t.lowPrice')))
