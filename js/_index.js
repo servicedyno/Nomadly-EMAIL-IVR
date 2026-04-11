@@ -1821,6 +1821,15 @@ const loadData = async () => {
           if (!paymentData) continue
 
           if (paymentData.status === 'success' && paymentData.amountReceived > 0) {
+            // Mark ref as processed to prevent webhook + reconciler double-processing
+            if (processedFincraRefs.has(ref)) {
+              log(`[FincraReconcile] Skipping ref=${ref} — already processed by webhook`)
+              await del(chatIdOfPayment, ref)
+              continue
+            }
+            processedFincraRefs.add(ref)
+            setTimeout(() => processedFincraRefs.delete(ref), 3600000)
+
             log(`[FincraReconcile] ✅ RECOVERED missed payment! ref=${ref} chatId=${chatId} ₦${paymentData.amountReceived} -> ${endpoint}`)
 
             // Notify admin about recovered payment
@@ -21646,6 +21655,9 @@ const auth = async (req, res, next) => {
 // Track processed DynoPay payment IDs to prevent duplicate processing
 const processedDynopayPayments = new Set()
 
+// Track processed Fincra webhook refs to prevent duplicate processing
+const processedFincraRefs = new Set()
+
 // Map payment_id → refId from pending events, so confirmed/failed events (which lack meta_data) can find the session
 const dynopayPaymentIdToRef = new Map()
 
@@ -22397,6 +22409,13 @@ const bankApis = {
     // Validate
     const { ref, chatId } = req.pay
     if (!ref || !chatId) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
+
+    // Reject zero/negative deposits — defense-in-depth (webhook handler also checks)
+    if (!ngnIn || ngnIn <= 0) {
+      log(`[bank-wallet] ⚠️ Rejected zero/negative deposit — ref: ${ref}, chatId: ${chatId}, ngnIn: ${ngnIn}`)
+      return res.send(html('OK'))
+    }
+
     const info = await state.findOne({ _id: parseFloat(chatId) })
     const lang = info?.userLanguage ?? 'en'
 
@@ -22515,9 +22534,30 @@ app.post('/webhook', auth, (req, res) => {
   const value = req?.body?.data?.amountReceived
   const coin = req?.body?.data?.currency
   const endpoint = req?.pay?.endpoint
+  const ref = req?.pay?.ref
+
+  // Reject invalid currency, non-numeric amount, or unknown endpoint
   if (coin !== 'NGN' || isNaN(value) || !bankApis[endpoint]) {
     log(`[Fincra Webhook] ⚠️ Rejected — coin: ${coin}, value: ${value}, endpoint: ${endpoint}`)
     return res.send(html(translation('t.argsErr')))
+  }
+
+  // Reject zero or negative amounts — Fincra fires webhooks with amountReceived=0
+  // when checkout is created but user never actually sends money
+  if (Number(value) <= 0) {
+    log(`[Fincra Webhook] ⚠️ Rejected zero/negative amount — ref: ${ref}, value: ₦${value}, endpoint: ${endpoint}`)
+    return res.send(html('OK'))
+  }
+
+  // Deduplicate — Fincra sometimes sends the same webhook multiple times
+  if (ref && processedFincraRefs.has(ref)) {
+    log(`[Fincra Webhook] ⚠️ Duplicate ignored — ref: ${ref} already processed`)
+    return res.send(html('OK'))
+  }
+  if (ref) {
+    processedFincraRefs.add(ref)
+    // Auto-cleanup after 1 hour to prevent unbounded memory growth
+    setTimeout(() => processedFincraRefs.delete(ref), 3600000)
   }
 
   log(`[Fincra Webhook] ✅ Processing: ${endpoint} for ₦${value}`)

@@ -1,327 +1,258 @@
 #!/usr/bin/env python3
 """
-Backend Test Suite for Telegram Bot Plan Selection UI Text
-Tests the plan selection implementation to verify all features are displayed correctly
+Backend Test Suite for Fincra Webhook Fixes
+Testing the 4 specific fixes for $0 NGN deposit confirmation and double group notification bugs
 """
 
 import requests
+import subprocess
 import json
-import sys
-import os
 import re
-from datetime import datetime
+import os
+import time
 
-# Get backend URL from environment
-BACKEND_URL = os.getenv('REACT_APP_BACKEND_URL', 'https://readme-start-1.preview.emergentagent.com')
-API_BASE = f"{BACKEND_URL}/api" if not BACKEND_URL.endswith('/api') else BACKEND_URL
+# Backend URL from environment
+BACKEND_URL = "https://readme-start-1.preview.emergentagent.com"
+HEALTH_URL = f"{BACKEND_URL}/api/health"
+
+def test_syntax_validation():
+    """Test 1: Verify JavaScript syntax is valid"""
+    print("🔍 Test 1: JavaScript Syntax Validation")
+    
+    result = subprocess.run(['node', '-c', '/app/js/_index.js'], 
+                          capture_output=True, text=True)
+    
+    if result.returncode == 0:
+        print("✅ PASS: JavaScript syntax validation successful")
+        return True
+    else:
+        print(f"❌ FAIL: Syntax error in _index.js: {result.stderr}")
+        return False
 
 def test_health_endpoint():
-    """Test that the backend health endpoint is working"""
+    """Test 2: Verify health endpoint returns healthy status"""
+    print("\n🔍 Test 2: Health Endpoint Check")
+    
     try:
-        response = requests.get(f"{API_BASE}/health", timeout=10)
+        response = requests.get("http://localhost:5000/health", timeout=10)
         if response.status_code == 200:
             data = response.json()
-            print(f"✅ Health check passed: {data}")
-            return True
-        else:
-            print(f"❌ Health check failed: HTTP {response.status_code}")
-            return False
-    except Exception as e:
-        print(f"❌ Health check error: {e}")
-        return False
-
-def test_node_service_status():
-    """Test that the Node.js service is running properly"""
-    print("\n🔧 Testing Node.js Service Status...")
-    
-    try:
-        # Test the main endpoint
-        response = requests.get(f"{BACKEND_URL}/", timeout=10)
-        if response.status_code == 200:
-            print("✅ Node.js service is responding")
-            return True
-        else:
-            print(f"❌ Node.js service error: HTTP {response.status_code}")
-            return False
-    except Exception as e:
-        print(f"❌ Node.js service test error: {e}")
-        return False
-
-def verify_plan_selection_code():
-    """Verify the plan selection code implementation"""
-    print("\n🔍 Verifying Plan Selection Code Implementation...")
-    
-    try:
-        # Read the _index.js file to verify the plan selection message
-        with open('/app/js/_index.js', 'r') as f:
-            content = f.read()
-        
-        # Check if the plan selection message exists around line 14435
-        if 'buyPlansHeader' in content and 'Starter' in content and 'Pro' in content and 'Business' in content:
-            print("✅ Plan selection message structure found")
-        else:
-            print("❌ Plan selection message structure not found")
-            return False
-        
-        # Check for specific features mentioned in the review request
-        required_features = [
-            'Call forwarding',
-            'SMS forwarded to Telegram',
-            'extra numbers',
-            'Voicemail',
-            'SIP credentials',
-            'Webhook integrations',
-            'Quick IVR Call',
-            'Bulk IVR Campaign',
-            'OTP Collection',
-            'Call Recording & Analytics',
-            'IVR Auto-Attendant',
-            'IVR Redial Button',
-            'Call Scheduling',
-            'Custom OTP Messages',
-            'Consistent TTS Voice',
-            'Priority Support'
-        ]
-        
-        found_features = []
-        missing_features = []
-        
-        for feature in required_features:
-            if feature in content:
-                found_features.append(feature)
+            if data.get('status') == 'healthy':
+                print(f"✅ PASS: Health endpoint healthy - {data}")
+                return True
             else:
-                missing_features.append(feature)
-        
-        print(f"✅ Found {len(found_features)}/{len(required_features)} required features")
-        
-        if missing_features:
-            print(f"⚠️ Missing features: {missing_features}")
-        
-        return len(missing_features) == 0
-        
+                print(f"❌ FAIL: Health endpoint not healthy - {data}")
+                return False
+        else:
+            print(f"❌ FAIL: Health endpoint returned {response.status_code}")
+            return False
     except Exception as e:
-        print(f"❌ Code verification error: {e}")
+        print(f"❌ FAIL: Health endpoint error: {e}")
         return False
 
-def verify_phone_config():
-    """Verify the phone-config.js implementation"""
-    print("\n📋 Verifying Phone Config Implementation...")
+def test_error_log_clean():
+    """Test 3: Verify error log is clean (0 bytes)"""
+    print("\n🔍 Test 3: Error Log Check")
     
     try:
-        # Read the phone-config.js file
-        with open('/app/js/phone-config.js', 'r') as f:
-            content = f.read()
-        
-        # Check for plans object
-        if 'const plans = {' in content:
-            print("✅ Plans object found")
+        log_size = os.path.getsize('/var/log/supervisor/nodejs.err.log')
+        if log_size == 0:
+            print("✅ PASS: Error log is clean (0 bytes)")
+            return True
         else:
-            print("❌ Plans object not found")
+            print(f"❌ FAIL: Error log has {log_size} bytes")
             return False
-        
-        # Check for plansI18n object
-        if 'const plansI18n = {' in content:
-            print("✅ PlansI18n object found")
-        else:
-            print("❌ PlansI18n object not found")
-            return False
-        
-        # Check for comingSoonFeatures object
-        if 'const comingSoonFeatures = {' in content:
-            print("✅ ComingSoonFeatures object found")
-        else:
-            print("❌ ComingSoonFeatures object not found")
-            return False
-        
-        # Check for multilingual support (EN/FR/ZH/HI)
-        languages = ['en:', 'fr:', 'zh:', 'hi:']
-        found_languages = []
-        
-        for lang in languages:
-            if lang in content:
-                found_languages.append(lang.replace(':', ''))
-        
-        print(f"✅ Found {len(found_languages)}/4 languages: {found_languages}")
-        
-        # Check for sub-number limits
-        if 'SUB_NUMBER_LIMITS' in content:
-            print("✅ Sub-number limits configuration found")
-        else:
-            print("❌ Sub-number limits configuration not found")
-            return False
-        
-        return len(found_languages) >= 4
-        
     except Exception as e:
-        print(f"❌ Phone config verification error: {e}")
+        print(f"❌ FAIL: Error checking log file: {e}")
         return False
 
-def verify_plan_features_content():
-    """Verify the specific plan features content matches requirements"""
-    print("\n📝 Verifying Plan Features Content...")
+def test_processed_fincra_refs_set():
+    """Test 4: Verify processedFincraRefs Set exists near line 21659"""
+    print("\n🔍 Test 4: processedFincraRefs Dedup Set")
     
     try:
-        # Read the _index.js file to check the actual plan message
         with open('/app/js/_index.js', 'r') as f:
             content = f.read()
         
-        # Find the plan selection message around line 14435
-        lines = content.split('\n')
-        plan_message_line = None
+        # Look for the processedFincraRefs Set declaration
+        pattern = r'const\s+processedFincraRefs\s*=\s*new\s+Set\(\)'
+        match = re.search(pattern, content)
+        
+        if match:
+            # Find line number
+            lines_before = content[:match.start()].count('\n') + 1
+            print(f"✅ PASS: processedFincraRefs Set found at line ~{lines_before}")
+            
+            # Verify it's used in webhook handler
+            webhook_usage = 'processedFincraRefs.has(ref)' in content
+            reconciler_usage = 'processedFincraRefs.add(ref)' in content
+            
+            if webhook_usage and reconciler_usage:
+                print("✅ PASS: processedFincraRefs used in both webhook handler and reconciler")
+                return True
+            else:
+                print(f"❌ FAIL: processedFincraRefs usage incomplete - webhook: {webhook_usage}, reconciler: {reconciler_usage}")
+                return False
+        else:
+            print("❌ FAIL: processedFincraRefs Set declaration not found")
+            return False
+            
+    except Exception as e:
+        print(f"❌ FAIL: Error reading _index.js: {e}")
+        return False
+
+def test_zero_amount_webhook_rejection():
+    """Test 5: Verify zero-amount rejection in webhook handler around line 22548"""
+    print("\n🔍 Test 5: Zero-amount Rejection in Webhook Handler")
+    
+    try:
+        with open('/app/js/_index.js', 'r') as f:
+            lines = f.readlines()
+        
+        # Look for the webhook handler with zero amount check
+        found_check = False
+        found_log = False
         
         for i, line in enumerate(lines):
-            if 'buyPlansHeader' in line and 'Starter' in line:
-                plan_message_line = i
+            # Look for the zero amount check
+            if 'Number(value) <= 0' in line:
+                found_check = True
+                print(f"✅ PASS: Zero amount check found at line {i+1}: {line.strip()}")
+                
+                # Look for the log message in nearby lines
+                for j in range(max(0, i-2), min(len(lines), i+5)):
+                    if 'Rejected zero/negative amount' in lines[j]:
+                        found_log = True
+                        print(f"✅ PASS: Rejection log message found at line {j+1}")
+                        break
                 break
         
-        if plan_message_line is None:
-            print("❌ Could not find plan selection message")
-            return False
-        
-        # Extract the plan message (it's a long template literal)
-        plan_message = lines[plan_message_line]
-        
-        print("✅ Found plan selection message")
-        
-        # Check for specific requirements from the review request
-        starter_requirements = [
-            'Call forwarding',
-            'SMS forwarded to Telegram',
-            'up to.*3.*extra numbers'
-        ]
-        
-        pro_requirements = [
-            'All Starter features',
-            'Voicemail',
-            'SIP credentials',
-            'SMS to Telegram & Email',
-            'Webhook integrations',
-            'Quick IVR Call',
-            'Bulk IVR Campaign',
-            'OTP Collection',
-            'up to.*15.*extra numbers'
-        ]
-        
-        business_requirements = [
-            'All Pro features',
-            'Call Recording & Analytics',
-            'IVR Auto-Attendant',
-            'Quick IVR Presets & Recent Calls',
-            'IVR Redial Button',
-            'Call Scheduling',
-            'Custom OTP Messages',
-            'Consistent TTS Voice',
-            'Priority Support',
-            'up to.*30.*extra numbers'
-        ]
-        
-        def check_requirements(plan_name, requirements):
-            found = 0
-            for req in requirements:
-                if re.search(req, plan_message, re.IGNORECASE):
-                    found += 1
-                else:
-                    print(f"⚠️ {plan_name}: Missing '{req}'")
-            return found
-        
-        starter_found = check_requirements("Starter", starter_requirements)
-        pro_found = check_requirements("Pro", pro_requirements)
-        business_found = check_requirements("Business", business_requirements)
-        
-        total_required = len(starter_requirements) + len(pro_requirements) + len(business_requirements)
-        total_found = starter_found + pro_found + business_found
-        
-        print(f"✅ Found {total_found}/{total_required} required features in plan message")
-        
-        # Check for pricing information
-        if '$' in plan_message and '/mo' in plan_message:
-            print("✅ Pricing information found")
+        if found_check and found_log:
+            return True
         else:
-            print("❌ Pricing information not found")
+            print(f"❌ FAIL: Zero amount rejection incomplete - check: {found_check}, log: {found_log}")
             return False
-        
-        return total_found >= (total_required * 0.8)  # Allow 80% match
-        
+            
     except Exception as e:
-        print(f"❌ Plan features content verification error: {e}")
+        print(f"❌ FAIL: Error reading _index.js: {e}")
         return False
 
-def run_comprehensive_test():
-    """Run all tests and provide summary"""
-    print("🚀 Starting Comprehensive Plan Selection UI Test")
+def test_zero_amount_bank_wallet_guard():
+    """Test 6: Verify zero-amount guard in /bank-wallet around line 22414"""
+    print("\n🔍 Test 6: Zero-amount Guard in /bank-wallet")
+    
+    try:
+        with open('/app/js/_index.js', 'r') as f:
+            lines = f.readlines()
+        
+        # Look for the bank-wallet handler with zero amount check
+        found_check = False
+        found_log = False
+        
+        for i, line in enumerate(lines):
+            # Look for the ngnIn <= 0 check
+            if 'ngnIn <= 0' in line:
+                found_check = True
+                print(f"✅ PASS: ngnIn <= 0 check found at line {i+1}: {line.strip()}")
+                
+                # Look for the log message in nearby lines
+                for j in range(max(0, i-2), min(len(lines), i+5)):
+                    if 'Rejected zero/negative deposit' in lines[j]:
+                        found_log = True
+                        print(f"✅ PASS: Rejection log message found at line {j+1}")
+                        break
+                break
+        
+        if found_check and found_log:
+            return True
+        else:
+            print(f"❌ FAIL: Bank wallet guard incomplete - check: {found_check}, log: {found_log}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ FAIL: Error reading _index.js: {e}")
+        return False
+
+def test_reconciler_dedup_check():
+    """Test 7: Verify reconciler dedup check around line 1825"""
+    print("\n🔍 Test 7: Reconciler Dedup Check")
+    
+    try:
+        with open('/app/js/_index.js', 'r') as f:
+            content = f.read()
+        
+        # Look for reconcileFincraPayments function
+        reconciler_match = re.search(r'const\s+reconcileFincraPayments\s*=\s*async\s*\(\s*\)\s*=>\s*{', content)
+        if not reconciler_match:
+            print("❌ FAIL: reconcileFincraPayments function not found")
+            return False
+        
+        # Find the function body
+        start_pos = reconciler_match.end()
+        brace_count = 1
+        end_pos = start_pos
+        
+        for i in range(start_pos, len(content)):
+            if content[i] == '{':
+                brace_count += 1
+            elif content[i] == '}':
+                brace_count -= 1
+                if brace_count == 0:
+                    end_pos = i
+                    break
+        
+        function_body = content[start_pos:end_pos]
+        
+        # Check for dedup logic
+        has_check = 'processedFincraRefs.has(ref)' in function_body
+        has_add = 'processedFincraRefs.add(ref)' in function_body
+        
+        if has_check and has_add:
+            print("✅ PASS: Reconciler has both processedFincraRefs.has() check and .add() call")
+            return True
+        else:
+            print(f"❌ FAIL: Reconciler dedup incomplete - has check: {has_check}, has add: {has_add}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ FAIL: Error analyzing reconciler: {e}")
+        return False
+
+def run_all_tests():
+    """Run all Fincra webhook fix tests"""
+    print("🚀 Starting Fincra Webhook Fix Testing Suite")
     print("=" * 60)
     
-    test_results = []
-    
-    # Test 1: Health Check
-    print("\n1️⃣ HEALTH CHECK")
-    result1 = test_health_endpoint()
-    test_results.append(("Health Check", result1))
-    
-    # Test 2: Node.js Service
-    print("\n2️⃣ NODE.JS SERVICE")
-    result2 = test_node_service_status()
-    test_results.append(("Node.js Service", result2))
-    
-    # Test 3: Plan Selection Code
-    print("\n3️⃣ PLAN SELECTION CODE")
-    result3 = verify_plan_selection_code()
-    test_results.append(("Plan Selection Code", result3))
-    
-    # Test 4: Phone Config
-    print("\n4️⃣ PHONE CONFIG")
-    result4 = verify_phone_config()
-    test_results.append(("Phone Config", result4))
-    
-    # Test 5: Plan Features Content
-    print("\n5️⃣ PLAN FEATURES CONTENT")
-    result5 = verify_plan_features_content()
-    test_results.append(("Plan Features Content", result5))
-    
-    # Summary
-    print("\n" + "=" * 60)
-    print("📊 TEST SUMMARY")
-    print("=" * 60)
+    tests = [
+        test_syntax_validation,
+        test_health_endpoint, 
+        test_error_log_clean,
+        test_processed_fincra_refs_set,
+        test_zero_amount_webhook_rejection,
+        test_zero_amount_bank_wallet_guard,
+        test_reconciler_dedup_check
+    ]
     
     passed = 0
-    total = len(test_results)
+    total = len(tests)
     
-    for test_name, result in test_results:
-        status = "✅ PASS" if result else "❌ FAIL"
-        print(f"{status} - {test_name}")
-        if result:
-            passed += 1
+    for test in tests:
+        try:
+            if test():
+                passed += 1
+        except Exception as e:
+            print(f"❌ FAIL: Test {test.__name__} crashed: {e}")
     
-    print(f"\n🎯 Results: {passed}/{total} tests passed ({(passed/total)*100:.1f}%)")
+    print("\n" + "=" * 60)
+    print(f"📊 TEST RESULTS: {passed}/{total} tests passed ({passed/total*100:.1f}%)")
     
     if passed == total:
-        print("🎉 ALL TESTS PASSED - Plan selection UI text is working correctly!")
-        return True
-    elif passed >= (total * 0.8):
-        print("✅ MOSTLY PASSED - Plan selection UI text is mostly working correctly!")
+        print("🎉 ALL TESTS PASSED - Fincra webhook fixes are working correctly!")
         return True
     else:
-        print("⚠️ Some tests failed - please check the implementation")
+        print(f"⚠️  {total - passed} test(s) failed - see details above")
         return False
 
-def main():
-    """Main test execution"""
-    print("🧪 Telegram Bot Plan Selection UI Test Suite")
-    print(f"🌐 Backend URL: {BACKEND_URL}")
-    print(f"📡 API Base: {API_BASE}")
-    
-    success = run_comprehensive_test()
-    
-    if success:
-        print("\n✅ CONCLUSION: Plan selection UI text implementation is working correctly")
-        print("📋 The bot displays comprehensive feature lists for all three plan tiers:")
-        print("   • Starter: Call forwarding, SMS to Telegram, up to 3 extra numbers")
-        print("   • Pro: All Starter features + Voicemail, SIP, Webhooks, IVR, OTP, up to 15 extra numbers")
-        print("   • Business: All Pro features + Recording, Auto-Attendant, Scheduling, Custom OTP, up to 30 extra numbers")
-        sys.exit(0)
-    else:
-        print("\n❌ CONCLUSION: Issues detected with plan selection implementation")
-        sys.exit(1)
-
 if __name__ == "__main__":
-    main()
+    success = run_all_tests()
+    exit(0 if success else 1)
