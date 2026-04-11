@@ -19676,18 +19676,10 @@ Select a category:`), k.of(catBtns))
       const planOrder = { starter: 1, pro: 2, business: 3 }
       const isUpgrade = (planOrder[newPlan] || 0) > (planOrder[oldPlan] || 0)
 
-      // For upgrades: charge pro-rated difference for remaining days
+      // For upgrades: 25% credit from old plan, user pays new plan minus credit
       if (isUpgrade) {
-        const expiresAt = num.expiresAt ? new Date(num.expiresAt) : null
-        let chargeAmount = 0
-        if (expiresAt && expiresAt > new Date()) {
-          const daysRemaining = Math.ceil((expiresAt - new Date()) / (1000 * 60 * 60 * 24))
-          const daysInMonth = 30
-          const dailyDiff = (newPrice - oldPrice) / daysInMonth
-          chargeAmount = Math.max(0, parseFloat((dailyDiff * daysRemaining).toFixed(2)))
-        } else {
-          chargeAmount = newPrice - oldPrice
-        }
+        const credit = parseFloat((oldPrice * 0.25).toFixed(2))
+        const chargeAmount = Math.max(0, parseFloat((newPrice - credit).toFixed(2)))
 
         if (chargeAmount > 0) {
           let walletBal = 0
@@ -19698,7 +19690,7 @@ Select a category:`), k.of(catBtns))
             await set(state, chatId, 'action', a.cpManageNumber)
             return showManageScreen(chatId, num)
           }
-          // Deduct the pro-rated amount
+          // Deduct upgrade charge
           await atomicIncrement(walletOf, chatId, 'usdOut', chargeAmount)
         }
       }
@@ -19828,17 +19820,10 @@ Select a category:`), k.of(catBtns))
     const oldPlanObj = phoneConfig.plans[oldPlan]
     const newPlanObj = phoneConfig.plans[newPlan]
 
-    // Calculate pro-rated charge
-    const expiresAt = num.expiresAt ? new Date(num.expiresAt) : null
-    let chargeAmount = 0
-    if (expiresAt && expiresAt > new Date()) {
-      const daysRemaining = Math.ceil((expiresAt - new Date()) / (1000 * 60 * 60 * 24))
-      const daysInMonth = 30
-      const dailyDiff = (newPrice - (oldPlanObj?.price || num.planPrice)) / daysInMonth
-      chargeAmount = Math.max(0, parseFloat((dailyDiff * daysRemaining).toFixed(2)))
-    } else {
-      chargeAmount = newPrice - (oldPlanObj?.price || num.planPrice)
-    }
+    // Calculate upgrade charge: 25% credit from old plan price
+    const oldPrice = oldPlanObj?.price || num.planPrice
+    const credit = parseFloat((oldPrice * 0.25).toFixed(2))
+    const chargeAmount = Math.max(0, parseFloat((newPrice - credit).toFixed(2)))
 
     // Check wallet balance
     let walletBal = 0
@@ -19853,7 +19838,9 @@ Select a category:`), k.of(catBtns))
     upgradeMsg += `📞 Minutes: ${oldPlanObj?.minutes || 0} → ${newPlanObj?.minutes === 'Unlimited' ? 'Unlimited' : newPlanObj?.minutes || 0}\n`
     upgradeMsg += `📩 SMS: ${oldPlanObj?.sms || 0} → ${newPlanObj?.sms || 0}\n\n`
     if (chargeAmount > 0) {
-      upgradeMsg += `💰 <b>Pro-rated charge: $${chargeAmount.toFixed(2)}</b>\n`
+      upgradeMsg += `💰 <b>Upgrade cost: $${chargeAmount.toFixed(2)}</b>\n`
+      upgradeMsg += `   ├ New plan: $${newPrice}/mo\n`
+      upgradeMsg += `   └ Credit (25% of ${oldPlan}): -$${credit.toFixed(2)}\n`
       upgradeMsg += `👛 Wallet: $${walletBal.toFixed(2)}`
       if (walletBal < chargeAmount) {
         upgradeMsg += ` ⚠️ <b>Insufficient — top up $${(chargeAmount - walletBal).toFixed(2)} first</b>`
