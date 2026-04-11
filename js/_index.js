@@ -22410,7 +22410,7 @@ const bankApis = {
     del(chatIdOfPayment, ref)
     const name = await get(nameOf, chatId)
     set(payments, ref, `Bank,Wallet,wallet,$${usdIn},${chatId},${name},${new Date()},${ngnIn} NGN`)
-    notifyGroup(`💰 <b>Wallet Top-Up!</b>\nUser ${maskName(name)} just loaded <b>$${usdIn.toFixed(2)}</b> via <b>🏦 Bank Transfer</b> (${ngnIn.toLocaleString()} NGN)\nFund yours in seconds — /start`)
+    notifyGroup(`💰 <b>Wallet Top-Up!</b>\nUser ${maskName(name)} just topped up via <b>🏦 Bank Transfer</b>\nFund yours in seconds — /start`)
     // ── First-Purchase Deposit Bonus (Feature 2) ──
     if (userConversion) {
       try {
@@ -23261,7 +23261,7 @@ app.get('/crypto-wallet', auth, async (req, res) => {
   del(chatIdOfPayment, ref)
   const name = await get(nameOf, chatId)
   set(payments, ref, `Crypto,Wallet,wallet,$${usdIn},${chatId},${name},${new Date()},${value} ${coin}`)
-  notifyGroup(`💰 <b>Wallet Top-Up!</b>\nUser ${maskName(name)} just loaded <b>$${usdIn.toFixed(2)}</b> via <b>₿ Crypto (BlockBee)</b> (${value} ${coin.toUpperCase()})\nFund yours in seconds — /start`)
+  notifyGroup(`💰 <b>Wallet Top-Up!</b>\nUser ${maskName(name)} just topped up via <b>₿ Crypto (BlockBee)</b>\nFund yours in seconds — /start`)
   // ── First-Purchase Deposit Bonus (Feature 2) ──
   if (userConversion) {
     try {
@@ -24016,7 +24016,7 @@ app.post('/dynopay/crypto-wallet', authDyno, async (req, res) => {
   del(chatIdOfDynopayPayment, ref)
   const name = await get(nameOf, chatId)
   set(payments, ref, `Crypto,Wallet,wallet,$${usdIn},${chatId},${name},${new Date()},${value} ${coin},transaction,${id}`)
-  notifyGroup(`💰 <b>Wallet Top-Up!</b>\nUser ${maskName(name)} just loaded <b>$${usdIn.toFixed(2)}</b> via <b>💎 Crypto (DynoPay)</b> (${value} ${coin.toUpperCase()})\nFund yours in seconds — /start`)
+  notifyGroup(`💰 <b>Wallet Top-Up!</b>\nUser ${maskName(name)} just topped up via <b>💎 Crypto (DynoPay)</b>\nFund yours in seconds — /start`)
   // ── First-Purchase Deposit Bonus (Feature 2) ──
   if (userConversion) {
     try {
