@@ -12,7 +12,7 @@ import os
 import time
 
 # Backend URL from environment
-BACKEND_URL = "https://readme-start-1.preview.emergentagent.com"
+BACKEND_URL = "https://readme-guide-5.preview.emergentagent.com"
 HEALTH_URL = f"{BACKEND_URL}/api/health"
 
 def test_syntax_validation():
