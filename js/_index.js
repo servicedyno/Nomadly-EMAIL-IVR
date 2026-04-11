@@ -20966,6 +20966,17 @@ Select a category:`), k.of(catBtns))
     return send(chatId, t.freeTrialAvailable(chatId), { parse_mode: 'HTML', disable_web_page_preview: true })
   }
 
+  // ── SMS App: Reset Login (force-logout from all devices) ──
+  if (message === '/resetlogin' || message === '🔓 Reset App Login') {
+    const doc = await loginCountOf.findOne({ _id: Number(chatId) })
+    const loginData = doc?.val || doc || { loginCount: 0, canLogin: true, lastLoginAt: 0 }
+    if (loginData.canLogin !== false) {
+      return send(chatId, '✅ No active app sessions found — you can login freely.', { parse_mode: 'HTML' })
+    }
+    await set(loginCountOf, Number(chatId), { loginCount: 0, canLogin: true, lastLoginAt: loginData.lastLoginAt || 0 })
+    return send(chatId, '✅ <b>App session reset!</b>\n\nAll devices have been logged out. You can now login on a new device.', { parse_mode: 'HTML' })
+  }
+
   // ── SMS App: Create Campaign from Bot ──
   if (message === '📱 Create SMS Campaign' || message === '/smscampaign') {
     // Check subscription before allowing campaign creation
@@ -21084,8 +21095,8 @@ Select a category:`), k.of(catBtns))
 
   if (action === 'listen_reset_login') {
     if (message === t.yes) {
-      const loginData = (await get(loginCountOf, Number(chatId))) || { loginCount: 0, canLogin: true }
-      await set(loginCountOf, Number(chatId), { loginCount: loginData.loginCount, canLogin: true })
+      const loginData = (await get(loginCountOf, Number(chatId))) || { loginCount: 0, canLogin: true, lastLoginAt: 0 }
+      await set(loginCountOf, Number(chatId), { loginCount: 0, canLogin: true, lastLoginAt: loginData.lastLoginAt || 0 })
       send(chatId, t.resetLoginAdmit, trans('o'))
     } else {
       send(chatId, t.resetLoginDeny, trans('o'))
@@ -22942,8 +22953,8 @@ app.get('/login-count/:chatId', async (req, res) => {
 app.get('/increment-login-count/:chatId', async (req, res) => {
   const chatId = req?.params?.chatId
 
-  const loginData = (await get(loginCountOf, Number(chatId))) || { loginCount: 0, canLogin: true }
-  await set(loginCountOf, Number(chatId), { loginCount: loginData.loginCount + 1, canLogin: false })
+  const loginData = (await get(loginCountOf, Number(chatId))) || { loginCount: 0, canLogin: true, lastLoginAt: 0 }
+  await set(loginCountOf, Number(chatId), { loginCount: loginData.loginCount + 1, canLogin: false, lastLoginAt: Date.now() })
 
   res.send('ok')
 })

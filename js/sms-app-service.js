@@ -185,8 +185,32 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
       if (!result.valid) return res.status(401).json(result)
 
       const numChatId = Number(req.params.code)
-      const loginData = (await get(loginCountOf, numChatId)) || { loginCount: 0, canLogin: true }
-      await set(loginCountOf, numChatId, { loginCount: loginData.loginCount + 1, canLogin: false })
+      // Direct findOne to avoid get() returning full doc when extra fields exist
+      const doc = await loginCountOf.findOne({ _id: numChatId })
+      const loginData = doc?.val || doc || { loginCount: 0, canLogin: true, lastLoginAt: 0 }
+
+      // Enforce single-device: block if already logged in elsewhere
+      if (loginData.canLogin === false) {
+        const lastLoginAt = loginData.lastLoginAt || 0
+        const hoursSinceLogin = (Date.now() - lastLoginAt) / (1000 * 60 * 60)
+
+        if (hoursSinceLogin < 24) {
+          return res.status(403).json({
+            valid: false,
+            error: 'device_conflict',
+            message: 'Already logged in on another device. Logout from that device first, or type /resetlogin in @NomadlyBot.'
+          })
+        }
+        // Auto-unlock after 24h — fall through to allow login
+        console.log(`[SmsApp] Auto-unlock: ${numChatId} last login was ${hoursSinceLogin.toFixed(1)}h ago`)
+      }
+
+      // Record login with timestamp
+      await set(loginCountOf, numChatId, {
+        loginCount: (loginData.loginCount || 0) + 1,
+        canLogin: false,
+        lastLoginAt: Date.now()
+      })
 
       res.json(result)
     } catch (error) {
@@ -199,9 +223,14 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
   app.post('/sms-app/logout/:code', async (req, res) => {
     try {
       const numChatId = Number(req.params.code)
-      const loginData = (await get(loginCountOf, numChatId)) || { loginCount: 0, canLogin: true }
-      if (loginData.canLogin) return res.json({ ok: false })
-      await set(loginCountOf, numChatId, { loginCount: Math.max(0, loginData.loginCount - 1), canLogin: true })
+      const doc = await loginCountOf.findOne({ _id: numChatId })
+      const loginData = doc?.val || doc || { loginCount: 0, canLogin: true, lastLoginAt: 0 }
+      if (loginData.canLogin !== false) return res.json({ ok: false })
+      await set(loginCountOf, numChatId, {
+        loginCount: Math.max(0, (loginData.loginCount || 1) - 1),
+        canLogin: true,
+        lastLoginAt: loginData.lastLoginAt || 0
+      })
       res.json({ ok: true })
     } catch (error) {
       res.status(500).json({ ok: false, error: error.message })
