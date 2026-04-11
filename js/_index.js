@@ -24915,13 +24915,12 @@ app.post('/twilio/voice-webhook', async (req, res) => {
 
     // ━━━ PRIORITY 4: Voicemail ━━━
     if (vmConfig?.enabled) {
-      const greeting = vmConfig.greetingType === 'custom' && vmConfig.customGreetingUrl
-        ? null
-        : 'The person you are calling is unavailable. Please leave a message after the beep.'
-      if (vmConfig.customGreetingUrl && vmConfig.greetingType === 'custom') {
-        response.play(vmConfig.customGreetingUrl)
+      if (vmConfig.greetingType === 'custom' && vmConfig.customAudioGreetingUrl) {
+        response.play(vmConfig.customAudioGreetingUrl)
+      } else if (vmConfig.greetingType === 'custom' && vmConfig.customGreetingText) {
+        response.say(vmConfig.customGreetingText)
       } else {
-        response.say(greeting)
+        response.say('The person you are calling is unavailable. Please leave a message after the beep.')
       }
       response.record({
         maxLength: 120,
@@ -25052,8 +25051,10 @@ app.post('/twilio/sip-ring-result', async (req, res) => {
 
     // Fallback 2: Voicemail
     if (vmConfig?.enabled) {
-      if (vmConfig.customGreetingUrl && vmConfig.greetingType === 'custom') {
-        response.play(vmConfig.customGreetingUrl)
+      if (vmConfig.greetingType === 'custom' && vmConfig.customAudioGreetingUrl) {
+        response.play(vmConfig.customAudioGreetingUrl)
+      } else if (vmConfig.greetingType === 'custom' && vmConfig.customGreetingText) {
+        response.say(vmConfig.customGreetingText)
       } else {
         response.say('The person you are calling is unavailable. Please leave a message after the beep.')
       }
@@ -25628,13 +25629,12 @@ app.post('/twilio/voice-dial-status', async (req, res) => {
       bot?.sendMessage(chatId, `❌ <b>Forward Failed</b> — ${reason}\nFrom: ${decodedFrom}\n📲 ${fwdTo} didn't answer`, { parse_mode: 'HTML' }).catch(() => {})
 
       if (vmConfig?.enabled) {
-        const greeting = vmConfig.greetingType === 'custom' && vmConfig.customGreetingUrl
-          ? null
-          : 'The person you are calling is unavailable. Please leave a message after the beep.'
-        if (vmConfig.customGreetingUrl && vmConfig.greetingType === 'custom') {
-          response.play(vmConfig.customGreetingUrl)
+        if (vmConfig.greetingType === 'custom' && vmConfig.customAudioGreetingUrl) {
+          response.play(vmConfig.customAudioGreetingUrl)
+        } else if (vmConfig.greetingType === 'custom' && vmConfig.customGreetingText) {
+          response.say(vmConfig.customGreetingText)
         } else {
-          response.say(greeting)
+          response.say('The person you are calling is unavailable. Please leave a message after the beep.')
         }
         response.record({
           maxLength: 120,
