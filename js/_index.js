@@ -3592,6 +3592,8 @@ bot?.on('message', msg => {
 
     selectCurrencyToDeposit: 'selectCurrencyToDeposit',
 
+    depositMethodSelect: 'depositMethodSelect',
+
     depositNGN: 'depositNGN',
     askEmailForNGN: 'askEmailForNGN',
     showDepositNgnInfo: 'showDepositNgnInfo',
@@ -4726,10 +4728,21 @@ Enter new value:`), bc)
     //
     [a.selectCurrencyToDeposit]: async () => {
       await set(state, chatId, 'action', a.selectCurrencyToDeposit)
-      const depositMethodKeyboard = HIDE_BANK_PAYMENT !== 'true'
-        ? k.of([u.depositBank, u.depositCrypto])
-        : k.of([u.depositCrypto])
-      send(chatId, t.selectCurrencyToDeposit, depositMethodKeyboard)
+      send(chatId, t.selectCurrencyToDeposit, bc)
+    },
+    [a.depositMethodSelect]: async () => {
+      await set(state, chatId, 'action', a.depositMethodSelect)
+      const amount = info?.depositAmountUsd || 0
+      const ngnEstimate = await usdToNgn(amount)
+      const bankLabel = ngnEstimate ? `🏦 Bank (Pay ≈ ₦${ngnEstimate.toLocaleString()} NGN)` : null
+      const cryptoLabel = `₿ Crypto`
+      await saveInfo('bankLabel', bankLabel)
+      await saveInfo('cryptoLabel', cryptoLabel)
+      const buttons = []
+      if (bankLabel && process.env.HIDE_BANK_PAYMENT !== 'true') buttons.push([bankLabel])
+      buttons.push([cryptoLabel])
+      buttons.push([t.back])
+      send(chatId, `💵 Deposit <b>$${amount}</b>\n\nSelect payment method:`, k.of(buttons))
     },
     //
     [a.depositNGN]: async () => {
@@ -4742,7 +4755,10 @@ Enter new value:`), bc)
     },
     showDepositNgnInfo: async () => {
       const ref = nanoid()
-      const { depositAmountNgn: ngn, email } = info
+      const usdAmount = info?.depositAmountUsd || 0
+      const ngn = await usdToNgn(usdAmount)
+      if (!ngn) return send(chatId, '⚠️ NGN payments temporarily unavailable (exchange rate service down). Please try crypto.', trans('o'))
+      const email = info?.email
 
       log({ ref })
       set(chatIdOfPayment, ref, { chatId, ngnIn: ngn, endpoint: `/bank-wallet`, _createdAt: new Date().toISOString() })
@@ -13813,29 +13829,50 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
   if (action === a.selectCurrencyToDeposit) {
     if (message === t.back) return goto[user.wallet]()
-    if (message === u.depositBank || message === u.ngn) return goto[a.depositNGN]()
-    if (message === u.depositCrypto || message === u.usd) return goto[a.depositUSD]()
+
+    // User enters USD amount
+    const sanitized = message.replace(/[$,\s]/g, '').replace(/^USD\s*/i, '')
+    const amount = Number(sanitized)
+    if (isNaN(amount) || amount < 10) return send(chatId, '⚠️ Please enter a valid USD amount (minimum $10).')
+    await saveInfo('depositAmountUsd', amount)
+    await saveInfo('amount', amount) // also save as 'amount' for crypto flow
+    return goto[a.depositMethodSelect]()
+  }
+
+  if (action === a.depositMethodSelect) {
+    if (message === t.back) return goto[a.selectCurrencyToDeposit]()
+    const bankLabel = info?.bankLabel
+    if (bankLabel && message === bankLabel) {
+      // Bank (Naira) selected → ask for email then Fincra checkout
+      return goto[a.askEmailForNGN]()
+    }
+    if (message === info?.cryptoLabel || message === '₿ Crypto') {
+      // Crypto selected → show crypto options
+      return goto[a.selectCryptoToDeposit]()
+    }
     return send(chatId, t.what)
   }
 
   if (action === a.depositNGN) {
     if (message === t.back) return goto[a.selectCurrencyToDeposit]()
 
-    // Sanitize common currency formatting: strip #, ₦, commas, spaces, "NGN"
+    // Legacy handler — should not be reached in new flow
     const sanitized = message.replace(/[#₦,\s]/g, '').replace(/^NGN\s*/i, '').replace(/NGN\s*Amount:?\s*/i, '')
     const amount = parseFloat(sanitized)
     if (isNaN(amount) || amount <= 0) return send(chatId, t.askValidAmount)
 
-    // Minimum NGN deposit = $10 USD equivalent
     const minNgn = await usdToNgn(10)
-    if (!minNgn) return send(chatId, '⚠️ NGN deposits temporarily unavailable (exchange rate service down). Please try USD.', trans('payOpts'))
+    if (!minNgn) return send(chatId, '⚠️ NGN deposits temporarily unavailable (exchange rate service down). Please try crypto.', trans('o'))
     if (amount < minNgn) return send(chatId, `⚠️ Minimum deposit is ₦${minNgn.toLocaleString()} (≈ $10 USD). Please enter a higher amount.`)
 
     await saveInfo('depositAmountNgn', amount)
+    // Convert to USD for the new flow
+    const usdEquiv = await ngnToUsd(amount)
+    if (usdEquiv) await saveInfo('depositAmountUsd', usdEquiv)
     return goto[a.askEmailForNGN]()
   }
   if (action === a.askEmailForNGN) {
-    if (message === t.back) return goto[a.depositNGN]()
+    if (message === t.back) return goto[a.depositMethodSelect]()
 
     const email = message
     if (!isValidEmail(email)) return send(chatId, t.askValidEmail)
@@ -13844,18 +13881,19 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   if (action === a.depositUSD) {
-    if (message === t.back) return goto[a.selectCurrencyToDeposit]()
+    if (message === t.back) return goto[a.depositMethodSelect]()
 
-    // Sanitize common currency formatting: strip $, commas, spaces, "USD"
+    // Legacy handler for direct USD amount entry (if someone reaches it directly)
     const sanitized = message.replace(/[$,\s]/g, '').replace(/^USD\s*/i, '')
     const amount = Number(sanitized)
     if (isNaN(amount) || amount < 10) return send(chatId, t.whatNum)
     await saveInfo('amount', amount)
+    await saveInfo('depositAmountUsd', amount)
 
     return goto[a.selectCryptoToDeposit]()
   }
   if (action === a.selectCryptoToDeposit) {
-    if (message === t.back) return goto[a.depositUSD]()
+    if (message === t.back) return goto[a.depositMethodSelect]()
 
     const tickerView = message
     const supportedCryptoView = trans('supportedCryptoView')

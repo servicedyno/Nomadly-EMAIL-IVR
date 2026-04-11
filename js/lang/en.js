@@ -704,7 +704,7 @@ ${CHAT_BOT_NAME}`,
   promoOptOut: `You have been unsubscribed from promotional messages. Type /start_promos to re-subscribe anytime.`,
   promoOptIn: `You have been re-subscribed to promotional messages. You will receive our latest offers and deals!`,
 
-  selectCurrencyToDeposit: `How would you like to deposit?`,
+  selectCurrencyToDeposit: `Enter amount in USD to deposit (minimum $10):`,
 
   depositNGN: `Please enter NGN Amount (minimum ≈ $10 USD).\nYour Naira will be converted to USD at the current exchange rate:`,
   askEmailForNGN: `Please provide an email for payment confirmation`,
