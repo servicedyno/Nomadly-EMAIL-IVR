@@ -2495,6 +2495,58 @@ bot?.on('callback_query', async (query) => {
     const data = query?.data || ''
     const chatId = query?.message?.chat?.id
 
+    // ── IVR Redial handler ──
+    if (chatId && data.startsWith('ivr_redial:')) {
+      try { await bot.answerCallbackQuery(query.id) } catch (e) { /* ignore */ }
+      const voiceService = require('./voice-service.js')
+      const lastCall = voiceService.lastIvrCallParams.get(chatId)
+
+      if (!lastCall) {
+        return bot.sendMessage(chatId, '⚠️ No previous call data found. Please start a new call from the IVR menu.', { parse_mode: 'HTML' }).catch(() => {})
+      }
+
+      // Edit original message to show redial was triggered
+      try {
+        await bot.editMessageReplyMarkup({ inline_keyboard: [[{ text: '🔁 Redialing...', callback_data: 'noop' }]] },
+          { chat_id: chatId, message_id: query.message.message_id })
+      } catch (e) { /* ignore */ }
+
+      bot.sendMessage(chatId, `🔁 <b>Redialing</b> ${lastCall.targetNumber}...\n📱 From: ${lastCall.callerId}\n🏢 Template: ${lastCall.templateName || 'Custom'}`, { parse_mode: 'HTML' }).catch(() => {})
+
+      // Re-execute the call with stored params
+      const userData = await get(phoneNumbersOf, chatId)
+      const callerNumber = (userData?.numbers || []).find(n => n.phoneNumber === lastCall.callerId)
+      let subAccountSid = callerNumber?.twilioSubAccountSid || userData?.twilioSubAccountSid || null
+      let subAccountToken = callerNumber?.twilioSubAccountToken || userData?.twilioSubAccountToken || null
+
+      const result = await voiceService.initiateOutboundIvrCall({
+        chatId,
+        callerId: lastCall.callerId,
+        targetNumber: lastCall.targetNumber,
+        ivrNumber: lastCall.ivrNumber,
+        audioUrl: lastCall.audioUrl,
+        activeKeys: lastCall.activeKeys,
+        templateName: lastCall.templateName,
+        placeholderValues: lastCall.placeholderValues,
+        voiceName: lastCall.voiceName,
+        isTrial: false,
+        holdMusic: lastCall.holdMusic || false,
+        provider: lastCall.callerProvider || 'telnyx',
+        twilioSubAccountSid: subAccountSid,
+        twilioSubAccountToken: subAccountToken,
+        ivrMode: lastCall.ivrMode || 'transfer',
+        otpLength: lastCall.otpLength || 6,
+        otpMaxAttempts: lastCall.otpMaxAttempts || 3,
+        otpConfirmMsg: lastCall.otpConfirmMsg || null,
+        otpRejectMsg: lastCall.otpRejectMsg || null,
+      })
+
+      if (result.error) {
+        bot.sendMessage(chatId, `❌ <b>Redial Failed</b>\n${result.error}`, { parse_mode: 'HTML' }).catch(() => {})
+      }
+      return
+    }
+
     // ── IVR OTP Confirm/Reject handler ──
     if (chatId && data.startsWith('ivr_otp:')) {
       try { await bot.answerCallbackQuery(query.id) } catch (e) { /* ignore */ }
@@ -3723,6 +3775,9 @@ bot?.on('message', msg => {
     ivrObCustomScript: 'ivrObCustomScript',
     ivrObSelectMode: 'ivrObSelectMode',
     ivrObOtpLength: 'ivrObOtpLength',
+    ivrObOtpMessages: 'ivrObOtpMessages',
+    ivrObOtpConfirmMsg: 'ivrObOtpConfirmMsg',
+    ivrObOtpRejectMsg: 'ivrObOtpRejectMsg',
 
     // Bulk IVR Campaign
     bulkSelectCaller: 'bulkSelectCaller',
@@ -14647,7 +14702,7 @@ Choose an IVR template category:`), k.of(rows))
       ivrObData.category = 'custom'
       await saveInfo('ivrObData', ivrObData)
       await set(state, chatId, 'action', a.ivrObCustomScript)
-      return send(chatId, `✍️ <b>Custom Script</b>\n\nType your IVR message. Use <b>[Brackets]</b> for variables:\n\n<b>Standard:</b> [Name], [Company], [Bank], [Amount]\n<b>Smart (auto-fill):</b> [CardLast4], [CaseID], [ReferenceNum]\n<b>Smart (pick):</b> [Reason], [Location], [CallBack]\n\n<i>Example: Hello [Name]. This is [Bank] security. A charge of $[Amount] was made on card ending [CardLast4]. Case [CaseID]. Press 1 to dispute.</i>\n\nType your script:`, k.of([]))
+      return send(chatId, `✍️ <b>Custom Script</b>\n\nType your IVR message. Use <b>[Brackets]</b> for variables:\n\n<b>Standard:</b> [Name], [Company], [Bank], [Amount]\n<b>Smart (auto-fill):</b> [CardLast4], [CaseID], [ReferenceNum]\n<b>Smart (pick):</b> [Reason], [Location], [CallBack]\n\n<i>Example: Hello [Name]. This is [Bank] security. A charge of $[Amount] was made on card ending [CardLast4]. Case [CaseID]. Press 1 to dispute.</i>\n\nType your script:`, k.of([['ℹ️ All Placeholders']]))
     }
 
     ivrObData.category = cat
@@ -14669,6 +14724,12 @@ Choose an IVR template category:`), k.of(rows))
       const rows = catBtns.map(b => [b])
       return send(chatId, ({ en: "Choose an IVR template category:", fr: "Choisissez une catégorie de modèle IVR :", zh: "选择 IVR 模板分类：", hi: "IVR टेम्पलेट श्रेणी चुनें:" }[lang] || "Choose an IVR template category:"), k.of(rows))
     }
+
+    // Show full placeholder reference
+    if (message === 'ℹ️ All Placeholders') {
+      return send(chatId, `📋 <b>Complete Placeholder Reference</b>\n\n<b>🔤 Standard (you type the value):</b>\n• <code>[Name]</code> — Recipient's name\n• <code>[Bank]</code> — Bank or institution name\n• <code>[Company]</code> — Company or merchant name\n• <code>[Amount]</code> — Dollar amount\n\n<b>🤖 Smart Auto-Fill (generated for you):</b>\n• <code>[CardLast4]</code> — Random 4-digit card number\n• <code>[CaseID]</code> — Random case/reference ID\n• <code>[ReferenceNum]</code> — Random reference number\n\n<b>📋 Smart Pick (choose from presets):</b>\n• <code>[Reason]</code> — fraud alert, account suspension, unusual activity, etc.\n• <code>[Location]</code> — City, State format (you type)\n• <code>[CallBack]</code> — Your Nomadly phone number\n\n<b>💡 Tips:</b>\n• Mix standard + smart placeholders freely\n• Placeholders are case-sensitive: <code>[Bank]</code> not <code>[bank]</code>\n• Include "press 1" in your script to auto-detect active keys\n\nNow type your script:`, k.of([['ℹ️ All Placeholders']]))
+    }
+
     const ivrOb = require('./ivr-outbound.js')
     const ivrObData = info?.ivrObData || {}
     ivrObData.customScript = message
@@ -14985,11 +15046,73 @@ Choose an IVR template category:`), k.of(rows))
     ivrObData.otpLength = length
     await saveInfo('ivrObData', ivrObData)
 
-    // Skip to voice provider selection (no transfer number needed for OTP mode)
+    // Ask user to customize OTP result messages
+    await set(state, chatId, 'action', a.ivrObOtpMessages)
+    return send(chatId, `✅ OTP length: <b>${length} digits</b> (max 3 attempts)\n\n✍️ <b>Customize Caller Messages</b>\n\nWould you like to customize what callers hear after verification?\n\n<b>Default Confirm:</b> <i>"Your code has been verified successfully. Thank you. Goodbye."</i>\n<b>Default Reject:</b> <i>"Maximum verification attempts reached. Goodbye."</i>`, k.of([['✍️ Customize Messages'], ['⏭️ Use Defaults'], ['↩️ Back']]))
+  }
+
+  // Quick IVR — OTP Messages customization (confirm/reject)
+  if (action === a.ivrObOtpMessages) {
+    if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
+    if (message === '↩️ Back' || message === t.back) {
+      await set(state, chatId, 'action', a.ivrObOtpLength)
+      return send(chatId, `🔑 <b>OTP Collection Mode</b>\n\nHow many digits should the code be?\n\n<i>Default: 6 digits</i>`, k.of([['4 digits'], ['5 digits'], ['6 digits'], ['8 digits'], ['↩️ Back']]))
+    }
+
+    const ivrObData = info?.ivrObData || {}
+
+    if (message === '⏭️ Use Defaults') {
+      ivrObData.otpConfirmMsg = null
+      ivrObData.otpRejectMsg = null
+      await saveInfo('ivrObData', ivrObData)
+      // Skip to voice provider selection
+      await set(state, chatId, 'action', a.ivrObSelectProvider)
+      const ttsService = require('./tts-service.js')
+      const providerBtns = ttsService.getProviderButtons().map(b => [b])
+      return send(chatId, `🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine:`, k.of(providerBtns))
+    }
+
+    if (message === '✍️ Customize Messages') {
+      await set(state, chatId, 'action', a.ivrObOtpConfirmMsg)
+      return send(chatId, `✅ <b>Confirmation Message</b>\n\nType what the caller hears when you <b>CONFIRM</b> their code:\n\n<i>Example: "Your code has been verified. We've blocked the transaction and secured your account. A specialist will contact you within 24 hours. Thank you for choosing our bank. Goodbye."</i>`, k.of([['↩️ Back']]))
+    }
+
+    return send(chatId, `Choose an option:`, k.of([['✍️ Customize Messages'], ['⏭️ Use Defaults'], ['↩️ Back']]))
+  }
+
+  // Quick IVR — OTP Confirm message
+  if (action === a.ivrObOtpConfirmMsg) {
+    if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
+    if (message === '↩️ Back' || message === t.back) {
+      await set(state, chatId, 'action', a.ivrObOtpMessages)
+      return send(chatId, `✍️ <b>Customize Caller Messages</b>\n\nWould you like to customize what callers hear after verification?`, k.of([['✍️ Customize Messages'], ['⏭️ Use Defaults'], ['↩️ Back']]))
+    }
+
+    const ivrObData = info?.ivrObData || {}
+    ivrObData.otpConfirmMsg = message
+    await saveInfo('ivrObData', ivrObData)
+
+    await set(state, chatId, 'action', a.ivrObOtpRejectMsg)
+    return send(chatId, `❌ <b>Rejection Message</b>\n\nType what the caller hears when you <b>REJECT</b> their code (max attempts reached):\n\n<i>Example: "We were unable to verify your identity. For your security, this session has ended. Please call back or visit your nearest branch for assistance. Goodbye."</i>`, k.of([['↩️ Back']]))
+  }
+
+  // Quick IVR — OTP Reject message
+  if (action === a.ivrObOtpRejectMsg) {
+    if (message === 'Cancel' || message === t.cancel) return goto.submenu5()
+    if (message === '↩️ Back' || message === t.back) {
+      await set(state, chatId, 'action', a.ivrObOtpConfirmMsg)
+      return send(chatId, `✅ <b>Confirmation Message</b>\n\nType what the caller hears when you <b>CONFIRM</b> their code:`, k.of([['↩️ Back']]))
+    }
+
+    const ivrObData = info?.ivrObData || {}
+    ivrObData.otpRejectMsg = message
+    await saveInfo('ivrObData', ivrObData)
+
+    // Proceed to voice provider selection
     await set(state, chatId, 'action', a.ivrObSelectProvider)
     const ttsService = require('./tts-service.js')
     const providerBtns = ttsService.getProviderButtons().map(b => [b])
-    return send(chatId, `✅ OTP length: <b>${length} digits</b> (max 3 attempts)\n\n🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine:`, k.of(providerBtns))
+    return send(chatId, `✅ Custom messages saved!\n\n🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine:`, k.of(providerBtns))
   }
 
   if (action === a.ivrObEnterIvrNumber) {
@@ -15264,6 +15387,8 @@ Choose an IVR template category:`), k.of(rows))
         ivrMode: ivrObData.ivrMode || 'transfer',
         otpLength: ivrObData.otpLength || 6,
         otpMaxAttempts: ivrObData.otpMaxAttempts || 3,
+        otpConfirmMsg: ivrObData.otpConfirmMsg || null,
+        otpRejectMsg: ivrObData.otpRejectMsg || null,
       })
 
       if (result.error) {
@@ -25107,6 +25232,7 @@ app.post('/twilio/single-ivr', async (req, res) => {
 
     session.phase = 'playing'
     const gatherUrl = `${SELF_URL}/twilio/single-ivr-gather?sessionId=${encodeURIComponent(sessionId)}`
+    const twilioVoice = voiceService.getTwilioVoice(session.voiceName)
 
     // Use audio proxy to serve with correct Content-Type for Twilio
     // Guard: only build proxy URL if session has a valid http(s) audioUrl
@@ -25123,7 +25249,7 @@ app.post('/twilio/single-ivr', async (req, res) => {
     if (audioProxyUrl) {
       gather.play(audioProxyUrl)
     } else {
-      gather.say('Thank you for your time. Press 1 to continue.')
+      gather.say({ voice: twilioVoice }, 'Thank you for your time. Press 1 to continue.')
     }
 
     // Retry once
@@ -25131,10 +25257,10 @@ app.post('/twilio/single-ivr', async (req, res) => {
     if (audioProxyUrl) {
       gather2.play(audioProxyUrl)
     } else {
-      gather2.say('Press 1 to continue or hang up.')
+      gather2.say({ voice: twilioVoice }, 'Press 1 to continue or hang up.')
     }
 
-    response.say('No input received. Goodbye.')
+    response.say({ voice: twilioVoice }, 'No input received. Goodbye.')
     response.hangup()
 
     log(`[SingleIVR] TwiML served for session=${sessionId} target=${session.targetNumber}`)
@@ -25166,6 +25292,7 @@ app.post('/twilio/single-ivr-gather', async (req, res) => {
       return res.type('text/xml').send(response.toString())
     }
 
+    const twilioVoice = voiceService.getTwilioVoice(session.voiceName)
     session.digitPressed = digits
 
     if (digits && session.activeKeys.includes(digits)) {
@@ -25183,7 +25310,7 @@ app.post('/twilio/single-ivr-gather', async (req, res) => {
       if (session.bulkMode === 'report_only' || !session.ivrNumber) {
         // Report-only: notify and end
         session.phase = 'completed'
-        response.say('Thank you. Goodbye.')
+        response.say({ voice: twilioVoice }, 'Thank you. Goodbye.')
         response.hangup()
         if (!session.campaignId) {
           bot?.sendMessage(session.chatId,
@@ -25196,14 +25323,14 @@ app.post('/twilio/single-ivr-gather', async (req, res) => {
         if (session.holdMusic) {
           response.play(`${SELF_URL}/assets/hold-music-jazz.mp3`)
         } else {
-          response.say('Please hold while we connect you.')
+          response.say({ voice: twilioVoice }, 'Please hold while we connect you.')
         }
         const dial = response.dial({ callerId: session.callerId, timeout: 30 })
         dial.number(session.ivrNumber)
         log(`[SingleIVR] Transferring to ${session.ivrNumber}`)
       }
     } else {
-      response.say('Invalid input. Goodbye.')
+      response.say({ voice: twilioVoice }, 'Invalid input. Goodbye.')
       response.hangup()
     }
 
@@ -25250,6 +25377,9 @@ app.post('/twilio/single-ivr-otp', async (req, res) => {
 
     log(`[SingleIVR-OTP] Gather: session=${sessionId} attempt=${session.otpAttempt}/${session.otpMaxAttempts || 3}`)
 
+    // Use consistent voice matching the user's chosen IVR voice
+    const twilioVoice = voiceService.getTwilioVoice(session.voiceName)
+
     // First gather attempt
     const gather = response.gather({
       action: otpResultUrl,
@@ -25259,9 +25389,9 @@ app.post('/twilio/single-ivr-otp', async (req, res) => {
       finishOnKey: '#',
     })
     if (session.otpAttempt === 1) {
-      gather.say('Please enter the verification code sent to your number, followed by the pound key.')
+      gather.say({ voice: twilioVoice }, 'Please enter the verification code sent to your number, followed by the pound key.')
     } else {
-      gather.say('Invalid code. Please re-enter the verification code sent to your number, followed by the pound key.')
+      gather.say({ voice: twilioVoice }, 'Invalid code. Please re-enter the verification code sent to your number, followed by the pound key.')
     }
 
     // Retry gather if no input
@@ -25272,10 +25402,10 @@ app.post('/twilio/single-ivr-otp', async (req, res) => {
       timeout: 10,
       finishOnKey: '#',
     })
-    gather2.say('We did not receive your code. Please enter it now, followed by the pound key.')
+    gather2.say({ voice: twilioVoice }, 'We did not receive your code. Please enter it now, followed by the pound key.')
 
     // No input after retries
-    response.say('No code received. Goodbye.')
+    response.say({ voice: twilioVoice }, 'No code received. Goodbye.')
     response.hangup()
 
     res.type('text/xml').send(response.toString())
@@ -25306,8 +25436,10 @@ app.post('/twilio/single-ivr-otp-result', async (req, res) => {
       return res.type('text/xml').send(response.toString())
     }
 
+    const twilioVoice = voiceService.getTwilioVoice(session.voiceName)
+
     if (!digits) {
-      response.say('No code entered. Goodbye.')
+      response.say({ voice: twilioVoice }, 'No code entered. Goodbye.')
       response.hangup()
       return res.type('text/xml').send(response.toString())
     }
@@ -25345,7 +25477,7 @@ app.post('/twilio/single-ivr-otp-result', async (req, res) => {
 
     // Redirect to hold loop
     const selfUrl = process.env.SELF_URL_PROD || process.env.SELF_URL || ''
-    response.say('Thank you. Please hold while we verify your code.')
+    response.say({ voice: twilioVoice }, 'Thank you. Please hold while we verify your code.')
     response.redirect({ method: 'POST' }, `${selfUrl}/twilio/single-ivr-otp-hold?sessionId=${encodeURIComponent(sessionId)}`)
 
     res.type('text/xml').send(response.toString())
@@ -25378,11 +25510,14 @@ app.post('/twilio/single-ivr-otp-hold', async (req, res) => {
 
     log(`[SingleIVR-OTP] Hold: session=${sessionId} status=${session.otpStatus} elapsed=${Math.round(holdElapsed / 1000)}s`)
 
+    // Use consistent voice matching user's IVR voice choice
+    const twilioVoice = voiceService.getTwilioVoice(session.voiceName)
+
     // ── Check for timeout ──
     if (holdElapsed > OTP_HOLD_TIMEOUT_MS) {
       session.otpStatus = 'timeout'
       session.phase = 'completed'
-      response.say('Verification timed out. Please try again later. Goodbye.')
+      response.say({ voice: twilioVoice }, 'Verification timed out. Please try again later. Goodbye.')
       response.hangup()
       log(`[SingleIVR-OTP] Hold TIMEOUT for session=${sessionId}`)
       // Notify bot user
@@ -25396,7 +25531,8 @@ app.post('/twilio/single-ivr-otp-hold', async (req, res) => {
     // ── Check for confirmed ──
     if (session.otpStatus === 'confirmed') {
       session.phase = 'completed'
-      response.say('Your code has been verified successfully. Thank you. Goodbye.')
+      const confirmMsg = session.otpConfirmMsg || 'Your code has been verified successfully. Thank you. Goodbye.'
+      response.say({ voice: twilioVoice }, confirmMsg)
       response.hangup()
       log(`[SingleIVR-OTP] CONFIRMED for session=${sessionId} digits=${session.otpDigits}`)
       return res.type('text/xml').send(response.toString())
@@ -25407,7 +25543,8 @@ app.post('/twilio/single-ivr-otp-hold', async (req, res) => {
       const maxAttempts = session.otpMaxAttempts || 3
       if (session.otpAttempt >= maxAttempts) {
         session.phase = 'completed'
-        response.say('Maximum verification attempts reached. Goodbye.')
+        const rejectMsg = session.otpRejectMsg || 'Maximum verification attempts reached. Goodbye.'
+        response.say({ voice: twilioVoice }, rejectMsg)
         response.hangup()
         log(`[SingleIVR-OTP] MAX ATTEMPTS for session=${sessionId} (${session.otpAttempt}/${maxAttempts})`)
         // Notify bot user
@@ -25452,23 +25589,49 @@ app.post('/twilio/single-ivr-status', async (req, res) => {
     if (session && CallStatus === 'completed') {
       const durationStr = duration > 0 ? `${Math.ceil(duration / 60)} min` : 'brief'
 
+      // Store last IVR call params for Redial feature
+      voiceService.lastIvrCallParams.set(session.chatId, {
+        callerId: session.callerId,
+        targetNumber: session.targetNumber,
+        ivrNumber: session.ivrNumber,
+        audioUrl: session.audioUrl,
+        activeKeys: session.activeKeys,
+        templateName: session.templateName,
+        placeholderValues: session.placeholderValues,
+        voiceName: session.voiceName,
+        holdMusic: session.holdMusic,
+        ivrMode: session.ivrMode || 'transfer',
+        otpLength: session.otpLength,
+        otpMaxAttempts: session.otpMaxAttempts,
+        otpConfirmMsg: session.otpConfirmMsg,
+        otpRejectMsg: session.otpRejectMsg,
+        callerProvider: 'twilio',
+        timestamp: Date.now(),
+      })
+
+      const redialKeyboard = {
+        reply_markup: {
+          inline_keyboard: [[{ text: '🔁 Redial Same Number', callback_data: `ivr_redial:${session.chatId}` }]]
+        }
+      }
+
       // OTP mode completion report
       if (session.ivrMode === 'otp_collect') {
         const otpResult = session.otpStatus === 'confirmed' ? '✅ Confirmed' : session.otpStatus === 'rejected' ? '❌ Rejected' : session.otpStatus === 'timeout' ? '⏰ Timed Out' : '—'
         bot?.sendMessage(session.chatId,
           `📊 <b>OTP Call Complete</b>\n📞 ${session.targetNumber}\n🔑 Mode: OTP Collection\n🔢 Last Code: <code>${session.otpDigits || 'None'}</code>\n📊 Result: ${otpResult}\n🔄 Attempts: ${session.otpAttempt || 0}/${session.otpMaxAttempts || 3}\n⏱️ Duration: ${durationStr}`,
-          { parse_mode: 'HTML' }
+          { parse_mode: 'HTML', ...redialKeyboard }
         ).catch(() => {})
       } else if (session.digitPressed) {
         bot?.sendMessage(session.chatId,
           `📊 <b>IVR Call Complete</b>\n📞 ${session.targetNumber}\n🔢 Pressed: <b>${session.digitPressed}</b>\n⏱️ Duration: ${durationStr}${session.phase === 'transferring' ? '\n🔗 Transferred to ' + session.ivrNumber : ''}`,
-          { parse_mode: 'HTML' }
+          { parse_mode: 'HTML', ...redialKeyboard }
         ).catch(() => {})
       } else {
         const reason = session.phase === 'playing' ? 'No key pressed' : 'Not answered'
         bot?.sendMessage(session.chatId,
           `📊 <b>IVR Call Complete</b>\n📞 ${session.targetNumber}\n❌ ${reason}\n⏱️ Duration: ${durationStr}`,
-          { parse_mode: 'HTML' }
+          { parse_mode: 'HTML', ...redialKeyboard }
         ).catch(() => {})
       }
 

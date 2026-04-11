@@ -1,334 +1,327 @@
 #!/usr/bin/env python3
-
 """
-Backend Test for Voicemail Billing Implementation
-Tests the voicemail billing implementation in js/_index.js and js/voice-service.js
+Backend Test Suite for Nomadly Telegram Bot IVR System
+Testing 4 new features: Redial Button, Consistent Voice, Customizable OTP Messages, Placeholder Documentation
 """
 
 import subprocess
 import sys
 import re
-import requests
 import json
+import requests
+from pathlib import Path
+
+class TestResult:
+    def __init__(self):
+        self.passed = 0
+        self.failed = 0
+        self.results = []
+    
+    def test(self, name, condition, details=""):
+        if condition:
+            self.passed += 1
+            status = "✅ PASS"
+        else:
+            self.failed += 1
+            status = "❌ FAIL"
+        
+        result = f"{status}: {name}"
+        if details:
+            result += f" - {details}"
+        
+        self.results.append(result)
+        print(result)
+        return condition
+    
+    def summary(self):
+        total = self.passed + self.failed
+        print(f"\n{'='*60}")
+        print(f"TEST SUMMARY: {self.passed}/{total} tests passed ({self.failed} failed)")
+        print(f"{'='*60}")
+        return self.failed == 0
 
 def run_command(cmd):
-    """Run a shell command and return the result"""
+    """Run shell command and return output"""
     try:
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
         return result.returncode, result.stdout, result.stderr
     except subprocess.TimeoutExpired:
-        return 1, "", "Command timed out"
+        return -1, "", "Command timed out"
 
-def test_syntax_validation():
-    """Test 1 & 2: Syntax validation for both files"""
-    print("🔍 Testing syntax validation...")
-    
-    # Test _index.js syntax
-    code, stdout, stderr = run_command("node -c /app/js/_index.js")
-    if code != 0:
-        print(f"❌ _index.js syntax check failed: {stderr}")
-        return False
-    print("✅ _index.js syntax validation passed")
-    
-    # Test voice-service.js syntax
-    code, stdout, stderr = run_command("node -c /app/js/voice-service.js")
-    if code != 0:
-        print(f"❌ voice-service.js syntax check failed: {stderr}")
-        return False
-    print("✅ voice-service.js syntax validation passed")
-    
-    return True
+def read_file_content(filepath):
+    """Read file content safely"""
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            return f.read()
+    except Exception as e:
+        return f"Error reading file: {e}"
 
 def test_health_endpoint():
-    """Test 3: Health endpoint returns healthy"""
-    print("🔍 Testing health endpoint...")
-    
+    """Test backend health endpoint"""
     try:
-        response = requests.get("http://localhost:5000/health", timeout=10)
+        response = requests.get('http://localhost:5000/health', timeout=10)
         if response.status_code == 200:
             data = response.json()
-            if data.get("status") == "healthy":
-                print(f"✅ Health endpoint healthy: {data}")
-                return True
-            else:
-                print(f"❌ Health endpoint not healthy: {data}")
-                return False
-        else:
-            print(f"❌ Health endpoint returned status {response.status_code}")
-            return False
-    except Exception as e:
-        print(f"❌ Health endpoint error: {e}")
-        return False
-
-def test_error_logs():
-    """Test 4: Error logs are clean"""
-    print("🔍 Testing error logs...")
-    
-    code, stdout, stderr = run_command("wc -c /var/log/supervisor/nodejs.err.log")
-    if code == 0:
-        size = int(stdout.strip().split()[0])
-        if size == 0:
-            print("✅ Error log is empty (0 bytes)")
-            return True
-        else:
-            print(f"❌ Error log has {size} bytes")
-            # Show last few lines if not empty
-            code2, content, _ = run_command("tail -10 /var/log/supervisor/nodejs.err.log")
-            if content.strip():
-                print(f"Recent errors:\n{content}")
-            return False
-    else:
-        print(f"❌ Could not check error log: {stderr}")
-        return False
-
-def test_voicemail_complete_implementation():
-    """Test 5: Verify /twilio/voicemail-complete implementation"""
-    print("🔍 Testing /twilio/voicemail-complete implementation...")
-    
-    # Read the _index.js file
-    try:
-        with open("/app/js/_index.js", "r") as f:
-            content = f.read()
-    except Exception as e:
-        print(f"❌ Could not read _index.js: {e}")
-        return False
-    
-    # Find the voicemail-complete handler (around line 25754)
-    voicemail_handler_match = re.search(r"app\.post\('/twilio/voicemail-complete'.*?(?=app\.post|$)", content, re.DOTALL)
-    if not voicemail_handler_match:
-        print("❌ /twilio/voicemail-complete handler not found")
-        return False
-    
-    handler_code = voicemail_handler_match.group(0)
-    
-    # Test 5a: voiceService import
-    if "voiceService = require('./voice-service.js')" in handler_code:
-        print("✅ voiceService import found")
-    else:
-        print("❌ voiceService import not found")
-        return False
-    
-    # Test 5b: CallSid extraction
-    if "CallSid" in handler_code and "req.body" in handler_code:
-        print("✅ CallSid extraction from req.body found")
-    else:
-        print("❌ CallSid extraction not found")
-        return False
-    
-    # Test 5c: 1-minute minimum billing
-    if "Math.max(1, Math.ceil(duration / 60))" in handler_code:
-        print("✅ 1-minute minimum billing logic found")
-    else:
-        print("❌ 1-minute minimum billing logic not found")
-        return False
-    
-    # Test 5d: billCallMinutesUnified call with 'Twilio_Voicemail'
-    if "billCallMinutesUnified(chatId, num.phoneNumber, minutesBilled, decodedFrom, 'Twilio_Voicemail')" in handler_code:
-        print("✅ billCallMinutesUnified call with 'Twilio_Voicemail' found")
-    else:
-        print("❌ billCallMinutesUnified call with 'Twilio_Voicemail' not found")
-        return False
-    
-    # Test 5e: _twilioBilledCallSids.add(CallSid) for deduplication
-    if "_twilioBilledCallSids.add(CallSid)" in handler_code:
-        print("✅ _twilioBilledCallSids.add(CallSid) deduplication found")
-    else:
-        print("❌ _twilioBilledCallSids.add(CallSid) deduplication not found")
-        return False
-    
-    # Test 5f: billingLine with plan usage
-    if "billingLine" in handler_code and "remaining" in handler_code and "billingInfo.limit" in handler_code:
-        print("✅ billingLine with plan usage found")
-    else:
-        print("❌ billingLine with plan usage not found")
-        return False
-    
-    # Test 5g: minutesBilled stored in phoneLogs
-    if "minutesBilled" in handler_code and "phoneLogs" in handler_code:
-        print("✅ minutesBilled stored in phoneLogs found")
-    else:
-        print("❌ minutesBilled stored in phoneLogs not found")
-        return False
-    
-    return True
-
-def test_voice_service_handlecallhangup():
-    """Test 6: Verify voice-service.js handleCallHangup voicemail notification"""
-    print("🔍 Testing voice-service.js handleCallHangup voicemail notification...")
-    
-    # Read the voice-service.js file
-    try:
-        with open("/app/js/voice-service.js", "r") as f:
-            content = f.read()
-    except Exception as e:
-        print(f"❌ Could not read voice-service.js: {e}")
-        return False
-    
-    # Test 6a: voicemail_recording/voicemail_greeting phase check
-    voicemail_phase_pattern = r"session\.phase === 'voicemail_recording' \|\| session\.phase === 'voicemail_greeting'"
-    if re.search(voicemail_phase_pattern, content):
-        print("✅ voicemail_recording/voicemail_greeting phase check found")
-    else:
-        print("❌ voicemail_recording/voicemail_greeting phase check not found")
-        return False
-    
-    # Test 6b: Notification includes billingInfo.overageCharge
-    # Find the voicemail notification section
-    voicemail_section_match = re.search(r"session\.phase === 'voicemail_recording' \|\| session\.phase === 'voicemail_greeting'.*?(?=} else|$)", content, re.DOTALL)
-    if not voicemail_section_match:
-        print("❌ Voicemail notification section not found")
-        return False
-    
-    voicemail_section = voicemail_section_match.group(0)
-    
-    if "billingInfo.overageCharge" in voicemail_section:
-        print("✅ billingInfo.overageCharge in notification found")
-    else:
-        print("❌ billingInfo.overageCharge in notification not found")
-        return False
-    
-    # Test 6c: planLine and formatDuration(duration)
-    if "planLine" in voicemail_section and "formatDuration(duration)" in voicemail_section:
-        print("✅ planLine and formatDuration(duration) found")
-    else:
-        print("❌ planLine and formatDuration(duration) not found")
-        return False
-    
-    # Test 6d: Message header is 'Voicemail Call Ended'
-    if "Voicemail Call Ended" in voicemail_section:
-        print("✅ 'Voicemail Call Ended' header found")
-    else:
-        print("❌ 'Voicemail Call Ended' header not found")
-        return False
-    
-    return True
-
-def test_billcallminutesunified_function():
-    """Test 7: Verify billCallMinutesUnified function exists and is exported"""
-    print("🔍 Testing billCallMinutesUnified function...")
-    
-    # Read the voice-service.js file
-    try:
-        with open("/app/js/voice-service.js", "r") as f:
-            content = f.read()
-    except Exception as e:
-        print(f"❌ Could not read voice-service.js: {e}")
-        return False
-    
-    # Check if function exists around line 877
-    if "async function billCallMinutesUnified(" in content:
-        print("✅ billCallMinutesUnified function found")
-    else:
-        print("❌ billCallMinutesUnified function not found")
-        return False
-    
-    # Check if it's exported (around line 3906)
-    if "billCallMinutesUnified," in content:
-        print("✅ billCallMinutesUnified is exported")
-    else:
-        print("❌ billCallMinutesUnified is not exported")
-        return False
-    
-    return True
-
-def test_twilio_billed_call_sids():
-    """Test 8: Verify _twilioBilledCallSids variable exists"""
-    print("🔍 Testing _twilioBilledCallSids variable...")
-    
-    # Read the _index.js file
-    try:
-        with open("/app/js/_index.js", "r") as f:
-            content = f.read()
-    except Exception as e:
-        print(f"❌ Could not read _index.js: {e}")
-        return False
-    
-    # Check if _twilioBilledCallSids is declared
-    if "_twilioBilledCallSids = new Set()" in content:
-        print("✅ _twilioBilledCallSids variable declaration found")
-    else:
-        print("❌ _twilioBilledCallSids variable declaration not found")
-        return False
-    
-    # Check if it's used for deduplication
-    if "_twilioBilledCallSids.add(CallSid)" in content:
-        print("✅ _twilioBilledCallSids.add(CallSid) usage found")
-    else:
-        print("❌ _twilioBilledCallSids.add(CallSid) usage not found")
-        return False
-    
-    return True
-
-def test_regular_twilio_billing_paths():
-    """Test 9: Verify regular Twilio inbound billing paths still work"""
-    print("🔍 Testing regular Twilio inbound billing paths...")
-    
-    # Read the _index.js file
-    try:
-        with open("/app/js/_index.js", "r") as f:
-            content = f.read()
-    except Exception as e:
-        print(f"❌ Could not read _index.js: {e}")
-        return False
-    
-    # Check sip-ring-result handler
-    sip_ring_match = re.search(r"app\.post\('/twilio/sip-ring-result'.*?(?=app\.post|$)", content, re.DOTALL)
-    if sip_ring_match and "_twilioBilledCallSids.add(CallSid)" in sip_ring_match.group(0):
-        print("✅ sip-ring-result handler adds to _twilioBilledCallSids")
-    else:
-        print("❌ sip-ring-result handler does not add to _twilioBilledCallSids")
-        return False
-    
-    # Check voice-dial-status handler
-    voice_dial_match = re.search(r"app\.post\('/twilio/voice-dial-status'.*?(?=app\.post|$)", content, re.DOTALL)
-    if voice_dial_match and "_twilioBilledCallSids.add(CallSid)" in voice_dial_match.group(0):
-        print("✅ voice-dial-status handler adds to _twilioBilledCallSids")
-    else:
-        print("❌ voice-dial-status handler does not add to _twilioBilledCallSids")
-        return False
-    
-    return True
+            return data.get('status') == 'healthy' and data.get('database') == 'connected'
+    except:
+        pass
+    return False
 
 def main():
-    """Run all tests"""
-    print("🚀 Starting Voicemail Billing Implementation Tests")
-    print("=" * 60)
+    test = TestResult()
     
-    tests = [
-        ("Syntax Validation", test_syntax_validation),
-        ("Health Endpoint", test_health_endpoint),
-        ("Error Logs", test_error_logs),
-        ("Voicemail Complete Implementation", test_voicemail_complete_implementation),
-        ("Voice Service HandleCallHangup", test_voice_service_handlecallhangup),
-        ("billCallMinutesUnified Function", test_billcallminutesunified_function),
-        ("_twilioBilledCallSids Variable", test_twilio_billed_call_sids),
-        ("Regular Twilio Billing Paths", test_regular_twilio_billing_paths),
-    ]
+    print("🧪 NOMADLY TELEGRAM BOT IVR SYSTEM - BACKEND TESTING")
+    print("Testing 4 new features: Redial Button, Consistent Voice, Customizable OTP Messages, Placeholder Documentation")
+    print("="*80)
     
-    passed = 0
-    total = len(tests)
+    # ========================================
+    # GENERAL HEALTH CHECKS
+    # ========================================
+    print("\n📋 GENERAL HEALTH CHECKS")
+    print("-" * 40)
     
-    for test_name, test_func in tests:
-        print(f"\n📋 {test_name}")
-        print("-" * 40)
-        try:
-            if test_func():
-                passed += 1
-                print(f"✅ {test_name} PASSED")
-            else:
-                print(f"❌ {test_name} FAILED")
-        except Exception as e:
-            print(f"❌ {test_name} ERROR: {e}")
+    # 21. Syntax validation
+    code, _, _ = run_command("node -c /app/js/_index.js")
+    test.test("_index.js syntax validation", code == 0)
     
-    print("\n" + "=" * 60)
-    print(f"📊 TEST SUMMARY: {passed}/{total} tests passed ({passed/total*100:.1f}%)")
+    code, _, _ = run_command("node -c /app/js/voice-service.js")
+    test.test("voice-service.js syntax validation", code == 0)
     
-    if passed == total:
-        print("🎉 ALL TESTS PASSED - Voicemail billing implementation is working correctly!")
-        return 0
+    # 22. Health endpoint
+    health_ok = test_health_endpoint()
+    test.test("Health endpoint returns healthy", health_ok)
+    
+    # 23. Error logs check
+    code, stdout, _ = run_command("ls -la /var/log/supervisor/nodejs.err.log")
+    log_size = 0
+    if code == 0 and stdout:
+        # Extract file size from ls output
+        parts = stdout.strip().split()
+        if len(parts) >= 5:
+            try:
+                log_size = int(parts[4])
+            except:
+                pass
+    test.test("Error log is empty (0 bytes)", log_size == 0, f"Log size: {log_size} bytes")
+    
+    # ========================================
+    # FEATURE 1: REDIAL BUTTON
+    # ========================================
+    print("\n🔁 FEATURE 1: REDIAL BUTTON")
+    print("-" * 40)
+    
+    voice_content = read_file_content("/app/js/voice-service.js")
+    index_content = read_file_content("/app/js/_index.js")
+    
+    # 1. lastIvrCallParams Map declaration
+    test.test("lastIvrCallParams Map declared near line 35", 
+              "const lastIvrCallParams = new Map()" in voice_content and 
+              "chatId → last IVR call params for Redial feature" in voice_content)
+    
+    # 2. lastIvrCallParams exported
+    test.test("lastIvrCallParams exported at end of voice-service.js",
+              "lastIvrCallParams," in voice_content)
+    
+    # 3. handleOutboundIvrHangup stores params
+    hangup_stores_params = (
+        "lastIvrCallParams.set(session.chatId," in voice_content and
+        "handleOutboundIvrHangup" in voice_content
+    )
+    test.test("handleOutboundIvrHangup stores lastIvrCallParams", hangup_stores_params)
+    
+    # 4. Redial button in hangup notification
+    redial_button = (
+        "🔁 Redial Same Number" in index_content and
+        "ivr_redial:" in index_content
+    )
+    test.test("Redial button in hangup notification", redial_button)
+    
+    # 5. ivr_redial callback handler
+    redial_handler = (
+        "if (chatId && data.startsWith('ivr_redial:'))" in index_content and
+        "callback_query" in index_content
+    )
+    test.test("ivr_redial callback_query handler exists", redial_handler)
+    
+    # ========================================
+    # FEATURE 2: CONSISTENT VOICE
+    # ========================================
+    print("\n🎤 FEATURE 2: CONSISTENT VOICE")
+    print("-" * 40)
+    
+    # 6. OPENAI_TO_TWILIO_VOICE mapping
+    twilio_mapping = (
+        "const OPENAI_TO_TWILIO_VOICE = {" in voice_content and
+        "alloy" in voice_content and "Polly.Joanna-Neural" in voice_content and
+        "onyx" in voice_content and "Polly.Stephen-Neural" in voice_content
+    )
+    test.test("OPENAI_TO_TWILIO_VOICE mapping exists", twilio_mapping)
+    
+    # 7. OPENAI_TO_TELNYX_VOICE mapping
+    telnyx_mapping = (
+        "const OPENAI_TO_TELNYX_VOICE = {" in voice_content and
+        "alloy" in voice_content and "female" in voice_content and
+        "onyx" in voice_content and "male" in voice_content
+    )
+    test.test("OPENAI_TO_TELNYX_VOICE mapping exists", telnyx_mapping)
+    
+    # 8. getTwilioVoice and getTelnyxVoice functions
+    voice_functions = (
+        "function getTwilioVoice(voiceName)" in voice_content and
+        "function getTelnyxVoice(voiceName)" in voice_content and
+        "getTwilioVoice," in voice_content and
+        "getTelnyxVoice," in voice_content
+    )
+    test.test("getTwilioVoice() and getTelnyxVoice() functions exist and exported", voice_functions)
+    
+    # 9. Twilio response.say() calls use voice parameter
+    twilio_voice_usage = len(re.findall(r'voice:\s*twilioVoice', index_content))
+    test.test("Twilio response.say() calls use voice: twilioVoice", 
+              twilio_voice_usage >= 10, f"Found {twilio_voice_usage} usages")
+    
+    # 10. Telnyx speakOnCall uses getTelnyxVoice
+    telnyx_voice_usage = "getTelnyxVoice(session.voiceName)" in voice_content
+    test.test("Telnyx speakOnCall uses getTelnyxVoice(session.voiceName)", telnyx_voice_usage)
+    
+    # ========================================
+    # FEATURE 3: CUSTOMIZABLE OTP MESSAGES
+    # ========================================
+    print("\n📝 FEATURE 3: CUSTOMIZABLE OTP MESSAGES")
+    print("-" * 40)
+    
+    # 11. Action states declared
+    otp_actions = (
+        "ivrObOtpMessages: 'ivrObOtpMessages'" in index_content and
+        "ivrObOtpConfirmMsg: 'ivrObOtpConfirmMsg'" in index_content and
+        "ivrObOtpRejectMsg: 'ivrObOtpRejectMsg'" in index_content
+    )
+    test.test("OTP message action states declared", otp_actions)
+    
+    # 12. Customize Messages buttons after OTP length
+    customize_buttons = (
+        "Customize Messages" in index_content and
+        "Use Defaults" in index_content and
+        "ivrObOtpMessages" in index_content
+    )
+    test.test("Customize Messages/Use Defaults buttons exist", customize_buttons)
+    
+    # 13. ivrObOtpConfirmMsg handler
+    confirm_handler = (
+        "if (action === a.ivrObOtpConfirmMsg)" in index_content and
+        "Confirmation Message" in index_content and
+        "CONFIRM" in index_content
+    )
+    test.test("ivrObOtpConfirmMsg handler asks for confirm message", confirm_handler)
+    
+    # 14. ivrObOtpRejectMsg handler
+    reject_handler = (
+        "if (action === a.ivrObOtpRejectMsg)" in index_content and
+        "Rejection Message" in index_content and
+        "REJECT" in index_content
+    )
+    test.test("ivrObOtpRejectMsg handler asks for reject message", reject_handler)
+    
+    # 15. otpConfirmMsg and otpRejectMsg passed to initiateOutboundIvrCall
+    otp_params_passed = (
+        "otpConfirmMsg" in index_content and
+        "otpRejectMsg" in index_content and
+        "initiateOutboundIvrCall" in index_content
+    )
+    test.test("otpConfirmMsg and otpRejectMsg passed to initiateOutboundIvrCall", otp_params_passed)
+    
+    # 16. Twilio session constructors include OTP message fields
+    twilio_otp_fields = (
+        "otpConfirmMsg" in voice_content and
+        "otpRejectMsg" in voice_content
+    )
+    test.test("Twilio session constructors include otpConfirmMsg and otpRejectMsg", twilio_otp_fields)
+    
+    # 17. OTP hold handler uses custom messages with fallback
+    otp_hold_usage = (
+        "session.otpConfirmMsg || 'Your code has been verified" in index_content and
+        "session.otpRejectMsg || 'Maximum verification attempts" in index_content
+    )
+    test.test("OTP hold handler uses custom messages with fallback", otp_hold_usage)
+    
+    # ========================================
+    # FEATURE 4: PLACEHOLDER DOCUMENTATION
+    # ========================================
+    print("\n📋 FEATURE 4: PLACEHOLDER DOCUMENTATION")
+    print("-" * 40)
+    
+    # 19. Custom script prompt includes All Placeholders button
+    placeholder_button = (
+        "['ℹ️ All Placeholders']" in index_content and
+        "Custom Script" in index_content
+    )
+    test.test("Custom script prompt includes 'ℹ️ All Placeholders' button", placeholder_button)
+    
+    # 20. All Placeholders handler shows complete reference
+    placeholder_handler = (
+        "if (message === 'ℹ️ All Placeholders')" in index_content and
+        "Complete Placeholder Reference" in index_content and
+        "Standard" in index_content and
+        "Smart Auto-Fill" in index_content and
+        "Smart Pick" in index_content
+    )
+    test.test("All Placeholders handler shows complete reference with categories", placeholder_handler)
+    
+    # ========================================
+    # ADDITIONAL VERIFICATION CHECKS
+    # ========================================
+    print("\n🔍 ADDITIONAL VERIFICATION CHECKS")
+    print("-" * 40)
+    
+    # Check for specific implementation details mentioned in checklist
+    
+    # Redial functionality details
+    redial_details = (
+        "lastIvrCallParams.set" in voice_content and
+        "ivr_redial:" in index_content and
+        "callback_data" in index_content
+    )
+    test.test("Redial functionality implementation details", redial_details)
+    
+    # Voice consistency implementation
+    voice_consistency = (
+        "OPENAI_TO_TWILIO_VOICE" in voice_content and
+        "OPENAI_TO_TELNYX_VOICE" in voice_content and
+        "getTwilioVoice" in voice_content and
+        "getTelnyxVoice" in voice_content
+    )
+    test.test("Voice consistency implementation complete", voice_consistency)
+    
+    # OTP customization flow
+    otp_flow = (
+        "ivrObOtpMessages" in index_content and
+        "ivrObOtpConfirmMsg" in index_content and
+        "ivrObOtpRejectMsg" in index_content
+    )
+    test.test("OTP customization flow implementation", otp_flow)
+    
+    # Placeholder documentation completeness
+    placeholder_completeness = (
+        "Standard (you type the value)" in index_content and
+        "Smart Auto-Fill (generated for you)" in index_content and
+        "Smart Pick (choose from presets)" in index_content
+    )
+    test.test("Placeholder documentation completeness", placeholder_completeness)
+    
+    # ========================================
+    # FINAL SUMMARY
+    # ========================================
+    success = test.summary()
+    
+    if success:
+        print("\n🎉 ALL TESTS PASSED! All 4 new IVR features are correctly implemented.")
+        print("✅ Redial Button: lastIvrCallParams Map, hangup storage, callback handler")
+        print("✅ Consistent Voice: OpenAI→Twilio/Telnyx mappings, voice functions, usage")
+        print("✅ Customizable OTP Messages: action states, handlers, message flow")
+        print("✅ Placeholder Documentation: button, complete reference with categories")
     else:
-        print(f"⚠️  {total - passed} test(s) failed - Please review the implementation")
-        return 1
+        print(f"\n⚠️  {test.failed} test(s) failed. Review implementation details above.")
+    
+    return 0 if success else 1
 
 if __name__ == "__main__":
     sys.exit(main())

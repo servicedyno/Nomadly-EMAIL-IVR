@@ -32,6 +32,27 @@ const pendingBridges = {}
 // Outbound IVR sessions: callControlId → outbound IVR session data
 const outboundIvrCalls = {}
 const twilioIvrSessions = {} // sessionId → { chatId, callerId, targetNumber, ... } for Twilio IVR calls
+const lastIvrCallParams = new Map() // chatId → last IVR call params for Redial feature
+
+// ── Voice mapping: OpenAI voice → Twilio Polly voice & Telnyx voice gender ──
+const OPENAI_TO_TWILIO_VOICE = {
+  'alloy': 'Polly.Joanna-Neural',      // Female, neutral
+  'fable': 'Polly.Brian-Neural',        // Male, British expressive
+  'nova': 'Polly.Salli-Neural',         // Female, warm friendly
+  'shimmer': 'Polly.Kimberly-Neural',   // Female, clear pleasant
+  'echo': 'Polly.Matthew-Neural',       // Male, warm deep
+  'onyx': 'Polly.Stephen-Neural',       // Male, deep authoritative
+}
+const OPENAI_TO_TELNYX_VOICE = {
+  'alloy': 'female', 'fable': 'male', 'nova': 'female',
+  'shimmer': 'female', 'echo': 'male', 'onyx': 'male',
+}
+function getTwilioVoice(voiceName) {
+  return OPENAI_TO_TWILIO_VOICE[(voiceName || '').toLowerCase()] || 'Polly.Matthew-Neural'
+}
+function getTelnyxVoice(voiceName) {
+  return OPENAI_TO_TELNYX_VOICE[(voiceName || '').toLowerCase()] || 'female'
+}
 
 // SIP outbound rate limiter: key (sipUser:destination) → { count, firstCallTime }
 const sipRateLimit = {}
@@ -3254,7 +3275,7 @@ const ivrOutbound = require('./ivr-outbound.js')
  * @returns {{ callControlId, error }}
  */
 async function initiateOutboundIvrCall(params) {
-  const { chatId, callerId, targetNumber, ivrNumber, audioUrl, activeKeys, templateName, placeholderValues, voiceName, isTrial, holdMusic, campaignId, leadIndex, bulkMode, ivrMode, otpLength, otpMaxAttempts } = params
+  const { chatId, callerId, targetNumber, ivrNumber, audioUrl, activeKeys, templateName, placeholderValues, voiceName, isTrial, holdMusic, campaignId, leadIndex, bulkMode, ivrMode, otpLength, otpMaxAttempts, otpConfirmMsg, otpRejectMsg } = params
 
   // ── Wallet balance check (skip for trial calls) ──
   // Outbound IVR always charges wallet at flat IVR rate (plan minutes are for inbound only)
@@ -3307,6 +3328,8 @@ async function initiateOutboundIvrCall(params) {
         otpDigits: null,
         otpStatus: null,
         otpHoldStartedAt: null,
+        otpConfirmMsg: params.otpConfirmMsg || null,
+        otpRejectMsg: params.otpRejectMsg || null,
       }
 
       const twimlUrl = `${_selfUrl}/twilio/single-ivr?sessionId=${encodeURIComponent(sessionId)}`
@@ -3364,6 +3387,8 @@ async function initiateOutboundIvrCall(params) {
       otpDigits: null,
       otpStatus: null,
       otpHoldStartedAt: null,
+      otpConfirmMsg: params.otpConfirmMsg || null,
+      otpRejectMsg: params.otpRejectMsg || null,
     }
 
     const twimlUrl = `${_selfUrl}/twilio/single-ivr?sessionId=${encodeURIComponent(sessionId)}`
@@ -3487,10 +3512,12 @@ async function handleOutboundIvrAnswered(payload) {
     })
   } else {
     // Fallback to TTS if no audio URL
+    const tVoice = getTelnyxVoice(session.voiceName)
     await _telnyxApi.gatherDTMF(callControlId, 'Thank you for your time. Goodbye.', {
       minDigits: 1,
       maxDigits: 1,
       timeout: 15000,
+      voice: tVoice,
     })
   }
   return true
@@ -3521,7 +3548,7 @@ async function handleOutboundIvrGatherEnded(payload) {
           ...session, digit: digits,
         }), { parse_mode: 'HTML' }).catch(() => {})
       }
-      await _telnyxApi.speakOnCall(callControlId, 'Thank you. Goodbye.')
+      await _telnyxApi.speakOnCall(callControlId, 'Thank you. Goodbye.', getTelnyxVoice(session.voiceName))
       setTimeout(() => _telnyxApi.hangupCall(callControlId), 2000)
       return true
     }
@@ -3552,12 +3579,12 @@ async function handleOutboundIvrGatherEnded(payload) {
         validDigits: session.activeKeys.join('') || '0123456789',
       })
     } else {
-      await _telnyxApi.speakOnCall(callControlId, 'Goodbye.')
+      await _telnyxApi.speakOnCall(callControlId, 'Goodbye.', getTelnyxVoice(session.voiceName))
       setTimeout(() => _telnyxApi.hangupCall(callControlId), 2000)
     }
   } else {
     // Already retried — hang up
-    await _telnyxApi.speakOnCall(callControlId, 'Goodbye.')
+    await _telnyxApi.speakOnCall(callControlId, 'Goodbye.', getTelnyxVoice(session.voiceName))
     setTimeout(() => _telnyxApi.hangupCall(callControlId), 2000)
   }
   return true
@@ -3687,13 +3714,37 @@ async function handleOutboundIvrHangup(payload) {
     return true
   }
 
-  // Notify bot user (non-bulk calls only)
+  // Notify bot user (non-bulk calls only) + Redial button
   const baseNotif = ivrOutbound.formatCallNotification(notifType, {
     ...session,
     duration,
     digitPressed: session.digitPressed,
   })
-  _bot?.sendMessage(session.chatId, baseNotif + planLine, { parse_mode: 'HTML' }).catch(() => {})
+  // Store last IVR call params for Redial feature
+  lastIvrCallParams.set(session.chatId, {
+    callerId: session.callerId,
+    targetNumber: session.targetNumber,
+    ivrNumber: session.ivrNumber,
+    audioUrl: session.audioUrl,
+    activeKeys: session.activeKeys,
+    templateName: session.templateName,
+    placeholderValues: session.placeholderValues,
+    voiceName: session.voiceName,
+    holdMusic: session.holdMusic,
+    ivrMode: session.ivrMode || 'transfer',
+    otpLength: session.otpLength,
+    otpMaxAttempts: session.otpMaxAttempts,
+    otpConfirmMsg: session.otpConfirmMsg,
+    otpRejectMsg: session.otpRejectMsg,
+    callerProvider: 'telnyx',
+    timestamp: Date.now(),
+  })
+  _bot?.sendMessage(session.chatId, baseNotif + planLine, {
+    parse_mode: 'HTML',
+    reply_markup: {
+      inline_keyboard: [[{ text: '🔁 Redial Same Number', callback_data: `ivr_redial:${session.chatId}` }]]
+    }
+  }).catch(() => {})
 
   // If trial call, only mark as used if the call was actually answered
   if (session.isTrial) {
@@ -3909,4 +3960,7 @@ module.exports = {
   IVR_CALL_RATE,
   initUserWalletMonitor,
   notifyLowBalance,
+  lastIvrCallParams,
+  getTwilioVoice,
+  getTelnyxVoice,
 }
