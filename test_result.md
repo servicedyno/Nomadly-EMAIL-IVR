@@ -36,7 +36,7 @@ Rebuild NomadlySMSfix Android app as Capacitor hybrid with subscription enforcem
 ### ✅ ALL TESTS PASSED (11/11) - 100% Success Rate
 
 **Test Date:** January 2025  
-**Backend URL:** https://readme-guide-5.preview.emergentagent.com  
+**Backend URL:** https://readme-launch-1.preview.emergentagent.com  
 **Test User:** 6687923716 (expired subscription, 0 free SMS remaining)
 
 #### Subscription Enforcement Tests:
