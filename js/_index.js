@@ -21954,7 +21954,7 @@ const bankApis = {
         recordHostingTransaction(chatId, { ...txBase, outcome: 'domain_only', refundAmount: hostingRefundNgn, refundCurrency: 'NGN' })
       } else {
         addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
-        sendMessage(chatId, hostingResult?.error || 'Hosting creation failed. Full payment refunded to your NGN wallet.')
+        sendMessage(chatId, hostingResult?.error || 'Hosting creation failed. Full payment refunded to your wallet.')
         recordHostingTransaction(chatId, { ...txBase, outcome: 'full_refund', refundAmount: ngnIn, refundCurrency: 'NGN' })
       }
       return res.send(html(hostingResult?.error || 'Hosting creation failed'))
