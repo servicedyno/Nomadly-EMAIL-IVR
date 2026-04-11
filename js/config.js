@@ -703,6 +703,27 @@ const targetLeadsData = {
     'Charlotte NC': ['704', '980'],
     'Denver CO': ['303', '720'],
   },
+  'Comerica Bnk': {
+    'Dallas TX': ['214', '469', '972'],
+    'Fort Worth TX': ['817'],
+    'Austin TX': ['512'],
+    'Houston TX': ['713', '281', '832'],
+    'San Antonio TX': ['210'],
+    'Detroit MI': ['313', '734', '248', '586'],
+    'Ann Arbor MI': ['734'],
+    'Grand Rapids MI': ['616'],
+    'Troy / Bloomfield MI': ['248'],
+    'Phoenix AZ': ['602', '480', '623'],
+    'Scottsdale / Tempe AZ': ['480'],
+    'Central Phoenix AZ': ['602'],
+    'Los Angeles CA': ['213', '323', '310', '424'],
+    'San Francisco CA': ['415', '628'],
+    'Orange County CA': ['714', '949'],
+    'San Jose / Silicon Valley CA': ['408'],
+    'Fort Lauderdale FL': ['954'],
+    'Miami FL': ['305', '786'],
+    'Tampa FL': ['813'],
+  },
 }
 const targetLeadsTargets = Object.keys(targetLeadsData)
 const targetLeadsCities = (target) => Object.keys(targetLeadsData[target] || {})
