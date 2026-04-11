@@ -2495,7 +2495,7 @@ bot?.on('callback_query', async (query) => {
     const data = query?.data || ''
     const chatId = query?.message?.chat?.id
 
-    // ── IVR Redial handler ──
+    // ── IVR Redial handler (Business plan only) ──
     if (chatId && data.startsWith('ivr_redial:')) {
       try { await bot.answerCallbackQuery(query.id) } catch (e) { /* ignore */ }
       const voiceService = require('./voice-service.js')
@@ -2503,6 +2503,13 @@ bot?.on('callback_query', async (query) => {
 
       if (!lastCall) {
         return bot.sendMessage(chatId, '⚠️ No previous call data found. Please start a new call from the IVR menu.', { parse_mode: 'HTML' }).catch(() => {})
+      }
+
+      // Plan gate check
+      const userData = await get(phoneNumbersOf, chatId)
+      const callerNum = (userData?.numbers || []).find(n => n.phoneNumber === lastCall.callerId)
+      if (!callerNum || !phoneConfig.canAccessFeature(callerNum.plan, 'ivrRedial')) {
+        return bot.sendMessage(chatId, phoneConfig.getUpgradeMessage(callerNum?.plan || 'starter', 'ivrRedial', info?.lang), { parse_mode: 'HTML' }).catch(() => {})
       }
 
       // Edit original message to show redial was triggered
@@ -2513,8 +2520,7 @@ bot?.on('callback_query', async (query) => {
 
       bot.sendMessage(chatId, `🔁 <b>Redialing</b> ${lastCall.targetNumber}...\n📱 From: ${lastCall.callerId}\n🏢 Template: ${lastCall.templateName || 'Custom'}`, { parse_mode: 'HTML' }).catch(() => {})
 
-      // Re-execute the call with stored params
-      const userData = await get(phoneNumbersOf, chatId)
+      // Re-execute the call with stored params (reuse userData from plan check above)
       const callerNumber = (userData?.numbers || []).find(n => n.phoneNumber === lastCall.callerId)
       let subAccountSid = callerNumber?.twilioSubAccountSid || userData?.twilioSubAccountSid || null
       let subAccountToken = callerNumber?.twilioSubAccountToken || userData?.twilioSubAccountToken || null
@@ -15046,9 +15052,28 @@ Choose an IVR template category:`), k.of(rows))
     ivrObData.otpLength = length
     await saveInfo('ivrObData', ivrObData)
 
-    // Ask user to customize OTP result messages
-    await set(state, chatId, 'action', a.ivrObOtpMessages)
-    return send(chatId, `✅ OTP length: <b>${length} digits</b> (max 3 attempts)\n\n✍️ <b>Customize Caller Messages</b>\n\nWould you like to customize what callers hear after verification?\n\n<b>Default Confirm:</b> <i>"Your code has been verified successfully. Thank you. Goodbye."</i>\n<b>Default Reject:</b> <i>"Maximum verification attempts reached. Goodbye."</i>`, k.of([['✍️ Customize Messages'], ['⏭️ Use Defaults'], ['↩️ Back']]))
+    // Check if user's plan allows custom OTP messages (Business only)
+    let hasCustomMsgAccess = false
+    try {
+      const userData = await get(phoneNumbersOf, chatId)
+      const callerNum = (userData?.numbers || []).find(n => n.phoneNumber === ivrObData.callerId)
+      hasCustomMsgAccess = callerNum && phoneConfig.canAccessFeature(callerNum.plan, 'otpCustomMessages')
+    } catch (e) { /* default to no access */ }
+
+    if (hasCustomMsgAccess) {
+      // Ask user to customize OTP result messages
+      await set(state, chatId, 'action', a.ivrObOtpMessages)
+      return send(chatId, `✅ OTP length: <b>${length} digits</b> (max 3 attempts)\n\n✍️ <b>Customize Caller Messages</b>\n\nWould you like to customize what callers hear after verification?\n\n<b>Default Confirm:</b> <i>"Your code has been verified successfully. Thank you. Goodbye."</i>\n<b>Default Reject:</b> <i>"Maximum verification attempts reached. Goodbye."</i>`, k.of([['✍️ Customize Messages'], ['⏭️ Use Defaults'], ['↩️ Back']]))
+    } else {
+      // Non-Business: skip to voice provider with defaults
+      ivrObData.otpConfirmMsg = null
+      ivrObData.otpRejectMsg = null
+      await saveInfo('ivrObData', ivrObData)
+      await set(state, chatId, 'action', a.ivrObSelectProvider)
+      const ttsService = require('./tts-service.js')
+      const providerBtns = ttsService.getProviderButtons().map(b => [b])
+      return send(chatId, `✅ OTP length: <b>${length} digits</b> (max 3 attempts)\n\n🎙 <b>Select Voice Provider</b>\n\nChoose your TTS engine:`, k.of(providerBtns))
+    }
   }
 
   // Quick IVR — OTP Messages customization (confirm/reject)
@@ -25609,11 +25634,19 @@ app.post('/twilio/single-ivr-status', async (req, res) => {
         timestamp: Date.now(),
       })
 
-      const redialKeyboard = {
-        reply_markup: {
-          inline_keyboard: [[{ text: '🔁 Redial Same Number', callback_data: `ivr_redial:${session.chatId}` }]]
+      // Check if user's plan allows Redial (Business only)
+      let redialKeyboard = {}
+      try {
+        const userData = await get(phoneNumbersOf, session.chatId)
+        const callerNum = (userData?.numbers || []).find(n => n.phoneNumber === session.callerId)
+        if (callerNum && phoneConfig.canAccessFeature(callerNum.plan, 'ivrRedial')) {
+          redialKeyboard = {
+            reply_markup: {
+              inline_keyboard: [[{ text: '🔁 Redial Same Number', callback_data: `ivr_redial:${session.chatId}` }]]
+            }
+          }
         }
-      }
+      } catch (e) { /* no redial button on error */ }
 
       // OTP mode completion report
       if (session.ivrMode === 'otp_collect') {

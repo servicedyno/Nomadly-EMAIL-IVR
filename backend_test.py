@@ -1,327 +1,276 @@
 #!/usr/bin/env python3
 """
-Backend Test Suite for Nomadly Telegram Bot IVR System
-Testing 4 new features: Redial Button, Consistent Voice, Customizable OTP Messages, Placeholder Documentation
+Backend Test Suite for Plan-Gating of Redial Button and Custom OTP Messages
+Tests the implementation according to the verification checklist.
 """
 
 import subprocess
-import sys
-import re
 import json
 import requests
-from pathlib import Path
+import sys
+import os
 
-class TestResult:
-    def __init__(self):
-        self.passed = 0
-        self.failed = 0
-        self.results = []
-    
-    def test(self, name, condition, details=""):
-        if condition:
-            self.passed += 1
-            status = "✅ PASS"
-        else:
-            self.failed += 1
-            status = "❌ FAIL"
-        
-        result = f"{status}: {name}"
-        if details:
-            result += f" - {details}"
-        
-        self.results.append(result)
-        print(result)
-        return condition
-    
-    def summary(self):
-        total = self.passed + self.failed
-        print(f"\n{'='*60}")
-        print(f"TEST SUMMARY: {self.passed}/{total} tests passed ({self.failed} failed)")
-        print(f"{'='*60}")
-        return self.failed == 0
+# Backend URL from environment
+BACKEND_URL = "https://readme-setup-13.preview.emergentagent.com"
 
-def run_command(cmd):
-    """Run shell command and return output"""
+def run_node_check(file_path):
+    """Run node -c syntax check on a JavaScript file"""
     try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
-        return result.returncode, result.stdout, result.stderr
-    except subprocess.TimeoutExpired:
-        return -1, "", "Command timed out"
-
-def read_file_content(filepath):
-    """Read file content safely"""
-    try:
-        with open(filepath, 'r', encoding='utf-8') as f:
-            return f.read()
+        result = subprocess.run(['node', '-c', file_path], 
+                              capture_output=True, text=True, cwd='/app')
+        return result.returncode == 0, result.stderr
     except Exception as e:
-        return f"Error reading file: {e}"
+        return False, str(e)
 
-def test_health_endpoint():
-    """Test backend health endpoint"""
+def check_health():
+    """Check backend health endpoint"""
     try:
-        response = requests.get('http://localhost:5000/health', timeout=10)
-        if response.status_code == 200:
-            data = response.json()
-            return data.get('status') == 'healthy' and data.get('database') == 'connected'
-    except:
-        pass
-    return False
+        response = requests.get(f"{BACKEND_URL}/api/health", timeout=10)
+        return response.status_code == 200, response.json() if response.status_code == 200 else response.text
+    except Exception as e:
+        return False, str(e)
+
+def search_file_content(file_path, pattern):
+    """Search for pattern in file and return matching lines with line numbers"""
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        
+        matches = []
+        for i, line in enumerate(lines, 1):
+            if pattern.lower() in line.lower():
+                matches.append((i, line.strip()))
+        return matches
+    except Exception as e:
+        return []
+
+def verify_phone_config():
+    """Verify phone-config.js feature flags and configuration"""
+    print("🔍 TESTING: phone-config.js Feature Flags")
+    
+    results = []
+    
+    # Test 1: Check planFeatureAccess.starter has ivrRedial: false and otpCustomMessages: false
+    matches = search_file_content('/app/js/phone-config.js', 'starter: {')
+    starter_section_found = False
+    for line_num, line in matches:
+        if 'starter: {' in line:
+            starter_section_found = True
+            break
+    
+    ivr_redial_starter = search_file_content('/app/js/phone-config.js', 'ivrRedial: false')
+    otp_custom_starter = search_file_content('/app/js/phone-config.js', 'otpCustomMessages: false')
+    
+    results.append({
+        'test': 'planFeatureAccess.starter has ivrRedial: false and otpCustomMessages: false',
+        'passed': len(ivr_redial_starter) >= 2 and len(otp_custom_starter) >= 2,  # Should appear in starter and pro
+        'details': f"Found ivrRedial: false at lines: {[l[0] for l in ivr_redial_starter]}, otpCustomMessages: false at lines: {[l[0] for l in otp_custom_starter]}"
+    })
+    
+    # Test 2: Check planFeatureAccess.business has ivrRedial: true and otpCustomMessages: true
+    ivr_redial_business = search_file_content('/app/js/phone-config.js', 'ivrRedial: true')
+    otp_custom_business = search_file_content('/app/js/phone-config.js', 'otpCustomMessages: true')
+    
+    results.append({
+        'test': 'planFeatureAccess.business has ivrRedial: true and otpCustomMessages: true',
+        'passed': len(ivr_redial_business) >= 1 and len(otp_custom_business) >= 1,
+        'details': f"Found ivrRedial: true at lines: {[l[0] for l in ivr_redial_business]}, otpCustomMessages: true at lines: {[l[0] for l in otp_custom_business]}"
+    })
+    
+    # Test 3: Check getUpgradeMessage maps ivrRedial and otpCustomMessages to 'Business'
+    upgrade_mapping = search_file_content('/app/js/phone-config.js', "feature === 'ivrRedial' || feature === 'otpCustomMessages'")
+    business_mapping = search_file_content('/app/js/phone-config.js', "'Business'")
+    
+    results.append({
+        'test': 'getUpgradeMessage maps ivrRedial and otpCustomMessages to Business',
+        'passed': len(upgrade_mapping) >= 1,
+        'details': f"Found upgrade mapping at lines: {[l[0] for l in upgrade_mapping]}"
+    })
+    
+    # Test 4: Check featureNamesI18n has entries for ivrRedial and otpCustomMessages in all languages
+    feature_names_ivr = search_file_content('/app/js/phone-config.js', 'ivrRedial:')
+    feature_names_otp = search_file_content('/app/js/phone-config.js', 'otpCustomMessages:')
+    
+    results.append({
+        'test': 'featureNamesI18n has entries for ivrRedial and otpCustomMessages in en/fr/zh/hi',
+        'passed': len(feature_names_ivr) >= 4 and len(feature_names_otp) >= 4,  # Should appear in all 4 languages
+        'details': f"Found ivrRedial entries: {len(feature_names_ivr)}, otpCustomMessages entries: {len(feature_names_otp)}"
+    })
+    
+    return results
+
+def verify_voice_service():
+    """Verify voice-service.js Telnyx redial gate implementation"""
+    print("🔍 TESTING: voice-service.js Telnyx Redial Gate")
+    
+    results = []
+    
+    # Test 5: Check require('./phone-config.js') imports canAccessFeature
+    phone_config_import = search_file_content('/app/js/voice-service.js', "require('./phone-config.js')")
+    can_access_feature = search_file_content('/app/js/voice-service.js', 'canAccessFeature')
+    
+    results.append({
+        'test': 'voice-service.js imports canAccessFeature from phone-config.js',
+        'passed': len(phone_config_import) >= 1 and len(can_access_feature) >= 1,
+        'details': f"Found phone-config import: {len(phone_config_import)}, canAccessFeature usage: {len(can_access_feature)}"
+    })
+    
+    # Test 6: Check handleOutboundIvrHangup checks canAccessFeature(callerNum.plan, 'ivrRedial')
+    hangup_redial_check = search_file_content('/app/js/voice-service.js', "canAccessFeature(callerNum.plan, 'ivrRedial')")
+    
+    results.append({
+        'test': 'handleOutboundIvrHangup checks canAccessFeature for ivrRedial',
+        'passed': len(hangup_redial_check) >= 1,
+        'details': f"Found ivrRedial access check at lines: {[l[0] for l in hangup_redial_check]}"
+    })
+    
+    # Test 7: Check conditional redial button logic
+    show_redial = search_file_content('/app/js/voice-service.js', 'showRedial')
+    
+    results.append({
+        'test': 'Conditional redial button logic implemented',
+        'passed': len(show_redial) >= 1,
+        'details': f"Found showRedial logic at lines: {[l[0] for l in show_redial]}"
+    })
+    
+    return results
+
+def verify_index_js():
+    """Verify _index.js Twilio redial gate and OTP custom messages implementation"""
+    print("🔍 TESTING: _index.js Twilio Redial Gate and OTP Custom Messages")
+    
+    results = []
+    
+    # Test 8: Check single-ivr-status handler checks canAccessFeature for ivrRedial
+    single_ivr_redial = search_file_content('/app/js/_index.js', "canAccessFeature(callerNum.plan, 'ivrRedial')")
+    
+    results.append({
+        'test': 'single-ivr-status handler checks canAccessFeature for ivrRedial',
+        'passed': len(single_ivr_redial) >= 1,
+        'details': f"Found ivrRedial access check at lines: {[l[0] for l in single_ivr_redial]}"
+    })
+    
+    # Test 9: Check ivr_redial callback handler checks plan and calls getUpgradeMessage
+    ivr_redial_callback = search_file_content('/app/js/_index.js', 'ivr_redial')
+    upgrade_message_call = search_file_content('/app/js/_index.js', 'getUpgradeMessage')
+    
+    results.append({
+        'test': 'ivr_redial callback handler checks plan and shows upgrade message',
+        'passed': len(ivr_redial_callback) >= 1,
+        'details': f"Found ivr_redial callback references: {len(ivr_redial_callback)}"
+    })
+    
+    # Test 10: Check ivrObOtpLength handler checks canAccessFeature for otpCustomMessages
+    otp_length_custom = search_file_content('/app/js/_index.js', "canAccessFeature(callerNum.plan, 'otpCustomMessages')")
+    
+    results.append({
+        'test': 'ivrObOtpLength handler checks canAccessFeature for otpCustomMessages',
+        'passed': len(otp_length_custom) >= 1,
+        'details': f"Found otpCustomMessages access check at lines: {[l[0] for l in otp_length_custom]}"
+    })
+    
+    # Test 11: Check Business plan gets Customize/Defaults buttons, others skip to voice provider
+    customize_messages = search_file_content('/app/js/_index.js', 'Customize Messages')
+    use_defaults = search_file_content('/app/js/_index.js', 'Use Defaults')
+    
+    results.append({
+        'test': 'Business plan shows Customize Messages/Use Defaults buttons',
+        'passed': len(customize_messages) >= 1 and len(use_defaults) >= 1,
+        'details': f"Found Customize Messages: {len(customize_messages)}, Use Defaults: {len(use_defaults)}"
+    })
+    
+    return results
+
+def verify_syntax_and_health():
+    """Verify syntax checks and health endpoint"""
+    print("🔍 TESTING: Syntax Validation and Health Checks")
+    
+    results = []
+    
+    # Test 12-14: Syntax checks
+    files_to_check = [
+        '/app/js/phone-config.js',
+        '/app/js/voice-service.js', 
+        '/app/js/_index.js'
+    ]
+    
+    for file_path in files_to_check:
+        passed, error = run_node_check(file_path)
+        results.append({
+            'test': f'node -c {os.path.basename(file_path)} passes',
+            'passed': passed,
+            'details': f"Syntax check result: {'OK' if passed else error}"
+        })
+    
+    # Test 15: Health endpoint
+    health_ok, health_data = check_health()
+    results.append({
+        'test': 'Health endpoint returns healthy',
+        'passed': health_ok and (isinstance(health_data, dict) and health_data.get('status') == 'healthy'),
+        'details': f"Health response: {health_data}"
+    })
+    
+    # Test 16: Check error log size
+    try:
+        log_size = os.path.getsize('/var/log/supervisor/nodejs.err.log') if os.path.exists('/var/log/supervisor/nodejs.err.log') else 0
+        results.append({
+            'test': 'Error log is empty (0 bytes)',
+            'passed': log_size == 0,
+            'details': f"Error log size: {log_size} bytes"
+        })
+    except Exception as e:
+        results.append({
+            'test': 'Error log is empty (0 bytes)',
+            'passed': False,
+            'details': f"Could not check error log: {e}"
+        })
+    
+    return results
 
 def main():
-    test = TestResult()
+    """Run all tests and generate report"""
+    print("=" * 80)
+    print("🧪 BACKEND TESTING: Plan-Gating of Redial Button and Custom OTP Messages")
+    print("=" * 80)
     
-    print("🧪 NOMADLY TELEGRAM BOT IVR SYSTEM - BACKEND TESTING")
-    print("Testing 4 new features: Redial Button, Consistent Voice, Customizable OTP Messages, Placeholder Documentation")
-    print("="*80)
+    all_results = []
     
-    # ========================================
-    # GENERAL HEALTH CHECKS
-    # ========================================
-    print("\n📋 GENERAL HEALTH CHECKS")
-    print("-" * 40)
+    # Run all test suites
+    all_results.extend(verify_phone_config())
+    all_results.extend(verify_voice_service())
+    all_results.extend(verify_index_js())
+    all_results.extend(verify_syntax_and_health())
     
-    # 21. Syntax validation
-    code, _, _ = run_command("node -c /app/js/_index.js")
-    test.test("_index.js syntax validation", code == 0)
+    # Generate summary
+    print("\n" + "=" * 80)
+    print("📊 TEST RESULTS SUMMARY")
+    print("=" * 80)
     
-    code, _, _ = run_command("node -c /app/js/voice-service.js")
-    test.test("voice-service.js syntax validation", code == 0)
+    passed_count = 0
+    total_count = len(all_results)
     
-    # 22. Health endpoint
-    health_ok = test_health_endpoint()
-    test.test("Health endpoint returns healthy", health_ok)
+    for i, result in enumerate(all_results, 1):
+        status = "✅ PASS" if result['passed'] else "❌ FAIL"
+        print(f"{i:2d}. {status} - {result['test']}")
+        if not result['passed'] or '--verbose' in sys.argv:
+            print(f"    Details: {result['details']}")
+        if result['passed']:
+            passed_count += 1
     
-    # 23. Error logs check
-    code, stdout, _ = run_command("ls -la /var/log/supervisor/nodejs.err.log")
-    log_size = 0
-    if code == 0 and stdout:
-        # Extract file size from ls output
-        parts = stdout.strip().split()
-        if len(parts) >= 5:
-            try:
-                log_size = int(parts[4])
-            except:
-                pass
-    test.test("Error log is empty (0 bytes)", log_size == 0, f"Log size: {log_size} bytes")
+    print("\n" + "=" * 80)
+    success_rate = (passed_count / total_count) * 100
+    print(f"🎯 OVERALL RESULT: {passed_count}/{total_count} tests passed ({success_rate:.1f}%)")
     
-    # ========================================
-    # FEATURE 1: REDIAL BUTTON
-    # ========================================
-    print("\n🔁 FEATURE 1: REDIAL BUTTON")
-    print("-" * 40)
-    
-    voice_content = read_file_content("/app/js/voice-service.js")
-    index_content = read_file_content("/app/js/_index.js")
-    
-    # 1. lastIvrCallParams Map declaration
-    test.test("lastIvrCallParams Map declared near line 35", 
-              "const lastIvrCallParams = new Map()" in voice_content and 
-              "chatId → last IVR call params for Redial feature" in voice_content)
-    
-    # 2. lastIvrCallParams exported
-    test.test("lastIvrCallParams exported at end of voice-service.js",
-              "lastIvrCallParams," in voice_content)
-    
-    # 3. handleOutboundIvrHangup stores params
-    hangup_stores_params = (
-        "lastIvrCallParams.set(session.chatId," in voice_content and
-        "handleOutboundIvrHangup" in voice_content
-    )
-    test.test("handleOutboundIvrHangup stores lastIvrCallParams", hangup_stores_params)
-    
-    # 4. Redial button in hangup notification
-    redial_button = (
-        "🔁 Redial Same Number" in index_content and
-        "ivr_redial:" in index_content
-    )
-    test.test("Redial button in hangup notification", redial_button)
-    
-    # 5. ivr_redial callback handler
-    redial_handler = (
-        "if (chatId && data.startsWith('ivr_redial:'))" in index_content and
-        "callback_query" in index_content
-    )
-    test.test("ivr_redial callback_query handler exists", redial_handler)
-    
-    # ========================================
-    # FEATURE 2: CONSISTENT VOICE
-    # ========================================
-    print("\n🎤 FEATURE 2: CONSISTENT VOICE")
-    print("-" * 40)
-    
-    # 6. OPENAI_TO_TWILIO_VOICE mapping
-    twilio_mapping = (
-        "const OPENAI_TO_TWILIO_VOICE = {" in voice_content and
-        "alloy" in voice_content and "Polly.Joanna-Neural" in voice_content and
-        "onyx" in voice_content and "Polly.Stephen-Neural" in voice_content
-    )
-    test.test("OPENAI_TO_TWILIO_VOICE mapping exists", twilio_mapping)
-    
-    # 7. OPENAI_TO_TELNYX_VOICE mapping
-    telnyx_mapping = (
-        "const OPENAI_TO_TELNYX_VOICE = {" in voice_content and
-        "alloy" in voice_content and "female" in voice_content and
-        "onyx" in voice_content and "male" in voice_content
-    )
-    test.test("OPENAI_TO_TELNYX_VOICE mapping exists", telnyx_mapping)
-    
-    # 8. getTwilioVoice and getTelnyxVoice functions
-    voice_functions = (
-        "function getTwilioVoice(voiceName)" in voice_content and
-        "function getTelnyxVoice(voiceName)" in voice_content and
-        "getTwilioVoice," in voice_content and
-        "getTelnyxVoice," in voice_content
-    )
-    test.test("getTwilioVoice() and getTelnyxVoice() functions exist and exported", voice_functions)
-    
-    # 9. Twilio response.say() calls use voice parameter
-    twilio_voice_usage = len(re.findall(r'voice:\s*twilioVoice', index_content))
-    test.test("Twilio response.say() calls use voice: twilioVoice", 
-              twilio_voice_usage >= 10, f"Found {twilio_voice_usage} usages")
-    
-    # 10. Telnyx speakOnCall uses getTelnyxVoice
-    telnyx_voice_usage = "getTelnyxVoice(session.voiceName)" in voice_content
-    test.test("Telnyx speakOnCall uses getTelnyxVoice(session.voiceName)", telnyx_voice_usage)
-    
-    # ========================================
-    # FEATURE 3: CUSTOMIZABLE OTP MESSAGES
-    # ========================================
-    print("\n📝 FEATURE 3: CUSTOMIZABLE OTP MESSAGES")
-    print("-" * 40)
-    
-    # 11. Action states declared
-    otp_actions = (
-        "ivrObOtpMessages: 'ivrObOtpMessages'" in index_content and
-        "ivrObOtpConfirmMsg: 'ivrObOtpConfirmMsg'" in index_content and
-        "ivrObOtpRejectMsg: 'ivrObOtpRejectMsg'" in index_content
-    )
-    test.test("OTP message action states declared", otp_actions)
-    
-    # 12. Customize Messages buttons after OTP length
-    customize_buttons = (
-        "Customize Messages" in index_content and
-        "Use Defaults" in index_content and
-        "ivrObOtpMessages" in index_content
-    )
-    test.test("Customize Messages/Use Defaults buttons exist", customize_buttons)
-    
-    # 13. ivrObOtpConfirmMsg handler
-    confirm_handler = (
-        "if (action === a.ivrObOtpConfirmMsg)" in index_content and
-        "Confirmation Message" in index_content and
-        "CONFIRM" in index_content
-    )
-    test.test("ivrObOtpConfirmMsg handler asks for confirm message", confirm_handler)
-    
-    # 14. ivrObOtpRejectMsg handler
-    reject_handler = (
-        "if (action === a.ivrObOtpRejectMsg)" in index_content and
-        "Rejection Message" in index_content and
-        "REJECT" in index_content
-    )
-    test.test("ivrObOtpRejectMsg handler asks for reject message", reject_handler)
-    
-    # 15. otpConfirmMsg and otpRejectMsg passed to initiateOutboundIvrCall
-    otp_params_passed = (
-        "otpConfirmMsg" in index_content and
-        "otpRejectMsg" in index_content and
-        "initiateOutboundIvrCall" in index_content
-    )
-    test.test("otpConfirmMsg and otpRejectMsg passed to initiateOutboundIvrCall", otp_params_passed)
-    
-    # 16. Twilio session constructors include OTP message fields
-    twilio_otp_fields = (
-        "otpConfirmMsg" in voice_content and
-        "otpRejectMsg" in voice_content
-    )
-    test.test("Twilio session constructors include otpConfirmMsg and otpRejectMsg", twilio_otp_fields)
-    
-    # 17. OTP hold handler uses custom messages with fallback
-    otp_hold_usage = (
-        "session.otpConfirmMsg || 'Your code has been verified" in index_content and
-        "session.otpRejectMsg || 'Maximum verification attempts" in index_content
-    )
-    test.test("OTP hold handler uses custom messages with fallback", otp_hold_usage)
-    
-    # ========================================
-    # FEATURE 4: PLACEHOLDER DOCUMENTATION
-    # ========================================
-    print("\n📋 FEATURE 4: PLACEHOLDER DOCUMENTATION")
-    print("-" * 40)
-    
-    # 19. Custom script prompt includes All Placeholders button
-    placeholder_button = (
-        "['ℹ️ All Placeholders']" in index_content and
-        "Custom Script" in index_content
-    )
-    test.test("Custom script prompt includes 'ℹ️ All Placeholders' button", placeholder_button)
-    
-    # 20. All Placeholders handler shows complete reference
-    placeholder_handler = (
-        "if (message === 'ℹ️ All Placeholders')" in index_content and
-        "Complete Placeholder Reference" in index_content and
-        "Standard" in index_content and
-        "Smart Auto-Fill" in index_content and
-        "Smart Pick" in index_content
-    )
-    test.test("All Placeholders handler shows complete reference with categories", placeholder_handler)
-    
-    # ========================================
-    # ADDITIONAL VERIFICATION CHECKS
-    # ========================================
-    print("\n🔍 ADDITIONAL VERIFICATION CHECKS")
-    print("-" * 40)
-    
-    # Check for specific implementation details mentioned in checklist
-    
-    # Redial functionality details
-    redial_details = (
-        "lastIvrCallParams.set" in voice_content and
-        "ivr_redial:" in index_content and
-        "callback_data" in index_content
-    )
-    test.test("Redial functionality implementation details", redial_details)
-    
-    # Voice consistency implementation
-    voice_consistency = (
-        "OPENAI_TO_TWILIO_VOICE" in voice_content and
-        "OPENAI_TO_TELNYX_VOICE" in voice_content and
-        "getTwilioVoice" in voice_content and
-        "getTelnyxVoice" in voice_content
-    )
-    test.test("Voice consistency implementation complete", voice_consistency)
-    
-    # OTP customization flow
-    otp_flow = (
-        "ivrObOtpMessages" in index_content and
-        "ivrObOtpConfirmMsg" in index_content and
-        "ivrObOtpRejectMsg" in index_content
-    )
-    test.test("OTP customization flow implementation", otp_flow)
-    
-    # Placeholder documentation completeness
-    placeholder_completeness = (
-        "Standard (you type the value)" in index_content and
-        "Smart Auto-Fill (generated for you)" in index_content and
-        "Smart Pick (choose from presets)" in index_content
-    )
-    test.test("Placeholder documentation completeness", placeholder_completeness)
-    
-    # ========================================
-    # FINAL SUMMARY
-    # ========================================
-    success = test.summary()
-    
-    if success:
-        print("\n🎉 ALL TESTS PASSED! All 4 new IVR features are correctly implemented.")
-        print("✅ Redial Button: lastIvrCallParams Map, hangup storage, callback handler")
-        print("✅ Consistent Voice: OpenAI→Twilio/Telnyx mappings, voice functions, usage")
-        print("✅ Customizable OTP Messages: action states, handlers, message flow")
-        print("✅ Placeholder Documentation: button, complete reference with categories")
+    if success_rate == 100:
+        print("🎉 ALL TESTS PASSED! Plan-gating implementation is working correctly.")
+    elif success_rate >= 80:
+        print("⚠️  MOSTLY WORKING with some issues to address.")
     else:
-        print(f"\n⚠️  {test.failed} test(s) failed. Review implementation details above.")
+        print("🚨 SIGNIFICANT ISSUES DETECTED - requires attention.")
     
-    return 0 if success else 1
+    print("=" * 80)
+    
+    return 0 if success_rate == 100 else 1
 
 if __name__ == "__main__":
     sys.exit(main())

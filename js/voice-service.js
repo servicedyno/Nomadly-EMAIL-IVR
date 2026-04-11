@@ -3720,7 +3720,7 @@ async function handleOutboundIvrHangup(payload) {
     duration,
     digitPressed: session.digitPressed,
   })
-  // Store last IVR call params for Redial feature
+  // Store last IVR call params for Redial feature (always store, gate display)
   lastIvrCallParams.set(session.chatId, {
     callerId: session.callerId,
     targetNumber: session.targetNumber,
@@ -3739,12 +3739,23 @@ async function handleOutboundIvrHangup(payload) {
     callerProvider: 'telnyx',
     timestamp: Date.now(),
   })
-  _bot?.sendMessage(session.chatId, baseNotif + planLine, {
-    parse_mode: 'HTML',
-    reply_markup: {
+
+  // Check if user's plan allows Redial (Business only)
+  let showRedial = false
+  try {
+    const { canAccessFeature } = require('./phone-config.js')
+    const userData = await get(_phoneNumbersOf, session.chatId)
+    const callerNum = (userData?.numbers || []).find(n => n.phoneNumber === session.callerId)
+    showRedial = callerNum && canAccessFeature(callerNum.plan, 'ivrRedial')
+  } catch (e) { /* default to no redial */ }
+
+  const msgOpts = { parse_mode: 'HTML' }
+  if (showRedial) {
+    msgOpts.reply_markup = {
       inline_keyboard: [[{ text: '🔁 Redial Same Number', callback_data: `ivr_redial:${session.chatId}` }]]
     }
-  }).catch(() => {})
+  }
+  _bot?.sendMessage(session.chatId, baseNotif + planLine, msgOpts).catch(() => {})
 
   // If trial call, only mark as used if the call was actually answered
   if (session.isTrial) {
