@@ -1318,7 +1318,7 @@ const userKeyboard = {
         : (HIDE_SMS_APP !== 'true' ? [[user.freeTrialAvailable]] : [])),
       [user.emailValidation, user.virtualCard],
       [user.wallet, user.leadsValidation],
-      [user.urlShortenerMain],
+      [user.urlShortenerMain, user.buyPlan],
       ...(EMAIL_BLAST_ON === 'true' ? [[user.emailBlast]] : []),
       ...(HIDE_BUNDLES !== 'true'
         ? [[user.shippingLabel, user.serviceBundles]]
