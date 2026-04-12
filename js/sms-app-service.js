@@ -512,6 +512,42 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
     }
   })
 
+  // SMS error reporting endpoint — logs device-side SMS failures for diagnostics
+  app.post('/sms-app/report-errors/:chatId', async (req, res) => {
+    try {
+      const chatId = req.params.chatId
+      const { campaignId, errors } = req.body || {}
+      if (!errors || !Array.isArray(errors) || errors.length === 0) {
+        return res.json({ ok: true })
+      }
+
+      const errorReasons = errors.map(e => e.reason).join(', ')
+      console.log(`[SmsApp] SMS errors for user ${chatId}, campaign ${campaignId}: ${errors.length} failures — reasons: ${errorReasons}`)
+
+      // Store errors in the campaign for future diagnostics
+      if (campaignId) {
+        await smsCampaigns.updateOne(
+          { _id: campaignId },
+          { $set: { lastErrors: errors.slice(-10), lastErrorAt: new Date().toISOString() } }
+        )
+      }
+
+      // Log each unique error reason
+      const reasonCounts = {}
+      for (const e of errors) {
+        reasonCounts[e.reason] = (reasonCounts[e.reason] || 0) + 1
+      }
+      for (const [reason, count] of Object.entries(reasonCounts)) {
+        console.log(`[SmsApp] Error: ${reason} × ${count} — user: ${chatId}, campaign: ${campaignId}`)
+      }
+
+      res.json({ ok: true })
+    } catch (error) {
+      console.log(`[SmsApp] Error storing SMS errors:`, error.message)
+      res.status(500).json({ error: error.message })
+    }
+  })
+
   console.log('[SmsApp] Routes registered')
 }
 

@@ -585,10 +585,25 @@ const App = {
   },
 
   // ─── SMS Sending ───
-  startSending(campaign) {
+  async startSending(campaign) {
     const contacts = campaign.contacts || []
     const content = campaign.content || []
     if (!contacts.length || !content.length) return this.toast('Campaign needs content and contacts', 'error')
+
+    // Pre-check SMS permission before starting
+    if (window.Capacitor?.Plugins?.DirectSms) {
+      try {
+        const perm = await window.Capacitor.Plugins.DirectSms.checkPermission()
+        if (!perm.granted) {
+          const req = await window.Capacitor.Plugins.DirectSms.requestPermission()
+          if (!req.granted) {
+            return this.toast('SMS permission required. Please allow SMS in Settings.', 'error')
+          }
+        }
+      } catch (e) {
+        console.warn('[SMS] Permission check failed:', e)
+      }
+    }
 
     this.sendingState = {
       campaignId: campaign._id,
@@ -601,6 +616,7 @@ const App = {
       total: contacts.length,
       paused: false, stopped: false,
       startTime: Date.now(),
+      errors: [],
     }
 
     this.showScreen('sendingScreen')
@@ -619,13 +635,36 @@ const App = {
     if (!s || s.paused || s.stopped) return
 
     if (s.idx >= s.total) {
-      document.getElementById('sendingTitle').textContent = 'Complete!'
-      document.getElementById('sendingStatus').textContent = 'All messages sent successfully'
+      const allFailed = s.sent === 0 && s.failed > 0
+      const someFailed = s.failed > 0 && s.sent > 0
+      if (allFailed) {
+        document.getElementById('sendingTitle').textContent = 'Sending Failed'
+        const lastErr = s.errors.length > 0 ? s.errors[s.errors.length - 1] : null
+        let hint = 'Check your SIM card and SMS permissions.'
+        if (lastErr) {
+          if (lastErr.reason === 'no_service') hint = 'No cellular service — check signal and SIM.'
+          else if (lastErr.reason === 'radio_off') hint = 'Radio/Airplane mode is ON — turn it off.'
+          else if (lastErr.reason === 'generic_failure') hint = 'Carrier rejected SMS — check SIM balance and number format.'
+          else if (lastErr.reason === 'send_timeout') hint = 'SMS timed out — carrier may be blocking sends.'
+          else if (lastErr.reason === 'null_pdu') hint = 'Message encoding error — try a shorter message.'
+        }
+        document.getElementById('sendingStatus').textContent = hint
+      } else if (someFailed) {
+        document.getElementById('sendingTitle').textContent = 'Completed with errors'
+        document.getElementById('sendingStatus').textContent = `${s.sent} sent, ${s.failed} failed`
+      } else {
+        document.getElementById('sendingTitle').textContent = 'Complete!'
+        document.getElementById('sendingStatus').textContent = 'All messages sent successfully'
+      }
       document.getElementById('sendingEta').textContent = 'Done'
       document.getElementById('pauseSendBtn').style.display = 'none'
       document.getElementById('stopSendBtn').textContent = 'Back to Campaigns'
       document.getElementById('stopSendBtn').onclick = () => { this.syncData(); this.showDashboard() }
       API.updateProgress(s.campaignId, { chatId: s.chatId, status: 'completed', sentCount: s.sent, failedCount: s.failed, lastSentIndex: s.idx }).catch(() => {})
+      // Report errors to server for diagnostics
+      if (s.errors.length > 0) {
+        API.reportSmsErrors(s.chatId, s.campaignId, s.errors).catch(() => {})
+      }
       return
     }
 
@@ -636,10 +675,19 @@ const App = {
     document.getElementById('sendingStatus').textContent = `Sending to ${contact.phoneNumber}${contact.name ? ' (' + contact.name + ')' : ''}`
 
     try {
-      const ok = await this.nativeSms(contact.phoneNumber, msg)
-      if (ok) { s.sent++; API.reportSmsSent(s.chatId).catch(() => {}) }
-      else s.failed++
-    } catch { s.failed++ }
+      const result = await this.nativeSms(contact.phoneNumber, msg)
+      if (result.success) {
+        s.sent++
+        API.reportSmsSent(s.chatId).catch(() => {})
+      } else {
+        s.failed++
+        s.errors.push({ phone: contact.phoneNumber, reason: result.errorReason || 'unknown', code: result.errorCode })
+        console.warn(`[SMS] Failed to send to ${contact.phoneNumber}: ${result.errorReason} (code: ${result.errorCode})`)
+      }
+    } catch (e) {
+      s.failed++
+      s.errors.push({ phone: contact.phoneNumber, reason: 'exception', error: e.message })
+    }
 
     s.idx++
     this.updateSendingUI()
@@ -655,13 +703,15 @@ const App = {
     if (window.Capacitor?.Plugins?.DirectSms) {
       try {
         const r = await window.Capacitor.Plugins.DirectSms.send({ phoneNumber: phone, message: msg })
-        return r.success
-      } catch { return false }
+        return { success: !!r.success, errorCode: r.errorCode, errorReason: r.errorReason || r.status }
+      } catch (e) {
+        return { success: false, errorCode: -2, errorReason: 'plugin_exception', error: e.message }
+      }
     }
     // Browser simulation
     console.log(`[SMS] → ${phone}: ${msg.substring(0, 40)}...`)
     await new Promise(r => setTimeout(r, 150))
-    return Math.random() > 0.05
+    return { success: Math.random() > 0.05, errorReason: 'simulated' }
   },
 
   updateSendingUI() {

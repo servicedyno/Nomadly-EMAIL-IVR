@@ -7,6 +7,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.telephony.SmsManager;
 
 import com.getcapacitor.JSObject;
@@ -30,8 +32,9 @@ import com.getcapacitor.annotation.Permission;
     }
 )
 public class DirectSmsPlugin extends Plugin {
-    private static final String SMS_SENT = "SMS_SENT";
-    private static final String SMS_DELIVERED = "SMS_DELIVERED";
+    private static final String SMS_SENT = "SMS_SENT_";
+    private static final int SEND_TIMEOUT_MS = 30000; // 30 second timeout
+    private int requestCounter = 0;
 
     @PluginMethod
     public void send(PluginCall call) {
@@ -91,6 +94,23 @@ public class DirectSmsPlugin extends Plugin {
         }
     }
 
+    private String getErrorReason(int resultCode) {
+        switch (resultCode) {
+            case android.app.Activity.RESULT_OK:
+                return "sent";
+            case SmsManager.RESULT_ERROR_GENERIC_FAILURE:
+                return "generic_failure";
+            case SmsManager.RESULT_ERROR_NO_SERVICE:
+                return "no_service";
+            case SmsManager.RESULT_ERROR_NULL_PDU:
+                return "null_pdu";
+            case SmsManager.RESULT_ERROR_RADIO_OFF:
+                return "radio_off";
+            default:
+                return "unknown_error_" + resultCode;
+        }
+    }
+
     private void sendSmsDirectly(PluginCall call, String phoneNumber, String message) {
         try {
             Context context = getContext();
@@ -102,9 +122,13 @@ public class DirectSmsPlugin extends Plugin {
                 smsManager = SmsManager.getDefault();
             }
 
-            Intent sentIntent = new Intent(SMS_SENT);
+            // Unique intent action per send to avoid receiver collisions
+            final String intentAction = SMS_SENT + (++requestCounter);
+            final boolean[] resolved = { false };
+
+            Intent sentIntent = new Intent(intentAction);
             PendingIntent sentPI = PendingIntent.getBroadcast(
-                context, 0, sentIntent,
+                context, requestCounter, sentIntent,
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
             );
 
@@ -112,14 +136,19 @@ public class DirectSmsPlugin extends Plugin {
             BroadcastReceiver sentReceiver = new BroadcastReceiver() {
                 @Override
                 public void onReceive(Context context, Intent intent) {
+                    if (resolved[0]) return;
+                    resolved[0] = true;
+
                     JSObject result = new JSObject();
-                    if (getResultCode() == android.app.Activity.RESULT_OK) {
+                    int code = getResultCode();
+                    if (code == android.app.Activity.RESULT_OK) {
                         result.put("success", true);
                         result.put("status", "sent");
                     } else {
                         result.put("success", false);
                         result.put("status", "failed");
-                        result.put("errorCode", getResultCode());
+                        result.put("errorCode", code);
+                        result.put("errorReason", getErrorReason(code));
                     }
                     call.resolve(result);
 
@@ -130,18 +159,37 @@ public class DirectSmsPlugin extends Plugin {
             };
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                context.registerReceiver(sentReceiver, new IntentFilter(SMS_SENT), Context.RECEIVER_NOT_EXPORTED);
+                context.registerReceiver(sentReceiver, new IntentFilter(intentAction), Context.RECEIVER_NOT_EXPORTED);
             } else {
-                context.registerReceiver(sentReceiver, new IntentFilter(SMS_SENT));
+                context.registerReceiver(sentReceiver, new IntentFilter(intentAction));
             }
+
+            // Timeout handler — resolve with error if broadcast never fires
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                if (!resolved[0]) {
+                    resolved[0] = true;
+                    JSObject result = new JSObject();
+                    result.put("success", false);
+                    result.put("status", "timeout");
+                    result.put("errorCode", -1);
+                    result.put("errorReason", "send_timeout");
+                    call.resolve(result);
+
+                    try {
+                        context.unregisterReceiver(sentReceiver);
+                    } catch (Exception e) { /* ignore */ }
+                }
+            }, SEND_TIMEOUT_MS);
 
             // Handle long messages
             if (message.length() > 160) {
                 java.util.ArrayList<String> parts = smsManager.divideMessage(message);
                 java.util.ArrayList<PendingIntent> sentIntents = new java.util.ArrayList<>();
-                for (int i = 0; i < parts.size(); i++) {
-                    sentIntents.add(sentPI);
+                // Only track the last part to determine overall success
+                for (int i = 0; i < parts.size() - 1; i++) {
+                    sentIntents.add(null);
                 }
+                sentIntents.add(sentPI);
                 smsManager.sendMultipartTextMessage(phoneNumber, null, parts, sentIntents, null);
             } else {
                 smsManager.sendTextMessage(phoneNumber, null, message, sentPI, null);
@@ -150,7 +198,9 @@ public class DirectSmsPlugin extends Plugin {
         } catch (Exception e) {
             JSObject result = new JSObject();
             result.put("success", false);
+            result.put("status", "exception");
             result.put("error", e.getMessage());
+            result.put("errorReason", "send_exception");
             call.resolve(result);
         }
     }

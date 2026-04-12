@@ -77,6 +77,10 @@ const API = {
     return this.request('POST', `sms-app/sms-sent/${chatId}`)
   },
 
+  async reportSmsErrors(chatId, campaignId, errors) {
+    return this.request('POST', `sms-app/report-errors/${chatId}`, { campaignId, errors })
+  },
+
   // Full sync
   async sync(chatId) {
     return this.request('GET', `sms-app/sync/${chatId}`)
