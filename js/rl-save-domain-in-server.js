@@ -200,18 +200,16 @@ async function isRailwayAPIWorking() {
 // saveDomainInServerRender('ehtesham.sbs').then(log);
 
 async function removeDomainFromRailway(domain) {
-  const GRAPHQL_QUERY = `
-  mutation customDomainDelete {
-      customDomainDelete(
-          input: { domain: "${domain}", environmentId: "${ENVIRONMENT_ID}", projectId: "${PROJECT_ID}", serviceId: "${SERVICE_ID}"}
-      ) {
-          id
-      }
-  }`
   try {
-    const response = await axios.post(
+    // Step 1: Look up the domain's Railway ID
+    const listQuery = `query {
+      domains(projectId: "${PROJECT_ID}", serviceId: "${SERVICE_ID}", environmentId: "${ENVIRONMENT_ID}") {
+        customDomains { id domain }
+      }
+    }`
+    const listResp = await axios.post(
       GRAPHQL_ENDPOINT,
-      { query: GRAPHQL_QUERY },
+      { query: listQuery },
       {
         headers: {
           Authorization: `Bearer ${API_TOKEN}`,
@@ -219,11 +217,31 @@ async function removeDomainFromRailway(domain) {
         },
       },
     )
-    const error = response?.data?.errors?.[0]?.message
+    const customDomains = listResp?.data?.data?.domains?.customDomains || []
+    const match = customDomains.find(d => d.domain === domain)
+    if (!match) {
+      log(`[Railway] Domain ${domain} not found in Railway custom domains — nothing to remove`)
+      return { success: true, note: 'domain_not_found' }
+    }
+
+    // Step 2: Delete by ID
+    const deleteQuery = `mutation { customDomainDelete(id: "${match.id}") }`
+    const deleteResp = await axios.post(
+      GRAPHQL_ENDPOINT,
+      { query: deleteQuery },
+      {
+        headers: {
+          Authorization: `Bearer ${API_TOKEN}`,
+          'Content-Type': 'application/json',
+        },
+      },
+    )
+    const error = deleteResp?.data?.errors?.[0]?.message
     if (error) {
-      log('Error removeDomainFromRailway', error)
+      log(`[Railway] Error deleting domain ${domain} (id=${match.id}):`, error)
       return { error }
     }
+    log(`[Railway] Domain ${domain} removed successfully (id=${match.id})`)
     return { success: true }
   } catch (err) {
     log('Error removeDomainFromRailway', err.message)
