@@ -12,11 +12,13 @@ const OTP_EXPIRY_MS = 5 * 60 * 1000
 let _db = null
 let _telnyxApi = null
 let _sipConnectionId = null
+let _bot = null
 
-function initPhoneTestRoutes(app, db, telnyxApi, sipConnectionId) {
+function initPhoneTestRoutes(app, db, telnyxApi, sipConnectionId, bot) {
   _db = db
   _telnyxApi = telnyxApi
   _sipConnectionId = sipConnectionId
+  _bot = bot
 
   db.collection('testCredentials').createIndex({ chatId: 1 }).catch(() => {})
   db.collection('testCredentials').createIndex({ sipUsername: 1 }).catch(() => {})
@@ -493,6 +495,26 @@ async function checkTestCredentialCall(sipUsername) {
         { $set: { expired: true } }
       )
       console.log(`[PhoneTest] Test credential ${sipUsername} expired after ${newCount} calls`)
+      
+      // ── Send subscription upsell notification via Telegram ──
+      if (_bot && cred.chatId) {
+        const BRAND = process.env.CHAT_BOT_BRAND || 'Nomadly'
+        setTimeout(() => {
+          _bot.sendMessage(cred.chatId,
+            `🎉 <b>SIP Test Complete!</b>\n\n` +
+            `You've used all ${maxAllowed} of your free test calls. Hope you enjoyed the experience!\n\n` +
+            `🚀 <b>Ready for the full experience?</b>\n` +
+            `Get your own <b>Cloud Phone Number</b> with:\n` +
+            `✅ Unlimited SIP calls with your own Caller ID\n` +
+            `✅ Cloud IVR with custom voice menus\n` +
+            `✅ Web & softphone calling\n` +
+            `✅ Call recording & analytics\n\n` +
+            `📞 Tap <b>Cloud IVR + SIP</b> on the main menu to browse plans starting from just <b>$5</b>!\n\n` +
+            `💡 <i>Tip: Refer friends with your referral code to earn bonus test calls!</i>`,
+            { parse_mode: 'HTML' }
+          ).catch(e => console.error(`[PhoneTest] Failed to send upsell notification: ${e.message}`))
+        }, 3000)  // Delay 3s so it arrives after the call-end notification
+      }
     }
 
     console.log(`[PhoneTest] Test call #${newCount}/${maxAllowed} by ${sipUsername} (chatId: ${cred.chatId})`)

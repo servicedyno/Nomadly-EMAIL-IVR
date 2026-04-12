@@ -34,7 +34,11 @@ function getDeviceLimit(plan, isSubscribed, isFreeTrial) {
   return DEVICE_LIMITS[plan] || 1
 }
 
-function initSmsAppService(_db, _nameOf, _planEndingTime, _freeSmsCountOf, _loginCountOf, _planOf) {
+let _bot = null
+// Track users who have already received the trial-exhausted notification (prevent spam)
+const _trialExhaustedNotified = new Set()
+
+function initSmsAppService(_db, _nameOf, _planEndingTime, _freeSmsCountOf, _loginCountOf, _planOf, bot) {
   db = _db
   smsCampaigns = db.collection('smsCampaigns')
   nameOf = _nameOf
@@ -42,6 +46,7 @@ function initSmsAppService(_db, _nameOf, _planEndingTime, _freeSmsCountOf, _logi
   freeSmsCountOf = _freeSmsCountOf
   loginCountOf = _loginCountOf
   planOf = _planOf
+  _bot = bot
 
   smsCampaigns.createIndex({ chatId: 1 })
   smsCampaigns.createIndex({ chatId: 1, status: 1 })
@@ -357,6 +362,26 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
       // Enforce subscription
       const sub = await checkSubscription(chatId)
       if (!sub.canUseSms) {
+        // Send one-time Telegram notification when BulkSMS trial is exhausted
+        const notifKey = `sms_trial_${chatId}`
+        if (_bot && !_trialExhaustedNotified.has(notifKey)) {
+          _trialExhaustedNotified.add(notifKey)
+          // Auto-cleanup after 24h to allow re-notification if they come back later
+          setTimeout(() => _trialExhaustedNotified.delete(notifKey), 24 * 60 * 60 * 1000)
+          const BRAND = process.env.CHAT_BOT_BRAND || 'Nomadly'
+          _bot.sendMessage(Number(chatId),
+            `📱 <b>BulkSMS Free Trial Complete!</b>\n\n` +
+            `You've used all ${sub.user?.freeSmsLimit || 100} free SMS messages from your trial. Great job testing the platform!\n\n` +
+            `🚀 <b>Subscribe to unlock unlimited BulkSMS:</b>\n` +
+            `✅ Unlimited SMS campaigns\n` +
+            `✅ Multi-device support\n` +
+            `✅ Scheduled sending & analytics\n` +
+            `✅ Plus unlimited URL shortening & more\n\n` +
+            `💰 Plans start from just <b>$${process.env.PRICE_DAILY_SUBSCRIPTION || '50'}/day</b>\n\n` +
+            `👉 Tap <b>👛 Wallet → 📋 View Subscriptions</b> in ${BRAND} bot to subscribe now!`,
+            { parse_mode: 'HTML' }
+          ).catch(e => console.error(`[SmsApp] Failed to send trial-exhausted notification: ${e.message}`))
+        }
         return res.status(403).json({
           error: 'subscription_required',
           message: 'Active subscription or free trial required to create campaigns. Tap ⚡ Upgrade Plan on the main menu of @NomadlyBot to subscribe — includes BulkSMS, unlimited links, validations & more!'
@@ -380,6 +405,16 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
 
       const sub = await checkSubscription(chatId)
       if (!sub.canUseSms) {
+        // Send one-time Telegram notification when BulkSMS trial is exhausted
+        const notifKey = `sms_trial_${chatId}`
+        if (_bot && !_trialExhaustedNotified.has(notifKey)) {
+          _trialExhaustedNotified.add(notifKey)
+          setTimeout(() => _trialExhaustedNotified.delete(notifKey), 24 * 60 * 60 * 1000)
+          _bot.sendMessage(Number(chatId),
+            `📱 <b>BulkSMS Trial Expired</b>\n\nSubscribe to continue sending SMS campaigns.\n👉 Tap <b>👛 Wallet → 📋 View Subscriptions</b> to upgrade!`,
+            { parse_mode: 'HTML' }
+          ).catch(() => {})
+        }
         return res.status(403).json({
           error: 'subscription_required',
           message: 'Active subscription required to edit campaigns. Tap ⚡ Upgrade Plan in @NomadlyBot to subscribe.'

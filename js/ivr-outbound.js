@@ -4,6 +4,9 @@
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const { log } = require('console')
 
+// ── Brand name for notifications ──
+const BRAND = process.env.CHAT_BOT_BRAND || 'Nomadly'
+
 // ── Trial Caller ID (must be a Telnyx number on the Call Control App) ──
 const TRIAL_CALLER_ID = process.env.TELNYX_TRIAL_CALLER_ID || '+18889020132'
 
@@ -358,7 +361,15 @@ function formatCallNotification(type, data) {
       return `❌ <b>Call failed</b> — ${target}\n${data.reason || 'Unknown error'}\n💰 Charged: 1 min (minimum)`
 
     case 'trial_used':
-      return `🎁 <b>Trial call complete!</b>\n\nYou used your free IVR trial call. Subscribe to Cloud Phone for unlimited IVR outbound calls with your own Caller ID.\n\nTap 📞☁️ Cloud Phone to get started!`
+      return `🎉 <b>Free IVR Trial Call Complete!</b>\n\n` +
+        `Your trial call connected successfully — that's ${BRAND || 'Nomadly'} Cloud IVR in action!\n\n` +
+        `🚀 <b>Upgrade to a Cloud Phone plan to unlock:</b>\n` +
+        `✅ Unlimited IVR outbound calls\n` +
+        `✅ Your own dedicated Caller ID\n` +
+        `✅ Custom voice menus & call routing\n` +
+        `✅ Text-to-Speech in 50+ voices\n` +
+        `✅ Call recording & real-time analytics\n\n` +
+        `📞 Tap <b>Cloud IVR + SIP</b> on the main menu to get started — plans from just <b>$5</b>!`
 
     default:
       return `📞 Call event: ${type}`

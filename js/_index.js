@@ -1620,7 +1620,7 @@ const loadData = async () => {
     log('[CloudPhone] Voice Service initialized with IVR + Recording + Overage')
 
     // Initialize Phone Test routes (Speechcue SIP test page)
-    initPhoneTestRoutes(app, db, telnyxApi, telnyxResources.sipConnectionId)
+    initPhoneTestRoutes(app, db, telnyxApi, telnyxResources.sipConnectionId, bot)
   }
 
   // Initialize SMS Service limits (real-time enforcement)
@@ -1660,7 +1660,7 @@ const loadData = async () => {
   marketplaceService.initMarketplace(db)
 
   // Initialize SMS App Service (Bulk SMS campaigns from mobile app)
-  smsAppService.initSmsAppService(db, nameOf, planEndingTime, freeSmsCountOf, loginCountOf, planOf)
+  smsAppService.initSmsAppService(db, nameOf, planEndingTime, freeSmsCountOf, loginCountOf, planOf, bot)
   smsAppService.registerRoutes(app, get, set, increment, clicksOfSms, today, week, month, year)
 
   // SMS App APK download route
