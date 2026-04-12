@@ -280,7 +280,7 @@ ${WEEKLY_PLAN_FREE_DOMAINS} domains · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleSt
 <b>Monthly</b> — $${PRICE_MONTHLY}
 ${MONTHLY_PLAN_FREE_DOMAINS} domains · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · Unlimited links
 
-<i>All plans include free .sbs/.xyz domains + unlimited URL shortening.</i>`
+<i>All plans include unlimited URL shortening + free email validations.</i>`
       : `<b>Choose Your Plan</b>
 
 <b>Daily</b> — $${PRICE_DAILY}
@@ -292,7 +292,7 @@ ${WEEKLY_PLAN_FREE_DOMAINS} domains · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleSt
 <b>Monthly</b> — $${PRICE_MONTHLY}
 ${MONTHLY_PLAN_FREE_DOMAINS} domains · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · Unlimited links + BulkSMS
 
-<i>All plans include free .sbs/.xyz domains + unlimited URL shortening.</i>`,
+<i>All plans include unlimited URL shortening + free email validations.</i>`,
 
   askCoupon: usd =>
     `The price is $${usd}. Would you like to apply a coupon code? If you have one, please enter it now. Otherwise, you can press 'Skip'.`,
@@ -316,8 +316,8 @@ ${MONTHLY_PLAN_FREE_DOMAINS} domains · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocale
 
   planSubscribed:
     HIDE_SMS_APP === 'true'
-      ? `You have successfully subscribed to our {{plan}} plan! Enjoy free ".sbs/.xyz" domains and free USA phone number validations. Need E-sim card? contact ${SUPPORT_HANDLE}`
-      : `You have successfully subscribed to our {{plan}} plan! Enjoy free ".sbs/.xyz" domains, free USA phone validations, and ${SMS_APP_NAME}. Please download the app here: ${SMS_APP_LINK}. Need E-sim card? contact ${SUPPORT_HANDLE}`,
+      ? `You have successfully subscribed to our {{plan}} plan! Enjoy free USA phone number validations and unlimited URL shortening. Need E-sim card? contact ${SUPPORT_HANDLE}`
+      : `You have successfully subscribed to our {{plan}} plan! Enjoy free USA phone validations, unlimited URL shortening, and ${SMS_APP_NAME}. Please download the app here: ${SMS_APP_LINK}. Need E-sim card? contact ${SUPPORT_HANDLE}`,
 
   alreadySubscribedPlan: days => `Your subscription is active and expires in ${days}`,
 
@@ -349,7 +349,7 @@ Discover more: ${TG_CHANNEL}`,
   successPayment: `Payment Processed Successfully! You can now close this window.`,
 
   welcome: `Thank you for choosing ${CHAT_BOT_NAME}! Please choose an option below:`,
-  welcomeFreeTrial: `Welcome to ${CHAT_BOT_BRAND}! You have ${FREE_LINKS} trial Shortit links to shorten URLs. Subscribe for unlimited Shortit links, free ".sbs/.xyz" domains and free USA phone validations. Experience the ${CHAT_BOT_BRAND} difference!`,
+  welcomeFreeTrial: `Welcome to ${CHAT_BOT_BRAND}! You have ${FREE_LINKS} trial Shortit links to shorten URLs. Subscribe for unlimited Shortit links, free USA phone validations, and more. Experience the ${CHAT_BOT_BRAND} difference!`,
 
   unknownCommand: `Command not found. Press /start or Please contact support ${SUPPORT_USERNAME}. Discover more ${TG_HANDLE}.`,
 

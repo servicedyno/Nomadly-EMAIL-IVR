@@ -12099,11 +12099,6 @@ ${message.replace(/\n/g, '<br>')}
     if (message === yesNo[0]) {
       saveInfo('nsChoice', 'cloudflare')
 
-      if ((info?.domain?.endsWith('.sbs') || info?.domain?.endsWith('.xyz')) && (await isSubscribed(chatId))) {
-        const available = (await get(freeDomainNamesAvailableFor, chatId)) || 0
-        if (available > 0) return goto['get-free-domain']()
-      }
-
       return goto['domain-pay']()
     }
 
@@ -12120,11 +12115,6 @@ ${message.replace(/\n/g, '<br>')}
       return goto.domainCustomNsEntry()
     } else {
       return send(chatId, t.what)
-    }
-
-    if ((info?.domain?.endsWith('.sbs') || info?.domain?.endsWith('.xyz')) && (await isSubscribed(chatId))) {
-      const available = (await get(freeDomainNamesAvailableFor, chatId)) || 0
-      if (available > 0) return goto['get-free-domain']()
     }
 
     return goto['domain-pay']()
@@ -12144,11 +12134,6 @@ ${message.replace(/\n/g, '<br>')}
     }
     saveInfo('nsChoice', 'custom')
     saveInfo('customNS', nsParts)
-
-    if ((info?.domain?.endsWith('.sbs') || info?.domain?.endsWith('.xyz')) && (await isSubscribed(chatId))) {
-      const available = (await get(freeDomainNamesAvailableFor, chatId)) || 0
-      if (available > 0) return goto['get-free-domain']()
-    }
 
     return goto['domain-pay']()
   }

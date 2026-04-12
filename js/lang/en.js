@@ -60,155 +60,155 @@ const DP_PRICE_AIRVOICE_6M = Number(process.env.DP_PRICE_AIRVOICE_6M) || 150
 const DP_PRICE_AIRVOICE_1Y = Number(process.env.DP_PRICE_AIRVOICE_1Y) || 180
 
 const npl = {
-  // New Zealand
-  Spark: ['Spark'],
-  Vocus: ['Vocus'],
-  '2Degrees/Voyager': ['Voyager'],
-  'Skinny Mobile': ['Skinny Mobile'],
-  // Australia
-  Telstra: ['Telstra'],
-  Optus: ['Optus'],
-  Vodafone: ['VODAFONE', 'Vodafone'],
-  // UK
-  EE: ['EE'],
-  Three: ['Three'],
-  'Virgin/O2': ['Virgin'],
+ // New Zealand
+ Spark: ['Spark'],
+ Vocus: ['Vocus'],
+ '2Degrees/Voyager': ['Voyager'],
+ 'Skinny Mobile': ['Skinny Mobile'],
+ // Australia
+ Telstra: ['Telstra'],
+ Optus: ['Optus'],
+ Vodafone: ['VODAFONE', 'Vodafone'],
+ // UK
+ EE: ['EE'],
+ Three: ['Three'],
+ 'Virgin/O2': ['Virgin'],
 }
 
 const alcazar = {
-  'T-mobile': ['T-MOBILE', 'OMNIPOINT', 'METROPCS', 'SPRINT', 'AERIAL'],
-  'Metro PCS': ['T-MOBILE', 'OMNIPOINT', 'METROPCS', 'SPRINT', 'AERIAL'],
-  Sprint: ['T-MOBILE', 'OMNIPOINT', 'METROPCS', 'SPRINT', 'AERIAL'],
-  'Verizon Wireless': ['CELLCO', 'ONVOY'],
-  'AT&T': ['CINGULAR'],
+ 'T-mobile': ['T-MOBILE', 'OMNIPOINT', 'METROPCS', 'SPRINT', 'AERIAL'],
+ 'Metro PCS': ['T-MOBILE', 'OMNIPOINT', 'METROPCS', 'SPRINT', 'AERIAL'],
+ Sprint: ['T-MOBILE', 'OMNIPOINT', 'METROPCS', 'SPRINT', 'AERIAL'],
+ 'Verizon Wireless': ['CELLCO', 'ONVOY'],
+ 'AT&T': ['CINGULAR'],
 }
 
 // Note: these button labels must not mix with each other, other wise it may mess up bot
 const admin = {
-  viewAnalytics: '📊 View Analytics',
-  viewUsers: '👀 View Users',
-  blockUser: '✋ Block User',
-  unblockUser: '👌 Unblock User',
-  messageUsers: '👋 Message all users',
-  resetDead: '🗑️ Reset Dead Users',
-  gift5all: '🎁 Gift $5 All Users',
+ viewAnalytics: '📊 View Analytics',
+ viewUsers: '👀 View Users',
+ blockUser: '✋ Block User',
+ unblockUser: '👌 Unblock User',
+ messageUsers: '👋 Message all users',
+ resetDead: '🗑️ Reset Dead Users',
+ gift5all: '🎁 Gift $5 All Users',
 }
 const user = {
-  // main keyboards
-  cPanelWebHostingPlans: '🇷🇺 HostPanel Plans 🔒',
-  pleskWebHostingPlans: '🇷🇺 Plesk Plans 🔒',
-  joinChannel: '📢 Join Channel',
-  buyLeads: '🎯 Buy Phone Leads',
-  validateLeads: '✅ Validate Numbers',
-  phoneNumberLeads: '🎯 Buy Phone Leads',
-  leadsValidation: '📱 SMS Leads',
-  hostingDomainsRedirect: '🛡️🔥 Anti-Red Hosting',
-  wallet: '👛 Wallet',
-  urlShortenerMain: '🔗 URL Shortener',
-  vpsPlans: '🖥️ VPS/RDP — Port 25 Open🛡️',
-  buyPlan: '⚡ Upgrade Plan',
-  domainNames: '🌐 Bulletproof Domains',
-  viewPlan: '📋 My Plans',
-  becomeReseller: '💼 Reseller',
-  getSupport: '💬 Support',
-  freeTrialAvailable: '📧🆓 BulkSMS -Trial',
-  smsAppMain: '📧 BulkSMS',
-  smsCreateCampaign: '📱 Create Campaign',
-  smsMyCampaigns: '📋 My Campaigns',
-  smsDownloadApp: '📲 Download App',
-  smsResetLogin: '🔓 Reset Login',
-  changeSetting: '🌍 Settings',
-  changeLanguage: '🌍 Change Language',
-  cloudPhone: '📞 Cloud IVR + SIP',
-  testSip: '🧪 Test SIP Free',
-  digitalProducts: '🛒 Digital Products',
-  marketplace: '🏪 Marketplace',
-  shippingLabel: '📦 Ship & Mail',
-  emailBlast: '📧 Email Blast',
-  emailValidation: '📧 Email Validation',
-  serviceBundles: '🎁 Service Bundles',
-  referEarn: '🤝 Refer & Earn',
+ // main keyboards
+ cPanelWebHostingPlans: '🇷🇺 HostPanel Plans 🔒',
+ pleskWebHostingPlans: '🇷🇺 Plesk Plans 🔒',
+ joinChannel: '📢 Join Channel',
+ buyLeads: '🎯 Buy Phone Leads',
+ validateLeads: '✅ Validate Numbers',
+ phoneNumberLeads: '🎯 Buy Phone Leads',
+ leadsValidation: '📱 SMS Leads',
+ hostingDomainsRedirect: '🛡️🔥 Anti-Red Hosting',
+ wallet: '👛 Wallet',
+ urlShortenerMain: '🔗 URL Shortener',
+ vpsPlans: '🖥️ VPS/RDP — Port 25 Open🛡️',
+ buyPlan: '⚡ Upgrade Plan',
+ domainNames: '🌐 Bulletproof Domains',
+ viewPlan: '📋 My Plans',
+ becomeReseller: '💼 Reseller',
+ getSupport: '💬 Support',
+ freeTrialAvailable: '📧🆓 BulkSMS -Trial',
+ smsAppMain: '📧 BulkSMS',
+ smsCreateCampaign: '📱 Create Campaign',
+ smsMyCampaigns: '📋 My Campaigns',
+ smsDownloadApp: '📲 Download App',
+ smsResetLogin: '🔓 Reset Login',
+ changeSetting: '🌍 Settings',
+ changeLanguage: '🌍 Change Language',
+ cloudPhone: '📞 Cloud IVR + SIP',
+ testSip: '🧪 Test SIP Free',
+ digitalProducts: '🛒 Digital Products',
+ marketplace: '🏪 Marketplace',
+ shippingLabel: '📦 Ship & Mail',
+ emailBlast: '📧 Email Blast',
+ emailValidation: '📧 Email Validation',
+ serviceBundles: '🎁 Service Bundles',
+ referEarn: '🤝 Refer & Earn',
 
-  // Sub Menu 1: urlShortenerMain
-  shortenLink: '✂️ Shorten a Link',
-  redSelectUrl: '🔀✂️ Redirect & Shorten',
-  redBitly: '✂️ Bit.ly',
-  redShortit: '✂️ Shortit (Trial)',
-  urlShortener: '✂️🌐 Custom Domain Shortener',
-  viewShortLinks: '📊 View Shortlink Analytics',
-  activateDomainShortener: '🔗 Activate Domain for Shortener',
+ // Sub Menu 1: urlShortenerMain
+ shortenLink: '✂️ Shorten a Link',
+ redSelectUrl: '🔀✂️ Redirect & Shorten',
+ redBitly: '✂️ Bit.ly',
+ redShortit: '✂️ Shortit (Trial)',
+ urlShortener: '✂️🌐 Custom Domain Shortener',
+ viewShortLinks: '📊 View Shortlink Analytics',
+ activateDomainShortener: '🔗 Activate Domain for Shortener',
 
-  // Sub Menu 6: Digital Products
-  digitalProducts: '🛒 Digital Products',
-  virtualCard: '💳 Virtual Card',
+ // Sub Menu 6: Digital Products
+ digitalProducts: '🛒 Digital Products',
+ virtualCard: '💳 Virtual Card',
 
-  // Sub Menu 2: domainNames
-  buyDomainName: '🛒🌐 Buy Domain Names',
-  viewDomainNames: '📂 My Domain Names',
-  dnsManagement: '🔧 DNS Management',
+ // Sub Menu 2: domainNames
+ buyDomainName: '🛒🌐 Buy Domain Names',
+ viewDomainNames: '📂 My Domain Names',
+ dnsManagement: '🔧 DNS Management',
 
-  // Sub Menu 3: cPanel/Plesk WebHostingPlansMain
-  freeTrial: '💡 Free Trial',
-  premiumWeekly: '⚡ Premium Anti-Red (1-Week)',
-  premiumCpanel: '🔷 Premium Anti-Red HostPanel (30 Days)',
-  goldenCpanel: '👑 Golden Anti-Red HostPanel (30 Days)',
-  contactSupport: '📞 Contact Support',
+ // Sub Menu 3: cPanel/Plesk WebHostingPlansMain
+ freeTrial: '💡 Free Trial',
+ premiumWeekly: '⚡ Premium Anti-Red (1-Week)',
+ premiumCpanel: '🔷 Premium Anti-Red HostPanel (30 Days)',
+ goldenCpanel: '👑 Golden Anti-Red HostPanel (30 Days)',
+ contactSupport: '📞 Contact Support',
 
-  // Sub Menu 4: VPS Plans
-  buyVpsPlan: '⚙️ Create New VPS',
-  manageVpsPlan: '🖥️ View/Manage VPS',
-  manageVpsSSH: '🔑 SSH Keys',
+ // Sub Menu 4: VPS Plans
+ buyVpsPlan: '⚙️ Create New VPS',
+ manageVpsPlan: '🖥️ View/Manage VPS',
+ manageVpsSSH: '🔑 SSH Keys',
 
-  // Free Trial
-  freeTrialMenuButton: '🚀 Free Trial (12 Hours)',
-  getFreeTrialPlanNow: '🛒 Get Trial Plan Now',
-  continueWithDomainNameSBS: websiteName => `➡️ Continue with ${websiteName}`,
-  searchAnotherDomain: `🔍 Search Another Domain`,
-  privHostNS: `🏢 PrivHost (Fast & Secure Hosting)`,
-  cloudflareNS: `🛡️ Cloudflare Shield (Security & Stealth)`,
-  backToFreeTrial: '⬅️ Back To Free Trial',
+ // Free Trial
+ freeTrialMenuButton: '🚀 Free Trial (12 Hours)',
+ getFreeTrialPlanNow: '🛒 Get Trial Plan Now',
+ continueWithDomainNameSBS: websiteName => `➡️ Continue with ${websiteName}`,
+ searchAnotherDomain: `🔍 Search Another Domain`,
+ privHostNS: `🏢 PrivHost (Fast & Secure Hosting)`,
+ cloudflareNS: `🛡️ Cloudflare Shield (Security & Stealth)`,
+ backToFreeTrial: '⬅️ Back To Free Trial',
 
-  // Paid Plans
-  buyPremiumWeekly: '🛒 Buy Premium Anti-Red (1-Week)',
-  buyPremiumCpanel: '🛒 Buy Premium Anti-Red HostPanel',
-  buyGoldenCpanel: '🛒 Buy Golden Anti-Red HostPanel',
-  viewPremiumWeekly: '⚡ View Premium Weekly',
-  viewPremiumCpanel: '🔷 View Premium HostPanel',
-  viewGoldenCpanel: '👑 View Golden HostPanel',
-  backToHostingPlans: '⬅️ Back To Hosting Plans',
-  registerANewDomain: '🌐 Register a New Domain',
-  useMyDomain: '📂 Use My Domain',
-  connectExternalDomain: '🔗 Connect External Domain',
-  useExistingDomain: '🔄 Use Existing Domain',
-  backToPremiumWeeklyDetails: '⬅️ Back to Premium Weekly Details',
-  backToPremiumCpanelDetails: '⬅️ Back to Premium HostPanel Details',
-  backToGoldenCpanelDetails: '⬅️ Back to Golden HostPanel Details',
-  continueWithDomain: websiteName => `➡️ Continue with ${websiteName}`,
-  enterAnotherDomain: '🔍 Enter Another Domain',
-  backToPurchaseOptions: '⬅️ Back to Purchase Options',
-  myHostingPlans: '📋 My Hosting Plans',
-  revealCredentials: '🔑 Show Credentials',
-  renewHostingPlan: '🔄 Renew Now',
-  upgradeHostingPlan: '⬆️ Upgrade Plan',
-  confirmRenewNow: '✅ Confirm & Pay',
-  cancelRenewNow: '❌ Cancel',
-  toggleAutoRenew: '🔁 Toggle Auto-Renew',
-  backToMyHostingPlans: '⬅️ Back to My Plans',
+ // Paid Plans
+ buyPremiumWeekly: '🛒 Buy Premium Anti-Red (1-Week)',
+ buyPremiumCpanel: '🛒 Buy Premium Anti-Red HostPanel',
+ buyGoldenCpanel: '🛒 Buy Golden Anti-Red HostPanel',
+ viewPremiumWeekly: '⚡ View Premium Weekly',
+ viewPremiumCpanel: '🔷 View Premium HostPanel',
+ viewGoldenCpanel: '👑 View Golden HostPanel',
+ backToHostingPlans: '⬅️ Back To Hosting Plans',
+ registerANewDomain: '🌐 Register a New Domain',
+ useMyDomain: '📂 Use My Domain',
+ connectExternalDomain: '🔗 Connect External Domain',
+ useExistingDomain: '🔄 Use Existing Domain',
+ backToPremiumWeeklyDetails: '⬅️ Back to Premium Weekly Details',
+ backToPremiumCpanelDetails: '⬅️ Back to Premium HostPanel Details',
+ backToGoldenCpanelDetails: '⬅️ Back to Golden HostPanel Details',
+ continueWithDomain: websiteName => `➡️ Continue with ${websiteName}`,
+ enterAnotherDomain: '🔍 Enter Another Domain',
+ backToPurchaseOptions: '⬅️ Back to Purchase Options',
+ myHostingPlans: '📋 My Hosting Plans',
+ revealCredentials: '🔑 Show Credentials',
+ renewHostingPlan: '🔄 Renew Now',
+ upgradeHostingPlan: '⬆️ Upgrade Plan',
+ confirmRenewNow: '✅ Confirm & Pay',
+ cancelRenewNow: '❌ Cancel',
+ toggleAutoRenew: '🔁 Toggle Auto-Renew',
+ backToMyHostingPlans: '⬅️ Back to My Plans',
 }
 const u = {
-  // other key boards
-  deposit: '➕💵 Deposit',
-  withdraw: '➖💵 Withdraw',
-  myTier: '🏆 My Tier',
-  txHistory: '📜 Transactions',
+ // other key boards
+ deposit: '➕💵 Deposit',
+ withdraw: '➖💵 Withdraw',
+ myTier: '🏆 My Tier',
+ txHistory: '📜 Transactions',
 
-  // wallet
-  usd: 'USD',
-  ngn: 'NGN',
+ // wallet
+ usd: 'USD',
+ ngn: 'NGN',
 
-  // deposit methods
-  depositBank: '🏦 Bank (Naira)',
-  depositCrypto: '₿ Crypto',
+ // deposit methods
+ depositBank: '🏦 Bank (Naira)',
+ depositCrypto: '₿ Crypto',
 }
 const view = num => Number(num).toFixed(2)
 const yesNo = ['Yes', 'No']
@@ -218,98 +218,98 @@ const bal = (usd) => `$${view(usd)}`
 const dnsEntryFormat = '' // deprecated — A/CNAME now use multi-step wizard
 
 const dnsQuickActions = {
-  pointToIp: 'Point Domain to IP',
-  googleEmail: 'Setup Google Email',
-  zohoEmail: 'Setup Zoho Email',
-  verification: 'Domain Verification (TXT)',
-  addSubdomain: 'Add Subdomain',
+ pointToIp: 'Point Domain to IP',
+ googleEmail: 'Setup Google Email',
+ zohoEmail: 'Setup Zoho Email',
+ verification: 'Domain Verification (TXT)',
+ addSubdomain: 'Add Subdomain',
 }
 
 const t = {
-  yes: 'Yes',
-  no: 'No',
-  back: 'Back',
-  cancel: 'Cancel',
-  skip: 'Skip',
-  becomeReseller: (() => {
-    const services = ['URL Shortening', 'Domain Registration']
-    if (process.env.PHONE_SERVICE_ON === 'true') services.push('Cloud IVR')
-    if (HIDE_SMS_APP !== 'true') services.push('BulkSMS')
-    if (process.env.OFFSHORE_HOSTING_ON !== 'false') services.push('Anti-Red Hosting')
-    return `<b>Become a ${CHAT_BOT_BRAND} Reseller</b>
+ yes: 'Yes',
+ no: 'No',
+ back: 'Back',
+ cancel: 'Cancel',
+ skip: 'Skip',
+ becomeReseller: (() => {
+ const services = ['URL Shortening', 'Domain Registration']
+ if (process.env.PHONE_SERVICE_ON === 'true') services.push('Cloud IVR')
+ if (HIDE_SMS_APP !== 'true') services.push('BulkSMS')
+ if (process.env.OFFSHORE_HOSTING_ON !== 'false') services.push('Anti-Red Hosting')
+ return `<b>Become a ${CHAT_BOT_BRAND} Reseller</b>
 
 Resell our full suite — ${services.join(', ')} — under your brand.
 
 <b>65/35%</b> profit share on every sale. Tap 💬 <b>Get Support</b> to get started.`
-  })(),
-  resetLoginAdmit: `✅ Logged out of previous device. Please log in now.`,
-  resetLoginDeny: 'Ok sure. No further action required.',
-  resetLogin: `${CHAT_BOT_BRAND}SMS: Are you trying to log out of your previous device?`,
-  select: `Please select an option:`,
-  urlShortenerSelect: `Shorten, brand, or track your links:`,
+ })(),
+ resetLoginAdmit: `✅ Logged out of previous device. Please log in now.`,
+ resetLoginDeny: 'Ok sure. No further action required.',
+ resetLogin: `${CHAT_BOT_BRAND}SMS: Are you trying to log out of your previous device?`,
+ select: `Please select an option:`,
+ urlShortenerSelect: `Shorten, brand, or track your links:`,
 
-  // cPanel/Plesk Plans initial select plan text
-  selectPlan: `Please select a plan:`,
-  backButton: '⬅️ Back',
-  yesProceedWithThisEmail: email => `Proceed with ${email}`,
-  skipEmail: 'Skip (no email)',
-  proceedWithPayment: 'Proceed with Payment',
-  iHaveSentThePayment: `✅ Check Payment Status`,
-  // Free Plan
-  trialAlreadyUsed: `Free trial already used. Subscribe to continue with premium features.`,
-  oneHourLeftToExpireTrialPlan: `⏰ Your Freedom Plan expires in 1 hour. Upgrade to continue!`,
-  freePlanExpired: `🚫 Your Freedom Plan has expired. We hope you enjoyed your trial,
+ // cPanel/Plesk Plans initial select plan text
+ selectPlan: `Please select a plan:`,
+ backButton: '⬅️ Back',
+ yesProceedWithThisEmail: email => `Proceed with ${email}`,
+ skipEmail: 'Skip (no email)',
+ proceedWithPayment: 'Proceed with Payment',
+ iHaveSentThePayment: `✅ Check Payment Status`,
+ // Free Plan
+ trialAlreadyUsed: `Free trial already used. Subscribe to continue with premium features.`,
+ oneHourLeftToExpireTrialPlan: `⏰ Your Freedom Plan expires in 1 hour. Upgrade to continue!`,
+ freePlanExpired: `🚫 Your Freedom Plan has expired. We hope you enjoyed your trial,
 To continue using our services, please buy one of our premium plans.`,
-  freeTrialPlanSelected: hostingType => `
+ freeTrialPlanSelected: hostingType => `
 <b>Freedom Plan</b> — Free for 12 hours
 
 1 GB SSD · 10 GB Bandwidth · 1 .sbs Domain
 1 Email · 1 MySQL DB · Free SSL · HostPanel Access
 
 Enter a .sbs domain to get started.`,
-  getFreeTrialPlan: `Enter your desired domain (e.g., example.sbs). Free .sbs domain included.`,
-  trialPlanContinueWithDomainNameSBSMatched: websiteName => `<b>${websiteName}</b> is available.`,
-  trialPlanSBSDomainNotMatched: `Domain not found. Try a different .sbs domain.`,
-  trialPlanSBSDomainIsPremium: `Premium domain — only available with paid plans. Try another.`,
-  trialPlanGetNowInvalidDomain: `Enter a valid .sbs domain (e.g., example.sbs).`,
-  trialPlanNameserverSelection: websiteName =>
-    `Select nameserver provider for <b>${websiteName}</b>`,
-  trialPlanDomainNameMatched: `Enter your email for account setup.`,
-  confirmEmailBeforeProceedingSBS: email =>
-    `Are you sure you want to proceed with this ${email} email for the Freedom Plan subscription?`,
-  trialPlanInValidEmail: 'Please provide a valid email',
-  trialPlanActivationConfirmation: `✅ Free trial activating now. Valid for 12 hours.`,
-  trialPlanActivationInProgress: `Your free trial plan is being activated. This may take a few moments…`,
+ getFreeTrialPlan: `Enter your desired domain (e.g., example.sbs). Free .sbs domain included.`,
+ trialPlanContinueWithDomainNameSBSMatched: websiteName => `<b>${websiteName}</b> is available.`,
+ trialPlanSBSDomainNotMatched: `Domain not found. Try a different .sbs domain.`,
+ trialPlanSBSDomainIsPremium: `Premium domain — only available with paid plans. Try another.`,
+ trialPlanGetNowInvalidDomain: `Enter a valid .sbs domain (e.g., example.sbs).`,
+ trialPlanNameserverSelection: websiteName =>
+ `Select nameserver provider for <b>${websiteName}</b>`,
+ trialPlanDomainNameMatched: `Enter your email for account setup.`,
+ confirmEmailBeforeProceedingSBS: email =>
+ `Are you sure you want to proceed with this ${email} email for the Freedom Plan subscription?`,
+ trialPlanInValidEmail: 'Please provide a valid email',
+ trialPlanActivationConfirmation: `✅ Free trial activating now. Valid for 12 hours.`,
+ trialPlanActivationInProgress: `Your free trial plan is being activated. This may take a few moments…`,
 
-  what: `That option isn't available right now. Please pick from the buttons below.`,
-  whatNum: `That doesn't look right. Please enter a valid number.`,
-  phoneGenTimeout: 'Timeout',
-  phoneGenNoGoodHits: `Please tap 💬 Get Support or select another area code`,
+ what: `That option isn't available right now. Please pick from the buttons below.`,
+ whatNum: `That doesn't look right. Please enter a valid number.`,
+ phoneGenTimeout: 'Timeout',
+ phoneGenNoGoodHits: `Please tap 💬 Get Support or select another area code`,
 
-  subscribeRCS: p =>
-    `Subscribed! Unsubscribe anytime by clicking the <a href="${SELF_URL}/unsubscribe?a=b&Phone=${p}">link</a>`,
-  unsubscribeRCS: p =>
-    `You are unsubscribed! To subscribe again click on the <a href="${SELF_URL}/subscribe?a=b&Phone=${p}">link</a>`,
-  argsErr: `dev: sent wrong args`,
-  showDepositNgnInfo:
-    ngn => `Please remit ${ngn} NGN by clicking “Make Payment” below. Once the transaction has been confirmed, you will be promptly notified, and your wallet will be updated.
+ subscribeRCS: p =>
+ `Subscribed! Unsubscribe anytime by clicking the <a href="${SELF_URL}/unsubscribe?a=b&Phone=${p}">link</a>`,
+ unsubscribeRCS: p =>
+ `You are unsubscribed! To subscribe again click on the <a href="${SELF_URL}/subscribe?a=b&Phone=${p}">link</a>`,
+ argsErr: `dev: sent wrong args`,
+ showDepositNgnInfo:
+ ngn => `Please remit ${ngn} NGN by clicking “Make Payment” below. Once the transaction has been confirmed, you will be promptly notified, and your wallet will be updated.
 
 Best regards,
 ${CHAT_BOT_NAME}`,
 
-  askEmail: `Please provide an email for payment confirmation.`,
-  askEmailForNGN: `Please provide an email for payment confirmation.`,
-  askValidAmount: 'Please enter a valid amount.',
-  askValidEmail: 'Please provide a valid email',
-  askValidCrypto: 'Please choose a valid crypto currency',
-  askValidPayOption: 'Please choose a valid payment option',
-  chooseSubscription:
-    HIDE_SMS_APP === 'true'
-      ? `<b>Choose Your Plan</b>
+ askEmail: `Please provide an email for payment confirmation.`,
+ askEmailForNGN: `Please provide an email for payment confirmation.`,
+ askValidAmount: 'Please enter a valid amount.',
+ askValidEmail: 'Please provide a valid email',
+ askValidCrypto: 'Please choose a valid crypto currency',
+ askValidPayOption: 'Please choose a valid payment option',
+ chooseSubscription:
+ HIDE_SMS_APP === 'true'
+ ? `<b>Choose Your Plan</b>
 
 ✅ <b>All plans include:</b>
 🔗 Unlimited URL shortening
-🌐 Free .sbs/.xyz domains
+🌐 Free 
 📱 Phone number validations with owner names
 📞 Cloud IVR access
 
@@ -322,12 +322,12 @@ ${WEEKLY_PLAN_FREE_DOMAINS} domains · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleSt
 <b>Monthly</b> — $${PRICE_MONTHLY}
 ${MONTHLY_PLAN_FREE_DOMAINS} domains · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations with phone owner names · Unlimited links
 
-<i>All plans include free .sbs/.xyz domains + unlimited URL shortening + phone owner names on all USA validations.</i>`
-      : `<b>Choose Your Plan</b>
+<i>All plans include free + unlimited URL shortening + phone owner names on all USA validations.</i>`
+ : `<b>Choose Your Plan</b>
 
 ✅ <b>All plans include:</b>
 🔗 Unlimited URL shortening
-🌐 Free .sbs/.xyz domains
+🌐 Free 
 📱 Phone validations with owner names
 📧 BulkSMS campaigns
 📞 Cloud IVR access
@@ -341,465 +341,465 @@ ${WEEKLY_PLAN_FREE_DOMAINS} domains · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleSt
 <b>Monthly</b> — $${PRICE_MONTHLY}
 ${MONTHLY_PLAN_FREE_DOMAINS} domains · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · Unlimited links + BulkSMS (unlimited devices)
 
-<i>All plans include free .sbs/.xyz domains + unlimited URL shortening + phone owner names on all USA validations.</i>`,
+<i>All plans include free + unlimited URL shortening + phone owner names on all USA validations.</i>`,
 
-  askCoupon: usd =>
-    `The price is $${usd}. Would you like to apply a coupon code? If you have one, please enter it now. Otherwise, you can press 'Skip'.`,
-  planAskCoupon: `Would you like to apply a coupon code? If you have one, please enter it now. Otherwise, you can press 'Skip'.`,
-  enterCoupon: `Please enter a coupon code:`,
-  planPrice: (plan, price) => `Price of ${plan} subscription is $${price} Please choose payment method.`,
-  planNewPrice: (plan, price, newPrice) =>
-    `Price of ${plan} subscription is now $${view(newPrice)} <s>($${price})</s> Please choose payment method.`,
+ askCoupon: usd =>
+ `The price is $${usd}. Would you like to apply a coupon code? If you have one, please enter it now. Otherwise, you can press 'Skip'.`,
+ planAskCoupon: `Would you like to apply a coupon code? If you have one, please enter it now. Otherwise, you can press 'Skip'.`,
+ enterCoupon: `Please enter a coupon code:`,
+ planPrice: (plan, price) => `Price of ${plan} subscription is $${price} Please choose payment method.`,
+ planNewPrice: (plan, price, newPrice) =>
+ `Price of ${plan} subscription is now $${view(newPrice)} <s>($${price})</s> Please choose payment method.`,
 
-  domainPrice: (domain, price) => `Price of ${domain} is ${price} USD. Choose payment method.`,
-  domainNewPrice: (domain, price, newPrice) =>
-    `Price of ${domain} is now $${view(newPrice)} <s>($${price})</s> Choose payment method.`,
+ domainPrice: (domain, price) => `Price of ${domain} is ${price} USD. Choose payment method.`,
+ domainNewPrice: (domain, price, newPrice) =>
+ `Price of ${domain} is now $${view(newPrice)} <s>($${price})</s> Choose payment method.`,
 
-  couponInvalid: `Invalid coupon code, Please enter your coupon code again:`,
+ couponInvalid: `Invalid coupon code, Please enter your coupon code again:`,
 
-  lowPrice: `Sent price less than needed`,
+ lowPrice: `Sent price less than needed`,
 
-  freeTrialAvailable: (chatId) => `📱 <b>BulkSMS Free Trial — 100 Free SMS</b>\n\nYour activation code:\n<code>${chatId}</code>\n\n📲 <b>Download the app:</b> ${SMS_APP_LINK}\n\nOpen the app → Enter your code → Start sending!\n\n⚡ Trial: 1 device only.\n\n💡 After trial, tap <b>⚡ Upgrade Plan</b> on the main menu to unlock unlimited BulkSMS + URL shortening + validations & more!\n\nNeed eSIM cards? Tap 💬 Get Support`,
+ freeTrialAvailable: (chatId) => `📱 <b>BulkSMS Free Trial — 100 Free SMS</b>\n\nYour activation code:\n<code>${chatId}</code>\n\n📲 <b>Download the app:</b> ${SMS_APP_LINK}\n\nOpen the app → Enter your code → Start sending!\n\n⚡ Trial: 1 device only.\n\n💡 After trial, tap <b>⚡ Upgrade Plan</b> on the main menu to unlock unlimited BulkSMS + URL shortening + validations & more!\n\nNeed eSIM cards? Tap 💬 Get Support`,
 
-  freeTrialNotAvailable: 'You have already used the free trial.\n\nTap <b>⚡ Upgrade Plan</b> to subscribe — includes unlimited BulkSMS, URL shortening, validations, free domains & more!',
+ freeTrialNotAvailable: 'You have already used the free trial.\n\nTap <b>⚡ Upgrade Plan</b> to subscribe — includes unlimited BulkSMS, URL shortening, validations, free domains & more!',
 
-  smsAppMenuSubscribed: (chatId) => `📧 <b>BulkSMS — Active Subscription</b>\n\nYou have unlimited access.\n📲 <b>Download app:</b> ${SMS_APP_LINK}\n\nActivation code: <code>${chatId}</code>\n\nCreate & manage campaigns below, or use the app for sending.`,
-  smsAppMenuTrial: (chatId, remaining) => `📧 <b>BulkSMS — Free Trial</b>\n\n${remaining} SMS remaining in your trial.\n📲 <b>Download app:</b> ${SMS_APP_LINK}\n\nActivation code: <code>${chatId}</code>\n\nCreate campaigns below or use the app directly.`,
-  smsAppMenuExpired: `📧 <b>BulkSMS</b>\n\nYour trial has been used. Subscribe to continue sending.\n\nTap <b>⚡ Upgrade Plan</b> to unlock unlimited BulkSMS + URL shortening + validations & more!`,
+ smsAppMenuSubscribed: (chatId) => `📧 <b>BulkSMS — Active Subscription</b>\n\nYou have unlimited access.\n📲 <b>Download app:</b> ${SMS_APP_LINK}\n\nActivation code: <code>${chatId}</code>\n\nCreate & manage campaigns below, or use the app for sending.`,
+ smsAppMenuTrial: (chatId, remaining) => `📧 <b>BulkSMS — Free Trial</b>\n\n${remaining} SMS remaining in your trial.\n📲 <b>Download app:</b> ${SMS_APP_LINK}\n\nActivation code: <code>${chatId}</code>\n\nCreate campaigns below or use the app directly.`,
+ smsAppMenuExpired: `📧 <b>BulkSMS</b>\n\nYour trial has been used. Subscribe to continue sending.\n\nTap <b>⚡ Upgrade Plan</b> to unlock unlimited BulkSMS + URL shortening + validations & more!`,
 
-  smsCreateCampaignIntro: `📱 <b>Create SMS Campaign</b>\n\nHere's how it works:\n\n<b>Step 1:</b> Name your campaign\n<b>Step 2:</b> Write your message(s)\n   • Use <code>[name]</code> to personalize\n   • Multiple lines = message rotation\n<b>Step 3:</b> Upload contacts\n   • Paste as text: <code>+1234567890, John</code>\n   • Or upload a .txt / .csv file\n<b>Step 4:</b> Schedule or send immediately\n\nThe campaign syncs to the Nomadly SMS App for sending.\n\n<b>Let's start — enter a campaign name:</b>`,
+ smsCreateCampaignIntro: `📱 <b>Create SMS Campaign</b>\n\nHere's how it works:\n\n<b>Step 1:</b> Name your campaign\n<b>Step 2:</b> Write your message(s)\n • Use <code>[name]</code> to personalize\n • Multiple lines = message rotation\n<b>Step 3:</b> Upload contacts\n • Paste as text: <code>+1234567890, John</code>\n • Or upload a .txt / .csv file\n<b>Step 4:</b> Schedule or send immediately\n\nThe campaign syncs to the Nomadly SMS App for sending.\n\n<b>Let's start — enter a campaign name:</b>`,
 
-  smsSchedulePrompt: '⏰ <b>Schedule Campaign?</b>\n\nChoose when to make this campaign available:',
-  smsSendNow: '▶️ Send Now',
-  smsScheduleLater: '⏰ Schedule for Later',
-  smsScheduleTimePrompt: '📅 <b>Enter schedule date & time</b>\n\nFormat: <code>YYYY-MM-DD HH:MM</code>\n(UTC timezone)\n\nExample: <code>2025-07-15 09:30</code>',
+ smsSchedulePrompt: '⏰ <b>Schedule Campaign?</b>\n\nChoose when to make this campaign available:',
+ smsSendNow: '▶️ Send Now',
+ smsScheduleLater: '⏰ Schedule for Later',
+ smsScheduleTimePrompt: '📅 <b>Enter schedule date & time</b>\n\nFormat: <code>YYYY-MM-DD HH:MM</code>\n(UTC timezone)\n\nExample: <code>2025-07-15 09:30</code>',
 
-  smsMyCampaignsEmpty: '📋 <b>My Campaigns</b>\n\nYou have no campaigns yet. Tap <b>📱 Create Campaign</b> to get started!',
-  smsMyCampaignsList: (campaigns) => {
-    const statusIcons = { draft: '📝', sending: '📤', completed: '✅', paused: '⏸', scheduled: '📅' }
-    const lines = campaigns.slice(0, 10).map((c, i) =>
-      `${i + 1}. ${statusIcons[c.status] || '📋'} <b>${c.name}</b>\n   ${c.sentCount}/${c.totalCount} sent · ${c.status}`
-    )
-    return `📋 <b>My Campaigns</b>\n\n${lines.join('\n\n')}\n\n<i>Manage campaigns in the Nomadly SMS App.</i>`
-  },
+ smsMyCampaignsEmpty: '📋 <b>My Campaigns</b>\n\nYou have no campaigns yet. Tap <b>📱 Create Campaign</b> to get started!',
+ smsMyCampaignsList: (campaigns) => {
+ const statusIcons = { draft: '📝', sending: '📤', completed: '✅', paused: '⏸', scheduled: '📅' }
+ const lines = campaigns.slice(0, 10).map((c, i) =>
+ `${i + 1}. ${statusIcons[c.status] || '📋'} <b>${c.name}</b>\n ${c.sentCount}/${c.totalCount} sent · ${c.status}`
+ )
+ return `📋 <b>My Campaigns</b>\n\n${lines.join('\n\n')}\n\n<i>Manage campaigns in the Nomadly SMS App.</i>`
+ },
 
-  planSubscribed:
-    HIDE_SMS_APP === 'true'
-      ? `✅ Subscribed to {{plan}} Plan!
+ planSubscribed:
+ HIDE_SMS_APP === 'true'
+ ? `✅ Subscribed to {{plan}} Plan!
 
 Included:
-• Free .sbs/.xyz domains
+• Free 
 • Unlimited Shortit links
 • USA phone validation
 
 Need E-sim? Tap 💬 Support`
-      : `✅ Subscribed to {{plan}} Plan!
+ : `✅ Subscribed to {{plan}} Plan!
 
 Included:
-• Free .sbs/.xyz domains
+• Free 
 • Unlimited Shortit links
 • USA phone validation
 • ${SMS_APP_NAME} app
 
 📱 Device access:
-  Daily — 1 device
-  Weekly — 2 devices
-  Monthly — Unlimited devices
+ Daily — 1 device
+ Weekly — 2 devices
+ Monthly — Unlimited devices
 
 📲 Download: ${SMS_APP_LINK}
 💬 Get E-sim: Tap Support
 🔓 Switch device: /resetlogin`,
 
-  alreadySubscribedPlan: days => `Your subscription is active and expires in ${days}`,
+ alreadySubscribedPlan: days => `Your subscription is active and expires in ${days}`,
 
-  payError: `❌ Payment session expired. Please try again or tap 💬 Support.`,
+ payError: `❌ Payment session expired. Please try again or tap 💬 Support.`,
 
-  chooseFreeDomainText: `<b>Great News!</b> This domain is available for free with your subscription. Would you like to claim it?`,
+ chooseFreeDomainText: `<b>Great News!</b> This domain is available for free with your subscription. Would you like to claim it?`,
 
-  chooseDomainToBuy: text =>
-    `<b>Claim Your Corner of the Web!</b>  Please share the domain name you wish to purchase, like "abcpay.com".${text}`,
-  askDomainToUseWithShortener: `Use this domain as a <b>custom URL shortener</b>?\n\n<b>Yes</b> — Auto-configure DNS. Short links become <code>yourdomain.com/abc</code>.\n\n<b>No</b> — Register only. Enable shortener anytime from Manage Domains.`,
-  blockUser: `Please share the username of the user that needs to be blocked.`,
-  unblockUser: `Please share the username of the user that needs to be unblocked.`,
-  blockedUser: `You are currently blocked from using the bot. Please tap 💬 Get Support. Discover more ${TG_HANDLE}.`,
+ chooseDomainToBuy: text =>
+ `<b>Claim Your Corner of the Web!</b> Please share the domain name you wish to purchase, like "abcpay.com".${text}`,
+ askDomainToUseWithShortener: `Use this domain as a <b>custom URL shortener</b>?\n\n<b>Yes</b> — Auto-configure DNS. Short links become <code>yourdomain.com/abc</code>.\n\n<b>No</b> — Register only. Enable shortener anytime from Manage Domains.`,
+ blockUser: `Please share the username of the user that needs to be blocked.`,
+ unblockUser: `Please share the username of the user that needs to be unblocked.`,
+ blockedUser: `You are currently blocked from using the bot. Please tap 💬 Get Support. Discover more ${TG_HANDLE}.`,
 
-  greet: `${CHAT_BOT_BRAND} — URL shortener, domains, phone leads & more.
+ greet: `${CHAT_BOT_BRAND} — URL shortener, domains, phone leads & more.
 
 🎁 ${FREE_LINKS} free trial links — /start
 💬 Support: Tap Get Support`,
 
-  linkExpired: `This short link has expired and is no longer active. Please contact us for any queries.
+ linkExpired: `This short link has expired and is no longer active. Please contact us for any queries.
 Best,
 ${CHAT_BOT_BRAND} Team
 Discover more: ${TG_CHANNEL}`,
 
-  successPayment: `Payment Processed Successfully! You can now close this window.`,
+ successPayment: `Payment Processed Successfully! You can now close this window.`,
 
-  welcome: `Thank you for choosing ${CHAT_BOT_NAME}! Please choose an option below:`,
-  welcomeFreeTrial: `Welcome! 🎉
+ welcome: `Thank you for choosing ${CHAT_BOT_NAME}! Please choose an option below:`,
+ welcomeFreeTrial: `Welcome! 🎉
 
 You have ${FREE_LINKS} free Shortit links.
 
 Subscribe for:
 • Unlimited URL shortening
-• Free .sbs/.xyz domains
+• Free 
 • USA phone validation
 
 Tap below to get started! ⬇️`,
 
-  unknownCommand: `Command not found. Press /start or tap 💬 Get Support. Discover more ${TG_HANDLE}.`,
+ unknownCommand: `Command not found. Press /start or tap 💬 Get Support. Discover more ${TG_HANDLE}.`,
 
-  support: `Need help? Tap 💬 Get Support to chat with us. Discover more ${TG_HANDLE}.`,
+ support: `Need help? Tap 💬 Get Support to chat with us. Discover more ${TG_HANDLE}.`,
 
-  joinChannel: `Please Join Channel ${TG_CHANNEL}`,
+ joinChannel: `Please Join Channel ${TG_CHANNEL}`,
 
-  dnsPropagated: `DNS Propagation for {{domain}} is completed. You can now use it for URL Shortening.`,
+ dnsPropagated: `DNS Propagation for {{domain}} is completed. You can now use it for URL Shortening.`,
 
-  dnsNotPropagated: `DNS propagation for {{domain}} is in progress and you will be updated once it completes. ✅`,
+ dnsNotPropagated: `DNS propagation for {{domain}} is in progress and you will be updated once it completes. ✅`,
 
-  domainBoughtSuccess: domain => `Domain ${domain} is now yours. Thank you for choosing us.
+ domainBoughtSuccess: domain => `Domain ${domain} is now yours. Thank you for choosing us.
 
 Best,
 ${CHAT_BOT_NAME}`,
 
-  domainBought: `Your domain {{domain}} is now linked to your account while DNS propagates. You will be updated automatically about the status momentarily.🚀`,
+ domainBought: `Your domain {{domain}} is now linked to your account while DNS propagates. You will be updated automatically about the status momentarily.🚀`,
 
-  domainLinking: domain =>
-    `Linking domain with your account. Please note that DNS updates can take up to 30 minutes. You can check your DNS update status here: https://www.whatsmydns.net/#A/${domain}`,
+ domainLinking: domain =>
+ `Linking domain with your account. Please note that DNS updates can take up to 30 minutes. You can check your DNS update status here: https://www.whatsmydns.net/#A/${domain}`,
 
-  errorSavingDomain: `Error saving domain in server, tap 💬 Get Support. Discover more ${TG_HANDLE}.`,
+ errorSavingDomain: `Error saving domain in server, tap 💬 Get Support. Discover more ${TG_HANDLE}.`,
 
-  chooseDomainToManage: `Please select a domain if you wish to manage its DNS settings.`,
+ chooseDomainToManage: `Please select a domain if you wish to manage its DNS settings.`,
 
-  chooseDomainWithShortener: `Please select or buy the domain name you would like to connect with your shortened link.`,
+ chooseDomainWithShortener: `Please select or buy the domain name you would like to connect with your shortened link.`,
 
-  viewDnsRecords: (records, domain, nameserverType) => {
-    let msg = `<b>${domain}</b> — DNS Records\n`
+ viewDnsRecords: (records, domain, nameserverType) => {
+ let msg = `<b>${domain}</b> — DNS Records\n`
 
-    // NS section — only show for cloudflare or custom NS (hide provider defaults)
-    const nsRecs = records['NS']
-    if (nsRecs && nsRecs.length && (nameserverType === 'cloudflare' || nameserverType === 'custom')) {
-      const provider = nameserverType === 'cloudflare' ? 'Cloudflare' : 'Custom'
-      msg += `\n<b>NAMESERVERS</b> <i>(${provider})</i>\n`
-      for (let i = 0; i < nsRecs.length; i++) {
-        msg += `  NS${i + 1}: <code>${nsRecs[i].recordContent || '—'}</code>\n`
-      }
-      msg += `<i>Use "🔄 Manage Nameservers" to change.</i>\n`
-    }
+ // NS section — only show for cloudflare or custom NS (hide provider defaults)
+ const nsRecs = records['NS']
+ if (nsRecs && nsRecs.length && (nameserverType === 'cloudflare' || nameserverType === 'custom')) {
+ const provider = nameserverType === 'cloudflare' ? 'Cloudflare' : 'Custom'
+ msg += `\n<b>NAMESERVERS</b> <i>(${provider})</i>\n`
+ for (let i = 0; i < nsRecs.length; i++) {
+ msg += ` NS${i + 1}: <code>${nsRecs[i].recordContent || '—'}</code>\n`
+ }
+ msg += `<i>Use "🔄 Manage Nameservers" to change.</i>\n`
+ }
 
-    // Other record types
-    const otherTypes = ['A', 'AAAA', 'MX', 'TXT', 'CNAME', 'SRV', 'CAA']
-    for (const type of otherTypes) {
-      let recs = records[type]
-      if (!recs || !recs.length) continue
-      // Hide internal Railway CNAME records from user view
-      if (type === 'CNAME') {
-        recs = recs.filter(r => !r.recordContent || !r.recordContent.includes('.up.railway.app'))
-        if (!recs.length) continue
-      }
-      msg += `\n<b>${type}</b>\n`
-      for (const r of recs) {
-        const idx = `<b>${r.index}.</b>`
-        const host = r.recordName && r.recordName !== domain ? r.recordName : '@'
-        if (type === 'MX') {
-          const pri = r.priority !== undefined ? ` [pri:${r.priority}]` : ''
-          msg += `${idx} ${host}${pri} → ${r.recordContent || '—'}\n`
-        } else if (type === 'TXT') {
-          const val = r.recordContent ? (r.recordContent.length > 50 ? r.recordContent.substring(0, 50) + '…' : r.recordContent) : '—'
-          msg += `${idx} ${host} → ${val}\n`
-        } else if (type === 'SRV') {
-          msg += `${idx} ${r.recordName || ''} → ${r.recordContent || '—'}\n`
-        } else {
-          msg += `${idx} ${host} → ${r.recordContent || '—'}\n`
-        }
-      }
-    }
-    const hasAny = ['NS', ...otherTypes].some(t => records[t]?.length)
-    if (!hasAny) msg += '\nNo records found.\n'
-    return msg
-  },
-  addDns: 'Add DNS Record',
-  updateDns: 'Update DNS Record',
-  deleteDns: 'Delete DNS Record',
-  quickActions: 'Quick Actions',
-  activateShortener: '🔗 Activate for URL Shortener',
-  deactivateShortener: '🔗 Deactivate URL Shortener',
-  mx: 'MX Record',
-  txt: 'TXT Record',
-  'MX Record': 'MX',
-  'TXT Record': 'TXT',
+ // Other record types
+ const otherTypes = ['A', 'AAAA', 'MX', 'TXT', 'CNAME', 'SRV', 'CAA']
+ for (const type of otherTypes) {
+ let recs = records[type]
+ if (!recs || !recs.length) continue
+ // Hide internal Railway CNAME records from user view
+ if (type === 'CNAME') {
+ recs = recs.filter(r => !r.recordContent || !r.recordContent.includes('.up.railway.app'))
+ if (!recs.length) continue
+ }
+ msg += `\n<b>${type}</b>\n`
+ for (const r of recs) {
+ const idx = `<b>${r.index}.</b>`
+ const host = r.recordName && r.recordName !== domain ? r.recordName : '@'
+ if (type === 'MX') {
+ const pri = r.priority !== undefined ? ` [pri:${r.priority}]` : ''
+ msg += `${idx} ${host}${pri} → ${r.recordContent || '—'}\n`
+ } else if (type === 'TXT') {
+ const val = r.recordContent ? (r.recordContent.length > 50 ? r.recordContent.substring(0, 50) + '…' : r.recordContent) : '—'
+ msg += `${idx} ${host} → ${val}\n`
+ } else if (type === 'SRV') {
+ msg += `${idx} ${r.recordName || ''} → ${r.recordContent || '—'}\n`
+ } else {
+ msg += `${idx} ${host} → ${r.recordContent || '—'}\n`
+ }
+ }
+ }
+ const hasAny = ['NS', ...otherTypes].some(t => records[t]?.length)
+ if (!hasAny) msg += '\nNo records found.\n'
+ return msg
+ },
+ addDns: 'Add DNS Record',
+ updateDns: 'Update DNS Record',
+ deleteDns: 'Delete DNS Record',
+ quickActions: 'Quick Actions',
+ activateShortener: '🔗 Activate for URL Shortener',
+ deactivateShortener: '🔗 Deactivate URL Shortener',
+ mx: 'MX Record',
+ txt: 'TXT Record',
+ 'MX Record': 'MX',
+ 'TXT Record': 'TXT',
 
-  // Digital Products
-  digitalProductsSelect: `🛒 <b>Digital Products</b>\n\nVerified accounts delivered <b>quickly</b> via this bot.\n\n<b>Telecom</b> — Twilio, Telnyx (SMS, Voice, SIP)\n<b>Cloud</b> — AWS, Google Cloud (Full access)\n<b>Email</b> — Google Workspace, Zoho Mail, IONOS SMTP\n<b>Mobile</b> — eSIM T-Mobile\n\nPay with crypto, bank, or wallet. Select below:`,
-  dpTwilioMain: `📞 Twilio Main Account — $${DP_PRICE_TWILIO_MAIN}`,
-  dpTwilioSub: `📞 Twilio Sub-Account — $${DP_PRICE_TWILIO_SUB}`,
-  dpTelnyxMain: `📡 Telnyx Main Account — $${DP_PRICE_TELNYX_MAIN}`,
-  dpTelnyxSub: `📡 Telnyx Sub-Account — $${DP_PRICE_TELNYX_SUB}`,
-  dpGworkspaceNew: `📧 Google Workspace Admin (New Domain) — $${DP_PRICE_GWORKSPACE_NEW}`,
-  dpGworkspaceAged: `📧 Google Workspace Admin (Aged Domain) — $${DP_PRICE_GWORKSPACE_AGED}`,
-  dpEsim: `📱 eSIM T-Mobile — $${DP_PRICE_ESIM}`,
-  dpEsimAirvoice: `📱 eSIM Airvoice (AT&T)`,
-  dpAirvoiceSelect: `📱 <b>eSIM Airvoice (AT&T)</b>\n\n📶 Unlimited talk, text & data on AT&T network.\nWorks on iOS & Android. Scan QR to activate.\n\nSelect plan duration:`,
-  dpAirvoice1m: `1 Month — $${DP_PRICE_AIRVOICE_1M}`,
-  dpAirvoice3m: `3 Months — $${DP_PRICE_AIRVOICE_3M}`,
-  dpAirvoice6m: `6 Months — $${DP_PRICE_AIRVOICE_6M}`,
-  dpAirvoice1y: `1 Year — $${DP_PRICE_AIRVOICE_1Y}`,
-  dpZohoNew: `📧 Zoho Mail (New Domain) — $${DP_PRICE_ZOHO_NEW}`,
-  dpZohoAged: `📧 Zoho Mail (Aged Domain) — $${DP_PRICE_ZOHO_AGED}`,
-  dpAwsMain: `☁️ AWS Main Account — $${DP_PRICE_AWS_MAIN}`,
-  dpAwsSub: `☁️ AWS Sub-Account — $${DP_PRICE_AWS_SUB}`,
-  dpGcloudMain: `🌐 Google Cloud Main — $${DP_PRICE_GCLOUD_MAIN}`,
-  dpGcloudSub: `🌐 Google Cloud Sub — $${DP_PRICE_GCLOUD_SUB}`,
-  dpIonosSmtp: `📧 IONOS SMTP — $${DP_PRICE_IONOS_SMTP}`,
-  dpPaymentPrompt: (product, price) => {
-    const descriptions = {
-      'Twilio Main Account': 'Full owner-level Twilio account with Console access, API keys, and ability to provision phone numbers, send SMS/MMS, and make voice calls. Includes 2 Sender IDs and $20 credit.\n\nYou receive: login credentials + API SID & Auth Token.',
-      'Twilio Sub-Account': 'Twilio sub-account with Console login and dedicated API credentials for SMS, voice, and phone number provisioning. Includes 2 Sender IDs and $20 credit.\n\nYou receive: login credentials, Account SID & Auth Token.',
-      'Telnyx Main Account': 'Full owner-level Telnyx account with Mission Control Portal access. Provision numbers, configure SIP trunking, messaging, and voice. Includes 2 Sender IDs and $20 credit.\n\nYou receive: login credentials + API key.',
-      'Telnyx Sub-Account': 'Telnyx sub-account with Mission Control Portal login and API access for messaging, voice, and number management. Includes 2 Sender IDs and $20 credit.\n\nYou receive: login credentials + API key.',
-      'AWS Main Account': 'Full root-level AWS account with Console access to all services — EC2, S3, Lambda, SES, and more.\n\nYou receive: root email, password, and MFA setup.',
-      'AWS Sub-Account': 'AWS sub-account (Organizations member) with full Console login and access to core services — EC2, S3, Lambda, and more.\n\nYou receive: login credentials and IAM access.',
-      'Google Cloud Main Account': 'Full owner-level Google Cloud account with billing enabled. Access to Compute Engine, Cloud Storage, BigQuery, and all GCP services.\n\nYou receive: login credentials.',
-      'Google Cloud Sub-Account': 'Google Cloud project with full Console login and editor-level access. Compute, storage, and API access included.\n\nYou receive: login credentials and service account key.',
-      'Google Workspace (New Domain)': 'Google Workspace business email setup on a freshly registered domain. Custom @yourdomain email with Gmail, Drive, Docs, and Meet.\n\nYou receive: admin login + domain credentials.',
-      'Google Workspace (Aged Domain)': 'Google Workspace on an aged/established domain for better deliverability. Business email with full Google suite.\n\nYou receive: admin login + domain credentials.',
-      'Zoho Mail (New Domain)': 'Zoho Mail professional email on a new domain. Custom @yourdomain email with calendar, contacts, and file storage.\n\nYou receive: admin login + domain setup.',
-      'Zoho Mail (Aged Domain)': 'Zoho Mail on an aged domain for improved sender reputation. Professional email with full Zoho suite.\n\nYou receive: admin login + domain credentials.',
-      'eSIM T-Mobile': '📶 <b>1 month — Unlimited talk, text & data</b>\nWorks on iOS & Android. Scan QR to activate.\n\nYou receive: QR code or activation details.',
-      'eSIM Airvoice (AT&T) — 1 Month': '📶 <b>1 month — Unlimited talk, text & data (AT&T)</b>\nWorks on iOS & Android. Scan QR to activate.\n\nYou receive: QR code or activation details.',
-      'eSIM Airvoice (AT&T) — 3 Months': '📶 <b>3 months — Unlimited talk, text & data (AT&T)</b>\nWorks on iOS & Android. Scan QR to activate.\n\nYou receive: QR code or activation details.',
-      'eSIM Airvoice (AT&T) — 6 Months': '📶 <b>6 months — Unlimited talk, text & data (AT&T)</b>\nWorks on iOS & Android. Scan QR to activate.\n\nYou receive: QR code or activation details.',
-      'eSIM Airvoice (AT&T) — 1 Year': '📶 <b>1 year — Unlimited talk, text & data (AT&T)</b>\nWorks on iOS & Android. Scan QR to activate.\n\nYou receive: QR code or activation details.',
-    }
-    const desc = descriptions[product] || ''
-    return `💰 <b>Order: ${product}</b>\n\n💵 Price: <b>$${price}</b>${desc ? '\n\n' + desc : ''}\n\nSelect payment method:`
-  },
-  dpOrderConfirmed: (product, price, orderId) => `✅ <b>Order Confirmed!</b>\n\n🛒 Product: <b>${product}</b>\n💵 Amount: <b>$${price}</b>\n🆔 Order ID: <code>${orderId}</code>\n\n⏱ <b>We'll deliver right here in this chat shortly.</b>\nFor urgent requests, tap 💬 Get Support.\n\n💡 <b>Need more accounts?</b> Browse our full catalog in 🛒 Digital Products.`,
+ // Digital Products
+ digitalProductsSelect: `🛒 <b>Digital Products</b>\n\nVerified accounts delivered <b>quickly</b> via this bot.\n\n<b>Telecom</b> — Twilio, Telnyx (SMS, Voice, SIP)\n<b>Cloud</b> — AWS, Google Cloud (Full access)\n<b>Email</b> — Google Workspace, Zoho Mail, IONOS SMTP\n<b>Mobile</b> — eSIM T-Mobile\n\nPay with crypto, bank, or wallet. Select below:`,
+ dpTwilioMain: `📞 Twilio Main Account — $${DP_PRICE_TWILIO_MAIN}`,
+ dpTwilioSub: `📞 Twilio Sub-Account — $${DP_PRICE_TWILIO_SUB}`,
+ dpTelnyxMain: `📡 Telnyx Main Account — $${DP_PRICE_TELNYX_MAIN}`,
+ dpTelnyxSub: `📡 Telnyx Sub-Account — $${DP_PRICE_TELNYX_SUB}`,
+ dpGworkspaceNew: `📧 Google Workspace Admin (New Domain) — $${DP_PRICE_GWORKSPACE_NEW}`,
+ dpGworkspaceAged: `📧 Google Workspace Admin (Aged Domain) — $${DP_PRICE_GWORKSPACE_AGED}`,
+ dpEsim: `📱 eSIM T-Mobile — $${DP_PRICE_ESIM}`,
+ dpEsimAirvoice: `📱 eSIM Airvoice (AT&T)`,
+ dpAirvoiceSelect: `📱 <b>eSIM Airvoice (AT&T)</b>\n\n📶 Unlimited talk, text & data on AT&T network.\nWorks on iOS & Android. Scan QR to activate.\n\nSelect plan duration:`,
+ dpAirvoice1m: `1 Month — $${DP_PRICE_AIRVOICE_1M}`,
+ dpAirvoice3m: `3 Months — $${DP_PRICE_AIRVOICE_3M}`,
+ dpAirvoice6m: `6 Months — $${DP_PRICE_AIRVOICE_6M}`,
+ dpAirvoice1y: `1 Year — $${DP_PRICE_AIRVOICE_1Y}`,
+ dpZohoNew: `📧 Zoho Mail (New Domain) — $${DP_PRICE_ZOHO_NEW}`,
+ dpZohoAged: `📧 Zoho Mail (Aged Domain) — $${DP_PRICE_ZOHO_AGED}`,
+ dpAwsMain: `☁️ AWS Main Account — $${DP_PRICE_AWS_MAIN}`,
+ dpAwsSub: `☁️ AWS Sub-Account — $${DP_PRICE_AWS_SUB}`,
+ dpGcloudMain: `🌐 Google Cloud Main — $${DP_PRICE_GCLOUD_MAIN}`,
+ dpGcloudSub: `🌐 Google Cloud Sub — $${DP_PRICE_GCLOUD_SUB}`,
+ dpIonosSmtp: `📧 IONOS SMTP — $${DP_PRICE_IONOS_SMTP}`,
+ dpPaymentPrompt: (product, price) => {
+ const descriptions = {
+ 'Twilio Main Account': 'Full owner-level Twilio account with Console access, API keys, and ability to provision phone numbers, send SMS/MMS, and make voice calls. Includes 2 Sender IDs and $20 credit.\n\nYou receive: login credentials + API SID & Auth Token.',
+ 'Twilio Sub-Account': 'Twilio sub-account with Console login and dedicated API credentials for SMS, voice, and phone number provisioning. Includes 2 Sender IDs and $20 credit.\n\nYou receive: login credentials, Account SID & Auth Token.',
+ 'Telnyx Main Account': 'Full owner-level Telnyx account with Mission Control Portal access. Provision numbers, configure SIP trunking, messaging, and voice. Includes 2 Sender IDs and $20 credit.\n\nYou receive: login credentials + API key.',
+ 'Telnyx Sub-Account': 'Telnyx sub-account with Mission Control Portal login and API access for messaging, voice, and number management. Includes 2 Sender IDs and $20 credit.\n\nYou receive: login credentials + API key.',
+ 'AWS Main Account': 'Full root-level AWS account with Console access to all services — EC2, S3, Lambda, SES, and more.\n\nYou receive: root email, password, and MFA setup.',
+ 'AWS Sub-Account': 'AWS sub-account (Organizations member) with full Console login and access to core services — EC2, S3, Lambda, and more.\n\nYou receive: login credentials and IAM access.',
+ 'Google Cloud Main Account': 'Full owner-level Google Cloud account with billing enabled. Access to Compute Engine, Cloud Storage, BigQuery, and all GCP services.\n\nYou receive: login credentials.',
+ 'Google Cloud Sub-Account': 'Google Cloud project with full Console login and editor-level access. Compute, storage, and API access included.\n\nYou receive: login credentials and service account key.',
+ 'Google Workspace (New Domain)': 'Google Workspace business email setup on a freshly registered domain. Custom @yourdomain email with Gmail, Drive, Docs, and Meet.\n\nYou receive: admin login + domain credentials.',
+ 'Google Workspace (Aged Domain)': 'Google Workspace on an aged/established domain for better deliverability. Business email with full Google suite.\n\nYou receive: admin login + domain credentials.',
+ 'Zoho Mail (New Domain)': 'Zoho Mail professional email on a new domain. Custom @yourdomain email with calendar, contacts, and file storage.\n\nYou receive: admin login + domain setup.',
+ 'Zoho Mail (Aged Domain)': 'Zoho Mail on an aged domain for improved sender reputation. Professional email with full Zoho suite.\n\nYou receive: admin login + domain credentials.',
+ 'eSIM T-Mobile': '📶 <b>1 month — Unlimited talk, text & data</b>\nWorks on iOS & Android. Scan QR to activate.\n\nYou receive: QR code or activation details.',
+ 'eSIM Airvoice (AT&T) — 1 Month': '📶 <b>1 month — Unlimited talk, text & data (AT&T)</b>\nWorks on iOS & Android. Scan QR to activate.\n\nYou receive: QR code or activation details.',
+ 'eSIM Airvoice (AT&T) — 3 Months': '📶 <b>3 months — Unlimited talk, text & data (AT&T)</b>\nWorks on iOS & Android. Scan QR to activate.\n\nYou receive: QR code or activation details.',
+ 'eSIM Airvoice (AT&T) — 6 Months': '📶 <b>6 months — Unlimited talk, text & data (AT&T)</b>\nWorks on iOS & Android. Scan QR to activate.\n\nYou receive: QR code or activation details.',
+ 'eSIM Airvoice (AT&T) — 1 Year': '📶 <b>1 year — Unlimited talk, text & data (AT&T)</b>\nWorks on iOS & Android. Scan QR to activate.\n\nYou receive: QR code or activation details.',
+ }
+ const desc = descriptions[product] || ''
+ return `💰 <b>Order: ${product}</b>\n\n💵 Price: <b>$${price}</b>${desc ? '\n\n' + desc : ''}\n\nSelect payment method:`
+ },
+ dpOrderConfirmed: (product, price, orderId) => `✅ <b>Order Confirmed!</b>\n\n🛒 Product: <b>${product}</b>\n💵 Amount: <b>$${price}</b>\n🆔 Order ID: <code>${orderId}</code>\n\n⏱ <b>We'll deliver right here in this chat shortly.</b>\nFor urgent requests, tap 💬 Get Support.\n\n💡 <b>Need more accounts?</b> Browse our full catalog in 🛒 Digital Products.`,
 
-  // Virtual Card
-  vcWelcome: `💳 <b>Virtual Debit Card</b>\n\nLoad a virtual card with your chosen amount.\n\n✅ Works online worldwide\n✅ Instant delivery\n✅ $50 – $1,000\n\nSelect an amount or enter a custom one:`,
-  vcInvalidAmount: `❌ Please enter a valid amount between <b>$50</b> and <b>$1,000</b>.`,
-  vcAskAddress: `📬 <b>Shipping Address</b>\n\nEnter your full address in international format:\n\n<i>Example:\nJohn Doe\n123 Main Street, Apt 4B\nNew York, NY 10001\nUnited States</i>`,
-  vcAddressTooShort: `❌ Address seems too short. Please include your full name, street, city, postal code, and country.`,
-  vcOrderSummary: (amount, fee, total) => `📋 <b>Order Summary</b>\n\n💳 Virtual Card Load: <b>$${amount}</b>\n💰 Service Fee: <b>$${fee.toFixed(2)}</b>${amount < 200 ? ' (min. $20)' : ' (10%)'}\n━━━━━━━━━━━━━━━━━\n💵 <b>Total: $${total.toFixed(2)}</b>\n\nSelect payment method:`,
-  vcOrderConfirmed: (amount, total, orderId) => `✅ <b>Virtual Card Order Confirmed!</b>\n\n💳 Card Load: <b>$${amount}</b>\n💵 Total Paid: <b>$${total.toFixed(2)}</b>\n🆔 Order ID: <code>${orderId}</code>\n\n⏱ <b>Your card details will be delivered right here shortly.</b>\nFor urgent requests, tap 💬 Get Support.`,
-  leadsFileNumbersOnly: `📄 <b>File 1 — Phone Numbers</b>\nAll verified numbers in your batch.`,
-  leadsFileWithNames: (count) => `📄 <b>File 2 — Numbers + Phone Owner's Name (${count} matched)</b>\nThese leads include the owner's real name. Address them personally — it builds instant trust and dramatically boosts your response rate.`,
-  addDnsTxt: 'Select record type:',
-  updateDnsTxt: 'Select the record to update:',
-  deleteDnsTxt: 'Select the record to delete:',
-  confirmDeleteDnsTxt: 'Are you sure you want to delete this record?',
-  a: 'A Record',
-  cname: 'CNAME Record',
-  ns: 'NS Record',
-  'A Record': 'A',
-  'CNAME Record': 'CNAME',
-  'NS Record': 'NS',
-  askDnsHostname: {
-    A: '<b>Add A Record</b>\n\nEnter hostname:\ne.g. <b>@</b> for root, or <b>api</b>, <b>blog</b>, <b>www</b>',
-    CNAME: '<b>Add CNAME Record</b>\n\nEnter subdomain hostname:\ne.g. <b>www</b>, <b>api</b>, <b>blog</b>\n\nNote: CNAME cannot be used for root (@)',
-    MX: '<b>Add MX Record</b> (Step 1/3)\n\nEnter hostname:\ne.g. <b>@</b> for root email, or a subdomain',
-    TXT: '<b>Add TXT Record</b> (Step 1/2)\n\nEnter hostname:\ne.g. <b>@</b> for root, or <b>_dmarc</b>, <b>mail</b>',
-    NS: '<b>Add NS Record</b>\n\nEnter nameserver:\ne.g. <b>ns1.cloudflare.com</b>',
-    AAAA: '<b>Add AAAA Record</b> (Step 1/2)\n\nEnter hostname:\ne.g. <b>@</b> for root, or <b>api</b>, <b>blog</b>',
-  },
-  askDnsValue: {
-    A: 'Enter IPv4 address:\ne.g. <b>192.168.1.1</b>',
-    CNAME: 'Enter target domain:\ne.g. <b>myapp.railway.app</b>',
-    MX: '<b>Step 2/3</b> — Enter mail server:\ne.g. <b>ASPMX.L.GOOGLE.COM</b>',
-    TXT: '<b>Step 2/2</b> — Enter TXT value:\ne.g. <b>v=spf1 include:_spf.google.com ~all</b>',
-    AAAA: '<b>Step 2/2</b> — Enter IPv6 address:\ne.g. <b>2001:db8::1</b>',
-  },
-  askMxPriority: '<b>Step 3/3</b> — Enter MX priority (lower = higher preference):\ne.g. <b>10</b> for primary, <b>20</b> for backup',
-  askDnsContent: {
-    NS: '<b>Add NS Record</b>\n\nEnter nameserver hostname:\ne.g. <b>ns1.cloudflare.com</b>',
-    'NS Record': '<b>Add NS Record</b>\n\nEnter nameserver hostname:\ne.g. <b>ns1.cloudflare.com</b>\n\nNote: Max 4 NS records. Use Update if already at limit.',
-  },
-  askUpdateDnsContent: {
-    A: (current) => `<b>Update A Record</b>\nCurrent: <b>${current || 'N/A'}</b>\n\nEnter new IPv4 address:\ne.g. <b>192.168.1.1</b>`,
-    'A Record': (current) => `<b>Update A Record</b>\nCurrent: <b>${current || 'N/A'}</b>\n\nEnter new IPv4 address:\ne.g. <b>192.168.1.1</b>`,
-    CNAME: (current) => `<b>Update CNAME Record</b>\nCurrent: <b>${current || 'N/A'}</b>\n\nEnter new target domain:\ne.g. <b>myapp.railway.app</b>`,
-    'CNAME Record': (current) => `<b>Update CNAME Record</b>\nCurrent: <b>${current || 'N/A'}</b>\n\nEnter new target domain:\ne.g. <b>myapp.railway.app</b>`,
-    NS: (current) => `<b>Update NS Record</b>\nCurrent: <b>${current || 'N/A'}</b>\n\nEnter new nameserver:\ne.g. <b>ns1.cloudflare.com</b>`,
-    'NS Record': (current) => `<b>Update NS Record</b>\nCurrent: <b>${current || 'N/A'}</b>\n\nEnter new nameserver:\ne.g. <b>ns1.cloudflare.com</b>`,
-    MX: (current) => `<b>Update MX Record</b>\nCurrent: <b>${current || 'N/A'}</b>\n\nEnter new mail server:\ne.g. <b>ASPMX.L.GOOGLE.COM</b>`,
-    'MX Record': (current) => `<b>Update MX Record</b>\nCurrent: <b>${current || 'N/A'}</b>\n\nEnter new mail server:\ne.g. <b>ASPMX.L.GOOGLE.COM</b>`,
-    TXT: (current) => {
-      const display = current ? (current.length > 50 ? current.substring(0, 50) + '...' : current) : 'N/A'
-      return `<b>Update TXT Record</b>\nCurrent: <b>${display}</b>\n\nEnter new TXT value:\ne.g. <b>v=spf1 include:_spf.google.com ~all</b>`
-    },
-    'TXT Record': (current) => {
-      const display = current ? (current.length > 50 ? current.substring(0, 50) + '...' : current) : 'N/A'
-      return `<b>Update TXT Record</b>\nCurrent: <b>${display}</b>\n\nEnter new TXT value:\ne.g. <b>v=spf1 include:_spf.google.com ~all</b>`
-    },
-    AAAA: (current) => `<b>Update AAAA Record</b>\nCurrent: <b>${current || 'N/A'}</b>\n\nEnter new IPv6 address:\ne.g. <b>2001:db8::1</b>`,
-    'AAAA Record': (current) => `<b>Update AAAA Record</b>\nCurrent: <b>${current || 'N/A'}</b>\n\nEnter new IPv6 address:\ne.g. <b>2001:db8::1</b>`,
-  },
+ // Virtual Card
+ vcWelcome: `💳 <b>Virtual Debit Card</b>\n\nLoad a virtual card with your chosen amount.\n\n✅ Works online worldwide\n✅ Instant delivery\n✅ $50 – $1,000\n\nSelect an amount or enter a custom one:`,
+ vcInvalidAmount: `❌ Please enter a valid amount between <b>$50</b> and <b>$1,000</b>.`,
+ vcAskAddress: `📬 <b>Shipping Address</b>\n\nEnter your full address in international format:\n\n<i>Example:\nJohn Doe\n123 Main Street, Apt 4B\nNew York, NY 10001\nUnited States</i>`,
+ vcAddressTooShort: `❌ Address seems too short. Please include your full name, street, city, postal code, and country.`,
+ vcOrderSummary: (amount, fee, total) => `📋 <b>Order Summary</b>\n\n💳 Virtual Card Load: <b>$${amount}</b>\n💰 Service Fee: <b>$${fee.toFixed(2)}</b>${amount < 200 ? ' (min. $20)' : ' (10%)'}\n━━━━━━━━━━━━━━━━━\n💵 <b>Total: $${total.toFixed(2)}</b>\n\nSelect payment method:`,
+ vcOrderConfirmed: (amount, total, orderId) => `✅ <b>Virtual Card Order Confirmed!</b>\n\n💳 Card Load: <b>$${amount}</b>\n💵 Total Paid: <b>$${total.toFixed(2)}</b>\n🆔 Order ID: <code>${orderId}</code>\n\n⏱ <b>Your card details will be delivered right here shortly.</b>\nFor urgent requests, tap 💬 Get Support.`,
+ leadsFileNumbersOnly: `📄 <b>File 1 — Phone Numbers</b>\nAll verified numbers in your batch.`,
+ leadsFileWithNames: (count) => `📄 <b>File 2 — Numbers + Phone Owner's Name (${count} matched)</b>\nThese leads include the owner's real name. Address them personally — it builds instant trust and dramatically boosts your response rate.`,
+ addDnsTxt: 'Select record type:',
+ updateDnsTxt: 'Select the record to update:',
+ deleteDnsTxt: 'Select the record to delete:',
+ confirmDeleteDnsTxt: 'Are you sure you want to delete this record?',
+ a: 'A Record',
+ cname: 'CNAME Record',
+ ns: 'NS Record',
+ 'A Record': 'A',
+ 'CNAME Record': 'CNAME',
+ 'NS Record': 'NS',
+ askDnsHostname: {
+ A: '<b>Add A Record</b>\n\nEnter hostname:\ne.g. <b>@</b> for root, or <b>api</b>, <b>blog</b>, <b>www</b>',
+ CNAME: '<b>Add CNAME Record</b>\n\nEnter subdomain hostname:\ne.g. <b>www</b>, <b>api</b>, <b>blog</b>\n\nNote: CNAME cannot be used for root (@)',
+ MX: '<b>Add MX Record</b> (Step 1/3)\n\nEnter hostname:\ne.g. <b>@</b> for root email, or a subdomain',
+ TXT: '<b>Add TXT Record</b> (Step 1/2)\n\nEnter hostname:\ne.g. <b>@</b> for root, or <b>_dmarc</b>, <b>mail</b>',
+ NS: '<b>Add NS Record</b>\n\nEnter nameserver:\ne.g. <b>ns1.cloudflare.com</b>',
+ AAAA: '<b>Add AAAA Record</b> (Step 1/2)\n\nEnter hostname:\ne.g. <b>@</b> for root, or <b>api</b>, <b>blog</b>',
+ },
+ askDnsValue: {
+ A: 'Enter IPv4 address:\ne.g. <b>192.168.1.1</b>',
+ CNAME: 'Enter target domain:\ne.g. <b>myapp.railway.app</b>',
+ MX: '<b>Step 2/3</b> — Enter mail server:\ne.g. <b>ASPMX.L.GOOGLE.COM</b>',
+ TXT: '<b>Step 2/2</b> — Enter TXT value:\ne.g. <b>v=spf1 include:_spf.google.com ~all</b>',
+ AAAA: '<b>Step 2/2</b> — Enter IPv6 address:\ne.g. <b>2001:db8::1</b>',
+ },
+ askMxPriority: '<b>Step 3/3</b> — Enter MX priority (lower = higher preference):\ne.g. <b>10</b> for primary, <b>20</b> for backup',
+ askDnsContent: {
+ NS: '<b>Add NS Record</b>\n\nEnter nameserver hostname:\ne.g. <b>ns1.cloudflare.com</b>',
+ 'NS Record': '<b>Add NS Record</b>\n\nEnter nameserver hostname:\ne.g. <b>ns1.cloudflare.com</b>\n\nNote: Max 4 NS records. Use Update if already at limit.',
+ },
+ askUpdateDnsContent: {
+ A: (current) => `<b>Update A Record</b>\nCurrent: <b>${current || 'N/A'}</b>\n\nEnter new IPv4 address:\ne.g. <b>192.168.1.1</b>`,
+ 'A Record': (current) => `<b>Update A Record</b>\nCurrent: <b>${current || 'N/A'}</b>\n\nEnter new IPv4 address:\ne.g. <b>192.168.1.1</b>`,
+ CNAME: (current) => `<b>Update CNAME Record</b>\nCurrent: <b>${current || 'N/A'}</b>\n\nEnter new target domain:\ne.g. <b>myapp.railway.app</b>`,
+ 'CNAME Record': (current) => `<b>Update CNAME Record</b>\nCurrent: <b>${current || 'N/A'}</b>\n\nEnter new target domain:\ne.g. <b>myapp.railway.app</b>`,
+ NS: (current) => `<b>Update NS Record</b>\nCurrent: <b>${current || 'N/A'}</b>\n\nEnter new nameserver:\ne.g. <b>ns1.cloudflare.com</b>`,
+ 'NS Record': (current) => `<b>Update NS Record</b>\nCurrent: <b>${current || 'N/A'}</b>\n\nEnter new nameserver:\ne.g. <b>ns1.cloudflare.com</b>`,
+ MX: (current) => `<b>Update MX Record</b>\nCurrent: <b>${current || 'N/A'}</b>\n\nEnter new mail server:\ne.g. <b>ASPMX.L.GOOGLE.COM</b>`,
+ 'MX Record': (current) => `<b>Update MX Record</b>\nCurrent: <b>${current || 'N/A'}</b>\n\nEnter new mail server:\ne.g. <b>ASPMX.L.GOOGLE.COM</b>`,
+ TXT: (current) => {
+ const display = current ? (current.length > 50 ? current.substring(0, 50) + '...' : current) : 'N/A'
+ return `<b>Update TXT Record</b>\nCurrent: <b>${display}</b>\n\nEnter new TXT value:\ne.g. <b>v=spf1 include:_spf.google.com ~all</b>`
+ },
+ 'TXT Record': (current) => {
+ const display = current ? (current.length > 50 ? current.substring(0, 50) + '...' : current) : 'N/A'
+ return `<b>Update TXT Record</b>\nCurrent: <b>${display}</b>\n\nEnter new TXT value:\ne.g. <b>v=spf1 include:_spf.google.com ~all</b>`
+ },
+ AAAA: (current) => `<b>Update AAAA Record</b>\nCurrent: <b>${current || 'N/A'}</b>\n\nEnter new IPv6 address:\ne.g. <b>2001:db8::1</b>`,
+ 'AAAA Record': (current) => `<b>Update AAAA Record</b>\nCurrent: <b>${current || 'N/A'}</b>\n\nEnter new IPv6 address:\ne.g. <b>2001:db8::1</b>`,
+ },
 
-  dnsRecordSaved: 'Record added successfully. DNS changes may take up to 24h to propagate.',
-  dnsRecordDeleted: 'Record deleted successfully.',
-  dnsRecordUpdated: 'Record updated successfully. DNS changes may take up to 24h to propagate.',
-  // DNS Quick Actions
-  dnsQuickActionMenu: 'Choose a preset configuration:',
-  dnsQuickAskIp: 'Enter your server IPv4 address:\ne.g. <b>192.168.1.1</b>',
-  dnsQuickAskSubdomainName: 'Enter subdomain name:\ne.g. <b>blog</b>, <b>api</b>, <b>shop</b>',
-  dnsQuickAskSubdomainTargetType: domain => `What should <b>${domain}</b> point to?`,
-  dnsQuickSubdomainIp: 'IP Address',
-  dnsQuickSubdomainDomain: 'Domain Name',
-  dnsQuickAskSubdomainIp: 'Enter the IPv4 address for the subdomain:',
-  dnsQuickAskSubdomainDomain: 'Enter the target domain (e.g. <b>myapp.railway.app</b>):',
-  dnsQuickAskVerificationTxt: 'Paste the TXT verification value provided by your service:',
-  dnsQuickGoogleDone: domain => `<b>Google Workspace email DNS configured for ${domain}!</b>\n\n5 MX records + SPF TXT record added.\nAllow 24-48h for propagation.`,
-  dnsQuickZohoDone: domain => `<b>Zoho Mail email DNS configured for ${domain}!</b>\n\n3 MX records + SPF TXT record added.\nAllow 24-48h for propagation.`,
-  dnsQuickPointToIpDone: (domain, ip) => `<b>Done!</b>\n\nA record: ${domain} → ${ip}\nCNAME record: www.${domain} → ${domain}`,
-  dnsQuickVerificationDone: 'TXT verification record added!',
-  dnsQuickSubdomainDone: (sub, target, type) => `<b>Done!</b> ${type} record created:\n${sub} → ${target}`,
-  dnsQuickSetupProgress: (step, total) => `Setting up... (${step}/${total})`,
-  dnsQuickSetupError: (step) => `Failed at step: ${step}. Some records may have been created. Please check DNS records and retry.`,
-  dnsInvalidIpv4: 'Invalid IPv4 address. Please enter a valid IP (e.g. 192.168.1.1):',
-  dnsInvalidHostname: 'Invalid hostname. Use alphanumeric characters, hyphens, underscores and dots (e.g. api, _dmarc, neo1._domainkey):',
-  dnsInvalidMxPriority: 'Invalid priority. Enter a number between 1 and 65535:',
-  dnsQuickActions,
+ dnsRecordSaved: 'Record added successfully. DNS changes may take up to 24h to propagate.',
+ dnsRecordDeleted: 'Record deleted successfully.',
+ dnsRecordUpdated: 'Record updated successfully. DNS changes may take up to 24h to propagate.',
+ // DNS Quick Actions
+ dnsQuickActionMenu: 'Choose a preset configuration:',
+ dnsQuickAskIp: 'Enter your server IPv4 address:\ne.g. <b>192.168.1.1</b>',
+ dnsQuickAskSubdomainName: 'Enter subdomain name:\ne.g. <b>blog</b>, <b>api</b>, <b>shop</b>',
+ dnsQuickAskSubdomainTargetType: domain => `What should <b>${domain}</b> point to?`,
+ dnsQuickSubdomainIp: 'IP Address',
+ dnsQuickSubdomainDomain: 'Domain Name',
+ dnsQuickAskSubdomainIp: 'Enter the IPv4 address for the subdomain:',
+ dnsQuickAskSubdomainDomain: 'Enter the target domain (e.g. <b>myapp.railway.app</b>):',
+ dnsQuickAskVerificationTxt: 'Paste the TXT verification value provided by your service:',
+ dnsQuickGoogleDone: domain => `<b>Google Workspace email DNS configured for ${domain}!</b>\n\n5 MX records + SPF TXT record added.\nAllow 24-48h for propagation.`,
+ dnsQuickZohoDone: domain => `<b>Zoho Mail email DNS configured for ${domain}!</b>\n\n3 MX records + SPF TXT record added.\nAllow 24-48h for propagation.`,
+ dnsQuickPointToIpDone: (domain, ip) => `<b>Done!</b>\n\nA record: ${domain} → ${ip}\nCNAME record: www.${domain} → ${domain}`,
+ dnsQuickVerificationDone: 'TXT verification record added!',
+ dnsQuickSubdomainDone: (sub, target, type) => `<b>Done!</b> ${type} record created:\n${sub} → ${target}`,
+ dnsQuickSetupProgress: (step, total) => `Setting up... (${step}/${total})`,
+ dnsQuickSetupError: (step) => `Failed at step: ${step}. Some records may have been created. Please check DNS records and retry.`,
+ dnsInvalidIpv4: 'Invalid IPv4 address. Please enter a valid IP (e.g. 192.168.1.1):',
+ dnsInvalidHostname: 'Invalid hostname. Use alphanumeric characters, hyphens, underscores and dots (e.g. api, _dmarc, neo1._domainkey):',
+ dnsInvalidMxPriority: 'Invalid priority. Enter a number between 1 and 65535:',
+ dnsQuickActions,
 
-  // Phase 2: AAAA, SRV, CAA
-  aaaa: 'AAAA Record',
-  'AAAA Record': 'AAAA',
-  srvRecord: 'SRV Record',
-  'SRV Record': 'SRV',
-  caaRecord: 'CAA Record',
-  'CAA Record': 'CAA',
-  dnsInvalidIpv6: 'Invalid IPv6 address. Please enter a valid IPv6 (e.g. 2001:db8::1):',
-  dnsInvalidPort: 'Invalid port number. Enter a number between 1 and 65535:',
-  dnsInvalidWeight: 'Invalid weight. Enter a number between 0 and 65535:',
-  dnsSrvCaaNotSupported: 'SRV and CAA records are not supported by your current DNS provider (ConnectReseller). Switch to Cloudflare or OpenProvider nameservers to use these record types.',
-  // SRV wizard prompts
-  askSrvService: '<b>Add SRV Record</b> (Step 1/5)\n\nEnter service and protocol:\ne.g. <b>_sip._tcp</b>, <b>_http._tcp</b>, <b>_minecraft._tcp</b>',
-  askSrvTarget: '<b>Step 2/5</b> — Enter target hostname:\ne.g. <b>sipserver.example.com</b>',
-  askSrvPort: '<b>Step 3/5</b> — Enter port number:\ne.g. <b>5060</b>, <b>443</b>, <b>25565</b>',
-  askSrvPriority: '<b>Step 4/5</b> — Enter priority (lower = higher preference):\ne.g. <b>10</b>',
-  askSrvWeight: '<b>Step 5/5</b> — Enter weight (for load balancing):\ne.g. <b>100</b>',
-  // CAA wizard prompts
-  askCaaHostname: '<b>Add CAA Record</b> (Step 1/3)\n\nEnter hostname:\ne.g. <b>@</b> for root domain',
-  askCaaTag: '<b>Step 2/3</b> — Select the CAA tag:',
-  caaTagIssue: 'issue — Authorize a CA',
-  caaTagIssuewild: 'issuewild — Authorize wildcard',
-  caaTagIodef: 'iodef — Violation report URL',
-  'issue — Authorize a CA': 'issue',
-  'issuewild — Authorize wildcard': 'issuewild',
-  'iodef — Violation report URL': 'iodef',
-  askCaaValue: (tag) => {
-    if (tag === 'iodef') return '<b>Step 3/3</b> — Enter report URL:\ne.g. <b>mailto:admin@example.com</b>'
-    return '<b>Step 3/3</b> — Enter authorized CA domain:\ne.g. <b>letsencrypt.org</b>, <b>digicert.com</b>'
-  },
-  // Multi-step hostname prompts for new types
-  askDnsHostnameAaaa: 'Enter hostname (@ for root, or subdomain like <b>api</b>, <b>blog</b>):',
-  askDnsValueAaaa: 'Enter the IPv6 address (e.g. <b>2001:db8::1</b>):',
+ // Phase 2: AAAA, SRV, CAA
+ aaaa: 'AAAA Record',
+ 'AAAA Record': 'AAAA',
+ srvRecord: 'SRV Record',
+ 'SRV Record': 'SRV',
+ caaRecord: 'CAA Record',
+ 'CAA Record': 'CAA',
+ dnsInvalidIpv6: 'Invalid IPv6 address. Please enter a valid IPv6 (e.g. 2001:db8::1):',
+ dnsInvalidPort: 'Invalid port number. Enter a number between 1 and 65535:',
+ dnsInvalidWeight: 'Invalid weight. Enter a number between 0 and 65535:',
+ dnsSrvCaaNotSupported: 'SRV and CAA records are not supported by your current DNS provider (ConnectReseller). Switch to Cloudflare or OpenProvider nameservers to use these record types.',
+ // SRV wizard prompts
+ askSrvService: '<b>Add SRV Record</b> (Step 1/5)\n\nEnter service and protocol:\ne.g. <b>_sip._tcp</b>, <b>_http._tcp</b>, <b>_minecraft._tcp</b>',
+ askSrvTarget: '<b>Step 2/5</b> — Enter target hostname:\ne.g. <b>sipserver.example.com</b>',
+ askSrvPort: '<b>Step 3/5</b> — Enter port number:\ne.g. <b>5060</b>, <b>443</b>, <b>25565</b>',
+ askSrvPriority: '<b>Step 4/5</b> — Enter priority (lower = higher preference):\ne.g. <b>10</b>',
+ askSrvWeight: '<b>Step 5/5</b> — Enter weight (for load balancing):\ne.g. <b>100</b>',
+ // CAA wizard prompts
+ askCaaHostname: '<b>Add CAA Record</b> (Step 1/3)\n\nEnter hostname:\ne.g. <b>@</b> for root domain',
+ askCaaTag: '<b>Step 2/3</b> — Select the CAA tag:',
+ caaTagIssue: 'issue — Authorize a CA',
+ caaTagIssuewild: 'issuewild — Authorize wildcard',
+ caaTagIodef: 'iodef — Violation report URL',
+ 'issue — Authorize a CA': 'issue',
+ 'issuewild — Authorize wildcard': 'issuewild',
+ 'iodef — Violation report URL': 'iodef',
+ askCaaValue: (tag) => {
+ if (tag === 'iodef') return '<b>Step 3/3</b> — Enter report URL:\ne.g. <b>mailto:admin@example.com</b>'
+ return '<b>Step 3/3</b> — Enter authorized CA domain:\ne.g. <b>letsencrypt.org</b>, <b>digicert.com</b>'
+ },
+ // Multi-step hostname prompts for new types
+ askDnsHostnameAaaa: 'Enter hostname (@ for root, or subdomain like <b>api</b>, <b>blog</b>):',
+ askDnsValueAaaa: 'Enter the IPv6 address (e.g. <b>2001:db8::1</b>):',
 
-  // DNS Validation Checker
-  checkDns: 'Check DNS',
-  dnsChecking: (domain) => `Checking DNS for <b>${domain}</b>...`,
-  dnsRecordLive: (type, value) => `<b>${type}</b> record is live, resolving to <b>${value}</b>.`,
-  dnsRecordPropagating: (type) => `<b>${type}</b> record is still propagating. This can take up to 24-48h.`,
-  dnsHealthTitle: (domain) => `<b>DNS Health Check — ${domain}</b>\n`,
-  dnsHealthRow: (type, found, count, answers) => {
-    if (!found) return `  ${type}: —`
-    const vals = answers.slice(0, 2).join(', ')
-    const more = answers.length > 2 ? ` +${answers.length - 2} more` : ''
-    return `  ${type}: ${count} record${count > 1 ? 's' : ''} (${vals}${more})`
-  },
-  dnsHealthSummary: (resolving, total) => `\n${resolving}/${total} record types resolving.`,
-  dnsCheckError: 'DNS lookup failed. Please try again later.',
+ // DNS Validation Checker
+ checkDns: 'Check DNS',
+ dnsChecking: (domain) => `Checking DNS for <b>${domain}</b>...`,
+ dnsRecordLive: (type, value) => `<b>${type}</b> record is live, resolving to <b>${value}</b>.`,
+ dnsRecordPropagating: (type) => `<b>${type}</b> record is still propagating. This can take up to 24-48h.`,
+ dnsHealthTitle: (domain) => `<b>DNS Health Check — ${domain}</b>\n`,
+ dnsHealthRow: (type, found, count, answers) => {
+ if (!found) return ` ${type}: —`
+ const vals = answers.slice(0, 2).join(', ')
+ const more = answers.length > 2 ? ` +${answers.length - 2} more` : ''
+ return ` ${type}: ${count} record${count > 1 ? 's' : ''} (${vals}${more})`
+ },
+ dnsHealthSummary: (resolving, total) => `\n${resolving}/${total} record types resolving.`,
+ dnsCheckError: 'DNS lookup failed. Please try again later.',
 
-  // Manage Nameservers (consolidated NS menu)
-  manageNameservers: '🔄 Manage Nameservers',
-  manageNsMenu: (domain, nsRecords, nameserverType) => {
-    const provider = nameserverType === 'cloudflare' ? 'Cloudflare' : nameserverType === 'custom' ? 'Custom' : 'Provider Default'
-    let msg = `<b>🔄 Nameservers — ${domain}</b>\n\n`
-    msg += `<b>Provider:</b> ${provider}\n\n`
-    if (nsRecords && nsRecords.length) {
-      msg += `<b>Current Nameservers:</b>\n`
-      nsRecords.forEach((ns, i) => {
-        msg += `  NS${i + 1}: <code>${ns.recordContent || '—'}</code>\n`
-      })
-    } else {
-      msg += `<i>No nameserver records found.</i>\n`
-    }
-    msg += `\nSelect an action below:`
-    return msg
-  },
-  setCustomNs: '✏️ Set Custom Nameservers',
-  setCustomNsPrompt: (domain, nsRecords) => {
-    let msg = `<b>✏️ Set Custom Nameservers for ${domain}</b>\n\n`
-    if (nsRecords && nsRecords.length) {
-      msg += `<b>Current:</b>\n`
-      nsRecords.forEach((ns, i) => {
-        msg += `  NS${i + 1}: <code>${ns.recordContent || '—'}</code>\n`
-      })
-      msg += '\n'
-    }
-    msg += `Enter new nameservers (one per line, min 2, max 4):\n\n<i>Example:\nns1.example.com\nns2.example.com</i>`
-    return msg
-  },
+ // Manage Nameservers (consolidated NS menu)
+ manageNameservers: '🔄 Manage Nameservers',
+ manageNsMenu: (domain, nsRecords, nameserverType) => {
+ const provider = nameserverType === 'cloudflare' ? 'Cloudflare' : nameserverType === 'custom' ? 'Custom' : 'Provider Default'
+ let msg = `<b>🔄 Nameservers — ${domain}</b>\n\n`
+ msg += `<b>Provider:</b> ${provider}\n\n`
+ if (nsRecords && nsRecords.length) {
+ msg += `<b>Current Nameservers:</b>\n`
+ nsRecords.forEach((ns, i) => {
+ msg += ` NS${i + 1}: <code>${ns.recordContent || '—'}</code>\n`
+ })
+ } else {
+ msg += `<i>No nameserver records found.</i>\n`
+ }
+ msg += `\nSelect an action below:`
+ return msg
+ },
+ setCustomNs: '✏️ Set Custom Nameservers',
+ setCustomNsPrompt: (domain, nsRecords) => {
+ let msg = `<b>✏️ Set Custom Nameservers for ${domain}</b>\n\n`
+ if (nsRecords && nsRecords.length) {
+ msg += `<b>Current:</b>\n`
+ nsRecords.forEach((ns, i) => {
+ msg += ` NS${i + 1}: <code>${ns.recordContent || '—'}</code>\n`
+ })
+ msg += '\n'
+ }
+ msg += `Enter new nameservers (one per line, min 2, max 4):\n\n<i>Example:\nns1.example.com\nns2.example.com</i>`
+ return msg
+ },
 
-  // Switch to Cloudflare
-  switchToCf: '☁️ Switch to Cloudflare',
-  switchToCfConfirm: (domain) => `<b>Switch ${domain} to Cloudflare DNS?</b>\n\nThis will:\n1. Create a Cloudflare zone for your domain\n2. Migrate existing DNS records to Cloudflare\n3. Update your nameservers at the registrar\n\nDNS propagation may take up to 24-48h.\n\nProceed?`,
-  switchToCfProgress: (domain) => `⏳ Switching <b>${domain}</b> to Cloudflare DNS…`,
-  switchToCfSuccess: (domain, ns) => `<b>Done!</b> ${domain} is now on Cloudflare DNS.\n\n<b>New Nameservers:</b>\n${ns.map((n, i) => `NS${i + 1}: <code>${n}</code>`).join('\n')}`,
-  switchToCfError: (error) => `❌ Failed to switch to Cloudflare: ${error}`,
-  switchToCfAlreadyCf: 'This domain is already using Cloudflare DNS.',
+ // Switch to Cloudflare
+ switchToCf: '☁️ Switch to Cloudflare',
+ switchToCfConfirm: (domain) => `<b>Switch ${domain} to Cloudflare DNS?</b>\n\nThis will:\n1. Create a Cloudflare zone for your domain\n2. Migrate existing DNS records to Cloudflare\n3. Update your nameservers at the registrar\n\nDNS propagation may take up to 24-48h.\n\nProceed?`,
+ switchToCfProgress: (domain) => `⏳ Switching <b>${domain}</b> to Cloudflare DNS…`,
+ switchToCfSuccess: (domain, ns) => `<b>Done!</b> ${domain} is now on Cloudflare DNS.\n\n<b>New Nameservers:</b>\n${ns.map((n, i) => `NS${i + 1}: <code>${n}</code>`).join('\n')}`,
+ switchToCfError: (error) => `❌ Failed to switch to Cloudflare: ${error}`,
+ switchToCfAlreadyCf: 'This domain is already using Cloudflare DNS.',
 
-  // Switch to Provider Default
-  switchToProviderDefault: '🏠 Switch to Provider DNS',
-  switchToProviderConfirm: (domain) => `<b>Switch ${domain} back to provider DNS?</b>\n\nThis will:\n1. Migrate existing DNS records from Cloudflare to your registrar\n2. Restore default nameservers at your registrar\n3. Remove the Cloudflare zone\n\nDNS propagation may take up to 24-48h.\n\nProceed?`,
-  switchToProviderProgress: (domain) => `⏳ Switching <b>${domain}</b> to provider DNS…`,
-  switchToProviderSuccess: (domain, ns) => `<b>Done!</b> ${domain} is now on provider DNS.\n\n<b>New Nameservers:</b>\n${ns.map((n, i) => `NS${i + 1}: <code>${n}</code>`).join('\n')}`,
-  switchToProviderError: (error) => `❌ Failed to switch to provider DNS: ${error}`,
-  switchToProviderAlreadyProvider: 'This domain is already using provider default DNS.',
+ // Switch to Provider Default
+ switchToProviderDefault: '🏠 Switch to Provider DNS',
+ switchToProviderConfirm: (domain) => `<b>Switch ${domain} back to provider DNS?</b>\n\nThis will:\n1. Migrate existing DNS records from Cloudflare to your registrar\n2. Restore default nameservers at your registrar\n3. Remove the Cloudflare zone\n\nDNS propagation may take up to 24-48h.\n\nProceed?`,
+ switchToProviderProgress: (domain) => `⏳ Switching <b>${domain}</b> to provider DNS…`,
+ switchToProviderSuccess: (domain, ns) => `<b>Done!</b> ${domain} is now on provider DNS.\n\n<b>New Nameservers:</b>\n${ns.map((n, i) => `NS${i + 1}: <code>${n}</code>`).join('\n')}`,
+ switchToProviderError: (error) => `❌ Failed to switch to provider DNS: ${error}`,
+ switchToProviderAlreadyProvider: 'This domain is already using provider default DNS.',
 
-  // NS update arrangement prompt
-  updateNsPrompt: (nsRecords, slotIndex) => {
-    let msg = `<b>Update Nameserver — Slot NS${slotIndex}</b>\n\n<b>Current arrangement:</b>\n`
-    for (let i = 0; i < nsRecords.length; i++) {
-      const marker = (i + 1) === slotIndex ? ' ← updating this' : ''
-      msg += `  NS${i + 1}: <code>${nsRecords[i].recordContent || '—'}</code>${marker}\n`
-    }
-    msg += `\nEnter the new nameserver for <b>NS${slotIndex}</b>:\ne.g. <b>ns1.cloudflare.com</b>`
-    return msg
-  },
+ // NS update arrangement prompt
+ updateNsPrompt: (nsRecords, slotIndex) => {
+ let msg = `<b>Update Nameserver — Slot NS${slotIndex}</b>\n\n<b>Current arrangement:</b>\n`
+ for (let i = 0; i < nsRecords.length; i++) {
+ const marker = (i + 1) === slotIndex ? ' ← updating this' : ''
+ msg += ` NS${i + 1}: <code>${nsRecords[i].recordContent || '—'}</code>${marker}\n`
+ }
+ msg += `\nEnter the new nameserver for <b>NS${slotIndex}</b>:\ne.g. <b>ns1.cloudflare.com</b>`
+ return msg
+ },
 
-  provideLink: 'Please provide a valid URL. e.g https://google.com',
+ provideLink: 'Please provide a valid URL. e.g https://google.com',
 
-  comingSoonWithdraw: `Withdrawals are not available yet. Need help? Tap 💬 Get Support.`,
-  promoOptOut: `You have been unsubscribed from promotional messages. Type /start_promos to re-subscribe anytime.`,
-  promoOptIn: `You have been re-subscribed to promotional messages. You will receive our latest offers and deals!`,
+ comingSoonWithdraw: `Withdrawals are not available yet. Need help? Tap 💬 Get Support.`,
+ promoOptOut: `You have been unsubscribed from promotional messages. Type /start_promos to re-subscribe anytime.`,
+ promoOptIn: `You have been re-subscribed to promotional messages. You will receive our latest offers and deals!`,
 
-  selectCurrencyToDeposit: `💵 Deposit Amount (min. $10):`,
+ selectCurrencyToDeposit: `💵 Deposit Amount (min. $10):`,
 
-  depositNGN: `💵 Enter NGN amount (min. ≈ $10 USD)
+ depositNGN: `💵 Enter NGN amount (min. ≈ $10 USD)
 Auto-converts to USD at current rate.`,
 
-  depositUSD: `Please enter USD Amount, note that minimum value is $10:`,
-  selectCryptoToDeposit: `Please choose a crypto currency:`,
+ depositUSD: `Please enter USD Amount, note that minimum value is $10:`,
+ selectCryptoToDeposit: `Please choose a crypto currency:`,
 
-  'bank-pay-plan': (
-    priceNGN,
-    plan,
-  ) => `Please remit ${priceNGN} NGN by clicking “Make Payment” below. Once the transaction has been confirmed, you will be promptly notified, and your ${plan} plan will be seamlessly activated.
-
-Best regards,
-${CHAT_BOT_NAME}`,
-
-  bankPayDomain: (
-    priceNGN,
-    domain,
-  ) => `Please remit ${priceNGN} NGN by clicking “Make Payment” below. Once the transaction has been confirmed, you will be promptly notified, and your ${domain} domain will be seamlessly activated.
+ 'bank-pay-plan': (
+ priceNGN,
+ plan,
+ ) => `Please remit ${priceNGN} NGN by clicking “Make Payment” below. Once the transaction has been confirmed, you will be promptly notified, and your ${plan} plan will be seamlessly activated.
 
 Best regards,
 ${CHAT_BOT_NAME}`,
 
-  showDepositCryptoInfoPlan: (priceUsd, priceCrypto, tickerView, address, plan) =>
-    `💰 <b>Payment Amount: $${Number(priceUsd).toFixed(2)} USD</b>
+ bankPayDomain: (
+ priceNGN,
+ domain,
+ ) => `Please remit ${priceNGN} NGN by clicking “Make Payment” below. Once the transaction has been confirmed, you will be promptly notified, and your ${domain} domain will be seamlessly activated.
+
+Best regards,
+${CHAT_BOT_NAME}`,
+
+ showDepositCryptoInfoPlan: (priceUsd, priceCrypto, tickerView, address, plan) =>
+ `💰 <b>Payment Amount: $${Number(priceUsd).toFixed(2)} USD</b>
 
 Send exactly <b>${priceCrypto} ${tickerView}</b> to:
 
@@ -810,8 +810,8 @@ Your ${plan} plan will activate automatically once payment is confirmed (usually
 Best regards,
 ${CHAT_BOT_NAME}`,
 
-  showDepositCryptoInfoDomain: (priceUsd, priceCrypto, tickerView, address, domain) =>
-    `💰 <b>Payment Amount: $${Number(priceUsd).toFixed(2)} USD</b>
+ showDepositCryptoInfoDomain: (priceUsd, priceCrypto, tickerView, address, domain) =>
+ `💰 <b>Payment Amount: $${Number(priceUsd).toFixed(2)} USD</b>
 
 Send exactly <b>${priceCrypto} ${tickerView}</b> to:
 
@@ -822,8 +822,8 @@ Your ${domain} domain will activate automatically once payment is confirmed (usu
 Best regards,
 ${CHAT_BOT_NAME}`,
 
-  showDepositCryptoInfoLeads: (priceUsd, priceCrypto, tickerView, address, label) =>
-    `💰 <b>Payment Amount: $${Number(priceUsd).toFixed(2)} USD</b>
+ showDepositCryptoInfoLeads: (priceUsd, priceCrypto, tickerView, address, label) =>
+ `💰 <b>Payment Amount: $${Number(priceUsd).toFixed(2)} USD</b>
 
 Send exactly <b>${priceCrypto} ${tickerView}</b> to:
 
@@ -834,8 +834,8 @@ Your ${label} will be delivered automatically once payment is confirmed (usually
 Best regards,
 ${CHAT_BOT_NAME}`,
 
-  showDepositCryptoInfoPhone: (priceUsd, priceCrypto, tickerView, address, phoneNumber) =>
-    `💰 <b>Payment Amount: $${Number(priceUsd).toFixed(2)} USD</b>
+ showDepositCryptoInfoPhone: (priceUsd, priceCrypto, tickerView, address, phoneNumber) =>
+ `💰 <b>Payment Amount: $${Number(priceUsd).toFixed(2)} USD</b>
 
 Send exactly <b>${priceCrypto} ${tickerView}</b> to:
 
@@ -846,8 +846,8 @@ Your Cloud IVR number ${phoneNumber} will be activated automatically once paymen
 Best regards,
 ${CHAT_BOT_NAME}`,
 
-  showDepositCryptoInfoDigitalProduct: (priceUsd, priceCrypto, tickerView, address, product) =>
-    `💰 <b>Payment Amount: $${Number(priceUsd).toFixed(2)} USD</b>
+ showDepositCryptoInfoDigitalProduct: (priceUsd, priceCrypto, tickerView, address, product) =>
+ `💰 <b>Payment Amount: $${Number(priceUsd).toFixed(2)} USD</b>
 
 Send exactly <b>${priceCrypto} ${tickerView}</b> to:
 
@@ -858,8 +858,8 @@ Your order for <b>${product}</b> will be delivered automatically once payment is
 Best regards,
 ${CHAT_BOT_NAME}`,
 
-  showDepositCryptoInfo: (priceUsd, priceCrypto, tickerView, address) =>
-    `💰 <b>Payment Amount: $${Number(priceUsd).toFixed(2)} USD</b>
+ showDepositCryptoInfo: (priceUsd, priceCrypto, tickerView, address) =>
+ `💰 <b>Payment Amount: $${Number(priceUsd).toFixed(2)} USD</b>
 
 Send exactly <b>${priceCrypto} ${tickerView}</b> to:
 
@@ -870,43 +870,43 @@ Crypto payments are confirmed quickly — usually within a few minutes. Once con
 Best regards,
 ${CHAT_BOT_NAME}`,
 
-  confirmationDepositMoney: (
-    amount,
-    usd,
-  ) => `Your payment of ${amount} ($${usd}) is processed. Thank you for choosing us.
+ confirmationDepositMoney: (
+ amount,
+ usd,
+ ) => `Your payment of ${amount} ($${usd}) is processed. Thank you for choosing us.
 Best,
 ${CHAT_BOT_NAME}`,
 
-  showWallet: (usd) => `Wallet Balance:
+ showWallet: (usd) => `Wallet Balance:
 
 $${view(usd)}`,
 
-  wallet: (usd) => `Wallet Balance:
+ wallet: (usd) => `Wallet Balance:
 
 $${view(usd)}
 
 Select wallet option:`,
 
-  walletSelectCurrency: (usd) => `Your Wallet Balance: $${view(usd)}`,
+ walletSelectCurrency: (usd) => `Your Wallet Balance: $${view(usd)}`,
 
-  walletBalanceLow: `💰 Wallet balance too low. Tap Deposit to top up.`,
+ walletBalanceLow: `💰 Wallet balance too low. Tap Deposit to top up.`,
 
-  walletBalanceLowAmount: (needed, balance) =>
-    `💰 Balance: $${balance.toFixed(2)}
+ walletBalanceLowAmount: (needed, balance) =>
+ `💰 Balance: $${balance.toFixed(2)}
 Need: <b>$${(needed - balance).toFixed(2)} more</b>
 
 Tap Deposit ⬇️`,
 
-  sentLessMoney: (expected, got) =>
-    `⚠️ Underpayment detected
+ sentLessMoney: (expected, got) =>
+ `⚠️ Underpayment detected
 
 Expected: <b>${expected}</b>
 Received: <b>${got}</b>
 
 Amount credited to wallet.
 Service not delivered.`,
-  sentMoreMoney: (expected, got) =>
-    `💰 Overpayment detected
+ sentMoreMoney: (expected, got) =>
+ `💰 Overpayment detected
 
 Expected: <b>${expected}</b>
 Received: <b>${got}</b>
@@ -914,373 +914,373 @@ Received: <b>${got}</b>
 Excess refunded to wallet.
 Service delivered.`,
 
-  buyLeadsError: 'Unfortunately the selected area code is unavailable and your wallet has not been charged',
-  buyLeadsProgress: (i, total) => `${((i * 100) / total).toFixed()}% leads downloaded. Please wait.`,
+ buyLeadsError: 'Unfortunately the selected area code is unavailable and your wallet has not been charged',
+ buyLeadsProgress: (i, total) => `${((i * 100) / total).toFixed()}% leads downloaded. Please wait.`,
 
-  phoneNumberLeads: 'Get premium verified leads by target or validate your own numbers:',
+ phoneNumberLeads: 'Get premium verified leads by target or validate your own numbers:',
 
-  buyLeadsSelectCountry: 'Please select country',
-  buyLeadsSelectSmsVoice: 'Please select SMS / Voice',
-  buyLeadsSelectArea: 'Please select area',
-  buyLeadsSelectAreaCode: 'Please select area code',
-  buyLeadsSelectCarrier: 'Please select carrier',
-  buyLeadsSelectCnam: `Want the <b>phone owner's name</b> with each lead? It's an extra $15 per 1,000 leads — and it's worth it.`,
-  buyLeadsSelectAmount: (min, max) =>
-    `How many leads do you want? Select or type a number.\nMinimum: ${min} | Maximum: ${max}\n\n💡 Bigger batches = better coverage. Go big.`,
-  buyLeadsSelectFormat: 'Choose format i.e Local (212) or International (+1212)',
-  buyLeadsSuccess: n => `🎉 <b>Done!</b> Your ${n} leads are ready.\n\nYou're getting two files:\n📄 <b>File 1</b> — All phone numbers\n📄 <b>File 2</b> — Numbers matched with the <b>phone owner's name</b>\n\nPro tip: Use names to personalize your outreach. People are 2-3x more likely to respond when addressed by name.`,
+ buyLeadsSelectCountry: 'Please select country',
+ buyLeadsSelectSmsVoice: 'Please select SMS / Voice',
+ buyLeadsSelectArea: 'Please select area',
+ buyLeadsSelectAreaCode: 'Please select area code',
+ buyLeadsSelectCarrier: 'Please select carrier',
+ buyLeadsSelectCnam: `Want the <b>phone owner's name</b> with each lead? It's an extra $15 per 1,000 leads — and it's worth it.`,
+ buyLeadsSelectAmount: (min, max) =>
+ `How many leads do you want? Select or type a number.\nMinimum: ${min} | Maximum: ${max}\n\n💡 Bigger batches = better coverage. Go big.`,
+ buyLeadsSelectFormat: 'Choose format i.e Local (212) or International (+1212)',
+ buyLeadsSuccess: n => `🎉 <b>Done!</b> Your ${n} leads are ready.\n\nYou're getting two files:\n📄 <b>File 1</b> — All phone numbers\n📄 <b>File 2</b> — Numbers matched with the <b>phone owner's name</b>\n\nPro tip: Use names to personalize your outreach. People are 2-3x more likely to respond when addressed by name.`,
 
-  buyLeadsNewPrice: (leads, price, newPrice) => `💰 <b>${leads} leads</b> — now just <b>$${view(newPrice)}</b> <s>($${price})</s>\nIncludes phone owner names. Don't miss this deal.`,
-  buyLeadsPrice: (leads, price) => `💰 <b>${leads} leads</b> — <b>$${price}</b>\nIncludes phone owner names. Ready when you are.`,
+ buyLeadsNewPrice: (leads, price, newPrice) => `💰 <b>${leads} leads</b> — now just <b>$${view(newPrice)}</b> <s>($${price})</s>\nIncludes phone owner names. Don't miss this deal.`,
+ buyLeadsPrice: (leads, price) => `💰 <b>${leads} leads</b> — <b>$${price}</b>\nIncludes phone owner names. Ready when you are.`,
 
-  walletSelectCurrencyConfirm: `Confirm?`,
+ walletSelectCurrencyConfirm: `Confirm?`,
 
-  // Phone Number validator
-  validatorSelectCountry: 'Please select country',
-  validatorPhoneNumber: 'Please paste your numbers or upload a file including the country code.',
-  validatorSelectSmsVoice: n =>
-    `${n} phone numbers found. Please choose the option for SMS or voice call leads validation.`,
-  validatorSelectCarrier: 'Please select carrier',
-  validatorSelectCnam: `Want the <b>phone owner's name</b> with your validated leads?\n\nKnowing who you're reaching lets you personalize your message — and people respond to their own name. It's $15 per 1,000 leads. Worth every cent.`,
-  validatorSelectAmount: (min, max) =>
-    `How much from the numbers you want to validate? Select or type a number. Minimum is ${min} and Maximum is ${max}`,
-  validatorSelectFormat: 'Choose format i.e Local (212) or International (+1212)',
+ // Phone Number validator
+ validatorSelectCountry: 'Please select country',
+ validatorPhoneNumber: 'Please paste your numbers or upload a file including the country code.',
+ validatorSelectSmsVoice: n =>
+ `${n} phone numbers found. Please choose the option for SMS or voice call leads validation.`,
+ validatorSelectCarrier: 'Please select carrier',
+ validatorSelectCnam: `Want the <b>phone owner's name</b> with your validated leads?\n\nKnowing who you're reaching lets you personalize your message — and people respond to their own name. It's $15 per 1,000 leads. Worth every cent.`,
+ validatorSelectAmount: (min, max) =>
+ `How much from the numbers you want to validate? Select or type a number. Minimum is ${min} and Maximum is ${max}`,
+ validatorSelectFormat: 'Choose format i.e Local (212) or International (+1212)',
 
-  validatorSuccess: (n, m) => `${n} leads are validated. ${m} valid phone numbers found.`,
-  validatorProgress: (i, total) => `${((i * 100) / total).toFixed()}% leads validate. Please wait.`,
-  validatorProgressFull: (i, total) => `${((i * 100) / total).toFixed()}% leads validate.`,
+ validatorSuccess: (n, m) => `${n} leads are validated. ${m} valid phone numbers found.`,
+ validatorProgress: (i, total) => `${((i * 100) / total).toFixed()}% leads validate. Please wait.`,
+ validatorProgressFull: (i, total) => `${((i * 100) / total).toFixed()}% leads validate.`,
 
-  validatorError: `Unfortunately the selected phone numbers are unavailable and your wallet has not been charged`,
-  validatorErrorFileData: `Invalid country phone # found. Please upload phone number for selected country`,
-  validatorErrorNoPhonesFound: `No phone numbers found. Try again.`,
+ validatorError: `Unfortunately the selected phone numbers are unavailable and your wallet has not been charged`,
+ validatorErrorFileData: `Invalid country phone # found. Please upload phone number for selected country`,
+ validatorErrorNoPhonesFound: `No phone numbers found. Try again.`,
 
-  validatorBulkNumbersStart: 'Leads validation has started and will complete soon.',
+ validatorBulkNumbersStart: 'Leads validation has started and will complete soon.',
 
-  // url re-director
-  redSelectUrl: 'Kindly share the URL that you would like shortened and analyzed. e.g https://cnn.com',
-  redSelectRandomCustom: 'Please select your choice for random or custom link',
-  redSelectProvider: 'Choose link provider',
-  redSelectCustomExt: 'Enter custom back half',
+ // url re-director
+ redSelectUrl: 'Kindly share the URL that you would like shortened and analyzed. e.g https://cnn.com',
+ redSelectRandomCustom: 'Please select your choice for random or custom link',
+ redSelectProvider: 'Choose link provider',
+ redSelectCustomExt: 'Enter custom back half',
 
-  redValidUrl: 'Please provide a valid URL. e.g https://google.com',
-  redTakeUrl: url => `Your shortened URL is: ${url}`,
-  redIssueUrlBitly: `Link shortening failed. Your wallet was not charged. Please try again or tap 💬 Get Support.`,
-  redIssueSlugCuttly: `The preferred link name is already taken, try another.`,
-  redIssueUrlCuttly: `Link shortening failed. Please try again or tap 💬 Get Support.`,
-  freeLinksExhausted: `Your ${FREE_LINKS} trial links are used up!\n\nSubscribe for <b>unlimited links</b> + free domains + ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()}+ validations.\n\nPlans from <b>$${PRICE_DAILY}/day</b>. Tap ⚡ Upgrade Plan below to get started.`,
-  subscriptionLeadsHint: `💡 Subscribers get ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()}+ free validations with phone owner names per plan. Plans from $${PRICE_DAILY}/day.`,
-  linksRemaining: (count, total) => {
-    const base = `You have ${count} of ${total || FREE_LINKS} trial Shortit link${count !== 1 ? 's' : ''} remaining.`
-    if (count <= 2) return `${base}\n\n⚡ <b>${count} link${count !== 1 ? 's' : ''} left!</b> Subscribers get unlimited links + free domains + ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()}+ validations. Plans from $${PRICE_DAILY}/day.`
-    return base
-  },
-  redNewPrice: (price, newPrice) => `Price is now $${view(newPrice)} <s>($${price})</s> Please choose payment method.`,
-  customLink: 'Custom Link',
-  randomLink: 'Random Link',
-  askShortLinkExtension: 'Please tell us your preferred short link extension: e.g payer',
-  linkAlreadyExist: `Link already exists. Please type 'ok' to try another.`,
-  yourShortendUrl: shortUrl => `Your shortened URL is: ${shortUrl}`,
+ redValidUrl: 'Please provide a valid URL. e.g https://google.com',
+ redTakeUrl: url => `Your shortened URL is: ${url}`,
+ redIssueUrlBitly: `Link shortening failed. Your wallet was not charged. Please try again or tap 💬 Get Support.`,
+ redIssueSlugCuttly: `The preferred link name is already taken, try another.`,
+ redIssueUrlCuttly: `Link shortening failed. Please try again or tap 💬 Get Support.`,
+ freeLinksExhausted: `Your ${FREE_LINKS} trial links are used up!\n\nSubscribe for <b>unlimited links</b> + free domains + ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()}+ validations.\n\nPlans from <b>$${PRICE_DAILY}/day</b>. Tap ⚡ Upgrade Plan below to get started.`,
+ subscriptionLeadsHint: `💡 Subscribers get ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()}+ free validations with phone owner names per plan. Plans from $${PRICE_DAILY}/day.`,
+ linksRemaining: (count, total) => {
+ const base = `You have ${count} of ${total || FREE_LINKS} trial Shortit link${count !== 1 ? 's' : ''} remaining.`
+ if (count <= 2) return `${base}\n\n⚡ <b>${count} link${count !== 1 ? 's' : ''} left!</b> Subscribers get unlimited links + free domains + ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()}+ validations. Plans from $${PRICE_DAILY}/day.`
+ return base
+ },
+ redNewPrice: (price, newPrice) => `Price is now $${view(newPrice)} <s>($${price})</s> Please choose payment method.`,
+ customLink: 'Custom Link',
+ randomLink: 'Random Link',
+ askShortLinkExtension: 'Please tell us your preferred short link extension: e.g payer',
+ linkAlreadyExist: `Link already exists. Please type 'ok' to try another.`,
+ yourShortendUrl: shortUrl => `Your shortened URL is: ${shortUrl}`,
 
-  availablefreeDomain: (plan, available, s) =>
-    ` Remember, your ${plan} plan includes ${available} free ".sbs/.xyz" domain${s}. Let's get your domain today!`,
-  shortenedUrlLink: `Kindly share the URL that you would like shortened and analyzed. e.g https://cnn.com`,
-  selectedTrialPlan: 'Your have selected Free Trial Plan',
-  userPressedBtn: message => `User has Pressed ${message} Button.`,
-  userToBlock: userToBlock => `User ${userToBlock} not found`,
-  userBlocked: userToBlock => `User ${userToBlock} has been blocked.`,
-  checkingDomainAvail: `Checking domain availability...`,
-  checkingExistingDomainAvail: `Checking existing domain availability...`,
-  subscribeFirst: `📋 Subscribe first`,
-  freeValidationUsed: (amount, remaining) => `Validated ${amount} USA phone numbers using your subscription! Remaining free validations: ${remaining.toLocaleString()}.`,
-  partialFreeValidation: (freeAmount, totalAmount, paidAmount, paidPrice) => `You have ${freeAmount.toLocaleString()} free validations remaining. Your request is for ${totalAmount.toLocaleString()} numbers.\n\n${freeAmount.toLocaleString()} will be covered free, and the remaining ${paidAmount.toLocaleString()} will cost $${paidPrice}. Please proceed with payment below.`,
-  notValidHalf: `Enter a valid back half`,
-  linkAlreadyExist: `Link already exists. Please try another.`,
-  issueGettingPrice: `We couldn't fetch the price right now. Please try again or tap 💬 Get Support.`,
-  domainInvalid: 'Domain name is invalid. Please try another domain name. Use format abcpay.com',
-  chooseValidPlan: 'Please choose a valid plan',
-  noDomainFound: 'No domain names found',
-  chooseValidDomain: 'Please choose a valid domain',
-  failedAudio: '❌ Failed to process audio. Please try again.',
-  enterBroadcastMessage: 'Enter message',
-  provide2Nameservers: 'Please provide at least 2 nameservers separated by space.',
-  noDomainSelected: 'No domain selected.',
-  validInstitutionName: '⚠️ Please enter a valid institution name (2-100 characters).',
-  validCityName: '⚠️ Please enter a valid city name.',
-  errorDeletingDns: error => `Error: ${error}. Please try again.`,
-  selectValidOption: 'Please select a valid option.',
-  cancelled: 'Cancelled.',
-  domainActionsMenu: (domain) => `<b>Actions for ${domain}</b>\n\nSelect an option:`,
-  purchaseFailed: '❌ Purchase failed. Your wallet has been refunded. Please try again or contact support.',
-  maxDnsRecord: 'Maximum 4 NS records reached. Please update or delete an existing record.',
-  errorSavingDns: error => `Error: ${error}. Please try again.`,
-  fileError: 'Error occurred while processing the file.',
-  ammountIncorrect: 'Amount incorrect',
-  subscriptionExpire: (subscribedPlan, timeEnd) => `Your ${subscribedPlan} subscription is expired on ${timeEnd}`,
-  plansSubscripedtill: (subscribedPlan, timeEnd) =>
-    `You are currently subscribed to the ${subscribedPlan} plan. Your plan is valid till ${timeEnd}`,
-  planNotSubscriped: 'You are not currently subscribed to any plan.',
-  noShortenedUrlLink: 'You have no shortened links yet.',
-  shortenedLinkText: linksText => `Here are your shortened links:\n${linksText}`,
+ availablefreeDomain: (plan, available, s) =>
+ ` Remember, your ${plan} plan includes ${available} free domain${s}. Let's get your domain today!`,
+ shortenedUrlLink: `Kindly share the URL that you would like shortened and analyzed. e.g https://cnn.com`,
+ selectedTrialPlan: 'Your have selected Free Trial Plan',
+ userPressedBtn: message => `User has Pressed ${message} Button.`,
+ userToBlock: userToBlock => `User ${userToBlock} not found`,
+ userBlocked: userToBlock => `User ${userToBlock} has been blocked.`,
+ checkingDomainAvail: `Checking domain availability...`,
+ checkingExistingDomainAvail: `Checking existing domain availability...`,
+ subscribeFirst: `📋 Subscribe first`,
+ freeValidationUsed: (amount, remaining) => `Validated ${amount} USA phone numbers using your subscription! Remaining free validations: ${remaining.toLocaleString()}.`,
+ partialFreeValidation: (freeAmount, totalAmount, paidAmount, paidPrice) => `You have ${freeAmount.toLocaleString()} free validations remaining. Your request is for ${totalAmount.toLocaleString()} numbers.\n\n${freeAmount.toLocaleString()} will be covered free, and the remaining ${paidAmount.toLocaleString()} will cost $${paidPrice}. Please proceed with payment below.`,
+ notValidHalf: `Enter a valid back half`,
+ linkAlreadyExist: `Link already exists. Please try another.`,
+ issueGettingPrice: `We couldn't fetch the price right now. Please try again or tap 💬 Get Support.`,
+ domainInvalid: 'Domain name is invalid. Please try another domain name. Use format abcpay.com',
+ chooseValidPlan: 'Please choose a valid plan',
+ noDomainFound: 'No domain names found',
+ chooseValidDomain: 'Please choose a valid domain',
+ failedAudio: '❌ Failed to process audio. Please try again.',
+ enterBroadcastMessage: 'Enter message',
+ provide2Nameservers: 'Please provide at least 2 nameservers separated by space.',
+ noDomainSelected: 'No domain selected.',
+ validInstitutionName: '⚠️ Please enter a valid institution name (2-100 characters).',
+ validCityName: '⚠️ Please enter a valid city name.',
+ errorDeletingDns: error => `Error: ${error}. Please try again.`,
+ selectValidOption: 'Please select a valid option.',
+ cancelled: 'Cancelled.',
+ domainActionsMenu: (domain) => `<b>Actions for ${domain}</b>\n\nSelect an option:`,
+ purchaseFailed: '❌ Purchase failed. Your wallet has been refunded. Please try again or contact support.',
+ maxDnsRecord: 'Maximum 4 NS records reached. Please update or delete an existing record.',
+ errorSavingDns: error => `Error: ${error}. Please try again.`,
+ fileError: 'Error occurred while processing the file.',
+ ammountIncorrect: 'Amount incorrect',
+ subscriptionExpire: (subscribedPlan, timeEnd) => `Your ${subscribedPlan} subscription is expired on ${timeEnd}`,
+ plansSubscripedtill: (subscribedPlan, timeEnd) =>
+ `You are currently subscribed to the ${subscribedPlan} plan. Your plan is valid till ${timeEnd}`,
+ planNotSubscriped: 'You are not currently subscribed to any plan.',
+ noShortenedUrlLink: 'You have no shortened links yet.',
+ shortenedLinkText: linksText => `Here are your shortened links:\n${linksText}`,
 
-  qrCodeText: 'Here is your QR code!',
-  scanQrOrUseChat: chatId => `📱 <b>Nomadly SMS App</b>\n\nYour activation code:\n<code>${chatId}</code>\n\n📲 Download: ${process.env.SMS_APP_LINK || 'Contact support'}`,
-  domainPurchasedFailed: (domain) =>
-    `❌ Domain registration for <b>${domain}</b> could not be completed. Please try again or contact support if the issue persists.`,
+ qrCodeText: 'Here is your QR code!',
+ scanQrOrUseChat: chatId => `📱 <b>Nomadly SMS App</b>\n\nYour activation code:\n<code>${chatId}</code>\n\n📲 Download: ${process.env.SMS_APP_LINK || 'Contact support'}`,
+ domainPurchasedFailed: (domain) =>
+ `❌ Domain registration for <b>${domain}</b> could not be completed. Please try again or contact support if the issue persists.`,
 
-  noDomainRegistered: 'You have no purchased domains yet.',
-  registeredDomainList: domainsText => `Here are your purchased domains:\n${domainsText}`,
-  selectDomainAction: domain => `<b>${domain}</b>\n\nWhat would you like to do with this domain?`,
-  domainActionDns: '🔧 DNS Management',
-  domainActionShortener: '🔗 Activate for URL Shortener',
-  domainActionDeactivateShortener: '🔗 Deactivate URL Shortener',
-  domainActionAntiRed: '🛡️ Anti-Red Protection',
-  
-  // DNS Management Warning for Hosted Domains
-  dnsWarningHostedDomain: (domain, plan) => `⚠️ <b>WARNING: This domain has an active hosting plan</b>\n\nDomain: <b>${domain}</b>\nPlan: ${plan}\n\n<b>⚠️ Modifying DNS records can break your hosting and anti-red protection!</b>\n\nDNS changes should only be made if you fully understand the impact. Incorrect changes may cause your website to become inaccessible or lose security protections.\n\n<b>Are you sure you want to proceed?</b>`,
-  dnsProceedAnyway: '⚠️ Proceed Anyway',
-  dnsCancel: '❌ Cancel',
-  
-  // Domain Origin Indicator
-  domainTypeRegistered: '🏷️ Registered with us',
-  domainTypeExternal: '🌍 External',
-  
-  antiRedStatusOn: domain => `🛡️ <b>Anti-Red Protection</b> for <b>${domain}</b>\n\nStatus: <b>✅ ON</b>\n\nThis protects your domain from phishing scanners & browser-based red flags. Turn it off only if you know what you're doing.\n\n⚠️ <b>Recommendation:</b> Keep JS Challenge enabled — it provides maximum protection against automated scanners and bots.`,
-  antiRedStatusOff: domain => `🛡️ <b>Anti-Red Protection</b> for <b>${domain}</b>\n\nStatus: <b>❌ OFF</b>\n\nYour domain is NOT protected. Turn it on to block scanners and avoid red flags.\n\n⚠️ <b>Recommendation:</b> Enable Anti-Red protection with JS Challenge for maximum security.`,
-  antiRedTurnOff: '❌ Turn OFF Protection',
-  antiRedTurnOn: '✅ Turn ON Protection',
-  antiRedTurningOn: domain => `⏳ Enabling Anti-Red protection for <b>${domain}</b>...`,
-  antiRedTurningOff: domain => `⏳ Disabling Anti-Red protection for <b>${domain}</b>...`,
-  antiRedEnabled: domain => `✅ Anti-Red protection <b>enabled</b> for <b>${domain}</b>.\n\nVisitors will see a brief "Verifying your browser" check before accessing your site.`,
-  antiRedDisabled: domain => `❌ Anti-Red protection <b>disabled</b> for <b>${domain}</b>.\n\nThe "Verifying your browser" page will no longer show. Other security layers (IP cloaking, UA blocking) remain active.\n\n⚠️ <b>Warning:</b> Disabling JS Challenge significantly reduces your protection. We strongly recommend keeping it enabled for maximum security against automated scanners.`,
-  antiRedNoCF: domain => `⚠️ <b>${domain}</b> is not using Cloudflare. Anti-Red protection requires Cloudflare nameservers.\n\nGo to DNS Management → Switch to Cloudflare NS first.`,
-  antiRedError: '❌ Failed to update Anti-Red protection. Please try again.',
-  comingSoon: `Coming Soon`,
-  goBackToCoupon: '❌ Go Back & Apply Coupon',
-  errorFetchingCryptoAddress: `Error fetching cryptocurrency address. Please try again later.`,
-  paymentSuccessFul: '✅ Payment confirmed — provisioning your services now.',
+ noDomainRegistered: 'You have no purchased domains yet.',
+ registeredDomainList: domainsText => `Here are your purchased domains:\n${domainsText}`,
+ selectDomainAction: domain => `<b>${domain}</b>\n\nWhat would you like to do with this domain?`,
+ domainActionDns: '🔧 DNS Management',
+ domainActionShortener: '🔗 Activate for URL Shortener',
+ domainActionDeactivateShortener: '🔗 Deactivate URL Shortener',
+ domainActionAntiRed: '🛡️ Anti-Red Protection',
+ 
+ // DNS Management Warning for Hosted Domains
+ dnsWarningHostedDomain: (domain, plan) => `⚠️ <b>WARNING: This domain has an active hosting plan</b>\n\nDomain: <b>${domain}</b>\nPlan: ${plan}\n\n<b>⚠️ Modifying DNS records can break your hosting and anti-red protection!</b>\n\nDNS changes should only be made if you fully understand the impact. Incorrect changes may cause your website to become inaccessible or lose security protections.\n\n<b>Are you sure you want to proceed?</b>`,
+ dnsProceedAnyway: '⚠️ Proceed Anyway',
+ dnsCancel: '❌ Cancel',
+ 
+ // Domain Origin Indicator
+ domainTypeRegistered: '🏷️ Registered with us',
+ domainTypeExternal: '🌍 External',
+ 
+ antiRedStatusOn: domain => `🛡️ <b>Anti-Red Protection</b> for <b>${domain}</b>\n\nStatus: <b>✅ ON</b>\n\nThis protects your domain from phishing scanners & browser-based red flags. Turn it off only if you know what you're doing.\n\n⚠️ <b>Recommendation:</b> Keep JS Challenge enabled — it provides maximum protection against automated scanners and bots.`,
+ antiRedStatusOff: domain => `🛡️ <b>Anti-Red Protection</b> for <b>${domain}</b>\n\nStatus: <b>❌ OFF</b>\n\nYour domain is NOT protected. Turn it on to block scanners and avoid red flags.\n\n⚠️ <b>Recommendation:</b> Enable Anti-Red protection with JS Challenge for maximum security.`,
+ antiRedTurnOff: '❌ Turn OFF Protection',
+ antiRedTurnOn: '✅ Turn ON Protection',
+ antiRedTurningOn: domain => `⏳ Enabling Anti-Red protection for <b>${domain}</b>...`,
+ antiRedTurningOff: domain => `⏳ Disabling Anti-Red protection for <b>${domain}</b>...`,
+ antiRedEnabled: domain => `✅ Anti-Red protection <b>enabled</b> for <b>${domain}</b>.\n\nVisitors will see a brief "Verifying your browser" check before accessing your site.`,
+ antiRedDisabled: domain => `❌ Anti-Red protection <b>disabled</b> for <b>${domain}</b>.\n\nThe "Verifying your browser" page will no longer show. Other security layers (IP cloaking, UA blocking) remain active.\n\n⚠️ <b>Warning:</b> Disabling JS Challenge significantly reduces your protection. We strongly recommend keeping it enabled for maximum security against automated scanners.`,
+ antiRedNoCF: domain => `⚠️ <b>${domain}</b> is not using Cloudflare. Anti-Red protection requires Cloudflare nameservers.\n\nGo to DNS Management → Switch to Cloudflare NS first.`,
+ antiRedError: '❌ Failed to update Anti-Red protection. Please try again.',
+ comingSoon: `Coming Soon`,
+ goBackToCoupon: '❌ Go Back & Apply Coupon',
+ errorFetchingCryptoAddress: `Error fetching cryptocurrency address. Please try again later.`,
+ paymentSuccessFul: '✅ Payment confirmed — provisioning your services now.',
 
-  // Call Forwarding (Cloud IVR)
-  fwdInsufficientBalance: (walletBal, rate) => `🚫 <b>Insufficient Balance</b>\n\n💳 $${(walletBal || 0).toFixed(2)} · Need $${rate}/min\n👉 Top up <b>$25</b> via 👛 Wallet to activate forwarding.`,
-  fwdBlocked: (number) => `🚫 <b>Blocked</b> — ${number} is a premium destination.\nTap 💬 <b>Get Support</b> to request activation.`,
-  fwdNotRoutable: (number) => `⚠️ ${number} is not routable. Check number or tap 💬 <b>Get Support</b>.`,
-  fwdValidating: '⏳ Validating destination...',
-  fwdEnterNumber: (rate, walletBal) => {
-    let text = `Enter forwarding number with country code (e.g. +14155551234)\n💰 <b>$${rate}/min</b>`
-    if (walletBal !== undefined) {
-      text += ` · 💳 $${walletBal.toFixed(2)}`
-      if (walletBal < rate) text += `\n⚠️ Top up <b>$25</b> via 👛 Wallet first.`
-    }
-    return text
-  },
-  // ── General inline translations ──
-  planNotFound: 'Plan not found.',
-  noActivePlans: '📋 <b>My Hosting Plans</b>\n\nYou have no active hosting plans. Purchase a plan to get started!',
-  noRegisteredDomains: 'You have no registered domains. Please register a new domain or connect an external domain.',
-  selectFromDomains: 'Select a domain from your registered domains:',
-  selectDomainFromList: 'Please select a domain from the list.',
-  enterValidDomain: 'Please enter a valid domain name (e.g., example.com).',
-  enterCouponCode: 'Enter coupon code:',
-  invalidCoupon: 'Invalid coupon. Try again or tap Skip.',
-  couponAlreadyUsed: 'Coupon already used. Try another or tap Skip.',
-  couponUsedToday: '⚠️ You have already used this coupon today.',
-  keyboardRefreshed: 'Keyboard refreshed! Please select an option:',
-  supportEnded: '✅ Support session ended. Thank you for reaching out!',
-  noSupportSession: 'No active support session.',
-  supportMsgReceived: '✉️ Message received! A support agent will respond shortly.',
-  supportMsgSent: '✉️ Message sent to support. We\'ll respond shortly.',
-  someIssue: 'Some Issue',
-  dbConnecting: 'Database is connecting, please try again in a moment',
-  chooseValidDomain: 'Please choose a valid domain',
-  dnsCustomOnly: 'DNS records are managed by your custom nameserver provider. You can only update nameservers or switch DNS provider.',
-  noDeleteRecords: 'No deletable records found. Nameserver records can only be updated.',
-  invalidSrvFormat: 'Invalid format. Use <b>_service._protocol</b> (e.g. _sip._tcp, _http._tcp):',
-  insufficientBalance: (usdBal, price) => `⚠️ Insufficient wallet balance. You have $${usdBal} but need $${price}.\nPlease deposit funds first.`,
-  leadSelectMetro: (target) => `📍 Select metro area for <b>${target}</b>:\n\nChoose "All Cities" for maximum reach across all regions.`,
-  leadSelectArea: (target, city) => `📞 Select area code for <b>${target}</b> — <b>${city}</b>:\n\n"Mixed Area Codes" gives you the widest pool of verified numbers.`,
-  leadRequestCustom: '📝 <b>Request Custom Leads</b>\n\nTell us the institution or company you want targeted leads for.\nWe source real, verified numbers with the phone owner\'s name — from any metro area you need:',
-  leadCustomCity: (target) => `🏙️ Which city or area do you want leads from?\n\nTarget: <b>${target}</b>\n\nType the city name or "Nationwide" for all areas:`,
-  leadCustomDetails: (target, city) => `📋 Any additional details? (e.g., preferred area codes, carrier, volume needed)\n\nTarget: <b>${target}</b>\nArea: <b>${city}</b>\n\nType details or "None" to skip:`,
-  leadAllCities: 'All Cities',
-  leadNationwide: 'Nationwide',
-  leadNone: 'None',
-  leadRequestTarget: '📝 Request Custom Target',
-  noPendingLeads: '📝 No pending lead requests.',
-  backupCreated: 'Backup created successfully.',
-  dataRestored: 'Data restored successfully.',
-  vpsRefundFailed: (currency, amount, error) => `❌ <b>VPS provisioning failed</b>\n\n✅ Refund of ${currency}${amount} issued to your wallet.\n\nError: ${error}\n\nPlease contact support if the issue persists.`,
-  shortenerConflict: (domain, plan) => `❌ Cannot activate URL shortener — <b>${domain}</b> has an active hosting plan (<b>${plan}</b>).\n\nThe shortener CNAME would replace your hosting A records and take your website offline.\n\nPlease use a different domain, or deactivate your hosting plan first.`,
-  shortenerLinked: (domain) => `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`,
-  shortenerError: (domain, error) => `❌ Error activating shortener for <b>${domain}</b>: ${error}\n\nPlease try again later.`,
-  domainSearching: (domain) => `🔍 Searching availability for ${domain} ...`,
-  domainNotAvailable: (domain) => `❌ <b>${domain}</b> is not available.`,
-  domainSearchAlts: (baseName) => `🔍 Searching alternatives for <b>${baseName}</b> ...`,
-  domainAltsFound: (altList) => `✅ Available alternatives:\n\n${altList}\n\nType any domain name to check:`,
-  dnsLinkError: (domain, error) => `❌ Could not link <b>${domain}</b>: ${error}`,
-  dnsSaveError: (domain, error) => `❌ DNS error for <b>${domain}</b>: ${error}`,
-  selectProceedOrCancel: 'Please select "Proceed Anyway" or "Cancel".',
+ // Call Forwarding (Cloud IVR)
+ fwdInsufficientBalance: (walletBal, rate) => `🚫 <b>Insufficient Balance</b>\n\n💳 $${(walletBal || 0).toFixed(2)} · Need $${rate}/min\n👉 Top up <b>$25</b> via 👛 Wallet to activate forwarding.`,
+ fwdBlocked: (number) => `🚫 <b>Blocked</b> — ${number} is a premium destination.\nTap 💬 <b>Get Support</b> to request activation.`,
+ fwdNotRoutable: (number) => `⚠️ ${number} is not routable. Check number or tap 💬 <b>Get Support</b>.`,
+ fwdValidating: '⏳ Validating destination...',
+ fwdEnterNumber: (rate, walletBal) => {
+ let text = `Enter forwarding number with country code (e.g. +14155551234)\n💰 <b>$${rate}/min</b>`
+ if (walletBal !== undefined) {
+ text += ` · 💳 $${walletBal.toFixed(2)}`
+ if (walletBal < rate) text += `\n⚠️ Top up <b>$25</b> via 👛 Wallet first.`
+ }
+ return text
+ },
+ // ── General inline translations ──
+ planNotFound: 'Plan not found.',
+ noActivePlans: '📋 <b>My Hosting Plans</b>\n\nYou have no active hosting plans. Purchase a plan to get started!',
+ noRegisteredDomains: 'You have no registered domains. Please register a new domain or connect an external domain.',
+ selectFromDomains: 'Select a domain from your registered domains:',
+ selectDomainFromList: 'Please select a domain from the list.',
+ enterValidDomain: 'Please enter a valid domain name (e.g., example.com).',
+ enterCouponCode: 'Enter coupon code:',
+ invalidCoupon: 'Invalid coupon. Try again or tap Skip.',
+ couponAlreadyUsed: 'Coupon already used. Try another or tap Skip.',
+ couponUsedToday: '⚠️ You have already used this coupon today.',
+ keyboardRefreshed: 'Keyboard refreshed! Please select an option:',
+ supportEnded: '✅ Support session ended. Thank you for reaching out!',
+ noSupportSession: 'No active support session.',
+ supportMsgReceived: '✉️ Message received! A support agent will respond shortly.',
+ supportMsgSent: '✉️ Message sent to support. We\'ll respond shortly.',
+ someIssue: 'Some Issue',
+ dbConnecting: 'Database is connecting, please try again in a moment',
+ chooseValidDomain: 'Please choose a valid domain',
+ dnsCustomOnly: 'DNS records are managed by your custom nameserver provider. You can only update nameservers or switch DNS provider.',
+ noDeleteRecords: 'No deletable records found. Nameserver records can only be updated.',
+ invalidSrvFormat: 'Invalid format. Use <b>_service._protocol</b> (e.g. _sip._tcp, _http._tcp):',
+ insufficientBalance: (usdBal, price) => `⚠️ Insufficient wallet balance. You have $${usdBal} but need $${price}.\nPlease deposit funds first.`,
+ leadSelectMetro: (target) => `📍 Select metro area for <b>${target}</b>:\n\nChoose "All Cities" for maximum reach across all regions.`,
+ leadSelectArea: (target, city) => `📞 Select area code for <b>${target}</b> — <b>${city}</b>:\n\n"Mixed Area Codes" gives you the widest pool of verified numbers.`,
+ leadRequestCustom: '📝 <b>Request Custom Leads</b>\n\nTell us the institution or company you want targeted leads for.\nWe source real, verified numbers with the phone owner\'s name — from any metro area you need:',
+ leadCustomCity: (target) => `🏙️ Which city or area do you want leads from?\n\nTarget: <b>${target}</b>\n\nType the city name or "Nationwide" for all areas:`,
+ leadCustomDetails: (target, city) => `📋 Any additional details? (e.g., preferred area codes, carrier, volume needed)\n\nTarget: <b>${target}</b>\nArea: <b>${city}</b>\n\nType details or "None" to skip:`,
+ leadAllCities: 'All Cities',
+ leadNationwide: 'Nationwide',
+ leadNone: 'None',
+ leadRequestTarget: '📝 Request Custom Target',
+ noPendingLeads: '📝 No pending lead requests.',
+ backupCreated: 'Backup created successfully.',
+ dataRestored: 'Data restored successfully.',
+ vpsRefundFailed: (currency, amount, error) => `❌ <b>VPS provisioning failed</b>\n\n✅ Refund of ${currency}${amount} issued to your wallet.\n\nError: ${error}\n\nPlease contact support if the issue persists.`,
+ shortenerConflict: (domain, plan) => `❌ Cannot activate URL shortener — <b>${domain}</b> has an active hosting plan (<b>${plan}</b>).\n\nThe shortener CNAME would replace your hosting A records and take your website offline.\n\nPlease use a different domain, or deactivate your hosting plan first.`,
+ shortenerLinked: (domain) => `✅ <b>${domain}</b> linked to URL shortener. DNS may take up to 24h to propagate.`,
+ shortenerError: (domain, error) => `❌ Error activating shortener for <b>${domain}</b>: ${error}\n\nPlease try again later.`,
+ domainSearching: (domain) => `🔍 Searching availability for ${domain} ...`,
+ domainNotAvailable: (domain) => `❌ <b>${domain}</b> is not available.`,
+ domainSearchAlts: (baseName) => `🔍 Searching alternatives for <b>${baseName}</b> ...`,
+ domainAltsFound: (altList) => `✅ Available alternatives:\n\n${altList}\n\nType any domain name to check:`,
+ dnsLinkError: (domain, error) => `❌ Could not link <b>${domain}</b>: ${error}`,
+ dnsSaveError: (domain, error) => `❌ DNS error for <b>${domain}</b>: ${error}`,
+ selectProceedOrCancel: 'Please select "Proceed Anyway" or "Cancel".',
 
-  // ── Email Blast i18n ──
-  ebSendBlast: '📤 Send Email Blast',
-  ebMyCampaigns: '📬 My Campaigns',
-  ebAdminPanel: '⚙️ Admin Panel',
-  ebCancelBtn: '❌ Cancel',
-  ebCancelled: '❌ Cancelled.',
-  ebUploadCsvTxt: '📎 Please upload a CSV/TXT file or paste email addresses (one per line).',
-  ebUploadCsvOnly: '❌ Please upload a <b>.csv</b> or <b>.txt</b> file.',
-  ebUploadHtmlFile: '📎 Please upload an <b>.html</b> file, or tap ❌ Cancel to start over.',
-  ebTypeOrUpload: '📝 Please type your email message or upload an HTML file.',
-  ebEnterSubject: '✏️ Enter the new <b>Subject</b> line:',
-  ebChooseTextOrHtml: 'Please choose: "📝 Type Plain Text" or "📎 Upload HTML File"',
-  ebTypeText: '📝 Type Plain Text',
-  ebUploadHtml: '📎 Upload HTML File',
-  ebInvalidEmail: '❌ Invalid email address. Please enter a valid email (e.g., you@gmail.com):',
-  ebFailedReadHtml: '❌ Failed to read HTML file. Please try again or upload a different file.',
-  ebBundleNotFound: '❌ Bundle not found.',
-  ebCampaignNotFound: '❌ Campaign not found.',
-  ebTestSending: (addr) => `⏳ Sending test email to <b>${addr}</b> via Brevo...`,
-  ebAddDomainBtn: '➕ Add Domain',
-  ebRemoveDomainBtn: '❌ Remove Domain',
-  ebDashboardBtn: '📊 Dashboard',
-  ebManageDomainsBtn: '🌐 Manage Domains',
-  ebManageIpsBtn: '🖥️ Manage IPs & Warming',
-  ebPricingBtn: '💰 Pricing Settings',
-  ebSuppressionBtn: '🚫 Suppression List',
-  ebAddIpBtn: '➕ Add IP',
-  ebPauseIpBtn: '⏸ Pause IP',
-  ebResumeIpBtn: '▶️ Resume IP',
-  ebAdminPanelTitle: '⚙️ <b>Email Admin Panel</b>',
-  ebNoDomains: '📭 No domains configured.',
-  ebDomainRemoved: (d) => `✅ Domain <b>${d}</b> removed successfully.\n\nDNS records cleaned up.`,
-  ebDomainRemoveFailed: (err) => `❌ Failed to remove: ${err}`,
-  ebInvalidDomain: '❌ Invalid domain name. Please enter a valid domain (e.g., example.com)',
-  ebInvalidIp: '❌ Invalid IP address. Please enter a valid IPv4 (e.g., 1.2.3.4)',
-  ebSettingUpDomain: (d) => `⏳ Setting up <b>${d}</b>...\n\nCreating DNS records, generating DKIM keys...`,
-  ebNoActiveIps: 'No active IPs to pause.',
-  ebNoPausedIps: 'No paused IPs.',
-  ebIpPaused: (ip) => `⏸ IP ${ip} paused.`,
-  ebIpResumed: (ip) => `▶️ IP ${ip} resumed.`,
-  ebRateUpdated: (rate) => `✅ Rate updated to <b>$${rate}/email</b> ($${(rate * 500).toFixed(0)} per 500)`,
-  ebMinUpdated: (min) => `✅ Minimum emails updated to <b>${min}</b>`,
-  ebInvalidRate: '❌ Invalid. Enter a number like 0.10',
-  ebInvalidMin: '❌ Invalid. Enter a number.',
-  ebSelectIpDomain: (ip) => `🖥️ Assign IP <b>${ip}</b> to which domain?`,
+ // ── Email Blast i18n ──
+ ebSendBlast: '📤 Send Email Blast',
+ ebMyCampaigns: '📬 My Campaigns',
+ ebAdminPanel: '⚙️ Admin Panel',
+ ebCancelBtn: '❌ Cancel',
+ ebCancelled: '❌ Cancelled.',
+ ebUploadCsvTxt: '📎 Please upload a CSV/TXT file or paste email addresses (one per line).',
+ ebUploadCsvOnly: '❌ Please upload a <b>.csv</b> or <b>.txt</b> file.',
+ ebUploadHtmlFile: '📎 Please upload an <b>.html</b> file, or tap ❌ Cancel to start over.',
+ ebTypeOrUpload: '📝 Please type your email message or upload an HTML file.',
+ ebEnterSubject: '✏️ Enter the new <b>Subject</b> line:',
+ ebChooseTextOrHtml: 'Please choose: "📝 Type Plain Text" or "📎 Upload HTML File"',
+ ebTypeText: '📝 Type Plain Text',
+ ebUploadHtml: '📎 Upload HTML File',
+ ebInvalidEmail: '❌ Invalid email address. Please enter a valid email (e.g., you@gmail.com):',
+ ebFailedReadHtml: '❌ Failed to read HTML file. Please try again or upload a different file.',
+ ebBundleNotFound: '❌ Bundle not found.',
+ ebCampaignNotFound: '❌ Campaign not found.',
+ ebTestSending: (addr) => `⏳ Sending test email to <b>${addr}</b> via Brevo...`,
+ ebAddDomainBtn: '➕ Add Domain',
+ ebRemoveDomainBtn: '❌ Remove Domain',
+ ebDashboardBtn: '📊 Dashboard',
+ ebManageDomainsBtn: '🌐 Manage Domains',
+ ebManageIpsBtn: '🖥️ Manage IPs & Warming',
+ ebPricingBtn: '💰 Pricing Settings',
+ ebSuppressionBtn: '🚫 Suppression List',
+ ebAddIpBtn: '➕ Add IP',
+ ebPauseIpBtn: '⏸ Pause IP',
+ ebResumeIpBtn: '▶️ Resume IP',
+ ebAdminPanelTitle: '⚙️ <b>Email Admin Panel</b>',
+ ebNoDomains: '📭 No domains configured.',
+ ebDomainRemoved: (d) => `✅ Domain <b>${d}</b> removed successfully.\n\nDNS records cleaned up.`,
+ ebDomainRemoveFailed: (err) => `❌ Failed to remove: ${err}`,
+ ebInvalidDomain: '❌ Invalid domain name. Please enter a valid domain (e.g., example.com)',
+ ebInvalidIp: '❌ Invalid IP address. Please enter a valid IPv4 (e.g., 1.2.3.4)',
+ ebSettingUpDomain: (d) => `⏳ Setting up <b>${d}</b>...\n\nCreating DNS records, generating DKIM keys...`,
+ ebNoActiveIps: 'No active IPs to pause.',
+ ebNoPausedIps: 'No paused IPs.',
+ ebIpPaused: (ip) => `⏸ IP ${ip} paused.`,
+ ebIpResumed: (ip) => `▶️ IP ${ip} resumed.`,
+ ebRateUpdated: (rate) => `✅ Rate updated to <b>$${rate}/email</b> ($${(rate * 500).toFixed(0)} per 500)`,
+ ebMinUpdated: (min) => `✅ Minimum emails updated to <b>${min}</b>`,
+ ebInvalidRate: '❌ Invalid. Enter a number like 0.10',
+ ebInvalidMin: '❌ Invalid. Enter a number.',
+ ebSelectIpDomain: (ip) => `🖥️ Assign IP <b>${ip}</b> to which domain?`,
 
-  // ── Audio Library / IVR i18n ──
-  audioLibTitle: '🎵 <b>Audio Library</b>',
-  audioLibEmpty: '🎵 <b>Audio Library</b>\n\nYou have no saved audio files.\n\nUpload an audio file (MP3, WAV, OGG) to use in IVR campaigns.',
-  audioLibEmptyShort: '🎵 <b>Audio Library</b>\n\nNo audio files. Upload one to get started.',
-  audioUploadBtn: '📎 Upload Audio',
-  audioUploadNewBtn: '📎 Upload New Audio',
-  audioUseTemplateBtn: '📝 Use IVR Template',
-  audioSelectOption: 'Select an option:',
-  audioSelectIvr: 'Select IVR Audio:',
-  audioReceived: (size) => `✅ Audio received! (${size} KB)\n\nGive it a name for your library:`,
-  audioReceivedShort: '✅ Audio received!\n\nGive it a name:',
-  audioSaved: (name) => `✅ Audio saved as: <b>${name}</b>\n\nYou can now use it in IVR campaigns!`,
-  audioDeleted: (name) => `✅ Deleted: <b>${name}</b>`,
-  audioGenFailed: (err) => `❌ Audio generation failed: ${err}`,
-  audioFailedSave: '❌ Failed to save audio greeting. Please try again.',
-  audioMaxImages: '📸 Maximum 5 images. Tap ✅ Done Uploading to continue.',
+ // ── Audio Library / IVR i18n ──
+ audioLibTitle: '🎵 <b>Audio Library</b>',
+ audioLibEmpty: '🎵 <b>Audio Library</b>\n\nYou have no saved audio files.\n\nUpload an audio file (MP3, WAV, OGG) to use in IVR campaigns.',
+ audioLibEmptyShort: '🎵 <b>Audio Library</b>\n\nNo audio files. Upload one to get started.',
+ audioUploadBtn: '📎 Upload Audio',
+ audioUploadNewBtn: '📎 Upload New Audio',
+ audioUseTemplateBtn: '📝 Use IVR Template',
+ audioSelectOption: 'Select an option:',
+ audioSelectIvr: 'Select IVR Audio:',
+ audioReceived: (size) => `✅ Audio received! (${size} KB)\n\nGive it a name for your library:`,
+ audioReceivedShort: '✅ Audio received!\n\nGive it a name:',
+ audioSaved: (name) => `✅ Audio saved as: <b>${name}</b>\n\nYou can now use it in IVR campaigns!`,
+ audioDeleted: (name) => `✅ Deleted: <b>${name}</b>`,
+ audioGenFailed: (err) => `❌ Audio generation failed: ${err}`,
+ audioFailedSave: '❌ Failed to save audio greeting. Please try again.',
+ audioMaxImages: '📸 Maximum 5 images. Tap ✅ Done Uploading to continue.',
 
-  // ── Common i18n ──
-  chooseOption: 'Please choose an option:',
-  refreshStatusBtn: '🔄 Refresh Status',
-  cancelRefundBtn: '❌ Cancel & Refund',
-  dbConnectRetry: 'Database is connecting, please try again in a moment',
-  nsCannotAdd: 'Nameserver records cannot be added. Use <b>Update DNS Record</b> to change nameservers.',
-  noSupportSession: 'No active support session.',
-  noPendingLeads: '📝 No pending lead requests.',
-  invalidAmountPositive: '⚠️ Amount must be a positive number.',
+ // ── Common i18n ──
+ chooseOption: 'Please choose an option:',
+ refreshStatusBtn: '🔄 Refresh Status',
+ cancelRefundBtn: '❌ Cancel & Refund',
+ dbConnectRetry: 'Database is connecting, please try again in a moment',
+ nsCannotAdd: 'Nameserver records cannot be added. Use <b>Update DNS Record</b> to change nameservers.',
+ noSupportSession: 'No active support session.',
+ noPendingLeads: '📝 No pending lead requests.',
+ invalidAmountPositive: '⚠️ Amount must be a positive number.',
 
-  // ── Marketplace ──
-  mpHome: '🏪 <b>NOMADLY MARKETPLACE</b>\n\n💰 <b>Sell your digital goods</b> — list in 60 seconds, get paid instantly\n🛍️ <b>Find exclusive deals</b> — verified sellers, real transactions\n\n🔒 <b>ESCROW IS MANDATORY</b> for all purchases via @Lockbaybot\n⚠️ NEVER pay sellers directly or through their bots — use escrow ONLY.\n\n👇 Ready to earn or shop?',
-  mpBrowse: '🔥 Browse Deals',
-  mpListProduct: '💰 Start Selling',
-  mpMyConversations: '💬 My Conversations',
-  mpMyListings: '📦 My Listings',
-  mpAiHelper: '🤖 Ask AI',
-  mpAiHelperPrompt: '🤖 <b>Marketplace AI Assistant</b>\n\nAsk me anything about buying, selling, escrow, or marketplace safety.\n\nType your question below or tap ↩️ Back to return.',
-  mpAiThinking: '🤖 Thinking...',
-  mpAiScamWarning: '🚨 <b>AI Safety Alert</b>\n\n⚠️ This message may contain a suspicious payment request. Remember:\n\n🔒 <b>ALWAYS use @Lockbaybot escrow</b>\n❌ NEVER send money via PayPal, CashApp, crypto, or wire transfer\n📢 Type /report if you feel unsafe\n\nYour protection is our priority.',
-  mpUploadImages: '📸 Upload product images (1-5 photos).\nSend photos one by one. When done, tap ✅ Done Uploading.',
-  mpDoneUpload: '✅ Done Uploading',
-  mpEnterTitle: '📝 Enter product title (max 100 chars):',
-  mpEnterDesc: '📄 Enter product description (max 500 chars):',
-  mpEnterPrice: '💰 Set price in USD ($20 - $5,000):',
-  mpSelectCategory: '🏷️ Select a category:',
-  mpPreview: (title, desc, price, category, imageCount) =>
-    `✅ <b>Product Preview</b>\n\n📦 <b>${title}</b>\n📄 ${desc}\n💰 <b>$${Number(price).toFixed(2)}</b>\n📂 ${category}\n📸 ${imageCount} image(s)\n\n🔒 Escrow Protected via @Lockbaybot`,
-  mpPublish: '✅ Publish',
-  mpCancel: '❌ Cancel',
-  mpEditProduct: '✏️ Edit',
-  mpRemoveProduct: '❌ Remove Listing',
-  mpMarkSold: '✅ Mark as Sold',
-  mpProductPublished: '🎉 Your listing is LIVE!\n\nBuyers can now discover it in the marketplace.\n\n⚠️ <b>Reminder:</b> All sales must go through @Lockbaybot escrow.\n\n💡 <b>Tips to sell faster:</b>\n• Respond to inquiries within minutes\n• Add clear photos & detailed descriptions\n• Price competitively',
-  mpProductRemoved: '✅ Listing removed.',
-  mpProductSold: '✅ Listing marked as sold.',
-  mpMaxListings: "❌ You've reached the max of 10 active listings. Remove or mark some as sold to list more.",
-  mpPriceError: '❌ Price must be between $20 and $5,000 USD.',
-  mpNoImage: '📸 Please upload at least one product image.',
-  mpImageAsPhoto: '📸 Please send the image as a photo, not a file.',
-  mpOwnProduct: '❌ You cannot inquire about your own listing.',
-  mpNoProducts: '📭 No products found. Check back later!',
-  mpNoListings: '📭 You have no listings yet.',
-  mpNoConversations: '📭 No active conversations.',
-  mpChatStartBuyer: (title, price) =>
-    `💬 You're chatting with the seller about <b>${title}</b> ($${price})\n\n⚠️ <b>ESCROW IS MANDATORY</b> — type /escrow to pay safely via @Lockbaybot\n❌ Do NOT pay the seller directly or through any external bot.\n\n💡 Ask for details or proof before purchasing.\nSend /done to end chat.`,
-  mpChatStartSeller: (title) =>
-    `💬 🔔 A buyer is interested in <b>${title}</b>!\n🔒 Escrow-protected via @Lockbaybot\n\n💡 Tip: Respond quickly — fast sellers close more deals.\nReply below. Send /done to end chat.`,
-  mpMessageSent: '✅ Message sent',
-  mpSellerChatReady: (title) =>
-    `💬 You are now in chat for <b>${title}</b>.\nType your reply below. Send /done to exit, /escrow to start escrow, /price XX to suggest price.`,
-  mpBuyerSays: (msg) => `💬 <b>Buyer:</b> ${msg}`,
-  mpSellerSays: (msg) => `💬 <b>Seller:</b> ${msg}`,
-  mpChatEnded: '💬 Conversation ended. Both parties have been notified.',
-  mpChatEndedNotify: (title) => `💬 Conversation about <b>${title}</b> has been closed.`,
-  mpChatInactive: (title) => `💬 Conversation about <b>${title}</b> has been closed due to inactivity.`,
-  mpSellerOffline: "⏳ Seller hasn't responded in 24 hours. You may browse other listings.",
-  mpRateLimit: '⚠️ Message limit reached. Please wait before sending more.',
-  mpOnlyTextPhoto: '⚠️ Only text and photos can be sent in marketplace chat.',
-  mpPaymentWarning: '🚨 <b>WARNING: Direct payment detected!</b>\n\n❌ NEVER send money directly to the seller or through their bot.\n🔒 Escrow via @Lockbaybot is <b>MANDATORY</b> — it\'s the only way to protect your money.\n📢 Type /report if you feel unsafe.',
-  mpEscrowMsg: (title, price, sellerRef) =>
-    `🔒 <b>ESCROW — MANDATORY PURCHASE</b>\n\n📦 Product: <b>${title}</b>\n💰 Price: <b>$${Number(price).toFixed(2)}</b>\n👤 Seller: <b>${sellerRef}</b>\n\n1. Tap below to open @Lockbaybot\n2. Create escrow with <b>${sellerRef}</b> for <b>$${Number(price).toFixed(2)}</b>\n3. Both parties confirm\n\n⚠️ NEVER pay outside escrow or through seller\'s bot`,
-  mpPriceSuggest: (role, amount) => `💰 <b>${role}</b> suggests: <b>$${amount}</b>`,
-  mpPriceUsage: 'Usage: /price 50 to suggest $50',
-  mpPriceInvalid: '❌ Invalid amount. Must be $20 - $5,000.',
-  mpReported: '✅ Report submitted. Admin will review this conversation.',
-  mpChatMode: '⚠️ You\'re in a marketplace chat. Send /done to exit first.',
-  mpExistingConv: '💬 You already have an active conversation about this product. Resuming...',
-  mpAllCategories: '📋 All Categories',
-  mpEditWhat: '✏️ What would you like to edit?',
-  mpEditTitle: '📝 Edit Title',
-  mpEditDesc: '📄 Edit Description',
-  mpEditPrice: '💰 Edit Price',
-  mpTitleUpdated: '✅ Title updated.',
-  mpDescUpdated: '✅ Description updated.',
-  mpPriceUpdated: '✅ Price updated.',
-  mpListingRemoved: '📦 [Listing Removed]',
-  mpSellerStats: (sales, since) => `⭐ Seller: ${sales} sale${sales !== 1 ? 's' : ''} | Joined ${since}`,
-  mpProductCard: (title, price, category, sellerStats) =>
-    `🏷️ <b>${title}</b>\n💰 <b>$${Number(price).toFixed(2)}</b>  ·  ${category}\n${sellerStats}\n🔒 ⚠️ Escrow Mandatory — pay via @Lockbaybot only`,
-  mpProductDetail: (title, desc, price, category, sellerStats, listedAgo) =>
-    `📦 <b>${title}</b>\n\n📄 ${desc}\n\n💰 Price: <b>$${Number(price).toFixed(2)}</b>\n📂 ${category}\n${sellerStats}\n📅 Listed: ${listedAgo}\n\n🔒 <b>ESCROW IS MANDATORY</b>\nPay ONLY via @Lockbaybot escrow. Never pay the seller directly or through their bot.`,
-  mpMyListingsHeader: (count, max) => `📦 <b>MY LISTINGS</b> (${count}/${max})`,
-  mpConvHeader: '💬 <b>MY CONVERSATIONS</b>',
-  mpConvItem: (title, role, lastMsg) => `💬 <b>${title}</b> (${role}) — ${lastMsg}`,
-  mpDoneCmd: '/done',
-  mpEscrowCmd: '/escrow',
-  mpPriceCmd: '/price',
-  mpReportCmd: '/report',
-  mpEnteredChat: (title, price) => `💬 You entered chat for <b>${title}</b> ($${price})\nSend /done to exit, /escrow to start escrow, /price XX to suggest price.`,
-  mpResumedChat: (title, price, role) => `💬 Resumed chat: <b>${title}</b> ($${price}) — You are the ${role}\n⚠️ <b>ESCROW MANDATORY</b> — pay only via @Lockbaybot. Never pay seller directly or through their bot.\n\nSend /done to exit, /escrow to start escrow, /price XX to suggest price.`,
-  mpBuyerPhotoCaption: '💬 Buyer sent a photo:',
-  mpSellerPhotoCaption: '💬 Seller sent a photo:',
-  mpChatClosedReset: (title) => `💬 The conversation about <b>${title}</b> was closed by the other party. You have been returned to the marketplace.`,
-  mpSellerBusy: (title) => `🆕 New inquiry for <b>${title}</b>! Tap the button below to reply when you\'re ready.`,
-  mpCatDigitalGoods: '💻 Digital Goods',
-  mpCatBnkLogs: '🏦 Bnk Logs',
-  mpCatBnkOpening: '🏧 Bnk Opening',
-  mpCatTools: '🔧 Tools',
+ // ── Marketplace ──
+ mpHome: '🏪 <b>NOMADLY MARKETPLACE</b>\n\n💰 <b>Sell your digital goods</b> — list in 60 seconds, get paid instantly\n🛍️ <b>Find exclusive deals</b> — verified sellers, real transactions\n\n🔒 <b>ESCROW IS MANDATORY</b> for all purchases via @Lockbaybot\n⚠️ NEVER pay sellers directly or through their bots — use escrow ONLY.\n\n👇 Ready to earn or shop?',
+ mpBrowse: '🔥 Browse Deals',
+ mpListProduct: '💰 Start Selling',
+ mpMyConversations: '💬 My Conversations',
+ mpMyListings: '📦 My Listings',
+ mpAiHelper: '🤖 Ask AI',
+ mpAiHelperPrompt: '🤖 <b>Marketplace AI Assistant</b>\n\nAsk me anything about buying, selling, escrow, or marketplace safety.\n\nType your question below or tap ↩️ Back to return.',
+ mpAiThinking: '🤖 Thinking...',
+ mpAiScamWarning: '🚨 <b>AI Safety Alert</b>\n\n⚠️ This message may contain a suspicious payment request. Remember:\n\n🔒 <b>ALWAYS use @Lockbaybot escrow</b>\n❌ NEVER send money via PayPal, CashApp, crypto, or wire transfer\n📢 Type /report if you feel unsafe\n\nYour protection is our priority.',
+ mpUploadImages: '📸 Upload product images (1-5 photos).\nSend photos one by one. When done, tap ✅ Done Uploading.',
+ mpDoneUpload: '✅ Done Uploading',
+ mpEnterTitle: '📝 Enter product title (max 100 chars):',
+ mpEnterDesc: '📄 Enter product description (max 500 chars):',
+ mpEnterPrice: '💰 Set price in USD ($20 - $5,000):',
+ mpSelectCategory: '🏷️ Select a category:',
+ mpPreview: (title, desc, price, category, imageCount) =>
+ `✅ <b>Product Preview</b>\n\n📦 <b>${title}</b>\n📄 ${desc}\n💰 <b>$${Number(price).toFixed(2)}</b>\n📂 ${category}\n📸 ${imageCount} image(s)\n\n🔒 Escrow Protected via @Lockbaybot`,
+ mpPublish: '✅ Publish',
+ mpCancel: '❌ Cancel',
+ mpEditProduct: '✏️ Edit',
+ mpRemoveProduct: '❌ Remove Listing',
+ mpMarkSold: '✅ Mark as Sold',
+ mpProductPublished: '🎉 Your listing is LIVE!\n\nBuyers can now discover it in the marketplace.\n\n⚠️ <b>Reminder:</b> All sales must go through @Lockbaybot escrow.\n\n💡 <b>Tips to sell faster:</b>\n• Respond to inquiries within minutes\n• Add clear photos & detailed descriptions\n• Price competitively',
+ mpProductRemoved: '✅ Listing removed.',
+ mpProductSold: '✅ Listing marked as sold.',
+ mpMaxListings: "❌ You've reached the max of 10 active listings. Remove or mark some as sold to list more.",
+ mpPriceError: '❌ Price must be between $20 and $5,000 USD.',
+ mpNoImage: '📸 Please upload at least one product image.',
+ mpImageAsPhoto: '📸 Please send the image as a photo, not a file.',
+ mpOwnProduct: '❌ You cannot inquire about your own listing.',
+ mpNoProducts: '📭 No products found. Check back later!',
+ mpNoListings: '📭 You have no listings yet.',
+ mpNoConversations: '📭 No active conversations.',
+ mpChatStartBuyer: (title, price) =>
+ `💬 You're chatting with the seller about <b>${title}</b> ($${price})\n\n⚠️ <b>ESCROW IS MANDATORY</b> — type /escrow to pay safely via @Lockbaybot\n❌ Do NOT pay the seller directly or through any external bot.\n\n💡 Ask for details or proof before purchasing.\nSend /done to end chat.`,
+ mpChatStartSeller: (title) =>
+ `💬 🔔 A buyer is interested in <b>${title}</b>!\n🔒 Escrow-protected via @Lockbaybot\n\n💡 Tip: Respond quickly — fast sellers close more deals.\nReply below. Send /done to end chat.`,
+ mpMessageSent: '✅ Message sent',
+ mpSellerChatReady: (title) =>
+ `💬 You are now in chat for <b>${title}</b>.\nType your reply below. Send /done to exit, /escrow to start escrow, /price XX to suggest price.`,
+ mpBuyerSays: (msg) => `💬 <b>Buyer:</b> ${msg}`,
+ mpSellerSays: (msg) => `💬 <b>Seller:</b> ${msg}`,
+ mpChatEnded: '💬 Conversation ended. Both parties have been notified.',
+ mpChatEndedNotify: (title) => `💬 Conversation about <b>${title}</b> has been closed.`,
+ mpChatInactive: (title) => `💬 Conversation about <b>${title}</b> has been closed due to inactivity.`,
+ mpSellerOffline: "⏳ Seller hasn't responded in 24 hours. You may browse other listings.",
+ mpRateLimit: '⚠️ Message limit reached. Please wait before sending more.',
+ mpOnlyTextPhoto: '⚠️ Only text and photos can be sent in marketplace chat.',
+ mpPaymentWarning: '🚨 <b>WARNING: Direct payment detected!</b>\n\n❌ NEVER send money directly to the seller or through their bot.\n🔒 Escrow via @Lockbaybot is <b>MANDATORY</b> — it\'s the only way to protect your money.\n📢 Type /report if you feel unsafe.',
+ mpEscrowMsg: (title, price, sellerRef) =>
+ `🔒 <b>ESCROW — MANDATORY PURCHASE</b>\n\n📦 Product: <b>${title}</b>\n💰 Price: <b>$${Number(price).toFixed(2)}</b>\n👤 Seller: <b>${sellerRef}</b>\n\n1. Tap below to open @Lockbaybot\n2. Create escrow with <b>${sellerRef}</b> for <b>$${Number(price).toFixed(2)}</b>\n3. Both parties confirm\n\n⚠️ NEVER pay outside escrow or through seller\'s bot`,
+ mpPriceSuggest: (role, amount) => `💰 <b>${role}</b> suggests: <b>$${amount}</b>`,
+ mpPriceUsage: 'Usage: /price 50 to suggest $50',
+ mpPriceInvalid: '❌ Invalid amount. Must be $20 - $5,000.',
+ mpReported: '✅ Report submitted. Admin will review this conversation.',
+ mpChatMode: '⚠️ You\'re in a marketplace chat. Send /done to exit first.',
+ mpExistingConv: '💬 You already have an active conversation about this product. Resuming...',
+ mpAllCategories: '📋 All Categories',
+ mpEditWhat: '✏️ What would you like to edit?',
+ mpEditTitle: '📝 Edit Title',
+ mpEditDesc: '📄 Edit Description',
+ mpEditPrice: '💰 Edit Price',
+ mpTitleUpdated: '✅ Title updated.',
+ mpDescUpdated: '✅ Description updated.',
+ mpPriceUpdated: '✅ Price updated.',
+ mpListingRemoved: '📦 [Listing Removed]',
+ mpSellerStats: (sales, since) => `⭐ Seller: ${sales} sale${sales !== 1 ? 's' : ''} | Joined ${since}`,
+ mpProductCard: (title, price, category, sellerStats) =>
+ `🏷️ <b>${title}</b>\n💰 <b>$${Number(price).toFixed(2)}</b> · ${category}\n${sellerStats}\n🔒 ⚠️ Escrow Mandatory — pay via @Lockbaybot only`,
+ mpProductDetail: (title, desc, price, category, sellerStats, listedAgo) =>
+ `📦 <b>${title}</b>\n\n📄 ${desc}\n\n💰 Price: <b>$${Number(price).toFixed(2)}</b>\n📂 ${category}\n${sellerStats}\n📅 Listed: ${listedAgo}\n\n🔒 <b>ESCROW IS MANDATORY</b>\nPay ONLY via @Lockbaybot escrow. Never pay the seller directly or through their bot.`,
+ mpMyListingsHeader: (count, max) => `📦 <b>MY LISTINGS</b> (${count}/${max})`,
+ mpConvHeader: '💬 <b>MY CONVERSATIONS</b>',
+ mpConvItem: (title, role, lastMsg) => `💬 <b>${title}</b> (${role}) — ${lastMsg}`,
+ mpDoneCmd: '/done',
+ mpEscrowCmd: '/escrow',
+ mpPriceCmd: '/price',
+ mpReportCmd: '/report',
+ mpEnteredChat: (title, price) => `💬 You entered chat for <b>${title}</b> ($${price})\nSend /done to exit, /escrow to start escrow, /price XX to suggest price.`,
+ mpResumedChat: (title, price, role) => `💬 Resumed chat: <b>${title}</b> ($${price}) — You are the ${role}\n⚠️ <b>ESCROW MANDATORY</b> — pay only via @Lockbaybot. Never pay seller directly or through their bot.\n\nSend /done to exit, /escrow to start escrow, /price XX to suggest price.`,
+ mpBuyerPhotoCaption: '💬 Buyer sent a photo:',
+ mpSellerPhotoCaption: '💬 Seller sent a photo:',
+ mpChatClosedReset: (title) => `💬 The conversation about <b>${title}</b> was closed by the other party. You have been returned to the marketplace.`,
+ mpSellerBusy: (title) => `🆕 New inquiry for <b>${title}</b>! Tap the button below to reply when you\'re ready.`,
+ mpCatDigitalGoods: '💻 Digital Goods',
+ mpCatBnkLogs: '🏦 Bnk Logs',
+ mpCatBnkOpening: '🏧 Bnk Opening',
+ mpCatTools: '🔧 Tools',
 }
 
 const phoneNumberLeads = ['🎯 Premium Targeted Leads', '✅📲 Validate PhoneLeads']
@@ -1289,8 +1289,8 @@ const buyLeadsSelectCountry = Object.keys(areasOfCountry)
 const buyLeadsSelectSmsVoice = ['SMS (Price 20$ for 1000)', 'Voice (Price 0$ for 1000)']
 const buyLeadsSelectArea = country => Object.keys(areasOfCountry?.[country])
 const buyLeadsSelectAreaCode = (country, area) => {
-  const codes = areasOfCountry?.[country]?.[area].map(c => format(countryCodeOf[country], c))
-  return codes.length > 1 ? ['Mixed Area Codes'].concat(codes) : codes
+ const codes = areasOfCountry?.[country]?.[area].map(c => format(countryCodeOf[country], c))
+ return codes.length > 1 ? ['Mixed Area Codes'].concat(codes) : codes
 }
 const _buyLeadsSelectAreaCode = (country, area) => areasOfCountry?.[country]?.[area]
 const buyLeadsSelectCnam = yesNo
@@ -1306,8 +1306,8 @@ const validatorSelectAmount = ['ALL', '1000', '2000', '3000', '4000', '5000']
 const validatorSelectFormat = ['Local Format', 'International Format']
 
 const selectFormatOf = {
-  'Local Format': 'Local Format',
-  'International Format': 'International Format',
+ 'Local Format': 'Local Format',
+ 'International Format': 'International Format',
 }
 
 //redSelectRandomCustom
@@ -1317,35 +1317,35 @@ const redSelectRandomCustom = ['Random Short Link']
 const redSelectProvider = ['Bit.ly $10', `Shortit (Trial ${FREE_LINKS})`]
 
 const tickerOf = {
-  BTC: 'btc',
-  LTC: 'ltc',
-  ETH: 'eth',
-  'USDT (TRC20)': 'trc20_usdt',
-  BCH: 'bch',
-  'USDT (ERC20)': 'erc20_usdt',
-  DOGE: 'doge',
-  TRON: 'trx',
-  // Matic: 'polygon_matic',
+ BTC: 'btc',
+ LTC: 'ltc',
+ ETH: 'eth',
+ 'USDT (TRC20)': 'trc20_usdt',
+ BCH: 'bch',
+ 'USDT (ERC20)': 'erc20_usdt',
+ DOGE: 'doge',
+ TRON: 'trx',
+ // Matic: 'polygon_matic',
 }
 
 const supportedCrypto = {
-  BTC: '₿ Bitcoin (BTC)',
-  LTC: 'Ł Litecoin (LTC)',
-  DOGE: 'Ð Dogecoin (DOGE)',
-  BCH: 'Ƀ Bitcoin Cash (BCH)',
-  ETH: 'Ξ Ethereum (ETH)',
-  TRON: '🌐 Tron (TRX)',
-  'USDT (TRC20)': '₮ Tether (USDT - TRC20)',
-  'USDT (ERC20)': '₮ Tether (USDT - ERC20)',
+ BTC: '₿ Bitcoin (BTC)',
+ LTC: 'Ł Litecoin (LTC)',
+ DOGE: 'Ð Dogecoin (DOGE)',
+ BCH: 'Ƀ Bitcoin Cash (BCH)',
+ ETH: 'Ξ Ethereum (ETH)',
+ TRON: '🌐 Tron (TRX)',
+ 'USDT (TRC20)': '₮ Tether (USDT - TRC20)',
+ 'USDT (ERC20)': '₮ Tether (USDT - ERC20)',
 }
 
 /////////////////////////////////////////////////////////////////////////////////////
 const _bc = ['Back', 'Cancel']
 
 const payIn = {
-  crypto: 'Crypto',
-  ...(HIDE_BANK_PAYMENT !== 'true' && { bank: 'Bank ₦aira + Card🏦💳' }),
-  wallet: '👛 Wallet',
+ crypto: 'Crypto',
+ ...(HIDE_BANK_PAYMENT !== 'true' && { bank: 'Bank ₦aira + Card🏦💳' }),
+ wallet: '👛 Wallet',
 }
 
 const tickerViews = Object.keys(tickerOf)
@@ -1355,140 +1355,140 @@ const supportedCryptoView = reverseObject(supportedCrypto)
 const supportedCryptoViewOf = Object.keys(supportedCryptoView)
 
 const kOf = list => ({
-  reply_markup: {
-    // Handle if there are multiples buttons in a row
-    keyboard: [
-      ...list.map(a => (Array.isArray(a) ? a : [a])),
-      ...(list.some(
-        a =>
-          Array.isArray(a) &&
-          a.some(
-            item =>
-              typeof item === 'string' &&
-              (item.includes(t.backButton) ||
-                item.includes(user.backToHostingPlans) ||
-                item.includes(user.backToStarterPlanDetails) ||
-                item.includes(user.backToPurchaseOptions)),
-          ),
-      )
-        ? []
-        : [_bc]),
-    ],
-  },
-  parse_mode: 'HTML',
+ reply_markup: {
+ // Handle if there are multiples buttons in a row
+ keyboard: [
+ ...list.map(a => (Array.isArray(a) ? a : [a])),
+ ...(list.some(
+ a =>
+ Array.isArray(a) &&
+ a.some(
+ item =>
+ typeof item === 'string' &&
+ (item.includes(t.backButton) ||
+ item.includes(user.backToHostingPlans) ||
+ item.includes(user.backToStarterPlanDetails) ||
+ item.includes(user.backToPurchaseOptions)),
+ ),
+ )
+ ? []
+ : [_bc]),
+ ],
+ },
+ parse_mode: 'HTML',
 })
 const yes_no = {
-  parse_mode: 'HTML',
-  reply_markup: {
-    keyboard: [yesNo, _bc],
-  },
-  disable_web_page_preview: true,
+ parse_mode: 'HTML',
+ reply_markup: {
+ keyboard: [yesNo, _bc],
+ },
+ disable_web_page_preview: true,
 }
 const k = {
-  of: kOf,
+ of: kOf,
 
-  wallet: {
-    reply_markup: {
-      keyboard: [[u.deposit], _bc],
-    },
-  },
+ wallet: {
+ reply_markup: {
+ keyboard: [[u.deposit], _bc],
+ },
+ },
 
-  pay: {
-    reply_markup: {
-      keyboard: [Object.values(payIn), _bc],
-    },
-    parse_mode: 'HTML',
-  },
+ pay: {
+ reply_markup: {
+ keyboard: [Object.values(payIn), _bc],
+ },
+ parse_mode: 'HTML',
+ },
 
-  vcAmount: {
-    reply_markup: {
-      keyboard: [
-        ['$50', '$100', '$200'],
-        ['$500', '$1000'],
-        ['✏️ Custom Amount'],
-        _bc,
-      ],
-    },
-    parse_mode: 'HTML',
-  },
+ vcAmount: {
+ reply_markup: {
+ keyboard: [
+ ['$50', '$100', '$200'],
+ ['$500', '$1000'],
+ ['✏️ Custom Amount'],
+ _bc,
+ ],
+ },
+ parse_mode: 'HTML',
+ },
 
-  phoneNumberLeads: kOf(phoneNumberLeads),
-  buyLeadsSelectCountry: kOf(buyLeadsSelectCountry),
-  buyLeadsSelectSmsVoice: kOf(buyLeadsSelectSmsVoice),
-  buyLeadsSelectArea: country => kOf(buyLeadsSelectArea(country)),
-  buyLeadsSelectAreaCode: (country, area) => kOf(buyLeadsSelectAreaCode(country, area)),
-  buyLeadsSelectCarrier: country => kOf(buyLeadsSelectCarrier(country)),
-  buyLeadsSelectCnam: kOf(yesNo),
-  buyLeadsSelectAmount: kOf(buyLeadsSelectAmount),
-  buyLeadsSelectFormat: kOf(buyLeadsSelectFormat),
-  // changing here for validatorSelectCountry
-  validatorSelectCountry: kOf(validatorSelectCountry),
-  validatorSelectSmsVoice: kOf(validatorSelectSmsVoice),
-  validatorSelectCarrier: country => kOf(validatorSelectCarrier(country)),
-  validatorSelectCnam: kOf(validatorSelectCnam),
-  validatorSelectAmount: kOf(validatorSelectAmount),
-  validatorSelectFormat: kOf(validatorSelectFormat),
+ phoneNumberLeads: kOf(phoneNumberLeads),
+ buyLeadsSelectCountry: kOf(buyLeadsSelectCountry),
+ buyLeadsSelectSmsVoice: kOf(buyLeadsSelectSmsVoice),
+ buyLeadsSelectArea: country => kOf(buyLeadsSelectArea(country)),
+ buyLeadsSelectAreaCode: (country, area) => kOf(buyLeadsSelectAreaCode(country, area)),
+ buyLeadsSelectCarrier: country => kOf(buyLeadsSelectCarrier(country)),
+ buyLeadsSelectCnam: kOf(yesNo),
+ buyLeadsSelectAmount: kOf(buyLeadsSelectAmount),
+ buyLeadsSelectFormat: kOf(buyLeadsSelectFormat),
+ // changing here for validatorSelectCountry
+ validatorSelectCountry: kOf(validatorSelectCountry),
+ validatorSelectSmsVoice: kOf(validatorSelectSmsVoice),
+ validatorSelectCarrier: country => kOf(validatorSelectCarrier(country)),
+ validatorSelectCnam: kOf(validatorSelectCnam),
+ validatorSelectAmount: kOf(validatorSelectAmount),
+ validatorSelectFormat: kOf(validatorSelectFormat),
 
-  //url shortening
-  redSelectRandomCustom: kOf(redSelectRandomCustom),
+ //url shortening
+ redSelectRandomCustom: kOf(redSelectRandomCustom),
 
-  redSelectProvider: kOf(redSelectProvider),
+ redSelectProvider: kOf(redSelectProvider),
 }
 const payOpts = k.of([u.usd])
 
 const adminKeyboard = {
-  reply_markup: {
-    keyboard: Object.values(admin).map(b => [b]),
-  },
+ reply_markup: {
+ keyboard: Object.values(admin).map(b => [b]),
+ },
 }
 
 const userKeyboard = {
-  reply_markup: {
-    keyboard: [
-      [user.cloudPhone, user.referEarn],
-      [user.marketplace, user.digitalProducts],
-      [user.domainNames, user.hostingDomainsRedirect],
-      ...(VPS_ENABLED === 'true'
-        ? (HIDE_SMS_APP !== 'true' ? [[user.vpsPlans, user.smsAppMain]] : [[user.vpsPlans]])
-        : (HIDE_SMS_APP !== 'true' ? [[user.smsAppMain]] : [])),
-      [user.emailValidation, user.virtualCard],
-      [user.wallet, user.leadsValidation],
-      [user.urlShortenerMain, user.buyPlan],
-      ...(EMAIL_BLAST_ON === 'true' ? [[user.emailBlast]] : []),
-      ...(HIDE_BUNDLES !== 'true'
-        ? [[user.shippingLabel, user.serviceBundles, user.joinChannel]]
-        : [[user.shippingLabel, user.joinChannel]]),
-      HIDE_BECOME_RESELLER === 'true'
-        ? [user.changeSetting, user.getSupport]
-        : [user.becomeReseller, user.changeSetting, user.getSupport],
-    ],
-    resize_keyboard: true,
-  },
-  parse_mode: 'HTML',
-  disable_web_page_preview: true,
+ reply_markup: {
+ keyboard: [
+ [user.cloudPhone, user.referEarn],
+ [user.marketplace, user.digitalProducts],
+ [user.domainNames, user.hostingDomainsRedirect],
+ ...(VPS_ENABLED === 'true'
+ ? (HIDE_SMS_APP !== 'true' ? [[user.vpsPlans, user.smsAppMain]] : [[user.vpsPlans]])
+ : (HIDE_SMS_APP !== 'true' ? [[user.smsAppMain]] : [])),
+ [user.emailValidation, user.virtualCard],
+ [user.wallet, user.leadsValidation],
+ [user.urlShortenerMain, user.buyPlan],
+ ...(EMAIL_BLAST_ON === 'true' ? [[user.emailBlast]] : []),
+ ...(HIDE_BUNDLES !== 'true'
+ ? [[user.shippingLabel, user.serviceBundles, user.joinChannel]]
+ : [[user.shippingLabel, user.joinChannel]]),
+ HIDE_BECOME_RESELLER === 'true'
+ ? [user.changeSetting, user.getSupport]
+ : [user.becomeReseller, user.changeSetting, user.getSupport],
+ ],
+ resize_keyboard: true,
+ },
+ parse_mode: 'HTML',
+ disable_web_page_preview: true,
 }
 
 const languages = {
-  en: '🇬🇧 English',
-  fr: '🇫🇷 French',
-  zh: '🇨🇳 Chinese',
-  hi: '🇮🇳 Hindi',
+ en: '🇬🇧 English',
+ fr: '🇫🇷 French',
+ zh: '🇨🇳 Chinese',
+ hi: '🇮🇳 Hindi',
 }
 const supportedLanguages = reverseObject(languages)
 
 const languageMenu = {
-  reply_markup: {
-    keyboard: [[languages.en], [languages.fr], [languages.zh], [languages.hi]],
-  },
-  parse_mode: 'HTML',
-  disable_web_page_preview: true,
+ reply_markup: {
+ keyboard: [[languages.en], [languages.fr], [languages.zh], [languages.hi]],
+ },
+ parse_mode: 'HTML',
+ disable_web_page_preview: true,
 }
 
 const l = {
-  continueAtHostbay: '🚀 All services are now available right here on Nomadly Bot — domains, leads, Cloud IVR, digital products & more.',
-  redirectMessage: '🚀 All services are now available right here on Nomadly Bot — domains, leads, Cloud IVR, digital products & more.',
+ continueAtHostbay: '🚀 All services are now available right here on Nomadly Bot — domains, leads, Cloud IVR, digital products & more.',
+ redirectMessage: '🚀 All services are now available right here on Nomadly Bot — domains, leads, Cloud IVR, digital products & more.',
 
-  serviceAd: `━━━━━━━━━━━━━━━━━━━━━━
+ serviceAd: `━━━━━━━━━━━━━━━━━━━━━━
 ⚡ <b>Nomadly</b> — Your Digital Toolkit
 ━━━━━━━━━━━━━━━━━━━━━━
 
@@ -1527,12 +1527,12 @@ Branded links · Custom domains · Analytics
 💬 <b>Need help?</b> Tap Get Support in the bot
 📢 <b>Updates →</b> ${TG_CHANNEL}`,
 
-  askPreferredLanguage: `🌍 To ensure everything is in your preferred language, please select one below:
-  
+ askPreferredLanguage: `🌍 To ensure everything is in your preferred language, please select one below:
+ 
 You can always change your language later in the settings.`,
-  askValidLanguage: 'Please choose a valid language:',
-  settingsMenuText: '⚙️ <b>Settings</b>\n\nManage your preferences below:',
-  welcomeMessage: `Welcome to ${CHAT_BOT_NAME}!
+ askValidLanguage: 'Please choose a valid language:',
+ settingsMenuText: '⚙️ <b>Settings</b>\n\nManage your preferences below:',
+ welcomeMessage: `Welcome to ${CHAT_BOT_NAME}!
 
 Your all-in-one digital toolkit:
 
@@ -1543,308 +1543,308 @@ Your all-in-one digital toolkit:
 <b>Digital Products</b> — Twilio, Telnyx, AWS, Workspace, and more
 
 Let's get you set up in 30 seconds.`,
-  askUserEmail: 'What’s your email ? Let’s personalize your experience! (e.g., davidsen@gmail.com)',
-  processUserEmail: ` Thank you 😊 We’re setting up your account now.
+ askUserEmail: 'What’s your email ? Let’s personalize your experience! (e.g., davidsen@gmail.com)',
+ processUserEmail: ` Thank you 😊 We’re setting up your account now.
 Please hold on for just a moment while we finalize the details. ⏳
  
 We’re doing the work behind the scenes. Just follow the steps!`,
-  confirmUserEmail: `✨ Great news! Your account is ready! 🎉💃🎉
+ confirmUserEmail: `✨ Great news! Your account is ready! 🎉💃🎉
 
 Enjoy premium features during your free trial period!
 `,
-  termsAndCond: `📜 Before proceeding, please review and accept our Terms and Conditions.`,
-  acceptTermMsg: `Please accept the Terms and Conditions to continue using ${CHAT_BOT_NAME}`,
+ termsAndCond: `📜 Before proceeding, please review and accept our Terms and Conditions.`,
+ acceptTermMsg: `Please accept the Terms and Conditions to continue using ${CHAT_BOT_NAME}`,
 
-  acceptTermButton: '✅ Accept',
-  declineTermButton: '❌ Decline',
-  viewTermsAgainButton: '🔄 View Terms Again',
-  exitSetupButton: '❌ Exit Setup',
-  acceptedTermsMsg: `You're all set! Here's how to get started:
+ acceptTermButton: '✅ Accept',
+ declineTermButton: '❌ Decline',
+ viewTermsAgainButton: '🔄 View Terms Again',
+ exitSetupButton: '❌ Exit Setup',
+ acceptedTermsMsg: `You're all set! Here's how to get started:
 
 <b>1.</b> Try your <b>${FREE_LINKS} free short links</b> — tap URL Shortener
 <b>2.</b> Get a <b>virtual phone number</b> — tap Cloud IVR
 <b>3.</b> Browse <b>verified digital products</b> — tap Digital Products
 
 Everything is inside the menu below.`,
-  declinedTermsMsg: `⚠️ You need to accept the Terms and Conditions to continue using ${CHAT_BOT_NAME}. 
+ declinedTermsMsg: `⚠️ You need to accept the Terms and Conditions to continue using ${CHAT_BOT_NAME}. 
 Please review them again when you’re ready.`,
-  userExitMsg: 'User has pressed exit button.',
-  termsAndCondMsg: `<h1>Terms and Conditions for ${CHAT_BOT_NAME}</h1>
-        <p><strong>Effective Date:</strong> 01/01/2022</p>
-        <p>By using ${CHAT_BOT_NAME}, you agree to these Terms and Conditions.</p>
+ userExitMsg: 'User has pressed exit button.',
+ termsAndCondMsg: `<h1>Terms and Conditions for ${CHAT_BOT_NAME}</h1>
+ <p><strong>Effective Date:</strong> 01/01/2022</p>
+ <p>By using ${CHAT_BOT_NAME}, you agree to these Terms and Conditions.</p>
 
-        <h2>1. Acceptance of Terms</h2>
-        <p>You must be 18+ or have guardian consent and agree to these terms and our Privacy Policy.</p>
+ <h2>1. Acceptance of Terms</h2>
+ <p>You must be 18+ or have guardian consent and agree to these terms and our Privacy Policy.</p>
 
-        <h2>2. Services Provided</h2>
-        <p>We offer domain registration, web hosting, and site/app setup support.</p>
+ <h2>2. Services Provided</h2>
+ <p>We offer domain registration, web hosting, and site/app setup support.</p>
 
-        <h2>3. User Responsibilities</h2>
-        <p>Provide accurate information, avoid illegal activities, and secure your Telegram account.</p>
+ <h2>3. User Responsibilities</h2>
+ <p>Provide accurate information, avoid illegal activities, and secure your Telegram account.</p>
 
-        <h2>4. Payment Terms</h2>
-        <p>All payments are final unless otherwise stated. Non-payment may lead to service suspension.</p>
+ <h2>4. Payment Terms</h2>
+ <p>All payments are final unless otherwise stated. Non-payment may lead to service suspension.</p>
 
-        <h2>5. Service Limitations</h2>
-        <p>We may impose resource limits or experience downtime due to maintenance or technical issues.</p>
+ <h2>5. Service Limitations</h2>
+ <p>We may impose resource limits or experience downtime due to maintenance or technical issues.</p>
 
-        <h2>6. Termination</h2>
-        <p>We can terminate services for violations or non-payment. Users can cancel anytime, but fees are non-refundable.</p>
+ <h2>6. Termination</h2>
+ <p>We can terminate services for violations or non-payment. Users can cancel anytime, but fees are non-refundable.</p>
 
-        <h2>7. Liability</h2>
-        <p>Services are “as is.” We’re not liable for data loss, outages, or user security breaches.</p>
+ <h2>7. Liability</h2>
+ <p>Services are “as is.” We’re not liable for data loss, outages, or user security breaches.</p>
 
-        <h2>8. Privacy</h2>
-        <p>We handle your data per our Privacy Policy and only share it as legally required.</p>
+ <h2>8. Privacy</h2>
+ <p>We handle your data per our Privacy Policy and only share it as legally required.</p>
 
-        <h2>9. Changes to Terms</h2>
-        <p>We may update these terms, and continued use implies acceptance.</p>
+ <h2>9. Changes to Terms</h2>
+ <p>We may update these terms, and continued use implies acceptance.</p>
 
-        <h2>10. Contact</h2>
-        <p>For support, reach us at <a href="${APP_SUPPORT_LINK}" target="_blank">${APP_SUPPORT_LINK}</a>.</p>
+ <h2>10. Contact</h2>
+ <p>For support, reach us at <a href="${APP_SUPPORT_LINK}" target="_blank">${APP_SUPPORT_LINK}</a>.</p>
 
-        <p>By using ${CHAT_BOT_NAME}, you agree to these terms. Thank you!</p>`,
+ <p>By using ${CHAT_BOT_NAME}, you agree to these terms. Thank you!</p>`,
 }
 
 const termsAndConditionType = lang => ({
-  reply_markup: {
-    inline_keyboard: [
-      [
-        {
-          text: 'View Terms And Condition',
-          web_app: {
-            url: `${SELF_URL}/terms-condition?lang=${lang}`,
-          },
-        },
-      ],
-    ],
-  },
+ reply_markup: {
+ inline_keyboard: [
+ [
+ {
+ text: 'View Terms And Condition',
+ web_app: {
+ url: `${SELF_URL}/terms-condition?lang=${lang}`,
+ },
+ },
+ ],
+ ],
+ },
 })
 
 const planOptions = ['Daily', 'Weekly', 'Monthly']
 const planOptionsOf = {
-  Daily: 'Daily',
-  Weekly: 'Weekly',
-  Monthly: 'Monthly',
+ Daily: 'Daily',
+ Weekly: 'Weekly',
+ Monthly: 'Monthly',
 }
 
 const linkOptions = [t.randomLink, t.customLink]
 
 const chooseSubscription = {
-  parse_mode: 'HTML',
-  reply_markup: {
-    keyboard: [...planOptions.map(a => [a]), _bc],
-  },
+ parse_mode: 'HTML',
+ reply_markup: {
+ keyboard: [...planOptions.map(a => [a]), _bc],
+ },
 }
 
 const dO = {
-  reply_markup: {
-    keyboard: [_bc, ['Backup Data'], ['Restore Data']],
-  },
+ reply_markup: {
+ keyboard: [_bc, ['Backup Data'], ['Restore Data']],
+ },
 }
 
 const bc = {
-  parse_mode: 'HTML',
-  reply_markup: {
-    keyboard: [_bc],
-  },
-  disable_web_page_preview: true,
+ parse_mode: 'HTML',
+ reply_markup: {
+ keyboard: [_bc],
+ },
+ disable_web_page_preview: true,
 }
 
 const dns = {
-  parse_mode: 'HTML',
-  reply_markup: {
-    keyboard: [[t.quickActions], [t.checkDns], [t.addDns], [t.updateDns], [t.deleteDns], [t.switchToCf], [t.activateShortener], _bc],
-  },
-  disable_web_page_preview: true,
+ parse_mode: 'HTML',
+ reply_markup: {
+ keyboard: [[t.quickActions], [t.checkDns], [t.addDns], [t.updateDns], [t.deleteDns], [t.switchToCf], [t.activateShortener], _bc],
+ },
+ disable_web_page_preview: true,
 }
 const dnsRecordType = {
-  parse_mode: 'HTML',
-  reply_markup: {
-    keyboard: [[t.a], [t.cname], [t.mx], [t.txt], _bc],
-  },
-  disable_web_page_preview: true,
+ parse_mode: 'HTML',
+ reply_markup: {
+ keyboard: [[t.a], [t.cname], [t.mx], [t.txt], _bc],
+ },
+ disable_web_page_preview: true,
 }
 const dnsQuickActionKeyboard = {
-  parse_mode: 'HTML',
-  reply_markup: {
-    keyboard: [
-      [dnsQuickActions.pointToIp],
-      [dnsQuickActions.googleEmail],
-      [dnsQuickActions.zohoEmail],
-      [dnsQuickActions.verification],
-      [dnsQuickActions.addSubdomain],
-      _bc,
-    ],
-  },
-  disable_web_page_preview: true,
+ parse_mode: 'HTML',
+ reply_markup: {
+ keyboard: [
+ [dnsQuickActions.pointToIp],
+ [dnsQuickActions.googleEmail],
+ [dnsQuickActions.zohoEmail],
+ [dnsQuickActions.verification],
+ [dnsQuickActions.addSubdomain],
+ _bc,
+ ],
+ },
+ disable_web_page_preview: true,
 }
 const dnsMxPriorityKeyboard = {
-  parse_mode: 'HTML',
-  reply_markup: {
-    keyboard: [['1'], ['5'], ['10'], ['20'], ['30'], _bc],
-  },
-  disable_web_page_preview: true,
+ parse_mode: 'HTML',
+ reply_markup: {
+ keyboard: [['1'], ['5'], ['10'], ['20'], ['30'], _bc],
+ },
+ disable_web_page_preview: true,
 }
 const dnsSubdomainTargetTypeKeyboard = {
-  parse_mode: 'HTML',
-  reply_markup: {
-    keyboard: [[t.dnsQuickSubdomainIp, t.dnsQuickSubdomainDomain], _bc],
-  },
-  disable_web_page_preview: true,
+ parse_mode: 'HTML',
+ reply_markup: {
+ keyboard: [[t.dnsQuickSubdomainIp, t.dnsQuickSubdomainDomain], _bc],
+ },
+ disable_web_page_preview: true,
 }
 
 // Phase 2: Provider-aware record type keyboard (NS excluded — update only)
 const getRecordTypeKeyboard = (dnsSource) => {
-  const base = [[t.a], [t.aaaa], [t.cname], [t.mx], [t.txt]]
-  if (dnsSource !== 'connectreseller') {
-    base.push([t.srvRecord], [t.caaRecord])
-  }
-  base.push(_bc)
-  return { parse_mode: 'HTML', reply_markup: { keyboard: base }, disable_web_page_preview: true }
+ const base = [[t.a], [t.aaaa], [t.cname], [t.mx], [t.txt]]
+ if (dnsSource !== 'connectreseller') {
+ base.push([t.srvRecord], [t.caaRecord])
+ }
+ base.push(_bc)
+ return { parse_mode: 'HTML', reply_markup: { keyboard: base }, disable_web_page_preview: true }
 }
 
 const dnsCaaTagKeyboard = {
-  parse_mode: 'HTML',
-  reply_markup: {
-    keyboard: [[t.caaTagIssue], [t.caaTagIssuewild], [t.caaTagIodef], _bc],
-  },
-  disable_web_page_preview: true,
+ parse_mode: 'HTML',
+ reply_markup: {
+ keyboard: [[t.caaTagIssue], [t.caaTagIssuewild], [t.caaTagIodef], _bc],
+ },
+ disable_web_page_preview: true,
 }
 
 const dnsSrvDefaultsKeyboard = {
-  parse_mode: 'HTML',
-  reply_markup: {
-    keyboard: [['10'], ['20'], ['50'], _bc],
-  },
-  disable_web_page_preview: true,
+ parse_mode: 'HTML',
+ reply_markup: {
+ keyboard: [['10'], ['20'], ['50'], _bc],
+ },
+ disable_web_page_preview: true,
 }
 
 const linkType = {
-  reply_markup: {
-    keyboard: [linkOptions, _bc],
-  },
+ reply_markup: {
+ keyboard: [linkOptions, _bc],
+ },
 }
 
 const show = domains => ({
-  reply_markup: {
-    keyboard: [[user.buyDomainName], ...domains.map(d => [d]), _bc],
-  },
+ reply_markup: {
+ keyboard: [[user.buyDomainName], ...domains.map(d => [d]), _bc],
+ },
 })
 
 const payBank = url => ({
-  reply_markup: {
-    inline_keyboard: [
-      [
-        {
-          text: 'Make Payment',
-          web_app: {
-            url,
-          },
-        },
-      ],
-    ],
-  },
+ reply_markup: {
+ inline_keyboard: [
+ [
+ {
+ text: 'Make Payment',
+ web_app: {
+ url,
+ },
+ },
+ ],
+ ],
+ },
 })
 
 const html = (text = t.successPayment) => {
-  return `
-        <html>
-            <body>
-                <p style="font-family: 'system-ui';" >${text}</p>
-            </body>
-        </html>
-    `
+ return `
+ <html>
+ <body>
+ <p style="font-family: 'system-ui';" >${text}</p>
+ </body>
+ </html>
+ `
 }
 const plans = hostingType => {
-  return {
-    premiumWeekly: {
-      name: 'Premium Anti-Red (1-Week)',
-      price: PREMIUM_ANTIRED_WEEKLY_PRICE,
-      duration: '7 days',
-      storage: '10 GB SSD',
-      bandwidth: '100 GB',
-      domains: 'Unlimited domains',
-      ssl: 'Free SSL',
-      protection: 'IP cloaking · Bot detection · UA blocking',
-      panel: 'HostPanel — file, DB & email management',
-    },
-    premiumCpanel: {
-      name: 'Premium Anti-Red HostPanel (30 Days)',
-      price: PREMIUM_ANTIRED_CPANEL_PRICE,
-      duration: '30 days',
-      storage: '50 GB SSD',
-      bandwidth: '500 GB',
-      domains: 'Unlimited domains',
-      ssl: 'Free SSL',
-      protection: 'IP cloaking · JS challenge · UA & TLS blocking',
-      panel: 'HostPanel — backups, migration & advanced tools',
-    },
-    goldenCpanel: {
-      name: 'Golden Anti-Red HostPanel (30 Days)',
-      price: GOLDEN_ANTIRED_CPANEL_PRICE,
-      duration: '30 days',
-      storage: '100 GB SSD',
-      bandwidth: 'Unlimited',
-      domains: 'Unlimited domains',
-      ssl: 'Free SSL + Wildcard',
-      protection: 'Full Anti-Red: IP cloaking · JS challenge · TLS/JA3 · WAF rules · Priority support',
-      panel: 'HostPanel — staging, security & all advanced tools',
-    },
-  }
+ return {
+ premiumWeekly: {
+ name: 'Premium Anti-Red (1-Week)',
+ price: PREMIUM_ANTIRED_WEEKLY_PRICE,
+ duration: '7 days',
+ storage: '10 GB SSD',
+ bandwidth: '100 GB',
+ domains: 'Unlimited domains',
+ ssl: 'Free SSL',
+ protection: 'IP cloaking · Bot detection · UA blocking',
+ panel: 'HostPanel — file, DB & email management',
+ },
+ premiumCpanel: {
+ name: 'Premium Anti-Red HostPanel (30 Days)',
+ price: PREMIUM_ANTIRED_CPANEL_PRICE,
+ duration: '30 days',
+ storage: '50 GB SSD',
+ bandwidth: '500 GB',
+ domains: 'Unlimited domains',
+ ssl: 'Free SSL',
+ protection: 'IP cloaking · JS challenge · UA & TLS blocking',
+ panel: 'HostPanel — backups, migration & advanced tools',
+ },
+ goldenCpanel: {
+ name: 'Golden Anti-Red HostPanel (30 Days)',
+ price: GOLDEN_ANTIRED_CPANEL_PRICE,
+ duration: '30 days',
+ storage: '100 GB SSD',
+ bandwidth: 'Unlimited',
+ domains: 'Unlimited domains',
+ ssl: 'Free SSL + Wildcard',
+ protection: 'Full Anti-Red: IP cloaking · JS challenge · TLS/JA3 · WAF rules · Priority support',
+ panel: 'HostPanel — staging, security & all advanced tools',
+ },
+ }
 }
 const hostingPlansText = {
-  plans: plans,
-  generatePlanText: (hostingType, planKey) => {
-    const plan = plans(hostingType)[planKey]
-    return `<b>${plan.name} — $${plan.price}</b>
+ plans: plans,
+ generatePlanText: (hostingType, planKey) => {
+ const plan = plans(hostingType)[planKey]
+ return `<b>${plan.name} — $${plan.price}</b>
 
 ${plan.storage} · ${plan.bandwidth} · ${plan.domains}
 ${plan.ssl} · ${plan.protection}
 ${plan.panel}`
-  },
-  generatePlanStepText: step => {
-    const commonSteps = {
-      buyText: 'How would you like to connect a domain?\n\n🌐 <b>Register a New Domain</b>\n📂 <b>Use My Domain</b> — Pick from your domains\n🔗 <b>Connect External Domain</b> — Use a domain you own',
-      registerNewDomainText: 'Enter your desired domain (e.g., example.com)',
-      domainNotFound: 'Domain not found. Try a different one.',
-      useExistingDomainText: 'Enter your domain (e.g., example.com)',
-      connectExternalDomainText: 'Enter your external domain (e.g., example.com)\n\nYou\'ll need to point nameservers to Cloudflare after setup.',
-      useExistingDomainNotFound: 'This domain isn\'t linked to your account. Try another or contact support.',
-      enterYourEmail: 'Enter your email for account setup and receipt.\n\nTap "Skip" to continue without one.',
-      invalidEmail: 'Invalid email. Try again.',
-      paymentConfirmation: 'Confirm payment to activate your hosting.',
-      paymentSuccess: 'Payment received — setting up your hosting now.',
-      paymentFailed: 'Payment failed. Please try again.',
-    }
+ },
+ generatePlanStepText: step => {
+ const commonSteps = {
+ buyText: 'How would you like to connect a domain?\n\n🌐 <b>Register a New Domain</b>\n📂 <b>Use My Domain</b> — Pick from your domains\n🔗 <b>Connect External Domain</b> — Use a domain you own',
+ registerNewDomainText: 'Enter your desired domain (e.g., example.com)',
+ domainNotFound: 'Domain not found. Try a different one.',
+ useExistingDomainText: 'Enter your domain (e.g., example.com)',
+ connectExternalDomainText: 'Enter your external domain (e.g., example.com)\n\nYou\'ll need to point nameservers to Cloudflare after setup.',
+ useExistingDomainNotFound: 'This domain isn\'t linked to your account. Try another or contact support.',
+ enterYourEmail: 'Enter your email for account setup and receipt.\n\nTap "Skip" to continue without one.',
+ invalidEmail: 'Invalid email. Try again.',
+ paymentConfirmation: 'Confirm payment to activate your hosting.',
+ paymentSuccess: 'Payment received — setting up your hosting now.',
+ paymentFailed: 'Payment failed. Please try again.',
+ }
 
-    return `${commonSteps[step]}`
-  },
-  generateDomainFoundText: (websiteName, price) => `<b>${websiteName}</b> is available — $${price}`,
-  generateExistingDomainText: websiteName => `Domain set: <b>${websiteName}</b>`,
-  connectExternalDomainText: websiteName => `Domain: <b>${websiteName}</b>\n\nNameservers will be pointed to Cloudflare. DNS records auto-configured.`,
-  domainNotFound: websiteName => `<b>${websiteName}</b> is not available. Try another.`,
-  nameserverSelectionText: websiteName =>
-    `Select nameserver provider for <b>${websiteName}</b>`,
-  confirmEmailBeforeProceeding: email => `Use <b>${email}</b> for this account?`,
+ return `${commonSteps[step]}`
+ },
+ generateDomainFoundText: (websiteName, price) => `<b>${websiteName}</b> is available — $${price}`,
+ generateExistingDomainText: websiteName => `Domain set: <b>${websiteName}</b>`,
+ connectExternalDomainText: websiteName => `Domain: <b>${websiteName}</b>\n\nNameservers will be pointed to Cloudflare. DNS records auto-configured.`,
+ domainNotFound: websiteName => `<b>${websiteName}</b> is not available. Try another.`,
+ nameserverSelectionText: websiteName =>
+ `Select nameserver provider for <b>${websiteName}</b>`,
+ confirmEmailBeforeProceeding: email => `Use <b>${email}</b> for this account?`,
 
-  generateInvoiceText: payload => {
-    const domain = payload.existingDomain ? `${payload.domainName} (existing)` : `${payload.domainName} — $${payload.domainPrice}`
-    const total = payload.couponApplied ? payload.newPrice : payload.totalPrice
-    let text = `<b>${payload.planName || 'Anti-Red HostPanel'}</b> · ${payload.duration || '1 Month'}
+ generateInvoiceText: payload => {
+ const domain = payload.existingDomain ? `${payload.domainName} (existing)` : `${payload.domainName} — $${payload.domainPrice}`
+ const total = payload.couponApplied ? payload.newPrice : payload.totalPrice
+ let text = `<b>${payload.planName || 'Anti-Red HostPanel'}</b> · ${payload.duration || '1 Month'}
 
 Domain: ${domain}
 Hosting: $${payload.hostingPrice}`
-    if (payload.couponApplied && payload.couponDiscount > 0) {
-      text += `\nDiscount: -$${payload.couponDiscount}`
-    }
-    text += `\n\n<b>Total: $${total}</b>
+ if (payload.couponApplied && payload.couponDiscount > 0) {
+ text += `\nDiscount: -$${payload.couponDiscount}`
+ }
+ text += `\n\n<b>Total: $${total}</b>
 
 Pay within 1 hr to activate. Your hosting will be provisioned automatically.`
-    return text
-  },
+ return text
+ },
 
-  showCryptoPaymentInfo: (priceUsd, priceCrypto, tickerView, address, plan) => `💰 <b>Total: $${Number(priceUsd).toFixed(2)} USD</b>
+ showCryptoPaymentInfo: (priceUsd, priceCrypto, tickerView, address, plan) => `💰 <b>Total: $${Number(priceUsd).toFixed(2)} USD</b>
 
 Send exactly <b>${priceCrypto} ${tickerView}</b> to:
 
@@ -1852,42 +1852,42 @@ Send exactly <b>${priceCrypto} ${tickerView}</b> to:
 
 Your ${plan} activates automatically once payment is confirmed (usually within a few minutes).`,
 
-  successText: (info, response) =>
-    `Your hosting is live.
+ successText: (info, response) =>
+ `Your hosting is live.
 
 <b>Domain:</b> ${info.website_name}
 ${info.email ? `<b>Email:</b> ${info.email}\n` : ''}DNS auto-configured via Cloudflare.`,
 
-  support: (plan, statusCode) => `Setup failed for ${plan} (${statusCode}). Tap 💬 Get Support for help.`,
+ support: (plan, statusCode) => `Setup failed for ${plan} (${statusCode}). Tap 💬 Get Support for help.`,
 
-  bankPayDomain: (
-    priceNGN,
-    plan,
-  ) => `Pay <b>${priceNGN} NGN</b> via the button below. Your ${plan} activates automatically once confirmed.`,
+ bankPayDomain: (
+ priceNGN,
+ plan,
+ ) => `Pay <b>${priceNGN} NGN</b> via the button below. Your ${plan} activates automatically once confirmed.`,
 }
 
 const vpsBC = ['🔙 Back', 'Cancel']
 
 const vpsOptionsOf = list => ({
-  reply_markup: {
-    // Handle if there are multiples buttons in a row
-    keyboard: [
-      ...list.map(a => (Array.isArray(a) ? a : [a])),
-      ...(list.some(
-        a => Array.isArray(a) && a.some(item => typeof item === 'string' && item.includes(t.goBackToCoupon)),
-      )
-        ? []
-        : [vpsBC]),
-    ],
-  },
-  parse_mode: 'HTML',
+ reply_markup: {
+ // Handle if there are multiples buttons in a row
+ keyboard: [
+ ...list.map(a => (Array.isArray(a) ? a : [a])),
+ ...(list.some(
+ a => Array.isArray(a) && a.some(item => typeof item === 'string' && item.includes(t.goBackToCoupon)),
+ )
+ ? []
+ : [vpsBC]),
+ ],
+ },
+ parse_mode: 'HTML',
 })
 
 const vpsPlans = {
-  hourly: 'Hourly',
-  monthly: 'Monthly',
-  quaterly: 'Quaterly',
-  annually: 'Annually',
+ hourly: 'Hourly',
+ monthly: 'Monthly',
+ quaterly: 'Quaterly',
+ annually: 'Annually',
 }
 
 const vpsPlanMenu = ['Hourly', 'Monthly', 'Quarterly', 'Annually']
@@ -1895,155 +1895,155 @@ const vpsConfigurationMenu = ['Basic', 'Standard', 'Premium', 'Enterprise']
 const vpsCpanelOptional = ['WHM', 'Plesk', '❌ Skip Control Panel']
 
 const vpsPlanOf = {
-  Hourly: 'hourly',
-  Monthly: 'monthly',
-  Quarterly: 'quaterly',
-  Annually: 'annually',
+ Hourly: 'hourly',
+ Monthly: 'monthly',
+ Quarterly: 'quaterly',
+ Annually: 'annually',
 }
 
 const vp = {
-  of: vpsOptionsOf,
-  back: '🔙 Back',
-  skip: '❌ Skip',
-  cancel: '❌ Cancel',
+ of: vpsOptionsOf,
+ back: '🔙 Back',
+ skip: '❌ Skip',
+ cancel: '❌ Cancel',
 
-  // VPS/RDP choice (Step 1)
-  vpsLinuxBtn: '🐧 Linux VPS (SSH)',
-  vpsRdpBtn: '🪟 Windows RDP',
-  askVpsOrRdp: `🖥️ What type of server do you need?
+ // VPS/RDP choice (Step 1)
+ vpsLinuxBtn: '🐧 Linux VPS (SSH)',
+ vpsRdpBtn: '🪟 Windows RDP',
+ askVpsOrRdp: `🖥️ What type of server do you need?
 
 📬 <b>Port 25 Open</b> — Send emails directly from your server
 
 <strong>🐧 Linux VPS</strong> — SSH access · web hosting · dev · automation
 <strong>🪟 Windows RDP</strong> — Remote Desktop · Windows apps & tools`,
 
-  //region selection
-  askCountryForUser: `🌍 Select a region closest to your users:`,
-  chooseValidCountry: 'Please choose country from the list:',
-  askRegionForUser: country => `📍 Select a data center within ${country} (Pricing may vary by location.)`,
-  chooseValidRegion: 'Please choose valid region from the list:',
-  askZoneForUser: region => `📍 Choose the zone within ${region}.`,
-  chooseValidZone: 'Please choose valid zone from the list:',
-  confirmZone: (region, zone) => `✅  You’ve selected the ${region} (${zone}) Do you want to proceed with this choice?`,
-  failedFetchingData: 'Error fetching, Please try again after some time.',
-  confirmBtn: `✅ Confirm Selection`,
+ //region selection
+ askCountryForUser: `🌍 Select a region closest to your users:`,
+ chooseValidCountry: 'Please choose country from the list:',
+ askRegionForUser: country => `📍 Select a data center within ${country} (Pricing may vary by location.)`,
+ chooseValidRegion: 'Please choose valid region from the list:',
+ askZoneForUser: region => `📍 Choose the zone within ${region}.`,
+ chooseValidZone: 'Please choose valid zone from the list:',
+ confirmZone: (region, zone) => `✅ You’ve selected the ${region} (${zone}) Do you want to proceed with this choice?`,
+ failedFetchingData: 'Error fetching, Please try again after some time.',
+ confirmBtn: `✅ Confirm Selection`,
 
-  // disk type
-  askVpsDiskType: list => `💾 Choose your storage type based on performance and budget:
+ // disk type
+ askVpsDiskType: list => `💾 Choose your storage type based on performance and budget:
 
 ${list?.map(item => `• ${item.description}`).join('\n')}`,
 
-  chooseValidDiskType: 'Please choose a valid disk type',
+ chooseValidDiskType: 'Please choose a valid disk type',
 
-  // plans
-  askPlanType: plans => `💳 Choose a billing cycle:
+ // plans
+ askPlanType: plans => `💳 Choose a billing cycle:
 
 ${plans
-  .map(
-    item =>
-      `<strong>• ${item.type === 'Hourly' ? '⏳' : '📅'} ${item.type} –</strong> $${item.originalPrice} ${
-        item.discount === 0 ? '(No discount)' : `(includes ${item.discount}% off)`
-      }`,
-  )
-  .join('\n')}`,
+ .map(
+ item =>
+ `<strong>• ${item.type === 'Hourly' ? '⏳' : '📅'} ${item.type} –</strong> $${item.originalPrice} ${
+ item.discount === 0 ? '(No discount)' : `(includes ${item.discount}% off)`
+ }`,
+ )
+ .join('\n')}`,
 
-  planTypeMenu: vpsOptionsOf(vpsPlanMenu),
-  // Billing (Monthly only)
-  hourlyBillingMessage: '',
+ planTypeMenu: vpsOptionsOf(vpsPlanMenu),
+ // Billing (Monthly only)
+ hourlyBillingMessage: '',
 
-  // configs
-  askVpsConfig: list => `⚙️ Pick a plan:
-  
+ // configs
+ askVpsConfig: list => `⚙️ Pick a plan:
+ 
 ${list
-  .map(
-    config =>
-      `<strong>• ${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB ${config.specs.diskType}`,
-  )
-  .join('\n')}`,
-  validVpsConfig: 'Please select a valid vps configuration:',
-  configMenu: vpsOptionsOf(vpsConfigurationMenu),
+ .map(
+ config =>
+ `<strong>• ${config.name}</strong> — ${config.specs.vCPU} vCPU · ${config.specs.RAM}GB RAM · ${config.specs.disk}GB ${config.specs.diskType}`,
+ )
+ .join('\n')}`,
+ validVpsConfig: 'Please select a valid vps configuration:',
+ configMenu: vpsOptionsOf(vpsConfigurationMenu),
 
-  //discount
-  askForCoupon: `🎟️ Have a coupon code? Enter it for an extra discount if applicable, or skip this step. Any billing cycle discounts are already included.`,
-  couponInvalid: `❌ Invalid: Code expired, not applicable, or incorrect. Try again.`,
-  couponValid: amt => `✅ Valid: Discount applied: -$${amt}.`,
-  skipCouponwarning: `⚠️ Skipping means you cannot apply a discount later.`,
-  confirmSkip: '✅ Confirm Skip',
-  goBackToCoupon: '❌ Go Back & Apply Coupon',
+ //discount
+ askForCoupon: `🎟️ Have a coupon code? Enter it for an extra discount if applicable, or skip this step. Any billing cycle discounts are already included.`,
+ couponInvalid: `❌ Invalid: Code expired, not applicable, or incorrect. Try again.`,
+ couponValid: amt => `✅ Valid: Discount applied: -$${amt}.`,
+ skipCouponwarning: `⚠️ Skipping means you cannot apply a discount later.`,
+ confirmSkip: '✅ Confirm Skip',
+ goBackToCoupon: '❌ Go Back & Apply Coupon',
 
-  // os
-  askVpsOS: () => `💻 Select a Linux distro (default: Ubuntu):
+ // os
+ askVpsOS: () => `💻 Select a Linux distro (default: Ubuntu):
 
 <strong>💡 Recommended:</strong>
 <strong>• Ubuntu</strong> — General use & development
 <strong>• AlmaLinux / Rocky</strong> — Enterprise stability
 <strong>• Debian</strong> — Lightweight & reliable`,
-  chooseValidOS: `Please select a valid OS from available list:`,
-  skipOSBtn: '❌ Skip OS Selection',
-  skipOSwarning: '⚠️ Your VPS will launch without an OS. You’ll need to install one manually via SSH or recovery mode.',
+ chooseValidOS: `Please select a valid OS from available list:`,
+ skipOSBtn: '❌ Skip OS Selection',
+ skipOSwarning: '⚠️ Your VPS will launch without an OS. You’ll need to install one manually via SSH or recovery mode.',
 
-  // cpanel
-  askVpsCpanel: `🛠️ Select a control panel for easier server management (optional).
+ // cpanel
+ askVpsCpanel: `🛠️ Select a control panel for easier server management (optional).
 
 <strong>• ⚙️ WHM –</strong> Recommended for hosting multiple websites
 <strong>• ⚙️ Plesk –</strong> Ideal for managing individual websites and applications
 <strong>• ❌ Skip –</strong> No control panel
 `,
-  cpanelMenu: vpsOptionsOf(vpsCpanelOptional),
-  noControlPanel: vpsCpanelOptional[2],
-  skipPanelMessage: '⚠️ No control panel will be installed. You can install one manually later.',
-  validCpanel: 'Please choose a valid control panel or skip it.',
-  askCpanelOtions: (name, list) => `⚙️ Choose a ${
-    name == 'whm' ? 'WHM' : 'Plesk Web Host Edition'
-  } license or select a free trial (valid for ${name == 'whm' ? '15' : '7'} days).
+ cpanelMenu: vpsOptionsOf(vpsCpanelOptional),
+ noControlPanel: vpsCpanelOptional[2],
+ skipPanelMessage: '⚠️ No control panel will be installed. You can install one manually later.',
+ validCpanel: 'Please choose a valid control panel or skip it.',
+ askCpanelOtions: (name, list) => `⚙️ Choose a ${
+ name == 'whm' ? 'WHM' : 'Plesk Web Host Edition'
+ } license or select a free trial (valid for ${name == 'whm' ? '15' : '7'} days).
 
 💰 ${name == 'whm' ? 'WHM' : 'Plesk'} License Pricing:
 
 ${list.map(item => `${name == 'whm' ? `<strong>• ${item.name} - </strong>` : ''}${item.label}`).join('\n')}`,
-  trialCpanelMessage: panel =>
-    `✅ ${panel.name == 'whm' ? 'WHM' : 'Plesk'} Free Trial (${
-      panel.duration
-    } days) activated. You can upgrade anytime by reaching out to support.`,
+ trialCpanelMessage: panel =>
+ `✅ ${panel.name == 'whm' ? 'WHM' : 'Plesk'} Free Trial (${
+ panel.duration
+ } days) activated. You can upgrade anytime by reaching out to support.`,
 
-  vpsWaitingTime: '⚙️ Retrieving Details... This will only take a moment.',
-  failedCostRetrieval: 'Failied in retrieving cost information... Please try again after some time.',
+ vpsWaitingTime: '⚙️ Retrieving Details... This will only take a moment.',
+ failedCostRetrieval: 'Failied in retrieving cost information... Please try again after some time.',
 
-  errorPurchasingVPS: plan => `Something went wrong while setting up your ${plan} VPS Plan.
+ errorPurchasingVPS: plan => `Something went wrong while setting up your ${plan} VPS Plan.
 
-  Please tap 💬 Get Support for assistance.
-  Discover more ${TG_HANDLE}.`,
+ Please tap 💬 Get Support for assistance.
+ Discover more ${TG_HANDLE}.`,
 
-  generateBillSummary: vpsDetails => {
-    const planPrice = vpsDetails.couponApplied ? vpsDetails.planNewPrice : vpsDetails.plantotalPrice
-    const total = vpsDetails.totalPrice || Number(planPrice).toFixed(2)
-    const isRDP = vpsDetails.isRDP
-    const osLabel = isRDP ? '🪟 Windows Server (RDP)' : (vpsDetails.os?.name || 'Ubuntu')
-    
-    let summary = `<strong>📋 Order Summary:</strong>
+ generateBillSummary: vpsDetails => {
+ const planPrice = vpsDetails.couponApplied ? vpsDetails.planNewPrice : vpsDetails.plantotalPrice
+ const total = vpsDetails.totalPrice || Number(planPrice).toFixed(2)
+ const isRDP = vpsDetails.isRDP
+ const osLabel = isRDP ? '🪟 Windows Server (RDP)' : (vpsDetails.os?.name || 'Ubuntu')
+ 
+ let summary = `<strong>📋 Order Summary:</strong>
 
 <strong>🖥️ ${vpsDetails.config.name}</strong> — ${vpsDetails.config.specs.vCPU} vCPU · ${vpsDetails.config.specs.RAM}GB RAM · ${vpsDetails.config.specs.disk}GB ${vpsDetails.config.specs.diskType}
 <strong>📍 Region:</strong> ${vpsDetails.regionName || vpsDetails.country}
 <strong>💻 OS:</strong> ${osLabel}`
 
-    if (isRDP) {
-      summary += `\n<strong>🪟 Windows License:</strong> Included`
-    }
-    if (vpsDetails.couponApplied && vpsDetails.couponDiscount > 0) {
-      summary += `\n<strong>🎟️ Coupon:</strong> -$${Number(vpsDetails.couponDiscount).toFixed(2)} USD`
-    }
-    summary += `\n<strong>🔄 Auto-Renewal:</strong> ✅ Enabled`
-    summary += `\n\n<strong>💰 Total: $${total} USD/mo</strong>`
-    summary += `\n\n<strong>✅ Proceed with the order?</strong>`
-    return summary
-  },
+ if (isRDP) {
+ summary += `\n<strong>🪟 Windows License:</strong> Included`
+ }
+ if (vpsDetails.couponApplied && vpsDetails.couponDiscount > 0) {
+ summary += `\n<strong>🎟️ Coupon:</strong> -$${Number(vpsDetails.couponDiscount).toFixed(2)} USD`
+ }
+ summary += `\n<strong>🔄 Auto-Renewal:</strong> ✅ Enabled`
+ summary += `\n\n<strong>💰 Total: $${total} USD/mo</strong>`
+ summary += `\n\n<strong>✅ Proceed with the order?</strong>`
+ return summary
+ },
 
-  no: '❌ Cancel Order',
-  yes: '✅ Confirm Order',
+ no: '❌ Cancel Order',
+ yes: '✅ Confirm Order',
 
-  askPaymentMethod: 'Choose a payment method:',
+ askPaymentMethod: 'Choose a payment method:',
 
-  showDepositCryptoInfoVps: (priceUsd, priceCrypto, tickerView, address, vpsDetails) =>
-    `💰 <b>Payment Amount: $${Number(priceUsd).toFixed(2)} USD</b>
+ showDepositCryptoInfoVps: (priceUsd, priceCrypto, tickerView, address, vpsDetails) =>
+ `💰 <b>Payment Amount: $${Number(priceUsd).toFixed(2)} USD</b>
 
 Send exactly <b>${priceCrypto} ${tickerView}</b> to:
 
@@ -2054,36 +2054,36 @@ Your ${vpsDetails?.plan || 'VPS'} plan will activate automatically once payment 
 Best regards,
 ${CHAT_BOT_NAME}`,
 
-  extraMoney: 'The remaining amount for your hourly plan has been deposited to wallet.',
-  paymentReceived: `✅ Payment successful!
+ extraMoney: 'The remaining amount for your hourly plan has been deposited to wallet.',
+ paymentReceived: `✅ Payment successful!
 
 Your VPS is being set up.
 Details will be sent to your email shortly.`,
-  paymentFailed: `❌ Payment failed. Please check your payment method or try again.`,
+ paymentFailed: `❌ Payment failed. Please check your payment method or try again.`,
 
-  lowWalletBalance: vpsName => `
+ lowWalletBalance: vpsName => `
 Your VPS Plan for instance ${vpsName} has been stopped due to low balance.
 
 Please top up your wallet to continue using your VPS Plan.
 `,
 
-  vpsBoughtSuccess: (vpsDetails, response, credentials) => {
-    const isRDP = response.isRDP || vpsDetails.isRDP || response.osType === 'Windows'
-    const connectInfo = isRDP
-      ? `  <strong>• Connect:</strong> 🖥 Remote Desktop → <code>${response.host}:3389</code>\n  <strong>• How:</strong> Open Remote Desktop Connection (mstsc) and enter the address above.`
-      : `  <strong>• Connect:</strong> 💻 <code>ssh ${credentials.username}@${response.host}</code>`
-    
-    const passwordWarning = isRDP
-      ? `\n⚠️ <strong>IMPORTANT - Save Your Password Now!</strong>\n• We CANNOT retrieve it later for security reasons\n• If lost, use "Reset Password" from VPS management (data preserved)\n• Click the password above to reveal and copy it\n`
-      : `\n⚠️ <strong>Save your credentials securely!</strong>\n`
-    
-    return `<strong>🎉 ${isRDP ? 'RDP' : 'VPS'} [${response.label}] is active!</strong>
+ vpsBoughtSuccess: (vpsDetails, response, credentials) => {
+ const isRDP = response.isRDP || vpsDetails.isRDP || response.osType === 'Windows'
+ const connectInfo = isRDP
+ ? ` <strong>• Connect:</strong> 🖥 Remote Desktop → <code>${response.host}:3389</code>\n <strong>• How:</strong> Open Remote Desktop Connection (mstsc) and enter the address above.`
+ : ` <strong>• Connect:</strong> 💻 <code>ssh ${credentials.username}@${response.host}</code>`
+ 
+ const passwordWarning = isRDP
+ ? `\n⚠️ <strong>IMPORTANT - Save Your Password Now!</strong>\n• We CANNOT retrieve it later for security reasons\n• If lost, use "Reset Password" from VPS management (data preserved)\n• Click the password above to reveal and copy it\n`
+ : `\n⚠️ <strong>Save your credentials securely!</strong>\n`
+ 
+ return `<strong>🎉 ${isRDP ? 'RDP' : 'VPS'} [${response.label}] is active!</strong>
 
 <strong>🔑 Login Credentials:</strong>
-  <strong>• IP:</strong> ${response.host}
-  <strong>• OS:</strong> ${vpsDetails.os ? vpsDetails.os.name : (isRDP ? 'Windows Server' : 'Linux')}
-  <strong>• Username:</strong> ${credentials.username}
-  <strong>• Password:</strong> <tg-spoiler>${credentials.password}</tg-spoiler> (change immediately)
+ <strong>• IP:</strong> ${response.host}
+ <strong>• OS:</strong> ${vpsDetails.os ? vpsDetails.os.name : (isRDP ? 'Windows Server' : 'Linux')}
+ <strong>• Username:</strong> ${credentials.username}
+ <strong>• Password:</strong> <tg-spoiler>${credentials.password}</tg-spoiler> (change immediately)
 
 <strong>🔗 Connection:</strong>
 ${connectInfo}
@@ -2093,117 +2093,117 @@ ${passwordWarning}
 Thank you for choosing our service
 ${CHAT_BOT_NAME}
 `
-  },
-  vpsHourlyPlanRenewed: (vpsName, price) => `
+ },
+ vpsHourlyPlanRenewed: (vpsName, price) => `
 Your VPS Plan for instance ${vpsName} has been renewed successfully.
 ${price}$ has been deducted from your wallet.`,
 
-  vpsMonthlyPlanRenewed: (vpsName, planPrice) =>
-    `✅ Your VPS <b>${vpsName}</b> has been auto-renewed for 1 month.\n💰 $${planPrice} deducted from wallet.`,
+ vpsMonthlyPlanRenewed: (vpsName, planPrice) =>
+ `✅ Your VPS <b>${vpsName}</b> has been auto-renewed for 1 month.\n💰 $${planPrice} deducted from wallet.`,
 
-  vpsExpiredNoAutoRenew: (vpsName) =>
-    `⚠️ Your VPS <b>${vpsName}</b> has expired. Auto-renewal is disabled.\nPlease renew manually to continue service.`,
+ vpsExpiredNoAutoRenew: (vpsName) =>
+ `⚠️ Your VPS <b>${vpsName}</b> has expired. Auto-renewal is disabled.\nPlease renew manually to continue service.`,
 
-  bankPayVPS: (
-    priceNGN,
-    plan,
-  ) => `Please remit ${priceNGN} NGN by clicking “Make Payment” below. Once the transaction has been confirmed, you will be promptly notified, and your  ${plan} VPS plan will be seamlessly activated.
+ bankPayVPS: (
+ priceNGN,
+ plan,
+ ) => `Please remit ${priceNGN} NGN by clicking “Make Payment” below. Once the transaction has been confirmed, you will be promptly notified, and your ${plan} VPS plan will be seamlessly activated.
 
 Best regards,
 ${CHAT_BOT_NAME}`,
 
-  askAutoRenewal: `🔄 Enable auto-renewal for uninterrupted service?
-  
+ askAutoRenewal: `🔄 Enable auto-renewal for uninterrupted service?
+ 
 🛑 You will receive a reminder before renewal. You can disable this anytime.`,
-  enable: '✅ Enable',
-  skipAutoRenewalWarming: expiresAt =>
-    `⚠️ Your VPS will expire on ${new Date(expiresAt).toLocaleDateString('en-GB').replace(/\//g, '-')} ${new Date(
-      expiresAt,
-    ).toLocaleTimeString('en-GB', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    })}, and service may be interrupted.`,
+ enable: '✅ Enable',
+ skipAutoRenewalWarming: expiresAt =>
+ `⚠️ Your VPS will expire on ${new Date(expiresAt).toLocaleDateString('en-GB').replace(/\//g, '-')} ${new Date(
+ expiresAt,
+ ).toLocaleTimeString('en-GB', {
+ hour: '2-digit',
+ minute: '2-digit',
+ hour12: false,
+ })}, and service may be interrupted.`,
 
-  generateSSHKeyBtn: '✅ Generate New Key',
-  linkSSHKeyBtn: '🗂️ Link Existing Key',
-  skipSSHKeyBtn: '❌ Skip (Use Password Login)',
-  noExistingSSHMessage:
-    '🔑 No SSH keys detected. Would you like to generate a new SSH key for secure access, or use password login (less secure)?',
-  existingSSHMessage: '🔑 You have existing SSH keys. Choose an option:',
-  confirmSkipSSHMsg: `⚠️ Warning: Password logins are less secure and vulnerable to attacks.
+ generateSSHKeyBtn: '✅ Generate New Key',
+ linkSSHKeyBtn: '🗂️ Link Existing Key',
+ skipSSHKeyBtn: '❌ Skip (Use Password Login)',
+ noExistingSSHMessage:
+ '🔑 No SSH keys detected. Would you like to generate a new SSH key for secure access, or use password login (less secure)?',
+ existingSSHMessage: '🔑 You have existing SSH keys. Choose an option:',
+ confirmSkipSSHMsg: `⚠️ Warning: Password logins are less secure and vulnerable to attacks.
 🔹 We strongly recommend using SSH keys. Are you sure you want to proceed?`,
-  confirmSkipSSHBtn: '✅ Proceed Anyway',
-  setUpSSHBtn: '🔄 Set Up SSH Key',
-  sshLinkingSkipped: '❌ SSH key linking skipped. No changes were made.',
-  newSSHKeyGeneratedMsg: name => `✅ SSH key (${name}) created.
+ confirmSkipSSHBtn: '✅ Proceed Anyway',
+ setUpSSHBtn: '🔄 Set Up SSH Key',
+ sshLinkingSkipped: '❌ SSH key linking skipped. No changes were made.',
+ newSSHKeyGeneratedMsg: name => `✅ SSH key (${name}) created.
 ⚠️ Save this key securely – it can be retrieved later also.`,
-  selectSSHKey: '🗂️ Select an existing SSH key to link with your VPS:',
-  uploadNewKeyBtn: '➕ Upload New Key',
-  cancelLinkingSSHKey: `❌ SSH key linking canceled. No changes were made.`,
-  selectValidSShKey: 'Please select a valid SSH key from the list.',
-  sshKeySavedForVPS: name => `✅ SSH key ( ${name} ) will be linked to New VPS.`,
-  askToUploadSSHKey: `📤 Upload your SSH public key (.pub file) or paste the key below.`,
-  failedGeneratingSSHKey: 'Failed to generate new SSH key. Please try again or different method.',
-  newSSHKeyUploadedMsg: name => `✅ SSH key (${name}) successfully uploaded and will be linked to VPS.`,
-  fileTypePub: 'File type should be .pub',
+ selectSSHKey: '🗂️ Select an existing SSH key to link with your VPS:',
+ uploadNewKeyBtn: '➕ Upload New Key',
+ cancelLinkingSSHKey: `❌ SSH key linking canceled. No changes were made.`,
+ selectValidSShKey: 'Please select a valid SSH key from the list.',
+ sshKeySavedForVPS: name => `✅ SSH key ( ${name} ) will be linked to New VPS.`,
+ askToUploadSSHKey: `📤 Upload your SSH public key (.pub file) or paste the key below.`,
+ failedGeneratingSSHKey: 'Failed to generate new SSH key. Please try again or different method.',
+ newSSHKeyUploadedMsg: name => `✅ SSH key (${name}) successfully uploaded and will be linked to VPS.`,
+ fileTypePub: 'File type should be .pub',
 
-  // VPS Management
-  vpsList: list => `<strong>🖥️ Active VPS Instances:</strong>
+ // VPS Management
+ vpsList: list => `<strong>🖥️ Active VPS Instances:</strong>
 
 ${list
-  .map(vps => `<strong>• ${vps.name} :</strong> ${vps.status === 'RUNNING' ? '🟢' : '🔴'} ${vps.status}`)
-  .join('\n')}
+ .map(vps => `<strong>• ${vps.name} :</strong> ${vps.status === 'RUNNING' ? '🟢' : '🔴'} ${vps.status}`)
+ .join('\n')}
 `,
-  noVPSfound: 'No Active VPS instance exists. Create a new one.',
-  selectCorrectOption: 'Please select a option from the list',
-  selectedVpsData: data => `<strong>🖥️ VPS ID:</strong> ${data.name}
+ noVPSfound: 'No Active VPS instance exists. Create a new one.',
+ selectCorrectOption: 'Please select a option from the list',
+ selectedVpsData: data => `<strong>🖥️ VPS ID:</strong> ${data.name}
 
 <strong>• Plan:</strong> ${data.planDetails.name}
 <strong>• vCPUs:</strong> ${data.planDetails.specs.vCPU} | RAM: ${data.planDetails.specs.RAM} GB | Disk: ${
-    data.planDetails.specs.disk
-  } GB (${data.diskTypeDetails.type})
+ data.planDetails.specs.disk
+ } GB (${data.diskTypeDetails.type})
 <strong>• OS:</strong> ${data.osDetails.name}
 <strong>• Control Panel:</strong> ${
-    data.cPanelPlanDetails && data.cPanelPlanDetails.type ? data.cPanelPlanDetails.type : 'None'
-  }
+ data.cPanelPlanDetails && data.cPanelPlanDetails.type ? data.cPanelPlanDetails.type : 'None'
+ }
 <strong>• Status:</strong> ${data.status === 'RUNNING' ? '🟢' : '🔴'} ${data.status}
 <strong>• Auto-Renewal:</strong> ${data.autoRenewable ? 'Enabled' : 'Disabled'}
 <strong>• IP Address:</strong> ${data.host}`,
-  stopVpsBtn: '⏹️ Stop',
-  startVpsBtn: '▶️ Start',
-  restartVpsBtn: '🔄 Restart',
-  deleteVpsBtn: '🗑️ Delete',
-  subscriptionBtn: '🔄 Subscriptions',
-  VpsLinkedKeysBtn: '🔑 SSH Keys',
-  resetPasswordBtn: '🔑 Reset Password',
-  reinstallWindowsBtn: '🔄 Reinstall Windows',
-  confirmChangeBtn: '✅ Confirm',
+ stopVpsBtn: '⏹️ Stop',
+ startVpsBtn: '▶️ Start',
+ restartVpsBtn: '🔄 Restart',
+ deleteVpsBtn: '🗑️ Delete',
+ subscriptionBtn: '🔄 Subscriptions',
+ VpsLinkedKeysBtn: '🔑 SSH Keys',
+ resetPasswordBtn: '🔑 Reset Password',
+ reinstallWindowsBtn: '🔄 Reinstall Windows',
+ confirmChangeBtn: '✅ Confirm',
 
-  confirmStopVpstext: name => `⚠️ Are you sure you want to stop VPS <strong>${name}</strong>?`,
-  vpsBeingStopped: name => `⚙️ Please wait while your VPS (${name}) is being stopped`,
-  vpsStopped: name => `✅ VPS (${name}) has been stopped.`,
-  failedStoppingVPS: name => `❌ Failed to stop VPS (${name}). 
-
-Please Try again after sometime.`,
-  vpsBeingStarted: name => `⚙️ Please wait while your VPS (${name}) is being started`,
-  vpsStarted: name => `✅ VPS (${name}) his now running.`,
-  failedStartedVPS: name => `❌ Failed to start VPS (${name}). 
+ confirmStopVpstext: name => `⚠️ Are you sure you want to stop VPS <strong>${name}</strong>?`,
+ vpsBeingStopped: name => `⚙️ Please wait while your VPS (${name}) is being stopped`,
+ vpsStopped: name => `✅ VPS (${name}) has been stopped.`,
+ failedStoppingVPS: name => `❌ Failed to stop VPS (${name}). 
 
 Please Try again after sometime.`,
-  vpsBeingRestarted: name => `⚙️ Please wait while your VPS (${name}) is being restarted`,
-  vpsRestarted: name => `✅ VPS (${name}) has been successfully restarted.`,
-  failedRestartingVPS: name => `❌ Failed to restart VPS (${name}). 
+ vpsBeingStarted: name => `⚙️ Please wait while your VPS (${name}) is being started`,
+ vpsStarted: name => `✅ VPS (${name}) his now running.`,
+ failedStartedVPS: name => `❌ Failed to start VPS (${name}). 
 
 Please Try again after sometime.`,
-  confirmDeleteVpstext: name =>
-    `⚠️ Warning: Deleting this VPS ${name} is permanent, and all data will be lost.
-        •       No refund for unused subscription time.
-        •       Auto-renewal will be canceled, and no further charges will apply.
+ vpsBeingRestarted: name => `⚙️ Please wait while your VPS (${name}) is being restarted`,
+ vpsRestarted: name => `✅ VPS (${name}) has been successfully restarted.`,
+ failedRestartingVPS: name => `❌ Failed to restart VPS (${name}). 
+
+Please Try again after sometime.`,
+ confirmDeleteVpstext: name =>
+ `⚠️ Warning: Deleting this VPS ${name} is permanent, and all data will be lost.
+ • No refund for unused subscription time.
+ • Auto-renewal will be canceled, and no further charges will apply.
 
 Do you want to proceed?`,
-  
-  confirmResetPasswordText: name => `🔑 <strong>Reset RDP Password</strong>
+ 
+ confirmResetPasswordText: name => `🔑 <strong>Reset RDP Password</strong>
 
 ⚠️ <strong>Important:</strong>
 • Your current password will stop working
@@ -2213,7 +2213,7 @@ Do you want to proceed?`,
 
 Do you want to reset the password for <strong>${name}</strong>?`,
 
-  confirmReinstallWindowsText: name => `🔄 <strong>Reinstall Windows</strong>
+ confirmReinstallWindowsText: name => `🔄 <strong>Reinstall Windows</strong>
 
 ⚠️ <strong>CRITICAL WARNING:</strong>
 • This will ERASE ALL DATA on your RDP
@@ -2226,11 +2226,11 @@ Do you want to reset the password for <strong>${name}</strong>?`,
 
 Do you want to reinstall Windows on <strong>${name}</strong>?`,
 
-  passwordResetInProgress: name => `🔄 Resetting password for <strong>${name}</strong>...
+ passwordResetInProgress: name => `🔄 Resetting password for <strong>${name}</strong>...
 
 ⏱️ This may take 30-60 seconds. Please wait.`,
 
-  passwordResetSuccess: (name, ip, username, password) => `✅ <strong>Password Reset Successful!</strong>
+ passwordResetSuccess: (name, ip, username, password) => `✅ <strong>Password Reset Successful!</strong>
 
 🖥️ <strong>RDP:</strong> ${name}
 🌐 <strong>IP:</strong> ${ip}
@@ -2244,12 +2244,12 @@ Do you want to reinstall Windows on <strong>${name}</strong>?`,
 
 💡 Click the password to copy it.`,
 
-  windowsReinstallInProgress: name => `🔄 Reinstalling Windows on <strong>${name}</strong>...
+ windowsReinstallInProgress: name => `🔄 Reinstalling Windows on <strong>${name}</strong>...
 
 ⏱️ This process takes 5-10 minutes. 
 📧 You'll receive new credentials when complete.`,
 
-  windowsReinstallSuccess: (name, ip, username, password) => `🎉 <strong>Windows Reinstalled Successfully!</strong>
+ windowsReinstallSuccess: (name, ip, username, password) => `🎉 <strong>Windows Reinstalled Successfully!</strong>
 
 🖥️ <strong>RDP:</strong> ${name}
 🌐 <strong>IP:</strong> ${ip}
@@ -2265,122 +2265,122 @@ Do you want to reinstall Windows on <strong>${name}</strong>?`,
 💡 Click the password to copy it.
 🚀 Your RDP is ready to use with these new credentials!`,
 
-  passwordResetFailed: name => `❌ <strong>Password Reset Failed</strong>
+ passwordResetFailed: name => `❌ <strong>Password Reset Failed</strong>
 
 Failed to reset password for <strong>${name}</strong>.
 
 Please try again in a few minutes or contact support if the issue persists.`,
 
-  windowsReinstallFailed: name => `❌ <strong>Windows Reinstall Failed</strong>
+ windowsReinstallFailed: name => `❌ <strong>Windows Reinstall Failed</strong>
 
 Failed to reinstall Windows on <strong>${name}</strong>.
 
 Please try again in a few minutes or contact support if the issue persists.`,
 
-  rdpNotSupported: `⚠️ This feature is only available for Windows RDP instances.
+ rdpNotSupported: `⚠️ This feature is only available for Windows RDP instances.
 
 Your VPS is running Linux. Use SSH keys for access management instead.`,
-  vpsBeingDeleted: name => `⚙️ Please wait while your VPS (${name}) is being deleted`,
-  vpsDeleted: name => `✅ VPS (${name}) has been permanently deleted.`,
-  failedDeletingVPS: name => `❌ Failed to delete VPS (${name}). 
+ vpsBeingDeleted: name => `⚙️ Please wait while your VPS (${name}) is being deleted`,
+ vpsDeleted: name => `✅ VPS (${name}) has been permanently deleted.`,
+ failedDeletingVPS: name => `❌ Failed to delete VPS (${name}). 
 
 Please Try again after sometime.`,
-  upgradeVpsBtn: '⬆️ Upgrade',
-  upgradeVpsPlanBtn: '⬆️ VPS Plan',
-  upgradeVpsDiskBtn: '📀 Disk Type',
-  upgradeVpsDiskTypeBtn: '💾 Upgrade Disk Type',
-  upgradeVPS: 'Choose upgrade type',
-  upgradeOptionVPSBtn: to => {
-    return `🔼 Upgrade to ${to}`
-  },
-  upgradeVpsPlanMsg: options => `⚙️ Choose a new plan to scale your VPS resources.
+ upgradeVpsBtn: '⬆️ Upgrade',
+ upgradeVpsPlanBtn: '⬆️ VPS Plan',
+ upgradeVpsDiskBtn: '📀 Disk Type',
+ upgradeVpsDiskTypeBtn: '💾 Upgrade Disk Type',
+ upgradeVPS: 'Choose upgrade type',
+ upgradeOptionVPSBtn: to => {
+ return `🔼 Upgrade to ${to}`
+ },
+ upgradeVpsPlanMsg: options => `⚙️ Choose a new plan to scale your VPS resources.
 💡 Upgrading increases vCPUs, RAM, and storage but cannot be reversed.
 
 📌 Available Upgrades:
 ${options
-  .map(
-    planDetails =>
-      `<strong>• ${planDetails.from} ➡ ${planDetails.to} –</strong> $${planDetails.monthlyPrice}/month ($${planDetails.hourlyPrice}/hour)`,
-  )
-  .join('\n')}
-  
+ .map(
+ planDetails =>
+ `<strong>• ${planDetails.from} ➡ ${planDetails.to} –</strong> $${planDetails.monthlyPrice}/month ($${planDetails.hourlyPrice}/hour)`,
+ )
+ .join('\n')}
+ 
 💰 Billing Notice: Your current plan will be credited for unused days, and the new rate will apply for the remainder of the billing cycle (prorated adjustment).`,
 
-  alreadyEnterprisePlan:
-    '⚠️ You are already on the highest available plan (Enterprise). No further upgrades are possible.',
+ alreadyEnterprisePlan:
+ '⚠️ You are already on the highest available plan (Enterprise). No further upgrades are possible.',
 
-  alreadyHighestDisk: vpsData =>
-    `⚠️ You are already on the highest available disk (${vpsData.diskTypeDetails.type}). No further upgrades are possible.`,
-  newVpsDiskBtn: type => `Upgrade to ${type}`,
-  upgradeVpsDiskMsg: upgrades => `💾 Upgrade your storage type for better performance.
+ alreadyHighestDisk: vpsData =>
+ `⚠️ You are already on the highest available disk (${vpsData.diskTypeDetails.type}). No further upgrades are possible.`,
+ newVpsDiskBtn: type => `Upgrade to ${type}`,
+ upgradeVpsDiskMsg: upgrades => `💾 Upgrade your storage type for better performance.
 ⚠️ Disk upgrades are permanent and cannot be downgraded.
 
 📌 Available Options:
 ${upgrades.map(val => `<strong>• ${val.from} ➡ ${val.to} –</strong> +$${val.price}/${val.duration}`).join('\n')}
-  
+ 
 💰 Billing Notice: If the upgrade is applied mid-cycle, a prorated adjustment will be applied for the unused portion of your current billing period.`,
-  upgradePlanSummary: (newData, vpsDetails, lowBal) => `<strong>📜 Order Summary:</strong>
+ upgradePlanSummary: (newData, vpsDetails, lowBal) => `<strong>📜 Order Summary:</strong>
 
 <strong>• VPS ID: </strong> ${vpsDetails.name}
 <strong>• Old Plan: </strong> ${newData.upgradeOption.from}
 <strong>• New Plan: </strong> ${newData.upgradeOption.to}
 <strong>• Billing Cycle: </strong> ${newData.billingCycle}
 <strong>• New Billing Rate: </strong> $${newData.totalPrice} USD${
-    newData.billingCycle === 'Hourly' ? '/hour' : ' (prorated adjustment applied)'
-  }
+ newData.billingCycle === 'Hourly' ? '/hour' : ' (prorated adjustment applied)'
+ }
 <strong>• Effective Date: </strong> Immediately
 ${
-  lowBal
-    ? `
+ lowBal
+ ? `
 Note: A $${VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE} USD deposit is included in your total. After the first hourly rate is deducted, the remaining deposit will be credited to your wallet.
 `
-    : ''
+ : ''
 }
 <strong>• Total Price: </strong> $${lowBal ? VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE : newData.totalPrice} USD
 
 <strong>✅ Proceed with the order?</strong>`,
-  upgradeDiskSummary: (newData, vpsDetails, lowBal) => `<strong>📜 Order Summary:</strong>
+ upgradeDiskSummary: (newData, vpsDetails, lowBal) => `<strong>📜 Order Summary:</strong>
 
 <strong>• VPS ID: </strong> ${vpsDetails.name}
 <strong>• Old Disk Type: </strong> ${newData.upgradeOption.from}
 <strong>• New Disk type: </strong> ${newData.upgradeOption.to}
 <strong>• Billing Cycle: </strong> ${newData.billingCycle}
 <strong>• New Billing Rate: </strong> $${newData.totalPrice} USD${
-    newData.billingCycle === 'Hourly' ? '/hour' : ' (prorated adjustment applied)'
-  }
+ newData.billingCycle === 'Hourly' ? '/hour' : ' (prorated adjustment applied)'
+ }
 ${
-  lowBal
-    ? `
+ lowBal
+ ? `
 Note: A $${VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE} USD deposit is included in your total. After the first hourly rate is deducted, the remaining deposit will be credited to your wallet.
 `
-    : ''
+ : ''
 }
 <strong>• Total Price: </strong> $${lowBal ? VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE : newData.totalPrice} USD
 
 <strong>✅ Proceed with the order?</strong>`,
 
-  vpsSubscriptionData: (vpsData, planExpireDate, panelExpireDate) => `<strong>🗂️ Your Active Subscriptions:</strong>
+ vpsSubscriptionData: (vpsData, planExpireDate, panelExpireDate) => `<strong>🗂️ Your Active Subscriptions:</strong>
 
-<strong>• VPS ${vpsData.name} </strong>– Expires: ${planExpireDate}  (Auto-Renew: ${
-    vpsData.autoRenewable ? 'Enabled' : 'Disabled'
-  })
+<strong>• VPS ${vpsData.name} </strong>– Expires: ${planExpireDate} (Auto-Renew: ${
+ vpsData.autoRenewable ? 'Enabled' : 'Disabled'
+ })
 <strong>• Control Panel ${vpsData?.cPanelPlanDetails ? vpsData.cPanelPlanDetails.type : ': Not Selected'} </strong> ${
-    vpsData?.cPanelPlanDetails
-      ? `${vpsData?.cPanelPlanDetails.status === 'active' ? '- Expires: ' : '- Expired: '}${panelExpireDate}`
-      : ''
-  } `,
+ vpsData?.cPanelPlanDetails
+ ? `${vpsData?.cPanelPlanDetails.status === 'active' ? '- Expires: ' : '- Expired: '}${panelExpireDate}`
+ : ''
+ } `,
 
-  manageVpsSubBtn: '🖥️ Manage VPS Subscription',
-  manageVpsPanelBtn: '🛠️ Manage Control Panel Subscription',
+ manageVpsSubBtn: '🖥️ Manage VPS Subscription',
+ manageVpsPanelBtn: '🛠️ Manage Control Panel Subscription',
 
-  vpsSubDetails: (data, date) => `<strong>📅 VPS Subscription Details:</strong>
+ vpsSubDetails: (data, date) => `<strong>📅 VPS Subscription Details:</strong>
 
 <strong>• VPS ID:</strong> ${data.name}
 <strong>• Plan:</strong> ${data.planDetails.name}
 <strong>• Current Expiry Date:</strong> ${date}
 <strong>• Auto-Renewal:</strong> ${data.autoRenewable ? 'Enabled' : 'Disabled'}`,
 
-  vpsCPanelDetails: (data, date) => `<strong>📅 Control Panel Subscription Details:</strong>
+ vpsCPanelDetails: (data, date) => `<strong>📅 Control Panel Subscription Details:</strong>
 
 <strong>• Linked VPS ID:</strong> ${data.name}
 <strong>• Control Panel Type:</strong> ${data.cPanelPlanDetails.type} (${data.cPanelPlanDetails.name})
@@ -2388,18 +2388,18 @@ Note: A $${VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE} USD deposit is included in yo
 <strong>• Auto-Renewal:</strong> ${data.autoRenewable ? 'Enabled' : 'Disabled'}
 `,
 
-  vpsEnableRenewalBtn: '🔄 Enable Auto-Renew',
-  vpsDisableRenewalBtn: '❌ Disable Auto-Renew',
-  vpsPlanRenewBtn: '📅 Renew Now',
-  unlinkVpsPanelBtn: '❌ Unlink from VPS',
-  bankPayVPSUpgradePlan: (priceNGN, vpsDetails) =>
-    `Please remit ${priceNGN} NGN by clicking “Make Payment” below. Once the transaction has been confirmed, you will be promptly notified, and your new ${vpsDetails.upgradeOption.to} VPS plan will be seamlessly activated.`,
+ vpsEnableRenewalBtn: '🔄 Enable Auto-Renew',
+ vpsDisableRenewalBtn: '❌ Disable Auto-Renew',
+ vpsPlanRenewBtn: '📅 Renew Now',
+ unlinkVpsPanelBtn: '❌ Unlink from VPS',
+ bankPayVPSUpgradePlan: (priceNGN, vpsDetails) =>
+ `Please remit ${priceNGN} NGN by clicking “Make Payment” below. Once the transaction has been confirmed, you will be promptly notified, and your new ${vpsDetails.upgradeOption.to} VPS plan will be seamlessly activated.`,
 
-  bankPayVPSUpgradeDisk: (priceNGN, vpsDetails) =>
-    `Please remit ${priceNGN} NGN by clicking “Make Payment” below. Once the transaction has been confirmed, you will be promptly notified, and your VPS plan with new disk type ${vpsDetails.upgradeOption.toType} config will be seamlessly activated.`,
+ bankPayVPSUpgradeDisk: (priceNGN, vpsDetails) =>
+ `Please remit ${priceNGN} NGN by clicking “Make Payment” below. Once the transaction has been confirmed, you will be promptly notified, and your VPS plan with new disk type ${vpsDetails.upgradeOption.toType} config will be seamlessly activated.`,
 
-  showDepositCryptoInfoVpsUpgrade: (priceUsd, priceCrypto, tickerView, address) =>
-    `💰 <b>Payment Amount: $${Number(priceUsd).toFixed(2)} USD</b>
+ showDepositCryptoInfoVpsUpgrade: (priceUsd, priceCrypto, tickerView, address) =>
+ `💰 <b>Payment Amount: $${Number(priceUsd).toFixed(2)} USD</b>
 
 Send exactly <b>${priceCrypto} ${tickerView}</b> to:
 
@@ -2410,41 +2410,41 @@ Your upgraded VPS plan will activate automatically once payment is confirmed (us
 Best regards,
 ${CHAT_BOT_NAME}`,
 
-  linkVpsSSHKeyBtn: '➕ Link New Key',
-  unlinkSSHKeyBtn: '❌ Unlink Key',
-  downloadSSHKeyBtn: '⬇️ Download Key',
+ linkVpsSSHKeyBtn: '➕ Link New Key',
+ unlinkSSHKeyBtn: '❌ Unlink Key',
+ downloadSSHKeyBtn: '⬇️ Download Key',
 
-  noLinkedKey: name => `⚠️ There is currently no SSH key associated with this VPS [${name}]. 
-  
+ noLinkedKey: name => `⚠️ There is currently no SSH key associated with this VPS [${name}]. 
+ 
 Please link an SSH key to your account to enable secure access.`,
-  linkedKeyList: (list, name) => `🗂️ SSH Keys Linked to VPS ${name}:
+ linkedKeyList: (list, name) => `🗂️ SSH Keys Linked to VPS ${name}:
 
 ${list.map(val => `<strong>• ${val}</strong>`).join('\n')}`,
 
-  unlinkSSHKeyList: name => `🗂️ Select an SSH key to remove from VPS [${name}]:`,
-  confirmUnlinkKey: data => `⚠️ Are you sure you want to unlink [${data.keyForUnlink}] from VPS [${data.name}]?`,
-  confirmUnlinkBtn: '✅ Confirm Unlink',
-  keyUnlinkedMsg: data => `✅ SSH key [${data.keyForUnlink}] has been unlinked from VPS [${data.name}].`,
-  failedUnlinkingKey: data => `❌ Failed to unlink SSH key form VPS (${data.name}). 
+ unlinkSSHKeyList: name => `🗂️ Select an SSH key to remove from VPS [${name}]:`,
+ confirmUnlinkKey: data => `⚠️ Are you sure you want to unlink [${data.keyForUnlink}] from VPS [${data.name}]?`,
+ confirmUnlinkBtn: '✅ Confirm Unlink',
+ keyUnlinkedMsg: data => `✅ SSH key [${data.keyForUnlink}] has been unlinked from VPS [${data.name}].`,
+ failedUnlinkingKey: data => `❌ Failed to unlink SSH key form VPS (${data.name}). 
 
 Please Try again after sometime.`,
 
-  userSSHKeyList: name => `🗂️ Select an SSH key to link to VPS [${name}]:`,
-  noUserKeyList: `🔑 No SSH keys detected. Would you like to upload a new SSH key?`,
-  linkKeyToVpsSuccess: (key, name) => `✅ SSH key [${key}] successfully linked to VPS [${name}].`,
-  failedLinkingSSHkeyToVps: (key, name) => `❌ Failed to link SSH key [${key}] to VPS (${name}). 
+ userSSHKeyList: name => `🗂️ Select an SSH key to link to VPS [${name}]:`,
+ noUserKeyList: `🔑 No SSH keys detected. Would you like to upload a new SSH key?`,
+ linkKeyToVpsSuccess: (key, name) => `✅ SSH key [${key}] successfully linked to VPS [${name}].`,
+ failedLinkingSSHkeyToVps: (key, name) => `❌ Failed to link SSH key [${key}] to VPS (${name}). 
 
 Please Try again after sometime.`,
-  selectSSHKeyToDownload: '🗂️ Select the SSH key you want to download:',
-  disabledAutoRenewal: (
-    data,
-    expiryDate,
-  ) => `⚠️ Auto-renewal disabled. Your VPS will expire on ${expiryDate} unless manually renewed.
+ selectSSHKeyToDownload: '🗂️ Select the SSH key you want to download:',
+ disabledAutoRenewal: (
+ data,
+ expiryDate,
+ ) => `⚠️ Auto-renewal disabled. Your VPS will expire on ${expiryDate} unless manually renewed.
 ✅ Auto-renewal successfully disabled.`,
-  enabledAutoRenewal: (data, expiryDate) =>
-    `✅ Auto-renewal enabled. Your VPS will automatically renew on ${expiryDate}.`,
+ enabledAutoRenewal: (data, expiryDate) =>
+ `✅ Auto-renewal enabled. Your VPS will automatically renew on ${expiryDate}.`,
 
-  renewVpsPlanConfirmMsg: (data, vpsDetails, expiryDate, lowBal) => `<strong>📜 Invoice Summary</strong>
+ renewVpsPlanConfirmMsg: (data, vpsDetails, expiryDate, lowBal) => `<strong>📜 Invoice Summary</strong>
 
 <strong>• VPS ID:</strong> ${vpsDetails.name}
 <strong>• Plan:</strong> ${vpsDetails.planDetails.name}
@@ -2453,132 +2453,132 @@ Please Try again after sometime.`,
 <strong>• Amount Due:</strong> ${data.totalPrice} USD
 
 ${
-  lowBal
-    ? `Note: A $${VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE} USD deposit is included in your total. After the first hourly rate is deducted, the remaining deposit will be credited to your wallet.`
-    : ''
+ lowBal
+ ? `Note: A $${VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE} USD deposit is included in your total. After the first hourly rate is deducted, the remaining deposit will be credited to your wallet.`
+ : ''
 }
 
 <strong>• Total Price: </strong> $${lowBal ? VPS_HOURLY_PLAN_MINIMUM_AMOUNT_PAYABLE : data.totalPrice} USD
 
 <strong>💳 Proceed with VPS renewal?</strong>`,
 
-  payNowBtn: '✅ Pay now',
+ payNowBtn: '✅ Pay now',
 
-  vpsChangePaymentRecieved: `✅ Payment successful! Your VPS is being set up. Details will be available shortly.`,
+ vpsChangePaymentRecieved: `✅ Payment successful! Your VPS is being set up. Details will be available shortly.`,
 
-  bankPayVPSRenewPlan: priceNGN =>
-    `Please remit ${priceNGN} NGN by clicking “Make Payment” below. Once the transaction has been confirmed, you will be promptly notified, and your VPS plan be seamlessly activated and renewed.`,
+ bankPayVPSRenewPlan: priceNGN =>
+ `Please remit ${priceNGN} NGN by clicking “Make Payment” below. Once the transaction has been confirmed, you will be promptly notified, and your VPS plan be seamlessly activated and renewed.`,
 
-  renewVpsPanelConfirmMsg: (data, panelDetails, date) => `<strong>💳 Proceed with Control Panel renewal?</strong>
+ renewVpsPanelConfirmMsg: (data, panelDetails, date) => `<strong>💳 Proceed with Control Panel renewal?</strong>
 
 <strong>📜 Invoice Summary</strong>
-  <strong>• Linked VPS ID:</strong> ${data.name}
-  <strong>• Control Panel:</strong> ${panelDetails.type}
-  <strong>• Renewal Period:</strong> ${panelDetails.durationValue}${' '}Month
-  <strong>• Current Expiry Date:</strong> ${date}
-  <strong>• Amount Due:</strong> ${data.totalPrice} USD`,
+ <strong>• Linked VPS ID:</strong> ${data.name}
+ <strong>• Control Panel:</strong> ${panelDetails.type}
+ <strong>• Renewal Period:</strong> ${panelDetails.durationValue}${' '}Month
+ <strong>• Current Expiry Date:</strong> ${date}
+ <strong>• Amount Due:</strong> ${data.totalPrice} USD`,
 
-  bankPayVPSRenewCpanel: (priceNGN, vpsDetails) =>
-    `Please remit ${priceNGN} NGN by clicking “Make Payment” below. Once the transaction has been confirmed, you will be promptly notified, and your VPS plan be seamlessly activated and ${vpsDetails.cPanelPlanDetails.type} Control Panel will be renewed.`,
-  vpsUnlinkCpanelWarning: vpsDetails =>
-    `⚠️ Warning: Unlinking will remove the ${vpsDetails.cPanel} license from VPS ${vpsDetails.name}, and you will lose access to its features. Do you want to proceed?`,
-  unlinkCpanelConfirmed: data => `✅ Control Panel ${data.cPanel} successfully unlinked from VPS ${data.name}.`,
+ bankPayVPSRenewCpanel: (priceNGN, vpsDetails) =>
+ `Please remit ${priceNGN} NGN by clicking “Make Payment” below. Once the transaction has been confirmed, you will be promptly notified, and your VPS plan be seamlessly activated and ${vpsDetails.cPanelPlanDetails.type} Control Panel will be renewed.`,
+ vpsUnlinkCpanelWarning: vpsDetails =>
+ `⚠️ Warning: Unlinking will remove the ${vpsDetails.cPanel} license from VPS ${vpsDetails.name}, and you will lose access to its features. Do you want to proceed?`,
+ unlinkCpanelConfirmed: data => `✅ Control Panel ${data.cPanel} successfully unlinked from VPS ${data.name}.`,
 
-  errorUpgradingVPS: vpsName => `Something went wrong while upgrading your VPS Plan ${vpsName}.
+ errorUpgradingVPS: vpsName => `Something went wrong while upgrading your VPS Plan ${vpsName}.
 
-  Please tap 💬 Get Support for assistance.
-  Discover more ${TG_HANDLE}.`,
+ Please tap 💬 Get Support for assistance.
+ Discover more ${TG_HANDLE}.`,
 
-  vpsUpgradePlanTypeSuccess: vpsDetails => `
-  ✅ VPS ${vpsDetails.name} upgraded to ${vpsDetails.upgradeOption.to}. Your new resources are now available.`,
+ vpsUpgradePlanTypeSuccess: vpsDetails => `
+ ✅ VPS ${vpsDetails.name} upgraded to ${vpsDetails.upgradeOption.to}. Your new resources are now available.`,
 
-  vpsUpgradeDiskTypeSuccess: vpsDetails =>
-    `✅ Disk upgraded to ${vpsDetails.upgradeOption.to} for VPS ${vpsDetails.name}. Your updated disk type is now active.`,
+ vpsUpgradeDiskTypeSuccess: vpsDetails =>
+ `✅ Disk upgraded to ${vpsDetails.upgradeOption.to} for VPS ${vpsDetails.name}. Your updated disk type is now active.`,
 
-  vpsRenewPlanSuccess: (vpsDetails, expiryDate) =>
-    `✅ VPS subscription for ${vpsDetails.name} successfully renewed!
+ vpsRenewPlanSuccess: (vpsDetails, expiryDate) =>
+ `✅ VPS subscription for ${vpsDetails.name} successfully renewed!
 
 • New Expiry Date: ${expiryDate}
 `,
-  vpsRenewCPanelSuccess: (vpsDetails, expiryDate) =>
-    `✅ Control Panel subscription for ${vpsDetails.name} successfully renewed!
+ vpsRenewCPanelSuccess: (vpsDetails, expiryDate) =>
+ `✅ Control Panel subscription for ${vpsDetails.name} successfully renewed!
 
 • New Expiry Date: ${expiryDate}
 `,
 }
 
 const en = {
-  k,
-  t,
-  u,
-  dO,
-  bc,
-  npl,
-  dns,
-  kOf,
-  user,
-  show,
-  yesNo,
-  html,
-  payIn,
-  admin,
-  payOpts,
-  yes_no,
-  payBank,
-  alcazar,
-  tickerOf,
-  linkType,
-  tickerViews,
-  linkOptions,
-  planOptions,
-  tickerViewOf,
-  dnsRecordType,
-  dnsQuickActionKeyboard,
-  dnsMxPriorityKeyboard,
-  dnsSubdomainTargetTypeKeyboard,
-  dnsQuickActions,
-  getRecordTypeKeyboard,
-  dnsCaaTagKeyboard,
-  dnsSrvDefaultsKeyboard,
-  o: userKeyboard,
-  phoneNumberLeads,
-  aO: adminKeyboard,
-  chooseSubscription,
-  buyLeadsSelectArea,
-  buyLeadsSelectCnam,
-  buyLeadsSelectAmount,
-  buyLeadsSelectFormat,
-  buyLeadsSelectCountry,
-  buyLeadsSelectCarrier,
-  buyLeadsSelectSmsVoice,
-  buyLeadsSelectAreaCode,
-  _buyLeadsSelectAreaCode,
-  validatorSelectCountry,
-  validatorSelectSmsVoice,
-  validatorSelectCarrier,
-  validatorSelectCnam,
-  validatorSelectAmount,
-  validatorSelectFormat,
-  redSelectRandomCustom,
-  redSelectProvider,
-  supportedCrypto,
-  supportedCryptoView,
-  supportedCryptoViewOf,
-  languageMenu,
-  supportedLanguages,
-  l,
-  termsAndConditionType,
-  planOptionsOf,
-  hP: hostingPlansText,
-  selectFormatOf,
-  vp,
-  vpsPlanOf,
-  vpsCpanelOptional,
+ k,
+ t,
+ u,
+ dO,
+ bc,
+ npl,
+ dns,
+ kOf,
+ user,
+ show,
+ yesNo,
+ html,
+ payIn,
+ admin,
+ payOpts,
+ yes_no,
+ payBank,
+ alcazar,
+ tickerOf,
+ linkType,
+ tickerViews,
+ linkOptions,
+ planOptions,
+ tickerViewOf,
+ dnsRecordType,
+ dnsQuickActionKeyboard,
+ dnsMxPriorityKeyboard,
+ dnsSubdomainTargetTypeKeyboard,
+ dnsQuickActions,
+ getRecordTypeKeyboard,
+ dnsCaaTagKeyboard,
+ dnsSrvDefaultsKeyboard,
+ o: userKeyboard,
+ phoneNumberLeads,
+ aO: adminKeyboard,
+ chooseSubscription,
+ buyLeadsSelectArea,
+ buyLeadsSelectCnam,
+ buyLeadsSelectAmount,
+ buyLeadsSelectFormat,
+ buyLeadsSelectCountry,
+ buyLeadsSelectCarrier,
+ buyLeadsSelectSmsVoice,
+ buyLeadsSelectAreaCode,
+ _buyLeadsSelectAreaCode,
+ validatorSelectCountry,
+ validatorSelectSmsVoice,
+ validatorSelectCarrier,
+ validatorSelectCnam,
+ validatorSelectAmount,
+ validatorSelectFormat,
+ redSelectRandomCustom,
+ redSelectProvider,
+ supportedCrypto,
+ supportedCryptoView,
+ supportedCryptoViewOf,
+ languageMenu,
+ supportedLanguages,
+ l,
+ termsAndConditionType,
+ planOptionsOf,
+ hP: hostingPlansText,
+ selectFormatOf,
+ vp,
+ vpsPlanOf,
+ vpsCpanelOptional,
 }
 
 module.exports = {
-  en,
+ en,
 }
 s = {
-  en,
+ en,
 }

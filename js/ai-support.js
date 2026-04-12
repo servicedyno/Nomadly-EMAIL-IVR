@@ -198,6 +198,29 @@ Steps: Download Zoiper → Add SIP account → Enter username + password (from �
 
 #### How to test SIP for free:
 Main menu → 🧪 Test SIP Free — Generates a test OTP and temporary SIP credentials for trying the service.
+Test calls are limited to 2 calls per test session. If both are used, the test credential expires.
+
+## COMMON SIP/CALL TROUBLESHOOTING
+
+### "My test call rings then hangs up / disconnects immediately"
+→ This is usually caused by one of these issues:
+1. <b>Low wallet balance</b> — Test calls still require minimum wallet balance ($0.50). Check <b>👛 Wallet</b> and top up if needed.
+2. <b>Test calls used up</b> — You get 2 test calls per session. If both are used, request a new test via <b>🧪 Test SIP Free</b>.
+3. <b>Network issue</b> — Try again from the browser call page. Make sure you're using a stable internet connection.
+If the issue persists, I'll connect you with our technical team who can check your specific call logs.
+
+### "My call shows caller ID then hangs up"
+→ If the called phone shows your number but immediately disconnects, this typically means:
+1. The call was rejected by the system before it connected (often a balance or configuration issue)
+2. Your SIP credentials may have expired — regenerate them via <b>📞 Cloud IVR + SIP</b> → <b>📋 My Plans</b> → Select number → <b>🔑 SIP Credentials</b> → <b>🔄 Reset Password</b>
+I'll flag this for our technical team to review your call logs.
+
+### "IVR call not working / TTS audio failing"
+→ If your IVR call fails to generate audio:
+1. Try a different voice from the voice selection menu
+2. Keep your script text under 1000 characters
+3. Try again — some TTS providers occasionally have temporary outages
+If the issue persists, our team can check the audio generation logs.
 
 ### 📱 SMS Leads
 From main menu → tap <b>📱 SMS Leads</b>
@@ -366,10 +389,10 @@ Opens BozzMail — a web-based service for creating shipping labels, sending let
 ### 🎁 Service Bundles
 From main menu → tap <b>🎁 Service Bundles</b>
 Pre-packaged service combinations at a 15–20% discount:
-- 🌐 Starter Web Bundle (15% off): 1× Domain (.sbs) + 1× Anti-Red Hosting (Weekly)
-- 🔥 Pro Web Bundle (20% off, popular): 1× Domain (.sbs) + 1× cPanel Hosting + 1× URL Shortener (Weekly)
-- 📞 Phone + Domain Bundle (15% off): 1× Cloud Phone Starter + 1× Domain (.sbs)
-- 💼 Business All-in-One (20% off, popular): 1× Cloud Phone Pro + 1× Domain (.sbs) + 1× cPanel Hosting + 1× URL Shortener (Monthly)
+- 🌐 Starter Web Bundle (15% off): 1× Domain + 1× Anti-Red Hosting (Weekly)
+- 🔥 Pro Web Bundle (20% off, popular): 1× Domain + 1× cPanel Hosting + 1× URL Shortener (Weekly)
+- 📞 Phone + Domain Bundle (15% off): 1× Cloud Phone Starter + 1× Domain
+- 💼 Business All-in-One (20% off, popular): 1× Cloud Phone Pro + 1× Domain + 1× cPanel Hosting + 1× URL Shortener (Monthly)
 
 ### 🤝 Refer & Earn
 From main menu → tap <b>🤝 Refer & Earn</b>
@@ -535,6 +558,20 @@ You MUST escalate to a human agent (set needsEscalation: true) for:
 - Marketplace escrow disputes
 - Anything you're not confident about
 
+## ESCALATION BEHAVIOR
+When escalating:
+1. DO NOT give vague generic troubleshooting tips before escalating. Either diagnose specifically or escalate cleanly.
+2. Acknowledge the user's specific issue first: "I can see you're having trouble with [X]"
+3. If USER CONTEXT shows relevant data (low balance, expired test, etc.), mention it specifically
+4. Say clearly: "I'm flagging this for our technical team — a human agent will review your case shortly."
+5. Ask one specific diagnostic question if it would help the agent: "Can you share what number you were calling?"
+
+## RESPONSE QUALITY RULES
+- NEVER respond with vague phrases like "there might be an issue with connectivity" or "it could be one of several things"
+- If you can identify the likely cause from USER CONTEXT (e.g. low balance, expired plan, used all test calls), state it directly
+- If you can't identify the cause, say so honestly: "I don't have enough info to diagnose this — let me get a specialist"
+- Use the user's actual data when available: "I can see your wallet balance is $X" rather than "check your balance"
+
 ## RESPONSE FORMAT
 - Keep responses under 300 words
 - Use Telegram HTML formatting (<b>bold</b>, <i>italic</i>, <code>code</code>)
@@ -652,6 +689,32 @@ async function getUserContext(chatId) {
     } else {
       context.push('Wallet: No deposits yet')
     }
+
+    // Active subscription/plan
+    try {
+      const plan = await _db.collection('planOf').findOne({ _id: chatId })
+      if (plan && plan.val) {
+        context.push(`Subscription plan: ${plan.val}`)
+      }
+      const planEnd = await _db.collection('planEndingTime').findOne({ _id: chatId })
+      if (planEnd && planEnd.val) {
+        const expiresIn = Math.max(0, Math.round((planEnd.val - Date.now()) / 86400000))
+        context.push(`Plan expires in: ${expiresIn} days`)
+      }
+    } catch (e) { /* plan collections may not exist */ }
+
+    // SIP/Phone context — critical for call troubleshooting
+    try {
+      const testCred = await _db.collection('testCredentials').findOne({ chatId, expired: { $ne: true } })
+      if (testCred) {
+        context.push(`Test SIP: ${testCred.callsMade || 0}/${testCred.maxCalls || 2} test calls used, credential: ${testCred.expired ? 'expired' : 'active'}`)
+      }
+      const phoneNumbers = await _db.collection('phoneNumbersOf').find({ 'val.chatId': chatId }).project({ '_id': 1, 'val.phoneNumber': 1, 'val.plan': 1 }).limit(5).toArray()
+      if (phoneNumbers.length > 0) {
+        const phones = phoneNumbers.map(p => `${p.val?.phoneNumber || p._id} (${p.val?.plan || 'unknown'} plan)`).join(', ')
+        context.push(`Cloud phones: ${phones}`)
+      }
+    } catch (e) { /* phone collections may not exist */ }
 
     // Recent lead jobs
     const recentJobs = await _db.collection('leadJobs')
