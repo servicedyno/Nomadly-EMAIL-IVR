@@ -120,6 +120,7 @@ const user = {
  smsMyCampaigns: '📋 Mes campagnes',
  smsDownloadApp: '📲 Télécharger l\'appli',
  smsResetLogin: '🔓 Réinitialiser la connexion',
+ smsHowItWorks: '❓ Comment ça marche',
  changeSetting: '🌍 Paramètres',
  changeLanguage: '🌍 Changer de langue',
 
@@ -359,6 +360,12 @@ ${MONTHLY_PLAN_FREE_DOMAINS} domaines · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocal
  lowPrice: `Prix inférieur au minimum requis.`,
  freeTrialAvailable: (chatId) => `📱 <b>Essai gratuit BulkSMS — 100 SMS gratuits</b>\n\nVotre code d'activation :\n<code>${chatId}</code>\n\n📲 <b>Téléchargez l'appli :</b> ${SMS_APP_LINK}\n\nOuvrez l'appli → Entrez votre code → Commencez à envoyer !\n\n⚡ Essai : 1 appareil uniquement. Abonnez-vous pour accès multi-appareils.\n\nBesoin de cartes eSIM ? Appuyez sur 💬 Obtenir de l'aide`,
  freeTrialNotAvailable: `Vous avez déjà utilisé l'essai gratuit.`,
+
+ smsAppMenuSubscribed: (chatId) => `📧 <b>BulkSMS — Actif ✅</b>\n\nEnvoie des SMS depuis la SIM de votre téléphone — haute délivrabilité, vrai ID expéditeur.\n\n📲 <b>Appli :</b> ${SMS_APP_LINK}\n🔑 <b>Code :</b> <code>${chatId}</code>\n\nCréez des campagnes ci-dessous ou dans l'appli.\nNouveau ? Appuyez sur <b>❓ Comment ça marche</b>`,
+ smsAppMenuTrial: (chatId, remaining) => `📧 <b>BulkSMS — Essai gratuit</b> (${remaining} SMS restants)\n\nEnvoie des SMS depuis la SIM de votre téléphone — haute délivrabilité, vrai ID expéditeur.\n\n📲 <b>Appli :</b> ${SMS_APP_LINK}\n🔑 <b>Code :</b> <code>${chatId}</code>\n\nNouveau ? Appuyez sur <b>❓ Comment ça marche</b>`,
+ smsAppMenuExpired: `📧 <b>BulkSMS</b>\n\nVotre essai est terminé. Appuyez sur <b>⚡ Améliorer le plan</b> pour continuer.\n\nNouveau ? Appuyez sur <b>❓ Comment ça marche</b> pour découvrir BulkSMS.`,
+
+ smsHowItWorks: (chatId) => `📧 <b>BulkSMS — Comment ça marche</b>\n\nBulkSMS envoie de vrais SMS <b>depuis la carte SIM de votre téléphone</b> — pas un serveur. Haute délivrabilité et vrai ID expéditeur.\n\n<b>⚙️ Configuration (une seule fois) :</b>\n1. Téléchargez l'appli → ${SMS_APP_LINK}\n2. Ouvrez → entrez le code : <code>${chatId}</code>\n3. Autorisez les permissions SMS\n\n<b>📤 Envoyer une campagne :</b>\n• Appuyez sur <b>📱 Créer une campagne</b> ici ou dans l'appli\n• Ajoutez message + contacts (coller ou fichier)\n• La campagne se synchronise → appuyez sur Envoyer sur votre téléphone\n\n<b>💡 Astuces :</b>\n• Utilisez une <b>eSIM</b> pour une ligne dédiée\n• Plusieurs lignes de message = rotation automatique\n• <code>[name]</code> = personnalisation automatique\n• Planifiez ou envoyez immédiatement\n\n<b>📋 Mes campagnes</b> affiche toutes vos campagnes.\n<b>🔓 Réinitialiser</b> pour changer d'appareil.\n\nBesoin d'eSIM ? Appuyez sur 💬 Support`,
  planSubscribed:
  HIDE_SMS_APP === 'true'
  ? `Vous vous êtes abonné avec succès au plan {{plan}} ! Profitez de domaines gratuits, de liens Shortit illimités et de validations de numéros USA gratuites avec noms des propriétaires inclus. Besoin d'une carte E-sim ? Appuyez sur 💬 Obtenir de l'aide.`

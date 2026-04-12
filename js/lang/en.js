@@ -117,6 +117,7 @@ const user = {
  smsMyCampaigns: '📋 My Campaigns',
  smsDownloadApp: '📲 Download App',
  smsResetLogin: '🔓 Reset Login',
+ smsHowItWorks: '❓ How It Works',
  changeSetting: '🌍 Settings',
  changeLanguage: '🌍 Change Language',
  cloudPhone: '📞 Cloud IVR + SIP',
@@ -363,9 +364,11 @@ ${MONTHLY_PLAN_FREE_DOMAINS} domains · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocale
 
  freeTrialNotAvailable: 'You have already used the free trial.\n\nTap <b>⚡ Upgrade Plan</b> to subscribe — includes unlimited BulkSMS, URL shortening, validations, free domains & more!',
 
- smsAppMenuSubscribed: (chatId) => `📧 <b>BulkSMS — Active Subscription</b>\n\nYou have unlimited access.\n📲 <b>Download app:</b> ${SMS_APP_LINK}\n\nActivation code: <code>${chatId}</code>\n\nCreate & manage campaigns below, or use the app for sending.`,
- smsAppMenuTrial: (chatId, remaining) => `📧 <b>BulkSMS — Free Trial</b>\n\n${remaining} SMS remaining in your trial.\n📲 <b>Download app:</b> ${SMS_APP_LINK}\n\nActivation code: <code>${chatId}</code>\n\nCreate campaigns below or use the app directly.`,
- smsAppMenuExpired: `📧 <b>BulkSMS</b>\n\nYour trial has been used. Subscribe to continue sending.\n\nTap <b>⚡ Upgrade Plan</b> to unlock unlimited BulkSMS + URL shortening + validations & more!`,
+ smsAppMenuSubscribed: (chatId) => `📧 <b>BulkSMS — Active ✅</b>\n\nSends SMS from your phone's SIM — high deliverability, real sender ID.\n\n📲 <b>App:</b> ${SMS_APP_LINK}\n🔑 <b>Code:</b> <code>${chatId}</code>\n\nCreate campaigns below or in the app.\nNew here? Tap <b>❓ How It Works</b>`,
+ smsAppMenuTrial: (chatId, remaining) => `📧 <b>BulkSMS — Free Trial</b> (${remaining} SMS left)\n\nSends SMS from your phone's SIM — high deliverability, real sender ID.\n\n📲 <b>App:</b> ${SMS_APP_LINK}\n🔑 <b>Code:</b> <code>${chatId}</code>\n\nNew here? Tap <b>❓ How It Works</b>`,
+ smsAppMenuExpired: `📧 <b>BulkSMS</b>\n\nYour trial has ended. Tap <b>⚡ Upgrade Plan</b> to continue sending.\n\nNew here? Tap <b>❓ How It Works</b> to learn how BulkSMS works.`,
+
+ smsHowItWorks: (chatId) => `📧 <b>BulkSMS — How It Works</b>\n\nBulkSMS sends real SMS <b>from your phone's SIM card</b> — not a server. This gives you high deliverability and a real sender ID.\n\n<b>⚙️ One-time setup:</b>\n1. Download the app → ${SMS_APP_LINK}\n2. Open it → enter code: <code>${chatId}</code>\n3. Grant SMS permission when prompted\n\n<b>📤 Sending a campaign:</b>\n• Tap <b>📱 Create Campaign</b> here or create in the app\n• Add your message + contacts (paste or upload file)\n• Campaign syncs to the app → tap Send on your phone\n\n<b>💡 Tips:</b>\n• Use an <b>eSIM</b> for a dedicated sending line\n• Multiple message lines = auto-rotation per contact\n• <code>[name]</code> in your message = auto-personalization\n• Schedule campaigns for later or send immediately\n\n<b>📋 My Campaigns</b> shows all your campaigns + status.\n<b>🔓 Reset Login</b> lets you switch to a new device.\n\nNeed eSIM? Tap 💬 Support`,
 
  smsCreateCampaignIntro: `📱 <b>Create SMS Campaign</b>\n\nHere's how it works:\n\n<b>Step 1:</b> Name your campaign\n<b>Step 2:</b> Write your message(s)\n • Use <code>[name]</code> to personalize\n • Multiple lines = message rotation\n<b>Step 3:</b> Upload contacts\n • Paste as text: <code>+1234567890, John</code>\n • Or upload a .txt / .csv file\n<b>Step 4:</b> Schedule or send immediately\n\nThe campaign syncs to the Nomadly SMS App for sending.\n\n<b>Let's start — enter a campaign name:</b>`,
 

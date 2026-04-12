@@ -119,6 +119,7 @@ const user = {
  smsMyCampaigns: '📋 我的活动',
  smsDownloadApp: '📲 下载应用',
  smsResetLogin: '🔓 重置登录',
+ smsHowItWorks: '❓ 使用说明',
  changeSetting: '🌍 设置',
  changeLanguage: '🌍 更改语言',
 
@@ -349,6 +350,12 @@ ${MONTHLY_PLAN_FREE_DOMAINS} 个域名 · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLoca
  lowPrice: `提供的价格低于所需金额。`,
  freeTrialAvailable: (chatId) => `📱 <b>BulkSMS 免费试用 — 100条免费短信</b>\n\n您的激活码：\n<code>${chatId}</code>\n\n📲 <b>下载应用：</b> ${SMS_APP_LINK}\n\n打开应用 → 输入激活码 → 开始发送！\n\n⚡ 试用：仅限1台设备。升级可多设备使用。\n\n需要 eSIM 卡？点击 💬 获取支持`,
  freeTrialNotAvailable: `您已使用过免费试用。`,
+
+ smsAppMenuSubscribed: (chatId) => `📧 <b>BulkSMS — 已激活 ✅</b>\n\n通过手机SIM卡发送短信 — 高送达率，真实发送人ID。\n\n📲 <b>应用：</b> ${SMS_APP_LINK}\n🔑 <b>激活码：</b> <code>${chatId}</code>\n\n在下方或应用中创建活动。\n新用户？点击 <b>❓ 使用说明</b>`,
+ smsAppMenuTrial: (chatId, remaining) => `📧 <b>BulkSMS — 免费试用</b>（剩余 ${remaining} 条）\n\n通过手机SIM卡发送短信 — 高送达率，真实发送人ID。\n\n📲 <b>应用：</b> ${SMS_APP_LINK}\n🔑 <b>激活码：</b> <code>${chatId}</code>\n\n新用户？点击 <b>❓ 使用说明</b>`,
+ smsAppMenuExpired: `📧 <b>BulkSMS</b>\n\n试用已结束。点击 <b>⚡ 升级计划</b> 继续发送。\n\n新用户？点击 <b>❓ 使用说明</b> 了解BulkSMS。`,
+
+ smsHowItWorks: (chatId) => `📧 <b>BulkSMS — 使用说明</b>\n\nBulkSMS通过<b>您手机的SIM卡</b>发送真实短信 — 不是服务器。高送达率和真实发送人ID。\n\n<b>⚙️ 一次性设置：</b>\n1. 下载应用 → ${SMS_APP_LINK}\n2. 打开 → 输入激活码：<code>${chatId}</code>\n3. 允许短信权限\n\n<b>📤 发送活动：</b>\n• 在这里点击 <b>📱 创建活动</b> 或在应用中创建\n• 添加消息 + 联系人（粘贴或上传文件）\n• 活动同步到应用 → 在手机上点击发送\n\n<b>💡 技巧：</b>\n• 使用 <b>eSIM</b> 作为专用发送线路\n• 多行消息 = 自动轮换\n• <code>[name]</code> = 自动个性化\n• 可以定时发送或立即发送\n\n<b>📋 我的活动</b> 查看所有活动状态。\n<b>🔓 重置登录</b> 切换设备。\n\n需要eSIM？点击 💬 支持`,
  planSubscribed:
  HIDE_SMS_APP === 'true'
  ? `您已成功订阅 {{plan}} 计划！享受免费 、无限Shortit链接和免费USA电话号码验证（含机主姓名）。需要 E-sim 卡？请点击 💬 获取支持。`

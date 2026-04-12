@@ -21026,6 +21026,7 @@ Select a category:`), k.of(catBtns))
           [user.smsCreateCampaign],
           [user.smsMyCampaigns],
           [user.smsDownloadApp, user.smsResetLogin],
+          [user.smsHowItWorks],
           ...(sub.isSubscribed ? [] : [[user.buyPlan]]),
           [t.back],
         ],
@@ -21054,6 +21055,27 @@ Select a category:`), k.of(catBtns))
     }
     await set(loginCountOf, Number(chatId), { devices: [], loginCount: 0, canLogin: true, lastLoginAt: Date.now() })
     return send(chatId, '✅ <b>All devices logged out!</b>\n\nYou can now login on a new device.', { parse_mode: 'HTML' })
+  }
+
+  // ── SMS App: How It Works ──
+  if (message === user.smsHowItWorks || (typeof message === 'string' && message.startsWith('❓') && (message.includes('How It Works') || message.includes('Comment') || message.includes('使用说明') || message.includes('कैसे')))) {
+    const sub = smsSubStatus
+    const smsKeyboard = {
+      reply_markup: {
+        keyboard: [
+          [user.smsCreateCampaign],
+          [user.smsMyCampaigns],
+          [user.smsDownloadApp, user.smsResetLogin],
+          [user.smsHowItWorks],
+          ...(sub.isSubscribed ? [] : [[user.buyPlan]]),
+          [t.back],
+        ],
+        resize_keyboard: true,
+      },
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+    }
+    return send(chatId, t.smsHowItWorks(chatId), smsKeyboard)
   }
 
   // ── SMS App: Create Campaign from Bot ──
@@ -21097,7 +21119,7 @@ Select a category:`), k.of(catBtns))
       await set(state, chatId, 'action', null)
       const sub = smsSubStatus
       const smsKeyboard = {
-        reply_markup: { keyboard: [[user.smsCreateCampaign], [user.smsMyCampaigns], [user.smsDownloadApp, user.smsResetLogin], ...(sub.isSubscribed ? [] : [[user.buyPlan]]), [t.back]], resize_keyboard: true },
+        reply_markup: { keyboard: [[user.smsCreateCampaign], [user.smsMyCampaigns], [user.smsDownloadApp, user.smsResetLogin], [user.smsHowItWorks], ...(sub.isSubscribed ? [] : [[user.buyPlan]]), [t.back]], resize_keyboard: true },
         parse_mode: 'HTML', disable_web_page_preview: true,
       }
       if (sub.isSubscribed) return send(chatId, t.smsAppMenuSubscribed(chatId), smsKeyboard)
@@ -21153,7 +21175,7 @@ Select a category:`), k.of(catBtns))
       // Return to BulkSMS sub-menu
       const sub = smsSubStatus
       const smsKeyboard = {
-        reply_markup: { keyboard: [[user.smsCreateCampaign], [user.smsMyCampaigns], [user.smsDownloadApp, user.smsResetLogin], ...(sub.isSubscribed ? [] : [[user.buyPlan]]), [t.back]], resize_keyboard: true },
+        reply_markup: { keyboard: [[user.smsCreateCampaign], [user.smsMyCampaigns], [user.smsDownloadApp, user.smsResetLogin], [user.smsHowItWorks], ...(sub.isSubscribed ? [] : [[user.buyPlan]]), [t.back]], resize_keyboard: true },
         parse_mode: 'HTML', disable_web_page_preview: true,
       }
       if (sub.isSubscribed) return send(chatId, t.smsAppMenuSubscribed(chatId), smsKeyboard)
