@@ -334,10 +334,10 @@ ${MONTHLY_PLAN_FREE_DOMAINS} domains · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocale
 📞 Cloud IVR access
 
 <b>Daily</b> — $${PRICE_DAILY}
-${DAILY_PLAN_FREE_DOMAINS} domain · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · Unlimited links + BulkSMS (1 device)
+${DAILY_PLAN_FREE_DOMAINS} domain · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · Unlimited links + BulkSMS (3 devices)
 
 <b>Weekly</b> — $${PRICE_WEEKLY}
-${WEEKLY_PLAN_FREE_DOMAINS} domains · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · Unlimited links + BulkSMS (2 devices)
+${WEEKLY_PLAN_FREE_DOMAINS} domains · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · Unlimited links + BulkSMS (10 devices)
 
 <b>Monthly</b> — $${PRICE_MONTHLY}
 ${MONTHLY_PLAN_FREE_DOMAINS} domains · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · Unlimited links + BulkSMS (unlimited devices)
@@ -405,8 +405,8 @@ Included:
 • ${SMS_APP_NAME} app
 
 📱 Device access:
- Daily — 1 device
- Weekly — 2 devices
+ Daily — 3 devices
+ Weekly — 10 devices
  Monthly — Unlimited devices
 
 📲 Download: ${SMS_APP_LINK}

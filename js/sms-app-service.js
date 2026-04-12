@@ -3,7 +3,7 @@
  * 
  * Provides APIs for:
  * - User authentication via activation code (Telegram chatId)
- * - Plan-based multi-device management (Monthly=unlimited, Weekly=2, Daily=1, Trial=1)
+ * - Plan-based multi-device management (Monthly=unlimited, Weekly=10, Daily=3, Trial=1)
  * - Subscription-gated campaign CRUD
  * - Campaign sync between Telegram bot and mobile app
  * - SMS delivery reporting and analytics
@@ -22,8 +22,8 @@ let planOf
 // ─── Device limits per subscription plan ───
 const DEVICE_LIMITS = {
   Monthly: Infinity,   // unlimited
-  Weekly: 2,
-  Daily: 1,
+  Weekly: 10,
+  Daily: 3,
   trial: 1,
   none: 1,
 }

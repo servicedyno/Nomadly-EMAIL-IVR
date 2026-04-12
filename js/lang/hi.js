@@ -331,10 +331,10 @@ ${MONTHLY_PLAN_FREE_DOMAINS} डोमेन · ${MONTHLY_PLAN_FREE_VALIDATIONS.
 📞 Cloud IVR एक्सेस
 
 <b>दैनिक</b> — $${PRICE_DAILY}
-${DAILY_PLAN_FREE_DOMAINS} डोमेन · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} वैलिडेशन · असीमित लिंक + BulkSMS (1 डिवाइस)
+${DAILY_PLAN_FREE_DOMAINS} डोमेन · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} वैलिडेशन · असीमित लिंक + BulkSMS (3 डिवाइस)
 
 <b>साप्ताहिक</b> — $${PRICE_WEEKLY}
-${WEEKLY_PLAN_FREE_DOMAINS} डोमेन · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} वैलिडेशन · असीमित लिंक + BulkSMS (2 डिवाइस)
+${WEEKLY_PLAN_FREE_DOMAINS} डोमेन · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} वैलिडेशन · असीमित लिंक + BulkSMS (10 डिवाइस)
 
 <b>मासिक</b> — $${PRICE_MONTHLY}
 ${MONTHLY_PLAN_FREE_DOMAINS} डोमेन · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} वैलिडेशन · असीमित लिंक + BulkSMS (असीमित डिवाइस)
@@ -353,7 +353,7 @@ ${MONTHLY_PLAN_FREE_DOMAINS} डोमेन · ${MONTHLY_PLAN_FREE_VALIDATIONS.
  `${domain} डोमेन की कीमत अब $${view(newPrice)} <s>($${price})</s> है। भुगतान विधि चुनें।`,
  couponInvalid: `अमान्य कूपन कोड। कृपया पुनः कूपन कोड दर्ज करें:`,
  lowPrice: `भेजी गई कीमत आवश्यक से कम है।`,
- freeTrialAvailable: (chatId) => `📱 <b>BulkSMS फ्री ट्रायल — 100 मुफ्त SMS</b>\n\nआपका एक्टिवेशन कोड:\n<code>${chatId}</code>\n\n📲 <b>ऐप डाउनलोड करें:</b> ${SMS_APP_LINK}\n\nऐप खोलें → कोड दर्ज करें → भेजना शुरू करें!\n\n⚡ ट्रायल: केवल 1 डिवाइस। मल्टी-डिवाइस के लिए अपग्रेड करें।\n\neSIM कार्ड चाहिए? 💬 सहायता प्राप्त करें दबाएं`,
+ freeTrialAvailable: (chatId) => `📱 <b>BulkSMS फ्री ट्रायल — 100 मुफ्त SMS</b>\n\nआपका एक्टिवेशन कोड:\n<code>${chatId}</code>\n\n📲 <b>ऐप डाउनलोड करें:</b> ${SMS_APP_LINK}\n\nऐप खोलें → कोड दर्ज करें → भेजना शुरू करें!\n\n⚡ ट्रायल: केवल 1 डिवाइस। अपग्रेड करें — 10 डिवाइस तक।\n\neSIM कार्ड चाहिए? 💬 सहायता प्राप्त करें दबाएं`,
  freeTrialNotAvailable: `आप पहले ही नि:शुल्क परीक्षण का उपयोग कर चुके हैं।`,
 
  smsAppMenuSubscribed: (chatId) => `📧 <b>BulkSMS — सक्रिय ✅</b>\n\nआपके फोन की SIM कार्ड से SMS भेजता है — उच्च डिलीवरी, असली सेंडर ID।\n\n📲 <b>ऐप:</b> ${SMS_APP_LINK}\n🔑 <b>कोड:</b> <code>${chatId}</code>\n\nनीचे या ऐप में अभियान बनाएं।\nनए हैं? <b>❓ कैसे काम करता है</b> दबाएं`,
@@ -373,8 +373,8 @@ ${MONTHLY_PLAN_FREE_DOMAINS} डोमेन · ${MONTHLY_PLAN_FREE_VALIDATIONS.
 • ${SMS_APP_NAME}
 
 📱 डिवाइस एक्सेस:
- दैनिक — 1 डिवाइस
- साप्ताहिक — 2 डिवाइस
+ दैनिक — 3 डिवाइस
+ साप्ताहिक — 10 डिवाइस
  मासिक — असीमित डिवाइस
 
 📲 डाउनलोड: ${SMS_APP_LINK}

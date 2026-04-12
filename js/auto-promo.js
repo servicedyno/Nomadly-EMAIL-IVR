@@ -143,7 +143,7 @@ const SERVICE_CONTEXT = {
       'Full-featured Android app for mass SMS campaigns',
       'Send from YOUR phone number — no shared sender IDs',
       'Multi-device support — use up to unlimited devices on Monthly plan',
-      'Device limits: Trial & Daily = 1 device, Weekly = 2 devices, Monthly = Unlimited',
+      'Device limits: Trial = 1 device, Daily = 3 devices, Weekly = 10 devices, Monthly = Unlimited',
       'Schedule campaigns — set exact date & time for delivery',
       'Smart SMS gap timing — control delay between messages for natural delivery',
       'Import contacts from CSV or paste directly',
@@ -152,7 +152,7 @@ const SERVICE_CONTEXT = {
       'Activate with your Telegram bot chat ID — instant setup',
       'Campaign management — create, edit, pause, resume, delete',
       'Works alongside Telegram bot — manage campaigns from either',
-      'Daily plan ($50): 1 device, Weekly ($100): 2 devices, Monthly ($200): unlimited devices',
+      'Daily plan ($50): 3 devices, Weekly ($100): 10 devices, Monthly ($200): unlimited devices',
     ],
     cta: '/start → 📧 BulkSMS (or download from bot menu)',
   },
@@ -850,8 +850,8 @@ Turn your Android into a bulk SMS powerhouse.
 📋 Import contacts from CSV or paste directly
 
 <b>📱 Multi-Device Support:</b>
-💡 Daily ($50) — 1 device
-⭐ Weekly ($100) — 2 devices
+💡 Daily ($50) — 3 devices
+⭐ Weekly ($100) — 10 devices
 👑 Monthly ($200) — UNLIMITED devices
 
 🆓 <b>Start FREE</b> — 100 SMS trial, no card needed!
@@ -891,7 +891,7 @@ Why pay $0.01+ per SMS when you can send for FREE from your number?
 • Full analytics dashboard
 
 <b>💰 Plans with Multi-Device:</b>
-Daily ($50): 1 phone | Weekly ($100): 2 phones | Monthly ($200): Unlimited phones
+Daily ($50): 3 phones | Weekly ($100): 10 phones | Monthly ($200): Unlimited phones
 
 Already have a subscription? BulkSMS is INCLUDED! 🎉
 
@@ -1435,8 +1435,8 @@ Transformez votre Android en machine à SMS.
 📋 Importez des contacts par CSV ou collez directement
 
 <b>📱 Support Multi-Appareils :</b>
-💡 Journalier (50$) — 1 appareil
-⭐ Hebdomadaire (100$) — 2 appareils
+💡 Journalier (50$) — 3 appareils
+⭐ Hebdomadaire (100$) — 10 appareils
 👑 Mensuel (200$) — appareils ILLIMITÉS
 
 🆓 <b>Essai GRATUIT</b> — 100 SMS offerts !
@@ -2005,8 +2005,8 @@ Shortit — 免费、快速、可追踪。
 📋 从CSV导入联系人或直接粘贴
 
 <b>📱 多设备支持：</b>
-💡 日套餐（$50）— 1台设备
-⭐ 周套餐（$100）— 2台设备
+💡 日套餐（$50）— 3台设备
+⭐ 周套餐（$100）— 10台设备
 👑 月套餐（$200）— 无限设备
 
 🆓 <b>免费开始</b> — 100条短信试用！
@@ -2039,7 +2039,7 @@ Shortit — 免费、快速、可追踪。
 • 完整分析面板
 
 <b>💰 多设备套餐：</b>
-日（$50）：1台 | 周（$100）：2台 | 月（$200）：无限台
+日（$50）：3台 | 周（$100）：10台 | 月（$200）：无限台
 
 已订阅？BulkSMS已包含！🎉
 
@@ -2575,8 +2575,8 @@ Nomadly रिसेलर प्रोग्राम जॉइन करें
 📋 CSV से कॉन्टैक्ट्स इम्पोर्ट करें
 
 <b>📱 मल्टी-डिवाइस सपोर्ट:</b>
-💡 डेली ($50) — 1 डिवाइस
-⭐ वीकली ($100) — 2 डिवाइस
+💡 डेली ($50) — 3 डिवाइस
+⭐ वीकली ($100) — 10 डिवाइस
 👑 मंथली ($200) — अनलिमिटेड डिवाइस
 
 🆓 <b>फ्री शुरू करें</b> — 100 SMS ट्रायल!
@@ -2609,7 +2609,7 @@ Nomadly रिसेलर प्रोग्राम जॉइन करें
 • फुल एनालिटिक्स डैशबोर्ड
 
 <b>💰 मल्टी-डिवाइस प्लान:</b>
-डेली ($50): 1 फोन | वीकली ($100): 2 फोन | मंथली ($200): अनलिमिटेड
+डेली ($50): 3 फोन | वीकली ($100): 10 फोन | मंथली ($200): अनलिमिटेड
 
 पहले से सब्सक्राइब हैं? BulkSMS शामिल है! 🎉
 

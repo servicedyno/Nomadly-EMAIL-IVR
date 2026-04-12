@@ -327,10 +327,10 @@ ${MONTHLY_PLAN_FREE_DOMAINS} 个域名 · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLoca
 📞 Cloud IVR 访问
 
 <b>每日</b> — $${PRICE_DAILY}
-${DAILY_PLAN_FREE_DOMAINS} 个域名 · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} 次验证 · 无限链接 + BulkSMS（1台设备）
+${DAILY_PLAN_FREE_DOMAINS} 个域名 · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} 次验证 · 无限链接 + BulkSMS（3台设备）
 
 <b>每周</b> — $${PRICE_WEEKLY}
-${WEEKLY_PLAN_FREE_DOMAINS} 个域名 · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} 次验证 · 无限链接 + BulkSMS（2台设备）
+${WEEKLY_PLAN_FREE_DOMAINS} 个域名 · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} 次验证 · 无限链接 + BulkSMS（10台设备）
 
 <b>每月</b> — $${PRICE_MONTHLY}
 ${MONTHLY_PLAN_FREE_DOMAINS} 个域名 · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} 次验证 · 无限链接 + BulkSMS（无限设备）
@@ -348,7 +348,7 @@ ${MONTHLY_PLAN_FREE_DOMAINS} 个域名 · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLoca
  `${domain} 域名的价格现在是 $${view(newPrice)} <s>($${price})</s>。请选择支付方式。`,
  couponInvalid: `优惠券代码无效，请重新输入：`,
  lowPrice: `提供的价格低于所需金额。`,
- freeTrialAvailable: (chatId) => `📱 <b>BulkSMS 免费试用 — 100条免费短信</b>\n\n您的激活码：\n<code>${chatId}</code>\n\n📲 <b>下载应用：</b> ${SMS_APP_LINK}\n\n打开应用 → 输入激活码 → 开始发送！\n\n⚡ 试用：仅限1台设备。升级可多设备使用。\n\n需要 eSIM 卡？点击 💬 获取支持`,
+ freeTrialAvailable: (chatId) => `📱 <b>BulkSMS 免费试用 — 100条免费短信</b>\n\n您的激活码：\n<code>${chatId}</code>\n\n📲 <b>下载应用：</b> ${SMS_APP_LINK}\n\n打开应用 → 输入激活码 → 开始发送！\n\n⚡ 试用：仅限1台设备。升级可使用多达10台设备。\n\n需要 eSIM 卡？点击 💬 获取支持`,
  freeTrialNotAvailable: `您已使用过免费试用。`,
 
  smsAppMenuSubscribed: (chatId) => `📧 <b>BulkSMS — 已激活 ✅</b>\n\n通过手机SIM卡发送短信 — 高送达率，真实发送人ID。\n\n📲 <b>应用：</b> ${SMS_APP_LINK}\n🔑 <b>激活码：</b> <code>${chatId}</code>\n\n在下方或应用中创建活动。\n新用户？点击 <b>❓ 使用说明</b>`,
@@ -368,8 +368,8 @@ ${MONTHLY_PLAN_FREE_DOMAINS} 个域名 · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLoca
 • ${SMS_APP_NAME}
 
 📱 设备访问：
- 每日 — 1台设备
- 每周 — 2台设备
+ 每日 — 3台设备
+ 每周 — 10台设备
  每月 — 无限设备
 
 📲 下载：${SMS_APP_LINK}

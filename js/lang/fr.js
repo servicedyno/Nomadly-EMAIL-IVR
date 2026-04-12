@@ -330,10 +330,10 @@ ${MONTHLY_PLAN_FREE_DOMAINS} domaines · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocal
 📞 Accès Cloud IVR
 
 <b>Quotidien</b> — $${PRICE_DAILY}
-${DAILY_PLAN_FREE_DOMAINS} domaine · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · Liens + BulkSMS (1 appareil)
+${DAILY_PLAN_FREE_DOMAINS} domaine · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · Liens + BulkSMS (3 appareils)
 
 <b>Hebdomadaire</b> — $${PRICE_WEEKLY}
-${WEEKLY_PLAN_FREE_DOMAINS} domaines · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · Liens + BulkSMS (2 appareils)
+${WEEKLY_PLAN_FREE_DOMAINS} domaines · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · Liens + BulkSMS (10 appareils)
 
 <b>Mensuel</b> — $${PRICE_MONTHLY}
 ${MONTHLY_PLAN_FREE_DOMAINS} domaines · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · Liens + BulkSMS (appareils illimités)
@@ -358,7 +358,7 @@ ${MONTHLY_PLAN_FREE_DOMAINS} domaines · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocal
  )} <s>($${price})</s>. Veuillez choisir une méthode de paiement.`,
  couponInvalid: `Code promo invalide. Veuillez entrer un autre code promo :`,
  lowPrice: `Prix inférieur au minimum requis.`,
- freeTrialAvailable: (chatId) => `📱 <b>Essai gratuit BulkSMS — 100 SMS gratuits</b>\n\nVotre code d'activation :\n<code>${chatId}</code>\n\n📲 <b>Téléchargez l'appli :</b> ${SMS_APP_LINK}\n\nOuvrez l'appli → Entrez votre code → Commencez à envoyer !\n\n⚡ Essai : 1 appareil uniquement. Abonnez-vous pour accès multi-appareils.\n\nBesoin de cartes eSIM ? Appuyez sur 💬 Obtenir de l'aide`,
+ freeTrialAvailable: (chatId) => `📱 <b>Essai gratuit BulkSMS — 100 SMS gratuits</b>\n\nVotre code d'activation :\n<code>${chatId}</code>\n\n📲 <b>Téléchargez l'appli :</b> ${SMS_APP_LINK}\n\nOuvrez l'appli → Entrez votre code → Commencez à envoyer !\n\n⚡ Essai : 1 appareil uniquement. Abonnez-vous pour accès multi-appareils (jusqu'à 10).\n\nBesoin de cartes eSIM ? Appuyez sur 💬 Obtenir de l'aide`,
  freeTrialNotAvailable: `Vous avez déjà utilisé l'essai gratuit.`,
 
  smsAppMenuSubscribed: (chatId) => `📧 <b>BulkSMS — Actif ✅</b>\n\nEnvoie des SMS depuis la SIM de votre téléphone — haute délivrabilité, vrai ID expéditeur.\n\n📲 <b>Appli :</b> ${SMS_APP_LINK}\n🔑 <b>Code :</b> <code>${chatId}</code>\n\nCréez des campagnes ci-dessous ou dans l'appli.\nNouveau ? Appuyez sur <b>❓ Comment ça marche</b>`,
@@ -377,8 +377,8 @@ Inclus :
 • \${SMS_APP_NAME}
 
 📱 Accès appareils :
- Quotidien — 1 appareil
- Hebdomadaire — 2 appareils
+ Quotidien — 3 appareils
+ Hebdomadaire — 10 appareils
  Mensuel — Appareils illimités
 
 📲 Télécharger : \${SMS_APP_LINK}

@@ -312,7 +312,7 @@ Opens shortener sub-menu:
 - 📊 View Shortlink Analytics — Click stats
 - 🔗 Activate Domain for Shortener — Link your domain to shortener
 - Free tier: ${process.env.FREE_LINKS || '5'} links per ${process.env.FREE_LINKS_TIME_SECONDS ? Math.round(Number(process.env.FREE_LINKS_TIME_SECONDS)/3600) + ' hours' : 'day'}
-- Subscription: Daily ($${process.env.PRICE_DAILY_SUBSCRIPTION || '50'}), Weekly ($${process.env.PRICE_WEEKLY_SUBSCRIPTION || '100'}), Monthly ($${process.env.PRICE_MONTHLY_SUBSCRIPTION || '200'})
+- Subscription: Daily ($${process.env.PRICE_DAILY_SUBSCRIPTION || '50'}) 3 devices, Weekly ($${process.env.PRICE_WEEKLY_SUBSCRIPTION || '100'}) 10 devices, Monthly ($${process.env.PRICE_MONTHLY_SUBSCRIPTION || '200'}) unlimited devices
 
 ### 🌐 Register Domain
 From main menu → tap <b>🌐 Register Bulletproof Domain</b>
