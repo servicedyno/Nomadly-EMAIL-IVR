@@ -22149,7 +22149,38 @@ const buyVPSPlanFullProcess = async (chatId, lang, vpsDetails) => {
     // For Contabo, SSH keys are attached at creation time (no separate step needed).
     // Just wait for the instance to provision and get an IP.
     send(chatId, translation('vp.vpsProvisioningWait', lang) || '⏳ Your server is being provisioned. Please wait...')
-    await sleep(15000)
+
+    // Poll for the real IP address (Contabo takes ~30-60s to assign one)
+    let resolvedIp = vpsData.host
+    if (!resolvedIp || resolvedIp === 'provisioning...' || resolvedIp === 'pending') {
+      const contaboService = require('./contabo-service.js')
+      const maxAttempts = 6
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        await sleep(15000) // wait 15s between each poll
+        try {
+          const details = await contaboService.getInstance(vpsData.contaboInstanceId || vpsData._id)
+          const ip = details?.ipConfig?.v4?.ip || details?.ipv4 || null
+          if (ip && ip !== 'provisioning...' && ip !== 'pending' && ip !== '0.0.0.0') {
+            resolvedIp = ip
+            console.log(`[VPS] IP resolved after ${attempt} attempts: ${ip}`)
+            // Update stored record with the real IP
+            if (typeof _vpsPlansOf !== 'undefined' && _vpsPlansOf) {
+              await _vpsPlansOf.updateOne(
+                { contaboInstanceId: parseInt(vpsData.contaboInstanceId || vpsData._id) },
+                { $set: { host: ip } }
+              )
+            }
+            break
+          }
+          console.log(`[VPS] IP poll attempt ${attempt}/${maxAttempts} — still provisioning...`)
+        } catch (err) {
+          console.log(`[VPS] IP poll attempt ${attempt} error: ${err.message}`)
+        }
+      }
+      vpsData.host = resolvedIp
+    } else {
+      await sleep(15000)
+    }
 
     // Credentials are returned directly from createVPSInstance for Contabo
     const credentials = vpsData.credentials || { username: vpsData.isRDP ? 'Administrator' : 'root', password: 'Check email' }

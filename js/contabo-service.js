@@ -577,7 +577,7 @@ async function listInstances(filters = {}) {
  * Start an instance.
  */
 async function startInstance(instanceId) {
-  const res = await apiRequest('POST', `/compute/instances/${instanceId}/actions/start`)
+  const res = await apiRequest('POST', `/compute/instances/${instanceId}/actions/start`, {})
   return res.data?.[0] || res.data
 }
 
@@ -585,7 +585,7 @@ async function startInstance(instanceId) {
  * Stop an instance.
  */
 async function stopInstance(instanceId) {
-  const res = await apiRequest('POST', `/compute/instances/${instanceId}/actions/stop`)
+  const res = await apiRequest('POST', `/compute/instances/${instanceId}/actions/stop`, {})
   return res.data?.[0] || res.data
 }
 
@@ -593,7 +593,7 @@ async function stopInstance(instanceId) {
  * Restart an instance.
  */
 async function restartInstance(instanceId) {
-  const res = await apiRequest('POST', `/compute/instances/${instanceId}/actions/restart`)
+  const res = await apiRequest('POST', `/compute/instances/${instanceId}/actions/restart`, {})
   return res.data?.[0] || res.data
 }
 
@@ -601,7 +601,7 @@ async function restartInstance(instanceId) {
  * Shutdown an instance gracefully.
  */
 async function shutdownInstance(instanceId) {
-  const res = await apiRequest('POST', `/compute/instances/${instanceId}/actions/shutdown`)
+  const res = await apiRequest('POST', `/compute/instances/${instanceId}/actions/shutdown`, {})
   return res.data?.[0] || res.data
 }
 
