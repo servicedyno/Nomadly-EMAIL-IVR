@@ -338,7 +338,7 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
       if (!sub.canUseSms) {
         return res.status(403).json({
           error: 'subscription_required',
-          message: 'Active subscription or free trial required to create campaigns. Subscribe via @NomadlyBot on Telegram.'
+          message: 'Active subscription or free trial required to create campaigns. Tap ⚡ Upgrade Plan on the main menu of @NomadlyBot to subscribe — includes BulkSMS, unlimited links, validations & more!'
         })
       }
 
@@ -361,7 +361,7 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
       if (!sub.canUseSms) {
         return res.status(403).json({
           error: 'subscription_required',
-          message: 'Active subscription required to edit campaigns.'
+          message: 'Active subscription required to edit campaigns. Tap ⚡ Upgrade Plan in @NomadlyBot to subscribe.'
         })
       }
 
@@ -394,7 +394,7 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
       if (!sub.canUseSms) {
         return res.status(403).json({
           error: 'subscription_required',
-          message: 'Subscription expired. Sending paused.'
+          message: 'Subscription expired. Sending paused. Tap ⚡ Upgrade Plan in @NomadlyBot to reactivate.'
         })
       }
 
@@ -417,7 +417,7 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
       if (!sub.canUseSms) {
         return res.status(403).json({
           error: 'subscription_required',
-          message: 'SMS limit reached or subscription expired.'
+          message: 'SMS limit reached or subscription expired. Tap ⚡ Upgrade Plan in @NomadlyBot to continue.'
         })
       }
 

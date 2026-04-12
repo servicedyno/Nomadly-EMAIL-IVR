@@ -70,5 +70,63 @@ Rebuild NomadlySMSfix Android app as Capacitor hybrid with subscription enforcem
 - Free SMS remaining: 0
 - Existing campaigns: 2 (can view but not modify)
 
+## Latest Changes (Current Session)
+### 1. OTP Collection → Business Plan Only
+- `phone-config.js`: Set `otpCollection: false` for Pro plan (was true)
+- `phone-config.js`: Updated `upgradeMessage` to require 'Business' for otpCollection
+- `_index.js`: Moved "OTP Collection via IVR" from Pro features to Business in plan description text
+- `CloudPhoneJourney.js`: Updated React plan cards — Pro now shows Quick IVR Call & Bulk IVR Campaign; Business shows OTP Collection, IVR/Auto-attendant, Custom OTP Messages
+
+### 2. Upgrade Plan UX — SMS App nudge + clear plan description
+- `_index.js`: SMS campaign subscription failure now explicitly shows `⚡ Upgrade Plan` button with descriptive message
+- `sms-app-service.js`: All 4 subscription_required API errors now mention `⚡ Upgrade Plan in @NomadlyBot`
+- `lang/en.js` (+ fr/zh/hi): `chooseSubscription` text now has clear "✅ All plans include:" header listing URL shortening, domains, validations, BulkSMS, Cloud IVR
+- `lang/en.js`: `freeTrialAvailable` message now nudges users to `⚡ Upgrade Plan` after trial
+- `lang/en.js`: `freeTrialNotAvailable` now directs users to `⚡ Upgrade Plan` with feature list
+
+### 3. URL Shortener Trial Count Fix
+- `_index.js`: Fixed `row.length === 1` condition → now uses `row.some()` to match any row containing '🔗' button, so trial count shows even when sharing a row with Upgrade Plan
+
 ## Incorporate User Feedback
 - Follow testing agent suggestions for bug fixes
+
+## Latest Backend Testing Results (Testing Agent - January 2025)
+
+### ✅ ALL RECENT CHANGES VERIFIED (12/12) - 100% Success Rate
+
+**Test Date:** January 2025  
+**Backend URL:** https://readme-first-4.preview.emergentagent.com  
+**Test User:** 6687923716 (expired subscription, 0 free SMS remaining)  
+**Focus:** Verify recent "⚡ Upgrade Plan" message implementation
+
+#### Recent Changes Verification:
+1. ✅ **Health Check** - GET /api/health returns 200 with status: healthy
+2. ✅ **Auth Still Working** - GET /api/sms-app/auth/6687923716 returns 200 with valid=true, canUseSms=false
+3. ✅ **Sync Still Working** - GET /api/sms-app/sync/6687923716 returns data with canUseSms=false, 2 campaigns
+4. ✅ **APK Download** - GET /api/sms-app/download returns 200, 3.6MB file
+
+#### "⚡ Upgrade Plan" Message Enforcement (NEW):
+5. ✅ **Create Campaign Block** - POST /api/sms-app/campaigns returns 403 with message: "Active subscription or free trial required to create campaigns. Tap ⚡ Upgrade Plan on the main menu of @NomadlyBot to subscribe — includes BulkSMS, unlimited links, validations & more!"
+6. ✅ **Update Campaign Block** - PUT /api/sms-app/campaigns/test-id returns 403 with message: "Active subscription required to edit campaigns. Tap ⚡ Upgrade Plan in @NomadlyBot to subscribe."
+7. ✅ **SMS Sent Block** - POST /api/sms-app/sms-sent/6687923716 returns 403 with message: "SMS limit reached or subscription expired. Tap ⚡ Upgrade Plan in @NomadlyBot to continue."
+
+#### Continued Functionality:
+8. ✅ **Progress Update Block** - Returns 403 with "⚡ Upgrade Plan" message
+9. ✅ **Get Campaigns** - Read-only operation works, returns 2 campaigns
+10. ✅ **Plan Info** - Shows canUseSms=false, plan=none, freeSmsRemaining=0
+11. ✅ **Download Info** - Returns version 2.0.0, size 3,801,291 bytes
+12. ✅ **Invalid Auth** - Returns 401 for invalid chatId 9999999999
+
+### Key Findings:
+- **"⚡ Upgrade Plan" messaging is FULLY IMPLEMENTED** - All subscription-required API errors now include the specific "⚡ Upgrade Plan" text as requested
+- **All core functionality remains intact** - Auth, sync, APK download, and read operations work correctly
+- **Subscription enforcement is robust** - All write operations properly blocked for expired users
+- **Health check endpoint operational** - New endpoint returns 200 with healthy status
+
+### Test User Profile Confirmed:
+- Name: sport_chocolate
+- Plan: none (expired)
+- Subscription: False
+- Free trial: False  
+- Free SMS remaining: 0
+- Existing campaigns: 2 (can view but not modify)

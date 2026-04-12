@@ -298,6 +298,12 @@ ${CHAT_BOT_NAME}`,
     HIDE_SMS_APP === 'true'
       ? `<b>Choisissez votre plan</b>
 
+✅ <b>Tous les plans incluent :</b>
+🔗 Raccourcissement d'URL illimité
+🌐 Domaines .sbs/.xyz gratuits
+📱 Validations de numéros avec noms des propriétaires
+📞 Accès Cloud IVR
+
 <b>Quotidien</b> — $${PRICE_DAILY}
 ${DAILY_PLAN_FREE_DOMAINS} domaine · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations avec noms des propriétaires · Liens illimités
 
@@ -309,6 +315,13 @@ ${MONTHLY_PLAN_FREE_DOMAINS} domaines · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocal
 
 <i>Tous les plans incluent des domaines .sbs/.xyz gratuits + raccourcissement d'URL illimité + noms des propriétaires sur toutes les validations USA.</i>`
       : `<b>Choisissez votre plan</b>
+
+✅ <b>Tous les plans incluent :</b>
+🔗 Raccourcissement d'URL illimité
+🌐 Domaines .sbs/.xyz gratuits
+📱 Validations avec noms des propriétaires
+📧 Campagnes BulkSMS
+📞 Accès Cloud IVR
 
 <b>Quotidien</b> — $${PRICE_DAILY}
 ${DAILY_PLAN_FREE_DOMAINS} domaine · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · Liens + BulkSMS (1 appareil)

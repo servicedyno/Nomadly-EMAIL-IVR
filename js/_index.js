@@ -3479,8 +3479,8 @@ bot?.on('message', msg => {
         reply_markup: {
           ...result.reply_markup,
           keyboard: result.reply_markup.keyboard.map((row) =>
-            row.length === 1 && typeof row[0] === 'string' && row[0].startsWith('🔗')
-              ? [label]
+            row.some(cell => typeof cell === 'string' && cell.startsWith('🔗'))
+              ? row.map(cell => typeof cell === 'string' && cell.startsWith('🔗') ? label : cell)
               : [...row]
           )
         }
@@ -14076,7 +14076,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       if (phoneConfig.isPlanAvailable('pro')) availablePlanBtns.push([pc.proPlan])
       if (phoneConfig.isPlanAvailable('business')) availablePlanBtns.push([pc.businessPlan])
       const pMsg = phoneConfig.getMsg(info?.userLanguage || 'en')
-      return send(chatId, `${pMsg.buyPlansHeader}\n\n💡 <b>Starter</b> — $${phoneConfig.plans.starter.price}/mo (${phoneConfig.plans.starter.minutes} min + ${phoneConfig.plans.starter.sms} SMS)\n   • Call forwarding to any number\n   • SMS forwarded to Telegram\n   • Up to ${phoneConfig.SUB_NUMBER_LIMITS.starter} extra numbers\n\n⭐ <b>Pro</b> — $${phoneConfig.plans.pro.price}/mo (${phoneConfig.plans.pro.minutes} min + ${phoneConfig.plans.pro.sms} SMS)\n   • All Starter features\n   • Voicemail with custom greetings\n   • SIP credentials for softphones\n   • SMS to Telegram & Email\n   • Webhook integrations\n   • Quick IVR Call (single number)\n   • Bulk IVR Campaign\n   • OTP Collection via IVR\n   • Up to ${phoneConfig.SUB_NUMBER_LIMITS.pro} extra numbers\n\n👑 <b>Business</b> — $${phoneConfig.plans.business.price}/mo (${phoneConfig.plans.business.minutes === 'Unlimited' ? 'Unlimited' : phoneConfig.plans.business.minutes} min + ${phoneConfig.plans.business.sms} SMS)\n   • All Pro features\n   • Call Recording & Analytics\n   • IVR Auto-Attendant (inbound calls)\n   • Quick IVR Presets & Recent Calls\n   • IVR Redial Button\n   • Call Scheduling\n   • Custom OTP Messages & Goodbye\n   • Consistent TTS Voice/Speed\n   • Priority Support\n   • Up to ${phoneConfig.SUB_NUMBER_LIMITS.business} extra numbers`, k.of(availablePlanBtns))
+      return send(chatId, `${pMsg.buyPlansHeader}\n\n💡 <b>Starter</b> — $${phoneConfig.plans.starter.price}/mo (${phoneConfig.plans.starter.minutes} min + ${phoneConfig.plans.starter.sms} SMS)\n   • Call forwarding to any number\n   • SMS forwarded to Telegram\n   • Up to ${phoneConfig.SUB_NUMBER_LIMITS.starter} extra numbers\n\n⭐ <b>Pro</b> — $${phoneConfig.plans.pro.price}/mo (${phoneConfig.plans.pro.minutes} min + ${phoneConfig.plans.pro.sms} SMS)\n   • All Starter features\n   • Voicemail with custom greetings\n   • SIP credentials for softphones\n   • SMS to Telegram & Email\n   • Webhook integrations\n   • Quick IVR Call (single number)\n   • Bulk IVR Campaign\n   • Up to ${phoneConfig.SUB_NUMBER_LIMITS.pro} extra numbers\n\n👑 <b>Business</b> — $${phoneConfig.plans.business.price}/mo (${phoneConfig.plans.business.minutes === 'Unlimited' ? 'Unlimited' : phoneConfig.plans.business.minutes} min + ${phoneConfig.plans.business.sms} SMS)\n   • All Pro features\n   • Call Recording & Analytics\n   • OTP Collection via IVR\n   • IVR Auto-Attendant (inbound calls)\n   • Quick IVR Presets & Recent Calls\n   • IVR Redial Button\n   • Call Scheduling\n   • Custom OTP Messages & Goodbye\n   • Consistent TTS Voice/Speed\n   • Priority Support\n   • Up to ${phoneConfig.SUB_NUMBER_LIMITS.business} extra numbers`, k.of(availablePlanBtns))
     }
     if (message === pc.myNumbers) {
       const userData = await get(phoneNumbersOf, chatId)
@@ -20983,7 +20983,7 @@ Select a category:`), k.of(catBtns))
     // Check subscription before allowing campaign creation
     const sub = await smsAppService.checkSubscription(chatId)
     if (!sub.canUseSms) {
-      return send(chatId, '❌ <b>Subscription Required</b>\n\nYou need an active subscription or free trial to create SMS campaigns.\n\nPlease subscribe to a plan first.', { parse_mode: 'HTML' })
+      return send(chatId, `❌ <b>Subscription Required</b>\n\nYou need an active subscription to create SMS campaigns.\n\nTap <b>${user.buyPlan}</b> on the main menu to subscribe — plans include unlimited URL shortening, BulkSMS, phone validations, and free domains!`, { parse_mode: 'HTML', reply_markup: { keyboard: [[user.buyPlan], [t.back]], resize_keyboard: true } })
     }
     await set(state, chatId, 'action', 'smsapp_campaign_name')
     return send(chatId, '📱 <b>Create SMS Campaign</b>\n\nPlease enter a name for your campaign:', { parse_mode: 'HTML' })

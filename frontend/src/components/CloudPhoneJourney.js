@@ -197,8 +197,8 @@ export default function CloudPhoneJourney() {
             <div className="plans-grid">
               {[
                 { name: 'Starter', price: '$5', features: ['100 inbound min/mo', '50 SMS/mo', 'Call forwarding', 'SMS to Telegram'], color: 'emerald', tag: null },
-                { name: 'Pro', price: '$15', features: ['500 inbound min/mo', '200 SMS/mo', 'Forwarding + Voicemail', 'SIP access', 'SMS to Telegram & Email'], color: 'sky', tag: 'Popular' },
-                { name: 'Business', price: '$30', features: ['Unlimited inbound', '1,000 SMS/mo', 'All Pro features', 'Call recording', 'IVR / Auto-attendant'], color: 'amber', tag: 'Best Value' },
+                { name: 'Pro', price: '$15', features: ['500 inbound min/mo', '200 SMS/mo', 'Forwarding + Voicemail', 'SIP access', 'SMS to Telegram & Email', 'Quick IVR Call', 'Bulk IVR Campaign'], color: 'sky', tag: 'Popular' },
+                { name: 'Business', price: '$30', features: ['Unlimited inbound', '1,000 SMS/mo', 'All Pro features', 'Call recording', 'OTP Collection via IVR', 'IVR / Auto-attendant', 'Custom OTP Messages'], color: 'amber', tag: 'Best Value' },
               ].map((plan, i) => (
                 <div key={i} className={`plan-card plan-card--${plan.color}`} data-testid={`plan-${plan.name.toLowerCase()}`}>
                   {plan.tag && <span className={`plan-card__tag plan-card__tag--${plan.color}`}>{plan.tag}</span>}

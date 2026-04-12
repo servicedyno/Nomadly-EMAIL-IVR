@@ -302,6 +302,12 @@ ${CHAT_BOT_NAME}`,
     HIDE_SMS_APP === 'true'
       ? `<b>Choose Your Plan</b>
 
+✅ <b>All plans include:</b>
+🔗 Unlimited URL shortening
+🌐 Free .sbs/.xyz domains
+📱 Phone number validations with owner names
+📞 Cloud IVR access
+
 <b>Daily</b> — $${PRICE_DAILY}
 ${DAILY_PLAN_FREE_DOMAINS} domain · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations with phone owner names · Unlimited links
 
@@ -313,6 +319,13 @@ ${MONTHLY_PLAN_FREE_DOMAINS} domains · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocale
 
 <i>All plans include free .sbs/.xyz domains + unlimited URL shortening + phone owner names on all USA validations.</i>`
       : `<b>Choose Your Plan</b>
+
+✅ <b>All plans include:</b>
+🔗 Unlimited URL shortening
+🌐 Free .sbs/.xyz domains
+📱 Phone validations with owner names
+📧 BulkSMS campaigns
+📞 Cloud IVR access
 
 <b>Daily</b> — $${PRICE_DAILY}
 ${DAILY_PLAN_FREE_DOMAINS} domain · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · Unlimited links + BulkSMS (1 device)
@@ -341,9 +354,9 @@ ${MONTHLY_PLAN_FREE_DOMAINS} domains · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocale
 
   lowPrice: `Sent price less than needed`,
 
-  freeTrialAvailable: (chatId) => `📱 <b>BulkSMS Free Trial — 100 Free SMS</b>\n\nYour activation code:\n<code>${chatId}</code>\n\n📲 <b>Download the app:</b> ${SMS_APP_LINK}\n\nOpen the app → Enter your code → Start sending!\n\n⚡ Trial: 1 device only. Upgrade for multi-device access.\n\nNeed eSIM cards? Tap 💬 Get Support`,
+  freeTrialAvailable: (chatId) => `📱 <b>BulkSMS Free Trial — 100 Free SMS</b>\n\nYour activation code:\n<code>${chatId}</code>\n\n📲 <b>Download the app:</b> ${SMS_APP_LINK}\n\nOpen the app → Enter your code → Start sending!\n\n⚡ Trial: 1 device only.\n\n💡 After trial, tap <b>⚡ Upgrade Plan</b> on the main menu to unlock unlimited BulkSMS + URL shortening + validations & more!\n\nNeed eSIM cards? Tap 💬 Get Support`,
 
-  freeTrialNotAvailable: 'You have already used the free trial',
+  freeTrialNotAvailable: 'You have already used the free trial.\n\nTap <b>⚡ Upgrade Plan</b> to subscribe — includes unlimited BulkSMS, URL shortening, validations, free domains & more!',
 
   planSubscribed:
     HIDE_SMS_APP === 'true'

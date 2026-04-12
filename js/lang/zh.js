@@ -295,6 +295,12 @@ ${CHAT_BOT_NAME}`,
     HIDE_SMS_APP === 'true'
       ? `<b>选择您的计划</b>
 
+✅ <b>所有计划包含：</b>
+🔗 无限URL缩短
+🌐 免费 .sbs/.xyz 域名
+📱 号码验证含机主姓名
+📞 Cloud IVR 访问
+
 <b>每日</b> — $${PRICE_DAILY}
 ${DAILY_PLAN_FREE_DOMAINS} 个域名 · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} 次验证含机主姓名 · 无限链接
 
@@ -306,6 +312,13 @@ ${MONTHLY_PLAN_FREE_DOMAINS} 个域名 · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLoca
 
 <i>所有计划包含免费 .sbs/.xyz 域名 + 无限URL缩短 + 所有USA验证包含机主姓名。</i>`
       : `<b>选择您的计划</b>
+
+✅ <b>所有计划包含：</b>
+🔗 无限URL缩短
+🌐 免费 .sbs/.xyz 域名
+📱 号码验证含机主姓名
+📧 BulkSMS 群发短信
+📞 Cloud IVR 访问
 
 <b>每日</b> — $${PRICE_DAILY}
 ${DAILY_PLAN_FREE_DOMAINS} 个域名 · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} 次验证 · 无限链接 + BulkSMS（1台设备）

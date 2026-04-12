@@ -299,6 +299,12 @@ ${CHAT_BOT_NAME}`,
     HIDE_SMS_APP === 'true'
       ? `<b>अपना प्लान चुनें</b>
 
+✅ <b>सभी प्लान में शामिल:</b>
+🔗 असीमित URL शॉर्टनिंग
+🌐 मुफ्त .sbs/.xyz डोमेन
+📱 मालिक के नाम सहित नंबर वैलिडेशन
+📞 Cloud IVR एक्सेस
+
 <b>दैनिक</b> — $${PRICE_DAILY}
 ${DAILY_PLAN_FREE_DOMAINS} डोमेन · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} वैलिडेशन मालिक के नाम सहित · असीमित लिंक
 
@@ -310,6 +316,13 @@ ${MONTHLY_PLAN_FREE_DOMAINS} डोमेन · ${MONTHLY_PLAN_FREE_VALIDATIONS.
 
 <i>सभी प्लान में मुफ्त .sbs/.xyz डोमेन + असीमित URL शॉर्टनिंग + सभी USA वैलिडेशन में मालिक का नाम शामिल है।</i>`
       : `<b>अपना प्लान चुनें</b>
+
+✅ <b>सभी प्लान में शामिल:</b>
+🔗 असीमित URL शॉर्टनिंग
+🌐 मुफ्त .sbs/.xyz डोमेन
+📱 मालिक के नाम सहित वैलिडेशन
+📧 BulkSMS अभियान
+📞 Cloud IVR एक्सेस
 
 <b>दैनिक</b> — $${PRICE_DAILY}
 ${DAILY_PLAN_FREE_DOMAINS} डोमेन · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} वैलिडेशन · असीमित लिंक + BulkSMS (1 डिवाइस)

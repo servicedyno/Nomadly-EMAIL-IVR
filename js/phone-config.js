@@ -356,7 +356,7 @@ const planFeatureAccess = {
     ivr: false,
     ivrOutbound: true,
     bulkCall: true,
-    otpCollection: true,
+    otpCollection: false,
     ivrRedial: false,
     otpCustomMessages: false,
   },
@@ -382,8 +382,8 @@ const canAccessFeature = (planKey, feature) => {
 }
 
 const upgradeMessage = (feature, currentPlan, lang) => {
-  const needed = (feature === 'callRecording' || feature === 'ivr' || feature === 'ivrRedial' || feature === 'otpCustomMessages') ? 'Business'
-    : (feature === 'ivrOutbound' || feature === 'bulkCall' || feature === 'otpCollection') ? 'Pro'
+  const needed = (feature === 'callRecording' || feature === 'ivr' || feature === 'ivrRedial' || feature === 'otpCustomMessages' || feature === 'otpCollection') ? 'Business'
+    : (feature === 'ivrOutbound' || feature === 'bulkCall') ? 'Pro'
     : 'Pro'
   const featureNamesI18n = {
     en: { voicemail: 'Voicemail', sipCredentials: 'SIP Credentials', smsToEmail: 'SMS to Email', smsWebhook: 'SMS Webhook', callRecording: 'Call Recording', ivr: 'IVR / Auto-attendant', ivrOutbound: 'Quick IVR Call', bulkCall: 'Bulk IVR Campaign', otpCollection: 'OTP Collection (IVR)', ivrRedial: 'IVR Redial', otpCustomMessages: 'Custom OTP Messages' },

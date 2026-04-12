@@ -95,7 +95,7 @@ def test_sync():
         return False
 
 def test_create_campaign_blocked():
-    """Test 4: Create campaign - MUST return 403 with subscription_required"""
+    """Test 4: Create campaign - MUST return 403 with subscription_required and mention Upgrade Plan"""
     print("\n🔍 Test 4: Create campaign (should be BLOCKED)")
     
     try:
@@ -111,12 +111,15 @@ def test_create_campaign_blocked():
         
         if response.status_code == 403:
             data = response.json()
-            if data.get('error') == 'subscription_required':
-                print(f"✅ PASS: Campaign creation blocked - {data.get('message', 'No message')}")
+            message = data.get('message', '')
+            if data.get('error') == 'subscription_required' and 'Upgrade Plan' in message:
+                print(f"✅ PASS: Campaign creation blocked with Upgrade Plan message")
+                print(f"   Message: {message}")
                 return True
             else:
-                print(f"❌ FAIL: Wrong error type - {data.get('error')}")
-                print(f"   Full response: {data}")
+                print(f"❌ FAIL: Missing 'Upgrade Plan' in message or wrong error type")
+                print(f"   Error: {data.get('error')}")
+                print(f"   Message: {message}")
                 return False
         else:
             print(f"❌ FAIL: Campaign creation returned {response.status_code} instead of 403")
@@ -127,11 +130,11 @@ def test_create_campaign_blocked():
         return False
 
 def test_update_campaign_blocked():
-    """Test 5: Update campaign - MUST return 403"""
+    """Test 5: Update campaign - MUST return 403 with Upgrade Plan message"""
     print("\n🔍 Test 5: Update campaign (should be BLOCKED)")
     
     try:
-        url = f"{BACKEND_URL}/api/sms-app/campaigns/test-campaign-id"
+        url = f"{BACKEND_URL}/api/sms-app/campaigns/test-id"
         payload = {
             "chatId": int(TEST_CHAT_ID),
             "name": "Updated Campaign Name"
@@ -141,12 +144,15 @@ def test_update_campaign_blocked():
         
         if response.status_code == 403:
             data = response.json()
-            if data.get('error') == 'subscription_required':
-                print(f"✅ PASS: Campaign update blocked - {data.get('message', 'No message')}")
+            message = data.get('message', '')
+            if data.get('error') == 'subscription_required' and 'Upgrade Plan' in message:
+                print(f"✅ PASS: Campaign update blocked with Upgrade Plan message")
+                print(f"   Message: {message}")
                 return True
             else:
-                print(f"❌ FAIL: Wrong error type - {data.get('error')}")
-                print(f"   Full response: {data}")
+                print(f"❌ FAIL: Missing 'Upgrade Plan' in message or wrong error type")
+                print(f"   Error: {data.get('error')}")
+                print(f"   Message: {message}")
                 return False
         else:
             print(f"❌ FAIL: Campaign update returned {response.status_code} instead of 403")
@@ -187,7 +193,7 @@ def test_progress_update_blocked():
         return False
 
 def test_sms_sent_blocked():
-    """Test 7: SMS sent tracking - MUST return 403"""
+    """Test 7: SMS sent tracking - MUST return 403 with Upgrade Plan message"""
     print("\n🔍 Test 7: SMS sent tracking (should be BLOCKED)")
     
     try:
@@ -197,12 +203,15 @@ def test_sms_sent_blocked():
         
         if response.status_code == 403:
             data = response.json()
-            if data.get('error') == 'subscription_required':
-                print(f"✅ PASS: SMS sent tracking blocked - {data.get('message', 'No message')}")
+            message = data.get('message', '')
+            if data.get('error') == 'subscription_required' and 'Upgrade Plan' in message:
+                print(f"✅ PASS: SMS sent tracking blocked with Upgrade Plan message")
+                print(f"   Message: {message}")
                 return True
             else:
-                print(f"❌ FAIL: Wrong error type - {data.get('error')}")
-                print(f"   Full response: {data}")
+                print(f"❌ FAIL: Missing 'Upgrade Plan' in message or wrong error type")
+                print(f"   Error: {data.get('error')}")
+                print(f"   Message: {message}")
                 return False
         else:
             print(f"❌ FAIL: SMS sent tracking returned {response.status_code} instead of 403")
@@ -320,6 +329,28 @@ def test_plan_info():
         print(f"❌ FAIL: Plan info test error: {e}")
         return False
 
+def test_health_check():
+    """Test 12: Health check - should return 200"""
+    print("\n🔍 Test 12: Health check")
+    
+    try:
+        url = f"{BACKEND_URL}/api/health"
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ PASS: Health check endpoint working")
+            print(f"   Status: {data.get('status', 'N/A')}")
+            print(f"   Timestamp: {data.get('timestamp', 'N/A')}")
+            return True
+        else:
+            print(f"❌ FAIL: Health check returned {response.status_code}")
+            print(f"   Response: {response.text}")
+            return False
+    except Exception as e:
+        print(f"❌ FAIL: Health check test error: {e}")
+        return False
+
 def run_all_tests():
     """Run all Nomadly SMS App tests"""
     print("🚀 Starting Nomadly SMS App Backend Testing Suite")
@@ -339,7 +370,8 @@ def run_all_tests():
         test_get_campaigns_allowed,
         test_apk_download,
         test_download_info,
-        test_plan_info
+        test_plan_info,
+        test_health_check
     ]
     
     passed = 0
