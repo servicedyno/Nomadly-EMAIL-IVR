@@ -21057,19 +21057,39 @@ Select a category:`), k.of(catBtns))
   }
 
   if (action === 'smsapp_campaign_name') {
+    if (message === t.back || message === t.cancel) {
+      await set(state, chatId, 'action', null)
+      // Return to BulkSMS sub-menu
+      const sub = smsSubStatus
+      const smsKeyboard = {
+        reply_markup: { keyboard: [[user.smsCreateCampaign], [user.smsMyCampaigns], [user.smsDownloadApp, user.smsResetLogin], ...(sub.isSubscribed ? [] : [[user.buyPlan]]), [t.back]], resize_keyboard: true },
+        parse_mode: 'HTML', disable_web_page_preview: true,
+      }
+      if (sub.isSubscribed) return send(chatId, t.smsAppMenuSubscribed(chatId), smsKeyboard)
+      else if (sub.isFreeTrial) return send(chatId, t.smsAppMenuTrial(chatId, sub.freeSmsRemaining), smsKeyboard)
+      else return send(chatId, t.smsAppMenuExpired, smsKeyboard)
+    }
     await set(state, chatId, 'smsapp_campaign_name', message)
     await set(state, chatId, 'action', 'smsapp_campaign_content')
-    return send(chatId, '✍️ <b>Campaign Content</b>\n\nType your SMS message. Use <code>[name]</code> to personalize with the contact\'s name.\n\nYou can send multiple messages (one per line) for rotation.\n\nExample:\n<code>Hi [name], check out our latest offer!</code>', { parse_mode: 'HTML' })
+    return send(chatId, '✍️ <b>Campaign Content</b>\n\nType your SMS message. Use <code>[name]</code> to personalize with the contact\'s name.\n\nYou can send multiple messages (one per line) for rotation.\n\nExample:\n<code>Hi [name], check out our latest offer!</code>', { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
   }
 
   if (action === 'smsapp_campaign_content') {
+    if (message === t.back || message === t.cancel) {
+      await set(state, chatId, 'action', 'smsapp_campaign_name')
+      return send(chatId, '📱 <b>Create SMS Campaign</b>\n\nEnter a name for your campaign:', { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
+    }
     const contentLines = message.split('\n').filter(l => l.trim())
     await set(state, chatId, 'smsapp_campaign_content', JSON.stringify(contentLines))
     await set(state, chatId, 'action', 'smsapp_campaign_contacts')
-    return send(chatId, '📋 <b>Upload Contacts</b>\n\nSend your contacts in one of these formats:\n\n1️⃣ <b>Text list</b> — one per line:\n<code>+18189279992, John\n+14155551234, Jane</code>\n\n2️⃣ <b>Upload a .txt or .csv file</b> with phone numbers\n\n3️⃣ <b>Numbers only</b> (comma or newline separated):\n<code>+18189279992, +14155551234</code>', { parse_mode: 'HTML' })
+    return send(chatId, '📋 <b>Upload Contacts</b>\n\nSend your contacts in one of these formats:\n\n1️⃣ <b>Text list</b> — one per line:\n<code>+18189279992, John\n+14155551234, Jane</code>\n\n2️⃣ <b>Upload a .txt or .csv file</b> with phone numbers\n\n3️⃣ <b>Numbers only</b> (comma or newline separated):\n<code>+18189279992, +14155551234</code>', { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
   }
 
   if (action === 'smsapp_campaign_contacts') {
+    if (message === t.back || message === t.cancel) {
+      await set(state, chatId, 'action', 'smsapp_campaign_content')
+      return send(chatId, '✍️ <b>Campaign Content</b>\n\nType your SMS message. Use <code>[name]</code> to personalize.\nMultiple lines = message rotation.', { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
+    }
     let contacts = []
     // Parse contacts from message text
     const lines = message.split('\n').filter(l => l.trim())
@@ -21103,6 +21123,10 @@ Select a category:`), k.of(catBtns))
   }
 
   if (action === 'smsapp_campaign_schedule') {
+    if (message === t.back || message === t.cancel) {
+      await set(state, chatId, 'action', 'smsapp_campaign_contacts')
+      return send(chatId, '📋 <b>Upload Contacts</b>\n\nSend contacts as text or upload a .txt/.csv file:', { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
+    }
     if (message === t.smsSendNow) {
       // Create campaign immediately (no schedule)
       const stateInfo = await state.findOne({ _id: parseFloat(chatId) })
@@ -21135,6 +21159,13 @@ Select a category:`), k.of(catBtns))
   }
 
   if (action === 'smsapp_campaign_schedule_time') {
+    if (message === t.back || message === t.cancel) {
+      await set(state, chatId, 'action', 'smsapp_campaign_schedule')
+      return send(chatId, t.smsSchedulePrompt, {
+        parse_mode: 'HTML',
+        reply_markup: { keyboard: [[t.smsSendNow], [t.smsScheduleLater], [t.back]], resize_keyboard: true }
+      })
+    }
     // Parse date/time input
     const parsed = new Date(message.trim())
     if (isNaN(parsed.getTime()) || parsed.getTime() < Date.now()) {
