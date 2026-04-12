@@ -180,20 +180,19 @@ const PRODUCT_CATALOG_SSD = [
   { productId: 'V107', name: 'Cloud VPS 60 SSD', cpuCores: 18, ramMb: 98304, diskMb: 716800, diskType: 'ssd', bandwidthTb: 32, portSpeedMbps: 1000, basePriceUsd: 59.00, tier: 6 }
 ]
 
-// Region surcharges (monthly, USD converted from EUR × 1.15)
-// Per-tier surcharges — Contabo charges different surcharges for different plan sizes
-// null = region not available for that tier
+// Region surcharges (monthly USD) — from Contabo /v1/products API (April 2026)
+// Per-tier surcharges — null = region not available for that tier
 const REGION_SURCHARGE = {
   //                    tier1   tier2   tier3   tier4   tier5   tier6
   'EU':         [      0,      0,      0,      0,      0,      0     ],
-  'US-central': [   1.09,   1.67,   3.39,   6.04,   8.97,  11.85   ],
-  'US-east':    [   1.61,   2.53,   5.06,   9.03,  13.34,  17.65   ],
-  'US-west':    [   1.32,   2.13,   4.20,   7.53,  11.10,  14.72   ],
-  'UK':         [   1.09,   1.67,   3.39,   6.04,   8.97,  11.85   ],
-  'SIN':        [   null,   null,   null,   null,  21.62,  28.64   ],
-  'JPN':        [   2.70,   4.20,   8.40,  14.95,   null,   null   ],
-  'AUS':        [   2.24,   3.45,   6.96,  12.42,  18.34,  24.32   ],
-  'IND':        [   2.47,   3.85,   7.71,  13.69,  20.30,   null   ]
+  'US-central': [   1.20,   0.45,   0.92,   2.60,   4.80,   7.62   ],
+  'US-east':    [   1.80,   2.80,   5.50,   9.70,  14.30,  18.90   ],
+  'US-west':    [   1.50,   2.30,   4.50,   8.10,  11.90,  15.80   ],
+  'UK':         [   1.20,   0.45,   0.92,   2.60,   4.80,   7.62   ],
+  'SIN':        [   2.90,   2.20,   4.40,   9.42,  16.24,  24.56   ],
+  'JPN':        [   2.90,   2.25,   4.50,   9.60,  16.59,  25.12   ],
+  'AUS':        [   2.40,   1.85,   3.75,   7.98,  13.79,  20.88   ],
+  'IND':        [   2.70,   2.10,   4.15,   8.82,  15.26,  23.04   ]
 }
 
 const REGION_DISPLAY = {
@@ -331,10 +330,10 @@ async function listRegions() {
 // ─── Images ───────────────────────────────────────────────────────────────
 
 // ── Windows image edition rules ──
-// NVMe products (V45-V55): use SE (Standard Edition) images
-// SSD products (V92-V97):  use DE (DataCenter Edition) images
-const NVME_PRODUCT_IDS = new Set(['V45', 'V47', 'V49', 'V51', 'V53', 'V55'])
-const SSD_PRODUCT_IDS  = new Set(['V92', 'V93', 'V94', 'V95', 'V96', 'V97'])
+// NVMe products (V91,V94,V97,V100,V103,V106): use SE (Standard Edition) images
+// SSD products  (V92,V95,V98,V101,V104,V107): use DE (DataCenter Edition) images
+const NVME_PRODUCT_IDS = new Set(['V91', 'V94', 'V97', 'V100', 'V103', 'V106'])
+const SSD_PRODUCT_IDS  = new Set(['V92', 'V95', 'V98', 'V101', 'V104', 'V107'])
 
 function isNVMeProduct(productId) { return NVME_PRODUCT_IDS.has(productId) }
 function isSSDProduct(productId)  { return SSD_PRODUCT_IDS.has(productId) }
@@ -482,7 +481,7 @@ async function deleteSecret(secretId) {
 /**
  * Create a new VPS instance.
  * @param {Object} opts
- * @param {string} opts.productId   - e.g. 'V45' (NVMe) or 'V92' (SSD)
+ * @param {string} opts.productId   - e.g. 'V91' (NVMe) or 'V92' (SSD)
  * @param {string} opts.region      - e.g. 'EU', 'US-east'
  * @param {string} opts.imageId     - OS image UUID
  * @param {string} [opts.displayName] - Friendly name
