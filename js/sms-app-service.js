@@ -532,13 +532,18 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
         )
       }
 
-      // Log each unique error reason
+      // Log each unique error reason with detailed messages
       const reasonCounts = {}
+      const errorDetails = {}
       for (const e of errors) {
         reasonCounts[e.reason] = (reasonCounts[e.reason] || 0) + 1
+        if (e.error && !errorDetails[e.reason]) {
+          errorDetails[e.reason] = e.error
+        }
       }
       for (const [reason, count] of Object.entries(reasonCounts)) {
-        console.log(`[SmsApp] Error: ${reason} × ${count} — user: ${chatId}, campaign: ${campaignId}`)
+        const detail = errorDetails[reason] ? ` | Detail: ${errorDetails[reason]}` : ''
+        console.log(`[SmsApp] Error: ${reason} × ${count}${detail} — user: ${chatId}, campaign: ${campaignId}`)
       }
 
       res.json({ ok: true })
