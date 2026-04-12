@@ -21275,7 +21275,7 @@ Select a category:`), k.of(catBtns))
         })
         await set(state, chatId, 'action', null)
         const deviceLine = deviceId && deviceId !== 'default' ? `\n📱 Device: ${deviceId}` : ''
-        return send(chatId, `✅ <b>Campaign Created!</b>\n\n📋 Name: ${campaignName}\n✍️ Messages: ${content.length}\n👥 Contacts: ${contacts.length}${deviceLine}\n\n<b>Open the Nomadly SMS App</b> on your device to start sending.\nActivation code: <code>${chatId}</code>`, { parse_mode: 'HTML', reply_markup: { keyboard: [[user.smsCreateCampaign], [user.smsMyCampaigns], [t.back]], resize_keyboard: true } })
+        return send(chatId, `✅ <b>Campaign Created!</b>\n\n📋 Name: ${campaignName}\n✍️ Messages: ${content.length}\n👥 Contacts: ${contacts.length}${deviceLine}\n\nYour campaign will automatically sync and start sending on your connected device.`, { parse_mode: 'HTML', reply_markup: { keyboard: [[user.smsCreateCampaign], [user.smsMyCampaigns], [t.back]], resize_keyboard: true } })
       } catch (err) {
         console.error('[SmsApp] Bot campaign creation error:', err)
         return send(chatId, '❌ Failed to create campaign. Please try again.', { reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
@@ -21332,7 +21332,7 @@ Select a category:`), k.of(catBtns))
       await set(state, chatId, 'action', null)
       const schedDate = parsed.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' })
       const deviceLine = deviceId && deviceId !== 'default' ? `\n📱 Device: ${deviceId}` : ''
-      return send(chatId, `✅ <b>Campaign Scheduled!</b>\n\n📋 Name: ${campaignName}\n✍️ Messages: ${content.length}\n👥 Contacts: ${contacts.length}\n📅 Scheduled: ${schedDate} UTC${deviceLine}\n\nThe campaign will sync to the Nomadly SMS App. Make sure a device is online at the scheduled time.\nActivation code: <code>${chatId}</code>`, { parse_mode: 'HTML', reply_markup: { keyboard: [[user.smsCreateCampaign], [user.smsMyCampaigns], [t.back]], resize_keyboard: true } })
+      return send(chatId, `✅ <b>Campaign Scheduled!</b>\n\n📋 Name: ${campaignName}\n✍️ Messages: ${content.length}\n👥 Contacts: ${contacts.length}\n📅 Scheduled: ${schedDate} UTC${deviceLine}\n\nThe campaign will automatically sync and start sending at the scheduled time. Make sure your device stays online.`, { parse_mode: 'HTML', reply_markup: { keyboard: [[user.smsCreateCampaign], [user.smsMyCampaigns], [t.back]], resize_keyboard: true } })
     } catch (err) {
       console.error('[SmsApp] Bot scheduled campaign error:', err)
       return send(chatId, '❌ Failed to create scheduled campaign. Please try again.', { reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
