@@ -498,16 +498,25 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
   // Full sync endpoint
   app.get('/sms-app/sync/:chatId', async (req, res) => {
     try {
-      const authResult = await authenticateUser(req.params.chatId)
-      if (!authResult.valid) return res.status(401).json(authResult)
+      const chatId = req.params.chatId
+      console.log(`[SmsApp] Sync request for chatId: ${chatId}`)
+      
+      const authResult = await authenticateUser(chatId)
+      if (!authResult.valid) {
+        console.log(`[SmsApp] Auth failed for ${chatId}: ${authResult.error}`)
+        return res.status(401).json(authResult)
+      }
 
-      const campaigns = await getCampaigns(req.params.chatId)
+      const campaigns = await getCampaigns(chatId)
+      console.log(`[SmsApp] Sync for ${chatId} - canUseSms: ${authResult.user.canUseSms}, isFreeTrial: ${authResult.user.isFreeTrial}, freeSmsUsed: ${authResult.user.freeSmsUsed}, freeSmsRemaining: ${authResult.user.freeSmsRemaining}, isSubscribed: ${authResult.user.isSubscribed}`)
+      
       res.json({
         user: authResult.user,
         campaigns,
         serverTime: Date.now()
       })
     } catch (error) {
+      console.log(`[SmsApp] Sync error:`, error.message)
       res.status(500).json({ error: error.message })
     }
   })
