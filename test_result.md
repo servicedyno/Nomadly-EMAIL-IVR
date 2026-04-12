@@ -36,7 +36,7 @@ Rebuild NomadlySMSfix Android app as Capacitor hybrid with subscription enforcem
 ### ✅ ALL TESTS PASSED (11/11) - 100% Success Rate
 
 **Test Date:** January 2025  
-**Backend URL:** https://readme-first-4.preview.emergentagent.com  
+**Backend URL:** https://readme-first-5.preview.emergentagent.com  
 **Test User:** 6687923716 (expired subscription, 0 free SMS remaining)
 
 #### Subscription Enforcement Tests:
@@ -107,7 +107,7 @@ Rebuild NomadlySMSfix Android app as Capacitor hybrid with subscription enforcem
 ### ✅ ALL RECENT CHANGES VERIFIED (12/12) - 100% Success Rate
 
 **Test Date:** January 2025  
-**Backend URL:** https://readme-first-4.preview.emergentagent.com  
+**Backend URL:** https://readme-first-5.preview.emergentagent.com  
 **Test User:** 6687923716 (expired subscription, 0 free SMS remaining)  
 **Focus:** Verify recent "⚡ Upgrade Plan" message implementation
 
@@ -148,7 +148,7 @@ Rebuild NomadlySMSfix Android app as Capacitor hybrid with subscription enforcem
 ### ✅ ALL TESTS VERIFIED AGAIN (12/12) - 100% Success Rate
 
 **Test Date:** January 2025  
-**Backend URL:** https://readme-first-4.preview.emergentagent.com  
+**Backend URL:** https://readme-first-5.preview.emergentagent.com  
 **Test User:** 6687923716 (expired subscription, 0 free SMS remaining)  
 **Focus:** Re-verification of all SMS App endpoints as requested
 
