@@ -195,12 +195,37 @@ public class DirectSmsPlugin extends Plugin {
                 smsManager.sendTextMessage(phoneNumber, null, message, sentPI, null);
             }
 
-        } catch (Exception e) {
+        } catch (SecurityException e) {
+            // Permission was revoked or never granted
             JSObject result = new JSObject();
             result.put("success", false);
             result.put("status", "exception");
-            result.put("error", e.getMessage());
+            result.put("errorCode", -10);
+            result.put("error", "Permission denied: " + e.getMessage());
+            result.put("errorReason", "permission_denied");
+            call.resolve(result);
+        } catch (IllegalArgumentException e) {
+            // Invalid phone number or message format
+            JSObject result = new JSObject();
+            result.put("success", false);
+            result.put("status", "exception");
+            result.put("errorCode", -11);
+            result.put("error", "Invalid input: " + e.getMessage());
+            result.put("errorReason", "invalid_input");
+            call.resolve(result);
+        } catch (Exception e) {
+            // Generic exception - return full details
+            JSObject result = new JSObject();
+            result.put("success", false);
+            result.put("status", "exception");
+            result.put("errorCode", -12);
+            String errMsg = e.getMessage();
+            if (errMsg == null || errMsg.isEmpty()) {
+                errMsg = e.getClass().getName() + " (no message)";
+            }
+            result.put("error", errMsg);
             result.put("errorReason", "send_exception");
+            result.put("exceptionType", e.getClass().getSimpleName());
             call.resolve(result);
         }
     }

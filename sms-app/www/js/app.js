@@ -647,6 +647,11 @@ const App = {
           else if (lastErr.reason === 'generic_failure') hint = 'Carrier rejected SMS — check SIM balance and number format.'
           else if (lastErr.reason === 'send_timeout') hint = 'SMS timed out — carrier may be blocking sends.'
           else if (lastErr.reason === 'null_pdu') hint = 'Message encoding error — try a shorter message.'
+          else if (lastErr.reason === 'permission_denied') hint = 'SMS permission denied — enable in Android Settings > Apps > Nomadly SMS > Permissions.'
+          else if (lastErr.reason === 'invalid_input') hint = 'Invalid phone number format — check contact numbers.'
+          else if (lastErr.reason === 'send_exception' || lastErr.reason === 'plugin_bridge_exception') {
+            hint = lastErr.error ? `Error: ${lastErr.error}` : 'SMS plugin error — restart app or check Android version compatibility.'
+          }
         }
         document.getElementById('sendingStatus').textContent = hint
       } else if (someFailed) {
@@ -681,12 +686,17 @@ const App = {
         API.reportSmsSent(s.chatId).catch(() => {})
       } else {
         s.failed++
-        s.errors.push({ phone: contact.phoneNumber, reason: result.errorReason || 'unknown', code: result.errorCode })
-        console.warn(`[SMS] Failed to send to ${contact.phoneNumber}: ${result.errorReason} (code: ${result.errorCode})`)
+        s.errors.push({ 
+          phone: contact.phoneNumber, 
+          reason: result.errorReason || 'unknown', 
+          code: result.errorCode,
+          error: result.error || null
+        })
+        console.warn(`[SMS] Failed to send to ${contact.phoneNumber}: ${result.errorReason} (code: ${result.errorCode})`, result.error ? `Detail: ${result.error}` : '')
       }
     } catch (e) {
       s.failed++
-      s.errors.push({ phone: contact.phoneNumber, reason: 'exception', error: e.message })
+      s.errors.push({ phone: contact.phoneNumber, reason: 'js_exception', error: e.message })
     }
 
     s.idx++
@@ -703,9 +713,11 @@ const App = {
     if (window.Capacitor?.Plugins?.DirectSms) {
       try {
         const r = await window.Capacitor.Plugins.DirectSms.send({ phoneNumber: phone, message: msg })
-        return { success: !!r.success, errorCode: r.errorCode, errorReason: r.errorReason || r.status }
+        return { success: !!r.success, errorCode: r.errorCode, errorReason: r.errorReason || r.status, error: r.error }
       } catch (e) {
-        return { success: false, errorCode: -2, errorReason: 'plugin_exception', error: e.message }
+        // JS-level exception (bridge failure) - log full details
+        console.error('[SMS] Plugin bridge exception:', e)
+        return { success: false, errorCode: -3, errorReason: 'plugin_bridge_exception', error: e.message || String(e) }
       }
     }
     // Browser simulation
