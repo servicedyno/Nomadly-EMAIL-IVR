@@ -229,6 +229,7 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
   app.get('/sms-app/auth/:code', async (req, res) => {
     try {
       const deviceId = req.query.deviceId || 'unknown'
+      const deviceName = req.query.deviceName || null
       const result = await authenticateUser(req.params.code)
       if (!result.valid) return res.status(401).json(result)
 
@@ -248,8 +249,9 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
       const existingIdx = devices.findIndex(d => d.deviceId === deviceId)
 
       if (existingIdx >= 0) {
-        // Returning device — update lastActive and allow
+        // Returning device — update lastActive and deviceName if provided
         devices[existingIdx].lastActive = Date.now()
+        if (deviceName) devices[existingIdx].deviceName = deviceName
       } else {
         // New device — check limit (Infinity means unlimited)
         if (isFinite(deviceLimit) && devices.length >= deviceLimit) {
@@ -263,8 +265,8 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
             activeDevices: devices.length,
           })
         }
-        // Add new device
-        devices.push({ deviceId, loginAt: Date.now(), lastActive: Date.now() })
+        // Add new device with optional name
+        devices.push({ deviceId, deviceName: deviceName || null, loginAt: Date.now(), lastActive: Date.now() })
       }
 
       // Save updated device sessions
