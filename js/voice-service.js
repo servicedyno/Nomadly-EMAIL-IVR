@@ -77,6 +77,47 @@ const HARD_BLOCK_DURATION = 600000     // 10 minutes of silent drop
 const _expiredTestBlockSet = new Map()
 const EXPIRED_TEST_BLOCK_DURATION = 600000  // 10 minutes
 
+// ── Recent Test Credential Cache ──
+// Tracks recently created test SIP credentials for fast, reliable user identification.
+// Solves the multi-match disambiguation problem: when multiple test users share the same
+// SIP connection + ANI, the system couldn't determine which user was calling.
+// Now: phone-test-routes.js registers credentials here → voice webhook checks here FIRST.
+// Key: sipUsername, Value: { chatId, registeredAt }
+const _recentTestCredentials = new Map()
+const RECENT_TEST_CREDENTIAL_TTL = 30 * 60 * 1000  // 30 minutes (test calls should happen within minutes)
+
+/**
+ * Register a recently created test SIP credential for fast lookup during voice webhooks.
+ * Called by phone-test-routes.js after credential creation.
+ */
+function registerRecentTestCredential(sipUsername, chatId) {
+  _recentTestCredentials.set(sipUsername, { chatId, registeredAt: Date.now() })
+  log(`[Voice] Registered recent test credential: ${sipUsername} → chatId ${chatId}`)
+  // Auto-cleanup after TTL
+  setTimeout(() => {
+    if (_recentTestCredentials.has(sipUsername)) {
+      const entry = _recentTestCredentials.get(sipUsername)
+      if (Date.now() - entry.registeredAt >= RECENT_TEST_CREDENTIAL_TTL) {
+        _recentTestCredentials.delete(sipUsername)
+      }
+    }
+  }, RECENT_TEST_CREDENTIAL_TTL + 1000)
+}
+
+/**
+ * Look up a chatId from the recent test credential cache.
+ * Returns { chatId, registeredAt } or null if not found/expired.
+ */
+function lookupRecentTestCredential(sipUsername) {
+  const entry = _recentTestCredentials.get(sipUsername)
+  if (!entry) return null
+  if (Date.now() - entry.registeredAt > RECENT_TEST_CREDENTIAL_TTL) {
+    _recentTestCredentials.delete(sipUsername)
+    return null
+  }
+  return entry
+}
+
 // Fix #4 → Fix #5: Auto-routed call REAL-TIME billing.
 // When rate-limit/hard-block rejects a call but Telnyx auto-routed it to PSTN,
 // we now bill in real-time (connection fee + per-minute timer) instead of deferring to hangup.
@@ -661,6 +702,13 @@ setInterval(() => {
   for (const [key, blockedAt] of _expiredTestBlockSet) {
     if (now - blockedAt > EXPIRED_TEST_BLOCK_DURATION * 2) {
       _expiredTestBlockSet.delete(key)
+    }
+  }
+
+  // Clean expired recent test credential cache entries
+  for (const [key, entry] of _recentTestCredentials) {
+    if (now - entry.registeredAt > RECENT_TEST_CREDENTIAL_TTL * 2) {
+      _recentTestCredentials.delete(key)
     }
   }
 
@@ -2021,7 +2069,40 @@ async function handleOutboundSipCall(payload) {
     log(`[Voice] SIP from=${fromClean} is connection's default number (no credential in payload) — phone match will be blocked to prevent wrong-user billing`)
   }
   
-  let lookupResult = await findNumberBySipUser(sipUsername, fromClean, connectionPhoneNumber)
+  // ── FAST PATH: Check recent test credential cache BEFORE expensive DB/API lookups ──
+  // When a user just created a test credential via /testsip, we can instantly identify them
+  // without scanning all 145+ Telnyx credentials. This also solves the multi-match
+  // disambiguation bug where the wrong user's low balance killed another user's call.
+  let lookupResult = { chatId: null, num: null }
+  let skipReverseLookup = false
+  
+  if (!credentialExtracted && isSipByConnection) {
+    // Scan the recent test credentials cache for any entry matching this connection
+    // The user who JUST created their credential (seconds/minutes ago) is almost certainly the caller
+    // If multiple recent entries exist, prefer the most recently registered one
+    let bestCacheMatch = null
+    let bestCacheTime = 0
+    for (const [cachedSipUser, cacheEntry] of _recentTestCredentials) {
+      if (Date.now() - cacheEntry.registeredAt < RECENT_TEST_CREDENTIAL_TTL && cacheEntry.registeredAt > bestCacheTime) {
+        bestCacheMatch = { sipUser: cachedSipUser, entry: cacheEntry }
+        bestCacheTime = cacheEntry.registeredAt
+      }
+    }
+    if (bestCacheMatch) {
+      const cachedLookup = await findNumberBySipUser(bestCacheMatch.sipUser, null, null)
+      if (cachedLookup.chatId === bestCacheMatch.entry.chatId && cachedLookup.num) {
+        lookupResult = cachedLookup
+        sipUsername = bestCacheMatch.sipUser
+        credentialExtracted = true
+        skipReverseLookup = true
+        log(`[Voice] ✅ Fast-path match via recent test credential cache: ${sipUsername} → chatId ${bestCacheMatch.entry.chatId} (created ${Math.round((Date.now() - bestCacheMatch.entry.registeredAt) / 1000)}s ago)`)
+      }
+    }
+  }
+  
+  if (!lookupResult.chatId && !skipReverseLookup) {
+    lookupResult = await findNumberBySipUser(sipUsername, fromClean, connectionPhoneNumber)
+  }
   
   // ── FALLBACK: If credential wasn't extracted from payload and no match found,
   // try reverse lookup via Telnyx credentials API ──
@@ -2077,16 +2158,72 @@ async function handleOutboundSipCall(payload) {
             sipUsername = bestMatch.credUsername
             log(`[Voice] Multi-match resolved by recent activity: ${sipUsername} → chatId ${lookupResult.chatId} (last call: ${new Date(bestTime).toISOString()})`)
           } else {
-            // No call history — fall back to first match
-            lookupResult = matches[0]
-            sipUsername = matches[0].credUsername
-            log(`[Voice] ⚠️ Multiple SIP credential matches, no call history — using first: ${sipUsername} → chatId ${lookupResult.chatId}`)
+            // No call history — use MOST RECENTLY CREATED test credential from DB
+            // This is the critical fix: when multiple test users share the same SIP connection,
+            // the user who just created their credential (via /testsip) is the one calling.
+            let resolvedByCreation = false
+            try {
+              const testCredsCollection = db ? db.collection('testCredentials') : null
+              if (testCredsCollection) {
+                const matchUsernames = matches.map(m => m.credUsername)
+                const mostRecent = await testCredsCollection.find({
+                  sipUsername: { $in: matchUsernames },
+                  expired: { $ne: true }
+                }).sort({ createdAt: -1 }).limit(1).toArray()
+                
+                if (mostRecent.length > 0) {
+                  const recentCred = mostRecent[0]
+                  const match = matches.find(m => m.credUsername === recentCred.sipUsername)
+                  if (match) {
+                    lookupResult = match
+                    sipUsername = match.credUsername
+                    resolvedByCreation = true
+                    log(`[Voice] ✅ Multi-match resolved by most recent credential creation: ${sipUsername} → chatId ${lookupResult.chatId} (created: ${recentCred.createdAt?.toISOString?.() || 'unknown'})`)
+                  }
+                }
+              }
+            } catch (dbErr) {
+              log(`[Voice] testCredentials lookup failed: ${dbErr.message}`)
+            }
+            
+            if (!resolvedByCreation) {
+              // Absolute last resort — use first match (with warning)
+              lookupResult = matches[0]
+              sipUsername = matches[0].credUsername
+              log(`[Voice] ⚠️ Multiple SIP credential matches, no call history AND no testCredentials resolution — using first: ${sipUsername} → chatId ${lookupResult.chatId}`)
+            }
           }
         } catch (e) {
-          // DB error — fall back to first match
-          lookupResult = matches[0]
-          sipUsername = matches[0].credUsername
-          log(`[Voice] ⚠️ Multiple SIP credential matches (activity check failed: ${e.message}) — using first: ${sipUsername} → chatId ${lookupResult.chatId}`)
+          // Call history check failed — try testCredentials creation time as fallback
+          let resolvedByCreation = false
+          try {
+            const db2 = _phoneNumbersOf?.s?.db
+            const testCredsCollection = db2 ? db2.collection('testCredentials') : null
+            if (testCredsCollection) {
+              const matchUsernames = matches.map(m => m.credUsername)
+              const mostRecent = await testCredsCollection.find({
+                sipUsername: { $in: matchUsernames },
+                expired: { $ne: true }
+              }).sort({ createdAt: -1 }).limit(1).toArray()
+              
+              if (mostRecent.length > 0) {
+                const recentCred = mostRecent[0]
+                const match = matches.find(m => m.credUsername === recentCred.sipUsername)
+                if (match) {
+                  lookupResult = match
+                  sipUsername = match.credUsername
+                  resolvedByCreation = true
+                  log(`[Voice] ✅ Multi-match resolved by credential creation (call history err: ${e.message}): ${sipUsername} → chatId ${lookupResult.chatId}`)
+                }
+              }
+            }
+          } catch (_) { /* ignore nested error */ }
+          
+          if (!resolvedByCreation) {
+            lookupResult = matches[0]
+            sipUsername = matches[0].credUsername
+            log(`[Voice] ⚠️ Multiple SIP credential matches (activity check failed: ${e.message}) — using first: ${sipUsername} → chatId ${lookupResult.chatId}`)
+          }
         }
         log(`[Voice] Other matches: ${matches.filter(m => m.credUsername !== sipUsername).map(m => `${m.credUsername}→${m.chatId}`).join(', ')}`)
       } else {
@@ -4060,4 +4197,6 @@ module.exports = {
   lastIvrCallParams,
   getTwilioVoice,
   getTelnyxVoice,
+  registerRecentTestCredential,
+  lookupRecentTestCredential,
 }

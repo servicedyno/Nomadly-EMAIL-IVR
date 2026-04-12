@@ -173,6 +173,17 @@ function initPhoneTestRoutes(app, db, telnyxApi, sipConnectionId) {
 
       console.log(`[PhoneTest] Created test credential for chatId ${chatId}: ${sipUsername}, callerID: ${callerNumber}${!testNum ? ' (fallback to DEFAULT_ANI)' : ''}`)
 
+      // Register in voice-service's in-memory cache for fast disambiguation
+      // This solves the multi-match bug where the wrong user's low balance killed another user's call
+      try {
+        const voiceService = require('./voice-service.js')
+        if (voiceService.registerRecentTestCredential) {
+          voiceService.registerRecentTestCredential(sipUsername, chatId)
+        }
+      } catch (regErr) {
+        console.error(`[PhoneTest] Failed to register test credential in voice cache: ${regErr.message}`)
+      }
+
       res.json({
         sipUsername,
         sipPassword,
