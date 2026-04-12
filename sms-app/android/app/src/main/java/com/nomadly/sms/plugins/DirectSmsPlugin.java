@@ -52,6 +52,7 @@ public class DirectSmsPlugin extends Plugin {
 
         // Check permission
         if (!hasPermission("sms")) {
+            android.util.Log.w("DirectSms", "SMS permission not granted - requesting permission");
             requestAllPermissions(call, "smsPermissionCallback");
             return;
         }
