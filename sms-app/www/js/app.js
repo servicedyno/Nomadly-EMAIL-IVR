@@ -11,6 +11,11 @@ const App = {
 
   // ─── Init ───
   async init() {
+    console.log('='.repeat(50))
+    console.log('Nomadly SMS App v2.1.3 - Initializing')
+    console.log('Platform:', window.Capacitor ? 'Native (APK)' : 'Browser')
+    console.log('='.repeat(50))
+    
     if (Storage.isLoggedIn()) {
       this.showDashboard()
       this.syncData()
@@ -35,44 +40,53 @@ const App = {
   },
 
   async checkAndDisplayPermissionStatus() {
-    if (!window.Capacitor?.Plugins?.DirectSms) return
+    if (!window.Capacitor?.Plugins?.DirectSms) {
+      console.log('[SMS] Not running in Capacitor (browser mode)')
+      return
+    }
     
+    console.log('[SMS] Checking permission status on startup...')
     try {
       const perm = await window.Capacitor.Plugins.DirectSms.checkPermission()
+      console.log('[SMS] Permission check result:', perm)
       const statusEl = document.getElementById('permissionStatus')
       
       if (!perm.granted) {
-        console.warn('[SMS] Permission NOT granted on startup')
+        console.warn('[SMS] ⚠️ Permission NOT granted on startup')
         if (statusEl) {
           statusEl.innerHTML = '⚠️ SMS Permission Required - <a href="#" onclick="App.requestPermissionNow(); return false;">Grant Now</a>'
           statusEl.style.display = 'block'
           statusEl.className = 'permission-warning'
         }
       } else {
-        console.log('[SMS] Permission granted ✓')
+        console.log('[SMS] ✅ Permission granted on startup')
         if (statusEl) {
           statusEl.style.display = 'none'
         }
       }
     } catch (e) {
-      console.error('[SMS] Failed to check permission:', e)
+      console.error('[SMS] ❌ Failed to check permission:', e)
     }
   },
 
   async requestPermissionNow() {
     if (!window.Capacitor?.Plugins?.DirectSms) return
     
+    console.log('[SMS] User clicked "Grant Now" - requesting permission...')
     try {
       const req = await window.Capacitor.Plugins.DirectSms.requestPermission()
+      console.log('[SMS] Permission request result:', req)
       if (req.granted) {
+        console.log('[SMS] ✅ Permission granted by user!')
         this.toast('SMS permission granted!', 'success')
         const statusEl = document.getElementById('permissionStatus')
         if (statusEl) statusEl.style.display = 'none'
       } else {
+        console.warn('[SMS] ⚠️ Permission denied by user')
         this.toast('Permission denied. Enable in Settings > Apps > Nomadly SMS > Permissions', 'error')
       }
     } catch (e) {
-      console.error('[SMS] Failed to request permission:', e)
+      console.error('[SMS] ❌ Failed to request permission:', e)
       this.toast('Failed to request permission', 'error')
     }
   },
@@ -631,24 +645,38 @@ const App = {
 
   // ─── SMS Sending ───
   async startSending(campaign) {
+    console.log('[SMS] ='.repeat(25))
+    console.log('[SMS] Starting campaign:', campaign.name)
+    console.log('[SMS] Campaign ID:', campaign._id)
+    console.log('[SMS] Contacts:', campaign.contacts?.length || 0)
+    console.log('[SMS] ='.repeat(25))
+    
     const contacts = campaign.contacts || []
     const content = campaign.content || []
     if (!contacts.length || !content.length) return this.toast('Campaign needs content and contacts', 'error')
 
     // Pre-check SMS permission before starting
     if (window.Capacitor?.Plugins?.DirectSms) {
+      console.log('[SMS] Checking permission before send...')
       try {
         const perm = await window.Capacitor.Plugins.DirectSms.checkPermission()
+        console.log('[SMS] Permission status:', perm)
+        
         if (!perm.granted) {
           console.log('[SMS] Permission not granted, requesting...')
           const req = await window.Capacitor.Plugins.DirectSms.requestPermission()
+          console.log('[SMS] Permission request result:', req)
+          
           if (!req.granted) {
+            console.error('[SMS] ❌ Permission DENIED by user - blocking send')
             return this.toast('SMS permission DENIED. Go to Android Settings > Apps > Nomadly SMS > Permissions and enable SMS.', 'error')
           }
-          console.log('[SMS] Permission granted after request')
+          console.log('[SMS] ✅ Permission granted after request')
+        } else {
+          console.log('[SMS] ✅ Permission already granted')
         }
       } catch (e) {
-        console.error('[SMS] Permission check failed:', e)
+        console.error('[SMS] ❌ Permission check failed:', e)
         return this.toast('Failed to check SMS permission. Ensure permission is granted in Settings.', 'error')
       }
     }
