@@ -87,6 +87,18 @@ Rebuild NomadlySMSfix Android app as Capacitor hybrid with subscription enforcem
 ### 3. URL Shortener Trial Count Fix
 - `_index.js`: Fixed `row.length === 1` condition → now uses `row.some()` to match any row containing '🔗' button, so trial count shows even when sharing a row with Upgrade Plan
 
+### 4. BulkSMS Full Sub-Menu & Campaign Flow Overhaul
+- **BulkSMS Sub-Menu**: Clicking BulkSMS now shows a proper sub-menu keyboard: Create Campaign, My Campaigns, Download App, Reset Login, Back
+- **Dynamic Button Label**: Main menu BulkSMS label is now dynamic:
+  - Subscribed: "📧 BulkSMS ✅"
+  - Trial active: "📧🆓 BulkSMS — X Free SMS"
+  - Trial used/no sub: "📧 BulkSMS"
+- **Dynamic Status Message**: BulkSMS menu shows context-aware status (active/trial remaining/expired with upgrade nudge)
+- **Create Campaign Intro**: Shows step-by-step guide (name → content → contacts → schedule) with formatting tips before starting
+- **My Campaigns**: New button shows campaign list with status icons and counts
+- **Campaign Scheduling**: New step after contacts — user can "▶️ Send Now" or "⏰ Schedule for Later" with date/time input (syncs to app via `scheduledAt`)
+- All 4 languages updated (en/fr/zh/hi)
+
 ## Incorporate User Feedback
 - Follow testing agent suggestions for bug fixes
 
@@ -124,6 +136,44 @@ Rebuild NomadlySMSfix Android app as Capacitor hybrid with subscription enforcem
 - **Health check endpoint operational** - New endpoint returns 200 with healthy status
 
 ### Test User Profile Confirmed:
+- Name: sport_chocolate
+- Plan: none (expired)
+- Subscription: False
+- Free trial: False  
+- Free SMS remaining: 0
+- Existing campaigns: 2 (can view but not modify)
+
+## Latest Backend Testing Results (Testing Agent - January 2025 - Current Session)
+
+### ✅ ALL TESTS VERIFIED AGAIN (12/12) - 100% Success Rate
+
+**Test Date:** January 2025  
+**Backend URL:** https://readme-first-4.preview.emergentagent.com  
+**Test User:** 6687923716 (expired subscription, 0 free SMS remaining)  
+**Focus:** Re-verification of all SMS App endpoints as requested
+
+#### All Endpoints Confirmed Working:
+1. ✅ **Health Check** - GET /api/health returns 200 with status: healthy
+2. ✅ **Auth (Valid)** - GET /api/sms-app/auth/6687923716 returns 200 with valid=true, canUseSms=false
+3. ✅ **Auth (Invalid)** - GET /api/sms-app/auth/9999999999 returns 401 with proper error message
+4. ✅ **Sync Endpoint** - GET /api/sms-app/sync/6687923716 returns canUseSms=false, 2 campaigns
+5. ✅ **Create Campaign Block** - POST /api/sms-app/campaigns returns 403 with "⚡ Upgrade Plan" message
+6. ✅ **Update Campaign Block** - PUT /api/sms-app/campaigns/test-id returns 403 with "⚡ Upgrade Plan" message
+7. ✅ **Progress Update Block** - PUT /api/sms-app/campaigns/test-id/progress returns 403 with subscription enforcement
+8. ✅ **SMS Sent Block** - POST /api/sms-app/sms-sent/6687923716 returns 403 with "⚡ Upgrade Plan" message
+9. ✅ **Get Campaigns** - GET /api/sms-app/campaigns/6687923716 returns 2 campaigns (read-only works)
+10. ✅ **Plan Info** - GET /api/sms-app/plan/6687923716 shows canUseSms=false, plan=none, freeSmsRemaining=0
+11. ✅ **APK Download** - GET /api/sms-app/download returns 200, 3.6MB file, correct content-type
+12. ✅ **Download Info** - GET /api/sms-app/download/info returns version 2.0.0, size 3,801,291 bytes
+
+### Key Findings:
+- **ALL REQUESTED ENDPOINTS WORKING PERFECTLY** - Every endpoint mentioned in the review request is functioning correctly
+- **Subscription enforcement is ROBUST** - All write operations properly blocked for expired users with clear "⚡ Upgrade Plan" messaging
+- **Read operations work correctly** - Users can view existing campaigns and plan info
+- **APK download system fully operational** - Correct file size, version info, and content-type headers
+- **Health check endpoint responsive** - Returns 200 with healthy status
+
+### Test User Profile Re-Confirmed:
 - Name: sport_chocolate
 - Plan: none (expired)
 - Subscription: False

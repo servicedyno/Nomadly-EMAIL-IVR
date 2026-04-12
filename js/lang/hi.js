@@ -114,6 +114,11 @@ const user = {
   vpsPlans: '🖥️ VPS/RDP — पोर्ट 25 खुला🛡️',
   buyPlan: '⚡ प्लान अपग्रेड करें',
   freeTrialAvailable: '📧🆓 BulkSMS - फ्री ट्रायल',
+  smsAppMain: '📧 BulkSMS',
+  smsCreateCampaign: '📱 अभियान बनाएं',
+  smsMyCampaigns: '📋 मेरे अभियान',
+  smsDownloadApp: '📲 ऐप डाउनलोड',
+  smsResetLogin: '🔓 लॉगिन रीसेट',
   changeSetting: '🌍 सेटिंग्स',
   changeLanguage: '🌍 भाषा बदलें',
 
@@ -1340,8 +1345,8 @@ const userKeyboard = {
       [user.marketplace, user.digitalProducts],
       [user.domainNames, user.hostingDomainsRedirect],
       ...(VPS_ENABLED === 'true'
-        ? (HIDE_SMS_APP !== 'true' ? [[user.vpsPlans, user.freeTrialAvailable]] : [[user.vpsPlans]])
-        : (HIDE_SMS_APP !== 'true' ? [[user.freeTrialAvailable]] : [])),
+        ? (HIDE_SMS_APP !== 'true' ? [[user.vpsPlans, user.smsAppMain]] : [[user.vpsPlans]])
+        : (HIDE_SMS_APP !== 'true' ? [[user.smsAppMain]] : [])),
       [user.emailValidation, user.virtualCard],
       [user.wallet, user.leadsValidation],
       [user.urlShortenerMain, user.buyPlan],

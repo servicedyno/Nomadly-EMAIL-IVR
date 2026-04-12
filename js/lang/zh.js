@@ -114,6 +114,11 @@ const user = {
   vpsPlans: '🖥️ VPS/RDP — 端口25开放🛡️',
   buyPlan: '⚡ 升级计划',
   freeTrialAvailable: '📧🆓 BulkSMS - 免费试用',
+  smsAppMain: '📧 BulkSMS',
+  smsCreateCampaign: '📱 创建活动',
+  smsMyCampaigns: '📋 我的活动',
+  smsDownloadApp: '📲 下载应用',
+  smsResetLogin: '🔓 重置登录',
   changeSetting: '🌍 设置',
   changeLanguage: '🌍 更改语言',
 
@@ -1334,8 +1339,8 @@ const userKeyboard = {
       [user.marketplace, user.digitalProducts],
       [user.domainNames, user.hostingDomainsRedirect],
       ...(VPS_ENABLED === 'true'
-        ? (HIDE_SMS_APP !== 'true' ? [[user.vpsPlans, user.freeTrialAvailable]] : [[user.vpsPlans]])
-        : (HIDE_SMS_APP !== 'true' ? [[user.freeTrialAvailable]] : [])),
+        ? (HIDE_SMS_APP !== 'true' ? [[user.vpsPlans, user.smsAppMain]] : [[user.vpsPlans]])
+        : (HIDE_SMS_APP !== 'true' ? [[user.smsAppMain]] : [])),
       [user.emailValidation, user.virtualCard],
       [user.wallet, user.leadsValidation],
       [user.urlShortenerMain, user.buyPlan],

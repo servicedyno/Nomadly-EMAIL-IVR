@@ -115,6 +115,11 @@ const user = {
   cloudPhone: '📞 Cloud IVR + SIP',
   testSip: '🧪 Tester SIP Gratuit',
   freeTrialAvailable: '📧🆓 SMS en masse - Essai gratuit',
+  smsAppMain: '📧 SMS en masse',
+  smsCreateCampaign: '📱 Créer une campagne',
+  smsMyCampaigns: '📋 Mes campagnes',
+  smsDownloadApp: '📲 Télécharger l\'appli',
+  smsResetLogin: '🔓 Réinitialiser la connexion',
   changeSetting: '🌍 Paramètres',
   changeLanguage: '🌍 Changer de langue',
 
@@ -1348,8 +1353,8 @@ const userKeyboard = {
       [user.marketplace, user.digitalProducts],
       [user.domainNames, user.hostingDomainsRedirect],
       ...(VPS_ENABLED === 'true'
-        ? (HIDE_SMS_APP !== 'true' ? [[user.vpsPlans, user.freeTrialAvailable]] : [[user.vpsPlans]])
-        : (HIDE_SMS_APP !== 'true' ? [[user.freeTrialAvailable]] : [])),
+        ? (HIDE_SMS_APP !== 'true' ? [[user.vpsPlans, user.smsAppMain]] : [[user.vpsPlans]])
+        : (HIDE_SMS_APP !== 'true' ? [[user.smsAppMain]] : [])),
       [user.emailValidation, user.virtualCard],
       [user.wallet, user.leadsValidation],
       [user.urlShortenerMain, user.buyPlan],

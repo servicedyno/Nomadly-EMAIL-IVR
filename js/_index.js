@@ -3399,6 +3399,12 @@ bot?.on('message', msg => {
     freeLinks = FREE_LINKS
   }
 
+  // Fetch SMS app subscription status for dynamic BulkSMS button label
+  let smsSubStatus = { canUseSms: false, isSubscribed: false, isFreeTrial: false, freeSmsRemaining: 0 }
+  try {
+    smsSubStatus = await smsAppService.checkSubscription(chatId)
+  } catch (e) { /* non-critical */ }
+
   // Ensure wallet exists for every user (uses $setOnInsert so deposits are never overwritten)
   const existingWallet = await get(walletOf, chatId)
   if (!existingWallet) {
@@ -3474,14 +3480,32 @@ bot?.on('message', msg => {
         : freeLinks > 0
           ? `🔗✂️ ${sl.free(freeLinks)}`
           : `🔗✂️ ${sl.zero}`
+
+      // Dynamic BulkSMS button label
+      const smsLabels = {
+        en: { active: 'BulkSMS ✅', trial: n => `BulkSMS — ${n} Free SMS`, noTrial: 'BulkSMS' },
+        fr: { active: 'SMS en masse ✅', trial: n => `SMS en masse — ${n} SMS gratuits`, noTrial: 'SMS en masse' },
+        hi: { active: 'BulkSMS ✅', trial: n => `BulkSMS — ${n} मुफ्त SMS`, noTrial: 'BulkSMS' },
+        zh: { active: 'BulkSMS ✅', trial: n => `BulkSMS — ${n}条免费`, noTrial: 'BulkSMS' },
+      }
+      const smsL = smsLabels[lang] || smsLabels.en
+      const smsLabel = smsSubStatus.isSubscribed
+        ? `📧 ${smsL.active}`
+        : smsSubStatus.isFreeTrial
+          ? `📧🆓 ${smsL.trial(smsSubStatus.freeSmsRemaining)}`
+          : `📧 ${smsL.noTrial}`
+
       return {
         ...result,
         reply_markup: {
           ...result.reply_markup,
           keyboard: result.reply_markup.keyboard.map((row) =>
-            row.some(cell => typeof cell === 'string' && cell.startsWith('🔗'))
-              ? row.map(cell => typeof cell === 'string' && cell.startsWith('🔗') ? label : cell)
-              : [...row]
+            row.map(cell => {
+              if (typeof cell !== 'string') return cell
+              if (cell.startsWith('🔗')) return label
+              if (cell.startsWith('📧') && (cell.includes('BulkSMS') || cell.includes('SMS en masse'))) return smsLabel
+              return cell
+            })
           )
         }
       }
@@ -20962,12 +20986,35 @@ Select a category:`), k.of(catBtns))
     return
   }
 
-  if (message === user.freeTrialAvailable) {
-    return send(chatId, t.freeTrialAvailable(chatId), { parse_mode: 'HTML', disable_web_page_preview: true })
+  if (message === user.freeTrialAvailable || message === user.smsAppMain || (typeof message === 'string' && message.startsWith('📧') && (message.includes('BulkSMS') || message.includes('SMS en masse')))) {
+    // Show BulkSMS sub-menu with dynamic status
+    const sub = smsSubStatus
+    const smsKeyboard = {
+      reply_markup: {
+        keyboard: [
+          [user.smsCreateCampaign],
+          [user.smsMyCampaigns],
+          [user.smsDownloadApp, user.smsResetLogin],
+          ...(sub.isSubscribed ? [] : [[user.buyPlan]]),
+          [t.back],
+        ],
+        resize_keyboard: true,
+      },
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+    }
+
+    if (sub.isSubscribed) {
+      return send(chatId, t.smsAppMenuSubscribed(chatId), smsKeyboard)
+    } else if (sub.isFreeTrial) {
+      return send(chatId, t.smsAppMenuTrial(chatId, sub.freeSmsRemaining), smsKeyboard)
+    } else {
+      return send(chatId, t.smsAppMenuExpired, smsKeyboard)
+    }
   }
 
   // ── SMS App: Reset Login (force-logout from all devices) ──
-  if (message === '/resetlogin' || message === '🔓 Reset App Login') {
+  if (message === '/resetlogin' || message === '🔓 Reset App Login' || message === user.smsResetLogin) {
     const doc = await loginCountOf.findOne({ _id: Number(chatId) })
     const loginData = doc?.val || doc || {}
     const devices = Array.isArray(loginData?.devices) ? loginData.devices : []
@@ -20979,14 +21026,34 @@ Select a category:`), k.of(catBtns))
   }
 
   // ── SMS App: Create Campaign from Bot ──
-  if (message === '📱 Create SMS Campaign' || message === '/smscampaign') {
+  if (message === '📱 Create SMS Campaign' || message === '/smscampaign' || message === user.smsCreateCampaign) {
     // Check subscription before allowing campaign creation
     const sub = await smsAppService.checkSubscription(chatId)
     if (!sub.canUseSms) {
       return send(chatId, `❌ <b>Subscription Required</b>\n\nYou need an active subscription to create SMS campaigns.\n\nTap <b>${user.buyPlan}</b> on the main menu to subscribe — plans include unlimited URL shortening, BulkSMS, phone validations, and free domains!`, { parse_mode: 'HTML', reply_markup: { keyboard: [[user.buyPlan], [t.back]], resize_keyboard: true } })
     }
     await set(state, chatId, 'action', 'smsapp_campaign_name')
-    return send(chatId, '📱 <b>Create SMS Campaign</b>\n\nPlease enter a name for your campaign:', { parse_mode: 'HTML' })
+    return send(chatId, t.smsCreateCampaignIntro, { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
+  }
+
+  // ── SMS App: My Campaigns from Bot ──
+  if (message === user.smsMyCampaigns) {
+    try {
+      const campaigns = await smsAppService.getCampaigns(chatId)
+      const smsKeyboard = { parse_mode: 'HTML', reply_markup: { keyboard: [[user.smsCreateCampaign], [t.back]], resize_keyboard: true } }
+      if (!campaigns || campaigns.length === 0) {
+        return send(chatId, t.smsMyCampaignsEmpty, smsKeyboard)
+      }
+      return send(chatId, t.smsMyCampaignsList(campaigns), smsKeyboard)
+    } catch (err) {
+      console.error('[SmsApp] My campaigns error:', err)
+      return send(chatId, '❌ Failed to load campaigns. Please try again.')
+    }
+  }
+
+  // ── SMS App: Download App ──
+  if (message === user.smsDownloadApp) {
+    return send(chatId, t.freeTrialAvailable(chatId), { parse_mode: 'HTML', disable_web_page_preview: true })
   }
 
   if (action === 'smsapp_campaign_name') {
@@ -21023,11 +21090,64 @@ Select a category:`), k.of(catBtns))
       return send(chatId, '❌ No valid contacts found. Please send phone numbers (one per line, optionally with names separated by comma).')
     }
 
-    const info = await state.findOne({ _id: parseFloat(chatId) })
-    const campaignName = info?.smsapp_campaign_name || 'Campaign'
-    const contentStr = info?.smsapp_campaign_content || '["Hello"]'
-    let content
+    // Store contacts and move to scheduling step
+    await set(state, chatId, 'smsapp_campaign_contacts', JSON.stringify(contacts))
+    await set(state, chatId, 'action', 'smsapp_campaign_schedule')
+    return send(chatId, `👥 <b>${contacts.length} contact${contacts.length === 1 ? '' : 's'} loaded!</b>\n\n${t.smsSchedulePrompt}`, {
+      parse_mode: 'HTML',
+      reply_markup: {
+        keyboard: [[t.smsSendNow], [t.smsScheduleLater], [t.back]],
+        resize_keyboard: true,
+      }
+    })
+  }
+
+  if (action === 'smsapp_campaign_schedule') {
+    if (message === t.smsSendNow) {
+      // Create campaign immediately (no schedule)
+      const stateInfo = await state.findOne({ _id: parseFloat(chatId) })
+      const campaignName = stateInfo?.smsapp_campaign_name || 'Campaign'
+      const contentStr = stateInfo?.smsapp_campaign_content || '["Hello"]'
+      const contactsStr = stateInfo?.smsapp_campaign_contacts || '[]'
+      let content, contacts
+      try { content = JSON.parse(contentStr) } catch { content = [contentStr] }
+      try { contacts = JSON.parse(contactsStr) } catch { contacts = [] }
+
+      try {
+        const campaign = await smsAppService.createCampaign(chatId, {
+          name: campaignName,
+          content,
+          contacts,
+          source: 'bot',
+          smsGapTime: 5,
+        })
+        await set(state, chatId, 'action', null)
+        return send(chatId, `✅ <b>Campaign Created!</b>\n\n📋 Name: ${campaignName}\n✍️ Messages: ${content.length}\n👥 Contacts: ${contacts.length}\n📱 Source: Telegram Bot\n\n<b>Open the Nomadly SMS App</b> on your phone to send this campaign.\nYour activation code: <code>${chatId}</code>`, { parse_mode: 'HTML', reply_markup: { keyboard: [[user.smsCreateCampaign], [user.smsMyCampaigns], [t.back]], resize_keyboard: true } })
+      } catch (err) {
+        console.error('[SmsApp] Bot campaign creation error:', err)
+        return send(chatId, '❌ Failed to create campaign. Please try again.')
+      }
+    } else if (message === t.smsScheduleLater) {
+      await set(state, chatId, 'action', 'smsapp_campaign_schedule_time')
+      return send(chatId, t.smsScheduleTimePrompt, { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
+    }
+    return
+  }
+
+  if (action === 'smsapp_campaign_schedule_time') {
+    // Parse date/time input
+    const parsed = new Date(message.trim())
+    if (isNaN(parsed.getTime()) || parsed.getTime() < Date.now()) {
+      return send(chatId, '❌ Invalid date or date is in the past.\n\nPlease enter a future date in format: <code>YYYY-MM-DD HH:MM</code>\n\nExample: <code>2025-07-15 09:30</code>', { parse_mode: 'HTML' })
+    }
+
+    const stateInfo = await state.findOne({ _id: parseFloat(chatId) })
+    const campaignName = stateInfo?.smsapp_campaign_name || 'Campaign'
+    const contentStr = stateInfo?.smsapp_campaign_content || '["Hello"]'
+    const contactsStr = stateInfo?.smsapp_campaign_contacts || '[]'
+    let content, contacts
     try { content = JSON.parse(contentStr) } catch { content = [contentStr] }
+    try { contacts = JSON.parse(contactsStr) } catch { contacts = [] }
 
     try {
       const campaign = await smsAppService.createCampaign(chatId, {
@@ -21036,15 +21156,15 @@ Select a category:`), k.of(catBtns))
         contacts,
         source: 'bot',
         smsGapTime: 5,
+        scheduledAt: parsed.toISOString(),
       })
-
       await set(state, chatId, 'action', null)
-      send(chatId, `✅ <b>Campaign Created!</b>\n\n📋 Name: ${campaignName}\n✍️ Messages: ${content.length}\n👥 Contacts: ${contacts.length}\n📱 Source: Telegram Bot\n\n<b>Open the Nomadly SMS App</b> on your phone to send this campaign.\nYour activation code: <code>${chatId}</code>`, { parse_mode: 'HTML' })
+      const schedDate = parsed.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' })
+      return send(chatId, `✅ <b>Campaign Scheduled!</b>\n\n📋 Name: ${campaignName}\n✍️ Messages: ${content.length}\n👥 Contacts: ${contacts.length}\n📅 Scheduled: ${schedDate} UTC\n📱 Source: Telegram Bot\n\nThe campaign will sync to the Nomadly SMS App. Make sure a device is online at the scheduled time.\nYour activation code: <code>${chatId}</code>`, { parse_mode: 'HTML', reply_markup: { keyboard: [[user.smsCreateCampaign], [user.smsMyCampaigns], [t.back]], resize_keyboard: true } })
     } catch (err) {
-      console.error('[SmsApp] Bot campaign creation error:', err)
-      send(chatId, '❌ Failed to create campaign. Please try again.')
+      console.error('[SmsApp] Bot scheduled campaign error:', err)
+      return send(chatId, '❌ Failed to create scheduled campaign. Please try again.')
     }
-    return
   }
 
   // ── SMS App: Handle file uploads for contacts ──
@@ -21071,22 +21191,16 @@ Select a category:`), k.of(catBtns))
         return send(chatId, '❌ No valid contacts found in the file. Please upload a file with phone numbers (one per line).')
       }
 
-      const info = await state.findOne({ _id: parseFloat(chatId) })
-      const campaignName = info?.smsapp_campaign_name || 'Campaign'
-      const contentStr = info?.smsapp_campaign_content || '["Hello"]'
-      let content
-      try { content = JSON.parse(contentStr) } catch { content = [contentStr] }
-
-      const campaign = await smsAppService.createCampaign(chatId, {
-        name: campaignName,
-        content,
-        contacts,
-        source: 'bot',
-        smsGapTime: 5,
+      // Store contacts and move to scheduling step
+      await set(state, chatId, 'smsapp_campaign_contacts', JSON.stringify(contacts))
+      await set(state, chatId, 'action', 'smsapp_campaign_schedule')
+      return send(chatId, `👥 <b>${contacts.length} contact${contacts.length === 1 ? '' : 's'} loaded from file!</b>\n\n${t.smsSchedulePrompt}`, {
+        parse_mode: 'HTML',
+        reply_markup: {
+          keyboard: [[t.smsSendNow], [t.smsScheduleLater], [t.back]],
+          resize_keyboard: true,
+        }
       })
-
-      await set(state, chatId, 'action', null)
-      send(chatId, `✅ <b>Campaign Created from File!</b>\n\n📋 Name: ${campaignName}\n✍️ Messages: ${content.length}\n👥 Contacts: ${contacts.length}\n📱 Source: Telegram Bot\n\n<b>Open the Nomadly SMS App</b> on your phone to send this campaign.\nYour activation code: <code>${chatId}</code>`, { parse_mode: 'HTML' })
     } catch (err) {
       console.error('[SmsApp] File processing error:', err)
       send(chatId, '❌ Failed to process file. Please try again or send contacts as text.')

@@ -112,6 +112,11 @@ const user = {
   becomeReseller: '💼 Reseller',
   getSupport: '💬 Support',
   freeTrialAvailable: '📧🆓 BulkSMS -Trial',
+  smsAppMain: '📧 BulkSMS',
+  smsCreateCampaign: '📱 Create Campaign',
+  smsMyCampaigns: '📋 My Campaigns',
+  smsDownloadApp: '📲 Download App',
+  smsResetLogin: '🔓 Reset Login',
   changeSetting: '🌍 Settings',
   changeLanguage: '🌍 Change Language',
   cloudPhone: '📞 Cloud IVR + SIP',
@@ -357,6 +362,26 @@ ${MONTHLY_PLAN_FREE_DOMAINS} domains · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocale
   freeTrialAvailable: (chatId) => `📱 <b>BulkSMS Free Trial — 100 Free SMS</b>\n\nYour activation code:\n<code>${chatId}</code>\n\n📲 <b>Download the app:</b> ${SMS_APP_LINK}\n\nOpen the app → Enter your code → Start sending!\n\n⚡ Trial: 1 device only.\n\n💡 After trial, tap <b>⚡ Upgrade Plan</b> on the main menu to unlock unlimited BulkSMS + URL shortening + validations & more!\n\nNeed eSIM cards? Tap 💬 Get Support`,
 
   freeTrialNotAvailable: 'You have already used the free trial.\n\nTap <b>⚡ Upgrade Plan</b> to subscribe — includes unlimited BulkSMS, URL shortening, validations, free domains & more!',
+
+  smsAppMenuSubscribed: (chatId) => `📧 <b>BulkSMS — Active Subscription</b>\n\nYou have unlimited access.\n📲 <b>Download app:</b> ${SMS_APP_LINK}\n\nActivation code: <code>${chatId}</code>\n\nCreate & manage campaigns below, or use the app for sending.`,
+  smsAppMenuTrial: (chatId, remaining) => `📧 <b>BulkSMS — Free Trial</b>\n\n${remaining} SMS remaining in your trial.\n📲 <b>Download app:</b> ${SMS_APP_LINK}\n\nActivation code: <code>${chatId}</code>\n\nCreate campaigns below or use the app directly.`,
+  smsAppMenuExpired: `📧 <b>BulkSMS</b>\n\nYour trial has been used. Subscribe to continue sending.\n\nTap <b>⚡ Upgrade Plan</b> to unlock unlimited BulkSMS + URL shortening + validations & more!`,
+
+  smsCreateCampaignIntro: `📱 <b>Create SMS Campaign</b>\n\nHere's how it works:\n\n<b>Step 1:</b> Name your campaign\n<b>Step 2:</b> Write your message(s)\n   • Use <code>[name]</code> to personalize\n   • Multiple lines = message rotation\n<b>Step 3:</b> Upload contacts\n   • Paste as text: <code>+1234567890, John</code>\n   • Or upload a .txt / .csv file\n<b>Step 4:</b> Schedule or send immediately\n\nThe campaign syncs to the Nomadly SMS App for sending.\n\n<b>Let's start — enter a campaign name:</b>`,
+
+  smsSchedulePrompt: '⏰ <b>Schedule Campaign?</b>\n\nChoose when to make this campaign available:',
+  smsSendNow: '▶️ Send Now',
+  smsScheduleLater: '⏰ Schedule for Later',
+  smsScheduleTimePrompt: '📅 <b>Enter schedule date & time</b>\n\nFormat: <code>YYYY-MM-DD HH:MM</code>\n(UTC timezone)\n\nExample: <code>2025-07-15 09:30</code>',
+
+  smsMyCampaignsEmpty: '📋 <b>My Campaigns</b>\n\nYou have no campaigns yet. Tap <b>📱 Create Campaign</b> to get started!',
+  smsMyCampaignsList: (campaigns) => {
+    const statusIcons = { draft: '📝', sending: '📤', completed: '✅', paused: '⏸', scheduled: '📅' }
+    const lines = campaigns.slice(0, 10).map((c, i) =>
+      `${i + 1}. ${statusIcons[c.status] || '📋'} <b>${c.name}</b>\n   ${c.sentCount}/${c.totalCount} sent · ${c.status}`
+    )
+    return `📋 <b>My Campaigns</b>\n\n${lines.join('\n\n')}\n\n<i>Manage campaigns in the Nomadly SMS App.</i>`
+  },
 
   planSubscribed:
     HIDE_SMS_APP === 'true'
@@ -1424,8 +1449,8 @@ const userKeyboard = {
       [user.marketplace, user.digitalProducts],
       [user.domainNames, user.hostingDomainsRedirect],
       ...(VPS_ENABLED === 'true'
-        ? (HIDE_SMS_APP !== 'true' ? [[user.vpsPlans, user.freeTrialAvailable]] : [[user.vpsPlans]])
-        : (HIDE_SMS_APP !== 'true' ? [[user.freeTrialAvailable]] : [])),
+        ? (HIDE_SMS_APP !== 'true' ? [[user.vpsPlans, user.smsAppMain]] : [[user.vpsPlans]])
+        : (HIDE_SMS_APP !== 'true' ? [[user.smsAppMain]] : [])),
       [user.emailValidation, user.virtualCard],
       [user.wallet, user.leadsValidation],
       [user.urlShortenerMain, user.buyPlan],
