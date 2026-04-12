@@ -137,6 +137,25 @@ const SERVICE_CONTEXT = {
     ],
     cta: '/start → 🖥️ VPS/RDP',
   },
+  bulksms_app: {
+    services: 'Nomadly BulkSMS App — Send mass SMS campaigns from your Android phone',
+    details: [
+      'Full-featured Android app for mass SMS campaigns',
+      'Send from YOUR phone number — no shared sender IDs',
+      'Multi-device support — use up to unlimited devices on Monthly plan',
+      'Device limits: Trial & Daily = 1 device, Weekly = 2 devices, Monthly = Unlimited',
+      'Schedule campaigns — set exact date & time for delivery',
+      'Smart SMS gap timing — control delay between messages for natural delivery',
+      'Import contacts from CSV or paste directly',
+      'Real-time campaign analytics — sent, failed, pending counts',
+      'Free trial: 100 SMS messages — no subscription required to start',
+      'Activate with your Telegram bot chat ID — instant setup',
+      'Campaign management — create, edit, pause, resume, delete',
+      'Works alongside Telegram bot — manage campaigns from either',
+      'Daily plan ($50): 1 device, Weekly ($100): 2 devices, Monthly ($200): unlimited devices',
+    ],
+    cta: '/start → 📧 BulkSMS (or download from bot menu)',
+  },
 }
 
 // ─── Sanitize AI output for Telegram HTML ─────────────────────────────
@@ -216,7 +235,7 @@ Return ONLY the promotional message text.`
 // ─── Timezone & Schedule Config ───────────────────────────────────────
 const TIMEZONE_OFFSETS = { en: 0, fr: 1, zh: 8, hi: 5.5 }
 const LOCAL_TIMES = [{ hour: 10, minute: 0 }, { hour: 19, minute: 0 }] // Morning hero + Evening cross-sell
-const THEMES = ['cloudphone', 'antired_hosting', 'leads_validation', 'domains_shortener', 'digital_products', 'cards_bundles', 'email_validation', 'marketplace', 'vps_rdp']
+const THEMES = ['cloudphone', 'antired_hosting', 'leads_validation', 'domains_shortener', 'digital_products', 'cards_bundles', 'email_validation', 'marketplace', 'vps_rdp', 'bulksms_app']
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 // ─── BulkSMS Footer Variations (appended to every promo) ─────────────
@@ -791,6 +810,66 @@ Deploy now. No questions asked.
 
 Type <b>/start</b> → 🖥️ VPS/RDP — Port 25 Open🛡️`,
     ],
+
+    bulksms_app: [
+      `📱🔥 <b>BULKSMS APP — SEND MASS SMS FROM YOUR PHONE</b>
+
+Turn your Android into a bulk SMS powerhouse.
+
+📩 <b>Send from YOUR number</b> — no shared sender IDs
+📊 Real-time analytics — track sent, failed & pending
+⏰ Schedule campaigns — set exact date & time
+🔄 Smart gap timing — natural delivery pacing
+📋 Import contacts from CSV or paste directly
+
+<b>📱 Multi-Device Support:</b>
+💡 Daily ($50) — 1 device
+⭐ Weekly ($100) — 2 devices
+👑 Monthly ($200) — UNLIMITED devices
+
+🆓 <b>Start FREE</b> — 100 SMS trial, no card needed!
+
+Type <b>/start</b> → 📧 BulkSMS`,
+
+      `📲 <b>REACH THOUSANDS WITH ONE TAP — BULKSMS APP</b>
+
+Download the app. Enter your bot code. Start sending.
+
+✅ Send SMS from your own phone number
+✅ Create & manage campaigns in seconds
+✅ Schedule sends for peak engagement times
+✅ Import unlimited contacts via CSV
+✅ Real-time delivery tracking
+
+<b>🔥 Why use the app?</b>
+→ Messages come from YOUR number — higher trust & replies
+→ No API keys or technical setup needed
+→ Works alongside the Telegram bot seamlessly
+
+📱 <b>Multi-Device:</b> Use up to UNLIMITED phones on Monthly plan
+
+🆓 Try it free — <b>100 SMS</b> on us!
+
+Type <b>/start</b> → 📧 BulkSMS`,
+
+      `💬 <b>STOP PAYING FOR SMS GATEWAYS — USE YOUR OWN PHONE</b>
+
+Why pay $0.01+ per SMS when you can send for FREE from your number?
+
+📱 <b>Nomadly BulkSMS App</b>:
+• Mass SMS campaigns from your Android
+• YOUR phone number = higher delivery & trust
+• Schedule, pause, resume campaigns anytime
+• Smart gap timing prevents carrier throttling
+• Full analytics dashboard
+
+<b>💰 Plans with Multi-Device:</b>
+Daily ($50): 1 phone | Weekly ($100): 2 phones | Monthly ($200): Unlimited phones
+
+Already have a subscription? BulkSMS is INCLUDED! 🎉
+
+Get the app: Type <b>/start</b> → 📧 BulkSMS`,
+    ],
   },
 
   // ═══════════════════ FRENCH ═══════════════════
@@ -1233,6 +1312,61 @@ Marre des restrictions d'hébergement partagé ?
 Déployez maintenant. Sans questions.
 
 Tapez <b>/start</b> → 🖥️ VPS/RDP — Port 25 Open🛡️`,
+    ],
+
+    bulksms_app: [
+      `📱🔥 <b>APP BULKSMS — ENVOYEZ DES SMS EN MASSE DEPUIS VOTRE TÉLÉPHONE</b>
+
+Transformez votre Android en machine à SMS.
+
+📩 <b>Envoyez depuis VOTRE numéro</b> — pas de numéros partagés
+📊 Analyses en temps réel — suivez envoyés, échoués & en attente
+⏰ Programmez vos campagnes — date et heure exactes
+🔄 Espacement intelligent — livraison naturelle
+📋 Importez des contacts par CSV ou collez directement
+
+<b>📱 Support Multi-Appareils :</b>
+💡 Journalier (50$) — 1 appareil
+⭐ Hebdomadaire (100$) — 2 appareils
+👑 Mensuel (200$) — appareils ILLIMITÉS
+
+🆓 <b>Essai GRATUIT</b> — 100 SMS offerts !
+
+Tapez <b>/start</b> → 📧 BulkSMS`,
+
+      `📲 <b>ATTEIGNEZ DES MILLIERS EN UN CLIC — APP BULKSMS</b>
+
+Téléchargez l'app. Entrez votre code. Commencez à envoyer.
+
+✅ SMS depuis votre propre numéro
+✅ Créez et gérez des campagnes en secondes
+✅ Programmez pour un engagement optimal
+✅ Importation illimitée de contacts CSV
+✅ Suivi de livraison en temps réel
+
+📱 <b>Multi-Appareils :</b> Jusqu'à ILLIMITÉ avec l'abonnement Mensuel
+
+🆓 Essayez gratuitement — <b>100 SMS</b> offerts !
+
+Tapez <b>/start</b> → 📧 BulkSMS`,
+
+      `💬 <b>ARRÊTEZ DE PAYER LES PASSERELLES SMS — UTILISEZ VOTRE TÉLÉPHONE</b>
+
+Pourquoi payer 0,01$+ par SMS quand vous pouvez envoyer GRATUITEMENT ?
+
+📱 <b>App Nomadly BulkSMS</b> :
+• Campagnes SMS en masse depuis votre Android
+• VOTRE numéro = meilleure livraison & confiance
+• Programmez, mettez en pause, reprenez à tout moment
+• Espacement intelligent anti-blocage opérateur
+• Tableau de bord analytique complet
+
+<b>💰 Abonnements Multi-Appareils :</b>
+Jour (50$) : 1 tél | Semaine (100$) : 2 tél | Mois (200$) : Illimité
+
+Déjà abonné ? BulkSMS est INCLUS ! 🎉
+
+Tapez <b>/start</b> → 📧 BulkSMS`,
     ],
   },
 
@@ -1677,6 +1811,59 @@ Shortit — 免费、快速、可追踪。
 
 输入 <b>/start</b> → 🖥️ VPS/RDP — Port 25 Open🛡️`,
     ],
+
+    bulksms_app: [
+      `📱🔥 <b>BULKSMS应用 — 从手机发送群发短信</b>
+
+将您的安卓手机变成群发短信利器。
+
+📩 <b>使用您自己的号码发送</b> — 非共享号码
+📊 实时分析 — 追踪已发送、失败和待处理
+⏰ 预约活动 — 设置精确的日期和时间
+🔄 智能间隔 — 自然投递节奏
+📋 从CSV导入联系人或直接粘贴
+
+<b>📱 多设备支持：</b>
+💡 日套餐（$50）— 1台设备
+⭐ 周套餐（$100）— 2台设备
+👑 月套餐（$200）— 无限设备
+
+🆓 <b>免费开始</b> — 100条短信试用！
+
+输入 <b>/start</b> → 📧 BulkSMS`,
+
+      `📲 <b>一键触达千人 — BULKSMS应用</b>
+
+下载应用。输入您的机器人代码。开始发送。
+
+✅ 使用您自己的手机号发送短信
+✅ 秒级创建和管理活动
+✅ 预约最佳时间发送
+✅ CSV无限联系人导入
+✅ 实时投递追踪
+
+📱 <b>多设备：</b>月套餐可使用无限台手机
+
+🆓 免费试用 — <b>100条短信</b>送您！
+
+输入 <b>/start</b> → 📧 BulkSMS`,
+
+      `💬 <b>别再付短信网关费用 — 用您自己的手机</b>
+
+📱 <b>Nomadly BulkSMS应用</b>：
+• 安卓手机群发短信
+• 您的号码 = 更高送达率和信任度
+• 随时预约、暂停、恢复活动
+• 智能间隔防止运营商限速
+• 完整分析面板
+
+<b>💰 多设备套餐：</b>
+日（$50）：1台 | 周（$100）：2台 | 月（$200）：无限台
+
+已订阅？BulkSMS已包含！🎉
+
+输入 <b>/start</b> → 📧 BulkSMS`,
+    ],
   },
 
   // ═══════════════════ HINDI ═══════════════════
@@ -2120,6 +2307,59 @@ Nomadly रिसेलर प्रोग्राम जॉइन करें
 
 <b>/start</b> टाइप करें → 🖥️ VPS/RDP — Port 25 Open🛡️`,
     ],
+
+    bulksms_app: [
+      `📱🔥 <b>BULKSMS ऐप — अपने फोन से बल्क SMS भेजें</b>
+
+अपने एंड्रॉइड को बल्क SMS मशीन बनाएं।
+
+📩 <b>अपने नंबर से भेजें</b> — कोई शेयर्ड नंबर नहीं
+📊 रियल-टाइम एनालिटिक्स — भेजे गए, फेल और पेंडिंग ट्रैक करें
+⏰ कैंपेन शेड्यूल करें — सही तारीख और समय सेट करें
+🔄 स्मार्ट गैप टाइमिंग — नेचुरल डिलीवरी
+📋 CSV से कॉन्टैक्ट्स इम्पोर्ट करें
+
+<b>📱 मल्टी-डिवाइस सपोर्ट:</b>
+💡 डेली ($50) — 1 डिवाइस
+⭐ वीकली ($100) — 2 डिवाइस
+👑 मंथली ($200) — अनलिमिटेड डिवाइस
+
+🆓 <b>फ्री शुरू करें</b> — 100 SMS ट्रायल!
+
+<b>/start</b> टाइप करें → 📧 BulkSMS`,
+
+      `📲 <b>एक टैप में हज़ारों तक पहुंचें — BULKSMS ऐप</b>
+
+ऐप डाउनलोड करें। अपना बॉट कोड डालें। भेजना शुरू करें।
+
+✅ अपने नंबर से SMS भेजें
+✅ सेकंड्स में कैंपेन बनाएं और मैनेज करें
+✅ बेस्ट टाइम पर शेड्यूल करें
+✅ CSV से अनलिमिटेड कॉन्टैक्ट्स इम्पोर्ट
+✅ रियल-टाइम डिलीवरी ट्रैकिंग
+
+📱 <b>मल्टी-डिवाइस:</b> मंथली प्लान में अनलिमिटेड फोन
+
+🆓 फ्री में आज़माएं — <b>100 SMS</b> आपके लिए!
+
+<b>/start</b> टाइप करें → 📧 BulkSMS`,
+
+      `💬 <b>SMS गेटवे पर पैसे खर्च करना बंद करें — अपना फोन इस्तेमाल करें</b>
+
+📱 <b>Nomadly BulkSMS ऐप</b>:
+• एंड्रॉइड से बल्क SMS कैंपेन
+• आपका नंबर = बेहतर डिलीवरी और भरोसा
+• कभी भी शेड्यूल, पॉज, रिज्यूम करें
+• स्मार्ट गैप — कैरियर थ्रॉटलिंग से बचें
+• फुल एनालिटिक्स डैशबोर्ड
+
+<b>💰 मल्टी-डिवाइस प्लान:</b>
+डेली ($50): 1 फोन | वीकली ($100): 2 फोन | मंथली ($200): अनलिमिटेड
+
+पहले से सब्सक्राइब हैं? BulkSMS शामिल है! 🎉
+
+<b>/start</b> टाइप करें → 📧 BulkSMS`,
+    ],
   },
 }
 
@@ -2433,6 +2673,35 @@ No restrictions. No port blocks. No questions asked.
 
 Type <b>/start</b> → 🖥️ VPS/RDP — Port 25 Open🛡️`,
     ],
+
+    bulksms_app: [
+      `🌙📱 <b>GOT CONTACTS? BLAST THEM ALL VIA SMS.</b>
+
+Skip the gateway fees. Send from your own phone.
+
+📩 Your number = trust | ⏰ Schedule sends | 📱 Multi-device
+🆓 <b>100 free SMS</b> to try!
+
+Type <b>/start</b> → 📧 BulkSMS`,
+
+      `💡 <b>TIRED OF PAYING PER-SMS? THERE'S A BETTER WAY.</b>
+
+Nomadly BulkSMS App — mass SMS from your Android, YOUR number.
+
+📱 Up to UNLIMITED devices on Monthly plan
+✅ Schedule, import CSV, real-time tracking
+
+Type <b>/start</b> → 📧 BulkSMS`,
+
+      `🔥 <b>BULKSMS — THE APP YOUR CAMPAIGNS NEED</b>
+
+Send thousands of SMS from your phone. No gateways. No per-message fees.
+
+📱 Multi-device support | ⏰ Scheduling | 📊 Analytics
+🆓 Start with 100 FREE messages!
+
+Type <b>/start</b> → 📧 BulkSMS`,
+    ],
   },
 
   // ═══════════════════ FRENCH CROSS-SELL ═══════════════════
@@ -2693,6 +2962,34 @@ Aucune restriction. Aucun blocage de port.
 💰 À partir de <b>20$/mois</b>
 
 Tapez <b>/start</b> → 🖥️ VPS/RDP — Port 25 Open🛡️`,
+    ],
+
+    bulksms_app: [
+      `🌙📱 <b>DES CONTACTS ? ENVOYEZ-LEUR UN SMS EN MASSE.</b>
+
+Oubliez les passerelles. Envoyez depuis votre propre téléphone.
+
+📩 Votre numéro = confiance | ⏰ Programmation | 📱 Multi-appareils
+🆓 <b>100 SMS gratuits</b> pour essayer !
+
+Tapez <b>/start</b> → 📧 BulkSMS`,
+
+      `💡 <b>MARRE DE PAYER PAR SMS ? IL Y A MIEUX.</b>
+
+App Nomadly BulkSMS — SMS en masse depuis votre Android.
+
+📱 Jusqu'à ILLIMITÉ d'appareils avec l'abonnement Mensuel
+
+Tapez <b>/start</b> → 📧 BulkSMS`,
+
+      `🔥 <b>BULKSMS — L'APP QUE VOS CAMPAGNES MÉRITENT</b>
+
+Envoyez des milliers de SMS depuis votre téléphone. Sans passerelle.
+
+📱 Multi-appareils | ⏰ Programmation | 📊 Analyses
+🆓 Commencez avec 100 SMS GRATUITS !
+
+Tapez <b>/start</b> → 📧 BulkSMS`,
     ],
   },
 
@@ -2956,6 +3253,34 @@ Linux VPS 或 Windows RDP — 25端口开放，忽略DMCA。
 
 输入 <b>/start</b> → 🖥️ VPS/RDP — Port 25 Open🛡️`,
     ],
+
+    bulksms_app: [
+      `🌙📱 <b>有联系人？群发短信给他们。</b>
+
+跳过网关费。从自己的手机发送。
+
+📩 你的号码=信任 | ⏰ 预约发送 | 📱 多设备
+🆓 <b>100条免费短信</b>试用！
+
+输入 <b>/start</b> → 📧 BulkSMS`,
+
+      `💡 <b>厌倦了按条付费？有更好的方法。</b>
+
+Nomadly BulkSMS应用 — 安卓群发短信。
+
+📱 月套餐可用无限台设备
+
+输入 <b>/start</b> → 📧 BulkSMS`,
+
+      `🔥 <b>BULKSMS — 你的活动需要这个应用</b>
+
+从手机发送上千条短信。无需网关。
+
+📱 多设备 | ⏰ 预约 | 📊 分析
+🆓 免费100条短信开始！
+
+输入 <b>/start</b> → 📧 BulkSMS`,
+    ],
   },
 
   // ═══════════════════ HINDI CROSS-SELL ═══════════════════
@@ -3217,6 +3542,34 @@ Linux VPS या Windows RDP — पोर्ट 25 ओपन, DMCA-इग्न
 💰 <b>$20/महीने</b> से
 
 <b>/start</b> → 🖥️ VPS/RDP — Port 25 Open🛡️`,
+    ],
+
+    bulksms_app: [
+      `🌙📱 <b>कॉन्टैक्ट्स हैं? SMS से ब्लास्ट करें।</b>
+
+गेटवे फीस छोड़ें। अपने फोन से भेजें।
+
+📩 आपका नंबर = भरोसा | ⏰ शेड्यूल | 📱 मल्टी-डिवाइस
+🆓 <b>100 फ्री SMS</b> ट्राई करें!
+
+<b>/start</b> → 📧 BulkSMS`,
+
+      `💡 <b>SMS पर पैसे बर्बाद करना बंद करें।</b>
+
+Nomadly BulkSMS ऐप — एंड्रॉइड से बल्क SMS।
+
+📱 मंथली प्लान में अनलिमिटेड डिवाइस
+
+<b>/start</b> → 📧 BulkSMS`,
+
+      `🔥 <b>BULKSMS — आपके कैंपेन की ज़रूरत</b>
+
+हज़ारों SMS अपने फोन से। बिना गेटवे।
+
+📱 मल्टी-डिवाइस | ⏰ शेड्यूल | 📊 एनालिटिक्स
+🆓 100 फ्री SMS से शुरू!
+
+<b>/start</b> → 📧 BulkSMS`,
     ],
   },
 }
