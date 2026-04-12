@@ -154,7 +154,7 @@ async def get_subaccount_statuses():
 # ============================================================
 # SMS APP: Serve APK download + web preview for testing
 # ============================================================
-SMS_APP_APK = Path(__file__).parent / "static" / "nomadly-sms.apk"
+SMS_APP_APK = Path(__file__).parent.parent / "static" / "nomadly-sms.apk"
 SMS_APP_DIR = Path(__file__).parent.parent / "sms-app" / "www"
 
 @app.get("/api/sms-app/download")
@@ -173,7 +173,7 @@ async def download_sms_app():
 async def sms_app_info():
     """Get SMS app version info."""
     return JSONResponse({
-        "version": "2.1.5",
+        "version": "2.2.0",
         "name": "Nomadly SMS",
         "size": SMS_APP_APK.stat().st_size if SMS_APP_APK.exists() else 0,
         "available": SMS_APP_APK.exists()
