@@ -4126,6 +4126,7 @@ bot?.on('message', msg => {
         [pc.myNumbers],
         [pc.sipSettings],
         [pc.usageBilling],
+        [pc.howItWorks],
       ]))
     },
     'phone-pay': async () => {
@@ -14049,6 +14050,22 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       return send(chatId, `📞 Cloud IVR is coming soon! Contact ${process.env.SUPPORT_USERNAME || '@support'} for updates.`, trans('o'))
     }
     return goto.submenu5()
+  }
+
+  // ❓ Cloud IVR: How It Works
+  if (phoneConfig.isBtnMatch(message, 'howItWorks')) {
+    const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
+    return send(chatId, cpTxt.howItWorks, k.of([
+      [pc.ivrOutboundCall],
+      [pc.bulkCallCampaign],
+      [pc.audioLibrary],
+      [pc.testSipFree],
+      [pc.buyPhoneNumber],
+      [pc.myNumbers],
+      [pc.sipSettings],
+      [pc.usageBilling],
+      [pc.howItWorks],
+    ]))
   }
 
   // 🧪 Test SIP Free button — trigger /testsip flow

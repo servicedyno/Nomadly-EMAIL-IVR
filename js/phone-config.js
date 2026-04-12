@@ -234,6 +234,9 @@ const btn = {
   // Test SIP
   testSipFree: '🧪 Test SIP Free',
 
+  // How It Works
+  howItWorks: '❓ How It Works',
+
   back: 'Back',
   cancel: 'Cancel',
 }
@@ -423,7 +426,38 @@ Get a virtual number in 30+ countries — in under 2 minutes.
 Plans from <b>$${PHONE_STARTER_PRICE}/mo</b> with ${plans.starter.minutes} inbound min + ${plans.starter.sms} inbound SMS included.
 💳 Outbound calls charged from wallet balance.
 
-Select an option:`,
+New here? Tap <b>❓ How It Works</b> for a full guide.`,
+
+  howItWorks: `📞 <b>Cloud IVR — How It Works</b>
+
+Your own virtual phone number in 30+ countries. Receive calls, send SMS, build IVR menus — all managed from Telegram.
+
+<b>🚀 Getting started:</b>
+1. Tap <b>🛒 Choose a Plan</b> → pick a country → select a number
+2. Pay from wallet (crypto, bank, or card)
+3. Your number is active immediately
+
+<b>📞 What you can do:</b>
+• <b>Forward calls</b> to your real phone — answer anywhere
+• <b>SMS to Telegram</b> — receive texts right here
+• <b>Browser calling</b> — make/receive calls at ${CALL_PAGE_URL} (no app needed)
+• <b>SIP softphone</b> — connect with any SIP app using your credentials
+• <b>📢 Quick IVR Call</b> — call a number with a custom voice message (TTS or audio)
+• <b>📞 Bulk IVR Campaign</b> — call hundreds of numbers with one campaign
+• <b>🤖 IVR Auto-Attendant</b> — "Press 1 for sales, 2 for support" menus
+• <b>🎙️ Voicemail</b> — custom greetings, delivered to Telegram/Email
+
+<b>💰 Billing:</b>
+• <b>Inbound</b> calls & SMS — included in your plan
+• <b>Outbound</b> calls & forwarding — charged from wallet balance per minute
+• Plans renew monthly. Auto-renew available.
+
+<b>📋 Plans:</b>
+💡 <b>Starter $${PHONE_STARTER_PRICE}/mo</b> — ${plans.starter.minutes} min, forwarding + SMS to Telegram
+⭐ <b>Pro $${PHONE_PRO_PRICE}/mo</b> — ${plans.pro.minutes} min, + voicemail, SIP, IVR calling, OTP
+👑 <b>Business $${PHONE_BUSINESS_PRICE}/mo</b> — ${BUSINESS_MINUTES} min, + recording, auto-attendant, scheduling
+
+🧪 Try SIP calling free first — tap <b>🧪 Test SIP Free</b>`,
 
   selectCountry: '📍 Select country for your new phone number:',
 
@@ -1185,6 +1219,7 @@ const btnI18n = {
     bulkCallCampaign: '📞 Campagne IVR en Masse',
     audioLibrary: '🎵 Bibliothèque Audio',
     testSipFree: '🧪 Tester SIP Gratuit',
+    howItWorks: '❓ Comment ça marche',
     addNumber: '➕ Ajouter un Numéro au Forfait',
     back: 'Retour',
     cancel: 'Annuler',
@@ -1261,6 +1296,7 @@ const btnI18n = {
     bulkCallCampaign: '📞 批量IVR活动',
     audioLibrary: '🎵 音频库',
     testSipFree: '🧪 免费测试 SIP',
+    howItWorks: '❓ 使用说明',
     addNumber: '➕ 添加号码到套餐',
     back: '返回',
     cancel: '取消',
@@ -1337,6 +1373,7 @@ const btnI18n = {
     bulkCallCampaign: '📞 बल्क IVR अभियान',
     audioLibrary: '🎵 ऑडियो लाइब्रेरी',
     testSipFree: '🧪 SIP मुफ्त टेस्ट',
+    howItWorks: '❓ कैसे काम करता है',
     addNumber: '➕ प्लान में नंबर जोड़ें',
     back: 'वापस',
     cancel: 'रद्द करें',
@@ -1400,7 +1437,39 @@ Obtenez un numéro virtuel dans plus de 30 pays — en moins de 2 minutes.
 Forfaits à partir de <b>$${PHONE_STARTER_PRICE}/mois</b> avec ${plans.starter.minutes} min entrantes + ${plans.starter.sms} SMS entrants inclus.
 💳 Les appels sortants sont facturés depuis votre portefeuille.
 
-Sélectionnez une option :`,
+Nouveau ? Appuyez sur <b>❓ Comment ça marche</b> pour un guide complet.`,
+
+    howItWorks: `📞 <b>Cloud IVR — Comment ça marche</b>
+
+Votre propre numéro virtuel dans plus de 30 pays. Recevez des appels, envoyez des SMS, créez des menus IVR — tout depuis Telegram.
+
+<b>🚀 Pour commencer :</b>
+1. Appuyez sur <b>🛒 Choisir un Forfait</b> → choisissez un pays → sélectionnez un numéro
+2. Payez depuis votre portefeuille (crypto, banque ou carte)
+3. Votre numéro est actif immédiatement
+
+<b>📞 Ce que vous pouvez faire :</b>
+• <b>Transférer les appels</b> vers votre vrai téléphone
+• <b>SMS vers Telegram</b> — recevez les textos ici
+• <b>Appels navigateur</b> — appelez/recevez à ${CALL_PAGE_URL} (sans appli)
+• <b>Softphone SIP</b> — connectez avec n'importe quelle appli SIP
+• <b>📢 Appel IVR Rapide</b> — appelez un numéro avec un message vocal
+• <b>📞 Campagne IVR en Masse</b> — appelez des centaines de numéros
+• <b>🤖 Standard Auto IVR</b> — menus "Appuyez 1 pour ventes, 2 pour support"
+• <b>🎙️ Messagerie vocale</b> — messages personnalisés, livrés sur Telegram/Email
+
+<b>💰 Facturation :</b>
+• <b>Entrant</b> — appels & SMS inclus dans le forfait
+• <b>Sortant</b> — appels & transferts facturés par minute depuis le portefeuille
+• Renouvellement mensuel. Auto-renouvellement disponible.
+
+<b>📋 Forfaits :</b>
+💡 <b>Starter $${PHONE_STARTER_PRICE}/mois</b> — ${plans.starter.minutes} min, transfert + SMS vers Telegram
+⭐ <b>Pro $${PHONE_PRO_PRICE}/mois</b> — ${plans.pro.minutes} min, + messagerie, SIP, IVR, OTP
+👑 <b>Business $${PHONE_BUSINESS_PRICE}/mois</b> — ${BUSINESS_MINUTES} min, + enregistrement, standard auto
+
+🧪 Essayez SIP gratuitement — appuyez sur <b>🧪 Tester SIP Gratuit</b>`,
+
     selectCountry: '📍 Sélectionnez le pays pour votre nouveau numéro :',
     searching: '🔍 Recherche de numéros disponibles...',
     noSearchResults: '❌ Aucun numéro disponible. Essayez une autre zone ou un autre pays.',
@@ -1759,7 +1828,39 @@ Sélectionnez une option :`,
 套餐起价 <b>$${PHONE_STARTER_PRICE}/月</b>，含 ${plans.starter.minutes} 来电分钟 + ${plans.starter.sms} 来电短信。
 💳 外呼通话从钱包余额扣费。
 
-请选择一个选项：`,
+新用户？点击 <b>❓ 使用说明</b> 查看完整指南。`,
+
+    howItWorks: `📞 <b>Cloud IVR — 使用说明</b>
+
+在30多个国家拥有您的虚拟号码。接听电话、发送短信、创建IVR菜单 — 全部通过Telegram管理。
+
+<b>🚀 开始使用：</b>
+1. 点击 <b>🛒 选择套餐</b> → 选择国家 → 选择号码
+2. 从钱包支付（加密货币、银行或卡）
+3. 号码立即激活
+
+<b>📞 功能：</b>
+• <b>来电转接</b> — 转到您的真实手机
+• <b>短信到Telegram</b> — 在这里接收短信
+• <b>浏览器通话</b> — 在 ${CALL_PAGE_URL} 拨打/接听（无需应用）
+• <b>SIP软电话</b> — 使用任何SIP应用连接
+• <b>📢 快速IVR呼叫</b> — 用自定义语音消息拨打号码
+• <b>📞 批量IVR活动</b> — 一次拨打数百个号码
+• <b>🤖 IVR自动应答</b> — "按1转销售，按2转支持"菜单
+• <b>🎙️ 语音信箱</b> — 自定义问候语，发送到Telegram/Email
+
+<b>💰 计费：</b>
+• <b>来电</b> — 通话和短信包含在套餐中
+• <b>外呼</b> — 按分钟从钱包扣费
+• 按月续费。可设置自动续费。
+
+<b>📋 套餐：</b>
+💡 <b>入门 $${PHONE_STARTER_PRICE}/月</b> — ${plans.starter.minutes}分钟，转接 + 短信到Telegram
+⭐ <b>专业 $${PHONE_PRO_PRICE}/月</b> — ${plans.pro.minutes}分钟，+ 语音信箱、SIP、IVR、OTP
+👑 <b>商务 $${PHONE_BUSINESS_PRICE}/月</b> — ${BUSINESS_MINUTES}分钟，+ 录音、自动应答、调度
+
+🧪 免费试用SIP通话 — 点击 <b>🧪 免费测试 SIP</b>`,
+
     selectCountry: '📍 为您的新号码选择国家：',
     searching: '🔍 正在搜索可用号码...',
     noSearchResults: '❌ 没有可用号码。请尝试其他区域或国家。',
@@ -2118,7 +2219,39 @@ Sélectionnez une option :`,
 प्लान <b>$${PHONE_STARTER_PRICE}/माह</b> से शुरू, ${plans.starter.minutes} इनबाउंड मिनट + ${plans.starter.sms} इनबाउंड SMS शामिल।
 💳 आउटबाउंड कॉल वॉलेट बैलेंस से चार्ज होते हैं।
 
-एक विकल्प चुनें:`,
+नए हैं? <b>❓ कैसे काम करता है</b> दबाएं — पूरी गाइड देखें।`,
+
+    howItWorks: `📞 <b>Cloud IVR — कैसे काम करता है</b>
+
+30+ देशों में अपना वर्चुअल फ़ोन नंबर। कॉल प्राप्त करें, SMS भेजें, IVR मेनू बनाएं — सब Telegram से।
+
+<b>🚀 शुरू करें:</b>
+1. <b>🛒 प्लान चुनें</b> दबाएं → देश चुनें → नंबर चुनें
+2. वॉलेट से भुगतान करें (क्रिप्टो, बैंक या कार्ड)
+3. नंबर तुरंत सक्रिय
+
+<b>📞 क्या कर सकते हैं:</b>
+• <b>कॉल फ़ॉरवर्ड</b> — अपने असली फ़ोन पर
+• <b>SMS से Telegram</b> — यहीं मैसेज प्राप्त करें
+• <b>ब्राउज़र कॉलिंग</b> — ${CALL_PAGE_URL} पर कॉल करें (कोई ऐप नहीं)
+• <b>SIP सॉफ्टफोन</b> — किसी भी SIP ऐप से कनेक्ट
+• <b>📢 त्वरित IVR कॉल</b> — कस्टम वॉइस मैसेज से कॉल करें
+• <b>📞 बल्क IVR</b> — सैकड़ों नंबर एक साथ कॉल करें
+• <b>🤖 IVR ऑटो-अटेंडेंट</b> — "1 दबाएं सेल्स, 2 दबाएं सपोर्ट" मेनू
+• <b>🎙️ वॉइसमेल</b> — कस्टम ग्रीटिंग, Telegram/Email पर डिलीवरी
+
+<b>💰 बिलिंग:</b>
+• <b>इनबाउंड</b> — कॉल और SMS प्लान में शामिल
+• <b>आउटबाउंड</b> — वॉलेट से प्रति मिनट चार्ज
+• मासिक नवीनीकरण। ऑटो-रिन्यू उपलब्ध।
+
+<b>📋 प्लान:</b>
+💡 <b>स्टार्टर $${PHONE_STARTER_PRICE}/माह</b> — ${plans.starter.minutes} मिनट, फ़ॉरवर्डिंग + SMS
+⭐ <b>प्रो $${PHONE_PRO_PRICE}/माह</b> — ${plans.pro.minutes} मिनट, + वॉइसमेल, SIP, IVR, OTP
+👑 <b>बिज़नेस $${PHONE_BUSINESS_PRICE}/माह</b> — ${BUSINESS_MINUTES} मिनट, + रिकॉर्डिंग, ऑटो-अटेंडेंट
+
+🧪 मुफ्त SIP ट्राई करें — <b>🧪 SIP मुफ्त टेस्ट</b> दबाएं`,
+
     selectCountry: '📍 अपने नए नंबर के लिए देश चुनें:',
     searching: '🔍 उपलब्ध नंबर खोज रहे हैं...',
     noSearchResults: '❌ कोई नंबर उपलब्ध नहीं। कोई और क्षेत्र या देश आज़माएं।',
