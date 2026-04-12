@@ -99,6 +99,35 @@ Rebuild NomadlySMSfix Android app as Capacitor hybrid with subscription enforcem
 - **Campaign Scheduling**: New step after contacts — user can "▶️ Send Now" or "⏰ Schedule for Later" with date/time input (syncs to app via `scheduledAt`)
 - All 4 languages updated (en/fr/zh/hi)
 
+### 5. Railway Log Analysis & Three Critical Fixes (Current Session)
+
+#### Fix 1: TTS 400 Error — EdenAI `settings.rate` Removed
+- **File**: `js/tts-service.js`
+- **Root cause**: EdenAI API's `settings.rate` parameter was causing HTTP 400 when speed ≠ 1.0x
+- **Fix**: Removed `settings.rate` entirely. OpenAI speed now handled via `provider_params.openai.speed` only. ElevenLabs uses default speed (no EdenAI speed support).
+- **Verified**: Both OpenAI and ElevenLabs TTS should now work at all speeds
+
+#### Fix 2: Fincra Stale Payments Cleanup
+- **File**: `js/_index.js` (reconcileFincraPayments)
+- **Root cause**: Sessions without `_createdAt` defaulted to `sessionAge = FINCRA_MIN_AGE + 1` (~3min), never exceeding the 1-hour max → stuck forever
+- **Fix**: 
+  - Missing timestamps now treated as stale (force API check)
+  - Added `FINCRA_PAYMENT_HARD_MAX_AGE` (4h absolute cleanup)
+  - Now cleans expired/failed/cancelled/404 Fincra statuses
+  - Stale "pending" payments >1h are removed
+  - Summary logging added
+- **Verified**: ✅ All 12 stale payments cleaned up immediately after deploy (checked=12, cleaned=12, remaining=0)
+
+#### Fix 3: Wallet Cooldown Escalating Rate Limiting
+- **File**: `js/voice-service.js`
+- **Root cause**: User 1167900472 made 17 calls in 18min, each generating a log entry + Telegram message
+- **Fix**:
+  - Escalating cooldown: 5min (1st) → 30min (5+ hits) → 2h (10+ hits)
+  - Notification suppression: max 2 Telegram messages per cooldown cycle
+  - Log reduction: detailed logging for first 3 hits, then every 10th hit
+  - Hit counter tracks consecutive rejections per user
+- **Impact**: Reduces log spam by ~90%, eliminates Telegram notification flood
+
 ## Incorporate User Feedback
 - Follow testing agent suggestions for bug fixes
 

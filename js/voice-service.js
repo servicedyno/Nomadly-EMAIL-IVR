@@ -182,7 +182,18 @@ async function handleAutoRoutedRealTimeBilling(callControlId, sipUsername, fromC
 // Wallet rejection cooldown — caches "wallet too low" rejections by from-number.
 // If rejected within cooldown, immediately reject without expensive credential lookups.
 const walletRejectCooldown = {}
-const WALLET_REJECT_COOLDOWN_MS = 300000 // 5 minutes
+const WALLET_REJECT_COOLDOWN_MS = 300000 // 5 minutes (base cooldown)
+
+// ── Escalating Wallet Cooldown ──
+// Prevents abuse where users repeatedly dial despite low balance.
+// Cooldown escalates: 5min → 30min → 2h after repeated hits.
+// Notifications are suppressed after the first to prevent Telegram spam.
+const WALLET_COOLDOWN_ESCALATION = [
+  { hits: 1,  durationMs: 5 * 60 * 1000,   label: '5min' },   // 1st rejection: 5 min cooldown
+  { hits: 5,  durationMs: 30 * 60 * 1000,  label: '30min' },  // 5+ rejections: 30 min cooldown
+  { hits: 10, durationMs: 2 * 60 * 60 * 1000, label: '2h' },  // 10+ rejections: 2 hour cooldown
+]
+const WALLET_COOLDOWN_NOTIFY_MAX = 2 // Max Telegram notifications per cooldown cycle
 
 // Low Balance Lock — when balance drops below $1, require $50 top-up to resume calls.
 // This prevents near-zero-balance users from spam-dialing indefinitely.
@@ -555,19 +566,65 @@ function recordRateLimitHit(key) {
 }
 
 // Check if a from-number was recently rejected for low wallet balance
+// Returns false if expired, true if still in cooldown. Uses escalating duration.
 function isWalletRejectCooldown(fromNumber) {
   const entry = walletRejectCooldown[fromNumber]
   if (!entry) return false
-  if (Date.now() - entry.timestamp > WALLET_REJECT_COOLDOWN_MS) {
+  // Determine effective cooldown duration based on hit count (escalation)
+  const effectiveCooldown = getEscalatedCooldownMs(entry.hitCount || 1)
+  if (Date.now() - entry.timestamp > effectiveCooldown) {
     delete walletRejectCooldown[fromNumber]
     return false
   }
+  // Increment hit count for escalation tracking
+  entry.hitCount = (entry.hitCount || 1) + 1
+  entry.lastHitAt = Date.now()
   return true
+}
+
+/**
+ * Get the escalated cooldown duration based on consecutive hit count
+ */
+function getEscalatedCooldownMs(hitCount) {
+  let duration = WALLET_REJECT_COOLDOWN_MS // base: 5min
+  for (const tier of WALLET_COOLDOWN_ESCALATION) {
+    if (hitCount >= tier.hits) {
+      duration = tier.durationMs
+    }
+  }
+  return duration
+}
+
+/**
+ * Check if we should still send Telegram notifications for this cooldown entry
+ * Returns true if notification should be sent, false if suppressed
+ */
+function shouldSendWalletCooldownNotification(fromNumber) {
+  const entry = walletRejectCooldown[fromNumber]
+  if (!entry) return true
+  return (entry.notifyCount || 0) < WALLET_COOLDOWN_NOTIFY_MAX
+}
+
+/**
+ * Record that a notification was sent for this cooldown entry
+ */
+function markWalletCooldownNotified(fromNumber) {
+  const entry = walletRejectCooldown[fromNumber]
+  if (entry) {
+    entry.notifyCount = (entry.notifyCount || 0) + 1
+  }
 }
 
 // Record a wallet rejection for a from-number
 function setWalletRejectCooldown(fromNumber, chatId) {
-  walletRejectCooldown[fromNumber] = { timestamp: Date.now(), chatId }
+  const existing = walletRejectCooldown[fromNumber]
+  walletRejectCooldown[fromNumber] = {
+    timestamp: Date.now(),
+    chatId,
+    hitCount: existing ? (existing.hitCount || 1) + 1 : 1,
+    notifyCount: existing ? (existing.notifyCount || 0) : 0,
+    lastHitAt: Date.now(),
+  }
 }
 
 // Cleanup stale rate limit entries every 5 minutes
@@ -584,7 +641,9 @@ setInterval(() => {
     }
   }
   for (const key of Object.keys(walletRejectCooldown)) {
-    if ((now - walletRejectCooldown[key].timestamp) > WALLET_REJECT_COOLDOWN_MS * 2) {
+    const entry = walletRejectCooldown[key]
+    const effectiveCooldown = getEscalatedCooldownMs(entry.hitCount || 1)
+    if ((now - entry.timestamp) > effectiveCooldown * 2) {
       delete walletRejectCooldown[key]
     }
   }
@@ -1924,9 +1983,17 @@ async function handleOutboundSipCall(payload) {
   const cooldownKey = credentialExtracted ? sipUsername : null
   if (cooldownKey && isWalletRejectCooldown(cooldownKey)) {
     const cooldownEntry = walletRejectCooldown[cooldownKey]
-    log(`[Voice] ⚠️ WALLET COOLDOWN: ${cooldownKey} — recently rejected for low balance, skipping lookup`)
-    // Send low-balance campaign message on every blocked attempt
-    if (_bot && cooldownEntry?.chatId) {
+    const hitCount = cooldownEntry?.hitCount || 1
+    const effectiveDuration = getEscalatedCooldownMs(hitCount)
+    // Reduced logging after first few hits (prevent log spam)
+    if (hitCount <= 3) {
+      log(`[Voice] ⚠️ WALLET COOLDOWN: ${cooldownKey} — rejected for low balance (hit #${hitCount}, cooldown=${effectiveDuration / 60000}min)`)
+    } else if (hitCount % 10 === 0) {
+      log(`[Voice] ⚠️ WALLET COOLDOWN: ${cooldownKey} — still blocked (hit #${hitCount}, cooldown=${effectiveDuration / 60000}min)`)
+    }
+    // Send low-balance notification only for first N hits (suppress spam)
+    if (_bot && cooldownEntry?.chatId && shouldSendWalletCooldownNotification(cooldownKey)) {
+      markWalletCooldownNotified(cooldownKey)
       _bot.sendMessage(cooldownEntry.chatId,
         `🚫 <b>Outbound Calling Locked</b>\n\n` +
         `Your wallet balance has dropped below $${LOW_BALANCE_TRIGGER}. To protect your account, outbound calls are temporarily locked.\n\n` +
@@ -2068,8 +2135,18 @@ async function handleOutboundSipCall(payload) {
   // is blocked, not all users on the SIP connection.
   const userCooldownKey = `chatId:${chatId}`
   if (isWalletRejectCooldown(userCooldownKey)) {
-    log(`[Voice] ⚠️ WALLET COOLDOWN (post-ID): chatId ${chatId} (${num.phoneNumber}) — recently rejected for low balance`)
-    if (_bot) {
+    const cooldownEntry = walletRejectCooldown[userCooldownKey]
+    const hitCount = cooldownEntry?.hitCount || 1
+    const effectiveDuration = getEscalatedCooldownMs(hitCount)
+    // Reduced logging after first few hits
+    if (hitCount <= 3) {
+      log(`[Voice] ⚠️ WALLET COOLDOWN (post-ID): chatId ${chatId} (${num.phoneNumber}) — rejected (hit #${hitCount}, cooldown=${effectiveDuration / 60000}min)`)
+    } else if (hitCount % 10 === 0) {
+      log(`[Voice] ⚠️ WALLET COOLDOWN (post-ID): chatId ${chatId} — still blocked (hit #${hitCount}, cooldown=${effectiveDuration / 60000}min)`)
+    }
+    // Suppress notification spam — only send first N
+    if (_bot && shouldSendWalletCooldownNotification(userCooldownKey)) {
+      markWalletCooldownNotified(userCooldownKey)
       _bot.sendMessage(chatId,
         `🚫 <b>Outbound Calling Locked</b>\n\n` +
         `Your wallet balance has dropped below $${LOW_BALANCE_TRIGGER}. To protect your account, outbound calls are temporarily locked.\n\n` +

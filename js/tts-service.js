@@ -140,18 +140,23 @@ async function _callEdenAI(text, provider, voiceId, gender, language, speed = 1.
     language: language,
     option: gender === 'M' ? 'MALE' : 'FEMALE',
   }
-  // Apply speaking rate via provider-specific params and EdenAI settings
+  // Apply speaking rate via provider-specific params ONLY (not EdenAI settings.rate which causes 400 errors)
   const safeSpeed = Math.max(0.25, Math.min(4.0, speed || 1.0))
   if (provider === 'openai') {
+    // OpenAI natively supports speed parameter via provider_params
     requestBody.provider_params = { openai: { voice: voiceId, speed: safeSpeed } }
-  } else {
+  } else if (provider === 'elevenlabs') {
+    // ElevenLabs doesn't support speed via EdenAI — pass voice_id only
+    // Speed adjustments for ElevenLabs would require SSML or direct API
     requestBody.provider_params = { elevenlabs: { voice_id: voiceId } }
+    if (safeSpeed !== 1.0) {
+      log(`[TTS] Note: ElevenLabs speed adjustment (${safeSpeed}x) not supported via EdenAI, using default speed`)
+    }
+  } else {
+    requestBody.provider_params = { [provider]: {} }
   }
-  // EdenAI settings.rate works as a percentage offset: -100 to 100 (0 = normal)
-  // Convert multiplier to percentage offset: 1.0 → 0, 0.7 → -30, 1.3 → +30
-  if (safeSpeed !== 1.0) {
-    requestBody.settings = { rate: Math.round((safeSpeed - 1.0) * 100) }
-  }
+  // NOTE: Removed settings.rate — it was causing HTTP 400 errors from EdenAI API
+  // when non-zero values were passed. Speed is handled through provider_params instead.
 
   const res = await axios.post('https://api.edenai.run/v2/audio/text_to_speech', requestBody, {
     headers: {

@@ -1801,14 +1801,17 @@ const loadData = async () => {
 
   // ── Fincra Payment Reconciliation (recover missed webhooks) ──
   const FINCRA_RECONCILE_INTERVAL = 5 * 60 * 1000 // every 5 minutes
-  const FINCRA_PAYMENT_MAX_AGE = 60 * 60 * 1000    // 1 hour max
+  const FINCRA_PAYMENT_MAX_AGE = 60 * 60 * 1000    // 1 hour max for sessions WITH timestamps
+  const FINCRA_PAYMENT_HARD_MAX_AGE = 4 * 60 * 60 * 1000 // 4 hours absolute max — cleanup regardless
   const FINCRA_MIN_AGE = 3 * 60 * 1000             // wait 3 min before checking (give webhook time)
+  const FINCRA_STALE_API_STATUSES = new Set(['expired', 'failed', 'cancelled', 'overpaid', 'underpaid']) // non-recoverable statuses
   const reconcileFincraPayments = async () => {
     try {
       const allPending = await chatIdOfPayment.find({}).toArray()
       const bankPending = allPending.filter(p => p.val?.endpoint?.startsWith('/bank-pay'))
       if (bankPending.length === 0) return
 
+      let checkedCount = 0, cleanedCount = 0, recoveredCount = 0
       log(`[FincraReconcile] Checking ${bankPending.length} pending bank payment(s)...`)
 
       for (const session of bankPending) {
@@ -1816,19 +1819,35 @@ const loadData = async () => {
         const { chatId, price, endpoint } = session.val || {}
         if (!ref || !chatId || !endpoint) continue
 
-        // Check if session has a creation timestamp (use _id creation time or fallback)
+        // Check if session has a creation timestamp
+        // FIX: When _createdAt is missing, treat as stale (use FINCRA_PAYMENT_MAX_AGE + 1 so it gets API-checked)
+        // Previously this defaulted to FINCRA_MIN_AGE + 1 which meant sessions without timestamps NEVER expired
+        const hasTimestamp = !!session.val?._createdAt
+        const sessionAge = hasTimestamp
+          ? (Date.now() - new Date(session.val._createdAt).getTime())
+          : FINCRA_PAYMENT_MAX_AGE + 1  // Force API check for sessions without timestamps
+
         // Skip very recent sessions (< 3 min) to give webhook time to arrive
-        const sessionAge = session.val?._createdAt ? (Date.now() - new Date(session.val._createdAt).getTime()) : FINCRA_MIN_AGE + 1
         if (sessionAge < FINCRA_MIN_AGE) continue
 
-        // Clean up expired sessions (> 1 hour)
-        if (sessionAge > FINCRA_PAYMENT_MAX_AGE) {
+        // Hard max cleanup (4 hours) — always remove regardless of API status
+        if (sessionAge > FINCRA_PAYMENT_HARD_MAX_AGE) {
+          log(`[FincraReconcile] Hard cleanup (>${FINCRA_PAYMENT_HARD_MAX_AGE / 3600000}h): ref=${ref} chatId=${chatId} endpoint=${endpoint}`)
+          await del(chatIdOfPayment, ref)
+          cleanedCount++
+          continue
+        }
+
+        // Soft max cleanup (1 hour) — for sessions WITH timestamps
+        if (hasTimestamp && sessionAge > FINCRA_PAYMENT_MAX_AGE) {
           log(`[FincraReconcile] Cleaning up expired session: ref=${ref} chatId=${chatId} endpoint=${endpoint}`)
           await del(chatIdOfPayment, ref)
+          cleanedCount++
           continue
         }
 
         try {
+          checkedCount++
           // Query Fincra API for payment status
           const fincraRes = await axios.get(
             `https://${process.env.FINCRA_ENDPOINT}/checkout/payments/merchant-reference/${ref}`,
@@ -1844,6 +1863,22 @@ const loadData = async () => {
           const paymentData = fincraRes.data?.data
           if (!paymentData) continue
 
+          // FIX: Clean up non-recoverable statuses (expired, failed, cancelled)
+          if (FINCRA_STALE_API_STATUSES.has(paymentData.status)) {
+            log(`[FincraReconcile] Removing ${paymentData.status} payment: ref=${ref} chatId=${chatId} endpoint=${endpoint}`)
+            await del(chatIdOfPayment, ref)
+            cleanedCount++
+            continue
+          }
+
+          // Clean up sessions where Fincra says "pending" but they're older than 1 hour (abandoned)
+          if (paymentData.status === 'pending' && sessionAge > FINCRA_PAYMENT_MAX_AGE) {
+            log(`[FincraReconcile] Removing stale pending payment (>${FINCRA_PAYMENT_MAX_AGE / 60000}min): ref=${ref} chatId=${chatId}`)
+            await del(chatIdOfPayment, ref)
+            cleanedCount++
+            continue
+          }
+
           if (paymentData.status === 'success' && paymentData.amountReceived > 0) {
             // Mark ref as processed to prevent webhook + reconciler double-processing
             if (processedFincraRefs.has(ref)) {
@@ -1853,6 +1888,7 @@ const loadData = async () => {
             }
             processedFincraRefs.add(ref)
             setTimeout(() => processedFincraRefs.delete(ref), 3600000)
+            recoveredCount++
 
             log(`[FincraReconcile] ✅ RECOVERED missed payment! ref=${ref} chatId=${chatId} ₦${paymentData.amountReceived} -> ${endpoint}`)
 
@@ -1919,10 +1955,20 @@ const loadData = async () => {
           }
         } catch (apiErr) {
           // Fincra API error — skip this session (will retry next cycle)
-          if (apiErr.response?.status !== 404) {
+          // 404 = reference not found in Fincra — clean up stale local session
+          if (apiErr.response?.status === 404) {
+            log(`[FincraReconcile] Removing session with unknown Fincra ref (404): ref=${ref} chatId=${chatId}`)
+            await del(chatIdOfPayment, ref)
+            cleanedCount++
+          } else {
             log(`[FincraReconcile] API error for ref=${ref}: ${apiErr.message}`)
           }
         }
+      }
+
+      // Summary log (only when there's activity)
+      if (cleanedCount > 0 || recoveredCount > 0) {
+        log(`[FincraReconcile] Summary: checked=${checkedCount}, recovered=${recoveredCount}, cleaned=${cleanedCount}, remaining=${bankPending.length - cleanedCount - recoveredCount}`)
       }
     } catch (e) {
       log(`[FincraReconcile] Error: ${e.message}`)
