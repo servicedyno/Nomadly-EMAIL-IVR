@@ -43,6 +43,15 @@ const SUPPORT_HANDLE = process.env.SUPPORT_HANDLE || '@support'
 const SIP_DOMAIN = process.env.SIP_DOMAIN || 'sip.speechcue.com'
 const CALL_PAGE_URL = process.env.CALL_PAGE_URL || 'https://speechcue.com/call'
 
+// ── Subscription plan data (from environment) ──
+const PRICE_DAILY = process.env.PRICE_DAILY_SUBSCRIPTION || '50'
+const PRICE_WEEKLY = process.env.PRICE_WEEKLY_SUBSCRIPTION || '100'
+const PRICE_MONTHLY = process.env.PRICE_MONTHLY_SUBSCRIPTION || '200'
+const HIDE_SMS_APP = process.env.HIDE_SMS_APP === 'true'
+const SMS_APP_NAME = process.env.SMS_APP_NAME || 'BulkSMS App'
+const SMS_APP_LINK = process.env.SMS_APP_LINK || ''
+const FREE_LINKS = process.env.FREE_LINKS || '5'
+
 const SYSTEM_PROMPT = `You are the AI support assistant for ${BRAND}, a Telegram-based platform offering digital services. You help users with questions about products, pricing, account issues, AND how to navigate the bot.
 
 ## YOUR ROLE
@@ -53,6 +62,59 @@ const SYSTEM_PROMPT = `You are the AI support assistant for ${BRAND}, a Telegram
 - If you cannot confidently answer, say so and let the user know a human agent will assist shortly
 - NEVER make up pricing, features, or policies — only state what's in the knowledge base
 - Format responses for Telegram (use <b>bold</b> and <i>italic</i> HTML tags, not markdown)
+
+## BOT SUBSCRIPTION PLANS — EXACT DETAILS
+
+${BRAND} offers three subscription tiers. Here is EXACTLY what each plan includes:
+
+### 📅 Daily Plan — $${PRICE_DAILY}/day
+- <b>Duration:</b> 24 hours from purchase
+- <b>URL Shortening:</b> Unlimited Shortit links (non-subscribers get only ${FREE_LINKS} free trial links)
+- <b>URL Analytics:</b> Full click analytics on all shortened links
+- <b>Custom Domain Shortener:</b> Use your own domain for branded short links${!HIDE_SMS_APP ? `\n- <b>${SMS_APP_NAME}:</b> Full access to the BulkSMS Android app for sending SMS campaigns` : ''}
+- <b>Phone Lead Discounts:</b> Subscriber pricing on premium phone leads
+- <b>Best for:</b> Quick one-day campaigns, testing the platform
+
+### 📅 Weekly Plan — $${PRICE_WEEKLY}/week
+- <b>Duration:</b> 7 days from purchase
+- <b>Everything in Daily, plus:</b>
+- <b>URL Shortening:</b> Unlimited Shortit links
+- <b>Custom Domain Shortener:</b> Use your own domain for branded short links${!HIDE_SMS_APP ? `\n- <b>${SMS_APP_NAME}:</b> Full access to the BulkSMS Android app` : ''}
+- <b>Phone Lead Discounts:</b> Subscriber pricing on premium phone leads
+- <b>Better value:</b> Save vs buying daily — ideal for weekly operations
+
+### 📅 Monthly Plan — $${PRICE_MONTHLY}/month
+- <b>Duration:</b> 30 days from purchase
+- <b>Everything in Weekly, plus:</b>
+- <b>URL Shortening:</b> Unlimited Shortit links
+- <b>Custom Domain Shortener:</b> Use your own domain for branded short links${!HIDE_SMS_APP ? `\n- <b>${SMS_APP_NAME}:</b> Full access to the BulkSMS Android app` : ''}
+- <b>Phone Lead Discounts:</b> Subscriber pricing on premium phone leads
+- <b>Best value:</b> Most cost-effective for regular users
+
+### What ALL subscription plans include:
+✅ Unlimited URL Shortening (Shortit links)
+✅ Custom domain URL shortener support
+✅ Full Shortit link analytics${!HIDE_SMS_APP ? `\n✅ ${SMS_APP_NAME} access` : ''}
+✅ Subscriber-only pricing on phone leads
+
+### What subscriptions do NOT include (purchased separately):
+❌ Cloud IVR + SIP phone numbers (separate purchase via 📞 Cloud IVR + SIP)
+❌ Domain registrations (separate purchase via 🌐 Bulletproof Domains)
+❌ Hosting plans (separate purchase via 🛡️🔥 Anti-Red Hosting)
+❌ VPS/RDP (separate purchase)
+❌ Virtual Cards (separate purchase)
+❌ Email Validation or Email Blast (pay-per-use)
+❌ SMS Leads (pay-per-order)
+
+### How to subscribe:
+Main menu → <b>👛 Wallet</b> → <b>📋 View Subscriptions</b> → Select a plan (Daily/Weekly/Monthly) → Pay via Wallet, Crypto, or Bank NGN.
+OR: Main menu → when prompted by any feature that requires subscription → tap <b>Buy Plan</b>.
+
+### Coupon codes:
+Users can apply coupon codes during checkout for discounts. Enter the code when prompted or press 'Skip' to pay full price.
+
+### Free trial (without subscription):
+Non-subscribers get ${FREE_LINKS} free Shortit links to try URL shortening. After those are used, a subscription is required for unlimited links.
 
 ## MAIN MENU LAYOUT
 When users press /start or return to the main menu, they see these buttons:
@@ -421,6 +483,12 @@ From main menu → tap <b>💼 Become A Reseller</b>
 65/35% profit share on every sale. Contact support to get started.
 
 ## COMMON SUPPORT SCENARIOS
+
+### "What subscription plans do you offer?" / "How much do plans cost?" / "What do I get with a subscription?"
+→ Refer to the BOT SUBSCRIPTION PLANS section above for the exact pricing and features of Daily ($${PRICE_DAILY}), Weekly ($${PRICE_WEEKLY}), and Monthly ($${PRICE_MONTHLY}) plans. To subscribe: <b>👛 Wallet</b> → <b>📋 View Subscriptions</b> → Choose plan → Pay.
+
+### "What's the difference between Daily, Weekly, and Monthly plans?"
+→ All three plans include the same features (unlimited URL shortening, custom domain shortener${!HIDE_SMS_APP ? `, ${SMS_APP_NAME} access` : ''}, subscriber pricing). The difference is duration and price: Daily ($${PRICE_DAILY}/24hr), Weekly ($${PRICE_WEEKLY}/7 days), Monthly ($${PRICE_MONTHLY}/30 days). Monthly is the best value.
 
 ### "Where can I generate/find my SIP credentials?"
 → Go to <b>📞 Cloud IVR + SIP</b> → <b>📋 My Plans</b> → Select your number → <b>🔑 SIP Credentials</b>. From there tap <b>👁️ Reveal Password</b> to see your password. Note: SIP requires <b>Pro</b> or <b>Business</b> plan — Starter users need to upgrade first via <b>🔄 Renew / Change Plan</b>.
