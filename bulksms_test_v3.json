@@ -1,0 +1,216 @@
+{
+  "results": [
+    {
+      "name": "A0. Reset login confirm",
+      "ok": true,
+      "notes": "",
+      "reply": "\n99 SMS remaining in your trial.\n\ud83d\udcf2 <b>Download app:</b> https://02w.me/c-Bf7\n\nActivation code: <code>5168006768</code>\n\nCreate campaigns below or use the app directly. \ud83d\udcf1 Create Campaign,\ud83d\udccb My Campaigns,\ud83d\udcf2 Download App,\ud83d\udd13 Reset Login,\u26a1 Upgrade Plan,Back\t"
+    },
+    {
+      "name": "A1. Create Campaign blocked (no device)",
+      "ok": true,
+      "notes": "",
+      "reply": "Activation code: <code>5168006768</code>\n\nCreate campaigns below or use the app directly. \ud83d\udcf1 Create Campaign,\ud83d\udccb My Campaigns,\ud83d\udcf2 Download App,\ud83d\udd13 Reset Login,\u26a1 Upgrade Plan,Back\tto: 5168006768\nreply: \ud83d\udcf5 <b>No Active Device</b>\n\nYou need to activate the Noma"
+    },
+    {
+      "name": "A2. Back from no-device gate",
+      "ok": true,
+      "notes": "",
+      "reply": "3\ufe0f\u20e3 Come back here to create campaigns \ud83d\udcf2 Download App,Back\tto: 5168006768\nreply: Hey, <b>Test</b>\n\n\ud83e\udd48 Silver  <b>$1420.00</b>\n<i>5% off all purchases</i>\n\ud83d\udcde <i>You have a free trial Quick IVR Call! Tap Cloud IVR to try it.</i>\n\n\ud83e\uddea <i>Try SIP calling fre"
+    },
+    {
+      "name": "B1. Create Campaign allowed (1 device)",
+      "ok": false,
+      "notes": " | Missing: 'Step 1'",
+      "reply": "   \u2022 Use <code>[name]</code> to personalize\n   \u2022 Multiple lines = message rotation\n<b>Step 3:</b> Upload contacts\n   \u2022 Paste as text: <code>+1234567890, John</code>\n   \u2022 Or upload a .txt / .csv file\n<b>Step 4:</b> Schedule or send immediately\n\nThe ca"
+    },
+    {
+      "name": "B2. Back from name",
+      "ok": true,
+      "notes": "",
+      "reply": "\n<b>Let's start \u2014 enter a campaign name:</b> Back\tto: 5168006768\nreply: \ud83d\udce7 <b>BulkSMS \u2014 Free Trial</b>\n\n99 SMS remaining in your trial.\n\ud83d\udcf2 <b>Download app:</b> https://02w.me/c-Bf7\n\nActivation code: <code>5168006768</code>\n\nCreate campaigns below or us"
+    },
+    {
+      "name": "C1. Create Campaign shows device select",
+      "ok": false,
+      "notes": " | Missing: 'Select Device'",
+      "reply": "   \u2022 Use <code>[name]</code> to personalize\n   \u2022 Multiple lines = message rotation\n<b>Step 3:</b> Upload contacts\n   \u2022 Paste as text: <code>+1234567890, John</code>\n   \u2022 Or upload a .txt / .csv file\n<b>Step 4:</b> Schedule or send immediately\n\nThe ca"
+    },
+    {
+      "name": "C2. Back from device select",
+      "ok": true,
+      "notes": "",
+      "reply": "\n<b>Let's start \u2014 enter a campaign name:</b> Back\tto: 5168006768\nreply: \ud83d\udce7 <b>BulkSMS \u2014 Free Trial</b>\n\n99 SMS remaining in your trial.\n\ud83d\udcf2 <b>Download app:</b> https://02w.me/c-Bf7\n\nActivation code: <code>5168006768</code>\n\nCreate campaigns below or us"
+    },
+    {
+      "name": "C3. Select device phone1",
+      "ok": false,
+      "notes": " | Missing: 'Step 1'",
+      "reply": "\n<b>Let's start \u2014 enter a campaign name:</b> Back\tto: 5168006768\nreply: \u270d\ufe0f <b>Campaign Content</b>\n\nType your SMS message. Use <code>[name]</code> to personalize with the contact's name.\n\nYou can send multiple messages (one per line) for rotation.\n\nE"
+    },
+    {
+      "name": "C4. Back from name after device select",
+      "ok": false,
+      "notes": " | Missing: 'BulkSMS'",
+      "reply": "\nType your SMS message. Use <code>[name]</code> to personalize with the contact's name.\n\nYou can send multiple messages (one per line) for rotation.\n\nExample:\n<code>Hi [name], check out our latest offer!</code> Back\tto: 5168006768\nreply: \ud83d\udcf1 <b>Create "
+    },
+    {
+      "name": "D1. Enter name",
+      "ok": false,
+      "notes": " | Missing: 'Content'; Missing: 'message'",
+      "reply": "Send your contacts in one of these formats:\n\n1\ufe0f\u20e3 <b>Text list</b> \u2014 one per line:\n<code>+18189279992, John\n+14155551234, Jane</code>\n\n2\ufe0f\u20e3 <b>Upload a .txt or .csv file</b> with phone numbers\n\n3\ufe0f\u20e3 <b>Numbers only</b> (comma or newline separated):\n<cod"
+    },
+    {
+      "name": "D2. Enter content",
+      "ok": false,
+      "notes": " | Missing: 'contact'; Missing: 'Upload'",
+      "reply": "\n3\ufe0f\u20e3 <b>Numbers only</b> (comma or newline separated):\n<code>+18189279992, +14155551234</code> Back\tto: 5168006768\nreply: \u274c No valid phone numbers found.\n\nPhone numbers must contain at least 7 digits (preferably with country code starting with +).\n\nE"
+    },
+    {
+      "name": "D3. Enter contacts",
+      "ok": true,
+      "notes": "",
+      "reply": "Phone numbers must contain at least 7 digits (preferably with country code starting with +).\n\nExamples:\n<code>+18189279992, John\n+14155551234</code> Back\tto: 5168006768\nreply: \ud83d\udc65 <b>2 contacts loaded!</b>\n\n\u23f0 <b>Schedule Campaign?</b>\n\nChoose when to m"
+    },
+    {
+      "name": "D4. Send Now",
+      "ok": true,
+      "notes": "",
+      "reply": "Choose when to make this campaign available: \u25b6\ufe0f Send Now,\u23f0 Schedule for Later,Back\tto: 5168006768\nreply: \u2705 <b>Campaign Created!</b>\n\n\ud83d\udccb Name: \ud83d\udcf1 phone1\n\u270d\ufe0f Messages: 1\n\ud83d\udc65 Contacts: 2\n\ud83d\udcf1 Device: phone1\n\n<b>Open the Nomadly SMS App</b> on your device to sta"
+    },
+    {
+      "name": "E1. Name \u2192 Back \u2192 BulkSMS menu",
+      "ok": true,
+      "notes": "",
+      "reply": "\n<b>Let's start \u2014 enter a campaign name:</b> Back\tto: 5168006768\nreply: \ud83d\udce7 <b>BulkSMS \u2014 Free Trial</b>\n\n99 SMS remaining in your trial.\n\ud83d\udcf2 <b>Download app:</b> https://02w.me/c-Bf7\n\nActivation code: <code>5168006768</code>\n\nCreate campaigns below or us"
+    },
+    {
+      "name": "E2. Content \u2192 Back \u2192 Name step",
+      "ok": false,
+      "notes": " | Missing: 'campaign name'",
+      "reply": "\nType your SMS message. Use <code>[name]</code> to personalize with the contact's name.\n\nYou can send multiple messages (one per line) for rotation.\n\nExample:\n<code>Hi [name], check out our latest offer!</code> Back\tto: 5168006768\nreply: \ud83d\udcf1 <b>Create "
+    },
+    {
+      "name": "E3. Name (again) \u2192 Back \u2192 menu",
+      "ok": true,
+      "notes": "",
+      "reply": "\nEnter a name for your campaign: Back\tto: 5168006768\nreply: \ud83d\udce7 <b>BulkSMS \u2014 Free Trial</b>\n\n99 SMS remaining in your trial.\n\ud83d\udcf2 <b>Download app:</b> https://02w.me/c-Bf7\n\nActivation code: <code>5168006768</code>\n\nCreate campaigns below or use the app di"
+    },
+    {
+      "name": "E4. Contacts \u2192 Back \u2192 Content",
+      "ok": true,
+      "notes": "",
+      "reply": "+14155551234, Jane</code>\n\n2\ufe0f\u20e3 <b>Upload a .txt or .csv file</b> with phone numbers\n\n3\ufe0f\u20e3 <b>Numbers only</b> (comma or newline separated):\n<code>+18189279992, +14155551234</code> Back\tto: 5168006768\nreply: \u270d\ufe0f <b>Campaign Content</b>\n\nType your SMS me"
+    },
+    {
+      "name": "E5. Content \u2192 Back \u2192 Name",
+      "ok": false,
+      "notes": " | Missing: 'campaign name'",
+      "reply": "\n3\ufe0f\u20e3 <b>Numbers only</b> (comma or newline separated):\n<code>+18189279992, +14155551234</code> Back\tto: 5168006768\nreply: \u270d\ufe0f <b>Campaign Content</b>\n\nType your SMS message. Use <code>[name]</code> to personalize.\nMultiple lines = message rotation. Ba"
+    },
+    {
+      "name": "E6. Name \u2192 Back \u2192 menu",
+      "ok": true,
+      "notes": "",
+      "reply": "\nEnter a name for your campaign: Back\tto: 5168006768\nreply: \ud83d\udce7 <b>BulkSMS \u2014 Free Trial</b>\n\n99 SMS remaining in your trial.\n\ud83d\udcf2 <b>Download app:</b> https://02w.me/c-Bf7\n\nActivation code: <code>5168006768</code>\n\nCreate campaigns below or use the app di"
+    },
+    {
+      "name": "E7. Schedule \u2192 Back \u2192 Contacts",
+      "ok": true,
+      "notes": "",
+      "reply": "3\ufe0f\u20e3 <b>Numbers only</b> (comma or newline separated):\n<code>+18189279992, +14155551234</code> Back\tto: 5168006768\nreply: \ud83d\udc65 <b>1 contact loaded!</b>\n\n\u23f0 <b>Schedule Campaign?</b>\n\nChoose when to make this campaign available: \u25b6\ufe0f Send Now,\u23f0 Schedule for "
+    },
+    {
+      "name": "E8. Contacts \u2192 Back \u2192 Content",
+      "ok": true,
+      "notes": "",
+      "reply": "\u23f0 <b>Schedule Campaign?</b>\n\nChoose when to make this campaign available: \u25b6\ufe0f Send Now,\u23f0 Schedule for Later,Back\tto: 5168006768\nreply: \ud83d\udccb <b>Upload Contacts</b>\n\nSend contacts as text or upload a .txt/.csv file: Back\tto: 5168006768\nreply: \u270d\ufe0f <b>Campaig"
+    },
+    {
+      "name": "E9. Content \u2192 Back \u2192 Name",
+      "ok": false,
+      "notes": " | Missing: 'campaign name'",
+      "reply": "reply: \ud83d\udccb <b>Upload Contacts</b>\n\nSend contacts as text or upload a .txt/.csv file: Back\tto: 5168006768\nreply: \u270d\ufe0f <b>Campaign Content</b>\n\nType your SMS message. Use <code>[name]</code> to personalize.\nMultiple lines = message rotation. Back\tto: 51680"
+    },
+    {
+      "name": "E10. Name \u2192 Back \u2192 menu",
+      "ok": true,
+      "notes": "",
+      "reply": "\nEnter a name for your campaign: Back\tto: 5168006768\nreply: \ud83d\udce7 <b>BulkSMS \u2014 Free Trial</b>\n\n99 SMS remaining in your trial.\n\ud83d\udcf2 <b>Download app:</b> https://02w.me/c-Bf7\n\nActivation code: <code>5168006768</code>\n\nCreate campaigns below or use the app di"
+    },
+    {
+      "name": "E11. SchedTime \u2192 Back \u2192 Schedule",
+      "ok": true,
+      "notes": "",
+      "reply": "Choose when to make this campaign available: \u25b6\ufe0f Send Now,\u23f0 Schedule for Later,Back\tto: 5168006768\nreply: \ud83d\udcc5 <b>Enter schedule date & time</b>\n\nFormat: <code>YYYY-MM-DD HH:MM</code>\n(UTC timezone)\n\nExample: <code>2025-07-15 09:30</code> Back\tto: 516800"
+    },
+    {
+      "name": "E12. Schedule \u2192 Back \u2192 Contacts",
+      "ok": true,
+      "notes": "",
+      "reply": "Format: <code>YYYY-MM-DD HH:MM</code>\n(UTC timezone)\n\nExample: <code>2025-07-15 09:30</code> Back\tto: 5168006768\nreply: \u23f0 <b>Schedule Campaign?</b>\n\nChoose when to make this campaign available: \u25b6\ufe0f Send Now,\u23f0 Schedule for Later,Back\tto: 5168006768\nrep"
+    },
+    {
+      "name": "F1. Empty name rejected",
+      "ok": true,
+      "notes": "",
+      "reply": "   \u2022 Multiple lines = message rotation\n<b>Step 3:</b> Upload contacts\n   \u2022 Paste as text: <code>+1234567890, John</code>\n   \u2022 Or upload a .txt / .csv file\n<b>Step 4:</b> Schedule or send immediately\n\nThe campaign syncs to the Nomadly SMS App for send"
+    },
+    {
+      "name": "F2. Empty content rejected",
+      "ok": true,
+      "notes": "",
+      "reply": "reply: \u274c Campaign name cannot be empty. Please enter a name: Back\tto: 5168006768\nreply: \u270d\ufe0f <b>Campaign Content</b>\n\nType your SMS message. Use <code>[name]</code> to personalize with the contact's name.\n\nYou can send multiple messages (one per line) "
+    },
+    {
+      "name": "F3. Invalid contacts (no digits)",
+      "ok": true,
+      "notes": "",
+      "reply": "\n3\ufe0f\u20e3 <b>Numbers only</b> (comma or newline separated):\n<code>+18189279992, +14155551234</code> Back\tto: 5168006768\nreply: \u274c No valid phone numbers found.\n\nPhone numbers must contain at least 7 digits (preferably with country code starting with +).\n\nE"
+    },
+    {
+      "name": "F4. Unrecognized schedule input",
+      "ok": true,
+      "notes": "",
+      "reply": "\nExamples:\n<code>+18189279992, John\n+14155551234</code> Back\tto: 5168006768\nreply: \ud83d\udc65 <b>1 contact loaded!</b>\n\n\u23f0 <b>Schedule Campaign?</b>\n\nChoose when to make this campaign available: \u25b6\ufe0f Send Now,\u23f0 Schedule for Later,Back\tto: 5168006768\nreply: \u26a0\ufe0f Pl"
+    },
+    {
+      "name": "F5. Send Now works",
+      "ok": true,
+      "notes": "",
+      "reply": "reply: \u26a0\ufe0f Please choose one of the options below: \u25b6\ufe0f Send Now,\u23f0 Schedule for Later,Back\tto: 5168006768\nreply: \u2705 <b>Campaign Created!</b>\n\n\ud83d\udccb Name: ValidName\n\u270d\ufe0f Messages: 1\n\ud83d\udc65 Contacts: 1\n\ud83d\udcf1 Device: phone1\n\n<b>Open the Nomadly SMS App</b> on your device "
+    },
+    {
+      "name": "G1. Past date rejected",
+      "ok": true,
+      "notes": "",
+      "reply": "\nFormat: <code>YYYY-MM-DD HH:MM</code>\n(UTC timezone)\n\nExample: <code>2025-07-15 09:30</code> Back\tto: 5168006768\nreply: \u274c Invalid date or date is in the past.\n\nPlease enter a future date in format: <code>YYYY-MM-DD HH:MM</code>\n\nExample: <code>2027-"
+    },
+    {
+      "name": "G2. Bad date rejected",
+      "ok": true,
+      "notes": "",
+      "reply": "reply: \u274c Invalid date or date is in the past.\n\nPlease enter a future date in format: <code>YYYY-MM-DD HH:MM</code>\n\nExample: <code>2027-07-15 09:30</code> Back\tto: 5168006768\nreply: \u274c Invalid date or date is in the past.\n\nPlease enter a future date i"
+    },
+    {
+      "name": "G3. Future date accepted",
+      "ok": true,
+      "notes": "",
+      "reply": "reply: \u2705 <b>Campaign Scheduled!</b>\n\n\ud83d\udccb Name: SchedCamp\n\u270d\ufe0f Messages: 1\n\ud83d\udc65 Contacts: 1\n\ud83d\udcc5 Scheduled: Jun 15, 2027, 2:00 PM UTC\n\ud83d\udcf1 Device: phone1\n\nThe campaign will sync to the Nomadly SMS App. Make sure a device is online at the scheduled time.\nActivation"
+    },
+    {
+      "name": "H1. My Campaigns shows list",
+      "ok": true,
+      "notes": "",
+      "reply": "7. \ud83d\udcdd <b>Scheduled Campaign</b>\n   0/1 sent \u00b7 draft\n\n8. \ud83d\udcdd <b>My Test Campaign</b>\n   0/2 sent \u00b7 draft\n\n9. \ud83d\udcdd <b>Immediate Campaign</b>\n   0/1 sent \u00b7 draft\n\n<i>Manage campaigns in the Nomadly SMS App.</i> \ud83d\udcf1 Create Campaign,Back\tto: 5168006768"
+    },
+    {
+      "name": "H2. Back from campaigns",
+      "ok": true,
+      "notes": "",
+      "reply": "<i>Manage campaigns in the Nomadly SMS App.</i> \ud83d\udcf1 Create Campaign,Back\tto: 5168006768\nreply: Hey, <b>Test</b>\n\n\ud83e\udd48 Silver  <b>$1420.00</b>\n<i>5% off all purchases</i>\n\ud83d\udcde <i>You have a free trial Quick IVR Call! Tap Cloud IVR to try it.</i>\n\n\ud83e\uddea <i>Try SIP"
+    }
+  ],
+  "passed": 26,
+  "failed": 9
+}

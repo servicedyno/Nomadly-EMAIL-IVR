@@ -118,6 +118,16 @@ async function authenticateUser(chatId) {
   }
 }
 
+// ─── Get active devices for a user ───
+async function getActiveDevices(chatId) {
+  const numChatId = Number(chatId)
+  const doc = await loginCountOf.findOne({ _id: numChatId })
+  const loginData = doc?.val || doc || {}
+  let devices = getDevices(loginData)
+  devices = cleanStaleDevices(devices, 24)
+  return devices
+}
+
 // ─── Subscription Check (reusable) ───
 async function checkSubscription(chatId) {
   const numChatId = Number(chatId)
@@ -147,6 +157,7 @@ async function createCampaign(chatId, data) {
     status: 'draft',
     smsGapTime: data.smsGapTime || 5,
     scheduledAt: data.scheduledAt || null,
+    deviceId: data.deviceId || null,
     createdAt: new Date(),
     updatedAt: new Date(),
     sentCount: 0,
@@ -172,7 +183,7 @@ async function getCampaign(campaignId) {
 }
 
 async function updateCampaign(campaignId, chatId, updates) {
-  const allowed = ['name', 'content', 'contacts', 'smsGapTime', 'scheduledAt', 'status']
+  const allowed = ['name', 'content', 'contacts', 'smsGapTime', 'scheduledAt', 'status', 'deviceId']
   const safeUpdates = {}
   for (const key of allowed) {
     if (updates[key] !== undefined) safeUpdates[key] = updates[key]
@@ -468,6 +479,7 @@ module.exports = {
   updateCampaign,
   deleteCampaign,
   checkSubscription,
+  getActiveDevices,
   DEVICE_LIMITS,
   getDeviceLimit,
 }
