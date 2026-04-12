@@ -255,18 +255,26 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
       } else {
         // New device — check limit (Infinity means unlimited)
         if (isFinite(deviceLimit) && devices.length >= deviceLimit) {
-          const limitLabel = deviceLimit === 1 ? '1 device' : `${deviceLimit} devices`
-          const planLabel = isFreeTrial ? 'Free Trial' : (plan || 'your plan')
-          return res.status(403).json({
-            valid: false,
-            error: 'device_limit',
-            message: `${planLabel} allows ${limitLabel}. You have ${devices.length} active. Logout from another device first, or type /resetlogin in @NomadlyBot.`,
-            deviceLimit,
-            activeDevices: devices.length,
-          })
+          // For single-device plans (trial/daily), auto-replace the old device
+          // This handles reinstalls, phone switches, etc.
+          if (deviceLimit === 1) {
+            console.log(`[SmsApp] Auto-replacing device for ${numChatId}: ${devices[0]?.deviceId} → ${deviceId}`)
+            devices = [{ deviceId, deviceName: deviceName || null, loginAt: Date.now(), lastActive: Date.now() }]
+          } else {
+            const limitLabel = `${deviceLimit} devices`
+            const planLabel = isFreeTrial ? 'Free Trial' : (plan || 'your plan')
+            return res.status(403).json({
+              valid: false,
+              error: 'device_limit',
+              message: `${planLabel} allows ${limitLabel}. You have ${devices.length} active. Logout from another device first, or type /resetlogin in @NomadlyBot.`,
+              deviceLimit,
+              activeDevices: devices.length,
+            })
+          }
+        } else {
+          // Add new device with optional name
+          devices.push({ deviceId, deviceName: deviceName || null, loginAt: Date.now(), lastActive: Date.now() })
         }
-        // Add new device with optional name
-        devices.push({ deviceId, deviceName: deviceName || null, loginAt: Date.now(), lastActive: Date.now() })
       }
 
       // Save updated device sessions
