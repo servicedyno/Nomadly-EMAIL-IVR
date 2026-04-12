@@ -499,12 +499,63 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
   app.get('/sms-app/sync/:chatId', async (req, res) => {
     try {
       const chatId = req.params.chatId
-      console.log(`[SmsApp] Sync request for chatId: ${chatId}`)
+      const userVersion = req.query.version || 'unknown'
+      const latestVersion = '2.1.5'
+      
+      console.log(`[SmsApp] Sync request for chatId: ${chatId}, version: ${userVersion}`)
       
       const authResult = await authenticateUser(chatId)
       if (!authResult.valid) {
         console.log(`[SmsApp] Auth failed for ${chatId}: ${authResult.error}`)
         return res.status(401).json(authResult)
+      }
+
+      // Track user's app version
+      await loginCountOf.updateOne(
+        { _id: Number(chatId) },
+        { $set: { 'val.appVersion': userVersion, 'val.lastSync': new Date() } },
+        { upsert: true }
+      )
+
+      // Check if user needs to update
+      if (userVersion !== latestVersion && userVersion !== 'unknown' && _bot) {
+        const versionKey = `update_notified_${userVersion}_${latestVersion}`
+        const doc = await loginCountOf.findOne({ _id: Number(chatId) })
+        const alreadyNotified = doc?.val?.[versionKey]
+        
+        if (!alreadyNotified) {
+          // Send update reminder
+          const updateMsg = `📱 <b>Nomadly SMS App Update Available</b>
+
+Your version: ${userVersion}
+Latest version: ${latestVersion}
+
+<b>Important fixes in this update:</b>
+✅ Permission handling improved
+✅ Better error messages
+✅ Enhanced diagnostic logging
+
+<b>To update:</b>
+1. Delete current app from your device
+2. Click link below to download latest version
+3. Install and login again
+
+🔗 Download: /start → 📱 BulkSMS App
+
+<i>This ensures you have the latest fixes and features.</i>`
+          
+          try {
+            await _bot.sendMessage(chatId, updateMsg, { parse_mode: 'HTML' })
+            // Mark as notified for this version pair
+            await loginCountOf.updateOne(
+              { _id: Number(chatId) },
+              { $set: { [`val.${versionKey}`]: true } }
+            )
+            console.log(`[SmsApp] Update reminder sent to ${chatId}: ${userVersion} → ${latestVersion}`)
+          } catch (e) {
+            console.log(`[SmsApp] Failed to send update reminder to ${chatId}:`, e.message)
+          }
+        }
       }
 
       const campaigns = await getCampaigns(chatId)
@@ -513,7 +564,8 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
       res.json({
         user: authResult.user,
         campaigns,
-        serverTime: Date.now()
+        serverTime: Date.now(),
+        latestVersion
       })
     } catch (error) {
       console.log(`[SmsApp] Sync error:`, error.message)

@@ -173,7 +173,7 @@ async def download_sms_app():
 async def sms_app_info():
     """Get SMS app version info."""
     return JSONResponse({
-        "version": "2.1.4",
+        "version": "2.1.5",
         "name": "Nomadly SMS",
         "size": SMS_APP_APK.stat().st_size if SMS_APP_APK.exists() else 0,
         "available": SMS_APP_APK.exists()

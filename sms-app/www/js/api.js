@@ -82,7 +82,7 @@ const API = {
   },
 
   // Full sync
-  async sync(chatId) {
-    return this.request('GET', `sms-app/sync/${chatId}`)
+  async sync(chatId, appVersion = '2.1.5') {
+    return this.request('GET', `sms-app/sync/${chatId}?version=${encodeURIComponent(appVersion)}`)
   },
 }

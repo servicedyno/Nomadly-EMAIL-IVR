@@ -1679,7 +1679,7 @@ const loadData = async () => {
     const fs = require('fs')
     const exists = fs.existsSync(apkPath)
     const size = exists ? fs.statSync(apkPath).size : 0
-    res.json({ version: '2.1.4', name: 'Nomadly SMS', size, available: exists })
+    res.json({ version: '2.1.5', name: 'Nomadly SMS', size, available: exists })
   })
 
   // Initialize Email Blast Service
