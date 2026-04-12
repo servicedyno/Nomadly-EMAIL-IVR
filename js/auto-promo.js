@@ -156,6 +156,33 @@ const SERVICE_CONTEXT = {
     ],
     cta: '/start → 📧 BulkSMS (or download from bot menu)',
   },
+  email_blast: {
+    services: 'Email Blast — Send mass email campaigns directly from Telegram',
+    details: [
+      'Create and send email campaigns entirely from Telegram — no external tools',
+      'Custom subject lines and full HTML body support',
+      'Upload contacts via CSV or paste email list',
+      'Real-time sending progress — track sent, failed, pending',
+      'Built-in SMTP integration — no configuration needed',
+      'Schedule campaigns or send immediately',
+      'Campaign history and analytics',
+      'Affordable pricing — pay per campaign from wallet',
+    ],
+    cta: '/start → 📧 Email Blast',
+  },
+  refer_earn: {
+    services: 'Refer & Earn — Invite friends and earn real money',
+    details: [
+      'Share your unique referral link with friends and contacts',
+      'Earn commission on every purchase your referrals make',
+      'Commissions credited directly to your wallet — withdraw anytime',
+      'Works across ALL Nomadly services — Cloud IVR, Hosting, Domains, VPS, BulkSMS, etc.',
+      'No cap on earnings — the more you refer, the more you earn',
+      'Track your referrals and earnings in real-time',
+      'Referral link never expires',
+    ],
+    cta: '/start → 🤝 Refer & Earn',
+  },
 }
 
 // ─── Sanitize AI output for Telegram HTML ─────────────────────────────
@@ -235,7 +262,7 @@ Return ONLY the promotional message text.`
 // ─── Timezone & Schedule Config ───────────────────────────────────────
 const TIMEZONE_OFFSETS = { en: 0, fr: 1, zh: 8, hi: 5.5 }
 const LOCAL_TIMES = [{ hour: 10, minute: 0 }, { hour: 19, minute: 0 }] // Morning hero + Evening cross-sell
-const THEMES = ['cloudphone', 'antired_hosting', 'leads_validation', 'domains_shortener', 'digital_products', 'cards_bundles', 'email_validation', 'marketplace', 'vps_rdp', 'bulksms_app']
+const THEMES = ['cloudphone', 'antired_hosting', 'leads_validation', 'domains_shortener', 'digital_products', 'cards_bundles', 'email_validation', 'marketplace', 'vps_rdp', 'bulksms_app', 'email_blast', 'refer_earn']
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 // ─── BulkSMS Footer Variations (appended to every promo) ─────────────
@@ -870,6 +897,88 @@ Already have a subscription? BulkSMS is INCLUDED! 🎉
 
 Get the app: Type <b>/start</b> → 📧 BulkSMS`,
     ],
+
+    email_blast: [
+      `📧 <b>MASS EMAIL CAMPAIGNS — FROM TELEGRAM</b>
+
+Send thousands of emails without leaving Telegram.
+
+✍️ Custom subject + full HTML body
+📋 Upload contacts via CSV or paste
+📊 Real-time progress tracking
+⏰ Schedule or send now
+
+No external tools needed. Pay per campaign from your wallet.
+
+Type <b>/start</b> → 📧 Email Blast`,
+
+      `🚀 <b>EMAIL BLAST — REACH EVERY INBOX</b>
+
+Your next email campaign is 3 steps away:
+1️⃣ Write subject + message
+2️⃣ Upload your email list
+3️⃣ Hit send — track in real-time
+
+✅ Built-in SMTP — zero config
+✅ HTML support for professional emails
+✅ Campaign history & analytics
+
+Already have a wallet? You're ready to blast 📨
+
+Type <b>/start</b> → 📧 Email Blast`,
+
+      `💌 <b>STOP PAYING FOR MAILCHIMP</b>
+
+Send mass emails directly from Telegram — simple, fast, affordable.
+
+📧 Custom subject lines & HTML body
+📊 Live sending progress
+💰 Pay from wallet — no monthly subscription
+📋 CSV upload or paste contacts
+
+Hundreds of campaigns already sent this month 📈
+
+Type <b>/start</b> → 📧 Email Blast`,
+    ],
+
+    refer_earn: [
+      `🤝 <b>EARN MONEY WHILE YOU SLEEP</b>
+
+Share Nomadly → your friends buy → you get paid. Simple.
+
+💰 Commission on EVERY purchase your referrals make
+🔗 One link — works across ALL services
+💳 Earnings go straight to your wallet
+📊 Track referrals & earnings in real-time
+
+No cap. No expiry. Pure passive income 🚀
+
+Type <b>/start</b> → 🤝 Refer & Earn`,
+
+      `💸 <b>YOUR NETWORK = YOUR NET WORTH</b>
+
+Every person you refer to Nomadly earns you real money.
+
+✅ Cloud IVR, Hosting, Domains, VPS, BulkSMS — ALL count
+✅ Commission credited instantly to wallet
+✅ Withdraw anytime — no minimum
+
+Top referrers are earning $100+ monthly 📈
+
+Grab your link: <b>/start</b> → 🤝 Refer & Earn`,
+
+      `🔥 <b>REFER FRIENDS. GET PAID. REPEAT.</b>
+
+Nomadly's referral program pays you for every sale:
+
+🤝 Share your unique link
+💰 Friend buys ANY service → you earn commission
+💳 Withdraw from wallet anytime
+
+Works with ALL Nomadly services — the more you share, the more you make.
+
+Start now: <b>/start</b> → 🤝 Refer & Earn`,
+    ],
   },
 
   // ═══════════════════ FRENCH ═══════════════════
@@ -1368,9 +1477,81 @@ Déjà abonné ? BulkSMS est INCLUS ! 🎉
 
 Tapez <b>/start</b> → 📧 BulkSMS`,
     ],
-  },
 
-  // ═══════════════════ CHINESE ═══════════════════
+    email_blast: [
+      `📧 <b>CAMPAGNES EMAIL EN MASSE — DEPUIS TELEGRAM</b>
+
+Envoyez des milliers d'emails sans quitter Telegram.
+
+✍️ Objet personnalisé + corps HTML complet
+📋 Importez des contacts par CSV ou collez-les
+📊 Suivi en temps réel
+⏰ Planifiez ou envoyez immédiatement
+
+Aucun outil externe requis. Payez par campagne depuis votre portefeuille.
+
+Tapez <b>/start</b> → 📧 Email Blast`,
+
+      `🚀 <b>EMAIL BLAST — ATTEIGNEZ CHAQUE BOÎTE</b>
+
+Votre prochaine campagne en 3 étapes :
+1️⃣ Rédigez l'objet + le message
+2️⃣ Importez votre liste
+3️⃣ Envoyez — suivez en direct
+
+✅ SMTP intégré — zéro configuration
+✅ Support HTML pour des emails pros
+✅ Historique et statistiques
+
+Tapez <b>/start</b> → 📧 Email Blast`,
+
+      `💌 <b>ARRÊTEZ DE PAYER POUR MAILCHIMP</b>
+
+Envoyez des emails en masse depuis Telegram — simple, rapide, abordable.
+
+📧 Objets personnalisés & corps HTML
+📊 Progression en direct
+💰 Payez depuis votre portefeuille — pas d'abonnement
+📋 Import CSV ou copier-coller
+
+Tapez <b>/start</b> → 📧 Email Blast`,
+    ],
+
+    refer_earn: [
+      `🤝 <b>GAGNEZ DE L'ARGENT EN DORMANT</b>
+
+Partagez Nomadly → vos amis achètent → vous êtes payé. Simple.
+
+💰 Commission sur CHAQUE achat de vos filleuls
+🔗 Un lien — fonctionne pour TOUS les services
+💳 Gains versés directement dans votre portefeuille
+📊 Suivez vos filleuls et gains en temps réel
+
+Sans limite. Sans expiration. Revenus passifs purs 🚀
+
+Tapez <b>/start</b> → 🤝 Refer & Earn`,
+
+      `💸 <b>VOTRE RÉSEAU = VOTRE RICHESSE</b>
+
+Chaque personne que vous recommandez vous rapporte de l'argent.
+
+✅ Cloud IVR, Hosting, Domaines, VPS, BulkSMS — TOUT compte
+✅ Commission créditée instantanément
+✅ Retirez quand vous voulez — pas de minimum
+
+Tapez <b>/start</b> → 🤝 Refer & Earn`,
+
+      `🔥 <b>PARRAINEZ. GAGNEZ. RÉPÉTEZ.</b>
+
+Le programme de parrainage Nomadly vous paie à chaque vente :
+
+🤝 Partagez votre lien unique
+💰 Votre ami achète N'IMPORTE QUEL service → vous gagnez
+💳 Retirez depuis votre portefeuille à tout moment
+
+Tapez <b>/start</b> → 🤝 Refer & Earn`,
+    ],
+  },
 
   zh: {
     cloudphone: [
@@ -1864,9 +2045,83 @@ Shortit — 免费、快速、可追踪。
 
 输入 <b>/start</b> → 📧 BulkSMS`,
     ],
-  },
 
-  // ═══════════════════ HINDI ═══════════════════
+    email_blast: [
+      `📧 <b>群发邮件 — 从Telegram直接发送</b>
+
+无需离开Telegram即可发送数千封邮件。
+
+✍️ 自定义主题 + HTML正文
+📋 CSV导入或粘贴联系人
+📊 实时发送进度
+⏰ 定时发送或立即发送
+
+无需外部工具，从钱包按活动付费。
+
+输入 <b>/start</b> → 📧 Email Blast`,
+
+      `🚀 <b>EMAIL BLAST — 触达每个收件箱</b>
+
+3步完成邮件活动：
+1️⃣ 编写主题 + 内容
+2️⃣ 上传邮件列表
+3️⃣ 发送 — 实时追踪
+
+✅ 内置SMTP — 零配置
+✅ HTML支持专业邮件
+✅ 活动历史和分析
+
+输入 <b>/start</b> → 📧 Email Blast`,
+
+      `💌 <b>不要再为Mailchimp付费了</b>
+
+从Telegram直接群发邮件 — 简单、快速、实惠。
+
+📧 自定义主题和HTML内容
+📊 实时发送进度
+💰 钱包付费 — 无月费
+📋 CSV上传或粘贴联系人
+
+输入 <b>/start</b> → 📧 Email Blast`,
+    ],
+
+    refer_earn: [
+      `🤝 <b>睡觉也能赚钱</b>
+
+分享Nomadly → 朋友购买 → 你赚钱。就这么简单。
+
+💰 推荐人每笔购买你都有佣金
+🔗 一个链接 — 适用于所有服务
+💳 收益直接进钱包
+📊 实时追踪推荐和收益
+
+无上限。无期限。纯被动收入 🚀
+
+输入 <b>/start</b> → 🤝 Refer & Earn`,
+
+      `💸 <b>你的人脉 = 你的财富</b>
+
+你推荐的每个人都为你赚取真金白银。
+
+✅ Cloud IVR、Hosting、域名、VPS、BulkSMS — 全都算
+✅ 佣金即时到账
+✅ 随时提现 — 无最低额度
+
+输入 <b>/start</b> → 🤝 Refer & Earn`,
+
+      `🔥 <b>推荐朋友。获得报酬。重复。</b>
+
+Nomadly推荐计划为每笔交易付费：
+
+🤝 分享你的专属链接
+💰 朋友购买任何服务 → 你赚佣金
+💳 随时从钱包提现
+
+适用于所有Nomadly服务 — 分享越多，赚得越多。
+
+输入 <b>/start</b> → 🤝 Refer & Earn`,
+    ],
+  },
 
   hi: {
     cloudphone: [
@@ -2360,13 +2615,84 @@ Nomadly रिसेलर प्रोग्राम जॉइन करें
 
 <b>/start</b> टाइप करें → 📧 BulkSMS`,
     ],
+
+    email_blast: [
+      `📧 <b>मास ईमेल कैंपेन — टेलीग्राम से सीधे</b>
+
+टेलीग्राम छोड़े बिना हज़ारों ईमेल भेजें।
+
+✍️ कस्टम सब्जेक्ट + पूरा HTML बॉडी
+📋 CSV से कॉन्टैक्ट्स इम्पोर्ट करें या पेस्ट करें
+📊 रियल-टाइम प्रोग्रेस ट्रैकिंग
+⏰ शेड्यूल करें या तुरंत भेजें
+
+कोई बाहरी टूल नहीं चाहिए। वॉलेट से प्रति कैंपेन भुगतान।
+
+<b>/start</b> टाइप करें → 📧 Email Blast`,
+
+      `🚀 <b>EMAIL BLAST — हर इनबॉक्स तक पहुँचें</b>
+
+3 स्टेप में ईमेल कैंपेन:
+1️⃣ सब्जेक्ट + मैसेज लिखें
+2️⃣ ईमेल लिस्ट अपलोड करें
+3️⃣ भेजें — लाइव ट्रैक करें
+
+✅ बिल्ट-इन SMTP — ज़ीरो कॉन्फिग
+✅ HTML सपोर्ट — प्रोफेशनल ईमेल
+✅ कैंपेन हिस्ट्री और एनालिटिक्स
+
+<b>/start</b> टाइप करें → 📧 Email Blast`,
+
+      `💌 <b>MAILCHIMP के लिए पैसे बर्बाद मत करो</b>
+
+टेलीग्राम से सीधे बल्क ईमेल भेजें — सिंपल, फास्ट, सस्ता।
+
+📧 कस्टम सब्जेक्ट और HTML कंटेंट
+📊 लाइव सेंडिंग प्रोग्रेस
+💰 वॉलेट से भुगतान — कोई मंथली फीस नहीं
+📋 CSV अपलोड या पेस्ट
+
+<b>/start</b> टाइप करें → 📧 Email Blast`,
+    ],
+
+    refer_earn: [
+      `🤝 <b>सोते-सोते पैसे कमाएं</b>
+
+Nomadly शेयर करें → दोस्त खरीदें → आप कमाएं। बस इतना।
+
+💰 आपके रेफरल की हर खरीदारी पर कमीशन
+🔗 एक लिंक — सभी सर्विसेज पर काम करता है
+💳 कमाई सीधे वॉलेट में
+📊 रेफरल और कमाई रियल-टाइम ट्रैक करें
+
+कोई लिमिट नहीं। कोई एक्सपायरी नहीं। शुद्ध पैसिव इनकम 🚀
+
+<b>/start</b> टाइप करें → 🤝 Refer & Earn`,
+
+      `💸 <b>आपका नेटवर्क = आपकी कमाई</b>
+
+आप जिसे भी Nomadly का रेफरल देंगे, आपको असली पैसा मिलेगा।
+
+✅ Cloud IVR, Hosting, Domains, VPS, BulkSMS — सब काउंट होता है
+✅ कमीशन तुरंत क्रेडिट
+✅ कभी भी निकालें — कोई मिनिमम नहीं
+
+<b>/start</b> टाइप करें → 🤝 Refer & Earn`,
+
+      `🔥 <b>रेफर करो। कमाओ। दोहराओ।</b>
+
+Nomadly का रेफरल प्रोग्राम हर सेल पर पैसे देता है:
+
+🤝 अपना यूनिक लिंक शेयर करें
+💰 दोस्त कोई भी सर्विस खरीदे → आप कमाएं
+💳 वॉलेट से कभी भी निकालें
+
+सभी Nomadly सर्विसेज पर काम करता है।
+
+<b>/start</b> टाइप करें → 🤝 Refer & Earn`,
+    ],
   },
 }
-
-// ═══════════════════════════════════════════════════════════════════════
-//  CROSS-SELL MESSAGES — Evening slot: shorter, punchier, pairs with morning theme
-//  6 themes × 3 variations × 4 languages = 72 evening ads
-// ═══════════════════════════════════════════════════════════════════════
 
 const crossSellMessages = {
 
@@ -2702,6 +3028,58 @@ Send thousands of SMS from your phone. No gateways. No per-message fees.
 
 Type <b>/start</b> → 📧 BulkSMS`,
     ],
+
+    email_blast: [
+      `🌙📧 <b>GOT AN EMAIL LIST? BLAST IT NOW.</b>
+
+Send mass emails right from Telegram — no tools, no config.
+
+📧 HTML emails + custom subjects
+📊 Real-time tracking
+💰 Pay per campaign
+
+Type <b>/start</b> → 📧 Email Blast`,
+
+      `🌙💌 <b>YOUR EMAIL LIST IS COLLECTING DUST</b>
+
+Turn contacts into conversions with Email Blast.
+
+✍️ Write → Upload → Send → Track
+All from Telegram. All from your wallet.
+
+Type <b>/start</b> → 📧 Email Blast`,
+
+      `🌙🚀 <b>QUICK EMAIL CAMPAIGN?</b>
+
+3 minutes to blast your entire list.
+
+📧 Full HTML | 📊 Live tracking | 💰 Wallet pay
+
+Type <b>/start</b> → 📧 Email Blast`,
+    ],
+
+    refer_earn: [
+      `🌙🤝 <b>SHARE NOMADLY. EARN WHILE OTHERS BUY.</b>
+
+Your referral link covers ALL services.
+One share = recurring commissions 💰
+
+Type <b>/start</b> → 🤝 Refer & Earn`,
+
+      `🌙💸 <b>PASSIVE INCOME — 1 LINK AWAY</b>
+
+Every friend you bring to Nomadly = money in YOUR wallet.
+No limit. No expiry.
+
+Grab your link: <b>/start</b> → 🤝 Refer & Earn`,
+
+      `🌙🔥 <b>TOP REFERRERS EARN $100+/MONTH</b>
+
+Just share your link. We handle the rest.
+Commission on every sale. Withdraw anytime.
+
+Type <b>/start</b> → 🤝 Refer & Earn`,
+    ],
   },
 
   // ═══════════════════ FRENCH CROSS-SELL ═══════════════════
@@ -2990,6 +3368,58 @@ Envoyez des milliers de SMS depuis votre téléphone. Sans passerelle.
 🆓 Commencez avec 100 SMS GRATUITS !
 
 Tapez <b>/start</b> → 📧 BulkSMS`,
+    ],
+
+    email_blast: [
+      `🌙📧 <b>VOUS AVEZ UNE LISTE EMAIL ? ENVOYEZ MAINTENANT.</b>
+
+Envoyez en masse depuis Telegram — aucun outil externe.
+
+📧 HTML + objets personnalisés
+📊 Suivi en direct
+💰 Payez par campagne
+
+Tapez <b>/start</b> → 📧 Email Blast`,
+
+      `🌙💌 <b>VOTRE LISTE EMAIL PREND LA POUSSIÈRE</b>
+
+Transformez vos contacts en conversions.
+
+✍️ Rédigez → Importez → Envoyez → Suivez
+Tout depuis Telegram.
+
+Tapez <b>/start</b> → 📧 Email Blast`,
+
+      `🌙🚀 <b>CAMPAGNE EMAIL RAPIDE ?</b>
+
+3 minutes pour envoyer à toute votre liste.
+
+📧 HTML complet | 📊 Suivi live | 💰 Portefeuille
+
+Tapez <b>/start</b> → 📧 Email Blast`,
+    ],
+
+    refer_earn: [
+      `🌙🤝 <b>PARTAGEZ NOMADLY. GAGNEZ QUAND D'AUTRES ACHÈTENT.</b>
+
+Votre lien couvre TOUS les services.
+Un partage = commissions récurrentes 💰
+
+Tapez <b>/start</b> → 🤝 Refer & Earn`,
+
+      `🌙💸 <b>REVENUS PASSIFS — À 1 LIEN DE DISTANCE</b>
+
+Chaque ami que vous amenez = argent dans VOTRE portefeuille.
+Sans limite. Sans expiration.
+
+Tapez <b>/start</b> → 🤝 Refer & Earn`,
+
+      `🌙🔥 <b>LES TOP PARRAINS GAGNENT 100$+/MOIS</b>
+
+Partagez votre lien. On s'occupe du reste.
+Commission sur chaque vente. Retirez quand vous voulez.
+
+Tapez <b>/start</b> → 🤝 Refer & Earn`,
     ],
   },
 
@@ -3281,6 +3711,58 @@ Nomadly BulkSMS应用 — 安卓群发短信。
 
 输入 <b>/start</b> → 📧 BulkSMS`,
     ],
+
+    email_blast: [
+      `🌙📧 <b>有邮件列表？立即群发。</b>
+
+从Telegram直接群发 — 无需外部工具。
+
+📧 HTML + 自定义主题
+📊 实时追踪
+💰 按活动付费
+
+输入 <b>/start</b> → 📧 Email Blast`,
+
+      `🌙💌 <b>你的邮件列表在吃灰</b>
+
+用Email Blast把联系人变成转化。
+
+✍️ 写 → 上传 → 发送 → 追踪
+全在Telegram里完成。
+
+输入 <b>/start</b> → 📧 Email Blast`,
+
+      `🌙🚀 <b>快速邮件活动？</b>
+
+3分钟发送给整个列表。
+
+📧 完整HTML | 📊 实时追踪 | 💰 钱包付费
+
+输入 <b>/start</b> → 📧 Email Blast`,
+    ],
+
+    refer_earn: [
+      `🌙🤝 <b>分享Nomadly，别人买你赚。</b>
+
+你的推荐链接覆盖所有服务。
+一次分享 = 持续佣金 💰
+
+输入 <b>/start</b> → 🤝 Refer & Earn`,
+
+      `🌙💸 <b>被动收入 — 只差一个链接</b>
+
+你带来的每个朋友 = 你钱包里的钱。
+无上限。无期限。
+
+输入 <b>/start</b> → 🤝 Refer & Earn`,
+
+      `🌙🔥 <b>顶级推荐者月入$100+</b>
+
+只需分享链接，我们处理其余。
+每笔交易有佣金。随时提现。
+
+输入 <b>/start</b> → 🤝 Refer & Earn`,
+    ],
   },
 
   // ═══════════════════ HINDI CROSS-SELL ═══════════════════
@@ -3570,6 +4052,58 @@ Nomadly BulkSMS ऐप — एंड्रॉइड से बल्क SMS।
 🆓 100 फ्री SMS से शुरू!
 
 <b>/start</b> → 📧 BulkSMS`,
+    ],
+
+    email_blast: [
+      `🌙📧 <b>ईमेल लिस्ट है? अभी ब्लास्ट करो।</b>
+
+टेलीग्राम से सीधे मास ईमेल भेजें — कोई बाहरी टूल नहीं।
+
+📧 HTML + कस्टम सब्जेक्ट
+📊 लाइव ट्रैकिंग
+💰 प्रति कैंपेन भुगतान
+
+<b>/start</b> → 📧 Email Blast`,
+
+      `🌙💌 <b>तुम्हारी ईमेल लिस्ट धूल खा रही है</b>
+
+Email Blast से कॉन्टैक्ट्स को कन्वर्ज़न में बदलो।
+
+✍️ लिखो → अपलोड → भेजो → ट्रैक करो
+सब टेलीग्राम से।
+
+<b>/start</b> → 📧 Email Blast`,
+
+      `🌙🚀 <b>क्विक ईमेल कैंपेन?</b>
+
+3 मिनट में पूरी लिस्ट को ब्लास्ट।
+
+📧 फुल HTML | 📊 लाइव ट्रैकिंग | 💰 वॉलेट पे
+
+<b>/start</b> → 📧 Email Blast`,
+    ],
+
+    refer_earn: [
+      `🌙🤝 <b>Nomadly शेयर करो। दूसरे खरीदें, तुम कमाओ।</b>
+
+तुम्हारा रेफरल लिंक सभी सर्विसेज पर काम करता है।
+एक शेयर = बार-बार कमीशन 💰
+
+<b>/start</b> → 🤝 Refer & Earn`,
+
+      `🌙💸 <b>पैसिव इनकम — बस 1 लिंक दूर</b>
+
+तुम जो भी दोस्त लाओगे = तुम्हारे वॉलेट में पैसा।
+कोई लिमिट नहीं। कोई एक्सपायरी नहीं।
+
+<b>/start</b> → 🤝 Refer & Earn`,
+
+      `🌙🔥 <b>टॉप रेफरर $100+/महीना कमाते हैं</b>
+
+बस लिंक शेयर करो। बाकी हम संभालेंगे।
+हर सेल पर कमीशन। कभी भी निकालो।
+
+<b>/start</b> → 🤝 Refer & Earn`,
     ],
   },
 }
