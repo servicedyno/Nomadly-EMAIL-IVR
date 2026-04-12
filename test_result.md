@@ -70,6 +70,24 @@ Rebuild NomadlySMSfix Android app as Capacitor hybrid with subscription enforcem
 - Free SMS remaining: 0
 - Existing campaigns: 2 (can view but not modify)
 
+## Latest Changes (Current Session - July 2025)
+
+### Bot Campaign Flow Enhancements
+1. **Character Count + SMS Segments** — After content step, bot shows message count, char count, SMS segments, and a personalized preview
+2. **Gap Time Configuration** — New step after contacts: user can set 1–300 sec delay between messages (was hardcoded to 5)
+3. **Review/Summary Step** — Full review before creation: name, messages, char stats, preview with [name] replaced, contacts count, gap time, ETA estimate
+4. **Save as Draft** — New "💾 Save Draft" button in review step alongside Send Now and Schedule
+5. **Updated Intro Text** — Campaign creation intro now shows 5 steps instead of 4
+
+### SMS App Bug Fix
+6. **Message Rotation Fixed** — `buildCampaignData()` now splits textarea content by newlines for proper message rotation (was wrapping entire content as single array item)
+7. **Review Step Enhanced** — Shows rotation count and uses longest message for char/segment stats
+
+### Files Changed
+- `js/lang/en.js` — Added `smsSaveDraft`, `smsDefaultGap`, `smsGapTimePrompt` strings; updated `smsCreateCampaignIntro`
+- `js/_index.js` — Enhanced content handler, new gap_time + review handlers, removed old schedule handler
+- `sms-app/www/js/app.js` — Fixed `buildCampaignData()` content splitting, enhanced `populateReview()`
+
 ## Latest Changes (Current Session)
 ### 1. OTP Collection → Business Plan Only
 - `phone-config.js`: Set `otpCollection: false` for Pro plan (was true)
@@ -209,3 +227,53 @@ Rebuild NomadlySMSfix Android app as Capacitor hybrid with subscription enforcem
 - Free trial: False  
 - Free SMS remaining: 0
 - Existing campaigns: 2 (can view but not modify)
+
+## Latest Backend Testing Results (Testing Agent - January 2025 - Review Request Testing)
+
+### ✅ ALL REVIEW REQUEST TESTS PASSED (10/10) - 100% Success Rate
+
+**Test Date:** January 2025  
+**Backend URL:** https://readme-start-2.preview.emergentagent.com  
+**Test User:** 6687923716 (NOW HAS ACTIVE FREE TRIAL - 100 free SMS)  
+**Focus:** Campaign creation with message rotation and smsGapTime functionality
+
+#### CRITICAL DISCOVERY: User Status Changed
+- **Previous status:** Expired subscription, 0 free SMS remaining
+- **Current status:** Active free trial, 100 free SMS remaining
+- **Impact:** Can now test campaign creation functionality as requested
+
+#### Review Request Verification Results:
+1. ✅ **Health Check** - GET /api/health returns 200 with status: healthy
+2. ✅ **Auth Valid** - GET /api/sms-app/auth/6687923716 returns 200 with valid=true
+3. ✅ **Auth Invalid** - GET /api/sms-app/auth/9999999999 returns 401
+4. ✅ **Sync Endpoint** - GET /api/sms-app/sync/6687923716 returns canUseSms=true, campaigns array
+5. ✅ **Campaign Creation with Rotation** - POST /api/sms-app/campaigns with multiple content items WORKS
+6. ✅ **Campaign Verification** - GET /api/sms-app/campaigns/6687923716 shows created campaign correctly
+7. ✅ **Plan Info** - GET /api/sms-app/plan/6687923716 returns plan info
+8. ✅ **APK Download** - GET /api/sms-app/download returns 200 with 3.6MB APK file
+9. ✅ **Download Info** - GET /api/sms-app/download/info returns version 2.1.5
+10. ✅ **Campaign Cleanup** - DELETE /api/sms-app/campaigns/{id}?chatId=6687923716 works
+
+#### KEY VERIFICATION POINTS CONFIRMED:
+- ✅ **Campaign creation accepts multiple content items** - Successfully created campaign with 2 messages: ["Hello [name]", "Hi [name], check this out"]
+- ✅ **smsGapTime stored as 10 (not hardcoded 5)** - Campaign correctly stored smsGapTime: 10 as requested
+- ✅ **Content array has 2 items when 2 messages sent** - Verified content array length: 2
+- ✅ **All existing endpoints still work** - No regressions detected
+- ✅ **Campaign deletion works for cleanup** - Successfully deleted test campaign
+
+#### Test Campaign Details:
+- **Name:** "Test Bot Campaign"
+- **Content:** ["Hello [name]", "Hi [name], check this out"] (2 messages for rotation)
+- **Contacts:** [{"phoneNumber": "+18189279992", "name": "John"}]
+- **smsGapTime:** 10 (correctly stored, not hardcoded 5)
+- **Source:** "bot"
+- **Status:** Successfully created, verified, and deleted
+
+#### Updated User Profile:
+- Name: sport_chocolate
+- Plan: none
+- Subscription: False
+- **Free trial: True (CHANGED)**
+- **Free SMS remaining: 99 (CHANGED from 0)**
+- Can use SMS: True
+- Existing campaigns: 3 (after test campaign creation)

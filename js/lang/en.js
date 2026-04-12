@@ -370,12 +370,16 @@ ${MONTHLY_PLAN_FREE_DOMAINS} domains · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocale
 
  smsHowItWorks: (chatId) => `📧 <b>BulkSMS — How It Works</b>\n\nBulkSMS sends real SMS <b>from your phone's SIM card</b> — not a server. This gives you high deliverability and a real sender ID.\n\n<b>⚙️ One-time setup:</b>\n1. Download the app → ${SMS_APP_LINK}\n2. Open it → enter code: <code>${chatId}</code>\n3. Grant SMS permission when prompted\n\n<b>📤 Sending a campaign:</b>\n• Tap <b>📱 Create Campaign</b> here or create in the app\n• Add your message + contacts (paste or upload file)\n• Campaign syncs to the app → tap Send on your phone\n\n<b>💡 Tips:</b>\n• Use an <b>eSIM</b> for a dedicated sending line\n• Multiple message lines = auto-rotation per contact\n• <code>[name]</code> in your message = auto-personalization\n• Schedule campaigns for later or send immediately\n\n<b>📋 My Campaigns</b> shows all your campaigns + status.\n<b>🔓 Reset Login</b> lets you switch to a new device.\n\nNeed eSIM? Tap 💬 Support`,
 
- smsCreateCampaignIntro: `📱 <b>Create SMS Campaign</b>\n\nHere's how it works:\n\n<b>Step 1:</b> Name your campaign\n<b>Step 2:</b> Write your message(s)\n • Use <code>[name]</code> to personalize\n • Multiple lines = message rotation\n<b>Step 3:</b> Upload contacts\n • Paste as text: <code>+1234567890, John</code>\n • Or upload a .txt / .csv file\n<b>Step 4:</b> Schedule or send immediately\n\nThe campaign syncs to the Nomadly SMS App for sending.\n\n<b>Let's start — enter a campaign name:</b>`,
+ smsCreateCampaignIntro: `📱 <b>Create SMS Campaign</b>\n\nHere's how it works:\n\n<b>Step 1:</b> Name your campaign\n<b>Step 2:</b> Write your message(s)\n • Use <code>[name]</code> to personalize\n • Multiple lines = message rotation\n<b>Step 3:</b> Upload contacts\n • Paste as text: <code>+1234567890, John</code>\n • Or upload a .txt / .csv file\n<b>Step 4:</b> Set SMS gap time (delay between sends)\n<b>Step 5:</b> Review & confirm — send, schedule, or save as draft\n\nThe campaign syncs to the Nomadly SMS App for sending.\n\n<b>Let's start — enter a campaign name:</b>`,
 
  smsSchedulePrompt: '⏰ <b>Schedule Campaign?</b>\n\nChoose when to make this campaign available:',
  smsSendNow: '▶️ Send Now',
  smsScheduleLater: '⏰ Schedule for Later',
  smsScheduleTimePrompt: '📅 <b>Enter schedule date & time</b>\n\nFormat: <code>YYYY-MM-DD HH:MM</code>\n(UTC timezone)\n\nExample: <code>2025-07-15 09:30</code>',
+
+ smsSaveDraft: '💾 Save Draft',
+ smsDefaultGap: '⏱ Default (5 sec)',
+ smsGapTimePrompt: '⏱ <b>Delay Between Messages</b>\n\nHow many seconds to wait between each SMS?\n\n• Default: <b>5 seconds</b>\n• Range: 1–300 seconds\n\nType a number or tap the button for default:',
 
  smsMyCampaignsEmpty: '📋 <b>My Campaigns</b>\n\nYou have no campaigns yet. Tap <b>📱 Create Campaign</b> to get started!',
  smsMyCampaignsList: (campaigns) => {

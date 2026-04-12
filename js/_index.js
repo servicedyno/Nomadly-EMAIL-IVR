@@ -21226,7 +21226,25 @@ Select a category:`), k.of(catBtns))
 
     await set(state, chatId, 'smsapp_campaign_content', JSON.stringify(contentLines))
     await set(state, chatId, 'action', 'smsapp_campaign_contacts')
-    return send(chatId, '📋 <b>Upload Contacts</b>\n\nSend your contacts in one of these formats:\n\n1️⃣ <b>Text list</b> — one per line:\n<code>+18189279992, John\n+14155551234, Jane</code>\n\n2️⃣ <b>Upload a .txt or .csv file</b> with phone numbers\n\n3️⃣ <b>Numbers only</b> (comma or newline separated):\n<code>+18189279992, +14155551234</code>', { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
+
+    // Show message stats + preview before asking for contacts
+    const _msgCount = contentLines.length
+    const _longestMsg = contentLines.reduce((a, b) => a.length > b.length ? a : b, '')
+    const _charCount = _longestMsg.length
+    const _segments = _charCount <= 160 ? 1 : Math.ceil(_charCount / 153)
+    const _preview = contentLines[0].replace(/\[name\]/gi, 'John').substring(0, 100)
+    const _rotNote = _msgCount > 1 ? ` <b>(rotation: ${_msgCount} messages)</b>` : ''
+
+    return send(chatId,
+      `✅ <b>Message${_msgCount > 1 ? 's' : ''} saved!</b>${_rotNote}\n\n` +
+      `📊 ${_msgCount} message${_msgCount > 1 ? 's' : ''}\n` +
+      `📏 ${_charCount} chars · ${_segments} SMS part${_segments > 1 ? 's' : ''}\n` +
+      `📝 Preview: <i>"${_preview}${contentLines[0].length > 100 ? '...' : ''}"</i>\n\n` +
+      `📋 <b>Now upload contacts</b>\n\n` +
+      `1️⃣ <b>Text list</b> — one per line:\n<code>+18189279992, John\n+14155551234, Jane</code>\n\n` +
+      `2️⃣ <b>Upload a .txt or .csv file</b> with phone numbers\n\n` +
+      `3️⃣ <b>Numbers only</b> (comma or newline separated):\n<code>+18189279992, +14155551234</code>`,
+      { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
   }
 
   // ── SMS App: Handle file uploads for contacts (MUST come before text handler) ──
@@ -21253,13 +21271,13 @@ Select a category:`), k.of(catBtns))
         return send(chatId, '❌ No valid phone numbers found in the file.\n\nPlease upload a file with phone numbers (one per line, starting with + and country code).', { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
       }
 
-      // Store contacts and move to scheduling step
+      // Store contacts and move to gap time step
       await set(state, chatId, 'smsapp_campaign_contacts', JSON.stringify(contacts))
-      await set(state, chatId, 'action', 'smsapp_campaign_schedule')
-      return send(chatId, `👥 <b>${contacts.length} contact${contacts.length === 1 ? '' : 's'} loaded from file!</b>\n\n${t.smsSchedulePrompt}`, {
+      await set(state, chatId, 'action', 'smsapp_campaign_gap_time')
+      return send(chatId, `👥 <b>${contacts.length} contact${contacts.length === 1 ? '' : 's'} loaded from file!</b>\n\n${t.smsGapTimePrompt}`, {
         parse_mode: 'HTML',
         reply_markup: {
-          keyboard: [[t.smsSendNow], [t.smsScheduleLater], [t.back]],
+          keyboard: [[t.smsDefaultGap], [t.back]],
           resize_keyboard: true,
         }
       })
@@ -21306,33 +21324,91 @@ Select a category:`), k.of(catBtns))
       warningLine = `\n⚠️ ${invalidCount} invalid number${invalidCount !== 1 ? 's' : ''} skipped.`
     }
 
-    // Store contacts and move to scheduling step
+    // Store contacts and move to gap time step
     await set(state, chatId, 'smsapp_campaign_contacts', JSON.stringify(contacts))
-    await set(state, chatId, 'action', 'smsapp_campaign_schedule')
-    return send(chatId, `👥 <b>${contacts.length} contact${contacts.length === 1 ? '' : 's'} loaded!</b>${warningLine}\n\n${t.smsSchedulePrompt}`, {
+    await set(state, chatId, 'action', 'smsapp_campaign_gap_time')
+    return send(chatId, `👥 <b>${contacts.length} contact${contacts.length === 1 ? '' : 's'} loaded!</b>${warningLine}\n\n${t.smsGapTimePrompt}`, {
       parse_mode: 'HTML',
       reply_markup: {
-        keyboard: [[t.smsSendNow], [t.smsScheduleLater], [t.back]],
+        keyboard: [[t.smsDefaultGap], [t.back]],
         resize_keyboard: true,
       }
     })
   }
 
-  if (action === 'smsapp_campaign_schedule') {
+  // ── SMS App: Gap Time Configuration ──
+  if (action === 'smsapp_campaign_gap_time') {
     if (message === t.back || message === t.cancel) {
       await set(state, chatId, 'action', 'smsapp_campaign_contacts')
       return send(chatId, '📋 <b>Upload Contacts</b>\n\nSend contacts as text or upload a .txt/.csv file:', { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
     }
-    if (message === t.smsSendNow) {
-      // Create campaign immediately (no schedule)
+
+    let gapTime = 5
+    if (message === t.smsDefaultGap || message.toLowerCase() === 'default' || message === '5') {
+      gapTime = 5
+    } else {
+      const parsed = parseInt(message)
+      if (isNaN(parsed) || parsed < 1 || parsed > 300) {
+        return send(chatId, '❌ Please enter a number between 1 and 300 seconds, or tap the button for default.', { parse_mode: 'HTML', reply_markup: { keyboard: [[t.smsDefaultGap], [t.back]], resize_keyboard: true } })
+      }
+      gapTime = parsed
+    }
+
+    await set(state, chatId, 'smsapp_campaign_gap_time_val', gapTime)
+    await set(state, chatId, 'action', 'smsapp_campaign_review')
+
+    // Build review summary
+    const _ri = await state.findOne({ _id: parseFloat(chatId) })
+    const _rName = _ri?.smsapp_campaign_name || 'Campaign'
+    const _rContentStr = _ri?.smsapp_campaign_content || '["Hello"]'
+    const _rContactsStr = _ri?.smsapp_campaign_contacts || '[]'
+    let _rContent, _rContacts
+    try { _rContent = JSON.parse(_rContentStr) } catch { _rContent = [_rContentStr] }
+    try { _rContacts = JSON.parse(_rContactsStr) } catch { _rContacts = [] }
+    const _rMsgCount = _rContent.length
+    const _rLongest = _rContent.reduce((a, b) => a.length > b.length ? a : b, '')
+    const _rChars = _rLongest.length
+    const _rSegs = _rChars <= 160 ? 1 : Math.ceil(_rChars / 153)
+    const _rSampleName = _rContacts.length > 0 && _rContacts[0].name ? _rContacts[0].name : 'there'
+    const _rPreview = _rContent[0].replace(/\[name\]/gi, _rSampleName).substring(0, 100)
+    const _rTotalSec = _rContacts.length * gapTime
+    const _rMins = Math.floor(_rTotalSec / 60)
+    const _rSecs = _rTotalSec % 60
+    const _rEta = _rMins > 0 ? `${_rMins} min ${_rSecs} sec` : `${_rSecs} sec`
+
+    return send(chatId,
+      `📋 <b>Campaign Review</b>\n\n` +
+      `📌 Name: <b>${_rName}</b>\n` +
+      `✍️ Messages: ${_rMsgCount}${_rMsgCount > 1 ? ' (rotation)' : ''}\n` +
+      `📏 ${_rChars} chars · ${_rSegs} SMS part${_rSegs > 1 ? 's' : ''}\n` +
+      `📝 Preview: <i>"${_rPreview}${_rContent[0].length > 100 ? '...' : ''}"</i>\n` +
+      `👥 Contacts: ${_rContacts.length}\n` +
+      `⏱ Gap: ${gapTime} sec\n` +
+      `⏰ ETA: ~${_rEta}\n\n` +
+      `Choose an action:`,
+      { parse_mode: 'HTML', reply_markup: { keyboard: [[t.smsSendNow], [t.smsScheduleLater], [t.smsSaveDraft], [t.back]], resize_keyboard: true } })
+  }
+
+  // ── SMS App: Campaign Review Actions ──
+  if (action === 'smsapp_campaign_review') {
+    if (message === t.back || message === t.cancel) {
+      await set(state, chatId, 'action', 'smsapp_campaign_gap_time')
+      return send(chatId, t.smsGapTimePrompt, { parse_mode: 'HTML', reply_markup: { keyboard: [[t.smsDefaultGap], [t.back]], resize_keyboard: true } })
+    }
+
+    if (message === t.smsSendNow || message === t.smsSaveDraft) {
+      // Create campaign immediately or as draft
       const stateInfo = await state.findOne({ _id: parseFloat(chatId) })
       const campaignName = stateInfo?.smsapp_campaign_name || 'Campaign'
       const contentStr = stateInfo?.smsapp_campaign_content || '["Hello"]'
       const contactsStr = stateInfo?.smsapp_campaign_contacts || '[]'
       const deviceId = stateInfo?.smsapp_campaign_device || null
+      const gapTime = stateInfo?.smsapp_campaign_gap_time_val || 5
       let content, contacts
       try { content = JSON.parse(contentStr) } catch { content = [contentStr] }
       try { contacts = JSON.parse(contactsStr) } catch { contacts = [] }
+
+      const isDraft = message === t.smsSaveDraft
 
       try {
         const campaign = await smsAppService.createCampaign(chatId, {
@@ -21340,12 +21416,19 @@ Select a category:`), k.of(catBtns))
           content,
           contacts,
           source: 'bot',
-          smsGapTime: 5,
+          smsGapTime: gapTime,
           deviceId,
         })
+        if (isDraft) {
+          // Update status to draft explicitly
+          await smsAppService.updateCampaign(campaign._id, chatId, { status: 'draft' })
+        }
         await set(state, chatId, 'action', null)
         const deviceLine = deviceId && deviceId !== 'default' ? `\n📱 Device: ${deviceId}` : ''
-        return send(chatId, `✅ <b>Campaign Created!</b>\n\n📋 Name: ${campaignName}\n✍️ Messages: ${content.length}\n👥 Contacts: ${contacts.length}${deviceLine}\n\nYour campaign will automatically sync and start sending on your connected device.`, { parse_mode: 'HTML', reply_markup: { keyboard: [[user.smsCreateCampaign], [user.smsMyCampaigns], [t.back]], resize_keyboard: true } })
+        if (isDraft) {
+          return send(chatId, `💾 <b>Campaign Saved as Draft!</b>\n\n📋 Name: ${campaignName}\n✍️ Messages: ${content.length}\n👥 Contacts: ${contacts.length}${deviceLine}\n\nYou can edit and send it later from the SMS App or <b>📋 My Campaigns</b>.`, { parse_mode: 'HTML', reply_markup: { keyboard: [[user.smsCreateCampaign], [user.smsMyCampaigns], [t.back]], resize_keyboard: true } })
+        }
+        return send(chatId, `✅ <b>Campaign Created!</b>\n\n📋 Name: ${campaignName}\n✍️ Messages: ${content.length}\n👥 Contacts: ${contacts.length}\n⏱ Gap: ${gapTime} sec${deviceLine}\n\nYour campaign will automatically sync and start sending on your connected device.`, { parse_mode: 'HTML', reply_markup: { keyboard: [[user.smsCreateCampaign], [user.smsMyCampaigns], [t.back]], resize_keyboard: true } })
       } catch (err) {
         console.error('[SmsApp] Bot campaign creation error:', err)
         return send(chatId, '❌ Failed to create campaign. Please try again.', { reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
@@ -21354,20 +21437,47 @@ Select a category:`), k.of(catBtns))
       await set(state, chatId, 'action', 'smsapp_campaign_schedule_time')
       return send(chatId, t.smsScheduleTimePrompt, { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
     }
-    // Unrecognized input — re-show schedule options
+    // Unrecognized input — re-show review options
     return send(chatId, '⚠️ Please choose one of the options below:', {
       parse_mode: 'HTML',
-      reply_markup: { keyboard: [[t.smsSendNow], [t.smsScheduleLater], [t.back]], resize_keyboard: true }
+      reply_markup: { keyboard: [[t.smsSendNow], [t.smsScheduleLater], [t.smsSaveDraft], [t.back]], resize_keyboard: true }
     })
   }
 
   if (action === 'smsapp_campaign_schedule_time') {
     if (message === t.back || message === t.cancel) {
-      await set(state, chatId, 'action', 'smsapp_campaign_schedule')
-      return send(chatId, t.smsSchedulePrompt, {
-        parse_mode: 'HTML',
-        reply_markup: { keyboard: [[t.smsSendNow], [t.smsScheduleLater], [t.back]], resize_keyboard: true }
-      })
+      // Go back to review — rebuild review summary
+      await set(state, chatId, 'action', 'smsapp_campaign_review')
+      const _ri2 = await state.findOne({ _id: parseFloat(chatId) })
+      const _r2Name = _ri2?.smsapp_campaign_name || 'Campaign'
+      const _r2ContentStr = _ri2?.smsapp_campaign_content || '["Hello"]'
+      const _r2ContactsStr = _ri2?.smsapp_campaign_contacts || '[]'
+      const _r2Gap = _ri2?.smsapp_campaign_gap_time_val || 5
+      let _r2Content, _r2Contacts
+      try { _r2Content = JSON.parse(_r2ContentStr) } catch { _r2Content = [_r2ContentStr] }
+      try { _r2Contacts = JSON.parse(_r2ContactsStr) } catch { _r2Contacts = [] }
+      const _r2MsgCount = _r2Content.length
+      const _r2Longest = _r2Content.reduce((a, b) => a.length > b.length ? a : b, '')
+      const _r2Chars = _r2Longest.length
+      const _r2Segs = _r2Chars <= 160 ? 1 : Math.ceil(_r2Chars / 153)
+      const _r2SampleName = _r2Contacts.length > 0 && _r2Contacts[0].name ? _r2Contacts[0].name : 'there'
+      const _r2Preview = _r2Content[0].replace(/\[name\]/gi, _r2SampleName).substring(0, 100)
+      const _r2TotalSec = _r2Contacts.length * _r2Gap
+      const _r2Mins = Math.floor(_r2TotalSec / 60)
+      const _r2Secs = _r2TotalSec % 60
+      const _r2Eta = _r2Mins > 0 ? `${_r2Mins} min ${_r2Secs} sec` : `${_r2Secs} sec`
+
+      return send(chatId,
+        `📋 <b>Campaign Review</b>\n\n` +
+        `📌 Name: <b>${_r2Name}</b>\n` +
+        `✍️ Messages: ${_r2MsgCount}${_r2MsgCount > 1 ? ' (rotation)' : ''}\n` +
+        `📏 ${_r2Chars} chars · ${_r2Segs} SMS part${_r2Segs > 1 ? 's' : ''}\n` +
+        `📝 Preview: <i>"${_r2Preview}${_r2Content[0].length > 100 ? '...' : ''}"</i>\n` +
+        `👥 Contacts: ${_r2Contacts.length}\n` +
+        `⏱ Gap: ${_r2Gap} sec\n` +
+        `⏰ ETA: ~${_r2Eta}\n\n` +
+        `Choose an action:`,
+        { parse_mode: 'HTML', reply_markup: { keyboard: [[t.smsSendNow], [t.smsScheduleLater], [t.smsSaveDraft], [t.back]], resize_keyboard: true } })
     }
 
     if (!message || !message.trim()) {
@@ -21385,6 +21495,7 @@ Select a category:`), k.of(catBtns))
     const contentStr = stateInfo?.smsapp_campaign_content || '["Hello"]'
     const contactsStr = stateInfo?.smsapp_campaign_contacts || '[]'
     const deviceId = stateInfo?.smsapp_campaign_device || null
+    const gapTime = stateInfo?.smsapp_campaign_gap_time_val || 5
     let content, contacts
     try { content = JSON.parse(contentStr) } catch { content = [contentStr] }
     try { contacts = JSON.parse(contactsStr) } catch { contacts = [] }
@@ -21395,14 +21506,14 @@ Select a category:`), k.of(catBtns))
         content,
         contacts,
         source: 'bot',
-        smsGapTime: 5,
+        smsGapTime: gapTime,
         scheduledAt: parsed.toISOString(),
         deviceId,
       })
       await set(state, chatId, 'action', null)
       const schedDate = parsed.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' })
       const deviceLine = deviceId && deviceId !== 'default' ? `\n📱 Device: ${deviceId}` : ''
-      return send(chatId, `✅ <b>Campaign Scheduled!</b>\n\n📋 Name: ${campaignName}\n✍️ Messages: ${content.length}\n👥 Contacts: ${contacts.length}\n📅 Scheduled: ${schedDate} UTC${deviceLine}\n\nThe campaign will automatically sync and start sending at the scheduled time. Make sure your device stays online.`, { parse_mode: 'HTML', reply_markup: { keyboard: [[user.smsCreateCampaign], [user.smsMyCampaigns], [t.back]], resize_keyboard: true } })
+      return send(chatId, `✅ <b>Campaign Scheduled!</b>\n\n📋 Name: ${campaignName}\n✍️ Messages: ${content.length}\n👥 Contacts: ${contacts.length}\n⏱ Gap: ${gapTime} sec\n📅 Scheduled: ${schedDate} UTC${deviceLine}\n\nThe campaign will automatically sync and start sending at the scheduled time. Make sure your device stays online.`, { parse_mode: 'HTML', reply_markup: { keyboard: [[user.smsCreateCampaign], [user.smsMyCampaigns], [t.back]], resize_keyboard: true } })
     } catch (err) {
       console.error('[SmsApp] Bot scheduled campaign error:', err)
       return send(chatId, '❌ Failed to create scheduled campaign. Please try again.', { reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })

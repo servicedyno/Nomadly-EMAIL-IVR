@@ -393,15 +393,19 @@ const App = {
   populateReview() {
     const name = document.getElementById('wzName').value.trim()
     const content = document.getElementById('wzContent').value.trim()
+    const contentLines = content.split('\n').filter(l => l.trim())
     const contacts = this.parseContacts()
     const gapTime = parseInt(document.getElementById('wzGapTime').value) || 5
 
     document.getElementById('rvName').textContent = name
-    // Preview with a sample name
+    // Preview with a sample name (use first message line)
     const sampleName = contacts.length > 0 && contacts[0].name ? contacts[0].name : 'there'
-    document.getElementById('rvPreview').textContent = content.replace(/\[name\]/gi, sampleName)
-    const segments = content.length <= 160 ? 1 : Math.ceil(content.length / 153)
-    document.getElementById('rvMsgMeta').textContent = `${content.length} chars · ${segments} SMS part${segments > 1 ? 's' : ''}`
+    const firstMsg = contentLines.length > 0 ? contentLines[0] : content
+    document.getElementById('rvPreview').textContent = firstMsg.replace(/\[name\]/gi, sampleName)
+    const longestMsg = contentLines.length > 0 ? contentLines.reduce((a, b) => a.length > b.length ? a : b, '') : content
+    const segments = longestMsg.length <= 160 ? 1 : Math.ceil(longestMsg.length / 153)
+    const rotationNote = contentLines.length > 1 ? ` · ${contentLines.length} messages (rotation)` : ''
+    document.getElementById('rvMsgMeta').textContent = `${longestMsg.length} chars · ${segments} SMS part${segments > 1 ? 's' : ''}${rotationNote}`
 
     document.getElementById('rvContacts').textContent = contacts.length
     const sample = contacts.slice(0, 3).map(c => c.name ? `${c.phoneNumber} (${c.name})` : c.phoneNumber).join(', ')
@@ -503,10 +507,14 @@ const App = {
     if (!name) { this.toast('Campaign name is required', 'error'); return null }
     if (!contentRaw) { this.toast('Message content is required', 'error'); return null }
 
+    // Split by newlines for message rotation (multiple lines = auto-rotation per contact)
+    const contentLines = contentRaw.split('\n').filter(l => l.trim())
+    if (contentLines.length === 0) { this.toast('Message content is required', 'error'); return null }
+
     return {
       chatId,
       name,
-      content: [contentRaw],
+      content: contentLines,
       contacts,
       smsGapTime: gapTime,
       scheduledAt: scheduleVal ? new Date(scheduleVal).toISOString() : null,
