@@ -8260,8 +8260,9 @@ All verified numbers generated during sourcing.`))
   // ── Refer & Earn ──
   if (message === user.referEarn || message === '🤝 Refer & Earn' || message === '🤝 Parrainez & Gagnez' || message === '🤝 推荐赚钱' || message === '🤝 रेफर करें और कमाएं') {
     try {
-      // Use web redirect for reliable referral tracking (works for both new and existing users)
-      const referralLink = `${SELF_URL}/r/${chatId}`
+      // Use Telegram deep link directly (hides internal server URL from users)
+      const botUsername = process.env.BOT_USERNAME || 'Nomadlybot'
+      const referralLink = `https://t.me/${botUsername}?start=ref_${chatId}`
 
       // Get referral stats
       const myReferrals = await referrals.find({ referrerChatId: chatId }).toArray()
