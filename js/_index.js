@@ -27616,7 +27616,7 @@ app.post('/twilio/sms-webhook', async (req, res) => {
 app.get('/r/:referrerCode', async (req, res) => {
   try {
     const { referrerCode } = req.params
-    const botUsername = process.env.BOT_USERNAME || 'Nomadlytestbot'
+    const botUsername = process.env.BOT_USERNAME || 'Nomadlybot'
     
     // Store the referral click in a temporary tracking collection
     // We can't create the referral relationship yet because we don't know the referee's chatId
@@ -27654,7 +27654,7 @@ app.get('/r/:referrerCode', async (req, res) => {
     res.redirect(`https://t.me/${botUsername}?start=ref_${referrerCode}`)
   } catch (error) {
     log(`[Referral] Redirect error: ${error.message}`)
-    const botUsername = process.env.BOT_USERNAME || 'Nomadlytestbot'
+    const botUsername = process.env.BOT_USERNAME || 'Nomadlybot'
     res.redirect(`https://t.me/${botUsername}`)
   }
 })
