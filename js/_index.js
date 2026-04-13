@@ -11004,6 +11004,7 @@ ${message.replace(/\n/g, '<br>')}
         return goto.vpsAskSSHKey()
       }
       vpsDetails.sshKeyName = newSShKey.sshKeyName
+      vpsDetails.sshKeySecretId = newSShKey.secretId
       info.vpsDetails = vpsDetails
       saveInfo('vpsDetails', vpsDetails)
       send(chatId, vp.newSSHKeyGeneratedMsg(newSShKey.sshKeyName))
@@ -11043,6 +11044,14 @@ ${message.replace(/\n/g, '<br>')}
     const sshKeyList = vpsDetails.sshKeysList
     if (!sshKeyList.includes(message)) return send(chatId, vp.selectValidSShKey, vp.of([...sshKeyList, vp.uploadNewKeyBtn, vp.cancel]))
     vpsDetails.sshKeyName = message
+    // Look up the secretId for the selected key name from MongoDB
+    try {
+      const _sshKeysOfCol = db.collection('sshKeysOf')
+      const keyDoc = await _sshKeysOfCol.findOne({ telegramId: String(chatId), sshKeyName: message })
+      if (keyDoc && keyDoc.contaboSecretId) {
+        vpsDetails.sshKeySecretId = keyDoc.contaboSecretId
+      }
+    } catch (e) { console.log('[SSH] Key lookup error:', e.message) }
     info.vpsDetails = vpsDetails
     saveInfo('vpsDetails', vpsDetails)
     send(chatId, vp.sshKeySavedForVPS(message))
@@ -11071,6 +11080,7 @@ ${message.replace(/\n/g, '<br>')}
       return goto.vpsAskSSHKey()
     }
     vpsDetails.sshKeyName = newSShKey.sshKeyName
+    vpsDetails.sshKeySecretId = newSShKey.secretId
     info.vpsDetails = vpsDetails
     saveInfo('vpsDetails', vpsDetails)
     send(chatId, vp.newSSHKeyUploadedMsg(newSShKey.sshKeyName))

@@ -609,7 +609,7 @@ async function createVPSInstance(telegramId, vpsDetails) {
         subscriptionEnd: expiresAt.toISOString()
       },
       credentials: {
-        username: isRDP ? 'admin' : 'root',
+        username: instance.defaultUser || (isRDP ? 'admin' : 'root'),
         password: rootPassword
       }
     }
