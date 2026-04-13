@@ -245,6 +245,18 @@ Rebuild NomadlySMSfix Android app as Capacitor hybrid with subscription enforcem
   5. **Updated `voice-dial-status`** — now accepts `fwdTo` query param for correct IVR forward destination resolution in billing + notifications
 - **Files changed**: `js/_index.js` (inbound-ivr-gather handler + voice-dial-status handler)
 
+### Retroactive Billing: Uncharged IVR Forward Calls (COMPLETED)
+- **Identified**: 9 IVR forward call records for Scoreboard44 (chatId 8273560746)
+  - 7 pre-fix calls: Forward never connected (old code bug) → marked as non-billable ($0 charge)
+  - 2 post-fix calls: Forward DID connect → retroactively billed
+- **Call 1**: CA3cb76 (18:45:10) → +18088000692, 31s, 1 min × $0.15 = $0.15
+- **Call 2**: CAaa40 (18:47:34) → +18088000969, 22s, 1 min × $0.15 = $0.15
+- **Total retroactive charge**: $0.30
+- **Wallet**: $61.65 → $61.35
+- **Payment records created**: 2 `Twilio_Forwarding` entries with `retroBilled=true` flag
+- **IVR log enhancement**: Forward calls now store `forwardTo` and `callSid` in phoneLogs for future reconciliation
+- **Script**: `js/retroactive-ivr-billing.js` (idempotent — safe to re-run)
+
 ## Incorporate User Feedback
 - Follow testing agent suggestions for bug fixes
 

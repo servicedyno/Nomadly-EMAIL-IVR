@@ -26245,12 +26245,17 @@ app.post('/twilio/inbound-ivr-gather', async (req, res) => {
       bot?.sendMessage(chatId, `📞 <b>IVR Call — Key ${Digits}</b>\nFrom: ${phoneConfig.formatPhone(decodedFrom)}\n📋 ${label}`, { parse_mode: 'HTML' }).catch(() => {})
     }
 
-    // Log IVR interaction
-    await db.collection('phoneLogs').insertOne({
+    // Log IVR interaction (include forward destination + callSid for billing reconciliation)
+    const logEntry = {
       chatId, type: 'ivr_inbound', provider: 'twilio',
       from: decodedFrom, to: decodedTo, digitPressed: Digits,
       action, label, timestamp: new Date().toISOString(),
-    })
+    }
+    if ((action === 'forward' || action === 'transfer') && (option.number || option.forwardTo)) {
+      logEntry.forwardTo = option.number || option.forwardTo
+    }
+    if (req.body?.CallSid) logEntry.callSid = req.body.CallSid
+    await db.collection('phoneLogs').insertOne(logEntry)
 
     res.type('text/xml').send(response.toString())
   } catch (error) {
