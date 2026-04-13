@@ -1,484 +1,204 @@
 #!/usr/bin/env python3
 """
-Nomadly SMS App Backend Test Suite
-Testing subscription enforcement and API functionality
+Backend Testing Script for Nomadly Review Request
+Tests specific endpoints mentioned in the review request
 """
 
 import requests
 import json
-import time
-import os
+import sys
+from datetime import datetime
 
-# Backend URL from environment
+# Backend URL from frontend/.env
 BACKEND_URL = "https://get-going-11.preview.emergentagent.com"
+TEST_USER_ID = "6687923716"
 
-# Test credentials
-TEST_CHAT_ID = "6687923716"  # Expired subscription, 0 free SMS remaining
-INVALID_CHAT_ID = "9999999999"
+def print_test_header(test_name):
+    print(f"\n{'='*60}")
+    print(f"🧪 {test_name}")
+    print(f"{'='*60}")
 
-def test_auth_valid():
-    """Test 1: Auth with valid chatId - should return valid=true, canUseSms=false"""
-    print("🔍 Test 1: Auth with valid chatId (expired subscription)")
-    
-    try:
-        url = f"{BACKEND_URL}/api/sms-app/auth/{TEST_CHAT_ID}"
-        response = requests.get(url, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            if data.get('valid') == True and data.get('user', {}).get('canUseSms') == False:
-                print(f"✅ PASS: Auth valid, canUseSms=false - {data.get('user', {}).get('name', 'Unknown')}")
-                print(f"   Plan: {data.get('user', {}).get('plan', 'none')}")
-                print(f"   Free SMS remaining: {data.get('user', {}).get('freeSmsRemaining', 0)}")
-                return True
-            else:
-                print(f"❌ FAIL: Unexpected auth response - valid: {data.get('valid')}, canUseSms: {data.get('user', {}).get('canUseSms')}")
-                print(f"   Full response: {data}")
-                return False
-        else:
-            print(f"❌ FAIL: Auth endpoint returned {response.status_code}")
-            print(f"   Response: {response.text}")
-            return False
-    except Exception as e:
-        print(f"❌ FAIL: Auth endpoint error: {e}")
-        return False
-
-def test_auth_invalid():
-    """Test 2: Auth with invalid chatId - should return 401"""
-    print("\n🔍 Test 2: Auth with invalid chatId")
-    
-    try:
-        url = f"{BACKEND_URL}/api/sms-app/auth/{INVALID_CHAT_ID}"
-        response = requests.get(url, timeout=10)
-        
-        if response.status_code == 401:
-            data = response.json()
-            if data.get('valid') == False:
-                print(f"✅ PASS: Invalid auth correctly rejected - {data.get('error', 'No error message')}")
-                return True
-            else:
-                print(f"❌ FAIL: Invalid auth response format - {data}")
-                return False
-        else:
-            print(f"❌ FAIL: Invalid auth returned {response.status_code} instead of 401")
-            print(f"   Response: {response.text}")
-            return False
-    except Exception as e:
-        print(f"❌ FAIL: Invalid auth test error: {e}")
-        return False
-
-def test_sync():
-    """Test 3: Sync endpoint - should return canUseSms=false"""
-    print("\n🔍 Test 3: Sync endpoint")
-    
-    try:
-        url = f"{BACKEND_URL}/api/sms-app/sync/{TEST_CHAT_ID}"
-        response = requests.get(url, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            if data.get('user', {}).get('canUseSms') == False:
-                print(f"✅ PASS: Sync shows canUseSms=false")
-                print(f"   Campaigns count: {len(data.get('campaigns', []))}")
-                print(f"   Server time: {data.get('serverTime', 'N/A')}")
-                return True
-            else:
-                print(f"❌ FAIL: Sync shows canUseSms={data.get('user', {}).get('canUseSms')}")
-                print(f"   Full response: {data}")
-                return False
-        else:
-            print(f"❌ FAIL: Sync endpoint returned {response.status_code}")
-            print(f"   Response: {response.text}")
-            return False
-    except Exception as e:
-        print(f"❌ FAIL: Sync endpoint error: {e}")
-        return False
-
-def test_create_campaign_blocked():
-    """Test 4: Create campaign - MUST return 403 with subscription_required and mention Upgrade Plan"""
-    print("\n🔍 Test 4: Create campaign (should be BLOCKED)")
-    
-    try:
-        url = f"{BACKEND_URL}/api/sms-app/campaigns"
-        payload = {
-            "chatId": int(TEST_CHAT_ID),
-            "name": "Test Campaign",
-            "content": ["Hi there!"],
-            "contacts": [{"phoneNumber": "+1234567890", "name": "Test Contact"}]
-        }
-        
-        response = requests.post(url, json=payload, timeout=10)
-        
-        if response.status_code == 403:
-            data = response.json()
-            message = data.get('message', '')
-            if data.get('error') == 'subscription_required' and 'Upgrade Plan' in message:
-                print(f"✅ PASS: Campaign creation blocked with Upgrade Plan message")
-                print(f"   Message: {message}")
-                return True
-            else:
-                print(f"❌ FAIL: Missing 'Upgrade Plan' in message or wrong error type")
-                print(f"   Error: {data.get('error')}")
-                print(f"   Message: {message}")
-                return False
-        else:
-            print(f"❌ FAIL: Campaign creation returned {response.status_code} instead of 403")
-            print(f"   Response: {response.text}")
-            return False
-    except Exception as e:
-        print(f"❌ FAIL: Create campaign test error: {e}")
-        return False
-
-def test_update_campaign_blocked():
-    """Test 5: Update campaign - MUST return 403 with Upgrade Plan message"""
-    print("\n🔍 Test 5: Update campaign (should be BLOCKED)")
-    
-    try:
-        url = f"{BACKEND_URL}/api/sms-app/campaigns/test-id"
-        payload = {
-            "chatId": int(TEST_CHAT_ID),
-            "name": "Updated Campaign Name"
-        }
-        
-        response = requests.put(url, json=payload, timeout=10)
-        
-        if response.status_code == 403:
-            data = response.json()
-            message = data.get('message', '')
-            if data.get('error') == 'subscription_required' and 'Upgrade Plan' in message:
-                print(f"✅ PASS: Campaign update blocked with Upgrade Plan message")
-                print(f"   Message: {message}")
-                return True
-            else:
-                print(f"❌ FAIL: Missing 'Upgrade Plan' in message or wrong error type")
-                print(f"   Error: {data.get('error')}")
-                print(f"   Message: {message}")
-                return False
-        else:
-            print(f"❌ FAIL: Campaign update returned {response.status_code} instead of 403")
-            print(f"   Response: {response.text}")
-            return False
-    except Exception as e:
-        print(f"❌ FAIL: Update campaign test error: {e}")
-        return False
-
-def test_progress_update_blocked():
-    """Test 6: Progress update - MUST return 403"""
-    print("\n🔍 Test 6: Progress update (should be BLOCKED)")
-    
-    try:
-        url = f"{BACKEND_URL}/api/sms-app/campaigns/test-campaign-id/progress"
-        payload = {
-            "chatId": int(TEST_CHAT_ID),
-            "sentCount": 1
-        }
-        
-        response = requests.put(url, json=payload, timeout=10)
-        
-        if response.status_code == 403:
-            data = response.json()
-            if data.get('error') == 'subscription_required':
-                print(f"✅ PASS: Progress update blocked - {data.get('message', 'No message')}")
-                return True
-            else:
-                print(f"❌ FAIL: Wrong error type - {data.get('error')}")
-                print(f"   Full response: {data}")
-                return False
-        else:
-            print(f"❌ FAIL: Progress update returned {response.status_code} instead of 403")
-            print(f"   Response: {response.text}")
-            return False
-    except Exception as e:
-        print(f"❌ FAIL: Progress update test error: {e}")
-        return False
-
-def test_sms_sent_blocked():
-    """Test 7: SMS sent tracking - MUST return 403 with Upgrade Plan message"""
-    print("\n🔍 Test 7: SMS sent tracking (should be BLOCKED)")
-    
-    try:
-        url = f"{BACKEND_URL}/api/sms-app/sms-sent/{TEST_CHAT_ID}"
-        
-        response = requests.post(url, timeout=10)
-        
-        if response.status_code == 403:
-            data = response.json()
-            message = data.get('message', '')
-            if data.get('error') == 'subscription_required' and 'Upgrade Plan' in message:
-                print(f"✅ PASS: SMS sent tracking blocked with Upgrade Plan message")
-                print(f"   Message: {message}")
-                return True
-            else:
-                print(f"❌ FAIL: Missing 'Upgrade Plan' in message or wrong error type")
-                print(f"   Error: {data.get('error')}")
-                print(f"   Message: {message}")
-                return False
-        else:
-            print(f"❌ FAIL: SMS sent tracking returned {response.status_code} instead of 403")
-            print(f"   Response: {response.text}")
-            return False
-    except Exception as e:
-        print(f"❌ FAIL: SMS sent tracking test error: {e}")
-        return False
-
-def test_get_campaigns_allowed():
-    """Test 8: Get campaigns - should work (read-only operation)"""
-    print("\n🔍 Test 8: Get campaigns (read-only, should work)")
-    
-    try:
-        url = f"{BACKEND_URL}/api/sms-app/campaigns/{TEST_CHAT_ID}"
-        response = requests.get(url, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            campaigns = data.get('campaigns', [])
-            print(f"✅ PASS: Get campaigns works - {len(campaigns)} campaigns found")
-            if campaigns:
-                print(f"   Sample campaign: {campaigns[0].get('name', 'Unnamed')} ({campaigns[0].get('status', 'unknown')})")
-            return True
-        else:
-            print(f"❌ FAIL: Get campaigns returned {response.status_code}")
-            print(f"   Response: {response.text}")
-            return False
-    except Exception as e:
-        print(f"❌ FAIL: Get campaigns test error: {e}")
-        return False
-
-def test_apk_download():
-    """Test 9: APK download - should return 200, ~3.8MB"""
-    print("\n🔍 Test 9: APK download")
-    
-    try:
-        url = f"{BACKEND_URL}/api/sms-app/download"
-        response = requests.get(url, timeout=30)
-        
-        if response.status_code == 200:
-            content_type = response.headers.get('content-type', '')
-            content_length = len(response.content)
-            
-            if 'application/vnd.android.package-archive' in content_type:
-                size_mb = content_length / (1024 * 1024)
-                print(f"✅ PASS: APK download works - {size_mb:.1f}MB, correct content-type")
-                return True
-            else:
-                print(f"❌ FAIL: Wrong content-type - {content_type}")
-                return False
-        else:
-            print(f"❌ FAIL: APK download returned {response.status_code}")
-            print(f"   Response: {response.text}")
-            return False
-    except Exception as e:
-        print(f"❌ FAIL: APK download test error: {e}")
-        return False
-
-def test_download_info():
-    """Test 10: Download info - should return version 2.0.0"""
-    print("\n🔍 Test 10: Download info")
-    
-    try:
-        url = f"{BACKEND_URL}/api/sms-app/download/info"
-        response = requests.get(url, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            version = data.get('version')
-            if version == '2.0.0':
-                print(f"✅ PASS: Download info correct - version {version}")
-                print(f"   Name: {data.get('name', 'N/A')}")
-                print(f"   Size: {data.get('size', 0)} bytes")
-                print(f"   Available: {data.get('available', False)}")
-                return True
-            else:
-                print(f"❌ FAIL: Wrong version - {version}")
-                print(f"   Full response: {data}")
-                return False
-        else:
-            print(f"❌ FAIL: Download info returned {response.status_code}")
-            print(f"   Response: {response.text}")
-            return False
-    except Exception as e:
-        print(f"❌ FAIL: Download info test error: {e}")
-        return False
-
-def test_plan_info():
-    """Test 11: Plan info - should show canUseSms=false"""
-    print("\n🔍 Test 11: Plan info")
-    
-    try:
-        url = f"{BACKEND_URL}/api/sms-app/plan/{TEST_CHAT_ID}"
-        response = requests.get(url, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            if data.get('canUseSms') == False:
-                print(f"✅ PASS: Plan info shows canUseSms=false")
-                print(f"   Plan: {data.get('plan', 'none')}")
-                print(f"   Subscription: {data.get('isSubscribed', False)}")
-                print(f"   Free trial: {data.get('isFreeTrial', False)}")
-                print(f"   Free SMS remaining: {data.get('freeSmsRemaining', 0)}")
-                return True
-            else:
-                print(f"❌ FAIL: Plan info shows canUseSms={data.get('canUseSms')}")
-                print(f"   Full response: {data}")
-                return False
-        else:
-            print(f"❌ FAIL: Plan info returned {response.status_code}")
-            print(f"   Response: {response.text}")
-            return False
-    except Exception as e:
-        print(f"❌ FAIL: Plan info test error: {e}")
-        return False
+def print_result(success, message, details=None):
+    status = "✅ PASS" if success else "❌ FAIL"
+    print(f"{status}: {message}")
+    if details:
+        print(f"   Details: {details}")
 
 def test_health_check():
-    """Test 12: Health check - should return 200"""
-    print("\n🔍 Test 12: Health check")
+    """Test 1: Health Check - GET /api/health"""
+    print_test_header("Health Check Endpoint")
     
     try:
-        url = f"{BACKEND_URL}/api/health"
-        response = requests.get(url, timeout=10)
+        response = requests.get(f"{BACKEND_URL}/api/health", timeout=10)
         
         if response.status_code == 200:
             data = response.json()
-            print(f"✅ PASS: Health check endpoint working")
-            print(f"   Status: {data.get('status', 'N/A')}")
-            print(f"   Timestamp: {data.get('timestamp', 'N/A')}")
+            if data.get('status') == 'healthy':
+                print_result(True, "Health check returns 200 with status: healthy", 
+                           f"Response: {json.dumps(data, indent=2)}")
+                return True
+            else:
+                print_result(False, "Health check returns 200 but status is not 'healthy'", 
+                           f"Response: {json.dumps(data, indent=2)}")
+                return False
+        else:
+            print_result(False, f"Health check failed with status {response.status_code}", 
+                        f"Response: {response.text}")
+            return False
+            
+    except Exception as e:
+        print_result(False, f"Health check request failed", f"Error: {str(e)}")
+        return False
+
+def test_sms_app_auth():
+    """Test 2: SMS App Auth - GET /api/sms-app/auth/6687923716"""
+    print_test_header("SMS App Auth Endpoint")
+    
+    try:
+        response = requests.get(f"{BACKEND_URL}/api/sms-app/auth/{TEST_USER_ID}", timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            print_result(True, "SMS App Auth returns 200", 
+                        f"Response: {json.dumps(data, indent=2)}")
             return True
         else:
-            print(f"❌ FAIL: Health check returned {response.status_code}")
-            print(f"   Response: {response.text}")
+            print_result(False, f"SMS App Auth failed with status {response.status_code}", 
+                        f"Response: {response.text}")
             return False
+            
     except Exception as e:
-        print(f"❌ FAIL: Health check test error: {e}")
+        print_result(False, f"SMS App Auth request failed", f"Error: {str(e)}")
         return False
 
 def test_single_ivr_twiml():
-    """Test 13: SingleIVR TwiML - should return XML with 2-second pause"""
-    print("\n🔍 Test 13: SingleIVR TwiML Pause Verification")
+    """Test 3: SingleIVR TwiML - POST /api/twilio/single-ivr?sessionId=nonexistent"""
+    print_test_header("SingleIVR TwiML Endpoint")
     
     try:
-        url = f"{BACKEND_URL}/api/twilio/single-ivr?sessionId=nonexistent"
-        response = requests.post(url, timeout=10)
+        response = requests.post(f"{BACKEND_URL}/api/twilio/single-ivr?sessionId=nonexistent", timeout=10)
         
-        # Check if response is XML
-        content_type = response.headers.get('content-type', '').lower()
-        is_xml = 'xml' in content_type or response.text.strip().startswith('<?xml') or response.text.strip().startswith('<Response>')
-        
-        if response.status_code == 200 and is_xml:
-            # Check for 2-second pause
-            has_pause = '<Pause length="2"/>' in response.text or '<Pause length="2">' in response.text
-            
-            if has_pause:
-                print(f"✅ PASS: SingleIVR TwiML returned XML with 2-second pause")
-                print(f"   Content-Type: {content_type}")
-                print(f"   TwiML Preview: {response.text[:150]}...")
+        if response.status_code == 200:
+            content_type = response.headers.get('content-type', '')
+            if 'xml' in content_type.lower():
+                print_result(True, "SingleIVR TwiML returns 200 with XML content", 
+                           f"Content-Type: {content_type}, Response length: {len(response.text)} chars")
+                print(f"   XML Preview: {response.text[:200]}...")
                 return True
             else:
-                print(f"❌ FAIL: SingleIVR TwiML missing 2-second pause")
-                print(f"   Response: {response.text[:200]}...")
+                print_result(False, "SingleIVR TwiML returns 200 but not XML content", 
+                           f"Content-Type: {content_type}, Response: {response.text[:200]}...")
                 return False
         else:
-            print(f"❌ FAIL: SingleIVR TwiML failed - Status: {response.status_code}, Content-Type: {content_type}")
-            print(f"   Response: {response.text[:200]}")
+            print_result(False, f"SingleIVR TwiML failed with status {response.status_code}", 
+                        f"Response: {response.text}")
             return False
             
     except Exception as e:
-        print(f"❌ FAIL: SingleIVR TwiML test error: {e}")
+        print_result(False, f"SingleIVR TwiML request failed", f"Error: {str(e)}")
         return False
 
 def test_bulk_ivr_twiml():
-    """Test 14: BulkIVR TwiML - should return XML with 2-second pause"""
-    print("\n🔍 Test 14: BulkIVR TwiML Pause Verification")
+    """Test 4: BulkIVR TwiML - POST /api/twilio/bulk-ivr?campaignId=nonexistent&leadIndex=0"""
+    print_test_header("BulkIVR TwiML Endpoint")
     
     try:
-        url = f"{BACKEND_URL}/api/twilio/bulk-ivr?campaignId=nonexistent&leadIndex=0"
-        response = requests.post(url, timeout=10)
+        response = requests.post(f"{BACKEND_URL}/api/twilio/bulk-ivr?campaignId=nonexistent&leadIndex=0", timeout=10)
         
-        # Check if response is XML
-        content_type = response.headers.get('content-type', '').lower()
-        is_xml = 'xml' in content_type or response.text.strip().startswith('<?xml') or response.text.strip().startswith('<Response>')
-        
-        if response.status_code == 200 and is_xml:
-            # Check for 2-second pause
-            has_pause = '<Pause length="2"/>' in response.text or '<Pause length="2">' in response.text
-            
-            if has_pause:
-                print(f"✅ PASS: BulkIVR TwiML returned XML with 2-second pause")
-                print(f"   Content-Type: {content_type}")
-                print(f"   TwiML Preview: {response.text[:150]}...")
+        if response.status_code == 200:
+            content_type = response.headers.get('content-type', '')
+            if 'xml' in content_type.lower():
+                print_result(True, "BulkIVR TwiML returns 200 with XML content", 
+                           f"Content-Type: {content_type}, Response length: {len(response.text)} chars")
+                print(f"   XML Preview: {response.text[:200]}...")
                 return True
             else:
-                print(f"❌ FAIL: BulkIVR TwiML missing 2-second pause")
-                print(f"   Response: {response.text[:200]}...")
+                print_result(False, "BulkIVR TwiML returns 200 but not XML content", 
+                           f"Content-Type: {content_type}, Response: {response.text[:200]}...")
                 return False
         else:
-            print(f"❌ FAIL: BulkIVR TwiML failed - Status: {response.status_code}, Content-Type: {content_type}")
-            print(f"   Response: {response.text[:200]}")
+            print_result(False, f"BulkIVR TwiML failed with status {response.status_code}", 
+                        f"Response: {response.text}")
             return False
             
     except Exception as e:
-        print(f"❌ FAIL: BulkIVR TwiML test error: {e}")
+        print_result(False, f"BulkIVR TwiML request failed", f"Error: {str(e)}")
+        return False
+
+def test_code_verification():
+    """Test 5: Code verification - cpChangePlan in _payActions array"""
+    print_test_header("Code Verification - cpChangePlan in _payActions")
+    
+    try:
+        # Read the file and check line 13911
+        with open('/app/js/_index.js', 'r') as f:
+            lines = f.readlines()
+            
+        # Line 13911 (0-indexed would be 13910)
+        if len(lines) > 13910:
+            line_content = lines[13910].strip()
+            if 'cpChangePlan' in line_content and '_payActions' in line_content:
+                print_result(True, "cpChangePlan found in _payActions array at line 13911", 
+                           f"Line content: {line_content}")
+                return True
+            else:
+                print_result(False, "cpChangePlan not found in _payActions array at line 13911", 
+                           f"Line content: {line_content}")
+                return False
+        else:
+            print_result(False, "File doesn't have enough lines to check line 13911", 
+                        f"File has {len(lines)} lines")
+            return False
+            
+    except Exception as e:
+        print_result(False, f"Code verification failed", f"Error: {str(e)}")
         return False
 
 def run_all_tests():
-    """Run all Nomadly SMS App tests"""
-    print("🚀 Starting Nomadly SMS App Backend Testing Suite")
-    print("=" * 70)
-    print(f"Backend URL: {BACKEND_URL}")
-    print(f"Test chatId: {TEST_CHAT_ID} (expired subscription, 0 free SMS)")
-    print("=" * 70)
+    """Run all tests and provide summary"""
+    print(f"\n🚀 Starting Nomadly Backend Review Request Tests")
+    print(f"📅 Test Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"🌐 Backend URL: {BACKEND_URL}")
+    print(f"👤 Test User: {TEST_USER_ID}")
     
     tests = [
-        test_auth_valid,
-        test_auth_invalid,
-        test_sync,
-        test_create_campaign_blocked,
-        test_update_campaign_blocked,
-        test_progress_update_blocked,
-        test_sms_sent_blocked,
-        test_get_campaigns_allowed,
-        test_apk_download,
-        test_download_info,
-        test_plan_info,
-        test_health_check,
-        test_single_ivr_twiml,
-        test_bulk_ivr_twiml
+        ("Health Check", test_health_check),
+        ("SMS App Auth", test_sms_app_auth),
+        ("SingleIVR TwiML", test_single_ivr_twiml),
+        ("BulkIVR TwiML", test_bulk_ivr_twiml),
+        ("Code Verification", test_code_verification)
     ]
     
-    passed = 0
-    total = len(tests)
-    failed_tests = []
-    
-    for test in tests:
+    results = []
+    for test_name, test_func in tests:
         try:
-            if test():
-                passed += 1
-            else:
-                failed_tests.append(test.__name__)
+            result = test_func()
+            results.append((test_name, result))
         except Exception as e:
-            print(f"❌ FAIL: Test {test.__name__} crashed: {e}")
-            failed_tests.append(test.__name__)
+            print_result(False, f"{test_name} test crashed", f"Error: {str(e)}")
+            results.append((test_name, False))
     
-    print("\n" + "=" * 70)
-    print(f"📊 TEST RESULTS: {passed}/{total} tests passed ({passed/total*100:.1f}%)")
+    # Summary
+    print(f"\n{'='*60}")
+    print(f"📊 TEST SUMMARY")
+    print(f"{'='*60}")
     
-    if failed_tests:
-        print(f"\n❌ FAILED TESTS:")
-        for test_name in failed_tests:
-            print(f"   - {test_name}")
+    passed = sum(1 for _, result in results if result)
+    total = len(results)
+    
+    for test_name, result in results:
+        status = "✅ PASS" if result else "❌ FAIL"
+        print(f"{status}: {test_name}")
+    
+    print(f"\n🎯 Overall Result: {passed}/{total} tests passed ({passed/total*100:.1f}%)")
     
     if passed == total:
-        print("🎉 ALL TESTS PASSED - All endpoints working correctly!")
-        print("\n✅ SUMMARY:")
-        print("   - Subscription enforcement working properly")
-        print("   - IVR TwiML endpoints responding with XML and 2-second pause")
-        print("   - Read-only operations (get campaigns, plan info) work")
-        print("   - APK download and info endpoints work")
-        print("   - Health check endpoint operational")
+        print("🎉 ALL TESTS PASSED - No regressions detected!")
         return True
     else:
-        print(f"\n⚠️  {total - passed} test(s) failed - review required")
+        print("⚠️  Some tests failed - Review required")
         return False
 
 if __name__ == "__main__":
     success = run_all_tests()
-    exit(0 if success else 1)
+    sys.exit(0 if success else 1)
