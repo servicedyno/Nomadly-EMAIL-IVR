@@ -26183,11 +26183,48 @@ app.post('/twilio/inbound-ivr-gather', async (req, res) => {
 
     if ((action === 'transfer' || action === 'forward') && (option.number || option.forwardTo)) {
       const transferTo = option.number || option.forwardTo
-      response.say(`Connecting you now. Please hold.`)
-      const dial = response.dial({ callerId: decodedTo, timeout: 30 })
-      dial.number(transferTo)
-      log(`[Twilio] IVR transferring to ${transferTo} (key ${Digits}: ${label})`)
-      bot?.sendMessage(chatId, `📞 <b>IVR Call — Key ${Digits}</b>\nFrom: ${phoneConfig.formatPhone(decodedFrom)}\n🔗 Transferring to: ${transferTo}\n📋 ${label}`, { parse_mode: 'HTML' }).catch(() => {})
+      const recordingEnabled = num?.features?.recording === true
+
+      // ── Wallet check + rate calculation (same as regular forwarding) ──
+      const RATE = parseFloat(process.env.CALL_FORWARDING_RATE_MIN || '0.50')
+      const { usdBal } = await getBalance(walletOf, chatId)
+
+      if (usdBal < RATE) {
+        // Insufficient wallet — try voicemail fallback
+        const vmConfig = num?.features?.voicemail || {}
+        if (vmConfig?.enabled) {
+          response.say('We are unable to connect your call at this time. Please leave a message after the beep.')
+          response.record({
+            action: `${SELF_URL}/twilio/voicemail-complete?chatId=${chatId}&from=${encodeURIComponent(decodedFrom)}&to=${encodeURIComponent(decodedTo)}`,
+            maxLength: 120, playBeep: true, timeout: 5,
+          })
+          bot?.sendMessage(chatId, `📞 <b>IVR Forward Blocked</b>\nFrom: ${phoneConfig.formatPhone(decodedFrom)}\n🚫 Wallet $${usdBal.toFixed(2)} < $${RATE}/min → Sent to voicemail`, { parse_mode: 'HTML' }).catch(() => {})
+        } else {
+          response.say('We are unable to connect your call at this time. Please try again later.')
+          response.hangup()
+          bot?.sendMessage(chatId, `📞 <b>IVR Forward Blocked</b>\nFrom: ${phoneConfig.formatPhone(decodedFrom)}\n🚫 Wallet $${usdBal.toFixed(2)} (need $${RATE}/min)\n💡 Top up via 👛 Wallet`, { parse_mode: 'HTML' }).catch(() => {})
+        }
+      } else {
+        // ── Compute timeLimit based on wallet balance (prevent overspending) ──
+        const fwdTimeLimit = computeDialTimeLimit('forwarding', { walletBalance: usdBal, ratePerMinute: RATE })
+        log(`[Twilio] IVR forward timeLimit: ${fwdTimeLimit}s (wallet=$${usdBal.toFixed(2)}, rate=$${RATE}/min)`)
+
+        response.say('Connecting you now. Please hold.')
+        const dialOpts = {
+          callerId: decodedTo,
+          timeout: 30,
+          timeLimit: fwdTimeLimit,
+          action: `${SELF_URL}/twilio/voice-dial-status?chatId=${chatId}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&fwdTo=${encodeURIComponent(transferTo)}`
+        }
+        if (recordingEnabled) {
+          dialOpts.record = 'record-from-answer-dual'
+          dialOpts.recordingStatusCallback = `${SELF_URL}/twilio/recording-status`
+        }
+        const dial = response.dial(dialOpts)
+        dial.number(transferTo)
+        log(`[Twilio] IVR transferring to ${transferTo} (key ${Digits}: ${label}) wallet=$${usdBal.toFixed(2)} rate=$${RATE}/min`)
+        bot?.sendMessage(chatId, `📞 <b>IVR Call — Key ${Digits}</b>\nFrom: ${phoneConfig.formatPhone(decodedFrom)}\n🔗 Transferring to: ${phoneConfig.formatPhone(transferTo)}\n💳 $${RATE}/min from wallet · Balance: $${usdBal.toFixed(2)}`, { parse_mode: 'HTML' }).catch(() => {})
+      }
     } else if (action === 'voicemail') {
       const vmConfig = num?.features?.voicemail || {}
       if (vmConfig.greetingType === 'custom' && vmConfig.customAudioGreetingUrl) {
@@ -26849,7 +26886,7 @@ app.post('/twilio/voice-dial-status', async (req, res) => {
   const voiceService = require('./voice-service.js')
   try {
     const { DialCallStatus, DialCallDuration, CallSid } = req.body || {}
-    const { chatId: rawChatId, from, to, type } = req.query || {}
+    const { chatId: rawChatId, from, to, type, fwdTo } = req.query || {}
     const chatId = rawChatId ? parseInt(rawChatId) : null
     const response = new VoiceResponse()
 
@@ -26863,9 +26900,11 @@ app.post('/twilio/voice-dial-status', async (req, res) => {
         try {
           const decodedTo = decodeURIComponent(to)
           // Determine destination for rate calculation
-          const destination = type === 'sip_bridge' || type === 'sip_outbound'
-            ? decodeURIComponent(from || '')
-            : ''  // Will be resolved inside billing
+          // fwdTo: explicit IVR forward destination (passed from inbound-ivr-gather)
+          const destination = fwdTo ? decodeURIComponent(fwdTo)
+            : (type === 'sip_bridge' || type === 'sip_outbound')
+              ? decodeURIComponent(from || '')
+              : ''  // Will be resolved inside billing
           // Try unified billing first
           const userData = await get(phoneNumbersOf, chatId)
           const numbers = userData?.numbers || []
@@ -26948,13 +26987,13 @@ app.post('/twilio/voice-dial-status', async (req, res) => {
       const vmConfig = num?.features?.voicemail
 
       // Notify user about the forward failure
-      const fwdTo = num?.features?.callForwarding?.forwardTo || 'unknown'
+      const fwdTarget = fwdTo ? decodeURIComponent(fwdTo) : (num?.features?.callForwarding?.forwardTo || 'unknown')
       const reason = DialCallStatus === 'no-answer' ? 'No answer'
         : DialCallStatus === 'busy' ? 'Line busy'
         : DialCallStatus === 'failed' ? 'Call failed'
         : DialCallStatus === 'canceled' ? 'Cancelled'
         : DialCallStatus || 'Unknown'
-      bot?.sendMessage(chatId, `❌ <b>Forward Failed</b> — ${reason}\nFrom: ${decodedFrom}\n📲 ${fwdTo} didn't answer`, { parse_mode: 'HTML' }).catch(() => {})
+      bot?.sendMessage(chatId, `❌ <b>Forward Failed</b> — ${reason}\nFrom: ${decodedFrom}\n📲 ${fwdTarget} didn't answer`, { parse_mode: 'HTML' }).catch(() => {})
 
       if (vmConfig?.enabled) {
         if (vmConfig.greetingType === 'custom' && vmConfig.customAudioGreetingUrl) {

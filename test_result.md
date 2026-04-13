@@ -231,6 +231,20 @@ Rebuild NomadlySMSfix Android app as Capacitor hybrid with subscription enforcem
 - **File changed**: `js/_index.js` (line 26184)
 - **Railway logs confirmed**: 3 separate calls (CA62f6, CAd5403, CAf5662) all showed `digits=2` followed by `completed` within 6-7s with no transfer log — proving the call was dropping immediately.
 
+### Billing Fix: IVR Forward Calls Not Being Billed (FIXED)
+- **Symptom**: IVR forwarded calls (Press 2 → Forward to number) were not charging the user's wallet. Only the inbound leg was billed as `Twilio_Inbound` — the outbound forwarding leg was completely free.
+- **Root Cause**: The `/twilio/inbound-ivr-gather` handler's Dial verb had:
+  - No `action` callback URL → `voice-dial-status` never called → no billing
+  - No `timeLimit` → calls could run indefinitely without wallet cap
+  - No wallet balance check → forwards proceeded even with $0 wallet
+- **Fix**: Added full billing parity with regular call forwarding:
+  1. **Wallet check** — blocks forward if wallet < $0.50/min, falls back to voicemail
+  2. **timeLimit** — `computeDialTimeLimit('forwarding', ...)` caps call duration based on wallet balance
+  3. **action callback** — routes to `/twilio/voice-dial-status?fwdTo=<number>` for proper `Twilio_Forwarding` billing
+  4. **Recording support** — if enabled on the number, records forwarded calls
+  5. **Updated `voice-dial-status`** — now accepts `fwdTo` query param for correct IVR forward destination resolution in billing + notifications
+- **Files changed**: `js/_index.js` (inbound-ivr-gather handler + voice-dial-status handler)
+
 ## Incorporate User Feedback
 - Follow testing agent suggestions for bug fixes
 
