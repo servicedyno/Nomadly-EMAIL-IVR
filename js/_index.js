@@ -489,7 +489,7 @@ const { initDailyCoupons } = require('./daily-coupons.js')
 const telnyxApi = require('./telnyx-service.js')
 const twilioService = require('./twilio-service.js')
 const { handleInboundSms, initSmsLimits } = require('./sms-service.js')
-const { handleVoiceWebhook, initVoiceService, getIvrAnalytics, incrementSmsUsed, isSmsLimitReached, pendingBridges, initUserWalletMonitor } = require('./voice-service.js')
+const { handleVoiceWebhook, initVoiceService, getIvrAnalytics, trackIvrAnalytics, incrementSmsUsed, isSmsLimitReached, pendingBridges, initUserWalletMonitor } = require('./voice-service.js')
 const { initCnamService, lookupCnam, batchLookupCnam, getCircuitStatus } = require('./cnam-service.js')
 const phoneConfig = require('./phone-config.js')
 const ttsService = require('./tts-service.js')
@@ -26257,6 +26257,9 @@ app.post('/twilio/inbound-ivr-gather', async (req, res) => {
     }
     if (req.body?.CallSid) logEntry.callSid = req.body.CallSid
     await db.collection('phoneLogs').insertOne(logEntry)
+
+    // Track in IVR analytics (same as Telnyx handler — feeds the IVR Analytics dashboard)
+    trackIvrAnalytics(decodedTo, chatId, decodedFrom, Digits, action)
 
     res.type('text/xml').send(response.toString())
   } catch (error) {

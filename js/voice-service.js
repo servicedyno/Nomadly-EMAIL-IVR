@@ -4247,4 +4247,5 @@ module.exports = {
   getTelnyxVoice,
   registerRecentTestCredential,
   lookupRecentTestCredential,
+  trackIvrAnalytics,
 }
