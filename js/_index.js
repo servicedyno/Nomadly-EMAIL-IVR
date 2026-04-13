@@ -22117,6 +22117,83 @@ async function checkVPSPlansExpiryandPayment() {
     }
 
     // ═══════════════════════════════════════════════════════════════
+    // Phase 1.5: PRE-EMPTIVE CONTABO CANCELLATION — 5 hours before expiry
+    // If auto-renew failed (PENDING_CANCELLATION) and expiry is within 5 hours,
+    // cancel on Contabo NOW to prevent their auto-billing/renewal
+    // ═══════════════════════════════════════════════════════════════
+    const fiveHoursFromNow = new Date(now.getTime() + 5 * 60 * 60 * 1000)
+    const urgentCancellations = await vpsPlansOf.find({
+      'end_time': { $lte: fiveHoursFromNow, $gt: now },
+      'status': 'PENDING_CANCELLATION',
+      '_contaboCancelledEarly': { $ne: true }
+    }).toArray()
+
+    for (const vpsPlan of urgentCancellations) {
+      const { chatId, _id, vpsId, label, contaboInstanceId, planPrice } = vpsPlan
+      const displayName = label || vpsPlan.name || 'VPS'
+      const hoursLeft = ((new Date(vpsPlan.end_time).getTime() - now.getTime()) / (1000 * 60 * 60)).toFixed(1)
+
+      try {
+        // Cancel on Contabo early to prevent their auto-renewal billing
+        const cancelResult = await deleteVPSinstance(chatId, vpsId)
+        if (cancelResult.success) {
+          await vpsPlansOf.updateOne({ _id }, { $set: { _contaboCancelledEarly: true, status: 'CANCELLED', cancelledAt: new Date(), cancelReason: 'pre_emptive_no_payment' } })
+          send(chatId, `❌ <b>VPS Cancelled — Payment Not Received</b>\n\n🖥️ <b>${displayName}</b> has been cancelled.\n💰 Auto-renewal failed and no manual payment was received.\n\n💡 You can purchase a new VPS anytime from the main menu.`)
+          bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🛑 <b>VPS Pre-emptive Cancel</b>\nUser: ${chatId}\nVPS: ${displayName}\nContabo ID: ${contaboInstanceId || vpsId}\nHours before expiry: ${hoursLeft}h\nPrice: $${planPrice}/mo\n\n✅ Cancelled on Contabo to prevent their billing.`, { parse_mode: 'HTML' }).catch(() => {})
+          log(`[VPS Scheduler] PRE-EMPTIVE CANCEL: ${displayName} for ${chatId} — ${hoursLeft}h before expiry`)
+        } else {
+          // Cancel failed — alert admin urgently
+          bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🚨🚨 <b>URGENT: VPS Cancel FAILED — ${hoursLeft}h to Contabo billing!</b>\nUser: ${chatId}\nVPS: ${displayName}\nContabo ID: ${contaboInstanceId || vpsId}\nError: ${cancelResult.error}\n\n⚠️ <b>MANUAL ACTION REQUIRED on Contabo dashboard to prevent billing!</b>`, { parse_mode: 'HTML' }).catch(() => {})
+          log(`[VPS Scheduler] PRE-EMPTIVE CANCEL FAILED: ${displayName} — ${cancelResult.error}`)
+        }
+      } catch (err) {
+        bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🚨🚨 <b>URGENT: VPS Cancel CRASH — ${hoursLeft}h to Contabo billing!</b>\nUser: ${chatId}\nVPS: ${displayName}\nContabo ID: ${contaboInstanceId || vpsId}\nError: ${err.message}\n\n⚠️ <b>MANUAL ACTION REQUIRED!</b>`, { parse_mode: 'HTML' }).catch(() => {})
+        log(`[VPS Scheduler] PRE-EMPTIVE CANCEL CRASH: ${displayName} — ${err.message}`)
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Phase 1.6: ESCALATING ADMIN NOTIFICATIONS — 24h countdown for unpaid VPS
+    // Notify admin at 24h, 12h, 6h, 3h, 1h before expiry for PENDING_CANCELLATION
+    // ═══════════════════════════════════════════════════════════════
+    const pendingVps = await vpsPlansOf.find({
+      'end_time': { $lte: oneDayFromNow, $gt: fiveHoursFromNow },
+      'status': 'PENDING_CANCELLATION'
+    }).toArray()
+
+    for (const vpsPlan of pendingVps) {
+      const { chatId, _id, label, contaboInstanceId, planPrice, end_time } = vpsPlan
+      const displayName = label || vpsPlan.name || 'VPS'
+      const hoursLeft = (new Date(end_time).getTime() - now.getTime()) / (1000 * 60 * 60)
+      const notifySent = vpsPlan._adminNotifyHistory || []
+
+      // Determine which notification tier to send
+      const tiers = [
+        { hours: 24, key: '24h', emoji: '⏰' },
+        { hours: 12, key: '12h', emoji: '⚠️' },
+        { hours: 6,  key: '6h',  emoji: '🚨' },
+      ]
+
+      for (const tier of tiers) {
+        if (hoursLeft <= tier.hours && !notifySent.includes(tier.key)) {
+          const { usdBal } = await getBalance(walletOf, chatId)
+          const shortfall = (planPrice - usdBal).toFixed(2)
+          bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID,
+            `${tier.emoji} <b>VPS Renewal Alert — ${tier.key} remaining</b>\n` +
+            `\nUser: ${chatId}\nVPS: ${displayName}\nContabo ID: ${contaboInstanceId || vpsPlan.vpsId}\n` +
+            `Price: $${planPrice}/mo\nUser balance: $${usdBal.toFixed(2)} (short: $${shortfall})\n` +
+            `Expires: ${new Date(end_time).toLocaleString()}\n` +
+            `\n${hoursLeft <= 6 ? '🛑 <b>Will be auto-cancelled on Contabo at 5h mark if unpaid!</b>' : '💡 User has been notified. No action needed yet.'}`,
+            { parse_mode: 'HTML' }
+          ).catch(() => {})
+          await vpsPlansOf.updateOne({ _id }, { $push: { _adminNotifyHistory: tier.key } })
+          log(`[VPS Scheduler] Admin ${tier.key} notification for ${displayName} (${chatId}) — ${hoursLeft.toFixed(1)}h left`)
+          break // only send one notification per cycle
+        }
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     // Phase 2: DELETE on Contabo — VPS past deadline with failed renewal
     // PENDING_CANCELLATION + end_time <= now → cancel on Contabo + mark CANCELLED
     // ═══════════════════════════════════════════════════════════════

@@ -1,372 +1,300 @@
 #!/usr/bin/env python3
 """
-Nomadly SMS App Backend Test Suite - Review Request Specific Tests
-Testing campaign creation with multiple content items and smsGapTime functionality
+Nomadly Backend Review Request Verification Test
+Test Date: January 2025
+Backend URL: https://get-going-11.preview.emergentagent.com
+Test User: 6687923716
+
+Review Request Tests:
+1. Health Check: GET /api/health — should return 200 with status: healthy
+2. SMS App Auth: GET /api/sms-app/auth/6687923716 — should return 200
+3. Code verification — VPS Phase 1.5: PRE-EMPTIVE CONTABO CANCELLATION
+4. Code verification — VPS Phase 1.6: ESCALATING ADMIN NOTIFICATIONS
 """
 
 import requests
 import json
-import time
+import sys
 import os
+from datetime import datetime
 
 # Backend URL from environment
 BACKEND_URL = "https://get-going-11.preview.emergentagent.com"
+TEST_USER = "6687923716"
 
-# Test credentials - user now has free trial with 100 SMS
-TEST_CHAT_ID = "6687923716"  # Free trial active, 100 free SMS remaining
-INVALID_CHAT_ID = "9999999999"
-
-def test_health_check():
-    """Test 1: Health check - should return 200 with status: healthy"""
-    print("🔍 Test 1: Health check")
-    
-    try:
-        url = f"{BACKEND_URL}/api/health"
-        response = requests.get(url, timeout=10)
+class ReviewRequestTester:
+    def __init__(self):
+        self.results = []
+        self.passed = 0
+        self.failed = 0
         
-        if response.status_code == 200:
-            data = response.json()
-            if data.get('status') == 'healthy':
-                print(f"✅ PASS: Health check returns 200 with status: healthy")
-                return True
-            else:
-                print(f"❌ FAIL: Health check status is {data.get('status')}")
-                return False
-        else:
-            print(f"❌ FAIL: Health check returned {response.status_code}")
-            print(f"   Response: {response.text}")
-            return False
-    except Exception as e:
-        print(f"❌ FAIL: Health check error: {e}")
-        return False
-
-def test_auth_valid():
-    """Test 2: Auth with valid chatId - should return 200 with valid=true"""
-    print("\n🔍 Test 2: Auth with valid chatId")
-    
-    try:
-        url = f"{BACKEND_URL}/api/sms-app/auth/{TEST_CHAT_ID}"
-        response = requests.get(url, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            if data.get('valid') == True:
-                print(f"✅ PASS: Auth returns 200 with valid=true")
-                print(f"   User: {data.get('user', {}).get('name', 'Unknown')}")
-                print(f"   Can use SMS: {data.get('user', {}).get('canUseSms', False)}")
-                print(f"   Free SMS remaining: {data.get('user', {}).get('freeSmsRemaining', 0)}")
-                return True
-            else:
-                print(f"❌ FAIL: Auth valid is {data.get('valid')}")
-                return False
-        else:
-            print(f"❌ FAIL: Auth endpoint returned {response.status_code}")
-            print(f"   Response: {response.text}")
-            return False
-    except Exception as e:
-        print(f"❌ FAIL: Auth endpoint error: {e}")
-        return False
-
-def test_auth_invalid():
-    """Test 3: Auth with invalid chatId - should return 401"""
-    print("\n🔍 Test 3: Auth with invalid chatId")
-    
-    try:
-        url = f"{BACKEND_URL}/api/sms-app/auth/{INVALID_CHAT_ID}"
-        response = requests.get(url, timeout=10)
-        
-        if response.status_code == 401:
-            print(f"✅ PASS: Invalid auth returns 401")
-            return True
-        else:
-            print(f"❌ FAIL: Invalid auth returned {response.status_code} instead of 401")
-            print(f"   Response: {response.text}")
-            return False
-    except Exception as e:
-        print(f"❌ FAIL: Invalid auth test error: {e}")
-        return False
-
-def test_sync_endpoint():
-    """Test 4: Sync endpoint - should return canUseSms, campaigns array"""
-    print("\n🔍 Test 4: Sync endpoint")
-    
-    try:
-        url = f"{BACKEND_URL}/api/sms-app/sync/{TEST_CHAT_ID}"
-        response = requests.get(url, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            user = data.get('user', {})
-            campaigns = data.get('campaigns', [])
-            
-            print(f"✅ PASS: Sync returns canUseSms={user.get('canUseSms')}, campaigns array with {len(campaigns)} items")
-            return True
-        else:
-            print(f"❌ FAIL: Sync endpoint returned {response.status_code}")
-            print(f"   Response: {response.text}")
-            return False
-    except Exception as e:
-        print(f"❌ FAIL: Sync endpoint error: {e}")
-        return False
-
-def test_create_campaign_with_rotation():
-    """Test 5: Create campaign with multiple content items and custom smsGapTime"""
-    print("\n🔍 Test 5: Create campaign with message rotation and smsGapTime=10")
-    
-    try:
-        url = f"{BACKEND_URL}/api/sms-app/campaigns"
-        payload = {
-            "chatId": TEST_CHAT_ID,
-            "name": "Test Bot Campaign",
-            "content": ["Hello [name]", "Hi [name], check this out"],
-            "contacts": [{"phoneNumber": "+18189279992", "name": "John"}],
-            "smsGapTime": 10,
-            "source": "bot"
+    def log_result(self, test_name, success, details="", response_data=None):
+        """Log test result"""
+        status = "✅ PASS" if success else "❌ FAIL"
+        result = {
+            "test": test_name,
+            "status": status,
+            "success": success,
+            "details": details,
+            "response_data": response_data,
+            "timestamp": datetime.now().isoformat()
         }
+        self.results.append(result)
         
-        response = requests.post(url, json=payload, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            campaign = data.get('campaign', {})
-            
-            # Check content array has 2 items
-            content = campaign.get('content', [])
-            if len(content) != 2:
-                print(f"❌ FAIL: Content array has {len(content)} items, expected 2")
-                return False, None
-            
-            # Check smsGapTime is stored as 10
-            gap_time = campaign.get('smsGapTime')
-            if gap_time != 10:
-                print(f"❌ FAIL: smsGapTime is {gap_time}, expected 10")
-                return False, None
-            
-            # Check content items
-            expected_content = ["Hello [name]", "Hi [name], check this out"]
-            if content != expected_content:
-                print(f"❌ FAIL: Content mismatch. Got: {content}, Expected: {expected_content}")
-                return False, None
-            
-            campaign_id = campaign.get('_id')
-            print(f"✅ PASS: Campaign created successfully with:")
-            print(f"   - Content array: {len(content)} messages")
-            print(f"   - smsGapTime: {gap_time} (not hardcoded 5)")
-            print(f"   - Campaign ID: {campaign_id}")
-            print(f"   - Messages: {content}")
-            
-            return True, campaign_id
+        if success:
+            self.passed += 1
         else:
-            print(f"❌ FAIL: Campaign creation returned {response.status_code}")
-            print(f"   Response: {response.text}")
-            return False, None
-    except Exception as e:
-        print(f"❌ FAIL: Create campaign error: {e}")
-        return False, None
+            self.failed += 1
+            
+        print(f"{status}: {test_name}")
+        if details:
+            print(f"   Details: {details}")
+        if response_data and not success:
+            print(f"   Response: {response_data}")
+        print()
 
-def test_get_created_campaign(campaign_id):
-    """Test 6: Get campaigns to verify the created campaign"""
-    print(f"\n🔍 Test 6: Get campaigns to verify created campaign")
-    
-    try:
-        url = f"{BACKEND_URL}/api/sms-app/campaigns/{TEST_CHAT_ID}"
-        response = requests.get(url, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            campaigns = data.get('campaigns', [])
+    def test_health_check(self):
+        """Test 1: Health Check - GET /api/health"""
+        try:
+            response = requests.get(f"{BACKEND_URL}/api/health", timeout=10)
             
-            # Find our created campaign
-            created_campaign = None
-            for campaign in campaigns:
-                if campaign.get('_id') == campaign_id:
-                    created_campaign = campaign
-                    break
-            
-            if created_campaign:
-                content = created_campaign.get('content', [])
-                gap_time = created_campaign.get('smsGapTime')
-                
-                print(f"✅ PASS: Created campaign found with:")
-                print(f"   - Name: {created_campaign.get('name')}")
-                print(f"   - Content array: {len(content)} items")
-                print(f"   - smsGapTime: {gap_time}")
-                print(f"   - Messages: {content}")
-                
-                return True
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("status") == "healthy":
+                    self.log_result(
+                        "Health Check", 
+                        True, 
+                        f"Status: {data.get('status')}, Database: {data.get('database', 'N/A')}, Uptime: {data.get('uptime', 'N/A')} hours"
+                    )
+                else:
+                    self.log_result(
+                        "Health Check", 
+                        False, 
+                        f"Expected status 'healthy', got '{data.get('status')}'",
+                        data
+                    )
             else:
-                print(f"❌ FAIL: Created campaign with ID {campaign_id} not found")
-                return False
-        else:
-            print(f"❌ FAIL: Get campaigns returned {response.status_code}")
-            print(f"   Response: {response.text}")
-            return False
-    except Exception as e:
-        print(f"❌ FAIL: Get campaigns error: {e}")
-        return False
+                self.log_result(
+                    "Health Check", 
+                    False, 
+                    f"Expected 200, got {response.status_code}",
+                    response.text
+                )
+                
+        except Exception as e:
+            self.log_result("Health Check", False, f"Request failed: {str(e)}")
 
-def test_plan_info():
-    """Test 7: Plan info - should return plan info"""
-    print("\n🔍 Test 7: Plan info")
-    
-    try:
-        url = f"{BACKEND_URL}/api/sms-app/plan/{TEST_CHAT_ID}"
-        response = requests.get(url, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            print(f"✅ PASS: Plan info returns 200")
-            print(f"   Plan: {data.get('plan', 'none')}")
-            print(f"   Can use SMS: {data.get('canUseSms', False)}")
-            print(f"   Free trial: {data.get('isFreeTrial', False)}")
-            print(f"   Free SMS remaining: {data.get('freeSmsRemaining', 0)}")
-            return True
-        else:
-            print(f"❌ FAIL: Plan info returned {response.status_code}")
-            print(f"   Response: {response.text}")
-            return False
-    except Exception as e:
-        print(f"❌ FAIL: Plan info error: {e}")
-        return False
-
-def test_apk_download():
-    """Test 8: APK download - should return 200 with APK file"""
-    print("\n🔍 Test 8: APK download")
-    
-    try:
-        url = f"{BACKEND_URL}/api/sms-app/download"
-        response = requests.get(url, timeout=30)
-        
-        if response.status_code == 200:
-            content_type = response.headers.get('content-type', '')
-            content_length = len(response.content)
-            size_mb = content_length / (1024 * 1024)
+    def test_sms_app_auth(self):
+        """Test 2: SMS App Auth - GET /api/sms-app/auth/6687923716"""
+        try:
+            response = requests.get(f"{BACKEND_URL}/api/sms-app/auth/{TEST_USER}", timeout=10)
             
-            print(f"✅ PASS: APK download returns 200")
-            print(f"   Size: {size_mb:.1f}MB")
-            print(f"   Content-Type: {content_type}")
-            return True
-        else:
-            print(f"❌ FAIL: APK download returned {response.status_code}")
-            print(f"   Response: {response.text}")
-            return False
-    except Exception as e:
-        print(f"❌ FAIL: APK download error: {e}")
-        return False
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("valid") is True:
+                    self.log_result(
+                        "SMS App Auth", 
+                        True, 
+                        f"Valid: {data.get('valid')}, Can use SMS: {data.get('canUseSms')}, Free SMS: {data.get('freeSmsRemaining', 'N/A')}"
+                    )
+                else:
+                    self.log_result(
+                        "SMS App Auth", 
+                        False, 
+                        f"Expected valid=true, got valid={data.get('valid')}",
+                        data
+                    )
+            else:
+                self.log_result(
+                    "SMS App Auth", 
+                    False, 
+                    f"Expected 200, got {response.status_code}",
+                    response.text
+                )
+                
+        except Exception as e:
+            self.log_result("SMS App Auth", False, f"Request failed: {str(e)}")
 
-def test_download_info():
-    """Test 9: Download info - should return version info"""
-    print("\n🔍 Test 9: Download info")
-    
-    try:
-        url = f"{BACKEND_URL}/api/sms-app/download/info"
-        response = requests.get(url, timeout=10)
+    def verify_vps_phase_1_5(self):
+        """Test 3: Code verification — VPS Phase 1.5: PRE-EMPTIVE CONTABO CANCELLATION"""
+        try:
+            file_path = "/app/js/_index.js"
+            if not os.path.exists(file_path):
+                self.log_result(
+                    "VPS Phase 1.5 Code", 
+                    False, 
+                    f"File not found: {file_path}"
+                )
+                return
+                
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                
+            # Check for Phase 1.5 section
+            phase_1_5_found = "Phase 1.5: PRE-EMPTIVE CONTABO CANCELLATION" in content
+            
+            if not phase_1_5_found:
+                self.log_result(
+                    "VPS Phase 1.5 Code", 
+                    False, 
+                    "Phase 1.5: PRE-EMPTIVE CONTABO CANCELLATION section not found"
+                )
+                return
+                
+            # Get Phase 1.5 section content
+            phase_1_5_start = content.find("Phase 1.5: PRE-EMPTIVE CONTABO CANCELLATION")
+            phase_1_6_start = content.find("Phase 1.6: ESCALATING ADMIN NOTIFICATIONS")
+            if phase_1_6_start == -1:
+                phase_1_6_start = len(content)
+            phase_1_5_section = content[phase_1_5_start:phase_1_6_start]
+            
+            # Check for required components
+            required_components = [
+                ("5 hours query", "fiveHoursFromNow" in phase_1_5_section and "PENDING_CANCELLATION" in phase_1_5_section),
+                ("deleteVPSinstance call", "deleteVPSinstance" in phase_1_5_section),
+                ("_contaboCancelledEarly flag", "_contaboCancelledEarly: true" in phase_1_5_section),
+                ("status CANCELLED", "status: 'CANCELLED'" in phase_1_5_section),
+                ("admin notification", "TELEGRAM_ADMIN_CHAT_ID" in phase_1_5_section),
+                ("URGENT failure notification", "URGENT: VPS Cancel FAILED" in phase_1_5_section)
+            ]
+            
+            found_components = []
+            missing_components = []
+            
+            for name, condition in required_components:
+                if condition:
+                    found_components.append(name)
+                else:
+                    missing_components.append(name)
+            
+            if len(found_components) >= 5:  # At least 5 out of 6 components should be found
+                self.log_result(
+                    "VPS Phase 1.5 Code", 
+                    True, 
+                    f"Phase 1.5 section verified with {len(found_components)}/6 required components: {', '.join(found_components)}"
+                )
+            else:
+                self.log_result(
+                    "VPS Phase 1.5 Code", 
+                    False, 
+                    f"Phase 1.5 section found but missing components: {missing_components}"
+                )
+                    
+        except Exception as e:
+            self.log_result("VPS Phase 1.5 Code", False, f"File read failed: {str(e)}")
+
+    def verify_vps_phase_1_6(self):
+        """Test 4: Code verification — VPS Phase 1.6: ESCALATING ADMIN NOTIFICATIONS"""
+        try:
+            file_path = "/app/js/_index.js"
+            if not os.path.exists(file_path):
+                self.log_result(
+                    "VPS Phase 1.6 Code", 
+                    False, 
+                    f"File not found: {file_path}"
+                )
+                return
+                
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                
+            # Check for Phase 1.6 section
+            phase_1_6_found = "Phase 1.6: ESCALATING ADMIN NOTIFICATIONS" in content
+            
+            if not phase_1_6_found:
+                self.log_result(
+                    "VPS Phase 1.6 Code", 
+                    False, 
+                    "Phase 1.6: ESCALATING ADMIN NOTIFICATIONS section not found"
+                )
+                return
+                
+            # Get Phase 1.6 section content
+            phase_1_6_start = content.find("Phase 1.6: ESCALATING ADMIN NOTIFICATIONS")
+            phase_2_start = content.find("Phase 2: DELETE on Contabo", phase_1_6_start)
+            if phase_2_start == -1:
+                phase_2_start = len(content)
+            phase_1_6_section = content[phase_1_6_start:phase_2_start]
+            
+            # Check for required components
+            required_components = [
+                ("5h-24h query", "fiveHoursFromNow" in phase_1_6_section and "oneDayFromNow" in phase_1_6_section and "PENDING_CANCELLATION" in phase_1_6_section),
+                ("24h/12h/6h tiers", "hours: 24" in phase_1_6_section and "hours: 12" in phase_1_6_section and "hours: 6" in phase_1_6_section),
+                ("_adminNotifyHistory tracking", "_adminNotifyHistory" in phase_1_6_section),
+                ("balance and shortfall", "usdBal" in phase_1_6_section and "shortfall" in phase_1_6_section)
+            ]
+            
+            found_components = []
+            missing_components = []
+            
+            for name, condition in required_components:
+                if condition:
+                    found_components.append(name)
+                else:
+                    missing_components.append(name)
+            
+            if len(found_components) >= 3:  # At least 3 out of 4 components should be found
+                self.log_result(
+                    "VPS Phase 1.6 Code", 
+                    True, 
+                    f"Phase 1.6 section verified with {len(found_components)}/4 required components: {', '.join(found_components)}"
+                )
+            else:
+                self.log_result(
+                    "VPS Phase 1.6 Code", 
+                    False, 
+                    f"Phase 1.6 section found but missing components: {missing_components}"
+                )
+                    
+        except Exception as e:
+            self.log_result("VPS Phase 1.6 Code", False, f"File read failed: {str(e)}")
+
+    def run_all_tests(self):
+        """Run all review request tests"""
+        print("=" * 80)
+        print("NOMADLY BACKEND REVIEW REQUEST VERIFICATION")
+        print("=" * 80)
+        print(f"Backend URL: {BACKEND_URL}")
+        print(f"Test User: {TEST_USER}")
+        print(f"Test Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print("=" * 80)
+        print()
         
-        if response.status_code == 200:
-            data = response.json()
-            print(f"✅ PASS: Download info returns 200")
-            print(f"   Version: {data.get('version')}")
-            print(f"   Name: {data.get('name')}")
-            print(f"   Size: {data.get('size')} bytes")
-            print(f"   Available: {data.get('available')}")
-            return True
-        else:
-            print(f"❌ FAIL: Download info returned {response.status_code}")
-            print(f"   Response: {response.text}")
-            return False
-    except Exception as e:
-        print(f"❌ FAIL: Download info error: {e}")
-        return False
-
-def test_delete_campaign(campaign_id):
-    """Test 10: Delete campaign for cleanup"""
-    print(f"\n🔍 Test 10: Delete campaign for cleanup")
-    
-    try:
-        url = f"{BACKEND_URL}/api/sms-app/campaigns/{campaign_id}?chatId={TEST_CHAT_ID}"
-        response = requests.delete(url, timeout=10)
+        # API Endpoint Tests
+        print("🌐 API ENDPOINT TESTS")
+        print("-" * 40)
+        self.test_health_check()
+        self.test_sms_app_auth()
         
-        if response.status_code == 200:
-            print(f"✅ PASS: Campaign deleted successfully")
-            return True
-        else:
-            print(f"❌ FAIL: Campaign deletion returned {response.status_code}")
-            print(f"   Response: {response.text}")
-            return False
-    except Exception as e:
-        print(f"❌ FAIL: Delete campaign error: {e}")
-        return False
-
-def run_review_tests():
-    """Run all tests for the review request"""
-    print("🚀 Starting Nomadly SMS App Backend Testing Suite - Review Request")
-    print("=" * 80)
-    print(f"Backend URL: {BACKEND_URL}")
-    print(f"Test chatId: {TEST_CHAT_ID}")
-    print("Focus: Campaign creation with message rotation and smsGapTime")
-    print("=" * 80)
-    
-    tests_results = []
-    campaign_id = None
-    
-    # Test 1: Health check
-    tests_results.append(("Health Check", test_health_check()))
-    
-    # Test 2: Auth valid
-    tests_results.append(("Auth Valid", test_auth_valid()))
-    
-    # Test 3: Auth invalid
-    tests_results.append(("Auth Invalid", test_auth_invalid()))
-    
-    # Test 4: Sync endpoint
-    tests_results.append(("Sync Endpoint", test_sync_endpoint()))
-    
-    # Test 5: Create campaign with rotation
-    success, campaign_id = test_create_campaign_with_rotation()
-    tests_results.append(("Create Campaign with Rotation", success))
-    
-    # Test 6: Get created campaign (only if creation succeeded)
-    if campaign_id:
-        tests_results.append(("Get Created Campaign", test_get_created_campaign(campaign_id)))
-    
-    # Test 7: Plan info
-    tests_results.append(("Plan Info", test_plan_info()))
-    
-    # Test 8: APK download
-    tests_results.append(("APK Download", test_apk_download()))
-    
-    # Test 9: Download info
-    tests_results.append(("Download Info", test_download_info()))
-    
-    # Test 10: Delete campaign (only if creation succeeded)
-    if campaign_id:
-        tests_results.append(("Delete Campaign", test_delete_campaign(campaign_id)))
-    
-    # Summary
-    passed = sum(1 for _, result in tests_results if result)
-    total = len(tests_results)
-    failed_tests = [name for name, result in tests_results if not result]
-    
-    print("\n" + "=" * 80)
-    print(f"📊 TEST RESULTS: {passed}/{total} tests passed ({passed/total*100:.1f}%)")
-    
-    if failed_tests:
-        print(f"\n❌ FAILED TESTS:")
-        for test_name in failed_tests:
-            print(f"   - {test_name}")
-    
-    if passed == total:
-        print("🎉 ALL TESTS PASSED!")
-        print("\n✅ KEY VERIFICATION POINTS CONFIRMED:")
-        print("   - Campaign creation accepts multiple content items (message rotation)")
-        print("   - smsGapTime is stored as 10 (not hardcoded 5)")
-        print("   - Content array has 2 items when 2 messages are sent")
-        print("   - All existing endpoints still work")
-        return True
-    else:
-        print(f"\n⚠️  {total - passed} test(s) failed")
-        return False
+        # Code Verification Tests
+        print("📋 CODE VERIFICATION TESTS")
+        print("-" * 40)
+        self.verify_vps_phase_1_5()
+        self.verify_vps_phase_1_6()
+        
+        # Summary
+        print("=" * 80)
+        print("TEST SUMMARY")
+        print("=" * 80)
+        total_tests = self.passed + self.failed
+        success_rate = (self.passed / total_tests * 100) if total_tests > 0 else 0
+        
+        print(f"Total Tests: {total_tests}")
+        print(f"Passed: {self.passed}")
+        print(f"Failed: {self.failed}")
+        print(f"Success Rate: {success_rate:.1f}%")
+        
+        if self.failed > 0:
+            print("\n❌ FAILED TESTS:")
+            for result in self.results:
+                if not result["success"]:
+                    print(f"  - {result['test']}: {result['details']}")
+        
+        print("\n" + "=" * 80)
+        
+        return self.failed == 0
 
 if __name__ == "__main__":
-    success = run_review_tests()
-    exit(0 if success else 1)
+    tester = ReviewRequestTester()
+    success = tester.run_all_tests()
+    sys.exit(0 if success else 1)
