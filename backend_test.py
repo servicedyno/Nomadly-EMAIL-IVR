@@ -351,6 +351,74 @@ def test_health_check():
         print(f"❌ FAIL: Health check test error: {e}")
         return False
 
+def test_single_ivr_twiml():
+    """Test 13: SingleIVR TwiML - should return XML with 2-second pause"""
+    print("\n🔍 Test 13: SingleIVR TwiML Pause Verification")
+    
+    try:
+        url = f"{BACKEND_URL}/api/twilio/single-ivr?sessionId=nonexistent"
+        response = requests.post(url, timeout=10)
+        
+        # Check if response is XML
+        content_type = response.headers.get('content-type', '').lower()
+        is_xml = 'xml' in content_type or response.text.strip().startswith('<?xml') or response.text.strip().startswith('<Response>')
+        
+        if response.status_code == 200 and is_xml:
+            # Check for 2-second pause
+            has_pause = '<Pause length="2"/>' in response.text or '<Pause length="2">' in response.text
+            
+            if has_pause:
+                print(f"✅ PASS: SingleIVR TwiML returned XML with 2-second pause")
+                print(f"   Content-Type: {content_type}")
+                print(f"   TwiML Preview: {response.text[:150]}...")
+                return True
+            else:
+                print(f"❌ FAIL: SingleIVR TwiML missing 2-second pause")
+                print(f"   Response: {response.text[:200]}...")
+                return False
+        else:
+            print(f"❌ FAIL: SingleIVR TwiML failed - Status: {response.status_code}, Content-Type: {content_type}")
+            print(f"   Response: {response.text[:200]}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ FAIL: SingleIVR TwiML test error: {e}")
+        return False
+
+def test_bulk_ivr_twiml():
+    """Test 14: BulkIVR TwiML - should return XML with 2-second pause"""
+    print("\n🔍 Test 14: BulkIVR TwiML Pause Verification")
+    
+    try:
+        url = f"{BACKEND_URL}/api/twilio/bulk-ivr?campaignId=nonexistent&leadIndex=0"
+        response = requests.post(url, timeout=10)
+        
+        # Check if response is XML
+        content_type = response.headers.get('content-type', '').lower()
+        is_xml = 'xml' in content_type or response.text.strip().startswith('<?xml') or response.text.strip().startswith('<Response>')
+        
+        if response.status_code == 200 and is_xml:
+            # Check for 2-second pause
+            has_pause = '<Pause length="2"/>' in response.text or '<Pause length="2">' in response.text
+            
+            if has_pause:
+                print(f"✅ PASS: BulkIVR TwiML returned XML with 2-second pause")
+                print(f"   Content-Type: {content_type}")
+                print(f"   TwiML Preview: {response.text[:150]}...")
+                return True
+            else:
+                print(f"❌ FAIL: BulkIVR TwiML missing 2-second pause")
+                print(f"   Response: {response.text[:200]}...")
+                return False
+        else:
+            print(f"❌ FAIL: BulkIVR TwiML failed - Status: {response.status_code}, Content-Type: {content_type}")
+            print(f"   Response: {response.text[:200]}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ FAIL: BulkIVR TwiML test error: {e}")
+        return False
+
 def run_all_tests():
     """Run all Nomadly SMS App tests"""
     print("🚀 Starting Nomadly SMS App Backend Testing Suite")
@@ -371,7 +439,9 @@ def run_all_tests():
         test_apk_download,
         test_download_info,
         test_plan_info,
-        test_health_check
+        test_health_check,
+        test_single_ivr_twiml,
+        test_bulk_ivr_twiml
     ]
     
     passed = 0
@@ -397,15 +467,16 @@ def run_all_tests():
             print(f"   - {test_name}")
     
     if passed == total:
-        print("🎉 ALL TESTS PASSED - Subscription enforcement is working correctly!")
+        print("🎉 ALL TESTS PASSED - All endpoints working correctly!")
         print("\n✅ SUMMARY:")
-        print("   - Expired users cannot create/update campaigns")
-        print("   - Expired users cannot send SMS or update progress")
+        print("   - Subscription enforcement working properly")
+        print("   - IVR TwiML endpoints responding with XML and 2-second pause")
         print("   - Read-only operations (get campaigns, plan info) work")
         print("   - APK download and info endpoints work")
+        print("   - Health check endpoint operational")
         return True
     else:
-        print(f"\n⚠️  {total - passed} test(s) failed - subscription enforcement may have issues")
+        print(f"\n⚠️  {total - passed} test(s) failed - review required")
         return False
 
 if __name__ == "__main__":

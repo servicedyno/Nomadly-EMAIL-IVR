@@ -14441,11 +14441,22 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       const presets = info?.ivrPresets || []
       const preset = presets.find(p => p.name === presetName)
       if (!preset) return send(chatId, `Preset not found.`, k.of([['📞 New Call']]))
-      // Load preset into ivrObData
+
+      // ── Plan gating: resolve CURRENT plan for the caller number ──
+      const userData = await get(phoneNumbersOf, chatId)
+      const callerNum = (userData?.numbers || []).find(n => n.phoneNumber === preset.callerId && n.status === 'active')
+      const currentPlan = callerNum?.plan || 'starter'
+
+      // Block OTP Collection presets if user's current plan doesn't allow it
+      if (preset.ivrMode === 'otp_collect' && !phoneConfig.canAccessFeature(currentPlan, 'otpCollection')) {
+        return send(chatId, `🔒 <b>Preset "${presetName}" uses OTP Collection</b>, which requires the <b>Business</b> plan.\n\nYour current plan: <b>${currentPlan}</b>\n\nUpgrade via 🔄 Renew / Change Plan, or create a new call with 🔗 Transfer mode.`, k.of([['📞 New Call'], ['↩️ Back']]))
+      }
+
+      // Load preset into ivrObData — use CURRENT plan, not saved plan
       Object.assign(ivrObData, {
         callerId: preset.callerId,
-        callerProvider: preset.callerProvider,
-        callerPlan: preset.callerPlan,
+        callerProvider: callerNum?.provider || preset.callerProvider,
+        callerPlan: currentPlan,
         templateName: preset.templateName,
         scriptText: preset.scriptText,
         placeholderValues: preset.placeholderValues,
@@ -14456,6 +14467,10 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         otpConfirmMsg: preset.otpConfirmMsg,
         otpRejectMsg: preset.otpRejectMsg,
         audioUrl: preset.audioUrl,
+        voiceName: preset.voiceName,
+        voiceKey: preset.voiceKey,
+        voiceSpeed: preset.voiceSpeed,
+        holdMusic: preset.holdMusic,
         isTrial: false,
         fromPreset: true,
       })
@@ -14557,10 +14572,59 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
     // ── Preset shortcut: if loaded from preset, skip template/placeholder/voice setup ──
     if (ivrObData.fromPreset && ivrObData.audioUrl) {
-      await set(state, chatId, 'action', a.ivrObCallPreview)
-      const ivrOb = require('./ivr-outbound.js')
-      send(chatId, ivrOb.formatCallPreview(ivrObData))
-      return send(chatId, `💾 <b>Preset loaded — Ready to call!</b>\n\nPress <b>/yes</b> to call or <b>/cancel</b> to abort.`)
+      // Validate audio file still exists (files are ephemeral across deployments)
+      let audioValid = false
+      try {
+        const audioUrl = ivrObData.audioUrl
+        const selfUrl = process.env.SELF_URL_PROD || process.env.SELF_URL || ''
+        if (audioUrl && selfUrl && audioUrl.startsWith(selfUrl)) {
+          // Self-hosted audio — check local filesystem
+          const urlPath = new URL(audioUrl).pathname
+          const localPath = require('path').join(__dirname, urlPath)
+          audioValid = require('fs').existsSync(localPath)
+        } else if (audioUrl && /^https?:\/\//i.test(audioUrl)) {
+          // External URL — assume valid (will fail gracefully at play time)
+          audioValid = true
+        }
+      } catch (e) { audioValid = false }
+
+      if (!audioValid && ivrObData.scriptText) {
+        // Audio file is gone (post-redeployment) — regenerate TTS
+        send(chatId, `⏳ Regenerating audio for preset (previous audio expired)...`)
+        try {
+          const ttsService = require('./tts-service.js')
+          const ivrOb = require('./ivr-outbound.js')
+          const filledText = ivrOb.fillTemplate(ivrObData.scriptText || ivrObData.templateText || '', ivrObData.placeholderValues || {})
+          const voiceKey = ivrObData.voiceKey || ttsService.DEFAULT_VOICE
+          const speed = ivrObData.voiceSpeed || 1.0
+          const result = await ttsService.generateTTS(filledText, voiceKey, null, speed)
+          ivrObData.audioPath = result.audioPath
+          ivrObData.audioUrl = result.audioUrl
+          ivrObData.filledText = filledText
+          await saveInfo('ivrObData', ivrObData)
+          log(`[PresetAudio] Regenerated TTS for preset (chatId=${chatId}): ${result.audioUrl}`)
+        } catch (err) {
+          log(`[PresetAudio] TTS regeneration failed: ${err.message}`)
+          // Fall through to normal template flow
+          ivrObData.audioUrl = null
+          ivrObData.fromPreset = false
+          await saveInfo('ivrObData', ivrObData)
+          return send(chatId, `⚠️ Audio regeneration failed. Please set up the call manually.`, k.of([['✍️ Custom Script']]))
+        }
+      } else if (!audioValid) {
+        // No scriptText to regenerate from — go through normal flow
+        ivrObData.audioUrl = null
+        ivrObData.fromPreset = false
+        await saveInfo('ivrObData', ivrObData)
+        send(chatId, `⚠️ Preset audio expired and can't be regenerated. Please set up the call manually.`)
+      }
+
+      if (ivrObData.audioUrl) {
+        await set(state, chatId, 'action', a.ivrObCallPreview)
+        const ivrOb = require('./ivr-outbound.js')
+        send(chatId, ivrOb.formatCallPreview(ivrObData))
+        return send(chatId, `💾 <b>Preset loaded — Ready to call!</b>\n\nPress <b>/yes</b> to call or <b>/cancel</b> to abort.`, k.of([['/yes', '🕐 Schedule'], ['/cancel']]))
+      }
     }
 
     await set(state, chatId, 'action', a.ivrObSelectCategory)
@@ -15292,9 +15356,11 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     if (message === '⏭ Skip & Call') {
       const ivrObData = info?.ivrObData || {}
       if (!ivrObData.audioUrl) return send(chatId, `Audio not ready. Please tap ✅ Confirm instead.`)
-      // Jump straight to call execution (same as /yes in ivrObCallPreview)
-      await set(state, chatId, 'action', a.ivrObStart)
-      send(chatId, `⏭ <b>Skipping preview — Placing call...</b>`)
+      // Skip to call preview with /yes prompt — user confirms once more
+      await set(state, chatId, 'action', a.ivrObCallPreview)
+      send(chatId, `⏭ <b>Skipping preview — Ready to call!</b>`)
+      const ivrOb = require('./ivr-outbound.js')
+      return send(chatId, ivrOb.formatCallPreview(ivrObData), k.of([['/yes', '🕐 Schedule'], ['/cancel']]))
     }
     if (message === '✅ Confirm') {
       // Show call preview
@@ -15483,6 +15549,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       callerPlan: ivrObData.callerPlan,
       templateName: ivrObData.templateName,
       scriptText: ivrObData.scriptText,
+      templateText: ivrObData.templateText,
       placeholderValues: ivrObData.placeholderValues,
       activeKeys: ivrObData.activeKeys,
       ivrMode: ivrObData.ivrMode,
@@ -15492,6 +15559,8 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       otpRejectMsg: ivrObData.otpRejectMsg,
       audioUrl: ivrObData.audioUrl,
       voiceName: ivrObData.voiceName,
+      voiceKey: ivrObData.voiceKey,
+      voiceSpeed: ivrObData.voiceSpeed,
       holdMusic: ivrObData.holdMusic,
       savedAt: new Date().toISOString(),
     })
@@ -25612,7 +25681,7 @@ app.post('/twilio/bulk-ivr', async (req, res) => {
       ? `${selfUrl}/twilio/audio-proxy?url=${encodeURIComponent(rawAudioUrl)}`
       : null
 
-    // Gather DTMF while playing audio
+    // Gather DTMF while playing audio (2s pause lets recipient put phone to ear)
     const gather = response.gather({
       action: gatherActionUrl,
       method: 'POST',
@@ -25620,6 +25689,7 @@ app.post('/twilio/bulk-ivr', async (req, res) => {
       timeout: 8,
       finishOnKey: '',
     })
+    gather.pause({ length: 2 })
     if (audioUrl) {
       gather.play(audioUrl)
     } else {
@@ -26224,15 +26294,16 @@ app.post('/twilio/single-ivr', async (req, res) => {
       log(`[SingleIVR] ⚠️ Invalid audioUrl protocol for session=${sessionId}: ${(rawAudioUrl || '').substring(0, 80)}`)
     }
 
-    // First attempt: play audio and gather
+    // First attempt: play audio and gather (2s pause lets recipient put phone to ear)
     const gather = response.gather({ action: gatherUrl, method: 'POST', numDigits: 1, timeout: 8, finishOnKey: '' })
+    gather.pause({ length: 2 })
     if (audioProxyUrl) {
       gather.play(audioProxyUrl)
     } else {
       gather.say({ voice: twilioVoice }, 'Thank you for your time. Press 1 to continue.')
     }
 
-    // Retry once
+    // Retry once (no extra pause on retry)
     const gather2 = response.gather({ action: gatherUrl, method: 'POST', numDigits: 1, timeout: 5, finishOnKey: '' })
     if (audioProxyUrl) {
       gather2.play(audioProxyUrl)
