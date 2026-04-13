@@ -1668,8 +1668,14 @@ const loadData = async () => {
   app.get('/sms-app/download', (req, res) => {
     const fs = require('fs')
     if (fs.existsSync(apkPath)) {
+      // Prevent caching so users always get the latest APK
       res.setHeader('Content-Disposition', 'attachment; filename=NomadlySMS.apk')
       res.setHeader('Content-Type', 'application/vnd.android.package-archive')
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+      res.setHeader('Pragma', 'no-cache')
+      res.setHeader('Expires', '0')
+      const stat = fs.statSync(apkPath)
+      res.setHeader('ETag', `"${stat.size}-${stat.mtimeMs}"`)
       res.sendFile(apkPath)
     } else {
       res.status(404).json({ error: 'APK not available' })
@@ -1679,6 +1685,7 @@ const loadData = async () => {
     const fs = require('fs')
     const exists = fs.existsSync(apkPath)
     const size = exists ? fs.statSync(apkPath).size : 0
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
     res.json({ version: '2.2.0', name: 'Nomadly SMS', size, available: exists })
   })
 

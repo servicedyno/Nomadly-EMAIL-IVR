@@ -519,7 +519,8 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
 
       // Check if user needs to update
       if (userVersion !== latestVersion && userVersion !== 'unknown' && _bot) {
-        const versionKey = `update_notified_${userVersion}_${latestVersion}`
+        // Use underscores instead of dots to avoid MongoDB nested path interpretation
+        const versionKey = `update_notified_${userVersion.replace(/\./g, '_')}_${latestVersion.replace(/\./g, '_')}`
         const doc = await loginCountOf.findOne({ _id: Number(chatId) })
         const alreadyNotified = doc?.val?.[versionKey]
         
