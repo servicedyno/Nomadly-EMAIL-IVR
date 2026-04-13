@@ -331,15 +331,60 @@ After choosing a plan → Register new domain or use existing → Enter email �
 
 ### 🛒 Digital Products
 From main menu → tap <b>🛒 Digital Products</b>
-Available products:
-- Twilio Main/Sub accounts (SMS, Voice, SIP)
-- Telnyx Main/Sub accounts
-- AWS Main/Sub accounts (Full access)
-- Google Cloud Main/Sub accounts
-- Google Workspace New/Aged email accounts
-- Zoho Mail New/Aged accounts
-- eSIM (T-Mobile)
+Available products with pricing:
+- 📱 eSIM T-Mobile — <b>$${process.env.DP_PRICE_ESIM || '60'}</b>
+- 📱 eSIM Airvoice (AT&T) — 1 Month: <b>$${process.env.DP_PRICE_AIRVOICE_1M || '70'}</b> | 3 Months: <b>$${process.env.DP_PRICE_AIRVOICE_3M || '120'}</b> | 6 Months: <b>$${process.env.DP_PRICE_AIRVOICE_6M || '150'}</b> | 1 Year: <b>$${process.env.DP_PRICE_AIRVOICE_1Y || '180'}</b>
+- Twilio Main Account — <b>$${process.env.DP_PRICE_TWILIO_MAIN || '450'}</b>
+- Twilio Sub Account — <b>$${process.env.DP_PRICE_TWILIO_SUB || '200'}</b>
+- Telnyx Main Account — <b>$${process.env.DP_PRICE_TELNYX_MAIN || '400'}</b>
+- Telnyx Sub Account — <b>$${process.env.DP_PRICE_TELNYX_SUB || '150'}</b>
+- AWS Main Account — <b>$${process.env.DP_PRICE_AWS_MAIN || '350'}</b>
+- AWS Sub Account — <b>$${process.env.DP_PRICE_AWS_SUB || '150'}</b>
+- Google Cloud Main — <b>$${process.env.DP_PRICE_GCLOUD_MAIN || '300'}</b>
+- Google Cloud Sub — <b>$${process.env.DP_PRICE_GCLOUD_SUB || '150'}</b>
+- Google Workspace (New) — <b>$${process.env.DP_PRICE_GWORKSPACE_NEW || '150'}</b>
+- Google Workspace (Aged) — <b>$${process.env.DP_PRICE_GWORKSPACE_AGED || '250'}</b>
+- Zoho Mail (New) — <b>$${process.env.DP_PRICE_ZOHO_NEW || '100'}</b>
+- Zoho Mail (Aged) — <b>$${process.env.DP_PRICE_ZOHO_AGED || '150'}</b>
+- IONOS SMTP — <b>$${process.env.DP_PRICE_IONOS_SMTP || '150'}</b>
 Select product → Pay → Credentials delivered in chat
+
+### 🖥️ VPS / RDP
+From main menu → tap <b>🖥️ VPS/RDP</b>
+Cloud VPS with port 25 open (for email sending). Available in NVMe (fast) or SSD (more storage).
+<b>NVMe Plans (EU base price):</b>
+- Cloud VPS 10: 4 vCPU, 8GB RAM, 75GB NVMe — from ~$15/mo
+- Cloud VPS 20: 6 vCPU, 12GB RAM, 100GB NVMe — from ~$24/mo
+- Cloud VPS 30: 8 vCPU, 24GB RAM, 200GB NVMe — from ~$45/mo
+- Cloud VPS 40: 12 vCPU, 48GB RAM, 250GB NVMe — from ~$78/mo
+- Cloud VPS 50: 16 vCPU, 64GB RAM, 300GB NVMe — from ~$138/mo
+- Cloud VPS 60: 18 vCPU, 96GB RAM, 350GB NVMe — from ~$177/mo
+SSD plans have 2x storage at same price. Regional surcharges may apply (US, UK, Asia, Australia).
+<b>RDP (Windows):</b> Same VPS plans with Windows Server installed. Includes remote desktop access.
+Flow: Choose Linux/RDP → Select disk type (NVMe/SSD) → Select region → Select plan → Optional: generate SSH key → Pay → Server credentials delivered in chat.
+
+### 💳 Virtual Card
+From main menu → tap <b>💳 Virtual Card</b>
+Instant virtual debit cards that work online worldwide.
+- Load amount: <b>$50 – $1,000</b>
+- Delivery: Instant — card number, CVV, and expiry delivered in chat
+Flow: Select amount or enter custom → Pay → Card details delivered
+
+### 📧 Email Validation
+From main menu → tap <b>📧 Email Validation</b>
+Validate email lists for deliverability. Upload CSV/TXT file or paste emails.
+<b>Pricing tiers (per email):</b>
+- Up to 1,000 emails: $0.005/email
+- Up to 10,000 emails: $0.004/email
+- Up to 50,000 emails: $0.003/email
+- Up to 100,000 emails: $0.002/email
+Returns: deliverable list, invalid list, and full report.
+
+### 📧 Email Blast
+From main menu → tap <b>📧 Email Blast</b>
+Send bulk emails to your list.
+- Rate: <b>$0.10 per email</b> (admin-configurable)
+- Upload your email list → compose message → pay → emails sent
 
 ### 🏪 Marketplace (P2P Trading)
 From main menu → tap <b>🏪 Marketplace</b>
