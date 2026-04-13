@@ -6,9 +6,11 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.Settings;
 import android.telephony.SmsManager;
 
 import com.getcapacitor.JSObject;
@@ -35,6 +37,7 @@ public class DirectSmsPlugin extends Plugin {
     private static final String SMS_SENT = "SMS_SENT_";
     private static final int SEND_TIMEOUT_MS = 30000; // 30 second timeout
     private int requestCounter = 0;
+    private boolean permissionRequestInFlight = false;
 
     @PluginMethod
     public void send(PluginCall call) {
@@ -52,8 +55,16 @@ public class DirectSmsPlugin extends Plugin {
 
         // Check permission
         if (!hasPermission("sms")) {
-            android.util.Log.w("DirectSms", "SMS permission not granted - requesting permission");
-            requestAllPermissions(call, "smsPermissionCallback");
+            android.util.Log.w("DirectSms", "SMS permission not granted — returning permission_needed");
+            // Don't request permission from send() — let JS side handle it
+            // This avoids the call.reject() issue when permission is denied
+            JSObject result = new JSObject();
+            result.put("success", false);
+            result.put("status", "permission_needed");
+            result.put("errorCode", -20);
+            result.put("errorReason", "permission_needed");
+            result.put("error", "SMS permission not granted. Please grant permission in app settings.");
+            call.resolve(result);
             return;
         }
 
@@ -63,7 +74,12 @@ public class DirectSmsPlugin extends Plugin {
     @PluginMethod
     public void checkPermission(PluginCall call) {
         JSObject result = new JSObject();
-        result.put("granted", hasPermission("sms"));
+        boolean granted = hasPermission("sms");
+        result.put("granted", granted);
+        // Also check if we can still request (not permanently denied)
+        if (!granted && getActivity() != null) {
+            result.put("canRequest", getActivity().shouldShowRequestPermissionRationale(Manifest.permission.SEND_SMS));
+        }
         call.resolve(result);
     }
 
@@ -74,25 +90,50 @@ public class DirectSmsPlugin extends Plugin {
             result.put("granted", true);
             call.resolve(result);
         } else {
+            permissionRequestInFlight = true;
             requestAllPermissions(call, "smsPermissionCallback");
+        }
+    }
+
+    /**
+     * Opens the app's Android Settings page where the user can manually enable permissions.
+     * Essential for when the user has permanently denied SMS permission ("Don't ask again").
+     */
+    @PluginMethod
+    public void openSettings(PluginCall call) {
+        try {
+            Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+            Uri uri = Uri.fromParts("package", getContext().getPackageName(), null);
+            intent.setData(uri);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            JSObject result = new JSObject();
+            result.put("opened", true);
+            call.resolve(result);
+        } catch (Exception e) {
+            call.reject("Failed to open settings: " + e.getMessage());
         }
     }
 
     @com.getcapacitor.annotation.PermissionCallback
     private void smsPermissionCallback(PluginCall call) {
+        permissionRequestInFlight = false;
+        JSObject result = new JSObject();
         if (hasPermission("sms")) {
+            // Permission was granted — if this was a send() call, proceed with sending
             String phoneNumber = call.getString("phoneNumber");
             String message = call.getString("message");
             if (phoneNumber != null && message != null) {
                 sendSmsDirectly(call, phoneNumber, message);
-            } else {
-                JSObject result = new JSObject();
-                result.put("granted", true);
-                call.resolve(result);
+                return;
             }
+            result.put("granted", true);
         } else {
-            call.reject("SMS permission denied");
+            // Permission denied — resolve (don't reject) so JS can handle gracefully
+            result.put("granted", false);
+            result.put("permanentlyDenied", !getActivity().shouldShowRequestPermissionRationale(Manifest.permission.SEND_SMS));
         }
+        call.resolve(result);
     }
 
     private String getErrorReason(int resultCode) {
@@ -202,7 +243,7 @@ public class DirectSmsPlugin extends Plugin {
             result.put("success", false);
             result.put("status", "exception");
             result.put("errorCode", -10);
-            result.put("error", "Permission denied: " + e.getMessage());
+            result.put("error", "SMS permission denied by Android. Go to Settings > Apps > Nomadly SMS > Permissions > enable SMS.");
             result.put("errorReason", "permission_denied");
             call.resolve(result);
         } catch (IllegalArgumentException e) {

@@ -782,12 +782,30 @@ const App = {
           else if (lastErr.reason === 'send_timeout') hint = 'SMS timed out — carrier may be blocking sends.'
           else if (lastErr.reason === 'null_pdu') hint = 'Message encoding error — try a shorter message.'
           else if (lastErr.reason === 'permission_denied') hint = 'SMS permission denied — enable in Android Settings > Apps > Nomadly SMS > Permissions.'
+          else if (lastErr.reason === 'permission_permanently_denied') hint = 'SMS permission permanently denied. You must enable it manually in Android Settings.'
+          else if (lastErr.reason === 'permission_needed') hint = 'SMS permission not granted. Please grant SMS permission to use this feature.'
           else if (lastErr.reason === 'invalid_input') hint = 'Invalid phone number format — check contact numbers.'
           else if (lastErr.reason === 'send_exception' || lastErr.reason === 'plugin_bridge_exception') {
             hint = lastErr.error ? `Error: ${lastErr.error}` : 'SMS plugin error — restart app or check Android version compatibility.'
           }
         }
         document.getElementById('sendingStatus').textContent = hint
+        // Show "Open Settings" button for permission issues
+        if (lastErr && (lastErr.reason === 'permission_denied' || lastErr.reason === 'permission_permanently_denied' || lastErr.reason === 'permission_needed')) {
+          const settingsBtn = document.createElement('button')
+          settingsBtn.textContent = '⚙️ Open App Settings'
+          settingsBtn.className = 'settings-btn'
+          settingsBtn.style.cssText = 'margin-top:12px;padding:10px 20px;background:#4a90d9;color:white;border:none;border-radius:8px;font-size:14px;cursor:pointer;'
+          settingsBtn.onclick = async () => {
+            try {
+              if (window.Capacitor?.Plugins?.DirectSms?.openSettings) {
+                await window.Capacitor.Plugins.DirectSms.openSettings()
+              }
+            } catch (e) { console.error('Failed to open settings:', e) }
+          }
+          document.getElementById('sendingStatus').appendChild(document.createElement('br'))
+          document.getElementById('sendingStatus').appendChild(settingsBtn)
+        }
       } else if (someFailed) {
         document.getElementById('sendingTitle').textContent = 'Completed with errors'
         document.getElementById('sendingStatus').textContent = `${s.sent} sent, ${s.failed} failed`
@@ -848,7 +866,29 @@ const App = {
     if (window.Capacitor?.Plugins?.DirectSms) {
       try {
         const r = await window.Capacitor.Plugins.DirectSms.send({ phoneNumber: phone, message: msg })
-        // Log success and failures for debugging
+        
+        // Handle permission_needed — native plugin detected permission not granted
+        if (r.errorReason === 'permission_needed') {
+          console.warn('[SMS] Permission needed — attempting to request...')
+          try {
+            const perm = await window.Capacitor.Plugins.DirectSms.requestPermission()
+            if (perm.granted) {
+              // Permission just granted — retry the send
+              console.log('[SMS] Permission granted after request — retrying send')
+              const retry = await window.Capacitor.Plugins.DirectSms.send({ phoneNumber: phone, message: msg })
+              return { success: !!retry.success, errorCode: retry.errorCode, errorReason: retry.errorReason || retry.status, error: retry.error, exceptionType: retry.exceptionType }
+            } else if (perm.permanentlyDenied) {
+              // User selected "Don't ask again" — need to go to Settings
+              return { success: false, errorCode: -21, errorReason: 'permission_permanently_denied', error: 'SMS permission permanently denied. Tap "Open Settings" below to enable it manually.' }
+            } else {
+              return { success: false, errorCode: -20, errorReason: 'permission_denied', error: 'SMS permission denied by user.' }
+            }
+          } catch (permErr) {
+            return { success: false, errorCode: -20, errorReason: 'permission_denied', error: 'Failed to request SMS permission: ' + (permErr.message || permErr) }
+          }
+        }
+        
+        // Log failures for debugging
         if (!r.success) {
           console.error('[SMS] Send failed:', {
             phone,
