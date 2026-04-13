@@ -221,6 +221,16 @@ Rebuild NomadlySMSfix Android app as Capacitor hybrid with subscription enforcem
   - Hit counter tracks consecutive rejections per user
 - **Impact**: Reduces log spam by ~90%, eliminates Telegram notification flood
 
+### Bug Fix: IVR Forward/Transfer Not Working When Caller Presses Key (FIXED)
+- **Symptom**: User Scoreboard44 (chatId 8273560746) configured IVR auto-attendant on +1 (833) 956-1373 with Press 2 → Forward to +18088000969. When caller pressed 2, the call immediately hung up ("Thank you. Goodbye.") instead of forwarding.
+- **Root Cause**: Double mismatch between how IVR options are **saved** in the bot flow vs how the Twilio gather handler **reads** them:
+  - Bot saves: `{ action: 'forward', forwardTo: '+18088000969' }` (line 19507)
+  - Gather handler checked: `action === 'transfer'` and `option.number` (line 26184)
+  - Since neither matched, the code fell through to the `else` block which just said "Thank you. Goodbye." and hung up.
+- **Fix**: Updated `/twilio/inbound-ivr-gather` handler to accept both `'transfer'` and `'forward'` actions, and resolve number from both `option.number` and `option.forwardTo` fields.
+- **File changed**: `js/_index.js` (line 26184)
+- **Railway logs confirmed**: 3 separate calls (CA62f6, CAd5403, CAf5662) all showed `digits=2` followed by `completed` within 6-7s with no transfer log — proving the call was dropping immediately.
+
 ## Incorporate User Feedback
 - Follow testing agent suggestions for bug fixes
 

@@ -26181,12 +26181,13 @@ app.post('/twilio/inbound-ivr-gather', async (req, res) => {
     const action = option.action || 'transfer'
     const label = option.label || `Option ${Digits}`
 
-    if (action === 'transfer' && option.number) {
-      response.say(`Connecting you to ${label}. Please hold.`)
+    if ((action === 'transfer' || action === 'forward') && (option.number || option.forwardTo)) {
+      const transferTo = option.number || option.forwardTo
+      response.say(`Connecting you now. Please hold.`)
       const dial = response.dial({ callerId: decodedTo, timeout: 30 })
-      dial.number(option.number)
-      log(`[Twilio] IVR transferring to ${option.number} (key ${Digits}: ${label})`)
-      bot?.sendMessage(chatId, `📞 <b>IVR Call — Key ${Digits}</b>\nFrom: ${phoneConfig.formatPhone(decodedFrom)}\n🔗 Transferring to: ${option.number}\n📋 ${label}`, { parse_mode: 'HTML' }).catch(() => {})
+      dial.number(transferTo)
+      log(`[Twilio] IVR transferring to ${transferTo} (key ${Digits}: ${label})`)
+      bot?.sendMessage(chatId, `📞 <b>IVR Call — Key ${Digits}</b>\nFrom: ${phoneConfig.formatPhone(decodedFrom)}\n🔗 Transferring to: ${transferTo}\n📋 ${label}`, { parse_mode: 'HTML' }).catch(() => {})
     } else if (action === 'voicemail') {
       const vmConfig = num?.features?.voicemail || {}
       if (vmConfig.greetingType === 'custom' && vmConfig.customAudioGreetingUrl) {
