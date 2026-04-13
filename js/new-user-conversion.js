@@ -355,9 +355,8 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
         { chatId: cid, firstDepositBonusAwarded: { $ne: true } },
         {
           $set: { firstDepositBonusAwarded: true, firstDepositAt: new Date(), firstDepositAmount: depositAmountUsd },
-          $setOnInsert: { chatId: cid, joinedAt: new Date() }
         },
-        { upsert: true, returnDocument: 'after' }
+        { returnDocument: 'after' }
       )
 
       // If firstDepositBonusAwarded was already true, result.value will still show true

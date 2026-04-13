@@ -14523,8 +14523,15 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       return send(chatId, `📢 <b>Quick IVR Call</b>\n\nCall a single number with an automated IVR message.\n\nSelect the number to call FROM (Caller ID):`, k.of(rows))
     }
     const clean = message.replace(/[^+\d,\s]/g, '')
-    // Check for batch numbers (comma-separated)
-    const rawNumbers = clean.split(/[,\s]+/).map(n => n.trim().replace(/[^+\d]/g, '')).filter(n => n.match(/^\+\d{10,15}$/))
+    // Check for batch numbers (comma-separated) — auto-prepend +1 for 10-digit US numbers
+    const rawNumbers = clean.split(/[,\s]+/).map(n => {
+      let num = n.trim().replace(/[^+\d]/g, '')
+      // Auto-correct: 10-digit number without country code → prepend +1 (US)
+      if (/^\d{10}$/.test(num)) num = '+1' + num
+      // Auto-correct: +10digits (missing country code 1) → +1 + 10digits
+      if (/^\+\d{10}$/.test(num) && /^\+[2-9]/.test(num)) num = '+1' + num.slice(1)
+      return num
+    }).filter(n => n.match(/^\+\d{10,15}$/))
     if (rawNumbers.length === 0) {
       return send(chatId, `Please enter a valid phone number starting with + and 10-15 digits.\n<i>Example: +12025551234</i>\n<i>Batch: +12025551234, +12025555678</i>`, k.of([]))
     }
@@ -15146,7 +15153,10 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       const rows = catBtns.map(b => [b])
       return send(chatId, ({ en: "Choose an IVR template category:", fr: "Choisissez une catégorie de modèle IVR :", zh: "选择 IVR 模板分类：", hi: "IVR टेम्पलेट श्रेणी चुनें:" }[lang] || "Choose an IVR template category:"), k.of(rows))
     }
-    const clean = message.replace(/[^+\d]/g, '')
+    let clean = message.replace(/[^+\d]/g, '')
+    // Auto-correct: 10-digit US number without country code → +1
+    if (/^\d{10}$/.test(clean)) clean = '+1' + clean
+    if (/^\+\d{10}$/.test(clean) && /^\+[2-9]/.test(clean)) clean = '+1' + clean.slice(1)
     if (!clean.match(/^\+\d{10,15}$/)) {
       return send(chatId, `Please enter a valid phone number starting with +.\n<i>Example: +17174794833</i>`, k.of([]))
     }
@@ -15830,7 +15840,10 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       await set(state, chatId, 'action', a.bulkSelectMode)
       return send(chatId, `Select Campaign Mode:`, k.of([['🔗 Transfer + Report'], ['📊 Report Only'], ['↩️ Back']]))
     }
-    const clean = message.replace(/[^+\d]/g, '')
+    let clean = message.replace(/[^+\d]/g, '')
+    // Auto-correct: 10-digit US number without country code → +1
+    if (/^\d{10}$/.test(clean)) clean = '+1' + clean
+    if (/^\+\d{10}$/.test(clean) && /^\+[2-9]/.test(clean)) clean = '+1' + clean.slice(1)
     if (!clean.match(/^\+\d{8,15}$/)) {
       return send(chatId, `Enter a valid phone number with + country code.\n<i>Example: +41791234567</i>`, k.of([['↩️ Back']]))
     }

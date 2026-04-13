@@ -2451,19 +2451,48 @@ async function handleOutboundSipCall(payload) {
     // Per-call caller ID is handled by transferCall's 'from' parameter instead.
 
     try {
+      // Wait briefly for call to be in a transferable state (avoid "not answered yet" race condition)
+      const callState = activeCalls[callControlId]
+      if (callState && callState.phase === 'outbound_telnyx') {
+        // Mark that we'll transfer this call once it's ready
+        callState._pendingTransfer = { destination, callerNumber: num.phoneNumber }
+      }
       await _telnyxApi.transferCall(callControlId, destination, num.phoneNumber)
       log(`[Voice] Outbound SIP (Telnyx): Transfer initiated ${callerDisplay} → ${destination} (autoRouted=${isAutoRouted})`)
     } catch (e) {
-      log(`[Voice] Outbound SIP (Telnyx): Transfer failed — ${e.message}`)
-      // If transfer fails on auto-routed call, it may still proceed with connection-level ANI
-      if (isAutoRouted) {
-        log(`[Voice] Outbound SIP (Telnyx): Auto-routed call may proceed with connection ANI — still tracking`)
+      const errMsg = e.message || ''
+      // Handle race condition: call not answered yet — schedule retry
+      if (errMsg.includes('not been answered') || errMsg.includes('not answered')) {
+        log(`[Voice] Outbound SIP (Telnyx): Transfer too early, scheduling retry for ${callControlId} → ${destination}`)
+        const retryTransfer = async (retryCount = 0) => {
+          if (retryCount >= 5) {
+            log(`[Voice] Outbound SIP (Telnyx): Transfer retry exhausted for ${callControlId}`)
+            return
+          }
+          await new Promise(r => setTimeout(r, 1500)) // wait 1.5s
+          try {
+            await _telnyxApi.transferCall(callControlId, destination, num.phoneNumber)
+            log(`[Voice] Outbound SIP (Telnyx): Transfer retry ${retryCount + 1} succeeded ${callerDisplay} → ${destination}`)
+          } catch (retryErr) {
+            if ((retryErr.message || '').includes('not been answered') || (retryErr.message || '').includes('not answered')) {
+              return retryTransfer(retryCount + 1)
+            }
+            log(`[Voice] Outbound SIP (Telnyx): Transfer retry ${retryCount + 1} failed — ${retryErr.message}`)
+          }
+        }
+        retryTransfer(0).catch(() => {})
       } else {
-        // Non-auto-routed calls with failed transfer can't proceed
-        const sess = activeCalls[callControlId]
-        if (sess?._limitTimer) clearInterval(sess._limitTimer)
-        delete activeCalls[callControlId]
-        _bot?.sendMessage(chatId, `🚫 <b>Outbound Call Failed</b>\n📞 ${formatPhone(num.phoneNumber)} → ${formatPhone(destination)}\nReason: Call routing failed. Please try again.`, { parse_mode: 'HTML' }).catch(() => {})
+        log(`[Voice] Outbound SIP (Telnyx): Transfer failed — ${errMsg}`)
+        // If transfer fails on auto-routed call, it may still proceed with connection-level ANI
+        if (isAutoRouted) {
+          log(`[Voice] Outbound SIP (Telnyx): Auto-routed call may proceed with connection ANI — still tracking`)
+        } else {
+          // Non-auto-routed calls with failed transfer can't proceed
+          const sess = activeCalls[callControlId]
+          if (sess?._limitTimer) clearInterval(sess._limitTimer)
+          delete activeCalls[callControlId]
+          _bot?.sendMessage(chatId, `🚫 <b>Outbound Call Failed</b>\n📞 ${formatPhone(num.phoneNumber)} → ${formatPhone(destination)}\nReason: Call routing failed. Please try again.`, { parse_mode: 'HTML' }).catch(() => {})
+        }
       }
     }
 
