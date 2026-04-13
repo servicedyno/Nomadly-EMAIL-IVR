@@ -537,9 +537,11 @@ Latest version: ${latestVersion}
 ✅ Enhanced diagnostic logging
 
 <b>To update:</b>
-1. Delete current app from your device
+1. ⚠️ <b>UNINSTALL</b> the current app first (Settings → Apps → Nomadly SMS → Uninstall)
 2. Click link below to download latest version
 3. Install and login again
+
+⚠️ You MUST uninstall first — just deleting the APK file is not enough!
 
 🔗 Download: /start → 📱 BulkSMS App
 
