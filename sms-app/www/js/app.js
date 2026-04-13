@@ -12,7 +12,7 @@ const App = {
   // ─── Init ───
   async init() {
     console.log('='.repeat(50))
-    console.log('Nomadly SMS App v2.1.5 - Initializing')
+    console.log('Nomadly SMS App v2.2.0 - Initializing')
     console.log('Platform:', window.Capacitor ? 'Native (APK)' : 'Browser')
     console.log('='.repeat(50))
     
@@ -47,7 +47,28 @@ const App = {
     
     console.log('[SMS] Checking permission status on startup...')
     try {
-      const perm = await window.Capacitor.Plugins.DirectSms.checkPermission()
+      let perm = null
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          perm = await window.Capacitor.Plugins.DirectSms.checkPermission()
+          break
+        } catch (retryErr) {
+          console.warn(`[SMS] Startup permission check attempt ${attempt} failed:`, retryErr)
+          if (attempt < 3) await new Promise(r => setTimeout(r, 500 * attempt))
+        }
+      }
+      
+      if (!perm) {
+        console.warn('[SMS] ⚠️ Could not check permission status (bridge issue)')
+        const statusEl = document.getElementById('permissionStatus')
+        if (statusEl) {
+          statusEl.innerHTML = '⚠️ Could not verify SMS permission - <a href="#" onclick="App.requestPermissionNow(); return false;">Grant Now</a>'
+          statusEl.style.display = 'block'
+          statusEl.className = 'permission-warning'
+        }
+        return
+      }
+      
       console.log('[SMS] Permission check result:', perm)
       const statusEl = document.getElementById('permissionStatus')
       
@@ -667,7 +688,29 @@ const App = {
     if (window.Capacitor?.Plugins?.DirectSms) {
       console.log('[SMS] Checking permission before send...')
       try {
-        const perm = await window.Capacitor.Plugins.DirectSms.checkPermission()
+        let perm = null
+        // Retry permission check up to 2 times (bridge may not be ready)
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          try {
+            perm = await window.Capacitor.Plugins.DirectSms.checkPermission()
+            break
+          } catch (retryErr) {
+            console.warn(`[SMS] Permission check attempt ${attempt} failed:`, retryErr)
+            if (attempt < 2) await new Promise(r => setTimeout(r, 500))
+          }
+        }
+        
+        if (!perm) {
+          // Bridge failed — try requesting permission directly (triggers native dialog)
+          console.log('[SMS] Permission check failed, trying direct request...')
+          try {
+            perm = await window.Capacitor.Plugins.DirectSms.requestPermission()
+          } catch (reqErr) {
+            console.error('[SMS] Direct permission request also failed:', reqErr)
+            return this.toast('SMS permission check failed. Please go to Android Settings > Apps > Nomadly SMS > Permissions and enable SMS manually.', 'error')
+          }
+        }
+
         console.log('[SMS] Permission status:', perm)
         
         if (!perm.granted) {
@@ -685,7 +728,8 @@ const App = {
         }
       } catch (e) {
         console.error('[SMS] ❌ Permission check failed:', e)
-        return this.toast('Failed to check SMS permission. Ensure permission is granted in Settings.', 'error')
+        // Don't block — attempt to send anyway (native side will handle permission)
+        console.log('[SMS] Proceeding with send — native plugin will handle permission')
       }
     }
 
