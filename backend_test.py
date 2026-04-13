@@ -10,7 +10,7 @@ import time
 import os
 
 # Backend URL from environment
-BACKEND_URL = "https://readme-start-2.preview.emergentagent.com"
+BACKEND_URL = "https://get-going-11.preview.emergentagent.com"
 
 # Test credentials
 TEST_CHAT_ID = "6687923716"  # Expired subscription, 0 free SMS remaining

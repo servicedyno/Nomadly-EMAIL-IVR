@@ -153,7 +153,7 @@ async function testNodeJSHealth() {
     
     // Test backend API health if reachable
     try {
-      const backendUrl = 'https://readme-start-2.preview.emergentagent.com/api/health'
+      const backendUrl = 'https://get-going-11.preview.emergentagent.com/api/health'
       const response = await axios.get(backendUrl, { timeout: 10000 })
       
       if (response.status === 200) {

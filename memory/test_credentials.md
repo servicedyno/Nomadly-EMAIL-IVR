@@ -7,7 +7,7 @@
 - **Free SMS**: 100 used / 100 limit
 
 ## SMS App Web URL
-- Browser test: `https://readme-start-2.preview.emergentagent.com/api/sms-app-web`
+- Browser test: `https://get-going-11.preview.emergentagent.com/api/sms-app-web`
 
 ## Bot
 - Username: @NomadlyBot
