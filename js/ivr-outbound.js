@@ -319,6 +319,12 @@ function formatCallNotification(type, data) {
   const mins = duration > 0 ? Math.ceil(duration / 60) : 0
   const durText = duration > 0 ? `${Math.floor(duration / 60)}:${String(duration % 60).padStart(2, '0')}` : '0:00'
 
+  // AMD (Answering Machine Detection) result line
+  const amd = data.answeredBy === 'human' ? '\n👤 <b>Human Answered</b>'
+    : data.answeredBy === 'machine' ? '\n📬 <b>Voicemail Detected</b>'
+    : data.answeredBy === 'fax' ? '\n📠 <b>Fax Machine</b>'
+    : ''
+
   switch (type) {
     case 'calling':
       return `📞 <b>Calling</b> ...${target}\n📱 From: ${data.callerId}\n🏢 Template: ${data.templateName || 'Custom'}`
@@ -327,10 +333,10 @@ function formatCallNotification(type, data) {
       return `📞 <b>Call connected</b> — playing IVR message...\n📞 ${target}`
 
     case 'early_hangup':
-      return `📵 <b>Target hung up immediately</b>\n📞 ${target} | Duration: ${durText}\nThe recipient picked up and disconnected right away.`
+      return `📵 <b>Target hung up immediately</b>\n📞 ${target} | Duration: ${durText}${amd}\nThe recipient picked up and disconnected right away.`
 
     case 'no_response':
-      return `📵 <b>No response</b> — IVR played but no key pressed\n📞 ${target} | Duration: ${durText}\nThe message was played but the recipient did not interact.`
+      return `📵 <b>No response</b> — IVR played but no key pressed\n📞 ${target} | Duration: ${durText}${amd}\nThe message was played but the recipient did not interact.`
 
     case 'busy':
       return `📵 <b>Line busy</b> — ${target} is on another call\n💰 Charged: 1 min (minimum)`
@@ -342,7 +348,7 @@ function formatCallNotification(type, data) {
       return `🔗 <b>Caller connected</b> to ${data.ivrNumber}`
 
     case 'hangup':
-      return `📵 <b>Call Ended</b> — Recipient hung up\n📞 ${target} | Duration: ${durText}\n🔘 Key pressed: ${data.digitPressed || 'None'}`
+      return `📵 <b>Call Ended</b> — Recipient hung up\n📞 ${target} | Duration: ${durText}${amd}\n🔘 Key pressed: ${data.digitPressed || 'None'}`
 
     case 'no_answer':
       return `📵 <b>No answer</b> — ${target} did not pick up\n💰 Charged: 1 min (minimum)`
@@ -350,12 +356,12 @@ function formatCallNotification(type, data) {
     case 'completed':
       if (data.ivrMode === 'otp_collect') {
         const otpResult = data.otpStatus === 'confirmed' ? '✅ Confirmed' : data.otpStatus === 'rejected' ? '❌ Rejected' : data.otpStatus === 'timeout' ? '⏰ Timed Out' : '—'
-        return `🔑 <b>OTP Call Completed</b>\n📞 ${target} | Duration: ${durText}\n🔢 Last OTP: ${data.otpDigits || 'None'}\n📊 Result: ${otpResult}\n🔄 Attempts: ${data.otpAttempt || 0}/${data.otpMaxAttempts || 3}`
+        return `🔑 <b>OTP Call Completed</b>\n📞 ${target} | Duration: ${durText}${amd}\n🔢 Last OTP: ${data.otpDigits || 'None'}\n📊 Result: ${otpResult}\n🔄 Attempts: ${data.otpAttempt || 0}/${data.otpMaxAttempts || 3}`
       }
-      return `✅ <b>Call Completed</b>\n📞 ${target} | Duration: ${durText}\n🔘 Key pressed: ${data.digitPressed || 'None'}\n🔗 Transferred to: ${data.ivrNumber || '?'}`
+      return `✅ <b>Call Completed</b>\n📞 ${target} | Duration: ${durText}${amd}\n🔘 Key pressed: ${data.digitPressed || 'None'}\n🔗 Transferred to: ${data.ivrNumber || '?'}`
 
     case 'transfer_failed':
-      return `❌ <b>Transfer Failed</b>\n📞 ${target} | Duration: ${durText}\n🔘 Key pressed: ${data.digitPressed || 'None'}\n🔗 Transfer to ${data.ivrNumber || '?'} — No answer`
+      return `❌ <b>Transfer Failed</b>\n📞 ${target} | Duration: ${durText}${amd}\n🔘 Key pressed: ${data.digitPressed || 'None'}\n🔗 Transfer to ${data.ivrNumber || '?'} — No answer`
 
     case 'failed':
       return `❌ <b>Call failed</b> — ${target}\n${data.reason || 'Unknown error'}\n💰 Charged: 1 min (minimum)`

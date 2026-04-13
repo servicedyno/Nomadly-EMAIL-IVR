@@ -632,7 +632,7 @@ async function validateForwardingDestination(toNumber) {
 }
 
 // ── Outbound Call: Create a new outbound call via Telnyx Call Control ──
-async function createOutboundCall(from, to, webhookUrl, connectionId) {
+async function createOutboundCall(from, to, webhookUrl, connectionId, options = {}) {
   try {
     const body = {
       connection_id: connectionId || process.env.TELNYX_CALL_CONTROL_APP_ID,
@@ -640,6 +640,10 @@ async function createOutboundCall(from, to, webhookUrl, connectionId) {
       from,
     }
     if (webhookUrl) body.webhook_url = webhookUrl
+    // Enable Answering Machine Detection (AMD) — detect human vs voicemail
+    if (options.answering_machine_detection !== false) {
+      body.answering_machine_detection = options.answering_machine_detection || 'detect'
+    }
     const res = await axios.post(`${BASE}/calls`, body, { headers: headers() })
     const data = res.data?.data
     log(`[Telnyx] Outbound call created: ${data?.call_control_id} from=${from} to=${to}`)

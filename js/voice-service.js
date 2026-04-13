@@ -1539,6 +1539,20 @@ async function handleVoiceWebhook(req, res) {
       case 'call.dtmf.received':
         // Informational events — already handled via gather.ended
         break
+      case 'call.machine.detection.ended': {
+        // AMD result from Telnyx — store in outbound IVR session
+        const amdCallControlId = payload.call_control_id
+        const amdSession = outboundIvrCalls[amdCallControlId]
+        const amdResult = payload.result || 'unknown' // 'human', 'machine', 'not_sure'
+        log(`[Voice] AMD result: ${amdResult} for callControlId=${amdCallControlId}`)
+        if (amdSession) {
+          amdSession.answeredBy = amdResult === 'machine' ? 'machine'
+            : amdResult === 'human' ? 'human'
+            : 'unknown'
+          log(`[OutboundIVR] AMD: ${amdSession.targetNumber} → ${amdSession.answeredBy}`)
+        }
+        break
+      }
       case 'fax.received':
       case 'fax.receiving.started':
       case 'fax.media.processing.started':
@@ -3553,6 +3567,7 @@ async function initiateOutboundIvrCall(params) {
         otpHoldStartedAt: null,
         otpConfirmMsg: params.otpConfirmMsg || null,
         otpRejectMsg: params.otpRejectMsg || null,
+        answeredBy: null,
       }
 
       const twimlUrl = `${_selfUrl}/twilio/single-ivr?sessionId=${encodeURIComponent(sessionId)}`
@@ -3564,6 +3579,7 @@ async function initiateOutboundIvrCall(params) {
           statusCallback: statusUrl,
           statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
           timeout: 30,
+          machineDetection: 'Enable',
         }
       )
 
@@ -3612,6 +3628,7 @@ async function initiateOutboundIvrCall(params) {
       otpHoldStartedAt: null,
       otpConfirmMsg: params.otpConfirmMsg || null,
       otpRejectMsg: params.otpRejectMsg || null,
+      answeredBy: null,
     }
 
     const twimlUrl = `${_selfUrl}/twilio/single-ivr?sessionId=${encodeURIComponent(sessionId)}`
@@ -3625,6 +3642,7 @@ async function initiateOutboundIvrCall(params) {
         statusCallback: statusUrl,
         statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
         timeout: 30,
+        machineDetection: 'Enable',
       }
     )
 
@@ -3666,6 +3684,7 @@ async function initiateOutboundIvrCall(params) {
     campaignId: campaignId || null,
     leadIndex: leadIndex != null ? leadIndex : null,
     bulkMode: bulkMode || null, // 'transfer' | 'report_only'
+    answeredBy: null, // AMD result: 'human', 'machine', 'not_sure', null
   }
 
   log(`[OutboundIVR] Call initiated: ${callerId} → ${targetNumber} (chatId: ${chatId}, template: ${templateName})`)

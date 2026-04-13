@@ -479,6 +479,9 @@ async function makeTrialOutboundCall(from, to, twimlUrl, options = {}) {
     if (options.timeout) {
       callOpts.timeout = options.timeout
     }
+    if (options.machineDetection) {
+      callOpts.machineDetection = options.machineDetection
+    }
     const call = await client.calls.create(callOpts)
     log(`[Twilio] Trial call initiated: ${call.sid} from=${from} to=${to}`)
     return {
