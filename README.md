@@ -167,3 +167,111 @@ bash /app/scripts/setup-nodejs.sh
 ### Environment variables not loading
 - Verify symlink: `ls -la /app/.env` should point to `backend/.env`
 - If missing: `ln -sf /app/backend/.env /app/.env`
+
+---
+
+## 📱 SMS App — Android APK Build Guide
+
+The Nomadly SMS app is a **Capacitor hybrid app** — a web app (HTML/JS/CSS in `sms-app/www/`) wrapped in an Android native shell with native SMS sending plugins.
+
+### Prerequisites (one-time setup)
+
+The build environment is ARM64 (aarch64) but Android's AAPT2 tool is x86-only.
+We use **qemu-user-static** to emulate x86 binaries on ARM64.
+
+```bash
+# 1. Install Java JDK 17 + qemu for x86 emulation
+apt-get update -qq
+apt-get install -y -qq openjdk-17-jdk-headless wget unzip qemu-user-static binfmt-support
+
+# 2. Install x86-64 libraries (needed by qemu to run x86 Android tools)
+dpkg --add-architecture amd64
+apt-get update -qq
+apt-get install -y -qq libc6:amd64 libstdc++6:amd64 zlib1g:amd64
+
+# 3. Install Android SDK
+export ANDROID_HOME=/opt/android-sdk
+mkdir -p $ANDROID_HOME
+wget -q "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" -O /tmp/cmdtools.zip
+mkdir -p $ANDROID_HOME/cmdline-tools
+unzip -q -o /tmp/cmdtools.zip -d $ANDROID_HOME/cmdline-tools
+mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest 2>/dev/null || true
+rm /tmp/cmdtools.zip
+
+# 4. Accept licenses and install required SDK components
+export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64
+export PATH=$PATH:$JAVA_HOME/bin:$ANDROID_HOME/cmdline-tools/latest/bin
+yes | sdkmanager --licenses 2>/dev/null
+sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+
+# 5. Create AAPT2 qemu wrapper (critical for ARM64 builds)
+# First, run a quick Gradle build to download the Gradle-managed aapt2 binary:
+cd /app/sms-app/android && ./gradlew tasks --no-daemon 2>&1 | tail -1
+# Find the downloaded aapt2 binary:
+AAPT2_REAL=$(find /root/.gradle -name "aapt2" -path "*/aapt2-*-linux/aapt2" -type f | head -1)
+echo "AAPT2 path: $AAPT2_REAL"
+# Create the wrapper script:
+mkdir -p /opt/aapt2-dir
+cat > /opt/aapt2-dir/aapt2 << EOF
+#!/bin/bash
+exec qemu-x86_64-static "$AAPT2_REAL" "\$@"
+EOF
+chmod +x /opt/aapt2-dir/aapt2
+# Verify it works:
+/opt/aapt2-dir/aapt2 version
+```
+
+### Building the APK
+
+```bash
+# Set environment
+export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64
+export ANDROID_HOME=/opt/android-sdk
+export ANDROID_SDK_ROOT=$ANDROID_HOME
+
+# 1. Sync Capacitor web assets → Android project
+cd /app/sms-app
+yarn install
+npx cap sync android
+
+# 2. Build the debug APK
+cd /app/sms-app/android
+./gradlew assembleDebug --no-daemon
+
+# 3. Copy APK to distribution locations
+cp app/build/outputs/apk/debug/app-debug.apk /app/static/nomadly-sms.apk
+cp app/build/outputs/apk/debug/app-debug.apk /app/backend/static/nomadly-sms.apk
+
+# 4. Verify
+ls -lh /app/static/nomadly-sms.apk
+```
+
+### Key Paths
+
+| Path | Purpose |
+|------|---------|
+| `sms-app/www/` | Web assets (HTML, JS, CSS) — the actual app UI |
+| `sms-app/www/js/app.js` | Main app logic (campaigns, SMS sending, sync) |
+| `sms-app/www/js/api.js` | Server API client |
+| `sms-app/android/app/src/main/java/com/nomadly/sms/plugins/DirectSmsPlugin.java` | Native SMS sending (foreground) |
+| `sms-app/android/app/src/main/java/com/nomadly/sms/services/SmsBackgroundService.java` | Native SMS sending (background) |
+| `sms-app/android/app/build.gradle` | Version code/name (`versionCode`, `versionName`) |
+| `sms-app/android/gradle.properties` | AAPT2 override path |
+| `js/sms-app-service.js` | Server-side SMS app endpoints |
+| `static/nomadly-sms.apk` | Distribution APK (served at `/sms-app/download`) |
+
+### Version Bumping
+
+Before building, update version in `sms-app/android/app/build.gradle`:
+```groovy
+versionCode 11    // Increment by 1
+versionName "2.3.2"  // Semantic version
+```
+Also update `latestVersion` in `js/sms-app-service.js` and version in the `/sms-app/download/info` endpoint in `js/_index.js`.
+
+### Diagnostics
+
+```bash
+# Check SMS app diagnostics for a specific user
+curl http://localhost:5000/sms-app/diagnostics/<chatId>
+```
