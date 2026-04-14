@@ -2497,67 +2497,23 @@ async function handleOutboundSipCall(payload) {
       }, 60000)
     }
 
-    // ── APPROACH A: DIAL+BRIDGE PATTERN ──
-    // With auto-routing disabled on the credential connection, SIP outbound calls
-    // arrive at our webhook FIRST. We check balance, then route to PSTN via
-    // creating an outbound call through the Call Control App and bridging.
-    // This prevents ANY Telnyx PSTN cost for insufficient-balance calls.
+    // ── MULTI-USER CALLER ID FIX ──
+    // Always set per-call ANI via transferCall for ALL outbound SIP calls.
+    // Auto-routed calls use the shared SIP connection ANI override,
+    // which is a single global value — wrong for multi-user. transferCall's `from` param
+    // overrides this per-call, ensuring each user's correct phone number displays as caller ID.
 
     try {
-      if (isAutoRouted) {
-        // FALLBACK: Auto-routed call (shouldn't happen after Approach A, but handle gracefully)
-        // Use transfer to override caller ID on the already-routing call
-        log(`[Voice] Outbound SIP (Telnyx): Auto-routed call detected — using transfer fallback for caller ID`)
-        await _telnyxApi.transferCall(callControlId, destination, num.phoneNumber)
-        log(`[Voice] Outbound SIP (Telnyx): Transfer initiated ${callerDisplay} → ${destination} (autoRouted=true)`)
-      } else {
-        // ── DIAL+BRIDGE: Answer inbound SIP → Create outbound PSTN → Bridge ──
-        // This is the primary path when auto-routing is disabled.
-        log(`[Voice] Outbound SIP (Telnyx): Dial+Bridge mode — answering SIP leg, creating PSTN leg via Call Control App`)
-
-        // 1. Answer the incoming SIP call from the user's softphone
-        await _telnyxApi.answerCall(callControlId)
-
-        // 2. Create outbound PSTN call via the Call Control App (which has outbound voice profile)
-        const outboundResult = await _telnyxApi.createOutboundCall(
-          num.phoneNumber,     // from (caller ID)
-          destination,         // to (PSTN destination)
-          _selfUrl + '/telnyx/voice-webhook', // webhook for outbound leg events
-          _telnyxResources?.callControlAppId, // route via call control app
-          { answering_machine_detection: false } // no AMD for regular SIP calls
-        )
-
-        if (outboundResult.error || !outboundResult.callControlId) {
-          log(`[Voice] Dial+Bridge: Outbound PSTN leg failed — ${outboundResult.error || 'no callControlId'}`)
-          await _telnyxApi.hangupCall(callControlId).catch(() => {})
-          const sess = activeCalls[callControlId]
-          if (sess?._limitTimer) clearInterval(sess._limitTimer)
-          delete activeCalls[callControlId]
-          _bot?.sendMessage(chatId, `🚫 <b>Outbound Call Failed</b>\n📞 ${formatPhone(num.phoneNumber)} → ${formatPhone(destination)}\nReason: PSTN routing failed. Please try again.`, { parse_mode: 'HTML' }).catch(() => {})
-          return
-        }
-
-        // 3. Register in activeBridgeTransfers so existing bridge handlers manage the lifecycle
-        //    When the outbound PSTN leg answers → handleBridgeTransferAnswered bridges them
-        //    When either leg hangs up → handleBridgeTransferHangup cleans up
-        activeBridgeTransfers[outboundResult.callControlId] = {
-          originalCallControlId: callControlId,
-          forwardTo: destination,
-          type: 'sip_outbound_bridge',
-          phase: 'ringing',
-          unanswered: false, // we already answered the SIP leg
-          chatId,
-          num,
-          startedAt: Date.now(),
-        }
-
-        log(`[Voice] Dial+Bridge: PSTN leg ${outboundResult.callControlId} created, waiting for answer to bridge with SIP leg ${callControlId}`)
+      const callState = activeCalls[callControlId]
+      if (callState && callState.phase === 'outbound_telnyx') {
+        callState._pendingTransfer = { destination, callerNumber: num.phoneNumber }
       }
+      await _telnyxApi.transferCall(callControlId, destination, num.phoneNumber)
+      log(`[Voice] Outbound SIP (Telnyx): Transfer initiated ${callerDisplay} → ${destination} (autoRouted=${isAutoRouted})`)
     } catch (e) {
       const errMsg = e.message || ''
-      log(`[Voice] Outbound SIP (Telnyx): Routing error — ${errMsg}`)
-      // Handle race condition: call not answered yet — schedule retry for transfer fallback
-      if (isAutoRouted && (errMsg.includes('not been answered') || errMsg.includes('not answered'))) {
+      // Handle race condition: call not answered yet — schedule retry
+      if (errMsg.includes('not been answered') || errMsg.includes('not answered')) {
         log(`[Voice] Outbound SIP (Telnyx): Transfer too early, scheduling retry for ${callControlId} → ${destination}`)
         const retryTransfer = async (retryCount = 0) => {
           if (retryCount >= 5) {
@@ -2576,12 +2532,16 @@ async function handleOutboundSipCall(payload) {
           }
         }
         retryTransfer(0).catch(() => {})
-      } else if (!isAutoRouted) {
-        const sess = activeCalls[callControlId]
-        if (sess?._limitTimer) clearInterval(sess._limitTimer)
-        delete activeCalls[callControlId]
-        await _telnyxApi.hangupCall(callControlId).catch(() => {})
-        _bot?.sendMessage(chatId, `🚫 <b>Outbound Call Failed</b>\n📞 ${formatPhone(num.phoneNumber)} → ${formatPhone(destination)}\nReason: Call routing failed. Please try again.`, { parse_mode: 'HTML' }).catch(() => {})
+      } else {
+        log(`[Voice] Outbound SIP (Telnyx): Transfer failed — ${errMsg}`)
+        if (isAutoRouted) {
+          log(`[Voice] Outbound SIP (Telnyx): Auto-routed call may proceed with connection ANI — still tracking`)
+        } else {
+          const sess = activeCalls[callControlId]
+          if (sess?._limitTimer) clearInterval(sess._limitTimer)
+          delete activeCalls[callControlId]
+          _bot?.sendMessage(chatId, `🚫 <b>Outbound Call Failed</b>\n📞 ${formatPhone(num.phoneNumber)} → ${formatPhone(destination)}\nReason: Call routing failed. Please try again.`, { parse_mode: 'HTML' }).catch(() => {})
+        }
       }
     }
 

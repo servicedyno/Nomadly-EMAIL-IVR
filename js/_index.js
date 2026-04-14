@@ -1462,6 +1462,7 @@ const loadData = async () => {
       // CRITICAL: Toll-free numbers (800/855/877/888) get poor STIR/SHAKEN attestation,
       // causing PSTN carriers to reject calls with "Unverified originating identity".
       // LOCAL numbers get full A-level attestation and are always accepted.
+      // NOTE: Skip any number known to be spam-flagged/blocked by carriers.
       const sipConnId = telnyxResources.sipConnectionId || process.env.TELNYX_SIP_CONNECTION_ID || ''
       if (sipConnId) {
         try {
@@ -1470,10 +1471,18 @@ const loadData = async () => {
           const connectionNumbers = (numbersRes.data || []).filter(n =>
             n.connection_id === sipConnId && n.status === 'active'
           )
-          const localNumber = connectionNumbers.find(n => n.phone_number_type === 'local')
+
+          // Skip numbers that are known spam-flagged (from carrier 403 rejections)
+          // The spam-flagged number check uses env var or hardcoded list
+          const blockedAni = (process.env.TELNYX_BLOCKED_ANI || '').split(',').map(n => n.trim()).filter(Boolean)
+          const cleanConnectionNumbers = connectionNumbers.filter(n => !blockedAni.includes(n.phone_number))
+
+          const localNumber = cleanConnectionNumbers.find(n => n.phone_number_type === 'local')
           const bestAni = localNumber?.phone_number
             || process.env.TELNYX_DEFAULT_ANI
-            || connectionNumbers[0]?.phone_number
+            || cleanConnectionNumbers.find(n => n.phone_number_type === 'toll_free')?.phone_number
+            || cleanConnectionNumbers[0]?.phone_number
+            || connectionNumbers[0]?.phone_number // absolute fallback even if blocked
             || botTelnyxNumbers?.[0]
           if (bestAni) {
             const aniResult = await telnyxApi.updateAniOverride(sipConnId, bestAni)
