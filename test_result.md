@@ -10,16 +10,17 @@ Rebuild NomadlySMSfix Android app as Capacitor hybrid with subscription enforcem
 
 ## Current Session — Railway Log Investigation & IVR Bug Fixes (July 2025)
 
-### LATEST FIX: Settings Reset After Calls — Credentials Wipe Bug (FIXED)
-- **Symptom**: User Scoreboard44 reports IVR auto-attendant stops working after receiving calls — callers hear static noise
-- **Root Cause**: `incrementMinutesUsed()` in `voice-service.js` used `set(_phoneNumbersOf, chatId, { numbers })` which replaced the entire `val` document with just `{ numbers }`, wiping `twilioSubAccountSid` and `twilioSubAccountToken` from the DB after every call billing
-- **Cascade**: After credentials wiped → next Railway redeployment → webhook sync can't find sub-account creds → skips updating webhook URL → Twilio number points to old dead URL → inbound calls fail with static
-- **Same bug in `incrementSmsUsed()`** and SMS webhook handler in `_index.js`
-- **Fix**: 
-  1. `voice-service.js`: Imported `setFields`, replaced destructive `set()` with atomic `setFields()` in both `incrementMinutesUsed` and `incrementSmsUsed`
-  2. `_index.js` SMS webhook: Replaced `set(phoneNumbersOf, chatId, user.val)` with atomic `setFields()` update
-  3. `_index.js` inbound voice webhook: Added IVR greeting audio URL validation — checks if self-hosted audio file exists on disk before playing; falls back to TTS greeting text if file is missing (handles ephemeral filesystem wipe after redeployment)
-- **Files changed**: `js/voice-service.js` (lines 5, 976-978, 1110-1112), `js/_index.js` (lines 25985-26018 IVR audio validation, lines 27668-27675 SMS handler)
+### LATEST FIX: Settings Reset After Calls — Race Condition Bug (FIXED)
+- **Symptom**: User Scoreboard44 reports IVR auto-attendant settings getting wiped — DB confirms IVR config, greeting, options, and call forwarding are all gone despite being set up
+- **Root Cause**: `incrementMinutesUsed()` and `incrementSmsUsed()` in `voice-service.js` used a **read-modify-write** pattern: read entire `numbers` array → increment counter → write back entire array. If user was concurrently configuring IVR settings, the stale array overwrote their changes. Same issue in SMS webhook handler in `_index.js`.
+- **Additionally**: The old `set(_phoneNumbersOf, chatId, { numbers })` call replaced entire `val`, also wiping sibling fields like `twilioSubAccountSid/Token`
+- **Fix**: Replaced read-modify-write with **MongoDB atomic `$inc`** on specific array elements:
+  - `{ $inc: { 'val.numbers.$.minutesUsed': minutes } }` — zero race condition risk
+  - `{ $inc: { 'val.numbers.$.smsUsed': 1 } }` — same for SMS counter
+  - `{ $set: { 'val.numbers.$._minLimitNotified': true } }` — atomic flag set
+  - No more reading/writing the entire numbers array for counter increments
+- **Also added**: IVR greeting audio URL validation in inbound voice webhook — checks if self-hosted audio file exists on disk before playing; falls back to TTS greeting text if missing
+- **Files changed**: `js/voice-service.js` (incrementMinutesUsed, incrementSmsUsed), `js/_index.js` (SMS webhook handler, inbound IVR audio validation)
 
 ### Issues Found from Railway Logs (User: 8273560746 / Scoreboard44)
 
