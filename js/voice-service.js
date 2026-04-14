@@ -149,8 +149,10 @@ async function handleAutoRoutedRealTimeBilling(callControlId, sipUsername, fromC
         if (walletCheck.usdBal < LOW_BALANCE_TRIGGER) {
           log(`[Voice] Fix #5: Auto-routed LOW BALANCE LOCK — $${walletCheck.usdBal.toFixed(2)} < $${LOW_BALANCE_TRIGGER}, hanging up ${callControlId}`)
           await _telnyxApi.hangupCall(callControlId).catch(() => {})
+          // PREDIAL: Suspend SIP credential to prevent future auto-routed calls
+          suspendSipCredential(chatId, num).catch(e => log(`[Voice] PREDIAL suspend error (auto-route): ${e.message}`))
           _bot?.sendMessage(chatId,
-            `🚫 <b>Call Disconnected</b> (auto-routed)\n\nWallet: <b>$${walletCheck.usdBal.toFixed(2)}</b> — below $${LOW_BALANCE_TRIGGER} threshold.\n💰 Top up at least $${LOW_BALANCE_RESUME} to resume calling.`,
+            `🚫 <b>Call Disconnected</b> (auto-routed)\n\nWallet: <b>$${walletCheck.usdBal.toFixed(2)}</b> — below $${LOW_BALANCE_TRIGGER} threshold.\n💰 Top up at least $${LOW_BALANCE_RESUME} to resume calling.\nYour SIP credential has been suspended to prevent charges.`,
             { parse_mode: 'HTML' }
           ).catch(() => {})
           return
@@ -240,6 +242,162 @@ const WALLET_COOLDOWN_NOTIFY_MAX = 2 // Max Telegram notifications per cooldown 
 // This prevents near-zero-balance users from spam-dialing indefinitely.
 const LOW_BALANCE_TRIGGER = 1     // USD threshold that activates the lock
 const LOW_BALANCE_RESUME = 50     // USD minimum required to unlock calling
+
+// ── PREDIAL: SIP Credential Suspension ──
+// When LOW_BALANCE_LOCK fires, delete the SIP credential on Telnyx so the SIP client
+// can't even authenticate — prevents auto-routed calls that cost money on Telnyx.
+// Credential is re-created when wallet balance reaches LOW_BALANCE_RESUME.
+const _suspendedSipCredentials = new Map() // chatId → { credentialId, sipUsername, sipPassword, phoneNumber, suspendedAt }
+
+async function _loadSuspendedCredentials() {
+  try {
+    const db = _phoneNumbersOf?.s?.db
+    if (!db) return
+    const entries = await db.collection('suspendedSipCredentials').find({}).toArray()
+    for (const entry of entries) {
+      _suspendedSipCredentials.set(entry._id, {
+        credentialId: entry.credentialId,
+        sipUsername: entry.sipUsername,
+        sipPassword: entry.sipPassword,
+        phoneNumber: entry.phoneNumber,
+        suspendedAt: entry.suspendedAt,
+      })
+    }
+    if (entries.length > 0) {
+      log(`[Voice] PREDIAL: Loaded ${entries.length} suspended SIP credential(s) from DB`)
+    }
+  } catch (e) { log(`[Voice] PREDIAL: Error loading suspended credentials: ${e.message}`) }
+}
+
+async function suspendSipCredential(chatId, num) {
+  if (!_telnyxApi) return false
+  const credentialId = num?.telnyxCredentialId
+  const sipUsername = num?.telnyxSipUsername || num?.sipUsername
+  if (!credentialId || !sipUsername) {
+    log(`[Voice] PREDIAL: Cannot suspend — no credentialId/sipUsername for chatId ${chatId}`)
+    return false
+  }
+
+  // Already suspended?
+  if (_suspendedSipCredentials.has(chatId)) {
+    log(`[Voice] PREDIAL: Credential already suspended for chatId ${chatId}`)
+    return true
+  }
+
+  try {
+    const deleted = await _telnyxApi.deleteSIPCredential(credentialId)
+    if (deleted) {
+      const suspensionData = {
+        credentialId,
+        sipUsername,
+        sipPassword: num.telnyxSipPassword || num.sipPassword || '',
+        phoneNumber: num.phoneNumber,
+        suspendedAt: new Date(),
+      }
+      _suspendedSipCredentials.set(chatId, suspensionData)
+
+      // Persist to DB
+      try {
+        const db = _phoneNumbersOf?.s?.db
+        if (db) {
+          await db.collection('suspendedSipCredentials').updateOne(
+            { _id: chatId },
+            { $set: suspensionData },
+            { upsert: true }
+          )
+        }
+      } catch (dbErr) { log(`[Voice] PREDIAL: DB persist error: ${dbErr.message}`) }
+
+      log(`[Voice] PREDIAL: Suspended SIP credential ${sipUsername} (ID: ${credentialId}) for chatId ${chatId} — preventing further auto-routed calls`)
+      return true
+    }
+    log(`[Voice] PREDIAL: Telnyx deleteSIPCredential returned false for chatId ${chatId}`)
+  } catch (e) {
+    log(`[Voice] PREDIAL: Failed to suspend credential for chatId ${chatId}: ${e.message}`)
+  }
+  return false
+}
+
+async function reEnableSipCredential(chatId) {
+  let suspended = _suspendedSipCredentials.get(chatId)
+
+  // Check DB if not in memory
+  if (!suspended) {
+    try {
+      const db = _phoneNumbersOf?.s?.db
+      if (db) {
+        const dbEntry = await db.collection('suspendedSipCredentials').findOne({ _id: chatId })
+        if (dbEntry) suspended = dbEntry
+      }
+    } catch (e) { /* ignore */ }
+  }
+  if (!suspended) return false
+
+  // Check wallet balance before re-enabling
+  if (_walletOf) {
+    try {
+      const { getBalance } = require('./utils')
+      const { usdBal } = await getBalance(_walletOf, chatId)
+      if (usdBal < LOW_BALANCE_RESUME) {
+        log(`[Voice] PREDIAL: Cannot re-enable for chatId ${chatId} — balance $${usdBal.toFixed(2)} < $${LOW_BALANCE_RESUME} required`)
+        return false
+      }
+    } catch (e) { log(`[Voice] PREDIAL: Balance check error for chatId ${chatId}: ${e.message}`) }
+  }
+
+  try {
+    const connectionId = _telnyxResources?.sipConnectionId
+    if (!connectionId) {
+      log(`[Voice] PREDIAL: Cannot re-enable — no SIP connection ID available`)
+      return false
+    }
+
+    const newCred = await _telnyxApi.createSIPCredential(connectionId, suspended.sipUsername, suspended.sipPassword)
+    if (newCred) {
+      // Update the phone number record with new credential ID
+      try {
+        const phoneData = await _phoneNumbersOf.findOne({ _id: chatId })
+        const numbers = phoneData?.val?.numbers || []
+        const numIdx = numbers.findIndex(n => n.phoneNumber === suspended.phoneNumber)
+        if (numIdx >= 0) {
+          numbers[numIdx].telnyxCredentialId = newCred.id || newCred.credential_id || null
+          await setFields(_phoneNumbersOf, chatId, { 'val.numbers': numbers })
+          log(`[Voice] PREDIAL: Updated credential ID in phoneNumbersOf for chatId ${chatId}`)
+        }
+      } catch (dbErr) { log(`[Voice] PREDIAL: phoneNumbersOf update error: ${dbErr.message}`) }
+
+      // Cleanup suspension
+      _suspendedSipCredentials.delete(chatId)
+      try {
+        const db = _phoneNumbersOf?.s?.db
+        if (db) {
+          await db.collection('suspendedSipCredentials').deleteOne({ _id: chatId })
+        }
+      } catch (dbErr) { /* ignore */ }
+
+      // Clear wallet cooldowns for this user
+      delete walletRejectCooldown[suspended.sipUsername]
+      delete walletRejectCooldown[`chatId:${chatId}`]
+
+      log(`[Voice] PREDIAL: Re-enabled SIP credential ${suspended.sipUsername} for chatId ${chatId} (new ID: ${newCred.id || 'unknown'})`)
+
+      // Notify user
+      if (_bot) {
+        _bot.sendMessage(chatId,
+          `✅ <b>SIP Calling Re-enabled</b>\n\n` +
+          `Your wallet balance has been topped up above $${LOW_BALANCE_RESUME}. SIP outbound calling is now active again.\n\n` +
+          `SIP User: <code>${suspended.sipUsername}</code>\nDomain: <code>${require('./phone-config.js').SIP_DOMAIN || 'sip.speechcue.com'}</code>`,
+          { parse_mode: 'HTML' }
+        ).catch(() => {})
+      }
+      return true
+    }
+    log(`[Voice] PREDIAL: createSIPCredential returned null for chatId ${chatId}`)
+  } catch (e) {
+    log(`[Voice] PREDIAL: Failed to re-enable credential for chatId ${chatId}: ${e.message}`)
+  }
+  return false
+}
 
 // ── User Wallet Low Balance Notification System ──
 // Thresholds for proactive warnings sent via Telegram bot
@@ -905,7 +1063,13 @@ function initVoiceService(deps) {
     _loadBalanceNotifyHistory(deps.db).catch(e => log(`[VoiceService] Failed to load balance history: ${e.message}`))
   }
 
-  log('[VoiceService] Initialized with IVR + Recording + Analytics + Limits + Overage billing + SIP Bridge + Twilio IVR + Loyalty Discounts')
+  // PREDIAL: Load suspended SIP credentials from DB
+  // Runs after _phoneNumbersOf is set, so collection reference is available
+  setTimeout(() => {
+    _loadSuspendedCredentials().catch(e => log(`[VoiceService] Failed to load suspended credentials: ${e.message}`))
+  }, 5000)
+
+  log('[VoiceService] Initialized with IVR + Recording + Analytics + Limits + Overage billing + SIP Bridge + Twilio IVR + Loyalty Discounts + PREDIAL Credential Suspension')
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -2362,11 +2526,15 @@ async function handleOutboundSipCall(payload) {
         setWalletRejectCooldown(`chatId:${chatId}`, chatId)
         if (credentialExtracted) setWalletRejectCooldown(sipUsername, chatId) // Also cache by SIP username for early check
         await _telnyxApi.hangupCall(callControlId)
+        // ── PREDIAL: Suspend SIP credential on Telnyx to prevent future auto-routed calls ──
+        // Deleting the credential prevents the SIP client from authenticating, so no calls
+        // reach Telnyx infrastructure at all — zero cost until wallet is topped up.
+        suspendSipCredential(chatId, num).catch(e => log(`[Voice] PREDIAL suspend error: ${e.message}`))
         _bot?.sendMessage(chatId,
           `🚫 <b>Outbound Calling Locked</b>\n\n` +
-          `Your wallet balance (<b>$${walletCheck.usdBal.toFixed(2)}</b>) has dropped below $${LOW_BALANCE_TRIGGER}. To protect your account, outbound calls are temporarily locked.\n\n` +
+          `Your wallet balance (<b>$${walletCheck.usdBal.toFixed(2)}</b>) has dropped below $${LOW_BALANCE_TRIGGER}. To protect your account, outbound calls are temporarily locked and your SIP credential has been suspended.\n\n` +
           `💰 <b>Top up at least $${LOW_BALANCE_RESUME}</b> to resume calling.\n` +
-          `Use 👛 <b>Wallet</b> to add funds.`,
+          `Use 👛 <b>Wallet</b> to add funds. Your SIP credential will be automatically re-enabled.`,
           { parse_mode: 'HTML' }
         ).catch(() => {})
         return
@@ -4272,4 +4440,6 @@ module.exports = {
   registerRecentTestCredential,
   lookupRecentTestCredential,
   trackIvrAnalytics,
+  reEnableSipCredential,
+  suspendSipCredential,
 }

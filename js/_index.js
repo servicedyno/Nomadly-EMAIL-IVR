@@ -5287,8 +5287,16 @@ Enter new value:`), bc)
       
       // Show preferred domain if set
       const preferredDomain = await get(state, chatId, 'preferredShortenerDomain')
-      if (preferredDomain) {
+      if (preferredDomain && typeof preferredDomain === 'string') {
         statusMsg += `\n\n🌐 Default domain: <b>${preferredDomain}</b>`
+      } else if (preferredDomain && typeof preferredDomain === 'object') {
+        // Fix: stored as object instead of string — extract domain name and repair
+        const domainStr = preferredDomain.domain || preferredDomain.name || Object.values(preferredDomain).find(v => typeof v === 'string' && v.includes('.')) || ''
+        if (domainStr) {
+          statusMsg += `\n\n🌐 Default domain: <b>${domainStr}</b>`
+          // Self-heal: store as string going forward
+          set(state, chatId, 'preferredShortenerDomain', domainStr).catch(() => {})
+        }
       }
       
       // Tip for quick shorten
@@ -7380,7 +7388,7 @@ All verified numbers generated during sourcing.`))
       
       let shortUrl, displayUrl
       
-      if (preferredDomain && activeDomains.includes(preferredDomain)) {
+      if (preferredDomain && typeof preferredDomain === 'string' && activeDomains.includes(preferredDomain)) {
         // Use preferred custom domain
         const slug = customAlias || nanoid()
         shortUrl = `${preferredDomain}/${slug}`
@@ -11557,7 +11565,7 @@ ${message.replace(/\n/g, '<br>')}
         let shortUrl, displayUrl
         const slug = nanoid()
         
-        if (preferredDomain && activeDomains.includes(preferredDomain)) {
+        if (preferredDomain && typeof preferredDomain === 'string' && activeDomains.includes(preferredDomain)) {
           shortUrl = `${preferredDomain}/${slug}`
           displayUrl = `https://${shortUrl}`
         } else {
@@ -11632,7 +11640,7 @@ ${message.replace(/\n/g, '<br>')}
       
       let shortUrl, displayUrl
       
-      if (preferredDomain && activeDomains.includes(preferredDomain)) {
+      if (preferredDomain && typeof preferredDomain === 'string' && activeDomains.includes(preferredDomain)) {
         shortUrl = `${preferredDomain}/${customAlias}`
         displayUrl = `https://${shortUrl}`
       } else {
@@ -22706,6 +22714,12 @@ const addFundsTo = async (walletOf, chatId, coin, valueIn, lang) => {
   }
   const { usdBal } = await getBalance(walletOf, chatId)
   sendMessage(chatId, translation('t.showWallet', lang, usdBal))
+
+  // ── PREDIAL: Check if this user has a suspended SIP credential that should be re-enabled ──
+  try {
+    const { reEnableSipCredential } = require('./voice-service.js')
+    reEnableSipCredential(chatId).catch(e => log(`[addFundsTo] PREDIAL re-enable check error: ${e.message}`))
+  } catch (e) { /* voice-service not loaded yet — non-critical */ }
 }
 //
 // ━━━ Loyalty Tier: Webhook helper ━━━
