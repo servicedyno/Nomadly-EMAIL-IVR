@@ -477,6 +477,26 @@ async function hangupCall(callControlId) {
   }
 }
 
+// ── Call Control: Reject (before answering — sends SIP 486/603) ──
+// Use this for calls that should be rejected BEFORE connecting to PSTN.
+// Unlike hangup, reject prevents the outbound PSTN leg from ever being set up.
+async function rejectCall(callControlId, cause = 'CALL_REJECTED') {
+  try {
+    await axios.post(`${BASE}/calls/${callControlId}/actions/reject`, { cause }, { headers: headers() })
+    log(`[Telnyx] Rejected call ${callControlId} (cause: ${cause})`)
+    return true
+  } catch (e) {
+    const errDetail = e.response?.data?.errors?.[0]?.detail || e.message || ''
+    const errCode = e.response?.data?.errors?.[0]?.code
+    if (errCode === '90018' || errDetail.includes('already ended') || errDetail.includes('not found')) {
+      return true
+    }
+    // Fallback to hangup if reject isn't supported for this call state
+    log(`[Telnyx] rejectCall error: ${errDetail} — falling back to hangup`)
+    return hangupCall(callControlId)
+  }
+}
+
 // ── Setup: Initialize Telnyx resources (SIP + Messaging Profile + Call Control App) ──
 async function initializeTelnyxResources(selfUrl) {
   const voiceWebhook = `${selfUrl}/telnyx/voice-webhook`
@@ -498,37 +518,33 @@ async function initializeTelnyxResources(selfUrl) {
       log('Created SIP Connection:', sipConnectionId)
     }
   } else {
-    // Always update SIP connection webhook to current URL and ensure outbound profile is linked
+    // Always update SIP connection webhook to current URL
+    // ── APPROACH A: Disable auto-routing ──
+    // Remove outbound_voice_profile_id from credential connection so SIP outbound calls
+    // go through our webhook FIRST (call control mode) instead of auto-routing to PSTN.
+    // PSTN routing is handled via dial+bridge through the Call Control App instead.
     try {
-      const connRes = await axios.get(`${BASE}/credential_connections/${sipConnectionId}`, { headers: headers() })
-      const currentOutboundProfileId = connRes.data?.data?.outbound?.outbound_voice_profile_id
       const patchBody = {
         webhook_event_url: voiceWebhook,
-        // Enable receiving inbound SIP URI calls from ANY source (Telnyx Call Control + external like Twilio)
-        // 'unrestricted' allows Twilio <Dial><Sip> to route through sip.speechcue.com → Telnyx → SIP device
         sip_uri_calling_preference: 'unrestricted',
+        outbound: { outbound_voice_profile_id: null },
       }
-
-      // Ensure outbound voice profile is linked (required for SIP outbound calls to reach PSTN)
-      if (!currentOutboundProfileId) {
-        try {
-          const profiles = await axios.get(`${BASE}/outbound_voice_profiles`, { headers: headers() })
-          const active = (profiles.data?.data || []).find(p => p.enabled)
-          if (active) {
-            patchBody.outbound = { outbound_voice_profile_id: active.id }
-            log(`[Telnyx] Linking outbound voice profile ${active.id} to SIP connection`)
-          } else {
-            log('[Telnyx] WARNING: No active outbound voice profile found — outbound SIP calls will fail!')
-          }
-        } catch (e) {
-          log('[Telnyx] Error fetching outbound voice profiles:', e.message)
-        }
-      }
-
       await axios.patch(`${BASE}/credential_connections/${sipConnectionId}`, patchBody, { headers: headers() })
-      log('Updated SIP Connection webhook:', sipConnectionId)
+      log('[Telnyx] Updated SIP Connection — auto-routing DISABLED (outbound_voice_profile_id removed). SIP calls go through call control webhook.')
     } catch (e) {
-      log('SIP Connection webhook update error:', e.response?.data?.errors?.[0]?.detail || e.message)
+      // If setting null fails, try empty string or log and continue
+      const errDetail = e.response?.data?.errors?.[0]?.detail || e.message
+      log(`[Telnyx] SIP Connection update error: ${errDetail}`)
+      // Fallback: at minimum update the webhook
+      try {
+        await axios.patch(`${BASE}/credential_connections/${sipConnectionId}`, {
+          webhook_event_url: voiceWebhook,
+          sip_uri_calling_preference: 'unrestricted',
+        }, { headers: headers() })
+        log('[Telnyx] Updated SIP Connection webhook (fallback — auto-routing may still be active)')
+      } catch (e2) {
+        log('SIP Connection webhook update error:', e2.response?.data?.errors?.[0]?.detail || e2.message)
+      }
     }
   }
 
@@ -874,6 +890,7 @@ module.exports = {
   startRecording,
   stopRecording,
   hangupCall,
+  rejectCall,
   gatherDTMF,
   gatherDTMFWithAudio,
   playbackStop,

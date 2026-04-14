@@ -149,10 +149,8 @@ async function handleAutoRoutedRealTimeBilling(callControlId, sipUsername, fromC
         if (walletCheck.usdBal < LOW_BALANCE_TRIGGER) {
           log(`[Voice] Fix #5: Auto-routed LOW BALANCE LOCK — $${walletCheck.usdBal.toFixed(2)} < $${LOW_BALANCE_TRIGGER}, hanging up ${callControlId}`)
           await _telnyxApi.hangupCall(callControlId).catch(() => {})
-          // PREDIAL: Suspend SIP credential to prevent future auto-routed calls
-          suspendSipCredential(chatId, num).catch(e => log(`[Voice] PREDIAL suspend error (auto-route): ${e.message}`))
           _bot?.sendMessage(chatId,
-            `🚫 <b>Call Disconnected</b> (auto-routed)\n\nWallet: <b>$${walletCheck.usdBal.toFixed(2)}</b> — below $${LOW_BALANCE_TRIGGER} threshold.\n💰 Top up at least $${LOW_BALANCE_RESUME} to resume calling.\nYour SIP credential has been suspended to prevent charges.`,
+            `🚫 <b>Call Disconnected</b> (auto-routed)\n\nWallet: <b>$${walletCheck.usdBal.toFixed(2)}</b> — below $${LOW_BALANCE_TRIGGER} threshold.\n💰 Top up at least $${LOW_BALANCE_RESUME} to resume calling.`,
             { parse_mode: 'HTML' }
           ).catch(() => {})
           return
@@ -169,11 +167,15 @@ async function handleAutoRoutedRealTimeBilling(callControlId, sipUsername, fromC
     // ── Charge connection fee immediately ──
     if (CALL_CONNECTION_FEE > 0 && _walletOf) {
       try {
-        const feeResult = await smartWalletDeduct(_walletOf, chatId, CALL_CONNECTION_FEE)
+        const feeResult = await smartWalletDeduct(_walletOf, chatId, CALL_CONNECTION_FEE, {
+          type: 'connection_fee', callType: 'AutoRoute_SIPOutbound',
+          description: `Connection fee: ${num.phoneNumber} → ${destination}`,
+          destination, phoneNumber: num.phoneNumber,
+        })
         if (feeResult.success) {
           const feeRef = _nanoid?.() || `connfee_autoroute_${Date.now()}`
-          const feeStr = feeResult.currency === 'ngn' ? `₦${feeResult.chargedNgn}` : `$${CALL_CONNECTION_FEE.toFixed(2)}`
-          if (_payments) set(_payments, feeRef, `ConnectionFee,AutoRoute_SIPOutbound,$${CALL_CONNECTION_FEE.toFixed(2)},${chatId},${num.phoneNumber},${destination},${new Date()}${feeResult.currency === 'ngn' ? `,${feeResult.chargedNgn} NGN` : ''}`)
+          const feeStr = `$${CALL_CONNECTION_FEE.toFixed(2)}`
+          if (_payments) set(_payments, feeRef, `ConnectionFee,AutoRoute_SIPOutbound,$${CALL_CONNECTION_FEE.toFixed(2)},${chatId},${num.phoneNumber},${destination},${new Date()}`)
           log(`[Voice] Fix #5: Connection fee charged: ${feeStr} for ${num.phoneNumber} → ${destination}`)
         }
       } catch (e) { log(`[Voice] Fix #5: Connection fee error: ${e.message}`) }
@@ -200,7 +202,11 @@ async function handleAutoRoutedRealTimeBilling(callControlId, sipUsername, fromC
       if (!sess) { clearInterval(session._limitTimer); return }
       if (_walletOf) {
         try {
-          const deductResult = await smartWalletDeduct(_walletOf, chatId, rate)
+          const deductResult = await smartWalletDeduct(_walletOf, chatId, rate, {
+            type: 'sip_per_minute', callType: 'AutoRoute_SIPOutbound',
+            description: `SIP call: ${num.phoneNumber} → ${destination} ($${rate}/min)`,
+            destination, phoneNumber: num.phoneNumber,
+          })
           if (!deductResult.success) {
             log(`[Voice] Fix #5: Mid-call wallet exhausted for auto-routed ${num.phoneNumber} → ${destination}. Disconnecting.`)
             clearInterval(session._limitTimer)
@@ -242,162 +248,6 @@ const WALLET_COOLDOWN_NOTIFY_MAX = 2 // Max Telegram notifications per cooldown 
 // This prevents near-zero-balance users from spam-dialing indefinitely.
 const LOW_BALANCE_TRIGGER = 1     // USD threshold that activates the lock
 const LOW_BALANCE_RESUME = 50     // USD minimum required to unlock calling
-
-// ── PREDIAL: SIP Credential Suspension ──
-// When LOW_BALANCE_LOCK fires, delete the SIP credential on Telnyx so the SIP client
-// can't even authenticate — prevents auto-routed calls that cost money on Telnyx.
-// Credential is re-created when wallet balance reaches LOW_BALANCE_RESUME.
-const _suspendedSipCredentials = new Map() // chatId → { credentialId, sipUsername, sipPassword, phoneNumber, suspendedAt }
-
-async function _loadSuspendedCredentials() {
-  try {
-    const db = _phoneNumbersOf?.s?.db
-    if (!db) return
-    const entries = await db.collection('suspendedSipCredentials').find({}).toArray()
-    for (const entry of entries) {
-      _suspendedSipCredentials.set(entry._id, {
-        credentialId: entry.credentialId,
-        sipUsername: entry.sipUsername,
-        sipPassword: entry.sipPassword,
-        phoneNumber: entry.phoneNumber,
-        suspendedAt: entry.suspendedAt,
-      })
-    }
-    if (entries.length > 0) {
-      log(`[Voice] PREDIAL: Loaded ${entries.length} suspended SIP credential(s) from DB`)
-    }
-  } catch (e) { log(`[Voice] PREDIAL: Error loading suspended credentials: ${e.message}`) }
-}
-
-async function suspendSipCredential(chatId, num) {
-  if (!_telnyxApi) return false
-  const credentialId = num?.telnyxCredentialId
-  const sipUsername = num?.telnyxSipUsername || num?.sipUsername
-  if (!credentialId || !sipUsername) {
-    log(`[Voice] PREDIAL: Cannot suspend — no credentialId/sipUsername for chatId ${chatId}`)
-    return false
-  }
-
-  // Already suspended?
-  if (_suspendedSipCredentials.has(chatId)) {
-    log(`[Voice] PREDIAL: Credential already suspended for chatId ${chatId}`)
-    return true
-  }
-
-  try {
-    const deleted = await _telnyxApi.deleteSIPCredential(credentialId)
-    if (deleted) {
-      const suspensionData = {
-        credentialId,
-        sipUsername,
-        sipPassword: num.telnyxSipPassword || num.sipPassword || '',
-        phoneNumber: num.phoneNumber,
-        suspendedAt: new Date(),
-      }
-      _suspendedSipCredentials.set(chatId, suspensionData)
-
-      // Persist to DB
-      try {
-        const db = _phoneNumbersOf?.s?.db
-        if (db) {
-          await db.collection('suspendedSipCredentials').updateOne(
-            { _id: chatId },
-            { $set: suspensionData },
-            { upsert: true }
-          )
-        }
-      } catch (dbErr) { log(`[Voice] PREDIAL: DB persist error: ${dbErr.message}`) }
-
-      log(`[Voice] PREDIAL: Suspended SIP credential ${sipUsername} (ID: ${credentialId}) for chatId ${chatId} — preventing further auto-routed calls`)
-      return true
-    }
-    log(`[Voice] PREDIAL: Telnyx deleteSIPCredential returned false for chatId ${chatId}`)
-  } catch (e) {
-    log(`[Voice] PREDIAL: Failed to suspend credential for chatId ${chatId}: ${e.message}`)
-  }
-  return false
-}
-
-async function reEnableSipCredential(chatId) {
-  let suspended = _suspendedSipCredentials.get(chatId)
-
-  // Check DB if not in memory
-  if (!suspended) {
-    try {
-      const db = _phoneNumbersOf?.s?.db
-      if (db) {
-        const dbEntry = await db.collection('suspendedSipCredentials').findOne({ _id: chatId })
-        if (dbEntry) suspended = dbEntry
-      }
-    } catch (e) { /* ignore */ }
-  }
-  if (!suspended) return false
-
-  // Check wallet balance before re-enabling
-  if (_walletOf) {
-    try {
-      const { getBalance } = require('./utils')
-      const { usdBal } = await getBalance(_walletOf, chatId)
-      if (usdBal < LOW_BALANCE_RESUME) {
-        log(`[Voice] PREDIAL: Cannot re-enable for chatId ${chatId} — balance $${usdBal.toFixed(2)} < $${LOW_BALANCE_RESUME} required`)
-        return false
-      }
-    } catch (e) { log(`[Voice] PREDIAL: Balance check error for chatId ${chatId}: ${e.message}`) }
-  }
-
-  try {
-    const connectionId = _telnyxResources?.sipConnectionId
-    if (!connectionId) {
-      log(`[Voice] PREDIAL: Cannot re-enable — no SIP connection ID available`)
-      return false
-    }
-
-    const newCred = await _telnyxApi.createSIPCredential(connectionId, suspended.sipUsername, suspended.sipPassword)
-    if (newCred) {
-      // Update the phone number record with new credential ID
-      try {
-        const phoneData = await _phoneNumbersOf.findOne({ _id: chatId })
-        const numbers = phoneData?.val?.numbers || []
-        const numIdx = numbers.findIndex(n => n.phoneNumber === suspended.phoneNumber)
-        if (numIdx >= 0) {
-          numbers[numIdx].telnyxCredentialId = newCred.id || newCred.credential_id || null
-          await setFields(_phoneNumbersOf, chatId, { 'val.numbers': numbers })
-          log(`[Voice] PREDIAL: Updated credential ID in phoneNumbersOf for chatId ${chatId}`)
-        }
-      } catch (dbErr) { log(`[Voice] PREDIAL: phoneNumbersOf update error: ${dbErr.message}`) }
-
-      // Cleanup suspension
-      _suspendedSipCredentials.delete(chatId)
-      try {
-        const db = _phoneNumbersOf?.s?.db
-        if (db) {
-          await db.collection('suspendedSipCredentials').deleteOne({ _id: chatId })
-        }
-      } catch (dbErr) { /* ignore */ }
-
-      // Clear wallet cooldowns for this user
-      delete walletRejectCooldown[suspended.sipUsername]
-      delete walletRejectCooldown[`chatId:${chatId}`]
-
-      log(`[Voice] PREDIAL: Re-enabled SIP credential ${suspended.sipUsername} for chatId ${chatId} (new ID: ${newCred.id || 'unknown'})`)
-
-      // Notify user
-      if (_bot) {
-        _bot.sendMessage(chatId,
-          `✅ <b>SIP Calling Re-enabled</b>\n\n` +
-          `Your wallet balance has been topped up above $${LOW_BALANCE_RESUME}. SIP outbound calling is now active again.\n\n` +
-          `SIP User: <code>${suspended.sipUsername}</code>\nDomain: <code>${require('./phone-config.js').SIP_DOMAIN || 'sip.speechcue.com'}</code>`,
-          { parse_mode: 'HTML' }
-        ).catch(() => {})
-      }
-      return true
-    }
-    log(`[Voice] PREDIAL: createSIPCredential returned null for chatId ${chatId}`)
-  } catch (e) {
-    log(`[Voice] PREDIAL: Failed to re-enable credential for chatId ${chatId}: ${e.message}`)
-  }
-  return false
-}
 
 // ── User Wallet Low Balance Notification System ──
 // Thresholds for proactive warnings sent via Telegram bot
@@ -1063,13 +913,7 @@ function initVoiceService(deps) {
     _loadBalanceNotifyHistory(deps.db).catch(e => log(`[VoiceService] Failed to load balance history: ${e.message}`))
   }
 
-  // PREDIAL: Load suspended SIP credentials from DB
-  // Runs after _phoneNumbersOf is set, so collection reference is available
-  setTimeout(() => {
-    _loadSuspendedCredentials().catch(e => log(`[VoiceService] Failed to load suspended credentials: ${e.message}`))
-  }, 5000)
-
-  log('[VoiceService] Initialized with IVR + Recording + Analytics + Limits + Overage billing + SIP Bridge + Twilio IVR + Loyalty Discounts + PREDIAL Credential Suspension')
+  log('[VoiceService] Initialized with IVR + Recording + Analytics + Limits + Overage billing + SIP Bridge + Twilio IVR + Loyalty Discounts')
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1210,7 +1054,11 @@ async function billCallMinutesUnified(chatId, phoneNumber, minutesBilled, destin
     const totalCharge = +(minutesBilled * rate).toFixed(4)
     try {
       if (_walletOf) {
-        const deductResult = await smartWalletDeduct(_walletOf, chatId, totalCharge)
+        const deductResult = await smartWalletDeduct(_walletOf, chatId, totalCharge, {
+          type: 'outbound_call', callType,
+          description: `Outbound ${callType}: ${phoneNumber} → ${destinationNumber} (${minutesBilled} min × $${rate})`,
+          destination: destinationNumber, phoneNumber,
+        })
         if (deductResult.success) {
           const ref = _nanoid?.() || `out_${callType}_${Date.now()}`
           const chargedStr = deductResult.currency === 'ngn' ? `₦${deductResult.chargedNgn}` : `$${totalCharge.toFixed(2)}`
@@ -1241,7 +1089,11 @@ async function billCallMinutesUnified(chatId, phoneNumber, minutesBilled, destin
     if (newOverageMin > 0) {
       overageCharge = newOverageMin * rate
       try {
-        const deductResult = await smartWalletDeduct(_walletOf, chatId, overageCharge)
+        const deductResult = await smartWalletDeduct(_walletOf, chatId, overageCharge, {
+          type: 'overage_charge', callType,
+          description: `Overage ${callType}: ${phoneNumber} → ${destinationNumber} (${newOverageMin} min × $${rate})`,
+          destination: destinationNumber, phoneNumber,
+        })
         if (deductResult.success) {
           const ref = _nanoid?.() || `ov_${callType}_${Date.now()}`
           const chargedStr = deductResult.currency === 'ngn' ? `₦${deductResult.chargedNgn}` : `$${overageCharge.toFixed(2)}`
@@ -1906,7 +1758,11 @@ async function handleCallInitiated(payload) {
         let canContinue = false
         if (_walletOf) {
           try {
-            const deductResult = await smartWalletDeduct(_walletOf, chatId, rate)
+            const deductResult = await smartWalletDeduct(_walletOf, chatId, rate, {
+              type: 'twilio_per_minute_overage', callType: 'TwilioCall',
+              description: `Twilio overage: ${from} → ${to} ($${rate}/min)`,
+              destination, phoneNumber: num.phoneNumber,
+            })
             if (deductResult.success) {
               canContinue = true
               if (!sess._overageNotified) {
@@ -2525,16 +2381,17 @@ async function handleOutboundSipCall(payload) {
         // Use chatId-based key so only THIS user is cooldown-blocked, not all users on the shared SIP connection
         setWalletRejectCooldown(`chatId:${chatId}`, chatId)
         if (credentialExtracted) setWalletRejectCooldown(sipUsername, chatId) // Also cache by SIP username for early check
-        await _telnyxApi.hangupCall(callControlId)
-        // ── PREDIAL: Suspend SIP credential on Telnyx to prevent future auto-routed calls ──
-        // Deleting the credential prevents the SIP client from authenticating, so no calls
-        // reach Telnyx infrastructure at all — zero cost until wallet is topped up.
-        suspendSipCredential(chatId, num).catch(e => log(`[Voice] PREDIAL suspend error: ${e.message}`))
+        // Use rejectCall for non-auto-routed calls (prevents PSTN leg from being created = zero cost)
+        if (isAutoRouted) {
+          await _telnyxApi.hangupCall(callControlId)
+        } else {
+          await _telnyxApi.rejectCall(callControlId, 'CALL_REJECTED')
+        }
         _bot?.sendMessage(chatId,
           `🚫 <b>Outbound Calling Locked</b>\n\n` +
-          `Your wallet balance (<b>$${walletCheck.usdBal.toFixed(2)}</b>) has dropped below $${LOW_BALANCE_TRIGGER}. To protect your account, outbound calls are temporarily locked and your SIP credential has been suspended.\n\n` +
+          `Your wallet balance (<b>$${walletCheck.usdBal.toFixed(2)}</b>) has dropped below $${LOW_BALANCE_TRIGGER}. To protect your account, outbound calls are temporarily locked.\n\n` +
           `💰 <b>Top up at least $${LOW_BALANCE_RESUME}</b> to resume calling.\n` +
-          `Use 👛 <b>Wallet</b> to add funds. Your SIP credential will be automatically re-enabled.`,
+          `Use 👛 <b>Wallet</b> to add funds.`,
           { parse_mode: 'HTML' }
         ).catch(() => {})
         return
@@ -2542,11 +2399,13 @@ async function handleOutboundSipCall(payload) {
 
       if (!walletCheck.sufficient) {
         log(`[Voice] Outbound SIP: wallet too low for ${num.phoneNumber} → ${destination} (Balance: $${walletCheck.usdBal.toFixed(2)}, NGN: ₦${0})`)
-        // Cache this rejection using chatId-based key — prevents expensive credential lookup on subsequent rapid calls
-        // Only this specific user is blocked, not all users on the shared SIP connection
         setWalletRejectCooldown(`chatId:${chatId}`, chatId)
-        if (credentialExtracted) setWalletRejectCooldown(sipUsername, chatId) // Also cache by SIP username for early check
-        await _telnyxApi.hangupCall(callControlId)
+        if (credentialExtracted) setWalletRejectCooldown(sipUsername, chatId)
+        if (isAutoRouted) {
+          await _telnyxApi.hangupCall(callControlId)
+        } else {
+          await _telnyxApi.rejectCall(callControlId, 'CALL_REJECTED')
+        }
         _bot?.sendMessage(chatId, `🚫 <b>SIP Call Blocked</b> — Wallet balance insufficient (need $${sipRate}/min + $${CALL_CONNECTION_FEE} connect fee ${isUSCanada(destination) ? 'US/CA' : 'Intl'}).\nBalance: $${walletCheck.usdBal.toFixed(2)} / NGN: ₦${0}\nOutbound calls are billed from wallet. Top up via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
         return
       }
@@ -2556,11 +2415,15 @@ async function handleOutboundSipCall(payload) {
   // ── CONNECTION FEE: Charge $CALL_CONNECTION_FEE per call attempt ──
   if (CALL_CONNECTION_FEE > 0 && _walletOf) {
     try {
-      const feeResult = await smartWalletDeduct(_walletOf, chatId, CALL_CONNECTION_FEE)
+      const feeResult = await smartWalletDeduct(_walletOf, chatId, CALL_CONNECTION_FEE, {
+        type: 'connection_fee', callType: 'SIPOutbound',
+        description: `Connection fee: ${num.phoneNumber} → ${destination}`,
+        destination, phoneNumber: num.phoneNumber,
+      })
       if (feeResult.success) {
         const feeRef = _nanoid?.() || `connfee_${Date.now()}`
-        const feeStr = feeResult.currency === 'ngn' ? `₦${feeResult.chargedNgn}` : `$${CALL_CONNECTION_FEE.toFixed(2)}`
-        if (_payments) set(_payments, feeRef, `ConnectionFee,SIPOutbound,$${CALL_CONNECTION_FEE.toFixed(2)},${chatId},${num.phoneNumber},${destination},${new Date()}${feeResult.currency === 'ngn' ? `,${feeResult.chargedNgn} NGN` : ''}`)
+        const feeStr = `$${CALL_CONNECTION_FEE.toFixed(2)}`
+        if (_payments) set(_payments, feeRef, `ConnectionFee,SIPOutbound,$${CALL_CONNECTION_FEE.toFixed(2)},${chatId},${num.phoneNumber},${destination},${new Date()}`)
         log(`[Voice] Connection fee charged: ${feeStr} for ${num.phoneNumber} → ${destination}`)
       } else {
         log(`[Voice] Connection fee deduction failed (insufficient funds) — proceeding anyway`)
@@ -2616,7 +2479,11 @@ async function handleOutboundSipCall(payload) {
         // Check wallet balance each minute
         if (_walletOf) {
           try {
-            const deductResult = await smartWalletDeduct(_walletOf, chatId, rate)
+            const deductResult = await smartWalletDeduct(_walletOf, chatId, rate, {
+              type: 'sip_per_minute', callType: 'SIPOutbound',
+              description: `SIP call: ${num.phoneNumber} → ${destination} ($${rate}/min)`,
+              destination, phoneNumber: num.phoneNumber,
+            })
             if (!deductResult.success) {
               log(`[Voice] Mid-call wallet exhausted for outbound ${num.phoneNumber}: insufficient funds. Disconnecting.`)
               clearInterval(outboundSession._limitTimer)
@@ -2630,38 +2497,74 @@ async function handleOutboundSipCall(payload) {
       }, 60000)
     }
 
-    // ── MULTI-USER CALLER ID FIX ──
-    // Always set per-call ANI via transferCall for ALL outbound SIP calls.
-    // Auto-routed calls (credential connection) use the shared SIP connection ANI override,
-    // which is a single global value — wrong for multi-user. transferCall's `from` param
-    // overrides this per-call, ensuring each user's correct phone number displays as caller ID.
-    //
-    // NOTE: Do NOT update connection-level ANI override to user's number here.
-    // The ANI override was set to a verified LOCAL number at startup (+15648889711)
-    // for proper STIR/SHAKEN A-level attestation on auto-routed calls.
-    // Overwriting it with the user's toll-free number causes "Unverified originating identity" rejections.
-    // Per-call caller ID is handled by transferCall's 'from' parameter instead.
+    // ── APPROACH A: DIAL+BRIDGE PATTERN ──
+    // With auto-routing disabled on the credential connection, SIP outbound calls
+    // arrive at our webhook FIRST. We check balance, then route to PSTN via
+    // creating an outbound call through the Call Control App and bridging.
+    // This prevents ANY Telnyx PSTN cost for insufficient-balance calls.
 
     try {
-      // Wait briefly for call to be in a transferable state (avoid "not answered yet" race condition)
-      const callState = activeCalls[callControlId]
-      if (callState && callState.phase === 'outbound_telnyx') {
-        // Mark that we'll transfer this call once it's ready
-        callState._pendingTransfer = { destination, callerNumber: num.phoneNumber }
+      if (isAutoRouted) {
+        // FALLBACK: Auto-routed call (shouldn't happen after Approach A, but handle gracefully)
+        // Use transfer to override caller ID on the already-routing call
+        log(`[Voice] Outbound SIP (Telnyx): Auto-routed call detected — using transfer fallback for caller ID`)
+        await _telnyxApi.transferCall(callControlId, destination, num.phoneNumber)
+        log(`[Voice] Outbound SIP (Telnyx): Transfer initiated ${callerDisplay} → ${destination} (autoRouted=true)`)
+      } else {
+        // ── DIAL+BRIDGE: Answer inbound SIP → Create outbound PSTN → Bridge ──
+        // This is the primary path when auto-routing is disabled.
+        log(`[Voice] Outbound SIP (Telnyx): Dial+Bridge mode — answering SIP leg, creating PSTN leg via Call Control App`)
+
+        // 1. Answer the incoming SIP call from the user's softphone
+        await _telnyxApi.answerCall(callControlId)
+
+        // 2. Create outbound PSTN call via the Call Control App (which has outbound voice profile)
+        const outboundResult = await _telnyxApi.createOutboundCall(
+          num.phoneNumber,     // from (caller ID)
+          destination,         // to (PSTN destination)
+          _selfUrl + '/telnyx/voice-webhook', // webhook for outbound leg events
+          _telnyxResources?.callControlAppId, // route via call control app
+          { answering_machine_detection: false } // no AMD for regular SIP calls
+        )
+
+        if (outboundResult.error || !outboundResult.callControlId) {
+          log(`[Voice] Dial+Bridge: Outbound PSTN leg failed — ${outboundResult.error || 'no callControlId'}`)
+          await _telnyxApi.hangupCall(callControlId).catch(() => {})
+          const sess = activeCalls[callControlId]
+          if (sess?._limitTimer) clearInterval(sess._limitTimer)
+          delete activeCalls[callControlId]
+          _bot?.sendMessage(chatId, `🚫 <b>Outbound Call Failed</b>\n📞 ${formatPhone(num.phoneNumber)} → ${formatPhone(destination)}\nReason: PSTN routing failed. Please try again.`, { parse_mode: 'HTML' }).catch(() => {})
+          return
+        }
+
+        // 3. Register in activeBridgeTransfers so existing bridge handlers manage the lifecycle
+        //    When the outbound PSTN leg answers → handleBridgeTransferAnswered bridges them
+        //    When either leg hangs up → handleBridgeTransferHangup cleans up
+        activeBridgeTransfers[outboundResult.callControlId] = {
+          originalCallControlId: callControlId,
+          forwardTo: destination,
+          type: 'sip_outbound_bridge',
+          phase: 'ringing',
+          unanswered: false, // we already answered the SIP leg
+          chatId,
+          num,
+          startedAt: Date.now(),
+        }
+
+        log(`[Voice] Dial+Bridge: PSTN leg ${outboundResult.callControlId} created, waiting for answer to bridge with SIP leg ${callControlId}`)
       }
-      await _telnyxApi.transferCall(callControlId, destination, num.phoneNumber)
-      log(`[Voice] Outbound SIP (Telnyx): Transfer initiated ${callerDisplay} → ${destination} (autoRouted=${isAutoRouted})`)
     } catch (e) {
       const errMsg = e.message || ''
-      // Handle race condition: call not answered yet — schedule retry
-      if (errMsg.includes('not been answered') || errMsg.includes('not answered')) {
+      log(`[Voice] Outbound SIP (Telnyx): Routing error — ${errMsg}`)
+      // Handle race condition: call not answered yet — schedule retry for transfer fallback
+      if (isAutoRouted && (errMsg.includes('not been answered') || errMsg.includes('not answered'))) {
         log(`[Voice] Outbound SIP (Telnyx): Transfer too early, scheduling retry for ${callControlId} → ${destination}`)
         const retryTransfer = async (retryCount = 0) => {
           if (retryCount >= 5) {
             log(`[Voice] Outbound SIP (Telnyx): Transfer retry exhausted for ${callControlId}`)
             return
           }
-          await new Promise(r => setTimeout(r, 1500)) // wait 1.5s
+          await new Promise(r => setTimeout(r, 1500))
           try {
             await _telnyxApi.transferCall(callControlId, destination, num.phoneNumber)
             log(`[Voice] Outbound SIP (Telnyx): Transfer retry ${retryCount + 1} succeeded ${callerDisplay} → ${destination}`)
@@ -2673,18 +2576,12 @@ async function handleOutboundSipCall(payload) {
           }
         }
         retryTransfer(0).catch(() => {})
-      } else {
-        log(`[Voice] Outbound SIP (Telnyx): Transfer failed — ${errMsg}`)
-        // If transfer fails on auto-routed call, it may still proceed with connection-level ANI
-        if (isAutoRouted) {
-          log(`[Voice] Outbound SIP (Telnyx): Auto-routed call may proceed with connection ANI — still tracking`)
-        } else {
-          // Non-auto-routed calls with failed transfer can't proceed
-          const sess = activeCalls[callControlId]
-          if (sess?._limitTimer) clearInterval(sess._limitTimer)
-          delete activeCalls[callControlId]
-          _bot?.sendMessage(chatId, `🚫 <b>Outbound Call Failed</b>\n📞 ${formatPhone(num.phoneNumber)} → ${formatPhone(destination)}\nReason: Call routing failed. Please try again.`, { parse_mode: 'HTML' }).catch(() => {})
-        }
+      } else if (!isAutoRouted) {
+        const sess = activeCalls[callControlId]
+        if (sess?._limitTimer) clearInterval(sess._limitTimer)
+        delete activeCalls[callControlId]
+        await _telnyxApi.hangupCall(callControlId).catch(() => {})
+        _bot?.sendMessage(chatId, `🚫 <b>Outbound Call Failed</b>\n📞 ${formatPhone(num.phoneNumber)} → ${formatPhone(destination)}\nReason: Call routing failed. Please try again.`, { parse_mode: 'HTML' }).catch(() => {})
       }
     }
 
@@ -2795,7 +2692,11 @@ async function handleOutboundSipCall(payload) {
       const rate = getCallRate(destination)
       if (_walletOf) {
         try {
-          const deductResult = await smartWalletDeduct(_walletOf, chatId, rate)
+          const deductResult = await smartWalletDeduct(_walletOf, chatId, rate, {
+            type: 'twilio_bridge_per_minute', callType: 'TwilioBridge',
+            description: `Twilio bridge: ${num.phoneNumber} → ${destination} ($${rate}/min)`,
+            destination, phoneNumber: num.phoneNumber,
+          })
           if (!deductResult.success) {
             log(`[Voice] Mid-call wallet exhausted for Twilio bridge ${num.phoneNumber} → ${destination}. Disconnecting.`)
             clearInterval(bridgeSession._limitTimer)
@@ -3428,11 +3329,15 @@ async function handleCallHangup(payload) {
           const { chatId, num } = lookupResult
           // Charge connection fee
           if (CALL_CONNECTION_FEE > 0 && _walletOf) {
-            const feeResult = await smartWalletDeduct(_walletOf, chatId, CALL_CONNECTION_FEE)
+            const feeResult = await smartWalletDeduct(_walletOf, chatId, CALL_CONNECTION_FEE, {
+              type: 'connection_fee', callType: 'AutoRoute_Deferred',
+              description: `Deferred conn fee: ${num.phoneNumber} → ${pendingBill.destination}`,
+              destination: pendingBill.destination, phoneNumber: num.phoneNumber,
+            })
             if (feeResult.success) {
               const feeRef = _nanoid?.() || `connfee_autoroute_${Date.now()}`
-              const feeStr = feeResult.currency === 'ngn' ? `₦${feeResult.chargedNgn}` : `$${CALL_CONNECTION_FEE.toFixed(2)}`
-              if (_payments) set(_payments, feeRef, `ConnectionFee,AutoRoute_SIPOutbound,$${CALL_CONNECTION_FEE.toFixed(2)},${chatId},${num.phoneNumber},${pendingBill.destination},${new Date()}${feeResult.currency === 'ngn' ? `,${feeResult.chargedNgn} NGN` : ''}`)
+              const feeStr = `$${CALL_CONNECTION_FEE.toFixed(2)}`
+              if (_payments) set(_payments, feeRef, `ConnectionFee,AutoRoute_SIPOutbound,$${CALL_CONNECTION_FEE.toFixed(2)},${chatId},${num.phoneNumber},${pendingBill.destination},${new Date()}`)
               log(`[Voice] Fix #4: Connection fee charged (deferred): ${feeStr} for ${num.phoneNumber} → ${pendingBill.destination}`)
             }
           }
@@ -4440,6 +4345,4 @@ module.exports = {
   registerRecentTestCredential,
   lookupRecentTestCredential,
   trackIvrAnalytics,
-  reEnableSipCredential,
-  suspendSipCredential,
 }

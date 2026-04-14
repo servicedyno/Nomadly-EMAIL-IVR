@@ -93,7 +93,7 @@ async function ngnToUsd(ngn) {
  * Used by auto-renewal schedulers and overage billing where there's no user interaction.
  * @returns {{ success: boolean, currency: 'usd'|null, charged: number }}
  */
-async function smartWalletDeduct(walletOf, chatId, amountUsd) {
+async function smartWalletDeduct(walletOf, chatId, amountUsd, metadata = {}) {
   const { atomicIncrement } = require('./db')
 
   // Atomic USD deduction: only deducts if current balance >= amountUsd
@@ -108,6 +108,30 @@ async function smartWalletDeduct(walletOf, chatId, amountUsd) {
     )
     if (usdResult) {
       checkReferralReward(walletOf, chatId, amountUsd).catch(() => {})  // async, non-blocking
+
+      // ── APPROACH B: Real-time wallet ledger entry ──
+      // Every deduction is now traceable in walletLedger with full metadata
+      try {
+        const db = walletOf.s?.db
+        if (db) {
+          const { v4: uuidv4 } = require('uuid')
+          const newBal = (usdResult.usdIn || 0) - (usdResult.usdOut || 0)
+          db.collection('walletLedger').insertOne({
+            _id: uuidv4(),
+            chatId,
+            type: metadata.type || 'wallet_deduction',
+            amount: -amountUsd,
+            currency: 'usd',
+            balanceAfter: parseFloat(newBal.toFixed(4)),
+            description: metadata.description || `Deduction: $${amountUsd.toFixed(4)}`,
+            callType: metadata.callType || null,
+            destination: metadata.destination || null,
+            phoneNumber: metadata.phoneNumber || null,
+            timestamp: new Date(),
+          }).catch(e => log(`[walletLedger] Insert error: ${e.message}`))
+        }
+      } catch (ledgerErr) { /* non-critical — don't break the deduction */ }
+
       return { success: true, currency: 'usd', charged: amountUsd }
     }
   } catch (e) {

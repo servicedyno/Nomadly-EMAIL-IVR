@@ -22714,12 +22714,6 @@ const addFundsTo = async (walletOf, chatId, coin, valueIn, lang) => {
   }
   const { usdBal } = await getBalance(walletOf, chatId)
   sendMessage(chatId, translation('t.showWallet', lang, usdBal))
-
-  // ── PREDIAL: Check if this user has a suspended SIP credential that should be re-enabled ──
-  try {
-    const { reEnableSipCredential } = require('./voice-service.js')
-    reEnableSipCredential(chatId).catch(e => log(`[addFundsTo] PREDIAL re-enable check error: ${e.message}`))
-  } catch (e) { /* voice-service not loaded yet — non-critical */ }
 }
 //
 // ━━━ Loyalty Tier: Webhook helper ━━━
