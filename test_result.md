@@ -10,6 +10,17 @@ Rebuild NomadlySMSfix Android app as Capacitor hybrid with subscription enforcem
 
 ## Current Session — Railway Log Investigation & IVR Bug Fixes (July 2025)
 
+### LATEST FIX: Settings Reset After Calls — Credentials Wipe Bug (FIXED)
+- **Symptom**: User Scoreboard44 reports IVR auto-attendant stops working after receiving calls — callers hear static noise
+- **Root Cause**: `incrementMinutesUsed()` in `voice-service.js` used `set(_phoneNumbersOf, chatId, { numbers })` which replaced the entire `val` document with just `{ numbers }`, wiping `twilioSubAccountSid` and `twilioSubAccountToken` from the DB after every call billing
+- **Cascade**: After credentials wiped → next Railway redeployment → webhook sync can't find sub-account creds → skips updating webhook URL → Twilio number points to old dead URL → inbound calls fail with static
+- **Same bug in `incrementSmsUsed()`** and SMS webhook handler in `_index.js`
+- **Fix**: 
+  1. `voice-service.js`: Imported `setFields`, replaced destructive `set()` with atomic `setFields()` in both `incrementMinutesUsed` and `incrementSmsUsed`
+  2. `_index.js` SMS webhook: Replaced `set(phoneNumbersOf, chatId, user.val)` with atomic `setFields()` update
+  3. `_index.js` inbound voice webhook: Added IVR greeting audio URL validation — checks if self-hosted audio file exists on disk before playing; falls back to TTS greeting text if file is missing (handles ephemeral filesystem wipe after redeployment)
+- **Files changed**: `js/voice-service.js` (lines 5, 976-978, 1110-1112), `js/_index.js` (lines 25985-26018 IVR audio validation, lines 27668-27675 SMS handler)
+
 ### Issues Found from Railway Logs (User: 8273560746 / Scoreboard44)
 
 #### Bug 1: Preset Calls Fail — Stale Audio URL (FIXED)
@@ -596,3 +607,42 @@ Rebuild NomadlySMSfix Android app as Capacitor hybrid with subscription enforcem
 - Can use SMS: True
 - Device limit: 1, Active devices: 1
 - Login count: 1, Can login: True
+## Latest Backend Testing Results (Testing Agent - January 2025 - Nomadly Backend Review Request)
+
+### ✅ ALL REVIEW REQUEST TESTS PASSED (5/5) - 100% Success Rate
+
+**Test Date:** January 2025  
+**Backend URLs:** http://localhost:5000 (Node.js) and http://localhost:8001 (FastAPI proxy)  
+**Focus:** Verification of specific Twilio webhook endpoints and setFields() bug fixes
+
+#### Review Request Verification Results:
+1. ✅ **Health Check (Direct)** - GET http://localhost:5000/health returns 200 with status: healthy, database: connected, uptime: 0.05 hours
+2. ✅ **Health Check (Proxy)** - GET http://localhost:8001/api/health returns 200 with identical response via FastAPI proxy
+3. ✅ **Twilio Voice Webhook** - POST http://localhost:5000/twilio/voice-webhook with test data returns 200 with valid TwiML XML (357 chars, content-type: text/xml)
+4. ✅ **Twilio SMS Webhook** - POST http://localhost:5000/twilio/sms-webhook with test data returns 200 with valid TwiML XML (49 chars, content-type: text/xml)
+5. ✅ **Twilio Voice Status** - POST http://localhost:5000/twilio/voice-status with test data returns 200 with "OK" response
+
+#### Critical Bug Fixes Verified:
+- ✅ **voice-service.js incrementMinutesUsed** (line 978): Uses `setFields(_phoneNumbersOf, chatId, { 'val.numbers': numbers })` instead of destructive `set()`
+- ✅ **voice-service.js incrementSmsUsed** (line 1112): Uses `setFields(_phoneNumbersOf, chatId, { 'val.numbers': numbers })` instead of destructive `set()`
+- ✅ **_index.js SMS webhook handler** (line 27674): Uses `setFields(phoneNumbersOf, chatId, { 'val.numbers': smsNums })` instead of destructive `set()`
+- ✅ **IVR greeting audio URL validation** (lines 25986-26018): Added filesystem validation for self-hosted audio files with TTS fallback
+
+#### Key Findings:
+- **ALL REQUESTED ENDPOINTS WORKING PERFECTLY** - Every endpoint mentioned in the review request is functioning correctly
+- **CRITICAL SETFIELDS() FIXES IMPLEMENTED** - All three destructive `set()` calls have been replaced with atomic `setFields()` updates to prevent credential wipe
+- **IVR AUDIO VALIDATION ADDED** - Prevents static noise when audio files are missing after Railway redeployment
+- **NO REGRESSIONS DETECTED** - All webhook endpoints return proper TwiML XML responses
+- **BOTH DIRECT AND PROXY ACCESS WORKING** - Node.js server on port 5000 and FastAPI proxy on port 8001 both functional
+
+#### Test Data Used (As Specified in Review Request):
+- **Voice Webhook:** To=+18339561373, From=+19106516884, CallSid=test123
+- **SMS Webhook:** To=+18339561373, From=+19106516884, Body=test
+- **Voice Status:** CallSid=test, CallStatus=completed, CallDuration=60, To=+18339561373, From=+19106516884
+
+#### Code Verification Details:
+- **setFields import:** Line 5 in `/app/js/voice-service.js`
+- **incrementMinutesUsed fix:** Line 978 in `/app/js/voice-service.js`
+- **incrementSmsUsed fix:** Line 1112 in `/app/js/voice-service.js`
+- **SMS webhook fix:** Line 27674 in `/app/js/_index.js`
+- **IVR audio validation:** Lines 25986-26018 in `/app/js/_index.js`

@@ -2,7 +2,7 @@
 // Voice Service — Call Handling with IVR, Recording, Limits & Feature-Gating
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const { log } = require('console')
-const { get, set, atomicIncrement } = require('./db.js')
+const { get, set, setFields, atomicIncrement } = require('./db.js')
 const { formatPhone, formatDuration, canAccessFeature, plans, OVERAGE_RATE_MIN, OVERAGE_RATE_SMS, CALL_FORWARDING_RATE_MIN, CALL_CONNECTION_FEE } = require('./phone-config.js')
 const { getBalance, smartWalletDeduct, smartWalletCheck } = require('./utils.js')
 
@@ -973,7 +973,9 @@ async function incrementMinutesUsed(chatId, phoneNumber, minutes) {
       numbers[idx]._minLimitNotified = true
       _bot?.sendMessage(chatId, `⚠️ <b>Plan Minutes Exhausted</b>\n\n📞 ${formatPhone(phoneNumber)}\nUsed: <b>${used}/${limit}</b> minutes this cycle.\n\nOverage billing is now active from your wallet. Top up or upgrade your plan.`, { parse_mode: 'HTML' }).catch(() => {})
     }
-    await set(_phoneNumbersOf, chatId, { numbers })
+    // BUGFIX: Use setFields to atomically update only val.numbers
+    // Previously used set() which replaced entire val, wiping twilioSubAccountSid/Token
+    await setFields(_phoneNumbersOf, chatId, { 'val.numbers': numbers })
     const overageMinutes = limit !== Infinity ? Math.max(0, used - limit) : 0
     return { used, limit, overageMinutes }
   } catch (e) {
@@ -1105,7 +1107,9 @@ async function incrementSmsUsed(chatId, phoneNumber) {
       const msg = `⚠️ <b>Plan SMS Exhausted</b>\n\n📞 ${formatPhone(phoneNumber)}\nUsed: <b>${used}/${limit}</b> inbound SMS this cycle.\n\nOverage billing is now active at <b>$${OVERAGE_RATE_SMS}/SMS</b> from your wallet. Service pauses if wallet is empty. Top up or upgrade your plan.`
       _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
     }
-    await set(_phoneNumbersOf, chatId, { numbers })
+    // BUGFIX: Use setFields to atomically update only val.numbers
+    // Previously used set() which replaced entire val, wiping twilioSubAccountSid/Token
+    await setFields(_phoneNumbersOf, chatId, { 'val.numbers': numbers })
   } catch (e) {
     log(`[Voice] incrementSmsUsed error: ${e.message}`)
   }

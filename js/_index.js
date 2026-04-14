@@ -25982,7 +25982,34 @@ app.post('/twilio/voice-webhook', async (req, res) => {
       log(`[Twilio] Starting IVR auto-attendant for ${To}`)
       const ivrGatherUrl = `${SELF_URL}/twilio/inbound-ivr-gather?chatId=${chatId}&from=${encodeURIComponent(From)}&to=${encodeURIComponent(To)}`
       const gather = response.gather({ action: ivrGatherUrl, method: 'POST', numDigits: 1, timeout: 10, finishOnKey: '' })
+
+      // ── Validate IVR greeting audio URL before playing ──
+      // Audio files are stored on ephemeral filesystem and get wiped after Railway redeployment.
+      // If the file is gone, fall back to TTS greeting text to prevent static/silence.
+      let greetingAudioValid = false
       if (ivrConfig.greetingAudioUrl) {
+        try {
+          const selfUrl = process.env.SELF_URL_PROD || process.env.SELF_URL || ''
+          const audioUrl = ivrConfig.greetingAudioUrl
+          if (selfUrl && (audioUrl.includes('/assets/user-audio/') || audioUrl.startsWith(selfUrl + '/assets/'))) {
+            // Self-hosted audio — check local filesystem
+            const urlPath = new URL(audioUrl).pathname
+            const localPath = require('path').join(__dirname, urlPath)
+            greetingAudioValid = require('fs').existsSync(localPath)
+            if (!greetingAudioValid) {
+              log(`[Twilio] IVR greeting audio missing on disk: ${localPath} — falling back to TTS`)
+            }
+          } else if (/^https?:\/\//i.test(audioUrl)) {
+            // External URL — assume valid
+            greetingAudioValid = true
+          }
+        } catch (e) {
+          log(`[Twilio] IVR greeting audio validation error: ${e.message}`)
+          greetingAudioValid = false
+        }
+      }
+
+      if (ivrConfig.greetingAudioUrl && greetingAudioValid) {
         gather.play(ivrConfig.greetingAudioUrl)
       } else if (ivrConfig.greeting) {
         gather.say(ivrConfig.greeting)
@@ -27638,9 +27665,14 @@ app.post('/twilio/sms-webhook', async (req, res) => {
         if (fwd?.toTelegram !== false) {
           bot?.sendMessage(chatId, `💬 <b>SMS Received</b>\nFrom: ${From}\nTo: ${To}\n\n${Body || '(empty)'}`, { parse_mode: 'HTML' }).catch(() => {})
         }
-        // Increment SMS usage
+        // Increment SMS usage — use atomic setFields to avoid wiping sibling fields
         match.smsUsed = (match.smsUsed || 0) + 1
-        await set(phoneNumbersOf, chatId, user.val)
+        const smsNums = user.val?.numbers || []
+        const smsIdx = smsNums.findIndex(n => n.phoneNumber === To && n.provider === 'twilio')
+        if (smsIdx !== -1) {
+          smsNums[smsIdx].smsUsed = match.smsUsed
+          await setFields(phoneNumbersOf, chatId, { 'val.numbers': smsNums })
+        }
         break
       }
     }
