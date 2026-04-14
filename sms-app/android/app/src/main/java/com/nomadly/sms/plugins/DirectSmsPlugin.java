@@ -252,17 +252,24 @@ public class DirectSmsPlugin extends Plugin {
                 }
             }, SEND_TIMEOUT_MS);
 
-            // Handle long messages
-            if (message.length() > 160) {
-                java.util.ArrayList<String> parts = smsManager.divideMessage(message);
+            // ✅ IMPROVED: Always use divideMessage for proper SMS segmentation
+            // divideMessage() automatically handles GSM-7 (160 chars) vs UCS-2/Unicode (70 chars)
+            // and ensures proper concatenation headers for multipart SMS
+            java.util.ArrayList<String> parts = smsManager.divideMessage(message);
+            
+            if (parts.size() > 1) {
+                // Multi-part message - need to send with proper concatenation
                 java.util.ArrayList<PendingIntent> sentIntents = new java.util.ArrayList<>();
                 // Only track the last part to determine overall success
                 for (int i = 0; i < parts.size() - 1; i++) {
                     sentIntents.add(null);
                 }
                 sentIntents.add(sentPI);
+                
+                android.util.Log.d("DirectSms", "Sending multipart SMS: " + parts.size() + " parts, total length: " + message.length());
                 smsManager.sendMultipartTextMessage(phoneNumber, null, parts, sentIntents, null);
             } else {
+                // Single SMS - send normally
                 smsManager.sendTextMessage(phoneNumber, null, message, sentPI, null);
             }
 

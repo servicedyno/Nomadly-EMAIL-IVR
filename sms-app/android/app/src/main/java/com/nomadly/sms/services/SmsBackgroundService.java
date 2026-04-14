@@ -204,11 +204,16 @@ public class SmsBackgroundService extends Service {
                 smsManager = SmsManager.getDefault();
             }
 
-            // Simple send without broadcast receiver (fire and forget for background reliability)
-            if (message.length() > 160) {
-                java.util.ArrayList<String> parts = smsManager.divideMessage(message);
+            // ✅ IMPROVED: Always use divideMessage for reliability
+            // This handles both short and long messages, and properly segments based on encoding (GSM-7 vs UCS-2)
+            java.util.ArrayList<String> parts = smsManager.divideMessage(message);
+            
+            if (parts.size() > 1) {
+                // Multi-part message - send as concatenated SMS
+                Log.d(TAG, "Sending multipart SMS: " + parts.size() + " parts");
                 smsManager.sendMultipartTextMessage(phoneNumber, null, parts, null, null);
             } else {
+                // Single part message
                 smsManager.sendTextMessage(phoneNumber, null, message, null, null);
             }
             
