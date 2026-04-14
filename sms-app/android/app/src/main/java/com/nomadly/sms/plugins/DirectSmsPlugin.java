@@ -53,8 +53,15 @@ public class DirectSmsPlugin extends Plugin {
             return;
         }
 
-        // Check permission
-        if (!hasPermission("sms")) {
+        // Check permission using direct Android API (not Capacitor's hasPermission which can be stale)
+        boolean hasSmsPermission = androidx.core.content.ContextCompat.checkSelfPermission(
+            getContext(), Manifest.permission.SEND_SMS
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        
+        android.util.Log.d("DirectSms", "send: SEND_SMS permission=" + hasSmsPermission + 
+            " (Capacitor=" + hasPermission("sms") + ")");
+        
+        if (!hasSmsPermission) {
             android.util.Log.w("DirectSms", "SMS permission not granted — returning permission_needed");
             // Don't request permission from send() — let JS side handle it
             // This avoids the call.reject() issue when permission is denied
@@ -74,9 +81,15 @@ public class DirectSmsPlugin extends Plugin {
     @PluginMethod
     public void checkPermission(PluginCall call) {
         JSObject result = new JSObject();
-        boolean granted = hasPermission("sms");
+        // Use direct Android API instead of Capacitor's hasPermission() which can be unreliable
+        boolean granted = androidx.core.content.ContextCompat.checkSelfPermission(
+            getContext(), Manifest.permission.SEND_SMS
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        
+        android.util.Log.d("DirectSms", "checkPermission: SEND_SMS granted=" + granted + 
+            " (Capacitor hasPermission=" + hasPermission("sms") + ")");
+        
         result.put("granted", granted);
-        // Also check if we can still request (not permanently denied)
         if (!granted && getActivity() != null) {
             result.put("canRequest", getActivity().shouldShowRequestPermissionRationale(Manifest.permission.SEND_SMS));
         }
@@ -85,7 +98,11 @@ public class DirectSmsPlugin extends Plugin {
 
     @PluginMethod
     public void requestPermission(PluginCall call) {
-        if (hasPermission("sms")) {
+        boolean granted = androidx.core.content.ContextCompat.checkSelfPermission(
+            getContext(), Manifest.permission.SEND_SMS
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        
+        if (granted) {
             JSObject result = new JSObject();
             result.put("granted", true);
             call.resolve(result);
@@ -118,8 +135,15 @@ public class DirectSmsPlugin extends Plugin {
     @com.getcapacitor.annotation.PermissionCallback
     private void smsPermissionCallback(PluginCall call) {
         permissionRequestInFlight = false;
+        // Use direct Android API for permission check (more reliable than Capacitor's)
+        boolean granted = androidx.core.content.ContextCompat.checkSelfPermission(
+            getContext(), Manifest.permission.SEND_SMS
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        
+        android.util.Log.d("DirectSms", "smsPermissionCallback: granted=" + granted);
+        
         JSObject result = new JSObject();
-        if (hasPermission("sms")) {
+        if (granted) {
             // Permission was granted — if this was a send() call, proceed with sending
             String phoneNumber = call.getString("phoneNumber");
             String message = call.getString("message");
