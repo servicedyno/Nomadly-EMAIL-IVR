@@ -529,7 +529,7 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
     try {
       const chatId = req.params.chatId
       const userVersion = req.query.version || 'unknown'
-      const latestVersion = '2.3.2'
+      const latestVersion = '2.4.0'
       
       console.log(`[SmsApp] Sync request for chatId: ${chatId}, version: ${userVersion}`)
       
@@ -561,9 +561,10 @@ Your version: ${userVersion}
 Latest version: ${latestVersion}
 
 <b>Important fixes in this update:</b>
-✅ Permission handling improved
-✅ Better error messages
-✅ Enhanced diagnostic logging
+✅ Fixed multi-line messages being split into fragments
+✅ Fixed trial SMS double-counting
+✅ Trial limit enforcement during sending
+✅ Better upgrade prompts
 
 <b>To update:</b>
 1. ⚠️ <b>UNINSTALL</b> the current app first (Settings → Apps → Nomadly SMS → Uninstall)

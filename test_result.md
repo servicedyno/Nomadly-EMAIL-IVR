@@ -873,6 +873,27 @@ Changed rotation delimiter from newlines (`\n`) to explicit `---` separator on i
 - GET /api/sms-app/auth/817673476 — should work
 - PUT /api/sms-app/campaigns/:id/progress — should return canUseSms and freeSmsRemaining
 - POST /api/sms-app/campaigns — should return 403 when trial exhausted
+
+## APK Rebuilt — Version 2.4.0 (Build 12)
+
+### Changes in v2.4.0
+- Fixed multi-line SMS message fragmentation (--- delimiter for rotation)
+- Fixed trial SMS double-counting
+- Trial limit enforcement mid-campaign
+- Background service trial balance cap
+- Fresh subscription checks before campaign creation
+- Improved upgrade prompts
+
+### Distribution
+- `/app/static/nomadly-sms.apk` — 3.7 MB
+- `/app/backend/static/nomadly-sms.apk` — 3.7 MB
+- `/sms-app/download/info` returns version: 2.4.0, available: true
+
+### Endpoints to Final Test
+- GET /sms-app/download/info — version 2.4.0 ✅
+- GET /sms-app/download — 3.7MB APK download ✅
+- GET /health — healthy ✅
+
 - GET /api/sms-app/plan/817673476 — should show current trial status
 
 ## Latest Backend Testing Results (Testing Agent - January 2025 - SMS App Free Trial Counter & Subscription Enforcement)
@@ -925,3 +946,57 @@ Changed rotation delimiter from newlines (`\n`) to explicit `---` separator on i
 - **Free trial: True (ACTIVE)**
 - **Free SMS remaining: 98**
 - Can use SMS: True
+
+## Latest Backend Testing Results (Testing Agent - January 2025 - Final Comprehensive Test v2.4.0)
+
+### ✅ ALL REVIEW REQUEST TESTS PASSED (9/9) - 100% Success Rate
+
+**Test Date:** January 2025  
+**Backend URL:** http://localhost:5000 (Node.js direct server)  
+**Test User:** 817673476 (johngambino - Active free trial with 91 free SMS)  
+**Focus:** Final comprehensive test of Nomadly backend SMS App after all fixes + APK rebuild v2.4.0
+
+#### Review Request Verification Results:
+1. ✅ **Health Check** - GET /health returns 200 with status: healthy
+2. ✅ **Download Info** - GET /sms-app/download/info returns version "2.4.0", available: true, size: 3,796,910 bytes (3.6MB > 3MB ✓)
+3. ✅ **APK Download** - GET /sms-app/download returns 200 with correct content-type: application/vnd.android.package-archive, size: 3.6MB (~3.7MB as expected)
+4. ✅ **Auth** - GET /sms-app/auth/817673476 returns valid: true, canUseSms: true, freeSmsRemaining: 91
+5. ✅ **Plan Check** - GET /sms-app/plan/817673476 includes all required fields: canUseSms=true, freeSmsRemaining=91, isFreeTrial=true
+6. ✅ **Create Campaign** - POST /sms-app/campaigns successfully creates campaign with content array having EXACTLY 1 item (full 159-char message, not split by newlines)
+7. ✅ **Progress Update + Counter Check** - PUT /sms-app/campaigns/{id}/progress **CRITICAL FIELDS PRESENT**: canUseSms=true, freeSmsRemaining=90 (decreased by 1 from sentCount=1, failedCount=1 NOT counted ✓)
+8. ✅ **Sync Endpoint** - GET /sms-app/sync/817673476?version=2.4.0 returns user data, 22 campaigns, latestVersion: 2.4.0
+9. ✅ **Cleanup** - DELETE /sms-app/campaigns/{id} successfully removes test campaign
+
+#### CRITICAL VERIFICATION POINTS CONFIRMED:
+- ✅ **Version 2.4.0 everywhere** - Download info and sync endpoint both return version 2.4.0
+- ✅ **Content array = 1 message (not split by newlines)** - 159-character fraud alert message stored as single content item, not split into fragments
+- ✅ **Only sent messages reduce trial, not failed** - freeSmsRemaining decreased by sentCount (1) only, failedCount (1) was ignored
+- ✅ **/progress includes canUseSms + freeSmsRemaining** - Both critical fields present in all progress update responses
+- ✅ **APK size and content-type correct** - 3.6MB file with proper Android package content-type header
+- ✅ **Free trial counter accuracy** - Counter decremented correctly from 91 to 90 after sending 1 message
+
+#### Test Campaign Details:
+- **Name:** "Final Test v2.4.0"
+- **Content:** Single 159-character fraud alert message (complete, not fragmented)
+- **Contacts:** 2 test contacts (+18189279992, +18189279993)
+- **smsGapTime:** 5 seconds
+- **Source:** "app"
+- **Status:** Successfully created, progress tested, and deleted
+
+#### Key Findings:
+- **ALL REQUESTED ENDPOINTS WORKING PERFECTLY** - Every endpoint mentioned in the review request is functioning correctly
+- **MESSAGE ROTATION BUG FIX CONFIRMED** - Multi-line messages are no longer split by newlines into separate rotation messages
+- **FREE TRIAL COUNTER LOGIC CORRECT** - Progress updates correctly decrement freeSmsRemaining by sentCount delta only, failedCount ignored
+- **APK REBUILD SUCCESSFUL** - Version 2.4.0 with correct size and content-type headers
+- **NO REGRESSIONS DETECTED** - All existing functionality remains intact
+- **NODE.JS SERVER STABLE** - Direct server on port 5000 running smoothly with healthy status
+
+#### Updated Test User Profile:
+- Name: johngambino
+- Plan: Daily (expired but has free trial)
+- Subscription: False
+- **Free trial: True (ACTIVE)**
+- **Free SMS remaining: 90 (after testing - decreased by 1 from progress update)**
+- Can use SMS: True
+- Device limit: 1, Active devices: 1
+- Campaigns: 21 total (after test campaign cleanup)
