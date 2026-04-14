@@ -77,6 +77,88 @@ const HARD_BLOCK_DURATION = 600000     // 10 minutes of silent drop
 const _expiredTestBlockSet = new Map()
 const EXPIRED_TEST_BLOCK_DURATION = 600000  // 10 minutes
 
+// ── PRE-DIAL BLOCKLIST ──
+// In-memory cache of SIP credentials that should be INSTANTLY rejected.
+// Checked at the TOP of handleOutboundSipCall BEFORE any async/DB operations.
+// This prevents auto-routed calls from reaching PSTN for known-blocked users.
+// Populated by: (1) wallet monitor scan, (2) LOW_BALANCE_LOCK on first fail, (3) DB on startup.
+// Removed by: wallet top-up above LOW_BALANCE_RESUME threshold.
+const _sipPreDialBlocklist = new Map()  // sipUsername → { chatId, reason, blockedAt, phoneNumber }
+
+function addSipPreDialBlock(sipUsername, chatId, reason = 'low_balance', phoneNumber = '') {
+  if (!sipUsername) return
+  _sipPreDialBlocklist.set(sipUsername, { chatId, reason, blockedAt: Date.now(), phoneNumber })
+  // Also persist to DB (async, non-blocking)
+  try {
+    const db = _phoneNumbersOf?.s?.db
+    if (db) {
+      db.collection('sipPreDialBlocklist').updateOne(
+        { _id: sipUsername },
+        { $set: { chatId, reason, phoneNumber, blockedAt: new Date() } },
+        { upsert: true }
+      ).catch(() => {})
+    }
+  } catch (e) { /* non-critical */ }
+}
+
+function removeSipPreDialBlock(sipUsername) {
+  if (!sipUsername) return
+  _sipPreDialBlocklist.delete(sipUsername)
+  // Also remove from DB
+  try {
+    const db = _phoneNumbersOf?.s?.db
+    if (db) {
+      db.collection('sipPreDialBlocklist').deleteOne({ _id: sipUsername }).catch(() => {})
+    }
+  } catch (e) { /* non-critical */ }
+}
+
+// Remove ALL blocks for a given chatId (called when wallet is topped up)
+function removeSipPreDialBlockByChatId(chatId) {
+  let removed = 0
+  for (const [username, entry] of _sipPreDialBlocklist.entries()) {
+    if (entry.chatId === chatId) {
+      _sipPreDialBlocklist.delete(username)
+      removed++
+    }
+  }
+  // Also remove from DB
+  try {
+    const db = _phoneNumbersOf?.s?.db
+    if (db) {
+      db.collection('sipPreDialBlocklist').deleteMany({ chatId }).catch(() => {})
+    }
+  } catch (e) { /* non-critical */ }
+  if (removed > 0) {
+    log(`[Voice] PRE-DIAL: Removed ${removed} block(s) for chatId ${chatId} — wallet topped up`)
+    // Also clear wallet cooldowns for this user
+    delete walletRejectCooldown[`chatId:${chatId}`]
+    for (const [key, entry] of Object.entries(walletRejectCooldown)) {
+      if (entry?.chatId === chatId) delete walletRejectCooldown[key]
+    }
+  }
+  return removed
+}
+
+async function _loadSipPreDialBlocklist() {
+  try {
+    const db = _phoneNumbersOf?.s?.db
+    if (!db) return
+    const entries = await db.collection('sipPreDialBlocklist').find({}).toArray()
+    for (const entry of entries) {
+      _sipPreDialBlocklist.set(entry._id, {
+        chatId: entry.chatId,
+        reason: entry.reason,
+        blockedAt: entry.blockedAt?.getTime?.() || Date.now(),
+        phoneNumber: entry.phoneNumber || '',
+      })
+    }
+    if (entries.length > 0) {
+      log(`[Voice] PRE-DIAL: Loaded ${entries.length} blocked credential(s) from DB`)
+    }
+  } catch (e) { log(`[Voice] PRE-DIAL: Error loading blocklist: ${e.message}`) }
+}
+
 // ── Recent Test Credential Cache ──
 // Tracks recently created test SIP credentials for fast, reliable user identification.
 // Solves the multi-match disambiguation problem: when multiple test users share the same
@@ -525,6 +607,55 @@ async function runUserWalletMonitor() {
     }
 
     log(`[UserWalletMonitor] Scan complete: ${scanned} wallets checked, ${warned} low-balance warnings sent`)
+
+    // ── PRE-DIAL BLOCKLIST SCAN ──
+    // After the wallet scan, identify SIP users with balance below LOW_BALANCE_TRIGGER
+    // and add them to the instant-block list. This pre-populates the cache so even
+    // FIRST calls from low-balance users are rejected in <1ms.
+    try {
+      if (_phoneNumbersOf) {
+        let preDialBlocked = 0
+        let preDialUnblocked = 0
+        const allPhoneData = await _phoneNumbersOf.find({}).toArray()
+        for (const phoneDoc of allPhoneData) {
+          const chatId = phoneDoc._id
+          if (chatId < 0) continue // skip group chats
+          const numbers = phoneDoc?.val?.numbers || []
+          const sipCredentials = numbers.filter(n => n.telnyxSipUsername || n.sipUsername).map(n => ({
+            sipUsername: n.telnyxSipUsername || n.sipUsername,
+            phoneNumber: n.phoneNumber,
+          }))
+          if (sipCredentials.length === 0) continue
+
+          // Get wallet balance
+          try {
+            const wallet = await _walletOf.findOne({ _id: chatId })
+            const usdBal = (wallet?.usdIn || 0) - (wallet?.usdOut || 0)
+
+            for (const cred of sipCredentials) {
+              if (usdBal < LOW_BALANCE_TRIGGER) {
+                // Below threshold → block
+                if (!_sipPreDialBlocklist.has(cred.sipUsername)) {
+                  addSipPreDialBlock(cred.sipUsername, chatId, 'low_balance', cred.phoneNumber)
+                  preDialBlocked++
+                }
+              } else if (usdBal >= LOW_BALANCE_RESUME) {
+                // Above resume threshold → unblock if previously blocked
+                if (_sipPreDialBlocklist.has(cred.sipUsername)) {
+                  removeSipPreDialBlock(cred.sipUsername)
+                  preDialUnblocked++
+                }
+              }
+            }
+          } catch (e) { /* skip individual errors */ }
+        }
+        if (preDialBlocked > 0 || preDialUnblocked > 0) {
+          log(`[UserWalletMonitor] PRE-DIAL: ${preDialBlocked} credential(s) blocked, ${preDialUnblocked} unblocked — ${_sipPreDialBlocklist.size} total in blocklist`)
+        }
+      }
+    } catch (e) {
+      log(`[UserWalletMonitor] PRE-DIAL scan error: ${e.message}`)
+    }
   } catch (e) {
     log(`[UserWalletMonitor] Error: ${e.message}`)
   }
@@ -913,7 +1044,12 @@ function initVoiceService(deps) {
     _loadBalanceNotifyHistory(deps.db).catch(e => log(`[VoiceService] Failed to load balance history: ${e.message}`))
   }
 
-  log('[VoiceService] Initialized with IVR + Recording + Analytics + Limits + Overage billing + SIP Bridge + Twilio IVR + Loyalty Discounts')
+  // PRE-DIAL: Load blocklist from DB + run initial scan after a delay
+  setTimeout(() => {
+    _loadSipPreDialBlocklist().catch(e => log(`[VoiceService] Failed to load pre-dial blocklist: ${e.message}`))
+  }, 5000)
+
+  log('[VoiceService] Initialized with IVR + Recording + Analytics + Limits + Overage billing + SIP Bridge + Twilio IVR + Loyalty Discounts + Pre-Dial Prevention')
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -2019,6 +2155,30 @@ async function handleOutboundSipCall(payload) {
 
   log(`[Voice] Outbound SIP: from=${sipUsername} (cleaned=${fromClean}) to=${destination} (${callControlId}, conn=${connectionId}, credentialExtracted=${credentialExtracted})`)
 
+  // ── PRE-DIAL INSTANT BLOCK ──
+  // Check in-memory blocklist BEFORE any async/DB operations.
+  // Sub-millisecond check: if this SIP credential is known-blocked (low balance, etc.),
+  // immediately reject the call. For auto-routed calls, this rejects so fast that
+  // the PSTN leg likely hasn't connected yet → zero carrier charge.
+  if (credentialExtracted && sipUsername && _sipPreDialBlocklist.has(sipUsername)) {
+    const block = _sipPreDialBlocklist.get(sipUsername)
+    log(`[Voice] PRE-DIAL BLOCK: ${sipUsername} (chatId ${block.chatId}) — instant reject (reason: ${block.reason})`)
+    try {
+      if (isAutoRouted) {
+        await _telnyxApi.hangupCall(callControlId)
+      } else {
+        await _telnyxApi.rejectCall(callControlId, 'CALL_REJECTED')
+      }
+    } catch (e) { /* call may have already ended */ }
+    // Increment hit counter for logging reduction
+    if (!block._hits) block._hits = 0
+    block._hits++
+    if (block._hits <= 3 || block._hits % 20 === 0) {
+      log(`[Voice] PRE-DIAL BLOCK: ${sipUsername} rejected (hit #${block._hits}) — ${block.reason}`)
+    }
+    return
+  }
+
   // Fix #2: If user is in hard-block, silently drop — no logging, no hangup API call
   const rateLimitKey = fromClean || sipUsername
   if (isSipHardBlocked(rateLimitKey)) {
@@ -2381,6 +2541,11 @@ async function handleOutboundSipCall(payload) {
         // Use chatId-based key so only THIS user is cooldown-blocked, not all users on the shared SIP connection
         setWalletRejectCooldown(`chatId:${chatId}`, chatId)
         if (credentialExtracted) setWalletRejectCooldown(sipUsername, chatId) // Also cache by SIP username for early check
+        // ── PRE-DIAL: Add to instant-block list so ALL future calls are rejected in <1ms ──
+        if (credentialExtracted && sipUsername) {
+          addSipPreDialBlock(sipUsername, chatId, 'low_balance', num.phoneNumber)
+          log(`[Voice] PRE-DIAL: Added ${sipUsername} to instant-block list (balance $${walletCheck.usdBal.toFixed(2)})`)
+        }
         // Use rejectCall for non-auto-routed calls (prevents PSTN leg from being created = zero cost)
         if (isAutoRouted) {
           await _telnyxApi.hangupCall(callControlId)
@@ -4305,4 +4470,5 @@ module.exports = {
   registerRecentTestCredential,
   lookupRecentTestCredential,
   trackIvrAnalytics,
+  removeSipPreDialBlockByChatId,
 }

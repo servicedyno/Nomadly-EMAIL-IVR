@@ -22723,6 +22723,14 @@ const addFundsTo = async (walletOf, chatId, coin, valueIn, lang) => {
   }
   const { usdBal } = await getBalance(walletOf, chatId)
   sendMessage(chatId, translation('t.showWallet', lang, usdBal))
+
+  // ── PRE-DIAL: Remove SIP block if balance is now above resume threshold ──
+  if (usdBal >= 50) { // LOW_BALANCE_RESUME = 50
+    try {
+      const { removeSipPreDialBlockByChatId } = require('./voice-service.js')
+      removeSipPreDialBlockByChatId(chatId)
+    } catch (e) { /* voice-service not loaded yet — non-critical */ }
+  }
 }
 //
 // ━━━ Loyalty Tier: Webhook helper ━━━
