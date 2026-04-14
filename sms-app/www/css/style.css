@@ -272,3 +272,67 @@ body {
   from { opacity: 0; transform: translateY(-10px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* ─── App Update Banner ─── */
+.update-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+  color: #fff;
+  padding: 0;
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.4);
+  animation: slideDown 0.3s ease;
+  display: none;
+}
+.update-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  max-width: 600px;
+  margin: 0 auto;
+}
+.update-banner-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.update-banner-text strong {
+  font-size: 13px;
+  font-weight: 700;
+}
+.update-banner-text span {
+  font-size: 11px;
+  opacity: 0.9;
+}
+.btn-update {
+  background: rgba(255,255,255,0.2);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.4);
+  padding: 6px 16px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.btn-update:hover {
+  background: rgba(255,255,255,0.3);
+}
+.update-dismiss {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.7);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+.update-dismiss:hover {
+  color: #fff;
+}

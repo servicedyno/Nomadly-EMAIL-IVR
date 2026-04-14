@@ -1,323 +1,311 @@
 #!/usr/bin/env python3
 """
-Nomadly SMS App Backend Testing - Final Comprehensive Test v2.4.0
-Test the exact scenarios mentioned in the review request.
+Nomadly Backend Testing - Final Comprehensive Test Round 2
+Test User: 817673476 (johngambino - Active free trial)
+Backend URL: http://localhost:5000
+
+Tests:
+1. Health check
+2. Download info (version 2.4.0, size > 3.5MB)
+3. Sync returns latestVersion field
+4. Trial persistence check (freeSmsUsed > 0)
+5. Campaign CRUD cycle
+6. Progress endpoint returns canUseSms
+7. APK download
 """
 
 import requests
 import json
-import time
 import sys
-from typing import Dict, Any, Optional
+from datetime import datetime
 
-# Test configuration from review request
-BACKEND_URL = "http://localhost:5000"  # Node.js direct
+# Test configuration
+BASE_URL = "http://localhost:5000"
 TEST_USER = "817673476"  # johngambino - Active free trial
+EXPECTED_VERSION = "2.4.0"
+MIN_APK_SIZE = 3.5 * 1024 * 1024  # 3.5MB in bytes
 
-class NomadlyBackendTester:
-    def __init__(self):
-        self.results = []
-        self.campaign_id = None
-        self.initial_free_sms = None
-        
-    def log_result(self, test_name: str, success: bool, details: str, response_data: Any = None):
-        """Log test result"""
-        status = "✅ PASS" if success else "❌ FAIL"
-        print(f"{status} {test_name}: {details}")
-        
-        self.results.append({
-            "test": test_name,
-            "success": success,
-            "details": details,
-            "response_data": response_data
-        })
-    
-    def make_request(self, method: str, endpoint: str, data: Dict = None, params: Dict = None, headers: Dict = None) -> tuple:
-        """Make HTTP request and return (success, response, status_code)"""
-        try:
-            url = f"{BACKEND_URL}{endpoint}"
-            
-            if method.upper() == "GET":
-                response = requests.get(url, params=params, headers=headers, timeout=30)
-            elif method.upper() == "POST":
-                response = requests.post(url, json=data, headers=headers, timeout=30)
-            elif method.upper() == "PUT":
-                response = requests.put(url, json=data, headers=headers, timeout=30)
-            elif method.upper() == "DELETE":
-                response = requests.delete(url, params=params, headers=headers, timeout=30)
+def log_test(test_name, status, details=""):
+    """Log test results with timestamp"""
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    status_icon = "✅" if status == "PASS" else "❌"
+    print(f"[{timestamp}] {status_icon} {test_name}")
+    if details:
+        print(f"    {details}")
+
+def test_health_check():
+    """Test 1: Health check"""
+    try:
+        response = requests.get(f"{BASE_URL}/health", timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("status") == "healthy":
+                log_test("Health Check", "PASS", f"Status: {data.get('status')}, Database: {data.get('database')}")
+                return True
             else:
-                return False, None, 0
-                
-            return True, response, response.status_code
-            
-        except Exception as e:
-            print(f"Request failed: {e}")
-            return False, None, 0
-    
-    def test_1_health(self):
-        """1. Health: GET http://localhost:5000/health → 200, status: healthy"""
-        success, response, status = self.make_request("GET", "/health")
-        
-        if success and status == 200:
-            try:
-                data = response.json()
-                if data.get("status") == "healthy":
-                    self.log_result("1. Health Check", True, f"Status: {data.get('status')}", data)
-                else:
-                    self.log_result("1. Health Check", False, f"Unexpected status: {data.get('status')}", data)
-            except:
-                self.log_result("1. Health Check", False, "Invalid JSON response", response.text)
+                log_test("Health Check", "FAIL", f"Unhealthy status: {data}")
+                return False
         else:
-            self.log_result("1. Health Check", False, f"HTTP {status}", response.text if response else "No response")
-    
-    def test_2_download_info(self):
-        """2. Download Info: GET http://localhost:5000/sms-app/download/info → MUST show version "2.4.0", available: true, size > 3MB"""
-        success, response, status = self.make_request("GET", "/sms-app/download/info")
-        
-        if success and status == 200:
-            try:
-                data = response.json()
-                version = data.get("version")
-                available = data.get("available")
-                size = data.get("size", 0)
-                
-                if version == "2.4.0" and available and size > 3000000:  # > 3MB
-                    self.log_result("2. Download Info", True, 
-                                  f"Version: {version}, Available: {available}, Size: {size:,} bytes ({size/1024/1024:.1f}MB)", data)
-                else:
-                    self.log_result("2. Download Info", False, 
-                                  f"Version: {version} (expected 2.4.0), Available: {available}, Size: {size:,} bytes", data)
-            except:
-                self.log_result("2. Download Info", False, "Invalid JSON response", response.text)
-        else:
-            self.log_result("2. Download Info", False, f"HTTP {status}", response.text if response else "No response")
-    
-    def test_3_apk_download(self):
-        """3. APK Download: GET http://localhost:5000/sms-app/download → 200, content-type should be application/vnd.android.package-archive or octet-stream, size ~3.7MB"""
-        success, response, status = self.make_request("GET", "/sms-app/download")
-        
-        if success and status == 200:
-            content_type = response.headers.get('content-type', '')
-            content_length = len(response.content)
+            log_test("Health Check", "FAIL", f"HTTP {response.status_code}: {response.text}")
+            return False
+    except Exception as e:
+        log_test("Health Check", "FAIL", f"Exception: {e}")
+        return False
+
+def test_download_info():
+    """Test 2: Download info - version 2.4.0, size > 3.5MB"""
+    try:
+        response = requests.get(f"{BASE_URL}/sms-app/download/info", timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            version = data.get("version")
+            size = data.get("size", 0)
+            available = data.get("available", False)
             
-            expected_types = ['application/vnd.android.package-archive', 'application/octet-stream']
-            type_ok = any(expected_type in content_type for expected_type in expected_types)
-            size_ok = 3500000 <= content_length <= 4000000  # ~3.7MB ± 0.3MB
-            
-            if type_ok and size_ok:
-                self.log_result("3. APK Download", True, 
-                              f"Content-Type: {content_type}, Size: {content_length:,} bytes ({content_length/1024/1024:.1f}MB)", 
-                              {"content_type": content_type, "size": content_length})
+            if version == EXPECTED_VERSION and size > MIN_APK_SIZE and available:
+                log_test("Download Info", "PASS", f"Version: {version}, Size: {size:,} bytes ({size/1024/1024:.1f}MB), Available: {available}")
+                return True
             else:
-                self.log_result("3. APK Download", False, 
-                              f"Content-Type: {content_type} (expected android package), Size: {content_length:,} bytes", 
-                              {"content_type": content_type, "size": content_length})
+                log_test("Download Info", "FAIL", f"Version: {version} (expected {EXPECTED_VERSION}), Size: {size:,} bytes, Available: {available}")
+                return False
         else:
-            self.log_result("3. APK Download", False, f"HTTP {status}", response.text if response else "No response")
-    
-    def test_4_auth(self):
-        """4. Auth: GET http://localhost:5000/sms-app/auth/817673476 → valid: true, canUseSms: true"""
-        success, response, status = self.make_request("GET", f"/sms-app/auth/{TEST_USER}")
-        
-        if success and status == 200:
-            try:
-                data = response.json()
-                valid = data.get("valid")
-                user_data = data.get("user", {})
-                can_use_sms = user_data.get("canUseSms")
-                free_sms_remaining = user_data.get("freeSmsRemaining")
-                
-                if valid and can_use_sms:
-                    self.initial_free_sms = free_sms_remaining  # Store for later comparison
-                    self.log_result("4. Auth", True, 
-                                  f"valid={valid}, canUseSms={can_use_sms}, freeSmsRemaining={free_sms_remaining}", data)
-                else:
-                    self.log_result("4. Auth", False, f"valid={valid}, canUseSms={can_use_sms}", data)
-            except:
-                self.log_result("4. Auth", False, "Invalid JSON response", response.text)
+            log_test("Download Info", "FAIL", f"HTTP {response.status_code}: {response.text}")
+            return False
+    except Exception as e:
+        log_test("Download Info", "FAIL", f"Exception: {e}")
+        return False
+
+def test_sync_latest_version():
+    """Test 3: Sync returns latestVersion field"""
+    try:
+        response = requests.get(f"{BASE_URL}/sms-app/sync/{TEST_USER}?version=2.3.0", timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            latest_version = data.get("latestVersion")
+            
+            if latest_version == EXPECTED_VERSION:
+                log_test("Sync latestVersion", "PASS", f"latestVersion: {latest_version}")
+                return True
+            else:
+                log_test("Sync latestVersion", "FAIL", f"latestVersion: {latest_version} (expected {EXPECTED_VERSION})")
+                return False
         else:
-            self.log_result("4. Auth", False, f"HTTP {status}", response.text if response else "No response")
-    
-    def test_5_plan_check(self):
-        """5. Plan Check: GET http://localhost:5000/sms-app/plan/817673476 → should include canUseSms, freeSmsRemaining, isFreeTrial"""
-        success, response, status = self.make_request("GET", f"/sms-app/plan/{TEST_USER}")
-        
-        if success and status == 200:
-            try:
-                data = response.json()
-                can_use_sms = data.get("canUseSms")
-                free_sms_remaining = data.get("freeSmsRemaining")
-                is_free_trial = data.get("isFreeTrial")
-                
-                if can_use_sms is not None and free_sms_remaining is not None and is_free_trial is not None:
-                    self.log_result("5. Plan Check", True, 
-                                  f"canUseSms={can_use_sms}, freeSmsRemaining={free_sms_remaining}, isFreeTrial={is_free_trial}", data)
-                else:
-                    self.log_result("5. Plan Check", False, 
-                                  f"Missing fields: canUseSms={can_use_sms}, freeSmsRemaining={free_sms_remaining}, isFreeTrial={is_free_trial}", data)
-            except:
-                self.log_result("5. Plan Check", False, "Invalid JSON response", response.text)
+            log_test("Sync latestVersion", "FAIL", f"HTTP {response.status_code}: {response.text}")
+            return False
+    except Exception as e:
+        log_test("Sync latestVersion", "FAIL", f"Exception: {e}")
+        return False
+
+def test_trial_persistence():
+    """Test 4: Trial persistence check - freeSmsUsed > 0 OR freeSmsRemaining < 100 (proving trial counter persists)"""
+    try:
+        response = requests.get(f"{BASE_URL}/sms-app/auth/{TEST_USER}", timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            free_sms_used = data.get("freeSmsUsed", 0)
+            free_sms_remaining = data.get("freeSmsRemaining", 0)
+            
+            # Trial persistence is proven if either freeSmsUsed > 0 OR freeSmsRemaining < 100 (default trial limit)
+            if free_sms_used > 0 or free_sms_remaining < 100:
+                log_test("Trial Persistence", "PASS", f"freeSmsUsed: {free_sms_used}, freeSmsRemaining: {free_sms_remaining} (trial counter persists)")
+                return True
+            else:
+                log_test("Trial Persistence", "FAIL", f"freeSmsUsed: {free_sms_used}, freeSmsRemaining: {free_sms_remaining} (trial appears to have reset)")
+                return False
         else:
-            self.log_result("5. Plan Check", False, f"HTTP {status}", response.text if response else "No response")
+            log_test("Trial Persistence", "FAIL", f"HTTP {response.status_code}: {response.text}")
+            return False
+    except Exception as e:
+        log_test("Trial Persistence", "FAIL", f"Exception: {e}")
+        return False
+
+def test_campaign_crud_cycle():
+    """Test 5: Campaign CRUD cycle"""
+    campaign_id = None
     
-    def test_6_create_campaign(self):
-        """6. Create Campaign: POST http://localhost:5000/sms-app/campaigns with specific content → Campaign created with content array having EXACTLY 1 item (full 159-char message, not split)"""
-        campaign_data = {
+    try:
+        # 5a. Create campaign
+        create_payload = {
             "chatId": TEST_USER,
-            "name": "Final Test v2.4.0",
-            "content": ["Star One CU Fraud Alert - Did You Attempt a Transaction For The Amount Of $9,818.64 at DALES AUTOMOTIVE NY? Reply YES or NO To Approve or Deny The Transaction."],
-            "contacts": [
-                {"phoneNumber": "+18189279992", "name": "Test1"},
-                {"phoneNumber": "+18189279993", "name": "Test2"}
-            ],
+            "name": "Delete Test",
+            "content": ["Test msg"],
+            "contacts": [{"phoneNumber": "+18189279992", "name": "Test"}],
             "smsGapTime": 5,
             "source": "app"
         }
         
-        success, response, status = self.make_request("POST", "/sms-app/campaigns", campaign_data)
+        response = requests.post(f"{BASE_URL}/sms-app/campaigns", json=create_payload, timeout=10)
+        if response.status_code != 200:
+            log_test("Campaign Create", "FAIL", f"HTTP {response.status_code}: {response.text}")
+            return False
         
-        if success and status == 200:
-            try:
-                data = response.json()
-                campaign = data.get("campaign", {})
-                campaign_id = campaign.get("_id") or campaign.get("id")
-                content = campaign.get("content", [])
-                
-                if campaign_id and len(content) == 1 and len(content[0]) == 159:
-                    self.campaign_id = campaign_id  # Store for later tests
-                    self.log_result("6. Create Campaign", True, 
-                                  f"Campaign created: {campaign_id}, Content array: {len(content)} item(s), Message length: {len(content[0])} chars", data)
-                else:
-                    self.log_result("6. Create Campaign", False, 
-                                  f"Campaign ID: {campaign_id}, Content items: {len(content)}, Message length: {len(content[0]) if content else 0}", data)
-            except:
-                self.log_result("6. Create Campaign", False, "Invalid JSON response", response.text)
-        else:
-            self.log_result("6. Create Campaign", False, f"HTTP {status}", response.text if response else "No response")
+        create_data = response.json()
+        campaign_id = create_data.get("campaign", {}).get("_id") or create_data.get("id")
+        if not campaign_id:
+            log_test("Campaign Create", "FAIL", f"No campaign ID returned: {create_data}")
+            return False
+        
+        log_test("Campaign Create", "PASS", f"Campaign ID: {campaign_id}")
+        
+        # 5b. Verify campaign exists
+        response = requests.get(f"{BASE_URL}/sms-app/campaigns/{TEST_USER}", timeout=10)
+        if response.status_code != 200:
+            log_test("Campaign List", "FAIL", f"HTTP {response.status_code}: {response.text}")
+            return False
+        
+        campaigns_data = response.json()
+        campaigns = campaigns_data.get("campaigns", [])
+        campaign_found = any(c.get("_id") == campaign_id for c in campaigns)
+        if not campaign_found:
+            log_test("Campaign List", "FAIL", f"Campaign {campaign_id} not found in list")
+            return False
+        
+        log_test("Campaign List", "PASS", f"Campaign {campaign_id} found in list")
+        
+        # 5c. Delete campaign
+        response = requests.delete(f"{BASE_URL}/sms-app/campaigns/{campaign_id}?chatId={TEST_USER}", timeout=10)
+        if response.status_code != 200:
+            log_test("Campaign Delete", "FAIL", f"HTTP {response.status_code}: {response.text}")
+            return False
+        
+        log_test("Campaign Delete", "PASS", f"Campaign {campaign_id} deleted")
+        
+        # 5d. Verify campaign is gone
+        response = requests.get(f"{BASE_URL}/sms-app/campaigns/{TEST_USER}", timeout=10)
+        if response.status_code != 200:
+            log_test("Campaign Delete Verify", "FAIL", f"HTTP {response.status_code}: {response.text}")
+            return False
+        
+        campaigns_data = response.json()
+        campaigns = campaigns_data.get("campaigns", [])
+        campaign_found = any(c.get("_id") == campaign_id for c in campaigns)
+        if campaign_found:
+            log_test("Campaign Delete Verify", "FAIL", f"Campaign {campaign_id} still exists after deletion")
+            return False
+        
+        log_test("Campaign Delete Verify", "PASS", f"Campaign {campaign_id} successfully removed")
+        return True
+        
+    except Exception as e:
+        log_test("Campaign CRUD", "FAIL", f"Exception: {e}")
+        return False
+
+def test_progress_endpoint():
+    """Test 6: Progress endpoint returns canUseSms and freeSmsRemaining"""
+    campaign_id = None
     
-    def test_7_progress_update(self):
-        """7. Progress Update + Counter Check: PUT http://localhost:5000/sms-app/campaigns/{campaignId}/progress
-        CRITICAL: Response MUST include `canUseSms` (boolean) and `freeSmsRemaining` (number)
-        Verify: only sentCount (1) was deducted, NOT failedCount — freeSmsRemaining should decrease by 1"""
-        if not self.campaign_id:
-            self.log_result("7. Progress Update", False, "No campaign ID available", None)
-            return
-            
-        progress_data = {
+    try:
+        # Create a campaign first
+        create_payload = {
+            "chatId": TEST_USER,
+            "name": "Progress Test",
+            "content": ["Progress test msg"],
+            "contacts": [{"phoneNumber": "+18189279992", "name": "Test"}],
+            "smsGapTime": 5,
+            "source": "app"
+        }
+        
+        response = requests.post(f"{BASE_URL}/sms-app/campaigns", json=create_payload, timeout=10)
+        if response.status_code != 200:
+            log_test("Progress Test Setup", "FAIL", f"HTTP {response.status_code}: {response.text}")
+            return False
+        
+        create_data = response.json()
+        campaign_id = create_data.get("campaign", {}).get("_id") or create_data.get("id")
+        
+        # Update progress
+        progress_payload = {
             "chatId": TEST_USER,
             "sentCount": 1,
-            "failedCount": 1,
+            "failedCount": 0,
             "status": "sending"
         }
         
-        success, response, status = self.make_request("PUT", f"/sms-app/campaigns/{self.campaign_id}/progress", progress_data)
+        response = requests.put(f"{BASE_URL}/sms-app/campaigns/{campaign_id}/progress", json=progress_payload, timeout=10)
+        if response.status_code != 200:
+            log_test("Progress Update", "FAIL", f"HTTP {response.status_code}: {response.text}")
+            return False
         
-        if success and status == 200:
-            try:
-                data = response.json()
-                can_use_sms = data.get("canUseSms")
-                free_sms_remaining = data.get("freeSmsRemaining")
-                
-                # CRITICAL: Both fields must be present
-                if can_use_sms is not None and free_sms_remaining is not None:
-                    expected_remaining = self.initial_free_sms - 1 if self.initial_free_sms else None
-                    delta_correct = (free_sms_remaining == expected_remaining) if expected_remaining else True
-                    
-                    self.log_result("7. Progress Update", True, 
-                                  f"CRITICAL FIELDS PRESENT: canUseSms={can_use_sms}, freeSmsRemaining={free_sms_remaining} (expected {expected_remaining}), Delta correct: {delta_correct}", data)
-                else:
-                    self.log_result("7. Progress Update", False, 
-                                  f"CRITICAL FIELDS MISSING: canUseSms={can_use_sms}, freeSmsRemaining={free_sms_remaining}", data)
-            except:
-                self.log_result("7. Progress Update", False, "Invalid JSON response", response.text)
-        else:
-            self.log_result("7. Progress Update", False, f"HTTP {status}", response.text if response else "No response")
-    
-    def test_8_sync_endpoint(self):
-        """8. Sync Endpoint: GET http://localhost:5000/sms-app/sync/817673476?version=2.4.0 → Should return user data, campaigns, latestVersion"""
-        success, response, status = self.make_request("GET", f"/sms-app/sync/{TEST_USER}", params={"version": "2.4.0"})
+        progress_data = response.json()
+        can_use_sms = progress_data.get("canUseSms")
+        free_sms_remaining = progress_data.get("freeSmsRemaining")
         
-        if success and status == 200:
-            try:
-                data = response.json()
-                user_data = data.get("user", {})
-                campaigns = data.get("campaigns", [])
-                latest_version = data.get("latestVersion")
-                
-                if user_data and isinstance(campaigns, list):
-                    self.log_result("8. Sync Endpoint", True, 
-                                  f"User data present, Campaigns: {len(campaigns)}, Latest version: {latest_version}", data)
-                else:
-                    self.log_result("8. Sync Endpoint", False, 
-                                  f"Missing data: user={bool(user_data)}, campaigns={type(campaigns)}, version={latest_version}", data)
-            except:
-                self.log_result("8. Sync Endpoint", False, "Invalid JSON response", response.text)
-        else:
-            self.log_result("8. Sync Endpoint", False, f"HTTP {status}", response.text if response else "No response")
-    
-    def test_9_cleanup(self):
-        """9. Cleanup: Delete the test campaign"""
-        if not self.campaign_id:
-            self.log_result("9. Cleanup", False, "No campaign ID available", None)
-            return
+        if can_use_sms is not None and free_sms_remaining is not None:
+            log_test("Progress Update", "PASS", f"canUseSms: {can_use_sms}, freeSmsRemaining: {free_sms_remaining}")
             
-        success, response, status = self.make_request("DELETE", f"/sms-app/campaigns/{self.campaign_id}", 
-                                                    params={"chatId": TEST_USER})
-        
-        if success and status == 200:
-            self.log_result("9. Cleanup", True, f"Campaign {self.campaign_id} deleted successfully", None)
+            # Clean up - delete the test campaign
+            requests.delete(f"{BASE_URL}/sms-app/campaigns/{campaign_id}?chatId={TEST_USER}", timeout=10)
+            return True
         else:
-            self.log_result("9. Cleanup", False, f"HTTP {status}", response.text if response else "No response")
+            log_test("Progress Update", "FAIL", f"Missing required fields - canUseSms: {can_use_sms}, freeSmsRemaining: {free_sms_remaining}")
+            return False
+        
+    except Exception as e:
+        log_test("Progress Update", "FAIL", f"Exception: {e}")
+        return False
+    finally:
+        # Clean up campaign if it exists
+        if campaign_id:
+            try:
+                requests.delete(f"{BASE_URL}/sms-app/campaigns/{campaign_id}?chatId={TEST_USER}", timeout=10)
+            except:
+                pass
+
+def test_apk_download():
+    """Test 7: APK download - 200 status, ~3.8MB size"""
+    try:
+        response = requests.get(f"{BASE_URL}/sms-app/download", timeout=30)
+        if response.status_code == 200:
+            content_length = len(response.content)
+            content_type = response.headers.get("content-type", "")
+            
+            if content_length > MIN_APK_SIZE and "android" in content_type.lower():
+                log_test("APK Download", "PASS", f"Size: {content_length:,} bytes ({content_length/1024/1024:.1f}MB), Content-Type: {content_type}")
+                return True
+            else:
+                log_test("APK Download", "FAIL", f"Size: {content_length:,} bytes, Content-Type: {content_type}")
+                return False
+        else:
+            log_test("APK Download", "FAIL", f"HTTP {response.status_code}: {response.text}")
+            return False
+    except Exception as e:
+        log_test("APK Download", "FAIL", f"Exception: {e}")
+        return False
+
+def main():
+    """Run all tests"""
+    print(f"🚀 Starting Nomadly Backend Testing - Final Comprehensive Test Round 2")
+    print(f"📍 Backend URL: {BASE_URL}")
+    print(f"👤 Test User: {TEST_USER} (johngambino - Active free trial)")
+    print(f"📅 Test Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print("=" * 80)
     
-    def run_all_tests(self):
-        """Run all tests in sequence as specified in review request"""
-        print("🚀 Starting Final Comprehensive Test of Nomadly Backend SMS App v2.4.0")
-        print(f"Backend URL: {BACKEND_URL} (Node.js direct)")
-        print(f"Test User: {TEST_USER} (johngambino - Active free trial)")
-        print("=" * 100)
-        
-        # Run tests in exact order from review request
-        self.test_1_health()
-        self.test_2_download_info()
-        self.test_3_apk_download()
-        self.test_4_auth()
-        self.test_5_plan_check()
-        self.test_6_create_campaign()
-        self.test_7_progress_update()
-        self.test_8_sync_endpoint()
-        self.test_9_cleanup()
-        
-        # Summary
-        print("\n" + "=" * 100)
-        print("📊 FINAL COMPREHENSIVE TEST SUMMARY")
-        print("=" * 100)
-        
-        passed = sum(1 for r in self.results if r["success"])
-        total = len(self.results)
-        
-        print(f"Total Tests: {total}")
-        print(f"Passed: {passed}")
-        print(f"Failed: {total - passed}")
-        print(f"Success Rate: {(passed/total)*100:.1f}%")
-        
-        print("\n🔍 KEY VERIFICATION POINTS:")
-        print("✅ Version 2.4.0 everywhere")
-        print("✅ Content array = 1 message (not split by newlines)")
-        print("✅ Only sent messages reduce trial, not failed")
-        print("✅ /progress includes canUseSms + freeSmsRemaining")
-        
-        if passed == total:
-            print("\n🎉 ALL FINAL COMPREHENSIVE TESTS PASSED!")
-        else:
-            print(f"\n⚠️  {total - passed} TESTS FAILED")
-            print("\nFailed Tests:")
-            for result in self.results:
-                if not result["success"]:
-                    print(f"  ❌ {result['test']}: {result['details']}")
-        
-        return passed == total
+    tests = [
+        ("Health Check", test_health_check),
+        ("Download Info", test_download_info),
+        ("Sync latestVersion", test_sync_latest_version),
+        ("Trial Persistence", test_trial_persistence),
+        ("Campaign CRUD", test_campaign_crud_cycle),
+        ("Progress Endpoint", test_progress_endpoint),
+        ("APK Download", test_apk_download),
+    ]
+    
+    passed = 0
+    total = len(tests)
+    
+    for test_name, test_func in tests:
+        if test_func():
+            passed += 1
+    
+    print("=" * 80)
+    print(f"📊 Test Results: {passed}/{total} tests passed ({passed/total*100:.1f}%)")
+    
+    if passed == total:
+        print("🎉 ALL TESTS PASSED - Backend is fully functional!")
+        return 0
+    else:
+        print(f"⚠️  {total - passed} test(s) failed - see details above")
+        return 1
 
 if __name__ == "__main__":
-    tester = NomadlyBackendTester()
-    success = tester.run_all_tests()
-    sys.exit(0 if success else 1)
+    sys.exit(main())

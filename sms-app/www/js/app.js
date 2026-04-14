@@ -300,11 +300,64 @@ const App = {
       const data = await API.sync(code)
       if (data.user) Storage.setUser(data.user)
       if (data.campaigns) { this.campaigns = data.campaigns; Storage.setCampaigns(data.campaigns) }
+      // Check for app update
+      if (data.latestVersion) {
+        this.checkAppUpdate(data.latestVersion)
+      }
       this.renderDashboard()
     } catch {
       this.campaigns = Storage.getCampaigns()
       this.renderDashboard()
     }
+  },
+
+  // ─── In-App Update Notification ───
+  checkAppUpdate(latestVersion) {
+    const currentVersion = this.getAppVersion()
+    if (!currentVersion || currentVersion === 'unknown') return
+    if (currentVersion === latestVersion) {
+      // Hide banner if already up to date
+      const banner = document.getElementById('updateBanner')
+      if (banner) banner.style.display = 'none'
+      return
+    }
+    // Compare versions (simple semver compare)
+    const cur = currentVersion.split('.').map(Number)
+    const lat = latestVersion.split('.').map(Number)
+    let needsUpdate = false
+    for (let i = 0; i < 3; i++) {
+      if ((lat[i] || 0) > (cur[i] || 0)) { needsUpdate = true; break }
+      if ((lat[i] || 0) < (cur[i] || 0)) break
+    }
+    if (!needsUpdate) return
+
+    // Show persistent update banner
+    let banner = document.getElementById('updateBanner')
+    if (!banner) {
+      banner = document.createElement('div')
+      banner.id = 'updateBanner'
+      banner.className = 'update-banner'
+      document.body.prepend(banner)
+    }
+    banner.innerHTML = `
+      <div class="update-banner-content">
+        <div class="update-banner-text">
+          <strong>Update Available</strong>
+          <span>v${latestVersion} is ready — you're on v${currentVersion}</span>
+        </div>
+        <a href="https://t.me/NomadlyBot" target="_blank" class="btn btn-sm btn-update">Update</a>
+        <button class="update-dismiss" onclick="document.getElementById('updateBanner').style.display='none'">&times;</button>
+      </div>`
+    banner.style.display = 'block'
+  },
+
+  getAppVersion() {
+    // Read from the APK build config (set during build) or fallback
+    try {
+      const meta = document.querySelector('meta[name="app-version"]')
+      if (meta) return meta.content
+    } catch {}
+    return '2.4.0' // fallback to current build version
   },
 
   // ─── New Campaign (subscription gate — FRESH check from server) ───
@@ -666,10 +719,13 @@ const App = {
       actionsEl.innerHTML = `
         <button class="btn btn-secondary" onclick="App.editExisting()">Edit & Resend</button>
         <button class="btn btn-outline-danger btn-sm" onclick="App.confirmDelete()">Delete</button>`
-    } else if (c.status === 'sending' || c.status === 'paused') {
+    } else if (c.status === 'sending' || c.status === 'paused' || c.status === 'paused_trial_exhausted') {
       actionsEl.innerHTML = `
         <button class="btn btn-secondary" onclick="App.editExisting()">Edit</button>
-        <button class="btn btn-send" ${!canSend ? 'disabled' : ''} onclick="App.resumeExisting()">Resume Sending</button>`
+        <button class="btn btn-send" ${!canSend ? 'disabled' : ''} onclick="App.resumeExisting()">Resume Sending</button>
+        <button class="btn btn-outline-danger btn-sm" style="flex:0;padding:14px" onclick="App.confirmDelete()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+        </button>`
     } else {
       actionsEl.innerHTML = `
         <button class="btn btn-secondary" onclick="App.editExisting()">Edit</button>
@@ -687,7 +743,11 @@ const App = {
     const c = this.currentCampaign; if (!c) return
     this.wizardStep = 1
     document.getElementById('wzName').value = c.name || ''
-    document.getElementById('wzContent').value = (c.content || []).join('\n')
+    // Join rotation messages with --- delimiter (single message = no delimiter)
+    const contentArr = c.content || []
+    document.getElementById('wzContent').value = contentArr.length > 1
+      ? contentArr.join('\n---\n')
+      : contentArr.join('')
     document.getElementById('wzContacts').value = (c.contacts || []).map(
       ct => ct.name ? `${ct.phoneNumber}, ${ct.name}` : ct.phoneNumber
     ).join('\n')
