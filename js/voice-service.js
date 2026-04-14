@@ -962,20 +962,33 @@ function isSmsLimitReached(num) {
 // Atomically increment minutesUsed for a phone number in DB
 async function incrementMinutesUsed(chatId, phoneNumber, minutes) {
   try {
+    // BUGFIX: Use MongoDB atomic $inc to prevent race conditions.
+    // Previous approach: read numbers → modify minutesUsed → write back entire array
+    // This caused concurrent IVR/forwarding setting changes to be overwritten.
+    // Now: atomically increment minutesUsed on the specific array element, then read back.
+    await _phoneNumbersOf.updateOne(
+      { _id: chatId, 'val.numbers.phoneNumber': phoneNumber },
+      { $inc: { 'val.numbers.$.minutesUsed': minutes } }
+    )
+
+    // Read back updated state for billing calculations
     const userData = await get(_phoneNumbersOf, chatId)
     const numbers = userData?.numbers || []
-    const idx = numbers.findIndex(n => n.phoneNumber === phoneNumber)
-    if (idx === -1) return { used: 0, limit: 0, overageMinutes: 0 }
-    numbers[idx].minutesUsed = (numbers[idx].minutesUsed || 0) + minutes
-    const limit = getMinuteLimit(numbers[idx].plan)
-    const used = numbers[idx].minutesUsed
-    if (limit !== Infinity && used >= limit && !numbers[idx]._minLimitNotified) {
-      numbers[idx]._minLimitNotified = true
+    const num = numbers.find(n => n.phoneNumber === phoneNumber)
+    if (!num) return { used: 0, limit: 0, overageMinutes: 0 }
+
+    const used = num.minutesUsed || 0
+    const limit = getMinuteLimit(num.plan)
+
+    if (limit !== Infinity && used >= limit && !num._minLimitNotified) {
+      // Atomically set the notification flag — no array overwrite
+      await _phoneNumbersOf.updateOne(
+        { _id: chatId, 'val.numbers.phoneNumber': phoneNumber },
+        { $set: { 'val.numbers.$._minLimitNotified': true } }
+      )
       _bot?.sendMessage(chatId, `⚠️ <b>Plan Minutes Exhausted</b>\n\n📞 ${formatPhone(phoneNumber)}\nUsed: <b>${used}/${limit}</b> minutes this cycle.\n\nOverage billing is now active from your wallet. Top up or upgrade your plan.`, { parse_mode: 'HTML' }).catch(() => {})
     }
-    // BUGFIX: Use setFields to atomically update only val.numbers
-    // Previously used set() which replaced entire val, wiping twilioSubAccountSid/Token
-    await setFields(_phoneNumbersOf, chatId, { 'val.numbers': numbers })
+
     const overageMinutes = limit !== Infinity ? Math.max(0, used - limit) : 0
     return { used, limit, overageMinutes }
   } catch (e) {
@@ -1094,22 +1107,29 @@ async function billCallMinutesUnified(chatId, phoneNumber, minutesBilled, destin
 // Atomically increment smsUsed for a phone number in DB
 async function incrementSmsUsed(chatId, phoneNumber) {
   try {
+    // BUGFIX: Use MongoDB atomic $inc to prevent race conditions.
+    // Same fix as incrementMinutesUsed — avoid read-modify-write that overwrites concurrent changes.
+    await _phoneNumbersOf.updateOne(
+      { _id: chatId, 'val.numbers.phoneNumber': phoneNumber },
+      { $inc: { 'val.numbers.$.smsUsed': 1 } }
+    )
+
+    // Read back to check limits
     const userData = await get(_phoneNumbersOf, chatId)
     const numbers = userData?.numbers || []
-    const idx = numbers.findIndex(n => n.phoneNumber === phoneNumber)
-    if (idx === -1) return
-    numbers[idx].smsUsed = (numbers[idx].smsUsed || 0) + 1
-    // Check if just hit limit and notify
-    const limit = getSmsLimit(numbers[idx].plan)
-    const used = numbers[idx].smsUsed
-    if (used >= limit && !numbers[idx]._smsLimitNotified) {
-      numbers[idx]._smsLimitNotified = true
+    const num = numbers.find(n => n.phoneNumber === phoneNumber)
+    if (!num) return
+
+    const limit = getSmsLimit(num.plan)
+    const used = num.smsUsed || 0
+    if (used >= limit && !num._smsLimitNotified) {
+      await _phoneNumbersOf.updateOne(
+        { _id: chatId, 'val.numbers.phoneNumber': phoneNumber },
+        { $set: { 'val.numbers.$._smsLimitNotified': true } }
+      )
       const msg = `⚠️ <b>Plan SMS Exhausted</b>\n\n📞 ${formatPhone(phoneNumber)}\nUsed: <b>${used}/${limit}</b> inbound SMS this cycle.\n\nOverage billing is now active at <b>$${OVERAGE_RATE_SMS}/SMS</b> from your wallet. Service pauses if wallet is empty. Top up or upgrade your plan.`
       _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
     }
-    // BUGFIX: Use setFields to atomically update only val.numbers
-    // Previously used set() which replaced entire val, wiping twilioSubAccountSid/Token
-    await setFields(_phoneNumbersOf, chatId, { 'val.numbers': numbers })
   } catch (e) {
     log(`[Voice] incrementSmsUsed error: ${e.message}`)
   }

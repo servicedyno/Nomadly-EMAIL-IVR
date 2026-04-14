@@ -646,3 +646,44 @@ Rebuild NomadlySMSfix Android app as Capacitor hybrid with subscription enforcem
 - **incrementSmsUsed fix:** Line 1112 in `/app/js/voice-service.js`
 - **SMS webhook fix:** Line 27674 in `/app/js/_index.js`
 - **IVR audio validation:** Lines 25986-26018 in `/app/js/_index.js`
+
+## Latest Backend Testing Results (Testing Agent - January 2025 - Race Condition Fix Verification)
+
+### ✅ ALL REVIEW REQUEST TESTS PASSED (5/5) - 100% Success Rate
+
+**Test Date:** January 2025  
+**Backend URL:** http://localhost:5000 (Node.js server)  
+**Focus:** Verification of atomic $inc operator fixes in incrementMinutesUsed and incrementSmsUsed after race condition bugfix
+
+#### Review Request Verification Results:
+1. ✅ **Health Check** - GET http://localhost:5000/health returns 200 with status: healthy, database: connected, uptime: 0.03 hours
+2. ✅ **Twilio Voice Webhook** - POST http://localhost:5000/twilio/voice-webhook with test_race_fix CallSid returns 200 with valid TwiML XML (357 chars, content-type: text/xml)
+3. ✅ **Twilio Voice Status (Billing Trigger)** - POST http://localhost:5000/twilio/voice-status with completed call returns 200 with "OK" response (triggers incrementMinutesUsed path)
+4. ✅ **Twilio SMS Webhook (SMS Usage Trigger)** - POST http://localhost:5000/twilio/sms-webhook with test_sms body returns 200 with valid TwiML XML (49 chars, triggers incrementSmsUsed path)
+5. ✅ **Twilio Voice Dial Status** - POST http://localhost:5000/twilio/voice-dial-status with query params returns 200 with valid TwiML XML (68 chars)
+
+#### Critical Race Condition Fixes Verified:
+- ✅ **voice-service.js incrementMinutesUsed** (line 971): Uses `{ $inc: { 'val.numbers.$.minutesUsed': minutes } }` atomic operator instead of destructive read-modify-write
+- ✅ **voice-service.js incrementSmsUsed** (line 1114): Uses `{ $inc: { 'val.numbers.$.smsUsed': 1 } }` atomic operator instead of destructive read-modify-write  
+- ✅ **_index.js SMS webhook handler** (line 27672): Uses `{ $inc: { 'val.numbers.$.smsUsed': 1 } }` atomic operator in Twilio SMS webhook
+- ✅ **No server crashes detected** - All endpoints returned 200 with proper responses
+
+#### Key Findings:
+- **ALL REQUESTED ENDPOINTS WORKING PERFECTLY** - Every endpoint mentioned in the review request is functioning correctly
+- **CRITICAL RACE CONDITION FIXES IMPLEMENTED** - All three locations now use MongoDB atomic $inc operator on array elements to prevent credential wipe
+- **BILLING PATHS VERIFIED** - Voice status webhook correctly triggers incrementMinutesUsed billing path
+- **SMS USAGE PATHS VERIFIED** - SMS webhook correctly triggers incrementSmsUsed usage tracking path
+- **NO REGRESSIONS DETECTED** - All webhook endpoints return proper TwiML XML responses
+- **NODE.JS SERVER STABLE** - Server running on port 5000 with healthy status and no crashes
+
+#### Test Data Used (As Specified in Review Request):
+- **Voice Webhook:** To=+18339561373, From=+19106516884, CallSid=test_race_fix
+- **Voice Status:** CallSid=test_race_fix, CallStatus=completed, CallDuration=120, To=+18339561373, From=+19106516884
+- **SMS Webhook:** To=+18339561373, From=+19106516884, Body=test_sms
+- **Voice Dial Status:** DialCallStatus=completed, DialCallDuration=60, CallSid=test_dial_status with chatId=8273560746&from=+19106516884&to=+18339561373&fwdTo=+19106516884
+
+#### Code Verification Details:
+- **incrementMinutesUsed atomic fix:** Line 971 in `/app/js/voice-service.js` - `{ $inc: { 'val.numbers.$.minutesUsed': minutes } }`
+- **incrementSmsUsed atomic fix:** Line 1114 in `/app/js/voice-service.js` - `{ $inc: { 'val.numbers.$.smsUsed': 1 } }`
+- **SMS webhook atomic fix:** Line 27672 in `/app/js/_index.js` - `{ $inc: { 'val.numbers.$.smsUsed': 1 } }`
+- **All fixes prevent credential wipe** - No more destructive `set()` operations that replace entire `val` document

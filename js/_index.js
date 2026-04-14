@@ -27665,14 +27665,12 @@ app.post('/twilio/sms-webhook', async (req, res) => {
         if (fwd?.toTelegram !== false) {
           bot?.sendMessage(chatId, `💬 <b>SMS Received</b>\nFrom: ${From}\nTo: ${To}\n\n${Body || '(empty)'}`, { parse_mode: 'HTML' }).catch(() => {})
         }
-        // Increment SMS usage — use atomic setFields to avoid wiping sibling fields
+        // Increment SMS usage — atomic $inc to prevent race conditions overwriting IVR/forwarding settings
         match.smsUsed = (match.smsUsed || 0) + 1
-        const smsNums = user.val?.numbers || []
-        const smsIdx = smsNums.findIndex(n => n.phoneNumber === To && n.provider === 'twilio')
-        if (smsIdx !== -1) {
-          smsNums[smsIdx].smsUsed = match.smsUsed
-          await setFields(phoneNumbersOf, chatId, { 'val.numbers': smsNums })
-        }
+        await db.collection('phoneNumbersOf').updateOne(
+          { _id: chatId, 'val.numbers.phoneNumber': To },
+          { $inc: { 'val.numbers.$.smsUsed': 1 } }
+        )
         break
       }
     }
