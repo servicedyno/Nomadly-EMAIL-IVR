@@ -357,7 +357,7 @@ const App = {
       const meta = document.querySelector('meta[name="app-version"]')
       if (meta) return meta.content
     } catch {}
-    return '2.4.0' // fallback to current build version
+    return '2.4.1' // fallback to current build version
   },
 
   // ─── New Campaign (subscription gate — FRESH check from server) ───
