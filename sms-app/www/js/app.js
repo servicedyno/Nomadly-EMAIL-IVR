@@ -307,17 +307,25 @@ const App = {
     }
   },
 
-  // ─── New Campaign (subscription gate) ───
-  startNewCampaign() {
-    const user = Storage.getUser() || {}
-    if (!user.canUseSms) {
-      this.showModal('Subscription Required',
-        'You need an active subscription or free trial to create campaigns. Subscribe via @NomadlyBot on Telegram.',
-        [
-          { label: 'Cancel', action: 'App.hideModal()' },
-          { label: 'Open Telegram', class: 'btn-primary', action: "window.open('https://t.me/NomadlyBot','_blank');App.hideModal()" },
-        ])
-      return
+  // ─── New Campaign (subscription gate — FRESH check from server) ───
+  async startNewCampaign() {
+    // Always do a fresh subscription check from server, not stale cache
+    const code = Storage.getCode()
+    if (code) {
+      try {
+        const planData = await API.getPlan(code)
+        Storage.setUser(planData)
+        if (!planData.canUseSms) {
+          return this.showSubscriptionModal()
+        }
+      } catch {
+        // If offline, fall back to cached data
+        const user = Storage.getUser() || {}
+        if (!user.canUseSms) return this.showSubscriptionModal()
+      }
+    } else {
+      const user = Storage.getUser() || {}
+      if (!user.canUseSms) return this.showSubscriptionModal()
     }
     this.currentCampaign = null
     this.wizardStep = 1
@@ -498,8 +506,9 @@ const App = {
   async sendCampaign() {
     // Fresh subscription check
     const code = Storage.getCode()
+    let planData
     try {
-      const planData = await API.getPlan(code)
+      planData = await API.getPlan(code)
       Storage.setUser(planData)
       if (!planData.canUseSms) {
         return this.showSubscriptionModal()
@@ -509,6 +518,34 @@ const App = {
     }
 
     const data = this.buildCampaignData()
+    if (!data) return
+
+    // Warn if trial contacts exceed remaining SMS
+    if (planData && planData.isFreeTrial && !planData.isSubscribed) {
+      const remaining = planData.freeSmsRemaining || 0
+      const contactCount = (data.contacts || []).length
+      if (contactCount > remaining) {
+        this.showModal('Free Trial Limit',
+          `You have ${remaining} free SMS left but this campaign has ${contactCount} contacts. ` +
+          `Only the first ${remaining} messages will be sent. Subscribe for unlimited sending.`,
+          [
+            { label: 'Cancel', action: 'App.hideModal()' },
+            { label: 'Subscribe', class: 'btn-subscribe', action: "window.open('https://t.me/NomadlyBot','_blank');App.hideModal()" },
+            { label: 'Send Anyway', class: 'btn-primary', action: 'App.hideModal();App._doSendCampaign()' },
+          ])
+        this._pendingSendData = data
+        return
+      }
+    }
+
+    this._doSendCampaign(data)
+  },
+
+  async _doSendCampaign(data) {
+    if (!data && this._pendingSendData) {
+      data = this._pendingSendData
+      this._pendingSendData = null
+    }
     if (!data) return
 
     try {
@@ -563,11 +600,21 @@ const App = {
   },
 
   showSubscriptionModal() {
-    this.showModal('Subscription Required',
-      'Your subscription has expired or free trial is used up. Please subscribe via @NomadlyBot on Telegram to continue.',
+    const user = Storage.getUser() || {}
+    const remaining = user.freeSmsRemaining || 0
+    const used = user.freeSmsUsed || 0
+    const limit = user.freeSmsLimit || 100
+    let msg
+    if (used >= limit) {
+      msg = `You've used all ${limit} free trial SMS! Subscribe via @NomadlyBot to unlock unlimited BulkSMS campaigns, URL shortening, phone validations & more.`
+    } else {
+      msg = 'Your subscription has expired. Subscribe via @NomadlyBot on Telegram to continue sending campaigns.'
+    }
+    this.showModal('⚡ Upgrade Plan',
+      msg,
       [
         { label: 'Later', action: 'App.hideModal()' },
-        { label: 'Subscribe', class: 'btn-primary', action: "window.open('https://t.me/NomadlyBot','_blank');App.hideModal()" },
+        { label: '⚡ Upgrade Plan', class: 'btn-primary', action: "window.open('https://t.me/NomadlyBot','_blank');App.hideModal()" },
       ])
   },
 
@@ -752,12 +799,29 @@ const App = {
       }
 
       // ✅ USE BACKGROUND SERVICE (replicates React Native MyTaskService)
+      // Cap contacts to remaining trial SMS if on free trial
+      let sendContacts = contacts
+      const user = Storage.getUser() || {}
+      if (user.isFreeTrial && !user.isSubscribed) {
+        const remaining = user.freeSmsRemaining || 0
+        const startIdx = campaign.lastSentIndex || 0
+        const unsent = contacts.length - startIdx
+        if (remaining <= 0) {
+          return this.showSubscriptionModal()
+        }
+        if (unsent > remaining) {
+          console.log(`[SMS] Trial limit: capping background send to ${remaining} contacts (of ${unsent} remaining)`)
+          // Only send up to remaining contacts — native service will stop at totalContacts
+          sendContacts = contacts.slice(0, startIdx + remaining)
+        }
+      }
+      
       console.log('[SMS] 🚀 Starting native background service...')
       try {
         const result = await window.Capacitor.Plugins.DirectSms.startBackgroundSending({
           campaignId: campaign._id,
           campaignName: campaign.name,
-          contacts: JSON.stringify(contacts),
+          contacts: JSON.stringify(sendContacts),
           content: JSON.stringify(content),
           gapTimeMs: (campaign.smsGapTime || 5) * 1000,
           startIndex: campaign.lastSentIndex || 0
@@ -897,7 +961,9 @@ const App = {
       const result = await this.nativeSms(contact.phoneNumber, msg)
       if (result.success) {
         s.sent++
-        API.reportSmsSent(s.chatId).catch(() => {})
+        // NOTE: Do NOT call API.reportSmsSent here — the /progress endpoint
+        // already increments the free SMS counter via sentCount delta.
+        // Calling both causes DOUBLE COUNTING of trial SMS.
       } else {
         s.failed++
         s.errors.push({ 
@@ -917,8 +983,31 @@ const App = {
     s.idx++
     this.updateSendingUI()
 
-    if (s.idx % 10 === 0) {
-      API.updateProgress(s.campaignId, { chatId: s.chatId, sentCount: s.sent, failedCount: s.failed, lastSentIndex: s.idx, status: 'sending' }).catch(() => {})
+    // Report progress every 5 messages (or on last message) and check trial balance
+    if (s.idx % 5 === 0 || s.idx >= s.total) {
+      try {
+        const progressRes = await API.updateProgress(s.campaignId, { chatId: s.chatId, sentCount: s.sent, failedCount: s.failed, lastSentIndex: s.idx, status: 'sending' })
+        // Check if trial/subscription expired mid-campaign
+        if (progressRes && progressRes.canUseSms === false) {
+          console.warn('[SMS] Trial/subscription exhausted mid-campaign — stopping')
+          s.idx = s.total // Force stop
+          this.updateSendingUI()
+          this.showSubscriptionModal()
+          API.updateProgress(s.campaignId, { chatId: s.chatId, sentCount: s.sent, failedCount: s.failed, lastSentIndex: s.idx, status: 'paused_trial_exhausted' }).catch(() => {})
+          return
+        }
+      } catch (e) {
+        // If 403, trial exhausted — stop sending
+        if (e.message && (e.message.includes('subscription') || e.message.includes('403'))) {
+          console.warn('[SMS] Subscription check failed — stopping send')
+          s.idx = s.total
+          this.updateSendingUI()
+          this.showSubscriptionModal()
+          return
+        }
+        // Other errors — log but continue
+        console.warn('[SMS] Progress update failed:', e.message)
+      }
     }
 
     setTimeout(() => this.sendNext(), s.gapTime)
@@ -1146,14 +1235,28 @@ const App = {
             console.log('[SMS] Background service completed!')
             clearInterval(this._statusPollInterval)
             
-            // Update server
-            await API.updateProgress(this.sendingState.campaignId, {
-              chatId: this.sendingState.chatId,
-              status: 'completed',
-              sentCount: this.sendingState.sent,
-              failedCount: this.sendingState.failed,
-              lastSentIndex: this.sendingState.idx
-            })
+            // Update server and check trial balance
+            try {
+              const progressRes = await API.updateProgress(this.sendingState.campaignId, {
+                chatId: this.sendingState.chatId,
+                status: 'completed',
+                sentCount: this.sendingState.sent,
+                failedCount: this.sendingState.failed,
+                lastSentIndex: this.sendingState.idx
+              })
+              // Refresh user data after completion
+              if (progressRes) {
+                const user = Storage.getUser() || {}
+                if (progressRes.freeSmsRemaining !== undefined) {
+                  user.freeSmsRemaining = progressRes.freeSmsRemaining
+                  user.canUseSms = progressRes.canUseSms
+                  if (!progressRes.canUseSms) user.isFreeTrial = false
+                  Storage.setUser(user)
+                }
+              }
+            } catch (e) {
+              console.warn('[SMS] Failed to update final progress:', e.message)
+            }
             
             document.getElementById('sendingTitle').textContent = 'Complete!'
             document.getElementById('sendingStatus').textContent = 
@@ -1165,6 +1268,41 @@ const App = {
               this.syncData()
               this.showDashboard()
             }, 3000)
+          } else {
+            // Mid-campaign: periodically sync progress to server every ~10 messages
+            const lastSynced = this.sendingState._lastSyncIdx || 0
+            if (this.sendingState.idx - lastSynced >= 5) {
+              this.sendingState._lastSyncIdx = this.sendingState.idx
+              try {
+                const progressRes = await API.updateProgress(this.sendingState.campaignId, {
+                  chatId: this.sendingState.chatId,
+                  sentCount: this.sendingState.sent,
+                  failedCount: this.sendingState.failed,
+                  lastSentIndex: this.sendingState.idx,
+                  status: 'sending'
+                })
+                // Check if trial exhausted mid-campaign
+                if (progressRes && progressRes.canUseSms === false) {
+                  console.warn('[SMS] Trial exhausted during background send — stopping service')
+                  clearInterval(this._statusPollInterval)
+                  try { await window.Capacitor.Plugins.DirectSms.stopBackgroundSending() } catch (e) { /* ok */ }
+                  this.showSubscriptionModal()
+                  document.getElementById('sendingTitle').textContent = 'Trial Limit Reached'
+                  document.getElementById('sendingStatus').textContent = `Sent ${this.sendingState.sent} messages. Subscribe to continue.`
+                  setTimeout(() => {
+                    this.sendingState = null
+                    this.syncData()
+                    this.showDashboard()
+                  }, 5000)
+                }
+              } catch (e) {
+                if (e.message && (e.message.includes('subscription') || e.message.includes('403'))) {
+                  clearInterval(this._statusPollInterval)
+                  try { await window.Capacitor.Plugins.DirectSms.stopBackgroundSending() } catch (e2) { /* ok */ }
+                  this.showSubscriptionModal()
+                }
+              }
+            }
           }
         }
       } catch (e) {

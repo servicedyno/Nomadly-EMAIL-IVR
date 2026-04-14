@@ -21502,6 +21502,13 @@ Select a category:`), k.of(catBtns))
     }
 
     if (message === t.smsSendNow || message === t.smsSaveDraft) {
+      // Re-check subscription before creating campaign (user may have exhausted trial during wizard)
+      const freshSub = await smsAppService.checkSubscription(chatId)
+      if (!freshSub.canUseSms) {
+        await set(state, chatId, 'action', null)
+        return send(chatId, `❌ <b>Free Trial Exhausted</b>\n\nYou've used all your free SMS. Subscribe to unlock unlimited BulkSMS campaigns!\n\n👉 Tap <b>${user.buyPlan}</b> to subscribe.`, { parse_mode: 'HTML', reply_markup: { keyboard: [[user.buyPlan], [t.back]], resize_keyboard: true } })
+      }
+
       // Create campaign immediately or as draft
       const stateInfo = await state.findOne({ _id: parseFloat(chatId) })
       const campaignName = stateInfo?.smsapp_campaign_name || 'Campaign'
