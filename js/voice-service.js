@@ -2182,11 +2182,8 @@ async function handleOutboundSipCall(payload) {
   // Fix #2: If user is in hard-block, silently drop — no logging, no hangup API call
   const rateLimitKey = fromClean || sipUsername
   if (isSipHardBlocked(rateLimitKey)) {
-    // Fix #5: If auto-routed, bill in real-time — wallet check + connection fee + per-min timer
-    if (isAutoRouted) {
-      handleAutoRoutedRealTimeBilling(callControlId, sipUsername, fromClean, destination, 'hard_block')
-      log(`[Voice] Fix #5: Hard-blocked auto-routed call ${callControlId} — real-time billing initiated`)
-    }
+    // FIX: Do NOT bill hard-blocked calls — they are rejected and never connected
+    // Billing blocked calls creates phantom charges for calls that were never completed
     return // silent drop — saves webhook processing, logging, and Telnyx API calls
   }
 
@@ -2204,11 +2201,7 @@ async function handleOutboundSipCall(payload) {
   // ── SIP Rate Limiting — prevent spam dialing ──
   if (!checkSipRateLimit(sipUsername, destination)) {
     log(`[Voice] ⚠️ SIP RATE LIMIT: ${sipUsername} → ${destination} — exceeded ${SIP_RATE_LIMIT_MAX} calls/${SIP_RATE_LIMIT_WINDOW/1000}s, rejecting`)
-    // Fix #5: Bill auto-routed calls in real-time
-    if (isAutoRouted) {
-      handleAutoRoutedRealTimeBilling(callControlId, sipUsername, fromClean, destination, 'rate_limit')
-      log(`[Voice] Fix #5: Rate-limited auto-routed call ${callControlId} — real-time billing initiated`)
-    }
+    // FIX: Do NOT bill rate-limited calls — they are rejected before connecting
     try {
       await _telnyxApi.hangupCall(callControlId)
     } catch (e) { log(`[Voice] Reject error: ${e.message}`) }
@@ -2227,11 +2220,7 @@ async function handleOutboundSipCall(payload) {
         await _telnyxApi.hangupCall(callControlId)
       } catch (e) { /* suppress — call may already be ended */ }
     }
-    // Fix #5: Bill auto-routed calls in real-time (both soft + hard block)
-    if (isAutoRouted) {
-      handleAutoRoutedRealTimeBilling(callControlId, sipUsername, fromClean, destination, hardBlocked ? 'hard_block_escalation' : 'global_rate_limit')
-      log(`[Voice] Fix #5: Global-rate-limited auto-routed call ${callControlId} — real-time billing initiated`)
-    }
+    // FIX: Do NOT bill rate-limited or hard-blocked calls — they are rejected before connecting
     // If hard-blocked, recordRateLimitHit already logged the activation
     return
   }
