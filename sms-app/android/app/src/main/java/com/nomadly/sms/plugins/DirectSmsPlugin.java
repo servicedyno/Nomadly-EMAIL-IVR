@@ -6,6 +6,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
@@ -19,6 +20,10 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
+import com.nomadly.sms.services.SmsBackgroundService;
+
+import org.json.JSONArray;
+import org.json.JSONException;
 
 @CapacitorPlugin(
     name = "DirectSms",
@@ -293,6 +298,127 @@ public class DirectSmsPlugin extends Plugin {
             result.put("errorReason", "send_exception");
             result.put("exceptionType", e.getClass().getSimpleName());
             call.resolve(result);
+        }
+    }
+
+    /**
+     * Start background SMS sending service (replicates React Native MyTaskService)
+     * @param call - expects: campaignId, campaignName, contacts (JSONArray), content (JSONArray), gapTimeMs
+     */
+    @PluginMethod
+    public void startBackgroundSending(PluginCall call) {
+        try {
+            String campaignId = call.getString("campaignId", "");
+            String campaignName = call.getString("campaignName", "SMS Campaign");
+            String contactsJson = call.getString("contacts", "[]");
+            String contentJson = call.getString("content", "[]");
+            int gapTimeMs = call.getInt("gapTimeMs", 5000);
+            int startIndex = call.getInt("startIndex", 0);
+            
+            // Validate inputs
+            JSONArray contacts = new JSONArray(contactsJson);
+            JSONArray content = new JSONArray(contentJson);
+            
+            if (contacts.length() == 0 || content.length() == 0) {
+                call.reject("Contacts and content are required");
+                return;
+            }
+            
+            // Save campaign data to SharedPreferences for service to read
+            SharedPreferences prefs = getContext().getSharedPreferences("nomadly_sms_queue", Context.MODE_PRIVATE);
+            prefs.edit()
+                .putString("campaignId", campaignId)
+                .putString("campaignName", campaignName)
+                .putString("contacts", contactsJson)
+                .putString("content", contentJson)
+                .putInt("gapTimeMs", gapTimeMs)
+                .putInt("currentIndex", startIndex)
+                .putInt("sentCount", 0)
+                .putInt("failedCount", 0)
+                .putString("status", "sending")
+                .apply();
+            
+            // Start foreground service
+            Intent serviceIntent = new Intent(getContext(), SmsBackgroundService.class);
+            serviceIntent.setAction("START");
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                getContext().startForegroundService(serviceIntent);
+            } else {
+                getContext().startService(serviceIntent);
+            }
+            
+            android.util.Log.d("DirectSms", "Background service started for campaign: " + campaignName);
+            
+            JSObject result = new JSObject();
+            result.put("success", true);
+            result.put("message", "Background sending started");
+            call.resolve(result);
+            
+        } catch (JSONException e) {
+            call.reject("Invalid JSON data: " + e.getMessage());
+        } catch (Exception e) {
+            call.reject("Failed to start background service: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Stop background SMS sending service
+     */
+    @PluginMethod
+    public void stopBackgroundSending(PluginCall call) {
+        try {
+            Intent serviceIntent = new Intent(getContext(), SmsBackgroundService.class);
+            serviceIntent.setAction("STOP");
+            getContext().startService(serviceIntent);
+            
+            JSObject result = new JSObject();
+            result.put("success", true);
+            result.put("message", "Background sending stopped");
+            call.resolve(result);
+        } catch (Exception e) {
+            call.reject("Failed to stop service: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Pause background SMS sending
+     */
+    @PluginMethod
+    public void pauseBackgroundSending(PluginCall call) {
+        try {
+            Intent serviceIntent = new Intent(getContext(), SmsBackgroundService.class);
+            serviceIntent.setAction("PAUSE");
+            getContext().startService(serviceIntent);
+            
+            JSObject result = new JSObject();
+            result.put("success", true);
+            result.put("message", "Background sending paused");
+            call.resolve(result);
+        } catch (Exception e) {
+            call.reject("Failed to pause service: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Get current background sending status
+     */
+    @PluginMethod
+    public void getBackgroundStatus(PluginCall call) {
+        try {
+            SharedPreferences prefs = getContext().getSharedPreferences("nomadly_sms_queue", Context.MODE_PRIVATE);
+            
+            JSObject result = new JSObject();
+            result.put("status", prefs.getString("status", "idle"));
+            result.put("currentIndex", prefs.getInt("currentIndex", 0));
+            result.put("sentCount", prefs.getInt("sentCount", 0));
+            result.put("failedCount", prefs.getInt("failedCount", 0));
+            result.put("campaignId", prefs.getString("campaignId", ""));
+            result.put("campaignName", prefs.getString("campaignName", ""));
+            
+            call.resolve(result);
+        } catch (Exception e) {
+            call.reject("Failed to get status: " + e.getMessage());
         }
     }
 }

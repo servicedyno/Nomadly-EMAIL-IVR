@@ -26072,6 +26072,21 @@ app.post('/twilio/voice-webhook', async (req, res) => {
 
     // ━━━ PRIORITY 3: Call Forwarding (no-answer mode without SIP) ━━━
     if (fwdConfig?.enabled && fwdConfig.forwardTo) {
+      // ✅ PREVENT SELF-CALL LOOP (same fix as IVR)
+      if (fwdConfig.forwardTo === From) {
+        response.say('Sorry, call forwarding to your own number is not allowed. Goodbye.')
+        response.hangup()
+        bot?.sendMessage(chatId, 
+          `📞 <b>Call Forwarding BLOCKED</b>\n` +
+          `From: ${phoneConfig.formatPhone(From)}\n` +
+          `❌ Self-call loop detected: Cannot forward to ${phoneConfig.formatPhone(fwdConfig.forwardTo)}\n\n` +
+          `💡 Please update your call forwarding settings to a different number.`,
+          { parse_mode: 'HTML' }
+        ).catch(() => {})
+        log(`[Twilio] ❌ Call forwarding self-call blocked: from=${From} attempted forward to same number`)
+        return res.type('text/xml').send(response.toString())
+      }
+      
       const RATE = parseFloat(process.env.CALL_FORWARDING_RATE_MIN || '0.50')
       const { usdBal } = await getBalance(walletOf, chatId)
       if (usdBal >= RATE) {
@@ -26191,6 +26206,23 @@ app.post('/twilio/inbound-ivr-gather', async (req, res) => {
 
     if ((action === 'transfer' || action === 'forward') && (option.number || option.forwardTo)) {
       const transferTo = option.number || option.forwardTo
+      
+      // ✅ PREVENT SELF-CALL LOOP (Scoreboard44 bug fix)
+      // If user configured IVR to forward to their own calling number, reject it
+      if (transferTo === decodedFrom) {
+        response.say('Sorry, call forwarding to your own number is not allowed. Goodbye.')
+        response.hangup()
+        bot?.sendMessage(chatId, 
+          `📞 <b>IVR Call — Key ${Digits} BLOCKED</b>\n` +
+          `From: ${phoneConfig.formatPhone(decodedFrom)}\n` +
+          `❌ Self-call loop detected: Cannot forward to ${phoneConfig.formatPhone(transferTo)}\n\n` +
+          `💡 Please update your IVR settings to forward to a different number.`,
+          { parse_mode: 'HTML' }
+        ).catch(() => {})
+        log(`[Twilio] ❌ IVR self-call blocked: from=${decodedFrom} attempted forward to same number`)
+        return res.type('text/xml').send(response.toString())
+      }
+      
       const recordingEnabled = num?.features?.recording === true
 
       // ── Wallet check + rate calculation (same as regular forwarding) ──

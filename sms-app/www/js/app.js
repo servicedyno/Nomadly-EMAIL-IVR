@@ -12,7 +12,7 @@ const App = {
   // ─── Init ───
   async init() {
     console.log('='.repeat(50))
-    console.log('Nomadly SMS App v2.2.0 - Initializing')
+    console.log('Nomadly SMS App v2.3.0 - Initializing')
     console.log('Platform:', window.Capacitor ? 'Native (APK)' : 'Browser')
     console.log('='.repeat(50))
     
@@ -731,8 +731,50 @@ const App = {
         // Don't block — attempt to send anyway (native side will handle permission)
         console.log('[SMS] Proceeding with send — native plugin will handle permission')
       }
+
+      // ✅ USE BACKGROUND SERVICE (replicates React Native MyTaskService)
+      console.log('[SMS] 🚀 Starting native background service...')
+      try {
+        const result = await window.Capacitor.Plugins.DirectSms.startBackgroundSending({
+          campaignId: campaign._id,
+          campaignName: campaign.name,
+          contacts: JSON.stringify(contacts),
+          content: JSON.stringify(content),
+          gapTimeMs: (campaign.smsGapTime || 5) * 1000,
+          startIndex: campaign.lastSentIndex || 0
+        })
+        
+        console.log('[SMS] ✅ Background service started:', result)
+        this.toast('SMS sending in background. You can close the app!', 'success')
+        
+        // Show sending screen and poll for status updates
+        this.sendingState = {
+          campaignId: campaign._id,
+          chatId: Storage.getUser()?.chatId,
+          total: contacts.length,
+          usingBackgroundService: true
+        }
+        
+        this.showScreen('sendingScreen')
+        document.getElementById('sendingTitle').textContent = campaign.name
+        document.getElementById('pauseSendBtn').style.display = 'flex'
+        document.getElementById('resumeSendBtn').style.display = 'none'
+        document.getElementById('stopSendBtn').textContent = 'Stop & Save'
+        document.getElementById('stopSendBtn').onclick = () => this.stopBackgroundSending()
+        document.getElementById('pauseSendBtn').onclick = () => this.pauseBackgroundSending()
+        
+        // Poll for status updates from the native service
+        this.pollBackgroundStatus()
+        return
+        
+      } catch (serviceErr) {
+        console.error('[SMS] ❌ Failed to start background service:', serviceErr)
+        console.log('[SMS] Falling back to foreground JS loop...')
+        // Fall through to old JS-based sending
+      }
     }
 
+    // FALLBACK: Old JS-based loop (if not on Capacitor or service failed)
     this.sendingState = {
       campaignId: campaign._id,
       chatId: Storage.getUser()?.chatId,
@@ -745,6 +787,7 @@ const App = {
       paused: false, stopped: false,
       startTime: Date.now(),
       errors: [],
+      usingBackgroundService: false
     }
 
     this.showScreen('sendingScreen')
@@ -962,6 +1005,153 @@ const App = {
     this.sendingState = null
     this.syncData()
     this.showDashboard()
+  },
+
+  // ─── Background Service Control Methods ───
+  async stopBackgroundSending() {
+    if (!window.Capacitor?.Plugins?.DirectSms) return this.stopSending()
+    
+    try {
+      console.log('[SMS] Stopping background service...')
+      await window.Capacitor.Plugins.DirectSms.stopBackgroundSending()
+      
+      // Get final status
+      const status = await window.Capacitor.Plugins.DirectSms.getBackgroundStatus()
+      console.log('[SMS] Final status:', status)
+      
+      // Update server with final progress
+      if (this.sendingState?.campaignId) {
+        await API.updateProgress(this.sendingState.campaignId, {
+          chatId: this.sendingState.chatId,
+          status: 'paused',
+          sentCount: status.sentCount,
+          failedCount: status.failedCount,
+          lastSentIndex: status.currentIndex
+        })
+      }
+      
+      this.toast('SMS sending stopped', 'info')
+      this.sendingState = null
+      clearInterval(this._statusPollInterval)
+      this.syncData()
+      this.showDashboard()
+    } catch (e) {
+      console.error('[SMS] Failed to stop background service:', e)
+      this.stopSending()
+    }
+  },
+
+  async pauseBackgroundSending() {
+    if (!window.Capacitor?.Plugins?.DirectSms) return this.pauseSending()
+    
+    try {
+      console.log('[SMS] Pausing background service...')
+      await window.Capacitor.Plugins.DirectSms.pauseBackgroundSending()
+      
+      document.getElementById('pauseSendBtn').style.display = 'none'
+      document.getElementById('resumeSendBtn').style.display = 'flex'
+      document.getElementById('resumeSendBtn').onclick = () => this.resumeBackgroundSending()
+      document.getElementById('sendingTitle').textContent = 'Paused'
+      
+      this.toast('SMS sending paused', 'info')
+    } catch (e) {
+      console.error('[SMS] Failed to pause background service:', e)
+      this.pauseSending()
+    }
+  },
+
+  async resumeBackgroundSending() {
+    if (!this.sendingState?.campaignId) return
+    
+    // Get current status to resume from where it stopped
+    try {
+      const status = await window.Capacitor.Plugins.DirectSms.getBackgroundStatus()
+      const campaign = this.campaigns.find(c => c._id === this.sendingState.campaignId)
+      
+      if (!campaign) {
+        this.toast('Campaign not found', 'error')
+        return this.showDashboard()
+      }
+      
+      // Restart the background service from last index
+      await window.Capacitor.Plugins.DirectSms.startBackgroundSending({
+        campaignId: campaign._id,
+        campaignName: campaign.name,
+        contacts: JSON.stringify(campaign.contacts),
+        content: JSON.stringify(campaign.content),
+        gapTimeMs: (campaign.smsGapTime || 5) * 1000,
+        startIndex: status.currentIndex || 0
+      })
+      
+      document.getElementById('pauseSendBtn').style.display = 'flex'
+      document.getElementById('resumeSendBtn').style.display = 'none'
+      document.getElementById('sendingTitle').textContent = campaign.name
+      
+      this.pollBackgroundStatus()
+      this.toast('SMS sending resumed', 'success')
+    } catch (e) {
+      console.error('[SMS] Failed to resume background service:', e)
+      this.toast('Failed to resume sending', 'error')
+    }
+  },
+
+  async pollBackgroundStatus() {
+    if (!window.Capacitor?.Plugins?.DirectSms) return
+    
+    clearInterval(this._statusPollInterval)
+    
+    this._statusPollInterval = setInterval(async () => {
+      try {
+        const status = await window.Capacitor.Plugins.DirectSms.getBackgroundStatus()
+        console.log('[SMS] Background status:', status)
+        
+        if (!this.sendingState) return clearInterval(this._statusPollInterval)
+        
+        // Update UI with native service progress
+        if (this.sendingState.usingBackgroundService) {
+          this.sendingState.idx = status.currentIndex || 0
+          this.sendingState.sent = status.sentCount || 0
+          this.sendingState.failed = status.failedCount || 0
+          
+          // Update sending screen UI
+          const pct = this.sendingState.total > 0 ? Math.round((this.sendingState.idx / this.sendingState.total) * 100) : 0
+          const circ = 2 * Math.PI * 78
+          document.getElementById('progressCircle')?.setAttribute('stroke-dashoffset', circ - (pct / 100) * circ)
+          document.getElementById('sendingPercent').textContent = pct + '%'
+          document.getElementById('sendingSent').textContent = this.sendingState.sent
+          document.getElementById('sendingFailed').textContent = this.sendingState.failed
+          document.getElementById('sendingRemaining').textContent = this.sendingState.total - this.sendingState.idx
+          
+          // Check if completed
+          if (status.status === 'completed' || this.sendingState.idx >= this.sendingState.total) {
+            console.log('[SMS] Background service completed!')
+            clearInterval(this._statusPollInterval)
+            
+            // Update server
+            await API.updateProgress(this.sendingState.campaignId, {
+              chatId: this.sendingState.chatId,
+              status: 'completed',
+              sentCount: this.sendingState.sent,
+              failedCount: this.sendingState.failed,
+              lastSentIndex: this.sendingState.idx
+            })
+            
+            document.getElementById('sendingTitle').textContent = 'Complete!'
+            document.getElementById('sendingStatus').textContent = 
+              `✅ Sent ${this.sendingState.sent} messages` + 
+              (this.sendingState.failed > 0 ? `, ${this.sendingState.failed} failed` : '')
+            
+            setTimeout(() => {
+              this.sendingState = null
+              this.syncData()
+              this.showDashboard()
+            }, 3000)
+          }
+        }
+      } catch (e) {
+        console.error('[SMS] Failed to poll background status:', e)
+      }
+    }, 2000) // Poll every 2 seconds
   },
 }
 

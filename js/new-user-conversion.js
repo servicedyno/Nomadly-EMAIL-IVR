@@ -419,10 +419,10 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
     try {
       const cid = parseFloat(chatId)
 
-      // Check if user already purchased or was already sent an offer
+      // Check if user already purchased, was offered, or is inactive
       const record = await conversionCol.findOne({ chatId: cid })
-      if (record?.hasPurchased || record?.welcomeOfferSent) {
-        log(`[Conversion] Skipping welcome offer for ${cid} — already purchased or offered`)
+      if (record?.hasPurchased || record?.welcomeOfferSent || record?.inactive) {
+        log(`[Conversion] Skipping welcome offer for ${cid} — already purchased, offered, or inactive`)
         return
       }
 
@@ -458,9 +458,26 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
       const msgFn = WELCOME_OFFER_MESSAGES[lang] || WELCOME_OFFER_MESSAGES.en
       const offerMsg = msgFn(code)
       log('reply: ' + offerMsg + '\tto: ' + chatId)
-      await bot.sendMessage(chatId, offerMsg, { parse_mode: 'HTML' })
-
-      log(`[Conversion] ✅ Welcome offer sent to ${cid}: ${code} (${WELCOME_OFFER_DISCOUNT}% off, expires ${expiresAt.toISOString()})`)
+      
+      try {
+        await bot.sendMessage(chatId, offerMsg, { parse_mode: 'HTML' })
+        log(`[Conversion] ✅ Welcome offer sent to ${cid}: ${code} (${WELCOME_OFFER_DISCOUNT}% off, expires ${expiresAt.toISOString()})`)
+      } catch (sendErr) {
+        // Handle "chat not found" / "bot blocked" errors — mark user as inactive
+        if (sendErr.response?.body?.error_code === 400 && 
+            (sendErr.message?.includes('chat not found') || 
+             sendErr.message?.includes('bot was blocked') ||
+             sendErr.message?.includes('user is deactivated'))) {
+          log(`[Conversion] ❌ User ${cid} blocked/deleted bot — marking inactive`)
+          await conversionCol.updateOne(
+            { chatId: cid },
+            { $set: { inactive: true, inactiveSince: new Date() } },
+            { upsert: true }
+          )
+        } else {
+          log(`[Conversion] ❌ Send failed for ${cid}: ${sendErr.message}`)
+        }
+      }
     } catch (err) {
       log(`[Conversion] Welcome offer error for ${chatId}: ${err.message}`)
     }
@@ -553,8 +570,8 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
         return
       }
 
-      // Check if user has made a purchase since browsing
-      if (record?.hasPurchased) return
+      // Check if user has made a purchase or is inactive
+      if (record?.hasPurchased || record?.inactive) return
 
       // Check promo opt-out
       if (await isOptedOut(cid)) {
@@ -564,7 +581,7 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
 
       // Check browse tracking
       const tracking = await browseTrackingCol.findOne({ chatId: cid })
-      if (!tracking || !tracking.browseCount) return
+      if (!tracking || !tracking.browseCount || tracking.followUpSent) return
 
       // Find most-browsed category
       let topCategory = 'general'
@@ -580,15 +597,33 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
       const message = messages[lang] || messages.en
 
       log('reply: ' + message + '\tto: ' + chatId)
-      await bot.sendMessage(chatId, message, { parse_mode: 'HTML', disable_web_page_preview: true })
+      
+      try {
+        await bot.sendMessage(chatId, message, { parse_mode: 'HTML', disable_web_page_preview: true })
 
-      // Clear tracking so we don't spam
-      await browseTrackingCol.updateOne(
-        { chatId: cid },
-        { $set: { followUpSent: true, followUpSentAt: new Date(), browseCount: {} } }
-      )
+        // Clear tracking so we don't spam
+        await browseTrackingCol.updateOne(
+          { chatId: cid },
+          { $set: { followUpSent: true, followUpSentAt: new Date(), browseCount: {} } }
+        )
 
-      log(`[Conversion] ✅ Browse follow-up sent to ${cid} for category: ${topCategory}`)
+        log(`[Conversion] ✅ Browse follow-up sent to ${cid} for category: ${topCategory}`)
+      } catch (sendErr) {
+        // Handle "chat not found" / "bot blocked" errors — mark user as inactive
+        if (sendErr.response?.body?.error_code === 400 && 
+            (sendErr.message?.includes('chat not found') || 
+             sendErr.message?.includes('bot was blocked') ||
+             sendErr.message?.includes('user is deactivated'))) {
+          log(`[Conversion] ❌ User ${cid} blocked/deleted bot — marking inactive`)
+          await conversionCol.updateOne(
+            { chatId: cid },
+            { $set: { inactive: true, inactiveSince: new Date() } },
+            { upsert: true }
+          )
+        } else {
+          log(`[Conversion] ❌ Send failed for ${cid}: ${sendErr.message}`)
+        }
+      }
     } catch (err) {
       log(`[Conversion] Browse follow-up error: ${err.message}`)
     }
