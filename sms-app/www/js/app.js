@@ -379,8 +379,18 @@ const App = {
 
   // ─── Character Counter ───
   updateCharCount() {
-    const txt = (document.getElementById('wzContent').value || '')
-    const len = txt.length
+    const raw = (document.getElementById('wzContent').value || '')
+    // Calculate effective message length: collapse newlines to spaces (as sent),
+    // and if --- delimiter is used, show stats for the longest rotation message
+    const hasDelimiter = /\n\s*---\s*\n|\n\s*---\s*$|^\s*---\s*\n/.test(raw)
+    let effectiveMsg
+    if (hasDelimiter) {
+      const msgs = raw.split(/\n\s*---\s*\n|\n\s*---\s*$|^\s*---\s*\n/).map(m => m.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim()).filter(Boolean)
+      effectiveMsg = msgs.reduce((a, b) => a.length > b.length ? a : b, '')
+    } else {
+      effectiveMsg = raw.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim()
+    }
+    const len = effectiveMsg.length
     document.getElementById('charCount').textContent = len
     const segments = len <= 160 ? 1 : Math.ceil(len / 153)
     document.getElementById('charSegments').textContent = segments === 1 ? '1 SMS' : `${segments} SMS parts`
@@ -414,18 +424,22 @@ const App = {
   populateReview() {
     const name = document.getElementById('wzName').value.trim()
     const content = document.getElementById('wzContent').value.trim()
-    const contentLines = content.split('\n').filter(l => l.trim())
+    // Use same --- delimiter logic as buildCampaignData
+    const hasDelimiter = /\n\s*---\s*\n|\n\s*---\s*$|^\s*---\s*\n/.test(content)
+    const contentMessages = hasDelimiter
+      ? content.split(/\n\s*---\s*\n|\n\s*---\s*$|^\s*---\s*\n/).map(m => m.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim()).filter(Boolean)
+      : [content.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim()]
     const contacts = this.parseContacts()
     const gapTime = parseInt(document.getElementById('wzGapTime').value) || 5
 
     document.getElementById('rvName').textContent = name
-    // Preview with a sample name (use first message line)
+    // Preview with a sample name (use first message)
     const sampleName = contacts.length > 0 && contacts[0].name ? contacts[0].name : 'there'
-    const firstMsg = contentLines.length > 0 ? contentLines[0] : content
+    const firstMsg = contentMessages.length > 0 ? contentMessages[0] : content
     document.getElementById('rvPreview').textContent = firstMsg.replace(/\[name\]/gi, sampleName)
-    const longestMsg = contentLines.length > 0 ? contentLines.reduce((a, b) => a.length > b.length ? a : b, '') : content
+    const longestMsg = contentMessages.length > 0 ? contentMessages.reduce((a, b) => a.length > b.length ? a : b, '') : content
     const segments = longestMsg.length <= 160 ? 1 : Math.ceil(longestMsg.length / 153)
-    const rotationNote = contentLines.length > 1 ? ` · ${contentLines.length} messages (rotation)` : ''
+    const rotationNote = contentMessages.length > 1 ? ` · ${contentMessages.length} messages (rotation)` : ''
     document.getElementById('rvMsgMeta').textContent = `${longestMsg.length} chars · ${segments} SMS part${segments > 1 ? 's' : ''}${rotationNote}`
 
     document.getElementById('rvContacts').textContent = contacts.length
@@ -528,14 +542,19 @@ const App = {
     if (!name) { this.toast('Campaign name is required', 'error'); return null }
     if (!contentRaw) { this.toast('Message content is required', 'error'); return null }
 
-    // Split by newlines for message rotation (multiple lines = auto-rotation per contact)
-    const contentLines = contentRaw.split('\n').filter(l => l.trim())
-    if (contentLines.length === 0) { this.toast('Message content is required', 'error'); return null }
+    // Split by '---' delimiter for message rotation. Newlines within a message are preserved as spaces.
+    // If no --- delimiter, entire text = one message. This prevents multi-line messages from being
+    // accidentally split into separate rotation messages.
+    const hasDelimiter = /\n\s*---\s*\n|\n\s*---\s*$|^\s*---\s*\n/.test(contentRaw)
+    const contentMessages = hasDelimiter
+      ? contentRaw.split(/\n\s*---\s*\n|\n\s*---\s*$|^\s*---\s*\n/).map(m => m.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim()).filter(Boolean)
+      : [contentRaw.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim()]
+    if (contentMessages.length === 0) { this.toast('Message content is required', 'error'); return null }
 
     return {
       chatId,
       name,
-      content: contentLines,
+      content: contentMessages,
       contacts,
       smsGapTime: gapTime,
       scheduledAt: scheduleVal ? new Date(scheduleVal).toISOString() : null,

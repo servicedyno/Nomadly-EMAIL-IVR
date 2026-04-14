@@ -21306,7 +21306,7 @@ Select a category:`), k.of(catBtns))
 
     await set(state, chatId, 'smsapp_campaign_name', message.trim())
     await set(state, chatId, 'action', 'smsapp_campaign_content')
-    return send(chatId, '✍️ <b>Campaign Content</b>\n\nType your SMS message. Use <code>[name]</code> to personalize with the contact\'s name.\n\nYou can send multiple messages (one per line) for rotation.\n\nExample:\n<code>Hi [name], check out our latest offer!</code>', { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
+    return send(chatId, '✍️ <b>Campaign Content</b>\n\nType your SMS message. Use <code>[name]</code> to personalize with the contact\'s name.\n\nLine breaks in your message are preserved as spaces.\n\nFor <b>message rotation</b> (different message per contact), separate messages with <code>---</code> on its own line:\n<code>Hi [name], check out our offer!\n---\nHey [name], don\'t miss this deal!</code>', { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
   }
 
   if (action === 'smsapp_campaign_content') {
@@ -21319,7 +21319,12 @@ Select a category:`), k.of(catBtns))
       return send(chatId, '❌ Message content cannot be empty. Please type your SMS message:', { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
     }
 
-    const contentLines = message.split('\n').filter(l => l.trim())
+    // Split by '---' delimiter for rotation. Newlines within a message become spaces.
+    // If no --- delimiter, entire text = one message (preserves multi-line messages).
+    const _hasDelimiter = /\n\s*---\s*\n|\n\s*---\s*$|^\s*---\s*\n/.test(message)
+    const contentLines = _hasDelimiter
+      ? message.split(/\n\s*---\s*\n|\n\s*---\s*$|^\s*---\s*\n/).map(m => m.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim()).filter(Boolean)
+      : [message.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim()]
     if (contentLines.length === 0) {
       return send(chatId, '❌ Please enter at least one non-empty message line.', { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
     }
@@ -21390,7 +21395,7 @@ Select a category:`), k.of(catBtns))
   if (action === 'smsapp_campaign_contacts') {
     if (message === t.back || message === t.cancel) {
       await set(state, chatId, 'action', 'smsapp_campaign_content')
-      return send(chatId, '✍️ <b>Campaign Content</b>\n\nType your SMS message. Use <code>[name]</code> to personalize.\nMultiple lines = message rotation.', { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
+      return send(chatId, '✍️ <b>Campaign Content</b>\n\nType your SMS message. Use <code>[name]</code> to personalize.\nFor rotation, separate messages with <code>---</code> on its own line.', { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
     }
 
     if (!message || !message.trim()) {

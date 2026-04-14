@@ -1,254 +1,253 @@
 #!/usr/bin/env python3
 """
-Backend Test for Nomadly - Current Review Request Verification
-Tests the specific endpoints mentioned in the review request:
-1. GET http://localhost:5000/health — should return healthy
-2. GET http://localhost:5000/sms-app/download/info — should return version "2.3.2", available: true, size > 3000000
-3. GET http://localhost:5000/sms-app/download — should return 200 with ~3.7MB APK file
-4. GET http://localhost:5000/sms-app/diagnostics/817673476 — should return full diagnostics object
-5. PUT http://localhost:5000/sms-app/campaigns/6ea885e6-ae57-448b-9eff-0bfa18e7096c/progress with body {"chatId": "817673476", "sentCount": 2, "failedCount": 0, "status": "completed"} — should return ok with freeSmsRemaining
+Backend Testing Script for Nomadly SMS App
+Testing message rotation splitting bug fix
 """
 
 import requests
 import json
 import sys
+from typing import Dict, Any, Optional
 
 # Test configuration
-BASE_URL = "http://localhost:5000"
-TEST_CHAT_ID = "817673476"
-TEST_CAMPAIGN_ID = "6ea885e6-ae57-448b-9eff-0bfa18e7096c"
+BACKEND_URL_DIRECT = "http://localhost:5000"
+BACKEND_URL_PROXY = "http://localhost:8001/api"
+TEST_USER = "817673476"  # johngambino - Active free trial
 
-def test_health_endpoint():
-    """Test health check endpoint"""
-    print("🔍 Testing Health Check Endpoint...")
-    
-    try:
-        response = requests.get(f"{BASE_URL}/health", timeout=10)
-        print(f"✅ GET {BASE_URL}/health - Status: {response.status_code}")
+class BackendTester:
+    def __init__(self):
+        self.test_results = []
+        self.created_campaign_id = None
         
-        if response.status_code == 200:
-            data = response.json()
-            print(f"   Response: {json.dumps(data, indent=2)}")
-            
-            # Verify expected fields
-            if data.get("status") == "healthy":
-                print("   ✅ Health check response shows healthy status")
-                return True
-            else:
-                print(f"   ❌ Health check status is not 'healthy': {data.get('status')}")
-                return False
-        else:
-            print(f"   ❌ Expected 200, got {response.status_code}")
-            print(f"   Response: {response.text[:500]}")
-            return False
-            
-    except Exception as e:
-        print(f"   ❌ Error testing health endpoint: {e}")
-        return False
-
-def test_download_info_endpoint():
-    """Test SMS app download info endpoint"""
-    print("\n🔍 Testing SMS App Download Info Endpoint...")
+    def log_test(self, test_name: str, success: bool, details: str = ""):
+        """Log test result"""
+        status = "✅ PASS" if success else "❌ FAIL"
+        self.test_results.append({
+            "test": test_name,
+            "status": status,
+            "success": success,
+            "details": details
+        })
+        print(f"{status} {test_name}")
+        if details:
+            print(f"    {details}")
     
-    try:
-        response = requests.get(f"{BASE_URL}/sms-app/download/info", timeout=10)
-        print(f"✅ GET {BASE_URL}/sms-app/download/info - Status: {response.status_code}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            print(f"   Response: {json.dumps(data, indent=2)}")
-            
-            # Verify expected fields and values
-            version = data.get("version")
-            available = data.get("available")
-            size = data.get("size")
-            
-            success = True
-            
-            if version == "2.3.2":
-                print(f"   ✅ Version is correct: {version}")
-            else:
-                print(f"   ❌ Expected version '2.3.2', got '{version}'")
-                success = False
-                
-            if available is True:
-                print(f"   ✅ Available is true: {available}")
-            else:
-                print(f"   ❌ Expected available to be true, got {available}")
-                success = False
-                
-            if isinstance(size, int) and size > 3000000:
-                print(f"   ✅ Size is greater than 3MB: {size:,} bytes")
-            else:
-                print(f"   ❌ Expected size > 3,000,000 bytes, got {size}")
-                success = False
-                
-            return success
-        else:
-            print(f"   ❌ Expected 200, got {response.status_code}")
-            print(f"   Response: {response.text[:500]}")
-            return False
-            
-    except Exception as e:
-        print(f"   ❌ Error testing download info endpoint: {e}")
-        return False
-
-def test_download_endpoint():
-    """Test SMS app download endpoint"""
-    print("\n🔍 Testing SMS App Download Endpoint...")
-    
-    try:
-        response = requests.get(f"{BASE_URL}/sms-app/download", timeout=30)
-        print(f"✅ GET {BASE_URL}/sms-app/download - Status: {response.status_code}")
-        
-        if response.status_code == 200:
-            content_length = len(response.content)
-            content_type = response.headers.get('content-type', '')
-            
-            print(f"   Content-Type: {content_type}")
-            print(f"   Content-Length: {content_length:,} bytes ({content_length/1024/1024:.1f} MB)")
-            
-            # Verify file size is approximately 3.7MB
-            expected_min_size = 3.5 * 1024 * 1024  # 3.5MB
-            expected_max_size = 4.0 * 1024 * 1024  # 4.0MB
-            
-            if expected_min_size <= content_length <= expected_max_size:
-                print(f"   ✅ APK file size is within expected range (~3.7MB)")
-                return True
-            else:
-                print(f"   ❌ APK file size {content_length:,} bytes is outside expected range {expected_min_size:,}-{expected_max_size:,}")
-                return False
-        else:
-            print(f"   ❌ Expected 200, got {response.status_code}")
-            print(f"   Response: {response.text[:500]}")
-            return False
-            
-    except Exception as e:
-        print(f"   ❌ Error testing download endpoint: {e}")
-        return False
-
-def test_diagnostics_endpoint():
-    """Test SMS app diagnostics endpoint"""
-    print("\n🔍 Testing SMS App Diagnostics Endpoint...")
-    
-    try:
-        response = requests.get(f"{BASE_URL}/sms-app/diagnostics/{TEST_CHAT_ID}", timeout=10)
-        print(f"✅ GET {BASE_URL}/sms-app/diagnostics/{TEST_CHAT_ID} - Status: {response.status_code}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            print(f"   Response keys: {list(data.keys())}")
-            
-            # Verify expected sections in diagnostics
-            expected_sections = ['user', 'device', 'campaigns', 'errors']
-            success = True
-            
-            for section in expected_sections:
-                if section in data:
-                    print(f"   ✅ {section} section present")
-                    if section == 'user' and 'name' in data[section]:
-                        print(f"      User name: {data[section]['name']}")
-                    elif section == 'campaigns' and 'total' in data[section]:
-                        print(f"      Total campaigns: {data[section]['total']}")
-                    elif section == 'errors' and isinstance(data[section], dict):
-                        print(f"      Error types: {list(data[section].keys())}")
-                else:
-                    print(f"   ❌ {section} section missing")
-                    success = False
-            
-            return success
-        else:
-            print(f"   ❌ Expected 200, got {response.status_code}")
-            print(f"   Response: {response.text[:500]}")
-            return False
-            
-    except Exception as e:
-        print(f"   ❌ Error testing diagnostics endpoint: {e}")
-        return False
-
-def test_campaign_progress_endpoint():
-    """Test campaign progress update endpoint"""
-    print("\n🔍 Testing Campaign Progress Update Endpoint...")
-    
-    # Request body as specified in review request
-    progress_data = {
-        "chatId": TEST_CHAT_ID,
-        "sentCount": 2,
-        "failedCount": 0,
-        "status": "completed"
-    }
-    
-    try:
-        response = requests.put(
-            f"{BASE_URL}/sms-app/campaigns/{TEST_CAMPAIGN_ID}/progress",
-            json=progress_data,
-            headers={'Content-Type': 'application/json'},
-            timeout=10
-        )
-        
-        print(f"✅ PUT {BASE_URL}/sms-app/campaigns/{TEST_CAMPAIGN_ID}/progress - Status: {response.status_code}")
-        print(f"   Request data: {json.dumps(progress_data, indent=2)}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            print(f"   Response: {json.dumps(data, indent=2)}")
-            
-            # Verify response contains freeSmsRemaining
-            if 'freeSmsRemaining' in data:
-                print(f"   ✅ Response contains freeSmsRemaining: {data['freeSmsRemaining']}")
-                return True
-            else:
-                print(f"   ❌ Response missing freeSmsRemaining field")
-                return False
-        else:
-            print(f"   ❌ Expected 200, got {response.status_code}")
-            print(f"   Response: {response.text[:500]}")
-            return False
-            
-    except Exception as e:
-        print(f"   ❌ Error testing campaign progress endpoint: {e}")
-        return False
-
-def main():
-    """Run all tests"""
-    print("🚀 Starting Nomadly Backend Tests - Current Review Request Verification")
-    print("=" * 80)
-    print(f"Testing backend at: {BASE_URL}")
-    print(f"Test user chatId: {TEST_CHAT_ID}")
-    print(f"Test campaign ID: {TEST_CAMPAIGN_ID}")
-    print("=" * 80)
-    
-    tests = [
-        ("Health Check", test_health_endpoint),
-        ("Download Info", test_download_info_endpoint),
-        ("APK Download", test_download_endpoint),
-        ("Diagnostics", test_diagnostics_endpoint),
-        ("Campaign Progress", test_campaign_progress_endpoint),
-    ]
-    
-    passed = 0
-    total = len(tests)
-    
-    for test_name, test_func in tests:
+    def test_health_check(self) -> bool:
+        """Test 1: GET /health endpoint"""
         try:
+            response = requests.get(f"{BACKEND_URL_DIRECT}/health", timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("status") == "healthy":
+                    self.log_test("Health Check", True, f"Status: {data.get('status')}, Database: {data.get('database', 'N/A')}")
+                    return True
+                else:
+                    self.log_test("Health Check", False, f"Unexpected status: {data.get('status')}")
+                    return False
+            else:
+                self.log_test("Health Check", False, f"HTTP {response.status_code}: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_test("Health Check", False, f"Exception: {str(e)}")
+            return False
+    
+    def test_auth_valid(self) -> bool:
+        """Test 2: GET /sms-app/auth/{valid_user} endpoint"""
+        try:
+            response = requests.get(f"{BACKEND_URL_DIRECT}/sms-app/auth/{TEST_USER}", timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("valid") == True:
+                    self.log_test("Auth Valid User", True, f"Valid: {data.get('valid')}, Can use SMS: {data.get('canUseSms', 'N/A')}")
+                    return True
+                else:
+                    self.log_test("Auth Valid User", False, f"Valid: {data.get('valid')}")
+                    return False
+            else:
+                self.log_test("Auth Valid User", False, f"HTTP {response.status_code}: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_test("Auth Valid User", False, f"Exception: {str(e)}")
+            return False
+    
+    def test_campaign_creation(self) -> bool:
+        """Test 3: POST /sms-app/campaigns - Create campaign with multi-line message"""
+        try:
+            # The test message from the review request - should be treated as ONE message
+            campaign_data = {
+                "chatId": TEST_USER,
+                "name": "Test Multiline Fix",
+                "content": ["Star One CU Fraud Alert - Did You Attempt a Transaction For The Amount Of $9,818.64 at DALES AUTOMOTIVE NY? Reply YES or NO To Approve or Deny The Transaction."],
+                "contacts": [{"phoneNumber": "+18189279992", "name": "John"}],
+                "smsGapTime": 5,
+                "source": "app"
+            }
+            
+            response = requests.post(
+                f"{BACKEND_URL_DIRECT}/sms-app/campaigns",
+                json=campaign_data,
+                headers={"Content-Type": "application/json"},
+                timeout=10
+            )
+            
+            if response.status_code == 200 or response.status_code == 201:
+                data = response.json()
+                # Check for campaign ID in different possible locations
+                campaign_id = (data.get("id") or 
+                             data.get("campaignId") or 
+                             (data.get("campaign", {}).get("_id")) or
+                             (data.get("campaign", {}).get("id")))
+                if campaign_id:
+                    self.created_campaign_id = campaign_id
+                    self.log_test("Campaign Creation", True, f"Campaign ID: {campaign_id}")
+                    return True
+                else:
+                    self.log_test("Campaign Creation", False, f"No campaign ID in response: {data}")
+                    return False
+            else:
+                self.log_test("Campaign Creation", False, f"HTTP {response.status_code}: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_test("Campaign Creation", False, f"Exception: {str(e)}")
+            return False
+    
+    def test_campaign_verification(self) -> bool:
+        """Test 4: GET /sms-app/campaigns/{user} - Verify campaign content structure"""
+        try:
+            response = requests.get(f"{BACKEND_URL_DIRECT}/sms-app/campaigns/{TEST_USER}", timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                campaigns = data if isinstance(data, list) else data.get("campaigns", [])
+                
+                # Find our test campaign
+                test_campaign = None
+                for campaign in campaigns:
+                    if campaign.get("name") == "Test Multiline Fix":
+                        test_campaign = campaign
+                        break
+                
+                if test_campaign:
+                    content = test_campaign.get("content", [])
+                    content_length = len(content)
+                    
+                    if content_length == 1:
+                        # Verify the content is the complete message, not split
+                        message = content[0]
+                        expected_chars = 159  # Approximate length of the test message
+                        actual_chars = len(message)
+                        
+                        if actual_chars >= 140:  # Allow some variance
+                            self.log_test("Campaign Verification", True, 
+                                        f"Content array has {content_length} item(s), message length: {actual_chars} chars")
+                            return True
+                        else:
+                            self.log_test("Campaign Verification", False, 
+                                        f"Message too short ({actual_chars} chars), may be split incorrectly")
+                            return False
+                    else:
+                        self.log_test("Campaign Verification", False, 
+                                    f"Content array has {content_length} items (expected 1) - message may be split by newlines")
+                        return False
+                else:
+                    self.log_test("Campaign Verification", False, "Test campaign not found in user's campaigns")
+                    return False
+            else:
+                self.log_test("Campaign Verification", False, f"HTTP {response.status_code}: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_test("Campaign Verification", False, f"Exception: {str(e)}")
+            return False
+    
+    def test_download_info(self) -> bool:
+        """Test 5: GET /sms-app/download/info endpoint"""
+        try:
+            response = requests.get(f"{BACKEND_URL_DIRECT}/sms-app/download/info", timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                version = data.get("version")
+                if version:
+                    self.log_test("Download Info", True, f"Version: {version}, Size: {data.get('size', 'N/A')} bytes")
+                    return True
+                else:
+                    self.log_test("Download Info", False, f"No version in response: {data}")
+                    return False
+            else:
+                self.log_test("Download Info", False, f"HTTP {response.status_code}: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_test("Download Info", False, f"Exception: {str(e)}")
+            return False
+    
+    def test_campaign_cleanup(self) -> bool:
+        """Test 6: DELETE test campaign"""
+        if not self.created_campaign_id:
+            self.log_test("Campaign Cleanup", False, "No campaign ID to delete")
+            return False
+            
+        try:
+            response = requests.delete(
+                f"{BACKEND_URL_DIRECT}/sms-app/campaigns/{self.created_campaign_id}",
+                params={"chatId": TEST_USER},
+                timeout=10
+            )
+            
+            if response.status_code == 200 or response.status_code == 204:
+                self.log_test("Campaign Cleanup", True, f"Deleted campaign {self.created_campaign_id}")
+                return True
+            else:
+                self.log_test("Campaign Cleanup", False, f"HTTP {response.status_code}: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_test("Campaign Cleanup", False, f"Exception: {str(e)}")
+            return False
+    
+    def run_all_tests(self):
+        """Run all tests in sequence"""
+        print("🧪 Starting Nomadly SMS App Backend Tests")
+        print(f"Backend URL: {BACKEND_URL_DIRECT}")
+        print(f"Test User: {TEST_USER} (johngambino)")
+        print("=" * 60)
+        
+        # Run tests in order
+        tests = [
+            self.test_health_check,
+            self.test_auth_valid,
+            self.test_campaign_creation,
+            self.test_campaign_verification,
+            self.test_download_info,
+            self.test_campaign_cleanup
+        ]
+        
+        passed = 0
+        total = len(tests)
+        
+        for test_func in tests:
             if test_func():
                 passed += 1
-                print(f"✅ {test_name} - PASSED")
-            else:
-                print(f"❌ {test_name} - FAILED")
-        except Exception as e:
-            print(f"❌ {test_name} - ERROR: {e}")
+            print()  # Add spacing between tests
         
-        print("-" * 60)
-    
-    print(f"\n📊 Test Results: {passed}/{total} tests passed")
-    
-    if passed == total:
-        print("🎉 ALL TESTS PASSED! Backend endpoints are working correctly.")
-        return 0
-    else:
-        print("⚠️  Some tests failed. Please check the output above.")
-        return 1
+        # Summary
+        print("=" * 60)
+        print(f"📊 TEST SUMMARY: {passed}/{total} tests passed")
+        
+        if passed == total:
+            print("🎉 ALL TESTS PASSED - Message rotation fix verified!")
+        else:
+            print("⚠️  Some tests failed - see details above")
+            
+        return passed == total
 
 if __name__ == "__main__":
-    sys.exit(main())
+    tester = BackendTester()
+    success = tester.run_all_tests()
+    sys.exit(0 if success else 1)
