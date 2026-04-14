@@ -204,22 +204,121 @@ public class SmsBackgroundService extends Service {
                 smsManager = SmsManager.getDefault();
             }
 
-            // ✅ IMPROVED: Always use divideMessage for reliability
-            // This handles both short and long messages, and properly segments based on encoding (GSM-7 vs UCS-2)
+            // Always use divideMessage for proper segmentation (GSM-7 vs UCS-2)
             java.util.ArrayList<String> parts = smsManager.divideMessage(message);
-            
-            if (parts.size() > 1) {
-                // Multi-part message - send as concatenated SMS
-                Log.d(TAG, "Sending multipart SMS: " + parts.size() + " parts");
-                smsManager.sendMultipartTextMessage(phoneNumber, null, parts, null, null);
+            final int totalParts = parts.size();
+
+            if (totalParts > 1) {
+                // ── MULTIPART: Track ALL parts with sentIntents ──
+                Log.d(TAG, "Sending multipart SMS: " + totalParts + " parts, length=" + message.length());
+                final int[] partResults = new int[totalParts]; // 0=pending, 1=ok, -1=fail
+                final boolean[] callbackFired = { false };
+                final int reqId = (int)(System.currentTimeMillis() % 100000);
+
+                java.util.ArrayList<android.app.PendingIntent> sentIntents = new java.util.ArrayList<>();
+                for (int i = 0; i < totalParts; i++) {
+                    final int partIndex = i;
+                    String action = "BG_SMS_SENT_" + reqId + "_part" + i;
+                    Intent intent = new Intent(action);
+                    android.app.PendingIntent pi = android.app.PendingIntent.getBroadcast(
+                        this, reqId * 100 + i, intent,
+                        android.app.PendingIntent.FLAG_IMMUTABLE | android.app.PendingIntent.FLAG_UPDATE_CURRENT
+                    );
+                    sentIntents.add(pi);
+
+                    android.content.BroadcastReceiver partReceiver = new android.content.BroadcastReceiver() {
+                        @Override
+                        public void onReceive(android.content.Context ctx, Intent intent) {
+                            int code = getResultCode();
+                            partResults[partIndex] = (code == android.app.Activity.RESULT_OK) ? 1 : -1;
+                            Log.d(TAG, "Multipart part " + (partIndex+1) + "/" + totalParts +
+                                (code == android.app.Activity.RESULT_OK ? " OK" : " FAILED: code=" + code));
+                            try { ctx.unregisterReceiver(this); } catch (Exception e) { /* ignore */ }
+
+                            // Check if all parts resolved
+                            boolean allDone = true;
+                            int okCount = 0;
+                            for (int r : partResults) {
+                                if (r == 0) { allDone = false; break; }
+                                if (r == 1) okCount++;
+                            }
+                            if (allDone && !callbackFired[0]) {
+                                callbackFired[0] = true;
+                                if (okCount == totalParts) {
+                                    callback.onSuccess();
+                                } else {
+                                    callback.onFailure("multipart_partial: " + okCount + "/" + totalParts + " parts sent");
+                                }
+                            }
+                        }
+                    };
+
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        registerReceiver(partReceiver, new android.content.IntentFilter(action), android.content.Context.RECEIVER_NOT_EXPORTED);
+                    } else {
+                        registerReceiver(partReceiver, new android.content.IntentFilter(action));
+                    }
+                }
+
+                // Timeout for multipart
+                handler.postDelayed(() -> {
+                    if (!callbackFired[0]) {
+                        callbackFired[0] = true;
+                        int okCount = 0;
+                        for (int r : partResults) { if (r == 1) okCount++; }
+                        if (okCount == totalParts) {
+                            callback.onSuccess();
+                        } else {
+                            callback.onFailure("multipart_timeout: " + okCount + "/" + totalParts + " parts confirmed");
+                        }
+                    }
+                }, 30000 + totalParts * 5000);
+
+                smsManager.sendMultipartTextMessage(phoneNumber, null, parts, sentIntents, null);
+
             } else {
-                // Single part message
-                smsManager.sendTextMessage(phoneNumber, null, message, null, null);
+                // ── SINGLE PART: Track with sentIntent ──
+                final boolean[] callbackFired = { false };
+                final int reqId = (int)(System.currentTimeMillis() % 100000);
+                String action = "BG_SMS_SENT_" + reqId;
+                Intent intent = new Intent(action);
+                android.app.PendingIntent sentPI = android.app.PendingIntent.getBroadcast(
+                    this, reqId, intent,
+                    android.app.PendingIntent.FLAG_IMMUTABLE | android.app.PendingIntent.FLAG_UPDATE_CURRENT
+                );
+
+                android.content.BroadcastReceiver sentReceiver = new android.content.BroadcastReceiver() {
+                    @Override
+                    public void onReceive(android.content.Context ctx, Intent intent) {
+                        if (callbackFired[0]) return;
+                        callbackFired[0] = true;
+                        int code = getResultCode();
+                        try { ctx.unregisterReceiver(this); } catch (Exception e) { /* ignore */ }
+                        if (code == android.app.Activity.RESULT_OK) {
+                            callback.onSuccess();
+                        } else {
+                            callback.onFailure("send_failed_code_" + code);
+                        }
+                    }
+                };
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    registerReceiver(sentReceiver, new android.content.IntentFilter(action), android.content.Context.RECEIVER_NOT_EXPORTED);
+                } else {
+                    registerReceiver(sentReceiver, new android.content.IntentFilter(action));
+                }
+
+                // Timeout
+                handler.postDelayed(() -> {
+                    if (!callbackFired[0]) {
+                        callbackFired[0] = true;
+                        callback.onFailure("send_timeout");
+                    }
+                }, 30000);
+
+                smsManager.sendTextMessage(phoneNumber, null, message, sentPI, null);
             }
-            
-            // Consider it successful if no exception thrown
-            callback.onSuccess();
-            
+
         } catch (SecurityException e) {
             Log.e(TAG, "SMS permission denied", e);
             callback.onFailure("permission_denied");

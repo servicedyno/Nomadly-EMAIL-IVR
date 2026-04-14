@@ -441,12 +441,14 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
   })
 
   // Update campaign progress — SUBSCRIPTION GATED
+  // ALSO increments free SMS counter based on sentCount delta (fixes counter not decrementing)
   app.put('/sms-app/campaigns/:campaignId/progress', async (req, res) => {
     try {
       const { chatId, sentCount, failedCount, status, lastSentIndex } = req.body
       if (!chatId) return res.status(400).json({ error: 'chatId required' })
+      const numChatId = Number(chatId)
 
-      const sub = await checkSubscription(chatId)
+      const sub = await checkSubscription(numChatId)
       if (!sub.canUseSms) {
         return res.status(403).json({
           error: 'subscription_required',
@@ -454,12 +456,39 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
         })
       }
 
+      // ── FIX: Increment free SMS counter based on sentCount delta ──
+      // The background service and foreground plugin may not call /sms-sent individually,
+      // so we derive the count from campaign progress (sentCount) delta.
+      if (sentCount !== undefined && sentCount > 0) {
+        const campaign = await getCampaign(req.params.campaignId)
+        const previousSent = campaign?.sentCount || 0
+        const delta = Math.max(0, sentCount - previousSent)
+        if (delta > 0) {
+          console.log(`[SmsApp] Progress: user ${numChatId}, campaign ${req.params.campaignId}: +${delta} SMS (${previousSent}→${sentCount}), failed=${failedCount || 0}, status=${status || 'n/a'}`)
+          // Increment free SMS counter by the delta (atomic)
+          increment(freeSmsCountOf, numChatId, delta)
+          // Also track in analytics
+          const name = await get(nameOf, numChatId)
+          increment(clicksOfSms, numChatId + ', ' + name + ', ' + today(), delta)
+          increment(clicksOfSms, numChatId + ', ' + name + ', ' + week(), delta)
+          increment(clicksOfSms, numChatId + ', ' + name + ', ' + month(), delta)
+          increment(clicksOfSms, numChatId + ', ' + name + ', ' + year(), delta)
+          increment(clicksOfSms, 'total, total, ' + today(), delta)
+          increment(clicksOfSms, 'total, total, ' + week(), delta)
+          increment(clicksOfSms, 'total, total, ' + month(), delta)
+          increment(clicksOfSms, 'total, total, ' + year(), delta)
+        }
+      }
+
       await updateCampaignProgress(req.params.campaignId, chatId, {
         sentCount, failedCount, status, lastSentIndex
       })
 
-      res.json({ ok: true })
+      // Return updated subscription state so app can react
+      const updatedSub = await checkSubscription(numChatId)
+      res.json({ ok: true, freeSmsRemaining: updatedSub.freeSmsRemaining, canUseSms: updatedSub.canUseSms })
     } catch (error) {
+      console.log(`[SmsApp] Progress update error:`, error.message)
       res.status(500).json({ error: error.message })
     }
   })
@@ -580,6 +609,7 @@ Latest version: ${latestVersion}
   app.post('/sms-app/report-errors/:chatId', async (req, res) => {
     try {
       const chatId = req.params.chatId
+      const numChatId = Number(chatId)
       const { campaignId, errors } = req.body || {}
       if (!errors || !Array.isArray(errors) || errors.length === 0) {
         return res.json({ ok: true })
@@ -588,6 +618,10 @@ Latest version: ${latestVersion}
       const errorReasons = errors.map(e => e.reason).join(', ')
       console.log(`[SmsApp] SMS errors for user ${chatId}, campaign ${campaignId}: ${errors.length} failures — reasons: ${errorReasons}`)
 
+      // ── FIX: Also increment free SMS counter for successfully-sent-but-error-reported messages ──
+      // The background service reports errors AFTER the campaign completes.
+      // Some messages may have been sent successfully — track them via campaign sentCount.
+
       // Store errors in the campaign for future diagnostics
       if (campaignId) {
         await smsCampaigns.updateOne(
@@ -595,6 +629,15 @@ Latest version: ${latestVersion}
           { $set: { lastErrors: errors.slice(-10), lastErrorAt: new Date().toISOString() } }
         )
       }
+
+      // Store in a dedicated diagnostic collection for long-term analysis
+      await db.collection('smsAppDiagnostics').insertOne({
+        chatId: numChatId,
+        campaignId,
+        errors: errors.slice(-20),
+        errorSummary: Object.entries(errors.reduce((acc, e) => { acc[e.reason] = (acc[e.reason] || 0) + 1; return acc }, {})),
+        reportedAt: new Date()
+      })
 
       // Log each unique error reason with detailed messages
       const reasonCounts = {}
@@ -613,6 +656,79 @@ Latest version: ${latestVersion}
       res.json({ ok: true })
     } catch (error) {
       console.log(`[SmsApp] Error storing SMS errors:`, error.message)
+      res.status(500).json({ error: error.message })
+    }
+  })
+
+  // ── Diagnostics endpoint — visibility into what's happening per user ──
+  app.get('/sms-app/diagnostics/:chatId', async (req, res) => {
+    try {
+      const chatId = req.params.chatId
+      const numChatId = Number(chatId)
+
+      // Gather all relevant data
+      const [authResult, campaigns, loginDoc, recentErrors] = await Promise.all([
+        authenticateUser(chatId),
+        getCampaigns(chatId),
+        loginCountOf.findOne({ _id: numChatId }),
+        db.collection('smsAppDiagnostics').find({ chatId: numChatId }).sort({ reportedAt: -1 }).limit(10).toArray()
+      ])
+
+      const loginData = loginDoc?.val || {}
+      const devices = getDevices(loginData)
+
+      // Campaign summary
+      const campaignSummary = campaigns.map(c => ({
+        id: c._id,
+        name: c.name,
+        status: c.status,
+        sentCount: c.sentCount,
+        failedCount: c.failedCount,
+        totalCount: c.totalCount,
+        lastSentIndex: c.lastSentIndex,
+        lastErrors: c.lastErrors?.slice(-3),
+        lastErrorAt: c.lastErrorAt,
+        createdAt: c.createdAt,
+        updatedAt: c.updatedAt,
+      }))
+
+      // Error summary across all recent diagnostics
+      const allErrors = recentErrors.flatMap(d => d.errors || [])
+      const errorBreakdown = {}
+      for (const e of allErrors) {
+        errorBreakdown[e.reason] = (errorBreakdown[e.reason] || 0) + 1
+      }
+
+      const totalSent = campaigns.reduce((sum, c) => sum + (c.sentCount || 0), 0)
+      const totalFailed = campaigns.reduce((sum, c) => sum + (c.failedCount || 0), 0)
+
+      res.json({
+        user: authResult.valid ? authResult.user : { error: authResult.error },
+        device: {
+          appVersion: loginData.appVersion || 'unknown',
+          lastSync: loginData.lastSync,
+          activeDevices: devices.length,
+          devices: devices.map(d => ({ id: d.deviceId, name: d.deviceName, lastActive: d.lastActive })),
+        },
+        campaigns: {
+          total: campaigns.length,
+          totalSent,
+          totalFailed,
+          details: campaignSummary,
+        },
+        errors: {
+          recentCount: allErrors.length,
+          breakdown: errorBreakdown,
+          recentDiagnostics: recentErrors.slice(0, 5).map(d => ({
+            campaignId: d.campaignId,
+            errors: d.errors?.slice(0, 5),
+            reportedAt: d.reportedAt,
+          })),
+        },
+        serverTime: new Date().toISOString(),
+      })
+    } catch (error) {
+      console.log(`[SmsApp] Diagnostics error:`, error.message)
       res.status(500).json({ error: error.message })
     }
   })

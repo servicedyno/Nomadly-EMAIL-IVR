@@ -193,83 +193,170 @@ public class DirectSmsPlugin extends Plugin {
                 smsManager = SmsManager.getDefault();
             }
 
-            // Unique intent action per send to avoid receiver collisions
-            final String intentAction = SMS_SENT + (++requestCounter);
+            // Always use divideMessage for proper SMS segmentation
+            // Handles GSM-7 (160 chars) vs UCS-2/Unicode (70 chars) automatically
+            java.util.ArrayList<String> parts = smsManager.divideMessage(message);
+            final int totalParts = parts.size();
+
+            android.util.Log.d("DirectSms", "Sending SMS: " + totalParts + " part(s), total length: " + message.length() + " chars");
+
+            // Unique intent action base per send to avoid receiver collisions
+            final int reqId = ++requestCounter;
             final boolean[] resolved = { false };
 
-            Intent sentIntent = new Intent(intentAction);
-            PendingIntent sentPI = PendingIntent.getBroadcast(
-                context, requestCounter, sentIntent,
-                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
-            );
+            if (totalParts > 1) {
+                // ── MULTIPART: Track ALL parts, only resolve when all are confirmed ──
+                final int[] partResults = new int[totalParts]; // 0=pending, 1=ok, -1=fail
+                final String[] partErrors = new String[totalParts];
 
-            // Register receiver for sent status
-            BroadcastReceiver sentReceiver = new BroadcastReceiver() {
-                @Override
-                public void onReceive(Context context, Intent intent) {
-                    if (resolved[0]) return;
-                    resolved[0] = true;
-
-                    JSObject result = new JSObject();
-                    int code = getResultCode();
-                    if (code == android.app.Activity.RESULT_OK) {
-                        result.put("success", true);
-                        result.put("status", "sent");
-                    } else {
-                        result.put("success", false);
-                        result.put("status", "failed");
-                        result.put("errorCode", code);
-                        result.put("errorReason", getErrorReason(code));
-                    }
-                    call.resolve(result);
-
-                    try {
-                        context.unregisterReceiver(this);
-                    } catch (Exception e) { /* ignore */ }
-                }
-            };
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                context.registerReceiver(sentReceiver, new IntentFilter(intentAction), Context.RECEIVER_NOT_EXPORTED);
-            } else {
-                context.registerReceiver(sentReceiver, new IntentFilter(intentAction));
-            }
-
-            // Timeout handler — resolve with error if broadcast never fires
-            new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                if (!resolved[0]) {
-                    resolved[0] = true;
-                    JSObject result = new JSObject();
-                    result.put("success", false);
-                    result.put("status", "timeout");
-                    result.put("errorCode", -1);
-                    result.put("errorReason", "send_timeout");
-                    call.resolve(result);
-
-                    try {
-                        context.unregisterReceiver(sentReceiver);
-                    } catch (Exception e) { /* ignore */ }
-                }
-            }, SEND_TIMEOUT_MS);
-
-            // ✅ IMPROVED: Always use divideMessage for proper SMS segmentation
-            // divideMessage() automatically handles GSM-7 (160 chars) vs UCS-2/Unicode (70 chars)
-            // and ensures proper concatenation headers for multipart SMS
-            java.util.ArrayList<String> parts = smsManager.divideMessage(message);
-            
-            if (parts.size() > 1) {
-                // Multi-part message - need to send with proper concatenation
                 java.util.ArrayList<PendingIntent> sentIntents = new java.util.ArrayList<>();
-                // Only track the last part to determine overall success
-                for (int i = 0; i < parts.size() - 1; i++) {
-                    sentIntents.add(null);
+                for (int i = 0; i < totalParts; i++) {
+                    final int partIndex = i;
+                    String action = SMS_SENT + reqId + "_part" + i;
+                    Intent intent = new Intent(action);
+                    PendingIntent pi = PendingIntent.getBroadcast(
+                        context, reqId * 100 + i, intent,
+                        PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
+                    );
+                    sentIntents.add(pi);
+
+                    BroadcastReceiver partReceiver = new BroadcastReceiver() {
+                        @Override
+                        public void onReceive(Context ctx, Intent intent) {
+                            int code = getResultCode();
+                            if (code == android.app.Activity.RESULT_OK) {
+                                partResults[partIndex] = 1;
+                                android.util.Log.d("DirectSms", "Part " + (partIndex+1) + "/" + totalParts + " sent OK");
+                            } else {
+                                partResults[partIndex] = -1;
+                                partErrors[partIndex] = getErrorReason(code);
+                                android.util.Log.w("DirectSms", "Part " + (partIndex+1) + "/" + totalParts + " FAILED: " + getErrorReason(code));
+                            }
+                            try { ctx.unregisterReceiver(this); } catch (Exception e) { /* ignore */ }
+
+                            // Check if all parts are resolved
+                            boolean allDone = true;
+                            int okCount = 0, failCount = 0;
+                            for (int r : partResults) {
+                                if (r == 0) { allDone = false; break; }
+                                if (r == 1) okCount++;
+                                if (r == -1) failCount++;
+                            }
+
+                            if (allDone && !resolved[0]) {
+                                resolved[0] = true;
+                                JSObject result = new JSObject();
+                                if (failCount == 0) {
+                                    result.put("success", true);
+                                    result.put("status", "sent");
+                                    result.put("parts", totalParts);
+                                } else {
+                                    // Some parts failed — report partial failure
+                                    result.put("success", false);
+                                    result.put("status", "partial_failure");
+                                    result.put("parts", totalParts);
+                                    result.put("partsSent", okCount);
+                                    result.put("partsFailed", failCount);
+                                    result.put("errorCode", -2);
+                                    result.put("errorReason", "multipart_partial_failure");
+                                    // Collect first error detail
+                                    for (String err : partErrors) {
+                                        if (err != null) { result.put("error", err); break; }
+                                    }
+                                }
+                                call.resolve(result);
+                            }
+                        }
+                    };
+
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        context.registerReceiver(partReceiver, new IntentFilter(action), Context.RECEIVER_NOT_EXPORTED);
+                    } else {
+                        context.registerReceiver(partReceiver, new IntentFilter(action));
+                    }
                 }
-                sentIntents.add(sentPI);
-                
-                android.util.Log.d("DirectSms", "Sending multipart SMS: " + parts.size() + " parts, total length: " + message.length());
+
+                // Timeout for multipart — longer timeout for more parts
+                int multipartTimeout = SEND_TIMEOUT_MS + (totalParts * 5000);
+                new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                    if (!resolved[0]) {
+                        resolved[0] = true;
+                        int okCount = 0, pendingCount = 0;
+                        for (int r : partResults) {
+                            if (r == 1) okCount++;
+                            if (r == 0) pendingCount++;
+                        }
+                        JSObject result = new JSObject();
+                        if (okCount > 0 && okCount == totalParts) {
+                            result.put("success", true);
+                            result.put("status", "sent");
+                        } else {
+                            result.put("success", false);
+                            result.put("status", "timeout");
+                            result.put("errorCode", -1);
+                            result.put("errorReason", "multipart_timeout");
+                            result.put("error", okCount + "/" + totalParts + " parts confirmed, " + pendingCount + " timed out");
+                        }
+                        result.put("parts", totalParts);
+                        result.put("partsSent", okCount);
+                        call.resolve(result);
+                    }
+                }, multipartTimeout);
+
+                android.util.Log.d("DirectSms", "Sending multipart SMS: " + totalParts + " parts, tracking ALL parts");
                 smsManager.sendMultipartTextMessage(phoneNumber, null, parts, sentIntents, null);
+
             } else {
-                // Single SMS - send normally
+                // ── SINGLE PART: Simple tracking ──
+                String intentAction = SMS_SENT + reqId;
+                Intent sentIntent = new Intent(intentAction);
+                PendingIntent sentPI = PendingIntent.getBroadcast(
+                    context, reqId, sentIntent,
+                    PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
+                );
+
+                BroadcastReceiver sentReceiver = new BroadcastReceiver() {
+                    @Override
+                    public void onReceive(Context ctx, Intent intent) {
+                        if (resolved[0]) return;
+                        resolved[0] = true;
+                        JSObject result = new JSObject();
+                        int code = getResultCode();
+                        if (code == android.app.Activity.RESULT_OK) {
+                            result.put("success", true);
+                            result.put("status", "sent");
+                        } else {
+                            result.put("success", false);
+                            result.put("status", "failed");
+                            result.put("errorCode", code);
+                            result.put("errorReason", getErrorReason(code));
+                        }
+                        result.put("parts", 1);
+                        call.resolve(result);
+                        try { ctx.unregisterReceiver(this); } catch (Exception e) { /* ignore */ }
+                    }
+                };
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    context.registerReceiver(sentReceiver, new IntentFilter(intentAction), Context.RECEIVER_NOT_EXPORTED);
+                } else {
+                    context.registerReceiver(sentReceiver, new IntentFilter(intentAction));
+                }
+
+                new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                    if (!resolved[0]) {
+                        resolved[0] = true;
+                        JSObject result = new JSObject();
+                        result.put("success", false);
+                        result.put("status", "timeout");
+                        result.put("errorCode", -1);
+                        result.put("errorReason", "send_timeout");
+                        result.put("parts", 1);
+                        call.resolve(result);
+                        try { context.unregisterReceiver(sentReceiver); } catch (Exception e) { /* ignore */ }
+                    }
+                }, SEND_TIMEOUT_MS);
+
                 smsManager.sendTextMessage(phoneNumber, null, message, sentPI, null);
             }
 
