@@ -6,7 +6,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://onboard-fast-1.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://readme-setup-16.preview.emergentagent.com')
 
 class TestVerifyOtpEndpoint:
     """Test /api/phone/test/verify-otp endpoint"""
