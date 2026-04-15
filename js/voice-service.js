@@ -1508,10 +1508,9 @@ async function handleBridgeTransferHangup(payload) {
           const planLine = remaining !== null
             ? `📊 Transfer: ${transferMinutes} min deducted · <b>${remaining}/${billingInfo.limit}</b> min remaining`
             : `📊 Transfer: ${transferMinutes} min used`
-          _bot?.sendMessage(ownerId,
-            `📞 <b>Transfer Ended</b>\n${formatPhone(transfer.forwardTo)} — ${formatDuration(transferDuration)}\n${planLine}`,
-            { parse_mode: 'HTML' }
-          ).catch(() => {})
+          const lang = await _getUserLang(ownerId)
+          const msg = _trans('vs.transferEnded', lang, formatPhone(transfer.forwardTo), formatDuration(transferDuration), planLine)
+          if (msg) _bot?.sendMessage(ownerId, msg, { parse_mode: 'HTML' }).catch(() => {})
         } else {
           log(`[Voice] Bridge transfer billing: could not find owner for parent session`)
         }
@@ -1598,10 +1597,9 @@ async function handleBridgeTransferHangup(payload) {
       const chatId = parentSession.chatId
       let reason = hangupCause === 'no_answer' || hangupCause === 'timeout' ? 'No answer' :
                    hangupCause === 'user_busy' ? 'Busy' : hangupCause
-      _bot?.sendMessage(chatId,
-        `❌ <b>Transfer Failed</b>\n📞 ${formatPhone(transfer.forwardTo)} — ${reason}`,
-        { parse_mode: 'HTML' }
-      ).catch(() => {})
+      const lang = await _getUserLang(chatId)
+      const msg = _trans('vs.transferFailed', lang, formatPhone(transfer.forwardTo), reason)
+      if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
     }
   } else {
     // Bridge was active and one leg hung up — hang up the other leg too
@@ -1857,7 +1855,8 @@ async function handleCallInitiated(payload) {
     log(`[Voice] ⚠️ ORPHANED NUMBER: No owner found for ${to} — inbound call from ${from} rejected. Number may need cleanup.`)
     // Alert admin about orphaned number
     if (_bot && process.env.TELEGRAM_ADMIN_CHAT_ID) {
-      _bot.sendMessage(process.env.TELEGRAM_ADMIN_CHAT_ID, `⚠️ <b>Orphaned Number Alert</b>\n\n📞 <code>${to}</code> received inbound call from <code>${from}</code>\n\n❌ No owner found in DB — call rejected.\nThis number may need to be released or re-assigned.`, { parse_mode: 'HTML' }).catch(() => {})
+      const msg = _trans('vs.orphanedNumberAlert', 'en', to, from)
+      if (msg) _bot.sendMessage(process.env.TELEGRAM_ADMIN_CHAT_ID, msg, { parse_mode: 'HTML' }).catch(() => {})
     }
     await _telnyxApi.hangupCall(callControlId).catch(() => {})
     return
@@ -1899,7 +1898,10 @@ async function handleCallInitiated(payload) {
       } catch (e) {
         await _telnyxApi.hangupCall(callControlId).catch(() => {})
       }
-      _bot?.sendMessage(chatId, `🚫 <b>Incoming Call Blocked — Wallet Empty</b>\n\n📞 ${formatPhone(to)}\n👤 Caller: ${formatPhone(from)}\n\nPlan minutes exhausted and wallet balance is insufficient for overage ($${inboundRate}/min ${isUSCanada(from) ? 'US/CA' : 'Intl'}). Top up your wallet or upgrade your plan to resume receiving calls.`, { parse_mode: 'HTML' }).catch(() => {})
+      const lang = await _getUserLang(chatId)
+      const region = isUSCanada(from) ? 'US/CA' : 'Intl'
+      const msg = _trans('vs.incomingCallBlockedWalletEmpty', lang, formatPhone(to), formatPhone(from), inboundRate, region)
+      if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
       return
     }
   }
@@ -2014,10 +2016,9 @@ async function handleCallInitiated(payload) {
         }
         sessionRef.sipRingCallControlId = newCall.callControlId // Track for hangup cleanup
 
-        _bot?.sendMessage(chatId,
-          `📞 <b>Incoming Call</b>\n${formatPhone(from)} → ${formatPhone(to)}\nRinging your SIP device...`,
-          { parse_mode: 'HTML' }
-        ).catch(() => {})
+        const lang = await _getUserLang(chatId)
+        const msg = _trans('vs.incomingCall', lang, formatPhone(from), formatPhone(to))
+        if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
 
         // Timeout: SIP device didn't answer — answer inbound + fallback
         setTimeout(async () => {
@@ -2300,13 +2301,13 @@ async function handleOutboundSipCall(payload) {
     // Send low-balance notification only for first N hits (suppress spam)
     if (_bot && cooldownEntry?.chatId && shouldSendWalletCooldownNotification(cooldownKey)) {
       markWalletCooldownNotified(cooldownKey)
-      _bot.sendMessage(cooldownEntry.chatId,
-        `🚫 <b>Outbound Calling Locked</b>\n\n` +
+      const lang = await _getUserLang(cooldownEntry.chatId)
+      const baseMsg = _trans('vs.outboundCallingLocked', lang)
+      const fullMsg = baseMsg + 
         `Your wallet balance has dropped below $${LOW_BALANCE_TRIGGER}. To protect your account, outbound calls are temporarily locked.\n\n` +
         `💰 <b>Top up at least $${LOW_BALANCE_RESUME}</b> to resume calling.\n` +
-        `Use 👛 <b>Wallet</b> to add funds.`,
-        { parse_mode: 'HTML' }
-      ).catch(() => {})
+        `Use 👛 <b>Wallet</b> to add funds.`
+      if (baseMsg) _bot.sendMessage(cooldownEntry.chatId, fullMsg, { parse_mode: 'HTML' }).catch(() => {})
     }
     try {
       await _telnyxApi.hangupCall(callControlId)
@@ -2506,10 +2507,9 @@ async function handleOutboundSipCall(payload) {
       _expiredTestBlockSet.set(blockKey, Date.now())
       // Notify the user once that their test expired
       if (lookupResult.expiredChatId && _bot) {
-        _bot.sendMessage(lookupResult.expiredChatId,
-          `⏰ <b>Test Calls Expired</b>\n\nYour free SIP test has ended. Please disconnect your SIP client to stop retrying.\n\n💡 To make more calls, purchase a Cloud Phone plan from the main menu.`,
-          { parse_mode: 'HTML' }
-        ).catch(() => {})
+        const lang = await _getUserLang(lookupResult.expiredChatId)
+        const msg = _trans('vs.testCallsExpired', lang)
+        if (msg) _bot.sendMessage(lookupResult.expiredChatId, msg, { parse_mode: 'HTML' }).catch(() => {})
       }
     }
     try { await _telnyxApi.hangupCall(callControlId) } catch (e) { /* silent */ }
@@ -2542,13 +2542,13 @@ async function handleOutboundSipCall(payload) {
     // Suppress notification spam — only send first N
     if (_bot && shouldSendWalletCooldownNotification(userCooldownKey)) {
       markWalletCooldownNotified(userCooldownKey)
-      _bot.sendMessage(chatId,
-        `🚫 <b>Outbound Calling Locked</b>\n\n` +
+      const lang = await _getUserLang(chatId)
+      const baseMsg = _trans('vs.outboundCallingLocked', lang)
+      const fullMsg = baseMsg + 
         `Your wallet balance has dropped below $${LOW_BALANCE_TRIGGER}. To protect your account, outbound calls are temporarily locked.\n\n` +
         `💰 <b>Top up at least $${LOW_BALANCE_RESUME}</b> to resume calling.\n` +
-        `Use 👛 <b>Wallet</b> to add funds.`,
-        { parse_mode: 'HTML' }
-      ).catch(() => {})
+        `Use 👛 <b>Wallet</b> to add funds.`
+      if (baseMsg) _bot.sendMessage(chatId, fullMsg, { parse_mode: 'HTML' }).catch(() => {})
     }
     try {
       await _telnyxApi.hangupCall(callControlId)
@@ -2594,13 +2594,13 @@ async function handleOutboundSipCall(payload) {
         } else {
           await _telnyxApi.rejectCall(callControlId, 'CALL_REJECTED')
         }
-        _bot?.sendMessage(chatId,
-          `🚫 <b>Outbound Calling Locked</b>\n\n` +
+        const lang = await _getUserLang(chatId)
+        const baseMsg = _trans('vs.outboundCallingLocked', lang)
+        const fullMsg = baseMsg + 
           `Your wallet balance (<b>$${walletCheck.usdBal.toFixed(2)}</b>) has dropped below $${LOW_BALANCE_TRIGGER}. To protect your account, outbound calls are temporarily locked.\n\n` +
           `💰 <b>Top up at least $${LOW_BALANCE_RESUME}</b> to resume calling.\n` +
-          `Use 👛 <b>Wallet</b> to add funds.`,
-          { parse_mode: 'HTML' }
-        ).catch(() => {})
+          `Use 👛 <b>Wallet</b> to add funds.`
+        if (baseMsg) _bot?.sendMessage(chatId, fullMsg, { parse_mode: 'HTML' }).catch(() => {})
         return
       }
 
@@ -2774,8 +2774,11 @@ async function handleOutboundSipCall(payload) {
           walletLine = `💳 Wallet: <b>$${usdBal.toFixed(2)}</b> (~${estMinutes} min at $${sipRate}/min${connFeeNote} ${isUSCanada(destination) ? 'US/CA' : 'Intl'})`
         } catch (e) { /* ignore */ }
       }
-      _bot?.sendMessage(chatId, `📞 <b>SIP Outbound Call</b>\nFrom: ${formatPhone(num.phoneNumber)}\nTo: ${formatPhone(destination)}\n${walletLine}`, { parse_mode: 'HTML' }).catch(() => {})
-    }    return
+      const lang = await _getUserLang(chatId)
+      const msg = _trans('vs.sipOutboundCall', lang, formatPhone(num.phoneNumber), formatPhone(destination), walletLine)
+      if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
+    }
+    return
   }
 
   // ── TWILIO NUMBER: Bridge through Twilio SIP → Twilio PSTN ──
@@ -2783,7 +2786,9 @@ async function handleOutboundSipCall(payload) {
     if (!_twilioSipDomain) {
       log(`[Voice] Outbound SIP (Twilio): No Twilio SIP domain available, rejecting`)
       await _telnyxApi.hangupCall(callControlId)
-      _bot?.sendMessage(chatId, `🚫 <b>Outbound Call Failed</b>\n📞 ${formatPhone(num.phoneNumber)} → ${formatPhone(destination)}\nReason: Outbound calling is temporarily unavailable. Please try again later.`, { parse_mode: 'HTML' }).catch(() => {})
+      const lang = await _getUserLang(chatId)
+      const msg = _trans('vs.outboundCallFailedTempUnavailable', lang, formatPhone(num.phoneNumber), formatPhone(destination))
+      if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
       return
     }
 
@@ -2961,7 +2966,9 @@ async function handleOutboundSipCall(payload) {
         const { usdBal } = await getBalance(_walletOf, chatId)
         const estMinutes = Math.floor(usdBal / sipRate)
         const connFeeNote = CALL_CONNECTION_FEE > 0 ? ` + $${CALL_CONNECTION_FEE} connect fee` : ''
-        _bot?.sendMessage(chatId, `📞 <b>SIP Outbound Call</b>\nFrom: ${formatPhone(num.phoneNumber)}\nTo: ${formatPhone(destination)}\nRate: $${sipRate}/min${connFeeNote} (~${estMinutes} min available)`, { parse_mode: 'HTML' }).catch(() => {})
+        const lang = await _getUserLang(chatId)
+        const msg = _trans('vs.sipOutboundCallWithRate', lang, formatPhone(num.phoneNumber), formatPhone(destination), sipRate, connFeeNote, estMinutes)
+        if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
       } catch (e) { /* ignore */ }
     }
     return
@@ -3137,13 +3144,17 @@ async function handleCallAnswered(payload) {
           // Low balance warning
           const estMinutes = Math.floor(usdBal / CALL_FORWARDING_RATE_MIN)
           if (usdBal < 5) {
-            _bot?.sendMessage(chatId, `⚠️ <b>Low Balance</b> — $${usdBal.toFixed(2)} (~${estMinutes} min fwd). Top up <b>$25</b> via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+            const lang = await _getUserLang(chatId)
+            const msg = _trans('vs.lowBalanceForward', lang, usdBal.toFixed(2), estMinutes)
+            if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
           }
         } else {
           log(`[Voice] Forwarding wallet check: $${usdBal} < $${CALL_FORWARDING_RATE_MIN} required — blocking forward`)
           await _telnyxApi.speakOnCall(callControlId, 'Your wallet balance is insufficient for call forwarding. Please top up your wallet.')
           setTimeout(() => _telnyxApi.hangupCall(callControlId), 5000)
-          _bot?.sendMessage(chatId, `🚫 <b>Forwarding Blocked</b> — Wallet $${usdBal.toFixed(2)} (need $${CALL_FORWARDING_RATE_MIN}/min).\nTop up <b>$25</b> via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+          const lang = await _getUserLang(chatId)
+          const msg = _trans('vs.forwardingBlocked', lang, usdBal.toFixed(2), CALL_FORWARDING_RATE_MIN)
+          if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
           return
         }
       } catch (e) { log(`[Voice] Forwarding wallet check error: ${e.message}`) }
@@ -3210,10 +3221,9 @@ async function handleCallAnswered(payload) {
           phase: 'ringing',
         }
 
-        _bot?.sendMessage(chatId,
-          `📞 <b>Incoming Call</b>\n${formatPhone(from)} → ${formatPhone(to)}\nRinging your SIP device...`,
-          { parse_mode: 'HTML' }
-        ).catch(() => {})
+        const lang = await _getUserLang(chatId)
+        const msg = _trans('vs.incomingCall', lang, formatPhone(from), formatPhone(to))
+        if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
 
         // Timeout: SIP device didn't answer — hang up outbound leg (triggers fallback in handleBridgeTransferHangup)
         setTimeout(async () => {
@@ -3326,13 +3336,18 @@ async function handleGatherEnded(payload) {
             log(`[Voice] IVR forward blocked: wallet $${usdBal} < $${ivrFwdRate}/min for ${option.forwardTo}`)
             await _telnyxApi.speakOnCall(callControlId, 'Your wallet balance is insufficient for call forwarding. Please top up your wallet.')
             setTimeout(() => _telnyxApi.hangupCall(callControlId), 5000)
-            _bot?.sendMessage(chatId, `🚫 <b>IVR Forward Blocked — Wallet Empty</b>\n\n📞 ${formatPhone(num.phoneNumber)}\n📲 Forward to: ${formatPhone(option.forwardTo)}\n\nWallet $${usdBal.toFixed(2)} (need $${ivrFwdRate}/min ${isUSCanada(option.forwardTo) ? 'US/CA' : 'Intl'}).\nTop up via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+            const lang = await _getUserLang(chatId)
+            const region = isUSCanada(option.forwardTo) ? 'US/CA' : 'Intl'
+            const msg = _trans('vs.ivrForwardBlocked', lang, formatPhone(num.phoneNumber), formatPhone(option.forwardTo), usdBal.toFixed(2), ivrFwdRate, region)
+            if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
             break
           }
           // Low balance warning
           const estMinutes = Math.floor(usdBal / ivrFwdRate)
           if (usdBal < 5) {
-            _bot?.sendMessage(chatId, `⚠️ <b>Low Balance</b> — $${usdBal.toFixed(2)} (~${estMinutes} min IVR fwd). Top up via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+            const lang = await _getUserLang(chatId)
+            const msg = _trans('vs.lowBalanceIvrForward', lang, usdBal.toFixed(2), estMinutes)
+            if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
           }
         } catch (e) { log(`[Voice] IVR forward wallet check error: ${e.message}`) }
       }
@@ -3536,10 +3551,9 @@ async function handleCallHangup(payload) {
           log(`[Voice] Fix #4: Auto-routed call billed: ${num.phoneNumber} → ${pendingBill.destination}, ${minutesBilled} min @ $${billingInfo.rate}, reason=${pendingBill.reason}`)
           // Notify user
           const rate = billingInfo.rate || getCallRate(pendingBill.destination)
-          _bot?.sendMessage(chatId,
-            `📞 <b>SIP Call Ended</b> (auto-routed)\n\nFrom: ${formatPhone(num.phoneNumber)}\nTo: ${formatPhone(pendingBill.destination)}\n⏱️ ${formatDuration(duration)}\n💰 ${minutesBilled} min × $${rate} billed`,
-            { parse_mode: 'HTML' }
-          ).catch(() => {})
+          const lang = await _getUserLang(chatId)
+          const msg = _trans('vs.sipCallEndedAutoRouted', lang, formatPhone(num.phoneNumber), formatPhone(pendingBill.destination), formatDuration(duration), minutesBilled, rate)
+          if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
         } else {
           log(`[Voice] Fix #4: Could not identify owner for auto-routed call — unbilled: ${pendingBill.sipUsername} → ${pendingBill.destination}`)
         }
@@ -4054,7 +4068,9 @@ async function handleOutboundIvrAnswered(payload) {
                 log(`[OutboundIVR] Mid-call wallet exhausted: $${usdBal.toFixed(2)} < $${IVR_CALL_RATE}/min. Disconnecting.`)
                 clearInterval(session._limitTimer)
                 await _telnyxApi.hangupCall(callControlId).catch(() => {})
-                _bot?.sendMessage(session.chatId, `🚫 <b>IVR Call Ended</b> — Wallet exhausted ($${usdBal.toFixed(2)}).\nIVR calls cost $${IVR_CALL_RATE}/min. Top up via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+                const lang = await _getUserLang(session.chatId)
+                const msg = _trans('vs.ivrCallEndedWalletExhausted', lang, usdBal.toFixed(2), IVR_CALL_RATE)
+                if (msg) _bot?.sendMessage(session.chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
               }
             } catch (e) { log(`[OutboundIVR] Mid-call wallet check error: ${e.message}`) }
           }
@@ -4347,7 +4363,10 @@ async function handleOutboundIvrHangup(payload) {
       // Call never connected (busy, no answer, etc.) — trial is preserved
       log(`[OutboundIVR] Trial NOT consumed for chatId ${session.chatId} (call not answered, cause: ${hangupCause})`)
       setTimeout(() => {
-        _bot?.sendMessage(session.chatId, `📞 <b>Call not connected</b> — the recipient was busy or didn't answer.\n\n🎁 Your free trial call is still available! Try again anytime.`, { parse_mode: 'HTML' }).catch(() => {})
+        const lang = _getUserLang(session.chatId).then(userLang => {
+          const msg = _trans('vs.callNotConnected', userLang)
+          if (msg) _bot?.sendMessage(session.chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
+        })
       }, 2000)
     }
   }
@@ -4379,7 +4398,7 @@ async function handleOutboundIvrHangup(payload) {
  * Check if an initiated call is a transfer leg from an active IVR outbound session.
  * Matches by: direction=outgoing, from=callerId, to=ivrNumber of a session in 'transferring' phase.
  */
-function handleIvrTransferLegInitiated(payload) {
+async function handleIvrTransferLegInitiated(payload) {
   const callControlId = payload.call_control_id
   const direction = payload.direction
   if (direction === 'incoming') return false
@@ -4407,16 +4426,15 @@ function handleIvrTransferLegInitiated(payload) {
 
       // Timeout: if transfer target doesn't answer in 30s, notify user
       // (Telnyx will hang up both legs on its own, but we track it for accurate notification)
-      const transferTimeout = setTimeout(() => {
+      const transferTimeout = setTimeout(async () => {
         const transfer = ivrTransferLegs[callControlId]
         if (transfer && transfer.phase === 'initiated') {
           log(`[OutboundIVR] Transfer timeout: ${to} didn't answer in 30s`)
           transfer.timedOut = true
           // Proactively notify user — the hangup handler will also fire
-          _bot?.sendMessage(transfer.chatId,
-            `⏱ <b>Transfer Timeout</b>\n📞 ${formatPhone(to)} didn't answer after 30 seconds`,
-            { parse_mode: 'HTML' }
-          ).catch(() => {})
+          const lang = await _getUserLang(transfer.chatId)
+          const msg = _trans('vs.transferTimeout', lang, formatPhone(to))
+          if (msg) _bot?.sendMessage(transfer.chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
         }
       }, 30000)
       ivrTransferLegs[callControlId]._transferTimeout = transferTimeout
@@ -4430,7 +4448,7 @@ function handleIvrTransferLegInitiated(payload) {
 /**
  * Handle transfer leg answered — the transfer target picked up
  */
-function handleIvrTransferLegAnswered(payload) {
+async function handleIvrTransferLegAnswered(payload) {
   const callControlId = payload.call_control_id
   const transfer = ivrTransferLegs[callControlId]
   if (!transfer) return false
@@ -4444,10 +4462,9 @@ function handleIvrTransferLegAnswered(payload) {
   // Notify bot user that transfer connected
   const parentSession = outboundIvrCalls[transfer.parentCallControlId]
   if (parentSession) {
-    _bot?.sendMessage(transfer.chatId,
-      `✅ <b>Transfer Connected</b>\n📞 ${transfer.targetNumber} connected to ${formatPhone(transfer.ivrNumber)}`,
-      { parse_mode: 'HTML' }
-    ).catch(() => {})
+    const lang = await _getUserLang(transfer.chatId)
+    const msg = _trans('vs.transferConnected', lang, transfer.targetNumber, formatPhone(transfer.ivrNumber))
+    if (msg) _bot?.sendMessage(transfer.chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
   }
   return true
 }
