@@ -18,6 +18,24 @@ let _payments = null
 let _nanoid = null
 let _twilioSipDomain = null
 let _selfUrl = null
+
+// i18n helper: get user language and translate
+const _langCache = new Map()
+async function _getUserLang(chatId) {
+  if (_langCache.has(chatId)) return _langCache.get(chatId)
+  try {
+    const user = await get('users', chatId)
+    const lang = user?.userLanguage || 'en'
+    _langCache.set(chatId, lang)
+    setTimeout(() => _langCache.delete(chatId), 300000) // cache 5 min
+    return lang
+  } catch { return 'en' }
+}
+function _trans(key, lang, ...args) {
+  if (!_translation) return null
+  const t = _translation(key, lang, ...args)
+  return t
+}
 let _state = null
 let _twilioService = null
 let _loyalty = null
@@ -3603,10 +3621,12 @@ async function handleCallHangup(payload) {
     }
 
     if (transferConnected) {
-      const msg = `📞 <b>Call Forwarded</b>\n\n📞 ${formatPhone(to)} → 📲 ${formatPhone(forwardTo)}\n👤 ${formatPhone(from)}\n⏱️ ${formatDuration(duration)}\n${planLine}\n🕐 ${time}`
+      const lang = await _getUserLang(chatId)
+      const msg = _trans('t.vs_callForwarded', lang, formatPhone(to), formatPhone(forwardTo), formatPhone(from), formatDuration(duration), planLine, time) || `📞 <b>Call Forwarded</b>\n\n📞 ${formatPhone(to)} → 📲 ${formatPhone(forwardTo)}\n👤 ${formatPhone(from)}\n⏱️ ${formatDuration(duration)}\n${planLine}\n🕐 ${time}`
       _bot.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
     } else {
-      const msg = `❌ <b>Forward Failed — No Answer</b>\n\n📞 ${formatPhone(to)} → 📲 ${formatPhone(forwardTo)}\n👤 Caller: ${formatPhone(from)}\n📲 ${formatPhone(forwardTo)} didn't answer\n🕐 ${time}`
+      const lang2 = await _getUserLang(chatId)
+      const msg = _trans('t.vs_forwardFailed', lang2, formatPhone(to), formatPhone(forwardTo), formatPhone(from), time) || `❌ <b>Forward Failed</b>\n\n📞 ${formatPhone(to)} → 📲 ${formatPhone(forwardTo)}\n👤 ${formatPhone(from)}\n🕐 ${time}`
       _bot.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
     }
     logEvent(to, from, transferConnected ? 'forwarded' : 'forward_failed', duration)
@@ -3633,7 +3653,8 @@ async function handleCallHangup(payload) {
     }
     logEvent(from, to, 'outbound_sip', duration)
   } else if (session.phase === 'missed' || session.phase === 'answering') {
-    const msg = `📞 <b>Missed Call</b>\n\n📞 To: ${formatPhone(to)}\n👤 From: ${formatPhone(from)}\n🕐 ${time}`
+    const langMissed = await _getUserLang(chatId)
+    const msg = _trans('t.vs_missedCall', langMissed, formatPhone(to), formatPhone(from), time) || `📞 <b>Missed Call</b>\n\n📞 To: ${formatPhone(to)}\n👤 From: ${formatPhone(from)}\n🕐 ${time}`
     _bot.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
     logEvent(to, from, 'missed', 0)
   } else if (session.phase === 'voicemail_recording' || session.phase === 'voicemail_greeting') {
@@ -3691,15 +3712,16 @@ async function findNumberOwner(phoneNumber) {
   }
 }
 
-function notifyUser(chatId, num, type, session, extra = {}) {
+async function notifyUser(chatId, num, type, session, extra = {}) {
   const time = new Date().toLocaleString()
+  const lang = await _getUserLang(chatId)
   let msg = ''
   if (type === 'missed') {
-    msg = `📞 <b>Missed Call</b>\n\n📞 To: ${formatPhone(session.to)}\n👤 From: ${formatPhone(session.from)}\n🕐 ${time}`
+    msg = _trans('t.vs_missedCall', lang, formatPhone(session.to), formatPhone(session.from), time) || `📞 <b>Missed Call</b>\n\n📞 To: ${formatPhone(session.to)}\n👤 From: ${formatPhone(session.from)}\n🕐 ${time}`
   } else if (type === 'ivr_forward') {
-    msg = `📞 <b>IVR Call Routed</b>\n\n📞 To: ${formatPhone(session.to)}\n👤 From: ${formatPhone(session.from)}\nPressed: <b>${extra.digit}</b> → Forwarded to ${formatPhone(extra.forwardTo)}\n🕐 ${time}`
+    msg = _trans('t.vs_ivrCallRouted', lang, formatPhone(session.to), formatPhone(session.from), extra.digit, formatPhone(extra.forwardTo), time) || `📞 <b>IVR Call Routed</b>\n\n📞 To: ${formatPhone(session.to)}\n👤 From: ${formatPhone(session.from)}\nPressed: <b>${extra.digit}</b> → Forwarded to ${formatPhone(extra.forwardTo)}\n🕐 ${time}`
   } else if (type === 'ivr_message') {
-    msg = `📞 <b>IVR Call</b>\n\n📞 To: ${formatPhone(session.to)}\n👤 From: ${formatPhone(session.from)}\nPressed: <b>${extra.digit}</b> → Played message\n🕐 ${time}`
+    msg = _trans('t.vs_ivrCall', lang, formatPhone(session.to), formatPhone(session.from), extra.digit, time) || `📞 <b>IVR Call</b>\n\n📞 To: ${formatPhone(session.to)}\n👤 From: ${formatPhone(session.from)}\nPressed: <b>${extra.digit}</b> → Played message\n🕐 ${time}`
   }
   if (msg) _bot.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
 }
