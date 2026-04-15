@@ -3063,11 +3063,11 @@ bot?.on('message', msg => {
     const targetChatId = Number(parts[0])
     const replyText = parts.slice(1).join(' ')
     if (!targetChatId || !replyText) {
-      return send(chatId, trans('t.adm_3'))
+      return send(chatId, '⚠️ Usage: /reply <chatId> <message>')
     }
     const targetName = await get(nameOf, targetChatId)
     send(targetChatId, `💬 <b>Support:</b>\n${replyText}`, { parse_mode: 'HTML', reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
-    send(chatId, trans('t.adm_4', targetName || targetChatId))
+    send(chatId, `✅ Reply sent to ${targetName || targetChatId}`)
     // Re-open support session so user's next message goes to admin
     await set(supportSessions, targetChatId, Date.now())
     await set(state, targetChatId, 'action', 'supportChat')
@@ -3079,7 +3079,7 @@ bot?.on('message', msg => {
 
   if (isAdmin(chatId) && message.startsWith('/close ')) {
     const targetChatId = Number(message.substring(7).trim())
-    if (!targetChatId) return send(chatId, trans('t.adm_5'))
+    if (!targetChatId) return send(chatId, '⚠️ Usage: /close <chatId>')
     const session = await get(supportSessions, targetChatId)
     if (session) {
       await set(supportSessions, targetChatId, 0)
@@ -3091,7 +3091,7 @@ bot?.on('message', msg => {
     }
     const targetName = await get(nameOf, targetChatId)
     send(targetChatId, '✅ Support session closed. Use the menu below to continue.', translation('o', 'en'))
-    send(chatId, trans('t.adm_6', targetName || targetChatId))
+    send(chatId, `✅ Session closed for ${targetName || targetChatId}`)
     clearAiHistory(targetChatId) // Clear AI conversation history
     // Clear admin takeover flag on session close
     await set(state, targetChatId, 'adminTakeover', false)
