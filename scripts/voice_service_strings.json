@@ -1,0 +1,327 @@
+[
+  {
+    "line": 268,
+    "content": "_bot?.sendMessage(chatId,",
+    "type": "message_call"
+  },
+  {
+    "line": 277,
+    "content": "_bot?.sendMessage(chatId, `\ud83d\udeab <b>Call Disconnected</b> \u2014 Wallet insufficient (need $${rate}/min + $${CALL_CONNECTION_FEE} connect fee).\\nTop up via \ud83d\udc5b Wallet.`, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 331,
+    "content": "_bot?.sendMessage(chatId, `\ud83d\udeab <b>Call Disconnected</b> \u2014 Wallet exhausted.\\nTop up via \ud83d\udc5b Wallet.`, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 525,
+    "content": "_bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 638,
+    "content": "await _bot.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 1028,
+    "content": "_bot?.sendMessage(chatId, `\ud83d\udeab <b>Outbound Call Failed</b>\\n\ud83d\udcde ${formatPhone(num.phoneNumber)} \u2192 ${formatPhone(destination)}\\nReason: Call routing failed. Please try again.`, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 1053,
+    "content": "_bot?.sendMessage(chatId, `\ud83d\udeab <b>Outbound Call Failed</b>\\n\ud83d\udcde ${formatPhone(num.phoneNumber)} \u2192 ${formatPhone(destination)}\\nReason: Call routing failed. Please try again.`, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 1167,
+    "content": "_bot?.sendMessage(chatId, `\u26a0\ufe0f <b>Plan Minutes Exhausted</b>\\n\\n\ud83d\udcde ${formatPhone(phoneNumber)}\\nUsed: <b>${used}/${limit}</b> minutes this cycle.\\n\\nOverage billing is now active from your wallet. Top up or upgrade your plan.`, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 1237,
+    "content": "_bot?.sendMessage(chatId,",
+    "type": "message_call"
+  },
+  {
+    "line": 1272,
+    "content": "_bot?.sendMessage(chatId,",
+    "type": "message_call"
+  },
+  {
+    "line": 1317,
+    "content": "_bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 1447,
+    "content": "_bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 1502,
+    "content": "_bot?.sendMessage(ownerId,",
+    "type": "message_call"
+  },
+  {
+    "line": 1533,
+    "content": "notifyUser(transfer.chatId, transfer.num, 'missed', origSession)",
+    "type": "message_call"
+  },
+  {
+    "line": 1578,
+    "content": "notifyUser(transfer.chatId, transfer.num, 'missed', origSession)",
+    "type": "message_call"
+  },
+  {
+    "line": 1592,
+    "content": "_bot?.sendMessage(chatId,",
+    "type": "message_call"
+  },
+  {
+    "line": 1794,
+    "content": "_bot?.sendMessage(session.chatId, ivrOutbound.formatCallNotification('transferred', session), { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 1851,
+    "content": "_bot.sendMessage(process.env.TELEGRAM_ADMIN_CHAT_ID, `\u26a0\ufe0f <b>Orphaned Number Alert</b>\\n\\n\ud83d\udcde <code>${to}</code> received inbound call from <code>${from}</code>\\n\\n\u274c No owner found in DB \u2014 call rejected.\\nThis number may need to be released or re-assigned.`, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 1893,
+    "content": "_bot?.sendMessage(chatId, `\ud83d\udeab <b>Incoming Call Blocked \u2014 Wallet Empty</b>\\n\\n\ud83d\udcde ${formatPhone(to)}\\n\ud83d\udc64 Caller: ${formatPhone(from)}\\n\\nPlan minutes exhausted and wallet balance is insufficient for overage ($${inboundRate}/min ${isUSCanada(from) ? 'US/CA' : 'Intl'}). Top up your wallet or upgrade your plan to resume receiving calls.`, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 1944,
+    "content": "_bot?.sendMessage(chatId, `\ud83d\udcb0 <b>Overage Active</b> \u2014 Plan minutes exhausted. ${chargedStr} (${isUSCanada(destination) ? 'US/CA' : 'Intl'}) from ${deductResult.currency.toUpperCase()} wallet.`, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 1959,
+    "content": "_bot?.sendMessage(chatId, `\ud83d\udeab <b>Call Ended</b> \u2014 Plan minutes + wallet exhausted.\\n\u23f1\ufe0f ~${elapsedMin} min. Top up wallet or upgrade plan.`, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 2003,
+    "content": "_bot?.sendMessage(chatId,",
+    "type": "message_call"
+  },
+  {
+    "line": 2289,
+    "content": "_bot.sendMessage(cooldownEntry.chatId,",
+    "type": "message_call"
+  },
+  {
+    "line": 2495,
+    "content": "_bot.sendMessage(lookupResult.expiredChatId,",
+    "type": "message_call"
+  },
+  {
+    "line": 2531,
+    "content": "_bot.sendMessage(chatId,",
+    "type": "message_call"
+  },
+  {
+    "line": 2551,
+    "content": "_bot?.sendMessage(chatId, `\ud83d\udeab <b>Outbound Call Blocked</b>\\n\ud83d\udcde ${formatPhone(num.phoneNumber)} \u2192 ${formatPhone(destination)}\\nReason: Number is ${num.status}. Please renew or contact support.`, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 2581,
+    "content": "_bot?.sendMessage(chatId,",
+    "type": "message_call"
+  },
+  {
+    "line": 2600,
+    "content": "_bot?.sendMessage(chatId, `\ud83d\udeab <b>SIP Call Blocked</b> \u2014 Wallet balance insufficient (need $${sipRate}/min + $${CALL_CONNECTION_FEE} connect fee ${isUSCanada(destination) ? 'US/CA' : 'Intl'}).\\nBalance: $${walletCheck.usdBal.toFixed(2)} / NGN: \u20a6${0}\\nOutbound calls are billed from wallet. Top up via \ud83d\udc5b Wallet.`, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 2683,
+    "content": "_bot?.sendMessage(chatId, `\ud83d\udeab <b>Call Disconnected</b> \u2014 Wallet exhausted.\\nTop up via \ud83d\udc5b Wallet.`, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 2734,
+    "content": "_bot?.sendMessage(chatId, `\ud83d\udeab <b>Outbound Call Failed</b>\\n\ud83d\udcde ${formatPhone(num.phoneNumber)} \u2192 ${formatPhone(destination)}\\nReason: Call routing failed. Please try again.`, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 2741,
+    "content": "_bot?.sendMessage(chatId, `\ud83d\udcde <b>Free SIP Test Call</b>\\nFrom: ${formatPhone(num.phoneNumber)}\\nTo: ${formatPhone(destination)}\\n\ud83c\udd93 Free test call (${testCallInfo.callsRemaining ?? 0} remaining, max ${testCallInfo.maxDuration}s)`, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 2752,
+    "content": "_bot?.sendMessage(chatId, `\ud83d\udcde <b>SIP Outbound Call</b>\\nFrom: ${formatPhone(num.phoneNumber)}\\nTo: ${formatPhone(destination)}\\n${walletLine}`, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 2761,
+    "content": "_bot?.sendMessage(chatId, `\ud83d\udeab <b>Outbound Call Failed</b>\\n\ud83d\udcde ${formatPhone(num.phoneNumber)} \u2192 ${formatPhone(destination)}\\nReason: Outbound calling is temporarily unavailable. Please try again later.`, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 2857,
+    "content": "_bot?.sendMessage(chatId, `\ud83d\udeab <b>Call Disconnected</b> \u2014 Wallet exhausted.\\nTop up via \ud83d\udc5b Wallet.`, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 2937,
+    "content": "_bot?.sendMessage(chatId, `\ud83d\udcde <b>SIP Outbound Call</b>\\nFrom: ${formatPhone(num.phoneNumber)}\\nTo: ${formatPhone(destination)}\\nRate: $${sipRate}/min${connFeeNote} (~${estMinutes} min available)`, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 3113,
+    "content": "_bot?.sendMessage(chatId, `\u26a0\ufe0f <b>Low Balance</b> \u2014 $${usdBal.toFixed(2)} (~${estMinutes} min fwd). Top up <b>$25</b> via \ud83d\udc5b Wallet.`, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 3119,
+    "content": "_bot?.sendMessage(chatId, `\ud83d\udeab <b>Forwarding Blocked</b> \u2014 Wallet $${usdBal.toFixed(2)} (need $${CALL_FORWARDING_RATE_MIN}/min).\\nTop up <b>$25</b> via \ud83d\udc5b Wallet.`, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 3186,
+    "content": "_bot?.sendMessage(chatId,",
+    "type": "message_call"
+  },
+  {
+    "line": 3246,
+    "content": "notifyUser(chatId, num, 'missed', session)",
+    "type": "message_call"
+  },
+  {
+    "line": 3302,
+    "content": "_bot?.sendMessage(chatId, `\ud83d\udeab <b>IVR Forward Blocked \u2014 Wallet Empty</b>\\n\\n\ud83d\udcde ${formatPhone(num.phoneNumber)}\\n\ud83d\udcf2 Forward to: ${formatPhone(option.forwardTo)}\\n\\nWallet $${usdBal.toFixed(2)} (need $${ivrFwdRate}/min ${isUSCanada(option.forwardTo) ? 'US/CA' : 'Intl'}).\\nTop up via \ud83d\udc5b Wallet.`, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 3308,
+    "content": "_bot?.sendMessage(chatId, `\u26a0\ufe0f <b>Low Balance</b> \u2014 $${usdBal.toFixed(2)} (~${estMinutes} min IVR fwd). Top up via \ud83d\udc5b Wallet.`, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 3315,
+    "content": "notifyUser(chatId, num, 'ivr_forward', session, { digit: digits, forwardTo: option.forwardTo })",
+    "type": "message_call"
+  },
+  {
+    "line": 3328,
+    "content": "notifyUser(chatId, num, 'ivr_message', session, { digit: digits, message: option.message })",
+    "type": "message_call"
+  },
+  {
+    "line": 3443,
+    "content": "_bot.sendMessage(chatId, caption + `\\n\\n\ud83d\udd17 <a href=\"${recordingUrl}\">Listen</a>`, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 3458,
+    "content": "_bot.sendMessage(chatId, caption + `\\n\\n\ud83d\udd17 <a href=\"${recordingUrl}\">Listen</a>`, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 3512,
+    "content": "_bot?.sendMessage(chatId,",
+    "type": "message_call"
+  },
+  {
+    "line": 3626,
+    "content": "_bot.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 3630,
+    "content": "_bot.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 3640,
+    "content": "_bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 3643,
+    "content": "_bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 3648,
+    "content": "_bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 3652,
+    "content": "_bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 3658,
+    "content": "_bot.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 3666,
+    "content": "_bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 3715,
+    "content": "async function notifyUser(chatId, num, type, session, extra = {}) {",
+    "type": "message_call"
+  },
+  {
+    "line": 3726,
+    "content": "if (msg) _bot.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 4030,
+    "content": "_bot?.sendMessage(session.chatId, `\ud83d\udeab <b>IVR Call Ended</b> \u2014 Wallet exhausted ($${usdBal.toFixed(2)}).\\nIVR calls cost $${IVR_CALL_RATE}/min. Top up via \ud83d\udc5b Wallet.`, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 4090,
+    "content": "_bot?.sendMessage(session.chatId, ivrOutbound.formatCallNotification('key_pressed', {",
+    "type": "message_call"
+  },
+  {
+    "line": 4101,
+    "content": "_bot?.sendMessage(session.chatId, ivrOutbound.formatCallNotification('key_pressed', {",
+    "type": "message_call"
+  },
+  {
+    "line": 4305,
+    "content": "_bot?.sendMessage(session.chatId, baseNotif + planLine, msgOpts).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 4317,
+    "content": "_bot?.sendMessage(session.chatId, ivrOutbound.formatCallNotification('trial_used', {}), { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 4323,
+    "content": "_bot?.sendMessage(session.chatId, `\ud83d\udcde <b>Call not connected</b> \u2014 the recipient was busy or didn't answer.\\n\\n\ud83c\udf81 Your free trial call is still available! Try again anytime.`, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  },
+  {
+    "line": 4389,
+    "content": "_bot?.sendMessage(transfer.chatId,",
+    "type": "message_call"
+  },
+  {
+    "line": 4420,
+    "content": "_bot?.sendMessage(transfer.chatId,",
+    "type": "message_call"
+  },
+  {
+    "line": 4489,
+    "content": "_bot?.sendMessage(transfer.chatId, statusMsg, { parse_mode: 'HTML' }).catch(() => {})",
+    "type": "message_call"
+  }
+]

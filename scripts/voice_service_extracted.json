@@ -1,0 +1,188 @@
+[
+  {
+    "line": 268,
+    "content": "🚫 <b>Call Disconnected</b> (auto-routed)\\n\\nWallet: <b>$${walletCheck.usdBal.toFixed(2)}</b> — below $${LOW_BALANCE_TRIGGER} threshold.\\n💰 Top up at least $${LOW_BALANCE_RESUME} to resume calling.",
+    "key_suggestion": "call_disconnected_autoroutednnwallet_wa",
+    "full_match": "_bot?.sendMessage(chatId,\n            `🚫 <b>Call Disconnected</b> (auto-routed)\\n\\nWallet: <b>$${wal"
+  },
+  {
+    "line": 277,
+    "content": "🚫 <b>Call Disconnected</b> — Wallet insufficient (need $${rate}/min + $${CALL_CONNECTION_FEE} connect fee).\\nTop up via 👛 Wallet.",
+    "key_suggestion": "call_disconnected_wallet_insufficient_need",
+    "full_match": "_bot?.sendMessage(chatId, `🚫 <b>Call Disconnected</b> — Wallet insufficient (need $${rate}/min + $${"
+  },
+  {
+    "line": 331,
+    "content": "🚫 <b>Call Disconnected</b> — Wallet exhausted.\\nTop up via 👛 Wallet.",
+    "key_suggestion": "call_disconnected_wallet_exhaustedntop_up",
+    "full_match": "_bot?.sendMessage(chatId, `🚫 <b>Call Disconnected</b> — Wallet exhausted.\\nTop up via 👛 Wallet.`"
+  },
+  {
+    "line": 1028,
+    "content": "🚫 <b>Outbound Call Failed</b>\\n📞 ${formatPhone(num.phoneNumber)} → ${formatPhone(destination)}\\nReason: Call routing failed. Please try again.",
+    "key_suggestion": "outbound_call_failedn_formatphonenumphonen",
+    "full_match": "_bot?.sendMessage(chatId, `🚫 <b>Outbound Call Failed</b>\\n📞 ${formatPhone(num.phoneNumber)} → ${form"
+  },
+  {
+    "line": 1167,
+    "content": "⚠️ <b>Plan Minutes Exhausted</b>\\n\\n📞 ${formatPhone(phoneNumber)}\\nUsed: <b>${used}/${limit}</b> minutes this cycle.\\n\\nOverage billing is now active from your wallet. Top up or upgrade your plan.",
+    "key_suggestion": "plan_minutes_exhaustednn_formatphonephone",
+    "full_match": "_bot?.sendMessage(chatId, `⚠️ <b>Plan Minutes Exhausted</b>\\n\\n📞 ${formatPhone(phoneNumber)}\\nUsed: "
+  },
+  {
+    "line": 1237,
+    "content": "💰 <b>${callType}</b>: ${minutesBilled} min × $${rate} = <b>${chargedStr}</b> (${isUSCanada(destinationNumber) ? 'US/CA' : 'International'})${discountLine}",
+    "key_suggestion": "calltype_minutesbilled_min_rate",
+    "full_match": "_bot?.sendMessage(chatId,\n            `💰 <b>${callType}</b>: ${minutesBilled} min × $${rate} = <b>${"
+  },
+  {
+    "line": 1272,
+    "content": "💰 <b>Overage</b>: ${newOverageMin} min × $${rate} = <b>${chargedStr}</b> (${isUSCanada(destinationNumber) ? 'US/CA' : 'International'})${discountLine}",
+    "key_suggestion": "overage_newoveragemin_min_rate_cha",
+    "full_match": "_bot?.sendMessage(chatId,\n            `💰 <b>Overage</b>: ${newOverageMin} min × $${rate} = <b>${char"
+  },
+  {
+    "line": 1502,
+    "content": "📞 <b>Transfer Ended</b>\\n${formatPhone(transfer.forwardTo)} — ${formatDuration(transferDuration)}\\n${planLine}",
+    "key_suggestion": "transfer_endednformatphonetransferforwardto",
+    "full_match": "_bot?.sendMessage(ownerId,\n            `📞 <b>Transfer Ended</b>\\n${formatPhone(transfer.forwardTo)} "
+  },
+  {
+    "line": 1592,
+    "content": "❌ <b>Transfer Failed</b>\\n📞 ${formatPhone(transfer.forwardTo)} — ${reason}",
+    "key_suggestion": "transfer_failedn_formatphonetransferforwar",
+    "full_match": "_bot?.sendMessage(chatId,\n        `❌ <b>Transfer Failed</b>\\n📞 ${formatPhone(transfer.forwardTo)} — "
+  },
+  {
+    "line": 1851,
+    "content": "⚠️ <b>Orphaned Number Alert</b>\\n\\n📞 <code>${to}</code> received inbound call from <code>${from}</code>\\n\\n❌ No owner found in DB — call rejected.\\nThis number may need to be released or re-assigned.",
+    "key_suggestion": "orphaned_number_alertnn_to_received",
+    "full_match": "_bot.sendMessage(process.env.TELEGRAM_ADMIN_CHAT_ID, `⚠️ <b>Orphaned Number Alert</b>\\n\\n📞 <code>${t"
+  },
+  {
+    "line": 1893,
+    "content": "🚫 <b>Incoming Call Blocked — Wallet Empty</b>\\n\\n📞 ${formatPhone(to)}\\n👤 Caller: ${formatPhone(from)}\\n\\nPlan minutes exhausted and wallet balance is insufficient for overage ($${inboundRate}/min ${isUSCanada(from) ? 'US/CA' : 'Intl'}). Top up your wallet or upgrade your plan to resume receiving calls.",
+    "key_suggestion": "incoming_call_blocked_wallet_emptynn",
+    "full_match": "_bot?.sendMessage(chatId, `🚫 <b>Incoming Call Blocked — Wallet Empty</b>\\n\\n📞 ${formatPhone(to)}\\n👤 "
+  },
+  {
+    "line": 1944,
+    "content": "💰 <b>Overage Active</b> — Plan minutes exhausted. ${chargedStr} (${isUSCanada(destination) ? 'US/CA' : 'Intl'}) from ${deductResult.currency.toUpperCase()} wallet.",
+    "key_suggestion": "overage_active_plan_minutes_exhausted",
+    "full_match": "_bot?.sendMessage(chatId, `💰 <b>Overage Active</b> — Plan minutes exhausted. ${chargedStr} (${isUSCa"
+  },
+  {
+    "line": 1959,
+    "content": "🚫 <b>Call Ended</b> — Plan minutes + wallet exhausted.\\n⏱️ ~${elapsedMin} min. Top up wallet or upgrade plan.",
+    "key_suggestion": "call_ended_plan_minutes_wallet",
+    "full_match": "_bot?.sendMessage(chatId, `🚫 <b>Call Ended</b> — Plan minutes + wallet exhausted.\\n⏱️ ~${elapsedMin}"
+  },
+  {
+    "line": 2003,
+    "content": "📞 <b>Incoming Call</b>\\n${formatPhone(from)} → ${formatPhone(to)}\\nRinging your SIP device...",
+    "key_suggestion": "incoming_callnformatphonefrom_formatph",
+    "full_match": "_bot?.sendMessage(chatId,\n          `📞 <b>Incoming Call</b>\\n${formatPhone(from)} → ${formatPhone(to"
+  },
+  {
+    "line": 2289,
+    "content": "🚫 <b>Outbound Calling Locked</b>\\n\\n",
+    "key_suggestion": "outbound_calling_lockednn",
+    "full_match": "_bot.sendMessage(cooldownEntry.chatId,\n        `🚫 <b>Outbound Calling Locked</b>\\n\\n`"
+  },
+  {
+    "line": 2495,
+    "content": "⏰ <b>Test Calls Expired</b>\\n\\nYour free SIP test has ended. Please disconnect your SIP client to stop retrying.\\n\\n💡 To make more calls, purchase a Cloud Phone plan from the main menu.",
+    "key_suggestion": "test_calls_expirednnyour_free_sip",
+    "full_match": "_bot.sendMessage(lookupResult.expiredChatId,\n          `⏰ <b>Test Calls Expired</b>\\n\\nYour free SIP"
+  },
+  {
+    "line": 2551,
+    "content": "🚫 <b>Outbound Call Blocked</b>\\n📞 ${formatPhone(num.phoneNumber)} → ${formatPhone(destination)}\\nReason: Number is ${num.status}. Please renew or contact support.",
+    "key_suggestion": "outbound_call_blockedn_formatphonenumphone",
+    "full_match": "_bot?.sendMessage(chatId, `🚫 <b>Outbound Call Blocked</b>\\n📞 ${formatPhone(num.phoneNumber)} → ${for"
+  },
+  {
+    "line": 2600,
+    "content": "🚫 <b>SIP Call Blocked</b> — Wallet balance insufficient (need $${sipRate}/min + $${CALL_CONNECTION_FEE} connect fee ${isUSCanada(destination) ? 'US/CA' : 'Intl'}).\\nBalance: $${walletCheck.usdBal.toFixed(2)} / NGN: ₦${0}\\nOutbound calls are billed from wallet. Top up via 👛 Wallet.",
+    "key_suggestion": "sip_call_blocked_wallet_balance",
+    "full_match": "_bot?.sendMessage(chatId, `🚫 <b>SIP Call Blocked</b> — Wallet balance insufficient (need $${sipRate}"
+  },
+  {
+    "line": 2741,
+    "content": "📞 <b>Free SIP Test Call</b>\\nFrom: ${formatPhone(num.phoneNumber)}\\nTo: ${formatPhone(destination)}\\n🆓 Free test call (${testCallInfo.callsRemaining ?? 0} remaining, max ${testCallInfo.maxDuration}s)",
+    "key_suggestion": "free_sip_test_callnfrom_formatphonenumphon",
+    "full_match": "_bot?.sendMessage(chatId, `📞 <b>Free SIP Test Call</b>\\nFrom: ${formatPhone(num.phoneNumber)}\\nTo: $"
+  },
+  {
+    "line": 2752,
+    "content": "📞 <b>SIP Outbound Call</b>\\nFrom: ${formatPhone(num.phoneNumber)}\\nTo: ${formatPhone(destination)}\\n${walletLine}",
+    "key_suggestion": "sip_outbound_callnfrom_formatphonenumphone",
+    "full_match": "_bot?.sendMessage(chatId, `📞 <b>SIP Outbound Call</b>\\nFrom: ${formatPhone(num.phoneNumber)}\\nTo: ${"
+  },
+  {
+    "line": 2761,
+    "content": "🚫 <b>Outbound Call Failed</b>\\n📞 ${formatPhone(num.phoneNumber)} → ${formatPhone(destination)}\\nReason: Outbound calling is temporarily unavailable. Please try again later.",
+    "key_suggestion": "outbound_call_failedn_formatphonenumphonen",
+    "full_match": "_bot?.sendMessage(chatId, `🚫 <b>Outbound Call Failed</b>\\n📞 ${formatPhone(num.phoneNumber)} → ${form"
+  },
+  {
+    "line": 2937,
+    "content": "📞 <b>SIP Outbound Call</b>\\nFrom: ${formatPhone(num.phoneNumber)}\\nTo: ${formatPhone(destination)}\\nRate: $${sipRate}/min${connFeeNote} (~${estMinutes} min available)",
+    "key_suggestion": "sip_outbound_callnfrom_formatphonenumphone",
+    "full_match": "_bot?.sendMessage(chatId, `📞 <b>SIP Outbound Call</b>\\nFrom: ${formatPhone(num.phoneNumber)}\\nTo: ${"
+  },
+  {
+    "line": 3113,
+    "content": "⚠️ <b>Low Balance</b> — $${usdBal.toFixed(2)} (~${estMinutes} min fwd). Top up <b>$25</b> via 👛 Wallet.",
+    "key_suggestion": "low_balance_usdbaltofixed2_estminu",
+    "full_match": "_bot?.sendMessage(chatId, `⚠️ <b>Low Balance</b> — $${usdBal.toFixed(2)} (~${estMinutes} min fwd). T"
+  },
+  {
+    "line": 3119,
+    "content": "🚫 <b>Forwarding Blocked</b> — Wallet $${usdBal.toFixed(2)} (need $${CALL_FORWARDING_RATE_MIN}/min).\\nTop up <b>$25</b> via 👛 Wallet.",
+    "key_suggestion": "forwarding_blocked_wallet_usdbaltofixed2",
+    "full_match": "_bot?.sendMessage(chatId, `🚫 <b>Forwarding Blocked</b> — Wallet $${usdBal.toFixed(2)} (need $${CALL_"
+  },
+  {
+    "line": 3302,
+    "content": "🚫 <b>IVR Forward Blocked — Wallet Empty</b>\\n\\n📞 ${formatPhone(num.phoneNumber)}\\n📲 Forward to: ${formatPhone(option.forwardTo)}\\n\\nWallet $${usdBal.toFixed(2)} (need $${ivrFwdRate}/min ${isUSCanada(option.forwardTo) ? 'US/CA' : 'Intl'}).\\nTop up via 👛 Wallet.",
+    "key_suggestion": "ivr_forward_blocked_wallet_emptynn",
+    "full_match": "_bot?.sendMessage(chatId, `🚫 <b>IVR Forward Blocked — Wallet Empty</b>\\n\\n📞 ${formatPhone(num.phoneN"
+  },
+  {
+    "line": 3308,
+    "content": "⚠️ <b>Low Balance</b> — $${usdBal.toFixed(2)} (~${estMinutes} min IVR fwd). Top up via 👛 Wallet.",
+    "key_suggestion": "low_balance_usdbaltofixed2_estminu",
+    "full_match": "_bot?.sendMessage(chatId, `⚠️ <b>Low Balance</b> — $${usdBal.toFixed(2)} (~${estMinutes} min IVR fwd"
+  },
+  {
+    "line": 3512,
+    "content": "📞 <b>SIP Call Ended</b> (auto-routed)\\n\\nFrom: ${formatPhone(num.phoneNumber)}\\nTo: ${formatPhone(pendingBill.destination)}\\n⏱️ ${formatDuration(duration)}\\n💰 ${minutesBilled} min × $${rate} billed",
+    "key_suggestion": "sip_call_ended_autoroutednnfrom_formatph",
+    "full_match": "_bot?.sendMessage(chatId,\n            `📞 <b>SIP Call Ended</b> (auto-routed)\\n\\nFrom: ${formatPhone("
+  },
+  {
+    "line": 4030,
+    "content": "🚫 <b>IVR Call Ended</b> — Wallet exhausted ($${usdBal.toFixed(2)}).\\nIVR calls cost $${IVR_CALL_RATE}/min. Top up via 👛 Wallet.",
+    "key_suggestion": "ivr_call_ended_wallet_exhausted",
+    "full_match": "_bot?.sendMessage(session.chatId, `🚫 <b>IVR Call Ended</b> — Wallet exhausted ($${usdBal.toFixed(2)}"
+  },
+  {
+    "line": 4323,
+    "content": "📞 <b>Call not connected</b> — the recipient was busy or didn't answer.\\n\\n🎁 Your free trial call is still available! Try again anytime.",
+    "key_suggestion": "call_not_connected_the_recipient",
+    "full_match": "_bot?.sendMessage(session.chatId, `📞 <b>Call not connected</b> — the recipient was busy or didn't an"
+  },
+  {
+    "line": 4389,
+    "content": "⏱ <b>Transfer Timeout</b>\\n📞 ${formatPhone(to)} didn't answer after 30 seconds",
+    "key_suggestion": "transfer_timeoutn_formatphoneto_didnt_an",
+    "full_match": "_bot?.sendMessage(transfer.chatId,\n            `⏱ <b>Transfer Timeout</b>\\n📞 ${formatPhone(to)} didn"
+  },
+  {
+    "line": 4420,
+    "content": "✅ <b>Transfer Connected</b>\\n📞 ${transfer.targetNumber} connected to ${formatPhone(transfer.ivrNumber)}",
+    "key_suggestion": "transfer_connectedn_transfertargetnumber_c",
+    "full_match": "_bot?.sendMessage(transfer.chatId,\n      `✅ <b>Transfer Connected</b>\\n📞 ${transfer.targetNumber} co"
+  }
+]

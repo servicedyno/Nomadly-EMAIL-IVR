@@ -1,0 +1,154 @@
+#!/usr/bin/env python3
+"""
+Generate clean voice service translation keys
+"""
+
+import json
+
+# Manual definition of VS keys with clean parameter names
+vs_keys_clean = {
+    "callDisconnectedAutoRouted": {
+        "params": ["usdBal", "lowBalTrigger", "lowBalResume"],
+        "template": "🚫 <b>Call Disconnected</b> (auto-routed)\\n\\nWallet: <b>$${usdBal}</b> — below $${lowBalTrigger} threshold.\\n💰 Top up at least $${lowBalResume} to resume calling."
+    },
+    "callDisconnectedWalletInsufficient": {
+        "params": ["rate", "connFee"],
+        "template": "🚫 <b>Call Disconnected</b> — Wallet insufficient (need $${rate}/min + $${connFee} connect fee).\\nTop up via 👛 Wallet."
+    },
+    "callDisconnectedWalletExhausted": {
+        "params": [],
+        "template": "🚫 <b>Call Disconnected</b> — Wallet exhausted.\\nTop up via 👛 Wallet."
+    },
+    "outboundCallFailedRouting": {
+        "params": ["fromPhone", "toPhone"],
+        "template": "🚫 <b>Outbound Call Failed</b>\\n📞 ${fromPhone} → ${toPhone}\\nReason: Call routing failed. Please try again."
+    },
+    "planMinutesExhausted": {
+        "params": ["phoneNumber", "used", "limit"],
+        "template": "⚠️ <b>Plan Minutes Exhausted</b>\\n\\n📞 ${phoneNumber}\\nUsed: <b>${used}/${limit}</b> minutes this cycle.\\n\\nOverage billing is now active from your wallet. Top up or upgrade your plan."
+    },
+    "callTypeCharge": {
+        "params": ["callType", "minutesBilled", "rate", "chargedStr", "region", "discountLine"],
+        "template": "💰 <b>${callType}</b>: ${minutesBilled} min × $${rate} = <b>${chargedStr}</b> (${region})${discountLine}"
+    },
+    "overageCharge": {
+        "params": ["newOverageMin", "rate", "chargedStr", "region", "discountLine"],
+        "template": "💰 <b>Overage</b>: ${newOverageMin} min × $${rate} = <b>${chargedStr}</b> (${region})${discountLine}"
+    },
+    "transferEnded": {
+        "params": ["forwardPhone", "duration", "planLine"],
+        "template": "📞 <b>Transfer Ended</b>\\n${forwardPhone} — ${duration}\\n${planLine}"
+    },
+    "transferFailed": {
+        "params": ["forwardPhone", "reason"],
+        "template": "❌ <b>Transfer Failed</b>\\n📞 ${forwardPhone} — ${reason}"
+    },
+    "orphanedNumberAlert": {
+        "params": ["to", "from"],
+        "template": "⚠️ <b>Orphaned Number Alert</b>\\n\\n📞 <code>${to}</code> received inbound call from <code>${from}</code>\\n\\n❌ No owner found in DB — call rejected.\\nThis number may need to be released or re-assigned."
+    },
+    "incomingCallBlockedWalletEmpty": {
+        "params": ["toPhone", "fromPhone", "inboundRate", "region"],
+        "template": "🚫 <b>Incoming Call Blocked — Wallet Empty</b>\\n\\n📞 ${toPhone}\\n👤 Caller: ${fromPhone}\\n\\nPlan minutes exhausted and wallet balance is insufficient for overage ($${inboundRate}/min ${region}). Top up your wallet or upgrade your plan to resume receiving calls."
+    },
+    "overageActive": {
+        "params": ["chargedStr", "region", "currency"],
+        "template": "💰 <b>Overage Active</b> — Plan minutes exhausted. ${chargedStr} (${region}) from ${currency} wallet."
+    },
+    "callEndedPlanWalletExhausted": {
+        "params": ["elapsedMin"],
+        "template": "🚫 <b>Call Ended</b> — Plan minutes + wallet exhausted.\\n⏱️ ~${elapsedMin} min. Top up wallet or upgrade plan."
+    },
+    "incomingCall": {
+        "params": ["fromPhone", "toPhone"],
+        "template": "📞 <b>Incoming Call</b>\\n${fromPhone} → ${toPhone}\\nRinging your SIP device..."
+    },
+    "outboundCallingLocked": {
+        "params": [],
+        "template": "🚫 <b>Outbound Calling Locked</b>\\n\\n"
+    },
+    "testCallsExpired": {
+        "params": [],
+        "template": "⏰ <b>Test Calls Expired</b>\\n\\nYour free SIP test has ended. Please disconnect your SIP client to stop retrying.\\n\\n💡 To make more calls, purchase a Cloud Phone plan from the main menu."
+    },
+    "outboundCallBlocked": {
+        "params": ["fromPhone", "toPhone", "status"],
+        "template": "🚫 <b>Outbound Call Blocked</b>\\n📞 ${fromPhone} → ${toPhone}\\nReason: Number is ${status}. Please renew or contact support."
+    },
+    "sipCallBlocked": {
+        "params": ["sipRate", "connFee", "region", "usdBal", "ngnBal"],
+        "template": "🚫 <b>SIP Call Blocked</b> — Wallet balance insufficient (need $${sipRate}/min + $${connFee} connect fee ${region}).\\nBalance: $${usdBal} / NGN: ₦${ngnBal}\\nOutbound calls are billed from wallet. Top up via 👛 Wallet."
+    },
+    "freeSipTestCall": {
+        "params": ["fromPhone", "toPhone", "remaining", "maxDuration"],
+        "template": "📞 <b>Free SIP Test Call</b>\\nFrom: ${fromPhone}\\nTo: ${toPhone}\\n🆓 Free test call (${remaining} remaining, max ${maxDuration}s)"
+    },
+    "sipOutboundCall": {
+        "params": ["fromPhone", "toPhone", "walletLine"],
+        "template": "📞 <b>SIP Outbound Call</b>\\nFrom: ${fromPhone}\\nTo: ${toPhone}\\n${walletLine}"
+    },
+    "outboundCallFailedTempUnavailable": {
+        "params": ["fromPhone", "toPhone"],
+        "template": "🚫 <b>Outbound Call Failed</b>\\n📞 ${fromPhone} → ${toPhone}\\nReason: Outbound calling is temporarily unavailable. Please try again later."
+    },
+    "sipOutboundCallWithRate": {
+        "params": ["fromPhone", "toPhone", "sipRate", "connFeeNote", "estMinutes"],
+        "template": "📞 <b>SIP Outbound Call</b>\\nFrom: ${fromPhone}\\nTo: ${toPhone}\\nRate: $${sipRate}/min${connFeeNote} (~${estMinutes} min available)"
+    },
+    "lowBalanceForward": {
+        "params": ["usdBal", "estMinutes"],
+        "template": "⚠️ <b>Low Balance</b> — $${usdBal} (~${estMinutes} min fwd). Top up <b>$25</b> via 👛 Wallet."
+    },
+    "forwardingBlocked": {
+        "params": ["usdBal", "fwdRate"],
+        "template": "🚫 <b>Forwarding Blocked</b> — Wallet $${usdBal} (need $${fwdRate}/min).\\nTop up <b>$25</b> via 👛 Wallet."
+    },
+    "ivrForwardBlocked": {
+        "params": ["fromPhone", "forwardPhone", "usdBal", "ivrFwdRate", "region"],
+        "template": "🚫 <b>IVR Forward Blocked — Wallet Empty</b>\\n\\n📞 ${fromPhone}\\n📲 Forward to: ${forwardPhone}\\n\\nWallet $${usdBal} (need $${ivrFwdRate}/min ${region}).\\nTop up via 👛 Wallet."
+    },
+    "lowBalanceIvrForward": {
+        "params": ["usdBal", "estMinutes"],
+        "template": "⚠️ <b>Low Balance</b> — $${usdBal} (~${estMinutes} min IVR fwd). Top up via 👛 Wallet."
+    },
+    "sipCallEndedAutoRouted": {
+        "params": ["fromPhone", "toPhone", "duration", "minutesBilled", "rate"],
+        "template": "📞 <b>SIP Call Ended</b> (auto-routed)\\n\\nFrom: ${fromPhone}\\nTo: ${toPhone}\\n⏱️ ${duration}\\n💰 ${minutesBilled} min × $${rate} billed"
+    },
+    "ivrCallEndedWalletExhausted": {
+        "params": ["usdBal", "ivrCallRate"],
+        "template": "🚫 <b>IVR Call Ended</b> — Wallet exhausted ($${usdBal}).\\nIVR calls cost $${ivrCallRate}/min. Top up via 👛 Wallet."
+    },
+    "callNotConnected": {
+        "params": [],
+        "template": "📞 <b>Call not connected</b> — the recipient was busy or didn't answer.\\n\\n🎁 Your free trial call is still available! Try again anytime."
+    },
+    "transferTimeout": {
+        "params": ["toPhone"],
+        "template": "⏱ <b>Transfer Timeout</b>\\n📞 ${toPhone} didn't answer after 30 seconds"
+    },
+    "transferConnected": {
+        "params": ["targetNumber", "ivrNumber"],
+        "template": "✅ <b>Transfer Connected</b>\\n📞 ${targetNumber} connected to ${ivrNumber}"
+    },
+}
+
+# Generate JS format for en.js
+print("// Add this to /app/js/lang/en.js before the closing of module.exports")
+print("\nconst vs = {")
+for key, data in vs_keys_clean.items():
+    params = data["params"]
+    template = data["template"]
+    
+    if params:
+        params_str = ", ".join(params)
+        print(f"  {key}: ({params_str}) => `{template}`,")
+    else:
+        print(f"  {key}: `{template}`,")
+print("}")
+
+# Save to JSON for use by other scripts
+with open('/app/scripts/vs_keys_final.json', 'w') as f:
+    json.dump(vs_keys_clean, f, indent=2, ensure_ascii=False)
+
+print("\n\n✅ Saved final VS keys to /app/scripts/vs_keys_final.json")

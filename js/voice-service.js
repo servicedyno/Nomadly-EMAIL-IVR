@@ -265,16 +265,17 @@ async function handleAutoRoutedRealTimeBilling(callControlId, sipUsername, fromC
         if (walletCheck.usdBal < LOW_BALANCE_TRIGGER) {
           log(`[Voice] Fix #5: Auto-routed LOW BALANCE LOCK — $${walletCheck.usdBal.toFixed(2)} < $${LOW_BALANCE_TRIGGER}, hanging up ${callControlId}`)
           await _telnyxApi.hangupCall(callControlId).catch(() => {})
-          _bot?.sendMessage(chatId,
-            `🚫 <b>Call Disconnected</b> (auto-routed)\n\nWallet: <b>$${walletCheck.usdBal.toFixed(2)}</b> — below $${LOW_BALANCE_TRIGGER} threshold.\n💰 Top up at least $${LOW_BALANCE_RESUME} to resume calling.`,
-            { parse_mode: 'HTML' }
-          ).catch(() => {})
+          const lang = await _getUserLang(chatId)
+          const msg = _trans('vs.callDisconnectedAutoRouted', lang, walletCheck.usdBal.toFixed(2), LOW_BALANCE_TRIGGER, LOW_BALANCE_RESUME)
+          if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
           return
         }
         if (!walletCheck.sufficient) {
           log(`[Voice] Fix #5: Auto-routed insufficient wallet — hanging up ${callControlId}`)
           await _telnyxApi.hangupCall(callControlId).catch(() => {})
-          _bot?.sendMessage(chatId, `🚫 <b>Call Disconnected</b> — Wallet insufficient (need $${rate}/min + $${CALL_CONNECTION_FEE} connect fee).\nTop up via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+          const lang = await _getUserLang(chatId)
+          const msg = _trans('vs.callDisconnectedWalletInsufficient', lang, rate, CALL_CONNECTION_FEE)
+          if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
           return
         }
       } catch (e) { log(`[Voice] Fix #5: Wallet check error: ${e.message}`) }
@@ -328,7 +329,9 @@ async function handleAutoRoutedRealTimeBilling(callControlId, sipUsername, fromC
             clearInterval(session._limitTimer)
             sess._limitDisconnect = true
             await _telnyxApi.hangupCall(callControlId).catch(() => {})
-            _bot?.sendMessage(chatId, `🚫 <b>Call Disconnected</b> — Wallet exhausted.\nTop up via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+            const lang = await _getUserLang(chatId)
+            const msg = _trans('vs.callDisconnectedWalletExhausted', lang)
+            if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
             return
           }
         } catch (e) { log(`[Voice] Fix #5: Mid-call billing error: ${e.message}`) }
@@ -1025,7 +1028,9 @@ async function _attemptTwilioDirectCall(chatId, num, destination, bridgeId, call
 
     if (!subSid || !subToken) {
       log(`[Voice] Twilio direct fallback: No sub-account credentials for chatId=${chatId} (subSid=${!!subSid}, subToken=${!!subToken})`)
-      _bot?.sendMessage(chatId, `🚫 <b>Outbound Call Failed</b>\n📞 ${formatPhone(num.phoneNumber)} → ${formatPhone(destination)}\nReason: Call routing failed. Please try again.`, { parse_mode: 'HTML' }).catch(() => {})
+      const lang = await _getUserLang(chatId)
+      const msg = _trans('vs.outboundCallFailedRouting', lang, formatPhone(num.phoneNumber), formatPhone(destination))
+      if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
       delete pendingBridges[bridgeId]
       if (activeCalls[callControlId]) delete activeCalls[callControlId]
       return
@@ -1050,7 +1055,9 @@ async function _attemptTwilioDirectCall(chatId, num, destination, bridgeId, call
     }
   } catch (twilioErr) {
     log(`[Voice] Twilio direct fallback failed: ${twilioErr.message}`)
-    _bot?.sendMessage(chatId, `🚫 <b>Outbound Call Failed</b>\n📞 ${formatPhone(num.phoneNumber)} → ${formatPhone(destination)}\nReason: Call routing failed. Please try again.`, { parse_mode: 'HTML' }).catch(() => {})
+    const lang = await _getUserLang(chatId)
+    const msg = _trans('vs.outboundCallFailedRouting', lang, formatPhone(num.phoneNumber), formatPhone(destination))
+    if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
     delete pendingBridges[bridgeId]
     if (activeCalls[callControlId]) delete activeCalls[callControlId]
   }
@@ -1164,7 +1171,9 @@ async function incrementMinutesUsed(chatId, phoneNumber, minutes) {
         { _id: chatId, 'val.numbers.phoneNumber': phoneNumber },
         { $set: { 'val.numbers.$._minLimitNotified': true } }
       )
-      _bot?.sendMessage(chatId, `⚠️ <b>Plan Minutes Exhausted</b>\n\n📞 ${formatPhone(phoneNumber)}\nUsed: <b>${used}/${limit}</b> minutes this cycle.\n\nOverage billing is now active from your wallet. Top up or upgrade your plan.`, { parse_mode: 'HTML' }).catch(() => {})
+      const lang = await _getUserLang(chatId)
+      const msg = _trans('vs.planMinutesExhausted', lang, formatPhone(phoneNumber), used, limit)
+      if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
     }
 
     const overageMinutes = limit !== Infinity ? Math.max(0, used - limit) : 0
@@ -1234,10 +1243,10 @@ async function billCallMinutesUnified(chatId, phoneNumber, minutesBilled, destin
           const chargedStr = deductResult.currency === 'ngn' ? `₦${deductResult.chargedNgn}` : `$${totalCharge.toFixed(2)}`
           if (_payments) set(_payments, ref, `Outbound,${callType},$${totalCharge.toFixed(2)},${chatId},${phoneNumber},${destinationNumber},${new Date()}${deductResult.currency === 'ngn' ? `,${deductResult.chargedNgn} NGN` : ''},loyaltyDiscount=${loyaltyDiscount}`)
           log(`[Voice] Outbound billed: ${chargedStr} (${minutesBilled} min × $${rate} ${isUSCanada(destinationNumber) ? 'US/CA' : 'Intl'}) for ${callType}`)
-          _bot?.sendMessage(chatId,
-            `💰 <b>${callType}</b>: ${minutesBilled} min × $${rate} = <b>${chargedStr}</b> (${isUSCanada(destinationNumber) ? 'US/CA' : 'International'})${discountLine}`,
-            { parse_mode: 'HTML' }
-          ).catch(() => {})
+          const lang = await _getUserLang(chatId)
+          const region = isUSCanada(destinationNumber) ? 'US/CA' : 'International'
+          const msg = _trans('vs.callTypeCharge', lang, callType, minutesBilled, rate, chargedStr, region, discountLine)
+          if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
         } else {
           log(`[Voice] Outbound charge failed (insufficient funds): $${totalCharge.toFixed(2)} for ${callType}`)
         }
@@ -1269,10 +1278,10 @@ async function billCallMinutesUnified(chatId, phoneNumber, minutesBilled, destin
           const chargedStr = deductResult.currency === 'ngn' ? `₦${deductResult.chargedNgn}` : `$${overageCharge.toFixed(2)}`
           if (_payments) set(_payments, ref, `Overage,${callType},$${overageCharge.toFixed(2)},${chatId},${phoneNumber},${destinationNumber},${new Date()}${deductResult.currency === 'ngn' ? `,${deductResult.chargedNgn} NGN` : ''},loyaltyDiscount=${loyaltyDiscount}`)
           log(`[Voice] Overage billed: ${chargedStr} (${newOverageMin} min × $${rate} ${isUSCanada(destinationNumber) ? 'US/CA' : 'Intl'}) for ${callType}`)
-          _bot?.sendMessage(chatId,
-            `💰 <b>Overage</b>: ${newOverageMin} min × $${rate} = <b>${chargedStr}</b> (${isUSCanada(destinationNumber) ? 'US/CA' : 'International'})${discountLine}`,
-            { parse_mode: 'HTML' }
-          ).catch(() => {})
+          const lang = await _getUserLang(chatId)
+          const region = isUSCanada(destinationNumber) ? 'US/CA' : 'International'
+          const msg = _trans('vs.overageCharge', lang, newOverageMin, rate, chargedStr, region, discountLine)
+          if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
         }
       } catch (e) { log(`[Voice] Overage charge error: ${e.message}`) }
     }
@@ -1941,7 +1950,10 @@ async function handleCallInitiated(payload) {
               if (!sess._overageNotified) {
                 sess._overageNotified = true
                 const chargedStr = deductResult.currency === 'ngn' ? `₦${deductResult.chargedNgn}/min` : `$${rate}/min`
-                _bot?.sendMessage(chatId, `💰 <b>Overage Active</b> — Plan minutes exhausted. ${chargedStr} (${isUSCanada(destination) ? 'US/CA' : 'Intl'}) from ${deductResult.currency.toUpperCase()} wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+                const lang = await _getUserLang(chatId)
+                const region = isUSCanada(destination) ? 'US/CA' : 'Intl'
+                const msg = _trans('vs.overageActive', lang, chargedStr, region, deductResult.currency.toUpperCase())
+                if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
               }
             }
           } catch (e) { log(`[Voice] Mid-call overage error: ${e.message}`) }
@@ -1956,7 +1968,9 @@ async function handleCallInitiated(payload) {
           } catch (e) {
             await _telnyxApi.hangupCall(callControlId).catch(() => {})
           }
-          _bot?.sendMessage(chatId, `🚫 <b>Call Ended</b> — Plan minutes + wallet exhausted.\n⏱️ ~${elapsedMin} min. Top up wallet or upgrade plan.`, { parse_mode: 'HTML' }).catch(() => {})
+          const lang = await _getUserLang(chatId)
+          const msg = _trans('vs.callEndedPlanWalletExhausted', lang, elapsedMin)
+          if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
         }
       }
     }
@@ -2548,7 +2562,9 @@ async function handleOutboundSipCall(payload) {
     try {
       await _telnyxApi.hangupCall(callControlId)
     } catch (e) { log(`[Voice] Reject error: ${e.message}`) }
-    _bot?.sendMessage(chatId, `🚫 <b>Outbound Call Blocked</b>\n📞 ${formatPhone(num.phoneNumber)} → ${formatPhone(destination)}\nReason: Number is ${num.status}. Please renew or contact support.`, { parse_mode: 'HTML' }).catch(() => {})
+    const lang = await _getUserLang(chatId)
+    const msg = _trans('vs.outboundCallBlocked', lang, formatPhone(num.phoneNumber), formatPhone(destination), num.status)
+    if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
     return
   }
 
@@ -2597,7 +2613,10 @@ async function handleOutboundSipCall(payload) {
         } else {
           await _telnyxApi.rejectCall(callControlId, 'CALL_REJECTED')
         }
-        _bot?.sendMessage(chatId, `🚫 <b>SIP Call Blocked</b> — Wallet balance insufficient (need $${sipRate}/min + $${CALL_CONNECTION_FEE} connect fee ${isUSCanada(destination) ? 'US/CA' : 'Intl'}).\nBalance: $${walletCheck.usdBal.toFixed(2)} / NGN: ₦${0}\nOutbound calls are billed from wallet. Top up via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+        const lang = await _getUserLang(chatId)
+        const region = isUSCanada(destination) ? 'US/CA' : 'Intl'
+        const msg = _trans('vs.sipCallBlocked', lang, sipRate, CALL_CONNECTION_FEE, region, walletCheck.usdBal.toFixed(2), 0)
+        if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
         return
       }
     } catch (e) { log(`[Voice] Wallet check error: ${e.message}`) }
@@ -2680,7 +2699,9 @@ async function handleOutboundSipCall(payload) {
               clearInterval(outboundSession._limitTimer)
               sess._limitDisconnect = true
               await _telnyxApi.hangupCall(callControlId).catch(() => {})
-              _bot?.sendMessage(chatId, `🚫 <b>Call Disconnected</b> — Wallet exhausted.\nTop up via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+              const lang = await _getUserLang(chatId)
+              const msg = _trans('vs.callDisconnectedWalletExhausted', lang)
+              if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
               return
             }
           } catch (e) { log(`[Voice] Mid-call wallet check error: ${e.message}`) }
@@ -2731,14 +2752,18 @@ async function handleOutboundSipCall(payload) {
           const sess = activeCalls[callControlId]
           if (sess?._limitTimer) clearInterval(sess._limitTimer)
           delete activeCalls[callControlId]
-          _bot?.sendMessage(chatId, `🚫 <b>Outbound Call Failed</b>\n📞 ${formatPhone(num.phoneNumber)} → ${formatPhone(destination)}\nReason: Call routing failed. Please try again.`, { parse_mode: 'HTML' }).catch(() => {})
+          const lang = await _getUserLang(chatId)
+          const msg = _trans('vs.outboundCallFailedRouting', lang, formatPhone(num.phoneNumber), formatPhone(destination))
+          if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
         }
       }
     }
 
     // Notify user about the outbound call
     if (testCallInfo.isTestCall) {
-      _bot?.sendMessage(chatId, `📞 <b>Free SIP Test Call</b>\nFrom: ${formatPhone(num.phoneNumber)}\nTo: ${formatPhone(destination)}\n🆓 Free test call (${testCallInfo.callsRemaining ?? 0} remaining, max ${testCallInfo.maxDuration}s)`, { parse_mode: 'HTML' }).catch(() => {})
+      const lang = await _getUserLang(chatId)
+      const msg = _trans('vs.freeSipTestCall', lang, formatPhone(num.phoneNumber), formatPhone(destination), testCallInfo.callsRemaining ?? 0, testCallInfo.maxDuration)
+      if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
     } else {
       let walletLine = ''
       if (_walletOf) {
@@ -2854,7 +2879,9 @@ async function handleOutboundSipCall(payload) {
             sess._limitDisconnect = true
             // Hang up the Telnyx SIP leg — Twilio PSTN leg will end automatically
             await _telnyxApi.hangupCall(callControlId).catch(() => {})
-            _bot?.sendMessage(chatId, `🚫 <b>Call Disconnected</b> — Wallet exhausted.\nTop up via 👛 Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+            const lang = await _getUserLang(chatId)
+            const msg = _trans('vs.callDisconnectedWalletExhausted', lang)
+            if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
             return
           }
         } catch (e) { log(`[Voice] Mid-call wallet check error (Twilio bridge): ${e.message}`) }
