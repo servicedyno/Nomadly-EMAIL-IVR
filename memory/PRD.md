@@ -57,3 +57,7 @@ Multi-service platform (Telegram bot + React frontend + Node.js backend) managin
 - `js/domain-service.js` — Domain registration, dual-registrar pricing
 - `js/tests/test_domain_price_fix.js` — Domain pricing tests
 - `js/tests/test_bulkivr_wallet.js` — BulkIVR wallet tests
+
+
+## Recent Changes
+- **Telnyx Race Condition Fix** — Suppressed error 90018 ("Call has already ended") across all Telnyx call control functions. Added `_endedCalls` tracker in voice-service.js with guards in all gather/speak/hangup handlers.

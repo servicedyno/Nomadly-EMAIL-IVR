@@ -400,6 +400,12 @@ async function speakOnCall(callControlId, text, voice = 'female', language = 'en
     const res = await axios.post(`${BASE}/calls/${callControlId}/actions/speak`, body, { headers: headers() })
     return res.data?.data || null
   } catch (e) {
+    const errCode = e.response?.data?.errors?.[0]?.code
+    const errDetail = e.response?.data?.errors?.[0]?.detail || e.message || ''
+    // Suppress 90018 "Call has already ended" — race condition when call hangs up during gather/speak
+    if (errCode === '90018' || errDetail.includes('already ended') || errDetail.includes('no longer active')) {
+      return null
+    }
     log('Telnyx speakOnCall error:', e.response?.data || e.message)
     return null
   }
@@ -412,6 +418,11 @@ async function startRecording(callControlId, channels = 'single', format = 'mp3'
     const res = await axios.post(`${BASE}/calls/${callControlId}/actions/record_start`, body, { headers: headers() })
     return res.data?.data || null
   } catch (e) {
+    const errCode = e.response?.data?.errors?.[0]?.code
+    const errDetail = e.response?.data?.errors?.[0]?.detail || e.message || ''
+    if (errCode === '90018' || errDetail.includes('already ended') || errDetail.includes('no longer active')) {
+      return null
+    }
     log('Telnyx startRecording error:', e.response?.data || e.message)
     return null
   }
@@ -433,6 +444,11 @@ async function gatherDTMF(callControlId, payload, options = {}) {
     const res = await axios.post(`${BASE}/calls/${callControlId}/actions/gather_using_speak`, body, { headers: headers() })
     return res.data?.data || null
   } catch (e) {
+    const errCode = e.response?.data?.errors?.[0]?.code
+    const errDetail = e.response?.data?.errors?.[0]?.detail || e.message || ''
+    if (errCode === '90018' || errDetail.includes('already ended') || errDetail.includes('no longer active')) {
+      return null
+    }
     log('Telnyx gatherDTMF error:', e.response?.data || e.message)
     return null
   }
@@ -444,6 +460,11 @@ async function playbackStop(callControlId) {
     const res = await axios.post(`${BASE}/calls/${callControlId}/actions/playback_stop`, {}, { headers: headers() })
     return res.data?.data || null
   } catch (e) {
+    const errCode = e.response?.data?.errors?.[0]?.code
+    const errDetail = e.response?.data?.errors?.[0]?.detail || e.message || ''
+    if (errCode === '90018' || errDetail.includes('already ended') || errDetail.includes('no longer active')) {
+      return null
+    }
     log('Telnyx playbackStop error:', e.response?.data || e.message)
     return null
   }
@@ -455,6 +476,11 @@ async function stopRecording(callControlId) {
     const res = await axios.post(`${BASE}/calls/${callControlId}/actions/record_stop`, {}, { headers: headers() })
     return res.data?.data || null
   } catch (e) {
+    const errCode = e.response?.data?.errors?.[0]?.code
+    const errDetail = e.response?.data?.errors?.[0]?.detail || e.message || ''
+    if (errCode === '90018' || errDetail.includes('already ended') || errDetail.includes('no longer active')) {
+      return null
+    }
     log('Telnyx stopRecording error:', e.response?.data || e.message)
     return null
   }
@@ -687,8 +713,12 @@ async function playbackStart(callControlId, audioUrl, options = {}) {
     log(`[Telnyx] playbackStart OK: ${callControlId}`)
     return res.data?.data || { success: true }
   } catch (e) {
-    const detail = e.response?.data?.errors?.[0]?.detail || e.response?.data || e.message
-    log(`[Telnyx] playbackStart FAILED: ${callControlId} — ${JSON.stringify(detail)}`)
+    const errCode = e.response?.data?.errors?.[0]?.code
+    const errDetail = e.response?.data?.errors?.[0]?.detail || e.message || ''
+    if (errCode === '90018' || errDetail.includes('already ended') || errDetail.includes('no longer active')) {
+      return null
+    }
+    log(`[Telnyx] playbackStart FAILED: ${callControlId} — ${JSON.stringify(errDetail)}`)
     return null
   }
 }
@@ -707,7 +737,12 @@ async function gatherDTMFWithAudio(callControlId, audioUrl, options = {}) {
     const res = await axios.post(`${BASE}/calls/${callControlId}/actions/gather_using_audio`, body, { headers: headers() })
     return res.data?.data || null
   } catch (e) {
-    log(`[Telnyx] gatherDTMFWithAudio error: ${e.response?.data?.errors?.[0]?.detail || e.message}`)
+    const errCode = e.response?.data?.errors?.[0]?.code
+    const errDetail = e.response?.data?.errors?.[0]?.detail || e.message || ''
+    if (errCode === '90018' || errDetail.includes('already ended') || errDetail.includes('no longer active')) {
+      return null
+    }
+    log(`[Telnyx] gatherDTMFWithAudio error: ${errDetail}`)
     return null
   }
 }

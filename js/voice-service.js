@@ -34,6 +34,22 @@ const outboundIvrCalls = {}
 const twilioIvrSessions = {} // sessionId → { chatId, callerId, targetNumber, ... } for Twilio IVR calls
 const lastIvrCallParams = new Map() // chatId → last IVR call params for Redial feature
 
+// ── Ended Calls Tracker ──
+// Tracks call_control_ids that have received hangup events.
+// Prevents race condition where gather/speak commands are issued after call.hangup.
+const _endedCalls = new Set()
+const ENDED_CALL_TTL_MS = 60_000 // Auto-cleanup after 60s
+
+function markCallEnded(callControlId) {
+  if (!callControlId) return
+  _endedCalls.add(callControlId)
+  setTimeout(() => _endedCalls.delete(callControlId), ENDED_CALL_TTL_MS)
+}
+
+function isCallEnded(callControlId) {
+  return _endedCalls.has(callControlId)
+}
+
 // ── Voice mapping: OpenAI voice → Twilio Polly voice & Telnyx voice gender ──
 const OPENAI_TO_TWILIO_VOICE = {
   'alloy': 'Polly.Joanna-Neural',      // Female, neutral
@@ -1423,6 +1439,9 @@ async function handleBridgeTransferHangup(payload) {
   const callControlId = payload.call_control_id
   const transfer = activeBridgeTransfers[callControlId]
   if (!transfer) return false
+
+  // Mark as ended to prevent race conditions
+  markCallEnded(callControlId)
 
   const hangupCause = payload.hangup_cause || 'unknown'
 
@@ -3218,6 +3237,12 @@ async function handleGatherEnded(payload) {
   const session = activeCalls[callControlId]
   if (!session) return
 
+  // ── Race condition guard: skip if call already ended ──
+  if (isCallEnded(callControlId)) {
+    log(`[Voice] Skipping gather for ${session.num?.phoneNumber} — call already ended`)
+    return
+  }
+
   const digits = payload.digits || ''
   const { num, chatId } = session
   const ivrConfig = num.features?.ivr
@@ -3356,6 +3381,9 @@ async function handleSpeakEnded(payload) {
   const session = activeCalls[callControlId]
   if (!session) return
 
+  // ── Race condition guard: skip if call already ended ──
+  if (isCallEnded(callControlId)) return
+
   if (session.phase === 'voicemail_greeting') {
     session.phase = 'voicemail_recording'
     log(`[Voice] Starting voicemail recording for ${session.num.phoneNumber}`)
@@ -3425,6 +3453,9 @@ async function handleCallHangup(payload) {
   const hangupCauseRaw = payload.hangup_cause || payload.sip_hangup_cause || 'unknown'
   const hangupSourceRaw = payload.hangup_source || 'unknown'
   
+  // Mark as ended IMMEDIATELY to prevent race conditions with concurrent gather/speak events
+  markCallEnded(callControlId)
+
   const session = activeCalls[callControlId]
   if (!session) {
     // ── Fix #5 FALLBACK: Deferred billing for auto-routed calls that bypassed real-time billing ──
@@ -4013,6 +4044,14 @@ async function handleOutboundIvrGatherEnded(payload) {
   const session = outboundIvrCalls[callControlId]
   if (!session) return false
 
+  // ── Race condition guard: skip if call already ended ──
+  // call.hangup and call.gather.ended can arrive near-simultaneously from Telnyx.
+  // If hangup was already processed, don't issue speak/gather/transfer commands.
+  if (isCallEnded(callControlId) || session.phase === 'ended') {
+    log(`[OutboundIVR] Skipping gather for ${session.targetNumber} — call already ended`)
+    return true
+  }
+
   const digits = payload.digits || ''
   log(`[OutboundIVR] DTMF received: "${digits}" for ${session.targetNumber}`)
 
@@ -4081,6 +4120,10 @@ async function handleOutboundIvrHangup(payload) {
   const callControlId = payload.call_control_id
   const session = outboundIvrCalls[callControlId]
   if (!session) return false
+
+  // Mark as ended IMMEDIATELY to prevent race conditions with concurrent gather/speak events
+  markCallEnded(callControlId)
+  session.phase = 'ended'
 
   // Clean up mid-call limit timer
   if (session._limitTimer) clearInterval(session._limitTimer)
