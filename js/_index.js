@@ -3105,12 +3105,12 @@ bot?.on('message', msg => {
     const orderId = parts[0]
     const deliveryText = parts.slice(1).join(' ')
     if (!orderId || !deliveryText) {
-      return send(chatId, trans('t.adm_7'))
+      return send(chatId, '⚠️ Usage: /deliver <orderId> <product details/credentials>')
     }
     try {
       const order = await digitalOrdersCol.findOne({ orderId })
-      if (!order) return send(chatId, trans('t.adm_8', orderId), { parse_mode: 'HTML' })
-      if (order.status === 'delivered') return send(chatId, trans('t.adm_9', orderId), { parse_mode: 'HTML' })
+      if (!order) return send(chatId, `⚠️ Order <code>${orderId}</code> not found.`, { parse_mode: 'HTML' })
+      if (order.status === 'delivered') return send(chatId, `⚠️ Order <code>${orderId}</code> was already delivered.`, { parse_mode: 'HTML' })
 
       // Send product to buyer
       send(order.chatId, `📦 <b>Order Delivered!</b>\n\n🆔 Order: <code>${orderId}</code>\n🛒 Product: <b>${order.product}</b>\n\n<b>Your product details:</b>\n${deliveryText}\n\nThank you for your purchase! For any issues, contact support.`, { parse_mode: 'HTML' })
@@ -3119,10 +3119,10 @@ bot?.on('message', msg => {
       await digitalOrdersCol.updateOne({ orderId }, { $set: { status: 'delivered', deliveredAt: new Date(), deliveryContent: deliveryText } })
 
       const buyerName = order.name || order.chatId
-      send(chatId, trans('t.adm_10', orderId, buyerName, order.chatId, order.product), { parse_mode: 'HTML' })
+      send(chatId, `✅ Order <code>${orderId}</code> delivered to ${buyerName} (${order.chatId}).\nProduct: ${order.product}`, { parse_mode: 'HTML' })
       log(`[DigitalProducts] Admin delivered order ${orderId} to ${order.chatId}`)
     } catch (e) {
-      send(chatId, trans('t.adm_11', e.message))
+      send(chatId, `❌ Error delivering order: ${e.message}`)
       log(`[DigitalProducts] Deliver error: ${e.message}`)
     }
     return
@@ -3133,7 +3133,7 @@ bot?.on('message', msg => {
   if (isAdmin(chatId) && message === '/ad') {
     const adText = translation('l.serviceAd', 'en')
     send(chatId, adText, { parse_mode: 'HTML', disable_web_page_preview: true })
-    send(chatId, trans('t.adm_12', TG_CHANNEL), { parse_mode: 'HTML' })
+    send(chatId, `👆 <b>Ad Preview</b>\n\nType <b>/ad post</b> to send this to ${TG_CHANNEL}`, { parse_mode: 'HTML' })
     return
   }
 
@@ -3147,9 +3147,9 @@ bot?.on('message', msg => {
       const botBlocked = await promoOptOutCol.countDocuments({ optedOut: true, reason: 'bot_blocked' })
       const other = totalDead - chatNotFound - userDeactivated - botBlocked
 
-      send(chatId, trans('t.adm_13', totalDead, chatNotFound, userDeactivated, botBlocked, other), { parse_mode: 'HTML' })
+      send(chatId, `📊 <b>Dead Users Report</b>\n\nTotal marked dead: <b>${totalDead}</b>\n• chat_not_found: ${chatNotFound}\n• user_deactivated: ${userDeactivated}\n• bot_blocked: ${botBlocked}\n• other: ${other}\n\nCommands:\n<code>/resetdead all</code> — Clear ALL dead entries\n<code>/resetdead blocked</code> — Clear only bot_blocked\n<code>/resetdead notfound</code> — Clear only chat_not_found`, { parse_mode: 'HTML' })
       return
-    } catch (e) { return send(chatId, trans('t.adm_error_prefix') + e.message) }
+    } catch (e) { return send(chatId, '❌ Error: ' + e.message) }
   }
   if (isAdmin(chatId) && message.startsWith('/resetdead ')) {
     try {
@@ -3158,13 +3158,13 @@ bot?.on('message', msg => {
       let filter = { optedOut: true }
       if (sub === 'blocked') filter.reason = 'bot_blocked'
       else if (sub === 'notfound') filter.reason = 'chat_not_found'
-      else if (sub !== 'all') return send(chatId, trans('t.adm_14'))
+      else if (sub !== 'all') return send(chatId, '❌ Usage: /resetdead all | blocked | notfound')
 
       const result = await promoOptOutCol.updateMany(filter, { $set: { optedOut: false, updatedAt: new Date(), reOptInReason: 'admin_reset' } })
-      send(chatId, trans('t.adm_15', result.modifiedCount, sub), { parse_mode: 'HTML' })
+      send(chatId, `✅ Reset <b>${result.modifiedCount}</b> dead user entries (${sub}).`, { parse_mode: 'HTML' })
       log(`[Admin] Dead users reset: ${result.modifiedCount} entries (filter: ${sub}) by ${chatId}`)
       return
-    } catch (e) { return send(chatId, trans('t.adm_error_prefix') + e.message) }
+    } catch (e) { return send(chatId, '❌ Error: ' + e.message) }
   }
 
   // ── Admin: Monetization stats ──
@@ -3185,15 +3185,15 @@ bot?.on('message', msg => {
         `<code>/monetization</code> — This dashboard`,
         { parse_mode: 'HTML' })
       return
-    } catch (e) { return send(chatId, trans('t.adm_error_prefix') + e.message) }
+    } catch (e) { return send(chatId, '❌ Error: ' + e.message) }
   }
 
   // ── Admin: Manual win-back trigger ──
   if (isAdmin(chatId) && message === '/winback') {
-    send(chatId, trans('t.adm_16'), { parse_mode: 'HTML' })
+    send(chatId, '🔄 Running win-back campaign scan...', { parse_mode: 'HTML' })
     monetization.runWinBackCampaign(bot).then(result => {
-      send(chatId, trans('t.adm_17', result.sent, result.errors))
-    }).catch(e => send(chatId, trans('t.cp_nested_8', e.message)))
+      send(chatId, `✅ Win-back complete: ${result.sent} sent, ${result.errors} errors`)
+    }).catch(e => send(chatId, `❌ Error: ${e.message}`))
     return
   }
 
@@ -3202,9 +3202,9 @@ bot?.on('message', msg => {
     const channelId = process.env.TELEGRAM_DOMAINS_SHOW_CHAT_ID
     if (channelId) {
       send(channelId, adText, { parse_mode: 'HTML', disable_web_page_preview: true })
-      send(chatId, trans('t.adm_18'))
+      send(chatId, '✅ Ad posted to channel!')
     } else {
-      send(chatId, trans('t.adm_19'))
+      send(chatId, '❌ Channel ID not configured.')
     }
     return
   }
@@ -3212,7 +3212,7 @@ bot?.on('message', msg => {
   if (isAdmin(chatId) && message === '/orders') {
     try {
       const pending = await digitalOrdersCol.find({ status: 'pending' }).sort({ createdAt: -1 }).limit(20).toArray()
-      if (pending.length === 0) return send(chatId, trans('t.adm_20'))
+      if (pending.length === 0) return send(chatId, '📦 No pending digital product orders.')
       let msg = `📦 <b>Pending Orders (${pending.length})</b>\n\n`
       for (const o of pending) {
         const age = Math.round((Date.now() - new Date(o.createdAt).getTime()) / 60000)
@@ -3221,7 +3221,7 @@ bot?.on('message', msg => {
       }
       send(chatId, msg, { parse_mode: 'HTML' })
     } catch (e) {
-      send(chatId, trans('t.adm_21', e.message))
+      send(chatId, `❌ Error: ${e.message}`)
     }
     return
   }
@@ -3242,7 +3242,7 @@ bot?.on('message', msg => {
       if (pending.length > 20) msg += `... and ${pending.length - 20} more`
       return send(chatId, msg, { parse_mode: 'HTML' })
     } catch (err) {
-      return send(chatId, trans('t.adm_22', err.message))
+      return send(chatId, `Error fetching requests: ${err.message}`)
     }
   }
 
@@ -3250,12 +3250,12 @@ bot?.on('message', msg => {
   if (isAdmin(chatId) && message.startsWith('/credit ')) {
     const parts = message.substring(8).trim().split(/\s+/)
     if (parts.length < 2) {
-      return send(chatId, trans('t.adm_23'), { parse_mode: 'HTML' })
+      return send(chatId, '⚠️ Usage: /credit <@username or chatId> <amount>\\n\\nExamples:\\n<code>/credit @john 50</code>\\n<code>/credit 5590563715 25.50</code>', { parse_mode: 'HTML' })
     }
     const userRef = parts[0].replace('@', '')
     const amount = parseFloat(parts[1])
     if (isNaN(amount) || amount <= 0) {
-      return send(chatId, trans('t.adm_24'))
+      return send(chatId, '⚠️ Amount must be a positive number.')
     }
     try {
       let targetChatId = null
@@ -3276,7 +3276,7 @@ bot?.on('message', msg => {
       }
 
       if (!targetChatId) {
-        return send(chatId, trans('t.adm_25', userRef), { parse_mode: 'HTML' })
+        return send(chatId, `⚠️ User <b>${userRef}</b> not found.`, { parse_mode: 'HTML' })
       }
 
       // Credit the wallet
@@ -3287,10 +3287,10 @@ bot?.on('message', msg => {
       sendMessage(targetChatId, `💰 <b>Wallet Credited!</b>\n\nYou received <b>$${amount.toFixed(2)} USD</b> from admin.\n\n💳 New Balance: <b>$${usdBal.toFixed(2)} USD</b>`, { parse_mode: 'HTML' })
 
       // Confirm to admin
-      send(chatId, trans('t.adm_26', amount.toFixed(2), targetName || 'Unknown', targetChatId, usdBal.toFixed(2)), { parse_mode: 'HTML' })
+      send(chatId, `✅ Credited <b>$${amount.toFixed(2)} USD</b> to <b>${targetName || 'Unknown'}</b> (${targetChatId})\n\n💳 Their balance: $${usdBal.toFixed(2)} USD`, { parse_mode: 'HTML' })
       log(`[Admin] Credited $${amount} to ${targetName || targetChatId} (${targetChatId})`)
     } catch (e) {
-      send(chatId, trans('t.adm_27', e.message))
+      send(chatId, `❌ Error crediting wallet: ${e.message}`)
       log(`[Admin] Credit error: ${e.message}`)
     }
     return
@@ -3298,7 +3298,7 @@ bot?.on('message', msg => {
 
   // Admin: /gift5all — give $5 welcome bonus to all existing users who haven't received it
   if (isAdmin(chatId) && message === '/gift5all') {
-    send(chatId, trans('t.adm_28', monetization.WELCOME_BONUS_USD))
+    send(chatId, `🎁 Starting gift of $${monetization.WELCOME_BONUS_USD} to all users who haven't received it yet...\nThis may take a while.`)
 
     // Run in background
     monetization.giftAllUsersWelcomeBonus(
@@ -3307,10 +3307,10 @@ bot?.on('message', msg => {
       (progressMsg) => send(chatId, progressMsg),
       async (uid) => { const s = await get(state, uid); return s?.userLanguage || 'en' }
     ).then(result => {
-      send(chatId, trans('t.adm_29', result.gifted, result.skipped, result.failed, result.total), { parse_mode: 'HTML' })
+      send(chatId, `✅ <b>Gift Complete!</b>\n\n🎁 Gifted: ${result.gifted}\n⏭ Skipped (already had): ${result.skipped}\n❌ Failed: ${result.failed}\n📊 Total users: ${result.total}`, { parse_mode: 'HTML' })
       log(`[Admin] /gift5all complete: gifted=${result.gifted}, skipped=${result.skipped}, failed=${result.failed}`)
     }).catch(err => {
-      send(chatId, trans('t.adm_30', err.message))
+      send(chatId, `❌ Gift failed: ${err.message}`)
       log(`[Admin] /gift5all error: ${err.message}`)
     })
     return
@@ -3320,7 +3320,7 @@ bot?.on('message', msg => {
   if (isAdmin(chatId) && message.startsWith('/bal ')) {
     const userRef = message.substring(5).trim().replace('@', '')
     if (!userRef) {
-      return send(chatId, trans('t.adm_31'), { parse_mode: 'HTML' })
+      return send(chatId, '⚠️ Usage: /bal <@username or chatId>\\n\\nExamples:\\n<code>/bal @john</code>\\n<code>/bal 7193881404</code>', { parse_mode: 'HTML' })
     }
     try {
       let targetChatId = null
@@ -3339,7 +3339,7 @@ bot?.on('message', msg => {
       }
 
       if (!targetChatId) {
-        return send(chatId, trans('t.adm_32', userRef), { parse_mode: 'HTML' })
+        return send(chatId, `⚠️ User <b>${userRef}</b> not found.`, { parse_mode: 'HTML' })
       }
 
       // Get wallet balance
@@ -3366,7 +3366,7 @@ bot?.on('message', msg => {
       send(chatId, msg, { parse_mode: 'HTML' })
       log(`[Admin] Checked balance for ${targetName || targetChatId} (${targetChatId}): $${usdBal.toFixed(2)} USD`)
     } catch (e) {
-      send(chatId, trans('t.adm_33', e.message))
+      send(chatId, `❌ Error checking balance: ${e.message}`)
       log(`[Admin] Balance check error: ${e.message}`)
     }
     return
@@ -3378,7 +3378,7 @@ bot?.on('message', msg => {
     const userRef = (parts[0] || '').replace('@', '')
     const reason = parts.slice(1).join(' ') || 'admin_ban'
     if (!userRef) {
-      return send(chatId, trans('t.adm_34'), { parse_mode: 'HTML' })
+      return send(chatId, '⚠️ Usage: /mpban <@username or chatId> [reason]\\n\\nExamples:\\n<code>/mpban @john spamming</code>\\n<code>/mpban 8317455811 policy violation</code>', { parse_mode: 'HTML' })
     }
     try {
       let targetChatId = null
@@ -3393,10 +3393,10 @@ bot?.on('message', msg => {
       }
       if (!targetChatId) return send(chatId, trans('t.adm_35', userRef), { parse_mode: 'HTML' })
       const result = await marketplaceService.banUser(targetChatId, reason, chatId)
-      return send(chatId, trans('t.adm_36', targetName || targetChatId, targetChatId, result.listingsRemoved, reason), { parse_mode: 'HTML' })
+      return send(chatId, `🚫 <b>Marketplace Ban Applied</b>\n\n👤 User: <b>${targetName || targetChatId}</b> (${targetChatId})\n📦 Listings removed: <b>${result.listingsRemoved}</b>\n📝 Reason: <i>${reason}</i>\n\nUser can no longer access or post in marketplace.`, { parse_mode: 'HTML' })
     } catch (e) {
       log(`[Admin] /mpban error: ${e.message}`)
-      return send(chatId, trans('t.adm_37', e.message))
+      return send(chatId, `❌ Error: ${e.message}`)
     }
   }
 
@@ -3404,7 +3404,7 @@ bot?.on('message', msg => {
   if (isAdmin(chatId) && message.startsWith('/mpunban ')) {
     const userRef = message.substring(9).trim().replace('@', '')
     if (!userRef) {
-      return send(chatId, trans('t.adm_38'), { parse_mode: 'HTML' })
+      return send(chatId, '⚠️ Usage: /mpunban <@username or chatId>\\n\\nExamples:\\n<code>/mpunban @john</code>\\n<code>/mpunban 8317455811</code>', { parse_mode: 'HTML' })
     }
     try {
       let targetChatId = null
@@ -3417,16 +3417,16 @@ bot?.on('message', msg => {
         const match = allNames.find(n => typeof n.val === 'string' && n.val.toLowerCase() === userRef.toLowerCase())
         if (match) { targetChatId = match._id; targetName = match.val }
       }
-      if (!targetChatId) return send(chatId, trans('t.adm_39', userRef), { parse_mode: 'HTML' })
+      if (!targetChatId) return send(chatId, `⚠️ User <b>${userRef}</b> not found.`, { parse_mode: 'HTML' })
       const result = await marketplaceService.unbanUser(targetChatId)
       if (result.unbanned) {
-        return send(chatId, trans('t.adm_40', targetName || targetChatId, targetChatId), { parse_mode: 'HTML' })
+        return send(chatId, `✅ <b>Marketplace Ban Removed</b>\n\n👤 User: <b>${targetName || targetChatId}</b> (${targetChatId})\n\nUser can now access marketplace again.`, { parse_mode: 'HTML' })
       } else {
-        return send(chatId, trans('t.adm_41', targetName || targetChatId), { parse_mode: 'HTML' })
+        return send(chatId, `ℹ️ User <b>${targetName || targetChatId}</b> was not banned from marketplace.`, { parse_mode: 'HTML' })
       }
     } catch (e) {
       log(`[Admin] /mpunban error: ${e.message}`)
-      return send(chatId, trans('t.adm_42', e.message))
+      return send(chatId, `❌ Error: ${e.message}`)
     }
   }
 
