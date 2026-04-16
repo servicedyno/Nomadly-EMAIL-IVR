@@ -21915,6 +21915,32 @@ Select a category:`), k.of(catBtns))
     return goto.submenu3 ? goto.submenu3() : send(chatId, trans('t.host_4') || '💡 Please use the menu below.', trans('o'))
   }
 
+  // DNS-fix: Recognize stale DNS management buttons from cached keyboards
+  // When session expires and user taps "Check DNS", "Update DNS Record", etc. — guide them to DNS Management
+  const dnsButtonTexts = [
+    // English
+    'check dns', 'add dns record', 'update dns record', 'delete dns record',
+    'manage nameservers', '⚡ quick actions', 'quick actions',
+    // French
+    'vérifier dns', 'ajouter un enregistrement dns', 'mettre à jour un enregistrement dns',
+    'supprimer un enregistrement dns', 'gérer les serveurs de noms',
+    // Chinese
+    '检查 dns', '添加 dns 记录', '更新 dns 记录', '删除 dns 记录',
+    // Hindi
+    'dns जांचें', 'dns रिकॉर्ड जोड़ें', 'dns रिकॉर्ड अपडेट करें', 'dns रिकॉर्ड हटाएं',
+  ]
+  if (dnsButtonTexts.includes(staleMsg) || staleMsg.includes('dns record') || staleMsg.includes('dns ') || staleMsg.includes('nameserver')) {
+    log(`[DNS-fix] Recognized stale DNS button "${message}" from ${chatId} — redirecting to DNS Management`)
+    await set(state, chatId, 'action', 'none')
+    const dnsRedirectMsg = {
+      en: '💡 <b>Session expired.</b> To manage DNS records, go to:\n\n🌐 <b>Domains</b> → 📂 <b>My Domains</b> → Select domain → 🔧 <b>DNS Management</b>\n\nUse the menu below to navigate.',
+      fr: '💡 <b>Session expirée.</b> Pour gérer les enregistrements DNS, allez dans :\n\n🌐 <b>Domaines</b> → 📂 <b>Mes Domaines</b> → Sélectionner un domaine → 🔧 <b>Gestion DNS</b>\n\nUtilisez le menu ci-dessous.',
+      zh: '💡 <b>会话已过期。</b> 要管理 DNS 记录，请前往：\n\n🌐 <b>域名</b> → 📂 <b>我的域名</b> → 选择域名 → 🔧 <b>DNS 管理</b>\n\n请使用下方菜单。',
+      hi: '💡 <b>सत्र समाप्त।</b> DNS रिकॉर्ड प्रबंधित करने के लिए:\n\n🌐 <b>डोमेन</b> → 📂 <b>मेरे डोमेन</b> → डोमेन चुनें → 🔧 <b>DNS प्रबंधन</b>\n\nनीचे मेनू का उपयोग करें।',
+    }
+    return send(chatId, dnsRedirectMsg[lang] || dnsRedirectMsg.en, { ...trans('o'), parse_mode: 'HTML' })
+  }
+
   await set(state, chatId, 'action', 'none')
   log(`[reset] Unrecognized message from ${chatId}: "${message}" (was action: ${action || 'none'}). Resetting to main menu.`)
 
