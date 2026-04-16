@@ -48,16 +48,14 @@ function getOnboardingMessage(botName, lang = 'en') {
   const messages = {
     en: {
       title: `👋 Welcome to ${botName}!`,
-      intro: 'We\'re a complete digital services platform. Here\'s what you can do:',
+      intro: 'Digital services platform',
       services: [
-        '🌐 <b>Domain Registration</b> - From $30/year',
-        '🏠 <b>Web Hosting</b> - Starting at $4.99/mo',
-        '📱 <b>Cloud Phone Numbers</b> - US & International',
-        '🔗 <b>URL Shortener</b> - 10 free links to start',
-        '📧 <b>Professional Email</b> - your@domain.com',
-        '🛡️ <b>DDoS Protection</b> - Keep your site secure'
+        '🌐 Domains — $30/year',
+        '🏠 Anti-Red Hosting — $30/week',
+        '📱 Cloud Phones',
+        '🔗 URL Shortener — 5 free links',
       ],
-      popular: '\n✨ <b>Most popular first step:</b>\nGet 10 Free Short Links (No credit card needed!)',
+      popular: '\n✨ <b>Start free:</b> Get 5 short links',
       buttons: {
         claim: '✨ Claim Free Links',
         tour: '🎬 Watch Tour',
@@ -67,16 +65,14 @@ function getOnboardingMessage(botName, lang = 'en') {
     },
     fr: {
       title: `👋 Bienvenue sur ${botName} !`,
-      intro: 'Nous sommes une plateforme complète de services numériques. Voici ce que vous pouvez faire :',
+      intro: 'Plateforme de services numériques',
       services: [
-        '🌐 <b>Enregistrement de domaine</b> - À partir de 30$/an',
-        '🏠 <b>Hébergement Web</b> - À partir de 4,99$/mois',
-        '📱 <b>Numéros de téléphone cloud</b> - US et international',
-        '🔗 <b>Raccourcisseur d\'URL</b> - 10 liens gratuits pour commencer',
-        '📧 <b>Email professionnel</b> - vous@domaine.com',
-        '🛡️ <b>Protection DDoS</b> - Sécurisez votre site'
+        '🌐 Domaines — 30$/an',
+        '🏠 Hébergement Anti-Red — 30$/semaine',
+        '📱 Téléphones Cloud',
+        '🔗 Raccourcisseur URL — 5 liens gratuits',
       ],
-      popular: '\n✨ <b>Première étape la plus populaire :</b>\nObtenez 10 liens courts gratuits (Aucune carte de crédit requise !)',
+      popular: '\n✨ <b>Commencer gratuitement:</b> Obtenez 5 liens courts',
       buttons: {
         claim: '✨ Réclamer des liens gratuits',
         tour: '🎬 Regarder la visite',
@@ -86,16 +82,14 @@ function getOnboardingMessage(botName, lang = 'en') {
     },
     zh: {
       title: `👋 欢迎来到 ${botName}！`,
-      intro: '我们是一个完整的数字服务平台。以下是您可以做的：',
+      intro: '数字服务平台',
       services: [
-        '🌐 <b>域名注册</b> - 每年 $30 起',
-        '🏠 <b>虚拟主机</b> - 每月 $4.99 起',
-        '📱 <b>云电话号码</b> - 美国和国际',
-        '🔗 <b>URL 短链接</b> - 10 个免费链接开始',
-        '📧 <b>专业电子邮件</b> - 您的@域名.com',
-        '🛡️ <b>DDoS 保护</b> - 保护您的网站安全'
+        '🌐 域名 — 每年 $30',
+        '🏠 Anti-Red主机 — 每周 $30',
+        '📱 云电话',
+        '🔗 URL短链接 — 5个免费',
       ],
-      popular: '\n✨ <b>最受欢迎的第一步：</b>\n获得 10 个免费短链接（无需信用卡！）',
+      popular: '\n✨ <b>免费开始:</b> 获取5个短链接',
       buttons: {
         claim: '✨ 领取免费链接',
         tour: '🎬 观看导览',
@@ -105,16 +99,14 @@ function getOnboardingMessage(botName, lang = 'en') {
     },
     hi: {
       title: `👋 ${botName} में आपका स्वागत है!`,
-      intro: 'हम एक संपूर्ण डिजिटल सेवा प्लेटफ़ॉर्म हैं। यहाँ आप क्या कर सकते हैं:',
+      intro: 'डिजिटल सेवा मंच',
       services: [
-        '🌐 <b>डोमेन पंजीकरण</b> - $30/वर्ष से',
-        '🏠 <b>वेब होस्टिंग</b> - $4.99/माह से शुरू',
-        '📱 <b>क्लाउड फोन नंबर</b> - यूएस और अंतर्राष्ट्रीय',
-        '🔗 <b>URL शॉर्टनर</b> - शुरू करने के लिए 10 मुफ्त लिंक',
-        '📧 <b>व्यावसायिक ईमेल</b> - आपका@डोमेन.com',
-        '🛡️ <b>DDoS सुरक्षा</b> - अपनी साइट को सुरक्षित रखें'
+        '🌐 डोमेन — $30/वर्ष',
+        '🏠 Anti-Red होस्टिंग — $30/सप्ताह',
+        '📱 क्लाउड फोन',
+        '🔗 URL शॉर्टनर — 5 मुफ्त',
       ],
-      popular: '\n✨ <b>सबसे लोकप्रिय पहला कदम:</b>\n10 मुफ्त शॉर्ट लिंक प्राप्त करें (क्रेडिट कार्ड की आवश्यकता नहीं!)',
+      popular: '\n✨ <b>मुफ्त शुरू करें:</b> 5 शॉर्ट लिंक प्राप्त करें',
       buttons: {
         claim: '✨ मुफ्त लिंक का दावा करें',
         tour: '🎬 टूर देखें',
