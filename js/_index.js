@@ -22566,11 +22566,21 @@ async function checkVPSPlansExpiryandPayment() {
           log(`[VPS Scheduler] PRE-EMPTIVE CANCEL: ${displayName} for ${chatId} — ${hoursLeft}h before expiry`)
         } else {
           // Cancel failed — alert admin urgently
-          bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🚨🚨 <b>URGENT: VPS Cancel FAILED — ${hoursLeft}h to Contabo billing!</b>\nUser: ${chatId}\nVPS: ${displayName}\nContabo ID: ${contaboInstanceId || vpsId}\nError: ${cancelResult.error}\n\n⚠️ <b>MANUAL ACTION REQUIRED on Contabo dashboard to prevent billing!</b>`, { parse_mode: 'HTML' }).catch(() => {})
+          bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID,
+            `🚨🚨 <b>URGENT: VPS Cancel FAILED — ${hoursLeft}h to Contabo billing!</b>\nUser: ${chatId}\nVPS: ${displayName}\nContabo ID: ${contaboInstanceId || vpsId}\nError: ${cancelResult.error}\n\n⚠️ <b>MANUAL ACTION REQUIRED on Contabo dashboard to prevent billing!</b>`,
+            { parse_mode: 'HTML' }
+          ).catch(err => {
+            log(`[VPS] CRITICAL: Failed to notify admin about VPS cancel failure for ${chatId}: ${err.message}`)
+          })
           log(`[VPS Scheduler] PRE-EMPTIVE CANCEL FAILED: ${displayName} — ${cancelResult.error}`)
         }
       } catch (err) {
-        bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🚨🚨 <b>URGENT: VPS Cancel CRASH — ${hoursLeft}h to Contabo billing!</b>\nUser: ${chatId}\nVPS: ${displayName}\nContabo ID: ${contaboInstanceId || vpsId}\nError: ${err.message}\n\n⚠️ <b>MANUAL ACTION REQUIRED!</b>`, { parse_mode: 'HTML' }).catch(() => {})
+        bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID,
+          `🚨🚨 <b>URGENT: VPS Cancel CRASH — ${hoursLeft}h to Contabo billing!</b>\nUser: ${chatId}\nVPS: ${displayName}\nContabo ID: ${contaboInstanceId || vpsId}\nError: ${err.message}\n\n⚠️ <b>MANUAL ACTION REQUIRED!</b>`,
+          { parse_mode: 'HTML' }
+        ).catch(notifyErr => {
+          log(`[VPS] CRITICAL: Failed to notify admin about VPS cancel crash for ${chatId}: ${notifyErr.message}`)
+        })
         log(`[VPS Scheduler] PRE-EMPTIVE CANCEL CRASH: ${displayName} — ${err.message}`)
       }
     }
@@ -22724,6 +22734,19 @@ async function checkVPSPlansExpiryandPayment() {
 
 const buyVPSPlanFullProcess = async (chatId, lang, vpsDetails) => {
   try {
+    // Create progress tracker for VPS provisioning
+    const progress = createProgressTracker(bot, chatId,
+      { en: 'VPS Setup', fr: 'Configuration VPS', zh: 'VPS 设置', hi: 'VPS सेटअप' }[lang] || 'VPS Setup',
+      [
+        { en: 'Creating instance', fr: 'Création instance', zh: '创建实例', hi: 'इंस्टेंस बना रहे हैं' }[lang] || 'Creating instance',
+        { en: 'Assigning IP address', fr: 'Attribution IP', zh: '分配 IP 地址', hi: 'IP पता आवंटित कर रहे हैं' }[lang] || 'Assigning IP address',
+        { en: 'Installing OS', fr: 'Installation OS', zh: '安装操作系统', hi: 'OS इंस्टॉल कर रहे हैं' }[lang] || 'Installing OS',
+        { en: 'Configuring access', fr: 'Configuration accès', zh: '配置访问', hi: 'एक्सेस कॉन्फ़िगर कर रहे हैं' }[lang] || 'Configuring access',
+        { en: 'Finalizing setup', fr: 'Finalisation', zh: '完成设置', hi: 'सेटअप समाप्त कर रहे हैं' }[lang] || 'Finalizing setup'
+      ]
+    )
+    
+    await progress.startStep(1)
     const vmInstance = await createVPSInstance(chatId, vpsDetails)
     if (!vmInstance.success) {
       const m = translation('vp.errorPurchasingVPS', lang, vpsDetails.plan)
@@ -22732,6 +22755,8 @@ const buyVPSPlanFullProcess = async (chatId, lang, vpsDetails) => {
       sendMessage(chatId, m)
       return false
     }
+    await progress.completeStep(1)
+    
     const { data: vpsData } = vmInstance
     let info = await get(state, chatId)
 
@@ -22740,7 +22765,7 @@ const buyVPSPlanFullProcess = async (chatId, lang, vpsDetails) => {
 
     // For Contabo, SSH keys are attached at creation time (no separate step needed).
     // Just wait for the instance to provision and get an IP.
-    send(chatId, translation('vp.vpsProvisioningWait', lang) || '⏳ Your server is being provisioned. Please wait...')
+    await progress.startStep(2)
 
     // Poll for the real IP address (Contabo takes ~30-60s to assign one)
     let resolvedIp = vpsData.host
@@ -22770,9 +22795,19 @@ const buyVPSPlanFullProcess = async (chatId, lang, vpsDetails) => {
         }
       }
       vpsData.host = resolvedIp
+      await progress.completeStep(2)
     } else {
       await sleep(15000)
+      await progress.completeStep(2)
     }
+
+    // Step 3: OS Installation (already happening in background)
+    await progress.startStep(3)
+    await sleep(10000) // Simulated OS install time
+    await progress.completeStep(3)
+    
+    // Step 4: Configuring access
+    await progress.startStep(4)
 
     // Credentials are returned directly from createVPSInstance for Contabo
     const credentials = vpsData.credentials || { username: vpsData.isRDP ? 'Administrator' : 'root', password: 'Check email' }
@@ -22792,11 +22827,15 @@ const buyVPSPlanFullProcess = async (chatId, lang, vpsDetails) => {
     } catch (txErr) {
       log('[VPS] Failed to log transaction (non-blocking):', txErr.message)
     }
+    await progress.completeStep(4)
 
+    // Step 5: Finalizing
+    await progress.startStep(5)
     set(state, info._id, 'action', 'none')
     const vpsSuccessMsg = translation('vp.vpsBoughtSuccess', lang, vpsDetails, vpsData, credentials) + 
       `\n\n<b>Transaction ID:</b> <code>${txnId}</code>\n<i>Quote this ID when contacting support</i>`
     send(chatId, vpsSuccessMsg, translation('o', lang))
+    await progress.complete({ en: '🎉 VPS ready!', fr: '🎉 VPS prêt !', zh: '🎉 VPS 就绪！', hi: '🎉 VPS तैयार!' }[lang] || '🎉 VPS ready!')
     try {
       await sendVPSCredentialsEmail(info, vpsData, vpsDetails, credentials)
     } catch (error) {
@@ -23676,7 +23715,14 @@ const bankApis = {
             if (refundAmount > 0) {
               await atomicIncrement(walletOf, chatId, 'usdIn', refundAmount)
               sendMessage(chatId, trans('t.util_15', delivered, requested, refundAmount.toFixed(2)))
-              if (TELEGRAM_ADMIN_CHAT_ID) bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID, `💰 <b>Partial Lead Refund (Bank)</b>\n👤 ${name} (${chatId})\n📊 ${delivered}/${requested}\n💵 $${refundAmount.toFixed(2)} → wallet`, { parse_mode: 'HTML' }).catch(() => {})
+              if (TELEGRAM_ADMIN_CHAT_ID) {
+                bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID,
+                  `💰 <b>Partial Lead Refund (Bank)</b>\n👤 ${name} (${chatId})\n📊 ${delivered}/${requested}\n💵 $${refundAmount.toFixed(2)} → wallet`,
+                  { parse_mode: 'HTML' }
+                ).catch(err => {
+                  log(`[Leads] Failed to notify admin about partial refund for ${chatId}: ${err.message}`)
+                })
+              }
             }
           }
         }
