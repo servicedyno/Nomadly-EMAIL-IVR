@@ -10,21 +10,23 @@
  *
  * Usage: node cr-whitelist-browser.js <IP_TO_WHITELIST>
  * Output: JSON on stdout with { success, ip, message }
+ *
+ * Configuration:
+ * - Set BROWSER_WS_ENDPOINT env var to use external browser service (e.g., Browserless.io)
+ * - For local dev without external service, it will attempt local browser launch (requires full puppeteer)
  */
 
-const puppeteer = require('puppeteer')
+const puppeteer = require('puppeteer-core')
 const fs = require('fs')
 
 const IP_FIELDS = ['ipaddress1', 'ipaddress2', 'ipaddress3', 'ipaddress4', 'ipaddress5']
 
 /**
- * Find a working Chromium binary.
- * - On Railway: Puppeteer bundles its own Chromium (x86_64) — works out of the box.
- * - On preview pods (aarch64): Puppeteer's bundled Chrome may not work,
- *   so fall back to the Playwright-installed Chromium at /pw-browsers/.
+ * Find a working Chromium binary for local development.
+ * - On preview pods (aarch64): Playwright-installed Chromium at /pw-browsers/
+ * - Fallback to system Chrome/Chromium
  */
 function findChromePath() {
-  // Check Playwright's Chromium first (works on preview pods)
   const pwPaths = [
     '/pw-browsers/chromium-1208/chrome-linux/chrome',
     '/pw-browsers/chromium_headless_shell-1208/chrome-linux/headless_shell',
@@ -32,7 +34,15 @@ function findChromePath() {
   for (const p of pwPaths) {
     if (fs.existsSync(p)) return p
   }
-  // Fall back to Puppeteer default (works on Railway x86_64)
+  // Common system paths
+  const systemPaths = [
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+    '/usr/bin/google-chrome',
+  ]
+  for (const p of systemPaths) {
+    if (fs.existsSync(p)) return p
+  }
   return undefined
 }
 
@@ -55,11 +65,27 @@ async function main() {
 
   let browser
   try {
-    browser = await puppeteer.launch({
-      headless: true,
-      executablePath: findChromePath(),
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-    })
+    // Use external browser service if BROWSER_WS_ENDPOINT is set (production/Railway)
+    const browserWsEndpoint = process.env.BROWSER_WS_ENDPOINT
+    
+    if (browserWsEndpoint) {
+      // Connect to external browser service (Browserless, etc.)
+      browser = await puppeteer.connect({
+        browserWSEndpoint: browserWsEndpoint,
+      })
+    } else {
+      // Local development fallback - launch local browser
+      const chromePath = findChromePath()
+      if (!chromePath) {
+        return output(false, ip, 'No BROWSER_WS_ENDPOINT set and no local Chrome found. Set BROWSER_WS_ENDPOINT to use external browser service.')
+      }
+      browser = await puppeteer.launch({
+        headless: true,
+        executablePath: chromePath,
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+      })
+    }
+    
     const page = await browser.newPage()
     await page.setViewport({ width: 1920, height: 900 })
 
