@@ -286,7 +286,7 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
       await set(loginCountOf, numChatId, {
         devices,
         loginCount: devices.length,
-        canLogin: false, // backward compat for old bot code
+        canLogin: true, // device array handles session mgmt — keep true so old bot code doesn't block user
         lastLoginAt: Date.now()
       })
 
@@ -322,7 +322,7 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
       await set(loginCountOf, numChatId, {
         devices,
         loginCount: devices.length,
-        canLogin: devices.length === 0, // backward compat
+        canLogin: true, // device array handles session mgmt
         lastLoginAt: loginData.lastLoginAt || Date.now()
       })
 

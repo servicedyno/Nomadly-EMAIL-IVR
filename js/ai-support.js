@@ -943,13 +943,35 @@ async function getAiResponse(chatId, userMessage, lang = 'en') {
       { role: 'user', content: userMessage },
     ]
 
-    // Call OpenAI
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages,
-      max_tokens: 500,
-      temperature: 0.7,
-    })
+    // Call OpenAI with retry for 429 rate-limit errors
+    let completion = null
+    const MAX_RETRIES = 2
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        completion = await openai.chat.completions.create({
+          model: 'gpt-4o',
+          messages,
+          max_tokens: 500,
+          temperature: 0.7,
+        })
+        break // success
+      } catch (retryErr) {
+        const is429 = retryErr?.status === 429 || retryErr?.error?.code === 'insufficient_quota' ||
+          (retryErr.message && retryErr.message.includes('429'))
+        if (is429 && attempt < MAX_RETRIES) {
+          const backoff = (attempt + 1) * 3000  // 3s, 6s
+          log(`[AI Support] OpenAI 429 — retrying in ${backoff}ms (attempt ${attempt + 1}/${MAX_RETRIES})`)
+          await new Promise(r => setTimeout(r, backoff))
+          continue
+        }
+        // Not retryable or max retries exceeded
+        throw retryErr
+      }
+    }
+
+    if (!completion) {
+      throw new Error('OpenAI returned no completion after retries')
+    }
 
     const aiResponse = completion.choices[0]?.message?.content || ''
 
@@ -969,7 +991,15 @@ async function getAiResponse(chatId, userMessage, lang = 'en') {
 
     return { response: aiResponse, escalate, error: null }
   } catch (e) {
-    log(`[AI Support] OpenAI error: ${e.message}`)
+    const is429 = e?.status === 429 || e?.error?.code === 'insufficient_quota' ||
+      (e.message && e.message.includes('429'))
+    if (is429) {
+      log(`[AI Support] OpenAI quota exceeded for ${chatId} — escalating to human agent`)
+    } else {
+      log(`[AI Support] OpenAI error: ${e.message}`)
+    }
+    // Save the user message so admin can see what was asked even if AI failed
+    await saveMessage(chatId, 'user', userMessage).catch(() => {})
     return { response: null, escalate: true, error: e.message }
   }
 }

@@ -632,8 +632,10 @@ async function onCallStatusUpdate(callSid, campaignId, leadIndex, status, durati
       transferConnected: transferred, // Speechcue Dial handles this — if completed it connected
     })
 
-    // ━━━ BILLING: Charge $BULK_CALL_RATE/min from wallet — min 1 min, whether answered or not ━━━
-    if (_walletOf && freshCampaign.chatId) {
+    // ━━━ BILLING: Charge $BULK_CALL_RATE/min from wallet — min 1 min for connected calls ━━━
+    // Skip billing for calls that never connected (failed/canceled with 0 duration)
+    const shouldBill = !(finalStatus === 'failed' || finalStatus === 'canceled') || (duration && duration > 0)
+    if (_walletOf && freshCampaign.chatId && shouldBill) {
       try {
         const minutesBilled = Math.max(1, Math.ceil((duration || 0) / 60))  // minimum 1 minute always
         const charge = +(minutesBilled * BULK_CALL_RATE).toFixed(4)
@@ -690,6 +692,8 @@ async function onCallStatusUpdate(callSid, campaignId, leadIndex, status, durati
       } catch (billErr) {
         log(`[BulkCall] Billing error for campaign=${campaignId} lead=${leadIndex}: ${billErr.message}`)
       }
+    } else if (_walletOf && freshCampaign.chatId && !shouldBill) {
+      log(`[BulkCall] Billing skipped — call never connected (status=${finalStatus}, duration=${duration || 0}s) for campaign=${campaignId} lead=${leadIndex}`)
     }
 
     await recalcStats(campaignId)

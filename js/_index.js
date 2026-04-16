@@ -23685,14 +23685,20 @@ app.get('/analytics-of-all-sms', async (req, res) => {
 app.get('/login-count/:chatId', async (req, res) => {
   const chatId = req?.params?.chatId
   const loginData = (await get(loginCountOf, Number(chatId))) || { loginCount: 0, canLogin: true }
-  if (!loginData.canLogin) {
+  // Only prompt reset if canLogin is explicitly false AND no device sessions exist
+  // (prevents old code from disrupting users with active SMS App sessions)
+  const devices = Array.isArray(loginData?.devices) ? loginData.devices : []
+  if (!loginData.canLogin && devices.length === 0) {
     const info = await state.findOne({ _id: parseFloat(chatId) })
     const lang = info?.userLanguage ?? 'en'
     send(Number(chatId), translation('t.resetLogin', lang), translation('yes_no', lang))
     // sendMessage(Number(chatId), t.resetLogin, yes_no)
     await set(state, Number(chatId), 'action', 'listen_reset_login')
   }
-  res.json(loginData)
+  // Always report canLogin: true if there are active device sessions
+  const responseData = { ...loginData }
+  if (devices.length > 0) responseData.canLogin = true
+  res.json(responseData)
 })
 
 app.get('/increment-login-count/:chatId', async (req, res) => {
@@ -23704,7 +23710,7 @@ app.get('/increment-login-count/:chatId', async (req, res) => {
   let devices = Array.isArray(loginData?.devices) ? loginData.devices : []
   // Add a legacy device entry for backward compat
   devices.push({ deviceId: 'legacy-' + Date.now(), loginAt: Date.now(), lastActive: Date.now() })
-  await set(loginCountOf, numChatId, { devices, loginCount: devices.length, canLogin: false, lastLoginAt: Date.now() })
+  await set(loginCountOf, numChatId, { devices, loginCount: devices.length, canLogin: true, lastLoginAt: Date.now() })
 
   res.send('ok')
 })
