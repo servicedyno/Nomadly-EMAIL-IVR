@@ -424,6 +424,7 @@ const { saveResumableSession, getResumableSession, clearResumableSession, genera
 const { getInsufficientBalanceMessage, getDNSPropagationMessage, getPhoneVerificationMessage, getTransactionConfirmation } = require('./improved-messages.js')
 const { handleOrderHistory } = require('./order-history.js')
 const { hasCompletedOnboarding, markOnboardingComplete, showOnboarding } = require('./onboarding.js')
+const { getRecommendationsAfterDomain, getRecommendationsAfterHosting, getRecommendationsAfterPhone } = require('./smart-recommendations.js')
 
 // Auto-check DNS after record add/update (non-blocking)
 const dnsAutoCheck = async (send, chatId, t, domain, recordType, recordValue) => {
@@ -2038,6 +2039,12 @@ async function checkPendingBundles() {
         if (newStatus === 'twilio-approved' || newStatus === 'provisionally-approved') {
           log(`[BundleChecker] Bundle APPROVED for chatId=${pb.chatId}, purchasing ${pb.selectedNumber}...`)
           const lang = pb.lang || 'en'
+          
+          // Notify user about approval with better messaging
+          const timeSinceSubmission = pb.submittedAt ? Math.floor((Date.now() - new Date(pb.submittedAt).getTime()) / (1000 * 60 * 60)) : 0
+          const { message: verificationMsg } = getPhoneVerificationMessage(pb.selectedNumber, timeSinceSubmission, lang)
+          send(pb.chatId, verificationMsg, { parse_mode: 'HTML' })
+          
           try {
             let purchaseNumber = pb.selectedNumber
             let purchaseResult = await executeTwilioPurchase(
@@ -6746,12 +6753,33 @@ Enter new value:`), bc)
 
         const { usdBal: usd2 } = await getBalance(walletOf, chatId)
         send(chatId, t.showWallet(usd2))
+        
+        // Generate transaction ID for phone purchase
+        const txnId = generateTransactionId()
+        try {
+          await logTransaction(db, {
+            transactionId: txnId,
+            chatId,
+            type: isSubNumber ? 'phone-sub-number' : 'phone-number',
+            amount: price,
+            currency: 'USD',
+            status: 'completed',
+            metadata: { phoneNumber: selectedNumber, plan: planKey, provider }
+          })
+        } catch (txErr) {
+          log('[Phone] Failed to log transaction (non-blocking):', txErr.message)
+        }
+        
         if (isSubNumber) {
-          send(chatId, cpTxt.subActivated(selectedNumber, info?.cpSubParentNumber, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())), trans('o'))
+          const subMsg = cpTxt.subActivated(selectedNumber, info?.cpSubParentNumber, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())) + 
+            `\n\n<b>Transaction ID:</b> <code>${txnId}</code>\n<i>Quote this ID when contacting support</i>`
+          send(chatId, subMsg, trans('o'))
           notifyGroup(cpTxt.adminSubPurchase(maskName(name), selectedNumber, info?.cpSubParentNumber, price, coin === u.usd ? 'Wallet USD' : 'Wallet USD'))
           if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminSubPurchasePrivate(maskName(name), selectedNumber, info?.cpSubParentNumber, price, coin === u.usd ? 'Wallet USD' : 'Wallet USD'), { parse_mode: 'HTML' })
         } else {
-          send(chatId, cpTxt.activated(selectedNumber, plan.name, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())), trans('o'))
+          const activatedMsg = cpTxt.activated(selectedNumber, plan.name, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())) + 
+            `\n\n<b>Transaction ID:</b> <code>${txnId}</code>\n<i>Quote this ID when contacting support</i>`
+          send(chatId, activatedMsg, trans('o'))
           notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, plan.name, price, coin === u.usd ? 'Wallet USD' : 'Wallet USD'))
           if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminPurchasePrivate(maskName(name), selectedNumber, plan.name, price, coin === u.usd ? 'Wallet USD' : 'Wallet USD'), { parse_mode: 'HTML' })
         }
@@ -6776,7 +6804,12 @@ Enter new value:`), bc)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
       const priceUsd = price
-      if (usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
+      if (usdBal < priceUsd) {
+        const { message: balMsg, keyboard: balKeyboard } = getInsufficientBalanceMessage(
+          usdBal, priceUsd, 'USD', info?.userLanguage || 'en'
+        )
+        return send(chatId, balMsg, k.of(balKeyboard))
+      }
 
       let cc = countryCodeOf[info?.country]
       let country = info?.country
@@ -9084,11 +9117,19 @@ All verified numbers generated during sourcing.`))
       await set(state, chatId, 'action', null)
 
       emailValidationService.processValidationJob(chatId, emails, trialPlusUsd, 'trial_plus_usd', lang)
-        .catch(err => {
+        .catch(async err => {
           log(`[EmailValidation] Trial+Pay job error for chatId=${chatId}: ${err.message}`)
-          // Refund the paid portion on failure
-          atomicIncrement(walletOf, chatId, 'usdIn', trialPlusUsd).catch(() => {})
-          bot.sendMessage(chatId, `❌ Validation failed. <b>$${trialPlusUsd.toFixed(2)}</b> has been refunded to your wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+          // Refund the paid portion on failure with proper error handling
+          try {
+            await safeRefund(atomicIncrement, walletOf, chatId, trialPlusUsd, 'USD', 
+              { reason: 'Email validation failed', service: 'emailValidation' }, bot)
+          } catch (refundErr) {
+            await handleError(bot, chatId, refundErr, 'CRITICAL', {
+              operation: 'email_validation_refund',
+              amount: trialPlusUsd,
+              reason: 'Refund failed after validation error'
+            })
+          }
         })
 
       const trialPlusSuccess = {
@@ -9115,10 +9156,18 @@ All verified numbers generated during sourcing.`))
       await set(state, chatId, 'action', null)
 
       emailValidationService.processValidationJob(chatId, emails, priceUsd, 'wallet_usd', lang)
-        .catch(err => {
+        .catch(async err => {
           log(`[EmailValidation] Job error for chatId=${chatId}: ${err.message}`)
-          atomicIncrement(walletOf, chatId, 'usdIn', priceUsd).catch(() => {})
-          bot.sendMessage(chatId, `❌ Validation failed. <b>$${priceUsd.toFixed(2)}</b> has been refunded to your wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+          try {
+            await safeRefund(atomicIncrement, walletOf, chatId, priceUsd, 'USD', 
+              { reason: 'Email validation failed', service: 'emailValidation' }, bot)
+          } catch (refundErr) {
+            await handleError(bot, chatId, refundErr, 'CRITICAL', {
+              operation: 'email_validation_refund',
+              amount: priceUsd,
+              reason: 'Refund failed after validation error'
+            })
+          }
         })
 
       return send(chatId, trans('t.ev_36', priceUsd.toFixed(2), emailCount.toLocaleString()), { parse_mode: 'HTML', reply_markup: { keyboard: [[user.emailValidation], [t.back || '🔙 Back']], resize_keyboard: true } })
@@ -18572,7 +18621,13 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         walletBal = usdBal
       } catch (e) {}
       if (walletBal < phoneConfig.CALL_FORWARDING_RATE_MIN) {
-        send(chatId, t.fwdInsufficientBalance(walletBal, phoneConfig.CALL_FORWARDING_RATE_MIN), { parse_mode: 'HTML' })
+        const { message: balMsg, keyboard: balKeyboard } = getInsufficientBalanceMessage(
+          walletBal, 
+          phoneConfig.CALL_FORWARDING_RATE_MIN, 
+          'USD', 
+          info?.userLanguage || 'en'
+        )
+        send(chatId, balMsg, k.of(balKeyboard))
         await set(state, chatId, 'action', a.cpManageNumber)
         return showManageScreen(chatId, num)
       }
@@ -22302,7 +22357,35 @@ const buyDomainFullProcess = async (chatId, lang, domain) => {
       await set(state, chatId, 'actualRegistrar', buyResult.registrar)
     }
 
-    send(chatId, translation('t.domainBoughtSuccess', lang, domain), translation('o', lang))
+    // Generate transaction ID for domain purchase
+    const txnId = generateTransactionId()
+    try {
+      await logTransaction(db, {
+        transactionId: txnId,
+        chatId,
+        type: 'domain',
+        amount: buyResult.actualPrice || info?.price || 0,
+        currency: 'USD',
+        status: 'completed',
+        metadata: { domain, registrar: buyResult.registrar, nameservers: buyResult.nameservers }
+      })
+    } catch (txErr) {
+      log('[Domain] Failed to log transaction (non-blocking):', txErr.message)
+    }
+
+    const domainSuccessMsg = translation('t.domainBoughtSuccess', lang, domain) + 
+      `\n\n<b>Transaction ID:</b> <code>${txnId}</code>\n<i>Quote this ID when contacting support</i>`
+    send(chatId, domainSuccessMsg, translation('o', lang))
+    
+    // Show smart recommendations after domain purchase (unless user explicitly skipped shortener integration)
+    if (info?.askDomainToUseWithShortener !== false) {
+      try {
+        const recommendations = getRecommendationsAfterDomain(domain, lang)
+        send(chatId, recommendations.message, k.of(recommendations.keyboard))
+      } catch (recErr) {
+        log('[Domain] Failed to show recommendations (non-blocking):', recErr.message)
+      }
+    }
 
     // NS was set at registration time (passed to registrar API directly) — no post-reg update needed
     if (nsChoice !== 'provider_default' && buyResult.nameservers && buyResult.nameservers.length >= 2) {
@@ -22685,8 +22768,26 @@ const buyVPSPlanFullProcess = async (chatId, lang, vpsDetails) => {
     // Credentials are returned directly from createVPSInstance for Contabo
     const credentials = vpsData.credentials || { username: vpsData.isRDP ? 'Administrator' : 'root', password: 'Check email' }
 
+    // Generate transaction ID for VPS purchase
+    const txnId = generateTransactionId()
+    try {
+      await logTransaction(db, {
+        transactionId: txnId,
+        chatId,
+        type: 'vps',
+        amount: vpsDetails.totalPrice || 0,
+        currency: 'USD',
+        status: 'completed',
+        metadata: { plan: vpsDetails.plan, host: vpsData.host, region: vpsDetails.region }
+      })
+    } catch (txErr) {
+      log('[VPS] Failed to log transaction (non-blocking):', txErr.message)
+    }
+
     set(state, info._id, 'action', 'none')
-    send(chatId, translation('vp.vpsBoughtSuccess', lang, vpsDetails, vpsData, credentials), translation('o', lang))
+    const vpsSuccessMsg = translation('vp.vpsBoughtSuccess', lang, vpsDetails, vpsData, credentials) + 
+      `\n\n<b>Transaction ID:</b> <code>${txnId}</code>\n<i>Quote this ID when contacting support</i>`
+    send(chatId, vpsSuccessMsg, translation('o', lang))
     try {
       await sendVPSCredentialsEmail(info, vpsData, vpsDetails, credentials)
     } catch (error) {
@@ -23477,7 +23578,26 @@ const bankApis = {
     if (existing?.numbers) { existing.numbers.push(numberDoc); await set(phoneNumbersOf, chatId, existing) }
     else { await set(phoneNumbersOf, chatId, { numbers: [numberDoc] }) }
     await phoneTransactions.insertOne({ chatId, phoneNumber: selectedNumber, action: 'purchase', plan: planKey, amount: price, paymentMethod: 'bank_ngn', timestamp: new Date().toISOString() })
-    sendMessage(chatId, cpTxt.activated(selectedNumber, plan.name, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())))
+    
+    // Generate transaction ID for phone purchase
+    const txnId = generateTransactionId()
+    try {
+      await logTransaction(db, {
+        transactionId: txnId,
+        chatId,
+        type: 'phone-number',
+        amount: price,
+        currency: 'NGN',
+        status: 'completed',
+        metadata: { phoneNumber: selectedNumber, plan: planKey, paymentMethod: 'bank_ngn' }
+      })
+    } catch (txErr) {
+      log('[Phone] Failed to log transaction (non-blocking):', txErr.message)
+    }
+    
+    const activatedMsg = cpTxt.activated(selectedNumber, plan.name, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())) + 
+      `\n\n<b>Transaction ID:</b> <code>${txnId}</code>\n<i>Quote this ID when contacting support</i>`
+    sendMessage(chatId, activatedMsg)
     notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, plan.name, price, 'Bank NGN'))
     if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminPurchasePrivate(maskName(name), selectedNumber, plan.name, price, 'Bank NGN'), { parse_mode: 'HTML' })
     webhookTierCheck(chatId, preSpend, lang)
