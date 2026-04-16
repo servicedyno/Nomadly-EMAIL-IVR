@@ -11780,7 +11780,8 @@ ${message.replace(/\n/g, '<br>')}
     if (message === '✂️ Shorten Now') {
       try {
         // U6 fix: URL deduplication — check if same URL was already shortened by this user recently
-        const existingLinks = await linksOf?.find ? linksOf.find({ _id: new RegExp(`^${chatId}/`) }).toArray().catch(() => []) : []
+        // FIX: wrap ternary in parens so `await` applies to the full expression, not just `linksOf?.find`
+        const existingLinks = await (linksOf?.find ? linksOf.find({ _id: new RegExp(`^${chatId}/`) }).toArray().catch(() => []) : [])
         const existingForUrl = existingLinks.find(l => l.val === url)
         if (existingForUrl) {
           const existingKey = existingForUrl._id.split('/').slice(1).join('/')
@@ -11968,7 +11969,8 @@ ${message.replace(/\n/g, '<br>')}
         const { url } = info
 
         // U6 fix: URL deduplication — check if same URL was already shortened by this user
-        const existingLinks2 = await linksOf?.find ? linksOf.find({ _id: new RegExp(`^${chatId}/`) }).toArray().catch(() => []) : []
+        // FIX: wrap ternary in parens so `await` applies to the full expression, not just `linksOf?.find`
+        const existingLinks2 = await (linksOf?.find ? linksOf.find({ _id: new RegExp(`^${chatId}/`) }).toArray().catch(() => []) : [])
         const existingForUrl2 = existingLinks2.find(l => l.val === url)
         if (existingForUrl2) {
           const existingKey2 = existingForUrl2._id.split('/').slice(1).join('/')
@@ -12013,7 +12015,7 @@ ${message.replace(/\n/g, '<br>')}
         await set(state, chatId, 'action', 'none')
         return send(chatId, _shortUrl, trans('o'))
       } catch (error) {
-        send(TELEGRAM_ADMIN_CHAT_ID, error?.response?.data)
+        send(TELEGRAM_ADMIN_CHAT_ID, `[Shortener Error] ${error?.message || error?.response?.data || error}`)
         await set(state, chatId, 'action', 'none')
         return send(chatId, t.redIssueUrlCuttly, trans('o'))
       }

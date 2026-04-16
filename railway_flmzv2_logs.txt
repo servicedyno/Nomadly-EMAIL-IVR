@@ -1,0 +1,28 @@
+[2026-04-16T16:34:09.481697254Z] [info] > tg-bot-link-shorten@1.0.0 start
+[2026-04-16T16:34:09.481713714Z] [info] 🌐 Webhook base URL: https://nomadlynew-production.up.railway.app
+[2026-04-16T16:34:09.481717764Z] [info] 📍 URL Source: SELF_URL_PROD
+[2026-04-16T16:34:12.502999404Z] [info] [AutoPromo] Initialized — 8 jobs (4 langs × 2 slots/day), 12 themes: cloudphone, antired_hosting, leads_validation, domains_shortener, digital_products, cards_bundles, email_validation, marketplace, vps_rdp, bulksms_app, email_blast, refer_earn
+[2026-04-16T16:34:12.657842593Z] [info] 📡 Webhook URL: https://nomadlynew-production.up.railway.app/telegram/webhook
+[2026-04-16T16:34:12.753468579Z] [info]   "url": "https://nomadlynew-production.up.railway.app/telegram/webhook",
+[2026-04-16T16:34:17.507982865Z] [info] [PhoneScheduler] Scheduled: expiry check (hourly), usage tracking (daily 3AM), monthly reset (daily 0:05AM)
+[2026-04-16T16:34:17.509715611Z] [info] [ShortenerPersistence] Initialized
+[2026-04-16T16:39:41.525327822Z] [info] message: /start	from: 7304424395 flmzv2
+[2026-04-16T16:39:43.515668029Z] [info] message: /start	from: 7304424395 flmzv2
+[2026-04-16T16:39:48.245260655Z] [info] message: ⏭️ Skip Intro	from: 7304424395 flmzv2
+[2026-04-16T16:39:48.245264635Z] [info] reply: 💬 <b>flmzv2</b> (7304424395):
+[2026-04-16T16:39:50.258600247Z] [info] reply: 🤖 <b>AI replied to flmzv2</b> (7304424395):
+[2026-04-16T16:39:52.272489336Z] [info] message: /done	from: 7304424395 flmzv2
+[2026-04-16T16:39:52.272493756Z] [info] reply: ✅ Support session ended. Thank you for reaching out! 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧 BulkSMS ✅,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — Unlimited,⚡ Upgrade Plan,📦 Ship & Mail,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 7304424395
+[2026-04-16T16:39:52.272504036Z] [info] reply: 📴 Support session closed by user <b>flmzv2</b> (7304424395) 	to: 5590563715
+[2026-04-16T16:39:55.368308238Z] [info] message: 🔗✂️ URL Shortener — Unlimited	from: 7304424395 flmzv2
+[2026-04-16T16:39:55.368324608Z] [info] Shorten, brand, or track your links:
+[2026-04-16T16:39:55.368347418Z] [info] 💡 <i>Tip: Use /shorten URL for quick links!</i> ✂️ Bit.ly,✂️ Shortit (Trial),✂️🌐 Custom Domain Shortener,🔗 Activate Domain for Shortener (Buy domain first),📊 View Shortlink Analytics,Back,Cancel	to: 7304424395
+[2026-04-16T16:39:57.364639002Z] [info] message: ✂️ Shortit (Trial)	from: 7304424395 flmzv2
+[2026-04-16T16:39:57.364642392Z] [info] reply: Kindly share the URL that you would like shortened and analyzed. e.g https://cnn.com Back,Cancel	to: 7304424395
+[2026-04-16T16:40:10.378334675Z] [info] message: https://cdrvnapr26.com	from: 7304424395 flmzv2
+[2026-04-16T16:40:10.407945982Z] [info] reply: Please select your choice for random or custom link Random Short Link,Back,Cancel	to: 7304424395
+[2026-04-16T16:40:11.928834532Z] [info] message: Random Short Link	from: 7304424395 flmzv2
+[2026-04-16T16:40:11.983000147Z] [info] reply: Link shortening failed. Please try again or tap 💬 Get Support. 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧 BulkSMS ✅,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — Unlimited,⚡ Upgrade Plan,📦 Ship & Mail,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 7304424395
+[2026-04-16T16:40:32.474351681Z] [info] URL: nomadlynew-production.up.railway.app/dynopay/crypto-wallet
+[2026-04-16T16:40:32.474366701Z] [info] URL: nomadlynew-production.up.railway.app/dynopay/crypto-wallet
+[2026-04-16T16:41:12.783872624Z] [info] <b>Panel Login URL:</b> https://panel.hostbay.io
