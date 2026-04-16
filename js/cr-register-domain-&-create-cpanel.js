@@ -13,13 +13,41 @@ const domainService = require('./domain-service')
 const WHM_HOST = process.env.WHM_HOST
 const TELEGRAM_DEV_CHAT_ID = process.env.TELEGRAM_DEV_CHAT_ID
 
-async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state) {
+async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state, bot = null) {
   const lang = info?.userLanguage ?? 'en'
   const chatId = info._id
   const domain = info.website_name
 
-  // ── Step 1: Payment confirmed ──
-  send(chatId, { en: `✅ <b>Payment confirmed</b> — $${info.totalPrice || info.hostingPrice}\n\nProvisioning your hosting now...`, fr: `✅ <b>Paiement confirmé</b> — $${info.totalPrice || info.hostingPrice}\n\nProvisionnement de votre hébergement en cours...`, zh: `✅ <b>付款已确认</b> — $${info.totalPrice || info.hostingPrice}\n\n正在配置您的主机...`, hi: `✅ <b>भुगतान की पुष्टि</b> — $${info.totalPrice || info.hostingPrice}\n\nआपकी होस्टिंग प्रावधान कर रहे हैं...` }[lang] || `✅ <b>Payment confirmed</b> — $${info.totalPrice || info.hostingPrice}\n\nProvisioning your hosting now...`, rem)
+  // ── UX Enhancement: Progress Tracking ──
+  let progress = null
+  if (bot) {
+    const { createProgressTracker } = require('./progress-tracker')
+    const steps = [
+      { en: 'Payment confirmed', fr: 'Paiement confirmé', zh: '付款已确认', hi: 'भुगतान की पुष्टि' }[lang] || 'Payment confirmed'
+    ]
+    
+    const isNewDomain = !info.existingDomain && !info.connectExternalDomain
+    if (isNewDomain) {
+      steps.push({ en: `Registering ${domain}`, fr: `Enregistrement de ${domain}`, zh: `正在注册 ${domain}`, hi: `${domain} पंजीकृत कर रहे हैं` }[lang] || `Registering ${domain}`)
+    }
+    
+    steps.push(
+      { en: 'Creating cPanel account', fr: 'Création du compte cPanel', zh: '正在创建 cPanel 账户', hi: 'cPanel खाता बना रहे हैं' }[lang] || 'Creating cPanel account',
+      { en: 'Configuring DNS', fr: 'Configuration DNS', zh: '正在配置 DNS', hi: 'DNS कॉन्फ़िगर कर रहे हैं' }[lang] || 'Configuring DNS',
+      { en: 'Installing SSL certificate', fr: 'Installation du certificat SSL', zh: '正在安装 SSL 证书', hi: 'SSL प्रमाणपत्र इंस्टॉल कर रहे हैं' }[lang] || 'Installing SSL certificate',
+      { en: 'Activating protection', fr: 'Activation de la protection', zh: '正在激活保护', hi: 'सुरक्षा सक्रिय कर रहे हैं' }[lang] || 'Activating protection'
+    )
+    
+    progress = createProgressTracker(bot, chatId, 
+      { en: 'Hosting Setup', fr: 'Configuration hébergement', zh: '主机设置', hi: 'होस्टिंग सेटअप' }[lang] || 'Hosting Setup',
+      steps
+    )
+    await progress.startStep(1)
+    await progress.completeStep(1)
+  } else {
+    // Fallback: Original simple message
+    send(chatId, { en: `✅ <b>Payment confirmed</b> — $${info.totalPrice || info.hostingPrice}\n\nProvisioning your hosting now...`, fr: `✅ <b>Paiement confirmé</b> — $${info.totalPrice || info.hostingPrice}\n\nProvisionnement de votre hébergement en cours...`, zh: `✅ <b>付款已确认</b> — $${info.totalPrice || info.hostingPrice}\n\n正在配置您的主机...`, hi: `✅ <b>भुगतान की पुष्टि</b> — $${info.totalPrice || info.hostingPrice}\n\nआपकी होस्टिंग प्रावधान कर रहे हैं...` }[lang] || `✅ <b>Payment confirmed</b> — $${info.totalPrice || info.hostingPrice}\n\nProvisioning your hosting now...`, rem)
+  }
 
   try {
     const nsChoice = info?.nameserver || info?.nsChoice
@@ -38,7 +66,11 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state)
     // For cloudflare NS: registerDomain() internally creates CF zone and
     // passes zone-specific NS to the registrar API at registration time.
     if (isNewDomain) {
-      send(chatId, { en: `🌐 Registering <b>${domain}</b>...`, fr: `🌐 Enregistrement de <b>${domain}</b>...`, zh: `🌐 正在注册 <b>${domain}</b>...`, hi: `🌐 <b>${domain}</b> पंजीकृत कर रहे हैं...` }[lang] || `🌐 Registering <b>${domain}</b>...`, rem)
+      if (progress) {
+        await progress.startStep(2)
+      } else {
+        send(chatId, { en: `🌐 Registering <b>${domain}</b>...`, fr: `🌐 Enregistrement de <b>${domain}</b>...`, zh: `🌐 正在注册 <b>${domain}</b>...`, hi: `🌐 <b>${domain}</b> पंजीकृत कर रहे हैं...` }[lang] || `🌐 Registering <b>${domain}</b>...`, rem)
+      }
 
       try {
         const registrar = info?.registrar || 'ConnectReseller'
@@ -408,6 +440,31 @@ NS2: <code>${cfNameservers[1]}</code>
     // NOTE: Do NOT send cPanel credentials (username/password/panel URL) to users
     // Users should only get the HostPanel PIN login
     if (pin) {
+      // Generate transaction ID for tracking
+      const { generateTransactionId, logTransaction } = require('./transaction-id')
+      const { getDNSPropagationMessage } = require('./improved-messages')
+      const txnId = generateTransactionId()
+      
+      try {
+        const { MongoClient } = require('mongodb')
+        const client = new MongoClient(process.env.MONGO_URL)
+        await client.connect()
+        const db = client.db(process.env.DB_NAME)
+        
+        await logTransaction(db, {
+          transactionId: txnId,
+          chatId,
+          type: 'hosting',
+          amount: info.price || 0,
+          currency: 'USD',
+          status: 'completed',
+          metadata: { domain, plan: info.plan, cpUser: result.username }
+        })
+        await client.close()
+      } catch (txErr) {
+        log('[Hosting] Failed to log transaction (non-blocking):', txErr.message)
+      }
+      
       const panelDomain = process.env.PANEL_DOMAIN
       const panelUrl = panelDomain
         ? `https://${panelDomain}`
@@ -420,8 +477,23 @@ ${info.email ? `<b>Email:</b> ${info.email}\n` : ''}DNS auto-configured via Clou
 <b>HostPanel Login</b>
 Username: <code>${result.username}</code>
 PIN: <code>${pin}</code>
-Login: ${panelUrl}`
+Login: ${panelUrl}
+
+<b>Transaction ID:</b> <code>${txnId}</code>
+
+<i>Quote this ID when contacting support</i>`
       send(chatId, credentialsMsg, keyboardButtons)
+      
+      // Send DNS propagation info with checker button
+      const { message: dnsMsg, keyboard: dnsKeyboard } = getDNSPropagationMessage(domain, lang)
+      send(chatId, dnsMsg, { 
+        parse_mode: 'HTML',
+        reply_markup: { 
+          inline_keyboard: dnsKeyboard.map(row => 
+            row.map(text => ({ text, callback_data: `dns_check_${domain}` }))
+          )
+        }
+      })
     }
 
     assignPackageToUser(state, chatId, info.plan)

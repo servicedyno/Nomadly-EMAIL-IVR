@@ -2590,6 +2590,49 @@ bot?.on('callback_query', async (query) => {
     const data = query?.data || ''
     const chatId = query?.message?.chat?.id
 
+    // ── DNS Status Check handler ──
+    if (data.startsWith('dns_check_')) {
+      try { await bot.answerCallbackQuery(query.id, { text: '🔍 Checking DNS...' }) } catch (e) { /* ignore */ }
+      
+      const domain = data.replace('dns_check_', '')
+      const info = await state.findOne({ _id: parseFloat(chatId) })
+      const lang = info?.userLanguage || 'en'
+      
+      try {
+        // Show checking status
+        await bot.editMessageReplyMarkup(
+          { inline_keyboard: [[{ text: '🔄 Checking...', callback_data: 'noop' }]] },
+          { chat_id: chatId, message_id: query.message.message_id }
+        )
+      } catch (e) { /* ignore */ }
+      
+      // Check DNS status
+      const dnsStatus = await checkDNSStatus(domain)
+      const statusMsg = formatDNSStatus(dnsStatus, lang)
+      
+      // Send result with refresh button
+      bot.sendMessage(chatId, statusMsg, {
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [[
+            { text: '🔄 Check Again', callback_data: `dns_check_${domain}` },
+            { text: '❌ Close', callback_data: 'noop' }
+          ]]
+        }
+      }).catch(err => {
+        handleError({
+          error: err,
+          operation: 'dns_status_send',
+          chatId,
+          context: { domain },
+          severity: 'low',
+          bot
+        })
+      })
+      
+      return
+    }
+
     // ── "No Thanks" / noop handler — dismiss inline keyboard and stop spinner ──
     if (data === 'noop') {
       try { await bot.answerCallbackQuery(query.id) } catch (e) { /* ignore */ }
@@ -25373,8 +25416,26 @@ app.post('/dynopay/crypto-wallet', authDyno, async (req, res) => {
   await addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
   log('Wallet credited successfully!')
   
+  // Generate transaction ID for wallet top-up
+  const txnId = generateTransactionId()
+  try {
+    await logTransaction(db, {
+      transactionId: txnId,
+      chatId,
+      type: 'wallet-topup',
+      amount: usdIn,
+      currency: 'USD',
+      status: 'completed',
+      metadata: { coin, value, ref }
+    })
+  } catch (txErr) {
+    log('[Wallet] Failed to log transaction (non-blocking):', txErr.message)
+  }
+  
   log('Sending confirmation message to user...')
-  sendMessage(chatId, translation('t.confirmationDepositMoney' , lang, value + ' ' + coin, usdIn))
+  const confirmMsg = translation('t.confirmationDepositMoney', lang, value + ' ' + coin, usdIn) + 
+    `\n\n<b>Transaction ID:</b> <code>${txnId}</code>\n<i>Quote this ID when contacting support</i>`
+  sendMessage(chatId, confirmMsg)
   log('Confirmation message sent')
 
   // Logs
