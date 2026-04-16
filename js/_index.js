@@ -7541,11 +7541,16 @@ All verified numbers generated during sourcing.`))
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   if (message.startsWith('/shorten ') || message === '/shorten') {
     const parts = message.replace('/shorten', '').trim().split(/\s+/)
-    const url = parts[0]
+    let url = parts[0]
     const customAlias = parts[1]
 
     if (!url) {
       return send(chatId, trans('t.host_6'), { parse_mode: 'HTML' })
+    }
+
+    // FIX: Auto-add https:// if no protocol provided
+    if (url && !url.match(/^https?:\/\//i) && !url.match(/^ftp:\/\//i)) {
+      url = 'https://' + url
     }
 
     if (!isValidUrl(url)) {
@@ -11754,6 +11759,12 @@ ${message.replace(/\n/g, '<br>')}
     if (!url) {
       await set(state, chatId, 'action', 'none')
       return send(chatId, trans('t.vps_57'), trans('o'))
+    }
+    
+    // FIX: Auto-add https:// if no protocol provided (defensive check)
+    let normalizedUrl = url
+    if (normalizedUrl && !normalizedUrl.match(/^https?:\/\//i) && !normalizedUrl.match(/^ftp:\/\//i)) {
+      normalizedUrl = 'https://' + normalizedUrl
     }
     
     // Check subscription/free links
