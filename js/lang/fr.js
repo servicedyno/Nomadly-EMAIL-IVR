@@ -280,7 +280,7 @@ Revendez notre suite complète — ${services.join(', ')} — sous votre marque.
  trialPlanInValidEmail: `Veuillez fournir une adresse e-mail valide.`,
  trialPlanActivationConfirmation: `Merci ! Votre plan d'essai gratuit sera activé sous peu. Veuillez noter que ce plan sera actif uniquement pendant 12 heures.`,
  trialPlanActivationInProgress: `Votre plan d'essai gratuit est en cours d'activation. Cela peut prendre quelques instants...`,
- what: `Cette option n'est pas disponible. Veuillez choisir parmi les boutons ci-dessous.`,
+ what: `Cette option n'est pas disponible. Veuillez choisir parmi les boutons ci-dessous, ou tapez /start pour le menu complet.`,
  whatNum: `Veuillez choisir un numéro valide.`,
  phoneGenTimeout: `Délai expiré.`,
  phoneGenNoGoodHits: `Veuillez appuyer sur 💬 Obtenir de l'aide ou sélectionner un autre indicatif régional.`,
@@ -2622,9 +2622,13 @@ const vp = {
  failedFetchingData: 'Erreur lors de la récupération, veuillez réessayer dans quelques instants.',
  confirmBtn: `✅ Confirmer la sélection`,
 
- askVpsDiskType: list => `💾 Choisissez votre type de stockage en fonction des performances et du budget :
+ askVpsDiskType: list => `💾 <b>Choisissez le type de stockage</b>
 
-${list?.map(item => `• ${item.description}`).join('\n')}`,
+Les deux options coûtent le même prix — choisissez ce qui compte le plus :
+
+${list?.map(item => `${item.description}`).join('\n\n')}
+
+👇 Appuyez sur votre choix :`,
 
  chooseValidDiskType: 'Veuillez choisir un type de disque valide',
 

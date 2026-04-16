@@ -282,7 +282,7 @@ Enter a .sbs domain to get started.`,
  trialPlanActivationConfirmation: `✅ Free trial activating now. Valid for 12 hours.`,
  trialPlanActivationInProgress: `Your free trial plan is being activated. This may take a few moments…`,
 
- what: `That option isn't available right now. Please pick from the buttons below.`,
+ what: `That option isn't available right now. Please pick from the buttons below, or type /start to see the full menu.`,
  whatNum: `That doesn't look right. Please enter a valid number.`,
  phoneGenTimeout: 'Timeout',
  phoneGenNoGoodHits: `Please tap 💬 Get Support or select another area code`,
@@ -2715,9 +2715,13 @@ const vp = {
  confirmBtn: `✅ Confirm Selection`,
 
  // disk type
- askVpsDiskType: list => `💾 Choose your storage type based on performance and budget:
+ askVpsDiskType: list => `💾 <b>Choose Storage Type</b>
 
-${list?.map(item => `• ${item.description}`).join('\n')}`,
+Both options cost the same — pick what matters more to you:
+
+${list?.map(item => `${item.description}`).join('\n\n')}
+
+👇 Tap your choice below:`,
 
  chooseValidDiskType: 'Please choose a valid disk type',
 

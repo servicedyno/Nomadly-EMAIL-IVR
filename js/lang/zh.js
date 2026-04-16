@@ -2596,9 +2596,13 @@ const vp = {
  failedFetchingData: '获取数据时出错，请稍后再试。',
  confirmBtn: `✅ 确认选择`,
 
- askVpsDiskType: list => `💾 根据性能和预算选择您的存储类型：
+ askVpsDiskType: list => `💾 <b>选择存储类型</b>
 
-${list?.map(item => `• ${item.description}`).join('\n')}`,
+两种选项价格相同 — 选择对您更重要的：
+
+${list?.map(item => `${item.description}`).join('\n\n')}
+
+👇 点击您的选择：`,
 
  chooseValidDiskType: '请选择有效的磁盘类型',
 

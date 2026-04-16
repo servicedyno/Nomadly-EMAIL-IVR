@@ -4778,7 +4778,33 @@ Enter new value:`), bc)
       // Show tier badge alongside wallet
       const tierInfo = await loyalty.getUserTier(walletOf, chatId)
       const tierLine = loyalty.formatWalletTierLine(tierInfo, info?.userLanguage || 'en')
-      send(chatId, t.wallet(usdBal) + tierLine, k.of([[u.deposit], [u.txHistory], [u.myTier], [t.back]]))
+      
+      // Enhanced wallet message for low/empty balances
+      let walletTip = ''
+      const lang = info?.userLanguage || 'en'
+      if (usdBal < 10) {
+        const tips = {
+          en: '\n\n💡 <b>Tip:</b> Deposit to unlock premium services like Anti-Red Hosting, Cloud IVR, VPS, and URL Shortener.',
+          fr: '\n\n💡 <b>Astuce :</b> Déposez pour débloquer les services premium : hébergement Anti-Red, Cloud IVR, VPS et raccourcisseur d\'URL.',
+          hi: '\n\n💡 <b>सुझाव:</b> प्रीमियम सेवाएं जैसे Anti-Red होस्टिंग, Cloud IVR, VPS और URL शॉर्टनर अनलॉक करने के लिए जमा करें।',
+          zh: '\n\n💡 <b>提示：</b>充值即可解锁 Anti-Red 托管、Cloud IVR、VPS 和 URL 缩短等高级服务。'
+        }
+        walletTip = tips[lang] || tips.en
+      }
+      
+      // Add tier progress nudge
+      let tierNudge = ''
+      if (tierInfo.spendToNext > 0 && tierInfo.nextTier) {
+        const nudges = {
+          en: `\n\n🏆 Spend <b>$${Math.ceil(tierInfo.spendToNext)}</b> more → <b>${tierInfo.nextTier.name} ${tierInfo.nextTier.badge}</b> (${Math.round(tierInfo.nextTier.discount * 100)}% off everything)`,
+          fr: `\n\n🏆 Dépensez <b>$${Math.ceil(tierInfo.spendToNext)}</b> de plus → <b>${tierInfo.nextTier.name} ${tierInfo.nextTier.badge}</b> (${Math.round(tierInfo.nextTier.discount * 100)}% sur tout)`,
+          hi: `\n\n🏆 <b>$${Math.ceil(tierInfo.spendToNext)}</b> और खर्च करें → <b>${tierInfo.nextTier.name} ${tierInfo.nextTier.badge}</b> (सब पर ${Math.round(tierInfo.nextTier.discount * 100)}% छूट)`,
+          zh: `\n\n🏆 再消费 <b>$${Math.ceil(tierInfo.spendToNext)}</b> → <b>${tierInfo.nextTier.name} ${tierInfo.nextTier.badge}</b> (所有商品 ${Math.round(tierInfo.nextTier.discount * 100)}% 折扣)`
+        }
+        tierNudge = nudges[lang] || nudges.en
+      }
+      
+      send(chatId, t.wallet(usdBal) + tierLine + walletTip + tierNudge, k.of([[u.deposit], [u.txHistory], [u.myTier], [t.back]]))
     },
     // ── Transaction History ──
     txHistory: async () => {
@@ -7431,9 +7457,10 @@ All verified numbers generated during sourcing.`))
       if (refLink && !refResult.bonusEarned) {
         msg += pMsg.sipTestReferral(refLink)
       }
-      return send(chatId, msg, { parse_mode: 'HTML' })
+      return send(chatId, msg, { parse_mode: 'HTML', reply_markup: { keyboard: [[user.cloudPhone], [t.back]], resize_keyboard: true } })
     }
-    return send(chatId, pMsg.sipTestCode(result.otp, result.callsRemaining), { parse_mode: 'HTML' })
+    // Add CTA buttons after showing OTP so user knows what to do next
+    return send(chatId, pMsg.sipTestCode(result.otp, result.callsRemaining), { parse_mode: 'HTML', reply_markup: { keyboard: [[user.cloudPhone], [t.back]], resize_keyboard: true } })
   }
 
   // /done — exit support chat (only if in support chat mode)
@@ -12069,7 +12096,7 @@ ${message.replace(/\n/g, '<br>')}
 
       send(
         TELEGRAM_ADMIN_CHAT_ID,
-        'cuttly issue: status:' + error?.response?.data?.url?.status + ' ' + error?.response?.data,
+        `[Cuttly Shortener Error] status: ${error?.response?.data?.url?.status || 'N/A'} | ${error?.message || error?.response?.data || error}`,
       )
       await set(state, chatId, 'action', 'none')
       return send(chatId, t.redIssueUrlCuttly, trans('o'))
@@ -22138,6 +22165,20 @@ Select a category:`), k.of(catBtns))
     for (const [uid, ts] of _lastResetPerUser) {
       if (ts < cutoff) _lastResetPerUser.delete(uid)
     }
+  }
+
+  // ── Help/How handler — catch confused users typing plain text questions ──
+  const helpWords = ['how', 'help', 'what is this', 'how does this work', 'how to use', 'comment', 'aide', 'como', 'kaise', 'kya', 'zenme', 'shenme']
+  const messageLower = message.toLowerCase().trim()
+  if (helpWords.some(w => messageLower === w || messageLower === w + '?') || messageLower === '?') {
+    const lang = info?.userLanguage || 'en'
+    const helpMsg = {
+      en: `❓ <b>Need help?</b>\n\nHere's what you can do:\n\n📞 <b>Cloud IVR + SIP</b> — Get your own phone number\n🔗 <b>URL Shortener</b> — Shorten links\n📧 <b>BulkSMS</b> — Send bulk messages\n🛡️ <b>Anti-Red Hosting</b> — Host websites\n🖥️ <b>VPS/RDP</b> — Cloud servers\n🌐 <b>Domains</b> — Buy domain names\n💳 <b>Virtual Card</b> — Get a virtual debit card\n\n💡 Use the buttons below to navigate, or type /start to see the full menu.\n\n💬 Need human support? Tap <b>💬 Support</b>`,
+      fr: `❓ <b>Besoin d'aide ?</b>\n\nVoici ce que vous pouvez faire :\n\n📞 <b>Cloud IVR + SIP</b> — Obtenez votre propre numéro\n🔗 <b>Raccourcisseur d'URL</b> — Raccourcissez vos liens\n📧 <b>SMS en masse</b> — Envoyez des messages groupés\n🛡️ <b>Hébergement Anti-Red</b> — Hébergez vos sites\n🖥️ <b>VPS/RDP</b> — Serveurs cloud\n\n💡 Utilisez les boutons ci-dessous ou tapez /start pour le menu complet.\n\n💬 Besoin d'aide ? Appuyez sur <b>💬 Support</b>`,
+      hi: `❓ <b>मदद चाहिए?</b>\n\nआप यह कर सकते हैं:\n\n📞 <b>Cloud IVR + SIP</b> — अपना फ़ोन नंबर पाएं\n🔗 <b>URL शॉर्टनर</b> — लिंक छोटे करें\n📧 <b>बल्क SMS</b> — बल्क मैसेज भेजें\n🛡️ <b>Anti-Red होस्टिंग</b> — वेबसाइट होस्ट करें\n\n💡 नेविगेट करने के लिए नीचे बटन का उपयोग करें, या पूरा मेनू देखने के लिए /start टाइप करें।`,
+      zh: `❓ <b>需要帮助？</b>\n\n您可以：\n\n📞 <b>Cloud IVR + SIP</b> — 获取您自己的电话号码\n🔗 <b>URL 缩短</b> — 缩短链接\n📧 <b>批量短信</b> — 发送群发消息\n🛡️ <b>Anti-Red 托管</b> — 托管网站\n\n💡 使用下方按钮导航，或输入 /start 查看完整菜单。`
+    }
+    return send(chatId, helpMsg[lang] || helpMsg.en, isAdmin(chatId) ? aO : trans('o'))
   }
 
   // Enhanced fallback for new users — guide them to use buttons instead of typing

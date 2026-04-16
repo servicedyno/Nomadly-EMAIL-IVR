@@ -2609,9 +2609,13 @@ const vp = {
  failedFetchingData: 'डेटा प्राप्त करने में त्रुटि, कृपया कुछ समय बाद पुनः प्रयास करें।',
  confirmBtn: `✅ चयन की पुष्टि करें`,
 
- askVpsDiskType: list => `💾 प्रदर्शन और बजट के आधार पर अपनी स्टोरेज प्रकार चुनें:
+ askVpsDiskType: list => `💾 <b>स्टोरेज प्रकार चुनें</b>
 
-${list?.map(item => `• ${item.description}`).join('\n')}`,
+दोनों विकल्पों की कीमत समान है — जो आपके लिए ज़रूरी हो वह चुनें:
+
+${list?.map(item => `${item.description}`).join('\n\n')}
+
+👇 अपनी पसंद पर टैप करें:`,
  chooseValidDiskType: 'कृपया एक वैध डिस्क प्रकार चुनें',
 
  askPlanType: plans => `💳 बिलिंग चक्र चुनें:
