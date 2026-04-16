@@ -12389,13 +12389,43 @@ ${message.replace(/\n/g, '<br>')}
   }
   if (action === 'choose-domain-to-buy') {
     if (message === t.back) return goto.submenu2()
-    let domain = message.toLowerCase()
+    let domain = message.toLowerCase().trim()
     domain = domain.replace('https://', '')
     domain = domain.replace('http://', '')
+    domain = domain.replace(/\s+/g, '') // Remove all whitespace
 
+    // ── Enhanced domain validation with specific error messages ──
+    
+    // Check if domain has a TLD (extension)
+    if (!domain.includes('.')) {
+      return send(chatId, t.domainMissingTLD, { parse_mode: 'HTML' })
+    }
+
+    // Check if domain name (before first dot) is too short
+    const parts = domain.split('.')
+    if (parts[0].length < 3) {
+      return send(chatId, t.domainTooShort, { parse_mode: 'HTML' })
+    }
+
+    // Check for invalid characters
+    const validCharsRegex = /^[a-z0-9.-]+$/
+    if (!validCharsRegex.test(domain)) {
+      return send(chatId, t.domainInvalidChars, { parse_mode: 'HTML' })
+    }
+
+    // Check if domain starts or ends with hyphen
+    const domainParts = domain.split('.')
+    for (const part of domainParts) {
+      if (part.startsWith('-') || part.endsWith('-')) {
+        return send(chatId, t.domainStartsEndsHyphen, { parse_mode: 'HTML' })
+      }
+    }
+
+    // Final comprehensive validation
     const domainRegex = /^(?:(?!-)[A-Za-z0-9-]{1,63}(?<!-)\.)+[A-Za-z]{2,6}$/
-    if (!domainRegex.test(domain))
+    if (!domainRegex.test(domain)) {
       return send(chatId, t.domainInvalid)
+    }
 
     // ── Blocked domain check (phishing/abuse) ──
     try {
@@ -12406,8 +12436,38 @@ ${message.replace(/\n/g, '<br>')}
       }
     } catch (_) {}
 
+    // ── Domain availability check with timeout ──
     send(chatId, trans('t.vps_77', domain))
-    const { available, price, originalPrice, registrar, cheaperPrice, cheaperRegistrar, expensiveRegistrar, message: msg } = await domainService.checkDomainPrice(domain, db)
+    
+    // Add timeout wrapper for domain search
+    const domainSearchWithTimeout = async () => {
+      return Promise.race([
+        domainService.checkDomainPrice(domain, db),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('DOMAIN_SEARCH_TIMEOUT')), 20000) // 20s timeout
+        )
+      ])
+    }
+
+    let available, price, originalPrice, registrar, cheaperPrice, cheaperRegistrar, expensiveRegistrar, msg
+    try {
+      const result = await domainSearchWithTimeout()
+      available = result.available
+      price = result.price
+      originalPrice = result.originalPrice
+      registrar = result.registrar
+      cheaperPrice = result.cheaperPrice
+      cheaperRegistrar = result.cheaperRegistrar
+      expensiveRegistrar = result.expensiveRegistrar
+      msg = result.message
+    } catch (error) {
+      if (error.message === 'DOMAIN_SEARCH_TIMEOUT') {
+        log(`[Domain] Search timeout for ${domain} by chatId ${chatId}`)
+        return send(chatId, trans('t.domainSearchTimeout', domain), { parse_mode: 'HTML' })
+      }
+      // Other errors - let them propagate to existing error handling
+      throw error
+    }
     if (!available) {
       // Suggest alternative TLDs
       const baseName = domain.split('.')[0]

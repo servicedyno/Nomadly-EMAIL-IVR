@@ -1605,3 +1605,39 @@ JavaScript evaluates `await` (precedence ~16) before `?:` (precedence ~4), so:
 - **Free trial: True (ACTIVE)**
 - Can use SMS: True
 - Device limit: 1, Active devices: 1
+
+## Domain Validation Improvements — April 16, 2026
+
+### Issues Fixed:
+1. **Generic validation errors → Specific error messages (FIXED)**
+   - Users now get specific errors for missing TLD, too short domain, invalid characters, starts/ends with hyphen
+   - Each error includes helpful examples in user's language (English, French, Chinese)
+   
+2. **Domain search timeouts (FIXED)**
+   - Added 20-second timeout for domain availability searches
+   - Users no longer stuck at "🔍 Searching availability..." message
+   - Clear timeout message with actionable guidance
+
+### Files Changed:
+- `/app/js/lang/en.js` — Added 6 new domain validation error messages
+- `/app/js/lang/fr.js` — French translations for all domain errors
+- `/app/js/lang/zh.js` — Chinese translations for all domain errors  
+- `/app/js/_index.js` (lines 12390-12470) — Enhanced validation logic with progressive checks + timeout wrapper
+
+### Validation Test Results:
+✅ **15/15 tests passed** (100% success rate)
+- Missing TLD detection working correctly
+- Domain length validation working correctly
+- Invalid character detection working correctly
+- Hyphen position validation working correctly
+- Valid domains passing through correctly
+
+### Endpoints to Test:
+- Domain purchase flow: Navigate to "🌐 Bulletproof Domains" → "🛒 Buy Domain Names" → Test various inputs
+- Test cases documented in `/app/memory/DOMAIN_VALIDATION_TEST_CASES.md`
+
+### Related Documentation:
+- `/app/memory/UX_ANALYSIS_REPORT_APRIL_16.md` — Full Railway log analysis
+- `/app/memory/DOMAIN_VALIDATION_FIX_SUMMARY.md` — Complete implementation details
+- `/app/memory/DOMAIN_VALIDATION_TEST_CASES.md` — Manual test scenarios
+
