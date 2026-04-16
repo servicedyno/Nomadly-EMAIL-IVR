@@ -424,15 +424,7 @@ Included:
  chooseFreeDomainText: `<b>Great News!</b> This domain is available for free with your subscription. Would you like to claim it?`,
 
  chooseDomainToBuy: text =>
- `<b>🌐 Domain Registration</b>
-
-💰 <b>Pricing starts from $30/year</b>
-Exact price depends on domain extension and availability.
-
-<b>📝 Enter your desired domain name</b>
-Example: <code>mysite.com</code>
-
-We'll check availability and show you the exact price instantly.${text}`,
+ `Enter your domain name (e.g., <code>mysite.com</code>)\n\n💰 Pricing from $30/year${text}`,
  askDomainToUseWithShortener: `Use this domain as a <b>custom URL shortener</b>?\n\n<b>Yes</b> — Auto-configure DNS. Short links become <code>yourdomain.com/abc</code>.\n\n<b>No</b> — Register only. Enable shortener anytime from Manage Domains.`,
  blockUser: `Please share the username of the user that needs to be blocked.`,
  unblockUser: `Please share the username of the user that needs to be unblocked.`,

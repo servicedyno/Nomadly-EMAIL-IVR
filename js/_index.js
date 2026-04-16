@@ -7632,6 +7632,42 @@ All verified numbers generated during sourcing.`))
     return send(chatId, trans('t.host_5', CHAT_BOT_NAME), { ...trans('o'), parse_mode: 'HTML' })
   }
 
+  // ── Onboarding Button Handlers ──
+  const onboardingButtons = {
+    en: { claim: '✨ Claim Free Links', tour: '🎬 Watch Tour', browse: '📱 Browse All Services', skip: '⏭️ Skip Intro' },
+    fr: { claim: '✨ Réclamer des liens gratuits', tour: '🎬 Regarder la visite', browse: '📱 Parcourir tous les services', skip: '⏭️ Passer l\'intro' },
+    zh: { claim: '✨ 领取免费链接', tour: '🎬 观看导览', browse: '📱 浏览所有服务', skip: '⏭️ 跳过介绍' },
+    hi: { claim: '✨ मुफ्त लिंक क्लेम करें', tour: '🎬 टूर देखें', browse: '📱 सभी सेवाएं ब्राउज़ करें', skip: '⏭️ परिचय छोड़ें' }
+  }
+  const ob = onboardingButtons[lang] || onboardingButtons.en
+
+  if (message === ob.claim || message === onboardingButtons.en.claim) {
+    // Claim free links - mark onboarding complete and go to URL shortener
+    await markOnboardingComplete(db, chatId)
+    await set(state, chatId, 'action', a.urlShortener)
+    return goto.urlShortener()
+  }
+
+  if (message === ob.tour || message === onboardingButtons.en.tour) {
+    // Watch tour - show demo video or guide
+    await markOnboardingComplete(db, chatId)
+    const tourMsg = {
+      en: '🎬 <b>Quick Tour</b>\n\nHere\'s what Nomadly can do for you:\n\n🔗 <b>URL Shortener</b> - Track clicks, custom links\n🌐 <b>Domains</b> - Register & manage domains\n📱 <b>Cloud Phones</b> - Virtual numbers worldwide\n🏠 <b>Hosting</b> - Fast, secure web hosting\n📧 <b>Email</b> - Professional email accounts\n\nReady to start? Choose a service below!',
+      fr: '🎬 <b>Visite rapide</b>\n\nVoici ce que Nomadly peut faire pour vous:\n\n🔗 <b>Raccourcisseur d\'URL</b> - Suivez les clics, liens personnalisés\n🌐 <b>Domaines</b> - Enregistrer et gérer des domaines\n📱 <b>Téléphones Cloud</b> - Numéros virtuels dans le monde entier\n🏠 <b>Hébergement</b> - Hébergement web rapide et sécurisé\n📧 <b>Email</b> - Comptes email professionnels\n\nPrêt à commencer? Choisissez un service ci-dessous!',
+      zh: '🎬 <b>快速导览</b>\n\nNomadly 可以为您做什么：\n\n🔗 <b>URL 短链接</b> - 追踪点击、自定义链接\n🌐 <b>域名</b> - 注册和管理域名\n📱 <b>云电话</b> - 全球虚拟号码\n🏠 <b>主机</b> - 快速、安全的网络主机\n📧 <b>电子邮件</b> - 专业电子邮件账户\n\n准备开始了吗？选择下面的服务！',
+      hi: '🎬 <b>त्वरित टूर</b>\n\nNomadly आपके लिए क्या कर सकता है:\n\n🔗 <b>URL शॉर्टनर</b> - क्लिक ट्रैक करें, कस्टम लिंक\n🌐 <b>डोमेन</b> - डोमेन पंजीकृत और प्रबंधित करें\n📱 <b>क्लाउड फ़ोन</b> - दुनिया भर में वर्चुअल नंबर\n🏠 <b>होस्टिंग</b> - तेज़, सुरक्षित वेब होस्टिंग\n📧 <b>ईमेल</b> - पेशेवर ईमेल खाते\n\nशुरू करने के लिए तैयार हैं? नीचे एक सेवा चुनें!'
+    }
+    await send(chatId, tourMsg[lang] || tourMsg.en, { parse_mode: 'HTML', ...trans('o') })
+    return
+  }
+
+  if (message === ob.browse || message === onboardingButtons.en.browse || message === ob.skip || message === onboardingButtons.en.skip) {
+    // Browse all services OR skip intro - mark complete and show main menu
+    await markOnboardingComplete(db, chatId)
+    await set(state, chatId, 'action', 'none')
+    return send(chatId, trans('t.host_4', CHAT_BOT_NAME), trans('o'))
+  }
+
   // ── AutoPromo Opt-Out Commands ──
   if (message === '/stoppromos' || message === '/stoppromo' || message === '🔕 Stop Promos') {
     if (autoPromo) {

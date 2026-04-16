@@ -1676,3 +1676,31 @@ JavaScript evaluates `await` (precedence ~16) before `?:` (precedence ~4), so:
 - `/app/memory/UX_ANALYSIS_REPORT_APRIL_16.md` — Original issue identification
 - `/app/memory/P1_ISSUES_FIXED_SUMMARY.md` — Complete implementation details
 
+
+## Onboarding Buttons & Pricing Correction — April 16, 2026
+
+### Issues Fixed:
+1. **Onboarding buttons not working (FIXED)**
+   - "✨ Claim Free Links" → Now goes to URL Shortener with free links
+   - "🎬 Watch Tour" → Shows quick tour of all services
+   - "📱 Browse All Services" → Shows main menu
+   - "⏭️ Skip Intro" → Shows main menu
+   - All buttons now mark onboarding as complete
+   - Multilingual support (EN/FR/ZH/HI)
+
+2. **Domain pricing corrected (FIXED)**
+   - Changed incorrect "$12/year" to accurate "$30/year" 
+   - Updated onboarding welcome message (all languages)
+   - Simplified domain purchase message: "Enter your domain name (e.g., mysite.com)\n💰 Pricing from $30/year"
+   - Reflects actual pricing: MIN_DOMAIN_PRICE=$30, PERCENT_INCREASE_DOMAIN=2.25
+
+### Files Changed:
+- `/app/js/_index.js` (lines 7634-7677) — Added onboarding button handlers
+- `/app/js/onboarding.js` — Updated pricing to $30/year (all languages)
+- `/app/js/lang/en.js` — Simplified domain purchase message
+
+### Testing Status:
+✅ Syntax validation passed  
+✅ Node.js service restarted successfully  
+⏳ Manual testing: Try onboarding buttons to verify they work
+
