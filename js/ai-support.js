@@ -34,6 +34,10 @@ function initAiSupport(db) {
   _aiChatHistory = db.collection('aiSupportChats')
   _aiChatHistory.createIndex({ chatId: 1 }).catch(() => {})
   _aiChatHistory.createIndex({ chatId: 1, createdAt: -1 }).catch(() => {})
+  // Tier 1: Initialize new collections
+  db.collection('userErrors').createIndex({ chatId: 1, timestamp: -1 }).catch(() => {})
+  db.collection('userErrors').createIndex({ timestamp: 1 }, { expireAfterSeconds: 86400 }).catch(() => {}) // TTL: 24h auto-cleanup
+  db.collection('supportRatings').createIndex({ chatId: 1, createdAt: -1 }).catch(() => {})
   log('[AI Support] MongoDB collections initialized')
 }
 
@@ -745,50 +749,58 @@ When guiding users to navigation, you MUST use the button labels that match thei
 IMPORTANT: When the user's language is NOT English, you MUST use the translated button labels from the table above in your navigation instructions. Do NOT use English button names for non-English users.`
 
 // ── Escalation detection (multi-language) ──
-const ESCALATION_KEYWORDS = {
-  en: [
-    'refund', 'money back', 'charge back', 'chargeback', 'dispute',
-    'scam', 'fraud', 'steal', 'stolen', 'hack', 'hacked',
-    'not working', 'broken', 'error', 'bug', 'crash',
-    'angry', 'furious', 'terrible', 'worst', 'lawsuit', 'legal',
-    'manager', 'supervisor', 'human', 'real person', 'talk to someone',
-    'cancel', 'delete account', 'close account',
-  ],
-  fr: [
-    'remboursement', 'rembourser', 'argent', 'fraude', 'arnaque', 'volé',
-    'ne fonctionne pas', 'cassé', 'erreur', 'bug', 'plantage',
-    'en colère', 'furieux', 'terrible', 'pire', 'avocat', 'juridique',
-    'responsable', 'superviseur', 'humain', 'personne réelle', 'parler à quelqu\'un',
-    'annuler', 'supprimer le compte', 'fermer le compte', 'litige',
-  ],
-  zh: [
-    '退款', '退钱', '欺诈', '骗局', '被盗', '黑客',
-    '不工作', '坏了', '错误', '故障', '崩溃',
-    '生气', '愤怒', '糟糕', '最差', '律师', '法律',
-    '经理', '主管', '真人', '人工客服', '找人',
-    '取消', '删除账户', '关闭账户', '纠纷',
-  ],
-  hi: [
-    'रिफंड', 'पैसे वापस', 'धोखाधड़ी', 'धोखा', 'चोरी', 'हैक',
-    'काम नहीं कर रहा', 'टूटा', 'त्रुटि', 'बग', 'क्रैश',
-    'गुस्सा', 'नाराज', 'भयानक', 'सबसे खराब', 'वकील', 'कानूनी',
-    'मैनेजर', 'सुपरवाइजर', 'इंसान', 'असली व्यक्ति', 'किसी से बात',
-    'रद्द', 'अकाउंट हटाओ', 'अकाउंट बंद', 'विवाद',
-  ],
+// ── CRITICAL escalation keywords (always escalate) ──
+const CRITICAL_ESCALATION = {
+  en: ['refund', 'money back', 'charge back', 'chargeback', 'dispute', 'scam', 'fraud', 'steal', 'stolen', 'hack', 'hacked', 'angry', 'furious', 'terrible', 'worst', 'lawsuit', 'legal', 'manager', 'supervisor', 'human', 'real person', 'talk to someone', 'delete account', 'close account'],
+  fr: ['remboursement', 'rembourser', 'fraude', 'arnaque', 'volé', 'en colère', 'furieux', 'terrible', 'pire', 'avocat', 'juridique', 'responsable', 'superviseur', 'humain', 'personne réelle', 'parler à quelqu\'un', 'supprimer le compte', 'fermer le compte', 'litige'],
+  zh: ['退款', '退钱', '欺诈', '骗局', '被盗', '黑客', '生气', '愤怒', '糟糕', '最差', '律师', '法律', '经理', '主管', '真人', '人工客服', '找人', '删除账户', '关闭账户', '纠纷'],
+  hi: ['रिफंड', 'पैसे वापस', 'धोखाधड़ी', 'धोखा', 'चोरी', 'हैक', 'गुस्सा', 'नाराज', 'भयानक', 'सबसे खराब', 'वकील', 'कानूनी', 'मैनेजर', 'सुपरवाइजर', 'इंसान', 'असली व्यक्ति', 'किसी से बात', 'अकाउंट हटाओ', 'अकाउंट बंद', 'विवाद'],
 }
 
-// Combine all language keywords for detection
+// ── SOFT escalation keywords (only escalate if AI can't help) ──
+const SOFT_ESCALATION = {
+  en: ['not working', 'broken', 'error', 'bug', 'crash', 'cancel'],
+  fr: ['ne fonctionne pas', 'cassé', 'erreur', 'bug', 'plantage', 'annuler'],
+  zh: ['不工作', '坏了', '错误', '故障', '崩溃', '取消'],
+  hi: ['काम नहीं कर रहा', 'टूटा', 'त्रुटि', 'बग', 'क्रैश', 'रद्द'],
+}
+
+// Combined for backward compat
+const ESCALATION_KEYWORDS = {
+  en: [...CRITICAL_ESCALATION.en, ...SOFT_ESCALATION.en],
+  fr: [...CRITICAL_ESCALATION.fr, ...SOFT_ESCALATION.fr],
+  zh: [...CRITICAL_ESCALATION.zh, ...SOFT_ESCALATION.zh],
+  hi: [...CRITICAL_ESCALATION.hi, ...SOFT_ESCALATION.hi],
+}
 const ALL_ESCALATION_KEYWORDS = Object.values(ESCALATION_KEYWORDS).flat()
 
-function needsEscalation(message, lang) {
+// ── Tier 1 Feature 4: Smart escalation — context-aware ──
+function needsEscalation(message, lang, aiResponse = null) {
   const lower = message.toLowerCase()
-  // Check keywords for the user's language + always check English as base
-  const langKeywords = ESCALATION_KEYWORDS[lang] || []
-  const keywords = [...new Set([...ESCALATION_KEYWORDS.en, ...langKeywords])]
-  return keywords.some(kw => lower.includes(kw))
+  const langCritical = CRITICAL_ESCALATION[lang] || []
+  const critical = [...new Set([...CRITICAL_ESCALATION.en, ...langCritical])]
+
+  // CRITICAL keywords: always escalate regardless of AI response
+  if (critical.some(kw => lower.includes(kw))) return true
+
+  // SOFT keywords: only escalate if AI couldn't provide actionable answer
+  const langSoft = SOFT_ESCALATION[lang] || []
+  const soft = [...new Set([...SOFT_ESCALATION.en, ...langSoft])]
+  if (soft.some(kw => lower.includes(kw))) {
+    // If AI gave a response with navigation path (→) or specific steps, it handled it
+    if (aiResponse) {
+      const hasNavPath = aiResponse.includes('→') || aiResponse.includes('&#8594;') || aiResponse.includes('&gt;')
+      const hasSteps = /\d+\.\s/.test(aiResponse) // numbered steps like "1. Go to..."
+      const hasTapInstruction = /tap|click|press|go to|navigate/i.test(aiResponse)
+      if (hasNavPath || hasSteps || hasTapInstruction) return false
+    }
+    return true
+  }
+
+  return false
 }
 
-// ── Get user context for AI ──
+// ── Get user context for AI — Enhanced with last action, errors, and more ──
 async function getUserContext(chatId) {
   if (!_db) return ''
   try {
@@ -815,6 +827,46 @@ async function getUserContext(chatId) {
         context.push(`Plan expires in: ${expiresIn} days`)
       }
     } catch (e) { /* plan collections may not exist */ }
+
+    // ── Tier 1 Feature 1: User's last action (what they were doing before support) ──
+    try {
+      const userState = await _db.collection('stateOf').findOne({ _id: chatId })
+      if (userState?.val) {
+        const lastAction = userState.val.action
+        if (lastAction && lastAction !== 'supportChat' && lastAction !== 'none') {
+          context.push(`⚡ Last action before support: ${lastAction}`)
+          // Extract flow-specific details
+          const info = userState.val.info
+          if (info) {
+            const flowDetails = []
+            if (info.provider) flowDetails.push(`provider: ${info.provider}`)
+            if (info.url) flowDetails.push(`URL: ${info.url}`)
+            if (info.vpsDetails) {
+              const vps = info.vpsDetails
+              flowDetails.push(`VPS: ${[vps.os, vps.zone, vps.diskType].filter(Boolean).join(', ')}`)
+            }
+            if (info.domain) flowDetails.push(`domain: ${info.domain}`)
+            if (info.phone) flowDetails.push(`phone: ${info.phone}`)
+            if (info.campaignName) flowDetails.push(`campaign: ${info.campaignName}`)
+            if (flowDetails.length) context.push(`Flow details: ${flowDetails.join(', ')}`)
+          }
+        }
+      }
+    } catch (e) { /* state collection may not exist */ }
+
+    // ── Tier 1 Feature 2: Recent user-facing errors (last 30 minutes) ──
+    try {
+      const recentErrors = await _db.collection('userErrors')
+        .find({ chatId, timestamp: { $gt: new Date(Date.now() - 30 * 60 * 1000) } })
+        .sort({ timestamp: -1 }).limit(3).toArray()
+      if (recentErrors.length > 0) {
+        const errStr = recentErrors.map(e => {
+          const ago = Math.round((Date.now() - new Date(e.timestamp).getTime()) / 60000)
+          return `${e.feature}: "${e.error}" (${ago} min ago)`
+        }).join('; ')
+        context.push(`⚠️ RECENT ERRORS: ${errStr}`)
+      }
+    } catch (e) { /* userErrors collection may not exist yet */ }
 
     // SIP/Phone context — critical for call troubleshooting
     try {
@@ -868,6 +920,23 @@ async function getUserContext(chatId) {
         context.push(`Active marketplace conversations: ${mpConvs.length} (${mpConvs.map(c => c.productTitle).join(', ')})`)
       }
     } catch (e) { /* marketplace collections may not exist yet */ }
+
+    // ── Enhanced: Hosting & domain status ──
+    try {
+      const hosting = await _db.collection('hostOf').findOne({ _id: chatId })
+      if (hosting?.val) {
+        context.push(`Hosting: ${hosting.val.plan || 'active'}${hosting.val.domain ? `, domain: ${hosting.val.domain}` : ''}`)
+      }
+    } catch (e) {}
+
+    // ── Enhanced: Recent shortlinks ──
+    try {
+      const links = await _db.collection('linksOf').find({ _id: new RegExp(`^${chatId}/`) })
+        .sort({ _id: -1 }).limit(3).toArray()
+      if (links.length > 0) {
+        context.push(`Recent short links: ${links.length} created`)
+      }
+    } catch (e) {}
 
     return context.length > 0 ? `\n\n[USER CONTEXT]\n${context.join('\n')}` : ''
   } catch (e) {
@@ -979,8 +1048,8 @@ async function getAiResponse(chatId, userMessage, lang = 'en') {
     await saveMessage(chatId, 'user', userMessage)
     await saveMessage(chatId, 'assistant', aiResponse)
 
-    // Check if AI itself flagged escalation or if keywords match
-    const escalate = needsEscalation(userMessage, lang) ||
+    // Check if AI itself flagged escalation or if keywords match (smart escalation)
+    const escalate = needsEscalation(userMessage, lang, aiResponse) ||
       aiResponse.toLowerCase().includes('human agent') ||
       aiResponse.toLowerCase().includes('support team') ||
       aiResponse.toLowerCase().includes('escalat') ||
@@ -1103,6 +1172,102 @@ async function getMarketplaceAiResponse(chatId, userMessage, lang = 'en') {
   }
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Tier 1 Feature 2: Record user-facing errors for AI context
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function recordUserError(chatId, feature, error) {
+  if (!_db) return
+  try {
+    await _db.collection('userErrors').insertOne({
+      chatId,
+      feature,
+      error: typeof error === 'string' ? error : (error?.message || String(error)),
+      timestamp: new Date(),
+    })
+  } catch (e) {
+    log(`[AI Support] recordUserError failed: ${e.message}`)
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Tier 1 Feature 3: Extract action buttons from AI response
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function extractActionButtons(aiResponse, lang = 'en') {
+  if (!aiResponse) return []
+
+  // Map of keyword patterns → button labels per language
+  const buttonMap = {
+    en: {
+      'url shortener': '🔗✂️ URL Shortener — Unlimited',
+      'cloud ivr': '📞 Cloud IVR + SIP',
+      'wallet': '👛 Wallet',
+      'deposit': '👛 Wallet',
+      'marketplace': '🏪 Marketplace',
+      'domain': '🌐 Bulletproof Domains',
+      'hosting': '🛡️🔥 Anti-Red Hosting',
+      'vps': '🖥️ VPS/RDP',
+      'sms lead': '📱 SMS Leads',
+      'virtual card': '💳 Virtual Card',
+      'email validation': '📧 Email Validation',
+      'bulk sms': '📲 BulkSMS — Free',
+      'digital product': '📦 Digital Products',
+      '/testsip': '🧪 Free SIP Test',
+    },
+    fr: {
+      'raccourcisseur': '🔗✂️ Raccourcisseur URL — Illimité',
+      'cloud ivr': '📞 Cloud IVR + SIP',
+      'portefeuille': '👛 Portefeuille',
+      'dépôt': '👛 Portefeuille',
+      'marketplace': '🏪 Marketplace',
+      'domaine': '🌐 Domaines Bulletproof',
+      'hébergement': '🛡️🔥 Hébergement Anti-Red',
+      'vps': '🖥️ VPS/RDP',
+      'sms': '📱 Leads SMS',
+    },
+  }
+
+  const lower = aiResponse.toLowerCase()
+  const map = buttonMap[lang] || buttonMap.en
+  const fallbackMap = buttonMap.en
+  const suggested = []
+  const seen = new Set()
+
+  // Check language-specific map first, then fallback to English
+  for (const [keyword, button] of Object.entries(map)) {
+    if (lower.includes(keyword) && !seen.has(button) && suggested.length < 2) {
+      suggested.push(button)
+      seen.add(button)
+    }
+  }
+  if (suggested.length < 2 && lang !== 'en') {
+    for (const [keyword, button] of Object.entries(fallbackMap)) {
+      if (lower.includes(keyword) && !seen.has(button) && suggested.length < 2) {
+        suggested.push(button)
+        seen.add(button)
+      }
+    }
+  }
+
+  return suggested
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Tier 1 Feature 5: Rate support session (satisfaction tracking)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function rateSupportSession(chatId, rating) {
+  if (!_db) return
+  try {
+    await _db.collection('supportRatings').insertOne({
+      chatId,
+      rating, // 'good' or 'bad'
+      createdAt: new Date(),
+    })
+    log(`[AI Support] Session rated by ${chatId}: ${rating}`)
+  } catch (e) {
+    log(`[AI Support] Rating save error: ${e.message}`)
+  }
+}
+
 module.exports = {
   initAiSupport,
   getAiResponse,
@@ -1111,4 +1276,8 @@ module.exports = {
   clearHistory,
   needsEscalation,
   isAiEnabled: () => !!openai,
+  // ── Tier 1 new exports ──
+  recordUserError,
+  extractActionButtons,
+  rateSupportSession,
 }

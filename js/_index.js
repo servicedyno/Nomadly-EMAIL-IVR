@@ -512,7 +512,7 @@ const { initScheduler: initHostingScheduler } = require('./hosting-scheduler.js'
 const { initPhoneTestRoutes, generateTestOtp, checkTestCredentialCall, getOrCreateReferralCode, trackReferral } = require('./phone-test-routes.js')
 const antiRedService = require('./anti-red-service.js')
 const { initLeadJobPersistence, flushAllJobs, findInterruptedJobs, resumeJob } = require('./lead-job-persistence.js')
-const { initAiSupport, getAiResponse, getMarketplaceAiResponse, moderateMarketplaceChat, clearHistory: clearAiHistory, isAiEnabled } = require('./ai-support.js')
+const { initAiSupport, getAiResponse, getMarketplaceAiResponse, moderateMarketplaceChat, clearHistory: clearAiHistory, isAiEnabled, recordUserError, extractActionButtons, rateSupportSession } = require('./ai-support.js')
 const { initShortenerPersistence, createActivationTask, markRailwayLinked, markDnsAdded, markCompleted, markFailed, findIncompleteTasks } = require('./shortener-activation-persistence.js')
 const honeypotService = require('./honeypot-service.js')
 const audioLibraryService = require('./audio-library-service.js')
@@ -2601,6 +2601,27 @@ bot?.on('callback_query', async (query) => {
   try {
     const data = query?.data || ''
     const chatId = query?.message?.chat?.id
+
+    // ── Tier 1 Feature 5: Support satisfaction rating handler ──
+    if (data.startsWith('rate_support_')) {
+      try { await bot.answerCallbackQuery(query.id, { text: '✅ Thank you for your feedback!' }) } catch (e) { /* ignore */ }
+      const parts = data.split('_') // rate_support_good_123456 or rate_support_bad_123456
+      const rating = parts[2] // 'good' or 'bad'
+      const ratingChatId = parts.slice(3).join('_')
+      await rateSupportSession(ratingChatId || chatId, rating)
+      // Update the inline keyboard to show selected rating
+      try {
+        const emoji = rating === 'good' ? '👍' : '👎'
+        await bot.editMessageReplyMarkup(
+          { inline_keyboard: [[{ text: `${emoji} Feedback recorded — Thank you!`, callback_data: 'noop' }]] },
+          { chat_id: chatId, message_id: query.message.message_id }
+        )
+      } catch (e) { /* ignore edit errors */ }
+      // Notify admin of rating
+      const name = await get(nameOf, ratingChatId || chatId)
+      send(TELEGRAM_ADMIN_CHAT_ID, `${rating === 'good' ? '👍' : '👎'} Support rated <b>${rating.toUpperCase()}</b> by <b>${name || ratingChatId || chatId}</b>`, { parse_mode: 'HTML' })
+      return
+    }
 
     // ── DNS Status Check handler ──
     if (data.startsWith('dns_check_')) {
@@ -6382,6 +6403,7 @@ Enter new value:`), bc)
         
       } catch (error) {
         log(`[VPS] Provisioning failed for ${chatId}: ${error.message}`)
+        recordUserError(chatId, 'vps-provision', error?.message || 'VPS provisioning failed')
         
         if (walletDeducted) {
           await atomicIncrement(walletOf, chatId, 'usdIn', priceUsd)
@@ -7111,6 +7133,7 @@ All verified numbers generated during sourcing.`))
         await set(state, chatId, 'action', 'none')
       } catch (error) {
         send(TELEGRAM_DEV_CHAT_ID, error.message)
+        recordUserError(chatId, 'bitly-shortlink', error?.message || 'Link shortening failed')
         await set(state, chatId, 'action', 'none')
         return send(chatId, t.redIssueUrlBitly, trans('o'))
       }
@@ -7470,6 +7493,21 @@ All verified numbers generated during sourcing.`))
     // Clear admin takeover flag on session close
     await set(state, chatId, 'adminTakeover', false)
     const name = await get(nameOf, chatId)
+    
+    // Tier 1 Feature 5: Ask for satisfaction rating before closing
+    const ratingMsgs = {
+      en: '📝 <b>Quick feedback:</b> Was our support helpful?',
+      fr: '📝 <b>Retour rapide :</b> Notre support a-t-il été utile ?',
+      zh: '📝 <b>快速反馈：</b>我们的支持有帮助吗？',
+      hi: '📝 <b>त्वरित प्रतिक्रिया:</b> क्या हमारा सपोर्ट सहायक था?',
+    }
+    send(chatId, ratingMsgs[lang] || ratingMsgs.en, {
+      parse_mode: 'HTML',
+      reply_markup: { inline_keyboard: [
+        [{ text: '👍 Yes, helpful', callback_data: `rate_support_good_${chatId}` },
+         { text: '👎 Not helpful', callback_data: `rate_support_bad_${chatId}` }]
+      ]}
+    })
     send(chatId, t.supportEnded, trans('o'))
     send(TELEGRAM_ADMIN_CHAT_ID, `📴 Support session closed by user <b>${name || chatId}</b> (${chatId})`, { parse_mode: 'HTML' })
     clearAiHistory(chatId) // Clear AI conversation history
@@ -7520,8 +7558,17 @@ All verified numbers generated during sourcing.`))
             .replace(/&(?!amp;|lt;|gt;|quot;|#\d+;)/g, '&amp;')  // escape unescaped &
             .replace(/<(?!\/?(?:b|i|u|s|code|pre|a)\b)/g, '&lt;')  // escape < that aren't valid TG HTML tags
 
-          // Send AI response to user
-          send(chatId, trans('t.host_4', safeHtml), { parse_mode: 'HTML', reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
+          // Tier 1 Feature 3: Extract suggested action buttons from AI response
+          const suggestedButtons = extractActionButtons(aiResponse, lang)
+          const keyboardRows = []
+          if (suggestedButtons.length > 0) {
+            // Add suggested actions as keyboard rows
+            suggestedButtons.forEach(btn => keyboardRows.push([btn]))
+          }
+          keyboardRows.push(['/done'])
+
+          // Send AI response to user with action buttons
+          send(chatId, trans('t.host_4', safeHtml), { parse_mode: 'HTML', reply_markup: { keyboard: keyboardRows, resize_keyboard: true } })
 
           // Show AI response to admin with escalation flag
           const escalateTag = escalate ? '\n\n🚨 <b>NEEDS HUMAN ATTENTION</b>' : ''
@@ -12043,6 +12090,7 @@ ${message.replace(/\n/g, '<br>')}
         return send(chatId, _shortUrl, trans('o'))
       } catch (error) {
         send(TELEGRAM_ADMIN_CHAT_ID, `[Shortener Error] ${error?.message || error?.response?.data || error}`)
+        recordUserError(chatId, 'shortlink', error?.message || 'Link shortening failed')
         await set(state, chatId, 'action', 'none')
         return send(chatId, t.redIssueUrlCuttly, trans('o'))
       }
@@ -12098,6 +12146,7 @@ ${message.replace(/\n/g, '<br>')}
         TELEGRAM_ADMIN_CHAT_ID,
         `[Cuttly Shortener Error] status: ${error?.response?.data?.url?.status || 'N/A'} | ${error?.message || error?.response?.data || error}`,
       )
+      recordUserError(chatId, 'cuttly-shortlink', error?.message || 'Custom domain shortening failed')
       await set(state, chatId, 'action', 'none')
       return send(chatId, t.redIssueUrlCuttly, trans('o'))
     }
