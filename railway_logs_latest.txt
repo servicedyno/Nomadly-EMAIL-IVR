@@ -224,7 +224,7 @@
 [2026-04-16T16:39:12.347837513Z] [info] [ResurrectionScan] Testing 200 dead users...
 [2026-04-16T16:39:14.127931661Z] [info] 📞 Telnyx voice webhook received: call.initiated | conn=2898118323872990714 | from=+18778570205 | to=+16073140359
 [2026-04-16T16:39:14.127939060Z] [info] [Voice] Event: call.initiated
-[2026-04-16T16:39:14.127944360Z] [info] [Voice] PAYLOAD DUMP: direction=outgoing, from=+18778570205, to=+16073140359, connection_id=2898118323872990714, call_control_id=v3:mkc5iuMXqP1Tz94U_nwJTdL_boZfGK6Ap5MJ92SQ5bl3OKIKALAUsw, call_leg_id=cd429e22-39b2-11f1-8b87-02420aef8d20, hangup_cause=N/A, hangup_source=N/A, sip_hangup_cause=N/A, state=bridging
+[2026-04-16T16:39:14.127944360Z] [info] [Voice] PAYLOAD DUMP: direction=outgoing, from=+18778570205, to=+16073140359, connection_id=2898118323872990714, call_control_id=v3:mkc5iuMXqP1Tz94U_nwJTdL_boZfGK6Ap5MJ92SQ5bl3OKIKALAUsw, call_leg_id=setup-guide-80, hangup_cause=N/A, hangup_source=N/A, sip_hangup_cause=N/A, state=bridging
 [2026-04-16T16:39:17.649816344Z] [info] 📞 Telnyx voice webhook received: call.bridged | conn=2898118323872990714 | from=+18778570205 | to=+16073140359
 [2026-04-16T16:39:17.649823164Z] [info] [Voice] Event: call.bridged
 [2026-04-16T16:39:21.527632014Z] [info] 📞 Telnyx voice webhook received: call.answered | conn=2898118323872990714 | from=+18778570205 | to=+16073140359
@@ -233,7 +233,7 @@
 [2026-04-16T16:39:41.525327822Z] [info] message: /start	from: 7304424395 flmzv2
 [2026-04-16T16:39:41.525333012Z] [info] 📞 Telnyx voice webhook received: call.hangup | conn=2898118323872990714 | from=+18778570205 | to=+16073140359
 [2026-04-16T16:39:41.525337302Z] [info] [Voice] Event: call.hangup
-[2026-04-16T16:39:41.525341662Z] [info] [Voice] PAYLOAD DUMP: direction=undefined, from=+18778570205, to=+16073140359, connection_id=2898118323872990714, call_control_id=v3:mkc5iuMXqP1Tz94U_nwJTdL_boZfGK6Ap5MJ92SQ5bl3OKIKALAUsw, call_leg_id=cd429e22-39b2-11f1-8b87-02420aef8d20, hangup_cause=normal_clearing, hangup_source=caller, sip_hangup_cause=403, state=undefined
+[2026-04-16T16:39:41.525341662Z] [info] [Voice] PAYLOAD DUMP: direction=undefined, from=+18778570205, to=+16073140359, connection_id=2898118323872990714, call_control_id=v3:mkc5iuMXqP1Tz94U_nwJTdL_boZfGK6Ap5MJ92SQ5bl3OKIKALAUsw, call_leg_id=setup-guide-80, hangup_cause=normal_clearing, hangup_source=caller, sip_hangup_cause=403, state=undefined
 [2026-04-16T16:39:43.515662809Z] [info] 📨 Telegram webhook received
 [2026-04-16T16:39:43.515668029Z] [info] message: /start	from: 7304424395 flmzv2
 [2026-04-16T16:39:48.245255845Z] [info] 📨 Telegram webhook received
@@ -344,7 +344,7 @@
 [2026-04-16T16:40:40.528703569Z] [info] 
 [2026-04-16T16:40:42.525388014Z] [info] 📞 Telnyx voice webhook received: call.initiated | conn=2898118323872990714 | from=+16073140359 | to=+18778570205
 [2026-04-16T16:40:42.527228588Z] [info] [Voice] Event: call.initiated
-[2026-04-16T16:40:42.527233308Z] [info] [Voice] PAYLOAD DUMP: direction=incoming, from=+16073140359, to=+18778570205, connection_id=2898118323872990714, call_control_id=v3:hz0fPqXggGdeDWgPl_Y5nIvrYSyEbPPeNjGGW9ghSocZR3wpXJcGyg, call_leg_id=01e866d4-39b3-11f1-aebb-02420aef96a1, hangup_cause=N/A, hangup_source=N/A, sip_hangup_cause=N/A, state=bridging
+[2026-04-16T16:40:42.527233308Z] [info] [Voice] PAYLOAD DUMP: direction=incoming, from=+16073140359, to=+18778570205, connection_id=2898118323872990714, call_control_id=v3:hz0fPqXggGdeDWgPl_Y5nIvrYSyEbPPeNjGGW9ghSocZR3wpXJcGyg, call_leg_id=setup-guide-80, hangup_cause=N/A, hangup_source=N/A, sip_hangup_cause=N/A, state=bridging
 [2026-04-16T16:40:43.163698962Z] [info] 📨 Telegram webhook received
 [2026-04-16T16:40:43.163704771Z] [info] message: 🔍 helpcenterxyyx.online	from: 6543817440 Thebiggestbag22
 [2026-04-16T16:40:43.584084739Z] [info] reply: 🌐 <b>helpcenterxyyx.online</b>
