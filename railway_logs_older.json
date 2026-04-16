@@ -1,0 +1,3707 @@
+[
+  {
+    "message": "Starting Container",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:08:59.674661834Z"
+  },
+  {
+    "message": "npm warn config production Use `--omit=dev` instead.",
+    "severity": "error",
+    "timestamp": "2026-04-16T07:09:00.153994271Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:00.154001949Z"
+  },
+  {
+    "message": "> tg-bot-link-shorten@1.0.0 start",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:00.154009433Z"
+  },
+  {
+    "message": "> node js/start-bot.js",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:00.154017225Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:00.154024013Z"
+  },
+  {
+    "message": "\ud83d\udd27 Loading configuration...",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:00.154030289Z"
+  },
+  {
+    "message": "\ud83c\udf10 Webhook base URL: https://nomadlynew-production.up.railway.app",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:00.154039137Z"
+  },
+  {
+    "message": "\ud83d\udccd URL Source: SELF_URL_PROD",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:00.154045971Z"
+  },
+  {
+    "message": "\ud83d\udce1 Webhook endpoint: https://nomadlynew-production.up.railway.app/telegram/webhook",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:00.154053010Z"
+  },
+  {
+    "message": "\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:00.154061241Z"
+  },
+  {
+    "message": "\ud83e\udd16 BOT ENVIRONMENT CONFIGURATION",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:00.154067946Z"
+  },
+  {
+    "message": "\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:00.154075953Z"
+  },
+  {
+    "message": "Environment: PRODUCTION",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:00.154082932Z"
+  },
+  {
+    "message": "Token Source: TELEGRAM_BOT_TOKEN_PROD",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:00.154093287Z"
+  },
+  {
+    "message": "Token Configured: YES \u2705",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:00.154099747Z"
+  },
+  {
+    "message": "Detection basis: BOT_ENVIRONMENT=production, NODE_ENV=production",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:00.154106481Z"
+  },
+  {
+    "message": "\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:00.154113445Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:00.154121508Z"
+  },
+  {
+    "message": "\ud83d\udd27 Setting default for DAILY_PLAN_FREE_VALIDATIONS: 5000",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:00.154128384Z"
+  },
+  {
+    "message": "\ud83d\udd27 Setting default for WEEKLY_PLAN_FREE_VALIDATIONS: 10000",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:00.154136636Z"
+  },
+  {
+    "message": "\ud83d\udd27 Setting default for MONTHLY_PLAN_FREE_VALIDATIONS: 15000",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:00.154144579Z"
+  },
+  {
+    "message": "\u2705 All critical environment variables are set",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:00.154151742Z"
+  },
+  {
+    "message": "\u2705 Configuration setup completed",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:01.445580052Z"
+  },
+  {
+    "message": "[WHM-Whitelist] Detected outbound IP: 162.220.234.15",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:01.445586532Z"
+  },
+  {
+    "message": "[WHM-Whitelist] cPHulk: 162.220.234.15 whitelisted successfully",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:01.445592617Z"
+  },
+  {
+    "message": "[WHM-Whitelist] CSF response: {\"result\":0,\"version\":\"1\",\"command\":\"csf_allow\",\"reason\":\"Unknown app (\u201ccsf_allow\u201d) requested for this version (1) of the API.\"}",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:02.313539257Z"
+  },
+  {
+    "message": "Working, Railway API, now starting the bot",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:03.339147594Z"
+  },
+  {
+    "message": "[WHM-Whitelist] Host Access: 162.220.234.15 added",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:03.339201281Z"
+  },
+  {
+    "message": "[WHM-Whitelist] Complete \u2014 IP: 162.220.234.15, cPHulk: true, CSF: false",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:03.339206192Z"
+  },
+  {
+    "message": "Working, Fincra API",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:03.339210975Z"
+  },
+  {
+    "message": "[AI Support] OpenAI initialized",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:03.343074955Z"
+  },
+  {
+    "message": "TELEGRAM_BOT_ON: true",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:03.376341694Z"
+  },
+  {
+    "message": "Bot initialized with webhook support",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:03.376352039Z"
+  },
+  {
+    "message": "Bot ran away! Thu Apr 16 2026 07:09:03 GMT+0000 (Coordinated Universal Time)",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:03.376357970Z"
+  },
+  {
+    "message": "\u2705 Main application ready! Server already listening on port 8080",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.224712175Z"
+  },
+  {
+    "message": "\ud83d\ude80 Early health check server started on port 8080",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.224717629Z"
+  },
+  {
+    "message": "(node:15) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.",
+    "severity": "error",
+    "timestamp": "2026-04-16T07:09:04.224723723Z"
+  },
+  {
+    "message": "[AutoPromo] Scheduled evening for EN at local 19:00 (UTC 19:00)",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.224724917Z"
+  },
+  {
+    "message": "[CR-Whitelist] Outbound IP: 162.220.234.15",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.224725691Z"
+  },
+  {
+    "message": "\u2705 MongoDB connection pool ready",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.224732419Z"
+  },
+  {
+    "message": "[AutoPromo] Scheduled morning for FR at local 10:00 (UTC 9:00)",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.224738379Z"
+  },
+  {
+    "message": "DB Connected lala. May peace be with you and Lord's mercy and blessings.",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.224738672Z"
+  },
+  {
+    "message": "[AutoPromo] Scheduled morning for EN at local 10:00 (UTC 10:00)",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.224745904Z"
+  },
+  {
+    "message": "[AutoPromo] Scheduled evening for FR at local 19:00 (UTC 18:00)",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.224746922Z"
+  },
+  {
+    "message": "[AutoPromo] Scheduled morning for ZH at local 10:00 (UTC 2:00)",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.224753027Z"
+  },
+  {
+    "message": "[Honeypot] Express routes mounted: POST /honeypot/report, GET /honeypot/stats, GET /honeypot/check/:ip",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.224759014Z"
+  },
+  {
+    "message": "[AutoPromo] Scheduled evening for ZH at local 19:00 (UTC 11:00)",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.224759551Z"
+  },
+  {
+    "message": "[Express] Panel domain guard active: panel.hostbay.io",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.224771161Z"
+  },
+  {
+    "message": "[AutoPromo] Scheduled morning for HI at local 10:00 (UTC 4:30)",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.224773645Z"
+  },
+  {
+    "message": "[Express] Serving React frontend from build directory",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.224781215Z"
+  },
+  {
+    "message": "[AutoPromo] Scheduled evening for HI at local 19:00 (UTC 13:30)",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.224781326Z"
+  },
+  {
+    "message": "[AutoPromo] Initialized \u2014 8 jobs (4 langs \u00d7 2 slots/day), 12 themes: cloudphone, antired_hosting, leads_validation, domains_shortener, digital_products, cards_bundles, email_validation, marketplace, vps_rdp, bulksms_app, email_blast, refer_earn",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.224786723Z"
+  },
+  {
+    "message": "(Use `node --trace-deprecation ...` to show where the warning was created)",
+    "severity": "error",
+    "timestamp": "2026-04-16T07:09:04.224945382Z"
+  },
+  {
+    "message": "[AutoPromo] Schedule: \ud83c\udf05 Morning hero (10am) + \ud83c\udf19 Evening cross-sell (7pm), 7 days/week",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.227281744Z"
+  },
+  {
+    "message": "\ud83d\udcca Webhook info: {",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.227285958Z"
+  },
+  {
+    "message": "[AutoPromo] Resurrection scan enabled \u2014 every 6h, 200 users/batch",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.227290517Z"
+  },
+  {
+    "message": "  \"url\": \"https://nomadlynew-production.up.railway.app/telegram/webhook\",",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.227298073Z"
+  },
+  {
+    "message": "[AutoPromo] System loaded successfully",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.227299439Z"
+  },
+  {
+    "message": "[DailyCoupon] System initialized",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.227306781Z"
+  },
+  {
+    "message": "SMS webhook: https://nomadlynew-production.up.railway.app/telnyx/sms-webhook",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.227312595Z"
+  },
+  {
+    "message": "[DailyCoupon] Coupons already exist for 2026-04-16",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.227320537Z"
+  },
+  {
+    "message": "[DailyCoupon] System loaded successfully",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.227324041Z"
+  },
+  {
+    "message": "\u2501\u2501\u2501 Initializing Telnyx Resources \u2501\u2501\u2501",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.227329787Z"
+  },
+  {
+    "message": "\ud83d\uddd1\ufe0f  Deleted old webhook",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.227330667Z"
+  },
+  {
+    "message": "07:09:03 [CartRecovery] Initialized \u2014 nudge delay: 45min, cooldown: 24h, silent timeout: 20min, languages: en/fr/zh/hi",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.227334576Z"
+  },
+  {
+    "message": "\u2705 Telegram webhook set successfully",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.227340012Z"
+  },
+  {
+    "message": "Voice webhook: https://nomadlynew-production.up.railway.app/telnyx/voice-webhook",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.227342750Z"
+  },
+  {
+    "message": "07:09:03 [CartRecovery] Tracking 50 payment action states",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.227343750Z"
+  },
+  {
+    "message": "\ud83d\udce1 Webhook URL: https://nomadlynew-production.up.railway.app/telegram/webhook",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.227349171Z"
+  },
+  {
+    "message": "[CartRecovery] System loaded successfully",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.227351778Z"
+  },
+  {
+    "message": "07:09:03 [Conversion] New User Conversion Engine initialized \u2014 5 features active",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.227359355Z"
+  },
+  {
+    "message": "07:09:03 [Conversion] First deposit bonus: $5 (min $20), Welcome offer: 25% (2h delay), Social proof: \u00d73",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.227364605Z"
+  },
+  {
+    "message": "[Conversion] System loaded successfully",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.227368798Z"
+  },
+  {
+    "message": "[CR-Whitelist] API working \u2014 IP 162.220.234.15 is whitelisted",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.231753264Z"
+  },
+  {
+    "message": "[CR-Whitelist] Startup check passed \u2014 API working",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.231765603Z"
+  },
+  {
+    "message": "    \"message\",",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.231766926Z"
+  },
+  {
+    "message": "    \"callback_query\",",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.231777292Z"
+  },
+  {
+    "message": "\"my_chat_member\"",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.231783832Z"
+  },
+  {
+    "message": "  ]",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.231789865Z"
+  },
+  {
+    "message": "}",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.231795990Z"
+  },
+  {
+    "message": "\u2705 Webhook verification passed",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.231802569Z"
+  },
+  {
+    "message": "\u2705 Default bot commands registered",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.231809490Z"
+  },
+  {
+    "message": "  \"has_custom_certificate\": false,",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.231856801Z"
+  },
+  {
+    "message": "  \"pending_update_count\": 0,",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.231864446Z"
+  },
+  {
+    "message": "  \"max_connections\": 40,",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.231870822Z"
+  },
+  {
+    "message": "  \"ip_address\": \"151.101.2.15\",",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.231877649Z"
+  },
+  {
+    "message": "  \"allowed_updates\": [",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.231884030Z"
+  },
+  {
+    "message": "\u2705 Admin bot commands registered for chat 5590563715",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:04.250846621Z"
+  },
+  {
+    "message": "Updated SIP Connection webhook: 2898118323872990714",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:05.157493021Z"
+  },
+  {
+    "message": "Updated Messaging Profile webhook: 40019c71-59a6-497a-8246-49536bd08d87",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:05.157499729Z"
+  },
+  {
+    "message": "[Telnyx] Outbound voice profile 2897375459551478845 whitelist OK (250 countries)",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:05.442936053Z"
+  },
+  {
+    "message": "Call Control App ID: 2898117434361775526",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:07.250874726Z"
+  },
+  {
+    "message": "Updated Call Control App webhook: 2898117434361775526",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:07.250884776Z"
+  },
+  {
+    "message": "[CloudPhone] Telnyx resources initialized",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:07.250885370Z"
+  },
+  {
+    "message": "\u2501\u2501\u2501 Telnyx Resources Ready \u2501\u2501\u2501",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:07.250896346Z"
+  },
+  {
+    "message": "[Telnyx] Migration complete: 0 migrated, 1 already correct, 3 external skipped, 0 external detached, 4 total",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:07.250896494Z"
+  },
+  {
+    "message": "SIP Connection ID: 2898118323872990714",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:07.250905085Z"
+  },
+  {
+    "message": "Messaging Profile ID: 40019c71-59a6-497a-8246-49536bd08d87",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:07.250911437Z"
+  },
+  {
+    "message": "[Telnyx] ANI override updated to +18778570205",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.175824416Z"
+  },
+  {
+    "message": "[CloudPhone] SIP connection ANI override set to TOLL-FREE number: +18778570205",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.175829636Z"
+  },
+  {
+    "message": "\u2501\u2501\u2501 Initializing Twilio Resources \u2501\u2501\u2501",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.175834179Z"
+  },
+  {
+    "message": "[Twilio] Connected: Speechcue (active)",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.175838901Z"
+  },
+  {
+    "message": "[Twilio] Updated SIP domain webhook: speechcue-7937a0.sip.twilio.com",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.175843388Z"
+  },
+  {
+    "message": "[Twilio] Credential mapping note: CLfe5ba0b48274412e6e953eb58901c9ce already associated with SDdb6525d35a1f09e4d1dfc19a2128ed96",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.268438865Z"
+  },
+  {
+    "message": "[SmsService] Initialized with real-time limit enforcement + overage billing",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.440783812Z"
+  },
+  {
+    "message": "[CloudPhone] SMS Service limits initialized with overage billing",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.440796398Z"
+  },
+  {
+    "message": "[CnamService] Initialized \u2014 priority: Telnyx \u2192 Multitel \u2192 SignalWire + MongoDB cache + circuit breaker",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.440807281Z"
+  },
+  {
+    "message": "[Twilio] IP ACL mapping note: AL9d507c8e92b81b62c224100679943c8d already associated with SDdb6525d35a1f09e4d1dfc19a2128ed96",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.440811787Z"
+  },
+  {
+    "message": "[CloudPhone] CNAM Service initialized",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.440815141Z"
+  },
+  {
+    "message": "[CloudPhone] Twilio initialized \u2014 SIP: speechcue-7937a0.sip.twilio.com",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.440824093Z"
+  },
+  {
+    "message": "[PhoneScheduler] Scheduled: expiry check (hourly), usage tracking (daily 3AM), monthly reset (daily 0:05AM)",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.440829837Z"
+  },
+  {
+    "message": "[CloudPhone] Scheduler initialized",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.440835802Z"
+  },
+  {
+    "message": "[HostingScheduler] Initialized \u2014 checking every hour",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.440840975Z"
+  },
+  {
+    "message": "[HostingScheduler] Policy: weekly plans NEVER auto-renew, monthly plans auto-renew if enabled",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.440846237Z"
+  },
+  {
+    "message": "[HostingScheduler] Scheduled: expiry check (every 60 min)",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.440851434Z"
+  },
+  {
+    "message": "[HostingScheduler] Initialized",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.440856115Z"
+  },
+  {
+    "message": "[ProtectionEnforcer] Initialized",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.440863851Z"
+  },
+  {
+    "message": "[ProtectionEnforcer] Scheduler started \u2014 runs every 6h",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.440868808Z"
+  },
+  {
+    "message": "[ProtectionEnforcer] Initialized and scheduled",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.440873473Z"
+  },
+  {
+    "message": "[VoiceService] Initialized with IVR + Recording + Analytics + Limits + Overage billing + SIP Bridge + Twilio IVR + Loyalty Discounts + Pre-Dial Prevention",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.440879729Z"
+  },
+  {
+    "message": "[CloudPhone] Voice Service initialized with IVR + Recording + Overage",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.440884367Z"
+  },
+  {
+    "message": "[PhoneTest] Routes initialized: /phone/test/verify-otp, /phone/test/prepare-call, /phone/test/caller-info",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.440889778Z"
+  },
+  {
+    "message": "[PhoneMonitor] Initialized \u2014 checking every 30 minutes",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.445508263Z"
+  },
+  {
+    "message": "[WelcomeBonus] Initialized \u2014 $3 welcome gift for new users",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.445519488Z"
+  },
+  {
+    "message": "[WinBack] Initialized \u2014 scans for 7-day inactive users daily at 10:00 UTC, 20% discount, 48h expiry",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.445527661Z"
+  },
+  {
+    "message": "[Monetization] Engine initialized \u2014 Upsell + Welcome Bonus + Win-Back + Bundles",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.445536944Z"
+  },
+  {
+    "message": "[LeadJobs] Persistence initialized",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.445543244Z"
+  },
+  {
+    "message": "[RegulatoryFlow] Initialized",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.445546895Z"
+  },
+  {
+    "message": "[Marketplace] Stale conversation cleanup scheduled (every 6h)",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.445560992Z"
+  },
+  {
+    "message": "[BulkCall] Service initialized (Speechcue mode)",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.445565294Z"
+  },
+  {
+    "message": "[AI Support] MongoDB collections initialized",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.445565351Z"
+  },
+  {
+    "message": "[StateCleanup] Scheduled every 6h (stale threshold: 24h)",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.445574473Z"
+  },
+  {
+    "message": "[ShortenerPersistence] Initialized",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.445580464Z"
+  },
+  {
+    "message": "[BundleChecker] Scheduled every 30min",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.445586017Z"
+  },
+  {
+    "message": "[Honeypot] MongoDB collection initialized with indexes",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.445595386Z"
+  },
+  {
+    "message": "[FincraReconcile] Payment recovery scheduled every 5min",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.445599193Z"
+  },
+  {
+    "message": "[SmsApp] Service initialized",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.445605952Z"
+  },
+  {
+    "message": "[AudioLibrary] Initialized",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.445611751Z"
+  },
+  {
+    "message": "[SmsApp] Routes registered",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.445618107Z"
+  },
+  {
+    "message": "[EmailBlast] Service initialized with queue processor",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.445624516Z"
+  },
+  {
+    "message": "[EmailValidation] Service initialized",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.445632580Z"
+  },
+  {
+    "message": "[BalanceMonitor] Initialized \u2014 checking every 120min (warn=$10, crit=$5)",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.445642432Z"
+  },
+  {
+    "message": "[UserWalletMonitor] Initialized \u2014 scanning every 6h (warn=$5, crit=$2, empty=$0)",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:08.445651428Z"
+  },
+  {
+    "message": "[Twilio] Updated webhooks for number PNf29264d55c7bd5c6ffcd777dabc8dec8 on sub-account ACbbc22c43a792f2b36e2c87e14c604383",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:09.253779647Z"
+  },
+  {
+    "message": "[EmailWarming] Initialized with 8-stage schedule",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:09.253844480Z"
+  },
+  {
+    "message": "[Marketplace] Initialized",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:09.253851374Z"
+  },
+  {
+    "message": "[EmailBlast] Service initialized \u2014 queue processor running every 30s",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:09.253857057Z"
+  },
+  {
+    "message": "[UserWalletMonitor] Loaded 3939 active notification histories from DB (3940 total, 1 expired/skipped)",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:09.253863959Z"
+  },
+  {
+    "message": "[Twilio] Updated webhooks for number PN9e2d59c7d2013af0e307e6b0f2603365 on sub-account AC01e40ee6bb868cc84290f122ae8b5d8c",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:09.253870774Z"
+  },
+  {
+    "message": "[Honeypot] Found existing KV namespace: 812aca1cbade413d9814bff1708e74db",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:09.253876900Z"
+  },
+  {
+    "message": "[Honeypot] KV namespace ready: 812aca1cbade413d9814bff1708e74db",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:09.253882745Z"
+  },
+  {
+    "message": "[Twilio] Updated webhooks for number PN7e3fc6448d380d665b37c77815156b00 on sub-account ACeb229829601188c295caf6c245e37745",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:09.253888015Z"
+  },
+  {
+    "message": "[Twilio] Updated webhooks for number PN7a9e0513d7de9f03801e563bd561367d on sub-account AC2e218d7f6dae570de99daf2c7436846c",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:09.495234301Z"
+  },
+  {
+    "message": "[Twilio] Updated webhooks for number PNca258a8882e24136d6936e63ac1c39a6 on sub-account AC2e218d7f6dae570de99daf2c7436846c",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:10.369243211Z"
+  },
+  {
+    "message": "[Twilio Sync] Webhook sync complete: 5 updated, 0 failed, 0 credentials recovered",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:10.369250474Z"
+  },
+  {
+    "message": "[Broadcast] Recovery: No interrupted broadcasts to resume",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:13.883262762Z"
+  },
+  {
+    "message": "07:09:13 [Conversion] Social proof refreshed: {\"hosting\":510,\"domains\":9003,\"cloudphone\":111,\"digitalproducts\":36,\"vps\":63,\"virtualcard\":27,\"general\":7749}",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:13.883274765Z"
+  },
+  {
+    "message": "[Voice] PRE-DIAL: Loaded 2 blocked credential(s) from DB",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:13.883389530Z"
+  },
+  {
+    "message": "[HostingScheduler] Startup enforcement: no expired accounts need action",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:19.014393446Z"
+  },
+  {
+    "message": "[PhoneMonitor] === Health check started ===",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:19.014398746Z"
+  },
+  {
+    "message": "[AntiRed] KV namespace for honeypot bans: 812aca1cbade413d9814bff1708e74db",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:19.014404138Z"
+  },
+  {
+    "message": "[PhoneMonitor] Checking 6 Twilio subaccounts",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:19.014409395Z"
+  },
+  {
+    "message": "[CpanelMigration] Found 5 account(s) not on current WHM_HOST (209.38.241.9). Checking new server...",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:19.014415044Z"
+  },
+  {
+    "message": "[PhoneMonitor] Checking 1 Telnyx numbers",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:19.014421204Z"
+  },
+  {
+    "message": "[PhoneMonitor] === Health check complete: 7 checked, 0 newly suspended ===",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:19.018038331Z"
+  },
+  {
+    "message": "[AntiRed] Shared worker upgraded: OK (KV: bound)",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:20.018818896Z"
+  },
+  {
+    "message": "[AntiRed] Startup worker upgrade: OK (KV: true)",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:20.018825866Z"
+  },
+  {
+    "message": "[CpanelMigration] star26fe: Not on new server \u2014 skipped (stays on 199.247.22.196).",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:20.876579208Z"
+  },
+  {
+    "message": "[CpanelMigration] mycu79c2: Not on new server \u2014 skipped (stays on 199.247.22.196).",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:20.876591812Z"
+  },
+  {
+    "message": "[CpanelMigration] Migration complete: 0 migrated, 5 skipped (not on new server), 0 failed.",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:20.876601273Z"
+  },
+  {
+    "message": "[CpanelMigration] New WHM server has 8 account(s).",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:20.876662105Z"
+  },
+  {
+    "message": "[CpanelMigration] locke9c5: Not on new server \u2014 skipped (stays on 199.247.22.196).",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:20.876668641Z"
+  },
+  {
+    "message": "[CpanelMigration] ntesb913: Not on new server \u2014 skipped (stays on 199.247.22.196).",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:20.876674754Z"
+  },
+  {
+    "message": "[CpanelMigration] ntesdbd4: Not on new server \u2014 skipped (stays on 199.247.22.196).",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:20.876680516Z"
+  },
+  {
+    "message": "[BulkCall] Recovery: No running campaigns to recover",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:24.113499582Z"
+  },
+  {
+    "message": "07:09:33 [CartRecovery] No pending nudges to recover",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:33.996503341Z"
+  },
+  {
+    "message": "[ProtectionEnforcer] domainsOf: 56 unique custom domains",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:39.083541732Z"
+  },
+  {
+    "message": "[BalanceMonitor] Running provider balance checks...",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:39.083553198Z"
+  },
+  {
+    "message": "[ProtectionEnforcer] cpanelAccounts: 20 accounts",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:39.083554295Z"
+  },
+  {
+    "message": "[ProtectionEnforcer] Total unique domains: 135",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:39.083563932Z"
+  },
+  {
+    "message": "[ProtectionEnforcer] \u2550\u2550\u2550 Starting enforcement run \u2550\u2550\u2550",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:39.083568670Z"
+  },
+  {
+    "message": "[BalanceMonitor] Telnyx: $10.64 USD [ok]",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:39.083574295Z"
+  },
+  {
+    "message": "[ProtectionEnforcer] registeredDomains: 74 entries",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:39.083577241Z"
+  },
+  {
+    "message": "[BalanceMonitor] Twilio: $19.65 USD [ok]",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:09:39.083582391Z"
+  },
+  {
+    "message": "[ProtectionEnforcer] \u2550\u2550\u2550 Enforcement complete in 43.1s \u2550\u2550\u2550",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:10:30.532247197Z"
+  },
+  {
+    "message": "[ProtectionEnforcer] Total: 135 | Protected: 97 | Fixed: 0 | No Zone: 38 | Errors: 0 | DNS Cached: 67 | Zone Skipped: 0",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:10:30.532254302Z"
+  },
+  {
+    "message": "[UserWalletMonitor] Skipped group chat: -1002372561543",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:11:10.794816512Z"
+  },
+  {
+    "message": "[UserWalletMonitor] Skipped group chat: -5051719293",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:11:10.794828596Z"
+  },
+  {
+    "message": "[UserWalletMonitor] Scan complete: 4005 wallets checked, 0 low-balance warnings sent",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:11:10.794837003Z"
+  },
+  {
+    "message": "[UserWalletMonitor] Running periodic wallet scan (all users)...",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:11:10.794866556Z"
+  },
+  {
+    "message": "[UserWalletMonitor] Skipped group chat: -1002073456336",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:11:10.794873651Z"
+  },
+  {
+    "message": "[UserWalletMonitor] Skipped group chat: -1001760675819",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:11:10.794910235Z"
+  },
+  {
+    "message": "[UserWalletMonitor] Skipped group chat: -4013524243",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:11:10.794922902Z"
+  },
+  {
+    "message": "[UserWalletMonitor] Skipped group chat: -4008071670",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:11:10.794928490Z"
+  },
+  {
+    "message": "[UserWalletMonitor] Skipped group chat: -1001843794247",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:11:10.794933395Z"
+  },
+  {
+    "message": "[ResurrectionScan] Testing 200 dead users...",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:14:04.044895051Z"
+  },
+  {
+    "message": "[ResurrectionScan] Done: {\"tested\":200,\"resurrected\":179,\"stillDead\":21,\"timestamp\":\"2026-04-16T07:14:50.237Z\"}",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:14:54.151194234Z"
+  },
+  {
+    "message": "[PhoneMonitor] === Health check complete: 7 checked, 0 newly suspended ===",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:39:12.888714959Z"
+  },
+  {
+    "message": "[PhoneMonitor] === Health check started ===",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:39:12.888848244Z"
+  },
+  {
+    "message": "[PhoneMonitor] Checking 6 Twilio subaccounts",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:39:12.888858150Z"
+  },
+  {
+    "message": "[PhoneMonitor] Checking 1 Telnyx numbers",
+    "severity": "info",
+    "timestamp": "2026-04-16T07:39:12.888865603Z"
+  },
+  {
+    "message": "[PhoneScheduler] Running hourly expiry check...",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:00:06.405693077Z"
+  },
+  {
+    "message": "[PhoneScheduler] Expiry check complete: 0 reminders, 0 auto-renewed, 0 released",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:00:06.405698172Z"
+  },
+  {
+    "message": "reply: Hi there! How can I assist you today? \ud83d\ude0a /done\tto: 8246464913",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:02:59.790229554Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:02:59.790243224Z"
+  },
+  {
+    "message": "reply: \ud83e\udd16 <b>AI replied to heimlich_himmler</b> (8246464913):",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:02:59.790251154Z"
+  },
+  {
+    "message": "<i>Hi there! How can I assist you today? \ud83d\ude0a</i> \tto: 5590563715",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:02:59.790258652Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:02:59.790265607Z"
+  },
+  {
+    "message": "[Support] AI -> 8246464913: Hi there! How can I assist you today? \ud83d\ude0a... (escalate: false)",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:02:59.790273008Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:02:59.790304776Z"
+  },
+  {
+    "message": "message: \tfrom: 8246464913 heimlich_himmler",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:02:59.790312145Z"
+  },
+  {
+    "message": "reply: \ud83d\udcac <b>heimlich_himmler</b> (8246464913):",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:02:59.790319920Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:02:59.790327206Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:02:59.790334528Z"
+  },
+  {
+    "message": "\u21a9\ufe0f /reply 8246464913 <i>type response</i> \tto: 5590563715",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:02:59.790343403Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:02:59.790351197Z"
+  },
+  {
+    "message": "[Support] 8246464913 -> admin:  (adminTakeover: false)",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:02:59.790363415Z"
+  },
+  {
+    "message": "Connect Reseller API is working",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:02:59.790371299Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:03:19.986952123Z"
+  },
+  {
+    "message": "\ud83e\udd49 Bronze  <b>$3.00</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:03:19.986962221Z"
+  },
+  {
+    "message": "<i>Start spending to unlock discounts</i>",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:03:19.986968461Z"
+  },
+  {
+    "message": "\ud83d\udcde <i>You have a free trial Quick IVR Call! Tap Cloud IVR to try it.</i>",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:03:19.986974577Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:03:19.986981832Z"
+  },
+  {
+    "message": "\ud83e\uddea <i>Try SIP calling free \u2014 send /testsip</i>",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:03:19.986989409Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:03:19.986995542Z"
+  },
+  {
+    "message": "Select an option below \ud83d\udcde Cloud IVR + SIP,\ud83e\udd1d Refer & Earn,\ud83c\udfea Marketplace,\ud83d\uded2 Digital Products,\ud83c\udf10 Bulletproof Domains,\ud83d\udee1\ufe0f\ud83d\udd25 Anti-Red Hosting,\ud83d\udda5\ufe0f VPS/RDP \u2014 Port 25 Open\ud83d\udee1\ufe0f,\ud83d\udce7\ud83c\udd93 BulkSMS \u2014 100 Free SMS,\ud83d\udce7 Email Validation,\ud83d\udcb3 Virtual Card,\ud83d\udc5b Wallet,\ud83d\udcf1 SMS Leads,\ud83d\udd17\u2702\ufe0f URL Shortener \u2014 5 Free Links,\u26a1 Upgrade Plan,\ud83d\udce6 Ship & Mail,\ud83d\udce2 Join Channel,\ud83d\udcbc Reseller,\ud83c\udf0d Settings,\ud83d\udcac Support\tto: 8246464913",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:03:19.987002147Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:03:19.987008443Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:03:19.987298347Z"
+  },
+  {
+    "message": "message: /start\tfrom: 8246464913 heimlich_himmler",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:03:19.987303753Z"
+  },
+  {
+    "message": "reply: Hey, <b>National</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:03:19.987309228Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:03:39.097564495Z"
+  },
+  {
+    "message": "message: \ud83d\udce7\ud83c\udd93 BulkSMS \u2014 100 Free SMS\tfrom: 8246464913 heimlich_himmler",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:03:39.097580577Z"
+  },
+  {
+    "message": "reply: \ud83d\udce7 <b>BulkSMS \u2014 Free Trial</b> (100 SMS left)",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:03:39.097588724Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:03:39.097597934Z"
+  },
+  {
+    "message": "Sends SMS from your phone's SIM \u2014 high deliverability, real sender ID.",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:03:39.097604404Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:03:39.097611750Z"
+  },
+  {
+    "message": "\ud83d\udcf2 <b>App:</b> https://02w.me/c-Bf7",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:03:39.097620709Z"
+  },
+  {
+    "message": "\ud83d\udd11 <b>Code:</b> <code>8246464913</code>",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:03:39.097629041Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:03:39.097635797Z"
+  },
+  {
+    "message": "New here? Tap <b>\u2753 How It Works</b> \ud83d\udcf1 Create Campaign,\ud83d\udccb My Campaigns,\ud83d\udcf2 Download App,\ud83d\udd13 Reset Login,\u2753 How It Works,\u26a1 Upgrade Plan,Back\tto: 8246464913",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:03:39.097642188Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:03:39.097648812Z"
+  },
+  {
+    "message": "08:09:03 [Conversion] Social proof refreshed: {\"hosting\":510,\"domains\":9003,\"cloudphone\":111,\"digitalproducts\":36,\"vps\":63,\"virtualcard\":27,\"general\":7749}",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:09:07.940868036Z"
+  },
+  {
+    "message": "[PhoneMonitor] === Health check started ===",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:09:09.045284391Z"
+  },
+  {
+    "message": "[PhoneMonitor] Checking 6 Twilio subaccounts",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:09:09.045288702Z"
+  },
+  {
+    "message": "[PhoneMonitor] Checking 1 Telnyx numbers",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:09:09.045293892Z"
+  },
+  {
+    "message": "[PhoneMonitor] === Health check complete: 7 checked, 0 newly suspended ===",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:09:09.066208017Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:28:37.551754455Z"
+  },
+  {
+    "message": "Need eSIM cards? Tap \ud83d\udcac Get Support \tto: 8246464913",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:28:37.551766618Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:28:37.551775071Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:28:37.551781926Z"
+  },
+  {
+    "message": "message: \ud83d\udcf2 Download App\tfrom: 8246464913 heimlich_himmler",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:28:37.551788270Z"
+  },
+  {
+    "message": "reply: \ud83d\udcf1 <b>BulkSMS Free Trial \u2014 100 Free SMS</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:28:37.551794335Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:28:37.551800234Z"
+  },
+  {
+    "message": "Your activation code:",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:28:37.551806782Z"
+  },
+  {
+    "message": "<code>8246464913</code>",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:28:37.551813648Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:28:37.551820084Z"
+  },
+  {
+    "message": "\ud83d\udcf2 <b>Download the app:</b> https://02w.me/c-Bf7",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:28:37.551827095Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:28:37.551839581Z"
+  },
+  {
+    "message": "Open the app \u2192 Enter your code \u2192 Start sending!",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:28:37.551848758Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:28:37.551854535Z"
+  },
+  {
+    "message": "\u26a1 Trial: 1 device only.",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:28:37.551859960Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:28:37.551868809Z"
+  },
+  {
+    "message": "\ud83d\udca1 After trial, tap <b>\u26a1 Upgrade Plan</b> on the main menu to unlock unlimited BulkSMS + URL shortening + validations & more!",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:28:37.551875343Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:29:48.762653181Z"
+  },
+  {
+    "message": "[Support] Admin replied to 1118822404: Please dm @onarrival1 Admin to place your order. \u2014 session re-opened, admin takeover ON",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:29:48.762688339Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:29:48.762706432Z"
+  },
+  {
+    "message": "message: /reply 1118822404 Please dm @onarrival1 Admin to place your order.\tfrom: 5590563715 onarrival1",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:29:48.762738498Z"
+  },
+  {
+    "message": "reply: \ud83d\udcac <b>Support:</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:29:48.762750782Z"
+  },
+  {
+    "message": "Please dm @onarrival1 Admin to place your order. /done\tto: 1118822404",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:29:48.762759067Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:29:48.762769964Z"
+  },
+  {
+    "message": "reply: \u2705 Reply sent to aZeidMcCain \tto: 5590563715",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:29:48.762777476Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:30:19.687492868Z"
+  },
+  {
+    "message": "reply: \u2705 Reply sent to heimlich_himmler \tto: 5590563715",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:30:19.687504175Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:30:19.687511328Z"
+  },
+  {
+    "message": "[Support] Admin replied to 8246464913: please download the latest app version and delete the old one from your first and then install the new version. Thanks \u2014 session re-opened, admin takeover ON",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:30:19.687517714Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:30:19.687645414Z"
+  },
+  {
+    "message": "message: /reply 8246464913 please download the latest app version and delete the old one from your first and then install the new version. Thanks\tfrom: 5590563715 onarrival1",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:30:19.687653282Z"
+  },
+  {
+    "message": "reply: \ud83d\udcac <b>Support:</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:30:19.687659576Z"
+  },
+  {
+    "message": "please download the latest app version and delete the old one from your first and then install the new version. Thanks /done\tto: 8246464913",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:30:19.687665764Z"
+  },
+  {
+    "message": "[SmsApp] Auto-replacing device for 8246464913: dev-test456 \u2192 dev-mo1811og-15nodt",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:32:23.718951879Z"
+  },
+  {
+    "message": "[SmsApp] Sync request for chatId: 8246464913, version: 2.2.0",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:32:23.718957419Z"
+  },
+  {
+    "message": "[SmsApp] Update reminder sent to 8246464913: 2.2.0 \u2192 2.4.1",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:32:23.718962872Z"
+  },
+  {
+    "message": "[SmsApp] Sync for 8246464913 - canUseSms: true, isFreeTrial: true, freeSmsUsed: 0, freeSmsRemaining: 100, isSubscribed: false",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:32:23.718969349Z"
+  },
+  {
+    "message": "[SmsApp] Sync request for chatId: 8246464913, version: 2.2.0",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:37:12.388074211Z"
+  },
+  {
+    "message": "[SmsApp] Sync for 8246464913 - canUseSms: true, isFreeTrial: true, freeSmsUsed: 0, freeSmsRemaining: 100, isSubscribed: false",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:37:12.388086769Z"
+  },
+  {
+    "message": "[SmsApp] Sync request for chatId: 8246464913, version: 2.2.0",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:37:43.120689220Z"
+  },
+  {
+    "message": "[SmsApp] Sync for 8246464913 - canUseSms: true, isFreeTrial: true, freeSmsUsed: 0, freeSmsRemaining: 100, isSubscribed: false",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:37:43.120697682Z"
+  },
+  {
+    "message": "[PhoneMonitor] === Health check started ===",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:39:14.715219514Z"
+  },
+  {
+    "message": "[PhoneMonitor] Checking 6 Twilio subaccounts",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:39:14.715229932Z"
+  },
+  {
+    "message": "[PhoneMonitor] Checking 1 Telnyx numbers",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:39:14.715239860Z"
+  },
+  {
+    "message": "[PhoneMonitor] === Health check complete: 7 checked, 0 newly suspended ===",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:39:14.715249173Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:29.103294436Z"
+  },
+  {
+    "message": "[NotifyGroups] Auto-registered group: Bagging The Bag \ud83c\udf92\ud83d\udec5\ud83d\udcb0 (-1003588056094)",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:29.103302642Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:37.046254843Z"
+  },
+  {
+    "message": "message: /start\tfrom: 8658466470 slaveauctioned",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:37.046263730Z"
+  },
+  {
+    "message": "reply: \ud83c\udf0d To ensure everything is in your preferred language, please select one below:",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:37.046274163Z"
+  },
+  {
+    "message": " ",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:37.046284290Z"
+  },
+  {
+    "message": "You can always change your language later in the settings. \ud83c\uddec\ud83c\udde7 English,\ud83c\uddeb\ud83c\uddf7 French,\ud83c\udde8\ud83c\uddf3 Chinese,\ud83c\uddee\ud83c\uddf3 Hindi\tto: 8658466470",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:37.046293341Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:37.046302177Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:39.243306703Z"
+  },
+  {
+    "message": "message: \ud83c\uddec\ud83c\udde7 English\tfrom: 8658466470 slaveauctioned",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:39.243316548Z"
+  },
+  {
+    "message": "reply: \ud83d\udc4b <b>New Member Joined!</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:39.308446748Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:39.308456548Z"
+  },
+  {
+    "message": "\ud83d\udc64 Name: <b>Demiurge</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:39.308463280Z"
+  },
+  {
+    "message": "\ud83c\udd94 Chat ID: <code>8658466470</code>",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:39.308469361Z"
+  },
+  {
+    "message": "\ud83d\udcce Username: @slaveauctioned",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:39.308476155Z"
+  },
+  {
+    "message": "\ud83c\udf10 Language: en",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:39.308482553Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:39.308488973Z"
+  },
+  {
+    "message": "\ud83d\udcac Welcome them:",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:39.308494165Z"
+  },
+  {
+    "message": "/reply 8658466470 Welcome to Nomadly Bot! \ud83c\udf89 \tto: 5590563715",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:39.308500414Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:39.308595956Z"
+  },
+  {
+    "message": "[NotifyGroup] Auto-registered groups found: 2 \u2192 Lockbay Market \ud83d\uded2, Bagging The Bag \ud83c\udf92\ud83d\udec5\ud83d\udcb0",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:39.988194470Z"
+  },
+  {
+    "message": "[NotifyGroup] Dispatched to 3 target(s)",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:39.988202769Z"
+  },
+  {
+    "message": "[WelcomeBonus] Awarded $3 to chatId=8658466470",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:39.988209637Z"
+  },
+  {
+    "message": "reply: \ud83c\udf89 <b>Welcome Gift!</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:39.988216804Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:39.988224424Z"
+  },
+  {
+    "message": "$3 has been added to your wallet as a welcome gift!",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:39.988240448Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:39.988248377Z"
+  },
+  {
+    "message": "\ud83d\udca1 Use it toward any service \u2014 domains, phone numbers, hosting, or more.",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:39.988255426Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:39.988262461Z"
+  },
+  {
+    "message": "Thank you for joining Nomadly! \ud83d\ude80 \tto: 8658466470",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:39.988269340Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:39.988276047Z"
+  },
+  {
+    "message": "[WelcomeBonus] Awarded $3 to new user chatId=8658466470",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:39.988284264Z"
+  },
+  {
+    "message": "08:46:39 [Conversion] Onboarding started for 8658466470 (lang: en)",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:39.988301669Z"
+  },
+  {
+    "message": "08:46:39 [Conversion] Welcome offer scheduled for 8658466470 in 120 min",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:39.988307701Z"
+  },
+  {
+    "message": "[NotifyGroup] \u2705 Sent to admin 5590563715",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:39.988313244Z"
+  },
+  {
+    "message": "[NotifyGroup] \u2705 Sent to group Bagging The Bag \ud83c\udf92\ud83d\udec5\ud83d\udcb0",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:39.988317771Z"
+  },
+  {
+    "message": "[NotifyGroup] \u2705 Sent to configured group -1001843794247",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:39.988324846Z"
+  },
+  {
+    "message": "08:46:41 reply: \ud83c\udf89 <b>Welcome, Demiurge!</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:42.089120191Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:42.089126690Z"
+  },
+  {
+    "message": "You've got <b>$3.00</b> in your wallet to start with!",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:42.089133000Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:42.089139623Z"
+  },
+  {
+    "message": "Here are 3 things to try right now:",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:42.089144997Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:42.089150030Z"
+  },
+  {
+    "message": "\ud83d\udcde <b>Free IVR Test Call</b> \u2014 hear a custom voice menu in action",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:42.089155331Z"
+  },
+  {
+    "message": "\ud83d\udee1\ufe0f <b>Anti-Red Hosting</b> \u2014 bulletproof sites that never go down",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:42.089160699Z"
+  },
+  {
+    "message": "\ud83c\udf10 <b>Bulletproof Domains</b> \u2014 register domains with full DNS control",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:42.089166076Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:42.089172313Z"
+  },
+  {
+    "message": "\ud83d\udc47 <b>Pick one to explore:</b> [[\"\ud83d\udcde Try Free IVR Call\"],[\"\ud83d\udee1\ufe0f See Hosting Plans\"],[\"\ud83c\udf10 Browse Domains\"],[\"\u23ed\ufe0f Skip \u2014 Show Full Menu\"]]\tto: 8658466470",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:42.089177801Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:48.601745729Z"
+  },
+  {
+    "message": "message: \ud83c\udf10 Browse Domains\tfrom: 8658466470 slaveauctioned",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:48.601753956Z"
+  },
+  {
+    "message": "reply: Please select an option:",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:48.601973170Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:48.601984235Z"
+  },
+  {
+    "message": "\ud83c\udf10 9003 domains registered this week \ud83d\uded2\ud83c\udf10 Buy Domain Names,\ud83d\udcc2 My Domain Names,\ud83d\udd27 DNS Management,Back,Cancel\tto: 8658466470",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:48.601991127Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:48.601998016Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:52.558608114Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:52.558691499Z"
+  },
+  {
+    "message": "message: \ud83d\uded2\ud83c\udf10 Buy Domain Names\tfrom: 8658466470 slaveauctioned",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:52.558696989Z"
+  },
+  {
+    "message": "reply: <b>Claim Your Corner of the Web!</b> Please share the domain name you wish to purchase, like \"abcpay.com\". Back,Cancel\tto: 8658466470",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:46:52.558701049Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:47:02.320018987Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:47:02.320056491Z"
+  },
+  {
+    "message": "message: Back\tfrom: 8658466470 slaveauctioned",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:47:02.320061438Z"
+  },
+  {
+    "message": "reply: Please select an option:",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:47:02.320066341Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:47:02.320071640Z"
+  },
+  {
+    "message": "\ud83c\udf10 9003 domains registered this week \ud83d\uded2\ud83c\udf10 Buy Domain Names,\ud83d\udcc2 My Domain Names,\ud83d\udd27 DNS Management,Back,Cancel\tto: 8658466470",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:47:02.320077223Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:47:05.467133721Z"
+  },
+  {
+    "message": "message: Back\tfrom: 8658466470 slaveauctioned",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:47:05.467140945Z"
+  },
+  {
+    "message": "reply: Hey, <b>Demiurge</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:47:05.507633008Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:47:05.507641940Z"
+  },
+  {
+    "message": "\ud83e\udd49 Bronze  <b>$3.00</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:47:05.507647737Z"
+  },
+  {
+    "message": "<i>Start spending to unlock discounts</i>",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:47:05.507652819Z"
+  },
+  {
+    "message": "\ud83d\udcde <i>You have a free trial Quick IVR Call! Tap Cloud IVR to try it.</i>",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:47:05.507660459Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:47:05.507666285Z"
+  },
+  {
+    "message": "\ud83e\uddea <i>Try SIP calling free \u2014 send /testsip</i>",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:47:05.507680739Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:47:05.507687401Z"
+  },
+  {
+    "message": "Select an option below \ud83d\udcde Cloud IVR + SIP,\ud83e\udd1d Refer & Earn,\ud83c\udfea Marketplace,\ud83d\uded2 Digital Products,\ud83c\udf10 Bulletproof Domains,\ud83d\udee1\ufe0f\ud83d\udd25 Anti-Red Hosting,\ud83d\udda5\ufe0f VPS/RDP \u2014 Port 25 Open\ud83d\udee1\ufe0f,\ud83d\udce7\ud83c\udd93 BulkSMS \u2014 100 Free SMS,\ud83d\udce7 Email Validation,\ud83d\udcb3 Virtual Card,\ud83d\udc5b Wallet,\ud83d\udcf1 SMS Leads,\ud83d\udd17\u2702\ufe0f URL Shortener \u2014 5 Free Links,\u26a1 Upgrade Plan,\ud83d\udce6 Ship & Mail,\ud83d\udce2 Join Channel,\ud83d\udcbc Reseller,\ud83c\udf0d Settings,\ud83d\udcac Support\tto: 8658466470",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:47:05.507693105Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:47:05.507698433Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:47:14.236384319Z"
+  },
+  {
+    "message": "message: \ud83d\udce6 Ship & Mail\tfrom: 8658466470 slaveauctioned",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:47:14.236394561Z"
+  },
+  {
+    "message": "reply: \ud83d\udce6 <b>Ship & Mail</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:47:14.236404787Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:47:14.236415512Z"
+  },
+  {
+    "message": "Create shipping labels, send letters & postcards, schedule pickups, and track everything \u2014 all in one place. \tto: 8658466470",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:47:14.236429174Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:47:14.236435638Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:48:05.125865525Z"
+  },
+  {
+    "message": "[NotifyGroups] Auto-registered group: Bagging The Bag \ud83c\udf92\ud83d\udec5\ud83d\udcb0 (-1003588056094)",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:48:05.125872610Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:48:14.063324047Z"
+  },
+  {
+    "message": "[NotifyGroups] Auto-registered group: Bagging The Bag \ud83c\udf92\ud83d\udec5\ud83d\udcb0 (-1003588056094)",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:48:14.063331772Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:48:17.626878606Z"
+  },
+  {
+    "message": "[NotifyGroups] Auto-registered group: Bagging The Bag \ud83c\udf92\ud83d\udec5\ud83d\udcb0 (-1003588056094)",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:48:17.626887074Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:53:38.644706294Z"
+  },
+  {
+    "message": "[NotifyGroups] Auto-registered group: Bagging The Bag \ud83c\udf92\ud83d\udec5\ud83d\udcb0 (-1003588056094)",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:53:38.644713001Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:53:58.730411148Z"
+  },
+  {
+    "message": "[NotifyGroups] Auto-registered group: Bagging The Bag \ud83c\udf92\ud83d\udec5\ud83d\udcb0 (-1003588056094)",
+    "severity": "info",
+    "timestamp": "2026-04-16T08:53:58.730416911Z"
+  },
+  {
+    "message": "[PhoneScheduler] Running hourly expiry check...",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:02.149494894Z"
+  },
+  {
+    "message": "[AutoPromo] Triggered domains_shortener \ud83c\udf05morning for fr (local 10:00)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:02.149501981Z"
+  },
+  {
+    "message": "[PhoneScheduler] Expiry check complete: 0 reminders, 0 auto-renewed, 0 released",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:02.149508914Z"
+  },
+  {
+    "message": "[AutoPromo] AI domains_shortener/fr (577 chars)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:31.559641189Z"
+  },
+  {
+    "message": "[AutoPromo] Broadcasting domains_shortener \ud83c\udf05morning (AI) to 104 fr users (1091 permanently dead pre-filtered)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:31.559648679Z"
+  },
+  {
+    "message": "[AutoPromo] Unreachable 1166581652: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:32.816302419Z"
+  },
+  {
+    "message": "[AutoPromo] User 5441335570 marked dead after 3 consecutive failures (bot_blocked)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:32.816311087Z"
+  },
+  {
+    "message": "[AutoPromo] Unreachable 5441335570: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:32.816316428Z"
+  },
+  {
+    "message": "[AutoPromo] User 1932182414 marked dead after 3 consecutive failures (bot_blocked)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:32.816321090Z"
+  },
+  {
+    "message": "[AutoPromo] User 1166581652 marked dead after 3 consecutive failures (bot_blocked)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:32.816432112Z"
+  },
+  {
+    "message": "[AutoPromo] Unreachable 1932182414: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:32.816482269Z"
+  },
+  {
+    "message": "[AutoPromo] User 5978262172 marked dead after 3 consecutive failures (bot_blocked)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:32.816488563Z"
+  },
+  {
+    "message": "[AutoPromo] Unreachable 5978262172: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:32.816493793Z"
+  },
+  {
+    "message": "[AutoPromo] User 7019557009 marked dead after 3 consecutive failures (bot_blocked)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:32.816499922Z"
+  },
+  {
+    "message": "[AutoPromo] Unreachable 7019557009: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:32.816506162Z"
+  },
+  {
+    "message": "[AutoPromo] Unreachable 2054757415: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:36.489736958Z"
+  },
+  {
+    "message": "[AutoPromo] User 7327688475 marked dead after 3 consecutive failures (bot_blocked)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:36.489743899Z"
+  },
+  {
+    "message": "[AutoPromo] User 6419344546 marked dead after 3 consecutive failures (bot_blocked)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:36.489753766Z"
+  },
+  {
+    "message": "[AutoPromo] Unreachable 7327688475: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:36.489760283Z"
+  },
+  {
+    "message": "[AutoPromo] Unreachable 6419344546: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:36.489769966Z"
+  },
+  {
+    "message": "[AutoPromo] User 2054757415 marked dead after 3 consecutive failures (bot_blocked)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:36.489778552Z"
+  },
+  {
+    "message": "[AutoPromo] User 886014902 marked dead after 3 consecutive failures (bot_blocked)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:37.434367982Z"
+  },
+  {
+    "message": "[AutoPromo] Unreachable 886014902: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:37.434378811Z"
+  },
+  {
+    "message": "[AutoPromo] User 7112243503 marked dead after 3 consecutive failures (bot_blocked)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:37.434385605Z"
+  },
+  {
+    "message": "[AutoPromo] Unreachable 7112243503: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:37.434399671Z"
+  },
+  {
+    "message": "[AutoPromo] Unreachable 1773402676: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:37.434411285Z"
+  },
+  {
+    "message": "[AutoPromo] User 1773402676 marked dead after 3 consecutive failures (bot_blocked)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:37.434411844Z"
+  },
+  {
+    "message": "[AutoPromo] User 1157260909 marked dead after 3 consecutive failures (bot_blocked)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:40.868783170Z"
+  },
+  {
+    "message": "[AutoPromo] Unreachable 1157260909: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:40.868789495Z"
+  },
+  {
+    "message": "[AutoPromo] User 7627654164 marked dead after 3 consecutive failures (bot_blocked)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:42.019365434Z"
+  },
+  {
+    "message": "[AutoPromo] Unreachable 7627654164: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:42.019372024Z"
+  },
+  {
+    "message": "[AutoPromo] User 8153787004 marked dead after 3 consecutive failures (bot_blocked)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:42.019377999Z"
+  },
+  {
+    "message": "[AutoPromo] Unreachable 8153787004: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:42.019391935Z"
+  },
+  {
+    "message": "[AutoPromo] User 7314270595 marked dead after 3 consecutive failures (bot_blocked)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:42.019408327Z"
+  },
+  {
+    "message": "[AutoPromo] Unreachable 7314270595: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:42.019420827Z"
+  },
+  {
+    "message": "[AutoPromo] Unreachable 7241765058: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:42.019427453Z"
+  },
+  {
+    "message": "[AutoPromo] Unreachable 8339399320: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:42.019444420Z"
+  },
+  {
+    "message": "[AutoPromo] Unreachable 7832486119: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:45.577650632Z"
+  },
+  {
+    "message": "[AutoPromo] Unreachable 7547446958: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:45.577706911Z"
+  },
+  {
+    "message": "[AutoPromo] Unreachable 8085530413: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:46.709120716Z"
+  },
+  {
+    "message": "[AutoPromo] Unreachable 8625434794: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:46.709127914Z"
+  },
+  {
+    "message": "[AutoPromo] Done: {\"theme\":\"domains_shortener\",\"lang\":\"fr\",\"slot\":\"morning\",\"variation\":\"ai\",\"usedAI\":true,\"total\":104,\"success\":83,\"errors\":21,\"skipped\":0,\"timestamp\":\"2026-04-16T09:00:45.763Z\"}",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:00:46.709135335Z"
+  },
+  {
+    "message": "09:09:03 [Conversion] Social proof refreshed: {\"hosting\":510,\"domains\":9003,\"cloudphone\":111,\"digitalproducts\":36,\"vps\":63,\"virtualcard\":27,\"general\":7749}",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:09:04.682367088Z"
+  },
+  {
+    "message": "[BalanceMonitor] Running provider balance checks...",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:09:08.810846465Z"
+  },
+  {
+    "message": "[PhoneMonitor] === Health check started ===",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:09:08.810851573Z"
+  },
+  {
+    "message": "[PhoneMonitor] Checking 6 Twilio subaccounts",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:09:08.810855977Z"
+  },
+  {
+    "message": "[BalanceMonitor] Telnyx: $10.64 USD [ok]",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:09:08.810866617Z"
+  },
+  {
+    "message": "[BalanceMonitor] Twilio: $19.65 USD [ok]",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:09:08.810871291Z"
+  },
+  {
+    "message": "[PhoneMonitor] Checking 1 Telnyx numbers",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:09:08.810876121Z"
+  },
+  {
+    "message": "[PhoneMonitor] === Health check complete: 7 checked, 0 newly suspended ===",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:09:09.825139031Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:23:40.954929342Z"
+  },
+  {
+    "message": "message: \u26a1 Premium Anti-Red (1-Week)\tfrom: 5276709597 gwalasix",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:23:40.954944810Z"
+  },
+  {
+    "message": "reply: <b>Premium Anti-Red (1-Week) \u2014 $30</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:23:40.954953205Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:23:40.954961010Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:23:40.954999353Z"
+  },
+  {
+    "message": "message: \ud83d\udee1\ufe0f\ud83d\udd25 Anti-Red Hosting\tfrom: 5276709597 gwalasix",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:23:40.955003172Z"
+  },
+  {
+    "message": "reply: Please select a plan:",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:23:40.955009950Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:23:40.955014855Z"
+  },
+  {
+    "message": "\ud83d\udd25 510 users bought hosting this week \u26a1 Premium Anti-Red (1-Week),\ud83d\udd37 Premium Anti-Red HostPanel (30 Days),\ud83d\udc51 Golden Anti-Red HostPanel (30 Days),\ud83d\udccb My Hosting Plans,\ud83d\udcde Contact Support,Back,Cancel\tto: 5276709597",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:23:40.955019015Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:23:40.955023498Z"
+  },
+  {
+    "message": "Connect Reseller API is working",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:23:40.955027481Z"
+  },
+  {
+    "message": "10 GB SSD \u00b7 100 GB \u00b7 Unlimited domains",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:23:40.955164610Z"
+  },
+  {
+    "message": "Free SSL \u00b7 IP cloaking \u00b7 Bot detection \u00b7 UA blocking",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:23:40.955171313Z"
+  },
+  {
+    "message": "HostPanel \u2014 file, DB & email management \ud83d\uded2 Buy Premium Anti-Red (1-Week),\ud83d\udd37 View Premium HostPanel,\ud83d\udc51 View Golden HostPanel,\u2b05\ufe0f Back To Hosting Plans\tto: 5276709597",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:23:40.955178127Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:23:40.955185204Z"
+  },
+  {
+    "message": "\ud83d\udcc2 <b>Use My Domain</b> \u2014 Pick from your domains",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:23:47.303652391Z"
+  },
+  {
+    "message": "\ud83d\udd17 <b>Connect External Domain</b> \u2014 Use a domain you own \ud83c\udf10 Register a New Domain,\ud83d\udcc2 Use My Domain,\ud83d\udd17 Connect External Domain,\u2b05\ufe0f Back to Premium Weekly Details\tto: 5276709597",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:23:47.303664909Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:23:47.303674884Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:23:47.304010310Z"
+  },
+  {
+    "message": "message: \ud83d\uded2 Buy Premium Anti-Red (1-Week)\tfrom: 5276709597 gwalasix",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:23:47.304014774Z"
+  },
+  {
+    "message": "buyPlan premiumWeekly",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:23:47.304019637Z"
+  },
+  {
+    "message": "reply: How would you like to connect a domain?",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:23:47.304024390Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:23:47.304028945Z"
+  },
+  {
+    "message": "\ud83c\udf10 <b>Register a New Domain</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:23:47.304033135Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:24:07.116357483Z"
+  },
+  {
+    "message": "message: \ud83c\udf10 Register a New Domain\tfrom: 5276709597 gwalasix",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:24:07.116368331Z"
+  },
+  {
+    "message": "reply: Enter your desired domain (e.g., example.com) \tto: 5276709597",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:24:07.116374643Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:24:07.116382072Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:24:07.116427418Z"
+  },
+  {
+    "message": "message: \ud83d\udcc2 Use My Domain\tfrom: 5276709597 gwalasix",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:24:07.116432500Z"
+  },
+  {
+    "message": "reply: You have no registered domains. Please register a new domain or connect an external domain. \ud83c\udf10 Register a New Domain,\ud83d\udd17 Connect External Domain,\u2b05\ufe0f Back\tto: 5276709597",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:24:07.116437955Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:24:07.116442763Z"
+  },
+  {
+    "message": "reply: Checking domain availability... \tto: 5276709597",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:24:27.090951412Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:24:27.090964242Z"
+  },
+  {
+    "message": "[domain-service] Checking a25high-t.com on CR + OP in parallel...",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:24:27.090972555Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:24:27.091212855Z"
+  },
+  {
+    "message": "message: A25high-t.com\tfrom: 5276709597 gwalasix",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:24:27.091217412Z"
+  },
+  {
+    "message": "OpenProvider auth success",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:24:27.991463098Z"
+  },
+  {
+    "message": "reply: <b>a25high-t.com</b> is available \u2014 $39 \u27a1\ufe0f Continue with a25high-t.com,\ud83d\udd0d Search Another Domain,Back,Cancel\tto: 5276709597",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:24:30.071731512Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:24:30.071741941Z"
+  },
+  {
+    "message": "[domain-service] a25high-t.com available on both \u2014 CR: $39, OP: $39 \u2192 showing $39 (OpenProvider), trying ConnectReseller @ $39 first",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:24:30.071814789Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:24:33.150974819Z"
+  },
+  {
+    "message": "message: \u27a1\ufe0f Continue with a25high-t.com\tfrom: 5276709597 gwalasix",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:24:33.150982979Z"
+  },
+  {
+    "message": "reply: Enter your email for account setup and receipt.",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:24:33.203899929Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:24:33.203934979Z"
+  },
+  {
+    "message": "Tap \"Skip\" to continue without one. Skip (no email),Back,Cancel\tto: 5276709597",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:24:33.203946504Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:24:33.203955433Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:24:38.247755382Z"
+  },
+  {
+    "message": "message: Skip (no email)\tfrom: 5276709597 gwalasix",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:24:38.247759484Z"
+  },
+  {
+    "message": "reply: <b>Premium Anti-Red (1-Week)</b> \u00b7 1 Week",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:24:38.247764972Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:24:38.247769345Z"
+  },
+  {
+    "message": "Domain: a25high-t.com \u2014 $39",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:24:38.247774833Z"
+  },
+  {
+    "message": "Hosting: $30",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:24:38.247779142Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:24:38.247784045Z"
+  },
+  {
+    "message": "<b>Total: $69</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:24:38.247788444Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:24:38.247793169Z"
+  },
+  {
+    "message": "Pay within 1 hr to activate. Your hosting will be provisioned automatically. Crypto,Bank \u20a6aira + Card\ud83c\udfe6\ud83d\udcb3,\ud83d\udc5b Wallet,\ud83c\udf9f\ufe0f Apply Coupon,\u2b05\ufe0f Back\tto: 5276709597",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:24:38.247797824Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:24:38.247802164Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:27:34.105036104Z"
+  },
+  {
+    "message": "[NotifyGroups] Auto-registered group: Lockbay Market \ud83d\uded2 (-1001843794247)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:27:34.105044668Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:27:39.303349251Z"
+  },
+  {
+    "message": "[NotifyGroups] Auto-registered group: Lockbay Market \ud83d\uded2 (-1001843794247)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:27:39.303400383Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:29:11.403643769Z"
+  },
+  {
+    "message": "message: /start\tfrom: 5276709597 gwalasix",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:29:11.403658924Z"
+  },
+  {
+    "message": "reply: Hey, <b>BRRRT</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:29:11.403667608Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:29:11.403676014Z"
+  },
+  {
+    "message": "\ud83e\udd49 Bronze  <b>$0.00</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:29:11.403683013Z"
+  },
+  {
+    "message": "<i>Start spending to unlock discounts</i>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:29:11.403691293Z"
+  },
+  {
+    "message": "\ud83d\udcde <i>You have a free trial Quick IVR Call! Tap Cloud IVR to try it.</i>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:29:11.403698317Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:29:11.403708958Z"
+  },
+  {
+    "message": "\ud83e\uddea <i>Try SIP calling free \u2014 send /testsip</i>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:29:11.403716816Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:29:11.403725284Z"
+  },
+  {
+    "message": "Select an option below \ud83d\udcde Cloud IVR + SIP,\ud83e\udd1d Refer & Earn,\ud83c\udfea Marketplace,\ud83d\uded2 Digital Products,\ud83c\udf10 Bulletproof Domains,\ud83d\udee1\ufe0f\ud83d\udd25 Anti-Red Hosting,\ud83d\udda5\ufe0f VPS/RDP \u2014 Port 25 Open\ud83d\udee1\ufe0f,\ud83d\udce7\ud83c\udd93 BulkSMS \u2014 100 Free SMS,\ud83d\udce7 Email Validation,\ud83d\udcb3 Virtual Card,\ud83d\udc5b Wallet,\ud83d\udcf1 SMS Leads,\ud83d\udd17\u2702\ufe0f URL Shortener \u2014 5 Free Links,\u26a1 Upgrade Plan,\ud83d\udce6 Ship & Mail,\ud83d\udce2 Join Channel,\ud83d\udcbc Reseller,\ud83c\udf0d Settings,\ud83d\udcac Support\tto: 5276709597",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:29:11.403734952Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:29:11.403744089Z"
+  },
+  {
+    "message": "New here? Tap <b>\u2753 How It Works</b> \ud83d\udcf1 Create Campaign,\ud83d\udccb My Campaigns,\ud83d\udcf2 Download App,\ud83d\udd13 Reset Login,\u2753 How It Works,\u26a1 Upgrade Plan,Back\tto: 5276709597",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:29:30.951315045Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:29:30.951327720Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:29:30.951372669Z"
+  },
+  {
+    "message": "message: \ud83d\udce7\ud83c\udd93 BulkSMS \u2014 100 Free SMS\tfrom: 5276709597 gwalasix",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:29:30.951383017Z"
+  },
+  {
+    "message": "reply: \ud83d\udce7 <b>BulkSMS \u2014 Free Trial</b> (100 SMS left)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:29:30.951390934Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:29:30.951400763Z"
+  },
+  {
+    "message": "Sends SMS from your phone's SIM \u2014 high deliverability, real sender ID.",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:29:30.951408291Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:29:30.951415022Z"
+  },
+  {
+    "message": "\ud83d\udcf2 <b>App:</b> https://02w.me/c-Bf7",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:29:30.951423432Z"
+  },
+  {
+    "message": "\ud83d\udd11 <b>Code:</b> <code>5276709597</code>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:29:30.951429948Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:29:30.951436830Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:10.157696469Z"
+  },
+  {
+    "message": "message: \u2753 How It Works\tfrom: 5276709597 gwalasix",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:10.157708568Z"
+  },
+  {
+    "message": "reply: \ud83d\udcde <b>Cloud IVR \u2014 How It Works</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:10.157716115Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:10.157725019Z"
+  },
+  {
+    "message": "Your own virtual phone number in 30+ countries. Receive calls, send SMS, build IVR menus \u2014 all managed from Telegram.",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:10.157733615Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:10.157740397Z"
+  },
+  {
+    "message": "<b>\ud83d\ude80 Getting started:</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:10.157882194Z"
+  },
+  {
+    "message": "1. Tap <b>\ud83d\uded2 Choose a Plan</b> \u2192 pick a country \u2192 select a number",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:10.157890221Z"
+  },
+  {
+    "message": "2. Pay from wallet (crypto, bank, or card)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:10.157898196Z"
+  },
+  {
+    "message": "3. Your number is active immediately",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:10.157904733Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:10.157950403Z"
+  },
+  {
+    "message": "\u2022 <b>\ud83d\udcde Bulk IVR Campaign</b> \u2014 call hundreds of numbers with one campaign",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:10.157955282Z"
+  },
+  {
+    "message": "<b>\ud83d\udcde What you can do:</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:10.157964850Z"
+  },
+  {
+    "message": "\u2022 <b>Forward calls</b> to your real phone \u2014 answer anywhere",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:10.157974898Z"
+  },
+  {
+    "message": "\u2022 <b>\ud83e\udd16 IVR Auto-Attendant</b> \u2014 \"Press 1 for sales, 2 for support\" menus",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:10.157979272Z"
+  },
+  {
+    "message": "\u2022 <b>SMS to Telegram</b> \u2014 receive texts right here",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:10.157985486Z"
+  },
+  {
+    "message": "\u2022 <b>\ud83c\udf99\ufe0f Voicemail</b> \u2014 custom greetings, delivered to Telegram/Email",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:10.157998066Z"
+  },
+  {
+    "message": "\u2022 <b>Browser calling</b> \u2014 make/receive calls at https://speechcue.com/call (no app needed)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:10.157998493Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:10.158013754Z"
+  },
+  {
+    "message": "\u2022 <b>SIP softphone</b> \u2014 connect with any SIP app using your credentials",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:10.158020250Z"
+  },
+  {
+    "message": "<b>\ud83d\udcb0 Billing:</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:10.158026848Z"
+  },
+  {
+    "message": "\u2022 <b>\ud83d\udce2 Quick IVR Call</b> \u2014 call a number with a custom voice message (TTS or audio)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:10.158033332Z"
+  },
+  {
+    "message": "\u2022 <b>Outbound</b> calls & forwarding \u2014 charged from wallet balance per minute",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:10.159970159Z"
+  },
+  {
+    "message": "\u2022 Plans renew monthly. Auto-renew available.",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:10.159979434Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:10.159987782Z"
+  },
+  {
+    "message": "<b>\ud83d\udccb Plans:</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:10.159994169Z"
+  },
+  {
+    "message": "\u2022 <b>Inbound</b> calls & SMS \u2014 included in your plan",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:10.160029811Z"
+  },
+  {
+    "message": "\ud83d\udca1 <b>Starter $50/mo</b> \u2014 100 min, forwarding + SMS to Telegram",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:10.160161924Z"
+  },
+  {
+    "message": "\u2b50 <b>Pro $75/mo</b> \u2014 500 min, + voicemail, SIP, IVR calling, OTP",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:10.160178406Z"
+  },
+  {
+    "message": "\ud83d\udc51 <b>Business $120/mo</b> \u2014 Unlimited min, + recording, auto-attendant, scheduling",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:10.160190699Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:10.160196952Z"
+  },
+  {
+    "message": "\ud83e\uddea Try SIP calling free first \u2014 tap <b>\ud83e\uddea Test SIP Free</b> \ud83d\udce2 Quick IVR Call,\ud83d\udcde Bulk IVR Campaign,\ud83c\udfb5 Audio Library,\ud83e\uddea Test SIP Free,\ud83d\uded2 Choose a Plan,\ud83d\udccb My Plans,\ud83d\udcd6 SIP Setup Guide,\ud83d\udcca Usage & Billing,\u2753 How It Works,Back,Cancel\tto: 5276709597",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:10.160202429Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:10.160227779Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:51.396008834Z"
+  },
+  {
+    "message": "message: /start\tfrom: 5276709597 gwalasix",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:51.396015779Z"
+  },
+  {
+    "message": "reply: Hey, <b>BRRRT</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:51.396022425Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:51.396027505Z"
+  },
+  {
+    "message": "\ud83e\udd49 Bronze  <b>$0.00</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:51.396033451Z"
+  },
+  {
+    "message": "<i>Start spending to unlock discounts</i>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:51.396041151Z"
+  },
+  {
+    "message": "\ud83d\udcde <i>You have a free trial Quick IVR Call! Tap Cloud IVR to try it.</i>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:51.396046115Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:51.396051920Z"
+  },
+  {
+    "message": "\ud83e\uddea <i>Try SIP calling free \u2014 send /testsip</i>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:51.396057535Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:51.396065095Z"
+  },
+  {
+    "message": "Select an option below \ud83d\udcde Cloud IVR + SIP,\ud83e\udd1d Refer & Earn,\ud83c\udfea Marketplace,\ud83d\uded2 Digital Products,\ud83c\udf10 Bulletproof Domains,\ud83d\udee1\ufe0f\ud83d\udd25 Anti-Red Hosting,\ud83d\udda5\ufe0f VPS/RDP \u2014 Port 25 Open\ud83d\udee1\ufe0f,\ud83d\udce7\ud83c\udd93 BulkSMS \u2014 100 Free SMS,\ud83d\udce7 Email Validation,\ud83d\udcb3 Virtual Card,\ud83d\udc5b Wallet,\ud83d\udcf1 SMS Leads,\ud83d\udd17\u2702\ufe0f URL Shortener \u2014 5 Free Links,\u26a1 Upgrade Plan,\ud83d\udce6 Ship & Mail,\ud83d\udce2 Join Channel,\ud83d\udcbc Reseller,\ud83c\udf0d Settings,\ud83d\udcac Support\tto: 5276709597",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:51.396072827Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:51.396077936Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:51.396085347Z"
+  },
+  {
+    "message": "message: \ud83d\udce7\ud83c\udd93 BulkSMS \u2014 100 Free SMS\tfrom: 5276709597 gwalasix",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:51.396090576Z"
+  },
+  {
+    "message": "reply: \ud83d\udce7 <b>BulkSMS \u2014 Free Trial</b> (100 SMS left)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:51.396095699Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:51.396101097Z"
+  },
+  {
+    "message": "Sends SMS from your phone's SIM \u2014 high deliverability, real sender ID.",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:51.396112762Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:51.396119321Z"
+  },
+  {
+    "message": "\ud83d\udcf2 <b>App:</b> https://02w.me/c-Bf7",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:51.396125511Z"
+  },
+  {
+    "message": "\ud83d\udd11 <b>Code:</b> <code>5276709597</code>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:51.396131047Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:51.396136651Z"
+  },
+  {
+    "message": "New here? Tap <b>\u2753 How It Works</b> \ud83d\udcf1 Create Campaign,\ud83d\udccb My Campaigns,\ud83d\udcf2 Download App,\ud83d\udd13 Reset Login,\u2753 How It Works,\u26a1 Upgrade Plan,Back\tto: 5276709597",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:51.396141536Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:51.404463875Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:52.391137062Z"
+  },
+  {
+    "message": "message: \ud83d\udcf1 Create Campaign\tfrom: 5276709597 gwalasix",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:52.391143203Z"
+  },
+  {
+    "message": "reply: \ud83d\udcf5 <b>No Active Device</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:52.391149183Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:52.391156867Z"
+  },
+  {
+    "message": "You need to activate the Nomadly SMS App on a device before creating campaigns.",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:52.391164815Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:52.391172723Z"
+  },
+  {
+    "message": "1\ufe0f\u20e3 Download the app: https://02w.me/c-Bf7",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:52.391180444Z"
+  },
+  {
+    "message": "2\ufe0f\u20e3 Enter activation code: <code>5276709597</code>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:52.391188222Z"
+  },
+  {
+    "message": "3\ufe0f\u20e3 Come back here to create campaigns \ud83d\udcf2 Download App,Back\tto: 5276709597",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:52.391195905Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:34:52.391203721Z"
+  },
+  {
+    "message": "Select an option below \ud83d\udcde Cloud IVR + SIP,\ud83e\udd1d Refer & Earn,\ud83c\udfea Marketplace,\ud83d\uded2 Digital Products,\ud83c\udf10 Bulletproof Domains,\ud83d\udee1\ufe0f\ud83d\udd25 Anti-Red Hosting,\ud83d\udda5\ufe0f VPS/RDP \u2014 Port 25 Open\ud83d\udee1\ufe0f,\ud83d\udce7\ud83c\udd93 BulkSMS \u2014 100 Free SMS,\ud83d\udce7 Email Validation,\ud83d\udcb3 Virtual Card,\ud83d\udc5b Wallet,\ud83d\udcf1 SMS Leads,\ud83d\udd17\u2702\ufe0f URL Shortener \u2014 5 Free Links,\u26a1 Upgrade Plan,\ud83d\udce6 Ship & Mail,\ud83d\udce2 Join Channel,\ud83d\udcbc Reseller,\ud83c\udf0d Settings,\ud83d\udcac Support\tto: 5276709597",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:35:01.293429930Z"
+  },
+  {
+    "message": "\ud83d\udcde <i>You have a free trial Quick IVR Call! Tap Cloud IVR to try it.</i>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:35:01.293441086Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:35:01.293442900Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:35:01.293454437Z"
+  },
+  {
+    "message": "\ud83e\uddea <i>Try SIP calling free \u2014 send /testsip</i>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:35:01.293513625Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:35:01.293521389Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:35:01.293577113Z"
+  },
+  {
+    "message": "message: Back\tfrom: 5276709597 gwalasix",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:35:01.293583770Z"
+  },
+  {
+    "message": "reply: Hey, <b>BRRRT</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:35:01.293590837Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:35:01.293602762Z"
+  },
+  {
+    "message": "\ud83e\udd49 Bronze  <b>$0.00</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:35:01.293842339Z"
+  },
+  {
+    "message": "<i>Start spending to unlock discounts</i>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:35:01.293854773Z"
+  },
+  {
+    "message": "[PhoneMonitor] === Health check started ===",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:39:10.359468218Z"
+  },
+  {
+    "message": "[PhoneMonitor] Checking 6 Twilio subaccounts",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:39:10.359480847Z"
+  },
+  {
+    "message": "[PhoneMonitor] Checking 1 Telnyx numbers",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:39:10.359488419Z"
+  },
+  {
+    "message": "[PhoneMonitor] === Health check complete: 7 checked, 0 newly suspended ===",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:39:10.359495206Z"
+  },
+  {
+    "message": "\ud83d\udc64 Name: <b>Kdo kdg</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.044484326Z"
+  },
+  {
+    "message": "\ud83c\udd94 Chat ID: <code>2130773719</code>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.044498487Z"
+  },
+  {
+    "message": "\ud83d\udcce Username: @Sepcialk",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.044506915Z"
+  },
+  {
+    "message": "\ud83c\udf10 Language: fr",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.044514033Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.044520954Z"
+  },
+  {
+    "message": "\ud83d\udcac Welcome them:",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.044528488Z"
+  },
+  {
+    "message": "/reply 2130773719 Welcome to Nomadly Bot! \ud83c\udf89 \tto: 5590563715",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.044535299Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.044541164Z"
+  },
+  {
+    "message": "[NotifyGroup] Auto-registered groups found: 2 \u2192 Lockbay Market \ud83d\uded2, Bagging The Bag \ud83c\udf92\ud83d\udec5\ud83d\udcb0",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.044547225Z"
+  },
+  {
+    "message": "[NotifyGroup] Dispatched to 3 target(s)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.044555435Z"
+  },
+  {
+    "message": "[WelcomeBonus] Awarded $3 to chatId=2130773719",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.044561977Z"
+  },
+  {
+    "message": "reply: \ud83c\udf89 <b>Cadeau de bienvenue !</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.044568782Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.044575579Z"
+  },
+  {
+    "message": "$3 ajout\u00e9s \u00e0 votre portefeuille en cadeau de bienvenue !",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.044590739Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.044601571Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.044605205Z"
+  },
+  {
+    "message": "\ud83d\udca1 Utilisez-le pour n'importe quel service. Merci d'avoir rejoint Nomadly ! \ud83d\ude80 \tto: 2130773719",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.044611136Z"
+  },
+  {
+    "message": "message: /start\tfrom: 2130773719 Sepcialk",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.044613154Z"
+  },
+  {
+    "message": "reply: \ud83c\udf0d To ensure everything is in your preferred language, please select one below:",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.044619560Z"
+  },
+  {
+    "message": " ",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.044625719Z"
+  },
+  {
+    "message": "You can always change your language later in the settings. \tto: 2130773719",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.044630855Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.044637185Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.044644178Z"
+  },
+  {
+    "message": "message: \ud83c\uddeb\ud83c\uddf7 French\tfrom: 2130773719 Sepcialk",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.044649284Z"
+  },
+  {
+    "message": "reply: \ud83d\udc4b <b>New Member Joined!</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.044655360Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.044662129Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.051332157Z"
+  },
+  {
+    "message": "[WelcomeBonus] Awarded $3 to new user chatId=2130773719",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.051346014Z"
+  },
+  {
+    "message": "09:49:07 [Conversion] Onboarding started for 2130773719 (lang: fr)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.051354213Z"
+  },
+  {
+    "message": "09:49:07 [Conversion] Welcome offer scheduled for 2130773719 in 120 min",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.051360653Z"
+  },
+  {
+    "message": "[NotifyGroup] \u2705 Sent to admin 5590563715",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.051367516Z"
+  },
+  {
+    "message": "[NotifyGroup] \u2705 Sent to group Bagging The Bag \ud83c\udf92\ud83d\udec5\ud83d\udcb0",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.051376201Z"
+  },
+  {
+    "message": "[NotifyGroup] \u2705 Sent to configured group -1001843794247",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.051384189Z"
+  },
+  {
+    "message": "09:49:09 reply: \ud83c\udf89 <b>Bienvenue, Kdo kdg !</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.285922724Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.285932362Z"
+  },
+  {
+    "message": "Vous avez <b>$3.00</b> dans votre portefeuille !",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.285939764Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.285947176Z"
+  },
+  {
+    "message": "Voici 3 choses \u00e0 essayer maintenant :",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.285954667Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.285961193Z"
+  },
+  {
+    "message": "\ud83d\udcde <b>Appel IVR gratuit</b> \u2014 testez un menu vocal personnalis\u00e9",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.285968044Z"
+  },
+  {
+    "message": "\ud83d\udee1\ufe0f <b>H\u00e9bergement Anti-Red</b> \u2014 sites blind\u00e9s qui ne tombent jamais",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.285974557Z"
+  },
+  {
+    "message": "\ud83c\udf10 <b>Domaines blind\u00e9s</b> \u2014 enregistrez des domaines avec contr\u00f4le DNS",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.285981706Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.285988139Z"
+  },
+  {
+    "message": "\ud83d\udc47 <b>Choisissez pour explorer :</b> [[\"\ud83d\udcde Essayer l'appel IVR\"],[\"\ud83d\udee1\ufe0f Voir les plans d'h\u00e9bergement\"],[\"\ud83c\udf10 Parcourir les domaines\"],[\"\u23ed\ufe0f Passer \u2014 Menu complet\"]]\tto: 2130773719",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:49:09.285994547Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:52:57.128402114Z"
+  },
+  {
+    "message": "message: Crypto\tfrom: 8588202400 hitmyinvoice",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:52:57.128409759Z"
+  },
+  {
+    "message": "[reset] Unrecognized message from 8588202400: \"Crypto\" (was action: none). Resetting to main menu.",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:52:57.128416410Z"
+  },
+  {
+    "message": "reply: \ud83d\udca1 <b>Tip:</b> Use the buttons below to navigate! Just tap on any option to get started.",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:52:57.128422054Z"
+  },
+  {
+    "message": "Thank you for choosing Nomadly Bot! Please choose an option below: \ud83d\udcde Cloud IVR + SIP,\ud83e\udd1d Refer & Earn,\ud83c\udfea Marketplace,\ud83d\uded2 Digital Products,\ud83c\udf10 Bulletproof Domains,\ud83d\udee1\ufe0f\ud83d\udd25 Anti-Red Hosting,\ud83d\udda5\ufe0f VPS/RDP \u2014 Port 25 Open\ud83d\udee1\ufe0f,\ud83d\udce7\ud83c\udd93 BulkSMS \u2014 100 Free SMS,\ud83d\udce7 Email Validation,\ud83d\udcb3 Virtual Card,\ud83d\udc5b Wallet,\ud83d\udcf1 SMS Leads,\ud83d\udd17\u2702\ufe0f URL Shortener \u2014 5 Free Links,\u26a1 Upgrade Plan,\ud83d\udce6 Ship & Mail,\ud83d\udce2 Join Channel,\ud83d\udcbc Reseller,\ud83c\udf0d Settings,\ud83d\udcac Support\tto: 8588202400",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:52:57.128428113Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:52:57.128435316Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:17.109869257Z"
+  },
+  {
+    "message": "message: \ud83d\udcb3 Virtual Card\tfrom: 8588202400 hitmyinvoice",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:17.109877694Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:17.110333096Z"
+  },
+  {
+    "message": "\ud83d\udcde Transf\u00e9rez les appels vers votre vrai t\u00e9l\u00e9phone",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:17.110349588Z"
+  },
+  {
+    "message": "message: \ud83d\udcde Essayer l'appel IVR\tfrom: 2130773719 Sepcialk",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:17.110350118Z"
+  },
+  {
+    "message": "\ud83d\udcac Recevez les SMS directement dans Telegram",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:17.110361411Z"
+  },
+  {
+    "message": "reply: \ud83d\udcde <b>Cloud IVR</b> <i>par Speechcue</i>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:17.110362514Z"
+  },
+  {
+    "message": "\ud83c\udf10 Appelez et recevez des appels dans votre navigateur \u2014 sans application",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:17.110373365Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:17.110374383Z"
+  },
+  {
+    "message": "Obtenez un num\u00e9ro virtuel dans plus de 30 pays \u2014 en moins de 2 minutes.",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:17.110385232Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:17.110393861Z"
+  },
+  {
+    "message": "\ud83e\udd16 Configurez un standard automatique IVR",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:17.110410194Z"
+  },
+  {
+    "message": "\ud83d\udd17 Connectez via un softphone SIP",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:17.110422101Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:17.110431444Z"
+  },
+  {
+    "message": "Forfaits \u00e0 partir de <b>$50/mois</b> avec 100 min entrantes + 50 SMS entrants inclus.",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:17.110452506Z"
+  },
+  {
+    "message": "\ud83d\udcb3 Les appels sortants sont factur\u00e9s depuis votre portefeuille.",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:17.110477614Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:17.110485485Z"
+  },
+  {
+    "message": "Nouveau ? Appuyez sur <b>\u2753 Comment \u00e7a marche</b> pour un guide complet.",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:17.110491358Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:17.110496569Z"
+  },
+  {
+    "message": "\ud83d\udcde 111 num\u00e9ros activ\u00e9s cette semaine \ud83d\udce2 Appel IVR Rapide,\ud83d\udcde Campagne IVR en Masse,\ud83c\udfb5 Biblioth\u00e8que Audio,\ud83e\uddea Tester SIP Gratuit,\ud83d\uded2 Choisir un Forfait,\ud83d\udccb Mes Forfaits,\ud83d\udcd6 Guide SIP,\ud83d\udcca Utilisation & Facturation,\u2753 Comment \u00e7a marche,Retour,Annuler\tto: 2130773719",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:17.110501586Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:17.110507508Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:25.409690952Z"
+  },
+  {
+    "message": "message: \ud83d\udce2 Appel IVR Rapide\tfrom: 2130773719 Sepcialk",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:25.409697918Z"
+  },
+  {
+    "message": "reply: \ud83d\udce2 <b>Appel SVI Rapide \u2014 Essai Gratuit</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:25.409705211Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:25.409711669Z"
+  },
+  {
+    "message": "\ud83c\udf81 You get <b>1 appel d'essai gratuit!</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:25.409717370Z"
+  },
+  {
+    "message": "\ud83d\udcf1 ID Appelant: <b>+18889020132</b> (partag\u00e9)",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:25.409721939Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:25.409728383Z"
+  },
+  {
+    "message": "Call a single number with an message SVI automatis\u00e9.",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:25.409734775Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:25.409741224Z"
+  },
+  {
+    "message": "Enter the num\u00e9ro de t\u00e9l\u00e9phone to call (avec l'indicatif pays):",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:25.409746952Z"
+  },
+  {
+    "message": "<i>Exemple: +12025551234</i> Retour,Annuler\tto: 2130773719",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:25.409753049Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:25.409759482Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:26.342890055Z"
+  },
+  {
+    "message": "message: Back\tfrom: 8588202400 hitmyinvoice",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:26.346602174Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:26.386399361Z"
+  },
+  {
+    "message": "\ud83e\uddea <i>Try SIP calling free \u2014 send /testsip</i>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:26.386409391Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:26.386426949Z"
+  },
+  {
+    "message": "Select an option below \ud83d\udcde Cloud IVR + SIP,\ud83e\udd1d Refer & Earn,\ud83c\udfea Marketplace,\ud83d\uded2 Digital Products,\ud83c\udf10 Bulletproof Domains,\ud83d\udee1\ufe0f\ud83d\udd25 Anti-Red Hosting,\ud83d\udda5\ufe0f VPS/RDP \u2014 Port 25 Open\ud83d\udee1\ufe0f,\ud83d\udce7\ud83c\udd93 BulkSMS \u2014 100 Free SMS,\ud83d\udce7 Email Validation,\ud83d\udcb3 Virtual Card,\ud83d\udc5b Wallet,\ud83d\udcf1 SMS Leads,\ud83d\udd17\u2702\ufe0f URL Shortener \u2014 5 Free Links,\u26a1 Upgrade Plan,\ud83d\udce6 Ship & Mail,\ud83d\udce2 Join Channel,\ud83d\udcbc Reseller,\ud83c\udf0d Settings,\ud83d\udcac Support\tto: 8588202400",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:26.386437151Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:26.386444134Z"
+  },
+  {
+    "message": "reply: Hey, <b>INVOICES</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:26.386478013Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:26.386485874Z"
+  },
+  {
+    "message": "\ud83e\udd49 Bronze  <b>$3.00</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:26.386492120Z"
+  },
+  {
+    "message": "<i>Start spending to unlock discounts</i>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:26.386498502Z"
+  },
+  {
+    "message": "\ud83d\udcde <i>You have a free trial Quick IVR Call! Tap Cloud IVR to try it.</i>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:26.386505263Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:30.429585216Z"
+  },
+  {
+    "message": "message: \ud83d\udcf1 SMS Leads\tfrom: 8588202400 hitmyinvoice",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:30.429597242Z"
+  },
+  {
+    "message": "reply: Get premium verified leads by target or validate your own numbers: \ud83c\udfaf Premium Targeted Leads,\u2705\ud83d\udcf2 Validate PhoneLeads,Back,Cancel\tto: 8588202400",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:30.447856067Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:30.447862011Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:50.295325702Z"
+  },
+  {
+    "message": "reply: \ud83d\udca1 Subscribers get 5,000+ free validations with phone owner names per plan. Plans from $50/day. \tto: 8588202400",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:50.295370336Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:50.295375639Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:50.295381782Z"
+  },
+  {
+    "message": "message: \ud83c\udfaf Premium Targeted Leads\tfrom: 8588202400 hitmyinvoice",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:50.295382041Z"
+  },
+  {
+    "message": "reply: \ud83c\udfaf Select your target institution.\\nReal, verified leads with phone owner names \u2014 matched by carrier from high-value metro areas: JPMorgan C,BOA,Wfargo Bnk,Citi Bnk,U.S Bnk,Capital One,U$AA,Citizen$ Bnk,PNCBNK,AlliantCU,NavyFedCU,USALLIANCE Fin,AssociatedCU,AlturaCU,LakeMichig$n CU,Arvest Bnk,NymeoFCU,Huntington Bnk,Comerica Bnk,\ud83d\udcdd Request Custom Target,\u2705\ud83d\udcf2 Validate PhoneLeads,Back,Cancel\tto: 8588202400",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:53:50.295388750Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:57:23.504991532Z"
+  },
+  {
+    "message": "message: +22644908671\tfrom: 2130773719 Sepcialk",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:57:23.504998760Z"
+  },
+  {
+    "message": "reply: \ud83d\udcde Target: <b>+22644908671</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:57:23.505006215Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:57:23.505013718Z"
+  },
+  {
+    "message": "Choose template or write your own: \u270d\ufe0f Custom Script,\ud83d\udcb3 Payment Alerts,\ud83d\udd12 Account Security,\ud83d\udce6 Delivery & Service,\u270d\ufe0f Custom Script,Retour,Annuler\tto: 2130773719",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:57:23.505044916Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:57:23.505052445Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:57:27.996018981Z"
+  },
+  {
+    "message": "message: \ud83d\udce6 Delivery & Service\tfrom: 2130773719 Sepcialk",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:57:27.996029479Z"
+  },
+  {
+    "message": "reply: S\u00e9lectionnez un mod\u00e8le : \ud83d\udce6 Delivery Confirmation,\ud83d\udcc5 Appointment Reminder,\ud83d\udd04 Subscription Renewal,\u21a9\ufe0f Back,Retour,Annuler\tto: 2130773719",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:57:28.963158309Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:57:28.963168670Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:57:48.584224096Z"
+  },
+  {
+    "message": "message: \ud83d\udce6 Delivery Confirmation\tfrom: 2130773719 Sepcialk",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:57:48.584230660Z"
+  },
+  {
+    "message": "reply: \ud83d\udccb <b>\ud83d\udce6 Delivery Confirmation</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:57:48.584237861Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:57:48.584245761Z"
+  },
+  {
+    "message": "<i>\"Hello [Name]. This is [Company]. Your order is scheduled for delivery today. To confirm your delivery address, press 1. To reschedule delivery, press 2.\"</i>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:57:48.584251640Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:57:48.584256360Z"
+  },
+  {
+    "message": "\ud83d\udd18 Touches actives: <b>1, 2</b> \tto: 2130773719",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:57:48.584260661Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:57:48.584268043Z"
+  },
+  {
+    "message": "reply: ",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:57:48.584272597Z"
+  },
+  {
+    "message": "Enter value for <b>[Name]</b>: Retour,Annuler\tto: 2130773719",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:57:48.584277032Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:57:48.584281398Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:59:11.313059720Z"
+  },
+  {
+    "message": "message: 1\tfrom: 2130773719 Sepcialk",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:59:11.313066342Z"
+  },
+  {
+    "message": "reply: \u2705 Name: <b>1</b>",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:59:11.313074038Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:59:11.313081607Z"
+  },
+  {
+    "message": "Enter value for <b>[Company]</b>: Retour,Annuler\tto: 2130773719",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:59:11.313087698Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:59:11.313095382Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:59:31.702454203Z"
+  },
+  {
+    "message": "message: Spectrum\tfrom: 2130773719 Sepcialk",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:59:31.702467093Z"
+  },
+  {
+    "message": "reply: \u2705 All values set!\\n\\n\ud83d\udccb <b>S\u00e9lectionner Call Mode</b>\\n\\n\ud83d\udd17 <b>Transfert</b> \u2014 When target presses the key, bridge them to your number\\n\ud83d\udd11 <b>OTP Collection</b> \u2014 Prompt target for a code, you verify via Telegram\\n\\nBoth modes report full r\u00e9sultats. \ud83d\udd17 Transfer,\ud83d\udd11 OTP Collection,\u21a9\ufe0f Back,Retour,Annuler\tto: 2130773719",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:59:31.702475719Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:59:31.702485360Z"
+  },
+  {
+    "message": "\ud83d\udce8 Telegram webhook received",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:59:38.725820081Z"
+  },
+  {
+    "message": "message: \ud83d\udd17 Transfer\tfrom: 2130773719 Sepcialk",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:59:38.725826784Z"
+  },
+  {
+    "message": "reply: \ud83d\udd17 <b>Transfert Mode</b>\\n\\nEnter the number to transfert the caller to when they press a key:\\n<i>Exemple: +17174794833</i> \u21a9\ufe0f Back,Retour,Annuler\tto: 2130773719",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:59:38.725832650Z"
+  },
+  {
+    "message": "",
+    "severity": "info",
+    "timestamp": "2026-04-16T09:59:38.725839786Z"
+  }
+]

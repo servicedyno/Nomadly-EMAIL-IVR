@@ -1,0 +1,741 @@
+[2026-04-16T07:08:59.674661834Z] [info] Starting Container
+[2026-04-16T07:09:00.153994271Z] [error] npm warn config production Use `--omit=dev` instead.
+[2026-04-16T07:09:00.154001949Z] [info] 
+[2026-04-16T07:09:00.154009433Z] [info] > tg-bot-link-shorten@1.0.0 start
+[2026-04-16T07:09:00.154017225Z] [info] > node js/start-bot.js
+[2026-04-16T07:09:00.154024013Z] [info] 
+[2026-04-16T07:09:00.154030289Z] [info] 🔧 Loading configuration...
+[2026-04-16T07:09:00.154039137Z] [info] 🌐 Webhook base URL: https://nomadlynew-production.up.railway.app
+[2026-04-16T07:09:00.154045971Z] [info] 📍 URL Source: SELF_URL_PROD
+[2026-04-16T07:09:00.154053010Z] [info] 📡 Webhook endpoint: https://nomadlynew-production.up.railway.app/telegram/webhook
+[2026-04-16T07:09:00.154061241Z] [info] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-04-16T07:09:00.154067946Z] [info] 🤖 BOT ENVIRONMENT CONFIGURATION
+[2026-04-16T07:09:00.154075953Z] [info] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-04-16T07:09:00.154082932Z] [info] Environment: PRODUCTION
+[2026-04-16T07:09:00.154093287Z] [info] Token Source: TELEGRAM_BOT_TOKEN_PROD
+[2026-04-16T07:09:00.154099747Z] [info] Token Configured: YES ✅
+[2026-04-16T07:09:00.154106481Z] [info] Detection basis: BOT_ENVIRONMENT=production, NODE_ENV=production
+[2026-04-16T07:09:00.154113445Z] [info] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-04-16T07:09:00.154121508Z] [info] 
+[2026-04-16T07:09:00.154128384Z] [info] 🔧 Setting default for DAILY_PLAN_FREE_VALIDATIONS: 5000
+[2026-04-16T07:09:00.154136636Z] [info] 🔧 Setting default for WEEKLY_PLAN_FREE_VALIDATIONS: 10000
+[2026-04-16T07:09:00.154144579Z] [info] 🔧 Setting default for MONTHLY_PLAN_FREE_VALIDATIONS: 15000
+[2026-04-16T07:09:00.154151742Z] [info] ✅ All critical environment variables are set
+[2026-04-16T07:09:01.445580052Z] [info] ✅ Configuration setup completed
+[2026-04-16T07:09:01.445586532Z] [info] [WHM-Whitelist] Detected outbound IP: 162.220.234.15
+[2026-04-16T07:09:01.445592617Z] [info] [WHM-Whitelist] cPHulk: 162.220.234.15 whitelisted successfully
+[2026-04-16T07:09:02.313539257Z] [info] [WHM-Whitelist] CSF response: {"result":0,"version":"1","command":"csf_allow","reason":"Unknown app (“csf_allow”) requested for this version (1) of the API."}
+[2026-04-16T07:09:03.339147594Z] [info] Working, Railway API, now starting the bot
+[2026-04-16T07:09:03.339201281Z] [info] [WHM-Whitelist] Host Access: 162.220.234.15 added
+[2026-04-16T07:09:03.339206192Z] [info] [WHM-Whitelist] Complete — IP: 162.220.234.15, cPHulk: true, CSF: false
+[2026-04-16T07:09:03.339210975Z] [info] Working, Fincra API
+[2026-04-16T07:09:03.343074955Z] [info] [AI Support] OpenAI initialized
+[2026-04-16T07:09:03.376341694Z] [info] TELEGRAM_BOT_ON: true
+[2026-04-16T07:09:03.376352039Z] [info] Bot initialized with webhook support
+[2026-04-16T07:09:03.376357970Z] [info] Bot ran away! Thu Apr 16 2026 07:09:03 GMT+0000 (Coordinated Universal Time)
+[2026-04-16T07:09:04.224712175Z] [info] ✅ Main application ready! Server already listening on port 8080
+[2026-04-16T07:09:04.224717629Z] [info] 🚀 Early health check server started on port 8080
+[2026-04-16T07:09:04.224723723Z] [error] (node:15) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+[2026-04-16T07:09:04.224724917Z] [info] [AutoPromo] Scheduled evening for EN at local 19:00 (UTC 19:00)
+[2026-04-16T07:09:04.224725691Z] [info] [CR-Whitelist] Outbound IP: 162.220.234.15
+[2026-04-16T07:09:04.224732419Z] [info] ✅ MongoDB connection pool ready
+[2026-04-16T07:09:04.224738379Z] [info] [AutoPromo] Scheduled morning for FR at local 10:00 (UTC 9:00)
+[2026-04-16T07:09:04.224738672Z] [info] DB Connected lala. May peace be with you and Lord's mercy and blessings.
+[2026-04-16T07:09:04.224745904Z] [info] [AutoPromo] Scheduled morning for EN at local 10:00 (UTC 10:00)
+[2026-04-16T07:09:04.224746922Z] [info] [AutoPromo] Scheduled evening for FR at local 19:00 (UTC 18:00)
+[2026-04-16T07:09:04.224753027Z] [info] [AutoPromo] Scheduled morning for ZH at local 10:00 (UTC 2:00)
+[2026-04-16T07:09:04.224759014Z] [info] [Honeypot] Express routes mounted: POST /honeypot/report, GET /honeypot/stats, GET /honeypot/check/:ip
+[2026-04-16T07:09:04.224759551Z] [info] [AutoPromo] Scheduled evening for ZH at local 19:00 (UTC 11:00)
+[2026-04-16T07:09:04.224771161Z] [info] [Express] Panel domain guard active: panel.hostbay.io
+[2026-04-16T07:09:04.224773645Z] [info] [AutoPromo] Scheduled morning for HI at local 10:00 (UTC 4:30)
+[2026-04-16T07:09:04.224781215Z] [info] [Express] Serving React frontend from build directory
+[2026-04-16T07:09:04.224781326Z] [info] [AutoPromo] Scheduled evening for HI at local 19:00 (UTC 13:30)
+[2026-04-16T07:09:04.224786723Z] [info] [AutoPromo] Initialized — 8 jobs (4 langs × 2 slots/day), 12 themes: cloudphone, antired_hosting, leads_validation, domains_shortener, digital_products, cards_bundles, email_validation, marketplace, vps_rdp, bulksms_app, email_blast, refer_earn
+[2026-04-16T07:09:04.224945382Z] [error] (Use `node --trace-deprecation ...` to show where the warning was created)
+[2026-04-16T07:09:04.227281744Z] [info] [AutoPromo] Schedule: 🌅 Morning hero (10am) + 🌙 Evening cross-sell (7pm), 7 days/week
+[2026-04-16T07:09:04.227285958Z] [info] 📊 Webhook info: {
+[2026-04-16T07:09:04.227290517Z] [info] [AutoPromo] Resurrection scan enabled — every 6h, 200 users/batch
+[2026-04-16T07:09:04.227298073Z] [info]   "url": "https://nomadlynew-production.up.railway.app/telegram/webhook",
+[2026-04-16T07:09:04.227299439Z] [info] [AutoPromo] System loaded successfully
+[2026-04-16T07:09:04.227306781Z] [info] [DailyCoupon] System initialized
+[2026-04-16T07:09:04.227312595Z] [info] SMS webhook: https://nomadlynew-production.up.railway.app/telnyx/sms-webhook
+[2026-04-16T07:09:04.227320537Z] [info] [DailyCoupon] Coupons already exist for 2026-04-16
+[2026-04-16T07:09:04.227324041Z] [info] [DailyCoupon] System loaded successfully
+[2026-04-16T07:09:04.227329787Z] [info] ━━━ Initializing Telnyx Resources ━━━
+[2026-04-16T07:09:04.227330667Z] [info] 🗑️  Deleted old webhook
+[2026-04-16T07:09:04.227334576Z] [info] 07:09:03 [CartRecovery] Initialized — nudge delay: 45min, cooldown: 24h, silent timeout: 20min, languages: en/fr/zh/hi
+[2026-04-16T07:09:04.227340012Z] [info] ✅ Telegram webhook set successfully
+[2026-04-16T07:09:04.227342750Z] [info] Voice webhook: https://nomadlynew-production.up.railway.app/telnyx/voice-webhook
+[2026-04-16T07:09:04.227343750Z] [info] 07:09:03 [CartRecovery] Tracking 50 payment action states
+[2026-04-16T07:09:04.227349171Z] [info] 📡 Webhook URL: https://nomadlynew-production.up.railway.app/telegram/webhook
+[2026-04-16T07:09:04.227351778Z] [info] [CartRecovery] System loaded successfully
+[2026-04-16T07:09:04.227359355Z] [info] 07:09:03 [Conversion] New User Conversion Engine initialized — 5 features active
+[2026-04-16T07:09:04.227364605Z] [info] 07:09:03 [Conversion] First deposit bonus: $5 (min $20), Welcome offer: 25% (2h delay), Social proof: ×3
+[2026-04-16T07:09:04.227368798Z] [info] [Conversion] System loaded successfully
+[2026-04-16T07:09:04.231753264Z] [info] [CR-Whitelist] API working — IP 162.220.234.15 is whitelisted
+[2026-04-16T07:09:04.231765603Z] [info] [CR-Whitelist] Startup check passed — API working
+[2026-04-16T07:09:04.231766926Z] [info]     "message",
+[2026-04-16T07:09:04.231777292Z] [info]     "callback_query",
+[2026-04-16T07:09:04.231783832Z] [info] "my_chat_member"
+[2026-04-16T07:09:04.231789865Z] [info]   ]
+[2026-04-16T07:09:04.231795990Z] [info] }
+[2026-04-16T07:09:04.231802569Z] [info] ✅ Webhook verification passed
+[2026-04-16T07:09:04.231809490Z] [info] ✅ Default bot commands registered
+[2026-04-16T07:09:04.231856801Z] [info]   "has_custom_certificate": false,
+[2026-04-16T07:09:04.231864446Z] [info]   "pending_update_count": 0,
+[2026-04-16T07:09:04.231870822Z] [info]   "max_connections": 40,
+[2026-04-16T07:09:04.231877649Z] [info]   "ip_address": "151.101.2.15",
+[2026-04-16T07:09:04.231884030Z] [info]   "allowed_updates": [
+[2026-04-16T07:09:04.250846621Z] [info] ✅ Admin bot commands registered for chat 5590563715
+[2026-04-16T07:09:05.157493021Z] [info] Updated SIP Connection webhook: 2898118323872990714
+[2026-04-16T07:09:05.157499729Z] [info] Updated Messaging Profile webhook: 40019c71-59a6-497a-8246-49536bd08d87
+[2026-04-16T07:09:05.442936053Z] [info] [Telnyx] Outbound voice profile 2897375459551478845 whitelist OK (250 countries)
+[2026-04-16T07:09:07.250874726Z] [info] Call Control App ID: 2898117434361775526
+[2026-04-16T07:09:07.250884776Z] [info] Updated Call Control App webhook: 2898117434361775526
+[2026-04-16T07:09:07.250885370Z] [info] [CloudPhone] Telnyx resources initialized
+[2026-04-16T07:09:07.250896346Z] [info] ━━━ Telnyx Resources Ready ━━━
+[2026-04-16T07:09:07.250896494Z] [info] [Telnyx] Migration complete: 0 migrated, 1 already correct, 3 external skipped, 0 external detached, 4 total
+[2026-04-16T07:09:07.250905085Z] [info] SIP Connection ID: 2898118323872990714
+[2026-04-16T07:09:07.250911437Z] [info] Messaging Profile ID: 40019c71-59a6-497a-8246-49536bd08d87
+[2026-04-16T07:09:08.175824416Z] [info] [Telnyx] ANI override updated to +18778570205
+[2026-04-16T07:09:08.175829636Z] [info] [CloudPhone] SIP connection ANI override set to TOLL-FREE number: +18778570205
+[2026-04-16T07:09:08.175834179Z] [info] ━━━ Initializing Twilio Resources ━━━
+[2026-04-16T07:09:08.175838901Z] [info] [Twilio] Connected: Speechcue (active)
+[2026-04-16T07:09:08.175843388Z] [info] [Twilio] Updated SIP domain webhook: speechcue-7937a0.sip.twilio.com
+[2026-04-16T07:09:08.268438865Z] [info] [Twilio] Credential mapping note: CLfe5ba0b48274412e6e953eb58901c9ce already associated with SDdb6525d35a1f09e4d1dfc19a2128ed96
+[2026-04-16T07:09:08.440783812Z] [info] [SmsService] Initialized with real-time limit enforcement + overage billing
+[2026-04-16T07:09:08.440796398Z] [info] [CloudPhone] SMS Service limits initialized with overage billing
+[2026-04-16T07:09:08.440807281Z] [info] [CnamService] Initialized — priority: Telnyx → Multitel → SignalWire + MongoDB cache + circuit breaker
+[2026-04-16T07:09:08.440811787Z] [info] [Twilio] IP ACL mapping note: AL9d507c8e92b81b62c224100679943c8d already associated with SDdb6525d35a1f09e4d1dfc19a2128ed96
+[2026-04-16T07:09:08.440815141Z] [info] [CloudPhone] CNAM Service initialized
+[2026-04-16T07:09:08.440824093Z] [info] [CloudPhone] Twilio initialized — SIP: speechcue-7937a0.sip.twilio.com
+[2026-04-16T07:09:08.440829837Z] [info] [PhoneScheduler] Scheduled: expiry check (hourly), usage tracking (daily 3AM), monthly reset (daily 0:05AM)
+[2026-04-16T07:09:08.440835802Z] [info] [CloudPhone] Scheduler initialized
+[2026-04-16T07:09:08.440840975Z] [info] [HostingScheduler] Initialized — checking every hour
+[2026-04-16T07:09:08.440846237Z] [info] [HostingScheduler] Policy: weekly plans NEVER auto-renew, monthly plans auto-renew if enabled
+[2026-04-16T07:09:08.440851434Z] [info] [HostingScheduler] Scheduled: expiry check (every 60 min)
+[2026-04-16T07:09:08.440856115Z] [info] [HostingScheduler] Initialized
+[2026-04-16T07:09:08.440863851Z] [info] [ProtectionEnforcer] Initialized
+[2026-04-16T07:09:08.440868808Z] [info] [ProtectionEnforcer] Scheduler started — runs every 6h
+[2026-04-16T07:09:08.440873473Z] [info] [ProtectionEnforcer] Initialized and scheduled
+[2026-04-16T07:09:08.440879729Z] [info] [VoiceService] Initialized with IVR + Recording + Analytics + Limits + Overage billing + SIP Bridge + Twilio IVR + Loyalty Discounts + Pre-Dial Prevention
+[2026-04-16T07:09:08.440884367Z] [info] [CloudPhone] Voice Service initialized with IVR + Recording + Overage
+[2026-04-16T07:09:08.440889778Z] [info] [PhoneTest] Routes initialized: /phone/test/verify-otp, /phone/test/prepare-call, /phone/test/caller-info
+[2026-04-16T07:09:08.445508263Z] [info] [PhoneMonitor] Initialized — checking every 30 minutes
+[2026-04-16T07:09:08.445519488Z] [info] [WelcomeBonus] Initialized — $3 welcome gift for new users
+[2026-04-16T07:09:08.445527661Z] [info] [WinBack] Initialized — scans for 7-day inactive users daily at 10:00 UTC, 20% discount, 48h expiry
+[2026-04-16T07:09:08.445536944Z] [info] [Monetization] Engine initialized — Upsell + Welcome Bonus + Win-Back + Bundles
+[2026-04-16T07:09:08.445543244Z] [info] [LeadJobs] Persistence initialized
+[2026-04-16T07:09:08.445546895Z] [info] [RegulatoryFlow] Initialized
+[2026-04-16T07:09:08.445560992Z] [info] [Marketplace] Stale conversation cleanup scheduled (every 6h)
+[2026-04-16T07:09:08.445565294Z] [info] [BulkCall] Service initialized (Speechcue mode)
+[2026-04-16T07:09:08.445565351Z] [info] [AI Support] MongoDB collections initialized
+[2026-04-16T07:09:08.445574473Z] [info] [StateCleanup] Scheduled every 6h (stale threshold: 24h)
+[2026-04-16T07:09:08.445580464Z] [info] [ShortenerPersistence] Initialized
+[2026-04-16T07:09:08.445586017Z] [info] [BundleChecker] Scheduled every 30min
+[2026-04-16T07:09:08.445595386Z] [info] [Honeypot] MongoDB collection initialized with indexes
+[2026-04-16T07:09:08.445599193Z] [info] [FincraReconcile] Payment recovery scheduled every 5min
+[2026-04-16T07:09:08.445605952Z] [info] [SmsApp] Service initialized
+[2026-04-16T07:09:08.445611751Z] [info] [AudioLibrary] Initialized
+[2026-04-16T07:09:08.445618107Z] [info] [SmsApp] Routes registered
+[2026-04-16T07:09:08.445624516Z] [info] [EmailBlast] Service initialized with queue processor
+[2026-04-16T07:09:08.445632580Z] [info] [EmailValidation] Service initialized
+[2026-04-16T07:09:08.445642432Z] [info] [BalanceMonitor] Initialized — checking every 120min (warn=$10, crit=$5)
+[2026-04-16T07:09:08.445651428Z] [info] [UserWalletMonitor] Initialized — scanning every 6h (warn=$5, crit=$2, empty=$0)
+[2026-04-16T07:09:09.253779647Z] [info] [Twilio] Updated webhooks for number PNf29264d55c7bd5c6ffcd777dabc8dec8 on sub-account ACbbc22c43a792f2b36e2c87e14c604383
+[2026-04-16T07:09:09.253844480Z] [info] [EmailWarming] Initialized with 8-stage schedule
+[2026-04-16T07:09:09.253851374Z] [info] [Marketplace] Initialized
+[2026-04-16T07:09:09.253857057Z] [info] [EmailBlast] Service initialized — queue processor running every 30s
+[2026-04-16T07:09:09.253863959Z] [info] [UserWalletMonitor] Loaded 3939 active notification histories from DB (3940 total, 1 expired/skipped)
+[2026-04-16T07:09:09.253870774Z] [info] [Twilio] Updated webhooks for number PN9e2d59c7d2013af0e307e6b0f2603365 on sub-account AC01e40ee6bb868cc84290f122ae8b5d8c
+[2026-04-16T07:09:09.253876900Z] [info] [Honeypot] Found existing KV namespace: 812aca1cbade413d9814bff1708e74db
+[2026-04-16T07:09:09.253882745Z] [info] [Honeypot] KV namespace ready: 812aca1cbade413d9814bff1708e74db
+[2026-04-16T07:09:09.253888015Z] [info] [Twilio] Updated webhooks for number PN7e3fc6448d380d665b37c77815156b00 on sub-account ACeb229829601188c295caf6c245e37745
+[2026-04-16T07:09:09.495234301Z] [info] [Twilio] Updated webhooks for number PN7a9e0513d7de9f03801e563bd561367d on sub-account AC2e218d7f6dae570de99daf2c7436846c
+[2026-04-16T07:09:10.369243211Z] [info] [Twilio] Updated webhooks for number PNca258a8882e24136d6936e63ac1c39a6 on sub-account AC2e218d7f6dae570de99daf2c7436846c
+[2026-04-16T07:09:10.369250474Z] [info] [Twilio Sync] Webhook sync complete: 5 updated, 0 failed, 0 credentials recovered
+[2026-04-16T07:09:13.883262762Z] [info] [Broadcast] Recovery: No interrupted broadcasts to resume
+[2026-04-16T07:09:13.883274765Z] [info] 07:09:13 [Conversion] Social proof refreshed: {"hosting":510,"domains":9003,"cloudphone":111,"digitalproducts":36,"vps":63,"virtualcard":27,"general":7749}
+[2026-04-16T07:09:13.883389530Z] [info] [Voice] PRE-DIAL: Loaded 2 blocked credential(s) from DB
+[2026-04-16T07:09:19.014393446Z] [info] [HostingScheduler] Startup enforcement: no expired accounts need action
+[2026-04-16T07:09:19.014398746Z] [info] [PhoneMonitor] === Health check started ===
+[2026-04-16T07:09:19.014404138Z] [info] [AntiRed] KV namespace for honeypot bans: 812aca1cbade413d9814bff1708e74db
+[2026-04-16T07:09:19.014409395Z] [info] [PhoneMonitor] Checking 6 Twilio subaccounts
+[2026-04-16T07:09:19.014415044Z] [info] [CpanelMigration] Found 5 account(s) not on current WHM_HOST (209.38.241.9). Checking new server...
+[2026-04-16T07:09:19.014421204Z] [info] [PhoneMonitor] Checking 1 Telnyx numbers
+[2026-04-16T07:09:19.018038331Z] [info] [PhoneMonitor] === Health check complete: 7 checked, 0 newly suspended ===
+[2026-04-16T07:09:20.018818896Z] [info] [AntiRed] Shared worker upgraded: OK (KV: bound)
+[2026-04-16T07:09:20.018825866Z] [info] [AntiRed] Startup worker upgrade: OK (KV: true)
+[2026-04-16T07:09:20.876579208Z] [info] [CpanelMigration] star26fe: Not on new server — skipped (stays on 199.247.22.196).
+[2026-04-16T07:09:20.876591812Z] [info] [CpanelMigration] mycu79c2: Not on new server — skipped (stays on 199.247.22.196).
+[2026-04-16T07:09:20.876601273Z] [info] [CpanelMigration] Migration complete: 0 migrated, 5 skipped (not on new server), 0 failed.
+[2026-04-16T07:09:20.876662105Z] [info] [CpanelMigration] New WHM server has 8 account(s).
+[2026-04-16T07:09:20.876668641Z] [info] [CpanelMigration] locke9c5: Not on new server — skipped (stays on 199.247.22.196).
+[2026-04-16T07:09:20.876674754Z] [info] [CpanelMigration] ntesb913: Not on new server — skipped (stays on 199.247.22.196).
+[2026-04-16T07:09:20.876680516Z] [info] [CpanelMigration] ntesdbd4: Not on new server — skipped (stays on 199.247.22.196).
+[2026-04-16T07:09:24.113499582Z] [info] [BulkCall] Recovery: No running campaigns to recover
+[2026-04-16T07:09:33.996503341Z] [info] 07:09:33 [CartRecovery] No pending nudges to recover
+[2026-04-16T07:09:39.083541732Z] [info] [ProtectionEnforcer] domainsOf: 56 unique custom domains
+[2026-04-16T07:09:39.083553198Z] [info] [BalanceMonitor] Running provider balance checks...
+[2026-04-16T07:09:39.083554295Z] [info] [ProtectionEnforcer] cpanelAccounts: 20 accounts
+[2026-04-16T07:09:39.083563932Z] [info] [ProtectionEnforcer] Total unique domains: 135
+[2026-04-16T07:09:39.083568670Z] [info] [ProtectionEnforcer] ═══ Starting enforcement run ═══
+[2026-04-16T07:09:39.083574295Z] [info] [BalanceMonitor] Telnyx: $10.64 USD [ok]
+[2026-04-16T07:09:39.083577241Z] [info] [ProtectionEnforcer] registeredDomains: 74 entries
+[2026-04-16T07:09:39.083582391Z] [info] [BalanceMonitor] Twilio: $19.65 USD [ok]
+[2026-04-16T07:10:30.532247197Z] [info] [ProtectionEnforcer] ═══ Enforcement complete in 43.1s ═══
+[2026-04-16T07:10:30.532254302Z] [info] [ProtectionEnforcer] Total: 135 | Protected: 97 | Fixed: 0 | No Zone: 38 | Errors: 0 | DNS Cached: 67 | Zone Skipped: 0
+[2026-04-16T07:11:10.794816512Z] [info] [UserWalletMonitor] Skipped group chat: -1002372561543
+[2026-04-16T07:11:10.794828596Z] [info] [UserWalletMonitor] Skipped group chat: -5051719293
+[2026-04-16T07:11:10.794837003Z] [info] [UserWalletMonitor] Scan complete: 4005 wallets checked, 0 low-balance warnings sent
+[2026-04-16T07:11:10.794866556Z] [info] [UserWalletMonitor] Running periodic wallet scan (all users)...
+[2026-04-16T07:11:10.794873651Z] [info] [UserWalletMonitor] Skipped group chat: -1002073456336
+[2026-04-16T07:11:10.794910235Z] [info] [UserWalletMonitor] Skipped group chat: -1001760675819
+[2026-04-16T07:11:10.794922902Z] [info] [UserWalletMonitor] Skipped group chat: -4013524243
+[2026-04-16T07:11:10.794928490Z] [info] [UserWalletMonitor] Skipped group chat: -4008071670
+[2026-04-16T07:11:10.794933395Z] [info] [UserWalletMonitor] Skipped group chat: -1001843794247
+[2026-04-16T07:14:04.044895051Z] [info] [ResurrectionScan] Testing 200 dead users...
+[2026-04-16T07:14:54.151194234Z] [info] [ResurrectionScan] Done: {"tested":200,"resurrected":179,"stillDead":21,"timestamp":"2026-04-16T07:14:50.237Z"}
+[2026-04-16T07:39:12.888714959Z] [info] [PhoneMonitor] === Health check complete: 7 checked, 0 newly suspended ===
+[2026-04-16T07:39:12.888848244Z] [info] [PhoneMonitor] === Health check started ===
+[2026-04-16T07:39:12.888858150Z] [info] [PhoneMonitor] Checking 6 Twilio subaccounts
+[2026-04-16T07:39:12.888865603Z] [info] [PhoneMonitor] Checking 1 Telnyx numbers
+[2026-04-16T08:00:06.405693077Z] [info] [PhoneScheduler] Running hourly expiry check...
+[2026-04-16T08:00:06.405698172Z] [info] [PhoneScheduler] Expiry check complete: 0 reminders, 0 auto-renewed, 0 released
+[2026-04-16T08:02:59.790229554Z] [info] reply: Hi there! How can I assist you today? 😊 /done	to: 8246464913
+[2026-04-16T08:02:59.790243224Z] [info] 
+[2026-04-16T08:02:59.790251154Z] [info] reply: 🤖 <b>AI replied to heimlich_himmler</b> (8246464913):
+[2026-04-16T08:02:59.790258652Z] [info] <i>Hi there! How can I assist you today? 😊</i> 	to: 5590563715
+[2026-04-16T08:02:59.790265607Z] [info] 
+[2026-04-16T08:02:59.790273008Z] [info] [Support] AI -> 8246464913: Hi there! How can I assist you today? 😊... (escalate: false)
+[2026-04-16T08:02:59.790304776Z] [info] 📨 Telegram webhook received
+[2026-04-16T08:02:59.790312145Z] [info] message: 	from: 8246464913 heimlich_himmler
+[2026-04-16T08:02:59.790319920Z] [info] reply: 💬 <b>heimlich_himmler</b> (8246464913):
+[2026-04-16T08:02:59.790327206Z] [info] 
+[2026-04-16T08:02:59.790334528Z] [info] 
+[2026-04-16T08:02:59.790343403Z] [info] ↩️ /reply 8246464913 <i>type response</i> 	to: 5590563715
+[2026-04-16T08:02:59.790351197Z] [info] 
+[2026-04-16T08:02:59.790363415Z] [info] [Support] 8246464913 -> admin:  (adminTakeover: false)
+[2026-04-16T08:02:59.790371299Z] [info] Connect Reseller API is working
+[2026-04-16T08:03:19.986952123Z] [info] 
+[2026-04-16T08:03:19.986962221Z] [info] 🥉 Bronze  <b>$3.00</b>
+[2026-04-16T08:03:19.986968461Z] [info] <i>Start spending to unlock discounts</i>
+[2026-04-16T08:03:19.986974577Z] [info] 📞 <i>You have a free trial Quick IVR Call! Tap Cloud IVR to try it.</i>
+[2026-04-16T08:03:19.986981832Z] [info] 
+[2026-04-16T08:03:19.986989409Z] [info] 🧪 <i>Try SIP calling free — send /testsip</i>
+[2026-04-16T08:03:19.986995542Z] [info] 
+[2026-04-16T08:03:19.987002147Z] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,📦 Ship & Mail,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8246464913
+[2026-04-16T08:03:19.987008443Z] [info] 
+[2026-04-16T08:03:19.987298347Z] [info] 📨 Telegram webhook received
+[2026-04-16T08:03:19.987303753Z] [info] message: /start	from: 8246464913 heimlich_himmler
+[2026-04-16T08:03:19.987309228Z] [info] reply: Hey, <b>National</b>
+[2026-04-16T08:03:39.097564495Z] [info] 📨 Telegram webhook received
+[2026-04-16T08:03:39.097580577Z] [info] message: 📧🆓 BulkSMS — 100 Free SMS	from: 8246464913 heimlich_himmler
+[2026-04-16T08:03:39.097588724Z] [info] reply: 📧 <b>BulkSMS — Free Trial</b> (100 SMS left)
+[2026-04-16T08:03:39.097597934Z] [info] 
+[2026-04-16T08:03:39.097604404Z] [info] Sends SMS from your phone's SIM — high deliverability, real sender ID.
+[2026-04-16T08:03:39.097611750Z] [info] 
+[2026-04-16T08:03:39.097620709Z] [info] 📲 <b>App:</b> https://02w.me/c-Bf7
+[2026-04-16T08:03:39.097629041Z] [info] 🔑 <b>Code:</b> <code>8246464913</code>
+[2026-04-16T08:03:39.097635797Z] [info] 
+[2026-04-16T08:03:39.097642188Z] [info] New here? Tap <b>❓ How It Works</b> 📱 Create Campaign,📋 My Campaigns,📲 Download App,🔓 Reset Login,❓ How It Works,⚡ Upgrade Plan,Back	to: 8246464913
+[2026-04-16T08:03:39.097648812Z] [info] 
+[2026-04-16T08:09:07.940868036Z] [info] 08:09:03 [Conversion] Social proof refreshed: {"hosting":510,"domains":9003,"cloudphone":111,"digitalproducts":36,"vps":63,"virtualcard":27,"general":7749}
+[2026-04-16T08:09:09.045284391Z] [info] [PhoneMonitor] === Health check started ===
+[2026-04-16T08:09:09.045288702Z] [info] [PhoneMonitor] Checking 6 Twilio subaccounts
+[2026-04-16T08:09:09.045293892Z] [info] [PhoneMonitor] Checking 1 Telnyx numbers
+[2026-04-16T08:09:09.066208017Z] [info] [PhoneMonitor] === Health check complete: 7 checked, 0 newly suspended ===
+[2026-04-16T08:28:37.551754455Z] [info] 
+[2026-04-16T08:28:37.551766618Z] [info] Need eSIM cards? Tap 💬 Get Support 	to: 8246464913
+[2026-04-16T08:28:37.551775071Z] [info] 
+[2026-04-16T08:28:37.551781926Z] [info] 📨 Telegram webhook received
+[2026-04-16T08:28:37.551788270Z] [info] message: 📲 Download App	from: 8246464913 heimlich_himmler
+[2026-04-16T08:28:37.551794335Z] [info] reply: 📱 <b>BulkSMS Free Trial — 100 Free SMS</b>
+[2026-04-16T08:28:37.551800234Z] [info] 
+[2026-04-16T08:28:37.551806782Z] [info] Your activation code:
+[2026-04-16T08:28:37.551813648Z] [info] <code>8246464913</code>
+[2026-04-16T08:28:37.551820084Z] [info] 
+[2026-04-16T08:28:37.551827095Z] [info] 📲 <b>Download the app:</b> https://02w.me/c-Bf7
+[2026-04-16T08:28:37.551839581Z] [info] 
+[2026-04-16T08:28:37.551848758Z] [info] Open the app → Enter your code → Start sending!
+[2026-04-16T08:28:37.551854535Z] [info] 
+[2026-04-16T08:28:37.551859960Z] [info] ⚡ Trial: 1 device only.
+[2026-04-16T08:28:37.551868809Z] [info] 
+[2026-04-16T08:28:37.551875343Z] [info] 💡 After trial, tap <b>⚡ Upgrade Plan</b> on the main menu to unlock unlimited BulkSMS + URL shortening + validations & more!
+[2026-04-16T08:29:48.762653181Z] [info] 
+[2026-04-16T08:29:48.762688339Z] [info] [Support] Admin replied to 1118822404: Please dm @onarrival1 Admin to place your order. — session re-opened, admin takeover ON
+[2026-04-16T08:29:48.762706432Z] [info] 📨 Telegram webhook received
+[2026-04-16T08:29:48.762738498Z] [info] message: /reply 1118822404 Please dm @onarrival1 Admin to place your order.	from: 5590563715 onarrival1
+[2026-04-16T08:29:48.762750782Z] [info] reply: 💬 <b>Support:</b>
+[2026-04-16T08:29:48.762759067Z] [info] Please dm @onarrival1 Admin to place your order. /done	to: 1118822404
+[2026-04-16T08:29:48.762769964Z] [info] 
+[2026-04-16T08:29:48.762777476Z] [info] reply: ✅ Reply sent to aZeidMcCain 	to: 5590563715
+[2026-04-16T08:30:19.687492868Z] [info] 
+[2026-04-16T08:30:19.687504175Z] [info] reply: ✅ Reply sent to heimlich_himmler 	to: 5590563715
+[2026-04-16T08:30:19.687511328Z] [info] 
+[2026-04-16T08:30:19.687517714Z] [info] [Support] Admin replied to 8246464913: please download the latest app version and delete the old one from your first and then install the new version. Thanks — session re-opened, admin takeover ON
+[2026-04-16T08:30:19.687645414Z] [info] 📨 Telegram webhook received
+[2026-04-16T08:30:19.687653282Z] [info] message: /reply 8246464913 please download the latest app version and delete the old one from your first and then install the new version. Thanks	from: 5590563715 onarrival1
+[2026-04-16T08:30:19.687659576Z] [info] reply: 💬 <b>Support:</b>
+[2026-04-16T08:30:19.687665764Z] [info] please download the latest app version and delete the old one from your first and then install the new version. Thanks /done	to: 8246464913
+[2026-04-16T08:32:23.718951879Z] [info] [SmsApp] Auto-replacing device for 8246464913: dev-test456 → dev-mo1811og-15nodt
+[2026-04-16T08:32:23.718957419Z] [info] [SmsApp] Sync request for chatId: 8246464913, version: 2.2.0
+[2026-04-16T08:32:23.718962872Z] [info] [SmsApp] Update reminder sent to 8246464913: 2.2.0 → 2.4.1
+[2026-04-16T08:32:23.718969349Z] [info] [SmsApp] Sync for 8246464913 - canUseSms: true, isFreeTrial: true, freeSmsUsed: 0, freeSmsRemaining: 100, isSubscribed: false
+[2026-04-16T08:37:12.388074211Z] [info] [SmsApp] Sync request for chatId: 8246464913, version: 2.2.0
+[2026-04-16T08:37:12.388086769Z] [info] [SmsApp] Sync for 8246464913 - canUseSms: true, isFreeTrial: true, freeSmsUsed: 0, freeSmsRemaining: 100, isSubscribed: false
+[2026-04-16T08:37:43.120689220Z] [info] [SmsApp] Sync request for chatId: 8246464913, version: 2.2.0
+[2026-04-16T08:37:43.120697682Z] [info] [SmsApp] Sync for 8246464913 - canUseSms: true, isFreeTrial: true, freeSmsUsed: 0, freeSmsRemaining: 100, isSubscribed: false
+[2026-04-16T08:39:14.715219514Z] [info] [PhoneMonitor] === Health check started ===
+[2026-04-16T08:39:14.715229932Z] [info] [PhoneMonitor] Checking 6 Twilio subaccounts
+[2026-04-16T08:39:14.715239860Z] [info] [PhoneMonitor] Checking 1 Telnyx numbers
+[2026-04-16T08:39:14.715249173Z] [info] [PhoneMonitor] === Health check complete: 7 checked, 0 newly suspended ===
+[2026-04-16T08:46:29.103294436Z] [info] 📨 Telegram webhook received
+[2026-04-16T08:46:29.103302642Z] [info] [NotifyGroups] Auto-registered group: Bagging The Bag 🎒🛅💰 (-1003588056094)
+[2026-04-16T08:46:37.046254843Z] [info] 📨 Telegram webhook received
+[2026-04-16T08:46:37.046263730Z] [info] message: /start	from: 8658466470 slaveauctioned
+[2026-04-16T08:46:37.046274163Z] [info] reply: 🌍 To ensure everything is in your preferred language, please select one below:
+[2026-04-16T08:46:37.046284290Z] [info]  
+[2026-04-16T08:46:37.046293341Z] [info] You can always change your language later in the settings. 🇬🇧 English,🇫🇷 French,🇨🇳 Chinese,🇮🇳 Hindi	to: 8658466470
+[2026-04-16T08:46:37.046302177Z] [info] 
+[2026-04-16T08:46:39.243306703Z] [info] 📨 Telegram webhook received
+[2026-04-16T08:46:39.243316548Z] [info] message: 🇬🇧 English	from: 8658466470 slaveauctioned
+[2026-04-16T08:46:39.308446748Z] [info] reply: 👋 <b>New Member Joined!</b>
+[2026-04-16T08:46:39.308456548Z] [info] 
+[2026-04-16T08:46:39.308463280Z] [info] 👤 Name: <b>Demiurge</b>
+[2026-04-16T08:46:39.308469361Z] [info] 🆔 Chat ID: <code>8658466470</code>
+[2026-04-16T08:46:39.308476155Z] [info] 📎 Username: @slaveauctioned
+[2026-04-16T08:46:39.308482553Z] [info] 🌐 Language: en
+[2026-04-16T08:46:39.308488973Z] [info] 
+[2026-04-16T08:46:39.308494165Z] [info] 💬 Welcome them:
+[2026-04-16T08:46:39.308500414Z] [info] /reply 8658466470 Welcome to Nomadly Bot! 🎉 	to: 5590563715
+[2026-04-16T08:46:39.308595956Z] [info] 
+[2026-04-16T08:46:39.988194470Z] [info] [NotifyGroup] Auto-registered groups found: 2 → Lockbay Market 🛒, Bagging The Bag 🎒🛅💰
+[2026-04-16T08:46:39.988202769Z] [info] [NotifyGroup] Dispatched to 3 target(s)
+[2026-04-16T08:46:39.988209637Z] [info] [WelcomeBonus] Awarded $3 to chatId=8658466470
+[2026-04-16T08:46:39.988216804Z] [info] reply: 🎉 <b>Welcome Gift!</b>
+[2026-04-16T08:46:39.988224424Z] [info] 
+[2026-04-16T08:46:39.988240448Z] [info] $3 has been added to your wallet as a welcome gift!
+[2026-04-16T08:46:39.988248377Z] [info] 
+[2026-04-16T08:46:39.988255426Z] [info] 💡 Use it toward any service — domains, phone numbers, hosting, or more.
+[2026-04-16T08:46:39.988262461Z] [info] 
+[2026-04-16T08:46:39.988269340Z] [info] Thank you for joining Nomadly! 🚀 	to: 8658466470
+[2026-04-16T08:46:39.988276047Z] [info] 
+[2026-04-16T08:46:39.988284264Z] [info] [WelcomeBonus] Awarded $3 to new user chatId=8658466470
+[2026-04-16T08:46:39.988301669Z] [info] 08:46:39 [Conversion] Onboarding started for 8658466470 (lang: en)
+[2026-04-16T08:46:39.988307701Z] [info] 08:46:39 [Conversion] Welcome offer scheduled for 8658466470 in 120 min
+[2026-04-16T08:46:39.988313244Z] [info] [NotifyGroup] ✅ Sent to admin 5590563715
+[2026-04-16T08:46:39.988317771Z] [info] [NotifyGroup] ✅ Sent to group Bagging The Bag 🎒🛅💰
+[2026-04-16T08:46:39.988324846Z] [info] [NotifyGroup] ✅ Sent to configured group -1001843794247
+[2026-04-16T08:46:42.089120191Z] [info] 08:46:41 reply: 🎉 <b>Welcome, Demiurge!</b>
+[2026-04-16T08:46:42.089126690Z] [info] 
+[2026-04-16T08:46:42.089133000Z] [info] You've got <b>$3.00</b> in your wallet to start with!
+[2026-04-16T08:46:42.089139623Z] [info] 
+[2026-04-16T08:46:42.089144997Z] [info] Here are 3 things to try right now:
+[2026-04-16T08:46:42.089150030Z] [info] 
+[2026-04-16T08:46:42.089155331Z] [info] 📞 <b>Free IVR Test Call</b> — hear a custom voice menu in action
+[2026-04-16T08:46:42.089160699Z] [info] 🛡️ <b>Anti-Red Hosting</b> — bulletproof sites that never go down
+[2026-04-16T08:46:42.089166076Z] [info] 🌐 <b>Bulletproof Domains</b> — register domains with full DNS control
+[2026-04-16T08:46:42.089172313Z] [info] 
+[2026-04-16T08:46:42.089177801Z] [info] 👇 <b>Pick one to explore:</b> [["📞 Try Free IVR Call"],["🛡️ See Hosting Plans"],["🌐 Browse Domains"],["⏭️ Skip — Show Full Menu"]]	to: 8658466470
+[2026-04-16T08:46:48.601745729Z] [info] 📨 Telegram webhook received
+[2026-04-16T08:46:48.601753956Z] [info] message: 🌐 Browse Domains	from: 8658466470 slaveauctioned
+[2026-04-16T08:46:48.601973170Z] [info] reply: Please select an option:
+[2026-04-16T08:46:48.601984235Z] [info] 
+[2026-04-16T08:46:48.601991127Z] [info] 🌐 9003 domains registered this week 🛒🌐 Buy Domain Names,📂 My Domain Names,🔧 DNS Management,Back,Cancel	to: 8658466470
+[2026-04-16T08:46:48.601998016Z] [info] 
+[2026-04-16T08:46:52.558608114Z] [info] 
+[2026-04-16T08:46:52.558691499Z] [info] 📨 Telegram webhook received
+[2026-04-16T08:46:52.558696989Z] [info] message: 🛒🌐 Buy Domain Names	from: 8658466470 slaveauctioned
+[2026-04-16T08:46:52.558701049Z] [info] reply: <b>Claim Your Corner of the Web!</b> Please share the domain name you wish to purchase, like "abcpay.com". Back,Cancel	to: 8658466470
+[2026-04-16T08:47:02.320018987Z] [info] 
+[2026-04-16T08:47:02.320056491Z] [info] 📨 Telegram webhook received
+[2026-04-16T08:47:02.320061438Z] [info] message: Back	from: 8658466470 slaveauctioned
+[2026-04-16T08:47:02.320066341Z] [info] reply: Please select an option:
+[2026-04-16T08:47:02.320071640Z] [info] 
+[2026-04-16T08:47:02.320077223Z] [info] 🌐 9003 domains registered this week 🛒🌐 Buy Domain Names,📂 My Domain Names,🔧 DNS Management,Back,Cancel	to: 8658466470
+[2026-04-16T08:47:05.467133721Z] [info] 📨 Telegram webhook received
+[2026-04-16T08:47:05.467140945Z] [info] message: Back	from: 8658466470 slaveauctioned
+[2026-04-16T08:47:05.507633008Z] [info] reply: Hey, <b>Demiurge</b>
+[2026-04-16T08:47:05.507641940Z] [info] 
+[2026-04-16T08:47:05.507647737Z] [info] 🥉 Bronze  <b>$3.00</b>
+[2026-04-16T08:47:05.507652819Z] [info] <i>Start spending to unlock discounts</i>
+[2026-04-16T08:47:05.507660459Z] [info] 📞 <i>You have a free trial Quick IVR Call! Tap Cloud IVR to try it.</i>
+[2026-04-16T08:47:05.507666285Z] [info] 
+[2026-04-16T08:47:05.507680739Z] [info] 🧪 <i>Try SIP calling free — send /testsip</i>
+[2026-04-16T08:47:05.507687401Z] [info] 
+[2026-04-16T08:47:05.507693105Z] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,📦 Ship & Mail,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8658466470
+[2026-04-16T08:47:05.507698433Z] [info] 
+[2026-04-16T08:47:14.236384319Z] [info] 📨 Telegram webhook received
+[2026-04-16T08:47:14.236394561Z] [info] message: 📦 Ship & Mail	from: 8658466470 slaveauctioned
+[2026-04-16T08:47:14.236404787Z] [info] reply: 📦 <b>Ship & Mail</b>
+[2026-04-16T08:47:14.236415512Z] [info] 
+[2026-04-16T08:47:14.236429174Z] [info] Create shipping labels, send letters & postcards, schedule pickups, and track everything — all in one place. 	to: 8658466470
+[2026-04-16T08:47:14.236435638Z] [info] 
+[2026-04-16T08:48:05.125865525Z] [info] 📨 Telegram webhook received
+[2026-04-16T08:48:05.125872610Z] [info] [NotifyGroups] Auto-registered group: Bagging The Bag 🎒🛅💰 (-1003588056094)
+[2026-04-16T08:48:14.063324047Z] [info] 📨 Telegram webhook received
+[2026-04-16T08:48:14.063331772Z] [info] [NotifyGroups] Auto-registered group: Bagging The Bag 🎒🛅💰 (-1003588056094)
+[2026-04-16T08:48:17.626878606Z] [info] 📨 Telegram webhook received
+[2026-04-16T08:48:17.626887074Z] [info] [NotifyGroups] Auto-registered group: Bagging The Bag 🎒🛅💰 (-1003588056094)
+[2026-04-16T08:53:38.644706294Z] [info] 📨 Telegram webhook received
+[2026-04-16T08:53:38.644713001Z] [info] [NotifyGroups] Auto-registered group: Bagging The Bag 🎒🛅💰 (-1003588056094)
+[2026-04-16T08:53:58.730411148Z] [info] 📨 Telegram webhook received
+[2026-04-16T08:53:58.730416911Z] [info] [NotifyGroups] Auto-registered group: Bagging The Bag 🎒🛅💰 (-1003588056094)
+[2026-04-16T09:00:02.149494894Z] [info] [PhoneScheduler] Running hourly expiry check...
+[2026-04-16T09:00:02.149501981Z] [info] [AutoPromo] Triggered domains_shortener 🌅morning for fr (local 10:00)
+[2026-04-16T09:00:02.149508914Z] [info] [PhoneScheduler] Expiry check complete: 0 reminders, 0 auto-renewed, 0 released
+[2026-04-16T09:00:31.559641189Z] [info] [AutoPromo] AI domains_shortener/fr (577 chars)
+[2026-04-16T09:00:31.559648679Z] [info] [AutoPromo] Broadcasting domains_shortener 🌅morning (AI) to 104 fr users (1091 permanently dead pre-filtered)
+[2026-04-16T09:00:32.816302419Z] [info] [AutoPromo] Unreachable 1166581652: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)
+[2026-04-16T09:00:32.816311087Z] [info] [AutoPromo] User 5441335570 marked dead after 3 consecutive failures (bot_blocked)
+[2026-04-16T09:00:32.816316428Z] [info] [AutoPromo] Unreachable 5441335570: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)
+[2026-04-16T09:00:32.816321090Z] [info] [AutoPromo] User 1932182414 marked dead after 3 consecutive failures (bot_blocked)
+[2026-04-16T09:00:32.816432112Z] [info] [AutoPromo] User 1166581652 marked dead after 3 consecutive failures (bot_blocked)
+[2026-04-16T09:00:32.816482269Z] [info] [AutoPromo] Unreachable 1932182414: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)
+[2026-04-16T09:00:32.816488563Z] [info] [AutoPromo] User 5978262172 marked dead after 3 consecutive failures (bot_blocked)
+[2026-04-16T09:00:32.816493793Z] [info] [AutoPromo] Unreachable 5978262172: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)
+[2026-04-16T09:00:32.816499922Z] [info] [AutoPromo] User 7019557009 marked dead after 3 consecutive failures (bot_blocked)
+[2026-04-16T09:00:32.816506162Z] [info] [AutoPromo] Unreachable 7019557009: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)
+[2026-04-16T09:00:36.489736958Z] [info] [AutoPromo] Unreachable 2054757415: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)
+[2026-04-16T09:00:36.489743899Z] [info] [AutoPromo] User 7327688475 marked dead after 3 consecutive failures (bot_blocked)
+[2026-04-16T09:00:36.489753766Z] [info] [AutoPromo] User 6419344546 marked dead after 3 consecutive failures (bot_blocked)
+[2026-04-16T09:00:36.489760283Z] [info] [AutoPromo] Unreachable 7327688475: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)
+[2026-04-16T09:00:36.489769966Z] [info] [AutoPromo] Unreachable 6419344546: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)
+[2026-04-16T09:00:36.489778552Z] [info] [AutoPromo] User 2054757415 marked dead after 3 consecutive failures (bot_blocked)
+[2026-04-16T09:00:37.434367982Z] [info] [AutoPromo] User 886014902 marked dead after 3 consecutive failures (bot_blocked)
+[2026-04-16T09:00:37.434378811Z] [info] [AutoPromo] Unreachable 886014902: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)
+[2026-04-16T09:00:37.434385605Z] [info] [AutoPromo] User 7112243503 marked dead after 3 consecutive failures (bot_blocked)
+[2026-04-16T09:00:37.434399671Z] [info] [AutoPromo] Unreachable 7112243503: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)
+[2026-04-16T09:00:37.434411285Z] [info] [AutoPromo] Unreachable 1773402676: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)
+[2026-04-16T09:00:37.434411844Z] [info] [AutoPromo] User 1773402676 marked dead after 3 consecutive failures (bot_blocked)
+[2026-04-16T09:00:40.868783170Z] [info] [AutoPromo] User 1157260909 marked dead after 3 consecutive failures (bot_blocked)
+[2026-04-16T09:00:40.868789495Z] [info] [AutoPromo] Unreachable 1157260909: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)
+[2026-04-16T09:00:42.019365434Z] [info] [AutoPromo] User 7627654164 marked dead after 3 consecutive failures (bot_blocked)
+[2026-04-16T09:00:42.019372024Z] [info] [AutoPromo] Unreachable 7627654164: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)
+[2026-04-16T09:00:42.019377999Z] [info] [AutoPromo] User 8153787004 marked dead after 3 consecutive failures (bot_blocked)
+[2026-04-16T09:00:42.019391935Z] [info] [AutoPromo] Unreachable 8153787004: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)
+[2026-04-16T09:00:42.019408327Z] [info] [AutoPromo] User 7314270595 marked dead after 3 consecutive failures (bot_blocked)
+[2026-04-16T09:00:42.019420827Z] [info] [AutoPromo] Unreachable 7314270595: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)
+[2026-04-16T09:00:42.019427453Z] [info] [AutoPromo] Unreachable 7241765058: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)
+[2026-04-16T09:00:42.019444420Z] [info] [AutoPromo] Unreachable 8339399320: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)
+[2026-04-16T09:00:45.577650632Z] [info] [AutoPromo] Unreachable 7832486119: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)
+[2026-04-16T09:00:45.577706911Z] [info] [AutoPromo] Unreachable 7547446958: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)
+[2026-04-16T09:00:46.709120716Z] [info] [AutoPromo] Unreachable 8085530413: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)
+[2026-04-16T09:00:46.709127914Z] [info] [AutoPromo] Unreachable 8625434794: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)
+[2026-04-16T09:00:46.709135335Z] [info] [AutoPromo] Done: {"theme":"domains_shortener","lang":"fr","slot":"morning","variation":"ai","usedAI":true,"total":104,"success":83,"errors":21,"skipped":0,"timestamp":"2026-04-16T09:00:45.763Z"}
+[2026-04-16T09:09:04.682367088Z] [info] 09:09:03 [Conversion] Social proof refreshed: {"hosting":510,"domains":9003,"cloudphone":111,"digitalproducts":36,"vps":63,"virtualcard":27,"general":7749}
+[2026-04-16T09:09:08.810846465Z] [info] [BalanceMonitor] Running provider balance checks...
+[2026-04-16T09:09:08.810851573Z] [info] [PhoneMonitor] === Health check started ===
+[2026-04-16T09:09:08.810855977Z] [info] [PhoneMonitor] Checking 6 Twilio subaccounts
+[2026-04-16T09:09:08.810866617Z] [info] [BalanceMonitor] Telnyx: $10.64 USD [ok]
+[2026-04-16T09:09:08.810871291Z] [info] [BalanceMonitor] Twilio: $19.65 USD [ok]
+[2026-04-16T09:09:08.810876121Z] [info] [PhoneMonitor] Checking 1 Telnyx numbers
+[2026-04-16T09:09:09.825139031Z] [info] [PhoneMonitor] === Health check complete: 7 checked, 0 newly suspended ===
+[2026-04-16T09:23:40.954929342Z] [info] 📨 Telegram webhook received
+[2026-04-16T09:23:40.954944810Z] [info] message: ⚡ Premium Anti-Red (1-Week)	from: 5276709597 gwalasix
+[2026-04-16T09:23:40.954953205Z] [info] reply: <b>Premium Anti-Red (1-Week) — $30</b>
+[2026-04-16T09:23:40.954961010Z] [info] 
+[2026-04-16T09:23:40.954999353Z] [info] 📨 Telegram webhook received
+[2026-04-16T09:23:40.955003172Z] [info] message: 🛡️🔥 Anti-Red Hosting	from: 5276709597 gwalasix
+[2026-04-16T09:23:40.955009950Z] [info] reply: Please select a plan:
+[2026-04-16T09:23:40.955014855Z] [info] 
+[2026-04-16T09:23:40.955019015Z] [info] 🔥 510 users bought hosting this week ⚡ Premium Anti-Red (1-Week),🔷 Premium Anti-Red HostPanel (30 Days),👑 Golden Anti-Red HostPanel (30 Days),📋 My Hosting Plans,📞 Contact Support,Back,Cancel	to: 5276709597
+[2026-04-16T09:23:40.955023498Z] [info] 
+[2026-04-16T09:23:40.955027481Z] [info] Connect Reseller API is working
+[2026-04-16T09:23:40.955164610Z] [info] 10 GB SSD · 100 GB · Unlimited domains
+[2026-04-16T09:23:40.955171313Z] [info] Free SSL · IP cloaking · Bot detection · UA blocking
+[2026-04-16T09:23:40.955178127Z] [info] HostPanel — file, DB & email management 🛒 Buy Premium Anti-Red (1-Week),🔷 View Premium HostPanel,👑 View Golden HostPanel,⬅️ Back To Hosting Plans	to: 5276709597
+[2026-04-16T09:23:40.955185204Z] [info] 
+[2026-04-16T09:23:47.303652391Z] [info] 📂 <b>Use My Domain</b> — Pick from your domains
+[2026-04-16T09:23:47.303664909Z] [info] 🔗 <b>Connect External Domain</b> — Use a domain you own 🌐 Register a New Domain,📂 Use My Domain,🔗 Connect External Domain,⬅️ Back to Premium Weekly Details	to: 5276709597
+[2026-04-16T09:23:47.303674884Z] [info] 
+[2026-04-16T09:23:47.304010310Z] [info] 📨 Telegram webhook received
+[2026-04-16T09:23:47.304014774Z] [info] message: 🛒 Buy Premium Anti-Red (1-Week)	from: 5276709597 gwalasix
+[2026-04-16T09:23:47.304019637Z] [info] buyPlan premiumWeekly
+[2026-04-16T09:23:47.304024390Z] [info] reply: How would you like to connect a domain?
+[2026-04-16T09:23:47.304028945Z] [info] 
+[2026-04-16T09:23:47.304033135Z] [info] 🌐 <b>Register a New Domain</b>
+[2026-04-16T09:24:07.116357483Z] [info] 📨 Telegram webhook received
+[2026-04-16T09:24:07.116368331Z] [info] message: 🌐 Register a New Domain	from: 5276709597 gwalasix
+[2026-04-16T09:24:07.116374643Z] [info] reply: Enter your desired domain (e.g., example.com) 	to: 5276709597
+[2026-04-16T09:24:07.116382072Z] [info] 
+[2026-04-16T09:24:07.116427418Z] [info] 📨 Telegram webhook received
+[2026-04-16T09:24:07.116432500Z] [info] message: 📂 Use My Domain	from: 5276709597 gwalasix
+[2026-04-16T09:24:07.116437955Z] [info] reply: You have no registered domains. Please register a new domain or connect an external domain. 🌐 Register a New Domain,🔗 Connect External Domain,⬅️ Back	to: 5276709597
+[2026-04-16T09:24:07.116442763Z] [info] 
+[2026-04-16T09:24:27.090951412Z] [info] reply: Checking domain availability... 	to: 5276709597
+[2026-04-16T09:24:27.090964242Z] [info] 
+[2026-04-16T09:24:27.090972555Z] [info] [domain-service] Checking a25high-t.com on CR + OP in parallel...
+[2026-04-16T09:24:27.091212855Z] [info] 📨 Telegram webhook received
+[2026-04-16T09:24:27.091217412Z] [info] message: A25high-t.com	from: 5276709597 gwalasix
+[2026-04-16T09:24:27.991463098Z] [info] OpenProvider auth success
+[2026-04-16T09:24:30.071731512Z] [info] reply: <b>a25high-t.com</b> is available — $39 ➡️ Continue with a25high-t.com,🔍 Search Another Domain,Back,Cancel	to: 5276709597
+[2026-04-16T09:24:30.071741941Z] [info] 
+[2026-04-16T09:24:30.071814789Z] [info] [domain-service] a25high-t.com available on both — CR: $39, OP: $39 → showing $39 (OpenProvider), trying ConnectReseller @ $39 first
+[2026-04-16T09:24:33.150974819Z] [info] 📨 Telegram webhook received
+[2026-04-16T09:24:33.150982979Z] [info] message: ➡️ Continue with a25high-t.com	from: 5276709597 gwalasix
+[2026-04-16T09:24:33.203899929Z] [info] reply: Enter your email for account setup and receipt.
+[2026-04-16T09:24:33.203934979Z] [info] 
+[2026-04-16T09:24:33.203946504Z] [info] Tap "Skip" to continue without one. Skip (no email),Back,Cancel	to: 5276709597
+[2026-04-16T09:24:33.203955433Z] [info] 
+[2026-04-16T09:24:38.247755382Z] [info] 📨 Telegram webhook received
+[2026-04-16T09:24:38.247759484Z] [info] message: Skip (no email)	from: 5276709597 gwalasix
+[2026-04-16T09:24:38.247764972Z] [info] reply: <b>Premium Anti-Red (1-Week)</b> · 1 Week
+[2026-04-16T09:24:38.247769345Z] [info] 
+[2026-04-16T09:24:38.247774833Z] [info] Domain: a25high-t.com — $39
+[2026-04-16T09:24:38.247779142Z] [info] Hosting: $30
+[2026-04-16T09:24:38.247784045Z] [info] 
+[2026-04-16T09:24:38.247788444Z] [info] <b>Total: $69</b>
+[2026-04-16T09:24:38.247793169Z] [info] 
+[2026-04-16T09:24:38.247797824Z] [info] Pay within 1 hr to activate. Your hosting will be provisioned automatically. Crypto,Bank ₦aira + Card🏦💳,👛 Wallet,🎟️ Apply Coupon,⬅️ Back	to: 5276709597
+[2026-04-16T09:24:38.247802164Z] [info] 
+[2026-04-16T09:27:34.105036104Z] [info] 📨 Telegram webhook received
+[2026-04-16T09:27:34.105044668Z] [info] [NotifyGroups] Auto-registered group: Lockbay Market 🛒 (-1001843794247)
+[2026-04-16T09:27:39.303349251Z] [info] 📨 Telegram webhook received
+[2026-04-16T09:27:39.303400383Z] [info] [NotifyGroups] Auto-registered group: Lockbay Market 🛒 (-1001843794247)
+[2026-04-16T09:29:11.403643769Z] [info] 📨 Telegram webhook received
+[2026-04-16T09:29:11.403658924Z] [info] message: /start	from: 5276709597 gwalasix
+[2026-04-16T09:29:11.403667608Z] [info] reply: Hey, <b>BRRRT</b>
+[2026-04-16T09:29:11.403676014Z] [info] 
+[2026-04-16T09:29:11.403683013Z] [info] 🥉 Bronze  <b>$0.00</b>
+[2026-04-16T09:29:11.403691293Z] [info] <i>Start spending to unlock discounts</i>
+[2026-04-16T09:29:11.403698317Z] [info] 📞 <i>You have a free trial Quick IVR Call! Tap Cloud IVR to try it.</i>
+[2026-04-16T09:29:11.403708958Z] [info] 
+[2026-04-16T09:29:11.403716816Z] [info] 🧪 <i>Try SIP calling free — send /testsip</i>
+[2026-04-16T09:29:11.403725284Z] [info] 
+[2026-04-16T09:29:11.403734952Z] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,📦 Ship & Mail,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 5276709597
+[2026-04-16T09:29:11.403744089Z] [info] 
+[2026-04-16T09:29:30.951315045Z] [info] New here? Tap <b>❓ How It Works</b> 📱 Create Campaign,📋 My Campaigns,📲 Download App,🔓 Reset Login,❓ How It Works,⚡ Upgrade Plan,Back	to: 5276709597
+[2026-04-16T09:29:30.951327720Z] [info] 
+[2026-04-16T09:29:30.951372669Z] [info] 📨 Telegram webhook received
+[2026-04-16T09:29:30.951383017Z] [info] message: 📧🆓 BulkSMS — 100 Free SMS	from: 5276709597 gwalasix
+[2026-04-16T09:29:30.951390934Z] [info] reply: 📧 <b>BulkSMS — Free Trial</b> (100 SMS left)
+[2026-04-16T09:29:30.951400763Z] [info] 
+[2026-04-16T09:29:30.951408291Z] [info] Sends SMS from your phone's SIM — high deliverability, real sender ID.
+[2026-04-16T09:29:30.951415022Z] [info] 
+[2026-04-16T09:29:30.951423432Z] [info] 📲 <b>App:</b> https://02w.me/c-Bf7
+[2026-04-16T09:29:30.951429948Z] [info] 🔑 <b>Code:</b> <code>5276709597</code>
+[2026-04-16T09:29:30.951436830Z] [info] 
+[2026-04-16T09:34:10.157696469Z] [info] 📨 Telegram webhook received
+[2026-04-16T09:34:10.157708568Z] [info] message: ❓ How It Works	from: 5276709597 gwalasix
+[2026-04-16T09:34:10.157716115Z] [info] reply: 📞 <b>Cloud IVR — How It Works</b>
+[2026-04-16T09:34:10.157725019Z] [info] 
+[2026-04-16T09:34:10.157733615Z] [info] Your own virtual phone number in 30+ countries. Receive calls, send SMS, build IVR menus — all managed from Telegram.
+[2026-04-16T09:34:10.157740397Z] [info] 
+[2026-04-16T09:34:10.157882194Z] [info] <b>🚀 Getting started:</b>
+[2026-04-16T09:34:10.157890221Z] [info] 1. Tap <b>🛒 Choose a Plan</b> → pick a country → select a number
+[2026-04-16T09:34:10.157898196Z] [info] 2. Pay from wallet (crypto, bank, or card)
+[2026-04-16T09:34:10.157904733Z] [info] 3. Your number is active immediately
+[2026-04-16T09:34:10.157950403Z] [info] 
+[2026-04-16T09:34:10.157955282Z] [info] • <b>📞 Bulk IVR Campaign</b> — call hundreds of numbers with one campaign
+[2026-04-16T09:34:10.157964850Z] [info] <b>📞 What you can do:</b>
+[2026-04-16T09:34:10.157974898Z] [info] • <b>Forward calls</b> to your real phone — answer anywhere
+[2026-04-16T09:34:10.157979272Z] [info] • <b>🤖 IVR Auto-Attendant</b> — "Press 1 for sales, 2 for support" menus
+[2026-04-16T09:34:10.157985486Z] [info] • <b>SMS to Telegram</b> — receive texts right here
+[2026-04-16T09:34:10.157998066Z] [info] • <b>🎙️ Voicemail</b> — custom greetings, delivered to Telegram/Email
+[2026-04-16T09:34:10.157998493Z] [info] • <b>Browser calling</b> — make/receive calls at https://speechcue.com/call (no app needed)
+[2026-04-16T09:34:10.158013754Z] [info] 
+[2026-04-16T09:34:10.158020250Z] [info] • <b>SIP softphone</b> — connect with any SIP app using your credentials
+[2026-04-16T09:34:10.158026848Z] [info] <b>💰 Billing:</b>
+[2026-04-16T09:34:10.158033332Z] [info] • <b>📢 Quick IVR Call</b> — call a number with a custom voice message (TTS or audio)
+[2026-04-16T09:34:10.159970159Z] [info] • <b>Outbound</b> calls & forwarding — charged from wallet balance per minute
+[2026-04-16T09:34:10.159979434Z] [info] • Plans renew monthly. Auto-renew available.
+[2026-04-16T09:34:10.159987782Z] [info] 
+[2026-04-16T09:34:10.159994169Z] [info] <b>📋 Plans:</b>
+[2026-04-16T09:34:10.160029811Z] [info] • <b>Inbound</b> calls & SMS — included in your plan
+[2026-04-16T09:34:10.160161924Z] [info] 💡 <b>Starter $50/mo</b> — 100 min, forwarding + SMS to Telegram
+[2026-04-16T09:34:10.160178406Z] [info] ⭐ <b>Pro $75/mo</b> — 500 min, + voicemail, SIP, IVR calling, OTP
+[2026-04-16T09:34:10.160190699Z] [info] 👑 <b>Business $120/mo</b> — Unlimited min, + recording, auto-attendant, scheduling
+[2026-04-16T09:34:10.160196952Z] [info] 
+[2026-04-16T09:34:10.160202429Z] [info] 🧪 Try SIP calling free first — tap <b>🧪 Test SIP Free</b> 📢 Quick IVR Call,📞 Bulk IVR Campaign,🎵 Audio Library,🧪 Test SIP Free,🛒 Choose a Plan,📋 My Plans,📖 SIP Setup Guide,📊 Usage & Billing,❓ How It Works,Back,Cancel	to: 5276709597
+[2026-04-16T09:34:10.160227779Z] [info] 
+[2026-04-16T09:34:51.396008834Z] [info] 📨 Telegram webhook received
+[2026-04-16T09:34:51.396015779Z] [info] message: /start	from: 5276709597 gwalasix
+[2026-04-16T09:34:51.396022425Z] [info] reply: Hey, <b>BRRRT</b>
+[2026-04-16T09:34:51.396027505Z] [info] 
+[2026-04-16T09:34:51.396033451Z] [info] 🥉 Bronze  <b>$0.00</b>
+[2026-04-16T09:34:51.396041151Z] [info] <i>Start spending to unlock discounts</i>
+[2026-04-16T09:34:51.396046115Z] [info] 📞 <i>You have a free trial Quick IVR Call! Tap Cloud IVR to try it.</i>
+[2026-04-16T09:34:51.396051920Z] [info] 
+[2026-04-16T09:34:51.396057535Z] [info] 🧪 <i>Try SIP calling free — send /testsip</i>
+[2026-04-16T09:34:51.396065095Z] [info] 
+[2026-04-16T09:34:51.396072827Z] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,📦 Ship & Mail,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 5276709597
+[2026-04-16T09:34:51.396077936Z] [info] 
+[2026-04-16T09:34:51.396085347Z] [info] 📨 Telegram webhook received
+[2026-04-16T09:34:51.396090576Z] [info] message: 📧🆓 BulkSMS — 100 Free SMS	from: 5276709597 gwalasix
+[2026-04-16T09:34:51.396095699Z] [info] reply: 📧 <b>BulkSMS — Free Trial</b> (100 SMS left)
+[2026-04-16T09:34:51.396101097Z] [info] 
+[2026-04-16T09:34:51.396112762Z] [info] Sends SMS from your phone's SIM — high deliverability, real sender ID.
+[2026-04-16T09:34:51.396119321Z] [info] 
+[2026-04-16T09:34:51.396125511Z] [info] 📲 <b>App:</b> https://02w.me/c-Bf7
+[2026-04-16T09:34:51.396131047Z] [info] 🔑 <b>Code:</b> <code>5276709597</code>
+[2026-04-16T09:34:51.396136651Z] [info] 
+[2026-04-16T09:34:51.396141536Z] [info] New here? Tap <b>❓ How It Works</b> 📱 Create Campaign,📋 My Campaigns,📲 Download App,🔓 Reset Login,❓ How It Works,⚡ Upgrade Plan,Back	to: 5276709597
+[2026-04-16T09:34:51.404463875Z] [info] 
+[2026-04-16T09:34:52.391137062Z] [info] 📨 Telegram webhook received
+[2026-04-16T09:34:52.391143203Z] [info] message: 📱 Create Campaign	from: 5276709597 gwalasix
+[2026-04-16T09:34:52.391149183Z] [info] reply: 📵 <b>No Active Device</b>
+[2026-04-16T09:34:52.391156867Z] [info] 
+[2026-04-16T09:34:52.391164815Z] [info] You need to activate the Nomadly SMS App on a device before creating campaigns.
+[2026-04-16T09:34:52.391172723Z] [info] 
+[2026-04-16T09:34:52.391180444Z] [info] 1️⃣ Download the app: https://02w.me/c-Bf7
+[2026-04-16T09:34:52.391188222Z] [info] 2️⃣ Enter activation code: <code>5276709597</code>
+[2026-04-16T09:34:52.391195905Z] [info] 3️⃣ Come back here to create campaigns 📲 Download App,Back	to: 5276709597
+[2026-04-16T09:34:52.391203721Z] [info] 
+[2026-04-16T09:35:01.293429930Z] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,📦 Ship & Mail,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 5276709597
+[2026-04-16T09:35:01.293441086Z] [info] 📞 <i>You have a free trial Quick IVR Call! Tap Cloud IVR to try it.</i>
+[2026-04-16T09:35:01.293442900Z] [info] 
+[2026-04-16T09:35:01.293454437Z] [info] 
+[2026-04-16T09:35:01.293513625Z] [info] 🧪 <i>Try SIP calling free — send /testsip</i>
+[2026-04-16T09:35:01.293521389Z] [info] 
+[2026-04-16T09:35:01.293577113Z] [info] 📨 Telegram webhook received
+[2026-04-16T09:35:01.293583770Z] [info] message: Back	from: 5276709597 gwalasix
+[2026-04-16T09:35:01.293590837Z] [info] reply: Hey, <b>BRRRT</b>
+[2026-04-16T09:35:01.293602762Z] [info] 
+[2026-04-16T09:35:01.293842339Z] [info] 🥉 Bronze  <b>$0.00</b>
+[2026-04-16T09:35:01.293854773Z] [info] <i>Start spending to unlock discounts</i>
+[2026-04-16T09:39:10.359468218Z] [info] [PhoneMonitor] === Health check started ===
+[2026-04-16T09:39:10.359480847Z] [info] [PhoneMonitor] Checking 6 Twilio subaccounts
+[2026-04-16T09:39:10.359488419Z] [info] [PhoneMonitor] Checking 1 Telnyx numbers
+[2026-04-16T09:39:10.359495206Z] [info] [PhoneMonitor] === Health check complete: 7 checked, 0 newly suspended ===
+[2026-04-16T09:49:09.044484326Z] [info] 👤 Name: <b>Kdo kdg</b>
+[2026-04-16T09:49:09.044498487Z] [info] 🆔 Chat ID: <code>2130773719</code>
+[2026-04-16T09:49:09.044506915Z] [info] 📎 Username: @Sepcialk
+[2026-04-16T09:49:09.044514033Z] [info] 🌐 Language: fr
+[2026-04-16T09:49:09.044520954Z] [info] 
+[2026-04-16T09:49:09.044528488Z] [info] 💬 Welcome them:
+[2026-04-16T09:49:09.044535299Z] [info] /reply 2130773719 Welcome to Nomadly Bot! 🎉 	to: 5590563715
+[2026-04-16T09:49:09.044541164Z] [info] 
+[2026-04-16T09:49:09.044547225Z] [info] [NotifyGroup] Auto-registered groups found: 2 → Lockbay Market 🛒, Bagging The Bag 🎒🛅💰
+[2026-04-16T09:49:09.044555435Z] [info] [NotifyGroup] Dispatched to 3 target(s)
+[2026-04-16T09:49:09.044561977Z] [info] [WelcomeBonus] Awarded $3 to chatId=2130773719
+[2026-04-16T09:49:09.044568782Z] [info] reply: 🎉 <b>Cadeau de bienvenue !</b>
+[2026-04-16T09:49:09.044575579Z] [info] 
+[2026-04-16T09:49:09.044590739Z] [info] $3 ajoutés à votre portefeuille en cadeau de bienvenue !
+[2026-04-16T09:49:09.044601571Z] [info] 
+[2026-04-16T09:49:09.044605205Z] [info] 📨 Telegram webhook received
+[2026-04-16T09:49:09.044611136Z] [info] 💡 Utilisez-le pour n'importe quel service. Merci d'avoir rejoint Nomadly ! 🚀 	to: 2130773719
+[2026-04-16T09:49:09.044613154Z] [info] message: /start	from: 2130773719 Sepcialk
+[2026-04-16T09:49:09.044619560Z] [info] reply: 🌍 To ensure everything is in your preferred language, please select one below:
+[2026-04-16T09:49:09.044625719Z] [info]  
+[2026-04-16T09:49:09.044630855Z] [info] You can always change your language later in the settings. 	to: 2130773719
+[2026-04-16T09:49:09.044637185Z] [info] 
+[2026-04-16T09:49:09.044644178Z] [info] 📨 Telegram webhook received
+[2026-04-16T09:49:09.044649284Z] [info] message: 🇫🇷 French	from: 2130773719 Sepcialk
+[2026-04-16T09:49:09.044655360Z] [info] reply: 👋 <b>New Member Joined!</b>
+[2026-04-16T09:49:09.044662129Z] [info] 
+[2026-04-16T09:49:09.051332157Z] [info] 
+[2026-04-16T09:49:09.051346014Z] [info] [WelcomeBonus] Awarded $3 to new user chatId=2130773719
+[2026-04-16T09:49:09.051354213Z] [info] 09:49:07 [Conversion] Onboarding started for 2130773719 (lang: fr)
+[2026-04-16T09:49:09.051360653Z] [info] 09:49:07 [Conversion] Welcome offer scheduled for 2130773719 in 120 min
+[2026-04-16T09:49:09.051367516Z] [info] [NotifyGroup] ✅ Sent to admin 5590563715
+[2026-04-16T09:49:09.051376201Z] [info] [NotifyGroup] ✅ Sent to group Bagging The Bag 🎒🛅💰
+[2026-04-16T09:49:09.051384189Z] [info] [NotifyGroup] ✅ Sent to configured group -1001843794247
+[2026-04-16T09:49:09.285922724Z] [info] 09:49:09 reply: 🎉 <b>Bienvenue, Kdo kdg !</b>
+[2026-04-16T09:49:09.285932362Z] [info] 
+[2026-04-16T09:49:09.285939764Z] [info] Vous avez <b>$3.00</b> dans votre portefeuille !
+[2026-04-16T09:49:09.285947176Z] [info] 
+[2026-04-16T09:49:09.285954667Z] [info] Voici 3 choses à essayer maintenant :
+[2026-04-16T09:49:09.285961193Z] [info] 
+[2026-04-16T09:49:09.285968044Z] [info] 📞 <b>Appel IVR gratuit</b> — testez un menu vocal personnalisé
+[2026-04-16T09:49:09.285974557Z] [info] 🛡️ <b>Hébergement Anti-Red</b> — sites blindés qui ne tombent jamais
+[2026-04-16T09:49:09.285981706Z] [info] 🌐 <b>Domaines blindés</b> — enregistrez des domaines avec contrôle DNS
+[2026-04-16T09:49:09.285988139Z] [info] 
+[2026-04-16T09:49:09.285994547Z] [info] 👇 <b>Choisissez pour explorer :</b> [["📞 Essayer l'appel IVR"],["🛡️ Voir les plans d'hébergement"],["🌐 Parcourir les domaines"],["⏭️ Passer — Menu complet"]]	to: 2130773719
+[2026-04-16T09:52:57.128402114Z] [info] 📨 Telegram webhook received
+[2026-04-16T09:52:57.128409759Z] [info] message: Crypto	from: 8588202400 hitmyinvoice
+[2026-04-16T09:52:57.128416410Z] [info] [reset] Unrecognized message from 8588202400: "Crypto" (was action: none). Resetting to main menu.
+[2026-04-16T09:52:57.128422054Z] [info] reply: 💡 <b>Tip:</b> Use the buttons below to navigate! Just tap on any option to get started.
+[2026-04-16T09:52:57.128428113Z] [info] Thank you for choosing Nomadly Bot! Please choose an option below: 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,📦 Ship & Mail,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8588202400
+[2026-04-16T09:52:57.128435316Z] [info] 
+[2026-04-16T09:53:17.109869257Z] [info] 📨 Telegram webhook received
+[2026-04-16T09:53:17.109877694Z] [info] message: 💳 Virtual Card	from: 8588202400 hitmyinvoice
+[2026-04-16T09:53:17.110333096Z] [info] 📨 Telegram webhook received
+[2026-04-16T09:53:17.110349588Z] [info] 📞 Transférez les appels vers votre vrai téléphone
+[2026-04-16T09:53:17.110350118Z] [info] message: 📞 Essayer l'appel IVR	from: 2130773719 Sepcialk
+[2026-04-16T09:53:17.110361411Z] [info] 💬 Recevez les SMS directement dans Telegram
+[2026-04-16T09:53:17.110362514Z] [info] reply: 📞 <b>Cloud IVR</b> <i>par Speechcue</i>
+[2026-04-16T09:53:17.110373365Z] [info] 🌐 Appelez et recevez des appels dans votre navigateur — sans application
+[2026-04-16T09:53:17.110374383Z] [info] 
+[2026-04-16T09:53:17.110385232Z] [info] Obtenez un numéro virtuel dans plus de 30 pays — en moins de 2 minutes.
+[2026-04-16T09:53:17.110393861Z] [info] 
+[2026-04-16T09:53:17.110410194Z] [info] 🤖 Configurez un standard automatique IVR
+[2026-04-16T09:53:17.110422101Z] [info] 🔗 Connectez via un softphone SIP
+[2026-04-16T09:53:17.110431444Z] [info] 
+[2026-04-16T09:53:17.110452506Z] [info] Forfaits à partir de <b>$50/mois</b> avec 100 min entrantes + 50 SMS entrants inclus.
+[2026-04-16T09:53:17.110477614Z] [info] 💳 Les appels sortants sont facturés depuis votre portefeuille.
+[2026-04-16T09:53:17.110485485Z] [info] 
+[2026-04-16T09:53:17.110491358Z] [info] Nouveau ? Appuyez sur <b>❓ Comment ça marche</b> pour un guide complet.
+[2026-04-16T09:53:17.110496569Z] [info] 
+[2026-04-16T09:53:17.110501586Z] [info] 📞 111 numéros activés cette semaine 📢 Appel IVR Rapide,📞 Campagne IVR en Masse,🎵 Bibliothèque Audio,🧪 Tester SIP Gratuit,🛒 Choisir un Forfait,📋 Mes Forfaits,📖 Guide SIP,📊 Utilisation & Facturation,❓ Comment ça marche,Retour,Annuler	to: 2130773719
+[2026-04-16T09:53:17.110507508Z] [info] 
+[2026-04-16T09:53:25.409690952Z] [info] 📨 Telegram webhook received
+[2026-04-16T09:53:25.409697918Z] [info] message: 📢 Appel IVR Rapide	from: 2130773719 Sepcialk
+[2026-04-16T09:53:25.409705211Z] [info] reply: 📢 <b>Appel SVI Rapide — Essai Gratuit</b>
+[2026-04-16T09:53:25.409711669Z] [info] 
+[2026-04-16T09:53:25.409717370Z] [info] 🎁 You get <b>1 appel d'essai gratuit!</b>
+[2026-04-16T09:53:25.409721939Z] [info] 📱 ID Appelant: <b>+18889020132</b> (partagé)
+[2026-04-16T09:53:25.409728383Z] [info] 
+[2026-04-16T09:53:25.409734775Z] [info] Call a single number with an message SVI automatisé.
+[2026-04-16T09:53:25.409741224Z] [info] 
+[2026-04-16T09:53:25.409746952Z] [info] Enter the numéro de téléphone to call (avec l'indicatif pays):
+[2026-04-16T09:53:25.409753049Z] [info] <i>Exemple: +12025551234</i> Retour,Annuler	to: 2130773719
+[2026-04-16T09:53:25.409759482Z] [info] 
+[2026-04-16T09:53:26.342890055Z] [info] 📨 Telegram webhook received
+[2026-04-16T09:53:26.346602174Z] [info] message: Back	from: 8588202400 hitmyinvoice
+[2026-04-16T09:53:26.386399361Z] [info] 
+[2026-04-16T09:53:26.386409391Z] [info] 🧪 <i>Try SIP calling free — send /testsip</i>
+[2026-04-16T09:53:26.386426949Z] [info] 
+[2026-04-16T09:53:26.386437151Z] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,📦 Ship & Mail,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 8588202400
+[2026-04-16T09:53:26.386444134Z] [info] 
+[2026-04-16T09:53:26.386478013Z] [info] reply: Hey, <b>INVOICES</b>
+[2026-04-16T09:53:26.386485874Z] [info] 
+[2026-04-16T09:53:26.386492120Z] [info] 🥉 Bronze  <b>$3.00</b>
+[2026-04-16T09:53:26.386498502Z] [info] <i>Start spending to unlock discounts</i>
+[2026-04-16T09:53:26.386505263Z] [info] 📞 <i>You have a free trial Quick IVR Call! Tap Cloud IVR to try it.</i>
+[2026-04-16T09:53:30.429585216Z] [info] 📨 Telegram webhook received
+[2026-04-16T09:53:30.429597242Z] [info] message: 📱 SMS Leads	from: 8588202400 hitmyinvoice
+[2026-04-16T09:53:30.447856067Z] [info] reply: Get premium verified leads by target or validate your own numbers: 🎯 Premium Targeted Leads,✅📲 Validate PhoneLeads,Back,Cancel	to: 8588202400
+[2026-04-16T09:53:30.447862011Z] [info] 
+[2026-04-16T09:53:50.295325702Z] [info] 
+[2026-04-16T09:53:50.295370336Z] [info] reply: 💡 Subscribers get 5,000+ free validations with phone owner names per plan. Plans from $50/day. 	to: 8588202400
+[2026-04-16T09:53:50.295375639Z] [info] 📨 Telegram webhook received
+[2026-04-16T09:53:50.295381782Z] [info] 
+[2026-04-16T09:53:50.295382041Z] [info] message: 🎯 Premium Targeted Leads	from: 8588202400 hitmyinvoice
+[2026-04-16T09:53:50.295388750Z] [info] reply: 🎯 Select your target institution.\nReal, verified leads with phone owner names — matched by carrier from high-value metro areas: JPMorgan C,BOA,Wfargo Bnk,Citi Bnk,U.S Bnk,Capital One,U$AA,Citizen$ Bnk,PNCBNK,AlliantCU,NavyFedCU,USALLIANCE Fin,AssociatedCU,AlturaCU,LakeMichig$n CU,Arvest Bnk,NymeoFCU,Huntington Bnk,Comerica Bnk,📝 Request Custom Target,✅📲 Validate PhoneLeads,Back,Cancel	to: 8588202400
+[2026-04-16T09:57:23.504991532Z] [info] 📨 Telegram webhook received
+[2026-04-16T09:57:23.504998760Z] [info] message: +22644908671	from: 2130773719 Sepcialk
+[2026-04-16T09:57:23.505006215Z] [info] reply: 📞 Target: <b>+22644908671</b>
+[2026-04-16T09:57:23.505013718Z] [info] 
+[2026-04-16T09:57:23.505044916Z] [info] Choose template or write your own: ✍️ Custom Script,💳 Payment Alerts,🔒 Account Security,📦 Delivery & Service,✍️ Custom Script,Retour,Annuler	to: 2130773719
+[2026-04-16T09:57:23.505052445Z] [info] 
+[2026-04-16T09:57:27.996018981Z] [info] 📨 Telegram webhook received
+[2026-04-16T09:57:27.996029479Z] [info] message: 📦 Delivery & Service	from: 2130773719 Sepcialk
+[2026-04-16T09:57:28.963158309Z] [info] reply: Sélectionnez un modèle : 📦 Delivery Confirmation,📅 Appointment Reminder,🔄 Subscription Renewal,↩️ Back,Retour,Annuler	to: 2130773719
+[2026-04-16T09:57:28.963168670Z] [info] 
+[2026-04-16T09:57:48.584224096Z] [info] 📨 Telegram webhook received
+[2026-04-16T09:57:48.584230660Z] [info] message: 📦 Delivery Confirmation	from: 2130773719 Sepcialk
+[2026-04-16T09:57:48.584237861Z] [info] reply: 📋 <b>📦 Delivery Confirmation</b>
+[2026-04-16T09:57:48.584245761Z] [info] 
+[2026-04-16T09:57:48.584251640Z] [info] <i>"Hello [Name]. This is [Company]. Your order is scheduled for delivery today. To confirm your delivery address, press 1. To reschedule delivery, press 2."</i>
+[2026-04-16T09:57:48.584256360Z] [info] 
+[2026-04-16T09:57:48.584260661Z] [info] 🔘 Touches actives: <b>1, 2</b> 	to: 2130773719
+[2026-04-16T09:57:48.584268043Z] [info] 
+[2026-04-16T09:57:48.584272597Z] [info] reply: 
+[2026-04-16T09:57:48.584277032Z] [info] Enter value for <b>[Name]</b>: Retour,Annuler	to: 2130773719
+[2026-04-16T09:57:48.584281398Z] [info] 
+[2026-04-16T09:59:11.313059720Z] [info] 📨 Telegram webhook received
+[2026-04-16T09:59:11.313066342Z] [info] message: 1	from: 2130773719 Sepcialk
+[2026-04-16T09:59:11.313074038Z] [info] reply: ✅ Name: <b>1</b>
+[2026-04-16T09:59:11.313081607Z] [info] 
+[2026-04-16T09:59:11.313087698Z] [info] Enter value for <b>[Company]</b>: Retour,Annuler	to: 2130773719
+[2026-04-16T09:59:11.313095382Z] [info] 
+[2026-04-16T09:59:31.702454203Z] [info] 📨 Telegram webhook received
+[2026-04-16T09:59:31.702467093Z] [info] message: Spectrum	from: 2130773719 Sepcialk
+[2026-04-16T09:59:31.702475719Z] [info] reply: ✅ All values set!\n\n📋 <b>Sélectionner Call Mode</b>\n\n🔗 <b>Transfert</b> — When target presses the key, bridge them to your number\n🔑 <b>OTP Collection</b> — Prompt target for a code, you verify via Telegram\n\nBoth modes report full résultats. 🔗 Transfer,🔑 OTP Collection,↩️ Back,Retour,Annuler	to: 2130773719
+[2026-04-16T09:59:31.702485360Z] [info] 
+[2026-04-16T09:59:38.725820081Z] [info] 📨 Telegram webhook received
+[2026-04-16T09:59:38.725826784Z] [info] message: 🔗 Transfer	from: 2130773719 Sepcialk
+[2026-04-16T09:59:38.725832650Z] [info] reply: 🔗 <b>Transfert Mode</b>\n\nEnter the number to transfert the caller to when they press a key:\n<i>Exemple: +17174794833</i> ↩️ Back,Retour,Annuler	to: 2130773719
+[2026-04-16T09:59:38.725839786Z] [info] 
