@@ -50,7 +50,7 @@ function getOnboardingMessage(botName, lang = 'en') {
       title: `👋 Welcome to ${botName}!`,
       intro: 'We\'re a complete digital services platform. Here\'s what you can do:',
       services: [
-        '🌐 <b>Domain Registration</b> - From $12/year',
+        '🌐 <b>Domain Registration</b> - From $30/year',
         '🏠 <b>Web Hosting</b> - Starting at $4.99/mo',
         '📱 <b>Cloud Phone Numbers</b> - US & International',
         '🔗 <b>URL Shortener</b> - 10 free links to start',
@@ -69,7 +69,7 @@ function getOnboardingMessage(botName, lang = 'en') {
       title: `👋 Bienvenue sur ${botName} !`,
       intro: 'Nous sommes une plateforme complète de services numériques. Voici ce que vous pouvez faire :',
       services: [
-        '🌐 <b>Enregistrement de domaine</b> - À partir de 12$/an',
+        '🌐 <b>Enregistrement de domaine</b> - À partir de 30$/an',
         '🏠 <b>Hébergement Web</b> - À partir de 4,99$/mois',
         '📱 <b>Numéros de téléphone cloud</b> - US et international',
         '🔗 <b>Raccourcisseur d\'URL</b> - 10 liens gratuits pour commencer',
@@ -88,7 +88,7 @@ function getOnboardingMessage(botName, lang = 'en') {
       title: `👋 欢迎来到 ${botName}！`,
       intro: '我们是一个完整的数字服务平台。以下是您可以做的：',
       services: [
-        '🌐 <b>域名注册</b> - 每年 $12 起',
+        '🌐 <b>域名注册</b> - 每年 $30 起',
         '🏠 <b>虚拟主机</b> - 每月 $4.99 起',
         '📱 <b>云电话号码</b> - 美国和国际',
         '🔗 <b>URL 短链接</b> - 10 个免费链接开始',
@@ -107,7 +107,7 @@ function getOnboardingMessage(botName, lang = 'en') {
       title: `👋 ${botName} में आपका स्वागत है!`,
       intro: 'हम एक संपूर्ण डिजिटल सेवा प्लेटफ़ॉर्म हैं। यहाँ आप क्या कर सकते हैं:',
       services: [
-        '🌐 <b>डोमेन पंजीकरण</b> - $12/वर्ष से',
+        '🌐 <b>डोमेन पंजीकरण</b> - $30/वर्ष से',
         '🏠 <b>वेब होस्टिंग</b> - $4.99/माह से शुरू',
         '📱 <b>क्लाउड फोन नंबर</b> - यूएस और अंतर्राष्ट्रीय',
         '🔗 <b>URL शॉर्टनर</b> - शुरू करने के लिए 10 मुफ्त लिंक',
