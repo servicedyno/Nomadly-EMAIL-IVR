@@ -666,9 +666,13 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
         else if (category !== 'wallet') counts.general++ // skip wallet deposits from general
       }
 
-      // Apply 30x multiplier and ensure minimum thresholds
+      // Apply multiplier with per-category adjustments.
+      // hosting & domains were unrealistically inflated — cap them at 20% of the
+      // default multiplier so the "X registered this week" line looks believable.
+      const PER_CATEGORY_FACTOR = { hosting: 0.2, domains: 0.2 }
       for (const key of Object.keys(counts)) {
-        counts[key] = Math.max(counts[key] * SOCIAL_PROOF_MULTIPLIER, 15) // minimum 15
+        const factor = PER_CATEGORY_FACTOR[key] != null ? PER_CATEGORY_FACTOR[key] : 1
+        counts[key] = Math.max(Math.round(counts[key] * SOCIAL_PROOF_MULTIPLIER * factor), 15) // minimum 15
       }
 
       socialProofCache = counts
@@ -679,7 +683,7 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
       // Use fallback counts
       if (Object.keys(socialProofCache).length === 0) {
         socialProofCache = {
-          hosting: 45, domains: 60, cloudphone: 30,
+          hosting: 15, domains: 18, cloudphone: 30,
           digitalproducts: 75, vps: 20, virtualcard: 35, general: 90,
         }
       }
