@@ -801,7 +801,8 @@ const HOSTING_TRIAL_PLAN_ON = process.env.HOSTING_TRIAL_PLAN_ON
 const VPS_ENABLED = process.env.VPS_ENABLED || 'true' // default: enabled
 
 if (!DB_NAME || !RATE_LEAD_VALIDATOR || !HOSTED_ON || !TELEGRAM_BOT_ON || !REST_APIS_ON || !CHAT_BOT_NAME) {
-  return log('Service is paused because some ENV variable is missing')
+  log('Service is paused because some ENV variable is missing')
+  process.exit(1)
 }
 
 let bot
@@ -8390,7 +8391,15 @@ All verified numbers generated during sourcing.`))
 
         try {
           const antiRedSvc = require('./anti-red-service')
-          antiRedSvc.deployFullProtection(plan.cpUser, domain, selected.name).catch(() => {})
+          antiRedSvc.deployFullProtection(plan.cpUser, domain, selected.name).catch(async err => {
+            log(`[AntiRed] Deployment failed for ${domain}: ${err.message}`)
+            await handleError(bot, TELEGRAM_ADMIN_CHAT_ID, err, 'HIGH', {
+              operation: 'anti_red_deployment',
+              domain,
+              cpUser: plan.cpUser,
+              reason: 'Post-upgrade protection deployment failed'
+            })
+          })
         } catch (_) {}
 
         send(TELEGRAM_ADMIN_CHAT_ID, `⬆️ <b>Hosting Upgrade</b>\nUser: ${chatId}\nDomain: ${domain}\n${plan.plan} → ${selected.name}\nCharged: $${upgradePrice}`, { parse_mode: 'HTML' })
