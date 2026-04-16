@@ -23,7 +23,7 @@ wss://chrome.browserless.io?token=YOUR_TOKEN_HERE
 
 Example:
 ```
-wss://chrome.browserless.io?token=a1b2c3d4-e5f6-7890-abcd-ef1234567890
+wss://chrome.browserless.io?token=readme-setup-17
 ```
 
 ---
