@@ -483,15 +483,26 @@ ${CHAT_BOT_NAME}`,
  viewDnsRecords: (records, domain, nameserverType) => {
  let msg = `<b>${domain}</b> — DNS Records\n`
 
- // NS section — only show for cloudflare or custom NS (hide provider defaults)
+ // NS section — only show for cloudflare or truly custom NS
+ // Hide provider default nameservers (openprovider, connectreseller)
  const nsRecs = records['NS']
- if (nsRecs && nsRecs.length && (nameserverType === 'cloudflare' || nameserverType === 'custom')) {
+ if (nsRecs && nsRecs.length) {
+ // Check if these are provider default nameservers (should be hidden)
+ const firstNS = nsRecs[0]?.recordContent || ''
+ const isProviderDefault = 
+ firstNS.includes('openprovider') || 
+ firstNS.includes('connectreseller') ||
+ firstNS.includes('registrar-servers')
+ 
+ // Only show NS if it's Cloudflare or truly custom (not provider default)
+ if (!isProviderDefault && (nameserverType === 'cloudflare' || nameserverType === 'custom')) {
  const provider = nameserverType === 'cloudflare' ? 'Cloudflare' : 'Custom'
  msg += `\n<b>NAMESERVERS</b> <i>(${provider})</i>\n`
  for (let i = 0; i < nsRecs.length; i++) {
  msg += ` NS${i + 1}: <code>${nsRecs[i].recordContent || '—'}</code>\n`
  }
  msg += `<i>Use "🔄 Manage Nameservers" to change.</i>\n`
+ }
  }
 
  // Other record types
