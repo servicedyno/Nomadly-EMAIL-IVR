@@ -2623,6 +2623,33 @@ bot?.on('callback_query', async (query) => {
       return
     }
 
+    // ── AutoPromo Opt-Out Button Handler ──
+    if (data === 'promo_optout') {
+      if (autoPromo) {
+        await autoPromo.setOptOut(chatId, true, 'button_click')
+        const info = await state.findOne({ _id: chatId })
+        const lang = info?.userLanguage || 'en'
+        const msg = {
+          en: '✅ Promotional messages disabled. Send /startpromos to re-enable.',
+          fr: '✅ Messages promotionnels désactivés. Envoyez /startpromos pour réactiver.',
+          zh: '✅ 促销消息已禁用。发送 /startpromos 重新启用。',
+          hi: '✅ प्रचार संदेश अक्षम। पुनः सक्षम करने के लिए /startpromos भेजें।'
+        }
+        try { 
+          await bot.answerCallbackQuery(query.id, { text: msg[lang] || msg.en, show_alert: true }) 
+        } catch (e) { /* ignore */ }
+        // Update button to show opted out
+        try {
+          await bot.editMessageReplyMarkup(
+            { inline_keyboard: [[{ text: '✅ Opted out — /startpromos to re-enable', callback_data: 'noop' }]] },
+            { chat_id: chatId, message_id: query.message.message_id }
+          )
+        } catch (e) { /* ignore edit errors */ }
+        log(`[AutoPromo] User ${chatId} opted out via button`)
+      }
+      return
+    }
+
     // ── DNS Status Check handler ──
     if (data.startsWith('dns_check_')) {
       try { await bot.answerCallbackQuery(query.id, { text: '🔍 Checking DNS...' }) } catch (e) { /* ignore */ }
@@ -7603,6 +7630,35 @@ All verified numbers generated during sourcing.`))
   // /help command
   if (message === '/help') {
     return send(chatId, trans('t.host_5', CHAT_BOT_NAME), { ...trans('o'), parse_mode: 'HTML' })
+  }
+
+  // ── AutoPromo Opt-Out Commands ──
+  if (message === '/stoppromos' || message === '/stoppromo' || message === '🔕 Stop Promos') {
+    if (autoPromo) {
+      await autoPromo.setOptOut(chatId, true, 'user_requested')
+      const msg = {
+        en: `✅ <b>Promotional Messages Disabled</b>\n\nYou will no longer receive daily promotional messages from ${CHAT_BOT_NAME}.\n\n💡 You can re-enable them anytime by sending /startpromos\n\nImportant updates and order confirmations will still be sent.`,
+        fr: `✅ <b>Messages promotionnels désactivés</b>\n\nVous ne recevrez plus de messages promotionnels quotidiens de ${CHAT_BOT_NAME}.\n\n💡 Vous pouvez les réactiver à tout moment en envoyant /startpromos\n\nLes mises à jour importantes et les confirmations de commande seront toujours envoyées.`,
+        zh: `✅ <b>促销消息已禁用</b>\n\n您将不再收到来自 ${CHAT_BOT_NAME} 的每日促销消息。\n\n💡 您可以随时发送 /startpromos 重新启用\n\n重要更新和订单确认仍将发送。`,
+        hi: `✅ <b>प्रचार संदेश अक्षम किए गए</b>\n\nअब आपको ${CHAT_BOT_NAME} से दैनिक प्रचार संदेश नहीं मिलेंगे।\n\n💡 आप /startpromos भेजकर किसी भी समय उन्हें फिर से सक्षम कर सकते हैं\n\nमहत्वपूर्ण अपडेट और ऑर्डर कन्फर्मेशन अभी भी भेजे जाएंगे।`
+      }
+      return send(chatId, msg[lang] || msg.en, { parse_mode: 'HTML' })
+    }
+    return send(chatId, '✅ Promotional messages are now disabled.', { parse_mode: 'HTML' })
+  }
+
+  if (message === '/startpromos' || message === '/startpromo' || message === '🔔 Enable Promos') {
+    if (autoPromo) {
+      await autoPromo.setOptOut(chatId, false, 'user_re_opted_in')
+      const msg = {
+        en: `🔔 <b>Promotional Messages Enabled</b>\n\nYou will now receive daily promotional messages about our services, deals, and updates.\n\n💡 You can disable them anytime by sending /stoppromos\n\nThanks for staying connected with ${CHAT_BOT_NAME}!`,
+        fr: `🔔 <b>Messages promotionnels activés</b>\n\nVous recevrez maintenant des messages promotionnels quotidiens sur nos services, offres et mises à jour.\n\n💡 Vous pouvez les désactiver à tout moment en envoyant /stoppromos\n\nMerci de rester connecté avec ${CHAT_BOT_NAME} !`,
+        zh: `🔔 <b>促销消息已启用</b>\n\n您现在将收到有关我们服务、优惠和更新的每日促销消息。\n\n💡 您可以随时发送 /stoppromos 禁用它们\n\n感谢您与 ${CHAT_BOT_NAME} 保持联系！`,
+        hi: `🔔 <b>प्रचार संदेश सक्षम किए गए</b>\n\nअब आपको हमारी सेवाओं, डील्स और अपडेट के बारे में दैनिक प्रचार संदेश मिलेंगे।\n\n💡 आप /stoppromos भेजकर किसी भी समय उन्हें अक्षम कर सकते हैं\n\n${CHAT_BOT_NAME} के साथ जुड़े रहने के लिए धन्यवाद!`
+      }
+      return send(chatId, msg[lang] || msg.en, { parse_mode: 'HTML' })
+    }
+    return send(chatId, '🔔 Promotional messages are now enabled.', { parse_mode: 'HTML' })
   }
 
   // ── UX Enhancement: /orderhistory command ──

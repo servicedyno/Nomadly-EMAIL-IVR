@@ -352,6 +352,26 @@ function getDynoPayFooter(lang) {
   return footers[Math.floor(Math.random() * footers.length)]
 }
 
+function getOptOutFooter(lang) {
+  const footers = {
+    en: '💬 Tap /stoppromos to unsubscribe from promotional messages',
+    fr: '💬 Tapez /stoppromos pour vous désabonner des messages promotionnels',
+    zh: '💬 发送 /stoppromos 取消订阅促销消息',
+    hi: '💬 प्रचार संदेशों से सदस्यता समाप्त करने के लिए /stoppromos टैप करें'
+  }
+  return footers[lang] || footers.en
+}
+
+function getOptOutButtonText(lang) {
+  const buttons = {
+    en: '🔕 Stop Promos',
+    fr: '🔕 Arrêter les promos',
+    zh: '🔕 停止促销',
+    hi: '🔕 प्रोमो बंद करें'
+  }
+  return buttons[lang] || buttons.en
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 //  PROMO MESSAGES — 6 themes × 3 variations × 4 languages = 72 ads
 // ═══════════════════════════════════════════════════════════════════════
@@ -4252,9 +4272,19 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
       caption += '\n\n' + getDynoPayFooter(lang)
       // Append BulkSMS footer to every promo message
       caption += '\n\n' + getBulkSmsFooter(lang)
+      // Append opt-out footer
+      caption += '\n\n' + getOptOutFooter(lang)
 
       const trySend = async (useHtml) => {
         const opts = useHtml ? { parse_mode: 'HTML' } : {}
+        
+        // Add inline keyboard with opt-out button
+        opts.reply_markup = {
+          inline_keyboard: [[
+            { text: getOptOutButtonText(lang), callback_data: 'promo_optout' }
+          ]]
+        }
+        
         const gifPath = !isEvening ? GIF_THEMES[theme] : null // No GIFs for evening (text-only, quick)
 
         // Try sending with GIF for morning visual themes
@@ -4367,12 +4397,31 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
 
     const targetChatIds = []
     let skippedDead = 0
+    let skippedInactive = 0
+    const now = new Date()
+    const DAYS_30 = 30 * 24 * 60 * 60 * 1000
+    const DAYS_7 = 7 * 24 * 60 * 60 * 1000
+    
     for (const chatId of allChatIds) {
       if (deadSet.has(chatId)) { skippedDead++; continue }
+      
+      // Activity-based filtering — skip users inactive for 30+ days
+      try {
+        const userState = await stateCol.findOne({ _id: chatId })
+        if (userState?.lastActiveAt) {
+          const daysSinceActive = (now - new Date(userState.lastActiveAt)) / (1000 * 60 * 60 * 24)
+          if (daysSinceActive > 30) {
+            skippedInactive++
+            continue // Skip users inactive for 30+ days
+          }
+        }
+      } catch (e) { /* ignore - include user if we can't check activity */ }
+      
       const userLang = await getUserLanguage(chatId)
       if (userLang === lang) targetChatIds.push(chatId)
     }
-    if (targetChatIds.length === 0) return log(`[AutoPromo] No ${lang} users for ${theme} (${skippedDead} permanently dead skipped)`)
+    if (targetChatIds.length === 0) return log(`[AutoPromo] No ${lang} users for ${theme} (${skippedDead} dead, ${skippedInactive} inactive 30+ days skipped)`)
+    log(`[AutoPromo] Targeting ${targetChatIds.length} active ${lang} users (${skippedDead} dead, ${skippedInactive} inactive skipped)`)
 
     let dynamicMessage = null
     let usedAI = false
