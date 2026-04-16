@@ -1,6 +1,8 @@
 [phases.setup]
 # Pin nixpkgs to stable 25.05 release — prevents GitHub 504 timeouts on unstable/master refs
 nixPkgsArchive = 'https://github.com/NixOS/nixpkgs/archive/refs/tags/25.05.tar.gz'
+# Disable automatic Chromium detection for puppeteer-core (using external Browserless service)
+aptPkgs = []
 
 [phases.install]
 # Use npm ci for faster, reproducible builds with yarn.lock (now fixed to use puppeteer-core)
@@ -14,3 +16,6 @@ cmd = "npm start"
 
 [variables]
 NODE_VERSION = "22"
+# Skip Puppeteer browser downloads (using external Browserless service)
+PUPPETEER_SKIP_DOWNLOAD = "true"
+PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = "true"
