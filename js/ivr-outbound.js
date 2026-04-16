@@ -198,13 +198,30 @@ function generatePlaceholderValue(name) {
 
 // ── Helper Functions ──
 
-function getCategoryButtons() {
-  return OUTBOUND_CATEGORIES.map(c => `${c.icon} ${c.name}`)
+// U5 fix: i18n category names for non-English users
+const CATEGORY_I18N = {
+  payment:  { fr: 'Alertes de Paiement',   zh: '支付提醒',      hi: 'भुगतान अलर्ट' },
+  security: { fr: 'Sécurité du Compte',     zh: '账户安全',      hi: 'खाता सुरक्षा' },
+  delivery: { fr: 'Livraison & Service',     zh: '配送与服务',    hi: 'डिलीवरी और सेवा' },
+  custom:   { fr: 'Script Personnalisé',     zh: '自定义脚本',    hi: 'कस्टम स्क्रिप्ट' },
+}
+
+function getCategoryButtons(lang) {
+  return OUTBOUND_CATEGORIES.map(c => {
+    const localName = (lang && lang !== 'en' && CATEGORY_I18N[c.key]?.[lang]) || c.name
+    return `${c.icon} ${localName}`
+  })
 }
 
 function getCategoryByButton(buttonText) {
+  // Match against all languages
   for (const c of OUTBOUND_CATEGORIES) {
+    // English match
     if (buttonText === `${c.icon} ${c.name}`) return c.key
+    // i18n matches
+    for (const langNames of Object.values(CATEGORY_I18N[c.key] || {})) {
+      if (buttonText === `${c.icon} ${langNames}`) return c.key
+    }
   }
   return null
 }

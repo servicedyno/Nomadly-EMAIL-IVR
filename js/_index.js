@@ -2914,6 +2914,14 @@ bot?.on('callback_query', async (query) => {
 // ── Per-user message queue to prevent race conditions ──
 // Serializes message processing per chatId so concurrent webhooks don't interleave
 const _userMsgQueue = new Map()
+
+// B2+B3 fix: Message deduplication — prevent concurrent duplicate messages from being processed
+// Tracks {text, timestamp} per user. Skips if identical message arrives within 2 seconds.
+const _lastMsgPerUser = new Map()
+const _lastResetPerUser = new Map() // B3: Rate-limit menu resets to 1 per 5 seconds
+const MSG_DEDUP_WINDOW_MS = 2000   // Skip duplicate messages within 2 seconds
+const RESET_COOLDOWN_MS = 5000     // Only send 1 menu reset per 5 seconds
+
 function _enqueue(chatId, fn) {
   const prev = _userMsgQueue.get(chatId) || Promise.resolve()
   const next = prev.then(() => fn()).catch(err => {
@@ -2938,6 +2946,23 @@ bot?.on('message', msg => {
       ).then(() => { log(`[NotifyGroups] Auto-registered group: ${msg?.chat?.title} (${chatId})`) }).catch(() => {})
     }
     return
+  }
+
+  // B2 fix: Deduplicate — skip if same message text from same user within 2 seconds
+  const msgText = msg?.text || ''
+  const now = Date.now()
+  const lastMsg = _lastMsgPerUser.get(chatId)
+  if (lastMsg && lastMsg.text === msgText && (now - lastMsg.ts) < MSG_DEDUP_WINDOW_MS) {
+    log(`[Dedup] Skipping duplicate message "${msgText.substring(0, 30)}..." from ${chatId} (${now - lastMsg.ts}ms since last)`)
+    return
+  }
+  _lastMsgPerUser.set(chatId, { text: msgText, ts: now })
+  // Clean up old entries every 1000 messages to prevent memory leak
+  if (_lastMsgPerUser.size > 5000) {
+    const cutoff = now - 60000
+    for (const [uid, entry] of _lastMsgPerUser) {
+      if (entry.ts < cutoff) _lastMsgPerUser.delete(uid)
+    }
   }
 
   // Private chats — enqueue per user to serialize processing
@@ -7138,6 +7163,13 @@ All verified numbers generated during sourcing.`))
   }
 
   if (message === '/start' || message.startsWith('/start ref_')) {
+    // U1 fix: Record cart abandonment when user presses /start from a payment screen
+    // The cart-abandonment system only tracked Back/Cancel buttons — /start bypassed it entirely
+    if (cartRecovery && action && cartRecovery.PAYMENT_ACTIONS.has(action)) {
+      log(`[CartRecovery] /start pressed from payment action "${action}" — recording abandonment`)
+      cartRecovery.recordAbandonment(chatId, info?.userLanguage || 'en')
+    }
+
     // Check for recent referral clicks for existing users (fallback when deep link doesn't work)
     // This handles the case where Telegram doesn't send the parameter for existing users
     if (message === '/start' && !message.includes('ref_')) {
@@ -11576,6 +11608,20 @@ ${message.replace(/\n/g, '<br>')}
     
     if (message === '✂️ Shorten Now') {
       try {
+        // U6 fix: URL deduplication — check if same URL was already shortened by this user recently
+        const existingLinks = await linksOf?.find ? linksOf.find({ _id: new RegExp(`^${chatId}/`) }).toArray().catch(() => []) : []
+        const existingForUrl = existingLinks.find(l => l.val === url)
+        if (existingForUrl) {
+          const existingKey = existingForUrl._id.split('/').slice(1).join('/')
+          const existingDisplay = existingKey.replaceAll('@', '.')
+          const protocol = existingDisplay.startsWith('http') ? '' : 'https://'
+          await set(state, chatId, 'action', 'none')
+          log(`[QuickShorten] U6 dedup: returning existing link for ${url.substring(0, 40)} → ${existingDisplay}`)
+          return send(chatId,
+            `🔗 <b>Already shortened!</b>\n\nThis URL was already shortened:\n<code>${protocol}${existingDisplay}</code>\n\n💡 Same link reused — no extra link consumed.`,
+            { ...trans('o'), parse_mode: 'HTML' })
+        }
+
         // Get user's preferred domain or use SELF_URL
         const preferredDomain = await get(state, chatId, 'preferredShortenerDomain')
         const domains = await getPurchasedDomains(chatId)
@@ -11749,6 +11795,19 @@ ${message.replace(/\n/g, '<br>')}
 
       try {
         const { url } = info
+
+        // U6 fix: URL deduplication — check if same URL was already shortened by this user
+        const existingLinks2 = await linksOf?.find ? linksOf.find({ _id: new RegExp(`^${chatId}/`) }).toArray().catch(() => []) : []
+        const existingForUrl2 = existingLinks2.find(l => l.val === url)
+        if (existingForUrl2) {
+          const existingKey2 = existingForUrl2._id.split('/').slice(1).join('/')
+          const existingDisplay2 = existingKey2.replaceAll('@', '.')
+          const maskUrl = await get(maskOf, existingKey2) || `https://${existingDisplay2}`
+          await set(state, chatId, 'action', 'none')
+          log(`[Shortener] U6 dedup: returning existing link for ${url.substring(0, 40)}`)
+          return send(chatId, maskUrl, trans('o'))
+        }
+
         // Always route through SELF_URL for proper click tracking
         const slug = nanoid()
         const __shortUrl = `${SELF_URL}/${slug}`
@@ -14532,7 +14591,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       // Jump to template selection
       await set(state, chatId, 'action', a.ivrObSelectCategory)
       const ivrOb = require('./ivr-outbound.js')
-      const catBtns = ivrOb.getCategoryButtons()
+      const catBtns = ivrOb.getCategoryButtons(lang)
       const rows = catBtns.map(b => [b])
       return send(chatId, trans('t.cp_23', caller.phoneNumber, recentNumber), k.of(rows))
     }
@@ -14585,7 +14644,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       await saveInfo('ivrObData', ivrObData)
       await set(state, chatId, 'action', a.ivrObSelectCategory)
       const ivrOb = require('./ivr-outbound.js')
-      const catBtns = ivrOb.getCategoryButtons()
+      const catBtns = ivrOb.getCategoryButtons(lang)
       const rows = catBtns.map(b => [b])
       const numberList = rawNumbers.map(n => `  • ${n}`).join('\n')
       return send(chatId, trans('t.cp_nested_1', rawNumbers.length, numberList), k.of(rows))
@@ -14734,7 +14793,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     await set(state, chatId, 'action', a.ivrObSelectCategory)
     // Show categories with "Custom Script" shortcut at top (#7 Flatten template selection)
     const ivrOb = require('./ivr-outbound.js')
-    const catBtns = ivrOb.getCategoryButtons()
+    const catBtns = ivrOb.getCategoryButtons(lang).filter(b => !b.startsWith('✍️')) // B1 fix: avoid duplicate — "Custom Script" is already added manually below
     const rows = [['✍️ Custom Script']]
     // Show last-used template category at top if available
     const lastCat = info?.ivrPrefs?.lastCategory
@@ -14753,7 +14812,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const ivrOb = require('./ivr-outbound.js')
 
     // "✍️ Custom Script" shortcut (#7 Flatten)
-    if (message === '✍️ Custom Script') {
+    if (message === '✍️ Custom Script' || message.startsWith('✍️')) {
       const ivrObData = info?.ivrObData || {}
       ivrObData.category = 'custom'
       await saveInfo('ivrObData', ivrObData)
@@ -14806,7 +14865,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       // Back → category selection
       await set(state, chatId, 'action', a.ivrObSelectCategory)
       const ivrOb = require('./ivr-outbound.js')
-      const catBtns = ivrOb.getCategoryButtons()
+      const catBtns = ivrOb.getCategoryButtons(lang)
       const rows = catBtns.map(b => [b])
       return send(chatId, ({ en: "Choose an IVR template category:", fr: "Choisissez une catégorie de modèle IVR :", zh: "选择 IVR 模板分类：", hi: "IVR टेम्पलेट श्रेणी चुनें:" }[lang] || "Choose an IVR template category:"), k.of(rows))
     }
@@ -14914,7 +14973,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     if (message === '↩️ Back' || message === t.back) {
       await set(state, chatId, 'action', a.ivrObSelectCategory)
       const ivrOb = require('./ivr-outbound.js')
-      const catBtns = ivrOb.getCategoryButtons()
+      const catBtns = ivrOb.getCategoryButtons(lang)
       const rows = catBtns.map(b => [b])
       return send(chatId, ({ en: "Choose an IVR template category:", fr: "Choisissez une catégorie de modèle IVR :", zh: "选择 IVR 模板分类：", hi: "IVR टेम्पलेट श्रेणी चुनें:" }[lang] || "Choose an IVR template category:"), k.of(rows))
     }
@@ -14983,7 +15042,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       // Back → category selection (restarting template flow)
       await set(state, chatId, 'action', a.ivrObSelectCategory)
       const ivrOb = require('./ivr-outbound.js')
-      const catBtns = ivrOb.getCategoryButtons()
+      const catBtns = ivrOb.getCategoryButtons(lang)
       const rows = catBtns.map(b => [b])
       return send(chatId, ({ en: "Choose an IVR template category:", fr: "Choisissez une catégorie de modèle IVR :", zh: "选择 IVR 模板分类：", hi: "IVR टेम्पलेट श्रेणी चुनें:" }[lang] || "Choose an IVR template category:"), k.of(rows))
     }
@@ -15099,7 +15158,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     if (message === '↩️ Back' || message === t.back) {
       await set(state, chatId, 'action', a.ivrObSelectCategory)
       const ivrOb = require('./ivr-outbound.js')
-      const catBtns = ivrOb.getCategoryButtons()
+      const catBtns = ivrOb.getCategoryButtons(lang)
       const rows = catBtns.map(b => [b])
       return send(chatId, ({ en: "Choose an IVR template category:", fr: "Choisissez une catégorie de modèle IVR :", zh: "选择 IVR 模板分类：", hi: "IVR टेम्पलेट श्रेणी चुनें:" }[lang] || "Choose an IVR template category:"), k.of(rows))
     }
@@ -15246,7 +15305,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       // Back → category selection
       await set(state, chatId, 'action', a.ivrObSelectCategory)
       const ivrOb = require('./ivr-outbound.js')
-      const catBtns = ivrOb.getCategoryButtons()
+      const catBtns = ivrOb.getCategoryButtons(lang)
       const rows = catBtns.map(b => [b])
       return send(chatId, ({ en: "Choose an IVR template category:", fr: "Choisissez une catégorie de modèle IVR :", zh: "选择 IVR 模板分类：", hi: "IVR टेम्पलेट श्रेणी चुनें:" }[lang] || "Choose an IVR template category:"), k.of(rows))
     }
@@ -15841,7 +15900,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     if (message === '📝 Use IVR Template' || message === '🎤 Generate with TTS') {
       // Inline TTS: show template categories
       const ivrOb = require('./ivr-outbound.js')
-      const catBtns = ivrOb.getCategoryButtons().map(b => [b])
+      const catBtns = ivrOb.getCategoryButtons(lang).filter(b => !b.startsWith('✍️')).map(b => [b]) // B1 fix: avoid duplicate
       await set(state, chatId, 'action', a.bulkTTSCategory)
       return send(chatId, trans('t.cp_141'), k.of([...catBtns, ['✍️ Custom Script'], ['↩️ Back']]))
     }
@@ -16009,14 +16068,14 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       const audioBtns = audios.map(a => [`🎵 ${a.name.substring(0, 30)}`])
       return send(chatId, trans('t.cp_165'), k.of([...audioBtns, ['📎 Upload New Audio'], ['📝 Use IVR Template'], ['↩️ Back']]))
     }
-    if (message === '✍️ Custom Script') {
+    if (message === '✍️ Custom Script' || message.startsWith('✍️')) {
       await set(state, chatId, 'action', a.bulkTTSCustomScript)
       return send(chatId, trans('t.cp_166'), k.of([['↩️ Back']]))
     }
     const ivrOb = require('./ivr-outbound.js')
     const category = ivrOb.getCategoryByButton(message)
     if (!category) {
-      const catBtns = ivrOb.getCategoryButtons().map(b => [b])
+      const catBtns = ivrOb.getCategoryButtons(lang).filter(b => !b.startsWith('✍️')).map(b => [b])
       return send(chatId, trans('t.cp_167'), k.of([...catBtns, ['✍️ Custom Script'], ['↩️ Back']]))
     }
     const bulkTTS = info?.bulkTTS || {}
@@ -16031,7 +16090,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   if (action === a.bulkTTSCustomScript) {
     if (message === '↩️ Back' || message === t.back) {
       const ivrOb = require('./ivr-outbound.js')
-      const catBtns = ivrOb.getCategoryButtons().map(b => [b])
+      const catBtns = ivrOb.getCategoryButtons(lang).filter(b => !b.startsWith('✍️')).map(b => [b])
       await set(state, chatId, 'action', a.bulkTTSCategory)
       return send(chatId, trans('t.cp_169'), k.of([...catBtns, ['✍️ Custom Script'], ['↩️ Back']]))
     }
@@ -16085,7 +16144,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   if (action === a.bulkTTSTemplate) {
     if (message === '↩️ Back' || message === t.back) {
       const ivrOb = require('./ivr-outbound.js')
-      const catBtns = ivrOb.getCategoryButtons().map(b => [b])
+      const catBtns = ivrOb.getCategoryButtons(lang).filter(b => !b.startsWith('✍️')).map(b => [b])
       await set(state, chatId, 'action', a.bulkTTSCategory)
       return send(chatId, trans('t.cp_176'), k.of([...catBtns, ['✍️ Custom Script'], ['↩️ Back']]))
     }
@@ -16142,7 +16201,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   if (action === a.bulkTTSPlaceholder) {
     if (message === '↩️ Back' || message === t.back) {
       const ivrOb = require('./ivr-outbound.js')
-      const catBtns = ivrOb.getCategoryButtons().map(b => [b])
+      const catBtns = ivrOb.getCategoryButtons(lang).filter(b => !b.startsWith('✍️')).map(b => [b])
       await set(state, chatId, 'action', a.bulkTTSCategory)
       return send(chatId, trans('t.cp_185'), k.of([...catBtns, ['✍️ Custom Script'], ['↩️ Back']]))
     }
@@ -16225,7 +16284,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   if (action === a.bulkTTSProvider) {
     if (message === '↩️ Back' || message === t.back) {
       const ivrOb = require('./ivr-outbound.js')
-      const catBtns = ivrOb.getCategoryButtons().map(b => [b])
+      const catBtns = ivrOb.getCategoryButtons(lang).filter(b => !b.startsWith('✍️')).map(b => [b])
       await set(state, chatId, 'action', a.bulkTTSCategory)
       return send(chatId, trans('t.cp_195'), k.of([...catBtns, ['✍️ Custom Script'], ['↩️ Back']]))
     }
@@ -16353,7 +16412,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   if (action === a.bulkTTSPreview) {
     if (message === '↩️ Back' || message === t.back) {
       const ivrOb = require('./ivr-outbound.js')
-      const catBtns = ivrOb.getCategoryButtons().map(b => [b])
+      const catBtns = ivrOb.getCategoryButtons(lang).filter(b => !b.startsWith('✍️')).map(b => [b])
       await set(state, chatId, 'action', a.bulkTTSCategory)
       return send(chatId, trans('t.cp_208'), k.of([...catBtns, ['✍️ Custom Script'], ['↩️ Back']]))
     }
@@ -21839,8 +21898,43 @@ Select a category:`), k.of(catBtns))
       { parse_mode: 'HTML', reply_markup: { keyboard: [['✂️ Shorten Now', '✂️ Custom Alias'], ['❌ Cancel']], resize_keyboard: true } })
   }
   
+  // U2 fix: Global handlers for common payment button texts that users tap from stale keyboards
+  // When session state is lost, these texts aren't recognized — redirect to wallet instead of resetting
+  const staleMsg = message.toLowerCase().trim()
+  const paymentButtonTexts = ['crypto', '💰 crypto', 'bank', '🏦 bank', 'wallet', '👛 wallet', 'apply coupon', '🎟️ apply coupon']
+  const walletButtonTexts = ['deposit', '💵 deposit', 'top up', 'add funds']
+  if (paymentButtonTexts.includes(staleMsg) || paymentButtonTexts.some(p => staleMsg.startsWith(p))) {
+    log(`[U2] Recognized stale payment button "${message}" from ${chatId} — redirecting to wallet`)
+    await set(state, chatId, 'action', 'none')
+    return send(chatId,
+      trans('t.host_4') || '💡 Your session expired. To make a payment, please select a service first from the menu below.\n\nTo manage your balance, use 👛 Wallet.',
+      trans('o'))
+  }
+  if (walletButtonTexts.includes(staleMsg) || walletButtonTexts.some(p => staleMsg.startsWith(p))) {
+    log(`[U2] Recognized stale wallet button "${message}" from ${chatId} — redirecting to wallet`)
+    return goto.submenu3 ? goto.submenu3() : send(chatId, trans('t.host_4') || '💡 Please use the menu below.', trans('o'))
+  }
+
   await set(state, chatId, 'action', 'none')
   log(`[reset] Unrecognized message from ${chatId}: "${message}" (was action: ${action || 'none'}). Resetting to main menu.`)
+
+  // B3 fix: Rate-limit menu resets — max 1 menu reset message per 5 seconds per user
+  // Prevents flooding when stale cached buttons spam multiple unrecognized messages
+  const resetNow = Date.now()
+  const lastReset = _lastResetPerUser.get(chatId)
+  if (lastReset && (resetNow - lastReset) < RESET_COOLDOWN_MS) {
+    log(`[reset] Suppressed duplicate menu reset for ${chatId} (${resetNow - lastReset}ms since last reset)`)
+    return // Skip sending the welcome menu again
+  }
+  _lastResetPerUser.set(chatId, resetNow)
+  // Clean old entries periodically
+  if (_lastResetPerUser.size > 5000) {
+    const cutoff = resetNow - 60000
+    for (const [uid, ts] of _lastResetPerUser) {
+      if (ts < cutoff) _lastResetPerUser.delete(uid)
+    }
+  }
+
   // Enhanced fallback for new users — guide them to use buttons instead of typing
   if (info?.isNewUser) {
     const lang = info?.userLanguage || 'en'
@@ -22651,6 +22745,26 @@ const auth = async (req, res, next) => {
       log(`[auth] ℹ️ Payment ref ${ref} already processed (stale/duplicate webhook) — ignoring safely`)
     } else {
       log(`[auth] ⚠️ Payment session NOT FOUND for ref: ${ref} — no matching active session or historical record`)
+      // B4 fix: Log unmatched Fincra webhooks to DB for later investigation
+      // This helps identify real missed payments vs stale webhooks
+      try {
+        if (isDbHealthy() && db) {
+          const unmatchedWebhooks = db.collection('unmatchedFincraWebhooks')
+          await unmatchedWebhooks.insertOne({
+            ref,
+            merchantReference: req?.body?.data?.merchantReference,
+            fincraReference: req?.body?.data?.reference,
+            amount: req?.body?.data?.amountReceived || req?.body?.data?.amount,
+            currency: req?.body?.data?.currencyReceived || req?.body?.data?.currency,
+            status: req?.body?.data?.status,
+            receivedAt: new Date(),
+            webhookBody: JSON.stringify(req?.body || {}).substring(0, 2000),
+          })
+          log(`[auth] B4: Logged unmatched Fincra webhook ref=${ref} to DB for investigation`)
+        }
+      } catch (dbErr) {
+        log(`[auth] B4: Failed to log unmatched webhook: ${dbErr.message}`)
+      }
     }
     return res.send(html(translation('t.payError', 'en')))
   }

@@ -553,13 +553,26 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
         const doc = await loginCountOf.findOne({ _id: Number(chatId) })
         const alreadyNotified = doc?.val?.[versionKey]
         
-        if (!alreadyNotified) {
-          // Send update reminder
-          const updateMsg = `📱 <b>Nomadly SMS App Update Available</b>
+        // U3 fix: Also send periodic reminders if user is 2+ minor versions behind
+        // Check version difference (e.g. 2.2.0 vs 2.4.1 → 2 minor versions behind)
+        const parseVer = v => v.split('.').map(Number)
+        const [uMaj, uMin] = parseVer(userVersion)
+        const [lMaj, lMin] = parseVer(latestVersion)
+        const versionsBehind = (lMaj - uMaj) * 10 + (lMin - uMin)
+        const lastRepeatKey = `update_repeat_${userVersion.replace(/\./g, '_')}`
+        const lastRepeatTs = doc?.val?.[lastRepeatKey] || 0
+        const hoursSinceRepeat = (Date.now() - lastRepeatTs) / (1000 * 60 * 60)
+        // Re-notify every 24 hours if 2+ versions behind
+        const needsRepeatReminder = versionsBehind >= 2 && hoursSinceRepeat >= 24
+
+        if (!alreadyNotified || needsRepeatReminder) {
+          // Send update reminder with urgency if far behind
+          const urgencyPrefix = versionsBehind >= 2 ? '🚨 <b>URGENT:</b> ' : ''
+          const updateMsg = `📱 ${urgencyPrefix}<b>Nomadly SMS App Update Available</b>
 
 Your version: ${userVersion}
 Latest version: ${latestVersion}
-
+${versionsBehind >= 2 ? `⚠️ You are <b>${versionsBehind} versions behind</b> — some features may not work correctly.\n` : ''}
 <b>Important fixes in this update:</b>
 ✅ Fixed multi-line messages being split into fragments
 ✅ Fixed trial SMS double-counting
@@ -582,9 +595,9 @@ Latest version: ${latestVersion}
             // Mark as notified for this version pair
             await loginCountOf.updateOne(
               { _id: Number(chatId) },
-              { $set: { [`val.${versionKey}`]: true } }
+              { $set: { [`val.${versionKey}`]: true, [`val.${lastRepeatKey}`]: Date.now() } }
             )
-            console.log(`[SmsApp] Update reminder sent to ${chatId}: ${userVersion} → ${latestVersion}`)
+            console.log(`[SmsApp] Update reminder sent to ${chatId}: ${userVersion} → ${latestVersion}${needsRepeatReminder ? ' (repeat reminder)' : ''}`)
           } catch (e) {
             console.log(`[SmsApp] Failed to send update reminder to ${chatId}:`, e.message)
           }

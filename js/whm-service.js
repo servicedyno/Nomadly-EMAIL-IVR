@@ -406,7 +406,10 @@ async function autoWhitelistIP() {
     }
 
     // 3. Whitelist in CSF firewall (if installed)
+    // I1 fix: CSF plugin on some WHM versions only supports 'configgrep' or shell exec, not the /csf_allow app.
+    // Try multiple approaches: first the direct API, then fallback to shell exec via WHM.
     try {
+      // Approach 1: Try /json-api/cpanel with CSF plugin (api.version=1)
       const csfRes = await whmApi.get('/csf_allow', {
         params: {
           'api.version': 1,
@@ -424,6 +427,27 @@ async function autoWhitelistIP() {
         if (msg.includes('already') || msg.includes('exists')) {
           results.csf = true
           log(`[WHM-Whitelist] CSF: ${ip} already allowed`)
+        } else if (msg.includes('Unknown app')) {
+          // Approach 2: Fallback — use /scripts2/doaddtoallowip via WHM (older WHM/CSF versions)
+          log(`[WHM-Whitelist] CSF /csf_allow not available, trying shell-based fallback...`)
+          try {
+            const shellRes = await whmApi.get('/run_cgi_script', {
+              params: {
+                'api.version': 1,
+                script: '/usr/sbin/csf',
+                args: `-a ${ip} Nomadly-auto-whitelist`,
+              },
+              timeout: 15000,
+            })
+            if (shellRes.data?.metadata?.result === 1 || JSON.stringify(shellRes.data || '').includes('added')) {
+              results.csf = true
+              log(`[WHM-Whitelist] CSF: ${ip} allowed via shell fallback`)
+            } else {
+              log(`[WHM-Whitelist] CSF shell fallback response: ${JSON.stringify(shellRes.data || {}).substring(0, 200)}`)
+            }
+          } catch (shellErr) {
+            log(`[WHM-Whitelist] CSF shell fallback also failed: ${shellErr.message}`)
+          }
         } else {
           log(`[WHM-Whitelist] CSF response: ${msg}`)
         }
