@@ -3,7 +3,8 @@
 nixPkgsArchive = 'https://github.com/NixOS/nixpkgs/archive/refs/tags/25.05.tar.gz'
 
 [phases.install]
-cmds = ["npm install --omit=dev", "cd frontend && npm install --legacy-peer-deps"]
+# Force fresh install without cache to ensure puppeteer-core is used (not cached puppeteer)
+cmds = ["rm -rf node_modules", "npm install --omit=dev", "cd frontend && rm -rf node_modules && npm install --legacy-peer-deps"]
 
 [phases.build]
 cmds = ["cd frontend && CI=false npm run build"]
