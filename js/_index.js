@@ -425,6 +425,8 @@ const { getInsufficientBalanceMessage, getDNSPropagationMessage, getPhoneVerific
 const { handleOrderHistory } = require('./order-history.js')
 const { hasCompletedOnboarding, markOnboardingComplete, showOnboarding } = require('./onboarding.js')
 const { getRecommendationsAfterDomain, getRecommendationsAfterHosting, getRecommendationsAfterPhone } = require('./smart-recommendations.js')
+const { TIMEOUTS, getTimeoutWithWarning, getTimeoutErrorMessage } = require('./timeout-constants.js')
+const { retryWithProgress, retryDomainRegistration, retryDNSUpdate } = require('./retry-logic.js')
 
 // Auto-check DNS after record add/update (non-blocking)
 const dnsAutoCheck = async (send, chatId, t, domain, recordType, recordValue) => {
