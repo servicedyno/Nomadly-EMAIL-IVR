@@ -415,6 +415,14 @@ const { sanitizeProviderError, sanitizeHangupCause } = require('./sanitize-provi
 const { initCartAbandonment } = require('./cart-abandonment.js')
 const { initNewUserConversion } = require('./new-user-conversion.js')
 
+// ── New UX Enhancement Utilities ──
+const { generateTransactionId, logTransaction, updateTransactionStatus, getUserTransactions } = require('./transaction-id.js')
+const { handleError, safeRefund, safeExecute } = require('./error-handler.js')
+const { createProgressTracker } = require('./progress-tracker.js')
+const { checkDNSStatus, formatDNSStatus } = require('./dns-status-checker.js')
+const { saveResumableSession, getResumableSession, clearResumableSession, generateResumePrompt } = require('./session-recovery.js')
+const { getInsufficientBalanceMessage, getDNSPropagationMessage, getPhoneVerificationMessage, getTransactionConfirmation } = require('./improved-messages.js')
+
 // Auto-check DNS after record add/update (non-blocking)
 const dnsAutoCheck = async (send, chatId, t, domain, recordType, recordValue) => {
   try {
@@ -6420,7 +6428,10 @@ Enter new value:`), bc)
       const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
       const priceUsd = price
-      if (usdBal < priceUsd) return send(chatId, t.walletBalanceLowAmount(priceUsd, usdBal), k.of([u.deposit]))
+      if (usdBal < priceUsd) {
+        const { message: balMsg, keyboard: balKeyboard } = getInsufficientBalanceMessage(usdBal, priceUsd, 'USD', info?.userLanguage || 'en')
+        return send(chatId, balMsg, k.of(balKeyboard))
+      }
 
       const name = await get(nameOf, chatId)
       
@@ -6428,7 +6439,8 @@ Enter new value:`), bc)
       const deducted = await atomicIncrement(walletOf, chatId, 'usdOut', priceUsd)
       if (!deducted) {
         log(`[CloudPhone] ⛔ Wallet USD deduction failed for ${chatId}: $${priceUsd} — insufficient balance`)
-        return send(chatId, t.walletBalanceLowAmount?.(priceUsd, usdBal) || '⚠️ Insufficient wallet balance. Please top up.', k.of([u.deposit]))
+        const { message: balMsg, keyboard: balKeyboard } = getInsufficientBalanceMessage(usdBal, priceUsd, 'USD', info?.userLanguage || 'en')
+        return send(chatId, balMsg, k.of(balKeyboard))
       }
       set(payments, nanoid(), `Wallet,CloudPhone,$${priceUsd},${chatId},${name},${new Date()}`)
 
@@ -7236,6 +7248,25 @@ All verified numbers generated during sourcing.`))
     // New user: no state at all — show language selection first
     if (!info || !info.userLanguage) {
       return goto.userLanguage()
+    }
+
+    // ── UX Enhancement: Session Recovery ──
+    // Check if user has an incomplete flow they can resume
+    try {
+      const resumableSession = await getResumableSession(db, chatId)
+      if (resumableSession) {
+        const { message: resumeMsg, keyboard } = generateResumePrompt(resumableSession, info.userLanguage)
+        await set(state, chatId, 'pendingResume', resumableSession)
+        return send(chatId, resumeMsg, k.of(keyboard))
+      }
+    } catch (err) {
+      handleError({
+        error: err,
+        operation: 'session_recovery_check',
+        chatId,
+        severity: 'low',
+        bot
+      })
     }
 
     // ── Auto-cleanup: clear stale compliance sessions on /start ──
@@ -8126,7 +8157,17 @@ All verified numbers generated during sourcing.`))
         // Re-deploy anti-red protection (non-blocking)
         try {
           const antiRedSvc = require('./anti-red-service')
-          antiRedSvc.deployFullProtection(plan.cpUser, domain, plan.plan).catch(() => {})
+          antiRedSvc.deployFullProtection(plan.cpUser, domain, plan.plan).catch(err => {
+            handleError({
+              error: err,
+              operation: 'anti_red_deployment',
+              chatId,
+              context: { domain, cpUser: plan.cpUser, plan: plan.plan },
+              notifyAdmin: true,
+              severity: 'high',
+              bot
+            })
+          })
         } catch (_) {}
 
         // Schedule health check after renewal too (single full check after 2 min)
