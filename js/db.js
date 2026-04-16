@@ -131,6 +131,10 @@ const decrement = async (c, key) => {
 
 async function get(c, key) {
   try {
+    if (!c || typeof c.findOne !== 'function') {
+      console.error(`Error get: ${key} — collection is ${c === null ? 'null' : typeof c} (not a valid MongoDB collection)`)
+      return null
+    }
     const result = await withRetry(() =>
       c.findOne({ _id: key }),
       `get(${c.collectionName}, ${key})`

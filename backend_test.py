@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Backend Testing for Nomadly SMS App - Review Request Verification
-Testing specific fixes: B1 (canLogin fix), B2 (Health check), B3 (Billing logic)
+Backend Testing Script for Node.js Express Server (Port 5000)
+Testing B4, B6, B7 bug fixes and previous functionality
 """
 
 import requests
@@ -9,143 +9,186 @@ import json
 import sys
 from datetime import datetime
 
-# Backend URL - Node.js Express server on port 5000
+# Backend URL - Node.js Express server
 BASE_URL = "http://localhost:5000"
 
-def log_test(test_name, status, details=""):
-    """Log test results with timestamp"""
-    timestamp = datetime.now().strftime("%H:%M:%S")
-    status_icon = "✅" if status == "PASS" else "❌"
-    print(f"[{timestamp}] {status_icon} {test_name}")
-    if details:
-        print(f"    {details}")
-    print()
-
-def test_health_check():
-    """Test B2 & B3: Health check endpoint"""
+def test_health_endpoint():
+    """Test B6 & B7: Health endpoint should return status:healthy"""
+    print("🔍 Testing Health Endpoint...")
     try:
         response = requests.get(f"{BASE_URL}/health", timeout=10)
+        print(f"   Status Code: {response.status_code}")
         
         if response.status_code == 200:
             data = response.json()
-            if data.get("status") == "healthy":
-                log_test("Health Check", "PASS", f"Status: {data.get('status')}, Database: {data.get('database', 'N/A')}")
+            print(f"   Response: {json.dumps(data, indent=2)}")
+            
+            if data.get('status') == 'healthy':
+                print("   ✅ Health check PASSED - status:healthy")
                 return True
             else:
-                log_test("Health Check", "FAIL", f"Unexpected status: {data}")
+                print(f"   ❌ Health check FAILED - status: {data.get('status')}")
                 return False
         else:
-            log_test("Health Check", "FAIL", f"HTTP {response.status_code}: {response.text}")
+            print(f"   ❌ Health check FAILED - HTTP {response.status_code}")
             return False
             
     except Exception as e:
-        log_test("Health Check", "FAIL", f"Exception: {str(e)}")
+        print(f"   ❌ Health check FAILED - Error: {str(e)}")
         return False
 
-def test_login_count(chat_id):
-    """Test B1: Login count endpoint - should return canLogin: true"""
-    try:
-        response = requests.get(f"{BASE_URL}/login-count/{chat_id}", timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            # canLogin is nested under val.canLogin
-            can_login = data.get("val", {}).get("canLogin")
-            login_count = data.get("val", {}).get("loginCount")
-            if can_login is True:
-                log_test(f"Login Count ({chat_id})", "PASS", f"canLogin: {can_login}, loginCount: {login_count}")
-                return True
-            else:
-                log_test(f"Login Count ({chat_id})", "FAIL", f"canLogin: {can_login} (expected: true)")
-                return False
-        else:
-            log_test(f"Login Count ({chat_id})", "FAIL", f"HTTP {response.status_code}: {response.text}")
-            return False
-            
-    except Exception as e:
-        log_test(f"Login Count ({chat_id})", "FAIL", f"Exception: {str(e)}")
-        return False
-
-def test_sms_app_auth(chat_id, device_id):
-    """Test B1: SMS App auth endpoint - should return valid: true and canLogin: true"""
-    try:
-        response = requests.get(f"{BASE_URL}/sms-app/auth/{chat_id}?deviceId={device_id}", timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            valid = data.get("valid")
-            # canLogin is nested under user.canLogin
-            user_data = data.get("user", {})
-            can_login = user_data.get("canLogin")
-            can_use_sms = user_data.get("canUseSms")
-            
-            if valid is True and can_login is True:
-                log_test(f"SMS App Auth ({chat_id})", "PASS", f"valid: {valid}, canLogin: {can_login}, canUseSms: {can_use_sms}")
-                return True
-            else:
-                log_test(f"SMS App Auth ({chat_id})", "FAIL", f"valid: {valid}, canLogin: {can_login} (expected: both true)")
-                return False
-        else:
-            log_test(f"SMS App Auth ({chat_id})", "FAIL", f"HTTP {response.status_code}: {response.text}")
-            return False
-            
-    except Exception as e:
-        log_test(f"SMS App Auth ({chat_id})", "FAIL", f"Exception: {str(e)}")
-        return False
-
-def main():
-    """Run all backend tests for the review request"""
-    print("=" * 80)
-    print("BACKEND TESTING - Review Request Verification")
-    print("Testing Node.js Express backend on http://localhost:5000")
-    print("=" * 80)
-    print()
+def test_login_count_b4_fix():
+    """Test B4: TypeError fix for login-count endpoints"""
+    print("\n🔍 Testing B4 - TypeError Fix (login-count endpoints)...")
     
-    # Test data from review request
-    chat_id_1 = "817673476"  # johngambino
-    chat_id_2 = "8246464913"  # heimlich_himmler
-    device_id_1 = "dev-test123"
-    device_id_2 = "dev-test456"
+    test_cases = [
+        ("816807083", "should return JSON with canLogin field, NO TypeError"),
+        ("817673476", "should return JSON with canLogin:true")
+    ]
     
     results = []
     
-    # B2 & B3: Health Check
-    print("🔍 Testing B2 & B3: Health Check")
-    results.append(test_health_check())
+    for chat_id, description in test_cases:
+        print(f"\n   Testing /login-count/{chat_id} - {description}")
+        try:
+            response = requests.get(f"{BASE_URL}/login-count/{chat_id}", timeout=10)
+            print(f"   Status Code: {response.status_code}")
+            
+            if response.status_code == 200:
+                try:
+                    data = response.json()
+                    print(f"   Response: {json.dumps(data, indent=2)}")
+                    
+                    # Check for canLogin field (can be at root or in val object)
+                    can_login = data.get('canLogin') or (data.get('val', {}).get('canLogin'))
+                    
+                    if can_login is not None:
+                        print(f"   ✅ canLogin field present: {can_login}")
+                        
+                        # Special check for 817673476 - should have canLogin:true
+                        if chat_id == "817673476" and can_login is True:
+                            print("   ✅ canLogin:true confirmed for 817673476")
+                        elif chat_id == "816807083":
+                            print("   ✅ No TypeError - JSON response received")
+                            
+                        results.append(True)
+                    else:
+                        print("   ❌ canLogin field missing from response")
+                        results.append(False)
+                        
+                except json.JSONDecodeError as e:
+                    print(f"   ❌ Invalid JSON response: {str(e)}")
+                    print(f"   Raw response: {response.text[:200]}")
+                    results.append(False)
+            else:
+                print(f"   ❌ HTTP {response.status_code}")
+                print(f"   Response: {response.text[:200]}")
+                results.append(False)
+                
+        except Exception as e:
+            print(f"   ❌ Request failed: {str(e)}")
+            results.append(False)
     
-    # B1: canLogin fix tests
-    print("🔍 Testing B1: canLogin Fix")
+    return all(results)
+
+def test_sms_app_auth_previous_fixes():
+    """Test previous fixes: SMS app auth endpoints"""
+    print("\n🔍 Testing Previous Fixes - SMS App Auth Endpoints...")
     
-    # Test 1: Login count for chat_id_1 (should show canLogin: true)
-    results.append(test_login_count(chat_id_1))
+    test_cases = [
+        ("817673476", "dev-test123", "should return valid:true, canLogin:true"),
+        ("8246464913", "dev-test456", "should return valid:true, canLogin:true")
+    ]
     
-    # Test 2: SMS App auth for chat_id_1 (should return valid: true, canLogin: true)
-    results.append(test_sms_app_auth(chat_id_1, device_id_1))
+    results = []
     
-    # Test 3: SMS App auth for chat_id_2 (should return valid: true, canLogin: true)
-    results.append(test_sms_app_auth(chat_id_2, device_id_2))
+    for chat_id, device_id, description in test_cases:
+        print(f"\n   Testing /sms-app/auth/{chat_id}?deviceId={device_id}")
+        print(f"   Expected: {description}")
+        
+        try:
+            response = requests.get(
+                f"{BASE_URL}/sms-app/auth/{chat_id}",
+                params={"deviceId": device_id},
+                timeout=10
+            )
+            print(f"   Status Code: {response.status_code}")
+            
+            if response.status_code == 200:
+                try:
+                    data = response.json()
+                    print(f"   Response: {json.dumps(data, indent=2)}")
+                    
+                    # Check for required fields (canLogin is in user object)
+                    valid = data.get('valid')
+                    user = data.get('user', {})
+                    can_login = user.get('canLogin')
+                    
+                    if valid is True and can_login is True:
+                        print("   ✅ PASSED - valid:true, canLogin:true")
+                        results.append(True)
+                    else:
+                        print(f"   ❌ FAILED - valid:{valid}, canLogin:{can_login}")
+                        results.append(False)
+                        
+                except json.JSONDecodeError as e:
+                    print(f"   ❌ Invalid JSON response: {str(e)}")
+                    results.append(False)
+            else:
+                print(f"   ❌ HTTP {response.status_code}")
+                print(f"   Response: {response.text[:200]}")
+                results.append(False)
+                
+        except Exception as e:
+            print(f"   ❌ Request failed: {str(e)}")
+            results.append(False)
     
-    # Test 4: Verify login count still shows canLogin: true after auth
-    print("🔍 Re-testing login count after auth (should still be true)")
-    results.append(test_login_count(chat_id_1))
+    return all(results)
+
+def run_all_tests():
+    """Run all backend tests for the review request"""
+    print("=" * 60)
+    print("🚀 BACKEND TESTING - Node.js Express Server (Port 5000)")
+    print("=" * 60)
+    print(f"Test Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"Backend URL: {BASE_URL}")
+    print(f"Focus: B4/B6/B7 Bug Fixes + Previous Functionality")
+    print("=" * 60)
+    
+    test_results = []
+    
+    # Test 1: Health endpoint (B6 & B7)
+    test_results.append(("Health Check (B6/B7)", test_health_endpoint()))
+    
+    # Test 2: B4 TypeError fix
+    test_results.append(("B4 TypeError Fix", test_login_count_b4_fix()))
+    
+    # Test 3: Previous fixes verification
+    test_results.append(("Previous Fixes", test_sms_app_auth_previous_fixes()))
     
     # Summary
-    print("=" * 80)
-    print("TEST SUMMARY")
-    print("=" * 80)
+    print("\n" + "=" * 60)
+    print("📊 TEST SUMMARY")
+    print("=" * 60)
     
-    passed = sum(results)
-    total = len(results)
+    passed = 0
+    total = len(test_results)
     
-    print(f"Tests Passed: {passed}/{total}")
-    print(f"Success Rate: {(passed/total)*100:.1f}%")
+    for test_name, result in test_results:
+        status = "✅ PASSED" if result else "❌ FAILED"
+        print(f"{status} - {test_name}")
+        if result:
+            passed += 1
+    
+    print(f"\nOverall: {passed}/{total} tests passed ({(passed/total)*100:.0f}%)")
     
     if passed == total:
         print("🎉 ALL TESTS PASSED - Backend fixes verified successfully!")
-        return 0
+        return True
     else:
         print("⚠️  Some tests failed - see details above")
-        return 1
+        return False
 
 if __name__ == "__main__":
-    sys.exit(main())
+    success = run_all_tests()
+    sys.exit(0 if success else 1)

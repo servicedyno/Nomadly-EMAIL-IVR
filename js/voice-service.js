@@ -24,7 +24,8 @@ const _langCache = new Map()
 async function _getUserLang(chatId) {
   if (_langCache.has(chatId)) return _langCache.get(chatId)
   try {
-    const user = await get('users', chatId)
+    if (!_state) return 'en' // guard: state collection not yet initialized
+    const user = await get(_state, chatId)
     const lang = user?.userLanguage || 'en'
     _langCache.set(chatId, lang)
     setTimeout(() => _langCache.delete(chatId), 300000) // cache 5 min
@@ -1858,7 +1859,14 @@ async function handleCallInitiated(payload) {
       const msg = _trans('vs.orphanedNumberAlert', 'en', to, from)
       if (msg) _bot.sendMessage(process.env.TELEGRAM_ADMIN_CHAT_ID, msg, { parse_mode: 'HTML' }).catch(() => {})
     }
-    await _telnyxApi.hangupCall(callControlId).catch(() => {})
+    // Play "not in service" message so caller knows not to redial
+    try {
+      await _telnyxApi.answerCall(callControlId)
+      await _telnyxApi.speakOnCall(callControlId, 'The number you have dialed is no longer in service. Please check the number and try again.')
+      setTimeout(() => _telnyxApi.hangupCall(callControlId).catch(() => {}), 5000)
+    } catch {
+      await _telnyxApi.hangupCall(callControlId).catch(() => {})
+    }
     return
   }
 

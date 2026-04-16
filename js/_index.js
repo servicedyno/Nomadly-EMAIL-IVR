@@ -22645,7 +22645,13 @@ const auth = async (req, res, next) => {
   log('[auth] Resolved ref:', ref, '| merchantRef:', req?.body?.data?.merchantReference, '| fincraRef:', req?.body?.data?.reference, '| queryRef:', req?.query?.ref)
   const pay = await get(chatIdOfPayment, ref)
   if (!pay) {
-    log(`[auth] ⚠️ Payment session NOT FOUND for ref: ${ref}`)
+    // Check if this ref was already processed (stale/duplicate webhook)
+    const existingPayment = ref ? await get(payments, ref) : null
+    if (existingPayment) {
+      log(`[auth] ℹ️ Payment ref ${ref} already processed (stale/duplicate webhook) — ignoring safely`)
+    } else {
+      log(`[auth] ⚠️ Payment session NOT FOUND for ref: ${ref} — no matching active session or historical record`)
+    }
     return res.send(html(translation('t.payError', 'en')))
   }
   req.pay = { ...pay, ref }
