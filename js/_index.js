@@ -422,6 +422,8 @@ const { createProgressTracker } = require('./progress-tracker.js')
 const { checkDNSStatus, formatDNSStatus } = require('./dns-status-checker.js')
 const { saveResumableSession, getResumableSession, clearResumableSession, generateResumePrompt } = require('./session-recovery.js')
 const { getInsufficientBalanceMessage, getDNSPropagationMessage, getPhoneVerificationMessage, getTransactionConfirmation } = require('./improved-messages.js')
+const { handleOrderHistory } = require('./order-history.js')
+const { hasCompletedOnboarding, markOnboardingComplete, showOnboarding } = require('./onboarding.js')
 
 // Auto-check DNS after record add/update (non-blocking)
 const dnsAutoCheck = async (send, chatId, t, domain, recordType, recordValue) => {
@@ -7312,6 +7314,15 @@ All verified numbers generated during sourcing.`))
       })
     }
 
+    // ── UX Enhancement: Onboarding for First-Time Users ──
+    const completedOnboarding = await hasCompletedOnboarding(db, chatId)
+    if (!completedOnboarding) {
+      await showOnboarding(bot, chatId, CHAT_BOT_NAME, info.userLanguage)
+      // Don't mark as complete yet - user needs to interact first
+      // Will be marked complete when they choose an action
+      return
+    }
+
     // ── Auto-cleanup: clear stale compliance sessions on /start ──
     try {
       // 1. Refund + clear ALL rejected pendingBundles
@@ -7482,6 +7493,11 @@ All verified numbers generated during sourcing.`))
   // /help command
   if (message === '/help') {
     return send(chatId, trans('t.host_5', CHAT_BOT_NAME), { ...trans('o'), parse_mode: 'HTML' })
+  }
+
+  // ── UX Enhancement: /orderhistory command ──
+  if (message === '/orderhistory' || message === '📜 Order History' || message === '📜 My Orders') {
+    return handleOrderHistory(bot, chatId, db, info?.userLanguage || 'en')
   }
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
