@@ -1060,14 +1060,14 @@ Service delivered.`,
 
  smsDevicesList: (devices, chatId) => {
    if (!devices || devices.length === 0) {
-     return `📱 <b>No Devices Connected</b>\n\nDownload the app and login with your activation code:\n<code>${chatId}</code>`
+     return `📱 <b>No Devices Connected</b>\n\nDownload the app and login with your activation code:\n<code>${chatId}</code>\n\n📲 Download: ${SMS_APP_LINK}`
    }
    const deviceList = devices.map((d, idx) => {
      const name = d.deviceName || `Device ${idx + 1}`
      const lastActive = d.lastActive ? new Date(d.lastActive).toLocaleString() : 'Never'
-     return `${idx + 1}. <b>${name}</b>\n   ID: <code>${d.deviceId}</code>\n   Last active: ${lastActive}`
+     return `${idx + 1}. <b>${name}</b>\n   📱 <code>${d.deviceId}</code>\n   🕒 ${lastActive}`
    }).join('\n\n')
-   return `📱 <b>Your Devices (${devices.length})</b>\n\n${deviceList}\n\n💡 Tap device name in the app to rename it.`
+   return `📱 <b>Your Devices (${devices.length})</b>\n\n${deviceList}\n\n✏️ Tap a device button below to rename it, or rename in the app.`
  },
 
  domainPurchasedFailed: (domain) =>

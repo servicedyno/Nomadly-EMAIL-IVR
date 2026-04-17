@@ -22085,7 +22085,78 @@ Select a category:`), k.of(catBtns))
   if (message === user.smsManageDevices) {
     const loginDoc = await loginCountOf.findOne({ _id: parseFloat(chatId) })
     const devices = loginDoc?.val?.devices || []
-    return send(chatId, t.smsDevicesList(devices, chatId), { parse_mode: 'HTML' })
+    
+    if (!devices || devices.length === 0) {
+      return send(chatId, t.smsDevicesList(devices, chatId), { parse_mode: 'HTML' })
+    }
+    
+    // Create inline keyboard with rename buttons for each device
+    const keyboard = devices.map((d, idx) => {
+      const deviceName = d.deviceName || `Device ${idx + 1}`
+      return [{
+        text: `✏️ ${deviceName}`,
+        callback_data: `rename_device:${d.deviceId}:${deviceName}`
+      }]
+    })
+    
+    return send(chatId, t.smsDevicesList(devices, chatId), {
+      parse_mode: 'HTML',
+      reply_markup: {
+        inline_keyboard: keyboard
+      }
+    })
+  }
+
+  // ── Handle device rename callback ──
+  if (cbData?.startsWith('rename_device:')) {
+    const [, deviceId, currentName] = cbData.split(':')
+    await set(state, chatId, 'action', 'rename_device')
+    await set(state, chatId, 'rename_device_id', deviceId)
+    await set(state, chatId, 'rename_device_current', currentName)
+    await bot.answerCallbackQuery(query.id)
+    return send(chatId, `✏️ <b>Rename Device</b>\n\nCurrent name: <b>${currentName}</b>\n\nEnter new device name (max 50 characters):`, { parse_mode: 'HTML' })
+  }
+
+  // ── Handle new device name input ──
+  if (action === 'rename_device') {
+    const deviceId = await get(state, chatId, 'rename_device_id')
+    const newName = message?.trim()
+    
+    if (!newName) {
+      return send(chatId, '❌ Device name cannot be empty. Please enter a valid name:', { parse_mode: 'HTML' })
+    }
+    
+    if (newName.length > 50) {
+      return send(chatId, '❌ Device name too long (max 50 characters). Please enter a shorter name:', { parse_mode: 'HTML' })
+    }
+    
+    try {
+      // Update device name in database
+      const loginDoc = await loginCountOf.findOne({ _id: parseFloat(chatId) })
+      const loginData = loginDoc?.val || {}
+      let devices = loginData.devices || []
+      
+      const deviceIdx = devices.findIndex(d => d.deviceId === deviceId)
+      if (deviceIdx === -1) {
+        await set(state, chatId, 'action', null)
+        return send(chatId, '❌ Device not found. It may have been logged out.', { parse_mode: 'HTML' })
+      }
+      
+      devices[deviceIdx].deviceName = newName
+      
+      await set(loginCountOf, chatId, {
+        ...loginData,
+        devices,
+      })
+      
+      await set(state, chatId, 'action', null)
+      
+      return send(chatId, `✅ Device renamed to: <b>${newName}</b>`, { parse_mode: 'HTML' })
+    } catch (err) {
+      console.error('[Bot] Device rename error:', err)
+      await set(state, chatId, 'action', null)
+      return send(chatId, '❌ Failed to rename device. Please try again.', { parse_mode: 'HTML' })
+    }
   }
 
     if (message === t.back || message === t.cancel) {
