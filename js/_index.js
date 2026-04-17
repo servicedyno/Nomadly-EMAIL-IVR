@@ -3976,6 +3976,9 @@ bot?.on('message', msg => {
     // Cloud IVR
     submenu5: 'submenu5',
 
+    // BulkSMS
+    submenu7: 'submenu7',
+
     // Service Bundles
     bundleMenu: 'bundleMenu',
     bundleSelect: 'bundleSelect',
@@ -21733,6 +21736,7 @@ Select a category:`), k.of(catBtns))
 
   if (message === user.freeTrialAvailable || message === user.smsAppMain || (typeof message === 'string' && message.startsWith('📧') && (message.includes('BulkSMS') || message.includes('SMS en masse')))) {
     // Show BulkSMS sub-menu with dynamic status
+    await set(state, chatId, 'action', a.submenu7)  // Set BulkSMS action state
     const sub = smsSubStatus
     const smsKeyboard = {
       reply_markup: {
@@ -21772,7 +21776,7 @@ Select a category:`), k.of(catBtns))
   }
 
   // ── SMS App: How It Works ──
-  if (message === user.smsHowItWorks || (typeof message === 'string' && message.startsWith('❓') && (message.includes('How It Works') || message.includes('Comment') || message.includes('使用说明') || message.includes('कैसे')))) {
+  if (action === a.submenu7 && (message === user.smsHowItWorks || (typeof message === 'string' && message.startsWith('❓') && (message.includes('How It Works') || message.includes('Comment') || message.includes('使用说明') || message.includes('कैसे'))))) {
     const sub = smsSubStatus
     const smsKeyboard = {
       reply_markup: {
