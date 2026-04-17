@@ -22324,8 +22324,11 @@ Select a category:`), k.of(catBtns))
           deviceId,
         })
         if (isDraft) {
-          // Update status to draft explicitly
+          // Save as draft - user will manually send later
           await smsAppService.updateCampaign(campaign._id, chatId, { status: 'draft' })
+        } else {
+          // Send Now - set status to 'queued' so app picks it up automatically
+          await smsAppService.updateCampaign(campaign._id, chatId, { status: 'queued' })
         }
         await set(state, chatId, 'action', null)
         const deviceLine = deviceId && deviceId !== 'default' ? `\n📱 Device: ${deviceId}` : ''
@@ -22414,6 +22417,8 @@ Select a category:`), k.of(catBtns))
         scheduledAt: parsed.toISOString(),
         deviceId,
       })
+      // Set status to 'scheduled' - will auto-change to 'queued' when time is reached
+      await smsAppService.updateCampaign(campaign._id, chatId, { status: 'scheduled' })
       await set(state, chatId, 'action', null)
       const schedDate = parsed.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' })
       const deviceLine = deviceId && deviceId !== 'default' ? `\n📱 Device: ${deviceId}` : ''
@@ -29255,6 +29260,35 @@ const startServer = async () => {
       }
     } catch (e) { log(`[Scheduler] Check error: ${e.message}`) }
   }, 30000)
+
+  // ── SMS Campaign Scheduler (#11): Check for due scheduled campaigns every 30s ──
+  setInterval(async () => {
+    try {
+      const now = new Date()
+      const dueCampaigns = await db.collection('smsCampaigns').find({
+        status: 'scheduled',
+        scheduledAt: { $lte: now },
+      }).toArray()
+
+      for (const campaign of dueCampaigns) {
+        log(`[SMS Scheduler] Campaign ${campaign._id} (${campaign.name}) scheduled time reached - setting to queued`)
+        await db.collection('smsCampaigns').updateOne(
+          { _id: campaign._id },
+          { $set: { status: 'queued', updatedAt: new Date() } }
+        )
+        // Notify user
+        if (campaign.chatId) {
+          bot?.sendMessage(campaign.chatId, 
+            `📱 <b>Scheduled Campaign Ready!</b>\n\n` +
+            `Campaign <b>"${campaign.name}"</b> is now queued and will start sending automatically from your device.\n\n` +
+            `Open the Nomadly SMS app to monitor progress.`,
+            { parse_mode: 'HTML' }
+          ).catch(() => {})
+        }
+      }
+    } catch (e) { log(`[SMS Scheduler] Check error: ${e.message}`) }
+  }, 30000)
+
 }
 
 const tryConnectReseller = async () => {

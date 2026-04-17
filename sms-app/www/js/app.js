@@ -311,7 +311,20 @@ const App = {
     try {
       const data = await API.sync(code)
       if (data.user) Storage.setUser(data.user)
-      if (data.campaigns) { this.campaigns = data.campaigns; Storage.setCampaigns(data.campaigns) }
+      if (data.campaigns) { 
+        this.campaigns = data.campaigns
+        Storage.setCampaigns(data.campaigns)
+        
+        // Auto-start queued campaigns (created from bot with "Send Now")
+        const queuedCampaign = data.campaigns.find(c => c.status === 'queued' && !this.isSending)
+        if (queuedCampaign && data.user?.canUseSms) {
+          console.log('[App] Auto-starting queued campaign:', queuedCampaign.name)
+          // Small delay to ensure UI is ready
+          setTimeout(() => {
+            this.startSending(queuedCampaign)
+          }, 1000)
+        }
+      }
       // Check for app update
       if (data.latestVersion) {
         this.checkAppUpdate(data.latestVersion)
