@@ -86,6 +86,10 @@ const API = {
     return this.request('POST', `sms-app/report-errors/${chatId}`, { campaignId, errors })
   },
 
+  updateDeviceName(code, deviceId, deviceName) {
+    return this.request('PUT', 'sms-app/device/name', { code, deviceId, deviceName })
+  },
+
   // Full sync
   async sync(chatId, appVersion = '2.2.0') {
     return this.request('GET', `sms-app/sync/${chatId}?version=${encodeURIComponent(appVersion)}`)

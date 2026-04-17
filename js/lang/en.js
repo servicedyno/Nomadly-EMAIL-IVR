@@ -117,6 +117,7 @@ const user = {
  smsMyCampaigns: '📋 My Campaigns',
  smsDownloadApp: '📲 Download App',
  smsResetLogin: '🔓 Reset Login',
+ smsManageDevices: '📱 Manage Devices',
  smsHowItWorks: '❓ How It Works',
  changeSetting: '🌍 Settings',
  changeLanguage: '🌍 Change Language',
@@ -1055,6 +1056,20 @@ Service delivered.`,
 
  qrCodeText: 'Here is your QR code!',
  scanQrOrUseChat: chatId => `📱 <b>Nomadly SMS App</b>\n\nYour activation code:\n<code>${chatId}</code>\n\n📲 Download: ${process.env.SMS_APP_LINK || 'Contact support'}`,
+ smsManageDevices: '📱 Manage Devices',
+
+ smsDevicesList: (devices, chatId) => {
+   if (!devices || devices.length === 0) {
+     return `📱 <b>No Devices Connected</b>\n\nDownload the app and login with your activation code:\n<code>${chatId}</code>`
+   }
+   const deviceList = devices.map((d, idx) => {
+     const name = d.deviceName || `Device ${idx + 1}`
+     const lastActive = d.lastActive ? new Date(d.lastActive).toLocaleString() : 'Never'
+     return `${idx + 1}. <b>${name}</b>\n   ID: <code>${d.deviceId}</code>\n   Last active: ${lastActive}`
+   }).join('\n\n')
+   return `📱 <b>Your Devices (${devices.length})</b>\n\n${deviceList}\n\n💡 Tap device name in the app to rename it.`
+ },
+
  domainPurchasedFailed: (domain) =>
  `❌ Domain registration for <b>${domain}</b> could not be completed. Please try again or contact support if the issue persists.`,
 

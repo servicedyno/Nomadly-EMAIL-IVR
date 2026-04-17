@@ -1391,6 +1391,96 @@ const App = {
           }
         }
       } catch (e) {
+
+  showDevicesScreen() {
+    this.syncDevices()
+    this.showScreen('devicesScreen')
+  },
+
+  async syncDevices() {
+    const code = Storage.getCode()
+    if (!code) return
+    
+    try {
+      const data = await API.sync(code)
+      if (data.user && data.user.devices) {
+        this.renderDevices(data.user.devices)
+      }
+    } catch (e) {
+      console.error('[Devices] Sync error:', e)
+      this.toast('Failed to load devices', 'error')
+    }
+  },
+
+  renderDevices(devices) {
+    const container = document.getElementById('devicesList')
+    const currentDeviceId = this.getDeviceId()
+    
+    if (!devices || devices.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <p style="color: var(--text-muted);">No devices connected</p>
+        </div>`
+      return
+    }
+
+    container.innerHTML = devices.map((d, idx) => {
+      const isCurrent = d.deviceId === currentDeviceId
+      const deviceName = d.deviceName || `Device ${idx + 1}`
+      const lastActive = d.lastActive ? new Date(d.lastActive).toLocaleString() : 'Never'
+      
+      return `
+        <div class="device-card" data-device-id="${d.deviceId}">
+          <div class="device-info">
+            <div class="device-name-row">
+              <span class="device-name" onclick="App.renameDevice('${d.deviceId}', '${deviceName.replace(/'/g, "\\'")}')">${deviceName}</span>
+              ${isCurrent ? '<span class="device-badge">This Device</span>' : ''}
+            </div>
+            <div class="device-meta">
+              <span class="device-id">${d.deviceId}</span>
+              <span class="device-time">Last active: ${lastActive}</span>
+            </div>
+          </div>
+          ${!isCurrent ? `<button class="btn-icon-danger" onclick="App.logoutDevice('${d.deviceId}')" title="Logout this device">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>
+            </svg>
+          </button>` : ''}
+        </div>`
+    }).join('')
+  },
+
+  renameDevice(deviceId, currentName) {
+    const newName = prompt('Enter new device name:', currentName)
+    if (!newName || newName === currentName) return
+    
+    const code = Storage.getCode()
+    API.updateDeviceName(code, deviceId, newName)
+      .then(() => {
+        this.toast('Device renamed!', 'success')
+        this.syncDevices()
+      })
+      .catch(err => {
+        console.error('[Devices] Rename error:', err)
+        this.toast('Failed to rename device', 'error')
+      })
+  },
+
+  logoutDevice(deviceId) {
+    if (!confirm('Logout this device? It will need to login again.')) return
+    
+    const code = Storage.getCode()
+    API.request('POST', `sms-app/logout/${code}`, { deviceId })
+      .then(() => {
+        this.toast('Device logged out', 'success')
+        this.syncDevices()
+      })
+      .catch(err => {
+        console.error('[Devices] Logout error:', err)
+        this.toast('Failed to logout device', 'error')
+      })
+  },
+
         console.error('[SMS] Failed to poll background status:', e)
       }
     }, 2000) // Poll every 2 seconds

@@ -21931,8 +21931,8 @@ Select a category:`), k.of(catBtns))
         keyboard: [
           [user.smsCreateCampaign],
           [user.smsMyCampaigns],
-          [user.smsDownloadApp, user.smsResetLogin],
-          [user.smsHowItWorks],
+          [user.smsDownloadApp, user.smsManageDevices],
+          [user.smsResetLogin, user.smsHowItWorks],
           ...(sub.isSubscribed ? [] : [[user.buyPlan]]),
           [t.back],
         ],
@@ -21971,8 +21971,8 @@ Select a category:`), k.of(catBtns))
         keyboard: [
           [user.smsCreateCampaign],
           [user.smsMyCampaigns],
-          [user.smsDownloadApp, user.smsResetLogin],
-          [user.smsHowItWorks],
+          [user.smsDownloadApp, user.smsManageDevices],
+          [user.smsResetLogin, user.smsHowItWorks],
           ...(sub.isSubscribed ? [] : [[user.buyPlan]]),
           [t.back],
         ],
@@ -22079,6 +22079,15 @@ Select a category:`), k.of(catBtns))
   }
 
   if (action === 'smsapp_campaign_name') {
+
+
+  // ── SMS App: Manage Devices ──
+  if (message === user.smsManageDevices) {
+    const loginDoc = await loginCountOf.findOne({ _id: parseFloat(chatId) })
+    const devices = loginDoc?.val?.devices || []
+    return send(chatId, t.smsDevicesList(devices, chatId), { parse_mode: 'HTML' })
+  }
+
     if (message === t.back || message === t.cancel) {
       await set(state, chatId, 'action', null)
       // Return to BulkSMS sub-menu
