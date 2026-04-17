@@ -14598,7 +14598,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   }
 
   // ❓ Cloud IVR: How It Works
-  if (phoneConfig.isBtnMatch(message, 'howItWorks')) {
+  if (action === a.submenu5 && phoneConfig.isBtnMatch(message, 'howItWorks')) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     return send(chatId, cpTxt.howItWorks, k.of([
       [pc.ivrOutboundCall],
