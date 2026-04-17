@@ -7563,6 +7563,34 @@ All verified numbers generated during sourcing.`))
   // When admin has taken over (via /reply), AI stays silent
   // ═══════════════════════════════════════════════════
   if (action === a.supportChat) {
+    // Bug fix: main-menu buttons should AUTO-EXIT the support session
+    // instead of being forwarded verbatim to the admin. Without this, a user
+    // in an admin-takeover session who taps e.g. "📱 Browse All Services"
+    // or "🛡️🔥 Anti-Red Hosting" gets their button text forwarded to support
+    // and the menu never opens — they have to manually type /done first.
+    const menuEscapeLabels = new Set()
+    // Top-level service menu buttons — known from user-translation dict
+    for (const key of ['cloudPhone','antiRedHosting','domainNames','digitalProducts','marketplace','vpsRdp','vpsRdpExpanded','emailValidation','emailBlast','virtualCard','wallet','referEarn','becomeReseller','getSupport','changeSetting','changeLanguage','shippingLabel','smsAppMain','freeTrialAvailable','serviceBundles','viewPlan','shortLink','urlShortener','leadsValidation','joinChannel','upgradePlan']) {
+      const v = user && user[key]
+      if (typeof v === 'string' && v) menuEscapeLabels.add(v)
+    }
+    // "📱 Browse All Services" (all 4 langs — from onboardingButtons)
+    for (const s of ['📱 Browse All Services','📱 Parcourir tous les services','📱 浏览所有服务','📱 सभी सेवाएं ब्राउज़ करें']) menuEscapeLabels.add(s)
+
+    const isEscapeTap = menuEscapeLabels.has(message) || /^\/(start|menu|home)\b/.test(message)
+    if (isEscapeTap) {
+      // Mirror /done behavior silently, then fall through to normal menu handling
+      await set(supportSessions, chatId, 0)
+      await set(state, chatId, 'action', 'none')
+      await set(state, chatId, 'adminTakeover', false)
+      action = 'none'  // update local var so downstream logic doesn't still think we're in support
+      clearAiHistory(chatId)
+      const escName = await get(nameOf, chatId)
+      send(TELEGRAM_ADMIN_CHAT_ID, `📴 Support session auto-closed — <b>${escName || chatId}</b> (${chatId}) tapped main-menu button: ${message}`, { parse_mode: 'HTML' })
+      log(`[Support] Session auto-ended by menu tap "${message}" from ${chatId} — admin takeover OFF`)
+      // Do NOT return — let the message fall through to normal menu handlers below
+    } else {
+
     const name = await get(nameOf, chatId)
     const displayName = name || msg?.from?.username || chatId
 
@@ -7629,6 +7657,7 @@ All verified numbers generated during sourcing.`))
       send(chatId, t.supportMsgSent, { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
     }
     return
+    } // end else (regular support-chat branch)
   }
 
   // /refresh command — force refresh keyboard for users seeing old buttons
