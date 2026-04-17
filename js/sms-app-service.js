@@ -315,6 +315,77 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
         // Remove specific device
         devices = devices.filter(d => d.deviceId !== deviceId)
       } else {
+        // Remove all devices (full /resetlogin)
+        devices = []
+      }
+
+      await set(loginCountOf, numChatId, {
+        ...loginData,
+        devices,
+        loginCount: 0,
+        canLogin: true,
+      })
+      res.json({ success: true, message: deviceId ? 'Device logged out' : 'All devices logged out' })
+    } catch (error) {
+      console.error('[SmsApp] Logout error:', error.message)
+      res.status(500).json({ error: 'Server error' })
+    }
+  })
+
+  // ── Update device name ──
+  app.put('/sms-app/device/name', async (req, res) => {
+    const { code, deviceId, deviceName } = req.body
+    
+    if (!code || !deviceId) {
+      return res.status(400).json({ error: 'Missing code or deviceId' })
+    }
+    
+    if (!deviceName || deviceName.trim().length === 0) {
+      return res.status(400).json({ error: 'Device name cannot be empty' })
+    }
+    
+    if (deviceName.trim().length > 50) {
+      return res.status(400).json({ error: 'Device name too long (max 50 characters)' })
+    }
+
+    try {
+      const chatId = Number(code)
+      const doc = await loginCountOf.findOne({ _id: chatId })
+      const loginData = doc?.val || doc || {}
+      let devices = getDevices(loginData)
+      
+      const deviceIdx = devices.findIndex(d => d.deviceId === deviceId)
+      if (deviceIdx === -1) {
+        return res.status(404).json({ error: 'Device not found' })
+      }
+      
+      devices[deviceIdx].deviceName = deviceName.trim()
+      
+      await set(loginCountOf, chatId, {
+        ...loginData,
+        devices,
+      })
+      
+      res.json({ success: true, deviceName: deviceName.trim() })
+    } catch (error) {
+      console.log(`[SmsApp] Update device name error:`, error.message)
+      res.status(500).json({ error: error.message })
+    }
+  })
+
+  // Logout — remove specific device
+  app.post('/sms-app/logout/:code', async (req, res) => {
+    try {
+      const numChatId = Number(req.params.code)
+      const deviceId = req.body?.deviceId || req.query?.deviceId || null
+
+      const doc = await loginCountOf.findOne({ _id: numChatId })
+      const loginData = doc?.val || doc || {}
+      let devices = getDevices(loginData)
+
+      if (deviceId) {
+        devices = devices.filter(d => d.deviceId !== deviceId)
+      } else {
         // No deviceId — remove all (backward compat / full reset)
         devices = []
       }
