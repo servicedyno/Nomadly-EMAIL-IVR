@@ -26,13 +26,18 @@ const API = {
     }
     if (body) options.body = JSON.stringify(body)
 
+    console.log(`[API] ${method} ${url}`)
     try {
       const response = await fetch(url, options)
+      console.log(`[API] Response status: ${response.status}`)
       const data = await response.json()
+      console.log(`[API] Response data:`, data)
       if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`)
       return data
     } catch (error) {
       console.error(`[API] ${method} ${path} failed:`, error)
+      console.error(`[API] Full URL was: ${url}`)
+      console.error(`[API] Error details:`, error.message, error.stack)
       throw error
     }
   },

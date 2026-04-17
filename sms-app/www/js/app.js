@@ -148,9 +148,15 @@ const App = {
   async login() {
     const code = document.getElementById('loginCode').value.trim()
     if (!code) return this.showLoginError('Enter the activation code from @NomadlyBot')
+    console.log('[Login] Starting login for code:', code)
+    console.log('[Login] Is Capacitor?', window.Capacitor ? 'YES' : 'NO')
+    console.log('[Login] Is Native?', window.Capacitor?.isNativePlatform ? window.Capacitor.isNativePlatform() : 'N/A')
+    console.log('[Login] API baseUrl:', API.baseUrl)
     this.setLoginLoading(true)
     try {
+      console.log('[Login] Calling API.authenticate...')
       const result = await API.authenticate(code)
+      console.log('[Login] Got result:', result)
       if (result.valid) {
         Storage.setCode(code)
         Storage.setUser(result.user)
@@ -158,17 +164,23 @@ const App = {
         this.showDashboard()
         this.syncData()
       } else {
+        console.error('[Login] Invalid result:', result)
         this.showLoginError(result.error || 'Invalid code')
       }
     } catch (e) {
+      console.error('[Login] Exception caught:', e)
+      console.error('[Login] Error message:', e.message)
+      console.error('[Login] Error stack:', e.stack)
       // Handle device limit error with clear message
       const msg = e.message || ''
       if (msg.includes('device') || msg.includes('Logout')) {
         this.showLoginError(msg)
       } else if (msg.includes('403') || msg.includes('limit')) {
         this.showLoginError('Device limit reached. Logout from another device or type /resetlogin in @NomadlyBot.')
+      } else if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+        this.showLoginError('Network error. Check your internet connection and try again.')
       } else {
-        this.showLoginError('Connection failed. Check your internet.')
+        this.showLoginError(`Connection failed: ${msg || 'Unknown error'}`)
       }
     } finally {
       this.setLoginLoading(false)
