@@ -3381,6 +3381,16 @@ const en = {
  vp,
  vpsPlanOf,
  vpsCpanelOptional,
+ 
+ // Payment timeout and abandoned cart reminders
+ paymentTimeoutReminder: `⏰ <b>Your payment session timed out</b>\n\nYour checkout session expired after 6 hours of inactivity.\n\nDon't worry! You can start again anytime by selecting the product or service you want.\n\n💬 Need help? Tap <b>Support</b>`,
+ 
+ abandonedCartReminder: (productName, price) => 
+   `🛒 <b>Still interested in ${productName}?</b>\n\n` +
+   `You left it in your cart 2 hours ago.\n\n` +
+   `💳 Price: $${price}\n\n` +
+   `Complete your purchase now! The product is waiting for you. 🎁\n\n` +
+   `Tap /start to continue or 💬 <b>Support</b> if you have questions.`,
 }
 
 module.exports = {

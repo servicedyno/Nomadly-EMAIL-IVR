@@ -1824,6 +1824,130 @@ const loadData = async () => {
   setInterval(cleanupStaleStates, CLEANUP_INTERVAL_MS)
   log(`[StateCleanup] Scheduled every ${CLEANUP_INTERVAL_MS / 3600000}h (stale threshold: ${STALE_THRESHOLD_MS / 3600000}h)`)
 
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // Auto-timeout for payment states: clear after 6h inactivity
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  const PAYMENT_TIMEOUT_MS = 6 * 60 * 60 * 1000 // 6 hours
+  const PAYMENT_CHECK_INTERVAL_MS = 30 * 60 * 1000 // check every 30 minutes
+  
+  const _paymentActions = [
+    'phone-pay', 'domain-pay', 'hosting-pay', 'vps-plan-pay', 
+    'vps-upgrade-plan-pay', 'digital-product-pay', 'virtual-card-pay', 
+    'leads-pay', 'ebPayment', 'bundleConfirm', 'cpChangePlan',
+    'depositMethodSelect', 'walletPayUsd', 'walletPayNgn'
+  ]
+  
+  async function cleanupStuckPayments() {
+    try {
+      const cutoff = new Date(Date.now() - PAYMENT_TIMEOUT_MS)
+      
+      // Find users stuck in payment states for >6h
+      const stuckUsers = await state.find({
+        action: { $in: _paymentActions },
+        lastMessageAt: { $lt: cutoff }
+      }).toArray()
+      
+      if (stuckUsers.length > 0) {
+        log(`[PaymentTimeout] Found ${stuckUsers.length} users stuck in payment >6h`)
+        
+        for (const userState of stuckUsers) {
+          const chatId = userState._id
+          const action = userState.action
+          const lang = userState.userLanguage || 'en'
+          const t = translation('t', lang)
+          
+          // Clear payment state
+          await set(state, chatId, 'action', 'none')
+          
+          // Clear payment-related temp data
+          await set(state, chatId, 'lastStep', null)
+          await set(state, chatId, 'tempProduct', null)
+          await set(state, chatId, 'tempPrice', null)
+          
+          // Send gentle reminder
+          try {
+            const reminderMsg = t.paymentTimeoutReminder || 
+              `⏰ Your payment session timed out after 6 hours of inactivity.\n\nDon't worry! You can start again anytime by selecting the product/service you want.\n\nNeed help? Tap 💬 Support`
+            
+            await send(chatId, reminderMsg, k.main(lang))
+            log(`[PaymentTimeout] Cleared ${action} for ${chatId}, sent reminder`)
+          } catch (sendErr) {
+            // User might have blocked bot - just log and continue
+            log(`[PaymentTimeout] Cleared ${action} for ${chatId}, couldn't send message (blocked?)`)
+          }
+        }
+      }
+    } catch (err) {
+      log(`[PaymentTimeout] Error: ${err.message}`)
+    }
+  }
+  
+  // Run first check after 10 minutes, then every 30 minutes
+  setTimeout(() => cleanupStuckPayments(), 10 * 60 * 1000)
+  setInterval(cleanupStuckPayments, PAYMENT_CHECK_INTERVAL_MS)
+  log(`[PaymentTimeout] Scheduled every ${PAYMENT_CHECK_INTERVAL_MS / 60000}min (timeout: ${PAYMENT_TIMEOUT_MS / 3600000}h)`)
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // Abandoned cart recovery for digital products
+  // Send reminder after 2h of inactivity in digital-product-pay state
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  const ABANDONED_CART_DELAY_MS = 2 * 60 * 60 * 1000 // 2 hours
+  const ABANDONED_CART_CHECK_INTERVAL_MS = 30 * 60 * 1000 // check every 30 minutes
+  
+  async function checkAbandonedCarts() {
+    try {
+      const now = Date.now()
+      const cutoffMin = new Date(now - ABANDONED_CART_DELAY_MS)
+      const cutoffMax = new Date(now - (ABANDONED_CART_DELAY_MS + ABANDONED_CART_CHECK_INTERVAL_MS))
+      
+      // Find users in digital-product-pay state for exactly 2-2.5h (send reminder once)
+      const abandonedUsers = await state.find({
+        action: 'digital-product-pay',
+        lastMessageAt: { $gte: cutoffMax, $lt: cutoffMin },
+        abandonedCartReminderSent: { $ne: true }
+      }).toArray()
+      
+      if (abandonedUsers.length > 0) {
+        log(`[AbandonedCart] Found ${abandonedUsers.length} abandoned digital product carts`)
+        
+        for (const userState of abandonedUsers) {
+          const chatId = userState._id
+          const lang = userState.userLanguage || 'en'
+          const t = translation('t', lang)
+          const productName = userState.tempProduct || 'product'
+          const productPrice = userState.tempPrice || 0
+          
+          try {
+            const reminderMsg = t.abandonedCartReminder 
+              ? t.abandonedCartReminder(productName, productPrice)
+              : `🛒 <b>Still interested in ${productName}?</b>\n\n` +
+                `You left it in your cart ${Math.floor(ABANDONED_CART_DELAY_MS / 3600000)} hours ago.\n\n` +
+                `💳 Price: $${productPrice}\n\n` +
+                `Complete your purchase now! The product is waiting for you. 🎁\n\n` +
+                `Tap /start to continue or 💬 Support if you have questions.`
+            
+            await send(chatId, reminderMsg, { parse_mode: 'HTML' })
+            
+            // Mark reminder as sent to avoid duplicate reminders
+            await set(state, chatId, 'abandonedCartReminderSent', true)
+            
+            log(`[AbandonedCart] Sent reminder to ${chatId} for "${productName}" ($${productPrice})`)
+          } catch (sendErr) {
+            // User might have blocked bot
+            log(`[AbandonedCart] Couldn't send reminder to ${chatId}: ${sendErr.message}`)
+          }
+        }
+      }
+    } catch (err) {
+      log(`[AbandonedCart] Error: ${err.message}`)
+    }
+  }
+  
+  // Run first check after 15 minutes, then every 30 minutes
+  setTimeout(() => checkAbandonedCarts(), 15 * 60 * 1000)
+  setInterval(checkAbandonedCarts, ABANDONED_CART_CHECK_INTERVAL_MS)
+  log(`[AbandonedCart] Scheduled every ${ABANDONED_CART_CHECK_INTERVAL_MS / 60000}min (reminder delay: ${ABANDONED_CART_DELAY_MS / 3600000}h)`)
+
   // ── Regulatory Bundle status checker (auto-purchase on approval, refund on rejection) ──
   setTimeout(() => checkPendingBundles(), 60000) // first check 1 min after startup
   setInterval(checkPendingBundles, BUNDLE_CHECK_INTERVAL_MS)
@@ -6513,6 +6637,9 @@ Enter new value:`), bc)
       send(chatId, t.showWallet(usd))
       send(chatId, t.dpOrderConfirmed(product, priceUsd, orderId), trans('o'))
       checkAndNotifyTierUpgrade(preSpend)
+
+      // Clear abandoned cart reminder flag (user completed purchase)
+      await set(state, chatId, 'abandonedCartReminderSent', null)
 
       notifyGroup(`🛒 <b>New Digital Product Order!</b>\n\n👤 User: ${maskName(name)}\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${priceUsd}</b>\n\n✅ Order placed successfully.`)
       if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🛒 <b>New Digital Product Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${priceUsd}</b> (Wallet USD)\n\n📩 Deliver with:\n<code>/deliver ${orderId} [product details/credentials]</code>`, { parse_mode: 'HTML' })
