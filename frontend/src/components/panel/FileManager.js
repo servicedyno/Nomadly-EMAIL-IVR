@@ -61,31 +61,66 @@ export default function FileManager() {
   };
 
   const handleUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+    const selected = Array.from(e.target.files || []);
+    if (!selected.length) return;
     setUploading(true);
     setError('');
     setSuccessMessage('');
+    const total = selected.length;
+    let done = 0;
+    let failures = [];
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('dir', currentDir);
-      await api('/files/upload', { method: 'POST', body: formData });
-      
-      // Show success message with URL
-      const uploadedUrl = getPublicUrl(file.name, false);
-      if (uploadedUrl) {
-        setSuccessMessage(`✅ File uploaded! Access it at: ${uploadedUrl}`);
-        setTimeout(() => setSuccessMessage(''), 8000);
+      for (const file of selected) {
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('dir', currentDir);
+          await api('/files/upload', { method: 'POST', body: formData });
+          done++;
+          // Live progress for multi-file batches
+          if (total > 1) setSuccessMessage(`⬆️ Uploading ${done}/${total} — ${file.name}`);
+        } catch (err) {
+          failures.push({ name: file.name, msg: friendlyUploadError(err) });
+        }
       }
-      
+
+      if (failures.length === 0) {
+        if (total === 1) {
+          const uploadedUrl = getPublicUrl(selected[0].name, false);
+          setSuccessMessage(uploadedUrl
+            ? `✅ File uploaded! Access it at: ${uploadedUrl}`
+            : `✅ File uploaded!`);
+        } else {
+          setSuccessMessage(`✅ ${done} files uploaded to ${currentDir}`);
+        }
+        setTimeout(() => setSuccessMessage(''), 8000);
+      } else {
+        const first = failures[0];
+        setError(failures.length === 1
+          ? `${first.name}: ${first.msg}`
+          : `${done}/${total} uploaded — ${failures.length} failed. First error — ${first.name}: ${first.msg}`);
+      }
+
       fetchFiles(currentDir);
-    } catch (err) {
-      setError(err.message);
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  };
+
+  // Make "Request failed (499/500/etc.)" readable and actionable for end users
+  const friendlyUploadError = (err) => {
+    const m = String(err?.message || err || '');
+    if (/499|aborted|cancelled/i.test(m)) {
+      return 'Upload interrupted (network/timeout). Please retry — for whole sites, upload a .zip and use Unzip.';
+    }
+    if (/too large|LIMIT_FILE_SIZE|413/i.test(m)) {
+      return 'File exceeds 100 MB limit. Split it, or compress into a .zip and Unzip here.';
+    }
+    if (/500/.test(m)) {
+      return 'Server error during upload. Try again, or upload a .zip and use Unzip.';
+    }
+    return m || 'Upload failed.';
   };
 
   const handleDelete = async (fileName) => {
@@ -290,7 +325,7 @@ export default function FileManager() {
           </button>
           <label className={`fm-btn fm-btn--primary ${uploading ? 'fm-btn--loading' : ''}`}>
             {uploading ? 'Uploading...' : 'Upload'}
-            <input type="file" ref={fileInputRef} onChange={handleUpload} style={{ display: 'none' }} data-testid="fm-upload-input" />
+            <input type="file" multiple ref={fileInputRef} onChange={handleUpload} style={{ display: 'none' }} data-testid="fm-upload-input" />
           </label>
         </div>
       </div>
@@ -316,6 +351,17 @@ export default function FileManager() {
       {successMessage && (
         <div className="fm-success" data-testid="fm-success">
           {successMessage}
+        </div>
+      )}
+
+      {/* Bulk-upload helper tip — shown when directory is mostly empty */}
+      {!loading && files.length <= 2 && !error && !successMessage && (
+        <div className="fm-tip" data-testid="fm-bulk-tip" style={{
+          margin: '8px 0', padding: '10px 12px', borderRadius: 6,
+          background: 'rgba(59,130,246,.08)', border: '1px solid rgba(59,130,246,.25)',
+          color: '#1e3a8a', fontSize: 13, lineHeight: 1.45,
+        }}>
+          💡 <b>Uploading a whole site?</b> Select multiple files at once, or upload a <b>.zip</b> of your site and tap <b>Unzip</b> on it — the whole structure will be extracted here.
         </div>
       )}
 

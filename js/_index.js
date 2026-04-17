@@ -3076,6 +3076,13 @@ bot?.on('message', msg => {
     }
   }
 
+  // Bug 7 fix: Immediate "typing" indicator — fire-and-forget so the user sees
+  // instant visual feedback while we enqueue + process. Reduces perceived
+  // latency and cuts down on duplicate /start / button-spam taps.
+  if (chatId && msgText) {
+    bot?.sendChatAction?.(chatId, 'typing').catch(() => {})
+  }
+
   // Private chats — enqueue per user to serialize processing
   _enqueue(chatId, async () => {
   let message = msg?.text || ''
@@ -7332,6 +7339,10 @@ All verified numbers generated during sourcing.`))
   }
 
   if (message === '/start' || message.startsWith('/start ref_')) {
+    // Bug 7: Immediate typing indicator — gives instant visual feedback so users
+    // don't tap /start multiple times while waiting for the first reply.
+    bot?.sendChatAction?.(chatId, 'typing').catch(() => {})
+
     // U1 fix: Record cart abandonment when user presses /start from a payment screen
     // The cart-abandonment system only tracked Back/Cancel buttons — /start bypassed it entirely
     if (cartRecovery && action && cartRecovery.PAYMENT_ACTIONS.has(action)) {
@@ -7642,10 +7653,10 @@ All verified numbers generated during sourcing.`))
   const ob = onboardingButtons[lang] || onboardingButtons.en
 
   if (message === ob.claim || message === onboardingButtons.en.claim) {
-    // Claim free links - mark onboarding complete and go to URL shortener
+    // Claim free links - mark onboarding complete and go to URL shortener submenu
     await markOnboardingComplete(db, chatId)
     await set(state, chatId, 'action', a.urlShortener)
-    return goto.urlShortener()
+    return goto.submenu1()
   }
 
   if (message === ob.tour || message === onboardingButtons.en.tour) {
