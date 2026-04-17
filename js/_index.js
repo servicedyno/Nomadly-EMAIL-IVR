@@ -22072,7 +22072,10 @@ Select a category:`), k.of(catBtns))
 
   // ── SMS App: Download App ──
   if (message === user.smsDownloadApp) {
-    return send(chatId, t.freeTrialAvailable(chatId), { parse_mode: 'HTML', disable_web_page_preview: true })
+    const plan = await get(planOf, chatId) || 'none'
+    const planExpiry = await get(planEndingTime, chatId) || 0
+    const isSubscribed = planExpiry > Date.now()
+    return send(chatId, t.smsAppActivationCode(chatId, plan, isSubscribed), { parse_mode: 'HTML', disable_web_page_preview: true })
   }
 
   if (action === 'smsapp_campaign_name') {

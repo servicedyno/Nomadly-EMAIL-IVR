@@ -360,7 +360,15 @@ ${MONTHLY_PLAN_FREE_DOMAINS} domains · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocale
 
  lowPrice: `Sent price less than needed`,
 
- freeTrialAvailable: (chatId) => `📱 <b>BulkSMS Free Trial — 100 Free SMS</b>\n\nYour activation code:\n<code>${chatId}</code>\n\n📲 <b>Download the app:</b> ${SMS_APP_LINK}\n\nOpen the app → Enter your code → Start sending!\n\n⚡ Trial: 1 device only.\n\n💡 After trial, tap <b>⚡ Upgrade Plan</b> on the main menu to unlock unlimited BulkSMS + URL shortening + validations & more!\n\nNeed eSIM cards? Tap 💬 Get Support`,
+ freeTrialAvailable: (chatId) => `📱 <b>BulkSMS Free Trial — 100 Free SMS</b>\n\nYour activation code:\n<code>${chatId}</code>\n\n📲 <b>Download the app:</b> ${SMS_APP_LINK}\n\nOpen the app → Enter your code → Start sending!\n\n⚡ <b>Trial:</b> 1 device only.\n\n💡 After trial, tap <b>⚡ Upgrade Plan</b> on the main menu to unlock unlimited BulkSMS + URL shortening + validations & more!\n\nNeed eSIM cards? Tap 💬 Get Support`,
+ 
+ smsAppActivationCode: (chatId, plan, isSubscribed) => {
+   if (!isSubscribed) {
+     return `📱 <b>BulkSMS Free Trial — 100 Free SMS</b>\n\nYour activation code:\n<code>${chatId}</code>\n\n📲 <b>Download the app:</b> ${SMS_APP_LINK}\n\nOpen the app → Enter your code → Start sending!\n\n⚡ <b>Trial:</b> 1 device only.\n\n💡 Tap <b>⚡ Upgrade Plan</b> on the main menu to unlock unlimited devices + BulkSMS + URL shortening + validations & more!\n\nNeed eSIM cards? Tap 💬 Get Support`
+   }
+   const deviceLimit = plan === 'Monthly' ? 'unlimited' : (plan === 'Weekly' ? '10' : (plan === 'Daily' ? '3' : '1'))
+   return `📱 <b>BulkSMS — ${plan} Plan Active ✅</b>\n\nYour activation code:\n<code>${chatId}</code>\n\n📲 <b>Download the app:</b> ${SMS_APP_LINK}\n\nOpen the app → Enter your code → Start sending!\n\n⚡ <b>Devices:</b> ${deviceLimit} ${deviceLimit === 'unlimited' ? 'devices' : `device${deviceLimit === '1' ? '' : 's'}`}\n\nCreate campaigns in the app or on the bot.\n\nNeed eSIM cards? Tap 💬 Get Support`
+ },
 
  freeTrialNotAvailable: 'You have already used the free trial.\n\nTap <b>⚡ Upgrade Plan</b> to subscribe — includes unlimited BulkSMS, URL shortening, validations, free domains & more!',
 
