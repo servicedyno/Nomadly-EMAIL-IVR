@@ -3335,12 +3335,17 @@ bot?.on('message', msg => {
     }
     const targetName = await get(nameOf, targetChatId)
     
-    // Get user's language
+    // Get user's stored language AND last detected message language
     const targetState = await get(state, targetChatId)
-    const userLang = targetState?.userLanguage || 'en'
+    const userBotLang = targetState?.userLanguage || 'en'
+    const lastDetectedLang = targetState?.lastMessageLanguage || userBotLang
     
-    // Auto-translate admin's English message to user's language
-    const translation = await translationService.translateAdminReplyForUser(replyText, userLang)
+    // Use detected language from their last message (more accurate)
+    // If they typed French even though bot is in English, reply in French
+    const targetLang = lastDetectedLang
+    
+    // Auto-translate admin's English message to detected language
+    const translation = await translationService.translateAdminReplyForUser(replyText, targetLang)
     
     // Send translated message to user
     send(targetChatId, `💬 <b>Support:</b>\n${translation.translated}`, { 
@@ -3352,12 +3357,13 @@ bot?.on('message', msg => {
     if (translation.needsTranslation) {
       send(chatId, 
         `✅ Reply sent to ${targetName || targetChatId}\n\n` +
-        `🌐 Auto-translated to ${translation.langName}:\n` +
-        `<i>${translation.translated}</i>`, 
+        `🌐 Auto-translated to ${translation.langName} (detected from their last message):\n` +
+        `<i>${translation.translated}</i>\n\n` +
+        `💡 Bot language: ${userBotLang.toUpperCase()} | Message language: ${targetLang.toUpperCase()}`, 
         { parse_mode: 'HTML' }
       )
     } else {
-      send(chatId, `✅ Reply sent to ${targetName || targetChatId}`)
+      send(chatId, `✅ Reply sent to ${targetName || targetChatId} (no translation needed)`)
     }
     
     // Re-open support session so user's next message goes to admin
@@ -3365,7 +3371,7 @@ bot?.on('message', msg => {
     await set(state, targetChatId, 'action', 'supportChat')
     // Mark admin takeover — AI will not auto-respond until session is closed and reopened
     await set(state, targetChatId, 'adminTakeover', true)
-    log(`[Support] Admin replied to ${targetChatId}: ${replyText} (translated: ${translation.needsTranslation}) — session re-opened, admin takeover ON`)
+    log(`[Support] Admin replied to ${targetChatId}: ${replyText} (targetLang: ${targetLang}, translated: ${translation.needsTranslation}) — session re-opened, admin takeover ON`)
     return
   }
 
@@ -7754,8 +7760,9 @@ All verified numbers generated during sourcing.`))
     const isAdminTakeover = stateObj?.adminTakeover === true
     const userLang = stateObj?.userLanguage || 'en'
     
-    // Auto-translate user's message to English for admin
-    const translation = await translationService.translateUserMessageForAdmin(message, userLang)
+    // Auto-detect ACTUAL language of the message (don't rely on stored preference)
+    // User might have bot in English but message support in French
+    const translation = await translationService.translateUserMessageForAdmin(message, null) // null = auto-detect
     
     // Format message for admin with translation
     let adminMsg = `💬 <b>${displayName}</b> (${chatId})`
@@ -7773,11 +7780,18 @@ All verified numbers generated during sourcing.`))
       adminMsg += '\n\n🔒 <i>Admin takeover active — AI silenced</i>'
     }
     
-    adminMsg += `\n\n↩️ /reply ${chatId} <i>type response</i>`
+    // Add detected language info for admin context
+    adminMsg += `\n\n💬 User's bot language: ${userLang.toUpperCase()}`
+    adminMsg += `\n📝 Detected message language: ${translation.detectedLang.toUpperCase()}`
+    adminMsg += `\n\n↩️ /reply ${chatId} <i>type response (auto-translates to ${translation.detectedLang.toUpperCase()})</i>`
 
     // Always forward user message to admin
     send(TELEGRAM_ADMIN_CHAT_ID, adminMsg, { parse_mode: 'HTML' })
-    log(`[Support] ${chatId} -> admin: ${message} (lang: ${userLang}, translated: ${translation.needsTranslation}, adminTakeover: ${isAdminTakeover})`)
+    
+    // Store detected language for future admin replies
+    await set(state, chatId, 'lastMessageLanguage', translation.detectedLang)
+    
+    log(`[Support] ${chatId} -> admin: ${message} (botLang: ${userLang}, msgLang: ${translation.detectedLang}, translated: ${translation.needsTranslation}, adminTakeover: ${isAdminTakeover})`)
 
     // If admin has taken over, skip AI — only forward to admin
     if (isAdminTakeover) {

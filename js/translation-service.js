@@ -122,11 +122,13 @@ async function translateText(text, targetLang, sourceLang = null) {
 /**
  * Translate user message to English for admin
  * @param {string} text - User's message
- * @param {string} userLang - User's language code
+ * @param {string} userLang - User's language code (optional, will auto-detect if null)
  * @returns {Promise<{original: string, translated: string, detectedLang: string}>}
  */
 async function translateUserMessageForAdmin(text, userLang) {
-  const detectedLang = userLang || await detectLanguage(text)
+  // Always auto-detect the actual language of the message
+  // Don't trust stored user language - user might type in different language
+  const detectedLang = await detectLanguage(text)
   
   if (detectedLang === 'en') {
     return {
