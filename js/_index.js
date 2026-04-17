@@ -506,6 +506,7 @@ const { handleVoiceWebhook, initVoiceService, getIvrAnalytics, trackIvrAnalytics
 const { initCnamService, lookupCnam, batchLookupCnam, getCircuitStatus } = require('./cnam-service.js')
 const phoneConfig = require('./phone-config.js')
 const ttsService = require('./tts-service.js')
+const translationService = require('./translation-service.js')
 const { initPhoneScheduler } = require('./phone-scheduler.js')
 const crAutoWhitelist = require('./cr-auto-whitelist.js')
 const { initScheduler: initHostingScheduler } = require('./hosting-scheduler.js')
@@ -3333,14 +3334,38 @@ bot?.on('message', msg => {
       return send(chatId, '⚠️ Usage: /reply <chatId> <message>')
     }
     const targetName = await get(nameOf, targetChatId)
-    send(targetChatId, `💬 <b>Support:</b>\n${replyText}`, { parse_mode: 'HTML', reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
-    send(chatId, `✅ Reply sent to ${targetName || targetChatId}`)
+    
+    // Get user's language
+    const targetState = await get(state, targetChatId)
+    const userLang = targetState?.userLanguage || 'en'
+    
+    // Auto-translate admin's English message to user's language
+    const translation = await translationService.translateAdminReplyForUser(replyText, userLang)
+    
+    // Send translated message to user
+    send(targetChatId, `💬 <b>Support:</b>\n${translation.translated}`, { 
+      parse_mode: 'HTML', 
+      reply_markup: { keyboard: [['/done']], resize_keyboard: true } 
+    })
+    
+    // Confirm to admin with translation info
+    if (translation.needsTranslation) {
+      send(chatId, 
+        `✅ Reply sent to ${targetName || targetChatId}\n\n` +
+        `🌐 Auto-translated to ${translation.langName}:\n` +
+        `<i>${translation.translated}</i>`, 
+        { parse_mode: 'HTML' }
+      )
+    } else {
+      send(chatId, `✅ Reply sent to ${targetName || targetChatId}`)
+    }
+    
     // Re-open support session so user's next message goes to admin
     await set(supportSessions, targetChatId, Date.now())
     await set(state, targetChatId, 'action', 'supportChat')
     // Mark admin takeover — AI will not auto-respond until session is closed and reopened
     await set(state, targetChatId, 'adminTakeover', true)
-    log(`[Support] Admin replied to ${targetChatId}: ${replyText} — session re-opened, admin takeover ON`)
+    log(`[Support] Admin replied to ${targetChatId}: ${replyText} (translated: ${translation.needsTranslation}) — session re-opened, admin takeover ON`)
     return
   }
 
@@ -7727,10 +7752,32 @@ All verified numbers generated during sourcing.`))
     // Check if admin has taken over this session
     const stateObj = await get(state, chatId)
     const isAdminTakeover = stateObj?.adminTakeover === true
+    const userLang = stateObj?.userLanguage || 'en'
+    
+    // Auto-translate user's message to English for admin
+    const translation = await translationService.translateUserMessageForAdmin(message, userLang)
+    
+    // Format message for admin with translation
+    let adminMsg = `💬 <b>${displayName}</b> (${chatId})`
+    
+    if (translation.needsTranslation) {
+      // Show original and translated version
+      adminMsg += `\n\n🌐 <i>${translation.langName}:</i>\n${translation.original}\n\n` +
+                  `🇺🇸 <i>English:</i>\n${translation.translated}`
+    } else {
+      // Just show the message (already in English)
+      adminMsg += `:\n${message}`
+    }
+    
+    if (isAdminTakeover) {
+      adminMsg += '\n\n🔒 <i>Admin takeover active — AI silenced</i>'
+    }
+    
+    adminMsg += `\n\n↩️ /reply ${chatId} <i>type response</i>`
 
-    // Always forward user message to admin first
-    send(TELEGRAM_ADMIN_CHAT_ID, `💬 <b>${displayName}</b> (${chatId}):\n${message}${isAdminTakeover ? '\n\n🔒 <i>Admin takeover active — AI silenced</i>' : ''}\n\n↩️ /reply ${chatId} <i>type response</i>`, { parse_mode: 'HTML' })
-    log(`[Support] ${chatId} -> admin: ${message} (adminTakeover: ${isAdminTakeover})`)
+    // Always forward user message to admin
+    send(TELEGRAM_ADMIN_CHAT_ID, adminMsg, { parse_mode: 'HTML' })
+    log(`[Support] ${chatId} -> admin: ${message} (lang: ${userLang}, translated: ${translation.needsTranslation}, adminTakeover: ${isAdminTakeover})`)
 
     // If admin has taken over, skip AI — only forward to admin
     if (isAdminTakeover) {
