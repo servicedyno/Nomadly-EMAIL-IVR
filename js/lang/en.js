@@ -2131,6 +2131,7 @@ const supportedCrypto = {
 
 /////////////////////////////////////////////////////////////////////////////////////
 const _bc = ['Back', 'Cancel']
+const _bcm = ['Back', '🏠 Main Menu', 'Cancel']
 
 const payIn = {
  crypto: 'Crypto',
@@ -2185,7 +2186,7 @@ const k = {
 
  pay: {
  reply_markup: {
- keyboard: [Object.values(payIn), _bc],
+ keyboard: [Object.values(payIn), ['💬 Ask Question'], _bcm],
  },
  parse_mode: 'HTML',
  },

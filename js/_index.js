@@ -4487,6 +4487,7 @@ bot?.on('message', msg => {
         [t.dpEsim],
         [t.dpEsimAirvoice],
         [t.dpIonosSmtp],
+        [t.back, '🏠 Main Menu'],
       ]))
     },
     'digital-product-pay': async () => {
@@ -4551,6 +4552,7 @@ bot?.on('message', msg => {
         [t.mpMyConversations],
         [t.mpMyListings],
         [t.mpAiHelper],
+        [t.back, '🏠 Main Menu'],
       ]))
     },
     'leads-pay': async () => {
@@ -8043,8 +8045,17 @@ All verified numbers generated during sourcing.`))
     ]))
   }
   //
-  if (message === t.cancel || (firstSteps.includes(action) && message === t.back)) {
+  if (message === t.cancel || message === '🏠 Main Menu' || (firstSteps.includes(action) && message === t.back)) {
     await set(state, chatId, 'action', 'none')
+    if (action === a.supportChat) {
+      // Cancel from support should end support session
+      await set(supportSessions, chatId, 0)
+      await set(state, chatId, 'adminTakeover', false)
+      clearAiHistory(chatId)
+      const name = await get(nameOf, chatId)
+      send(TELEGRAM_ADMIN_CHAT_ID, `📴 Support session closed by user <b>${name || chatId}</b> (${chatId}) via Cancel/Main Menu`, { parse_mode: 'HTML' })
+      log(`[Support] Session ended by user ${chatId} via Cancel/Main Menu`)
+    }
     if (isAdmin(chatId)) return send(chatId, t.userPressedBtn(message), aO)
     const greeting = await getMainMenuGreeting()
     return send(chatId, greeting, trans('o'))
@@ -10542,6 +10553,23 @@ ${message.replace(/\n/g, '<br>')}
   // Digital Products: payment method selection
   if (action === a.digitalProductPay) {
     if (message === t.back) return goto.submenu6()
+    if (message === '🏠 Main Menu') return goto.displayMainMenuButtons()
+    
+    // Handle "Ask Question" button - direct user to support
+    if (message === '💬 Ask Question') {
+      const product = info?.dpProductName
+      const price = info?.dpPrice
+      const supportMsg = `💬 <b>Questions about ${product}?</b>\n\n` +
+        `Our support team can help with:\n` +
+        `• Product details & features\n` +
+        `• Delivery timeframe\n` +
+        `• Payment options\n` +
+        `• Custom requirements\n\n` +
+        `📩 Contact: ${process.env.APP_SUPPORT_LINK || '@nomadlysupport'}\n\n` +
+        `<i>Tip: When you're ready to purchase, just come back and select a payment method!</i>`
+      send(chatId, supportMsg, { parse_mode: 'HTML', ...k.of([[t.back, '🏠 Main Menu']]) })
+      return
+    }
 
     const payOption = message
 
