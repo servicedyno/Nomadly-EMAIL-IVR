@@ -140,6 +140,13 @@ async function get(c, key) {
       console.error(`Error get: ${key} — collection is ${c === null ? 'null' : typeof c} (not a valid MongoDB collection)`)
       return null
     }
+    
+    // Convert key to string for user-related collections to prevent float ID issues
+    const userCollections = ['nameOf', 'walletOf', 'chatIdOf', 'state', 'userConversion']
+    if (userCollections.includes(c.collectionName)) {
+      key = String(key)
+    }
+    
     const result = await withRetry(() =>
       c.findOne({ _id: key }),
       `get(${c.collectionName}, ${key})`
@@ -189,6 +196,12 @@ async function set(c, key, value, valueInside) {
 
     if (key === undefined || key === null) {
       throw new Error('Key cannot be undefined or null')
+    }
+    
+    // Convert key to string for user-related collections to prevent float ID issues
+    const userCollections = ['nameOf', 'walletOf', 'chatIdOf', 'state', 'userConversion']
+    if (userCollections.includes(c.collectionName)) {
+      key = String(key)
     }
 
     let result
