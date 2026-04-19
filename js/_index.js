@@ -8168,6 +8168,9 @@ All verified numbers generated during sourcing.`))
     } catch (e) { /* non-critical */ }
 
     // ── Guided Onboarding for new users (Feature 1) ──
+    // UX change: keep the welcome text but show the regular main menu keyboard
+    // instead of the 3-CTA + "Skip — Show Full Menu" keyboard. User lands
+    // directly on the main menu after language selection.
     try {
       await set(state, chatId, 'isNewUser', true)
       await set(state, chatId, 'joinedAt', new Date())
@@ -8175,12 +8178,15 @@ All verified numbers generated during sourcing.`))
       if (userConversion) {
         const displayName = msg?.from?.first_name || username
         const welcomeAmount = parseFloat(process.env.WELCOME_BONUS_USD || '3')
-        await userConversion.sendGuidedOnboarding(chatId, displayName, validLanguage, welcomeAmount)
+        // Grab the main menu keyboard (in the user's language) and attach it
+        // to the welcome message so they land straight on the full menu.
+        const mainMenuMarkup = trans('o')?.reply_markup || null
+        await userConversion.sendGuidedOnboarding(chatId, displayName, validLanguage, welcomeAmount, { replyMarkup: mainMenuMarkup })
 
         // Schedule time-limited welcome offer (Feature 3) — 2 hours from now
         userConversion.scheduleWelcomeOffer(chatId, validLanguage)
 
-        // Don't show full menu yet — onboarding buttons are showing
+        // Welcome message with main menu keyboard was sent — we're done.
         return
       }
     } catch (e) { /* non-critical — fall through to normal menu */ }

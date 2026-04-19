@@ -253,7 +253,7 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
   // FEATURE 1: Guided Onboarding
   // ═══════════════════════════════════════════════════════════════════
 
-  async function sendGuidedOnboarding(chatId, name, lang = 'en', welcomeAmount = 3) {
+  async function sendGuidedOnboarding(chatId, name, lang = 'en', welcomeAmount = 3, opts = {}) {
     try {
       const msgs = ONBOARDING_MESSAGES[lang] || ONBOARDING_MESSAGES.en
 
@@ -264,7 +264,9 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
           $set: {
             chatId: parseFloat(chatId),
             onboardingStarted: true,
-            onboardingCompleted: false,
+            // If caller opts out of the CTA keyboard, treat onboarding as completed
+            // immediately — there are no CTA buttons to wait on.
+            onboardingCompleted: opts.replyMarkup !== undefined ? true : false,
             joinedAt: new Date(),
             lang,
           },
@@ -277,18 +279,25 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
         { upsert: true }
       )
 
-      // Send step 1 with buttons — delayed slightly so it comes after welcome bonus
+      // Send welcome step — delayed slightly so it lands after the welcome-bonus message
       setTimeout(() => {
         const stepMsg = msgs.step1(name, welcomeAmount.toFixed(2))
-        log('reply: ' + stepMsg + ' ' + JSON.stringify(msgs.step1Buttons) + '\tto: ' + chatId)
-        bot.sendMessage(chatId, stepMsg, {
-          parse_mode: 'HTML',
-          reply_markup: {
+        const sendOpts = { parse_mode: 'HTML' }
+
+        if (Object.prototype.hasOwnProperty.call(opts, 'replyMarkup')) {
+          // Caller provided an explicit markup (could be null to send without keyboard)
+          if (opts.replyMarkup) sendOpts.reply_markup = opts.replyMarkup
+        } else {
+          // Default: the original 3-CTA + Skip keyboard
+          sendOpts.reply_markup = {
             keyboard: msgs.step1Buttons,
             resize_keyboard: true,
             one_time_keyboard: true,
           }
-        }).catch(() => {})
+        }
+
+        log('reply: ' + stepMsg + (sendOpts.reply_markup ? ' ' + JSON.stringify(sendOpts.reply_markup.keyboard || '') : ' [no-keyboard]') + '\tto: ' + chatId)
+        bot.sendMessage(chatId, stepMsg, sendOpts).catch(() => {})
       }, 2000)
 
       log(`[Conversion] Onboarding started for ${chatId} (lang: ${lang})`)
