@@ -12463,7 +12463,10 @@ ${message.replace(/\n/g, '<br>')}
         let _shortUrl
         try {
           _shortUrl = await createShortUrlApi(__shortUrl)
-        } catch (_) {
+          log(`[Shortener] RapidAPI success: ${_shortUrl}`)
+        } catch (error) {
+          log(`[Shortener] RapidAPI failed: ${error?.message || error}, falling back to SELF_URL`)
+          send(TELEGRAM_ADMIN_CHAT_ID, `⚠️ RapidAPI URL shortener failed:\n${error?.message || error}`)
           _shortUrl = __shortUrl // fallback: use SELF_URL directly if external shortener fails
         }
         increment(totalShortLinks, 'total')
