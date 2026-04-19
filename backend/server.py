@@ -154,12 +154,24 @@ async def get_subaccount_statuses():
 # ============================================================
 # SMS APP: Serve APK download + web preview for testing
 # ============================================================
-SMS_APP_APK = Path(__file__).parent.parent / "static" / "nomadly-sms.apk"
+SMS_APP_APK = Path("/app/static/nomadly-sms.apk")
 SMS_APP_DIR = Path(__file__).parent.parent / "sms-app" / "www"
 
 @app.get("/api/sms-app/download")
 async def download_sms_app():
     """Serve the Nomadly SMS APK for download."""
+    if SMS_APP_APK.exists():
+        return FileResponse(
+            SMS_APP_APK,
+            media_type="application/vnd.android.package-archive",
+            filename="NomadlySMS.apk",
+            headers={"Content-Disposition": "attachment; filename=NomadlySMS.apk"}
+        )
+    return JSONResponse({"error": "APK not available"}, status_code=404)
+
+@app.get("/api/smsapp")
+async def download_sms_app_short():
+    """Short URL redirect for SMS app download."""
     if SMS_APP_APK.exists():
         return FileResponse(
             SMS_APP_APK,
