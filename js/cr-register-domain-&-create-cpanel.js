@@ -483,18 +483,6 @@ Login: ${panelUrl}
 
 <i>Quote this ID when contacting support</i>`
       send(chatId, credentialsMsg, keyboardButtons)
-      
-      // Send DNS propagation info with checker button
-      const { message: dnsMsg, keyboard: dnsKeyboard } = getDNSPropagationMessage(domain, lang)
-      send(chatId, dnsMsg, { 
-        parse_mode: 'HTML',
-        reply_markup: { 
-          inline_keyboard: dnsKeyboard.map(row => 
-            row.map(text => ({ text, callback_data: `dns_check_${domain}` }))
-          )
-        }
-      })
-    }
 
     assignPackageToUser(state, chatId, info.plan)
 
