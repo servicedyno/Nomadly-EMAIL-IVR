@@ -1652,6 +1652,10 @@ ${CHAT_BOT_NAME}`,
  dom_7: (requested, delivered, requesteddelivered, toFixed, reasonText, v5) => `💰 <b>Partial Refund</b>\n\n📊 Ordered: ${requested} leads\n✅ Delivered: ${delivered} leads\n❌ Undelivered: ${requesteddelivered} leads\n\n💵 Refund: <b>$${toFixed}</b> returned to your portefeuille\n📝 Reason: ${reasonText}\n\n💰 Portefeuille: $${v5} USD`,
  dom_8: '💡 <b>Maximize your leads</b>\\n\\n📞 <b>Get a SVI Cloud</b> — call these leads with a local number\\n🎯 <b>Buy more leads</b> — target a different area or opérateur\\n🔗 <b>Shorten your links</b> — track your outreach campagnes\\n\\nTap an option below.',
  dom_9: (totalPrice, toFixed) => `❌ Solde de portefeuille insuffisant. Besoin de $${totalPrice}, vous avez $${toFixed}.\n\nRechargez votre portefeuille et réessayez.`,
+
+ // Post-purchase upsells (hosting & VPS)
+ host_5d: (domain) => `💡 <b>Votre hébergement pour ${domain} est en ligne !</b>\n\n🌐 <b>Achetez plus de domaines</b> — hébergez d'autres sites\n📞 <b>Cloud IVR + SIP</b> — laissez vos visiteurs vous appeler avec un numéro virtuel\n✂️🌐 <b>Raccourcisseur de domaine personnalisé</b> — suivez le trafic entrant avec des liens courts personnalisés\n\nTouchez une option ci-dessous.`,
+ vps_5d: '💡 <b>Votre VPS est prêt !</b>\n\n📧 <b>BulkSMS</b> — hébergez la passerelle SMS sur votre nouveau VPS\n📞 <b>Cloud IVR + SIP</b> — associez avec un numéro virtuel pour les appels entrants\n🌐 <b>Domaines anti-blocage</b> — pointez un domaine vers votre VPS\n\nTouchez une option ci-dessous.',
  ev_1: '🚧 Validation d\'email service is currently under maintenance. Veuillez réessayer plus tard.',
  ev_10: (message) => `❌ Erreur: ${message}`,
  ev_11: '❌ Invalide IPv4 format. Envoyer like: <code>1.2.3.4</code>',

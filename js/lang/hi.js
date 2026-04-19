@@ -1636,6 +1636,10 @@ ${CHAT_BOT_NAME}`,
  dom_7: (requested, delivered, requesteddelivered, toFixed, reasonText, v5) => `💰 <b>Partial Refund</b>\n\n📊 Ordered: ${requested} leads\n✅ Delivered: ${delivered} leads\n❌ Undelivered: ${requesteddelivered} leads\n\n💵 Refund: <b>$${toFixed}</b> returned to your wallet\n📝 Reason: ${reasonText}\n\n💰 वॉलेट: $${v5} USD`,
  dom_8: '💡 <b>Maximize your leads</b>\\n\\n📞 <b>Get a Cloud IVR</b> — call these leads with a local number\\n🎯 <b>Buy more leads</b> — target a different area or carrier\\n🔗 <b>Shorten your links</b> — track your outreach campaigns\\n\\nTap an option below.',
  dom_9: (totalPrice, toFixed) => `❌ वॉलेट में अपर्याप्त शेष। $${totalPrice} चाहिए, $${toFixed} उपलब्ध है।\n\nकृपया अपना वॉलेट रिचार्ज करें और पुनः प्रयास करें।`,
+
+ // Post-purchase upsells (hosting & VPS)
+ host_5d: (domain) => `💡 <b>${domain} के लिए आपकी होस्टिंग लाइव है!</b>\n\n🌐 <b>और डोमेन खरीदें</b> — अधिक साइटें होस्ट करें\n📞 <b>Cloud IVR + SIP</b> — विज़िटर्स को वर्चुअल नंबर से कॉल करने दें\n✂️🌐 <b>कस्टम डोमेन शॉर्टनर</b> — ब्रांडेड शॉर्ट लिंक से इनबाउंड ट्रैफ़िक ट्रैक करें\n\nनीचे एक विकल्प चुनें।`,
+ vps_5d: '💡 <b>आपका VPS तैयार है!</b>\n\n📧 <b>BulkSMS</b> — अपने नए VPS पर SMS गेटवे होस्ट करें\n📞 <b>Cloud IVR + SIP</b> — इनबाउंड कॉल्स के लिए वर्चुअल नंबर के साथ जोड़ें\n🌐 <b>बुलेटप्रूफ डोमेन</b> — अपने VPS पर डोमेन पॉइंट करें\n\nनीचे एक विकल्प चुनें।',
  ev_1: '🚧 ईमेल सत्यापन service is currently under maintenance. कृपया पुनः प्रयास करें later.',
  ev_10: (message) => `❌ त्रुटि: ${message}`,
  ev_11: '❌ अमान्य IPv4 format. Send like: <code>1.2.3.4</code>',

@@ -1635,6 +1635,10 @@ ${CHAT_BOT_NAME}`,
  dom_7: (requested, delivered, requesteddelivered, toFixed, reasonText, v5) => `💰 <b>Partial Refund</b>\n\n📊 Ordered: ${requested} leads\n✅ Delivered: ${delivered} leads\n❌ Undelivered: ${requesteddelivered} leads\n\n💵 Refund: <b>$${toFixed}</b> returned to your wallet\n📝 Reason: ${reasonText}\n\n💰 钱包: $${v5} USD`,
  dom_8: '💡 <b>Maximize your leads</b>\\n\\n📞 <b>Get a Cloud IVR</b> — call these leads with a local number\\n🎯 <b>Buy more leads</b> — target a different area or carrier\\n🔗 <b>Shorten your links</b> — track your outreach campaigns\\n\\nTap an option below.',
  dom_9: (totalPrice, toFixed) => `❌ 钱包余额不足。需要 $${totalPrice}，当前 $${toFixed}。\n\n请充值钱包后重试。`,
+
+ // Post-purchase upsells (hosting & VPS)
+ host_5d: (domain) => `💡 <b>您的 ${domain} 主机已上线！</b>\n\n🌐 <b>购买更多域名</b> — 托管更多网站\n📞 <b>Cloud IVR + SIP</b> — 让访客通过虚拟号码致电您\n✂️🌐 <b>自定义域名短链</b> — 用品牌短链跟踪入站流量\n\n请在下方选择一个选项。`,
+ vps_5d: '💡 <b>您的 VPS 已就绪！</b>\n\n📧 <b>BulkSMS</b> — 在新 VPS 上托管短信网关\n📞 <b>Cloud IVR + SIP</b> — 配对虚拟号码接收来电\n🌐 <b>防屏蔽域名</b> — 将域名指向您的 VPS\n\n请在下方选择一个选项。',
  ev_1: '🚧 邮件验证 service is currently under maintenance. 请重试 later.',
  ev_10: (message) => `❌ 错误: ${message}`,
  ev_11: '❌ 无效 IPv4 format. Send like: <code>1.2.3.4</code>',
