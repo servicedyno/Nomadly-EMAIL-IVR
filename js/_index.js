@@ -5374,7 +5374,7 @@ Enter new value:`), bc)
       await saveInfo('coin', u.usd)
       const { usdBal } = await getBalance(walletOf, chatId)
       const finalPrice = info?.couponApplied ? info?.newPrice : (info?.price || info?.totalPrice || 0)
-      send(chatId, t.walletSelectCurrency(usdBal) + `\n\n💵 Amount: <b>$${Number(finalPrice).toFixed(2)}</b>\n\n` + t.walletSelectCurrencyConfirm, trans('yes_no'))
+      send(chatId, t.walletSelectCurrency(usdBal) + `\n\n💵 Amount: <b>$${Number(finalPrice).toFixed(2)}</b>\n\n` + t.walletSelectCurrencyConfirm, k.of([[t.yes], [t.no], [t.back]]))
       await set(state, chatId, 'action', a.walletSelectCurrencyConfirm)
     },
     walletSelectCurrencyConfirm: async () => {
@@ -14816,7 +14816,27 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     return goto.walletSelectCurrencyConfirm()
   }
   if (action === a.walletSelectCurrencyConfirm) {
-    if (message === t.back || message === t.no) return goto[a.walletSelectCurrency]()
+    if (message === t.back) {
+      // Go back to payment method selection based on lastStep
+      const lastStep = info?.lastStep
+      if (lastStep === 'phone-pay') {
+        return goto['phone-pay']()
+      } else if (lastStep === 'domain-pay') {
+        return goto['domain-pay']()
+      } else if (lastStep === 'hosting-pay') {
+        return goto['hosting-pay']()
+      } else if (lastStep === 'vps-plan-pay') {
+        return goto['vps-plan-pay']()
+      } else if (lastStep === 'digital-product-pay') {
+        return goto['digital-product-pay']()
+      } else if (lastStep === 'virtual-card-pay') {
+        return goto['virtual-card-pay']()
+      } else {
+        // Default fallback
+        return goto[a.walletSelectCurrency]()
+      }
+    }
+    if (message === t.no) return goto[a.walletSelectCurrency]()
 
     if (message !== t.yes) return send(chatId, t.what)
 
