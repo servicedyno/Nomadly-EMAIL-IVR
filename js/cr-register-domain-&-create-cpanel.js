@@ -235,7 +235,22 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state,
           // For existing/external domains: update NS at registrar
           if (!isNewDomain && cfNameservers.length >= 2) {
             try {
-              const registrar = info?.registrar || 'ConnectReseller'
+              let registrar = info?.registrar || 'ConnectReseller'
+              
+              // For external domains, auto-detect registrar if not specified
+              if (isExternal && !info?.registrar) {
+                log(`[Hosting] Auto-detecting registrar for external domain ${domain}...`)
+                // Check OpenProvider first (most common for external domains)
+                const opCheck = await opService.getDomainInfo(domain)
+                if (opCheck && opCheck.domainId) {
+                  registrar = 'OpenProvider'
+                  log(`[Hosting] Detected ${domain} in OpenProvider account`)
+                } else {
+                  // Domain not in OP, keep default ConnectReseller
+                  log(`[Hosting] ${domain} not found in OpenProvider, trying ConnectReseller`)
+                }
+              }
+              
               const nsResult = await domainService.postRegistrationNSUpdate(domain, registrar, 'cloudflare', cfNameservers, null)
               if (nsResult.success) {
                 log(`[Hosting] Updated NS at ${registrar} for ${domain} → ${cfNameservers.join(', ')}`)
