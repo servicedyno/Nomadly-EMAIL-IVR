@@ -6498,7 +6498,7 @@ Enter new value:`), bc)
         notifyGroup(`🌐 <b>Domain Registered!</b>\nUser ${maskName(name)} just claimed <b>${maskDomain(domain)}</b> — your dream domain could be next.\nGrab yours before it's taken — /start`)
         checkAndNotifyTierUpgrade(preSpend)
         setTimeout(() => {
-          send(chatId, trans('t.dom_4', domain, domain), k.of([['🔗 Activate Domain for Shortener'], ['📞 Cloud IVR + SIP'], [t.back]]))
+          send(chatId, trans('t.dom_4', domain, domain), k.of([['🔗 Activate Domain for Shortener'], ['🛡️🔥 Anti-Red Hosting'], [t.back]]))
         }, 2000)
       } catch (domainErr) {
         log(`[Domain] Purchase crashed for ${chatId}: ${domainErr.message}`)
