@@ -924,6 +924,29 @@ const maskDomain = domain => {
   return name.slice(0, visible) + '***' + tld
 }
 
+// Reusable post-domain-registration upsell — keep parity across wallet/bank/crypto/dynopay paths.
+// Sends "What's next with {domain}?" message + keyboard offering valid domain pairings
+// (URL Shortener + Anti-Red Hosting). Used by Express route handlers where
+// the inner-scope `send`/`trans`/`k`/`t` helpers aren't available.
+const sendDomainUpsell = (chatId, lang, domain, delayMs = 2000) => {
+  setTimeout(() => {
+    try {
+      const backLabel = (translation && translation('t.back', lang)) || 'Back'
+      sendMessage(chatId, translation('t.dom_4', lang, domain, domain), {
+        reply_markup: {
+          keyboard: [
+            ['🔗 Activate Domain for Shortener'],
+            ['🛡️🔥 Anti-Red Hosting'],
+            [backLabel]
+          ],
+          resize_keyboard: true,
+        }
+      })
+    } catch (e) { log(`[Upsell] sendDomainUpsell error: ${e.message}`) }
+  }, delayMs)
+}
+
+
 // Send event notification to all registered groups + configured fallback targets
 const TELEGRAM_NOTIFY_GROUP_ID = process.env.TELEGRAM_NOTIFY_GROUP_ID
 const notifyGroup = async (message) => {
@@ -6558,6 +6581,10 @@ Enter new value:`), bc)
         const domain = info?.domain || info?.website_name
         notifyGroup(`🏠 <b>Hosting Activated!</b>\nUser ${maskName(name)} just set up hosting for <b>${maskDomain(domain)}</b> — ready for launch.\nBuild yours — /start`)
         sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🏠 <b>Hosting Purchase (Wallet)</b>\n🆔 User: ${chatId}\n🌐 Domain: ${domain}\n📋 Plan: ${info?.plan || 'N/A'}\n💵 Price: $${priceUsd}\n💳 Payment: Wallet USD`, { parse_mode: 'HTML' })
+        // Post-purchase upsell — what to do next with hosting
+        setTimeout(() => {
+          send(chatId, trans('t.host_5d', domain || 'your domain'), k.of([[user.domainNames], [user.cloudPhone], [user.urlShortener], [t.back]]))
+        }, 2000)
       } catch (e) { log('[Hosting] notifyGroup error: ' + e.message) }
     },
     'vps-plan-pay': async coin => {
@@ -6594,6 +6621,10 @@ Enter new value:`), bc)
         const { usdBal: usd } = await getBalance(walletOf, chatId)
         send(chatId, t.showWallet(usd), trans('o'))
         checkAndNotifyTierUpgrade(preSpend)
+        // Post-purchase upsell — what to do next with VPS
+        setTimeout(() => {
+          send(chatId, trans('t.vps_5d'), k.of([[user.smsAppMain], [user.cloudPhone], [user.domainNames], [t.back]]))
+        }, 2000)
         
       } catch (error) {
         log(`[VPS] Provisioning failed for ${chatId}: ${error.message}`)
@@ -7211,7 +7242,7 @@ All verified numbers generated during sourcing.`))
       checkAndNotifyTierUpgrade(preSpend)
       // Post-purchase upsell
       setTimeout(() => {
-        send(chatId, trans('t.dom_8'), k.of([[user.cloudPhone], [user.buyLeads], [t.back]]))
+        send(chatId, trans('t.dom_8'), k.of([[user.cloudPhone], [user.buyLeads], [user.urlShortener], [t.back]]))
       }, 3000)
     },
 
@@ -23868,6 +23899,7 @@ const bankApis = {
     subscribePlan(planEndingTime, freeDomainNamesAvailableFor, planOf, chatId, plan, bot, lang, freeValidationsAvailableFor)
     notifyGroup(`💎 <b>New Subscription!</b>\nUser ${maskName(name)} just upgraded to the <b>${plan} Plan</b> — unlocking unlimited URL shortening + ${(freeValidationsOf[plan] || 0).toLocaleString()} phone validations.\nDon't miss out — /start`)
     webhookTierCheck(chatId, preSpend, lang)
+
     if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
     if (userConversion) userConversion.markPurchased(chatId)
     await set(state, chatId, 'action', 'none') // Reset action after bank payment completes
@@ -23938,6 +23970,7 @@ const bankApis = {
     webhookTierCheck(chatId, preSpend, lang)
     if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
     if (userConversion) userConversion.markPurchased(chatId)
+    sendDomainUpsell(chatId, lang, domain) // Post-purchase upsell (parity with wallet path)
     await set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
   },
@@ -24888,6 +24921,7 @@ app.get('/crypto-pay-domain', auth, async (req, res) => {
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
+  sendDomainUpsell(chatId, lang, domain) // Post-purchase upsell (parity with wallet path)
   await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })
@@ -25583,6 +25617,7 @@ app.post('/dynopay/crypto-pay-domain', authDyno, async (req, res) => {
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
+  sendDomainUpsell(chatId, lang, domain) // Post-purchase upsell (parity with wallet path)
   await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
 })

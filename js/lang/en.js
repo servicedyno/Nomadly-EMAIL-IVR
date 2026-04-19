@@ -1927,6 +1927,10 @@ Service delivered.`,
  dom_8: '💡 <b>Maximize your leads</b>\\n\\n📞 <b>Get a Cloud IVR</b> — call these leads with a local number\\n🎯 <b>Buy more leads</b> — target a different area or carrier\\n🔗 <b>Shorten your links</b> — track your outreach campaigns\\n\\nTap an option below.',
  dom_9: (totalPrice, toFixed) => `❌ Insufficient wallet balance. Need $${totalPrice}, have $${toFixed}.\nDeposit more to your wallet and try again.`,
 
+ // Post-purchase upsells (hosting & VPS)
+ host_5d: (domain) => `💡 <b>Your hosting for ${domain} is live!</b>\n\n🌐 <b>Buy more domains</b> — host additional sites\n📞 <b>Cloud IVR + SIP</b> — let visitors call you with a virtual number\n✂️🌐 <b>Custom Domain Shortener</b> — track inbound traffic with branded short links\n\nTap an option below.`,
+ vps_5d: '💡 <b>Your VPS is ready!</b>\n\n📧 <b>BulkSMS</b> — host the SMS gateway on your new VPS\n📞 <b>Cloud IVR + SIP</b> — pair with a virtual number for inbound calls\n🌐 <b>Bulletproof Domains</b> — point a domain to your VPS\n\nTap an option below.',
+
  // === Leads ===
  ld_1: (toFixed) => `💵 $${toFixed} — `,
  ld_2: '🎯 Select your target institution.\\nReal, verified leads with phone owner names — matched by carrier from high-value metro areas:',
