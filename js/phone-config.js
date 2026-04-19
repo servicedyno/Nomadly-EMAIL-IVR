@@ -245,6 +245,7 @@ const btn = {
 const countries = [
   { code: 'US', name: '🇺🇸 United States', provider: 'telnyx' },
   { code: 'CA', name: '🇨🇦 Canada', provider: 'telnyx' },
+  { code: 'GB', name: '🇬🇧 United Kingdom', provider: 'telnyx' },  // Added: Telnyx also supports UK
 ]
 
 // Twilio countries (verified via live API query — instant activation, some need address)
