@@ -550,7 +550,7 @@ async function runUserWalletMonitor() {
     let warned = 0, scanned = 0
 
     for (const wallet of allWallets) {
-      const chatId = wallet._id
+      const chatId = String(wallet._id) // Ensure string for consistency
       scanned++
 
       try {
@@ -656,7 +656,7 @@ async function runUserWalletMonitor() {
         let preDialUnblocked = 0
         const allPhoneData = await _phoneNumbersOf.find({}).toArray()
         for (const phoneDoc of allPhoneData) {
-          const chatId = phoneDoc._id
+          const chatId = String(phoneDoc._id) // Ensure string for consistency
           if (chatId < 0) continue // skip group chats
           const numbers = phoneDoc?.val?.numbers || []
           const sipCredentials = numbers.filter(n => n.telnyxSipUsername || n.sipUsername).map(n => ({
@@ -1450,7 +1450,7 @@ async function handleBridgeTransferAnswered(payload) {
   // Notify bot user
   const parentSession = outboundIvrCalls[transfer.originalCallControlId] || activeCalls[transfer.originalCallControlId]
   if (parentSession) {
-    const chatId = parentSession.chatId
+    const chatId = String(parentSession.chatId) // Ensure string for consistency
     const msg = transfer.type === 'sip_ring'
       ? `✅ <b>SIP Call Connected</b>\nIncoming call bridged to your device`
       : `✅ <b>Transfer Connected</b>\n📞 ${transfer.forwardTo} connected`

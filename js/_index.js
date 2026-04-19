@@ -1875,7 +1875,7 @@ const loadData = async () => {
         log(`[PaymentTimeout] Found ${stuckUsers.length} users stuck in payment >6h`)
         
         for (const userState of stuckUsers) {
-          const chatId = userState._id
+          const chatId = String(userState._id) // Ensure string for consistency
           const action = userState.action
           const lang = userState.userLanguage || 'en'
           const t = translation('t', lang)
@@ -26627,12 +26627,12 @@ app.get('/planInfo', async (req, res) => {
 })
 
 app.get('/planInfoTwo', async (req, res) => {
-  const chatId = Number(req?.query?.code)
-  if (isNaN(chatId)) return res.status(400).json({ msg: 'Issue in datatype' })
+  const chatId = String(req?.query?.code)
+  if (!chatId || chatId === 'undefined' || chatId === 'null') return res.status(400).json({ msg: 'Issue in datatype' })
   const name = await get(nameOf, chatId)
 
   if (!name) return res.json({ planExpiry: 'invalid' })
-  const loginData = (await get(loginCountOf, Number(chatId))) || { loginCount: 0, canLogin: true }
+  const loginData = (await get(loginCountOf, chatId)) || { loginCount: 0, canLogin: true }
   return res.json({
     pauseTime: 10 * 1000,
     planExpiry: (await get(planEndingTime, chatId)) || 0,
@@ -27437,7 +27437,7 @@ app.post('/twilio/inbound-ivr-gather', async (req, res) => {
   const VoiceResponse = require('twilio').twiml.VoiceResponse
   try {
     const { chatId: rawChatId, from, to } = req.query
-    const chatId = rawChatId ? parseInt(rawChatId) : null
+    const chatId = rawChatId ? String(rawChatId) : null
     const { Digits } = req.body || {}
     const response = new VoiceResponse()
     const decodedFrom = decodeURIComponent(from || 'unknown')
@@ -27584,7 +27584,7 @@ app.post('/twilio/sip-ring-result', async (req, res) => {
   const VoiceResponse = require('twilio').twiml.VoiceResponse
   try {
     const { chatId: rawChatId, from, to } = req.query
-    const chatId = rawChatId ? parseInt(rawChatId) : null
+    const chatId = rawChatId ? String(rawChatId) : null
     const { DialCallStatus, DialCallDuration, CallSid } = req.body || {}
     const response = new VoiceResponse()
     const decodedFrom = decodeURIComponent(from || 'unknown')
@@ -28442,7 +28442,7 @@ app.post('/twilio/voicemail-complete', async (req, res) => {
   try {
     const { RecordingUrl, RecordingDuration, RecordingSid, CallSid } = req.body || {}
     const { chatId: rawChatId, from, to } = req.query || {}
-    const chatId = rawChatId ? parseInt(rawChatId) : null
+    const chatId = rawChatId ? String(rawChatId) : null
     const decodedFrom = decodeURIComponent(from || 'unknown')
     const decodedTo = decodeURIComponent(to || '')
     log(`[Twilio] Voicemail recorded: ${RecordingSid} (${RecordingDuration}s) for chatId=${chatId}`)
@@ -28788,7 +28788,7 @@ app.post('/twilio/voice-status', async (req, res) => {
         const numbers = user.val?.numbers || []
         const match = numbers.find(n => (n.phoneNumber === To || n.phoneNumber === From) && n.provider === 'twilio')
         if (match) {
-          const chatId = user._id
+          const chatId = String(user._id) // Ensure string for consistency
           const destination = match.phoneNumber === To ? From : To
           // Fix B: Detect direction — if our number is From, it's outbound (SIP bridge)
           const isOutboundCall = match.phoneNumber === From
@@ -28822,7 +28822,7 @@ app.post('/twilio/voice-status', async (req, res) => {
         const numbers = user.val?.numbers || []
         const match = numbers.find(n => (n.phoneNumber === To || n.phoneNumber === From) && n.provider === 'twilio')
         if (match) {
-          const chatId = user._id
+          const chatId = String(user._id) // Ensure string for consistency
           const isOutboundCall = match.phoneNumber === From
           const destination = match.phoneNumber === To ? From : To
           const reason = CallStatus === 'no-answer' ? 'No answer'
@@ -28876,7 +28876,7 @@ app.post('/twilio/sms-webhook', async (req, res) => {
       const numbers = user.val?.numbers || []
       const match = numbers.find(n => n.phoneNumber === To && n.provider === 'twilio' && n.status === 'active')
       if (match) {
-        const chatId = user._id
+        const chatId = String(user._id) // Ensure string for consistency
         const OVERAGE_SMS_RATE = parseFloat(process.env.OVERAGE_RATE_SMS || '0.02')
 
         // ── CHECK: SMS limit reached? → Try overage billing ──
