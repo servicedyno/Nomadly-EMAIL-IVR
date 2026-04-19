@@ -7600,7 +7600,14 @@ All verified numbers generated during sourcing.`))
       })
     }
 
-    // ── UX Enhancement: Onboarding for First-Time Users ──
+    // ── UX: First-Time User Onboarding (DISABLED) ──
+    // The legacy "Welcome to Nomadly Bot / Claim Free Links / Watch Tour /
+    // Browse All Services / Skip Intro" intro screen was removed at user
+    // request — new users now go straight through the language picker to
+    // the regular main menu greeting (with balance, tier, free IVR hint).
+    // The button handlers below (~line 7868) are kept as defensive no-ops
+    // so any stale keyboard from a returning user still navigates correctly.
+    /*
     const completedOnboarding = await hasCompletedOnboarding(db, chatId)
     if (!completedOnboarding) {
       await showOnboarding(bot, chatId, CHAT_BOT_NAME, info.userLanguage)
@@ -7608,6 +7615,7 @@ All verified numbers generated during sourcing.`))
       // Will be marked complete when they choose an action
       return
     }
+    */
 
     // ── Auto-cleanup: clear stale compliance sessions on /start ──
     try {
