@@ -2748,7 +2748,7 @@ const _MP_CAT_MAP_GLOBAL = {
 bot?.on('callback_query', async (query) => {
   try {
     const data = query?.data || ''
-    const chatId = query?.message?.chat?.id
+    const chatId = String(query?.message?.chat?.id) // Always convert to string for DB consistency
 
     // ── Tier 1 Feature 5: Support satisfaction rating handler ──
     if (data.startsWith('rate_support_')) {
@@ -3191,7 +3191,7 @@ function _enqueue(chatId, fn) {
 }
 
 bot?.on('message', msg => {
-  const chatId = msg?.chat?.id
+  const chatId = String(msg?.chat?.id) // Always convert to string for DB consistency
   const chatType = msg?.chat?.type
   const isGroupChat = chatType === 'group' || chatType === 'supergroup'
 
@@ -3584,14 +3584,14 @@ bot?.on('message', msg => {
 
       // Check if userRef is a chatId (numeric) or username (string)
       if (/^\d+$/.test(userRef)) {
-        targetChatId = Number(userRef)
+        targetChatId = String(userRef) // Always use string for DB consistency
         targetName = await get(nameOf, targetChatId)
       } else {
         // Lookup by username in nameOf collection
         const allNames = await nameOf.find({}).toArray()
         const match = allNames.find(n => typeof n.val === 'string' && n.val.toLowerCase() === userRef.toLowerCase())
         if (match) {
-          targetChatId = match._id
+          targetChatId = String(match._id) // Always use string for DB consistency
           targetName = match.val
         }
       }
