@@ -858,10 +858,17 @@ function extractPhoneNumbers(text, cc) {
 const sendMessage = async (chatId, message, reply_markup) => {
   try {
     console.log({ message, chatId })
+    const opts = reply_markup || {}
+    // Auto-detect HTML and inject parse_mode so tags like <b>, <i>, <code>, <a>, <pre>, <u>, <s>
+    // render correctly instead of being shown as literal text. Mirrors the
+    // behavior of the `send()` helper in _index.js.
+    if (typeof message === 'string' && !opts.parse_mode && /<\/?(?:b|i|u|s|code|pre|a)\b/.test(message)) {
+      opts.parse_mode = 'HTML'
+    }
     await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       chat_id: chatId,
       text: message,
-      ...reply_markup,
+      ...opts,
     })
   } catch (error) {
     console.error('Error sending message:', { code: error?.message, data: error?.response?.data, chatId, message })
