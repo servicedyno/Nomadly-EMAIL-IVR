@@ -483,6 +483,7 @@ Login: ${panelUrl}
 
 <i>Quote this ID when contacting support</i>`
       send(chatId, credentialsMsg, keyboardButtons)
+    }
 
     assignPackageToUser(state, chatId, info.plan)
 
