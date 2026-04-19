@@ -8168,30 +8168,35 @@ All verified numbers generated during sourcing.`))
     } catch (e) { /* non-critical */ }
 
     // ── Guided Onboarding for new users (Feature 1) ──
-    // UX change: keep the welcome text but show the regular main menu keyboard
-    // instead of the 3-CTA + "Skip — Show Full Menu" keyboard. User lands
-    // directly on the main menu after language selection.
+    // UX: skip the simplified "🎉 Welcome … 3 things to try" copy and instead
+    // show the standard main menu greeting (Hey {name}, tier badge, balance,
+    // free trial IVR hint, "Select an option below"). Keeps conversion
+    // tracking + welcome-offer scheduling intact.
     try {
       await set(state, chatId, 'isNewUser', true)
       await set(state, chatId, 'joinedAt', new Date())
 
       if (userConversion) {
-        const displayName = msg?.from?.first_name || username
-        const welcomeAmount = parseFloat(process.env.WELCOME_BONUS_USD || '3')
-        // Grab the main menu keyboard (in the user's language) and attach it
-        // to the welcome message so they land straight on the full menu.
-        const mainMenuMarkup = trans('o')?.reply_markup || null
-        await userConversion.sendGuidedOnboarding(chatId, displayName, validLanguage, welcomeAmount, { replyMarkup: mainMenuMarkup })
+        // DB tracking only — no guided welcome message
+        await userConversion.markOnboardingStarted(chatId, validLanguage)
 
         // Schedule time-limited welcome offer (Feature 3) — 2 hours from now
         userConversion.scheduleWelcomeOffer(chatId, validLanguage)
-
-        // Welcome message with main menu keyboard was sent — we're done.
-        return
       }
+
+      // Send the full main menu greeting (with balance, tier, free IVR hint)
+      // after a small delay so it lands after the welcome-bonus message.
+      setTimeout(async () => {
+        try {
+          const greeting = await getMainMenuGreeting()
+          send(chatId, greeting, trans('o'))
+        } catch (e) { /* non-critical */ }
+      }, 2000)
+
+      return
     } catch (e) { /* non-critical — fall through to normal menu */ }
 
-    // Fallback: Go straight to main menu if conversion engine not available
+    // Fallback: Go straight to main menu if something went wrong above
     const greeting = await getMainMenuGreeting()
     return send(chatId, greeting, trans('o'))
   }

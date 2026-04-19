@@ -817,12 +817,43 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
   // Refresh every hour
   setInterval(() => refreshSocialProof(), SOCIAL_PROOF_REFRESH_MS)
 
+  // Tracking-only variant: marks the user's onboarding state in the DB
+  // WITHOUT sending the welcome message. Useful when the caller wants to
+  // render its own welcome (e.g. the standard main-menu greeting with
+  // balance & loyalty tier) instead of the guided 3-CTA welcome text.
+  async function markOnboardingStarted(chatId, lang = 'en') {
+    try {
+      await conversionCol.updateOne(
+        { chatId: parseFloat(chatId) },
+        {
+          $set: {
+            chatId: parseFloat(chatId),
+            onboardingStarted: true,
+            onboardingCompleted: true, // no CTA to wait on
+            joinedAt: new Date(),
+            lang,
+          },
+          $setOnInsert: {
+            firstDepositBonusAwarded: false,
+            welcomeOfferSent: false,
+            hasPurchased: false,
+          }
+        },
+        { upsert: true }
+      )
+      log(`[Conversion] Onboarding tracked for ${chatId} (lang: ${lang}, no guided message)`)
+    } catch (err) {
+      log(`[Conversion] markOnboardingStarted error: ${err.message}`)
+    }
+  }
+
   log(`[Conversion] New User Conversion Engine initialized — 5 features active`)
   log(`[Conversion] First deposit bonus: $${FIRST_DEPOSIT_BONUS_USD} (min $${FIRST_DEPOSIT_MIN_USD}), Welcome offer: ${WELCOME_OFFER_DISCOUNT}% (2h delay), Social proof: ×${SOCIAL_PROOF_MULTIPLIER}`)
 
   return {
     // Feature 1: Guided Onboarding
     sendGuidedOnboarding,
+    markOnboardingStarted,
     handleOnboardingResponse,
     sendDepositNudge,
 
