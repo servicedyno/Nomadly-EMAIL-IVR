@@ -5071,10 +5071,49 @@ Enter new value:`), bc)
       try {
         send(chatId, trans('t.wlt_8'))
         const chatIdStr = String(chatId)
+        
+        // ✅ FIX: Fetch from BOTH legacy payments collection AND new transactions collection
         const allTx = await payments.find({ val: { $regex: chatIdStr } }).toArray()
+        
+        // Fetch structured transactions (admin-credit, welcome-bonus, wallet-topup)
+        const structuredTxns = await db.collection('transactions').find({
+          $or: [{ chatId: chatIdStr }, { chatId: parseInt(chatIdStr) }]
+        }).sort({ createdAt: -1 }).toArray()
 
         // Parse and sort transactions
         const parsed = []
+        
+        // ── Parse structured transactions first (newer format) ──
+        for (const txn of structuredTxns) {
+          let icon = '🟢'
+          let desc = ''
+          
+          if (txn.type === 'welcome-bonus') {
+            icon = '🎁'
+            desc = 'Welcome Bonus'
+          } else if (txn.type === 'admin-credit') {
+            icon = '💰'
+            const adminName = txn.metadata?.adminName || 'Admin'
+            desc = `Admin Credit (by ${adminName})`
+          } else if (txn.type === 'wallet-topup') {
+            icon = '🟢'
+            const coin = txn.metadata?.coin || 'Crypto'
+            desc = `Deposit (${coin})`
+          }
+          
+          const dateObj = txn.createdAt ? new Date(txn.createdAt) : null
+          parsed.push({
+            icon,
+            isCredit: true,
+            amount: txn.amount || 0,
+            amountStr: `$${(txn.amount || 0).toFixed(2)}`,
+            desc,
+            dateObj,
+            raw: JSON.stringify(txn)
+          })
+        }
+        
+        // ── Parse legacy payments collection (old format) ──
         for (const doc of allTx) {
           const raw = doc.val || ''
           const parts = raw.split(',')
