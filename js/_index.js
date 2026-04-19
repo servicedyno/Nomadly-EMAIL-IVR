@@ -2803,7 +2803,7 @@ bot?.on('callback_query', async (query) => {
       try { await bot.answerCallbackQuery(query.id, { text: '🔍 Checking DNS...' }) } catch (e) { /* ignore */ }
       
       const domain = data.replace('dns_check_', '')
-      const info = await state.findOne({ _id: parseFloat(chatId) })
+      const info = await state.findOne({ _id: String(chatId) })
       const lang = info?.userLanguage || 'en'
       
       try {
@@ -2854,7 +2854,7 @@ bot?.on('callback_query', async (query) => {
     // ── Save Preset handler (#1 Quick Dial Presets) ──
     if (chatId && data.startsWith('save_preset:')) {
       try { await bot.answerCallbackQuery(query.id) } catch (e) { /* ignore */ }
-      const info = await state.findOne({ _id: parseFloat(chatId) })
+      const info = await state.findOne({ _id: String(chatId) })
       const ivrObData = info?.ivrObData || {}
       // Save current call config as preset — ask for name
       await set(state, chatId, 'action', 'ivrObPresetName')
@@ -2979,7 +2979,7 @@ bot?.on('callback_query', async (query) => {
     try { await bot.answerCallbackQuery(query.id) } catch (e) { /* ignore for test/expired queries */ }
 
     const { translation } = require('./translation.js')
-    const info = await state.findOne({ _id: parseFloat(chatId) })
+    const info = await state.findOne({ _id: String(chatId) })
     const lang = info?.userLanguage || 'en'
     const trans = (key, ...args) => translation(key, lang, ...args)
     const t = trans('t')
@@ -9519,7 +9519,7 @@ All verified numbers generated during sourcing.`))
 
       // Atomic check-and-set to prevent double-trial race condition
       const trialClaim = await state.findOneAndUpdate(
-        { _id: parseFloat(chatId), $or: [{ evFreeTrialUsed: { $ne: true } }, { evFreeTrialUsed: { $exists: false } }] },
+        { _id: String(chatId), $or: [{ evFreeTrialUsed: { $ne: true } }, { evFreeTrialUsed: { $exists: false } }] },
         { $set: { evFreeTrialUsed: true } },
         { returnDocument: 'after' }
       )
@@ -9563,7 +9563,7 @@ All verified numbers generated during sourcing.`))
 
       // Atomic check-and-set to prevent double-trial race condition
       const trialClaim2 = await state.findOneAndUpdate(
-        { _id: parseFloat(chatId), $or: [{ evFreeTrialUsed: { $ne: true } }, { evFreeTrialUsed: { $exists: false } }] },
+        { _id: String(chatId), $or: [{ evFreeTrialUsed: { $ne: true } }, { evFreeTrialUsed: { $exists: false } }] },
         { $set: { evFreeTrialUsed: true } },
         { returnDocument: 'after' }
       )
@@ -9578,7 +9578,7 @@ All verified numbers generated during sourcing.`))
 
       if (usdBal < trialPlusUsd) {
         // Rollback trial claim — insufficient funds
-        await state.updateOne({ _id: parseFloat(chatId) }, { $set: { evFreeTrialUsed: false } })
+        await state.updateOne({ _id: String(chatId) }, { $set: { evFreeTrialUsed: false } })
         return send(chatId, trans('t.ev_34', trialPlusUsd.toFixed(2), usdBal.toFixed(2)), { parse_mode: 'HTML', reply_markup: { keyboard: [['💵 Pay USD', '💵 Pay NGN'], ['❌ Cancel']], resize_keyboard: true } })
       }
 
@@ -15090,7 +15090,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       let recentCalls = []
       try {
         recentCalls = await db.collection('phoneLogs').find({
-          chatId: parseFloat(chatId),
+          chatId: String(chatId),
           type: { $in: ['ivr_outbound', 'ivr_call'] },
         }).sort({ timestamp: -1 }).limit(5).toArray()
         // Dedupe by target number
@@ -16295,7 +16295,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
       const scheduledAt = new Date(Date.now() + minutes * 60 * 1000)
       // Store scheduled call in DB
       await db.collection('scheduledCalls').insertOne({
-        chatId: parseFloat(chatId),
+        chatId: String(chatId),
         ivrObData: { ...ivrObData },
         scheduledAt,
         status: 'pending',
@@ -22137,7 +22137,7 @@ Select a category:`), k.of(catBtns))
     }
 
     // Match selected device from button text
-    const stateInfo = await state.findOne({ _id: parseFloat(chatId) })
+    const stateInfo = await state.findOne({ _id: String(chatId) })
     const devicesStr = stateInfo?.smsapp_devices || '[]'
     let devices
     try { devices = JSON.parse(devicesStr) } catch { devices = [] }
@@ -22186,7 +22186,7 @@ Select a category:`), k.of(catBtns))
 
   // ── SMS App: Manage Devices ──
   if (message === user.smsManageDevices) {
-    const loginDoc = await loginCountOf.findOne({ _id: parseFloat(chatId) })
+    const loginDoc = await loginCountOf.findOne({ _id: String(chatId) })
     const devices = loginDoc?.val?.devices || []
     
     if (!devices || devices.length === 0) {
@@ -22235,7 +22235,7 @@ Select a category:`), k.of(catBtns))
     
     try {
       // Update device name in database
-      const loginDoc = await loginCountOf.findOne({ _id: parseFloat(chatId) })
+      const loginDoc = await loginCountOf.findOne({ _id: String(chatId) })
       const loginData = loginDoc?.val || {}
       let devices = loginData.devices || []
       
@@ -22438,7 +22438,7 @@ Select a category:`), k.of(catBtns))
     await set(state, chatId, 'action', 'smsapp_campaign_review')
 
     // Build review summary
-    const _ri = await state.findOne({ _id: parseFloat(chatId) })
+    const _ri = await state.findOne({ _id: String(chatId) })
     const _rName = _ri?.smsapp_campaign_name || 'Campaign'
     const _rContentStr = _ri?.smsapp_campaign_content || '["Hello"]'
     const _rContactsStr = _ri?.smsapp_campaign_contacts || '[]'
@@ -22485,7 +22485,7 @@ Select a category:`), k.of(catBtns))
       }
 
       // Create campaign immediately or as draft
-      const stateInfo = await state.findOne({ _id: parseFloat(chatId) })
+      const stateInfo = await state.findOne({ _id: String(chatId) })
       const campaignName = stateInfo?.smsapp_campaign_name || 'Campaign'
       const contentStr = stateInfo?.smsapp_campaign_content || '["Hello"]'
       const contactsStr = stateInfo?.smsapp_campaign_contacts || '[]'
@@ -22538,7 +22538,7 @@ Select a category:`), k.of(catBtns))
     if (message === t.back || message === t.cancel) {
       // Go back to review — rebuild review summary
       await set(state, chatId, 'action', 'smsapp_campaign_review')
-      const _ri2 = await state.findOne({ _id: parseFloat(chatId) })
+      const _ri2 = await state.findOne({ _id: String(chatId) })
       const _r2Name = _ri2?.smsapp_campaign_name || 'Campaign'
       const _r2ContentStr = _ri2?.smsapp_campaign_content || '["Hello"]'
       const _r2ContactsStr = _ri2?.smsapp_campaign_contacts || '[]'
@@ -22580,7 +22580,7 @@ Select a category:`), k.of(catBtns))
       return send(chatId, trans('t.sms_51'), { parse_mode: 'HTML', reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
     }
 
-    const stateInfo = await state.findOne({ _id: parseFloat(chatId) })
+    const stateInfo = await state.findOne({ _id: String(chatId) })
     const campaignName = stateInfo?.smsapp_campaign_name || 'Campaign'
     const contentStr = stateInfo?.smsapp_campaign_content || '["Hello"]'
     const contactsStr = stateInfo?.smsapp_campaign_contacts || '[]'
@@ -23176,7 +23176,7 @@ async function checkVPSPlansExpiryandPayment() {
 
     for (const vpsPlan of dueForRenewal) {
       const { chatId, _id, planPrice, vpsId, label, autoRenewable, contaboInstanceId } = vpsPlan
-      const info = await state.findOne({ _id: parseFloat(chatId) })
+      const info = await state.findOne({ _id: String(chatId) })
       const lang = info?.userLanguage || 'en'
       const displayName = label || vpsPlan.name || 'VPS'
       const expiryDate = new Date(vpsPlan.end_time).toLocaleDateString()
@@ -23318,7 +23318,7 @@ async function checkVPSPlansExpiryandPayment() {
     for (const vpsPlan of pastDeadline) {
       const { chatId, _id, vpsId, label, contaboInstanceId, planPrice } = vpsPlan
       const displayName = label || vpsPlan.name || 'VPS'
-      const info = await state.findOne({ _id: parseFloat(chatId) })
+      const info = await state.findOne({ _id: String(chatId) })
       const lang = info?.userLanguage || 'en'
 
       try {
@@ -23353,7 +23353,7 @@ async function checkVPSPlansExpiryandPayment() {
     for (const vpsPlan of staleExpired) {
       const { chatId, _id, planPrice, vpsId, label, autoRenewable } = vpsPlan
       const displayName = label || vpsPlan.name || 'VPS'
-      const info = await state.findOne({ _id: parseFloat(chatId) })
+      const info = await state.findOne({ _id: String(chatId) })
       const lang = info?.userLanguage || 'en'
 
       // Try one last renewal attempt
@@ -23648,7 +23648,7 @@ async function applyPhonePlanUpgrade(chatId, num, newPlan, newPrice, lang, payme
     num.sipDisabled = false
   }
 
-  const info = await state.findOne({ _id: parseFloat(chatId) })
+  const info = await state.findOne({ _id: String(chatId) })
   await set(state, chatId, 'cpActiveNumber', num)
   await set(state, chatId, 'cpPendingPlan', null)
   await set(state, chatId, 'cpUpgradeData', null)
@@ -23901,7 +23901,7 @@ const bankApis = {
     const { ref, chatId, price, plan } = req.pay || {}
     if (!ref || !chatId || !price || !plan) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
     if (('' + ref + chatId + price + plan).includes('undefined')) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
-    const info = await state.findOne({ _id: parseFloat(chatId) })
+    const info = await state.findOne({ _id: String(chatId) })
     const lang = info?.userLanguage ?? 'en'
     const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
@@ -23928,7 +23928,7 @@ const bankApis = {
     notifyGroup(`💎 <b>New Subscription!</b>\nUser ${maskName(name)} just upgraded to the <b>${plan} Plan</b> — unlocking unlimited URL shortening + ${(freeValidationsOf[plan] || 0).toLocaleString()} phone validations.\nDon't miss out — /start`)
     webhookTierCheck(chatId, preSpend, lang)
 
-    if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+    if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
     if (userConversion) userConversion.markPurchased(chatId)
     await set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
@@ -23937,7 +23937,7 @@ const bankApis = {
     // Validate
     const { ref, chatId, price, domain } = req.pay || {}
     if (!ref || !chatId || !price || !domain) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
-    const info = await state.findOne({ _id: parseFloat(chatId) })
+    const info = await state.findOne({ _id: String(chatId) })
     const lang = info?.userLanguage ?? 'en'
     const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
     const cheaperPrice = info?.cheaperPrice  // null if only one registrar
@@ -23977,7 +23977,7 @@ const bankApis = {
     }
 
     // Check for savings — cheaper registrar succeeded → credit difference to wallet
-    const updatedInfo = await state.findOne({ _id: parseFloat(chatId) })
+    const updatedInfo = await state.findOne({ _id: String(chatId) })
     const fallbackOccurred = updatedInfo?.registrarFallback === true
     if (!fallbackOccurred && cheaperPrice && cheaperPrice < price) {
       const savingsUsd = price - cheaperPrice
@@ -23996,7 +23996,7 @@ const bankApis = {
 
     notifyGroup(`🌐 <b>Domain Registered!</b>\nUser ${maskName(name)} just claimed <b>${maskDomain(domain)}</b> — your dream domain could be next.\nGrab yours before it's taken — /start`)
     webhookTierCheck(chatId, preSpend, lang)
-    if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+    if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
     if (userConversion) userConversion.markPurchased(chatId)
     sendDomainUpsell(chatId, lang, domain) // Post-purchase upsell (parity with wallet path)
     await set(state, chatId, 'action', 'none') // Reset action after bank payment completes
@@ -24007,7 +24007,7 @@ const bankApis = {
     const { ref, chatId, price } = req.pay
     const response = req?.query
     if (!ref || !chatId || !price) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
-    const info = await state.findOne({ _id: parseFloat(chatId) })
+    const info = await state.findOne({ _id: String(chatId) })
     const lang = info?.userLanguage ?? 'en'
     const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
@@ -24068,7 +24068,7 @@ const bankApis = {
     } catch (e) { log('[Hosting] notifyGroup error: ' + e.message) }
 
     webhookTierCheck(chatId, preSpend, lang)
-    if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+    if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
     if (userConversion) userConversion.markPurchased(chatId)
     await set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     set(state, chatId, 'processingPayment', false) // Clear hosting payment lock
@@ -24079,7 +24079,7 @@ const bankApis = {
     const { ref, chatId, price, vpsDetails } = req.pay
     const response = req?.query
     if (!ref || !chatId || !price ) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
-    const info = await state.findOne({ _id: parseFloat(chatId) })
+    const info = await state.findOne({ _id: String(chatId) })
     const lang = info?.userLanguage ?? 'en'
     const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
@@ -24111,7 +24111,7 @@ const bankApis = {
     const isSuccess = await buyVPSPlanFullProcess(chatId, lang, vpsDetails)
     if (!isSuccess) return res.send(html(error))
     webhookTierCheck(chatId, preSpend, lang)
-    if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+    if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
     if (userConversion) userConversion.markPurchased(chatId)
     await set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
@@ -24121,7 +24121,7 @@ const bankApis = {
     const { ref, chatId, price, vpsDetails } = req.pay
     const response = req?.query
     if (!ref || !chatId || !price ) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
-    const info = await state.findOne({ _id: parseFloat(chatId) })
+    const info = await state.findOne({ _id: String(chatId) })
     const lang = info?.userLanguage ?? 'en'
     const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
@@ -24151,7 +24151,7 @@ const bankApis = {
     const isSuccess = await upgradeVPSDetails(chatId, lang, vpsDetails)
     if (!isSuccess) return res.send(html(error))
     webhookTierCheck(chatId, preSpend, lang)
-    if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+    if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
     if (userConversion) userConversion.markPurchased(chatId)
     await set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
@@ -24159,7 +24159,7 @@ const bankApis = {
   '/bank-pay-phone': async (req, res, ngnIn) => {
     const { ref, chatId, price, cpData } = req.pay || {}
     if (!ref || !chatId || !price || !cpData) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
-    const info = await state.findOne({ _id: parseFloat(chatId) })
+    const info = await state.findOne({ _id: String(chatId) })
     const lang = info?.userLanguage ?? 'en'
     const cpTxt = phoneConfig.getTxt(lang)
     const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
@@ -24219,7 +24219,7 @@ const bankApis = {
               return res.send(html())
             } else {
               // No approved bundle — redirect to address/bundle flow
-              await state.updateOne({ _id: parseFloat(chatId) }, { $set: {
+              await state.updateOne({ _id: String(chatId) }, { $set: {
                 action: 'cpEnterAddress',
                 cpPendingCoin: 'bank_ngn',
                 cpPendingPriceUsd: price,
@@ -24241,7 +24241,7 @@ const bankApis = {
           return res.send(html())
         } else {
           // Need address — save state, prompt user
-          await state.updateOne({ _id: parseFloat(chatId) }, { $set: {
+          await state.updateOne({ _id: String(chatId) }, { $set: {
             action: 'cpEnterAddress',
             cpPendingCoin: 'bank_ngn',
             cpPendingPriceUsd: price,
@@ -24334,7 +24334,7 @@ const bankApis = {
     notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, plan.name, price, 'Bank NGN'))
     if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminPurchasePrivate(maskName(name), selectedNumber, plan.name, price, 'Bank NGN'), { parse_mode: 'HTML' })
     webhookTierCheck(chatId, preSpend, lang)
-    if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+    if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
     if (userConversion) userConversion.markPurchased(chatId)
     await set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
@@ -24342,7 +24342,7 @@ const bankApis = {
   '/bank-pay-leads': async (req, res, ngnIn) => {
     const { ref, chatId, price, lastStep, leadsData } = req.pay || {}
     if (!ref || !chatId || !price || !lastStep) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
-    const info = await state.findOne({ _id: parseFloat(chatId) })
+    const info = await state.findOne({ _id: String(chatId) })
     const lang = info?.userLanguage ?? 'en'
     const cpTxt = phoneConfig.getTxt(lang)
     const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
@@ -24446,7 +24446,7 @@ const bankApis = {
       sendMessage(chatId, trans('t.util_18', ngnIn, label.toLowerCase()))
       addFundsTo(walletOf, chatId, 'ngn', ngnIn, lang)
     }
-    if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+    if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
     if (userConversion) userConversion.markPurchased(chatId)
     await set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
@@ -24454,7 +24454,7 @@ const bankApis = {
   '/bank-pay-digital-product': async (req, res, ngnIn) => {
     const { ref, chatId, price, product, orderId } = req.pay || {}
     if (!ref || !chatId || !price || !product || !orderId) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
-    const info = await state.findOne({ _id: parseFloat(chatId) })
+    const info = await state.findOne({ _id: String(chatId) })
     const lang = info?.userLanguage ?? 'en'
     const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
@@ -24479,7 +24479,7 @@ const bankApis = {
     notifyGroup(`🛒 <b>Digital Product Paid!</b>\n\n👤 User: ${maskName(name)}\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b>\n\n✅ Payment confirmed.`)
     if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🛒 <b>Digital Product Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b> (Bank)\n\n📩 Deliver with:\n<code>/deliver ${orderId} [details]</code>`, { parse_mode: 'HTML' })
     webhookTierCheck(chatId, preSpend, lang)
-    if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+    if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
     if (userConversion) userConversion.markPurchased(chatId)
     await set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
@@ -24487,7 +24487,7 @@ const bankApis = {
   '/bank-pay-virtual-card': async (req, res, ngnIn) => {
     const { ref, chatId, price, product, orderId } = req.pay || {}
     if (!ref || !chatId || !price || !product || !orderId) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
-    const info = await state.findOne({ _id: parseFloat(chatId) })
+    const info = await state.findOne({ _id: String(chatId) })
     const lang = info?.userLanguage ?? 'en'
     const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
@@ -24514,7 +24514,7 @@ const bankApis = {
     notifyGroup(`💳 <b>Virtual Card Paid!</b>\n\n👤 User: ${maskName(name)}\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b>\n\n✅ Payment confirmed.`)
     if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `💳 <b>Virtual Card Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b> (Bank)\n📬 Address:\n<pre>${vcAddress}</pre>\n\n📩 Deliver with:\n<code>/deliver ${orderId} [card details]</code>`, { parse_mode: 'HTML' })
     webhookTierCheck(chatId, preSpend, lang)
-    if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+    if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
     if (userConversion) userConversion.markPurchased(chatId)
     await set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
@@ -24530,7 +24530,7 @@ const bankApis = {
       return res.send(html('OK'))
     }
 
-    const info = await state.findOne({ _id: parseFloat(chatId) })
+    const info = await state.findOne({ _id: String(chatId) }) // Ensure string for consistency
     const lang = info?.userLanguage ?? 'en'
 
     // Update Wallet
@@ -24555,14 +24555,14 @@ const bankApis = {
         }
       } catch (e) { /* non-critical */ }
     }
-    if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+    if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
     if (userConversion) userConversion.markPurchased(chatId)
     await set(state, chatId, 'action', 'none') // Reset action after wallet deposit completes
   },
   '/bank-pay-email-blast': async (req, res, ngnIn) => {
     const { ref, chatId, price, campaignId } = req.pay || {}
     if (!ref || !chatId || !price || !campaignId) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
-    const info = await state.findOne({ _id: parseFloat(chatId) })
+    const info = await state.findOne({ _id: String(chatId) })
     const lang = info?.userLanguage ?? 'en'
     const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
@@ -24608,7 +24608,7 @@ const bankApis = {
     }
 
     webhookTierCheck(chatId, preSpend, lang)
-    if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+    if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
     if (userConversion) userConversion.markPurchased(chatId)
     await set(state, chatId, 'action', 'none') // Reset action after bank payment completes
     res.send(html())
@@ -24616,7 +24616,7 @@ const bankApis = {
   '/bank-pay-phone-upgrade': async (req, res, ngnIn) => {
     const { ref, chatId, price, upgradeData } = req.pay || {}
     if (!ref || !chatId || !price || !upgradeData) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
-    const info = await state.findOne({ _id: parseFloat(chatId) })
+    const info = await state.findOne({ _id: String(chatId) })
     const lang = info?.userLanguage ?? 'en'
 
     const usdIn = await ngnToUsd(ngnIn)
@@ -24649,7 +24649,7 @@ const bankApis = {
 
     // Apply the plan upgrade
     await applyPhonePlanUpgrade(chatId, num, upgradeData.newPlan, upgradeData.newPrice, lang, '🏦 Bank Transfer')
-    if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+    if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
     if (userConversion) userConversion.markPurchased(chatId)
     res.send(html())
   },
@@ -24746,8 +24746,8 @@ app.get('/bot-link', async (req, res) => {
 })
 
 app.get('/free-sms-count/:chatId', async (req, res) => {
-  const chatId = req?.params?.chatId
-  let _count = (await get(freeSmsCountOf, Number(chatId))) || 0
+  const chatId = String(req?.params?.chatId) // Ensure string for consistency
+  let _count = (await get(freeSmsCountOf, chatId)) || 0
   res.send('' + _count)
 })
 
@@ -24757,10 +24757,10 @@ app.get('/increment-free-sms-count/:chatId', async (req, res) => {
   if (adminKey !== process.env.SESSION_SECRET?.slice(0, 16)) {
     return res.status(403).json({ error: 'Unauthorized' })
   }
-  const chatId = req?.params?.chatId
-  const name = await get(nameOf, Number(chatId))
+  const chatId = String(req?.params?.chatId) // Ensure string for consistency
+  const name = await get(nameOf, chatId)
 
-  increment(freeSmsCountOf, Number(chatId))
+  increment(freeSmsCountOf, chatId)
   increment(clicksOfSms, chatId + ', ' + name + ', ' + today())
   increment(clicksOfSms, chatId + ', ' + name + ', ' + week())
   increment(clicksOfSms, chatId + ', ' + name + ', ' + month())
@@ -24795,7 +24795,7 @@ app.get('/login-count/:chatId', async (req, res) => {
   // (prevents old code from disrupting users with active SMS App sessions)
   const devices = Array.isArray(loginData?.devices) ? loginData.devices : []
   if (!loginData.canLogin && devices.length === 0) {
-    const info = await state.findOne({ _id: parseFloat(chatId) })
+    const info = await state.findOne({ _id: String(chatId) })
     const lang = info?.userLanguage ?? 'en'
     send(Number(chatId), translation('t.resetLogin', lang), translation('yes_no', lang))
     // sendMessage(Number(chatId), t.resetLogin, yes_no)
@@ -24854,7 +24854,7 @@ app.get('/crypto-pay-plan', auth, async (req, res) => {
 
   if (!ref || !chatId || !plan || !price || !coin || !value) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
 
-  const info = await state.findOne({ _id: parseFloat(chatId) })
+  const info = await state.findOne({ _id: String(chatId) })
   const lang = info?.userLanguage ?? 'en'
   const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
@@ -24882,7 +24882,7 @@ app.get('/crypto-pay-plan', auth, async (req, res) => {
   subscribePlan(planEndingTime, freeDomainNamesAvailableFor, planOf, chatId, plan, bot, lang, freeValidationsAvailableFor)
   notifyGroup(`💎 <b>New Subscription!</b>\nUser ${maskName(name)} just upgraded to the <b>${plan} Plan</b> — unlocking unlimited URL shortening + ${(freeValidationsOf[plan] || 0).toLocaleString()} phone validations.\nDon't miss out — /start`)
   webhookTierCheck(chatId, preSpend, lang)
-  if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
   await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
@@ -24893,7 +24893,7 @@ app.get('/crypto-pay-domain', auth, async (req, res) => {
   const coin = req?.query?.coin
   const value = req?.query?.value_coin
   if (!ref || !chatId || !domain || !price || !coin || !value) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
-  const info = await state.findOne({ _id: parseFloat(chatId) })
+  const info = await state.findOne({ _id: String(chatId) })
   const lang = info?.userLanguage ?? 'en'
   const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
   // Logs
@@ -24930,7 +24930,7 @@ app.get('/crypto-pay-domain', auth, async (req, res) => {
   }
 
   // Check for savings — cheaper registrar succeeded → credit difference to wallet
-  const updatedInfo = await state.findOne({ _id: parseFloat(chatId) })
+  const updatedInfo = await state.findOne({ _id: String(chatId) })
   const cheaperPrice = info?.cheaperPrice
   const fallbackOccurred = updatedInfo?.registrarFallback === true
   if (!fallbackOccurred && cheaperPrice && cheaperPrice < price) {
@@ -24947,7 +24947,7 @@ app.get('/crypto-pay-domain', auth, async (req, res) => {
 
   notifyGroup(`🌐 <b>Domain Registered!</b>\nUser ${maskName(name)} just claimed <b>${maskDomain(domain)}</b> — your dream domain could be next.\nGrab yours before it's taken — /start`)
   webhookTierCheck(chatId, preSpend, lang)
-  if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
   sendDomainUpsell(chatId, lang, domain) // Post-purchase upsell (parity with wallet path)
   await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
@@ -24963,7 +24963,7 @@ app.get('/crypto-pay-hosting', auth, async (req, res) => {
   const response = req?.query
 
   if (!ref || !chatId || !price || !coin || !value) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
-  const info = await state.findOne({ _id: parseFloat(chatId) })
+  const info = await state.findOne({ _id: String(chatId) })
   const lang = info?.userLanguage ?? 'en'
   const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
@@ -25022,7 +25022,7 @@ app.get('/crypto-pay-hosting', auth, async (req, res) => {
   } catch (e) { log('[Hosting] notifyGroup error: ' + e.message) }
 
   webhookTierCheck(chatId, preSpend, lang)
-  if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
   await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   set(state, chatId, 'processingPayment', false) // Clear hosting payment lock
@@ -25035,7 +25035,7 @@ app.get('/crypto-pay-phone', auth, async (req, res) => {
   const coin = req?.query?.coin
   const value = req?.query?.value_coin
   if (!ref || !chatId || !price || !coin || !value || !cpData) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
-  const info = await state.findOne({ _id: parseFloat(chatId) })
+  const info = await state.findOne({ _id: String(chatId) })
   const lang = info?.userLanguage ?? 'en'
   const cpTxt = phoneConfig.getTxt(lang)
   const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
@@ -25089,7 +25089,7 @@ app.get('/crypto-pay-phone', auth, async (req, res) => {
             return res.send(html())
           } else {
             // No approved bundle — redirect to address/bundle flow
-            await state.updateOne({ _id: parseFloat(chatId) }, { $set: {
+            await state.updateOne({ _id: String(chatId) }, { $set: {
               action: 'cpEnterAddress', cpPendingCoin: 'crypto_' + coin, cpPendingPriceUsd: price, cpPendingPriceNgn: 0, cpPaymentMethod: 'crypto_' + coin,
             }}, { upsert: true })
             sendMessage(chatId, trans('t.wh_6', countryName), { parse_mode: 'HTML' })
@@ -25103,7 +25103,7 @@ app.get('/crypto-pay-phone', auth, async (req, res) => {
         sendMessage(chatId, cpTxt.activated(selectedNumber, result.plan?.name || planKey, price, result.sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(result.expiresAt.toISOString())))
         return res.send(html())
       } else {
-        await state.updateOne({ _id: parseFloat(chatId) }, { $set: {
+        await state.updateOne({ _id: String(chatId) }, { $set: {
           action: 'cpEnterAddress', cpPendingCoin: 'crypto_' + coin, cpPendingPriceUsd: price, cpPendingPriceNgn: 0, cpPaymentMethod: 'crypto_' + coin,
         }}, { upsert: true })
         const addrLoc = getAddressLocationText(countryCode)
@@ -25157,7 +25157,7 @@ app.get('/crypto-pay-phone', auth, async (req, res) => {
   notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, plan.name, price, 'Crypto ' + coin))
   if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminPurchasePrivate(maskName(name), selectedNumber, plan.name, price, 'Crypto ' + coin), { parse_mode: 'HTML' })
   webhookTierCheck(chatId, preSpend, lang)
-  if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
   await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
@@ -25171,7 +25171,7 @@ app.get('/crypto-pay-phone-upgrade', auth, async (req, res) => {
   const coin = req?.query?.coin
   const value = req?.query?.value_coin
   if (!ref || !chatId || !price || !coin || !value || !upgradeData) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
-  const info = await state.findOne({ _id: parseFloat(chatId) })
+  const info = await state.findOne({ _id: String(chatId) })
   const lang = info?.userLanguage ?? 'en'
   del(chatIdOfPayment, ref)
   const name = await get(nameOf, chatId)
@@ -25196,7 +25196,7 @@ app.get('/crypto-pay-phone-upgrade', auth, async (req, res) => {
   }
 
   await applyPhonePlanUpgrade(chatId, num, upgradeData.newPlan, upgradeData.newPrice, lang, `🪙 Crypto (${coin})`)
-  if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
   res.send(html())
 })
@@ -25207,7 +25207,7 @@ app.get('/crypto-pay-leads', auth, async (req, res) => {
   const coin = req?.query?.coin
   const value = req?.query?.value_coin
   if (!ref || !chatId || !price || !coin || !value || !lastStep) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
-  const info = await state.findOne({ _id: parseFloat(chatId) })
+  const info = await state.findOne({ _id: String(chatId) })
   const lang = info?.userLanguage ?? 'en'
   const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
   del(chatIdOfPayment, ref)
@@ -25303,7 +25303,7 @@ app.get('/crypto-pay-leads', auth, async (req, res) => {
     sendMessage(chatId, trans('t.wh_12', Number(price).toFixed(2), label.toLowerCase()))
     addFundsTo(walletOf, chatId, 'usd', Number(price), lang)
   }
-  if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
   await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
@@ -25316,7 +25316,7 @@ app.get('/crypto-pay-vps', auth, async (req, res) => {
   const value = req?.query?.value_coin
   const response = req?.query
   if (!ref || !chatId || !price || !coin || !value) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
-  const info = await state.findOne({ _id: parseFloat(chatId) })
+  const info = await state.findOne({ _id: String(chatId) })
   const lang = info?.userLanguage ?? 'en'
   const totalPrice = Number(vpsDetails?.totalPrice)
   const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
@@ -25361,7 +25361,7 @@ app.get('/crypto-pay-vps', auth, async (req, res) => {
     return res.send(html(error))
   }
   webhookTierCheck(chatId, preSpend, lang)
-  if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
   await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
@@ -25374,7 +25374,7 @@ app.get('/crypto-pay-upgrade-vps', auth, async (req, res) => {
   const value = req?.query?.value_coin
   const response = req?.query
   if (!ref || !chatId || !price || !coin || !value) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
-  const info = await state.findOne({ _id: parseFloat(chatId) })
+  const info = await state.findOne({ _id: String(chatId) })
   const lang = info?.userLanguage ?? 'en'
   const totalPrice = Number(vpsDetails?.totalPrice)
   const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
@@ -25409,7 +25409,7 @@ app.get('/crypto-pay-upgrade-vps', auth, async (req, res) => {
   const isSuccess = await upgradeVPSDetails(chatId, lang, vpsDetails)
   if (!isSuccess) return res.send(html(error))
   webhookTierCheck(chatId, preSpend, lang)
-  if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
   await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
@@ -25422,7 +25422,7 @@ app.get('/crypto-pay-digital-product', auth, async (req, res) => {
   const coin = req?.query?.coin
   const value = req?.query?.value_coin
   if (!ref || !chatId || !price || !product || !orderId || !coin || !value) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
-  const info = await state.findOne({ _id: parseFloat(chatId) })
+  const info = await state.findOne({ _id: String(chatId) })
   const lang = info?.userLanguage ?? 'en'
   const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
   del(chatIdOfPayment, ref)
@@ -25443,7 +25443,7 @@ app.get('/crypto-pay-digital-product', auth, async (req, res) => {
   notifyGroup(`🛒 <b>Digital Product Paid!</b>\n\n👤 User: ${maskName(name)}\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b>\n\n✅ Payment confirmed.`)
   if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🛒 <b>Digital Product Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b> (Crypto)\n\n📩 Deliver with:\n<code>/deliver ${orderId} [details]</code>`, { parse_mode: 'HTML' })
   webhookTierCheck(chatId, preSpend, lang)
-  if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
   await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
@@ -25455,7 +25455,7 @@ app.get('/crypto-pay-virtual-card', auth, async (req, res) => {
   const coin = req?.query?.coin
   const value = req?.query?.value_coin
   if (!ref || !chatId || !price || !product || !orderId || !coin || !value) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
-  const info = await state.findOne({ _id: parseFloat(chatId) })
+  const info = await state.findOne({ _id: String(chatId) })
   const lang = info?.userLanguage ?? 'en'
   const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
   del(chatIdOfPayment, ref)
@@ -25478,7 +25478,7 @@ app.get('/crypto-pay-virtual-card', auth, async (req, res) => {
   notifyGroup(`💳 <b>Virtual Card Paid!</b>\n\n👤 User: ${maskName(name)}\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b>\n\n✅ Payment confirmed.`)
   if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `💳 <b>Virtual Card Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b> (Crypto)\n📬 Address:\n<pre>${vcAddress}</pre>\n\n📩 Deliver with:\n<code>/deliver ${orderId} [card details]</code>`, { parse_mode: 'HTML' })
   webhookTierCheck(chatId, preSpend, lang)
-  if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
   await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
@@ -25490,7 +25490,7 @@ app.get('/crypto-wallet', auth, async (req, res) => {
   const coin = req?.query?.coin
   const value = req?.query?.value_coin
   if (!ref || !chatId || !coin || !value) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
-  const info = await state.findOne({ _id: parseFloat(chatId) })
+  const info = await state.findOne({ _id: String(chatId) })
   const lang = info?.userLanguage ?? 'en'
 
   // Update Wallet
@@ -25515,7 +25515,7 @@ app.get('/crypto-wallet', auth, async (req, res) => {
       }
     } catch (e) { /* non-critical */ }
   }
-  if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
   await set(state, chatId, 'action', 'none') // Reset action after crypto wallet deposit
 })
@@ -25529,7 +25529,7 @@ app.post('/dynopay/crypto-pay-plan', authDyno, async (req, res) => {
   log({ method: 'dynopay/crypto-pay-plan', ref, chatId, plan, price, coin, value })
 
   if (!ref || !chatId || !plan || !price || !coin || !value) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
-  const info = await state.findOne({ _id: parseFloat(chatId) })
+  const info = await state.findOne({ _id: String(chatId) })
   const lang = info?.userLanguage ?? 'en'
   const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
@@ -25564,7 +25564,7 @@ app.post('/dynopay/crypto-pay-plan', authDyno, async (req, res) => {
   subscribePlan(planEndingTime, freeDomainNamesAvailableFor, planOf, chatId, plan, bot, lang, freeValidationsAvailableFor)
   notifyGroup(`💎 <b>New Subscription!</b>\nUser ${maskName(name)} just upgraded to the <b>${plan} Plan</b> — unlocking unlimited URL shortening + ${(freeValidationsOf[plan] || 0).toLocaleString()} phone validations.\nDon't miss out — /start`)
   webhookTierCheck(chatId, preSpend, lang)
-  if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
   await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
@@ -25580,7 +25580,7 @@ app.post('/dynopay/crypto-pay-domain', authDyno, async (req, res) => {
 
   if (!ref || !chatId || !domain || !price || !coin || !value) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
 
-  const info = await state.findOne({ _id: parseFloat(chatId) })
+  const info = await state.findOne({ _id: String(chatId) })
   const lang = info?.userLanguage ?? 'en'
   const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
 
@@ -25626,7 +25626,7 @@ app.post('/dynopay/crypto-pay-domain', authDyno, async (req, res) => {
   }
 
   // Check for savings — cheaper registrar succeeded → credit difference to wallet
-  const updatedInfo = await state.findOne({ _id: parseFloat(chatId) })
+  const updatedInfo = await state.findOne({ _id: String(chatId) })
   const cheaperPrice = info?.cheaperPrice
   const fallbackOccurred = updatedInfo?.registrarFallback === true
   if (!fallbackOccurred && cheaperPrice && cheaperPrice < price) {
@@ -25643,7 +25643,7 @@ app.post('/dynopay/crypto-pay-domain', authDyno, async (req, res) => {
 
   notifyGroup(`🌐 <b>Domain Registered!</b>\nUser ${maskName(name)} just claimed <b>${maskDomain(domain)}</b> — your dream domain could be next.\nGrab yours before it's taken — /start`)
   webhookTierCheck(chatId, preSpend, lang)
-  if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
   sendDomainUpsell(chatId, lang, domain) // Post-purchase upsell (parity with wallet path)
   await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
@@ -25659,7 +25659,7 @@ app.post('/dynopay/crypto-pay-hosting', authDyno, async (req, res) => {
   log({ method: 'dynopay/crypto-pay-hosting', ref, chatId, price, coin, value })
 
   if (!ref || !chatId || !price || !coin || !value) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
-  const info = await state.findOne({ _id: parseFloat(chatId) })
+  const info = await state.findOne({ _id: String(chatId) })
   const lang = info?.userLanguage ?? 'en'
   const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
     // Logs
@@ -25728,7 +25728,7 @@ app.post('/dynopay/crypto-pay-hosting', authDyno, async (req, res) => {
   } catch (e) { log('[Hosting] notifyGroup error: ' + e.message) }
 
   webhookTierCheck(chatId, preSpend, lang)
-  if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
   await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   set(state, chatId, 'processingPayment', false) // Clear hosting payment lock
@@ -25741,7 +25741,7 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
   const { amount:value, currency:coin, payment_id:id } = req.body
   log({ method: 'dynopay/crypto-pay-phone', ref, chatId, price, coin, value })
   if (!ref || !chatId || !price || !coin || !value || !cpData) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
-  const info = await state.findOne({ _id: parseFloat(chatId) })
+  const info = await state.findOne({ _id: String(chatId) })
   const lang = info?.userLanguage ?? 'en'
   const cpTxt = phoneConfig.getTxt(lang)
   const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
@@ -25802,7 +25802,7 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
             return res.send(html())
           } else {
             // No approved bundle — redirect to address/bundle flow
-            await state.updateOne({ _id: parseFloat(chatId) }, { $set: {
+            await state.updateOne({ _id: String(chatId) }, { $set: {
               action: 'cpEnterAddress', cpPendingCoin: 'crypto_dynopay_' + coin, cpPendingPriceUsd: price, cpPendingPriceNgn: 0, cpPaymentMethod: 'crypto_dynopay_' + coin,
             }}, { upsert: true })
             sendMessage(chatId, trans('t.wh_18', countryName), { parse_mode: 'HTML' })
@@ -25817,7 +25817,7 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
         // notifyGroup + admin already sent inside executeTwilioPurchase()
         return res.send(html())
       } else {
-        await state.updateOne({ _id: parseFloat(chatId) }, { $set: {
+        await state.updateOne({ _id: String(chatId) }, { $set: {
           action: 'cpEnterAddress', cpPendingCoin: 'crypto_dynopay_' + coin, cpPendingPriceUsd: price, cpPendingPriceNgn: 0, cpPaymentMethod: 'crypto_dynopay_' + coin,
         }}, { upsert: true })
         const addrLoc = getAddressLocationText(countryCode)
@@ -25872,7 +25872,7 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
   notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, plan.name, price, 'Crypto DynoPay'))
   if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminPurchasePrivate(maskName(name), selectedNumber, plan.name, price, 'Crypto DynoPay'), { parse_mode: 'HTML' })
   webhookTierCheck(chatId, preSpend, lang)
-  if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
   await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
@@ -25884,7 +25884,7 @@ app.post('/dynopay/crypto-pay-phone-upgrade', authDyno, async (req, res) => {
   const { amount:value, currency:coin, payment_id:id } = req.body
   log({ method: 'dynopay/crypto-pay-phone-upgrade', ref, chatId, price, coin, value })
   if (!ref || !chatId || !price || !coin || !value || !upgradeData) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
-  const info = await state.findOne({ _id: parseFloat(chatId) })
+  const info = await state.findOne({ _id: String(chatId) })
   const lang = info?.userLanguage ?? 'en'
   del(chatIdOfDynopayPayment, ref)
   const name = await get(nameOf, chatId)
@@ -25917,7 +25917,7 @@ app.post('/dynopay/crypto-pay-phone-upgrade', authDyno, async (req, res) => {
   }
 
   await applyPhonePlanUpgrade(chatId, num, upgradeData.newPlan, upgradeData.newPrice, lang, `🪙 Crypto (${coin})`)
-  if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
   res.send(html())
 })
@@ -25928,7 +25928,7 @@ app.post('/dynopay/crypto-pay-leads', authDyno, async (req, res) => {
   const { amount:value, currency:coin, payment_id:id } = req.body
   log({ method: 'dynopay/crypto-pay-leads', ref, chatId, price, coin, value })
   if (!ref || !chatId || !price || !coin || !value || !lastStep) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
-  const info = await state.findOne({ _id: parseFloat(chatId) })
+  const info = await state.findOne({ _id: String(chatId) })
   const lang = info?.userLanguage ?? 'en'
   const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
   del(chatIdOfDynopayPayment, ref)
@@ -26022,7 +26022,7 @@ app.post('/dynopay/crypto-pay-leads', authDyno, async (req, res) => {
     sendMessage(chatId, trans('t.wh_22', Number(price).toFixed(2), label.toLowerCase()))
     addFundsTo(walletOf, chatId, 'usd', Number(price), lang)
   }
-  if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
   await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
@@ -26038,7 +26038,7 @@ app.post('/dynopay/crypto-pay-vps', authDyno, async (req, res) => {
 
   if (!ref || !chatId || !price || !coin || !value) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
 
-  const info = await state.findOne({ _id: parseFloat(chatId) })
+  const info = await state.findOne({ _id: String(chatId) })
   const lang = info?.userLanguage ?? 'en'
   const totalPrice = vpsDetails?.totalPrice
   const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
@@ -26094,7 +26094,7 @@ app.post('/dynopay/crypto-pay-vps', authDyno, async (req, res) => {
   notifyGroup(`🖥️ <b>VPS Deployed!</b>\nUser ${maskName(name)} just deployed a new VPS server via crypto.\nDeploy yours in seconds — /start`)
   if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🖥️ <b>New VPS (Crypto)</b>\n👤 ${chatId} (${maskName(name)})\n💰 $${Number(price).toFixed(2)} ${coin}\n📦 ${vpsDetails?.plan || 'VPS'}`, { parse_mode: 'HTML' })
   webhookTierCheck(chatId, preSpend, lang)
-  if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
   await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
@@ -26110,7 +26110,7 @@ app.post('/dynopay/crypto-pay-upgrade-vps', authDyno, async (req, res) => {
 
   if (!ref || !chatId || !price || !coin || !value) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
 
-  const info = await state.findOne({ _id: parseFloat(chatId) })
+  const info = await state.findOne({ _id: String(chatId) })
   const lang = info?.userLanguage ?? 'en'
   const totalPrice = Number(vpsDetails?.totalPrice)
   const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
@@ -26155,7 +26155,7 @@ app.post('/dynopay/crypto-pay-upgrade-vps', authDyno, async (req, res) => {
   notifyGroup(`🖥️ <b>VPS ${upgradeLabel}!</b>\nUser ${maskName(name)} just upgraded their VPS via crypto.\nUpgrade yours — /start`)
   if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🖥️ <b>VPS ${upgradeLabel} (Crypto)</b>\n👤 ${chatId} (${maskName(name)})\n💰 $${Number(price).toFixed(2)} ${coin}\n📦 ${vpsDetails?.plan || 'VPS'}`, { parse_mode: 'HTML' })
   webhookTierCheck(chatId, preSpend, lang)
-  if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
   await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
@@ -26168,7 +26168,7 @@ app.post('/dynopay/crypto-pay-digital-product', authDyno, async (req, res) => {
   const { amount: value, currency: coin, payment_id: id } = req.body
   log({ method: 'dynopay/crypto-pay-digital-product', ref, chatId, product, price, coin, value })
   if (!ref || !chatId || !product || !price || !coin || !value) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
-  const info = await state.findOne({ _id: parseFloat(chatId) })
+  const info = await state.findOne({ _id: String(chatId) })
   const lang = info?.userLanguage ?? 'en'
   const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
   del(chatIdOfDynopayPayment, ref)
@@ -26197,7 +26197,7 @@ app.post('/dynopay/crypto-pay-digital-product', authDyno, async (req, res) => {
   notifyGroup(`🛒 <b>Digital Product Paid!</b>\n\n👤 User: ${maskName(name)}\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b>\n\n✅ Payment confirmed.`)
   if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🛒 <b>Digital Product Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b> (Crypto)\n\n📩 Deliver with:\n<code>/deliver ${orderId} [details]</code>`, { parse_mode: 'HTML' })
   webhookTierCheck(chatId, preSpend, lang)
-  if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
   await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
@@ -26208,7 +26208,7 @@ app.post('/dynopay/crypto-pay-virtual-card', authDyno, async (req, res) => {
   const { amount: value, currency: coin, payment_id: id } = req.body
   log({ method: 'dynopay/crypto-pay-virtual-card', ref, chatId, product, price, coin, value })
   if (!ref || !chatId || !product || !price || !coin || !value) return log(translation('t.argsErr')) || res.send(html(translation('t.argsErr')))
-  const info = await state.findOne({ _id: parseFloat(chatId) })
+  const info = await state.findOne({ _id: String(chatId) })
   const lang = info?.userLanguage ?? 'en'
   const preSpend = await loyalty.getTotalSpend(walletOf, chatId)
   del(chatIdOfDynopayPayment, ref)
@@ -26239,7 +26239,7 @@ app.post('/dynopay/crypto-pay-virtual-card', authDyno, async (req, res) => {
   notifyGroup(`💳 <b>Virtual Card Paid!</b>\n\n👤 User: ${maskName(name)}\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b>\n\n✅ Payment confirmed.`)
   if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `💳 <b>Virtual Card Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b> (Crypto)\n📬 Address:\n<pre>${vcAddress}</pre>\n\n📩 Deliver with:\n<code>/deliver ${orderId} [card details]</code>`, { parse_mode: 'HTML' })
   webhookTierCheck(chatId, preSpend, lang)
-  if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
   await set(state, chatId, 'action', 'none') // Reset action after crypto payment completes
   res.send(html())
@@ -26261,7 +26261,7 @@ app.post('/dynopay/crypto-wallet', authDyno, async (req, res) => {
     return res.send(html(translation('t.argsErr')))
   }
   
-  const info = await state.findOne({ _id: parseFloat(chatId) })
+  const info = await state.findOne({ _id: String(chatId) })
   const lang = info?.userLanguage ?? 'en'
   log('User language:', lang)
 
@@ -26333,7 +26333,7 @@ app.post('/dynopay/crypto-wallet', authDyno, async (req, res) => {
       }
     } catch (e) { /* non-critical */ }
   }
-  if (cartRecovery) cartRecovery.recordPaymentCompleted(parseFloat(chatId))
+  if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
   await set(state, chatId, 'action', 'none') // Reset action after crypto wallet deposit
   
@@ -28483,7 +28483,7 @@ app.post('/twilio/voicemail-complete', async (req, res) => {
 
       // Store voicemail record
       await db.collection('phoneLogs').insertOne({
-        chatId: parseFloat(chatId),
+        chatId: String(chatId),
         type: 'voicemail',
         provider: 'twilio',
         from: decodedFrom,
