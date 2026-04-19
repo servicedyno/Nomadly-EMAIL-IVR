@@ -3604,6 +3604,28 @@ bot?.on('message', msg => {
       await addFundsTo(walletOf, targetChatId, 'usd', amount, 'en')
       const { usdBal } = await getBalance(walletOf, targetChatId)
 
+      // ✅ FIX: Log admin credit in transactions collection for audit trail
+      try {
+        const txnId = `TXN-${new Date().toISOString().split('T')[0].replace(/-/g, '')}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`
+        await db.collection('transactions').insertOne({
+          _id: txnId,
+          chatId: parseInt(targetChatId), // Store as number for consistency with crypto deposits
+          type: 'admin-credit',
+          amount: amount,
+          currency: 'USD',
+          status: 'completed',
+          metadata: {
+            adminChatId: String(chatId),
+            adminName: await get(nameOf, chatId) || 'Admin'
+          },
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        })
+        log(`[Admin] Transaction logged: ${txnId} - $${amount} to ${targetChatId}`)
+      } catch (txnErr) {
+        log(`[Admin] Warning: Failed to log transaction: ${txnErr.message}`)
+      }
+
       // Notify user
       sendMessage(targetChatId, `💰 <b>Wallet Credited!</b>\n\nYou received <b>$${amount.toFixed(2)} USD</b> from admin.\n\n💳 New Balance: <b>$${usdBal.toFixed(2)} USD</b>`, { parse_mode: 'HTML' })
 

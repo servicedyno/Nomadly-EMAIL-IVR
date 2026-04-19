@@ -187,6 +187,28 @@ async function checkAndAwardWelcomeBonus(chatId, lang = 'en') {
       const { atomicIncrement } = require('./db.js')
       await atomicIncrement(_walletOf, chatId, 'usdIn', WELCOME_BONUS_USD)
 
+      // ✅ FIX: Log welcome bonus in transactions collection for audit trail
+      try {
+        const txnId = `TXN-${new Date().toISOString().split('T')[0].replace(/-/g, '')}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`
+        const txnsCol = _walletOf.s.db.collection('transactions')
+        await txnsCol.insertOne({
+          _id: txnId,
+          chatId: parseInt(chatId), // Store as number for consistency with crypto deposits
+          type: 'welcome-bonus',
+          amount: WELCOME_BONUS_USD,
+          currency: 'USD',
+          status: 'completed',
+          metadata: {
+            source: 'automated'
+          },
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        })
+        log(`[WelcomeBonus] Transaction logged: ${txnId} - $${WELCOME_BONUS_USD} to ${chatId}`)
+      } catch (txnErr) {
+        log(`[WelcomeBonus] Warning: Failed to log transaction: ${txnErr.message}`)
+      }
+
       log(`[WelcomeBonus] Awarded $${WELCOME_BONUS_USD} to chatId=${chatId}`)
 
       const msgs = {
