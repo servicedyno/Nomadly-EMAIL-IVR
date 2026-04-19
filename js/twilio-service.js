@@ -64,7 +64,7 @@ const NO_COMPLIANCE_COUNTRIES = [
   { code: 'CA', name: '🇨🇦 Canada', types: ['local', 'toll_free'], prices: { local: 1.15, toll_free: 2.15 } },
   { code: 'IL', name: '🇮🇱 Israel', types: ['local', 'mobile'], prices: { local: 4.25, mobile: 15.00 } },
   { code: 'PR', name: '🇵🇷 Puerto Rico', types: ['local'], prices: { local: 3.25 } },
-  { code: 'GB', name: '🇬🇧 United Kingdom', types: ['mobile'], prices: { mobile: 1.15 } },
+  { code: 'GB', name: '🇬🇧 United Kingdom', types: ['mobile'], addrReq: ['any'], prices: { mobile: 1.15 } },
   { code: 'TN', name: '🇹🇳 Tunisia', types: ['local'], prices: { local: 120.00 } },
   { code: 'IE', name: '🇮🇪 Ireland', types: ['local'], addrReq: ['local'], prices: { local: 1.60 } },
   // ── addrReq=any (address required, any country — prompted after payment) ──
