@@ -67,11 +67,17 @@ function isNormalUser(chatId) {
 }
 
 function isDeveloper(chatId) {
-  return chatId === Number(process.env.TELEGRAM_DEVELOPER_CHAT_ID) // Replace with the actual developer's chat ID
+  const devId = process.env.TELEGRAM_DEVELOPER_CHAT_ID
+  if (!devId) return false
+  // Handle both string and number comparisons after chatId typing fix
+  return String(chatId) === String(devId)
 }
 
 function isAdmin(chatId) {
-  return chatId === Number(process.env.TELEGRAM_ADMIN_CHAT_ID) // Replace with the actual admin's chat ID
+  const adminId = process.env.TELEGRAM_ADMIN_CHAT_ID
+  if (!adminId) return false
+  // Handle both string and number comparisons after chatId typing fix
+  return String(chatId) === String(adminId)
 }
 
 async function usdToNgn(amountInUSD) {
