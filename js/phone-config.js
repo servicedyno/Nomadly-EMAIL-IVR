@@ -415,49 +415,40 @@ planByButton[btn.businessPlan] = 'business'
 const txt = {
   hubWelcome: `📞 <b>Cloud IVR</b> <i>by Speechcue</i>
 
-Get a virtual number in 30+ countries — in under 2 minutes.
+Virtual numbers in 30+ countries · Active in 2 minutes
 
-📞 Forward calls to your real phone
-💬 Receive SMS directly in Telegram
-🌐 Make & receive calls in your browser — no app needed
-🤖 Set up IVR auto-attendant
-🔗 Connect via SIP softphone
+📞 Call forwarding · 💬 SMS to Telegram · 🌐 Browser calls · 🤖 IVR · 🔗 SIP
 
-Plans from <b>$${PHONE_STARTER_PRICE}/mo</b> with ${plans.starter.minutes} inbound min + ${plans.starter.sms} inbound SMS included.
-💳 Outbound calls charged from wallet balance.
+Plans from <b>$${PHONE_STARTER_PRICE}/mo</b> (${plans.starter.minutes} min + ${plans.starter.sms} SMS included)
 
-New here? Tap <b>❓ How It Works</b> for a full guide.`,
+New? Tap <b>❓ How It Works</b>`,
 
   howItWorks: `📞 <b>Cloud IVR — How It Works</b>
 
-Your own virtual phone number in 30+ countries. Receive calls, send SMS, build IVR menus — all managed from Telegram.
+Virtual phone numbers in 30+ countries, managed from Telegram.
 
-<b>🚀 Getting started:</b>
-1. Tap <b>🛒 Choose a Plan</b> → pick a country → select a number
-2. Pay from wallet (crypto, bank, or card)
-3. Your number is active immediately
+<b>🚀 Quick Start:</b>
+1. Choose Plan → Pick Country → Select Number
+2. Pay from wallet → Active immediately
 
-<b>📞 What you can do:</b>
-• <b>Forward calls</b> to your real phone — answer anywhere
-• <b>SMS to Telegram</b> — receive texts right here
-• <b>Browser calling</b> — make/receive calls at ${CALL_PAGE_URL} (no app needed)
-• <b>SIP softphone</b> — connect with any SIP app using your credentials
-• <b>📢 Quick IVR Call</b> — call a number with a custom voice message (TTS or audio)
-• <b>📞 Bulk IVR Campaign</b> — call hundreds of numbers with one campaign
-• <b>🤖 IVR Auto-Attendant</b> — "Press 1 for sales, 2 for support" menus
-• <b>🎙️ Voicemail</b> — custom greetings, delivered to Telegram/Email
+<b>📞 Features:</b>
+• Forward calls to any phone
+• SMS delivered to Telegram
+• Browser calls at ${CALL_PAGE_URL}
+• SIP softphone support
+• Quick IVR & Bulk campaigns
+• Auto-attendant menus
+• Custom voicemail
 
 <b>💰 Billing:</b>
-• <b>Inbound</b> calls & SMS — included in your plan
-• <b>Outbound</b> calls & forwarding — charged from wallet balance per minute
-• Plans renew monthly. Auto-renew available.
+Inbound calls/SMS included · Outbound charged from wallet
 
 <b>📋 Plans:</b>
-💡 <b>Starter $${PHONE_STARTER_PRICE}/mo</b> — ${plans.starter.minutes} min, forwarding + SMS to Telegram
-⭐ <b>Pro $${PHONE_PRO_PRICE}/mo</b> — ${plans.pro.minutes} min, + voicemail, SIP, IVR calling, OTP
-👑 <b>Business $${PHONE_BUSINESS_PRICE}/mo</b> — ${BUSINESS_MINUTES} min, + recording, auto-attendant, scheduling
+💡 Starter $${PHONE_STARTER_PRICE}/mo — ${plans.starter.minutes} min · Forwarding + SMS
+⭐ Pro $${PHONE_PRO_PRICE}/mo — ${plans.pro.minutes} min · + Voicemail, SIP, IVR
+👑 Business $${PHONE_BUSINESS_PRICE}/mo — ${BUSINESS_MINUTES} min · + Recording, Auto-attendant
 
-🧪 Try SIP calling free first — tap <b>🧪 Test SIP Free</b>`,
+🧪 Try SIP free — tap <b>🧪 Test SIP Free</b>`,
 
   selectCountry: '📍 Select country for your new phone number:',
 
