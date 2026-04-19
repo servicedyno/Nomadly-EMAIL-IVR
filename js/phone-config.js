@@ -493,22 +493,20 @@ Your own virtual phone number in 30+ countries. Receive calls, send SMS, build I
   selectPlan: (number) => {
     let text = `✅ Selected: <b>${formatPhone(number)}</b>\n\n📋 Choose your plan:\n\n`
     if (PHONE_STARTER_ON) {
-      text += `<b>💡 Starter — $${PHONE_STARTER_PRICE}/mo</b>\n📞 ${plans.starter.minutes} inbound min · 📩 ${plans.starter.sms} inbound SMS · ${plansI18n.en.starter.features.join(' · ')}\n➕ Add up to ${SUB_NUMBER_LIMITS.starter} extra numbers (from $${SUB_NUMBER_BASE_PRICE}/mo each)\n\n`
+      text += `<b>💡 Starter — $${PHONE_STARTER_PRICE}/mo</b>\n📞 ${plans.starter.minutes} min · 📩 ${plans.starter.sms} SMS · Forwarding · Up to ${SUB_NUMBER_LIMITS.starter} extra numbers\n\n`
     }
     if (PHONE_PRO_ON) {
-      text += `<b>⭐ Pro — $${PHONE_PRO_PRICE}/mo</b>\n📞 ${plans.pro.minutes} inbound min · 📩 ${plans.pro.sms} inbound SMS · ${plansI18n.en.pro.features.join(' · ')}\n➕ Add up to ${SUB_NUMBER_LIMITS.pro} extra numbers (from $${SUB_NUMBER_BASE_PRICE}/mo each)\n\n`
+      text += `<b>⭐ Pro — $${PHONE_PRO_PRICE}/mo</b>\n📞 ${plans.pro.minutes} min · 📩 ${plans.pro.sms} SMS · All Starter + Voicemail · SIP · Webhooks · IVR\n\n`
     }
     if (PHONE_BUSINESS_ON) {
-      text += `<b>👑 Business — $${PHONE_BUSINESS_PRICE}/mo</b>\n📞 ${plans.business.minutes} inbound min · 📩 ${plans.business.sms} inbound SMS · ${plansI18n.en.business.features.join(' · ')}\n➕ Add up to ${SUB_NUMBER_LIMITS.business} extra numbers (from $${SUB_NUMBER_BASE_PRICE}/mo each)\n\n`
+      text += `<b>👑 Business — $${PHONE_BUSINESS_PRICE}/mo</b>\n📞 ${plans.business.minutes} min · 📩 ${plans.business.sms} SMS · All Pro + Recording · Auto-Attendant · Priority Support\n\n`
     }
-    text += `<i>📞 Plan minutes are for inbound calls only.\n💳 Outbound calls & forwarding are charged from your wallet balance.</i>`
+    text += `<i>💳 Outbound calls charged from wallet</i>`
     return text
   },
 
   orderSummary: (number, country, plan, price) => {
-    const planKey = plan.name.toLowerCase()
-    const features = plansI18n.en[planKey]?.features || plan.features
-    return `📋 <b>Order Summary</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/mo\n📩 ${plan.sms} inbound SMS · 📞 ${plan.minutes} inbound min\n💳 Outbound calls & forwarding charged from wallet\n⚡ ${features.join(', ')}\n\n💰 Total: <b>$${price}</b> (first month)`
+    return `📋 <b>Order Summary</b>\n\n📞 ${formatPhone(number)} · ${country}\n📦 ${plan.name} — $${price}/mo\n📩 ${plan.sms} SMS · 📞 ${plan.minutes} min\n\n💰 Total: <b>$${price}</b> (first month)\n\n<i>💳 Outbound calls charged from wallet</i>`
   },
 
   paymentPrompt: (price) => `Price: <b>$${price}</b>. Choose payment method:`,
@@ -1018,7 +1016,7 @@ const msg = {
     sipTestReferral: (link) => `\n\n🎁 <b>Want 1 more free test call?</b>\nShare this link with a friend. When they send /testsip, you'll get a bonus call:\n\n${link}`,
     sipTestError: '❌ Could not generate test code. Please try again later.',
     sipTestMenuHint: '🧪 <i>Try SIP calling free — send /testsip</i>',
-    buyPlansHeader: `🛒 <b>Choose a Cloud IVR Plan</b>\n\nFirst, choose your plan:`,
+    buyPlansHeader: `📞 <b>Choose Your Plan</b>`,
   },
   fr: {
     selectOption: 'Veuillez sélectionner une option.',
