@@ -4605,7 +4605,7 @@ bot?.on('message', msg => {
       const domain = info?.domain || ''
       const price = info?.price || ''
       const priceText = domain && price ? `✅ <b>${domain}</b> — <b>$${price}</b>\n\n` : ''
-      send(chatId, trans('t.wlt_3', priceText, t.askDomainToUseWithShortener), trans('yes_no'))
+      send(chatId, trans('t.wlt_3', priceText, t.askDomainToUseWithShortener), k.of([[t.yes, t.no], [t.back]]))
     },
     domainNsSelect: async () => {
       await set(state, chatId, 'action', a.domainNsSelect)
@@ -4663,7 +4663,7 @@ bot?.on('message', msg => {
       send(chatId, trans('t.wlt_6'), trans('k.of', [...domains.map(d => [d])]))
     },
     'get-free-domain': async () => {
-      send(chatId, t.chooseFreeDomainText,  trans('yes_no'))
+      send(chatId, t.chooseFreeDomainText,  k.of([[t.yes, t.no], [t.back]]))
       await set(state, chatId, 'action', 'get-free-domain')
     },
 
@@ -4699,7 +4699,7 @@ bot?.on('message', msg => {
       const delId = info?.delId
       const rec = records[delId]
       const label = rec ? `<b>${rec.recordType}</b> → ${rec.recordContent || '—'}` : 'this record'
-      send(chatId, trans('t.wlt_7', label), trans('yes_no'))
+      send(chatId, trans('t.wlt_7', label), k.of([[t.yes, t.no], [t.back]]))
       await set(state, chatId, 'action', 'confirm-dns-record-id-to-delete')
     },
 
@@ -4997,7 +4997,7 @@ Enter new value:`), bc)
       await set(state, chatId, 'action', admin.messageUsers)
     },
     adminConfirmMessage: async () => {
-      send(chatId, trans('t.dom_confirm_prompt'),  trans('yes_no'))
+      send(chatId, trans('t.dom_confirm_prompt'),  k.of([[t.yes, t.no], [t.back]]))
       await set(state, chatId, 'action', 'adminConfirmMessage')
     },
     broadcastSettings: async () => {
@@ -5382,7 +5382,7 @@ Enter new value:`), bc)
       const { price, totalPrice, couponApplied, newPrice } = info
       const p = couponApplied ? newPrice : (price || totalPrice || 0)
 
-      send(chatId, trans('t.ld_1', Number(p).toFixed(2)) + t.walletSelectCurrencyConfirm, trans('yes_no'))
+      send(chatId, trans('t.ld_1', Number(p).toFixed(2)) + t.walletSelectCurrencyConfirm, k.of([[t.yes], [t.no], [t.back]]))
       await set(state, chatId, 'action', a.walletSelectCurrencyConfirm)
     },
     //
@@ -13948,7 +13948,7 @@ ${message.replace(/\n/g, '<br>')}
       if (hasShortener) {
         confirmMsg += `\n\n⚠️ <b>Warning:</b> Your URL shortener is active on this domain. Provider DNS does not support root CNAME flattening like Cloudflare. <b>The shortener will be deactivated</b> and the domain removed from Railway.`
       }
-      send(chatId, confirmMsg, trans('yes_no'))
+      send(chatId, confirmMsg, k.of([[t.yes, t.no], [t.back]]))
       if (hasShortener) {
         await set(state, chatId, 'switchToProviderDeactivateShortener', true)
       }
