@@ -23858,6 +23858,9 @@ setTimeout(() => {
 honeypotService.createHoneypotRoutes(app)
 
 const addFundsTo = async (walletOf, chatId, coin, valueIn, lang) => {
+  // Ensure chatId is always string for database consistency
+  chatId = String(chatId)
+  
   // All deposits now credit USD wallet
   if (coin === 'ngn') {
     // Convert NGN to USD before crediting

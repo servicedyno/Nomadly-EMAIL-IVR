@@ -73,6 +73,11 @@ const increment = async (c, key, val = 1, valueInside) => {
 // Atomic increment using MongoDB $inc — safe for concurrent wallet operations
 const atomicIncrement = async (c, key, field, amount) => {
   try {
+    // Ensure wallet _id is always string for consistency
+    if (c.collectionName === 'walletOf') {
+      key = String(key)
+    }
+    
     // ━━━ WALLET-SAFE DEDUCTIONS ━━━
     // When deducting from wallet (usdOut/ngnOut), use atomic balance check
     // to prevent overdrafts and negative balances.
