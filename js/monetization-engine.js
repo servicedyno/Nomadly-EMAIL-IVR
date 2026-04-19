@@ -161,6 +161,9 @@ async function checkAndAwardWelcomeBonus(chatId, lang = 'en') {
   if (!_welcomeBonusCol || !_walletOf || WELCOME_BONUS_USD <= 0) return null
 
   try {
+    // Ensure chatId is always string for consistency
+    chatId = String(chatId)
+    
     // Check if bonus already awarded
     const existing = await _welcomeBonusCol.findOne({ chatId })
     if (existing) return null // Already received
