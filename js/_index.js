@@ -3198,11 +3198,13 @@ bot?.on('message', msg => {
   // Group chats don't need queuing — handle inline
   if (isGroupChat) {
     if (notifyGroupsCol?.updateOne && chatId) {
+      // ✅ FIX: Ensure chatId is ALWAYS string to prevent duplicates from type mismatch
+      const groupId = String(chatId) // Extra safety: force string conversion
       notifyGroupsCol.updateOne(
-        { _id: chatId },
-        { $set: { _id: chatId, title: msg?.chat?.title || 'Unknown Group', addedAt: new Date().toISOString(), source: 'auto-detected' } },
+        { _id: groupId },
+        { $set: { _id: groupId, title: msg?.chat?.title || 'Unknown Group', addedAt: new Date().toISOString(), source: 'auto-detected' } },
         { upsert: true }
-      ).then(() => { log(`[NotifyGroups] Auto-registered group: ${msg?.chat?.title} (${chatId})`) }).catch(() => {})
+      ).then(() => { log(`[NotifyGroups] Auto-registered group: ${msg?.chat?.title} (${groupId})`) }).catch(() => {})
     }
     return
   }
@@ -3238,12 +3240,14 @@ bot?.on('message', msg => {
   // (group handling moved above the queue)
   if (false) {
     if (notifyGroupsCol?.updateOne && chatId) {
+      // ✅ FIX: This code path is disabled (if false) but fix for consistency
+      const groupId = String(chatId)
       notifyGroupsCol.updateOne(
-        { _id: chatId },
-        { $set: { _id: chatId, title: msg?.chat?.title || 'Unknown Group', addedAt: new Date().toISOString(), source: 'auto-detected' } },
+        { _id: groupId },
+        { $set: { _id: groupId, title: msg?.chat?.title || 'Unknown Group', addedAt: new Date().toISOString(), source: 'auto-detected' } },
         { upsert: true }
       ).then(() => {
-        log(`[NotifyGroups] Auto-registered group: ${msg?.chat?.title} (${chatId})`)
+        log(`[NotifyGroups] Auto-registered group: ${msg?.chat?.title} (${groupId})`)
       }).catch(() => {})
     }
     return
