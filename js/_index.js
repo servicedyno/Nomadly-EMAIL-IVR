@@ -23156,6 +23156,7 @@ const formatLinks = links => {
 }
 
 const buyDomainFullProcess = async (chatId, lang, domain) => {
+  let domainRegistered = false // track so catch-block knows not to refund
   try {
     sendMessage(chatId, translation('t.paymentSuccessFul', lang), rem)
     let info = await get(state, chatId)
@@ -23173,6 +23174,8 @@ const buyDomainFullProcess = async (chatId, lang, domain) => {
       sendMessage(chatId, userMsg)
       return userMsg
     }
+    // ✅ At this point the domain is registered — no exception below should trigger refund
+    domainRegistered = true
     // Track actual registrar — may differ from original if CR→OP fallback occurred
     registrar = buyResult.registrar || registrar
 
@@ -23240,10 +23243,14 @@ const buyDomainFullProcess = async (chatId, lang, domain) => {
         : await saveDomainInServerRailway(domain)
 
     if (error) {
+      // NOTE: Domain is ALREADY registered & transaction logged at this point.
+      // Post-registration shortener setup failure must NOT trigger refund in the caller.
       const m = translation('t.errorSavingDomain', lang)
       sendMessage(chatId, m)
       await markFailed(domain, error).catch(() => {})
-      return m
+      sendMessage(TELEGRAM_DEV_CHAT_ID, `⚠️ Shortener server link failed (no refund) for ${domain} | user ${chatId}: ${error}`)
+      log(`[buyDomainFullProcess] Shortener server link failed for ${domain} — domain already registered, NOT refunding: ${error}`)
+      return false // domain already succeeded — do not refund
     }
 
     // ── Persist Railway link complete ──
@@ -23263,16 +23270,22 @@ const buyDomainFullProcess = async (chatId, lang, domain) => {
         await sleep(60000) // CR needs propagation time
         const { error: saveServerInDomainError } = await saveServerInDomain(domain, server, recordType)
         if (saveServerInDomainError) {
+          // NOTE: Domain is ALREADY registered & transaction logged — NO refund.
           const m = `Error saving DNS record for domain: ${saveServerInDomainError}`
-          sendMessage(chatId, m)
+          sendMessage(chatId, translation('t.errorSavingDomain', lang) || m)
           await markFailed(domain, saveServerInDomainError).catch(() => {})
-          return m
+          sendMessage(TELEGRAM_DEV_CHAT_ID, `⚠️ Shortener CNAME (CR fallback) failed (no refund) for ${domain} | user ${chatId}: ${saveServerInDomainError}`)
+          log(`[buyDomainFullProcess] Shortener CNAME CR-fallback failed for ${domain} — domain already registered, NOT refunding: ${saveServerInDomainError}`)
+          return false // domain already succeeded — do not refund
         }
       } else {
+        // NOTE: Domain is ALREADY registered & transaction logged — NO refund.
         const m = `Error saving DNS record for domain: ${addResult.error || 'Unknown error'}`
-        sendMessage(chatId, m)
+        sendMessage(chatId, translation('t.errorSavingDomain', lang) || m)
         await markFailed(domain, addResult.error || 'Unknown error').catch(() => {})
-        return m
+        sendMessage(TELEGRAM_DEV_CHAT_ID, `⚠️ Shortener CNAME failed (no refund) for ${domain} | user ${chatId}: ${addResult.error || 'unknown'}`)
+        log(`[buyDomainFullProcess] Shortener CNAME failed for ${domain} — domain already registered, NOT refunding: ${addResult.error || 'unknown'}`)
+        return false // domain already succeeded — do not refund
       }
     }
 
@@ -23290,6 +23303,12 @@ const buyDomainFullProcess = async (chatId, lang, domain) => {
     const errorMessage = `err buyDomainFullProcess ${error?.message} ${safeStringify(error?.response?.data)}`
     sendMessage(TELEGRAM_DEV_CHAT_ID, errorMessage)
     console.error(errorMessage)
+    // If the domain was already registered before the exception, DO NOT signal an error to the caller — the payment should not be refunded.
+    if (domainRegistered) {
+      log(`[buyDomainFullProcess] Exception AFTER successful domain registration (${domain}) — suppressing refund. Error: ${error?.message}`)
+      sendMessage(TELEGRAM_DEV_CHAT_ID, `⚠️ Post-registration exception (no refund) for ${domain}: ${error?.message}`)
+      return false
+    }
     return errorMessage
   }
 }
