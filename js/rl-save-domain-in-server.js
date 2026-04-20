@@ -12,6 +12,17 @@ const PROJECT_ID = process.env.RAILWAY_PROJECT_ID
 const SERVICE_ID = process.env.RAILWAY_SERVICE_ID
 const GRAPHQL_ENDPOINT = 'https://backboard.railway.app/graphql/v2'
 
+// Railway supports two token types:
+//   • Account/Personal API Tokens → header: `Authorization: Bearer <token>`
+//   • Project Access Tokens        → header: `Project-Access-Token: <token>`
+// Nomadly uses a Project Access Token (scoped to one project + environment).
+// We send BOTH headers so either token type works — Railway reads whichever matches.
+const railwayHeaders = () => ({
+  Authorization: `Bearer ${API_TOKEN}`,
+  'Project-Access-Token': API_TOKEN,
+  'Content-Type': 'application/json',
+})
+
 /**
  * Query Railway for an existing custom domain's CNAME target and TXT verification record.
  * Returns { server, recordType, txtHost, txtValue } if found, or null.
@@ -34,7 +45,7 @@ async function getExistingRailwayDNS(domain) {
       }
     }`
     const res = await axios.post(GRAPHQL_ENDPOINT, { query }, {
-      headers: { Authorization: `Bearer ${API_TOKEN}`, 'Content-Type': 'application/json' },
+      headers: railwayHeaders(),
       timeout: 15000,
     })
     const customDomains = res.data?.data?.domains?.customDomains || []
@@ -92,12 +103,7 @@ async function saveDomainInServerRailway(domain) {
   const response = await axios.post(
     GRAPHQL_ENDPOINT,
     { query: GRAPHQL_QUERY },
-    {
-      headers: {
-        Authorization: `Bearer ${API_TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-    },
+    { headers: railwayHeaders() },
   )
   const error = response?.data?.errors?.[0]?.message
 
@@ -128,12 +134,7 @@ async function saveDomainInServerRailway(domain) {
       const retryResponse = await axios.post(
         GRAPHQL_ENDPOINT,
         { query: GRAPHQL_QUERY },
-        {
-          headers: {
-            Authorization: `Bearer ${API_TOKEN}`,
-            'Content-Type': 'application/json',
-          },
-        },
+        { headers: railwayHeaders() },
       )
       const retryError = retryResponse?.data?.errors?.[0]?.message
       if (retryError) {
@@ -176,12 +177,7 @@ async function isRailwayAPIWorking() {
   const response = await axios.post(
     GRAPHQL_ENDPOINT,
     { query: GRAPHQL_QUERY },
-    {
-      headers: {
-        Authorization: `Bearer ${API_TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-    },
+    { headers: railwayHeaders() },
   )
   const error = response?.data?.errors?.[0]?.message
 
@@ -210,12 +206,7 @@ async function removeDomainFromRailway(domain) {
     const listResp = await axios.post(
       GRAPHQL_ENDPOINT,
       { query: listQuery },
-      {
-        headers: {
-          Authorization: `Bearer ${API_TOKEN}`,
-          'Content-Type': 'application/json',
-        },
-      },
+      { headers: railwayHeaders() },
     )
     const customDomains = listResp?.data?.data?.domains?.customDomains || []
     const match = customDomains.find(d => d.domain === domain)
@@ -229,12 +220,7 @@ async function removeDomainFromRailway(domain) {
     const deleteResp = await axios.post(
       GRAPHQL_ENDPOINT,
       { query: deleteQuery },
-      {
-        headers: {
-          Authorization: `Bearer ${API_TOKEN}`,
-          'Content-Type': 'application/json',
-        },
-      },
+      { headers: railwayHeaders() },
     )
     const error = deleteResp?.data?.errors?.[0]?.message
     if (error) {
