@@ -1484,7 +1484,10 @@ const loadData = async () => {
       // This ensures inbound calls route through our webhook (IVR, forwarding, voicemail)
       // instead of going directly to SIP devices (which causes 480 errors).
       // IMPORTANT: Only migrates numbers registered in phoneNumbersOf — external numbers are untouched.
-      if (telnyxResources.callControlAppId) {
+      // SAFETY: Only runs in production — SKIP_WEBHOOK_SYNC=true in dev prevents mutating production Telnyx state.
+      if (_skipWebhookSync) {
+        log('[CloudPhone] SKIP_WEBHOOK_SYNC=true — skipping number migration to Call Control App')
+      } else if (telnyxResources.callControlAppId) {
         // Gather bot-owned Telnyx phone numbers from the DB
         const allPhoneUsers = await db.collection('phoneNumbersOf').find({}).toArray()
         const botTelnyxNumbers = []
@@ -1509,8 +1512,11 @@ const loadData = async () => {
       // causing PSTN carriers to reject calls with "Unverified originating identity".
       // LOCAL numbers get full A-level attestation and are always accepted.
       // NOTE: Skip any number known to be spam-flagged/blocked by carriers.
+      // SAFETY: Only runs in production — SKIP_WEBHOOK_SYNC=true in dev prevents mutating production Telnyx state.
       const sipConnId = telnyxResources.sipConnectionId || process.env.TELNYX_SIP_CONNECTION_ID || ''
-      if (sipConnId) {
+      if (_skipWebhookSync) {
+        log('[CloudPhone] SKIP_WEBHOOK_SYNC=true — skipping SIP connection ANI override update')
+      } else if (sipConnId) {
         try {
           // Query Telnyx for LOCAL numbers on the SIP connection — these get A-level STIR/SHAKEN
           const numbersRes = await telnyxApi.listPhoneNumbers?.() || { data: [] }
