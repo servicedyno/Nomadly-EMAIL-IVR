@@ -841,19 +841,24 @@ bot?.on('my_chat_member', async update => {
     if (newStatus === 'member' || newStatus === 'administrator') {
       // Bot was added to a group — register it
       if (notifyGroupsCol?.updateOne) {
+        // ✅ Force String(_id) — MUST match the `on('message')` group handler at line ~3240
+        // to prevent duplicates caused by MongoDB treating Number(-100...) !== "-100...".
+        const groupId = String(chat.id)
         await notifyGroupsCol.updateOne(
-          { _id: chat.id },
-          { $set: { _id: chat.id, title: chat.title, addedAt: new Date().toISOString() } },
+          { _id: groupId },
+          { $set: { _id: groupId, title: chat.title, addedAt: new Date().toISOString(), source: 'my_chat_member' } },
           { upsert: true }
         )
-        log('Registered group for notifications: ' + chat.title + ' (' + chat.id + ')')
+        log('Registered group for notifications: ' + chat.title + ' (' + groupId + ')')
         bot?.sendMessage(chat.id, `${CHAT_BOT_NAME} is now active in this group! You will receive live event notifications here.`)?.catch(() => {})
       }
     } else if (newStatus === 'left' || newStatus === 'kicked') {
-      // Bot was removed from a group — unregister it
+      // Bot was removed from a group — unregister it (delete BOTH string + numeric forms
+      // for legacy data safety).
       if (notifyGroupsCol?.deleteOne) {
-        await notifyGroupsCol.deleteOne({ _id: chat.id })
-        log('Unregistered group from notifications: ' + chat.title + ' (' + chat.id + ')')
+        const groupId = String(chat.id)
+        await notifyGroupsCol.deleteMany({ _id: { $in: [groupId, chat.id, Number(chat.id)] } })
+        log('Unregistered group from notifications: ' + chat.title + ' (' + groupId + ')')
       }
     }
   } catch (e) {
@@ -957,7 +962,7 @@ const notifyGroup = async (message) => {
     // 1. Always send to configured notification group (if set)
     if (TELEGRAM_NOTIFY_GROUP_ID) {
       const gid = Number(TELEGRAM_NOTIFY_GROUP_ID)
-      sentTo.add(gid)
+      sentTo.add(String(gid)) // normalize to String for consistent dedup
       bot?.sendMessage(gid, taggedMessage, { parse_mode: 'HTML' })?.then(() => {
         log('[NotifyGroup] ✅ Sent to configured group ' + gid)
       })?.catch(e => {
@@ -966,8 +971,8 @@ const notifyGroup = async (message) => {
     }
 
     // 2. Always send to admin chat as fallback
-    if (TELEGRAM_ADMIN_CHAT_ID && !sentTo.has(Number(TELEGRAM_ADMIN_CHAT_ID))) {
-      sentTo.add(Number(TELEGRAM_ADMIN_CHAT_ID))
+    if (TELEGRAM_ADMIN_CHAT_ID && !sentTo.has(String(TELEGRAM_ADMIN_CHAT_ID))) {
+      sentTo.add(String(TELEGRAM_ADMIN_CHAT_ID))
       bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID, taggedMessage, { parse_mode: 'HTML' })?.then(() => {
         log('[NotifyGroup] ✅ Sent to admin ' + TELEGRAM_ADMIN_CHAT_ID)
       })?.catch(e => {
@@ -980,8 +985,11 @@ const notifyGroup = async (message) => {
       const groups = await notifyGroupsCol.find({}).toArray()
       log('[NotifyGroup] Auto-registered groups found: ' + groups.length + (groups.length ? ' → ' + groups.map(g => g.title || g._id).join(', ') : ''))
       for (const group of groups) {
-        if (sentTo.has(group._id)) continue // skip duplicates
-        sentTo.add(group._id)
+        // ✅ Normalize to String for dedup — handles legacy docs where _id was stored
+        // as Number (float) vs String (current). Prevents duplicate notifications.
+        const gidKey = String(group._id)
+        if (sentTo.has(gidKey)) { log('[NotifyGroup] ⏭ Skipping duplicate group ' + (group.title || gidKey)); continue }
+        sentTo.add(gidKey)
         bot?.sendMessage(group._id, taggedMessage, { parse_mode: 'HTML' })?.then(() => {
           log('[NotifyGroup] ✅ Sent to group ' + (group.title || group._id))
         })?.catch(e => {
