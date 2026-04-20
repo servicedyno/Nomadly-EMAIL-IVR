@@ -275,3 +275,134 @@ Also update `latestVersion` in `js/sms-app-service.js` and version in the `/sms-
 # Check SMS app diagnostics for a specific user
 curl http://localhost:5000/sms-app/diagnostics/<chatId>
 ```
+
+
+---
+
+## Railway Production Access (GraphQL API)
+
+Production runs on **Railway** (Project: `New Hosting`). You can read env vars / logs / trigger deploys via Railway's GraphQL API without using the dashboard.
+
+### Endpoint
+
+```
+POST https://backboard.railway.app/graphql/v2
+Content-Type: application/json
+```
+
+### Credentials (stored in `backend/.env`)
+
+| Env Var | What it is | Header to use |
+|---------|------------|---------------|
+| `API_KEY_RAILWAY` | Account-level API token (email: `service@dyno.pt`) | `Authorization: Bearer <key>` |
+| `RAILWAY_PROJECT_TOKEN` | Project-scoped access token (read/write this project only) | `Project-Access-Token: <token>` |
+| `RAILWAY_PROJECT_ID` | `c23ac3d9-51c5-4242-8776-eed4e3801abe` (New Hosting) | body variable |
+| `RAILWAY_ENVIRONMENT_ID` | `889fd56a-720a-4020-884c-034784992666` (production) | body variable |
+| `RAILWAY_SERVICE_ID` | `b9c4ad64-7667-4dd3-8b9a-3867ede47885` (Nomadly-EMAIL-IVR — the main Node.js service with `MONGO_URL`, `TELEGRAM_BOT_TOKEN_PROD`) | body variable |
+
+> 💡 **Use `Project-Access-Token` for most operations** — scoped to this project, safer than the account-level key.
+
+### 1. List services
+
+```bash
+curl -s -X POST https://backboard.railway.app/graphql/v2 \
+  -H "Content-Type: application/json" \
+  -H "Project-Access-Token: $RAILWAY_PROJECT_TOKEN" \
+  -d '{"query":"query { project(id: \"'"$RAILWAY_PROJECT_ID"'\") { name services { edges { node { id name } } } } }"}'
+```
+
+Known services in `New Hosting`:
+- `HostingBotNew` — `0a453645-4180-441b-8988-020807f4479a` (Postgres/hostbay)
+- `LockbayNewFIX` — `96ee768e-3f4d-49c8-be75-dea30777e890`
+- **`Nomadly-EMAIL-IVR`** — `b9c4ad64-7667-4dd3-8b9a-3867ede47885` ← **main Nomadly bot backend**
+
+### 2. Read env variables (e.g. get production `MONGO_URL`, `TELEGRAM_BOT_TOKEN_PROD`)
+
+```bash
+curl -s -X POST https://backboard.railway.app/graphql/v2 \
+  -H "Content-Type: application/json" \
+  -H "Project-Access-Token: $RAILWAY_PROJECT_TOKEN" \
+  -d '{"query":"query { variables(projectId: \"'"$RAILWAY_PROJECT_ID"'\", environmentId: \"'"$RAILWAY_ENVIRONMENT_ID"'\", serviceId: \"'"$RAILWAY_SERVICE_ID"'\") }"}' \
+  | python3 -c "import json,sys; d=json.loads(sys.stdin.read()); v=d['data']['variables']; print('MONGO_URL:', v.get('MONGO_URL')); print('DB_NAME:', v.get('DB_NAME'))"
+```
+
+### 3. Update a variable (triggers automatic redeploy)
+
+```bash
+curl -s -X POST https://backboard.railway.app/graphql/v2 \
+  -H "Content-Type: application/json" \
+  -H "Project-Access-Token: $RAILWAY_PROJECT_TOKEN" \
+  -d '{
+    "query": "mutation ($input: VariableUpsertInput!) { variableUpsert(input: $input) }",
+    "variables": {
+      "input": {
+        "projectId":     "'"$RAILWAY_PROJECT_ID"'",
+        "environmentId": "'"$RAILWAY_ENVIRONMENT_ID"'",
+        "serviceId":     "'"$RAILWAY_SERVICE_ID"'",
+        "name":  "SOME_KEY",
+        "value": "some-value"
+      }
+    }
+  }'
+```
+
+### 4. Fetch the latest deployment & its logs
+
+```bash
+# Get latest deployment ID
+DEPLOY_ID=$(curl -s -X POST https://backboard.railway.app/graphql/v2 \
+  -H "Content-Type: application/json" \
+  -H "Project-Access-Token: $RAILWAY_PROJECT_TOKEN" \
+  -d '{"query":"query { deployments(input: {projectId: \"'"$RAILWAY_PROJECT_ID"'\", environmentId: \"'"$RAILWAY_ENVIRONMENT_ID"'\", serviceId: \"'"$RAILWAY_SERVICE_ID"'\"}, first: 1) { edges { node { id status createdAt } } } }"}' \
+  | python3 -c "import json,sys; print(json.loads(sys.stdin.read())['data']['deployments']['edges'][0]['node']['id'])")
+
+# Pull filtered logs (e.g. grep by chatId, tag, or error)
+curl -s -X POST https://backboard.railway.app/graphql/v2 \
+  -H "Content-Type: application/json" \
+  -H "Project-Access-Token: $RAILWAY_PROJECT_TOKEN" \
+  -d '{"query":"query { deploymentLogs(deploymentId: \"'"$DEPLOY_ID"'\", limit: 500, filter: \"ERROR\") { message timestamp severity } }"}'
+```
+
+Common filters: `"ERROR"`, `"[CR-Whitelist]"`, `"<chatId>"`, `"<phone number>"`, `"[Voice]"`, etc.
+
+### 5. Connect to production MongoDB (read/write prod data from dev)
+
+```bash
+# Pull MONGO_URL + DB_NAME from Railway at runtime and connect
+python3 << 'PY'
+import os, json, urllib.request
+TOKEN = os.environ['RAILWAY_PROJECT_TOKEN']
+PID = os.environ['RAILWAY_PROJECT_ID']
+EID = os.environ['RAILWAY_ENVIRONMENT_ID']
+SID = os.environ['RAILWAY_SERVICE_ID']
+body = json.dumps({"query": f'query {{ variables(projectId: "{PID}", environmentId: "{EID}", serviceId: "{SID}") }}'}).encode()
+req = urllib.request.Request("https://backboard.railway.app/graphql/v2",
+    data=body, headers={"Content-Type":"application/json","Project-Access-Token":TOKEN})
+v = json.loads(urllib.request.urlopen(req).read())['data']['variables']
+
+from pymongo import MongoClient
+db = MongoClient(v['MONGO_URL'])[v['DB_NAME']]
+# ...do work with prod DB...
+print("Users in prod:", db.nameOf.count_documents({}))
+PY
+```
+
+### Useful example queries
+
+```bash
+# Find a user by Telegram username
+db.nameOf.find_one({'val': 'flmzv2'})  # → {'_id': '7304424395', ...}
+
+# Check a user's subscription
+db.planOf.find_one({'_id': chatId})
+db.planEndingTime.find_one({'_id': chatId})
+
+# Wallet balance = usdIn - usdOut; loyalty tier derived from usdOut + ngnOut/1500
+db.walletOf.find_one({'_id': chatId})
+```
+
+### Safety notes
+
+- **Never run** `initializeTelnyxResources`, `initializeTwilioResources`, `migrateNumbersToCallControlApp`, or `updateAniOverride` **from dev** — they mutate production Telnyx/Twilio state using the shared production API keys. `SKIP_WEBHOOK_SYNC=true` in `backend/.env` guards against this (see `js/_index.js:1475`).
+- When writing to production MongoDB, prefer MongoDB's atomic operators (`$inc`, `$set` with `upsert:true`) to match the bot's own `set()` / `atomicIncrement()` helpers.
+- After updating a Railway variable, the service auto-redeploys within ~30s. Check deployment status via the `deployments` query.
