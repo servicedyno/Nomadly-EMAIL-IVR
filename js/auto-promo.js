@@ -323,34 +323,10 @@ function getSmtpFooter(lang) {
   return footers[Math.floor(Math.random() * footers.length)]
 }
 
-// ─── DynoPay Crypto Footer (appended to every promo before BulkSMS) ──
-const DYNOPAY_FOOTER = {
-  en: [
-    `💎 <b>Accept Crypto & Stable Currency Payments</b> — via API or link → <a href="https://dynopay.com">dynopay.com</a>`,
-    `💎 <b>Accept Crypto & Stable Currency Payments</b> — integrate via API or pay direct → <a href="https://dynopay.com">dynopay.com</a>`,
-    `💎 <b>Accept Crypto & Stable Currency Payments</b> — API or link at <a href="https://dynopay.com">dynopay.com</a>`,
-  ],
-  fr: [
-    `💎 <b>Acceptez les paiements Crypto & Stablecoins</b> — via API ou lien → <a href="https://dynopay.com">dynopay.com</a>`,
-    `💎 <b>Acceptez les paiements Crypto & Stablecoins</b> — intégrez via API ou payez directement → <a href="https://dynopay.com">dynopay.com</a>`,
-    `💎 <b>Acceptez les paiements Crypto & Stablecoins</b> — API ou lien sur <a href="https://dynopay.com">dynopay.com</a>`,
-  ],
-  zh: [
-    `💎 <b>接受加密货币和稳定币支付</b> — 通过 API 或链接 → <a href="https://dynopay.com">dynopay.com</a>`,
-    `💎 <b>接受加密货币和稳定币支付</b> — API 集成或直接链接 → <a href="https://dynopay.com">dynopay.com</a>`,
-    `💎 <b>接受加密货币和稳定币支付</b> — API 或链接 → <a href="https://dynopay.com">dynopay.com</a>`,
-  ],
-  hi: [
-    `💎 <b>क्रिप्टो और स्टेबल करेंसी भुगतान स्वीकारें</b> — API या लिंक → <a href="https://dynopay.com">dynopay.com</a>`,
-    `💎 <b>क्रिप्टो और स्टेबल करेंसी भुगतान स्वीकारें</b> — API से जोड़ें या सीधे भुगतान करें → <a href="https://dynopay.com">dynopay.com</a>`,
-    `💎 <b>क्रिप्टो और स्टेबल करेंसी भुगतान स्वीकारें</b> — API या लिंक पर <a href="https://dynopay.com">dynopay.com</a>`,
-  ],
-}
-
-function getDynoPayFooter(lang) {
-  const footers = DYNOPAY_FOOTER[lang] || DYNOPAY_FOOTER.en
-  return footers[Math.floor(Math.random() * footers.length)]
-}
+// ─── DynoPay Crypto Footer removed from promo messages (2026-04-20) ──
+// Previously appended a dynopay.com advertisement to every promo. Kept this
+// note so anyone re-reading the promo pipeline immediately sees why there's
+// no DynoPay footer call between the SMTP footer and the BulkSMS footer.
 
 function getOptOutFooter(lang) {
   const footers = {
@@ -4271,8 +4247,6 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
       if (couponLine) caption += '\n\n' + couponLine
       // Append private SMTP footer
       caption += '\n\n' + getSmtpFooter(lang)
-      // Append DynoPay crypto footer
-      caption += '\n\n' + getDynoPayFooter(lang)
       // Append BulkSMS footer to every promo message
       caption += '\n\n' + getBulkSmsFooter(lang)
       // Append opt-out footer
