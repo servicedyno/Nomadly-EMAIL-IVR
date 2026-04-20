@@ -125,19 +125,29 @@ function deriveNsType(nameservers) {
   const chatIdStr = String(nameDoc._id)
   console.log(`  ✅ Found chatId: ${chatIdStr} (type=${typeof nameDoc._id}) — nameOf.val="${nameDoc.val}"`)
 
-  // ── Step 3: Read existing domainsOf doc to know _id type convention ──
-  const existingUserDoc = await db.collection('domainsOf').findOne({ _id: nameDoc._id })
-    || await db.collection('domainsOf').findOne({ _id: chatIdStr })
-    || await db.collection('domainsOf').findOne({ _id: Number(chatIdStr) })
-
-  // Preferred: whatever key format already exists for this user; else parseFloat per buyDomainFullProcess convention
-  let userKey
-  if (existingUserDoc) {
-    userKey = existingUserDoc._id
-    console.log(`  ✅ Existing domainsOf doc found (keyType=${typeof userKey}) — will $set new domain keys on it`)
+  // ── Step 3: Always use STRING _id — matches bot's normal buyDomain() path ──
+  //
+  // BUGFIX (2026-04-20): Previously this script defaulted to parseFloat(chatIdStr)
+  // when no existing domainsOf doc was found. That produced an _id of type Double
+  // (e.g. 6395648769.0) which the bot's getPurchasedDomains() lookup — which uses
+  // a string chatId — never matched, so restored users saw "No domain names found".
+  //
+  // Empirically-verified normal bot writes produce STRING _id (see users
+  // '2110003903', '5731435538' in prod). Always use string here for parity.
+  //
+  // If a legacy FLOAT doc exists for this user (from the old buggy restore), we
+  // ALSO upsert it so both types stay in sync until the float duplicate is
+  // cleaned up manually. The string doc is the source of truth going forward.
+  const userKey = chatIdStr
+  const legacyFloatDoc = await db.collection('domainsOf').findOne({ _id: Number(chatIdStr) })
+  const existingStrDoc = await db.collection('domainsOf').findOne({ _id: chatIdStr })
+  if (existingStrDoc) {
+    console.log(`  ✅ Existing string-id domainsOf doc found — will $set new keys on it`)
   } else {
-    userKey = Number.isFinite(parseFloat(chatIdStr)) ? parseFloat(chatIdStr) : chatIdStr
-    console.log(`  🟡 No existing domainsOf doc — new doc will be created with _id=${userKey} (${typeof userKey})`)
+    console.log(`  🟡 No existing string-id domainsOf doc — will create _id="${userKey}" (string)`)
+  }
+  if (legacyFloatDoc) {
+    console.log(`  ⚠️  Legacy FLOAT-id domainsOf doc also present (_id=${Number(chatIdStr)}) — will mirror writes to it for safety`)
   }
 
   // ── Step 4: Fetch real OpenProvider metadata for each domain ──────────
@@ -201,7 +211,7 @@ function deriveNsType(nameservers) {
         nameserverType: r.nsType,
         nameservers: r.nameservers,
         autoRenew: true,
-        ownerChatId: typeof userKey === 'number' ? userKey : parseFloat(chatIdStr),
+        ownerChatId: chatIdStr,
         status: 'registered',
         registeredAt: now,
         linkedAt: now,
@@ -228,13 +238,24 @@ function deriveNsType(nameservers) {
   // ── Step 6: Write ─────────────────────────────────────────────────────
   console.log(`\n[5/6] ${DRY_RUN ? 'DRY RUN — skipping writes' : 'Writing to prod MongoDB...'}`)
   if (!DRY_RUN) {
-    // 6a. Update domainsOf KV map
+    // 6a. Update domainsOf KV map on the STRING-id doc (bot's normal query path)
     await db.collection('domainsOf').updateOne(
-      { _id: userKey },
+      { _id: userKey },   // userKey is always a string now
       { $set: domainsOfSet },
       { upsert: true },
     )
-    console.log(`  ✅ domainsOf.${JSON.stringify(userKey)} updated (${Object.keys(domainsOfSet).length} keys set)`)
+    console.log(`  ✅ domainsOf._id="${userKey}" updated (${Object.keys(domainsOfSet).length} keys set)`)
+
+    // 6a-bis. Mirror the same writes to any legacy FLOAT-id doc so both stay in
+    // sync (defensive — the bot queries by string, but some older code paths /
+    // debug scripts may still reference the float doc).
+    if (legacyFloatDoc) {
+      await db.collection('domainsOf').updateOne(
+        { _id: Number(chatIdStr) },
+        { $set: domainsOfSet },
+      )
+      console.log(`  ✅ domainsOf._id=${Number(chatIdStr)} (legacy float) mirrored`)
+    }
 
     // 6b. Upsert each registeredDomains record
     let written = 0
