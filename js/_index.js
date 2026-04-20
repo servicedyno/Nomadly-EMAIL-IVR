@@ -514,7 +514,7 @@ const { initPhoneTestRoutes, generateTestOtp, checkTestCredentialCall, getOrCrea
 const antiRedService = require('./anti-red-service.js')
 const { initLeadJobPersistence, flushAllJobs, findInterruptedJobs, resumeJob } = require('./lead-job-persistence.js')
 const { initAiSupport, getAiResponse, getMarketplaceAiResponse, moderateMarketplaceChat, clearHistory: clearAiHistory, isAiEnabled, recordUserError, extractActionButtons, rateSupportSession } = require('./ai-support.js')
-const { initShortenerPersistence, createActivationTask, markRailwayLinked, markDnsAdded, markCompleted, markFailed, findIncompleteTasks } = require('./shortener-activation-persistence.js')
+const { initShortenerPersistence, createActivationTask, markRailwayLinked, markDnsAdded, markCompleted, markFailed, markSkipped, findIncompleteTasks } = require('./shortener-activation-persistence.js')
 const honeypotService = require('./honeypot-service.js')
 const audioLibraryService = require('./audio-library-service.js')
 const bulkCallService = require('./bulk-call-service.js')
@@ -23245,11 +23245,16 @@ const buyDomainFullProcess = async (chatId, lang, domain) => {
     if (error) {
       // NOTE: Domain is ALREADY registered & transaction logged at this point.
       // Post-registration shortener setup failure must NOT trigger refund in the caller.
-      const m = translation('t.errorSavingDomain', lang)
-      sendMessage(chatId, m)
-      await markFailed(domain, error).catch(() => {})
-      sendMessage(TELEGRAM_DEV_CHAT_ID, `⚠️ Shortener server link failed (no refund) for ${domain} | user ${chatId}: ${error}`)
-      log(`[buyDomainFullProcess] Shortener server link failed for ${domain} — domain already registered, NOT refunding: ${error}`)
+      // We mark the activation "skipped" (not "failed") so it's not auto-retried.
+      // Required DNS metadata (registrar, cfZoneId, opDomainId, nameserverType) is
+      // already persisted by domainService.registerDomain → user can manage DNS via bot menu.
+      sendMessage(chatId, translation('t.domainRegisteredManualDns', lang, domain) ||
+        `✅ <b>${domain}</b> registered successfully.\n\n` +
+        `⚠️ URL-shortener couldn't be activated automatically right now, but your domain is yours. ` +
+        `You can manage DNS (A, CNAME, TXT, MX) anytime from the <b>My Domains</b> menu.`)
+      await markSkipped(domain, `shortener-server-link: ${error}`).catch(() => {})
+      sendMessage(TELEGRAM_DEV_CHAT_ID, `⚠️ Shortener server link failed (no refund, no retry) for ${domain} | user ${chatId}: ${error}`)
+      log(`[buyDomainFullProcess] Shortener server link failed for ${domain} — domain already registered with DNS metadata; marked skipped, NOT refunding: ${error}`)
       return false // domain already succeeded — do not refund
     }
 
@@ -23270,21 +23275,27 @@ const buyDomainFullProcess = async (chatId, lang, domain) => {
         await sleep(60000) // CR needs propagation time
         const { error: saveServerInDomainError } = await saveServerInDomain(domain, server, recordType)
         if (saveServerInDomainError) {
-          // NOTE: Domain is ALREADY registered & transaction logged — NO refund.
-          const m = `Error saving DNS record for domain: ${saveServerInDomainError}`
-          sendMessage(chatId, translation('t.errorSavingDomain', lang) || m)
-          await markFailed(domain, saveServerInDomainError).catch(() => {})
-          sendMessage(TELEGRAM_DEV_CHAT_ID, `⚠️ Shortener CNAME (CR fallback) failed (no refund) for ${domain} | user ${chatId}: ${saveServerInDomainError}`)
-          log(`[buyDomainFullProcess] Shortener CNAME CR-fallback failed for ${domain} — domain already registered, NOT refunding: ${saveServerInDomainError}`)
+          // NOTE: Domain is ALREADY registered & transaction logged — NO refund, NO retry.
+          // DNS metadata already saved by domainService.registerDomain.
+          sendMessage(chatId, translation('t.domainRegisteredManualDns', lang, domain) ||
+            `✅ <b>${domain}</b> registered successfully.\n\n` +
+            `⚠️ URL-shortener couldn't be activated automatically right now, but your domain is yours. ` +
+            `You can manage DNS (A, CNAME, TXT, MX) anytime from the <b>My Domains</b> menu.`)
+          await markSkipped(domain, `cname-cr-fallback: ${saveServerInDomainError}`).catch(() => {})
+          sendMessage(TELEGRAM_DEV_CHAT_ID, `⚠️ Shortener CNAME (CR fallback) failed (no refund, no retry) for ${domain} | user ${chatId}: ${saveServerInDomainError}`)
+          log(`[buyDomainFullProcess] Shortener CNAME CR-fallback failed for ${domain} — domain already registered with DNS metadata; marked skipped, NOT refunding: ${saveServerInDomainError}`)
           return false // domain already succeeded — do not refund
         }
       } else {
-        // NOTE: Domain is ALREADY registered & transaction logged — NO refund.
-        const m = `Error saving DNS record for domain: ${addResult.error || 'Unknown error'}`
-        sendMessage(chatId, translation('t.errorSavingDomain', lang) || m)
-        await markFailed(domain, addResult.error || 'Unknown error').catch(() => {})
-        sendMessage(TELEGRAM_DEV_CHAT_ID, `⚠️ Shortener CNAME failed (no refund) for ${domain} | user ${chatId}: ${addResult.error || 'unknown'}`)
-        log(`[buyDomainFullProcess] Shortener CNAME failed for ${domain} — domain already registered, NOT refunding: ${addResult.error || 'unknown'}`)
+        // NOTE: Domain is ALREADY registered & transaction logged — NO refund, NO retry.
+        // DNS metadata already saved by domainService.registerDomain.
+        sendMessage(chatId, translation('t.domainRegisteredManualDns', lang, domain) ||
+          `✅ <b>${domain}</b> registered successfully.\n\n` +
+          `⚠️ URL-shortener couldn't be activated automatically right now, but your domain is yours. ` +
+          `You can manage DNS (A, CNAME, TXT, MX) anytime from the <b>My Domains</b> menu.`)
+        await markSkipped(domain, `cname-addRecord: ${addResult.error || 'unknown'}`).catch(() => {})
+        sendMessage(TELEGRAM_DEV_CHAT_ID, `⚠️ Shortener CNAME failed (no refund, no retry) for ${domain} | user ${chatId}: ${addResult.error || 'unknown'}`)
+        log(`[buyDomainFullProcess] Shortener CNAME failed for ${domain} — domain already registered with DNS metadata; marked skipped, NOT refunding: ${addResult.error || 'unknown'}`)
         return false // domain already succeeded — do not refund
       }
     }

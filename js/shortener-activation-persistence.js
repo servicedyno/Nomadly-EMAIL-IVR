@@ -89,6 +89,21 @@ async function markFailed(domain, error) {
 }
 
 /**
+ * Mark activation skipped — use when the domain purchase succeeded but the
+ * user-opted shortener setup couldn't complete (e.g., DNS provider error).
+ * The user retains full manual DNS control via the bot menu. This status is
+ * intentionally NOT picked up by findIncompleteTasks() — no auto-retry.
+ */
+async function markSkipped(domain, reason) {
+  if (!_db) return
+  await _db.collection(COLLECTION).updateOne(
+    { _id: domain },
+    { $set: { status: 'skipped', reason, updatedAt: new Date() } }
+  )
+  log(`[ShortenerPersistence] ${domain} → skipped (${reason})`)
+}
+
+/**
  * Find all incomplete activation tasks
  * Returns tasks that are pending, railway_linked, or dns_added
  */
@@ -106,5 +121,6 @@ module.exports = {
   markDnsAdded,
   markCompleted,
   markFailed,
+  markSkipped,
   findIncompleteTasks,
 }
