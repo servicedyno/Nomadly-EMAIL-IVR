@@ -5,6 +5,46 @@
 - Verify subscription enforcement
 - Verify APK download endpoint
 
+## ✅ LATEST FIX VERIFIED — Telnyx Trial Call Race Condition (commit fd95ca5)
+
+### Bug
+`handleOutboundIvrHangup()` in `js/voice-service.js` set `session.phase = 'ended'`
+**before** downstream code read `session.phase` to:
+- Determine `callWasAnswered` (used for billing + trial-consumption decisions)
+- Pick `notifType` (no_answer / busy / completed / transfer_failed / hangup)
+
+Result before fix: ALL Telnyx outbound IVR / trial calls were classified as
+"answered" → failed/unanswered calls billed 1 min, trial incorrectly consumed,
+notification always read "hangup".
+
+### Fix (lines 4197-4249)
+Captured `const previousPhase = session.phase` BEFORE `markCallEnded()` /
+`session.phase = 'ended'`, then used `previousPhase` for every downstream check.
+
+### Verification — `test_race_condition_fix.js` (6/6 passed)
+Loaded `voice-service.js` in-process, injected fake `outboundIvrCalls[ccid]`
+sessions in each phase, fired synthetic `call.hangup` webhooks, and asserted
+on the `[OutboundIVR] Hangup:` log line:
+
+| # | Scenario (phase → cause)                | Expected           | Result |
+|---|------------------------------------------|--------------------|--------|
+| 1 | ringing → call_rejected                  | 0 min, NOT BILLED  | ✅ PASS |
+| 2 | ringing → network_failure                | 0 min, NOT BILLED  | ✅ PASS |
+| 3 | initiated → unallocated_number           | 0 min, NOT BILLED  | ✅ PASS |
+| 4 | playing → normal_clearing (answered)     | 1 min billed       | ✅ PASS |
+| 5 | ringing → originator_cancel (no-answer)  | 1 min (Quick IVR)  | ✅ PASS |
+| 6 | bridged → normal_clearing (transferred)  | 1 min billed       | ✅ PASS |
+
+Side-channel evidence the fix works: `[OutboundIVR] Trial NOT consumed for chatId
+... (call not answered, cause: ...)` log appears exactly for scenarios 1, 2, 3, 5
+(non-answered) and is absent for scenarios 4, 6 (answered) — proving
+`callWasAnswered` is now correctly derived from `previousPhase`. Pre-fix this log
+would have read "Trial consumed" for ALL 6 cases.
+
+Run: `node /app/test_race_condition_fix.js`
+
+
+
 ## User Problem Statement
 Rebuild NomadlySMSfix Android app as Capacitor hybrid with subscription enforcement, step-by-step campaign wizard, and server-synced campaigns.
 
