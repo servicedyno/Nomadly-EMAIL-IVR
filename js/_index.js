@@ -1912,6 +1912,42 @@ const loadData = async () => {
   log(`[PaymentTimeout] Scheduled every ${PAYMENT_CHECK_INTERVAL_MS / 60000}min (timeout: ${PAYMENT_TIMEOUT_MS / 3600000}h)`)
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // Stale digital-orders cleanup
+  // Cancels digitalOrders with status=pending_payment older than 24h
+  // (covers bank-transfer / NGN / crypto flows where user never pays).
+  // Wallet-paid orders stay in status=pending (separate delivery flow) and
+  // are NOT touched by this cleanup.
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  const STALE_ORDER_TIMEOUT_MS = 24 * 60 * 60 * 1000 // 24 hours
+  const STALE_ORDER_CHECK_INTERVAL_MS = 60 * 60 * 1000 // every 1 hour
+  async function cleanupStalePendingOrders() {
+    try {
+      const cutoff = new Date(Date.now() - STALE_ORDER_TIMEOUT_MS)
+      const result = await digitalOrdersCol.updateMany(
+        {
+          status: 'pending_payment',
+          createdAt: { $lt: cutoff }
+        },
+        {
+          $set: {
+            status: 'cancelled_expired',
+            cancelledAt: new Date(),
+            cancelReason: 'payment_not_received_24h'
+          }
+        }
+      )
+      if (result.modifiedCount > 0) {
+        log(`[StaleOrderCleanup] Cancelled ${result.modifiedCount} stale pending_payment digitalOrders (>24h old)`)
+      }
+    } catch (err) {
+      log(`[StaleOrderCleanup] Error: ${err.message}`)
+    }
+  }
+  setTimeout(() => cleanupStalePendingOrders(), 15 * 60 * 1000)
+  setInterval(cleanupStalePendingOrders, STALE_ORDER_CHECK_INTERVAL_MS)
+  log(`[StaleOrderCleanup] Scheduled every ${STALE_ORDER_CHECK_INTERVAL_MS / 60000}min (timeout: ${STALE_ORDER_TIMEOUT_MS / 3600000}h)`)
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // Abandoned cart recovery for digital products
   // Send reminder after 2h of inactivity in digital-product-pay state
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -3399,6 +3435,51 @@ bot?.on('message', msg => {
     // Mark admin takeover — AI will not auto-respond until session is closed and reopened
     await set(state, targetChatId, 'adminTakeover', true)
     log(`[Support] Admin replied to ${targetChatId}: ${replyText} (targetLang: ${targetLang}, translated: ${translation.needsTranslation}) — session re-opened, admin takeover ON`)
+
+    // ══════════════════════════════════════════════════════════════════
+    // Auto-deliver pending virtual card orders when admin sends card details
+    // Detects: 16-digit card number (with optional spaces/dashes) + MM/YY + 3-4 digit CVV
+    // Fixes systemic issue: admins often send card details via /reply but forget
+    // to run /deliver, leaving order stuck in "pending" despite wallet being debited.
+    // ══════════════════════════════════════════════════════════════════
+    try {
+      // Strip spaces/dashes to detect 16-digit card number; also require MM/YY and CVV tokens
+      const digitsOnly = replyText.replace(/[\s-]/g, '')
+      const has16Digits = /\d{16}/.test(digitsOnly)
+      const hasExpiry = /\b(0[1-9]|1[0-2])\s*\/\s*\d{2,4}\b/.test(replyText)
+      const hasCvv = /\b\d{3,4}\b/.test(replyText)
+      if (has16Digits && hasExpiry && hasCvv) {
+        const pendingVCOrder = await digitalOrdersCol.findOne(
+          {
+            chatId: String(targetChatId),
+            productKey: 'virtual_card',
+            status: 'pending'
+          },
+          { sort: { createdAt: -1 } }
+        )
+        if (pendingVCOrder) {
+          await digitalOrdersCol.updateOne(
+            { orderId: pendingVCOrder.orderId },
+            {
+              $set: {
+                status: 'delivered',
+                deliveredAt: new Date(),
+                deliveryContent: replyText,
+                deliveredVia: 'admin_reply_autodetect'
+              }
+            }
+          )
+          send(
+            chatId,
+            `📦 Auto-marked order <code>${pendingVCOrder.orderId}</code> (${pendingVCOrder.product}) as <b>delivered</b>\nDetected card details in your reply — no need to run /deliver.`,
+            { parse_mode: 'HTML' }
+          )
+          log(`[DigitalProducts] Auto-delivered virtual_card order ${pendingVCOrder.orderId} for ${targetChatId} via /reply card-pattern detection`)
+        }
+      }
+    } catch (autoDelErr) {
+      log(`[DigitalProducts] Auto-deliver via /reply error: ${autoDelErr.message}`)
+    }
     return
   }
 
