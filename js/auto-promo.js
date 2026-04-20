@@ -4211,7 +4211,10 @@ function initAutoPromo(bot, db, nameOf, stateCol) {
   async function getAllChatIds() {
     try {
       const users = await nameOf.find({}).toArray()
-      return users.map(u => u._id).filter(id => typeof id === 'number')
+      return users
+        .map(u => u._id)
+        .filter(id => id != null && (typeof id === 'string' || typeof id === 'number'))
+        .map(id => String(id))
     } catch (error) {
       log(`[AutoPromo] Error fetching chat IDs: ${error.message}`)
       return []
