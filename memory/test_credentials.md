@@ -7,7 +7,7 @@
 - **Free SMS**: 100 used / 100 limit
 
 ## SMS App Web URL
-- Browser test: `https://quickstart-flow-1.preview.emergentagent.com/api/sms-app-web`
+- Browser test: `https://get-started-69.preview.emergentagent.com/api/sms-app-web`
 
 ## Bot
 - Username: @NomadlyBot

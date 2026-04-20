@@ -286,7 +286,7 @@ Rebuild NomadlySMSfix Android app as Capacitor hybrid with subscription enforcem
 ### ✅ ALL TESTS PASSED (11/11) - 100% Success Rate
 
 **Test Date:** January 2025  
-**Backend URL:** https://quickstart-flow-1.preview.emergentagent.com  
+**Backend URL:** https://get-started-69.preview.emergentagent.com  
 **Test User:** 6687923716 (expired subscription, 0 free SMS remaining)
 
 #### Subscription Enforcement Tests:
@@ -440,7 +440,7 @@ Rebuild NomadlySMSfix Android app as Capacitor hybrid with subscription enforcem
 ### ✅ ALL RECENT CHANGES VERIFIED (12/12) - 100% Success Rate
 
 **Test Date:** January 2025  
-**Backend URL:** https://quickstart-flow-1.preview.emergentagent.com  
+**Backend URL:** https://get-started-69.preview.emergentagent.com  
 **Test User:** 6687923716 (expired subscription, 0 free SMS remaining)  
 **Focus:** Verify recent "⚡ Upgrade Plan" message implementation
 
@@ -481,7 +481,7 @@ Rebuild NomadlySMSfix Android app as Capacitor hybrid with subscription enforcem
 ### ✅ ALL TESTS VERIFIED AGAIN (12/12) - 100% Success Rate
 
 **Test Date:** January 2025  
-**Backend URL:** https://quickstart-flow-1.preview.emergentagent.com  
+**Backend URL:** https://get-started-69.preview.emergentagent.com  
 **Test User:** 6687923716 (expired subscription, 0 free SMS remaining)  
 **Focus:** Re-verification of all SMS App endpoints as requested
 
@@ -519,7 +519,7 @@ Rebuild NomadlySMSfix Android app as Capacitor hybrid with subscription enforcem
 ### ✅ ALL REVIEW REQUEST TESTS PASSED (10/10) - 100% Success Rate
 
 **Test Date:** January 2025  
-**Backend URL:** https://quickstart-flow-1.preview.emergentagent.com  
+**Backend URL:** https://get-started-69.preview.emergentagent.com  
 **Test User:** 6687923716 (NOW HAS ACTIVE FREE TRIAL - 100 free SMS)  
 **Focus:** Campaign creation with message rotation and smsGapTime functionality
 
@@ -569,7 +569,7 @@ Rebuild NomadlySMSfix Android app as Capacitor hybrid with subscription enforcem
 ### ✅ ALL REVIEW REQUEST TESTS PASSED (7/7) - 100% Success Rate
 
 **Test Date:** January 2025  
-**Backend URL:** https://quickstart-flow-1.preview.emergentagent.com  
+**Backend URL:** https://get-started-69.preview.emergentagent.com  
 **Test User:** 6687923716 (NOW HAS ACTIVE FREE TRIAL - 98 free SMS remaining)  
 **Focus:** Verification of specific endpoints mentioned in review request
 
@@ -609,7 +609,7 @@ Rebuild NomadlySMSfix Android app as Capacitor hybrid with subscription enforcem
 ### ✅ ALL REVIEW REQUEST TESTS PASSED (5/5) - 100% Success Rate
 
 **Test Date:** January 2025  
-**Backend URL:** https://quickstart-flow-1.preview.emergentagent.com  
+**Backend URL:** https://get-started-69.preview.emergentagent.com  
 **Test User:** 6687923716 (Active free trial - 98 free SMS remaining)  
 **Focus:** Review request verification - endpoints and AMD code implementation
 
@@ -648,7 +648,7 @@ Rebuild NomadlySMSfix Android app as Capacitor hybrid with subscription enforcem
 ### ✅ ALL REVIEW REQUEST TESTS PASSED (5/5) - 100% Success Rate
 
 **Test Date:** January 2025  
-**Backend URL:** https://quickstart-flow-1.preview.emergentagent.com  
+**Backend URL:** https://get-started-69.preview.emergentagent.com  
 **Test User:** 6687923716 (Active free trial - 98 free SMS remaining)  
 **Focus:** Final verification of all endpoints mentioned in the review request
 
@@ -687,7 +687,7 @@ Rebuild NomadlySMSfix Android app as Capacitor hybrid with subscription enforcem
 ### ✅ ALL REVIEW REQUEST TESTS PASSED (7/7) - 100% Success Rate
 
 **Test Date:** January 2025  
-**Backend URL:** https://quickstart-flow-1.preview.emergentagent.com  
+**Backend URL:** https://get-started-69.preview.emergentagent.com  
 **Test User:** 6687923716 (Active free trial - 98 free SMS remaining)  
 **Focus:** Comprehensive verification of all review request items including API endpoints and code verification
 
@@ -729,7 +729,7 @@ Rebuild NomadlySMSfix Android app as Capacitor hybrid with subscription enforcem
 ### ✅ ALL REVIEW REQUEST TESTS PASSED (4/4) - 100% Success Rate
 
 **Test Date:** January 2025  
-**Backend URL:** https://quickstart-flow-1.preview.emergentagent.com  
+**Backend URL:** https://get-started-69.preview.emergentagent.com  
 **Test User:** 6687923716 (Active free trial)  
 **Focus:** Verification of specific review request items including VPS Phase 1.5 and 1.6 code sections
 
