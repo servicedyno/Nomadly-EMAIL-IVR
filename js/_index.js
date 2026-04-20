@@ -26861,6 +26861,128 @@ app.get('/admin/payment-session', async (req, res) => {
   }
 })
 
+// ── Admin: Generate carrier-validated leads & deliver to a chatId ──
+// Used for fulfilling manual lead orders (e.g. compensation, freebies).
+// Auth: ?key=<SESSION_SECRET first 16 chars>
+// Body: { chatId, country?, areaCodes:[...], perAreaCode?, cnam?, note? }
+app.post('/admin/order-leads', async (req, res) => {
+  const adminKey = req?.query?.key
+  if (adminKey !== process.env.SESSION_SECRET?.slice(0, 16)) {
+    return res.status(403).json({ error: 'Unauthorized' })
+  }
+
+  const {
+    chatId,
+    country = 'USA',
+    areaCodes,
+    perAreaCode = 1000,
+    cnam = false,
+    note = '',
+  } = req.body || {}
+
+  if (!chatId || !Array.isArray(areaCodes) || areaCodes.length === 0) {
+    return res.status(400).json({ error: 'Missing chatId or areaCodes (non-empty array)' })
+  }
+  const ccMap = { USA: '1', Canada: '1', UK: '44', Australia: '61', 'New Zealand': '64' }
+  const cc = ccMap[country] || '1'
+
+  // Respond immediately — job runs async
+  res.json({
+    success: true,
+    message: 'Job started — progress + final file will be delivered via Telegram',
+    chatId,
+    areaCodes,
+    perAreaCode,
+    totalRequested: perAreaCode * areaCodes.length,
+    cnam,
+    estimatedMinutes: `${areaCodes.length * 10}–${areaCodes.length * 30}`,
+  })
+
+  // ── Background worker ──
+  ;(async () => {
+    const startedAt = Date.now()
+    const allNumbers = []
+    const perAreaResults = {}
+
+    try {
+      bot?.sendMessage(
+        chatId,
+        `🚀 <b>Admin lead order started</b>\n\n📍 Area codes: <code>${areaCodes.join(', ')}</code>\n📊 Amount: ${perAreaCode.toLocaleString()} per area code (${(perAreaCode * areaCodes.length).toLocaleString()} total)\n📞 Carrier: All (Mixed Carriers)\n📛 CNAM: ${cnam ? 'enabled' : 'disabled'}\n💰 Cost: $0 (admin order)${note ? `\n📝 Note: ${note}` : ''}\n\n⏳ Estimated time: ${areaCodes.length * 10}–${areaCodes.length * 30} min`,
+        { parse_mode: 'HTML' },
+      ).catch(() => {})
+
+      for (let i = 0; i < areaCodes.length; i++) {
+        const ac = areaCodes[i]
+        const acStarted = Date.now()
+        bot?.sendMessage(
+          chatId,
+          `📍 [${i + 1}/${areaCodes.length}] Starting area code <b>${ac}</b>...`,
+          { parse_mode: 'HTML' },
+        ).catch(() => {})
+
+        const results = await validateBulkNumbers(
+          'Mixed Carriers',
+          perAreaCode,
+          cc,
+          [ac],
+          cnam,
+          bot,
+          chatId,
+          'en',
+          false,
+          {
+            target: `Admin order: AC ${ac}`,
+            price: 0,
+            walletDeducted: false,
+            paymentCoin: 'ADMIN_ORDER',
+            adminOrdered: true,
+          },
+        )
+
+        const numbers = (results || []).map(r => r[0])
+        perAreaResults[ac] = numbers.length
+        allNumbers.push(...numbers)
+        const elapsed = ((Date.now() - acStarted) / 60000).toFixed(1)
+        bot?.sendMessage(
+          chatId,
+          `✅ Area code <b>${ac}</b>: <b>${numbers.length.toLocaleString()}</b> validated leads (${elapsed} min)`,
+          { parse_mode: 'HTML' },
+        ).catch(() => {})
+      }
+
+      // Compose combined TXT file (one number per line)
+      const ts = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19)
+      const filename = `admin_leads_${areaCodes.join('_')}_${allNumbers.length}_${ts}.txt`
+      const filepath = `/tmp/${filename}`
+      const fs = require('fs')
+      fs.writeFileSync(filepath, allNumbers.join('\n'))
+
+      const totalMin = ((Date.now() - startedAt) / 60000).toFixed(1)
+      const breakdown = Object.entries(perAreaResults).map(([ac, n]) => `${ac}: ${n.toLocaleString()}`).join(' | ')
+
+      await bot?.sendDocument(
+        chatId,
+        filepath,
+        {
+          caption: `📦 <b>Admin lead order — DELIVERED</b>\n\n📊 Total leads: <b>${allNumbers.length.toLocaleString()}</b>\n📍 Breakdown: ${breakdown}\n📞 Carrier: All\n📛 CNAM: ${cnam ? 'enabled' : 'disabled'}\n⏱️ Total time: ${totalMin} min\n💰 Cost: $0 (admin order)${note ? `\n📝 ${note}` : ''}`,
+          parse_mode: 'HTML',
+        },
+        { filename, contentType: 'text/plain' },
+      )
+
+      try { fs.unlinkSync(filepath) } catch (_) {}
+      log(`[admin/order-leads] ✅ Delivered ${allNumbers.length} leads to chatId ${chatId} in ${totalMin} min — breakdown: ${breakdown}`)
+    } catch (e) {
+      log(`[admin/order-leads] ❌ Error: ${e.message}\n${e.stack}`)
+      bot?.sendMessage(
+        chatId,
+        `❌ <b>Lead generation failed</b>\n\n${e.message}\n\nPartial: ${allNumbers.length} leads collected before failure.`,
+        { parse_mode: 'HTML' },
+      ).catch(() => {})
+    }
+  })()
+})
+
 app.get('/planInfo', async (req, res) => {
   if (process.env.OLD_APP_ACTIVE === 'false') return res.send('old app off now')
 
