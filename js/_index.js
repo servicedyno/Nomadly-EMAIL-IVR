@@ -360,6 +360,7 @@ const {
 } = require('./config.js')
 const { user: configUser } = require('./config.js')
 const createShortBitly = require('./bitly.js')
+const { getBitlyClicks, isBitlyUrl } = require('./bitly.js')
 const { createShortUrlApi, analyticsCuttly } = require('./cuttly.js')
 const {
   week,
@@ -450,7 +451,8 @@ const { getCryptoDepositAddress, convert } = require('./pay-blockbee.js')
 const { validateBulkNumbers, isRealPersonName } = require('./validatePhoneBulk.js')
 const { countryCodeOf, areasOfCountry } = require('./areasOfCountry.js')
 const { validatePhoneBulkFile } = require('./validatePhoneBulkFile.js')
-const createCustomShortUrlCuttly = require('./customCuttly.js')
+// createCustomShortUrlCuttly removed — the underlying RapidAPI url-shortener57 doesn't
+// support custom aliases. Custom alias path now uses our own SELF_URL/{alias} directly.
 const schedule = require('node-schedule')
 const loyalty = require('./loyalty-service.js')
 const { registerDomainAndCreateCpanel } = require('./cr-register-domain-&-create-cpanel.js')
@@ -7536,7 +7538,9 @@ All verified numbers generated during sourcing.`))
         const { url } = info
         const slug = nanoid()
         const __shortUrl = `${SELF_URL}/${slug}`
-        _shortUrl = await createShortBitly(__shortUrl)
+        // Direct destination shortening — no Railway hop. Bitly handles click
+        // tracking via its /v4/bitlinks/.../clicks/summary endpoint (see getBitlyClicks).
+        _shortUrl = await createShortBitly(url)
         const shortUrl = __shortUrl.replaceAll('.', '@').replace('https://', '')
         increment(totalShortLinks, 'total')
         set(maskOf, shortUrl, _shortUrl)
@@ -12641,13 +12645,17 @@ ${message.replace(/\n/g, '<br>')}
           return send(chatId, maskUrl, trans('o'))
         }
 
-        // Always route through SELF_URL for proper click tracking
+        // Always route through SELF_URL key for "My Links" listing,
+        // but shorten the DESTINATION URL directly via RapidAPI (single hop).
+        // Trade-off: click tracking is lost for these new links since clicks
+        // bypass the Railway click handler at app.get('/:id'). Per product
+        // decision: url-shortener57 has no stats endpoint, so accept loss.
         const slug = nanoid()
         const __shortUrl = `${SELF_URL}/${slug}`
         const shortUrl = __shortUrl.replaceAll('.', '@').replace('https://', '')
         let _shortUrl
         try {
-          _shortUrl = await createShortUrlApi(__shortUrl)
+          _shortUrl = await createShortUrlApi(url)
           log(`[Shortener] RapidAPI success: ${_shortUrl}`)
         } catch (error) {
           log(`[Shortener] RapidAPI failed: ${error?.message || error}`)
@@ -12698,13 +12706,38 @@ ${message.replace(/\n/g, '<br>')}
       return send(chatId, monetization.getUpsellMessage('linksExhausted', lang), k.of([[user.buyPlan], [user.serviceBundles]]))
     }
 
-    if (!isValidUrl(`https://abc.com/${message}`)) return send(chatId, t.notValidHalf)
+    // ── Custom alias validation ──
+    // The user's alias becomes the path on our short domain (e.g. SELF_URL/my-alias).
+    // We do NOT call RapidAPI here — url-shortener57 doesn't actually support custom
+    // aliases (the previous createCustomShortUrlCuttly silently dropped the alias and
+    // returned a random hash). Instead we use the alias directly as our slug.
+    const alias = String(message || '').trim()
+    if (!/^[A-Za-z0-9_-]{3,32}$/.test(alias)) {
+      return send(chatId, t.notValidHalf || '⚠️ Alias must be 3–32 chars (letters, digits, dashes, underscores).')
+    }
+    // Reserved words — must match the SPA + system routes in app.get('/:id')
+    const reserved = new Set([
+      'call', 'panel', 'phone', 'login', 'signup', 'dashboard', 'settings',
+      'api', 'admin', 'webhook', 'webhooks', 'twilio', 'telnyx', 'static',
+      'health', 'sms-app', 'voice', 'sms', 'auth',
+    ])
+    if (reserved.has(alias.toLowerCase())) {
+      return send(chatId, t.notValidHalf || '⚠️ This alias is reserved. Pick another one.')
+    }
+
     try {
       const { url } = info
-      const slug = nanoid()
-      const __shortUrl = `${SELF_URL}/${slug}`
-      const _shortUrl = await createCustomShortUrlCuttly(__shortUrl, message)
+      // Use the user's alias AS the slug (no nanoid). Single hop: RapidAPI is bypassed.
+      const __shortUrl = `${SELF_URL}/${alias}`
       const shortUrl = __shortUrl.replaceAll('.', '@').replace('https://', '')
+
+      // Uniqueness check — prevent collisions
+      if (await get(fullUrlOf, shortUrl)) {
+        return send(chatId, t.linkAlreadyExist || '⚠️ That alias is already taken. Pick another one.')
+      }
+
+      // The short URL we return IS our own SELF_URL/alias — no third-party shortener call.
+      const _shortUrl = __shortUrl
       increment(totalShortLinks, 'total')
       set(maskOf, shortUrl, _shortUrl)
       set(fullUrlOf, shortUrl, url)
@@ -12729,15 +12762,11 @@ ${message.replace(/\n/g, '<br>')}
       await set(state, chatId, 'action', 'none')
       return send(chatId, _shortUrl, trans('o'))
     } catch (error) {
-      if (error?.response?.data?.url?.status === 3) {
-        return send(chatId, t.redIssueSlugCuttly)
-      }
-
       send(
         TELEGRAM_ADMIN_CHAT_ID,
-        `[Cuttly Shortener Error] status: ${error?.response?.data?.url?.status || 'N/A'} | ${error?.message || error?.response?.data || error}`,
+        `[Custom Alias Shortener Error] ${error?.message || error?.response?.data || error}`,
       )
-      recordUserError(chatId, 'cuttly-shortlink', error?.message || 'Custom domain shortening failed')
+      recordUserError(chatId, 'custom-shortlink', error?.message || 'Custom alias shortening failed')
       await set(state, chatId, 'action', 'none')
       return send(chatId, t.redIssueUrlCuttly, trans('o'))
     }
@@ -23093,8 +23122,15 @@ async function getShortLinks(chatId) {
       const shorter = (await get(maskOf, link.shorter)) || link.shorter.replaceAll('@', '.')
       ret.push({ clicks, shorter, url: link.url })
     } else {
-      let clicks = (await get(clicksOn, link.shorter)) || 0
-      const shorter = (await get(maskOf, link.shorter)) || link.shorter.replaceAll('@', '.')
+      const maskUrl = await get(maskOf, link.shorter)
+      // Bitly links no longer hit our Railway click handler — pull stats from Bitly's API.
+      let clicks
+      if (maskUrl && isBitlyUrl(maskUrl)) {
+        clicks = await getBitlyClicks(maskUrl)
+      } else {
+        clicks = (await get(clicksOn, link.shorter)) || 0
+      }
+      const shorter = maskUrl || link.shorter.replaceAll('@', '.')
       ret.push({ clicks, shorter, url: link.url })
     }
 
