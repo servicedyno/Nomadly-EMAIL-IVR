@@ -3405,12 +3405,37 @@ bot?.on('message', msg => {
   // ═══════════════════════════════════════════════════
   if (isAdmin(chatId) && message.startsWith('/reply ')) {
     const parts = message.substring(7).split(' ')
-    const targetChatId = Number(parts[0])
+    const firstArg = parts[0] || ''
     const replyText = parts.slice(1).join(' ')
-    if (!targetChatId || !replyText) {
-      return send(chatId, '⚠️ Usage: /reply <chatId> <message>')
+
+    // Resolve target: support both numeric chatId and @username
+    let targetChatId = null
+    let targetName = null
+    if (firstArg.startsWith('@')) {
+      const username = firstArg.slice(1).trim()
+      if (!username) {
+        return send(chatId, '⚠️ Usage: /reply @username <message>  or  /reply <chatId> <message>')
+      }
+      // Telegram usernames are case-insensitive — match exact-string regex with /i flag
+      const esc = username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const doc = await nameOf.findOne({ val: { $regex: `^${esc}$`, $options: 'i' } })
+      if (!doc) {
+        return send(chatId, `⚠️ No user found with username <b>@${username}</b>.\nTip: user must have interacted with the bot at least once for their username to be stored.`, { parse_mode: 'HTML' })
+      }
+      targetChatId = doc._id
+      targetName = doc.val
+    } else {
+      // Numeric chatId path — keep as string to match stored _id format
+      const cid = firstArg.trim()
+      if (!/^\d+$/.test(cid)) {
+        return send(chatId, '⚠️ Usage: /reply @username <message>  or  /reply <chatId> <message>')
+      }
+      targetChatId = cid
+      targetName = await get(nameOf, targetChatId)
     }
-    const targetName = await get(nameOf, targetChatId)
+    if (!targetChatId || !replyText) {
+      return send(chatId, '⚠️ Usage: /reply @username <message>  or  /reply <chatId> <message>')
+    }
     
     // Get user's stored language AND last detected message language
     const targetState = await get(state, targetChatId)
