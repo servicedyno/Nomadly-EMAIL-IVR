@@ -4194,6 +4194,9 @@ async function handleOutboundIvrHangup(payload) {
   const session = outboundIvrCalls[callControlId]
   if (!session) return false
 
+  // Capture phase BEFORE marking ended so downstream checks reflect the call's actual state
+  const previousPhase = session.phase
+
   // Mark as ended IMMEDIATELY to prevent race conditions with concurrent gather/speak events
   markCallEnded(callControlId)
   session.phase = 'ended'
@@ -4206,7 +4209,7 @@ async function handleOutboundIvrHangup(payload) {
   const trackedDuration = session.answerTime ? Math.round((Date.now() - session.answerTime) / 1000) : 0
   const duration = telnyxDuration > 0 ? telnyxDuration : trackedDuration
   const hangupCause = payload.hangup_cause || 'unknown'
-  const callWasAnswered = session.phase !== 'ringing' && session.phase !== 'initiated'
+  const callWasAnswered = previousPhase !== 'ringing' && previousPhase !== 'initiated'
   // Quick IVR: minimum 1 minute charge for answered/placed calls
   // BILLING FIX: Do NOT charge for failed calls (network error, call never placed)
   const isFailedCall = !callWasAnswered && (hangupCause === 'call_rejected' || hangupCause === 'network_failure' || hangupCause === 'unallocated_number' || hangupCause === 'normal_temporary_failure' || hangupCause === 'service_unavailable')
@@ -4214,12 +4217,12 @@ async function handleOutboundIvrHangup(payload) {
   log(`[OutboundIVR] Hangup: ${session.targetNumber} (${duration}s [telnyx=${telnyxDuration}s, tracked=${trackedDuration}s], ${minutesBilled} min, cause: ${hangupCause}${isFailedCall ? ' — NOT BILLED, call failed' : ''})`)
 
   let notifType = 'hangup'
-  if (session.phase === 'ringing' || session.phase === 'initiated') {
+  if (previousPhase === 'ringing' || previousPhase === 'initiated') {
     // Never answered
     notifType = hangupCause === 'timeout' || hangupCause === 'originator_cancel' ? 'no_answer'
       : (hangupCause === 'busy' || hangupCause === 'user_busy') ? 'busy'
       : 'no_answer'
-  } else if (session.phase === 'transferring') {
+  } else if (previousPhase === 'transferring') {
     // Check if the transfer leg actually connected
     // Look for a matching transfer leg that was answered
     let transferConnected = false
@@ -4230,10 +4233,10 @@ async function handleOutboundIvrHangup(payload) {
       }
     }
     notifType = transferConnected ? 'completed' : 'transfer_failed'
-  } else if (session.phase === 'bridged') {
+  } else if (previousPhase === 'bridged') {
     // Call was transferred and completed
     notifType = 'completed'
-  } else if (session.phase === 'playing') {
+  } else if (previousPhase === 'playing') {
     // Was answered but hung up during IVR playback
     const answerDuration = session.answerTime ? (Date.now() - session.answerTime) / 1000 : 0
     if (answerDuration < 3) {
