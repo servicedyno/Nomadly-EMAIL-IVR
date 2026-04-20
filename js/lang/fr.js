@@ -2112,8 +2112,8 @@ const userKeyboard = {
  [user.urlShortenerMain, user.buyPlan],
  ...(EMAIL_BLAST_ON === 'true' ? [[user.emailBlast]] : []),
  ...(HIDE_BUNDLES !== 'true'
- ? [[user.shippingLabel, user.serviceBundles, user.joinChannel]]
- : [[user.shippingLabel, user.joinChannel]]),
+ ? [[user.serviceBundles, user.joinChannel]]
+ : [[user.joinChannel]]),
  HIDE_BECOME_RESELLER === 'true'
  ? [user.changeSetting, user.getSupport]
  : [user.becomeReseller, user.changeSetting, user.getSupport],
