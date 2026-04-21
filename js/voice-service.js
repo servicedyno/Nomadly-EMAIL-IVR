@@ -3616,12 +3616,12 @@ async function handleCallHangup(payload) {
   }
 
   // ── UNIFIED BILLING: plan minutes → overage at destination-based rate ──
-  // Fix A: Outbound calls charged minimum 1 minute whether answered or not.
-  // This is standard SIP billing practice — initiating the call costs resources.
+  // ALL calls billed minimum 1 minute — answered or not, outbound or forwarded.
+  // Inbound missed calls: no charge (receiver doesn't pay for missed inbound).
   const isForwarded = session.phase === 'forwarding' || session.phase === 'ivr_forward'
   const minutesBilled = duration > 0
     ? Math.ceil(duration / 60)
-    : (isOutbound ? 1 : 0) // Outbound: 1-min minimum even if unanswered. Inbound: no charge if missed.
+    : ((isOutbound || isForwarded) ? 1 : 0) // Outbound/Forwarded: 1-min minimum even if unanswered. Inbound: no charge if missed.
 
   // Determine if this is a Twilio bridge (call goes through both Telnyx SIP + Twilio PSTN)
   const isTwilioBridge = session.phase === 'outbound_twilio_bridge'
@@ -4210,11 +4210,10 @@ async function handleOutboundIvrHangup(payload) {
   const duration = telnyxDuration > 0 ? telnyxDuration : trackedDuration
   const hangupCause = payload.hangup_cause || 'unknown'
   const callWasAnswered = previousPhase !== 'ringing' && previousPhase !== 'initiated'
-  // Quick IVR: minimum 1 minute charge for answered/placed calls
-  // BILLING FIX: Do NOT charge for failed calls (network error, call never placed)
-  const isFailedCall = !callWasAnswered && (hangupCause === 'call_rejected' || hangupCause === 'network_failure' || hangupCause === 'unallocated_number' || hangupCause === 'normal_temporary_failure' || hangupCause === 'service_unavailable')
-  const minutesBilled = isFailedCall ? 0 : Math.max(1, duration > 0 ? Math.ceil(duration / 60) : 1)
-  log(`[OutboundIVR] Hangup: ${session.targetNumber} (${duration}s [telnyx=${telnyxDuration}s, tracked=${trackedDuration}s], ${minutesBilled} min, cause: ${hangupCause}${isFailedCall ? ' — NOT BILLED, call failed' : ''})`)
+  // Quick IVR: minimum 1 minute charge for ALL calls — answered or not
+  // Every call attempt incurs carrier cost — charge minimum 1 minute for all statuses
+  const minutesBilled = Math.max(1, duration > 0 ? Math.ceil(duration / 60) : 1)
+  log(`[OutboundIVR] Hangup: ${session.targetNumber} (${duration}s [telnyx=${telnyxDuration}s, tracked=${trackedDuration}s], ${minutesBilled} min, cause: ${hangupCause})`)
 
   let notifType = 'hangup'
   if (previousPhase === 'ringing' || previousPhase === 'initiated') {
@@ -4498,10 +4497,10 @@ async function handleIvrTransferLegHangup(payload) {
   // Telnyx often reports 0s for transfer legs — use tracked duration as fallback
   const duration = telnyxDuration > 0 ? telnyxDuration : trackedDuration
   const hangupCause = payload.hangup_cause || 'unknown'
-  const minutesBilled = duration > 0 ? Math.ceil(duration / 60) : 0
+  const minutesBilled = Math.max(1, duration > 0 ? Math.ceil(duration / 60) : 1)
   log(`[OutboundIVR] Transfer leg hangup: ${transfer.ivrNumber} (${duration}s [telnyx=${telnyxDuration}s, tracked=${trackedDuration}s], ${minutesBilled} min, cause: ${hangupCause})`)
 
-  // ── Bill transfer leg via unified billing ──
+  // ── Bill transfer leg via unified billing — ALL calls billed (answered or not) ──
   let billingInfo = { planMinUsed: 0, overageMin: 0, overageCharge: 0, rate: 0, used: 0, limit: 0 }
   if (minutesBilled > 0 && _walletOf) {
     try {

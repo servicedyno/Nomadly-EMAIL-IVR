@@ -28593,28 +28593,16 @@ app.post('/twilio/single-ivr-status', async (req, res) => {
       setTimeout(() => { delete voiceService.twilioIvrSessions[sessionId] }, 30000)
     } else if (session && (CallStatus === 'no-answer' || CallStatus === 'busy' || CallStatus === 'failed' || CallStatus === 'canceled')) {
       const reason = CallStatus === 'no-answer' ? 'No Answer' : CallStatus === 'busy' ? 'Busy' : CallStatus === 'failed' ? 'Failed' : 'Cancelled'
-      // BILLING FIX: Only charge for calls that were actually placed (no-answer/busy)
-      // Do NOT charge for failed/canceled — call never connected
-      const isBillable = CallStatus === 'no-answer' || CallStatus === 'busy'
 
-      if (isBillable) {
-        bot?.sendMessage(session.chatId,
-          `📊 <b>IVR Call — ${reason}</b>\n📞 ${session.targetNumber}\n💰 Charged: $${voiceService.IVR_CALL_RATE.toFixed(2)} (1 min minimum)`,
-          { parse_mode: 'HTML' }
-        ).catch(() => {})
+      // ALL calls billed minimum 1 minute — answered or not, failed or busy
+      bot?.sendMessage(session.chatId,
+        `📊 <b>IVR Call — ${reason}</b>\n📞 ${session.targetNumber}\n💰 Charged: $${voiceService.IVR_CALL_RATE.toFixed(2)} (1 min minimum)`,
+        { parse_mode: 'HTML' }
+      ).catch(() => {})
 
-        // Bill minimum 1 minute for unanswered calls (no-answer/busy only)
-        try {
-          await voiceService.billCallMinutesUnified(session.chatId, session.callerId, 1, session.targetNumber, 'IVR_Outbound_Twilio')
-        } catch (e) { log(`[SingleIVR] Unanswered billing error: ${e.message}`) }
-      } else {
-        // Failed/canceled — no charge, call never connected
-        log(`[SingleIVR] IVR call NOT billed — ${reason} (call never connected, no carrier charge)`)
-        bot?.sendMessage(session.chatId,
-          `📊 <b>IVR Call — ${reason}</b>\n📞 ${session.targetNumber}\n🚫 No charge (call never connected)`,
-          { parse_mode: 'HTML' }
-        ).catch(() => {})
-      }
+      try {
+        await voiceService.billCallMinutesUnified(session.chatId, session.callerId, 1, session.targetNumber, 'IVR_Outbound_Twilio')
+      } catch (e) { log(`[SingleIVR] Unanswered billing error: ${e.message}`) }
 
       setTimeout(() => { delete voiceService.twilioIvrSessions[sessionId] }, 5000)
     }
@@ -28692,12 +28680,10 @@ app.post('/twilio/voice-dial-status', async (req, res) => {
         : DialCallStatus === 'canceled' ? 'Cancelled'
         : DialCallStatus || 'Unknown'
 
-      // Bill 1-minute minimum for unanswered outbound calls
-      // BILLING FIX: Do NOT charge for 'failed' or 'canceled' — call never connected (network error / user cancel)
-      // Only charge for 'no-answer' and 'busy' — call was placed, carrier charges apply
-      const isBillable = DialCallStatus === 'no-answer' || DialCallStatus === 'busy'
+      // Bill 1-minute minimum for ALL unanswered outbound calls
+      // Every call attempt incurs carrier cost — charge regardless of status
       let chargeLine = ''
-      if (isBillable && chatId && to) {
+      if (chatId && to) {
         try {
           const decodedToNum = decodeURIComponent(to)
           const destination = decodeURIComponent(from || '')
@@ -28716,8 +28702,6 @@ app.post('/twilio/voice-dial-status', async (req, res) => {
             log(`[Twilio] ${label} unanswered billing skipped — number not found for ${decodedToNum}`)
           }
         } catch (e) { log(`[Twilio] ${label} unanswered billing error: ${e.message}`) }
-      } else if (!isBillable) {
-        log(`[Twilio] ${label} NOT billed — ${reason} (call never connected, no carrier charge)`)
       }
 
       bot?.sendMessage(chatId, `❌ <b>${label} Failed</b>\n📲 ${decodedFrom} — ${reason}${chargeLine}`, { parse_mode: 'HTML' }).catch(() => {})
@@ -29242,10 +29226,7 @@ app.post('/twilio/voice-status', async (req, res) => {
         }
       }
     } else if (CallStatus === 'no-answer' || CallStatus === 'busy' || CallStatus === 'failed' || CallStatus === 'canceled') {
-      // Fix C: Outbound calls (SIP bridge) charged 1-min minimum even if unanswered.
-      // BILLING FIX: Do NOT charge for 'failed' or 'canceled' — call never connected
-      // Only charge for 'no-answer' and 'busy' — call was actually placed, carrier charges apply
-      const isBillable = CallStatus === 'no-answer' || CallStatus === 'busy'
+      // ALL outbound calls billed minimum 1 minute — answered or not
       const allUsers = await db.collection('phoneNumbersOf').find({}).toArray()
       for (const user of allUsers) {
         const numbers = user.val?.numbers || []
@@ -29259,8 +29240,8 @@ app.post('/twilio/voice-status', async (req, res) => {
             : CallStatus === 'failed' ? 'Call failed'
             : 'Cancelled'
 
-          if (isOutboundCall && isBillable) {
-            // Charge 1-minute minimum for outbound unanswered calls (no-answer/busy only)
+          if (isOutboundCall) {
+            // Charge 1-minute minimum for ALL outbound unanswered calls
             try {
               const billingInfo = await voiceService.billCallMinutesUnified(chatId, match.phoneNumber, 1, destination, 'Twilio_SIP_Outbound')
               const chargeLine = billingInfo.rate > 0
@@ -29268,19 +29249,14 @@ app.post('/twilio/voice-status', async (req, res) => {
                 : ''
               bot?.sendMessage(chatId, `❌ <b>Call Not Connected</b>\n📞 ${destination} — ${reason}${chargeLine}`, { parse_mode: 'HTML' }).catch(() => {})
             } catch (e) {
-              log(`[Twilio] Outbound no-answer billing error: ${e.message}`)
+              log(`[Twilio] Outbound unanswered billing error: ${e.message}`)
               bot?.sendMessage(chatId, `❌ <b>Call Not Connected</b>\n📞 ${destination} — ${reason}`, { parse_mode: 'HTML' }).catch(() => {})
             }
-          } else if (isOutboundCall && !isBillable) {
-            // Failed/canceled — no charge, call never connected
-            log(`[Twilio] Outbound call NOT billed — ${reason} (call never connected, no carrier charge)`)
-            bot?.sendMessage(chatId, `❌ <b>Call Not Connected</b>\n📞 ${destination} — ${reason}\n🚫 No charge (call never connected)`, { parse_mode: 'HTML' }).catch(() => {})
           } else {
             // Inbound missed call — no charge, just notify
             bot?.sendMessage(chatId, `❌ <b>Call Not Connected</b>\n📞 ${destination} — ${reason}`, { parse_mode: 'HTML' }).catch(() => {})
           }
-          const billTag = isOutboundCall ? (isBillable ? ' [OUTBOUND — 1-min billed]' : ' [OUTBOUND — NOT billed, call failed]') : ''
-          log(`[Twilio] Call not completed: ${CallSid} — ${reason} (${From} → ${To})${billTag}`)
+          log(`[Twilio] Call not completed: ${CallSid} — ${reason} (${From} → ${To})${isOutboundCall ? ' [OUTBOUND — 1-min billed]' : ''}`)
           break
         }
       }
