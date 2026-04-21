@@ -100,7 +100,7 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state,
           const regDb2 = regClient2.db(process.env.DB_NAME || 'test')
           const domainKey = domain.replace(/\./g, '@')
           await regDb2.collection('domainsOf').updateOne(
-            { _id: parseFloat(chatId) },
+            { _id: String(chatId) },
             { $set: { [domainKey]: true } },
             { upsert: true }
           )
@@ -115,7 +115,7 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state,
                 nameserverType: regNsChoice,
                 nameservers: regResult.nameservers || [],
                 autoRenew: true,
-                ownerChatId: parseFloat(chatId),
+                ownerChatId: String(chatId),
                 status: 'registered',
                 registeredAt: new Date(),
                 linkedAt: new Date(),
