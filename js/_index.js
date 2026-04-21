@@ -373,6 +373,7 @@ const {
   smartWalletDeduct,
   smartWalletCheck,
   isValidUrl,
+  sanitizeShortenerUrl,
   nextNumber,
   getBalance,
   sendQrCode,
@@ -12586,8 +12587,12 @@ ${message.replace(/\n/g, '<br>')}
 
   if (action === a.redSelectUrl) {
     if (message === t.back) return goto.submenu1()
-    if (!isValidUrl(message)) return send(chatId, t.redValidUrl, bc)
-    saveInfo('url', message)
+    // S1 fix (2026-04-21): sanitize before validating — strips trailing
+    // punctuation (e.g. "https://cnn.com." → "https://cnn.com") that
+    // otherwise passes URL() parse but later trips RapidAPI 400.
+    const cleanedUrl = sanitizeShortenerUrl(message)
+    if (!isValidUrl(cleanedUrl)) return send(chatId, t.redValidUrl, bc)
+    saveInfo('url', cleanedUrl)
     return goto.redSelectRandomCustom()
   }
 
@@ -12658,10 +12663,30 @@ ${message.replace(/\n/g, '<br>')}
           _shortUrl = await createShortUrlApi(url)
           log(`[Shortener] RapidAPI success: ${_shortUrl}`)
         } catch (error) {
-          log(`[Shortener] RapidAPI failed: ${error?.message || error}`)
-          send(TELEGRAM_ADMIN_CHAT_ID, `⚠️ RapidAPI URL shortener failed:\n${error?.message || error}`)
-          recordUserError(chatId, 'rapidapi-shortlink', error?.message || 'URL shortening service unavailable')
+          const errMsg = String(error?.message || error)
+          log(`[Shortener] RapidAPI failed: ${errMsg}`)
+          // S1 fix (2026-04-21): A "400 URL is invalid" from RapidAPI almost
+          // always means the user sent a typo we couldn't catch with
+          // sanitizeShortenerUrl (e.g. invalid TLD). Don't wake the admin —
+          // just give the user a clean, actionable hint. Only escalate real
+          // provider failures (5xx, 429, network, undefined).
+          const isUserInputError = /\b400\b/.test(errMsg) && /invalid/i.test(errMsg)
+          if (!isUserInputError) {
+            send(TELEGRAM_ADMIN_CHAT_ID, `⚠️ RapidAPI URL shortener failed:\n${errMsg}`)
+          } else {
+            log(`[Shortener] Suppressed admin ping for user-input 400 error: ${url}`)
+          }
+          recordUserError(chatId, 'rapidapi-shortlink', errMsg || 'URL shortening service unavailable')
           await set(state, chatId, 'action', 'none')
+          if (isUserInputError) {
+            const hint = {
+              en: `❌ That URL doesn't look valid — please check for typos (e.g. stray dots, missing domain extension) and try again.\n\nExample: <code>https://example.com</code>`,
+              fr: `❌ Cette URL semble invalide — vérifiez les fautes (points mal placés, extension manquante) et réessayez.\n\nExemple : <code>https://example.com</code>`,
+              zh: `❌ 该 URL 似乎无效，请检查是否有拼写错误（如多余的点号或缺少域名后缀）后重试。\n\n示例：<code>https://example.com</code>`,
+              hi: `❌ यह URL सही नहीं लगता — कृपया टाइपिंग गलती (जैसे अतिरिक्त बिंदु या गायब डोमेन एक्सटेंशन) जांचें और पुनः प्रयास करें।\n\nउदाहरण: <code>https://example.com</code>`,
+            }
+            return send(chatId, hint[lang] || hint.en, { ...trans('o'), parse_mode: 'HTML' })
+          }
           return send(chatId, t.redIssueUrlCuttly, trans('o'))
         }
         increment(totalShortLinks, 'total')
@@ -12890,9 +12915,11 @@ ${message.replace(/\n/g, '<br>')}
   }
   if (action === 'choose-url-to-shorten') {
     if (message === t.back) return goto.submenu1()
-    if (!isValidUrl(message)) return send(chatId, t.provideLink, bc)
+    // S1 fix (2026-04-21): sanitize before validating — same rationale as redSelectUrl
+    const cleanedUrl2 = sanitizeShortenerUrl(message)
+    if (!isValidUrl(cleanedUrl2)) return send(chatId, t.provideLink, bc)
 
-    set(state, chatId, 'url', message)
+    set(state, chatId, 'url', cleanedUrl2)
 
     const domains = await getPurchasedDomains(chatId)
     return goto['choose-domain-with-shorten']([...domains, ...adminDomains])
@@ -22920,9 +22947,12 @@ Select a category:`), k.of(catBtns))
   // SMART URL AUTO-DETECTION
   // If user just pastes a URL, offer to shorten it
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  if (isValidUrl(message) && (message.startsWith('http://') || message.startsWith('https://'))) {
+  // S1 fix (2026-04-21): apply the same trailing-punctuation sanitizer used
+  // by the explicit shortener flow so the auto-detect path matches behaviour.
+  const _cleanedAutoUrl = sanitizeShortenerUrl(message)
+  if (isValidUrl(_cleanedAutoUrl) && (_cleanedAutoUrl.startsWith('http://') || _cleanedAutoUrl.startsWith('https://'))) {
     // Save the URL for the quick shorten flow
-    await saveInfo('quickShortenUrl', message)
+    await saveInfo('quickShortenUrl', _cleanedAutoUrl)
     await set(state, chatId, 'action', 'quick-shorten-confirm')
     
     const subscribed = await isSubscribed(chatId)
@@ -22933,12 +22963,12 @@ Select a category:`), k.of(catBtns))
       : `🔗 ${freeLinks} trial link${freeLinks === 1 ? '' : 's'} remaining`
     
     if (!subscribed && freeLinks <= 0) {
-      return send(chatId, trans('t.sms_56', message.substring(0, 60), message.length > 60 ? '...' : ''), 
+      return send(chatId, trans('t.sms_56', _cleanedAutoUrl.substring(0, 60), _cleanedAutoUrl.length > 60 ? '...' : ''), 
         { parse_mode: 'HTML', reply_markup: { keyboard: [[user.buyPlan], ['❌ Cancel']], resize_keyboard: true } })
     }
     
     return send(chatId, 
-      `🔗 <b>URL Detected!</b>\n\n<code>${message.substring(0, 60)}${message.length > 60 ? '...' : ''}</code>\n\n${statusLine}\n\nWould you like to shorten this link?`,
+      `🔗 <b>URL Detected!</b>\n\n<code>${_cleanedAutoUrl.substring(0, 60)}${_cleanedAutoUrl.length > 60 ? '...' : ''}</code>\n\n${statusLine}\n\nWould you like to shorten this link?`,
       { parse_mode: 'HTML', reply_markup: { keyboard: [['✂️ Shorten Now', '✂️ Custom Alias'], ['❌ Cancel']], resize_keyboard: true } })
   }
   
@@ -22986,6 +23016,32 @@ Select a category:`), k.of(catBtns))
   }
 
   await set(state, chatId, 'action', 'none')
+
+  // ──────────────────────────────────────────────────────────────
+  // D1 fix (2026-04-21): If the user is in the Domain submenu (submenu2)
+  // and types a bare domain-looking word with no TLD (e.g.
+  // "rbcsecured-express"), don't reset to main menu — offer a "Did you
+  // mean <word>.com?" hint and transition them into the domain-buy flow
+  // so they can continue without re-navigating. This handles a common
+  // user UX slip logged on 2026-04-21 for chatId 6913551374.
+  // ──────────────────────────────────────────────────────────────
+  if (action === a.submenu2) {
+    const _frag = (message || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\s+/g, '')
+    const _looksLikeDomainFragment = /^[a-z0-9][a-z0-9-]{1,30}(?<!-)$/.test(_frag) && !_frag.includes('.')
+    if (_looksLikeDomainFragment) {
+      log(`[D1] User ${chatId} typed domain-like "${message}" in submenu2 — routing to choose-domain-to-buy with suggestion`)
+      await set(state, chatId, 'action', 'choose-domain-to-buy')
+      const suggestion = `${_frag}.com`
+      const hint = {
+        en: `🤔 Did you mean <b>${suggestion}</b>?\n\nType the full domain (e.g. <code>${suggestion}</code>) or type a different one to check availability.`,
+        fr: `🤔 Voulez-vous dire <b>${suggestion}</b> ?\n\nTapez le domaine complet (ex. <code>${suggestion}</code>) ou un autre pour vérifier la disponibilité.`,
+        zh: `🤔 您是想输入 <b>${suggestion}</b> 吗？\n\n请输入完整域名（例如 <code>${suggestion}</code>）或输入其他域名以检查可用性。`,
+        hi: `🤔 क्या आपका मतलब <b>${suggestion}</b> था?\n\nपूरा डोमेन टाइप करें (उदाहरण <code>${suggestion}</code>) या दूसरा टाइप करके उपलब्धता जांचें।`,
+      }
+      return send(chatId, hint[lang] || hint.en, { parse_mode: 'HTML' })
+    }
+  }
+
   log(`[reset] Unrecognized message from ${chatId}: "${message}" (was action: ${action || 'none'}). Resetting to main menu.`)
 
   // B3 fix: Rate-limit menu resets — max 1 menu reset message per 5 seconds per user

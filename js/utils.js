@@ -62,6 +62,51 @@ function isValidUrl(url) {
   }
 }
 
+// ─────────────────────────────────────────────────────────────
+// sanitizeShortenerUrl — strip common user-typo junk from a URL
+// so the shortener sees a clean value.
+//
+// Context (2026-04-21): User typed "https://canada.ca-cms.cfd." (trailing
+// period). Node's URL() accepts trailing dots in hostnames so isValidUrl()
+// returned true, but RapidAPI url-shortener57 rejected it with 400 "URL is
+// invalid". Admin got noisy error pings. Sanitize before validation so
+// user-typos are caught early and we never call RapidAPI with garbage.
+//
+// Rules:
+//   • Trim outer whitespace (including zero-width / unicode spaces).
+//   • Strip trailing punctuation that's almost never part of a real URL:
+//       . , ; ! ? ) ] } ' " < > » ‹ ›
+//     (one or more, repeatedly)
+//   • Strip a trailing `.` inside the hostname (normalizes `foo.com.` → `foo.com`).
+//     We only trim ONE trailing dot from the hostname — subdomains with
+//     legitimate dots are preserved.
+//   • Leave query-string and path alone.
+// ─────────────────────────────────────────────────────────────
+function sanitizeShortenerUrl(raw) {
+  if (!raw || typeof raw !== 'string') return raw
+  // 1. Outer whitespace (regular + common unicode spaces)
+  let s = raw.replace(/^[\s\u00A0\u200B]+|[\s\u00A0\u200B]+$/g, '')
+  // 2. Trailing sentence punctuation (repeat until stable)
+  // eslint-disable-next-line no-useless-escape
+  s = s.replace(/[.,;!?)\]}'"<>»›]+$/g, '')
+  // 3. Normalize trailing dot on the hostname only (e.g. example.com.)
+  try {
+    const u = new URL(s)
+    if (u.hostname.endsWith('.') && u.hostname.length > 1) {
+      u.hostname = u.hostname.replace(/\.+$/, '')
+      s = u.toString()
+      // URL.toString() may add a trailing `/` on an empty path — preserve
+      // original "no trailing slash" if the sanitized input didn't have one.
+      if (!raw.trim().endsWith('/') && s.endsWith('/') && u.pathname === '/') {
+        s = s.slice(0, -1)
+      }
+    }
+  } catch (_) {
+    // not a valid URL after the lite cleanup — let downstream isValidUrl handle it
+  }
+  return s
+}
+
 function isNormalUser(chatId) {
   return !isAdmin(chatId) && !isDeveloper(chatId)
 }
@@ -972,6 +1017,7 @@ module.exports = {
   smartWalletCheck,
   getRandom,
   isValidUrl,
+  sanitizeShortenerUrl,
   sendQrCode,
   sendQr,
   generateQr,
