@@ -24,7 +24,7 @@ async function logTransaction(db, transactionData) {
   
   const transaction = {
     _id: transactionData.transactionId || generateTransactionId(),
-    chatId: parseFloat(chatId),
+    chatId: String(chatId),
     type, // 'domain', 'hosting', 'phone', 'wallet-topup', etc.
     amount: amount || 0,
     currency: currency || 'USD',
@@ -73,7 +73,7 @@ async function updateTransactionStatus(db, transactionId, status, additionalData
 async function getUserTransactions(db, chatId, limit = 10) {
   try {
     const transactions = await db.collection('transactions')
-      .find({ chatId: parseFloat(chatId) })
+      .find({ chatId: String(chatId) })
       .sort({ createdAt: -1 })
       .limit(limit)
       .toArray()

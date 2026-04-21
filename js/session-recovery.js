@@ -16,7 +16,7 @@ async function saveResumableSession(db, chatId, flowData) {
 
   const session = {
     _id: `resume_${chatId}`,
-    chatId: parseFloat(chatId),
+    chatId: String(chatId),
     flowType,
     step,
     data,

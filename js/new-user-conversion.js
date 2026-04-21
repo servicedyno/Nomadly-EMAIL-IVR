@@ -232,7 +232,7 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
   // Helper: check if user opted out of promos
   async function isOptedOut(chatId) {
     try {
-      const record = await promoOptOutCol.findOne({ _id: parseFloat(chatId) })
+      const record = await promoOptOutCol.findOne({ _id: String(chatId) })
       return record?.optedOut === true
     } catch { return false }
   }
@@ -259,10 +259,10 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
 
       // Mark user as in onboarding
       await conversionCol.updateOne(
-        { chatId: parseFloat(chatId) },
+        { chatId: String(chatId) },
         {
           $set: {
-            chatId: parseFloat(chatId),
+            chatId: String(chatId),
             onboardingStarted: true,
             // If caller opts out of the CTA keyboard, treat onboarding as completed
             // immediately — there are no CTA buttons to wait on.
@@ -309,7 +309,7 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
   // Handle onboarding button responses — returns true if handled
   async function handleOnboardingResponse(chatId, message) {
     try {
-      const record = await conversionCol.findOne({ chatId: parseFloat(chatId), onboardingStarted: true, onboardingCompleted: false })
+      const record = await conversionCol.findOne({ chatId: String(chatId), onboardingStarted: true, onboardingCompleted: false })
       if (!record) return false
 
       const msg = message || ''
@@ -324,7 +324,7 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
 
       // Mark onboarding as completed
       await conversionCol.updateOne(
-        { chatId: parseFloat(chatId) },
+        { chatId: String(chatId) },
         { $set: { onboardingCompleted: true, onboardingChoice: msg, completedAt: new Date() } }
       )
 
@@ -358,7 +358,7 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
     try {
       if (depositAmountUsd < FIRST_DEPOSIT_MIN_USD) return null
 
-      const cid = parseFloat(chatId)
+      const cid = String(chatId)
       // Atomic check: only award if not already awarded
       const result = await conversionCol.findOneAndUpdate(
         { chatId: cid, firstDepositBonusAwarded: { $ne: true } },
@@ -398,7 +398,7 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
 
   async function scheduleWelcomeOffer(chatId, lang = 'en') {
     try {
-      const cid = parseFloat(chatId)
+      const cid = String(chatId)
       const fireAt = new Date(Date.now() + WELCOME_OFFER_DELAY_MS)
 
       // Persist to MongoDB — upsert so re-scheduling replaces any existing timer
@@ -426,7 +426,7 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
 
   async function sendWelcomeOffer(chatId, lang = 'en') {
     try {
-      const cid = parseFloat(chatId)
+      const cid = String(chatId)
 
       // Check if user already purchased, was offered, or is inactive
       const record = await conversionCol.findOne({ chatId: cid })
@@ -508,7 +508,7 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
       if (anyCoupon.expiresAt && anyCoupon.expiresAt < new Date()) return { error: 'expired' }
 
       // Must be used by the same user it was issued to
-      if (anyCoupon.chatId && anyCoupon.chatId !== parseFloat(chatId)) return { error: 'wrong_user' }
+      if (anyCoupon.chatId && anyCoupon.chatId !== String(chatId)) return { error: 'wrong_user' }
 
       return { discount: anyCoupon.discount, code: anyCoupon.code, type: 'welcome_offer' }
     } catch (err) {
@@ -521,7 +521,7 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
     try {
       await welcomeCouponsCol.updateOne(
         { code: code.toUpperCase() },
-        { $set: { used: true, usedBy: parseFloat(chatId), usedAt: new Date() } }
+        { $set: { used: true, usedBy: String(chatId), usedAt: new Date() } }
       )
     } catch (err) {
       // Non-critical
@@ -534,7 +534,7 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
 
   async function trackBrowse(chatId, category, lang = 'en') {
     try {
-      const cid = parseFloat(chatId)
+      const cid = String(chatId)
 
       // Save browse event
       await browseTrackingCol.updateOne(
@@ -570,7 +570,7 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
 
   async function sendBrowseFollowUp(chatId, lang = 'en') {
     try {
-      const cid = parseFloat(chatId)
+      const cid = String(chatId)
 
       // Only send to users who went through the conversion onboarding
       const record = await conversionCol.findOne({ chatId: cid })
@@ -718,7 +718,7 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
 
   async function markPurchased(chatId) {
     try {
-      const cid = parseFloat(chatId)
+      const cid = String(chatId)
       await conversionCol.updateOne(
         { chatId: cid },
         { $set: { hasPurchased: true, firstPurchaseAt: new Date() } },
@@ -738,7 +738,7 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
   // Cancel all pending events — called on /stop_promos
   async function cancelScheduledEvents(chatId) {
     try {
-      const cid = parseFloat(chatId)
+      const cid = String(chatId)
       const result = await scheduledEventsCol.updateMany(
         { chatId: cid, status: 'pending' },
         { $set: { status: 'cancelled', cancelledAt: new Date(), cancelReason: 'promo_opt_out' } }
@@ -824,10 +824,10 @@ function initNewUserConversion(bot, db, stateCol, walletOfCol, paymentsCol) {
   async function markOnboardingStarted(chatId, lang = 'en') {
     try {
       await conversionCol.updateOne(
-        { chatId: parseFloat(chatId) },
+        { chatId: String(chatId) },
         {
           $set: {
-            chatId: parseFloat(chatId),
+            chatId: String(chatId),
             onboardingStarted: true,
             onboardingCompleted: true, // no CTA to wait on
             joinedAt: new Date(),

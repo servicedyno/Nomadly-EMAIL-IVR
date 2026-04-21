@@ -193,7 +193,7 @@ async function checkAndAwardWelcomeBonus(chatId, lang = 'en') {
         const txnsCol = _walletOf.s.db.collection('transactions')
         await txnsCol.insertOne({
           _id: txnId,
-          chatId: parseInt(chatId), // Store as number for consistency with crypto deposits
+          chatId: String(chatId), // Store as string for consistency with bot chatId
           type: 'welcome-bonus',
           amount: WELCOME_BONUS_USD,
           currency: 'USD',

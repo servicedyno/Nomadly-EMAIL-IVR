@@ -9,7 +9,7 @@
 async function hasCompletedOnboarding(db, chatId) {
   try {
     const user = await db.collection('users').findOne({ 
-      _id: parseFloat(chatId),
+      _id: String(chatId),
       hasCompletedOnboarding: true
     })
     return !!user
@@ -25,7 +25,7 @@ async function hasCompletedOnboarding(db, chatId) {
 async function markOnboardingComplete(db, chatId) {
   try {
     await db.collection('users').updateOne(
-      { _id: parseFloat(chatId) },
+      { _id: String(chatId) },
       { 
         $set: { 
           hasCompletedOnboarding: true,

@@ -82,17 +82,17 @@ function cleanStaleDevices(devices, maxAgeHours = 24) {
 
 // ─── Auth: Validate activation code and return user info ───
 async function authenticateUser(chatId) {
-  const numChatId = Number(chatId)
-  if (isNaN(numChatId)) return { valid: false, error: 'Invalid code' }
+  const strChatId = String(chatId)
+  if (!strChatId || strChatId === 'NaN' || strChatId === 'undefined') return { valid: false, error: 'Invalid code' }
 
-  const nameDoc = await nameOf.findOne({ _id: numChatId })
+  const nameDoc = await nameOf.findOne({ _id: strChatId })
   const name = nameDoc?.val || nameDoc?.name
   if (!name) return { valid: false, error: 'Invalid activation code. Open @NomadlyBot on Telegram to get your code.' }
 
-  const planExpiry = await getVal(planEndingTime, numChatId) || 0
-  const freeSmsCount = await getVal(freeSmsCountOf, numChatId) || 0
-  const plan = await getVal(planOf, numChatId) || 'none'
-  const doc = await loginCountOf.findOne({ _id: numChatId })
+  const planExpiry = await getVal(planEndingTime, strChatId) || 0
+  const freeSmsCount = await getVal(freeSmsCountOf, strChatId) || 0
+  const plan = await getVal(planOf, strChatId) || 'none'
+  const doc = await loginCountOf.findOne({ _id: strChatId })
   const loginData = doc?.val || doc || {}
   const devices = getDevices(loginData)
 
@@ -105,7 +105,7 @@ async function authenticateUser(chatId) {
   return {
     valid: true,
     user: {
-      chatId: numChatId,
+      chatId: strChatId,
       name,
       plan,
       planExpiry,
@@ -125,8 +125,8 @@ async function authenticateUser(chatId) {
 
 // ─── Get active devices for a user ───
 async function getActiveDevices(chatId) {
-  const numChatId = Number(chatId)
-  const doc = await loginCountOf.findOne({ _id: numChatId })
+  const strChatId = String(chatId)
+  const doc = await loginCountOf.findOne({ _id: strChatId })
   const loginData = doc?.val || doc || {}
   let devices = getDevices(loginData)
   devices = cleanStaleDevices(devices, 24)
@@ -135,9 +135,9 @@ async function getActiveDevices(chatId) {
 
 // ─── Subscription Check (reusable) ───
 async function checkSubscription(chatId) {
-  const numChatId = Number(chatId)
-  const planExpiry = await getVal(planEndingTime, numChatId) || 0
-  const freeSmsCount = await getVal(freeSmsCountOf, numChatId) || 0
+  const strChatId = String(chatId)
+  const planExpiry = await getVal(planEndingTime, strChatId) || 0
+  const freeSmsCount = await getVal(freeSmsCountOf, strChatId) || 0
   const freeSmsLimit = Number(process.env.APP_FREE_SMS) || 100
   const isSubscribed = planExpiry > Date.now()
   const isFreeTrial = !isSubscribed && freeSmsCount < freeSmsLimit
@@ -155,7 +155,7 @@ async function checkSubscription(chatId) {
 async function createCampaign(chatId, data) {
   const campaign = {
     _id: uuidv4(),
-    chatId: Number(chatId),
+    chatId: String(chatId),
     name: data.name || `Campaign ${new Date().toLocaleDateString()}`,
     content: data.content || [''],
     contacts: data.contacts || [],
@@ -178,7 +178,7 @@ async function createCampaign(chatId, data) {
 
 async function getCampaigns(chatId) {
   return await smsCampaigns
-    .find({ chatId: Number(chatId) })
+    .find({ chatId: String(chatId) })
     .sort({ createdAt: -1 })
     .toArray()
 }
@@ -199,7 +199,7 @@ async function updateCampaign(campaignId, chatId, updates) {
   }
 
   const result = await smsCampaigns.updateOne(
-    { _id: campaignId, chatId: Number(chatId) },
+    { _id: campaignId, chatId: String(chatId) },
     { $set: safeUpdates }
   )
   return result.modifiedCount > 0
@@ -208,7 +208,7 @@ async function updateCampaign(campaignId, chatId, updates) {
 async function deleteCampaign(campaignId, chatId) {
   const result = await smsCampaigns.deleteOne({
     _id: campaignId,
-    chatId: Number(chatId)
+    chatId: String(chatId)
   })
   return result.deletedCount > 0
 }
@@ -221,7 +221,7 @@ async function updateCampaignProgress(campaignId, chatId, progress) {
   if (progress.lastSentIndex !== undefined) updates.lastSentIndex = progress.lastSentIndex
 
   await smsCampaigns.updateOne(
-    { _id: campaignId, chatId: Number(chatId) },
+    { _id: campaignId, chatId: String(chatId) },
     { $set: updates }
   )
 }
@@ -517,9 +517,9 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
     try {
       const { chatId, sentCount, failedCount, status, lastSentIndex } = req.body
       if (!chatId) return res.status(400).json({ error: 'chatId required' })
-      const numChatId = Number(chatId)
+      const strChatId = String(chatId)
 
-      const sub = await checkSubscription(numChatId)
+      const sub = await checkSubscription(strChatId)
       if (!sub.canUseSms) {
         return res.status(403).json({
           error: 'subscription_required',
@@ -535,15 +535,15 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
         const previousSent = campaign?.sentCount || 0
         const delta = Math.max(0, sentCount - previousSent)
         if (delta > 0) {
-          console.log(`[SmsApp] Progress: user ${numChatId}, campaign ${req.params.campaignId}: +${delta} SMS (${previousSent}→${sentCount}), failed=${failedCount || 0}, status=${status || 'n/a'}`)
+          console.log(`[SmsApp] Progress: user ${strChatId}, campaign ${req.params.campaignId}: +${delta} SMS (${previousSent}→${sentCount}), failed=${failedCount || 0}, status=${status || 'n/a'}`)
           // Increment free SMS counter by the delta (atomic)
-          increment(freeSmsCountOf, numChatId, delta)
+          increment(freeSmsCountOf, strChatId, delta)
           // Also track in analytics
-          const name = await get(nameOf, numChatId)
-          increment(clicksOfSms, numChatId + ', ' + name + ', ' + today(), delta)
-          increment(clicksOfSms, numChatId + ', ' + name + ', ' + week(), delta)
-          increment(clicksOfSms, numChatId + ', ' + name + ', ' + month(), delta)
-          increment(clicksOfSms, numChatId + ', ' + name + ', ' + year(), delta)
+          const name = await get(nameOf, strChatId)
+          increment(clicksOfSms, strChatId + ', ' + name + ', ' + today(), delta)
+          increment(clicksOfSms, strChatId + ', ' + name + ', ' + week(), delta)
+          increment(clicksOfSms, strChatId + ', ' + name + ', ' + month(), delta)
+          increment(clicksOfSms, strChatId + ', ' + name + ', ' + year(), delta)
           increment(clicksOfSms, 'total, total, ' + today(), delta)
           increment(clicksOfSms, 'total, total, ' + week(), delta)
           increment(clicksOfSms, 'total, total, ' + month(), delta)
@@ -556,7 +556,7 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
       })
 
       // Return updated subscription state so app can react
-      const updatedSub = await checkSubscription(numChatId)
+      const updatedSub = await checkSubscription(strChatId)
       res.json({ ok: true, freeSmsRemaining: updatedSub.freeSmsRemaining, canUseSms: updatedSub.canUseSms })
     } catch (error) {
       console.log(`[SmsApp] Progress update error:`, error.message)
@@ -567,9 +567,9 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
   // Increment SMS count — SUBSCRIPTION GATED
   app.post('/sms-app/sms-sent/:chatId', async (req, res) => {
     try {
-      const numChatId = Number(req.params.chatId)
+      const strChatId = String(req.params.chatId)
 
-      const sub = await checkSubscription(numChatId)
+      const sub = await checkSubscription(strChatId)
       if (!sub.canUseSms) {
         return res.status(403).json({
           error: 'subscription_required',
@@ -577,13 +577,13 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
         })
       }
 
-      increment(freeSmsCountOf, numChatId)
+      increment(freeSmsCountOf, strChatId)
 
-      const name = await get(nameOf, numChatId)
-      increment(clicksOfSms, numChatId + ', ' + name + ', ' + today())
-      increment(clicksOfSms, numChatId + ', ' + name + ', ' + week())
-      increment(clicksOfSms, numChatId + ', ' + name + ', ' + month())
-      increment(clicksOfSms, numChatId + ', ' + name + ', ' + year())
+      const name = await get(nameOf, strChatId)
+      increment(clicksOfSms, strChatId + ', ' + name + ', ' + today())
+      increment(clicksOfSms, strChatId + ', ' + name + ', ' + week())
+      increment(clicksOfSms, strChatId + ', ' + name + ', ' + month())
+      increment(clicksOfSms, strChatId + ', ' + name + ', ' + year())
       increment(clicksOfSms, 'total, total, ' + today())
       increment(clicksOfSms, 'total, total, ' + week())
       increment(clicksOfSms, 'total, total, ' + month())
@@ -612,7 +612,7 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
 
       // Track user's app version
       await loginCountOf.updateOne(
-        { _id: Number(chatId) },
+        { _id: String(chatId) },
         { $set: { 'val.appVersion': userVersion, 'val.lastSync': new Date() } },
         { upsert: true }
       )
@@ -621,7 +621,7 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
       if (userVersion !== latestVersion && userVersion !== 'unknown' && _bot) {
         // Use underscores instead of dots to avoid MongoDB nested path interpretation
         const versionKey = `update_notified_${userVersion.replace(/\./g, '_')}_${latestVersion.replace(/\./g, '_')}`
-        const doc = await loginCountOf.findOne({ _id: Number(chatId) })
+        const doc = await loginCountOf.findOne({ _id: String(chatId) })
         const alreadyNotified = doc?.val?.[versionKey]
         
         // U3 fix: Also send periodic reminders if user is 2+ minor versions behind
@@ -665,7 +665,7 @@ ${versionsBehind >= 2 ? `⚠️ You are <b>${versionsBehind} versions behind</b>
             await _bot.sendMessage(chatId, updateMsg, { parse_mode: 'HTML' })
             // Mark as notified for this version pair
             await loginCountOf.updateOne(
-              { _id: Number(chatId) },
+              { _id: String(chatId) },
               { $set: { [`val.${versionKey}`]: true, [`val.${lastRepeatKey}`]: Date.now() } }
             )
             console.log(`[SmsApp] Update reminder sent to ${chatId}: ${userVersion} → ${latestVersion}${needsRepeatReminder ? ' (repeat reminder)' : ''}`)
@@ -694,7 +694,7 @@ ${versionsBehind >= 2 ? `⚠️ You are <b>${versionsBehind} versions behind</b>
   app.post('/sms-app/report-errors/:chatId', async (req, res) => {
     try {
       const chatId = req.params.chatId
-      const numChatId = Number(chatId)
+      const strChatId = String(chatId)
       const { campaignId, errors } = req.body || {}
       if (!errors || !Array.isArray(errors) || errors.length === 0) {
         return res.json({ ok: true })
@@ -717,7 +717,7 @@ ${versionsBehind >= 2 ? `⚠️ You are <b>${versionsBehind} versions behind</b>
 
       // Store in a dedicated diagnostic collection for long-term analysis
       await db.collection('smsAppDiagnostics').insertOne({
-        chatId: numChatId,
+        chatId: strChatId,
         campaignId,
         errors: errors.slice(-20),
         errorSummary: Object.entries(errors.reduce((acc, e) => { acc[e.reason] = (acc[e.reason] || 0) + 1; return acc }, {})),
@@ -749,14 +749,14 @@ ${versionsBehind >= 2 ? `⚠️ You are <b>${versionsBehind} versions behind</b>
   app.get('/sms-app/diagnostics/:chatId', async (req, res) => {
     try {
       const chatId = req.params.chatId
-      const numChatId = Number(chatId)
+      const strChatId = String(chatId)
 
       // Gather all relevant data
       const [authResult, campaigns, loginDoc, recentErrors] = await Promise.all([
         authenticateUser(chatId),
         getCampaigns(chatId),
-        loginCountOf.findOne({ _id: numChatId }),
-        db.collection('smsAppDiagnostics').find({ chatId: numChatId }).sort({ reportedAt: -1 }).limit(10).toArray()
+        loginCountOf.findOne({ _id: strChatId }),
+        db.collection('smsAppDiagnostics').find({ chatId: strChatId }).sort({ reportedAt: -1 }).limit(10).toArray()
       ])
 
       const loginData = loginDoc?.val || {}

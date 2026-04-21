@@ -111,7 +111,7 @@ async function downloadAndSave(fileLink, chatId, originalName, mimeType) {
 async function saveAudio({ chatId, name, filename, originalName, duration, mimeType, size, audioUrl, localPath }) {
   const doc = {
     id: crypto.randomUUID(),
-    chatId: Number(chatId),
+    chatId: String(chatId),
     name: name || originalName || filename,
     filename,
     originalName: originalName || filename,
@@ -133,7 +133,7 @@ async function saveAudio({ chatId, name, filename, originalName, duration, mimeT
  * @returns {Array} List of audio documents
  */
 async function listAudios(chatId) {
-  return _collection.find({ chatId: Number(chatId) }).sort({ createdAt: -1 }).toArray()
+  return _collection.find({ chatId: String(chatId) }).sort({ createdAt: -1 }).toArray()
 }
 
 /**
@@ -152,7 +152,7 @@ async function getAudio(audioId) {
  * @returns {boolean}
  */
 async function deleteAudio(audioId, chatId) {
-  const audio = await _collection.findOne({ id: audioId, chatId: Number(chatId) })
+  const audio = await _collection.findOne({ id: audioId, chatId: String(chatId) })
   if (!audio) return false
 
   // Delete file from filesystem
@@ -167,7 +167,7 @@ async function deleteAudio(audioId, chatId) {
     log(`[AudioLibrary] File delete error: ${e.message}`)
   }
 
-  await _collection.deleteOne({ id: audioId, chatId: Number(chatId) })
+  await _collection.deleteOne({ id: audioId, chatId: String(chatId) })
   log(`[AudioLibrary] Deleted: ${audio.name} (id: ${audioId}) for chatId ${chatId}`)
   return true
 }
@@ -177,7 +177,7 @@ async function deleteAudio(audioId, chatId) {
  */
 async function renameAudio(audioId, chatId, newName) {
   const result = await _collection.updateOne(
-    { id: audioId, chatId: Number(chatId) },
+    { id: audioId, chatId: String(chatId) },
     { $set: { name: newName } }
   )
   return result.modifiedCount > 0

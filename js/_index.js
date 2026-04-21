@@ -22297,13 +22297,13 @@ Select a category:`), k.of(catBtns))
 
   // ── SMS App: Reset Login (force-logout from all devices) ──
   if (message === '/resetlogin' || message === '🔓 Reset App Login' || message === user.smsResetLogin) {
-    const doc = await loginCountOf.findOne({ _id: Number(chatId) })
+    const doc = await loginCountOf.findOne({ _id: String(chatId) })
     const loginData = doc?.val || doc || {}
     const devices = Array.isArray(loginData?.devices) ? loginData.devices : []
     if (devices.length === 0 && loginData?.canLogin !== false) {
       return send(chatId, trans('t.sms_24'), { parse_mode: 'HTML' })
     }
-    await set(loginCountOf, Number(chatId), { devices: [], loginCount: 0, canLogin: true, lastLoginAt: Date.now() })
+    await set(loginCountOf, String(chatId), { devices: [], loginCount: 0, canLogin: true, lastLoginAt: Date.now() })
     return send(chatId, trans('t.sms_25'), { parse_mode: 'HTML' })
   }
 
@@ -22855,7 +22855,7 @@ Select a category:`), k.of(catBtns))
 
   if (action === 'listen_reset_login') {
     if (message === t.yes) {
-      await set(loginCountOf, Number(chatId), { devices: [], loginCount: 0, canLogin: true, lastLoginAt: Date.now() })
+      await set(loginCountOf, String(chatId), { devices: [], loginCount: 0, canLogin: true, lastLoginAt: Date.now() })
       send(chatId, t.resetLoginAdmit, trans('o'))
     } else {
       send(chatId, t.resetLoginDeny, trans('o'))
@@ -25097,16 +25097,16 @@ app.get('/analytics-of-all-sms', async (req, res) => {
 })
 app.get('/login-count/:chatId', async (req, res) => {
   const chatId = req?.params?.chatId
-  const loginData = (await get(loginCountOf, Number(chatId))) || { loginCount: 0, canLogin: true }
+  const loginData = (await get(loginCountOf, String(chatId))) || { loginCount: 0, canLogin: true }
   // Only prompt reset if canLogin is explicitly false AND no device sessions exist
   // (prevents old code from disrupting users with active SMS App sessions)
   const devices = Array.isArray(loginData?.devices) ? loginData.devices : []
   if (!loginData.canLogin && devices.length === 0) {
     const info = await state.findOne({ _id: String(chatId) })
     const lang = info?.userLanguage ?? 'en'
-    send(Number(chatId), translation('t.resetLogin', lang), translation('yes_no', lang))
-    // sendMessage(Number(chatId), t.resetLogin, yes_no)
-    await set(state, Number(chatId), 'action', 'listen_reset_login')
+    send(chatId, translation('t.resetLogin', lang), translation('yes_no', lang))
+    // sendMessage(chatId, t.resetLogin, yes_no)
+    await set(state, String(chatId), 'action', 'listen_reset_login')
   }
   // Always report canLogin: true if there are active device sessions
   const responseData = { ...loginData }
@@ -25116,14 +25116,14 @@ app.get('/login-count/:chatId', async (req, res) => {
 
 app.get('/increment-login-count/:chatId', async (req, res) => {
   const chatId = req?.params?.chatId
-  const numChatId = Number(chatId)
+  const strChatId = String(chatId)
 
-  const doc = await loginCountOf.findOne({ _id: numChatId })
+  const doc = await loginCountOf.findOne({ _id: strChatId })
   const loginData = doc?.val || doc || {}
   let devices = Array.isArray(loginData?.devices) ? loginData.devices : []
   // Add a legacy device entry for backward compat
   devices.push({ deviceId: 'legacy-' + Date.now(), loginAt: Date.now(), lastActive: Date.now() })
-  await set(loginCountOf, numChatId, { devices, loginCount: devices.length, canLogin: true, lastLoginAt: Date.now() })
+  await set(loginCountOf, strChatId, { devices, loginCount: devices.length, canLogin: true, lastLoginAt: Date.now() })
 
   res.send('ok')
 })
@@ -25131,11 +25131,11 @@ app.get('/increment-login-count/:chatId', async (req, res) => {
 app.get('/decrement-login-count/:chatId', async (req, res) => {
   const chatId = req?.params?.chatId
 
-  const loginData = (await get(loginCountOf, Number(chatId))) || { loginCount: 0, canLogin: true }
+  const loginData = (await get(loginCountOf, String(chatId))) || { loginCount: 0, canLogin: true }
 
   if (loginData.canLogin) return res.send('!ok')
 
-  await set(loginCountOf, Number(chatId), { loginCount: loginData.loginCount - 1, canLogin: true })
+  await set(loginCountOf, String(chatId), { loginCount: loginData.loginCount - 1, canLogin: true })
 
   res.send('ok')
 })
@@ -27042,12 +27042,12 @@ app.post('/admin/order-leads', async (req, res) => {
 app.get('/planInfo', async (req, res) => {
   if (process.env.OLD_APP_ACTIVE === 'false') return res.send('old app off now')
 
-  const chatId = Number(req?.query?.code)
-  if (isNaN(chatId)) return res.status(400).json({ msg: 'Issue in datatype' })
+  const chatId = String(req?.query?.code)
+  if (!chatId || chatId === 'NaN' || chatId === 'undefined') return res.status(400).json({ msg: 'Issue in datatype' })
   const name = await get(nameOf, chatId)
 
   if (!name) return res.json({ planExpiry: 'invalid' })
-  const loginData = (await get(loginCountOf, Number(chatId))) || { loginCount: 0, canLogin: true }
+  const loginData = (await get(loginCountOf, String(chatId))) || { loginCount: 0, canLogin: true }
   return res.json({
     pauseTime: 10 * 1000,
     planExpiry: (await get(planEndingTime, chatId)) || 0,
@@ -28076,12 +28076,12 @@ app.post('/twilio/sip-ring-result', async (req, res) => {
       : DialCallStatus === 'busy' ? 'Busy'
       : DialCallStatus === 'failed' ? 'Call failed'
       : DialCallStatus || 'No response'
-    bot?.sendMessage(Number(chatId), `📱 <b>SIP Ring — ${reason}</b>\nFrom: ${decodedFrom} → ${decodedTo}`, { parse_mode: 'HTML' }).catch(() => {})
+    bot?.sendMessage(chatId, `📱 <b>SIP Ring — ${reason}</b>\nFrom: ${decodedFrom} → ${decodedTo}`, { parse_mode: 'HTML' }).catch(() => {})
 
     // Fallback 1: Forward (no_answer mode)
     if (fwdConfig?.enabled && fwdConfig.forwardTo && fwdConfig.mode !== 'always') {
       const RATE = parseFloat(process.env.CALL_FORWARDING_RATE_MIN || '0.50')
-      const { usdBal } = await getBalance(walletOf, Number(chatId))
+      const { usdBal } = await getBalance(walletOf, String(chatId))
       if (usdBal >= RATE) {
         const dialOpts = {
           callerId: decodedTo,
@@ -28094,7 +28094,7 @@ app.post('/twilio/sip-ring-result', async (req, res) => {
         }
         const dial = response.dial(dialOpts)
         dial.number(fwdConfig.forwardTo)
-        bot?.sendMessage(Number(chatId), `📞 Forwarding to ${fwdConfig.forwardTo}...`, { parse_mode: 'HTML' }).catch(() => {})
+        bot?.sendMessage(chatId, `📞 Forwarding to ${fwdConfig.forwardTo}...`, { parse_mode: 'HTML' }).catch(() => {})
         return res.type('text/xml').send(response.toString())
       }
     }
@@ -28123,7 +28123,7 @@ app.post('/twilio/sip-ring-result', async (req, res) => {
     // Fallback 3: Missed call
     response.say('The person you are calling is unavailable. Please try again later.')
     response.hangup()
-    bot?.sendMessage(Number(chatId), `📞 <b>Missed Call</b>\nFrom: ${decodedFrom}\nTo: ${decodedTo}\n(SIP device didn't answer, no forwarding/voicemail configured)`, { parse_mode: 'HTML' }).catch(() => {})
+    bot?.sendMessage(chatId, `📞 <b>Missed Call</b>\nFrom: ${decodedFrom}\nTo: ${decodedTo}\n(SIP device didn't answer, no forwarding/voicemail configured)`, { parse_mode: 'HTML' }).catch(() => {})
 
     res.type('text/xml').send(response.toString())
   } catch (error) {

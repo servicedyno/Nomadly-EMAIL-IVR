@@ -275,7 +275,7 @@ async function createCampaign(params) {
 
   const campaign = {
     id: crypto.randomUUID(),
-    chatId: Number(chatId),
+    chatId: String(chatId),
     callerId,
     audioUrl,
     audioName: audioName || 'Custom Audio',
@@ -936,7 +936,7 @@ async function getCampaign(campaignId) {
  * Get recent campaigns for a user
  */
 async function getUserCampaigns(chatId, limit = 10) {
-  return _collection.find({ chatId: Number(chatId) }).sort({ createdAt: -1 }).limit(limit).toArray()
+  return _collection.find({ chatId: String(chatId) }).sort({ createdAt: -1 }).limit(limit).toArray()
 }
 
 /**

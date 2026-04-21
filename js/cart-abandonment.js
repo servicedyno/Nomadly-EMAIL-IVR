@@ -261,10 +261,10 @@ function initCartAbandonment(bot, db, stateCol) {
       if (!PAYMENT_ACTIONS.has(action)) return
 
       await abandonedCarts.updateOne(
-        { chatId: parseFloat(chatId) },
+        { chatId: String(chatId) },
         {
           $set: {
-            chatId: parseFloat(chatId),
+            chatId: String(chatId),
             action,
             category: actionToCategory(action),
             productInfo,
@@ -286,7 +286,7 @@ function initCartAbandonment(bot, db, stateCol) {
 
   // Start a silent abandonment timer — if user goes quiet for 20 min at payment screen
   function startSilentTimer(chatId, action) {
-    const cid = parseFloat(chatId)
+    const cid = String(chatId)
     if (silentTimers.has(cid)) {
       clearTimeout(silentTimers.get(cid))
     }
@@ -312,7 +312,7 @@ function initCartAbandonment(bot, db, stateCol) {
   // Record that a user completed payment — cancel all pending timers
   async function recordPaymentCompleted(chatId) {
     try {
-      const cid = parseFloat(chatId)
+      const cid = String(chatId)
 
       // Cancel any pending nudge
       if (pendingNudges.has(cid)) {
@@ -338,7 +338,7 @@ function initCartAbandonment(bot, db, stateCol) {
   // Record that a user abandoned at payment
   async function recordAbandonment(chatId, lang = 'en') {
     try {
-      const cid = parseFloat(chatId)
+      const cid = String(chatId)
 
       // Cancel silent timer since we're now recording the abandonment
       if (silentTimers.has(cid)) {
@@ -377,7 +377,7 @@ function initCartAbandonment(bot, db, stateCol) {
 
   // Schedule a nudge timer
   function scheduleNudge(chatId, category, lang, cartId, delayMs = NUDGE_DELAY_MS) {
-    const cid = parseFloat(chatId)
+    const cid = String(chatId)
     if (pendingNudges.has(cid)) {
       clearTimeout(pendingNudges.get(cid))
     }
