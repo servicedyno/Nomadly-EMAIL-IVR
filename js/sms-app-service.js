@@ -238,12 +238,12 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
       const result = await authenticateUser(req.params.code)
       if (!result.valid) return res.status(401).json(result)
 
-      const numChatId = Number(req.params.code)
+      const strChatId = String(req.params.code)
       const { plan, isSubscribed, isFreeTrial } = result.user
       const deviceLimit = getDeviceLimit(plan, isSubscribed, isFreeTrial)
 
       // Get current device sessions
-      const doc = await loginCountOf.findOne({ _id: numChatId })
+      const doc = await loginCountOf.findOne({ _id: strChatId })
       const loginData = doc?.val || doc || {}
       let devices = getDevices(loginData)
 
@@ -263,7 +263,7 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
           // For single-device plans (trial/daily), auto-replace the old device
           // This handles reinstalls, phone switches, etc.
           if (deviceLimit === 1) {
-            console.log(`[SmsApp] Auto-replacing device for ${numChatId}: ${devices[0]?.deviceId} → ${deviceId}`)
+            console.log(`[SmsApp] Auto-replacing device for ${strChatId}: ${devices[0]?.deviceId} → ${deviceId}`)
             devices = [{ deviceId, deviceName: deviceName || null, loginAt: Date.now(), lastActive: Date.now() }]
           } else {
             const limitLabel = `${deviceLimit} devices`
@@ -283,7 +283,7 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
       }
 
       // Save updated device sessions
-      await set(loginCountOf, numChatId, {
+      await set(loginCountOf, strChatId, {
         devices,
         loginCount: devices.length,
         canLogin: true, // device array handles session mgmt — keep true so old bot code doesn't block user
@@ -304,10 +304,10 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
   // Logout — remove specific device
   app.post('/sms-app/logout/:code', async (req, res) => {
     try {
-      const numChatId = Number(req.params.code)
+      const strChatId = String(req.params.code)
       const deviceId = req.body?.deviceId || req.query?.deviceId || null
 
-      const doc = await loginCountOf.findOne({ _id: numChatId })
+      const doc = await loginCountOf.findOne({ _id: strChatId })
       const loginData = doc?.val || doc || {}
       let devices = getDevices(loginData)
 
@@ -319,7 +319,7 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
         devices = []
       }
 
-      await set(loginCountOf, numChatId, {
+      await set(loginCountOf, strChatId, {
         ...loginData,
         devices,
         loginCount: 0,
@@ -349,8 +349,8 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
     }
 
     try {
-      const chatId = Number(code)
-      const doc = await loginCountOf.findOne({ _id: chatId })
+      const strChatId = String(code)
+      const doc = await loginCountOf.findOne({ _id: strChatId })
       const loginData = doc?.val || doc || {}
       let devices = getDevices(loginData)
       
@@ -361,7 +361,7 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
       
       devices[deviceIdx].deviceName = deviceName.trim()
       
-      await set(loginCountOf, chatId, {
+      await set(loginCountOf, strChatId, {
         ...loginData,
         devices,
       })
@@ -376,10 +376,10 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
   // Logout — remove specific device
   app.post('/sms-app/logout/:code', async (req, res) => {
     try {
-      const numChatId = Number(req.params.code)
+      const strChatId = String(req.params.code)
       const deviceId = req.body?.deviceId || req.query?.deviceId || null
 
-      const doc = await loginCountOf.findOne({ _id: numChatId })
+      const doc = await loginCountOf.findOne({ _id: strChatId })
       const loginData = doc?.val || doc || {}
       let devices = getDevices(loginData)
 
@@ -390,7 +390,7 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
         devices = []
       }
 
-      await set(loginCountOf, numChatId, {
+      await set(loginCountOf, strChatId, {
         devices,
         loginCount: devices.length,
         canLogin: true, // device array handles session mgmt

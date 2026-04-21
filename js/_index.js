@@ -1026,7 +1026,7 @@ const notifyAdmin = (message) => {
           for (const match of chatIdMatches) {
             const cid = match.replace(/chatId:\s*/, '').trim()
             try {
-              const user = await nameOf.findOne({ _id: parseInt(cid) })
+              const user = await nameOf.findOne({ _id: String(cid) })
               if (user?.val) {
                 enrichedMsg = enrichedMsg.replace(match, `chatId: @${user.val} (${cid})`)
               }
@@ -3119,7 +3119,7 @@ bot?.on('callback_query', async (query) => {
       sendMsg(chatId, t.mpChatStartBuyer(product.title, product.price))
 
       // Notify seller — only auto-set into mpChat if seller is idle (not mid-flow)
-      const sellerInfo = await state.findOne({ _id: parseFloat(product.sellerId) })
+      const sellerInfo = await state.findOne({ _id: String(product.sellerId) })
       const sellerLang = sellerInfo?.userLanguage || 'en'
       const sellerT = translation('t', sellerLang)
       const sellerAction = sellerInfo?.action || 'none'
@@ -3127,8 +3127,8 @@ bot?.on('callback_query', async (query) => {
 
       if (sellerIsIdle) {
         // Seller is idle — safe to auto-set into chat mode
-        await set(state, parseFloat(product.sellerId), 'mpActiveConversation', conv._id)
-        await set(state, parseFloat(product.sellerId), 'action', 'mpChat')
+        await set(state, String(product.sellerId), 'mpActiveConversation', conv._id)
+        await set(state, String(product.sellerId), 'action', 'mpChat')
         const sellerBtns = {
           reply_markup: {
             inline_keyboard: [
@@ -3736,7 +3736,7 @@ bot?.on('message', msg => {
         const txnId = `TXN-${new Date().toISOString().split('T')[0].replace(/-/g, '')}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`
         await db.collection('transactions').insertOne({
           _id: txnId,
-          chatId: parseInt(targetChatId), // Store as number for consistency with crypto deposits
+          chatId: String(targetChatId), // Store as string for consistency with bot chatId
           type: 'admin-credit',
           amount: amount,
           currency: 'USD',
@@ -27337,7 +27337,7 @@ async function handleInboundFax(payload) {
 
   // Log the fax
   await db.collection('phoneLogs').insertOne({
-    chatId: parseFloat(owner),
+    chatId: String(owner),
     type: 'fax',
     direction: 'inbound',
     from,
