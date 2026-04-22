@@ -153,3 +153,13 @@ Multi-service platform (Telegram bot + React frontend + Node.js backend) managin
   4. **APK rebuilt** — `3.84MB` at `/app/static/nomadly-sms.apk`, `versionCode=14`, `versionName=2.6.0` (verified via `aapt2 dump badging`).
 - **Files touched**: `sms-app/android/app/build.gradle`, `sms-app/package.json`, `sms-app/www/index.html`, `sms-app/www/js/app.js`, `sms-app/www/js/api.js`, `js/sms-app-service.js`, `js/_index.js`, `static/nomadly-sms.apk`.
 - **Deployment**: Local only. Users still need the Railway deployment to receive the new APK via Telegram bot broadcast.
+
+
+## Feb 2026 — SMS App v2.6.1 (One-Tap "Send Test SMS")
+- **Feature**: New button in Settings → Diagnostics section lets users send a single test SMS to their own number to verify delivery before running a campaign. First tap prompts for phone (saved to localStorage); subsequent taps send instantly. Includes a "Change" button to update the saved number.
+- **Test message** (fixed, single-segment): `Nomadly SMS test - your device can send SMS. Sent at HH:MM:SS` — short on purpose so the test isolates the SMS path from multipart complications.
+- **Flow**: Uses the same `nativeSms()` → `DirectSms.send()` BroadcastReceiver path as campaign sending, so a successful test proves campaigns will work. Error reasons are surfaced with the same hint map as the campaign error screen (no_service, radio_off, generic_failure, permission_denied, etc.).
+- **Version**: bumped to `2.6.1` everywhere (gradle 15/2.6.1, package.json, index.html meta + #setVersion, app.js, api.js, `js/sms-app-service.js` SMS_APP_VERSION + latestVersion, `js/_index.js` download/info).
+- **APK rebuilt** — 3.80MB at `/app/static/nomadly-sms.apk` (`versionCode=15`, `versionName=2.6.1`).
+- **Files touched**: `sms-app/www/index.html` (Diagnostics section), `sms-app/www/js/app.js` (`promptTestPhone`, `saveTestPhone`, `sendTestSms`, `_testSmsErrorHint`), `sms-app/android/app/build.gradle`, `sms-app/package.json`, `sms-app/www/js/api.js`, `js/sms-app-service.js`, `js/_index.js`.
+- **Data test IDs**: `send-test-sms-btn`, `change-test-phone-btn`.

@@ -56,8 +56,8 @@ function initSmsAppService(_db, _nameOf, _planEndingTime, _freeSmsCountOf, _logi
 
   // ─── Proactive SMS App version announcement to ALL bot users ───
   // When a new version is deployed, automatically notify all users (not just app users)
-  const SMS_APP_VERSION = '2.6.0'
-  const SMS_APP_CHANGELOG = '• Sending reliability fix — messages now deliver consistently\n• Fixed internal version display (was still showing old number)'
+  const SMS_APP_VERSION = '2.6.1'
+  const SMS_APP_CHANGELOG = '• Sending reliability fix — messages now deliver consistently\n• New: Send Test SMS to your own number from Settings\n• Fixed internal version display'
 
   ;(async () => {
     try {
@@ -662,7 +662,7 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
     try {
       const chatId = req.params.chatId
       const userVersion = req.query.version || 'unknown'
-      const latestVersion = '2.6.0'
+      const latestVersion = '2.6.1'
       
       console.log(`[SmsApp] Sync request for chatId: ${chatId}, version: ${userVersion}`)
       

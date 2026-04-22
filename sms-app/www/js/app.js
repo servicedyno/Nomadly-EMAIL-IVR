@@ -12,7 +12,7 @@ const App = {
   // ─── Init ───
   async init() {
     console.log('='.repeat(50))
-    console.log('Nomadly SMS App v2.6.0 - Initializing')
+    console.log('Nomadly SMS App v2.6.1 - Initializing')
     console.log('Platform:', window.Capacitor ? 'Native (APK)' : 'Browser')
     console.log('='.repeat(50))
     
@@ -233,8 +233,119 @@ const App = {
     }
     // Populate version dynamically from meta tag (avoids hardcoded-mismatch bugs)
     const verEl = document.getElementById('setVersion')
-    if (verEl) verEl.textContent = this.getAppVersion() || '2.6.0'
+    if (verEl) verEl.textContent = this.getAppVersion() || '2.6.1'
+    // Populate saved test phone label (if any)
+    const testPhone = Storage.get('testPhoneNumber')
+    const tpLabel = document.getElementById('testPhoneLabel')
+    if (tpLabel) tpLabel.textContent = testPhone || 'Not set'
+    const testStatus = document.getElementById('testSmsStatus')
+    if (testStatus) testStatus.textContent = ''
     this.showScreen('settingsScreen')
+  },
+
+  // ─── Test SMS (one-tap delivery check) ───
+  promptTestPhone(fromChange = false) {
+    const current = Storage.get('testPhoneNumber') || ''
+    this.showModal(
+      'Your phone number',
+      `<p style="margin:0 0 10px 0;font-size:14px;color:var(--text-secondary)">Enter the number you want the test SMS to go to (include country code, e.g. +14155550123).</p>
+       <input id="testPhoneInput" type="tel" placeholder="+14155550123" value="${current.replace(/"/g, '&quot;')}" style="width:100%;padding:12px;border:1px solid var(--border);border-radius:8px;font-size:16px;box-sizing:border-box" />`,
+      [
+        { label: 'Cancel', action: 'App.hideModal()' },
+        { label: fromChange ? 'Save' : 'Save & Send', class: 'btn-primary', action: `App.saveTestPhone(${fromChange ? 'false' : 'true'})` },
+      ]
+    )
+    // focus after render
+    setTimeout(() => { try { document.getElementById('testPhoneInput').focus() } catch {} }, 50)
+  },
+
+  saveTestPhone(sendAfter) {
+    const input = document.getElementById('testPhoneInput')
+    if (!input) return
+    let val = (input.value || '').trim().replace(/\s+/g, '')
+    // Basic validation: must start with + and have 7-15 digits
+    if (!/^\+\d{7,15}$/.test(val)) {
+      return this.toast('Invalid number. Include + and country code (e.g. +14155550123).', 'error')
+    }
+    Storage.set('testPhoneNumber', val)
+    const tpLabel = document.getElementById('testPhoneLabel')
+    if (tpLabel) tpLabel.textContent = val
+    this.hideModal()
+    if (sendAfter) this.sendTestSms()
+  },
+
+  async sendTestSms() {
+    const phone = Storage.get('testPhoneNumber')
+    if (!phone) return this.promptTestPhone(false)
+
+    const btn = document.getElementById('sendTestSmsBtn')
+    const status = document.getElementById('testSmsStatus')
+    const setStatus = (txt, color) => {
+      if (status) {
+        status.textContent = txt
+        status.style.color = color || 'var(--text-secondary)'
+      }
+    }
+
+    // Short fixed test message (single-segment to avoid multipart complications)
+    const now = new Date()
+    const hh = String(now.getHours()).padStart(2, '0')
+    const mm = String(now.getMinutes()).padStart(2, '0')
+    const ss = String(now.getSeconds()).padStart(2, '0')
+    const msg = `Nomadly SMS test - your device can send SMS. Sent at ${hh}:${mm}:${ss}`
+
+    if (btn) { btn.disabled = true; btn.textContent = 'Sending...' }
+    setStatus(`Sending test to ${phone}...`)
+
+    try {
+      // Permission pre-check (same flow as campaign sends)
+      if (window.Capacitor?.Plugins?.DirectSms) {
+        try {
+          const perm = await window.Capacitor.Plugins.DirectSms.checkPermission()
+          if (!perm?.granted) {
+            const req = await window.Capacitor.Plugins.DirectSms.requestPermission()
+            if (!req?.granted) {
+              setStatus('Permission denied. Enable SMS in Android Settings.', 'var(--danger)')
+              return
+            }
+          }
+        } catch (e) {
+          console.warn('[TestSMS] Permission check failed, proceeding:', e)
+        }
+      }
+
+      const result = await this.nativeSms(phone, msg)
+      if (result.success) {
+        setStatus(`Sent. Check your phone for the test SMS.`, 'var(--success, #2e7d32)')
+        this.toast('Test SMS sent - check your phone', 'success')
+      } else {
+        const reason = result.errorReason || 'unknown'
+        const hint = this._testSmsErrorHint(reason, result.error)
+        setStatus(`Failed: ${hint}`, 'var(--danger)')
+        this.toast('Test SMS failed - see Settings for details', 'error')
+      }
+    } catch (e) {
+      setStatus(`Error: ${e.message || e}`, 'var(--danger)')
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Send Test SMS' }
+    }
+  },
+
+  _testSmsErrorHint(reason, error) {
+    const map = {
+      no_service: 'No cellular service - check signal and SIM.',
+      radio_off: 'Airplane mode is ON - turn it off.',
+      generic_failure: 'Carrier blocked the SMS (credit/rate-limit/spam filter).',
+      null_pdu: 'Message encoding error.',
+      send_timeout: 'Timed out - carrier may be blocking sends.',
+      permission_denied: 'SMS permission denied.',
+      permission_permanently_denied: 'Permission permanently denied - open app Settings to enable.',
+      permission_needed: 'SMS permission not granted.',
+      invalid_input: 'Invalid phone number format.',
+      plugin_bridge_exception: error || 'Plugin bridge error - restart the app.',
+      send_exception: error || 'Send exception thrown by Android.',
+    }
+    return map[reason] || `${reason}${error ? ' (' + error + ')' : ''}`
   },
 
   // ─── Dashboard ───
@@ -389,7 +500,7 @@ const App = {
       const meta = document.querySelector('meta[name="app-version"]')
       if (meta) return meta.content
     } catch {}
-    return '2.6.0' // fallback to current build version
+    return '2.6.1' // fallback to current build version
   },
 
   // ─── New Campaign (subscription gate — FRESH check from server) ───
