@@ -18,6 +18,32 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state,
   const chatId = info._id
   const domain = info.website_name
 
+  // ── IDEMPOTENCY GUARD — prevent double-provisioning ──
+  // A single hosting purchase must produce ONE cpanelAccount record. Without this
+  // guard, a webhook retry, user double-tap, or race between payment callbacks
+  // could invoke this function twice for the same domain — stacking duration
+  // or creating duplicate records. We short-circuit if an active (non-deleted)
+  // account already exists for this domain.
+  try {
+    const { MongoClient } = require('mongodb')
+    const guardClient = new MongoClient(process.env.MONGO_URL)
+    await guardClient.connect()
+    const guardDb = guardClient.db(process.env.DB_NAME || 'test')
+    const existingAccount = await guardDb.collection('cpanelAccounts').findOne({
+      domain: domain,
+      deleted: { $ne: true },
+    })
+    await guardClient.close()
+    if (existingAccount) {
+      log(`[Hosting] IDEMPOTENCY: cpanel already exists for ${domain} (cpUser=${existingAccount.cpUser}, chatId=${existingAccount.chatId}) — aborting duplicate provisioning for ${chatId}`)
+      send(chatId, { en: `⚠️ Hosting for <b>${domain}</b> is already provisioned. If this is unexpected, contact support.`, fr: `⚠️ L'hébergement pour <b>${domain}</b> est déjà provisionné. Si inattendu, contactez le support.`, zh: `⚠️ <b>${domain}</b> 的主机已经配置。如果这是意外，请联系支持。`, hi: `⚠️ <b>${domain}</b> के लिए होस्टिंग पहले से ही प्रावधान की गई है। यदि अप्रत्याशित है, तो समर्थन से संपर्क करें।` }[lang] || `⚠️ Hosting for <b>${domain}</b> is already provisioned.`, keyboardButtons)
+      return { success: false, error: 'duplicate_provisioning_prevented', duplicate: true }
+    }
+  } catch (guardErr) {
+    // Non-blocking — if guard fails, we continue but log loudly
+    log(`[Hosting] IDEMPOTENCY guard error (non-blocking): ${guardErr.message}`)
+  }
+
   // ── UX Enhancement: Progress Tracking ──
   let progress = null
   if (bot) {
@@ -415,6 +441,13 @@ NS2: <code>${cfNameservers[1]}</code>
       const db = client.db(process.env.DB_NAME || 'test')
       const cpanelAccountsCol = db.collection('cpanelAccounts')
 
+      // Single source of truth for duration — keeps creation, manual renew,
+      // and auto-renew in lockstep. Monthly = 30 days, Weekly = 7 days.
+      const { getPlanDuration } = require('./hosting-scheduler')
+      const durationDays = getPlanDuration(info.plan)
+      const expiryDate = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000)
+      log(`[Hosting] AUDIT provisioning ${domain} cpUser=${result.username} chatId=${chatId} plan="${info.plan}" durationDays=${durationDays} expiryDate=${expiryDate.toISOString()}`)
+
       const stored = await cpAuth.storeCredentials(cpanelAccountsCol, {
         cpUser: result.username,
         cpPass: result.password,
@@ -422,8 +455,8 @@ NS2: <code>${cfNameservers[1]}</code>
         email: info.email || null,
         domain: domain,
         plan: info.plan,
-        expiryDate: new Date(Date.now() + (info.plan.includes('1-Week') ? 7 : 30) * 24 * 60 * 60 * 1000),
-        autoRenew: !info.plan.includes('1-Week'),
+        expiryDate,
+        autoRenew: durationDays >= 30,
       })
       pin = stored.pin
 

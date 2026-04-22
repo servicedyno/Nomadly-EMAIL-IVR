@@ -6741,6 +6741,10 @@ Enter new value:`), bc)
       const txCurrency = 'USD'
 
       const hostingResult = await registerDomainAndCreateCpanel(send, info, trans('o'), state)
+      if (hostingResult?.duplicate) {
+        log(`[Hosting] Duplicate provisioning blocked for wallet path — chatId ${chatId} domain ${info?.website_name}. Skipping charge/refund.`)
+        return
+      }
       if (!hostingResult?.success) {
         const domainPrice = info?.domainPrice || info?.price || 0
         if (!info?.existingDomain && !info?.connectExternalDomain && domainPrice > 0) {
@@ -24346,6 +24350,10 @@ const bankApis = {
 
     // Buy Domain Hosting
     const hostingResult = await registerDomainAndCreateCpanel(send, info, translation('o', lang), state)
+    if (hostingResult?.duplicate) {
+      log(`[Hosting] Duplicate provisioning blocked for bank NGN path — chatId ${chatId} domain ${info?.website_name}. Skipping refund.`)
+      return res.send(html('ok'))
+    }
     if (!hostingResult?.success) {
       // If new domain was registered, refund only hosting portion (domain is consumed)
       const domainPrice = info?.domainPrice || info?.price || 0
@@ -25300,6 +25308,10 @@ app.get('/crypto-pay-hosting', auth, async (req, res) => {
   }
 
   const hostingResult = await registerDomainAndCreateCpanel(send, info, translation('o', lang), state)
+  if (hostingResult?.duplicate) {
+    log(`[Hosting] Duplicate provisioning blocked for crypto BlockBee path — chatId ${chatId} domain ${info?.website_name}. Skipping refund.`)
+    return res.send(html('ok'))
+  }
   if (!hostingResult?.success) {
     // If new domain was registered, refund only hosting portion (domain is consumed)
     if (!info?.existingDomain && !info?.connectExternalDomain && (info?.domainPrice || info?.price || 0) > 0) {
@@ -26006,6 +26018,10 @@ app.post('/dynopay/crypto-pay-hosting', authDyno, async (req, res) => {
   }
 
   const hostingResult = await registerDomainAndCreateCpanel(send, info, translation('o', lang), state)
+  if (hostingResult?.duplicate) {
+    log(`[Hosting] Duplicate provisioning blocked for crypto DynoPay path — chatId ${chatId} domain ${info?.website_name}. Skipping refund.`)
+    return res.send(html('ok'))
+  }
   if (!hostingResult?.success) {
     // If new domain was registered, refund only hosting portion (domain is consumed)
     if (!info?.existingDomain && !info?.connectExternalDomain && (info?.domainPrice || info?.price || 0) > 0) {
