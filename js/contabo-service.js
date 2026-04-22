@@ -21,7 +21,18 @@ const API_USER      = process.env.CONTABO_API_USER
 const API_PASSWORD  = process.env.CONTABO_API_PASSWORD
 
 const MARKUP_PERCENT = parseFloat(process.env.VPS_MARKUP_PERCENT || '50')
-const WINDOWS_LICENSE_MONTHLY = parseFloat(process.env.VPS_WINDOWS_LICENSE || '4.99')
+
+// ─── Windows license costs per tier (real Contabo API prices, USD) ───
+// Windows Server 2025 Datacenter pricing varies by VPS tier.
+// Source: Contabo /products API — addon "Windows Server 2025 Datacenter"
+const WINDOWS_LICENSE_BY_TIER = {
+  1: 9.30,   // V91/V92 — Cloud VPS 10 (8 GB)
+  2: 19.10,  // V94/V95 — Cloud VPS 20 (12 GB)
+  3: 32.00,  // V97/V98 — Cloud VPS 30 (24 GB)
+  4: 32.00,  // V100/V101 — Cloud VPS 40 (48 GB)  (estimated, same as tier 3)
+  5: 32.00,  // V103/V104 — Cloud VPS 50 (64 GB)
+  6: 32.00,  // V106/V107 — Cloud VPS 60 (96 GB)
+}
 
 // ─── Token cache ──────────────────────────────────────────────────────────
 let _tokenCache = { token: null, expiresAt: 0 }
@@ -226,7 +237,7 @@ function calculatePrice(product, regionSlug, isWindows = false) {
   const surchargeArr  = REGION_SURCHARGE[regionSlug]
   const surcharge     = surchargeArr ? (surchargeArr[tier - 1] ?? null) : 0
   if (surcharge === null) return null  // Region not available for this tier
-  const windowsFee    = isWindows ? WINDOWS_LICENSE_MONTHLY : 0
+  const windowsFee    = isWindows ? (WINDOWS_LICENSE_BY_TIER[tier] || WINDOWS_LICENSE_BY_TIER[2]) : 0
   const totalBefore   = base + surcharge + windowsFee
   const totalMarkedUp = applyMarkup(totalBefore)
 
@@ -796,7 +807,7 @@ module.exports = {
   REGION_SURCHARGE,
   REGION_DISPLAY,
   MARKUP_PERCENT,
-  WINDOWS_LICENSE_MONTHLY,
+  WINDOWS_LICENSE_BY_TIER,
 
   // Regions
   listRegions,

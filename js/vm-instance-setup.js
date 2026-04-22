@@ -238,7 +238,7 @@ async function fetchAvailableOS(cpanel) {
       os_name: 'Windows Server 2025',
       osType: 'Windows',
       isRDP: true,
-      price: contabo.WINDOWS_LICENSE_MONTHLY  // will be applied via pricing engine
+      price: contabo.WINDOWS_LICENSE_BY_TIER[2] || 19.10  // display price (tier 2 as default); actual price computed per-tier by pricing engine
     })
 
     return osOptions
