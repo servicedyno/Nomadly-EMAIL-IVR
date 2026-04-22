@@ -469,16 +469,32 @@ async function trackReferral(newUserChatId, refCode) {
 }
 
 /**
- * Called from voice-service on call.initiated to track test calls
+ * Called from voice-service on call.initiated to track test calls.
+ * FIX: Added chatId fallback — when Telnyx auto-routes calls on the shared SIP connection,
+ * credential extraction may fail (sipUsername = phone number instead of gencred).
+ * The chatId fallback ensures test calls are ALWAYS detected and counted.
  */
-async function checkTestCredentialCall(sipUsername) {
+async function checkTestCredentialCall(sipUsername, chatId) {
   if (!_db) return { isTestCall: false }
 
   try {
-    const cred = await _db.collection('testCredentials').findOne({
+    // Primary lookup by sipUsername
+    let cred = await _db.collection('testCredentials').findOne({
       sipUsername,
       expired: false
     })
+
+    // Fallback: if sipUsername lookup failed and we have a chatId,
+    // check if this chatId has an active test credential
+    if (!cred && chatId) {
+      cred = await _db.collection('testCredentials').findOne({
+        chatId: String(chatId),
+        expired: false
+      })
+      if (cred) {
+        console.log(`[PhoneTest] Fallback match: sipUsername '${sipUsername}' didn't match, but found active credential for chatId ${chatId} (actual sipUser: ${cred.sipUsername})`)
+      }
+    }
 
     if (!cred) return { isTestCall: false }
 

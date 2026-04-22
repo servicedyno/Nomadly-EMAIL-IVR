@@ -112,6 +112,29 @@ const HARD_BLOCK_DURATION = 600000     // 10 minutes of silent drop
 const _expiredTestBlockSet = new Map()
 const EXPIRED_TEST_BLOCK_DURATION = 600000  // 10 minutes
 
+// ── TEST CALL RATE LIMITER ──
+// Strict per-user rate limit specifically for test SIP credentials.
+// Much tighter than paid user limits to prevent abuse of free test calls.
+const testCallRateLimit = {}
+const TEST_CALL_RATE_MAX = 2           // Max 2 test calls per window
+const TEST_CALL_RATE_WINDOW = 120000   // 2-minute window
+
+function checkTestCallRateLimit(chatId) {
+  if (!chatId) return true
+  const key = `test_${chatId}`
+  const now = Date.now()
+  const entry = testCallRateLimit[key]
+  if (!entry || (now - entry.firstCallTime) > TEST_CALL_RATE_WINDOW) {
+    testCallRateLimit[key] = { count: 1, firstCallTime: now }
+    return true
+  }
+  entry.count++
+  if (entry.count > TEST_CALL_RATE_MAX) {
+    return false
+  }
+  return true
+}
+
 // ── PRE-DIAL BLOCKLIST ──
 // In-memory cache of SIP credentials that should be INSTANTLY rejected.
 // Checked at the TOP of handleOutboundSipCall BEFORE any async/DB operations.
@@ -2655,12 +2678,24 @@ async function handleOutboundSipCall(payload) {
     log(`[Voice] Outbound SIP (Telnyx): ${callerDisplay} → ${destination} — routing to PSTN`)
 
     // Check if this is a test credential call (enforce limits)
+    // FIX: Pass chatId for fallback lookup when credential extraction fails on auto-routed calls
     let testCallInfo = { isTestCall: false }
     try {
       const { checkTestCredentialCall } = require('./phone-test-routes.js')
-      testCallInfo = await checkTestCredentialCall(sipUsername, fromClean)
+      testCallInfo = await checkTestCredentialCall(sipUsername, chatId)
       if (testCallInfo.isTestCall) {
         log(`[Voice] TEST CALL detected — max ${testCallInfo.maxDuration}s, ${testCallInfo.callsRemaining} calls remaining`)
+        if (testCallInfo.callsRemaining < 0) {
+          log(`[Voice] TEST CALL LIMIT EXCEEDED for chatId ${chatId} — hanging up`)
+          try { await _telnyxApi.hangupCall(callControlId) } catch (e) { /* already ended */ }
+          return
+        }
+        // Strict rate limit for test calls — 2 calls per 2 minutes
+        if (!checkTestCallRateLimit(chatId)) {
+          log(`[Voice] ⚠️ TEST CALL RATE LIMIT: chatId ${chatId} — exceeded ${TEST_CALL_RATE_MAX} test calls/${TEST_CALL_RATE_WINDOW/1000}s, rejecting`)
+          try { await _telnyxApi.hangupCall(callControlId) } catch (e) { /* already ended */ }
+          return
+        }
       }
     } catch (e) { /* phone-test-routes not loaded, ignore */ }
 
