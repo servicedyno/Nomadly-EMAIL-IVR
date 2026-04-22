@@ -1,4 +1,5 @@
 const { areasOfCountry, carriersOf, countryCodeOf } = require('../areasOfCountry')
+const { buildChooseSubscription } = require('./plan-copy')
 
 const format = (cc, n) => `+${cc}(${n.toString().padStart(2, '0')})`
 
@@ -301,32 +302,7 @@ ${CHAT_BOT_NAME}`,
  askValidEmail: 'कृपया एक मान्य ईमेल प्रदान करें।',
  askValidCrypto: 'कृपया एक मान्य क्रिप्टो करेंसी चुनें।',
  askValidPayOption: 'कृपया एक मान्य भुगतान विकल्प चुनें।',
- chooseSubscription:
- HIDE_SMS_APP === 'true'
- ? `<b>अपना प्लान चुनें</b>
-
-सभी प्लान में: 🔗 असीमित लिंक · 📱 मालिक के नाम सहित वैलिडेशन · 📞 Cloud IVR
-
-🟢 <b>दैनिक — $${PRICE_DAILY}</b>
-  ${DAILY_PLAN_FREE_DOMAINS} डोमेन · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} वैलिडेशन
-
-🔵 <b>साप्ताहिक — $${PRICE_WEEKLY}</b>
-  ${WEEKLY_PLAN_FREE_DOMAINS} डोमेन · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} वैलिडेशन
-
-⭐ <b>मासिक — $${PRICE_MONTHLY}</b> · सर्वोत्तम मूल्य
-  ${MONTHLY_PLAN_FREE_DOMAINS} डोमेन · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} वैलिडेशन`
- : `<b>अपना प्लान चुनें</b>
-
-सभी प्लान में: 🔗 असीमित लिंक · 📱 मालिक के नाम सहित वैलिडेशन · 📧 BulkSMS · 📞 Cloud IVR
-
-🟢 <b>दैनिक — $${PRICE_DAILY}</b>
-  ${DAILY_PLAN_FREE_DOMAINS} डोमेन · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} वैलिडेशन · 3 SMS डिवाइस
-
-🔵 <b>साप्ताहिक — $${PRICE_WEEKLY}</b>
-  ${WEEKLY_PLAN_FREE_DOMAINS} डोमेन · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} वैलिडेशन · 10 SMS डिवाइस
-
-⭐ <b>मासिक — $${PRICE_MONTHLY}</b> · सर्वोत्तम मूल्य
-  ${MONTHLY_PLAN_FREE_DOMAINS} डोमेन · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} वैलिडेशन · असीमित SMS डिवाइस`,
+ chooseSubscription: buildChooseSubscription('hi'),
 
  askCoupon: usd =>
  `मूल्य $${usd} है। क्या आप कूपन कोड लगाना चाहेंगे? यदि आपके पास है, तो कृपया इसे अभी दर्ज करें। अन्यथा, "स्किप" पर क्लिक करें।`,

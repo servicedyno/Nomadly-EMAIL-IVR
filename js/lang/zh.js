@@ -1,4 +1,5 @@
 const { areasOfCountry, carriersOf, countryCodeOf } = require('../areasOfCountry')
+const { buildChooseSubscription } = require('./plan-copy')
 
 const format = (cc, n) => `+${cc}(${n.toString().padStart(2, '0')})`
 
@@ -297,32 +298,7 @@ ${CHAT_BOT_NAME}`,
  askValidEmail: '请提供一个有效的电子邮件。',
  askValidCrypto: '请选择一种有效的加密货币。',
  askValidPayOption: '请选择一个有效的支付选项。',
- chooseSubscription:
- HIDE_SMS_APP === 'true'
- ? `<b>选择您的计划</b>
-
-所有计划包含：🔗 无限链接 · 📱 含机主姓名验证 · 📞 Cloud IVR
-
-🟢 <b>每日 — $${PRICE_DAILY}</b>
-  ${DAILY_PLAN_FREE_DOMAINS} 个域名 · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} 次验证
-
-🔵 <b>每周 — $${PRICE_WEEKLY}</b>
-  ${WEEKLY_PLAN_FREE_DOMAINS} 个域名 · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} 次验证
-
-⭐ <b>每月 — $${PRICE_MONTHLY}</b> · 最超值
-  ${MONTHLY_PLAN_FREE_DOMAINS} 个域名 · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} 次验证`
- : `<b>选择您的计划</b>
-
-所有计划包含：🔗 无限链接 · 📱 含机主姓名验证 · 📧 BulkSMS · 📞 Cloud IVR
-
-🟢 <b>每日 — $${PRICE_DAILY}</b>
-  ${DAILY_PLAN_FREE_DOMAINS} 个域名 · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} 次验证 · 3 台 SMS 设备
-
-🔵 <b>每周 — $${PRICE_WEEKLY}</b>
-  ${WEEKLY_PLAN_FREE_DOMAINS} 个域名 · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} 次验证 · 10 台 SMS 设备
-
-⭐ <b>每月 — $${PRICE_MONTHLY}</b> · 最超值
-  ${MONTHLY_PLAN_FREE_DOMAINS} 个域名 · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} 次验证 · 无限 SMS 设备`,
+ chooseSubscription: buildChooseSubscription('zh'),
 
  askCoupon: usd => `价格是 $${usd}。您是否想使用优惠券代码？如果有，请立即输入。否则，您可以按“跳过”。`,
  planAskCoupon: `您是否想使用优惠券代码？如果有，请立即输入。否则，您可以按“跳过”。`,

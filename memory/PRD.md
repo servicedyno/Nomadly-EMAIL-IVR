@@ -48,8 +48,17 @@ Multi-service platform (Telegram bot + React frontend + Node.js backend) managin
 
 ## Prioritized Backlog
 - P2: Add monitoring for OpenExchangeRates API
-- P2: Consolidate duplicate plan-text templates between `js/config.js` and `js/lang/*.js` into a single source of truth (avoid drift when editing copy)
 - Backlog: Refactor `_index.js` into feature modules
+
+## Feb 2026 — Plan-Copy Single Source of Truth (Consolidation)
+- **Problem**: "Choose Your Plan" copy was duplicated across 5 files — `js/lang/{en,fr,hi,zh}.js` + `js/config.js` — so every wording/price tweak had to be mirrored 5 times and drifted easily.
+- **Fix**: Extracted the template to **`js/lang/plan-copy.js`** which exposes `buildChooseSubscription(lang)` built from:
+  - a shared structural template (title → perks line → 3 plan rows → "best value" Monthly marker)
+  - per-language `LABELS` dictionary (`title`, `perksIntro`, `daily/weekly/monthly`, `domain/validations/smsDevices` callables, `bestValue`)
+  - env-driven pricing + quotas (read at call time so restarts pick up changes)
+- Each of the 5 files now imports `buildChooseSubscription` and calls it with its locale code (`'en'`/`'fr'`/`'hi'`/`'zh'`).
+- **Output is byte-for-byte identical** to the pre-refactor copy — verified via diff across all locales.
+- **Regression test**: `js/tests/test_plan_copy.js` (8 assertions) locks the invariant that every locale + `config.js` stays in lockstep with the builder, and that `HIDE_SMS_APP` branching works.
 
 ## Feb 2026 — "Choose Your Plan" Copy Refresh
 - **Goal**: Replace verbose plan listings with a compact, scannable template — single intro line with inline perks, one row per plan (price inline), "best value" marker on Monthly.

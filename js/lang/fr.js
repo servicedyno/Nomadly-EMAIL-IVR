@@ -1,4 +1,5 @@
 const { areasOfCountry, carriersOf, countryCodeOf } = require('../areasOfCountry')
+const { buildChooseSubscription } = require('./plan-copy')
 
 const format = (cc, n) => `+${cc}(${n.toString().padStart(2, '0')})`
 
@@ -300,32 +301,7 @@ ${CHAT_BOT_NAME}`,
  askValidEmail: 'Veuillez fournir un e-mail valide.',
  askValidCrypto: 'Veuillez choisir une crypto-monnaie valide.',
  askValidPayOption: 'Veuillez choisir une option de paiement valide.',
- chooseSubscription:
- HIDE_SMS_APP === 'true'
- ? `<b>Choisissez votre plan</b>
-
-Tous les plans : 🔗 Liens illimités · 📱 Validations avec noms · 📞 Cloud IVR
-
-🟢 <b>Quotidien — $${PRICE_DAILY}</b>
-  ${DAILY_PLAN_FREE_DOMAINS} domaine · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations
-
-🔵 <b>Hebdomadaire — $${PRICE_WEEKLY}</b>
-  ${WEEKLY_PLAN_FREE_DOMAINS} domaines · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations
-
-⭐ <b>Mensuel — $${PRICE_MONTHLY}</b> · meilleure offre
-  ${MONTHLY_PLAN_FREE_DOMAINS} domaines · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations`
- : `<b>Choisissez votre plan</b>
-
-Tous les plans : 🔗 Liens illimités · 📱 Validations avec noms · 📧 BulkSMS · 📞 Cloud IVR
-
-🟢 <b>Quotidien — $${PRICE_DAILY}</b>
-  ${DAILY_PLAN_FREE_DOMAINS} domaine · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · 3 appareils SMS
-
-🔵 <b>Hebdomadaire — $${PRICE_WEEKLY}</b>
-  ${WEEKLY_PLAN_FREE_DOMAINS} domaines · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · 10 appareils SMS
-
-⭐ <b>Mensuel — $${PRICE_MONTHLY}</b> · meilleure offre
-  ${MONTHLY_PLAN_FREE_DOMAINS} domaines · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · appareils SMS illimités`,
+ chooseSubscription: buildChooseSubscription('fr'),
 
  askCoupon: usd =>
  `Le prix est de $${usd}. Souhaitez-vous utiliser un code promo ? Si vous en avez un, veuillez l'entrer maintenant. Sinon, appuyez sur "Passer".`,

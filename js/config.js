@@ -1,4 +1,5 @@
 const { areasOfCountry, carriersOf, countryCodeOf } = require('./areasOfCountry')
+const { buildChooseSubscription } = require('./lang/plan-copy')
 
 const format = (cc, n) => `+${cc}(${n.toString().padStart(2, '0')})`
 
@@ -267,32 +268,7 @@ ${CHAT_BOT_NAME}`,
   askValidEmail: 'Please provide a valid email',
   askValidCrypto: 'Please choose a valid crypto currency',
   askValidPayOption: 'Please choose a valid payment option',
-  chooseSubscription:
-    HIDE_SMS_APP === 'true'
-      ? `<b>Choose Your Plan</b>
-
-All plans: 🔗 Unlimited links · 📱 Validations w/ owner names · 📞 Cloud IVR
-
-🟢 <b>Daily — $${PRICE_DAILY}</b>
-  ${DAILY_PLAN_FREE_DOMAINS} domain · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations
-
-🔵 <b>Weekly — $${PRICE_WEEKLY}</b>
-  ${WEEKLY_PLAN_FREE_DOMAINS} domains · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations
-
-⭐ <b>Monthly — $${PRICE_MONTHLY}</b> · best value
-  ${MONTHLY_PLAN_FREE_DOMAINS} domains · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations`
-      : `<b>Choose Your Plan</b>
-
-All plans: 🔗 Unlimited links · 📱 Validations w/ owner names · 📧 BulkSMS · 📞 Cloud IVR
-
-🟢 <b>Daily — $${PRICE_DAILY}</b>
-  ${DAILY_PLAN_FREE_DOMAINS} domain · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · 3 SMS devices
-
-🔵 <b>Weekly — $${PRICE_WEEKLY}</b>
-  ${WEEKLY_PLAN_FREE_DOMAINS} domains · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · 10 SMS devices
-
-⭐ <b>Monthly — $${PRICE_MONTHLY}</b> · best value
-  ${MONTHLY_PLAN_FREE_DOMAINS} domains · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · unlimited SMS devices`,
+  chooseSubscription: buildChooseSubscription('en'),
 
   askCoupon: usd =>
     `The price is $${usd}. Would you like to apply a coupon code? If you have one, please enter it now. Otherwise, you can press 'Skip'.`,
