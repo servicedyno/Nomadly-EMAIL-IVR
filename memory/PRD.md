@@ -220,3 +220,40 @@ A bundled feature release addressing user feedback and operational intelligence.
 Frontend/mobile: `sms-app/android/app/src/main/java/com/nomadly/sms/plugins/DirectSmsPlugin.java`, `sms-app/android/app/src/main/java/com/nomadly/sms/services/SmsBackgroundService.java`, `sms-app/android/app/src/main/AndroidManifest.xml`, `sms-app/android/app/build.gradle`, `sms-app/package.json`, `sms-app/www/index.html`, `sms-app/www/css/style.css` (switch toggle CSS), `sms-app/www/js/app.js`, `sms-app/www/js/api.js`.
 
 Backend: `js/sms-app-service.js` (test-log endpoint + version bump + release note), `js/_index.js` (`/testlogs` admin command + download/info version).
+
+
+## Feb 2026 — SMS App v2.7.1 (Per-SIM Auto-Throttle + Carrier Precheck)
+
+Follow-on to v2.7.0: turns the newly-collected `testSmsLogs` data into an active UX loop and makes per-SIM sending carrier-aware.
+
+### Per-SIM auto-throttle (mid-campaign)
+- In `sendNext()` the app keeps a rolling window of the last 5 outcomes per SIM (`simStats[subId].recent`).
+- If ≥ 4 of the last 5 from a SIM are rate-limit-style failures (`generic_failure`, `send_timeout`, `multipart_timeout`):
+  - **Multi-SIM mode**: that SIM is added to `throttledSims` and silently skipped in the rotation for the remainder of the campaign (as long as ≥ 1 live SIM remains). Toast: *"Carrier rate limit detected — pausing SIM 2 — Airtel for this campaign."*
+  - **Single-SIM mode (or all SIMs rotated out)**: the gap time is doubled via `throttleMultiplier` (capped at 4×). Toast: *"Carrier appears to rate-limit — slowing send rate 2×."*
+- Tracker resets after each decision so we don't re-throttle on the same 5-sample window.
+- The JS-loop `setTimeout(..., s.gapTime * s.throttleMultiplier)` applies the multiplier automatically.
+
+### Campaign precheck banner (pre-send recommendation)
+- New endpoint `GET /sms-app/carrier-stats?prefixes=1,234,44` aggregates `testSmsLogs` over the last 14 days by carrier dial-prefix and returns `{sample, success, rate}` per prefix.
+- Wizard Step 4 (Review & Send) now fires `_runCarrierPrecheck(contacts)` which:
+  1. Bins target contacts by their country/carrier prefix (first 1–3 digits).
+  2. Fetches stats for those prefixes.
+  3. If any prefix with ≥ 5 samples has < 70% success rate, renders a red banner listing the prefix, sample size, success %, and how many contacts it affects.
+  4. Shows an **"Enable Auto-rotate across my SIMs"** button that flips `wzSimSelect` → `rotate` (only when ≥ 2 SIMs are available).
+
+### Version bumps (2.7.1)
+- `build.gradle` 17/2.7.1, `package.json`, `index.html` meta + setVersion, `app.js`, `api.js`, `sms-app-service.js` SMS_APP_VERSION + new conversational release note, `_index.js` download/info.
+
+### APK verified
+- Path: `/app/static/nomadly-sms.apk` (3.81MB) — `versionCode=17`, `versionName=2.7.1` (aapt2). All new logic present in bundled `assets/public/js/app.js`.
+
+### Data test IDs
+`carrier-precheck-banner`, `enable-rotate-btn`.
+
+### Files touched
+`js/sms-app-service.js` (new `/sms-app/carrier-stats` endpoint + version bump + release note), `js/_index.js` (download/info version),  
+`sms-app/android/app/build.gradle`, `sms-app/package.json`,  
+`sms-app/www/index.html` (precheck banner slot + version meta/setVersion),  
+`sms-app/www/js/api.js` (`getCarrierStats()` + sync version),  
+`sms-app/www/js/app.js` (`_runCarrierPrecheck`, `_enableAutoRotateFromPrecheck`, `_recordSimOutcome`, `_applyAutoThrottle`, `_simLabelForId`, throttle-aware sendNext + timer, sending-state init for `simStats`/`throttledSims`/`throttleMultiplier`).

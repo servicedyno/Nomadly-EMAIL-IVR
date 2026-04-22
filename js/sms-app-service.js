@@ -56,13 +56,14 @@ function initSmsAppService(_db, _nameOf, _planEndingTime, _freeSmsCountOf, _logi
 
   // ─── Proactive SMS App version announcement to ALL bot users ───
   // When a new version is deployed, automatically notify all users (not just app users)
-  const SMS_APP_VERSION = '2.7.0'
+  const SMS_APP_VERSION = '2.7.1'
   // Human-first, conversational release note. Shown verbatim in the broadcast
   // between the opening line and the download instructions.
   const SMS_APP_RELEASE_NOTE =
-    `You can now pick which SIM card to send from — or let the app auto-rotate ` +
-    `across all your SIMs to dodge per-SIM carrier rate limits. ` +
-    `Settings also has a new one-tap "Send Test SMS" so you can verify delivery before a real campaign.`
+    `Your app now learns from every send: if a carrier starts rate-limiting one of ` +
+    `your SIMs mid-campaign, the app automatically pauses that SIM and keeps sending ` +
+    `from the others. Before each campaign, the app also checks past delivery rates ` +
+    `for the countries you're messaging and suggests auto-rotate if it looks risky.`
 
   ;(async () => {
     try {
@@ -668,7 +669,7 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
     try {
       const chatId = req.params.chatId
       const userVersion = req.query.version || 'unknown'
-      const latestVersion = '2.7.0'
+      const latestVersion = '2.7.1'
       
       console.log(`[SmsApp] Sync request for chatId: ${chatId}, version: ${userVersion}`)
       
@@ -852,6 +853,40 @@ ${versionsBehind >= 2 ? `⚠️ You are <b>${versionsBehind} versions behind</b>
       res.json({ ok: true })
     } catch (error) {
       console.log(`[SmsApp] test-log error:`, error.message)
+      res.status(500).json({ error: error.message })
+    }
+  })
+
+  // ── Carrier stats aggregator — used by the app's pre-send precheck ──
+  // Query: ?prefixes=1,234,91  (country/carrier dial-prefixes)
+  // Response: { stats: { "234": {sample: 12, success: 8, rate: 0.67}, ... }, windowDays }
+  app.get('/sms-app/carrier-stats', async (req, res) => {
+    try {
+      const prefixesRaw = (req.query.prefixes || '').toString()
+      const prefixes = Array.from(new Set(prefixesRaw.split(',').map(p => p.trim()).filter(Boolean))).slice(0, 20)
+      if (prefixes.length === 0) return res.json({ stats: {}, windowDays: 14 })
+
+      const windowDays = 14
+      const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000)
+      const col = db.collection('testSmsLogs')
+
+      // Pull all test logs in window, filter client-side (cheap; logs are small)
+      const logs = await col.find({ ts: { $gte: since }, carrierPrefix: { $in: prefixes } }).toArray()
+      const stats = {}
+      for (const p of prefixes) stats[p] = { sample: 0, success: 0, rate: null }
+      for (const l of logs) {
+        const s = stats[l.carrierPrefix]
+        if (!s) continue
+        s.sample += 1
+        if (l.success) s.success += 1
+      }
+      for (const p of prefixes) {
+        const s = stats[p]
+        s.rate = s.sample > 0 ? +(s.success / s.sample).toFixed(3) : null
+      }
+      res.json({ stats, windowDays })
+    } catch (error) {
+      console.log(`[SmsApp] carrier-stats error:`, error.message)
       res.status(500).json({ error: error.message })
     }
   })

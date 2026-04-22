@@ -168,12 +168,18 @@ const API = {
     return this.request('POST', `sms-app/test-log/${chatId}`, data)
   },
 
+  // Carrier success-rate stats for pre-send campaign precheck
+  async getCarrierStats(prefixes) {
+    const q = encodeURIComponent((prefixes || []).join(','))
+    return this.request('GET', `sms-app/carrier-stats?prefixes=${q}`)
+  },
+
   updateDeviceName(code, deviceId, deviceName) {
     return this.request('PUT', 'sms-app/device/name', { code, deviceId, deviceName })
   },
 
   // Full sync
-  async sync(chatId, appVersion = '2.7.0') {
+  async sync(chatId, appVersion = '2.7.1') {
     return this.request('GET', `sms-app/sync/${chatId}?version=${encodeURIComponent(appVersion)}`)
   },
 }

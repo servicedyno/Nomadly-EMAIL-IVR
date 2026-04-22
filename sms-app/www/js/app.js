@@ -16,7 +16,7 @@ const App = {
   // ─── Init ───
   async init() {
     console.log('='.repeat(50))
-    console.log('Nomadly SMS App v2.7.0 - Initializing')
+    console.log('Nomadly SMS App v2.7.1 - Initializing')
     console.log('Platform:', window.Capacitor ? 'Native (APK)' : 'Browser')
     console.log('='.repeat(50))
     
@@ -375,7 +375,7 @@ const App = {
     }
     // Populate version dynamically from meta tag (avoids hardcoded-mismatch bugs)
     const verEl = document.getElementById('setVersion')
-    if (verEl) verEl.textContent = this.getAppVersion() || '2.7.0'
+    if (verEl) verEl.textContent = this.getAppVersion() || '2.7.1'
     // Populate saved test phone label (if any)
     const testPhone = Storage.get('testPhoneNumber')
     const tpLabel = document.getElementById('testPhoneLabel')
@@ -693,7 +693,7 @@ const App = {
       const meta = document.querySelector('meta[name="app-version"]')
       if (meta) return meta.content
     } catch {}
-    return '2.7.0' // fallback to current build version
+    return '2.7.1' // fallback to current build version
   },
 
   // ─── New Campaign (subscription gate — FRESH check from server) ───
@@ -852,6 +852,95 @@ const App = {
     const secs = totalSec % 60
     document.getElementById('estTime').textContent =
       `Estimated time: ${mins > 0 ? mins + ' min ' : ''}${secs} sec for ${contacts.length} messages`
+
+    // Carrier precheck — recommend auto-rotate if history looks bad
+    this._runCarrierPrecheck(contacts).catch(e => console.warn('[Precheck] failed:', e))
+  },
+
+  // Look up historical success-rate from the server for the country/carrier
+  // prefixes represented in the target contact list. If the rate is < 70%
+  // for any prefix that covers a meaningful chunk of contacts, suggest
+  // enabling auto-rotate (when the user has ≥2 SIMs).
+  async _runCarrierPrecheck(contacts) {
+    const banner = document.getElementById('carrierPrecheckBanner')
+    if (!banner) return
+    banner.style.display = 'none'
+    banner.innerHTML = ''
+    if (!contacts || contacts.length === 0) return
+
+    // Count contacts per dial prefix (first 1-4 digits after +)
+    const prefixCounts = {}
+    for (const c of contacts) {
+      const m = (c.phoneNumber || '').match(/\+(\d{1,4})/)
+      if (!m) continue
+      // Use first 1-3 digits as country prefix — a coarse proxy for carrier pool
+      const p = m[1].slice(0, Math.min(3, m[1].length))
+      prefixCounts[p] = (prefixCounts[p] || 0) + 1
+    }
+    const prefixes = Object.keys(prefixCounts)
+    if (prefixes.length === 0) return
+
+    let resp
+    try {
+      resp = await API.getCarrierStats(prefixes)
+    } catch (e) {
+      return // network / server issue — stay silent
+    }
+    const stats = resp?.stats || {}
+    const MIN_SAMPLE = 5       // don't warn on sparse data
+    const RATE_THRESHOLD = 0.7 // warn below 70%
+    const risky = []
+    for (const p of prefixes) {
+      const s = stats[p]
+      if (!s || s.sample < MIN_SAMPLE || s.rate === null) continue
+      if (s.rate < RATE_THRESHOLD) {
+        risky.push({ prefix: p, rate: s.rate, sample: s.sample, affected: prefixCounts[p] })
+      }
+    }
+    if (risky.length === 0) return
+
+    // Sort by affected-count desc
+    risky.sort((a, b) => b.affected - a.affected)
+    const top = risky[0]
+    const pctText = Math.round(top.rate * 100) + '%'
+
+    const hasMultiSim = this.availableSims.length > 1
+    const wzSel = document.getElementById('wzSimSelect')
+    const alreadyRotating = wzSel && wzSel.value === 'rotate'
+
+    let actionHtml = ''
+    if (hasMultiSim && !alreadyRotating) {
+      actionHtml = `<button class="btn btn-primary" data-testid="enable-rotate-btn" onclick="App._enableAutoRotateFromPrecheck()" style="margin-top:8px;font-size:13px;padding:8px 14px">Enable Auto-rotate across my SIMs</button>`
+    } else if (hasMultiSim && alreadyRotating) {
+      actionHtml = `<div style="margin-top:6px;font-size:12px;color:var(--success)">✓ Auto-rotate already enabled</div>`
+    } else {
+      actionHtml = `<div style="margin-top:6px;font-size:12px;color:var(--text-muted)">Tip: inserting a second SIM would let you auto-rotate and dodge this.</div>`
+    }
+
+    banner.innerHTML = `
+      <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);border-radius:10px;padding:12px;margin-bottom:12px">
+        <div style="font-weight:600;color:var(--danger);font-size:14px">⚠️ Carrier alert for +${top.prefix}</div>
+        <div style="font-size:13px;color:var(--text-secondary);margin-top:4px">
+          Recent success rate on +${top.prefix}: <strong>${pctText}</strong>
+          (${top.sample} tests in last ${resp.windowDays || 14}d).
+          ${top.affected} of your ${contacts.length} contacts start with +${top.prefix}.
+        </div>
+        ${actionHtml}
+      </div>`
+    banner.style.display = 'block'
+  },
+
+  _enableAutoRotateFromPrecheck() {
+    const wzSel = document.getElementById('wzSimSelect')
+    if (!wzSel) return
+    // Ensure 'rotate' option exists (only added when >=2 SIMs)
+    const hasRotate = Array.from(wzSel.options).some(o => o.value === 'rotate')
+    if (!hasRotate) return this.toast('Need at least 2 SIMs to auto-rotate.', 'error')
+    wzSel.value = 'rotate'
+    wzSel.dataset.selected = 'rotate'
+    this.toast('Auto-rotate across SIMs enabled for this campaign.', 'success')
+    // Re-run precheck to update the banner
+    this._runCarrierPrecheck(this.parseContacts()).catch(() => {})
   },
 
   // ─── File Import ───
@@ -1296,8 +1385,13 @@ const App = {
       errors: [],
       usingBackgroundService: false,
       subscriptionId: simSel.subscriptionId,
-      subscriptionIds: simSel.subscriptionIds,
+      subscriptionIds: simSel.subscriptionIds.slice(), // clone — may be mutated by auto-throttle
+      initialSubscriptionIds: simSel.subscriptionIds.slice(), // immutable copy for diagnostics
       simLabel: simSel.label,
+      // Per-SIM rolling-failure tracker for auto-throttle (keyed by subId)
+      simStats: {},
+      throttleMultiplier: 1, // gap gets multiplied when carrier rate-limits kick in
+      throttledSims: [],     // subIds that have been dropped from rotation
     }
 
     this.showScreen('sendingScreen')
@@ -1385,18 +1479,19 @@ const App = {
     document.getElementById('sendingStatus').textContent = `Sending to ${contact.phoneNumber}${contact.name ? ' (' + contact.name + ')' : ''}`
 
     // Pick SIM for this contact: rotation (if any) > single fixed > default (-1)
+    // Honors auto-throttle: if a SIM is throttled, it is skipped in rotation.
     let thisSubId = (typeof s.subscriptionId === 'number') ? s.subscriptionId : -1
     if (Array.isArray(s.subscriptionIds) && s.subscriptionIds.length > 0) {
-      thisSubId = s.subscriptionIds[s.idx % s.subscriptionIds.length]
+      const live = s.subscriptionIds.filter(id => !s.throttledSims.includes(id))
+      const pool = live.length > 0 ? live : s.subscriptionIds // fallback to all if all throttled
+      thisSubId = pool[s.idx % pool.length]
     }
 
     try {
       const result = await this.nativeSms(contact.phoneNumber, msg, thisSubId)
+      this._recordSimOutcome(s, thisSubId, !!result.success, result.errorReason)
       if (result.success) {
         s.sent++
-        // NOTE: Do NOT call API.reportSmsSent here — the /progress endpoint
-        // already increments the free SMS counter via sentCount delta.
-        // Calling both causes DOUBLE COUNTING of trial SMS.
       } else {
         s.failed++
         s.errors.push({ 
@@ -1411,8 +1506,12 @@ const App = {
       }
     } catch (e) {
       s.failed++
+      this._recordSimOutcome(s, thisSubId, false, 'js_exception')
       s.errors.push({ phone: contact.phoneNumber, reason: 'js_exception', error: e.message })
     }
+
+    // Auto-throttle decision (may mutate s.throttledSims or s.throttleMultiplier)
+    this._applyAutoThrottle(s, thisSubId)
 
     s.idx++
     this.updateSendingUI()
@@ -1445,7 +1544,66 @@ const App = {
       }
     }
 
-    setTimeout(() => this.sendNext(), s.gapTime)
+    setTimeout(() => this.sendNext(), s.gapTime * (s.throttleMultiplier || 1))
+  },
+
+  // ─── Per-SIM auto-throttle ───
+  // Records the last 5 outcomes per SIM. If >=4 of the last 5 are
+  // rate-limit-style failures (generic_failure / send_timeout), we treat that
+  // SIM as rate-limited by its carrier and either:
+  //   • Drop it from rotation (if other SIMs are available), OR
+  //   • Double the gap time so the single SIM gets breathing room.
+  _recordSimOutcome(s, subId, success, reason) {
+    if (!s.simStats) s.simStats = {}
+    const key = String(subId)
+    if (!s.simStats[key]) s.simStats[key] = { sent: 0, failed: 0, recent: [] }
+    const st = s.simStats[key]
+    if (success) st.sent++; else st.failed++
+    st.recent.push({ ok: !!success, reason: reason || null })
+    if (st.recent.length > 5) st.recent.shift()
+  },
+
+  _isRateLimitReason(reason) {
+    return reason === 'generic_failure' || reason === 'send_timeout' || reason === 'multipart_timeout'
+  },
+
+  _applyAutoThrottle(s, lastSubId) {
+    if (!s || s._throttleDisabled) return
+    const key = String(lastSubId)
+    const st = s.simStats?.[key]
+    if (!st || st.recent.length < 5) return // need a full 5-sample window
+
+    const rateLimited = st.recent.filter(r => !r.ok && this._isRateLimitReason(r.reason)).length
+    if (rateLimited < 4) return // <80% rate-limit — not a carrier block
+
+    // Decision 1: drop this SIM from rotation if we have others still live
+    const rotationPool = Array.isArray(s.subscriptionIds) ? s.subscriptionIds : []
+    const liveCount = rotationPool.filter(id => !s.throttledSims.includes(id)).length
+    if (rotationPool.length > 1 && liveCount > 1 && !s.throttledSims.includes(lastSubId)) {
+      s.throttledSims.push(lastSubId)
+      // Reset the tracker so we don't immediately re-throttle if it re-enters
+      st.recent = []
+      const dropped = this._simLabelForId(lastSubId)
+      this.toast(`Carrier rate limit detected — pausing ${dropped} for this campaign.`, 'error')
+      console.warn(`[SMS] Auto-throttle: dropped SIM ${lastSubId} from rotation (${liveCount - 1} live SIMs remaining).`)
+      const banner = document.getElementById('sendingStatus')
+      if (banner) banner.textContent = `⚠️ ${dropped} rate-limited — switching to remaining SIMs.`
+      return
+    }
+
+    // Decision 2: single-SIM (or all rotated-out) — slow down the gap
+    if (s.throttleMultiplier < 4) {
+      s.throttleMultiplier = Math.min(4, (s.throttleMultiplier || 1) * 2)
+      st.recent = [] // reset so we don't keep multiplying
+      this.toast(`Carrier appears to rate-limit — slowing send rate ${s.throttleMultiplier}×.`, 'info')
+      console.warn(`[SMS] Auto-throttle: gap × ${s.throttleMultiplier} (was × ${s.throttleMultiplier / 2}).`)
+    }
+  },
+
+  _simLabelForId(subId) {
+    if (subId < 0) return 'default SIM'
+    const sim = this.availableSims.find(x => x.subscriptionId === subId)
+    return sim ? this._simLabel(sim) : `SIM (sub ${subId})`
   },
 
   async nativeSms(phone, msg, subscriptionId) {
