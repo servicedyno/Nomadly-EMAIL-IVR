@@ -35,9 +35,11 @@ Multi-service platform (Nomadly) — Telegram Bot + Cloud Phone Platform with Re
 - Feature: Added Copy and Move file operations to the hosting panel File Manager. Customer reported cPanel doesn't allow copy/move of files. Added `POST /files/copy` and `POST /files/move` backend routes + `copyFile()`/`moveFile()` in cpanel-proxy.js using cPanel API2 `Fileman::fileop`. Added Copy/Move buttons and destination path modal in FileManager.js frontend.
 
 ## Current Task
-- Adding Copy and Move file functionality to the hosting panel File Manager
-- Backend: Added `/files/copy` and `/files/move` routes in `cpanel-routes.js`, `copyFile()` and `moveFile()` in `cpanel-proxy.js`
-- Frontend: Added Copy/Move buttons (both desktop table and mobile card views) and destination folder modal in `FileManager.js`
+- Fixed: VPS Reset Password button was only shown for Windows/RDP instances, NOT for Linux VPS
+- Root cause: Line in `_index.js` — `const rdpButtons = isRDP ? [vp.resetPasswordBtn, ...] : []` excluded the button for Linux
+- Fix: Changed to show Reset Password button for ALL VPS types (Linux + Windows)
+- Affected user: @Spliff011 (chatId: 1137258806), VPS vmi3251506, IP 147.93.136.119, Ubuntu 24.04
+- The user needs to use "Reset Password" from VPS management menu to get new working credentials
 
 ## Backend Testing Results (File Copy/Move API)
 

@@ -6451,11 +6451,11 @@ Enter new value:`), bc)
       saveInfo('userVPSDetails', vpsData)
       let action = vpsData.status === 'RUNNING' ? [vp.stopVpsBtn, vp.restartVpsBtn] : [vp.startVpsBtn]
       
-      // Add RDP-specific buttons for Windows instances
+      // Add instance management buttons — Reset Password for all, Reinstall Windows for RDP only
       const isRDP = vpsData.isRDP || vpsData.osType === 'Windows'
-      const rdpButtons = isRDP ? [vp.resetPasswordBtn, vp.reinstallWindowsBtn] : []
+      const extraButtons = isRDP ? [vp.resetPasswordBtn, vp.reinstallWindowsBtn] : [vp.resetPasswordBtn]
       
-      return send(chatId, vp.selectedVpsData(vpsData), vp.of([ ...action, ...rdpButtons, vp.subscriptionBtn, vp.VpsLinkedKeysBtn, vp.upgradeVpsBtn,  vp.deleteVpsBtn]))
+      return send(chatId, vp.selectedVpsData(vpsData), vp.of([ ...action, ...extraButtons, vp.subscriptionBtn, vp.VpsLinkedKeysBtn, vp.upgradeVpsBtn,  vp.deleteVpsBtn]))
     },
 
     confirmStopVps : async () => {
@@ -12093,7 +12093,7 @@ ${message.replace(/\n/g, '<br>')}
     return send(chatId, vp.selectCorrectOption, vp.of([ vp.confirmChangeBtn, vp.cancel]))
   }
 
-  // ━━━ Reset RDP Password ━━━
+  // ━━━ Reset VPS/RDP Password ━━━
   if (action === a.confirmResetPassword) {
     if (message === vp.back || message === vp.cancel) return goto.getVPSDetails()
     if (message === vp.confirmChangeBtn) {
@@ -12114,7 +12114,7 @@ ${message.replace(/\n/g, '<br>')}
         )
         
         // Enhanced logging
-        console.log(`[RDP] Password reset successful - ChatId: ${chatId}, Instance: ${instanceId}, Name: ${userVPSDetails.name}`)
+        console.log(`[VPS] Password reset successful - ChatId: ${chatId}, Instance: ${instanceId}, Name: ${userVPSDetails.name}`)
         
         // Send new credentials to user with WARNING
         const username = userVPSDetails.isRDP || userVPSDetails.osType === 'Windows' ? 'Administrator' : 'root'
@@ -12127,7 +12127,7 @@ ${message.replace(/\n/g, '<br>')}
         
         return goto.getVPSDetails()
       } catch (err) {
-        console.error(`[RDP] Password reset failed - ChatId: ${chatId}, Instance: ${instanceId}, Error:`, err.message || err)
+        console.error(`[VPS] Password reset failed - ChatId: ${chatId}, Instance: ${instanceId}, Error:`, err.message || err)
         send(chatId, vp.passwordResetFailed(userVPSDetails.name))
         return goto.getVPSDetails()
       }
