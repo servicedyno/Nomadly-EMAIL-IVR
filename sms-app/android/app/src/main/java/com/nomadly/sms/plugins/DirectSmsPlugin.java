@@ -427,6 +427,7 @@ public class DirectSmsPlugin extends Plugin {
                 .putString("content", contentJson)
                 .putInt("gapTimeMs", gapTimeMs)
                 .putInt("currentIndex", startIndex)
+                .putInt("totalContacts", contacts.length())
                 .putInt("sentCount", 0)
                 .putInt("failedCount", 0)
                 .putString("status", "sending")
@@ -507,6 +508,7 @@ public class DirectSmsPlugin extends Plugin {
             result.put("currentIndex", prefs.getInt("currentIndex", 0));
             result.put("sentCount", prefs.getInt("sentCount", 0));
             result.put("failedCount", prefs.getInt("failedCount", 0));
+            result.put("totalContacts", prefs.getInt("totalContacts", 0));
             result.put("campaignId", prefs.getString("campaignId", ""));
             result.put("campaignName", prefs.getString("campaignName", ""));
             

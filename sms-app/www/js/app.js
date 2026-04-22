@@ -907,23 +907,40 @@ const App = {
       
       console.log('[SMS] 🚀 Starting native background service...')
       try {
+        // Use sendContacts.length (capped list) as the real total, NOT contacts.length
+        const bgStartIndex = campaign.lastSentIndex || 0
+        
+        // Guard: if startIndex already exceeds the contact list, campaign is done
+        if (bgStartIndex >= sendContacts.length) {
+          console.log('[SMS] Campaign already complete (startIndex >= contacts)')
+          this.toast('Campaign already complete!', 'info')
+          return this.showDashboard()
+        }
+        
         const result = await window.Capacitor.Plugins.DirectSms.startBackgroundSending({
           campaignId: campaign._id,
           campaignName: campaign.name,
           contacts: JSON.stringify(sendContacts),
           content: JSON.stringify(content),
           gapTimeMs: (campaign.smsGapTime || 5) * 1000,
-          startIndex: campaign.lastSentIndex || 0
+          startIndex: bgStartIndex
         })
         
         console.log('[SMS] ✅ Background service started:', result)
         this.toast('SMS sending in background. You can close the app!', 'success')
         
         // Show sending screen and poll for status updates
+        // Use sendContacts.length for total to match what native service actually has
         this.sendingState = {
           campaignId: campaign._id,
           chatId: Storage.getUser()?.chatId,
-          total: contacts.length,
+          contacts: sendContacts,
+          content: content,
+          total: sendContacts.length,
+          idx: bgStartIndex,
+          sent: 0,
+          failed: 0,
+          startTime: Date.now(),
           usingBackgroundService: true
         }
         
@@ -1153,20 +1170,21 @@ const App = {
 
   updateSendingUI() {
     const s = this.sendingState; if (!s) return
-    const pct = s.total > 0 ? Math.round((s.idx / s.total) * 100) : 0
+    const rawPct = s.total > 0 ? Math.round((s.idx / s.total) * 100) : 0
+    const pct = Math.min(100, Math.max(0, rawPct))
     const circ = 2 * Math.PI * 78
     document.getElementById('progressCircle').setAttribute('stroke-dashoffset', circ - (pct / 100) * circ)
     document.getElementById('sendingPercent').textContent = pct + '%'
     document.getElementById('sendingSent').textContent = s.sent
     document.getElementById('sendingFailed').textContent = s.failed
-    document.getElementById('sendingRemaining').textContent = s.total - s.idx
+    document.getElementById('sendingRemaining').textContent = Math.max(0, s.total - s.idx)
 
     // ETA
     const elapsed = Date.now() - s.startTime
     const processed = s.idx - (s.contacts.indexOf(s.contacts[0]) || 0)
     if (processed > 0) {
+      const remaining = Math.max(0, s.total - s.idx)
       const msPerMsg = elapsed / processed
-      const remaining = s.total - s.idx
       const etaSec = Math.round((remaining * msPerMsg) / 1000)
       const m = Math.floor(etaSec / 60), sec = etaSec % 60
       document.getElementById('sendingEta').textContent = `~${m > 0 ? m + 'm ' : ''}${sec}s left`
@@ -1309,15 +1327,20 @@ const App = {
           this.sendingState.idx = status.currentIndex || 0
           this.sendingState.sent = status.sentCount || 0
           this.sendingState.failed = status.failedCount || 0
+          // Sync total from native service to avoid stale JS-side value
+          if (status.totalContacts && status.totalContacts > 0) {
+            this.sendingState.total = status.totalContacts
+          }
           
-          // Update sending screen UI
-          const pct = this.sendingState.total > 0 ? Math.round((this.sendingState.idx / this.sendingState.total) * 100) : 0
+          // Update sending screen UI (clamp values to valid ranges)
+          const rawPct = this.sendingState.total > 0 ? Math.round((this.sendingState.idx / this.sendingState.total) * 100) : 0
+          const pct = Math.min(100, Math.max(0, rawPct))
           const circ = 2 * Math.PI * 78
           document.getElementById('progressCircle')?.setAttribute('stroke-dashoffset', circ - (pct / 100) * circ)
           document.getElementById('sendingPercent').textContent = pct + '%'
           document.getElementById('sendingSent').textContent = this.sendingState.sent
           document.getElementById('sendingFailed').textContent = this.sendingState.failed
-          document.getElementById('sendingRemaining').textContent = this.sendingState.total - this.sendingState.idx
+          document.getElementById('sendingRemaining').textContent = Math.max(0, this.sendingState.total - this.sendingState.idx)
           
           // Check if completed
           if (status.status === 'completed' || this.sendingState.idx >= this.sendingState.total) {
