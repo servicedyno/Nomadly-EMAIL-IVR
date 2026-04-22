@@ -200,10 +200,10 @@ const REGION_SURCHARGE = {
   'US-east':    [   1.80,   2.80,   5.50,   9.70,  14.30,  18.90   ],
   'US-west':    [   1.50,   2.30,   4.50,   8.10,  11.90,  15.80   ],
   'UK':         [   1.20,   0.45,   0.92,   2.60,   4.80,   7.62   ],
-  'SIN':        [   2.90,   2.20,   4.40,   9.42,  16.24,  24.56   ],
-  'JPN':        [   2.90,   2.25,   4.50,   9.60,  16.59,  25.12   ],
-  'AUS':        [   2.40,   1.85,   3.75,   7.98,  13.79,  20.88   ],
-  'IND':        [   2.70,   2.10,   4.15,   8.82,  15.26,  23.04   ]
+  'SG':         [   2.90,   2.20,   4.40,   9.42,  16.24,  24.56   ],
+  'JP':         [   2.90,   2.25,   4.50,   9.60,  16.59,  25.12   ],
+  'AU':         [   2.40,   1.85,   3.75,   7.98,  13.79,  20.88   ],
+  'IN':         [   2.70,   2.10,   4.15,   8.82,  15.26,  23.04   ]
 }
 
 const REGION_DISPLAY = {
@@ -212,10 +212,10 @@ const REGION_DISPLAY = {
   'US-east':    { emoji: '🇺🇸', label: 'US East' },
   'US-west':    { emoji: '🇺🇸', label: 'US West' },
   'UK':         { emoji: '🇬🇧', label: 'United Kingdom' },
-  'SIN':        { emoji: '🇸🇬', label: 'Singapore' },
-  'JPN':        { emoji: '🇯🇵', label: 'Japan' },
-  'AUS':        { emoji: '🇦🇺', label: 'Australia' },
-  'IND':        { emoji: '🇮🇳', label: 'India' }
+  'SG':         { emoji: '🇸🇬', label: 'Singapore' },
+  'JP':         { emoji: '🇯🇵', label: 'Japan' },
+  'AU':         { emoji: '🇦🇺', label: 'Australia' },
+  'IN':         { emoji: '🇮🇳', label: 'India' }
 }
 
 // ─── Pricing ──────────────────────────────────────────────────────────────
