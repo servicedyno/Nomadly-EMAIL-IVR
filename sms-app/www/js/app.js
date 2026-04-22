@@ -1395,6 +1395,10 @@ const App = {
           }
         }
       } catch (e) {
+        console.error('[SMS] Failed to poll background status:', e)
+      }
+    }, 2000) // Poll every 2 seconds
+  },
 
   showDevicesScreen() {
     this.syncDevices()
@@ -1483,11 +1487,6 @@ const App = {
         console.error('[Devices] Logout error:', err)
         this.toast('Failed to logout device', 'error')
       })
-  },
-
-        console.error('[SMS] Failed to poll background status:', e)
-      }
-    }, 2000) // Poll every 2 seconds
   },
 }
 
