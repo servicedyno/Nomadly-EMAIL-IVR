@@ -13,7 +13,7 @@
 - **URL**: `https://quick-start-177.preview.emergentagent.com/panel`
 - **Email**: `hello@ivrpod.com`
 - **Password**: `Onlygod1234@`
-- **Panel Domain**: `panel.1.hostbay.io`
+- **Panel Domain**: `https://panel.1.hostbay.io/panel`
 
 ## Bot
 - Username: @NomadlyBot
