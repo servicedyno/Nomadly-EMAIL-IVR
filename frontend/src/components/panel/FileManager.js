@@ -18,6 +18,8 @@ export default function FileManager() {
   const [renameValue, setRenameValue] = useState('');
   const [copiedUrl, setCopiedUrl] = useState(null);
   const [successMessage, setSuccessMessage] = useState('');
+  const [copyMoveAction, setCopyMoveAction] = useState(null); // { type: 'copy'|'move', fileName: string }
+  const [destDir, setDestDir] = useState('');
   const fileInputRef = useRef(null);
 
   const fetchFiles = useCallback(async (dir) => {
@@ -229,6 +231,37 @@ export default function FileManager() {
       setRenaming(null);
       setRenameValue('');
       fetchFiles(currentDir);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const openCopyMove = (type, fileName) => {
+    setCopyMoveAction({ type, fileName });
+    setDestDir(currentDir);
+    setError('');
+  };
+
+  const handleCopyMove = async () => {
+    if (!copyMoveAction || !destDir.trim()) return;
+    const { type, fileName } = copyMoveAction;
+    setError('');
+    setSuccessMessage('');
+    try {
+      const endpoint = type === 'copy' ? '/files/copy' : '/files/move';
+      const res = await api(endpoint, {
+        method: 'POST',
+        body: JSON.stringify({ dir: currentDir, file: fileName, destDir: destDir.trim() }),
+      });
+      if (res.errors?.length) {
+        setError(`${type === 'copy' ? 'Copy' : 'Move'} failed: ${res.errors[0]}`);
+      } else {
+        setSuccessMessage(`✅ ${fileName} ${type === 'copy' ? 'copied' : 'moved'} to ${destDir.trim()}`);
+        setTimeout(() => setSuccessMessage(''), 5000);
+        setCopyMoveAction(null);
+        setDestDir('');
+        fetchFiles(currentDir);
+      }
     } catch (err) {
       setError(err.message);
     }
@@ -479,6 +512,12 @@ export default function FileManager() {
                         <button onClick={() => { setRenaming(name); setRenameValue(name); }} className="fm-action-btn" title="Rename" data-testid={`fm-rename-${name}`}>
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                         </button>
+                        <button onClick={() => openCopyMove('copy', name)} className="fm-action-btn" title="Copy to..." data-testid={`fm-copy-file-${name}`}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                        </button>
+                        <button onClick={() => openCopyMove('move', name)} className="fm-action-btn" title="Move to..." data-testid={`fm-move-file-${name}`}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+                        </button>
                         <button onClick={() => handleDelete(name)} className="fm-action-btn fm-action-btn--danger" title="Delete" data-testid={`fm-delete-${name}`}>
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
                         </button>
@@ -584,6 +623,14 @@ export default function FileManager() {
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                         <span>Rename</span>
                       </button>
+                      <button onClick={() => openCopyMove('copy', name)} className="fm-action-chip" data-testid={`fm-copy-file-mobile-${name}`}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                        <span>Copy</span>
+                      </button>
+                      <button onClick={() => openCopyMove('move', name)} className="fm-action-chip" data-testid={`fm-move-file-mobile-${name}`}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+                        <span>Move</span>
+                      </button>
                       <button onClick={() => handleDelete(name)} className="fm-action-chip fm-action-chip--danger" data-testid={`fm-delete-mobile-${name}`}>
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
                         <span>Delete</span>
@@ -619,6 +666,42 @@ export default function FileManager() {
             <div className="fm-modal-actions">
               <button onClick={() => setRenaming(null)} className="fm-btn fm-btn--ghost">Cancel</button>
               <button onClick={() => handleRename(renaming)} className="fm-btn fm-btn--primary" data-testid="fm-rename-submit">Rename</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Copy/Move Modal */}
+      {copyMoveAction && (
+        <div className="fm-modal-overlay" data-testid="fm-copymove-modal">
+          <div className="fm-modal fm-modal--sm">
+            <div className="fm-modal-header">
+              <span>{copyMoveAction.type === 'copy' ? 'Copy' : 'Move'}: {copyMoveAction.fileName}</span>
+              <button onClick={() => setCopyMoveAction(null)} className="fm-modal-close">&times;</button>
+            </div>
+            <div style={{ padding: '16px 20px' }}>
+              <label style={{ display: 'block', marginBottom: 8, fontSize: 13, color: '#94a3b8' }}>
+                Destination folder:
+              </label>
+              <input
+                type="text"
+                className="fm-rename-input"
+                value={destDir}
+                onChange={(e) => setDestDir(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleCopyMove()}
+                placeholder={`/home/${user?.username}/public_html`}
+                data-testid="fm-copymove-input"
+                autoFocus
+              />
+              <div style={{ marginTop: 8, fontSize: 12, color: '#64748b' }}>
+                Enter the full path where you want to {copyMoveAction.type} the file.
+              </div>
+            </div>
+            <div className="fm-modal-actions">
+              <button onClick={() => setCopyMoveAction(null)} className="fm-btn fm-btn--ghost">Cancel</button>
+              <button onClick={handleCopyMove} className="fm-btn fm-btn--primary" data-testid="fm-copymove-submit">
+                {copyMoveAction.type === 'copy' ? 'Copy' : 'Move'}
+              </button>
             </div>
           </div>
         </div>

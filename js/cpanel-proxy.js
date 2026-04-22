@@ -225,6 +225,24 @@ async function compressFiles(cpUser, cpPass, dir, files, destFile, host = null) 
   }, host)
 }
 
+async function copyFile(cpUser, cpPass, sourceDir, fileName, destDir, host = null) {
+  return api2(cpUser, cpPass, 'Fileman', 'fileop', {
+    doubledecode: 0,
+    op: 'copy',
+    sourcefiles: `${sourceDir}/${fileName}`,
+    destfiles: destDir,
+  }, host)
+}
+
+async function moveFile(cpUser, cpPass, sourceDir, fileName, destDir, host = null) {
+  return api2(cpUser, cpPass, 'Fileman', 'fileop', {
+    doubledecode: 0,
+    op: 'move',
+    sourcefiles: `${sourceDir}/${fileName}`,
+    destfiles: `${destDir}/${fileName}`,
+  }, host)
+}
+
 // DOMAINS
 
 async function listDomains(cpUser, cpPass, host = null) {
@@ -435,6 +453,8 @@ module.exports = {
   renameFile,
   extractFile,
   compressFiles,
+  copyFile,
+  moveFile,
   // Domains
   listDomains,
   addAddonDomain,

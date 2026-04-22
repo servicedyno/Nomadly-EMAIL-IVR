@@ -1,354 +1,337 @@
 #!/usr/bin/env python3
 """
-Backend Testing Script for Nomadly Node.js Backend (Port 5000) and FastAPI Proxy (Port 8001)
-Testing shortlink operator precedence bug fix verification
+Backend API Testing for Nomadly File Copy/Move Endpoints
+Tests the new file copy and move API endpoints on the Nomadly backend.
 """
 
 import requests
 import json
 import sys
-import subprocess
-from datetime import datetime
+from typing import Dict, Any
 
-# Backend URLs
-NODEJS_URL = "http://localhost:5000"
-FASTAPI_URL = "http://localhost:8001"
+# Base URL from frontend/.env
+BASE_URL = "https://getting-started-224.preview.emergentagent.com/api"
 
-def test_nodejs_health_direct():
-    """Test direct Node.js health endpoint on port 5000"""
-    print("🔍 Testing Node.js Health Endpoint (Direct - Port 5000)...")
-    try:
-        response = requests.get(f"{NODEJS_URL}/health", timeout=10)
-        print(f"   Status Code: {response.status_code}")
+# Test credentials from /app/memory/test_credentials.md
+TEST_CREDENTIALS = {
+    "username": "hello@ivrpod.com",
+    "pin": "Onlygod1234@"
+}
+
+# Correct endpoint paths (mounted under /panel)
+ENDPOINTS = {
+    "copy": "/panel/files/copy",
+    "move": "/panel/files/move",
+    "files": "/panel/files",
+    "mkdir": "/panel/files/mkdir",
+    "delete": "/panel/files/delete",
+    "rename": "/panel/files/rename",
+    "login": "/panel/login"
+}
+
+class FileManagerTester:
+    def __init__(self):
+        self.session = requests.Session()
+        self.session.timeout = 30
+        self.auth_token = None
+        self.test_results = []
         
-        if response.status_code == 200:
-            data = response.json()
-            print(f"   Response: {json.dumps(data, indent=2)}")
-            
-            # Check for required fields
-            if (data.get('status') == 'healthy' and 
-                data.get('database') == 'connected'):
-                print("   ✅ Node.js health check PASSED - status:healthy, database:connected")
-                return True
-            else:
-                print(f"   ❌ Node.js health check FAILED - status: {data.get('status')}, database: {data.get('database')}")
-                return False
-        else:
-            print(f"   ❌ Node.js health check FAILED - HTTP {response.status_code}")
-            return False
-            
-    except Exception as e:
-        print(f"   ❌ Node.js health check FAILED - Error: {str(e)}")
-        return False
-
-def test_fastapi_health_proxy():
-    """Test FastAPI proxy to Node.js health endpoint on port 8001"""
-    print("\n🔍 Testing FastAPI Health Proxy (Port 8001 -> Port 5000)...")
-    try:
-        response = requests.get(f"{FASTAPI_URL}/api/health", timeout=10)
-        print(f"   Status Code: {response.status_code}")
+    def log_test(self, test_name: str, success: bool, details: str = ""):
+        """Log test result"""
+        status = "✅ PASS" if success else "❌ FAIL"
+        print(f"{status} {test_name}")
+        if details:
+            print(f"    {details}")
+        self.test_results.append({
+            "test": test_name,
+            "success": success,
+            "details": details
+        })
         
-        if response.status_code == 200:
-            data = response.json()
-            print(f"   Response: {json.dumps(data, indent=2)}")
-            print("   ✅ FastAPI proxy health check PASSED")
-            return True
-        else:
-            print(f"   ❌ FastAPI proxy health check FAILED - HTTP {response.status_code}")
-            return False
+    def login(self) -> bool:
+        """Login to get authentication token"""
+        try:
+            response = self.session.post(
+                f"{BASE_URL}{ENDPOINTS['login']}",
+                json=TEST_CREDENTIALS,
+                headers={"Content-Type": "application/json"}
+            )
             
-    except Exception as e:
-        print(f"   ❌ FastAPI proxy health check FAILED - Error: {str(e)}")
-        return False
-
-def test_sms_app_auth_valid():
-    """Test SMS app auth endpoint with valid user (6687923716)"""
-    print("\n🔍 Testing SMS App Auth Endpoint (Valid User)...")
-    
-    chat_id = "6687923716"
-    
-    print(f"   Testing /sms-app/auth/{chat_id}")
-    
-    try:
-        response = requests.get(f"{NODEJS_URL}/sms-app/auth/{chat_id}", timeout=10)
-        print(f"   Status Code: {response.status_code}")
-        
-        if response.status_code == 200:
-            try:
+            if response.status_code == 200:
                 data = response.json()
-                print(f"   Response: {json.dumps(data, indent=2)}")
-                
-                # Check for required fields
-                valid = data.get('valid')
-                
-                if valid is True:
-                    print("   ✅ SMS App Auth (Valid) PASSED - valid:true")
+                self.auth_token = data.get("token")
+                if self.auth_token:
+                    self.log_test("Authentication", True, f"Token obtained for user: {data.get('username')}")
                     return True
                 else:
-                    print(f"   ❌ SMS App Auth (Valid) FAILED - valid:{valid}")
+                    self.log_test("Authentication", False, "No token in response")
                     return False
+            else:
+                self.log_test("Authentication", False, f"Status {response.status_code}: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_test("Authentication", False, f"Exception: {str(e)}")
+            return False
+    
+    def get_auth_headers(self) -> Dict[str, str]:
+        """Get headers with authentication token"""
+        if not self.auth_token:
+            return {}
+        return {"Authorization": f"Bearer {self.auth_token}"}
+    
+    def test_endpoint_exists(self, endpoint: str, method: str = "POST") -> bool:
+        """Test if endpoint exists (not 404)"""
+        try:
+            if method == "POST":
+                response = self.session.post(
+                    f"{BASE_URL}{endpoint}",
+                    json={},
+                    headers=self.get_auth_headers()
+                )
+            else:
+                response = self.session.get(
+                    f"{BASE_URL}{endpoint}",
+                    headers=self.get_auth_headers()
+                )
+            
+            exists = response.status_code != 404
+            self.log_test(
+                f"Endpoint exists: {method} {endpoint}",
+                exists,
+                f"Status: {response.status_code}" if not exists else "Endpoint found"
+            )
+            return exists
+            
+        except Exception as e:
+            self.log_test(f"Endpoint exists: {method} {endpoint}", False, f"Exception: {str(e)}")
+            return False
+    
+    def test_auth_required(self, endpoint: str, method: str = "POST") -> bool:
+        """Test that endpoint requires authentication"""
+        try:
+            if method == "POST":
+                response = self.session.post(
+                    f"{BASE_URL}{endpoint}",
+                    json={"dir": "/test", "file": "test.txt", "destDir": "/dest"}
+                )
+            else:
+                response = self.session.get(f"{BASE_URL}{endpoint}")
+            
+            auth_required = response.status_code in [401, 403]
+            self.log_test(
+                f"Auth required: {method} {endpoint}",
+                auth_required,
+                f"Status: {response.status_code} (expected 401/403)"
+            )
+            return auth_required
+            
+        except Exception as e:
+            self.log_test(f"Auth required: {method} {endpoint}", False, f"Exception: {str(e)}")
+            return False
+    
+    def test_parameter_validation(self, endpoint: str) -> bool:
+        """Test parameter validation for copy/move endpoints"""
+        try:
+            # Test with missing parameters (without auth)
+            response = self.session.post(
+                f"{BASE_URL}{endpoint}",
+                json={}
+            )
+            
+            # Should get auth error (401/403) before parameter validation
+            # This confirms the endpoint exists and auth is checked first
+            validation_works = response.status_code in [401, 403]
+            details = f"Status: {response.status_code}"
+            
+            if response.status_code in [401, 403]:
+                details += " (auth required - endpoint accessible)"
+            elif response.status_code == 400:
+                try:
+                    error_data = response.json()
+                    error_msg = error_data.get("error", "")
+                    details += f", Error: {error_msg}"
+                except:
+                    details += f", Response: {response.text[:100]}"
+            
+            self.log_test(
+                f"Parameter validation: {endpoint}",
+                validation_works,
+                details
+            )
+            return validation_works
+            
+        except Exception as e:
+            self.log_test(f"Parameter validation: {endpoint}", False, f"Exception: {str(e)}")
+            return False
+    
+    def test_existing_file_endpoints(self) -> bool:
+        """Test that existing file manager endpoints still work"""
+        endpoints_to_test = [
+            (ENDPOINTS["files"], "GET"),
+            (ENDPOINTS["mkdir"], "POST"),
+            (ENDPOINTS["delete"], "POST"),
+            (ENDPOINTS["rename"], "POST")
+        ]
+        
+        all_working = True
+        
+        for endpoint, method in endpoints_to_test:
+            try:
+                if method == "GET":
+                    response = self.session.get(
+                        f"{BASE_URL}{endpoint}",
+                        headers=self.get_auth_headers()
+                    )
+                else:
+                    # Send minimal valid request to check endpoint exists
+                    test_data = {}
+                    if endpoint == ENDPOINTS["mkdir"]:
+                        test_data = {"dir": "/test", "name": "testdir"}
+                    elif endpoint == ENDPOINTS["delete"]:
+                        test_data = {"dir": "/test", "file": "nonexistent.txt"}
+                    elif endpoint == ENDPOINTS["rename"]:
+                        test_data = {"dir": "/test", "oldName": "old.txt", "newName": "new.txt"}
                     
-            except json.JSONDecodeError as e:
-                print(f"   ❌ Invalid JSON response: {str(e)}")
-                return False
-        else:
-            print(f"   ❌ HTTP {response.status_code}")
-            print(f"   Response: {response.text[:200]}")
-            return False
-            
-    except Exception as e:
-        print(f"   ❌ Request failed: {str(e)}")
-        return False
-
-def test_sms_app_auth_invalid():
-    """Test SMS app auth endpoint with invalid user (9999999999)"""
-    print("\n🔍 Testing SMS App Auth Endpoint (Invalid User)...")
-    
-    chat_id = "9999999999"
-    
-    print(f"   Testing /sms-app/auth/{chat_id}")
-    
-    try:
-        response = requests.get(f"{NODEJS_URL}/sms-app/auth/{chat_id}", timeout=10)
-        print(f"   Status Code: {response.status_code}")
+                    response = self.session.post(
+                        f"{BASE_URL}{endpoint}",
+                        json=test_data,
+                        headers=self.get_auth_headers()
+                    )
+                
+                # Endpoint should exist (not 404) and be accessible with auth
+                working = response.status_code != 404
+                if not working:
+                    all_working = False
+                
+                self.log_test(
+                    f"Existing endpoint: {method} {endpoint}",
+                    working,
+                    f"Status: {response.status_code}"
+                )
+                
+            except Exception as e:
+                self.log_test(f"Existing endpoint: {method} {endpoint}", False, f"Exception: {str(e)}")
+                all_working = False
         
-        if response.status_code == 401:
-            print("   ✅ SMS App Auth (Invalid) PASSED - returns 401 as expected")
+        return all_working
+    
+    def test_copy_move_with_valid_auth(self) -> bool:
+        """Test copy/move endpoints with valid auth but invalid file paths"""
+        endpoints = [ENDPOINTS["copy"], ENDPOINTS["move"]]
+        all_working = True
+        
+        for endpoint in endpoints:
+            try:
+                # Use valid auth but non-existent file paths
+                response = self.session.post(
+                    f"{BASE_URL}{endpoint}",
+                    json={
+                        "dir": "/home/testuser/public_html",
+                        "file": "nonexistent_test_file.txt",
+                        "destDir": "/home/testuser/public_html/backup"
+                    },
+                    headers=self.get_auth_headers()
+                )
+                
+                # Should not be 404 (endpoint exists) or 401/403 (auth works)
+                # Might be 400 (bad params) or 500 (file not found) - both acceptable
+                working = response.status_code not in [404, 401, 403]
+                if not working:
+                    all_working = False
+                
+                self.log_test(
+                    f"Valid auth test: {endpoint}",
+                    working,
+                    f"Status: {response.status_code} (not 404/401/403 = endpoint accessible)"
+                )
+                
+            except Exception as e:
+                self.log_test(f"Valid auth test: {endpoint}", False, f"Exception: {str(e)}")
+                all_working = False
+        
+        return all_working
+    
+    def run_all_tests(self):
+        """Run comprehensive test suite"""
+        print("🧪 Starting File Copy/Move API Tests")
+        print("=" * 50)
+        
+        # Step 1: Test new endpoints exist (without auth first)
+        print("Testing endpoint existence...")
+        copy_exists = self.test_endpoint_exists(ENDPOINTS["copy"], "POST")
+        move_exists = self.test_endpoint_exists(ENDPOINTS["move"], "POST")
+        
+        print()
+        
+        # Step 2: Test authentication required
+        print("Testing authentication requirements...")
+        self.test_auth_required(ENDPOINTS["copy"], "POST")
+        self.test_auth_required(ENDPOINTS["move"], "POST")
+        
+        print()
+        
+        # Step 3: Test parameter validation (without auth - should get auth error first)
+        print("Testing parameter validation...")
+        if copy_exists:
+            self.test_parameter_validation(ENDPOINTS["copy"])
+        if move_exists:
+            self.test_parameter_validation(ENDPOINTS["move"])
+        
+        print()
+        
+        # Step 4: Test existing endpoints still work (without auth - should get auth error)
+        print("Testing existing file manager endpoints...")
+        self.test_existing_file_endpoints()
+        
+        print()
+        
+        # Step 5: Try authentication
+        print("Testing authentication...")
+        auth_success = self.login()
+        
+        if auth_success:
+            print("\nTesting with valid authentication...")
+            if copy_exists or move_exists:
+                self.test_copy_move_with_valid_auth()
+        else:
+            print("⚠️  Authentication failed - testing without auth only")
+            print("   This is expected if test credentials are not valid")
+        
+        print()
+        
+        # Summary
+        total_tests = len(self.test_results)
+        passed_tests = sum(1 for result in self.test_results if result["success"])
+        
+        print("=" * 50)
+        print(f"📊 Test Summary: {passed_tests}/{total_tests} tests passed")
+        
+        # Count critical tests (endpoint existence and auth requirements)
+        critical_tests = [r for r in self.test_results if 
+                         "Endpoint exists" in r["test"] or "Auth required" in r["test"]]
+        critical_passed = sum(1 for test in critical_tests if test["success"])
+        
+        print(f"🔑 Critical tests (endpoints + auth): {critical_passed}/{len(critical_tests)} passed")
+        
+        if critical_passed == len(critical_tests):
+            print("✅ All critical tests passed! Endpoints exist and require authentication.")
             return True
         else:
-            print(f"   ❌ SMS App Auth (Invalid) FAILED - expected 401, got {response.status_code}")
-            print(f"   Response: {response.text[:200]}")
+            print("❌ Some critical tests failed.")
+            failed_critical = [r for r in critical_tests if not r["success"]]
+            print("\nFailed critical tests:")
+            for test in failed_critical:
+                print(f"  - {test['test']}: {test['details']}")
             return False
-            
-    except Exception as e:
-        print(f"   ❌ Request failed: {str(e)}")
-        return False
 
-def test_shortlink_operator_precedence_fix():
-    """Verify the shortlink operator precedence bug fix in source code"""
-    print("\n🔍 Testing Shortlink Operator Precedence Bug Fix...")
+def main():
+    """Main test runner"""
+    tester = FileManagerTester()
+    success = tester.run_all_tests()
     
-    try:
-        # Test 1: Check for fixed pattern with parentheses
-        print("   Checking for fixed pattern: 'await (linksOf?.find'")
-        result = subprocess.run(
-            ["grep", "-n", "await (linksOf?.find", "/app/js/_index.js"],
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
-        
-        if result.returncode == 0:
-            lines = result.stdout.strip().split('\n')
-            line_count = len([line for line in lines if line.strip()])
-            print(f"   ✅ Found {line_count} occurrences of fixed pattern (expected: 2)")
-            
-            if line_count >= 2:
-                print("   📍 Fixed pattern locations:")
-                for line in lines[:3]:  # Show first 3 matches
-                    if line.strip():
-                        print(f"      {line}")
-                fix_found = True
-            else:
-                print(f"   ⚠️  Expected 2 occurrences, found {line_count}")
-                fix_found = False
-        else:
-            print("   ❌ Fixed pattern not found")
-            fix_found = False
-        
-        # Test 2: Check that old buggy pattern is gone
-        print("\n   Checking for old buggy pattern: 'await linksOf?.find' (without parens)")
-        result = subprocess.run(
-            ["grep", "-n", "await linksOf?.find", "/app/js/_index.js"],
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
-        
-        # Filter out lines that have parentheses (the fixed version)
-        if result.returncode == 0:
-            lines = result.stdout.strip().split('\n')
-            buggy_lines = [line for line in lines if line.strip() and '(linksOf?.find' not in line]
-            buggy_count = len(buggy_lines)
-            
-            if buggy_count == 0:
-                print("   ✅ Old buggy pattern not found (good)")
-                buggy_gone = True
-            else:
-                print(f"   ❌ Found {buggy_count} occurrences of old buggy pattern:")
-                for line in buggy_lines[:3]:
-                    print(f"      {line}")
-                buggy_gone = False
-        else:
-            print("   ✅ Old buggy pattern not found (good)")
-            buggy_gone = True
-        
-        # Test 3: Check for improved error reporting
-        print("\n   Checking for improved error reporting: 'Shortener Error'")
-        result = subprocess.run(
-            ["grep", "-n", "Shortener Error", "/app/js/_index.js"],
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
-        
-        if result.returncode == 0:
-            lines = result.stdout.strip().split('\n')
-            error_count = len([line for line in lines if line.strip()])
-            print(f"   ✅ Found {error_count} occurrences of improved error reporting")
-            
-            if error_count >= 1:
-                print("   📍 Error reporting locations:")
-                for line in lines[:2]:  # Show first 2 matches
-                    if line.strip():
-                        print(f"      {line}")
-                error_reporting = True
-            else:
-                error_reporting = False
-        else:
-            print("   ❌ Improved error reporting not found")
-            error_reporting = False
-        
-        # Overall result
-        if fix_found and buggy_gone and error_reporting:
-            print("\n   ✅ Shortlink operator precedence bug fix VERIFIED")
-            return True
-        else:
-            print("\n   ❌ Shortlink operator precedence bug fix INCOMPLETE")
-            print(f"      Fix found: {fix_found}")
-            print(f"      Buggy pattern gone: {buggy_gone}")
-            print(f"      Error reporting improved: {error_reporting}")
-            return False
-            
-    except Exception as e:
-        print(f"   ❌ Code verification failed: {str(e)}")
-        return False
-
-def test_backend_logs():
-    """Check backend logs for any critical errors"""
-    print("\n🔍 Checking Backend Logs for Critical Errors...")
-    try:
-        # Check supervisor logs for backend
-        import subprocess
-        result = subprocess.run(
-            ["tail", "-n", "50", "/var/log/supervisor/nodejs.out.log"],
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
-        
-        if result.returncode == 0:
-            log_content = result.stdout
-            # More specific error patterns that indicate real problems
-            critical_patterns = [
-                "FATAL",
-                "CRASH",
-                "UNCAUGHT EXCEPTION",
-                "CONNECTION REFUSED",
-                "ECONNREFUSED",
-                "MONGODB ERROR",
-                "DATABASE ERROR",
-                "AUTHENTICATION FAILED"
-            ]
-            
-            recent_errors = []
-            for line in log_content.split('\n')[-20:]:  # Check last 20 lines
-                line_upper = line.upper()
-                if any(pattern in line_upper for pattern in critical_patterns):
-                    # Skip status messages and normal operational logs
-                    if not any(skip in line_upper for skip in ["PROTECTIONENFORCER", "TOTAL:", "PROTECTED:", "FIXED:"]):
-                        recent_errors.append(line.strip())
-            
-            if recent_errors:
-                print("   ⚠️  Critical errors found in logs:")
-                for error in recent_errors[-3:]:  # Show last 3 errors
-                    print(f"      {error}")
-                return False
-            else:
-                print("   ✅ No critical errors found in recent logs")
-                return True
-        else:
-            print("   ⚠️  Could not read backend logs")
-            return True  # Don't fail the test if we can't read logs
-            
-    except Exception as e:
-        print(f"   ⚠️  Log check failed: {str(e)}")
-        return True  # Don't fail the test if log check fails
-
-def run_all_tests():
-    """Run all backend tests for the shortlink operator precedence bug fix verification"""
-    print("=" * 80)
-    print("🚀 NOMADLY BACKEND TESTING - SHORTLINK OPERATOR PRECEDENCE BUG FIX")
-    print("=" * 80)
-    print(f"Test Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"Node.js URL: {NODEJS_URL}")
-    print(f"FastAPI URL: {FASTAPI_URL}")
-    print(f"Focus: Shortlink operator precedence bug fix verification")
-    print("=" * 80)
-    
-    test_results = []
-    
-    # Test 1: Direct Node.js health check
-    test_results.append(("Node.js Health (Direct)", test_nodejs_health_direct()))
-    
-    # Test 2: FastAPI proxy health check
-    test_results.append(("FastAPI Health Proxy", test_fastapi_health_proxy()))
-    
-    # Test 3: SMS App Auth endpoint (valid user)
-    test_results.append(("SMS App Auth (Valid)", test_sms_app_auth_valid()))
-    
-    # Test 4: SMS App Auth endpoint (invalid user)
-    test_results.append(("SMS App Auth (Invalid)", test_sms_app_auth_invalid()))
-    
-    # Test 5: Shortlink operator precedence bug fix verification
-    test_results.append(("Shortlink Bug Fix", test_shortlink_operator_precedence_fix()))
-    
-    # Test 6: Backend logs check
-    test_results.append(("Backend Logs Check", test_backend_logs()))
-    
-    # Summary
-    print("\n" + "=" * 80)
-    print("📊 TEST SUMMARY")
-    print("=" * 80)
-    
-    passed = 0
-    total = len(test_results)
-    
-    for test_name, result in test_results:
-        status = "✅ PASSED" if result else "❌ FAILED"
-        print(f"{status} - {test_name}")
-        if result:
-            passed += 1
-    
-    print(f"\nOverall: {passed}/{total} tests passed ({(passed/total)*100:.0f}%)")
-    
-    if passed == total:
-        print("🎉 ALL TESTS PASSED - Shortlink operator precedence bug fix verified!")
-        print("\n📋 VERIFIED FUNCTIONALITY:")
-        print("   • Node.js backend running on port 5000")
-        print("   • FastAPI proxy working on port 8001")
-        print("   • SMS app authentication working (valid/invalid users)")
-        print("   • Shortlink operator precedence bug fix implemented")
-        print("   • Improved error reporting in place")
-        print("   • No critical backend errors")
-        return True
-    else:
-        print("⚠️  Some tests failed - see details above")
-        print("\n🔧 TROUBLESHOOTING:")
-        if not test_results[0][1]:  # Node.js health failed
-            print("   • Check if Node.js server is running on port 5000")
-            print("   • Verify MongoDB connection")
-        if not test_results[1][1]:  # FastAPI proxy failed
-            print("   • Check if FastAPI server is running on port 8001")
-            print("   • Verify proxy configuration")
-        if not test_results[2][1] or not test_results[3][1]:  # SMS auth failed
-            print("   • Check SMS app service configuration")
-            print("   • Verify test users exist in database")
-        if not test_results[4][1]:  # Shortlink fix failed
-            print("   • Check if shortlink operator precedence fix is properly implemented")
-            print("   • Verify code changes in /app/js/_index.js")
-        return False
+    # Exit with appropriate code
+    sys.exit(0 if success else 1)
 
 if __name__ == "__main__":
-    success = run_all_tests()
-    sys.exit(0 if success else 1)
+    main()

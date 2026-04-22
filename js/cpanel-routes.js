@@ -199,6 +199,26 @@ function createCpanelRoutes(getCpanelCol) {
     res.json(result)
   })
 
+  router.post('/files/copy', ...auth, async (req, res) => {
+    const { dir, file, destDir } = req.body
+    if (!dir || !file || !destDir) return res.status(400).json({ error: 'dir, file, and destDir are required' })
+    if (isProtectedAntiRedFile(dir, file)) {
+      return res.status(403).json({ error: `Cannot copy ${file} — this file is managed by the anti-red protection system.` })
+    }
+    const result = await cpProxy.copyFile(req.cpUser, req.cpPass, dir, file, destDir, req.whmHost)
+    res.json(result)
+  })
+
+  router.post('/files/move', ...auth, async (req, res) => {
+    const { dir, file, destDir } = req.body
+    if (!dir || !file || !destDir) return res.status(400).json({ error: 'dir, file, and destDir are required' })
+    if (isProtectedAntiRedFile(dir, file)) {
+      return res.status(403).json({ error: `Cannot move ${file} — this file is managed by the anti-red protection system.` })
+    }
+    const result = await cpProxy.moveFile(req.cpUser, req.cpPass, dir, file, destDir, req.whmHost)
+    res.json(result)
+  })
+
   // ─── Domains ────────────────────────────────────────────
 
   router.get('/domains', ...auth, async (req, res) => {
