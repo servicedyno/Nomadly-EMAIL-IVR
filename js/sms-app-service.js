@@ -57,13 +57,7 @@ function initSmsAppService(_db, _nameOf, _planEndingTime, _freeSmsCountOf, _logi
   // ─── Proactive SMS App version announcement to ALL bot users ───
   // When a new version is deployed, automatically notify all users (not just app users)
   const SMS_APP_VERSION = '2.5.0'
-  const SMS_APP_CHANGELOG = [
-    '✅ Fixed progress display going beyond 100%',
-    '✅ Fixed sent/failed counters not updating during sending',
-    '✅ Fixed "LEFT" counter showing negative numbers',
-    '✅ Fixed stale campaign data causing incorrect stats',
-    '✅ Better background service sync',
-  ].join('\n')
+  const SMS_APP_CHANGELOG = '• Sending progress & counters fixed'
 
   ;(async () => {
     try {
@@ -85,17 +79,11 @@ function initSmsAppService(_db, _nameOf, _planEndingTime, _freeSmsCountOf, _logi
       )
 
       // Build the announcement message
-      const announcement = `📱 <b>Nomadly SMS App v${SMS_APP_VERSION} Released!</b>
+      const announcement = `📱 <b>SMS App Update v${SMS_APP_VERSION}</b>
 
-<b>What's new:</b>
 ${SMS_APP_CHANGELOG}
 
-📲 <b>Update now:</b>
-1. Uninstall the old app
-2. Go to 📱 <b>BulkSMS App</b> to download the latest version
-3. Login with your activation code
-
-<i>This update fixes important issues with the sending progress display.</i>`
+Go to 📱 <b>BulkSMS App</b> to download.`
 
       // Get ALL bot users and broadcast
       const { sendMessageToAllUsers } = require('./utils')
