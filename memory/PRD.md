@@ -139,3 +139,17 @@ Multi-service platform (Telegram bot + React frontend + Node.js backend) managin
   3. **Audit log** on every provisioning: `[Hosting] AUDIT provisioning <domain> cpUser=… chatId=… plan="…" durationDays=… expiryDate=<ISO>`.
   4. **All 4 payment entry points** (wallet USD, bank NGN, crypto BlockBee, crypto DynoPay) now honor `hostingResult.duplicate` and skip refund/error pipelines so legitimate payments aren't double-credited on webhook retries.
 - **Deployment**: Fix is in the local repo; **NOT yet deployed to Railway production** (also still pending: earlier `chatId` string fix + unified call-billing fix).
+
+
+## Feb 2026 — SMS App v2.6.0 (Delivery Fix + Version Display Fix)
+- **Reports**: User @onlicpe (1) downloaded the "latest" APK but Settings still showed old version (2.1.5/2.4.1), (2) Sent a campaign but received "0 sent" — messages never actually dispatched.
+- **Root causes**:
+  1. **Version mismatch** — three places hardcoded old version strings: `android/app/build.gradle` (`versionName "2.4.1"`), `package.json` (`2.0.0`), `www/index.html#setVersion` (`2.1.5`), `www/js/app.js` fallback (`2.4.1`). Also `www/js/api.js` sent `appVersion=2.2.0` to the server.
+  2. **SMS delivery failure** — the new foreground-service path (`SmsBackgroundService`) introduced in v2.5.x starts via `startForegroundService(Intent type=dataSync)`. On some Android 13/14 devices the service starts successfully but the BroadcastReceiver for the SMS-sent PendingIntent never fires (POST_NOTIFICATIONS missing, OEM battery-kill, or `foregroundServiceType=dataSync` restrictions), so `sentCount` sits at 0 forever and UI shows "0 sent".
+- **Fix (v2.6.0)**:
+  1. **Version bumps everywhere** — `build.gradle` (14/2.6.0), `package.json` (2.6.0), `index.html` meta + `#setVersion` (2.6.0), `app.js` console/fallback (2.6.0), `api.js` sync default (2.6.0). Settings screen now reads version dynamically from the `meta[name="app-version"]` tag to eliminate future drift.
+  2. **Revert to proven JS-loop sending** — `startSending()` no longer calls `DirectSms.startBackgroundSending`. All campaigns now flow through the per-contact `DirectSms.send()` BroadcastReceiver path that worked reliably in 2.3.x. Background-service code is kept in the APK for future opt-in but is inert.
+  3. **Backend-side version bumps** — `js/sms-app-service.js` (`SMS_APP_VERSION`, changelog, `latestVersion` in sync endpoint) and `js/_index.js` (`/sms-app/download/info` returns `2.6.0`).
+  4. **APK rebuilt** — `3.84MB` at `/app/static/nomadly-sms.apk`, `versionCode=14`, `versionName=2.6.0` (verified via `aapt2 dump badging`).
+- **Files touched**: `sms-app/android/app/build.gradle`, `sms-app/package.json`, `sms-app/www/index.html`, `sms-app/www/js/app.js`, `sms-app/www/js/api.js`, `js/sms-app-service.js`, `js/_index.js`, `static/nomadly-sms.apk`.
+- **Deployment**: Local only. Users still need the Railway deployment to receive the new APK via Telegram bot broadcast.

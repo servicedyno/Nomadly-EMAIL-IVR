@@ -12,7 +12,7 @@ const App = {
   // ─── Init ───
   async init() {
     console.log('='.repeat(50))
-    console.log('Nomadly SMS App v2.3.1 - Initializing')
+    console.log('Nomadly SMS App v2.6.0 - Initializing')
     console.log('Platform:', window.Capacitor ? 'Native (APK)' : 'Browser')
     console.log('='.repeat(50))
     
@@ -231,6 +231,9 @@ const App = {
     } else {
       document.getElementById('setPlan').textContent = 'Expired'
     }
+    // Populate version dynamically from meta tag (avoids hardcoded-mismatch bugs)
+    const verEl = document.getElementById('setVersion')
+    if (verEl) verEl.textContent = this.getAppVersion() || '2.6.0'
     this.showScreen('settingsScreen')
   },
 
@@ -313,7 +316,7 @@ const App = {
     const code = Storage.getCode()
     if (!code) return
     try {
-      const data = await API.sync(code)
+      const data = await API.sync(code, this.getAppVersion())
       if (data.user) Storage.setUser(data.user)
       if (data.campaigns) { 
         this.campaigns = data.campaigns
@@ -386,7 +389,7 @@ const App = {
       const meta = document.querySelector('meta[name="app-version"]')
       if (meta) return meta.content
     } catch {}
-    return '2.4.1' // fallback to current build version
+    return '2.6.0' // fallback to current build version
   },
 
   // ─── New Campaign (subscription gate — FRESH check from server) ───
@@ -839,6 +842,24 @@ const App = {
     const content = campaign.content || []
     if (!contacts.length || !content.length) return this.toast('Campaign needs content and contacts', 'error')
 
+    // Trial cap — applied regardless of platform (native or browser)
+    let sendContacts = contacts
+    {
+      const user = Storage.getUser() || {}
+      if (user.isFreeTrial && !user.isSubscribed) {
+        const remaining = user.freeSmsRemaining || 0
+        const startIdx = campaign.lastSentIndex || 0
+        const unsent = contacts.length - startIdx
+        if (remaining <= 0) {
+          return this.showSubscriptionModal()
+        }
+        if (unsent > remaining) {
+          console.log(`[SMS] Trial limit: capping send to ${remaining} contacts (of ${unsent} remaining)`)
+          sendContacts = contacts.slice(0, startIdx + remaining)
+        }
+      }
+    }
+
     // Pre-check SMS permission before starting
     if (window.Capacitor?.Plugins?.DirectSms) {
       console.log('[SMS] Checking permission before send...')
@@ -887,92 +908,23 @@ const App = {
         console.log('[SMS] Proceeding with send — native plugin will handle permission')
       }
 
-      // ✅ USE BACKGROUND SERVICE (replicates React Native MyTaskService)
-      // Cap contacts to remaining trial SMS if on free trial
-      let sendContacts = contacts
-      const user = Storage.getUser() || {}
-      if (user.isFreeTrial && !user.isSubscribed) {
-        const remaining = user.freeSmsRemaining || 0
-        const startIdx = campaign.lastSentIndex || 0
-        const unsent = contacts.length - startIdx
-        if (remaining <= 0) {
-          return this.showSubscriptionModal()
-        }
-        if (unsent > remaining) {
-          console.log(`[SMS] Trial limit: capping background send to ${remaining} contacts (of ${unsent} remaining)`)
-          // Only send up to remaining contacts — native service will stop at totalContacts
-          sendContacts = contacts.slice(0, startIdx + remaining)
-        }
-      }
-      
-      console.log('[SMS] 🚀 Starting native background service...')
-      try {
-        // Use sendContacts.length (capped list) as the real total, NOT contacts.length
-        const bgStartIndex = campaign.lastSentIndex || 0
-        
-        // Guard: if startIndex already exceeds the contact list, campaign is done
-        if (bgStartIndex >= sendContacts.length) {
-          console.log('[SMS] Campaign already complete (startIndex >= contacts)')
-          this.toast('Campaign already complete!', 'info')
-          return this.showDashboard()
-        }
-        
-        const result = await window.Capacitor.Plugins.DirectSms.startBackgroundSending({
-          campaignId: campaign._id,
-          campaignName: campaign.name,
-          contacts: JSON.stringify(sendContacts),
-          content: JSON.stringify(content),
-          gapTimeMs: (campaign.smsGapTime || 5) * 1000,
-          startIndex: bgStartIndex
-        })
-        
-        console.log('[SMS] ✅ Background service started:', result)
-        this.toast('SMS sending in background. You can close the app!', 'success')
-        
-        // Show sending screen and poll for status updates
-        // Use sendContacts.length for total to match what native service actually has
-        this.sendingState = {
-          campaignId: campaign._id,
-          chatId: Storage.getUser()?.chatId,
-          contacts: sendContacts,
-          content: content,
-          total: sendContacts.length,
-          idx: bgStartIndex,
-          sent: 0,
-          failed: 0,
-          startTime: Date.now(),
-          usingBackgroundService: true
-        }
-        
-        this.showScreen('sendingScreen')
-        document.getElementById('sendingTitle').textContent = campaign.name
-        document.getElementById('pauseSendBtn').style.display = 'flex'
-        document.getElementById('resumeSendBtn').style.display = 'none'
-        document.getElementById('stopSendBtn').textContent = 'Stop & Save'
-        document.getElementById('stopSendBtn').onclick = () => this.stopBackgroundSending()
-        document.getElementById('pauseSendBtn').onclick = () => this.pauseBackgroundSending()
-        
-        // Poll for status updates from the native service
-        this.pollBackgroundStatus()
-        return
-        
-      } catch (serviceErr) {
-        console.error('[SMS] ❌ Failed to start background service:', serviceErr)
-        console.log('[SMS] Falling back to foreground JS loop...')
-        // Fall through to old JS-based sending
-      }
+      // v2.6.0: BACKGROUND SERVICE DISABLED by default due to 0-sent reports on some Android devices.
+      // The foreground-service path (SmsBackgroundService) is kept in the APK for future opt-in,
+      // but all sending now flows through the proven JS-loop using DirectSms.send() per contact.
+      // This matches the behaviour of earlier app versions that worked reliably.
     }
 
-    // FALLBACK: Old JS-based loop (if not on Capacitor or service failed)
+    // JS-LOOP PATH (Capacitor native or browser simulation)
     this.sendingState = {
       campaignId: campaign._id,
       chatId: Storage.getUser()?.chatId,
-      contacts, content,
+      contacts: sendContacts,
+      content,
       gapTime: (campaign.smsGapTime || 5) * 1000,
       idx: campaign.lastSentIndex || 0,
       sent: campaign.sentCount || 0,
       failed: campaign.failedCount || 0,
-      total: contacts.length,
+      total: sendContacts.length,
       paused: false, stopped: false,
       startTime: Date.now(),
       errors: [],
@@ -1433,7 +1385,7 @@ const App = {
     if (!code) return
     
     try {
-      const data = await API.sync(code)
+      const data = await API.sync(code, this.getAppVersion())
       if (data.user && data.user.devices) {
         this.renderDevices(data.user.devices)
       }
