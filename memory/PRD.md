@@ -63,16 +63,32 @@ Multi-service platform (Telegram bot + React frontend + Node.js backend) managin
   - `www/js/api.js` — `productionUrl` updated to `https://nomadly-email-ivr-production.up.railway.app` + comment warning that Railway slugs change on rename.
   - `README.md` — 3 references updated (Architecture, Server API Endpoints, Railway Deployment sections) with a warning note.
   - `npx cap sync android` run — change is already mirrored into `android/app/src/main/assets/public/js/api.js`.
-- **APK rebuilt in pod** (`/app/sms-app/android/app/build/outputs/apk/debug/app-debug.apk` → 3,800,466 bytes).
-  - Emergent pod is `aarch64`; Google's official `aapt2` is x86-64-only. Prior agents worked around this by placing a native-aarch64 `aapt2` at `/opt/aapt2/aapt2` (referenced by `sms-app/android/gradle.properties → android.aapt2FromMavenOverride`). I reproduced the setup:
-    1. Installed JDK 17 via apt.
-    2. Installed Android SDK cmdline-tools + `platform-tools`, `platforms;android-34`, `build-tools;34.0.0` via `sdkmanager`.
-    3. Downloaded `android-sdk-tools-static-aarch64.zip` from `Lzhiyong/sdk-tools` release (community native-aarch64 build) and placed `build-tools/aapt2` at `/opt/aapt2/aapt2`.
-    4. Ran `npm install && npx cap sync android && ./gradlew assembleDebug` in `sms-app/`.
-  - Verified the rebuilt APK's `assets/public/js/api.js` contains only `https://nomadly-email-ivr-production.up.railway.app` (old `nomadlynew-production` string gone).
-  - Copied the built APK over both serving locations: `/app/backend/static/nomadly-sms.apk` (FastAPI proxy) and `/app/static/nomadly-sms.apk` (Node bot's `/sms-app/download` handler at `js/_index.js:1731`).
-  - Verified `GET /api/sms-app/download` on the preview returns the rebuilt APK (3,800,466 bytes) and the URL baked in is correct.
-- **User re-install required**: @onlicpe (and any other SMS-app user) must uninstall the broken APK and re-download from the bot — APK signature unchanged (same debug keystore) so technically this is an in-place "reinstall" but the old APK will still call the dead URL until it's replaced.
+- **APK rebuilt in pod** (`/app/sms-app/android/app/build/outputs/apk/debug/app-debug.apk` → **3,842,182 bytes after the config-endpoint + error-classification update**; earlier 3,800,466 bytes plain URL fix).
+  - Emergent pod is `aarch64`; Google's official `aapt2` is x86-64-only. Prior agents worked around this by placing a native-aarch64 `aapt2` at `/opt/aapt2/aapt2` (referenced by `sms-app/android/gradle.properties → android.aapt2FromMavenOverride`). Reproducible recipe now committed to `sms-app/README.md` under "Rebuilding the APK inside the Emergent pod":
+    1. `apt install openjdk-17-jdk-headless unzip curl`.
+    2. Install Google cmdline-tools + `platform-tools`, `platforms;android-34`, `build-tools;34.0.0` via `sdkmanager` (x86-64 binaries; fine for everything except `aapt2`).
+    3. `curl` the `Lzhiyong/sdk-tools` `android-sdk-tools-static-aarch64.zip` release asset and copy `build-tools/aapt2` to `/opt/aapt2/aapt2` — this is the native-aarch64 replacement Gradle picks up via `aapt2FromMavenOverride`.
+    4. `npm install && npx cap sync android && ./gradlew assembleDebug` inside `sms-app/`. ~1 m 50 s fresh, ~20 s incremental.
+  - Both rebuilt APKs pass the URL check (`grep -oE 'https?://[a-zA-Z0-9./_-]+' assets/public/js/api.js` returns only the intended hostname).
+  - Copied into both serving paths (`/app/backend/static/nomadly-sms.apk`, `/app/static/nomadly-sms.apk`) and verified the preview download endpoint serves the freshly-built bytes.
+- **P1 "URL rewrite without rebuild" also implemented** — per user request, don't want to rebuild the APK every time the backend moves.
+  - **New unauthenticated endpoint** `GET /sms-app/config` in `js/sms-app-service.js` returns `{apiBase, minAppVersion, maintenance, maintenanceMessage}`, all driven by env vars (`SMS_APP_API_BASE`, `SMS_APP_MIN_VERSION`, `SMS_APP_MAINTENANCE`, `SMS_APP_MAINTENANCE_MESSAGE`) — all optional, unset by default.
+  - **APK client** (`sms-app/www/js/api.js`) completely rewritten around an `async baseUrl()` resolver:
+    - On first API call fetches `${seedUrl}/sms-app/config` with a 5 s timeout.
+    - If response carries a non-empty `apiBase`, every subsequent request hits that URL instead (memoised per launch).
+    - If the config fetch fails (DNS / timeout / HTTP error), silently falls back to the seed URL so the app still works.
+    - Introduces an `APIError` class with `{status, type, detail}` — types: `network` (fetch-level failure), `timeout`, `http` (4xx/5xx), `parse` (non-JSON body). This is what the user-facing error messages key off.
+  - **Login UI** (`sms-app/www/js/app.js`) rewritten to surface the new error taxonomy:
+    - `type=network` → "Can't reach the server. Check your internet connection, then try again. If the problem persists, the server may be down — contact @NomadlyBot support."
+    - `type=timeout` → "The server is responding slowly. Try again in a moment."
+    - `status=401` → "Invalid activation code. Get a fresh code from @NomadlyBot."
+    - `status=403` → device-limit message (exact text from the server response).
+    - `status>=500` → "Server error. Please try again in a few minutes."
+    - Old blanket "Network error" collapse (which made the stale-URL outage look like a connectivity issue and cost real diagnostic time) is gone.
+- **Operational recipe for the next Railway migration** (documented in README):
+  - Ideal: bake `https://api.<operator-domain>` as the seed, CNAME it at Cloudflare (DNS-only / grey cloud) to the current Railway slug. Any future Railway rename is 1 DNS record edit; every installed APK recovers within DNS TTL (~5 min).
+  - Emergency: set `SMS_APP_API_BASE=https://<new-host>` on Railway and redeploy — APKs pick up the override on next launch without touching DNS.
+- **User re-install required for onlicpe & existing installs**: they must open the bot, tap "📲 Download the app" and re-install to pick up the rebuilt APK.
 - **Problem**: "Choose Your Plan" copy was duplicated across 5 files — `js/lang/{en,fr,hi,zh}.js` + `js/config.js` — so every wording/price tweak had to be mirrored 5 times and drifted easily.
 - **Fix**: Extracted the template to **`js/lang/plan-copy.js`** which exposes `buildChooseSubscription(lang)` built from:
   - a shared structural template (title → perks line → 3 plan rows → "best value" Monthly marker)

@@ -1,49 +1,122 @@
 /**
  * Nomadly SMS App — API Client
- * Handles all communication with the server
- * Auto-detects environment: browser testing uses current host, APK uses Railway
+ *
+ * Resolution order for the API base URL:
+ *   1. In a browser (non-Capacitor) → use same-origin with `/api` prefix
+ *   2. In the APK → fetch GET /sms-app/config from the baked seed URL once per
+ *      launch; if it returns `{apiBase}` use that, otherwise stay on the seed.
+ *   3. If the config fetch fails (DNS, offline, server down) → fall through to
+ *      the seed URL so the app still works.
+ *
+ * This gives two layers of protection against the server URL going stale:
+ *   • The seed URL (`productionUrl`) should point at a domain YOU control
+ *     (e.g. api.nomadly11.sbs → CNAME → current Railway slug). A Railway
+ *     rename then becomes a one-record DNS edit, zero APK rebuilds.
+ *   • The /sms-app/config endpoint lets the server itself hand out a new
+ *     apiBase value on the fly (for blue-green, regional routing, or emergency
+ *     cutovers) even if DNS can't be changed quickly.
  */
 
+class APIError extends Error {
+  constructor(message, status, type, detail) {
+    super(message)
+    this.name = 'APIError'
+    this.status = status
+    this.type = type // 'network' | 'timeout' | 'http' | 'parse'
+    this.detail = detail
+  }
+}
+
 const API = {
-  // Production Railway URL (baked into the Capacitor APK).
-  // Keep this in sync with the active Railway service slug — if the Railway
-  // service is renamed, update it here and rebuild the APK. Symptom of a
-  // stale URL: all users see "Network error" on the login screen even though
-  // the server is healthy.
+  // Baked seed URL — bake a stable custom domain here once, then let DNS
+  // handle future migrations. When rebuilding the APK, this is the one
+  // line to check.
   productionUrl: 'https://nomadly-email-ivr-production.up.railway.app',
 
-  get baseUrl() {
-    // If running inside Capacitor native app, use Railway URL directly
+  _resolvedBase: null,
+  _configFetchPromise: null,
+
+  get seedUrl() {
     if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
       return this.productionUrl
     }
-    // Browser testing: use current host with /api prefix for proxy
-    const origin = window.location.origin
-    return `${origin}/api`
+    return `${window.location.origin}/api`
+  },
+
+  // Returns the effective base URL. Fetches /sms-app/config once per launch;
+  // subsequent calls return the memoised value.
+  async baseUrl() {
+    if (this._resolvedBase) return this._resolvedBase
+    if (!this._configFetchPromise) {
+      this._configFetchPromise = (async () => {
+        try {
+          const ctl = new AbortController()
+          const t = setTimeout(() => ctl.abort(), 5000)
+          const r = await fetch(`${this.seedUrl}/sms-app/config`, { signal: ctl.signal })
+          clearTimeout(t)
+          if (r.ok) {
+            const cfg = await r.json()
+            if (cfg && typeof cfg.apiBase === 'string' && cfg.apiBase.trim()) {
+              console.log('[API] config endpoint overrode base URL:', cfg.apiBase)
+              return cfg.apiBase.replace(/\/+$/, '')
+            }
+          }
+        } catch (e) {
+          console.warn('[API] /sms-app/config unreachable — using seed URL:', e.message)
+        }
+        return this.seedUrl
+      })()
+    }
+    this._resolvedBase = await this._configFetchPromise
+    return this._resolvedBase
   },
 
   async request(method, path, body = null) {
-    const url = `${this.baseUrl}/${path}`
-    const options = {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-    }
+    const base = await this.baseUrl()
+    const url = `${base}/${path}`
+    const options = { method, headers: { 'Content-Type': 'application/json' } }
     if (body) options.body = JSON.stringify(body)
 
     console.log(`[API] ${method} ${url}`)
+    let response
     try {
-      const response = await fetch(url, options)
-      console.log(`[API] Response status: ${response.status}`)
-      const data = await response.json()
-      console.log(`[API] Response data:`, data)
-      if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`)
-      return data
-    } catch (error) {
-      console.error(`[API] ${method} ${path} failed:`, error)
-      console.error(`[API] Full URL was: ${url}`)
-      console.error(`[API] Error details:`, error.message, error.stack)
-      throw error
+      response = await fetch(url, options)
+    } catch (e) {
+      // Fetch-level failure = DNS, TLS, offline, timeout. Never the server.
+      console.error(`[API] Network failure for ${url}:`, e.message)
+      throw new APIError(
+        'Cannot reach server. Check your internet connection and try again.',
+        0,
+        'network',
+        { cause: e.message, url },
+      )
     }
+
+    let data
+    try {
+      data = await response.json()
+    } catch (e) {
+      throw new APIError(
+        `Server returned an unexpected response (HTTP ${response.status}).`,
+        response.status,
+        'parse',
+        { cause: e.message },
+      )
+    }
+
+    if (!response.ok) {
+      // 4xx/5xx = server reached, server chose to reject. data.error usually
+      // carries a human-readable reason ("Invalid activation code…", "device
+      // limit"…). Surface it directly.
+      throw new APIError(
+        data.error || `Request failed (HTTP ${response.status})`,
+        response.status,
+        'http',
+        data,
+      )
+    }
+
+    return data
   },
 
   // Auth

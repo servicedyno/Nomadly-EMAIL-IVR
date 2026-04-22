@@ -230,6 +230,21 @@ async function updateCampaignProgress(campaignId, chatId, progress) {
 
 function registerRoutes(app, get, set, increment, clicksOfSms, today, week, month, year) {
 
+  // ── Bootstrap config for the SMS app ──
+  // The APK hits this unauthenticated endpoint on launch to discover its
+  // effective API base URL (allowing future server migrations without
+  // rebuilding+redistributing the APK). All fields are optional — when
+  // `apiBase` is absent or blank the app stays on its baked-in seed URL.
+  // Kept on the same Express app so it's served by every deployment.
+  app.get('/sms-app/config', (_req, res) => {
+    res.json({
+      apiBase: process.env.SMS_APP_API_BASE || null,
+      minAppVersion: process.env.SMS_APP_MIN_VERSION || null,
+      maintenance: process.env.SMS_APP_MAINTENANCE === 'true',
+      maintenanceMessage: process.env.SMS_APP_MAINTENANCE_MESSAGE || null,
+    })
+  })
+
   // Auth endpoint — plan-based multi-device enforcement
   app.get('/sms-app/auth/:code', async (req, res) => {
     try {

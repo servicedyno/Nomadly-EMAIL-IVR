@@ -151,7 +151,6 @@ const App = {
     console.log('[Login] Starting login for code:', code)
     console.log('[Login] Is Capacitor?', window.Capacitor ? 'YES' : 'NO')
     console.log('[Login] Is Native?', window.Capacitor?.isNativePlatform ? window.Capacitor.isNativePlatform() : 'N/A')
-    console.log('[Login] API baseUrl:', API.baseUrl)
     this.setLoginLoading(true)
     try {
       console.log('[Login] Calling API.authenticate...')
@@ -168,19 +167,24 @@ const App = {
         this.showLoginError(result.error || 'Invalid code')
       }
     } catch (e) {
-      console.error('[Login] Exception caught:', e)
-      console.error('[Login] Error message:', e.message)
-      console.error('[Login] Error stack:', e.stack)
-      // Handle device limit error with clear message
-      const msg = e.message || ''
-      if (msg.includes('device') || msg.includes('Logout')) {
-        this.showLoginError(msg)
-      } else if (msg.includes('403') || msg.includes('limit')) {
-        this.showLoginError('Device limit reached. Logout from another device or type /resetlogin in @NomadlyBot.')
-      } else if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
-        this.showLoginError('Network error. Check your internet connection and try again.')
+      console.error('[Login] Exception:', e)
+      // APIError (from api.js) carries `type` — use it to pick a precise message.
+      // This replaces the old "any failure ⇒ Network error" collapse that made
+      // outages (like a stale Railway hostname) look like a connectivity issue.
+      const type = e && e.type
+      const status = e && e.status
+      if (type === 'network') {
+        this.showLoginError(`Can't reach the server. Check your internet connection, then try again. If the problem persists, the server may be down — contact @NomadlyBot support.`)
+      } else if (type === 'timeout') {
+        this.showLoginError('The server is responding slowly. Try again in a moment.')
+      } else if (status === 401) {
+        this.showLoginError(e.message || 'Invalid activation code. Get a fresh code from @NomadlyBot.')
+      } else if (status === 403) {
+        this.showLoginError(e.message || 'Device limit reached. Logout from another device or type /resetlogin in @NomadlyBot.')
+      } else if (status >= 500) {
+        this.showLoginError('Server error. Please try again in a few minutes.')
       } else {
-        this.showLoginError(`Connection failed: ${msg || 'Unknown error'}`)
+        this.showLoginError(e.message || 'Login failed. Please try again.')
       }
     } finally {
       this.setLoginLoading(false)
