@@ -12112,7 +12112,9 @@ ${message.replace(/\n/g, '<br>')}
         console.log(`[VPS] Password reset successful - ChatId: ${chatId}, Instance: ${instanceId}, Name: ${userVPSDetails.name}`)
         
         // Send new credentials to user with WARNING
-        const username = userVPSDetails.isRDP || userVPSDetails.osType === 'Windows' ? 'Administrator' : 'root'
+        const username = userVPSDetails.isRDP || userVPSDetails.osType === 'Windows' 
+          ? 'Administrator' 
+          : (userVPSDetails.defaultUser || 'root')
         send(chatId, vp.passwordResetSuccess(
           userVPSDetails.name,
           userVPSDetails.host,

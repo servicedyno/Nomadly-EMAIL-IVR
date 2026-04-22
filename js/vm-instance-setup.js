@@ -650,6 +650,7 @@ async function createVPSInstance(telegramId, vpsDetails) {
         osType: vpsData.osType,
         isRDP: isRDP,
         imageId: imageId,
+        defaultUser: instance.defaultUser || (isRDP ? 'admin' : 'root'),
         start_time: now,
         end_time: expiresAt,
         plan: 'Monthly',
@@ -814,7 +815,7 @@ async function fetchVPSDetails(telegramId, vpsId) {
         subscriptionEnd: localRecord?.end_time || new Date(),
         osId: { os_name: isRDP ? 'Windows Server' : (live.imageId || 'Ubuntu') }
       },
-      defaultUser: isRDP ? 'admin' : 'root',
+      defaultUser: live.defaultUser || (isRDP ? 'admin' : 'root'),
 
       // ── Compat fields required by lang/en.js selectedVpsData template ──
       planDetails: {
@@ -934,9 +935,11 @@ async function setVpsSshCredentials(host) {
   try {
     // Find instance by IP
     let instanceId = null
+    let defaultUser = 'root'
     if (_vpsPlansOf) {
       const record = await _vpsPlansOf.findOne({ host: host })
       instanceId = record?.contaboInstanceId
+      defaultUser = record?.defaultUser || 'root'
     }
 
     if (!instanceId) {
@@ -944,6 +947,8 @@ async function setVpsSshCredentials(host) {
       const instances = await contabo.listInstances()
       const match = instances.find(i => i.ipConfig?.v4?.ip === host)
       instanceId = match?.instanceId
+      // Use defaultUser from Contabo API response
+      if (match?.defaultUser) defaultUser = match.defaultUser
     }
 
     if (instanceId) {
@@ -951,7 +956,7 @@ async function setVpsSshCredentials(host) {
       return {
         success: true,
         data: {
-          username: 'root',
+          username: defaultUser,
           password: password
         }
       }
@@ -961,7 +966,7 @@ async function setVpsSshCredentials(host) {
     return {
       success: true,
       data: {
-        username: 'root',
+        username: defaultUser,
         password: generateRandomPassword()
       }
     }
