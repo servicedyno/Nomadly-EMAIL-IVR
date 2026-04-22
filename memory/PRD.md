@@ -50,7 +50,20 @@ Multi-service platform (Telegram bot + React frontend + Node.js backend) managin
 - P2: Add monitoring for OpenExchangeRates API
 - Backlog: Refactor `_index.js` into feature modules
 
-## Feb 2026 — Plan-Copy Single Source of Truth (Consolidation)
+## Feb 2026 — SMS App "Network Error" on Login (stale Railway hostname baked into APK)
+- **Reported**: User `@onlicpe` (chatId `7080940684`) on Samsung can't log into Nomadly SMS App — shows "Network error. Check your internet connection and try again." immediately after tapping **Connect to Account**.
+- **Diagnosis via Railway GraphQL logs**:
+  - Server **never receives** any `/sms-app/auth/7080940684` request (0 hits across 500-line log tail on the active deployment). The failure is client-side; the server is healthy and `[SmsApp] Service initialized` / `Routes registered` on startup.
+  - Extracted the APK (`backend/static/nomadly-sms.apk`) and read `assets/public/js/api.js`: `productionUrl: 'https://nomadlynew-production.up.railway.app'` — hardcoded.
+  - Direct probe of that hostname returns **HTTP 404 "Application not found"** (Railway response for a renamed/removed service slug).
+  - The Railway service is now served at **`nomadly-email-ivr-production.up.railway.app`** (matches `SELF_URL` env var on the live service). Probing that URL with the exact user's endpoint returns HTTP 200 with valid user `onlicpe`, 100-SMS trial active.
+  - The referenced `Moxxcompany/NomadlySMSfix` repo is a **different app** (React Native + native Kotlin `MySendSmsModule`), not the current Capacitor build — unrelated to this issue. The "Samsung device" framing was misleading; the stale URL breaks every device equally.
+- **Root cause**: Railway service slug was renamed from `nomadlynew-production` → `nomadly-email-ivr-production`, but the APK (Capacitor web bundle) still carries the old hostname. Every installed APK globally is dead until the APK is rebuilt with the new URL.
+- **Source fix applied** (`/app/sms-app`):
+  - `www/js/api.js` — `productionUrl` updated to `https://nomadly-email-ivr-production.up.railway.app` + comment warning that Railway slugs change on rename.
+  - `README.md` — 3 references updated (Architecture, Server API Endpoints, Railway Deployment sections) with a warning note.
+  - `npx cap sync android` run — change is already mirrored into `android/app/src/main/assets/public/js/api.js`.
+- **APK rebuild NOT done in pod**: Emergent pod is `aarch64`; Google's `aapt2` build-tool is `x86-64` only. Even with `qemu-user-static` + `libc6:amd64`, `aapt2` runs flaky (silent exit 1). Rebuild must be done on a dev machine / CI where Android SDK runs natively (command sequence is documented in `sms-app/README.md` — `npx cap sync android && cd android && ./gradlew assembleDebug`). After rebuild, replace `backend/static/nomadly-sms.apk` (and `static/nomadly-sms.apk`) with the new `app-debug.apk` and redeploy so the `/sms-app/download` endpoint serves the fixed APK.
 - **Problem**: "Choose Your Plan" copy was duplicated across 5 files — `js/lang/{en,fr,hi,zh}.js` + `js/config.js` — so every wording/price tweak had to be mirrored 5 times and drifted easily.
 - **Fix**: Extracted the template to **`js/lang/plan-copy.js`** which exposes `buildChooseSubscription(lang)` built from:
   - a shared structural template (title → perks line → 3 plan rows → "best value" Monthly marker)

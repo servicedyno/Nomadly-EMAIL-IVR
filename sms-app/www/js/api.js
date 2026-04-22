@@ -5,8 +5,12 @@
  */
 
 const API = {
-  // Production Railway URL (used in Capacitor APK builds)
-  productionUrl: 'https://nomadlynew-production.up.railway.app',
+  // Production Railway URL (baked into the Capacitor APK).
+  // Keep this in sync with the active Railway service slug — if the Railway
+  // service is renamed, update it here and rebuild the APK. Symptom of a
+  // stale URL: all users see "Network error" on the login screen even though
+  // the server is healthy.
+  productionUrl: 'https://nomadly-email-ivr-production.up.railway.app',
 
   get baseUrl() {
     // If running inside Capacitor native app, use Railway URL directly

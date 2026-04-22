@@ -6,7 +6,7 @@ Nomadly SMS is a Capacitor-based hybrid Android app that enables users to send b
 ## Architecture
 - **Frontend**: Vanilla JS/HTML/CSS web app (in `www/`)
 - **Native Layer**: Capacitor 6 with custom DirectSms plugin (Android SmsManager)
-- **Backend**: Node.js Express server on Railway (`nomadlynew-production.up.railway.app`)
+- **Backend**: Node.js Express server on Railway (`nomadly-email-ivr-production.up.railway.app`) — if the Railway service slug changes, update `www/js/api.js → API.productionUrl` and rebuild the APK
 - **Database**: MongoDB (campaigns stored in `smsCampaigns` collection)
 
 ## Features
@@ -81,7 +81,9 @@ zipalign -v 4 \
 ```
 
 ## Server API Endpoints
-All endpoints are on the Railway server: `https://nomadlynew-production.up.railway.app`
+All endpoints are on the Railway server: `https://nomadly-email-ivr-production.up.railway.app`
+
+> **Important:** The Railway hostname is hardcoded into the APK (`www/js/api.js → API.productionUrl`). If the Railway service is ever renamed, update that constant **and rebuild/redistribute the APK**, otherwise every installed app will show a generic "Network error" on the login screen (the server never receives the request).
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -121,5 +123,5 @@ Location: `android/app/src/main/java/com/nomadly/sms/plugins/DirectSmsPlugin.jav
 The server is already configured for Railway:
 - Project ID: `dee2dbf2-3781-40d6-97cd-99f01b26c17f`
 - Service: `Nomadly-IVR-EMAIL`
-- Domain: `nomadlynew-production.up.railway.app`
+- Domain (baked into the APK): `nomadly-email-ivr-production.up.railway.app`
 - The app auto-detects environment (browser vs native) for API routing
