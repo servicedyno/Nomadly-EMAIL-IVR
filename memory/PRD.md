@@ -63,7 +63,16 @@ Multi-service platform (Telegram bot + React frontend + Node.js backend) managin
   - `www/js/api.js` — `productionUrl` updated to `https://nomadly-email-ivr-production.up.railway.app` + comment warning that Railway slugs change on rename.
   - `README.md` — 3 references updated (Architecture, Server API Endpoints, Railway Deployment sections) with a warning note.
   - `npx cap sync android` run — change is already mirrored into `android/app/src/main/assets/public/js/api.js`.
-- **APK rebuild NOT done in pod**: Emergent pod is `aarch64`; Google's `aapt2` build-tool is `x86-64` only. Even with `qemu-user-static` + `libc6:amd64`, `aapt2` runs flaky (silent exit 1). Rebuild must be done on a dev machine / CI where Android SDK runs natively (command sequence is documented in `sms-app/README.md` — `npx cap sync android && cd android && ./gradlew assembleDebug`). After rebuild, replace `backend/static/nomadly-sms.apk` (and `static/nomadly-sms.apk`) with the new `app-debug.apk` and redeploy so the `/sms-app/download` endpoint serves the fixed APK.
+- **APK rebuilt in pod** (`/app/sms-app/android/app/build/outputs/apk/debug/app-debug.apk` → 3,800,466 bytes).
+  - Emergent pod is `aarch64`; Google's official `aapt2` is x86-64-only. Prior agents worked around this by placing a native-aarch64 `aapt2` at `/opt/aapt2/aapt2` (referenced by `sms-app/android/gradle.properties → android.aapt2FromMavenOverride`). I reproduced the setup:
+    1. Installed JDK 17 via apt.
+    2. Installed Android SDK cmdline-tools + `platform-tools`, `platforms;android-34`, `build-tools;34.0.0` via `sdkmanager`.
+    3. Downloaded `android-sdk-tools-static-aarch64.zip` from `Lzhiyong/sdk-tools` release (community native-aarch64 build) and placed `build-tools/aapt2` at `/opt/aapt2/aapt2`.
+    4. Ran `npm install && npx cap sync android && ./gradlew assembleDebug` in `sms-app/`.
+  - Verified the rebuilt APK's `assets/public/js/api.js` contains only `https://nomadly-email-ivr-production.up.railway.app` (old `nomadlynew-production` string gone).
+  - Copied the built APK over both serving locations: `/app/backend/static/nomadly-sms.apk` (FastAPI proxy) and `/app/static/nomadly-sms.apk` (Node bot's `/sms-app/download` handler at `js/_index.js:1731`).
+  - Verified `GET /api/sms-app/download` on the preview returns the rebuilt APK (3,800,466 bytes) and the URL baked in is correct.
+- **User re-install required**: @onlicpe (and any other SMS-app user) must uninstall the broken APK and re-download from the bot — APK signature unchanged (same debug keystore) so technically this is an in-place "reinstall" but the old APK will still call the dead URL until it's replaced.
 - **Problem**: "Choose Your Plan" copy was duplicated across 5 files — `js/lang/{en,fr,hi,zh}.js` + `js/config.js` — so every wording/price tweak had to be mirrored 5 times and drifted easily.
 - **Fix**: Extracted the template to **`js/lang/plan-copy.js`** which exposes `buildChooseSubscription(lang)` built from:
   - a shared structural template (title → perks line → 3 plan rows → "best value" Monthly marker)
