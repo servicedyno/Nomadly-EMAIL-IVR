@@ -309,41 +309,28 @@ ${CHAT_BOT_NAME}`,
  HIDE_SMS_APP === 'true'
  ? `<b>Choose Your Plan</b>
 
-✅ <b>All plans include:</b>
-🔗 Unlimited URL shortening
-🌐 Free 
-📱 Phone number validations with owner names
-📞 Cloud IVR access
+All plans: 🔗 Unlimited links · 📱 Validations w/ owner names · 📞 Cloud IVR
 
-<b>Daily</b> — $${PRICE_DAILY}
-${DAILY_PLAN_FREE_DOMAINS} domain · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations with phone owner names · Unlimited links
+🟢 <b>Daily — $${PRICE_DAILY}</b>
+  ${DAILY_PLAN_FREE_DOMAINS} domain · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations
 
-<b>Weekly</b> — $${PRICE_WEEKLY}
-${WEEKLY_PLAN_FREE_DOMAINS} domains · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations with phone owner names · Unlimited links
+🔵 <b>Weekly — $${PRICE_WEEKLY}</b>
+  ${WEEKLY_PLAN_FREE_DOMAINS} domains · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations
 
-<b>Monthly</b> — $${PRICE_MONTHLY}
-${MONTHLY_PLAN_FREE_DOMAINS} domains · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations with phone owner names · Unlimited links
-
-<i>All plans include free + unlimited URL shortening + phone owner names on all USA validations.</i>`
+⭐ <b>Monthly — $${PRICE_MONTHLY}</b> · best value
+  ${MONTHLY_PLAN_FREE_DOMAINS} domains · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations`
  : `<b>Choose Your Plan</b>
 
-✅ <b>All plans include:</b>
-🔗 Unlimited URL shortening
-🌐 Free 
-📱 Phone validations with owner names
-📧 BulkSMS campaigns
-📞 Cloud IVR access
+All plans: 🔗 Unlimited links · 📱 Validations w/ owner names · 📧 BulkSMS · 📞 Cloud IVR
 
-<b>Daily</b> — $${PRICE_DAILY}
-${DAILY_PLAN_FREE_DOMAINS} domain · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · Unlimited links + BulkSMS (3 devices)
+🟢 <b>Daily — $${PRICE_DAILY}</b>
+  ${DAILY_PLAN_FREE_DOMAINS} domain · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · 3 SMS devices
 
-<b>Weekly</b> — $${PRICE_WEEKLY}
-${WEEKLY_PLAN_FREE_DOMAINS} domains · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · Unlimited links + BulkSMS (10 devices)
+🔵 <b>Weekly — $${PRICE_WEEKLY}</b>
+  ${WEEKLY_PLAN_FREE_DOMAINS} domains · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · 10 SMS devices
 
-<b>Monthly</b> — $${PRICE_MONTHLY}
-${MONTHLY_PLAN_FREE_DOMAINS} domains · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · Unlimited links + BulkSMS (unlimited devices)
-
-<i>All plans include free + unlimited URL shortening + phone owner names on all USA validations.</i>`,
+⭐ <b>Monthly — $${PRICE_MONTHLY}</b> · best value
+  ${MONTHLY_PLAN_FREE_DOMAINS} domains · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · unlimited SMS devices`,
 
  askCoupon: usd =>
  `The price is $${usd}. Would you like to apply a coupon code? If you have one, please enter it now. Otherwise, you can press 'Skip'.`,
