@@ -57,7 +57,12 @@ function initSmsAppService(_db, _nameOf, _planEndingTime, _freeSmsCountOf, _logi
   // ─── Proactive SMS App version announcement to ALL bot users ───
   // When a new version is deployed, automatically notify all users (not just app users)
   const SMS_APP_VERSION = '2.6.1'
-  const SMS_APP_CHANGELOG = '• Sending reliability fix — messages now deliver consistently\n• New: Send Test SMS to your own number from Settings\n• Fixed internal version display'
+  // Human-first, conversational release note. Shown verbatim in the broadcast
+  // between the opening line and the download instructions.
+  const SMS_APP_RELEASE_NOTE =
+    `If your messages weren't sending in the last build, this release fixes it. ` +
+    `You'll also find a new one-tap "Send Test SMS" button in Settings so you ` +
+    `can verify delivery before running a real campaign.`
 
   ;(async () => {
     try {
@@ -78,12 +83,13 @@ function initSmsAppService(_db, _nameOf, _planEndingTime, _freeSmsCountOf, _logi
         { upsert: true }
       )
 
-      // Build the announcement message
-      const announcement = `📱 <b>SMS App Update v${SMS_APP_VERSION}</b>
+      // Build the announcement message (conversational, human-first)
+      const announcement =
+`Hey — a new Nomadly SMS update is ready (v${SMS_APP_VERSION}).
 
-${SMS_APP_CHANGELOG}
+${SMS_APP_RELEASE_NOTE}
 
-Go to 📱 <b>BulkSMS App</b> to download.`
+To grab it: open the main menu → tap 📧 <b>BulkSMS</b> → 📱 <b>Download App</b>.`
 
       // Get ALL bot users and broadcast
       const { sendMessageToAllUsers } = require('./utils')
