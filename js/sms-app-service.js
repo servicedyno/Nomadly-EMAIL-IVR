@@ -53,6 +53,65 @@ function initSmsAppService(_db, _nameOf, _planEndingTime, _freeSmsCountOf, _logi
   smsCampaigns.createIndex({ createdAt: -1 })
 
   console.log('[SmsApp] Service initialized')
+
+  // ─── Proactive SMS App version announcement to ALL bot users ───
+  // When a new version is deployed, automatically notify all users (not just app users)
+  const SMS_APP_VERSION = '2.5.0'
+  const SMS_APP_CHANGELOG = [
+    '✅ Fixed progress display going beyond 100%',
+    '✅ Fixed sent/failed counters not updating during sending',
+    '✅ Fixed "LEFT" counter showing negative numbers',
+    '✅ Fixed stale campaign data causing incorrect stats',
+    '✅ Better background service sync',
+  ].join('\n')
+
+  ;(async () => {
+    try {
+      const announcementsCol = db.collection('appAnnouncements')
+      const lastAnnounced = await announcementsCol.findOne({ _id: 'sms_app_version' })
+
+      if (lastAnnounced?.version === SMS_APP_VERSION) {
+        console.log(`[SmsApp] Version ${SMS_APP_VERSION} already announced — skipping broadcast`)
+        return
+      }
+
+      console.log(`[SmsApp] New version ${SMS_APP_VERSION} detected (last announced: ${lastAnnounced?.version || 'none'}). Broadcasting to ALL users...`)
+
+      // Mark as announced FIRST to prevent duplicate broadcasts on redeploy
+      await announcementsCol.updateOne(
+        { _id: 'sms_app_version' },
+        { $set: { version: SMS_APP_VERSION, announcedAt: new Date() } },
+        { upsert: true }
+      )
+
+      // Build the announcement message
+      const announcement = `📱 <b>Nomadly SMS App v${SMS_APP_VERSION} Released!</b>
+
+<b>What's new:</b>
+${SMS_APP_CHANGELOG}
+
+📲 <b>Update now:</b>
+1. Uninstall the old app
+2. Go to 📱 <b>BulkSMS App</b> to download the latest version
+3. Login with your activation code
+
+<i>This update fixes important issues with the sending progress display.</i>`
+
+      // Get ALL bot users and broadcast
+      const { sendMessageToAllUsers } = require('./utils')
+      const adminChatId = process.env.TELEGRAM_ADMIN_CHAT_ID || process.env.ADMIN_CHAT_ID || '5590563715'
+
+      // Small delay to let other services initialize
+      setTimeout(() => {
+        sendMessageToAllUsers(_bot, announcement, 'HTML', nameOf, adminChatId, db)
+          .then(() => console.log(`[SmsApp] Version ${SMS_APP_VERSION} announcement broadcast started`))
+          .catch(e => console.error(`[SmsApp] Announcement broadcast failed:`, e.message))
+      }, 30000) // 30s delay after startup
+
+    } catch (e) {
+      console.error('[SmsApp] Version announcement check failed:', e.message)
+    }
+  })()
 }
 
 // ─── Helper: get value from key-value collection ───
@@ -615,7 +674,7 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
     try {
       const chatId = req.params.chatId
       const userVersion = req.query.version || 'unknown'
-      const latestVersion = '2.4.1'
+      const latestVersion = '2.5.0'
       
       console.log(`[SmsApp] Sync request for chatId: ${chatId}, version: ${userVersion}`)
       
@@ -660,10 +719,11 @@ Your version: ${userVersion}
 Latest version: ${latestVersion}
 ${versionsBehind >= 2 ? `⚠️ You are <b>${versionsBehind} versions behind</b> — some features may not work correctly.\n` : ''}
 <b>Important fixes in this update:</b>
-✅ Fixed multi-line messages being split into fragments
-✅ Fixed trial SMS double-counting
-✅ Trial limit enforcement during sending
-✅ Better upgrade prompts
+✅ Fixed progress display going beyond 100%
+✅ Fixed sent/failed counters not updating during sending
+✅ Fixed "LEFT" counter showing negative numbers
+✅ Fixed stale campaign data causing incorrect stats
+✅ Better background service sync
 
 <b>To update:</b>
 1. ⚠️ <b>UNINSTALL</b> the current app first (Settings → Apps → Nomadly SMS → Uninstall)
