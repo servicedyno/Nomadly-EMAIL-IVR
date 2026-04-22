@@ -120,6 +120,7 @@ const user = {
  smsResetLogin: '🔓 Reset Login',
  smsManageDevices: '📱 Manage Devices',
  smsHowItWorks: '❓ How It Works',
+ smsAppSettings: '⚙️ SMS Settings',
  changeSetting: '🌍 Settings',
  changeLanguage: '🌍 Change Language',
  cloudPhone: '📞 Cloud IVR + SIP',

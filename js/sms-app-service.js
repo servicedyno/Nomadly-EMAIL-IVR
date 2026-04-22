@@ -51,19 +51,24 @@ function initSmsAppService(_db, _nameOf, _planEndingTime, _freeSmsCountOf, _logi
   smsCampaigns.createIndex({ chatId: 1 })
   smsCampaigns.createIndex({ chatId: 1, status: 1 })
   smsCampaigns.createIndex({ createdAt: -1 })
+  // Per-user SMS app prefs (default SIM, rotate, bg-service toggle, detected SIMs)
+  db.collection('userSmsPrefs').createIndex({ _id: 1 })
+  // Auto-throttle telemetry (written by the app when it drops/slows a SIM mid-campaign)
+  db.collection('smsThrottleEvents').createIndex({ chatId: 1, ts: -1 })
+  db.collection('smsThrottleEvents').createIndex({ ts: -1 })
 
   console.log('[SmsApp] Service initialized')
 
   // ─── Proactive SMS App version announcement to ALL bot users ───
   // When a new version is deployed, automatically notify all users (not just app users)
-  const SMS_APP_VERSION = '2.7.1'
+  const SMS_APP_VERSION = '2.7.2'
   // Human-first, conversational release note. Shown verbatim in the broadcast
   // between the opening line and the download instructions.
   const SMS_APP_RELEASE_NOTE =
-    `Your app now learns from every send: if a carrier starts rate-limiting one of ` +
-    `your SIMs mid-campaign, the app automatically pauses that SIM and keeps sending ` +
-    `from the others. Before each campaign, the app also checks past delivery rates ` +
-    `for the countries you're messaging and suggests auto-rotate if it looks risky.`
+    `You can now manage your SIM card preferences directly from the bot — tap ` +
+    `📧 BulkSMS → ⚙️ SMS Settings to pick a default SIM, enable auto-rotate, or ` +
+    `turn on background sending. When you create a campaign from the bot, you'll ` +
+    `also get to pick which SIM sends it.`
 
   ;(async () => {
     try {
@@ -215,6 +220,7 @@ async function createCampaign(chatId, data) {
     contacts: data.contacts || [],
     status: 'draft',
     smsGapTime: data.smsGapTime || 5,
+    simSelection: data.simSelection || 'default',
     scheduledAt: data.scheduledAt || null,
     deviceId: data.deviceId || null,
     createdAt: new Date(),
@@ -242,7 +248,7 @@ async function getCampaign(campaignId) {
 }
 
 async function updateCampaign(campaignId, chatId, updates) {
-  const allowed = ['name', 'content', 'contacts', 'smsGapTime', 'scheduledAt', 'status', 'deviceId']
+  const allowed = ['name', 'content', 'contacts', 'smsGapTime', 'scheduledAt', 'status', 'deviceId', 'simSelection']
   const safeUpdates = {}
   for (const key of allowed) {
     if (updates[key] !== undefined) safeUpdates[key] = updates[key]
@@ -669,7 +675,7 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
     try {
       const chatId = req.params.chatId
       const userVersion = req.query.version || 'unknown'
-      const latestVersion = '2.7.1'
+      const latestVersion = '2.7.2'
       
       console.log(`[SmsApp] Sync request for chatId: ${chatId}, version: ${userVersion}`)
       
@@ -746,13 +752,15 @@ ${versionsBehind >= 2 ? `⚠️ You are <b>${versionsBehind} versions behind</b>
       }
 
       const campaigns = await getCampaigns(chatId)
+      const userPrefs = await db.collection('userSmsPrefs').findOne({ _id: String(chatId) }, { projection: { _id: 0 } })
       console.log(`[SmsApp] Sync for ${chatId} - canUseSms: ${authResult.user.canUseSms}, isFreeTrial: ${authResult.user.isFreeTrial}, freeSmsUsed: ${authResult.user.freeSmsUsed}, freeSmsRemaining: ${authResult.user.freeSmsRemaining}, isSubscribed: ${authResult.user.isSubscribed}`)
       
       res.json({
         user: authResult.user,
         campaigns,
         serverTime: Date.now(),
-        latestVersion
+        latestVersion,
+        userPrefs: userPrefs || null,
       })
     } catch (error) {
       console.log(`[SmsApp] Sync error:`, error.message)
@@ -891,6 +899,125 @@ ${versionsBehind >= 2 ? `⚠️ You are <b>${versionsBehind} versions behind</b>
     }
   })
 
+  // ─── App → server: report detected SIMs ───
+  // Upserts the user's `userSmsPrefs` doc with the current SIM list so the
+  // Telegram bot can show "Default SIM" pickers without the app being open.
+  app.post('/sms-app/sims/:chatId', async (req, res) => {
+    try {
+      const chatId = String(req.params.chatId)
+      const authResult = await authenticateUser(chatId)
+      if (!authResult.valid) return res.status(401).json({ error: authResult.error })
+
+      const sims = Array.isArray(req.body?.sims) ? req.body.sims.slice(0, 10) : []
+      // Sanitize — never trust client keys beyond the ones we need
+      const clean = sims.map(s => ({
+        subscriptionId: Number(s.subscriptionId),
+        slotIndex: typeof s.slotIndex === 'number' ? s.slotIndex : 0,
+        carrierName: String(s.carrierName || '').slice(0, 64),
+        displayName: String(s.displayName || '').slice(0, 64),
+      })).filter(s => !Number.isNaN(s.subscriptionId))
+
+      await db.collection('userSmsPrefs').updateOne(
+        { _id: chatId },
+        { $set: { sims: clean, simsUpdatedAt: new Date() } },
+        { upsert: true }
+      )
+      res.json({ ok: true, count: clean.length })
+    } catch (error) {
+      console.log(`[SmsApp] sims-report error:`, error.message)
+      res.status(500).json({ error: error.message })
+    }
+  })
+
+  // ─── Get / update user SMS prefs (default SIM, rotate, bg-service) ───
+  app.get('/sms-app/prefs/:chatId', async (req, res) => {
+    try {
+      const chatId = String(req.params.chatId)
+      const authResult = await authenticateUser(chatId)
+      if (!authResult.valid) return res.status(401).json({ error: authResult.error })
+      const doc = await db.collection('userSmsPrefs').findOne({ _id: chatId }, { projection: { _id: 0 } })
+      res.json(doc || { defaultSubscriptionId: -1, autoRotate: false, bgServiceEnabled: false, sims: [] })
+    } catch (error) {
+      console.log(`[SmsApp] prefs-get error:`, error.message)
+      res.status(500).json({ error: error.message })
+    }
+  })
+
+  app.put('/sms-app/prefs/:chatId', async (req, res) => {
+    try {
+      const chatId = String(req.params.chatId)
+      const authResult = await authenticateUser(chatId)
+      if (!authResult.valid) return res.status(401).json({ error: authResult.error })
+
+      const body = req.body || {}
+      const update = { updatedAt: new Date() }
+      if (body.defaultSubscriptionId !== undefined) {
+        const n = Number(body.defaultSubscriptionId)
+        if (!Number.isNaN(n)) update.defaultSubscriptionId = n
+      }
+      if (body.autoRotate !== undefined) update.autoRotate = !!body.autoRotate
+      if (body.bgServiceEnabled !== undefined) update.bgServiceEnabled = !!body.bgServiceEnabled
+      if (Object.keys(update).length === 1) return res.status(400).json({ error: 'No valid fields to update' })
+
+      await db.collection('userSmsPrefs').updateOne({ _id: chatId }, { $set: update }, { upsert: true })
+      const doc = await db.collection('userSmsPrefs').findOne({ _id: chatId }, { projection: { _id: 0 } })
+      res.json(doc || {})
+    } catch (error) {
+      console.log(`[SmsApp] prefs-put error:`, error.message)
+      res.status(500).json({ error: error.message })
+    }
+  })
+
+  // ─── App → server: report auto-throttle decisions ───
+  // Called when the app drops a SIM from rotation or slows the send rate
+  // because carrier rate-limits were detected. Feeds admin analytics.
+  app.post('/sms-app/throttle-events/:chatId', async (req, res) => {
+    try {
+      const chatId = String(req.params.chatId)
+      const authResult = await authenticateUser(chatId)
+      if (!authResult.valid) return res.status(401).json({ error: authResult.error })
+
+      const { action, subscriptionId, simCarrier, carrierPrefix, windowFailures, campaignId, appVersion } = req.body || {}
+      if (action !== 'drop' && action !== 'slow') return res.status(400).json({ error: 'Invalid action' })
+
+      await db.collection('smsThrottleEvents').insertOne({
+        chatId,
+        action,
+        subscriptionId: typeof subscriptionId === 'number' ? subscriptionId : -1,
+        simCarrier: String(simCarrier || '').slice(0, 64) || null,
+        carrierPrefix: String(carrierPrefix || '').slice(0, 4) || null,
+        windowFailures: typeof windowFailures === 'number' ? windowFailures : null,
+        campaignId: campaignId || null,
+        appVersion: appVersion || null,
+        ts: new Date()
+      })
+      console.log(`[SmsApp] throttle-event user=${chatId} action=${action} sim=${simCarrier || '?'} pref=${carrierPrefix || '?'}`)
+      res.json({ ok: true })
+    } catch (error) {
+      console.log(`[SmsApp] throttle-event error:`, error.message)
+      res.status(500).json({ error: error.message })
+    }
+  })
+
+  // Helper exported for the Telegram bot ─ fetch prefs + sims in one call.
+  module.exports.getUserSmsPrefs = async function(chatId) {
+    try {
+      return (await db.collection('userSmsPrefs').findOne({ _id: String(chatId) })) || null
+    } catch { return null }
+  }
+  module.exports.setUserSmsPrefs = async function(chatId, patch) {
+    try {
+      const update = { updatedAt: new Date() }
+      for (const [k, v] of Object.entries(patch || {})) {
+        if (['defaultSubscriptionId', 'autoRotate', 'bgServiceEnabled'].includes(k)) update[k] = v
+      }
+      await db.collection('userSmsPrefs').updateOne({ _id: String(chatId) }, { $set: update }, { upsert: true })
+      return await db.collection('userSmsPrefs').findOne({ _id: String(chatId) })
+    } catch (e) {
+      console.log('[SmsApp] setUserSmsPrefs failed:', e.message); return null
+    }
+  }
+
   // ── Diagnostics endpoint — visibility into what's happening per user ──
   app.get('/sms-app/diagnostics/:chatId', async (req, res) => {
     try {
@@ -979,4 +1106,7 @@ module.exports = {
   getActiveDevices,
   DEVICE_LIMITS,
   getDeviceLimit,
+  // Bot-facing helpers — populated inside initSmsAppService once `db` is ready.
+  getUserSmsPrefs: async () => null,
+  setUserSmsPrefs: async () => null,
 }

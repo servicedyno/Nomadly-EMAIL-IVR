@@ -174,12 +174,30 @@ const API = {
     return this.request('GET', `sms-app/carrier-stats?prefixes=${q}`)
   },
 
+  // Report detected SIMs so the Telegram bot can manage them
+  async reportSims(chatId, sims) {
+    return this.request('POST', `sms-app/sims/${chatId}`, { sims })
+  },
+
+  // Per-user SMS prefs stored server-side (bot can edit them too)
+  async getUserPrefs(chatId) {
+    return this.request('GET', `sms-app/prefs/${chatId}`)
+  },
+  async updateUserPrefs(chatId, patch) {
+    return this.request('PUT', `sms-app/prefs/${chatId}`, patch)
+  },
+
+  // Auto-throttle telemetry — drops/slows per campaign
+  async reportThrottleEvent(chatId, data) {
+    return this.request('POST', `sms-app/throttle-events/${chatId}`, data)
+  },
+
   updateDeviceName(code, deviceId, deviceName) {
     return this.request('PUT', 'sms-app/device/name', { code, deviceId, deviceName })
   },
 
   // Full sync
-  async sync(chatId, appVersion = '2.7.1') {
+  async sync(chatId, appVersion = '2.7.2') {
     return this.request('GET', `sms-app/sync/${chatId}?version=${encodeURIComponent(appVersion)}`)
   },
 }

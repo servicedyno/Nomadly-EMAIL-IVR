@@ -257,3 +257,60 @@ Follow-on to v2.7.0: turns the newly-collected `testSmsLogs` data into an active
 `sms-app/www/index.html` (precheck banner slot + version meta/setVersion),  
 `sms-app/www/js/api.js` (`getCarrierStats()` + sync version),  
 `sms-app/www/js/app.js` (`_runCarrierPrecheck`, `_enableAutoRotateFromPrecheck`, `_recordSimOutcome`, `_applyAutoThrottle`, `_simLabelForId`, throttle-aware sendNext + timer, sending-state init for `simStats`/`throttledSims`/`throttleMultiplier`).
+
+
+## Feb 2026 — SMS App v2.7.2 (Bot-Managed SIM Settings + Per-Campaign SIM Picker)
+
+Extends v2.7.x bot ↔ app parity so users can manage SIM prefs without opening the app.
+
+### New server collections
+- **`userSmsPrefs`**: per-user `{_id: chatId, defaultSubscriptionId, autoRotate, bgServiceEnabled, sims: [{subscriptionId, slotIndex, carrierName, displayName}], simsUpdatedAt, updatedAt}`. Acts as the source of truth for SIM prefs; the app syncs local storage against this on every startup.
+- **`smsThrottleEvents`**: per-throttle-decision `{chatId, action: 'drop'|'slow', subscriptionId, simCarrier, carrierPrefix, windowFailures, campaignId, appVersion, ts}`. Aggregated in admin `/testlogs`.
+
+### New server endpoints (auth-gated via activation-code match)
+- `POST /api/sms-app/sims/:chatId` — app reports detected SIMs (upsert into `userSmsPrefs`).
+- `GET /api/sms-app/prefs/:chatId` — return current prefs.
+- `PUT /api/sms-app/prefs/:chatId` — update prefs; accepts `{defaultSubscriptionId?, autoRotate?, bgServiceEnabled?}`.
+- `POST /api/sms-app/throttle-events/:chatId` — log each auto-throttle decision.
+- `/sms-app/sync` response extended with `userPrefs` so app can apply bot-made changes on startup.
+- Exported helpers `smsAppService.getUserSmsPrefs()` / `setUserSmsPrefs()` for bot handlers.
+
+### App-side wiring (v2.7.2)
+- `refreshSims()` now pushes the detected SIM list to `/sims/:chatId` (best-effort).
+- `saveDefaultSim()` / `saveBgServiceToggle()` mirror the change to server via `API.updateUserPrefs`.
+- `syncData()` applies `data.userPrefs` to local storage — bot-side changes propagate on next app open.
+- `_resolveCampaignSim()` now also honors a user-default `autoRotate` flag when the campaign has no explicit `simSelection` and ≥ 2 SIMs are present.
+- `_applyAutoThrottle()` fires `API.reportThrottleEvent()` for every `drop` / `slow` decision.
+- New `api.js` methods: `reportSims`, `getUserPrefs`, `updateUserPrefs`, `reportThrottleEvent`.
+
+### Bot UX
+- **New BulkSMS menu button**: `⚙️ SMS Settings` (between Manage Devices and Reset Login). Also triggerable via `/smssettings`.
+- **Settings message** lists detected SIMs + 3 toggles with inline buttons:
+  - SIM row: `[Default] [SIM 1] [SIM 2] …` — tap to set default.
+  - `🔁 Auto-rotate: ON/OFF` — tap to toggle.
+  - `📲 Background: ON/OFF` — tap to toggle.
+  - `🔄 Refresh` — re-read prefs.
+  - If no SIMs reported yet: graceful hint ("Open the app once so we can detect your SIMs").
+- **Per-campaign SIM picker**: after user taps "Send Now" or schedules a campaign from the bot, a second inline-keyboard message appears: `[Use default] [🔁 Auto-rotate] [SIM 1 — …] [SIM 2 — …]`. Selection is saved via `updateCampaign(..., { simSelection })`.
+- **Callback-query handlers**: `smsprefs:sim:<id>`, `smsprefs:rotate:<0|1>`, `smsprefs:bg:<0|1>`, `smsprefs:refresh`, `campsim:<campaignId>:<value>`.
+- **`/testlogs` admin command** now also reports `Auto-throttle events` — last-N-days aggregation grouped by `simCarrier | carrierPrefix` with drop/slow counts.
+
+### `updateCampaign` schema change
+- `simSelection` added to the `allowed` update whitelist and `createCampaign` default (`'default'`) so the field persists cleanly through bot edits.
+
+### Version bumps (end-to-end 2.7.2)
+- `build.gradle` 18/2.7.2, `package.json`, `index.html` meta + setVersion, `app.js` init log + fallback + showSettings fallback, `api.js` sync default, `sms-app-service.js` SMS_APP_VERSION + conversational release note (mentions new bot settings), `_index.js` `/sms-app/download/info`.
+
+### APK verified
+- Path: `/app/static/nomadly-sms.apk` — 3.81MB — `versionCode=18`, `versionName=2.7.2` (aapt2). All new JS present (`reportSims`, `updateUserPrefs`, `reportThrottleEvent`, `autoRotateDefault`, `userPrefs` handling).
+
+### Data test IDs
+Inherited from v2.7.x — no new UI in app. Bot uses text buttons + inline callbacks.
+
+### Files touched
+- `js/lang/en.js` (new `smsAppSettings` label)
+- `js/sms-app-service.js` (new collections + endpoints + helpers + createCampaign simSelection + updateCampaign whitelist + sync response)
+- `js/_index.js` (BulkSMS keyboard adds Settings button, `/smssettings` handler, callback_query handlers for `smsprefs:*` and `campsim:*`, `renderCampaignSimPicker` helper, `/testlogs` extended, download/info version, per-campaign picker call after `createCampaign`)
+- `sms-app/www/js/api.js` (4 new methods + sync default version)
+- `sms-app/www/js/app.js` (reportSims on refresh, updateUserPrefs on save, apply prefs from syncData, autoRotateDefault honored, report throttle events, init/fallback versions)
+- `sms-app/android/app/build.gradle`, `sms-app/package.json`, `sms-app/www/index.html`

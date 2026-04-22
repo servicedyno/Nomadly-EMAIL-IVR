@@ -901,6 +901,39 @@ async function resolveCoupon(code, chatId) {
   return null
 }
 
+// Render the SIM-picker inline keyboard for a campaign created via the bot.
+// Silent no-op if the user hasn't synced SIMs yet (app hasn't been opened since
+// v2.7.0). Honors `autoRotate` user pref as the highlighted suggestion.
+async function renderCampaignSimPicker(chatId, campaignId) {
+  try {
+    const prefs = await smsAppService.getUserSmsPrefs(chatId)
+    const sims = Array.isArray(prefs?.sims) ? prefs.sims : []
+    if (sims.length === 0) {
+      // App hasn't reported SIMs yet. Hint user so they know the option exists.
+      return bot?.sendMessage(chatId,
+        `📶 <b>Tip:</b> Open the Nomadly SMS app once, then come back — you'll be able to pick which SIM (or auto-rotate across all SIMs) for each campaign.`,
+        { parse_mode: 'HTML' }
+      )
+    }
+    const rows = []
+    const perCampaignBtns = [
+      { text: 'Use default', callback_data: `campsim:${campaignId}:default` }
+    ]
+    if (sims.length > 1) perCampaignBtns.push({ text: '🔁 Auto-rotate', callback_data: `campsim:${campaignId}:rotate` })
+    sims.forEach((s, i) => perCampaignBtns.push({
+      text: `SIM ${i + 1} — ${(s.carrierName || 'Unknown').slice(0, 12)}`,
+      callback_data: `campsim:${campaignId}:${s.subscriptionId}`
+    }))
+    for (let i = 0; i < perCampaignBtns.length; i += 2) rows.push(perCampaignBtns.slice(i, i + 2))
+    return bot?.sendMessage(chatId,
+      `📶 <b>Which SIM should send this campaign?</b>\nDefault keeps your existing preference. Tap <b>Auto-rotate</b> to spread load across all SIMs.`,
+      { parse_mode: 'HTML', reply_markup: { inline_keyboard: rows } }
+    )
+  } catch (e) {
+    console.log('[renderCampaignSimPicker] error:', e.message)
+  }
+}
+
 const send = (chatId, message, options) => {
   // Auto-detect HTML in message and add parse_mode if not already set
   const opts = options || {}
@@ -1750,7 +1783,7 @@ const loadData = async () => {
     const exists = fs.existsSync(apkPath)
     const size = exists ? fs.statSync(apkPath).size : 0
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
-    res.json({ version: '2.7.1', name: 'Nomadly SMS', size, available: exists })
+    res.json({ version: '2.7.2', name: 'Nomadly SMS', size, available: exists })
   })
 
   // Initialize Email Blast Service
@@ -2803,6 +2836,103 @@ bot?.on('callback_query', async (query) => {
     const data = query?.data || ''
     const chatId = String(query?.message?.chat?.id) // Always convert to string for DB consistency
 
+    // ── SMS Settings inline menu ──
+    // Callback format: smsprefs:<action>:<value>
+    //   smsprefs:sim:<subId|-1>  smsprefs:rotate:0|1  smsprefs:bg:0|1  smsprefs:refresh
+    if (data.startsWith('smsprefs:')) {
+      try { await bot.answerCallbackQuery(query.id) } catch {}
+      const [, action, rawVal] = data.split(':')
+      try {
+        if (action === 'sim') {
+          const sub = parseInt(rawVal, 10)
+          if (!Number.isNaN(sub)) await smsAppService.setUserSmsPrefs(chatId, { defaultSubscriptionId: sub })
+        } else if (action === 'rotate') {
+          await smsAppService.setUserSmsPrefs(chatId, { autoRotate: rawVal === '1' })
+        } else if (action === 'bg') {
+          await smsAppService.setUserSmsPrefs(chatId, { bgServiceEnabled: rawVal === '1' })
+        } // 'refresh' just re-renders
+
+        // Re-render the settings message with updated values
+        const prefs = await smsAppService.getUserSmsPrefs(chatId)
+        const sims = Array.isArray(prefs?.sims) ? prefs.sims : []
+        const defaultSub = typeof prefs?.defaultSubscriptionId === 'number' ? prefs.defaultSubscriptionId : -1
+        const autoRotate = !!prefs?.autoRotate
+        const bgSvc = !!prefs?.bgServiceEnabled
+
+        let simsLine
+        if (sims.length === 0) {
+          simsLine = '• <i>No SIMs detected yet. Open the Nomadly SMS app once so we can detect your SIMs, then come back here.</i>'
+        } else {
+          simsLine = sims.map((s, i) => {
+            const tag = s.subscriptionId === defaultSub ? ' ← <b>default</b>' : ''
+            const name = (s.carrierName || s.displayName || 'Unknown').trim()
+            return `• SIM ${i + 1}: ${name} (slot ${((s.slotIndex ?? 0) + 1)})${tag}`
+          }).join('\n')
+        }
+
+        const defaultLabel = defaultSub < 0
+          ? 'System default'
+          : (sims.find(s => s.subscriptionId === defaultSub)?.carrierName || `sub ${defaultSub}`)
+
+        const body =
+`⚙️ <b>SMS App Settings</b>
+
+<b>Detected SIMs:</b>
+${simsLine}
+
+<b>Default SIM:</b> ${defaultLabel}
+<b>Auto-rotate across SIMs:</b> ${autoRotate ? 'ON ✅' : 'OFF'}
+<b>Background sending (beta):</b> ${bgSvc ? 'ON ✅' : 'OFF'}
+
+Tap a button below to change. Changes sync to your phone on next app open.`
+
+        const kbRows = []
+        if (sims.length > 0) {
+          const simBtns = [{ text: 'Default', callback_data: `smsprefs:sim:-1` }]
+            .concat(sims.map((s, i) => ({ text: `SIM ${i + 1}`, callback_data: `smsprefs:sim:${s.subscriptionId}` })))
+          for (let i = 0; i < simBtns.length; i += 3) kbRows.push(simBtns.slice(i, i + 3))
+        }
+        kbRows.push([{ text: autoRotate ? '🔁 Auto-rotate: ON' : '🔁 Auto-rotate: OFF', callback_data: `smsprefs:rotate:${autoRotate ? 0 : 1}` }])
+        kbRows.push([{ text: bgSvc ? '📲 Background: ON' : '📲 Background: OFF', callback_data: `smsprefs:bg:${bgSvc ? 0 : 1}` }])
+        kbRows.push([{ text: '🔄 Refresh', callback_data: 'smsprefs:refresh' }])
+
+        try {
+          await bot.editMessageText(body, {
+            chat_id: chatId,
+            message_id: query.message.message_id,
+            parse_mode: 'HTML',
+            reply_markup: { inline_keyboard: kbRows }
+          })
+        } catch (e) { /* ignore edit-same-content errors */ }
+      } catch (e) {
+        console.log('[smsprefs] handler error:', e.message)
+      }
+      return
+    }
+
+    // ── Campaign SIM picker inline menu ──
+    // Callback format: campsim:<campaignId>:<value>   value ∈ {'default','rotate','<subId>'}
+    if (data.startsWith('campsim:')) {
+      try { await bot.answerCallbackQuery(query.id) } catch {}
+      const parts = data.split(':')
+      const campaignId = parts[1]
+      const val = parts.slice(2).join(':') || 'default'
+      try {
+        await smsAppService.updateCampaign(campaignId, chatId, { simSelection: val })
+        let label = 'Default'
+        if (val === 'rotate') label = 'Auto-rotate'
+        else if (val !== 'default') label = `SIM sub=${val}`
+        await bot.editMessageText(`✅ Campaign SIM set to <b>${label}</b>. It will sync to your phone on next app open.`, {
+          chat_id: chatId,
+          message_id: query.message.message_id,
+          parse_mode: 'HTML'
+        })
+      } catch (e) {
+        await send(chatId, '❌ Could not update SIM selection: ' + e.message)
+      }
+      return
+    }
+
     // ── Tier 1 Feature 5: Support satisfaction rating handler ──
     if (data.startsWith('rate_support_')) {
       try { await bot.answerCallbackQuery(query.id, { text: '✅ Thank you for your feedback!' }) } catch (e) { /* ignore */ }
@@ -3694,12 +3824,36 @@ bot?.on('message', msg => {
       // Distinct users
       const distinctUsers = new Set(logs.map(l => String(l.chatId))).size
 
+      // Auto-throttle events in same window
+      let throttleLines = '  (none)'
+      try {
+        const throttleEvents = await db.collection('smsThrottleEvents')
+          .find({ ts: { $gte: sinceTs } })
+          .toArray()
+        if (throttleEvents.length > 0) {
+          const byCarrier = {}
+          for (const ev of throttleEvents) {
+            const k = ev.simCarrier || (ev.carrierPrefix ? `+${ev.carrierPrefix}` : 'unknown')
+            if (!byCarrier[k]) byCarrier[k] = { drop: 0, slow: 0 }
+            byCarrier[k][ev.action] = (byCarrier[k][ev.action] || 0) + 1
+          }
+          throttleLines = Object.entries(byCarrier)
+            .sort((a, b) => (b[1].drop + b[1].slow) - (a[1].drop + a[1].slow))
+            .slice(0, 10)
+            .map(([k, v]) => `  • ${k}: ${v.drop} dropped · ${v.slow} slowed`)
+            .join('\n')
+        }
+      } catch (e) {
+        throttleLines = `  (error: ${e.message})`
+      }
+
       const msg =
         `📡 <b>Test SMS Logs — last ${days}d</b>\n\n` +
         `Total: <b>${total}</b> · OK: <b>${success}</b> · Fail: <b>${fail}</b>\n` +
         `Distinct users: <b>${distinctUsers}</b>\n\n` +
         `<b>Top failure reasons:</b>\n${reasonLines}\n\n` +
         `<b>By country/carrier prefix:</b>\n${prefixLines}\n\n` +
+        `<b>Auto-throttle events:</b>\n${throttleLines}\n\n` +
         `<i>Tip: <code>/testlogs 30</code> for 30-day window.</i>`
 
       return send(chatId, msg, { parse_mode: 'HTML' })
@@ -22344,7 +22498,8 @@ Select a category:`), k.of(catBtns))
           [user.smsCreateCampaign],
           [user.smsMyCampaigns],
           [user.smsDownloadApp, user.smsManageDevices],
-          [user.smsResetLogin, user.smsHowItWorks],
+          [user.smsAppSettings, user.smsResetLogin],
+          [user.smsHowItWorks],
           ...(sub.isSubscribed ? [] : [[user.buyPlan]]),
           [t.back],
         ],
@@ -22384,7 +22539,8 @@ Select a category:`), k.of(catBtns))
           [user.smsCreateCampaign],
           [user.smsMyCampaigns],
           [user.smsDownloadApp, user.smsManageDevices],
-          [user.smsResetLogin, user.smsHowItWorks],
+          [user.smsAppSettings, user.smsResetLogin],
+          [user.smsHowItWorks],
           ...(sub.isSubscribed ? [] : [[user.buyPlan]]),
           [t.back],
         ],
@@ -22394,6 +22550,66 @@ Select a category:`), k.of(catBtns))
       disable_web_page_preview: true,
     }
     return send(chatId, t.smsHowItWorks(chatId), smsKeyboard)
+  }
+
+  // ── SMS App: Settings menu (default SIM / auto-rotate / bg-service) ──
+  if (message === user.smsAppSettings || message === '/smssettings') {
+    try {
+      const prefs = await smsAppService.getUserSmsPrefs(chatId)
+      const sims = Array.isArray(prefs?.sims) ? prefs.sims : []
+      const defaultSub = typeof prefs?.defaultSubscriptionId === 'number' ? prefs.defaultSubscriptionId : -1
+      const autoRotate = !!prefs?.autoRotate
+      const bgSvc = !!prefs?.bgServiceEnabled
+
+      let simsLine
+      if (sims.length === 0) {
+        simsLine = '• <i>No SIMs detected yet. Open the Nomadly SMS app once so we can detect your SIMs, then come back here.</i>'
+      } else {
+        simsLine = sims.map((s, i) => {
+          const tag = s.subscriptionId === defaultSub ? ' ← <b>default</b>' : ''
+          const name = (s.carrierName || s.displayName || 'Unknown').trim()
+          return `• SIM ${i + 1}: ${name} (slot ${((s.slotIndex ?? 0) + 1)})${tag}`
+        }).join('\n')
+      }
+
+      const defaultLabel = defaultSub < 0
+        ? 'System default'
+        : (sims.find(s => s.subscriptionId === defaultSub)?.carrierName || `sub ${defaultSub}`)
+
+      const body =
+`⚙️ <b>SMS App Settings</b>
+
+<b>Detected SIMs:</b>
+${simsLine}
+
+<b>Default SIM:</b> ${defaultLabel}
+<b>Auto-rotate across SIMs:</b> ${autoRotate ? 'ON ✅' : 'OFF'}
+<b>Background sending (beta):</b> ${bgSvc ? 'ON ✅' : 'OFF'}
+
+Tap a button below to change. Changes sync to your phone on next app open.`
+
+      const kbRows = []
+      if (sims.length > 0) {
+        // One row of SIM-select buttons (max 3 per row)
+        const simBtns = [{ text: 'Default', callback_data: `smsprefs:sim:-1` }]
+          .concat(sims.map((s, i) => ({ text: `SIM ${i + 1}`, callback_data: `smsprefs:sim:${s.subscriptionId}` })))
+        for (let i = 0; i < simBtns.length; i += 3) kbRows.push(simBtns.slice(i, i + 3))
+      }
+      kbRows.push([
+        { text: autoRotate ? '🔁 Auto-rotate: ON' : '🔁 Auto-rotate: OFF', callback_data: `smsprefs:rotate:${autoRotate ? 0 : 1}` }
+      ])
+      kbRows.push([
+        { text: bgSvc ? '📲 Background: ON' : '📲 Background: OFF', callback_data: `smsprefs:bg:${bgSvc ? 0 : 1}` }
+      ])
+      kbRows.push([{ text: '🔄 Refresh', callback_data: 'smsprefs:refresh' }])
+
+      return send(chatId, body, {
+        parse_mode: 'HTML',
+        reply_markup: { inline_keyboard: kbRows }
+      })
+    } catch (e) {
+      return send(chatId, '❌ Could not load SMS settings: ' + e.message)
+    }
   }
 
   // ── SMS App: Create Campaign from Bot ──
@@ -22827,7 +23043,12 @@ Select a category:`), k.of(catBtns))
         if (isDraft) {
           return send(chatId, trans('t.sms_46', campaignName, content.length, contacts.length, deviceLine), { parse_mode: 'HTML', reply_markup: { keyboard: [[user.smsCreateCampaign], [user.smsMyCampaigns], [t.back]], resize_keyboard: true } })
         }
-        return send(chatId, trans('t.sms_47', campaignName, content.length, contacts.length, gapTime, deviceLine), { parse_mode: 'HTML', reply_markup: { keyboard: [[user.smsCreateCampaign], [user.smsMyCampaigns], [t.back]], resize_keyboard: true } })
+        // Ask user which SIM to use for this campaign (only if the app has
+        // reported SIMs already). Preferences and campaign `simSelection`
+        // are honored by the app when it picks up the queued campaign.
+        await send(chatId, trans('t.sms_47', campaignName, content.length, contacts.length, gapTime, deviceLine), { parse_mode: 'HTML', reply_markup: { keyboard: [[user.smsCreateCampaign], [user.smsMyCampaigns], [t.back]], resize_keyboard: true } })
+        await renderCampaignSimPicker(chatId, campaign._id)
+        return
       } catch (err) {
         console.error('[SmsApp] Bot campaign creation error:', err)
         return send(chatId, trans('t.sms_48'), { reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })
@@ -22914,7 +23135,9 @@ Select a category:`), k.of(catBtns))
       await set(state, chatId, 'action', null)
       const schedDate = parsed.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' })
       const deviceLine = deviceId && deviceId !== 'default' ? `\n📱 Device: ${deviceId}` : ''
-      return send(chatId, trans('t.sms_52', campaignName, content.length, contacts.length, gapTime, schedDate, deviceLine), { parse_mode: 'HTML', reply_markup: { keyboard: [[user.smsCreateCampaign], [user.smsMyCampaigns], [t.back]], resize_keyboard: true } })
+      await send(chatId, trans('t.sms_52', campaignName, content.length, contacts.length, gapTime, schedDate, deviceLine), { parse_mode: 'HTML', reply_markup: { keyboard: [[user.smsCreateCampaign], [user.smsMyCampaigns], [t.back]], resize_keyboard: true } })
+      await renderCampaignSimPicker(chatId, campaign._id)
+      return
     } catch (err) {
       console.error('[SmsApp] Bot scheduled campaign error:', err)
       return send(chatId, trans('t.sms_53'), { reply_markup: { keyboard: [[t.back]], resize_keyboard: true } })

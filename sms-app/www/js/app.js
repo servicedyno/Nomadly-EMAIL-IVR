@@ -16,7 +16,7 @@ const App = {
   // ─── Init ───
   async init() {
     console.log('='.repeat(50))
-    console.log('Nomadly SMS App v2.7.1 - Initializing')
+    console.log('Nomadly SMS App v2.7.2 - Initializing')
     console.log('Platform:', window.Capacitor ? 'Native (APK)' : 'Browser')
     console.log('='.repeat(50))
     
@@ -145,6 +145,12 @@ const App = {
       this.simsChecked = true
       console.log('[SIM] available:', this.availableSims, 'defaultSub:', this.defaultSmsSubscriptionId)
       this._populateSimSelectors()
+      // Push detected SIMs to the server so the Telegram bot can show pickers.
+      // Best-effort — if offline, the next sync will retry.
+      const chatId = Storage.getUser()?.chatId
+      if (chatId && this.availableSims.length > 0) {
+        API.reportSims(chatId, this.availableSims).catch(e => console.warn('[SIM] reportSims failed:', e.message))
+      }
       return this.availableSims
     } catch (e) {
       console.warn('[SIM] refreshSims failed:', e)
@@ -220,6 +226,8 @@ const App = {
     const val = parseInt(sel.value, 10)
     if (Number.isNaN(val)) return
     Storage.set('defaultSubscriptionId', val)
+    const chatId = Storage.getUser()?.chatId
+    if (chatId) API.updateUserPrefs(chatId, { defaultSubscriptionId: val }).catch(() => {})
     this.toast('Default SIM saved', 'success')
   },
 
@@ -227,6 +235,8 @@ const App = {
     const el = document.getElementById('setBgService')
     if (!el) return
     Storage.set('bgServiceEnabled', !!el.checked)
+    const chatId = Storage.getUser()?.chatId
+    if (chatId) API.updateUserPrefs(chatId, { bgServiceEnabled: !!el.checked }).catch(() => {})
     this.toast(el.checked ? 'Background sending enabled (beta)' : 'Background sending disabled', 'info')
   },
 
@@ -236,8 +246,11 @@ const App = {
     // Priority: campaign.simSelection (set at send-time) > wizard value > user default
     const wzSel = document.getElementById('wzSimSelect')
     const saved = Storage.get('defaultSubscriptionId')
+    const autoRotateDefault = !!Storage.get('autoRotateDefault')
     let val = campaign?.simSelection ?? (wzSel ? wzSel.value : undefined)
-    if (val === undefined || val === null || val === '') val = 'default'
+    if (val === undefined || val === null || val === '') {
+      val = autoRotateDefault && this.availableSims.length > 1 ? 'rotate' : 'default'
+    }
 
     if (val === 'rotate' && this.availableSims.length > 1) {
       return {
@@ -375,7 +388,7 @@ const App = {
     }
     // Populate version dynamically from meta tag (avoids hardcoded-mismatch bugs)
     const verEl = document.getElementById('setVersion')
-    if (verEl) verEl.textContent = this.getAppVersion() || '2.7.1'
+    if (verEl) verEl.textContent = this.getAppVersion() || '2.7.2'
     // Populate saved test phone label (if any)
     const testPhone = Storage.get('testPhoneNumber')
     const tpLabel = document.getElementById('testPhoneLabel')
@@ -622,6 +635,20 @@ const App = {
     try {
       const data = await API.sync(code, this.getAppVersion())
       if (data.user) Storage.setUser(data.user)
+      // Apply server-managed prefs (bot may have changed them) — local defaults
+      // on the device are overridden only when the server has something to say.
+      if (data.userPrefs) {
+        const p = data.userPrefs
+        if (typeof p.defaultSubscriptionId === 'number') {
+          Storage.set('defaultSubscriptionId', p.defaultSubscriptionId)
+        }
+        if (typeof p.bgServiceEnabled === 'boolean') {
+          Storage.set('bgServiceEnabled', p.bgServiceEnabled)
+        }
+        if (typeof p.autoRotate === 'boolean') {
+          Storage.set('autoRotateDefault', p.autoRotate)
+        }
+      }
       if (data.campaigns) { 
         this.campaigns = data.campaigns
         Storage.setCampaigns(data.campaigns)
@@ -693,7 +720,7 @@ const App = {
       const meta = document.querySelector('meta[name="app-version"]')
       if (meta) return meta.content
     } catch {}
-    return '2.7.1' // fallback to current build version
+    return '2.7.2' // fallback to current build version
   },
 
   // ─── New Campaign (subscription gate — FRESH check from server) ───
@@ -1588,6 +1615,7 @@ const App = {
       console.warn(`[SMS] Auto-throttle: dropped SIM ${lastSubId} from rotation (${liveCount - 1} live SIMs remaining).`)
       const banner = document.getElementById('sendingStatus')
       if (banner) banner.textContent = `⚠️ ${dropped} rate-limited — switching to remaining SIMs.`
+      this._reportThrottleEvent(s, 'drop', lastSubId, rateLimited)
       return
     }
 
@@ -1597,7 +1625,32 @@ const App = {
       st.recent = [] // reset so we don't keep multiplying
       this.toast(`Carrier appears to rate-limit — slowing send rate ${s.throttleMultiplier}×.`, 'info')
       console.warn(`[SMS] Auto-throttle: gap × ${s.throttleMultiplier} (was × ${s.throttleMultiplier / 2}).`)
+      this._reportThrottleEvent(s, 'slow', lastSubId, rateLimited)
     }
+  },
+
+  _reportThrottleEvent(s, action, subId, windowFailures) {
+    try {
+      const chatId = s?.chatId || Storage.getUser()?.chatId
+      if (!chatId) return
+      const sim = this.availableSims.find(x => x.subscriptionId === subId)
+      // Infer a carrier prefix from the most-recently failed contact (if any)
+      let carrierPrefix = null
+      if (s?.errors?.length) {
+        const lastErr = s.errors[s.errors.length - 1]
+        const m = (lastErr?.phone || '').match(/^\+(\d{1,3})/)
+        if (m) carrierPrefix = m[1]
+      }
+      API.reportThrottleEvent(chatId, {
+        action,
+        subscriptionId: typeof subId === 'number' ? subId : -1,
+        simCarrier: sim?.carrierName || null,
+        carrierPrefix,
+        windowFailures,
+        campaignId: s?.campaignId || null,
+        appVersion: this.getAppVersion(),
+      }).catch(() => {})
+    } catch { /* best-effort */ }
   },
 
   _simLabelForId(subId) {
