@@ -314,3 +314,51 @@ Inherited from v2.7.x — no new UI in app. Bot uses text buttons + inline callb
 - `sms-app/www/js/api.js` (4 new methods + sync default version)
 - `sms-app/www/js/app.js` (reportSims on refresh, updateUserPrefs on save, apply prefs from syncData, autoRotateDefault honored, report throttle events, init/fallback versions)
 - `sms-app/android/app/build.gradle`, `sms-app/package.json`, `sms-app/www/index.html`
+
+
+## Feb 2026 — SMS App v2.7.3 (Backlog Closeout: Edit SIM / Rename / Throttle Alerts)
+
+Ships all three v2.7.2 backlog items plus the proactive-alert improvement in one release.
+
+### 1. Edit SIM on an existing campaign (from bot)
+- **My Campaigns** view now appends a second inline-keyboard message with a `📶 Change SIM · <name>` button per editable campaign (statuses: `draft`, `queued`, `scheduled`, `paused`).
+- Tapping it triggers `campsim:<id>:picker` which re-renders the full SIM picker (Use default / Auto-rotate / SIM 1 … SIM N) on the same message (edit-in-place).
+- Selection is saved via `updateCampaign(campaignId, chatId, { simSelection })` (already whitelisted in v2.7.2) and picked up by the app on next sync.
+
+### 2. SIM label personalization
+- `userSmsPrefs.simLabels: { [subIdString]: customLabel }` — new map on the server-side prefs doc.
+- `setUserSmsPrefs()` accepts `simLabels` patch objects.
+- **Bot rename flow**:
+  - `/smssettings` now has a `✏️ Rename SIM N` button per SIM.
+  - Tapping sets state `smsapp_rename_sim` with `smsapp_rename_sim_subid`; user sends the new label (max 20 chars). Send `clear` to remove a label.
+  - Saved label appears in `/smssettings`, per-campaign picker, and all bot-rendered SIM references via `simLabelFor(prefs, sim)`.
+- **App-side**: `data.userPrefs.simLabels` is synced into `App.simLabels` on sync. `_simLabel(sim)` uses the custom label when present, so campaign-wizard dropdowns, Settings picker, and Test SMS status line all reflect it.
+
+### 3. Proactive throttle alerts (combined with 4. potential improvement)
+- `POST /sms-app/throttle-events/:chatId` endpoint now fires a Telegram message after writing the event.
+- **Debounce**: alert fires at most once per campaign, OR once every 10 minutes (whichever is later). Tracked via `userSmsPrefs.lastThrottleAlertCampaignId` + `lastThrottleAlertAt`.
+- **Message content** (conversational): `⚠️ Carrier rate limit detected — your app paused/slowed <carrier>. Want to dodge this on future campaigns?` with action buttons:
+  - `🔁 Enable auto-rotate for future campaigns` → callback `throttleact:rotate_on` → flips `autoRotate` in prefs (hidden if already ON).
+  - `👍 Got it, dismiss` → callback `throttleact:dismiss`.
+- The alert leverages the `_bot` instance held by `sms-app-service` (passed in via `initSmsAppService`).
+
+### Callback handlers added to `_index.js`
+- `campsim:<id>:picker` — re-open SIM picker for an existing campaign.
+- `simrename:<subId>` — enter rename state machine.
+- `throttleact:rotate_on | dismiss` — act on proactive alert.
+
+### Helper added to `_index.js`
+- `simLabelFor(prefs, sim)` — centralizes custom-label resolution for all bot-rendered SIM references.
+
+### Version bumps (2.7.3)
+- `build.gradle` 19/2.7.3, `package.json`, `index.html`, `app.js` init log + fallbacks, `api.js` sync default, `sms-app-service.js` SMS_APP_VERSION + new conversational release note, `_index.js` `/sms-app/download/info`.
+
+### APK verified
+- Path: `/app/static/nomadly-sms.apk` — 3.82MB — `versionCode=19`, `versionName=2.7.3` (aapt2). `simLabels` references + `_simLabel` custom-label branch present in bundled `assets/public/js/app.js`.
+
+### Files touched
+- `js/_index.js` — `simLabelFor` helper, rename state handler, expanded `/smssettings` with rename buttons, My Campaigns change-SIM row, `campsim:…:picker`/`simrename:…`/`throttleact:…` callback branches, updated `renderCampaignSimPicker` to use `simLabelFor`, download/info version.
+- `js/sms-app-service.js` — `setUserSmsPrefs` accepts `simLabels`, proactive alert inside `POST /throttle-events`, version bumps, release note.
+- `sms-app/www/js/app.js` — `simLabels` state + sync + caching, `_simLabel` custom-label branch, version bumps.
+- `sms-app/www/js/api.js` — sync version default.
+- `sms-app/android/app/build.gradle`, `sms-app/package.json`, `sms-app/www/index.html`.

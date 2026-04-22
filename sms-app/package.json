@@ -1,6 +1,6 @@
 {
   "name": "nomadly-sms",
-  "version": "2.7.2",
+  "version": "2.7.3",
   "description": "Nomadly Bulk SMS App",
   "main": "www/index.html",
   "scripts": {

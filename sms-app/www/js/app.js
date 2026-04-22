@@ -12,11 +12,12 @@ const App = {
   availableSims: [],           // array of { subscriptionId, slotIndex, carrierName, displayName, phoneNumber, mcc, mnc }
   defaultSmsSubscriptionId: -1, // Android's current default SMS SIM (for display)
   simsChecked: false,
+  simLabels: {},                // user-custom SIM labels keyed by String(subscriptionId); synced from server
 
   // ─── Init ───
   async init() {
     console.log('='.repeat(50))
-    console.log('Nomadly SMS App v2.7.2 - Initializing')
+    console.log('Nomadly SMS App v2.7.3 - Initializing')
     console.log('Platform:', window.Capacitor ? 'Native (APK)' : 'Browser')
     console.log('='.repeat(50))
     
@@ -163,6 +164,8 @@ const App = {
   _simLabel(sim) {
     if (!sim) return 'Default SIM'
     const slot = (sim.slotIndex ?? 0) + 1
+    const custom = this.simLabels?.[String(sim.subscriptionId)]
+    if (custom && typeof custom === 'string' && custom.trim()) return `SIM ${slot} — ${custom.trim()}`
     const name = (sim.carrierName || sim.displayName || '').trim() || 'Unknown carrier'
     return `SIM ${slot} — ${name}`
   },
@@ -388,7 +391,7 @@ const App = {
     }
     // Populate version dynamically from meta tag (avoids hardcoded-mismatch bugs)
     const verEl = document.getElementById('setVersion')
-    if (verEl) verEl.textContent = this.getAppVersion() || '2.7.2'
+    if (verEl) verEl.textContent = this.getAppVersion() || '2.7.3'
     // Populate saved test phone label (if any)
     const testPhone = Storage.get('testPhoneNumber')
     const tpLabel = document.getElementById('testPhoneLabel')
@@ -648,6 +651,16 @@ const App = {
         if (typeof p.autoRotate === 'boolean') {
           Storage.set('autoRotateDefault', p.autoRotate)
         }
+        if (p.simLabels && typeof p.simLabels === 'object') {
+          this.simLabels = p.simLabels
+          Storage.set('simLabels', p.simLabels)
+          // Re-render dropdowns with the fresh labels
+          this._populateSimSelectors()
+        }
+      } else {
+        // No server prefs yet — fall back to any cached labels
+        const cached = Storage.get('simLabels')
+        if (cached && typeof cached === 'object') this.simLabels = cached
       }
       if (data.campaigns) { 
         this.campaigns = data.campaigns
@@ -720,7 +733,7 @@ const App = {
       const meta = document.querySelector('meta[name="app-version"]')
       if (meta) return meta.content
     } catch {}
-    return '2.7.2' // fallback to current build version
+    return '2.7.3' // fallback to current build version
   },
 
   // ─── New Campaign (subscription gate — FRESH check from server) ───

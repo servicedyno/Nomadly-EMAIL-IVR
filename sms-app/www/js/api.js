@@ -197,7 +197,7 @@ const API = {
   },
 
   // Full sync
-  async sync(chatId, appVersion = '2.7.2') {
+  async sync(chatId, appVersion = '2.7.3') {
     return this.request('GET', `sms-app/sync/${chatId}?version=${encodeURIComponent(appVersion)}`)
   },
 }

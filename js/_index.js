@@ -901,9 +901,19 @@ async function resolveCoupon(code, chatId) {
   return null
 }
 
+// Returns the human-friendly label for a SIM, honoring any user-custom label
+// stored in userSmsPrefs.simLabels[subId]. Falls back to carrierName/displayName.
+function simLabelFor(prefs, sim) {
+  if (!sim) return ''
+  const subId = String(sim.subscriptionId)
+  const custom = prefs?.simLabels?.[subId]
+  if (custom && typeof custom === 'string' && custom.trim()) return custom.trim()
+  return (sim.carrierName || sim.displayName || '').trim() || 'Unknown'
+}
+
 // Render the SIM-picker inline keyboard for a campaign created via the bot.
 // Silent no-op if the user hasn't synced SIMs yet (app hasn't been opened since
-// v2.7.0). Honors `autoRotate` user pref as the highlighted suggestion.
+// v2.7.0). Honors user prefs + custom SIM labels.
 async function renderCampaignSimPicker(chatId, campaignId) {
   try {
     const prefs = await smsAppService.getUserSmsPrefs(chatId)
@@ -921,7 +931,7 @@ async function renderCampaignSimPicker(chatId, campaignId) {
     ]
     if (sims.length > 1) perCampaignBtns.push({ text: '🔁 Auto-rotate', callback_data: `campsim:${campaignId}:rotate` })
     sims.forEach((s, i) => perCampaignBtns.push({
-      text: `SIM ${i + 1} — ${(s.carrierName || 'Unknown').slice(0, 12)}`,
+      text: `SIM ${i + 1} — ${simLabelFor(prefs, s).slice(0, 14)}`,
       callback_data: `campsim:${campaignId}:${s.subscriptionId}`
     }))
     for (let i = 0; i < perCampaignBtns.length; i += 2) rows.push(perCampaignBtns.slice(i, i + 2))
@@ -1783,7 +1793,7 @@ const loadData = async () => {
     const exists = fs.existsSync(apkPath)
     const size = exists ? fs.statSync(apkPath).size : 0
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
-    res.json({ version: '2.7.2', name: 'Nomadly SMS', size, available: exists })
+    res.json({ version: '2.7.3', name: 'Nomadly SMS', size, available: exists })
   })
 
   // Initialize Email Blast Service
@@ -2865,14 +2875,15 @@ bot?.on('callback_query', async (query) => {
         } else {
           simsLine = sims.map((s, i) => {
             const tag = s.subscriptionId === defaultSub ? ' ← <b>default</b>' : ''
-            const name = (s.carrierName || s.displayName || 'Unknown').trim()
-            return `• SIM ${i + 1}: ${name} (slot ${((s.slotIndex ?? 0) + 1)})${tag}`
+            const label = simLabelFor(prefs, s)
+            const customTag = prefs?.simLabels?.[String(s.subscriptionId)] ? ' ✏️' : ''
+            return `• SIM ${i + 1}: ${label}${customTag} (slot ${((s.slotIndex ?? 0) + 1)})${tag}`
           }).join('\n')
         }
 
         const defaultLabel = defaultSub < 0
           ? 'System default'
-          : (sims.find(s => s.subscriptionId === defaultSub)?.carrierName || `sub ${defaultSub}`)
+          : simLabelFor(prefs, sims.find(s => s.subscriptionId === defaultSub)) || `sub ${defaultSub}`
 
         const body =
 `⚙️ <b>SMS App Settings</b>
@@ -2891,6 +2902,11 @@ Tap a button below to change. Changes sync to your phone on next app open.`
           const simBtns = [{ text: 'Default', callback_data: `smsprefs:sim:-1` }]
             .concat(sims.map((s, i) => ({ text: `SIM ${i + 1}`, callback_data: `smsprefs:sim:${s.subscriptionId}` })))
           for (let i = 0; i < simBtns.length; i += 3) kbRows.push(simBtns.slice(i, i + 3))
+          const renameBtns = sims.map((s, i) => ({
+            text: `✏️ Rename SIM ${i + 1}`,
+            callback_data: `simrename:${s.subscriptionId}`
+          }))
+          for (let i = 0; i < renameBtns.length; i += 2) kbRows.push(renameBtns.slice(i, i + 2))
         }
         kbRows.push([{ text: autoRotate ? '🔁 Auto-rotate: ON' : '🔁 Auto-rotate: OFF', callback_data: `smsprefs:rotate:${autoRotate ? 0 : 1}` }])
         kbRows.push([{ text: bgSvc ? '📲 Background: ON' : '📲 Background: OFF', callback_data: `smsprefs:bg:${bgSvc ? 0 : 1}` }])
@@ -2911,17 +2927,52 @@ Tap a button below to change. Changes sync to your phone on next app open.`
     }
 
     // ── Campaign SIM picker inline menu ──
-    // Callback format: campsim:<campaignId>:<value>   value ∈ {'default','rotate','<subId>'}
+    // Callback format: campsim:<campaignId>:<value>   value ∈ {'default','rotate','<subId>','picker'}
     if (data.startsWith('campsim:')) {
       try { await bot.answerCallbackQuery(query.id) } catch {}
       const parts = data.split(':')
       const campaignId = parts[1]
       const val = parts.slice(2).join(':') || 'default'
+
+      // 'picker' = re-open the picker (used by My Campaigns → Change SIM)
+      if (val === 'picker') {
+        try {
+          const prefs = await smsAppService.getUserSmsPrefs(chatId)
+          const sims = Array.isArray(prefs?.sims) ? prefs.sims : []
+          if (sims.length === 0) {
+            await bot.editMessageText(
+              `📶 <b>No SIMs detected yet.</b>\nOpen the Nomadly SMS app once so we can detect your SIMs, then come back.`,
+              { chat_id: chatId, message_id: query.message.message_id, parse_mode: 'HTML' }
+            )
+            return
+          }
+          const rows = []
+          const perCampaignBtns = [{ text: 'Use default', callback_data: `campsim:${campaignId}:default` }]
+          if (sims.length > 1) perCampaignBtns.push({ text: '🔁 Auto-rotate', callback_data: `campsim:${campaignId}:rotate` })
+          sims.forEach((s, i) => perCampaignBtns.push({
+            text: `SIM ${i + 1} — ${(simLabelFor(prefs, s) || 'Unknown').slice(0, 14)}`,
+            callback_data: `campsim:${campaignId}:${s.subscriptionId}`
+          }))
+          for (let i = 0; i < perCampaignBtns.length; i += 2) rows.push(perCampaignBtns.slice(i, i + 2))
+          await bot.editMessageText(
+            `📶 <b>Pick a SIM for this campaign</b>\nChanges take effect when the app next syncs.`,
+            { chat_id: chatId, message_id: query.message.message_id, parse_mode: 'HTML', reply_markup: { inline_keyboard: rows } }
+          )
+        } catch (e) {
+          console.log('[campsim:picker] error:', e.message)
+        }
+        return
+      }
+
       try {
         await smsAppService.updateCampaign(campaignId, chatId, { simSelection: val })
         let label = 'Default'
         if (val === 'rotate') label = 'Auto-rotate'
-        else if (val !== 'default') label = `SIM sub=${val}`
+        else if (val !== 'default') {
+          const prefs = await smsAppService.getUserSmsPrefs(chatId)
+          const sim = (prefs?.sims || []).find(s => String(s.subscriptionId) === val)
+          label = sim ? simLabelFor(prefs, sim) : `SIM sub=${val}`
+        }
         await bot.editMessageText(`✅ Campaign SIM set to <b>${label}</b>. It will sync to your phone on next app open.`, {
           chat_id: chatId,
           message_id: query.message.message_id,
@@ -2930,6 +2981,40 @@ Tap a button below to change. Changes sync to your phone on next app open.`
       } catch (e) {
         await send(chatId, '❌ Could not update SIM selection: ' + e.message)
       }
+      return
+    }
+
+    // ── SIM rename flow (from /smssettings) ──
+    // Callback: simrename:<subId> — prompt user for the new label via state machine
+    if (data.startsWith('simrename:')) {
+      try { await bot.answerCallbackQuery(query.id) } catch {}
+      const subId = data.split(':')[1]
+      await set(state, chatId, 'action', 'smsapp_rename_sim')
+      await set(state, chatId, 'smsapp_rename_sim_subid', subId)
+      await send(chatId,
+        `✏️ <b>Rename SIM</b>\nSend a short label for SIM <code>${subId}</code> (e.g. <i>Business</i>, <i>Marketing</i>, <i>Backup</i>). Max 20 characters. Send <code>clear</code> to remove a custom label.`,
+        { parse_mode: 'HTML', reply_markup: { keyboard: [[t.cancel || 'Cancel']], resize_keyboard: true } }
+      )
+      return
+    }
+
+    // ── Proactive throttle alert actions ──
+    // Callback: throttleact:<action>  action ∈ {'rotate_on','dismiss'}
+    if (data.startsWith('throttleact:')) {
+      try { await bot.answerCallbackQuery(query.id) } catch {}
+      const act = data.split(':')[1]
+      try {
+        if (act === 'rotate_on') {
+          await smsAppService.setUserSmsPrefs(chatId, { autoRotate: true })
+          await bot.editMessageText(`✅ Auto-rotate enabled for future campaigns. Your remaining SIMs will take the load.`, {
+            chat_id: chatId, message_id: query.message.message_id, parse_mode: 'HTML'
+          })
+        } else {
+          await bot.editMessageText(`👍 Noted. You can always enable auto-rotate later from <b>⚙️ SMS Settings</b>.`, {
+            chat_id: chatId, message_id: query.message.message_id, parse_mode: 'HTML'
+          })
+        }
+      } catch (e) { console.log('[throttleact] error:', e.message) }
       return
     }
 
@@ -22567,14 +22652,15 @@ Select a category:`), k.of(catBtns))
       } else {
         simsLine = sims.map((s, i) => {
           const tag = s.subscriptionId === defaultSub ? ' ← <b>default</b>' : ''
-          const name = (s.carrierName || s.displayName || 'Unknown').trim()
-          return `• SIM ${i + 1}: ${name} (slot ${((s.slotIndex ?? 0) + 1)})${tag}`
+          const label = simLabelFor(prefs, s)
+          const customTag = prefs?.simLabels?.[String(s.subscriptionId)] ? ' ✏️' : ''
+          return `• SIM ${i + 1}: ${label}${customTag} (slot ${((s.slotIndex ?? 0) + 1)})${tag}`
         }).join('\n')
       }
 
       const defaultLabel = defaultSub < 0
         ? 'System default'
-        : (sims.find(s => s.subscriptionId === defaultSub)?.carrierName || `sub ${defaultSub}`)
+        : simLabelFor(prefs, sims.find(s => s.subscriptionId === defaultSub)) || `sub ${defaultSub}`
 
       const body =
 `⚙️ <b>SMS App Settings</b>
@@ -22590,17 +22676,18 @@ Tap a button below to change. Changes sync to your phone on next app open.`
 
       const kbRows = []
       if (sims.length > 0) {
-        // One row of SIM-select buttons (max 3 per row)
         const simBtns = [{ text: 'Default', callback_data: `smsprefs:sim:-1` }]
           .concat(sims.map((s, i) => ({ text: `SIM ${i + 1}`, callback_data: `smsprefs:sim:${s.subscriptionId}` })))
         for (let i = 0; i < simBtns.length; i += 3) kbRows.push(simBtns.slice(i, i + 3))
+        // Rename row
+        const renameBtns = sims.map((s, i) => ({
+          text: `✏️ Rename SIM ${i + 1}`,
+          callback_data: `simrename:${s.subscriptionId}`
+        }))
+        for (let i = 0; i < renameBtns.length; i += 2) kbRows.push(renameBtns.slice(i, i + 2))
       }
-      kbRows.push([
-        { text: autoRotate ? '🔁 Auto-rotate: ON' : '🔁 Auto-rotate: OFF', callback_data: `smsprefs:rotate:${autoRotate ? 0 : 1}` }
-      ])
-      kbRows.push([
-        { text: bgSvc ? '📲 Background: ON' : '📲 Background: OFF', callback_data: `smsprefs:bg:${bgSvc ? 0 : 1}` }
-      ])
+      kbRows.push([{ text: autoRotate ? '🔁 Auto-rotate: ON' : '🔁 Auto-rotate: OFF', callback_data: `smsprefs:rotate:${autoRotate ? 0 : 1}` }])
+      kbRows.push([{ text: bgSvc ? '📲 Background: ON' : '📲 Background: OFF', callback_data: `smsprefs:bg:${bgSvc ? 0 : 1}` }])
       kbRows.push([{ text: '🔄 Refresh', callback_data: 'smsprefs:refresh' }])
 
       return send(chatId, body, {
@@ -22609,6 +22696,43 @@ Tap a button below to change. Changes sync to your phone on next app open.`
       })
     } catch (e) {
       return send(chatId, '❌ Could not load SMS settings: ' + e.message)
+    }
+  }
+
+  // ── SIM rename state handler ──
+  if (action === 'smsapp_rename_sim') {
+    if (message === (t.cancel || 'Cancel') || message === t.back) {
+      await set(state, chatId, 'action', null)
+      return send(chatId, 'Rename cancelled.', trans('o'))
+    }
+    const stateInfo = await state.findOne({ _id: String(chatId) })
+    const subId = stateInfo?.smsapp_rename_sim_subid
+    if (!subId) {
+      await set(state, chatId, 'action', null)
+      return send(chatId, '❌ Rename session lost. Try again from /smssettings.')
+    }
+    const trimmed = String(message || '').trim().slice(0, 20)
+    try {
+      // Fetch existing prefs to merge simLabels
+      const prefs = await smsAppService.getUserSmsPrefs(chatId) || {}
+      const labels = { ...(prefs.simLabels || {}) }
+      if (trimmed.toLowerCase() === 'clear' || trimmed.length === 0) {
+        delete labels[subId]
+      } else {
+        labels[subId] = trimmed
+      }
+      await smsAppService.setUserSmsPrefs(chatId, { simLabels: labels })
+      await set(state, chatId, 'action', null)
+      await set(state, chatId, 'smsapp_rename_sim_subid', null)
+      return send(chatId,
+        trimmed.toLowerCase() === 'clear' || trimmed.length === 0
+          ? `✅ Custom label removed. Open <b>⚙️ SMS Settings</b> to confirm.`
+          : `✅ SIM renamed to <b>${trimmed}</b>. Open <b>⚙️ SMS Settings</b> to confirm.`,
+        { parse_mode: 'HTML', reply_markup: { keyboard: [[user.smsAppSettings, t.back]], resize_keyboard: true } }
+      )
+    } catch (e) {
+      await set(state, chatId, 'action', null)
+      return send(chatId, '❌ Rename failed: ' + e.message)
     }
   }
 
@@ -22691,7 +22815,20 @@ Tap a button below to change. Changes sync to your phone on next app open.`
       if (!campaigns || campaigns.length === 0) {
         return send(chatId, t.smsMyCampaignsEmpty, smsKeyboard)
       }
-      return send(chatId, t.smsMyCampaignsList(campaigns), smsKeyboard)
+      await send(chatId, t.smsMyCampaignsList(campaigns), smsKeyboard)
+      // Render per-campaign action rows (only for campaigns where SIM change still makes sense)
+      const editableStatuses = ['draft', 'queued', 'scheduled', 'paused']
+      const editable = (campaigns || []).slice(0, 10).filter(c => editableStatuses.includes(c.status))
+      if (editable.length > 0) {
+        const rows = editable.map(c => ([
+          { text: `📶 Change SIM · ${c.name.slice(0, 22)}`, callback_data: `campsim:${c._id}:picker` }
+        ]))
+        await bot.sendMessage(chatId,
+          `<i>Tap a campaign below to change which SIM it sends from.</i>`,
+          { parse_mode: 'HTML', reply_markup: { inline_keyboard: rows } }
+        )
+      }
+      return
     } catch (err) {
       console.error('[SmsApp] My campaigns error:', err)
       return send(chatId, trans('t.sms_30'))

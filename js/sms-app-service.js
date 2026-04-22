@@ -61,14 +61,14 @@ function initSmsAppService(_db, _nameOf, _planEndingTime, _freeSmsCountOf, _logi
 
   // ─── Proactive SMS App version announcement to ALL bot users ───
   // When a new version is deployed, automatically notify all users (not just app users)
-  const SMS_APP_VERSION = '2.7.2'
+  const SMS_APP_VERSION = '2.7.3'
   // Human-first, conversational release note. Shown verbatim in the broadcast
   // between the opening line and the download instructions.
   const SMS_APP_RELEASE_NOTE =
-    `You can now manage your SIM card preferences directly from the bot — tap ` +
-    `📧 BulkSMS → ⚙️ SMS Settings to pick a default SIM, enable auto-rotate, or ` +
-    `turn on background sending. When you create a campaign from the bot, you'll ` +
-    `also get to pick which SIM sends it.`
+    `You can now rename your SIMs (e.g. "Business", "Marketing") from the bot, ` +
+    `change a campaign's SIM after creating it, and get a heads-up Telegram ` +
+    `notification when a carrier rate-limits one of your SIMs mid-campaign — ` +
+    `one tap enables auto-rotate for next time.`
 
   ;(async () => {
     try {
@@ -675,7 +675,7 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
     try {
       const chatId = req.params.chatId
       const userVersion = req.query.version || 'unknown'
-      const latestVersion = '2.7.2'
+      const latestVersion = '2.7.3'
       
       console.log(`[SmsApp] Sync request for chatId: ${chatId}, version: ${userVersion}`)
       
@@ -992,6 +992,51 @@ ${versionsBehind >= 2 ? `⚠️ You are <b>${versionsBehind} versions behind</b>
         ts: new Date()
       })
       console.log(`[SmsApp] throttle-event user=${chatId} action=${action} sim=${simCarrier || '?'} pref=${carrierPrefix || '?'}`)
+
+      // Proactive alert — fire at most once per (chatId, campaignId) to avoid spam.
+      // We store a marker in `userSmsPrefs.lastThrottleAlertCampaignId`; if the new
+      // event is for a different campaign (or any campaign & the alert hasn't fired
+      // within the last 10 minutes), we send a Telegram message with action buttons.
+      try {
+        const prefs = await db.collection('userSmsPrefs').findOne({ _id: chatId })
+        const lastAlertCamp = prefs?.lastThrottleAlertCampaignId || null
+        const lastAlertTs = prefs?.lastThrottleAlertAt ? new Date(prefs.lastThrottleAlertAt).getTime() : 0
+        const now = Date.now()
+        const shouldAlert = (
+          campaignId && campaignId !== lastAlertCamp
+        ) || (now - lastAlertTs > 10 * 60 * 1000)
+
+        if (shouldAlert && _bot) {
+          const simLabel = simCarrier || (carrierPrefix ? `+${carrierPrefix}` : 'a SIM')
+          const actionText = action === 'drop'
+            ? `paused <b>${simLabel}</b> for this campaign and switched to your remaining SIMs.`
+            : `slowed the send rate on <b>${simLabel}</b> to give the carrier breathing room.`
+          const autoRotateOn = !!prefs?.autoRotate
+
+          const msg =
+            `⚠️ <b>Carrier rate limit detected</b>\n\n` +
+            `Your Nomadly SMS app ${actionText}\n\n` +
+            `Want to dodge this automatically on future campaigns?`
+
+          const rows = []
+          if (!autoRotateOn) {
+            rows.push([{ text: '🔁 Enable auto-rotate for future campaigns', callback_data: 'throttleact:rotate_on' }])
+          }
+          rows.push([{ text: '👍 Got it, dismiss', callback_data: 'throttleact:dismiss' }])
+
+          _bot.sendMessage(chatId, msg, { parse_mode: 'HTML', reply_markup: { inline_keyboard: rows } })
+            .catch(e => console.log('[SmsApp] throttle-alert send failed:', e.message))
+
+          await db.collection('userSmsPrefs').updateOne(
+            { _id: chatId },
+            { $set: { lastThrottleAlertCampaignId: campaignId || null, lastThrottleAlertAt: new Date() } },
+            { upsert: true }
+          )
+        }
+      } catch (alertErr) {
+        console.log('[SmsApp] throttle-alert error:', alertErr.message)
+      }
+
       res.json({ ok: true })
     } catch (error) {
       console.log(`[SmsApp] throttle-event error:`, error.message)
@@ -1010,6 +1055,7 @@ ${versionsBehind >= 2 ? `⚠️ You are <b>${versionsBehind} versions behind</b>
       const update = { updatedAt: new Date() }
       for (const [k, v] of Object.entries(patch || {})) {
         if (['defaultSubscriptionId', 'autoRotate', 'bgServiceEnabled'].includes(k)) update[k] = v
+        else if (k === 'simLabels' && v && typeof v === 'object') update.simLabels = v
       }
       await db.collection('userSmsPrefs').updateOne({ _id: String(chatId) }, { $set: update }, { upsert: true })
       return await db.collection('userSmsPrefs').findOne({ _id: String(chatId) })
