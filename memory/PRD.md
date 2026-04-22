@@ -362,3 +362,46 @@ Ships all three v2.7.2 backlog items plus the proactive-alert improvement in one
 - `sms-app/www/js/app.js` — `simLabels` state + sync + caching, `_simLabel` custom-label branch, version bumps.
 - `sms-app/www/js/api.js` — sync version default.
 - `sms-app/android/app/build.gradle`, `sms-app/package.json`, `sms-app/www/index.html`.
+
+
+## Feb 2026 — SMS App v2.7.4 (Single-Source-of-Truth Discovery via Cloudflare Worker)
+
+Operational resilience: the APK no longer hardcodes any backend URL. It asks a Cloudflare Worker at startup "where's the backend?" and uses whatever the Worker returns.
+
+### What was built
+- **Cloudflare Worker** `nomadly-api-config` deployed on Cloudflare account `ed6035ebf6bd3d85f5b26c60189a21e2` (from `CLOUDFLARE_*` env vars). Serves `{apiBase: "<current-backend-url>"}` with CORS headers and `Cache-Control: public, max-age=60`.
+- Worker URL: **`https://nomadly-api-config.nomadly-cfg.workers.dev/`**
+- Worker source kept in `/app/ops/nomadly-api-config-worker.js` for version control.
+- Current `API_BASE` inside the Worker: `https://nomadly-email-ivr-production.up.railway.app`.
+- Deployed via Cloudflare API (no `wrangler` needed); Workers subdomain `nomadly-cfg` auto-provisioned.
+
+### APK changes (`sms-app/www/js/api.js`)
+- Removed **all hardcoded Railway / `productionUrl` references**. The single source of truth is `discoveryUrl`.
+- `baseUrl()` resolution order:
+  1. Browser dev mode → `window.location.origin + /api`.
+  2. Native APK → fetch `discoveryUrl` with 3 retries (0s / 1.5s / 3.5s backoff, 4s timeout per try) → use returned `apiBase`.
+  3. All retries fail → throw `APIError('Cannot reach Nomadly servers...', 0, 'network', 'discovery_unreachable')` so every API call surfaces a clean error instead of silently routing somewhere stale.
+- On failure, the memoized discovery promise is cleared so future retries (user reopens app or swipes "retry") re-run discovery instead of replaying the cached rejection.
+- Fixed a latent class-name typo (`ApiError` → `APIError`).
+
+### Operational procedure — when Railway moves
+1. Open https://dash.cloudflare.com → Workers & Pages → `nomadly-api-config` → Edit.
+2. Change the `API_BASE` constant to the new backend URL.
+3. Save. Propagates globally in ~5s.
+4. Every APK in the wild picks up the new URL on next app launch. No rebuild, no user push.
+
+### Trade-off accepted (per user decision)
+- Removed the baked Railway fallback. If the Cloudflare Worker is temporarily unreachable (rare — corporate firewalls blocking `workers.dev`, brief Cloudflare outage) the user sees a clean error banner instead of silently routing to a potentially-stale baked URL. This prevents "app works but nothing happens" failure modes after migrations.
+
+### Version bumps (2.7.4)
+- `build.gradle` 20/2.7.4, `package.json`, `index.html` meta + setVersion, `app.js` init log + fallbacks, `api.js` sync default, `sms-app-service.js` SMS_APP_VERSION + conversational release note (explains the resilience benefit), `_index.js` `/sms-app/download/info`.
+
+### APK verified
+- Path: `/app/static/nomadly-sms.apk` — 3.82MB — `versionCode=20`, `versionName=2.7.4` (aapt2).
+- Verified bundled `assets/public/js/api.js` contains **only** `discoveryUrl: 'https://nomadly-api-config.nomadly-cfg.workers.dev/'`. No Railway URL present.
+
+### Files touched
+- `ops/nomadly-api-config-worker.js` (new — Cloudflare Worker source)
+- `sms-app/www/js/api.js` (removed productionUrl, discovery-only resolution, retries)
+- `sms-app/android/app/build.gradle`, `sms-app/package.json`, `sms-app/www/index.html`, `sms-app/www/js/app.js` (version strings)
+- `js/sms-app-service.js`, `js/_index.js` (version strings + release note)

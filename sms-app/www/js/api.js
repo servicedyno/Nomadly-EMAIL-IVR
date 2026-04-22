@@ -2,19 +2,18 @@
  * Nomadly SMS App — API Client
  *
  * Resolution order for the API base URL:
- *   1. In a browser (non-Capacitor) → use same-origin with `/api` prefix
- *   2. In the APK → fetch GET /sms-app/config from the baked seed URL once per
- *      launch; if it returns `{apiBase}` use that, otherwise stay on the seed.
- *   3. If the config fetch fails (DNS, offline, server down) → fall through to
- *      the seed URL so the app still works.
+ *   1. In a browser (non-Capacitor) → use same-origin with `/api` prefix (dev mode).
+ *   2. In the native APK → GET the Cloudflare Worker at `discoveryUrl` once per
+ *      launch. The Worker returns `{apiBase: "<current-backend-url>"}` and the
+ *      APK uses that for every subsequent request.
+ *   3. If the Worker is unreachable (3 retries with backoff) → throw a clean
+ *      "Cannot reach Nomadly servers" error so users see a clear state rather
+ *      than silently routing to a stale baked URL.
  *
- * This gives two layers of protection against the server URL going stale:
- *   • The seed URL (`productionUrl`) should point at a domain YOU control
- *     (e.g. api.nomadly11.sbs → CNAME → current Railway slug). A Railway
- *     rename then becomes a one-record DNS edit, zero APK rebuilds.
- *   • The /sms-app/config endpoint lets the server itself hand out a new
- *     apiBase value on the fly (for blue-green, regional routing, or emergency
- *     cutovers) even if DNS can't be changed quickly.
+ * Single-source-of-truth design: the Cloudflare Worker is the ONLY place the
+ * backend URL is defined for production. To move the backend, edit one line in
+ * the Worker via Cloudflare dashboard — zero APK rebuilds, zero user updates.
+ * Worker source kept in /app/ops/nomadly-api-config-worker.js for version control.
  */
 
 class APIError extends Error {
@@ -28,44 +27,74 @@ class APIError extends Error {
 }
 
 const API = {
-  // Baked seed URL — bake a stable custom domain here once, then let DNS
-  // handle future migrations. When rebuilding the APK, this is the one
-  // line to check.
-  productionUrl: 'https://nomadly-email-ivr-production.up.railway.app',
+  // ─── SINGLE SOURCE OF TRUTH: external discovery service ───
+  // The APK asks this Cloudflare Worker at startup: "where's the backend?"
+  // The Worker returns `{apiBase: "<current-backend-url>"}`. When the backend
+  // moves (Railway migration, new region, etc.), update ONE line in the
+  // Worker via Cloudflare dashboard — every APK in the wild picks up the
+  // new URL on next startup without a rebuild.
+  //
+  // Dashboard:  https://dash.cloudflare.com → Workers & Pages → nomadly-api-config
+  // Source:     /app/ops/nomadly-api-config-worker.js
+  //
+  // If this URL is unreachable at startup (captive wifi, network drop, etc.)
+  // the APK surfaces a clean "Cannot reach Nomadly servers" error instead of
+  // silently routing to a stale baked URL. Users simply retry.
+  discoveryUrl: 'https://nomadly-api-config.nomadly-cfg.workers.dev/',
 
   _resolvedBase: null,
   _configFetchPromise: null,
 
-  get seedUrl() {
-    if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
-      return this.productionUrl
-    }
+  // For in-browser development only. Native APK MUST resolve via discoveryUrl.
+  get devFallbackUrl() {
     return `${window.location.origin}/api`
   },
 
-  // Returns the effective base URL. Fetches /sms-app/config once per launch;
-  // subsequent calls return the memoised value.
+  // Returns the effective backend base URL. Resolution order:
+  //   Native APK: fetch discoveryUrl → use `apiBase` (throws if unreachable)
+  //   Browser:    use window.location.origin + /api (dev only)
+  // Result is memoised for the rest of the session so network cost is one
+  // extra request at startup.
   async baseUrl() {
     if (this._resolvedBase) return this._resolvedBase
     if (!this._configFetchPromise) {
       this._configFetchPromise = (async () => {
-        try {
-          const ctl = new AbortController()
-          const t = setTimeout(() => ctl.abort(), 5000)
-          const r = await fetch(`${this.seedUrl}/sms-app/config`, { signal: ctl.signal })
-          clearTimeout(t)
-          if (r.ok) {
-            const cfg = await r.json()
-            if (cfg && typeof cfg.apiBase === 'string' && cfg.apiBase.trim()) {
-              console.log('[API] config endpoint overrode base URL:', cfg.apiBase)
-              return cfg.apiBase.replace(/\/+$/, '')
+        const isNative = window.Capacitor?.isNativePlatform?.()
+
+        // Browser dev mode — skip discovery, use relative /api
+        if (!isNative) return this.devFallbackUrl
+
+        // Native APK — fetch discovery service with 2 retries + brief backoff
+        const attempts = [0, 1500, 3500] // delays in ms before each try
+        for (let i = 0; i < attempts.length; i++) {
+          if (attempts[i] > 0) await new Promise(r => setTimeout(r, attempts[i]))
+          try {
+            const ctl = new AbortController()
+            const t = setTimeout(() => ctl.abort(), 4000)
+            const r = await fetch(this.discoveryUrl, { signal: ctl.signal, cache: 'no-cache' })
+            clearTimeout(t)
+            if (r.ok) {
+              const cfg = await r.json()
+              if (cfg && typeof cfg.apiBase === 'string' && cfg.apiBase.trim()) {
+                console.log(`[API] Discovery resolved apiBase (try ${i + 1}):`, cfg.apiBase)
+                return cfg.apiBase.replace(/\/+$/, '')
+              }
             }
+            console.warn(`[API] Discovery try ${i + 1} returned non-OK status:`, r.status)
+          } catch (e) {
+            console.warn(`[API] Discovery try ${i + 1} failed:`, e.message)
           }
-        } catch (e) {
-          console.warn('[API] /sms-app/config unreachable — using seed URL:', e.message)
         }
-        return this.seedUrl
+
+        // All retries exhausted. Throw so every API call bubbles a clear error
+        // rather than silently hitting a wrong URL.
+        throw new APIError('Cannot reach Nomadly servers. Check your connection and try again.', 0, 'network', 'discovery_unreachable')
       })()
+      // If discovery fails, DO NOT permanently memoize the failure —
+      // clear the in-flight promise so a future retry re-runs discovery.
+      this._configFetchPromise.catch(() => {
+        this._configFetchPromise = null
+      })
     }
     this._resolvedBase = await this._configFetchPromise
     return this._resolvedBase
@@ -197,7 +226,7 @@ const API = {
   },
 
   // Full sync
-  async sync(chatId, appVersion = '2.7.3') {
+  async sync(chatId, appVersion = '2.7.4') {
     return this.request('GET', `sms-app/sync/${chatId}?version=${encodeURIComponent(appVersion)}`)
   },
 }

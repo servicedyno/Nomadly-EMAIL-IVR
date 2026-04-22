@@ -17,7 +17,7 @@ const App = {
   // ─── Init ───
   async init() {
     console.log('='.repeat(50))
-    console.log('Nomadly SMS App v2.7.3 - Initializing')
+    console.log('Nomadly SMS App v2.7.4 - Initializing')
     console.log('Platform:', window.Capacitor ? 'Native (APK)' : 'Browser')
     console.log('='.repeat(50))
     
@@ -391,7 +391,7 @@ const App = {
     }
     // Populate version dynamically from meta tag (avoids hardcoded-mismatch bugs)
     const verEl = document.getElementById('setVersion')
-    if (verEl) verEl.textContent = this.getAppVersion() || '2.7.3'
+    if (verEl) verEl.textContent = this.getAppVersion() || '2.7.4'
     // Populate saved test phone label (if any)
     const testPhone = Storage.get('testPhoneNumber')
     const tpLabel = document.getElementById('testPhoneLabel')
@@ -733,7 +733,7 @@ const App = {
       const meta = document.querySelector('meta[name="app-version"]')
       if (meta) return meta.content
     } catch {}
-    return '2.7.3' // fallback to current build version
+    return '2.7.4' // fallback to current build version
   },
 
   // ─── New Campaign (subscription gate — FRESH check from server) ───

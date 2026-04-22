@@ -61,14 +61,13 @@ function initSmsAppService(_db, _nameOf, _planEndingTime, _freeSmsCountOf, _logi
 
   // ─── Proactive SMS App version announcement to ALL bot users ───
   // When a new version is deployed, automatically notify all users (not just app users)
-  const SMS_APP_VERSION = '2.7.3'
+  const SMS_APP_VERSION = '2.7.4'
   // Human-first, conversational release note. Shown verbatim in the broadcast
   // between the opening line and the download instructions.
   const SMS_APP_RELEASE_NOTE =
-    `You can now rename your SIMs (e.g. "Business", "Marketing") from the bot, ` +
-    `change a campaign's SIM after creating it, and get a heads-up Telegram ` +
-    `notification when a carrier rate-limits one of your SIMs mid-campaign — ` +
-    `one tap enables auto-rotate for next time.`
+    `This is a resilience update: the app now checks a tiny independent ` +
+    `config service at startup, so if we ever need to move the backend ` +
+    `to a new server, your app keeps working without needing a reinstall.`
 
   ;(async () => {
     try {
@@ -675,7 +674,7 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
     try {
       const chatId = req.params.chatId
       const userVersion = req.query.version || 'unknown'
-      const latestVersion = '2.7.3'
+      const latestVersion = '2.7.4'
       
       console.log(`[SmsApp] Sync request for chatId: ${chatId}, version: ${userVersion}`)
       
