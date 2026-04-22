@@ -515,7 +515,7 @@ NS2: <code>${cfNameservers[1]}</code>
       
       const panelDomain = process.env.PANEL_DOMAIN
       const panelUrl = panelDomain
-        ? `https://${panelDomain}`
+        ? (panelDomain.startsWith('http') ? panelDomain : `https://${panelDomain}`)
         : `${process.env.SELF_URL_PROD?.replace('/api', '')}/panel`
       const credentialsMsg = `🎉 <b>Your hosting is live!</b>
 

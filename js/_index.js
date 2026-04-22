@@ -6232,7 +6232,7 @@ Enter new value:`), bc)
 
       const panelDomain = process.env.PANEL_DOMAIN
       const panelUrl = panelDomain
-        ? `https://${panelDomain}`
+        ? (panelDomain.startsWith('http') ? panelDomain : `https://${panelDomain}`)
         : `${process.env.SELF_URL_PROD?.replace('/api', '')}/panel`
       const text = `🔑 <b>Credentials for ${plan.domain}</b>\n\n`
         + `<b>Username:</b> <code>${plan.cpUser}</code>\n`

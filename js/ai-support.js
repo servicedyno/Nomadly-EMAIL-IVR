@@ -46,6 +46,8 @@ const BRAND = process.env.CHAT_BOT_BRAND || 'Nomadly'
 const SUPPORT_HANDLE = process.env.SUPPORT_HANDLE || '@support'
 const SIP_DOMAIN = process.env.SIP_DOMAIN || 'sip.speechcue.com'
 const CALL_PAGE_URL = process.env.CALL_PAGE_URL || 'https://speechcue.com/call'
+const PANEL_DOMAIN = process.env.PANEL_DOMAIN || ''
+const HOSTING_PANEL_URL = PANEL_DOMAIN ? (PANEL_DOMAIN.startsWith('http') ? PANEL_DOMAIN : `https://${PANEL_DOMAIN}`) : ''
 
 // ── Subscription plan data (from environment) ──
 const PRICE_DAILY = process.env.PRICE_DAILY_SUBSCRIPTION || '50'
@@ -332,6 +334,8 @@ ${process.env.HOSTING_TRIAL_PLAN_ON === 'true' ? '- 💡 Free Trial (12 Hours) �
 - 🔷 Premium Anti-Red HostPanel (30 Days) — $${process.env.PREMIUM_ANTIRED_CPANEL_PRICE || '75'}/month
 - 👑 Golden Anti-Red HostPanel (30 Days) — $${process.env.GOLDEN_ANTIRED_CPANEL_PRICE || '100'}/month
 After choosing a plan → Register new domain or use existing → Enter email → Get cPanel credentials
+${HOSTING_PANEL_URL ? `<b>Hosting Panel Login:</b> ${HOSTING_PANEL_URL} — Use the username and PIN from your credentials to log in and manage your hosting.` : ''}
+To view/reveal your hosting credentials: <b>🛡️🔥 Anti-Red Hosting</b> → <b>📋 My Hosting Plans</b> → Select domain → <b>🔑 Reveal Credentials</b>
 
 ### 🛒 Digital Products
 From main menu → tap <b>🛒 Digital Products</b>
@@ -571,6 +575,9 @@ From main menu → tap <b>💼 Become A Reseller</b>
 
 ### "My domain isn't working"
 → DNS changes can take up to 24-48 hours to propagate. Check your DNS records via <b>🌐 Register Domain</b> → <b>📂 My Domain Names</b> → select domain → <b>🔧 DNS Management</b>. If issues persist, a human agent will help.
+
+### "How do I access my hosting panel?" / "Where do I log in to cPanel?" / "What is my hosting panel URL?"
+→ Your hosting panel login URL is: <b>${HOSTING_PANEL_URL || 'available in your hosting credentials'}</b>. To get your login credentials: <b>🛡️🔥 Anti-Red Hosting</b> → <b>📋 My Hosting Plans</b> → Select your domain → <b>🔑 Reveal Credentials</b>. Use the username and PIN shown to log in at the panel URL.
 
 ### "How do I set up SIP / connect a softphone?"
 → Two ways: (1) From hub: <b>📞 Cloud IVR + SIP</b> → <b>📖 SIP Setup Guide</b>. (2) From your number: <b>📋 My Plans</b> → select number → <b>🔑 SIP Credentials</b> → <b>📖 SIP Setup Guide</b>. Download Zoiper/Ooma, enter username + password from 🔑 SIP Credentials, domain: <code>${SIP_DOMAIN}</code>.

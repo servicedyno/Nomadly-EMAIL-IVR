@@ -14,7 +14,7 @@ async function sendEmail(info, response, pin) {
   const plan = info.plan || 'Hosting Plan'
   const panelDomain = process.env.PANEL_DOMAIN
   const panelUrl = panelDomain
-    ? `https://${panelDomain}`
+    ? (panelDomain.startsWith('http') ? panelDomain : `https://${panelDomain}`)
     : `${(process.env.SELF_URL_PROD || '').replace('/api', '')}/panel`
   const brandName = process.env.CHAT_BOT_BRAND || 'Nomadly'
   const supportLink = process.env.APP_SUPPORT_LINK || '#'
