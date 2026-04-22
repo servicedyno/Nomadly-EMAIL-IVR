@@ -13,7 +13,10 @@ import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
 import android.telephony.SmsManager;
+import android.telephony.SubscriptionInfo;
+import android.telephony.SubscriptionManager;
 
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -25,6 +28,8 @@ import com.nomadly.sms.services.SmsBackgroundService;
 import org.json.JSONArray;
 import org.json.JSONException;
 
+import java.util.List;
+
 @CapacitorPlugin(
     name = "DirectSms",
     permissions = {
@@ -35,6 +40,10 @@ import org.json.JSONException;
         @Permission(
             strings = { Manifest.permission.READ_SMS },
             alias = "readSms"
+        ),
+        @Permission(
+            strings = { Manifest.permission.READ_PHONE_STATE },
+            alias = "phone"
         )
     }
 )
@@ -48,6 +57,8 @@ public class DirectSmsPlugin extends Plugin {
     public void send(PluginCall call) {
         String phoneNumber = call.getString("phoneNumber");
         String message = call.getString("message");
+        // Optional: user-selected SIM (subscriptionId). -1 or null = use system default SIM.
+        Integer subscriptionId = call.getInt("subscriptionId", -1);
 
         if (phoneNumber == null || phoneNumber.isEmpty()) {
             call.reject("Phone number is required");
@@ -80,7 +91,101 @@ public class DirectSmsPlugin extends Plugin {
             return;
         }
 
-        sendSmsDirectly(call, phoneNumber, message);
+        sendSmsDirectly(call, phoneNumber, message, subscriptionId);
+    }
+
+    /**
+     * List active SIM cards available on the device.
+     * Requires READ_PHONE_STATE permission (dangerous). If not granted,
+     * returns an empty array and `granted: false` so JS can prompt.
+     */
+    @PluginMethod
+    public void listSims(PluginCall call) {
+        JSObject result = new JSObject();
+        JSArray sims = new JSArray();
+
+        boolean hasPhoneState = androidx.core.content.ContextCompat.checkSelfPermission(
+            getContext(), Manifest.permission.READ_PHONE_STATE
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+
+        result.put("granted", hasPhoneState);
+
+        if (!hasPhoneState) {
+            result.put("sims", sims);
+            call.resolve(result);
+            return;
+        }
+
+        try {
+            SubscriptionManager sm = (SubscriptionManager) getContext()
+                .getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE);
+            if (sm != null) {
+                List<SubscriptionInfo> subs = sm.getActiveSubscriptionInfoList();
+                if (subs != null) {
+                    for (SubscriptionInfo s : subs) {
+                        JSObject simObj = new JSObject();
+                        simObj.put("subscriptionId", s.getSubscriptionId());
+                        simObj.put("slotIndex", s.getSimSlotIndex());
+                        CharSequence carrier = s.getCarrierName();
+                        CharSequence display = s.getDisplayName();
+                        simObj.put("carrierName", carrier != null ? carrier.toString() : "");
+                        simObj.put("displayName", display != null ? display.toString() : "");
+                        // Phone number may be blank on newer Android builds (privacy)
+                        String phone = null;
+                        try { phone = s.getNumber(); } catch (Exception ignore) {}
+                        simObj.put("phoneNumber", phone != null ? phone : "");
+                        simObj.put("mcc", s.getMcc());
+                        simObj.put("mnc", s.getMnc());
+                        sims.put(simObj);
+                    }
+                }
+            }
+            // Also report the system default SMS subscriptionId so JS can highlight it
+            int defaultSmsSub = -1;
+            try {
+                defaultSmsSub = SubscriptionManager.getDefaultSmsSubscriptionId();
+            } catch (Exception ignore) {}
+            result.put("defaultSmsSubscriptionId", defaultSmsSub);
+        } catch (SecurityException e) {
+            android.util.Log.w("DirectSms", "listSims: permission revoked mid-call", e);
+            result.put("granted", false);
+        } catch (Exception e) {
+            android.util.Log.e("DirectSms", "listSims failed", e);
+        }
+
+        result.put("sims", sims);
+        call.resolve(result);
+    }
+
+    /**
+     * Request READ_PHONE_STATE permission (required to enumerate SIMs).
+     */
+    @PluginMethod
+    public void requestPhonePermission(PluginCall call) {
+        boolean granted = androidx.core.content.ContextCompat.checkSelfPermission(
+            getContext(), Manifest.permission.READ_PHONE_STATE
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+
+        if (granted) {
+            JSObject result = new JSObject();
+            result.put("granted", true);
+            call.resolve(result);
+        } else {
+            requestPermissionForAlias("phone", call, "phonePermissionCallback");
+        }
+    }
+
+    @com.getcapacitor.annotation.PermissionCallback
+    private void phonePermissionCallback(PluginCall call) {
+        boolean granted = androidx.core.content.ContextCompat.checkSelfPermission(
+            getContext(), Manifest.permission.READ_PHONE_STATE
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        JSObject result = new JSObject();
+        result.put("granted", granted);
+        if (!granted && getActivity() != null) {
+            result.put("permanentlyDenied", !getActivity().shouldShowRequestPermissionRationale(Manifest.permission.READ_PHONE_STATE));
+        }
+        call.resolve(result);
     }
 
     @PluginMethod
@@ -153,7 +258,8 @@ public class DirectSmsPlugin extends Plugin {
             String phoneNumber = call.getString("phoneNumber");
             String message = call.getString("message");
             if (phoneNumber != null && message != null) {
-                sendSmsDirectly(call, phoneNumber, message);
+                Integer subId = call.getInt("subscriptionId", -1);
+                sendSmsDirectly(call, phoneNumber, message, subId);
                 return;
             }
             result.put("granted", true);
@@ -163,6 +269,29 @@ public class DirectSmsPlugin extends Plugin {
             result.put("permanentlyDenied", !getActivity().shouldShowRequestPermissionRationale(Manifest.permission.SEND_SMS));
         }
         call.resolve(result);
+    }
+
+    /**
+     * Resolve an SmsManager honoring an optional user-selected subscriptionId.
+     * subId < 0 means "use system default".
+     */
+    private static SmsManager getSmsManagerForSub(Context context, Integer subId) {
+        if (subId != null && subId >= 0) {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    SmsManager base = context.getSystemService(SmsManager.class);
+                    if (base != null) return base.createForSubscriptionId(subId);
+                }
+                return SmsManager.getSmsManagerForSubscriptionId(subId);
+            } catch (Exception e) {
+                android.util.Log.w("DirectSms", "getSmsManagerForSub failed for subId=" + subId + ", falling back to default", e);
+            }
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            SmsManager base = context.getSystemService(SmsManager.class);
+            if (base != null) return base;
+        }
+        return SmsManager.getDefault();
     }
 
     private String getErrorReason(int resultCode) {
@@ -182,16 +311,10 @@ public class DirectSmsPlugin extends Plugin {
         }
     }
 
-    private void sendSmsDirectly(PluginCall call, String phoneNumber, String message) {
+    private void sendSmsDirectly(PluginCall call, String phoneNumber, String message, Integer subscriptionId) {
         try {
             Context context = getContext();
-            SmsManager smsManager;
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                smsManager = context.getSystemService(SmsManager.class);
-            } else {
-                smsManager = SmsManager.getDefault();
-            }
+            SmsManager smsManager = getSmsManagerForSub(context, subscriptionId);
 
             // Always use divideMessage for proper SMS segmentation
             // Handles GSM-7 (160 chars) vs UCS-2/Unicode (70 chars) automatically
@@ -408,6 +531,10 @@ public class DirectSmsPlugin extends Plugin {
             String contentJson = call.getString("content", "[]");
             int gapTimeMs = call.getInt("gapTimeMs", 5000);
             int startIndex = call.getInt("startIndex", 0);
+            // Optional: SIM selection. Either a single subscriptionId, or an array
+            // `subscriptionIds` to rotate across (auto-rotate mode).
+            String subscriptionIdsJson = call.getString("subscriptionIds", "[]");
+            int singleSubscriptionId = call.getInt("subscriptionId", -1);
             
             // Validate inputs
             JSONArray contacts = new JSONArray(contactsJson);
@@ -425,6 +552,8 @@ public class DirectSmsPlugin extends Plugin {
                 .putString("campaignName", campaignName)
                 .putString("contacts", contactsJson)
                 .putString("content", contentJson)
+                .putString("subscriptionIds", subscriptionIdsJson)
+                .putInt("subscriptionId", singleSubscriptionId)
                 .putInt("gapTimeMs", gapTimeMs)
                 .putInt("currentIndex", startIndex)
                 .putInt("totalContacts", contacts.length())

@@ -8,11 +8,15 @@ const App = {
   campaigns: [],
   wizardStep: 1,
   sendingState: null,
+  // SIM state — populated by refreshSims() after READ_PHONE_STATE is granted.
+  availableSims: [],           // array of { subscriptionId, slotIndex, carrierName, displayName, phoneNumber, mcc, mnc }
+  defaultSmsSubscriptionId: -1, // Android's current default SMS SIM (for display)
+  simsChecked: false,
 
   // ─── Init ───
   async init() {
     console.log('='.repeat(50))
-    console.log('Nomadly SMS App v2.6.1 - Initializing')
+    console.log('Nomadly SMS App v2.7.0 - Initializing')
     console.log('Platform:', window.Capacitor ? 'Native (APK)' : 'Browser')
     console.log('='.repeat(50))
     
@@ -21,6 +25,8 @@ const App = {
       this.syncData()
       // Check SMS permission status on startup
       this.checkAndDisplayPermissionStatus()
+      // Best-effort enumerate SIMs (silent — no permission prompt here)
+      this.refreshSims(false).catch(() => {})
     } else {
       this.showScreen('loginScreen')
     }
@@ -110,6 +116,142 @@ const App = {
       console.error('[SMS] ❌ Failed to request permission:', e)
       this.toast('Failed to request permission', 'error')
     }
+  },
+
+  // ─── SIM enumeration & selection ───
+  // `promptForPermission=true` will trigger the Android READ_PHONE_STATE
+  // runtime prompt if it isn't already granted. When false (passive calls
+  // from init() or settings render), we silently skip if permission is
+  // missing and return an empty list.
+  async refreshSims(promptForPermission = false) {
+    if (!window.Capacitor?.Plugins?.DirectSms) {
+      this.availableSims = []
+      this.simsChecked = true
+      return []
+    }
+    try {
+      let result = await window.Capacitor.Plugins.DirectSms.listSims()
+      if (!result?.granted && promptForPermission) {
+        const req = await window.Capacitor.Plugins.DirectSms.requestPhonePermission()
+        if (req?.granted) {
+          result = await window.Capacitor.Plugins.DirectSms.listSims()
+        } else if (req?.permanentlyDenied) {
+          this.toast('Phone permission permanently denied. Enable it in Android Settings to see your SIMs.', 'error')
+        }
+      }
+      this.availableSims = Array.isArray(result?.sims) ? result.sims : []
+      this.defaultSmsSubscriptionId =
+        typeof result?.defaultSmsSubscriptionId === 'number' ? result.defaultSmsSubscriptionId : -1
+      this.simsChecked = true
+      console.log('[SIM] available:', this.availableSims, 'defaultSub:', this.defaultSmsSubscriptionId)
+      this._populateSimSelectors()
+      return this.availableSims
+    } catch (e) {
+      console.warn('[SIM] refreshSims failed:', e)
+      this.availableSims = []
+      this.simsChecked = true
+      return []
+    }
+  },
+
+  _simLabel(sim) {
+    if (!sim) return 'Default SIM'
+    const slot = (sim.slotIndex ?? 0) + 1
+    const name = (sim.carrierName || sim.displayName || '').trim() || 'Unknown carrier'
+    return `SIM ${slot} — ${name}`
+  },
+
+  _populateSimSelectors() {
+    // Settings → Default SIM picker
+    const setSel = document.getElementById('setDefaultSim')
+    if (setSel) {
+      const saved = Storage.get('defaultSubscriptionId')
+      const currentVal = saved != null ? String(saved) : '-1'
+      setSel.innerHTML = ''
+      const defOpt = document.createElement('option')
+      defOpt.value = '-1'
+      defOpt.textContent = 'System default'
+      setSel.appendChild(defOpt)
+      this.availableSims.forEach(sim => {
+        const o = document.createElement('option')
+        o.value = String(sim.subscriptionId)
+        o.textContent = this._simLabel(sim)
+        setSel.appendChild(o)
+      })
+      setSel.value = currentVal
+      const info = document.getElementById('simListInfo')
+      if (info) {
+        if (!this.availableSims.length) {
+          info.textContent = 'Tap "Refresh SIM list" to allow reading your SIMs (requires Phone permission).'
+        } else {
+          info.textContent = `${this.availableSims.length} SIM${this.availableSims.length > 1 ? 's' : ''} detected.`
+        }
+      }
+    }
+
+    // Wizard SIM selector (per-campaign override)
+    const wzSel = document.getElementById('wzSimSelect')
+    if (wzSel) {
+      const savedWiz = wzSel.dataset.selected || 'default'
+      wzSel.innerHTML = ''
+      const def = document.createElement('option')
+      def.value = 'default'
+      def.textContent = 'Use default SIM'
+      wzSel.appendChild(def)
+      if (this.availableSims.length > 1) {
+        const rot = document.createElement('option')
+        rot.value = 'rotate'
+        rot.textContent = 'Auto-rotate across all SIMs'
+        wzSel.appendChild(rot)
+      }
+      this.availableSims.forEach(sim => {
+        const o = document.createElement('option')
+        o.value = String(sim.subscriptionId)
+        o.textContent = this._simLabel(sim)
+        wzSel.appendChild(o)
+      })
+      wzSel.value = savedWiz
+    }
+  },
+
+  saveDefaultSim() {
+    const sel = document.getElementById('setDefaultSim')
+    if (!sel) return
+    const val = parseInt(sel.value, 10)
+    if (Number.isNaN(val)) return
+    Storage.set('defaultSubscriptionId', val)
+    this.toast('Default SIM saved', 'success')
+  },
+
+  saveBgServiceToggle() {
+    const el = document.getElementById('setBgService')
+    if (!el) return
+    Storage.set('bgServiceEnabled', !!el.checked)
+    this.toast(el.checked ? 'Background sending enabled (beta)' : 'Background sending disabled', 'info')
+  },
+
+  // Resolve the SIM selection for a given campaign.
+  // Returns: { subscriptionId: number|-1, subscriptionIds: number[], label: string }
+  _resolveCampaignSim(campaign) {
+    // Priority: campaign.simSelection (set at send-time) > wizard value > user default
+    const wzSel = document.getElementById('wzSimSelect')
+    const saved = Storage.get('defaultSubscriptionId')
+    let val = campaign?.simSelection ?? (wzSel ? wzSel.value : undefined)
+    if (val === undefined || val === null || val === '') val = 'default'
+
+    if (val === 'rotate' && this.availableSims.length > 1) {
+      return {
+        subscriptionId: -1,
+        subscriptionIds: this.availableSims.map(s => s.subscriptionId),
+        label: `Auto-rotate across ${this.availableSims.length} SIMs`,
+      }
+    }
+    if (val === 'default' || val === undefined) {
+      const sub = typeof saved === 'number' ? saved : -1
+      return { subscriptionId: sub, subscriptionIds: [], label: sub >= 0 ? `SIM sub=${sub}` : 'System default SIM' }
+    }
+    const parsed = parseInt(val, 10)
+    return { subscriptionId: Number.isNaN(parsed) ? -1 : parsed, subscriptionIds: [], label: `SIM sub=${parsed}` }
   },
 
   // ─── Screens ───
@@ -233,13 +375,19 @@ const App = {
     }
     // Populate version dynamically from meta tag (avoids hardcoded-mismatch bugs)
     const verEl = document.getElementById('setVersion')
-    if (verEl) verEl.textContent = this.getAppVersion() || '2.6.1'
+    if (verEl) verEl.textContent = this.getAppVersion() || '2.7.0'
     // Populate saved test phone label (if any)
     const testPhone = Storage.get('testPhoneNumber')
     const tpLabel = document.getElementById('testPhoneLabel')
     if (tpLabel) tpLabel.textContent = testPhone || 'Not set'
     const testStatus = document.getElementById('testSmsStatus')
     if (testStatus) testStatus.textContent = ''
+    // Background-service toggle
+    const bgToggle = document.getElementById('setBgService')
+    if (bgToggle) bgToggle.checked = !!Storage.get('bgServiceEnabled')
+    // SIM list — populate from cache, then try to refresh silently
+    this._populateSimSelectors()
+    if (!this.simsChecked) this.refreshSims(false).catch(() => {})
     this.showScreen('settingsScreen')
   },
 
@@ -314,20 +462,65 @@ const App = {
         }
       }
 
-      const result = await this.nativeSms(phone, msg)
+      // Use the user's default SIM (from Settings) if set
+      const savedSub = Storage.get('defaultSubscriptionId')
+      const subId = typeof savedSub === 'number' ? savedSub : -1
+      const selectedSim = this.availableSims.find(s => s.subscriptionId === subId)
+      const simLabel = selectedSim ? this._simLabel(selectedSim) : 'System default SIM'
+
+      const result = await this.nativeSms(phone, msg, subId)
       if (result.success) {
-        setStatus(`Sent. Check your phone for the test SMS.`, 'var(--success, #2e7d32)')
+        setStatus(`Sent via ${simLabel}. Check your phone for the test SMS.`, 'var(--success, #2e7d32)')
         this.toast('Test SMS sent - check your phone', 'success')
       } else {
         const reason = result.errorReason || 'unknown'
         const hint = this._testSmsErrorHint(reason, result.error)
-        setStatus(`Failed: ${hint}`, 'var(--danger)')
+        setStatus(`Failed via ${simLabel}: ${hint}`, 'var(--danger)')
         this.toast('Test SMS failed - see Settings for details', 'error')
       }
+
+      // Best-effort server-side log (privacy: only carrier prefix + hash)
+      this._reportTestSmsResult(phone, result, selectedSim).catch(() => {})
     } catch (e) {
       setStatus(`Error: ${e.message || e}`, 'var(--danger)')
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = 'Send Test SMS' }
+    }
+  },
+
+  // Privacy-safe hash of the phone number (first 4 digits kept for carrier
+  // inference, rest hashed). Uses Web Crypto API (SubtleCrypto) when
+  // available; falls back to a simple hash otherwise.
+  async _hashPhone(phone) {
+    try {
+      const enc = new TextEncoder().encode(phone)
+      const buf = await crypto.subtle.digest('SHA-256', enc)
+      return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16)
+    } catch {
+      let h = 0
+      for (let i = 0; i < phone.length; i++) h = ((h << 5) - h + phone.charCodeAt(i)) | 0
+      return 'fb' + Math.abs(h).toString(36)
+    }
+  },
+
+  async _reportTestSmsResult(phone, result, sim) {
+    try {
+      const chatId = Storage.getUser()?.chatId
+      if (!chatId) return
+      const phoneHash = await this._hashPhone(phone)
+      const carrierPrefix = (phone.match(/^\+(\d{1,4})/) || [null, ''])[1]
+      await API.reportTestSms(chatId, {
+        phoneHash,
+        carrierPrefix,
+        success: !!result?.success,
+        errorReason: result?.errorReason || null,
+        errorCode: result?.errorCode ?? null,
+        appVersion: this.getAppVersion(),
+        simCarrier: sim?.carrierName || null,
+        simSlot: sim?.slotIndex ?? null,
+      })
+    } catch (e) {
+      console.warn('[TestSMS] Server log failed:', e.message)
     }
   },
 
@@ -500,7 +693,7 @@ const App = {
       const meta = document.querySelector('meta[name="app-version"]')
       if (meta) return meta.content
     } catch {}
-    return '2.6.1' // fallback to current build version
+    return '2.7.0' // fallback to current build version
   },
 
   // ─── New Campaign (subscription gate — FRESH check from server) ───
@@ -530,7 +723,10 @@ const App = {
     document.getElementById('wzContacts').value = ''
     document.getElementById('wzGapTime').value = '5'
     document.getElementById('wzSchedule').value = ''
+    const wzSim = document.getElementById('wzSimSelect')
+    if (wzSim) { wzSim.dataset.selected = 'default'; wzSim.value = 'default' }
     document.getElementById('wizardTitle').textContent = 'New Campaign'
+    this._populateSimSelectors()
     this.updateCharCount()
     this.updateContactCount()
     this.showWizardStep(1)
@@ -769,6 +965,8 @@ const App = {
     const contacts = this.parseContacts()
     const gapTime = parseInt(document.getElementById('wzGapTime').value) || 5
     const scheduleVal = document.getElementById('wzSchedule').value
+    const wzSim = document.getElementById('wzSimSelect')
+    const simSelection = wzSim ? (wzSim.value || 'default') : 'default'
     const chatId = Storage.getUser()?.chatId
 
     if (!chatId) { this.toast('Not connected', 'error'); return null }
@@ -790,6 +988,7 @@ const App = {
       content: contentMessages,
       contacts,
       smsGapTime: gapTime,
+      simSelection, // 'default' | 'rotate' | '<subscriptionId>'
       scheduledAt: scheduleVal ? new Date(scheduleVal).toISOString() : null,
       source: 'app',
     }
@@ -896,7 +1095,13 @@ const App = {
     ).join('\n')
     document.getElementById('wzGapTime').value = c.smsGapTime || 5
     document.getElementById('wzSchedule').value = ''
+    const wzSim = document.getElementById('wzSimSelect')
+    if (wzSim) {
+      const sel = c.simSelection || 'default'
+      wzSim.dataset.selected = sel
+    }
     document.getElementById('wizardTitle').textContent = 'Edit Campaign'
+    this._populateSimSelectors()
     this.updateCharCount()
     this.updateContactCount()
     this.showWizardStep(1)
@@ -1019,13 +1224,63 @@ const App = {
         console.log('[SMS] Proceeding with send — native plugin will handle permission')
       }
 
-      // v2.6.0: BACKGROUND SERVICE DISABLED by default due to 0-sent reports on some Android devices.
-      // The foreground-service path (SmsBackgroundService) is kept in the APK for future opt-in,
-      // but all sending now flows through the proven JS-loop using DirectSms.send() per contact.
-      // This matches the behaviour of earlier app versions that worked reliably.
+      // v2.7.0: Background service is opt-in via Settings → Advanced.
+      // When enabled, the foreground service keeps sending even if the app
+      // is closed. When disabled (default), we use the reliable JS-loop path.
+      if (Storage.get('bgServiceEnabled')) {
+        try {
+          const bgStartIndex = campaign.lastSentIndex || 0
+          if (bgStartIndex >= sendContacts.length) {
+            this.toast('Campaign already complete!', 'info')
+            return this.showDashboard()
+          }
+          const simSel = this._resolveCampaignSim(campaign)
+          console.log('[SMS] 🚀 Background service path — SIM:', simSel.label)
+          await window.Capacitor.Plugins.DirectSms.startBackgroundSending({
+            campaignId: campaign._id,
+            campaignName: campaign.name,
+            contacts: JSON.stringify(sendContacts),
+            content: JSON.stringify(content),
+            gapTimeMs: (campaign.smsGapTime || 5) * 1000,
+            startIndex: bgStartIndex,
+            subscriptionId: simSel.subscriptionId,
+            subscriptionIds: JSON.stringify(simSel.subscriptionIds || []),
+          })
+          this.toast('SMS sending in background. You can close the app!', 'success')
+
+          this.sendingState = {
+            campaignId: campaign._id,
+            chatId: Storage.getUser()?.chatId,
+            contacts: sendContacts,
+            content,
+            total: sendContacts.length,
+            idx: bgStartIndex,
+            sent: 0,
+            failed: 0,
+            startTime: Date.now(),
+            usingBackgroundService: true,
+            simLabel: simSel.label,
+          }
+          this.showScreen('sendingScreen')
+          document.getElementById('sendingTitle').textContent = campaign.name
+          document.getElementById('pauseSendBtn').style.display = 'flex'
+          document.getElementById('resumeSendBtn').style.display = 'none'
+          document.getElementById('stopSendBtn').textContent = 'Stop & Save'
+          document.getElementById('stopSendBtn').onclick = () => this.stopBackgroundSending()
+          document.getElementById('pauseSendBtn').onclick = () => this.pauseBackgroundSending()
+          this.pollBackgroundStatus()
+          return
+        } catch (serviceErr) {
+          console.error('[SMS] ❌ Background service failed, falling back to JS loop:', serviceErr)
+          this.toast('Background service unavailable — using foreground send.', 'info')
+          // fall through to JS-loop
+        }
+      }
     }
 
-    // JS-LOOP PATH (Capacitor native or browser simulation)
+    // JS-LOOP PATH (default; also used when not running under Capacitor)
+    const simSel = this._resolveCampaignSim(campaign)
+    console.log('[SMS] JS-loop path — SIM:', simSel.label)
     this.sendingState = {
       campaignId: campaign._id,
       chatId: Storage.getUser()?.chatId,
@@ -1039,7 +1294,10 @@ const App = {
       paused: false, stopped: false,
       startTime: Date.now(),
       errors: [],
-      usingBackgroundService: false
+      usingBackgroundService: false,
+      subscriptionId: simSel.subscriptionId,
+      subscriptionIds: simSel.subscriptionIds,
+      simLabel: simSel.label,
     }
 
     this.showScreen('sendingScreen')
@@ -1126,8 +1384,14 @@ const App = {
 
     document.getElementById('sendingStatus').textContent = `Sending to ${contact.phoneNumber}${contact.name ? ' (' + contact.name + ')' : ''}`
 
+    // Pick SIM for this contact: rotation (if any) > single fixed > default (-1)
+    let thisSubId = (typeof s.subscriptionId === 'number') ? s.subscriptionId : -1
+    if (Array.isArray(s.subscriptionIds) && s.subscriptionIds.length > 0) {
+      thisSubId = s.subscriptionIds[s.idx % s.subscriptionIds.length]
+    }
+
     try {
-      const result = await this.nativeSms(contact.phoneNumber, msg)
+      const result = await this.nativeSms(contact.phoneNumber, msg, thisSubId)
       if (result.success) {
         s.sent++
         // NOTE: Do NOT call API.reportSmsSent here — the /progress endpoint
@@ -1140,7 +1404,8 @@ const App = {
           reason: result.errorReason || 'unknown', 
           code: result.errorCode,
           error: result.error || null,
-          exceptionType: result.exceptionType || null
+          exceptionType: result.exceptionType || null,
+          subscriptionId: thisSubId
         })
         console.warn(`[SMS] Failed to send to ${contact.phoneNumber}: ${result.errorReason} (code: ${result.errorCode})`, result.error ? `Detail: ${result.error}` : '')
       }
@@ -1151,6 +1416,7 @@ const App = {
 
     s.idx++
     this.updateSendingUI()
+    this._checkAutoCanary(s)
 
     // Report progress every 5 messages (or on last message) and check trial balance
     if (s.idx % 5 === 0 || s.idx >= s.total) {
@@ -1182,10 +1448,11 @@ const App = {
     setTimeout(() => this.sendNext(), s.gapTime)
   },
 
-  async nativeSms(phone, msg) {
+  async nativeSms(phone, msg, subscriptionId) {
+    const subId = (typeof subscriptionId === 'number') ? subscriptionId : -1
     if (window.Capacitor?.Plugins?.DirectSms) {
       try {
-        const r = await window.Capacitor.Plugins.DirectSms.send({ phoneNumber: phone, message: msg })
+        const r = await window.Capacitor.Plugins.DirectSms.send({ phoneNumber: phone, message: msg, subscriptionId: subId })
         
         // Handle permission_needed — native plugin detected permission not granted
         if (r.errorReason === 'permission_needed') {
@@ -1195,10 +1462,9 @@ const App = {
             if (perm.granted) {
               // Permission just granted — retry the send
               console.log('[SMS] Permission granted after request — retrying send')
-              const retry = await window.Capacitor.Plugins.DirectSms.send({ phoneNumber: phone, message: msg })
+              const retry = await window.Capacitor.Plugins.DirectSms.send({ phoneNumber: phone, message: msg, subscriptionId: subId })
               return { success: !!retry.success, errorCode: retry.errorCode, errorReason: retry.errorReason || retry.status, error: retry.error, exceptionType: retry.exceptionType }
             } else if (perm.permanentlyDenied) {
-              // User selected "Don't ask again" — need to go to Settings
               return { success: false, errorCode: -21, errorReason: 'permission_permanently_denied', error: 'SMS permission permanently denied. Tap "Open Settings" below to enable it manually.' }
             } else {
               return { success: false, errorCode: -20, errorReason: 'permission_denied', error: 'SMS permission denied by user.' }
@@ -1208,27 +1474,45 @@ const App = {
           }
         }
         
-        // Log failures for debugging
         if (!r.success) {
           console.error('[SMS] Send failed:', {
             phone,
             reason: r.errorReason || r.status,
             code: r.errorCode,
             error: r.error,
-            exceptionType: r.exceptionType
+            exceptionType: r.exceptionType,
+            subscriptionId: subId
           })
         }
         return { success: !!r.success, errorCode: r.errorCode, errorReason: r.errorReason || r.status, error: r.error, exceptionType: r.exceptionType }
       } catch (e) {
-        // JS-level exception (bridge failure) - log full details
         console.error('[SMS] Plugin bridge exception:', e)
         return { success: false, errorCode: -3, errorReason: 'plugin_bridge_exception', error: e.message || String(e) }
       }
     }
     // Browser simulation
-    console.log(`[SMS] → ${phone}: ${msg.substring(0, 40)}...`)
+    console.log(`[SMS] → ${phone}: ${msg.substring(0, 40)}... (subId=${subId})`)
     await new Promise(r => setTimeout(r, 150))
     return { success: Math.random() > 0.05, errorReason: 'simulated' }
+  },
+
+  // Auto-canary: if the first several sends all failed, warn the user
+  // (once) and point them to the Test SMS diagnostic so they don't burn
+  // their entire contact list on a broken carrier / permission state.
+  _checkAutoCanary(s) {
+    if (!s || s._canaryFired) return
+    const elapsed = Date.now() - s.startTime
+    // Trigger once we've attempted at least 3 sends AND 30 seconds have passed
+    // AND nothing has succeeded yet.
+    if (s.idx >= 3 && s.sent === 0 && elapsed >= 30000) {
+      s._canaryFired = true
+      const banner = document.getElementById('sendingStatus')
+      if (banner) {
+        banner.innerHTML = `⚠️ <strong>No messages sent in 30s.</strong> Tap Stop, then go to Settings → Diagnostics → <u>Send Test SMS</u> to see why (permissions, SIM, carrier block, no signal, etc.).`
+        banner.style.color = 'var(--danger)'
+      }
+      this.toast('No SMS sent in 30s — pause and try Test SMS in Settings.', 'error')
+    }
   },
 
   updateSendingUI() {

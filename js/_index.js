@@ -1750,7 +1750,7 @@ const loadData = async () => {
     const exists = fs.existsSync(apkPath)
     const size = exists ? fs.statSync(apkPath).size : 0
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
-    res.json({ version: '2.6.1', name: 'Nomadly SMS', size, available: exists })
+    res.json({ version: '2.7.0', name: 'Nomadly SMS', size, available: exists })
   })
 
   // Initialize Email Blast Service
@@ -3643,6 +3643,69 @@ bot?.on('message', msg => {
       send(chatId, `✅ Win-back complete: ${result.sent} sent, ${result.errors} errors`)
     }).catch(e => send(chatId, `❌ Error: ${e.message}`))
     return
+  }
+
+  // ── Admin: Aggregate Test-SMS diagnostic logs (last 7d) ──
+  if (isAdmin(chatId) && (message === '/testlogs' || message.startsWith('/testlogs '))) {
+    try {
+      const days = parseInt(message.split(/\s+/)[1], 10) || 7
+      const sinceTs = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+      const col = db.collection('testSmsLogs')
+      const logs = await col.find({ ts: { $gte: sinceTs } }).toArray()
+
+      if (logs.length === 0) {
+        return send(chatId, `📡 <b>Test SMS Logs — last ${days}d</b>\n\nNo entries yet. Users haven't run "Send Test SMS" or they're on older app versions.`, { parse_mode: 'HTML' })
+      }
+
+      const total = logs.length
+      const success = logs.filter(l => l.success).length
+      const fail = total - success
+
+      // Aggregate by errorReason
+      const byReason = {}
+      for (const l of logs) {
+        if (l.success) continue
+        const k = l.errorReason || 'unknown'
+        byReason[k] = (byReason[k] || 0) + 1
+      }
+      const reasonLines = Object.entries(byReason)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([k, v]) => `  • <code>${k}</code> × ${v}`)
+        .join('\n') || '  (none)'
+
+      // Aggregate by carrier prefix
+      const byPrefix = {}
+      for (const l of logs) {
+        const k = l.carrierPrefix || '?'
+        if (!byPrefix[k]) byPrefix[k] = { ok: 0, fail: 0 }
+        if (l.success) byPrefix[k].ok++; else byPrefix[k].fail++
+      }
+      const prefixLines = Object.entries(byPrefix)
+        .sort((a, b) => (b[1].ok + b[1].fail) - (a[1].ok + a[1].fail))
+        .slice(0, 10)
+        .map(([k, v]) => {
+          const tot = v.ok + v.fail
+          const rate = tot > 0 ? Math.round((v.ok / tot) * 100) : 0
+          return `  • +${k}: ${v.ok}/${tot} ok (${rate}%)`
+        })
+        .join('\n') || '  (none)'
+
+      // Distinct users
+      const distinctUsers = new Set(logs.map(l => String(l.chatId))).size
+
+      const msg =
+        `📡 <b>Test SMS Logs — last ${days}d</b>\n\n` +
+        `Total: <b>${total}</b> · OK: <b>${success}</b> · Fail: <b>${fail}</b>\n` +
+        `Distinct users: <b>${distinctUsers}</b>\n\n` +
+        `<b>Top failure reasons:</b>\n${reasonLines}\n\n` +
+        `<b>By country/carrier prefix:</b>\n${prefixLines}\n\n` +
+        `<i>Tip: <code>/testlogs 30</code> for 30-day window.</i>`
+
+      return send(chatId, msg, { parse_mode: 'HTML' })
+    } catch (e) {
+      return send(chatId, '❌ testlogs error: ' + e.message)
+    }
   }
 
   if (isAdmin(chatId) && message === '/ad post') {

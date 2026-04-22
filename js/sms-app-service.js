@@ -56,13 +56,13 @@ function initSmsAppService(_db, _nameOf, _planEndingTime, _freeSmsCountOf, _logi
 
   // ─── Proactive SMS App version announcement to ALL bot users ───
   // When a new version is deployed, automatically notify all users (not just app users)
-  const SMS_APP_VERSION = '2.6.1'
+  const SMS_APP_VERSION = '2.7.0'
   // Human-first, conversational release note. Shown verbatim in the broadcast
   // between the opening line and the download instructions.
   const SMS_APP_RELEASE_NOTE =
-    `If your messages weren't sending in the last build, this release fixes it. ` +
-    `You'll also find a new one-tap "Send Test SMS" button in Settings so you ` +
-    `can verify delivery before running a real campaign.`
+    `You can now pick which SIM card to send from — or let the app auto-rotate ` +
+    `across all your SIMs to dodge per-SIM carrier rate limits. ` +
+    `Settings also has a new one-tap "Send Test SMS" so you can verify delivery before a real campaign.`
 
   ;(async () => {
     try {
@@ -668,7 +668,7 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
     try {
       const chatId = req.params.chatId
       const userVersion = req.query.version || 'unknown'
-      const latestVersion = '2.6.1'
+      const latestVersion = '2.7.0'
       
       console.log(`[SmsApp] Sync request for chatId: ${chatId}, version: ${userVersion}`)
       
@@ -810,6 +810,48 @@ ${versionsBehind >= 2 ? `⚠️ You are <b>${versionsBehind} versions behind</b>
       res.json({ ok: true })
     } catch (error) {
       console.log(`[SmsApp] Error storing SMS errors:`, error.message)
+      res.status(500).json({ error: error.message })
+    }
+  })
+
+  // ── Test SMS result log (from Settings → Diagnostics) ──
+  // Privacy: only a 16-char SHA-256 prefix of the phone number is stored,
+  // plus the country/carrier dial-prefix. No raw numbers.
+  app.post('/sms-app/test-log/:chatId', async (req, res) => {
+    try {
+      const chatId = req.params.chatId
+      const strChatId = String(chatId)
+      const { phoneHash, carrierPrefix, success, errorReason, errorCode, appVersion, simCarrier, simSlot } = req.body || {}
+
+      // Auth gate — test log must come from a known user
+      const authResult = await authenticateUser(chatId)
+      if (!authResult.valid) {
+        return res.status(401).json({ error: authResult.error })
+      }
+
+      await db.collection('testSmsLogs').insertOne({
+        chatId: strChatId,
+        phoneHash: String(phoneHash || '').slice(0, 16),
+        carrierPrefix: String(carrierPrefix || '').slice(0, 4),
+        success: !!success,
+        errorReason: errorReason || null,
+        errorCode: errorCode ?? null,
+        appVersion: appVersion || null,
+        simCarrier: simCarrier || null,
+        simSlot: typeof simSlot === 'number' ? simSlot : null,
+        ts: new Date()
+      })
+
+      // Log to stdout for quick scanning
+      console.log(`[TestSMS] ${strChatId} ${success ? 'OK' : 'FAIL'} ` +
+                  `pre=${carrierPrefix || '?'} ` +
+                  `sim=${simCarrier || 'default'} ` +
+                  `reason=${errorReason || '-'} ` +
+                  `app=${appVersion || '?'}`)
+
+      res.json({ ok: true })
+    } catch (error) {
+      console.log(`[SmsApp] test-log error:`, error.message)
       res.status(500).json({ error: error.message })
     }
   })

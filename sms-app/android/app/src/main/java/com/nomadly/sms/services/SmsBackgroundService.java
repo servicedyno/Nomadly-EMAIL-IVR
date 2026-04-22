@@ -43,6 +43,9 @@ public class SmsBackgroundService extends Service {
     private int sentCount;
     private int failedCount;
     private int totalContacts;
+    // SIM selection: either a single fixed subscriptionId, or a rotation list.
+    private int singleSubscriptionId = -1;
+    private int[] rotationSubscriptionIds = new int[0];
     
     @Override
     public void onCreate() {
@@ -99,9 +102,24 @@ public class SmsBackgroundService extends Service {
             contacts = new JSONArray(contactsJson);
             content = new JSONArray(contentJson);
             totalContacts = contacts.length();
-            
-            Log.d(TAG, "Loaded campaign: " + campaignName + ", contacts=" + totalContacts + 
-                  ", currentIndex=" + currentIndex);
+
+            // SIM selection
+            singleSubscriptionId = prefs.getInt("subscriptionId", -1);
+            String subIdsJson = prefs.getString("subscriptionIds", "[]");
+            try {
+                JSONArray arr = new JSONArray(subIdsJson);
+                rotationSubscriptionIds = new int[arr.length()];
+                for (int i = 0; i < arr.length(); i++) {
+                    rotationSubscriptionIds[i] = arr.getInt(i);
+                }
+            } catch (Exception ignore) {
+                rotationSubscriptionIds = new int[0];
+            }
+
+            Log.d(TAG, "Loaded campaign: " + campaignName + ", contacts=" + totalContacts +
+                  ", currentIndex=" + currentIndex +
+                  ", subId=" + singleSubscriptionId +
+                  ", rotation=" + rotationSubscriptionIds.length);
         } catch (Exception e) {
             Log.e(TAG, "Failed to load campaign data", e);
             stopSelf();
@@ -140,7 +158,13 @@ public class SmsBackgroundService extends Service {
             
             Log.d(TAG, "Sending SMS " + (currentIndex + 1) + "/" + totalContacts + " to " + phoneNumber);
             
-            sendSms(phoneNumber, message, new SmsCallback() {
+            // Pick SIM: rotation (if any) > single fixed > default (-1)
+            int subId = singleSubscriptionId;
+            if (rotationSubscriptionIds != null && rotationSubscriptionIds.length > 0) {
+                subId = rotationSubscriptionIds[currentIndex % rotationSubscriptionIds.length];
+            }
+
+            sendSms(phoneNumber, message, subId, new SmsCallback() {
                 @Override
                 public void onSuccess() {
                     sentCount++;
@@ -195,10 +219,24 @@ public class SmsBackgroundService extends Service {
         }, 5000);
     }
 
-    private void sendSms(String phoneNumber, String message, SmsCallback callback) {
+    private void sendSms(String phoneNumber, String message, int subscriptionId, SmsCallback callback) {
         try {
             SmsManager smsManager;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (subscriptionId >= 0) {
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        SmsManager base = getSystemService(SmsManager.class);
+                        smsManager = base != null ? base.createForSubscriptionId(subscriptionId) : SmsManager.getSmsManagerForSubscriptionId(subscriptionId);
+                    } else {
+                        smsManager = SmsManager.getSmsManagerForSubscriptionId(subscriptionId);
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "Per-SIM SmsManager failed for subId=" + subscriptionId + ", using default", e);
+                    smsManager = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                        ? getSystemService(SmsManager.class)
+                        : SmsManager.getDefault();
+                }
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 smsManager = getSystemService(SmsManager.class);
             } else {
                 smsManager = SmsManager.getDefault();

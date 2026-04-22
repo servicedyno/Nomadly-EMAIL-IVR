@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#0f0f23">
-  <meta name="app-version" content="2.6.1">
+  <meta name="app-version" content="2.7.0">
   <title>Nomadly SMS</title>
   <script>
     if (window.location.pathname.includes('/api/sms-app-web')) {
@@ -232,6 +232,12 @@
               </div>
             </div>
             <div class="settings-row">
+              <span>SIM card</span>
+              <div class="settings-value">
+                <select id="wzSimSelect" data-testid="wz-sim-select" class="schedule-input" style="min-width:160px"></select>
+              </div>
+            </div>
+            <div class="settings-row">
               <span>Schedule for later</span>
               <input type="datetime-local" id="wzSchedule" class="schedule-input">
             </div>
@@ -357,10 +363,34 @@
         </div>
       </div>
       <div class="settings-section">
+        <h3>SIM Card</h3>
+        <div class="settings-item" style="flex-direction:column;align-items:stretch;gap:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center;width:100%">
+            <span>Default SIM for sending</span>
+            <select id="setDefaultSim" data-testid="set-default-sim" class="schedule-input" style="min-width:160px" onchange="App.saveDefaultSim()"></select>
+          </div>
+          <button class="btn btn-secondary" id="refreshSimsBtn" data-testid="refresh-sims-btn" onclick="App.refreshSims(true)">Refresh SIM list</button>
+          <div id="simListInfo" style="font-size:12px;color:var(--text-muted)"></div>
+        </div>
+      </div>
+      <div class="settings-section">
+        <h3>Advanced</h3>
+        <div class="settings-item" style="justify-content:space-between">
+          <div style="display:flex;flex-direction:column">
+            <span>Keep sending when app is closed</span>
+            <small style="font-size:12px;color:var(--text-muted)">Beta — uses Android foreground service</small>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="setBgService" data-testid="set-bg-service" onchange="App.saveBgServiceToggle()">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+      <div class="settings-section">
         <h3>About</h3>
         <div class="settings-item">
           <span>Version</span>
-          <span class="settings-val" id="setVersion">2.6.1</span>
+          <span class="settings-val" id="setVersion">2.7.0</span>
         </div>
         <div class="settings-item">
           <span>Support</span>

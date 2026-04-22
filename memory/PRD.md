@@ -163,3 +163,60 @@ Multi-service platform (Telegram bot + React frontend + Node.js backend) managin
 - **APK rebuilt** — 3.80MB at `/app/static/nomadly-sms.apk` (`versionCode=15`, `versionName=2.6.1`).
 - **Files touched**: `sms-app/www/index.html` (Diagnostics section), `sms-app/www/js/app.js` (`promptTestPhone`, `saveTestPhone`, `sendTestSms`, `_testSmsErrorHint`), `sms-app/android/app/build.gradle`, `sms-app/package.json`, `sms-app/www/js/api.js`, `js/sms-app-service.js`, `js/_index.js`.
 - **Data test IDs**: `send-test-sms-btn`, `change-test-phone-btn`.
+
+
+## Feb 2026 — SMS App v2.7.0 (SIM Selector + Auto-Rotate + Background Service + Auto-Canary + Test Logs)
+
+A bundled feature release addressing user feedback and operational intelligence.
+
+### 1. SIM card selector (user-requested)
+- **Native (DirectSmsPlugin.java)**: New `listSims()` and `requestPhonePermission()` methods. Enumerates active SIMs via `SubscriptionManager.getActiveSubscriptionInfoList()`, returns `[{subscriptionId, slotIndex, carrierName, displayName, phoneNumber, mcc, mnc}]`. Added `READ_PHONE_STATE` permission (Capacitor alias `phone`).
+- **Native `send()`**: accepts optional `subscriptionId`; routes through `SmsManager.getSmsManagerForSubscriptionId(subId)` (or `createForSubscriptionId` on S+) with fallback to default SIM.
+- **Per-SIM sender helper**: `getSmsManagerForSub(context, subId)` — resolves SmsManager for any user-picked SIM. Swallowed exception falls back to default SIM so the send never silently dies.
+- **UI**:
+  - Settings → "SIM Card" section: default-SIM dropdown + "Refresh SIM list" button.
+  - Campaign wizard → Advanced Settings: per-campaign SIM override dropdown with options `Use default SIM`, `Auto-rotate across all SIMs` (when 2+ SIMs present), and each specific SIM.
+  - Test SMS uses the default SIM and shows which SIM was used in the status line.
+
+### 2. Auto-rotate SIMs (bonus)
+- `startBackgroundSending()` accepts `subscriptionIds: JSON-array` and persists it in SharedPreferences.
+- `SmsBackgroundService` reads the list and picks `subs[currentIndex % subs.length]` for each message. Evens out carrier rate limits (2 SIMs ≈ 2× throughput).
+- JS-loop path has the same rotation logic in `sendNext()`.
+
+### 3. Background-service toggle (opt-in beta)
+- Settings → "Advanced" → "Keep sending when app is closed" toggle (`bgServiceEnabled` in localStorage).
+- When ON, `startSending()` routes through `DirectSms.startBackgroundSending()` which persists state in SharedPreferences and runs as a foreground service (`foregroundServiceType=dataSync`). Automatic fallback to JS-loop if the service call throws.
+- When OFF (default), campaigns use the proven JS-loop path.
+- Added `POST_NOTIFICATIONS` permission (Android 13+ requires it for foreground-service progress notifications).
+
+### 4. Auto-canary (silent-failure guard)
+- `_checkAutoCanary(state)` fires one-time after every `sendNext()`: if 30s elapsed, at least 3 attempts made, and zero successes, it paints a red warning banner on the Sending screen and toasts the user pointing to Settings → Diagnostics → Send Test SMS.
+- Prevents users from burning their contact list on a broken SIM / permission / carrier block.
+
+### 5. Server-side test-SMS logging
+- **Endpoint**: `POST /api/sms-app/test-log/:chatId` — writes to `testSmsLogs` collection with `{chatId, phoneHash(16ch SHA-256 prefix), carrierPrefix, success, errorReason, errorCode, appVersion, simCarrier, simSlot, ts}`. No raw phone numbers stored.
+- **Client**: `App._reportTestSmsResult()` fires after every test SMS (success or fail), POSTing hashed phone + carrier prefix for carrier-specific intelligence.
+- **Admin bot command**: `/testlogs [days=7]` — aggregates last N days into:
+  - total count, OK/fail split, distinct users
+  - top 10 failure reasons with counts
+  - top 10 country/carrier prefixes with OK-rate per prefix
+- Lets operator spot *"MTN Nigeria: 8 generic_failure in last 48h"* before individual users complain.
+
+### Version bumps (end-to-end 2.7.0)
+- `android/app/build.gradle` → versionCode 16, versionName 2.7.0
+- `package.json`, `www/index.html` meta + Settings display, `www/js/app.js` (init log + `getAppVersion` fallback + `showSettings` fallback)
+- `www/js/api.js` sync default
+- `js/sms-app-service.js` SMS_APP_VERSION + new conversational release note
+- `js/_index.js` `/sms-app/download/info`
+
+### APK verified
+- Path: `/app/static/nomadly-sms.apk` (3.81MB)
+- aapt2 badging: `versionCode=16 versionName=2.7.0` with `SEND_SMS`, `READ_PHONE_STATE`, `POST_NOTIFICATIONS`, `FOREGROUND_SERVICE_DATA_SYNC` declared.
+
+### Data test IDs
+`wz-sim-select`, `set-default-sim`, `refresh-sims-btn`, `set-bg-service`, `send-test-sms-btn`, `change-test-phone-btn`.
+
+### Files touched
+Frontend/mobile: `sms-app/android/app/src/main/java/com/nomadly/sms/plugins/DirectSmsPlugin.java`, `sms-app/android/app/src/main/java/com/nomadly/sms/services/SmsBackgroundService.java`, `sms-app/android/app/src/main/AndroidManifest.xml`, `sms-app/android/app/build.gradle`, `sms-app/package.json`, `sms-app/www/index.html`, `sms-app/www/css/style.css` (switch toggle CSS), `sms-app/www/js/app.js`, `sms-app/www/js/api.js`.
+
+Backend: `js/sms-app-service.js` (test-log endpoint + version bump + release note), `js/_index.js` (`/testlogs` admin command + download/info version).
