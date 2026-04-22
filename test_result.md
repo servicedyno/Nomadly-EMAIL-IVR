@@ -31,3 +31,4 @@ Multi-service platform (Nomadly) — Telegram Bot + Cloud Phone Platform with Re
 
 ## Test History
 - Initial setup: All services started and verified ✅
+- Bug fix: Fixed SMS app download link. Production Railway had `SMS_APP_LINK="https://hostbay.io/api/smsapp\"` (wrong path + trailing backslash → Telegram encoded `\` as `%5C` → 404). Updated to `https://hostbay.io/sms-app/download` on both Railway (triggers auto-redeploy) and local `backend/.env`. Verified 200 OK on the correct URL.
