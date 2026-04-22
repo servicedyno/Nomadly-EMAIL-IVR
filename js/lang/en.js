@@ -3009,13 +3009,16 @@ Please Try again after sometime.`,
 
 Do you want to proceed?`,
  
- confirmResetPasswordText: name => `🔑 <strong>Reset RDP Password</strong>
+ confirmResetPasswordText: name => `🔑 <strong>Reset VPS Password</strong>
 
 ⚠️ <strong>Important:</strong>
 • Your current password will stop working
 • A new password will be generated
-• All your data and files will be preserved
-• You'll need the new password to access RDP
+• For <b>Linux VPS</b>: This will reinstall the OS — <b>ALL DATA will be erased</b>
+• For <b>Windows RDP</b>: Your data and files will be preserved
+• You'll need the new password to access your VPS
+
+💾 <strong>Linux users:</strong> Back up important files before proceeding.
 
 Do you want to reset the password for <strong>${name}</strong>?`,
 
@@ -3034,7 +3037,9 @@ Do you want to reinstall Windows on <strong>${name}</strong>?`,
 
  passwordResetInProgress: name => `🔄 Resetting password for <strong>${name}</strong>...
 
-⏱️ This may take 30-60 seconds. Please wait.`,
+⏱️ This may take 2-5 minutes. Please wait.
+
+⚠️ <i>Note: For Linux VPS, this performs a fresh OS reinstall with the new password. Any data on the server will be reset.</i>`,
 
  passwordResetSuccess: (name, ip, username, password) => `✅ <strong>Password Reset Successful!</strong>
 

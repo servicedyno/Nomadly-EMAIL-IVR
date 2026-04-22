@@ -581,26 +581,41 @@ async function createVPSInstance(telegramId, vpsDetails) {
       createOpts.sshKeys = [vpsDetails.sshKeySecretId]
     }
 
-    // Fix: When both SSH keys and password are set on Linux, modern distros
-    // (Ubuntu 24.04+, Debian 13+) disable password auth by default.
-    // Use cloud-init to ensure both authentication methods work.
-    if (!isRDP && vpsDetails.sshKeySecretId) {
+    // Fix: On modern Linux distros (Ubuntu 24.04+), the root account is locked
+    // and a non-root user (e.g., 'admin') is used instead. The Contabo resetPassword
+    // API only resets the ROOT password, so we need to:
+    // 1. Unlock root account so Contabo's resetPassword API works
+    // 2. Enable PermitRootLogin so SSH as root works
+    // 3. Enable PasswordAuthentication for both root and default user
+    // 4. Sync root password with the provisioned password
+    if (!isRDP) {
       const cloudInitScript = [
         '#!/bin/bash',
-        '# Ensure password authentication works alongside SSH keys',
-        '# Main sshd_config',
+        '# === Nomadly VPS Setup ===',
+        '# Enable password authentication',
         'sed -i "s/^#*PasswordAuthentication.*/PasswordAuthentication yes/" /etc/ssh/sshd_config',
         'sed -i "s/^#*PermitRootLogin.*/PermitRootLogin yes/" /etc/ssh/sshd_config',
-        '# Drop-in config files (Ubuntu 24.04+ uses /etc/ssh/sshd_config.d/)',
+        '# Fix drop-in config files (Ubuntu 24.04+ uses /etc/ssh/sshd_config.d/)',
         'for f in /etc/ssh/sshd_config.d/*.conf; do',
         '  [ -f "$f" ] && sed -i "s/^PasswordAuthentication no/PasswordAuthentication yes/" "$f"',
         '  [ -f "$f" ] && sed -i "s/^PermitRootLogin prohibit-password/PermitRootLogin yes/" "$f"',
+        '  [ -f "$f" ] && sed -i "s/^PermitRootLogin no/PermitRootLogin yes/" "$f"',
         'done',
+        '# Unlock root account (Ubuntu 24.04 locks it by default)',
+        '# Copy the default user password hash to root so both accounts work',
+        'DEFAULT_USER=$(grep "^[^:]*:[^!*]" /etc/shadow | grep -v "root\\|nobody\\|systemd" | head -1 | cut -d: -f1)',
+        'if [ -n "$DEFAULT_USER" ] && [ "$DEFAULT_USER" != "root" ]; then',
+        '  DEFAULT_HASH=$(getent shadow "$DEFAULT_USER" | cut -d: -f2)',
+        '  if [ -n "$DEFAULT_HASH" ] && [ "$DEFAULT_HASH" != "!" ] && [ "$DEFAULT_HASH" != "*" ]; then',
+        '    usermod -p "$DEFAULT_HASH" root',
+        '    passwd -u root 2>/dev/null',
+        '  fi',
+        'fi',
         '# Restart SSH daemon',
         'systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null || service ssh restart 2>/dev/null',
       ].join('\n')
       createOpts.userData = Buffer.from(cloudInitScript).toString('base64')
-      console.log(`[Contabo] Added cloud-init to enable password auth for Linux VPS with SSH keys`)
+      console.log(`[Contabo] Added cloud-init for Linux VPS: enable password auth + unlock root`)
     }
 
     console.log(`[Contabo] Creating instance for user ${telegramId}:`, JSON.stringify(createOpts))

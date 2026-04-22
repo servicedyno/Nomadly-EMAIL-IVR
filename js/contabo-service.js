@@ -620,11 +620,12 @@ async function shutdownInstance(instanceId) {
 /**
  * Reset the root/admin password for an instance.
  * Creates a password secret and applies it.
+ * For instances with non-root defaultUser (e.g., Ubuntu 24.04 'admin'),
+ * this reinstalls the OS with the new password + cloud-init to ensure both
+ * root and admin have the same working password.
  * Returns the new password.
  */
-async function resetPassword(instanceId) {
-  // Contabo's resetPassword action uses a secretId for the new password
-  // First generate a random password
+async function resetPassword(instanceId, opts = {}) {
   const crypto = require('crypto')
   const newPassword = crypto.randomBytes(16).toString('base64url').slice(0, 20)
 
@@ -632,7 +633,45 @@ async function resetPassword(instanceId) {
   const secret = await createSecret(`pwd-${instanceId}-${Date.now()}`, newPassword, 'password')
   const secretId = secret.secretId
 
-  // Apply the reset
+  // If instance has a non-root defaultUser, we need to reinstall with cloud-init
+  // because Contabo's resetPassword only resets root (which may be locked)
+  if (opts.defaultUser && opts.defaultUser !== 'root') {
+    console.log(`[Contabo] Instance ${instanceId} has defaultUser=${opts.defaultUser} — using reinstall with cloud-init`)
+    
+    // Cloud-init script to unlock root and sync password
+    const cloudInitScript = [
+      '#!/bin/bash',
+      '# Nomadly password reset — enable password auth + unlock root',
+      'sed -i "s/^#*PasswordAuthentication.*/PasswordAuthentication yes/" /etc/ssh/sshd_config',
+      'sed -i "s/^#*PermitRootLogin.*/PermitRootLogin yes/" /etc/ssh/sshd_config',
+      'for f in /etc/ssh/sshd_config.d/*.conf; do',
+      '  [ -f "$f" ] && sed -i "s/^PasswordAuthentication no/PasswordAuthentication yes/" "$f"',
+      '  [ -f "$f" ] && sed -i "s/^PermitRootLogin prohibit-password/PermitRootLogin yes/" "$f"',
+      '  [ -f "$f" ] && sed -i "s/^PermitRootLogin no/PermitRootLogin yes/" "$f"',
+      'done',
+      'DEFAULT_USER=$(grep "^[^:]*:[^!*]" /etc/shadow | grep -v "root\\|nobody\\|systemd" | head -1 | cut -d: -f1)',
+      'if [ -n "$DEFAULT_USER" ] && [ "$DEFAULT_USER" != "root" ]; then',
+      '  DEFAULT_HASH=$(getent shadow "$DEFAULT_USER" | cut -d: -f2)',
+      '  if [ -n "$DEFAULT_HASH" ] && [ "$DEFAULT_HASH" != "!" ] && [ "$DEFAULT_HASH" != "*" ]; then',
+      '    usermod -p "$DEFAULT_HASH" root',
+      '    passwd -u root 2>/dev/null',
+      '  fi',
+      'fi',
+      'systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null',
+    ].join('\n')
+    const userData = Buffer.from(cloudInitScript).toString('base64')
+
+    const imageId = opts.imageId || 'd64d5c6c-9dda-4e38-8174-0ee282474d8a' // default Ubuntu 24.04
+    const res = await apiRequest('PUT', `/compute/instances/${instanceId}`, {
+      imageId,
+      rootPassword: secretId,
+      sshKeys: [],
+      userData
+    })
+    return { password: newPassword, secretId, response: res.data?.[0] || res.data, reinstalled: true }
+  }
+
+  // Standard root password reset for instances where root is the default user
   const res = await apiRequest('POST', `/compute/instances/${instanceId}/actions/resetPassword`, {
     sshKeys: [],
     rootPassword: secretId

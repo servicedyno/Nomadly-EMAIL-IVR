@@ -12100,7 +12100,10 @@ ${message.replace(/\n/g, '<br>')}
       try {
         // Call the resetPassword function from contabo-service
         const contabo = require('./contabo-service')
-        const { password, secretId } = await contabo.resetPassword(instanceId)
+        const { password, secretId, reinstalled } = await contabo.resetPassword(instanceId, {
+          defaultUser: userVPSDetails.defaultUser,
+          imageId: userVPSDetails.imageId
+        })
         
         // Update MongoDB with new password secret ID
         await vpsPlansOf.updateOne(
@@ -12109,7 +12112,8 @@ ${message.replace(/\n/g, '<br>')}
         )
         
         // Enhanced logging
-        console.log(`[VPS] Password reset successful - ChatId: ${chatId}, Instance: ${instanceId}, Name: ${userVPSDetails.name}`)
+        const method = reinstalled ? 'reinstall' : 'API reset'
+        console.log(`[VPS] Password reset successful (${method}) - ChatId: ${chatId}, Instance: ${instanceId}, Name: ${userVPSDetails.name}`)
         
         // Send new credentials to user with WARNING
         const username = userVPSDetails.isRDP || userVPSDetails.osType === 'Windows' 
