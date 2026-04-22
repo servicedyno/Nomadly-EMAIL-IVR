@@ -6472,12 +6472,7 @@ Enter new value:`), bc)
       await set(state, chatId, 'action', a.confirmResetPassword)
       const vpsDetails = info.userVPSDetails
       
-      // Check if this is a Windows RDP instance
-      const isRDP = vpsDetails.isRDP || vpsDetails.osType === 'Windows'
-      if (!isRDP) {
-        return send(chatId, vp.rdpNotSupported, trans('o'))
-      }
-      
+      // Password reset is available for ALL VPS types (Linux + Windows)
       return send(chatId, vp.confirmResetPasswordText(vpsDetails.name), vp.of([vp.confirmChangeBtn, vp.cancel]))
     },
 
