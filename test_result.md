@@ -37,9 +37,9 @@ Multi-service platform (Nomadly) — Telegram Bot + Cloud Phone Platform with Re
 ## Current Task
 - Fixed: VPS Reset Password button was only shown for Windows/RDP instances, NOT for Linux VPS
 - Root cause: Line in `_index.js` — `const rdpButtons = isRDP ? [vp.resetPasswordBtn, ...] : []` excluded the button for Linux
-- Fix: Changed to show Reset Password button for ALL VPS types (Linux + Windows)
+- Fix 1: Changed to show Reset Password button for ALL VPS types (Linux + Windows)
+- Fix 2: Added cloud-init userData script in `vm-instance-setup.js` — when creating Linux VPS with SSH keys, the script ensures `PasswordAuthentication yes` and `PermitRootLogin yes` in sshd_config (including Ubuntu 24.04 drop-in config files), then restarts sshd
 - Affected user: @Spliff011 (chatId: 1137258806), VPS vmi3251506, IP 147.93.136.119, Ubuntu 24.04
-- The user needs to use "Reset Password" from VPS management menu to get new working credentials
 
 ## Backend Testing Results (File Copy/Move API)
 

@@ -581,6 +581,28 @@ async function createVPSInstance(telegramId, vpsDetails) {
       createOpts.sshKeys = [vpsDetails.sshKeySecretId]
     }
 
+    // Fix: When both SSH keys and password are set on Linux, modern distros
+    // (Ubuntu 24.04+, Debian 13+) disable password auth by default.
+    // Use cloud-init to ensure both authentication methods work.
+    if (!isRDP && vpsDetails.sshKeySecretId) {
+      const cloudInitScript = [
+        '#!/bin/bash',
+        '# Ensure password authentication works alongside SSH keys',
+        '# Main sshd_config',
+        'sed -i "s/^#*PasswordAuthentication.*/PasswordAuthentication yes/" /etc/ssh/sshd_config',
+        'sed -i "s/^#*PermitRootLogin.*/PermitRootLogin yes/" /etc/ssh/sshd_config',
+        '# Drop-in config files (Ubuntu 24.04+ uses /etc/ssh/sshd_config.d/)',
+        'for f in /etc/ssh/sshd_config.d/*.conf; do',
+        '  [ -f "$f" ] && sed -i "s/^PasswordAuthentication no/PasswordAuthentication yes/" "$f"',
+        '  [ -f "$f" ] && sed -i "s/^PermitRootLogin prohibit-password/PermitRootLogin yes/" "$f"',
+        'done',
+        '# Restart SSH daemon',
+        'systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null || service ssh restart 2>/dev/null',
+      ].join('\n')
+      createOpts.userData = Buffer.from(cloudInitScript).toString('base64')
+      console.log(`[Contabo] Added cloud-init to enable password auth for Linux VPS with SSH keys`)
+    }
+
     console.log(`[Contabo] Creating instance for user ${telegramId}:`, JSON.stringify(createOpts))
     const instance = await contabo.createInstance(createOpts)
 
