@@ -304,41 +304,28 @@ ${CHAT_BOT_NAME}`,
  HIDE_SMS_APP === 'true'
  ? `<b>Choisissez votre plan</b>
 
-✅ <b>Tous les plans incluent :</b>
-🔗 Raccourcissement d'URL illimité
+Tous les plans : 🔗 Liens illimités · 📱 Validations avec noms · 📞 Cloud IVR
 
-📱 Validations de numéros avec noms des propriétaires
-📞 Accès Cloud IVR
+🟢 <b>Quotidien — $${PRICE_DAILY}</b>
+  ${DAILY_PLAN_FREE_DOMAINS} domaine · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations
 
-<b>Quotidien</b> — $${PRICE_DAILY}
-${DAILY_PLAN_FREE_DOMAINS} domaine · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations avec noms des propriétaires · Liens illimités
+🔵 <b>Hebdomadaire — $${PRICE_WEEKLY}</b>
+  ${WEEKLY_PLAN_FREE_DOMAINS} domaines · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations
 
-<b>Hebdomadaire</b> — $${PRICE_WEEKLY}
-${WEEKLY_PLAN_FREE_DOMAINS} domaines · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations avec noms des propriétaires · Liens illimités
-
-<b>Mensuel</b> — $${PRICE_MONTHLY}
-${MONTHLY_PLAN_FREE_DOMAINS} domaines · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations avec noms des propriétaires · Liens illimités
-
-<i>Tous les plans incluent raccourcissement d'URL illimité + noms des propriétaires sur toutes les validations USA.</i>`
+⭐ <b>Mensuel — $${PRICE_MONTHLY}</b> · meilleure offre
+  ${MONTHLY_PLAN_FREE_DOMAINS} domaines · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations`
  : `<b>Choisissez votre plan</b>
 
-✅ <b>Tous les plans incluent :</b>
-🔗 Raccourcissement d'URL illimité
+Tous les plans : 🔗 Liens illimités · 📱 Validations avec noms · 📧 BulkSMS · 📞 Cloud IVR
 
-📱 Validations avec noms des propriétaires
-📧 Campagnes BulkSMS
-📞 Accès Cloud IVR
+🟢 <b>Quotidien — $${PRICE_DAILY}</b>
+  ${DAILY_PLAN_FREE_DOMAINS} domaine · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · 3 appareils SMS
 
-<b>Quotidien</b> — $${PRICE_DAILY}
-${DAILY_PLAN_FREE_DOMAINS} domaine · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · Liens + BulkSMS (3 appareils)
+🔵 <b>Hebdomadaire — $${PRICE_WEEKLY}</b>
+  ${WEEKLY_PLAN_FREE_DOMAINS} domaines · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · 10 appareils SMS
 
-<b>Hebdomadaire</b> — $${PRICE_WEEKLY}
-${WEEKLY_PLAN_FREE_DOMAINS} domaines · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · Liens + BulkSMS (10 appareils)
-
-<b>Mensuel</b> — $${PRICE_MONTHLY}
-${MONTHLY_PLAN_FREE_DOMAINS} domaines · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · Liens + BulkSMS (appareils illimités)
-
-<i>Tous les plans incluent raccourcissement d'URL illimité + noms des propriétaires sur toutes les validations USA.</i>`,
+⭐ <b>Mensuel — $${PRICE_MONTHLY}</b> · meilleure offre
+  ${MONTHLY_PLAN_FREE_DOMAINS} domaines · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} validations · appareils SMS illimités`,
 
  askCoupon: usd =>
  `Le prix est de $${usd}. Souhaitez-vous utiliser un code promo ? Si vous en avez un, veuillez l'entrer maintenant. Sinon, appuyez sur "Passer".`,

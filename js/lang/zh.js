@@ -301,41 +301,28 @@ ${CHAT_BOT_NAME}`,
  HIDE_SMS_APP === 'true'
  ? `<b>选择您的计划</b>
 
-✅ <b>所有计划包含：</b>
-🔗 无限URL缩短
-🌐 免费 
-📱 号码验证含机主姓名
-📞 Cloud IVR 访问
+所有计划包含：🔗 无限链接 · 📱 含机主姓名验证 · 📞 Cloud IVR
 
-<b>每日</b> — $${PRICE_DAILY}
-${DAILY_PLAN_FREE_DOMAINS} 个域名 · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} 次验证含机主姓名 · 无限链接
+🟢 <b>每日 — $${PRICE_DAILY}</b>
+  ${DAILY_PLAN_FREE_DOMAINS} 个域名 · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} 次验证
 
-<b>每周</b> — $${PRICE_WEEKLY}
-${WEEKLY_PLAN_FREE_DOMAINS} 个域名 · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} 次验证含机主姓名 · 无限链接
+🔵 <b>每周 — $${PRICE_WEEKLY}</b>
+  ${WEEKLY_PLAN_FREE_DOMAINS} 个域名 · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} 次验证
 
-<b>每月</b> — $${PRICE_MONTHLY}
-${MONTHLY_PLAN_FREE_DOMAINS} 个域名 · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} 次验证含机主姓名 · 无限链接
-
-<i>所有计划包含免费 + 无限URL缩短 + 所有USA验证包含机主姓名。</i>`
+⭐ <b>每月 — $${PRICE_MONTHLY}</b> · 最超值
+  ${MONTHLY_PLAN_FREE_DOMAINS} 个域名 · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} 次验证`
  : `<b>选择您的计划</b>
 
-✅ <b>所有计划包含：</b>
-🔗 无限URL缩短
-🌐 免费 
-📱 号码验证含机主姓名
-📧 BulkSMS 群发短信
-📞 Cloud IVR 访问
+所有计划包含：🔗 无限链接 · 📱 含机主姓名验证 · 📧 BulkSMS · 📞 Cloud IVR
 
-<b>每日</b> — $${PRICE_DAILY}
-${DAILY_PLAN_FREE_DOMAINS} 个域名 · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} 次验证 · 无限链接 + BulkSMS（3台设备）
+🟢 <b>每日 — $${PRICE_DAILY}</b>
+  ${DAILY_PLAN_FREE_DOMAINS} 个域名 · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} 次验证 · 3 台 SMS 设备
 
-<b>每周</b> — $${PRICE_WEEKLY}
-${WEEKLY_PLAN_FREE_DOMAINS} 个域名 · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} 次验证 · 无限链接 + BulkSMS（10台设备）
+🔵 <b>每周 — $${PRICE_WEEKLY}</b>
+  ${WEEKLY_PLAN_FREE_DOMAINS} 个域名 · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} 次验证 · 10 台 SMS 设备
 
-<b>每月</b> — $${PRICE_MONTHLY}
-${MONTHLY_PLAN_FREE_DOMAINS} 个域名 · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} 次验证 · 无限链接 + BulkSMS（无限设备）
-
-<i>所有计划包含免费 + 无限URL缩短 + 所有USA验证包含机主姓名。</i>`,
+⭐ <b>每月 — $${PRICE_MONTHLY}</b> · 最超值
+  ${MONTHLY_PLAN_FREE_DOMAINS} 个域名 · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} 次验证 · 无限 SMS 设备`,
 
  askCoupon: usd => `价格是 $${usd}。您是否想使用优惠券代码？如果有，请立即输入。否则，您可以按“跳过”。`,
  planAskCoupon: `您是否想使用优惠券代码？如果有，请立即输入。否则，您可以按“跳过”。`,

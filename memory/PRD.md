@@ -48,7 +48,26 @@ Multi-service platform (Telegram bot + React frontend + Node.js backend) managin
 
 ## Prioritized Backlog
 - P2: Add monitoring for OpenExchangeRates API
+- P2: Consolidate duplicate plan-text templates between `js/config.js` and `js/lang/*.js` into a single source of truth (avoid drift when editing copy)
 - Backlog: Refactor `_index.js` into feature modules
+
+## Feb 2026 — "Choose Your Plan" Copy Refresh
+- **Goal**: Replace verbose plan listings with a compact, scannable template — single intro line with inline perks, one row per plan (price inline), "best value" marker on Monthly.
+- **Template** (applied to both `HIDE_SMS_APP` branches):
+  ```
+  <b>Choose Your Plan</b>
+  All plans: 🔗 Unlimited links · 📱 Validations w/ owner names · [📧 BulkSMS ·] 📞 Cloud IVR
+  🟢 <b>Daily — $X</b>    N domain · N validations [· 3 SMS devices]
+  🔵 <b>Weekly — $X</b>   N domains · N validations [· 10 SMS devices]
+  ⭐ <b>Monthly — $X</b> · best value   N domains · N validations [· unlimited SMS devices]
+  ```
+- **Files updated (all 4 locales + fallback config)**:
+  - `js/lang/en.js` (done in previous turn)
+  - `js/lang/fr.js` — French translation preserving structure
+  - `js/lang/hi.js` — Hindi translation preserving structure
+  - `js/lang/zh.js` — Chinese translation preserving structure
+  - `js/config.js` — default fallback copy also updated to match
+- **Verification**: All 5 files load without syntax errors via `node -e "require(...)"`; Node.js bot restarted cleanly (Telegram webhook verified, all services initialized).
 
 ## Key Files
 - `js/voice-service.js` — SIP outbound/inbound, IVR, call forwarding

@@ -305,41 +305,28 @@ ${CHAT_BOT_NAME}`,
  HIDE_SMS_APP === 'true'
  ? `<b>अपना प्लान चुनें</b>
 
-✅ <b>सभी प्लान में शामिल:</b>
-🔗 असीमित URL शॉर्टनिंग
-🌐 मुफ्त 
-📱 मालिक के नाम सहित नंबर वैलिडेशन
-📞 Cloud IVR एक्सेस
+सभी प्लान में: 🔗 असीमित लिंक · 📱 मालिक के नाम सहित वैलिडेशन · 📞 Cloud IVR
 
-<b>दैनिक</b> — $${PRICE_DAILY}
-${DAILY_PLAN_FREE_DOMAINS} डोमेन · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} वैलिडेशन मालिक के नाम सहित · असीमित लिंक
+🟢 <b>दैनिक — $${PRICE_DAILY}</b>
+  ${DAILY_PLAN_FREE_DOMAINS} डोमेन · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} वैलिडेशन
 
-<b>साप्ताहिक</b> — $${PRICE_WEEKLY}
-${WEEKLY_PLAN_FREE_DOMAINS} डोमेन · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} वैलिडेशन मालिक के नाम सहित · असीमित लिंक
+🔵 <b>साप्ताहिक — $${PRICE_WEEKLY}</b>
+  ${WEEKLY_PLAN_FREE_DOMAINS} डोमेन · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} वैलिडेशन
 
-<b>मासिक</b> — $${PRICE_MONTHLY}
-${MONTHLY_PLAN_FREE_DOMAINS} डोमेन · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} वैलिडेशन मालिक के नाम सहित · असीमित लिंक
-
-<i>सभी प्लान में मुफ्त + असीमित URL शॉर्टनिंग + सभी USA वैलिडेशन में मालिक का नाम शामिल है।</i>`
+⭐ <b>मासिक — $${PRICE_MONTHLY}</b> · सर्वोत्तम मूल्य
+  ${MONTHLY_PLAN_FREE_DOMAINS} डोमेन · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} वैलिडेशन`
  : `<b>अपना प्लान चुनें</b>
 
-✅ <b>सभी प्लान में शामिल:</b>
-🔗 असीमित URL शॉर्टनिंग
-🌐 मुफ्त 
-📱 मालिक के नाम सहित वैलिडेशन
-📧 BulkSMS अभियान
-📞 Cloud IVR एक्सेस
+सभी प्लान में: 🔗 असीमित लिंक · 📱 मालिक के नाम सहित वैलिडेशन · 📧 BulkSMS · 📞 Cloud IVR
 
-<b>दैनिक</b> — $${PRICE_DAILY}
-${DAILY_PLAN_FREE_DOMAINS} डोमेन · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} वैलिडेशन · असीमित लिंक + BulkSMS (3 डिवाइस)
+🟢 <b>दैनिक — $${PRICE_DAILY}</b>
+  ${DAILY_PLAN_FREE_DOMAINS} डोमेन · ${DAILY_PLAN_FREE_VALIDATIONS.toLocaleString()} वैलिडेशन · 3 SMS डिवाइस
 
-<b>साप्ताहिक</b> — $${PRICE_WEEKLY}
-${WEEKLY_PLAN_FREE_DOMAINS} डोमेन · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} वैलिडेशन · असीमित लिंक + BulkSMS (10 डिवाइस)
+🔵 <b>साप्ताहिक — $${PRICE_WEEKLY}</b>
+  ${WEEKLY_PLAN_FREE_DOMAINS} डोमेन · ${WEEKLY_PLAN_FREE_VALIDATIONS.toLocaleString()} वैलिडेशन · 10 SMS डिवाइस
 
-<b>मासिक</b> — $${PRICE_MONTHLY}
-${MONTHLY_PLAN_FREE_DOMAINS} डोमेन · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} वैलिडेशन · असीमित लिंक + BulkSMS (असीमित डिवाइस)
-
-<i>सभी प्लान में मुफ्त + असीमित URL शॉर्टनिंग + सभी USA वैलिडेशन में मालिक का नाम शामिल है।</i>`,
+⭐ <b>मासिक — $${PRICE_MONTHLY}</b> · सर्वोत्तम मूल्य
+  ${MONTHLY_PLAN_FREE_DOMAINS} डोमेन · ${MONTHLY_PLAN_FREE_VALIDATIONS.toLocaleString()} वैलिडेशन · असीमित SMS डिवाइस`,
 
  askCoupon: usd =>
  `मूल्य $${usd} है। क्या आप कूपन कोड लगाना चाहेंगे? यदि आपके पास है, तो कृपया इसे अभी दर्ज करें। अन्यथा, "स्किप" पर क्लिक करें।`,
