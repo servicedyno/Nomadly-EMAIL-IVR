@@ -110,7 +110,7 @@ function createCpanelRoutes(getCpanelCol) {
     res.json(result)
   })
 
-  router.post('/files/save', ...auth, async (req, res) => {
+  router.post('/files/save', express.json({ limit: '5mb' }), ...auth, async (req, res) => {
     const { dir, file, content } = req.body
     if (!dir || !file) return res.status(400).json({ error: 'dir and file are required' })
     if (isProtectedAntiRedFile(dir, file)) {
