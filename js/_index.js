@@ -2856,6 +2856,17 @@ bot?.on('callback_query', async (query) => {
     const data = query?.data || ''
     const chatId = String(query?.message?.chat?.id) // Always convert to string for DB consistency
 
+    // ── Handle device rename callback (from SMS App: Manage Devices) ──
+    // Callback format: rename_device:<deviceId>:<currentName>
+    if (data.startsWith('rename_device:')) {
+      const [, deviceId, currentName] = data.split(':')
+      await set(state, chatId, 'action', 'rename_device')
+      await set(state, chatId, 'rename_device_id', deviceId)
+      await set(state, chatId, 'rename_device_current', currentName)
+      try { await bot.answerCallbackQuery(query.id) } catch {}
+      return send(chatId, `✏️ <b>Rename Device</b>\n\nCurrent name: <b>${currentName}</b>\n\nEnter new device name (max 50 characters):`, { parse_mode: 'HTML' })
+    }
+
     // ── SMS Settings inline menu ──
     // Callback format: smsprefs:<action>:<value>
     //   smsprefs:sim:<subId|-1>  smsprefs:rotate:0|1  smsprefs:bg:0|1  smsprefs:refresh
@@ -22853,9 +22864,6 @@ Tap a button below to change. Changes sync to your phone on next app open.`
     return send(chatId, t.smsAppActivationCode(chatId, plan, isSubscribed), { parse_mode: 'HTML', disable_web_page_preview: true })
   }
 
-  if (action === 'smsapp_campaign_name') {
-
-
   // ── SMS App: Manage Devices ──
   if (message === user.smsManageDevices) {
     const loginDoc = await loginCountOf.findOne({ _id: String(chatId) })
@@ -22880,16 +22888,6 @@ Tap a button below to change. Changes sync to your phone on next app open.`
         inline_keyboard: keyboard
       }
     })
-  }
-
-  // ── Handle device rename callback ──
-  if (cbData?.startsWith('rename_device:')) {
-    const [, deviceId, currentName] = cbData.split(':')
-    await set(state, chatId, 'action', 'rename_device')
-    await set(state, chatId, 'rename_device_id', deviceId)
-    await set(state, chatId, 'rename_device_current', currentName)
-    await bot.answerCallbackQuery(query.id)
-    return send(chatId, `✏️ <b>Rename Device</b>\n\nCurrent name: <b>${currentName}</b>\n\nEnter new device name (max 50 characters):`, { parse_mode: 'HTML' })
   }
 
   // ── Handle new device name input ──
@@ -22934,6 +22932,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
     }
   }
 
+  if (action === 'smsapp_campaign_name') {
     if (message === t.back || message === t.cancel) {
       await set(state, chatId, 'action', null)
       // Return to BulkSMS sub-menu
