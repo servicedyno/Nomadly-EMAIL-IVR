@@ -27321,35 +27321,6 @@ app.get('/payments12341234', async (req, res) => {
   res.setHeader('Content-Type', 'application/json')
   fs.createReadStream(fileName).pipe(res)
 })
-// ── Coupon Test Endpoint (for QA) ──
-app.post('/test-coupon', async (req, res) => {
-  try {
-    const { code, chatId, markUsed } = req.body || {}
-    if (!code) return res.status(400).json({ error: 'code is required' })
-    const testChatId = chatId || 'test-user-000'
-    const result = await resolveCoupon(code, testChatId)
-    // Optionally mark daily/welcome coupons as used (for full-flow testing)
-    if (markUsed && result && !result.error) {
-      if (result.type === 'daily' && dailyCouponSystem) await dailyCouponSystem.markCouponUsed(result.code, testChatId)
-      if (result.type === 'welcome_offer' && userConversion) await userConversion.markWelcomeCouponUsed(result.code, testChatId)
-    }
-    res.json({ code, chatId: testChatId, result: result || { error: 'invalid_coupon' } })
-  } catch (err) {
-    res.status(500).json({ error: err.message })
-  }
-})
-app.get('/test-coupon/daily', async (req, res) => {
-  try {
-    const codes = dailyCouponSystem ? await dailyCouponSystem.getTodayCoupons() : {}
-    res.json({ date: new Date().toISOString().slice(0, 10), codes })
-  } catch (err) {
-    res.status(500).json({ error: err.message })
-  }
-})
-app.get('/test-coupon/static', (req, res) => {
-  res.json({ staticCoupons: discountOn })
-})
-
 app.get('/uptime', (req, res) => {
   let now = new Date()
   let uptimeInMilliseconds = now - serverStartTime
