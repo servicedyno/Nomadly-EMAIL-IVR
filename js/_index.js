@@ -871,25 +871,29 @@ bot?.on('my_chat_member', async update => {
 
 // Unified coupon validator — checks static codes + daily auto-generated codes + win-back codes
 async function resolveCoupon(code, chatId) {
+  // Normalize: always uppercase for consistent matching
+  const upperCode = (code || '').toUpperCase().trim()
+  if (!upperCode) return null
+
   // 1. Check static coupons first
-  const staticDiscount = discountOn[code]
+  const staticDiscount = discountOn[upperCode]
   if (!isNaN(staticDiscount)) return { discount: staticDiscount, type: 'static' }
 
   // 2. Check daily auto-generated coupons
   if (dailyCouponSystem) {
-    const result = await dailyCouponSystem.validateDailyCoupon(code, chatId)
+    const result = await dailyCouponSystem.validateDailyCoupon(upperCode, chatId)
     if (result?.error === 'already_used') return { error: 'already_used' }
-    if (result?.discount) return { discount: result.discount, type: 'daily', code }
+    if (result?.discount) return { discount: result.discount, type: 'daily', code: upperCode }
   }
 
   // 3. Check win-back / monetization codes
-  const moCode = await monetization.validateMonetizationCode(code, chatId)
+  const moCode = await monetization.validateMonetizationCode(upperCode, chatId)
   if (moCode?.error) return { error: moCode.error }
-  if (moCode?.discount) return { discount: moCode.discount, type: moCode.type || 'winback', code }
+  if (moCode?.discount) return { discount: moCode.discount, type: moCode.type || 'winback', code: upperCode }
 
   // 4. Check welcome offer coupons (Feature 3)
   if (userConversion) {
-    const welcomeResult = await userConversion.validateWelcomeCoupon(code, chatId)
+    const welcomeResult = await userConversion.validateWelcomeCoupon(upperCode, chatId)
     if (welcomeResult?.error === 'already_used') return { error: 'already_used' }
     if (welcomeResult?.error === 'expired') return null  // Let it show as "invalid" — expired codes shouldn't hint existence
     if (welcomeResult?.error === 'wrong_user') return null  // Don't reveal coupon belongs to another user
@@ -27320,10 +27324,16 @@ app.get('/payments12341234', async (req, res) => {
 // ── Coupon Test Endpoint (for QA) ──
 app.post('/test-coupon', async (req, res) => {
   try {
-    const { code, chatId } = req.body || {}
+    const { code, chatId, markUsed } = req.body || {}
     if (!code) return res.status(400).json({ error: 'code is required' })
-    const result = await resolveCoupon(code, chatId || 'test-user-000')
-    res.json({ code, chatId: chatId || 'test-user-000', result: result || { error: 'invalid_coupon' } })
+    const testChatId = chatId || 'test-user-000'
+    const result = await resolveCoupon(code, testChatId)
+    // Optionally mark daily/welcome coupons as used (for full-flow testing)
+    if (markUsed && result && !result.error) {
+      if (result.type === 'daily' && dailyCouponSystem) await dailyCouponSystem.markCouponUsed(result.code, testChatId)
+      if (result.type === 'welcome_offer' && userConversion) await userConversion.markWelcomeCouponUsed(result.code, testChatId)
+    }
+    res.json({ code, chatId: testChatId, result: result || { error: 'invalid_coupon' } })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }

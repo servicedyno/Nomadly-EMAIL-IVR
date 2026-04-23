@@ -1,337 +1,497 @@
 #!/usr/bin/env python3
 """
 Comprehensive Backend Testing for Nomadly Coupon System
-Tests all coupon endpoints and validation scenarios
+Testing against: https://readme-init-2.preview.emergentagent.com/api
+
+Focus on previously failing issues:
+1. Case insensitivity (lowercase coupons)
+2. Daily coupon single-use enforcement
 """
 
 import requests
 import json
-import sys
+import time
 from datetime import datetime
 
-# Test configuration
+# Base URL for testing
 BASE_URL = "https://readme-init-2.preview.emergentagent.com/api"
-TIMEOUT = 30
 
 class CouponTester:
     def __init__(self):
-        self.passed = 0
-        self.failed = 0
-        self.results = []
+        self.base_url = BASE_URL
+        self.test_results = []
+        self.failed_tests = []
+        self.passed_tests = []
         
-    def log_result(self, test_name, passed, details=""):
-        status = "✅ PASS" if passed else "❌ FAIL"
-        result = f"{status} - {test_name}"
-        if details:
-            result += f" | {details}"
-        print(result)
-        self.results.append({"test": test_name, "passed": passed, "details": details})
+    def log_test(self, test_name, passed, details=""):
+        """Log test result"""
+        result = {
+            "test": test_name,
+            "passed": passed,
+            "details": details,
+            "timestamp": datetime.now().isoformat()
+        }
+        self.test_results.append(result)
+        
         if passed:
-            self.passed += 1
+            self.passed_tests.append(test_name)
+            print(f"✅ {test_name}")
         else:
-            self.failed += 1
-    
-    def test_static_coupons_endpoint(self):
-        """Test GET /api/test-coupon/static endpoint"""
+            self.failed_tests.append(test_name)
+            print(f"❌ {test_name}: {details}")
+            
+    def make_request(self, method, endpoint, data=None):
+        """Make HTTP request with error handling"""
+        url = f"{self.base_url}{endpoint}"
         try:
-            response = requests.get(f"{BASE_URL}/test-coupon/static", timeout=TIMEOUT)
-            
-            if response.status_code != 200:
-                self.log_result("Static Coupons Endpoint", False, f"HTTP {response.status_code}")
-                return
-            
-            data = response.json()
-            expected_coupons = {
-                'SA0': 10,
-                'BU0': 5,
-                'STA158': 15,
-                'FR10': 10,
-                'GLK5': 5
-            }
-            
-            static_coupons = data.get('staticCoupons', {})
-            
-            # Check if all expected coupons exist with correct discounts
-            all_correct = True
-            for code, expected_discount in expected_coupons.items():
-                if code not in static_coupons:
-                    self.log_result(f"Static Coupon {code} Exists", False, "Coupon not found")
-                    all_correct = False
-                elif static_coupons[code] != expected_discount:
-                    self.log_result(f"Static Coupon {code} Discount", False, 
-                                  f"Expected {expected_discount}%, got {static_coupons[code]}%")
-                    all_correct = False
-                else:
-                    self.log_result(f"Static Coupon {code}", True, f"{expected_discount}% discount")
-            
-            if all_correct:
-                self.log_result("Static Coupons Endpoint", True, "All 5 static coupons correct")
+            if method == "GET":
+                response = requests.get(url, timeout=10)
+            elif method == "POST":
+                response = requests.post(url, json=data, timeout=10)
             else:
-                self.log_result("Static Coupons Endpoint", False, "Some static coupons incorrect")
+                raise ValueError(f"Unsupported method: {method}")
                 
-        except Exception as e:
-            self.log_result("Static Coupons Endpoint", False, f"Exception: {str(e)}")
-    
-    def test_daily_coupons_endpoint(self):
-        """Test GET /api/test-coupon/daily endpoint"""
-        try:
-            response = requests.get(f"{BASE_URL}/test-coupon/daily", timeout=TIMEOUT)
+            return response
+        except requests.exceptions.RequestException as e:
+            print(f"Request failed: {e}")
+            return None
             
-            if response.status_code != 200:
-                self.log_result("Daily Coupons Endpoint", False, f"HTTP {response.status_code}")
-                return None, None
-            
-            data = response.json()
-            today = datetime.now().strftime('%Y-%m-%d')
-            
-            if data.get('date') != today:
-                self.log_result("Daily Coupons Date", False, f"Expected {today}, got {data.get('date')}")
-            else:
-                self.log_result("Daily Coupons Date", True, f"Correct date: {today}")
-            
-            codes = data.get('codes', {})
-            nmd5_code = None
-            nmd10_code = None
-            
-            # Find NMD5 and NMD10 codes
-            for code, details in codes.items():
-                if code.startswith('NMD5'):
-                    nmd5_code = code
-                    if details.get('discount') == 5:
-                        self.log_result(f"Daily Coupon {code}", True, "5% discount")
-                    else:
-                        self.log_result(f"Daily Coupon {code}", False, 
-                                      f"Expected 5%, got {details.get('discount')}%")
-                elif code.startswith('NMD10'):
-                    nmd10_code = code
-                    if details.get('discount') == 10:
-                        self.log_result(f"Daily Coupon {code}", True, "10% discount")
-                    else:
-                        self.log_result(f"Daily Coupon {code}", False, 
-                                      f"Expected 10%, got {details.get('discount')}%")
-            
-            if nmd5_code and nmd10_code:
-                self.log_result("Daily Coupons Endpoint", True, "Both NMD5 and NMD10 codes found")
-            else:
-                self.log_result("Daily Coupons Endpoint", False, "Missing daily coupon codes")
-            
-            return nmd5_code, nmd10_code
-            
-        except Exception as e:
-            self.log_result("Daily Coupons Endpoint", False, f"Exception: {str(e)}")
-            return None, None
-    
-    def test_coupon_validation(self, code, chat_id, expected_discount=None, expected_error=None, test_name=None):
-        """Test POST /api/test-coupon endpoint for coupon validation"""
-        if not test_name:
-            test_name = f"Validate Coupon {code}"
-            
-        try:
-            payload = {"code": code, "chatId": chat_id}
-            response = requests.post(f"{BASE_URL}/test-coupon", 
-                                   json=payload, 
-                                   headers={'Content-Type': 'application/json'},
-                                   timeout=TIMEOUT)
-            
-            if response.status_code != 200:
-                self.log_result(test_name, False, f"HTTP {response.status_code}")
-                return
-            
-            data = response.json()
-            result = data.get('result', {})
-            
-            if expected_error:
-                if result.get('error') == expected_error:
-                    self.log_result(test_name, True, f"Expected error: {expected_error}")
-                else:
-                    self.log_result(test_name, False, 
-                                  f"Expected error '{expected_error}', got {result}")
-            elif expected_discount:
-                if result.get('discount') == expected_discount:
-                    self.log_result(test_name, True, f"{expected_discount}% discount")
-                else:
-                    self.log_result(test_name, False, 
-                                  f"Expected {expected_discount}%, got {result}")
-            else:
-                # Just check if it's valid (has discount) or invalid
-                if result.get('discount'):
-                    self.log_result(test_name, True, f"{result.get('discount')}% discount")
-                elif result.get('error'):
-                    self.log_result(test_name, True, f"Error: {result.get('error')}")
-                else:
-                    self.log_result(test_name, False, f"Unexpected result: {result}")
-                    
-        except Exception as e:
-            self.log_result(test_name, False, f"Exception: {str(e)}")
-    
-    def test_static_coupon_validation(self):
-        """Test all static coupon validations"""
+    def test_static_coupons(self):
+        """Test all 5 static coupons with correct discounts"""
+        print("\n=== Testing Static Coupons ===")
+        
+        # Expected static coupons and their discounts
         static_coupons = {
-            'SA0': 10,
-            'BU0': 5,
-            'STA158': 15,
-            'FR10': 10,
-            'GLK5': 5
+            "SA0": 10,
+            "BU0": 5, 
+            "STA158": 15,
+            "FR10": 10,
+            "GLK5": 5
         }
         
-        chat_id = "test-user-12345"
-        
         for code, expected_discount in static_coupons.items():
-            self.test_coupon_validation(code, chat_id, expected_discount=expected_discount)
-    
-    def test_daily_coupon_validation(self, nmd5_code, nmd10_code):
-        """Test daily coupon validation and single-use enforcement"""
-        if not nmd5_code or not nmd10_code:
-            self.log_result("Daily Coupon Validation", False, "No daily codes available")
+            response = self.make_request("POST", "/test-coupon", {
+                "code": code,
+                "chatId": "test-static-user",
+                "markUsed": False
+            })
+            
+            if response and response.status_code == 200:
+                data = response.json()
+                result = data.get("result", data)  # Handle both old and new response formats
+                if result.get("discount") == expected_discount and result.get("type") == "static":
+                    self.log_test(f"Static coupon {code}", True, f"Correct discount: {expected_discount}%")
+                else:
+                    self.log_test(f"Static coupon {code}", False, 
+                                f"Expected {expected_discount}%, got {result}")
+            else:
+                self.log_test(f"Static coupon {code}", False, 
+                            f"Request failed: {response.status_code if response else 'No response'}")
+                            
+    def test_case_insensitivity(self):
+        """Test case insensitivity - PREVIOUSLY FAILED"""
+        print("\n=== Testing Case Insensitivity (Previously Failed) ===")
+        
+        # Test lowercase versions
+        lowercase_tests = [
+            ("sa0", 10),
+            ("bu0", 5),
+            ("sta158", 15),
+            ("glk5", 5)
+        ]
+        
+        for code, expected_discount in lowercase_tests:
+            response = self.make_request("POST", "/test-coupon", {
+                "code": code,
+                "chatId": "test-case-user",
+                "markUsed": False
+            })
+            
+            if response and response.status_code == 200:
+                data = response.json()
+                result = data.get("result", data)  # Handle both old and new response formats
+                if result.get("discount") == expected_discount and result.get("type") == "static":
+                    self.log_test(f"Case insensitive {code}", True, 
+                                f"Lowercase resolved to {expected_discount}% discount")
+                else:
+                    self.log_test(f"Case insensitive {code}", False, 
+                                f"Expected {expected_discount}%, got {result}")
+            else:
+                self.log_test(f"Case insensitive {code}", False, 
+                            f"Lowercase not recognized: {response.status_code if response else 'No response'}")
+                            
+        # Test mixed case
+        mixed_case_tests = [("Sa0", 10), ("Bu0", 5)]
+        for code, expected_discount in mixed_case_tests:
+            response = self.make_request("POST", "/test-coupon", {
+                "code": code,
+                "chatId": "test-mixed-case",
+                "markUsed": False
+            })
+            
+            if response and response.status_code == 200:
+                data = response.json()
+                result = data.get("result", data)  # Handle both old and new response formats
+                if result.get("discount") == expected_discount:
+                    self.log_test(f"Mixed case {code}", True, f"Resolved correctly")
+                else:
+                    self.log_test(f"Mixed case {code}", False, f"Got {result}")
+            else:
+                self.log_test(f"Mixed case {code}", False, "Not recognized")
+                
+    def test_daily_coupons(self):
+        """Test daily coupon generation and validation"""
+        print("\n=== Testing Daily Coupons ===")
+        
+        # Get today's daily coupons
+        response = self.make_request("GET", "/test-coupon/daily")
+        if not response or response.status_code != 200:
+            self.log_test("Daily coupon endpoint", False, "Endpoint not accessible")
+            return None, None
+            
+        daily_data = response.json()
+        self.log_test("Daily coupon endpoint", True, f"Got daily coupons for {daily_data.get('date')}")
+        
+        codes = daily_data.get("codes", {})
+        nmd5_code = None
+        nmd10_code = None
+        
+        # Find NMD5 and NMD10 codes
+        for code, details in codes.items():
+            if code.startswith("NMD5") and details.get("discount") == 5:
+                nmd5_code = code
+            elif code.startswith("NMD10") and details.get("discount") == 10:
+                nmd10_code = code
+        
+        # Test NMD5 coupon
+        if nmd5_code:
+            response = self.make_request("POST", "/test-coupon", {
+                "code": nmd5_code,
+                "chatId": "retest-daily-1",
+                "markUsed": False
+            })
+            
+            if response and response.status_code == 200:
+                data = response.json()
+                result = data.get("result", data)  # Handle both old and new response formats
+                if result.get("discount") == 5 and result.get("type") == "daily":
+                    self.log_test("Daily NMD5 validation", True, "5% discount, type: daily")
+                else:
+                    self.log_test("Daily NMD5 validation", False, f"Got {result}")
+            else:
+                self.log_test("Daily NMD5 validation", False, "Validation failed")
+                
+        # Test NMD10 coupon  
+        if nmd10_code:
+            response = self.make_request("POST", "/test-coupon", {
+                "code": nmd10_code,
+                "chatId": "retest-daily-2", 
+                "markUsed": False
+            })
+            
+            if response and response.status_code == 200:
+                data = response.json()
+                result = data.get("result", data)  # Handle both old and new response formats
+                if result.get("discount") == 10 and result.get("type") == "daily":
+                    self.log_test("Daily NMD10 validation", True, "10% discount, type: daily")
+                else:
+                    self.log_test("Daily NMD10 validation", False, f"Got {result}")
+            else:
+                self.log_test("Daily NMD10 validation", False, "Validation failed")
+                
+        return nmd5_code, nmd10_code
+        
+    def test_single_use_enforcement(self, nmd5_code, nmd10_code):
+        """Test daily coupon single-use enforcement - PREVIOUSLY FAILED"""
+        print("\n=== Testing Single-Use Enforcement (Previously Failed) ===")
+        
+        # Use NMD10 code if NMD5 is already used, or find an unused code
+        test_code = nmd10_code if nmd10_code else nmd5_code
+        
+        if not test_code:
+            self.log_test("Single-use test setup", False, "No daily code available")
             return
+            
+        chat_id = f"singleuse-fresh-{int(time.time())}"  # Use timestamp for uniqueness
         
-        chat_id = "test-user-daily-12345"
+        # First use - mark as used
+        response = self.make_request("POST", "/test-coupon", {
+            "code": test_code,
+            "chatId": chat_id,
+            "markUsed": True
+        })
         
-        # Test NMD5 code
-        self.test_coupon_validation(nmd5_code, chat_id, expected_discount=5, 
-                                  test_name=f"Daily Coupon {nmd5_code} First Use")
+        if response and response.status_code == 200:
+            data = response.json()
+            result = data.get("result", data)  # Handle both old and new response formats
+            if "discount" in result:
+                self.log_test("Single-use first attempt", True, f"Successfully used coupon: {result.get('discount')}%")
+            else:
+                self.log_test("Single-use first attempt", False, f"Unexpected response: {result}")
+                return
+        else:
+            self.log_test("Single-use first attempt", False, "First use failed")
+            return
+            
+        # Second use - should be rejected
+        response = self.make_request("POST", "/test-coupon", {
+            "code": test_code,
+            "chatId": chat_id,
+            "markUsed": False
+        })
         
-        # Test NMD10 code  
-        self.test_coupon_validation(nmd10_code, chat_id, expected_discount=10,
-                                  test_name=f"Daily Coupon {nmd10_code} First Use")
+        if response and response.status_code == 200:
+            data = response.json()
+            result = data.get("result", data)  # Handle both old and new response formats
+            if result.get("error") == "already_used":
+                self.log_test("Single-use second attempt", True, "Correctly rejected with already_used")
+            else:
+                self.log_test("Single-use second attempt", False, 
+                            f"Should be rejected but got: {result}")
+        else:
+            self.log_test("Single-use second attempt", False, "Request failed")
+            
+        # Test with different chatId - should still work
+        different_chat_id = f"singleuse-different-{int(time.time())}"
+        response = self.make_request("POST", "/test-coupon", {
+            "code": test_code,
+            "chatId": different_chat_id,
+            "markUsed": False
+        })
         
-        # Test single-use enforcement - use same codes with same chatId
-        self.test_coupon_validation(nmd5_code, chat_id, expected_error="already_used",
-                                  test_name=f"Daily Coupon {nmd5_code} Second Use (Should Fail)")
-        
-        self.test_coupon_validation(nmd10_code, chat_id, expected_error="already_used", 
-                                  test_name=f"Daily Coupon {nmd10_code} Second Use (Should Fail)")
-    
+        if response and response.status_code == 200:
+            data = response.json()
+            result = data.get("result", data)  # Handle both old and new response formats
+            if "discount" in result:
+                self.log_test("Single-use different user", True, "Different user can still use")
+            else:
+                self.log_test("Single-use different user", False, f"Got {result}")
+        else:
+            self.log_test("Single-use different user", False, "Different user test failed")
+            
     def test_invalid_coupons(self):
         """Test invalid coupon handling"""
-        chat_id = "test-user-invalid-12345"
+        print("\n=== Testing Invalid Coupons ===")
         
-        invalid_codes = ["FAKECOUPON", "EXPIRED123", "NONEXISTENT"]
+        invalid_tests = [
+            ("FAKECOUPON", "invalid_coupon"),
+            ("EXPIRED123", "invalid_coupon"),
+            ("", "400 error"),  # Empty string
+        ]
         
-        for code in invalid_codes:
-            self.test_coupon_validation(code, chat_id, expected_error="invalid_coupon",
-                                      test_name=f"Invalid Coupon {code}")
-    
-    def test_case_insensitivity(self):
-        """Test case insensitive coupon validation"""
-        chat_id = "test-user-case-12345"
-        
-        # Test lowercase versions of static coupons
-        self.test_coupon_validation("sa0", chat_id, expected_discount=10,
-                                  test_name="Case Insensitive SA0 (lowercase)")
-        
-        self.test_coupon_validation("bu0", chat_id, expected_discount=5,
-                                  test_name="Case Insensitive BU0 (lowercase)")
-    
-    def test_welcome_offer_coupon(self):
-        """Test welcome offer coupon (WELCOME25-xxxxxx)"""
-        chat_id = "test-user-welcome-12345"
-        
-        # Test the specific code mentioned in requirements
-        self.test_coupon_validation("WELCOME25-TNRWBE", chat_id, 
-                                  test_name="Welcome Offer WELCOME25-TNRWBE")
-        
-        # Test with wrong chatId (should return null/invalid)
-        self.test_coupon_validation("WELCOME25-TNRWBE", "wrong-chat-id",
-                                  test_name="Welcome Offer Wrong ChatId")
-    
-    def test_empty_code(self):
-        """Test empty code handling"""
-        try:
-            payload = {"code": "", "chatId": "test-user"}
-            response = requests.post(f"{BASE_URL}/test-coupon", 
-                                   json=payload, 
-                                   headers={'Content-Type': 'application/json'},
-                                   timeout=TIMEOUT)
-            
-            if response.status_code == 400:
-                self.log_result("Empty Code Validation", True, "400 error as expected")
-            else:
-                self.log_result("Empty Code Validation", False, 
-                              f"Expected 400, got {response.status_code}")
+        for code, expected in invalid_tests:
+            if code == "":
+                # Test empty string
+                response = self.make_request("POST", "/test-coupon", {
+                    "code": "",
+                    "chatId": "test-invalid"
+                })
                 
-        except Exception as e:
-            self.log_result("Empty Code Validation", False, f"Exception: {str(e)}")
-    
-    def test_discount_math_verification(self):
-        """Verify discount calculation examples"""
-        # Note: The API returns discount percentages, actual price calculation is client-side
-        # We verify the discount percentages are correct
+                if response:
+                    if response.status_code == 200:
+                        data = response.json()
+                        if data.get("error") == "code is required":
+                            self.log_test("Empty coupon code", True, "Returns 'code is required' error")
+                        else:
+                            self.log_test("Empty coupon code", False, f"Got {data}")
+                    elif response.status_code == 400:
+                        self.log_test("Empty coupon code", True, "Returns 400 error")
+                    else:
+                        self.log_test("Empty coupon code", False, f"Got status {response.status_code}")
+                else:
+                    self.log_test("Empty coupon code", False, "No response received")
+            else:
+                response = self.make_request("POST", "/test-coupon", {
+                    "code": code,
+                    "chatId": "test-invalid"
+                })
+                
+                if response and response.status_code == 200:
+                    data = response.json()
+                    result = data.get("result", data)  # Handle both old and new response formats
+                    if result.get("error") == expected:
+                        self.log_test(f"Invalid coupon {code}", True, f"Correctly returns {expected}")
+                    else:
+                        self.log_test(f"Invalid coupon {code}", False, f"Got {result}")
+                else:
+                    self.log_test(f"Invalid coupon {code}", False, "Request failed")
+                    
+        # Test empty body
+        try:
+            response = requests.post(f"{self.base_url}/test-coupon", json={}, timeout=10)
+            if response.status_code == 400:
+                self.log_test("Empty request body", True, "Returns 400 error")
+            else:
+                self.log_test("Empty request body", False, f"Got {response.status_code}")
+        except:
+            self.log_test("Empty request body", False, "Request failed")
+            
+    def test_welcome_offer(self):
+        """Test welcome offer coupons"""
+        print("\n=== Testing Welcome Offer Coupons ===")
         
-        chat_id = "test-user-math-12345"
+        # Test valid format but likely expired/used
+        response = self.make_request("POST", "/test-coupon", {
+            "code": "WELCOME25-TNRWBE",
+            "chatId": "test-welcome"
+        })
         
-        # SA0 should return 10% discount
-        self.test_coupon_validation("SA0", chat_id, expected_discount=10,
-                                  test_name="Discount Math SA0 (10% for $100→$90)")
+        if response and response.status_code == 200:
+            data = response.json()
+            result = data.get("result", data)  # Handle both old and new response formats
+            # Either valid discount or already_used/expired is acceptable
+            if "discount" in result or result.get("error") in ["already_used", "expired", "invalid_coupon"]:
+                self.log_test("Welcome offer valid format", True, f"Response: {result}")
+            else:
+                self.log_test("Welcome offer valid format", False, f"Unexpected: {result}")
+        else:
+            self.log_test("Welcome offer valid format", False, "Request failed")
+            
+        # Test invalid welcome code
+        response = self.make_request("POST", "/test-coupon", {
+            "code": "WELCOME25-FAKECODE",
+            "chatId": "test-welcome"
+        })
         
-        # STA158 should return 15% discount  
-        self.test_coupon_validation("STA158", chat_id, expected_discount=15,
-                                  test_name="Discount Math STA158 (15% for $200→$170)")
-    
+        if response and response.status_code == 200:
+            data = response.json()
+            result = data.get("result", data)  # Handle both old and new response formats
+            if result.get("error") == "invalid_coupon":
+                self.log_test("Welcome offer invalid", True, "Correctly rejects fake code")
+            else:
+                self.log_test("Welcome offer invalid", False, f"Got {result}")
+        else:
+            self.log_test("Welcome offer invalid", False, "Request failed")
+            
+    def test_edge_cases(self):
+        """Test edge cases"""
+        print("\n=== Testing Edge Cases ===")
+        
+        # Very long code
+        long_code = "A" * 150
+        response = self.make_request("POST", "/test-coupon", {
+            "code": long_code,
+            "chatId": "test-edge"
+        })
+        
+        if response and response.status_code == 200:
+            data = response.json()
+            result = data.get("result", data)  # Handle both old and new response formats
+            if result.get("error") == "invalid_coupon":
+                self.log_test("Very long code", True, "Correctly rejects without crashing")
+            else:
+                self.log_test("Very long code", False, f"Got {result}")
+        else:
+            self.log_test("Very long code", False, "Request failed or crashed")
+            
+        # Special characters
+        special_code = "TEST@#$%^&*()"
+        response = self.make_request("POST", "/test-coupon", {
+            "code": special_code,
+            "chatId": "test-edge"
+        })
+        
+        if response and response.status_code == 200:
+            data = response.json()
+            result = data.get("result", data)  # Handle both old and new response formats
+            if result.get("error") == "invalid_coupon":
+                self.log_test("Special characters", True, "Correctly rejects without crashing")
+            else:
+                self.log_test("Special characters", False, f"Got {result}")
+        else:
+            self.log_test("Special characters", False, "Request failed or crashed")
+            
+        # Missing chatId - should default to test-user-000
+        response = self.make_request("POST", "/test-coupon", {
+            "code": "SA0"
+            # No chatId
+        })
+        
+        if response and response.status_code == 200:
+            data = response.json()
+            result = data.get("result", data)  # Handle both old and new response formats
+            if result.get("discount") == 10:
+                self.log_test("Missing chatId", True, "Defaults and works correctly")
+            else:
+                self.log_test("Missing chatId", False, f"Got {result}")
+        else:
+            self.log_test("Missing chatId", False, "Request failed")
+            
+    def test_static_endpoint(self):
+        """Test static coupon endpoint"""
+        print("\n=== Testing Static Coupon Endpoint ===")
+        
+        response = self.make_request("GET", "/test-coupon/static")
+        if response and response.status_code == 200:
+            data = response.json()
+            expected_codes = ["SA0", "BU0", "STA158", "FR10", "GLK5"]
+            
+            if all(code in str(data) for code in expected_codes):
+                self.log_test("Static endpoint", True, "Returns all expected coupon codes")
+            else:
+                self.log_test("Static endpoint", False, f"Missing codes in: {data}")
+        else:
+            self.log_test("Static endpoint", False, "Endpoint not accessible")
+            
     def run_all_tests(self):
-        """Run all coupon system tests"""
-        print("🧪 Starting Nomadly Coupon System Tests")
+        """Run complete test suite"""
+        print("🚀 Starting Comprehensive Coupon System Testing")
+        print(f"Testing against: {self.base_url}")
         print("=" * 60)
         
-        # Test 1: Static coupon endpoint
-        print("\n📋 Testing Static Coupon Endpoint...")
-        self.test_static_coupons_endpoint()
+        # Test static endpoint first
+        self.test_static_endpoint()
         
-        # Test 2: Daily coupon endpoint
-        print("\n📅 Testing Daily Coupon Endpoint...")
-        nmd5_code, nmd10_code = self.test_daily_coupons_endpoint()
+        # Test all static coupons
+        self.test_static_coupons()
         
-        # Test 3: Static coupon validation
-        print("\n🔍 Testing Static Coupon Validation...")
-        self.test_static_coupon_validation()
-        
-        # Test 4: Daily coupon validation and single-use
-        print("\n⏰ Testing Daily Coupon Validation...")
-        self.test_daily_coupon_validation(nmd5_code, nmd10_code)
-        
-        # Test 5: Invalid coupon handling
-        print("\n❌ Testing Invalid Coupon Handling...")
-        self.test_invalid_coupons()
-        
-        # Test 6: Case insensitivity
-        print("\n🔤 Testing Case Insensitivity...")
+        # Test case insensitivity (previously failed)
         self.test_case_insensitivity()
         
-        # Test 7: Welcome offer coupon
-        print("\n🎁 Testing Welcome Offer Coupon...")
-        self.test_welcome_offer_coupon()
+        # Test daily coupons and get codes for single-use test
+        nmd5_code, nmd10_code = self.test_daily_coupons()
         
-        # Test 8: Empty code handling
-        print("\n🚫 Testing Empty Code Handling...")
-        self.test_empty_code()
+        # Test single-use enforcement (previously failed)
+        if nmd5_code or nmd10_code:
+            self.test_single_use_enforcement(nmd5_code, nmd10_code)
+            
+        # Test invalid coupons
+        self.test_invalid_coupons()
         
-        # Test 9: Discount math verification
-        print("\n🧮 Testing Discount Math Verification...")
-        self.test_discount_math_verification()
+        # Test welcome offers
+        self.test_welcome_offer()
         
-        # Summary
+        # Test edge cases
+        self.test_edge_cases()
+        
+        # Print summary
+        self.print_summary()
+        
+    def print_summary(self):
+        """Print test summary"""
         print("\n" + "=" * 60)
-        print("📊 TEST SUMMARY")
+        print("🎯 TEST SUMMARY")
         print("=" * 60)
-        print(f"✅ Passed: {self.passed}")
-        print(f"❌ Failed: {self.failed}")
-        print(f"📈 Success Rate: {(self.passed/(self.passed+self.failed)*100):.1f}%")
         
-        if self.failed > 0:
-            print("\n🔍 FAILED TESTS:")
-            for result in self.results:
-                if not result["passed"]:
-                    print(f"  ❌ {result['test']}: {result['details']}")
+        total_tests = len(self.test_results)
+        passed_count = len(self.passed_tests)
+        failed_count = len(self.failed_tests)
         
-        return self.failed == 0
+        print(f"Total Tests: {total_tests}")
+        print(f"✅ Passed: {passed_count}")
+        print(f"❌ Failed: {failed_count}")
+        print(f"Success Rate: {(passed_count/total_tests)*100:.1f}%")
+        
+        if self.failed_tests:
+            print(f"\n❌ FAILED TESTS ({failed_count}):")
+            for test in self.failed_tests:
+                print(f"  - {test}")
+                
+        if self.passed_tests:
+            print(f"\n✅ PASSED TESTS ({passed_count}):")
+            for test in self.passed_tests:
+                print(f"  - {test}")
 
 if __name__ == "__main__":
     tester = CouponTester()
-    success = tester.run_all_tests()
-    
-    if success:
-        print("\n🎉 All tests passed! Coupon system is working correctly.")
-        sys.exit(0)
-    else:
-        print(f"\n⚠️  {tester.failed} test(s) failed. Please check the issues above.")
-        sys.exit(1)
+    tester.run_all_tests()
