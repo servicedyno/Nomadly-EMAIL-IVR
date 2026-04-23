@@ -3623,6 +3623,106 @@ bot?.on('message', msg => {
     }
   }
   
+  // ═══════════════════════════════════════════════════
+  // Admin /reply with MEDIA (photo, document, video, voice, audio, video_note,
+  // animation/GIF, sticker). Admin attaches media to Telegram with a caption
+  // like: "/reply 7080940684 here is your verification card"
+  // We forward the media to the target user with the remaining text as caption.
+  // Runs BEFORE all other media handlers so admin intent takes priority.
+  // ═══════════════════════════════════════════════════
+  if (isAdmin(chatId)) {
+    const _adminCaption = msg?.caption || ''
+    const _hasMedia = !!(msg?.photo || msg?.document || msg?.video || msg?.voice || msg?.audio || msg?.video_note || msg?.animation || msg?.sticker)
+    if (_hasMedia && _adminCaption.startsWith('/reply ')) {
+      try {
+        const parts = _adminCaption.substring(7).trim().split(/\s+/)
+        const firstArg = parts[0] || ''
+        const captionText = parts.slice(1).join(' ').trim()
+
+        // Resolve target — same logic as text /reply (supports @username and numeric chatId)
+        let targetChatId = null
+        let targetName = null
+        if (firstArg.startsWith('@')) {
+          const username = firstArg.slice(1).trim()
+          if (!username) {
+            return send(chatId, '⚠️ Usage: attach media with caption `/reply @username [optional caption]` or `/reply <chatId> [optional caption]`')
+          }
+          const esc = username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+          const doc = await nameOf.findOne({ val: { $regex: `^${esc}$`, $options: 'i' } })
+          if (!doc) {
+            return send(chatId, `⚠️ No user found with username <b>@${username}</b>.`, { parse_mode: 'HTML' })
+          }
+          targetChatId = doc._id
+          targetName = doc.val
+        } else {
+          const cid = firstArg.trim()
+          if (!/^\d+$/.test(cid)) {
+            return send(chatId, '⚠️ Usage: attach media with caption `/reply @username [optional caption]` or `/reply <chatId> [optional caption]`')
+          }
+          targetChatId = cid
+          targetName = await get(nameOf, targetChatId)
+        }
+        if (!targetChatId) {
+          return send(chatId, '⚠️ Usage: attach media with caption `/reply <chatId> [optional caption]`')
+        }
+
+        // Detect media type + file_id
+        let mediaKind, fileId, sendFn, supportsCaption = true
+        if (msg.photo)           { mediaKind = 'photo';      fileId = msg.photo[msg.photo.length - 1].file_id; sendFn = (o) => bot.sendPhoto(targetChatId, fileId, o) }
+        else if (msg.document)   { mediaKind = 'document';   fileId = msg.document.file_id;                    sendFn = (o) => bot.sendDocument(targetChatId, fileId, o) }
+        else if (msg.video)      { mediaKind = 'video';      fileId = msg.video.file_id;                       sendFn = (o) => bot.sendVideo(targetChatId, fileId, o) }
+        else if (msg.voice)      { mediaKind = 'voice';      fileId = msg.voice.file_id;                       sendFn = (o) => bot.sendVoice(targetChatId, fileId, o) }
+        else if (msg.audio)      { mediaKind = 'audio';      fileId = msg.audio.file_id;                       sendFn = (o) => bot.sendAudio(targetChatId, fileId, o) }
+        else if (msg.animation)  { mediaKind = 'GIF';        fileId = msg.animation.file_id;                   sendFn = (o) => bot.sendAnimation(targetChatId, fileId, o) }
+        else if (msg.video_note) { mediaKind = 'video note'; fileId = msg.video_note.file_id;                  sendFn = () => bot.sendVideoNote(targetChatId, fileId); supportsCaption = false }
+        else if (msg.sticker)    { mediaKind = 'sticker';    fileId = msg.sticker.file_id;                     sendFn = () => bot.sendSticker(targetChatId, fileId);    supportsCaption = false }
+
+        // Translate caption (if any) using same pipeline as text /reply
+        const targetState = await get(state, targetChatId)
+        const userBotLang = targetState?.userLanguage || 'en'
+        const targetLang = targetState?.lastMessageLanguage || userBotLang
+        let translated = { translated: captionText, needsTranslation: false, langName: targetLang }
+        if (captionText) {
+          translated = await translationService.translateAdminReplyForUser(captionText, targetLang)
+        }
+        const userCaption = translated.translated
+          ? `💬 <b>Support:</b>\n${translated.translated}`
+          : '💬 <b>Support sent you a file:</b>'
+
+        // Dispatch media to user
+        if (supportsCaption) {
+          await sendFn({ caption: userCaption, parse_mode: 'HTML' })
+        } else {
+          await sendFn()
+          // Send caption as a separate message since this media type doesn't support captions
+          if (userCaption) await bot.sendMessage(targetChatId, userCaption, { parse_mode: 'HTML' })
+        }
+
+        // Re-open session + admin takeover (same as text /reply)
+        await set(supportSessions, targetChatId, Date.now())
+        await set(state, targetChatId, 'action', 'supportChat')
+        await set(state, targetChatId, 'adminTakeover', true)
+
+        // Confirm to admin with translation info
+        const mediaLabel = mediaKind.charAt(0).toUpperCase() + mediaKind.slice(1)
+        if (captionText && translated.needsTranslation) {
+          send(chatId,
+            `✅ ${mediaLabel} sent to ${targetName || targetChatId}\n\n` +
+            `🌐 Caption auto-translated to ${translated.langName}:\n` +
+            `<i>${translated.translated}</i>`,
+            { parse_mode: 'HTML' })
+        } else {
+          send(chatId, `✅ ${mediaLabel} sent to ${targetName || targetChatId}${captionText ? ' (no translation needed)' : ''}`)
+        }
+        log(`[Support] Admin sent ${mediaKind} to ${targetChatId} (caption: ${captionText ? 'yes' : 'no'}, translated: ${translated.needsTranslation}) — session re-opened, admin takeover ON`)
+      } catch (e) {
+        log(`[Support] /reply media error: ${e.message}`)
+        send(chatId, `⚠️ Failed to send media: ${e.message}`)
+      }
+      return
+    }
+  }
+
   // ── Handle photo messages for Marketplace product uploads & chat relay ──
   if (msg?.photo && chatId) {
     const userInfo = await get(state, chatId)
@@ -8841,7 +8941,7 @@ All verified numbers generated during sourcing.`))
     send(chatId, ({ en: `💬 <b>Live Support</b>\n\n👤 You're now connected with a human agent. Please describe your issue in one message — they will reply within <b>5–15 minutes</b>.\n\n⚠️ <i>The AI assistant is paused during this session so you only hear from a real person.</i>\n\nWhen your issue is resolved, send /done to close the chat.`, fr: `💬 <b>Support en Direct</b>\n\n👤 Vous êtes maintenant connecté à un agent humain. Décrivez votre problème en un message — ils répondront sous <b>5 à 15 minutes</b>.\n\n⚠️ <i>L'assistant IA est mis en pause pendant cette session pour que vous ne parliez qu'à une vraie personne.</i>\n\nQuand votre problème est résolu, envoyez /done pour fermer le chat.`, zh: `💬 <b>在线客服</b>\n\n👤 您现已连接至人工客服。请用一条消息描述您的问题 — 客服将在 <b>5-15 分钟</b> 内回复。\n\n⚠️ <i>本次会话期间 AI 助手已暂停，确保您只与真人交流。</i>\n\n问题解决后，发送 /done 结束对话。`, hi: `💬 <b>लाइव सहायता</b>\n\n👤 आप अब एक मानव एजेंट से जुड़े हैं। कृपया अपनी समस्या को एक ही मैसेज में बताएं — वे <b>5-15 मिनट</b> में जवाब देंगे।\n\n⚠️ <i>इस सेशन के दौरान AI असिस्टेंट रुका हुआ है ताकि आप सिर्फ़ इंसान से बात करें।</i>\n\nसमस्या हल होने पर, /done भेजकर चैट बंद करें।` }[lang] || `💬 <b>Live Support</b>\n\n👤 You're now connected with a human agent. Please describe your issue in one message — they will reply within <b>5–15 minutes</b>.\n\n⚠️ <i>The AI assistant is paused during this session so you only hear from a real person.</i>\n\nWhen your issue is resolved, send /done to close the chat.`), { parse_mode: 'HTML', reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
     // Notify admin — private message only, not to groups
     const name = await get(nameOf, chatId)
-    send(TELEGRAM_ADMIN_CHAT_ID, `🔔 <b>Support session opened</b>\nUser: <b>${name || 'unknown'}</b> (${chatId})\n@${msg?.from?.username || 'no_username'}\n\nReply with: /reply ${chatId} <i>your message</i>\nClose with: /close ${chatId}`, { parse_mode: 'HTML' })
+    send(TELEGRAM_ADMIN_CHAT_ID, `🔔 <b>Support session opened</b>\nUser: <b>${name || 'unknown'}</b> (${chatId})\n@${msg?.from?.username || 'no_username'}\n\nReply with: /reply ${chatId} <i>your message</i>\n📎 Or attach a photo/file with caption: <code>/reply ${chatId} your caption</code>\nClose with: /close ${chatId}`, { parse_mode: 'HTML' })
     log(`[Support] Session opened for ${chatId} ${name} — AI silenced until session closes or expires`)
     // ── SLA watcher — if no admin reply in 10 minutes, nudge admin ──
     scheduleSupportSlaNudge(chatId, name || msg?.from?.username || 'unknown', Date.now())
@@ -29949,7 +30049,7 @@ const setupTelegramWebhook = async () => {
         { command: 'requests', description: 'List pending lead requests' },
         { command: 'bal', description: 'Check user wallet — /bal <user|chatId>' },
         { command: 'credit', description: 'Credit user wallet — /credit <user> <amount>' },
-        { command: 'reply', description: 'Reply to user — /reply <chatId> <message>' },
+        { command: 'reply', description: 'Reply to user — /reply <chatId> <msg> (or attach photo/file w/ caption)' },
         { command: 'close', description: 'Close support session — /close <chatId>' },
         { command: 'deliver', description: 'Deliver order — /deliver <orderId> <details>' },
         { command: 'monetization', description: 'Monetization stats — bonuses, win-back, conversions' },
