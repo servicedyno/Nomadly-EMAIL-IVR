@@ -958,6 +958,42 @@ const send = (chatId, message, options) => {
   bot?.sendMessage(chatId, message, opts)?.catch(e => log(e.message + ': ' + chatId))
 }
 
+// ── Support SLA nudge ──
+// If the user opens a support session and the admin does not reply within 10 min
+// (admin replying flips `supportSessions[chatId]` to `adminTakeover: true` via /reply),
+// ping admin again so support requests aren't forgotten. Self-cancels if:
+//   • admin has since replied (adminTakeover=true)
+//   • the session was closed (timestamp reset to 0)
+//   • the session timestamp changed (user re-opened / re-triggered — newer nudge wins)
+const _slaNudgeTimers = new Map() // chatId → timeout handle (dedup)
+function scheduleSupportSlaNudge(chatId, displayName, openedTs, delayMs = 10 * 60 * 1000) {
+  try {
+    // Cancel any prior nudge for this chatId — newest session-open wins
+    const prev = _slaNudgeTimers.get(String(chatId))
+    if (prev) { try { clearTimeout(prev) } catch {} }
+
+    const t = setTimeout(async () => {
+      _slaNudgeTimers.delete(String(chatId))
+      try {
+        const currentTs = await get(supportSessions, chatId)
+        if (!currentTs || currentTs !== openedTs) return // closed or re-opened — skip
+        const st = await get(state, chatId)
+        if (st?.adminTakeover === true) return // admin already replied — skip
+        const waitedMin = Math.floor((Date.now() - openedTs) / 60000)
+        send(TELEGRAM_ADMIN_CHAT_ID,
+          `⏰ <b>Support SLA breach</b>\n` +
+          `👤 <b>${displayName}</b> (${chatId}) has been waiting <b>${waitedMin} min</b> for a human reply.\n\n` +
+          `↩️ /reply ${chatId} <i>your message</i>\n` +
+          `✖️ /close ${chatId}`,
+          { parse_mode: 'HTML' })
+        log(`[Support] SLA nudge sent — ${chatId} waited ${waitedMin}min`)
+      } catch (e) { log('[Support] SLA nudge error: ' + e.message) }
+    }, delayMs)
+    _slaNudgeTimers.set(String(chatId), t)
+  } catch (e) { log('[Support] scheduleSupportSlaNudge error: ' + e.message) }
+}
+
+
 // Mask username: show first 2 chars + ***
 const maskName = name => {
   if (!name || typeof name !== 'string') return 'User***'
@@ -8312,6 +8348,16 @@ All verified numbers generated during sourcing.`))
     const stateObj = await get(state, chatId)
     const isAdminTakeover = stateObj?.adminTakeover === true
     const userLang = stateObj?.userLanguage || 'en'
+
+    // ── Support session open check ──
+    // If user tapped 💬 Support in the last hour, we treat the session as OPEN
+    // and route to a HUMAN agent only. AI must not reply during an open session —
+    // this caused user confusion ("Why no response?" — from real Apr-23 logs) because
+    // the AI was still auto-answering between the user tapping Support and the admin
+    // finally replying. Same 1h threshold as the unrecognized-message fallback at the
+    // bottom of this handler (line ~23370) so behavior is symmetric.
+    const _sessionTs = await get(supportSessions, chatId)
+    const isSupportSessionOpen = !!_sessionTs && _sessionTs > 0 && (Date.now() - _sessionTs) < 3600000
     
     // Auto-detect ACTUAL language of the message (don't rely on stored preference)
     // User might have bot in English but message support in French
@@ -8331,6 +8377,8 @@ All verified numbers generated during sourcing.`))
     
     if (isAdminTakeover) {
       adminMsg += '\n\n🔒 <i>Admin takeover active — AI silenced</i>'
+    } else if (isSupportSessionOpen) {
+      adminMsg += '\n\n🟢 <i>Support session open — user waiting for human reply (AI silenced)</i>'
     }
     
     // Add detected language info for admin context
@@ -8344,15 +8392,18 @@ All verified numbers generated during sourcing.`))
     // Store detected language for future admin replies
     await set(state, chatId, 'lastMessageLanguage', translation.detectedLang)
     
-    log(`[Support] ${chatId} -> admin: ${message} (botLang: ${userLang}, msgLang: ${translation.detectedLang}, translated: ${translation.needsTranslation}, adminTakeover: ${isAdminTakeover})`)
+    log(`[Support] ${chatId} -> admin: ${message} (botLang: ${userLang}, msgLang: ${translation.detectedLang}, translated: ${translation.needsTranslation}, adminTakeover: ${isAdminTakeover}, sessionOpen: ${isSupportSessionOpen})`)
 
-    // If admin has taken over, skip AI — only forward to admin
-    if (isAdminTakeover) {
-      send(chatId, t.supportMsgReceived || '✅ Message received. Our support team will respond shortly.', { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
+    // ── AI suppression during a live support session ──
+    // If the user tapped 💬 Support (session open within last hour) OR admin has
+    // already typed /reply (takeover on), we must NOT run the AI — the user is
+    // waiting for a HUMAN. AI replies here cause "is this a bot or person?" confusion.
+    if (isAdminTakeover || isSupportSessionOpen) {
+      send(chatId, t.supportMsgReceived || '✉️ Message received! A support agent will respond shortly.', { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
       return
     }
 
-    // AI auto-response (only when admin has NOT taken over)
+    // AI auto-response (only when NO support session is active and admin has NOT taken over)
     if (isAiEnabled()) {
       try {
         const { response: aiResponse, escalate, error } = await getAiResponse(chatId, message, lang)
@@ -8787,11 +8838,13 @@ All verified numbers generated during sourcing.`))
     await saveInfo('action', a.supportChat)
     // Clear admin takeover flag — fresh session starts with AI enabled
     await set(state, chatId, 'adminTakeover', false)
-    send(chatId, ({ en: `💬 <b>Live Support</b>\n\nYou're now connected with support. Type your message below and we'll respond as soon as possible.\n\nSend /done when you're finished.`, fr: `💬 <b>Support en Direct</b>\n\nVous êtes maintenant connecté au support. Tapez votre message ci-dessous et nous répondrons dès que possible.\n\nEnvoyez /done quand vous avez terminé.`, zh: `💬 <b>在线客服</b>\n\n您已连接到客服。请在下方输入您的消息，我们会尽快回复。\n\n完成后发送 /done。`, hi: `💬 <b>लाइव सहायता</b>\n\nआप अब सहायता से जुड़े हैं। नीचे अपना संदेश टाइप करें और हम जल्द से जल्द जवाब देंगे।\n\nजब आपका काम हो जाए तो /done भेजें।` }[lang] || `💬 <b>Live Support</b>\n\nYou're now connected with support. Type your message below and we'll respond as soon as possible.\n\nSend /done when you're finished.`), { parse_mode: 'HTML', reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
+    send(chatId, ({ en: `💬 <b>Live Support</b>\n\n👤 You're now connected with a human agent. Please describe your issue in one message — they will reply within <b>5–15 minutes</b>.\n\n⚠️ <i>The AI assistant is paused during this session so you only hear from a real person.</i>\n\nWhen your issue is resolved, send /done to close the chat.`, fr: `💬 <b>Support en Direct</b>\n\n👤 Vous êtes maintenant connecté à un agent humain. Décrivez votre problème en un message — ils répondront sous <b>5 à 15 minutes</b>.\n\n⚠️ <i>L'assistant IA est mis en pause pendant cette session pour que vous ne parliez qu'à une vraie personne.</i>\n\nQuand votre problème est résolu, envoyez /done pour fermer le chat.`, zh: `💬 <b>在线客服</b>\n\n👤 您现已连接至人工客服。请用一条消息描述您的问题 — 客服将在 <b>5-15 分钟</b> 内回复。\n\n⚠️ <i>本次会话期间 AI 助手已暂停，确保您只与真人交流。</i>\n\n问题解决后，发送 /done 结束对话。`, hi: `💬 <b>लाइव सहायता</b>\n\n👤 आप अब एक मानव एजेंट से जुड़े हैं। कृपया अपनी समस्या को एक ही मैसेज में बताएं — वे <b>5-15 मिनट</b> में जवाब देंगे।\n\n⚠️ <i>इस सेशन के दौरान AI असिस्टेंट रुका हुआ है ताकि आप सिर्फ़ इंसान से बात करें।</i>\n\nसमस्या हल होने पर, /done भेजकर चैट बंद करें।` }[lang] || `💬 <b>Live Support</b>\n\n👤 You're now connected with a human agent. Please describe your issue in one message — they will reply within <b>5–15 minutes</b>.\n\n⚠️ <i>The AI assistant is paused during this session so you only hear from a real person.</i>\n\nWhen your issue is resolved, send /done to close the chat.`), { parse_mode: 'HTML', reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
     // Notify admin — private message only, not to groups
     const name = await get(nameOf, chatId)
     send(TELEGRAM_ADMIN_CHAT_ID, `🔔 <b>Support session opened</b>\nUser: <b>${name || 'unknown'}</b> (${chatId})\n@${msg?.from?.username || 'no_username'}\n\nReply with: /reply ${chatId} <i>your message</i>\nClose with: /close ${chatId}`, { parse_mode: 'HTML' })
-    log(`[Support] Session opened for ${chatId} ${name} — admin takeover OFF (fresh session)`)
+    log(`[Support] Session opened for ${chatId} ${name} — AI silenced until session closes or expires`)
+    // ── SLA watcher — if no admin reply in 10 minutes, nudge admin ──
+    scheduleSupportSlaNudge(chatId, name || msg?.from?.username || 'unknown', Date.now())
     return
   }
 
