@@ -1770,6 +1770,16 @@ const loadData = async () => {
   smsAppService.initSmsAppService(db, nameOf, planEndingTime, freeSmsCountOf, loginCountOf, planOf, bot)
   smsAppService.registerRoutes(app, get, set, increment, clicksOfSms, today, week, month, year)
 
+  // Self-sync the Cloudflare discovery Worker so the APK always lands on the
+  // current backend URL. Runs in the background 3s after boot so the rest of
+  // startup isn't blocked by a Cloudflare round-trip.
+  try {
+    const { syncDiscoveryWorker } = require('./cloudflare-discovery-sync.js')
+    setTimeout(() => { syncDiscoveryWorker().catch(e => console.log('[CF-Sync] failed:', e.message)) }, 3000)
+  } catch (e) {
+    console.log('[CF-Sync] module load failed:', e.message)
+  }
+
   // SMS App APK download route
   const apkPath = require('path').join(__dirname, '..', 'static', 'nomadly-sms.apk')
   app.get('/sms-app/download', (req, res) => {

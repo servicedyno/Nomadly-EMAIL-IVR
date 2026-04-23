@@ -405,3 +405,35 @@ Operational resilience: the APK no longer hardcodes any backend URL. It asks a C
 - `sms-app/www/js/api.js` (removed productionUrl, discovery-only resolution, retries)
 - `sms-app/android/app/build.gradle`, `sms-app/package.json`, `sms-app/www/index.html`, `sms-app/www/js/app.js` (version strings)
 - `js/sms-app-service.js`, `js/_index.js` (version strings + release note)
+
+
+## Feb 2026 — Backend Auto-Sync of Cloudflare Discovery Worker
+
+Closes the remaining manual step in the v2.7.4 discovery flow: the backend itself now pushes its current URL to the Cloudflare Worker on every startup, so Railway migrations need **zero manual steps**.
+
+### What was added
+- **New module** `/app/js/cloudflare-discovery-sync.js` exporting `syncDiscoveryWorker()`:
+  1. Reads `process.env.SELF_URL` (trimmed of trailing slashes).
+  2. Fetches the current Cloudflare Worker response and compares `apiBase` with the desired URL.
+  3. If drift detected, PUTs an updated Worker script to the Cloudflare API using `CLOUDFLARE_EMAIL` / `CLOUDFLARE_API_KEY` from .env.
+  4. Logs success or failure. Never throws — failures are silent/logged so the server never crashes because of a sync issue.
+- **Wire-in**: `_index.js` calls `syncDiscoveryWorker()` 3s after `initSmsAppService` so boot isn't blocked by a Cloudflare round-trip.
+
+### Safety guard (critical)
+- **Opt-in by env flag**: `CF_DISCOVERY_SYNC=true` must be explicitly set. Without it, sync is a no-op.
+- Reason: the preview/dev environment has a different `SELF_URL` (e.g. `*.preview.emergentagent.com`) — without the guard, running the backend in preview would overwrite the Worker and route live APK users away from Railway.
+- To enable in production: add `CF_DISCOVERY_SYNC=true` to Railway env vars. Preview stays safe by default.
+- Secondary kill-switch: `DISABLE_CF_DISCOVERY_SYNC=true` (overrides the opt-in).
+
+### Verified end-to-end
+- Preview boot → `[CF-Sync] Disabled (CF_DISCOVERY_SYNC!=true) — skipping` ✅
+- Simulated drift (SELF_URL=fake-url) with flag ON → Worker PUT succeeded, Worker returned the fake URL ✅
+- Restored real URL → Worker immediately back in sync, response now includes dynamic `syncedAt` timestamp (proof it was auto-updated by backend) ✅
+
+### Future-proof behaviour
+- Railway project migration → new URL assigned → backend boots → sync pushes new URL to Worker → APK users land on new backend on next app open. No human action needed.
+- The only operational surface is setting `CF_DISCOVERY_SYNC=true` once on Railway.
+
+### Files touched
+- `js/cloudflare-discovery-sync.js` (new — 110 lines, self-contained)
+- `js/_index.js` (wire-in after `initSmsAppService`)
