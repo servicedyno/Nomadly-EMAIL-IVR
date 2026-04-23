@@ -20,7 +20,23 @@ const parallelApiCalls = 5
 const waitAfterParallelApiCalls = 1 * 1000 // 1 second
 
 const showProgressEveryXTime = 60 // 30 iterations = 1 minute
-const phoneGenTimeout = 30 * 60 * 1000 // 30 minutes (safety net)
+
+// ── Dynamic phoneGenTimeout configuration ──
+// Timeout scales with order size. Observed throughput on Railway:
+//   ~1.2 verified phones/sec (non-CNAM), ~0.8 phones/sec (CNAM-enabled)
+// We budget generously so orders almost always finish before the safety net.
+const PHONE_GEN_TIMEOUT_FLOOR_MS = 10 * 60 * 1000   // 10 min floor (small orders)
+const PHONE_GEN_TIMEOUT_CEILING_MS = 90 * 60 * 1000 // 90 min ceiling (runaway guard)
+const PHONE_GEN_BUDGET_PER_LEAD_MS = 1200           // 1.2s per lead (non-CNAM baseline)
+const PHONE_GEN_CNAM_MULTIPLIER = 1.5               // CNAM orders get 50% extra budget
+const computePhoneGenTimeout = (targetCount, cnamEnabled) => {
+  const budgetPerLead = cnamEnabled
+    ? Math.ceil(PHONE_GEN_BUDGET_PER_LEAD_MS * PHONE_GEN_CNAM_MULTIPLIER)
+    : PHONE_GEN_BUDGET_PER_LEAD_MS
+  const raw = targetCount * budgetPerLead
+  return Math.min(PHONE_GEN_TIMEOUT_CEILING_MS, Math.max(PHONE_GEN_TIMEOUT_FLOOR_MS, raw))
+}
+
 const phoneGenStopAtNoXHits = 250 // 250 Hits with 0 phone number found then break the loop
 const CNAM_MISS_THRESHOLD = 50 // 50 consecutive batches with 0 new real names → stop
 
@@ -234,6 +250,10 @@ const validateBulkNumbers = async (carrier, phonesToGenerate, countryCode, areaC
   try {
     // When requireRealName is true, we keep going until we have enough leads with real person names
     const targetCount = phonesToGenerate
+
+    // ── Dynamic safety-net timeout (scales with order size) ──
+    const phoneGenTimeout = computePhoneGenTimeout(targetCount, cnam)
+    log(`[LeadJobs] phoneGenTimeout set to ${Math.round(phoneGenTimeout / 60000)}min for order of ${targetCount} leads (cnam=${!!cnam})`)
 
     // ── Area code CNAM management — disable CNAM for low-yield codes instead of dropping them ──
     const acYield = {} // { areaCode: { lookups: N, realNames: N } }
