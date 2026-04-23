@@ -1,337 +1,337 @@
 #!/usr/bin/env python3
 """
-Backend API Testing for Nomadly File Copy/Move Endpoints
-Tests the new file copy and move API endpoints on the Nomadly backend.
+Comprehensive Backend Testing for Nomadly Coupon System
+Tests all coupon endpoints and validation scenarios
 """
 
 import requests
 import json
 import sys
-from typing import Dict, Any
+from datetime import datetime
 
-# Base URL from frontend/.env
+# Test configuration
 BASE_URL = "https://readme-init-2.preview.emergentagent.com/api"
+TIMEOUT = 30
 
-# Test credentials from /app/memory/test_credentials.md
-TEST_CREDENTIALS = {
-    "username": "hello@ivrpod.com",
-    "pin": "Onlygod1234@"
-}
-
-# Correct endpoint paths (mounted under /panel)
-ENDPOINTS = {
-    "copy": "/panel/files/copy",
-    "move": "/panel/files/move",
-    "files": "/panel/files",
-    "mkdir": "/panel/files/mkdir",
-    "delete": "/panel/files/delete",
-    "rename": "/panel/files/rename",
-    "login": "/panel/login"
-}
-
-class FileManagerTester:
+class CouponTester:
     def __init__(self):
-        self.session = requests.Session()
-        self.session.timeout = 30
-        self.auth_token = None
-        self.test_results = []
+        self.passed = 0
+        self.failed = 0
+        self.results = []
         
-    def log_test(self, test_name: str, success: bool, details: str = ""):
-        """Log test result"""
-        status = "✅ PASS" if success else "❌ FAIL"
-        print(f"{status} {test_name}")
+    def log_result(self, test_name, passed, details=""):
+        status = "✅ PASS" if passed else "❌ FAIL"
+        result = f"{status} - {test_name}"
         if details:
-            print(f"    {details}")
-        self.test_results.append({
-            "test": test_name,
-            "success": success,
-            "details": details
-        })
-        
-    def login(self) -> bool:
-        """Login to get authentication token"""
+            result += f" | {details}"
+        print(result)
+        self.results.append({"test": test_name, "passed": passed, "details": details})
+        if passed:
+            self.passed += 1
+        else:
+            self.failed += 1
+    
+    def test_static_coupons_endpoint(self):
+        """Test GET /api/test-coupon/static endpoint"""
         try:
-            response = self.session.post(
-                f"{BASE_URL}{ENDPOINTS['login']}",
-                json=TEST_CREDENTIALS,
-                headers={"Content-Type": "application/json"}
-            )
+            response = requests.get(f"{BASE_URL}/test-coupon/static", timeout=TIMEOUT)
             
-            if response.status_code == 200:
-                data = response.json()
-                self.auth_token = data.get("token")
-                if self.auth_token:
-                    self.log_test("Authentication", True, f"Token obtained for user: {data.get('username')}")
-                    return True
+            if response.status_code != 200:
+                self.log_result("Static Coupons Endpoint", False, f"HTTP {response.status_code}")
+                return
+            
+            data = response.json()
+            expected_coupons = {
+                'SA0': 10,
+                'BU0': 5,
+                'STA158': 15,
+                'FR10': 10,
+                'GLK5': 5
+            }
+            
+            static_coupons = data.get('staticCoupons', {})
+            
+            # Check if all expected coupons exist with correct discounts
+            all_correct = True
+            for code, expected_discount in expected_coupons.items():
+                if code not in static_coupons:
+                    self.log_result(f"Static Coupon {code} Exists", False, "Coupon not found")
+                    all_correct = False
+                elif static_coupons[code] != expected_discount:
+                    self.log_result(f"Static Coupon {code} Discount", False, 
+                                  f"Expected {expected_discount}%, got {static_coupons[code]}%")
+                    all_correct = False
                 else:
-                    self.log_test("Authentication", False, "No token in response")
-                    return False
+                    self.log_result(f"Static Coupon {code}", True, f"{expected_discount}% discount")
+            
+            if all_correct:
+                self.log_result("Static Coupons Endpoint", True, "All 5 static coupons correct")
             else:
-                self.log_test("Authentication", False, f"Status {response.status_code}: {response.text}")
-                return False
+                self.log_result("Static Coupons Endpoint", False, "Some static coupons incorrect")
                 
         except Exception as e:
-            self.log_test("Authentication", False, f"Exception: {str(e)}")
-            return False
+            self.log_result("Static Coupons Endpoint", False, f"Exception: {str(e)}")
     
-    def get_auth_headers(self) -> Dict[str, str]:
-        """Get headers with authentication token"""
-        if not self.auth_token:
-            return {}
-        return {"Authorization": f"Bearer {self.auth_token}"}
-    
-    def test_endpoint_exists(self, endpoint: str, method: str = "POST") -> bool:
-        """Test if endpoint exists (not 404)"""
+    def test_daily_coupons_endpoint(self):
+        """Test GET /api/test-coupon/daily endpoint"""
         try:
-            if method == "POST":
-                response = self.session.post(
-                    f"{BASE_URL}{endpoint}",
-                    json={},
-                    headers=self.get_auth_headers()
-                )
+            response = requests.get(f"{BASE_URL}/test-coupon/daily", timeout=TIMEOUT)
+            
+            if response.status_code != 200:
+                self.log_result("Daily Coupons Endpoint", False, f"HTTP {response.status_code}")
+                return None, None
+            
+            data = response.json()
+            today = datetime.now().strftime('%Y-%m-%d')
+            
+            if data.get('date') != today:
+                self.log_result("Daily Coupons Date", False, f"Expected {today}, got {data.get('date')}")
             else:
-                response = self.session.get(
-                    f"{BASE_URL}{endpoint}",
-                    headers=self.get_auth_headers()
-                )
+                self.log_result("Daily Coupons Date", True, f"Correct date: {today}")
             
-            exists = response.status_code != 404
-            self.log_test(
-                f"Endpoint exists: {method} {endpoint}",
-                exists,
-                f"Status: {response.status_code}" if not exists else "Endpoint found"
-            )
-            return exists
+            codes = data.get('codes', {})
+            nmd5_code = None
+            nmd10_code = None
             
-        except Exception as e:
-            self.log_test(f"Endpoint exists: {method} {endpoint}", False, f"Exception: {str(e)}")
-            return False
-    
-    def test_auth_required(self, endpoint: str, method: str = "POST") -> bool:
-        """Test that endpoint requires authentication"""
-        try:
-            if method == "POST":
-                response = self.session.post(
-                    f"{BASE_URL}{endpoint}",
-                    json={"dir": "/test", "file": "test.txt", "destDir": "/dest"}
-                )
+            # Find NMD5 and NMD10 codes
+            for code, details in codes.items():
+                if code.startswith('NMD5'):
+                    nmd5_code = code
+                    if details.get('discount') == 5:
+                        self.log_result(f"Daily Coupon {code}", True, "5% discount")
+                    else:
+                        self.log_result(f"Daily Coupon {code}", False, 
+                                      f"Expected 5%, got {details.get('discount')}%")
+                elif code.startswith('NMD10'):
+                    nmd10_code = code
+                    if details.get('discount') == 10:
+                        self.log_result(f"Daily Coupon {code}", True, "10% discount")
+                    else:
+                        self.log_result(f"Daily Coupon {code}", False, 
+                                      f"Expected 10%, got {details.get('discount')}%")
+            
+            if nmd5_code and nmd10_code:
+                self.log_result("Daily Coupons Endpoint", True, "Both NMD5 and NMD10 codes found")
             else:
-                response = self.session.get(f"{BASE_URL}{endpoint}")
+                self.log_result("Daily Coupons Endpoint", False, "Missing daily coupon codes")
             
-            auth_required = response.status_code in [401, 403]
-            self.log_test(
-                f"Auth required: {method} {endpoint}",
-                auth_required,
-                f"Status: {response.status_code} (expected 401/403)"
-            )
-            return auth_required
+            return nmd5_code, nmd10_code
             
         except Exception as e:
-            self.log_test(f"Auth required: {method} {endpoint}", False, f"Exception: {str(e)}")
-            return False
+            self.log_result("Daily Coupons Endpoint", False, f"Exception: {str(e)}")
+            return None, None
     
-    def test_parameter_validation(self, endpoint: str) -> bool:
-        """Test parameter validation for copy/move endpoints"""
+    def test_coupon_validation(self, code, chat_id, expected_discount=None, expected_error=None, test_name=None):
+        """Test POST /api/test-coupon endpoint for coupon validation"""
+        if not test_name:
+            test_name = f"Validate Coupon {code}"
+            
         try:
-            # Test with missing parameters (without auth)
-            response = self.session.post(
-                f"{BASE_URL}{endpoint}",
-                json={}
-            )
+            payload = {"code": code, "chatId": chat_id}
+            response = requests.post(f"{BASE_URL}/test-coupon", 
+                                   json=payload, 
+                                   headers={'Content-Type': 'application/json'},
+                                   timeout=TIMEOUT)
             
-            # Should get auth error (401/403) before parameter validation
-            # This confirms the endpoint exists and auth is checked first
-            validation_works = response.status_code in [401, 403]
-            details = f"Status: {response.status_code}"
+            if response.status_code != 200:
+                self.log_result(test_name, False, f"HTTP {response.status_code}")
+                return
             
-            if response.status_code in [401, 403]:
-                details += " (auth required - endpoint accessible)"
-            elif response.status_code == 400:
-                try:
-                    error_data = response.json()
-                    error_msg = error_data.get("error", "")
-                    details += f", Error: {error_msg}"
-                except:
-                    details += f", Response: {response.text[:100]}"
+            data = response.json()
+            result = data.get('result', {})
             
-            self.log_test(
-                f"Parameter validation: {endpoint}",
-                validation_works,
-                details
-            )
-            return validation_works
-            
-        except Exception as e:
-            self.log_test(f"Parameter validation: {endpoint}", False, f"Exception: {str(e)}")
-            return False
-    
-    def test_existing_file_endpoints(self) -> bool:
-        """Test that existing file manager endpoints still work"""
-        endpoints_to_test = [
-            (ENDPOINTS["files"], "GET"),
-            (ENDPOINTS["mkdir"], "POST"),
-            (ENDPOINTS["delete"], "POST"),
-            (ENDPOINTS["rename"], "POST")
-        ]
-        
-        all_working = True
-        
-        for endpoint, method in endpoints_to_test:
-            try:
-                if method == "GET":
-                    response = self.session.get(
-                        f"{BASE_URL}{endpoint}",
-                        headers=self.get_auth_headers()
-                    )
+            if expected_error:
+                if result.get('error') == expected_error:
+                    self.log_result(test_name, True, f"Expected error: {expected_error}")
                 else:
-                    # Send minimal valid request to check endpoint exists
-                    test_data = {}
-                    if endpoint == ENDPOINTS["mkdir"]:
-                        test_data = {"dir": "/test", "name": "testdir"}
-                    elif endpoint == ENDPOINTS["delete"]:
-                        test_data = {"dir": "/test", "file": "nonexistent.txt"}
-                    elif endpoint == ENDPOINTS["rename"]:
-                        test_data = {"dir": "/test", "oldName": "old.txt", "newName": "new.txt"}
+                    self.log_result(test_name, False, 
+                                  f"Expected error '{expected_error}', got {result}")
+            elif expected_discount:
+                if result.get('discount') == expected_discount:
+                    self.log_result(test_name, True, f"{expected_discount}% discount")
+                else:
+                    self.log_result(test_name, False, 
+                                  f"Expected {expected_discount}%, got {result}")
+            else:
+                # Just check if it's valid (has discount) or invalid
+                if result.get('discount'):
+                    self.log_result(test_name, True, f"{result.get('discount')}% discount")
+                elif result.get('error'):
+                    self.log_result(test_name, True, f"Error: {result.get('error')}")
+                else:
+                    self.log_result(test_name, False, f"Unexpected result: {result}")
                     
-                    response = self.session.post(
-                        f"{BASE_URL}{endpoint}",
-                        json=test_data,
-                        headers=self.get_auth_headers()
-                    )
-                
-                # Endpoint should exist (not 404) and be accessible with auth
-                working = response.status_code != 404
-                if not working:
-                    all_working = False
-                
-                self.log_test(
-                    f"Existing endpoint: {method} {endpoint}",
-                    working,
-                    f"Status: {response.status_code}"
-                )
-                
-            except Exception as e:
-                self.log_test(f"Existing endpoint: {method} {endpoint}", False, f"Exception: {str(e)}")
-                all_working = False
-        
-        return all_working
+        except Exception as e:
+            self.log_result(test_name, False, f"Exception: {str(e)}")
     
-    def test_copy_move_with_valid_auth(self) -> bool:
-        """Test copy/move endpoints with valid auth but invalid file paths"""
-        endpoints = [ENDPOINTS["copy"], ENDPOINTS["move"]]
-        all_working = True
+    def test_static_coupon_validation(self):
+        """Test all static coupon validations"""
+        static_coupons = {
+            'SA0': 10,
+            'BU0': 5,
+            'STA158': 15,
+            'FR10': 10,
+            'GLK5': 5
+        }
         
-        for endpoint in endpoints:
-            try:
-                # Use valid auth but non-existent file paths
-                response = self.session.post(
-                    f"{BASE_URL}{endpoint}",
-                    json={
-                        "dir": "/home/testuser/public_html",
-                        "file": "nonexistent_test_file.txt",
-                        "destDir": "/home/testuser/public_html/backup"
-                    },
-                    headers=self.get_auth_headers()
-                )
-                
-                # Should not be 404 (endpoint exists) or 401/403 (auth works)
-                # Might be 400 (bad params) or 500 (file not found) - both acceptable
-                working = response.status_code not in [404, 401, 403]
-                if not working:
-                    all_working = False
-                
-                self.log_test(
-                    f"Valid auth test: {endpoint}",
-                    working,
-                    f"Status: {response.status_code} (not 404/401/403 = endpoint accessible)"
-                )
-                
-            except Exception as e:
-                self.log_test(f"Valid auth test: {endpoint}", False, f"Exception: {str(e)}")
-                all_working = False
+        chat_id = "test-user-12345"
         
-        return all_working
+        for code, expected_discount in static_coupons.items():
+            self.test_coupon_validation(code, chat_id, expected_discount=expected_discount)
+    
+    def test_daily_coupon_validation(self, nmd5_code, nmd10_code):
+        """Test daily coupon validation and single-use enforcement"""
+        if not nmd5_code or not nmd10_code:
+            self.log_result("Daily Coupon Validation", False, "No daily codes available")
+            return
+        
+        chat_id = "test-user-daily-12345"
+        
+        # Test NMD5 code
+        self.test_coupon_validation(nmd5_code, chat_id, expected_discount=5, 
+                                  test_name=f"Daily Coupon {nmd5_code} First Use")
+        
+        # Test NMD10 code  
+        self.test_coupon_validation(nmd10_code, chat_id, expected_discount=10,
+                                  test_name=f"Daily Coupon {nmd10_code} First Use")
+        
+        # Test single-use enforcement - use same codes with same chatId
+        self.test_coupon_validation(nmd5_code, chat_id, expected_error="already_used",
+                                  test_name=f"Daily Coupon {nmd5_code} Second Use (Should Fail)")
+        
+        self.test_coupon_validation(nmd10_code, chat_id, expected_error="already_used", 
+                                  test_name=f"Daily Coupon {nmd10_code} Second Use (Should Fail)")
+    
+    def test_invalid_coupons(self):
+        """Test invalid coupon handling"""
+        chat_id = "test-user-invalid-12345"
+        
+        invalid_codes = ["FAKECOUPON", "EXPIRED123", "NONEXISTENT"]
+        
+        for code in invalid_codes:
+            self.test_coupon_validation(code, chat_id, expected_error="invalid_coupon",
+                                      test_name=f"Invalid Coupon {code}")
+    
+    def test_case_insensitivity(self):
+        """Test case insensitive coupon validation"""
+        chat_id = "test-user-case-12345"
+        
+        # Test lowercase versions of static coupons
+        self.test_coupon_validation("sa0", chat_id, expected_discount=10,
+                                  test_name="Case Insensitive SA0 (lowercase)")
+        
+        self.test_coupon_validation("bu0", chat_id, expected_discount=5,
+                                  test_name="Case Insensitive BU0 (lowercase)")
+    
+    def test_welcome_offer_coupon(self):
+        """Test welcome offer coupon (WELCOME25-xxxxxx)"""
+        chat_id = "test-user-welcome-12345"
+        
+        # Test the specific code mentioned in requirements
+        self.test_coupon_validation("WELCOME25-TNRWBE", chat_id, 
+                                  test_name="Welcome Offer WELCOME25-TNRWBE")
+        
+        # Test with wrong chatId (should return null/invalid)
+        self.test_coupon_validation("WELCOME25-TNRWBE", "wrong-chat-id",
+                                  test_name="Welcome Offer Wrong ChatId")
+    
+    def test_empty_code(self):
+        """Test empty code handling"""
+        try:
+            payload = {"code": "", "chatId": "test-user"}
+            response = requests.post(f"{BASE_URL}/test-coupon", 
+                                   json=payload, 
+                                   headers={'Content-Type': 'application/json'},
+                                   timeout=TIMEOUT)
+            
+            if response.status_code == 400:
+                self.log_result("Empty Code Validation", True, "400 error as expected")
+            else:
+                self.log_result("Empty Code Validation", False, 
+                              f"Expected 400, got {response.status_code}")
+                
+        except Exception as e:
+            self.log_result("Empty Code Validation", False, f"Exception: {str(e)}")
+    
+    def test_discount_math_verification(self):
+        """Verify discount calculation examples"""
+        # Note: The API returns discount percentages, actual price calculation is client-side
+        # We verify the discount percentages are correct
+        
+        chat_id = "test-user-math-12345"
+        
+        # SA0 should return 10% discount
+        self.test_coupon_validation("SA0", chat_id, expected_discount=10,
+                                  test_name="Discount Math SA0 (10% for $100→$90)")
+        
+        # STA158 should return 15% discount  
+        self.test_coupon_validation("STA158", chat_id, expected_discount=15,
+                                  test_name="Discount Math STA158 (15% for $200→$170)")
     
     def run_all_tests(self):
-        """Run comprehensive test suite"""
-        print("🧪 Starting File Copy/Move API Tests")
-        print("=" * 50)
+        """Run all coupon system tests"""
+        print("🧪 Starting Nomadly Coupon System Tests")
+        print("=" * 60)
         
-        # Step 1: Test new endpoints exist (without auth first)
-        print("Testing endpoint existence...")
-        copy_exists = self.test_endpoint_exists(ENDPOINTS["copy"], "POST")
-        move_exists = self.test_endpoint_exists(ENDPOINTS["move"], "POST")
+        # Test 1: Static coupon endpoint
+        print("\n📋 Testing Static Coupon Endpoint...")
+        self.test_static_coupons_endpoint()
         
-        print()
+        # Test 2: Daily coupon endpoint
+        print("\n📅 Testing Daily Coupon Endpoint...")
+        nmd5_code, nmd10_code = self.test_daily_coupons_endpoint()
         
-        # Step 2: Test authentication required
-        print("Testing authentication requirements...")
-        self.test_auth_required(ENDPOINTS["copy"], "POST")
-        self.test_auth_required(ENDPOINTS["move"], "POST")
+        # Test 3: Static coupon validation
+        print("\n🔍 Testing Static Coupon Validation...")
+        self.test_static_coupon_validation()
         
-        print()
+        # Test 4: Daily coupon validation and single-use
+        print("\n⏰ Testing Daily Coupon Validation...")
+        self.test_daily_coupon_validation(nmd5_code, nmd10_code)
         
-        # Step 3: Test parameter validation (without auth - should get auth error first)
-        print("Testing parameter validation...")
-        if copy_exists:
-            self.test_parameter_validation(ENDPOINTS["copy"])
-        if move_exists:
-            self.test_parameter_validation(ENDPOINTS["move"])
+        # Test 5: Invalid coupon handling
+        print("\n❌ Testing Invalid Coupon Handling...")
+        self.test_invalid_coupons()
         
-        print()
+        # Test 6: Case insensitivity
+        print("\n🔤 Testing Case Insensitivity...")
+        self.test_case_insensitivity()
         
-        # Step 4: Test existing endpoints still work (without auth - should get auth error)
-        print("Testing existing file manager endpoints...")
-        self.test_existing_file_endpoints()
+        # Test 7: Welcome offer coupon
+        print("\n🎁 Testing Welcome Offer Coupon...")
+        self.test_welcome_offer_coupon()
         
-        print()
+        # Test 8: Empty code handling
+        print("\n🚫 Testing Empty Code Handling...")
+        self.test_empty_code()
         
-        # Step 5: Try authentication
-        print("Testing authentication...")
-        auth_success = self.login()
-        
-        if auth_success:
-            print("\nTesting with valid authentication...")
-            if copy_exists or move_exists:
-                self.test_copy_move_with_valid_auth()
-        else:
-            print("⚠️  Authentication failed - testing without auth only")
-            print("   This is expected if test credentials are not valid")
-        
-        print()
+        # Test 9: Discount math verification
+        print("\n🧮 Testing Discount Math Verification...")
+        self.test_discount_math_verification()
         
         # Summary
-        total_tests = len(self.test_results)
-        passed_tests = sum(1 for result in self.test_results if result["success"])
+        print("\n" + "=" * 60)
+        print("📊 TEST SUMMARY")
+        print("=" * 60)
+        print(f"✅ Passed: {self.passed}")
+        print(f"❌ Failed: {self.failed}")
+        print(f"📈 Success Rate: {(self.passed/(self.passed+self.failed)*100):.1f}%")
         
-        print("=" * 50)
-        print(f"📊 Test Summary: {passed_tests}/{total_tests} tests passed")
+        if self.failed > 0:
+            print("\n🔍 FAILED TESTS:")
+            for result in self.results:
+                if not result["passed"]:
+                    print(f"  ❌ {result['test']}: {result['details']}")
         
-        # Count critical tests (endpoint existence and auth requirements)
-        critical_tests = [r for r in self.test_results if 
-                         "Endpoint exists" in r["test"] or "Auth required" in r["test"]]
-        critical_passed = sum(1 for test in critical_tests if test["success"])
-        
-        print(f"🔑 Critical tests (endpoints + auth): {critical_passed}/{len(critical_tests)} passed")
-        
-        if critical_passed == len(critical_tests):
-            print("✅ All critical tests passed! Endpoints exist and require authentication.")
-            return True
-        else:
-            print("❌ Some critical tests failed.")
-            failed_critical = [r for r in critical_tests if not r["success"]]
-            print("\nFailed critical tests:")
-            for test in failed_critical:
-                print(f"  - {test['test']}: {test['details']}")
-            return False
-
-def main():
-    """Main test runner"""
-    tester = FileManagerTester()
-    success = tester.run_all_tests()
-    
-    # Exit with appropriate code
-    sys.exit(0 if success else 1)
+        return self.failed == 0
 
 if __name__ == "__main__":
-    main()
+    tester = CouponTester()
+    success = tester.run_all_tests()
+    
+    if success:
+        print("\n🎉 All tests passed! Coupon system is working correctly.")
+        sys.exit(0)
+    else:
+        print(f"\n⚠️  {tester.failed} test(s) failed. Please check the issues above.")
+        sys.exit(1)

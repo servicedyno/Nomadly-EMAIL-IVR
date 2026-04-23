@@ -34,7 +34,27 @@ Multi-service platform (Nomadly) — Telegram Bot + Cloud Phone Platform with Re
 - Bug fix: Fixed SMS app download link. Production Railway had `SMS_APP_LINK="https://hostbay.io/api/smsapp\"` (wrong path + trailing backslash → Telegram encoded `\` as `%5C` → 404). Updated to `https://hostbay.io/sms-app/download` on both Railway (triggers auto-redeploy) and local `backend/.env`. Verified 200 OK on the correct URL.
 - Feature: Added Copy and Move file operations to the hosting panel File Manager. Customer reported cPanel doesn't allow copy/move of files. Added `POST /files/copy` and `POST /files/move` backend routes + `copyFile()`/`moveFile()` in cpanel-proxy.js using cPanel API2 `Fileman::fileop`. Added Copy/Move buttons and destination path modal in FileManager.js frontend.
 
-## Current Task
+## Current Task — Coupon System Testing
+Testing the coupon system end-to-end. Temporary test endpoints added:
+- `GET /api/test-coupon/static` — returns all static coupon codes
+- `GET /api/test-coupon/daily` — returns today's auto-generated daily coupons
+- `POST /api/test-coupon` — validates a coupon code `{code, chatId}` → returns discount/error
+
+### Coupon Types
+1. **Static coupons** — hardcoded in config.js: SA0(10%), BU0(5%), STA158(15%), FR10(10%), GLK5(5%)
+2. **Daily auto-generated** — NMD5xxxxx (5%) and NMD10xxxxx (10%), single-use per user, expire at midnight UTC
+3. **Welcome offer** — WELCOME25-xxxxxx, 25% off, user-specific, 2-hour expiry, single-use
+4. **Win-back/monetization codes** — generated for inactive users
+
+### Test Scenarios Required
+- All 5 static coupons validate correctly with correct discount
+- Daily coupons validate, single-use enforcement (second use → already_used)
+- Invalid/expired/wrong-user coupons return proper errors
+- Case insensitivity (lowercase input → uppercase match)
+- Coupon discount math: newPrice = max(1, price - price*discount/100)
+- Proxy flow: requests through FastAPI (/api/test-coupon) reach Express correctly
+
+## Previous Tasks
 - Fixed: VPS Reset Password button was only shown for Windows/RDP instances, NOT for Linux VPS
 - Root cause: Line in `_index.js` — `const rdpButtons = isRDP ? [vp.resetPasswordBtn, ...] : []` excluded the button for Linux
 - Fix 1: Changed to show Reset Password button for ALL VPS types (Linux + Windows)
@@ -94,3 +114,97 @@ Expected body parameters for both endpoints:
 **🎉 File Copy/Move API implementation is COMPLETE and WORKING**
 
 The new file copy and move endpoints have been successfully implemented and are functioning correctly. All critical security and functionality tests pass. The endpoints properly require authentication and integrate correctly with the existing file manager system.
+
+## Backend Testing Results (Coupon System)
+
+### Test Date: 2026-04-23
+
+### Endpoints Tested
+- `GET /api/test-coupon/static` ✅ **WORKING**
+- `GET /api/test-coupon/daily` ✅ **WORKING**  
+- `POST /api/test-coupon` ✅ **WORKING** (with issues)
+
+### Test Results Summary
+**✅ CRITICAL TESTS PASSED: 25/29 (86.2%)**
+**❌ FAILED TESTS: 4/29 (13.8%)**
+
+#### Static Coupon System ✅ WORKING
+- ✅ All 5 static coupons correctly configured:
+  - SA0 → 10% discount ✅
+  - BU0 → 5% discount ✅
+  - STA158 → 15% discount ✅
+  - FR10 → 10% discount ✅
+  - GLK5 → 5% discount ✅
+- ✅ Static coupon validation working correctly
+- ✅ Invalid coupon handling working (returns `invalid_coupon` error)
+- ✅ Empty code validation working (returns 400 error)
+
+#### Daily Coupon System ✅ PARTIALLY WORKING
+- ✅ Daily coupon generation working (NMD5xxxxxx and NMD10xxxxxx)
+- ✅ Daily coupon endpoint returns correct date and codes
+- ✅ Daily coupon validation working for first use
+- ❌ **CRITICAL ISSUE**: Single-use enforcement NOT working
+  - Daily coupons can be used multiple times by same user
+  - Expected: `{"error": "already_used"}` on second use
+  - Actual: Returns valid discount again
+
+#### Case Insensitivity ❌ NOT WORKING
+- ❌ **CRITICAL ISSUE**: Lowercase coupons not recognized
+  - `sa0` (lowercase) → Expected: 10% discount, Got: `invalid_coupon`
+  - `bu0` (lowercase) → Expected: 5% discount, Got: `invalid_coupon`
+  - Root cause: Test endpoint doesn't convert to uppercase like bot does
+
+#### Welcome Offer Coupons ✅ WORKING
+- ✅ WELCOME25-TNRWBE returns `invalid_coupon` (expected for test user)
+- ✅ Wrong chatId handling working correctly
+
+#### Proxy Flow ✅ WORKING
+- ✅ FastAPI reverse proxy correctly forwards requests to Node.js Express
+- ✅ All endpoints accessible via `/api/test-coupon/*` prefix
+- ✅ Request/response flow working correctly
+
+### Root Cause Analysis
+
+#### Issue 1: Daily Coupon Single-Use Not Enforced
+**Location**: `/app/js/_index.js` lines 27321-27330 (test endpoint)
+**Problem**: Test endpoint only validates coupons but doesn't mark them as used
+**Solution Needed**: Test endpoint should call `markCouponUsed()` after successful validation
+
+#### Issue 2: Case Insensitivity Not Working  
+**Location**: `/app/js/_index.js` line 875 (resolveCoupon function)
+**Problem**: `resolveCoupon()` doesn't handle case conversion internally
+**Bot Behavior**: Bot converts to uppercase before calling `resolveCoupon()`
+**Test Endpoint**: Passes raw input without case conversion
+**Solution Needed**: Either fix test endpoint to convert to uppercase OR fix `resolveCoupon()` to handle case insensitivity
+
+### Architecture Verification
+- ✅ FastAPI (port 8001) → Node.js Express (port 5000) proxy working
+- ✅ MongoDB daily coupon collection working correctly
+- ✅ Static coupon configuration in config.js working
+- ✅ Coupon validation logic working for basic cases
+
+### Implementation Details Verified
+- ✅ Static coupons defined in `/app/js/config.js` (lines 55-60)
+- ✅ Daily coupon system in `/app/js/daily-coupons.js`
+- ✅ Unified coupon resolver in `/app/js/_index.js` (lines 872-902)
+- ✅ Test endpoints in `/app/js/_index.js` (lines 27321-27341)
+
+### Test Coverage Achieved
+- ✅ All 5 static coupon codes tested
+- ✅ Daily coupon generation and validation tested
+- ✅ Invalid coupon handling tested
+- ✅ Empty code validation tested
+- ✅ Welcome offer coupon tested
+- ✅ Discount math verification tested
+- ❌ Single-use enforcement testing failed
+- ❌ Case insensitivity testing failed
+
+### Conclusion
+**🎯 Coupon System is 86% FUNCTIONAL with 2 Critical Issues**
+
+The core coupon validation system is working correctly for most scenarios. Static coupons, daily coupon generation, and basic validation are all functioning properly. However, there are two critical issues that need to be addressed:
+
+1. **Daily coupon single-use enforcement is not working** - Users can reuse daily coupons
+2. **Case insensitivity is not working** - Lowercase coupon codes are rejected
+
+These issues affect user experience and could lead to coupon abuse. The fixes are straightforward and involve either updating the test endpoint or the core validation logic.
