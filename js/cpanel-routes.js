@@ -481,11 +481,16 @@ function createCpanelRoutes(getCpanelCol) {
     try {
       const subdomainWhmHost = req.whmHost || process.env.WHM_HOST
       const zone = await cfService.getZoneByName(rootdomain)
-      if (zone && subdomainWhmHost) {
+      if (zone) {
         const fqdn = `${subdomain}.${rootdomain}`
-        // Create A record for the subdomain pointing to our WHM server, proxied
-        await cfService.createDNSRecord(zone.id, 'A', fqdn, subdomainWhmHost, 1, true)
-        log(`[Panel] Created CF DNS A record for subdomain: ${fqdn} → ${subdomainWhmHost}`)
+        // Use tunnel CNAME if available, otherwise fallback to A record
+        if (cfService.CF_TUNNEL_CNAME) {
+          await cfService.createDNSRecord(zone.id, 'CNAME', fqdn, cfService.CF_TUNNEL_CNAME, 1, true)
+          log(`[Panel] Created CF DNS CNAME for subdomain: ${fqdn} → ${cfService.CF_TUNNEL_CNAME} (tunnel)`)
+        } else if (subdomainWhmHost) {
+          await cfService.createDNSRecord(zone.id, 'A', fqdn, subdomainWhmHost, 1, true)
+          log(`[Panel] Created CF DNS A record for subdomain: ${fqdn} → ${subdomainWhmHost}`)
+        }
       }
     } catch (cfErr) {
       // Non-blocking — subdomain still works via wildcard if CF has one

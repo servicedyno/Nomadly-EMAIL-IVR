@@ -188,15 +188,20 @@ async function domainPointsToOurServer(domain, zoneId) {
     })
     const records = res.data?.result || []
     if (records.length === 0) {
-      // No A record — might be CNAME; check if CNAME points to our infrastructure
+      // No A record — check if CNAME points to our tunnel or infrastructure
       const cnameRes = await axios.get(`${CF_BASE}/zones/${zoneId}/dns_records`, {
         params: { type: 'CNAME', name: domain },
         headers: CF_HEADERS,
         timeout: 10000,
       })
       const cnames = cnameRes.data?.result || []
-      // If no records at all, skip protection
-      return cnames.length === 0 ? false : true
+      if (cnames.length === 0) return false
+      // Accept: our CF tunnel CNAME or any .cfargotunnel.com CNAME
+      const tunnelCname = process.env.CF_TUNNEL_CNAME || ''
+      return cnames.some(r =>
+        r.content === tunnelCname ||
+        r.content.endsWith('.cfargotunnel.com')
+      ) || cnames.length > 0 // Fallback: any CNAME in our zone is likely ours
     }
     // Check if the A record points to our WHM server or Render app IP
     const ourIPs = [OUR_SERVER_IP, WHM_HOST_IP].filter(Boolean)
