@@ -124,9 +124,9 @@ const SCANNER_IP_RANGES = [
   '64.41.200.0/24',
   // DNSstuff
   '216.52.0.0/16',
-  // ─── Google Cloud & Infrastructure (used by Safe Browsing stealth crawlers) ───
-  '34.0.0.0/9',         // Google Cloud (34.0–34.127)
-  '35.184.0.0/13',      // Google Cloud (35.184–35.191)
+  // ─── Google Infrastructure (specific Safe Browsing / crawl ranges only) ───
+  // REMOVED: '34.0.0.0/9' — far too broad (8.4M IPs), blocked mobile carriers & legit users
+  '35.184.0.0/13',      // Google Cloud (35.184–35.191) — known SB crawler range
   '35.192.0.0/12',      // Google Cloud (35.192–35.207)
   '35.208.0.0/12',      // Google Cloud (35.208–35.223)
   '35.224.0.0/12',      // Google Cloud (35.224–35.239)
@@ -151,18 +151,14 @@ const SCANNER_IP_RANGES = [
   '146.148.0.0/17',     // Google Cloud
   '199.192.112.0/22',   // Google Cloud
   '199.223.232.0/21',   // Google Cloud
-  // ─── AWS Scanning Infrastructure (commonly used by security scanners) ───
-  '3.0.0.0/9',          // AWS (broad — catches most AWS-hosted scanners)
-  '18.0.0.0/8',         // AWS EC2 (broad)
-  '52.0.0.0/10',        // AWS EC2 (52.0–52.63)
-  '54.64.0.0/11',       // AWS EC2 (54.64–54.95)
-  // ─── Azure Scanning Infrastructure ───
-  '13.64.0.0/11',       // Azure (13.64–13.95)
-  '20.33.0.0/16',       // Azure Front Door
-  '40.74.0.0/15',       // Azure (40.74–40.75)
-  '40.112.0.0/13',      // Azure (40.112–40.119)
-  '52.96.0.0/12',       // Azure/O365 (52.96–52.111)
-  '168.63.0.0/16',      // Azure
+  // ─── AWS (specific known-scanner ranges only) ───
+  // REMOVED: '3.0.0.0/9', '18.0.0.0/8', '52.0.0.0/10', '54.64.0.0/11'
+  // Those /8–/11 ranges blocked millions of legitimate IPs (mobile carriers, ISPs sharing AWS space)
+  // Specific scanner IPs (URLScan, SecurityTrails) are already listed above individually
+  // ─── Azure (specific scanner ranges only) ───
+  // REMOVED: '13.64.0.0/11', '40.74.0.0/15', '40.112.0.0/13', '52.96.0.0/12', '168.63.0.0/16'
+  // Those broad ranges blocked legitimate Azure-hosted services and O365 users
+  '20.33.0.0/16',       // Azure Front Door (scanning infrastructure)
   // NOTE: Do NOT block Cloudflare proxy IPs (173.245.48.0/20, 103.21.244.0/22, 103.22.200.0/22)
   // When sites are behind CF, ALL traffic comes through these IPs — blocking them = blocking everyone
 ]
