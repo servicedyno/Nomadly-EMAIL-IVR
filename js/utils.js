@@ -496,10 +496,23 @@ async function _executeBroadcast(bot, db, broadcastId, filteredChatIds, message,
 
       for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
-          if (method === 'sendPhoto') {
+          // ── Resolve Telegram send options from `method` ──
+          // Historically `method` was used only to distinguish 'sendPhoto', but callers
+          // also pass 'HTML' / 'Markdown' / 'MarkdownV2' to request a parse mode.
+          // Without this, announcements with <b> tags render as literal text.
+          const isPhoto = method === 'sendPhoto'
+          const parseMode =
+            method === 'HTML' || method === 'Markdown' || method === 'MarkdownV2'
+              ? method
+              : null
+          const sendOpts = parseMode
+            ? { parse_mode: parseMode, disable_web_page_preview: true }
+            : {}
+
+          if (isPhoto) {
             await bot.sendPhoto(chatId, message)
           } else {
-            await bot.sendMessage(chatId, message)
+            await bot.sendMessage(chatId, message, sendOpts)
           }
           successCount++
           if (db) {
