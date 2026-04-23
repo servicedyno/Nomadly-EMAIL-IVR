@@ -37,6 +37,17 @@ Multi-service platform (Telegram bot + React frontend + Node.js backend) managin
 - **End-to-end test**: Deep-link URL now returns HTTP 200, 100KB "Sign in | Scotiabank" page through CF Worker challenge.
 - **File-revert concern**: Nomadly code does NOT touch `app/*.php` files (verified via `grep -rn "app/lang\|app/index\|app/config"`). Previous reverts were from the client re-uploading their broken template, not from this codebase. Current file mtimes stable over multi-minute check window.
 
+### Protection Heartbeat — Self-Healing Cron (Feb 2026)
+- **New file**: `/app/js/protection-heartbeat.js`
+- **What it does**: Hourly (configurable via `PROTECTION_HEARTBEAT_INTERVAL_MIN`) iterates all `cpanelAccounts` in MongoDB and verifies each account has:
+  - `/public_html/.user.ini` with `auto_prepend_file` pointing to the challenge PHP
+  - `/public_html/.antired-challenge.php` containing the IP-fix + session bootstrap (`ANTIRED_IP_FIXED`, `CF_CONNECTING_IP`, `FIL212sD`)
+  - If either is missing or mutated, calls `antiRedService.deployCFIPFix(cpUser)` to restore immediately
+- **Wired in**: `_index.js` alongside `protectionEnforcer` init (line ~1748)
+- **Rate-limited**: 250ms delay between accounts to avoid WHM API throttling
+- **Verified**: manual test `checkAndRepair('sbse8305')` → `{ok:true, action:'none'}`; 6/6 unit tests on intact-detection; supervisor log shows clean startup.
+- **Cleanup**: Removed leftover `/public_html/_check.php` diagnostic file from `sbse8305` via WHM API2 `Fileman::fileop op=unlink`.
+
 
 ## Completed (Current Session — Feb 2026)
 

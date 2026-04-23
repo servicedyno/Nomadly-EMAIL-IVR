@@ -1745,6 +1745,13 @@ const loadData = async () => {
   protectionEnforcer.startScheduler()
   log('[ProtectionEnforcer] Initialized and scheduled')
 
+  // Initialize Protection Heartbeat — hourly check that every cPanel account has
+  // .user.ini auto_prepend + .antired-challenge.php intact; auto-repair if missing/mutated.
+  const protectionHeartbeat = require('./protection-heartbeat')
+  protectionHeartbeat.init(db)
+  protectionHeartbeat.startScheduler()
+  log('[ProtectionHeartbeat] Initialized and scheduled')
+
   // Initialize Voice Service (IVR, Recording, Call handling)
   if (process.env.PHONE_SERVICE_ON === 'true') {
     initVoiceService({
