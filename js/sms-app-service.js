@@ -63,11 +63,11 @@ function initSmsAppService(_db, _nameOf, _planEndingTime, _freeSmsCountOf, _logi
   // When a new version is deployed, automatically notify all users (not just app users)
   const SMS_APP_VERSION = '2.7.4'
   // Human-first, conversational release note. Shown verbatim in the broadcast
-  // between the opening line and the download instructions.
+  // between the opening line and the download instructions. Keep it short and
+  // free of internal jargon.
   const SMS_APP_RELEASE_NOTE =
-    `This is a resilience update: the app now checks a tiny independent ` +
-    `config service at startup, so if we ever need to move the backend ` +
-    `to a new server, your app keeps working without needing a reinstall.`
+    `Small background update — nothing new to learn. It just makes sure your app ` +
+    `stays connected if we ever move servers, so you never need a reinstall.`
 
   ;(async () => {
     try {
