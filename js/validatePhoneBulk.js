@@ -315,24 +315,43 @@ const validateBulkNumbers = async (carrier, phonesToGenerate, countryCode, areaC
         log(progress)
       }
 
+      // ── Billing policy ──
+      // Billable unit = total verified phone numbers delivered (res.length).
+      // Real names are a bonus; the user receives every verified number across
+      // both output files. A partial refund is only warranted when we could not
+      // deliver the requested *volume* of phone numbers.
+
       // ── CNAM Exhaustion Check (all providers likely down) ──
       if (requireRealName && cnam && cnamMissStreak >= CNAM_MISS_THRESHOLD) {
-        const msg = `⚠️ Lead generation paused — CNAM name lookup services are temporarily unavailable. Delivering ${realNameCount} of ${targetCount} leads with real names.`
+        const msg = `⚠️ Lead generation paused — CNAM name lookup services are temporarily unavailable. Delivering ${res.length} of ${targetCount} leads (${realNameCount} with real names).`
         bot && bot.sendMessage(chatId, msg)
         bot && bot.sendMessage(TELEGRAM_ADMIN_CHAT_ID,
-          `⚠️ [LeadJobs] CNAM exhausted for ${chatId} — ${cnamMissStreak} consecutive misses. ${realNameCount}/${targetCount} real names. Delivering partial results.`)
-        log(`[LeadJobs] CNAM exhausted: ${cnamMissStreak} consecutive batches with 0 names. Delivering partial.`)
+          `⚠️ [LeadJobs] CNAM exhausted for ${chatId} — ${cnamMissStreak} consecutive misses. ${res.length}/${targetCount} phones, ${realNameCount} with names.`)
+        log(`[LeadJobs] CNAM exhausted: ${cnamMissStreak} consecutive batches with 0 names. Phones delivered=${res.length}/${targetCount}.`)
         if (jobId) await completeJob(jobId, res, realNameCount)
-        res._partialReason = 'cnam_exhausted'
-        res._deliveredCount = realNameCount
-        res._targetCount = targetCount
+        // Only flag partial if phone volume falls short; otherwise treat as full delivery.
+        if (res.length < targetCount) {
+          res._partialReason = 'cnam_exhausted'
+          res._deliveredCount = res.length
+          res._targetCount = targetCount
+        }
         return res
       }
 
       // Timeout Checks
       elapsedTime = new Date() - startTime
       if (elapsedTime > phoneGenTimeout) {
-        const deliveredCount = requireRealName && cnam ? realNameCount : res.length
+        const deliveredCount = Math.min(res.length, targetCount)
+        if (res.length >= targetCount) {
+          // Phone-volume target met → full delivery, no partial refund flow.
+          const msg = `⏱️ Lead generation finished at the ${Math.round(elapsedTime / 60000)}-minute mark. Delivered ${targetCount} of ${targetCount} verified phone numbers (${realNameCount} with real names).`
+          bot && bot.sendMessage(chatId, msg)
+          bot && bot.sendMessage(TELEGRAM_ADMIN_CHAT_ID,
+            `⏱️ [LeadJobs] Timeout for ${chatId} but volume met: ${res.length}/${targetCount} phones (${realNameCount} names) after ${Math.round(elapsedTime / 1000)}s — no refund.`)
+          log(`[LeadJobs] Timeout at ${Math.round(elapsedTime / 60000)}min but volume met (${res.length}/${targetCount}) — no partial refund.`)
+          if (jobId) await completeJob(jobId, res, realNameCount)
+          return res
+        }
         const msg = `⏱️ Lead generation timed out after ${Math.round(elapsedTime / 60000)} minutes. Delivering ${deliveredCount} of ${targetCount} leads.`
         bot && bot.sendMessage(chatId, msg)
         bot && bot.sendMessage(TELEGRAM_ADMIN_CHAT_ID,
@@ -346,15 +365,17 @@ const validateBulkNumbers = async (carrier, phonesToGenerate, countryCode, areaC
       noHitCount = !r[1] || r[1].length === 0 ? noHitCount + parallelApiCalls : 0
       log({ noHitCount, realNameCount, totalGenerated: res.length, cnamMissStreak, totalCnamLookups, cnamDisabledCodes: cnamDisabledAreas.size })
       if (noHitCount > phoneGenStopAtNoXHits) {
-        const deliveredCount = requireRealName && cnam ? realNameCount : res.length
+        const deliveredCount = Math.min(res.length, targetCount)
         const msg = `⚠️ Could not find more valid phone numbers in this area. Delivering ${deliveredCount} of ${targetCount} leads.`
         bot && bot.sendMessage(chatId, msg)
         bot && bot.sendMessage(TELEGRAM_ADMIN_CHAT_ID,
           `⚠️ [LeadJobs] No good hits for ${chatId}: ${deliveredCount}/${targetCount}`)
         if (jobId) await completeJob(jobId, res, realNameCount)
-        res._partialReason = 'no_good_hits'
-        res._deliveredCount = deliveredCount
-        res._targetCount = targetCount
+        if (res.length < targetCount) {
+          res._partialReason = 'no_good_hits'
+          res._deliveredCount = deliveredCount
+          res._targetCount = targetCount
+        }
         return res
       }
 
