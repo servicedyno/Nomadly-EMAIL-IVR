@@ -4363,6 +4363,73 @@ bot?.on('message', msg => {
     }
   }
 
+  // ── /tunnel — Migrate existing domains from A records to Cloudflare Tunnel CNAMEs ──
+  if (isAdmin(chatId) && message === '/tunnel') {
+    const cfService = require('./cf-service')
+    if (!cfService.CF_TUNNEL_CNAME) {
+      return send(chatId, '❌ <b>CF_TUNNEL_CNAME</b> not configured in .env', { parse_mode: 'HTML' })
+    }
+    send(chatId, `🔄 <b>Tunnel Migration</b>\n\nMigrating WHM domains from A records to CNAME → <code>${cfService.CF_TUNNEL_CNAME}</code>\n\nPlease wait...`, { parse_mode: 'HTML' })
+
+    const WHM_HOST = process.env.WHM_HOST
+    const WHM_TOKEN = process.env.WHM_TOKEN
+    try {
+      // Get all cPanel accounts from WHM
+      const whm = require('./whm-service')
+      const accounts = await whm.listAccounts()
+      const domains = (accounts || []).map(a => a.domain).filter(Boolean)
+
+      let report = '📊 <b>Tunnel Migration Report</b>\n\n'
+      let totalMigrated = 0, totalSkipped = 0, totalErrors = 0
+
+      for (const domain of domains) {
+        const zone = await cfService.getZoneByName(domain)
+        if (!zone) {
+          report += `⚠️ <b>${domain}</b> — no CF zone found\n`
+          totalSkipped++
+          continue
+        }
+        const result = await cfService.migrateToTunnel(zone.id, domain, WHM_HOST)
+        if (result.migrated?.length > 0) {
+          report += `✅ <b>${domain}</b> — migrated ${result.migrated.length} records\n`
+          totalMigrated += result.migrated.length
+        }
+        if (result.skipped?.length > 0) {
+          report += `⏭ <b>${domain}</b> — already on tunnel\n`
+          totalSkipped++
+        }
+        if (result.errors?.length > 0) {
+          report += `❌ <b>${domain}</b> — ${result.errors.length} errors\n`
+          totalErrors += result.errors.length
+        }
+      }
+
+      report += `\n<b>Summary:</b> ${totalMigrated} migrated, ${totalSkipped} skipped, ${totalErrors} errors`
+      report += `\n\n⚠️ <b>Important:</b> Sites will only work if <code>cloudflared</code> is running on the WHM server.`
+      return send(chatId, report, { parse_mode: 'HTML' })
+    } catch (e) {
+      log(`[Admin] /tunnel error: ${e.message}`)
+      return send(chatId, `❌ Error: ${e.message}`)
+    }
+  }
+
+  if (isAdmin(chatId) && message === '/tunnel status') {
+    const tunnelId = process.env.CF_TUNNEL_ID
+    if (!tunnelId) return send(chatId, '❌ CF_TUNNEL_ID not set')
+    try {
+      const CF_ACCOUNT_ID = 'ed6035ebf6bd3d85f5b26c60189a21e2'
+      const res = await require('axios').get(
+        `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/cfd_tunnel/${tunnelId}`,
+        { headers: { 'X-Auth-Email': process.env.CLOUDFLARE_EMAIL, 'X-Auth-Key': process.env.CLOUDFLARE_API_KEY, 'Content-Type': 'application/json' }, timeout: 10000 }
+      )
+      const t = res.data?.result || {}
+      const status = t.status === 'healthy' ? '🟢' : t.status === 'inactive' ? '🔴' : '🟡'
+      return send(chatId, `${status} <b>Tunnel Status</b>\n\nName: <code>${t.name}</code>\nID: <code>${t.id}</code>\nStatus: <b>${t.status}</b>\nCNAME: <code>${t.id}.cfargotunnel.com</code>`, { parse_mode: 'HTML' })
+    } catch (e) {
+      return send(chatId, `❌ ${e.message}`)
+    }
+  }
+
   // Throttle Connect Reseller IP check to once per hour instead of every message
   const now_cr = Date.now()
   if (NOT_TRY_CR === undefined && now_cr - last_cr_check_time > 3600000) {

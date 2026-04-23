@@ -6,6 +6,7 @@ const { log } = require('console')
 const CF_BASE_URL = 'https://api.cloudflare.com/client/v4'
 const CF_EMAIL = process.env.CLOUDFLARE_EMAIL
 const CF_API_KEY = process.env.CLOUDFLARE_API_KEY
+const CF_TUNNEL_CNAME = process.env.CF_TUNNEL_CNAME || '' // e.g. "xxxx.cfargotunnel.com"
 
 const cfHeaders = () => ({
   'X-Auth-Email': CF_EMAIL,
@@ -261,21 +262,32 @@ const createDefaultDNSRecords = async (zoneId, domainName, serverIP, recordType 
 
 /**
  * Create hosting DNS records for a cPanel domain on Cloudflare
- * Sets up A records, MX, mail, cpanel, webmail, webdisk subdomains
+ * Uses Cloudflare Tunnel (CNAME) for web traffic when available, A records as fallback.
+ * Management subdomains (mail, cpanel, webmail, webdisk) always use direct A records.
  * @param {string} zoneId - Cloudflare zone ID
  * @param {string} domainName - Domain name
- * @param {string} serverIP - WHM server IP
+ * @param {string} serverIP - WHM server IP (used for management subdomains)
  */
 const createHostingDNSRecords = async (zoneId, domainName, serverIP, proxied = true) => {
   const results = []
+  const useTunnel = !!CF_TUNNEL_CNAME
 
-  // Web: root A record
-  results.push({ type: 'root-A', ...(await createDNSRecord(zoneId, 'A', domainName, serverIP, proxied ? 1 : 300, proxied)) })
+  if (useTunnel) {
+    // Web: root CNAME → tunnel (proxied, origin IP never exposed in DNS)
+    results.push({ type: 'root-CNAME', ...(await createDNSRecord(zoneId, 'CNAME', domainName, CF_TUNNEL_CNAME, 1, true)) })
 
-  // Web: www A record
-  results.push({ type: 'www-A', ...(await createDNSRecord(zoneId, 'A', `www.${domainName}`, serverIP, proxied ? 1 : 300, proxied)) })
+    // Web: www CNAME → tunnel
+    results.push({ type: 'www-CNAME', ...(await createDNSRecord(zoneId, 'CNAME', `www.${domainName}`, CF_TUNNEL_CNAME, 1, true)) })
 
-  // Mail: A record (always DNS only — mail can't go through CF proxy)
+    log(`[CF Hosting] ${domainName}: Using Cloudflare Tunnel (CNAME → ${CF_TUNNEL_CNAME})`)
+  } else {
+    // Fallback: A records (legacy — exposes origin IP)
+    results.push({ type: 'root-A', ...(await createDNSRecord(zoneId, 'A', domainName, serverIP, proxied ? 1 : 300, proxied)) })
+    results.push({ type: 'www-A', ...(await createDNSRecord(zoneId, 'A', `www.${domainName}`, serverIP, proxied ? 1 : 300, proxied)) })
+    log(`[CF Hosting] ${domainName}: Using A records (no tunnel configured)`)
+  }
+
+  // Mail: A record (always DNS only — mail can't go through CF proxy or tunnel)
   results.push({ type: 'mail-A', ...(await createDNSRecord(zoneId, 'A', `mail.${domainName}`, serverIP, 300, false)) })
 
   // MX record for email
@@ -301,20 +313,23 @@ const createHostingDNSRecords = async (zoneId, domainName, serverIP, proxied = t
 }
 
 /**
- * Switch hosting DNS records (root A + www) from DNS-only to proxied mode.
+ * Switch hosting DNS records (root + www) from DNS-only to proxied mode.
+ * Handles both A records (legacy) and CNAME records (tunnel).
  * Called after AutoSSL has had time to issue a CA cert via HTTP-01 validation.
  */
 const proxyHostingDNSRecords = async (zoneId, domainName) => {
   const headers = cfHeaders()
   const records = await listDNSRecords(zoneId)
   const targets = records.filter(r =>
-    r.type === 'A' && (r.name === domainName || r.name === `www.${domainName}`) && !r.proxied
+    (r.type === 'A' || r.type === 'CNAME') &&
+    (r.name === domainName || r.name === `www.${domainName}`) &&
+    !r.proxied
   )
   for (const r of targets) {
     await axios.patch(`${CF_BASE_URL}/zones/${zoneId}/dns_records/${r.id}`, {
       type: r.type, name: r.name, content: r.content, proxied: true, ttl: 1,
     }, { headers, timeout: 10000 })
-    log(`[CF] Proxied: ${r.name} → ${r.content}`)
+    log(`[CF] Proxied: ${r.name} (${r.type}) → ${r.content}`)
   }
   return { proxied: targets.length }
 }
@@ -1067,6 +1082,66 @@ const listOriginCACerts = async (zoneId) => {
   }
 }
 
+/**
+ * Migrate a domain from A-record (direct IP) to CNAME (Cloudflare Tunnel).
+ * Deletes existing root + www A records and replaces with CNAME → tunnel.
+ * Only works when CF_TUNNEL_CNAME is configured.
+ * @param {string} zoneId - Cloudflare zone ID
+ * @param {string} domainName - Domain name to migrate
+ * @param {string} serverIP - WHM server IP (to identify which A records to replace)
+ * @returns {{ success, migrated[], skipped[], errors[] }}
+ */
+const migrateToTunnel = async (zoneId, domainName, serverIP) => {
+  if (!CF_TUNNEL_CNAME) return { success: false, error: 'CF_TUNNEL_CNAME not configured' }
+
+  const migrated = [], skipped = [], errors = []
+  try {
+    const records = await listDNSRecords(zoneId)
+    const webNames = [domainName, `www.${domainName}`]
+
+    for (const name of webNames) {
+      // Find existing A record for this name
+      const aRecord = records.find(r => r.type === 'A' && r.name === name && r.content === serverIP)
+      // Check if CNAME already exists (already migrated)
+      const cnameRecord = records.find(r => r.type === 'CNAME' && r.name === name)
+
+      if (cnameRecord && cnameRecord.content === CF_TUNNEL_CNAME) {
+        skipped.push({ name, reason: 'already_tunnel_cname' })
+        continue
+      }
+
+      // Delete existing A record (CF doesn't allow A + CNAME for same name)
+      if (aRecord) {
+        const del = await deleteDNSRecord(zoneId, aRecord.id)
+        if (!del.success) {
+          errors.push({ name, action: 'delete_a', error: del.error || 'delete failed' })
+          continue
+        }
+        log(`[CF Tunnel] Deleted A record: ${name} → ${serverIP}`)
+      }
+
+      // Delete existing CNAME if it points elsewhere
+      if (cnameRecord && cnameRecord.content !== CF_TUNNEL_CNAME) {
+        await deleteDNSRecord(zoneId, cnameRecord.id)
+        log(`[CF Tunnel] Deleted old CNAME: ${name} → ${cnameRecord.content}`)
+      }
+
+      // Create CNAME → tunnel
+      const created = await createDNSRecord(zoneId, 'CNAME', name, CF_TUNNEL_CNAME, 1, true)
+      if (created.success) {
+        migrated.push({ name, from: aRecord ? `A:${serverIP}` : 'new', to: `CNAME:${CF_TUNNEL_CNAME}` })
+        log(`[CF Tunnel] Migrated: ${name} → CNAME ${CF_TUNNEL_CNAME} (proxied)`)
+      } else {
+        errors.push({ name, action: 'create_cname', error: created.errors || 'create failed' })
+      }
+    }
+
+    return { success: errors.length === 0, migrated, skipped, errors }
+  } catch (err) {
+    return { success: false, migrated, skipped, errors: [{ message: err.message }] }
+  }
+}
+
 module.exports = {
   testConnection,
   getAccountNameservers,
@@ -1100,4 +1175,7 @@ module.exports = {
   getAuthenticatedOriginPullsStatus,
   generateOriginCACert,
   listOriginCACerts,
+  // Tunnel
+  migrateToTunnel,
+  CF_TUNNEL_CNAME,
 }
