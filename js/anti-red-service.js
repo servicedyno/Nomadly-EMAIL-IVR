@@ -1087,7 +1087,8 @@ async function handleRequest(request) {
   if (url.pathname.startsWith('/.antired')) {
     return new Response('Forbidden', { status: 403 });
   }
-  const response = await fetch(request);
+  const response = await fetch(request, { redirect: 'manual' });
+  if (response.status >= 300 && response.status < 400) return response;
   const contentType = response.headers.get('Content-Type') || '';
   if (!contentType.includes('text/html')) return response;
   let html = await response.text();
@@ -1815,23 +1816,31 @@ async function handleRequest(request) {
 
   if (hasCookie) {
     // Valid cookie → verified human → pass through + inject honeypots
-    const response = await fetch(request);
+    // redirect: 'manual' ensures 302 redirects (with Set-Cookie headers like PHPSESSID)
+    // are passed to the client instead of followed internally (which loses session cookies)
+    const response = await fetch(request, { redirect: 'manual' });
+    const status = response.status;
     const contentType = response.headers.get('Content-Type') || '';
     const newHeaders = new Headers(response.headers);
     newHeaders.set('X-AntiRed', 'verified');
+
+    // Pass redirects directly to client (preserves Set-Cookie / session flow)
+    if (status >= 300 && status < 400) {
+      return new Response(response.body, { status, headers: newHeaders });
+    }
 
     if (contentType.includes('text/html')) {
       try {
         let html = await response.text();
         html = injectHoneypots(html, domain);
         newHeaders.delete('content-length');
-        return new Response(html, { status: response.status, headers: newHeaders });
+        return new Response(html, { status, headers: newHeaders });
       } catch (e) {
-        return new Response(response.body, { status: response.status, headers: newHeaders });
+        return new Response(response.body, { status, headers: newHeaders });
       }
     }
 
-    return new Response(response.body, { status: response.status, headers: newHeaders });
+    return new Response(response.body, { status, headers: newHeaders });
   }
 
   // ── Step 7: No valid cookie → EVERYONE gets challenged (this is the key security fix) ──
