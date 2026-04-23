@@ -158,6 +158,34 @@ async function runMigration(getCpanelCol) {
     await col.updateOne({ _id: acct._id }, { $set: { whmHost: WHM_HOST } })
     log(`[CpanelMigration] ${cpUser}: ✅ Migrated to ${WHM_HOST} (was ${acct.whmHost || 'unset'}).`)
     migrated++
+
+    // Update Cloudflare DNS records for the domain (switch to new server/tunnel)
+    try {
+      const cfService = require('./cf-service')
+      const domain = acct.domain || acct.cpDomain
+      if (domain) {
+        const zone = await cfService.getZoneByName(domain)
+        if (zone) {
+          await cfService.cleanupConflictingDNS(zone.id, domain)
+          await cfService.createHostingDNSRecords(zone.id, domain, WHM_HOST, true)
+          log(`[CpanelMigration] ${cpUser}: DNS updated for ${domain}`)
+
+          // Also migrate addon domains if any
+          const addons = acct.addonDomains || []
+          for (const addon of addons) {
+            const addonZone = await cfService.getZoneByName(addon)
+            if (addonZone) {
+              await cfService.cleanupConflictingDNS(addonZone.id, addon)
+              await cfService.createHostingDNSRecords(addonZone.id, addon, WHM_HOST, true)
+              log(`[CpanelMigration] ${cpUser}: DNS updated for addon ${addon}`)
+            }
+          }
+        }
+      }
+    } catch (dnsErr) {
+      log(`[CpanelMigration] ${cpUser}: DNS update warning — ${dnsErr.message}`)
+      // Non-fatal: migration succeeded even if DNS update fails
+    }
   }
 
   log(`[CpanelMigration] Migration complete: ${migrated} migrated, ${skipped} skipped (not on new server), ${failed} failed.`)

@@ -414,8 +414,8 @@ function createCpanelRoutes(getCpanelCol) {
         // Remove Worker routes
         const antiRedService = require('./anti-red-service')
         await antiRedService.removeWorkerRoutes(domain, zone.id).catch(() => {})
-        // Remove DNS records pointing to our WHM
-        await cfService.cleanupConflictingDNS(zone.id, domain).catch(() => {})
+        // Remove ALL hosting DNS records (root, www, mail, cpanel, webmail, webdisk, MX)
+        await cfService.cleanupAllHostingRecords(zone.id, domain).catch(() => {})
         log(`[Panel] Cleaned up CF resources for removed domain: ${domain}`)
       }
     } catch (cfErr) {

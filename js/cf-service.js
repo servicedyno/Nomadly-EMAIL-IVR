@@ -293,14 +293,9 @@ const createHostingDNSRecords = async (zoneId, domainName, serverIP, proxied = t
   // MX record for email
   results.push({ type: 'MX', ...(await createDNSRecord(zoneId, 'MX', domainName, `mail.${domainName}`, 300, false, 10)) })
 
-  // cPanel access (always DNS only — needs direct connection)
-  results.push({ type: 'cpanel-A', ...(await createDNSRecord(zoneId, 'A', `cpanel.${domainName}`, serverIP, 300, false)) })
-
-  // Webmail access (always DNS only)
-  results.push({ type: 'webmail-A', ...(await createDNSRecord(zoneId, 'A', `webmail.${domainName}`, serverIP, 300, false)) })
-
-  // Webdisk access (always DNS only)
-  results.push({ type: 'webdisk-A', ...(await createDNSRecord(zoneId, 'A', `webdisk.${domainName}`, serverIP, 300, false)) })
+  // NOTE: cpanel.*, webmail.*, webdisk.* A records intentionally NOT created.
+  // Users access cPanel via HostPanel (web panel). Direct cPanel access subdomains
+  // would expose the origin server IP in DNS, defeating the Cloudflare Tunnel.
 
   const allSuccess = results.every(r => r.success)
   const failCount = results.filter(r => !r.success).length
@@ -902,6 +897,49 @@ const cleanupConflictingDNS = async (zoneId, domainName) => {
 }
 
 /**
+ * Remove ALL hosting-related DNS records for a domain.
+ * Used when a domain is fully removed from hosting (not just before re-creation).
+ * Removes: root, www, mail, cpanel, webmail, webdisk + MX records.
+ * @param {string} zoneId - Cloudflare zone ID
+ * @param {string} domainName - Domain name (e.g. "example.com")
+ * @returns {{ success, deleted[] }}
+ */
+const cleanupAllHostingRecords = async (zoneId, domainName) => {
+  const deleted = []
+  try {
+    const records = await listDNSRecords(zoneId)
+    const hostingNames = [
+      domainName,
+      `www.${domainName}`,
+      `mail.${domainName}`,
+      `cpanel.${domainName}`,
+      `webmail.${domainName}`,
+      `webdisk.${domainName}`,
+    ]
+    const hostingRecords = records.filter(r => {
+      // Match hosting names (A, AAAA, CNAME records) + MX records for the root domain
+      if (hostingNames.includes(r.name) && ['A', 'AAAA', 'CNAME'].includes(r.type)) return true
+      if (r.name === domainName && r.type === 'MX') return true
+      return false
+    })
+
+    for (const record of hostingRecords) {
+      const result = await deleteDNSRecord(zoneId, record.id)
+      if (result.success) {
+        deleted.push({ type: record.type, name: record.name, content: record.content })
+        log(`[CF] Removed hosting record: ${record.type} ${record.name} → ${record.content}`)
+      }
+    }
+
+    log(`[CF] cleanupAllHostingRecords: ${deleted.length} records removed for ${domainName}`)
+    return { success: true, deleted }
+  } catch (err) {
+    log(`[CF] cleanupAllHostingRecords error: ${err.message}`)
+    return { success: false, deleted, error: err.message }
+  }
+}
+
+/**
  * Set the proxied (orange/gray cloud) state for a DNS record.
  * @param {string} zoneId - Cloudflare zone ID
  * @param {string} domainName - Full record name (e.g. "example.com" or "www.example.com")
@@ -1156,6 +1194,7 @@ module.exports = {
   createHostingDNSRecords,
   proxyHostingDNSRecords,
   cleanupConflictingDNS,
+  cleanupAllHostingRecords,
   setSSLMode,
   enforceHTTPS,
   setProxiedState,
