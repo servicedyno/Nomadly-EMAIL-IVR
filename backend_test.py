@@ -10,7 +10,7 @@ import sys
 from typing import Dict, Any
 
 # Base URL from frontend/.env
-BASE_URL = "https://setup-tutorial-10.preview.emergentagent.com/api"
+BASE_URL = "https://readme-init-2.preview.emergentagent.com/api"
 
 # Test credentials from /app/memory/test_credentials.md
 TEST_CREDENTIALS = {
