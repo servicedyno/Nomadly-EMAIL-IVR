@@ -1803,7 +1803,7 @@ const loadData = async () => {
     const exists = fs.existsSync(apkPath)
     const size = exists ? fs.statSync(apkPath).size : 0
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
-    res.json({ version: '2.7.4', name: 'Nomadly SMS', size, available: exists })
+    res.json({ version: '2.7.5', name: 'Nomadly SMS', size, available: exists })
   })
 
   // Initialize Email Blast Service

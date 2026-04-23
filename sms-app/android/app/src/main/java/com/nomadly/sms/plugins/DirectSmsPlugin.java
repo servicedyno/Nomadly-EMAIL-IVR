@@ -49,9 +49,76 @@ import java.util.List;
 )
 public class DirectSmsPlugin extends Plugin {
     private static final String SMS_SENT = "SMS_SENT_";
-    private static final int SEND_TIMEOUT_MS = 30000; // 30 second timeout
+    private static final int SEND_TIMEOUT_MS = 8000; // 8s (was 30s) — on IMS/Wi-Fi Calling the sentIntent often never fires
+    private static final long SMS_SENT_DB_LOOKBACK_MS = 60_000L; // window for sent-DB fallback check
     private int requestCounter = 0;
     private boolean permissionRequestInFlight = false;
+
+    /**
+     * Fallback: after sentIntent timeout, query content://sms/sent to see if Android
+     * actually persisted the outgoing SMS. On IMS/Wi-Fi Calling (T-Mobile etc.) the
+     * sentIntent broadcast sometimes never fires even though the message WAS sent.
+     * Requires READ_SMS permission (already declared in manifest).
+     *
+     * @return true if a matching sent row was found in the last SMS_SENT_DB_LOOKBACK_MS
+     */
+    private boolean wasSmsActuallySent(Context ctx, String phoneNumber, String messageBody, long sendStartMs) {
+        try {
+            // Check READ_SMS permission — if user hasn't granted it, we can't verify, so fail closed.
+            if (androidx.core.content.ContextCompat.checkSelfPermission(
+                    ctx, Manifest.permission.READ_SMS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                android.util.Log.d("DirectSms", "wasSmsActuallySent: READ_SMS not granted, cannot verify");
+                return false;
+            }
+
+            // content://sms/sent — rows where type=2 (MESSAGE_TYPE_SENT) OR type=6 (MESSAGE_TYPE_QUEUED→SENT)
+            android.net.Uri sentUri = android.net.Uri.parse("content://sms/sent");
+            String[] projection = { "address", "body", "date", "type" };
+            long sinceMs = sendStartMs - 5_000L; // allow 5s clock skew buffer
+            String selection = "date >= ?";
+            String[] args = { String.valueOf(sinceMs) };
+            android.database.Cursor c = null;
+            try {
+                c = ctx.getContentResolver().query(sentUri, projection, selection, args, "date DESC");
+                if (c == null) return false;
+                int addrIdx = c.getColumnIndex("address");
+                int bodyIdx = c.getColumnIndex("body");
+                int dateIdx = c.getColumnIndex("date");
+                int typeIdx = c.getColumnIndex("type");
+                int checked = 0;
+                while (c.moveToNext() && checked < 25) { // cap scan to 25 rows for perf
+                    checked++;
+                    long rowDate = dateIdx >= 0 ? c.getLong(dateIdx) : 0L;
+                    // Stop scanning if we've gone past the window
+                    if (rowDate < sinceMs) break;
+                    int rowType = typeIdx >= 0 ? c.getInt(typeIdx) : 0;
+                    // type 2 = SENT, type 6 = QUEUED (Android pre-sent state — also counts as "handed to OS")
+                    if (rowType != 2 && rowType != 6) continue;
+                    String rowAddr = addrIdx >= 0 ? c.getString(addrIdx) : null;
+                    String rowBody = bodyIdx >= 0 ? c.getString(bodyIdx) : null;
+                    if (rowAddr == null || rowBody == null) continue;
+                    // Loose match on address (last 7 digits) to handle +1 prefix variations
+                    String dstNorm = phoneNumber.replaceAll("[^0-9]", "");
+                    String rowNorm = rowAddr.replaceAll("[^0-9]", "");
+                    String dstTail = dstNorm.length() >= 7 ? dstNorm.substring(dstNorm.length() - 7) : dstNorm;
+                    String rowTail = rowNorm.length() >= 7 ? rowNorm.substring(rowNorm.length() - 7) : rowNorm;
+                    if (!dstTail.equals(rowTail)) continue;
+                    // For multipart, body may be partial — check body starts-with OR full match OR body contains-row-body
+                    if (rowBody.equals(messageBody)
+                        || messageBody.startsWith(rowBody)
+                        || rowBody.startsWith(messageBody.substring(0, Math.min(40, messageBody.length())))) {
+                        android.util.Log.d("DirectSms", "wasSmsActuallySent: MATCH found in sms/sent (type=" + rowType + ", lag=" + (System.currentTimeMillis() - rowDate) + "ms)");
+                        return true;
+                    }
+                }
+            } finally {
+                if (c != null) try { c.close(); } catch (Exception ignored) {}
+            }
+        } catch (Exception e) {
+            android.util.Log.w("DirectSms", "wasSmsActuallySent error", e);
+        }
+        return false;
+    }
 
     @PluginMethod
     public void send(PluginCall call) {
@@ -323,6 +390,8 @@ public class DirectSmsPlugin extends Plugin {
 
             android.util.Log.d("DirectSms", "Sending SMS: " + totalParts + " part(s), total length: " + message.length() + " chars");
 
+            // Record when we submitted — used by the sent-DB fallback query if sentIntent never fires.
+            final long sendStartMs = System.currentTimeMillis();
             // Unique intent action base per send to avoid receiver collisions
             final int reqId = ++requestCounter;
             final boolean[] resolved = { false };
@@ -399,8 +468,8 @@ public class DirectSmsPlugin extends Plugin {
                     }
                 }
 
-                // Timeout for multipart — longer timeout for more parts
-                int multipartTimeout = SEND_TIMEOUT_MS + (totalParts * 5000);
+                // Timeout for multipart — shorter timeout with sent-DB fallback
+                int multipartTimeout = SEND_TIMEOUT_MS + (totalParts * 2000);
                 new Handler(Looper.getMainLooper()).postDelayed(() -> {
                     if (!resolved[0]) {
                         resolved[0] = true;
@@ -413,6 +482,12 @@ public class DirectSmsPlugin extends Plugin {
                         if (okCount > 0 && okCount == totalParts) {
                             result.put("success", true);
                             result.put("status", "sent");
+                        } else if (pendingCount > 0 && wasSmsActuallySent(context, phoneNumber, message, sendStartMs)) {
+                            // IMS / Wi-Fi Calling quirk fallback — sentIntent didn't fire but SMS is in sent DB
+                            result.put("success", true);
+                            result.put("status", "sent_ims_verified");
+                            result.put("imsQuirkFallback", true);
+                            android.util.Log.d("DirectSms", "Multipart send_timeout but verified via sms/sent DB — treating as success");
                         } else {
                             result.put("success", false);
                             result.put("status", "timeout");
@@ -470,10 +545,21 @@ public class DirectSmsPlugin extends Plugin {
                     if (!resolved[0]) {
                         resolved[0] = true;
                         JSObject result = new JSObject();
-                        result.put("success", false);
-                        result.put("status", "timeout");
-                        result.put("errorCode", -1);
-                        result.put("errorReason", "send_timeout");
+                        // ── IMS / Wi-Fi Calling fallback ──
+                        // On some carriers (notably T-Mobile Wi-Fi Calling) the sentIntent broadcast
+                        // never fires even though the SMS was successfully sent via IMS. Before
+                        // declaring a timeout, verify via the system SMS sent log.
+                        if (wasSmsActuallySent(context, phoneNumber, message, sendStartMs)) {
+                            result.put("success", true);
+                            result.put("status", "sent_ims_verified");
+                            result.put("imsQuirkFallback", true);
+                            android.util.Log.d("DirectSms", "Single-part send_timeout but verified via sms/sent DB — treating as success");
+                        } else {
+                            result.put("success", false);
+                            result.put("status", "timeout");
+                            result.put("errorCode", -1);
+                            result.put("errorReason", "send_timeout");
+                        }
                         result.put("parts", 1);
                         call.resolve(result);
                         try { context.unregisterReceiver(sentReceiver); } catch (Exception e) { /* ignore */ }

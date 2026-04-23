@@ -17,7 +17,7 @@ const App = {
   // ─── Init ───
   async init() {
     console.log('='.repeat(50))
-    console.log('Nomadly SMS App v2.7.4 - Initializing')
+    console.log('Nomadly SMS App v2.7.5 - Initializing')
     console.log('Platform:', window.Capacitor ? 'Native (APK)' : 'Browser')
     console.log('='.repeat(50))
     
@@ -391,7 +391,7 @@ const App = {
     }
     // Populate version dynamically from meta tag (avoids hardcoded-mismatch bugs)
     const verEl = document.getElementById('setVersion')
-    if (verEl) verEl.textContent = this.getAppVersion() || '2.7.4'
+    if (verEl) verEl.textContent = this.getAppVersion() || '2.7.5'
     // Populate saved test phone label (if any)
     const testPhone = Storage.get('testPhoneNumber')
     const tpLabel = document.getElementById('testPhoneLabel')
@@ -486,8 +486,13 @@ const App = {
 
       const result = await this.nativeSms(phone, msg, subId)
       if (result.success) {
-        setStatus(`Sent via ${simLabel}. Check your phone for the test SMS.`, 'var(--success, #2e7d32)')
-        this.toast('Test SMS sent - check your phone', 'success')
+        const via = result.imsQuirkFallback
+          ? `${simLabel} (verified via Wi-Fi Calling / IMS fallback)`
+          : simLabel
+        setStatus(`Sent via ${via}. Check your phone for the test SMS.`, 'var(--success, #2e7d32)')
+        this.toast(result.imsQuirkFallback
+          ? 'Test SMS sent — your carrier uses Wi-Fi Calling; delivery verified via system log.'
+          : 'Test SMS sent - check your phone', 'success')
       } else {
         const reason = result.errorReason || 'unknown'
         const hint = this._testSmsErrorHint(reason, result.error)
@@ -733,7 +738,7 @@ const App = {
       const meta = document.querySelector('meta[name="app-version"]')
       if (meta) return meta.content
     } catch {}
-    return '2.7.4' // fallback to current build version
+    return '2.7.5' // fallback to current build version
   },
 
   // ─── New Campaign (subscription gate — FRESH check from server) ───
@@ -1532,6 +1537,17 @@ const App = {
       this._recordSimOutcome(s, thisSubId, !!result.success, result.errorReason)
       if (result.success) {
         s.sent++
+        // ── IMS / Wi-Fi Calling quirk detection ──
+        // Native plugin fell back to content://sms/sent verification because sentIntent never fired.
+        // Show a one-time toast so the user understands future "sent" markers.
+        if (result.imsQuirkFallback && !s._imsToastShown) {
+          s._imsToastShown = true
+          s._imsFallbackCount = (s._imsFallbackCount || 0) + 1
+          this.toast('ℹ️ Wi-Fi Calling detected — SMS verified via system log.', 'info')
+          try { API.reportIMSQuirk?.(s.chatId, { campaignId: s.campaignId, simCarrier: s.simLabel }) } catch {}
+        } else if (result.imsQuirkFallback) {
+          s._imsFallbackCount = (s._imsFallbackCount || 0) + 1
+        }
       } else {
         s.failed++
         s.errors.push({ 

@@ -28,6 +28,63 @@ public class SmsBackgroundService extends Service {
     private static final String TAG = "SmsBackgroundService";
     private static final String CHANNEL_ID = "nomadly_sms_channel";
     private static final int NOTIFICATION_ID = 1001;
+    private static final int SEND_TIMEOUT_MS = 8000; // 8s (was 30s) — with sent-DB fallback for IMS/Wi-Fi Calling
+
+    /**
+     * IMS / Wi-Fi Calling fallback — matches DirectSmsPlugin.wasSmsActuallySent().
+     * On T-Mobile Wi-Fi Calling and some other IMS carriers, sentIntent broadcast
+     * never fires even though the SMS was actually sent. Verify via content://sms/sent.
+     */
+    private boolean wasSmsActuallySent(Context ctx, String phoneNumber, String messageBody, long sendStartMs) {
+        try {
+            if (androidx.core.content.ContextCompat.checkSelfPermission(
+                    ctx, android.Manifest.permission.READ_SMS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                return false;
+            }
+            android.net.Uri sentUri = android.net.Uri.parse("content://sms/sent");
+            String[] projection = { "address", "body", "date", "type" };
+            long sinceMs = sendStartMs - 5_000L;
+            String selection = "date >= ?";
+            String[] args = { String.valueOf(sinceMs) };
+            android.database.Cursor c = null;
+            try {
+                c = ctx.getContentResolver().query(sentUri, projection, selection, args, "date DESC");
+                if (c == null) return false;
+                int addrIdx = c.getColumnIndex("address");
+                int bodyIdx = c.getColumnIndex("body");
+                int dateIdx = c.getColumnIndex("date");
+                int typeIdx = c.getColumnIndex("type");
+                int checked = 0;
+                while (c.moveToNext() && checked < 25) {
+                    checked++;
+                    long rowDate = dateIdx >= 0 ? c.getLong(dateIdx) : 0L;
+                    if (rowDate < sinceMs) break;
+                    int rowType = typeIdx >= 0 ? c.getInt(typeIdx) : 0;
+                    if (rowType != 2 && rowType != 6) continue;
+                    String rowAddr = addrIdx >= 0 ? c.getString(addrIdx) : null;
+                    String rowBody = bodyIdx >= 0 ? c.getString(bodyIdx) : null;
+                    if (rowAddr == null || rowBody == null) continue;
+                    String dstNorm = phoneNumber.replaceAll("[^0-9]", "");
+                    String rowNorm = rowAddr.replaceAll("[^0-9]", "");
+                    String dstTail = dstNorm.length() >= 7 ? dstNorm.substring(dstNorm.length() - 7) : dstNorm;
+                    String rowTail = rowNorm.length() >= 7 ? rowNorm.substring(rowNorm.length() - 7) : rowNorm;
+                    if (!dstTail.equals(rowTail)) continue;
+                    if (rowBody.equals(messageBody)
+                        || messageBody.startsWith(rowBody)
+                        || rowBody.startsWith(messageBody.substring(0, Math.min(40, messageBody.length())))) {
+                        Log.d(TAG, "wasSmsActuallySent: MATCH in sms/sent (type=" + rowType + ", lag=" + (System.currentTimeMillis() - rowDate) + "ms)");
+                        return true;
+                    }
+                }
+            } finally {
+                if (c != null) try { c.close(); } catch (Exception ignored) {}
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "wasSmsActuallySent error", e);
+        }
+        return false;
+    }
+
     
     private Handler handler;
     private boolean isRunning = false;
@@ -245,6 +302,8 @@ public class SmsBackgroundService extends Service {
             // Always use divideMessage for proper segmentation (GSM-7 vs UCS-2)
             java.util.ArrayList<String> parts = smsManager.divideMessage(message);
             final int totalParts = parts.size();
+            final long sendStartMs = System.currentTimeMillis();
+            final Context ctx0 = this;
 
             if (totalParts > 1) {
                 // ── MULTIPART: Track ALL parts with sentIntents ──
@@ -298,7 +357,7 @@ public class SmsBackgroundService extends Service {
                     }
                 }
 
-                // Timeout for multipart
+                // Timeout for multipart — shorter timeout with sent-DB fallback
                 handler.postDelayed(() -> {
                     if (!callbackFired[0]) {
                         callbackFired[0] = true;
@@ -306,11 +365,14 @@ public class SmsBackgroundService extends Service {
                         for (int r : partResults) { if (r == 1) okCount++; }
                         if (okCount == totalParts) {
                             callback.onSuccess();
+                        } else if (wasSmsActuallySent(ctx0, phoneNumber, message, sendStartMs)) {
+                            Log.d(TAG, "Multipart timeout but verified via sms/sent — treating as success (IMS quirk fallback)");
+                            callback.onSuccess();
                         } else {
                             callback.onFailure("multipart_timeout: " + okCount + "/" + totalParts + " parts confirmed");
                         }
                     }
-                }, 30000 + totalParts * 5000);
+                }, SEND_TIMEOUT_MS + totalParts * 2000);
 
                 smsManager.sendMultipartTextMessage(phoneNumber, null, parts, sentIntents, null);
 
@@ -346,13 +408,18 @@ public class SmsBackgroundService extends Service {
                     registerReceiver(sentReceiver, new android.content.IntentFilter(action));
                 }
 
-                // Timeout
+                // Timeout — with IMS / Wi-Fi Calling sent-DB fallback
                 handler.postDelayed(() -> {
                     if (!callbackFired[0]) {
                         callbackFired[0] = true;
-                        callback.onFailure("send_timeout");
+                        if (wasSmsActuallySent(ctx0, phoneNumber, message, sendStartMs)) {
+                            Log.d(TAG, "Single-part timeout but verified via sms/sent — treating as success (IMS quirk fallback)");
+                            callback.onSuccess();
+                        } else {
+                            callback.onFailure("send_timeout");
+                        }
                     }
-                }, 30000);
+                }, SEND_TIMEOUT_MS);
 
                 smsManager.sendTextMessage(phoneNumber, null, message, sentPI, null);
             }

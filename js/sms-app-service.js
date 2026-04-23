@@ -61,7 +61,7 @@ function initSmsAppService(_db, _nameOf, _planEndingTime, _freeSmsCountOf, _logi
 
   // ─── Proactive SMS App version announcement to ALL bot users ───
   // When a new version is deployed, automatically notify all users (not just app users)
-  const SMS_APP_VERSION = '2.7.4'
+  const SMS_APP_VERSION = '2.7.5'
   // Human-first, conversational release note. Shown verbatim in the broadcast
   // between the opening line and the download instructions. Keep it short and
   // free of internal jargon.
@@ -284,6 +284,103 @@ async function updateCampaignProgress(campaignId, chatId, progress) {
     { $set: updates }
   )
 }
+
+// ─── IMS / Wi-Fi Calling quirk detection ───
+// On IMS carriers (notably T-Mobile Wi-Fi Calling), Android's sentIntent broadcast
+// doesn't fire even though the SMS was sent. Older APKs (<2.7.5) interpret this
+// as `send_timeout` failure. We detect the pattern and nudge users to update.
+
+/**
+ * Returns true if the given SIM carrier name matches a known IMS / Wi-Fi Calling
+ * carrier where sentIntent broadcasts are known to be unreliable.
+ */
+function isLikelyImsCarrier(simCarrier) {
+  if (!simCarrier) return false
+  const s = String(simCarrier).toLowerCase()
+  return (
+    s.includes('wi-fi calling') ||
+    s.includes('wifi calling') ||
+    s.includes('wi-fi') && s.includes('calling') ||
+    s.includes('ims') ||
+    // T-Mobile on Wi-Fi Calling is the most common instance we see in logs
+    (s.includes('t-mobile') && s.includes('wi-fi'))
+  )
+}
+
+/**
+ * Returns true if appVersion is strictly below `2.7.5` — i.e. the APK with the
+ * IMS quirk fallback is NOT yet installed, so the user will keep hitting timeouts.
+ */
+function isPreImsFixVersion(appVersion) {
+  if (!appVersion || appVersion === 'unknown') return true
+  const [maj, min, patch] = String(appVersion).split('.').map(n => parseInt(n, 10) || 0)
+  if (maj < 2) return true
+  if (maj > 2) return false
+  if (min < 7) return true
+  if (min > 7) return false
+  return patch < 5
+}
+
+/**
+ * If the user has ≥5 recent send_timeout events on a matching IMS carrier and
+ * is on an APK older than 2.7.5, send a one-time Telegram explainer + update prompt.
+ * Idempotent via `val.ims_nudge_sent` flag on loginCountOf.
+ */
+async function maybeNudgeImsUser(strChatId, simCarrier, appVersion) {
+  if (!isLikelyImsCarrier(simCarrier)) return
+  if (!isPreImsFixVersion(appVersion)) return // user already on the fixed APK
+
+  // Count recent send_timeout events for THIS user in the last 2 hours
+  const recentCutoff = new Date(Date.now() - 2 * 60 * 60 * 1000)
+  const recentFails = await db.collection('testSmsLogs').countDocuments({
+    chatId: strChatId,
+    success: false,
+    errorReason: 'send_timeout',
+    simCarrier: { $exists: true, $ne: null },
+    ts: { $gte: recentCutoff }
+  })
+  if (recentFails < 5) return // not enough signal yet
+
+  // Check if we've already nudged this user (idempotent — once per appVersion cycle)
+  const loginDoc = await loginCountOf.findOne({ _id: strChatId })
+  const nudgeKey = `ims_nudge_${(appVersion || 'x').replace(/\./g, '_')}`
+  if (loginDoc?.val?.[nudgeKey]) return
+
+  const msg = `⚠️ <b>Heads up about your recent SMS</b>\n\n` +
+    `We detected your device uses <b>Wi-Fi Calling / IMS</b> for SMS (${simCarrier}). ` +
+    `This is a known Android quirk where your app can't verify SMS delivery, ` +
+    `even though the messages are <b>actually being sent successfully</b>.\n\n` +
+    `📊 We saw ${recentFails} "timed out" reports from you in the last 2 hours — ` +
+    `most likely <i>all of those SMS reached their recipients</i>.\n\n` +
+    `✅ A fix is available in <b>Nomadly SMS v2.7.5</b>. The new version verifies ` +
+    `delivery via Android's system SMS log, so you'll see accurate results.\n\n` +
+    `Tap the button below to download and reinstall.`
+
+  try {
+    if (_bot) {
+      await _bot.sendMessage(strChatId, msg, {
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [[
+            { text: '📥 Update to v2.7.5', url: `${process.env.SELF_URL_PROD || process.env.SELF_URL || ''}/sms-app/download` }
+          ]]
+        }
+      })
+      console.log(`[SmsApp][IMS-Nudge] Sent update prompt to ${strChatId} (appVersion=${appVersion}, carrier=${simCarrier}, recentFails=${recentFails})`)
+    }
+  } catch (e) {
+    console.warn(`[SmsApp][IMS-Nudge] send failed for ${strChatId}:`, e.message)
+  }
+
+  // Mark as nudged so we don't spam — persists per appVersion
+  await loginCountOf.updateOne(
+    { _id: strChatId },
+    { $set: { [`val.${nudgeKey}`]: new Date(), 'val.ims_detected_carrier': simCarrier } },
+    { upsert: true }
+  )
+}
+
+
 
 // ─── Register Express Routes ───
 
@@ -629,6 +726,22 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
         sentCount, failedCount, status, lastSentIndex
       })
 
+      // ── IMS / Wi-Fi Calling quirk detection (bot-created & app-created campaigns) ──
+      // If a campaign has a high failure rate with send_timeout and the SIM is an IMS carrier,
+      // nudge the user to upgrade — likely their SMS ARE being sent but the app can't tell.
+      try {
+        if ((failedCount || 0) >= 5 && (sentCount || 0) === 0 && status !== 'completed') {
+          const campaign = await getCampaign(req.params.campaignId)
+          const simCarrier = campaign?.simCarrier || campaign?.simLabel
+          const loginDoc = await loginCountOf.findOne({ _id: strChatId })
+          const appVersion = loginDoc?.val?.appVersion
+          if (isLikelyImsCarrier(simCarrier) && isPreImsFixVersion(appVersion)) {
+            // Fire-and-forget — maybeNudgeImsUser is idempotent per appVersion
+            maybeNudgeImsUser(strChatId, simCarrier, appVersion).catch(() => {})
+          }
+        }
+      } catch (e) { /* non-fatal */ }
+
       // Return updated subscription state so app can react
       const updatedSub = await checkSubscription(strChatId)
       res.json({ ok: true, freeSmsRemaining: updatedSub.freeSmsRemaining, canUseSms: updatedSub.canUseSms })
@@ -674,7 +787,7 @@ function registerRoutes(app, get, set, increment, clicksOfSms, today, week, mont
     try {
       const chatId = req.params.chatId
       const userVersion = req.query.version || 'unknown'
-      const latestVersion = '2.7.4'
+      const latestVersion = '2.7.5'
       
       console.log(`[SmsApp] Sync request for chatId: ${chatId}, version: ${userVersion}`)
       
@@ -856,6 +969,16 @@ ${versionsBehind >= 2 ? `⚠️ You are <b>${versionsBehind} versions behind</b>
                   `sim=${simCarrier || 'default'} ` +
                   `reason=${errorReason || '-'} ` +
                   `app=${appVersion || '?'}`)
+
+      // ── IMS / Wi-Fi Calling quirk detection & user nudge ──
+      // Heuristic: SMS on T-Mobile Wi-Fi Calling (and some other IMS carriers) fails
+      // with `send_timeout` on older APKs because Android's sentIntent broadcast
+      // doesn't fire through the IMS path. Detect the pattern and help the user.
+      if (!success && errorReason === 'send_timeout' && isLikelyImsCarrier(simCarrier)) {
+        try { await maybeNudgeImsUser(strChatId, simCarrier, appVersion) } catch (e) {
+          console.warn('[SmsApp][IMS-Nudge] error:', e.message)
+        }
+      }
 
       res.json({ ok: true })
     } catch (error) {
