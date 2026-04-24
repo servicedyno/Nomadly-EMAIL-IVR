@@ -237,7 +237,7 @@ async function registerDomainAndCreateCpanel(send, info, keyboardButtons, state,
           // edge certificate instantly. With SSL mode "Full", origin's default self-signed
           // cert is accepted for the CF→origin connection. AutoSSL upgrades it later.
           const dnsResult = await cfService.createHostingDNSRecords(cfZoneId, domain, WHM_HOST, true)
-          await cfService.setSSLMode(cfZoneId, 'full')
+          await cfService.setSSLMode(cfZoneId, 'flexible')
           await cfService.enforceHTTPS(cfZoneId)
           log(`[Hosting] CF DNS records for ${domain}: ${dnsResult.success ? 'all created' : 'some failed'} (proxied — SSL active immediately)`)
           dnsSetupSuccess = true // Mark DNS as successful

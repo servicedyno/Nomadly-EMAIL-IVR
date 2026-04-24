@@ -326,25 +326,6 @@ function createCpanelRoutes(getCpanelCol) {
                 await antiRedService.deploySharedWorkerRoute(domain, zone.id)
               }
 
-              // Trigger AutoSSL to issue a Let's Encrypt cert for the addon domain
-              try {
-                const whmService = require('./whm-service')
-                const sslRes = await whmService.startAutoSSL(req.cpUser)
-                log(`[Panel] add: AutoSSL triggered for ${req.cpUser} after addon ${domain}: ${sslRes.success ? 'started' : sslRes.error}`)
-              } catch (sslErr) {
-                log(`[Panel] add: AutoSSL trigger failed for ${req.cpUser}: ${sslErr.message}`)
-              }
-
-              // After AutoSSL has time to issue cert, upgrade SSL mode to 'full'
-              setTimeout(async () => {
-                try {
-                  await cfService.setSSLMode(zone.id, 'full')
-                  log(`[Panel] add: SSL mode upgraded to full for ${domain} (AutoSSL should have cert by now)`)
-                } catch (sslUpErr) {
-                  log(`[Panel] add: SSL upgrade to full failed for ${domain}: ${sslUpErr.message}`)
-                }
-              }, 180000) // 3 minutes — AutoSSL typically takes 1-2 min
-
               // Verify protection is active (delay to allow propagation)
               setTimeout(async () => {
                 try {
@@ -613,7 +594,7 @@ function createCpanelRoutes(getCpanelCol) {
             // Create hosting DNS records
             if (WHM_HOST) {
               await cfService.createHostingDNSRecords(newZone.zoneId, domain, WHM_HOST)
-              await cfService.setSSLMode(newZone.zoneId, 'full')
+              await cfService.setSSLMode(newZone.zoneId, 'flexible')
               await cfService.enforceHTTPS(newZone.zoneId)
             }
 
@@ -764,25 +745,6 @@ function createCpanelRoutes(getCpanelCol) {
         await cfService.setSSLMode(zone.id, 'flexible')
         await cfService.enforceHTTPS(zone.id)
 
-        // Trigger AutoSSL to issue a Let's Encrypt cert for the addon domain
-        try {
-          const whmService = require('./whm-service')
-          const sslRes = await whmService.startAutoSSL(req.cpUser)
-          log(`[Panel] add-enhanced: AutoSSL triggered for ${req.cpUser} after addon ${domain}: ${sslRes.success ? 'started' : sslRes.error}`)
-        } catch (sslErr) {
-          log(`[Panel] add-enhanced: AutoSSL trigger failed for ${req.cpUser}: ${sslErr.message}`)
-        }
-
-        // After AutoSSL has time to issue cert, upgrade SSL mode to 'full'
-        setTimeout(async () => {
-          try {
-            await cfService.setSSLMode(zone.id, 'full')
-            log(`[Panel] add-enhanced: SSL mode upgraded to full for ${domain}`)
-          } catch (sslUpErr) {
-            log(`[Panel] add-enhanced: SSL upgrade to full failed for ${domain}: ${sslUpErr.message}`)
-          }
-        }, 180000) // 3 minutes
-
         // Deploy full anti-red protection (Worker routes deployed as part of hosting)
         try {
           const antiRedService = require('./anti-red-service')
@@ -894,26 +856,8 @@ function createCpanelRoutes(getCpanelCol) {
         if (newZone.success) {
           await cfService.cleanupConflictingDNS(newZone.zoneId, domain)
           await cfService.createHostingDNSRecords(newZone.zoneId, domain, WHM_HOST)
-          // Start with 'flexible' SSL so the site works immediately while AutoSSL issues a cert
           await cfService.setSSLMode(newZone.zoneId, 'flexible')
           await cfService.enforceHTTPS(newZone.zoneId)
-
-          // Trigger AutoSSL for the new domain
-          try {
-            const whmService = require('./whm-service')
-            const sslRes = await whmService.startAutoSSL(req.cpUser)
-            log(`[Panel] add-enhanced: AutoSSL triggered for ${req.cpUser} (new zone ${domain}): ${sslRes.success ? 'started' : sslRes.error}`)
-          } catch (sslErr) {
-            log(`[Panel] add-enhanced: AutoSSL trigger failed: ${sslErr.message}`)
-          }
-
-          // Upgrade to 'full' after AutoSSL has time to issue cert
-          setTimeout(async () => {
-            try {
-              await cfService.setSSLMode(newZone.zoneId, 'full')
-              log(`[Panel] add-enhanced: SSL upgraded to full for ${domain} (new zone)`)
-            } catch (e) {}
-          }, 180000)
 
           // Deploy full anti-red protection for hosting domain
           try {
@@ -1179,7 +1123,7 @@ function createCpanelRoutes(getCpanelCol) {
               const isSelfSigned = domainCert?.issuer?.organization_name === 'cPanel, Inc.'
                 || domainCert?.issuer?.commonName?.includes(domain)
               if (domainCert && !isSelfSigned) {
-                await cfService.setSSLMode(zone.id, 'full')
+                await cfService.setSSLMode(zone.id, 'flexible')
                 log(`[Panel] SSL upgraded to strict for ${domain} (AutoSSL cert active)`)
               }
             }

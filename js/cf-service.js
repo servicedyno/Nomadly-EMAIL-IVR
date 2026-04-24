@@ -333,7 +333,7 @@ const proxyHostingDNSRecords = async (zoneId, domainName) => {
 /**
  * Set Cloudflare SSL mode for a zone to Full (Strict)
  */
-const setSSLMode = async (zoneId, mode = 'full') => {
+const setSSLMode = async (zoneId, mode = 'flexible') => {
   try {
     const res = await axios.patch(`${CF_BASE_URL}/zones/${zoneId}/settings/ssl`, {
       value: mode,
