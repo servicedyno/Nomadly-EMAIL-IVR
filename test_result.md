@@ -34,6 +34,20 @@ Multi-service platform (Nomadly) — Telegram Bot + Cloud Phone Platform with Re
 - Bug fix: Fixed SMS app download link. Production Railway had `SMS_APP_LINK="https://hostbay.io/api/smsapp\"` (wrong path + trailing backslash → Telegram encoded `\` as `%5C` → 404). Updated to `https://hostbay.io/sms-app/download` on both Railway (triggers auto-redeploy) and local `backend/.env`. Verified 200 OK on the correct URL.
 - Feature: Added Copy and Move file operations to the hosting panel File Manager. Customer reported cPanel doesn't allow copy/move of files. Added `POST /files/copy` and `POST /files/move` backend routes + `copyFile()`/`moveFile()` in cpanel-proxy.js using cPanel API2 `Fileman::fileop`. Added Copy/Move buttons and destination path modal in FileManager.js frontend.
 
+## Railway Log Analysis Fixes (2026-04-24, Session 2)
+
+### Fix #1: "📋 My Plans" button broken in Settings — FIXED ✅
+- **Root cause**: `settingsMenu` handler (line 8985-8996) only handled Change Language and Join Channel. The "📋 My Plans" button shown in the settings keyboard had NO handler — it fell through to the fallback `return send(chatId, t.what)` ("That option isn't available right now").
+- **Fix**: Restructured settingsMenu handler with `if/else-if` chain. Added `user.viewPlan` / "📋 My Plans" as the first check — resets action to 'none' and falls through to the global viewPlan handler at line 22380+.
+- **File**: `/app/js/_index.js` lines 8985-9002
+- **Affected user**: @shanbiz022 (chatId: 6773929524) — hit this bug live in production logs.
+
+### Fix #3: Email Validation menu resets on email-like text input — FIXED ✅
+- **Root cause**: When a user typed an email address (e.g., "Aulbram8@gmail.com") while in the evMenu state, the bot didn't recognize it as a button click and reset the user to the main menu via the global "unrecognized message" handler.
+- **Fix**: Added email-pattern detection at the end of the evMenu handler. If the message contains `@` and looks like email(s), it auto-redirects the user to Paste Mode (`evPasteEmails` state) with a helpful hint about the minimum email count, instead of resetting to main menu.
+- **File**: `/app/js/_index.js` lines 9933-9944
+- **Affected user**: @shanbiz022 (chatId: 6773929524) — typed "Aulbram8@gmail.com" in EV menu and got kicked to main menu.
+
 ## Current Task — Coupon System Testing
 Testing the coupon system end-to-end. Temporary test endpoints added:
 - `GET /api/test-coupon/static` — returns all static coupon codes

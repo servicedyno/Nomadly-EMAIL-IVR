@@ -8983,16 +8983,23 @@ All verified numbers generated during sourcing.`))
 
   // ━━━ Settings Menu ━━━
   if (action === a.settingsMenu) {
+    // My Plans — reset action and fall through to the global viewPlan handler
+    if (message === user.viewPlan || message === '📋 My Plans' || message === '📋 Mes Abonnements' || message === '📋 我的计划' || message === '📋 मेरी योजनाएं') {
+      await set(state, chatId, 'action', 'none')
+      // Don't return — fall through to the viewPlan handler below
+    }
     // Change Language
-    if (message === user.changeLanguage || message === '🌍 Change Language' || message === '🌍 Changer de langue' || message === '🌍 更改语言' || message === '🌍 भाषा बदलें') {
+    else if (message === user.changeLanguage || message === '🌍 Change Language' || message === '🌍 Changer de langue' || message === '🌍 更改语言' || message === '🌍 भाषा बदलें') {
       await set(state, chatId, 'action', a.updateUserLanguage)
       return send(chatId, trans('l.askPreferredLanguage'), trans('languageMenu'))
     }
     // Join Channel
-    if (message === user.joinChannel || message === '📢 Join Channel' || message === '📢 Rejoindre le canal' || message === '📢 加入频道' || message === '📢 चैनल जॉइन करें') {
+    else if (message === user.joinChannel || message === '📢 Join Channel' || message === '📢 Rejoindre le canal' || message === '📢 加入频道' || message === '📢 चैनल जॉइन करें') {
       return send(chatId, t.joinChannel)
     }
-    return send(chatId, t.what)
+    else {
+      return send(chatId, t.what)
+    }
   }
   if (action === a.updateUserLanguage) {
     const language = message
@@ -9921,6 +9928,19 @@ All verified numbers generated during sourcing.`))
         ['🔙 Back'],
       ]
       return send(chatId, ipMsg, { parse_mode: 'HTML', reply_markup: { keyboard: ipBtns, resize_keyboard: true } })
+    }
+
+    // ── Auto-detect email-like input → redirect to Paste Emails flow ──
+    if (message && /\S+@\S+\.\S+/.test(message)) {
+      await set(state, chatId, 'action', a.evPasteEmails)
+      const detectedEmails = message.split(/[\n,;]+/).filter(e => /\S+@\S+\.\S+/.test(e.trim())).length
+      const hint = {
+        en: `📧 Detected <b>${detectedEmails}</b> email${detectedEmails > 1 ? 's' : ''}. You're now in <b>Paste Mode</b>.\n\n${detectedEmails >= EV_CONFIG.minEmails ? 'Processing your emails...' : `⚠️ Minimum is <b>${EV_CONFIG.minEmails}</b> emails. Please paste <b>${EV_CONFIG.minEmails}+</b> emails (one per line or comma-separated):`}`,
+        fr: `📧 <b>${detectedEmails}</b> email(s) détecté(s). Vous êtes en <b>mode collage</b>.\n\n${detectedEmails >= EV_CONFIG.minEmails ? 'Traitement en cours...' : `⚠️ Minimum : <b>${EV_CONFIG.minEmails}</b> emails. Collez <b>${EV_CONFIG.minEmails}+</b> emails :`}`,
+        zh: `📧 检测到 <b>${detectedEmails}</b> 个邮箱。已切换到<b>粘贴模式</b>。\n\n${detectedEmails >= EV_CONFIG.minEmails ? '正在处理...' : `⚠️ 最少 <b>${EV_CONFIG.minEmails}</b> 封。请粘贴 <b>${EV_CONFIG.minEmails}+</b> 个邮箱：`}`,
+        hi: `📧 <b>${detectedEmails}</b> ईमेल मिला। आप अब <b>पेस्ट मोड</b> में हैं।\n\n${detectedEmails >= EV_CONFIG.minEmails ? 'प्रोसेस हो रहा है...' : `⚠️ न्यूनतम <b>${EV_CONFIG.minEmails}</b> ईमेल। कृपया <b>${EV_CONFIG.minEmails}+</b> ईमेल पेस्ट करें:`}`,
+      }
+      return send(chatId, hint[lang] || hint.en, { parse_mode: 'HTML', reply_markup: { keyboard: [['❌ Cancel']], resize_keyboard: true } })
     }
   }
 
