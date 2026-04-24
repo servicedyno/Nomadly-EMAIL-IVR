@@ -79,6 +79,15 @@ Testing the coupon system end-to-end. Temporary test endpoints added:
 - **Fix**: Fixed all 42 variable references to match their function parameter names, matching en.js patterns
 - **Status**: ✅ FIXED (all 42/42 functions pass validation)
 
+#### 🔴 Critical Bug #4: VPS password incorrect after creation (ALL users affected)
+- **Root cause**: Cloud-init script on VPS creation copied DEFAULT_USER (admin) password → ROOT, OVERWRITING the password set by Contabo `rootPassword` API. Users were shown the generated password, but root actually had the admin's Contabo-assigned random password.
+- **Why reset worked**: Password reset calls `resetPassword` API which sets root's password directly, and no cloud-init runs (only runs on first boot), so the password sticks.
+- **Fix**: Reversed cloud-init sync direction in both files:
+  - `/app/js/vm-instance-setup.js` (creation): Now copies ROOT hash → DEFAULT_USER
+  - `/app/js/contabo-service.js` (reset with reinstall): Same fix for consistency
+  - Also fixed `setVpsSshCredentials` to pass `defaultUser` and `imageId` to `resetPassword` for proper reinstall handling
+- **Status**: ✅ FIXED (new VPS instances will get correct passwords; existing users still need one-time reset)
+
 #### Observed (Not Fixed — Informational)
 - 3x `checkDomainPriceOnline` 401 errors (intermittent IP whitelisting issue with domain registrar)
 - Minor AutoPromo delivery errors (1/5 FR, 6/121 EN — normal Telegram delivery failures)

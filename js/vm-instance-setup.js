@@ -602,13 +602,14 @@ async function createVPSInstance(telegramId, vpsDetails) {
         '  [ -f "$f" ] && sed -i "s/^PermitRootLogin no/PermitRootLogin yes/" "$f"',
         'done',
         '# Unlock root account (Ubuntu 24.04 locks it by default)',
-        '# Copy the default user password hash to root so both accounts work',
-        'DEFAULT_USER=$(grep "^[^:]*:[^!*]" /etc/shadow | grep -v "root\\|nobody\\|systemd" | head -1 | cut -d: -f1)',
-        'if [ -n "$DEFAULT_USER" ] && [ "$DEFAULT_USER" != "root" ]; then',
-        '  DEFAULT_HASH=$(getent shadow "$DEFAULT_USER" | cut -d: -f2)',
-        '  if [ -n "$DEFAULT_HASH" ] && [ "$DEFAULT_HASH" != "!" ] && [ "$DEFAULT_HASH" != "*" ]; then',
-        '    usermod -p "$DEFAULT_HASH" root',
-        '    passwd -u root 2>/dev/null',
+        'passwd -u root 2>/dev/null',
+        '# Copy ROOT password hash to default user so both accounts work',
+        '# (Contabo rootPassword secret sets root password; we sync it to admin/default user)',
+        'ROOT_HASH=$(getent shadow root | cut -d: -f2)',
+        'if [ -n "$ROOT_HASH" ] && [ "$ROOT_HASH" != "!" ] && [ "$ROOT_HASH" != "*" ] && [ "$ROOT_HASH" != "!*" ]; then',
+        '  DEFAULT_USER=$(grep "^[^:]*:[^!*]" /etc/shadow | grep -v "root\\|nobody\\|systemd" | head -1 | cut -d: -f1)',
+        '  if [ -n "$DEFAULT_USER" ] && [ "$DEFAULT_USER" != "root" ]; then',
+        '    usermod -p "$ROOT_HASH" "$DEFAULT_USER"',
         '  fi',
         'fi',
         '# Restart SSH daemon',
@@ -967,7 +968,15 @@ async function setVpsSshCredentials(host) {
     }
 
     if (instanceId) {
-      const { password } = await contabo.resetPassword(instanceId)
+      // Pass defaultUser and imageId so resetPassword can use reinstall+cloud-init
+      // for non-root instances (Ubuntu 24.04+ where root is locked)
+      const resetOpts = {}
+      if (_vpsPlansOf) {
+        const record = await _vpsPlansOf.findOne({ contaboInstanceId: instanceId })
+        if (record?.defaultUser) resetOpts.defaultUser = record.defaultUser
+        if (record?.imageId) resetOpts.imageId = record.imageId
+      }
+      const { password } = await contabo.resetPassword(instanceId, resetOpts)
       return {
         success: true,
         data: {
