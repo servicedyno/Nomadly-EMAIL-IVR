@@ -6787,14 +6787,14 @@ Enter new value:`), bc)
       await set(state, chatId, 'action', a.submenu4)
       // ── Browse Tracking (Feature 4) ──
       if (userConversion) userConversion.trackBrowse(chatId, 'vps', info?.userLanguage || 'en')
-      if (!info.isRegisteredTelegramForVps) {
+      if (!info?.isRegisteredTelegramForVps) {
         const result = await registerVpsTelegram(chatId, info?.userEmail)
         if (result) {
           saveInfo('isRegisteredTelegramForVps', true)
-          info.isRegisteredTelegramForVps = true
+          if (info) info.isRegisteredTelegramForVps = true
         }
       }
-      if (!info.isEmailRegisteredForNameword) {
+      if (!info?.isEmailRegisteredForNameword) {
         const result = await checkMissingEmailForNameword(chatId)
         if (result?.missingEmail) {
           const addEmail = await addUserEmailForNameWord(chatId, info?.userEmail)

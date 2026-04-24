@@ -57,6 +57,32 @@ Testing the coupon system end-to-end. Temporary test endpoints added:
 - Coupon discount math: newPrice = max(1, price - price*discount/100)
 - Proxy flow: requests through FastAPI (/api/test-coupon) reach Express correctly
 
+## Railway Log Analysis & Bug Fixes (2026-04-24)
+
+### Anomalies Found & Fixed
+
+#### 🔴 Critical Bug #1: `domaine is not defined` — French domain purchases broken
+- **Root cause**: 14 lines in `/app/js/lang/fr.js` had parameter named `domain` but used `${domaine}` (French word) in template literals → `ReferenceError`
+- **Impact**: ALL French-language users could not buy domains. User @ciroovblzz (chatId: 8625434794) tried 3 times and crashed each time.
+- **Fix**: Changed `${domaine}` → `${domain}` in all 14 affected translation functions (dns_1, dns_2, sms_5, vps_20, vps_33, vps_70-72, vps_76-78, vps_95-97)
+- **Status**: ✅ FIXED
+
+#### 🟡 Bug #2: VPS crash for new users (`info` undefined)
+- **Root cause**: Line 6790 in `_index.js`: `if (!info.isRegisteredTelegramForVps)` crashed when `info` was undefined for brand-new users
+- **Impact**: User @SHELBY_GRACE_1_BACKUP (chatId: 7580590891) couldn't access VPS menu right after registration
+- **Fix**: Added optional chaining: `info?.isRegisteredTelegramForVps` and `info?.isEmailRegisteredForNameword`
+- **Status**: ✅ FIXED
+
+#### 🟠 Bug #3: 42 additional undeclared variable references in fr.js
+- **Root cause**: Machine translation or copy-paste errors used French variable names (`${commande}`, `${utilisateur}`, `${montant}`, `${campagne}`, `${brouillon}`, `${paramètres}`, `${sp}`, `${nextSp}`, `${existingPlan}`, `${result}`, `${ivrObData}`, `${sufficient}`) instead of the English parameter names
+- **Impact**: Any French user hitting these code paths would crash the bot
+- **Fix**: Fixed all 42 variable references to match their function parameter names, matching en.js patterns
+- **Status**: ✅ FIXED (all 42/42 functions pass validation)
+
+#### Observed (Not Fixed — Informational)
+- 3x `checkDomainPriceOnline` 401 errors (intermittent IP whitelisting issue with domain registrar)
+- Minor AutoPromo delivery errors (1/5 FR, 6/121 EN — normal Telegram delivery failures)
+
 ## Previous Tasks
 - Fixed: VPS Reset Password button was only shown for Windows/RDP instances, NOT for Linux VPS
 - Root cause: Line in `_index.js` — `const rdpButtons = isRDP ? [vp.resetPasswordBtn, ...] : []` excluded the button for Linux
