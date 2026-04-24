@@ -8984,7 +8984,7 @@ All verified numbers generated during sourcing.`))
   // ━━━ Settings Menu ━━━
   if (action === a.settingsMenu) {
     // My Plans — reset action and fall through to the global viewPlan handler
-    if (message === user.viewPlan || message === '📋 My Plans' || message === '📋 Mes Abonnements' || message === '📋 我的计划' || message === '📋 मेरी योजनाएं') {
+    if (message === user.viewPlan || message === '📋 My Plans' || message === '🔔 My Plan' || message === '📋 Mes Plans' || message === '📋 我的计划' || message === '📋 मेरी योजनाएं') {
       await set(state, chatId, 'action', 'none')
       // Don't return — fall through to the viewPlan handler below
     }
