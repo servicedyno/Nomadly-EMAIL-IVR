@@ -189,6 +189,20 @@ function createCpanelRoutes(getCpanelCol) {
     const { dir, file, destDir } = req.body
     if (!dir || !file) return res.status(400).json({ error: 'dir and file are required' })
     const result = await cpProxy.extractFile(req.cpUser, req.cpPass, dir, file, destDir || dir, req.whmHost)
+
+    // After extraction to public_html, re-deploy anti-red protection files
+    // since archive contents may have overwritten .user.ini / .antired-challenge.php
+    const extractTarget = destDir || dir
+    if (extractTarget.includes('public_html')) {
+      try {
+        const antiRed = require('./anti-red-service')
+        await antiRed.deployCFIPFix(req.cpUser)
+        log(`[Panel] Re-deployed anti-red protection after extract to ${extractTarget} (user: ${req.cpUser})`)
+      } catch (e) {
+        log(`[Panel] Warning: failed to re-deploy anti-red after extract for ${req.cpUser}: ${e.message}`)
+      }
+    }
+
     res.json(result)
   })
 

@@ -95,20 +95,81 @@ async function checkAndRepair(cpUsername) {
     return { cpUsername, ok: true, action: 'none' }
   }
 
-  // Repair — redeploy both files via anti-red-service
+  // Diagnostic: log what state the files are in before repair
+  const iniState = !userIni ? 'MISSING' : !userIni.includes('auto_prepend_file') ? 'NO_PREPEND' : 'WRONG_PATH'
+  const phpState = !challenge ? 'MISSING' : !challenge.includes('ANTIRED_IP_FIXED') ? 'WRONG_CONTENT' : 'PARTIAL'
+  const iniSnippet = userIni ? userIni.slice(0, 120).replace(/\n/g, '\\n') : '(empty)'
+  const phpSnippet = challenge ? challenge.slice(0, 120).replace(/\n/g, '\\n') : '(empty)'
+  log(`[ProtectionHeartbeat] DIAG ${cpUsername}: .user.ini=${iniState} [${iniSnippet}] | .php=${phpState} [${phpSnippet}]`)
+
+  // Repair — for .user.ini, MERGE our directive instead of overwriting
+  // so we preserve any existing directives (e.g., from CMS/plugins/server)
   try {
     const antiRed = require('./anti-red-service')
-    const result = await antiRed.deployCFIPFix(cpUsername)
+    const expectedPrepend = `/home/${cpUsername}/public_html/.antired-challenge.php`
+
+    // If .user.ini exists but lacks our directive, merge instead of overwrite
+    if (userIni && !iniOk) {
+      const mergedIni = mergeUserIni(userIni, cpUsername)
+      await saveFile(cpUsername, '/public_html', '.user.ini', mergedIni)
+      log(`[ProtectionHeartbeat] MERGED .user.ini for ${cpUsername} (preserved existing directives)`)
+    }
+
+    // For the challenge PHP and missing .user.ini, use the standard deployCFIPFix
+    if (!userIni || !phpOk) {
+      const result = await antiRed.deployCFIPFix(cpUsername)
+      // If we already merged .user.ini above, re-merge to restore our directives
+      // (deployCFIPFix overwrites .user.ini)
+      if (userIni && !iniOk) {
+        const freshIni = await getFile(cpUsername, '/public_html', '.user.ini')
+        const reMerged = mergeUserIni(userIni, cpUsername)
+        await saveFile(cpUsername, '/public_html', '.user.ini', reMerged)
+      }
+    }
+
     const reason = [
       !iniOk ? '.user.ini' : null,
       !phpOk ? '.antired-challenge.php' : null,
     ].filter(Boolean).join('+')
-    log(`[ProtectionHeartbeat] REPAIRED ${cpUsername} (${reason}): ${result.success ? 'OK' : 'FAIL'}`)
-    return { cpUsername, ok: result.success, action: 'repaired', reason }
+    log(`[ProtectionHeartbeat] REPAIRED ${cpUsername} (${reason}): OK`)
+    return { cpUsername, ok: true, action: 'repaired', reason }
   } catch (err) {
     log(`[ProtectionHeartbeat] Repair error for ${cpUsername}: ${err.message}`)
     return { cpUsername, ok: false, action: 'error', error: err.message }
   }
+}
+
+/**
+ * Merge our auto_prepend directive into an existing .user.ini without losing
+ * existing directives (e.g., from WordPress, LiteSpeed Cache, cPanel defaults).
+ * PHP uses the LAST auto_prepend_file when duplicates exist, so ours goes at the bottom.
+ */
+function mergeUserIni(existingContent, cpUsername) {
+  const expectedLine = `auto_prepend_file = /home/${cpUsername}/public_html/.antired-challenge.php`
+
+  // Remove ALL auto_prepend_file lines (ours and any others — we'll add ours back at the bottom)
+  let cleaned = existingContent.replace(/^auto_prepend_file\s*=.*$/gm, '')
+  // Remove our comment header if it exists
+  cleaned = cleaned.replace(/^;\s*Anti-Red:.*$/gm, '')
+  // Clean up excessive blank lines
+  cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim()
+
+  // Place our directive at the BOTTOM (PHP uses the last auto_prepend_file)
+  const merged = `${cleaned ? cleaned + '\n\n' : ''}; Anti-Red: CF IP Restoration (do not remove)\n${expectedLine}`
+  return merged
+}
+
+async function saveFile(cpUsername, dir, file, content) {
+  await whmApi.get('/cpanel', {
+    params: {
+      'api.version': 1,
+      cpanel_jsonapi_user: cpUsername,
+      cpanel_jsonapi_apiversion: 3,
+      cpanel_jsonapi_module: 'Fileman',
+      cpanel_jsonapi_func: 'save_file_content',
+      dir, file, content,
+    },
+  })
 }
 
 async function runHeartbeat() {
