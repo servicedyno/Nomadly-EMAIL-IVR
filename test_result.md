@@ -48,6 +48,13 @@ Multi-service platform (Nomadly) — Telegram Bot + Cloud Phone Platform with Re
 - **File**: `/app/js/_index.js` lines 9933-9944
 - **Affected user**: @shanbiz022 (chatId: 6773929524) — typed "Aulbram8@gmail.com" in EV menu and got kicked to main menu.
 
+### Fix: SSL Mode Race Condition (entsecurity.xyz HTTP 421 "Misdirected Request") — FIXED ✅
+- **Root cause**: Protection Enforcer blindly upgraded Cloudflare SSL from 'flexible' → 'full' before the origin cPanel server had a valid SSL cert (AutoSSL hadn't run yet). This caused HTTP 421 "Misdirected Request" when the Cloudflare Worker passed verified users through to the origin — the origin couldn't terminate TLS for the domain (SNI mismatch with default server cert).
+- **Fix (a)**: Added `probeOriginSSL()` function — makes a direct HTTPS request to the origin server IP with the correct SNI. If the origin returns 421/525/526 or connection fails, the SSL upgrade is deferred and the domain stays on 'flexible'.
+- **Fix (b)**: Added 24h SSL grace period via `sslGracePeriod` MongoDB collection. When a domain is first seen on 'flexible', the enforcer records the timestamp and defers upgrade for 24h, giving AutoSSL time to issue certificates.
+- **File**: `/app/js/protection-enforcer.js` — new functions: `isInSSLGracePeriod()`, `recordSSLGracePeriod()`, `probeOriginSSL()`, and rewritten `enforceSSLMode()`.
+- **Affected user**: @Thebiggestbag22 (chatId: 6543817440) — entsecurity.xyz, rated support BAD twice.
+
 ## Current Task — Coupon System Testing
 Testing the coupon system end-to-end. Temporary test endpoints added:
 - `GET /api/test-coupon/static` — returns all static coupon codes

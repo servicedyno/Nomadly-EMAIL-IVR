@@ -276,6 +276,106 @@ async function enforceWorkerRoutes(domain, zoneId) {
 
 // ─── SSL Mode Enforcement ──────────────────────────────
 
+// Grace period: don't upgrade 'flexible' → 'full' for domains first seen within this window.
+// AutoSSL / self-signed cert generation on cPanel can take time; switching to 'full' before
+// the origin has any cert causes HTTP 421 "Misdirected Request" (SNI mismatch).
+const SSL_GRACE_PERIOD_MS = 24 * 60 * 60 * 1000 // 24 hours
+
+/**
+ * (Fix b) Check if a domain is still within its SSL grace period.
+ * The first time the enforcer sees a domain on 'flexible', it records the timestamp.
+ * Until SSL_GRACE_PERIOD_MS has elapsed, 'flexible' → 'full' upgrades are deferred.
+ */
+async function isInSSLGracePeriod(domain) {
+  if (!db) return false
+  try {
+    const record = await db.collection('sslGracePeriod').findOne({ _id: domain })
+    if (!record) return false
+    const elapsed = Date.now() - new Date(record.firstSeen).getTime()
+    if (elapsed < SSL_GRACE_PERIOD_MS) {
+      const hoursLeft = ((SSL_GRACE_PERIOD_MS - elapsed) / (60 * 60 * 1000)).toFixed(1)
+      log(`[ProtectionEnforcer] SSL grace period active for ${domain} — ${hoursLeft}h remaining (first seen: ${record.firstSeen})`)
+      return true
+    }
+    // Grace period expired — clean up the record
+    await db.collection('sslGracePeriod').deleteOne({ _id: domain })
+    return false
+  } catch { return false }
+}
+
+/**
+ * Record a domain entering the SSL grace period (first time seen on 'flexible').
+ */
+async function recordSSLGracePeriod(domain) {
+  if (!db) return
+  try {
+    await db.collection('sslGracePeriod').updateOne(
+      { _id: domain },
+      { $setOnInsert: { firstSeen: new Date().toISOString(), domain } },
+      { upsert: true }
+    )
+  } catch (e) { log(`[ProtectionEnforcer] SSL grace record error for ${domain}: ${e.message}`) }
+}
+
+/**
+ * (Fix a) Probe whether the origin server can handle HTTPS for this domain.
+ * Makes a direct HTTPS request to the origin IP with the correct SNI.
+ * Returns { ok, status, error } — ok=true means it's safe to switch to 'full'.
+ *
+ * Failure status codes that indicate origin SSL is NOT ready:
+ *  - 421: Misdirected Request (SNI doesn't match origin cert)
+ *  - 525: SSL Handshake Failed
+ *  - 526: Invalid SSL Certificate
+ *  - Connection errors (ECONNREFUSED, ECONNRESET, etc.)
+ */
+async function probeOriginSSL(domain) {
+  const https = require('https')
+  const originIP = WHM_HOST_IP || OUR_SERVER_IP
+  if (!originIP) return { ok: false, status: 0, error: 'No origin IP configured' }
+
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      resolve({ ok: false, status: 0, error: 'Probe timeout (8s)' })
+    }, 8000)
+
+    const req = https.request({
+      hostname: originIP,
+      port: 443,
+      path: '/',
+      method: 'HEAD',
+      servername: domain,  // SNI — this is the critical part
+      rejectUnauthorized: false,  // Accept self-signed certs (like CF 'full' mode does)
+      timeout: 7000,
+      headers: { 'Host': domain, 'User-Agent': 'ProtectionEnforcer-SSLProbe/1.0' },
+    }, (res) => {
+      clearTimeout(timer)
+      const status = res.statusCode
+      // 421 = Misdirected Request (SNI mismatch — origin cert doesn't cover this domain)
+      // 502/525/526 = SSL-related failures
+      const badStatuses = [421, 525, 526]
+      if (badStatuses.includes(status)) {
+        resolve({ ok: false, status, error: `Origin returned ${status} (SSL not ready for ${domain})` })
+      } else {
+        // Any 2xx, 3xx, 4xx (except 421), or even 5xx (except SSL-specific) means origin CAN terminate TLS for this domain
+        resolve({ ok: true, status, error: null })
+      }
+    })
+
+    req.on('error', (err) => {
+      clearTimeout(timer)
+      resolve({ ok: false, status: 0, error: `Origin probe failed: ${err.code || err.message}` })
+    })
+
+    req.on('timeout', () => {
+      req.destroy()
+      clearTimeout(timer)
+      resolve({ ok: false, status: 0, error: 'Origin probe socket timeout' })
+    })
+
+    req.end()
+  })
+}
+
 /**
  * Ensure hosting domains use 'full' SSL mode (not 'strict').
  * Cloudflare handles visitor-facing SSL. Origin uses self-signed cert.
@@ -283,7 +383,9 @@ async function enforceWorkerRoutes(domain, zoneId) {
  * 'strict' requires CA-signed certs on origin which causes 526 errors.
  *
  * If a domain is stuck on 'strict' (from old logic), downgrade to 'full'.
- * If a domain is on 'off' or 'flexible', upgrade to 'full'.
+ * If a domain is on 'off' or 'flexible', upgrade to 'full' — BUT only after:
+ *   (a) Probing the origin to confirm it can handle HTTPS for this domain (no 421/525/526)
+ *   (b) The domain has been out of the 24h grace period (AutoSSL needs time)
  */
 async function enforceSSLMode(domain, zoneId) {
   try {
@@ -296,13 +398,49 @@ async function enforceSSLMode(domain, zoneId) {
     // 'full' is the target — no action needed
     if (currentSSL === 'full') return
 
-    // Fix 'strict' (causes 526), 'off', or 'flexible' (insecure)
-    if (currentSSL === 'strict' || currentSSL === 'off' || currentSSL === 'flexible') {
+    // Fix 'strict' → 'full' immediately (this always helps, no probe needed)
+    if (currentSSL === 'strict') {
       await axios.patch(`${CF_BASE}/zones/${zoneId}/settings/ssl`, { value: 'full' }, {
         headers: CF_HEADERS,
         timeout: 10000,
       })
-      log(`[ProtectionEnforcer] SSL FIXED: ${domain} from '${currentSSL}' → 'full'`)
+      log(`[ProtectionEnforcer] SSL FIXED: ${domain} from 'strict' → 'full'`)
+      return
+    }
+
+    // Fix 'off' → 'full' immediately (off is always worse than full)
+    if (currentSSL === 'off') {
+      await axios.patch(`${CF_BASE}/zones/${zoneId}/settings/ssl`, { value: 'full' }, {
+        headers: CF_HEADERS,
+        timeout: 10000,
+      })
+      log(`[ProtectionEnforcer] SSL FIXED: ${domain} from 'off' → 'full'`)
+      return
+    }
+
+    // ── 'flexible' → 'full' requires safety checks ──
+    if (currentSSL === 'flexible') {
+      // (b) Grace period check — don't upgrade too soon after domain creation
+      const inGrace = await isInSSLGracePeriod(domain)
+      if (inGrace) {
+        return // Skip — domain is still new, AutoSSL may not have issued a cert yet
+      }
+
+      // (a) Origin SSL probe — verify the origin server can terminate TLS for this domain
+      const probe = await probeOriginSSL(domain)
+      if (!probe.ok) {
+        // Origin can't handle HTTPS for this domain yet — record grace period and skip
+        await recordSSLGracePeriod(domain)
+        log(`[ProtectionEnforcer] SSL DEFERRED: ${domain} staying on 'flexible' — origin not ready (${probe.error}). Grace period started, will retry in ${SSL_GRACE_PERIOD_MS / 3600000}h.`)
+        return
+      }
+
+      // Both checks passed — safe to upgrade
+      await axios.patch(`${CF_BASE}/zones/${zoneId}/settings/ssl`, { value: 'full' }, {
+        headers: CF_HEADERS,
+        timeout: 10000,
+      })
+      log(`[ProtectionEnforcer] SSL UPGRADED: ${domain} from 'flexible' → 'full' (origin probe OK, status=${probe.status})`)
     }
   } catch (err) {
     if (!err.message?.includes('ECONNREFUSED')) {
