@@ -1106,7 +1106,11 @@ function createCpanelRoutes(getCpanelCol) {
       if (result.success) {
         res.json({ success: true, message: 'AutoSSL check started. Certificates will be issued shortly (may take 1-3 minutes).' })
 
-        // After AutoSSL starts, schedule a check to upgrade CF SSL to strict once cert is issued
+        // After AutoSSL starts, schedule a check to upgrade CF SSL from 'flexible' → 'full'
+        // once a non-self-signed cert is issued. 'full' is the target post-SSL-fix
+        // (encrypts CF→origin and accepts AutoSSL/self-signed) and avoids HTTP 421 SNI
+        // mismatches that 'strict' would cause. Protection-enforcer also handles this
+        // on schedule, but doing it here accelerates the upgrade for this domain.
         const domain = req.cpDomain
         const cpUser = req.cpUser
         const cpPass = req.cpPass
@@ -1123,8 +1127,8 @@ function createCpanelRoutes(getCpanelCol) {
               const isSelfSigned = domainCert?.issuer?.organization_name === 'cPanel, Inc.'
                 || domainCert?.issuer?.commonName?.includes(domain)
               if (domainCert && !isSelfSigned) {
-                await cfService.setSSLMode(zone.id, 'flexible')
-                log(`[Panel] SSL upgraded to strict for ${domain} (AutoSSL cert active)`)
+                await cfService.setSSLMode(zone.id, 'full')
+                log(`[Panel] SSL upgraded to 'full' for ${domain} (AutoSSL cert active)`)
               }
             }
           } catch (e) {

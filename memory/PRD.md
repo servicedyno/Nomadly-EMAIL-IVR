@@ -14,6 +14,17 @@
 5. **Fix 5**: Added WHM CERT_NOT_YET_VALID retry + admin alert for clock skew
 6. **Fix 6**: Added Contabo createSecret password validation guard
 
+## Domain Add-on / Creation Flow Verification (2026-04-25)
+Verified: domain creation + addon-domain flows fully consistent with the recent SSL/421 fix.
+- ✅ Argo Tunnel ingress confirmed routing `http://209.38.241.9:80` (manual fix in place)
+- ✅ All 4 SSL setSSLMode call sites in creation/addon flows use `'flexible'` initial mode
+- ✅ Protection-enforcer 24h grace + origin probe verified working on live origin
+- ✅ Production audit: 4/4 tunnel-routed hosting domains return 200 OK + anti-red `cloaked`
+- ✅ `entsecurity.xyz` (originally broken) — SSL=full, 200, cloaked
+- ✅ No `setSSLMode(..., 'strict')` calls remain in codebase
+- 🔧 Fix applied: `cpanel-routes.js:1126` (AutoSSL post-success) — was no-op `'flexible'` with stale "strict" log → now `'full'` with accurate log; aligns with new architecture and accelerates safe upgrade
+- ⚠️ `tdsecurity-portal.com` — known user-side NS misconfiguration (not platform issue)
+
 ## Original Problem Statement
 Multi-service platform (Telegram bot + React frontend + Node.js backend) managing domains, hosting, URL shortening, wallet/payments, and Cloud Phone (SIP/IVR/voice).
 
