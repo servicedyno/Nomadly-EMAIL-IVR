@@ -572,6 +572,23 @@ async function createInstance(opts) {
       } catch (imgErr) {
         console.log(`[Contabo] Compatible image retry also failed: ${imgErr.message}`)
       }
+      // Fix #7c: If ALL images fail on this product, try NVMe↔SSD product fallback with correct image
+      const fallbackId = getProductFallback(opts.productId)
+      if (fallbackId) {
+        console.log(`[Contabo] All images rejected on ${body.productId} — trying product fallback ${fallbackId}`)
+        body.productId = fallbackId
+        try {
+          const fallbackImage = await getCompatibleWindowsImage(opts.imageId, fallbackId)
+          if (fallbackImage) body.imageId = fallbackImage
+          console.log(`[Contabo] Retrying with product=${fallbackId}, image=${body.imageId}`)
+          const res = await apiRequest('POST', '/compute/instances', body)
+          const instance = res.data?.[0] || res.data
+          console.log(`[Contabo] Instance created via product+image fallback: id=${instance?.instanceId}, product=${fallbackId}`)
+          return instance
+        } catch (fallbackErr) {
+          console.log(`[Contabo] Product+image fallback also failed: ${fallbackErr.message}`)
+        }
+      }
     }
     throw err // Re-throw if no fallback available or fallback also failed
   }
