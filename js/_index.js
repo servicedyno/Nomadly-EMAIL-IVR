@@ -12676,7 +12676,9 @@ ${message.replace(/\n/g, '<br>')}
         const contabo = require('./contabo-service')
         const { password, secretId, reinstalled } = await contabo.resetPassword(instanceId, {
           defaultUser: userVPSDetails.defaultUser,
-          imageId: userVPSDetails.imageId
+          imageId: userVPSDetails.imageId,
+          osType: userVPSDetails.osType,
+          isRDP: userVPSDetails.isRDP
         })
         
         // Update MongoDB with new password secret ID
