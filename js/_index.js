@@ -26617,8 +26617,8 @@ app.post('/dynopay/crypto-pay-domain', authDyno, async (req, res) => {
   if (error) {
     // Domain purchase failed after DynoPay crypto payment received — credit wallet as refund
     try {
-      addFundsTo(walletOf, chatId, 'usd', price, lang)
-      sendMessage(chatId, trans('t.wh_14', domain, price))
+      await addFundsTo(walletOf, chatId, 'usd', price, lang)
+      sendMessage(chatId, translation('t.wh_14', lang, domain, price))
       sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🔄 <b>Auto-Refund (DynoPay Crypto→Domain)</b>\nUser: ${chatId}\nDomain: ${domain}\nAmount: $${price}\nReason: buyDomainFullProcess failed`, { parse_mode: 'HTML' })
       log(`[Domain] DynoPay crypto refund issued: ${chatId} | ${domain} | $${price}`)
     } catch (refundErr) {
@@ -26635,7 +26635,7 @@ app.post('/dynopay/crypto-pay-domain', authDyno, async (req, res) => {
   if (!fallbackOccurred && cheaperPrice && cheaperPrice < price) {
     const savingsUsd = price - cheaperPrice
     addFundsTo(walletOf, chatId, 'usd', savingsUsd, lang)
-    sendMessage(chatId, trans('t.wh_15', savingsUsd, domain, cheaperPrice, price, savingsUsd), { parse_mode: 'HTML' })
+    sendMessage(chatId, translation('t.wh_15', lang, savingsUsd, domain, cheaperPrice, price, savingsUsd), { parse_mode: 'HTML' })
     sendMessage(TELEGRAM_ADMIN_CHAT_ID, `💰 <b>Domain savings (DynoPay Crypto)</b>\nUser: ${chatId}\nDomain: ${domain}\nShown: $${price} | Actual: $${cheaperPrice} | Saved: $${savingsUsd}\nRegistrar: ${updatedInfo?.actualRegistrar || 'unknown'}`, { parse_mode: 'HTML' })
   }
 
@@ -26713,7 +26713,7 @@ app.post('/dynopay/crypto-pay-hosting', authDyno, async (req, res) => {
       // FIX: Use hostingPrice directly instead of usdIn - domainPrice to avoid over-refund when overpaid
       const hostingRefund = info?.hostingPrice || (price - domainPrice)
       if (hostingRefund > 0) addFundsTo(walletOf, chatId, 'usd', hostingRefund, lang)
-      sendMessage(chatId, trans('t.wh_16', info?.website_name, domainPrice, hostingRefund.toFixed(2), process.env.APP_SUPPORT_LINK))
+      sendMessage(chatId, translation('t.wh_16', lang, info?.website_name, domainPrice, hostingRefund.toFixed(2), process.env.APP_SUPPORT_LINK))
       recordHostingTransaction(chatId, { ...txBase, outcome: 'domain_only', refundAmount: hostingRefund, refundCurrency: 'USD' })
     } else {
       addFundsTo(walletOf, chatId, 'usd', usdIn, lang)
@@ -26787,7 +26787,7 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
       if (needsDocUpload(countryCode, numType_dp)) {
         const approvedBundle_dp = await pendingBundles.findOne({ chatId, countryCode, status: 'twilio-approved' })
         if (!approvedBundle_dp) {
-          sendMessage(chatId, trans('t.wh_17'))
+          sendMessage(chatId, translation('t.wh_17', lang))
           const started = await regulatoryFlow.startDocCollection(chatId, {
             countryCode, numType: numType_dp, countryName, selectedNumber, planKey, price,
             priceUsd: price, priceNgn: 0, paymentMethod: 'crypto_dynopay',
@@ -26812,7 +26812,7 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
             await state.updateOne({ _id: String(chatId) }, { $set: {
               action: 'cpEnterAddress', cpPendingCoin: 'crypto_dynopay_' + coin, cpPendingPriceUsd: price, cpPendingPriceNgn: 0, cpPaymentMethod: 'crypto_dynopay_' + coin,
             }}, { upsert: true })
-            sendMessage(chatId, trans('t.wh_18', countryName), { parse_mode: 'HTML' })
+            sendMessage(chatId, translation('t.wh_18', lang, countryName), { parse_mode: 'HTML' })
             return res.send(html())
           }
         }
@@ -26828,7 +26828,7 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
           action: 'cpEnterAddress', cpPendingCoin: 'crypto_dynopay_' + coin, cpPendingPriceUsd: price, cpPendingPriceNgn: 0, cpPaymentMethod: 'crypto_dynopay_' + coin,
         }}, { upsert: true })
         const addrLoc = getAddressLocationText(countryCode)
-        sendMessage(chatId, trans('t.wh_19', countryName, addrLoc?.text || 'required'), { parse_mode: 'HTML' })
+        sendMessage(chatId, translation('t.wh_19', lang, countryName, addrLoc?.text || 'required'), { parse_mode: 'HTML' })
         return res.send(html())
       }
     }
@@ -26913,7 +26913,7 @@ app.post('/dynopay/crypto-pay-phone-upgrade', authDyno, async (req, res) => {
   const excessUsd = usdIn > price ? (usdIn - price) : 0
   if (excessUsd > 0) {
     await atomicIncrement(walletOf, chatId, 'usdIn', excessUsd)
-    sendMessage(chatId, trans('t.wh_20', excessUsd.toFixed(2)), { parse_mode: 'HTML' })
+    sendMessage(chatId, translation('t.wh_20', lang, excessUsd.toFixed(2)), { parse_mode: 'HTML' })
   }
 
   const userData = await get(phoneNumbersOf, chatId)
@@ -26996,7 +26996,7 @@ app.post('/dynopay/crypto-pay-leads', authDyno, async (req, res) => {
           const refundAmount = Math.round(undeliveredRatio * price * 100) / 100
           if (refundAmount > 0) {
             await atomicIncrement(walletOf, chatId, 'usdIn', refundAmount)
-            sendMessage(chatId, trans('t.wh_21', delivered, requested, refundAmount.toFixed(2)))
+            sendMessage(chatId, translation('t.wh_21', lang, delivered, requested, refundAmount.toFixed(2)))
             if (TELEGRAM_ADMIN_CHAT_ID) bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID, `💰 <b>Partial Lead Refund (DynoPay)</b>\n👤 ${chatId}\n📊 ${delivered}/${requested}\n💵 $${refundAmount.toFixed(2)} → wallet`, { parse_mode: 'HTML' }).catch(() => {})
           }
         }
@@ -27026,7 +27026,7 @@ app.post('/dynopay/crypto-pay-leads', authDyno, async (req, res) => {
     webhookTierCheck(chatId, preSpend, lang)
   } catch (e) {
     log(`[dynopay-crypto-pay-leads] Error: ${e.message}`)
-    sendMessage(chatId, trans('t.wh_22', Number(price).toFixed(2), label.toLowerCase()))
+    sendMessage(chatId, translation('t.wh_22', lang, Number(price).toFixed(2), label.toLowerCase()))
     addFundsTo(walletOf, chatId, 'usd', Number(price), lang)
   }
   if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
@@ -27093,7 +27093,7 @@ app.post('/dynopay/crypto-pay-vps', authDyno, async (req, res) => {
       addFundsTo(walletOf, chatId, 'usd', refundAmt, lang)
       const { usdIn: wIn = 0, usdOut: wOut = 0 } = (await get(walletOf, chatId)) || {}
       const usdBal = (wIn - wOut).toFixed(2)
-      sendMessage(chatId, trans('t.wh_23', refundAmt.toFixed(2), usdBal), { parse_mode: 'HTML' })
+      sendMessage(chatId, translation('t.wh_23', lang, refundAmt.toFixed(2), usdBal), { parse_mode: 'HTML' })
       log(`[crypto-pay-vps] Refunded $${refundAmt.toFixed(2)} to wallet for chatId=${chatId} after VPS provisioning failure`)
     }
     return res.send(html(error))
