@@ -55,6 +55,38 @@ Multi-service platform (Nomadly) — Telegram Bot + Cloud Phone Platform with Re
 - **File**: `/app/js/protection-enforcer.js` — new functions: `isInSSLGracePeriod()`, `recordSSLGracePeriod()`, `probeOriginSSL()`, and rewritten `enforceSSLMode()`.
 - **Affected user**: @Thebiggestbag22 (chatId: 6543817440) — entsecurity.xyz, rated support BAD twice.
 
+## resetPassword Bug Fix + @davion419 Windows Restore (2026-04-25)
+
+### Bug discovered
+After the manual provisioning (earlier today), @davion419 hit "Reset Password" in the bot
+on his Windows RDP instance `vmi3220843`. Contabo response shows the OS was silently
+coerced from Windows Server 2025 to Ubuntu 24.04 — RDP no longer worked.
+
+### Root cause (`/app/js/contabo-service.js` `resetPassword()`)
+The function took a Linux-only reinstall code path whenever `defaultUser !== 'root'`.
+Windows instances default to `admin`, so they hit this branch — which built a bash
+cloud-init script and PUT the instance. Contabo apparently rejects bash userData on
+Windows imageIds and silently falls back to the default Ubuntu image.
+
+### Fixes applied
+1. **`contabo-service.js` — `resetPassword(instanceId, opts)`**
+   - Now takes `opts.osType` / `opts.isRDP`
+   - Linux reinstall path gated on `!isWindows && defaultUser !== 'root'`
+   - Windows path always uses standard `POST /actions/resetPassword` (no userData, no reinstall)
+2. **`contabo-service.js` — `reinstallInstance(opts)`**
+   - Skips `sshKeys` field when array is empty (Contabo rejects even `[]` for Windows)
+3. **`vm-instance-setup.js` — `setVpsSshCredentials(host)`**
+   - Passes `osType` and `isRDP` from `vpsPlansOf` record into `resetPassword`
+4. **Data recovery for @davion419**: `/app/scripts/restore-davion419-windows.js`
+   - PUT-reinstalled `203220843` with `imageId=ef27e2fa-...` (windows-server-2025-de)
+   - Generated fresh secret, updated `vpsPlansOf` record (`osType=Windows, isRDP=true, status=INSTALLING, rootPasswordSecretId=351053`)
+   - Live Contabo state confirmed: `status=installing, imageId=Windows, osType=Windows, ip=66.94.96.183`
+
+### Result
+- ✅ Code bug fixed for ALL future Windows password resets
+- ✅ @davion419's RDP being restored (15-min Windows reinstall in progress at 16:50 UTC)
+- ✅ DB record updated to canonical Windows schema
+
 ## Manual VPS Provisioning for @davion419 (2026-04-25)
 
 User asked: ensure two pre-existing Contabo instances are linked to @davion419's bot account

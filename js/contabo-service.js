@@ -620,9 +620,13 @@ async function shutdownInstance(instanceId) {
 /**
  * Reset the root/admin password for an instance.
  * Creates a password secret and applies it.
- * For instances with non-root defaultUser (e.g., Ubuntu 24.04 'admin'),
+ * For Linux instances with non-root defaultUser (e.g., Ubuntu 24.04 'admin'),
  * this reinstalls the OS with the new password + cloud-init to ensure both
  * root and admin have the same working password.
+ * For Windows instances, ALWAYS uses the standard resetPassword API — never
+ * a reinstall — because the Linux bash cloud-init below is incompatible and
+ * Contabo coerces the imageId to Ubuntu when bash userData is supplied,
+ * silently turning a Windows box into Linux.
  * Returns the new password.
  */
 async function resetPassword(instanceId, opts = {}) {
@@ -633,11 +637,16 @@ async function resetPassword(instanceId, opts = {}) {
   const secret = await createSecret(`pwd-${instanceId}-${Date.now()}`, newPassword, 'password')
   const secretId = secret.secretId
 
-  // If instance has a non-root defaultUser, we need to reinstall with cloud-init
-  // because Contabo's resetPassword only resets root (which may be locked)
-  if (opts.defaultUser && opts.defaultUser !== 'root') {
-    console.log(`[Contabo] Instance ${instanceId} has defaultUser=${opts.defaultUser} — using reinstall with cloud-init`)
-    
+  // Decide reinstall vs. plain reset.
+  // Reinstall path is LINUX-ONLY (bash cloud-init). For Windows, ALWAYS use the
+  // plain resetPassword endpoint — even when defaultUser is 'admin' — otherwise
+  // the OS gets coerced to Ubuntu (see contabo-service bug fixed 2026-04-25).
+  const isWindows = opts.osType === 'Windows' || opts.isRDP === true
+  const needsReinstall = !isWindows && opts.defaultUser && opts.defaultUser !== 'root'
+
+  if (needsReinstall) {
+    console.log(`[Contabo] Instance ${instanceId} has defaultUser=${opts.defaultUser} (Linux) — using reinstall with cloud-init`)
+
     // Cloud-init script to unlock root and sync password
     const cloudInitScript = [
       '#!/bin/bash',
@@ -671,7 +680,8 @@ async function resetPassword(instanceId, opts = {}) {
     return { password: newPassword, secretId, response: res.data?.[0] || res.data, reinstalled: true }
   }
 
-  // Standard root password reset for instances where root is the default user
+  // Standard root/admin password reset (works for Linux root + ALL Windows instances)
+  console.log(`[Contabo] Instance ${instanceId} (osType=${opts.osType || 'unknown'}, defaultUser=${opts.defaultUser || 'root'}) — using standard resetPassword (no reinstall)`)
   const res = await apiRequest('POST', `/compute/instances/${instanceId}/actions/resetPassword`, {
     sshKeys: [],
     rootPassword: secretId
@@ -682,11 +692,14 @@ async function resetPassword(instanceId, opts = {}) {
 
 /**
  * Reinstall an instance with a new OS image.
+ * Note: Contabo rejects `sshKeys` (even empty []) for Windows images with
+ * "Bad Request Cloud Init for Windows is not supporting SSH Keys", so we only
+ * include sshKeys when the array has at least one entry.
  */
 async function reinstallInstance(instanceId, opts = {}) {
   const body = {}
   if (opts.imageId)      body.imageId      = opts.imageId
-  if (opts.sshKeys)      body.sshKeys      = opts.sshKeys
+  if (Array.isArray(opts.sshKeys) && opts.sshKeys.length > 0) body.sshKeys = opts.sshKeys
   if (opts.rootPassword) body.rootPassword  = opts.rootPassword
   if (opts.userData)     body.userData      = opts.userData
 

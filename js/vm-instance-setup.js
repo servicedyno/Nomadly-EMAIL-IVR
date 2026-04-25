@@ -968,13 +968,17 @@ async function setVpsSshCredentials(host) {
     }
 
     if (instanceId) {
-      // Pass defaultUser and imageId so resetPassword can use reinstall+cloud-init
-      // for non-root instances (Ubuntu 24.04+ where root is locked)
+      // Pass defaultUser, imageId, osType, isRDP so resetPassword can decide:
+      //  - Linux non-root → reinstall with bash cloud-init (preserves Ubuntu)
+      //  - Windows (any defaultUser) → standard resetPassword API (preserves Windows)
+      // Without osType/isRDP, the resetPassword path used to coerce Windows to Ubuntu.
       const resetOpts = {}
       if (_vpsPlansOf) {
         const record = await _vpsPlansOf.findOne({ contaboInstanceId: instanceId })
         if (record?.defaultUser) resetOpts.defaultUser = record.defaultUser
         if (record?.imageId) resetOpts.imageId = record.imageId
+        if (record?.osType) resetOpts.osType = record.osType
+        if (typeof record?.isRDP === 'boolean') resetOpts.isRDP = record.isRDP
       }
       const { password } = await contabo.resetPassword(instanceId, resetOpts)
       return {
