@@ -427,11 +427,8 @@ async function getCompatibleWindowsImage(imageId, targetProductId) {
   const targetEdition = isSwitchingToSSD ? 'de' : 'se'
   const currentEdition = currentName.endsWith('-se') ? 'se' : currentName.endsWith('-de') ? 'de' : null
 
-  // Already correct edition
-  if (currentEdition === targetEdition) return imageId
-
-  // Swap edition: windows-server-2025-se → windows-server-2025-de
-  if (currentEdition) {
+  // If edition needs swapping, try that first
+  if (currentEdition && currentEdition !== targetEdition) {
     const swappedName = currentName.replace(`-${currentEdition}`, `-${targetEdition}`)
     const swapped = images.find(img => img.name === swappedName)
     if (swapped) {
@@ -440,7 +437,20 @@ async function getCompatibleWindowsImage(imageId, targetProductId) {
     }
   }
 
-  // Fallback: get default for the target product type
+  // If same edition OR swap failed, try older Windows versions for the same edition
+  // Order: 2022 → 2019 → 2016 (progressively more compatible with smaller VPS tiers)
+  const olderVersions = ['2022', '2019', '2016']
+  for (const year of olderVersions) {
+    if (currentName.includes(year)) continue // skip if already this version
+    const olderName = `windows-server-${year}-${targetEdition}`
+    const older = images.find(img => img.name === olderName)
+    if (older) {
+      console.log(`[Contabo] Falling back to older Windows image: ${currentName} → ${olderName} for product ${targetProductId}`)
+      return older.imageId
+    }
+  }
+
+  // Final fallback: get default for the target product type
   return await getDefaultWindowsImageId(targetProductId)
 }
 

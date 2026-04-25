@@ -24970,7 +24970,7 @@ const bankApis = {
         log(`[Domain] CRITICAL: Bank refund failed for ${chatId}: ${refundErr.message}`)
         sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🚨 CRITICAL: Bank domain refund FAILED\nUser: ${chatId}\nDomain: ${domain}\nAmount: ${ngnPrice} NGN\nError: ${refundErr.message}`, { parse_mode: 'HTML' })
       }
-      return res.send(html(error))
+      return res.send(html('error'))
     }
 
     // Check for savings — cheaper registrar succeeded → credit difference to wallet
@@ -25110,7 +25110,7 @@ const bankApis = {
 
     // Buy VPS
     const isSuccess = await buyVPSPlanFullProcess(chatId, lang, vpsDetails)
-    if (!isSuccess) return res.send(html(error))
+    if (!isSuccess) return res.send(html('error'))
     webhookTierCheck(chatId, preSpend, lang)
     if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
     if (userConversion) userConversion.markPurchased(chatId)
@@ -25150,7 +25150,7 @@ const bankApis = {
 
     // Upgrade VPS plan or disk
     const isSuccess = await upgradeVPSDetails(chatId, lang, vpsDetails)
-    if (!isSuccess) return res.send(html(error))
+    if (!isSuccess) return res.send(html('error'))
     webhookTierCheck(chatId, preSpend, lang)
     if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
     if (userConversion) userConversion.markPurchased(chatId)
@@ -25927,7 +25927,7 @@ app.get('/crypto-pay-domain', auth, async (req, res) => {
       log(`[Domain] CRITICAL: BlockBee crypto refund failed for ${chatId}: ${refundErr.message}`)
       sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🚨 CRITICAL: BlockBee crypto domain refund FAILED\nUser: ${chatId}\nDomain: ${domain}\nAmount: $${price}\nError: ${refundErr.message}`, { parse_mode: 'HTML' })
     }
-    return res.send(html(error))
+    return res.send(html('error'))
   }
 
   // Check for savings — cheaper registrar succeeded → credit difference to wallet
@@ -26363,7 +26363,7 @@ app.get('/crypto-pay-vps', auth, async (req, res) => {
       sendMessage(chatId, trans('t.wh_13', refundAmt.toFixed(2), usdBal), { parse_mode: 'HTML' })
       log(`[crypto-pay-vps] Refunded $${refundAmt.toFixed(2)} to wallet for chatId=${chatId} after VPS provisioning failure (BlockBee)`)
     }
-    return res.send(html(error))
+    return res.send(html('error'))
   }
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
@@ -26412,7 +26412,7 @@ app.get('/crypto-pay-upgrade-vps', auth, async (req, res) => {
 
   // Upgrade VPS plan or disk
   const isSuccess = await upgradeVPSDetails(chatId, lang, vpsDetails)
-  if (!isSuccess) return res.send(html(error))
+  if (!isSuccess) return res.send(html('error'))
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
@@ -26627,7 +26627,7 @@ app.post('/dynopay/crypto-pay-domain', authDyno, async (req, res) => {
       log(`[Domain] CRITICAL: DynoPay crypto refund failed for ${chatId}: ${refundErr.message}`)
       sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🚨 CRITICAL: DynoPay crypto domain refund FAILED\nUser: ${chatId}\nDomain: ${domain}\nAmount: $${price}\nError: ${refundErr.message}`, { parse_mode: 'HTML' })
     }
-    return res.send(html(error))
+    return res.send(html('error'))
   }
 
   // Check for savings — cheaper registrar succeeded → credit difference to wallet
@@ -27098,7 +27098,7 @@ app.post('/dynopay/crypto-pay-vps', authDyno, async (req, res) => {
       sendMessage(chatId, translation('t.wh_23', lang, refundAmt.toFixed(2), usdBal), { parse_mode: 'HTML' })
       log(`[crypto-pay-vps] Refunded $${refundAmt.toFixed(2)} to wallet for chatId=${chatId} after VPS provisioning failure`)
     }
-    return res.send(html(error))
+    return res.send(html('error'))
   }
   notifyGroup(`🖥️ <b>VPS Deployed!</b>\nUser ${maskName(name)} just deployed a new VPS server via crypto.\nDeploy yours in seconds — /start`)
   if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🖥️ <b>New VPS (Crypto)</b>\n👤 ${chatId} (${maskName(name)})\n💰 $${Number(price).toFixed(2)} ${coin}\n📦 ${vpsDetails?.plan || 'VPS'}`, { parse_mode: 'HTML' })
@@ -27159,7 +27159,7 @@ app.post('/dynopay/crypto-pay-upgrade-vps', authDyno, async (req, res) => {
   }
 
   const isSuccess = await upgradeVPSDetails(chatId, lang, vpsDetails)
-  if (!isSuccess) return res.send(html(error))
+  if (!isSuccess) return res.send(html('error'))
   const upgradeLabel = vpsDetails.upgradeType === 'plan' ? 'Plan Upgrade' : 'Disk Upgrade'
   notifyGroup(`🖥️ <b>VPS ${upgradeLabel}!</b>\nUser ${maskName(name)} just upgraded their VPS via crypto.\nUpgrade yours — /start`)
   if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🖥️ <b>VPS ${upgradeLabel} (Crypto)</b>\n👤 ${chatId} (${maskName(name)})\n💰 $${Number(price).toFixed(2)} ${coin}\n📦 ${vpsDetails?.plan || 'VPS'}`, { parse_mode: 'HTML' })
