@@ -529,6 +529,8 @@ async function createInstance(opts) {
     const res = await apiRequest('POST', '/compute/instances', body)
     const instance = res.data?.[0] || res.data
     console.log(`[Contabo] Instance created: id=${instance?.instanceId}, name=${instance?.name}`)
+    instance._actualProductId = body.productId
+    instance._actualImageId = body.imageId
     return instance
   } catch (err) {
     // Fix #4: If product is unavailable, try the fallback (NVMe ↔ SSD)
@@ -553,6 +555,8 @@ async function createInstance(opts) {
         const res = await apiRequest('POST', '/compute/instances', body)
         const instance = res.data?.[0] || res.data
         console.log(`[Contabo] Instance created via fallback: id=${instance?.instanceId}, product=${fallbackId}`)
+        instance._actualProductId = body.productId
+        instance._actualImageId = body.imageId
         return instance
       }
     }
@@ -567,6 +571,8 @@ async function createInstance(opts) {
           const res = await apiRequest('POST', '/compute/instances', body)
           const instance = res.data?.[0] || res.data
           console.log(`[Contabo] Instance created with compatible image: id=${instance?.instanceId}`)
+          instance._actualProductId = body.productId
+          instance._actualImageId = body.imageId
           return instance
         }
       } catch (imgErr) {
@@ -584,6 +590,8 @@ async function createInstance(opts) {
           const res = await apiRequest('POST', '/compute/instances', body)
           const instance = res.data?.[0] || res.data
           console.log(`[Contabo] Instance created via product+image fallback: id=${instance?.instanceId}, product=${fallbackId}`)
+          instance._actualProductId = body.productId
+          instance._actualImageId = body.imageId
           return instance
         } catch (fallbackErr) {
           console.log(`[Contabo] Product+image fallback also failed: ${fallbackErr.message}`)

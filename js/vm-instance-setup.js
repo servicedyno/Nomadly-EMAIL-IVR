@@ -626,6 +626,16 @@ async function createVPSInstance(telegramId, vpsDetails) {
       return { error: 'Failed to create instance — no instanceId returned' }
     }
 
+    // Use the actual product/image that was deployed (may differ from request due to fallback)
+    const actualProductId = instance._actualProductId || productId
+    const actualImageId = instance._actualImageId || imageId
+    if (actualProductId !== productId) {
+      console.log(`[Contabo] Product fallback used: requested=${productId}, actual=${actualProductId}`)
+    }
+    if (actualImageId !== imageId) {
+      console.log(`[Contabo] Image fallback used: requested=${imageId}, actual=${actualImageId}`)
+    }
+
     // Calculate expiry (monthly billing)
     const now = new Date()
     const expiresAt = new Date(now)
@@ -640,7 +650,7 @@ async function createVPSInstance(telegramId, vpsDetails) {
       status: instance.status || 'provisioning',
       contaboInstanceId: instance.instanceId,
       region: region,
-      productId: productId,
+      productId: actualProductId,
       osType: isRDP ? 'Windows' : 'Linux',
       isRDP: isRDP,
       subscription: {
@@ -662,10 +672,10 @@ async function createVPSInstance(telegramId, vpsDetails) {
         vpsId: String(instance.instanceId),
         host: vpsData.host,
         region: region,
-        productId: productId,
+        productId: actualProductId,
         osType: vpsData.osType,
         isRDP: isRDP,
-        imageId: imageId,
+        imageId: actualImageId,
         defaultUser: instance.defaultUser || (isRDP ? 'admin' : 'root'),
         start_time: now,
         end_time: expiresAt,
