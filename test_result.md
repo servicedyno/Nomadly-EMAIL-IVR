@@ -55,7 +55,36 @@ Multi-service platform (Nomadly) — Telegram Bot + Cloud Phone Platform with Re
 - **File**: `/app/js/protection-enforcer.js` — new functions: `isInSSLGracePeriod()`, `recordSSLGracePeriod()`, `probeOriginSSL()`, and rewritten `enforceSSLMode()`.
 - **Affected user**: @Thebiggestbag22 (chatId: 6543817440) — entsecurity.xyz, rated support BAD twice.
 
-## Domain Add-on & Creation Flow Verification (2026-04-25)
+## Manual VPS Provisioning for @davion419 (2026-04-25)
+
+User asked: ensure two pre-existing Contabo instances are linked to @davion419's bot account
+with 1-month expiry "as if purchased through the bot".
+
+### Discovery
+- Contabo instance IDs `vmi3228089` / `vmi3220843` → full IDs `203228089` / `203220843`
+- Both in our reseller account (verified via Contabo API), displayName `nomadly-404562920-{ts}`
+- chatId `404562920` confirmed = @davion419 in production state collection
+
+### Action
+Created `/app/scripts/provision-davion419-vps.js` — idempotent upsert to production
+`vpsPlansOf` collection (Railway MongoDB) using exact same schema as
+`vm-instance-setup.js → createVPSInstance()`, with `adminProvisioned: true` flag.
+
+Both records inserted with 1-month expiry from each Contabo `createdDate`:
+- `203220843` (Windows RDP, Cloud VPS 20 NVMe, US-east) — created 2026-04-10 → expires 2026-05-10 (15d left)
+- `203228089` (Linux, Storage VPS 10, US-east) — created 2026-04-12 → expires 2026-05-12 (18d left)
+
+### Verification
+End-to-end smoke test against production DB confirms:
+- ✅ `fetchUserVPSList('404562920')` returns both instances with live Contabo status
+- ✅ `fetchVPSDetails(...)` for each returns full specs (RDP: 6 vCPU/12 GB/100 GB NVMe; Linux: 2 vCPU/4 GB/300 GB)
+- ✅ `subscription.subscriptionEnd` set correctly (drives the bot's expiry countdown)
+- ✅ Auto-renew reminder/cron flags initialized (`_reminder3DaySent`, `_reminder1DaySent`, `_autoRenewAttempted` all `false`)
+- ✅ `state.404562920.isRegisteredTelegramForVps = true` (was already true)
+
+User can now access both instances from Telegram bot → 🖥 VPS menu.
+
+
 
 User asked: "Verify domain add-on and creation flow works consistent with the most recent fix"
 (referring to the HTTP 421 fix on entsecurity.xyz: Argo Tunnel ingress + SSL grace period)

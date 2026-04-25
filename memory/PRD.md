@@ -14,6 +14,15 @@
 5. **Fix 5**: Added WHM CERT_NOT_YET_VALID retry + admin alert for clock skew
 6. **Fix 6**: Added Contabo createSecret password validation guard
 
+## Manual VPS Provisioning for @davion419 (2026-04-25)
+- Linked two pre-existing Contabo instances (`203220843` Windows RDP + `203228089` Linux) to chatId `404562920` (@davion419) in production `vpsPlansOf`
+- Idempotent script at `/app/scripts/provision-davion419-vps.js` — schema matches `createVPSInstance()` exactly
+- 1-month expiry enforced from each instance's Contabo `createdDate`:
+  - vmi3220843 (RDP) → expires 2026-05-10
+  - vmi3228089 (Linux) → expires 2026-05-12
+- Verified end-to-end: `fetchUserVPSList()` and `fetchVPSDetails()` both return correct data
+- `adminProvisioned: true` flag distinguishes from organic purchases
+
 ## Domain Add-on / Creation Flow Verification (2026-04-25)
 Verified: domain creation + addon-domain flows fully consistent with the recent SSL/421 fix.
 - ✅ Argo Tunnel ingress confirmed routing `http://209.38.241.9:80` (manual fix in place)
