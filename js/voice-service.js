@@ -570,7 +570,25 @@ async function runUserWalletMonitor() {
   try {
     // Scan ALL wallets — not just phone users
     const allWallets = await _walletOf.find({}).toArray()
-    let warned = 0, scanned = 0
+    let warned = 0, scanned = 0, skippedWelcomeOnly = 0
+
+    // ── FIX: Build set of users who made real deposits (wallet-topup or admin-credit) ──
+    // Welcome-bonus-only users should NOT receive low-balance warnings — they never
+    // deposited real money, so nagging them to "top up" is spam, not a useful reminder.
+    const db = _walletOf.s?.db || _walletOf.s?.namespace?.db
+    let realDepositChatIds = new Set()
+    try {
+      const txnCol = (typeof db === 'object' && db.collection) ? db.collection('transactions') : null
+      if (txnCol) {
+        const realTxns = await txnCol.find(
+          { type: { $in: ['wallet-topup', 'admin-credit'] } },
+          { projection: { chatId: 1 } }
+        ).toArray()
+        realDepositChatIds = new Set(realTxns.map(t => String(t.chatId)))
+      }
+    } catch (e) {
+      log(`[UserWalletMonitor] Warning: Could not load real deposits — skipping welcome-only filter: ${e.message}`)
+    }
 
     for (const wallet of allWallets) {
       const chatId = String(wallet._id) // Ensure string for consistency
@@ -589,6 +607,14 @@ async function runUserWalletMonitor() {
 
         // Skip users who never had meaningful balance (never topped up)
         if ((wallet.usdIn || 0) < 1) continue
+
+        // ── FIX: Skip welcome-bonus-only users ──
+        // Users who only received the free welcome bonus and never deposited real money
+        // should not be warned about low balance — it's spam, not a helpful reminder.
+        if (realDepositChatIds.size > 0 && !realDepositChatIds.has(chatId)) {
+          skippedWelcomeOnly++
+          continue
+        }
 
         let level = null
         if (totalBal <= USER_BALANCE_EMPTY) level = 'empty'
@@ -667,7 +693,7 @@ async function runUserWalletMonitor() {
       } catch (e) { /* skip individual user errors */ }
     }
 
-    log(`[UserWalletMonitor] Scan complete: ${scanned} wallets checked, ${warned} low-balance warnings sent`)
+    log(`[UserWalletMonitor] Scan complete: ${scanned} wallets checked, ${warned} low-balance warnings sent, ${skippedWelcomeOnly} welcome-only users skipped`)
 
     // ── PRE-DIAL BLOCKLIST SCAN ──
     // After the wallet scan, identify SIP users with balance below LOW_BALANCE_TRIGGER
