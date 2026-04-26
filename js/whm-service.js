@@ -406,10 +406,9 @@ async function autoWhitelistIP() {
     }
 
     // 3. Whitelist in CSF firewall (if installed)
-    // I1 fix: CSF plugin on some WHM versions only supports 'configgrep' or shell exec, not the /csf_allow app.
-    // Try multiple approaches: first the direct API, then fallback to shell exec via WHM.
+    // Detection: If /csf_allow returns "Unknown app", CSF is NOT installed on this server.
+    // In that case, skip silently — cPHulk + Host Access (step 4) are sufficient.
     try {
-      // Approach 1: Try /json-api/cpanel with CSF plugin (api.version=1)
       const csfRes = await whmApi.get('/csf_allow', {
         params: {
           'api.version': 1,
@@ -422,39 +421,21 @@ async function autoWhitelistIP() {
         results.csf = true
         log(`[WHM-Whitelist] CSF: ${ip} allowed successfully`)
       } else {
-        // CSF might not be installed, or IP already allowed
         const msg = JSON.stringify(csfRes.data?.metadata || csfRes.data || {})
         if (msg.includes('already') || msg.includes('exists')) {
           results.csf = true
           log(`[WHM-Whitelist] CSF: ${ip} already allowed`)
         } else if (msg.includes('Unknown app')) {
-          // Approach 2: Fallback — use /scripts2/doaddtoallowip via WHM (older WHM/CSF versions)
-          log(`[WHM-Whitelist] CSF /csf_allow not available, trying shell-based fallback...`)
-          try {
-            const shellRes = await whmApi.get('/run_cgi_script', {
-              params: {
-                'api.version': 1,
-                script: '/usr/sbin/csf',
-                args: `-a ${ip} Nomadly-auto-whitelist`,
-              },
-              timeout: 15000,
-            })
-            if (shellRes.data?.metadata?.result === 1 || JSON.stringify(shellRes.data || '').includes('added')) {
-              results.csf = true
-              log(`[WHM-Whitelist] CSF: ${ip} allowed via shell fallback`)
-            } else {
-              log(`[WHM-Whitelist] CSF shell fallback response: ${JSON.stringify(shellRes.data || {}).substring(0, 200)}`)
-            }
-          } catch (shellErr) {
-            log(`[WHM-Whitelist] CSF shell fallback also failed: ${shellErr.message}`)
-          }
+          // CSF plugin is not installed on this WHM — skip entirely
+          results.csf = 'not_installed'
+          log(`[WHM-Whitelist] CSF not installed on server (skipped)`)
         } else {
           log(`[WHM-Whitelist] CSF response: ${msg}`)
         }
       }
     } catch (err) {
-      // CSF not installed is common — not an error
       if (err.response?.status === 404 || err.message?.includes('404')) {
+        results.csf = 'not_installed'
         log(`[WHM-Whitelist] CSF not installed on server (skipped)`)
       } else {
         log(`[WHM-Whitelist] CSF error: ${err.message}`)
