@@ -80,6 +80,7 @@
     "@craco/craco": "^7.1.0",
     "@eslint/js": "9.23.0",
     "autoprefixer": "^10.4.20",
+    "es-abstract": "1.23.9",
     "eslint": "9.23.0",
     "eslint-plugin-import": "2.31.0",
     "eslint-plugin-jsx-a11y": "6.10.2",
@@ -96,13 +97,15 @@
     "@eslint/plugin-kit": ">=0.3.4",
     "underscore": ">=1.13.8",
     "@tootallnate/once": ">=3.0.1",
-    "webpack-dev-server": ">=5.2.1"
+    "webpack-dev-server": ">=5.2.1",
+    "es-abstract": "1.23.9"
   },
   "overrides": {
     "nth-check": "~2.0.1",
     "serialize-javascript": ">=7.0.5",
     "underscore": ">=1.13.8",
     "@eslint/plugin-kit": ">=0.3.4",
+    "es-abstract": "1.23.9",
     "resolve-url-loader": {
       "postcss": ">=8.4.31"
     },

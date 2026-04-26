@@ -45,6 +45,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "es-abstract": "1.23.9",
     "eslint": "^10.0.1"
   },
   "engines": {
