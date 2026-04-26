@@ -1025,7 +1025,7 @@ async function getAiResponse(chatId, userMessage, lang = 'en') {
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
         completion = await openai.chat.completions.create({
-          model: 'gpt-4o',
+          model: 'gpt-4.1-mini',
           messages,
           max_tokens: 500,
           temperature: 0.7,
@@ -1109,7 +1109,7 @@ async function moderateMarketplaceChat(message) {
   if (!openai) return { flagged: false }
   try {
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-4.1-nano',
       messages: [
         { role: 'system', content: MP_MODERATION_PROMPT },
         { role: 'user', content: message },
@@ -1159,7 +1159,7 @@ async function getMarketplaceAiResponse(chatId, userMessage, lang = 'en') {
     const history = await getConversationHistory(chatId, 5)
 
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-4.1-mini',
       messages: [
         { role: 'system', content: MP_HELPER_PROMPT + langInstruction },
         ...history.slice(-4),

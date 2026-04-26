@@ -561,7 +561,7 @@ async function translateText(text, targetLangCode) {
   try {
     const ai = new OpenAI({ apiKey: process.env.APP_OPEN_API_KEY })
     const res = await ai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-4.1-mini',
       messages: [
         { role: 'system', content: `Translate the following IVR phone greeting to ${langName}. Keep the same structure, tone, and press-key references. Replace [Company Name] as-is in the translation. Return ONLY the translated text, nothing else.` },
         { role: 'user', content: text },
