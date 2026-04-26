@@ -9,7 +9,7 @@ aptPkgs = []
 cmds = ["npm install --omit=dev", "cd frontend && npm install --legacy-peer-deps"]
 
 [phases.build]
-cmds = ["cd frontend && CI=false npm run build"]
+cmds = ["cd frontend && DISABLE_ESLINT_PLUGIN=true CI=false npm run build"]
 
 [start]
 cmd = "npm start"
@@ -19,3 +19,5 @@ NODE_VERSION = "22"
 # Skip Puppeteer browser downloads (using external Browserless service)
 PUPPETEER_SKIP_DOWNLOAD = "true"
 PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = "true"
+# Disable CRA eslint plugin during build — avoids es-abstract transitive dep conflict
+DISABLE_ESLINT_PLUGIN = "true"
