@@ -8555,8 +8555,8 @@ All verified numbers generated during sourcing.`))
     
     if (isAdminTakeover) {
       adminMsg += '\n\n🔒 <i>Admin takeover active — AI silenced</i>'
-    } else if (isSupportSessionOpen) {
-      adminMsg += '\n\n🟢 <i>Support session open — user waiting for human reply (AI silenced)</i>'
+    } else {
+      adminMsg += '\n\n🤖 <i>AI will auto-respond to this message</i>'
     }
     
     // Add detected language info for admin context
@@ -8572,16 +8572,15 @@ All verified numbers generated during sourcing.`))
     
     log(`[Support] ${chatId} -> admin: ${message} (botLang: ${userLang}, msgLang: ${translation.detectedLang}, translated: ${translation.needsTranslation}, adminTakeover: ${isAdminTakeover}, sessionOpen: ${isSupportSessionOpen})`)
 
-    // ── AI suppression during a live support session ──
-    // If the user tapped 💬 Support (session open within last hour) OR admin has
-    // already typed /reply (takeover on), we must NOT run the AI — the user is
-    // waiting for a HUMAN. AI replies here cause "is this a bot or person?" confusion.
-    if (isAdminTakeover || isSupportSessionOpen) {
+    // ── AI suppression during admin takeover only ──
+    // If admin has typed /reply (takeover on), we must NOT run the AI — the user is
+    // talking to a real person. But if no admin takeover, AI auto-responds.
+    if (isAdminTakeover) {
       send(chatId, t.supportMsgReceived || '✉️ Message received! A support agent will respond shortly.', { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
       return
     }
 
-    // AI auto-response (only when NO support session is active and admin has NOT taken over)
+    // AI auto-response (when admin has NOT taken over)
     if (isAiEnabled()) {
       try {
         const { response: aiResponse, escalate, error } = await getAiResponse(chatId, message, lang)
@@ -9023,11 +9022,11 @@ All verified numbers generated during sourcing.`))
     await saveInfo('action', a.supportChat)
     // Clear admin takeover flag — fresh session starts with AI enabled
     await set(state, chatId, 'adminTakeover', false)
-    send(chatId, ({ en: `💬 <b>Live Support</b>\n\n👤 You're now connected with a human agent. Please describe your issue in one message — they will reply within <b>5–15 minutes</b>.\n\n⚠️ <i>The AI assistant is paused during this session so you only hear from a real person.</i>\n\nWhen your issue is resolved, send /done to close the chat.`, fr: `💬 <b>Support en Direct</b>\n\n👤 Vous êtes maintenant connecté à un agent humain. Décrivez votre problème en un message — ils répondront sous <b>5 à 15 minutes</b>.\n\n⚠️ <i>L'assistant IA est mis en pause pendant cette session pour que vous ne parliez qu'à une vraie personne.</i>\n\nQuand votre problème est résolu, envoyez /done pour fermer le chat.`, zh: `💬 <b>在线客服</b>\n\n👤 您现已连接至人工客服。请用一条消息描述您的问题 — 客服将在 <b>5-15 分钟</b> 内回复。\n\n⚠️ <i>本次会话期间 AI 助手已暂停，确保您只与真人交流。</i>\n\n问题解决后，发送 /done 结束对话。`, hi: `💬 <b>लाइव सहायता</b>\n\n👤 आप अब एक मानव एजेंट से जुड़े हैं। कृपया अपनी समस्या को एक ही मैसेज में बताएं — वे <b>5-15 मिनट</b> में जवाब देंगे।\n\n⚠️ <i>इस सेशन के दौरान AI असिस्टेंट रुका हुआ है ताकि आप सिर्फ़ इंसान से बात करें।</i>\n\nसमस्या हल होने पर, /done भेजकर चैट बंद करें।` }[lang] || `💬 <b>Live Support</b>\n\n👤 You're now connected with a human agent. Please describe your issue in one message — they will reply within <b>5–15 minutes</b>.\n\n⚠️ <i>The AI assistant is paused during this session so you only hear from a real person.</i>\n\nWhen your issue is resolved, send /done to close the chat.`), { parse_mode: 'HTML', reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
+    send(chatId, ({ en: `💬 <b>Support</b>\n\n🤖 Our AI assistant will try to help you right away! If it can't resolve your issue, a <b>human agent</b> will step in.\n\nDescribe your question or issue below.\n\nWhen done, send /done to close the chat.`, fr: `💬 <b>Support</b>\n\n🤖 Notre assistant IA va essayer de vous aider immédiatement ! S'il ne peut pas résoudre votre problème, un <b>agent humain</b> prendra le relais.\n\nDécrivez votre question ou problème ci-dessous.\n\nQuand terminé, envoyez /done pour fermer le chat.`, zh: `💬 <b>客服支持</b>\n\n🤖 我们的 AI 助手会立即尝试帮助您！如果无法解决您的问题，<b>人工客服</b>会介入。\n\n请在下方描述您的问题。\n\n完成后，发送 /done 结束对话。`, hi: `💬 <b>सहायता</b>\n\n🤖 हमारा AI असिस्टेंट तुरंत आपकी मदद करने की कोशिश करेगा! अगर यह आपकी समस्या हल नहीं कर सकता, तो एक <b>मानव एजेंट</b> आएगा।\n\nनीचे अपना सवाल या समस्या बताएं।\n\nसमस्या हल होने पर, /done भेजकर चैट बंद करें।` }[lang] || `💬 <b>Support</b>\n\n🤖 Our AI assistant will try to help you right away! If it can't resolve your issue, a <b>human agent</b> will step in.\n\nDescribe your question or issue below.\n\nWhen done, send /done to close the chat.`), { parse_mode: 'HTML', reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
     // Notify admin — private message only, not to groups
     const name = await get(nameOf, chatId)
-    send(TELEGRAM_ADMIN_CHAT_ID, `🔔 <b>Support session opened</b>\nUser: <b>${name || 'unknown'}</b> (${chatId})\n@${msg?.from?.username || 'no_username'}\n\nReply with: /reply ${chatId} <i>your message</i>\n📎 Or attach a photo/file with caption: <code>/reply ${chatId} your caption</code>\nClose with: /close ${chatId}`, { parse_mode: 'HTML' })
-    log(`[Support] Session opened for ${chatId} ${name} — AI silenced until session closes or expires`)
+    send(TELEGRAM_ADMIN_CHAT_ID, `🔔 <b>Support session opened</b>\nUser: <b>${name || 'unknown'}</b> (${chatId})\n@${msg?.from?.username || 'no_username'}\n\n🤖 <i>AI will auto-respond first. You'll be notified if escalation is needed.</i>\n\nReply with: /reply ${chatId} <i>your message</i>\n📎 Or attach a photo/file with caption: <code>/reply ${chatId} your caption</code>\nClose with: /close ${chatId}`, { parse_mode: 'HTML' })
+    log(`[Support] Session opened for ${chatId} ${name} — AI will auto-respond, escalation to admin if needed`)
     // ── SLA watcher — if no admin reply in 10 minutes, nudge admin ──
     scheduleSupportSlaNudge(chatId, name || msg?.from?.username || 'unknown', Date.now())
     return
@@ -23621,15 +23620,53 @@ Tap a button below to change. Changes sync to your phone on next app open.`
   const _currentAction = (await get(state, chatId))?.action
   const isInActiveFlow = _currentAction && _currentAction !== 'none' && _currentAction !== 'supportChat'
   if (!isInActiveFlow && recentSession && recentSession > 0 && (Date.now() - recentSession) < 3600000) {
-    // User had a support session within the last hour — forward to admin as safety net
+    // User had a support session within the last hour — re-open and let AI handle
     const _fallbackName = await get(nameOf, chatId)
     const displayName = _fallbackName || msg?.from?.username || chatId
-    send(TELEGRAM_ADMIN_CHAT_ID, `⚠️ <b>Missed support message</b>\n👤 <b>${displayName}</b> (${chatId}):\n${message}\n\n<i>Session was inactive but user appears to still need help.</i>\n\n↩️ /reply ${chatId} <i>type response</i>`, { parse_mode: 'HTML' })
     // Re-open session for them
     await set(supportSessions, chatId, Date.now())
     await set(state, chatId, 'action', 'supportChat')
-    send(chatId, t.supportMsgSent, { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
-    log(`[Support] Fallback: forwarded unrecognized message from ${chatId} to admin (recent session detected)`)
+    
+    // Check admin takeover status
+    const _fbState = await get(state, chatId)
+    const _fbAdminTakeover = _fbState?.adminTakeover === true
+    
+    // Forward to admin
+    send(TELEGRAM_ADMIN_CHAT_ID, `⚠️ <b>Continued support message</b>\n👤 <b>${displayName}</b> (${chatId}):\n${message}\n\n${_fbAdminTakeover ? '🔒 <i>Admin takeover active</i>' : '🤖 <i>AI will auto-respond</i>'}\n\n↩️ /reply ${chatId} <i>type response</i>`, { parse_mode: 'HTML' })
+    
+    if (_fbAdminTakeover) {
+      send(chatId, t.supportMsgReceived || '✉️ Message received! A support agent will respond shortly.', { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
+    } else if (isAiEnabled()) {
+      try {
+        const { response: aiResponse, escalate, error } = await getAiResponse(chatId, message, lang)
+        if (aiResponse) {
+          const safeHtml = aiResponse
+            .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+            .replace(/\*(.+?)\*/g, '<i>$1</i>')
+            .replace(/__(.+?)__/g, '<u>$1</u>')
+            .replace(/`([^`]+)`/g, '<code>$1</code>')
+            .replace(/&(?!amp;|lt;|gt;|quot;|#\d+;)/g, '&amp;')
+            .replace(/<(?!\/?(?:b|i|u|s|code|pre|a)\b)/g, '&lt;')
+          const suggestedButtons = extractActionButtons(aiResponse, lang)
+          const keyboardRows = []
+          if (suggestedButtons.length > 0) suggestedButtons.forEach(btn => keyboardRows.push([btn]))
+          keyboardRows.push(['/done'])
+          send(chatId, safeHtml, { parse_mode: 'HTML', reply_markup: { keyboard: keyboardRows, resize_keyboard: true } })
+          const escalateTag = escalate ? '\n\n🚨 <b>NEEDS HUMAN ATTENTION</b>' : ''
+          send(TELEGRAM_ADMIN_CHAT_ID, `🤖 <b>AI replied to ${displayName}</b> (${chatId}):\n<i>${safeHtml.substring(0, 500)}${safeHtml.length > 500 ? '...' : ''}</i>${escalateTag}`, { parse_mode: 'HTML' })
+          log(`[Support] Fallback AI -> ${chatId}: ${aiResponse.substring(0, 100)}... (escalate: ${escalate})`)
+        } else {
+          send(chatId, t.supportMsgReceived || '✉️ Message received! A support agent will respond shortly.', { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
+          send(TELEGRAM_ADMIN_CHAT_ID, `⚠️ <b>AI failed for ${displayName}</b> (${chatId}) — needs manual reply\nError: ${error || 'unknown'}`, { parse_mode: 'HTML' })
+        }
+      } catch (e) {
+        send(chatId, t.supportMsgSent, { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
+        log(`[Support] Fallback AI error: ${e.message}`)
+      }
+    } else {
+      send(chatId, t.supportMsgSent, { reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
+    }
+    log(`[Support] Fallback: re-opened support session for ${chatId} (recent session detected)`)
     return
   }
   
