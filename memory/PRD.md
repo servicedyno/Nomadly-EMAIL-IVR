@@ -792,3 +792,50 @@ New `/app/js/test-my-number.js` module (~210 LOC, fully self-contained). When ta
   1. See the ⚠️ IVR-incomplete badge as soon as they open `+18882437690`'s Manage screen
   2. Be able to tap `📞 Test My Number` and get a definitive yes/no answer about whether their SIP routing reaches their 3CX correctly — with /sipguide CTA baked into the failure paths.
 
+
+
+## Feb 2026 — SIP Inbound / Outbound Audit (Twilio + Telnyx) — P0
+
+### Scope
+Full code-path audit of SIP flows across both providers as follow-on to the 3CX investigation and the Call Forwarding / IVR fixes. Goal: validate each path end-to-end and close any remaining gaps.
+
+### Audited Flows (all verified)
+
+**Inbound SIP — Telnyx number → user's softphone**
+`handleCallInitiated` (voice-service.js:1906) → `findNumberOwner` → checks (suspended, minute limit w/ wallet overage) → if `hasSip && !hasIvr && !hasForwardAlways`: `createOutboundCall(from, sip:gencred@sip.telnyx.com)` — ring without answer so caller hears real ringback. On answer → `handleBridgeTransferAnswered` → `answerCall(original)` + `bridgeCalls`. On no-answer → `handleBridgeTransferHangup` → answer + voicemail/forward/missed fallback. Self-call guard present via `playHoldMusicAndTransfer`. ✅
+
+**Inbound SIP — Twilio number → user's softphone**
+`/twilio/voice-webhook` (_index.js:29081) → owner lookup → pool-minute check w/ overage → IVR(P0) → forward-always(P1) → `<Dial><Sip>sip:gencred@sip.speechcue.com</Sip></Dial>` with `timeLimit` + `sip-ring-result` action(P2) → no-SIP forwarding busy/no_answer(P3) → voicemail(P4) → missed(P5). Self-call guard on P3 and on IVR gather. ✅
+
+**Outbound SIP — Telnyx number → PSTN**
+`handleOutboundSipCall` (voice-service.js:2144) extracts SIP credential (URI/headers/display_name/reverse lookup/recent-test-cred cache), pre-dial blocklist + rate limits + wallet cooldown + low-balance lock + connection fee + `transferCall(destination, num.phoneNumber)` with retry on "not answered" race. Mid-call wallet monitor every 60s. ✅
+
+**Outbound SIP — Twilio number → PSTN (via Telnyx SIP connection)**
+`handleOutboundSipCall` → answer immediately (prevents Telnyx auto-route) → pre-flight sub-account token recovery → `transferCall(sip:bridgeId@twilioSipDomain, TELNYX_DEFAULT_ANI)` → `/twilio/sip-voice` bridge handler dials PSTN with `<Dial callerId=twilioNumber timeLimit=computed>`. Fallback via `_attemptTwilioDirectCall` when Telnyx leg dies. Mid-call wallet monitor. ✅
+
+### Gaps Found & Fixed
+
+**Bug #1 (P0) — Twilio `/twilio/sip-ring-result` fallback: missing self-call loop guard**
+When the SIP device doesn't answer and user has forward-busy / forward-no_answer configured with `forwardTo === caller` (or the user's own number), Twilio would blindly dial it → loop.
+- **Fix**: Added same self-call guard pattern used in `/twilio/voice-webhook` and IVR gather. Blocks + notifies user via Telegram, falls through to voicemail/missed instead of dialing.
+
+**Bug #2 (P0) — Twilio `/twilio/sip-ring-result` fallback: missing `timeLimit` on forward dial**
+The main `/twilio/voice-webhook` computes `computeDialTimeLimit('forwarding', …)` but the SIP-ring fallback created `dialOpts` without any `timeLimit`. On low-wallet users, call could run up to Twilio's 4-hour default before `voice-status` caught it → runaway billing risk.
+- **Fix**: Added `computeDialTimeLimit('forwarding', { walletBalance, ratePerMinute })` and wired into `dialOpts.timeLimit`. Now matches main webhook behavior.
+
+**Bug #3 (P1) — Twilio SIP fallback: silent wallet-insufficient skip**
+If wallet < RATE, the fallback would silently skip forwarding — user would see voicemail without knowing why forwarding was bypassed.
+- **Fix**: Added Telegram notification when wallet insufficient so user knows forwarding was blocked due to balance, not a bug.
+
+### Files touched
+- `js/_index.js` — `/twilio/sip-ring-result` fallback: self-call guard + `timeLimit` cap + wallet-insufficient notification.
+- `js/tests/test_sip_ring_result_fallback.js` (new, 8 assertions, all green).
+
+### Regression coverage
+All pre-existing SIP tests still green:
+- `test_sip_ux_warnings.js` (10/10) — IVR empty-options warning, PBX/3CX TRUNK section.
+- `test_pool_minute_limit_fix.js` (10/10) — Business plan Infinity, NaN defense in `computeDialTimeLimit`.
+- `test_sip_ring_result_fallback.js` (8/8) — new self-call + timeLimit + wallet-notify checks.
+
+### Deployment status
+- **Local only.** Fixes are in `/app/js/`. Production Railway `Nomadly-EMAIL-IVR` needs redeploy via "Save to Github" → Railway auto-deploy (or manual trigger).
