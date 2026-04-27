@@ -1,0 +1,1315 @@
+[2026-04-27T08:01:12.481468929Z] [info] 🔧 Setting default for MONTHLY_PLAN_FREE_VALIDATIONS: 15000
+[2026-04-27T08:01:12.481477969Z] [info] ✅ All critical environment variables are set
+[2026-04-27T08:01:12.481508710Z] [error] npm warn config production Use `--omit=dev` instead.
+[2026-04-27T08:01:12.481512224Z] [info] 
+[2026-04-27T08:01:12.481516899Z] [info] > tg-bot-link-shorten@1.0.0 start
+[2026-04-27T08:01:12.481521392Z] [info] > node js/start-bot.js
+[2026-04-27T08:01:12.481525909Z] [info] 
+[2026-04-27T08:01:12.481531051Z] [info] 🔧 Loading configuration...
+[2026-04-27T08:01:12.481534901Z] [info] 🌐 Webhook base URL: https://nomadly-email-ivr-production.up.railway.app
+[2026-04-27T08:01:12.481540024Z] [info] 📍 URL Source: SELF_URL_PROD
+[2026-04-27T08:01:12.481543835Z] [info] 📡 Webhook endpoint: https://nomadly-email-ivr-production.up.railway.app/telegram/webhook
+[2026-04-27T08:01:12.481547263Z] [info] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-04-27T08:01:12.481550590Z] [info] 🤖 BOT ENVIRONMENT CONFIGURATION
+[2026-04-27T08:01:12.481556008Z] [info] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-04-27T08:01:12.481559054Z] [info] Environment: PRODUCTION
+[2026-04-27T08:01:12.481562385Z] [info] Token Source: TELEGRAM_BOT_TOKEN_PROD
+[2026-04-27T08:01:12.481565821Z] [info] Token Configured: YES ✅
+[2026-04-27T08:01:12.481568787Z] [info] Detection basis: BOT_ENVIRONMENT=production, NODE_ENV=production
+[2026-04-27T08:01:12.481571907Z] [info] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-04-27T08:01:12.481575001Z] [info] 
+[2026-04-27T08:01:12.481578287Z] [info] 🔧 Setting default for DAILY_PLAN_FREE_VALIDATIONS: 5000
+[2026-04-27T08:01:12.481581471Z] [info] 🔧 Setting default for WEEKLY_PLAN_FREE_VALIDATIONS: 10000
+[2026-04-27T08:01:12.481974808Z] [info] ✅ Configuration setup completed
+[2026-04-27T08:01:12.481978363Z] [info] [WHM-Whitelist] Detected outbound IP: 52.8.168.25
+[2026-04-27T08:01:12.785555456Z] [info] Starting Container
+[2026-04-27T08:01:13.937101751Z] [info] [WHM-Whitelist] cPHulk: 52.8.168.25 whitelisted successfully
+[2026-04-27T08:01:14.547503080Z] [info] [WHM-Whitelist] CSF not installed on server (skipped)
+[2026-04-27T08:01:15.156317343Z] [info] [WHM-Whitelist] Host Access: 52.8.168.25 added
+[2026-04-27T08:01:15.156325377Z] [info] [WHM-Whitelist] Complete — IP: 52.8.168.25, cPHulk: true, CSF: not_installed
+[2026-04-27T08:01:15.156330252Z] [info] Working, Fincra API
+[2026-04-27T08:01:15.156334908Z] [info] Working, Railway API, now starting the bot
+[2026-04-27T08:01:15.494660296Z] [info] [AI Support] OpenAI initialized
+[2026-04-27T08:01:15.508845647Z] [info] TELEGRAM_BOT_ON: true
+[2026-04-27T08:01:15.508853158Z] [info] Bot initialized with webhook support
+[2026-04-27T08:01:15.508856333Z] [info] Bot ran away! Mon Apr 27 2026 08:01:15 GMT+0000 (Coordinated Universal Time)
+[2026-04-27T08:01:15.543078049Z] [info] [Honeypot] Express routes mounted: POST /honeypot/report, GET /honeypot/stats, GET /honeypot/check/:ip
+[2026-04-27T08:01:15.543082908Z] [info] [Express] Panel domain guard active: panel.1.hostbay.io/panel
+[2026-04-27T08:01:15.543087896Z] [info] [Express] Serving React frontend from build directory
+[2026-04-27T08:01:15.543092783Z] [info] ✅ Main application ready! Server already listening on port 8080
+[2026-04-27T08:01:15.543097346Z] [info] 🚀 Early health check server started on port 8080
+[2026-04-27T08:01:15.555902400Z] [info] ✅ MongoDB connection pool ready
+[2026-04-27T08:01:15.577850198Z] [info] DB Connected lala. May peace be with you and Lord's mercy and blessings.
+[2026-04-27T08:01:15.579040666Z] [info] [AutoPromo] Scheduled morning for EN at local 10:00 (UTC 10:00)
+[2026-04-27T08:01:15.579044386Z] [info] [AutoPromo] Scheduled evening for EN at local 19:00 (UTC 19:00)
+[2026-04-27T08:01:15.579047570Z] [info] [AutoPromo] Scheduled morning for FR at local 10:00 (UTC 9:00)
+[2026-04-27T08:01:15.580373470Z] [info] [AutoPromo] Scheduled evening for FR at local 19:00 (UTC 18:00)
+[2026-04-27T08:01:15.580377258Z] [info] [AutoPromo] Scheduled morning for ZH at local 10:00 (UTC 2:00)
+[2026-04-27T08:01:15.580380510Z] [info] [AutoPromo] Scheduled evening for ZH at local 19:00 (UTC 11:00)
+[2026-04-27T08:01:15.581805077Z] [info] [AutoPromo] Scheduled morning for HI at local 10:00 (UTC 4:30)
+[2026-04-27T08:01:15.581811341Z] [info] [AutoPromo] Scheduled evening for HI at local 19:00 (UTC 13:30)
+[2026-04-27T08:01:15.581815053Z] [info] [AutoPromo] Initialized — 8 jobs (4 langs × 2 slots/day), 12 themes: cloudphone, antired_hosting, leads_validation, domains_shortener, digital_products, cards_bundles, email_validation, marketplace, vps_rdp, bulksms_app, email_blast, refer_earn
+[2026-04-27T08:01:15.581818358Z] [info] [AutoPromo] Schedule: 🌅 Morning hero (10am) + 🌙 Evening cross-sell (7pm), 7 days/week
+[2026-04-27T08:01:15.581821887Z] [info] [AutoPromo] Resurrection scan enabled — every 6h, 200 users/batch
+[2026-04-27T08:01:15.581825968Z] [info] [AutoPromo] System loaded successfully
+[2026-04-27T08:01:15.583220858Z] [info] [DailyCoupon] System initialized
+[2026-04-27T08:01:15.583224232Z] [info] [DailyCoupon] System loaded successfully
+[2026-04-27T08:01:15.583227271Z] [info] 08:01:15 [CartRecovery] Initialized — nudge delay: 45min, cooldown: 24h, silent timeout: 20min, languages: en/fr/zh/hi
+[2026-04-27T08:01:15.583230300Z] [info] 08:01:15 [CartRecovery] Tracking 50 payment action states
+[2026-04-27T08:01:15.583233072Z] [info] [CartRecovery] System loaded successfully
+[2026-04-27T08:01:15.583235888Z] [info] 08:01:15 [Conversion] New User Conversion Engine initialized — 5 features active
+[2026-04-27T08:01:15.583238792Z] [info] 08:01:15 [Conversion] First deposit bonus: $5 (min $20), Welcome offer: 25% (2h delay), Social proof: ×3
+[2026-04-27T08:01:15.583241408Z] [info] [Conversion] System loaded successfully
+[2026-04-27T08:01:15.584723314Z] [info] ━━━ Initializing Telnyx Resources ━━━
+[2026-04-27T08:01:15.584727017Z] [info] Voice webhook: https://nomadly-email-ivr-production.up.railway.app/telnyx/voice-webhook
+[2026-04-27T08:01:15.584730825Z] [info] SMS webhook: https://nomadly-email-ivr-production.up.railway.app/telnyx/sms-webhook
+[2026-04-27T08:01:15.610090620Z] [info] [CR-Whitelist] Outbound IP: 52.8.168.25
+[2026-04-27T08:01:15.616034082Z] [info] [DailyCoupon] Coupons already exist for 2026-04-27
+[2026-04-27T08:01:15.917792609Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T08:01:15.917796476Z] [info] [CR-Whitelist] API blocked — IP 52.8.168.25 needs whitelisting
+[2026-04-27T08:01:15.917799943Z] [info] [CR-Whitelist] Running browser automation to whitelist 52.8.168.25...
+[2026-04-27T08:01:15.959704415Z] [info] Updated SIP Connection webhook: 2898118323872990714
+[2026-04-27T08:01:15.982942546Z] [info] 🗑️  Deleted old webhook
+[2026-04-27T08:01:16.128972637Z] [info] ✅ Telegram webhook set successfully
+[2026-04-27T08:01:16.128976321Z] [info] 📡 Webhook URL: https://nomadly-email-ivr-production.up.railway.app/telegram/webhook
+[2026-04-27T08:01:16.512097069Z] [info] 📊 Webhook info: {
+[2026-04-27T08:01:16.512101091Z] [info]   "url": "https://nomadly-email-ivr-production.up.railway.app/telegram/webhook",
+[2026-04-27T08:01:16.512104521Z] [info]   "has_custom_certificate": false,
+[2026-04-27T08:01:16.512107562Z] [info]   "pending_update_count": 0,
+[2026-04-27T08:01:16.512111329Z] [info]   "max_connections": 40,
+[2026-04-27T08:01:16.512115054Z] [info]   "ip_address": "151.101.2.15",
+[2026-04-27T08:01:16.512118574Z] [info]   "allowed_updates": [
+[2026-04-27T08:01:16.512122059Z] [info]     "message",
+[2026-04-27T08:01:16.512125375Z] [info]     "callback_query",
+[2026-04-27T08:01:16.512128410Z] [info] "my_chat_member"
+[2026-04-27T08:01:16.512131939Z] [info]   ]
+[2026-04-27T08:01:16.512136452Z] [info] }
+[2026-04-27T08:01:16.512140125Z] [info] ✅ Webhook verification passed
+[2026-04-27T08:01:16.512143224Z] [info] ✅ Default bot commands registered
+[2026-04-27T08:01:16.535514801Z] [info] Updated Messaging Profile webhook: 40019c71-59a6-497a-8246-49536bd08d87
+[2026-04-27T08:01:16.579031494Z] [info] ✅ Admin bot commands registered for chat 5590563715
+[2026-04-27T08:01:16.853301094Z] [info] [Telnyx] Outbound voice profile 2897375459551478845 whitelist OK (250 countries)
+[2026-04-27T08:01:17.048648293Z] [info] Updated Call Control App webhook: 2898117434361775526
+[2026-04-27T08:01:17.048651248Z] [info] ━━━ Telnyx Resources Ready ━━━
+[2026-04-27T08:01:17.048654171Z] [info] SIP Connection ID: 2898118323872990714
+[2026-04-27T08:01:17.048657424Z] [info] Messaging Profile ID: 40019c71-59a6-497a-8246-49536bd08d87
+[2026-04-27T08:01:17.048660384Z] [info] Call Control App ID: 2898117434361775526
+[2026-04-27T08:01:17.048663908Z] [info] [CloudPhone] Telnyx resources initialized
+[2026-04-27T08:01:17.126330138Z] [info] [Telnyx] Migration complete: 0 migrated, 1 already correct, 5 external skipped, 0 external detached, 6 total
+[2026-04-27T08:01:17.502944548Z] [info] [Telnyx] ANI override updated to +18778570205
+[2026-04-27T08:01:17.502947309Z] [info] [CloudPhone] SIP connection ANI override set to TOLL-FREE number: +18778570205
+[2026-04-27T08:01:17.502951596Z] [info] ━━━ Initializing Twilio Resources ━━━
+[2026-04-27T08:01:17.594980300Z] [info] [Twilio] Connected: Speechcue (active)
+[2026-04-27T08:01:17.840902028Z] [info] [Twilio] Updated SIP domain webhook: speechcue-7937a0.sip.twilio.com
+[2026-04-27T08:01:18.169173754Z] [info] [Twilio] Credential mapping note: CLfe5ba0b48274412e6e953eb58901c9ce already associated with SDdb6525d35a1f09e4d1dfc19a2128ed96
+[2026-04-27T08:01:18.498563486Z] [info] [Twilio] IP ACL mapping note: AL9d507c8e92b81b62c224100679943c8d already associated with SDdb6525d35a1f09e4d1dfc19a2128ed96
+[2026-04-27T08:01:18.498566669Z] [info] [CloudPhone] Twilio initialized — SIP: speechcue-7937a0.sip.twilio.com
+[2026-04-27T08:01:18.498570149Z] [info] [PhoneScheduler] Scheduled: expiry check (hourly), usage tracking (daily 3AM), monthly reset (daily 0:05AM)
+[2026-04-27T08:01:18.498573162Z] [info] [CloudPhone] Scheduler initialized
+[2026-04-27T08:01:18.498576609Z] [info] [HostingScheduler] Initialized — checking every hour
+[2026-04-27T08:01:18.498579535Z] [info] [HostingScheduler] Policy: weekly plans NEVER auto-renew, monthly plans auto-renew if enabled
+[2026-04-27T08:01:18.498582583Z] [info] [HostingScheduler] Scheduled: expiry check (every 60 min)
+[2026-04-27T08:01:18.498585601Z] [info] [HostingScheduler] Initialized
+[2026-04-27T08:01:18.498589331Z] [info] [ProtectionEnforcer] Initialized
+[2026-04-27T08:01:18.498592899Z] [info] [ProtectionEnforcer] Scheduler started — runs every 6h
+[2026-04-27T08:01:18.498596518Z] [info] [ProtectionEnforcer] Initialized and scheduled
+[2026-04-27T08:01:18.498600517Z] [info] [ProtectionHeartbeat] Initialized
+[2026-04-27T08:01:18.498604728Z] [info] [ProtectionHeartbeat] Scheduler started — runs every 60m
+[2026-04-27T08:01:18.498607931Z] [info] [ProtectionHeartbeat] Initialized and scheduled
+[2026-04-27T08:01:18.498611460Z] [info] [VoiceService] Initialized with IVR + Recording + Analytics + Limits + Overage billing + SIP Bridge + Twilio IVR + Loyalty Discounts + Pre-Dial Prevention
+[2026-04-27T08:01:18.498614882Z] [info] [CloudPhone] Voice Service initialized with IVR + Recording + Overage
+[2026-04-27T08:01:18.498618116Z] [info] [PhoneTest] Routes initialized: /phone/test/verify-otp, /phone/test/prepare-call, /phone/test/caller-info
+[2026-04-27T08:01:18.498621476Z] [info] [SmsService] Initialized with real-time limit enforcement + overage billing
+[2026-04-27T08:01:18.499316370Z] [info] [PaymentTimeout] Scheduled every 30min (timeout: 6h)
+[2026-04-27T08:01:18.499326602Z] [info] [CloudPhone] SMS Service limits initialized with overage billing
+[2026-04-27T08:01:18.499330058Z] [info] [CnamService] Initialized — priority: Telnyx → Multitel → SignalWire + MongoDB cache + circuit breaker
+[2026-04-27T08:01:18.499334346Z] [info] [CloudPhone] CNAM Service initialized
+[2026-04-27T08:01:18.499336657Z] [info] [PhoneMonitor] Initialized — checking every 30 minutes
+[2026-04-27T08:01:18.499338049Z] [info] [LeadJobs] Persistence initialized
+[2026-04-27T08:01:18.499341762Z] [info] [AI Support] MongoDB collections initialized
+[2026-04-27T08:01:18.499346844Z] [info] [WelcomeBonus] Initialized — $5 welcome gift for new users
+[2026-04-27T08:01:18.499347346Z] [info] [ShortenerPersistence] Initialized
+[2026-04-27T08:01:18.499351250Z] [info] [Honeypot] MongoDB collection initialized with indexes
+[2026-04-27T08:01:18.499354927Z] [info] [WinBack] Initialized — scans for 7-day inactive users daily at 10:00 UTC, 20% discount, 48h expiry
+[2026-04-27T08:01:18.499356272Z] [info] [SmsApp] Service initialized
+[2026-04-27T08:01:18.499360937Z] [info] [SmsApp] Routes registered
+[2026-04-27T08:01:18.499363069Z] [info] [Monetization] Engine initialized — Upsell + Welcome Bonus + Win-Back + Bundles
+[2026-04-27T08:01:18.499367325Z] [info] [EmailBlast] Service initialized with queue processor
+[2026-04-27T08:01:18.499372393Z] [info] [RegulatoryFlow] Initialized
+[2026-04-27T08:01:18.499372737Z] [info] [EmailValidation] Service initialized
+[2026-04-27T08:01:18.499379009Z] [info] [BalanceMonitor] Initialized — checking every 120min (warn=$10, crit=$5)
+[2026-04-27T08:01:18.499381567Z] [info] [Marketplace] Stale conversation cleanup scheduled (every 6h)
+[2026-04-27T08:01:18.499385953Z] [info] [UserWalletMonitor] Initialized — scanning every 6h (warn=$5, crit=$2, empty=$0)
+[2026-04-27T08:01:18.499388100Z] [info] [StateCleanup] Scheduled every 6h (stale threshold: 24h)
+[2026-04-27T08:01:18.500180220Z] [info] [StaleOrderCleanup] Scheduled every 60min (timeout: 24h)
+[2026-04-27T08:01:18.500183267Z] [info] [AbandonedCart] Scheduled every 30min (reminder delay: 2h)
+[2026-04-27T08:01:18.500185915Z] [info] [BundleChecker] Scheduled every 30min
+[2026-04-27T08:01:18.500188916Z] [info] [FincraReconcile] Payment recovery scheduled every 5min
+[2026-04-27T08:01:18.500191553Z] [info] [SmsApp] Version 2.7.5 already announced — skipping broadcast
+[2026-04-27T08:01:18.500194831Z] [info] [AudioLibrary] Initialized
+[2026-04-27T08:01:18.500198458Z] [info] [BulkCall] Service initialized (Speechcue mode)
+[2026-04-27T08:01:18.500201075Z] [info] [EmailWarming] Initialized with 8-stage schedule
+[2026-04-27T08:01:18.500203956Z] [info] [UserWalletMonitor] Loaded 48 active notification histories from DB (122 total, 74 expired/skipped)
+[2026-04-27T08:01:18.500207651Z] [info] [EmailBlast] Service initialized — queue processor running every 30s
+[2026-04-27T08:01:18.500210187Z] [info] [Marketplace] Initialized
+[2026-04-27T08:01:18.589027462Z] [info] [Honeypot] Found existing KV namespace: 812aca1cbade413d9814bff1708e74db
+[2026-04-27T08:01:18.589032081Z] [info] [Honeypot] KV namespace ready: 812aca1cbade413d9814bff1708e74db
+[2026-04-27T08:01:18.985537482Z] [info] [Twilio] Updated webhooks for number PN7a9e0513d7de9f03801e563bd561367d on sub-account AC98bdf4543e1de798baf8e1119c024bb0
+[2026-04-27T08:01:19.508321191Z] [info] [Twilio] Updated webhooks for number PNca258a8882e24136d6936e63ac1c39a6 on sub-account AC98bdf4543e1de798baf8e1119c024bb0
+[2026-04-27T08:01:19.625253290Z] [info] [Twilio] Updated webhooks for number PN9e2d59c7d2013af0e307e6b0f2603365 on sub-account AC01e40ee6bb868cc84290f122ae8b5d8c
+[2026-04-27T08:01:19.966871618Z] [info] [Twilio] Updated webhooks for number PN6d15c073ecc85d603443d896dc949409 on sub-account AC01e40ee6bb868cc84290f122ae8b5d8c
+[2026-04-27T08:01:20.513741781Z] [info] [Twilio] Updated webhooks for number PNe544131920be8f364e40838f23c41bb7 on sub-account AC23f043f142ce27f5ebada7a6b46d90dc
+[2026-04-27T08:01:20.636215483Z] [info] [Twilio] Updated webhooks for number PNbe17b14cdf8967b539c1a5855e509616 on sub-account ACde9f00ea1b8586dbc9116f3e9dd37f31
+[2026-04-27T08:01:20.636219918Z] [info] [Twilio Sync] Webhook sync complete: 6 updated, 0 failed, 0 credentials recovered
+[2026-04-27T08:01:21.525577223Z] [info] [CF-Sync] Discovery Worker already in sync: https://nomadly-email-ivr-production.up.railway.app
+[2026-04-27T08:01:25.592774669Z] [info] [Broadcast] Recovery: No interrupted broadcasts to resume
+[2026-04-27T08:01:25.592781275Z] [info] 08:01:25 [Conversion] Social proof refreshed: {"hosting":15,"domains":15,"cloudphone":33,"digitalproducts":15,"vps":15,"virtualcard":15,"general":69}
+[2026-04-27T08:01:28.529528910Z] [info] [HostingScheduler] Startup enforcement complete: 0 suspended, 0 deleted (of 1 expired accounts)
+[2026-04-27T08:01:28.529532304Z] [info] [PhoneMonitor] === Health check started ===
+[2026-04-27T08:01:28.529536288Z] [info] [AntiRed] KV namespace for honeypot bans: 812aca1cbade413d9814bff1708e74db
+[2026-04-27T08:01:28.529539756Z] [info] [PhoneMonitor] Checking 6 Twilio subaccounts
+[2026-04-27T08:01:29.170497406Z] [info] [PhoneMonitor] Checking 1 Telnyx numbers
+[2026-04-27T08:01:29.544350832Z] [info] [PhoneMonitor] === Health check complete: 7 checked, 0 newly suspended ===
+[2026-04-27T08:01:29.616728854Z] [info] [AntiRed] Shared worker upgraded: OK (KV: bound)
+[2026-04-27T08:01:29.616735080Z] [info] [AntiRed] Startup worker upgrade: OK (KV: true)
+[2026-04-27T08:01:30.551332161Z] [info] [CpanelMigration] All accounts already point to current WHM_HOST (209.38.241.9). No migration needed.
+[2026-04-27T08:01:33.550633325Z] [info] [BulkCall] Recovery: No running campaigns to recover
+[2026-04-27T08:01:33.983823436Z] [info] [CR-Whitelist] Browser result: Login failed - landed on https://global.connectreseller.com/login?returnUrl=%2Fadmin%2Fdashboard
+[2026-04-27T08:01:33.983826856Z] [info] [CR-Whitelist] Browser automation failed: Login failed - landed on https://global.connectreseller.com/login?returnUrl=%2Fadmin%2Fdashboard
+[2026-04-27T08:01:33.983830035Z] [info] [CR-Whitelist] Retry #1 scheduled in 30s
+[2026-04-27T08:01:33.983834181Z] [info] [CR-Whitelist] Startup check: IP 52.8.168.25 needs whitelisting — auto-retrying
+[2026-04-27T08:01:53.978061442Z] [info] 08:01:45 [CartRecovery] No pending nudges to recover
+[2026-04-27T08:01:53.978064828Z] [info] [ProtectionEnforcer] ═══ Starting enforcement run ═══
+[2026-04-27T08:01:53.978067680Z] [info] [HostingScheduler] Weekly plan expired: entsecurity.xyz (Premium Anti-Red (1-Week)) for 6543817440 — no auto-renew (weekly plans never auto-renew)
+[2026-04-27T08:01:53.978070809Z] [info] [BalanceMonitor] Running provider balance checks...
+[2026-04-27T08:01:53.978073955Z] [info] [ProtectionEnforcer] registeredDomains: 38 entries
+[2026-04-27T08:01:53.978077017Z] [info] [ProtectionEnforcer] domainsOf: 11 unique custom domains
+[2026-04-27T08:01:53.978081000Z] [info] [ProtectionEnforcer] cpanelAccounts: 9 accounts
+[2026-04-27T08:01:53.978083841Z] [info] [ProtectionEnforcer] Total unique domains: 49
+[2026-04-27T08:01:53.978086982Z] [info] [BalanceMonitor] Telnyx: $12.58 USD [ok]
+[2026-04-27T08:01:53.978089993Z] [info] [BalanceMonitor] Twilio: $7.38 USD [warning]
+[2026-04-27T08:01:53.978092808Z] [info] [BalanceMonitor] WARNING alert sent for Twilio ($7.38)
+[2026-04-27T08:02:00.520084442Z] [info] [ProtectionEnforcer] ═══ Enforcement complete in 12.1s ═══
+[2026-04-27T08:02:00.520088208Z] [info] [ProtectionEnforcer] Total: 49 | Protected: 41 | Fixed: 0 | No Zone: 8 | Errors: 0 | DNS Cached: 29 | Zone Skipped: 0
+[2026-04-27T08:02:04.098105193Z] [info] [CR-Whitelist] Outbound IP: 52.8.168.25
+[2026-04-27T08:02:04.230105966Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T08:02:04.230109132Z] [info] [CR-Whitelist] API blocked — IP 52.8.168.25 needs whitelisting
+[2026-04-27T08:02:04.230112294Z] [info] [CR-Whitelist] Retry #2 scheduled in 30s
+[2026-04-27T08:02:34.404139610Z] [info] [CR-Whitelist] Outbound IP: 52.8.168.25
+[2026-04-27T08:02:34.592061915Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T08:02:34.592072897Z] [info] [CR-Whitelist] API blocked — IP 52.8.168.25 needs whitelisting
+[2026-04-27T08:02:34.592078768Z] [info] [CR-Whitelist] Retry #3 scheduled in 30s
+[2026-04-27T08:03:14.444670989Z] [info] [CR-Whitelist] Outbound IP: 52.8.168.25
+[2026-04-27T08:03:14.444674754Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T08:03:14.444678624Z] [info] [CR-Whitelist] API blocked — IP 52.8.168.25 needs whitelisting
+[2026-04-27T08:03:14.444681987Z] [info] [CR-Whitelist] Retry #4 scheduled in 30s
+[2026-04-27T08:03:18.435074118Z] [info] [ProtectionHeartbeat] Checking 9 cPanel accounts...
+[2026-04-27T08:03:18.435079524Z] [info] [UserWalletMonitor] Running periodic wallet scan (all users)...
+[2026-04-27T08:03:18.435879339Z] [info] [UserWalletMonitor] Scan complete: 154 wallets checked, 0 low-balance warnings sent, 115 welcome-only users skipped
+[2026-04-27T08:03:38.285345054Z] [info] [ProtectionHeartbeat] Done in 12.5s — total:9 ok:9 repaired:0 errors:0
+[2026-04-27T08:03:38.285348495Z] [info] [CR-Whitelist] Outbound IP: 52.8.168.25
+[2026-04-27T08:03:38.285354143Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T08:03:38.285357175Z] [info] [CR-Whitelist] API blocked — IP 52.8.168.25 needs whitelisting
+[2026-04-27T08:03:38.285360163Z] [info] [CR-Whitelist] Retry #5 scheduled in 30s
+[2026-04-27T08:04:08.275072527Z] [info] [CR-Whitelist] Outbound IP: 52.8.168.25
+[2026-04-27T08:04:08.275078124Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T08:04:08.275081445Z] [info] [CR-Whitelist] API blocked — IP 52.8.168.25 needs whitelisting
+[2026-04-27T08:04:08.275084796Z] [info] [CR-Whitelist] Retry #6 scheduled in 30s
+[2026-04-27T08:04:38.175107974Z] [info] [CR-Whitelist] Outbound IP: 52.8.168.25
+[2026-04-27T08:04:38.175112506Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T08:04:38.175116797Z] [info] [CR-Whitelist] API blocked — IP 52.8.168.25 needs whitelisting
+[2026-04-27T08:04:38.175120407Z] [info] [CR-Whitelist] Retry #7 scheduled in 30s
+[2026-04-27T08:05:08.162767428Z] [info] [CR-Whitelist] Outbound IP: 52.8.168.25
+[2026-04-27T08:05:08.162775014Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T08:05:08.162778636Z] [info] [CR-Whitelist] API blocked — IP 52.8.168.25 needs whitelisting
+[2026-04-27T08:05:08.162782009Z] [info] [CR-Whitelist] Retry #8 scheduled in 30s
+[2026-04-27T08:05:38.422376351Z] [info] [CR-Whitelist] Outbound IP: 52.8.168.25
+[2026-04-27T08:05:38.422383049Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T08:05:38.422388246Z] [info] [CR-Whitelist] API blocked — IP 52.8.168.25 needs whitelisting
+[2026-04-27T08:05:38.422392543Z] [info] [CR-Whitelist] Retry #9 scheduled in 30s
+[2026-04-27T08:06:08.249351036Z] [info] [CR-Whitelist] Outbound IP: 52.8.168.25
+[2026-04-27T08:06:08.249356433Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T08:06:08.249359610Z] [info] [CR-Whitelist] API blocked — IP 52.8.168.25 needs whitelisting
+[2026-04-27T08:06:08.249362953Z] [info] [CR-Whitelist] Retry #10 scheduled in 30s
+[2026-04-27T08:06:15.853202711Z] [info] [ResurrectionScan] No candidates to test
+[2026-04-27T08:06:45.839683618Z] [info] [CR-Whitelist] Outbound IP: 52.8.168.25
+[2026-04-27T08:06:45.839687111Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T08:06:45.839689933Z] [info] [CR-Whitelist] API blocked — IP 52.8.168.25 needs whitelisting
+[2026-04-27T08:06:45.839692645Z] [info] [CR-Whitelist] Retry #11 scheduled in 300s
+[2026-04-27T08:11:39.262755760Z] [info] [CR-Whitelist] Outbound IP: 52.8.168.25
+[2026-04-27T08:11:39.262758515Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T08:11:39.262761327Z] [info] [CR-Whitelist] API blocked — IP 52.8.168.25 needs whitelisting
+[2026-04-27T08:11:39.262764070Z] [info] [CR-Whitelist] Retry #12 scheduled in 300s
+[2026-04-27T08:16:41.741000703Z] [info] [CR-Whitelist] Outbound IP: 52.8.168.25
+[2026-04-27T08:16:41.741003309Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T08:16:41.741006188Z] [info] [CR-Whitelist] API blocked — IP 52.8.168.25 needs whitelisting
+[2026-04-27T08:16:41.741009423Z] [info] [CR-Whitelist] Retry #13 scheduled in 300s
+[2026-04-27T08:21:44.380701062Z] [info] [CR-Whitelist] Outbound IP: 52.8.168.25
+[2026-04-27T08:21:44.380705109Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T08:21:44.380709517Z] [info] [CR-Whitelist] API blocked — IP 52.8.168.25 needs whitelisting
+[2026-04-27T08:21:44.380714280Z] [info] [CR-Whitelist] Retry #14 scheduled in 300s
+[2026-04-27T08:26:46.168526971Z] [info] [CR-Whitelist] Outbound IP: 52.8.168.25
+[2026-04-27T08:26:46.168531572Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T08:26:46.168537044Z] [info] [CR-Whitelist] API blocked — IP 52.8.168.25 needs whitelisting
+[2026-04-27T08:26:46.168541425Z] [info] [CR-Whitelist] Retry #15 scheduled in 300s
+[2026-04-27T08:29:27.303697743Z] [info] 📨 Telegram webhook received
+[2026-04-27T08:29:27.303701157Z] [info] [AutoPromo] User 1918539130 opted out via button
+[2026-04-27T08:29:30.395244010Z] [info] 📨 Telegram webhook received
+[2026-04-27T08:29:30.418114201Z] [info] message: /start	from: 1918539130 Elzainxx
+[2026-04-27T08:29:30.457814104Z] [info] [Resurrect] User 1918539130 was marked dead (button_click) but just sent a message — un-deaded
+[2026-04-27T08:29:30.531432432Z] [info] reply: Hey, <b>Zaino</b>
+[2026-04-27T08:29:30.531442098Z] [info] 
+[2026-04-27T08:29:30.531451312Z] [info] 🥉 Bronze  <b>$5.00</b>
+[2026-04-27T08:29:30.531458747Z] [info] <i>Start spending to unlock discounts</i>
+[2026-04-27T08:29:30.531468421Z] [info] 📞 <i>You have a free trial Quick IVR Call! Tap Cloud IVR to try it.</i>
+[2026-04-27T08:29:30.531473993Z] [info] 
+[2026-04-27T08:29:30.531477714Z] [info] 🧪 <i>Try SIP calling free — send /testsip</i>
+[2026-04-27T08:29:30.531480974Z] [info] 
+[2026-04-27T08:29:30.531484319Z] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 1918539130
+[2026-04-27T08:29:30.531487906Z] [info] 
+[2026-04-27T08:29:30.719648797Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T08:29:30.764318847Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T08:29:30.784109511Z] [info] [CR-Whitelist] Outbound IP: 52.8.168.25
+[2026-04-27T08:29:30.859657131Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T08:29:30.859660510Z] [info] [CR-Whitelist] API blocked — IP 52.8.168.25 needs whitelisting
+[2026-04-27T08:29:35.576326789Z] [info] 📨 Telegram webhook received
+[2026-04-27T08:29:35.576329957Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T08:29:35.576338415Z] [info] message: 📧 Email Validation	from: 1918539130 Elzainxx
+[2026-04-27T08:29:35.576347537Z] [info] • 1 – 1,000 emails: <b>$0.005</b>/email
+[2026-04-27T08:29:35.576348494Z] [info] 💰 <b>Pricing:</b>
+[2026-04-27T08:29:35.576353214Z] [info] • 1,001 – 10,000 emails: <b>$0.004</b>/email
+[2026-04-27T08:29:35.576357499Z] [info] reply: 📧 <b>Email Validation</b>
+[2026-04-27T08:29:35.576360421Z] [info] • 10,001 – 50,000 emails: <b>$0.003</b>/email
+[2026-04-27T08:29:35.576365569Z] [info] 🎁 <b>Free trial:</b> Validate up to <b>50</b> emails free!
+[2026-04-27T08:29:35.576366991Z] [info] 
+[2026-04-27T08:29:35.576370576Z] [info] • 50,001 – 100,000 emails: <b>$0.002</b>/email
+[2026-04-27T08:29:35.576374846Z] [info] 
+[2026-04-27T08:29:35.576381213Z] [info] 
+[2026-04-27T08:29:35.576384082Z] [info] 
+[2026-04-27T08:29:35.576386976Z] [info] 
+[2026-04-27T08:29:35.576387425Z] [info] 📋 Min: 10 | Max: 120,000 emails 📤 Upload List (CSV/TXT),📋 Paste Emails,📜 My Validations,Back	to: 1918539130
+[2026-04-27T08:29:35.576387489Z] [info] ✅ Private domain emails (company/business)
+[2026-04-27T08:29:35.576393130Z] [info] ✅ Gmail, Hotmail, MSN, Outlook & all major providers
+[2026-04-27T08:29:35.576398519Z] [info] ✅ ProtonMail, Zoho, iCloud
+[2026-04-27T08:29:35.576404956Z] [info] 97%+ accuracy · 7-layer deep check
+[2026-04-27T08:29:43.702377134Z] [info] 
+[2026-04-27T08:29:43.702387791Z] [info] 🥉 Bronze  <b>$5.00</b>
+[2026-04-27T08:29:43.702394192Z] [info] <i>Start spending to unlock discounts</i>
+[2026-04-27T08:29:43.702399412Z] [info] 📞 <i>You have a free trial Quick IVR Call! Tap Cloud IVR to try it.</i>
+[2026-04-27T08:29:43.702402805Z] [info] 
+[2026-04-27T08:29:43.702406796Z] [info] 🧪 <i>Try SIP calling free — send /testsip</i>
+[2026-04-27T08:29:43.702410306Z] [info] 
+[2026-04-27T08:29:43.702413620Z] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 1918539130
+[2026-04-27T08:29:43.702417357Z] [info] 
+[2026-04-27T08:29:43.702427897Z] [info] 📨 Telegram webhook received
+[2026-04-27T08:29:43.702431397Z] [info] message: Back	from: 1918539130 Elzainxx
+[2026-04-27T08:29:43.702434434Z] [info] reply: Hey, <b>Zaino</b>
+[2026-04-27T08:29:43.714414423Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T08:29:47.037565032Z] [info] 📨 Telegram webhook received
+[2026-04-27T08:29:47.037569785Z] [info] message: 💳 Virtual Card	from: 1918539130 Elzainxx
+[2026-04-27T08:29:47.115371214Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T08:29:53.382543490Z] [info] 📨 Telegram webhook received
+[2026-04-27T08:29:53.382549155Z] [info] message: Back	from: 1918539130 Elzainxx
+[2026-04-27T08:29:53.493594428Z] [info] reply: Hey, <b>Zaino</b>
+[2026-04-27T08:29:53.493597511Z] [info] 
+[2026-04-27T08:29:53.493600576Z] [info] 🥉 Bronze  <b>$5.00</b>
+[2026-04-27T08:29:53.493603620Z] [info] <i>Start spending to unlock discounts</i>
+[2026-04-27T08:29:53.493607244Z] [info] 📞 <i>You have a free trial Quick IVR Call! Tap Cloud IVR to try it.</i>
+[2026-04-27T08:29:53.493610199Z] [info] 
+[2026-04-27T08:29:53.493612990Z] [info] 🧪 <i>Try SIP calling free — send /testsip</i>
+[2026-04-27T08:29:53.493615805Z] [info] 
+[2026-04-27T08:29:53.493618567Z] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 1918539130
+[2026-04-27T08:29:53.493621289Z] [info] 
+[2026-04-27T08:29:53.574756237Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T08:29:55.658388106Z] [info] 📨 Telegram webhook received
+[2026-04-27T08:29:55.658394375Z] [info] message: 🛒 Digital Products	from: 1918539130 Elzainxx
+[2026-04-27T08:29:55.934742015Z] [info] reply: 🛒 <b>Digital Products</b>
+[2026-04-27T08:29:55.934746114Z] [info] 
+[2026-04-27T08:29:55.934750004Z] [info] Verified accounts delivered instantly.
+[2026-04-27T08:29:55.934754464Z] [info] 
+[2026-04-27T08:29:55.934759508Z] [info] <b>Telecom:</b> Twilio · Telnyx (SMS, Voice, SIP)
+[2026-04-27T08:29:55.934763256Z] [info] <b>Cloud:</b> AWS · Google Cloud
+[2026-04-27T08:29:55.934767611Z] [info] <b>Email:</b> Google Workspace · Zoho · IONOS SMTP
+[2026-04-27T08:29:55.934771304Z] [info] <b>Mobile:</b> eSIM T-Mobile
+[2026-04-27T08:29:55.934775041Z] [info] 
+[2026-04-27T08:29:55.934778684Z] [info] Select below:
+[2026-04-27T08:29:55.934782445Z] [info] 
+[2026-04-27T08:29:55.934786830Z] [info] 📦 15 digital products sold this week 📞 Twilio Main Account — $450,📞 Twilio Sub-Account — $200,📡 Telnyx Main Account — $400,📡 Telnyx Sub-Account — $150,☁️ AWS Main Account — $350,☁️ AWS Sub-Account — $150,🌐 Google Cloud Main — $300,🌐 Google Cloud Sub — $150,📧 Google Workspace Admin (New Domain) — $150,📧 Google Workspace Admin (Aged Domain) — $250,📧 Zoho Mail (New Domain) — $100,📧 Zoho Mail (Aged Domain) — $150,📱 eSIM T-Mobile — $60,📱 eSIM Airvoice (AT&T) — from $70,📧 IONOS SMTP — $150,Back,🏠 Main Menu,Back,Cancel	to: 1918539130
+[2026-04-27T08:29:55.934790701Z] [info] 
+[2026-04-27T08:29:55.934794230Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T08:31:26.185704759Z] [info] [PhoneMonitor] === Health check started ===
+[2026-04-27T08:31:26.185709119Z] [info] [PhoneMonitor] Checking 6 Twilio subaccounts
+[2026-04-27T08:31:26.185713672Z] [info] [PhoneMonitor] Checking 1 Telnyx numbers
+[2026-04-27T08:31:26.185717891Z] [info] [PhoneMonitor] === Health check complete: 7 checked, 0 newly suspended ===
+[2026-04-27T08:31:45.994712731Z] [info] [CR-Whitelist] Outbound IP: 52.8.168.25
+[2026-04-27T08:31:45.994717287Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T08:31:45.994723785Z] [info] [CR-Whitelist] API blocked — IP 52.8.168.25 needs whitelisting
+[2026-04-27T08:31:45.994728501Z] [info] [CR-Whitelist] Retry #16 scheduled in 300s
+[2026-04-27T08:36:48.364255928Z] [info] [CR-Whitelist] Outbound IP: 52.8.168.25
+[2026-04-27T08:36:48.364259748Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T08:36:48.364263491Z] [info] [CR-Whitelist] API blocked — IP 52.8.168.25 needs whitelisting
+[2026-04-27T08:36:48.364267111Z] [info] [CR-Whitelist] Retry #17 scheduled in 300s
+[2026-04-27T08:37:18.633707916Z] [info] 08:37:15 [Conversion] Processed 1 scheduled event(s)
+[2026-04-27T08:41:40.097616443Z] [info] [CR-Whitelist] Outbound IP: 52.8.168.25
+[2026-04-27T08:41:40.097623404Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T08:41:40.097634275Z] [info] [CR-Whitelist] Retry #18 scheduled in 300s
+[2026-04-27T08:41:40.097641969Z] [info] [CR-Whitelist] API blocked — IP 52.8.168.25 needs whitelisting
+[2026-04-27T08:46:42.422447879Z] [info] [CR-Whitelist] Outbound IP: 52.8.168.25
+[2026-04-27T08:46:42.422454580Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T08:46:42.422458740Z] [info] [CR-Whitelist] API blocked — IP 52.8.168.25 needs whitelisting
+[2026-04-27T08:46:42.422462747Z] [info] [CR-Whitelist] Retry #19 scheduled in 300s
+[2026-04-27T08:51:45.711471777Z] [info] [CR-Whitelist] Outbound IP: 52.8.168.25
+[2026-04-27T08:51:45.711474434Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T08:51:45.711477060Z] [info] [CR-Whitelist] API blocked — IP 52.8.168.25 needs whitelisting
+[2026-04-27T08:51:45.711479745Z] [info] [CR-Whitelist] Retry #20 scheduled in 300s
+[2026-04-27T08:56:48.354319947Z] [info] [CR-Whitelist] Outbound IP: 52.8.168.25
+[2026-04-27T08:56:48.354323815Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T08:56:48.354327394Z] [info] [CR-Whitelist] API blocked — IP 52.8.168.25 needs whitelisting
+[2026-04-27T08:56:48.354330530Z] [info] [CR-Whitelist] Retry #21 scheduled in 300s
+[2026-04-27T09:00:08.977737079Z] [info] [PhoneScheduler] Running hourly expiry check...
+[2026-04-27T09:00:08.977746798Z] [info] [AutoPromo] Triggered cloudphone 🌅morning for fr (local 10:00)
+[2026-04-27T09:00:08.977753298Z] [info] [PhoneScheduler] Expiry check complete: 0 reminders, 0 auto-renewed, 0 released
+[2026-04-27T09:00:08.977759839Z] [info] [AutoPromo] Targeting 5 active fr users (0 dead, 0 inactive skipped)
+[2026-04-27T09:00:08.977765241Z] [info] [AutoPromo] AI cloudphone/fr (423 chars)
+[2026-04-27T09:00:08.977770198Z] [info] [AutoPromo] Broadcasting cloudphone 🌅morning (AI) to 5 fr users (0 permanently dead pre-filtered)
+[2026-04-27T09:00:11.697784662Z] [info] [AutoPromo] Unreachable 1873399997: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)
+[2026-04-27T09:01:22.121847623Z] [info] 09:01:15 [Conversion] Social proof refreshed: {"hosting":15,"domains":15,"cloudphone":33,"digitalproducts":15,"vps":15,"virtualcard":15,"general":69}
+[2026-04-27T09:01:22.121850641Z] [info] [HostingScheduler] Weekly plan expired: entsecurity.xyz (Premium Anti-Red (1-Week)) for 6543817440 — no auto-renew (weekly plans never auto-renew)
+[2026-04-27T09:01:22.121854525Z] [info] [ProtectionHeartbeat] Checking 9 cPanel accounts...
+[2026-04-27T09:01:22.121857177Z] [info] [PhoneMonitor] === Health check started ===
+[2026-04-27T09:01:22.121859828Z] [info] [PhoneMonitor] Checking 6 Twilio subaccounts
+[2026-04-27T09:01:22.121863047Z] [info] [PhoneMonitor] Checking 1 Telnyx numbers
+[2026-04-27T09:01:22.121866118Z] [info] [PhoneMonitor] === Health check complete: 7 checked, 0 newly suspended ===
+[2026-04-27T09:01:23.265002524Z] [info] [AutoPromo] Done: {"theme":"cloudphone","lang":"fr","slot":"morning","variation":"ai","usedAI":true,"total":5,"success":4,"errors":1,"skipped":0,"timestamp":"2026-04-27T09:01:23.232Z"}
+[2026-04-27T09:01:31.201905510Z] [info] [ProtectionHeartbeat] Done in 12.6s — total:9 ok:9 repaired:0 errors:0
+[2026-04-27T09:01:51.026277259Z] [info] [CR-Whitelist] Outbound IP: 52.8.168.25
+[2026-04-27T09:01:51.026281035Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T09:01:51.026288321Z] [info] [CR-Whitelist] API blocked — IP 52.8.168.25 needs whitelisting
+[2026-04-27T09:01:51.026294927Z] [info] [CR-Whitelist] Retry #22 scheduled in 300s
+[2026-04-27T09:02:11.048874497Z] [info] 📨 Telegram webhook received
+[2026-04-27T09:02:11.048879959Z] [info] message: suspend the plan	from: 6277663071 user_uu0
+[2026-04-27T09:02:11.048884836Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T09:02:11.048890230Z] [info] reply: 💬 <b>@user_uu0</b> (6277663071):
+[2026-04-27T09:02:11.048895313Z] [info] suspend the plan
+[2026-04-27T09:02:11.048899698Z] [info] 
+[2026-04-27T09:02:11.048903765Z] [info] 🔒 <i>Admin takeover active — AI silenced</i>
+[2026-04-27T09:02:11.048907712Z] [info] 
+[2026-04-27T09:02:11.048912173Z] [info] 💬 User's bot language: EN
+[2026-04-27T09:02:11.048915858Z] [info] 📝 Detected message language: EN
+[2026-04-27T09:02:11.048919804Z] [info] 
+[2026-04-27T09:02:11.048924654Z] [info] ↩️ /reply 6277663071 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-04-27T09:02:11.048928293Z] [info] 
+[2026-04-27T09:02:11.048932174Z] [info] [Support] 6277663071 -> admin: suspend the plan (botLang: en, msgLang: en, translated: false, adminTakeover: true, sessionOpen: false)
+[2026-04-27T09:02:11.048935671Z] [info] reply: ✉️ Message received! A support agent will respond shortly. /done	to: 6277663071
+[2026-04-27T09:02:11.048939121Z] [info] 
+[2026-04-27T09:06:43.970206545Z] [info] [CR-Whitelist] Outbound IP: 52.8.168.25
+[2026-04-27T09:06:43.970209344Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T09:06:43.970212009Z] [info] [CR-Whitelist] API blocked — IP 52.8.168.25 needs whitelisting
+[2026-04-27T09:06:43.970214540Z] [info] [CR-Whitelist] Retry #23 scheduled in 1800s
+[2026-04-27T09:09:45.178218852Z] [info] reply: ✅ Reply sent to user_uu0 (no translation needed) 	to: 5590563715
+[2026-04-27T09:09:45.178229894Z] [info] 📨 Telegram webhook received
+[2026-04-27T09:09:45.178230560Z] [info] 
+[2026-04-27T09:09:45.178234474Z] [info] message: /reply 6277663071 you can do it yourself from the hosting panel or bot.	from: 5590563715 onarrival1
+[2026-04-27T09:09:45.178238414Z] [info] [Support] Admin replied to 6277663071: you can do it yourself from the hosting panel or bot. (targetLang: en, translated: false) — session re-opened, admin takeover ON
+[2026-04-27T09:09:45.178239826Z] [info] reply: 💬 <b>Support:</b>
+[2026-04-27T09:09:45.178244617Z] [info] you can do it yourself from the hosting panel or bot. /done	to: 6277663071
+[2026-04-27T09:09:45.178249120Z] [info] 
+[2026-04-27T09:11:16.002487776Z] [info] 📨 Telegram webhook received
+[2026-04-27T09:11:16.002496607Z] [info] message: then cancel it, i just want the domain unlinked from it	from: 6277663071 user_uu0
+[2026-04-27T09:11:16.002503365Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T09:11:16.002508562Z] [info] reply: 💬 <b>@user_uu0</b> (6277663071):
+[2026-04-27T09:11:16.002513185Z] [info] then cancel it, i just want the domain unlinked from it
+[2026-04-27T09:11:16.002519022Z] [info] 
+[2026-04-27T09:11:16.002525388Z] [info] 🔒 <i>Admin takeover active — AI silenced</i>
+[2026-04-27T09:11:16.002530020Z] [info] 
+[2026-04-27T09:11:16.002534434Z] [info] 💬 User's bot language: EN
+[2026-04-27T09:11:16.002539848Z] [info] 📝 Detected message language: EN
+[2026-04-27T09:11:16.002544736Z] [info] 
+[2026-04-27T09:11:16.002549265Z] [info] ↩️ /reply 6277663071 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-04-27T09:11:16.002553893Z] [info] 
+[2026-04-27T09:11:16.002558580Z] [info] [Support] 6277663071 -> admin: then cancel it, i just want the domain unlinked from it (botLang: en, msgLang: en, translated: false, adminTakeover: true, sessionOpen: true)
+[2026-04-27T09:11:16.002566572Z] [info] reply: ✉️ Message received! A support agent will respond shortly. /done	to: 6277663071
+[2026-04-27T09:11:16.002571025Z] [info] 
+[2026-04-27T09:25:03.238621854Z] [info] 📨 Telegram webhook received
+[2026-04-27T09:25:03.238624765Z] [info] message: /reply 6277663071 Main domain cannot be unlinked. Only the add-on can be unlinked.  If you want to use your domain elsewhere or unlink it, just change the nameservers. You can also go to the domain setting from the bot, select the domain, and switch to the provider default. It will stop working for the hosting plan.	from: 5590563715 onarrival1
+[2026-04-27T09:25:03.238627725Z] [info] reply: 💬 <b>Support:</b>
+[2026-04-27T09:25:03.238630640Z] [info] Main domain cannot be unlinked. Only the add-on can be unlinked.  If you want to use your domain elsewhere or unlink it, just change the nameservers. You can also go to the domain setting from the bot, select the domain, and switch to the provider default. It will stop working for the hosting plan. /done	to: 6277663071
+[2026-04-27T09:25:03.238634055Z] [info] 
+[2026-04-27T09:25:03.238637490Z] [info] reply: ✅ Reply sent to user_uu0 (no translation needed) 	to: 5590563715
+[2026-04-27T09:25:03.238641065Z] [info] 
+[2026-04-27T09:25:03.238643998Z] [info] [Support] Admin replied to 6277663071: Main domain cannot be unlinked. Only the add-on can be unlinked.  If you want to use your domain elsewhere or unlink it, just change the nameservers. You can also go to the domain setting from the bot, select the domain, and switch to the provider default. It will stop working for the hosting plan. (targetLang: en, translated: false) — session re-opened, admin takeover ON
+[2026-04-27T09:25:53.438463229Z] [info] 📨 Telegram webhook received
+[2026-04-27T09:25:53.438467418Z] [info] message: /start	from: 6277663071 user_uu0
+[2026-04-27T09:25:53.438471135Z] [info] reply: Hey, <b>uu</b>
+[2026-04-27T09:25:53.438483092Z] [info] 
+[2026-04-27T09:25:53.438486778Z] [info] 🥉 Bronze  <b>$0.01</b>
+[2026-04-27T09:25:53.438489950Z] [info] <i>Start spending to unlock discounts</i>
+[2026-04-27T09:25:53.438494433Z] [info] 📞 <i>You have a free trial Quick IVR Call! Tap Cloud IVR to try it.</i>
+[2026-04-27T09:25:53.438498357Z] [info] 
+[2026-04-27T09:25:53.438501679Z] [info] 🧪 <i>Try SIP calling free — send /testsip</i>
+[2026-04-27T09:25:53.438505084Z] [info] 
+[2026-04-27T09:25:53.438508673Z] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 6277663071
+[2026-04-27T09:25:53.438513040Z] [info] 
+[2026-04-27T09:25:53.438516622Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T09:26:02.622117371Z] [info] 📨 Telegram webhook received
+[2026-04-27T09:26:02.622120890Z] [info] message: 🛡️🔥 Anti-Red Hosting	from: 6277663071 user_uu0
+[2026-04-27T09:26:02.622123639Z] [info] reply: Please select a plan:
+[2026-04-27T09:26:02.622126579Z] [info] 
+[2026-04-27T09:26:02.622129777Z] [info] 🔥 15 users bought hosting this week ⚡ Premium Anti-Red (1-Week),🔷 Premium Anti-Red HostPanel (30 Days),👑 Golden Anti-Red HostPanel (30 Days),📋 My Hosting Plans,📞 Contact Support,Back,Cancel	to: 6277663071
+[2026-04-27T09:26:02.622137254Z] [info] 
+[2026-04-27T09:26:02.629315226Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T09:26:04.870277341Z] [info] 📨 Telegram webhook received
+[2026-04-27T09:26:04.870287326Z] [info] message: 📋 My Hosting Plans	from: 6277663071 user_uu0
+[2026-04-27T09:26:04.928147765Z] [info] reply: 📋 <b>My Hosting Plans</b>
+[2026-04-27T09:26:04.928155112Z] [info] 
+[2026-04-27T09:26:04.928159284Z] [info] <b>claim-interdeposit.com</b> (Premium Anti-Red (1-Week))
+[2026-04-27T09:26:04.928163472Z] [info]    ✅ Active  · Expires: May 3, 2026
+[2026-04-27T09:26:04.928167730Z] [info] 
+[2026-04-27T09:26:04.928171504Z] [info]  🔍 claim-interdeposit.com,⬅️ Back	to: 6277663071
+[2026-04-27T09:26:04.928175012Z] [info] 
+[2026-04-27T09:26:04.941195430Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T09:26:07.473107472Z] [info] 📨 Telegram webhook received
+[2026-04-27T09:26:07.473117475Z] [info] message: 🔍 claim-interdeposit.com	from: 6277663071 user_uu0
+[2026-04-27T09:26:07.506840218Z] [info] reply: 🌐 <b>claim-interdeposit.com</b>
+[2026-04-27T09:26:07.506846966Z] [info] 
+[2026-04-27T09:26:07.506851005Z] [info] <b>Plan:</b> Premium Anti-Red (1-Week)
+[2026-04-27T09:26:07.506854229Z] [info] <b>Status:</b> ✅ Active (online)
+[2026-04-27T09:26:07.506857917Z] [info] <b>Domain Type:</b> 🏷️ Registered with us
+[2026-04-27T09:26:07.506863238Z] [info] <b>Created:</b> Apr 26, 2026
+[2026-04-27T09:26:07.506866791Z] [info] <b>Expires:</b> May 3, 2026
+[2026-04-27T09:26:07.506871382Z] [info] <b>Auto-Renew:</b> ❌ OFF (weekly plans never auto-renew)
+[2026-04-27T09:26:07.506874661Z] [info] <b>Username:</b> <code>claief8e</code>
+[2026-04-27T09:26:07.506878368Z] [info] 
+[2026-04-27T09:26:07.506881717Z] [info] Tap "Show Credentials" to reveal your HostPanel username and PIN. 🔑 Show Credentials,🔄 Renew Now,⬆️ Upgrade Plan,🔌 Take Site Offline,🚫 Cancel Hosting Plan,⬅️ Back to My Plans	to: 6277663071
+[2026-04-27T09:26:07.506885255Z] [info] 
+[2026-04-27T09:26:07.513545147Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T09:26:37.251816006Z] [info] This cannot be undone and <b>no refund will be issued</b>.
+[2026-04-27T09:26:37.251824194Z] [info] 
+[2026-04-27T09:26:37.251827803Z] [info] The domain itself stays registered to you. Only the hosting is cancelled.
+[2026-04-27T09:26:37.251830991Z] [info] 
+[2026-04-27T09:26:37.251834211Z] [info] Are you sure? 🗑️ Yes, cancel plan,⬅️ No, go back,Back,Cancel	to: 6277663071
+[2026-04-27T09:26:37.251837748Z] [info] 
+[2026-04-27T09:26:37.251841749Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T09:26:37.251859057Z] [info] 📨 Telegram webhook received
+[2026-04-27T09:26:37.251863954Z] [info] message: 🚫 Cancel Hosting Plan	from: 6277663071 user_uu0
+[2026-04-27T09:26:37.251869146Z] [info] reply: ⚠️ <b>Confirm Cancel Hosting Plan</b>
+[2026-04-27T09:26:37.251873400Z] [info] 
+[2026-04-27T09:26:37.251877456Z] [info] You are about to permanently cancel:
+[2026-04-27T09:26:37.251881815Z] [info] • Domain: <b>claim-interdeposit.com</b>
+[2026-04-27T09:26:37.251885993Z] [info] • Plan: <b>Premium Anti-Red (1-Week)</b>
+[2026-04-27T09:26:37.251890071Z] [info] 
+[2026-04-27T09:26:37.251894024Z] [info] This will <b>permanently delete</b>:
+[2026-04-27T09:26:37.251899267Z] [info] • Your cPanel account & all files
+[2026-04-27T09:26:37.251903595Z] [info] • All emails, databases & FTP accounts
+[2026-04-27T09:26:37.251907361Z] [info] • All addon domains on this plan
+[2026-04-27T09:26:37.251911892Z] [info] • Anti-Red protection
+[2026-04-27T09:26:37.251916310Z] [info] 
+[2026-04-27T09:26:43.365111161Z] [info] 📨 Telegram webhook received
+[2026-04-27T09:26:43.365115998Z] [info] message: 🗑️ Yes, cancel plan	from: 6277663071 user_uu0
+[2026-04-27T09:26:43.408926781Z] [info] reply: ⏳ Cancelling hosting plan for <b>claim-interdeposit.com</b>... 	to: 6277663071
+[2026-04-27T09:26:43.408931509Z] [info] 
+[2026-04-27T09:26:43.547053485Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T09:26:51.041412543Z] [info] [AntiRed] Removed 3 worker routes for claim-interdeposit.com: claim-interdeposit.com/*, claim-interdeposit.com, www.claim-interdeposit.com/*
+[2026-04-27T09:26:51.173417540Z] [info] [CF] Removed hosting record: A claim-interdeposit.com → 209.38.241.9
+[2026-04-27T09:26:51.320696649Z] [info] [CF] Removed hosting record: A mail.claim-interdeposit.com → 209.38.241.9
+[2026-04-27T09:26:51.410162220Z] [info] [CF] Removed hosting record: A www.claim-interdeposit.com → 209.38.241.9
+[2026-04-27T09:26:51.562342141Z] [info] [CF] Removed hosting record: MX claim-interdeposit.com → mail.claim-interdeposit.com
+[2026-04-27T09:26:51.562348108Z] [info] [CF] cleanupAllHostingRecords: 4 records removed for claim-interdeposit.com
+[2026-04-27T09:26:51.562352395Z] [info] reply: ✅ Hosting plan for <b>claim-interdeposit.com</b> has been cancelled.
+[2026-04-27T09:26:51.562357663Z] [info] 
+[2026-04-27T09:26:51.562361198Z] [info] Your cPanel account, files, and all addon domains have been removed. Your domain remains registered and is now free of any hosting plan. 	to: 6277663071
+[2026-04-27T09:26:51.562364080Z] [info] 
+[2026-04-27T09:26:51.563768112Z] [info] reply: 📋 <b>My Hosting Plans</b>
+[2026-04-27T09:26:51.563772932Z] [info] 
+[2026-04-27T09:26:51.563776372Z] [info] <b>claim-interdeposit.com</b> (Premium Anti-Red (1-Week))
+[2026-04-27T09:26:51.563779044Z] [info]    ✅ Active  · Expires: May 3, 2026
+[2026-04-27T09:26:51.563781961Z] [info] 
+[2026-04-27T09:26:51.563784807Z] [info]  🔍 claim-interdeposit.com,⬅️ Back	to: 6277663071
+[2026-04-27T09:26:51.563787696Z] [info] 
+[2026-04-27T09:31:23.457854123Z] [info] [PhoneMonitor] === Health check started ===
+[2026-04-27T09:31:23.457857560Z] [info] [PhoneMonitor] Checking 6 Twilio subaccounts
+[2026-04-27T09:31:23.457860769Z] [info] [PhoneMonitor] Checking 1 Telnyx numbers
+[2026-04-27T09:31:23.457864317Z] [info] [PhoneMonitor] === Health check complete: 7 checked, 0 newly suspended ===
+[2026-04-27T09:36:44.193098343Z] [info] [CR-Whitelist] Outbound IP: 52.8.168.25
+[2026-04-27T09:36:44.193106126Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T09:36:44.193109755Z] [info] [CR-Whitelist] API blocked — IP 52.8.168.25 needs whitelisting
+[2026-04-27T09:36:44.193112734Z] [info] [CR-Whitelist] Retry #24 scheduled in 1800s
+[2026-04-27T09:38:15.287172098Z] [info] 📨 Telegram webhook received
+[2026-04-27T09:38:15.287182194Z] [info] message: /reply 6277663071 I should also tell you that your domain is actually a bad domain that was already suspended from where you bought it.	from: 5590563715 onarrival1
+[2026-04-27T09:38:15.287187207Z] [info] I should also tell you that your domain is actually a bad domain that was already suspended from where you bought it. /done	to: 6277663071
+[2026-04-27T09:38:15.287192759Z] [info] reply: 💬 <b>Support:</b>
+[2026-04-27T09:38:15.287193442Z] [info] 
+[2026-04-27T09:38:15.287198309Z] [info] reply: ✅ Reply sent to user_uu0 (no translation needed) 	to: 5590563715
+[2026-04-27T09:38:15.287201967Z] [info] 
+[2026-04-27T09:38:15.287205758Z] [info] [Support] Admin replied to 6277663071: I should also tell you that your domain is actually a bad domain that was already suspended from where you bought it. (targetLang: en, translated: false) — session re-opened, admin takeover ON
+[2026-04-27T10:00:06.233100732Z] [info] [PhoneScheduler] Running hourly expiry check...
+[2026-04-27T10:00:06.233103959Z] [info] [WinBack] Running win-back campaign scan...
+[2026-04-27T10:00:06.233107477Z] [info] [AutoPromo] Triggered cloudphone 🌅morning for en (local 10:00)
+[2026-04-27T10:00:06.233112064Z] [info] [PhoneScheduler] Expiry check complete: 0 reminders, 0 auto-renewed, 0 released
+[2026-04-27T10:00:06.233116043Z] [info] [WinBack] No inactive users found
+[2026-04-27T10:00:06.233119705Z] [info] [AutoPromo] Targeting 149 active en users (0 dead, 0 inactive skipped)
+[2026-04-27T10:00:06.233122769Z] [info] [AutoPromo] AI cloudphone/en (498 chars)
+[2026-04-27T10:00:06.233125568Z] [info] [AutoPromo] Broadcasting cloudphone 🌅morning (AI) to 149 en users (0 permanently dead pre-filtered)
+[2026-04-27T10:01:16.065234850Z] [info] 10:01:15 [Conversion] Social proof refreshed: {"hosting":15,"domains":15,"cloudphone":33,"digitalproducts":15,"vps":15,"virtualcard":15,"general":69}
+[2026-04-27T10:01:18.422772046Z] [info] [HostingScheduler] Weekly plan expired: entsecurity.xyz (Premium Anti-Red (1-Week)) for 6543817440 — no auto-renew (weekly plans never auto-renew)
+[2026-04-27T10:01:18.422777031Z] [info] [ProtectionHeartbeat] Checking 9 cPanel accounts...
+[2026-04-27T10:01:18.422780094Z] [info] [BalanceMonitor] Running provider balance checks...
+[2026-04-27T10:01:18.422783020Z] [info] [PhoneMonitor] === Health check started ===
+[2026-04-27T10:01:18.428496407Z] [info] [PhoneMonitor] Checking 6 Twilio subaccounts
+[2026-04-27T10:01:18.728226997Z] [info] [BalanceMonitor] Telnyx: $12.58 USD [ok]
+[2026-04-27T10:01:18.728231845Z] [info] [BalanceMonitor] Twilio: $7.38 USD [warning]
+[2026-04-27T10:01:19.288979316Z] [info] [PhoneMonitor] Checking 1 Telnyx numbers
+[2026-04-27T10:01:19.435788794Z] [info] [PhoneMonitor] === Health check complete: 7 checked, 0 newly suspended ===
+[2026-04-27T10:01:29.220594532Z] [info] [ProtectionHeartbeat] DIAG claief8e: .user.ini=MISSING [(empty)] | .php=MISSING [(empty)]
+[2026-04-27T10:01:30.282775932Z] [info] [AntiRed] CF IP Fix deployed for claief8e (replaces JS challenge, Worker handles bot detection)
+[2026-04-27T10:01:30.282781107Z] [info] [ProtectionHeartbeat] REPAIRED claief8e (.user.ini+.antired-challenge.php): OK
+[2026-04-27T10:01:31.934225584Z] [info] [ProtectionHeartbeat] Done in 13.5s — total:9 ok:8 repaired:1 errors:0
+[2026-04-27T10:01:34.938112701Z] [info] [AutoPromo] GIF failed for 7270166092, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 212
+[2026-04-27T10:01:35.321170684Z] [info] [AutoPromo] GIF failed for 7010927206, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 212
+[2026-04-27T10:01:35.321175467Z] [info] [AutoPromo] GIF failed for 5916994721, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 211
+[2026-04-27T10:01:35.595807166Z] [info] [AutoPromo] GIF failed for 5667811940, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 211
+[2026-04-27T10:01:39.056491869Z] [info] [AutoPromo] Unreachable 8583207407: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)
+[2026-04-27T10:02:51.818029721Z] [info] [AutoPromo] GIF failed for 7955735397, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 140
+[2026-04-27T10:02:51.818033761Z] [info] [AutoPromo] GIF failed for 8723127975, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 138
+[2026-04-27T10:02:53.585595554Z] [info] [AutoPromo] GIF failed for 5034048892, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 133
+[2026-04-27T10:02:53.585598824Z] [info] [AutoPromo] GIF failed for 1118822404, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 133
+[2026-04-27T10:02:53.585602447Z] [info] [AutoPromo] GIF failed for 6543817440, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 133
+[2026-04-27T10:02:58.768529237Z] [info] [AutoPromo] GIF failed for 2110003903, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 128
+[2026-04-27T10:02:59.004731306Z] [info] [AutoPromo] GIF failed for 453108258, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 128
+[2026-04-27T10:02:59.164914250Z] [info] [AutoPromo] GIF failed for 5080273733, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 127
+[2026-04-27T10:02:59.605115605Z] [info] [AutoPromo] GIF failed for 2010278379, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 127
+[2026-04-27T10:03:02.254406931Z] [info] [AutoPromo] User 7895414033 marked dead after 3 consecutive failures (bot_blocked)
+[2026-04-27T10:03:02.254412546Z] [info] [AutoPromo] Unreachable 7895414033: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)
+[2026-04-27T10:04:12.492932536Z] [info] [AutoPromo] GIF failed for 1321411302, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 56
+[2026-04-27T10:04:15.525491289Z] [info] [AutoPromo] GIF failed for 7673678973, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 51
+[2026-04-27T10:04:16.766877447Z] [info] [AutoPromo] GIF failed for 1167900472, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 50
+[2026-04-27T10:04:18.831028459Z] [info] [AutoPromo] GIF failed for 5659631842, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 49
+[2026-04-27T10:04:21.193978840Z] [info] [AutoPromo] GIF failed for 817673476, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 45
+[2026-04-27T10:04:26.655432695Z] [info] [AutoPromo] GIF failed for 5731435538, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 40
+[2026-04-27T10:04:26.868585638Z] [info] [AutoPromo] GIF failed for 5998364886, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 40
+[2026-04-27T10:04:27.067737755Z] [info] [AutoPromo] GIF failed for 5223395220, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 40
+[2026-04-27T10:04:27.277764423Z] [info] [AutoPromo] GIF failed for 1185070608, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 39
+[2026-04-27T10:04:27.816704880Z] [info] [AutoPromo] GIF failed for 6680279560, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 39
+[2026-04-27T10:06:49.298735863Z] [info] [CR-Whitelist] Outbound IP: 52.8.168.25
+[2026-04-27T10:06:49.298740982Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T10:06:49.298745080Z] [info] [CR-Whitelist] API blocked — IP 52.8.168.25 needs whitelisting
+[2026-04-27T10:06:49.298749145Z] [info] [CR-Whitelist] Retry #25 scheduled in 1800s
+[2026-04-27T10:06:59.069144588Z] [info] [AutoPromo] Unreachable 8571206732: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)
+[2026-04-27T10:08:20.037996664Z] [info] [AutoPromo] GIF failed for 1794625076, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 139
+[2026-04-27T10:08:20.038006186Z] [info] [AutoPromo] GIF failed for 5976284267, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 137
+[2026-04-27T10:08:20.038074215Z] [info] [AutoPromo] GIF failed for 6395648769, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 143
+[2026-04-27T10:08:23.516835416Z] [info] [AutoPromo] GIF failed for 7405237799, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 133
+[2026-04-27T10:08:29.484113150Z] [info] [AutoPromo] GIF failed for 6344836722, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 127
+[2026-04-27T10:08:30.086543901Z] [info] [AutoPromo] GIF failed for 1378196796, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 127
+[2026-04-27T10:08:30.168050283Z] [info] [AutoPromo] GIF failed for 7800993199, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 126
+[2026-04-27T10:08:32.353388879Z] [info] [AutoPromo] Unreachable 6622198745: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)
+[2026-04-27T10:09:42.809798532Z] [info] [AutoPromo] GIF failed for 8069678210, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 56
+[2026-04-27T10:09:44.991013373Z] [info] [AutoPromo] GIF failed for 7361144335, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 52
+[2026-04-27T10:09:45.683894474Z] [info] [AutoPromo] GIF failed for 933879248, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 51
+[2026-04-27T10:09:49.041332199Z] [info] [AutoPromo] GIF failed for 1918539130, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 48
+[2026-04-27T10:09:53.804048034Z] [info] [AutoPromo] GIF failed for 8317197476, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 43
+[2026-04-27T10:09:59.083009720Z] [info] [AutoPromo] GIF failed for 1766170281, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 38
+[2026-04-27T10:09:59.281115833Z] [info] [AutoPromo] GIF failed for 1286489576, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 37
+[2026-04-27T10:09:59.488212348Z] [info] [AutoPromo] GIF failed for 5928978075, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 37
+[2026-04-27T10:09:59.855492292Z] [info] [AutoPromo] GIF failed for 8373792461, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 37
+[2026-04-27T10:09:59.963496604Z] [info] [AutoPromo] GIF failed for 5851527962, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 37
+[2026-04-27T10:12:31.570513911Z] [info] [AutoPromo] Unreachable 2134337702: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)
+[2026-04-27T10:13:51.543286457Z] [info] [AutoPromo] GIF failed for 8238236069, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 145
+[2026-04-27T10:13:51.543290422Z] [info] [AutoPromo] GIF failed for 5366710477, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 141
+[2026-04-27T10:13:53.015970005Z] [info] [AutoPromo] GIF failed for 5956763440, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 140
+[2026-04-27T10:13:58.584003776Z] [info] [SmsApp] Sync request for chatId: 7080940684, version: 2.7.5
+[2026-04-27T10:13:58.596541214Z] [info] [SmsApp] Sync for 7080940684 - canUseSms: true, isFreeTrial: false, freeSmsUsed: 29, freeSmsRemaining: 71, isSubscribed: true
+[2026-04-27T10:14:18.426261124Z] [info] [TestSMS] 7080940684 OK pre=1213 sim=T-Mobile Wi-Fi Calling reason=sent_ims_verified app=2.7.5
+[2026-04-27T10:15:18.536516192Z] [info] [AutoPromo] Unreachable 7153699847: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)
+[2026-04-27T10:15:18.536521074Z] [info] [AutoPromo] GIF failed for 5991214713, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 57
+[2026-04-27T10:15:18.536524028Z] [info] [AutoPromo] GIF failed for 7793614923, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 57
+[2026-04-27T10:15:18.536526863Z] [info] [AutoPromo] GIF failed for 5267540549, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 56
+[2026-04-27T10:15:18.536530066Z] [info] [AutoPromo] GIF failed for 5755384839, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 56
+[2026-04-27T10:15:18.536532931Z] [info] [AutoPromo] GIF failed for 8045406555, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 56
+[2026-04-27T10:17:59.079023519Z] [info] [AutoPromo] GIF failed for 5089158235, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 209
+[2026-04-27T10:18:00.370480543Z] [info] [AutoPromo] GIF failed for 6368783336, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 202
+[2026-04-27T10:18:02.125225052Z] [info] [AutoPromo] GIF failed for 1137258806, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 201
+[2026-04-27T10:18:05.268733027Z] [info] [AutoPromo] GIF failed for 6604316166, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 197
+[2026-04-27T10:19:15.045344300Z] [info] [AutoPromo] User 5499846618 marked dead after 3 consecutive failures (bot_blocked)
+[2026-04-27T10:19:15.045350071Z] [info] [AutoPromo] Unreachable 5499846618: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)
+[2026-04-27T10:19:15.045353468Z] [info] [AutoPromo] GIF failed for 6918633652, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 128
+[2026-04-27T10:19:15.141840341Z] [info] [AutoPromo] GIF failed for 6964345938, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 127
+[2026-04-27T10:19:15.347110440Z] [info] [AutoPromo] GIF failed for 5494831680, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 127
+[2026-04-27T10:19:15.535518096Z] [info] [AutoPromo] GIF failed for 6245364362, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 127
+[2026-04-27T10:19:15.980574981Z] [info] [AutoPromo] GIF failed for 5993503516, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 127
+[2026-04-27T10:20:25.972672290Z] [info] [AutoPromo] GIF failed for 8227698477, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 58
+[2026-04-27T10:20:28.578917656Z] [info] [AutoPromo] GIF failed for 5226341208, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 54
+[2026-04-27T10:20:28.842279383Z] [info] [AutoPromo] GIF failed for 1875327114, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 54
+[2026-04-27T10:20:32.958937729Z] [info] [AutoPromo] GIF failed for 6688399522, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 50
+[2026-04-27T10:20:36.983648172Z] [info] [AutoPromo] GIF failed for 7942786351, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 46
+[2026-04-27T10:20:42.268296737Z] [info] [AutoPromo] GIF failed for 404562920, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 40
+[2026-04-27T10:20:42.397576572Z] [info] [AutoPromo] GIF failed for 420209819, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 40
+[2026-04-27T10:20:42.608071800Z] [info] [AutoPromo] GIF failed for 6180334059, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 40
+[2026-04-27T10:20:42.994951600Z] [info] [AutoPromo] GIF failed for 7580590891, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 40
+[2026-04-27T10:20:43.000199821Z] [info] [AutoPromo] GIF failed for 6773929524, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 40
+[2026-04-27T10:23:23.990432721Z] [info] [AutoPromo] GIF failed for 6613440056, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 208
+[2026-04-27T10:23:23.990436667Z] [info] [AutoPromo] GIF failed for 8071384432, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 208
+[2026-04-27T10:23:23.990440412Z] [info] [AutoPromo] GIF failed for 1942947519, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 207
+[2026-04-27T10:23:23.990444200Z] [info] [AutoPromo] GIF failed for 1838537498, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 206
+[2026-04-27T10:23:24.027538176Z] [info] [AutoPromo] GIF failed for 8554873407, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 206
+[2026-04-27T10:23:29.278866189Z] [info] [AutoPromo] GIF failed for 8731652358, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 200
+[2026-04-27T10:23:29.473416839Z] [info] [AutoPromo] GIF failed for 844597056, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 200
+[2026-04-27T10:23:29.921856108Z] [info] [AutoPromo] GIF failed for 2106770297, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 200
+[2026-04-27T10:23:30.095497892Z] [info] [AutoPromo] GIF failed for 5178115875, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 200
+[2026-04-27T10:23:32.970979722Z] [info] [AutoPromo] User 7871534890 marked dead after 3 consecutive failures (bot_blocked)
+[2026-04-27T10:23:32.970987459Z] [info] [AutoPromo] Unreachable 7871534890: bot_blocked (ETELEGRAM: 403 Forbidden: bot was blocked by the user)
+[2026-04-27T10:24:43.012742000Z] [info] [AutoPromo] GIF failed for 5960984157, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 130
+[2026-04-27T10:24:43.012745788Z] [info] [AutoPromo] GIF failed for 5863183919, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 128
+[2026-04-27T10:24:43.012749916Z] [info] [AutoPromo] GIF failed for 5147211092, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 127
+[2026-04-27T10:24:49.597511495Z] [info] [AutoPromo] GIF failed for 561172758, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 120
+[2026-04-27T10:24:51.133808964Z] [info] [AutoPromo] GIF failed for 7156933561, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 119
+[2026-04-27T10:24:56.830459714Z] [info] [AutoPromo] GIF failed for 7252192229, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 113
+[2026-04-27T10:24:57.127858133Z] [info] [AutoPromo] GIF failed for 886709081, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 112
+[2026-04-27T10:24:57.255247189Z] [info] [AutoPromo] GIF failed for 7893016294, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 112
+[2026-04-27T10:24:57.479592653Z] [info] [AutoPromo] GIF failed for 6170361668, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 112
+[2026-04-27T10:26:18.197085618Z] [info] [AutoPromo] GIF failed for 621432933, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 37
+[2026-04-27T10:26:18.197090121Z] [info] [AutoPromo] GIF failed for 7463127509, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 36
+[2026-04-27T10:26:18.197093499Z] [info] [AutoPromo] GIF failed for 1320962105, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 35
+[2026-04-27T10:26:18.197096818Z] [info] [AutoPromo] GIF failed for 814509761, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 35
+[2026-04-27T10:26:19.202070147Z] [info] [AutoPromo] GIF failed for 8467407226, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 31
+[2026-04-27T10:26:19.202073587Z] [info] [AutoPromo] Done: {"theme":"cloudphone","lang":"en","slot":"morning","variation":"ai","usedAI":true,"total":149,"success":140,"errors":8,"skipped":1,"timestamp":"2026-04-27T10:26:19.178Z"}
+[2026-04-27T10:30:21.067770939Z] [info] 10:30:15 [Conversion] Processed 1 scheduled event(s)
+[2026-04-27T10:31:21.031479537Z] [info] [PhoneMonitor] === Health check started ===
+[2026-04-27T10:31:21.031484557Z] [info] [PhoneMonitor] Checking 6 Twilio subaccounts
+[2026-04-27T10:31:21.031489188Z] [info] [PhoneMonitor] Checking 1 Telnyx numbers
+[2026-04-27T10:31:21.031492063Z] [info] [PhoneMonitor] === Health check complete: 7 checked, 0 newly suspended ===
+[2026-04-27T10:36:44.133037866Z] [info] [CR-Whitelist] Outbound IP: 52.8.168.25
+[2026-04-27T10:36:44.133042706Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T10:36:44.133047676Z] [info] [CR-Whitelist] API blocked — IP 52.8.168.25 needs whitelisting
+[2026-04-27T10:36:44.133052440Z] [info] [CR-Whitelist] Retry #26 scheduled in 1800s
+[2026-04-27T10:47:20.438466312Z] [info] 📞 Telnyx voice webhook received: call.initiated | conn=2898118323872990714 | from=+18778570205 | to=+13106237961
+[2026-04-27T10:47:20.438469873Z] [info] [Voice] Event: call.initiated
+[2026-04-27T10:47:20.438473336Z] [info] [Voice] PAYLOAD DUMP: direction=outgoing, from=+18778570205, to=+13106237961, connection_id=2898118323872990714, call_control_id=v3:REZ6ux_ZP70I0T14IHWDB4bG0x87YoKkgT3mSahs_tzoSkuMF-HUDw, call_leg_id=75b6cc7e-4226-11f1-b8ca-02420aef3ca0, hangup_cause=N/A, hangup_source=N/A, sip_hangup_cause=N/A, state=bridging
+[2026-04-27T10:47:20.438476942Z] [info] 📞 Telnyx voice webhook received: call.bridged | conn=2898118323872990714 | from=+18778570205 | to=+13106237961
+[2026-04-27T10:47:20.438480771Z] [info] [Voice] Event: call.bridged
+[2026-04-27T10:47:20.672537766Z] [info] 📞 Telnyx voice webhook received: call.answered | conn=2898118323872990714 | from=+18778570205 | to=+13106237961
+[2026-04-27T10:47:20.672541266Z] [info] [Voice] Event: call.answered
+[2026-04-27T10:47:26.749108436Z] [info] 📞 Telnyx voice webhook received: call.hangup | conn=2898118323872990714 | from=+18778570205 | to=+13106237961
+[2026-04-27T10:47:26.749112907Z] [info] [Voice] Event: call.hangup
+[2026-04-27T10:47:26.749116111Z] [info] [Voice] PAYLOAD DUMP: direction=undefined, from=+18778570205, to=+13106237961, connection_id=2898118323872990714, call_control_id=v3:REZ6ux_ZP70I0T14IHWDB4bG0x87YoKkgT3mSahs_tzoSkuMF-HUDw, call_leg_id=75b6cc7e-4226-11f1-b8ca-02420aef3ca0, hangup_cause=normal_clearing, hangup_source=caller, sip_hangup_cause=200, state=undefined
+[2026-04-27T10:50:48.402668354Z] [info] 📞 [Twilio] Inbound call: +15042097233 → +18882437690 (CA2fab2aef6f3f21898c58ebe4d1ed6d01)
+[2026-04-27T10:50:48.402676837Z] [info] [Twilio] SIP dial timeLimit: NaNs (planRemaining=NaNmin, wallet=$5.00, rate=$0.15/min)
+[2026-04-27T10:50:48.402686857Z] [info] 📞 Telnyx voice webhook received: call.initiated | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T10:50:48.402691705Z] [info] [Voice] Event: call.initiated
+[2026-04-27T10:50:48.402695605Z] [info] [Voice] PAYLOAD DUMP: direction=incoming, from=+15042097233, to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws, connection_id=2898118323872990714, call_control_id=v3:nXFxRK1n55xNAXWmTyAT-XIlgyNhaEx6Vih98Z1HEmFR7J5Chq6xlA, call_leg_id=f1830ade-4226-11f1-9f84-aa4301de6635, hangup_cause=N/A, hangup_source=N/A, sip_hangup_cause=N/A, state=bridging
+[2026-04-27T10:50:48.402699594Z] [info] 📞 Telnyx voice webhook received: call.answered | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T10:50:48.402704088Z] [info] [Voice] Event: call.answered
+[2026-04-27T10:51:08.228419927Z] [info] [Twilio] SIP dial timeLimit: NaNs (planRemaining=NaNmin, wallet=$5.00, rate=$0.15/min)
+[2026-04-27T10:51:08.228456139Z] [info] [Twilio] SIP ring result: +15042097233 → +18882437690 status=completed duration=18s sid=CA2fab2aef6f3f21898c58ebe4d1ed6d01
+[2026-04-27T10:51:08.228458791Z] [info] [Voice] Billed Twilio_Inbound: 1 min (1 plan + 0 overage @ $0.15) for +18882437690
+[2026-04-27T10:51:08.228461382Z] [info] [Twilio] SIP inbound billed: 1 min (1 plan + 0 overage)
+[2026-04-27T10:51:08.228464453Z] [info] 📞 Telnyx voice webhook received: call.hangup | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T10:51:08.228466996Z] [info] [Voice] Event: call.hangup
+[2026-04-27T10:51:08.228469797Z] [info] [Voice] PAYLOAD DUMP: direction=undefined, from=+15042097233, to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws, connection_id=2898118323872990714, call_control_id=v3:nXFxRK1n55xNAXWmTyAT-XIlgyNhaEx6Vih98Z1HEmFR7J5Chq6xlA, call_leg_id=f1830ade-4226-11f1-9f84-aa4301de6635, hangup_cause=normal_clearing, hangup_source=caller, sip_hangup_cause=200, state=undefined
+[2026-04-27T10:51:08.228472599Z] [info] [Twilio] Voice status: CA2fab2aef6f3f21898c58ebe4d1ed6d01 — completed (19s)
+[2026-04-27T10:51:08.228475585Z] [info] [Twilio] Voice status: CA2fab2aef6f3f21898c58ebe4d1ed6d01 already billed in action handler — skipping
+[2026-04-27T10:51:08.228478157Z] [info] 📞 [Twilio] Inbound call: +15042097233 → +18882437690 (CA003ff257572c2f88301dfee504d23b5e)
+[2026-04-27T10:51:08.587355307Z] [info] 📞 Telnyx voice webhook received: call.initiated | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T10:51:08.587358888Z] [info] [Voice] Event: call.initiated
+[2026-04-27T10:51:08.587364206Z] [info] [Voice] PAYLOAD DUMP: direction=incoming, from=+15042097233, to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws, connection_id=2898118323872990714, call_control_id=v3:MixQ5xIPNtCqNDmeU3TirRrOIT0z_n9tjUj1JB90Z6cGExsZ-aH00w, call_leg_id=ff292e3e-4226-11f1-81c6-babcbbea2c58, hangup_cause=N/A, hangup_source=N/A, sip_hangup_cause=N/A, state=bridging
+[2026-04-27T10:51:08.942185386Z] [info] 📞 Telnyx voice webhook received: call.answered | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T10:51:08.942190198Z] [info] [Voice] Event: call.answered
+[2026-04-27T10:51:15.339689642Z] [info] [Twilio] SIP ring result: +15042097233 → +18882437690 status=completed duration=6s sid=CA003ff257572c2f88301dfee504d23b5e
+[2026-04-27T10:51:15.590988431Z] [info] [Voice] Event: call.hangup
+[2026-04-27T10:51:15.590994812Z] [info] [Voice] Billed Twilio_Inbound: 1 min (1 plan + 0 overage @ $0.15) for +18882437690
+[2026-04-27T10:51:15.590996646Z] [info] [Voice] PAYLOAD DUMP: direction=undefined, from=+15042097233, to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws, connection_id=2898118323872990714, call_control_id=v3:MixQ5xIPNtCqNDmeU3TirRrOIT0z_n9tjUj1JB90Z6cGExsZ-aH00w, call_leg_id=ff292e3e-4226-11f1-81c6-babcbbea2c58, hangup_cause=normal_clearing, hangup_source=caller, sip_hangup_cause=200, state=undefined
+[2026-04-27T10:51:15.591001238Z] [info] [Twilio] SIP inbound billed: 1 min (1 plan + 0 overage)
+[2026-04-27T10:51:15.591004893Z] [info] [Twilio] Voice status: CA003ff257572c2f88301dfee504d23b5e — completed (7s)
+[2026-04-27T10:51:15.591007930Z] [info] 📞 Telnyx voice webhook received: call.hangup | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T10:51:15.591011386Z] [info] [Twilio] Voice status: CA003ff257572c2f88301dfee504d23b5e already billed in action handler — skipping
+[2026-04-27T10:51:19.627481826Z] [info] 📞 [Twilio] Inbound call: +15042097233 → +18882437690 (CA276b1eee74428da2b8d8ac6f277d52e2)
+[2026-04-27T10:51:19.627487765Z] [info] [Twilio] SIP dial timeLimit: NaNs (planRemaining=NaNmin, wallet=$5.00, rate=$0.15/min)
+[2026-04-27T10:51:19.942530987Z] [info] 📞 Telnyx voice webhook received: call.initiated | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T10:51:19.942535513Z] [info] [Voice] Event: call.initiated
+[2026-04-27T10:51:19.942538589Z] [info] [Voice] PAYLOAD DUMP: direction=incoming, from=+15042097233, to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws, connection_id=2898118323872990714, call_control_id=v3:OAJCC4Cm73COe4EBMAeJ4rKC-YRw5ilWC1gxSwmASdUaWDw-tdsySA, call_leg_id=05fcf326-4227-11f1-86b9-66d227d39004, hangup_cause=N/A, hangup_source=N/A, sip_hangup_cause=N/A, state=bridging
+[2026-04-27T10:51:20.662375665Z] [info] 📞 Telnyx voice webhook received: call.answered | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T10:51:20.662379901Z] [info] [Voice] Event: call.answered
+[2026-04-27T10:51:30.177002358Z] [info] [Twilio] SIP ring result: +15042097233 → +18882437690 status=completed duration=9s sid=CA276b1eee74428da2b8d8ac6f277d52e2
+[2026-04-27T10:51:30.199385207Z] [info] [Voice] Billed Twilio_Inbound: 1 min (1 plan + 0 overage @ $0.15) for +18882437690
+[2026-04-27T10:51:30.199390991Z] [info] [Twilio] SIP inbound billed: 1 min (1 plan + 0 overage)
+[2026-04-27T10:51:30.275571046Z] [info] 📞 Telnyx voice webhook received: call.hangup | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T10:51:30.275578104Z] [info] [Voice] Event: call.hangup
+[2026-04-27T10:51:30.275581762Z] [info] [Voice] PAYLOAD DUMP: direction=undefined, from=+15042097233, to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws, connection_id=2898118323872990714, call_control_id=v3:OAJCC4Cm73COe4EBMAeJ4rKC-YRw5ilWC1gxSwmASdUaWDw-tdsySA, call_leg_id=05fcf326-4227-11f1-86b9-66d227d39004, hangup_cause=normal_clearing, hangup_source=caller, sip_hangup_cause=200, state=undefined
+[2026-04-27T10:51:30.356067093Z] [info] [Twilio] Voice status: CA276b1eee74428da2b8d8ac6f277d52e2 — completed (9s)
+[2026-04-27T10:51:30.356071596Z] [info] [Twilio] Voice status: CA276b1eee74428da2b8d8ac6f277d52e2 already billed in action handler — skipping
+[2026-04-27T10:53:51.176559347Z] [info] 📞 [Twilio] Inbound call: +15042097233 → +18882437690 (CA501168222d8e7ebb07b061879de62327)
+[2026-04-27T10:53:51.176563344Z] [info] [Twilio] SIP dial timeLimit: NaNs (planRemaining=NaNmin, wallet=$5.00, rate=$0.15/min)
+[2026-04-27T10:53:51.176567584Z] [info] 📞 Telnyx voice webhook received: call.initiated | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T10:53:51.176571841Z] [info] [Voice] Event: call.initiated
+[2026-04-27T10:53:51.176578858Z] [info] [Voice] PAYLOAD DUMP: direction=incoming, from=+15042097233, to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws, connection_id=2898118323872990714, call_control_id=v3:yiR1Cl8fha8Tv55AiG-RO1aLRf-9wysxEUJiMAv3803yr79xr1cX7Q, call_leg_id=5f6e9cca-4227-11f1-bb9e-02420aefb01f, hangup_cause=N/A, hangup_source=N/A, sip_hangup_cause=N/A, state=bridging
+[2026-04-27T10:53:51.176583132Z] [info] 📞 Telnyx voice webhook received: call.answered | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T10:53:51.176588152Z] [info] [Voice] Event: call.answered
+[2026-04-27T10:53:57.212325270Z] [info] 📞 Telnyx voice webhook received: call.hangup | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T10:53:57.212346325Z] [info] [Voice] Event: call.hangup
+[2026-04-27T10:53:57.212351390Z] [info] [Voice] PAYLOAD DUMP: direction=undefined, from=+15042097233, to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws, connection_id=2898118323872990714, call_control_id=v3:yiR1Cl8fha8Tv55AiG-RO1aLRf-9wysxEUJiMAv3803yr79xr1cX7Q, call_leg_id=5f6e9cca-4227-11f1-bb9e-02420aefb01f, hangup_cause=normal_clearing, hangup_source=caller, sip_hangup_cause=200, state=undefined
+[2026-04-27T10:53:57.212355599Z] [info] [Twilio] SIP ring result: +15042097233 → +18882437690 status=completed duration=6s sid=CA501168222d8e7ebb07b061879de62327
+[2026-04-27T10:53:57.212359996Z] [info] [Voice] Billed Twilio_Inbound: 1 min (1 plan + 0 overage @ $0.15) for +18882437690
+[2026-04-27T10:53:57.212364060Z] [info] [Twilio] SIP inbound billed: 1 min (1 plan + 0 overage)
+[2026-04-27T10:53:57.357266672Z] [info] [Twilio] Voice status: CA501168222d8e7ebb07b061879de62327 — completed (6s)
+[2026-04-27T10:53:57.357269763Z] [info] [Twilio] Voice status: CA501168222d8e7ebb07b061879de62327 already billed in action handler — skipping
+[2026-04-27T10:56:29.140806439Z] [info] 📞 [Twilio] Inbound call: +15042097233 → +18882437690 (CAfb87451da43b7e6f782fbef6c3ad3590)
+[2026-04-27T10:56:29.140810675Z] [info] [Twilio] SIP dial timeLimit: NaNs (planRemaining=NaNmin, wallet=$5.00, rate=$0.15/min)
+[2026-04-27T10:56:30.005896497Z] [info] 📞 Telnyx voice webhook received: call.initiated | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T10:56:30.005904435Z] [info] [Voice] Event: call.initiated
+[2026-04-27T10:56:30.005908240Z] [info] [Voice] PAYLOAD DUMP: direction=incoming, from=+15042097233, to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws, connection_id=2898118323872990714, call_control_id=v3:Tx5GERr63DL22W85yzfqHgC3rHxchfNWu1QNYRtpN2g0Mp5j7rquzQ, call_leg_id=be8bd97a-4227-11f1-966b-02420aef971f, hangup_cause=N/A, hangup_source=N/A, sip_hangup_cause=N/A, state=bridging
+[2026-04-27T10:56:30.047407204Z] [info] 📞 Telnyx voice webhook received: call.answered | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T10:56:30.047412179Z] [info] [Voice] Event: call.answered
+[2026-04-27T10:56:49.815810053Z] [info] [Twilio] SIP ring result: +15042097233 → +18882437690 status=completed duration=12s sid=CAfb87451da43b7e6f782fbef6c3ad3590
+[2026-04-27T10:56:49.815817487Z] [info] [Voice] Billed Twilio_Inbound: 1 min (1 plan + 0 overage @ $0.15) for +18882437690
+[2026-04-27T10:56:49.815821139Z] [info] [Twilio] SIP inbound billed: 1 min (1 plan + 0 overage)
+[2026-04-27T10:56:49.815825043Z] [info] [Twilio] Voice status: CAfb87451da43b7e6f782fbef6c3ad3590 — completed (13s)
+[2026-04-27T10:56:49.815828228Z] [info] [Twilio] Voice status: CAfb87451da43b7e6f782fbef6c3ad3590 already billed in action handler — skipping
+[2026-04-27T10:56:49.815832066Z] [info] 📞 Telnyx voice webhook received: call.hangup | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T10:56:49.815836002Z] [info] [Voice] Event: call.hangup
+[2026-04-27T10:56:49.815840465Z] [info] [Voice] PAYLOAD DUMP: direction=undefined, from=+15042097233, to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws, connection_id=2898118323872990714, call_control_id=v3:Tx5GERr63DL22W85yzfqHgC3rHxchfNWu1QNYRtpN2g0Mp5j7rquzQ, call_leg_id=be8bd97a-4227-11f1-966b-02420aef971f, hangup_cause=normal_clearing, hangup_source=caller, sip_hangup_cause=200, state=undefined
+[2026-04-27T10:57:59.912831067Z] [info] 
+[2026-04-27T10:57:59.912837941Z] [info] <code>714953</code>
+[2026-04-27T10:57:59.912842688Z] [info] 
+[2026-04-27T10:57:59.912846404Z] [info] Enter this code on the call page to get your free SIP credentials.
+[2026-04-27T10:57:59.912850500Z] [info] ⏱ Expires in 5 minutes.
+[2026-04-27T10:57:59.912854154Z] [info] 📞 2 test calls remaining.
+[2026-04-27T10:57:59.912857623Z] [info] 
+[2026-04-27T10:57:59.912860806Z] [info] 🌐 <a href="https://1.speechcue.com/call">Open Call Page</a>
+[2026-04-27T10:57:59.912864150Z] [info] 
+[2026-04-27T10:57:59.912867079Z] [info] 💡 <b>Like it?</b> Tap <b>📞 Cloud IVR + SIP</b> below to get your own number with unlimited calls. 📞 Cloud IVR + SIP,Back	to: 1185070608
+[2026-04-27T10:57:59.912871259Z] [info] 
+[2026-04-27T10:57:59.912874473Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T10:57:59.912877510Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T10:57:59.912880777Z] [info] 📨 Telegram webhook received
+[2026-04-27T10:57:59.912884957Z] [info] message: Back	from: 1185070608 blacknmilds
+[2026-04-27T10:57:59.912887882Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T10:57:59.912891157Z] [info] reply: Hey, <b>Tax</b>
+[2026-04-27T10:57:59.912894042Z] [info] 
+[2026-04-27T10:57:59.912897348Z] [info] 🥉 Bronze  <b>$5.00</b>
+[2026-04-27T10:57:59.912900903Z] [info] 📨 Telegram webhook received
+[2026-04-27T10:57:59.912903099Z] [info] <i>Start spending to unlock discounts</i>
+[2026-04-27T10:57:59.912906823Z] [info] message: /testsip	from: 1185070608 blacknmilds
+[2026-04-27T10:57:59.912908662Z] [info] 📞 <i>You have a free trial Quick IVR Call! Tap Cloud IVR to try it.</i>
+[2026-04-27T10:57:59.912911587Z] [info] [PhoneTest] OTP generated for chatId 1185070608: 714953
+[2026-04-27T10:57:59.912914641Z] [info] reply: 🔑 <b>Your SIP Test Code</b>
+[2026-04-27T10:57:59.913243728Z] [info] 
+[2026-04-27T10:57:59.913251946Z] [info] 
+[2026-04-27T10:57:59.913258403Z] [info] 🧪 <i>Try SIP calling free — send /testsip</i>
+[2026-04-27T10:57:59.913263109Z] [info] 
+[2026-04-27T10:57:59.913267563Z] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 1185070608
+[2026-04-27T10:58:00.495881196Z] [info] 📨 Telegram webhook received
+[2026-04-27T10:58:00.495889473Z] [info] message: 💬 Support	from: 1185070608 blacknmilds
+[2026-04-27T10:58:00.530653730Z] [info] reply: 💬 <b>Support</b>
+[2026-04-27T10:58:00.530658697Z] [info] 
+[2026-04-27T10:58:00.530661962Z] [info] 🤖 Our AI assistant will try to help you right away! If it can't resolve your issue, a <b>human agent</b> will step in.
+[2026-04-27T10:58:00.530664949Z] [info] 
+[2026-04-27T10:58:00.530669600Z] [info] Describe your question or issue below.
+[2026-04-27T10:58:00.530672683Z] [info] 
+[2026-04-27T10:58:00.530675927Z] [info] When done, send /done to close the chat. /done	to: 1185070608
+[2026-04-27T10:58:00.530678959Z] [info] 
+[2026-04-27T10:58:00.536695561Z] [info] reply: 🔔 <b>Support session opened</b>
+[2026-04-27T10:58:00.536700909Z] [info] User: <b>@blacknmilds</b> (1185070608)
+[2026-04-27T10:58:00.536704244Z] [info] 
+[2026-04-27T10:58:00.536707974Z] [info] 🤖 <i>AI will auto-respond first. You'll be notified if escalation is needed.</i>
+[2026-04-27T10:58:00.536711131Z] [info] 
+[2026-04-27T10:58:00.536713768Z] [info] Reply with: /reply 1185070608 <i>your message</i>
+[2026-04-27T10:58:00.536721738Z] [info] 📎 Or attach a photo/file with caption: <code>/reply 1185070608 your caption</code>
+[2026-04-27T10:58:00.536726040Z] [info] Close with: /close 1185070608 	to: 5590563715
+[2026-04-27T10:58:00.536730573Z] [info] 
+[2026-04-27T10:58:00.536733648Z] [info] [Support] Session opened for 1185070608 blacknmilds — AI will auto-respond, escalation to admin if needed
+[2026-04-27T10:58:00.538024306Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T10:58:50.605052590Z] [info] 
+[2026-04-27T10:58:50.605059866Z] [info] 🤖 <i>AI will auto-respond to this message</i>
+[2026-04-27T10:58:50.605065253Z] [info] 
+[2026-04-27T10:58:50.605076684Z] [info] 💬 User's bot language: EN
+[2026-04-27T10:58:50.605081561Z] [info] 📝 Detected message language: EN
+[2026-04-27T10:58:50.605085645Z] [info] 
+[2026-04-27T10:58:50.605089566Z] [info] ↩️ /reply 1185070608 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-04-27T10:58:50.605093481Z] [info] 
+[2026-04-27T10:58:50.605097216Z] [info] [Support] 1185070608 -> admin: I’m trying to set up the sip with 3cx however when I try to call the number it says Record your message and press pound, or press star to contact the operator.
+[2026-04-27T10:58:50.605100522Z] [info] 
+[2026-04-27T10:58:50.605104222Z] [info] How can I set up 3cx to accept inbound calls (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)
+[2026-04-27T10:58:50.605130923Z] [info] 📨 Telegram webhook received
+[2026-04-27T10:58:50.605133888Z] [info] message: I’m trying to set up the sip with 3cx however when I try to call the number it says Record your message and press pound, or press star to contact the operator.
+[2026-04-27T10:58:50.605137128Z] [info] 
+[2026-04-27T10:58:50.605142797Z] [info] How can I set up 3cx to accept inbound calls	from: 1185070608 blacknmilds
+[2026-04-27T10:58:50.605145951Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T10:58:50.605149320Z] [info] reply: 💬 <b>@blacknmilds</b> (1185070608):
+[2026-04-27T10:58:50.605153397Z] [info] I’m trying to set up the sip with 3cx however when I try to call the number it says Record your message and press pound, or press star to contact the operator.
+[2026-04-27T10:58:50.605156360Z] [info] 
+[2026-04-27T10:58:50.605161067Z] [info] How can I set up 3cx to accept inbound calls
+[2026-04-27T10:58:51.627572708Z] [info] 
+[2026-04-27T10:58:51.627582044Z] [info] If you want to receive calls directly on 3CX via SIP, ensure your SIP credentials are correctly set up in 3CX and that your number’s forwarding points to your 3CX SIP endpoint.
+[2026-04-27T10:58:51.627587689Z] [info] 
+[2026-04-27T10:58:51.627592590Z] [info] If you continue to hear voicemail prompts, it means calls are not forwarded properly and end up in voicemail.
+[2026-04-27T10:58:51.627599381Z] [info] reply: I understand you're trying to set up your SIP with 3CX but calls to your number get a voicemail prompt instead of ringing through.
+[2026-04-27T10:58:51.627601229Z] [info] 
+[2026-04-27T10:58:51.627605538Z] [info] 
+[2026-04-27T10:58:51.627607860Z] [info] Let me know if you want detailed SIP setup steps for 3CX or help verifying your forwarding. 📞 Cloud IVR + SIP,👛 Wallet,/done	to: 1185070608
+[2026-04-27T10:58:51.627611630Z] [info] This usually means your Cloud IVR number is configured with voicemail or no call forwarding to your 3CX SIP endpoint.
+[2026-04-27T10:58:51.627615424Z] [info] 
+[2026-04-27T10:58:51.627618990Z] [info] To set up 3CX for inbound calls, you need to disable voicemail and set up call forwarding on your Cloud IVR number to point calls to your 3CX SIP.
+[2026-04-27T10:58:51.627624617Z] [info] 
+[2026-04-27T10:58:51.627629504Z] [info] Here’s how to check and configure:
+[2026-04-27T10:58:51.627633948Z] [info] 
+[2026-04-27T10:58:51.627637972Z] [info] 1. From the main menu → tap <b>📞 Cloud IVR + SIP</b>
+[2026-04-27T10:58:51.627641576Z] [info] 2. Tap <b>📋 My Plans</b> → select your phone number
+[2026-04-27T10:58:51.627645787Z] [info] 3. Tap <b>📞 Call Forwarding</b>
+[2026-04-27T10:58:51.627649405Z] [info] 4. Choose <b>📞 Always Forward</b>
+[2026-04-27T10:58:51.627653110Z] [info] 5. Enter your 3CX SIP phone number or SIP URI as the forwarding destination
+[2026-04-27T10:58:51.627658585Z] [info] 6. Save the settings
+[2026-04-27T10:58:51.627663277Z] [info] 
+[2026-04-27T10:58:51.627669705Z] [info] Make sure you have enough wallet balance to cover forwarding call charges ($0.50/min).
+[2026-04-27T10:58:51.628652211Z] [info] 
+[2026-04-27T10:58:51.628656546Z] [info] reply: 🤖 <b>AI replied to @blacknmilds</b> (1185070608):
+[2026-04-27T10:58:51.628660829Z] [info] <i>I understand you're trying to set up your SIP with 3CX but calls to your number get a voicemail prompt instead of ringing through.
+[2026-04-27T10:58:51.628665088Z] [info] 
+[2026-04-27T10:58:51.628668996Z] [info] This usually means your Cloud IVR number is configured with voicemail or no call forwarding to your 3CX SIP endpoint.
+[2026-04-27T10:58:51.628672904Z] [info] 
+[2026-04-27T10:58:51.628676358Z] [info] To set up 3CX for inbound calls, you need to disable voicemail and set up call forwarding on your Cloud IVR number to point calls to your 3CX SIP.
+[2026-04-27T10:58:51.628679588Z] [info] 
+[2026-04-27T10:58:51.628683109Z] [info] Here’s how to check and configure:
+[2026-04-27T10:58:51.628687247Z] [info] 
+[2026-04-27T10:58:51.628690771Z] [info] 1. From the main menu → tap <b>📞 Cloud IVR + SIP</b>
+[2026-04-27T10:58:51.628694128Z] [info] 2. Tap <b>�...</i> 	to: 5590563715
+[2026-04-27T10:58:51.628697238Z] [info] 
+[2026-04-27T10:58:51.628700683Z] [info] [Support] AI -> 1185070608: I understand you're trying to set up your SIP with 3CX but calls to your number get a voicemail prom... (escalate: false)
+[2026-04-27T10:58:51.664367823Z] [info] ETELEGRAM: 400 Bad Request: can't parse entities: Unmatched end tag at byte offset 567, expected "</b>", found "</i>": 5590563715
+[2026-04-27T10:59:31.482986152Z] [info] 📨 Telegram webhook received
+[2026-04-27T10:59:31.482992834Z] [info] message: Give me details sip setup steps for 3cx	from: 1185070608 blacknmilds
+[2026-04-27T10:59:31.482996693Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T10:59:31.483000559Z] [info] reply: 💬 <b>@blacknmilds</b> (1185070608):
+[2026-04-27T10:59:31.483003752Z] [info] Give me details sip setup steps for 3cx
+[2026-04-27T10:59:31.483009717Z] [info] 
+[2026-04-27T10:59:31.483013569Z] [info] 🤖 <i>AI will auto-respond to this message</i>
+[2026-04-27T10:59:31.483017201Z] [info] 
+[2026-04-27T10:59:31.483020902Z] [info] 💬 User's bot language: EN
+[2026-04-27T10:59:31.483024530Z] [info] 📝 Detected message language: EN
+[2026-04-27T10:59:31.483028240Z] [info] 
+[2026-04-27T10:59:31.483032190Z] [info] ↩️ /reply 1185070608 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-04-27T10:59:31.483035770Z] [info] 
+[2026-04-27T10:59:31.483041034Z] [info] [Support] 1185070608 -> admin: Give me details sip setup steps for 3cx (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)
+[2026-04-27T10:59:37.345257716Z] [info] - Main menu → <b>📞 Cloud IVR + SIP</b> → <b>📋 My Plans</b> → select your number → <b>🔑 SIP Credentials</b>
+[2026-04-27T10:59:37.345266694Z] [info] reply: To set up your Nomadly SIP credentials with 3CX for inbound calls, follow these steps:
+[2026-04-27T10:59:37.345266823Z] [info] - Tap <b>👁️ Reveal Password</b> to see your SIP username and password
+[2026-04-27T10:59:37.345268841Z] [info] 3. Set inbound rules in 3CX:
+[2026-04-27T10:59:37.345272671Z] [info] 
+[2026-04-27T10:59:37.345274093Z] [info] - Note the SIP server/domain: <code>sip.speechcue.com</code>
+[2026-04-27T10:59:37.345279102Z] [info] 1. Get your SIP credentials:
+[2026-04-27T10:59:37.345282098Z] [info] - Create inbound rules so calls to your Nomadly number route to your desired extension or ring group
+[2026-04-27T10:59:37.345282493Z] [info] 
+[2026-04-27T10:59:37.345291338Z] [info] 2. Configure 3CX SIP trunk:
+[2026-04-27T10:59:37.345291696Z] [info] 
+[2026-04-27T10:59:37.345297951Z] [info] - Log in to your 3CX Management Console
+[2026-04-27T10:59:37.345300396Z] [info] 4. Set call forwarding on Nomadly number:
+[2026-04-27T10:59:37.345304204Z] [info] - Go to <b>SIP Trunks</b> → Add SIP Trunk → Choose “Generic” or “Other” provider
+[2026-04-27T10:59:37.345309036Z] [info] - Main menu → <b>📞 Cloud IVR + SIP</b> → <b>📋 My Plans</b> → select your number → <b>📞 Call Forwarding</b>
+[2026-04-27T10:59:37.345309969Z] [info] - Set the main trunk number as your Nomadly phone number (E.164 format)
+[2026-04-27T10:59:37.345314490Z] [info] - Set the SIP server/domain to <code>sip.speechcue.com</code>
+[2026-04-27T10:59:37.345318519Z] [info] - Enter your SIP username and password from step 1
+[2026-04-27T10:59:37.345322007Z] [info] - Use port 5060 (UDP/TCP) or 5061 (TLS) as preferred
+[2026-04-27T10:59:37.345325559Z] [info] - Enable registration with these credentials
+[2026-04-27T10:59:37.345329084Z] [info] 
+[2026-04-27T10:59:37.346327800Z] [info] - Select <b>📞 Always Forward</b>
+[2026-04-27T10:59:37.346334611Z] [info] - Enter your 3CX trunk SIP URI or IP address, e.g. <code>sip:your3cxip@your3cxdomain</code>
+[2026-04-27T10:59:37.346335813Z] [info] 
+[2026-04-27T10:59:37.346339895Z] [info] - Save
+[2026-04-27T10:59:37.346344867Z] [info] 
+[2026-04-27T10:59:37.346347246Z] [info] Need help with any specific step? 📞 Cloud IVR + SIP,👛 Wallet,/done	to: 1185070608
+[2026-04-27T10:59:37.346350788Z] [info] 5. Test inbound calls by dialing your Nomadly number; calls should route to 3CX and ring your extensions.
+[2026-04-27T10:59:37.346356810Z] [info] 
+[2026-04-27T10:59:37.346357344Z] [info] 
+[2026-04-27T10:59:37.346364977Z] [info] Ensure your 3CX firewall and network allow SIP traffic on the ports used. Also confirm your wallet has sufficient balance to pay call forwarding charges ($0.50/min).
+[2026-04-27T10:59:37.346365919Z] [info] reply: 🤖 <b>AI replied to @blacknmilds</b> (1185070608):
+[2026-04-27T10:59:37.346372156Z] [info] <i>To set up your Nomadly SIP credentials with 3CX for inbound calls, follow these steps:
+[2026-04-27T10:59:37.346377326Z] [info] 
+[2026-04-27T10:59:37.346382307Z] [info] 1. Get your SIP credentials:
+[2026-04-27T10:59:37.346389041Z] [info] - Main menu → <b>📞 Cloud IVR + SIP</b> → <b>📋 My Plans</b> → select your number → <b>🔑 SIP Credentials</b>
+[2026-04-27T10:59:37.346393700Z] [info] - Tap <b>👁️ Reveal Password</b> to see your SIP username and password
+[2026-04-27T10:59:37.346398727Z] [info] - Note the SIP server/domain: <code>sip.speechcue.com</code>
+[2026-04-27T10:59:37.346403688Z] [info] 
+[2026-04-27T10:59:37.346408279Z] [info] 2. Configure 3CX SIP trunk:
+[2026-04-27T10:59:37.346423479Z] [info] - Log in to your 3CX Management Console
+[2026-04-27T10:59:37.346428219Z] [info] - Go to <b>SIP Trunks</b> → Add SIP Trunk → Choose “Generic” or “Other” ...</i> 	to: 5590563715
+[2026-04-27T10:59:37.346432713Z] [info] 
+[2026-04-27T10:59:37.347466973Z] [info] [Support] AI -> 1185070608: To set up your Nomadly SIP credentials with 3CX for inbound calls, follow these steps:
+[2026-04-27T10:59:37.347472205Z] [info] 
+[2026-04-27T10:59:37.347476114Z] [info] 1. Get your ... (escalate: false)
+[2026-04-27T11:00:07.536762659Z] [info] [PhoneScheduler] Running hourly expiry check...
+[2026-04-27T11:00:07.536766104Z] [info] [AutoPromo] Triggered vps_rdp 🌙evening for zh (local 19:00)
+[2026-04-27T11:00:07.536771492Z] [info] [PhoneScheduler] Expiry check complete: 0 reminders, 0 auto-renewed, 0 released
+[2026-04-27T11:00:07.536775805Z] [info] [AutoPromo] No zh users for vps_rdp (0 dead, 0 inactive 30+ days skipped)
+[2026-04-27T11:01:17.581536047Z] [info] 11:01:15 [Conversion] Social proof refreshed: {"hosting":15,"domains":15,"cloudphone":33,"digitalproducts":15,"vps":15,"virtualcard":15,"general":69}
+[2026-04-27T11:01:18.426662572Z] [info] [HostingScheduler] Weekly plan expired: entsecurity.xyz (Premium Anti-Red (1-Week)) for 6543817440 — no auto-renew (weekly plans never auto-renew)
+[2026-04-27T11:01:18.426672129Z] [info] [ProtectionHeartbeat] Checking 9 cPanel accounts...
+[2026-04-27T11:01:18.426678149Z] [info] [PhoneMonitor] === Health check started ===
+[2026-04-27T11:01:18.428135143Z] [info] [PhoneMonitor] Checking 6 Twilio subaccounts
+[2026-04-27T11:01:19.418137099Z] [info] [PhoneMonitor] Checking 1 Telnyx numbers
+[2026-04-27T11:01:19.418142753Z] [info] [PhoneMonitor] === Health check complete: 7 checked, 0 newly suspended ===
+[2026-04-27T11:01:39.210048486Z] [info] [ProtectionHeartbeat] DIAG claief8e: .user.ini=MISSING [(empty)] | .php=MISSING [(empty)]
+[2026-04-27T11:01:39.210052488Z] [info] [AntiRed] CF IP Fix deployed for claief8e (replaces JS challenge, Worker handles bot detection)
+[2026-04-27T11:01:39.210056822Z] [info] [ProtectionHeartbeat] REPAIRED claief8e (.user.ini+.antired-challenge.php): OK
+[2026-04-27T11:01:39.210060872Z] [info] [ProtectionHeartbeat] Done in 14.0s — total:9 ok:8 repaired:1 errors:0
+[2026-04-27T11:02:39.215149226Z] [info] 📨 Telegram webhook received
+[2026-04-27T11:02:39.215152161Z] [info] message: There’s no specific tab that says inbound rules so where would I found the setting?	from: 1185070608 blacknmilds
+[2026-04-27T11:02:39.215154866Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T11:02:39.215157566Z] [info] reply: 💬 <b>@blacknmilds</b> (1185070608):
+[2026-04-27T11:02:39.215160634Z] [info] There’s no specific tab that says inbound rules so where would I found the setting?
+[2026-04-27T11:02:39.215164308Z] [info] 
+[2026-04-27T11:02:39.215167448Z] [info] 🤖 <i>AI will auto-respond to this message</i>
+[2026-04-27T11:02:39.215170108Z] [info] 
+[2026-04-27T11:02:39.215172724Z] [info] 💬 User's bot language: EN
+[2026-04-27T11:02:39.215175993Z] [info] 📝 Detected message language: EN
+[2026-04-27T11:02:39.215178686Z] [info] 
+[2026-04-27T11:02:39.215181558Z] [info] ↩️ /reply 1185070608 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-04-27T11:02:39.215184471Z] [info] 
+[2026-04-27T11:02:39.215187041Z] [info] [Support] 1185070608 -> admin: There’s no specific tab that says inbound rules so where would I found the setting? (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)
+[2026-04-27T11:03:01.259795476Z] [info] 
+[2026-04-27T11:03:01.259800555Z] [info] 1. Log in to your 3CX Management Console.
+[2026-04-27T11:03:01.259812002Z] [info] 
+[2026-04-27T11:03:01.259814553Z] [info] Here’s how to find and set inbound call rules:
+[2026-04-27T11:03:01.259814933Z] [info] reply: In 3CX, inbound call routing is managed via the <b>Inbound Rules</b> section, but it might be under a different label depending on your 3CX version.
+[2026-04-27T11:03:01.260150078Z] [info] 2. On the left menu, look for <b>Inbound Rules</b> or <b>Inbound Calls</b>. If not directly visible, check under <b>Call Routing</b> or <b>Digital Receptionist</b>.
+[2026-04-27T11:03:01.260157654Z] [info] 2. On the left menu, look for <b>Inbound Rules</b> or <b>Inbound Calls</b>. If not directly visible, check under <b>Call Routing</b> or <b>Digital Receptionist</b>.
+[2026-04-27T11:03:01.260158125Z] [info] 3. In the Inbound Rules section, create a new rule or edit the default one.
+[2026-04-27T11:03:01.260165974Z] [info] 4. Set the DID/DDI number to your Nomadly phone number (in E.164 format).
+[2026-04-27T11:03:01.260168933Z] [info] 3. In the Inbound Rules section, create a new rule or edit the default one.
+[2026-04-27T11:03:01.260171883Z] [info] 5. Choose the destination for incoming calls—an extension, ring group, queue, or digital receptionist.
+[2026-04-27T11:03:01.260176803Z] [info] 4. Set the DID/DDI ...</i> 	to: 5590563715
+[2026-04-27T11:03:01.260179428Z] [info] 6. Save your settings.
+[2026-04-27T11:03:01.260184789Z] [info] 
+[2026-04-27T11:03:01.260187418Z] [info] 
+[2026-04-27T11:03:01.260191709Z] [info] [Support] AI -> 1185070608: In 3CX, inbound call routing is managed via the <b>Inbound Rules</b> section, but it might be under ... (escalate: false)
+[2026-04-27T11:03:01.260195472Z] [info] If you don’t see <b>Inbound Rules</b>, try this path:
+[2026-04-27T11:03:01.260200111Z] [info] Menu → <b>Settings</b> → <b>Call Routing</b> → <b>Inbound Rules</b>.
+[2026-04-27T11:03:01.260205266Z] [info] 
+[2026-04-27T11:03:01.260210242Z] [info] If still not found, your 3CX version or edition might label it differently. Checking the 3CX official docs or support portal for your version could help.
+[2026-04-27T11:03:01.260214657Z] [info] 
+[2026-04-27T11:03:01.260218848Z] [info] Would you like me to help with navigation for your specific 3CX version? /done	to: 1185070608
+[2026-04-27T11:03:01.260223541Z] [info] 
+[2026-04-27T11:03:01.260229749Z] [info] reply: 🤖 <b>AI replied to @blacknmilds</b> (1185070608):
+[2026-04-27T11:03:01.260235133Z] [info] <i>In 3CX, inbound call routing is managed via the <b>Inbound Rules</b> section, but it might be under a different label depending on your 3CX version.
+[2026-04-27T11:03:01.260240537Z] [info] 
+[2026-04-27T11:03:01.260248340Z] [info] Here’s how to find and set inbound call rules:
+[2026-04-27T11:03:01.260252539Z] [info] 
+[2026-04-27T11:03:01.260256802Z] [info] 1. Log in to your 3CX Management Console.
+[2026-04-27T11:04:04.827941555Z] [info] 📞 [Twilio] Inbound call: +15042097233 → +18882437690 (CA67876bdc92c7e601b0547cde3a268ff8)
+[2026-04-27T11:04:04.827945405Z] [info] [Twilio] SIP dial timeLimit: NaNs (planRemaining=NaNmin, wallet=$5.00, rate=$0.15/min)
+[2026-04-27T11:04:04.827948956Z] [info] 📞 Telnyx voice webhook received: call.initiated | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T11:04:04.827952527Z] [info] [Voice] Event: call.initiated
+[2026-04-27T11:04:04.827956092Z] [info] [Voice] PAYLOAD DUMP: direction=incoming, from=+15042097233, to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws, connection_id=2898118323872990714, call_control_id=v3:Dw8Gl1zgH7l6wl_PGYvnA6yq2lG8AOOu-SffAMhB7x2Ha9xLHVX3LQ, call_leg_id=cb2edf5a-4228-11f1-89be-02420aef551f, hangup_cause=N/A, hangup_source=N/A, sip_hangup_cause=N/A, state=bridging
+[2026-04-27T11:04:04.827959611Z] [info] 📞 Telnyx voice webhook received: call.answered | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T11:04:04.827963807Z] [info] [Voice] Event: call.answered
+[2026-04-27T11:04:14.178479185Z] [info] [Twilio] SIP ring result: +15042097233 → +18882437690 status=completed duration=13s sid=CA67876bdc92c7e601b0547cde3a268ff8
+[2026-04-27T11:04:14.189608192Z] [info] [Voice] Billed Twilio_Inbound: 1 min (1 plan + 0 overage @ $0.15) for +18882437690
+[2026-04-27T11:04:14.189614139Z] [info] [Twilio] SIP inbound billed: 1 min (1 plan + 0 overage)
+[2026-04-27T11:04:14.355839735Z] [info] 📞 Telnyx voice webhook received: call.hangup | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T11:04:14.355844938Z] [info] [Voice] Event: call.hangup
+[2026-04-27T11:04:14.355849882Z] [info] [Voice] PAYLOAD DUMP: direction=undefined, from=+15042097233, to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws, connection_id=2898118323872990714, call_control_id=v3:Dw8Gl1zgH7l6wl_PGYvnA6yq2lG8AOOu-SffAMhB7x2Ha9xLHVX3LQ, call_leg_id=cb2edf5a-4228-11f1-89be-02420aef551f, hangup_cause=normal_clearing, hangup_source=caller, sip_hangup_cause=200, state=undefined
+[2026-04-27T11:04:14.361516565Z] [info] [Twilio] Voice status: CA67876bdc92c7e601b0547cde3a268ff8 — completed (13s)
+[2026-04-27T11:04:14.361524569Z] [info] [Twilio] Voice status: CA67876bdc92c7e601b0547cde3a268ff8 already billed in action handler — skipping
+[2026-04-27T11:04:54.387291829Z] [info] 📞 [Twilio] Inbound call: +15042097233 → +18882437690 (CA435ca966e8a8b695983bbdc622c1e405)
+[2026-04-27T11:04:54.387296221Z] [info] [Twilio] SIP dial timeLimit: NaNs (planRemaining=NaNmin, wallet=$5.00, rate=$0.15/min)
+[2026-04-27T11:04:54.387300204Z] [info] 📞 Telnyx voice webhook received: call.initiated | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T11:04:54.387303698Z] [info] [Voice] Event: call.initiated
+[2026-04-27T11:04:54.387307222Z] [info] [Voice] PAYLOAD DUMP: direction=incoming, from=+15042097233, to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws, connection_id=2898118323872990714, call_control_id=v3:nttJBjvpKyePkNdZzRRSmwfCWbh3kvgL3XMVP9OCZR9U-WUMASe0Mw, call_leg_id=e5f8300c-4228-11f1-9906-02420aefe992, hangup_cause=N/A, hangup_source=N/A, sip_hangup_cause=N/A, state=bridging
+[2026-04-27T11:04:54.387310483Z] [info] 📞 Telnyx voice webhook received: call.answered | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T11:04:54.387314061Z] [info] [Voice] Event: call.answered
+[2026-04-27T11:05:02.438796967Z] [info] 📨 Telegram webhook received
+[2026-04-27T11:05:02.438803385Z] [info] message: Record your message and press pound, or press star to contact the operator. After I press Star it says call transfer failed	from: 1185070608 blacknmilds
+[2026-04-27T11:05:02.766976162Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T11:05:02.965822511Z] [info] reply: 💬 <b>@blacknmilds</b> (1185070608):
+[2026-04-27T11:05:02.965829668Z] [info] Record your message and press pound, or press star to contact the operator. After I press Star it says call transfer failed
+[2026-04-27T11:05:02.965834650Z] [info] 
+[2026-04-27T11:05:02.965838153Z] [info] 🤖 <i>AI will auto-respond to this message</i>
+[2026-04-27T11:05:02.965841613Z] [info] 
+[2026-04-27T11:05:02.965844804Z] [info] 💬 User's bot language: EN
+[2026-04-27T11:05:02.965848591Z] [info] 📝 Detected message language: EN
+[2026-04-27T11:05:02.965857360Z] [info] 
+[2026-04-27T11:05:02.965860997Z] [info] ↩️ /reply 1185070608 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-04-27T11:05:02.965864526Z] [info] 
+[2026-04-27T11:05:02.965868084Z] [info] [Support] 1185070608 -> admin: Record your message and press pound, or press star to contact the operator. After I press Star it says call transfer failed (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)
+[2026-04-27T11:05:09.780083815Z] [info] 2. Confirm 3CX is configured to accept calls from Nomadly:
+[2026-04-27T11:05:09.780087813Z] [info] reply: The message "Record your message and press pound, or press star to contact the operator" followed by "call transfer failed" means the call is reaching an IVR or voicemail system on Nomadly's side, and the transfer to your 3CX system is not working.
+[2026-04-27T11:05:09.780094720Z] [info] - Your 3CX SIP trunk must be registered and ready to receive calls on that username/IP
+[2026-04-27T11:05:09.780099459Z] [info] 
+[2026-04-27T11:05:09.780101919Z] [info] - Firewall/router allows SIP traffic on port 5060/5061 from Nomadly IPs
+[2026-04-27T11:05:09.780107052Z] [info] 
+[2026-04-27T11:05:09.780109530Z] [info] This usually happens because call forwarding is not correctly set to your 3CX SIP endpoint, or the SIP URI entered is invalid/unreachable.
+[2026-04-27T11:05:09.780111904Z] [info] 3. If you used a phone number instead of a SIP URI for forwarding, this can cause failure. Forwarding requires a SIP address, not a PSTN number.
+[2026-04-27T11:05:09.780117189Z] [info] 
+[2026-04-27T11:05:09.780117963Z] [info] 
+[2026-04-27T11:05:09.780123419Z] [info] 4. If you want to receive calls on 3CX extensions directly, ensure your 3CX trunk is set up to accept calls for your Nomadly number and that the forwarding points to the SIP trunk URI.
+[2026-04-27T11:05:09.780125022Z] [info] Please do this:
+[2026-04-27T11:05:09.780130734Z] [info] 
+[2026-04-27T11:05:09.780135462Z] [info] 1. Verify call forwarding is set to your correct 3CX SIP URI:
+[2026-04-27T11:05:09.780139742Z] [info] - Main menu → <b>📞 Cloud IVR + SIP</b> → <b>📋 My Plans</b> → select your number → <b>📞 Call Forwarding</b>
+[2026-04-27T11:05:09.780144294Z] [info] - Ensure <b>Always Forward</b> is selected
+[2026-04-27T11:05:09.780148584Z] [info] - The forwarding destination must be the exact SIP URI your 3CX server listens on, e.g. <code>sip:username@your3cxip</code> or <code>sip:username@your3cxdomain</code>
+[2026-04-27T11:05:09.780153123Z] [info] - Double-check no typos or missing parts
+[2026-04-27T11:05:09.780157974Z] [info] 
+[2026-04-27T11:05:09.782001499Z] [info] 
+[2026-04-27T11:05:09.782009171Z] [info] If you continue having trouble, please share the exact forwarding address you entered and your 3CX trunk setup details. I can escalate to our specialists if needed. 📞 Cloud IVR + SIP,🌐 Bulletproof Domains,/done	to: 1185070608
+[2026-04-27T11:05:09.782014729Z] [info] 
+[2026-04-27T11:05:09.782019041Z] [info] reply: 🤖 <b>AI replied to @blacknmilds</b> (1185070608):
+[2026-04-27T11:05:09.782023476Z] [info] <i>The message "Record your message and press pound, or press star to contact the operator" followed by "call transfer failed" means the call is reaching an IVR or voicemail system on Nomadly's side, and the transfer to your 3CX system is not working.
+[2026-04-27T11:05:09.782028795Z] [info] 
+[2026-04-27T11:05:09.782032703Z] [info] This usually happens because call forwarding is not correctly set to your 3CX SIP endpoint, or the SIP URI entered is invalid/unreachable.
+[2026-04-27T11:05:09.782036662Z] [info] 
+[2026-04-27T11:05:09.782040059Z] [info] Please do this:
+[2026-04-27T11:05:09.782043834Z] [info] 
+[2026-04-27T11:05:09.782047659Z] [info] 1. Verify call forwarding is set to your correct 3CX SIP URI:
+[2026-04-27T11:05:09.782050957Z] [info] - Main menu → <b>📞 Cloud IVR +...</i>
+[2026-04-27T11:05:09.782056124Z] [info] 
+[2026-04-27T11:05:09.782061314Z] [info] 🚨 <b>NEEDS HUMAN ATTENTION</b> 	to: 5590563715
+[2026-04-27T11:05:09.782065948Z] [info] 
+[2026-04-27T11:05:09.782068951Z] [info] [Support] AI -> 1185070608: The message "Record your message and press pound, or press star to contact the operator" followed by... (escalate: true)
+[2026-04-27T11:05:09.971919988Z] [info] ETELEGRAM: 400 Bad Request: can't parse entities: Unmatched end tag at byte offset 563, expected "</b>", found "</i>": 5590563715
+[2026-04-27T11:05:18.139408267Z] [info] [Twilio] SIP ring result: +15042097233 → +18882437690 status=completed duration=32s sid=CA435ca966e8a8b695983bbdc622c1e405
+[2026-04-27T11:05:18.153941402Z] [info] [Voice] Billed Twilio_Inbound: 1 min (1 plan + 0 overage @ $0.15) for +18882437690
+[2026-04-27T11:05:18.153947319Z] [info] [Twilio] SIP inbound billed: 1 min (1 plan + 0 overage)
+[2026-04-27T11:05:18.271878605Z] [info] 📞 Telnyx voice webhook received: call.hangup | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T11:05:18.271884526Z] [info] [Voice] Event: call.hangup
+[2026-04-27T11:05:18.271887448Z] [info] [Voice] PAYLOAD DUMP: direction=undefined, from=+15042097233, to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws, connection_id=2898118323872990714, call_control_id=v3:nttJBjvpKyePkNdZzRRSmwfCWbh3kvgL3XMVP9OCZR9U-WUMASe0Mw, call_leg_id=e5f8300c-4228-11f1-9906-02420aefe992, hangup_cause=normal_clearing, hangup_source=caller, sip_hangup_cause=200, state=undefined
+[2026-04-27T11:05:18.518315973Z] [info] [Twilio] Voice status: CA435ca966e8a8b695983bbdc622c1e405 — completed (32s)
+[2026-04-27T11:05:18.518318659Z] [info] [Twilio] Voice status: CA435ca966e8a8b695983bbdc622c1e405 already billed in action handler — skipping
+[2026-04-27T11:06:48.632844112Z] [info] [CR-Whitelist] Outbound IP: 52.8.168.25
+[2026-04-27T11:06:48.632847084Z] [info] 📞 [Twilio] Inbound call: +15042097233 → +18882437690 (CAa60948f12092ae6e11661d80d15a0818)
+[2026-04-27T11:06:48.632850027Z] [info] [Twilio] SIP dial timeLimit: NaNs (planRemaining=NaNmin, wallet=$5.00, rate=$0.15/min)
+[2026-04-27T11:06:48.632852853Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T11:06:48.632856145Z] [info] [CR-Whitelist] API blocked — IP 52.8.168.25 needs whitelisting
+[2026-04-27T11:06:48.632858873Z] [info] [CR-Whitelist] Retry #27 scheduled in 1800s
+[2026-04-27T11:06:48.632861396Z] [info] 📞 Telnyx voice webhook received: call.initiated | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T11:06:48.632864151Z] [info] [Voice] Event: call.initiated
+[2026-04-27T11:06:48.632867000Z] [info] [Voice] PAYLOAD DUMP: direction=incoming, from=+15042097233, to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws, connection_id=2898118323872990714, call_control_id=v3:B6Zn5uEyYEHCh4rXAEdzhOaPrrHqqc34JiEPgSCDVhBzLKaRkQwS5g, call_leg_id=2ca84eba-4229-11f1-9f2c-02420aef511f, hangup_cause=N/A, hangup_source=N/A, sip_hangup_cause=N/A, state=bridging
+[2026-04-27T11:06:48.632869820Z] [info] 📞 Telnyx voice webhook received: call.answered | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T11:06:48.632872450Z] [info] [Voice] Event: call.answered
+[2026-04-27T11:06:49.860803299Z] [info] [Twilio] SIP ring result: +15042097233 → +18882437690 status=completed duration=5s sid=CAa60948f12092ae6e11661d80d15a0818
+[2026-04-27T11:06:49.860808518Z] [info] [Voice] Billed Twilio_Inbound: 1 min (1 plan + 0 overage @ $0.15) for +18882437690
+[2026-04-27T11:06:49.860813059Z] [info] [Twilio] SIP inbound billed: 1 min (1 plan + 0 overage)
+[2026-04-27T11:06:49.879473464Z] [info] 📞 Telnyx voice webhook received: call.hangup | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T11:06:49.879479128Z] [info] [Voice] Event: call.hangup
+[2026-04-27T11:06:49.879483079Z] [info] [Voice] PAYLOAD DUMP: direction=undefined, from=+15042097233, to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws, connection_id=2898118323872990714, call_control_id=v3:B6Zn5uEyYEHCh4rXAEdzhOaPrrHqqc34JiEPgSCDVhBzLKaRkQwS5g, call_leg_id=2ca84eba-4229-11f1-9f2c-02420aef511f, hangup_cause=normal_clearing, hangup_source=caller, sip_hangup_cause=200, state=undefined
+[2026-04-27T11:06:50.000834443Z] [info] [Twilio] Voice status: CAa60948f12092ae6e11661d80d15a0818 — completed (6s)
+[2026-04-27T11:06:50.000839198Z] [info] [Twilio] Voice status: CAa60948f12092ae6e11661d80d15a0818 already billed in action handler — skipping
+[2026-04-27T11:08:20.918781782Z] [info] 📨 Telegram webhook received
+[2026-04-27T11:08:20.918784758Z] [info] message: So the setting “ switch on caller id to e164 conversion “ 
+[2026-04-27T11:08:20.918787621Z] [info] 
+[2026-04-27T11:08:20.918790927Z] [info] I should turn it on and to United States ?	from: 1185070608 blacknmilds
+[2026-04-27T11:08:20.918793784Z] [info] [CR-Whitelist] API test failed: Request failed with status code 401
+[2026-04-27T11:08:20.918796560Z] [info] reply: 💬 <b>@blacknmilds</b> (1185070608):
+[2026-04-27T11:08:20.918799169Z] [info] So the setting “ switch on caller id to e164 conversion “ 
+[2026-04-27T11:08:20.918802336Z] [info] 
+[2026-04-27T11:08:20.918804948Z] [info] I should turn it on and to United States ?
+[2026-04-27T11:08:20.918807624Z] [info] 
+[2026-04-27T11:08:20.918810639Z] [info] 🤖 <i>AI will auto-respond to this message</i>
+[2026-04-27T11:08:20.918813394Z] [info] 
+[2026-04-27T11:08:20.918816204Z] [info] 💬 User's bot language: EN
+[2026-04-27T11:08:20.918818859Z] [info] 📝 Detected message language: EN
+[2026-04-27T11:08:20.918821535Z] [info] 
+[2026-04-27T11:08:20.918824141Z] [info] ↩️ /reply 1185070608 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-04-27T11:08:20.918826884Z] [info] 
+[2026-04-27T11:08:20.918829871Z] [info] [Support] 1185070608 -> admin: So the setting “ switch on caller id to e164 conversion “ 
+[2026-04-27T11:08:20.918832470Z] [info] 
+[2026-04-27T11:08:20.918835064Z] [info] I should turn it on and to United States ? (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)
+[2026-04-27T11:08:20.918837764Z] [info] reply: Yes, you should <b>enable "Switch on Caller ID to E.164 conversion"</b> and set the country to <b>United States</b> if your Nomadly number is US-based. 
+[2026-04-27T11:08:20.918840600Z] [info] 
+[2026-04-27T11:08:20.918843680Z] [info] This ensures that incoming caller IDs are properly formatted in E.164 standard, which helps 3CX recognize and route calls correctly.
+[2026-04-27T11:08:20.920991510Z] [info] 
+[2026-04-27T11:08:20.920995148Z] [info] To summarize:
+[2026-04-27T11:08:20.920998014Z] [info] - Turn on caller ID E.164 conversion
+[2026-04-27T11:08:20.921000639Z] [info] - Select United States as the country
+[2026-04-27T11:08:20.921003366Z] [info] 
+[2026-04-27T11:08:20.921006051Z] [info] This setting helps avoid call routing issues due to mismatched number formats.
+[2026-04-27T11:08:20.921008747Z] [info] 
+[2026-04-27T11:08:20.921011963Z] [info] Let me know if you need help with anything else! /done	to: 1185070608
+[2026-04-27T11:08:20.921014513Z] [info] 
+[2026-04-27T11:08:20.921017272Z] [info] reply: 🤖 <b>AI replied to @blacknmilds</b> (1185070608):
+[2026-04-27T11:08:20.921020031Z] [info] <i>Yes, you should <b>enable "Switch on Caller ID to E.164 conversion"</b> and set the country to <b>United States</b> if your Nomadly number is US-based. 
+[2026-04-27T11:08:20.921023853Z] [info] 
+[2026-04-27T11:08:20.921026479Z] [info] This ensures that incoming caller IDs are properly formatted in E.164 standard, which helps 3CX recognize and route calls correctly.
+[2026-04-27T11:08:20.921029003Z] [info] 
+[2026-04-27T11:08:20.921031628Z] [info] To summarize:
+[2026-04-27T11:08:20.921034534Z] [info] - Turn on caller ID E.164 conversion
+[2026-04-27T11:08:20.921037170Z] [info] - Select United States as the country
+[2026-04-27T11:08:20.921039958Z] [info] 
+[2026-04-27T11:08:20.921043080Z] [info] This setting helps avoid call routing issues due to mismatched number formats.
+[2026-04-27T11:08:20.921045566Z] [info] 
+[2026-04-27T11:08:20.921049068Z] [info] Let me know if you need help with anything...</i> 	to: 5590563715
+[2026-04-27T11:08:20.921051706Z] [info] 
+[2026-04-27T11:08:20.921054439Z] [info] [Support] AI -> 1185070608: Yes, you should <b>enable "Switch on Caller ID to E.164 conversion"</b> and set the country to <b>Un... (escalate: false)
+[2026-04-27T11:08:50.720163743Z] [info] 📞 [Twilio] Inbound call: +15042097233 → +18882437690 (CAbcf7e6a037d345a1d773d3f1153a1d7e)
+[2026-04-27T11:08:50.720169817Z] [info] [Twilio] SIP dial timeLimit: NaNs (planRemaining=NaNmin, wallet=$5.00, rate=$0.15/min)
+[2026-04-27T11:08:50.720173825Z] [info] 📞 Telnyx voice webhook received: call.initiated | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T11:08:50.720177391Z] [info] [Voice] Event: call.initiated
+[2026-04-27T11:08:50.720182444Z] [info] [Voice] PAYLOAD DUMP: direction=incoming, from=+15042097233, to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws, connection_id=2898118323872990714, call_control_id=v3:JZeYbfVU2fOkHqAYNyewNjqMOfAcDJchX2n_IXaZK976mR9RL6VjkQ, call_leg_id=72cac6e8-4229-11f1-b885-02420aef941f, hangup_cause=N/A, hangup_source=N/A, sip_hangup_cause=N/A, state=bridging
+[2026-04-27T11:08:50.720185871Z] [info] 📞 Telnyx voice webhook received: call.answered | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T11:08:50.720190169Z] [info] [Voice] Event: call.answered
+[2026-04-27T11:09:10.726091783Z] [info] [Twilio] SIP ring result: +15042097233 → +18882437690 status=completed duration=22s sid=CAbcf7e6a037d345a1d773d3f1153a1d7e
+[2026-04-27T11:09:10.726097163Z] [info] [Voice] Billed Twilio_Inbound: 1 min (1 plan + 0 overage @ $0.15) for +18882437690
+[2026-04-27T11:09:10.726100193Z] [info] [Twilio] SIP inbound billed: 1 min (1 plan + 0 overage)
+[2026-04-27T11:09:10.726103571Z] [info] [Twilio] Voice status: CAbcf7e6a037d345a1d773d3f1153a1d7e — completed (22s)
+[2026-04-27T11:09:10.726106520Z] [info] [Twilio] Voice status: CAbcf7e6a037d345a1d773d3f1153a1d7e already billed in action handler — skipping
+[2026-04-27T11:09:10.726109210Z] [info] 📞 Telnyx voice webhook received: call.hangup | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T11:09:10.726112921Z] [info] [Voice] Event: call.hangup
+[2026-04-27T11:09:10.726115558Z] [info] [Voice] PAYLOAD DUMP: direction=undefined, from=+15042097233, to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws, connection_id=2898118323872990714, call_control_id=v3:JZeYbfVU2fOkHqAYNyewNjqMOfAcDJchX2n_IXaZK976mR9RL6VjkQ, call_leg_id=72cac6e8-4229-11f1-b885-02420aef941f, hangup_cause=normal_clearing, hangup_source=caller, sip_hangup_cause=200, state=undefined
+[2026-04-27T11:09:40.773798618Z] [info] 📨 Telegram webhook received
+[2026-04-27T11:09:40.773803576Z] [info] message: /reply 1185070608 Hi Black, I am going to be assisting you. What issues are you facing with your SIP? 
+[2026-04-27T11:09:40.773808000Z] [info] 
+[2026-04-27T11:09:40.773812463Z] [info] Human Agent	from: 5590563715 onarrival1
+[2026-04-27T11:09:40.773817057Z] [info] reply: 💬 <b>Support:</b>
+[2026-04-27T11:09:40.773820955Z] [info] Hi Black, I am going to be assisting you. What issues are you facing with your SIP? 
+[2026-04-27T11:09:40.773825047Z] [info] 
+[2026-04-27T11:09:40.773828964Z] [info] Human Agent /done	to: 1185070608
+[2026-04-27T11:09:40.773833246Z] [info] 
+[2026-04-27T11:09:40.773837544Z] [info] reply: ✅ Reply sent to blacknmilds (no translation needed) 	to: 5590563715
+[2026-04-27T11:09:40.773841930Z] [info] 
+[2026-04-27T11:09:40.773845302Z] [info] [Support] Admin replied to 1185070608: Hi Black, I am going to be assisting you. What issues are you facing with your SIP? 
+[2026-04-27T11:09:40.773848908Z] [info] 
+[2026-04-27T11:09:40.773852970Z] [info] Human Agent (targetLang: en, translated: false) — session re-opened, admin takeover ON
+[2026-04-27T11:10:00.651439495Z] [info] 📞 [Twilio] Inbound call: +15042097233 → +18882437690 (CAb4374d712de7287ea6454f80301ca13b)
+[2026-04-27T11:10:00.651444199Z] [info] [Twilio] SIP dial timeLimit: NaNs (planRemaining=NaNmin, wallet=$5.00, rate=$0.15/min)
+[2026-04-27T11:10:00.651448221Z] [info] 📞 Telnyx voice webhook received: call.initiated | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T11:10:00.651452190Z] [info] [Voice] Event: call.initiated
+[2026-04-27T11:10:00.651456544Z] [info] [Voice] PAYLOAD DUMP: direction=incoming, from=+15042097233, to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws, connection_id=2898118323872990714, call_control_id=v3:mBOgKZohv1qavo3mzriKIqJ3jHr8yE3oR0d5UypowBFSCDvt4fncsg, call_leg_id=a04f5200-4229-11f1-8b52-02420aef261f, hangup_cause=N/A, hangup_source=N/A, sip_hangup_cause=N/A, state=bridging
+[2026-04-27T11:10:00.651460269Z] [info] 📞 Telnyx voice webhook received: call.answered | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T11:10:00.651465113Z] [info] [Voice] Event: call.answered
+[2026-04-27T11:10:02.765382012Z] [info] [Twilio] SIP ring result: +15042097233 → +18882437690 status=completed duration=4s sid=CAb4374d712de7287ea6454f80301ca13b
+[2026-04-27T11:10:02.765384745Z] [info] [Voice] Billed Twilio_Inbound: 1 min (1 plan + 0 overage @ $0.15) for +18882437690
+[2026-04-27T11:10:02.765387417Z] [info] [Twilio] SIP inbound billed: 1 min (1 plan + 0 overage)
+[2026-04-27T11:10:02.907732711Z] [info] 📞 Telnyx voice webhook received: call.hangup | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T11:10:02.907737481Z] [info] [Voice] Event: call.hangup
+[2026-04-27T11:10:02.907740659Z] [info] [Voice] PAYLOAD DUMP: direction=undefined, from=+15042097233, to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws, connection_id=2898118323872990714, call_control_id=v3:mBOgKZohv1qavo3mzriKIqJ3jHr8yE3oR0d5UypowBFSCDvt4fncsg, call_leg_id=a04f5200-4229-11f1-8b52-02420aef261f, hangup_cause=normal_clearing, hangup_source=callee, sip_hangup_cause=200, state=undefined
+[2026-04-27T11:10:02.907743744Z] [info] [Twilio] Voice status: CAb4374d712de7287ea6454f80301ca13b — completed (5s)
+[2026-04-27T11:10:02.907746673Z] [info] [Twilio] Voice status: CAb4374d712de7287ea6454f80301ca13b already billed in action handler — skipping
+[2026-04-27T11:10:32.964710733Z] [info] 📞 [Twilio] Inbound call: +15042097233 → +18882437690 (CA35506c3cb124abcb7ab3c07b134b79d7)
+[2026-04-27T11:10:32.964715049Z] [info] [Twilio] SIP dial timeLimit: NaNs (planRemaining=NaNmin, wallet=$5.00, rate=$0.15/min)
+[2026-04-27T11:10:32.964718283Z] [info] 📞 Telnyx voice webhook received: call.initiated | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T11:10:32.964721366Z] [info] [Voice] Event: call.initiated
+[2026-04-27T11:10:32.964725323Z] [info] [Voice] PAYLOAD DUMP: direction=incoming, from=+15042097233, to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws, connection_id=2898118323872990714, call_control_id=v3:yNQff2JFQD1H34RA809hvX2fZm7wUtqzq4J_FVLpgO5vaxO6lvBGtg, call_leg_id=b0d97e84-4229-11f1-a25f-02420aef991f, hangup_cause=N/A, hangup_source=N/A, sip_hangup_cause=N/A, state=bridging
+[2026-04-27T11:10:32.964738885Z] [info] 📞 Telnyx voice webhook received: call.answered | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T11:10:32.964742354Z] [info] [Voice] Event: call.answered
+[2026-04-27T11:10:36.777133556Z] [info] [Twilio] SIP ring result: +15042097233 → +18882437690 status=completed duration=10s sid=CA35506c3cb124abcb7ab3c07b134b79d7
+[2026-04-27T11:10:36.777137164Z] [info] [Voice] Billed Twilio_Inbound: 1 min (1 plan + 0 overage @ $0.15) for +18882437690
+[2026-04-27T11:10:36.777139843Z] [info] [Twilio] SIP inbound billed: 1 min (1 plan + 0 overage)
+[2026-04-27T11:10:36.816962236Z] [info] [Twilio] Voice status: CA35506c3cb124abcb7ab3c07b134b79d7 — completed (11s)
+[2026-04-27T11:10:36.816967078Z] [info] [Twilio] Voice status: CA35506c3cb124abcb7ab3c07b134b79d7 already billed in action handler — skipping
+[2026-04-27T11:10:36.894310918Z] [info] 📞 Telnyx voice webhook received: call.hangup | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T11:10:36.894315389Z] [info] [Voice] Event: call.hangup
+[2026-04-27T11:10:36.894319547Z] [info] [Voice] PAYLOAD DUMP: direction=undefined, from=+15042097233, to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws, connection_id=2898118323872990714, call_control_id=v3:yNQff2JFQD1H34RA809hvX2fZm7wUtqzq4J_FVLpgO5vaxO6lvBGtg, call_leg_id=b0d97e84-4229-11f1-a25f-02420aef991f, hangup_cause=normal_clearing, hangup_source=caller, sip_hangup_cause=200, state=undefined
+[2026-04-27T11:10:56.618328367Z] [info] [Voice] Event: call.answered
+[2026-04-27T11:10:56.618361958Z] [info] 📞 [Twilio] Inbound call: +15042097233 → +18882437690 (CA669b2b1ac17ee111bd1121ed9ca99f8f)
+[2026-04-27T11:10:56.618364874Z] [info] [Twilio] SIP dial timeLimit: NaNs (planRemaining=NaNmin, wallet=$5.00, rate=$0.15/min)
+[2026-04-27T11:10:56.618367738Z] [info] 📞 Telnyx voice webhook received: call.initiated | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T11:10:56.618371922Z] [info] [Voice] Event: call.initiated
+[2026-04-27T11:10:56.618374850Z] [info] [Voice] PAYLOAD DUMP: direction=incoming, from=+15042097233, to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws, connection_id=2898118323872990714, call_control_id=v3:BKkBMrE-IF-UzN6oMoNeEucHNc3oXF_7Fo996Gr8dS0K7KNB8c9AIw, call_leg_id=c2081404-4229-11f1-80e1-02420aef26a0, hangup_cause=N/A, hangup_source=N/A, sip_hangup_cause=N/A, state=bridging
+[2026-04-27T11:10:56.618377615Z] [info] 📞 Telnyx voice webhook received: call.answered | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T11:11:06.447402371Z] [info] [Twilio] SIP ring result: +15042097233 → +18882437690 status=completed duration=11s sid=CA669b2b1ac17ee111bd1121ed9ca99f8f
+[2026-04-27T11:11:06.453825238Z] [info] [Voice] Billed Twilio_Inbound: 1 min (1 plan + 0 overage @ $0.15) for +18882437690
+[2026-04-27T11:11:06.453829303Z] [info] [Twilio] SIP inbound billed: 1 min (1 plan + 0 overage)
+[2026-04-27T11:11:06.580302914Z] [info] 📞 Telnyx voice webhook received: call.hangup | conn=2898118323872990714 | from=+15042097233 | to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws
+[2026-04-27T11:11:06.580307526Z] [info] [Voice] Event: call.hangup
+[2026-04-27T11:11:06.580312017Z] [info] [Voice] PAYLOAD DUMP: direction=undefined, from=+15042097233, to=gencred2enDj3knNbD4SYa20CtHLfIvQvYWDctuFWrEkivXws, connection_id=2898118323872990714, call_control_id=v3:BKkBMrE-IF-UzN6oMoNeEucHNc3oXF_7Fo996Gr8dS0K7KNB8c9AIw, call_leg_id=c2081404-4229-11f1-80e1-02420aef26a0, hangup_cause=normal_clearing, hangup_source=caller, sip_hangup_cause=200, state=undefined
+[2026-04-27T11:11:06.628959260Z] [info] [Twilio] Voice status: CA669b2b1ac17ee111bd1121ed9ca99f8f — completed (12s)
+[2026-04-27T11:11:06.628965794Z] [info] [Twilio] Voice status: CA669b2b1ac17ee111bd1121ed9ca99f8f already billed in action handler — skipping
+[2026-04-27T11:17:03.083818481Z] [info] 2026-04-27 11:17:00,264 - services.fastforex_service - INFO - Tatum BCH/USD: 447.5425
+[2026-04-27T11:17:03.083821420Z] [info] 2026-04-27 11:17:00,264 - services.fastforex_service - INFO - Tatum LTC/USD: 55.2997
+[2026-04-27T11:17:03.083824292Z] [info] 2026-04-27 11:17:00,307 - services.fastforex_service - INFO - Tatum BTC/USD: 77767.7565
+[2026-04-27T11:17:03.083827242Z] [info] 2026-04-27 11:17:00,330 - services.fastforex_service - INFO - Tatum DOGE/USD: 0.0979
+[2026-04-27T11:17:03.083829844Z] [info] 2026-04-27 11:17:00,391 - services.fastforex_service - INFO - Tatum ETH/USD: 2318.2874
+[2026-04-27T11:17:03.083832470Z] [info] 2026-04-27 11:17:00,423 - services.fastforex_service - INFO - Tatum TRX/USD: 0.3251
+[2026-04-27T11:17:03.085118083Z] [info] 2026-04-27 11:17:00,528 - services.fastforex_service - INFO - Tatum LTC/USD: 55.2997
+[2026-04-27T11:17:03.085122881Z] [info] 2026-04-27 11:17:02,343 - services.fastforex_service - INFO - Tatum ETH/USD: 2318.2874
+[2026-04-27T11:17:03.085126323Z] [info] 2026-04-27 11:17:02,557 - services.fastforex_service - INFO - Tatum USD/NGN: 1353.9510
+[2026-04-27T11:17:03.085129365Z] [info] 2026-04-27 11:17:02,558 - services.fastforex_service - INFO - Fresh USD-NGN (Tatum): 1,353.95 (cached for 3600s)
+[2026-04-27T11:17:03.085132250Z] [info] 2026-04-27 11:17:02,558 - jobs.crypto_rate_background_refresh - INFO - ✅ WEBHOOK_RATE_REFRESH: Completed in 2.56s - Refreshed: 19, Errors: 0
+[2026-04-27T11:17:03.085135857Z] [info] 2026-04-27 11:17:02,558 - apscheduler.executors.default - INFO - Job "🚀 Webhook Rate Refresh - Background Crypto Rate Updates (trigger: interval[0:05:00], next run at: 2026-04-27 11:22:00 UTC)" executed successfully
+[2026-04-27T11:17:03.085138748Z] [info] 2026-04-27 11:17:02,878 - utils.unified_activity_monitor - INFO - 📊 Dashboard Metrics Updated: Memory=185.0MB, CPU=0.4%, Users=0
+[2026-04-27T11:17:05.159401815Z] [info] 2026-04-27 11:17:05,000 - apscheduler.executors.default - INFO - Running job "🔄 Core Workflow Runner - UTE & Outbox Processing (trigger: interval[0:01:30], next run at: 2026-04-27 11:18:35 UTC)" (scheduled at 2026-04-27 11:17:05+00:00)
+[2026-04-27T11:17:05.159406681Z] [info] 2026-04-27 11:17:05,000 - jobs.core.workflow_runner - INFO - 🔄 CORE_WORKFLOW_RUNNER: Starting workflow processing cycle
+[2026-04-27T11:17:05.159410210Z] [info] 2026-04-27 11:17:05,001 - services.consolidated_notification_service - INFO - 🔔 Initializing Consolidated Notification Service...
+[2026-04-27T11:17:05.159413353Z] [info] 2026-04-27 11:17:05,001 - services.consolidated_notification_service - INFO - ✅ Consolidated Notification Service ready
+[2026-04-27T11:17:05.159416408Z] [info] 2026-04-27 11:17:05,001 - services.consolidated_notification_service - INFO - 📡 Available channels: ['telegram', 'email', 'sms', 'admin_alert']
+[2026-04-27T11:17:05.159419677Z] [info] 2026-04-27 11:17:05,035 - apscheduler.executors.default - INFO - Job "🔄 Core Workflow Runner - UTE & Outbox Processing (trigger: interval[0:01:30], next run at: 2026-04-27 11:18:35 UTC)" executed successfully
+[2026-04-27T11:17:25.049943479Z] [info] 2026-04-27 11:17:25,001 - apscheduler.executors.default - INFO - Running job "📊 Core Reconciliation - Balance & Webhook Validation (trigger: interval[0:05:00], next run at: 2026-04-27 11:22:25 UTC)" (scheduled at 2026-04-27 11:17:25+00:00)
+[2026-04-27T11:17:25.049950434Z] [info] 2026-04-27 11:17:25,001 - jobs.core.reconciliation - INFO - 📊 CORE_RECONCILIATION: Starting reconciliation cycle
+[2026-04-27T11:17:25.049954167Z] [info] 2026-04-27 11:17:25,001 - services.balance_guard - INFO - 🛡️ BALANCE_GUARD_MONITORING: Starting comprehensive balance check
+[2026-04-27T11:17:25.049957262Z] [info] 2026-04-27 11:17:25,001 - services.fincra_service - INFO - 💰 BALANCE_FETCH_FORCED_CRITICAL: Getting fresh Fincra NGN balance
+[2026-04-27T11:17:25.049959989Z] [info] 2026-04-27 11:17:25,001 - services.fincra_service - INFO - 🔍 Fincra balance check: URL=https://api.fincra.com/v2, BusinessID=64c95e7366ea9f0b4a98dc2e, TestMode=False
+[2026-04-27T11:17:25.049962861Z] [info] 2026-04-27 11:17:25,003 - services.fincra_service - INFO - Fincra auth circuit half-open - attempting recovery probe
+[2026-04-27T11:17:25.709845430Z] [info] 2026-04-27 11:17:25,671 - services.fincra_service - ERROR - Fincra authentication failed: {'message': 'Unauthorized', 'request_id': 'be189d31863875051c8f102777d75549'}
+[2026-04-27T11:17:25.709850726Z] [info] 2026-04-27 11:17:25,671 - services.fincra_service - ERROR - Check FINCRA_API_KEY and ensure it matches the environment (LIVE/TEST)
+[2026-04-27T11:17:25.709854480Z] [info] 2026-04-27 11:17:25,674 - services.fincra_service - ERROR - ❌ BALANCE_FETCH_FAILED: No cached Fincra data available and fresh fetch failed
+[2026-04-27T11:17:25.709858265Z] [info] 2026-04-27 11:17:25,674 - services.balance_guard - WARNING - ⚠️ BALANCE_ALERT: fincra NGN OPERATIONAL_DANGER - ₦0.00
+[2026-04-27T11:17:25.709861046Z] [info] 2026-04-27 11:17:25,674 - services.kraken_service - INFO - 💰 BALANCE_FETCH_FORCED_FRESH: Getting fresh Kraken balance
+[2026-04-27T11:17:25.709863772Z] [info] 2026-04-27 11:17:25,674 - services.kraken_service - INFO - 💰 Getting Kraken withdrawal available balance (direct API call)...
+[2026-04-27T11:17:25.833951039Z] [info] 2026-04-27 11:17:25,831 - services.kraken_service - INFO - 💰 Kraken withdrawal available: BABY → BABY: 0.00183000 (total: 0.00183000, held: 0.00000000)
+[2026-04-27T11:17:25.833957956Z] [info] 2026-04-27 11:17:25,831 - services.kraken_service - INFO - 💰 Kraken withdrawal available: PEPE → PEPE: 256328.86000000 (total: 256328.86000000, held: 0.00000000)
+[2026-04-27T11:17:25.833961785Z] [info] 2026-04-27 11:17:25,831 - services.kraken_service - INFO - 💰 Kraken withdrawal available: SOL → SOL: 0.00733218 (total: 0.00733218, held: 0.00000000)
+[2026-04-27T11:17:25.833965108Z] [info] 2026-04-27 11:17:25,831 - services.kraken_service - INFO - 💰 Kraken withdrawal available: XETH → ETH: 0.00000045 (total: 0.00000045, held: 0.00000000)
+[2026-04-27T11:17:25.833968229Z] [info] 2026-04-27 11:17:25,831 - services.kraken_service - INFO - 💰 Kraken withdrawal available: XXDG → DOGE: 7.72979776 (total: 7.72979776, held: 0.00000000)
+[2026-04-27T11:17:25.833971867Z] [info] 2026-04-27 11:17:25,831 - services.kraken_service - INFO - 💰 Kraken withdrawal available: XXMR → XXMR: 0.00000108 (total: 0.00000108, held: 0.00000000)
+[2026-04-27T11:17:25.833979504Z] [info] 2026-04-27 11:17:25,831 - services.kraken_service - INFO - 💰 Kraken withdrawal available: ZUSD → USD: 0.89090000 (total: 0.89090000, held: 0.00000000)
+[2026-04-27T11:17:25.833982663Z] [info] 2026-04-27 11:17:25,831 - services.kraken_service - INFO - ✅ Retrieved Kraken WITHDRAWAL AVAILABLE balances for 12 currencies
+[2026-04-27T11:17:25.833987946Z] [info] 2026-04-27 11:17:25,831 - services.kraken_service - INFO - 💰 Currencies with withdrawal available funds: ['BABY', 'PEPE', 'SOL', 'ETH', 'DOGE', 'XXMR', 'USD']
+[2026-04-27T11:17:25.833991917Z] [info] 2026-04-27 11:17:25,831 - services.kraken_service - INFO - 💾 BALANCE_CACHED: Fresh Kraken balance cached for 45s reuse
+[2026-04-27T11:17:26.324155958Z] [info] 2026-04-27 11:17:26,098 - services.fastforex_service - INFO - Tatum ETH/USD: 2318.2874
+[2026-04-27T11:17:26.324162235Z] [info] 2026-04-27 11:17:26,099 - services.balance_guard - INFO - 💰 TOTAL COMBINED BALANCE: $0.89 USD (2 currencies)
+[2026-04-27T11:17:26.324166018Z] [info] 2026-04-27 11:17:26,099 - services.balance_guard - WARNING - ⚠️ BALANCE_ALERT: kraken USD OPERATIONAL_DANGER - $0.89 USD-equiv (0.00000045 ETH ($0.00), 0.89090000 USD ($0.89))
+[2026-04-27T11:17:26.324169357Z] [info] 2026-04-27 11:17:26,099 - services.balance_guard - INFO - 🛡️ BALANCE_GUARD_MONITORING_COMPLETE: Status=operations_blocked, Providers=2, Alerts=0, Duration=1.10s
+[2026-04-27T11:17:26.324172610Z] [info] 2026-04-27 11:17:26,099 - services.balance_guard - CRITICAL - 🚫 OPERATIONS_BLOCKED: fincra_NGN, kraken_USD
+[2026-04-27T11:17:26.324175810Z] [info] 2026-04-27 11:17:26,099 - jobs.core.reconciliation - INFO - 💰 BALANCE_RECONCILIATION: BalanceGuard checked 2 providers (operations_blocked): 🚫2 blocked
+[2026-04-27T11:17:26.324179139Z] [info] 2026-04-27 11:17:26,302 - services.fastforex_service - INFO - Tatum USD/NGN: 1353.9510
+[2026-04-27T11:17:26.324182906Z] [info] 2026-04-27 11:17:26,303 - services.fastforex_service - INFO - Fresh USD-NGN (Tatum): 1,353.95 (cached for 3600s)
+[2026-04-27T11:17:26.324186676Z] [info] 2026-04-27 11:17:26,303 - jobs.core.reconciliation - INFO - 📈 RATE_RECONCILIATION: Updated 1, Validated 1
+[2026-04-27T11:17:26.324190117Z] [info] 2026-04-27 11:17:26,303 - jobs.core.reconciliation - INFO - ✅ RECONCILIATION_CLEAN: All systems reconciled successfully
+[2026-04-27T11:17:26.324193270Z] [info] 2026-04-27 11:17:26,303 - apscheduler.executors.default - INFO - Job "📊 Core Reconciliation - Balance & Webhook Validation (trigger: interval[0:05:00], next run at: 2026-04-27 11:22:25 UTC)" executed successfully
+[2026-04-27T11:17:32.893807305Z] [info] 2026-04-27 11:17:32,880 - utils.unified_activity_monitor - INFO - 📊 Dashboard Metrics Updated: Memory=185.0MB, CPU=0.2%, Users=0
+[2026-04-27T11:17:52.894507408Z] [info] 2026-04-27 11:17:45,353 - jobs.destination_cleanup_monitor - INFO - Destination cleanup completed: 0 addresses, 0 banks removed from 0 users
+[2026-04-27T11:17:52.894518940Z] [info] 2026-04-27 11:17:45,353 - jobs.cashout_hold_cleanup_job - INFO - 🔄 HOLD_CLEANUP: Starting cashout hold cleanup job
+[2026-04-27T11:17:52.894542890Z] [info] 2026-04-27 11:17:45,000 - apscheduler.executors.default - INFO - Running job "🧹 Core Cleanup & Expiry - System Maintenance (trigger: interval[0:15:00], next run at: 2026-04-27 11:32:45 UTC)" (scheduled at 2026-04-27 11:17:45+00:00)
+[2026-04-27T11:17:52.894552878Z] [info] 2026-04-27 11:17:45,001 - jobs.core.cleanup_expiry - INFO - 🧹 CORE_CLEANUP_EXPIRY: Starting modular cleanup cycle
+[2026-04-27T11:17:52.894569682Z] [info] 2026-04-27 11:17:45,001 - jobs.core.cleanup_expiry - INFO - 🔍 STEP_1: Processing expired escrows
+[2026-04-27T11:17:52.894576613Z] [info] 2026-04-27 11:17:45,001 - services.escrow_expiry_service - INFO - 🔍 PHASE_1: Processing escrows that need expiry status update
+[2026-04-27T11:17:52.894582632Z] [info] 2026-04-27 11:17:45,027 - services.escrow_expiry_service - INFO - 🔍 PHASE_1: Found 0 escrows to expire
+[2026-04-27T11:17:52.894589170Z] [info] 2026-04-27 11:17:45,027 - services.escrow_expiry_service - INFO - 🔍 PHASE_2: Processing existing expired escrows for refunds and notifications
+[2026-04-27T11:17:52.894594981Z] [info] 2026-04-27 11:17:45,036 - services.escrow_expiry_service - INFO - 🔍 PHASE_2: Found 0 existing expired escrows to process
+[2026-04-27T11:17:52.894599156Z] [info] 2026-04-27 11:17:45,041 - jobs.core.cleanup_expiry - INFO - 💰 STEP_2: No expired escrows for refund processing
+[2026-04-27T11:17:52.894603245Z] [info] 2026-04-27 11:17:45,041 - jobs.core.cleanup_expiry - INFO - 📧 STEP_3: No expired escrows for notifications
+[2026-04-27T11:17:52.894607339Z] [info] 2026-04-27 11:17:45,060 - jobs.destination_cleanup_monitor - INFO - Starting destination cleanup for 11 users
+[2026-04-27T11:17:52.895573469Z] [info] 2026-04-27 11:17:45,385 - jobs.automatic_cashout_cleanup - INFO - ✅ CLEANUP JOB: No stuck cashouts found
+[2026-04-27T11:17:52.895577328Z] [info] 2026-04-27 11:17:45,504 - apscheduler.executors.default - INFO - Job "🧹 Core Cleanup & Expiry - System Maintenance (trigger: interval[0:15:00], next run at: 2026-04-27 11:32:45 UTC)" executed successfully
+[2026-04-27T11:17:55.037614923Z] [info] 2026-04-27 11:17:55,001 - apscheduler.executors.default - INFO - Running job "📊 Pool Utilization Monitor - DB Connection Health (trigger: interval[0:05:00], next run at: 2026-04-27 11:22:55 UTC)" (scheduled at 2026-04-27 11:17:55+00:00)
+[2026-04-27T11:17:55.037620260Z] [info] 2026-04-27 11:17:55,001 - jobs.consolidated_scheduler - INFO - POOL_MONITOR: OK utilization 5% (3/57) - sync=3/25 async=0/32
+[2026-04-27T11:17:55.037623783Z] [info] 2026-04-27 11:17:55,001 - apscheduler.executors.default - INFO - Job "📊 Pool Utilization Monitor - DB Connection Health (trigger: interval[0:05:00], next run at: 2026-04-27 11:22:55 UTC)" executed successfully
+[2026-04-27T11:18:02.889847956Z] [info] 2026-04-27 11:18:02,881 - utils.unified_activity_monitor - INFO - 📊 Dashboard Metrics Updated: Memory=185.0MB, CPU=0.3%, Users=0
+[2026-04-27T11:18:22.884282135Z] [info] 2026-04-27 11:18:15,002 - apscheduler.executors.default - INFO - Running job "🔁 Core Retry Engine - Unified Retry Processing (trigger: interval[0:02:00], next run at: 2026-04-27 11:20:15 UTC)" (scheduled at 2026-04-27 11:18:15+00:00)
+[2026-04-27T11:18:22.884290695Z] [info] 2026-04-27 11:18:15,002 - jobs.core.retry_engine - INFO - 🔁 CORE_RETRY_ENGINE: Starting retry processing cycle
+[2026-04-27T11:18:22.884295746Z] [info] 2026-04-27 11:18:15,002 - services.unified_retry_service - INFO - 🔄 UNIFIED_RETRY_PROCESSOR: Starting batch processing (limit: 20)
+[2026-04-27T11:18:22.884305001Z] [info] 2026-04-27 11:18:15,017 - services.unified_retry_service - INFO - 🔍 UNIFIED_RETRY_QUEUE: Found 0 transactions ready for retry
+[2026-04-27T11:18:22.884308897Z] [info] 2026-04-27 11:18:15,021 - services.unified_retry_service - INFO - ✅ UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in 0.019s
+[2026-04-27T11:18:22.884313254Z] [info] 2026-04-27 11:18:15,057 - jobs.core.retry_engine - INFO - 🔄 AUTO_CASHOUT_ENABLED: Processing auto-cashout with async session
+[2026-04-27T11:18:22.884317159Z] [info] 2026-04-27 11:18:15,057 - services.auto_cashout - INFO - 🔄 PROCESS_PENDING_CASHOUTS: Starting auto cashout processing
+[2026-04-27T11:18:22.884320989Z] [info] 2026-04-27 11:18:15,077 - services.auto_cashout - INFO - 📋 Found 0 pending cashouts to process
+[2026-04-27T11:18:22.884324995Z] [info] 2026-04-27 11:18:15,077 - services.auto_cashout - INFO - ✅ PROCESS_PENDING_CASHOUTS: No pending cashouts found
+[2026-04-27T11:18:22.884329307Z] [info] 2026-04-27 11:18:15,082 - apscheduler.executors.default - INFO - Job "🔁 Core Retry Engine - Unified Retry Processing (trigger: interval[0:02:00], next run at: 2026-04-27 11:20:15 UTC)" executed successfully
+[2026-04-27T11:18:42.780431212Z] [info] 2026-04-27 11:18:32,883 - utils.unified_activity_monitor - INFO - 📊 Dashboard Metrics Updated: Memory=185.0MB, CPU=0.3%, Users=0
+[2026-04-27T11:18:42.780436307Z] [info] 2026-04-27 11:18:35,001 - apscheduler.executors.default - INFO - Running job "🔄 Core Workflow Runner - UTE & Outbox Processing (trigger: interval[0:01:30], next run at: 2026-04-27 11:20:05 UTC)" (scheduled at 2026-04-27 11:18:35+00:00)
+[2026-04-27T11:18:42.780439824Z] [info] 2026-04-27 11:18:35,001 - jobs.core.workflow_runner - INFO - 🔄 CORE_WORKFLOW_RUNNER: Starting workflow processing cycle
+[2026-04-27T11:18:42.780442821Z] [info] 2026-04-27 11:18:35,001 - services.consolidated_notification_service - INFO - 🔔 Initializing Consolidated Notification Service...
+[2026-04-27T11:18:42.780445842Z] [info] 2026-04-27 11:18:35,001 - services.consolidated_notification_service - INFO - ✅ Consolidated Notification Service ready
+[2026-04-27T11:18:42.780448594Z] [info] 2026-04-27 11:18:35,001 - services.consolidated_notification_service - INFO - 📡 Available channels: ['telegram', 'email', 'sms', 'admin_alert']
+[2026-04-27T11:18:42.780451807Z] [info] 2026-04-27 11:18:35,027 - apscheduler.executors.default - INFO - Job "🔄 Core Workflow Runner - UTE & Outbox Processing (trigger: interval[0:01:30], next run at: 2026-04-27 11:20:05 UTC)" executed successfully
+[2026-04-27T11:19:12.746193623Z] [info] 2026-04-27 11:19:02,884 - utils.unified_activity_monitor - INFO - 📊 Dashboard Metrics Updated: Memory=185.0MB, CPU=0.2%, Users=0
+[2026-04-27T11:19:42.846341579Z] [info] 2026-04-27 11:19:32,885 - utils.unified_activity_monitor - INFO - 📊 Dashboard Metrics Updated: Memory=185.0MB, CPU=0.2%, Users=0
+[2026-04-27T11:20:12.632291937Z] [info] 2026-04-27 11:20:02,886 - utils.unified_activity_monitor - INFO - 📊 Dashboard Metrics Updated: Memory=185.0MB, CPU=0.2%, Users=0
+[2026-04-27T11:20:12.632298430Z] [info] 2026-04-27 11:20:05,001 - apscheduler.executors.default - INFO - Running job "🔄 Core Workflow Runner - UTE & Outbox Processing (trigger: interval[0:01:30], next run at: 2026-04-27 11:21:35 UTC)" (scheduled at 2026-04-27 11:20:05+00:00)
+[2026-04-27T11:20:12.632305464Z] [info] 2026-04-27 11:20:05,001 - jobs.core.workflow_runner - INFO - 🔄 CORE_WORKFLOW_RUNNER: Starting workflow processing cycle
+[2026-04-27T11:20:12.632316508Z] [info] 2026-04-27 11:20:05,001 - services.consolidated_notification_service - INFO - 📡 Available channels: ['telegram', 'email', 'sms', 'admin_alert']
+[2026-04-27T11:20:12.632331437Z] [info] 2026-04-27 11:20:05,030 - apscheduler.executors.default - INFO - Job "🔄 Core Workflow Runner - UTE & Outbox Processing (trigger: interval[0:01:30], next run at: 2026-04-27 11:21:35 UTC)" executed successfully
+[2026-04-27T11:20:15.087857886Z] [info] 2026-04-27 11:20:15,002 - services.unified_retry_service - INFO - 🔄 UNIFIED_RETRY_PROCESSOR: Starting batch processing (limit: 20)
+[2026-04-27T11:20:15.087862409Z] [info] 2026-04-27 11:20:15,015 - services.unified_retry_service - INFO - 🔍 UNIFIED_RETRY_QUEUE: Found 0 transactions ready for retry
+[2026-04-27T11:20:15.087866251Z] [info] 2026-04-27 11:20:15,019 - services.unified_retry_service - INFO - ✅ UNIFIED_RETRY_BATCH_COMPLETE: {'processed': 0, 'successful': 0, 'failed': 0, 'rescheduled': 0, 'errors': 0} in 0.017s
+[2026-04-27T11:20:15.087870758Z] [info] 2026-04-27 11:20:15,051 - jobs.core.retry_engine - INFO - 🔄 AUTO_CASHOUT_ENABLED: Processing auto-cashout with async session
+[2026-04-27T11:20:15.087874252Z] [info] 2026-04-27 11:20:15,051 - services.auto_cashout - INFO - 🔄 PROCESS_PENDING_CASHOUTS: Starting auto cashout processing
+[2026-04-27T11:20:15.087885798Z] [info] 2026-04-27 11:20:15,071 - services.auto_cashout - INFO - ✅ PROCESS_PENDING_CASHOUTS: No pending cashouts found

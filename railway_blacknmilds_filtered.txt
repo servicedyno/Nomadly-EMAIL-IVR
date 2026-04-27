@@ -1,0 +1,92 @@
+[2026-04-27T10:04:27.277764423Z] [info] [AutoPromo] GIF failed for 1185070608, text fallback: ETELEGRAM: 429 Too Many Requests: retry after 39
+[2026-04-27T10:57:59.912867079Z] [info] 💡 <b>Like it?</b> Tap <b>📞 Cloud IVR + SIP</b> below to get your own number with unlimited calls. 📞 Cloud IVR + SIP,Back	to: 1185070608
+[2026-04-27T10:57:59.912884957Z] [info] message: Back	from: 1185070608 blacknmilds
+[2026-04-27T10:57:59.912906823Z] [info] message: /testsip	from: 1185070608 blacknmilds
+[2026-04-27T10:57:59.912911587Z] [info] [PhoneTest] OTP generated for chatId 1185070608: 714953
+[2026-04-27T10:57:59.913267563Z] [info] Select an option below 📞 Cloud IVR + SIP,🤝 Refer & Earn,🏪 Marketplace,🛒 Digital Products,🌐 Bulletproof Domains,🛡️🔥 Anti-Red Hosting,🖥️ VPS/RDP — Port 25 Open🛡️,📧🆓 BulkSMS — 100 Free SMS,📧 Email Validation,💳 Virtual Card,👛 Wallet,📱 SMS Leads,🔗✂️ URL Shortener — 5 Free Links,⚡ Upgrade Plan,🎁 Service Bundles,📢 Join Channel,💼 Reseller,🌍 Settings,💬 Support	to: 1185070608
+[2026-04-27T10:58:00.495889473Z] [info] message: 💬 Support	from: 1185070608 blacknmilds
+[2026-04-27T10:58:00.530675927Z] [info] When done, send /done to close the chat. /done	to: 1185070608
+[2026-04-27T10:58:00.536700909Z] [info] User: <b>@blacknmilds</b> (1185070608)
+[2026-04-27T10:58:00.536713768Z] [info] Reply with: /reply 1185070608 <i>your message</i>
+[2026-04-27T10:58:00.536721738Z] [info] 📎 Or attach a photo/file with caption: <code>/reply 1185070608 your caption</code>
+[2026-04-27T10:58:00.536726040Z] [info] Close with: /close 1185070608 	to: 5590563715
+[2026-04-27T10:58:00.536733648Z] [info] [Support] Session opened for 1185070608 blacknmilds — AI will auto-respond, escalation to admin if needed
+[2026-04-27T10:58:50.605089566Z] [info] ↩️ /reply 1185070608 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-04-27T10:58:50.605097216Z] [info] [Support] 1185070608 -> admin: I’m trying to set up the sip with 3cx however when I try to call the number it says Record your message and press pound, or press star to contact the operator.
+[2026-04-27T10:58:50.605104222Z] [info] How can I set up 3cx to accept inbound calls (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)
+[2026-04-27T10:58:50.605133888Z] [info] message: I’m trying to set up the sip with 3cx however when I try to call the number it says Record your message and press pound, or press star to contact the operator.
+[2026-04-27T10:58:50.605142797Z] [info] How can I set up 3cx to accept inbound calls	from: 1185070608 blacknmilds
+[2026-04-27T10:58:50.605149320Z] [info] reply: 💬 <b>@blacknmilds</b> (1185070608):
+[2026-04-27T10:58:50.605153397Z] [info] I’m trying to set up the sip with 3cx however when I try to call the number it says Record your message and press pound, or press star to contact the operator.
+[2026-04-27T10:58:50.605161067Z] [info] How can I set up 3cx to accept inbound calls
+[2026-04-27T10:58:51.627582044Z] [info] If you want to receive calls directly on 3CX via SIP, ensure your SIP credentials are correctly set up in 3CX and that your number’s forwarding points to your 3CX SIP endpoint.
+[2026-04-27T10:58:51.627599381Z] [info] reply: I understand you're trying to set up your SIP with 3CX but calls to your number get a voicemail prompt instead of ringing through.
+[2026-04-27T10:58:51.627607860Z] [info] Let me know if you want detailed SIP setup steps for 3CX or help verifying your forwarding. 📞 Cloud IVR + SIP,👛 Wallet,/done	to: 1185070608
+[2026-04-27T10:58:51.627611630Z] [info] This usually means your Cloud IVR number is configured with voicemail or no call forwarding to your 3CX SIP endpoint.
+[2026-04-27T10:58:51.627618990Z] [info] To set up 3CX for inbound calls, you need to disable voicemail and set up call forwarding on your Cloud IVR number to point calls to your 3CX SIP.
+[2026-04-27T10:58:51.627653110Z] [info] 5. Enter your 3CX SIP phone number or SIP URI as the forwarding destination
+[2026-04-27T10:58:51.628656546Z] [info] reply: 🤖 <b>AI replied to @blacknmilds</b> (1185070608):
+[2026-04-27T10:58:51.628660829Z] [info] <i>I understand you're trying to set up your SIP with 3CX but calls to your number get a voicemail prompt instead of ringing through.
+[2026-04-27T10:58:51.628668996Z] [info] This usually means your Cloud IVR number is configured with voicemail or no call forwarding to your 3CX SIP endpoint.
+[2026-04-27T10:58:51.628676358Z] [info] To set up 3CX for inbound calls, you need to disable voicemail and set up call forwarding on your Cloud IVR number to point calls to your 3CX SIP.
+[2026-04-27T10:58:51.628700683Z] [info] [Support] AI -> 1185070608: I understand you're trying to set up your SIP with 3CX but calls to your number get a voicemail prom... (escalate: false)
+[2026-04-27T10:59:31.482992834Z] [info] message: Give me details sip setup steps for 3cx	from: 1185070608 blacknmilds
+[2026-04-27T10:59:31.483000559Z] [info] reply: 💬 <b>@blacknmilds</b> (1185070608):
+[2026-04-27T10:59:31.483003752Z] [info] Give me details sip setup steps for 3cx
+[2026-04-27T10:59:31.483032190Z] [info] ↩️ /reply 1185070608 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-04-27T10:59:31.483041034Z] [info] [Support] 1185070608 -> admin: Give me details sip setup steps for 3cx (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)
+[2026-04-27T10:59:37.345266694Z] [info] reply: To set up your Nomadly SIP credentials with 3CX for inbound calls, follow these steps:
+[2026-04-27T10:59:37.345268841Z] [info] 3. Set inbound rules in 3CX:
+[2026-04-27T10:59:37.345291338Z] [info] 2. Configure 3CX SIP trunk:
+[2026-04-27T10:59:37.345297951Z] [info] - Log in to your 3CX Management Console
+[2026-04-27T10:59:37.346334611Z] [info] - Enter your 3CX trunk SIP URI or IP address, e.g. <code>sip:your3cxip@your3cxdomain</code>
+[2026-04-27T10:59:37.346347246Z] [info] Need help with any specific step? 📞 Cloud IVR + SIP,👛 Wallet,/done	to: 1185070608
+[2026-04-27T10:59:37.346350788Z] [info] 5. Test inbound calls by dialing your Nomadly number; calls should route to 3CX and ring your extensions.
+[2026-04-27T10:59:37.346364977Z] [info] Ensure your 3CX firewall and network allow SIP traffic on the ports used. Also confirm your wallet has sufficient balance to pay call forwarding charges ($0.50/min).
+[2026-04-27T10:59:37.346365919Z] [info] reply: 🤖 <b>AI replied to @blacknmilds</b> (1185070608):
+[2026-04-27T10:59:37.346372156Z] [info] <i>To set up your Nomadly SIP credentials with 3CX for inbound calls, follow these steps:
+[2026-04-27T10:59:37.346408279Z] [info] 2. Configure 3CX SIP trunk:
+[2026-04-27T10:59:37.346423479Z] [info] - Log in to your 3CX Management Console
+[2026-04-27T10:59:37.347466973Z] [info] [Support] AI -> 1185070608: To set up your Nomadly SIP credentials with 3CX for inbound calls, follow these steps:
+[2026-04-27T11:02:39.215152161Z] [info] message: There’s no specific tab that says inbound rules so where would I found the setting?	from: 1185070608 blacknmilds
+[2026-04-27T11:02:39.215157566Z] [info] reply: 💬 <b>@blacknmilds</b> (1185070608):
+[2026-04-27T11:02:39.215181558Z] [info] ↩️ /reply 1185070608 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-04-27T11:02:39.215187041Z] [info] [Support] 1185070608 -> admin: There’s no specific tab that says inbound rules so where would I found the setting? (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)
+[2026-04-27T11:03:01.259800555Z] [info] 1. Log in to your 3CX Management Console.
+[2026-04-27T11:03:01.259814933Z] [info] reply: In 3CX, inbound call routing is managed via the <b>Inbound Rules</b> section, but it might be under a different label depending on your 3CX version.
+[2026-04-27T11:03:01.260191709Z] [info] [Support] AI -> 1185070608: In 3CX, inbound call routing is managed via the <b>Inbound Rules</b> section, but it might be under ... (escalate: false)
+[2026-04-27T11:03:01.260210242Z] [info] If still not found, your 3CX version or edition might label it differently. Checking the 3CX official docs or support portal for your version could help.
+[2026-04-27T11:03:01.260218848Z] [info] Would you like me to help with navigation for your specific 3CX version? /done	to: 1185070608
+[2026-04-27T11:03:01.260229749Z] [info] reply: 🤖 <b>AI replied to @blacknmilds</b> (1185070608):
+[2026-04-27T11:03:01.260235133Z] [info] <i>In 3CX, inbound call routing is managed via the <b>Inbound Rules</b> section, but it might be under a different label depending on your 3CX version.
+[2026-04-27T11:03:01.260256802Z] [info] 1. Log in to your 3CX Management Console.
+[2026-04-27T11:05:02.438803385Z] [info] message: Record your message and press pound, or press star to contact the operator. After I press Star it says call transfer failed	from: 1185070608 blacknmilds
+[2026-04-27T11:05:02.965822511Z] [info] reply: 💬 <b>@blacknmilds</b> (1185070608):
+[2026-04-27T11:05:02.965860997Z] [info] ↩️ /reply 1185070608 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-04-27T11:05:02.965868084Z] [info] [Support] 1185070608 -> admin: Record your message and press pound, or press star to contact the operator. After I press Star it says call transfer failed (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)
+[2026-04-27T11:05:09.780083815Z] [info] 2. Confirm 3CX is configured to accept calls from Nomadly:
+[2026-04-27T11:05:09.780087813Z] [info] reply: The message "Record your message and press pound, or press star to contact the operator" followed by "call transfer failed" means the call is reaching an IVR or voicemail system on Nomadly's side, and the transfer to your 3CX system is not working.
+[2026-04-27T11:05:09.780094720Z] [info] - Your 3CX SIP trunk must be registered and ready to receive calls on that username/IP
+[2026-04-27T11:05:09.780109530Z] [info] This usually happens because call forwarding is not correctly set to your 3CX SIP endpoint, or the SIP URI entered is invalid/unreachable.
+[2026-04-27T11:05:09.780123419Z] [info] 4. If you want to receive calls on 3CX extensions directly, ensure your 3CX trunk is set up to accept calls for your Nomadly number and that the forwarding points to the SIP trunk URI.
+[2026-04-27T11:05:09.780135462Z] [info] 1. Verify call forwarding is set to your correct 3CX SIP URI:
+[2026-04-27T11:05:09.780148584Z] [info] - The forwarding destination must be the exact SIP URI your 3CX server listens on, e.g. <code>sip:username@your3cxip</code> or <code>sip:username@your3cxdomain</code>
+[2026-04-27T11:05:09.782009171Z] [info] If you continue having trouble, please share the exact forwarding address you entered and your 3CX trunk setup details. I can escalate to our specialists if needed. 📞 Cloud IVR + SIP,🌐 Bulletproof Domains,/done	to: 1185070608
+[2026-04-27T11:05:09.782019041Z] [info] reply: 🤖 <b>AI replied to @blacknmilds</b> (1185070608):
+[2026-04-27T11:05:09.782023476Z] [info] <i>The message "Record your message and press pound, or press star to contact the operator" followed by "call transfer failed" means the call is reaching an IVR or voicemail system on Nomadly's side, and the transfer to your 3CX system is not working.
+[2026-04-27T11:05:09.782032703Z] [info] This usually happens because call forwarding is not correctly set to your 3CX SIP endpoint, or the SIP URI entered is invalid/unreachable.
+[2026-04-27T11:05:09.782047659Z] [info] 1. Verify call forwarding is set to your correct 3CX SIP URI:
+[2026-04-27T11:05:09.782068951Z] [info] [Support] AI -> 1185070608: The message "Record your message and press pound, or press star to contact the operator" followed by... (escalate: true)
+[2026-04-27T11:08:20.918790927Z] [info] I should turn it on and to United States ?	from: 1185070608 blacknmilds
+[2026-04-27T11:08:20.918796560Z] [info] reply: 💬 <b>@blacknmilds</b> (1185070608):
+[2026-04-27T11:08:20.918824141Z] [info] ↩️ /reply 1185070608 <i>type response (auto-translates to EN)</i> 	to: 5590563715
+[2026-04-27T11:08:20.918829871Z] [info] [Support] 1185070608 -> admin: So the setting “ switch on caller id to e164 conversion “ 
+[2026-04-27T11:08:20.918843680Z] [info] This ensures that incoming caller IDs are properly formatted in E.164 standard, which helps 3CX recognize and route calls correctly.
+[2026-04-27T11:08:20.921011963Z] [info] Let me know if you need help with anything else! /done	to: 1185070608
+[2026-04-27T11:08:20.921017272Z] [info] reply: 🤖 <b>AI replied to @blacknmilds</b> (1185070608):
+[2026-04-27T11:08:20.921026479Z] [info] This ensures that incoming caller IDs are properly formatted in E.164 standard, which helps 3CX recognize and route calls correctly.
+[2026-04-27T11:08:20.921054439Z] [info] [Support] AI -> 1185070608: Yes, you should <b>enable "Switch on Caller ID to E.164 conversion"</b> and set the country to <b>Un... (escalate: false)
+[2026-04-27T11:09:40.773803576Z] [info] message: /reply 1185070608 Hi Black, I am going to be assisting you. What issues are you facing with your SIP? 
+[2026-04-27T11:09:40.773828964Z] [info] Human Agent /done	to: 1185070608
+[2026-04-27T11:09:40.773837544Z] [info] reply: ✅ Reply sent to blacknmilds (no translation needed) 	to: 5590563715
+[2026-04-27T11:09:40.773845302Z] [info] [Support] Admin replied to 1185070608: Hi Black, I am going to be assisting you. What issues are you facing with your SIP? 
