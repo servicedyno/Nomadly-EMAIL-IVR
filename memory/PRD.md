@@ -705,6 +705,19 @@ End-to-end trace:
 ### Deployment status
 - **Local only.** Fixes are in `/app/js/`. Production Railway service `Nomadly-EMAIL-IVR` has NOT been redeployed yet — the next time Railway redeploys, the fixes will go live for @Mrdoitright53 and all other users.
 
+## Feb 2026 — @jasonthekidd zip-upload RCA + fix: chunked upload
+
+- **Evidence**: jason's cPanel is `cap1a612` on `cap1online360.com`. WHM account + `public_html` were created correctly at 03:05:00 (verified by successful Anti-Red `.htaccess` deploy at 03:05:13 and a small 103.6 KB PNG upload at 03:09:16). After that, **21 consecutive large-file uploads aborted mid-body**, logged as `[Panel] Upload aborted by client before multer finished`. Same symptom hit 4 other users (`smil123b`, `peakb09c`, `sech752f`, `entsf6c7`) over the prior 5 days — it's a **Railway ingress timeout on large multipart uploads**, not the `public_html` creation.
+- **Root cause**: existing `/files/upload` route uses `multer.memoryStorage()` and buffers the full file before relaying to cPanel. On mobile links a >8 MB zip exceeds Railway's ~60 s per-request budget; the upstream proxy kills the socket which fires `req.on('aborted')` / `req.on('close')` → swallowed as "client cancel".
+- **Fix — chunked upload**:
+  - New backend route `POST /panel/files/upload-chunk` (`js/cpanel-routes.js`) accepts 5 MB chunks with `{uploadId, chunkIndex, totalChunks, fileName, dir, fileSize, chunk}`; server buffers per-session, assembles on the last chunk, forwards to cPanel via the existing `cpProxy.uploadFile`.
+  - Session scoped to `cpUser::uploadId` (blocks cross-user hijack), 120 MB hard cap, 10 min TTL, 2 min janitor sweep, idempotent replay, out-of-order chunks supported.
+  - `POST /panel/files/upload-chunk/cancel` frees memory explicitly.
+  - Frontend `FileManager.js` auto-chunks any file > 8 MB, shows per-chunk progress (`Uploading file.zip — chunk 3/20 (15%)`).
+  - Friendlier error text: old `Upload cancelled by client` → `Upload interrupted — connection closed before file was fully received. For files > 8 MB, please use chunked upload (retry and the panel will auto-chunk).`
+- **Regression test** `js/tests/test_chunked_upload.js` — 14 assertions: sequential assembly, out-of-order assembly, idempotent replay, `.htaccess` rejected, missing fields → 400, cross-user session isolation, 120 MB cap → 413, cancel endpoint idempotent. All green.
+- Bot boots cleanly, lint passes, prior three regression tests still green (i18n / `hasVoice` / `lastChanged`).
+
 ## Feb 2026 — "Last changed: X ago" on Manage-Number screen
 - `js/phone-config.js` adds `formatRelativeTime(iso, lang)` helper producing locale-native relative strings (en/fr/zh/hi) across all 5 ranges: `just now`, minutes, hours, days, weeks.
 - All 4 locale `manageNumber(...)` renderers append a subtle italic line: `🕒 Last changed: 2 mins ago` / `🕒 Dernière modif. : il y a 2 min` / `🕒 上次修改：2 分钟前` / `🕒 अंतिम बदलाव: 2 मिनट पहले`. Line is hidden on legacy records without `updatedAt`.

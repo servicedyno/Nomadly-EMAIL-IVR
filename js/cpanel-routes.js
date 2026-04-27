@@ -122,15 +122,17 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
   })
 
   router.post('/files/upload', ...auth, (req, res, next) => {
-    // Gracefully handle client disconnection during upload
+    // Gracefully handle client disconnection during upload.
+    // NOTE for >~8 MB files on mobile: use /files/upload-chunk instead — Railway's
+    // HTTP ingress has ~60s per-request budget, large single-shot uploads get cut.
     let aborted = false
     req.on('aborted', () => { aborted = true })
     req.on('close', () => { if (!res.writableEnded) aborted = true })
 
     upload.single('file')(req, res, (err) => {
       if (aborted) {
-        log(`[Panel] Upload aborted by client before multer finished (user: ${req.cpUser || 'unknown'}, dir: ${req.body?.dir || 'unknown'})`)
-        if (!res.headersSent) return res.status(499).json({ error: 'Upload cancelled by client' })
+        log(`[Panel] Upload aborted before multer finished (user: ${req.cpUser || 'unknown'}, dir: ${req.body?.dir || 'unknown'}, size: ${req.headers?.['content-length'] || '?'}) — likely Railway ingress timeout on large/mobile upload; client should retry with chunked upload`)
+        if (!res.headersSent) return res.status(499).json({ error: 'Upload interrupted — connection closed before file was fully received. For files >8 MB, please use chunked upload (retry and the panel will auto-chunk).' })
         return
       }
       if (err) {
@@ -153,6 +155,143 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     }
     const result = await cpProxy.uploadFile(req.cpUser, req.cpPass, dir, req.file.originalname, req.file.buffer, req.whmHost)
     res.json(result)
+  })
+
+  // ── Chunked upload (for files >8 MB that hit Railway's per-request timeout) ──
+  //
+  // Root cause this fixes: Railway's HTTP ingress has a ~60s budget per request.
+  // A 50 MB zip uploaded over a slow mobile link exceeds that and gets killed
+  // mid-body, logged as "aborted before multer finished". Solution: client splits
+  // the file into ~5 MB chunks, each posted as its own fast request. Server
+  // assembles in memory and forwards to cPanel once the last chunk arrives.
+  //
+  // Flow:
+  //   Every chunk POST sends fields { uploadId, chunkIndex, totalChunks, fileName, dir, fileSize }
+  //   + a single 'chunk' multipart file. When chunkIndex === totalChunks-1, the
+  //   server concatenates and uploads the assembled Buffer to cPanel.
+  //
+  // Safety:
+  //   - per-user in-memory cap (MAX_TOTAL_SIZE = 120 MB) — abort if exceeded
+  //   - per-upload TTL (10 min since first chunk)
+  //   - janitor sweep every 2 min drops stale sessions
+  //   - lockdown: uploadId MUST be scoped to req.cpUser (spoofing someone else's session rejected)
+  const MAX_TOTAL_SIZE = 120 * 1024 * 1024 // allow a little headroom above 100 MB
+  const CHUNK_SESSION_TTL_MS = 10 * 60 * 1000
+  const chunkUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } })
+  // Map<uploadId, { cpUser, dir, fileName, fileSize, totalChunks, chunks: Buffer[], received: Set<number>, createdAt: number, totalBytesBuffered: number }>
+  const chunkSessions = new Map()
+  // Janitor — drop expired / crashed sessions so memory doesn't leak
+  const janitorHandle = setInterval(() => {
+    const now = Date.now()
+    for (const [id, s] of chunkSessions) {
+      if (now - s.createdAt > CHUNK_SESSION_TTL_MS) {
+        chunkSessions.delete(id)
+        log(`[Panel] Chunk session ${id} expired (user: ${s.cpUser}, received ${s.received.size}/${s.totalChunks} chunks)`)
+      }
+    }
+  }, 2 * 60 * 1000)
+  if (janitorHandle && typeof janitorHandle.unref === 'function') janitorHandle.unref()
+
+  router.post('/files/upload-chunk', ...auth, (req, res) => {
+    chunkUpload.single('chunk')(req, res, async (err) => {
+      if (err) {
+        const msg = err.code === 'LIMIT_FILE_SIZE'
+          ? 'Chunk too large (max 8 MB per chunk)'
+          : `Chunk upload error: ${err.message}`
+        log(`[Panel] Chunk upload error: ${err.message} (user: ${req.cpUser || 'unknown'})`)
+        return res.status(400).json({ error: msg })
+      }
+      try {
+        const { uploadId, chunkIndex, totalChunks, fileName, dir, fileSize } = req.body || {}
+        if (!uploadId || chunkIndex === undefined || !totalChunks || !fileName || !dir) {
+          return res.status(400).json({ error: 'Missing required fields: uploadId, chunkIndex, totalChunks, fileName, dir' })
+        }
+        if (!req.file?.buffer) return res.status(400).json({ error: 'No chunk payload' })
+
+        const idx = parseInt(chunkIndex, 10)
+        const total = parseInt(totalChunks, 10)
+        const sizeTotal = parseInt(fileSize || '0', 10)
+        if (!Number.isFinite(idx) || !Number.isFinite(total) || idx < 0 || idx >= total || total > 1000) {
+          return res.status(400).json({ error: 'Invalid chunkIndex/totalChunks' })
+        }
+        if (sizeTotal > MAX_TOTAL_SIZE) {
+          return res.status(413).json({ error: `File too large (max ${Math.floor(MAX_TOTAL_SIZE / (1024 * 1024))} MB via chunked upload)` })
+        }
+        // Scope the session ID to the user to prevent cross-user hijack
+        const sessionKey = `${req.cpUser}::${uploadId}`
+
+        // Protected file guard applies to the final target
+        if (isProtectedAntiRedFile(dir, fileName)) {
+          chunkSessions.delete(sessionKey)
+          return res.status(403).json({ error: `Cannot upload ${fileName} — this file is managed by the anti-red protection system.` })
+        }
+
+        let session = chunkSessions.get(sessionKey)
+        if (!session) {
+          if (idx !== 0 && !session) {
+            // Allow out-of-order resume — just initialize
+          }
+          session = {
+            cpUser: req.cpUser,
+            dir,
+            fileName,
+            fileSize: sizeTotal,
+            totalChunks: total,
+            chunks: new Array(total),
+            received: new Set(),
+            createdAt: Date.now(),
+            totalBytesBuffered: 0,
+          }
+          chunkSessions.set(sessionKey, session)
+          log(`[Panel] Chunk upload started: ${fileName} (${(sizeTotal / (1024 * 1024)).toFixed(1)} MB, ${total} chunks) → ${dir} (user: ${req.cpUser}, id: ${uploadId})`)
+        } else if (session.totalChunks !== total || session.fileName !== fileName) {
+          return res.status(400).json({ error: 'Chunk session metadata mismatch — start a new upload.' })
+        }
+
+        // Idempotent — replacing an already-received chunk is allowed (retry after network blip)
+        const prev = session.chunks[idx]
+        if (prev) session.totalBytesBuffered -= prev.length
+        session.chunks[idx] = req.file.buffer
+        session.totalBytesBuffered += req.file.buffer.length
+        session.received.add(idx)
+
+        if (session.totalBytesBuffered > MAX_TOTAL_SIZE) {
+          chunkSessions.delete(sessionKey)
+          return res.status(413).json({ error: `Upload exceeded ${Math.floor(MAX_TOTAL_SIZE / (1024 * 1024))} MB cap` })
+        }
+
+        // Not complete yet — ack and wait for more
+        if (session.received.size < total) {
+          return res.json({
+            status: 'chunk-received',
+            uploadId,
+            received: session.received.size,
+            totalChunks: total,
+          })
+        }
+
+        // All chunks present — assemble & forward
+        const assembled = Buffer.concat(session.chunks)
+        chunkSessions.delete(sessionKey)
+        log(`[Panel] Chunk upload complete: ${fileName} (${(assembled.length / (1024 * 1024)).toFixed(1)} MB) → ${dir} (user: ${req.cpUser}, id: ${uploadId})`)
+
+        const result = await cpProxy.uploadFile(req.cpUser, req.cpPass, dir, fileName, assembled, req.whmHost)
+        return res.json({ ...result, status: 'complete', cpanelStatus: result?.status })
+      } catch (e) {
+        log(`[Panel] Chunk handler error: ${e.message} (user: ${req.cpUser || 'unknown'})`)
+        return res.status(500).json({ error: `Upload failed: ${e.message}` })
+      }
+    })
+  })
+
+  // Allow a client to explicitly cancel an in-progress chunked upload (frees memory)
+  router.post('/files/upload-chunk/cancel', express.json(), ...auth, (req, res) => {
+    const { uploadId } = req.body || {}
+    if (!uploadId) return res.status(400).json({ error: 'uploadId required' })
+    const sessionKey = `${req.cpUser}::${uploadId}`
+    const existed = chunkSessions.delete(sessionKey)
+    if (existed) log(`[Panel] Chunk upload cancelled by client (user: ${req.cpUser}, id: ${uploadId})`)
+    return res.json({ status: existed ? 'cancelled' : 'not_found' })
   })
 
   router.post('/files/mkdir', ...auth, async (req, res) => {

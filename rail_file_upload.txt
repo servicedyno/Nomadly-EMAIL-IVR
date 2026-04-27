@@ -1,0 +1,94 @@
+[2026-04-18T15:49:24] [info] reply: Please paste your numbers or upload a file including the country code. Back,Cancel	to: 1629756132
+[2026-04-19T01:01:20] [info] [cPanel Proxy] Fileman::upload_files error: Request failed with status code 401
+[2026-04-20T15:16:35] [info] reply: Please paste your numbers or upload a file including the country code. 	to: 5897063107
+[2026-04-20T18:52:11] [info] 📋 <b>Upload Leads File</b>
+[2026-04-21T01:15:41] [info] 📋 <b>Upload Leads File</b>
+[2026-04-21T02:38:51] [info] • Add your message + contacts (paste or upload file)
+[2026-04-21T02:41:28] [info] reply: Please paste your numbers or upload a file including the country code. 	to: 5206267702
+[2026-04-21T05:28:21] [info] • Add your message + contacts (paste or upload file)
+[2026-04-21T06:57:46] [info] 📎 Audio file uploaded
+[2026-04-21T06:58:54] [info] 📎 Audio file uploaded
+[2026-04-21T08:56:39] [info] • Add your message + contacts (paste or upload file)
+[2026-04-21T08:56:54] [info] • Add your message + contacts (paste or upload file)
+[2026-04-21T09:03:17] [info] reply: Please paste your numbers or upload a file including the country code. 	to: 1185070608
+[2026-04-21T10:13:03] [info] • Add your message + contacts (paste or upload file)
+[2026-04-21T20:48:38] [info] 📋 <b>Upload Leads File</b>
+[2026-04-21T21:21:21] [info] • Add your message + contacts (paste or upload file)
+[2026-04-21T21:35:19] [info] 📋 <b>Upload Leads File</b>
+[2026-04-21T21:42:16] [info] 📋 <b>Upload Leads File</b>
+[2026-04-21T22:32:48] [info] 📋 <b>Upload Leads File</b>
+[2026-04-22T04:40:45] [info] reply: Please paste your numbers or upload a file including the country code. 	to: 7396529800
+[2026-04-22T04:56:22] [info] • Add your message + contacts (paste or upload file)
+[2026-04-22T05:05:38] [info] reply: 🎵 <b>Audio Library</b>\n\nYou have no saved audio files.\n\nUpload an audio file (MP3, WAV, OGG) to use in IVR campaigns. 📎 Upload Audio,↩️ Back,Back,Cancel	to: 7396529800
+[2026-04-22T05:05:57] [info] No files yet. 📎 Upload Audio,↩️ Back,Back,Cancel	to: 7396529800
+[2026-04-22T07:33:38] [info] • Add your message + contacts (paste or upload file)
+[2026-04-22T08:45:49] [info] • Add your message + contacts (paste or upload file)
+[2026-04-22T11:03:05] [info] reply: Please paste your numbers or upload a file including the country code. Back,Cancel	to: 1815574697
+[2026-04-22T18:05:25] [info] 📎 Upload your file now: ❌ Cancel	to: 6980445843
+[2026-04-22T18:12:24] [info] 📎 Upload your file now: ❌ Cancel	to: 6980445843
+[2026-04-22T18:17:44] [info] • Add your message + contacts (paste or upload file)
+[2026-04-22T18:23:30] [info]  • Or upload a .txt / .csv file
+[2026-04-22T18:26:25] [info]  • Or upload a .txt / .csv file
+[2026-04-22T19:00:42] [info] reply: Please paste your numbers or upload a file including the country code. 	to: 6913551374
+[2026-04-22T23:54:10] [info] 📋 <b>Upload Leads File</b>
+[2026-04-23T00:02:50] [info] 📋 <b>Upload Leads File</b>
+[2026-04-23T02:12:40] [info] 📋 <b>Upload Leads File</b>
+[2026-04-23T02:39:49] [info] reply: Please paste your numbers or upload a file including the country code. Back,Cancel	to: 817673476
+[2026-04-23T02:48:20] [info] reply: Please paste your numbers or upload a file including the country code. 	to: 817673476
+[2026-04-23T02:48:36] [info] reply: Please paste your numbers or upload a file including the country code. 	to: 817673476
+[2026-04-23T03:21:24] [info] 📋 <b>Upload Leads File</b>
+[2026-04-23T03:47:31] [info] 📋 <b>Upload Leads File</b>
+[2026-04-23T05:15:27] [info]  • Or upload a .txt / .csv file
+[2026-04-23T10:10:19] [info] reply: Please paste your numbers or upload a file including the country code. Back,Cancel	to: 6705277278
+[2026-04-23T18:08:57] [info] reply: Please paste your numbers or upload a file including the country code. Back,Cancel	to: 5897063107
+[2026-04-23T20:47:37] [info] My files are already uploaded in public_html.
+[2026-04-23T20:47:37] [info] My files are already uploaded in public_html.	from: 7080940684 onlicpe
+[2026-04-23T20:47:37] [info] My files are already uploaded in public_html. (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)
+[2026-04-23T22:24:02] [info] • Add your message + contacts (paste or upload file)
+[2026-04-24T00:18:21] [info] 📋 <b>Upload Leads File</b>
+[2026-04-24T01:18:47] [info] 📋 <b>Upload Leads File</b>
+[2026-04-24T01:18:47] [info] 📋 <b>Upload Leads File</b>
+[2026-04-24T01:40:11] [info] 📋 <b>Upload Leads File</b>
+[2026-04-24T07:33:56] [info] • Add your message + contacts (paste or upload file)
+[2026-04-24T10:16:55] [info] • Add your message + contacts (paste or upload file)
+[2026-04-24T14:56:52] [info] reply: Please paste your numbers or upload a file including the country code. 	to: 6705277278
+[2026-04-24T15:04:20] [info] reply: Please paste your numbers or upload a file including the country code. 	to: 7080940684
+[2026-04-24T15:08:38] [info] reply: Please paste your numbers or upload a file including the country code. 	to: 7080940684
+[2026-04-24T15:18:18] [info] reply: Please paste your numbers or upload a file including the country code. 	to: 7080940684
+[2026-04-24T15:22:38] [info] reply: Please paste your numbers or upload a file including the country code. Back,Cancel	to: 7080940684
+[2026-04-25T19:10:37] [info] reply: Please paste your numbers or upload a file including the country code. Back,Cancel	to: 6773929524
+[2026-04-25T22:24:19] [info] reply: Please paste your numbers or upload a file including the country code. Back,Cancel	to: 1942947519
+[2026-04-26T03:23:16] [info] 📋 <b>Upload Leads File</b>
+[2026-04-26T04:22:02] [info] 📋 <b>Upload Leads File</b>
+[2026-04-26T04:57:30] [info] • Add your message + contacts (paste or upload file)
+[2026-04-26T07:48:48] [info] reply: Please paste your numbers or upload a file including the country code. 	to: 5178115875
+[2026-04-26T18:24:34] [info] reply: Please paste your numbers or upload a file including the country code. 	to: 5178115875
+[2026-04-26T21:47:43] [info] reply: Please paste your numbers or upload a file including the country code. 	to: 5178115875
+[2026-04-27T03:23:46] [info] 📋 <b>Upload Leads File</b>
+[2026-04-27T03:32:37] [info] message: I bought domain and hosting when I upload my file nothing appears	from: 7893016294 jasonthekidd
+[2026-04-27T03:32:37] [info] I bought domain and hosting when I upload my file nothing appears
+[2026-04-27T03:32:37] [info] [Support] 7893016294 -> admin: I bought domain and hosting when I upload my file nothing appears (botLang: en, msgLang: en, translated: false, adminTakeover: false, sessionOpen: true)
+[2026-04-27T03:32:40] [info] Once logged in, use the File Manager to upload your files.
+[2026-04-27T03:32:40] [info] If after uploading, nothing appears or you cannot see your files:
+[2026-04-27T03:32:40] [info] - Double-check that you uploaded files to the correct directory (usually public_html or www)
+[2026-04-27T03:32:40] [info] reply: I understand you're having trouble with your domain and hosting file upload not showing up.
+[2026-04-27T03:32:40] [info] Please make sure you are uploading your files correctly in your hosting control panel. To verify or manage your hosting:
+[2026-04-27T03:32:40] [info] <i>I understand you're having trouble with your domain and hosting file upload not showing up.
+[2026-04-27T03:32:40] [info] Please make sure you are uploading your files correctly in your hosting control panel. To verify or manage your hosting:
+[2026-04-27T03:32:40] [info] [Support] AI -> 7893016294: I understand you're having trouble with your domain and hosting file upload not showing up.
+[2026-04-27T03:36:37] [info] reply: I can see you're still having trouble with your hosting file upload not appearing.
+[2026-04-27T03:36:37] [info] <i>I can see you're still having trouble with your hosting file upload not appearing.
+[2026-04-27T03:36:37] [info] [Support] AI -> 7893016294: I can see you're still having trouble with your hosting file upload not appearing.
+[2026-04-27T03:56:08] [info] 📋 <b>Upload Leads File</b>
+[2026-04-27T04:24:34] [info] reply: 📤 Upload your SSH public key (.pub file) or paste the key below. 🔙 Back,Cancel	to: 6277663071
+[2026-04-27T04:54:32] [info] message: /reply 7893016294 Hi Jason, I will be assisting you today. Did you upload the file into public folder?	from: 5590563715 onarrival1
+[2026-04-27T04:54:32] [info] Hi Jason, I will be assisting you today. Did you upload the file into public folder? /done	to: 7893016294
+[2026-04-27T04:54:32] [info] [Support] Admin replied to 7893016294: Hi Jason, I will be assisting you today. Did you upload the file into public folder? (targetLang: en, translated: false) — session re-opened, admin takeover ON
+[2026-04-27T04:57:55] [info] 2026-04-27 04:57:52,386 - audit.user_interaction - INFO - {"ts":"17772658","user":1840392046,"action":"telegram_file_upload","result":"intercepted","chat":-1001843794247,"trace":"7f999eca"}
+[2026-04-27T04:57:55] [info] 2026-04-27 04:57:52,387 - utils.unified_activity_monitor - INFO - 👤 User Activity: madhacker127 - file_upload: interaction
+[2026-04-27T04:57:55] [info] 2026-04-27 04:57:52,387 - utils.update_interceptor - INFO - 📡 INTERCEPTED: file_upload from user 1840392046 (trace: 7f999eca, session: 6_493684)
+[2026-04-27T04:57:55] [info] 2026-04-27 04:57:52,387 - utils.unified_activity_monitor - INFO - 🟢 LIVE ACTIVITY: User file_upload: interaction | User madhacker127 performed: file_upload: interaction
+[2026-04-27T05:18:21] [info] message: /reply 7893016294 you didn’t upload any file to public_html	from: 5590563715 onarrival1
+[2026-04-27T05:18:21] [info] [Support] Admin replied to 7893016294: you didn’t upload any file to public_html (targetLang: en, translated: false) — session re-opened, admin takeover ON
+[2026-04-27T05:18:21] [info] you didn’t upload any file to public_html /done	to: 7893016294
+[2026-04-27T06:12:34] [info] [cPanel Proxy] Fileman::upload_files error: Request failed with status code 401

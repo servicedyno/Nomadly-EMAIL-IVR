@@ -94,6 +94,36 @@ export default function FileManager() {
     setCurrentDir(parent);
   };
 
+  // Auto-switch to chunked upload for files >8 MB to avoid Railway's ~60s
+  // per-request ingress timeout (which previously caused large .zip uploads
+  // to be cut mid-body and logged as "aborted before multer finished").
+  const CHUNK_THRESHOLD = 8 * 1024 * 1024 // 8 MB
+  const CHUNK_SIZE = 5 * 1024 * 1024      // 5 MB
+
+  const uploadFileChunked = async (file) => {
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE)
+    const uploadId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+    for (let idx = 0; idx < totalChunks; idx++) {
+      const start = idx * CHUNK_SIZE
+      const end = Math.min(start + CHUNK_SIZE, file.size)
+      const blob = file.slice(start, end)
+      const formData = new FormData()
+      formData.append('chunk', blob, file.name)
+      formData.append('uploadId', uploadId)
+      formData.append('chunkIndex', String(idx))
+      formData.append('totalChunks', String(totalChunks))
+      formData.append('fileName', file.name)
+      formData.append('dir', currentDir)
+      formData.append('fileSize', String(file.size))
+      setUploadProgress(`Uploading ${file.name} — chunk ${idx + 1}/${totalChunks} (${Math.round(((idx + 1) / totalChunks) * 100)}%)`)
+      const res = await api('/files/upload-chunk', { method: 'POST', body: formData })
+      // Last chunk returns the final cPanel response; any error is thrown by `api`
+      if (idx === totalChunks - 1 && res?.errors?.length) {
+        throw new Error(res.errors[0])
+      }
+    }
+  }
+
   const uploadFiles = async (selected) => {
     if (!selected.length) return;
     setUploading(true);
@@ -105,11 +135,15 @@ export default function FileManager() {
     try {
       for (const file of selected) {
         try {
-          const formData = new FormData();
-          formData.append('file', file);
-          formData.append('dir', currentDir);
           setUploadProgress(`Uploading ${done + 1}/${total}: ${file.name}`);
-          await api('/files/upload', { method: 'POST', body: formData });
+          if (file.size > CHUNK_THRESHOLD) {
+            await uploadFileChunked(file)
+          } else {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('dir', currentDir);
+            await api('/files/upload', { method: 'POST', body: formData });
+          }
           done++;
         } catch (err) {
           failures.push({ name: file.name, msg: friendlyUploadError(err) });
@@ -148,11 +182,11 @@ export default function FileManager() {
 
   const friendlyUploadError = (err) => {
     const m = String(err?.message || err || '');
-    if (/499|aborted|cancelled/i.test(m)) {
-      return 'Upload interrupted (network/timeout). Please retry — for whole sites, upload a .zip and use Extract.';
+    if (/499|aborted|cancelled|interrupted/i.test(m)) {
+      return 'Upload interrupted. For files over 8 MB the panel auto-chunks — just retry. For very large sites (>100 MB), zip into parts.';
     }
-    if (/too large|LIMIT_FILE_SIZE|413/i.test(m)) {
-      return 'File exceeds 100 MB limit. Split it, or compress into a .zip and extract here.';
+    if (/413|exceeded|too large|LIMIT_FILE_SIZE|max .* MB/i.test(m)) {
+      return 'File exceeds the 120 MB cap. Split your archive into smaller parts, upload each, then use Extract.';
     }
     if (/500/.test(m)) {
       return 'Server error during upload. Try again, or upload a .zip and use Extract.';
