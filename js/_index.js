@@ -25096,7 +25096,7 @@ app.set('json spaces', 2)
 
 // ── cPanel Panel Routes ──
 const { createCpanelRoutes } = require('./cpanel-routes')
-app.use('/panel', createCpanelRoutes(() => cpanelAccounts))
+app.use('/panel', createCpanelRoutes(() => cpanelAccounts, { notifyAdmin }))
 
 // ── cPanel Server Migration (auto-sync accounts when WHM_HOST changes) ──
 const { runMigration: runCpanelMigration } = require('./cpanel-migration')

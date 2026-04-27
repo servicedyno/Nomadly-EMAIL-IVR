@@ -17,8 +17,9 @@ const { log } = require('console')
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } })
 
-function createCpanelRoutes(getCpanelCol) {
+function createCpanelRoutes(getCpanelCol, opts = {}) {
   const router = express.Router()
+  const notifier = (opts && typeof opts.notifyAdmin === 'function') ? opts.notifyAdmin : (() => {})
 
   // ─── Auth Middleware ────────────────────────────────────
 
@@ -438,6 +439,76 @@ function createCpanelRoutes(getCpanelCol) {
     }
 
     res.json(result)
+  })
+
+  // ─── Account: Cancel Hosting Plan ───────────────────────
+  // Mirrors the Telegram bot's confirmCancelHostingPlan flow.
+  // Body: { confirm: 'CANCEL' } — must be the literal string to prevent accidents.
+  router.post('/account/cancel', ...auth, async (req, res) => {
+    const { confirm } = req.body || {}
+    if (confirm !== 'CANCEL') {
+      return res.status(400).json({ error: 'Confirmation phrase missing or incorrect.' })
+    }
+
+    const col = getCpanelCol()
+    if (!col) return res.status(503).json({ error: 'Service starting up, try again shortly.' })
+
+    const account = await col.findOne({ _id: req.cpUser.toLowerCase() })
+    if (!account) return res.status(404).json({ error: 'Account not found' })
+    if (account.deleted) {
+      return res.status(409).json({ error: 'This hosting plan has already been cancelled.' })
+    }
+
+    log(`[Panel] Cancel hosting plan request — cpUser=${req.cpUser}, domain=${account.domain}, chatId=${account.chatId}`)
+
+    let terminated = false
+    try {
+      // 1. Terminate cPanel account on WHM
+      terminated = await whmService.terminateAccount(req.cpUser)
+    } catch (err) {
+      log(`[Panel] Cancel: terminateAccount error: ${err.message}`)
+    }
+
+    // 2. Cloudflare cleanup for primary + every addon domain (best-effort)
+    try {
+      const antiRedService = require('./anti-red-service')
+      const allDomains = [account.domain, ...(account.addonDomains || [])].filter(Boolean)
+      const seen = new Set()
+      for (const d of allDomains) {
+        const key = (d || '').toLowerCase()
+        if (!key || seen.has(key)) continue
+        seen.add(key)
+        try {
+          const zone = await cfService.getZoneByName(d)
+          if (zone) {
+            await antiRedService.removeWorkerRoutes(d, zone.id).catch(() => {})
+            await cfService.cleanupAllHostingRecords(zone.id, d).catch(() => {})
+          }
+        } catch (cfErr) {
+          log(`[Panel] Cancel: CF cleanup warning for ${d}: ${cfErr.message}`)
+        }
+      }
+    } catch (err) {
+      log(`[Panel] Cancel: CF cleanup top-level error: ${err.message}`)
+    }
+
+    // 3. Soft-delete record (preserves audit trail; scheduler skips deleted)
+    try {
+      await col.updateOne(
+        { _id: account._id },
+        { $set: { deleted: true, deletedAt: new Date(), deletedBy: 'user', cancelledByUser: true, cancelledFrom: 'panel', autoRenew: false } }
+      )
+    } catch (err) {
+      log(`[Panel] Cancel: DB soft-delete error: ${err.message}`)
+    }
+
+    if (terminated) {
+      try {
+        notifier(`🚫 <b>Hosting plan cancelled by user (via web HostPanel)</b>\nUser: ${account.chatId}\nDomain: <b>${account.domain}</b>\nPlan: <code>${account.plan || 'N/A'}</code>\ncPanel: <code>${account.cpUser}</code>`)
+      } catch {}
+      return res.json({ success: true, domain: account.domain })
+    }
+    return res.status(500).json({ error: 'Failed to terminate hosting plan. Please try again or contact support.' })
   })
 
   // ─── Email ──────────────────────────────────────────────

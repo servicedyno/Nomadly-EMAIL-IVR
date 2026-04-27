@@ -6,6 +6,7 @@ import EmailManager from '../components/panel/EmailManager';
 import GeoManager from '../components/panel/GeoManager';
 import Analytics from '../components/panel/Analytics';
 import SecurityPanel from '../components/panel/SecurityPanel';
+import AccountSettings from '../components/panel/AccountSettings';
 import useTheme from '../components/panel/useTheme';
 
 const TABS = [
@@ -15,6 +16,7 @@ const TABS = [
   { id: 'security', label: 'Security', icon: 'shield', desc: 'Anti-bot & protection' },
   { id: 'geo', label: 'Geo', icon: 'lock', desc: 'Geographic restrictions' },
   { id: 'analytics', label: 'Analytics', icon: 'chart', desc: 'Traffic & visitor stats' },
+  { id: 'account', label: 'Account', icon: 'user', desc: 'Account settings & danger zone' },
 ];
 
 export default function PanelDashboard() {
@@ -88,6 +90,7 @@ export default function PanelDashboard() {
         {activeTab === 'security' && <SecurityPanel />}
         {activeTab === 'geo' && <GeoManager />}
         {activeTab === 'analytics' && <Analytics />}
+        {activeTab === 'account' && <AccountSettings />}
       </main>
     </div>
   );
@@ -101,6 +104,7 @@ function TabIcon({ name }) {
     shield: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
     lock: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>,
     chart: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
+    user: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
   };
   return icons[name] || null;
 }

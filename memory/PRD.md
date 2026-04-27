@@ -533,3 +533,44 @@ Closes the remaining manual step in the v2.7.4 discovery flow: the backend itsel
 
 ### How to relay to @user_uu0
 *"Open `/start` → 📋 My Hosting Plans → tap your hosted domain → 🚫 Cancel Hosting Plan (or 🗑️ Unlink a Domain if you only want to remove an addon). The bot walks you through a confirmation step. Note: this permanently deletes the cPanel files and isn't refundable — the domain itself stays registered to your account."*
+
+
+## Feb 2026 — Web HostPanel Self-Service Plan Cancellation
+
+### Background
+Mirroring the bot's `confirmCancelHostingPlan` flow into the web HostPanel so customers who never use Telegram can also self-cancel.
+
+### Backend
+- **New endpoint**: `POST /panel/account/cancel` (auth-gated via JWT + `resolveCpPass`).
+- **Request body**: `{ confirm: 'CANCEL' }` — must match the literal string. Backend rejects anything else with `400 "Confirmation phrase missing or incorrect."`.
+- **Logic** (parallel to bot path in `_index.js`):
+  1. `whmService.terminateAccount(cpUser)` — WHM `/removeacct`.
+  2. Loop primary + every addon, run `removeWorkerRoutes` + `cleanupAllHostingRecords` per zone (best-effort).
+  3. Soft-delete record: `{ deleted: true, deletedAt, deletedBy: 'user', cancelledByUser: true, cancelledFrom: 'panel', autoRenew: false }`.
+  4. Notifies admin via dependency-injected `notifyAdmin` (passed through `createCpanelRoutes(getCpanelCol, { notifyAdmin })` from `_index.js`).
+- **Idempotency**: returns `409 "already been cancelled"` if `account.deleted === true`.
+
+### Frontend
+- **New component** `frontend/src/components/panel/AccountSettings.js` — three-stage state machine (`idle → reviewing → submitting → done|error`).
+  - `idle`: warning bullet list of what gets deleted; primary CTA opens review.
+  - `reviewing`: confirm input requires the literal string `CANCEL` (case-sensitive); confirm button stays disabled until match. Go-back resets state.
+  - `submitting`: button disabled, label changes to "Cancelling…".
+  - `done`: success card; "Sign out" button forces a fresh session so a torn-down cPanel can't be poked.
+  - `error`: surfaces server message inline in red; Go-back lets user retry or bail.
+- **New tab** in `PanelDashboard.js`: 7th tab "Account" (user icon). Sits at the right of the existing Files / Domains / Email / Security / Geo / Analytics tabs.
+- **Styles**: ~250 lines appended to `App.css` (`.acct-*` namespace) with full dark/light theme parity, gradient danger/success cards, monospaced confirm input, mobile-stacked actions at <640px.
+
+### Data test IDs
+`panel-tab-account`, `account-settings-section`, `account-danger-zone`, `account-cancel-start-btn`, `account-cancel-confirm-input`, `account-cancel-confirm-btn`, `account-cancel-back-btn`, `account-cancel-error`, `account-cancel-done`, `account-cancel-signout-btn`.
+
+### Tests / verification
+- **Curl auth & validation matrix** — all four cases pass: no-auth→401, bad-token→401, auth+missing-confirm→400, auth+wrong-confirm→400.
+- **Frontend smoke** — verified after login, Account tab renders, Danger Zone card renders, "Cancel hosting plan" → confirm input appears, "Go back" resets to idle.
+- Did not exercise the actual termination path (would require a sacrificial WHM account); logic is byte-for-byte the same as the bot's verified flow.
+
+### Files touched
+- `js/cpanel-routes.js` — `createCpanelRoutes` now accepts `{ notifyAdmin }`; new `POST /account/cancel` route.
+- `js/_index.js` — passes `{ notifyAdmin }` through the route factory.
+- `frontend/src/components/panel/AccountSettings.js` (new — 181 lines).
+- `frontend/src/pages/PanelDashboard.js` — import + 7th tab + user icon.
+- `frontend/src/App.css` — `.acct-*` styles (dark + light).
