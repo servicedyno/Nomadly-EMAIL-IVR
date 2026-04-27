@@ -3119,7 +3119,7 @@ Tap a button below to change. Changes sync to your phone on next app open.`
       } catch (e) { /* ignore edit errors */ }
       // Notify admin of rating
       const name = await get(nameOf, ratingChatId || chatId)
-      send(TELEGRAM_ADMIN_CHAT_ID, `${rating === 'good' ? '👍' : '👎'} Support rated <b>${rating.toUpperCase()}</b> by <b>${name || ratingChatId || chatId}</b>`, { parse_mode: 'HTML' })
+      send(TELEGRAM_ADMIN_CHAT_ID, `${rating === 'good' ? '👍' : '👎'} Support rated <b>${rating.toUpperCase()}</b> by <b>@${name || ratingChatId || chatId}</b> (${ratingChatId || chatId})`, { parse_mode: 'HTML' })
       return
     }
 
@@ -24280,7 +24280,7 @@ async function checkVPSPlansExpiryandPayment() {
         await vpsPlansOf.updateOne({ _id }, { $set: { status: 'PENDING_CANCELLATION', _autoRenewAttempted: true } })
         const { usdBal } = deductResult
         send(chatId, trans('t.util_3', displayName, (usdBal || 0).toFixed(2), planPrice, expiryDate))
-        send(TELEGRAM_ADMIN_CHAT_ID, `⚠️ <b>VPS Renewal Failed</b>\nUser: ${chatId}\nVPS: ${displayName}\nPrice: $${planPrice}\nBalance: $${(usdBal || 0).toFixed(2)}`, { parse_mode: 'HTML' })
+        send(TELEGRAM_ADMIN_CHAT_ID, `⚠️ <b>VPS Renewal Failed</b>\nUser: @${await get(nameOf, chatId) || chatId} (${chatId})\nVPS: ${displayName}\nPrice: $${planPrice}\nBalance: $${(usdBal || 0).toFixed(2)}`, { parse_mode: 'HTML' })
         log(`[VPS Scheduler] ${displayName} PENDING_CANCELLATION for ${chatId} — balance insufficient ($${usdBal || 0} < $${planPrice})`)
       }
     }
@@ -24308,7 +24308,7 @@ async function checkVPSPlansExpiryandPayment() {
         if (cancelResult.success) {
           await vpsPlansOf.updateOne({ _id }, { $set: { _contaboCancelledEarly: true, status: 'CANCELLED', cancelledAt: new Date(), cancelReason: 'pre_emptive_no_payment' } })
           send(chatId, trans('t.util_4', displayName))
-          bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🛑 <b>VPS Pre-emptive Cancel</b>\nUser: ${chatId}\nVPS: ${displayName}\nContabo ID: ${contaboInstanceId || vpsId}\nHours before expiry: ${hoursLeft}h\nPrice: $${planPrice}/mo\n\n✅ Cancelled on Contabo to prevent their billing.`, { parse_mode: 'HTML' }).catch(() => {})
+          bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🛑 <b>VPS Pre-emptive Cancel</b>\nUser: @${await get(nameOf, chatId) || chatId} (${chatId})\nVPS: ${displayName}\nContabo ID: ${contaboInstanceId || vpsId}\nHours before expiry: ${hoursLeft}h\nPrice: $${planPrice}/mo\n\n✅ Cancelled on Contabo to prevent their billing.`, { parse_mode: 'HTML' }).catch(() => {})
           log(`[VPS Scheduler] PRE-EMPTIVE CANCEL: ${displayName} for ${chatId} — ${hoursLeft}h before expiry`)
         } else {
           // Cancel failed — alert admin urgently
@@ -24393,16 +24393,16 @@ async function checkVPSPlansExpiryandPayment() {
         if (deleteResult.success) {
           await vpsPlansOf.updateOne({ _id }, { $set: { status: 'CANCELLED', cancelledAt: new Date(), cancelReason: 'auto_renewal_failed' } })
           send(chatId, trans('t.util_5', displayName))
-          send(TELEGRAM_ADMIN_CHAT_ID, `🗑️ <b>VPS Auto-Deleted</b>\nUser: ${chatId}\nVPS: ${displayName}\nReason: Renewal failed, deadline passed\nPrice was: $${planPrice}/mo`, { parse_mode: 'HTML' })
+          send(TELEGRAM_ADMIN_CHAT_ID, `🗑️ <b>VPS Auto-Deleted</b>\nUser: @${await get(nameOf, chatId) || chatId} (${chatId})\nVPS: ${displayName}\nReason: Renewal failed, deadline passed\nPrice was: $${planPrice}/mo`, { parse_mode: 'HTML' })
           log(`[VPS Scheduler] DELETED ${displayName} on Contabo for ${chatId} — deadline passed`)
         } else {
           // Delete failed — retry next cycle, alert admin
           log(`[VPS Scheduler] ERROR: Failed to delete ${displayName} on Contabo: ${deleteResult.error}`)
-          send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>VPS DELETE FAILED</b>\nUser: ${chatId}\nVPS: ${displayName} (vpsId: ${vpsId})\nInstance ID: ${contaboInstanceId}\nError: ${deleteResult.error}\n\n⚠️ Manual deletion required to prevent provider billing!`, { parse_mode: 'HTML' })
+          send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>VPS DELETE FAILED</b>\nUser: @${await get(nameOf, chatId) || chatId} (${chatId})\nVPS: ${displayName} (vpsId: ${vpsId})\nInstance ID: ${contaboInstanceId}\nError: ${deleteResult.error}\n\n⚠️ Manual deletion required to prevent provider billing!`, { parse_mode: 'HTML' })
         }
       } catch (err) {
         log(`[VPS Scheduler] CRASH deleting ${displayName}: ${err.message}`)
-        send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>VPS Delete Crash</b>\nUser: ${chatId}\nVPS: ${displayName}\nError: ${err.message}`, { parse_mode: 'HTML' })
+        send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>VPS Delete Crash</b>\nUser: @${await get(nameOf, chatId) || chatId} (${chatId})\nVPS: ${displayName}\nError: ${err.message}`, { parse_mode: 'HTML' })
       }
     }
 
@@ -24596,7 +24596,7 @@ const buyVPSPlanFullProcess = async (chatId, lang, vpsDetails) => {
       const planType = isRDP ? 'RDP' : 'VPS'
       const regionStr = vpsDetails.region ? ` in <b>${vpsDetails.region}</b>` : ''
       notifyGroup(`🖥 <b>New ${planType} Deployed!</b>\nUser ${maskName(name)} just deployed a <b>${vpsDetails.plan || 'Cloud VPS'}</b> server${regionStr}.\nGet yours — /start`)
-      if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🖥 <b>VPS Purchase</b>\n👤 ${name} (${chatId})\n📦 ${vpsDetails.plan || 'Cloud VPS'}${regionStr}\n💰 $${vpsDetails.totalPrice}\n🖥 IP: ${vpsData.host || 'pending'}`, { parse_mode: 'HTML' })
+      if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🖥 <b>VPS Purchase</b>\n👤 @${name || chatId} (${chatId})\n📦 ${vpsDetails.plan || 'Cloud VPS'}${regionStr}\n💰 $${vpsDetails.totalPrice}\n🖥 IP: ${vpsData.host || 'pending'}`, { parse_mode: 'HTML' })
     } catch (e) {
       log('[VPS] notifyGroup error: ' + e.message)
     }
@@ -24683,7 +24683,7 @@ const upgradeVPSDetails = async (chatId, lang, vpsDetails) => {
       const name = await get(nameOf, chatId)
       const upgradeLabel = vpsDetails.upgradeType === 'plan' ? 'Plan Upgrade' : vpsDetails.upgradeType === 'disk' ? 'Disk Upgrade' : vpsDetails.upgradeType === 'vps-renew' ? 'Renewal' : 'Update'
       notifyGroup(`⬆️ <b>VPS ${upgradeLabel}!</b>\nUser ${maskName(name)} just ${vpsDetails.upgradeType === 'vps-renew' ? 'renewed' : 'upgraded'} their VPS.\nManage yours — /start`)
-      if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `⬆️ <b>VPS ${upgradeLabel}</b>\n👤 ${name} (${chatId})\n📦 ${vpsDetails.name || 'VPS'}\n💰 $${vpsDetails.totalPrice}`, { parse_mode: 'HTML' })
+      if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `⬆️ <b>VPS ${upgradeLabel}</b>\n👤 @${name || chatId} (${chatId})\n📦 ${vpsDetails.name || 'VPS'}\n💰 $${vpsDetails.totalPrice}`, { parse_mode: 'HTML' })
     } catch (e) {
       log('[VPS] upgrade notifyGroup error: ' + e.message)
     }
@@ -25033,11 +25033,11 @@ const bankApis = {
       try {
         addFundsTo(walletOf, chatId, 'ngn', ngnPrice, lang)
         sendMessage(chatId, trans('t.util_9', domain, ngnPrice))
-        sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🔄 <b>Auto-Refund (Bank→Domain)</b>\nUser: ${chatId}\nDomain: ${domain}\nAmount: ${ngnPrice} NGN ($${price})\nReason: buyDomainFullProcess failed`, { parse_mode: 'HTML' })
+        sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🔄 <b>Auto-Refund (Bank→Domain)</b>\nUser: @${await get(nameOf, chatId) || chatId} (${chatId})\nDomain: ${domain}\nAmount: ${ngnPrice} NGN ($${price})\nReason: buyDomainFullProcess failed`, { parse_mode: 'HTML' })
         log(`[Domain] Bank refund issued: ${chatId} | ${domain} | ${ngnPrice} NGN`)
       } catch (refundErr) {
         log(`[Domain] CRITICAL: Bank refund failed for ${chatId}: ${refundErr.message}`)
-        sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🚨 CRITICAL: Bank domain refund FAILED\nUser: ${chatId}\nDomain: ${domain}\nAmount: ${ngnPrice} NGN\nError: ${refundErr.message}`, { parse_mode: 'HTML' })
+        sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🚨 CRITICAL: Bank domain refund FAILED\nUser: @${await get(nameOf, chatId) || chatId} (${chatId})\nDomain: ${domain}\nAmount: ${ngnPrice} NGN\nError: ${refundErr.message}`, { parse_mode: 'HTML' })
       }
       return res.send(html('error'))
     }
@@ -25051,7 +25051,7 @@ const bankApis = {
       if (savingsNgn && savingsNgn > 0) {
         addFundsTo(walletOf, chatId, 'ngn', savingsNgn, lang)
         sendMessage(chatId, trans('t.util_10', savingsNgn.toLocaleString(), domain, (ngnPrice - savingsNgn).toLocaleString(), ngnPrice.toLocaleString(), savingsNgn.toLocaleString()), { parse_mode: 'HTML' })
-        sendMessage(TELEGRAM_ADMIN_CHAT_ID, `💰 <b>Domain savings (Bank)</b>\nUser: ${chatId}\nDomain: ${domain}\nShown: $${price} | Actual: $${cheaperPrice} | Saved: $${savingsUsd} (₦${savingsNgn})\nRegistrar: ${updatedInfo?.actualRegistrar || 'unknown'}`, { parse_mode: 'HTML' })
+        sendMessage(TELEGRAM_ADMIN_CHAT_ID, `💰 <b>Domain savings (Bank)</b>\nUser: @${await get(nameOf, chatId) || chatId} (${chatId})\nDomain: ${domain}\nShown: $${price} | Actual: $${cheaperPrice} | Saved: $${savingsUsd} (₦${savingsNgn})\nRegistrar: ${updatedInfo?.actualRegistrar || 'unknown'}`, { parse_mode: 'HTML' })
       }
     }
 
@@ -25134,7 +25134,7 @@ const bankApis = {
       const name = await get(nameOf, chatId)
       const domain = info?.domain || info?.website_name
       notifyGroup(`🏠 <b>Hosting Activated!</b>\nUser ${maskName(name)} just set up hosting for <b>${maskDomain(domain)}</b> — ready for launch.\nBuild yours — /start`)
-      sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🏠 <b>Hosting Purchase (Bank NGN)</b>\n🆔 User: ${chatId}\n🌐 Domain: ${domain}\n📋 Plan: ${info?.plan || 'N/A'}\n💵 Price: $${price}\n💳 Payment: Bank NGN`, { parse_mode: 'HTML' })
+      sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🏠 <b>Hosting Purchase (Bank NGN)</b>\n🆔 User: @${await get(nameOf, chatId) || chatId} (${chatId})\n🌐 Domain: ${domain}\n📋 Plan: ${info?.plan || 'N/A'}\n💵 Price: $${price}\n💳 Payment: Bank NGN`, { parse_mode: 'HTML' })
     } catch (e) { log('[Hosting] notifyGroup error: ' + e.message) }
 
     webhookTierCheck(chatId, preSpend, lang)
@@ -25990,11 +25990,11 @@ app.get('/crypto-pay-domain', auth, async (req, res) => {
     try {
       addFundsTo(walletOf, chatId, 'usd', price, lang)
       sendMessage(chatId, trans('t.wh_2', domain, price))
-      sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🔄 <b>Auto-Refund (BlockBee Crypto→Domain)</b>\nUser: ${chatId}\nDomain: ${domain}\nAmount: $${price}\nReason: buyDomainFullProcess failed`, { parse_mode: 'HTML' })
+      sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🔄 <b>Auto-Refund (BlockBee Crypto→Domain)</b>\nUser: @${await get(nameOf, chatId) || chatId} (${chatId})\nDomain: ${domain}\nAmount: $${price}\nReason: buyDomainFullProcess failed`, { parse_mode: 'HTML' })
       log(`[Domain] BlockBee crypto refund issued: ${chatId} | ${domain} | $${price}`)
     } catch (refundErr) {
       log(`[Domain] CRITICAL: BlockBee crypto refund failed for ${chatId}: ${refundErr.message}`)
-      sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🚨 CRITICAL: BlockBee crypto domain refund FAILED\nUser: ${chatId}\nDomain: ${domain}\nAmount: $${price}\nError: ${refundErr.message}`, { parse_mode: 'HTML' })
+      sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🚨 CRITICAL: BlockBee crypto domain refund FAILED\nUser: @${await get(nameOf, chatId) || chatId} (${chatId})\nDomain: ${domain}\nAmount: $${price}\nError: ${refundErr.message}`, { parse_mode: 'HTML' })
     }
     return res.send(html('error'))
   }
@@ -26007,7 +26007,7 @@ app.get('/crypto-pay-domain', auth, async (req, res) => {
     const savingsUsd = price - cheaperPrice
     addFundsTo(walletOf, chatId, 'usd', savingsUsd, lang)
     sendMessage(chatId, trans('t.wh_3', savingsUsd, domain, cheaperPrice, price, savingsUsd), { parse_mode: 'HTML' })
-    sendMessage(TELEGRAM_ADMIN_CHAT_ID, `💰 <b>Domain savings (BlockBee Crypto)</b>\nUser: ${chatId}\nDomain: ${domain}\nShown: $${price} | Actual: $${cheaperPrice} | Saved: $${savingsUsd}\nRegistrar: ${updatedInfo?.actualRegistrar || 'unknown'}`, { parse_mode: 'HTML' })
+    sendMessage(TELEGRAM_ADMIN_CHAT_ID, `💰 <b>Domain savings (BlockBee Crypto)</b>\nUser: @${await get(nameOf, chatId) || chatId} (${chatId})\nDomain: ${domain}\nShown: $${price} | Actual: $${cheaperPrice} | Saved: $${savingsUsd}\nRegistrar: ${updatedInfo?.actualRegistrar || 'unknown'}`, { parse_mode: 'HTML' })
   }
 
   // Clean up pricing state
