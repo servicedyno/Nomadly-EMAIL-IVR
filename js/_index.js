@@ -1292,8 +1292,14 @@ async function executeTwilioPurchase(chatId, selectedNumber, planKey, price, cou
     if (userData) {
       userData.twilioSubAccountSid = subSid
       userData.twilioSubAccountToken = subToken
-      await set(phoneNumbersOf, chatId, userData)
+      // Atomic field-level $set — never rewrite the whole `val` (would race with feature edits)
+      await phoneNumbersOf.updateOne(
+        { _id: chatId },
+        { $set: { 'val.twilioSubAccountSid': subSid, 'val.twilioSubAccountToken': subToken } },
+        { upsert: true }
+      )
     } else {
+      // First-time setup: safe to create the full doc
       await set(phoneNumbersOf, chatId, { numbers: [], twilioSubAccountSid: subSid, twilioSubAccountToken: subToken })
     }
     log(`[CloudPhone] New sub-account created for chatId=${chatId}: ${subSid}`)
@@ -1397,9 +1403,14 @@ async function executeTwilioPurchase(chatId, selectedNumber, planKey, price, cou
   }
 
   userData = await get(phoneNumbersOf, chatId)
+  // Atomic $push — never rewrite the whole val (would race with concurrent feature edits)
+  await phoneNumbersOf.updateOne(
+    { _id: chatId },
+    { $push: { 'val.numbers': numberDoc } },
+    { upsert: true }
+  )
   if (userData?.numbers) { userData.numbers.push(numberDoc) }
   else { userData = userData || {}; userData.numbers = [numberDoc] }
-  await set(phoneNumbersOf, chatId, userData)
 
   await phoneTransactions.insertOne({ chatId, phoneNumber: selectedNumber, action: subOpts?.isSubNumber ? 'sub-number-purchase' : 'purchase', plan: planKey, amount: price, paymentMethod, timestamp: new Date().toISOString() })
 
@@ -1438,10 +1449,12 @@ async function getCachedTwilioAddress(chatId, countryCode) {
 }
 
 async function cacheTwilioAddress(chatId, countryCode, addressSid) {
-  const userData = await get(phoneNumbersOf, chatId) || {}
-  if (!userData.twilioAddresses) userData.twilioAddresses = {}
-  userData.twilioAddresses[countryCode] = addressSid
-  await set(phoneNumbersOf, chatId, userData)
+  // Atomic field-level $set — never rewrite the whole val (would race with concurrent feature edits)
+  await phoneNumbersOf.updateOne(
+    { _id: chatId },
+    { $set: { [`val.twilioAddresses.${countryCode}`]: addressSid } },
+    { upsert: true }
+  )
 }
 
 // restoreData(); // can be use when there is no db
@@ -3651,6 +3664,7 @@ bot?.on('message', msg => {
         const infoData = await get(state, chatId + '_info')
         const num = infoData?.cpActiveNumber
         if (num) {
+          if (!num.features || typeof num.features !== 'object') num.features = {}
           const vm = num.features?.voicemail || {}
           vm.greetingType = 'custom'
           vm.customAudioGreetingUrl = fileLink
@@ -7816,9 +7830,13 @@ Enter new value:`), bc)
           numberDoc.parentNumber = info.cpSubParentNumber
         }
 
+        // Atomic $push — never rewrite the whole val (would race with concurrent feature edits)
+        await phoneNumbersOf.updateOne(
+          { _id: chatId },
+          { $push: { 'val.numbers': numberDoc } },
+          { upsert: true }
+        )
         const existing = await get(phoneNumbersOf, chatId)
-        if (existing?.numbers) { existing.numbers.push(numberDoc); await set(phoneNumbersOf, chatId, existing) }
-        else { await set(phoneNumbersOf, chatId, { numbers: [numberDoc] }) }
 
         await phoneTransactions.insertOne({ chatId, phoneNumber: selectedNumber, action: isSubNumber ? 'sub-number-purchase' : 'purchase', plan: planKey, amount: price, paymentMethod: 'wallet_usd', timestamp: new Date().toISOString() })
 
@@ -17578,10 +17596,14 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
           const subAcct = await twilioService.getSubAccount(subAccountSid)
           if (subAcct?.authToken) {
             subAccountToken = subAcct.authToken
-            // Cache token on the number for future calls
+            // Cache token on the number for future calls — ATOMIC positional $set, never rewrite the whole val
+            // (a full rewrite here raced with concurrent feature edits and wiped IVR/voicemail/forwarding settings)
             if (callerNumber) {
               callerNumber.twilioSubAccountToken = subAccountToken
-              await set(phoneNumbersOf, chatId, userData)
+              await phoneNumbersOf.updateOne(
+                { _id: chatId, 'val.numbers.phoneNumber': ivrObData.callerId },
+                { $set: { 'val.numbers.$.twilioSubAccountToken': subAccountToken } }
+              )
             }
           }
         } catch (e) { log(`[QuickIVR] Sub-account token resolve error: ${e.message}`) }
@@ -19584,6 +19606,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     const plan = num.plan || 'starter'
     const hasSms = num.capabilities?.sms !== false && num.features?.sms !== false
     const hasFax = num.capabilities?.fax === true
+    const hasVoice = num.capabilities?.voice !== false
     const rows = []
     // Communication
     if (hasSms) {
@@ -19778,6 +19801,11 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
 
     if (isNaN(idx) || idx < 0 || idx >= numbers.length) return send(chatId, phoneConfig.getMsg(info?.userLanguage).selectByIndex)
     const num = numbers[idx]
+    // Defensive: legacy records may have missing `features`/`capabilities`.
+    // Ensures all downstream handlers that assign `num.features.X = ...` don't
+    // throw "Cannot set properties of undefined" (see RCA 2026-04-27).
+    if (!num.features || typeof num.features !== 'object') num.features = {}
+    if (!num.capabilities || typeof num.capabilities !== 'object') num.capabilities = { voice: true, sms: true, fax: false }
     await saveInfo('cpActiveNumber', num)
     await set(state, chatId, 'action', a.cpManageNumber)
     return showManageScreen(chatId, num)
@@ -19904,6 +19932,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   if (action === a.cpManageNumber) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       // Go back to my numbers list
@@ -20144,6 +20173,8 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     if (message === t.back || message === pc.back) {
       await set(state, chatId, 'action', a.cpManageNumber)
       const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
+      if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
       if (!num) return goto.submenu5()
       return showManageScreen(chatId, num)
     }
@@ -20401,6 +20432,8 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
     if (message === t.back || message === pc.back || message === pc.cancel) {
       await set(state, chatId, 'action', a.cpManageNumber)
       const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
+      if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
       if (!num) return goto.submenu5()
       return showManageScreen(chatId, num)
     }
@@ -20416,6 +20449,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   if (action === a.cpCallForwarding) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       await set(state, chatId, 'action', a.cpManageNumber)
@@ -20476,6 +20510,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   if (action === a.cpEnterForwardNumber) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       await set(state, chatId, 'action', a.cpCallForwarding)
@@ -20488,8 +20523,12 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
         : [[pc.alwaysForward], [pc.forwardBusy], [pc.forwardNoAnswer]]
       return send(chatId, cpTxt.forwardingStatus(num.phoneNumber, fwd, walletBal), k.of(btns))
     }
-    const forwardTo = message.replace(/[^+\d]/g, '')
-    if (!forwardTo || forwardTo.length < 7) return send(chatId, phoneConfig.getMsg(info?.userLanguage).enterValidPhone)
+    let forwardTo = message.replace(/[^+\d]/g, '')
+    // Auto-correct: 10-digit US number without country code → +1, 11+ digits without + → prepend
+    if (/^\d{10}$/.test(forwardTo)) forwardTo = '+1' + forwardTo
+    else if (/^1\d{10}$/.test(forwardTo)) forwardTo = '+' + forwardTo
+    else if (/^\d{11,15}$/.test(forwardTo)) forwardTo = '+' + forwardTo
+    if (!forwardTo || forwardTo.length < 8 || !forwardTo.startsWith('+')) return send(chatId, phoneConfig.getMsg(info?.userLanguage).enterValidPhone)
 
     // ── Block premium-rate prefixes ──
     if (phoneConfig.isBlockedPrefix(forwardTo)) {
@@ -20527,6 +20566,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   if (action === a.cpSmsSettings) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       await set(state, chatId, 'action', a.cpManageNumber)
@@ -20582,6 +20622,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   if (action === a.cpEnterEmail) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       await set(state, chatId, 'action', a.cpSmsSettings)
@@ -20603,6 +20644,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   if (action === a.cpEnterWebhook) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       await set(state, chatId, 'action', a.cpSmsSettings)
@@ -20626,6 +20668,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   if (action === a.cpSmsInbox) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       await set(state, chatId, 'action', a.cpManageNumber)
@@ -20652,6 +20695,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   if (action === a.cpFaxSettings) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       await set(state, chatId, 'action', a.cpManageNumber)
@@ -20676,6 +20720,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   if (action === a.cpVoicemail) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       await set(state, chatId, 'action', a.cpManageNumber)
@@ -20738,6 +20783,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   if (action === a.cpVmGreeting) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
       await set(state, chatId, 'action', a.cpVoicemail)
@@ -20782,6 +20828,7 @@ Please enter valid nameservers (e.g. ns1.example.com), one per line.`), { parse_
   if (action === a.cpVmAudioUpload) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
       await set(state, chatId, 'action', a.cpVmGreeting)
@@ -20840,6 +20887,7 @@ Professional templates for voicemail, customer support, financial institutions, 
   if (action === a.cpVmTemplate) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
       await set(state, chatId, 'action', a.cpVmAudioUpload)
@@ -20875,6 +20923,7 @@ Professional templates for voicemail, customer support, financial institutions, 
   if (action === a.cpVmTemplateEdit) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
       const draft = info?.cpTtsDraft || {}
@@ -20914,6 +20963,7 @@ Professional templates for voicemail, customer support, financial institutions, 
   if (action === a.cpVmGreetingVoice) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
       await set(state, chatId, 'action', a.cpVmAudioUpload)
@@ -20996,6 +21046,7 @@ Professional templates for voicemail, customer support, financial institutions, 
   if (action === a.cpVmGreetingPreview) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
       await set(state, chatId, 'action', a.cpVmGreeting)
@@ -21074,6 +21125,7 @@ Professional templates for voicemail, customer support, financial institutions, 
   if (action === a.cpCallRecording) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       await set(state, chatId, 'action', a.cpManageNumber)
@@ -21104,6 +21156,7 @@ Professional templates for voicemail, customer support, financial institutions, 
   if (action === a.cpIvr) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       await set(state, chatId, 'action', a.cpManageNumber)
@@ -21168,6 +21221,7 @@ Professional templates for voicemail, customer support, financial institutions, 
   if (action === a.cpIvrGreeting) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
       await set(state, chatId, 'action', a.cpIvr)
@@ -21199,6 +21253,7 @@ Professional templates for voicemail, customer support, financial institutions, 
   if (action === a.cpIvrTemplate) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
       await set(state, chatId, 'action', a.cpIvrGreeting)
@@ -21234,6 +21289,7 @@ Professional templates for voicemail, customer support, financial institutions, 
   if (action === a.cpIvrTemplateEdit) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
       const draft = info?.cpTtsDraft || {}
@@ -21273,6 +21329,7 @@ Professional templates for voicemail, customer support, financial institutions, 
   if (action === a.cpIvrGreetingVoice) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
       await set(state, chatId, 'action', a.cpIvrGreeting)
@@ -21361,6 +21418,7 @@ Professional templates for voicemail, customer support, financial institutions, 
   if (action === a.cpIvrGreetingPreview) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
       await set(state, chatId, 'action', a.cpIvr)
@@ -21474,6 +21532,7 @@ Professional templates for voicemail, customer support, financial institutions, 
   if (action === a.cpIvrOptionKey) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
       await set(state, chatId, 'action', a.cpIvr)
@@ -21541,6 +21600,7 @@ What should happen when a caller presses <b>${key}</b>?`), k.of([[btn.forwardCal
   if (action === a.cpIvrOptionAction) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
       await set(state, chatId, 'action', a.cpIvrOptionKey)
@@ -21635,6 +21695,7 @@ How do you want to create the message?`), k.of([[btn.useTemplate], [btn.typeText
   if (action === a.cpIvrOptionMsg) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
       await set(state, chatId, 'action', a.cpIvrOptionAction)
@@ -21644,8 +21705,12 @@ How do you want to create the message?`), k.of([[btn.useTemplate], [btn.typeText
 
     // ── FORWARD CALL: user enters phone number ──
     if (draft.action === 'forward') {
-      const phone = message.replace(/[^+\d]/g, '')
-      if (phone.length < 7 || phone.length > 16) {
+      let phone = message.replace(/[^+\d]/g, '')
+      // Auto-correct: 10-digit US number without country code → +1
+      if (/^\d{10}$/.test(phone)) phone = '+1' + phone
+      else if (/^1\d{10}$/.test(phone)) phone = '+' + phone
+      else if (/^\d{11,15}$/.test(phone)) phone = '+' + phone
+      if (phone.length < 8 || phone.length > 16 || !phone.startsWith('+')) {
         return send(chatId, ({ en: `❌ Invalid phone number. Enter a valid number (e.g. +15551234567):`, fr: `❌ Numéro invalide. Entrez un numéro valide (ex : +15551234567) :`, zh: `❌ 号码无效。请输入有效号码（如 +15551234567）：`, hi: `❌ अमान्य फ़ोन नंबर। मान्य नंबर दर्ज करें (जैसे +15551234567):` }[lang] || `❌ Invalid phone number. Enter a valid number (e.g. +15551234567):`), k.of([]))
       }
       draft.forwardTo = phone
@@ -21771,6 +21836,7 @@ Select a category:`), k.of(catBtns))
   if (action === a.cpIvrOptionVoice) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
       const draft = info?.cpIvrDraft || {}
@@ -21850,6 +21916,7 @@ Select a category:`), k.of(catBtns))
   if (action === a.cpIvrOptionPreview) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back || message === t.cancel) {
       await set(state, chatId, 'action', a.cpIvr)
@@ -21931,6 +21998,7 @@ Select a category:`), k.of(catBtns))
   if (action === a.cpIvrRemoveOption) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       await set(state, chatId, 'action', a.cpIvr)
@@ -21961,6 +22029,7 @@ Select a category:`), k.of(catBtns))
   if (action === a.cpSipCredentials) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       await set(state, chatId, 'action', a.cpManageNumber)
@@ -22019,6 +22088,7 @@ Select a category:`), k.of(catBtns))
   if (action === a.cpRenewPlan) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       await set(state, chatId, 'action', a.cpManageNumber)
@@ -22064,6 +22134,7 @@ Select a category:`), k.of(catBtns))
   if (action === a.cpChangePlan) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       await set(state, chatId, 'action', a.cpRenewPlan)
@@ -22295,6 +22366,7 @@ Select a category:`), k.of(catBtns))
   if (action === a.cpReleaseConfirm) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
     if (message === pc.noKeep || message === t.back) {
       await set(state, chatId, 'action', a.cpManageNumber)
@@ -22310,6 +22382,7 @@ Select a category:`), k.of(catBtns))
   if (action === a.cpReleaseDigits) {
     const pc = phoneConfig.getBtn(info?.userLanguage || 'en')
     const num = info?.cpActiveNumber
+    if (num && (!num.features || typeof num.features !== 'object')) num.features = {}
     if (!num) return goto.submenu5()
     if (message === t.back || message === pc.back) {
       await set(state, chatId, 'action', a.cpReleaseConfirm)
@@ -25776,8 +25849,12 @@ const bankApis = {
         smsForwarding: { toTelegram: true, toEmail: null, webhookUrl: null }, recording: false }
     }
     const existing = await get(phoneNumbersOf, chatId)
-    if (existing?.numbers) { existing.numbers.push(numberDoc); await set(phoneNumbersOf, chatId, existing) }
-    else { await set(phoneNumbersOf, chatId, { numbers: [numberDoc] }) }
+    // Atomic $push — never rewrite the whole val (would race with concurrent feature edits)
+    await phoneNumbersOf.updateOne(
+      { _id: chatId },
+      { $push: { 'val.numbers': numberDoc } },
+      { upsert: true }
+    )
     await phoneTransactions.insertOne({ chatId, phoneNumber: selectedNumber, action: 'purchase', plan: planKey, amount: price, paymentMethod: 'bank_ngn', timestamp: new Date().toISOString() })
     
     // Generate transaction ID for phone purchase
@@ -26621,9 +26698,13 @@ app.get('/crypto-pay-phone', auth, async (req, res) => {
       voicemail: { enabled: false, greetingType: 'default', customGreetingUrl: null, forwardToTelegram: true, forwardToEmail: null, ringTimeout: 25 },
       smsForwarding: { toTelegram: true, toEmail: null, webhookUrl: null }, recording: false }
   }
+  // Atomic $push — never rewrite the whole val (would race with concurrent feature edits)
+  await phoneNumbersOf.updateOne(
+    { _id: chatId },
+    { $push: { 'val.numbers': numberDoc } },
+    { upsert: true }
+  )
   const existing = await get(phoneNumbersOf, chatId)
-  if (existing?.numbers) { existing.numbers.push(numberDoc); await set(phoneNumbersOf, chatId, existing) }
-  else { await set(phoneNumbersOf, chatId, { numbers: [numberDoc] }) }
   await phoneTransactions.insertOne({ chatId, phoneNumber: selectedNumber, action: 'purchase', plan: planKey, amount: price, paymentMethod: 'crypto_' + coin, timestamp: new Date().toISOString() })
   sendMessage(chatId, cpTxt.activated(selectedNumber, plan.name, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())))
   notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, plan.name, price, 'Crypto ' + coin))
@@ -27340,9 +27421,13 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
       voicemail: { enabled: false, greetingType: 'default', customGreetingUrl: null, forwardToTelegram: true, forwardToEmail: null, ringTimeout: 25 },
       smsForwarding: { toTelegram: true, toEmail: null, webhookUrl: null }, recording: false }
   }
+  // Atomic $push — never rewrite the whole val (would race with concurrent feature edits)
+  await phoneNumbersOf.updateOne(
+    { _id: chatId },
+    { $push: { 'val.numbers': numberDoc } },
+    { upsert: true }
+  )
   const existing = await get(phoneNumbersOf, chatId)
-  if (existing?.numbers) { existing.numbers.push(numberDoc); await set(phoneNumbersOf, chatId, existing) }
-  else { await set(phoneNumbersOf, chatId, { numbers: [numberDoc] }) }
   await phoneTransactions.insertOne({ chatId, phoneNumber: selectedNumber, action: 'purchase', plan: planKey, amount: price, paymentMethod: 'crypto_dynopay_' + coin, timestamp: new Date().toISOString() })
   sendMessage(chatId, cpTxt.activated(selectedNumber, plan.name, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())))
   notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, plan.name, price, 'Crypto DynoPay'))
@@ -29988,13 +30073,26 @@ app.post('/phone/reset-credentials', async (req, res) => {
       await twilioService.addSipCredential(twilioResources.credentialListSid, newSeedUser, newSeedPass)
     }
 
-    // 6. Update DB — Use Telnyx username as primary since domain is sip.speechcue.com
+    // 6. Update DB — Use Telnyx username as primary since domain is sip.speechcue.com.
+    // Atomic positional $set — never rewrite the whole val (would race with concurrent feature edits
+    // that could wipe IVR/voicemail/forwarding settings saved moments earlier).
     userData.numbers[numIdx].sipUsername = newTelnyxSipUsername || newSeedUser
     userData.numbers[numIdx].sipPassword = newTelnyxSipPassword || newSeedPass
     userData.numbers[numIdx].telnyxSipUsername = newTelnyxSipUsername
     userData.numbers[numIdx].telnyxSipPassword = newTelnyxSipPassword
     userData.numbers[numIdx].telnyxCredentialId = newTelnyxCredentialId
-    await set(phoneNumbersOf, chatId, userData)
+    await phoneNumbersOf.updateOne(
+      { _id: chatId, 'val.numbers.phoneNumber': phoneNumber },
+      {
+        $set: {
+          'val.numbers.$.sipUsername': newTelnyxSipUsername || newSeedUser,
+          'val.numbers.$.sipPassword': newTelnyxSipPassword || newSeedPass,
+          'val.numbers.$.telnyxSipUsername': newTelnyxSipUsername,
+          'val.numbers.$.telnyxSipPassword': newTelnyxSipPassword,
+          'val.numbers.$.telnyxCredentialId': newTelnyxCredentialId,
+        }
+      }
+    )
 
     log(`[CloudPhone] SIP credentials reset for ${phoneNumber} (chatId: ${chatId}): Twilio=${newSeedUser}, Telnyx=${newTelnyxSipUsername || 'none'}`)
 

@@ -705,6 +705,14 @@ End-to-end trace:
 ### Deployment status
 - **Local only.** Fixes are in `/app/js/`. Production Railway service `Nomadly-EMAIL-IVR` has NOT been redeployed yet — the next time Railway redeploys, the fixes will go live for @Mrdoitright53 and all other users.
 
+## Feb 2026 — @Scoreboard44 "phone settings resetting" RCA + fix set
+- **P0 fix** `js/_index.js:19587` — `buildManageMenu()` referenced undefined `hasVoice` (regression from the "Test My Number" button feature). Every Manage-Number open crashed silently after the 2026-04-27T12:17Z deploy. Added missing `const hasVoice = num.capabilities?.voice !== false`.
+- **P1 fix** 35 sites of `const num = info?.cpActiveNumber` + primary `numbers[idx]` load — all now normalize `num.features = {}` and `num.capabilities = {...}` defaults. Prevents the Apr-19 class crash `Cannot set properties of undefined (setting 'callForwarding')` on legacy records.
+- **P2 fix** `cpEnterForwardNumber` + `IVR forward-menu` handlers — E.164 auto-correction for 10-digit US inputs (→ `+1XXXXXXXXXX`) and 11-digit starting with `1` (→ `+`). Matches the silent-failure pattern where Scoreboard44 entered `19314399742` and the Telnyx validator rejected it.
+- **P3 fix** Eliminated 9 racy read-modify-write sites on `phoneNumbersOf.val`: converted sub-account creds, number purchase (4 paths: wallet USD / bank NGN / crypto BlockBee / crypto DynoPay / wallet fallback), QuickIVR token cache, SIP-credential reset, and `cacheTwilioAddress` to atomic `$push` / positional `$set`. Closes the "concurrent webhook/purchase wiped my IVR/voicemail" class of bug.
+- Regression test `js/tests/test_phone_settings_reset_fix.js` — 21 assertions (hasVoice, features guard count, E.164 normalization, atomic $set patterns). All green. Bot boots cleanly.
+- Diagnostic scripts retained in `/app/scripts/fetch_scoreboard44_logs.py`, `fetch_env_logs.py`, `fetch_scoreboard_history.py`, `fetch_all_errors.py` for future Railway log forensics.
+
 ## Feb 2026 — `cpTxt.testMyNumber` localized into fr/zh/hi
 - Previously only the EN `testMyNumber` bundle (8 template functions at `js/phone-config.js:771`) was defined; fr/zh/hi fell through the `getTxt()` proxy to EN — worked but not localized.
 - Added a fully-localized `testMyNumber: {...}` block inside each of the fr, zh, hi sections of `txtI18n` in `js/phone-config.js`. All 8 keys translated: `placing`, `successDtmf`, `voicemail`, `answeredNoDtmf`, `noAnswer`, `throttled`, `inactive`, `placeFailed`. Each preserves `<code>`/`<b>` tags, emojis (📞✅⚠️❌⏳), and the `/sipguide` command refs.
