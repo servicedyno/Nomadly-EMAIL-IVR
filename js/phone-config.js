@@ -1887,6 +1887,16 @@ Envoyez /testsip ici pour obtenir votre code test.
     btnShowStatus: '📊 Afficher le Statut',
     btnUploadNewAudio: '📎 Uploader Nouveau',
     btnBack: '↩️ Retour',
+    testMyNumber: {
+      placing: (phone) => `📞 Appel vers <code>${phone}</code> depuis une ligne de test Nomadly… décrochez sur votre softphone et appuyez sur <b>1</b> quand ça sonne (vous avez ~12 secondes après décrochage).\n\nLe résultat apparaîtra ici dans les 60 secondes.`,
+      successDtmf: (phone) => `✅ <b>Votre appareil SIP a répondu</b> — les appels vers <code>${phone}</code> fonctionnent de bout en bout. Le destinataire a répondu et une touche a été pressée.`,
+      voicemail: (phone) => `⚠️ <b>Messagerie vocale / PBX a répondu</b> sur <code>${phone}</code>.\n\nCela signifie généralement qu'un PBX (3CX, FreePBX, Asterisk…) répond et bascule l'appel vers sa propre messagerie au lieu de faire sonner votre extension.\n\nSolution : ouvrez /sipguide pour la configuration SIP TRUNK, ou passez à un softphone monoligne (Linphone, Zoiper) pour une solution immédiate.`,
+      answeredNoDtmf: (phone) => `⚠️ <b>Appel répondu, mais aucune touche pressée</b> sur <code>${phone}</code> dans les 12 secondes.\n\nSi vous n'avez pas décroché, votre softphone ne reçoit peut-être pas l'appel. Si vous avez décroché mais pas appuyé sur 1, réessayez. Si un PBX (3CX/FreePBX) est impliqué, consultez /sipguide pour la configuration SIP TRUNK.`,
+      noAnswer: (phone) => `❌ <b>Pas de réponse</b> sur <code>${phone}</code>.\n\nAssurez-vous que votre softphone (Linphone / Zoiper / trunk 3CX) est enregistré et en ligne, puis relancez le test. Ouvrez /sipguide pour l'aide à la configuration.`,
+      throttled: (max) => `⏳ Vous avez déjà effectué ${max} tests sur ce numéro dans les dernières 24 heures. Patientez avant de retester.`,
+      inactive: (phone) => `❌ Le numéro <code>${phone}</code> n'est pas actif — le test est réservé aux numéros actifs.`,
+      placeFailed: (err) => `❌ Impossible de passer l'appel de test : ${err}`,
+    },
   },
   zh: {
     hubWelcome: `📞 <b>Cloud IVR</b> <i>由 Speechcue 提供</i>
@@ -2321,6 +2331,16 @@ Envoyez /testsip ici pour obtenir votre code test.
     btnShowStatus: '📊 显示状态',
     btnUploadNewAudio: '📎 上传新音频',
     btnBack: '↩️ 返回',
+    testMyNumber: {
+      placing: (phone) => `📞 正在从 Nomadly 测试线路呼叫 <code>${phone}</code>… 请用您的软电话接听并在响铃时按 <b>1</b>（接听后约 12 秒内有效）。\n\n结果将在 60 秒内显示在这里。`,
+      successDtmf: (phone) => `✅ <b>已接通您的 SIP 设备</b> — 拨往 <code>${phone}</code> 的来电端到端畅通。对方已接听并按键。`,
+      voicemail: (phone) => `⚠️ <b>进入了语音信箱 / PBX 应答</b> <code>${phone}</code>。\n\n这通常表示 PBX（3CX、FreePBX、Asterisk 等）接管了来电并转到自己的语音信箱，而不是让您的分机振铃。\n\n解决方法：打开 /sipguide 查看 SIP TRUNK 配置指南，或切换到单线软电话（Linphone、Zoiper）即刻解决。`,
+      answeredNoDtmf: (phone) => `⚠️ <b>来电已接听，但 12 秒内未按键</b> <code>${phone}</code>。\n\n如果您没接听，您的软电话可能未收到来电。如果您接听了但未按 1，请重试。如使用了 PBX（3CX/FreePBX），请参阅 /sipguide 进行 SIP TRUNK 配置。`,
+      noAnswer: (phone) => `❌ <b>无人接听</b> <code>${phone}</code>。\n\n请确认您的软电话（Linphone / Zoiper / 3CX trunk）已注册并在线，然后重新测试。打开 /sipguide 查看配置帮助。`,
+      throttled: (max) => `⏳ 24 小时内您已对该号码运行了 ${max} 次测试。请稍后再试。`,
+      inactive: (phone) => `❌ 号码 <code>${phone}</code> 未激活 — 测试仅适用于已激活的号码。`,
+      placeFailed: (err) => `❌ 无法发起测试呼叫：${err}`,
+    },
   },
   hi: {
     hubWelcome: `📞 <b>Cloud IVR</b> <i>Speechcue द्वारा</i>
@@ -2755,6 +2775,16 @@ SIP क्रेडेंशियल को "user / extension" के रूप
     btnShowStatus: '📊 स्थिति दिखाएं',
     btnUploadNewAudio: '📎 नया अपलोड',
     btnBack: '↩️ वापस',
+    testMyNumber: {
+      placing: (phone) => `📞 Nomadly टेस्ट लाइन से <code>${phone}</code> पर कॉल कर रहे हैं… अपने सॉफ्टफ़ोन पर उठाएं और घंटी बजने पर <b>1</b> दबाएं (उठाने के बाद ~12 सेकंड का समय है)।\n\nपरिणाम 60 सेकंड के अंदर यहाँ दिखेगा।`,
+      successDtmf: (phone) => `✅ <b>आपका SIP डिवाइस चालू है</b> — <code>${phone}</code> पर कॉल एंड-टू-एंड काम कर रही हैं। दूसरे छोर ने कॉल उठाई और एक कुंजी दबाई गई।`,
+      voicemail: (phone) => `⚠️ <b>वॉइसमेल / PBX ने कॉल उठाई</b> <code>${phone}</code> पर।\n\nआमतौर पर इसका मतलब है कि कोई PBX (3CX, FreePBX, Asterisk…) कॉल उठा रहा है और आपके एक्सटेंशन को घंटी बजाने के बजाय अपने वॉइसमेल में भेज रहा है।\n\nउपाय: SIP TRUNK सेटअप के लिए /sipguide खोलें, या तुरंत समाधान के लिए सिंगल-लाइन सॉफ्टफ़ोन (Linphone, Zoiper) पर स्विच करें।`,
+      answeredNoDtmf: (phone) => `⚠️ <b>कॉल उठी, लेकिन 12 सेकंड में कोई कुंजी नहीं दबाई</b> <code>${phone}</code> पर।\n\nअगर आपने कॉल नहीं उठाई, तो आपके सॉफ्टफ़ोन पर कॉल नहीं पहुंच रही। अगर उठाई पर 1 नहीं दबाया, तो बस फिर से कोशिश करें। अगर PBX (3CX/FreePBX) शामिल है, तो /sipguide देखें।`,
+      noAnswer: (phone) => `❌ <b>कोई जवाब नहीं</b> <code>${phone}</code> पर।\n\nसुनिश्चित करें कि आपका सॉफ्टफ़ोन (Linphone / Zoiper / 3CX trunk) रजिस्टर्ड और ऑनलाइन है, फिर दोबारा टेस्ट चलाएं। सेटअप सहायता के लिए /sipguide खोलें।`,
+      throttled: (max) => `⏳ आप पिछले 24 घंटों में इस नंबर पर ${max} टेस्ट पहले ही चला चुके हैं। दोबारा टेस्ट करने से पहले कुछ देर रुकें।`,
+      inactive: (phone) => `❌ नंबर <code>${phone}</code> सक्रिय नहीं है — टेस्टिंग केवल सक्रिय नंबरों के लिए उपलब्ध है।`,
+      placeFailed: (err) => `❌ टेस्ट कॉल नहीं की जा सकी: ${err}`,
+    },
   },
 }
 

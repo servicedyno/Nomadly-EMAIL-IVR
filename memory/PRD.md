@@ -705,6 +705,13 @@ End-to-end trace:
 ### Deployment status
 - **Local only.** Fixes are in `/app/js/`. Production Railway service `Nomadly-EMAIL-IVR` has NOT been redeployed yet — the next time Railway redeploys, the fixes will go live for @Mrdoitright53 and all other users.
 
+## Feb 2026 — `cpTxt.testMyNumber` localized into fr/zh/hi
+- Previously only the EN `testMyNumber` bundle (8 template functions at `js/phone-config.js:771`) was defined; fr/zh/hi fell through the `getTxt()` proxy to EN — worked but not localized.
+- Added a fully-localized `testMyNumber: {...}` block inside each of the fr, zh, hi sections of `txtI18n` in `js/phone-config.js`. All 8 keys translated: `placing`, `successDtmf`, `voicemail`, `answeredNoDtmf`, `noAnswer`, `throttled`, `inactive`, `placeFailed`. Each preserves `<code>`/`<b>` tags, emojis (📞✅⚠️❌⏳), and the `/sipguide` command refs.
+- Regression test `js/tests/test_test_my_number_i18n.js` — 32 assertions (4 langs × 8 keys) + 24 "not-identical-to-EN" checks. All green.
+- Node.js bot restarts cleanly; `phone-config.js` loads without syntax errors.
+- Re: user's Twilio question — `js/test-my-number.js` outbound leg is Telnyx-only (uses `TELNYX_TRIAL_CALLER_ID` + Telnyx webhook events). But the call's *target* is the user's Twilio number, so every Twilio user's inbound path is already exercised end-to-end. No separate Twilio build is needed.
+
 ## Feb 2026 — Manage-Number UX upgrades (follow-on to the 3CX investigation)
 
 ### Goal
