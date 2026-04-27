@@ -10,7 +10,7 @@ import re
 from datetime import datetime
 
 # Base URL from environment
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://fast-start-6.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://quick-start-186.preview.emergentagent.com')
 
 # ============================================================================
 # SECTION 1: Utility Module Import Tests (Items 22-27)
