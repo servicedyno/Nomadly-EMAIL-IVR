@@ -189,10 +189,17 @@ async function createDirectory(cpUser, cpPass, dir, name, host = null) {
   return result
 }
 
-async function deleteFile(cpUser, cpPass, dir, file, host = null) {
+async function deleteFile(cpUser, cpPass, dir, file, host = null, isDirectory = false) {
+  // WHM API2 Fileman::fileop uses different ops for files vs directories:
+  //   unlink  → files only (silently fails / returns result=0 on directories)
+  //   killdir → directories (recursive)
+  // Prior bug: unlink was used for everything → folder deletes silently failed,
+  // frontend refresh showed the folder still present with no error message
+  // (see @Thebiggestbag22 "BlueFCU upload ready I need to delete" Feb 2026).
+  const op = isDirectory ? 'killdir' : 'unlink'
   return api2(cpUser, cpPass, 'Fileman', 'fileop', {
     doubledecode: 0,
-    op: 'unlink',
+    op,
     sourcefiles: `${dir}/${file}`,
   }, host)
 }

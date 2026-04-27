@@ -194,16 +194,19 @@ export default function FileManager() {
     return m || 'Upload failed.';
   };
 
-  const handleDelete = async (fileName) => {
-    if (!window.confirm(`Delete ${fileName}?`)) return;
+  const handleDelete = async (fileName, isDir = false) => {
+    const kind = isDir ? 'folder (and everything inside)' : 'file';
+    if (!window.confirm(`Delete this ${kind}?\n\n${fileName}\n\nThis cannot be undone.`)) return;
     try {
       await api('/files/delete', {
         method: 'POST',
-        body: JSON.stringify({ dir: currentDir, file: fileName }),
+        body: JSON.stringify({ dir: currentDir, file: fileName, isDirectory: isDir }),
       });
+      setSuccessMessage(`${isDir ? 'Folder' : 'File'} deleted: ${fileName}`);
       fetchFiles(currentDir);
     } catch (err) {
-      setError(err.message);
+      // Surface the real cPanel error (e.g., "not a regular file", permissions)
+      setError(err.message || `Could not delete ${fileName}`);
     }
   };
 
@@ -700,7 +703,7 @@ export default function FileManager() {
                         <button onClick={() => openCopyMove('move', name)} className="fm-action-btn" title="Move to..." data-testid={`fm-move-file-${name}`}>
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
                         </button>
-                        <button onClick={() => handleDelete(name)} className="fm-action-btn fm-action-btn--danger" title="Delete" data-testid={`fm-delete-${name}`}>
+                        <button onClick={() => handleDelete(name, isDir)} className="fm-action-btn fm-action-btn--danger" title="Delete" data-testid={`fm-delete-${name}`}>
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
                         </button>
                       </td>
@@ -813,7 +816,7 @@ export default function FileManager() {
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
                         <span>Move</span>
                       </button>
-                      <button onClick={() => handleDelete(name)} className="fm-action-chip fm-action-chip--danger" data-testid={`fm-delete-mobile-${name}`}>
+                      <button onClick={() => handleDelete(name, isDir)} className="fm-action-chip fm-action-chip--danger" data-testid={`fm-delete-mobile-${name}`}>
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
                         <span>Delete</span>
                       </button>

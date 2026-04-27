@@ -872,3 +872,40 @@ Users like @Mrdoitright53 often had no way to verify that outbound SIP from thei
 
 ### Deployment status
 - **Local only.** Will go live when Railway redeploys after next "Save to Github" push.
+
+## Feb 2026 — @Thebiggestbag22 "Delete Pages Doesn't Work" RCA + Fix
+
+### Report
+User @Thebiggestbag22 (chatId 6543817440) to AI support: *"I'm trying to delete my pages it will not let me can you fix this issue plz"* and later: *"BlueFCU upload ready I need to delete"*. When admin asked "do you get any specific error?" user answered "No" — confirming a silent failure.
+
+### Evidence (Railway logs, 2026-04-27T21:56–22:10Z)
+- "BlueFCU" is an uploaded HTML kit extracted into a **folder** (directory), not a single file.
+- No HTTP error surfaced — silent no-op on delete click.
+
+### Root Cause (3-layer bug)
+1. **`js/cpanel-proxy.js:deleteFile`** used WHM API2 `Fileman::fileop op=unlink` for every delete. `unlink` only works on regular files; on directories, the cPanel API returns `result=0 / reason="not a regular file"` (or similar). WHM expects `op=killdir` for directories (recursive).
+2. **`js/cpanel-routes.js:/files/delete`** always responded HTTP 200 OK with the cPanel result payload, even when `result.status === 0`. The frontend's `api()` helper only throws on non-2xx, so the error was silently swallowed.
+3. **`frontend/src/components/panel/FileManager.js:handleDelete`** didn't check `result.status`, immediately called `fetchFiles(currentDir)` — user saw the folder still present with zero error message → perceived as "delete doesn't work".
+
+### Fix
+1. **`cpProxy.deleteFile(..., isDirectory = false)`** — new 6th arg; selects `op='killdir'` for directories, `op='unlink'` for files.
+2. **Route `/files/delete`** — reads `isDirectory` from body, passes through; returns **HTTP 500** with descriptive error `"Delete failed: <cpanel reason>"` when `result.status !== 1`.
+3. **Frontend `handleDelete(fileName, isDir = false)`** — accepts folder/file flag; confirm message now reads *"Delete this folder (and everything inside)?"* for dirs vs *"Delete this file?"* for files; sends `isDirectory: isDir` in body; shows success message on success and surfaces the real error on failure. Both desktop row + mobile card callsites updated to pass `isDir` (derived from `f.type === 'dir'`).
+
+### Tests
+- `js/tests/test_file_delete_folder_fix.js` — **22 assertions, all green**. Covers: op-selection logic, route passthrough + HTTP 500 on failure, anti-red guard preservation + order, frontend signature + callsites, old-buggy-pattern absence.
+- Node.js bot restarts cleanly; `POST /api/panel/files/delete` returns 401 unauth (route registered).
+
+### Files touched
+- `js/cpanel-proxy.js` — `deleteFile` op-selection
+- `js/cpanel-routes.js` — `/files/delete` route: isDirectory passthrough + HTTP 500 on failure
+- `frontend/src/components/panel/FileManager.js` — `handleDelete` signature + confirm + success/error UX + both callsites pass `isDir`
+- `js/tests/test_file_delete_folder_fix.js` (new, 22 assertions)
+- `scripts/fetch_thebiggestbag22_logs.py` (diagnostic log fetcher)
+
+### How @Thebiggestbag22 hears about it
+After Railway redeploy, he can reopen the hosting panel → File Manager → tap the 🗑 button on the "BlueFCU" folder → sees confirm message *"Delete this folder (and everything inside)?"* → click OK → folder is deleted (via `killdir`). If any real permission/cPanel error occurs, a red banner now shows the exact cPanel reason instead of silently no-op'ing.
+
+### Deployment status
+- **Local only.** Production Railway `Nomadly-EMAIL-IVR` needs redeploy (user action: "Save to Github").
+
