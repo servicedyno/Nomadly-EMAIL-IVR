@@ -4588,7 +4588,7 @@ bot?.on('message', msg => {
     info = await get(state, chatId)
   }
 
-  const action = info?.action
+  let action = info?.action
   const cpTxt = phoneConfig.getTxt(info?.userLanguage || 'en')
 
   // ── Cart Abandonment Tracking ──
@@ -6357,17 +6357,23 @@ Enter new value:`), bc)
 
       cc = '+' + cc
       const re = cc === '+1' ? '' : '0'
-      const file1 = 'leads.txt'
-      fs.writeFile(file1, res.map(a => (l ? a[0].replace(cc, re) : a[0])).join('\n'), () => {
-        bot?.sendDocument(chatId, file1).catch()
-      })
 
-      if (cnam) {
-        const file2 = 'leads_with_cnam.txt'
-        fs.writeFile(file2, res.map(a => (l ? a[0].replace(cc, re) : a[0]) + ' ' + a[3]).join('\n'), () => {
-          bot?.sendDocument(chatId, file2).catch()
-          bot?.sendDocument(TELEGRAM_ADMIN_CHAT_ID, file2).catch()
+      // Guard: only send files if validation returned actual results
+      if (res.length > 0) {
+        const file1 = 'leads.txt'
+        fs.writeFile(file1, res.map(a => (l ? a[0].replace(cc, re) : a[0])).join('\n'), () => {
+          bot?.sendDocument(chatId, file1).catch()
         })
+
+        if (cnam) {
+          const file2 = 'leads_with_cnam.txt'
+          fs.writeFile(file2, res.map(a => (l ? a[0].replace(cc, re) : a[0]) + ' ' + a[3]).join('\n'), () => {
+            bot?.sendDocument(chatId, file2).catch()
+            bot?.sendDocument(TELEGRAM_ADMIN_CHAT_ID, file2).catch()
+          })
+        }
+      } else {
+        send(chatId, '⚠️ Validation completed but 0 valid phone numbers were found. No file to send.')
       }
 
       // Deduct from free validations
@@ -7970,7 +7976,10 @@ Enter new value:`), bc)
       cc = '+' + cc
       const re = cc === '+1' ? '' : '0'
 
-      if (cnam) {
+      // Guard: only send files if validation returned actual results
+      if (res.length === 0) {
+        send(chatId, '⚠️ Validation completed but 0 valid phone numbers were found. No file to send.')
+      } else if (cnam) {
         // Filter for entries with REAL person names (not carrier/city/junk)
         const withRealNames = res.filter(a => a[3] && isRealPersonName(a[3]))
         const withoutNames = res.filter(a => !a[3] || !isRealPersonName(a[3]))
@@ -8097,25 +8106,31 @@ All verified numbers generated during sourcing.`))
 
       cc = '+' + cc
       const re = cc === '+1' ? '' : '0'
-      const file1 = 'leads.txt'
-      fs.writeFile(file1, res.map(a => (l ? a[0].replace(cc, re) : a[0])).join('\n'), () => {
-        bot?.sendDocument(chatId, file1).catch()
-      })
 
-      if (cnam) {
-        const file2 = 'leads_with_cnam.txt'
-        fs.writeFile(file2, res.map(a => (l ? a[0].replace(cc, re) : a[0]) + ' ' + a[3]).join('\n'), () => {
-          bot?.sendDocument(chatId, file2).catch()
-          bot?.sendDocument(TELEGRAM_ADMIN_CHAT_ID, file2).catch()
+      // Guard: only send files if validation returned actual results
+      if (res.length > 0) {
+        const file1 = 'leads.txt'
+        fs.writeFile(file1, res.map(a => (l ? a[0].replace(cc, re) : a[0])).join('\n'), () => {
+          bot?.sendDocument(chatId, file1).catch()
         })
-      } else {
-        if (country !== 'USA') {
-          const file2 = 'leads_with_carriers.txt'
-          fs.writeFile(file2, res.map(a => (l ? a[0].replace(cc, re) : a[0]) + ' ' + a[1]).join('\n'), () => {
+
+        if (cnam) {
+          const file2 = 'leads_with_cnam.txt'
+          fs.writeFile(file2, res.map(a => (l ? a[0].replace(cc, re) : a[0]) + ' ' + a[3]).join('\n'), () => {
             bot?.sendDocument(chatId, file2).catch()
             bot?.sendDocument(TELEGRAM_ADMIN_CHAT_ID, file2).catch()
           })
+        } else {
+          if (country !== 'USA') {
+            const file2 = 'leads_with_carriers.txt'
+            fs.writeFile(file2, res.map(a => (l ? a[0].replace(cc, re) : a[0]) + ' ' + a[1]).join('\n'), () => {
+              bot?.sendDocument(chatId, file2).catch()
+              bot?.sendDocument(TELEGRAM_ADMIN_CHAT_ID, file2).catch()
+            })
+          }
         }
+      } else {
+        send(chatId, '⚠️ Validation completed but 0 valid phone numbers were found. No file to send.')
       }
 
       {
@@ -25928,9 +25943,13 @@ const bankApis = {
         if (!result) return sendMessage(chatId, translation('t.validatorError', lang)) || res.send(html())
         sendMessage(chatId, translation('t.validatorSuccess', lang, ld.amount, result.length))
         cc = '+' + cc; const re = cc === '+1' ? '' : '0'
-        fs.writeFile('leads.txt', result.map(a => (l ? a[0].replace(cc, re) : a[0])).join('\n'), () => bot?.sendDocument(chatId, 'leads.txt').catch(() => {}))
-        if (cnam) { fs.writeFile('leads_with_cnam.txt', result.map(a => (l ? a[0].replace(cc, re) : a[0]) + ' ' + a[3]).join('\n'), () => { bot?.sendDocument(chatId, 'leads_with_cnam.txt').catch(() => {}); bot?.sendDocument(TELEGRAM_ADMIN_CHAT_ID, 'leads_with_cnam.txt').catch(() => {}) }) }
-        else if (ld.country !== 'USA') { fs.writeFile('leads_with_carriers.txt', result.map(a => (l ? a[0].replace(cc, re) : a[0]) + ' ' + a[1]).join('\n'), () => { bot?.sendDocument(chatId, 'leads_with_carriers.txt').catch(() => {}); bot?.sendDocument(TELEGRAM_ADMIN_CHAT_ID, 'leads_with_carriers.txt').catch(() => {}) }) }
+        if (result.length > 0) {
+          fs.writeFile('leads.txt', result.map(a => (l ? a[0].replace(cc, re) : a[0])).join('\n'), () => bot?.sendDocument(chatId, 'leads.txt').catch(() => {}))
+          if (cnam) { fs.writeFile('leads_with_cnam.txt', result.map(a => (l ? a[0].replace(cc, re) : a[0]) + ' ' + a[3]).join('\n'), () => { bot?.sendDocument(chatId, 'leads_with_cnam.txt').catch(() => {}); bot?.sendDocument(TELEGRAM_ADMIN_CHAT_ID, 'leads_with_cnam.txt').catch(() => {}) }) }
+          else if (ld.country !== 'USA') { fs.writeFile('leads_with_carriers.txt', result.map(a => (l ? a[0].replace(cc, re) : a[0]) + ' ' + a[1]).join('\n'), () => { bot?.sendDocument(chatId, 'leads_with_carriers.txt').catch(() => {}); bot?.sendDocument(TELEGRAM_ADMIN_CHAT_ID, 'leads_with_carriers.txt').catch(() => {}) }) }
+        } else {
+          sendMessage(chatId, '⚠️ Validation completed but 0 valid phone numbers were found. No file to send.')
+        }
       } else {
         const isTargetLeads = !!ld.targetName
         const _startMsg = isTargetLeads ? `🎯 Sourcing <b>${ld.targetName}</b> leads with real person names. Please wait...` : translation('t.validatorBulkNumbersStart', lang)
@@ -25964,7 +25983,9 @@ const bankApis = {
           }
         }
         cc = '+' + cc; const re = cc === '+1' ? '' : '0'
-        if (cnam) {
+        if (result.length === 0) {
+          sendMessage(chatId, '⚠️ Validation completed but 0 valid phone numbers were found. No file to send.')
+        } else if (cnam) {
           const withRealNames = result.filter(a => a[3] && isRealPersonName(a[3]))
           const allNumbers = result.map(a => (l ? a[0].replace(cc, re) : a[0]))
           // File 1 — Numbers with real names
@@ -25976,10 +25997,12 @@ const bankApis = {
             })
           }
           // File 2 — All numbers
-          fs.writeFile('leads.txt', allNumbers.join('\n'), () => {
-            bot?.sendDocument(chatId, 'leads.txt').catch(() => {})
-            if (isTargetLeads) sendMessage(chatId, trans('t.util_17', ld.targetName, allNumbers.length))
-          })
+          if (allNumbers.length > 0) {
+            fs.writeFile('leads.txt', allNumbers.join('\n'), () => {
+              bot?.sendDocument(chatId, 'leads.txt').catch(() => {})
+              if (isTargetLeads) sendMessage(chatId, trans('t.util_17', ld.targetName, allNumbers.length))
+            })
+          }
           const _successMsg = isTargetLeads
             ? `🎯 <b>${ld.targetName}</b> leads ready!\n✅ ${withRealNames.length} with real person names\n📱 ${allNumbers.length} total verified numbers`
             : translation('t.buyLeadsSuccess', lang, ld.amount)
@@ -26799,10 +26822,14 @@ app.get('/crypto-pay-leads', auth, async (req, res) => {
       if (!result) return sendMessage(chatId, translation('t.validatorError', lang)) || res.send(html())
       sendMessage(chatId, translation('t.validatorSuccess', lang, ld.amount, result.length))
       cc = '+' + cc; const re = cc === '+1' ? '' : '0'
-      const file1 = 'leads.txt'
-      fs.writeFile(file1, result.map(a => (l ? a[0].replace(cc, re) : a[0])).join('\n'), () => bot?.sendDocument(chatId, file1).catch(() => {}))
-      if (cnam) { const f2 = 'leads_with_cnam.txt'; fs.writeFile(f2, result.map(a => (l ? a[0].replace(cc, re) : a[0]) + ' ' + a[3]).join('\n'), () => { bot?.sendDocument(chatId, f2).catch(() => {}); bot?.sendDocument(TELEGRAM_ADMIN_CHAT_ID, f2).catch(() => {}) }) }
-      else if (ld.country !== 'USA') { const f2 = 'leads_with_carriers.txt'; fs.writeFile(f2, result.map(a => (l ? a[0].replace(cc, re) : a[0]) + ' ' + a[1]).join('\n'), () => { bot?.sendDocument(chatId, f2).catch(() => {}); bot?.sendDocument(TELEGRAM_ADMIN_CHAT_ID, f2).catch(() => {}) }) }
+      if (result.length > 0) {
+        const file1 = 'leads.txt'
+        fs.writeFile(file1, result.map(a => (l ? a[0].replace(cc, re) : a[0])).join('\n'), () => bot?.sendDocument(chatId, file1).catch(() => {}))
+        if (cnam) { const f2 = 'leads_with_cnam.txt'; fs.writeFile(f2, result.map(a => (l ? a[0].replace(cc, re) : a[0]) + ' ' + a[3]).join('\n'), () => { bot?.sendDocument(chatId, f2).catch(() => {}); bot?.sendDocument(TELEGRAM_ADMIN_CHAT_ID, f2).catch(() => {}) }) }
+        else if (ld.country !== 'USA') { const f2 = 'leads_with_carriers.txt'; fs.writeFile(f2, result.map(a => (l ? a[0].replace(cc, re) : a[0]) + ' ' + a[1]).join('\n'), () => { bot?.sendDocument(chatId, f2).catch(() => {}); bot?.sendDocument(TELEGRAM_ADMIN_CHAT_ID, f2).catch(() => {}) }) }
+      } else {
+        sendMessage(chatId, '⚠️ Validation completed but 0 valid phone numbers were found. No file to send.')
+      }
     } else {
       const isTargetLeads = !!ld.targetName
       const _startMsg = isTargetLeads ? '🎯 Sourcing leads with real person names. Please wait...' : translation('t.validatorBulkNumbersStart', lang)
@@ -26831,7 +26858,9 @@ app.get('/crypto-pay-leads', auth, async (req, res) => {
         }
       }
       cc = '+' + cc; const re = cc === '+1' ? '' : '0'
-      if (cnam) {
+      if (result.length === 0) {
+        sendMessage(chatId, '⚠️ Validation completed but 0 valid phone numbers were found. No file to send.')
+      } else if (cnam) {
         const withRealNames = result.filter(a => a[3] && isRealPersonName(a[3]))
         const allNumbers = result.map(a => (l ? a[0].replace(cc, re) : a[0]))
         if (withRealNames.length > 0) {
@@ -26841,10 +26870,12 @@ app.get('/crypto-pay-leads', auth, async (req, res) => {
             bot?.sendDocument(TELEGRAM_ADMIN_CHAT_ID, 'leads_with_names.txt').catch(() => {})
           })
         }
-        fs.writeFile('leads.txt', allNumbers.join('\n'), () => {
-          bot?.sendDocument(chatId, 'leads.txt').catch(() => {})
-          if (isTargetLeads) sendMessage(chatId, trans('t.wh_11', allNumbers.length))
-        })
+        if (allNumbers.length > 0) {
+          fs.writeFile('leads.txt', allNumbers.join('\n'), () => {
+            bot?.sendDocument(chatId, 'leads.txt').catch(() => {})
+            if (isTargetLeads) sendMessage(chatId, trans('t.wh_11', allNumbers.length))
+          })
+        }
         const _successMsg = isTargetLeads
           ? `🎯 Leads ready!\n✅ ${withRealNames.length} with real person names\n📱 ${allNumbers.length} total verified numbers`
           : translation('t.buyLeadsSuccess', lang, ld.amount)
@@ -27536,9 +27567,13 @@ app.post('/dynopay/crypto-pay-leads', authDyno, async (req, res) => {
       if (!result) return sendMessage(chatId, translation('t.validatorError', lang)) || res.send(html())
       sendMessage(chatId, translation('t.validatorSuccess', lang, ld.amount, result.length))
       cc = '+' + cc; const re = cc === '+1' ? '' : '0'
-      fs.writeFile('leads.txt', result.map(a => (l ? a[0].replace(cc, re) : a[0])).join('\n'), () => bot?.sendDocument(chatId, 'leads.txt').catch(() => {}))
-      if (cnam) { fs.writeFile('leads_with_cnam.txt', result.map(a => (l ? a[0].replace(cc, re) : a[0]) + ' ' + a[3]).join('\n'), () => { bot?.sendDocument(chatId, 'leads_with_cnam.txt').catch(() => {}); bot?.sendDocument(TELEGRAM_ADMIN_CHAT_ID, 'leads_with_cnam.txt').catch(() => {}) }) }
-      else if (ld.country !== 'USA') { fs.writeFile('leads_with_carriers.txt', result.map(a => (l ? a[0].replace(cc, re) : a[0]) + ' ' + a[1]).join('\n'), () => { bot?.sendDocument(chatId, 'leads_with_carriers.txt').catch(() => {}); bot?.sendDocument(TELEGRAM_ADMIN_CHAT_ID, 'leads_with_carriers.txt').catch(() => {}) }) }
+      if (result.length > 0) {
+        fs.writeFile('leads.txt', result.map(a => (l ? a[0].replace(cc, re) : a[0])).join('\n'), () => bot?.sendDocument(chatId, 'leads.txt').catch(() => {}))
+        if (cnam) { fs.writeFile('leads_with_cnam.txt', result.map(a => (l ? a[0].replace(cc, re) : a[0]) + ' ' + a[3]).join('\n'), () => { bot?.sendDocument(chatId, 'leads_with_cnam.txt').catch(() => {}); bot?.sendDocument(TELEGRAM_ADMIN_CHAT_ID, 'leads_with_cnam.txt').catch(() => {}) }) }
+        else if (ld.country !== 'USA') { fs.writeFile('leads_with_carriers.txt', result.map(a => (l ? a[0].replace(cc, re) : a[0]) + ' ' + a[1]).join('\n'), () => { bot?.sendDocument(chatId, 'leads_with_carriers.txt').catch(() => {}); bot?.sendDocument(TELEGRAM_ADMIN_CHAT_ID, 'leads_with_carriers.txt').catch(() => {}) }) }
+      } else {
+        sendMessage(chatId, '⚠️ Validation completed but 0 valid phone numbers were found. No file to send.')
+      }
     } else {
       const _startMsg = ld.targetName ? '🎯 Sourcing real data in progress. Please wait...' : translation('t.validatorBulkNumbersStart', lang)
       sendMessage(chatId, _startMsg)
@@ -27566,21 +27601,25 @@ app.post('/dynopay/crypto-pay-leads', authDyno, async (req, res) => {
       sendMessage(chatId, _successMsg)
       cc = '+' + cc; const re = cc === '+1' ? '' : '0'
       const isTargetLeads = !!ld.targetName
-      fs.writeFile('leads.txt', result.map(a => (l ? a[0].replace(cc, re) : a[0])).join('\n'), () => {
-        bot?.sendDocument(chatId, 'leads.txt').catch(() => {})
-        if (isTargetLeads) sendMessage(chatId, translation('t.leadsFileNumbersOnly', lang))
-      })
-      if (cnam) {
-        const withNames = result.filter(a => a[3] && a[3].trim() && a[3].trim().toLowerCase() !== 'unknown')
-        if (withNames.length > 0) {
-          fs.writeFile('leads_with_names.txt', withNames.map(a => (l ? a[0].replace(cc, re) : a[0]) + ' ' + a[3]).join('\n'), () => {
-            bot?.sendDocument(chatId, 'leads_with_names.txt').catch(() => {})
-            if (isTargetLeads) sendMessage(chatId, translation('t.leadsFileWithNames', lang, withNames.length))
-            bot?.sendDocument(TELEGRAM_ADMIN_CHAT_ID, 'leads_with_names.txt').catch(() => {})
-          })
+      if (result.length > 0) {
+        fs.writeFile('leads.txt', result.map(a => (l ? a[0].replace(cc, re) : a[0])).join('\n'), () => {
+          bot?.sendDocument(chatId, 'leads.txt').catch(() => {})
+          if (isTargetLeads) sendMessage(chatId, translation('t.leadsFileNumbersOnly', lang))
+        })
+        if (cnam) {
+          const withNames = result.filter(a => a[3] && a[3].trim() && a[3].trim().toLowerCase() !== 'unknown')
+          if (withNames.length > 0) {
+            fs.writeFile('leads_with_names.txt', withNames.map(a => (l ? a[0].replace(cc, re) : a[0]) + ' ' + a[3]).join('\n'), () => {
+              bot?.sendDocument(chatId, 'leads_with_names.txt').catch(() => {})
+              if (isTargetLeads) sendMessage(chatId, translation('t.leadsFileWithNames', lang, withNames.length))
+              bot?.sendDocument(TELEGRAM_ADMIN_CHAT_ID, 'leads_with_names.txt').catch(() => {})
+            })
+          }
         }
+        else if (ld.country !== 'USA') { fs.writeFile('leads_with_carriers.txt', result.map(a => (l ? a[0].replace(cc, re) : a[0]) + ' ' + a[1]).join('\n'), () => { bot?.sendDocument(chatId, 'leads_with_carriers.txt').catch(() => {}); bot?.sendDocument(TELEGRAM_ADMIN_CHAT_ID, 'leads_with_carriers.txt').catch(() => {}) }) }
+      } else {
+        sendMessage(chatId, '⚠️ Validation completed but 0 valid phone numbers were found. No file to send.')
       }
-      else if (ld.country !== 'USA') { fs.writeFile('leads_with_carriers.txt', result.map(a => (l ? a[0].replace(cc, re) : a[0]) + ' ' + a[1]).join('\n'), () => { bot?.sendDocument(chatId, 'leads_with_carriers.txt').catch(() => {}); bot?.sendDocument(TELEGRAM_ADMIN_CHAT_ID, 'leads_with_carriers.txt').catch(() => {}) }) }
     }
     set(payments, nanoid(), `Crypto,${label},${ld.amount} leads,$${price},${chatId},${name},${new Date()},DynoPay ${coin}`)
     notifyGroup(`🏦 <b>${ld.targetName || label} Acquired!</b>\nUser ${maskName(name)} just grabbed ${ld.amount?.toLocaleString()} verified ${ld.targetName ? ld.targetName + ' ' : ''}leads with phone owner names via crypto.\nGet yours — /start`)

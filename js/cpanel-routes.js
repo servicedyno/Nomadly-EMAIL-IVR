@@ -127,7 +127,13 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     // HTTP ingress has ~60s per-request budget, large single-shot uploads get cut.
     let aborted = false
     req.on('aborted', () => { aborted = true })
-    req.on('close', () => { if (!res.writableEnded) aborted = true })
+    req.on('close', () => {
+      // Only mark as aborted if the response hasn't been sent AND the body wasn't fully received.
+      // req.complete is true once Node.js has received the entire request body from the client.
+      // Railway's HTTP/2 proxy can close the stream after sending the full body but before multer
+      // finishes parsing — that's not an abort, the data is in memory.
+      if (!res.writableEnded && !req.complete) aborted = true
+    })
 
     upload.single('file')(req, res, (err) => {
       if (aborted) {
