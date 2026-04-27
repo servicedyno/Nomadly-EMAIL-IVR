@@ -1597,11 +1597,16 @@ async function handleBridgeTransferHangup(payload) {
         const vm = transfer.vmConfig
         const fwd = transfer.fwdConfig
 
-        // Try forwarding on no_answer (if configured)
-        if (fwd?.enabled && fwd.forwardTo && fwd.mode === 'no_answer') {
+        // Try forwarding based on mode (no_answer OR busy when SIP reports busy)
+        const sipHangupCause = hangupCause || ''
+        const isSipBusy = sipHangupCause === 'USER_BUSY' || sipHangupCause === 'BUSY'
+        const shouldForwardAfterSip = (fwd?.enabled && fwd.forwardTo && fwd.mode === 'no_answer')
+          || (fwd?.enabled && fwd.forwardTo && fwd.mode === 'busy' && isSipBusy)
+        if (shouldForwardAfterSip) {
           origSession.phase = 'forwarding'
           origSession.forwardingRate = CALL_FORWARDING_RATE_MIN
-          log(`[Voice] SIP no answer → forwarding to ${fwd.forwardTo}`)
+          const modeLabel = fwd.mode === 'busy' ? 'SIP busy' : 'SIP no answer'
+          log(`[Voice] ${modeLabel} → forwarding to ${fwd.forwardTo}`)
           await playHoldMusicAndTransfer(transfer.originalCallControlId, fwd.forwardTo, transfer.fromNumber, fwd)
         }
         // Try voicemail (if configured and plan allows)
@@ -3239,11 +3244,34 @@ async function handleCallAnswered(payload) {
       await playHoldMusicAndTransfer(callControlId, fwdConfig.forwardTo, to, fwdConfig)
       return
     }
-    if (mode === 'no_answer') {
+    if (mode === 'busy') {
+      // Detect busy: check if there's already another active call for this phone number
+      const isNumberBusy = Object.values(activeCalls).some(s =>
+        s !== session && s.to === to && s.phase !== 'ended' && s.phase !== 'voicemail_greeting'
+      )
+      if (isNumberBusy) {
+        const rate = getCallRate(fwdConfig.forwardTo)
+        log(`[Voice] Number ${to} is BUSY (concurrent call detected) — forwarding to ${fwdConfig.forwardTo} (rate: $${rate}/min)`)
+        await playHoldMusicAndTransfer(callControlId, fwdConfig.forwardTo, to, fwdConfig)
+        const lang = await _getUserLang(chatId)
+        const msg = _trans('vs.forwardedBusy', lang, formatPhone(from), formatPhone(fwdConfig.forwardTo))
+        if (msg) _bot?.sendMessage(chatId, msg, { parse_mode: 'HTML' }).catch(() => {})
+        return
+      }
+      // Not busy — don't forward, fall through to SIP ring / voicemail / missed
+      log(`[Voice] Number ${to} is NOT busy — skipping forward-when-busy, falling through to next handler`)
+      session.phase = 'answering' // Reset phase so next handler picks up
+    } else if (mode === 'no_answer') {
       session.phase = 'ringing'
       session.forwardAfterTimeout = true
       session.forwardingRate = CALL_FORWARDING_RATE_MIN
       const ringTime = (fwdConfig.ringTimeout || 25) * 1000
+      // Play ringback tone to caller during the wait (prevents silence)
+      if (!num.sipUsername) {
+        _telnyxApi.playbackStart(callControlId, RINGBACK_URL, { loop: 'infinity' }).catch(e => {
+          log(`[Voice] Ringback playback during no-answer wait failed: ${e.message}`)
+        })
+      }
       setTimeout(async () => {
         const current = activeCalls[callControlId]
         if (current && current.phase === 'ringing') {

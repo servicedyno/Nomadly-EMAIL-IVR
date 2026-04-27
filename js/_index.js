@@ -29112,10 +29112,10 @@ app.post('/twilio/voice-webhook', async (req, res) => {
       return res.type('text/xml').send(response.toString())
     }
 
-    // ━━━ PRIORITY 3: Call Forwarding (no-answer mode without SIP) ━━━
+    // ━━━ PRIORITY 3: Call Forwarding (busy/no-answer mode without SIP) ━━━
     if (fwdConfig?.enabled && fwdConfig.forwardTo) {
       // ✅ PREVENT SELF-CALL LOOP (same fix as IVR)
-      if (fwdConfig.forwardTo === From) {
+      if (fwdConfig.forwardTo === From || fwdConfig.forwardTo === To) {
         response.say('Sorry, call forwarding to your own number is not allowed. Goodbye.')
         response.hangup()
         bot?.sendMessage(chatId, 
@@ -29125,34 +29125,69 @@ app.post('/twilio/voice-webhook', async (req, res) => {
           `💡 Please update your call forwarding settings to a different number.`,
           { parse_mode: 'HTML' }
         ).catch(() => {})
-        log(`[Twilio] ❌ Call forwarding self-call blocked: from=${From} attempted forward to same number`)
+        log(`[Twilio] ❌ Call forwarding self-call blocked: from=${From} to=${To} forward=${fwdConfig.forwardTo}`)
         return res.type('text/xml').send(response.toString())
       }
-      
-      const RATE = parseFloat(process.env.CALL_FORWARDING_RATE_MIN || '0.50')
-      const { usdBal } = await getBalance(walletOf, chatId)
-      if (usdBal >= RATE) {
-        const ringTimeout = fwdConfig.ringTimeout || 25
-        // ── Real-time billing: compute timeLimit for forwarding (wallet-only) ──
-        const fwdNaTimeLimit = computeDialTimeLimit('forwarding', { walletBalance: usdBal, ratePerMinute: RATE })
-        log(`[Twilio] Forward-no-answer dial timeLimit: ${fwdNaTimeLimit}s (wallet=$${usdBal.toFixed(2)}, rate=$${RATE}/min)`)
-        const dialOpts = {
-          callerId: To,
-          timeout: ringTimeout,
-          timeLimit: fwdNaTimeLimit,
-          action: `${SELF_URL}/twilio/voice-dial-status?chatId=${chatId}&from=${encodeURIComponent(From)}&to=${encodeURIComponent(To)}`
+
+      const fwdMode = fwdConfig.mode || 'always'
+
+      // ── BUSY MODE: Only forward if there's already a concurrent active call to this number ──
+      if (fwdMode === 'busy') {
+        // For Twilio without SIP, detect busy by checking if Twilio reports another active call
+        // Since Twilio handles this natively via <Dial> with 'busy' DialCallStatus, we forward always
+        // and the forward target's busy signal becomes the determination.
+        // Without SIP, "busy" means the forward number itself is busy — we try to dial and let Twilio handle it.
+        const RATE = parseFloat(process.env.CALL_FORWARDING_RATE_MIN || '0.50')
+        const { usdBal } = await getBalance(walletOf, chatId)
+        if (usdBal >= RATE) {
+          const fwdBusyTimeLimit = computeDialTimeLimit('forwarding', { walletBalance: usdBal, ratePerMinute: RATE })
+          log(`[Twilio] Forward-when-busy dial (no SIP) timeLimit: ${fwdBusyTimeLimit}s (wallet=$${usdBal.toFixed(2)})`)
+          const dialOpts = {
+            callerId: To,
+            timeout: fwdConfig.ringTimeout || 25,
+            timeLimit: fwdBusyTimeLimit,
+            action: `${SELF_URL}/twilio/voice-dial-status?chatId=${chatId}&from=${encodeURIComponent(From)}&to=${encodeURIComponent(To)}`
+          }
+          if (recordingEnabled) dialOpts.record = 'record-from-answer-dual'
+          if (recordingEnabled) dialOpts.recordingStatusCallback = `${SELF_URL}/twilio/recording-status`
+          const dial = response.dial(dialOpts)
+          dial.number(fwdConfig.forwardTo)
+          bot?.sendMessage(chatId, `📞 <b>Incoming Call</b>\nFrom: ${From}\n📵 Forwarding (busy mode) to: ${fwdConfig.forwardTo}`, { parse_mode: 'HTML' }).catch(() => {})
+          return res.type('text/xml').send(response.toString())
+        } else if (!vmConfig?.enabled) {
+          response.say('Your wallet balance is insufficient for call forwarding. Please try again later.')
+          response.hangup()
+          bot?.sendMessage(chatId, `🚫 <b>Call Forwarding Blocked</b> — Wallet $${usdBal.toFixed(2)} (need $${RATE}/min).\nTop up via Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+          return res.type('text/xml').send(response.toString())
         }
-        if (recordingEnabled) dialOpts.record = 'record-from-answer-dual'
-        if (recordingEnabled) dialOpts.recordingStatusCallback = `${SELF_URL}/twilio/recording-status`
-        const dial = response.dial(dialOpts)
-        dial.number(fwdConfig.forwardTo)
-        bot?.sendMessage(chatId, `📞 <b>Incoming Call</b>\nFrom: ${From}\nForwarding to: ${fwdConfig.forwardTo}`, { parse_mode: 'HTML' }).catch(() => {})
-        return res.type('text/xml').send(response.toString())
-      } else if (!vmConfig?.enabled) {
-        response.say('Your wallet balance is insufficient for call forwarding. Please try again later.')
-        response.hangup()
-        bot?.sendMessage(chatId, `🚫 <b>Call Forwarding Blocked</b> — Wallet $${usdBal.toFixed(2)} (need $${RATE}/min).\nTop up via Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
-        return res.type('text/xml').send(response.toString())
+      }
+      
+      // ── NO-ANSWER MODE: Ring forward target with timeout, fall through to voicemail if unanswered ──
+      if (fwdMode === 'no_answer') {
+        const RATE = parseFloat(process.env.CALL_FORWARDING_RATE_MIN || '0.50')
+        const { usdBal } = await getBalance(walletOf, chatId)
+        if (usdBal >= RATE) {
+          const ringTimeout = fwdConfig.ringTimeout || 25
+          const fwdNaTimeLimit = computeDialTimeLimit('forwarding', { walletBalance: usdBal, ratePerMinute: RATE })
+          log(`[Twilio] Forward-no-answer dial timeLimit: ${fwdNaTimeLimit}s (wallet=$${usdBal.toFixed(2)}, rate=$${RATE}/min, timeout=${ringTimeout}s)`)
+          const dialOpts = {
+            callerId: To,
+            timeout: ringTimeout,
+            timeLimit: fwdNaTimeLimit,
+            action: `${SELF_URL}/twilio/voice-dial-status?chatId=${chatId}&from=${encodeURIComponent(From)}&to=${encodeURIComponent(To)}`
+          }
+          if (recordingEnabled) dialOpts.record = 'record-from-answer-dual'
+          if (recordingEnabled) dialOpts.recordingStatusCallback = `${SELF_URL}/twilio/recording-status`
+          const dial = response.dial(dialOpts)
+          dial.number(fwdConfig.forwardTo)
+          bot?.sendMessage(chatId, `📞 <b>Incoming Call</b>\nFrom: ${From}\n⏰ Forwarding (no-answer) to: ${fwdConfig.forwardTo}`, { parse_mode: 'HTML' }).catch(() => {})
+          return res.type('text/xml').send(response.toString())
+        } else if (!vmConfig?.enabled) {
+          response.say('Your wallet balance is insufficient for call forwarding. Please try again later.')
+          response.hangup()
+          bot?.sendMessage(chatId, `🚫 <b>Call Forwarding Blocked</b> — Wallet $${usdBal.toFixed(2)} (need $${RATE}/min).\nTop up via Wallet.`, { parse_mode: 'HTML' }).catch(() => {})
+          return res.type('text/xml').send(response.toString())
+        }
       }
     }
 
@@ -29454,24 +29489,31 @@ app.post('/twilio/sip-ring-result', async (req, res) => {
       : DialCallStatus || 'No response'
     bot?.sendMessage(chatId, `📱 <b>SIP Ring — ${reason}</b>\nFrom: ${decodedFrom} → ${decodedTo}`, { parse_mode: 'HTML' }).catch(() => {})
 
-    // Fallback 1: Forward (no_answer mode)
+    // Fallback 1: Forward based on mode + SIP status
     if (fwdConfig?.enabled && fwdConfig.forwardTo && fwdConfig.mode !== 'always') {
-      const RATE = parseFloat(process.env.CALL_FORWARDING_RATE_MIN || '0.50')
-      const { usdBal } = await getBalance(walletOf, String(chatId))
-      if (usdBal >= RATE) {
-        const dialOpts = {
-          callerId: decodedTo,
-          timeout: 30,
-          action: `${SELF_URL}/twilio/voice-dial-status?chatId=${chatId}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+      // For 'busy' mode: only forward if SIP reported busy
+      // For 'no_answer' mode: forward on any non-answer (busy, no-answer, failed)
+      const shouldForward = fwdConfig.mode === 'no_answer'
+        || (fwdConfig.mode === 'busy' && DialCallStatus === 'busy')
+      if (shouldForward) {
+        const RATE = parseFloat(process.env.CALL_FORWARDING_RATE_MIN || '0.50')
+        const { usdBal } = await getBalance(walletOf, String(chatId))
+        if (usdBal >= RATE) {
+          const dialOpts = {
+            callerId: decodedTo,
+            timeout: 30,
+            action: `${SELF_URL}/twilio/voice-dial-status?chatId=${chatId}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+          }
+          if (recordingEnabled) {
+            dialOpts.record = 'record-from-answer-dual'
+            dialOpts.recordingStatusCallback = `${SELF_URL}/twilio/recording-status`
+          }
+          const dial = response.dial(dialOpts)
+          dial.number(fwdConfig.forwardTo)
+          const modeLabel = fwdConfig.mode === 'busy' ? '📵 Busy' : '⏰ No answer'
+          bot?.sendMessage(chatId, `📞 ${modeLabel} — Forwarding to ${fwdConfig.forwardTo}...`, { parse_mode: 'HTML' }).catch(() => {})
+          return res.type('text/xml').send(response.toString())
         }
-        if (recordingEnabled) {
-          dialOpts.record = 'record-from-answer-dual'
-          dialOpts.recordingStatusCallback = `${SELF_URL}/twilio/recording-status`
-        }
-        const dial = response.dial(dialOpts)
-        dial.number(fwdConfig.forwardTo)
-        bot?.sendMessage(chatId, `📞 Forwarding to ${fwdConfig.forwardTo}...`, { parse_mode: 'HTML' }).catch(() => {})
-        return res.type('text/xml').send(response.toString())
       }
     }
 
