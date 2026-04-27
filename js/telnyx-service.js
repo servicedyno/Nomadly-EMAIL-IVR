@@ -747,6 +747,33 @@ async function gatherDTMFWithAudio(callControlId, audioUrl, options = {}) {
   }
 }
 
+// ── Call Control: Gather DTMF using text-to-speech ──
+async function gatherDTMFWithSpeak(callControlId, text, voice, options = {}) {
+  try {
+    const body = {
+      payload: text,
+      voice: voice || 'female',
+      language: options.language || 'en-US',
+      minimum_digits: options.minDigits || 1,
+      maximum_digits: options.maxDigits || 1,
+      timeout_millis: options.timeout || 15000,
+      inter_digit_timeout_millis: options.interDigitTimeout || 5000,
+    }
+    if (options.validDigits) body.valid_digits = options.validDigits
+    const res = await axios.post(`${BASE}/calls/${callControlId}/actions/gather_using_speak`, body, { headers: headers() })
+    return res.data?.data || null
+  } catch (e) {
+    const errCode = e.response?.data?.errors?.[0]?.code
+    const errDetail = e.response?.data?.errors?.[0]?.detail || e.message || ''
+    if (errCode === '90018' || errDetail.includes('already ended') || errDetail.includes('no longer active')) {
+      return null
+    }
+    log(`[Telnyx] gatherDTMFWithSpeak error: ${errDetail}`)
+    return null
+  }
+}
+
+
 // ── Call Control: Bridge two call legs together ──
 async function bridgeCalls(callControlId, otherCallControlId) {
   try {
@@ -930,6 +957,7 @@ module.exports = {
   rejectCall,
   gatherDTMF,
   gatherDTMFWithAudio,
+  gatherDTMFWithSpeak,
   playbackStop,
   playbackStart,
   createOutboundCall,

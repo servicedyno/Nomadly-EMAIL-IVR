@@ -10,6 +10,10 @@ const { log } = require('console')
 const EDENAI_API_KEY = process.env.EDENAI_API_KEY
 const AUDIO_DIR = path.join(__dirname, '..', 'audio_cache')
 
+// MongoDB reference for persistent audio storage (set via setDb)
+let _db = null
+function setDb(db) { _db = db }
+
 // Ensure audio cache directory exists
 if (!fs.existsSync(AUDIO_DIR)) {
   fs.mkdirSync(AUDIO_DIR, { recursive: true })
@@ -303,6 +307,18 @@ async function generateTTS(text, voiceKey = DEFAULT_VOICE, langCode = null, spee
   const userAudioFilename = `tts_${Date.now()}_${usedVoiceKey}.mp3`
   const userAudioPath = path.join(userAudioDir, userAudioFilename)
   fs.copyFileSync(audioPath, userAudioPath)
+
+  // ── Persist audio buffer to MongoDB (survives Railway ephemeral FS wipes) ──
+  try {
+    if (_db) {
+      const audioBuffer = fs.readFileSync(userAudioPath)
+      await _db.collection('ivrAudioStore').updateOne(
+        { filename: userAudioFilename },
+        { $set: { buffer: audioBuffer.toString('base64'), filename: userAudioFilename, createdAt: new Date() } },
+        { upsert: true }
+      )
+    }
+  } catch (e) { log(`[TTS] MongoDB audio persist failed (non-blocking): ${e.message}`) }
 
   const baseUrl = process.env.SELF_URL_PROD || process.env.SELF_URL || ''
   const selfHostedUrl = `${baseUrl}/assets/user-audio/${userAudioFilename}`
@@ -616,6 +632,7 @@ module.exports = {
   getSpeedByButton,
   getSpeedPresets,
   translateText,
+  setDb,
   VOICES,
   ALL_VOICES,
   ELEVENLABS_VOICES,

