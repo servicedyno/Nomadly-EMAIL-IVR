@@ -1103,17 +1103,33 @@ const notifyAdmin = (message) => {
       // Auto-resolve chatId references to include usernames
       const resolveAndSend = async () => {
         let enrichedMsg = message
-        // Find all chatId patterns and resolve usernames
-        const chatIdMatches = message.match(/chatId:\s*(\d{6,12})/g)
-        if (chatIdMatches && nameOf?.findOne) {
-          for (const match of chatIdMatches) {
-            const cid = match.replace(/chatId:\s*/, '').trim()
-            try {
-              const user = await nameOf.findOne({ _id: String(cid) })
-              if (user?.val) {
-                enrichedMsg = enrichedMsg.replace(match, `chatId: @${user.val} (${cid})`)
-              }
-            } catch {}
+        // Match patterns: "chatId: 123456", "User: 123456", "from: 123456", "(123456)"
+        const patterns = [
+          /chatId:\s*(\d{6,12})/g,
+          /User:\s*(\d{6,12})/g,
+          /from:\s*(\d{6,12})/g,
+          /\((\d{6,12})\)/g,
+        ]
+        const resolvedIds = new Set()
+        if (nameOf?.findOne) {
+          for (const pattern of patterns) {
+            const matches = message.matchAll(pattern)
+            for (const match of matches) {
+              const cid = match[1]
+              if (resolvedIds.has(cid)) continue
+              resolvedIds.add(cid)
+              try {
+                const user = await nameOf.findOne({ _id: String(cid) })
+                if (user?.val) {
+                  // Replace all occurrences of this chatId with @username (chatId)
+                  const tag = `@${user.val}`
+                  // Only replace bare chatId (not already tagged)
+                  enrichedMsg = enrichedMsg.replace(new RegExp(`User:\\s*${cid}`, 'g'), `User: ${tag} (${cid})`)
+                  enrichedMsg = enrichedMsg.replace(new RegExp(`chatId:\\s*${cid}`, 'g'), `chatId: ${tag} (${cid})`)
+                  enrichedMsg = enrichedMsg.replace(new RegExp(`from:\\s*${cid}`, 'g'), `from: ${tag} (${cid})`)
+                }
+              } catch {}
+            }
           }
         }
         bot?.sendMessage(TELEGRAM_ADMIN_CHAT_ID, enrichedMsg + `\n— <b>${CHAT_BOT_NAME}</b>`, { parse_mode: 'HTML' })?.catch(e => {
@@ -1381,10 +1397,10 @@ async function executeTwilioPurchase(chatId, selectedNumber, planKey, price, cou
   const _adminTxt = phoneConfig.getTxt('en')
   if (subOpts?.isSubNumber) {
     notifyGroup(_adminTxt.adminSubPurchase(maskName(name), selectedNumber, subOpts.parentNumber, price, paymentMethod))
-    if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, _adminTxt.adminSubPurchasePrivate(maskName(name), selectedNumber, subOpts.parentNumber, price, paymentMethod), { parse_mode: 'HTML' })
+    if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, _adminTxt.adminSubPurchasePrivate(('@' + (name || chatId)), selectedNumber, subOpts.parentNumber, price, paymentMethod), { parse_mode: 'HTML' })
   } else {
     notifyGroup(_adminTxt.adminPurchase(maskName(name), selectedNumber, plan?.name || planKey, price, paymentMethod))
-    if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, _adminTxt.adminPurchasePrivate(maskName(name), selectedNumber, plan?.name || planKey, price, paymentMethod), { parse_mode: 'HTML' })
+    if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, _adminTxt.adminPurchasePrivate(('@' + (name || chatId)), selectedNumber, plan?.name || planKey, price, paymentMethod), { parse_mode: 'HTML' })
   }
 
   return { success: true, sipUsername, sipPassword, expiresAt, plan }
@@ -7229,7 +7245,7 @@ Enter new value:`), bc)
         }
 
         if (savings > 0) {
-          sendMessage(TELEGRAM_ADMIN_CHAT_ID, `💰 <b>Domain savings</b>\nUser: ${chatId}\nDomain: ${domain}\nShown: $${shownPrice} | Charged: $${chargeUsd} | Saved: $${savings}\nRegistrar: ${updatedInfo?.actualRegistrar || 'unknown'}`, { parse_mode: 'HTML' })
+          sendMessage(TELEGRAM_ADMIN_CHAT_ID, `💰 <b>Domain savings</b>\nUser: @${name || chatId} (${chatId})\nDomain: ${domain}\nShown: $${shownPrice} | Charged: $${chargeUsd} | Saved: $${savings}\nRegistrar: ${updatedInfo?.actualRegistrar || 'unknown'}`, { parse_mode: 'HTML' })
         }
 
         await set(state, chatId, 'actualPrice', null)
@@ -7246,7 +7262,7 @@ Enter new value:`), bc)
       } catch (domainErr) {
         log(`[Domain] Purchase crashed for ${chatId}: ${domainErr.message}`)
         send(chatId, t.purchaseFailed || '❌ Domain purchase failed. Your wallet was not charged. Please try again or contact support.', trans('o'))
-        send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>Domain purchase crash</b>\nUser: ${chatId}\nDomain: ${domain}\nError: ${domainErr.message}`, { parse_mode: 'HTML' })
+        send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>Domain purchase crash</b>\nUser: @${name || chatId} (${chatId})\nDomain: ${domain}\nError: ${domainErr.message}`, { parse_mode: 'HTML' })
       }
     },
     'hosting-pay': async coin => {
@@ -7304,7 +7320,7 @@ Enter new value:`), bc)
         const name = await get(nameOf, chatId)
         const domain = info?.domain || info?.website_name
         notifyGroup(`🏠 <b>Hosting Activated!</b>\nUser ${maskName(name)} just set up hosting for <b>${maskDomain(domain)}</b> — ready for launch.\nBuild yours — /start`)
-        sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🏠 <b>Hosting Purchase (Wallet)</b>\n🆔 User: ${chatId}\n🌐 Domain: ${domain}\n📋 Plan: ${info?.plan || 'N/A'}\n💵 Price: $${priceUsd}\n💳 Payment: Wallet USD`, { parse_mode: 'HTML' })
+        sendMessage(TELEGRAM_ADMIN_CHAT_ID, `🏠 <b>Hosting Purchase (Wallet)</b>\n🆔 User: @${name || chatId} (${chatId})\n🌐 Domain: ${domain}\n📋 Plan: ${info?.plan || 'N/A'}\n💵 Price: $${priceUsd}\n💳 Payment: Wallet USD`, { parse_mode: 'HTML' })
         // Post-purchase upsell — what to do next with hosting
         setTimeout(() => {
           send(chatId, trans('t.host_5d', domain || 'your domain'), k.of([[user.domainNames], [user.cloudPhone], [user.urlShortener], [t.back]]))
@@ -7430,7 +7446,7 @@ Enter new value:`), bc)
       await set(state, chatId, 'abandonedCartReminderSent', null)
 
       notifyGroup(`🛒 <b>New Digital Product Order!</b>\n\n👤 User: ${maskName(name)}\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${priceUsd}</b>\n\n✅ Order placed successfully.`)
-      if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🛒 <b>New Digital Product Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${priceUsd}</b> (Wallet USD)\n\n📩 Deliver with:\n<code>/deliver ${orderId} [product details/credentials]</code>`, { parse_mode: 'HTML' })
+      if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🛒 <b>New Digital Product Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: @${name || chatId} (${chatId})\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${priceUsd}</b> (Wallet USD)\n\n📩 Deliver with:\n<code>/deliver ${orderId} [product details/credentials]</code>`, { parse_mode: 'HTML' })
     },
     // ━━━ Virtual Card wallet payment ━━━
     'virtual-card-pay': async coin => {
@@ -7470,7 +7486,7 @@ Enter new value:`), bc)
       checkAndNotifyTierUpgrade(preSpend)
 
       notifyGroup(`💳 <b>New Virtual Card Order!</b>\n\n👤 User: ${maskName(name)}\n💵 Card: <b>$${vcAmount}</b> | Total: <b>$${priceUsd}</b>\n💳 Payment: Wallet USD\n\n✅ Order placed successfully.`)
-      if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `💳 <b>New Virtual Card Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n💵 Card: <b>$${vcAmount}</b> | Total: <b>$${priceUsd}</b>\n📬 Address:\n<pre>${address}</pre>\n💳 Payment: Wallet USD\n\n📩 Deliver with:\n<code>/deliver ${orderId} [card number, expiry, CVV]</code>`, { parse_mode: 'HTML' })
+      if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `💳 <b>New Virtual Card Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: @${name || chatId} (${chatId})\n💵 Card: <b>$${vcAmount}</b> | Total: <b>$${priceUsd}</b>\n📬 Address:\n<pre>${address}</pre>\n💳 Payment: Wallet USD\n\n📩 Deliver with:\n<code>/deliver ${orderId} [card number, expiry, CVV]</code>`, { parse_mode: 'HTML' })
     },
     'phone-pay': async coin => {
       await set(state, chatId, 'action', 'none')
@@ -7778,13 +7794,13 @@ Enter new value:`), bc)
             `\n\n<b>Transaction ID:</b> <code>${txnId}</code>\n<i>Quote this ID when contacting support</i>`
           send(chatId, subMsg, trans('o'))
           notifyGroup(cpTxt.adminSubPurchase(maskName(name), selectedNumber, info?.cpSubParentNumber, price, coin === u.usd ? 'Wallet USD' : 'Wallet USD'))
-          if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminSubPurchasePrivate(maskName(name), selectedNumber, info?.cpSubParentNumber, price, coin === u.usd ? 'Wallet USD' : 'Wallet USD'), { parse_mode: 'HTML' })
+          if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminSubPurchasePrivate(('@' + (name || chatId)), selectedNumber, info?.cpSubParentNumber, price, coin === u.usd ? 'Wallet USD' : 'Wallet USD'), { parse_mode: 'HTML' })
         } else {
           const activatedMsg = cpTxt.activated(selectedNumber, plan.name, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())) + 
             `\n\n<b>Transaction ID:</b> <code>${txnId}</code>\n<i>Quote this ID when contacting support</i>`
           send(chatId, activatedMsg, trans('o'))
           notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, plan.name, price, coin === u.usd ? 'Wallet USD' : 'Wallet USD'))
-          if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminPurchasePrivate(maskName(name), selectedNumber, plan.name, price, coin === u.usd ? 'Wallet USD' : 'Wallet USD'), { parse_mode: 'HTML' })
+          if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminPurchasePrivate(('@' + (name || chatId)), selectedNumber, plan.name, price, coin === u.usd ? 'Wallet USD' : 'Wallet USD'), { parse_mode: 'HTML' })
         }
       }
       } catch (purchaseErr) {
@@ -7876,7 +7892,7 @@ Enter new value:`), bc)
             // Admin notification
             const name = await get(nameOf, chatId)
             notifyGroup(`💰 Partial refund: $${refundAmount.toFixed(2)} → ${maskName(name)} (${delivered}/${requested} leads, ${res._partialReason})`)
-            if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `💰 <b>Partial Lead Refund</b>\n👤 ${maskName(name)} (${chatId})\n📊 ${delivered}/${requested} leads delivered\n💵 Refund: $${refundAmount.toFixed(2)}\n📝 Reason: ${res._partialReason}`, { parse_mode: 'HTML' })
+            if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `💰 <b>Partial Lead Refund</b>\n👤 ${('@' + (name || chatId))} (${chatId})\n📊 ${delivered}/${requested} leads delivered\n💵 Refund: $${refundAmount.toFixed(2)}\n📝 Reason: ${res._partialReason}`, { parse_mode: 'HTML' })
           }
         }
       }
@@ -8485,7 +8501,7 @@ All verified numbers generated during sourcing.`))
       ]}
     })
     send(chatId, t.supportEnded, trans('o'))
-    send(TELEGRAM_ADMIN_CHAT_ID, `📴 Support session closed by user <b>${name || chatId}</b> (${chatId})`, { parse_mode: 'HTML' })
+    send(TELEGRAM_ADMIN_CHAT_ID, `📴 Support session closed by user <b>@${name || chatId}</b> (${chatId})`, { parse_mode: 'HTML' })
     clearAiHistory(chatId) // Clear AI conversation history
     log(`[Support] Session ended by user ${chatId} — admin takeover OFF`)
     return
@@ -8524,13 +8540,13 @@ All verified numbers generated during sourcing.`))
       action = 'none'  // update local var so downstream logic doesn't still think we're in support
       clearAiHistory(chatId)
       const escName = await get(nameOf, chatId)
-      send(TELEGRAM_ADMIN_CHAT_ID, `📴 Support session auto-closed — <b>${escName || chatId}</b> (${chatId}) tapped main-menu button: ${message}`, { parse_mode: 'HTML' })
+      send(TELEGRAM_ADMIN_CHAT_ID, `📴 Support session auto-closed — <b>@${escName || chatId}</b> (${chatId}) tapped main-menu button: ${message}`, { parse_mode: 'HTML' })
       log(`[Support] Session auto-ended by menu tap "${message}" from ${chatId} — admin takeover OFF`)
       // Do NOT return — let the message fall through to normal menu handlers below
     } else {
 
     const name = await get(nameOf, chatId)
-    const displayName = name || msg?.from?.username || chatId
+    const displayName = name ? `@${name}` : (msg?.from?.username ? `@${msg.from.username}` : chatId)
 
     // Check if admin has taken over this session
     const stateObj = await get(state, chatId)
@@ -8842,7 +8858,7 @@ All verified numbers generated during sourcing.`))
       await set(state, chatId, 'adminTakeover', false)
       clearAiHistory(chatId)
       const name = await get(nameOf, chatId)
-      send(TELEGRAM_ADMIN_CHAT_ID, `📴 Support session closed by user <b>${name || chatId}</b> (${chatId}) via Cancel/Main Menu`, { parse_mode: 'HTML' })
+      send(TELEGRAM_ADMIN_CHAT_ID, `📴 Support session closed by user <b>@${name || chatId}</b> (${chatId}) via Cancel/Main Menu`, { parse_mode: 'HTML' })
       log(`[Support] Session ended by user ${chatId} via Cancel/Main Menu`)
     }
     if (isAdmin(chatId)) return send(chatId, t.userPressedBtn(message), aO)
@@ -9035,7 +9051,8 @@ All verified numbers generated during sourcing.`))
     send(chatId, ({ en: `💬 <b>Support</b>\n\n🤖 Our AI assistant will try to help you right away! If it can't resolve your issue, a <b>human agent</b> will step in.\n\nDescribe your question or issue below.\n\nWhen done, send /done to close the chat.`, fr: `💬 <b>Support</b>\n\n🤖 Notre assistant IA va essayer de vous aider immédiatement ! S'il ne peut pas résoudre votre problème, un <b>agent humain</b> prendra le relais.\n\nDécrivez votre question ou problème ci-dessous.\n\nQuand terminé, envoyez /done pour fermer le chat.`, zh: `💬 <b>客服支持</b>\n\n🤖 我们的 AI 助手会立即尝试帮助您！如果无法解决您的问题，<b>人工客服</b>会介入。\n\n请在下方描述您的问题。\n\n完成后，发送 /done 结束对话。`, hi: `💬 <b>सहायता</b>\n\n🤖 हमारा AI असिस्टेंट तुरंत आपकी मदद करने की कोशिश करेगा! अगर यह आपकी समस्या हल नहीं कर सकता, तो एक <b>मानव एजेंट</b> आएगा।\n\nनीचे अपना सवाल या समस्या बताएं।\n\nसमस्या हल होने पर, /done भेजकर चैट बंद करें।` }[lang] || `💬 <b>Support</b>\n\n🤖 Our AI assistant will try to help you right away! If it can't resolve your issue, a <b>human agent</b> will step in.\n\nDescribe your question or issue below.\n\nWhen done, send /done to close the chat.`), { parse_mode: 'HTML', reply_markup: { keyboard: [['/done']], resize_keyboard: true } })
     // Notify admin — private message only, not to groups
     const name = await get(nameOf, chatId)
-    send(TELEGRAM_ADMIN_CHAT_ID, `🔔 <b>Support session opened</b>\nUser: <b>${name || 'unknown'}</b> (${chatId})\n@${msg?.from?.username || 'no_username'}\n\n🤖 <i>AI will auto-respond first. You'll be notified if escalation is needed.</i>\n\nReply with: /reply ${chatId} <i>your message</i>\n📎 Or attach a photo/file with caption: <code>/reply ${chatId} your caption</code>\nClose with: /close ${chatId}`, { parse_mode: 'HTML' })
+    const userTag = name ? `@${name}` : (msg?.from?.username ? `@${msg.from.username}` : 'unknown')
+    send(TELEGRAM_ADMIN_CHAT_ID, `🔔 <b>Support session opened</b>\nUser: <b>${userTag}</b> (${chatId})\n\n🤖 <i>AI will auto-respond first. You'll be notified if escalation is needed.</i>\n\nReply with: /reply ${chatId} <i>your message</i>\n📎 Or attach a photo/file with caption: <code>/reply ${chatId} your caption</code>\nClose with: /close ${chatId}`, { parse_mode: 'HTML' })
     log(`[Support] Session opened for ${chatId} ${name} — AI will auto-respond, escalation to admin if needed`)
     // ── SLA watcher — if no admin reply in 10 minutes, nudge admin ──
     scheduleSupportSlaNudge(chatId, name || msg?.from?.username || 'unknown', Date.now())
@@ -9514,11 +9531,13 @@ All verified numbers generated during sourcing.`))
           log(`[Hosting] Renewal refunded $${price} for ${chatId} — renewal failed`)
         } catch (refundErr) {
           log(`[Hosting] CRITICAL: Refund failed for ${chatId}, $${price}: ${refundErr.message}`)
-          send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>HOSTING RENEWAL REFUND FAILED</b>\nUser: ${chatId}\nAmount: $${price}\nDomain: ${domain}\nError: ${refundErr.message}`, { parse_mode: 'HTML' })
+          const _uname = await get(nameOf, chatId)
+          send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>HOSTING RENEWAL REFUND FAILED</b>\nUser: @${_uname || chatId} (${chatId})\nAmount: $${price}\nDomain: ${domain}\nError: ${refundErr.message}`, { parse_mode: 'HTML' })
         }
         log(`[Hosting] Renewal crashed for ${chatId}: ${renewErr.message}`)
         send(chatId, t.purchaseFailed || '❌ Renewal failed. Your wallet has been refunded. Please try again or contact support.', trans('o'))
-        send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>Hosting renewal crash</b>\nUser: ${chatId}\nDomain: ${domain}\nAmount: $${price}\nError: ${renewErr.message}`, { parse_mode: 'HTML' })
+        const _uname2 = await get(nameOf, chatId)
+        send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>Hosting renewal crash</b>\nUser: @${_uname2 || chatId} (${chatId})\nDomain: ${domain}\nAmount: $${price}\nError: ${renewErr.message}`, { parse_mode: 'HTML' })
       }
     }
   }
@@ -9626,7 +9645,8 @@ All verified numbers generated during sourcing.`))
           })
         } catch (_) {}
 
-        send(TELEGRAM_ADMIN_CHAT_ID, `⬆️ <b>Hosting Upgrade</b>\nUser: ${chatId}\nDomain: ${domain}\n${plan.plan} → ${selected.name}\nCharged: $${upgradePrice}`, { parse_mode: 'HTML' })
+        const _upgName = await get(nameOf, chatId)
+        send(TELEGRAM_ADMIN_CHAT_ID, `⬆️ <b>Hosting Upgrade</b>\nUser: @${_upgName || chatId} (${chatId})\nDomain: ${domain}\n${plan.plan} → ${selected.name}\nCharged: $${upgradePrice}`, { parse_mode: 'HTML' })
 
         set(payments, nanoid(), `Wallet,HostingUpgrade,${domain},$${upgradePrice},${chatId},${new Date()}`)
 
@@ -9647,11 +9667,13 @@ All verified numbers generated during sourcing.`))
           log(`[Hosting] Upgrade refunded $${upgradePrice} for ${chatId} — upgrade failed`)
         } catch (refundErr) {
           log(`[Hosting] CRITICAL: Upgrade refund failed for ${chatId}, $${upgradePrice}: ${refundErr.message}`)
-          send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>HOSTING UPGRADE REFUND FAILED</b>\nUser: ${chatId}\nAmount: $${upgradePrice}\nDomain: ${domain}\nError: ${refundErr.message}`, { parse_mode: 'HTML' })
+          const _upgRefName = await get(nameOf, chatId)
+          send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>HOSTING UPGRADE REFUND FAILED</b>\nUser: @${_upgRefName || chatId} (${chatId})\nAmount: $${upgradePrice}\nDomain: ${domain}\nError: ${refundErr.message}`, { parse_mode: 'HTML' })
         }
         log(`[Hosting] Upgrade crashed for ${chatId}: ${upgradeErr.message}`)
         send(chatId, trans('t.host_30'), trans('o'))
-        send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>Hosting upgrade crash</b>\nUser: ${chatId}\nDomain: ${domain}\nAmount: $${upgradePrice}\nError: ${upgradeErr.message}`, { parse_mode: 'HTML' })
+        const _upgCrName = await get(nameOf, chatId)
+        send(TELEGRAM_ADMIN_CHAT_ID, `🚨 <b>Hosting upgrade crash</b>\nUser: @${_upgCrName || chatId} (${chatId})\nDomain: ${domain}\nAmount: $${upgradePrice}\nError: ${upgradeErr.message}`, { parse_mode: 'HTML' })
       }
     }
   }
@@ -11449,7 +11471,7 @@ ${message.replace(/\n/g, '<br>')}
 
     set(chatIdOfPayment, ref, { chatId, price, product, orderId, endpoint: '/bank-pay-digital-product', _createdAt: new Date().toISOString() })
     notifyGroup(`🛒 <b>New Digital Product Order!</b>\n\n👤 User: ${maskName(name)}\n📦 Product: <b>${product}</b>\n💵 Price: <b>$${price}</b>\n💳 Payment: Bank\n⏳ Awaiting payment`)
-    if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🛒 <b>New Digital Product Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n📦 Product: <b>${product}</b>\n💵 Price: <b>$${price}</b>\n💳 Payment: Bank\n⏳ Awaiting payment\n\n📩 After payment confirms:\n<code>/deliver ${orderId} [details]</code>`, { parse_mode: 'HTML' })
+    if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🛒 <b>New Digital Product Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${('@' + (name || chatId))} (${chatId})\n📦 Product: <b>${product}</b>\n💵 Price: <b>$${price}</b>\n💳 Payment: Bank\n⏳ Awaiting payment\n\n📩 After payment confirms:\n<code>/deliver ${orderId} [details]</code>`, { parse_mode: 'HTML' })
     const { url, error } = await createCheckout(priceNGN, `/ok?a=b&ref=${ref}&`, email, username, ref)
     if (error) return send(chatId, error, trans('o'))
     send(chatId, trans('t.vps_48'), trans('o'))
@@ -11532,7 +11554,7 @@ ${message.replace(/\n/g, '<br>')}
     }
 
     notifyGroup(`🛒 <b>New Digital Product Order!</b>\n\n👤 User: ${maskName(name)}\n📦 Product: <b>${product}</b>\n💵 Price: <b>$${price}</b> (Crypto)\n⏳ Awaiting crypto payment`)
-    if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🛒 <b>New Digital Product Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n📦 Product: <b>${product}</b>\n💵 Price: <b>$${price}</b> (Crypto: ${tickerKey})\n⏳ Awaiting crypto payment\n\n📩 After payment confirms:\n<code>/deliver ${orderId} [details]</code>`, { parse_mode: 'HTML' })
+    if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🛒 <b>New Digital Product Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${('@' + (name || chatId))} (${chatId})\n📦 Product: <b>${product}</b>\n💵 Price: <b>$${price}</b> (Crypto: ${tickerKey})\n⏳ Awaiting crypto payment\n\n📩 After payment confirms:\n<code>/deliver ${orderId} [details]</code>`, { parse_mode: 'HTML' })
     return
   }
 
@@ -11619,7 +11641,7 @@ ${message.replace(/\n/g, '<br>')}
 
     set(chatIdOfPayment, ref, { chatId, price, product: `Virtual Card ($${vcAmount})`, orderId, endpoint: '/bank-pay-virtual-card', _createdAt: new Date().toISOString() })
     notifyGroup(`💳 <b>New Virtual Card Order!</b>\n\n👤 User: ${maskName(name)}\n💵 Card: <b>$${vcAmount}</b> | Total: <b>$${price}</b>\n💳 Payment: Bank\n⏳ Awaiting payment`)
-    if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `💳 <b>New Virtual Card Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n💵 Card: <b>$${vcAmount}</b> | Total: <b>$${price}</b>\n📬 Address:\n<pre>${address}</pre>\n💳 Payment: Bank\n⏳ Awaiting payment\n\n📩 After payment confirms:\n<code>/deliver ${orderId} [card details]</code>`, { parse_mode: 'HTML' })
+    if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `💳 <b>New Virtual Card Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${('@' + (name || chatId))} (${chatId})\n💵 Card: <b>$${vcAmount}</b> | Total: <b>$${price}</b>\n📬 Address:\n<pre>${address}</pre>\n💳 Payment: Bank\n⏳ Awaiting payment\n\n📩 After payment confirms:\n<code>/deliver ${orderId} [card details]</code>`, { parse_mode: 'HTML' })
     const { url, error } = await createCheckout(priceNGN, `/ok?a=b&ref=${ref}&`, email, username, ref)
     if (error) return send(chatId, error, trans('o'))
     send(chatId, trans('t.vps_51'), trans('o'))
@@ -11697,7 +11719,7 @@ ${message.replace(/\n/g, '<br>')}
     }
 
     notifyGroup(`💳 <b>New Virtual Card Order!</b>\n\n👤 User: ${maskName(name)}\n💵 Card: <b>$${vcAmount}</b> | Total: <b>$${price}</b>\n💳 Payment: Crypto\n⏳ Awaiting payment`)
-    if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `💳 <b>New Virtual Card Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n💵 Card: <b>$${vcAmount}</b> | Total: <b>$${price}</b>\n📬 Address:\n<pre>${address}</pre>\n💳 Payment: Crypto (${tickerKey})\n⏳ Awaiting payment\n\n📩 After payment confirms:\n<code>/deliver ${orderId} [card details]</code>`, { parse_mode: 'HTML' })
+    if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `💳 <b>New Virtual Card Order!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${('@' + (name || chatId))} (${chatId})\n💵 Card: <b>$${vcAmount}</b> | Total: <b>$${price}</b>\n📬 Address:\n<pre>${address}</pre>\n💳 Payment: Crypto (${tickerKey})\n⏳ Awaiting payment\n\n📩 After payment confirms:\n<code>/deliver ${orderId} [card details]</code>`, { parse_mode: 'HTML' })
     return
   }
 
@@ -21924,7 +21946,7 @@ Select a category:`), k.of(catBtns))
     await updatePhoneNumberField(phoneNumbersOf, chatId, num.phoneNumber, 'status', 'released')
     const name = await get(nameOf, chatId)
     notifyGroup(cpTxt.adminRelease(maskName(name), num.phoneNumber, num.plan))
-    if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminReleasePrivate(maskName(name), num.phoneNumber, num.plan), { parse_mode: 'HTML' })
+    if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminReleasePrivate(('@' + (name || chatId)), num.phoneNumber, num.plan), { parse_mode: 'HTML' })
     
     // Log transaction
     await phoneTransactions.insertOne({
@@ -25380,7 +25402,7 @@ const bankApis = {
       `\n\n<b>Transaction ID:</b> <code>${txnId}</code>\n<i>Quote this ID when contacting support</i>`
     sendMessage(chatId, activatedMsg)
     notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, plan.name, price, 'Bank NGN'))
-    if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminPurchasePrivate(maskName(name), selectedNumber, plan.name, price, 'Bank NGN'), { parse_mode: 'HTML' })
+    if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminPurchasePrivate(('@' + (name || chatId)), selectedNumber, plan.name, price, 'Bank NGN'), { parse_mode: 'HTML' })
     webhookTierCheck(chatId, preSpend, lang)
     if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
     if (userConversion) userConversion.markPurchased(chatId)
@@ -25525,7 +25547,7 @@ const bankApis = {
     await digitalOrdersCol.updateOne({ orderId }, { $set: { status: 'pending', paymentConfirmedAt: new Date() } })
     send(chatId, translation('t.dpOrderConfirmed', lang, product, price, orderId), translation('o', lang))
     notifyGroup(`🛒 <b>Digital Product Paid!</b>\n\n👤 User: ${maskName(name)}\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b>\n\n✅ Payment confirmed.`)
-    if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🛒 <b>Digital Product Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b> (Bank)\n\n📩 Deliver with:\n<code>/deliver ${orderId} [details]</code>`, { parse_mode: 'HTML' })
+    if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🛒 <b>Digital Product Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${('@' + (name || chatId))} (${chatId})\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b> (Bank)\n\n📩 Deliver with:\n<code>/deliver ${orderId} [details]</code>`, { parse_mode: 'HTML' })
     webhookTierCheck(chatId, preSpend, lang)
     if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
     if (userConversion) userConversion.markPurchased(chatId)
@@ -25560,7 +25582,7 @@ const bankApis = {
     await digitalOrdersCol.updateOne({ orderId }, { $set: { status: 'pending', paymentConfirmedAt: new Date() } })
     sendMessage(chatId, translation('t.vcOrderConfirmed', lang, vcAmount, price, orderId))
     notifyGroup(`💳 <b>Virtual Card Paid!</b>\n\n👤 User: ${maskName(name)}\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b>\n\n✅ Payment confirmed.`)
-    if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `💳 <b>Virtual Card Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b> (Bank)\n📬 Address:\n<pre>${vcAddress}</pre>\n\n📩 Deliver with:\n<code>/deliver ${orderId} [card details]</code>`, { parse_mode: 'HTML' })
+    if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `💳 <b>Virtual Card Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${('@' + (name || chatId))} (${chatId})\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b> (Bank)\n📬 Address:\n<pre>${vcAddress}</pre>\n\n📩 Deliver with:\n<code>/deliver ${orderId} [card details]</code>`, { parse_mode: 'HTML' })
     webhookTierCheck(chatId, preSpend, lang)
     if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
     if (userConversion) userConversion.markPurchased(chatId)
@@ -26207,7 +26229,7 @@ app.get('/crypto-pay-phone', auth, async (req, res) => {
   await phoneTransactions.insertOne({ chatId, phoneNumber: selectedNumber, action: 'purchase', plan: planKey, amount: price, paymentMethod: 'crypto_' + coin, timestamp: new Date().toISOString() })
   sendMessage(chatId, cpTxt.activated(selectedNumber, plan.name, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())))
   notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, plan.name, price, 'Crypto ' + coin))
-  if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminPurchasePrivate(maskName(name), selectedNumber, plan.name, price, 'Crypto ' + coin), { parse_mode: 'HTML' })
+  if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminPurchasePrivate(('@' + (name || chatId)), selectedNumber, plan.name, price, 'Crypto ' + coin), { parse_mode: 'HTML' })
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
@@ -26493,7 +26515,7 @@ app.get('/crypto-pay-digital-product', auth, async (req, res) => {
   await digitalOrdersCol.updateOne({ orderId }, { $set: { status: 'pending', paymentConfirmedAt: new Date() } })
   send(chatId, translation('t.dpOrderConfirmed', lang, product, price, orderId), translation('o', lang))
   notifyGroup(`🛒 <b>Digital Product Paid!</b>\n\n👤 User: ${maskName(name)}\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b>\n\n✅ Payment confirmed.`)
-  if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🛒 <b>Digital Product Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b> (Crypto)\n\n📩 Deliver with:\n<code>/deliver ${orderId} [details]</code>`, { parse_mode: 'HTML' })
+  if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🛒 <b>Digital Product Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${('@' + (name || chatId))} (${chatId})\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b> (Crypto)\n\n📩 Deliver with:\n<code>/deliver ${orderId} [details]</code>`, { parse_mode: 'HTML' })
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
@@ -26528,7 +26550,7 @@ app.get('/crypto-pay-virtual-card', auth, async (req, res) => {
   await digitalOrdersCol.updateOne({ orderId }, { $set: { status: 'pending', paymentConfirmedAt: new Date() } })
   sendMessage(chatId, translation('t.vcOrderConfirmed', lang, vcAmount, price, orderId))
   notifyGroup(`💳 <b>Virtual Card Paid!</b>\n\n👤 User: ${maskName(name)}\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b>\n\n✅ Payment confirmed.`)
-  if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `💳 <b>Virtual Card Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b> (Crypto)\n📬 Address:\n<pre>${vcAddress}</pre>\n\n📩 Deliver with:\n<code>/deliver ${orderId} [card details]</code>`, { parse_mode: 'HTML' })
+  if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `💳 <b>Virtual Card Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${('@' + (name || chatId))} (${chatId})\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b> (Crypto)\n📬 Address:\n<pre>${vcAddress}</pre>\n\n📩 Deliver with:\n<code>/deliver ${orderId} [card details]</code>`, { parse_mode: 'HTML' })
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
@@ -26926,7 +26948,7 @@ app.post('/dynopay/crypto-pay-phone', authDyno, async (req, res) => {
   await phoneTransactions.insertOne({ chatId, phoneNumber: selectedNumber, action: 'purchase', plan: planKey, amount: price, paymentMethod: 'crypto_dynopay_' + coin, timestamp: new Date().toISOString() })
   sendMessage(chatId, cpTxt.activated(selectedNumber, plan.name, price, sipUsername, phoneConfig.SIP_DOMAIN, phoneConfig.shortDate(expiresAt.toISOString())))
   notifyGroup(cpTxt.adminPurchase(maskName(name), selectedNumber, plan.name, price, 'Crypto DynoPay'))
-  if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminPurchasePrivate(maskName(name), selectedNumber, plan.name, price, 'Crypto DynoPay'), { parse_mode: 'HTML' })
+  if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, cpTxt.adminPurchasePrivate(('@' + (name || chatId)), selectedNumber, plan.name, price, 'Crypto DynoPay'), { parse_mode: 'HTML' })
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
@@ -27148,7 +27170,7 @@ app.post('/dynopay/crypto-pay-vps', authDyno, async (req, res) => {
     return res.send(html('error'))
   }
   notifyGroup(`🖥️ <b>VPS Deployed!</b>\nUser ${maskName(name)} just deployed a new VPS server via crypto.\nDeploy yours in seconds — /start`)
-  if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🖥️ <b>New VPS (Crypto)</b>\n👤 ${chatId} (${maskName(name)})\n💰 $${Number(price).toFixed(2)} ${coin}\n📦 ${vpsDetails?.plan || 'VPS'}`, { parse_mode: 'HTML' })
+  if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🖥️ <b>New VPS (Crypto)</b>\n👤 ${chatId} (${('@' + (name || chatId))})\n💰 $${Number(price).toFixed(2)} ${coin}\n📦 ${vpsDetails?.plan || 'VPS'}`, { parse_mode: 'HTML' })
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
@@ -27209,7 +27231,7 @@ app.post('/dynopay/crypto-pay-upgrade-vps', authDyno, async (req, res) => {
   if (!isSuccess) return res.send(html('error'))
   const upgradeLabel = vpsDetails.upgradeType === 'plan' ? 'Plan Upgrade' : 'Disk Upgrade'
   notifyGroup(`🖥️ <b>VPS ${upgradeLabel}!</b>\nUser ${maskName(name)} just upgraded their VPS via crypto.\nUpgrade yours — /start`)
-  if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🖥️ <b>VPS ${upgradeLabel} (Crypto)</b>\n👤 ${chatId} (${maskName(name)})\n💰 $${Number(price).toFixed(2)} ${coin}\n📦 ${vpsDetails?.plan || 'VPS'}`, { parse_mode: 'HTML' })
+  if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🖥️ <b>VPS ${upgradeLabel} (Crypto)</b>\n👤 ${chatId} (${('@' + (name || chatId))})\n💰 $${Number(price).toFixed(2)} ${coin}\n📦 ${vpsDetails?.plan || 'VPS'}`, { parse_mode: 'HTML' })
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
@@ -27251,7 +27273,7 @@ app.post('/dynopay/crypto-pay-digital-product', authDyno, async (req, res) => {
   await digitalOrdersCol.updateOne({ orderId }, { $set: { status: 'pending', paymentConfirmedAt: new Date() } })
   send(chatId, translation('t.dpOrderConfirmed', lang, product, price, orderId), translation('o', lang))
   notifyGroup(`🛒 <b>Digital Product Paid!</b>\n\n👤 User: ${maskName(name)}\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b>\n\n✅ Payment confirmed.`)
-  if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🛒 <b>Digital Product Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b> (Crypto)\n\n📩 Deliver with:\n<code>/deliver ${orderId} [details]</code>`, { parse_mode: 'HTML' })
+  if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `🛒 <b>Digital Product Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${('@' + (name || chatId))} (${chatId})\n📦 Product: <b>${product}</b>\n💵 Paid: <b>$${price}</b> (Crypto)\n\n📩 Deliver with:\n<code>/deliver ${orderId} [details]</code>`, { parse_mode: 'HTML' })
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
@@ -27293,7 +27315,7 @@ app.post('/dynopay/crypto-pay-virtual-card', authDyno, async (req, res) => {
   await digitalOrdersCol.updateOne({ orderId }, { $set: { status: 'pending', paymentConfirmedAt: new Date() } })
   sendMessage(chatId, translation('t.vcOrderConfirmed', lang, vcAmount, price, orderId))
   notifyGroup(`💳 <b>Virtual Card Paid!</b>\n\n👤 User: ${maskName(name)}\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b>\n\n✅ Payment confirmed.`)
-  if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `💳 <b>Virtual Card Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${maskName(name)} (${chatId})\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b> (Crypto)\n📬 Address:\n<pre>${vcAddress}</pre>\n\n📩 Deliver with:\n<code>/deliver ${orderId} [card details]</code>`, { parse_mode: 'HTML' })
+  if (TELEGRAM_ADMIN_CHAT_ID) send(TELEGRAM_ADMIN_CHAT_ID, `💳 <b>Virtual Card Paid!</b>\n\n🆔 Order: <code>${orderId}</code>\n👤 User: ${('@' + (name || chatId))} (${chatId})\n💵 Card: <b>$${vcAmount}</b> | Paid: <b>$${price}</b> (Crypto)\n📬 Address:\n<pre>${vcAddress}</pre>\n\n📩 Deliver with:\n<code>/deliver ${orderId} [card details]</code>`, { parse_mode: 'HTML' })
   webhookTierCheck(chatId, preSpend, lang)
   if (cartRecovery) cartRecovery.recordPaymentCompleted(String(chatId))
   if (userConversion) userConversion.markPurchased(chatId)
