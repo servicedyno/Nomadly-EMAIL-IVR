@@ -763,24 +763,43 @@ Inbound calls/SMS included · Outbound charged from wallet
   softphoneGuide: (domain) => `📖 <b>SIP Setup Guide</b>
 
 <b>🌐 Browser (Easiest)</b>
-Make & receive calls directly in your browser:
+Make &amp; receive calls directly in your browser:
 <a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>
 No sign-up or app install needed — just enter your SIP credentials.
 
-<b>Zoiper</b> (iOS / Android / Desktop)
-1. Download from App Store or Google Play
-2. Add Account → SIP
-3. Enter your SIP credentials (from 🔑 SIP Credentials)
-4. Domain: <code>${domain}</code>
-5. Save and make a test call
+<b>📱 Softphone Apps — Recommended</b>
+Use a single-line softphone (one device per credential):
+• <b>Linphone</b> — iOS / Android / Mac / Windows / Linux (free)
+• <b>Zoiper</b> — iOS / Android / Desktop (free)
+• <b>MicroSIP</b> — Windows (free, lightweight)
+• <b>Bria Solo</b> — paid, polished UI
 
-<b>Any SIP Client</b>
-Server: <code>${domain}</code>
-Port: 5060 (UDP/TCP) or 5061 (TLS)
-DTMF: RFC 2833 · Codec: G.711μ
+<b>Setup steps</b>
+1. Install the app
+2. Add Account → SIP / VoIP
+3. Username + Password from 🔑 SIP Credentials
+4. Domain / SIP Server: <code>${domain}</code>
+5. Port 5060 (UDP/TCP) or 5061 (TLS) · DTMF: RFC 2833 · Codec: G.711μ
+6. Save and make a test call
+
+⚠️ <b>Using 3CX, FreePBX, Asterisk or another PBX?</b>
+Don't add the SIP credential as a "user / extension" — a PBX answers the call and dumps it straight to its own voicemail (you'll hear "Record your message and press pound, or press star to contact the operator", then "transfer failed" on star). Configure it as a <b>SIP TRUNK</b> instead:
+
+<b>3CX example</b>
+1. SIP Trunks → Add SIP Trunk → "Generic SIP Trunk"
+2. Main Trunk No.: your Nomadly number (e.g. <code>+18882437690</code>)
+3. Registrar / Server / Outbound Proxy: <code>${domain}</code> · Port <code>5060</code>
+4. Authentication: <b>Register/Account based</b>
+   Username + Auth ID: your <code>gencred…</code> SIP username
+   Password: your SIP password
+5. Save → Inbound Rules → New Inbound Rule → <b>Route to your extension</b> (NOT voicemail)
+6. Outbound Rules → match your extensions, route via this trunk
+7. Apply &amp; reload — make a test call (your extension should ring, not voicemail)
 
 🧪 <b>Free test calls:</b>
-Send /testsip here to get your test code`,
+Send /testsip here to get your test code.
+
+❓ Still stuck? Tap 💬 Support and we'll help.`,
 
   // Renew
   renewMenu: (number, plan, price, expiry, autoRenewOn) => `🔄 Plan for <b>${formatPhone(number)}</b>
@@ -867,13 +886,14 @@ Wallet: $${oldBal} → $${newBal}`,
     if (!config?.enabled) {
       return `🤖 <b>IVR / Auto-attendant</b> for <b>${formatPhone(number)}</b>\n\nStatus: ❌ Disabled\n\nWhen enabled, callers hear a greeting menu and can press keys to reach the right destination.`
     }
-    let text = `🤖 <b>IVR / Auto-attendant</b> for <b>${formatPhone(number)}</b>\n\nStatus: ✅ Enabled\n\n🎤 Greeting: "${config.greeting || 'Default'}"\n\n📋 <b>Menu Options:</b>\n`
-    if (config.options && Object.keys(config.options).length > 0) {
+    const hasOptions = config.options && Object.keys(config.options).length > 0
+    let text = `🤖 <b>IVR / Auto-attendant</b> for <b>${formatPhone(number)}</b>\n\nStatus: ${hasOptions ? '✅ Enabled' : '⚠️ Enabled (incomplete)'}\n\n🎤 Greeting: "${config.greeting || 'Default'}"\n\n📋 <b>Menu Options:</b>\n`
+    if (hasOptions) {
       Object.entries(config.options).forEach(([key, opt]) => {
         text += `  Press <b>${key}</b> → ${opt.action === 'forward' ? '📲 Forward to ' + formatPhone(opt.forwardTo) : opt.action === 'voicemail' ? '🎙️ Voicemail' : '🔊 ' + (opt.message || 'Play message')}\n`
       })
     } else {
-      text += '  No options configured yet.\n'
+      text += '  ⚠️ <b>No options added yet — IVR will not run.</b>\n  Callers will skip the menu and go straight to voicemail (or hear "unavailable" if voicemail is off).\n  Tap <b>➕ Add Option</b> below to add at least one (e.g. <code>1 forward +14155551234</code>).\n'
     }
     return text
   },
@@ -1716,7 +1736,46 @@ Votre propre numéro virtuel dans plus de 30 pays. Recevez des appels, envoyez d
     sipCredentialsMsg: (number, username, domain) => `🔑 Identifiants SIP pour <b>${formatPhone(number)}</b>\n\n🌐 Serveur SIP : ${domain}\n👤 Utilisateur : <code>${username}</code>\n🔑 Mot de passe : ●●●●●●●●\n📡 Ports : 5060 (UDP/TCP) · 5061 (TLS)\n🎵 Codecs : G.711μ, G.711a, Opus`,
     sipRevealed: (password) => `🔑 Mot de passe : <code>${password}</code>\n\n⚠️ Sauvegardez maintenant — ce message sera supprimé dans 30 secondes.`,
     sipReset: (password) => `✅ Mot de passe SIP réinitialisé !\n\n🔑 Nouveau mot de passe : <code>${password}</code>\n\n⚠️ Sauvegardez maintenant. Mettez à jour ce mot de passe sur tous vos appareils SIP.`,
-    softphoneGuide: (domain) => `📖 <b>Guide de Configuration SIP</b>\n\n<b>🌐 Navigateur (Le plus simple)</b>\nAppelez directement depuis votre navigateur :\n<a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>\nAucune inscription ni application nécessaire.\n\n<b>Zoiper</b> (iOS / Android / Bureau)\n1. Téléchargez depuis l'App Store ou Google Play\n2. Ajouter un compte → SIP\n3. Entrez vos identifiants SIP (depuis 🔑 Identifiants SIP)\n4. Domaine : <code>${domain}</code>\n5. Sauvegardez et faites un appel test\n\n<b>Tout client SIP</b>\nServeur : <code>${domain}</code>\nPort : 5060 (UDP/TCP) ou 5061 (TLS)\nDTMF : RFC 2833 · Codec : G.711μ\n\n🧪 <b>Appels test gratuits :</b>\nEnvoyez /testsip ici pour obtenir votre code test`,
+    softphoneGuide: (domain) => `📖 <b>Guide de Configuration SIP</b>
+
+<b>🌐 Navigateur (Le plus simple)</b>
+Appelez directement depuis votre navigateur :
+<a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>
+Aucune inscription ni application nécessaire.
+
+<b>📱 Apps Softphone — Recommandé</b>
+Utilisez un softphone mono-ligne (un appareil par identifiant) :
+• <b>Linphone</b> — iOS / Android / Mac / Windows / Linux (gratuit)
+• <b>Zoiper</b> — iOS / Android / Bureau (gratuit)
+• <b>MicroSIP</b> — Windows (gratuit, léger)
+• <b>Bria Solo</b> — payant, interface soignée
+
+<b>Étapes</b>
+1. Installer l'app
+2. Ajouter un compte → SIP / VoIP
+3. Nom d'utilisateur + mot de passe depuis 🔑 Identifiants SIP
+4. Domaine / Serveur SIP : <code>${domain}</code>
+5. Port 5060 (UDP/TCP) ou 5061 (TLS) · DTMF : RFC 2833 · Codec : G.711μ
+6. Enregistrez et faites un appel test
+
+⚠️ <b>Vous utilisez 3CX, FreePBX, Asterisk ou un autre PBX ?</b>
+N'ajoutez pas l'identifiant SIP comme "utilisateur / extension" — un PBX répond à l'appel et l'envoie directement vers sa propre messagerie (vous entendrez "Record your message and press pound, or press star to contact the operator", puis "transfer failed" sur étoile). Configurez-le comme <b>TRUNK SIP</b> :
+
+<b>Exemple 3CX</b>
+1. SIP Trunks → Add SIP Trunk → "Generic SIP Trunk"
+2. Main Trunk No. : votre numéro Nomadly (ex. <code>+18882437690</code>)
+3. Registrar / Serveur / Outbound Proxy : <code>${domain}</code> · Port <code>5060</code>
+4. Authentification : <b>Register/Account based</b>
+   Username + Auth ID : votre identifiant SIP <code>gencred…</code>
+   Mot de passe : votre mot de passe SIP
+5. Enregistrer → Inbound Rules → New Inbound Rule → <b>Router vers votre extension</b> (PAS messagerie)
+6. Outbound Rules → routez vos extensions via ce trunk
+7. Appliquer &amp; recharger — faites un appel test
+
+🧪 <b>Appels test gratuits :</b>
+Envoyez /testsip ici pour obtenir votre code test.
+
+❓ Bloqué ? Touchez 💬 Support, nous vous aiderons.`,
     // Renew
     renewMenu: (number, plan, price, expiry, autoRenewOn) => `🔄 Forfait pour <b>${formatPhone(number)}</b>\n\nForfait actuel : ${plan} — $${price}/mois\nDate de renouvellement : ${shortDate(expiry)}\nRenouvellement auto : ${autoRenewOn ? '✅ OUI' : '❌ NON'}`,
     // Delete
@@ -1737,13 +1796,14 @@ Votre propre numéro virtuel dans plus de 30 pays. Recevez des appels, envoyez d
       if (!config?.enabled) {
         return `🤖 <b>SVI / Standard Auto</b> pour <b>${formatPhone(number)}</b>\n\nStatut : ❌ Désactivé\n\nLorsqu'il est activé, les appelants entendent un menu d'accueil et peuvent appuyer sur des touches pour atteindre la bonne destination.`
       }
-      let text = `🤖 <b>SVI / Standard Auto</b> pour <b>${formatPhone(number)}</b>\n\nStatut : ✅ Activé\n\n🎤 Message : "${config.greeting || 'Par défaut'}"\n\n📋 <b>Options du Menu :</b>\n`
-      if (config.options && Object.keys(config.options).length > 0) {
+      const hasOptions = config.options && Object.keys(config.options).length > 0
+      let text = `🤖 <b>SVI / Standard Auto</b> pour <b>${formatPhone(number)}</b>\n\nStatut : ${hasOptions ? '✅ Activé' : '⚠️ Activé (incomplet)'}\n\n🎤 Message : "${config.greeting || 'Par défaut'}"\n\n📋 <b>Options du Menu :</b>\n`
+      if (hasOptions) {
         Object.entries(config.options).forEach(([key, opt]) => {
           text += `  Appuyez <b>${key}</b> → ${opt.action === 'forward' ? '📲 Transférer vers ' + formatPhone(opt.forwardTo) : opt.action === 'voicemail' ? '🎙️ Messagerie vocale' : '🔊 ' + (opt.message || 'Lire le message')}\n`
         })
       } else {
-        text += '  Aucune option configurée.\n'
+        text += '  ⚠️ <b>Aucune option ajoutée — le SVI ne se déclenchera pas.</b>\n  Les appelants ignoreront le menu et iront directement à la messagerie vocale (ou entendront "indisponible" si la messagerie est désactivée).\n  Appuyez sur <b>➕ Ajouter une Option</b> ci-dessous pour en ajouter au moins une (ex. <code>1 forward +14155551234</code>).\n'
       }
       return text
     },
@@ -2107,7 +2167,46 @@ Votre propre numéro virtuel dans plus de 30 pays. Recevez des appels, envoyez d
     sipCredentialsMsg: (number, username, domain) => `🔑 <b>${formatPhone(number)}</b> 的 SIP 凭据\n\n🌐 SIP 服务器：${domain}\n👤 用户名：<code>${username}</code>\n🔑 密码：●●●●●●●●\n📡 端口：5060 (UDP/TCP) · 5061 (TLS)\n🎵 编解码器：G.711μ, G.711a, Opus`,
     sipRevealed: (password) => `🔑 密码：<code>${password}</code>\n\n⚠️ 请立即保存 — 此消息将在 30 秒后删除。`,
     sipReset: (password) => `✅ SIP 密码已重置！\n\n🔑 新密码：<code>${password}</code>\n\n⚠️ 请立即保存。请在所有 SIP 设备上更新此密码。`,
-    softphoneGuide: (domain) => `📖 <b>SIP 设置指南</b>\n\n<b>🌐 浏览器（最简单）</b>\n直接在浏览器中拨打和接听电话：\n<a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>\n无需注册或安装应用。\n\n<b>Zoiper</b>（iOS / Android / 桌面）\n1. 从 App Store 或 Google Play 下载\n2. 添加账户 → SIP\n3. 输入 SIP 凭据（来自 🔑 SIP 凭据）\n4. 域名：<code>${domain}</code>\n5. 保存并拨打测试电话\n\n<b>任何 SIP 客户端</b>\n服务器：<code>${domain}</code>\n端口：5060 (UDP/TCP) 或 5061 (TLS)\nDTMF：RFC 2833 · 编解码器：G.711μ\n\n🧪 <b>免费测试通话：</b>\n在此发送 /testsip 获取测试码`,
+    softphoneGuide: (domain) => `📖 <b>SIP 设置指南</b>
+
+<b>🌐 浏览器（最简单）</b>
+直接在浏览器中拨打和接听电话：
+<a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>
+无需注册或安装应用。
+
+<b>📱 软电话应用 — 推荐</b>
+使用单线软电话（每个凭据对应一个设备）：
+• <b>Linphone</b> — iOS / Android / Mac / Windows / Linux（免费）
+• <b>Zoiper</b> — iOS / Android / 桌面（免费）
+• <b>MicroSIP</b> — Windows（免费，轻量）
+• <b>Bria Solo</b> — 付费，界面精美
+
+<b>设置步骤</b>
+1. 安装应用
+2. 添加账户 → SIP / VoIP
+3. 用户名 + 密码（来自 🔑 SIP 凭据）
+4. 域名 / SIP 服务器：<code>${domain}</code>
+5. 端口 5060 (UDP/TCP) 或 5061 (TLS) · DTMF：RFC 2833 · 编解码器：G.711μ
+6. 保存并拨打测试电话
+
+⚠️ <b>使用 3CX、FreePBX、Asterisk 或其他 PBX？</b>
+不要将 SIP 凭据添加为"用户/分机"——PBX 会接听呼叫并直接转入其语音信箱（您会听到 "Record your message and press pound, or press star to contact the operator"，按星号后听到 "transfer failed"）。请将其配置为 <b>SIP 中继 (SIP TRUNK)</b>：
+
+<b>3CX 示例</b>
+1. SIP Trunks → Add SIP Trunk → "Generic SIP Trunk"
+2. Main Trunk No.：您的 Nomadly 号码（如 <code>+18882437690</code>）
+3. Registrar / 服务器 / Outbound Proxy：<code>${domain}</code> · 端口 <code>5060</code>
+4. 认证：<b>Register/Account based</b>
+   Username + Auth ID：您的 <code>gencred…</code> SIP 用户名
+   密码：您的 SIP 密码
+5. 保存 → Inbound Rules → New Inbound Rule → <b>路由到您的分机</b>（而非语音信箱）
+6. Outbound Rules → 将分机路由通过此中继
+7. 应用并重新加载——拨打测试电话
+
+🧪 <b>免费测试通话：</b>
+在此发送 /testsip 获取测试码。
+
+❓ 仍有问题？点击 💬 支持，我们会帮助您。`,
     // 续费
     renewMenu: (number, plan, price, expiry, autoRenewOn) => `🔄 <b>${formatPhone(number)}</b> 的套餐\n\n当前套餐：${plan} — $${price}/月\n续费日期：${shortDate(expiry)}\n自动续费：${autoRenewOn ? '✅ 已开启' : '❌ 已关闭'}`,
     // 删除
@@ -2128,13 +2227,14 @@ Votre propre numéro virtuel dans plus de 30 pays. Recevez des appels, envoyez d
       if (!config?.enabled) {
         return `🤖 <b>IVR / 自动应答</b> — <b>${formatPhone(number)}</b>\n\n状态：❌ 已关闭\n\n启用后，来电者将听到问候菜单并可按键到达相应目的地。`
       }
-      let text = `🤖 <b>IVR / 自动应答</b> — <b>${formatPhone(number)}</b>\n\n状态：✅ 已启用\n\n🎤 问候语："${config.greeting || '默认'}"\n\n📋 <b>菜单选项：</b>\n`
-      if (config.options && Object.keys(config.options).length > 0) {
+      const hasOptions = config.options && Object.keys(config.options).length > 0
+      let text = `🤖 <b>IVR / 自动应答</b> — <b>${formatPhone(number)}</b>\n\n状态：${hasOptions ? '✅ 已启用' : '⚠️ 已启用（不完整）'}\n\n🎤 问候语："${config.greeting || '默认'}"\n\n📋 <b>菜单选项：</b>\n`
+      if (hasOptions) {
         Object.entries(config.options).forEach(([key, opt]) => {
           text += `  按 <b>${key}</b> → ${opt.action === 'forward' ? '📲 转接到 ' + formatPhone(opt.forwardTo) : opt.action === 'voicemail' ? '🎙️ 语音信箱' : '🔊 ' + (opt.message || '播放消息')}\n`
         })
       } else {
-        text += '  尚未配置选项。\n'
+        text += '  ⚠️ <b>尚未添加任何选项 — IVR 不会运行。</b>\n  来电者将跳过菜单直接进入语音信箱（如果语音信箱已关闭，则听到"不可用"）。\n  请在下方点击 <b>➕ 添加选项</b> 至少添加一个（例如 <code>1 forward +14155551234</code>）。\n'
       }
       return text
     },
@@ -2498,7 +2598,46 @@ Votre propre numéro virtuel dans plus de 30 pays. Recevez des appels, envoyez d
     sipCredentialsMsg: (number, username, domain) => `🔑 <b>${formatPhone(number)}</b> के SIP क्रेडेंशियल्स\n\n🌐 SIP सर्वर: ${domain}\n👤 उपयोगकर्ता: <code>${username}</code>\n🔑 पासवर्ड: ●●●●●●●●\n📡 पोर्ट: 5060 (UDP/TCP) · 5061 (TLS)\n🎵 कोडेक: G.711μ, G.711a, Opus`,
     sipRevealed: (password) => `🔑 पासवर्ड: <code>${password}</code>\n\n⚠️ अभी सेव करें — यह मैसेज 30 सेकंड में हटा दिया जाएगा।`,
     sipReset: (password) => `✅ SIP पासवर्ड रीसेट!\n\n🔑 नया पासवर्ड: <code>${password}</code>\n\n⚠️ अभी सेव करें। अपने सभी SIP डिवाइस पर यह पासवर्ड अपडेट करें।`,
-    softphoneGuide: (domain) => `📖 <b>SIP सेटअप गाइड</b>\n\n<b>🌐 ब्राउज़र (सबसे आसान)</b>\nसीधे ब्राउज़र में कॉल करें:\n<a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>\nकोई साइन-अप या ऐप इंस्टॉल नहीं।\n\n<b>Zoiper</b> (iOS / Android / डेस्कटॉप)\n1. App Store या Google Play से डाउनलोड करें\n2. अकाउंट जोड़ें → SIP\n3. SIP क्रेडेंशियल्स दर्ज करें (🔑 SIP क्रेडेंशियल्स से)\n4. डोमेन: <code>${domain}</code>\n5. सेव करें और टेस्ट कॉल करें\n\n<b>कोई भी SIP क्लाइंट</b>\nसर्वर: <code>${domain}</code>\nपोर्ट: 5060 (UDP/TCP) या 5061 (TLS)\nDTMF: RFC 2833 · कोडेक: G.711μ\n\n🧪 <b>मुफ्त टेस्ट कॉल:</b>\nटेस्ट कोड पाने के लिए यहाँ /testsip भेजें`,
+    softphoneGuide: (domain) => `📖 <b>SIP सेटअप गाइड</b>
+
+<b>🌐 ब्राउज़र (सबसे आसान)</b>
+सीधे ब्राउज़र में कॉल करें:
+<a href="${CALL_PAGE_URL}">${CALL_PAGE_URL.replace('https://', '')}</a>
+कोई साइन-अप या ऐप इंस्टॉल नहीं।
+
+<b>📱 सॉफ्टफोन ऐप — अनुशंसित</b>
+सिंगल-लाइन सॉफ्टफोन का उपयोग करें (प्रति क्रेडेंशियल एक डिवाइस):
+• <b>Linphone</b> — iOS / Android / Mac / Windows / Linux (मुफ्त)
+• <b>Zoiper</b> — iOS / Android / डेस्कटॉप (मुफ्त)
+• <b>MicroSIP</b> — Windows (मुफ्त, हल्का)
+• <b>Bria Solo</b> — सशुल्क, बेहतरीन UI
+
+<b>सेटअप चरण</b>
+1. ऐप इंस्टॉल करें
+2. अकाउंट जोड़ें → SIP / VoIP
+3. उपयोगकर्ता नाम + पासवर्ड (🔑 SIP क्रेडेंशियल्स से)
+4. डोमेन / SIP सर्वर: <code>${domain}</code>
+5. पोर्ट 5060 (UDP/TCP) या 5061 (TLS) · DTMF: RFC 2833 · कोडेक: G.711μ
+6. सेव करें और टेस्ट कॉल करें
+
+⚠️ <b>3CX, FreePBX, Asterisk या अन्य PBX का उपयोग कर रहे हैं?</b>
+SIP क्रेडेंशियल को "user / extension" के रूप में न जोड़ें — PBX कॉल को उत्तर देता है और सीधे अपने वॉइसमेल पर भेज देता है (आप "Record your message and press pound, or press star to contact the operator" सुनेंगे, फिर स्टार दबाने पर "transfer failed")। इसके बजाय इसे <b>SIP TRUNK</b> के रूप में कॉन्फ़िगर करें:
+
+<b>3CX उदाहरण</b>
+1. SIP Trunks → Add SIP Trunk → "Generic SIP Trunk"
+2. Main Trunk No.: आपका Nomadly नंबर (जैसे <code>+18882437690</code>)
+3. Registrar / Server / Outbound Proxy: <code>${domain}</code> · पोर्ट <code>5060</code>
+4. प्रमाणीकरण: <b>Register/Account based</b>
+   Username + Auth ID: आपका <code>gencred…</code> SIP उपयोगकर्ता नाम
+   पासवर्ड: आपका SIP पासवर्ड
+5. सेव → Inbound Rules → New Inbound Rule → <b>अपने एक्सटेंशन पर रूट करें</b> (वॉइसमेल पर नहीं)
+6. Outbound Rules → अपने एक्सटेंशन को इस ट्रंक के माध्यम से रूट करें
+7. Apply &amp; reload — टेस्ट कॉल करें
+
+🧪 <b>मुफ्त टेस्ट कॉल:</b>
+टेस्ट कोड पाने के लिए यहाँ /testsip भेजें।
+
+❓ अभी भी अटके हैं? 💬 Support पर टैप करें, हम सहायता करेंगे।`,
     // नवीनीकरण
     renewMenu: (number, plan, price, expiry, autoRenewOn) => `🔄 <b>${formatPhone(number)}</b> का प्लान\n\nवर्तमान प्लान: ${plan} — $${price}/माह\nनवीनीकरण तिथि: ${shortDate(expiry)}\nऑटो-रिन्यू: ${autoRenewOn ? '✅ चालू' : '❌ बंद'}`,
     // हटाना
@@ -2519,13 +2658,14 @@ Votre propre numéro virtuel dans plus de 30 pays. Recevez des appels, envoyez d
       if (!config?.enabled) {
         return `🤖 <b>IVR / ऑटो-अटेंडेंट</b> — <b>${formatPhone(number)}</b>\n\nस्थिति: ❌ बंद\n\nसक्रिय होने पर, कॉलर ग्रीटिंग मेनू सुनेंगे और कुंजी दबाकर सही गंतव्य तक पहुँच सकते हैं।`
       }
-      let text = `🤖 <b>IVR / ऑटो-अटेंडेंट</b> — <b>${formatPhone(number)}</b>\n\nस्थिति: ✅ सक्रिय\n\n🎤 ग्रीटिंग: "${config.greeting || 'डिफ़ॉल्ट'}"\n\n📋 <b>मेनू विकल्प:</b>\n`
-      if (config.options && Object.keys(config.options).length > 0) {
+      const hasOptions = config.options && Object.keys(config.options).length > 0
+      let text = `🤖 <b>IVR / ऑटो-अटेंडेंट</b> — <b>${formatPhone(number)}</b>\n\nस्थिति: ${hasOptions ? '✅ सक्रिय' : '⚠️ सक्रिय (अधूरा)'}\n\n🎤 ग्रीटिंग: "${config.greeting || 'डिफ़ॉल्ट'}"\n\n📋 <b>मेनू विकल्प:</b>\n`
+      if (hasOptions) {
         Object.entries(config.options).forEach(([key, opt]) => {
           text += `  <b>${key}</b> दबाएं → ${opt.action === 'forward' ? '📲 फ़ॉरवर्ड ' + formatPhone(opt.forwardTo) : opt.action === 'voicemail' ? '🎙️ वॉइसमेल' : '🔊 ' + (opt.message || 'मैसेज चलाएं')}\n`
         })
       } else {
-        text += '  कोई विकल्प कॉन्फ़िगर नहीं।\n'
+        text += '  ⚠️ <b>अभी तक कोई विकल्प नहीं जोड़ा गया — IVR नहीं चलेगा।</b>\n  कॉलर मेनू को छोड़कर सीधे वॉइसमेल पर चले जाएंगे (या वॉइसमेल बंद होने पर "अनुपलब्ध" सुनेंगे)।\n  कम से कम एक विकल्प जोड़ने के लिए नीचे <b>➕ विकल्प जोड़ें</b> टैप करें (जैसे <code>1 forward +14155551234</code>)।\n'
       }
       return text
     },

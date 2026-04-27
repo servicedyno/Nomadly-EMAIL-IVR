@@ -715,13 +715,27 @@ function getPoolMinutesUsed(numbers, num) {
   return (num.minutesUsed || 0) + subs.reduce((sum, n) => sum + (n.minutesUsed || 0), 0)
 }
 
+// ── Normalize plan limit values: 'Unlimited' / null / undefined / non-numeric → Infinity ──
+// FIX (Feb 2026): phoneConfig.plans.business.minutes is the LITERAL STRING 'Unlimited' (used for display).
+// Without normalization, getPool*Limit returned 'Unlimited' (string), which propagated NaN through
+// arithmetic in computeDialTimeLimit → invalid <Dial timeLimit="NaN"> in TwiML.
+function _normalizePlanLimit(val) {
+  if (val == null || val === 'Unlimited') return Infinity
+  if (typeof val === 'number') return Number.isFinite(val) ? val : Infinity
+  if (typeof val === 'string') {
+    const n = parseInt(val, 10)
+    return Number.isFinite(n) ? n : Infinity
+  }
+  return Infinity
+}
+
 // ── Get the plan limit for a number (sub-numbers use parent's plan) ──
 function getPoolMinuteLimit(numbers, num) {
   if (num.isSubNumber && num.parentNumber) {
     const parent = numbers.find(n => n.phoneNumber === num.parentNumber && !n.isSubNumber)
-    return phoneConfig.plans[parent?.plan || num.plan]?.minutes || Infinity
+    return _normalizePlanLimit(phoneConfig.plans[parent?.plan || num.plan]?.minutes)
   }
-  return phoneConfig.plans[num.plan]?.minutes || Infinity
+  return _normalizePlanLimit(phoneConfig.plans[num.plan]?.minutes)
 }
 
 // ── Get pool-wide SMS used (parent + sub-numbers) ──
@@ -738,9 +752,9 @@ function getPoolSmsUsed(numbers, num) {
 function getPoolSmsLimit(numbers, num) {
   if (num.isSubNumber && num.parentNumber) {
     const parent = numbers.find(n => n.phoneNumber === num.parentNumber && !n.isSubNumber)
-    return phoneConfig.plans[parent?.plan || num.plan]?.sms || Infinity
+    return _normalizePlanLimit(phoneConfig.plans[parent?.plan || num.plan]?.sms)
   }
-  return phoneConfig.plans[num.plan]?.sms || Infinity
+  return _normalizePlanLimit(phoneConfig.plans[num.plan]?.sms)
 }
 
 /**
@@ -758,17 +772,27 @@ function getPoolSmsLimit(numbers, num) {
  * @returns {number} seconds (capped between 60 and 14400)
  */
 function computeDialTimeLimit(mode, { planMinutesRemaining = 0, walletBalance = 0, ratePerMinute = 0.04 }) {
+  // Defensive: coerce non-finite inputs to safe defaults so we never emit <Dial timeLimit="NaN">.
+  const planRem = Number.isFinite(planMinutesRemaining) ? planMinutesRemaining
+    : (planMinutesRemaining === Infinity ? Infinity : 0)
+  const wallet = Number.isFinite(walletBalance) ? walletBalance : 0
+  const rate = Number.isFinite(ratePerMinute) && ratePerMinute > 0 ? ratePerMinute : 0.04
+
   let totalSeconds = 0
   if (mode === 'inbound') {
-    // Plan minutes first, then wallet overage
-    totalSeconds = planMinutesRemaining * 60
-    if (ratePerMinute > 0 && walletBalance > 0) {
-      totalSeconds += Math.floor(walletBalance / ratePerMinute) * 60
+    // Plan minutes first, then wallet overage. Treat unlimited (Infinity) as 4-hour budget.
+    if (planRem === Infinity) {
+      totalSeconds = 14400
+    } else {
+      totalSeconds = planRem * 60
+      if (wallet > 0) {
+        totalSeconds += Math.floor(wallet / rate) * 60
+      }
     }
   } else {
     // Outbound / forwarding — wallet only
-    if (ratePerMinute > 0 && walletBalance > 0) {
-      totalSeconds = Math.floor(walletBalance / ratePerMinute) * 60
+    if (wallet > 0) {
+      totalSeconds = Math.floor(wallet / rate) * 60
     }
   }
   // Clamp: min 60s (1 min), max 14400s (4 hours — Twilio max)
@@ -8493,6 +8517,14 @@ All verified numbers generated during sourcing.`))
     }
     // Add CTA buttons after showing OTP so user knows what to do next
     return send(chatId, pMsg.sipTestCode(result.otp, result.callsRemaining), { parse_mode: 'HTML', reply_markup: { keyboard: [[user.cloudPhone], [t.back]], resize_keyboard: true } })
+  }
+
+  // /sipguide — show SIP / 3CX setup guide (accessible without owning a number)
+  if (message === '/sipguide') {
+    const lang = info?.userLanguage || 'en'
+    const cpTxtLocal = phoneConfig.getTxt(lang)
+    const sipDomain = phoneConfig.SIP_DOMAIN
+    return send(chatId, cpTxtLocal.softphoneGuide(sipDomain), { parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: { keyboard: [[user.cloudPhone], [t.back]], resize_keyboard: true } })
   }
 
   // /done — exit support chat (only if in support chat mode)
@@ -30535,6 +30567,7 @@ const setupTelegramWebhook = async () => {
     await bot.setMyCommands([
       { command: 'start', description: 'Start the bot / Main menu' },
       { command: 'testsip', description: 'Generate OTP for SIP test' },
+      { command: 'sipguide', description: '3CX / SIP softphone setup guide' },
     ])
     log('✅ Default bot commands registered')
 
