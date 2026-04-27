@@ -9,12 +9,12 @@ import SecurityPanel from '../components/panel/SecurityPanel';
 import useTheme from '../components/panel/useTheme';
 
 const TABS = [
-  { id: 'files', label: 'Files', icon: 'folder' },
-  { id: 'domains', label: 'Domains', icon: 'globe' },
-  { id: 'email', label: 'Email', icon: 'mail' },
-  { id: 'security', label: 'Security', icon: 'shield' },
-  { id: 'geo', label: 'Geo', icon: 'lock' },
-  { id: 'analytics', label: 'Analytics', icon: 'chart' },
+  { id: 'files', label: 'Files', icon: 'folder', desc: 'Upload & manage website files' },
+  { id: 'domains', label: 'Domains', icon: 'globe', desc: 'Manage connected domains' },
+  { id: 'email', label: 'Email', icon: 'mail', desc: 'Create email accounts' },
+  { id: 'security', label: 'Security', icon: 'shield', desc: 'Anti-bot & protection' },
+  { id: 'geo', label: 'Geo', icon: 'lock', desc: 'Geographic restrictions' },
+  { id: 'analytics', label: 'Analytics', icon: 'chart', desc: 'Traffic & visitor stats' },
 ];
 
 export default function PanelDashboard() {
@@ -34,8 +34,18 @@ export default function PanelDashboard() {
               <circle cx="6" cy="18" r="1" fill="currentColor"/>
             </svg>
           </div>
-          <span className="panel-header-title">Hosting Panel</span>
-          <span className="panel-header-domain" data-testid="panel-domain">{user?.domain}</span>
+          <span className="panel-header-title">Nomadly Hosting</span>
+          <a 
+            href={`https://${user?.domain}`} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="panel-header-domain" 
+            data-testid="panel-domain"
+            title="Visit your website"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10A15.3 15.3 0 0112 2z"/></svg>
+            {user?.domain}
+          </a>
         </div>
         <div className="panel-header-right">
           <button onClick={toggleTheme} className="panel-theme-btn" data-testid="panel-theme-toggle" title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}>
@@ -45,8 +55,12 @@ export default function PanelDashboard() {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
             )}
           </button>
-          <span className="panel-header-user" data-testid="panel-username">{user?.username}</span>
+          <span className="panel-header-user" data-testid="panel-username">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            {user?.username}
+          </span>
           <button onClick={logout} className="panel-logout-btn" data-testid="panel-logout-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
             Sign Out
           </button>
         </div>
@@ -59,6 +73,7 @@ export default function PanelDashboard() {
             className={`panel-tab ${activeTab === tab.id ? 'panel-tab--active' : ''}`}
             onClick={() => setActiveTab(tab.id)}
             data-testid={`panel-tab-${tab.id}`}
+            title={tab.desc}
           >
             <TabIcon name={tab.icon} />
             <span>{tab.label}</span>

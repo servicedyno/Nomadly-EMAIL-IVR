@@ -1355,6 +1355,158 @@
   margin-top: 20px;
 }
 
+.panel-input-hint {
+  display: block;
+  font-size: 11px;
+  color: #5a5a70;
+  margin-top: 4px;
+  padding-left: 2px;
+}
+
+.panel-login-btn-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.panel-spin {
+  animation: panelSpin 1s linear infinite;
+}
+
+@keyframes panelSpin {
+  to { transform: rotate(360deg); }
+}
+
+.panel-login-help-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 20px auto 0;
+  padding: 8px 12px;
+  background: none;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  color: #8888aa;
+  font-size: 12.5px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s;
+}
+
+.panel-login-help-btn:hover {
+  color: #aaaacc;
+  border-color: rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.02);
+}
+
+.panel-login-help-box {
+  margin-top: 16px;
+  padding: 16px;
+  background: rgba(59,130,246,0.04);
+  border: 1px solid rgba(59,130,246,0.12);
+  border-radius: 10px;
+  animation: panelSlideDown 0.2s ease;
+}
+
+@keyframes panelSlideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.panel-help-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0;
+}
+
+.panel-help-num {
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  background: linear-gradient(135deg, #2563eb, #6d28d9);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.panel-help-step span {
+  font-size: 13px;
+  color: #9898bb;
+  line-height: 1.5;
+}
+
+.panel-help-step strong {
+  color: #c0c0dd;
+}
+
+.panel-help-divider {
+  height: 1px;
+  background: rgba(255,255,255,0.06);
+  margin: 10px 0;
+}
+
+.panel-help-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #7878aa;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.panel-help-note strong {
+  color: #9898cc;
+}
+
+/* Light mode overrides for login help */
+.panel-light .panel-login-help-btn {
+  border-color: rgba(0,0,0,0.1);
+  color: #666;
+}
+
+.panel-light .panel-login-help-btn:hover {
+  color: #333;
+  border-color: rgba(0,0,0,0.2);
+  background: rgba(0,0,0,0.02);
+}
+
+.panel-light .panel-login-help-box {
+  background: rgba(59,130,246,0.04);
+  border-color: rgba(59,130,246,0.15);
+}
+
+.panel-light .panel-help-step span {
+  color: #555;
+}
+
+.panel-light .panel-help-step strong {
+  color: #222;
+}
+
+.panel-light .panel-help-note {
+  color: #666;
+}
+
+.panel-light .panel-help-note strong {
+  color: #333;
+}
+
+.panel-light .panel-input-hint {
+  color: #888;
+}
+
+.panel-login-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* ─── Dashboard ──────────────────────────────── */
 .panel-dashboard {
   min-height: 100vh;
@@ -1396,11 +1548,21 @@
 }
 
 .panel-header-domain {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 13px;
   color: #6b6b80;
   background: rgba(255,255,255,0.04);
   padding: 4px 10px;
   border-radius: 6px;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.panel-header-domain:hover {
+  color: #60a5fa;
+  background: rgba(96, 165, 250, 0.08);
 }
 
 .panel-header-right {
@@ -1410,11 +1572,17 @@
 }
 
 .panel-header-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 13px;
   color: #9898aa;
 }
 
 .panel-logout-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   padding: 6px 14px;
   background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.08);
@@ -1597,6 +1765,9 @@
 }
 
 .fm-success {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   background: rgba(16, 185, 129, 0.12);
   border: 1px solid rgba(16, 185, 129, 0.25);
   color: #34d399;
@@ -1613,6 +1784,271 @@
   padding: 48px 24px;
   color: #5a5a70;
   font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.fm-empty span {
+  font-size: 12px;
+  color: #4a4a60;
+}
+
+/* ─── Location Banner ──────────────────────────── */
+.fm-location-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  background: rgba(59, 130, 246, 0.06);
+  border: 1px solid rgba(59, 130, 246, 0.15);
+  border-radius: 8px;
+}
+
+.fm-location-banner-icon {
+  color: #60a5fa;
+  flex-shrink: 0;
+}
+
+.fm-location-banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fm-location-banner-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #60a5fa;
+}
+
+.fm-location-banner-domain {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.fm-location-banner-domain a {
+  color: #60a5fa;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.fm-location-banner-domain a:hover {
+  text-decoration: underline;
+}
+
+/* ─── Getting Started Guide ──────────────────── */
+.fm-getting-started {
+  background: rgba(16, 185, 129, 0.04);
+  border: 1px solid rgba(16, 185, 129, 0.15);
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 16px;
+  animation: panelSlideDown 0.3s ease;
+}
+
+.fm-gs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.fm-gs-header h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #34d399;
+  margin: 0;
+}
+
+.fm-gs-dismiss {
+  background: none;
+  border: none;
+  color: #5a5a70;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color 0.2s;
+}
+
+.fm-gs-dismiss:hover {
+  color: #f87171;
+}
+
+.fm-gs-subtitle {
+  font-size: 13px;
+  color: #94a3b8;
+  margin: 0 0 16px;
+  line-height: 1.5;
+}
+
+.fm-gs-subtitle strong {
+  color: #e2e8f0;
+}
+
+.fm-gs-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.fm-gs-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.fm-gs-step-num {
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #34d399;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.fm-gs-step-content {
+  flex: 1;
+}
+
+.fm-gs-step-content strong {
+  display: block;
+  font-size: 13px;
+  color: #e2e8f0;
+  margin-bottom: 2px;
+}
+
+.fm-gs-step-content p {
+  font-size: 12px;
+  color: #8890a8;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.fm-gs-step-content a {
+  color: #60a5fa;
+  text-decoration: none;
+}
+
+.fm-gs-step-content a:hover {
+  text-decoration: underline;
+}
+
+.fm-gs-tips {
+  border-top: 1px solid rgba(255,255,255,0.06);
+  padding-top: 12px;
+}
+
+.fm-gs-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+  color: #8890a8;
+  line-height: 1.5;
+}
+
+.fm-gs-tip svg {
+  color: #f59e0b;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.fm-gs-tip strong {
+  color: #c0c8e0;
+}
+
+/* ─── Drag & Drop Overlay ────────────────────── */
+.fm-drag-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(37, 99, 235, 0.12);
+  border: 2px dashed #60a5fa;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  animation: panelSlideDown 0.15s ease;
+}
+
+.fm-drag-content {
+  text-align: center;
+  color: #60a5fa;
+}
+
+.fm-drag-content p {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 12px 0 4px;
+}
+
+.fm-drag-content span {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+/* ─── Upload Progress ────────────────────────── */
+.fm-upload-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  margin-bottom: 8px;
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.15);
+  border-radius: 6px;
+  font-size: 12px;
+  color: #60a5fa;
+}
+
+/* ─── Tip Box ────────────────────────────────── */
+.fm-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 8px 0;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(59,130,246,.06);
+  border: 1px solid rgba(59,130,246,.15);
+  color: #60a5fa;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.fm-tip svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.fm-tip strong {
+  color: #93c5fd;
+}
+
+/* ─── Breadcrumb highlight ───────────────────── */
+.fm-bread-item--highlight {
+  color: #60a5fa !important;
+  font-weight: 500;
+}
+
+/* ─── FM needs position relative for drag overlay ─ */
+.fm {
+  position: relative;
 }
 
 .fm-table {
@@ -2494,6 +2930,93 @@
 .panel-light .fm-loading,
 .panel-light .fm-empty {
   color: #9ca3af;
+}
+
+/* ─── Light mode: Location Banner ────────────── */
+.panel-light .fm-location-banner {
+  background: rgba(37, 99, 235, 0.04);
+  border-color: rgba(37, 99, 235, 0.12);
+}
+.panel-light .fm-location-banner-label {
+  color: #2563eb;
+}
+.panel-light .fm-location-banner-domain {
+  color: #6b7280;
+}
+.panel-light .fm-location-banner-domain a {
+  color: #2563eb;
+}
+
+/* ─── Light mode: Getting Started ────────────── */
+.panel-light .fm-getting-started {
+  background: rgba(16, 185, 129, 0.03);
+  border-color: rgba(16, 185, 129, 0.15);
+}
+.panel-light .fm-gs-header h3 {
+  color: #059669;
+}
+.panel-light .fm-gs-subtitle {
+  color: #6b7280;
+}
+.panel-light .fm-gs-subtitle strong {
+  color: #1f2937;
+}
+.panel-light .fm-gs-step-num {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.25);
+  color: #059669;
+}
+.panel-light .fm-gs-step-content strong {
+  color: #1f2937;
+}
+.panel-light .fm-gs-step-content p {
+  color: #6b7280;
+}
+.panel-light .fm-gs-step-content a {
+  color: #2563eb;
+}
+.panel-light .fm-gs-tips {
+  border-top-color: rgba(0,0,0,0.06);
+}
+.panel-light .fm-gs-tip {
+  color: #6b7280;
+}
+.panel-light .fm-gs-tip strong {
+  color: #374151;
+}
+
+/* ─── Light mode: Drag & Drop ────────────────── */
+.panel-light .fm-drag-overlay {
+  background: rgba(37, 99, 235, 0.06);
+  border-color: #2563eb;
+}
+.panel-light .fm-drag-content {
+  color: #2563eb;
+}
+.panel-light .fm-drag-content span {
+  color: #6b7280;
+}
+
+/* ─── Light mode: Upload Progress ────────────── */
+.panel-light .fm-upload-progress {
+  background: rgba(37, 99, 235, 0.04);
+  border-color: rgba(37, 99, 235, 0.12);
+  color: #2563eb;
+}
+
+/* ─── Light mode: Tip ────────────────────────── */
+.panel-light .fm-tip {
+  background: rgba(37,99,235,.04);
+  border-color: rgba(37,99,235,.12);
+  color: #2563eb;
+}
+.panel-light .fm-tip strong {
+  color: #1d4ed8;
+}
+
+/* ─── Light mode: Breadcrumb highlight ───────── */
+.panel-light .fm-bread-item--highlight {
+  color: #2563eb !important;
 }
 
 /* ─── File Manager (Light) ───────────────────── */

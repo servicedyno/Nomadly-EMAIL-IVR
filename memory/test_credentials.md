@@ -17,3 +17,4 @@
 
 ## Bot
 - Username: @NomadlyBot
+## Panel Local Test Account\n- Username: testuser\n- PIN: 123456\n- Domain: example-test.com

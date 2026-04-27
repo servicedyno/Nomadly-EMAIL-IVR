@@ -8,6 +8,7 @@ export default function PanelLogin() {
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const { theme, toggleTheme, isDark } = useTheme();
 
   const handleSubmit = async (e) => {
@@ -43,33 +44,35 @@ export default function PanelLogin() {
               <circle cx="6" cy="18" r="1" fill="currentColor"/>
             </svg>
           </div>
-          <h1>Hosting Panel</h1>
-          <p>Manage your files, domains and email</p>
+          <h1>Nomadly Hosting</h1>
+          <p>Upload your website files, manage domains & emails</p>
         </div>
 
         <form onSubmit={handleSubmit} data-testid="panel-login-form">
           {error && (
             <div className="panel-login-error" data-testid="panel-login-error">
-              {error}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{flexShrink: 0}}><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+              <span>{error}</span>
             </div>
           )}
 
           <div className="panel-input-group">
-            <label htmlFor="username">cPanel Username</label>
+            <label htmlFor="username">Username</label>
             <input
               id="username"
               data-testid="panel-login-username"
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="e.g. mysite"
+              placeholder="Enter your hosting username"
               autoComplete="username"
               required
             />
+            <span className="panel-input-hint">The username sent to you on Telegram</span>
           </div>
 
           <div className="panel-input-group">
-            <label htmlFor="pin">PIN</label>
+            <label htmlFor="pin">PIN Code</label>
             <input
               id="pin"
               data-testid="panel-login-pin"
@@ -78,10 +81,11 @@ export default function PanelLogin() {
               maxLength={6}
               value={pin}
               onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-              placeholder="6-digit PIN"
+              placeholder="Enter 6-digit PIN"
               autoComplete="current-password"
               required
             />
+            <span className="panel-input-hint">6-digit code from your Telegram message</span>
           </div>
 
           <button
@@ -90,13 +94,45 @@ export default function PanelLogin() {
             data-testid="panel-login-submit"
             disabled={loading || !username || pin.length < 6}
           >
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading ? (
+              <span className="panel-login-btn-loading">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="panel-spin"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
+                Signing in...
+              </span>
+            ) : 'Sign In'}
           </button>
         </form>
 
-        <p className="panel-login-help">
-          Your PIN was sent via Telegram when your hosting was purchased.
-        </p>
+        <button 
+          className="panel-login-help-btn" 
+          onClick={() => setShowHelp(!showHelp)}
+          data-testid="panel-help-toggle"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          {showHelp ? 'Hide help' : "Can't find your login details?"}
+        </button>
+
+        {showHelp && (
+          <div className="panel-login-help-box" data-testid="panel-help-box">
+            <div className="panel-help-step">
+              <span className="panel-help-num">1</span>
+              <span>Open <strong>@NomadlyBot</strong> on Telegram</span>
+            </div>
+            <div className="panel-help-step">
+              <span className="panel-help-num">2</span>
+              <span>Look for the message with your <strong>hosting credentials</strong> (sent when you purchased hosting)</span>
+            </div>
+            <div className="panel-help-step">
+              <span className="panel-help-num">3</span>
+              <span>Copy your <strong>Username</strong> and <strong>6-digit PIN</strong> from that message</span>
+            </div>
+            <div className="panel-help-divider"></div>
+            <p className="panel-help-note">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              Still can't find it? Message <strong>@nomadlysupport</strong> on Telegram for PIN reset.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

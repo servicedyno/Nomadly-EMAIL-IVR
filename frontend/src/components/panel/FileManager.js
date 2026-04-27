@@ -8,6 +8,7 @@ export default function FileManager() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState('');
   const [extracting, setExtracting] = useState(null);
   const [showNewDir, setShowNewDir] = useState(false);
   const [newDirName, setNewDirName] = useState('');
@@ -18,9 +19,17 @@ export default function FileManager() {
   const [renameValue, setRenameValue] = useState('');
   const [copiedUrl, setCopiedUrl] = useState(null);
   const [successMessage, setSuccessMessage] = useState('');
-  const [copyMoveAction, setCopyMoveAction] = useState(null); // { type: 'copy'|'move', fileName: string }
+  const [copyMoveAction, setCopyMoveAction] = useState(null);
   const [destDir, setDestDir] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
+  const [dismissedGuide, setDismissedGuide] = useState(() => {
+    return sessionStorage.getItem('panel_guide_dismissed') === 'true';
+  });
   const fileInputRef = useRef(null);
+  const dropZoneRef = useRef(null);
+
+  const isPublicHtml = currentDir.includes('/public_html');
+  const isPublicHtmlRoot = currentDir.endsWith('/public_html') || currentDir.endsWith('/public_html/');
 
   const fetchFiles = useCallback(async (dir) => {
     setLoading(true);
@@ -50,6 +59,29 @@ export default function FileManager() {
     fetchFiles(currentDir);
   }, [currentDir, fetchFiles]);
 
+  // Drag and drop handlers
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    const droppedFiles = Array.from(e.dataTransfer.files);
+    if (droppedFiles.length > 0) {
+      await uploadFiles(droppedFiles);
+    }
+  };
+
   const navigate = (dirName) => {
     const newDir = currentDir.endsWith('/') ? currentDir + dirName : currentDir + '/' + dirName;
     setCurrentDir(newDir);
@@ -62,8 +94,7 @@ export default function FileManager() {
     setCurrentDir(parent);
   };
 
-  const handleUpload = async (e) => {
-    const selected = Array.from(e.target.files || []);
+  const uploadFiles = async (selected) => {
     if (!selected.length) return;
     setUploading(true);
     setError('');
@@ -77,10 +108,9 @@ export default function FileManager() {
           const formData = new FormData();
           formData.append('file', file);
           formData.append('dir', currentDir);
+          setUploadProgress(`Uploading ${done + 1}/${total}: ${file.name}`);
           await api('/files/upload', { method: 'POST', body: formData });
           done++;
-          // Live progress for multi-file batches
-          if (total > 1) setSuccessMessage(`⬆️ Uploading ${done}/${total} — ${file.name}`);
         } catch (err) {
           failures.push({ name: file.name, msg: friendlyUploadError(err) });
         }
@@ -90,10 +120,10 @@ export default function FileManager() {
         if (total === 1) {
           const uploadedUrl = getPublicUrl(selected[0].name, false);
           setSuccessMessage(uploadedUrl
-            ? `✅ File uploaded! Access it at: ${uploadedUrl}`
-            : `✅ File uploaded!`);
+            ? `File uploaded successfully! View it at: ${uploadedUrl}`
+            : `File uploaded successfully!`);
         } else {
-          setSuccessMessage(`✅ ${done} files uploaded to ${currentDir}`);
+          setSuccessMessage(`${done} files uploaded successfully!`);
         }
         setTimeout(() => setSuccessMessage(''), 8000);
       } else {
@@ -106,21 +136,26 @@ export default function FileManager() {
       fetchFiles(currentDir);
     } finally {
       setUploading(false);
+      setUploadProgress('');
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  // Make "Request failed (499/500/etc.)" readable and actionable for end users
+  const handleUpload = async (e) => {
+    const selected = Array.from(e.target.files || []);
+    await uploadFiles(selected);
+  };
+
   const friendlyUploadError = (err) => {
     const m = String(err?.message || err || '');
     if (/499|aborted|cancelled/i.test(m)) {
-      return 'Upload interrupted (network/timeout). Please retry — for whole sites, upload a .zip and use Unzip.';
+      return 'Upload interrupted (network/timeout). Please retry — for whole sites, upload a .zip and use Extract.';
     }
     if (/too large|LIMIT_FILE_SIZE|413/i.test(m)) {
-      return 'File exceeds 100 MB limit. Split it, or compress into a .zip and Unzip here.';
+      return 'File exceeds 100 MB limit. Split it, or compress into a .zip and extract here.';
     }
     if (/500/.test(m)) {
-      return 'Server error during upload. Try again, or upload a .zip and use Unzip.';
+      return 'Server error during upload. Try again, or upload a .zip and use Extract.';
     }
     return m || 'Upload failed.';
   };
@@ -150,12 +185,14 @@ export default function FileManager() {
       if (res.errors?.length) {
         setError(`Extract failed: ${res.errors[0]}`);
       } else {
-        // Show success with directory URL
         const folderName = fileName.replace(/\.(zip|tar\.gz|tgz|tar)$/i, '');
         const extractedUrl = getPublicUrl(folderName, true);
         if (extractedUrl) {
-          setSuccessMessage(`✅ Files extracted! View your site at: ${extractedUrl}`);
-          setTimeout(() => setSuccessMessage(''), 10000);
+          setSuccessMessage(`Files extracted! Your site should now be live at: ${extractedUrl}`);
+          setTimeout(() => setSuccessMessage(''), 12000);
+        } else {
+          setSuccessMessage('Files extracted successfully!');
+          setTimeout(() => setSuccessMessage(''), 8000);
         }
         fetchFiles(currentDir);
       }
@@ -256,7 +293,7 @@ export default function FileManager() {
       if (res.errors?.length) {
         setError(`${type === 'copy' ? 'Copy' : 'Move'} failed: ${res.errors[0]}`);
       } else {
-        setSuccessMessage(`✅ ${fileName} ${type === 'copy' ? 'copied' : 'moved'} to ${destDir.trim()}`);
+        setSuccessMessage(`${fileName} ${type === 'copy' ? 'copied' : 'moved'} to ${destDir.trim()}`);
         setTimeout(() => setSuccessMessage(''), 5000);
         setCopyMoveAction(null);
         setDestDir('');
@@ -267,36 +304,35 @@ export default function FileManager() {
     }
   };
 
+  const dismissGuide = () => {
+    setDismissedGuide(true);
+    sessionStorage.setItem('panel_guide_dismissed', 'true');
+  };
+
   const breadcrumbs = currentDir.split('/').filter(Boolean);
   const isTextFile = (name) => /\.(html?|css|js|json|xml|txt|php|py|md|htaccess|conf|log|yml|yaml|env|sh|sql|csv)$/i.test(name);
   const isArchive = (name) => /\.(zip|tar\.gz|tgz|tar\.bz2|gz|bz2|tar)$/i.test(name);
   const isWebFile = (name) => /\.(html?|php|htm)$/i.test(name);
 
-  // Calculate public URL for a file/folder
   const getPublicUrl = (fileName, isDirectory) => {
-    // Extract path relative to public_html
     const publicHtmlIndex = currentDir.indexOf('/public_html');
     if (publicHtmlIndex === -1) return null;
     
     const relativePath = currentDir.substring(publicHtmlIndex + '/public_html'.length);
     const fullPath = relativePath ? `${relativePath}/${fileName}` : `/${fileName}`;
     
-    // Construct the full URL
     const domain = user?.domain || 'yourdomain.com';
     const protocol = 'https://';
     
-    // For directories, add trailing slash; for index files, show directory URL
     if (isDirectory) {
       return `${protocol}${domain}${fullPath}/`;
     } else if (fileName === 'index.html' || fileName === 'index.php') {
-      // For index files, show the directory URL (cleaner)
       return `${protocol}${domain}${relativePath || '/'}`;
     } else {
       return `${protocol}${domain}${fullPath}`;
     }
   };
 
-  // Copy URL to clipboard
   const copyUrl = async (url, fileName) => {
     try {
       await navigator.clipboard.writeText(url);
@@ -307,8 +343,38 @@ export default function FileManager() {
     }
   };
 
+  // Check if we should show the getting started guide
+  const hasUserFiles = files.filter(f => {
+    const name = f.file || '';
+    return name !== 'cgi-bin' && name !== '.htaccess' && name !== '.user.ini' && name !== '.antired-challenge.php';
+  }).length > 0;
+
+  const showGettingStarted = isPublicHtmlRoot && !hasUserFiles && !dismissedGuide && !loading;
+
   return (
-    <div className="fm" data-testid="file-manager">
+    <div 
+      className="fm" 
+      data-testid="file-manager"
+      ref={dropZoneRef}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {/* Drag overlay */}
+      {isDragging && (
+        <div className="fm-drag-overlay" data-testid="fm-drag-overlay">
+          <div className="fm-drag-content">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            <p>Drop files here to upload</p>
+            {isPublicHtml && <span>Files will be accessible on your website</span>}
+          </div>
+        </div>
+      )}
+
       {/* Editor Modal */}
       {editingFile && (
         <div className="fm-modal-overlay" data-testid="fm-editor-modal">
@@ -334,6 +400,72 @@ export default function FileManager() {
         </div>
       )}
 
+      {/* Location Banner - shows domain connection */}
+      {isPublicHtml && (
+        <div className="fm-location-banner" data-testid="fm-location-banner">
+          <div className="fm-location-banner-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="2" y1="12" x2="22" y2="12"/>
+              <path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10A15.3 15.3 0 0112 2z"/>
+            </svg>
+          </div>
+          <div className="fm-location-banner-text">
+            <span className="fm-location-banner-label">Website folder</span>
+            <span className="fm-location-banner-domain">
+              Files here appear at <a href={`https://${user?.domain}`} target="_blank" rel="noopener noreferrer">https://{user?.domain}</a>
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Getting Started Guide */}
+      {showGettingStarted && (
+        <div className="fm-getting-started" data-testid="fm-getting-started">
+          <div className="fm-gs-header">
+            <h3>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              Get your website online
+            </h3>
+            <button onClick={dismissGuide} className="fm-gs-dismiss" title="Dismiss guide">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <p className="fm-gs-subtitle">You're in the right place! Upload your website files here and they'll be live at <strong>https://{user?.domain}</strong></p>
+          
+          <div className="fm-gs-steps">
+            <div className="fm-gs-step">
+              <div className="fm-gs-step-num">1</div>
+              <div className="fm-gs-step-content">
+                <strong>Upload your files</strong>
+                <p>Click "Upload" or drag & drop your website files (HTML, CSS, JS, images) into this area. For a full site, upload a <strong>.zip file</strong> and click "Extract".</p>
+              </div>
+            </div>
+            <div className="fm-gs-step">
+              <div className="fm-gs-step-num">2</div>
+              <div className="fm-gs-step-content">
+                <strong>Make sure index.html exists</strong>
+                <p>Your main page should be named <strong>index.html</strong> (or index.php). This is what visitors see when they open your domain.</p>
+              </div>
+            </div>
+            <div className="fm-gs-step">
+              <div className="fm-gs-step-num">3</div>
+              <div className="fm-gs-step-content">
+                <strong>Visit your website</strong>
+                <p>Once files are uploaded, your site is live at <a href={`https://${user?.domain}`} target="_blank" rel="noopener noreferrer">https://{user?.domain}</a></p>
+              </div>
+            </div>
+          </div>
+
+          <div className="fm-gs-tips">
+            <div className="fm-gs-tip">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="2"/><path d="M9 2v6h6V2"/><path d="M12 8v4"/><path d="M9 12h6"/></svg>
+              <span><strong>Pro tip:</strong> Zip your entire website folder, upload the .zip, then click "Extract" — much faster than uploading files one by one!</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toolbar */}
       <div className="fm-toolbar" data-testid="fm-toolbar">
         <div className="fm-breadcrumb">
@@ -343,7 +475,7 @@ export default function FileManager() {
               <span className="fm-bread-sep">/</span>
               <button
                 onClick={() => setCurrentDir('/' + breadcrumbs.slice(0, i + 2).join('/'))}
-                className="fm-bread-item"
+                className={`fm-bread-item ${part === 'public_html' ? 'fm-bread-item--highlight' : ''}`}
               >{part}</button>
             </React.Fragment>
           ))}
@@ -357,11 +489,20 @@ export default function FileManager() {
             + Folder
           </button>
           <label className={`fm-btn fm-btn--primary ${uploading ? 'fm-btn--loading' : ''}`}>
-            {uploading ? 'Uploading...' : 'Upload'}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            {uploading ? 'Uploading...' : 'Upload Files'}
             <input type="file" multiple ref={fileInputRef} onChange={handleUpload} style={{ display: 'none' }} data-testid="fm-upload-input" />
           </label>
         </div>
       </div>
+
+      {/* Upload progress */}
+      {uploadProgress && (
+        <div className="fm-upload-progress" data-testid="fm-upload-progress">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="fm-spin"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
+          <span>{uploadProgress}</span>
+        </div>
+      )}
 
       {/* New Directory Input */}
       {showNewDir && (
@@ -383,27 +524,34 @@ export default function FileManager() {
       
       {successMessage && (
         <div className="fm-success" data-testid="fm-success">
-          {successMessage}
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          <span>{successMessage}</span>
         </div>
       )}
 
-      {/* Bulk-upload helper tip — shown when directory is mostly empty */}
-      {!loading && files.length <= 2 && !error && !successMessage && (
-        <div className="fm-tip" data-testid="fm-bulk-tip" style={{
-          margin: '8px 0', padding: '10px 12px', borderRadius: 6,
-          background: 'rgba(59,130,246,.08)', border: '1px solid rgba(59,130,246,.25)',
-          color: '#1e3a8a', fontSize: 13, lineHeight: 1.45,
-        }}>
-          💡 <b>Uploading a whole site?</b> Select multiple files at once, or upload a <b>.zip</b> of your site and tap <b>Unzip</b> on it — the whole structure will be extracted here.
+      {/* Inline upload tip when folder has few files but not empty */}
+      {!loading && !showGettingStarted && isPublicHtmlRoot && files.length <= 3 && !error && !successMessage && (
+        <div className="fm-tip" data-testid="fm-bulk-tip">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          <span><strong>Tip:</strong> Upload a <strong>.zip</strong> of your website and click "Extract" to unpack all files at once. Your site goes live at <strong>https://{user?.domain}</strong></span>
         </div>
       )}
 
       {/* File List */}
       <div className="fm-list" data-testid="fm-file-list">
         {loading ? (
-          <div className="fm-loading">Loading files...</div>
+          <div className="fm-loading">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="fm-spin"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
+            <span>Loading files...</span>
+          </div>
         ) : files.length === 0 ? (
-          <div className="fm-empty">This directory is empty</div>
+          <div className="fm-empty" data-testid="fm-empty-state">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{opacity: 0.4}}>
+              <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
+            </svg>
+            <p>This folder is empty</p>
+            {isPublicHtml && <span>Upload your website files here to get started</span>}
+          </div>
         ) : (
           <>
             {/* Desktop: Table view */}
@@ -610,7 +758,7 @@ export default function FileManager() {
                           ) : (
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="2"/><path d="M9 2v6h6V2"/><path d="M12 8v4"/><path d="M9 12h6"/></svg>
                           )}
-                          <span>Unzip</span>
+                          <span>Extract</span>
                         </button>
                       )}
                       {!isDir && isTextFile(name) && (
