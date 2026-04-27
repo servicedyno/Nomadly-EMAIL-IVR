@@ -1200,6 +1200,7 @@ let state = {},
   phoneTransactions = {},
   phoneLogs = {},
   ivrAnalytics = {},
+  ivrAudioStore = {},
   cnamCache = {}
   let digitalOrdersCol = {}
 
@@ -1491,6 +1492,7 @@ const loadData = async () => {
   phoneTransactions = db.collection('phoneTransactions')
   phoneLogs = db.collection('phoneLogs')
   ivrAnalytics = db.collection('ivrAnalytics')
+  ivrAudioStore = db.collection('ivrAudioStore') // Persistent IVR audio storage (survives Railway redeploys)
   cnamCache = db.collection('cnamCache')
   digitalOrdersCol = db.collection('digitalOrders')
 
@@ -21508,6 +21510,16 @@ Professional templates for voicemail, customer support, financial institutions, 
         ivrConf.greetingAudioUrl = draft.audioUrl || null
         ivrConf.greeting = draft.text || null
         ivrConf.greetingVoice = draft.voice || null
+        // ── Persist audio binary in MongoDB (survives Railway ephemeral FS wipes) ──
+        try {
+          const audioBuffer = require('fs').readFileSync(draft.audioPath)
+          const filename = require('path').basename(draft.audioPath)
+          await ivrAudioStore.updateOne(
+            { _id: num.phoneNumber + ':greeting' },
+            { $set: { buffer: audioBuffer.toString('base64'), filename, audioUrl: draft.audioUrl, updatedAt: new Date() } },
+            { upsert: true }
+          )
+        } catch (e) { log(`[IVR] Audio persist to MongoDB failed (non-blocking): ${e.message}`) }
       } else {
         ivrConf.greeting = draft.text || ivrConf.greeting
       }
@@ -21727,6 +21739,11 @@ How do you want to create the message?`), k.of([[btn.useTemplate], [btn.typeText
       else if (/^\d{11,15}$/.test(phone)) phone = '+' + phone
       if (phone.length < 8 || phone.length > 16 || !phone.startsWith('+')) {
         return send(chatId, ({ en: `❌ Invalid phone number. Enter a valid number (e.g. +15551234567):`, fr: `❌ Numéro invalide. Entrez un numéro valide (ex : +15551234567) :`, zh: `❌ 号码无效。请输入有效号码（如 +15551234567）：`, hi: `❌ अमान्य फ़ोन नंबर। मान्य नंबर दर्ज करें (जैसे +15551234567):` }[lang] || `❌ Invalid phone number. Enter a valid number (e.g. +15551234567):`), k.of([]))
+      }
+      // ── Prevent self-call loop: reject if forward target is the user's own IVR number ──
+      const ownNumber = (num.phoneNumber || '').replace(/[^+\d]/g, '')
+      if (phone === ownNumber) {
+        return send(chatId, ({ en: `❌ <b>Self-call loop detected!</b>\n\nYou cannot forward calls to the same IVR number (<b>${phoneConfig.formatPhone(phone)}</b>). This would create an infinite loop.\n\nPlease enter a <b>different</b> phone number (e.g. your 3CX extension, cell, or landline):`, fr: `❌ <b>Boucle d'auto-appel détectée !</b>\n\nVous ne pouvez pas transférer vers le même numéro IVR. Entrez un numéro différent :`, zh: `❌ <b>检测到自呼循环！</b>\n\n不能将呼叫转接到同一个IVR号码。请输入不同的号码：`, hi: `❌ <b>सेल्फ-कॉल लूप!</b>\n\nआप उसी IVR नंबर पर फ़ॉरवर्ड नहीं कर सकते। कृपया एक अलग नंबर दर्ज करें:` }[lang] || `❌ <b>Self-call loop detected!</b>\n\nYou cannot forward calls to the same IVR number (<b>${phoneConfig.formatPhone(phone)}</b>). This would create an infinite loop.\n\nPlease enter a <b>different</b> phone number (e.g. your 3CX extension, cell, or landline):`), k.of([]), { parse_mode: 'HTML' })
       }
       draft.forwardTo = phone
       await saveInfo('cpIvrDraft', draft)
@@ -21993,6 +22010,18 @@ Select a category:`), k.of(catBtns))
         if (draft.audioUrl) optionData.audioUrl = draft.audioUrl
         if (draft.voice) optionData.voice = draft.voice
         if (draft.lang) optionData.language = draft.lang
+        // ── Persist option audio in MongoDB (survives Railway redeploys) ──
+        if (draft.audioPath) {
+          try {
+            const audioBuffer = require('fs').readFileSync(draft.audioPath)
+            const filename = require('path').basename(draft.audioPath)
+            await ivrAudioStore.updateOne(
+              { _id: num.phoneNumber + ':option:' + draft.key },
+              { $set: { buffer: audioBuffer.toString('base64'), filename, audioUrl: draft.audioUrl, updatedAt: new Date() } },
+              { upsert: true }
+            )
+          } catch (e) { log(`[IVR] Option audio persist to MongoDB failed (non-blocking): ${e.message}`) }
+        }
       }
       ivrConf.options[draft.key] = optionData
       await updatePhoneNumberFeature(phoneNumbersOf, chatId, num.phoneNumber, 'ivr', ivrConf)
@@ -28957,7 +28986,7 @@ app.post('/twilio/voice-webhook', async (req, res) => {
 
       // ── Validate IVR greeting audio URL before playing ──
       // Audio files are stored on ephemeral filesystem and get wiped after Railway redeployment.
-      // If the file is gone, fall back to TTS greeting text to prevent static/silence.
+      // If the file is gone, attempt to restore from MongoDB first, then fall back to TTS.
       let greetingAudioValid = false
       if (ivrConfig.greetingAudioUrl) {
         try {
@@ -28969,7 +28998,21 @@ app.post('/twilio/voice-webhook', async (req, res) => {
             const localPath = require('path').join(__dirname, urlPath)
             greetingAudioValid = require('fs').existsSync(localPath)
             if (!greetingAudioValid) {
-              log(`[Twilio] IVR greeting audio missing on disk: ${localPath} — falling back to TTS`)
+              // ── Try restoring from MongoDB persistent store ──
+              try {
+                const stored = await ivrAudioStore.findOne({ _id: num.phoneNumber + ':greeting' })
+                if (stored && stored.buffer) {
+                  const dir = require('path').dirname(localPath)
+                  if (!require('fs').existsSync(dir)) require('fs').mkdirSync(dir, { recursive: true })
+                  require('fs').writeFileSync(localPath, Buffer.from(stored.buffer, 'base64'))
+                  greetingAudioValid = true
+                  log(`[Twilio] IVR greeting audio restored from MongoDB: ${localPath}`)
+                } else {
+                  log(`[Twilio] IVR greeting audio missing on disk and not in MongoDB: ${localPath} — falling back to TTS`)
+                }
+              } catch (restoreErr) {
+                log(`[Twilio] IVR greeting audio restore failed: ${restoreErr.message} — falling back to TTS`)
+              }
             }
           } else if (/^https?:\/\//i.test(audioUrl)) {
             // External URL — assume valid
@@ -29207,8 +29250,8 @@ app.post('/twilio/inbound-ivr-gather', async (req, res) => {
       const transferTo = option.number || option.forwardTo
       
       // ✅ PREVENT SELF-CALL LOOP (Scoreboard44 bug fix)
-      // If user configured IVR to forward to their own calling number, reject it
-      if (transferTo === decodedFrom) {
+      // If user configured IVR to forward to their own calling number OR the IVR number itself, reject it
+      if (transferTo === decodedFrom || transferTo === decodedTo) {
         response.say('Sorry, call forwarding to your own number is not allowed. Goodbye.')
         response.hangup()
         bot?.sendMessage(chatId, 
@@ -29218,7 +29261,7 @@ app.post('/twilio/inbound-ivr-gather', async (req, res) => {
           `💡 Please update your IVR settings to forward to a different number.`,
           { parse_mode: 'HTML' }
         ).catch(() => {})
-        log(`[Twilio] ❌ IVR self-call blocked: from=${decodedFrom} attempted forward to same number`)
+        log(`[Twilio] ❌ IVR self-call blocked: from=${decodedFrom} to=${decodedTo} attempted forward to same number ${transferTo}`)
         return res.type('text/xml').send(response.toString())
       }
       
@@ -29275,7 +29318,40 @@ app.post('/twilio/inbound-ivr-gather', async (req, res) => {
       })
       bot?.sendMessage(chatId, `📞 <b>IVR Call — Key ${Digits}</b>\nFrom: ${phoneConfig.formatPhone(decodedFrom)}\n📋 ${label} → Voicemail`, { parse_mode: 'HTML' }).catch(() => {})
     } else if (action === 'message') {
-      response.say(option.message || 'Thank you for calling. Goodbye.')
+      // Play saved audio if available, otherwise fall back to TTS say()
+      let optionAudioPlayed = false
+      if (option.audioUrl) {
+        try {
+          const selfUrl = process.env.SELF_URL_PROD || process.env.SELF_URL || ''
+          const audioUrl = option.audioUrl
+          if (selfUrl && (audioUrl.includes('/assets/user-audio/') || audioUrl.startsWith(selfUrl + '/assets/'))) {
+            const urlPath = new URL(audioUrl).pathname
+            const localPath = require('path').join(__dirname, urlPath)
+            if (!require('fs').existsSync(localPath)) {
+              // Try restoring from MongoDB
+              try {
+                const stored = await ivrAudioStore.findOne({ _id: num.phoneNumber + ':option:' + Digits })
+                if (stored && stored.buffer) {
+                  const dir = require('path').dirname(localPath)
+                  if (!require('fs').existsSync(dir)) require('fs').mkdirSync(dir, { recursive: true })
+                  require('fs').writeFileSync(localPath, Buffer.from(stored.buffer, 'base64'))
+                  log(`[Twilio] IVR option audio restored from MongoDB: ${localPath}`)
+                }
+              } catch (e) { log(`[Twilio] IVR option audio restore failed: ${e.message}`) }
+            }
+            if (require('fs').existsSync(localPath)) {
+              response.play(audioUrl)
+              optionAudioPlayed = true
+            }
+          } else if (/^https?:\/\//i.test(audioUrl)) {
+            response.play(audioUrl)
+            optionAudioPlayed = true
+          }
+        } catch (e) { log(`[Twilio] IVR option audio play error: ${e.message}`) }
+      }
+      if (!optionAudioPlayed) {
+        response.say(option.message || 'Thank you for calling. Goodbye.')
+      }
       response.hangup()
       bot?.sendMessage(chatId, `📞 <b>IVR Call — Key ${Digits}</b>\nFrom: ${phoneConfig.formatPhone(decodedFrom)}\n📋 ${label} → Message played`, { parse_mode: 'HTML' }).catch(() => {})
     } else {

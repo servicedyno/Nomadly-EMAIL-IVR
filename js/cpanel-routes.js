@@ -971,14 +971,17 @@ function createCpanelRoutes(getCpanelCol, opts = {}) {
     try {
       // ── Blocked domain check (phishing/abuse) ──
       try {
-        const blockedCol = db.collection('blockedDomains')
-        const blocked = await blockedCol.findOne({ domain: domain.toLowerCase() })
-        if (blocked) {
-          log(`[Panel] add-enhanced: BLOCKED domain rejected: ${domain} (reason: ${blocked.reason})`)
-          return res.status(403).json({
-            error: `This domain (${domain}) has been permanently blocked due to abuse policy violations and cannot be added.`,
-            blocked: true,
-          })
+        const db = getCpanelCol()?.s?.db
+        if (db) {
+          const blockedCol = db.collection('blockedDomains')
+          const blocked = await blockedCol.findOne({ domain: domain.toLowerCase() })
+          if (blocked) {
+            log(`[Panel] add-enhanced: BLOCKED domain rejected: ${domain} (reason: ${blocked.reason})`)
+            return res.status(403).json({
+              error: `This domain (${domain}) has been permanently blocked due to abuse policy violations and cannot be added.`,
+              blocked: true,
+            })
+          }
         }
       } catch (blockErr) {
         log(`[Panel] add-enhanced: blocklist check error (non-blocking): ${blockErr.message}`)
